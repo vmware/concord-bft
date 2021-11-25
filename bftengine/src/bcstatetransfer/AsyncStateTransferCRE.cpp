@@ -63,7 +63,7 @@ class Communication : public ICommunication {
     return ret;
   }
   void setReceiver(NodeNum receiverNum, IReceiver* receiver) override { receiver_ = receiver; }
-  void dispose(NodeNum i) override {}
+  void restartCommunication(NodeNum i) override {}
 
  private:
   std::shared_ptr<MsgsCommunicator> msgsCommunicator_;

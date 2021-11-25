@@ -10,16 +10,24 @@
 // file.
 
 #pragma once
-
-#include "messages/MessageBase.hpp"
-#include "messages/InternalMessage.hpp"
 #include <functional>
 #include <unordered_map>
 
+#include "messages/MessageBase.hpp"
+#include "messages/InternalMessage.hpp"
+#include "messages/ValidatedMessageCarrierInternalMsg.hpp"
+
 namespace bftEngine::impl {
 
-typedef std::function<void(MessageBase*)> MsgHandlerCallback;
-typedef std::function<void(InternalMessage&&)> InternalMsgHandlerCallback;
+template <typename T>
+using CallbackTypeWithPtrArg = std::function<void(T*)>;
+
+template <typename T>
+using CallbackTypeWithRefArg = std::function<void(T&&)>;
+
+using MsgHandlerCallback = CallbackTypeWithPtrArg<MessageBase>;
+using ValidatedMsgHandlerCallback = CallbackTypeWithPtrArg<CarrierMesssage>;
+using InternalMsgHandlerCallback = CallbackTypeWithRefArg<InternalMessage>;
 
 // MsgHandlersRegistrator class contains message handling callback functions.
 // Logically it's a singleton - only one message handler could be registered for every message type,
@@ -27,11 +35,26 @@ typedef std::function<void(InternalMessage&&)> InternalMsgHandlerCallback;
 // needs to have its own callbacks being called.
 // For each new message corresponding function of type MsgHandlerCallback should be registered via this class
 // otherwise the message could not be handled later.
+// MsgHandlersRegistrator class contains three kinds of callback functions:
+//  1) Default callback handler which will be called by the external message dispatcher.
+//  2) Validated callback handler which will be called when redispatching of internal
+//     message will happen.
+//  3) Internal message callback handler which will be called by the Internal message
+//     dispatcher.
+// MsgHandlersRegistrator is a repository of all kinds of callbacks.
 
 class MsgHandlersRegistrator {
  public:
   void registerMsgHandler(uint16_t msgId, const MsgHandlerCallback& callbackFunc) {
     msgHandlers_[msgId] = callbackFunc;
+  }
+
+  // This variation will allow addition of validated message callback function.
+  void registerMsgHandler(uint16_t msgId,
+                          const MsgHandlerCallback& callbackFunc,
+                          const ValidatedMsgHandlerCallback& validatedMsgCallbackFunc) {
+    msgHandlers_[msgId] = callbackFunc;
+    validatedMsgHandlers_[msgId] = validatedMsgCallbackFunc;
   }
 
   void registerInternalMsgHandler(const InternalMsgHandlerCallback& cb) { internalMsgHandler_ = cb; }
@@ -42,10 +65,20 @@ class MsgHandlersRegistrator {
     return nullptr;
   }
 
+  // Returns the validated callback message handler for the given message id.
+  // Validated callback is possible only for External Messages which were validated,
+  // so they are the subset of message which has a valid message type (msgId).
+  ValidatedMsgHandlerCallback getValidatedMsgCallback(uint16_t msgId) {
+    auto iterator = validatedMsgHandlers_.find(msgId);
+    if (iterator != validatedMsgHandlers_.end()) return iterator->second;
+    return nullptr;
+  }
+
   void handleInternalMsg(InternalMessage&& msg) { internalMsgHandler_(std::move(msg)); }
 
  private:
   std::unordered_map<uint16_t, MsgHandlerCallback> msgHandlers_;
+  std::unordered_map<uint16_t, ValidatedMsgHandlerCallback> validatedMsgHandlers_;
   InternalMsgHandlerCallback internalMsgHandler_;
 };
 

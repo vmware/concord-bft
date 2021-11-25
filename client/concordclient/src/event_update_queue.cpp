@@ -49,8 +49,11 @@ void BasicUpdateQueue::push(unique_ptr<EventVariant> update) {
 
 unique_ptr<EventVariant> BasicUpdateQueue::pop() {
   unique_lock<mutex> lock(mutex_);
-  while (!(release_consumers_ || (queue_data_.size() > 0))) {
+  while (!(exception || release_consumers_ || (queue_data_.size() > 0))) {
     condition_.wait(lock);
+  }
+  if (exception) {
+    std::rethrow_exception(exception);
   }
   if (release_consumers_) {
     return unique_ptr<EventVariant>(nullptr);
@@ -63,6 +66,9 @@ unique_ptr<EventVariant> BasicUpdateQueue::pop() {
 
 unique_ptr<EventVariant> BasicUpdateQueue::tryPop() {
   lock_guard<mutex> lock(mutex_);
+  if (exception) {
+    std::rethrow_exception(exception);
+  }
   if (queue_data_.size() > 0) {
     unique_ptr<EventVariant> ret = move(queue_data_.front());
     queue_data_.pop_front();
@@ -75,6 +81,14 @@ unique_ptr<EventVariant> BasicUpdateQueue::tryPop() {
 uint64_t BasicUpdateQueue::size() {
   std::scoped_lock sl(mutex_);
   return queue_data_.size();
+}
+
+void BasicUpdateQueue::setException(std::exception_ptr e) {
+  {
+    lock_guard<mutex> lock(mutex_);
+    exception = e;
+  }
+  condition_.notify_all();
 }
 
 }  // namespace concord::client::concordclient

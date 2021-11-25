@@ -56,8 +56,7 @@ namespace {
 
 constexpr auto kLastBlockId = BlockId{150};
 static inline const std::string kGlobalEgIdKey{"_global_eg_id"};
-static inline const std::string kPublicEgIdKeyOldest{"_public_eg_id_oldest"};
-static inline const std::string kPublicEgIdKeyNewest{"_public_eg_id_newest"};
+static inline const std::string kPublicEgIdKey{"_public_eg_id"};
 static inline const std::string kTagTableKeySeparator{"#"};
 
 std::string CreateTridKvbValue(const std::string &value, const std::vector<std::string> &trid_list) {
@@ -565,7 +564,6 @@ TEST(kvbc_filter_test, kvbfilter_block_out_of_range) {
   int client_id = 1;
   auto kvb_filter = KvbAppFilter(&storage, std::to_string(client_id));
   BlockId block_id = kLastBlockId + 5;
-  KvbFilteredUpdate temporary;
   spsc_queue<KvbFilteredUpdate> queue_out{storage.getLastBlockId()};
   std::atomic_bool stop_exec = false;
   EXPECT_THROW(kvb_filter.readBlockRange(block_id, block_id, queue_out, stop_exec);, InvalidBlockRange);
@@ -578,10 +576,37 @@ TEST(kvbc_filter_test, kvbfilter_event_group_out_of_range_eg) {
   size_t num_event_groups_to_fill = 5;
   storage.fillWithEventGroupData(num_event_groups_to_fill, client_id);
   EventGroupId eg_id = 10;
-  KvbFilteredEventGroupUpdate temporary;
   spsc_queue<KvbFilteredEventGroupUpdate> queue_out{10};
   std::atomic_bool stop_exec = false;
   EXPECT_THROW(kvb_filter.readEventGroupRange(eg_id, queue_out, stop_exec);, InvalidEventGroupRange);
+}
+
+TEST(kvbc_filter_test, kvbfilter_get_oldest_tag_specific_eg_id_pvt) {
+  FakeStorage storage;
+  std::string client_id("trid_1");
+  auto kvb_filter = KvbAppFilter(&storage, client_id);
+  size_t num_event_groups_to_fill = 5;
+  storage.fillWithEventGroupData(num_event_groups_to_fill, client_id);
+  EXPECT_EQ(kvb_filter.oldestTagSpecificPublicEventGroupId(), 1);
+}
+
+TEST(kvbc_filter_test, kvbfilter_get_oldest_tag_specific_eg_id_pub) {
+  FakeStorage storage;
+  std::string client_id("trid_1");
+  auto kvb_filter = KvbAppFilter(&storage, client_id);
+  size_t num_event_groups_to_fill = 5;
+  storage.fillWithEventGroupData(num_event_groups_to_fill, kPublicEgIdKey);
+  EXPECT_EQ(kvb_filter.oldestTagSpecificPublicEventGroupId(), 1);
+}
+
+TEST(kvbc_filter_test, kvbfilter_get_oldest_tag_specific_eg_id_pvt_pub) {
+  FakeStorage storage;
+  std::string client_id("trid_1");
+  auto kvb_filter = KvbAppFilter(&storage, client_id);
+  size_t num_event_groups_to_fill = 5;
+  storage.fillWithEventGroupData(num_event_groups_to_fill, client_id);
+  storage.fillWithEventGroupData(num_event_groups_to_fill, kPublicEgIdKey);
+  EXPECT_EQ(kvb_filter.oldestTagSpecificPublicEventGroupId(), 1);
 }
 
 TEST(kvbc_filter_test, kvbfilter_start_block_greater_then_end_block) {
@@ -604,7 +629,6 @@ TEST(kvbc_filter_test, kvbfilter_start_eg_greater_then_end_eg) {
   size_t num_event_groups_to_fill = 10;
   storage.fillWithEventGroupData(num_event_groups_to_fill, client_id);
   EventGroupId eg_id_start = 11;
-  KvbFilteredEventGroupUpdate temporary;
   spsc_queue<KvbFilteredEventGroupUpdate> queue_out{num_event_groups_to_fill};
   std::atomic_bool stop_exec = false;
   EXPECT_THROW(kvb_filter.readEventGroupRange(eg_id_start, queue_out, stop_exec);, InvalidEventGroupRange);

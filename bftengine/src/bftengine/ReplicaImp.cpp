@@ -9,6 +9,12 @@
 // these subcomponents is subject to the terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
+#include <memory>
+#include <optional>
+#include <string>
+#include <type_traits>
+#include <bitset>
+
 #include "ReplicaImp.hpp"
 #include "Timers.hpp"
 #include "assertUtils.hpp"
@@ -45,17 +51,13 @@
 #include "messages/PreProcessResultMsg.hpp"
 #include "messages/ViewChangeIndicatorInternalMsg.hpp"
 #include "messages/PrePrepareCarrierInternalMsg.hpp"
+#include "messages/ValidatedMessageCarrierInternalMsg.hpp"
 #include "CryptoManager.hpp"
 #include "ControlHandler.hpp"
 #include "bftengine/KeyExchangeManager.hpp"
 #include "secrets_manager_plain.h"
 #include "bftengine/EpochManager.hpp"
 #include "RequestThreadPool.hpp"
-#include <memory>
-#include <optional>
-#include <string>
-#include <type_traits>
-#include <bitset>
 
 #define getName(var) #var
 
@@ -69,58 +71,86 @@ using namespace concord::diagnostics;
 namespace bftEngine::impl {
 
 void ReplicaImp::registerMsgHandlers() {
-  msgHandlers_->registerMsgHandler(MsgCode::Checkpoint, bind(&ReplicaImp::messageHandler<CheckpointMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::Checkpoint,
+                                   bind(&ReplicaImp::messageHandler<CheckpointMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<CheckpointMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::CommitPartial,
-                                   bind(&ReplicaImp::messageHandler<CommitPartialMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<CommitPartialMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<CommitPartialMsg>, this, _1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::CommitFull, bind(&ReplicaImp::messageHandler<CommitFullMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::CommitFull,
+                                   bind(&ReplicaImp::messageHandler<CommitFullMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<CommitFullMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::FullCommitProof,
-                                   bind(&ReplicaImp::messageHandler<FullCommitProofMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<FullCommitProofMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<FullCommitProofMsg>, this, _1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::NewView, bind(&ReplicaImp::messageHandler<NewViewMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::NewView,
+                                   bind(&ReplicaImp::messageHandler<NewViewMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<NewViewMsg>, this, _1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::PrePrepare, bind(&ReplicaImp::messageHandler<PrePrepareMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::PrePrepare,
+                                   bind(&ReplicaImp::messageHandler<PrePrepareMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<PrePrepareMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::PartialCommitProof,
-                                   bind(&ReplicaImp::messageHandler<PartialCommitProofMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<PartialCommitProofMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<PartialCommitProofMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::PreparePartial,
-                                   bind(&ReplicaImp::messageHandler<PreparePartialMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<PreparePartialMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<PreparePartialMsg>, this, _1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::PrepareFull, bind(&ReplicaImp::messageHandler<PrepareFullMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::PrepareFull,
+                                   bind(&ReplicaImp::messageHandler<PrepareFullMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<PrepareFullMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::ReqMissingData,
-                                   bind(&ReplicaImp::messageHandler<ReqMissingDataMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<ReqMissingDataMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<ReqMissingDataMsg>, this, _1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::SimpleAck, bind(&ReplicaImp::messageHandler<SimpleAckMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::SimpleAck,
+                                   bind(&ReplicaImp::messageHandler<SimpleAckMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<SimpleAckMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::StartSlowCommit,
-                                   bind(&ReplicaImp::messageHandler<StartSlowCommitMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<StartSlowCommitMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<StartSlowCommitMsg>, this, _1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::ViewChange, bind(&ReplicaImp::messageHandler<ViewChangeMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::ViewChange,
+                                   bind(&ReplicaImp::messageHandler<ViewChangeMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<ViewChangeMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::ClientRequest,
-                                   bind(&ReplicaImp::messageHandler<ClientRequestMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<ClientRequestMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<ClientRequestMsg>, this, _1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::PreProcessResult,
-                                   bind(&ReplicaImp::messageHandler<preprocessor::PreProcessResultMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(
+      MsgCode::PreProcessResult,
+      bind(&ReplicaImp::messageHandler<preprocessor::PreProcessResultMsg>, this, _1),
+      bind(&ReplicaImp::validatedMessageHandler<preprocessor::PreProcessResultMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::ReplicaStatus,
-                                   bind(&ReplicaImp::messageHandler<ReplicaStatusMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<ReplicaStatusMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<ReplicaStatusMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::AskForCheckpoint,
-                                   bind(&ReplicaImp::messageHandler<AskForCheckpointMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<AskForCheckpointMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<AskForCheckpointMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::ReplicaAsksToLeaveView,
-                                   bind(&ReplicaImp::messageHandler<ReplicaAsksToLeaveViewMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<ReplicaAsksToLeaveViewMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<ReplicaAsksToLeaveViewMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::ReplicaRestartReady,
-                                   bind(&ReplicaImp::messageHandler<ReplicaRestartReadyMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<ReplicaRestartReadyMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<ReplicaRestartReadyMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::ReplicasRestartReadyProof,
-                                   bind(&ReplicaImp::messageHandler<ReplicasRestartReadyProofMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<ReplicasRestartReadyProofMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<ReplicasRestartReadyProofMsg>, this, _1));
 
   msgHandlers_->registerInternalMsgHandler([this](InternalMessage &&msg) { onInternalMsg(std::move(msg)); });
 }
@@ -154,13 +184,70 @@ void ReplicaImp::messageHandler(MessageBase *msg) {
       }
     }
   }
+
+  if (!isCollectingState()) {
+    // The message validation of few messages require time-consuming processes like
+    // digest calculation, signature verification etc. Such messages are identified
+    // by review. During the review we also check if asynchronous message validation
+    // is feasible or not for the given message. After identification, true returning
+    // shouldValidateAsync() member function is added to these message which indicates
+    // that Asynchronous validation is possible for these messages.
+    // In this function we check shouldValidateAsync() and decide if asynchronous
+    // validation will happen or synchronous validation will happen.
+    // prePrepareFinalizeAsyncEnabled flag will be removed in 1.7, when this entire
+    // async behaviour will be assumed to be default for the chosen messages.
+    if (getReplicaConfig().prePrepareFinalizeAsyncEnabled && trueTypeObj->shouldValidateAsync()) {
+      asyncValidateMessage<T>(trueTypeObj);
+      return;
+    } else {
+      if (validateMessage(trueTypeObj)) {
+        onMessage<T>(trueTypeObj);
+        return;
+      }
+    }
+  }
+  delete trueTypeObj;
+}
+
+/**
+ * validatedMessageHandler<T> This is a family of validated message callback.
+ * As validation is assumed to happen, this function calls the onMessage<T> directly.
+ *
+ * @param msg : This is the carrier message which holds some message which was originally
+ *              external and now validated.
+ * @return : returns nothing
+ */
+template <typename T>
+void ReplicaImp::validatedMessageHandler(CarrierMesssage *msg) {
+  // The Carrier message is allocated by this replica and after validation its given back
+  // to itself without going through the network stack (as an internal message).
+  // So the carrier message is quickly reinterpreted and used instead of fresh memory allocation.
+  // So this reinterpret_cast is intended.
+  ValidatedMessageCarrierInternalMsg<T> *validatedTrueTyeObj =
+      reinterpret_cast<ValidatedMessageCarrierInternalMsg<T> *>(msg);
+  T *trueTypeObj = validatedTrueTyeObj->returnMessageToOwner();
+  delete msg;
+
+  if (bftEngine::ControlStateManager::instance().getPruningProcessStatus()) {
+    if constexpr (!std::is_same_v<T, ClientRequestMsg>) {
+      LOG_INFO(GL, "Received protocol message while pruning, ignoring the message");
+      delete trueTypeObj;
+      return;
+    }
+  }
+
   if (!isCollectingState()) {
     onMessage<T>(trueTypeObj);
   } else {
     delete trueTypeObj;
   }
 }
-
+/**
+ * validateMessage This is synchronous validate message.
+ *
+ * @param msg : Message that can validate itself as quick as possible..
+ * @return : returns true if message validation succeeds else return false.
+ */
 bool ReplicaImp::validateMessage(MessageBase *msg) {
   if (config_.debugStatisticsEnabled) {
     DebugStatistics::onReceivedExMessage(msg->type());
@@ -175,6 +262,39 @@ bool ReplicaImp::validateMessage(MessageBase *msg) {
 }
 
 /**
+ * asyncValidateMessage<T> This is a family of asynchronous message which just schedules
+ * the validation in a thread bag and returns peacefully. This will also translate the message
+ * into internal message.
+ *
+ * @param msg : This is the message whose validation is complex and should happen asynchronously.
+ *
+ * @return : returns nothing
+ */
+template <typename MSG>
+void ReplicaImp::asyncValidateMessage(MSG *msg) {
+  // threadpool is initialized once and kept with this function.
+  // This function is called in a single thread as the queue
+  // by dispatcher will not allow multiple threads together.
+  static auto &threadPool = RequestThreadPool::getThreadPool();
+
+  threadPool.async(
+      [this](auto *unValidatedMsg, auto *replicaInfo, auto *incomingMessageQueue) {
+        try {
+          unValidatedMsg->validate(*replicaInfo);
+          CarrierMesssage *validatedCarrierMsg = new ValidatedMessageCarrierInternalMsg<MSG>(unValidatedMsg);
+          incomingMessageQueue->pushInternalMsg(validatedCarrierMsg);
+        } catch (std::exception &e) {
+          onReportAboutInvalidMessage(unValidatedMsg, e.what());
+          delete unValidatedMsg;
+          return;
+        }
+      },
+      msg,
+      repsInfo,
+      &(getIncomingMsgsStorage()));
+}
+
+/**
  * validatePrePrepareMsg initiates the validation and waits for completion of validation.
  * After validation, it routes the preprepare message as an internal message.
  *
@@ -183,7 +303,11 @@ bool ReplicaImp::validateMessage(MessageBase *msg) {
  * @return : returns nothing
  */
 void ReplicaImp::validatePrePrepareMsg(PrePrepareMsg *&ppm) {
-  RequestThreadPool::getThreadPool().async(
+  // threadpool is initialized once and kept with this function.
+  // This function is called in a single thread as the queue
+  // by dispatcher will not allow multiple threads together.
+  static auto &threadPool = RequestThreadPool::getThreadPool();
+  threadPool.async(
       [this](auto *prePrepareMsg, auto *replicaInfo, auto *incomingMessageQueue, auto viewNum) {
         try {
           prePrepareMsg->validate(*replicaInfo);
@@ -583,7 +707,11 @@ std::pair<PrePrepareMsg *, bool> ReplicaImp::finishAddingRequestsToPrePrepareMsg
   }
   {
     if (getReplicaConfig().prePrepareFinalizeAsyncEnabled) {
-      RequestThreadPool::getThreadPool().async(
+      // threadpool is initialized once and kept with this function.
+      // This function is called in a single thread as the queue
+      // by dispatcher will not allow multiple threads together.
+      static auto &threadPool = RequestThreadPool::getThreadPool();
+      threadPool.async(
           [](auto *ppm, auto *iq, auto *hist) {
             {
               TimeRecorder scoped_timer(*(hist->finishAddingRequestsToPrePrepareMsg));
@@ -814,11 +942,15 @@ bool ReplicaImp::validatePreProcessedResults(const PrePrepareMsg *msg, const Vie
   std::vector<std::future<void>> tasks;
   std::vector<std::optional<std::string>> errors(msg->numberOfRequests());
   size_t error_id = 0;
+  // threadpool is initialized once and kept with this function.
+  // This function is called in a single thread as the queue
+  // by dispatcher will not allow multiple threads together.
+  static auto &threadPool = RequestThreadPool::getThreadPool();
 
   while (reqIter.getAndGoToNext(requestBody)) {
     const MessageBase::Header *hdr = (MessageBase::Header *)requestBody;
     if (hdr->msgType == MsgCode::PreProcessResult) {
-      tasks.push_back(RequestThreadPool::getThreadPool().async(
+      tasks.push_back(threadPool.async(
           [&errors, requestBody, error_id](auto replicaId, auto fVal) {
             preprocessor::PreProcessResultMsg req((ClientRequestMsgHeader *)requestBody);
             errors[error_id] = req.validatePreProcessResultSignatures(replicaId, fVal);
@@ -854,7 +986,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
   if (!getReplicaConfig().prePrepareFinalizeAsyncEnabled) {
     if (!validatePreProcessedResults(msg, getCurrentView())) {
       // trigger view change
-      LOG_ERROR(VC_LOG, "PreProcessResult Signature failure. Ask to leave view" << KVLOG(getCurrentView()));
+      LOG_WARN(VC_LOG, "PreProcessResult Signature failure. Ask to leave view" << KVLOG(getCurrentView()));
       askToLeaveView(ReplicaAsksToLeaveViewMsg::Reason::PrimarySentBadPreProcessResult);
       return;
     }
@@ -893,7 +1025,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
     bool time_is_ok = true;
     if (config_.timeServiceEnabled && msg->numberOfRequests() > 0) {
       if (!time_service_manager_->hasTimeRequest(*msg)) {
-        LOG_ERROR(CNSUS, "PrePrepare will be ignored");
+        LOG_WARN(CNSUS, "PrePrepare will be ignored");
         delete msg;
         return;
       }
@@ -1329,6 +1461,20 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
   return;
 }
 
+/**
+ * onCarrierMessage : This is the Validated Message Callback dispatcher. This dispatching
+ * is happening without any queue as its already done by the IncomingMsgsStorageImp
+ *
+ * @param msg : This is the Carrier Message that will be dispatched.
+ *
+ * @return : returns nothing
+ */
+void ReplicaImp::onCarrierMessage(CarrierMesssage *msg) {
+  auto validatedMsgCallBack = msgHandlers_->getValidatedMsgCallback(msg->getMsgType());
+  ConcordAssert(validatedMsgCallBack != nullptr);
+  validatedMsgCallBack(msg);
+}
+
 void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
   metric_received_internal_msgs_++;
 
@@ -1336,6 +1482,12 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
   if (auto *fcp = std::get_if<FullCommitProofMsg *>(&msg)) {
     return onInternalMsg(*fcp);
   }
+
+  // Handle vaidated messages
+  if (auto *vldMsg = std::get_if<CarrierMesssage *>(&msg)) {
+    return onCarrierMessage(*vldMsg);
+  }
+
   // Handle a pre prepare sent by self
   if (auto *ppm = std::get_if<PrePrepareMsg *>(&msg)) {
     if (isCollectingState() || bftEngine::ControlStateManager::instance().getPruningProcessStatus()) {
@@ -1371,7 +1523,7 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
       return;
     } else {
       // trigger view change
-      LOG_ERROR(VC_LOG, "PreProcessResult Signature failure. Ask to leave view" << KVLOG(getCurrentView()));
+      LOG_WARN(VC_LOG, "PreProcessResult Signature failure. Ask to leave view" << KVLOG(getCurrentView()));
       askToLeaveView(vciim->reasonToLeave_);
       return;
     }
@@ -1952,12 +2104,20 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   const SeqNum msgSeqNum = msg->seqNumber();
   const EpochNum msgEpochNum = msg->epochNumber();
   const CheckpointMsg::State msgState = msg->state();
-  const Digest msgDigest = msg->digestOfState();
+  const Digest stateDigest = msg->digestOfState();
+  const Digest otherDigest = msg->otherDigest();
   const bool msgIsStable = msg->isStableState();
   SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
   LOG_INFO(GL,
-           "Received checkpoint message from node. " << KVLOG(
-               msgSenderId, msgGenReplicaId, msgSeqNum, msgEpochNum, msg->size(), msgIsStable, msgState, msgDigest));
+           "Received checkpoint message from node. " << KVLOG(msgSenderId,
+                                                              msgGenReplicaId,
+                                                              msgSeqNum,
+                                                              msgEpochNum,
+                                                              msg->size(),
+                                                              msgIsStable,
+                                                              msgState,
+                                                              stateDigest,
+                                                              otherDigest));
   LOG_INFO(GL, "My " << KVLOG(lastStableSeqNum, lastExecutedSeqNum, getSelfEpochNumber()));
   auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
                                                       "bft_handle_checkpoint_msg");
@@ -1999,18 +2159,18 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
       // <= to allow repeating checkpoint message since state transfer may not kick in when we are inside active
       // window
       if (pos != tableOfStableCheckpoints.end()) delete pos->second;
-      CheckpointMsg *x = new CheckpointMsg(msgGenReplicaId, msgSeqNum, msgState, msgDigest, msgIsStable);
+      CheckpointMsg *x = new CheckpointMsg(msgGenReplicaId, msgSeqNum, msgState, stateDigest, otherDigest, msgIsStable);
       x->setEpochNumber(msgEpochNum);
       tableOfStableCheckpoints[msgGenReplicaId] = x;
       LOG_INFO(GL,
                "Added stable Checkpoint message to tableOfStableCheckpoints: " << KVLOG(msgSenderId, msgGenReplicaId));
       for (auto &[r, cp] : tableOfStableCheckpoints) {
-        if (cp->seqNumber() == msgSeqNum && cp->digestOfState() != x->digestOfState()) {
+        if (cp->seqNumber() == msgSeqNum && cp->otherDigest() != x->otherDigest()) {
           metric_indicator_of_non_determinism_++;
           LOG_ERROR(GL,
                     "Detect non determinism, for checkpoint: "
-                        << msgSeqNum << " [replica: " << r << ", digest: " << cp->digestOfState() << "] Vs [replica: "
-                        << msgGenReplicaId << ", sender: " << msgSenderId << ", digest: " << x->digestOfState() << "]");
+                        << msgSeqNum << " [replica: " << r << ", digest: " << cp->otherDigest() << "] Vs [replica: "
+                        << msgGenReplicaId << ", sender: " << msgSenderId << ", digest: " << x->otherDigest() << "]");
         }
       }
       if ((uint16_t)tableOfStableCheckpoints.size() >= config_.getfVal() + 1) {
@@ -2089,8 +2249,6 @@ void ReplicaImp::onMessage<AskForCheckpointMsg>(AskForCheckpointMsg *msg) {
     // TODO [TK] check if already sent within a configurable time period
     auto destination = m->senderId();
     LOG_INFO(GL, "Sending CheckpointMsg: " << KVLOG(destination));
-
-    if (checkpointMsg->digestOfState().isZero()) LOG_WARN(GL, "Checkpoint digest is zero");
 
     send(checkpointMsg, m->senderId());
   }
@@ -2963,11 +3121,13 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
   ConcordAssert(checkpointsLog->insideActiveWindow(newCheckpointSeqNum));
 
   // create and send my checkpoint
-  Digest digestOfNewState;
+  Digest stateDigest;
+  Digest otherDigest;
   CheckpointMsg::State state;
-  stateTransfer->getDigestOfCheckpoint(newStateCheckpoint, sizeof(Digest), state, (char *)&digestOfNewState);
+  stateTransfer->getDigestOfCheckpoint(
+      newStateCheckpoint, sizeof(Digest), state, (char *)&stateDigest, (char *)&otherDigest);
   CheckpointMsg *checkpointMsg =
-      new CheckpointMsg(config_.getreplicaId(), newCheckpointSeqNum, state, digestOfNewState, false);
+      new CheckpointMsg(config_.getreplicaId(), newCheckpointSeqNum, state, stateDigest, otherDigest, false);
   checkpointMsg->sign();
   auto &checkpointInfo = checkpointsLog->get(newCheckpointSeqNum);
   checkpointInfo.addCheckpointMsg(checkpointMsg, config_.getreplicaId());
@@ -3064,11 +3224,14 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
     CheckpointMsg *checkpointMsg = checkpointInfo.selfCheckpointMsg();
 
     if (checkpointMsg == nullptr) {
-      Digest digestOfState;
+      Digest stateDigest;
+      Digest otherDigest;
       CheckpointMsg::State state;
       const uint64_t checkpointNum = lastStableSeqNum / checkpointWindowSize;
-      stateTransfer->getDigestOfCheckpoint(checkpointNum, sizeof(Digest), state, (char *)&digestOfState);
-      checkpointMsg = new CheckpointMsg(config_.getreplicaId(), lastStableSeqNum, state, digestOfState, true);
+      stateTransfer->getDigestOfCheckpoint(
+          checkpointNum, sizeof(Digest), state, (char *)&stateDigest, (char *)&otherDigest);
+      checkpointMsg =
+          new CheckpointMsg(config_.getreplicaId(), lastStableSeqNum, state, stateDigest, otherDigest, true);
       checkpointMsg->sign();
       checkpointInfo.addCheckpointMsg(checkpointMsg, config_.getreplicaId());
     } else {
@@ -3696,7 +3859,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
         try {
           ConcordAssert(seqNumInfo.addMsg(e.getPrepareFullMsg(), true));
         } catch (const std::exception &e) {
-          LOG_ERROR(GL, "Failed to add sn " << s << " to main log, reason: " << e.what());
+          LOG_FATAL(GL, "Failed to add sn " << s << " to main log, reason: " << e.what());
           throw;
         }
 
@@ -3715,7 +3878,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
         try {
           ConcordAssert(seqNumInfo.addMsg(e.getCommitFullMsg(), true));
         } catch (const std::exception &e) {
-          LOG_ERROR(GL, "Failed to add sn [" << s << "] to main log, reason: " << e.what());
+          LOG_FATAL(GL, "Failed to add sn [" << s << "] to main log, reason: " << e.what());
           throw;
         }
 
@@ -4200,11 +4363,11 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
       reply.setReplicaSpecificInfoLength(actualReplicaSpecificInfoLength);
       send(&reply, clientId);
     } else {
-      LOG_ERROR(GL, "Received zero size response. " << KVLOG(clientId));
+      LOG_WARN(GL, "Received zero size response. " << KVLOG(clientId));
     }
 
   } else {
-    LOG_ERROR(GL, "Received error while executing RO request. " << KVLOG(clientId, status));
+    LOG_WARN(GL, "Received error while executing RO request. " << KVLOG(clientId, status));
   }
 
   if (config_.getdebugStatisticsEnabled()) {
@@ -4370,12 +4533,14 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
     auto epoch = bftEngine::EpochManager::instance().getSelfEpochNumber();
     bftEngine::EpochManager::instance().setSelfEpochNumber(epoch);
     bftEngine::EpochManager::instance().setGlobalEpochNumber(epoch);
-    Digest checkDigest;
-    CheckpointMsg::State checkState;
+    Digest stateDigest;
+    Digest otherDigest;
+    CheckpointMsg::State state;
     const uint64_t checkpointNum = lastExecutedSeqNum / checkpointWindowSize;
-    stateTransfer->getDigestOfCheckpoint(checkpointNum, sizeof(Digest), checkState, (char *)&checkDigest);
+    stateTransfer->getDigestOfCheckpoint(
+        checkpointNum, sizeof(Digest), state, (char *)&stateDigest, (char *)&otherDigest);
     CheckpointMsg *checkMsg =
-        new CheckpointMsg(config_.getreplicaId(), lastExecutedSeqNum, checkState, checkDigest, false);
+        new CheckpointMsg(config_.getreplicaId(), lastExecutedSeqNum, state, stateDigest, otherDigest, false);
     checkMsg->sign();
     auto &checkInfo = checkpointsLog->get(lastExecutedSeqNum);
     checkInfo.addCheckpointMsg(checkMsg, config_.getreplicaId());
@@ -4463,7 +4628,7 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
         req.requestSeqNum()});
     // Decode the pre-execution block-id for the conflict detection optimization,
     // and pass it to the post-execution.
-    if (((MessageBase::Header *)requestBody)->msgType == MsgCode::PreProcessResult) {
+    if (req.flags() & HAS_PRE_PROCESSED_FLAG) {
       setConflictDetectionBlockId(req, accumulatedRequests.back());
     }
   }

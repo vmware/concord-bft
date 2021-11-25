@@ -18,9 +18,10 @@
 #include "messages/RetranProcResultInternalMsg.hpp"
 #include "messages/TickInternalMsg.hpp"
 #include "messages/PrePrepareMsg.hpp"
-#include "SignatureInternalMsgs.hpp"
-#include "ViewChangeIndicatorInternalMsg.hpp"
-#include "PrePrepareCarrierInternalMsg.hpp"
+#include "messages/SignatureInternalMsgs.hpp"
+#include "messages/ViewChangeIndicatorInternalMsg.hpp"
+#include "messages/PrePrepareCarrierInternalMsg.hpp"
+#include "messages/ValidatedMessageCarrierInternalMsg.hpp"
 
 namespace bftEngine::impl {
 
@@ -62,6 +63,10 @@ using InternalMessage = std::variant<FullCommitProofMsg*,
 
                                      // Carries PrePrepare message after validation.
                                      PrePrepareCarrierInternalMsg,
+
+                                     // Add Carriers of messages which will encapsulate
+                                     // Incoming External messages to Internal message.
+                                     CarrierMesssage*,
 
                                      // Retransmission manager related
                                      RetranProcResultInternalMsg,

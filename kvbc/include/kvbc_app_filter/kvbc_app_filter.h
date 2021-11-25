@@ -55,8 +55,19 @@ struct KvbFilteredEventGroupUpdate {
 
 // We need to preserve state per client across calls to getNextEventGroupId method
 struct EventGroupClientState {
-  EventGroupClientState(const uint64_t pub_offset, const uint64_t pvt_offset)
-      : public_offset(pub_offset), private_offset(pvt_offset) {}
+  EventGroupClientState(const uint64_t pub_oldest, const uint64_t pvt_oldest)
+      : public_offset(pub_oldest), private_offset(pvt_oldest) {
+    // Because of pruning, the oldest tag-specific event group might not be available anymore.
+    // Therefore, we have to calculate the first available event group ID for this (private) tag.
+    // Note: curr_trid_event_group_id has to start at oldest - 1
+    if (pub_oldest && pvt_oldest) {
+      curr_trid_event_group_id = pub_oldest + pvt_oldest - 1 - 1;
+    } else if (pub_oldest || pvt_oldest) {
+      curr_trid_event_group_id = pub_oldest + pvt_oldest - 1;
+    } else {
+      curr_trid_event_group_id = 0;
+    }
+  }
   // holds a batch of the global event group IDs ordered in the order in which they were generated
   std::vector<uint64_t> event_group_id_batch{};
   // keeps track of the global event group id read from event_group_id_batch
@@ -67,7 +78,7 @@ struct EventGroupClientState {
   uint64_t public_offset;
   uint64_t private_offset;
   // current tag-specific event_group_id
-  uint64_t curr_trid_event_group_id = 0;
+  uint64_t curr_trid_event_group_id;
 };
 
 class KvbReadError : public std::exception {

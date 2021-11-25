@@ -44,16 +44,16 @@ void PreProcessBatchRequestMsg::validate(const ReplicasInfo& repInfo) const {
     throw std::runtime_error(__PRETTY_FUNCTION__);
 
   if (type() != MsgCode::PreProcessBatchRequest) {
-    LOG_ERROR(logger(), "Message type is incorrect" << KVLOG(type()));
+    LOG_WARN(logger(), "Message type is incorrect" << KVLOG(type()));
     throw std::runtime_error(__PRETTY_FUNCTION__);
   }
 
   if (senderId() == repInfo.myId()) {
-    LOG_ERROR(logger(), "Message sender is invalid" << KVLOG(senderId()));
+    LOG_WARN(logger(), "Message sender is invalid" << KVLOG(senderId()));
     throw std::runtime_error(__PRETTY_FUNCTION__);
   }
   if (!checkElements()) {
-    LOG_ERROR(logger(), "One or more PreProcessReqMsg in the list is invalid");
+    LOG_WARN(logger(), "One or more PreProcessReqMsg in the list is invalid");
     throw std::runtime_error(__PRETTY_FUNCTION__);
   }
 }
@@ -62,7 +62,7 @@ bool PreProcessBatchRequestMsg::checkElements() const {
   const auto totalMsgSize = size();
   const auto& numOfMessagesInBatch = msgBody()->numOfMessagesInBatch;
   if (!numOfMessagesInBatch || (numOfMessagesInBatch > MAX_BATCH_SIZE)) {
-    LOG_ERROR(logger(), KVLOG(numOfMessagesInBatch));
+    LOG_WARN(logger(), KVLOG(numOfMessagesInBatch));
     return false;
   }
   char* dataPosition = body() + sizeof(Header) + msgBody()->cidLength;
@@ -74,13 +74,13 @@ bool PreProcessBatchRequestMsg::checkElements() const {
     auto expectedSigLen = (isClientTransactionSigningEnabled ? sigManager->getSigLength(clientId) : 0);
     if ((expectedSigLen != singleMsgHeader.reqSignatureLength) || (totalMsgSize < singleMsgHeader.requestLength) ||
         (totalMsgSize < singleMsgHeader.cidLength)) {
-      LOG_ERROR(logger(),
-                KVLOG(clientId,
-                      totalMsgSize,
-                      expectedSigLen,
-                      singleMsgHeader.reqSignatureLength,
-                      singleMsgHeader.requestLength,
-                      singleMsgHeader.cidLength));
+      LOG_WARN(logger(),
+               KVLOG(clientId,
+                     totalMsgSize,
+                     expectedSigLen,
+                     singleMsgHeader.reqSignatureLength,
+                     singleMsgHeader.requestLength,
+                     singleMsgHeader.cidLength));
       return false;
     }
     dataPosition += sizeof(PreProcessRequestMsg::Header) + singleMsgHeader.spanContextSize +

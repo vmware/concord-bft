@@ -41,6 +41,11 @@ void PrePrepareMsg::calculateDigestOfRequests(Digest& digest) const {
   char* requestBody = nullptr;
   size_t local_id = 0;
 
+  // threadpool is initialized once and kept with this function.
+  // This function is called in a single thread as the queue
+  // by dispatcher will not allow multiple threads together.
+  static auto& threadPool = RequestThreadPool::getThreadPool();
+
   while (it.getAndGoToNext(requestBody)) {
     ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
     char* sig = req.requestSignature();
@@ -48,7 +53,7 @@ void PrePrepareMsg::calculateDigestOfRequests(Digest& digest) const {
       sigOrDigestOfRequest[local_id].first = sig;
       sigOrDigestOfRequest[local_id].second = req.requestSignatureLength();
     } else {
-      tasks.push_back(RequestThreadPool::getThreadPool().async(
+      tasks.push_back(threadPool.async(
           [&sigOrDigestOfRequest, &digestBuffer, local_id](auto* request, auto requestLength) {
             DigestUtil::compute(request, requestLength, digestBuffer.get() + local_id * sizeof(Digest), sizeof(Digest));
             sigOrDigestOfRequest[local_id].first = digestBuffer.get() + local_id * sizeof(Digest);

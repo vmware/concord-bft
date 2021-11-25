@@ -36,6 +36,7 @@ class FileStorage : public MetadataStorage {
   void read(uint32_t objectId, uint32_t bufferSize, char *outBufferForObject, uint32_t &outActualObjectSize) override;
 
   void atomicWrite(uint32_t objectId, const char *data, uint32_t dataLength) override;
+  void atomicWriteArbitraryObject(const std::string &key, const char *data, uint32_t dataLength) override {}
 
   void beginAtomicWriteOnlyBatch() override;
 

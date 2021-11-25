@@ -13,6 +13,7 @@
 
 #include "ReplicaForStateTransfer.hpp"
 #include "Timers.hpp"
+#include "CheckpointInfo.hpp"
 
 namespace bftEngine::impl {
 
@@ -27,7 +28,8 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
                   IStateTransfer*,
                   std::shared_ptr<MsgsCommunicator>,
                   std::shared_ptr<MsgHandlersRegistrator>,
-                  concordUtil::Timers& timers);
+                  concordUtil::Timers& timers,
+                  MetadataStorage* metadataStorage);
 
   void start() override;
   void stop() override;
@@ -52,6 +54,9 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
   template <class T>
   void onMessage(T*);
 
+  void executeReadOnlyRequest(concordUtils::SpanWrapper& parent_span, const ClientRequestMsg& m);
+  void persistCheckpointDescriptor(const SeqNum&, const CheckpointInfo<false>&);
+
  protected:
   concordUtil::Timers::Handle askForCheckpointMsgTimer_;
 
@@ -62,7 +67,15 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
     concordMetrics::GaugeHandle last_executed_seq_num_;
   } ro_metrics_;
 
-  void executeReadOnlyRequest(concordUtils::SpanWrapper& parent_span, const ClientRequestMsg& m);
+  std::unique_ptr<MetadataStorage> metadataStorage_;
+  std::atomic<SeqNum> last_executed_seq_num_;
+
+ private:
+  // This function serves as an ReplicaStatusHandlers alternative for ReadOnlyReplica. The reason to use this function
+  // is that regular and read-only replcias expose differen metrics and the status handlers are not interchangable. The
+  // read-only replica also hasn't got an implementation for InternalMessages which are used by the
+  // ReplicaStatusHandler.
+  void registerStatusHandlers();
 };
 
 }  // namespace bftEngine::impl

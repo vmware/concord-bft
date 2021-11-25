@@ -32,6 +32,9 @@ service StateSnapshot {
   // INVALID_ARGUMENT: if resuming a stream using `from_key` and that key is not part of the
   //                   state snapshot.
   // UNAVAILABLE: if Concord Client is not ready yet to process requests.
+  // FAILED_PRECONDITION: if a precondition in Concord Client is not satisfied. For example,
+  //                      the state might be corrupted or invalid and, in that case, there
+  //                      would be no point in proceeding with streaming.
   // UNKNOWN: exact cause is unknown.
   rpc StreamSnapshot(StreamSnapshotRequest) returns (stream StreamSnapshotResponse);
 
