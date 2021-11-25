@@ -17,11 +17,14 @@
 #include "messages/FullCommitProofMsg.hpp"
 #include "messages/RetranProcResultInternalMsg.hpp"
 #include "messages/TickInternalMsg.hpp"
+#include "messages/OnStateTransferCompleteMsg.hpp"
 #include "messages/PrePrepareMsg.hpp"
 #include "messages/SignatureInternalMsgs.hpp"
 #include "messages/ViewChangeIndicatorInternalMsg.hpp"
 #include "messages/PrePrepareCarrierInternalMsg.hpp"
 #include "messages/ValidatedMessageCarrierInternalMsg.hpp"
+#include "messages/FinishPrePrepareExecutionInternalMsg.hpp"
+#include "IRequestHandler.hpp"
 
 namespace bftEngine::impl {
 
@@ -29,7 +32,6 @@ struct GetStatus {
   std::string key;
   std::promise<std::string> output;
 };
-
 // An InternalMessage is a value type sent from threads to the ReplicaImp over the IncomingMsgsStorage channel.
 //
 // All internal messages should be included in this variant.
@@ -75,6 +77,11 @@ using InternalMessage = std::variant<FullCommitProofMsg*,
                                      GetStatus,
 
                                      // Concord Cron related
-                                     TickInternalMsg>;
+                                     TickInternalMsg,
+
+                                     // post execution defer related
+                                     OnStateTransferCompleteMsg,
+
+                                     FinishPrePrepareExecutionInternalMsg>;
 
 }  // namespace bftEngine::impl

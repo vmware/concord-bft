@@ -12,6 +12,7 @@
 #include <bftengine/Replica.hpp>
 #include <optional>
 #include <functional>
+#include <messages/StateTransferMsg.hpp>
 #include "ReadOnlyReplica.hpp"
 #include "MsgHandlersRegistrator.hpp"
 #include "messages/CheckpointMsg.hpp"
@@ -50,6 +51,9 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
   msgHandlers_->registerMsgHandler(
       MsgCode::ClientRequest,
       std::bind(&ReadOnlyReplica::messageHandler<ClientRequestMsg>, this, std::placeholders::_1));
+  msgHandlers_->registerMsgHandler(
+      MsgCode::StateTransfer,
+      std::bind(&ReadOnlyReplica::messageHandler<StateTransferMsg>, this, std::placeholders::_1));
   metrics_.Register();
 
   SigManager::init(config_.replicaId,
@@ -97,6 +101,11 @@ void ReadOnlyReplica::sendAskForCheckpointMsg() {
   LOG_INFO(GL, "sending AskForCheckpointMsg");
   auto msg = std::make_unique<AskForCheckpointMsg>(config_.replicaId);
   for (auto id : repsInfo->idsOfPeerReplicas()) send(msg.get(), id);
+}
+
+template <>
+void ReadOnlyReplica::onMessage<StateTransferMsg>(StateTransferMsg *msg) {
+  ReplicaForStateTransfer::onMessage(msg);
 }
 
 template <>
