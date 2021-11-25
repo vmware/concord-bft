@@ -1019,7 +1019,7 @@ void PreProcessor::msgProcessingLoop() {
       auto msg = msgs_.front();
       msgs_.pop();
       if (bftEngine::ControlStateManager::instance().isWedged()) {
-        LOG_INFO(logger(), "replica is wedged, ignoring all pre-process requests");
+        LOG_INFO(logger(), "The replica is wedged, the request is ignored");
         delete msg;
         continue;
       }
