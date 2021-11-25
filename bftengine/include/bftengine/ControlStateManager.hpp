@@ -62,7 +62,7 @@ class ControlStateManager {
   ControlStateManager(const ControlStateManager&) = delete;
 
   uint64_t wedgePoint{0};
-  uint64_t wedged = false;
+  bool wedged = false;
   std::atomic_bool restartBftEnabled_ = false;
   std::unordered_map<uint8_t, SeqNum> hasRestartProofAtSeqNum_;  // reason for restart is the key
   std::atomic_bool onPruningProcess_ = false;
