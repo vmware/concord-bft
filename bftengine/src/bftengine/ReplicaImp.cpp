@@ -474,7 +474,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
     }
   }
   delete m;
-}
+}  // namespace bftEngine::impl
 
 template <>
 void ReplicaImp::onMessage<preprocessor::PreProcessResultMsg>(preprocessor::PreProcessResultMsg *m) {
@@ -3101,6 +3101,7 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
   clientsManager->loadInfoFromReservedPages();
 
   KeyExchangeManager::instance().loadPublicKeys();
+
   if (config_.timeServiceEnabled) {
     time_service_manager_->load();
   }
@@ -4097,6 +4098,17 @@ ReplicaImp::ReplicaImp(bool firstTime,
     if (config_.keyExchangeOnStart && !KeyExchangeManager::instance().exchanged()) {
       LOG_INFO(GL, "key exchange has not been finished yet. Give it another try");
       KeyExchangeManager::instance().sendInitialKey(currentPrimary());
+    }
+  });
+  stateTransfer->addOnFetchingStateChangeCallback([&](uint64_t) {
+    // With (n-f) initial key exchange support, if we have a lagged replica
+    // which syncs its state through ST, we need to make sure that it completes
+    // initial key exchange after completing ST
+    if (!isCollectingState()) {
+      if (ReplicaConfig::instance().getkeyExchangeOnStart() && !KeyExchangeManager::instance().exchanged()) {
+        KeyExchangeManager::instance().sendInitialKey(currentPrimary(), lastExecutedSeqNum);
+        LOG_INFO(GL, "Send initial key exchange after completing state transfer " << KVLOG(lastExecutedSeqNum));
+      }
     }
   });
   registerMsgHandlers();

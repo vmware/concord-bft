@@ -86,6 +86,8 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
   void addOnTransferringCompleteCallback(std::function<void(uint64_t)>,
                                          StateTransferCallBacksPriorities priority) override {}
 
+  void addOnFetchingStateChangeCallback(std::function<void(uint64_t)>) override {}
+
   //////////////////////////////////////////////////////////////////////////
   // ISimpleInMemoryStateTransfer methods
   //////////////////////////////////////////////////////////////////////////
