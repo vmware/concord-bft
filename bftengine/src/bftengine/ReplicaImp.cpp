@@ -199,6 +199,16 @@ void ReplicaImp::messageHandler(MessageBase *msg) {
         return;
       }
     }
+  } else if constexpr (std::is_same_v<T, ClientRequestMsg>) {
+    // Replicas that were down during initial KeyExchange, sends internal bft client request
+    // to primary to complete initial key-exchange for themselves, after completing state transfer.
+    //  This request is invoked from onTransferringComplete callback
+    if ((trueTypeObj->flags() & KEY_EXCHANGE_FLAG) && (repsInfo->isIdOfInternalClient(trueTypeObj->senderId()))) {
+      if (validateMessage(trueTypeObj)) {
+        onMessage<T>(trueTypeObj);
+        return;
+      }
+    }
   }
   delete trueTypeObj;
 }
@@ -3100,6 +3110,13 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
   clientsManager->loadInfoFromReservedPages();
 
   KeyExchangeManager::instance().loadPublicKeys();
+  // With (n-f) initial key exchange support, if we have a lagged replica
+  // which syncs its state through ST, we need to make sure that it completes
+  // initial key exchange after completing ST
+  if (ReplicaConfig::instance().getkeyExchangeOnStart() && !KeyExchangeManager::instance().exchanged()) {
+    KeyExchangeManager::instance().sendInitialKey(currentPrimary());
+  }
+
   if (config_.timeServiceEnabled) {
     time_service_manager_->load();
   }
