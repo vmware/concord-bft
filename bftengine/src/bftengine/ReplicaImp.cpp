@@ -3101,6 +3101,7 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
   clientsManager->loadInfoFromReservedPages();
 
   KeyExchangeManager::instance().loadPublicKeys();
+
   if (config_.timeServiceEnabled) {
     time_service_manager_->load();
   }
@@ -4099,6 +4100,14 @@ ReplicaImp::ReplicaImp(bool firstTime,
       KeyExchangeManager::instance().sendInitialKey(currentPrimary());
     }
   });
+  check_for_key_exchange_cb_ = [&]() {
+    // With (n-f) initial key exchange support, if we have a lagged replica
+    // which syncs its state through ST, we need to make sure that it completes
+    // initial key exchange after completing ST
+    if (ReplicaConfig::instance().getkeyExchangeOnStart() && !KeyExchangeManager::instance().exchanged()) {
+      KeyExchangeManager::instance().sendInitialKey(currentPrimary());
+    }
+  };
   registerMsgHandlers();
   replStatusHandlers_.registerStatusHandlers();
 

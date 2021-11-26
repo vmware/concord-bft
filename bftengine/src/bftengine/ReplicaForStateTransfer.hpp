@@ -37,7 +37,7 @@ class ReplicaForStateTransfer : public IReplicaForStateTransfer, public ReplicaB
   void onTransferringComplete(uint64_t checkpointNumberOfNewState) override;
   void changeStateTransferTimerPeriod(uint32_t timerPeriodMilli) override;
   Timers::Handle addOneShotTimer(uint32_t timeoutMilli) override;
-
+  void checkForKeyExchange() override;
   bool isCollectingState() const { return stateTransfer->isCollectingState(); }
 
   void start() override;
@@ -66,6 +66,7 @@ class ReplicaForStateTransfer : public IReplicaForStateTransfer, public ReplicaB
   concordMetrics::GaugeHandle metric_state_transfer_timer_;
   bool firstTime_;
   std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> cre_;
+  std::function<void()> check_for_key_exchange_cb_;
 };
 
 }  // namespace bftEngine::impl

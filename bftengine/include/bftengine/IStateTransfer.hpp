@@ -109,6 +109,9 @@ class IReplicaForStateTransfer {
   // Invoke State Transfer timer callback once
   virtual concordUtil::Timers::Handle addOneShotTimer(uint32_t timeoutMilli) = 0;
 
+  // Check for key-exchange after completing ST
+  virtual void checkForKeyExchange() = 0;
+
   virtual ~IReplicaForStateTransfer() = default;
 };
 }  // namespace bftEngine

@@ -128,5 +128,8 @@ Timers::Handle ReplicaForStateTransfer::addOneShotTimer(uint32_t timeoutMilli) {
                      concordUtil::Timers::Timer::ONESHOT,
                      [this](concordUtil::Timers::Handle h) { stateTransfer->onTimer(); });
 }
+void ReplicaForStateTransfer::checkForKeyExchange() {
+  if (check_for_key_exchange_cb_) check_for_key_exchange_cb_();
+}
 
 }  // namespace bftEngine::impl

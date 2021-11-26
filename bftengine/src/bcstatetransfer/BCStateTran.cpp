@@ -2736,6 +2736,10 @@ void BCStateTran::processData(bool lastInBatch) {
 
       g.txn()->setIsFetchingState(false);
       ConcordAssertEQ(getFetchingState(), FetchingState::NotFetching);
+      // Note: Key exchange message is sent as internal bft client request and
+      // it will be dropped by message handler if curr_state == fetching
+      // So we need to invoke this cb after setting state to NotFetching
+      replicaForStateTransfer_->checkForKeyExchange();
       break;
     } else if (!badDataFromCurrentSourceReplica) {
       //////////////////////////////////////////////////////////////////////////

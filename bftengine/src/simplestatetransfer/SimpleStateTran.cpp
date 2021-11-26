@@ -171,6 +171,7 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
     concordUtil::Timers::Handle addOneShotTimer(uint32_t timeoutMilli) override {
       return realInterface_->addOneShotTimer(timeoutMilli);
     }
+    void checkForKeyExchange() override {}
   };
 
   friend struct ReplicaWrapper;
