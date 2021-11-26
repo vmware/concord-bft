@@ -221,6 +221,7 @@ void Replica::handleWedgeEvent() {
   if (wedgeEpoch == latestKnownEpoch) {
     bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(wedgeBftSeqNum);
     if (wedgePoint == (uint64_t)lastExecutedSeqNum) {
+      bftEngine::ControlStateManager::instance().wedge();
       bftEngine::IControlHandler::instance()->onStableCheckpoint();
     }
     LOG_INFO(logger, "wedge the system on sequence number: " << lastExecutedSeqNum);

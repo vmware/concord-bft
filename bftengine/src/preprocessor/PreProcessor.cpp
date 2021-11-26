@@ -17,6 +17,7 @@
 #include "OpenTracing.hpp"
 #include "SigManager.hpp"
 #include "messages/PreProcessResultMsg.hpp"
+#include "ControlStateManager.hpp"
 
 namespace preprocessor {
 
@@ -1017,6 +1018,11 @@ void PreProcessor::msgProcessingLoop() {
     while (!msgLoopDone_ && msgs_.read_available()) {
       auto msg = msgs_.front();
       msgs_.pop();
+      if (bftEngine::ControlStateManager::instance().isWedged()) {
+        LOG_INFO(logger(), "The replica is wedged, the request is ignored");
+        delete msg;
+        continue;
+      }
       if (validateMessage(msg)) {
         switch (msg->type()) {
           case (MsgCode::ClientBatchRequest): {

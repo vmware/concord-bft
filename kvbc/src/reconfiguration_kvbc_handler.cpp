@@ -778,6 +778,7 @@ bool ReconfigurationHandler::handle(const messages::UnwedgeCommand& cmd,
     if (!cmd.restart) {
       persistNewEpochBlock(bft_seq_num);
       bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(0);
+      bftEngine::ControlStateManager::instance().unwedge();
       bftEngine::IControlHandler::instance()->resetState();
       LOG_INFO(getLogger(), "Unwedge command completed successfully");
     } else {
