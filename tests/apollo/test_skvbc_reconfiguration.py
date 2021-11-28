@@ -226,23 +226,22 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             stop_on_stable_seq_num=False)
 
     async def run_client_key_exchange_cycle(self, bft_network, prev_data="", prev_ts=0):
+        key_before_exchange = None
+        priv_key_path = os.path.join(bft_network.txn_signing_keys_base_path, "transaction_signing_keys", str(bft_network.principals_to_participant_map[bft_network.cre_id]), "transaction_signing_priv.pem")
+        with open(priv_key_path) as orig_key:
+            key_before_exchange = orig_key.read()
         await self.run_client_ke_command(bft_network, False, prev_data, prev_ts)
         with trio.fail_after(30):
             succ = False
             while not succ:
                 await trio.sleep(1)
                 succ = True
-                priv_key_path = os.path.join(bft_network.txn_signing_keys_base_path, "transaction_signing_keys", str(bft_network.principals_to_participant_map[bft_network.cre_id]), "transaction_signing_priv.pem")
-                new_priv_path = priv_key_path + ".new"
-                if not os.path.isfile(new_priv_path):
-                    succ = False
-                    continue
-                with open(priv_key_path) as orig_key:
-                    orig_key_text = orig_key.readlines()
-                with open(new_priv_path) as new_key:
-                    new_key_text = new_key.readlines()
-                diff = difflib.unified_diff(orig_key_text, new_key_text, fromfile=priv_key_path, tofile=new_priv_path, lineterm='')
-                for line in diff:
+                new_key_text = None
+                with open(priv_key_path) as new_key:
+                    new_key_text = new_key.read()
+                diff = difflib.unified_diff(key_before_exchange, new_key_text, fromfile="old", tofile="new", lineterm='')
+                lines = sum(1 for l in diff)
+                if lines == 0:
                     succ = False
         bft_network.stop_cre()
         bft_network.start_cre()

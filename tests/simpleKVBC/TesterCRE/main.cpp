@@ -215,6 +215,7 @@ class KeyExchangeCommandHandler : public IStateHandler {
                fs::copy(enc_path, old_path, fs::copy_options::update_existing);
                fs::copy(enc_file_path, enc_path, fs::copy_options::update_existing);
                fs::remove(old_path);
+               fs::remove(enc_file_path);
                LOG_INFO(this->getLogger(), "exchanged transaction signing keys (encrypted)");
              }
              if (non_enc) {
@@ -223,6 +224,7 @@ class KeyExchangeCommandHandler : public IStateHandler {
                fs::copy(this->key_path_, old_path, fs::copy_options::update_existing);
                fs::copy(new_key_path, this->key_path_, fs::copy_options::update_existing);
                fs::remove(old_path);
+               fs::remove(new_key_path);
                LOG_INFO(this->getLogger(), "exchanged transaction signing keys (non encrypted)");
              }
            }};
