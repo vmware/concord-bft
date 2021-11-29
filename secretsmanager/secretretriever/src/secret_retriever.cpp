@@ -34,11 +34,20 @@ static const int RETRY_DELAY = 1;
 auto logger = logging::getLogger("concord.secretretriever");
 
 SecretData parseJson(json j) {
-  return SecretData{j["key"].get<std::string>(),
-                    j["iv"].get<std::string>(),
-                    j["algorithm"].get<std::string>(),
-                    j["key_length"].get<uint32_t>(),
-                    j["additional_info"].is_string() ? j["additional_info"].get<std::string>() : ""};
+  auto additional_info = j["additional_info"].is_string() ? j["additional_info"].get<std::string>() : "";
+
+  try {
+    auto key = j["key"].get<std::string>();
+    auto iv = j["iv"].get<std::string>();
+    auto algorithm = j["algorithm"].get<std::string>();
+    auto key_length = j["key_length"].get<uint32_t>();
+
+    return SecretData{key, iv, algorithm, key_length, additional_info};
+
+  } catch (const std::exception &e) {
+    LOG_ERROR(logger, "Failed to read JSON content '" << additional_info << "'");
+    throw;
+  }
 }
 
 std::optional<SecretData> retrieveFileSecret(const std::string &secret_url) {
