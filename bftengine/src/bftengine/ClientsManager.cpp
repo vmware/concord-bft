@@ -120,30 +120,29 @@ bool ClientsManager::hasReply(NodeIdType clientId, ReqId reqSeqNum) const {
   }
 }
 
-void ClientsManager::deleteOldestReply(NodeIdType clientId) {
-  // YS TBD: Once multiple replies for client batching are sorted by incoming time, they could be deleted properly
-  Time earliestTime = MaxTime;
-  ReqId earliestReplyId = 0;
+ReqId ClientsManager::lastInOrderReplyId(NodeIdType clientId) const {
+  auto it = clientsInfo_.find(clientId);
+  if (it == clientsInfo_.end()) {
+    return ReqId{0};  // No such client
+  }
 
+  // If we don't have a full batch of replies the last in-order reply id is the zero-th sequence number
+  const auto& repliesInfo = it->second.repliesInfo;
+  if (repliesInfo.empty() || repliesInfo.size() < maxNumOfReqsPerClient_) return ReqId{0};
+
+  return repliesInfo.begin()->first;  // map keys are ordered in ascending order
+}
+
+void ClientsManager::deleteOldestReply(NodeIdType clientId) {
   auto& repliesInfo = clientsInfo_[clientId].repliesInfo;
-  for (const auto& reply : repliesInfo) {
-    if (earliestTime > reply.second) {
-      earliestReplyId = reply.first;
-      earliestTime = reply.second;
-    }
+  auto minElement = repliesInfo.begin();  // map keys are ordered in ascending order
+
+  if (minElement != repliesInfo.end()) {
+    auto oldestReplyId = minElement->first;
+    repliesInfo.erase(minElement);
+
+    LOG_DEBUG(CL_MNGR, "Deleted reply message" << KVLOG(clientId, oldestReplyId, repliesInfo.size()));
   }
-  if (earliestReplyId)
-    repliesInfo.erase(earliestReplyId);
-  else if (!repliesInfo.empty()) {
-    // Delete reply arrived through ST
-    auto const& reply = repliesInfo.cbegin();
-    earliestReplyId = reply->first;
-    earliestTime = reply->second;
-    repliesInfo.erase(reply);
-  }
-  LOG_DEBUG(CL_MNGR,
-            "Deleted reply message" << KVLOG(
-                clientId, earliestReplyId, earliestTime.time_since_epoch().count(), repliesInfo.size()));
 }
 
 // Reference the ClientInfo of the corresponding client:
@@ -235,10 +234,10 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateReplyFromSavedOne(NodeId
   if (replySeqNum != requestSeqNum) {
     if (maxNumOfReqsPerClient_ == 1) {
       metric_reply_inconsistency_detected_++;
-      LOG_FATAL(CL_MNGR,
+      LOG_ERROR(CL_MNGR,
                 "The client reserved page does not contain a reply for specified request"
                     << KVLOG(clientId, replySeqNum, requestSeqNum));
-      ConcordAssert(false);
+      // ConcordAssert(false);
     }
     // YS TBD: Fix this for client batching with a proper ordering of incoming requests
     LOG_INFO(CL_MNGR,
