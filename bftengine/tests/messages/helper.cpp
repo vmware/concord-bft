@@ -80,7 +80,8 @@ bftEngine::ReplicaConfig& createReplicaConfig(uint16_t fVal, uint16_t cVal) {
   config.maxReplyMessageSize = 1024;
   config.sizeOfReservedPage = 2048;
   config.debugStatisticsEnabled = true;
-  config.threadbagConcurrency = 8;
+  config.threadbagConcurrencyLevel1 = 16;
+  config.threadbagConcurrencyLevel2 = 8;
 
   loadPrivateAndPublicKeys(config.replicaPrivateKey, config.publicKeysOfReplicas, config.replicaId, config.numReplicas);
 
