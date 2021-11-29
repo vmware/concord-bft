@@ -228,7 +228,7 @@ class BftTestNetwork:
             self.metrics.__exit__()
             self.stop_all_replicas()
             os.chdir(self.origdir)
-            # shutil.rmtree(self.testdir, ignore_errors=True)
+            shutil.rmtree(self.testdir, ignore_errors=True)
             shutil.rmtree(self.certdir, ignore_errors=True)
             shutil.rmtree(self.txn_signing_keys_base_path, ignore_errors=True)
             if self.test_dir and self.test_start_time:

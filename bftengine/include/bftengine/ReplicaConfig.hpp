@@ -217,6 +217,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                std::chrono::seconds,
                std::chrono::seconds{3600},
                "Interval time to create db snapshot in seconds");
+  // Post-execution separation feature flag
+  CONFIG_PARAM(enablePostExecutionSeparation, bool, true, "Post-execution separation feature flag");
 
   // Not predefined configuration parameters
   // Example of usage:
@@ -320,6 +322,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, dbCheckPointWindowSize);
     serialize(outStream, dbCheckpointDirPath);
     serialize(outStream, dbSnapshotIntervalSeconds);
+    serialize(outStream, enablePostExecutionSeparation);
     serialize(outStream, config_params_);
   }
   void deserializeDataMembers(std::istream& inStream) {
@@ -402,6 +405,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, dbCheckPointWindowSize);
     deserialize(inStream, dbCheckpointDirPath);
     deserialize(inStream, dbSnapshotIntervalSeconds);
+    deserialize(inStream, enablePostExecutionSeparation);
     deserialize(inStream, config_params_);
   }
 
@@ -474,7 +478,8 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
   os << KVLOG(rc.ticksGeneratorPollPeriod.count(),
               rc.preExecutionResultAuthEnabled,
               rc.prePrepareFinalizeAsyncEnabled,
-              rc.threadbagConcurrency);
+              rc.threadbagConcurrency,
+              rc.enablePostExecutionSeparation);
   os << ",";
   os << KVLOG(rc.maxNumberOfDbCheckpoints, rc.dbCheckPointWindowSize, rc.dbCheckpointDirPath);
 
