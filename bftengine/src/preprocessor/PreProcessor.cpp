@@ -1326,7 +1326,9 @@ void PreProcessor::releaseClientPreProcessRequest(const RequestStateSharedPtr &r
       givenReq.reset();
     }
     if (batchedPreProcessEnabled_) ongoingReqBatches_[clientId]->increaseNumOfCompletedReqs();
-    preProcessorMetrics_.preProcInFlyRequestsNum--;
+    if (!myReplica_.isCurrentPrimary()) {
+      preProcessorMetrics_.preProcInFlyRequestsNum--;
+    }
   }
 }
 
