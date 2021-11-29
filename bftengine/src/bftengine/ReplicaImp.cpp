@@ -3506,14 +3506,14 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
   if ((currentViewIsActive()) && (mainLog->insideActiveWindow(msgSeqNum) || mainLog->isPressentInHistory(msgSeqNum))) {
     SeqNumInfo &seqNumInfo = mainLog->getFromActiveWindowOrHistory(msgSeqNum);
 
-    if (config_.getreplicaId() == currentPrimary()) {
-      PrePrepareMsg *pp = seqNumInfo.getSelfPrePrepareMsg();
-      if (msg->getPrePrepareIsMissing()) {
-        if (pp != nullptr) {
-          sendAndIncrementMetric(pp, msgSender, metric_sent_preprepare_msg_due_to_reqMissingData_);
-        }
+    PrePrepareMsg *pp = seqNumInfo.getSelfPrePrepareMsg();
+    if (msg->getPrePrepareIsMissing()) {
+      if (pp != nullptr) {
+        sendAndIncrementMetric(pp, msgSender, metric_sent_preprepare_msg_due_to_reqMissingData_);
       }
+    }
 
+    if (config_.getreplicaId() == currentPrimary()) {
       if (seqNumInfo.slowPathStarted() && !msg->getSlowPathHasStarted()) {
         StartSlowCommitMsg startSlowMsg(config_.getreplicaId(), getCurrentView(), msgSeqNum);
         sendAndIncrementMetric(&startSlowMsg, msgSender, metric_sent_startSlowPath_msg_due_to_reqMissingData_);
