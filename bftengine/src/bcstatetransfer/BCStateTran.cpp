@@ -795,6 +795,9 @@ void BCStateTran::addOnTransferringCompleteCallback(std::function<void(uint64_t)
   }
   on_transferring_complete_cb_registry_.at(uint64_t(priority)).add(std::move(callback));
 }
+void BCStateTran::addOnFetchingStateChangeCallback(std::function<void(uint64_t)> cb) {
+  if (cb) on_fetching_state_change_cb_registry_.add(std::move(cb));
+}
 
 // this function can be executed in context of another thread.
 void BCStateTran::handleStateTransferMessageImp(char *msg,
@@ -2733,9 +2736,9 @@ void BCStateTran::processData(bool lastInBatch) {
 
       cycleEndSummary();
       sourceSelector_.reset();
-
       g.txn()->setIsFetchingState(false);
       ConcordAssertEQ(getFetchingState(), FetchingState::NotFetching);
+      on_fetching_state_change_cb_registry_.invokeAll(cp.checkpointNum);
       break;
     } else if (!badDataFromCurrentSourceReplica) {
       //////////////////////////////////////////////////////////////////////////

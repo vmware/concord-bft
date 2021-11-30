@@ -356,18 +356,21 @@ TEST(KeyExchangeManager, initialKeyExchange) {
   KeyExchangeMsg kem;
   kem.pubkey = "a";
   kem.repID = 0;
+  kem.generated_sn = 2;
   test.km_.onKeyExchange(kem, 2);
 
   // set public of replica 1
   KeyExchangeMsg kem2;
   kem2.pubkey = "b";
   kem2.repID = 1;
+  kem2.generated_sn = 3;
   test.km_.onKeyExchange(kem2, 3);
 
   // set public of replica 3 and promote its private
   KeyExchangeMsg kem4;
   kem4.pubkey = "public";
   kem4.repID = 3;
+  kem4.generated_sn = 5;
   test.km_.onKeyExchange(kem4, 5);
 
   // will return true to slow path and will ignore this msg
@@ -375,6 +378,7 @@ TEST(KeyExchangeManager, initialKeyExchange) {
   // set to fast path
   kem3.pubkey = "c";
   kem3.repID = 2;
+  kem3.generated_sn = 5;
   test.km_.onKeyExchange(kem3, 5);
   ASSERT_EQ(test.getKeyExchangedOnStartCounter(), 4);
   ASSERT_EQ(test.km_.keysExchanged, true);
@@ -415,24 +419,28 @@ TEST(KeyExchangeManager, endToEnd) {
   KeyExchangeMsg kem;
   kem.pubkey = "a";
   kem.repID = 0;
+  kem.generated_sn = 2;
   test.km_.onKeyExchange(kem, 2);
 
   // set public of replica 1
   KeyExchangeMsg kem2;
   kem2.pubkey = "b";
   kem2.repID = 1;
+  kem2.generated_sn = 3;
   test.km_.onKeyExchange(kem2, 3);
 
   // set public of replica 2 and promote private
   KeyExchangeMsg kem3;
   kem3.pubkey = "public";
   kem3.repID = 2;
+  kem3.generated_sn = 4;
   test.km_.onKeyExchange(kem3, 4);
 
   // set public of replica 3
   KeyExchangeMsg kem4;
   kem4.pubkey = "d";
   kem4.repID = 3;
+  kem4.generated_sn = 5;
   ASSERT_EQ(test.km_.keysExchanged, false);
   test.km_.onKeyExchange(kem4, 5);
   ASSERT_EQ(test.km_.keysExchanged, true);
@@ -464,18 +472,21 @@ TEST(KeyExchangeManager, endToEnd) {
   KeyExchangeMsg kem5;
   kem5.pubkey = "aaaa";
   kem5.repID = 0;
+  kem5.generated_sn = 22;
   test.km_.onKeyExchange(kem5, 22);
 
   // rotation candidate for replica 1
   KeyExchangeMsg kem6;
   kem6.pubkey = "bbbb";
   kem6.repID = 1;
+  kem6.generated_sn = 33;
   test.km_.onKeyExchange(kem6, 33);
 
   // rotation candidate for replica 2 promote private
   KeyExchangeMsg kem7;
   kem7.pubkey = "public2";
   kem7.repID = 2;
+  kem7.generated_sn = 34;
   test.km_.onKeyExchange(kem7, 34);
   // Checkpoint too close, should not rotate
   test.km_.onCheckpoint(1);
@@ -495,6 +506,7 @@ TEST(KeyExchangeManager, endToEnd) {
   KeyExchangeMsg kem8;
   kem8.pubkey = "ddddd";
   kem8.repID = 3;
+  kem8.generated_sn = 180;
   test.km_.onKeyExchange(kem8, 180);
 
   // now should rotate 0,1,2

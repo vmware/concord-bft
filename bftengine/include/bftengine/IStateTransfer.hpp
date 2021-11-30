@@ -82,6 +82,9 @@ class IStateTransfer : public IReservedPages {
       std::function<void(uint64_t)>,
       StateTransferCallBacksPriorities priority = StateTransferCallBacksPriorities::DEFAULT) = 0;
 
+  // Registers a function that is called every time fetching state changes
+  virtual void addOnFetchingStateChangeCallback(std::function<void(uint64_t)>) = 0;
+
   virtual void setEraseMetadataFlag() = 0;
 
   virtual void setReconfigurationEngine(

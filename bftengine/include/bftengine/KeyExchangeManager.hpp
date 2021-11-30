@@ -32,9 +32,9 @@ class KeyExchangeManager {
   // Generates and publish key to consensus
   void sendKeyExchange(const SeqNum&);
   // Generates and publish the first replica's key,
-  void sendInitialKey(uint32_t prim = 0);
+  void sendInitialKey(uint32_t prim = 0, const SeqNum& = 0);
   // The execution handler implementation that is called when a key exchange msg has passed consensus.
-  std::string onKeyExchange(const KeyExchangeMsg& kemsg, const SeqNum& sn, const std::string& cid);
+  std::string onKeyExchange(const KeyExchangeMsg& kemsg, const SeqNum& req_sn, const std::string& cid);
   // Register a IKeyExchanger to notification when keys are rotated.
   void registerForNotification(IKeyExchanger* ke) { registryToExchange_.push_back(ke); }
   // Called at the end of state transfer

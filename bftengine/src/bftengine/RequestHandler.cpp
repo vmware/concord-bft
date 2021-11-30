@@ -33,7 +33,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
     if (req.flags & KEY_EXCHANGE_FLAG) {
       KeyExchangeMsg ke = KeyExchangeMsg::deserializeMsg(req.request, req.requestSize);
       LOG_INFO(KEY_EX_LOG, "BFT handler received KEY_EXCHANGE msg " << ke.toString());
-      auto resp = impl::KeyExchangeManager::instance().onKeyExchange(ke, ke.generated_sn, req.cid);
+      auto resp = impl::KeyExchangeManager::instance().onKeyExchange(ke, req.executionSequenceNum, req.cid);
       if (resp.size() <= req.maxReplySize) {
         std::copy(resp.begin(), resp.end(), req.outReply);
         req.outActualReplySize = resp.size();
