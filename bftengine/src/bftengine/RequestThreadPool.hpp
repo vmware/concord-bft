@@ -10,6 +10,8 @@
 // file.
 
 #pragma once
+#include <array>
+#include <stdexcept>
 
 #include "thread_pool.hpp"
 
@@ -20,13 +22,18 @@ namespace impl {
 // Then the tasks in the bag will be scheduled and executed.
 // Currently the user of this thread bag will have to do the book keeping of all the tasks
 // and will have to wait for them.
-// TODO (achaudhuri) : Add the functionality of book keeping and wait for finish of tasks for each thread
-// This abstraction will evolve further to provide the functionality of a bag of thread using a theadpool.
+// TODO (achaudhuri) : Add the functionality of book keeping and wait for finish of tasks
+//  for each thread
+// This abstraction will evolve further to provide the functionality of a bag of thread
+// using a theadpool.
 class RequestThreadPool final {
  public:
-  static auto& getThreadPool() {
-    static concord::util::ThreadPool threadBag{ReplicaConfig::instance().threadbagConcurrency};
-    return threadBag;
+  enum PoolLevel : uint16_t { STARTING = 0, FIRSTLEVEL, MAXLEVEL };
+  static auto& getThreadPool(uint16_t level) {
+    // Currently we need 2 level thread pools.
+    static std::array<concord::util::ThreadPool, PoolLevel::MAXLEVEL> threadBag = {
+        ReplicaConfig::instance().threadbagConcurrencyLevel1, ReplicaConfig::instance().threadbagConcurrencyLevel2};
+    return threadBag.at(level);
   }
 
  private:
