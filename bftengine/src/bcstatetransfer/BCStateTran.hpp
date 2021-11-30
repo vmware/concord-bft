@@ -126,6 +126,8 @@ class BCStateTran : public IStateTransfer {
       std::function<void(uint64_t)>,
       StateTransferCallBacksPriorities priority = StateTransferCallBacksPriorities::DEFAULT) override;
 
+  void addOnFetchingStateChangeCallback(std::function<void(uint64_t)>) override;
+
   void setEraseMetadataFlag() override { psd_->setEraseDataStoreFlag(); }
   void setReconfigurationEngine(
       std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> cre) override {
@@ -531,6 +533,7 @@ class BCStateTran : public IStateTransfer {
   mutable Metrics metrics_;
 
   std::map<uint64_t, concord::util::CallbackRegistry<uint64_t>> on_transferring_complete_cb_registry_;
+  concord::util::CallbackRegistry<uint64_t> on_fetching_state_change_cb_registry_;
 
  protected:
   //////////////////////////////////////////////////////////////////////////////

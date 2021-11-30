@@ -1598,18 +1598,19 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
             live_replicas = bft_network.all_replicas(without=replicas_for_st.union(crashed_replica))
             await bft_network.check_initital_key_exchange(stop_replicas=False, full_key_exchange=False, replicas_to_start=live_replicas)
-            bft_network.start_replicas(crashed_replica)
             for i in range(601):
                 await skvbc.send_write_kv_set()
-
+            bft_network.start_replicas(crashed_replica)
+            await self.validate_initial_key_exchange(bft_network, crashed_replica, metrics_id="self_key_exchange", expected=0)
             for r in crashed_replica:
                 await bft_network.wait_for_state_transfer_to_stop(initial_prim,
                                                                   r,
                                                                   stop_on_stable_seq_num=False)
             live_replicas = bft_network.all_replicas(without=replicas_for_st)
             await self.validate_epoch_number(bft_network, 1, live_replicas)
-
+            await self.validate_initial_key_exchange(bft_network, crashed_replica, metrics_id="self_key_exchange", expected=1)
             bft_network.start_replicas(replicas_for_st)
+            await self.validate_initial_key_exchange(bft_network, replicas_for_st, metrics_id="self_key_exchange", expected=0)
             for i in range(601):
                 await skvbc.send_write_kv_set()
 
@@ -1620,11 +1621,13 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                                                                   stop_on_stable_seq_num=False)
 
             await self.validate_epoch_number(bft_network, 1, bft_network.all_replicas())
+            await self.validate_initial_key_exchange(bft_network, replicas_for_st, metrics_id="self_key_exchange", expected=1)
             for i in range(300):
                 await skvbc.send_write_kv_set()
             for r in bft_network.all_replicas():
                 nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
                 self.assertGreater(nb_fast_path, 0)
+            await self.validate_initial_key_exchange(bft_network, bft_network.all_replicas(), metrics_id="self_key_exchange", expected=bft_network.config.n)
     
 
 
@@ -1799,7 +1802,6 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         for i in range(100):
             await skvbc.send_write_kv_set()
     
-
     async def try_to_unwedge(self, bft_network, bft, restart, quorum=None):
         with trio.fail_after(seconds=60):
             client = bft_network.random_client()
@@ -1979,7 +1981,22 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                     if curr_epoch != epoch_number:
                         succ = False
                         break
-
+    async def validate_initial_key_exchange(self, bft_network, replicas, metrics_id, expected):
+        total = 0
+        with trio.fail_after(seconds=10):
+            succ = False
+            while not succ:
+                succ = True
+                total = 0
+                for r in replicas:
+                    count = await bft_network.get_metric(r, bft_network, 'Counters', metrics_id,"KeyExchangeManager")
+                    total += count
+                    if total != expected:
+                        succ = False
+                    else:
+                        succ = True
+                        break
+            assert total == expected
 
 if __name__ == '__main__':
     unittest.main()
