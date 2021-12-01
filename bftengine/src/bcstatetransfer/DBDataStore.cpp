@@ -12,8 +12,8 @@ namespace impl {
 
 std::ostream& operator<<(std::ostream& os, const DataStore::CheckpointDesc& desc) {
   os << "CheckpointDesc "
-     << " checkpointNum: " << desc.checkpointNum << " lastBlock: " << desc.lastBlock
-     << " digestOfLastBlock: " << desc.digestOfLastBlock.toString()
+     << " checkpointNum: " << desc.checkpointNum << " lastBlock: " << desc.maxBlockId
+     << " digestOfLastBlock: " << desc.digestOfMaxBlockId.toString()
      << " digestOfResPagesDescriptor:" << desc.digestOfResPagesDescriptor.toString();
   return os;
 }
@@ -147,14 +147,14 @@ void DBDataStore::setReplicas(const std::set<std::uint16_t> replicas) {
  */
 void DBDataStore::serializeCheckpoint(std::ostream& os, const CheckpointDesc& desc) const {
   Serializable::serialize(os, desc.checkpointNum);
-  Serializable::serialize(os, desc.lastBlock);
-  Serializable::serialize(os, desc.digestOfLastBlock.get(), BLOCK_DIGEST_SIZE);
+  Serializable::serialize(os, desc.maxBlockId);
+  Serializable::serialize(os, desc.digestOfMaxBlockId.get(), BLOCK_DIGEST_SIZE);
   Serializable::serialize(os, desc.digestOfResPagesDescriptor.get(), BLOCK_DIGEST_SIZE);
 }
 void DBDataStore::deserializeCheckpoint(std::istream& is, CheckpointDesc& desc) const {
   Serializable::deserialize(is, desc.checkpointNum);
-  Serializable::deserialize(is, desc.lastBlock);
-  Serializable::deserialize(is, desc.digestOfLastBlock.getForUpdate(), BLOCK_DIGEST_SIZE);
+  Serializable::deserialize(is, desc.maxBlockId);
+  Serializable::deserialize(is, desc.digestOfMaxBlockId.getForUpdate(), BLOCK_DIGEST_SIZE);
   Serializable::deserialize(is, desc.digestOfResPagesDescriptor.getForUpdate(), BLOCK_DIGEST_SIZE);
 }
 void DBDataStore::setCheckpointDesc(uint64_t checkpoint, const CheckpointDesc& desc) {
