@@ -30,6 +30,12 @@ class ConcordConfiguration;
 }
 
 namespace external_client {
+
+struct ExtClientReply {
+  bftEngine::ClientReply reply;
+  concord::client::concordclient::SendCallback callback = {};
+};
+
 // Represents a Concord BFT client. The purpose of this class is to be easy to
 // use for external users. This is achieved by:
 //  * providing a simple public interface
@@ -39,7 +45,7 @@ namespace external_client {
 //  client
 class ConcordClient {
  public:
-  using PendingReplies = std::deque<bftEngine::ClientReply>;
+  using PendingReplies = std::deque<ExtClientReply>;
   // Constructs the client by passing concord configuration
   // object and a client_id to get the specific values for this client.
   // Construction executes all needed steps to provide a ready-to-use

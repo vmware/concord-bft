@@ -27,6 +27,7 @@
 namespace concord::concord_client_pool {
 
 using bftEngine::ClientMsgFlag;
+using concord::external_client::ExtClientReply;
 using namespace bftEngine;
 
 using concord::client::concordclient::SendCallback;
@@ -397,9 +398,10 @@ void ConcordClientPool::SetDoneCallback(EXT_DONE_CALLBACK cb) { done_callback_ =
 
 void ConcordClientPool::Done(std::pair<int8_t, external_client::ConcordClient::PendingReplies> &&replies) {
   if (done_callback_) {
-    for (const auto &reply : replies.second) {
-      LOG_DEBUG(logger_, "Return client reply to the sender" << KVLOG(reply.cid, reply.actualReplyLength));
-      done_callback_(reply.cid, reply.actualReplyLength);
+    for (const auto &pending : replies.second) {
+      LOG_DEBUG(logger_,
+                "Return client pending to the sender" << KVLOG(pending.reply.cid, pending.reply.actualReplyLength));
+      done_callback_(pending.reply.cid, pending.reply.actualReplyLength);
     }
   }
 }
@@ -444,12 +446,12 @@ void SingleRequestProcessingJob::execute() {
     }
   }
   external_client::ConcordClient::PendingReplies replies;
-  replies.push_back(ClientReply{static_cast<uint32_t>(request_.size()),
-                                nullptr,
-                                reply_size,
-                                OperationResult::SUCCESS,
-                                correlation_id_,
-                                span_context_});
+  replies.push_back(ExtClientReply{ClientReply{static_cast<uint32_t>(request_.size()),
+                                               nullptr,
+                                               reply_size,
+                                               OperationResult::SUCCESS,
+                                               correlation_id_,
+                                               span_context_}});
   clients_pool_.InsertClientToQueue(processing_client_, {0, std::move(replies)});
 }
 
@@ -539,13 +541,14 @@ void ConcordClientPool::InsertClientToQueue(
       }
     }
   }
-  if (replies.second.front().cb && client->getClientRequestError() == OperationResult::TIMEOUT) {
-    for (const auto &reply : replies.second) {
-      reply.cb(SendResult{SendError::TimedOut});
+  const auto &pending_replies = replies.second;
+  if (client->getClientRequestError() == OperationResult::TIMEOUT) {
+    for (const auto &pending : pending_replies) {
+      if (pending.callback) pending.callback(SendResult{SendError::TimedOut});
     }
-  } else if (replies.second.front().cb && client->getClientRequestError() == OperationResult::INVALID_REQUEST) {
-    for (const auto &reply : replies.second) {
-      reply.cb(SendResult{SendError::InvalidArgument});
+  } else if (client->getClientRequestError() == OperationResult::INVALID_REQUEST) {
+    for (const auto &pending : pending_replies) {
+      if (pending.callback) pending.callback(SendResult{SendError::InvalidArgument});
     }
   }
   Done(std::move(replies));

@@ -19,7 +19,6 @@
 #include <memory>
 
 #include "Metrics.hpp"
-#include "client/concordclient/send_callback.hpp"
 #include "communication/ICommunication.hpp"
 #include "PerformanceManager.hpp"
 #include "SharedTypes.hpp"
@@ -65,7 +64,6 @@ struct ClientReply {
   bftEngine::OperationResult opResult = bftEngine::OperationResult::SUCCESS;
   std::string cid;
   std::string span_context;
-  concord::client::concordclient::SendCallback cb = {};
 };
 
 class SimpleClient {
