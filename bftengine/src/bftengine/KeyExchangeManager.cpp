@@ -65,7 +65,10 @@ std::string KeyExchangeManager::generateCid(std::string cid) {
   return cid;
 }
 
-std::string KeyExchangeManager::onKeyExchange(const KeyExchangeMsg& kemsg, const SeqNum& sn, const std::string& cid) {
+std::string KeyExchangeManager::onKeyExchange(const KeyExchangeMsg& kemsg,
+                                              const SeqNum& req_sn,
+                                              const std::string& cid) {
+  const auto& sn = kemsg.generated_sn;
   SCOPED_MDC_SEQ_NUM(std::to_string(sn));
   LOG_INFO(KEY_EX_LOG, kemsg.toString() << KVLOG(sn, cid, exchanged()));
   // client query
@@ -78,6 +81,11 @@ std::string KeyExchangeManager::onKeyExchange(const KeyExchangeMsg& kemsg, const
   if (kemsg.epoch != my_epoch) {
     LOG_WARN(KEY_EX_LOG, "Got KeyExchangeMsg of a different epoch, ignore..." << KVLOG(kemsg.epoch, my_epoch));
     return "invalid epoch";
+  }
+  // reject key exchange message if generated seq_num is outside working window
+  if (sn < ((static_cast<uint64_t>(req_sn) / kWorkWindowSize) * kWorkWindowSize)) {
+    LOG_WARN(KEY_EX_LOG, "Generated sequence number is outside working window, ignore..." << KVLOG(sn, req_sn));
+    return "gen_seq_num_ouside_workingwindow";
   }
   if (publicKeys_.keyExists(kemsg.repID, sn)) return "ok";
   publicKeys_.push(kemsg, sn);
@@ -243,7 +251,7 @@ void KeyExchangeManager::loadClientPublicKey(const std::string& key,
   if (saveToReservedPages) saveClientsPublicKeys(SigManager::instance()->getClientsPublicKeys());
 }
 
-void KeyExchangeManager::sendInitialKey(uint32_t prim) {
+void KeyExchangeManager::sendInitialKey(uint32_t prim, const SeqNum& s) {
   std::unique_lock<std::mutex> lock(startup_mutex_);
   SCOPED_MDC(MDC_REPLICA_ID_KEY, std::to_string(ReplicaConfig::instance().replicaId));
   if (!ReplicaConfig::instance().waitForFullCommOnStartup) {
@@ -251,7 +259,7 @@ void KeyExchangeManager::sendInitialKey(uint32_t prim) {
   } else {
     waitForFullCommunication();
   }
-  sendKeyExchange(0);
+  sendKeyExchange(s);
   metrics_->sent_key_exchange_on_start_status.Get().Set("True");
 }
 

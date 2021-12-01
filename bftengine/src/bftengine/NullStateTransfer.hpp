@@ -46,6 +46,7 @@ class NullStateTransfer : public IStateTransfer {
 
   void addOnTransferringCompleteCallback(std::function<void(uint64_t)>,
                                          StateTransferCallBacksPriorities priority) override{};
+  void addOnFetchingStateChangeCallback(std::function<void(uint64_t)>) override {}
   void setEraseMetadataFlag() override {}
   void setReconfigurationEngine(
       std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine>) override {}
