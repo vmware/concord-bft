@@ -25,6 +25,9 @@ using namespace bftEngine;
 
 using namespace bft::communication;
 
+using concord::client::concordclient::SendCallback;
+using concord::client::concordclient::SendResult;
+
 std::shared_ptr<std::vector<char>> ConcordClient::reply_ = std::make_shared<std::vector<char>>(0);
 uint16_t ConcordClient::required_num_of_replicas_ = 0;
 uint16_t ConcordClient::num_of_replicas_ = 0;
@@ -92,7 +95,7 @@ void ConcordClient::AddPendingRequest(std::vector<uint8_t>&& request,
                                       uint64_t seq_num,
                                       const std::string& correlation_id,
                                       const std::string& span_context,
-                                      RequestCallBack callback) {
+                                      SendCallback callback) {
   bftEngine::ClientRequest pending_request;
   pending_request.lengthOfRequest = request.size();
   pending_request.request = std::move(request);

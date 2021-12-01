@@ -10,6 +10,7 @@ target_include_directories(concord_client_pool PUBLIC include)
 target_link_libraries(concord_client_pool PUBLIC
         bftclient
         bftclient_new
+        concordclient-interface
         corebft
       	)
 

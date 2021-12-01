@@ -116,7 +116,8 @@ target_link_libraries(corebft PUBLIC
   db_checkpoint_msg
   cre
   stdc++fs
-  )
+  concordclient-interface
+)
 
 
 target_include_directories(bftclient PUBLIC include/bftengine)
@@ -124,7 +125,11 @@ target_include_directories(bftclient PUBLIC src/bftengine)
 target_include_directories(bftclient PUBLIC src/preprocessor)
 target_include_directories(bftclient PUBLIC ${perf_include})
 target_include_directories(bftclient PUBLIC ${kvbc_include})
-target_link_libraries(bftclient PUBLIC bftcommunication diagnostics)
+target_link_libraries(bftclient PUBLIC
+  bftcommunication
+  diagnostics
+  concordclient-interface
+)
 
 target_include_directories(bftclient_shared PUBLIC include/bftengine)
 target_include_directories(bftclient_shared PUBLIC src/bftengine)
@@ -132,7 +137,11 @@ target_include_directories(bftclient_shared PUBLIC src/preprocessor)
 target_include_directories(bftclient_shared PUBLIC ${perf_include})
 target_include_directories(bftclient_shared PUBLIC ${kvbc_include})
 
-target_link_libraries(bftclient_shared PUBLIC bftcommunication_shared diagnostics)
+target_link_libraries(bftclient_shared PUBLIC
+  bftcommunication_shared
+  diagnostics
+  concordclient-interface
+)
 install (TARGETS bftclient_shared DESTINATION lib${LIB_SUFFIX})
 
 install(DIRECTORY include/bftengine DESTINATION include)

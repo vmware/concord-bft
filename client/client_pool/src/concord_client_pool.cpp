@@ -12,6 +12,7 @@
 // file.
 
 #include "client/client_pool/concord_client_pool.hpp"
+#include "client/concordclient/concord_client.hpp"
 
 #include <sparse_merkle/base_types.h>
 #include <mutex>
@@ -28,6 +29,10 @@ namespace concord::concord_client_pool {
 using bftEngine::ClientMsgFlag;
 using namespace bftEngine;
 
+using concord::client::concordclient::SendCallback;
+using concord::client::concordclient::SendError;
+using concord::client::concordclient::SendResult;
+
 static inline const std::string kEmptySpanContext = std::string("");
 
 static auto IsGoodForBatching(ClientMsgFlag flags, bool client_batching_enabled) {
@@ -42,9 +47,9 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
                                             uint64_t seq_num,
                                             std::string correlation_id,
                                             std::string span_context,
-                                            const bftEngine::RequestCallBack &callback) {
+                                            const SendCallback &callback) {
   if (callback && timeout_ms.count() == 0) {
-    callback(bftEngine::SendResult{SubmitResult::InvalidArgument});
+    callback(SendResult{SendError::InvalidArgument});
     return SubmitResult::Overloaded;
   }
   externalRequest external_request;
@@ -154,9 +159,9 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
     LOG_WARN(logger_, "Cannot allocate client for" << KVLOG(correlation_id));
     if (callback) {
       if (serving_candidates == 0 && !clients_.empty()) {
-        callback(bftEngine::SendResult{SubmitResult::ClientUnavailable});
+        callback(SendResult{SendError::ClientUnavailable});
       } else {
-        callback(bftEngine::SendResult{SubmitResult::Overloaded});
+        callback(SendResult{SendError::Overloaded});
       }
     }
     return SubmitResult::Overloaded;
@@ -182,7 +187,7 @@ void ConcordClientPool::assignJobToClient(const ClientPtr &client,
                                           uint64_t seq_num,
                                           const std::string &correlation_id,
                                           const std::string &span_context,
-                                          const bftEngine::RequestCallBack &callback) {
+                                          const SendCallback &callback) {
   LOG_INFO(logger_,
            "client_id=" << client->getClientId() << " starts handling reqSeqNum=" << seq_num << " cid="
                         << correlation_id << " span_context exists=" << !span_context.empty() << " flags=" << flags
@@ -198,7 +203,7 @@ void ConcordClientPool::assignJobToClient(const ClientPtr &client,
 
 SubmitResult ConcordClientPool::SendRequest(const bft::client::WriteConfig &config,
                                             bft::client::Msg &&request,
-                                            const bftEngine::RequestCallBack &callback) {
+                                            const SendCallback &callback) {
   LOG_DEBUG(logger_, "Received write request with cid=" << config.request.correlation_id);
   auto request_flag = ClientMsgFlag::EMPTY_FLAGS_REQ;
   if (config.request.pre_execute) request_flag = ClientMsgFlag::PRE_PROCESS_REQ;
@@ -215,10 +220,10 @@ SubmitResult ConcordClientPool::SendRequest(const bft::client::WriteConfig &conf
 
 SubmitResult ConcordClientPool::SendRequest(const bft::client::ReadConfig &config,
                                             bft::client::Msg &&request,
-                                            const bftEngine::RequestCallBack &callback) {
+                                            const SendCallback &callback) {
   LOG_INFO(logger_, "Received read request with cid=" << config.request.correlation_id);
   if (callback && config.request.pre_execute) {
-    callback(bftEngine::SendResult{SubmitResult::InvalidArgument});
+    callback(SendResult{SendError::InvalidArgument});
     return SubmitResult::Overloaded;
   }
   return SendRequest(std::forward<std::vector<uint8_t>>(request),
@@ -415,9 +420,9 @@ void SingleRequestProcessingJob::execute() {
     reply_size = res.matched_data.size();
     if (callback_) {
       if (processing_client_->getClientRequestError() != OperationResult::TIMEOUT) {
-        callback_(bftEngine::SendResult{res});
+        callback_(SendResult{res});
       } else {
-        callback_(bftEngine::SendResult{SubmitResult::TimedOut});
+        callback_(SendResult{SendError::TimedOut});
       }
     }
   } else {
@@ -430,11 +435,11 @@ void SingleRequestProcessingJob::execute() {
     reply_size = res.matched_data.size();
     if (callback_) {
       if (OperationResult::SUCCESS == processing_client_->getClientRequestError()) {
-        callback_(bftEngine::SendResult{res});
+        callback_(SendResult{res});
       } else if (OperationResult::TIMEOUT == processing_client_->getClientRequestError()) {
-        callback_(bftEngine::SendResult{SubmitResult::TimedOut});
+        callback_(SendResult{SendError::TimedOut});
       } else {  // Lets treat as invalid argument request.
-        callback_(bftEngine::SendResult{SubmitResult::InvalidArgument});
+        callback_(SendResult{SendError::InvalidArgument});
       }
     }
   }
@@ -536,11 +541,11 @@ void ConcordClientPool::InsertClientToQueue(
   }
   if (replies.second.front().cb && client->getClientRequestError() == OperationResult::TIMEOUT) {
     for (const auto &reply : replies.second) {
-      reply.cb(SendResult{SubmitResult::TimedOut});
+      reply.cb(SendResult{SendError::TimedOut});
     }
   } else if (replies.second.front().cb && client->getClientRequestError() == OperationResult::INVALID_REQUEST) {
     for (const auto &reply : replies.second) {
-      reply.cb(SendResult{SubmitResult::InvalidArgument});
+      reply.cb(SendResult{SendError::InvalidArgument});
     }
   }
   Done(std::move(replies));

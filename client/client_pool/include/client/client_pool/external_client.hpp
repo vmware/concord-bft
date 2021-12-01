@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 #include "client_pool_config.hpp"
+#include "client/concordclient/send_callback.hpp"
 #include "communication/StatusInfo.h"
 #include "external_client_exception.hpp"
 
@@ -63,7 +64,7 @@ class ConcordClient {
                          uint64_t seq_num,
                          const std::string& correlation_id = {},
                          const std::string& span_context = {},
-                         bftEngine::RequestCallBack callback = {});
+                         concord::client::concordclient::SendCallback callback = {});
 
   size_t PendingRequestsCount() const { return pending_requests_.size(); }
 

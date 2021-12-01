@@ -45,17 +45,17 @@ Status RequestServiceImpl::Send(ServerContext* context, const Request* proto_req
   auto callback = [&](cc::SendResult&& send_result) {
     if (not std::holds_alternative<bft::client::Reply>(send_result)) {
       LOG_INFO(logger_, "Send returned error");
-      switch (std::get<uint32_t>(send_result)) {
-        case (concord_client_pool::Overloaded):
+      switch (std::get<cc::SendError>(send_result)) {
+        case (cc::SendError::Overloaded):
           status.set_value(grpc::Status(grpc::StatusCode::RESOURCE_EXHAUSTED, "All clients occupied"));
           break;
-        case (concord_client_pool::InvalidArgument):
+        case (cc::SendError::InvalidArgument):
           status.set_value(grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "Invalid argument"));
           break;
-        case (concord_client_pool::TimedOut):
+        case (cc::SendError::TimedOut):
           status.set_value(grpc::Status(grpc::StatusCode::DEADLINE_EXCEEDED, "Timeout"));
           break;
-        case (concord_client_pool::ClientUnavailable):
+        case (cc::SendError::ClientUnavailable):
           status.set_value(grpc::Status(grpc::StatusCode::UNAVAILABLE, "No clients connected to the replicas"));
           break;
         default:
