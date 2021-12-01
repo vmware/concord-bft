@@ -96,49 +96,49 @@ void RequestServiceCallData::sendToConcordClient() {
     grpc::Status status;
     auto logger = logging::getLogger("concord.client.clientservice.request.callback");
     if (not std::holds_alternative<bft::client::Reply>(send_result)) {
-      switch (std::get<uint32_t>(send_result)) {
-        case (static_cast<uint32_t>(bftEngine::OperationResult::INVALID_REQUEST)):
+      switch (std::get<bftEngine::OperationResult>(send_result)) {
+        case (bftEngine::OperationResult::INVALID_REQUEST):
           LOG_INFO(logger, "Request failed with INVALID_ARGUMENT error for cid=" << req_config.correlation_id);
           status = grpc::Status(
               grpc::StatusCode::INVALID_ARGUMENT,
               ConcordErrorMessage_Name(vmware::concord::client::request::v1::CONCORD_ERROR_INVALID_REQUEST));
           break;
-        case (static_cast<uint32_t>(bftEngine::OperationResult::NOT_READY)):
+        case (bftEngine::OperationResult::NOT_READY):
           LOG_INFO(logger, "Request failed with NOT_READY error for cid=" << req_config.correlation_id);
           status =
               grpc::Status(grpc::StatusCode::UNAVAILABLE,
                            ConcordErrorMessage_Name(vmware::concord::client::request::v1::CONCORD_ERROR_NOT_READY));
           break;
-        case (static_cast<uint32_t>(bftEngine::OperationResult::TIMEOUT)):
+        case (bftEngine::OperationResult::TIMEOUT):
           LOG_INFO(logger, "Request failed with TIMEOUT error for cid=" << req_config.correlation_id);
           status = grpc::Status(grpc::StatusCode::DEADLINE_EXCEEDED,
                                 ConcordErrorMessage_Name(vmware::concord::client::request::v1::CONCORD_ERROR_TIMEOUT));
           break;
-        case (static_cast<uint32_t>(bftEngine::OperationResult::EXEC_DATA_TOO_LARGE)):
+        case (bftEngine::OperationResult::EXEC_DATA_TOO_LARGE):
           LOG_INFO(logger, "Request failed with EXEC_DATA_TOO_LARGE error for cid=" << req_config.correlation_id);
           status = grpc::Status(
               grpc::StatusCode::INTERNAL,
               ConcordErrorMessage_Name(vmware::concord::client::request::v1::CONCORD_ERROR_EXEC_DATA_TOO_LARGE));
           break;
-        case (static_cast<uint32_t>(bftEngine::OperationResult::EXEC_DATA_EMPTY)):
+        case (bftEngine::OperationResult::EXEC_DATA_EMPTY):
           LOG_INFO(logger, "Request failed with EXEC_DATA_EMPTY error for cid=" << req_config.correlation_id);
           status = grpc::Status(
               grpc::StatusCode::INTERNAL,
               ConcordErrorMessage_Name(vmware::concord::client::request::v1::CONCORD_ERROR_EXEC_DATA_EMPTY));
           break;
-        case (static_cast<uint32_t>(bftEngine::OperationResult::CONFLICT_DETECTED)):
+        case (bftEngine::OperationResult::CONFLICT_DETECTED):
           LOG_INFO(logger, "Request failed with CONFLICT_DETECTED error for cid=" << req_config.correlation_id);
           status = grpc::Status(
               grpc::StatusCode::ABORTED,
               ConcordErrorMessage_Name(vmware::concord::client::request::v1::CONCORD_ERROR_CONFLICT_DETECTED));
           break;
-        case (static_cast<uint32_t>(bftEngine::OperationResult::OVERLOADED)):
+        case (bftEngine::OperationResult::OVERLOADED):
           LOG_INFO(logger, "Request failed with OVERLOADED error for cid=" << req_config.correlation_id);
           status =
               grpc::Status(grpc::StatusCode::RESOURCE_EXHAUSTED,
                            ConcordErrorMessage_Name(vmware::concord::client::request::v1::CONCORD_ERROR_OVERLOADED));
           break;
-        case (static_cast<uint32_t>(bftEngine::OperationResult::EXEC_ENGINE_REJECT_ERROR)):
+        case (bftEngine::OperationResult::EXEC_ENGINE_REJECT_ERROR):
           LOG_INFO(logger, "Request failed with EXEC_ENGINE_REJECT_ERROR error for cid=" << req_config.correlation_id);
           status = grpc::Status(
               grpc::StatusCode::ABORTED,

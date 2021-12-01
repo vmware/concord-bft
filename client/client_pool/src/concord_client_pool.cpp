@@ -12,6 +12,7 @@
 // file.
 
 #include "client/client_pool/concord_client_pool.hpp"
+#include "client/concordclient/concord_client.hpp"
 
 #include <sparse_merkle/base_types.h>
 #include <mutex>
@@ -30,6 +31,10 @@ using bftEngine::ClientMsgFlag;
 using namespace bftEngine;
 using namespace bft::communication;
 
+using concord::client::concordclient::SendCallback;
+using concord::client::concordclient::SendError;
+using concord::client::concordclient::SendResult;
+
 static inline const std::string kEmptySpanContext = std::string("");
 
 static auto IsGoodForBatching(ClientMsgFlag flags, bool client_batching_enabled) {
@@ -44,9 +49,9 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
                                             uint64_t seq_num,
                                             std::string correlation_id,
                                             const std::string &span_context,
-                                            const bftEngine::RequestCallBack &callback) {
+                                            const SendCallback &callback) {
   if (callback && timeout_ms.count() == 0) {
-    callback(bftEngine::SendResult{static_cast<uint32_t>(OperationResult::INVALID_REQUEST)});
+    callback(SendResult{OperationResult::INVALID_REQUEST});
     return SubmitResult::Overloaded;
   }
   std::unique_lock<std::mutex> lock(clients_queue_lock_);
@@ -154,9 +159,9 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
   LOG_WARN(logger_, "Cannot allocate client for" << KVLOG(correlation_id));
   if (callback) {
     if (serving_candidates == 0 && !clients_.empty()) {
-      callback(bftEngine::SendResult{static_cast<uint32_t>(OperationResult::NOT_READY)});
+      callback(SendResult{OperationResult::NOT_READY});
     } else {
-      callback(bftEngine::SendResult{static_cast<uint32_t>(OperationResult::OVERLOADED)});
+      callback(SendResult{OperationResult::OVERLOADED});
     }
   }
 
@@ -182,7 +187,7 @@ void ConcordClientPool::assignJobToClient(const ClientPtr &client,
                                           uint64_t seq_num,
                                           const std::string &correlation_id,
                                           const std::string &span_context,
-                                          const bftEngine::RequestCallBack &callback) {
+                                          const SendCallback &callback) {
   LOG_INFO(logger_,
            "client_id=" << client->getClientId() << " starts handling reqSeqNum=" << seq_num
                         << " cid=" << correlation_id << " span_context exists=" << !span_context.empty()
@@ -207,7 +212,7 @@ void ConcordClientPool::assignJobToClient(const ClientPtr &client,
 
 SubmitResult ConcordClientPool::SendRequest(const bft::client::WriteConfig &config,
                                             bft::client::Msg &&request,
-                                            const bftEngine::RequestCallBack &callback) {
+                                            const SendCallback &callback) {
   LOG_DEBUG(logger_, "Received write request with cid=" << config.request.correlation_id);
   auto request_flag = ClientMsgFlag::EMPTY_FLAGS_REQ;
   if (config.request.reconfiguration) {
@@ -229,10 +234,10 @@ SubmitResult ConcordClientPool::SendRequest(const bft::client::WriteConfig &conf
 
 SubmitResult ConcordClientPool::SendRequest(const bft::client::ReadConfig &config,
                                             bft::client::Msg &&request,
-                                            const bftEngine::RequestCallBack &callback) {
+                                            const SendCallback &callback) {
   LOG_INFO(logger_, "Received read request with cid=" << config.request.correlation_id);
   if (callback && config.request.pre_execute) {
-    callback(bftEngine::SendResult{static_cast<uint32_t>(OperationResult::INVALID_REQUEST)});
+    callback(SendResult{OperationResult::INVALID_REQUEST});
     return SubmitResult::Overloaded;
   }
   auto request_flag =
@@ -482,9 +487,9 @@ void SingleRequestProcessingJob::execute() {
   reply_size = res.matched_data.size();
   if (callback_) {
     if (operation_result == OperationResult::SUCCESS)
-      callback_(res);
+      callback_(SendResult{res});
     else
-      callback_(static_cast<uint32_t>(operation_result));
+      callback_(SendResult{operation_result});
   }
   external_client::ConcordClient::PendingReplies replies;
   replies.push_back(ClientReply{static_cast<uint32_t>(request_.size()),
@@ -533,7 +538,7 @@ void ConcordClientPool::processReplies(ClientPtr &client,
   }
   OperationResult operation_result = client->getRequestExecutionResult();
   if (replies.second.front().cb && operation_result != OperationResult::SUCCESS) {
-    for (const auto &reply : replies.second) reply.cb(SendResult{static_cast<uint32_t>(operation_result)});
+    for (const auto &reply : replies.second) reply.cb(SendResult{operation_result});
   }
 }
 

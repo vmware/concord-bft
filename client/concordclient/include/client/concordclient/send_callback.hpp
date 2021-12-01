@@ -15,16 +15,11 @@
 #include <variant>
 
 #include "bftclient/base_types.h"
+#include "bftengine/SharedTypes.hpp"
 
 namespace concord::client::concordclient {
 
-enum SendError {
-  ClientUnavailable,  // Clients have trouble connecting, retry with backoff
-  InvalidArgument,
-  Overloaded,  // All internal clients are busy, retry with backoff
-  TimedOut,
-};
-typedef std::variant<SendError, bft::client::Reply> SendResult;
+typedef std::variant<bftEngine::OperationResult, bft::client::Reply> SendResult;
 typedef std::function<void(SendResult&&)> SendCallback;
 
 }  // namespace concord::client::concordclient
