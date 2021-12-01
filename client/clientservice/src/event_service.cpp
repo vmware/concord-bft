@@ -62,22 +62,28 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
   std::shared_ptr<cc::UpdateQueue> update_queue = std::make_shared<cc::BasicUpdateQueue>();
   client_->subscribe(request, update_queue, span);
 
-  // TODO: Consider all gRPC return error codes as described in event.proto
+  // TODO: Return UNAVAILABLE as documented in event.proto if ConcordClient is unhealthy
+  auto status = grpc::Status::OK;
   while (!context->IsCancelled()) {
     SubscribeResponse response;
     std::unique_ptr<EventVariant> update;
     try {
       update = update_queue->tryPop();
     } catch (const UpdateNotFound& e) {
-      return grpc::Status(grpc::StatusCode::NOT_FOUND, e.what());
+      status = grpc::Status(grpc::StatusCode::NOT_FOUND, e.what());
+      break;
     } catch (const OutOfRangeSubscriptionRequest& e) {
-      return grpc::Status(grpc::StatusCode::OUT_OF_RANGE, e.what());
+      status = grpc::Status(grpc::StatusCode::OUT_OF_RANGE, e.what());
+      break;
     } catch (const InternalError& e) {
-      return grpc::Status(grpc::StatusCode::INTERNAL, e.what());
+      status = grpc::Status(grpc::StatusCode::INTERNAL, e.what());
+      break;
     } catch (const SubscriptionExists& e) {
-      return grpc::Status(grpc::StatusCode::ALREADY_EXISTS, e.what());
+      status = grpc::Status(grpc::StatusCode::ALREADY_EXISTS, e.what());
+      break;
     } catch (...) {
-      return grpc::Status(grpc::StatusCode::UNKNOWN, "Unknown error");
+      status = grpc::Status(grpc::StatusCode::UNKNOWN, "Unknown error");
+      break;
     }
 
     if (not update) {
@@ -123,7 +129,7 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
   }
 
   client_->unsubscribe();
-  return grpc::Status::OK;
+  return status;
 }
 
 }  // namespace concord::client::clientservice

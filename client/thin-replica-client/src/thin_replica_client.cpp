@@ -577,7 +577,12 @@ void ThinReplicaClient::receiveUpdates() {
         throw InternalError();
       }
       // print the warning every minute to avoid flooding with logs
-      std::string no_update_msg = "No new update from replicas";
+      std::string no_update_msg = "Waiting for ";
+      if (is_event_group_request_) {
+        no_update_msg += "event group " + std::to_string(latest_verified_event_group_id_ + 1);
+      } else {
+        no_update_msg += "block " + std::to_string(latest_verified_block_id_ + 1);
+      }
       auto current_time = std::chrono::steady_clock::now();
       if (!last_non_agreement_time.has_value()) {
         LOG_WARN(logger_, no_update_msg);

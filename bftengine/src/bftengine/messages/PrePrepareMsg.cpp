@@ -44,37 +44,42 @@ void PrePrepareMsg::calculateDigestOfRequests(Digest& digest) const {
   // threadpool is initialized once and kept with this function.
   // This function is called in a single thread as the queue
   // by dispatcher will not allow multiple threads together.
-  static auto& threadPool = RequestThreadPool::getThreadPool();
+  try {
+    static auto& threadPool = RequestThreadPool::getThreadPool(RequestThreadPool::PoolLevel::FIRSTLEVEL);
 
-  while (it.getAndGoToNext(requestBody)) {
-    ClientRequestMsg req(reinterpret_cast<ClientRequestMsgHeader*>(requestBody));
-    char* sig = req.requestSignature();
-    if (sig != nullptr) {
-      sigOrDigestOfRequest[local_id].first = sig;
-      sigOrDigestOfRequest[local_id].second = req.requestSignatureLength();
-    } else {
-      tasks.push_back(threadPool.async(
-          [&sigOrDigestOfRequest, &digestBuffer, local_id](auto* request, auto requestLength) {
-            DigestUtil::compute(request, requestLength, digestBuffer.get() + local_id * sizeof(Digest), sizeof(Digest));
-            sigOrDigestOfRequest[local_id].first = digestBuffer.get() + local_id * sizeof(Digest);
-            sigOrDigestOfRequest[local_id].second = sizeof(Digest);
-          },
-          req.body(),
-          req.size()));
+    while (it.getAndGoToNext(requestBody)) {
+      ClientRequestMsg req(reinterpret_cast<ClientRequestMsgHeader*>(requestBody));
+      char* sig = req.requestSignature();
+      if (sig != nullptr) {
+        sigOrDigestOfRequest[local_id].first = sig;
+        sigOrDigestOfRequest[local_id].second = req.requestSignatureLength();
+      } else {
+        tasks.push_back(threadPool.async(
+            [&sigOrDigestOfRequest, &digestBuffer, local_id](auto* request, auto requestLength) {
+              DigestUtil::compute(
+                  request, requestLength, digestBuffer.get() + local_id * sizeof(Digest), sizeof(Digest));
+              sigOrDigestOfRequest[local_id].first = digestBuffer.get() + local_id * sizeof(Digest);
+              sigOrDigestOfRequest[local_id].second = sizeof(Digest);
+            },
+            req.body(),
+            req.size()));
+      }
+      local_id++;
     }
-    local_id++;
-  }
-  for (const auto& t : tasks) {
-    t.wait();
-  }
+    for (const auto& t : tasks) {
+      t.wait();
+    }
 
-  std::string sigOrDig;
-  for (const auto& sod : sigOrDigestOfRequest) {
-    sigOrDig.append(sod.first, sod.second);
-  }
+    std::string sigOrDig;
+    for (const auto& sod : sigOrDigestOfRequest) {
+      sigOrDig.append(sod.first, sod.second);
+    }
 
-  // compute and set digest
-  DigestUtil::compute(sigOrDig.c_str(), sigOrDig.size(), (char*)&digest, sizeof(Digest));
+    // compute and set digest
+    DigestUtil::compute(sigOrDig.c_str(), sigOrDig.size(), (char*)&digest, sizeof(Digest));
+  } catch (std::out_of_range& ex) {
+    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": digest threadpool"));
+  }
 }
 
 void PrePrepareMsg::validate(const ReplicasInfo& repInfo) const {

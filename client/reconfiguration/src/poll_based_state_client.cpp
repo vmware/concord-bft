@@ -22,6 +22,7 @@ concord::messages::ReconfigurationResponse PollBasedStateClient::sendReconfigura
   request_config.reconfiguration = true;
   request_config.correlation_id = cid;
   request_config.sequence_number = sn;
+  request_config.max_reply_size = 1024 * 1024;  // Set the max reply size to 1MB
   bft::client::Msg msg;
   concord::messages::serialize(msg, rreq);
   bft::client::Reply rep;

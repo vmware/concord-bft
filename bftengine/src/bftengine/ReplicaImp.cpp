@@ -282,23 +282,29 @@ void ReplicaImp::asyncValidateMessage(MSG *msg) {
   // threadpool is initialized once and kept with this function.
   // This function is called in a single thread as the queue
   // by dispatcher will not allow multiple threads together.
-  static auto &threadPool = RequestThreadPool::getThreadPool();
+  try {
+    static auto &threadPool = RequestThreadPool::getThreadPool(RequestThreadPool::PoolLevel::STARTING);
 
-  threadPool.async(
-      [this](auto *unValidatedMsg, auto *replicaInfo, auto *incomingMessageQueue) {
-        try {
-          unValidatedMsg->validate(*replicaInfo);
-          CarrierMesssage *validatedCarrierMsg = new ValidatedMessageCarrierInternalMsg<MSG>(unValidatedMsg);
-          incomingMessageQueue->pushInternalMsg(validatedCarrierMsg);
-        } catch (std::exception &e) {
-          onReportAboutInvalidMessage(unValidatedMsg, e.what());
-          delete unValidatedMsg;
-          return;
-        }
-      },
-      msg,
-      repsInfo,
-      &(getIncomingMsgsStorage()));
+    threadPool.async(
+        [this](auto *unValidatedMsg, auto *replicaInfo, auto *incomingMessageQueue) {
+          try {
+            unValidatedMsg->validate(*replicaInfo);
+            CarrierMesssage *validatedCarrierMsg = new ValidatedMessageCarrierInternalMsg<MSG>(unValidatedMsg);
+            incomingMessageQueue->pushInternalMsg(validatedCarrierMsg);
+          } catch (std::exception &e) {
+            onReportAboutInvalidMessage(unValidatedMsg, e.what());
+            delete unValidatedMsg;
+            return;
+          }
+        },
+        msg,
+        repsInfo,
+        &(getIncomingMsgsStorage()));
+  } catch (std::out_of_range &ex) {
+    LOG_ERROR(GL, "The request threadpool selector is selecting some non-existent threadpool");
+    delete msg;
+    return;
+  }
 }
 
 /**
@@ -313,30 +319,36 @@ void ReplicaImp::validatePrePrepareMsg(PrePrepareMsg *&ppm) {
   // threadpool is initialized once and kept with this function.
   // This function is called in a single thread as the queue
   // by dispatcher will not allow multiple threads together.
-  static auto &threadPool = RequestThreadPool::getThreadPool();
-  threadPool.async(
-      [this](auto *prePrepareMsg, auto *replicaInfo, auto *incomingMessageQueue, auto viewNum) {
-        try {
-          prePrepareMsg->validate(*replicaInfo);
-          if (!validatePreProcessedResults(prePrepareMsg, viewNum)) {
-            InternalMessage viewChangeIndicatorIm = ViewChangeIndicatorInternalMsg(
-                ReplicaAsksToLeaveViewMsg::Reason::PrimarySentBadPreProcessResult, viewNum);
-            incomingMessageQueue->pushInternalMsg(std::move(viewChangeIndicatorIm));
+  try {
+    static auto &threadPool = RequestThreadPool::getThreadPool(RequestThreadPool::PoolLevel::STARTING);
+    threadPool.async(
+        [this](auto *prePrepareMsg, auto *replicaInfo, auto *incomingMessageQueue, auto viewNum) {
+          try {
+            prePrepareMsg->validate(*replicaInfo);
+            if (!validatePreProcessedResults(prePrepareMsg, viewNum)) {
+              InternalMessage viewChangeIndicatorIm = ViewChangeIndicatorInternalMsg(
+                  ReplicaAsksToLeaveViewMsg::Reason::PrimarySentBadPreProcessResult, viewNum);
+              incomingMessageQueue->pushInternalMsg(std::move(viewChangeIndicatorIm));
+              delete prePrepareMsg;
+              return;
+            }
+            InternalMessage prePrepareCarrierIm = PrePrepareCarrierInternalMsg(prePrepareMsg);
+            incomingMessageQueue->pushInternalMsg(std::move(prePrepareCarrierIm));
+          } catch (std::exception &e) {
+            onReportAboutInvalidMessage(prePrepareMsg, e.what());
             delete prePrepareMsg;
             return;
           }
-          InternalMessage prePrepareCarrierIm = PrePrepareCarrierInternalMsg(prePrepareMsg);
-          incomingMessageQueue->pushInternalMsg(std::move(prePrepareCarrierIm));
-        } catch (std::exception &e) {
-          onReportAboutInvalidMessage(prePrepareMsg, e.what());
-          delete prePrepareMsg;
-          return;
-        }
-      },
-      ppm,
-      repsInfo,
-      &(getIncomingMsgsStorage()),
-      getCurrentView());
+        },
+        ppm,
+        repsInfo,
+        &(getIncomingMsgsStorage()),
+        getCurrentView());
+  } catch (std::out_of_range &ex) {
+    LOG_ERROR(GL, "The request threadpool selector is selecting some non-existent threadpool");
+    delete ppm;
+    return;
+  }
 }
 
 std::function<bool(MessageBase *)> ReplicaImp::getMessageValidator() {
@@ -507,7 +519,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
     }
   }
   delete m;
-}
+}  // namespace bftEngine::impl
 
 template <>
 void ReplicaImp::onMessage<preprocessor::PreProcessResultMsg>(preprocessor::PreProcessResultMsg *m) {
@@ -741,27 +753,34 @@ std::pair<PrePrepareMsg *, bool> ReplicaImp::finishAddingRequestsToPrePrepareMsg
       // threadpool is initialized once and kept with this function.
       // This function is called in a single thread as the queue
       // by dispatcher will not allow multiple threads together.
-      static auto &threadPool = RequestThreadPool::getThreadPool();
-      threadPool.async(
-          [](auto *ppm, auto *iq, auto *hist) {
-            {
-              TimeRecorder scoped_timer(*(hist->finishAddingRequestsToPrePrepareMsg));
-              ppm->finishAddingRequests();
-            }
-            iq->pushInternalMsg(std::move(ppm));
-          },
-          prePrepareMsg,
-          &(getIncomingMsgsStorage()),
-          &histograms_);
-      LOG_DEBUG(GL,
-                "Finishing adding requests in the thread : " << KVLOG(prePrepareMsg->seqNumber(),
-                                                                      prePrepareMsg->getCid(),
-                                                                      maxSpaceForReqs,
-                                                                      requiredRequestsSize,
-                                                                      prePrepareMsg->requestsSize(),
-                                                                      requiredRequestsNum,
-                                                                      prePrepareMsg->numberOfRequests()));
-      return std::make_pair(nullptr, true);
+      try {
+        static auto &threadPool = RequestThreadPool::getThreadPool(RequestThreadPool::PoolLevel::STARTING);
+        threadPool.async(
+            [](auto *ppm, auto *iq, auto *hist) {
+              {
+                TimeRecorder scoped_timer(*(hist->finishAddingRequestsToPrePrepareMsg));
+                ppm->finishAddingRequests();
+              }
+              iq->pushInternalMsg(std::move(ppm));
+            },
+            prePrepareMsg,
+            &(getIncomingMsgsStorage()),
+            &histograms_);
+        LOG_DEBUG(GL,
+                  "Finishing adding requests in the thread : " << KVLOG(prePrepareMsg->seqNumber(),
+                                                                        prePrepareMsg->getCid(),
+                                                                        maxSpaceForReqs,
+                                                                        requiredRequestsSize,
+                                                                        prePrepareMsg->requestsSize(),
+                                                                        requiredRequestsNum,
+                                                                        prePrepareMsg->numberOfRequests()));
+        return std::make_pair(nullptr, true);
+      } catch (std::out_of_range &ex) {
+        LOG_ERROR(GL, "The request threadpool selector is selecting some non-existent threadpool");
+        delete prePrepareMsg;
+        return std::make_pair(nullptr, false);
+      }
+
     } else {
       {
         TimeRecorder scoped_timer(*histograms_.finishAddingRequestsToPrePrepareMsg);
@@ -977,33 +996,38 @@ bool ReplicaImp::validatePreProcessedResults(const PrePrepareMsg *msg, const Vie
   // threadpool is initialized once and kept with this function.
   // This function is called in a single thread as the queue
   // by dispatcher will not allow multiple threads together.
-  static auto &threadPool = RequestThreadPool::getThreadPool();
+  try {
+    static auto &threadPool = RequestThreadPool::getThreadPool(RequestThreadPool::PoolLevel::FIRSTLEVEL);
 
-  while (reqIter.getAndGoToNext(requestBody)) {
-    const MessageBase::Header *hdr = (MessageBase::Header *)requestBody;
-    if (hdr->msgType == MsgCode::PreProcessResult) {
-      tasks.push_back(threadPool.async(
-          [&errors, requestBody, error_id](auto replicaId, auto fVal) {
-            preprocessor::PreProcessResultMsg req((ClientRequestMsgHeader *)requestBody);
-            errors[error_id] = req.validatePreProcessResultSignatures(replicaId, fVal);
-          },
-          getReplicaConfig().replicaId,
-          getReplicaConfig().fVal));
-      error_id++;
+    while (reqIter.getAndGoToNext(requestBody)) {
+      const MessageBase::Header *hdr = (MessageBase::Header *)requestBody;
+      if (hdr->msgType == MsgCode::PreProcessResult) {
+        tasks.push_back(threadPool.async(
+            [&errors, requestBody, error_id](auto replicaId, auto fVal) {
+              preprocessor::PreProcessResultMsg req((ClientRequestMsgHeader *)requestBody);
+              errors[error_id] = req.validatePreProcessResultSignatures(replicaId, fVal);
+            },
+            getReplicaConfig().replicaId,
+            getReplicaConfig().fVal));
+        error_id++;
+      }
     }
-  }
-  for (const auto &t : tasks) {
-    t.wait();
-  }
-  errors.resize(error_id);
-  for (auto err : errors) {
-    if (err) {
-      // Indicate a view change
-      LOG_WARN(VC_LOG, "Replica will ask to leave view" << KVLOG(*err, registeredView));
-      return false;
+    for (const auto &t : tasks) {
+      t.wait();
     }
+    errors.resize(error_id);
+    for (auto err : errors) {
+      if (err) {
+        // Indicate a view change
+        LOG_WARN(VC_LOG, "Replica will ask to leave view" << KVLOG(*err, registeredView));
+        return false;
+      }
+    }
+    return true;
+  } catch (std::out_of_range &ex) {
+    LOG_FATAL(VC_LOG, "Bad threadpool level for Request thread pools");
+    return false;
   }
-  return true;
 }
 
 template <>
@@ -3196,6 +3220,7 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
   clientsManager->loadInfoFromReservedPages();
 
   KeyExchangeManager::instance().loadPublicKeys();
+
   if (config_.timeServiceEnabled) {
     time_service_manager_->load();
   }
@@ -3509,14 +3534,14 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
   if ((currentViewIsActive()) && (mainLog->insideActiveWindow(msgSeqNum) || mainLog->isPressentInHistory(msgSeqNum))) {
     SeqNumInfo &seqNumInfo = mainLog->getFromActiveWindowOrHistory(msgSeqNum);
 
-    if (config_.getreplicaId() == currentPrimary()) {
-      PrePrepareMsg *pp = seqNumInfo.getSelfPrePrepareMsg();
-      if (msg->getPrePrepareIsMissing()) {
-        if (pp != nullptr) {
-          sendAndIncrementMetric(pp, msgSender, metric_sent_preprepare_msg_due_to_reqMissingData_);
-        }
+    PrePrepareMsg *pp = seqNumInfo.getSelfPrePrepareMsg();
+    if (msg->getPrePrepareIsMissing()) {
+      if (pp != nullptr) {
+        sendAndIncrementMetric(pp, msgSender, metric_sent_preprepare_msg_due_to_reqMissingData_);
       }
+    }
 
+    if (config_.getreplicaId() == currentPrimary()) {
       if (seqNumInfo.slowPathStarted() && !msg->getSlowPathHasStarted()) {
         StartSlowCommitMsg startSlowMsg(config_.getreplicaId(), getCurrentView(), msgSeqNum);
         sendAndIncrementMetric(&startSlowMsg, msgSender, metric_sent_startSlowPath_msg_due_to_reqMissingData_);
@@ -4200,6 +4225,17 @@ ReplicaImp::ReplicaImp(bool firstTime,
     if (config_.keyExchangeOnStart && !KeyExchangeManager::instance().exchanged()) {
       LOG_INFO(GL, "key exchange has not been finished yet. Give it another try");
       KeyExchangeManager::instance().sendInitialKey(currentPrimary());
+    }
+  });
+  stateTransfer->addOnFetchingStateChangeCallback([&](uint64_t) {
+    // With (n-f) initial key exchange support, if we have a lagged replica
+    // which syncs its state through ST, we need to make sure that it completes
+    // initial key exchange after completing ST
+    if (!isCollectingState()) {
+      if (ReplicaConfig::instance().getkeyExchangeOnStart() && !KeyExchangeManager::instance().exchanged()) {
+        KeyExchangeManager::instance().sendInitialKey(currentPrimary(), lastExecutedSeqNum);
+        LOG_INFO(GL, "Send initial key exchange after completing state transfer " << KVLOG(lastExecutedSeqNum));
+      }
     }
   });
   registerMsgHandlers();
