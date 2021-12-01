@@ -198,10 +198,17 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
 
   CONFIG_PARAM(prePrepareFinalizeAsyncEnabled, bool, true, "Enabling asynchronous preprepare finishing");
 
-  CONFIG_PARAM(threadbagConcurrency,
-               uint32_t,
-               64u,
-               "Number of threads given to thread pool that is created for any request processing");
+  CONFIG_PARAM(
+      threadbagConcurrencyLevel1,
+      uint32_t,
+      40u,
+      "Number of threads given to thread pool that is created for any request processing for the parent of validation");
+
+  CONFIG_PARAM(
+      threadbagConcurrencyLevel2,
+      uint32_t,
+      24u,
+      "Number of threads given to thread pool that is created for any request processing for actual validation");
 
   CONFIG_PARAM(timeoutForPrimaryOnStartupSeconds,
                uint32_t,
@@ -307,7 +314,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, ticksGeneratorPollPeriod);
     serialize(outStream, preExecutionResultAuthEnabled);
     serialize(outStream, prePrepareFinalizeAsyncEnabled);
-    serialize(outStream, threadbagConcurrency);
+    serialize(outStream, threadbagConcurrencyLevel1);
+    serialize(outStream, threadbagConcurrencyLevel2);
     serialize(outStream, timeoutForPrimaryOnStartupSeconds);
     serialize(outStream, waitForFullCommOnStartup);
     serialize(outStream, enablePostExecutionSeparation);
@@ -386,7 +394,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, ticksGeneratorPollPeriod);
     deserialize(inStream, preExecutionResultAuthEnabled);
     deserialize(inStream, prePrepareFinalizeAsyncEnabled);
-    deserialize(inStream, threadbagConcurrency);
+    deserialize(inStream, threadbagConcurrencyLevel1);
+    deserialize(inStream, threadbagConcurrencyLevel2);
     deserialize(inStream, timeoutForPrimaryOnStartupSeconds);
     deserialize(inStream, waitForFullCommOnStartup);
     deserialize(inStream, enablePostExecutionSeparation);
@@ -462,7 +471,8 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
   os << KVLOG(rc.ticksGeneratorPollPeriod.count(),
               rc.preExecutionResultAuthEnabled,
               rc.prePrepareFinalizeAsyncEnabled,
-              rc.threadbagConcurrency,
+              rc.threadbagConcurrencyLevel1,
+              rc.threadbagConcurrencyLevel2,
               rc.enablePostExecutionSeparation);
 
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
