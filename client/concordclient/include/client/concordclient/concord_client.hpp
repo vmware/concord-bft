@@ -24,21 +24,12 @@
 #include "bftclient/base_types.h"
 #include "bftclient/bft_client.h"
 #include "client/concordclient/event_update.hpp"
-#include "client/concordclient/snapshot_update.hpp"
 #include "client/concordclient/concord_client_exceptions.hpp"
+#include "client/concordclient/send_callback.hpp"
+#include "client/concordclient/snapshot_update.hpp"
 #include "Metrics.hpp"
 
 namespace concord::client::concordclient {
-
-struct SendError {
-  std::string msg;
-  enum ErrorType {
-    ClientsBusy  // All clients are busy and cannot accept new requests
-  };
-  ErrorType type;
-};
-
-typedef std::variant<uint32_t, bft::client::Reply> SendResult;
 
 struct ReplicaInfo {
   bft::client::ReplicaId id;
@@ -150,12 +141,8 @@ class ConcordClient {
   ~ConcordClient();
 
   // Register a callback that gets invoked once the handling BFT client returns.
-  void send(const bft::client::WriteConfig& config,
-            bft::client::Msg&& msg,
-            const std::function<void(SendResult&&)>& callback);
-  void send(const bft::client::ReadConfig& config,
-            bft::client::Msg&& msg,
-            const std::function<void(SendResult&&)>& callback);
+  void send(const bft::client::WriteConfig& config, bft::client::Msg&& msg, const SendCallback& callback);
+  void send(const bft::client::ReadConfig& config, bft::client::Msg&& msg, const SendCallback& callback);
 
   // Subscribe to events which are pushed into the given update queue.
   void subscribe(const SubscribeRequest& request,

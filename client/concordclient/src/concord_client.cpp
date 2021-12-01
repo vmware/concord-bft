@@ -48,15 +48,11 @@ class ConcordClient::Impl {
     createGrpcConnections();
   }
 
-  void send(const bft::client::ReadConfig& config,
-            bft::client::Msg&& msg,
-            const std::function<void(SendResult&&)>& callback) {
+  void send(const bft::client::ReadConfig& config, bft::client::Msg&& msg, const SendCallback& callback) {
     client_pool_->SendRequest(config, std::forward<bft::client::Msg>(msg), callback);
   }
 
-  void send(const bft::client::WriteConfig& config,
-            bft::client::Msg&& msg,
-            const std::function<void(SendResult&&)>& callback) {
+  void send(const bft::client::WriteConfig& config, bft::client::Msg&& msg, const SendCallback& callback) {
     client_pool_->SendRequest(config, std::forward<bft::client::Msg>(msg), callback);
   }
 
@@ -97,7 +93,6 @@ class ConcordClient::Impl {
   }
 
   void getSnapshot(const StateSnapshotRequest& request, std::shared_ptr<SnapshotQueue>& remote_queue) {
-    LOG_INFO(logger_, "getSnapshot called.");
     checkAndReConnectGrpcConnections();
     if (!rss_) {
       // Lazy initialization, when required for the first time.
