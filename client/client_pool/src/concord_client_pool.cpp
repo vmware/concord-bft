@@ -28,11 +28,11 @@
 namespace concord::concord_client_pool {
 
 using bftEngine::ClientMsgFlag;
+using concord::external_client::ExtClientReply;
 using namespace bftEngine;
 using namespace bft::communication;
 
 using concord::client::concordclient::SendCallback;
-using concord::client::concordclient::SendError;
 using concord::client::concordclient::SendResult;
 
 static inline const std::string kEmptySpanContext = std::string("");
@@ -492,12 +492,12 @@ void SingleRequestProcessingJob::execute() {
       callback_(SendResult{operation_result});
   }
   external_client::ConcordClient::PendingReplies replies;
-  replies.push_back(ClientReply{static_cast<uint32_t>(request_.size()),
-                                nullptr,
-                                reply_size,
-                                OperationResult::SUCCESS,
-                                correlation_id_,
-                                span_context_});
+  replies.push_back(ExtClientReply{ClientReply{static_cast<uint32_t>(request_.size()),
+                                               nullptr,
+                                               reply_size,
+                                               OperationResult::SUCCESS,
+                                               correlation_id_,
+                                               span_context_}});
   clients_pool_.processReplies(processing_client_, {0, std::move(replies)});
 }
 
@@ -516,14 +516,14 @@ void ConcordClientPool::processReplies(ClientPtr &client,
   {
     std::unique_lock<std::mutex> lock(clients_queue_lock_);
     auto finish = std::chrono::steady_clock::now();
-    for (const auto &reply : replies.second) {
-      auto before_send = client->getAndDeleteCidBeforeSendTime(reply.cid);
-      auto arrival_time = cid_arrival_map_[reply.cid];
-      cid_arrival_map_.erase(reply.cid);
+    for (const auto &pending : replies.second) {
+      auto before_send = client->getAndDeleteCidBeforeSendTime(pending.reply.cid);
+      auto arrival_time = cid_arrival_map_[pending.reply.cid];
+      cid_arrival_map_.erase(pending.reply.cid);
       duration = std::chrono::duration_cast<std::chrono::milliseconds>(before_send - arrival_time).count();
       average_cid_receive_dur_.add(duration);
 
-      auto after_send = client->getAndDeleteCidResponseTime(reply.cid);
+      auto after_send = client->getAndDeleteCidResponseTime(pending.reply.cid);
       duration = std::chrono::duration_cast<std::chrono::milliseconds>(finish - after_send).count();
       average_cid_close_dur_.add(duration);
     }
@@ -537,8 +537,8 @@ void ConcordClientPool::processReplies(ClientPtr &client,
     clients_.push_back(client);
   }
   OperationResult operation_result = client->getRequestExecutionResult();
-  if (replies.second.front().cb && operation_result != OperationResult::SUCCESS) {
-    for (const auto &reply : replies.second) reply.cb(SendResult{operation_result});
+  if (replies.second.front().callback && operation_result != OperationResult::SUCCESS) {
+    for (const auto &pending : replies.second) pending.callback(SendResult{operation_result});
   }
 }
 

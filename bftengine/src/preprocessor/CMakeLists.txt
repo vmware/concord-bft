@@ -28,7 +28,6 @@ target_include_directories(preprocessor PUBLIC ${perf_include} ${util_include} $
 
 target_link_libraries(preprocessor PUBLIC
   bftcommunication
-  concordclient-interface
   diagnostics
   threshsign
   util

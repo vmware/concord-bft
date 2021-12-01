@@ -114,7 +114,6 @@ target_link_libraries(corebft PUBLIC
   db_checkpoint_msg
   cre
   stdc++fs
-  concordclient-interface
 )
 
 
@@ -126,7 +125,6 @@ target_include_directories(bftclient PUBLIC ${kvbc_include})
 target_link_libraries(bftclient PUBLIC
   bftcommunication
   diagnostics
-  concordclient-interface
 )
 
 install(DIRECTORY include/bftengine DESTINATION include)
