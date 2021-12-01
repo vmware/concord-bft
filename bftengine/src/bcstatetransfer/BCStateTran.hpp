@@ -304,7 +304,7 @@ class BCStateTran : public IStateTransfer {
 
   uint64_t nextRequiredBlock_ = 0;
   uint64_t nextCommittedBlockId_ = 0;
-  STDigest digestOfNextRequiredBlock;
+  STDigest digestOfNextRequiredBlock_;
   bool posponedSendFetchBlocksMsg_;
 
   struct compareItemDataMsg {
