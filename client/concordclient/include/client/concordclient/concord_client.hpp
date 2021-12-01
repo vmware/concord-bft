@@ -131,11 +131,9 @@ class ConcordClient {
   // Register a callback that gets invoked once the handling BFT client returns.
   void send(const bft::client::WriteConfig& config,
             bft::client::Msg&& msg,
-            const std::unique_ptr<opentracing::Span>& parent_span,
             const std::function<void(SendResult&&)>& callback);
   void send(const bft::client::ReadConfig& config,
             bft::client::Msg&& msg,
-            const std::unique_ptr<opentracing::Span>& parent_span,
             const std::function<void(SendResult&&)>& callback);
 
   // Subscribe to events which are pushed into the given update queue.
