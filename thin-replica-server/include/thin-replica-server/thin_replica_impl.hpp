@@ -482,7 +482,7 @@ class ThinReplicaImpl {
       if (request->events().block_id() > last_block_id) {
         msg << "Block " << request->events().block_id() << " doesn't exist yet "
             << " latest block is " << last_block_id;
-        LOG_WARN(logger_, msg.str());
+        LOG_DEBUG(logger_, msg.str());
         return true;
       }
     } else {
@@ -491,7 +491,7 @@ class ThinReplicaImpl {
       if (request->event_groups().event_group_id() > last_eg_id) {
         msg << "Event group ID " << request->event_groups().event_group_id() << " doesn't exist yet."
             << " Latest event_group_id is " << last_eg_id;
-        LOG_WARN(logger_, msg.str());
+        LOG_DEBUG(logger_, msg.str());
         return true;
       }
     }
