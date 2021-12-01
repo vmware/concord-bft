@@ -10,6 +10,11 @@ PRIVATE
   thin_replica_client_lib
 )
 
+# Provide type definitions in a separate library
+add_library(concordclient-interface INTERFACE)
+target_include_directories(concordclient-interface INTERFACE include)
+target_link_libraries(concordclient-interface INTERFACE bftclient_new-interface)
+
 find_package(Protobuf REQUIRED)
 add_library(concordclient-event-api STATIC "src/event_update_queue.cpp")
 target_include_directories(concordclient-event-api PUBLIC include)

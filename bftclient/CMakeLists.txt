@@ -21,6 +21,9 @@ target_link_libraries(bftclient_new PUBLIC
     util
 )
 
+add_library(bftclient_new-interface INTERFACE)
+target_include_directories(bftclient_new-interface INTERFACE include)
+
 if (BUILD_TESTING)
     add_subdirectory(test)
 endif()
