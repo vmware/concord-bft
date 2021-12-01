@@ -201,7 +201,9 @@ class BCStateTran : public IStateTransfer {
   uint64_t lastMilliOfUniqueFetchID_ = 0;
   uint32_t lastCountOfUniqueFetchID_ = 0;
 
-  // my last msg sequence number
+  // my last sent message (relevant for source only)
+  // do not change order!
+  std::variant<std::monostate, AskForCheckpointSummariesMsg, FetchBlocksMsg, FetchResPagesMsg> lastSentMsg_;
   uint64_t lastMsgSeqNum_ = 0;
 
   // msg sequence number from other replicas
@@ -303,9 +305,15 @@ class BCStateTran : public IStateTransfer {
   static const uint64_t ID_OF_VBLOCK_RES_PAGES = UINT64_MAX;
 
   uint64_t nextRequiredBlock_ = 0;
-  uint64_t nextCommittedBlockId_ = 0;
+  uint64_t nextBlockIdToCommit_ = 0;
+  DataStore::CheckpointDesc targetCheckpointDesc_;
   STDigest digestOfNextRequiredBlock_;
   bool posponedSendFetchBlocksMsg_;
+
+  inline bool isMinBlockIdInCurrentRange(uint64_t blockId) const;
+  inline bool isMaxBlockIdInCurrentRange(uint64_t blockId) const;
+  inline bool isLastFetchedBlockIdInCycle(uint64_t blockId) const;
+  inline bool isRvbBlockId(uint64_t blockId) const;
 
   struct compareItemDataMsg {
     bool operator()(const ItemDataMsg* l, const ItemDataMsg* r) const {
@@ -328,7 +336,8 @@ class BCStateTran : public IStateTransfer {
                         uint32_t& outBlockSize,
                         bool isVBLock);
 
-  bool checkBlock(uint64_t blockNum, const STDigest& expectedBlockDigest, char* block, uint32_t blockSize) const;
+  uint64_t computeNextRequiredBlock();
+  bool checkBlock(uint64_t blockNum, char* block, uint32_t blockSize) const;
 
   bool checkVirtualBlockOfResPages(const STDigest& expectedDigestOfResPagesDescriptor,
                                    char* vblock,
@@ -408,7 +417,7 @@ class BCStateTran : public IStateTransfer {
 
   using BlockIOContextPtr = std::shared_ptr<BlockIOContext>;
   // Must be less than config_.refreshTimerMs
-  const uint32_t finalizePutblockTimeoutMilli_ = 5;
+  static constexpr uint32_t finalizePutblockTimeoutMilli_ = 5;
   concord::util::SimpleMemoryPool<BlockIOContext> ioPool_;
   std::deque<BlockIOContextPtr> ioContexts_;
   // used to control the trigger of oneShotTimer self requests
@@ -434,8 +443,8 @@ class BCStateTran : public IStateTransfer {
   // soon. return: true if done procesing all futures, and false if the front one was not std::future_status::ready
   enum class PutBlockWaitPolicy { NO_WAIT, WAIT_SINGLE_JOB, WAIT_ALL_JOBS };
 
-  bool finalizePutblockAsync(bool lastBlock, PutBlockWaitPolicy waitPolicy);
-  ///////////////////////////////////////////////////////////////////////////
+  bool finalizePutblockAsync(PutBlockWaitPolicy waitPolicy, const bool alwaysWait = false);
+  //////////////////////////////////////////////////////////////////////////
   // Metrics
   ///////////////////////////////////////////////////////////////////////////
  public:
