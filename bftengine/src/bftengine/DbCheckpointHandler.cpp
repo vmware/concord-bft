@@ -10,11 +10,12 @@
 // notices and license terms. Your use of these subcomponents is subject to the
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
-#include "db_checkpoint.h"
+#include "DbCheckpointHandler.hpp"
 #include <utility>
 #include <cmath>
+#include <future>
 
-namespace concord::kvbc {
+namespace concord::storage {
 using Clock = std::chrono::steady_clock;
 using SystemClock = std::chrono::system_clock;
 struct HumanReadable {
@@ -32,7 +33,7 @@ struct HumanReadable {
     return i == 0 ? os : os << "B (" << hr.size << ')';
   }
 };
-Status RocksDbCheckPointManager::createDbCheckpoint(const CheckpointId& checkPointId,
+Status RocksDbCheckPointHandler::createDbCheckpoint(const CheckpointId& checkPointId,
                                                     const uint64_t& lastBlockId,
                                                     const uint64_t& seqNum) {
   if (!maxNumOfCheckpoints_) return Status::OK();
@@ -104,7 +105,7 @@ Status RocksDbCheckPointManager::createDbCheckpoint(const CheckpointId& checkPoi
 
   return Status::OK();
 }
-void RocksDbCheckPointManager::loadCheckpointDataFromPersistence() {
+void RocksDbCheckPointHandler::loadCheckpointDataFromPersistence() {
   auto max_buff_size = bftEngine::impl::MAX_ALLOWED_CHECKPOINTS * sizeof(std::pair<CheckpointId, DbCheckpointMetadata>);
   std::optional<std::vector<std::uint8_t>> db_checkpoint_metadata = ps_->getDbCheckpointMetadata(max_buff_size);
   if (db_checkpoint_metadata.has_value()) {
@@ -128,7 +129,7 @@ void RocksDbCheckPointManager::loadCheckpointDataFromPersistence() {
     }
   }
 }
-void RocksDbCheckPointManager::checkforCleanup() {
+void RocksDbCheckPointHandler::checkforCleanup() {
   std::unique_lock<std::mutex> lk(lock_);
   while (checkpointToBeRemoved_.empty()) {
     cv_.wait_for(lk, std::chrono::seconds(2), [this]() { return !checkpointToBeRemoved_.empty(); });
@@ -137,7 +138,7 @@ void RocksDbCheckPointManager::checkforCleanup() {
   checkpointToBeRemoved_.pop();
   removeCheckpoint(id);
 }
-void RocksDbCheckPointManager::init() {
+void RocksDbCheckPointHandler::init() {
   // check if there is chkpt data in persistence
   loadCheckpointDataFromPersistence();
   // start cleanup thread if checkpoint collection is enabled
@@ -163,11 +164,11 @@ void RocksDbCheckPointManager::init() {
     }
   }
 }
-void RocksDbCheckPointManager::removeCheckpoint(const uint64_t& checkPointId) {
+void RocksDbCheckPointHandler::removeCheckpoint(const uint64_t& checkPointId) {
   return rocksDbClient_->removeCheckpoint(checkPointId);
 }
-void RocksDbCheckPointManager::removeAllCheckpoints() const { return rocksDbClient_->removeAllCheckpoints(); }
-void RocksDbCheckPointManager::cleanUp() {
+void RocksDbCheckPointHandler::removeAllCheckpoints() const { return rocksDbClient_->removeAllCheckpoints(); }
+void RocksDbCheckPointHandler::cleanUp() {
   // check if there is chkpt data in persistence
   loadCheckpointDataFromPersistence();
   // if db checkpoint creation is disabled then remove all checkpoints
@@ -183,7 +184,7 @@ void RocksDbCheckPointManager::cleanUp() {
     removeAllCheckpoints();
   }
 }
-uint64_t RocksDbCheckPointManager::directorySize(const _fs::path& directory, const bool& excludeHardLinks) {
+uint64_t RocksDbCheckPointHandler::directorySize(const _fs::path& directory, const bool& excludeHardLinks) {
   uint64_t size{0};
   try {
     if (_fs::exists(directory)) {
@@ -201,4 +202,4 @@ uint64_t RocksDbCheckPointManager::directorySize(const _fs::path& directory, con
   }
   return size;
 }
-}  // namespace concord::kvbc
+}  // namespace concord::storage

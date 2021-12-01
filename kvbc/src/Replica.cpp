@@ -322,24 +322,10 @@ void Replica::createReplicaAndSyncState() {
 
   handleNewEpochEvent();
   handleWedgeEvent();
-  if (dbCheckpointMgr_) {
-    dbCheckpointMgr_->setPersistentStorage(m_replicaPtr->persistentStorage());
-    if (replicaConfig_.maxNumberOfDbCheckpoints) {
-      dbCheckpointMgr_->init();
-      bftEngine::impl::DbCheckpointManager::Instance().setLastCheckpointCreationTime(
-          dbCheckpointMgr_->getLastCheckpointCreationTime());
-      bftEngine::impl::DbCheckpointManager::Instance().addCreateDbCheckpointCb([this](const uint64_t &seqNum) {
-        const auto &lastBlockid = getLastBlockId();
-        dbCheckpointMgr_->createDbCheckpoint(
-            lastBlockid, lastBlockid, seqNum);  // checkpoint id and last block id is same
-        bftEngine::impl::DbCheckpointManager::Instance().setLastCheckpointCreationTime(
-            dbCheckpointMgr_->getLastCheckpointCreationTime());
+  bftEngine::impl::DbCheckpointManager::instance().initializeDbCheckpointHanlder(
+      m_dbSet.dataDBClient, m_replicaPtr->persistentStorage(), aggregator_, [this]() -> uint64_t {
+        return getLastBlockId();
       });
-    } else {
-      // db checkpoint is disabled. Cleanup metadata and checkpoints created if any
-      auto ret = std::async(std::launch::async, [this]() { dbCheckpointMgr_->cleanUp(); });
-    }
-  }
 }
 
 /**
@@ -555,8 +541,6 @@ Replica::Replica(ICommunication *comm,
     m_metadataStorage =
         new storage::DBMetadataStorageUnbounded(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator());
   }
-  dbCheckpointMgr_ = std::make_unique<concord::kvbc::RocksDbCheckPointManager>(
-      m_dbSet.dataDBClient, replicaConfig_.maxNumberOfDbCheckpoints, replicaConfig_.dbCheckpointDirPath, aggregator_);
   // Instantiate IControlHandler.
   // If an application instantiation has already taken a place this will have no effect.
   bftEngine::IControlHandler::instance(new bftEngine::ControlHandler());

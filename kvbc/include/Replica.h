@@ -24,7 +24,6 @@
 #include "replica_state_sync_imp.hpp"
 #include "db_adapter_interface.h"
 #include "db_interfaces.h"
-#include "db_checkpoint.h"
 #include "memorydb/client.h"
 #include "bftengine/DbMetadataStorage.hpp"
 #include "storage_factory_interface.h"
@@ -229,7 +228,6 @@ class Replica : public IReplica,
   concord::util::ThreadPool blocksIOWorkersPool_;
   std::unique_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> creEngine_;
   std::shared_ptr<concord::client::reconfiguration::IStateClient> creClient_;
-  std::unique_ptr<concord::kvbc::IDbCheckPointManager> dbCheckpointMgr_;
 
  private:
   struct Recorders {

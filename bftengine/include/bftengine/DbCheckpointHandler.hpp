@@ -14,8 +14,8 @@
 #pragma once
 
 #include "status.hpp"
-#include "db_adapter_interface.h"
-#include "db_interfaces.h"
+//#include "storage/db_adapter_interface.h"
+#include "storage/db_interface.h"
 #include "Serializable.h"
 #include "PersistentStorage.hpp"
 #include <optional>
@@ -28,6 +28,8 @@
 #include <bftengine/DbCheckpointMetadata.hpp>
 #include "Metrics.hpp"
 #include <algorithm>
+#include <thread>
+#include "status.hpp"
 #if __has_include(<filesystem>)
 #include <filesystem>
 namespace fs = std::filesystem;
@@ -37,14 +39,15 @@ namespace _fs = std::experimental::filesystem;
 #else
 #error "Missing filesystem support"
 #endif
-namespace concord::kvbc {
+namespace concord {
+namespace storage {
 using std::chrono::duration_cast;
 using CheckpointId = bftEngine::impl::CheckpointId;
 using DbCheckpointMetadata = bftEngine::impl::DbCheckpointMetadata;
 using Status = concordUtils::Status;
 using SystemClock = std::chrono::system_clock;
 using Seconds = std::chrono::seconds;
-class IDbCheckPointManager {
+class IDbCheckPointHandler {
  public:
   // create checkpoint
   virtual Status createDbCheckpoint(const uint64_t& checkPointId, const uint64_t& lastBlockId, const uint64_t&) = 0;
@@ -64,12 +67,12 @@ class IDbCheckPointManager {
   // cleanup if db checkpoint creation is dsabled
   virtual void cleanUp() = 0;
 
-  virtual ~IDbCheckPointManager() = default;
+  virtual ~IDbCheckPointHandler() = default;
 };
 
-class RocksDbCheckPointManager : public IDbCheckPointManager {
+class RocksDbCheckPointHandler : public IDbCheckPointHandler {
  public:
-  RocksDbCheckPointManager(const std::shared_ptr<storage::IDBClient>& dbClient,
+  RocksDbCheckPointHandler(const std::shared_ptr<storage::IDBClient>& dbClient,
                            const uint32_t& maxNumOfChkPt,
                            const std::string& dbCheckpointDir,
                            std::shared_ptr<concordMetrics::Aggregator> aggregator)
@@ -105,7 +108,7 @@ class RocksDbCheckPointManager : public IDbCheckPointManager {
   void removeAllCheckpoints() const override;
   void cleanUp() override;
 
-  ~RocksDbCheckPointManager() {
+  ~RocksDbCheckPointHandler() {
     if (cleanupThread_.joinable()) cleanupThread_.join();
   }
   // get last checkpoint creation time
@@ -113,7 +116,7 @@ class RocksDbCheckPointManager : public IDbCheckPointManager {
 
  private:
   logging::Logger getLogger() {
-    static logging::Logger logger_(logging::getLogger("concord.kvbc.db_checkpoint"));
+    static logging::Logger logger_(logging::getLogger("concord.storage.db_checkpoint"));
     return logger_;
   }
   // get total size recursively
@@ -139,4 +142,5 @@ class RocksDbCheckPointManager : public IDbCheckPointManager {
   concordMetrics::GaugeHandle lastDbCheckpointBlockId_;
   concordMetrics::CounterHandle numOfDbCheckpointsCreated_;
 };
-}  // namespace concord::kvbc
+}  // namespace storage
+}  // namespace concord

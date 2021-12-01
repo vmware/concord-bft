@@ -682,6 +682,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   batchingLogic::RequestsBatchingLogic reqBatchingLogic_;
   ReplicaStatusHandlers replStatusHandlers_;
   concord::util::CallbackRegistry<uint64_t> onViewNumCallbacks_;
+  concord::util::CallbackRegistry<SeqNum> createDbCheckpointCb_;
 
 #ifdef USE_FAKE_CLOCK_IN_TS
   std::optional<TimeServiceManager<concord::util::FakeClock>> time_service_manager_;

@@ -14,39 +14,39 @@
 #pragma once
 
 #include "Serializable.h"
-
+#include "DbCheckpointHandler.hpp"
 #include <vector>
 #include <chrono>
 #include <PrimitiveTypes.hpp>
+#include "callback_registry.hpp"
 
 namespace bftEngine::impl {
 using SeqNum = bftEngine::impl::SeqNum;
 class DbCheckpointManager {
  public:
-  void addCreateDbCheckpointCb(const std::function<void(SeqNum)>& cb) {
-    if (cb) createDbChecheckpointCb_ = cb;
-  }
-  void onCreateDbCheckpoint(const SeqNum& seqNum) {
-    if (createDbChecheckpointCb_) createDbChecheckpointCb_(seqNum);
-  }
-  void onStableCheckPoint(const SeqNum& seqNum) const {
-    if (onSatbleCheckpointCb_) onSatbleCheckpointCb_(seqNum);
-  }
-  void addOnStableSeqNum(std::function<void(const SeqNum&)> cb) { onSatbleCheckpointCb_ = cb; }
+  void createDbCheckpoint(const SeqNum& seqNum);
   void setLastCheckpointCreationTime(const std::chrono::seconds& lastTime) { lastCheckpointCreationTime_ = lastTime; }
   std::chrono::seconds getLastCheckpointCreationTime() const { return lastCheckpointCreationTime_; }
+  void initializeDbCheckpointHanlder(const std::shared_ptr<concord::storage::IDBClient>& dbClient,
+                                     std::shared_ptr<bftEngine::impl::PersistentStorage> p,
+                                     std::shared_ptr<concordMetrics::Aggregator> aggregator,
+                                     const std::function<uint64_t()>& getLastBlockIdCb);
 
  public:
-  static DbCheckpointManager& Instance() {
+  static DbCheckpointManager& instance() {
     static DbCheckpointManager instance_;
     return instance_;
   }
 
  private:
+  logging::Logger getLogger() {
+    static logging::Logger logger_(logging::getLogger("concord.bft.db_checkpoint_manager"));
+    return logger_;
+  }
   DbCheckpointManager() = default;
-  std::function<void(SeqNum)> createDbChecheckpointCb_;
-  std::function<void(SeqNum)> onSatbleCheckpointCb_;
   std::chrono::seconds lastCheckpointCreationTime_{0};
+  std::unique_ptr<concord::storage::IDbCheckPointHandler> dbCheckpointHandler_;
+  std::function<uint64_t()> getLastBlockIdCb_;
 };
 
 }  // namespace bftEngine::impl
