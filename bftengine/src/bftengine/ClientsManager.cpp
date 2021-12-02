@@ -232,13 +232,28 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateReplyFromSavedOne(NodeId
 
   const auto& replySeqNum = r->reqSeqNum();
   if (replySeqNum != requestSeqNum) {
-    if (maxNumOfReqsPerClient_ == 1) {
-      metric_reply_inconsistency_detected_++;
-      LOG_ERROR(CL_MNGR,
-                "The client reserved page does not contain a reply for specified request"
-                    << KVLOG(clientId, replySeqNum, requestSeqNum));
-      // ConcordAssert(false);
-    }
+    
+    // Before client batching this function would be called only when
+    // a request matches the last reply.
+
+    // After client batching and with the fix for exactly once semantics
+    // this code will be called whenever ReplicaImp::isReplyAlreadySentToClient
+    // is true. However it doesn't mean that the request always corresponds to last reply,
+    // it could be older. In this case we do the same when batching is enabled -
+    // log the attempt and return an empty reply.
+    
+    // Also, note that with batching enabled we're supposed to have all replies
+    // from the current batch, but currently we keep only one. This is a different
+    // issue.
+
+    // if (maxNumOfReqsPerClient_ == 1) {
+    //   metric_reply_inconsistency_detected_++;
+    //   LOG_FATAL(CL_MNGR,
+    //             "The client reserved page does not contain a reply for specified request"
+    //                 << KVLOG(clientId, replySeqNum, requestSeqNum));
+    //   ConcordAssert(false);
+    // }
+
     // YS TBD: Fix this for client batching with a proper ordering of incoming requests
     LOG_INFO(CL_MNGR,
              "The client reserved page does not contain a reply for specified request; skipping"
