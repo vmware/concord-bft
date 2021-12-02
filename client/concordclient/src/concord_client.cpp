@@ -28,9 +28,9 @@ using ::client::thin_replica_client::TrsConnectionConfig;
 
 namespace concord::client::concordclient {
 
-class ConcordClient::Impl {
+class ConcordClient::ConcordClientImpl {
  public:
-  Impl(const ConcordClientConfig& config, std::shared_ptr<concordMetrics::Aggregator> aggregator)
+  ConcordClientImpl(const ConcordClientConfig& config, std::shared_ptr<concordMetrics::Aggregator> aggregator)
       : logger_(logging::getLogger("concord.client.concordclient")), config_(config), metrics_(aggregator) {
     ConcordClientPoolConfig client_pool_config = createClientPoolStruct(config);
     client_pool_ = std::make_unique<concord::concord_client_pool::ConcordClientPool>(client_pool_config, metrics_);
@@ -181,7 +181,7 @@ class ConcordClient::Impl {
 
 ConcordClient::ConcordClient(const ConcordClientConfig& config,
                              std::shared_ptr<concordMetrics::Aggregator> aggregator) {
-  impl_.reset(new Impl(config, aggregator));
+  impl_.reset(new ConcordClientImpl(config, aggregator));
 }
 ConcordClient::~ConcordClient() { unsubscribe(); }
 

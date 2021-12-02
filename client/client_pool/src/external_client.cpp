@@ -144,25 +144,26 @@ std::pair<int32_t, ConcordClient::PendingReplies> ConcordClient::SendPendingRequ
     request_queue.push_back(bft::client::WriteRequest{single_config, std::move(req.request)});
   }
   try {
-    auto res = new_client_->sendBatch(request_queue, batch_cid);
-    for (const auto& rep : res) {
-      auto cid = seq_num_to_cid.find(rep.first)->second;
-      auto data_size = rep.second.matched_data.size();
-      for (auto& reply : pending_replies_) {
-        if (reply.cid != cid) continue;
-        if (reply.cb) {
-          auto result = bftEngine::SendResult{rep.second};
-          reply.cb(std::move(result));
-          LOG_DEBUG(logger_, "Request processing via callback completed " << KVLOG(client_id_, batch_cid, reply.cid));
+    auto reply_map = new_client_->sendBatch(request_queue, batch_cid);
+    for (const auto& [seq_num, reply] : reply_map) {
+      auto cid = seq_num_to_cid.find(seq_num)->second;
+      auto data_size = reply.matched_data.size();
+      for (auto& pending : pending_replies_) {
+        if (pending.reply.cid != cid) continue;
+        if (pending.callback) {
+          auto result = SendResult{reply};
+          pending.callback(std::move(result));
+          LOG_DEBUG(logger_,
+                    "Request processing via callback completed " << KVLOG(client_id_, batch_cid, pending.reply.cid));
         } else {
           // TODO: Used for testing only
-          if (data_size > reply.lengthOfReplyBuffer) {
-            LOG_WARN(logger_, "Reply too big " << KVLOG(client_id_, cid, reply.lengthOfReplyBuffer, data_size));
+          if (data_size > pending.reply.lengthOfReplyBuffer) {
+            LOG_WARN(logger_, "Reply too big " << KVLOG(client_id_, cid, pending.reply.lengthOfReplyBuffer, data_size));
             continue;
           }
-          memcpy(reply.replyBuffer, rep.second.matched_data.data(), data_size);
-          reply.actualReplyLength = data_size;
-          LOG_DEBUG(logger_, "Request processing completed " << KVLOG(client_id_, batch_cid, reply.cid));
+          memcpy(pending.reply.replyBuffer, reply.matched_data.data(), data_size);
+          pending.reply.actualReplyLength = data_size;
+          LOG_DEBUG(logger_, "Request processing completed " << KVLOG(client_id_, batch_cid, pending.reply.cid));
         }
       }
     }

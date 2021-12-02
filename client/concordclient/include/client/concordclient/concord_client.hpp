@@ -119,12 +119,8 @@ class ConcordClient {
   ~ConcordClient();
 
   // Register a callback that gets invoked once the handling BFT client returns.
-  void send(const bft::client::WriteConfig& config,
-            bft::client::Msg&& msg,
-            const SendCallback& callback);
-  void send(const bft::client::ReadConfig& config,
-            bft::client::Msg&& msg,
-            const SendCallback& callback);
+  void send(const bft::client::WriteConfig& config, bft::client::Msg&& msg, const SendCallback& callback);
+  void send(const bft::client::ReadConfig& config, bft::client::Msg&& msg, const SendCallback& callback);
 
   // Subscribe to events which are pushed into the given update queue.
   void subscribe(const SubscribeRequest& request,
@@ -136,8 +132,8 @@ class ConcordClient {
   void unsubscribe();
 
  private:
-  class Impl;
-  std::unique_ptr<Impl> impl_;
+  class ConcordClientImpl;
+  std::unique_ptr<ConcordClientImpl> impl_;
 };
 
 }  // namespace concord::client::concordclient
