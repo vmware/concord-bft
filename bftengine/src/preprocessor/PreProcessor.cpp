@@ -328,7 +328,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       launchAsyncPreProcessJobRecorder_{histograms_.launchAsyncPreProcessJob},
       pm_{pm},
       batchedPreProcessEnabled_(myReplica_.getReplicaConfig().batchedPreProcessEnabled) {
-  clientMaxBatchSize_ = clientBatchingEnabled_ ? myReplica.getReplicaConfig().clientBatchingMaxMsgsNbr : 1;
+  clientMaxBatchSize_ = clientBatchingEnabled_ ? myReplica.getReplicaConfig().clientBatchingMaxMsgsNbr : 1,
   registerMsgHandlers();
   metricsComponent_.Register();
   const uint16_t numOfExternalClients = myReplica.getReplicaConfig().numOfExternalClients;

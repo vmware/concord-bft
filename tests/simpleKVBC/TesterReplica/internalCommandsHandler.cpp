@@ -238,9 +238,9 @@ void InternalCommandsHandler::writeAccumulatedBlock(ExecutionRequestsQueue &bloc
       ConcordAssert(existing_reply_size == serialized_reply.size());
 
       copy(serialized_reply.begin(), serialized_reply.end(), req.outReply);
-      LOG_INFO(m_logger,
-               "SKVBCWrite message handled (with block accumulation); writesCounter="
-                   << m_writesCounter << " currBlock=" << write_rep.latest_block);
+      LOG_INFO(
+          m_logger,
+          "SKVBCWrite message handled; writesCounter=" << m_writesCounter << " currBlock=" << write_rep.latest_block);
     }
   }
   addBlock(verUpdates, merkleUpdates);

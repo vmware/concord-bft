@@ -232,7 +232,6 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateReplyFromSavedOne(NodeId
 
   const auto& replySeqNum = r->reqSeqNum();
   if (replySeqNum != requestSeqNum) {
-    
     // Before client batching this function would be called only when
     // a request matches the last reply.
 
@@ -241,7 +240,7 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateReplyFromSavedOne(NodeId
     // is true. However it doesn't mean that the request always corresponds to last reply,
     // it could be older. In this case we do the same when batching is enabled -
     // log the attempt and return an empty reply.
-    
+
     // Also, note that with batching enabled we're supposed to have all replies
     // from the current batch, but currently we keep only one. This is a different
     // issue.
