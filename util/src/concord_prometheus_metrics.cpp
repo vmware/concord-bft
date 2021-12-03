@@ -43,9 +43,9 @@ prometheus::ClientMetric ConcordBftPrometheusCollector::collect(const std::strin
   return ClientMetric();
 }
 
-std::vector<MetricFamily> ConcordBftPrometheusCollector::Collect() {
+std::vector<MetricFamily> ConcordBftPrometheusCollector::Collect() const {
   auto results = std::vector<MetricFamily>{};
-  auto counters = collectCounters();
+  const auto counters = collectCounters();
   results.insert(results.end(), counters.begin(), counters.end());
   auto gauges = collectGauges();
   results.insert(results.end(), std::move_iterator(gauges.begin()), std::move_iterator(gauges.end()));
@@ -54,7 +54,7 @@ std::vector<MetricFamily> ConcordBftPrometheusCollector::Collect() {
   return results;
 }
 
-std::vector<MetricFamily> ConcordBftPrometheusCollector::collectCounters() {
+std::vector<MetricFamily> ConcordBftPrometheusCollector::collectCounters() const {
   std::vector<MetricFamily> cf;
   std::map<std::string, MetricFamily> metricsMap;
   for (auto& c : aggregator_->CollectCounters()) {
@@ -71,7 +71,7 @@ std::vector<MetricFamily> ConcordBftPrometheusCollector::collectCounters() {
   return cf;
 }
 
-std::vector<MetricFamily> ConcordBftPrometheusCollector::collectGauges() {
+std::vector<MetricFamily> ConcordBftPrometheusCollector::collectGauges() const {
   std::vector<MetricFamily> gf;
   std::map<std::string, MetricFamily> metricsMap;
   for (auto& g : aggregator_->CollectGauges()) {
@@ -88,13 +88,13 @@ std::vector<MetricFamily> ConcordBftPrometheusCollector::collectGauges() {
   return gf;
 }
 
-std::vector<MetricFamily> ConcordBftPrometheusCollector::collectStatuses() { return {}; }
-std::string ConcordBftPrometheusCollector::getMetricName(const std::string& origName) {
+std::vector<MetricFamily> ConcordBftPrometheusCollector::collectStatuses() const { return {}; }
+std::string ConcordBftPrometheusCollector::getMetricName(const std::string& origName) const {
   return metricNamePrefix_ + origName;
 }
 
 PrometheusRegistry::PrometheusRegistry(const std::string& bindAddress, uint64_t metricsDumpInterval)
-    : exposer_(std::make_unique<prometheus::Exposer>(bindAddress, "/metrics", 1)),
+    : exposer_(std::make_unique<prometheus::Exposer>(bindAddress, 1)),
       counters_custom_collector_(
           std::make_shared<ConcordCustomCollector<prometheus::Counter>>(std::chrono::seconds(metricsDumpInterval))),
       gauges_custom_collector_(
@@ -200,7 +200,7 @@ prometheus::Family<T>& ConcordCustomCollector<T>::createFamily(const std::string
 }
 
 template <typename T>
-std::vector<prometheus::MetricFamily> ConcordCustomCollector<T>::Collect() {
+std::vector<prometheus::MetricFamily> ConcordCustomCollector<T>::Collect() const {
   std::lock_guard<std::mutex> lock(lock_);
   std::vector<prometheus::MetricFamily> res;
   for (const std::shared_ptr<Family<T>>& f : metrics_) {
@@ -215,7 +215,6 @@ std::vector<prometheus::MetricFamily> ConcordCustomCollector<T>::Collect() {
       LOG_INFO(logger_, "prometheus metrics dump: " + prometheus::TextSerializer().Serialize(res));
     }
   }
-
   return res;
 }
 }  // namespace concord::utils
