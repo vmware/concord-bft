@@ -413,9 +413,8 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
 
   if (!isBlockAccumulationEnabled)
     LOG_INFO(m_logger,
-             "SKVBCWrite message handled (NO block accumulation); success=" << (write_rep.success ? "Yes" : "No")
-                                                                            << " writesCounter=" << m_writesCounter
-                                                                            << " currBlock=" << write_rep.latest_block);
+             "ConditionalWrite message handled; writesCounter=" << m_writesCounter
+                                                                << " currBlock=" << write_rep.latest_block);
   return true;
 }
 

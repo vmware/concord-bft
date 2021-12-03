@@ -324,6 +324,11 @@ bool ClientsManager::canBecomePending(NodeIdType clientId, ReqId reqSeqNum) cons
       LOG_DEBUG(CL_MNGR, "The request has been already executed" << KVLOG(clientId, reqSeqNum));
       return false;
     }
+    const auto replyId = lastInOrderReplyId(clientId);
+    if (reqSeqNum < replyId) {
+      LOG_DEBUG(CL_MNGR, "The request is older than the last in-order reply id" << KVLOG(clientId, reqSeqNum, replyId));
+      return false;
+    }
     LOG_DEBUG(CL_MNGR, "The request can become pending" << KVLOG(clientId, reqSeqNum, info.requestsInfo.size()));
     return true;
   } catch (const std::out_of_range& e) {
