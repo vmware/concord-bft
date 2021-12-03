@@ -205,6 +205,10 @@ class KvbAppFilter {
 
   kvbc::categorization::EventGroup getEventGroup(kvbc::EventGroupId event_group_id, std::string &cid);
 
+  // Return the oldest global event group id.
+  // If no event group can be found then 0 (invalid group id) is returned.
+  uint64_t getOldestEventGroupId();
+
   // Return the block number of the very first global event group.
   // Optional because during start-up there might be no block/event group written yet.
   std::optional<BlockId> getOldestEventGroupBlockId();
