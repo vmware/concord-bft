@@ -16,7 +16,6 @@
 #include "Logger.hpp"
 #include "OpenTracing.hpp"
 #include "sliver.hpp"
-#include "simpleKVBTestsBuilder.hpp"
 #include "db_interfaces.h"
 #include "block_metadata.hpp"
 #include "KVBCInterfaces.h"
@@ -24,6 +23,7 @@
 #include "ControlStateManager.hpp"
 #include <chrono>
 #include <thread>
+#include "skvbc_messages.cmf.hpp"
 
 static const std::string VERSIONED_KV_CAT_ID{"replica_tester_versioned_kv_category"};
 static const std::string BLOCK_MERKLE_CAT_ID{"replica_tester_block_merkle_category"};
@@ -36,10 +36,10 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
                           logging::Logger &logger)
       : m_storage(storage), m_blockAdder(blocksAdder), m_blockMetadata(blockMetadata), m_logger(logger) {}
 
-  virtual void execute(ExecutionRequestsQueue &requests,
-                       std::optional<bftEngine::Timestamp> timestamp,
-                       const std::string &batchCid,
-                       concordUtils::SpanWrapper &parent_span) override;
+  void execute(ExecutionRequestsQueue &requests,
+               std::optional<bftEngine::Timestamp> timestamp,
+               const std::string &batchCid,
+               concordUtils::SpanWrapper &parent_span) override;
 
   void setPerformanceManager(std::shared_ptr<concord::performance::PerformanceManager> perfManager) override;
 

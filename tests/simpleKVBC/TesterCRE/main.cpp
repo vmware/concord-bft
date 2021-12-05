@@ -10,9 +10,6 @@
 // notices and license terms. Your use of these subcomponents is subject to the
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
-// This module creates an instance of ClientImp class using input
-// parameters and launches a bunch of tests created by TestsBuilder towards
-// concord::consensus::ReplicaImp objects.
 
 #include <getopt.h>
 

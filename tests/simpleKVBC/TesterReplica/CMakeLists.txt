@@ -4,7 +4,6 @@ project(skvbc_replica VERSION 0.1.0.0 LANGUAGES CXX)
 add_executable(skvbc_replica main.cpp
 		 internalCommandsHandler.cpp
 		 setup.cpp
-		 ../simpleKVBTestsBuilder.cpp
 		 ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp
 		 WrapCommunication.cpp
 		 strategy/ShufflePrePrepareMsgStrategy.cpp

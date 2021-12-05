@@ -68,7 +68,7 @@ std::unordered_map<NodeNum, NodeInfo> TestCommConfig::SetUpConfiguredNodes(bool 
                                                                            uint16_t& port,
                                                                            uint16_t& num_of_clients,
                                                                            uint16_t& num_of_replicas) {
-  ConfigFileParser config_file_parser(logger_, config_file_name);
+  concord::tests::config::ConfigFileParser config_file_parser(logger_, config_file_name);
   if (!config_file_parser.Parse()) {
     LOG_FATAL(logger_, "Failed to parse configuration file: " << config_file_name);
     exit(-1);
