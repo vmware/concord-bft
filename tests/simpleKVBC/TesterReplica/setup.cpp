@@ -305,53 +305,15 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
   }
 }
 
-#ifdef USE_S3_OBJECT_STORE
-concord::storage::s3::StoreConfig TestSetup::ParseS3Config(const std::string& s3ConfigFile) {
-  ConfigFileParser parser(logger_, s3ConfigFile);
-  if (!parser.Parse()) throw std::runtime_error("failed to parse" + s3ConfigFile);
-
-  auto get_config_value = [&s3ConfigFile, &parser](const std::string& key) {
-    std::vector<std::string> v = parser.GetValues(key);
-    if (v.size()) {
-      return v[0];
-    } else {
-      throw std::runtime_error("failed to parse " + s3ConfigFile + ": " + key + " is not set.");
-    }
-  };
-
-  concord::storage::s3::StoreConfig config;
-  config.bucketName = get_config_value("s3-bucket-name");
-  config.accessKey = get_config_value("s3-access-key");
-  config.protocol = get_config_value("s3-protocol");
-  config.url = get_config_value("s3-url");
-  config.secretKey = get_config_value("s3-secret-key");
-  try {
-    // TesterReplica is used for Apollo tests. Each test is executed against new blockchain, so we need brand new
-    // bucket for the RO replica. To achieve this we use a hack - set the prefix to a uniqe value so each RO replica
-    // writes in the same bucket but in different directory.
-    // So if s3-path-prefix is NOT SET it is initialised to a unique value based on current time.
-    config.pathPrefix = get_config_value("s3-path-prefix");
-  } catch (std::runtime_error& e) {
-    config.pathPrefix = std::to_string(std::chrono::high_resolution_clock::now().time_since_epoch().count());
-  }
-
-  LOG_INFO(logger_,
-           "\nS3 Configuration:"
-               << "\nbucket:\t\t" << config.bucketName << "\nprotocol:\t" << config.protocol << "\nurl:\t\t"
-               << config.url);
-  return config;
-}
-#endif
-
 std::unique_ptr<IStorageFactory> TestSetup::GetStorageFactory() {
-  // TODO handle persistancy mode
+  // TODO handle persistence mode
   std::stringstream dbPath;
   dbPath << BasicRandomTests::DB_FILE_PREFIX << GetReplicaConfig().replicaId;
 
 #ifdef USE_S3_OBJECT_STORE
   if (GetReplicaConfig().isReadOnly) {
     if (s3ConfigFile_.empty()) throw std::runtime_error("--s3-config-file must be provided");
-    const auto s3Config = ParseS3Config(s3ConfigFile_);
+    const auto s3Config = concord::tests::config::S3ConfigFileParser::parse(s3ConfigFile_);
     return std::make_unique<v1DirectKeyValue::S3StorageFactory>(dbPath.str(), s3Config);
   }
 #endif

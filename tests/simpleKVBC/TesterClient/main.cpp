@@ -27,14 +27,12 @@
 
 using namespace bftEngine;
 using namespace bft::communication;
-using namespace BasicRandomTests;
+using concord::kvbc::test::BasicRandomTestsRunner;
 
 using std::string;
 
 using concord::kvbc::BlockId;
 using concord::kvbc::ClientConfig;
-using concord::kvbc::createClient;
-using concord::kvbc::IClient;
 
 ClientParams setupClientParams(int argc, char **argv) {
   ClientParams clientParams;
@@ -119,16 +117,18 @@ ClientConfig setupConsensusParams(ClientParams &clientParams) {
 }
 
 int main(int argc, char **argv) {
-  ClientParams clientParams = setupClientParams(argc, argv);
-  if (clientParams.clientId == UINT16_MAX || clientParams.numOfFaulty == UINT16_MAX ||
-      clientParams.numOfSlow == UINT16_MAX || clientParams.numOfOperations == UINT32_MAX) {
-    LOG_ERROR(logger, "Wrong usage! Required parameters: " << argv[0] << " -f F -c C -p NUM_OPS -i ID");
-    exit(-1);
+  try {
+    logging::initLogger("logging.properties");
+    ClientParams clientParams = setupClientParams(argc, argv);
+    if (clientParams.clientId == UINT16_MAX || clientParams.numOfFaulty == UINT16_MAX ||
+        clientParams.numOfSlow == UINT16_MAX || clientParams.numOfOperations == UINT32_MAX) {
+      LOG_ERROR(logger, "Wrong usage! Required parameters: " << argv[0] << " -f F -c C -p NUM_OPS -i ID");
+      exit(-1);
+    }
+    BasicRandomTestsRunner testsRunner(
+        concord::kvbc::createClient(setupConsensusParams(clientParams), setupCommunicationParams(clientParams)));
+    testsRunner.run(clientParams.numOfOperations);
+  } catch (const std::exception &e) {
+    LOG_ERROR(GL, "Exception: " << e.what());
   }
-
-  ClientConfig clientConfig = setupConsensusParams(clientParams);
-  auto *comm = setupCommunicationParams(clientParams);
-  IClient *client = createClient(clientConfig, comm);
-  BasicRandomTestsRunner testsRunner(logger, *client, clientParams.numOfOperations);
-  testsRunner.run();
 }

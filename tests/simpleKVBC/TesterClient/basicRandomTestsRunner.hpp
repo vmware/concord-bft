@@ -17,27 +17,26 @@
 #include "simpleKVBTestsBuilder.hpp"
 #include "KVBCInterfaces.h"
 
-namespace BasicRandomTests {
+namespace concord::kvbc::test {
 
 class BasicRandomTestsRunner {
  public:
-  BasicRandomTestsRunner(logging::Logger &logger, concord::kvbc::IClient &client, size_t numOfOperations);
-  ~BasicRandomTestsRunner() { delete testsBuilder_; }
-  void run();
+  BasicRandomTestsRunner(IClient *client) : client_(client) {
+    ConcordAssert(!client_->isRunning());
+    client_->start();
+  }
+  ~BasicRandomTestsRunner() { client_->stop(); }
+  void run(size_t numOfOperations);
 
  private:
   static void sleep(int ops);
-  bool isReplyCorrect(const skvbc::messages::SKVBCRequest &request,
-                      const skvbc::messages::SKVBCReply &expectedReply,
-                      const vector<uint8_t> &serialized_reply,
-                      size_t expectedReplySize,
-                      uint32_t actualReplySize);
+
+  BlockId getInitialLastBlockId();
 
  private:
-  logging::Logger &logger_;
-  concord::kvbc::IClient &client_;
-  const size_t numOfOperations_;
-  TestsBuilder *testsBuilder_;
+  logging::Logger logger_ = logging::getLogger("concord.kvbc.tests.simple_kvbc");
+  std::unique_ptr<concord::kvbc::IClient> client_;
+  std::unique_ptr<TestsBuilder> testsBuilder_;
 };
 
-}  // namespace BasicRandomTests
+}  // namespace concord::kvbc::test
