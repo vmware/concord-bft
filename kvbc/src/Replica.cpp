@@ -322,7 +322,7 @@ void Replica::createReplicaAndSyncState() {
 
   handleNewEpochEvent();
   handleWedgeEvent();
-  bftEngine::impl::DbCheckpointManager::instance().initializeDbCheckpointHanlder(
+  bftEngine::impl::DbCheckpointManager::instance().initializeDbCheckpointManager(
       m_dbSet.dataDBClient, m_replicaPtr->persistentStorage(), aggregator_, [this]() -> uint64_t {
         return getLastBlockId();
       });

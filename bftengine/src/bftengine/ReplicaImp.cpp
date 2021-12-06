@@ -4321,7 +4321,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
 
   KeyExchangeManager::instance(&id);
 
-  onSeqNumIsStableCallbacks_.add([this](const SeqNum &seqNum) {
+  onSeqNumIsStableCallbacks_.add([this](SeqNum seqNum) {
     auto currTime = std::chrono::system_clock::now().time_since_epoch();
     auto timeSinceLastSnapshot = (std::chrono::duration_cast<std::chrono::seconds>(currTime) -
                                   DbCheckpointManager::instance().getLastCheckpointCreationTime())
