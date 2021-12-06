@@ -114,6 +114,15 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   std::queue<ClientRequestMsg*> requestsQueueOfPrimary;  // only used by the primary
   size_t primaryCombinedReqSize = 0;                     // only used by the primary
 
+  // A preprepare message which is still building is called transient preprepare.
+  // activeTransientPreprepare_ represents the number of preprepare messages that are
+  // currently getting build in a separate thread.
+  // This should not be thread safe because its used only in the main thread
+  // This should start with 0, since by default we will assume that a preprepare is taken
+  // to be added to main log. And this will solely represent those preprepares which are
+  // to be added to main log, but are not added as yet.
+  uint16_t numOfTransientPreprepareMsgs_ = 0;
+
   // bounded log used to store information about SeqNums in the range (lastStableSeqNum,lastStableSeqNum +
   // kWorkWindowSize]
   typedef SequenceWithActiveWindow<kWorkWindowSize, 1, SeqNum, SeqNumInfo, SeqNumInfo, 1, false> WindowOfSeqNumInfo;
