@@ -486,6 +486,16 @@ bool PreProcessor::checkClientBatchMsgCorrectness(const ClientBatchRequestMsgUni
     preProcessorMetrics_.preProcReqIgnored++;
     return false;
   }
+
+  const auto numMsgsInBatch = clientBatchReqMsg->numOfMessagesInBatch();
+  if (numMsgsInBatch > clientMaxBatchSize_) {
+    LOG_WARN(logger(),
+             "Ignoring client batch that exceeds max number of requests ("
+                 << numMsgsInBatch << " > " << clientMaxBatchSize_ << ")"
+                 << KVLOG(clientBatchReqMsg->clientId(), clientBatchReqMsg->senderId(), clientBatchReqMsg->getCid()));
+    return false;
+  }
+
   const auto &clientRequestMsgs = clientBatchReqMsg->getClientPreProcessRequestMsgs();
   bool valid = true;
   for (const auto &msg : clientRequestMsgs) {
