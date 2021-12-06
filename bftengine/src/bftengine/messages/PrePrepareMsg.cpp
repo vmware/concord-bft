@@ -213,7 +213,11 @@ void PrePrepareMsg::finishAddingRequests() {
   b()->flags |= 0x2;
   ConcordAssert(isReady());
 
-  calculateDigestOfRequests(b()->digestOfRequests);
+  try {
+    calculateDigestOfRequests(b()->digestOfRequests);
+  } catch (std::runtime_error& ex) {
+    ConcordAssert(false);
+  }
 
   // size
   setMsgSize(b()->endLocationOfLastRequest);
