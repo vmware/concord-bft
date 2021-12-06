@@ -3403,8 +3403,7 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
     IControlHandler::instance()->onStableCheckpoint();
     ControlStateManager::instance().wedge();
   }
-  auto ret =
-      std::async(std::launch::async, [this, newStableSeqNum]() { createDbCheckpointCb_.invokeAll(newStableSeqNum); });
+  onSeqNumIsStableCallbacks_.invokeAll(newStableSeqNum);
 }
 void ReplicaImp::sendRepilcaRestartReady(uint8_t reason, const std::string &extraData) {
   auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
@@ -4322,7 +4321,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
 
   KeyExchangeManager::instance(&id);
 
-  createDbCheckpointCb_.add([this](const SeqNum &seqNum) {
+  onSeqNumIsStableCallbacks_.add([this](const SeqNum &seqNum) {
     auto currTime = std::chrono::system_clock::now().time_since_epoch();
     auto timeSinceLastSnapshot = (std::chrono::duration_cast<std::chrono::seconds>(currTime) -
                                   DbCheckpointManager::instance().getLastCheckpointCreationTime())
@@ -4330,7 +4329,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
     if (getReplicaConfig().maxNumberOfDbCheckpoints && seqNum &&
         !(seqNum % getReplicaConfig().dbCheckPointWindowSize) &&
         (timeSinceLastSnapshot >= getReplicaConfig().dbSnapshotIntervalSeconds.count())) {
-      DbCheckpointManager::instance().createDbCheckpoint(seqNum);
+      auto ret = std::async(std::launch::async,
+                            [seqNum]() -> void { DbCheckpointManager::instance().createDbCheckpoint(seqNum); });
     }
   });
 
