@@ -23,7 +23,6 @@
 #include <variant>
 #include "ReplicaConfig.hpp"
 
-using namespace BasicRandomTests;
 using namespace bftEngine;
 using namespace concord::kvbc::categorization;
 

@@ -35,7 +35,8 @@ def start_replica_cmd(builddir, replica_id):
             "-i", str(replica_id),
             "-s", statusTimerMilli,
             "-v", viewChangeTimeoutMilli,
-            "-e", str(True)
+            "-e", str(True),
+            "-f", '0' # disable time service until intermittent failures are fixed for this test
             ]
 
 

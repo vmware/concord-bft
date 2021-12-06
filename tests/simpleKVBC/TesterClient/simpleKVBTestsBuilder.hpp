@@ -15,12 +15,11 @@
 
 #include <list>
 #include <map>
-#include "kv_types.hpp"
 #include "KVBCInterfaces.h"
 #include "Logger.hpp"
 #include "skvbc_messages.cmf.hpp"
 
-namespace BasicRandomTests {
+namespace concord::kvbc::test {
 
 struct SimpleBlock {
   uint64_t id = 0;
@@ -31,12 +30,15 @@ typedef std::map<std::pair<std::vector<uint8_t>, uint64_t>, std::vector<uint8_t>
 
 class TestsBuilder {
  public:
-  explicit TestsBuilder(logging::Logger& logger, concord::kvbc::IClient& client);
-  ~TestsBuilder();
+  TestsBuilder(BlockId lastBlockId) : prevLastBlockId_(lastBlockId), lastBlockId_(lastBlockId) {
+    LOG_INFO(logger_, "TestsBuilder: initialBlockId_=" << lastBlockId_);
+  }
+
+  ~TestsBuilder() { LOG_INFO(logger_, "TestsBuilder: The last DB block is " << lastBlockId_); }
 
   void createRandomTest(size_t numOfRequests, size_t seed);
-  std::list<skvbc::messages::SKVBCRequest> getRequests() { return requests_; }
-  std::list<skvbc::messages::SKVBCReply> getReplies() { return replies_; }
+  std::list<skvbc::messages::SKVBCRequest>& getRequests() { return requests_; }
+  std::list<skvbc::messages::SKVBCReply>& getReplies() { return replies_; }
 
  private:
   void create(size_t numOfRequests, size_t seed);
@@ -46,18 +48,16 @@ class TestsBuilder {
   void addExpectedWriteReply(bool foundConflict);
   bool lookForConflicts(uint64_t readVersion, const std::vector<std::vector<uint8_t>>& readKeysArray);
   void addNewBlock(const std::vector<std::pair<std::vector<uint8_t>, std::vector<uint8_t>>>& writesKVArray);
-  void retrieveExistingBlocksFromKVB();
-  uint64_t getInitialLastBlockId();
+  // void retrieveExistingBlocksFromKVB();
 
  private:
-  logging::Logger& logger_;
-  concord::kvbc::IClient& client_;
+  logging::Logger logger_ = logging::getLogger("concord.kvbc.tests.simple_kvbc");
   std::list<skvbc::messages::SKVBCRequest> requests_;
   std::list<skvbc::messages::SKVBCReply> replies_;
   std::map<uint64_t, SimpleBlock> internalBlockchain_;
   KeyBlockIdToValueMap allKeysToValueMap_;
-  uint64_t prevLastBlockId_ = 0;
-  uint64_t lastBlockId_ = 0;
+  BlockId prevLastBlockId_ = 0;
+  BlockId lastBlockId_ = 0;
 };
 
-}  // namespace BasicRandomTests
+}  // namespace concord::kvbc::test

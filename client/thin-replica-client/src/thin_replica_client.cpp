@@ -532,6 +532,7 @@ void ThinReplicaClient::receiveUpdates() {
     size_t most_agreeing = 0;
     bool has_data = false;
     bool has_verified_data = false;
+    uint64_t update_id = 0;
 
     // First, we collect updates from all subscription streams we have which
     // are already open, starting with the data stream and followed by any hash
@@ -548,7 +549,9 @@ void ThinReplicaClient::receiveUpdates() {
       servers_pruned++;
     }
 
-    uint64_t update_id = update_in.has_event_group() ? update_in.event_group().id() : update_in.events().block_id();
+    if (has_data) {
+      update_id = update_in.has_event_group() ? update_in.event_group().id() : update_in.events().block_id();
+    }
     LOG_DEBUG(logger_,
               "Find hash agreement amongst all servers for update " << (has_data ? to_string(update_id) : "n/a"));
     findBlockHashAgreement(servers_tried,
@@ -643,6 +646,12 @@ void ThinReplicaClient::receiveUpdates() {
     }
 
     ConcordAssert(has_verified_data);
+
+    // if initial call to readBlock failed, reset update_id with most_agreed_block iD
+    if (!has_data) {
+      update_id = most_agreed_block.id;
+    }
+
     is_subscription_successful_ = true;
     LOG_DEBUG(logger_, "Read and verified data for update " << update_id);
 

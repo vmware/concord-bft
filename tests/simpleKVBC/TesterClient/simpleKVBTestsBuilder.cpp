@@ -11,12 +11,12 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
+#include "simpleKVBTestsBuilder.hpp"
 #include "boost/detail/endian.hpp"
 #include "assertUtils.hpp"
 #include <chrono>
 #include <map>
 #include <set>
-#include "basicRandomTestsRunner.hpp"
 #include "commonKVBTests.hpp"
 #include "DbMetadataStorage.cpp"
 #include "storage/db_types.h"
@@ -26,15 +26,7 @@ using std::set;
 using std::chrono::seconds;
 
 using concord::kvbc::BlockId;
-using concord::kvbc::IClient;
-using skvbc::messages::SKVBCGetLastBlockReply;
-using skvbc::messages::SKVBCGetLastBlockRequest;
-using skvbc::messages::SKVBCReadReply;
-using skvbc::messages::SKVBCReadRequest;
-using skvbc::messages::SKVBCReply;
-using skvbc::messages::SKVBCRequest;
-using skvbc::messages::SKVBCWriteReply;
-using skvbc::messages::SKVBCWriteRequest;
+using namespace skvbc::messages;
 
 const int NUMBER_OF_KEYS = 200;
 const int CONFLICT_DISTANCE = 49;
@@ -48,130 +40,9 @@ static_assert(
     sizeof(uint8_t) == 1,
     "code in this file for packing data of integer types into byte strings may assume uint8_t is a 1-byte type");
 
-namespace BasicRandomTests {
-
-TestsBuilder::TestsBuilder(logging::Logger& logger, IClient& client) : logger_(logger), client_(client) {
-  prevLastBlockId_ = getInitialLastBlockId();
-  lastBlockId_ = prevLastBlockId_;
-  LOG_INFO(logger, "TestsBuilder: initialBlockId_=" << prevLastBlockId_);
-}
-
-TestsBuilder::~TestsBuilder() { LOG_INFO(logger_, "TestsBuilder: The last DB block is " << lastBlockId_); }
-
-// When working with persistent KVB, we need to retrieve current last block-id
-// and all written keys before starting.
-BlockId TestsBuilder::getInitialLastBlockId() {
-  SKVBCRequest request;
-  request.request = SKVBCGetLastBlockRequest();
-  vector<uint8_t> serialized_request;
-  serialize(serialized_request, request);
-
-  SKVBCReply reply;
-  reply.reply = SKVBCGetLastBlockReply();
-  vector<uint8_t> serialized_reply;
-  serialize(serialized_reply, reply);
-  size_t expected_reply_size = serialized_reply.size();
-  uint32_t actual_reply_size = 0;
-
-  static_assert(
-      (sizeof(*(serialized_request.data())) == sizeof(char)) && (sizeof(*(serialized_reply.data())) == sizeof(char)),
-      "Byte pointer type used by concord::kvbc::IClient interface is not compatible with byte pointer type used by "
-      "CMF.");
-  auto res = client_.invokeCommandSynch(reinterpret_cast<char*>(serialized_request.data()),
-                                        serialized_request.size(),
-                                        true,
-                                        seconds(5),
-                                        expected_reply_size,
-                                        reinterpret_cast<char*>(serialized_reply.data()),
-                                        &actual_reply_size);
-  ConcordAssert(res.isOK());
-
-  LOG_INFO(logger_, "Actual reply size = " << actual_reply_size << ", expected reply size = " << expected_reply_size);
-  ConcordAssert(actual_reply_size == expected_reply_size);
-  deserialize(serialized_reply, reply);
-  ConcordAssert(holds_alternative<SKVBCGetLastBlockReply>(reply.reply));
-
-  return (get<SKVBCGetLastBlockReply>(reply.reply)).latest_block;
-}
-
-void TestsBuilder::retrieveExistingBlocksFromKVB() {
-  if (prevLastBlockId_ == BasicRandomTests::FIRST_KVB_BLOCK)
-    // KVB contains only the genesis block
-    return;
-
-  // KVB is not empty. Read existing blocks and save in the memory.
-  SKVBCRequest request;
-  request.request = SKVBCReadRequest();
-  SKVBCReadRequest& read_req = get<SKVBCReadRequest>(request.request);
-  read_req.read_version = prevLastBlockId_;
-  read_req.keys.resize(NUMBER_OF_KEYS);
-
-  SKVBCReply reply;
-
-  // Note we make the assumption that the serialization size for a CMF message is not dependent on the value of any
-  // fixed-length data within the message, and that the serialization size will never decrease as the length of a vector
-  // within the message increases.
-  SKVBCReadReply maximally_sized_reply;
-  maximally_sized_reply.reads.resize(NUMBER_OF_KEYS);
-  for (auto& kvp : maximally_sized_reply.reads) {
-    kvp.first.resize(kMaxKVSizeToUse);
-    kvp.second.resize(kMaxKVSizeToUse);
-  }
-  reply.reply = maximally_sized_reply;
-  vector<uint8_t> serialized_reply;
-  serialize(serialized_reply, reply);
-  size_t expected_max_reply_size = serialized_reply.size();
-  uint32_t actualReplySize = 0;
-
-  for (uint64_t key = 0; key < NUMBER_OF_KEYS; ++key) {
-    read_req.keys[key].resize(kMaxKVSizeToUse);
-
-    uint8_t* key_first_byte = reinterpret_cast<uint8_t*>(&key);
-    uint8_t* key_last_byte = key_first_byte + sizeof(key);
-
-#ifdef BOOST_BIG_ENDIAN
-    copy(key_first_byte, key_last_byte, read_req.keys[key].data());
-#else  // BOOST_BIG_ENDIAN not defined
-#ifdef BOOST_LITTLE_ENDIAN
-    reverse_copy(key_first_byte, key_last_byte, read_req.keys[key].data());
-#else   // BOOST_LITTLE_ENDIAN not defined
-    static_assert(false, "failed to determine the endianness being compiled for");
-#endif  // if BOOST_LITTLE_ENDIAN defined/else
-#endif  // if BOOST_BIG_ENDIAN defined/else
-  }
-
-  vector<uint8_t> serialized_request;
-  serialize(serialized_request, request);
-
-  static_assert(
-      (sizeof(*(serialized_request.data())) == sizeof(char)) && (sizeof(*(serialized_reply.data())) == sizeof(char)),
-      "Byte pointer type used by concord::kvbc::IClient interface is not compatible with byte pointer type used by "
-      "CMF.");
-  // Infinite timeout
-  auto res = client_.invokeCommandSynch(reinterpret_cast<char*>(serialized_request.data()),
-                                        serialized_request.size(),
-                                        true,
-                                        seconds(0),
-                                        expected_max_reply_size,
-                                        reinterpret_cast<char*>(serialized_reply.data()),
-                                        &actualReplySize);
-  ConcordAssert(res.isOK());
-
-  ConcordAssert(actualReplySize <= expected_max_reply_size);
-  serialized_reply.resize(actualReplySize);
-  deserialize(serialized_reply, reply);
-  ConcordAssert(holds_alternative<SKVBCReadReply>(reply.reply));
-  const SKVBCReadReply& read_rep = get<SKVBCReadReply>(reply.reply);
-  ConcordAssert(read_rep.reads.size() == NUMBER_OF_KEYS);
-
-  for (int key = 0; key < NUMBER_OF_KEYS; key++) {
-    pair<vector<uint8_t>, uint64_t> simpleKIDPair(read_rep.reads[key].first, read_req.read_version);
-    allKeysToValueMap_[simpleKIDPair] = read_rep.reads[key].second;
-  }
-}
+namespace concord::kvbc::test {
 
 void TestsBuilder::createRandomTest(size_t numOfRequests, size_t seed) {
-  retrieveExistingBlocksFromKVB();
   create(numOfRequests, seed);
   for (auto elem : internalBlockchain_) {
     elem.second = SimpleBlock();
@@ -410,4 +281,4 @@ void TestsBuilder::createAndInsertGetLastBlock() {
   replies_.push_back(reply);
 }
 
-}  // namespace BasicRandomTests
+}  // namespace concord::kvbc::test

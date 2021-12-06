@@ -77,9 +77,6 @@ class TestSetup {
                                      const std::string& keysRootPath,
                                      std::set<std::pair<const std::string, std::set<uint16_t>>>& publicKeysOfClients);
 
-#ifdef USE_S3_OBJECT_STORE
-  concord::storage::s3::StoreConfig ParseS3Config(const std::string& s3ConfigFile);
-#endif
   const bftEngine::ReplicaConfig& replicaConfig_;
   std::unique_ptr<bft::communication::ICommunication> communication_;
   logging::Logger logger_;

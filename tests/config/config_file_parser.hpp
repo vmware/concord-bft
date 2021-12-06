@@ -16,9 +16,13 @@
 #pragma once
 
 #include "Logger.hpp"
-
 #include <map>
 #include <vector>
+#ifdef USE_S3_OBJECT_STORE
+#include "s3/client.hpp"
+#endif
+
+namespace concord::tests::config {
 
 typedef std::multimap<std::string, std::string> ParamsMultiMap;
 typedef ParamsMultiMap::iterator ParamsMultiMapIt;
@@ -52,3 +56,12 @@ class ConfigFileParser {
   ParamsMultiMap parameters_map_;
   logging::Logger& logger_;
 };
+
+#ifdef USE_S3_OBJECT_STORE
+
+class S3ConfigFileParser {
+ public:
+  static concord::storage::s3::StoreConfig parse(const std::string& s3ConfigFile);
+};
+#endif
+}  // namespace concord::tests::config
