@@ -65,8 +65,8 @@ void PartialProofsSet::addSelfMsgAndPPDigest(PartialCommitProofMsg* m, Digest& d
   ConcordAssert(selfPartialCommitProof == nullptr);
   ConcordAssert(fullCommitProof == nullptr);
 
-  seqNumber = m->seqNumber();
-  expectedDigest = digest;
+  // seqNumber = m->seqNumber();
+  // expectedDigest = digest;
   // NOTE: Accumulator might not be created yet, but the thresholdAccumulator() method creates it for us transparently
   // if needed
   thresholdAccumulator(m->commitPath())

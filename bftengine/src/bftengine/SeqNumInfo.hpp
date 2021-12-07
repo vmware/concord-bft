@@ -89,7 +89,7 @@ class SeqNumInfo {
   void setFastPathTimeOfSelfPartialProof(const Time& t);
   Time getFastPathTimeOfSelfPartialProof();
 
-  bool addFastPathSelfPartialCommitMsgAndDigest(PartialCommitProofMsg* m, Digest& commitDigest, bool directAdd = false);
+  bool addFastPathSelfPartialCommitMsgAndDigest(PartialCommitProofMsg* m, Digest& commitDigest);
   bool addFastPathPartialCommitMsg(PartialCommitProofMsg* m);
   bool addFastPathFullCommitMsg(FullCommitProofMsg* m);
 
@@ -189,7 +189,7 @@ class SeqNumInfo {
     static IncomingMsgsStorage& incomingMsgsStorage(void* context);
   };
 
-  class ExFuncForFastOptimisticCommitCollector {
+  class ExFuncForFastPathOptimisticCollector {
    public:
     // external messages
     static FullCommitProofMsg* createCombinedSignatureMsg(void* context,
@@ -217,7 +217,7 @@ class SeqNumInfo {
     static IncomingMsgsStorage& incomingMsgsStorage(void* context);
   };
 
-  class ExFuncForFastWithThresholdCommitCollector {
+  class ExFuncForFastPathThresholdCollector {
    public:
     // external messages
     static FullCommitProofMsg* createCombinedSignatureMsg(void* context,
@@ -254,10 +254,11 @@ class SeqNumInfo {
   CollectorOfThresholdSignatures<CommitPartialMsg, CommitFullMsg, ExFuncForCommitCollector>* commitMsgsCollector;
 
   // Fast path
-  CollectorOfThresholdSignatures<PartialCommitProofMsg, FullCommitProofMsg, ExFuncForFastOptimisticCommitCollector>*
-      fastOptimisticCollector;
-  CollectorOfThresholdSignatures<PartialCommitProofMsg, FullCommitProofMsg, ExFuncForFastWithThresholdCommitCollector>*
-      fastWithThresholdCollector;
+  CollectorOfThresholdSignatures<PartialCommitProofMsg, FullCommitProofMsg, ExFuncForFastPathOptimisticCollector>*
+      fastPathOptimisticCollector;
+  CollectorOfThresholdSignatures<PartialCommitProofMsg, FullCommitProofMsg, ExFuncForFastPathThresholdCollector>*
+      fastPathThresholdCollector;
+
   Time fastPathTimeOfSelfPartialProof;
 
   // PartialProofsSet* partialProofsSet;  // TODO(GG): replace with an instance of CollectorOfThresholdSignatures

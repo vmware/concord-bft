@@ -425,7 +425,7 @@ class CollectorOfThresholdSignatures {
                                SeqNum seqNum,
                                ViewNum view,
                                Digest& digest,
-                               char* const combinedSigBody,
+                               const char* const combinedSigBody,
                                uint16_t combinedSigLength,
                                void* cnt)
         : verifier{thresholdVerifier},

@@ -45,6 +45,10 @@ class PartialCommitProofMsg : public MessageBase {
 
   void validate(const ReplicasInfo&) const override;
 
+  // ToDo--EDJ: Temp add method names used by CollectorOfThresholdSignatures
+  uint16_t signatureLen() const { return thresholSignatureLength(); }
+  const char* signatureBody() { return thresholSignature(); }
+
  protected:
   template <typename MessageT>
   friend size_t sizeOfHeader();
