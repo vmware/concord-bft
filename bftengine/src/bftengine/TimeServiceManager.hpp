@@ -48,6 +48,17 @@ class TimeServiceManager {
     LOG_INFO(TS_MNGR, "Loaded time data from reserved pages");
   }
 
+  // Used on recovery to restore the time prior the request that is about to be re-executed.
+  // In order to suport a correct behaviour of the compareAndUpdate method.
+  void recoverTime(const ConsensusTickRep& recovered_time) {
+    auto last_timestamp = client_.getLastTimestamp().count();
+    ConcordAssertLE(recovered_time, last_timestamp);
+    client_.setTimestampFromTicks(recovered_time);
+    LOG_INFO(
+        TS_MNGR,
+        "Recovering time: time before recovery [" << last_timestamp << "], after recovery [" << recovered_time << "]");
+  }
+
   // Checks if the new time is less or equal to the one reserved pages,
   // if this is the case, returns reserved pages time + epsilon
   // otherwise, returns the new time
