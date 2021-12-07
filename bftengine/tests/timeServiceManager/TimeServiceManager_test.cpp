@@ -22,7 +22,7 @@ using namespace bftEngine::impl;
 
 struct ReservedPagesMock : public IReservedPages {
   mutable bool is_first_load = true;
-  std::string page_ = std::string(sizeof(ConsensusTime::rep), 0);
+  std::string page_ = std::string(sizeof(ConsensusTickRep), 0);
   ReservedPagesMock() { ReservedPagesClientBase::setReservedPages(this); }
   ~ReservedPagesMock() { ReservedPagesClientBase::setReservedPages(nullptr); }
   virtual uint32_t numberOfReservedPages() const { return 1; };
@@ -42,7 +42,7 @@ struct ReservedPagesMock : public IReservedPages {
   };
   virtual void zeroReservedPage(uint32_t reservedPageId) {
     (void)reservedPageId;
-    page_ = std::string(sizeof(ConsensusTime::rep), 0);
+    page_ = std::string(sizeof(ConsensusTickRep), 0);
   };
 };
 
@@ -326,6 +326,30 @@ TEST(TimeServiceManager, hasTimeRequest_no_ts_msg) {
   EXPECT_EQ(aggregator->GetCounter("time_service", "soft_limit_reached_counter").Get(), 0);
   EXPECT_EQ(aggregator->GetCounter("time_service", "new_time_is_less_or_equal_to_previous").Get(), 0);
   EXPECT_EQ(aggregator->GetCounter("time_service", "ill_formed_preprepare").Get(), 1);
+}
+
+TEST(TimeServiceManager, recoverTime) {
+  ReservedPagesMock m;
+  auto& config = ReplicaConfig::instance();
+  config.timeServiceEnabled = true;
+  config.timeServiceEpsilonMillis = std::chrono::milliseconds{1};
+  config.timeServiceHardLimitMillis = std::chrono::seconds{3};
+  config.timeServiceSoftLimitMillis = std::chrono::milliseconds{500};
+
+  const auto now = ConsensusTime{1000};
+  auto aggregator = std::make_shared<concordMetrics::Aggregator>();
+  auto manager = TimeServiceManager<std::chrono::system_clock>{aggregator};
+  auto update = manager.compareAndUpdate(now);
+  EXPECT_EQ(update, now);
+
+  auto ticksFromRecovery = now.count() - 10;
+  EXPECT_LT(ticksFromRecovery, update.count());
+  // scenario 1 - recover time is the same as the stored
+  manager.recoverTime(now.count());
+  EXPECT_EQ(manager.getTime(), now);
+  // scenario 2 - recover time is smaller than stored - replace
+  manager.recoverTime(ticksFromRecovery);
+  EXPECT_EQ(ticksFromRecovery, manager.getTime().count());
 }
 
 int main(int argc, char** argv) {

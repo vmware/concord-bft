@@ -314,7 +314,7 @@ void PersistentStorageImp::initDescriptorOfLastStableCheckpoint() {
 void PersistentStorageImp::setDescriptorOfLastExecution(const DescriptorOfLastExecution &desc) {
   setDescriptorOfLastExecution(desc, false);
   hasDescriptorOfLastExecution_ = true;
-  descriptorOfLastExecution_ = DescriptorOfLastExecution{desc.executedSeqNum, desc.validRequests};
+  descriptorOfLastExecution_ = DescriptorOfLastExecution{desc.executedSeqNum, desc.validRequests, desc.timeInTicks};
 }
 
 /***** Windows handling *****/

@@ -4095,6 +4095,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
 
     recoveringFromExecutionOfRequests = true;
     mapOfRecoveredRequests = b;
+    recoveredTime = ld.timeInTicks;
   }
 }
 
@@ -4474,6 +4475,9 @@ void ReplicaImp::start() {
 void ReplicaImp::recoverRequests() {
   if (recoveringFromExecutionOfRequests) {
     LOG_INFO(GL, "Recovering execution of requests");
+    if (config_.timeServiceEnabled) {
+      time_service_manager_->recoverTime(recoveredTime);
+    }
     SeqNumInfo &seqNumInfo = mainLog->get(lastExecutedSeqNum + 1);
     PrePrepareMsg *pp = seqNumInfo.getPrePrepareMsg();
     ConcordAssertNE(pp, nullptr);
@@ -4762,7 +4766,8 @@ void ReplicaImp::markSpecialRequests(RequestsIterator &reqIter,
   reqIter.restart();
 
   if (ps_) {
-    DescriptorOfLastExecution execDesc{lastExecutedSeqNum + 1, requestSet};
+    auto ticks = config_.timeServiceEnabled ? time_service_manager_->getTime().count() : 0;
+    DescriptorOfLastExecution execDesc{lastExecutedSeqNum + 1, requestSet, ticks};
     ps_->beginWriteTran();
     ps_->setDescriptorOfLastExecution(execDesc);
     ps_->endWriteTran();
@@ -4821,9 +4826,8 @@ void ReplicaImp::executeSpecialRequests(PrePrepareMsg *ppMsg,
       outTimestamp.time_since_epoch =
           concord::util::deserialize<ConsensusTime>(req.requestBuf(), req.requestBuf() + req.requestLength());
 
-      if (!recoverFromErrorInRequestsExecution) {  // TODO(GG): verify that this is okay for recovery
-        outTimestamp.time_since_epoch = time_service_manager_->compareAndUpdate(outTimestamp.time_since_epoch);
-      }
+      outTimestamp.time_since_epoch = time_service_manager_->compareAndUpdate(outTimestamp.time_since_epoch);
+
       LOG_DEBUG(GL, "Timestamp to be provided to the execution: " << outTimestamp.time_since_epoch.count() << "ms");
       numOfSpecialReqs--;
     } else if ((req.flags() & MsgFlag::KEY_EXCHANGE_FLAG) || (req.flags() & MsgFlag::RECONFIG_FLAG) ||
@@ -5259,7 +5263,8 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
       reqIter.restart();
 
       if (ps_) {
-        DescriptorOfLastExecution execDesc{lastExecutedSeqNum + 1, requestSet};
+        auto ticks = config_.timeServiceEnabled ? time_service_manager_->getTime().count() : 0;
+        DescriptorOfLastExecution execDesc{lastExecutedSeqNum + 1, requestSet, ticks};
         ps_->beginWriteTran();
         ps_->setDescriptorOfLastExecution(execDesc);
         ps_->endWriteTran();
