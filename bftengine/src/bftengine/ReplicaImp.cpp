@@ -4857,7 +4857,7 @@ void ReplicaImp::executeRequests(PrePrepareMsg *ppMsg, Bitmap &requestSet, Times
     pAccumulatedRequests->push_back(IRequestsHandler::ExecutionRequest{
         clientId,
         static_cast<uint64_t>(lastExecutedSeqNum + 1),
-        ppMsg->getCid(),
+        req.getCid(),
         req.flags(),
         req.requestLength(),
         req.requestBuf(),
