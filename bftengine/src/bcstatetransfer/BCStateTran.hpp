@@ -308,7 +308,7 @@ class BCStateTran : public IStateTransfer {
   uint64_t nextBlockIdToCommit_ = 0;
   DataStore::CheckpointDesc targetCheckpointDesc_;
   STDigest digestOfNextRequiredBlock_;
-  bool posponedSendFetchBlocksMsg_;
+  bool postponedSendFetchBlocksMsg_;
 
   inline bool isMinBlockIdInCurrentRange(uint64_t blockId) const;
   inline bool isMaxBlockIdInCurrentRange(uint64_t blockId) const;
