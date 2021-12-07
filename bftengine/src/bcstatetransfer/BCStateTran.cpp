@@ -148,7 +148,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
                       config_.maxFetchRetransmissions,
                       config_.minPrePrepareMsgsForPrimaryAwarness,
                       ST_SRC_LOG},
-      posponedSendFetchBlocksMsg_(false),
+      postponedSendFetchBlocksMsg_(false),
       ioPool_(
           config_.maxNumberOfChunksInBatch,
           nullptr,                                     // alloc callback
@@ -1125,7 +1125,7 @@ void BCStateTran::trySendFetchBlocksMsg(uint64_t minBlockId,
   // from source.We need to wait.
   if (ioPool_.empty()) {
     LOG_WARN(logger_, "Postpone sending FetchBlocksMsg while ioPool_ is empty!");
-    posponedSendFetchBlocksMsg_ = true;
+    postponedSendFetchBlocksMsg_ = true;
     return;
   }
 
@@ -1152,7 +1152,7 @@ void BCStateTran::trySendFetchBlocksMsg(uint64_t minBlockId,
   metrics_.sent_fetch_blocks_msg_++;
   dst_time_between_sendFetchBlocksMsg_rec_.end();  // not an issue, if it was never started, this operation does nothing
   dst_time_between_sendFetchBlocksMsg_rec_.start();
-  posponedSendFetchBlocksMsg_ = false;
+  postponedSendFetchBlocksMsg_ = false;
   lastSentMsg_.emplace<FetchBlocksMsg>(msg);
 }
 
@@ -2617,11 +2617,11 @@ void BCStateTran::processData(bool lastInBatch) {
           ConcordAssertGT(nextRequiredBlock_, 0);
           --nextRequiredBlock_;
           LOG_TRACE(logger_, KVLOG(nextRequiredBlock_));
-          if (lastInBatch || posponedSendFetchBlocksMsg_ || newSourceReplica) {
+          if (lastInBatch || postponedSendFetchBlocksMsg_ || newSourceReplica) {
             trySendFetchBlocksMsg(firstRequiredBlock,
                                   nextRequiredBlock_,
                                   0,
-                                  KVLOG(lastInBatch, posponedSendFetchBlocksMsg_, newSourceReplica));
+                                  KVLOG(lastInBatch, postponedSendFetchBlocksMsg_, newSourceReplica));
             break;
           }
         } else {
@@ -2652,7 +2652,7 @@ void BCStateTran::processData(bool lastInBatch) {
               trySendFetchBlocksMsg(psd_->getFirstRequiredBlock(),
                                     nextRequiredBlock_,
                                     0,
-                                    KVLOG(lastInBatch, posponedSendFetchBlocksMsg_, newSourceReplica));
+                                    KVLOG(lastInBatch, postponedSendFetchBlocksMsg_, newSourceReplica));
               break;
             }
             // case: blockPos == BlockPosition::LAST_FETCH_IN_CYCLE
@@ -2768,13 +2768,13 @@ void BCStateTran::processData(bool lastInBatch) {
         finalizePutblockAsync(PutBlockWaitPolicy::NO_WAIT);  // TODO - move? refactor all processdata
       }
       bool retransmissionTimeoutExpired = sourceSelector_.retransmissionTimeoutExpired(currTime);
-      if (newSourceReplica || retransmissionTimeoutExpired || posponedSendFetchBlocksMsg_ || lastInBatch) {
+      if (newSourceReplica || retransmissionTimeoutExpired || postponedSendFetchBlocksMsg_ || lastInBatch) {
         if (isGettingBlocks) {
           trySendFetchBlocksMsg(
               psd_->getFirstRequiredBlock(),
               nextRequiredBlock_,
               lastChunkInRequiredBlock,
-              KVLOG(newSourceReplica, retransmissionTimeoutExpired, posponedSendFetchBlocksMsg_, lastInBatch));
+              KVLOG(newSourceReplica, retransmissionTimeoutExpired, postponedSendFetchBlocksMsg_, lastInBatch));
         } else {
           LOG_INFO(logger_,
                    "Sending FetchResPagesMsg: " << KVLOG(newSourceReplica, retransmissionTimeoutExpired, lastInBatch));
