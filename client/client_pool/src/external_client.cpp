@@ -149,16 +149,24 @@ std::pair<int8_t, ConcordClient::PendingReplies> ConcordClient::SendPendingReque
   }
   try {
     auto res = new_client_->sendBatch(request_queue, batch_cid);
-    for (auto rep : res) {
-      for (auto reply : pending_replies_) {
-        if (reply.lengthOfReplyBuffer == max_reply_size_) continue;
-        auto cid = seq_num_to_cid.find(rep.first)->second;
-        if (reply.cid == cid) {
-          reply.actualReplyLength = rep.second.matched_data.size();
-          memcpy(reply.replyBuffer, rep.second.matched_data.data(), rep.second.matched_data.size());
+    for (const auto& rep : res) {
+      auto cid = seq_num_to_cid.find(rep.first)->second;
+      auto data_size = rep.second.matched_data.size();
+      for (auto& reply : pending_replies_) {
+        if (reply.cid != cid) continue;
+        if (reply.cb) {
           auto result = bftEngine::SendResult{rep.second};
-          if (reply.cb) reply.cb(std::move(result));
-          LOG_DEBUG(logger_, "Request has completed processing" << KVLOG(client_id_, batch_cid, reply.cid));
+          reply.cb(std::move(result));
+          LOG_DEBUG(logger_, "Request processing via callback completed " << KVLOG(client_id_, batch_cid, reply.cid));
+        } else {
+          // TODO: Used for testing only
+          if (data_size > reply.lengthOfReplyBuffer) {
+            LOG_WARN(logger_, "Reply too big " << KVLOG(client_id_, cid, reply.lengthOfReplyBuffer, data_size));
+            continue;
+          }
+          memcpy(reply.replyBuffer, rep.second.matched_data.data(), data_size);
+          reply.actualReplyLength = data_size;
+          LOG_DEBUG(logger_, "Request processing completed " << KVLOG(client_id_, batch_cid, reply.cid));
         }
       }
     }
