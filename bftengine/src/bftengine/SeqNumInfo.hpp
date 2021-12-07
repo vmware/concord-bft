@@ -19,7 +19,9 @@
 #include "SysConsts.hpp"
 #include "messages/PrePrepareMsg.hpp"
 #include "messages/SignedShareMsgs.hpp"
-#include "messages/PartialProofsSet.hpp"
+#include "messages/PartialCommitProofMsg.hpp"
+#include "messages/FullCommitProofMsg.hpp"
+//#include "messages/PartialProofsSet.hpp"
 #include "Logger.hpp"
 #include "CollectorOfThresholdSignatures.hpp"
 #include "SequenceWithActiveWindow.hpp"
@@ -77,7 +79,21 @@ class SeqNumInfo {
   Time getTimeOfLastInfoRequest() const;
   Time lastUpdateTimeOfCommitMsgs() const { return commitUpdateTime; }  // TODO(GG): check usage....
 
-  PartialProofsSet& partialProofs();
+  // Fast path methods
+  bool hasFastPathFullCommitProof() const;
+  bool hasFastPathPartialCommitProofFromReplica(ReplicaId repId) const;
+
+  PartialCommitProofMsg* getFastPathSelfPartialCommitProofMsg() const;
+  FullCommitProofMsg* getFastPathFullCommitProofMsg() const;
+
+  void setFastPathTimeOfSelfPartialProof(const Time& t);
+  Time getFastPathTimeOfSelfPartialProof();
+
+  bool addFastPathSelfPartialCommitMsgAndDigest(PartialCommitProofMsg* m, Digest& commitDigest, bool directAdd = false);
+  bool addFastPathPartialCommitMsg(PartialCommitProofMsg* m);
+  bool addFastPathFullCommitMsg(FullCommitProofMsg* m);
+
+  // PartialProofsSet& partialProofs();
   void startSlowPath();
   bool slowPathStarted();
 
@@ -173,14 +189,78 @@ class SeqNumInfo {
     static IncomingMsgsStorage& incomingMsgsStorage(void* context);
   };
 
+  class ExFuncForFastOptimisticCommitCollector {
+   public:
+    // external messages
+    static FullCommitProofMsg* createCombinedSignatureMsg(void* context,
+                                                          SeqNum seqNumber,
+                                                          ViewNum viewNumber,
+                                                          const char* const combinedSig,
+                                                          uint16_t combinedSigLen,
+                                                          const concordUtils::SpanContext& span_context);
+
+    // internal messages
+    static InternalMessage createInterCombinedSigFailed(SeqNum seqNumber,
+                                                        ViewNum viewNumber,
+                                                        const std::set<uint16_t>& replicasWithBadSigs);
+    static InternalMessage createInterCombinedSigSucceeded(SeqNum seqNumber,
+                                                           ViewNum viewNumber,
+                                                           const char* combinedSig,
+                                                           uint16_t combinedSigLen,
+                                                           const concordUtils::SpanContext& span_context);
+    static InternalMessage createInterVerifyCombinedSigResult(SeqNum seqNumber, ViewNum viewNumber, bool isValid);
+
+    // from the ReplicaImp object
+    static uint16_t numberOfRequiredSignatures(void* context);
+    static std::shared_ptr<IThresholdVerifier> thresholdVerifier(SeqNum seqNumber);
+    static concord::util::SimpleThreadPool& threadPool(void* context);
+    static IncomingMsgsStorage& incomingMsgsStorage(void* context);
+  };
+
+  class ExFuncForFastWithThresholdCommitCollector {
+   public:
+    // external messages
+    static FullCommitProofMsg* createCombinedSignatureMsg(void* context,
+                                                          SeqNum seqNumber,
+                                                          ViewNum viewNumber,
+                                                          const char* const combinedSig,
+                                                          uint16_t combinedSigLen,
+                                                          const concordUtils::SpanContext& span_context);
+
+    // internal messages
+    static InternalMessage createInterCombinedSigFailed(SeqNum seqNumber,
+                                                        ViewNum viewNumber,
+                                                        const std::set<uint16_t>& replicasWithBadSigs);
+    static InternalMessage createInterCombinedSigSucceeded(SeqNum seqNumber,
+                                                           ViewNum viewNumber,
+                                                           const char* combinedSig,
+                                                           uint16_t combinedSigLen,
+                                                           const concordUtils::SpanContext& span_context);
+    static InternalMessage createInterVerifyCombinedSigResult(SeqNum seqNumber, ViewNum viewNumber, bool isValid);
+
+    // from the ReplicaImp object
+    static uint16_t numberOfRequiredSignatures(void* context);
+    static std::shared_ptr<IThresholdVerifier> thresholdVerifier(SeqNum seqNumber);
+    static concord::util::SimpleThreadPool& threadPool(void* context);
+    static IncomingMsgsStorage& incomingMsgsStorage(void* context);
+  };
+
   InternalReplicaApi* replica = nullptr;
 
   PrePrepareMsg* prePrepareMsg;
 
+  // Slow path
   CollectorOfThresholdSignatures<PreparePartialMsg, PrepareFullMsg, ExFuncForPrepareCollector>* prepareSigCollector;
   CollectorOfThresholdSignatures<CommitPartialMsg, CommitFullMsg, ExFuncForCommitCollector>* commitMsgsCollector;
 
-  PartialProofsSet* partialProofsSet;  // TODO(GG): replace with an instance of CollectorOfThresholdSignatures
+  // Fast path
+  CollectorOfThresholdSignatures<PartialCommitProofMsg, FullCommitProofMsg, ExFuncForFastOptimisticCommitCollector>*
+      fastOptimisticCollector;
+  CollectorOfThresholdSignatures<PartialCommitProofMsg, FullCommitProofMsg, ExFuncForFastWithThresholdCommitCollector>*
+      fastWithThresholdCollector;
+  Time fastPathTimeOfSelfPartialProof;
+
+  // PartialProofsSet* partialProofsSet;  // TODO(GG): replace with an instance of CollectorOfThresholdSignatures
 
   bool primary;  // true iff PrePrepareMsg was added with addSelfMsg
 

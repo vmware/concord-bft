@@ -23,7 +23,10 @@ SeqNumInfo::SeqNumInfo()
       prePrepareMsg(nullptr),
       prepareSigCollector(nullptr),
       commitMsgsCollector(nullptr),
-      partialProofsSet(nullptr),
+      fastOptimisticCollector(nullptr),
+      fastWithThresholdCollector(nullptr),
+      fastPathTimeOfSelfPartialProof(MinTime),
+      // partialProofsSet(nullptr),
       primary(false),
       forcedCompleted(false),
       slowPathHasStarted(false),
@@ -36,7 +39,9 @@ SeqNumInfo::~SeqNumInfo() {
 
   delete prepareSigCollector;
   delete commitMsgsCollector;
-  delete partialProofsSet;
+  // delete partialProofsSet;
+  delete fastOptimisticCollector;
+  delete fastWithThresholdCollector;
 }
 
 void SeqNumInfo::resetCommitSignatures() { commitMsgsCollector->resetAndFree(); }
@@ -49,7 +54,9 @@ void SeqNumInfo::resetAndFree() {
 
   prepareSigCollector->resetAndFree();
   commitMsgsCollector->resetAndFree();
-  partialProofsSet->resetAndFree();
+  // partialProofsSet->resetAndFree();
+  fastOptimisticCollector->resetAndFree();
+  fastWithThresholdCollector->resetAndFree();
 
   primary = false;
 
@@ -208,7 +215,8 @@ bool SeqNumInfo::addMsg(CommitFullMsg* m, bool directAdd) {
 void SeqNumInfo::forceComplete() {
   ConcordAssert(!forcedCompleted);
   ConcordAssert(hasPrePrepareMsg());
-  ConcordAssert(this->partialProofsSet->hasFullProof());
+  // ConcordAssert(this->partialProofsSet->hasFullProof());
+  ConcordAssert(hasFastPathFullCommitProof());
 
   forcedCompleted = true;
   commitUpdateTime = getMonotonicTime();
@@ -266,7 +274,52 @@ Time SeqNumInfo::getTimeOfFirstRelevantInfoFromPrimary() const { return firstSee
 
 Time SeqNumInfo::getTimeOfLastInfoRequest() const { return timeOfLastInfoRequest; }
 
-PartialProofsSet& SeqNumInfo::partialProofs() { return *partialProofsSet; }
+// PartialProofsSet& SeqNumInfo::partialProofs() { return *partialProofsSet; }
+
+bool SeqNumInfo::hasFastPathFullCommitProof() const {
+  // ToDo--EDJ
+  // return fastOptimisticCollector->isComplete() || fastWithThresholdCollector->isComplete();
+  return false;
+}
+
+bool SeqNumInfo::hasFastPathPartialCommitProofFromReplica(ReplicaId repId) const {
+  // ToDo--EDJ
+  return false;
+}
+
+PartialCommitProofMsg* SeqNumInfo::getFastPathSelfPartialCommitProofMsg() const {
+  // ToDo--EDJ
+  // PartialCommitProofMsg* p = commitMsgsCollector->getPartialMsgFromReplica(replica->getReplicasInfo().myId());
+  // return p;
+  return nullptr;
+}
+
+FullCommitProofMsg* SeqNumInfo::getFastPathFullCommitProofMsg() const {
+  // ToDo--EDJ
+  // return commitMsgsCollector->getMsgWithValidCombinedSignature();
+  return nullptr;
+}
+
+void SeqNumInfo::setFastPathTimeOfSelfPartialProof(const Time& t) { fastPathTimeOfSelfPartialProof = t; }
+
+Time SeqNumInfo::getFastPathTimeOfSelfPartialProof() { return fastPathTimeOfSelfPartialProof; }
+
+bool SeqNumInfo::addFastPathSelfPartialCommitMsgAndDigest(PartialCommitProofMsg* m,
+                                                          Digest& commitDigest,
+                                                          bool directAdd) {
+  // ToDo--EDJ
+  return false;
+}
+
+bool SeqNumInfo::addFastPathPartialCommitMsg(PartialCommitProofMsg* m) {
+  // ToDo--EDJ
+  return false;
+}
+
+bool SeqNumInfo::addFastPathFullCommitMsg(FullCommitProofMsg* m) {
+  // ToDo--EDJ
+  return false;
+}
 
 void SeqNumInfo::startSlowPath() { slowPathHasStarted = true; }
 
@@ -406,6 +459,120 @@ IncomingMsgsStorage& SeqNumInfo::ExFuncForCommitCollector::incomingMsgsStorage(v
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// class SeqNumInfo::ExFuncForFastOptimisticCommitCollector
+///////////////////////////////////////////////////////////////////////////////
+
+FullCommitProofMsg* SeqNumInfo::ExFuncForFastOptimisticCommitCollector::createCombinedSignatureMsg(
+    void* context,
+    SeqNum seqNumber,
+    ViewNum viewNumber,
+    const char* const combinedSig,
+    uint16_t combinedSigLen,
+    const concordUtils::SpanContext& span_context) {
+  InternalReplicaApi* r = (InternalReplicaApi*)context;
+
+  return new FullCommitProofMsg(
+      r->getReplicasInfo().myId(), viewNumber, seqNumber, combinedSig, combinedSigLen, span_context);
+}
+
+InternalMessage SeqNumInfo::ExFuncForFastOptimisticCommitCollector::createInterCombinedSigFailed(
+    SeqNum seqNumber, ViewNum viewNumber, const std::set<uint16_t>& replicasWithBadSigs) {
+  return CombinedCommitSigFailedInternalMsg(seqNumber, viewNumber, replicasWithBadSigs);
+}
+
+InternalMessage SeqNumInfo::ExFuncForFastOptimisticCommitCollector::createInterCombinedSigSucceeded(
+    SeqNum seqNumber,
+    ViewNum viewNumber,
+    const char* combinedSig,
+    uint16_t combinedSigLen,
+    const concordUtils::SpanContext& span_context) {
+  return CombinedCommitSigSucceededInternalMsg(seqNumber, viewNumber, combinedSig, combinedSigLen, span_context);
+}
+
+InternalMessage SeqNumInfo::ExFuncForFastOptimisticCommitCollector::createInterVerifyCombinedSigResult(
+    SeqNum seqNumber, ViewNum viewNumber, bool isValid) {
+  return VerifyCombinedCommitSigResultInternalMsg(seqNumber, viewNumber, isValid);
+}
+
+uint16_t SeqNumInfo::ExFuncForFastOptimisticCommitCollector::numberOfRequiredSignatures(void* context) {
+  InternalReplicaApi* r = (InternalReplicaApi*)context;
+  const ReplicasInfo& info = r->getReplicasInfo();
+  return 3 * info.fVal() + 2 * info.cVal() + 1;
+}
+
+std::shared_ptr<IThresholdVerifier> SeqNumInfo::ExFuncForFastOptimisticCommitCollector::thresholdVerifier(
+    SeqNum seqNumber) {
+  return CryptoManager::instance().thresholdVerifierForOptimisticCommit(seqNumber);
+}
+
+concord::util::SimpleThreadPool& SeqNumInfo::ExFuncForFastOptimisticCommitCollector::threadPool(void* context) {
+  InternalReplicaApi* r = (InternalReplicaApi*)context;
+  return r->getInternalThreadPool();
+}
+
+IncomingMsgsStorage& SeqNumInfo::ExFuncForFastOptimisticCommitCollector::incomingMsgsStorage(void* context) {
+  InternalReplicaApi* r = (InternalReplicaApi*)context;
+  return r->getIncomingMsgsStorage();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// class SeqNumInfo::ExFuncForFastWithThresholdCommitCollector
+///////////////////////////////////////////////////////////////////////////////
+
+FullCommitProofMsg* SeqNumInfo::ExFuncForFastWithThresholdCommitCollector::createCombinedSignatureMsg(
+    void* context,
+    SeqNum seqNumber,
+    ViewNum viewNumber,
+    const char* const combinedSig,
+    uint16_t combinedSigLen,
+    const concordUtils::SpanContext& span_context) {
+  InternalReplicaApi* r = (InternalReplicaApi*)context;
+
+  return new FullCommitProofMsg(
+      r->getReplicasInfo().myId(), viewNumber, seqNumber, combinedSig, combinedSigLen, span_context);
+}
+
+InternalMessage SeqNumInfo::ExFuncForFastWithThresholdCommitCollector::createInterCombinedSigFailed(
+    SeqNum seqNumber, ViewNum viewNumber, const std::set<uint16_t>& replicasWithBadSigs) {
+  return CombinedCommitSigFailedInternalMsg(seqNumber, viewNumber, replicasWithBadSigs);
+}
+
+InternalMessage SeqNumInfo::ExFuncForFastWithThresholdCommitCollector::createInterCombinedSigSucceeded(
+    SeqNum seqNumber,
+    ViewNum viewNumber,
+    const char* combinedSig,
+    uint16_t combinedSigLen,
+    const concordUtils::SpanContext& span_context) {
+  return CombinedCommitSigSucceededInternalMsg(seqNumber, viewNumber, combinedSig, combinedSigLen, span_context);
+}
+
+InternalMessage SeqNumInfo::ExFuncForFastWithThresholdCommitCollector::createInterVerifyCombinedSigResult(
+    SeqNum seqNumber, ViewNum viewNumber, bool isValid) {
+  return VerifyCombinedCommitSigResultInternalMsg(seqNumber, viewNumber, isValid);
+}
+
+uint16_t SeqNumInfo::ExFuncForFastWithThresholdCommitCollector::numberOfRequiredSignatures(void* context) {
+  InternalReplicaApi* r = (InternalReplicaApi*)context;
+  const ReplicasInfo& info = r->getReplicasInfo();
+  return 3 * info.fVal() + info.cVal() + 1;
+}
+
+std::shared_ptr<IThresholdVerifier> SeqNumInfo::ExFuncForFastWithThresholdCommitCollector::thresholdVerifier(
+    SeqNum seqNumber) {
+  return CryptoManager::instance().thresholdVerifierForCommit(seqNumber);
+}
+
+concord::util::SimpleThreadPool& SeqNumInfo::ExFuncForFastWithThresholdCommitCollector::threadPool(void* context) {
+  InternalReplicaApi* r = (InternalReplicaApi*)context;
+  return r->getInternalThreadPool();
+}
+
+IncomingMsgsStorage& SeqNumInfo::ExFuncForFastWithThresholdCommitCollector::incomingMsgsStorage(void* context) {
+  InternalReplicaApi* r = (InternalReplicaApi*)context;
+  return r->getIncomingMsgsStorage();
+}
+
+///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
 void SeqNumInfo::init(SeqNumInfo& i, void* d) {
@@ -418,7 +585,13 @@ void SeqNumInfo::init(SeqNumInfo& i, void* d) {
       new CollectorOfThresholdSignatures<PreparePartialMsg, PrepareFullMsg, ExFuncForPrepareCollector>(context);
   i.commitMsgsCollector =
       new CollectorOfThresholdSignatures<CommitPartialMsg, CommitFullMsg, ExFuncForCommitCollector>(context);
-  i.partialProofsSet = new PartialProofsSet((InternalReplicaApi*)r);
+  // i.partialProofsSet = new PartialProofsSet((InternalReplicaApi*)r);
+  i.fastOptimisticCollector = new CollectorOfThresholdSignatures<PartialCommitProofMsg,
+                                                                 FullCommitProofMsg,
+                                                                 ExFuncForFastOptimisticCommitCollector>(context);
+  i.fastWithThresholdCollector = new CollectorOfThresholdSignatures<PartialCommitProofMsg,
+                                                                    FullCommitProofMsg,
+                                                                    ExFuncForFastWithThresholdCommitCollector>(context);
 }
 
 }  // namespace impl

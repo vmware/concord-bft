@@ -1174,13 +1174,13 @@ void ReplicaImp::tryToStartSlowPaths() {
   for (SeqNum i = minSeqNum; i <= maxSeqNum; i++) {
     SeqNumInfo &seqNumInfo = mainLog->get(i);
 
-    if (seqNumInfo.partialProofs().hasFullProof() ||                          // already has a full proof
-        seqNumInfo.slowPathStarted() ||                                       // slow path has already  started
-        seqNumInfo.partialProofs().getSelfPartialCommitProof() == nullptr ||  // did not start a fast path
+    if (seqNumInfo.hasFastPathFullCommitProof() ||                       // already has a full proof
+        seqNumInfo.slowPathStarted() ||                                  // slow path has already  started
+        seqNumInfo.getFastPathSelfPartialCommitProofMsg() == nullptr ||  // did not start a fast path
         (!seqNumInfo.hasPrePrepareMsg()))
       continue;  // slow path is not needed
 
-    const Time timeOfPartProof = seqNumInfo.partialProofs().getTimeOfSelfPartialProof();
+    const Time timeOfPartProof = seqNumInfo.getFastPathTimeOfSelfPartialProof();
 
     if (currTime - timeOfPartProof < milliseconds(controller->timeToStartSlowPathMilli())) break;
     SCOPED_MDC_SEQ_NUM(std::to_string(i));
@@ -1320,7 +1320,7 @@ void ReplicaImp::onMessage<StartSlowCommitMsg>(StartSlowCommitMsg *msg) {
 }
 
 void ReplicaImp::sendPartialProof(SeqNumInfo &seqNumInfo) {
-  PartialProofsSet &partialProofs = seqNumInfo.partialProofs();
+  // PartialProofsSet &partialProofs = seqNumInfo.partialProofs();
 
   if (!seqNumInfo.hasPrePrepareMsg()) return;
 
@@ -1328,11 +1328,11 @@ void ReplicaImp::sendPartialProof(SeqNumInfo &seqNumInfo) {
   Digest &ppDigest = pp->digestOfRequests();
   const SeqNum seqNum = pp->seqNumber();
 
-  if (!partialProofs.hasFullProof()) {
+  if (!seqNumInfo.hasFastPathFullCommitProof()) {
     // send PartialCommitProofMsg to all collectors
     LOG_INFO(CNSUS, "Sending PartialCommitProofMsg, sequence number:" << pp->seqNumber());
 
-    PartialCommitProofMsg *part = partialProofs.getSelfPartialCommitProof();
+    PartialCommitProofMsg *part = seqNumInfo.getFastPathSelfPartialCommitProofMsg();
 
     if (part == nullptr) {
       std::shared_ptr<IThresholdSigner> commitSigner;
@@ -1351,10 +1351,13 @@ void ReplicaImp::sendPartialProof(SeqNumInfo &seqNumInfo) {
       const auto &span_context = pp->spanContext<std::remove_pointer<decltype(pp)>::type>();
       part = new PartialCommitProofMsg(
           config_.getreplicaId(), getCurrentView(), seqNum, commitPath, tmpDigest, commitSigner, span_context);
-      partialProofs.addSelfMsgAndPPDigest(part, tmpDigest);
+      // partialProofs.addSelfMsgAndPPDigest(part, tmpDigest);
+
+      seqNumInfo.addFastPathSelfPartialCommitMsgAndDigest(part, tmpDigest);
     }
 
-    partialProofs.setTimeOfSelfPartialProof(getMonotonicTime());
+    // partialProofs.setTimeOfSelfPartialProof(getMonotonicTime());
+    seqNumInfo.setFastPathTimeOfSelfPartialProof(getMonotonicTime());
 
     if (!seqNumInfo.isTimeCorrect()) return;
     // send PartialCommitProofMsg (only if, from my point of view, at most MaxConcurrentFastPaths are in progress)
@@ -1445,6 +1448,7 @@ void ReplicaImp::onMessage<PartialCommitProofMsg>(PartialCommitProofMsg *msg) {
   SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
   SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
   SCOPED_MDC_PATH(CommitPathToMDCString(msg->commitPath()));
+  // Both asserts can be triggered by a faulty peer
   ConcordAssert(repsInfo->isIdOfPeerReplica(msgSender));
   ConcordAssert(repsInfo->isCollectorForPartialProofs(msgView, msgSeqNum));
 
@@ -1458,9 +1462,9 @@ void ReplicaImp::onMessage<PartialCommitProofMsg>(PartialCommitProofMsg *msg) {
 
     if (msgSeqNum > lastExecutedSeqNum + activeExecutions_) {
       SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
-      PartialProofsSet &pps = seqNumInfo.partialProofs();
+      // PartialProofsSet &pps = seqNumInfo.partialProofs();
 
-      if (pps.addMsg(msg)) {
+      if (seqNumInfo.addFastPathPartialCommitMsg(msg)) {
         return;
       }
     }
@@ -1491,9 +1495,10 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
 
   if (relevantMsgForActiveView(msg)) {
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
-    PartialProofsSet &pps = seqNumInfo.partialProofs();
+    // PartialProofsSet &pps = seqNumInfo.partialProofs();
 
-    if (!pps.hasFullProof() && pps.addMsg(msg))  // TODO(GG): consider to verify the signature in another thread
+    if (!seqNumInfo.hasFastPathFullCommitProof() &&
+        seqNumInfo.addFastPathFullCommitMsg(msg))  // TODO(GG): consider to verify the signature in another thread
     {
       ConcordAssert(seqNumInfo.hasPrePrepareMsg());
 
@@ -1518,8 +1523,8 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
       pm_->Delay<concord::performance::SlowdownPhase::ConsensusFullCommitMsgProcess>();
       startExecution(msgSeqNum, span, askForMissingInfoAboutCommittedItems);
       return;
-    } else if (pps.hasFullProof()) {
-      const auto fullProofCollectorId = pps.getFullProof()->senderId();
+    } else if (seqNumInfo.hasFastPathFullCommitProof()) {
+      const auto fullProofCollectorId = seqNumInfo.getFastPathFullCommitProofMsg()->senderId();
       LOG_INFO(CNSUS,
                "FullCommitProof for seq num " << msgSeqNum << " was already received from replica "
                                               << fullProofCollectorId << " and has been processed."
@@ -1777,7 +1782,7 @@ void ReplicaImp::onMessage<PreparePartialMsg>(PreparePartialMsg *msg) {
 
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
 
-    FullCommitProofMsg *fcp = seqNumInfo.partialProofs().getFullProof();
+    FullCommitProofMsg *fcp = seqNumInfo.getFastPathFullCommitProofMsg();
 
     CommitFullMsg *commitFull = seqNumInfo.getValidCommitFullMsg();
 
@@ -1826,7 +1831,7 @@ void ReplicaImp::onMessage<CommitPartialMsg>(CommitPartialMsg *msg) {
 
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
 
-    FullCommitProofMsg *fcp = seqNumInfo.partialProofs().getFullProof();
+    FullCommitProofMsg *fcp = seqNumInfo.getFastPathFullCommitProofMsg();
 
     CommitFullMsg *commitFull = seqNumInfo.getValidCommitFullMsg();
 
@@ -1865,7 +1870,7 @@ void ReplicaImp::onMessage<PrepareFullMsg>(PrepareFullMsg *msg) {
 
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
 
-    FullCommitProofMsg *fcp = seqNumInfo.partialProofs().getFullProof();
+    FullCommitProofMsg *fcp = seqNumInfo.getFastPathFullCommitProofMsg();
 
     CommitFullMsg *commitFull = seqNumInfo.getValidCommitFullMsg();
 
@@ -1907,7 +1912,7 @@ void ReplicaImp::onMessage<CommitFullMsg>(CommitFullMsg *msg) {
 
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
 
-    FullCommitProofMsg *fcp = seqNumInfo.partialProofs().getFullProof();
+    FullCommitProofMsg *fcp = seqNumInfo.getFastPathFullCommitProofMsg();
 
     CommitFullMsg *commitFull = seqNumInfo.getValidCommitFullMsg();
 
@@ -1976,7 +1981,7 @@ void ReplicaImp::onPrepareCombinedSigSucceeded(SeqNum seqNumber,
 
   seqNumInfo.onCompletionOfPrepareSignaturesProcessing(seqNumber, view, combinedSig, combinedSigLen, span_context);
 
-  FullCommitProofMsg *fcp = seqNumInfo.partialProofs().getFullProof();
+  FullCommitProofMsg *fcp = seqNumInfo.getFastPathFullCommitProofMsg();
 
   PrepareFullMsg *preFull = seqNumInfo.getValidPrepareFullMsg();
 
@@ -2028,7 +2033,7 @@ void ReplicaImp::onPrepareVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view
 
   if (!isValid) return;  // TODO(GG): we should do something about the replica that sent this invalid message
 
-  FullCommitProofMsg *fcp = seqNumInfo.partialProofs().getFullProof();
+  FullCommitProofMsg *fcp = seqNumInfo.getFastPathFullCommitProofMsg();
 
   if (fcp != nullptr) return;  // don't send if we already have FullCommitProofMsg
 
@@ -2095,7 +2100,7 @@ void ReplicaImp::onCommitCombinedSigSucceeded(SeqNum seqNumber,
 
   seqNumInfo.onCompletionOfCommitSignaturesProcessing(seqNumber, view, combinedSig, combinedSigLen, span_context);
 
-  FullCommitProofMsg *fcp = seqNumInfo.partialProofs().getFullProof();
+  FullCommitProofMsg *fcp = seqNumInfo.getFastPathFullCommitProofMsg();
   CommitFullMsg *commitFull = seqNumInfo.getValidCommitFullMsg();
 
   ConcordAssertNE(commitFull, nullptr);
@@ -2454,7 +2459,7 @@ void ReplicaImp::onRetransmissionsProcessingResults(SeqNum relatedLastStableSeqN
       } break;
       case MsgCode::PartialCommitProof: {
         SeqNumInfo &seqNumInfo = mainLog->get(s.msgSeqNum);
-        PartialCommitProofMsg *msgToSend = seqNumInfo.partialProofs().getSelfPartialCommitProof();
+        PartialCommitProofMsg *msgToSend = seqNumInfo.getFastPathSelfPartialCommitProofMsg();
         ConcordAssertNE(msgToSend, nullptr);
         sendRetransmittableMsgToReplica(msgToSend, s.replicaId, s.msgSeqNum);
         LOG_DEBUG(CNSUS,
@@ -3187,7 +3192,7 @@ void ReplicaImp::tryToMarkCheckpointStableForFastPath(const SeqNum &lastCheckpoi
   {
     SeqNumInfo &seqNumInfo = mainLog->get(lastExecutedSeqNum);
 
-    if (seqNumInfo.partialProofs().hasFullProof()) {
+    if (seqNumInfo.hasFastPathFullCommitProof()) {
       checkInfo.tryToMarkCheckpointCertificateCompleted();
 
       ConcordAssert(checkInfo.isCheckpointCertificateComplete());
@@ -3447,7 +3452,7 @@ void ReplicaImp::tryToSendReqMissingDataMsg(SeqNum seqNumber, bool slowPathOnly,
   }
 
   SeqNumInfo &seqNumInfo = mainLog->get(seqNumber);
-  PartialProofsSet &partialProofsSet = seqNumInfo.partialProofs();
+  // PartialProofsSet &partialProofsSet = seqNumInfo.partialProofs();
 
   const Time curTime = getMonotonicTime();
 
@@ -3501,10 +3506,11 @@ void ReplicaImp::tryToSendReqMissingDataMsg(SeqNum seqNumber, bool slowPathOnly,
 
     const bool missingFullCommit = !seqNumInfo.committedOrHasCommitPartialFromReplica(destRep);
 
-    const bool missingPartialProof = !slowPathOnly && routerForPartialProofs && !partialProofsSet.hasFullProof() &&
-                                     !partialProofsSet.hasPartialProofFromReplica(destRep);
+    const bool missingPartialProof = !slowPathOnly && routerForPartialProofs &&
+                                     !seqNumInfo.hasFastPathFullCommitProof() &&
+                                     !seqNumInfo.hasFastPathPartialCommitProofFromReplica(destRep);
 
-    const bool missingFullProof = !slowPathOnly && !partialProofsSet.hasFullProof();
+    const bool missingFullProof = !slowPathOnly && !seqNumInfo.hasFastPathFullCommitProof();
 
     bool sendNeeded = missingPartialProof || missingPartialPrepare || missingFullPrepare || missingPartialCommit ||
                       missingFullCommit || missingFullProof;
@@ -3570,15 +3576,15 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
       }
     }
 
-    if (msg->getFullCommitProofIsMissing() && seqNumInfo.partialProofs().hasFullProof()) {
-      FullCommitProofMsg *fcp = seqNumInfo.partialProofs().getFullProof();
+    if (msg->getFullCommitProofIsMissing() && seqNumInfo.hasFastPathFullCommitProof()) {
+      FullCommitProofMsg *fcp = seqNumInfo.getFastPathFullCommitProofMsg();
       LOG_INFO(CNSUS, "Sending FullCommitProof message as a response of RFMD" << KVLOG(msgSender, msgSeqNum));
       sendAndIncrementMetric(fcp, msgSender, metric_sent_fullCommitProof_msg_due_to_reqMissingData_);
     }
 
     if (msg->getPartialProofIsMissing()) {
       // TODO(GG): consider not to send if msgSender is not a collector
-      PartialCommitProofMsg *pcf = seqNumInfo.partialProofs().getSelfPartialCommitProof();
+      PartialCommitProofMsg *pcf = seqNumInfo.getFastPathSelfPartialCommitProofMsg();
 
       if (pcf != nullptr) {
         LOG_INFO(CNSUS, "Sending PartialProof message as a response of RFMD" << KVLOG(msgSender, msgSeqNum));
@@ -3978,10 +3984,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
 
         PartialCommitProofMsg *p = new PartialCommitProofMsg(
             config_.getreplicaId(), getCurrentView(), seqNum, pathInPrePrepare, tmpDigest, commitSigner);
-        seqNumInfo.partialProofs().addSelfMsgAndPPDigest(
-            p,
-            tmpDigest);  // TODO(GG): consider using a method that directly adds the message/digest (as in the
-        // examples below)
+        seqNumInfo.addFastPathSelfPartialCommitMsgAndDigest(p, tmpDigest);
       }
 
       if (e.getSlowStarted()) {
@@ -4029,10 +4032,9 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
       }
 
       if (e.isFullCommitProofMsgSet()) {
-        PartialProofsSet &pps = seqNumInfo.partialProofs();
-        ConcordAssert(pps.addMsg(e.getFullCommitProofMsg()));  // TODO(GG): consider using a method that directly adds
-        // the message (as in the examples below)
-        ConcordAssert(e.getFullCommitProofMsg()->equals(*pps.getFullProof()));
+        // PartialProofsSet &pps = seqNumInfo.partialProofs();
+        ConcordAssert(seqNumInfo.addFastPathFullCommitMsg(e.getFullCommitProofMsg()));
+        // ConcordAssert(e.getFullCommitProofMsg()->equals(*seqNumInfo.getFastPathFullCommitProofMsg()));
       }
 
       if (e.getForceCompleted()) seqNumInfo.forceComplete();
