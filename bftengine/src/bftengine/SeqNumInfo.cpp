@@ -216,12 +216,7 @@ void SeqNumInfo::forceComplete() {
 
 PrePrepareMsg* SeqNumInfo::getPrePrepareMsg() const { return prePrepareMsg; }
 
-PrePrepareMsg* SeqNumInfo::getSelfPrePrepareMsg() const {
-  if (primary) {
-    return prePrepareMsg;
-  }
-  return nullptr;
-}
+PrePrepareMsg* SeqNumInfo::getSelfPrePrepareMsg() const { return prePrepareMsg; }
 
 PreparePartialMsg* SeqNumInfo::getSelfPreparePartialMsg() const {
   PreparePartialMsg* p = prepareSigCollector->getPartialMsgFromReplica(replica->getReplicasInfo().myId());
