@@ -14,6 +14,7 @@
 #include <string>
 #include <type_traits>
 #include <bitset>
+#include <limits>
 
 #include "ReplicaImp.hpp"
 #include "Timers.hpp"
@@ -565,29 +566,30 @@ bool ReplicaImp::checkSendPrePrepareMsgPrerequisites() {
     return false;
   }
 
-  if (isSeqNumToStopAt(primaryLastUsedSeqNum + 1)) {
+  if (isSeqNumToStopAt(primaryLastUsedSeqNum + numOfTransientPreprepareMsgs_ + 1)) {
     LOG_INFO(GL,
              "Not sending PrePrepareMsg because system is stopped at checkpoint pending control state operation "
              "(upgrade, etc...)");
     return false;
   }
 
-  if (primaryLastUsedSeqNum + 1 > lastStableSeqNum + kWorkWindowSize) {
+  if (primaryLastUsedSeqNum + numOfTransientPreprepareMsgs_ + 1 > lastStableSeqNum + kWorkWindowSize) {
     LOG_INFO(GL,
              "Will not send PrePrepare since next sequence number ["
-                 << primaryLastUsedSeqNum + 1 << "] exceeds window threshold [" << lastStableSeqNum + kWorkWindowSize
-                 << "]");
+                 << primaryLastUsedSeqNum + numOfTransientPreprepareMsgs_ + 1 << "] exceeds window threshold ["
+                 << lastStableSeqNum + kWorkWindowSize << "]");
     return false;
   }
 
-  if (primaryLastUsedSeqNum + 1 > lastExecutedSeqNum + config_.getconcurrencyLevel() + activeExecutions_) {
+  if (primaryLastUsedSeqNum + numOfTransientPreprepareMsgs_ + 1 >
+      lastExecutedSeqNum + config_.getconcurrencyLevel() + activeExecutions_) {
     LOG_INFO(GL,
              "Will not send PrePrepare since next sequence number ["
-                 << primaryLastUsedSeqNum + 1 << "] exceeds concurrency threshold ["
-                 << lastExecutedSeqNum + config_.getconcurrencyLevel() << "]");
+                 << primaryLastUsedSeqNum + numOfTransientPreprepareMsgs_ + 1 << "] exceeds concurrency threshold ["
+                 << lastExecutedSeqNum + config_.getconcurrencyLevel() + activeExecutions_ << "]");
     return false;
   }
-  metric_concurrency_level_.Get().Set(primaryLastUsedSeqNum + 1 - lastExecutedSeqNum);
+  metric_concurrency_level_.Get().Set(primaryLastUsedSeqNum + numOfTransientPreprepareMsgs_ + 1 - lastExecutedSeqNum);
   ConcordAssertGE(primaryLastUsedSeqNum, lastExecutedSeqNum + activeExecutions_);
   // Because maxConcurrentAgreementsByPrimary <  MaxConcurrentFastPaths
   ConcordAssertLE((primaryLastUsedSeqNum + 1), lastExecutedSeqNum + MaxConcurrentFastPaths + activeExecutions_);
@@ -755,6 +757,17 @@ std::pair<PrePrepareMsg *, bool> ReplicaImp::finishAddingRequestsToPrePrepareMsg
       // by dispatcher will not allow multiple threads together.
       try {
         static auto &threadPool = RequestThreadPool::getThreadPool(RequestThreadPool::PoolLevel::STARTING);
+        // The UINT16 MAX is the upper bound of numOfTransientPreprepareMsgs_
+        // This upper limit should never be reached and thus this check is
+        // added. We cannot do ConcordAssert here, since there is a way to
+        // move forward if we stop just before touching this upper bound.
+        if ((numOfTransientPreprepareMsgs_ + 1) < std::numeric_limits<decltype(numOfTransientPreprepareMsgs_)>::max()) {
+          numOfTransientPreprepareMsgs_++;
+        } else {
+          LOG_ERROR(GL, "The number of transient preprepare messages are very large so they will have to be retried.");
+          delete prePrepareMsg;
+          return std::make_pair(nullptr, false);
+        }
         threadPool.async(
             [](auto *ppm, auto *iq, auto *hist) {
               {
@@ -1552,6 +1565,16 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
 
   // Handle a pre prepare sent by self
   if (auto *ppm = std::get_if<PrePrepareMsg *>(&msg)) {
+    // This if is guarding the numOfTransientPreprepareMsgs_ variable.
+    // This condition will always be true but keeping this to ensure that
+    // we never decrement this variable when it is at its lower bound.
+    // Why we donot use ConcordAssert here?
+    // Ans: 0 is a correct value for this variable, as this is unsigned,
+    // it will never become negative. So check for lower bound and
+    // then decrement is the correct idiom for this case.
+    if (numOfTransientPreprepareMsgs_ > 0) {
+      numOfTransientPreprepareMsgs_--;
+    }
     if (isCollectingState() || bftEngine::ControlStateManager::instance().getPruningProcessStatus()) {
       LOG_INFO(GL, "Received PrePrepareMsg while pruning or state transfer, so ignoring the message");
       delete *ppm;
