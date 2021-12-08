@@ -49,8 +49,10 @@ using concord::util::openssl_utils::kExpectedSHA256HashLengthInBytes;
 namespace concord {
 namespace kvbc {
 
+uint64_t KvbAppFilter::getOldestEventGroupId() { return getValueFromLatestTable(kGlobalEgIdKeyOldest); }
+
 optional<BlockId> KvbAppFilter::getOldestEventGroupBlockId() {
-  uint64_t global_eg_id_oldest = getValueFromLatestTable(kGlobalEgIdKeyOldest);
+  uint64_t global_eg_id_oldest = getOldestEventGroupId();
   const auto opt = rostorage_->getLatestVersion(concord::kvbc::categorization::kExecutionEventGroupDataCategory,
                                                 concordUtils::toBigEndianStringBuffer(global_eg_id_oldest));
   if (not opt.has_value()) {

@@ -388,9 +388,10 @@ class ThinReplicaImpl {
       ConcordAssert(request->has_events());
       // We assume that the caller wants updates but we cannot determine the event group id the caller is looking for.
       // Therefore, we start at the beginning.
-      // TODO: Doesn't work with pruning - use "global_event_group_id_oldest" once it is supported
-      event_group_id = 1;
-      LOG_INFO(logger_, "Legacy event request will receive event groups");
+      event_group_id = kvb_filter->getOldestEventGroupId();
+      // If an event group transition is happening then we already confirmed that event groups are available.
+      ConcordAssertNE(event_group_id, 0);
+      LOG_INFO(logger_, "Legacy event request will receive event groups starting at id " << event_group_id);
     } else {
       ConcordAssert(request->has_event_groups());
       event_group_id = request->event_groups().event_group_id();
