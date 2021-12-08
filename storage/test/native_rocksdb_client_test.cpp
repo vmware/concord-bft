@@ -36,7 +36,10 @@ class native_rocksdb_test : public Test {
     db = TestRocksDb::createNative();
   }
 
-  void TearDown() override { destroyDb(); }
+  void TearDown() override {
+    destroySnapshotDb();
+    destroyDb();
+  }
 
   void destroyDb() {
     db.reset();
@@ -44,8 +47,15 @@ class native_rocksdb_test : public Test {
     cleanup();
   }
 
+  void destroySnapshotDb() {
+    snapshotDb.reset();
+    ASSERT_EQ(0, snapshotDb.use_count());
+    cleanup();
+  }
+
  protected:
   std::shared_ptr<NativeClient> db;
+  std::shared_ptr<NativeClient> snapshotDb;
   const std::string key{"key"};
   const std::string value{"value"};
   const std::string key1{"key1"};
@@ -56,6 +66,11 @@ class native_rocksdb_test : public Test {
   const std::string value3{"value3"};
   const std::string key4{"key4"};
   const std::string value4{"value4"};
+
+  void getSnapshotDb(const std::string &checkPointPath) {
+    destroySnapshotDb();
+    snapshotDb = TestRocksDbSnapshot::createNative(checkPointPath);
+  }
 
   template <typename T>
   static Sliver toSliver(const T &v) {
@@ -955,6 +970,119 @@ TEST_F(native_rocksdb_test, create_rocksdb_checkpoint_and_update_db) {
   ASSERT_TRUE(dbValue.has_value());
   ASSERT_EQ(*dbValue, value);
   db->removeCheckpointNative(1);
+  checkPoints = db->getListOfCreatedCheckpointsNative();
+  ASSERT_EQ(checkPoints.size(), 0);
+}
+
+TEST_F(native_rocksdb_test, create_checkpoint_and_verify_its_content) {
+  auto checkPointDirPath = db->path() + "_checkpoint";
+  db->setCheckpointDirNative(checkPointDirPath);
+
+  // inserting key, value in db
+  db->put(key, value);
+  auto dbValue = db->get(key);
+  ASSERT_TRUE(dbValue.has_value());
+  ASSERT_EQ(*dbValue, value);
+
+  // creating checkpoint 1
+  db->createCheckpointNative(1);
+  auto checkPoints = db->getListOfCreatedCheckpointsNative();
+  ASSERT_EQ(checkPoints.size(), 1);
+
+  // dbSnapshot path where checkpoint 1 is created
+  std::string cpPath = checkPointDirPath + "/" + std::to_string(checkPoints.back());
+  getSnapshotDb(cpPath);
+
+  // verifying that checkpoint 1 have key and specific value which is stored in original db.
+  auto dbSnapshotValue = snapshotDb->get(key);
+  ASSERT_TRUE(dbSnapshotValue.has_value());
+  ASSERT_EQ(*dbSnapshotValue, value);
+
+  // inserting key1, value1 in db
+  db->put(key1, value1);
+  dbValue = db->get(key1);
+  ASSERT_TRUE(dbValue.has_value());
+  ASSERT_EQ(*dbValue, value1);
+
+  // verifying that key1 and specific value1 is not stored in checkpoint 1
+  dbSnapshotValue = snapshotDb->get(key1);
+  ASSERT_FALSE(dbSnapshotValue.has_value());
+  ASSERT_NE(*dbSnapshotValue, value1);
+
+  db->removeCheckpointNative(1);
+  checkPoints = db->getListOfCreatedCheckpointsNative();
+  ASSERT_EQ(checkPoints.size(), 0);
+}
+
+TEST_F(native_rocksdb_test, create_rocksdb_checkpoint_and_update_db_and_verify_with_snapshot) {
+  auto checkPointDirPath = db->path() + "_checkpoint";
+  db->setCheckpointDirNative(checkPointDirPath);
+  const std::string key{"key"};
+  const std::string value{"value"};
+  const std::string value1{"value1"};
+
+  // inserting key, value in db
+  db->put(key, value);
+  auto dbValue = db->get(key);
+  ASSERT_TRUE(dbValue.has_value());
+  ASSERT_EQ(*dbValue, value);
+
+  // creating checkpoint
+  db->createCheckpointNative(1);
+  auto checkPoints = db->getListOfCreatedCheckpointsNative();
+  ASSERT_EQ(checkPoints.size(), 1);
+
+  std::string cpPath = checkPointDirPath + "/" + std::to_string(checkPoints.back());
+  getSnapshotDb(cpPath);
+  auto dbSnapshotValue = snapshotDb->get(key);
+  ASSERT_TRUE(dbSnapshotValue.has_value());
+  ASSERT_EQ(*dbSnapshotValue, value);
+
+  // update existing key in db
+  db->put(key, value1);
+  dbValue = db->get(key);
+  ASSERT_TRUE(dbValue.has_value());
+  ASSERT_EQ(*dbValue, value1);
+
+  // values are not same in db and snapshot db
+  dbSnapshotValue = snapshotDb->get(key);
+  ASSERT_NE(*dbSnapshotValue, dbValue);
+
+  db->removeCheckpointNative(1);
+  checkPoints = db->getListOfCreatedCheckpointsNative();
+  ASSERT_EQ(checkPoints.size(), 0);
+}
+
+TEST_F(native_rocksdb_test, restore_db_from_snapshot) {
+  auto checkPointDirPath = db->path() + "_checkpoint";
+  db->setCheckpointDirNative(checkPointDirPath);
+
+  // inserting key, value in db
+  db->put(key, value);
+  auto dbValue = db->get(key);
+  ASSERT_TRUE(dbValue.has_value());
+  ASSERT_EQ(*dbValue, value);
+
+  // creating checkpoint 5
+  db->createCheckpointNative(5);
+  auto checkPoints = db->getListOfCreatedCheckpointsNative();
+  ASSERT_EQ(checkPoints.size(), 1);
+
+  // destroying the original db
+  db.reset();
+  ASSERT_EQ(0, db.use_count());
+  cleanup();
+
+  // restore from checkpoint
+  std::string cpPath = checkPointDirPath + "/" + std::to_string(checkPoints.back());
+  db = TestRocksDbSnapshot::createNative(cpPath);
+
+  // verifying that restore db have key and specific value which is stored in original db.
+  auto dbSnapshotValue = db->get(key);
+  ASSERT_TRUE(dbSnapshotValue.has_value());
+  ASSERT_EQ(*dbSnapshotValue, value);
+
+  // verifying there is no checkpoint is created
   checkPoints = db->getListOfCreatedCheckpointsNative();
   ASSERT_EQ(checkPoints.size(), 0);
 }
