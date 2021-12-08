@@ -102,7 +102,7 @@ std::string Digest::toString() const {
   for (size_t i = 0; i < DIGEST_SIZE; i++) {
     // TODO(DD): Is it by design?
     // NOLINTNEXTLINE(bugprone-signed-char-misuse)
-    unsigned int b = (unsigned int)d[i];
+    unsigned int b = (unsigned char)d[i];
     snprintf(t, 3, "%02X", b);
     c[i * 2] = t[0];
     c[i * 2 + 1] = t[1];

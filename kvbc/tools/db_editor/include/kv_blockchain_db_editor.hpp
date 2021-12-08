@@ -26,6 +26,7 @@
 #include "categorization/db_categories.h"
 #include "storage/merkle_tree_key_manipulator.h"
 #include "bcstatetransfer/DBDataStore.hpp"
+#include "bcstatetransfer/SimpleBCStateTransfer.hpp"
 #include "bftengine/PersistentStorageImp.hpp"
 #include "bftengine/DbMetadataStorage.hpp"
 #include "crypto_utils.hpp"
@@ -996,6 +997,154 @@ struct GetColumnFamilyStats {
   }
 };
 
+struct VerifyDbCheckpoint {
+  using CheckPointMsgStatus = std::vector<std::pair<const CheckpointMsg &, bool>>;
+  using STDigest = bftEngine::bcst::impl::STDigest;
+  using BlockDigest = std::array<std::uint8_t, BLOCK_DIGEST_SIZE>;
+  using CheckpointDesc = bftEngine::bcst::impl::DataStore::CheckpointDesc;
+  using BlockHashData = std::tuple<uint64_t, BlockDigest, BlockDigest>;  //<blockId, parentHash, blockHash>
+  const bool read_only = true;
+  std::string description() const {
+    std::ostringstream oss;
+    oss << "verifyDbCheckpoint\n"
+        << " verifies block digest added on lastStable checkpoint against the digest "
+        << " recorded with checkpoint descriptor and the digest from (2f+1) checkpoint messages \n"
+        << " optionally it verifies N number of blocks from the block added"
+        << " on last stable checkpoint in reverse order\n"
+        << " N - Number of blocks to verify\n";
+    return oss.str();
+  }
+  std::string toString(const CheckPointMsgStatus &statusList) const {
+    std::ostringstream os;
+    os << "{"
+       << "\n";
+    for (const auto &s : statusList) {
+      auto &cp = s.first;
+      os << "  \"ReplicaId\": " << cp.idOfGeneratedReplica() << ", \"seqNum\": " << cp.seqNumber()
+         << " \"blockId\": " << cp.state() << " \"blockDigest\": " << cp.digestOfState()
+         << ", \"verified\": " << std::boolalpha << s.second << "\n";
+    }
+    os << "  }";
+    return os.str();
+  }
+  bool isSame(const Digest &d, const STDigest &st) const {
+    return !st.isZero() && (sizeof(d) == sizeof(st)) && !std::memcmp(d.content(), st.get(), sizeof(st));
+  }
+  bool verify(const CheckpointMsg &msg, const CheckpointDesc &desc) const {
+    return (msg.isStableState() && isSame(msg.digestOfState(), desc.digestOfLastBlock) &&
+            (msg.state() == desc.lastBlock));
+  }
+  BlockDigest getBlockDigest(const KeyValueBlockchain &adapter, const uint64_t &blockId) const {
+    using bftEngine::bcst::computeBlockDigest;
+    const auto rawBlock = adapter.getRawBlock(blockId);
+    if (!rawBlock) {
+      throw NotFoundException{"Couldn't find a block by ID = "s + std::to_string(blockId)};
+    }
+    const auto &rawData = categorization::RawBlock::serialize(*rawBlock);
+
+    return computeBlockDigest(blockId, reinterpret_cast<const char *>(rawData.data()), rawData.size());
+  }
+
+  bool verifyBlockChain(const KeyValueBlockchain &adapter,
+                        const uint64_t startBlockId,
+                        const uint64_t lastBlockId) const {
+    using namespace bftEngine::bcst::impl;
+    ConcordAssert(lastBlockId <= adapter.getLastReachableBlockId());
+    auto const &numOfThreads = thread::hardware_concurrency();
+    auto blockHashData = std::vector<std::future<BlockHashData>>{};
+    blockHashData.reserve(numOfThreads);
+    auto currBlockId = lastBlockId;
+    auto parentHash = getBlockDigest(adapter, lastBlockId);
+    while (currBlockId > startBlockId) {
+      auto count = std::min(static_cast<uint64_t>(numOfThreads), (currBlockId - startBlockId));
+      auto blockId = currBlockId;
+      for (auto i = 0u; i < count; blockId--, i++) {
+        blockHashData.push_back(std::async([&, blockId]() -> BlockHashData {
+          const auto &blockDigest = getBlockDigest(adapter, blockId);
+          const auto &parentDigest = adapter.parentDigest(blockId);
+          ConcordAssert(parentDigest.has_value());
+          auto parentBlockDigest = static_cast<BlockDigest>(parentDigest.value());
+          return std::make_tuple(blockId, parentBlockDigest, blockDigest);
+        }));
+      }
+      for (auto it = blockHashData.begin(); it != blockHashData.end(); it++) {
+        const auto &futureObj = it->get();
+        const auto &computedHash = get<2>(futureObj);
+        if (parentHash != computedHash) return false;
+        parentHash = get<1>(futureObj);
+      }
+      currBlockId -= count;
+      blockHashData.clear();
+    }
+    return true;
+  }
+
+  std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &args) const {
+    std::map<std::string, std::string> result;
+    using namespace concord::storage;
+    using namespace bftEngine::bcst::impl;
+    using storage::v2MerkleTree::STKeyManipulator;
+    using storage::v2MerkleTree::MetadataKeyManipulator;
+    using bftEngine::MetadataStorage;
+    uint64_t numOfBlocksToVerify{0};
+    if (!args.values.empty()) {
+      numOfBlocksToVerify = toBlockId(args.values.front());
+    }
+    std::unique_ptr<DataStore> ds = std::make_unique<DBDataStore>(
+        adapter.db()->asIDBClient(), 1024 * 4, std::make_shared<STKeyManipulator>(), true);
+    result["MyReplicaId"] = std::to_string(ds->getMyReplicaId());
+    const auto &f = ds->getFVal();
+    result["LastStoredCheckpoint"] = std::to_string(ds->getLastStoredCheckpoint());
+    auto chckp = ds->getLastStoredCheckpoint();
+    CheckpointDesc checkPtDesc;
+    if (ds->hasCheckpointDesc(chckp)) {
+      checkPtDesc = ds->getCheckpointDesc(chckp);
+      result["LastStoredCheckpointBlockId"] = std::to_string(checkPtDesc.lastBlock);
+      auto computedDigest = getBlockDigest(adapter, checkPtDesc.lastBlock);
+      result["calculatedBlockHash"] = concordUtils::bufferToHex(computedDigest.data(), computedDigest.size());
+      if (computedDigest.size() != sizeof(checkPtDesc.digestOfLastBlock) ||
+          (std::memcmp(computedDigest.data(), checkPtDesc.digestOfLastBlock.get(), computedDigest.size()))) {
+        result["lastBlockVerification"] = "Fail";
+        return concordUtils::toJson(result);
+      }
+    } else {
+      result["lastBlockVerification"] = "Fail";
+      return concordUtils::toJson(result);
+    }
+    result["lastBlockVerification"] = "Ok";
+    std::unique_ptr<MetadataStorage> mdtStorage(
+        new DBMetadataStorage(adapter.db()->asIDBClient().get(), std::make_unique<MetadataKeyManipulator>()));
+    shared_ptr<bftEngine::impl::PersistentStorage> p(new bftEngine::impl::PersistentStorageImp(4, 1, 0));
+    uint16_t numOfObjects = 0;
+    auto objectDescriptors = ((PersistentStorageImp *)p.get())->getDefaultMetadataObjectDescriptors(numOfObjects);
+    mdtStorage->initMaxSizeOfObjects(objectDescriptors.get(), numOfObjects);
+    ((PersistentStorageImp *)p.get())->init(move(mdtStorage));
+    const auto &desc = p->getDescriptorOfLastStableCheckpoint();
+    CheckPointMsgStatus status;
+    for (const auto &cp : desc.checkpointMsgs) {
+      // TODO(NK): Add signature verification
+      if (cp) status.push_back({*cp, verify(*cp, checkPtDesc)});
+    }
+    result["LastStableCheckpointMsgs"] = toString(status);
+    const auto &numOfValidCheckPtMsgs =
+        count_if(status.begin(), status.end(), [](const auto &item) { return (item.second == true); });
+    if (numOfValidCheckPtMsgs < (f + 1)) {
+      result["CheckpointMsgsVerification"] = "Fail";
+      return concordUtils::toJson(result);
+    }
+    result["fVal"] = std::to_string(f);
+    result["ValidCheckpointMsgsCount"] = std::to_string(numOfValidCheckPtMsgs);
+    if (numOfBlocksToVerify) {
+      const auto &gensisBlockId = adapter.getGenesisBlockId();
+      numOfBlocksToVerify = std::min(numOfBlocksToVerify, (checkPtDesc.lastBlock - gensisBlockId));
+      result["BlockChainVerificationStatus"] =
+          verifyBlockChain(adapter, (checkPtDesc.lastBlock - numOfBlocksToVerify - 1), checkPtDesc.lastBlock) ? "Ok"
+                                                                                                              : "Fail";
+    }
+    return concordUtils::toJson(result);
+  }
+};
+
 using Command = std::variant<GetGenesisBlockID,
                              GetLastReachableBlockID,
                              GetLastStateTransferBlockID,
@@ -1016,31 +1165,32 @@ using Command = std::variant<GetGenesisBlockID,
                              GetBlockRequests,
                              VerifyBlockRequests,
                              ListColumnFamilies,
-                             GetColumnFamilyStats>;
+                             GetColumnFamilyStats,
+                             VerifyDbCheckpoint>;
 
-inline const auto commands_map = std::map<std::string, Command>{
-    std::make_pair("getGenesisBlockID", GetGenesisBlockID{}),
-    std::make_pair("getLastReachableBlockID", GetLastReachableBlockID{}),
-    std::make_pair("getLastStateTransferBlockID", GetLastStateTransferBlockID{}),
-    std::make_pair("getLastBlockID", GetLastBlockID{}),
-    std::make_pair("getRawBlock", GetRawBlock{}),
-    std::make_pair("getRawBlockRange", GetRawBlockRange{}),
-    std::make_pair("getBlockInfo", GetBlockInfo{}),
-    std::make_pair("getBlockKeyValues", GetBlockKeyValues{}),
-    std::make_pair("getCategories", GetCategories{}),
-    std::make_pair("getEarliestCategoryUpdates", GetEarliestCategoryUpdates{}),
-    std::make_pair("getCategoryEarliestStale", GetCategoryEarliestStale{}),
-    std::make_pair("getStaleKeysSummary", GetStaleKeysSummary{}),
-    std::make_pair("getValue", GetValue{}),
-    std::make_pair("compareTo", CompareTo{}),
-    std::make_pair("removeMetadata", RemoveMetadata{}),
-    std::make_pair("getSTMetadata", GetSTMetadata{}),
-    std::make_pair("resetMetadata", ResetMetadata{}),
-    std::make_pair("getBlockRequests", GetBlockRequests{}),
-    std::make_pair("verifyBlockRequests", VerifyBlockRequests{}),
-    std::make_pair("listColumnFamilies", ListColumnFamilies{}),
-    std::make_pair("getColumnFamilyStats", GetColumnFamilyStats{}),
-};
+inline const auto commands_map =
+    std::map<std::string, Command>{std::make_pair("getGenesisBlockID", GetGenesisBlockID{}),
+                                   std::make_pair("getLastReachableBlockID", GetLastReachableBlockID{}),
+                                   std::make_pair("getLastStateTransferBlockID", GetLastStateTransferBlockID{}),
+                                   std::make_pair("getLastBlockID", GetLastBlockID{}),
+                                   std::make_pair("getRawBlock", GetRawBlock{}),
+                                   std::make_pair("getRawBlockRange", GetRawBlockRange{}),
+                                   std::make_pair("getBlockInfo", GetBlockInfo{}),
+                                   std::make_pair("getBlockKeyValues", GetBlockKeyValues{}),
+                                   std::make_pair("getCategories", GetCategories{}),
+                                   std::make_pair("getEarliestCategoryUpdates", GetEarliestCategoryUpdates{}),
+                                   std::make_pair("getCategoryEarliestStale", GetCategoryEarliestStale{}),
+                                   std::make_pair("getStaleKeysSummary", GetStaleKeysSummary{}),
+                                   std::make_pair("getValue", GetValue{}),
+                                   std::make_pair("compareTo", CompareTo{}),
+                                   std::make_pair("removeMetadata", RemoveMetadata{}),
+                                   std::make_pair("getSTMetadata", GetSTMetadata{}),
+                                   std::make_pair("resetMetadata", ResetMetadata{}),
+                                   std::make_pair("getBlockRequests", GetBlockRequests{}),
+                                   std::make_pair("verifyBlockRequests", VerifyBlockRequests{}),
+                                   std::make_pair("listColumnFamilies", ListColumnFamilies{}),
+                                   std::make_pair("getColumnFamilyStats", GetColumnFamilyStats{}),
+                                   std::make_pair("verifyDbCheckpoint", VerifyDbCheckpoint{})};
 
 inline std::string usage() {
   std::string ret;
