@@ -14,7 +14,7 @@
 #pragma once
 
 #include "Serializable.h"
-
+#include <PrimitiveTypes.hpp>
 #include <vector>
 #include <chrono>
 
@@ -22,6 +22,7 @@ namespace bftEngine::impl {
 constexpr uint32_t MAX_ALLOWED_CHECKPOINTS{100};
 using CheckpointId = uint64_t;
 using TimeDuration = std::chrono::duration<long>;
+using SeqNum = bftEngine::impl::SeqNum;
 
 struct DbCheckpointMetadata : public concord::serialize::SerializableFactory<DbCheckpointMetadata> {
   struct DbCheckPointDescriptor : public concord::serialize::SerializableFactory<DbCheckPointDescriptor> {
@@ -32,12 +33,12 @@ struct DbCheckpointMetadata : public concord::serialize::SerializableFactory<DbC
     // last block Id/ For now checkPointId = lastBlockId
     uint64_t lastBlockId_{0};
     // last SeqNum at which db_checkpoint is created
-    uint64_t lastDbCheckpointSeqNum_{0};
+    SeqNum lastDbCheckpointSeqNum_{0};
 
     DbCheckPointDescriptor(const CheckpointId& id = 0,
                            const TimeDuration& t = TimeDuration{0},
                            const uint64_t& lastBlockId = 0,
-                           const uint64_t& seq = 0)
+                           const SeqNum& seq = 0)
         : checkPointId_{id}, creationTimeSinceEpoch_{t}, lastBlockId_{lastBlockId}, lastDbCheckpointSeqNum_{seq} {}
     void serializeDataMembers(std::ostream& outStream) const override {
       serialize(outStream, checkPointId_);

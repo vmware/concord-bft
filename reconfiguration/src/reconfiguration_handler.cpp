@@ -20,6 +20,7 @@
 #include "kvstream.h"
 #include "communication/StateControl.hpp"
 #include "secrets_manager_plain.h"
+#include "bftengine/DbCheckpointManager.hpp"
 
 #include <fstream>
 
@@ -197,6 +198,43 @@ bool ReconfigurationHandler::handle(const concord::messages::InstallCommand& cmd
         [=]() { bftEngine::EpochManager::instance().setNewEpochFlag(true); });
   }
   return true;
+}
+
+bool ReconfigurationHandler::handle(const concord::messages::GetDbCheckpointInfoRequest& req,
+                                    uint64_t,
+                                    uint32_t,
+                                    const std::optional<bftEngine::Timestamp>&,
+                                    concord::messages::ReconfigurationResponse& rres) {
+  concord::messages::GetDbCheckpointInfoStatusResponse response;
+  const auto& dbCheckpointList = DbCheckpointManager::instance().getListOfDbCheckpoints();
+  for (const auto& kv : dbCheckpointList) {
+    concord::messages::DbCheckpointInfo dbcpinfo_msg;
+    dbcpinfo_msg.seq_num = kv.second.lastDbCheckpointSeqNum_;
+    dbcpinfo_msg.block_id = kv.second.lastBlockId_;
+    dbcpinfo_msg.timestamp = kv.second.creationTimeSinceEpoch_.count();
+
+    response.db_checkpoint_info.push_back(dbcpinfo_msg);
+    LOG_INFO(getLogger(),
+             "GetDbCheckpointInfoStatus checkpoint id's are "
+                 << KVLOG(kv.second.lastBlockId_, kv.second.lastDbCheckpointSeqNum_));
+  }
+  rres.response = std::move(response);
+  return true;
+}
+
+bool ReconfigurationHandler::handle(const concord::messages::CreateDbCheckpointCommand& cmd,
+                                    uint64_t sequence_number,
+                                    uint32_t,
+                                    const std::optional<bftEngine::Timestamp>&,
+                                    concord::messages::ReconfigurationResponse& rres) {
+  if (bftEngine::ReplicaConfig::instance().maxNumberOfDbCheckpoints) {
+    LOG_INFO(getLogger(), "CreateDbCheckpointCommand, " << KVLOG(sequence_number));
+    DbCheckpointManager::instance().setNextStableSeqNumToCreateSnapshot(sequence_number);
+    return true;
+  } else {
+    LOG_WARN(getLogger(), "db checkpoint is disabled. CreateDbCheckpointCommand failed.");
+    return false;
+  }
 }
 
 BftReconfigurationHandler::BftReconfigurationHandler() {

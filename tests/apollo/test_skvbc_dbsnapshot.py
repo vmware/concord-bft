@@ -25,6 +25,8 @@ from util.skvbc_history_tracker import verify_linearizability
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, DB_FILE_PREFIX, DB_SNAPSHOT_PREFIX
 from util import bft_metrics, eliot_logging as log
 from util.object_store import ObjectStore, start_replica_cmd_prefix, with_object_store
+from util import operator
+import concord_msgs as cmf_msgs
 import sys
 sys.path.append(os.path.abspath("../../util/pyclient"))
 
@@ -55,7 +57,38 @@ def start_replica_cmd(builddir, replica_id):
             "-f", time_service_enabled,
             "-b", "2",
             "-q", batch_size,
-            "-h", "3"]
+            "-h", "3",
+            "-j", "150",
+            "-o", builddir + "/operator_pub.pem"]
+
+def start_replica_cmd_with_operator(builddir, replica_id):
+    """
+    Return a command with operator that starts an skvbc replica when passed to
+    subprocess.Popen.
+
+    Note each arguments is an element in a list.
+    """
+    statusTimerMilli = "500"
+    viewChangeTimeoutMilli = "10000"
+    path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
+    if os.environ.get('TIME_SERVICE_ENABLED', default="FALSE").lower() == "true" :
+        batch_size = "2"
+        time_service_enabled = "1"
+    else :
+        batch_size = "1"
+        time_service_enabled = "0"
+    return [path,
+            "-k", KEY_FILE_PREFIX,
+            "-i", str(replica_id),
+            "-s", statusTimerMilli,
+            "-v", viewChangeTimeoutMilli,
+            "-l", os.path.join(builddir, "tests", "simpleKVBC", "scripts", "logging.properties"),
+            "-f", time_service_enabled,
+            "-b", "2",
+            "-q", batch_size,
+            "-h", "3",
+            "-j", "600",
+            "-o", builddir + "/operator_pub.pem"]
 
 def start_replica_cmd_db_snapshot_disabled(builddir, replica_id):
     """
@@ -153,6 +186,68 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
         num_of_db_snapshots =  await bft_network.get_metric(0, bft_network, "Counters", "numOfDbCheckpointsCreated", component="rocksdbCheckpoint")
         assert num_of_db_snapshots == 0
 
+    @with_trio
+    @with_bft_network(start_replica_cmd_with_operator, selected_configs=lambda n, f, c: n == 7)
+    @verify_linearizability()
+    async def test_create_dbcheckpoint_cmd(self, bft_network, tracker):
+        """
+            sends a createdbCheckpoint command and test for created dbcheckpoints.
+        """
+        bft_network.start_all_replicas()
+        client = bft_network.random_client()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+        for i in range(200):
+            await skvbc.send_write_kv_set()
+
+        op = operator.Operator(bft_network.config, client, bft_network.builddir)
+        rep = await op.create_dbcheckpoint_cmd()
+        data = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
+        assert(data.success == True)
+
+        """
+        dbcheckpoint will be created on next stable seq num 300.
+        Adding a 10-second delay to ensure that a dummy client request is sent and reaches a stable seq number of 300.
+        """
+        time.sleep(10)
+
+        getrep = await op.get_dbcheckpoint_info_request()
+        rsi_rep = client.get_rsi_replies()
+        data = cmf_msgs.ReconfigurationResponse.deserialize(getrep)[0]
+        assert(data.success == True)
+        for r in rsi_rep.values():
+            res = cmf_msgs.ReconfigurationResponse.deserialize(r)
+            assert(len(res[0].response.db_checkpoint_info) == 1)
+            dbcheckpoint_info_list = res[0].response.db_checkpoint_info
+            assert(any(dbcheckpoint_info.seq_num == 300 for dbcheckpoint_info in dbcheckpoint_info_list))
+    
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    @verify_linearizability()
+    async def test_get_dbcheckpoint_info_request_cmd(self, bft_network, tracker):
+        """
+            sends a getdbCheckpointInfoRequest command and test for created dbcheckpoints.
+        """
+        bft_network.start_all_replicas()
+        client = bft_network.random_client()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+        for i in range(300): 
+            await skvbc.send_write_kv_set()
+        # There will be 2 dbcheckpoints created on stable seq num 150 and 300.
+        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), 300)
+        num_of_db_snapshots =  await bft_network.get_metric(0, bft_network, "Counters", "numOfDbCheckpointsCreated", component="rocksdbCheckpoint")
+        assert num_of_db_snapshots == 2
+        
+        op = operator.Operator(bft_network.config, client, bft_network.builddir)
+        rep = await op.get_dbcheckpoint_info_request()
+        rsi_rep = client.get_rsi_replies()
+        data = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
+        assert(data.success == True)
+        for r in rsi_rep.values():
+            res = cmf_msgs.ReconfigurationResponse.deserialize(r)
+            assert(len(res[0].response.db_checkpoint_info) == 2)
+            dbcheckpoint_info_list = res[0].response.db_checkpoint_info
+            assert(any(dbcheckpoint_info.seq_num == 150 for dbcheckpoint_info in dbcheckpoint_info_list))
+            assert(any(dbcheckpoint_info.seq_num == 300 for dbcheckpoint_info in dbcheckpoint_info_list))
 
     def verify_snapshot_is_available(self, bft_network, replicaId, shapshotId):
         with log.start_action(action_type="verify snapshot db files"):

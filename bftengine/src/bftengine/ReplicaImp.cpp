@@ -4348,16 +4348,22 @@ ReplicaImp::ReplicaImp(bool firstTime,
 
   KeyExchangeManager::instance(&id);
 
+  DbCheckpointManager::instance(internalBFTClient_.get());
   onSeqNumIsStableCallbacks_.add([this](SeqNum seqNum) {
     auto currTime = std::chrono::system_clock::now().time_since_epoch();
     auto timeSinceLastSnapshot = (std::chrono::duration_cast<std::chrono::seconds>(currTime) -
                                   DbCheckpointManager::instance().getLastCheckpointCreationTime())
                                      .count();
-    if (getReplicaConfig().maxNumberOfDbCheckpoints && seqNum &&
-        !(seqNum % getReplicaConfig().dbCheckPointWindowSize) &&
-        (timeSinceLastSnapshot >= getReplicaConfig().dbSnapshotIntervalSeconds.count())) {
+    if ((getReplicaConfig().maxNumberOfDbCheckpoints && seqNum &&
+         !(seqNum % getReplicaConfig().dbCheckPointWindowSize) &&
+         (timeSinceLastSnapshot >= getReplicaConfig().dbSnapshotIntervalSeconds.count())) ||
+        (DbCheckpointManager::instance().getNextStableSeqNumToCreateSnapshot().has_value() &&
+         DbCheckpointManager::instance().getNextStableSeqNumToCreateSnapshot().value() == seqNum)) {
       auto ret = std::async(std::launch::async,
                             [seqNum]() -> void { DbCheckpointManager::instance().createDbCheckpoint(seqNum); });
+      if (DbCheckpointManager::instance().getNextStableSeqNumToCreateSnapshot().has_value()) {
+        DbCheckpointManager::instance().setNextStableSeqNumToCreateSnapshot(std::nullopt);
+      }
     }
   });
 
@@ -5189,6 +5195,15 @@ void ReplicaImp::onExecutionFinish() {
     // We are about to stop execution. To avoid VC we now clear all pending requests
     clientsManager->clearAllPendingRequests();
   }
+
+  // Sending dummy client requests to get the system into a stable checkpoint,
+  // allowing the create dbCheckpoint operator command to create a dbCheckpoint/snapshot.
+  if (getReplicaConfig().maxNumberOfDbCheckpoints && isCurrentPrimary() &&
+      (DbCheckpointManager::instance().getNextStableSeqNumToCreateSnapshot().has_value() &&
+       DbCheckpointManager::instance().getNextStableSeqNumToCreateSnapshot().value() >= lastExecutedSeqNum)) {
+    DbCheckpointManager::instance().sendInternalClientRequestMsg(lastExecutedSeqNum + 1);
+  }
+
   if (isCurrentPrimary() && requestsQueueOfPrimary.size() > 0) tryToSendPrePrepareMsg(true);
 }
 

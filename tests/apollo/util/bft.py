@@ -40,7 +40,7 @@ from util.eliot_logging import log_call
 from util import skvbc as kvbc
 from util.bft_test_exceptions import AlreadyRunningError, AlreadyStoppedError, KeyExchangeError, CreError
 DB_FILE_PREFIX = "simpleKVBTests_DB_"
-DB_SNAPSHOT_PREFIX = DB_FILE_PREFIX + "sanpshot_"
+DB_SNAPSHOT_PREFIX = DB_FILE_PREFIX + "snapshot_"
 
 TestConfig = namedtuple('TestConfig', [
     'n',
