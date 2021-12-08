@@ -567,6 +567,18 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
                                     const concordUtils::SpanContext& span_context);
   void onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid);
 
+  void onFastPathCommitCombinedSigFailed(SeqNum seqNumber,
+                                         ViewNum view,
+                                         CommitPath cPath,
+                                         const std::set<uint16_t>& replicasWithBadSigs);
+  void onFastPathCommitCombinedSigSucceeded(SeqNum seqNumber,
+                                            ViewNum view,
+                                            CommitPath cPath,
+                                            const char* combinedSig,
+                                            uint16_t combinedSigLen,
+                                            const concordUtils::SpanContext& span_context);
+  void onFastPathCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, CommitPath cPath, bool isValid);
+
   void onRetransmissionsProcessingResults(SeqNum relatedLastStableSeqNum,
                                           const ViewNum relatedViewNumber,
                                           const std::forward_list<RetSuggestion>& suggestedRetransmissions);

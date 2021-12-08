@@ -37,7 +37,7 @@ class SeqNumInfo {
   SeqNumInfo();
   ~SeqNumInfo();
 
-  void resetCommitSignatures();
+  void resetCommitSignatures(CommitPath cPath);
   void resetPrepareSignatures();
   void resetAndFree();  // TODO(GG): name
   void getAndReset(PrePrepareMsg*& outPrePrepare, PrepareFullMsg*& outCombinedValidSignatureMsg);
@@ -67,6 +67,7 @@ class SeqNumInfo {
   CommitFullMsg* getValidCommitFullMsg() const;
 
   bool hasPrePrepareMsg() const;
+  bool hasMatchingPrePrepare(SeqNum seqNum) const;
 
   bool isPrepared() const;
   bool isCommitted__gg() const;  // TODO(GG): beware this name may mislead (not sure...). rename ??
@@ -111,22 +112,20 @@ class SeqNumInfo {
 
   void onCompletionOfCommitSignaturesProcessing(SeqNum seqNumber,
                                                 ViewNum viewNumber,
-                                                const std::set<uint16_t>& replicasWithBadSigs) {
-    commitMsgsCollector->onCompletionOfSignaturesProcessing(seqNumber, viewNumber, replicasWithBadSigs);
-  }
+                                                CommitPath cPath,
+                                                const std::set<uint16_t>& replicasWithBadSigs);
 
   void onCompletionOfCommitSignaturesProcessing(SeqNum seqNumber,
                                                 ViewNum viewNumber,
+                                                CommitPath cPath,
                                                 const char* combinedSig,
                                                 uint16_t combinedSigLen,
-                                                const concordUtils::SpanContext& span_context) {
-    commitMsgsCollector->onCompletionOfSignaturesProcessing(
-        seqNumber, viewNumber, combinedSig, combinedSigLen, span_context);
-  }
+                                                const concordUtils::SpanContext& span_context);
 
-  void onCompletionOfCombinedCommitSigVerification(SeqNum seqNumber, ViewNum viewNumber, bool isValid) {
-    commitMsgsCollector->onCompletionOfCombinedSigVerification(seqNumber, viewNumber, isValid);
-  }
+  void onCompletionOfCombinedCommitSigVerification(SeqNum seqNumber,
+                                                   ViewNum viewNumber,
+                                                   CommitPath cPath,
+                                                   bool isValid);
 
   uint64_t getCommitDurationMs() {
     return std::chrono::duration_cast<std::chrono::milliseconds>(commitUpdateTime - firstSeenFromPrimary).count();
@@ -254,11 +253,13 @@ class SeqNumInfo {
   CollectorOfThresholdSignatures<CommitPartialMsg, CommitFullMsg, ExFuncForCommitCollector>* commitMsgsCollector;
 
   // Fast path
-  CollectorOfThresholdSignatures<PartialCommitProofMsg, FullCommitProofMsg, ExFuncForFastPathOptimisticCollector>*
-      fastPathOptimisticCollector;
-  CollectorOfThresholdSignatures<PartialCommitProofMsg, FullCommitProofMsg, ExFuncForFastPathThresholdCollector>*
-      fastPathThresholdCollector;
+  template <typename ExFunc>
+  using FastPathCollector = CollectorOfThresholdSignatures<PartialCommitProofMsg, FullCommitProofMsg, ExFunc>;
+  using FastPathOptimisticCollector = FastPathCollector<ExFuncForFastPathOptimisticCollector>;
+  using FastPathThresholdCollector = FastPathCollector<ExFuncForFastPathThresholdCollector>;
 
+  FastPathOptimisticCollector* fastPathOptimisticCollector;
+  FastPathThresholdCollector* fastPathThresholdCollector;
   Time fastPathTimeOfSelfPartialProof;
 
   // PartialProofsSet* partialProofsSet;  // TODO(GG): replace with an instance of CollectorOfThresholdSignatures

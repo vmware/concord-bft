@@ -1448,6 +1448,7 @@ void ReplicaImp::onMessage<PartialCommitProofMsg>(PartialCommitProofMsg *msg) {
   SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
   SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
   SCOPED_MDC_PATH(CommitPathToMDCString(msg->commitPath()));
+
   // ToDo--EDJ: Both asserts can be triggered by a faulty peer
   ConcordAssert(repsInfo->isIdOfPeerReplica(msgSender));
   ConcordAssert(repsInfo->isCollectorForPartialProofs(msgView, msgSeqNum));
@@ -1487,6 +1488,7 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
   const SeqNum msgSeqNum = msg->seqNumber();
   SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
   SCOPED_MDC_SEQ_NUM(std::to_string(msg->seqNumber()));
+  // ToDo--EDJ: FullCommitProofMsg might be created for FAST_WITH_THRESHOLD but OPTIMISTIC_FAST is hardcoded here
   SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::OPTIMISTIC_FAST));
 
   LOG_INFO(
@@ -1558,10 +1560,13 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
     return finishExecutePrePrepareMsg(t->prePrepareMsg, t->pAccumulatedRequests);
   }
 
+  // ToDo--EDJ: Shouldn't be needed after replacing PartialProofsSet with a CollectorOfThresholdSignatures
+  // FullCommitProofMsg is now created inside the collector
+
   // Handle a full commit proof sent by self
-  if (auto *fcp = std::get_if<FullCommitProofMsg *>(&msg)) {
-    return onInternalMsg(*fcp);
-  }
+  // if (auto *fcp = std::get_if<FullCommitProofMsg *>(&msg)) {
+  //   return onInternalMsg(*fcp);
+  // }
 
   // Handle vaidated messages
   if (auto *vldMsg = std::get_if<CarrierMesssage *>(&msg)) {
@@ -1638,6 +1643,22 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
   }
   if (auto *vccs = std::get_if<VerifyCombinedCommitSigResultInternalMsg>(&msg)) {
     return onCommitVerifyCombinedSigResult(vccs->seqNumber, vccs->view, vccs->isValid);
+  }
+
+  // Handle Fast Path Commit related internal messages
+  if (auto *ccss = std::get_if<FastPathCombinedCommitSigSucceededInternalMsg>(&msg)) {
+    return onFastPathCommitCombinedSigSucceeded(ccss->seqNumber,
+                                                ccss->view,
+                                                ccss->commitPath,
+                                                ccss->combinedSig.data(),
+                                                ccss->combinedSig.size(),
+                                                ccss->span_context_);
+  }
+  if (auto *ccsf = std::get_if<FastPathCombinedCommitSigFailedInternalMsg>(&msg)) {
+    return onFastPathCommitCombinedSigFailed(ccsf->seqNumber, ccsf->view, ccsf->commitPath, ccsf->replicasWithBadSigs);
+  }
+  if (auto *vccs = std::get_if<FastPathVerifyCombinedCommitSigResultInternalMsg>(&msg)) {
+    return onFastPathCommitVerifyCombinedSigResult(vccs->seqNumber, vccs->view, vccs->commitPath, vccs->isValid);
   }
 
   // Handle a response from a RetransmissionManagerJob
@@ -2056,7 +2077,7 @@ void ReplicaImp::onCommitCombinedSigFailed(SeqNum seqNumber,
   LOG_WARN(THRESHSIGN_LOG, KVLOG(seqNumber, view, replicasWithBadSigs.size()));
 
   if (isCollectingState() && mainLog->insideActiveWindow(seqNumber)) {
-    mainLog->get(seqNumber).resetCommitSignatures();
+    mainLog->get(seqNumber).resetCommitSignatures(CommitPath::SLOW);
     LOG_INFO(CNSUS, "Collecting state, reset commit signatures");
     return;
   }
@@ -2068,7 +2089,7 @@ void ReplicaImp::onCommitCombinedSigFailed(SeqNum seqNumber,
 
   SeqNumInfo &seqNumInfo = mainLog->get(seqNumber);
 
-  seqNumInfo.onCompletionOfCommitSignaturesProcessing(seqNumber, view, replicasWithBadSigs);
+  seqNumInfo.onCompletionOfCommitSignaturesProcessing(seqNumber, view, CommitPath::SLOW, replicasWithBadSigs);
 
   // TODO(GG): add logic that handles bad replicas ...
 }
@@ -2084,7 +2105,7 @@ void ReplicaImp::onCommitCombinedSigSucceeded(SeqNum seqNumber,
   LOG_TRACE(THRESHSIGN_LOG, KVLOG(seqNumber, view, combinedSigLen));
 
   if (isCollectingState() && mainLog->insideActiveWindow(seqNumber)) {
-    mainLog->get(seqNumber).resetCommitSignatures();
+    mainLog->get(seqNumber).resetCommitSignatures(CommitPath::SLOW);
     LOG_INFO(CNSUS, "Collecting state, reset commit signatures");
     return;
   }
@@ -2098,7 +2119,8 @@ void ReplicaImp::onCommitCombinedSigSucceeded(SeqNum seqNumber,
 
   SeqNumInfo &seqNumInfo = mainLog->get(seqNumber);
 
-  seqNumInfo.onCompletionOfCommitSignaturesProcessing(seqNumber, view, combinedSig, combinedSigLen, span_context);
+  seqNumInfo.onCompletionOfCommitSignaturesProcessing(
+      seqNumber, view, CommitPath::SLOW, combinedSig, combinedSigLen, span_context);
 
   FullCommitProofMsg *fcp = seqNumInfo.getFastPathFullCommitProofMsg();
   CommitFullMsg *commitFull = seqNumInfo.getValidCommitFullMsg();
@@ -2143,7 +2165,7 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view,
   }
 
   if (isCollectingState() && mainLog->insideActiveWindow(seqNumber)) {
-    mainLog->get(seqNumber).resetCommitSignatures();
+    mainLog->get(seqNumber).resetCommitSignatures(CommitPath::SLOW);
     LOG_INFO(CNSUS, "Collecting state, reset commit signatures");
     return;
   }
@@ -2157,7 +2179,7 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view,
 
   SeqNumInfo &seqNumInfo = mainLog->get(seqNumber);
 
-  seqNumInfo.onCompletionOfCombinedCommitSigVerification(seqNumber, view, isValid);
+  seqNumInfo.onCompletionOfCombinedCommitSigVerification(seqNumber, view, CommitPath::SLOW, isValid);
 
   if (!isValid) return;  // TODO(GG): we should do something about the replica that sent this invalid message
 
@@ -2178,6 +2200,47 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view,
       (seqNumber > lastExecutedSeqNum + config_.getconcurrencyLevel() + activeExecutions_);
   metric_total_committed_sn_++;
   startExecution(seqNumber, span, askForMissingInfoAboutCommittedItems);
+}
+
+void ReplicaImp::onFastPathCommitCombinedSigFailed(SeqNum seqNumber,
+                                                   ViewNum view,
+                                                   CommitPath cPath,
+                                                   const std::set<uint16_t> &replicasWithBadSigs) {
+  // ToDo--EDJ: Same as onCommitCombinedSigFailed
+  LOG_WARN(THRESHSIGN_LOG, KVLOG(seqNumber, view, replicasWithBadSigs.size()));
+
+  if (isCollectingState() && mainLog->insideActiveWindow(seqNumber)) {
+    mainLog->get(seqNumber).resetCommitSignatures(cPath);
+    LOG_INFO(CNSUS, "Collecting state, reset commit signatures");
+    return;
+  }
+
+  if ((!currentViewIsActive()) || (getCurrentView() != view) || (!mainLog->insideActiveWindow(seqNumber))) {
+    LOG_INFO(CNSUS, "Invalid view, or sequence number." << KVLOG(seqNumber, view, getCurrentView()));
+    return;
+  }
+
+  SeqNumInfo &seqNumInfo = mainLog->get(seqNumber);
+
+  seqNumInfo.onCompletionOfCommitSignaturesProcessing(seqNumber, view, cPath, replicasWithBadSigs);
+
+  // TODO(GG): add logic that handles bad replicas ...
+}
+
+void ReplicaImp::onFastPathCommitCombinedSigSucceeded(SeqNum seqNumber,
+                                                      ViewNum view,
+                                                      CommitPath cPath,
+                                                      const char *combinedSig,
+                                                      uint16_t combinedSigLen,
+                                                      const concordUtils::SpanContext &span_context) {
+  // ToDo--EDJ
+}
+
+void ReplicaImp::onFastPathCommitVerifyCombinedSigResult(SeqNum seqNumber,
+                                                         ViewNum view,
+                                                         CommitPath cPath,
+                                                         bool isValid) {
+  // ToDo--EDJ
 }
 
 template <>

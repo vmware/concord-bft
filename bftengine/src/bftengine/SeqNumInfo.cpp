@@ -44,7 +44,21 @@ SeqNumInfo::~SeqNumInfo() {
   delete fastPathThresholdCollector;
 }
 
-void SeqNumInfo::resetCommitSignatures() { commitMsgsCollector->resetAndFree(); }
+void SeqNumInfo::resetCommitSignatures(CommitPath cPath) {
+  switch (cPath) {
+    case CommitPath::SLOW:
+      commitMsgsCollector->resetAndFree();
+      break;
+    case CommitPath::OPTIMISTIC_FAST:
+      fastPathOptimisticCollector->resetAndFree();
+      break;
+    case CommitPath::FAST_WITH_THRESHOLD:
+      fastPathThresholdCollector->resetAndFree();
+      break;
+    default:
+      ConcordAssert(false);
+  }
+}
 
 void SeqNumInfo::resetPrepareSignatures() { prepareSigCollector->resetAndFree(); }
 
@@ -57,6 +71,7 @@ void SeqNumInfo::resetAndFree() {
   // partialProofsSet->resetAndFree();
   fastPathOptimisticCollector->resetAndFree();
   fastPathThresholdCollector->resetAndFree();
+  fastPathTimeOfSelfPartialProof = MinTime;
 
   primary = false;
 
@@ -251,6 +266,10 @@ CommitFullMsg* SeqNumInfo::getValidCommitFullMsg() const {
 
 bool SeqNumInfo::hasPrePrepareMsg() const { return (prePrepareMsg != nullptr); }
 
+bool SeqNumInfo::hasMatchingPrePrepare(SeqNum seqNum) const {
+  return (prePrepareMsg != nullptr) && prePrepareMsg->seqNumber() == seqNum;
+}
+
 bool SeqNumInfo::isPrepared() const {
   return forcedCompleted || ((prePrepareMsg != nullptr) && prepareSigCollector->isComplete());
 }
@@ -311,12 +330,9 @@ bool SeqNumInfo::addFastPathSelfPartialCommitMsgAndDigest(PartialCommitProofMsg*
   ConcordAssert(m != nullptr);
   const ReplicaId myId = m->senderId();
   ConcordAssert(myId == replica->getReplicasInfo().myId());
-
-  // ToDo--EDJ: Check if these invariants hold
-  // ConcordAssert(seqNumber == 0);
-  // ConcordAssert(expectedDigest.isZero());
-  // ConcordAssert(selfPartialCommitProof == nullptr);
-  // ConcordAssert(fullCommitProof == nullptr);
+  ConcordAssert(hasMatchingPrePrepare(m->seqNumber()));
+  ConcordAssert(!hasFastPathFullCommitProof());
+  ConcordAssert(getSelfCommitPartialMsg() == nullptr);
 
   bool result = false;
   switch (m->commitPath()) {
@@ -325,7 +341,7 @@ bool SeqNumInfo::addFastPathSelfPartialCommitMsgAndDigest(PartialCommitProofMsg*
       result = fastPathOptimisticCollector->addMsgWithPartialSignature(m, myId);
       break;
     case CommitPath::FAST_WITH_THRESHOLD:
-      fastPathOptimisticCollector->setExpected(m->seqNumber(), m->viewNumber(), commitDigest);
+      fastPathThresholdCollector->setExpected(m->seqNumber(), m->viewNumber(), commitDigest);
       result = fastPathThresholdCollector->addMsgWithPartialSignature(m, myId);
       break;
     default:
@@ -340,15 +356,15 @@ bool SeqNumInfo::addFastPathPartialCommitMsg(PartialCommitProofMsg* m) {
 
   const ReplicaId repId = m->senderId();
   ConcordAssert(repId != replica->getReplicasInfo().myId());
-  // ToDo--EDJ: Check invariants
-  // ConcordAssert((seqNumber == 0) || (seqNumber == m->seqNumber()));
   ConcordAssert(replica->getReplicasInfo().isIdOfReplica(repId));
+  // PartialCommitProofMsg is allowed before a prePrepare is received
+  ConcordAssert(!prePrepareMsg || hasMatchingPrePrepare(m->seqNumber()));
 
   if (hasFastPathFullCommitProof()) return false;
   // if (fullCommitProof != nullptr) return false;
 
-  auto selfPartialCommitProof = getFastPathSelfPartialCommitProofMsg();
-  CommitPath cPath = m->commitPath();
+  const auto* selfPartialCommitProof = getFastPathSelfPartialCommitProofMsg();
+  const CommitPath cPath = m->commitPath();
 
   // Check different fast commit path
   if (selfPartialCommitProof && selfPartialCommitProof->commitPath() != cPath) {
@@ -431,6 +447,68 @@ void SeqNumInfo::onCompletionOfPrepareSignaturesProcessing(SeqNum seqNumber,
 
 void SeqNumInfo::onCompletionOfCombinedPrepareSigVerification(SeqNum seqNumber, ViewNum viewNumber, bool isValid) {
   prepareSigCollector->onCompletionOfCombinedSigVerification(seqNumber, viewNumber, isValid);
+}
+
+void SeqNumInfo::onCompletionOfCommitSignaturesProcessing(SeqNum seqNumber,
+                                                          ViewNum viewNumber,
+                                                          CommitPath cPath,
+                                                          const std::set<uint16_t>& replicasWithBadSigs) {
+  switch (cPath) {
+    case CommitPath::SLOW:
+      commitMsgsCollector->onCompletionOfSignaturesProcessing(seqNumber, viewNumber, replicasWithBadSigs);
+      break;
+    case CommitPath::OPTIMISTIC_FAST:
+      fastPathOptimisticCollector->onCompletionOfSignaturesProcessing(seqNumber, viewNumber, replicasWithBadSigs);
+      break;
+    case CommitPath::FAST_WITH_THRESHOLD:
+      fastPathThresholdCollector->onCompletionOfSignaturesProcessing(seqNumber, viewNumber, replicasWithBadSigs);
+      break;
+    default:
+      ConcordAssert(false);
+  }
+}
+
+void SeqNumInfo::onCompletionOfCommitSignaturesProcessing(SeqNum seqNumber,
+                                                          ViewNum viewNumber,
+                                                          CommitPath cPath,
+                                                          const char* combinedSig,
+                                                          uint16_t combinedSigLen,
+                                                          const concordUtils::SpanContext& span_context) {
+  switch (cPath) {
+    case CommitPath::SLOW:
+      commitMsgsCollector->onCompletionOfSignaturesProcessing(
+          seqNumber, viewNumber, combinedSig, combinedSigLen, span_context);
+      break;
+    case CommitPath::OPTIMISTIC_FAST:
+      fastPathOptimisticCollector->onCompletionOfSignaturesProcessing(
+          seqNumber, viewNumber, combinedSig, combinedSigLen, span_context);
+      break;
+    case CommitPath::FAST_WITH_THRESHOLD:
+      fastPathThresholdCollector->onCompletionOfSignaturesProcessing(
+          seqNumber, viewNumber, combinedSig, combinedSigLen, span_context);
+      break;
+    default:
+      ConcordAssert(false);
+  }
+}
+
+void SeqNumInfo::onCompletionOfCombinedCommitSigVerification(SeqNum seqNumber,
+                                                             ViewNum viewNumber,
+                                                             CommitPath cPath,
+                                                             bool isValid) {
+  switch (cPath) {
+    case CommitPath::SLOW:
+      commitMsgsCollector->onCompletionOfCombinedSigVerification(seqNumber, viewNumber, isValid);
+      break;
+    case CommitPath::OPTIMISTIC_FAST:
+      fastPathOptimisticCollector->onCompletionOfCombinedSigVerification(seqNumber, viewNumber, isValid);
+      break;
+    case CommitPath::FAST_WITH_THRESHOLD:
+      fastPathThresholdCollector->onCompletionOfCombinedSigVerification(seqNumber, viewNumber, isValid);
+      break;
+    default:
+      ConcordAssert(false);
+  }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -564,7 +642,8 @@ FullCommitProofMsg* SeqNumInfo::ExFuncForFastPathOptimisticCollector::createComb
 
 InternalMessage SeqNumInfo::ExFuncForFastPathOptimisticCollector::createInterCombinedSigFailed(
     SeqNum seqNumber, ViewNum viewNumber, const std::set<uint16_t>& replicasWithBadSigs) {
-  return CombinedCommitSigFailedInternalMsg(seqNumber, viewNumber, replicasWithBadSigs);
+  return FastPathCombinedCommitSigFailedInternalMsg(
+      seqNumber, viewNumber, CommitPath::OPTIMISTIC_FAST, replicasWithBadSigs);
 }
 
 InternalMessage SeqNumInfo::ExFuncForFastPathOptimisticCollector::createInterCombinedSigSucceeded(
@@ -573,13 +652,14 @@ InternalMessage SeqNumInfo::ExFuncForFastPathOptimisticCollector::createInterCom
     const char* combinedSig,
     uint16_t combinedSigLen,
     const concordUtils::SpanContext& span_context) {
-  return CombinedCommitSigSucceededInternalMsg(seqNumber, viewNumber, combinedSig, combinedSigLen, span_context);
+  return FastPathCombinedCommitSigSucceededInternalMsg(
+      seqNumber, viewNumber, CommitPath::OPTIMISTIC_FAST, combinedSig, combinedSigLen, span_context);
 }
 
 InternalMessage SeqNumInfo::ExFuncForFastPathOptimisticCollector::createInterVerifyCombinedSigResult(SeqNum seqNumber,
                                                                                                      ViewNum viewNumber,
                                                                                                      bool isValid) {
-  return VerifyCombinedCommitSigResultInternalMsg(seqNumber, viewNumber, isValid);
+  return FastPathVerifyCombinedCommitSigResultInternalMsg(seqNumber, viewNumber, CommitPath::OPTIMISTIC_FAST, isValid);
 }
 
 uint16_t SeqNumInfo::ExFuncForFastPathOptimisticCollector::numberOfRequiredSignatures(void* context) {
@@ -622,7 +702,8 @@ FullCommitProofMsg* SeqNumInfo::ExFuncForFastPathThresholdCollector::createCombi
 
 InternalMessage SeqNumInfo::ExFuncForFastPathThresholdCollector::createInterCombinedSigFailed(
     SeqNum seqNumber, ViewNum viewNumber, const std::set<uint16_t>& replicasWithBadSigs) {
-  return CombinedCommitSigFailedInternalMsg(seqNumber, viewNumber, replicasWithBadSigs);
+  return FastPathCombinedCommitSigFailedInternalMsg(
+      seqNumber, viewNumber, CommitPath::FAST_WITH_THRESHOLD, replicasWithBadSigs);
 }
 
 InternalMessage SeqNumInfo::ExFuncForFastPathThresholdCollector::createInterCombinedSigSucceeded(
@@ -631,13 +712,15 @@ InternalMessage SeqNumInfo::ExFuncForFastPathThresholdCollector::createInterComb
     const char* combinedSig,
     uint16_t combinedSigLen,
     const concordUtils::SpanContext& span_context) {
-  return CombinedCommitSigSucceededInternalMsg(seqNumber, viewNumber, combinedSig, combinedSigLen, span_context);
+  return FastPathCombinedCommitSigSucceededInternalMsg(
+      seqNumber, viewNumber, CommitPath::FAST_WITH_THRESHOLD, combinedSig, combinedSigLen, span_context);
 }
 
 InternalMessage SeqNumInfo::ExFuncForFastPathThresholdCollector::createInterVerifyCombinedSigResult(SeqNum seqNumber,
                                                                                                     ViewNum viewNumber,
                                                                                                     bool isValid) {
-  return VerifyCombinedCommitSigResultInternalMsg(seqNumber, viewNumber, isValid);
+  return FastPathVerifyCombinedCommitSigResultInternalMsg(
+      seqNumber, viewNumber, CommitPath::FAST_WITH_THRESHOLD, isValid);
 }
 
 uint16_t SeqNumInfo::ExFuncForFastPathThresholdCollector::numberOfRequiredSignatures(void* context) {
@@ -675,12 +758,8 @@ void SeqNumInfo::init(SeqNumInfo& i, void* d) {
   i.commitMsgsCollector =
       new CollectorOfThresholdSignatures<CommitPartialMsg, CommitFullMsg, ExFuncForCommitCollector>(context);
   // i.partialProofsSet = new PartialProofsSet((InternalReplicaApi*)r);
-  i.fastPathOptimisticCollector = new CollectorOfThresholdSignatures<PartialCommitProofMsg,
-                                                                     FullCommitProofMsg,
-                                                                     ExFuncForFastPathOptimisticCollector>(context);
-  i.fastPathThresholdCollector = new CollectorOfThresholdSignatures<PartialCommitProofMsg,
-                                                                    FullCommitProofMsg,
-                                                                    ExFuncForFastPathThresholdCollector>(context);
+  i.fastPathOptimisticCollector = new FastPathOptimisticCollector(context);
+  i.fastPathThresholdCollector = new FastPathThresholdCollector(context);
 }
 
 }  // namespace impl
