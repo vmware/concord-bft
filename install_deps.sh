@@ -292,7 +292,7 @@ curl --ssl-reqd --output curl.tar.xz https://curl.se/download/curl-7.66.0.tar.xz
 
 # Prometheus-cpp
 cd ${HOME}
-git clone -b v0.13.0 --depth 1 --recurse-submodules https://github.com/jupp0r/prometheus-cpp.git && \
+git clone -b v0.8.0 --depth 1 --recurse-submodules https://github.com/jupp0r/prometheus-cpp.git && \
     cd prometheus-cpp && \
     mkdir _build && \
     cd _build && \

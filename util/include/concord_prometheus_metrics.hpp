@@ -35,15 +35,15 @@ class ConcordCustomCollector : public prometheus::Collectable {
  public:
   explicit ConcordCustomCollector(std::chrono::seconds dumpInterval)
       : logger_(logging::getLogger("concord.utils.prometheus")), dumpInterval_(dumpInterval), last_dump_time_(0) {}
-  std::vector<prometheus::MetricFamily> Collect() const override;
+  std::vector<prometheus::MetricFamily> Collect() override;
   friend class PrometheusRegistry;
 
  private:
   logging::Logger logger_;
   std::vector<std::shared_ptr<prometheus::Family<T>>> metrics_;
   std::chrono::seconds dumpInterval_;
-  mutable std::chrono::seconds last_dump_time_;
-  mutable std::mutex lock_;
+  std::chrono::seconds last_dump_time_;
+  std::mutex lock_;
 };
 
 class PrometheusRegistry {
@@ -122,7 +122,7 @@ class ConcordBftPrometheusCollector : public prometheus::Collectable {
  public:
   explicit ConcordBftPrometheusCollector(bool metricsEnabled = true)
       : aggregator_(std::make_shared<concordMetrics::Aggregator>(metricsEnabled)) {}
-  std::vector<prometheus::MetricFamily> Collect() const override;
+  std::vector<prometheus::MetricFamily> Collect() override;
   std::shared_ptr<concordMetrics::Aggregator> getAggregator() { return aggregator_; }
 
  private:
@@ -130,10 +130,10 @@ class ConcordBftPrometheusCollector : public prometheus::Collectable {
   prometheus::ClientMetric collect(const std::string& component, concordMetrics::Gauge& g) const;
   prometheus::ClientMetric collect(const std::string& component, concordMetrics::Status& s) const;
 
-  std::vector<prometheus::MetricFamily> collectCounters() const;
-  std::vector<prometheus::MetricFamily> collectGauges() const;
-  std::vector<prometheus::MetricFamily> collectStatuses() const;
-  std::string getMetricName(const std::string& origName) const;
+  std::vector<prometheus::MetricFamily> collectCounters();
+  std::vector<prometheus::MetricFamily> collectGauges();
+  std::vector<prometheus::MetricFamily> collectStatuses();
+  std::string getMetricName(const std::string& origName);
 
  private:
   const std::string metricNamePrefix_ = "concord_concordbft_";
@@ -174,7 +174,7 @@ class ConcordBftStatisticsCollector : public prometheus::Collectable {
   ConcordBftStatisticsCollector()
       : bftStatisticsFactory_(
             concordMetrics::StatisticsFactory::setImp(std::make_unique<ConcordBftStatisticsFactory>())) {}
-  std::vector<prometheus::MetricFamily> Collect() const override {
+  std::vector<prometheus::MetricFamily> Collect() override {
     return dynamic_cast<ConcordBftStatisticsFactory&>(bftStatisticsFactory_).concordBFtSummaries_.Collect();
   }
 
