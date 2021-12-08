@@ -38,6 +38,7 @@
 #include "client/reconfiguration/client_reconfiguration_engine.hpp"
 #include "bftengine/ReplicaConfig.hpp"
 #include "communication/StateControl.hpp"
+#include "bftengine/DbCheckpointManager.hpp"
 
 using bft::communication::ICommunication;
 using bftEngine::bcst::StateTransferDigest;
@@ -318,8 +319,13 @@ void Replica::createReplicaAndSyncState() {
       std::terminate();
     }
   }
+
   handleNewEpochEvent();
   handleWedgeEvent();
+  bftEngine::impl::DbCheckpointManager::instance().initializeDbCheckpointManager(
+      m_dbSet.dataDBClient, m_replicaPtr->persistentStorage(), aggregator_, [this]() -> uint64_t {
+        return getLastBlockId();
+      });
 }
 
 /**

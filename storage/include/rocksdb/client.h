@@ -22,6 +22,7 @@
 #include <rocksdb/db.h>
 #include <rocksdb/utilities/optimistic_transaction_db.h>
 #include <rocksdb/sst_file_manager.h>
+#include <rocksdb/utilities/checkpoint.h>
 #include "storage/db_interface.h"
 #include "storage/storage_metrics.h"
 
@@ -103,6 +104,12 @@ class Client : public concord::storage::IDBClient {
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) override {
     storage_metrics_.setAggregator(aggregator);
   }
+  void setCheckpointPath(const std::string& path) override { dbCheckpointPath_ = path; }
+  std::string getCheckpointPath() const override { return dbCheckpointPath_; }
+  concordUtils::Status createCheckpoint(const uint64_t& checkPointId) override;
+  std::vector<uint64_t> getListOfCreatedCheckpoints() const override;
+  void removeCheckpoint(const uint64_t& checkPointId) const override;
+  void removeAllCheckpoints() const override;
 
   static logging::Logger& logger() {
     static logging::Logger logger_ = logging::getLogger("concord.storage.rocksdb");
@@ -153,6 +160,8 @@ class Client : public concord::storage::IDBClient {
 
   // Database path on directory (used for connection).
   std::string m_dbPath;
+  // Database checkpoint directory
+  std::string dbCheckpointPath_;  // default val = m_dbPath + "_checkpoint"
 
   // Database object (created on connection).
   std::unique_ptr<::rocksdb::DB> dbInstance_;
@@ -162,6 +171,7 @@ class Client : public concord::storage::IDBClient {
 
   // Metrics
   mutable RocksDbStorageMetrics storage_metrics_;
+  std::unique_ptr<::rocksdb::Checkpoint> dbCheckPoint_;
 
   friend class NativeClient;
 };

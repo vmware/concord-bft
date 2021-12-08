@@ -168,3 +168,8 @@ if (USE_FAKE_CLOCK_IN_TIME_SERVICE)
               "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_time_service python3 -m unittest test_skvbc_time_service ${TEST_OUTPUT}"
               WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 endif()
+
+add_test(NAME skvbc_dbsnapshot_tests COMMAND sh -c
+        "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_dbsnapshot_tests python3 -m unittest test_skvbc_dbsnapshot ${TEST_OUTPUT}"
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+

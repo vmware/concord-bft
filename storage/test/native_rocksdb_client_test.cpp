@@ -54,6 +54,8 @@ class native_rocksdb_test : public Test {
   const std::string value2{"value2"};
   const std::string key3{"key3"};
   const std::string value3{"value3"};
+  const std::string key4{"key4"};
+  const std::string value4{"value4"};
 
   template <typename T>
   static Sliver toSliver(const T &v) {
@@ -899,6 +901,62 @@ TEST_F(native_rocksdb_test, multiget_resize_values_and_statuses) {
   ASSERT_EQ(value, *values[0].GetSelf());
   ASSERT_EQ(value1, *values[1].GetSelf());
   ASSERT_EQ(value2, *values[2].GetSelf());
+}
+
+TEST_F(native_rocksdb_test, create_rocksdb_checkpoint) {
+  auto checkPointDirPath = db->path() + "_checkpoint";
+  db->setCheckpointDirNative(checkPointDirPath);
+  auto batch = db->getBatch();
+  batch.put(key1, value1);
+  batch.put(key2, value2);
+  db->write(std::move(batch));
+  auto dbValue1 = db->get(key1);
+  auto dbValue2 = db->get(key2);
+  ASSERT_TRUE(dbValue1.has_value());
+  ASSERT_EQ(*dbValue1, value1);
+  ASSERT_TRUE(dbValue2.has_value());
+  ASSERT_EQ(*dbValue2, value2);
+  db->createCheckpointNative(1);
+  auto checkPoints = db->getListOfCreatedCheckpointsNative();
+  ASSERT_EQ(checkPoints.size(), 1);
+  db->createCheckpointNative(2);
+  checkPoints = db->getListOfCreatedCheckpointsNative();
+  ASSERT_EQ(checkPoints.size(), 2);
+  ASSERT_TRUE(dbValue1.has_value());
+  ASSERT_EQ(*dbValue1, value1);
+  ASSERT_TRUE(dbValue2.has_value());
+  ASSERT_EQ(*dbValue2, value2);
+  db->removeCheckpointNative(2);
+  checkPoints = db->getListOfCreatedCheckpointsNative();
+  ASSERT_EQ(checkPoints.size(), 1);
+  db->removeCheckpointNative(1);
+  checkPoints = db->getListOfCreatedCheckpointsNative();
+  ASSERT_EQ(checkPoints.size(), 0);
+}
+
+TEST_F(native_rocksdb_test, create_rocksdb_checkpoint_and_update_db) {
+  auto checkPointDirPath = db->path() + "_checkpoint";
+  db->setCheckpointDirNative(checkPointDirPath);
+  db->put(key, value);
+  auto dbValue = db->get(key);
+  ASSERT_TRUE(dbValue.has_value());
+  ASSERT_EQ(*dbValue, value);
+  db->createCheckpointNative(1);
+  auto checkPoints = db->getListOfCreatedCheckpointsNative();
+  ASSERT_EQ(checkPoints.size(), 1);
+  dbValue = db->get(key);
+  ASSERT_TRUE(dbValue.has_value());
+  ASSERT_EQ(*dbValue, value);
+  db->put(key1, value1);
+  auto dbValue1 = db->get(key1);
+  ASSERT_TRUE(dbValue1.has_value());
+  ASSERT_EQ(*dbValue1, value1);
+  dbValue = db->get(key);
+  ASSERT_TRUE(dbValue.has_value());
+  ASSERT_EQ(*dbValue, value);
+  db->removeCheckpointNative(1);
+  checkPoints = db->getListOfCreatedCheckpointsNative();
+  ASSERT_EQ(checkPoints.size(), 0);
 }
 
 }  // namespace

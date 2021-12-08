@@ -216,6 +216,14 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                "timeout we ready to wait for primary to be ready on the system first startup");
   CONFIG_PARAM(waitForFullCommOnStartup, bool, false, "whether to wait for n/n communication on startup");
 
+  // Db checkpoint
+  CONFIG_PARAM(maxNumberOfDbCheckpoints, uint32_t, 0u, "Max number of db checkpoints to be created");
+  CONFIG_PARAM(dbCheckPointWindowSize, uint32_t, 300u, "Db checkpoint window size in bft sequence number");
+  CONFIG_PARAM(dbCheckpointDirPath, std::string, "", "Db checkpoint directory path");
+  CONFIG_PARAM(dbSnapshotIntervalSeconds,
+               std::chrono::seconds,
+               std::chrono::seconds{3600},
+               "Interval time to create db snapshot in seconds");
   // Post-execution separation feature flag
   CONFIG_PARAM(enablePostExecutionSeparation, bool, true, "Post-execution separation feature flag");
 
@@ -318,6 +326,10 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, threadbagConcurrencyLevel2);
     serialize(outStream, timeoutForPrimaryOnStartupSeconds);
     serialize(outStream, waitForFullCommOnStartup);
+    serialize(outStream, maxNumberOfDbCheckpoints);
+    serialize(outStream, dbCheckPointWindowSize);
+    serialize(outStream, dbCheckpointDirPath);
+    serialize(outStream, dbSnapshotIntervalSeconds);
     serialize(outStream, enablePostExecutionSeparation);
     serialize(outStream, config_params_);
   }
@@ -398,6 +410,10 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, threadbagConcurrencyLevel2);
     deserialize(inStream, timeoutForPrimaryOnStartupSeconds);
     deserialize(inStream, waitForFullCommOnStartup);
+    deserialize(inStream, maxNumberOfDbCheckpoints);
+    deserialize(inStream, dbCheckPointWindowSize);
+    deserialize(inStream, dbCheckpointDirPath);
+    deserialize(inStream, dbSnapshotIntervalSeconds);
     deserialize(inStream, enablePostExecutionSeparation);
     deserialize(inStream, config_params_);
   }
@@ -474,6 +490,8 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.threadbagConcurrencyLevel1,
               rc.threadbagConcurrencyLevel2,
               rc.enablePostExecutionSeparation);
+  os << ",";
+  os << KVLOG(rc.maxNumberOfDbCheckpoints, rc.dbCheckPointWindowSize, rc.dbCheckpointDirPath);
 
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
   return os;

@@ -140,5 +140,4 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
   if (userRequestsHandler_) return userRequestsHandler_->execute(requests, timestamp, batchCid, parent_span);
   return;
 }
-
 }  // namespace bftEngine

@@ -111,12 +111,14 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
                                           {"replica-byzantine-strategies", optional_argument, 0, 'g'},
                                           {"pre-exec-result-auth", no_argument, 0, 'x'},
                                           {"time_service", optional_argument, 0, 'f'},
+                                          {"pre-exec-result-auth", no_argument, 0, 'x'},
+                                          {"enable-db-checkpoint", required_argument, 0, 'h'},
                                           {0, 0, 0, 0}};
     int o = 0;
     int optionIndex = 0;
     LOG_INFO(GL, "Command line options:");
     while ((o = getopt_long(
-                argc, argv, "i:k:n:s:v:a:3:l:e:w:c:b:m:q:z:y:udp:t:o:r:g:xf:", longOptions, &optionIndex)) != -1) {
+                argc, argv, "i:k:n:s:v:a:3:l:e:w:c:b:m:q:z:y:udp:t:o:r:g:xf:h:", longOptions, &optionIndex)) != -1) {
       switch (o) {
         case 'i': {
           replicaConfig.replicaId = concord::util::to<std::uint16_t>(std::string(optarg));
@@ -220,6 +222,16 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
         case 'f': {
           bool time_service_option = concord::util::to<bool>(std::string(optarg));
           replicaConfig.timeServiceEnabled = time_service_option;
+          break;
+        }
+        case 'h': {
+          // enable rocksdb checkpoint with some defaults
+          replicaConfig.dbCheckPointWindowSize = 150;
+          replicaConfig.dbSnapshotIntervalSeconds = std::chrono::seconds{0};
+          replicaConfig.maxNumberOfDbCheckpoints = concord::util::to<std::uint32_t>(std::string(optarg));
+          std::stringstream dbSnapshotPath;
+          dbSnapshotPath << BasicRandomTests::DB_FILE_PREFIX << "sanpshot_" << replicaConfig.replicaId;
+          replicaConfig.dbCheckpointDirPath = dbSnapshotPath.str();
           break;
         }
         case '?': {
