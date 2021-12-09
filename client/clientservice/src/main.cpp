@@ -128,7 +128,7 @@ int main(int argc, char** argv) {
     auto yaml = YAML::LoadFile(opts["config"].as<std::string>());
     parseConfigFile(config, yaml);
     std::optional<std::string> secrets_url = std::nullopt;
-    if (opts.count("secrets-url")) {
+    if (opts.count("secrets-url") && config.topology.encrypted_config_enabled) {
       secrets_url = {opts["secrets-url"].as<std::string>()};
     }
     configureSubscription(config,
