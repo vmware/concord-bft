@@ -92,7 +92,7 @@ class SeqNumInfo {
 
   bool addFastPathSelfPartialCommitMsgAndDigest(PartialCommitProofMsg* m, Digest& commitDigest);
   bool addFastPathPartialCommitMsg(PartialCommitProofMsg* m);
-  bool addFastPathFullCommitMsg(FullCommitProofMsg* m);
+  bool addFastPathFullCommitMsg(FullCommitProofMsg* m, bool directAdd = false);
 
   // PartialProofsSet& partialProofs();
   void startSlowPath();

@@ -56,7 +56,7 @@ void SeqNumInfo::resetCommitSignatures(CommitPath cPath) {
       fastPathThresholdCollector->resetAndFree();
       break;
     default:
-      ConcordAssert(false);
+      ConcordAssert(false && "Unhandled CommitPath!");
   }
 }
 
@@ -345,7 +345,7 @@ bool SeqNumInfo::addFastPathSelfPartialCommitMsgAndDigest(PartialCommitProofMsg*
       result = fastPathThresholdCollector->addMsgWithPartialSignature(m, myId);
       break;
     default:
-      ConcordAssert(false && "addFastPathSelfPartialCommitMsgAndDigest - wrong CommitPath!");
+      ConcordAssert(false && "Unhandled CommitPath!");
   }
 
   return result;
@@ -383,13 +383,13 @@ bool SeqNumInfo::addFastPathPartialCommitMsg(PartialCommitProofMsg* m) {
       result = fastPathThresholdCollector->addMsgWithPartialSignature(m, repId);
       break;
     default:
-      ConcordAssert(false && "addFastPathPartialCommitMsg - wrong CommitPath!");
+      ConcordAssert(false && "Unhandled CommitPath!");
   }
 
   return result;
 }
 
-bool SeqNumInfo::addFastPathFullCommitMsg(FullCommitProofMsg* m) {
+bool SeqNumInfo::addFastPathFullCommitMsg(FullCommitProofMsg* m, bool directAdd) {
   ConcordAssert(m != nullptr);
 
   if (hasFastPathFullCommitProof()) return false;
@@ -412,13 +412,15 @@ bool SeqNumInfo::addFastPathFullCommitMsg(FullCommitProofMsg* m) {
   bool result = false;
   switch (cPath) {
     case CommitPath::OPTIMISTIC_FAST:
-      result = fastPathOptimisticCollector->addMsgWithCombinedSignature(m);
+      result = directAdd ? fastPathOptimisticCollector->initMsgWithCombinedSignature(m)
+                         : fastPathOptimisticCollector->addMsgWithCombinedSignature(m);
       break;
     case CommitPath::FAST_WITH_THRESHOLD:
-      result = fastPathThresholdCollector->addMsgWithCombinedSignature(m);
+      result = directAdd ? fastPathThresholdCollector->initMsgWithCombinedSignature(m)
+                         : fastPathThresholdCollector->addMsgWithCombinedSignature(m);
       break;
     default:
-      ConcordAssert(false && "addFastPathFullCommitMsg - wrong CommitPath!");
+      ConcordAssert(false && "Unhandled CommitPath!");
   }
 
   return result;
@@ -464,7 +466,7 @@ void SeqNumInfo::onCompletionOfCommitSignaturesProcessing(SeqNum seqNumber,
       fastPathThresholdCollector->onCompletionOfSignaturesProcessing(seqNumber, viewNumber, replicasWithBadSigs);
       break;
     default:
-      ConcordAssert(false);
+      ConcordAssert(false && "Unhandled CommitPath!");
   }
 }
 
@@ -488,7 +490,7 @@ void SeqNumInfo::onCompletionOfCommitSignaturesProcessing(SeqNum seqNumber,
           seqNumber, viewNumber, combinedSig, combinedSigLen, span_context);
       break;
     default:
-      ConcordAssert(false);
+      ConcordAssert(false && "Unhandled CommitPath!");
   }
 }
 
@@ -507,7 +509,7 @@ void SeqNumInfo::onCompletionOfCombinedCommitSigVerification(SeqNum seqNumber,
       fastPathThresholdCollector->onCompletionOfCombinedSigVerification(seqNumber, viewNumber, isValid);
       break;
     default:
-      ConcordAssert(false);
+      ConcordAssert(false && "Unhandled CommitPath!");
   }
 }
 
