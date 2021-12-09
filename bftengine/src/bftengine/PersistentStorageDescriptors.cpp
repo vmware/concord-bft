@@ -298,7 +298,8 @@ void DescriptorOfLastNewView::deserializeElement(uint32_t id, char *buf, size_t 
 /***** DescriptorOfLastExecution *****/
 
 bool DescriptorOfLastExecution::equals(const DescriptorOfLastExecution &other) const {
-  return (other.executedSeqNum == executedSeqNum && other.validRequests.equals(validRequests));
+  return (other.executedSeqNum == executedSeqNum && other.validRequests.equals(validRequests) &&
+          other.timeInTicks == timeInTicks);
 }
 
 void DescriptorOfLastExecution::serialize(char *&buf, size_t bufLen, size_t &actualSize) const {
@@ -312,21 +313,32 @@ void DescriptorOfLastExecution::serialize(char *&buf, size_t bufLen, size_t &act
   uint32_t bitMapSize = 0;
   validRequests.writeToBuffer(buf, validRequests.sizeNeededInBuffer(), &bitMapSize);
   buf += bitMapSize;
-  actualSize = executedSeqNumSize + bitMapSize;
+
+  auto sizeOfTick = sizeof(ConsensusTickRep);
+  memcpy(buf, &timeInTicks, sizeOfTick);
+
+  buf += sizeOfTick;
+  actualSize = executedSeqNumSize + bitMapSize + sizeOfTick;
 }
 
 void DescriptorOfLastExecution::deserialize(char *buf, size_t bufLen, uint32_t &actualSize) {
   actualSize = 0;
 
-  ConcordAssert(bufLen >= maxSize())
+  ConcordAssert(bufLen >= maxSize());
 
-      size_t seqNumSize = sizeof(executedSeqNum);
+  size_t seqNumSize = sizeof(executedSeqNum);
   memcpy(&executedSeqNum, buf, seqNumSize);
   buf += seqNumSize;
 
   uint32_t bitMapSize = 0;
-  validRequests = Bitmap(buf, bufLen - seqNumSize, &bitMapSize);
-  actualSize = seqNumSize + bitMapSize;
+  validRequests = Bitmap(buf, bufLen - (seqNumSize + sizeof(ConsensusTickRep)), &bitMapSize);
+
+  buf += bitMapSize;
+
+  auto sizeOfTick = sizeof(ConsensusTickRep);
+  memcpy(reinterpret_cast<char *>(&timeInTicks), buf, sizeOfTick);
+
+  actualSize = seqNumSize + bitMapSize + sizeOfTick;
 }
 
 /***** DescriptorOfLastStableCheckpoint *****/

@@ -23,6 +23,7 @@
 #include "messages/FullCommitProofMsg.hpp"
 #include "messages/CheckpointMsg.hpp"
 #include "SysConsts.hpp"
+#include "TimeService.hpp"
 
 #include <vector>
 
@@ -182,7 +183,8 @@ struct DescriptorOfLastNewView {
 /***** DescriptorOfLastExecution *****/
 
 struct DescriptorOfLastExecution {
-  DescriptorOfLastExecution(SeqNum seqNum, const Bitmap &requests) : executedSeqNum(seqNum), validRequests(requests) {}
+  DescriptorOfLastExecution(SeqNum seqNum, const Bitmap &requests, const ConsensusTickRep &ticks)
+      : executedSeqNum(seqNum), validRequests(requests), timeInTicks(ticks) {}
 
   DescriptorOfLastExecution() = default;
 
@@ -192,7 +194,8 @@ struct DescriptorOfLastExecution {
   void deserialize(char *buf, size_t bufLen, uint32_t &actualSize);
 
   static uint32_t maxSize() {
-    return (sizeof(executedSeqNum) + Bitmap::maxSizeNeededToStoreInBuffer(maxNumOfRequestsInBatch));
+    return (sizeof(executedSeqNum) + Bitmap::maxSizeNeededToStoreInBuffer(maxNumOfRequestsInBatch) +
+            sizeof(ConsensusTickRep));
   };
 
   // executedSeqNum >= 1
@@ -200,6 +203,8 @@ struct DescriptorOfLastExecution {
 
   // 1 <= validRequests.numOfBits() <= maxNumOfRequestsInBatch
   Bitmap validRequests;
+
+  ConsensusTickRep timeInTicks = 0;
 };
 
 /***** DescriptorOfLastStableCheckpoint *****/

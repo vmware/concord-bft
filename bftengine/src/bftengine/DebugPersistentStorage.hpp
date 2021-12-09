@@ -100,7 +100,7 @@ class DebugPersistentStorage : public PersistentStorage {
   DescriptorOfLastNewView descriptorOfLastNewView_ =
       DescriptorOfLastNewView{0, nullptr, std::vector<ViewChangeMsg*>(0), nullptr, 0, 0};
   bool hasDescriptorOfLastExecution_ = false;
-  DescriptorOfLastExecution descriptorOfLastExecution_ = DescriptorOfLastExecution{0, Bitmap()};
+  DescriptorOfLastExecution descriptorOfLastExecution_ = DescriptorOfLastExecution{0, Bitmap(), 0};
 
   SeqNum lastStableSeqNum_ = 0;
 
