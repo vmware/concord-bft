@@ -23,6 +23,7 @@
 #include "client/concordclient/concord_client.hpp"
 #include "Logger.hpp"
 #include "Metrics.hpp"
+#include "secret_retriever.hpp"
 #include <jaegertracing/Tracer.h>
 
 using concord::client::clientservice::ClientService;
@@ -130,6 +131,9 @@ int main(int argc, char** argv) {
     std::optional<std::string> secrets_url = std::nullopt;
     if (opts.count("secrets-url") && config.topology.encrypted_config_enabled) {
       secrets_url = {opts["secrets-url"].as<std::string>()};
+      if (secrets_url) {
+        config.transport.secret_data = concord::secretsmanager::secretretriever::retrieveSecret(*secrets_url);
+      }
     }
     configureSubscription(config,
                           opts["tr-id"].as<std::string>(),
