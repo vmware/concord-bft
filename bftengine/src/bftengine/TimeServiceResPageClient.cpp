@@ -26,14 +26,20 @@ TimeServiceResPageClient::TimeServiceResPageClient() {
 
 void TimeServiceResPageClient::setLastTimestamp(ConsensusTime timestamp) {
   auto raw_value = timestamp.count();
-  saveReservedPage(RESERVED_PAGE_ID, sizeof(ConsensusTime::rep), reinterpret_cast<char*>(&raw_value));
+  saveReservedPage(RESERVED_PAGE_ID, sizeof(ConsensusTickRep), reinterpret_cast<char*>(&raw_value));
   last_timestamp_ = timestamp;
   LOG_DEBUG(TS_MNGR, "Saved ts: " << last_timestamp_.count());
 }
 
+void TimeServiceResPageClient::setTimestampFromTicks(ConsensusTickRep ticks) {
+  saveReservedPage(RESERVED_PAGE_ID, sizeof(ConsensusTickRep), reinterpret_cast<char*>(&ticks));
+  last_timestamp_ = ConsensusTime(ticks);
+  LOG_DEBUG(TS_MNGR, "Saved ts from ticks: " << ticks);
+}
+
 void TimeServiceResPageClient::load() {
-  auto raw_value = ConsensusTime::rep{0};
-  if (loadReservedPage(RESERVED_PAGE_ID, sizeof(ConsensusTime::rep), reinterpret_cast<char*>(&raw_value))) {
+  auto raw_value = ConsensusTickRep{0};
+  if (loadReservedPage(RESERVED_PAGE_ID, sizeof(ConsensusTickRep), reinterpret_cast<char*>(&raw_value))) {
     last_timestamp_ = ConsensusTime{raw_value};
     LOG_DEBUG(TS_MNGR, "Loaded ts: " << last_timestamp_.count());
   } else {

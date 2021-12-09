@@ -260,7 +260,7 @@ class PersistentStorageImp : public PersistentStorage {
   bool hasDescriptorOfLastNewView_ = false;
   bool hasDescriptorOfLastExecution_ = false;
 
-  const DescriptorOfLastExecution emptyDescriptorOfLastExecution_ = DescriptorOfLastExecution{0, Bitmap()};
+  const DescriptorOfLastExecution emptyDescriptorOfLastExecution_ = DescriptorOfLastExecution{0, Bitmap(), 0};
   DescriptorOfLastExecution descriptorOfLastExecution_ = emptyDescriptorOfLastExecution_;
 
   // Parameters to be saved persistently

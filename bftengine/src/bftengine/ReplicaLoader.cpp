@@ -291,6 +291,7 @@ ReplicaLoader::ErrorCode loadReplicaData(shared_ptr<PersistentStorage> p, Loaded
 
       ld.isExecuting = true;
       ld.validRequestsThatAreBeingExecuted = d.validRequests;
+      ld.timeInTicks = d.timeInTicks;
     }
   }
   const auto &desc = p->getDescriptorOfLastStableCheckpoint();

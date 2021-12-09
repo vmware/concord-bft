@@ -53,6 +53,7 @@ struct LoadedReplicaData {
 
   bool isExecuting = false;
   Bitmap validRequestsThatAreBeingExecuted;
+  ConsensusTickRep timeInTicks = 0;
 };
 
 class ReplicaLoader {

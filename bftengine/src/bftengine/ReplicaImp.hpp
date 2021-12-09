@@ -220,6 +220,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   bool recoveringFromExecutionOfRequests = false;
   Bitmap mapOfRecoveredRequests;
+  ConsensusTickRep recoveredTime = 0;
 
   shared_ptr<concord::performance::PerformanceManager> pm_;
 
