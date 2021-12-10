@@ -135,11 +135,8 @@ int main(int argc, char** argv) {
         config.transport.secret_data = concord::secretsmanager::secretretriever::retrieveSecret(*secrets_url);
       }
     }
-    configureSubscription(config,
-                          opts["tr-id"].as<std::string>(),
-                          opts["tr-insecure"].as<bool>(),
-                          opts["tr-tls-path"].as<std::string>(),
-                          secrets_url);
+    configureSubscription(
+        config, opts["tr-id"].as<std::string>(), opts["tr-insecure"].as<bool>(), opts["tr-tls-path"].as<std::string>());
     configureTransport(config, opts["tr-insecure"].as<bool>(), opts["tr-tls-path"].as<std::string>());
   } catch (std::exception& e) {
     LOG_ERROR(logger, "Failed to configure ConcordClient: " << e.what());
