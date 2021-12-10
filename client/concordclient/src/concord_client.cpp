@@ -96,6 +96,7 @@ ConcordClientPoolConfig ConcordClient::createClientPoolStruct(const ConcordClien
   client_pool_config.tls_certificates_folder_path = config.transport.tls_cert_root_path;
   client_pool_config.tls_cipher_suite_list = config.transport.tls_cipher_suite;
   client_pool_config.enable_mock_comm = config.transport.enable_mock_comm;
+  client_pool_config.secret_data = config.transport.secret_data;
 
   return client_pool_config;
 }
