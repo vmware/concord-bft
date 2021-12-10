@@ -50,7 +50,6 @@ po::variables_map parseCmdLine(int argc, char** argv) {
     ("config", po::value<std::string>()->required(), "YAML configuration file for the RequestService")
     ("host", po::value<std::string>()->default_value("0.0.0.0"), "Clientservice gRPC service host")
     ("port", po::value<int>()->default_value(50505), "Clientservice gRPC service port")
-    ("bft-batching", po::value<bool>()->default_value(false), "Enable batching requests before sending to replicas")
     ("tr-id", po::value<std::string>()->required(), "ID used to subscribe to replicas for data/hashes")
     ("tr-insecure", po::value<bool>()->default_value(false), "Testing only: Allow insecure connection with TRS on replicas")
     ("tr-tls-path", po::value<std::string>()->default_value(""), "Path to thin replica TLS certificates")
