@@ -99,6 +99,9 @@ enum DescMetadataParameterIds {
   LAST_NEW_VIEW_DESC
 };
 
+const uint32_t clientsDataDescNum = LAST_NEW_VIEW_DESC + 1;
+const uint32_t replicaSpecificInfoMaxSize = 64 * 1024;  // 64KB
+
 typedef unique_ptr<MetadataStorage::ObjectDesc[]> ObjectDescUniquePtr;
 
 class PersistentStorageImp : public PersistentStorage {
@@ -106,7 +109,8 @@ class PersistentStorageImp : public PersistentStorage {
   static constexpr auto kMaxUserDataSizeBytes = 256;
 
  public:
-  PersistentStorageImp(uint16_t numReplicas, uint16_t fVal, uint16_t cVal);
+  PersistentStorageImp(
+      uint16_t numReplicas, uint16_t fVal, uint16_t cVal, uint64_t numClients, uint64_t numOfClientBatch);
   ~PersistentStorageImp() override = default;
 
   uint8_t beginWriteTran() override;
@@ -138,7 +142,7 @@ class PersistentStorageImp : public PersistentStorage {
 
   void setUserDataAtomically(const void *data, std::size_t numberOfBytes) override;
   void setUserDataInTransaction(const void *data, std::size_t numberOfBytes) override;
-
+  bool setReplicaSpecificInfo(uint32_t clientId, uint64_t requestSeqNum, char *rsiData, size_t rsiSize) override;
   void setEraseMetadataStorageFlag() override;
   bool getEraseMetadataStorageFlag() override;
   void eraseMetadata() override;
@@ -147,6 +151,8 @@ class PersistentStorageImp : public PersistentStorage {
   bool getNewEpochFlag() override;
 
   // Getters
+  void loadStoredReplicasSpecificInfo();
+  void getReplicaSpecificInfo(uint32_t clientId, uint64_t requestSeqNum, char *rsiData, size_t &rsiSize) override;
   std::string getStoredVersion();
   std::string getCurrentVersion() const { return version_; }
   SeqNum getLastExecutedSeqNum() override;
@@ -249,6 +255,11 @@ class PersistentStorageImp : public PersistentStorage {
   const uint16_t numReplicas_;
   const uint16_t fVal_;
   const uint16_t cVal_;
+
+  const uint16_t numClients_;
+  const uint16_t numClientBatch_;
+  std::unordered_map<uint32_t, std::unordered_map<uint64_t, std::string>> rsiCache_;
+  std::unordered_map<uint32_t, uint64_t> rsiLatestIndex;
 
   uint8_t numOfNestedTransactions_ = 0;
   const SeqNum seqNumWindowFirst_ = 1;
