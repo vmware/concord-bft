@@ -131,7 +131,6 @@ ObjectDescUniquePtr PersistentStorageImp::getDefaultMetadataObjectDescriptors(ui
   for (auto i = 0; i < numReplicas_ + numClients_; i++) {
     uint32_t baseDescNum = clientsDataDescNum + viewChangeMsgsNum + numClientBatch_ * i;
     for (auto j = 0; j < numClientBatch_; j++) {
-      LOG_INFO(GL, "***|" << baseDescNum + j);
       metadataObjectsArray.get()[baseDescNum + j].maxSize =
           (sizeof(size_t) + 2 * sizeof(uint64_t) + replicaSpecificInfoMaxSize);
     }

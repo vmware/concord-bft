@@ -5475,9 +5475,12 @@ void ReplicaImp::sendResponses(PrePrepareMsg *ppMsg, IRequestsHandler::Execution
     } else {
       if (req.flags & HAS_PRE_PROCESSED_FLAG) metric_total_preexec_requests_executed_++;
       if (req.outActualReplySize != 0) {
-        auto replyMsg = clientsManager->allocateNewReplyMsgAndWriteToStorage(
-            req.clientId, req.requestSequenceNum, currentPrimary(), req.outReply, req.outActualReplySize);
-        replyMsg->setReplicaSpecificInfoLength(req.outReplicaSpecificInfoSize);
+        auto replyMsg = clientsManager->allocateNewReplyMsgAndWriteToStorage(req.clientId,
+                                                                             req.requestSequenceNum,
+                                                                             currentPrimary(),
+                                                                             req.outReply,
+                                                                             req.outActualReplySize,
+                                                                             req.outReplicaSpecificInfoSize);
         send(replyMsg.get(), req.clientId);
       }
     }
