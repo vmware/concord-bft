@@ -3,6 +3,7 @@ add_library(test_config_lib
         test_comm_config.cpp
         )
 target_include_directories(test_config_lib PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
         ${bftengine_SOURCE_DIR}/include
         ${bftengine_SOURCE_DIR}/include/bftengine
         ${PROJECT_SOURCE_DIR}/threshsign/include
