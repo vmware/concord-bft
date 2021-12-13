@@ -74,11 +74,17 @@ Status RequestServiceImpl::Send(ServerContext* context, const Request* proto_req
     bft::client::ReadConfig config;
     config.request = req_config;
     auto span = opentracing::Tracer::Global()->StartSpan("send_ro", {});
+    std::ostringstream carrier;
+    opentracing::Tracer::Global()->Inject(span->context(), carrier);
+    config.request.span_context = carrier.str();
     client_->send(config, std::move(msg), callback);
   } else {
     bft::client::WriteConfig config;
     config.request = req_config;
     auto span = opentracing::Tracer::Global()->StartSpan("send", {});
+    std::ostringstream carrier;
+    opentracing::Tracer::Global()->Inject(span->context(), carrier);
+    config.request.span_context = carrier.str();
     client_->send(config, std::move(msg), callback);
   }
 
