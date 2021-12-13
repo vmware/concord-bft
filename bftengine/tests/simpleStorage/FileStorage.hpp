@@ -42,7 +42,7 @@ class FileStorage : public MetadataStorage {
 
   void writeInBatch(uint32_t objectId, const char *data, uint32_t dataLength) override;
 
-  void commitAtomicWriteOnlyBatch() override;
+  void commitAtomicWriteOnlyBatch(bool sync=false) override;
   void eraseData() override;
 
  private:

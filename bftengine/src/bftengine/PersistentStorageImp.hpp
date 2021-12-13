@@ -118,7 +118,7 @@ class PersistentStorageImp : public PersistentStorage {
   ~PersistentStorageImp() override = default;
 
   uint8_t beginWriteTran() override;
-  uint8_t endWriteTran() override;
+  uint8_t endWriteTran(bool sync=false) override;
   bool isInWriteTran() const override;
 
   // Setters

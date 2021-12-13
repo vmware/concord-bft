@@ -47,7 +47,7 @@ class MetadataStorage {
   // Atomic write-only transactions
   virtual void beginAtomicWriteOnlyBatch() = 0;
   virtual void writeInBatch(uint32_t objectId, const char *data, uint32_t dataLength) = 0;
-  virtual void commitAtomicWriteOnlyBatch() = 0;
+  virtual void commitAtomicWriteOnlyBatch(bool sync=false) = 0;
 
   // In some cases, we would like to load a new metadata after a crash (for example, on reconfiguration actions).
   virtual void eraseData() = 0;

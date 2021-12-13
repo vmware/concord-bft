@@ -144,10 +144,10 @@ uint8_t PersistentStorageImp::beginWriteTran() {
   return ++numOfNestedTransactions_;
 }
 
-uint8_t PersistentStorageImp::endWriteTran() {
+uint8_t PersistentStorageImp::endWriteTran(bool sync) {
   ConcordAssertNE(numOfNestedTransactions_, 0);
   if (--numOfNestedTransactions_ == 0) {
-    metadataStorage_->commitAtomicWriteOnlyBatch();
+    metadataStorage_->commitAtomicWriteOnlyBatch(sync);
   }
   return numOfNestedTransactions_;
 }

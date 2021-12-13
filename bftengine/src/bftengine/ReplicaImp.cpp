@@ -908,7 +908,7 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isCreatedEarlier)
     ps_->setPrimaryLastUsedSeqNum(primaryLastUsedSeqNum);
     ps_->setPrePrepareMsgInSeqNumWindow(primaryLastUsedSeqNum, pp);
     if (firstPath == CommitPath::SLOW) ps_->setSlowStartedInSeqNumWindow(primaryLastUsedSeqNum, true);
-    ps_->endWriteTran();
+    ps_->endWriteTran(true);
   }
 
   {
@@ -1122,7 +1122,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
         ps_->beginWriteTran();
         ps_->setPrePrepareMsgInSeqNumWindow(msgSeqNum, msg);
         if (slowStarted) ps_->setSlowStartedInSeqNumWindow(msgSeqNum, true);
-        ps_->endWriteTran();
+        ps_->endWriteTran(true);
       }
       if (!slowStarted)  // TODO(GG): make sure we correctly handle a situation where StartSlowCommitMsg is handled
                          // before PrePrepareMsg
@@ -1194,7 +1194,7 @@ void ReplicaImp::tryToStartSlowPaths() {
     if (ps_) {
       ps_->beginWriteTran();
       ps_->setSlowStartedInSeqNumWindow(i, true);
-      ps_->endWriteTran();
+      ps_->endWriteTran(true);
     }
 
     // send StartSlowCommitMsg to all replicas
@@ -1301,7 +1301,7 @@ void ReplicaImp::onMessage<StartSlowCommitMsg>(StartSlowCommitMsg *msg) {
       if (ps_) {
         ps_->beginWriteTran();
         ps_->setSlowStartedInSeqNumWindow(msgSeqNum, true);
-        ps_->endWriteTran();
+        ps_->endWriteTran(true);
       }
 
       if (seqNumInfo.hasPrePrepareMsg() == false)
@@ -1499,7 +1499,7 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
         ps_->beginWriteTran();
         ps_->setFullCommitProofMsgInSeqNumWindow(msgSeqNum, msg);
         ps_->setForceCompletedInSeqNumWindow(msgSeqNum, true);
-        ps_->endWriteTran();
+        ps_->endWriteTran(true);
       }
 
       if (msg->senderId() == config_.getreplicaId()) sendToAllOtherReplicas(msg);
@@ -1988,7 +1988,7 @@ void ReplicaImp::onPrepareCombinedSigSucceeded(SeqNum seqNumber,
   if (ps_) {
     ps_->beginWriteTran();
     ps_->setPrepareFullMsgInSeqNumWindow(seqNumber, preFull);
-    ps_->endWriteTran();
+    ps_->endWriteTran(true);
   }
 
   if (!retransmissionsLogicEnabled) {
@@ -2040,7 +2040,7 @@ void ReplicaImp::onPrepareVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view
     ConcordAssertNE(preFull, nullptr);
     ps_->beginWriteTran();
     ps_->setPrepareFullMsgInSeqNumWindow(seqNumber, preFull);
-    ps_->endWriteTran();
+    ps_->endWriteTran(true);
   }
 
   sendCommitPartial(seqNumber);
@@ -2105,7 +2105,7 @@ void ReplicaImp::onCommitCombinedSigSucceeded(SeqNum seqNumber,
   if (ps_) {
     ps_->beginWriteTran();
     ps_->setCommitFullMsgInSeqNumWindow(seqNumber, commitFull);
-    ps_->endWriteTran();
+    ps_->endWriteTran(true);
   }
 
   if (!retransmissionsLogicEnabled) {
@@ -2164,7 +2164,7 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view,
   if (ps_) {
     ps_->beginWriteTran();
     ps_->setCommitFullMsgInSeqNumWindow(seqNumber, commitFull);
-    ps_->endWriteTran();
+    ps_->endWriteTran(true);
   }
   LOG_INFO(CNSUS, "Request committed, proceeding to try to execute" << KVLOG(view));
 
@@ -2931,7 +2931,7 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
       ps_->beginWriteTran();
       ps_->setDescriptorOfLastExitFromView(desc);
       ps_->clearSeqNumWindow();
-      ps_->endWriteTran();
+      ps_->endWriteTran(true);
     }
 
     pVC = viewsManager->prepareViewChangeMsgAndSetHigherView(
@@ -3098,7 +3098,7 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
     metric_slow_path_count_++;
   }
 
-  if (ps_) ps_->endWriteTran();
+  if (ps_) ps_->endWriteTran(true);
 
   clientsManager->clearAllPendingRequests();
 
@@ -3219,7 +3219,7 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
   if (newCheckpointSeqNum <= lastExecutedSeqNum) {
     LOG_DEBUG(GL,
               "Executing onTransferringCompleteImp(newStateCheckpoint) where newStateCheckpoint <= lastExecutedSeqNum");
-    if (ps_) ps_->endWriteTran();
+    if (ps_) ps_->endWriteTran(true);
     return;
   }
   lastExecutedSeqNum = newCheckpointSeqNum;
@@ -3269,7 +3269,7 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
   if (ps_) {
     ps_->setPrimaryLastUsedSeqNum(primaryLastUsedSeqNum);
     ps_->setCheckpointMsgInCheckWindow(newCheckpointSeqNum, checkpointMsg);
-    ps_->endWriteTran();
+    ps_->endWriteTran(true);
   }
   metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
 
@@ -3398,7 +3398,7 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
     ps_->setDescriptorOfLastStableCheckpoint(desc);
   }
 
-  if (ps_) ps_->endWriteTran();
+  if (ps_) ps_->endWriteTran(true);
 
   if (((BatchingPolicy)config_.batchingPolicy == BATCH_SELF_ADJUSTED) && !oldSeqNum && currentViewIsActive() &&
       (currentPrimary() == config_.getreplicaId()) && !isCollectingState()) {
@@ -4765,7 +4765,7 @@ void ReplicaImp::markSpecialRequests(RequestsIterator &reqIter,
     DescriptorOfLastExecution execDesc{lastExecutedSeqNum + 1, requestSet, ticks};
     ps_->beginWriteTran();
     ps_->setDescriptorOfLastExecution(execDesc);
-    ps_->endWriteTran();
+    ps_->endWriteTran(true);
   }
 }
 
@@ -4971,7 +4971,7 @@ void ReplicaImp::finishExecutePrePrepareMsg(PrePrepareMsg *ppMsg,
 
   if (ppMsg->numberOfRequests() > 0) bftRequestsHandler_->onFinishExecutingReadWriteRequests();
 
-  if (ps_) ps_->endWriteTran();
+  if (ps_) ps_->endWriteTran(true);
 
   sendCheckpointIfNeeded();
 
@@ -5262,7 +5262,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
         DescriptorOfLastExecution execDesc{lastExecutedSeqNum + 1, requestSet, ticks};
         ps_->beginWriteTran();
         ps_->setDescriptorOfLastExecution(execDesc);
-        ps_->endWriteTran();
+        ps_->endWriteTran(true);
       }
     } else {
       requestSet = mapOfRecoveredRequests;
@@ -5360,7 +5360,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
 
   if (numOfRequests > 0) bftRequestsHandler_->onFinishExecutingReadWriteRequests();
 
-  if (ps_) ps_->endWriteTran();
+  if (ps_) ps_->endWriteTran(true);
 
   sendCheckpointIfNeeded();
 

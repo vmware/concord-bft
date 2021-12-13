@@ -238,7 +238,7 @@ void FileStorage::writeInBatch(uint32_t objectId, const char *data, uint32_t dat
   transaction_->insert(pair<uint32_t, RequestInfo>(objectId, RequestInfo(data, dataLength)));
 }
 
-void FileStorage::commitAtomicWriteOnlyBatch() {
+void FileStorage::commitAtomicWriteOnlyBatch(bool sync) {
   LOG_DEBUG(logger_, "FileStorage::commitAtomicWriteOnlyBatch");
   lock_guard<mutex> lock(ioMutex_);
   verifyFileMetadataSetup();

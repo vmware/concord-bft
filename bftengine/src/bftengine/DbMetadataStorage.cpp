@@ -135,14 +135,14 @@ void DBMetadataStorage::writeInBatch(uint32_t objectId, const char *data, uint32
   batch_->insert(KeyValuePair(metadataKeyManipulator_->generateMetadataKey(objectId), copy));
 }
 
-void DBMetadataStorage::commitAtomicWriteOnlyBatch() {
+void DBMetadataStorage::commitAtomicWriteOnlyBatch(bool sync) {
   lock_guard<mutex> lock(ioMutex_);
   LOG_DEBUG(logger_, "Begin Commit atomic transaction");
   if (!batch_) {
     LOG_FATAL(logger_, WRONG_FLOW);
     throw runtime_error(WRONG_FLOW);
   }
-  Status status = dbClient_->multiPut(*batch_);
+  Status status = dbClient_->multiPut(*batch_, sync);
   LOG_DEBUG(logger_, "End Commit atomic transaction");
   if (!status.isOK()) {
     LOG_FATAL(logger_, "DBClient multiPut operation failed");

@@ -130,7 +130,7 @@ Status Client::multiGet(const KeysVector &_keysVec, OUT ValuesVector &_valuesVec
   return status;
 }
 
-Status Client::multiPut(const SetOfKeyValuePairs &_keyValueMap) {
+Status Client::multiPut(const SetOfKeyValuePairs &_keyValueMap, bool sync) {
   Status status = Status::OK();
   for (const auto &it : _keyValueMap) {
     status = put(it.first, it.second);

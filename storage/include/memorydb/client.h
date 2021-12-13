@@ -80,7 +80,7 @@ class Client : public IDBClient {
   virtual concordUtils::Status put(const Sliver &_key, const Sliver &_value) override;
   virtual concordUtils::Status del(const Sliver &_key) override;
   concordUtils::Status multiGet(const KeysVector &_keysVec, OUT ValuesVector &_valuesVec) override;
-  concordUtils::Status multiPut(const SetOfKeyValuePairs &_keyValueMap) override;
+  concordUtils::Status multiPut(const SetOfKeyValuePairs &_keyValueMap, bool sync=false) override;
   concordUtils::Status multiDel(const KeysVector &_keysVec) override;
   concordUtils::Status rangeDel(const Sliver &_beginKey, const Sliver &_endKey) override;
   bool isNew() override { return true; }
