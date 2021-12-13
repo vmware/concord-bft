@@ -155,7 +155,9 @@ void configureSubscription(concord::client::concordclient::ConcordClientConfig& 
 
     readCert(client_cert_path, config.subscribe_config.pem_cert_chain);
 
-    config.subscribe_config.pem_private_key = decryptPrivateKey(config.transport.secret_data, tls_path);
+    if (config.transport.secret_data.has_value()) {
+      config.subscribe_config.pem_private_key = decryptPrivateKey(config.transport.secret_data, tls_path);
+    }
 
     std::string cert_client_id = getClientIdFromClientCert(client_cert_path);
     // The client cert must have the client ID in the OU field, because the TRS obtains
