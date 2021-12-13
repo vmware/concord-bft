@@ -442,14 +442,14 @@ int main() {
   descriptorOfLastNewView = new DescriptorOfLastNewView();
   descriptorOfLastExecution = new DescriptorOfLastExecution();
 
-  persistentStorageImp = new PersistentStorageImp(numReplicas, fVal, cVal, clientsNum, batchSize);
+  persistentStorageImp = new PersistentStorageImp(numReplicas, fVal, cVal, numReplicas + clientsNum, batchSize);
   logging::Logger logger = logging::getLogger("testSerialization.replica");
   // uncomment if needed
   // log4cplus::Logger::getInstance( LOG4CPLUS_TEXT("serializable")).setLogLevel(log4cplus::TRACE_LOG_LEVEL);
   const string dbFile = "testPersistency.txt";
   remove(dbFile.c_str());  // Required for the init testing.
 
-  PersistentStorageImp persistentStorage(numReplicas, fVal, cVal, clientsNum, batchSize);
+  PersistentStorageImp persistentStorage(numReplicas, fVal, cVal, numReplicas + clientsNum, batchSize);
   metadataStorage.reset(new FileStorage(logger, dbFile));
   uint16_t numOfObjects = 0;
   ObjectDescUniquePtr objectDescArray = persistentStorage.getDefaultMetadataObjectDescriptors(numOfObjects);

@@ -99,8 +99,12 @@ enum DescMetadataParameterIds {
   LAST_NEW_VIEW_DESC
 };
 
-const uint32_t clientsDataDescNum = LAST_NEW_VIEW_DESC + 1;
-const uint32_t replicaSpecificInfoMaxSize = 64 * 1024;  // 64KB
+enum ReplicaSpecificInfoParameterIds {
+  REPLICA_SPECIFIC_INFO_BASE = LAST_NEW_VIEW_DESC + 1,
+  REPLICA_SPECIFIC_INFO_DESC
+};
+
+const uint32_t replicaSpecificInfoMaxSize = 1024 * 1024;  // 1MB
 
 typedef unique_ptr<MetadataStorage::ObjectDesc[]> ObjectDescUniquePtr;
 
@@ -110,7 +114,7 @@ class PersistentStorageImp : public PersistentStorage {
 
  public:
   PersistentStorageImp(
-      uint16_t numReplicas, uint16_t fVal, uint16_t cVal, uint64_t numClients, uint64_t numOfClientBatch);
+      uint16_t numReplicas, uint16_t fVal, uint16_t cVal, uint64_t numOfPrinciples, uint64_t maxClientBatchSize);
   ~PersistentStorageImp() override = default;
 
   uint8_t beginWriteTran() override;
@@ -256,9 +260,11 @@ class PersistentStorageImp : public PersistentStorage {
   const uint16_t fVal_;
   const uint16_t cVal_;
 
-  const uint16_t numClients_;
-  const uint16_t numClientBatch_;
+  const uint16_t numPrinciples_;
+  const uint16_t maxClientBatchSize_;
+  // The rsi cache is a map of <principle_id, <request_sequence_number, data>>
   std::unordered_map<uint32_t, std::unordered_map<uint64_t, std::string>> rsiCache_;
+  // The rsiLatestIndex is a map of <principle_id, latest_index>
   std::unordered_map<uint32_t, uint64_t> rsiLatestIndex;
 
   uint8_t numOfNestedTransactions_ = 0;

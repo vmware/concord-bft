@@ -25,14 +25,18 @@ namespace bftEngine {
 namespace impl {
 
 const string METADATA_PARAMS_VERSION = "1.1";
-
+// Now write the rsi data for this [client, sequence number] to the storage
+static uint32_t RSI_INDEX_SIZE = sizeof(uint64_t);
+static uint32_t RSI_SN_SIZE = sizeof(uint64_t);
+static uint32_t RSI_DATA_SIZE = sizeof(std::size_t);
+const uint32_t RSI_PREFIX_SIZE = RSI_DATA_SIZE + RSI_SN_SIZE + RSI_INDEX_SIZE;
 PersistentStorageImp::PersistentStorageImp(
-    uint16_t numReplicas, uint16_t fVal, uint16_t cVal, uint64_t numClients, uint64_t numOfClientBatch)
+    uint16_t numReplicas, uint16_t fVal, uint16_t cVal, uint64_t numOfPrinciples, uint64_t maxClientBatchSize)
     : numReplicas_(numReplicas),
       fVal_(fVal),
       cVal_(cVal),
-      numClients_(numClients),
-      numClientBatch_(numOfClientBatch),
+      numPrinciples_(numOfPrinciples),
+      maxClientBatchSize_(maxClientBatchSize),
       version_(METADATA_PARAMS_VERSION) {
   DescriptorOfLastNewView::setViewChangeMsgsNum(fVal, cVal);
 }
@@ -128,11 +132,10 @@ ObjectDescUniquePtr PersistentStorageImp::getDefaultMetadataObjectDescriptors(ui
   metadataObjectsArray.get()[LAST_STABLE_CHECKPOINT_DESC].maxSize =
       DescriptorOfLastStableCheckpoint::maxSize(numReplicas_);
 
-  for (auto i = 0; i < numReplicas_ + numClients_; i++) {
-    uint32_t baseDescNum = clientsDataDescNum + viewChangeMsgsNum + numClientBatch_ * i;
-    for (auto j = 0; j < numClientBatch_; j++) {
-      metadataObjectsArray.get()[baseDescNum + j].maxSize =
-          (sizeof(size_t) + 2 * sizeof(uint64_t) + replicaSpecificInfoMaxSize);
+  for (auto i = 0; i < numPrinciples_; i++) {
+    uint32_t baseDescNum = REPLICA_SPECIFIC_INFO_BASE + viewChangeMsgsNum + maxClientBatchSize_ * i;
+    for (auto j = 0; j < maxClientBatchSize_; j++) {
+      metadataObjectsArray.get()[baseDescNum + j].maxSize = (RSI_PREFIX_SIZE + replicaSpecificInfoMaxSize);
     }
   }
   return metadataObjectsArray;
@@ -539,34 +542,32 @@ bool PersistentStorageImp::setReplicaSpecificInfo(uint32_t clientId,
   beginWriteTran();
   if (rsiLatestIndex.count(clientId) == 0) rsiLatestIndex[clientId] = 0;
   auto client_index = rsiLatestIndex.at(clientId)++;
-  auto client_circular_index = client_index % numClientBatch_;
+  auto client_circular_index = client_index % maxClientBatchSize_;
   uint32_t viewChangeMsgsNum = DescriptorOfLastNewView::getViewChangeMsgsNum();
-  uint32_t baseDescNum = clientsDataDescNum + viewChangeMsgsNum + clientId * numClientBatch_;
-  UniquePtrToChar outBuf(new char[replicaSpecificInfoMaxSize + 2 * sizeof(uint64_t) + sizeof(size_t)]);
+  uint32_t baseDescNum = REPLICA_SPECIFIC_INFO_BASE + viewChangeMsgsNum + clientId * maxClientBatchSize_;
+  UniquePtrToChar outBuf(new char[replicaSpecificInfoMaxSize + RSI_PREFIX_SIZE]);
   char *outBufPtr = outBuf.get();
   uint32_t outActualObjectSize = 0;
   metadataStorage_->read(baseDescNum + client_circular_index,
-                         replicaSpecificInfoMaxSize + 2 * sizeof(uint64_t) + sizeof(size_t),
+                         replicaSpecificInfoMaxSize + RSI_PREFIX_SIZE,
                          outBufPtr,
                          outActualObjectSize);
   if (outActualObjectSize > 0) {
     // If we do have a saved value on this index, erase it from the cache
     uint64_t oldSn = 0;
-    std::memcpy(&oldSn, outBufPtr + sizeof(uint64_t), sizeof(uint64_t));
+    std::memcpy(&oldSn, outBufPtr + RSI_INDEX_SIZE, RSI_SN_SIZE);
     ConcordAssert(oldSn > 0);
     rsiCache_[clientId].erase(oldSn);
   }
 
-  // Now write the rsi data for this [client, sequence number] to the storage
   std::string data(rsiData, rsiSize);
-  UniquePtrToChar inBuf(new char[rsiSize + 2 * sizeof(uint64_t) + sizeof(size_t)]);
+  UniquePtrToChar inBuf(new char[rsiSize + RSI_PREFIX_SIZE]);
   char *inBufPtr = inBuf.get();
-  std::memcpy(inBufPtr, &client_index, sizeof(uint64_t));
-  std::memcpy(inBufPtr + sizeof(uint64_t), &requestSeqNum, sizeof(uint64_t));
-  std::memcpy(inBufPtr + 2 * sizeof(uint64_t), &rsiSize, sizeof(size_t));
-  std::memcpy(inBufPtr + 2 * sizeof(uint64_t) + sizeof(size_t), rsiData, rsiSize);
-  metadataStorage_->writeInBatch(
-      baseDescNum + client_circular_index, inBufPtr, rsiSize + sizeof(uint64_t) + sizeof(size_t));
+  std::memcpy(inBufPtr, &client_index, RSI_INDEX_SIZE);
+  std::memcpy(inBufPtr + RSI_INDEX_SIZE, &requestSeqNum, RSI_SN_SIZE);
+  std::memcpy(inBufPtr + RSI_SN_SIZE + RSI_INDEX_SIZE, &rsiSize, RSI_DATA_SIZE);
+  std::memcpy(inBufPtr + RSI_PREFIX_SIZE, rsiData, rsiSize);
+  metadataStorage_->writeInBatch(baseDescNum + client_circular_index, inBufPtr, rsiSize + RSI_PREFIX_SIZE);
   endWriteTran();
   rsiCache_[clientId][requestSeqNum] = data;
   return true;
@@ -574,29 +575,27 @@ bool PersistentStorageImp::setReplicaSpecificInfo(uint32_t clientId,
 /***** Getters *****/
 void PersistentStorageImp::loadStoredReplicasSpecificInfo() {
   uint32_t viewChangeMsgsNum = DescriptorOfLastNewView::getViewChangeMsgsNum();
-  for (auto clientId = 0; clientId < numReplicas_ + numClients_; clientId++) {
-    uint32_t baseDescNum = clientsDataDescNum + viewChangeMsgsNum + numClientBatch_ * clientId;
+  for (auto clientId = 0; clientId < numPrinciples_; clientId++) {
+    uint32_t baseDescNum = REPLICA_SPECIFIC_INFO_BASE + viewChangeMsgsNum + maxClientBatchSize_ * clientId;
     uint64_t latestClientIndex = 0;
-    for (auto i = 0; i < numClientBatch_; i++) {
-      UniquePtrToChar outBuf(new char[replicaSpecificInfoMaxSize + 2 * sizeof(uint64_t) + sizeof(size_t)]);
+    for (auto i = 0; i < maxClientBatchSize_; i++) {
+      UniquePtrToChar outBuf(new char[replicaSpecificInfoMaxSize + RSI_PREFIX_SIZE]);
       char *outBufPtr = outBuf.get();
       uint32_t outActualObjectSize = 0;
-      metadataStorage_->read(baseDescNum + i,
-                             replicaSpecificInfoMaxSize + 2 * sizeof(uint64_t) + sizeof(size_t),
-                             outBufPtr,
-                             outActualObjectSize);
+      metadataStorage_->read(
+          baseDescNum + i, replicaSpecificInfoMaxSize + RSI_PREFIX_SIZE, outBufPtr, outActualObjectSize);
       if (!outActualObjectSize)  // Parameter not found
         continue;
       uint64_t record_index = 0;
-      std::memcpy(&record_index, outBufPtr, sizeof(uint64_t));
+      std::memcpy(&record_index, outBufPtr, RSI_INDEX_SIZE);
       if (latestClientIndex < record_index) latestClientIndex = record_index;
       uint64_t storedSn = 0;
-      std::memcpy(&storedSn, outBufPtr + sizeof(uint64_t), sizeof(uint64_t));
+      std::memcpy(&storedSn, outBufPtr + RSI_INDEX_SIZE, RSI_SN_SIZE);
       size_t dataSize = 0;
-      std::memcpy(&dataSize, outBufPtr + 2 * sizeof(uint64_t), sizeof(size_t));
+      std::memcpy(&dataSize, outBufPtr + RSI_INDEX_SIZE + RSI_SN_SIZE, RSI_DATA_SIZE);
       std::string strData;
       strData.resize(dataSize);
-      std::memcpy(strData.data(), outBufPtr + 2 * sizeof(uint64_t) + sizeof(size_t), dataSize);
+      std::memcpy(strData.data(), outBufPtr + RSI_PREFIX_SIZE, dataSize);
       rsiCache_[clientId][storedSn] = strData;
     }
     rsiLatestIndex[clientId] = latestClientIndex + 1;
