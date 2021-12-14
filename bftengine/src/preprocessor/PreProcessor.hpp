@@ -29,6 +29,7 @@
 #include "PreProcessorRecorder.hpp"
 #include "diagnostics.h"
 #include "PerformanceManager.hpp"
+#include "SimpleClient.hpp"
 #include <RollingAvgAndVar.hpp>
 #include "GlobalData.hpp"
 
@@ -215,7 +216,8 @@ class PreProcessor {
                                       bool isPrimary,
                                       bool isRetry,
                                       TimeRecorder &&totalPreExecDurationRecorder = TimeRecorder());
-  uint32_t launchReqPreProcessing(const PreProcessRequestMsgSharedPtr &preProcessReqMsg);
+  bftEngine::OperationResult launchReqPreProcessing(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
+                                                    uint32_t &resultLen);
   void handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                  const std::string &batchCid,
                                  bool isPrimary,
@@ -225,11 +227,13 @@ class PreProcessor {
                                          ReqId reqSeqNum,
                                          uint64_t reqRetryId,
                                          uint32_t resBufLen,
-                                         const std::string &cid);
+                                         const std::string &cid,
+                                         bftEngine::OperationResult execResult);
   void handleReqPreProcessedByPrimary(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                       const std::string &batchCid,
                                       uint16_t clientId,
-                                      uint32_t resultBufLen);
+                                      uint32_t resultBufLen,
+                                      bftEngine::OperationResult execResult);
   void handlePreProcessedReqPrimaryRetry(NodeIdType clientId,
                                          uint16_t reqOffsetInBatch,
                                          uint32_t resultBufLen,
@@ -276,6 +280,7 @@ class PreProcessor {
   void releaseReqAndSendReplyMsg(PreProcessReplyMsgSharedPtr replyMsg);
   bool handlePossiblyExpiredRequest(const RequestStateSharedPtr &reqStateEntry);
   bool allClientRequestsReleased(uint16_t clientId, const std::string &batchCid);
+  void returnErrorReplyToTheClient(uint16_t clientId, ReqId reqSeqNum, bftEngine::OperationResult execResult);
 
   static logging::Logger &logger() {
     static logging::Logger logger_ = logging::getLogger("concord.preprocessor");
