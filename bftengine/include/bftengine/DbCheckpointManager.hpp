@@ -30,6 +30,7 @@
 #include "Metrics.hpp"
 #include <algorithm>
 #include <thread>
+#include <atomic>
 #if __has_include(<filesystem>)
 #include <filesystem>
 namespace fs = std::filesystem;
@@ -60,9 +61,11 @@ class DbCheckpointManager {
     return instance_;
   }
   ~DbCheckpointManager() {
-    stopped_ = true;
-    cv_.notify_one();
-    if (cleanupThread_.joinable()) cleanupThread_.join();
+    if (!stopped_) {
+      stopped_ = true;
+      cv_.notify_one();
+      if (cleanupThread_.joinable()) cleanupThread_.join();
+    }
   }
 
  private:
@@ -90,7 +93,7 @@ class DbCheckpointManager {
   // get checkpoint metadata
   void loadCheckpointDataFromPersistence();
   void checkforCleanup();
-  bool stopped_{false};
+  std::atomic<bool> stopped_ = false;
   DbCheckpointMetadata dbCheckptMetadata_;
   std::shared_ptr<concord::storage::IDBClient> dbClient_;
   std::shared_ptr<bftEngine::impl::PersistentStorage> ps_;
