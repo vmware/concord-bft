@@ -3523,7 +3523,7 @@ void ReplicaImp::tryToSendReqMissingDataMsg(SeqNum seqNumber, bool slowPathOnly,
 
     reqData.resetFlags();
 
-    if (destIsPrimary && missingPrePrepare) reqData.setPrePrepareIsMissing();
+    if (missingPrePrepare) reqData.setPrePrepareIsMissing();
 
     if (missingPartialProof) reqData.setPartialProofIsMissing();
     if (missingPartialPrepare) reqData.setPartialPrepareIsMissing();

@@ -145,8 +145,7 @@ void parseConfigFile(ConcordClientConfig& config, const YAML::Node& yaml) {
 void configureSubscription(concord::client::concordclient::ConcordClientConfig& config,
                            const std::string& tr_id,
                            bool is_insecure,
-                           const std::string& tls_path,
-                           const std::optional<std::string>& secrets_url) {
+                           const std::string& tls_path) {
   config.subscribe_config.id = tr_id;
   config.subscribe_config.use_tls = not is_insecure;
 
@@ -156,7 +155,9 @@ void configureSubscription(concord::client::concordclient::ConcordClientConfig& 
 
     readCert(client_cert_path, config.subscribe_config.pem_cert_chain);
 
-    config.subscribe_config.pem_private_key = decryptPrivateKey(secrets_url, tls_path);
+    if (config.transport.secret_data.has_value()) {
+      config.subscribe_config.pem_private_key = decryptPrivateKey(config.transport.secret_data, tls_path);
+    }
 
     std::string cert_client_id = getClientIdFromClientCert(client_cert_path);
     // The client cert must have the client ID in the OU field, because the TRS obtains
@@ -196,13 +197,13 @@ void configureTransport(concord::client::concordclient::ConcordClientConfig& con
   }
 }
 
-const std::string decryptPrivateKey(const std::optional<std::string>& secrets_url, const std::string& path) {
+const std::string decryptPrivateKey(const std::optional<secretsmanager::SecretData>& secret_data,
+                                    const std::string& path) {
   std::string pkpath;
   std::unique_ptr<concord::secretsmanager::ISecretsManagerImpl> secrets_manager;
-  if (secrets_url) {
-    auto secret_data = concord::secretsmanager::secretretriever::retrieveSecret(*secrets_url);
+  if (secret_data.has_value()) {
     pkpath = path + "/pk.pem.enc";
-    secrets_manager.reset(new concord::secretsmanager::SecretsManagerEnc(secret_data));
+    secrets_manager.reset(new concord::secretsmanager::SecretsManagerEnc(secret_data.value()));
   } else {
     pkpath = path + "/pk.pem";
     secrets_manager.reset(new concord::secretsmanager::SecretsManagerPlain());

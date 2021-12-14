@@ -23,6 +23,7 @@
 #include "client/concordclient/concord_client.hpp"
 #include "Logger.hpp"
 #include "Metrics.hpp"
+#include "secret_retriever.hpp"
 #include <jaegertracing/Tracer.h>
 
 using concord::client::clientservice::ClientService;
@@ -50,7 +51,6 @@ po::variables_map parseCmdLine(int argc, char** argv) {
     ("config", po::value<std::string>()->required(), "YAML configuration file for the RequestService")
     ("host", po::value<std::string>()->default_value("0.0.0.0"), "Clientservice gRPC service host")
     ("port", po::value<int>()->default_value(50505), "Clientservice gRPC service port")
-    ("bft-batching", po::value<bool>()->default_value(false), "Enable batching requests before sending to replicas")
     ("tr-id", po::value<std::string>()->required(), "ID used to subscribe to replicas for data/hashes")
     ("tr-insecure", po::value<bool>()->default_value(false), "Testing only: Allow insecure connection with TRS on replicas")
     ("tr-tls-path", po::value<std::string>()->default_value(""), "Path to thin replica TLS certificates")
@@ -128,14 +128,14 @@ int main(int argc, char** argv) {
     auto yaml = YAML::LoadFile(opts["config"].as<std::string>());
     parseConfigFile(config, yaml);
     std::optional<std::string> secrets_url = std::nullopt;
-    if (opts.count("secrets-url")) {
+    if (opts.count("secrets-url") && config.topology.encrypted_config_enabled) {
       secrets_url = {opts["secrets-url"].as<std::string>()};
+      if (secrets_url) {
+        config.transport.secret_data = concord::secretsmanager::secretretriever::retrieveSecret(*secrets_url);
+      }
     }
-    configureSubscription(config,
-                          opts["tr-id"].as<std::string>(),
-                          opts["tr-insecure"].as<bool>(),
-                          opts["tr-tls-path"].as<std::string>(),
-                          secrets_url);
+    configureSubscription(
+        config, opts["tr-id"].as<std::string>(), opts["tr-insecure"].as<bool>(), opts["tr-tls-path"].as<std::string>());
     configureTransport(config, opts["tr-insecure"].as<bool>(), opts["tr-tls-path"].as<std::string>());
   } catch (std::exception& e) {
     LOG_ERROR(logger, "Failed to configure ConcordClient: " << e.what());

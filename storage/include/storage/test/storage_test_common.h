@@ -105,6 +105,16 @@ struct TestRocksDb {
 
   static std::string type() { return "RocksDB"; }
 };
+
+struct TestRocksDbSnapshot {
+  static std::string type() { return "RocksDBSnapshot"; }
+  static void cleanup(const int16_t checkPointId) { ::cleanup(checkPointId); }
+  static std::shared_ptr<::concord::storage::rocksdb::NativeClient> createNative(const std::string &checkPointPath) {
+    const auto readOnly = false;
+    return ::concord::storage::rocksdb::NativeClient::newClient(
+        checkPointPath, readOnly, ::concord::storage::rocksdb::NativeClient::DefaultOptions{});
+  }
+};
 #endif
 
 template <typename ParamType>
