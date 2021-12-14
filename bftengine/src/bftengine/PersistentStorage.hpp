@@ -123,12 +123,12 @@ class PersistentStorage {
   virtual void setNewEpochFlag(bool flag) = 0;
   virtual bool getNewEpochFlag() = 0;
 
-  virtual bool setReplicaSpecificInfo(uint32_t clientId, uint64_t requestSeqNum, char *rsiData, size_t rsiSize) = 0;
+  virtual bool setReplicaSpecificInfo(uint32_t index, char *data, size_t size) = 0;
 
   //////////////////////////////////////////////////////////////////////////
   // Read methods (should only be used before using write-only transactions)
   //////////////////////////////////////////////////////////////////////////
-  virtual void getReplicaSpecificInfo(uint32_t clientId, uint64_t requestSeqNum, char *rsiData, size_t &rsiSize) = 0;
+  virtual std::string getReplicaSpecificInfo(uint32_t index) = 0;
   virtual SeqNum getLastExecutedSeqNum() = 0;
   virtual SeqNum getPrimaryLastUsedSeqNum() = 0;
   virtual SeqNum getStrictLowerBoundOfSeqNums() = 0;

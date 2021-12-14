@@ -146,7 +146,7 @@ class PersistentStorageImp : public PersistentStorage {
 
   void setUserDataAtomically(const void *data, std::size_t numberOfBytes) override;
   void setUserDataInTransaction(const void *data, std::size_t numberOfBytes) override;
-  bool setReplicaSpecificInfo(uint32_t clientId, uint64_t requestSeqNum, char *rsiData, size_t rsiSize) override;
+  bool setReplicaSpecificInfo(uint32_t index, char *data, size_t size) override;
   void setEraseMetadataStorageFlag() override;
   bool getEraseMetadataStorageFlag() override;
   void eraseMetadata() override;
@@ -155,8 +155,7 @@ class PersistentStorageImp : public PersistentStorage {
   bool getNewEpochFlag() override;
 
   // Getters
-  void loadStoredReplicasSpecificInfo();
-  void getReplicaSpecificInfo(uint32_t clientId, uint64_t requestSeqNum, char *rsiData, size_t &rsiSize) override;
+  std::string getReplicaSpecificInfo(uint32_t index) override;
   std::string getStoredVersion();
   std::string getCurrentVersion() const { return version_; }
   SeqNum getLastExecutedSeqNum() override;

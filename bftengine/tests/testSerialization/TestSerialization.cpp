@@ -338,55 +338,6 @@ void testSetSimpleParams(bool toSet) {
   ConcordAssert(persistentStorageImp->getLastViewThatTransferredSeqNumbersFullyExecuted() == view);
 }
 
-void testSetAndGetRsiParams(bool init) {
-  std::string rsi1 = "hello1";
-  std::string rsi2 = "hello2";
-  std::string rsi3 = "hello3";
-  std::string rsi4 = "hello4";
-  std::string rsi5 = "hello5";
-  uint32_t firstClientId = numReplicas;
-  uint32_t secondClientId = numReplicas + 1;
-  if (init) {
-    persistentStorageImp->setReplicaSpecificInfo(firstClientId, 1, rsi1.data(), rsi1.size());
-    persistentStorageImp->setReplicaSpecificInfo(firstClientId, 2, rsi2.data(), rsi2.size());
-    persistentStorageImp->setReplicaSpecificInfo(secondClientId, 3, rsi3.data(), rsi3.size());
-    persistentStorageImp->setReplicaSpecificInfo(secondClientId, 4, rsi4.data(), rsi4.size());
-  }
-  char *data = new char[64 * 1024];
-  size_t outSize = 0;
-  if (init) {
-    persistentStorageImp->getReplicaSpecificInfo(firstClientId, 1, data, outSize);
-    ConcordAssert(std::string(data, outSize) == rsi1);
-  } else {
-    persistentStorageImp->getReplicaSpecificInfo(firstClientId, 5, data, outSize);
-    ConcordAssert(std::string(data, outSize) == rsi5);
-    // Here, the result is that the last batch data is being deleted.
-  }
-  if (init) {
-    persistentStorageImp->getReplicaSpecificInfo(firstClientId, 2, data, outSize);
-    ConcordAssert(std::string(data, outSize) == rsi2);
-  } else {
-    persistentStorageImp->getReplicaSpecificInfo(firstClientId, 1, data, outSize);
-    ConcordAssert(outSize == 0);
-    persistentStorageImp->getReplicaSpecificInfo(firstClientId, 5, data, outSize);
-    ConcordAssert(std::string(data, outSize) == rsi5);
-  }
-
-  persistentStorageImp->getReplicaSpecificInfo(secondClientId, 3, data, outSize);
-  ConcordAssert(std::string(data, outSize) == rsi3);
-  persistentStorageImp->getReplicaSpecificInfo(secondClientId, 4, data, outSize);
-  ConcordAssert(std::string(data, outSize) == rsi4);
-
-  if (init) {
-    // Now, set another rsi for client 1 and make sure rsi one is being rotated with the new one
-    persistentStorageImp->setReplicaSpecificInfo(firstClientId, 5, rsi5.data(), rsi5.size());
-    persistentStorageImp->getReplicaSpecificInfo(firstClientId, 5, data, outSize);
-    ConcordAssert(std::string(data, outSize) == rsi5);
-    persistentStorageImp->getReplicaSpecificInfo(firstClientId, 1, data, outSize);
-    ConcordAssert(outSize == 0);
-  }
-}
-
 void testCheckDescriptorOfLastStableCheckpoint(bool init) {
   bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   const SeqNum checkpointSeqNum0 = 0;
@@ -472,7 +423,6 @@ int main() {
     testWindows(init);
     testCheckDescriptorOfLastStableCheckpoint(init);
     if (!init) testWindowsAdvance();
-    testSetAndGetRsiParams(init);
     init = false;
   }
 
