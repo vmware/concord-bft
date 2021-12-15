@@ -48,8 +48,8 @@ class DebugPersistentStorage : public PersistentStorage {
   void setCompletedMarkInCheckWindow(SeqNum seqNum, bool mark) override;
   void setUserDataAtomically(const void* data, std::size_t numberOfBytes) override;
   void setUserDataInTransaction(const void* data, std::size_t numberOfBytes) override;
-  bool setReplicaSpecificInfo(uint32_t index, char* data, size_t size) override;
-  std::string getReplicaSpecificInfo(uint32_t index) override;
+  bool setReplicaSpecificInfo(uint32_t index, const std::vector<uint8_t>& data) override;
+  std::vector<uint8_t> getReplicaSpecificInfo(uint32_t index) override;
   SeqNum getLastExecutedSeqNum() override;
   SeqNum getPrimaryLastUsedSeqNum() override;
   SeqNum getStrictLowerBoundOfSeqNums() override;

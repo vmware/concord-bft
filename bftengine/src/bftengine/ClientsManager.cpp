@@ -23,70 +23,6 @@
 using namespace std::chrono;
 using namespace concord::serialize;
 namespace bftEngine::impl {
-
-ClientsManager::ClientRsiManager::ClientRsiManager(uint32_t numOfPrinciples,
-                                                   uint32_t maxClientBatchSize,
-                                                   std::shared_ptr<PersistentStorage> ps)
-    : numOfPrinciples_{numOfPrinciples}, maxClientBatchSize_{maxClientBatchSize}, ps_{ps} {
-  init();
-}
-void ClientsManager::ClientRsiManager::init() {
-  for (uint32_t clientId = 0; clientId < numOfPrinciples_; clientId++) {
-    clientsIndex_[clientId] = 0;
-    std::vector<std::tuple<uint64_t, uint64_t, std::string>> clientSavedData;
-    for (uint32_t offset = 0; offset < maxClientBatchSize_; offset++) {
-      std::string data = ps_->getReplicaSpecificInfo(clientId * maxClientBatchSize_ + offset);
-      if (data.empty()) continue;
-      uint64_t index = 0;
-      memcpy(&index, data.data(), indexSize);
-      uint64_t reqSeqNum = 0;
-      memcpy(&reqSeqNum, data.data() + indexSize, reqSeqNumSize);
-      uint64_t rsi_size = 0;
-      memcpy(&rsi_size, data.data() + indexSize + reqSeqNumSize, dataLengthSize);
-      std::string rsiData;
-      rsiData.resize(rsi_size);
-      memcpy(rsiData.data(), data.data() + rsiPrefixSize, rsi_size);
-      clientSavedData.emplace_back(index, reqSeqNum, rsiData);
-    }
-    std::sort(clientSavedData.begin(), clientSavedData.end(), [](auto& data1, auto& data2) {
-      return std::get<0>(data1) < std::get<0>(data2);
-    });
-    for (const auto& rsiData : clientSavedData) {
-      rsiCache_[clientId].emplace_back(std::get<1>(rsiData), std::get<2>(rsiData));
-    }
-    if (!clientSavedData.empty()) clientsIndex_[clientId] = std::get<0>((clientSavedData.back()));
-  }
-}
-std::string ClientsManager::ClientRsiManager::getRsiForClient(uint32_t clientId, uint64_t reqSenNum) {
-  for (const auto& data : rsiCache_[clientId]) {
-    if (data.first == reqSenNum) return data.second;
-  }
-  return std::string();
-}
-void ClientsManager::ClientRsiManager::setRsiForClient(uint32_t clientId,
-                                                       uint64_t reqSeqNum,
-                                                       const std::string& rsiData) {
-  // First, compute the correct index for this data
-  uint32_t nextClientIndex = clientsIndex_[clientId];
-  clientsIndex_[clientId]++;
-  uint32_t storageIndex = clientId * maxClientBatchSize_ + (nextClientIndex % maxClientBatchSize_);
-  // The structure of the RSI in the persistent storage is: [(uint64_t) index | (uint64_t) requestSeqNum | (uint64_t)
-  // dataSize | char* data]
-  UniquePtrToChar serializedData(new char[rsiPrefixSize + rsiData.size()]);
-  memcpy(serializedData.get(), &nextClientIndex, indexSize);
-  memcpy(serializedData.get() + indexSize, &reqSeqNum, reqSeqNumSize);
-  uint64_t dataSize = rsiData.size();
-  memcpy(serializedData.get() + indexSize + reqSeqNumSize, &dataSize, dataLengthSize);
-  memcpy(serializedData.get() + rsiPrefixSize, rsiData.data(), rsiData.size());
-  ps_->beginWriteTran();
-  ps_->setReplicaSpecificInfo(storageIndex, serializedData.get(), rsiData.size() + rsiPrefixSize);
-  ps_->endWriteTran();
-  if (rsiCache_[clientId].size() >= maxClientBatchSize_) {
-    rsiCache_[clientId].pop_front();
-  }
-  // Add the new record to the cache
-  rsiCache_[clientId].emplace_back(std::make_pair(reqSeqNum, rsiData));
-}
 // Initialize:
 // * map of client id to indices.
 // * Calculate reserved pages per client.
@@ -96,7 +32,7 @@ ClientsManager::ClientsManager(std::shared_ptr<PersistentStorage> ps,
                                const std::set<NodeIdType>& internalClients,
                                concordMetrics::Component& metrics)
     : ClientsManager{proxyClients, externalClients, internalClients, metrics} {
-  rsiManager_.reset(new ClientRsiManager(
+  rsiManager_.reset(new RsiDataManager(
       proxyClients.size() + externalClients.size() + internalClients.size(), maxNumOfReqsPerClient_, ps));
 }
 ClientsManager::ClientsManager(const std::set<NodeIdType>& proxyClients,
@@ -316,12 +252,12 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateReplyFromSavedOne(NodeId
   }
 
   // Load the RSI data from persistent storage
-  std::string rsiData = rsiManager_->getRsiForClient(clientId, requestSeqNum);
-  auto rsiSize = rsiData.size();
+  auto rsiItem = rsiManager_->getRsiForClient(clientId, requestSeqNum);
+  auto rsiSize = rsiItem.data().size();
   if (rsiSize > 0) {
     auto commDataLength = r->replyLength();
     r->setReplyLength(r->replyLength() + rsiSize);
-    memcpy(r->replyBuf() + commDataLength, rsiData.data(), rsiSize);
+    memcpy(r->replyBuf() + commDataLength, rsiItem.data().data(), rsiSize);
     r->setReplicaSpecificInfoLength(rsiSize);
   }
   const auto& replySeqNum = r->reqSeqNum();

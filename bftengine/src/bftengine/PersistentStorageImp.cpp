@@ -14,6 +14,7 @@
 #include "Logger.hpp"
 #include "bftengine/EpochManager.hpp"
 #include "bftengine/DbCheckpointMetadata.hpp"
+#include "bftengine/ReplicaSpecificInfoManager.hpp"
 #include <list>
 #include <sstream>
 #include <stdexcept>
@@ -25,11 +26,6 @@ namespace bftEngine {
 namespace impl {
 
 const string METADATA_PARAMS_VERSION = "1.1";
-// Now write the rsi data for this [client, sequence number] to the storage
-static uint32_t RSI_INDEX_SIZE = sizeof(uint64_t);
-static uint32_t RSI_SN_SIZE = sizeof(uint64_t);
-static uint32_t RSI_DATA_SIZE = sizeof(std::size_t);
-const uint32_t RSI_PREFIX_SIZE = RSI_DATA_SIZE + RSI_SN_SIZE + RSI_INDEX_SIZE;
 PersistentStorageImp::PersistentStorageImp(
     uint16_t numReplicas, uint16_t fVal, uint16_t cVal, uint64_t numOfPrinciples, uint64_t maxClientBatchSize)
     : numReplicas_(numReplicas),
@@ -134,7 +130,8 @@ ObjectDescUniquePtr PersistentStorageImp::getDefaultMetadataObjectDescriptors(ui
   for (auto i = 0; i < numPrinciples_; i++) {
     uint32_t baseDescNum = REPLICA_SPECIFIC_INFO_BASE + viewChangeMsgsNum + maxClientBatchSize_ * i;
     for (auto j = 0; j < maxClientBatchSize_; j++) {
-      metadataObjectsArray.get()[baseDescNum + j].maxSize = (RSI_PREFIX_SIZE + replicaSpecificInfoMaxSize);
+      metadataObjectsArray.get()[baseDescNum + j].maxSize =
+          (RsiItem::RSI_DATA_PREFIX_SIZE + replicaSpecificInfoMaxSize);
     }
   }
   return metadataObjectsArray;
@@ -533,24 +530,25 @@ void PersistentStorageImp::setUserDataInTransaction(const void *data, std::size_
   metadataStorage_->writeInBatch(USER_DATA, static_cast<const char *>(data), numberOfBytes);
 }
 
-bool PersistentStorageImp::setReplicaSpecificInfo(uint32_t index, char *data, size_t size) {
+bool PersistentStorageImp::setReplicaSpecificInfo(uint32_t index, const std::vector<uint8_t> &data) {
   uint32_t viewChangeMsgsNum = DescriptorOfLastNewView::getViewChangeMsgsNum();
   metadataStorage_->writeInBatch(
-      ReplicaSpecificInfoParameterIds::REPLICA_SPECIFIC_INFO_BASE + viewChangeMsgsNum + index, data, size);
+      ReplicaSpecificInfoParameterIds::REPLICA_SPECIFIC_INFO_BASE + viewChangeMsgsNum + index,
+      (char *)(data.data()),
+      data.size());
   return true;
 }
 /***** Getters *****/
-std::string PersistentStorageImp::getReplicaSpecificInfo(uint32_t index) {
+std::vector<uint8_t> PersistentStorageImp::getReplicaSpecificInfo(uint32_t index) {
   uint32_t viewChangeMsgsNum = DescriptorOfLastNewView::getViewChangeMsgsNum();
-  UniquePtrToChar outBuf(new char[replicaSpecificInfoMaxSize + RSI_PREFIX_SIZE]);
-  char *outBufPtr = outBuf.get();
+  std::vector<uint8_t> data;
+  data.resize(replicaSpecificInfoMaxSize + RsiItem::RSI_DATA_PREFIX_SIZE);
   uint32_t outActualObjectSize = 0;
-  metadataStorage_->read(REPLICA_SPECIFIC_INFO_BASE + viewChangeMsgsNum + index,
-                         replicaSpecificInfoMaxSize + RSI_PREFIX_SIZE,
-                         outBufPtr,
-                         outActualObjectSize);
-  if (!outActualObjectSize) return std::string();
-  return std::string(outBufPtr, outActualObjectSize);
+  metadataStorage_->read(
+      REPLICA_SPECIFIC_INFO_BASE + viewChangeMsgsNum + index, data.size(), (char *)(data.data()), outActualObjectSize);
+  if (!outActualObjectSize) return {};
+  data.resize(outActualObjectSize);
+  return data;
 }
 string PersistentStorageImp::getStoredVersion() {
   ConcordAssert(!isInWriteTran());

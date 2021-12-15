@@ -273,9 +273,9 @@ void DebugPersistentStorage::setUserDataInTransaction(const void *data, std::siz
   setUserDataAtomically(data, numberOfBytes);
 }
 
-bool DebugPersistentStorage::setReplicaSpecificInfo(uint32_t index, char *data, size_t size) { return true; }
+bool DebugPersistentStorage::setReplicaSpecificInfo(uint32_t index, const std::vector<uint8_t> &data) { return true; }
 
-std::string DebugPersistentStorage::getReplicaSpecificInfo(uint32_t index) { return std::string(); }
+std::vector<uint8_t> DebugPersistentStorage::getReplicaSpecificInfo(uint32_t index) { return {}; }
 
 void DebugPersistentStorage::setCompletedMarkInCheckWindow(SeqNum seqNum, bool mark) {
   ConcordAssert(mark == true);

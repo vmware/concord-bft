@@ -18,6 +18,7 @@
 #include "IPendingRequest.hpp"
 #include "bftengine/IKeyExchanger.hpp"
 #include "PersistentStorage.hpp"
+#include "ReplicaSpecificInfoManager.hpp"
 #include <map>
 #include <set>
 #include <unordered_map>
@@ -225,29 +226,7 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
   concordMetrics::Component& metrics_;
   concordMetrics::CounterHandle metric_reply_inconsistency_detected_;
   concordMetrics::CounterHandle metric_removed_due_to_out_of_boundaries_;
-
-  class ClientRsiManager {
-   public:
-    ClientRsiManager(uint32_t numOfPrinciples, uint32_t maxClientBatchSize, std::shared_ptr<PersistentStorage> ps);
-    std::string getRsiForClient(uint32_t clientId, uint64_t reqSenNum);
-    void setRsiForClient(uint32_t clientId, uint64_t reqSeqNum, const std::string& rsiData);
-    void init();
-
-   private:
-    uint32_t numOfPrinciples_;
-    uint32_t maxClientBatchSize_;
-    std::shared_ptr<PersistentStorage> ps_;
-    // A map of clientId -> deque<requestSeqNum,rsi>
-    std::unordered_map<uint32_t, std::deque<std::pair<uint64_t, std::string>>> rsiCache_;
-    // A map that indicates what is current index of each client
-    std::unordered_map<uint32_t, uint64_t> clientsIndex_;
-    const uint32_t rsiPrefixSize = 3 * sizeof(uint64_t);
-    const uint32_t reqSeqNumSize = sizeof(uint64_t);
-    const uint32_t indexSize = sizeof(uint64_t);
-    const uint32_t dataLengthSize = sizeof(uint64_t);
-  };
-
-  std::unique_ptr<ClientRsiManager> rsiManager_;
+  std::unique_ptr<RsiDataManager> rsiManager_;
 };
 
 }  // namespace impl
