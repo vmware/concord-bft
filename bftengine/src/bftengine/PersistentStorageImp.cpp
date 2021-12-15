@@ -35,7 +35,7 @@ PersistentStorageImp::PersistentStorageImp(
     : numReplicas_(numReplicas),
       fVal_(fVal),
       cVal_(cVal),
-      numPrinciples_(numOfPrinciples),
+      numPrinciples_(numOfPrinciples + numReplicas),  // numReplicas is for the internal clients
       maxClientBatchSize_(maxClientBatchSize),
       version_(METADATA_PARAMS_VERSION) {
   DescriptorOfLastNewView::setViewChangeMsgsNum(fVal, cVal);

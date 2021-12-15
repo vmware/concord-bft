@@ -242,6 +242,9 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
     // A map that indicates what is current index of each client
     std::unordered_map<uint32_t, uint64_t> clientsIndex_;
     const uint32_t rsiPrefixSize = 3 * sizeof(uint64_t);
+    const uint32_t reqSeqNumSize = sizeof(uint64_t);
+    const uint32_t indexSize = sizeof(uint64_t);
+    const uint32_t dataLengthSize = sizeof(uint64_t);
   };
 
   std::unique_ptr<ClientRsiManager> rsiManager_;

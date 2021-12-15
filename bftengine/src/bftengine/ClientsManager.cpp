@@ -36,13 +36,16 @@ void ClientsManager::ClientRsiManager::init() {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> clientSavedData;
     for (uint32_t offset = 0; offset < maxClientBatchSize_; offset++) {
       std::string data = ps_->getReplicaSpecificInfo(clientId * maxClientBatchSize_ + offset);
+      if (data.empty()) continue;
       uint64_t index = 0;
-      memcpy(&index, data.data(), sizeof(uint64_t));
+      memcpy(&index, data.data(), indexSize);
       uint64_t reqSeqNum = 0;
-      memcpy(&reqSeqNum, data.data() + sizeof(uint64_t), sizeof(uint64_t));
+      memcpy(&reqSeqNum, data.data() + indexSize, reqSeqNumSize);
       uint64_t rsi_size = 0;
-      memcpy(&rsi_size, data.data() + 2 * sizeof(uint64_t), sizeof(uint64_t));
-      std::string rsiData(data.data() + rsiPrefixSize, rsi_size);
+      memcpy(&rsi_size, data.data() + indexSize + reqSeqNumSize, dataLengthSize);
+      std::string rsiData;
+      rsiData.resize(rsi_size);
+      memcpy(rsiData.data(), data.data() + rsiPrefixSize, rsi_size);
       clientSavedData.emplace_back(index, reqSeqNum, rsiData);
     }
     std::sort(clientSavedData.begin(), clientSavedData.end(), [](auto& data1, auto& data2) {
@@ -51,7 +54,7 @@ void ClientsManager::ClientRsiManager::init() {
     for (const auto& rsiData : clientSavedData) {
       rsiCache_[clientId].emplace_back(std::get<1>(rsiData), std::get<2>(rsiData));
     }
-    clientsIndex_[clientId] = std::get<0>((clientSavedData.back()));
+    if (!clientSavedData.empty()) clientsIndex_[clientId] = std::get<0>((clientSavedData.back()));
   }
 }
 std::string ClientsManager::ClientRsiManager::getRsiForClient(uint32_t clientId, uint64_t reqSenNum) {
@@ -70,10 +73,10 @@ void ClientsManager::ClientRsiManager::setRsiForClient(uint32_t clientId,
   // The structure of the RSI in the persistent storage is: [(uint64_t) index | (uint64_t) requestSeqNum | (uint64_t)
   // dataSize | char* data]
   UniquePtrToChar serializedData(new char[rsiPrefixSize + rsiData.size()]);
-  memcpy(serializedData.get(), &nextClientIndex, sizeof(uint64_t));
-  memcpy(serializedData.get() + sizeof(uint64_t), &reqSeqNum, sizeof(uint64_t));
+  memcpy(serializedData.get(), &nextClientIndex, indexSize);
+  memcpy(serializedData.get() + indexSize, &reqSeqNum, reqSeqNumSize);
   uint64_t dataSize = rsiData.size();
-  memcpy(serializedData.get() + 2 * sizeof(uint64_t), &dataSize, sizeof(uint64_t));
+  memcpy(serializedData.get() + indexSize + reqSeqNumSize, &dataSize, dataLengthSize);
   memcpy(serializedData.get() + rsiPrefixSize, rsiData.data(), rsiData.size());
   ps_->beginWriteTran();
   ps_->setReplicaSpecificInfo(storageIndex, serializedData.get(), rsiData.size() + rsiPrefixSize);
@@ -265,7 +268,6 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateNewReplyMsgAndWriteToSto
     const uint32_t sizePage = ((i < numOfPages - 1) ? sizeOfReservedPage() : sizeLastPage);
     saveReservedPage(firstPageId + i, sizePage, ptrPage);
   }
-
   // now save the RSI in the rsiManager
   rsiManager_->setRsiForClient(clientId, requestSeqNum, std::string(reply + commonMsgSize, rsiLength));
   // we cannot set the RSI metadata before saving the reply to the reserved paged, hence save it now.

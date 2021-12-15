@@ -409,7 +409,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
              shared_ptr<MsgHandlersRegistrator>,
              concordUtil::Timers& timers,
              shared_ptr<concord::performance::PerformanceManager> pm,
-             shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm);
+             shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm,
+             shared_ptr<PersistentStorage> ps);
 
   void registerMsgHandlers();
 
