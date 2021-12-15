@@ -55,17 +55,39 @@ struct KvbFilteredEventGroupUpdate {
 
 // We need to preserve state per client across calls to getNextEventGroupId method
 struct EventGroupClientState {
-  EventGroupClientState(const uint64_t pub_oldest, const uint64_t pvt_oldest)
+  EventGroupClientState(const uint64_t pub_oldest,
+                        const uint64_t pub_newest,
+                        const uint64_t pvt_oldest,
+                        const uint64_t pvt_newest)
       : public_offset(pub_oldest), private_offset(pvt_oldest) {
     // Because of pruning, the oldest tag-specific event group might not be available anymore.
     // Therefore, we have to calculate the first available event group ID for this (private) tag.
+    // Note: If *_oldest is 0 then all event groups were pruned or never existed.
+    curr_trid_event_group_id = 0;
+
+    if (pub_oldest == 0) {
+      if (pub_newest) {
+        // All public event groups were pruned
+        curr_trid_event_group_id += pub_newest;
+      }
+    } else {
+      curr_trid_event_group_id += pub_oldest;
+    }
+
+    if (pvt_oldest == 0) {
+      if (pvt_newest) {
+        // All private event groups were pruned
+        curr_trid_event_group_id += pvt_newest;
+      }
+    } else {
+      curr_trid_event_group_id += pvt_oldest;
+    }
+
     // Note: curr_trid_event_group_id has to start at oldest - 1
     if (pub_oldest && pvt_oldest) {
-      curr_trid_event_group_id = pub_oldest + pvt_oldest - 1 - 1;
+      curr_trid_event_group_id -= 2;
     } else if (pub_oldest || pvt_oldest) {
-      curr_trid_event_group_id = pub_oldest + pvt_oldest - 1;
-    } else {
-      curr_trid_event_group_id = 0;
+      curr_trid_event_group_id -= 1;
     }
   }
   // holds a batch of the global event group IDs ordered in the order in which they were generated
@@ -139,9 +161,13 @@ class KvbAppFilter {
       : logger_(logging::getLogger("concord.storage.KvbAppFilter")), rostorage_(rostorage), client_id_(client_id) {
     if (rostorage_) {
       auto eg_id_pub_oldest = getValueFromLatestTable(kPublicEgIdKeyOldest);
+      auto eg_id_pub_newest = getValueFromLatestTable(kPublicEgIdKeyNewest);
       auto eg_id_pvt_oldest = getValueFromLatestTable(client_id + "_oldest");
-      eg_hash_state_ = std::make_shared<EventGroupClientState>(eg_id_pub_oldest, eg_id_pvt_oldest);
-      eg_data_state_ = std::make_shared<EventGroupClientState>(eg_id_pub_oldest, eg_id_pvt_oldest);
+      auto eg_id_pvt_newest = getValueFromLatestTable(client_id + "_newest");
+      eg_hash_state_ = std::make_shared<EventGroupClientState>(
+          eg_id_pub_oldest, eg_id_pub_newest, eg_id_pvt_oldest, eg_id_pvt_newest);
+      eg_data_state_ = std::make_shared<EventGroupClientState>(
+          eg_id_pub_oldest, eg_id_pub_newest, eg_id_pvt_oldest, eg_id_pvt_newest);
     }
   }
 
