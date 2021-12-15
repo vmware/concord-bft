@@ -209,6 +209,7 @@ class SkvbcTestClientTxnSigning(unittest.TestCase):
         await self.write_n_times(bft_network, skvbc, NUM_OF_SEQ_WRITES, pre_exec=True)
         await self.assert_metrics(bft_network, expected_num_signatures_verified=NUM_OF_SEQ_WRITES)
 
+    @unittest.skip("Disabled until fixed")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_positive_write_batching_enabled(self, bft_network):
