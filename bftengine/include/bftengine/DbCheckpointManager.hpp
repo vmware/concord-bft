@@ -61,8 +61,7 @@ class DbCheckpointManager {
   }
   ~DbCheckpointManager() {
     stopped_ = true;
-    cv_.notify_one();
-    if (cleanupThread_.joinable()) cleanupThread_.join();
+    if (monitorThread_.joinable()) monitorThread_.join();
   }
 
  private:
@@ -86,17 +85,21 @@ class DbCheckpointManager {
   void cleanUp();
   std::function<uint64_t()> getLastBlockIdCb_;
   // get total size recursively
-  uint64_t directorySize(const _fs::path& directory, const bool& excludeHardLinks);
+  uint64_t directorySize(const _fs::path& directory, const bool& excludeHardLinks, bool recursive);
   // get checkpoint metadata
   void loadCheckpointDataFromPersistence();
   void checkforCleanup();
+  void checkAndRemove();
+  void removeOldestDbCheckpoint();
+  void updateDbCheckpointMetadata();
   bool stopped_{false};
   DbCheckpointMetadata dbCheckptMetadata_;
   std::shared_ptr<concord::storage::IDBClient> dbClient_;
   std::shared_ptr<bftEngine::impl::PersistentStorage> ps_;
-  std::queue<CheckpointId> checkpointToBeRemoved_;
-  std::thread cleanupThread_;
-  std::condition_variable cv_;
+  // this thread minitors if we over use the disk space
+  // for rocksDb checkpooints then, it logs error and
+  // cleans up oldest checkpoint
+  std::thread monitorThread_;
   std::mutex lock_;
   uint32_t maxNumOfCheckpoints_{0};  // 0-disabled
   uint64_t lastCheckpointSeqNum_{0};
