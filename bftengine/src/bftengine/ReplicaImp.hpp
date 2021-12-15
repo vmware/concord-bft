@@ -120,8 +120,17 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   size_t NonPrimaryCombinedReqSize = 1000;
   //
   const std::thread::id MAIN_THREAD_ID;
+  // A preprepare message which is still building is called transient preprepare.
+  // activeTransientPreprepare_ represents the number of preprepare messages that are
+  // currently getting build in a separate thread.
+  // This should not be thread safe because its used only in the main thread
+  // This should start with 0, since by default we will assume that a preprepare is taken
+  // to be added to main log. And this will solely represent those preprepares which are
+  // to be added to main log, but are not added as yet.
+  uint16_t numOfTransientPreprepareMsgs_ = 0;
+
   // represents the number of running executions at this moment.
-  // This shoukd not be thread safe because its been changed in 3 places:
+  // This should not be thread safe because its been changed in 3 places:
   // 1) startPrePrepareMsgExecution - when we are getting empty PP its simbulize that we should push
   // FinishPrePrepareExecutionInternalMsg which can happen only on the main thread. 2) executeAllPrePreparedRequests -
   // just before we insert the job to execution thread which means we are in the main thread. 3)
@@ -211,6 +220,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   bool recoveringFromExecutionOfRequests = false;
   Bitmap mapOfRecoveredRequests;
+  ConsensusTickRep recoveredTime = 0;
 
   shared_ptr<concord::performance::PerformanceManager> pm_;
 

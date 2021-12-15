@@ -18,7 +18,7 @@ using namespace bftEngine::impl;
 
 struct ReservedPagesMock : public IReservedPages {
   mutable bool is_first_load = true;
-  std::string page_ = std::string(sizeof(ConsensusTime::rep), 0);
+  std::string page_ = std::string(sizeof(ConsensusTickRep), 0);
   ReservedPagesMock() { ReservedPagesClientBase::setReservedPages(this); }
   ~ReservedPagesMock() { ReservedPagesClientBase::setReservedPages(nullptr); }
   virtual uint32_t numberOfReservedPages() const { return 1; };
@@ -38,7 +38,7 @@ struct ReservedPagesMock : public IReservedPages {
   };
   virtual void zeroReservedPage(uint32_t reservedPageId) {
     (void)reservedPageId;
-    page_ = std::string(sizeof(ConsensusTime::rep), 0);
+    page_ = std::string(sizeof(ConsensusTickRep), 0);
   };
 };
 
@@ -52,8 +52,8 @@ TEST(TimeServiceResPageClient, InitWithEmptyReservedPages) {
   EXPECT_EQ(timestamp, client.getLastTimestamp());
 
   // Check that the client saves to RP automatically
-  ConsensusTime::rep raw = 0;
-  m.loadReservedPage(0, sizeof(ConsensusTime::rep), reinterpret_cast<char*>(&raw));
+  ConsensusTickRep raw = 0;
+  m.loadReservedPage(0, sizeof(ConsensusTickRep), reinterpret_cast<char*>(&raw));
   auto from_rp = ConsensusTime{raw};
   EXPECT_EQ(timestamp, from_rp);
 
@@ -62,10 +62,20 @@ TEST(TimeServiceResPageClient, InitWithEmptyReservedPages) {
   EXPECT_EQ(timestamp, client.getLastTimestamp());
 }
 
+TEST(TimeServiceResPageClient, setTimeStampFromTicks) {
+  ReservedPagesMock m;
+  auto client = TimeServiceResPageClient{};
+  EXPECT_EQ(client.getLastTimestamp(), ConsensusTime::min());
+
+  auto ticks = std::chrono::duration_cast<ConsensusTime>(std::chrono::system_clock::now().time_since_epoch()).count();
+  client.setTimestampFromTicks(ticks);
+  EXPECT_EQ(ticks, client.getLastTimestamp().count());
+}
+
 TEST(TimeServiceResPageClient, InitWithExistingReservedPages) {
   ReservedPagesMock m;
   auto raw_value = int64_t{100};
-  m.saveReservedPage(0, sizeof(ConsensusTime::rep), reinterpret_cast<char*>(&raw_value));
+  m.saveReservedPage(0, sizeof(ConsensusTickRep), reinterpret_cast<char*>(&raw_value));
   m.is_first_load = false;
 
   auto client = TimeServiceResPageClient{};
@@ -91,7 +101,7 @@ TEST(TimeServiceResPageClient, ReloadAfterStateTransfer) {
 
   auto value_from_st = timestamp + ConsensusTime{10000};
   auto raw_value = value_from_st.count();
-  m.saveReservedPage(0, sizeof(ConsensusTime::rep), reinterpret_cast<char*>(&raw_value));
+  m.saveReservedPage(0, sizeof(ConsensusTickRep), reinterpret_cast<char*>(&raw_value));
 
   // Changing reserved pages does not affect the client
   EXPECT_EQ(timestamp, client.getLastTimestamp());

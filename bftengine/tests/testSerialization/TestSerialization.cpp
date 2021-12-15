@@ -250,7 +250,8 @@ void testSetDescriptors(bool toSet) {
   bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   SeqNum lastExecutionSeqNum = 33;
   Bitmap requests(100);
-  DescriptorOfLastExecution lastExecutionDesc(lastExecutionSeqNum, requests);
+  ConsensusTickRep timeInTicks = 1638860598;
+  DescriptorOfLastExecution lastExecutionDesc(lastExecutionSeqNum, requests, timeInTicks);
   ViewNum viewNum = 0;
   SeqNum lastExitExecNum = 65;
   PrevViewInfoElements elements;

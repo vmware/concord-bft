@@ -14,7 +14,8 @@
 #include <chrono>
 
 namespace bftEngine {
-using ConsensusTime = std::chrono::milliseconds;
+using ConsensusTickRep = std::int64_t;
+using ConsensusTime = std::chrono::duration<ConsensusTickRep, std::milli>;
 
 struct Timestamp {
   ConsensusTime time_since_epoch = ConsensusTime::min();

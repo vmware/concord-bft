@@ -71,10 +71,9 @@ Status DbCheckpointManager::createDbCheckpoint(const CheckpointId& checkPointId,
           {checkPointId, {checkPointId, lastCheckpointCreationTime_, lastBlockId, lastCheckpointSeqNum_}});
       updateDbCheckpointMetadata();
     }
-  }
-
-  while (dbCheckptMetadata_.dbCheckPoints_.size() > maxNumOfCheckpoints_) {
-    removeOldestDbCheckpoint();
+    while (dbCheckptMetadata_.dbCheckPoints_.size() > maxNumOfCheckpoints_) {
+      removeOldestDbCheckpoint();
+    }
   }
 
   // update metrics
@@ -212,7 +211,10 @@ void DbCheckpointManager::checkAndRemove() {
     if (diskSpace.available < dbCurrentSize) {
       LOG_WARN(getLogger(),
                "low disk space. Removing oldest db checkpoint. " << KVLOG(dbCurrentSize, diskSpace.available));
-      removeOldestDbCheckpoint();
+      {
+        std::scoped_lock lock(lock_);
+        removeOldestDbCheckpoint();
+      }
     }
   } catch (std::exception& e) {
     LOG_FATAL(getLogger(), "Failed to get the available db size on disk: " << e.what());
@@ -220,7 +222,6 @@ void DbCheckpointManager::checkAndRemove() {
 }
 
 void DbCheckpointManager::removeOldestDbCheckpoint() {
-  std::scoped_lock lock(lock_);
   if (auto it = dbCheckptMetadata_.dbCheckPoints_.begin(); it != dbCheckptMetadata_.dbCheckPoints_.end()) {
     removeCheckpoint(it->second.checkPointId_);
     dbCheckptMetadata_.dbCheckPoints_.erase(it);
