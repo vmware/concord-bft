@@ -133,18 +133,20 @@ void DbCheckpointManager::loadCheckpointDataFromPersistence() {
 void DbCheckpointManager::checkforCleanup() {
   std::unique_lock<std::mutex> lk(lock_);
   while (!stopped_ && checkpointToBeRemoved_.empty()) {
-    cv_.wait(lk, [this]() { return !checkpointToBeRemoved_.empty(); });
+    cv_.wait(lk, [this]() { return (!checkpointToBeRemoved_.empty() || stopped_); });
   }
-  auto id = checkpointToBeRemoved_.front();
-  checkpointToBeRemoved_.pop();
-  removeCheckpoint(id);
+  if (!checkpointToBeRemoved_.empty()) {
+    auto id = checkpointToBeRemoved_.front();
+    checkpointToBeRemoved_.pop();
+    removeCheckpoint(id);
+  }
 }
 void DbCheckpointManager::init() {
   // check if there is chkpt data in persistence
   loadCheckpointDataFromPersistence();
   // start cleanup thread if checkpoint collection is enabled
   cleanupThread_ = std::thread([this]() {
-    while (maxNumOfCheckpoints_) {
+    while (maxNumOfCheckpoints_ && !stopped_) {
       checkforCleanup();
     }
   });
