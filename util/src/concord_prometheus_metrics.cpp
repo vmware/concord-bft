@@ -212,7 +212,7 @@ std::vector<prometheus::MetricFamily> ConcordCustomCollector<T>::Collect() const
         std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch());
     if (currTime - last_dump_time_ >= dumpInterval_) {
       last_dump_time_ = currTime;
-      LOG_INFO(logger_, "prometheus metrics dump: " + prometheus::TextSerializer().Serialize(res));
+      LOG_DEBUG(logger_, "prometheus metrics dump: " + prometheus::TextSerializer().Serialize(res));
     }
   }
   return res;
