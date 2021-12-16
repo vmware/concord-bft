@@ -58,80 +58,75 @@ Msg PruneStatus 18 {
     string configuration_json
 }
 
-Msg PruneSwitchModeRequest 19 {
-    uint64 sender_id
-    string configuration_json
-}
-
-Msg GetVersionCommand 20 {
+Msg GetVersionCommand 19 {
   bytes place_holder
 }
 
-Msg InstallCommand 21 {
+Msg InstallCommand 20 {
     string version
     bool bft_support
 }
 
-Msg InstallStatusCommand 22 {
+Msg InstallStatusCommand 21 {
     optional string version
 }
 
-Msg InstallStatusResponse 23 {
+Msg InstallStatusResponse 22 {
     string version
     bool in_progress
     bool install_completed
 }
 
-Msg GetVersionResponse 24 {
+Msg GetVersionResponse 23 {
   string version
 }
 
-Msg ReconfigurationErrorMsg 25 {
+Msg ReconfigurationErrorMsg 24 {
     string error_msg
 }
 
-Msg KeyExchangeCommand 26 {
+Msg KeyExchangeCommand 25 {
     uint64 sender_id
     list uint64 target_replicas
     bool tls
 }
 
-Msg AddRemoveCommand 27 {
+Msg AddRemoveCommand 26 {
     string reconfiguration
 }
 
-Msg AddRemoveStatus 28 {
+Msg AddRemoveStatus 27 {
     uint64 sender_id
 }
 
-Msg AddRemoveStatusResponse 29 {
+Msg AddRemoveStatusResponse 28 {
     string reconfiguration
 }
 
-Msg AddRemoveWithWedgeCommand 30 {
+Msg AddRemoveWithWedgeCommand 29 {
     string config_descriptor
     list kvpair uint64 string token
     bool bft_support
     bool restart
 }
 
-Msg AddRemoveWithWedgeStatus 31 {
+Msg AddRemoveWithWedgeStatus 30 {
     uint64 sender_id
 }
 
-Msg AddRemoveWithWedgeStatusResponse 32 {
+Msg AddRemoveWithWedgeStatusResponse 31 {
     string config_descriptor
     bool wedge_status
     bool restart_flag
     bool bft_flag
 }
 
-Msg UnwedgeStatusRequest 33 {
+Msg UnwedgeStatusRequest 32{
     uint64 sender
     bool bft_support
 }
 
-Msg UnwedgeStatusResponse 34 {
+Msg UnwedgeStatusResponse 33{
     uint64 replica_id
     bool can_unwedge
     uint64 curr_epoch
@@ -139,28 +134,27 @@ Msg UnwedgeStatusResponse 34 {
     string reason
 }
 
-Msg UnwedgeCommand 35 {
+Msg UnwedgeCommand 34{
     uint64 sender
     list kvpair uint64 UnwedgeStatusResponse unwedges
     bool bft_support
     bool restart
 }
-
-Msg ClientKeyExchangeCommand 36 {
+Msg ClientKeyExchangeCommand 35 {
     list uint64 target_clients
     bool tls
 }
 
-Msg ClientKeyExchangeCommandResponse 37 {
+Msg ClientKeyExchangeCommandResponse 36 {
     uint64 block_id
 }
 
-Msg ClientReconfigurationStateRequest 38 {
+Msg ClientReconfigurationStateRequest 37 {
     uint64 sender_id
     uint64 last_known_block
 }
 
-Msg ClientExchangePublicKey 39 {
+Msg ClientExchangePublicKey 38 {
     uint64 sender_id
     string pub_key
     list uint64 affected_clients
@@ -236,7 +230,7 @@ Msg ReplicaTlsExchangeKey 57 {
     string cert
 }
 
-Msg ClientStateReply 58 {
+Msg ClientStateReply 39 {
     uint64 block_id
     oneof {
         ClientExchangePublicKey
@@ -254,6 +248,11 @@ Msg ClientReconfigurationStateReply 49 {
     list ClientStateReply states
 }
 
+Msg PruneSwitchModeRequest 50 {
+    uint64 sender_id
+    string configuration_json
+}
+
 Msg ReconfigurationRequest 1 {
   uint64 sender
   bytes signature
@@ -266,7 +265,6 @@ Msg ReconfigurationRequest 1 {
     LatestPrunableBlockRequest
     PruneRequest
     PruneStatusRequest
-    PruneSwitchModeRequest
     InstallCommand
     InstallStatusCommand
     KeyExchangeCommand
@@ -289,6 +287,7 @@ Msg ReconfigurationRequest 1 {
     ClientsRestartCommand
     ClientsRestartStatus
     ClientsRestartUpdate
+    PruneSwitchModeRequest
   } command
   bytes additional_data
 }
