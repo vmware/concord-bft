@@ -186,7 +186,7 @@ class BlockMerkleCategory {
   // goal for system builders is to try to ensure that when a block is pruned, none of its keys
   // remain active. This minimizes overhead prune overhead.
   std::unordered_map<BlockId, std::vector<KeyHash>> findActiveKeysFromPrunedBlocks(
-      const std::vector<Hash>& hashed_keys);
+      const std::vector<Hash>& hashed_keys) const;
 
   // Get a pruned block from the database, deserialize it, and return it.
   // Precondition: The pruned block exists
