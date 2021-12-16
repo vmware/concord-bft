@@ -52,7 +52,7 @@ void KeyExchangeManager::initMetrics(std::shared_ptr<concordMetrics::Aggregator>
             std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch());
         if (currTime - metrics_->lastMetricsDumpTime >= metrics_->metricsDumpIntervalInSec) {
           metrics_->lastMetricsDumpTime = currTime;
-          LOG_INFO(KEY_EX_LOG, "-- KeyExchangeManager metrics dump--" + metrics_->component.ToJson());
+          LOG_DEBUG(KEY_EX_LOG, "-- KeyExchangeManager metrics dump--" + metrics_->component.ToJson());
         }
       });
 }

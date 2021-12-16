@@ -19,6 +19,7 @@
 #include <thread>
 #include <mutex>
 #include "Logger.hpp"
+#include "kvstream.h"
 #include "assertUtils.hpp"
 #include "storage/db_interface.h"
 #include "s3_metrics.hpp"
@@ -27,27 +28,38 @@
 
 namespace concord::storage::s3 {
 
+using namespace std::placeholders;
+
 struct StoreConfig {
-  std::string bucketName;     // assuming pre-configured, no need to create
-  std::string url;            // from the customer
-  std::string protocol;       // currently tested with HTTP
-  std::string secretKey;      // from the customer
-  std::string accessKey;      // from the customer
-  std::uint32_t maxWaitTime;  // in milliseconds
-  std::string pathPrefix;     // optional path prefix used in the bucket
+  std::string bucketName;          // assuming pre-configured, no need to create
+  std::string url;                 // S3UriStylePath Path: ${protocol}://s3.amazonaws.com/${bucket}/[${key}]
+  std::string protocol;            // HTTP or HTTPS
+  std::string accessKey;           // user name
+  std::string secretKey;           // password
+  std::string pathPrefix;          // optional path prefix used in the bucket
+  std::uint32_t operationTimeout;  // max timeout for an operation in milliseconds
+
+  std::string toURL() const {
+    std::ostringstream oss;
+    oss << protocol << "://" << url << "/" << bucketName;
+    return oss.str();
+  }
+  friend std::ostream& operator<<(std::ostream&, const StoreConfig&);
 };
 
-/**
- * @brief Internal implementation of ECS EMC S3 client based on libs3
- * Most of the method are irrelevant for the object store and throw exception if
- * called. We assume that only ObjectStoreAppState class will use this class
- *
- */
+/** @brief IDBClient implementation for S3 compatible object store using libs3. */
 class Client : public concord::storage::IDBClient {
+ protected:
+  /** Base class for response callback data */
+  struct ResponseData {
+    S3Status status = S3Status::S3StatusOK;
+    std::string errorMessage;
+  };
+
+  friend void responseCompleteCallback(S3Status status, const S3ErrorDetails* error, void* callbackData);
+
  public:
-  /**
-   * Transaction class. Is used also internally to implement multiPut()
-   */
+  /** Transaction class. Is used also internally to implement multiPut()*/
   class Transaction : public ITransaction {
    public:
     Transaction(Client* client) : ITransaction(nextId()), client_{client} {}
@@ -62,7 +74,9 @@ class Client : public concord::storage::IDBClient {
                                    std::string(" txn id[") + getIdStr() + std::string("], reason: ") + s.toString());
     }
     void rollback() override { multiput_.clear(); }
-    void put(const concordUtils::Sliver& key, const concordUtils::Sliver& value) override { multiput_[key] = value; }
+    void put(const concordUtils::Sliver& key, const concordUtils::Sliver& value) override {
+      multiput_[key.clone()] = value.clone();
+    }
     std::string get(const concordUtils::Sliver& key) override { return multiput_[key].toString(); }
     void del(const concordUtils::Sliver& key) override {
       multiput_.erase(key);
@@ -78,6 +92,80 @@ class Client : public concord::storage::IDBClient {
       return ++id_;
     }
   };
+  /** S3 iterator.
+   *  Iterates over the object headers only. Once an object is found,
+   *  a get operation fir a specific key should be performed.
+   *  Iterator access functions returning KeyValuePair return key-eTag instead of key-value,
+   *  where eTag is a md5 of a value.
+   */
+  class Iterator : public concord::storage::IDBClient::IDBClientIterator {
+    friend class Client;
+
+   public:
+    Iterator(const Client* client) : client_{client} {}
+    ~Iterator() { LOG_INFO(GL, ""); }
+
+    KeyValuePair first() override { return toKvPair(cb_data_.results.begin()); }
+    // returns last of already retrieved results
+    KeyValuePair last() override { return toKvPair(--(cb_data_.results.end())); }
+    KeyValuePair seekAtLeast(const concordUtils::Sliver& searchKey) override {
+      prefix_ = searchKey.clone();
+      return seek(prefix_);
+    }
+    KeyValuePair seekAtMost(const concordUtils::Sliver& searchKey) override { return KeyValuePair(); }
+    KeyValuePair previous() override { return toKvPair(--iterator_); }
+    KeyValuePair next() override {
+      ++iterator_;
+      if (iterator_ != cb_data_.results.end()) return toKvPair(iterator_);
+      if (!cb_data_.isTruncated) return toKvPair(iterator_);
+      // more left in S3
+      return seek(prefix_);
+    }
+    KeyValuePair getCurrent() override { return toKvPair(iterator_); }
+    bool isEnd() override { return (iterator_ == cb_data_.results.end()) && !cb_data_.isTruncated; }
+    concordUtils::Status getStatus() override { return Status::OK(); }
+
+   protected:
+    struct Result {
+      Result(const S3ListBucketContent& c)
+          : key(c.key),
+            lastModified(c.lastModified),
+            eTag(c.eTag),
+            size(c.size),
+            ownerId(c.ownerId),
+            ownerDisplayName(c.ownerDisplayName) {}
+      ~Result() {}
+      std::string key;
+      std::int64_t lastModified;
+      std::string eTag;
+      std::uint64_t size;
+      std::string ownerId;
+      std::string ownerDisplayName;
+    };
+    KeyValuePair seek(const concordUtils::Sliver& prefix);
+    KeyValuePair toKvPair(const std::vector<Result>::const_iterator& it) {
+      if (it == cb_data_.results.end()) return KeyValuePair();
+      return KeyValuePair(Sliver::copy(it->key.data(), it->key.length()),
+                          Sliver::copy(it->eTag.data(), it->eTag.length()));
+    }
+
+   public:
+    struct ListBucketCallbackData : public ResponseData {
+      int isTruncated = 0;
+      std::string nextMarker;
+      int keyCount = 0;
+      int allDetails = 0;
+      int maxKeys = 1000;
+      std::vector<Result> results;
+    };
+
+   protected:
+    std::vector<Result>::const_iterator iterator_;
+    const Client* client_;
+    ListBucketCallbackData cb_data_;
+    Sliver prefix_;  // for subsequent seeks;
+    logging::Logger logger_ = logging::getLogger("concord.storage.s3");
+  };
 
   Client(const StoreConfig& config) : config_{config} { LOG_INFO(logger_, "S3 client created"); }
 
@@ -88,35 +176,11 @@ class Client : public concord::storage::IDBClient {
     LOG_INFO(logger_, "libs3 deinit");
   }
 
-  /**
-   * @brief used only from the test! name should be immutable string literal
-   *
-   * @param name
-   */
-  void set_bucket_name(const std::string& name) { config_.bucketName = name; }
-
-  /**
-   * @brief Initializing underlying libs3. The S3_initialize function must be
-   * called exactly once and only from 1 thread
-   *
-   * @param readOnly
-   */
   void init(bool readOnly) override;
-  /**
-   * @brief Get object from the store.
-   *
-   * @param _key key to be retrieved
-   * @param _outValue returned object
-   * @return OK if success, otherwise GeneralError with underlying error status
-   */
-  concordUtils::Status get(const concordUtils::Sliver& _key, OUT concordUtils::Sliver& _outValue) const override {
-    LOG_DEBUG(logger_, _key.toString());
-    using namespace std::placeholders;
-    concordUtils::Status res = concordUtils::Status::OK();
-    std::function<Status(const concordUtils::Sliver&, OUT concordUtils::Sliver&)> f =
-        std::bind(&Client::get_internal, this, _1, _2);
-    do_with_retry("get_internal", res, f, _key, _outValue);
-    return res;
+
+  concordUtils::Status get(const concordUtils::Sliver& key, OUT concordUtils::Sliver& outValue) const override {
+    LOG_DEBUG(logger_, key.toString());
+    return do_with_retry("get_internal", std::bind(&Client::get_internal, this, _1, _2), key, outValue);
   }
 
   concordUtils::Status get(const concordUtils::Sliver& _key,
@@ -131,44 +195,33 @@ class Client : public concord::storage::IDBClient {
     return concordUtils::Status::OK();
   }
 
-  /**
-   * @brief Put object to the store.
-   *
-   * @param _key object's key
-   * @param _value object
-   * @return OK if success, otherwise GeneralError with underlying error status
-   */
-  concordUtils::Status put(const concordUtils::Sliver& _key, const concordUtils::Sliver& _value) override {
-    using namespace std::placeholders;
-    std::function<Status(const concordUtils::Sliver&, const concordUtils::Sliver&)> f =
-        std::bind(&Client::put_internal, this, _1, _2);
-    concordUtils::Status res = concordUtils::Status::OK();
-    do_with_retry("put_internal", res, f, _key, _value);
-    return res;
+  concordUtils::Status put(const concordUtils::Sliver& key, const concordUtils::Sliver& value) override {
+    LOG_DEBUG(logger_, key.toString());
+    return do_with_retry("put_internal", std::bind(&Client::put_internal, this, _1, _2), key, value);
   }
 
+  concordUtils::Status create_bucket() {
+    LOG_DEBUG(logger_, config_.bucketName);
+    return do_with_retry("create_bucket_internal", std::bind(&Client::create_bucket_internal, this));
+  }
   concordUtils::Status test_bucket() {
-    using namespace std::placeholders;
-    std::function<Status()> f = std::bind(&Client::test_bucket_internal, this);
-    concordUtils::Status res = concordUtils::Status::OK();
-
-    do_with_retry("test_bucket_internal", res, f);
-    return res;
+    LOG_DEBUG(logger_, config_.bucketName);
+    return do_with_retry("test_bucket_internal", std::bind(&Client::test_bucket_internal, this));
   }
 
   concordUtils::Status has(const concordUtils::Sliver& key) const override {
     using namespace std::placeholders;
-    std::function<Status(const concordUtils::Sliver&)> f = std::bind(&Client::object_exists_internal, this, _1);
-    concordUtils::Status res = concordUtils::Status::OK();
-    do_with_retry("object_exists_internal", res, f, key);
-    return res;
+    std::function<ResponseData(const concordUtils::Sliver&)> f = std::bind(&Client::object_exists_internal, this, _1);
+    return do_with_retry("object_exists_internal", f, key);
   }
 
-  concordUtils::Status del(const concordUtils::Sliver& key) override;
+  concordUtils::Status del(const concordUtils::Sliver& key) override {
+    LOG_DEBUG(logger_, key.toString());
+    return do_with_retry("delete_internal", std::bind(&Client::delete_internal, this, _1), key);
+  }
 
   concordUtils::Status multiGet(const KeysVector& _keysVec, OUT ValuesVector& _valuesVec) override {
     ConcordAssert(_keysVec.size() == _valuesVec.size());
-
     for (KeysVector::size_type i = 0; i < _keysVec.size(); ++i)
       if (Status s = get(_keysVec[i], _valuesVec[i]); !s.isOK()) return s;
 
@@ -178,25 +231,22 @@ class Client : public concord::storage::IDBClient {
   concordUtils::Status multiPut(const SetOfKeyValuePairs& _keyValueMap) override {
     ITransaction::Guard g(beginTransaction());
     for (auto&& pair : _keyValueMap) g.txn()->put(pair.first, pair.second);
-
     return concordUtils::Status::OK();
   }
 
   concordUtils::Status multiDel(const KeysVector& _keysVec) override {
-    for (auto&& key : _keysVec)
+    for (const auto& key : _keysVec)
       if (Status s = del(key); !s.isOK()) return s;
     return concordUtils::Status::OK();
   }
 
   bool isNew() override { throw std::logic_error("isNew()  Not implemented for S3 object store"); }
 
-  IDBClient::IDBClientIterator* getIterator() const override {
-    ConcordAssert("getIterator() Not implemented for ECS S3 object store" && false);
-    throw std::logic_error("getIterator() Not implemented for ECS S3 object store");
-  }
+  IDBClient::IDBClientIterator* getIterator() const override { return new Iterator(this); }
 
   concordUtils::Status freeIterator(IDBClientIterator* _iter) const override {
-    throw std::logic_error("freeIterator() Not implemented for ECS S3 object store");
+    delete _iter;
+    return concordUtils::Status::OK();
   }
 
   ITransaction* beginTransaction() override { return new Transaction(this); }
@@ -212,37 +262,39 @@ class Client : public concord::storage::IDBClient {
 
   ///////////////////////// protected /////////////////////////////
  protected:
-  // retry forever, increasing the waiting timeout until it reaches the defined maximum
+  // if status is retryable, retry forever, increasing the waiting timeout until it reaches the defined maximum
   template <typename F, typename... Args>
-  void do_with_retry(const std::string_view msg, Status& r, F&& f, Args&&... args) const {
+  Status do_with_retry(const std::string_view msg, F&& f, Args&&... args) const {
     uint16_t delay = initialDelay_;
+    uint16_t retries = 0;
+    ResponseData rd;
     do {
-      r = std::forward<F>(f)(std::forward<Args>(args)...);
-      if (!r.isGeneralError()) break;
-      if (delay < config_.maxWaitTime) delay *= delayFactor_;
-      LOG_INFO(logger_, "retrying " << msg << " after delay: " << delay);
-      std::this_thread::sleep_for(std::chrono::milliseconds(delay));
-    } while (!r.isOK() || !r.isNotFound());
+      if (retries++) {
+        if (delay < config_.operationTimeout)
+          delay += retries * initialDelay_;
+        else
+          break;
+        LOG_INFO(
+            logger_,
+            msg << " status: " << rd.status << " error: " << rd.errorMessage << ", retrying after " << delay << " ms.");
+        std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+      }
+      rd = std::forward<F>(f)(std::forward<Args>(args)...);
+
+    } while (S3_status_is_retryable(rd.status));
+
+    if (rd.status == S3Status::S3StatusOK) {
+      LOG_DEBUG(logger_, msg << " status: " << rd.status << " (OK)");
+      return Status::OK();
+    }
+    LOG_ERROR(logger_, msg << " status: " << rd.status << " error: " << rd.errorMessage);
+    if (rd.status == S3Status::S3StatusHttpErrorNotFound || rd.status == S3Status::S3StatusErrorNoSuchBucket ||
+        rd.status == S3Status::S3StatusErrorNoSuchKey)
+      return Status::NotFound("Status: " + rd.errorMessage);
+
+    return Status::GeneralError("Status: " + rd.errorMessage);
   }
 
-  concordUtils::Status get_internal(const concordUtils::Sliver& _key, OUT concordUtils::Sliver& _outValue) const;
-
-  concordUtils::Status put_internal(const concordUtils::Sliver& _key, const concordUtils::Sliver& _value);
-
-  concordUtils::Status object_exists_internal(const concordUtils::Sliver& key) const;
-
-  concordUtils::Status test_bucket_internal();
-
-  struct ResponseData {
-    S3Status status = S3Status::S3StatusOK;
-    std::string errorMessage;
-  };
-
-  /**
-   * @brief Represents intermidiate data for get operation and is passed to
-   * the lambda callback.
-   *
-   */
   struct GetObjectResponseData : public ResponseData {
     GetObjectResponseData(size_t linitialLength) : data(new char[linitialLength]), dataLength(linitialLength) {}
 
@@ -268,12 +320,6 @@ class Client : public concord::storage::IDBClient {
     size_t dataLength = 0;
     size_t readLength = 0;
   };
-
-  /**
-   * @brief Represents intermidiate data for put operation and is passed to
-   * the lambda callback.
-   *
-   */
   struct PutObjectResponseData : public ResponseData {
     PutObjectResponseData(const char* _data, size_t&& _dataLength) : data(_data), dataLength(_dataLength) {}
 
@@ -282,34 +328,20 @@ class Client : public concord::storage::IDBClient {
     size_t putCount = 0;
   };
 
-  static void responseCompleteCallback(S3Status status, const S3ErrorDetails* error, void* callbackData) {
-    ResponseData* cb = nullptr;
-    if (callbackData) {
-      cb = static_cast<ResponseData*>(callbackData);
-      cb->status = status;
-    }
-    if (error) {
-      if (error->message) {
-        if (cb) cb->errorMessage = std::string(error->message);
-      }
-    }
-  }
+  GetObjectResponseData get_internal(const concordUtils::Sliver& _key, OUT concordUtils::Sliver& _outValue) const;
+  PutObjectResponseData put_internal(const concordUtils::Sliver& _key, const concordUtils::Sliver& _value);
+  ResponseData object_exists_internal(const concordUtils::Sliver& key) const;
+  ResponseData delete_internal(const concordUtils::Sliver& key);
+  ResponseData create_bucket_internal();
+  ResponseData test_bucket_internal();
 
-  static S3Status propertiesCallback(const S3ResponseProperties* properties, void* callbackData) {
-    return S3Status::S3StatusOK;
-  }
-
-  S3ResponseHandler responseHandler = {NULL, &responseCompleteCallback};
   StoreConfig config_;
   S3BucketContext context_;
   bool init_ = false;
   const uint32_t kInitialGetBufferSize_ = 25000;
   std::mutex initLock_;
   logging::Logger logger_ = logging::getLogger("concord.storage.s3");
-
   uint16_t initialDelay_ = 100;
-  const double delayFactor_ = 1.5;
-
   Metrics metrics_;
 };
 

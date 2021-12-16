@@ -3872,7 +3872,8 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
                  msgHandlers,
                  timers,
                  pm,
-                 sm) {
+                 sm,
+                 persistentStorage) {
   LOG_INFO(GL, "Initialising Replica with LoadedReplicaData");
   ConcordAssertNE(persistentStorage, nullptr);
 
@@ -4119,7 +4120,8 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
                  msgHandlers,
                  timers,
                  pm,
-                 sm) {
+                 sm,
+                 persistentStorage) {
   LOG_INFO(GL, "Initialising Replica with ReplicaConfig");
   if (persistentStorage != nullptr) {
     ps_ = persistentStorage;
@@ -4141,7 +4143,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
                        shared_ptr<MsgHandlersRegistrator> msgHandlers,
                        concordUtil::Timers &timers,
                        shared_ptr<concord::performance::PerformanceManager> pm,
-                       shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm)
+                       shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm,
+                       shared_ptr<PersistentStorage> ps)
     : ReplicaForStateTransfer(config, requestsHandler, stateTrans, msgsCommunicator, msgHandlers, firstTime, timers),
       viewChangeProtocolEnabled{config.viewChangeProtocolEnabled},
       autoPrimaryRotationEnabled{config.autoPrimaryRotationEnabled},
@@ -4295,7 +4298,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
   for (int i = 0; i < config_.getnumOfClientProxies(); ++i) proxyClients.insert(clientId++);
   for (int i = 0; i < config_.getnumOfExternalClients(); ++i) externalClients.insert(clientId++);
   for (int i = 0; i < config_.getnumReplicas(); ++i) internalClients.insert(clientId++);
-  clientsManager = std::make_shared<ClientsManager>(proxyClients, externalClients, internalClients, metrics_);
+  clientsManager = std::make_shared<ClientsManager>(ps, proxyClients, externalClients, internalClients, metrics_);
   internalBFTClient_.reset(
       new InternalBFTClient(*internalClients.cbegin() + config_.getreplicaId(), msgsCommunicator_));
 
@@ -5477,9 +5480,12 @@ void ReplicaImp::sendResponses(PrePrepareMsg *ppMsg, IRequestsHandler::Execution
     } else {
       if (req.flags & HAS_PRE_PROCESSED_FLAG) metric_total_preexec_requests_executed_++;
       if (req.outActualReplySize != 0) {
-        auto replyMsg = clientsManager->allocateNewReplyMsgAndWriteToStorage(
-            req.clientId, req.requestSequenceNum, currentPrimary(), req.outReply, req.outActualReplySize);
-        replyMsg->setReplicaSpecificInfoLength(req.outReplicaSpecificInfoSize);
+        auto replyMsg = clientsManager->allocateNewReplyMsgAndWriteToStorage(req.clientId,
+                                                                             req.requestSequenceNum,
+                                                                             currentPrimary(),
+                                                                             req.outReply,
+                                                                             req.outActualReplySize,
+                                                                             req.outReplicaSpecificInfoSize);
         send(replyMsg.get(), req.clientId);
       }
     }

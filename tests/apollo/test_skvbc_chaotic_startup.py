@@ -36,8 +36,7 @@ def start_replica_cmd(builddir, replica_id, view_change_timeout_milli="10000"):
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
             "-s", statusTimerMilli,
-            "-v", view_change_timeout_milli,
-            "-f", '0' # disable time service until intermittent failures are fixed for this test
+            "-v", view_change_timeout_milli
             ]
 
 

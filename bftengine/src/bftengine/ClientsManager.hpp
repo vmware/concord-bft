@@ -17,10 +17,13 @@
 #include "Metrics.hpp"
 #include "IPendingRequest.hpp"
 #include "bftengine/IKeyExchanger.hpp"
+#include "PersistentStorage.hpp"
+#include "ReplicaSpecificInfoManager.hpp"
 #include <map>
 #include <set>
 #include <unordered_map>
 #include <memory>
+#include <queue>
 
 namespace bftEngine {
 class IStateTransfer;
@@ -48,6 +51,11 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
   //   - The concordMetrics::Component object referenced by metrics is destroyed.
   //   - The global logger CL_MNGR is destroyed.
   ClientsManager(const std::set<NodeIdType>& proxyClients,
+                 const std::set<NodeIdType>& externalClients,
+                 const std::set<NodeIdType>& internalClients,
+                 concordMetrics::Component& metrics);
+  ClientsManager(std::shared_ptr<PersistentStorage> ps,
+                 const std::set<NodeIdType>& proxyClients,
                  const std::set<NodeIdType>& externalClients,
                  const std::set<NodeIdType>& internalClients,
                  concordMetrics::Component& metrics);
@@ -85,8 +93,12 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
   //   oldest one is deleted.
   // - The size of the allocated reply message exceeds the maximum reply size that was configured at the time of this
   //   ClientsManager's construction.
-  std::unique_ptr<ClientReplyMsg> allocateNewReplyMsgAndWriteToStorage(
-      NodeIdType clientId, ReqId requestSeqNum, uint16_t currentPrimaryId, char* reply, uint32_t replyLength);
+  std::unique_ptr<ClientReplyMsg> allocateNewReplyMsgAndWriteToStorage(NodeIdType clientId,
+                                                                       ReqId requestSeqNum,
+                                                                       uint16_t currentPrimaryId,
+                                                                       char* reply,
+                                                                       uint32_t replyLength,
+                                                                       uint32_t rsiLength);
 
   // Loads a client reply message from the reserved pages, and allocates and returns a ClientReplyMsg containing the
   // loaded message. Returns a null pointer if the configuration recorded at the time of this ClientManager's
@@ -214,6 +226,7 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
   concordMetrics::Component& metrics_;
   concordMetrics::CounterHandle metric_reply_inconsistency_detected_;
   concordMetrics::CounterHandle metric_removed_due_to_out_of_boundaries_;
+  std::unique_ptr<RsiDataManager> rsiManager_;
 };
 
 }  // namespace impl

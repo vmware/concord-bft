@@ -45,7 +45,7 @@ Status RequestServiceImpl::Send(ServerContext* context, const Request* proto_req
   auto callback = [&](cc::SendResult&& send_result) {
     if (not std::holds_alternative<bft::client::Reply>(send_result)) {
       LOG_INFO(logger_, "Send returned error");
-      switch (std::get<int>(send_result)) {
+      switch (std::get<uint32_t>(send_result)) {
         case (concord_client_pool::Overloaded):
           status.set_value(grpc::Status(grpc::StatusCode::RESOURCE_EXHAUSTED, "All clients occupied"));
           break;

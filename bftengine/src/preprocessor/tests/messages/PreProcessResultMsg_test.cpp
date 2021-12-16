@@ -30,6 +30,7 @@ bftEngine::ReplicaConfig& createReplicaConfigWithExtClient(uint16_t fVal, uint16
 
   auto clientPrincipalIds = std::set<uint16_t>{uint16_t(config.numReplicas + 1)};
   config.publicKeysOfClients.insert(make_pair(config.publicKeysOfReplicas.begin()->second, clientPrincipalIds));
+  config.clientTransactionSigningEnabled = true;
   return config;
 }
 

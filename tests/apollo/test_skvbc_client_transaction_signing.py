@@ -43,8 +43,7 @@ def start_replica_cmd(builddir, replica_id):
             "-i", str(replica_id),
             "-s", statusTimerMilli,
             "-v", viewChangeTimeoutMilli,
-            "-e", str(True),
-            "-f", '0'
+            "-e", str(True)
             ]
 
 class SkvbcTestClientTxnSigning(unittest.TestCase):

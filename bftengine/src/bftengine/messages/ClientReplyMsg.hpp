@@ -24,12 +24,15 @@ class ClientReplyMsg : public MessageBase {
   static_assert(sizeof(ClientReplyMsgHeader::msgType) == sizeof(MessageBase::Header::msgType), "");
   static_assert(sizeof(ClientReplyMsgHeader::reqSeqNum) == sizeof(ReqId), "");
   static_assert(sizeof(ClientReplyMsgHeader::currentPrimaryId) == sizeof(ReplicaId), "");
-  static_assert(sizeof(ClientReplyMsgHeader) == 24, "ClientRequestMsgHeader is 24B");
+  static_assert(sizeof(ClientReplyMsgHeader::result) == sizeof(uint32_t), "");
+  static_assert(sizeof(ClientReplyMsgHeader) == 28, "ClientRequestMsgHeader is 28B");
 
  public:
   ClientReplyMsg(ReplicaId primaryId, ReqId reqSeqNum, ReplicaId replicaId);
 
   ClientReplyMsg(ReplicaId replicaId, ReqId reqSeqNum, char* reply, uint32_t replyLength);
+
+  ClientReplyMsg(ReplicaId primaryId, ReqId reqSeqNum, ReplicaId replicaId, uint32_t result);
 
   ClientReplyMsg(ReplicaId replicaId, uint32_t replyLength);
 
@@ -56,6 +59,10 @@ class ClientReplyMsg : public MessageBase {
   void setMsgSize(MsgSize size) { MessageBase::setMsgSize(size); }
 
   ClientReplyMsgHeader* b() const { return (ClientReplyMsgHeader*)msgBody_; }
+
+ private:
+  void setHeaderParameters(ReplicaId primaryId, ReqId reqSeqNum, uint32_t replyLength, uint32_t result);
 };
+
 }  // namespace impl
 }  // namespace bftEngine
