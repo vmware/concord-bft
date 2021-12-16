@@ -36,6 +36,8 @@ Client::Client(std::unique_ptr<bft::communication::ICommunication> comm, const C
                                config_.retry_timeout_config.max_decreasing_factor),
       metrics_(config.id),
       histograms_(std::unique_ptr<Recorders>(new Recorders(config.id))) {
+  // secrets_manager_config can be set only if transaction_signing_private_key_file_path is set
+  if (config.secrets_manager_config) ConcordAssert(config.transaction_signing_private_key_file_path != std::nullopt);
   if (config.transaction_signing_private_key_file_path) {
     // transaction signing is enabled
     auto file_path = config.transaction_signing_private_key_file_path.value();

@@ -60,7 +60,9 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
                    config_.replicaPrivateKey,
                    config_.publicKeysOfReplicas,
                    concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
-                   config_.clientTransactionSigningEnabled ? &config_.publicKeysOfClients : nullptr,
+                   (config_.clientTransactionSigningEnabled || !config_.clientsKeysPrefix.empty())
+                       ? &config_.publicKeysOfClients
+                       : nullptr,
                    concord::util::crypto::KeyFormat::PemFormat,
                    *repsInfo);
 

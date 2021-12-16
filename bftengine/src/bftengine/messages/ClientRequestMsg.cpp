@@ -135,7 +135,7 @@ void ClientRequestMsg::validateImp(const ReplicasInfo& repInfo) const {
       expectedSigLen = 0;
     } else if ((header->flags & RECONFIG_FLAG) != 0) {
       expectedSigLen = header->reqSignatureLength;
-      // This message arrived from operator - no need at this stage to verifiy the request, since operator
+      // This message arrived from operator/cre - no need at this stage to verifiy the request, since operator
       // verifies it's own signatures on requests in the reconfiguration handler
       doSigVerify = false;
     } else {
@@ -149,6 +149,12 @@ void ClientRequestMsg::validateImp(const ReplicasInfo& repInfo) const {
         doSigVerify = true;
       }
     }
+  }
+  if ((isClientTransactionSigningEnabled == false) && (header->flags & RECONFIG_FLAG)) {
+    expectedSigLen = header->reqSignatureLength;
+    // This message arrived from cre/operator - no need at this stage to verifiy the request, since operator
+    // verifies it's own signatures on requests in the reconfiguration handler
+    doSigVerify = false;
   }
 
   if (expectedSigLen != header->reqSignatureLength) {
