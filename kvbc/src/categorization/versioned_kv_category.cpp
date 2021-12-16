@@ -173,6 +173,12 @@ std::unordered_map<BlockId, std::vector<std::string>> VersionedKeyValueCategory:
 std::vector<std::string> VersionedKeyValueCategory::getBlockStaleKeys(BlockId block_id,
                                                                       const VersionedOutput &out) const {
   std::vector<std::string> stale_keys_;
+  for (const auto &[_, keys] : activeKeysFromPrunedBlocks(out.keys)) {
+    (void)_;
+    for (const auto &key : keys) {
+      stale_keys_.push_back(key);
+    }
+  }
   for (const auto &[key, flags] : out.keys) {
     const auto latest = getLatestVersion(key);
     ConcordAssert(latest.has_value());
