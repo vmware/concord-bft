@@ -1050,6 +1050,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
     LOG_INFO(GL,
              "Ignoring PrePrepareMsg because system is stopped at checkpoint pending control state operation (upgrade, "
              "etc...)");
+    // TODO(LG): we should delete the message.
     return;
   }
 
@@ -1085,9 +1086,14 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
 
     return;  // TODO(GG): memory deallocation is confusing .....
   }
+  if (isCurrentPrimary() && (msg->senderId() != getReplicaConfig().replicaId)) {
+    LOG_INFO(GL, "Ignoring PrePrepareMsg since im the current primary");
+    delete msg;
+    return;
+  }
   bool msgAdded = false;
 
-  if (relevantMsgForActiveView(msg) && (msg->senderId() == currentPrimary())) {
+  if (relevantMsgForActiveView(msg)) {
     sendAckIfNeeded(msg, msg->senderId(), msgSeqNum);
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
     const bool slowStarted = (msg->firstPath() == CommitPath::SLOW || seqNumInfo.slowPathStarted());
