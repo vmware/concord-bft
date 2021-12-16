@@ -273,6 +273,10 @@ void DebugPersistentStorage::setUserDataInTransaction(const void *data, std::siz
   setUserDataAtomically(data, numberOfBytes);
 }
 
+bool DebugPersistentStorage::setReplicaSpecificInfo(uint32_t index, const std::vector<uint8_t> &data) { return true; }
+
+std::vector<uint8_t> DebugPersistentStorage::getReplicaSpecificInfo(uint32_t index) { return {}; }
+
 void DebugPersistentStorage::setCompletedMarkInCheckWindow(SeqNum seqNum, bool mark) {
   ConcordAssert(mark == true);
   ConcordAssert(checkWindow.insideActiveWindow(seqNum));

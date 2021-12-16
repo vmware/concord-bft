@@ -17,14 +17,24 @@
 #include "ReplicaConfig.hpp"
 #include "bftengine/KeyExchangeManager.hpp"
 #include "Serializable.h"
+#include "PersistentStorageImp.hpp"
 
 #include <chrono>
 using namespace std::chrono;
-
+using namespace concord::serialize;
 namespace bftEngine::impl {
 // Initialize:
 // * map of client id to indices.
 // * Calculate reserved pages per client.
+ClientsManager::ClientsManager(std::shared_ptr<PersistentStorage> ps,
+                               const std::set<NodeIdType>& proxyClients,
+                               const std::set<NodeIdType>& externalClients,
+                               const std::set<NodeIdType>& internalClients,
+                               concordMetrics::Component& metrics)
+    : ClientsManager{proxyClients, externalClients, internalClients, metrics} {
+  rsiManager_.reset(new RsiDataManager(
+      proxyClients.size() + externalClients.size() + internalClients.size(), maxNumOfReqsPerClient_, ps));
+}
 ClientsManager::ClientsManager(const std::set<NodeIdType>& proxyClients,
                                const std::set<NodeIdType>& externalClients,
                                const std::set<NodeIdType>& internalClients,
@@ -152,8 +162,12 @@ void ClientsManager::deleteOldestReply(NodeIdType clientId) {
 // * allocate new ClientReplyMsg
 // * calculate: num of pages, size of last page.
 // * save the reply to the reserved pages.
-std::unique_ptr<ClientReplyMsg> ClientsManager::allocateNewReplyMsgAndWriteToStorage(
-    NodeIdType clientId, ReqId requestSeqNum, uint16_t currentPrimaryId, char* reply, uint32_t replyLength) {
+std::unique_ptr<ClientReplyMsg> ClientsManager::allocateNewReplyMsgAndWriteToStorage(NodeIdType clientId,
+                                                                                     ReqId requestSeqNum,
+                                                                                     uint16_t currentPrimaryId,
+                                                                                     char* reply,
+                                                                                     uint32_t replyLength,
+                                                                                     uint32_t rsiLength) {
   ClientInfo& c = clientsInfo_[clientId];
   if (c.repliesInfo.size() >= maxNumOfReqsPerClient_) deleteOldestReply(clientId);
   if (c.repliesInfo.size() > maxNumOfReqsPerClient_) {
@@ -164,20 +178,22 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateNewReplyMsgAndWriteToSto
 
   c.repliesInfo.insert_or_assign(requestSeqNum, getMonotonicTime());
   LOG_DEBUG(CL_MNGR, KVLOG(clientId, requestSeqNum));
-  auto r = std::make_unique<ClientReplyMsg>(myId_, requestSeqNum, reply, replyLength);
+  auto r = std::make_unique<ClientReplyMsg>(myId_, requestSeqNum, reply, replyLength - rsiLength);
 
-  uint32_t numOfPages = r->size() / sizeOfReservedPage();
+  // At this point, the rsi data is not part of the reply
+  uint32_t commonMsgSize = r->size();
+  uint32_t numOfPages = commonMsgSize / sizeOfReservedPage();
   uint32_t sizeLastPage = sizeOfReservedPage();
   if (numOfPages > reservedPagesPerClient_) {
     LOG_FATAL(CL_MNGR,
-              "Client reply is larger than reservedPagesPerClient_ allows"
-                  << KVLOG(clientId, requestSeqNum, reservedPagesPerClient_ * sizeOfReservedPage(), replyLength));
+              "Client reply is larger than reservedPagesPerClient_ allows" << KVLOG(
+                  clientId, requestSeqNum, reservedPagesPerClient_ * sizeOfReservedPage(), replyLength - rsiLength));
     ConcordAssert(false);
   }
 
-  if (r->size() % sizeOfReservedPage() != 0) {
+  if (commonMsgSize % sizeOfReservedPage() != 0) {
     numOfPages++;
-    sizeLastPage = r->size() % sizeOfReservedPage();
+    sizeLastPage = commonMsgSize % sizeOfReservedPage();
   }
 
   LOG_DEBUG(CL_MNGR, KVLOG(clientId, requestSeqNum, numOfPages, sizeLastPage));
@@ -188,6 +204,10 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateNewReplyMsgAndWriteToSto
     const uint32_t sizePage = ((i < numOfPages - 1) ? sizeOfReservedPage() : sizeLastPage);
     saveReservedPage(firstPageId + i, sizePage, ptrPage);
   }
+  // now save the RSI in the rsiManager
+  rsiManager_->setRsiForClient(clientId, requestSeqNum, std::string(reply + commonMsgSize, rsiLength));
+  // we cannot set the RSI metadata before saving the reply to the reserved paged, hence save it now.
+  r->setReplicaSpecificInfoLength(rsiLength);
 
   // write currentPrimaryId to message (we don't store the currentPrimaryId in the reserved pages)
   r->setPrimaryId(currentPrimaryId);
@@ -231,6 +251,15 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateReplyFromSavedOne(NodeId
     loadReservedPage(firstPageId + i, sizePage, ptrPage);
   }
 
+  // Load the RSI data from persistent storage
+  auto rsiItem = rsiManager_->getRsiForClient(clientId, requestSeqNum);
+  auto rsiSize = rsiItem.data().size();
+  if (rsiSize > 0) {
+    auto commDataLength = r->replyLength();
+    r->setReplyLength(r->replyLength() + rsiSize);
+    memcpy(r->replyBuf() + commDataLength, rsiItem.data().data(), rsiSize);
+    r->setReplicaSpecificInfoLength(rsiSize);
+  }
   const auto& replySeqNum = r->reqSeqNum();
   if (replySeqNum != requestSeqNum) {
     if (maxNumOfReqsPerClient_ == 1) {

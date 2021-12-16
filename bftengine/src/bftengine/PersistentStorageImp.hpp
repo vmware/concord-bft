@@ -99,6 +99,13 @@ enum DescMetadataParameterIds {
   LAST_NEW_VIEW_DESC
 };
 
+enum ReplicaSpecificInfoParameterIds {
+  REPLICA_SPECIFIC_INFO_BASE = LAST_NEW_VIEW_DESC + 1,
+  REPLICA_SPECIFIC_INFO_DESC
+};
+
+const uint32_t replicaSpecificInfoMaxSize = 1024 * 1024;  // 1MB
+
 typedef unique_ptr<MetadataStorage::ObjectDesc[]> ObjectDescUniquePtr;
 
 class PersistentStorageImp : public PersistentStorage {
@@ -106,7 +113,8 @@ class PersistentStorageImp : public PersistentStorage {
   static constexpr auto kMaxUserDataSizeBytes = 256;
 
  public:
-  PersistentStorageImp(uint16_t numReplicas, uint16_t fVal, uint16_t cVal);
+  PersistentStorageImp(
+      uint16_t numReplicas, uint16_t fVal, uint16_t cVal, uint64_t numOfPrinciples, uint64_t maxClientBatchSize);
   ~PersistentStorageImp() override = default;
 
   uint8_t beginWriteTran() override;
@@ -138,7 +146,7 @@ class PersistentStorageImp : public PersistentStorage {
 
   void setUserDataAtomically(const void *data, std::size_t numberOfBytes) override;
   void setUserDataInTransaction(const void *data, std::size_t numberOfBytes) override;
-
+  bool setReplicaSpecificInfo(uint32_t index, const std::vector<uint8_t> &data) override;
   void setEraseMetadataStorageFlag() override;
   bool getEraseMetadataStorageFlag() override;
   void eraseMetadata() override;
@@ -147,6 +155,7 @@ class PersistentStorageImp : public PersistentStorage {
   bool getNewEpochFlag() override;
 
   // Getters
+  std::vector<uint8_t> getReplicaSpecificInfo(uint32_t index) override;
   std::string getStoredVersion();
   std::string getCurrentVersion() const { return version_; }
   SeqNum getLastExecutedSeqNum() override;
@@ -249,6 +258,13 @@ class PersistentStorageImp : public PersistentStorage {
   const uint16_t numReplicas_;
   const uint16_t fVal_;
   const uint16_t cVal_;
+
+  const uint16_t numPrinciples_;
+  const uint16_t maxClientBatchSize_;
+  // The rsi cache is a map of <principle_id, <request_sequence_number, data>>
+  std::unordered_map<uint32_t, std::unordered_map<uint64_t, std::string>> rsiCache_;
+  // The rsiLatestIndex is a map of <principle_id, latest_index>
+  std::unordered_map<uint32_t, uint64_t> rsiLatestIndex;
 
   uint8_t numOfNestedTransactions_ = 0;
   const SeqNum seqNumWindowFirst_ = 1;

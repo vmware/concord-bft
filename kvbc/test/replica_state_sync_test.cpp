@@ -62,7 +62,7 @@ class replica_state_sync_test : public Test, public IReader {
         link_st_chain,
         std::map<std::string, CATEGORY_TYPE>{{kConcordInternalCategoryId, CATEGORY_TYPE::versioned_kv}});
 
-    metadata_ = std::make_shared<PersistentStorageImp>(kNumOfReplicas, kFVal, kCVal);
+    metadata_ = std::make_shared<PersistentStorageImp>(kNumOfReplicas, kFVal, kCVal, 0, 0);
     auto num_of_objects = std::uint16_t{0};
     auto obj_descriptors = metadata_->getDefaultMetadataObjectDescriptors(num_of_objects);
     auto db_metadata_storage =
