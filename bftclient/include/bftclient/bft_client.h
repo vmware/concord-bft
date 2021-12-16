@@ -50,7 +50,7 @@ class Client {
   Reply send(const ReadConfig& config, Msg&& request);
   SeqNumToReplyMap sendBatch(std::deque<WriteRequest>& write_requests, const std::string& cid);
 
-  // Return true if the client has at least num_replicas_required active replica connecions.
+  // Return true if the client has at least num_replicas_required active replica connections.
   bool isServing(int num_replicas, int num_replicas_required) const;
 
   // Useful for testing. Shouldn't be relied on in production.

@@ -134,9 +134,6 @@ void MessageBase::setMsgSize(MsgSize size) {
   ConcordAssert((msgBody_ != nullptr));
   ConcordAssert(size <= storageSize_);
 
-  // TODO(GG): do we need to reset memory here?
-  if (storageSize_ > size) memset(body() + size, 0, (storageSize_ - size));
-
   msgSize_ = size;
 }
 

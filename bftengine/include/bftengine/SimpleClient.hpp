@@ -46,11 +46,11 @@ enum ClientMsgFlag : uint8_t {
   EMPTY_CLIENT_REQ = 0x10,
 };
 
-enum OperationResult : int8_t { SUCCESS, NOT_READY, TIMEOUT, BUFFER_TOO_SMALL, INVALID_REQUEST };
-// Call back for request - at this point we know for sure that a client is handling the request so we can assure that we
-// will have reply. This callback will be attached to the client reply struct and whenever we get the reply from, the
-// bft client we will activate the callback.
-typedef std::variant<int, bft::client::Reply> SendResult;
+enum OperationResult : uint32_t { SUCCESS, INVALID_REQUEST, NOT_READY, TIMEOUT, BUFFER_TOO_SMALL, EMPTY_EXEC_RESULT };
+// Call back for request - at this point we know for sure that a client is handling the request, so we can assure that
+// we will have reply. This callback will be attached to the client reply struct and whenever we get the reply from,
+// the bft client we will activate the callback.
+typedef std::variant<uint32_t, bft::client::Reply> SendResult;
 typedef std::function<void(SendResult&&)> RequestCallBack;
 
 struct ClientRequest {

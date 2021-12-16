@@ -53,6 +53,7 @@ struct ClientReplyMsgHeader {
   uint32_t spanContextSize = 0u;
   uint16_t currentPrimaryId;
   uint64_t reqSeqNum;
+  uint32_t result;  // Request execution result
 
   // Reply length is the total length of the reply, including any replica specific info.
   uint32_t replyLength;

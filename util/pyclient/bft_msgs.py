@@ -47,7 +47,7 @@ BATCH_REQUEST_HEADER_FMT = "<LHLL"
 # Little Endian format with no padding
 # We don't include the msg type here, since we have to read it first to
 # understand what message is incoming.
-REPLY_HEADER_FMT = "<LHQLL"
+REPLY_HEADER_FMT = "<LHQLLL"
 REPLY_HEADER_SIZE = struct.calcsize(REPLY_HEADER_FMT)
 
 RequestHeader = namedtuple('RequestHeader', ['span_context_size', 'client_id', 'flags',
@@ -61,7 +61,7 @@ BatchRequestHeader = namedtuple('BatchRequestHeader', ['cid', 'client_id',
 #
 # Replica specific information is not used yet, so rsi_length is always 0
 ReplyHeader = namedtuple('ReplyHeader', ['span_context_size', 'primary_id',
-    'req_seq_num', 'length', 'rsi_length'])
+    'req_seq_num', 'result', 'length', 'rsi_length'])
 
 def pack_request(client_id, req_seq_num, read_only, timeout_milli, cid, msg, pre_process=False, reconfiguration=False, 
                 span_context=b'', signature=b''):
@@ -125,13 +125,13 @@ def unpack_request_header(data):
     return RequestHeader._make(struct.unpack(REQUEST_HEADER_FMT,
                                              data[MSG_TYPE_SIZE:end]))
 
-def pack_reply(primary_id, req_seq_num, msg, rsi_length=0):
+def pack_reply(primary_id, req_seq_num, msg, result=0, rsi_length=0):
     """
     Take message information and a message and return a construct a buffer
     containing a serialized reply header and message.
     """
 
-    header = ReplyHeader(0, primary_id, req_seq_num, len(msg), rsi_length)
+    header = ReplyHeader(0, primary_id, req_seq_num, result, len(msg), rsi_length)
     return b''.join([pack_reply_header(header), msg])
 
 def pack_reply_header(header):
