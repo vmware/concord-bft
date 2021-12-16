@@ -43,6 +43,7 @@ using boost::lockfree::spsc_queue;
 using concord::kvbc::BlockId;
 using concord::kvbc::EgUpdate;
 using concord::kvbc::EventGroupId;
+using concord::kvbc::EventGroupClientState;
 using concord::kvbc::InvalidBlockRange;
 using concord::kvbc::InvalidEventGroupRange;
 using concord::kvbc::KvbAppFilter;
@@ -890,6 +891,35 @@ TEST(kvbc_filter_test, legacy_event_request_in_event_groups) {
   EXPECT_THROW(kvb_filter.readBlockHash(kLastBlockId);, NoLegacyEvents);
   EXPECT_THROW(kvb_filter.readBlockRange(1, kLastBlockId, queue_out, stop_exec);, NoLegacyEvents);
   EXPECT_THROW(kvb_filter.readBlockRangeHash(1, kLastBlockId);, NoLegacyEvents);
+}
+
+// When initializing the state we need to make sure that the current cursor points to a local available event group
+TEST(kvbc_filter_test, event_group_client_state) {
+  // Note: oldest = 0 and newest > 0 means everything got pruned
+  std::vector<std::tuple<int, int, int, int, int>> test_matrix = {
+      // public oldest, public newest, private oldest, private newest, expected cursor
+      {0, 0, 0, 0, 0},
+      // only public and all pruned
+      {0, 9, 0, 0, 9},
+      // only public and available
+      {11, 12, 0, 0, 10},
+      // only private and all pruned
+      {0, 0, 0, 11, 11},
+      // only private and available
+      {0, 0, 13, 14, 12},
+      // public and private but all pruned
+      {0, 9, 0, 10, 19},
+      // public and private and available
+      {10, 11, 12, 13, 20},
+      // public pruned and private available
+      {0, 11, 12, 13, 22},
+      // public available and private pruned
+      {10, 11, 0, 14, 23},
+  };
+  for (const auto &[pub_o, pub_n, pvt_o, pvt_n, exp] : test_matrix) {
+    EventGroupClientState state(pub_o, pub_n, pvt_o, pvt_n);
+    EXPECT_EQ(state.curr_trid_event_group_id, exp);
+  }
 }
 
 }  // anonymous namespace

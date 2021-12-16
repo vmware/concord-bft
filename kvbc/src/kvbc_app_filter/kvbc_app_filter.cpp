@@ -305,7 +305,11 @@ uint64_t KvbAppFilter::getValueFromTagTable(const std::string &key) {
     LOG_ERROR(logger_, msg.str());
     throw std::runtime_error(msg.str());
   }
-  return concordUtils::fromBigEndianBuffer<uint64_t>(val->data.data());
+  auto result = concordUtils::fromBigEndianBuffer<uint64_t>(val->data.data());
+  // Every tag-table entry must have a valid global event group id
+  // If this table was pruned then only valid entries remain which still need to have a proper event group id
+  ConcordAssertNE(result, 0);
+  return result;
 }
 
 // We don't store tag-specific public event group ids and need to compute them at runtime.
@@ -341,7 +345,7 @@ std::optional<uint64_t> KvbAppFilter::getNextEventGroupId(std::shared_ptr<EventG
   // that tag
   ConcordAssert(eg_state->public_offset != 0 || eg_state->private_offset != 0);
 
-  if (eg_state->it != eg_state->event_group_id_batch.end()) {
+  if (not eg_state->event_group_id_batch.empty() && eg_state->it != eg_state->event_group_id_batch.end()) {
     return *eg_state->it++;
   }
   uint64_t public_end = getValueFromLatestTable(kPublicEgIdKeyNewest);
@@ -361,6 +365,7 @@ std::optional<uint64_t> KvbAppFilter::getNextEventGroupId(std::shared_ptr<EventG
 
   // reset the vectors to read the new batch from storage
   eg_state->event_group_id_batch.clear();
+  eg_state->it = eg_state->event_group_id_batch.end();
   // holds a maximum of kBatchSize ordered public event group ids at a time
   std::vector<uint64_t> public_event_group_ids{};
   // holds a maximum of kBatchSize ordered private event group ids at a time
@@ -388,6 +393,10 @@ std::optional<uint64_t> KvbAppFilter::getNextEventGroupId(std::shared_ptr<EventG
       private_event_group_ids.emplace_back(global_eg_id);
     }
   }
+
+  // No need to proceed if we have no public or private event groups
+  if (public_event_group_ids.empty() && private_event_group_ids.empty()) return std::nullopt;
+
   // populate event_group_id_batch with only public event group ids iff one of the following occurs -
   // 1. No private event groups exist in storage
   // 2. The first global event group id in private_event_group_ids is greater than the last global event group id in
@@ -401,6 +410,7 @@ std::optional<uint64_t> KvbAppFilter::getNextEventGroupId(std::shared_ptr<EventG
       (private_event_group_ids.empty() || (public_event_group_ids.back() <= private_event_group_ids.front() &&
                                            public_event_group_ids.size() >= kBatchSize))) {
     for (auto public_event_group_id : public_event_group_ids) {
+      ConcordAssertNE(public_event_group_id, 0);
       eg_state->event_group_id_batch.emplace_back(public_event_group_id);
     }
     ConcordAssertLE(eg_state->event_group_id_batch.size(), kBatchSize);
@@ -413,6 +423,7 @@ std::optional<uint64_t> KvbAppFilter::getNextEventGroupId(std::shared_ptr<EventG
              (public_event_group_ids.empty() || (private_event_group_ids.back() <= public_event_group_ids.front() &&
                                                  private_event_group_ids.size() >= kBatchSize))) {
     for (auto private_event_group_id : private_event_group_ids) {
+      ConcordAssertNE(private_event_group_id, 0);
       eg_state->event_group_id_batch.emplace_back(private_event_group_id);
     }
     ConcordAssertLE(eg_state->event_group_id_batch.size(), kBatchSize);
@@ -571,6 +582,9 @@ string KvbAppFilter::readBlockHash(BlockId block_id) {
 }
 
 string KvbAppFilter::readEventGroupHash(EventGroupId requested_event_group_id) {
+  if (requested_event_group_id == 0) {
+    throw InvalidEventGroupId(requested_event_group_id);
+  }
   uint64_t public_start = getValueFromLatestTable(kPublicEgIdKeyOldest);
   uint64_t private_start = getValueFromLatestTable(client_id_ + "_oldest");
   uint64_t public_end = getValueFromLatestTable(kPublicEgIdKeyNewest);
@@ -581,11 +595,7 @@ string KvbAppFilter::readEventGroupHash(EventGroupId requested_event_group_id) {
     LOG_ERROR(logger_, msg.str());
     throw std::runtime_error(msg.str());
   }
-  uint64_t global_event_group_id;
   uint64_t event_group_id_end = private_end + public_end;
-  if (requested_event_group_id == 0) {
-    throw InvalidEventGroupId(requested_event_group_id);
-  }
   if (requested_event_group_id > event_group_id_end) {
     throw InvalidEventGroupRange(requested_event_group_id, event_group_id_end);
   }
@@ -594,6 +604,7 @@ string KvbAppFilter::readEventGroupHash(EventGroupId requested_event_group_id) {
   if (eg_hash_state_->public_offset == 0) eg_hash_state_->public_offset = public_start;
   if (eg_hash_state_->private_offset == 0) eg_hash_state_->private_offset = private_start;
 
+  uint64_t global_event_group_id = 0;
   std::optional<uint64_t> opt;
   // populate and read global event group ids from eg_data_state_->event_group_id_batch in batches of size kBatchSize,
   // until requested_event_group_id reached. When global event group id for requested_event_group_id is received, lookup
@@ -607,7 +618,9 @@ string KvbAppFilter::readEventGroupHash(EventGroupId requested_event_group_id) {
     eg_hash_state_->curr_trid_event_group_id++;
     if (eg_hash_state_->curr_trid_event_group_id == requested_event_group_id) {
       if (opt.has_value()) {
+        ConcordAssertNE(opt.value(), 0);
         global_event_group_id = opt.value();
+        break;
       } else {
         std::stringstream msg;
         msg << "No more event groups in storage";
