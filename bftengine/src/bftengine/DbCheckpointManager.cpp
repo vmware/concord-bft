@@ -99,7 +99,7 @@ Status DbCheckpointManager::createDbCheckpoint(const CheckpointId& checkPointId,
         metrics_.UpdateAggregator();
         LOG_INFO(getLogger(),
                  "rocksdb check point id:" << it->first << ", size: " << HumanReadable{lastDbCheckpointSize});
-        LOG_INFO(GL, "-- RocksDb checkpoint metrics dump--" + metrics_.ToJson());
+        LOG_DEBUG(GL, "-- RocksDb checkpoint metrics dump--" + metrics_.ToJson());
       }
     });
   }
