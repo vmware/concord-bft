@@ -325,7 +325,7 @@ std::unique_ptr<IStorageFactory> TestSetup::GetStorageFactory() {
 #ifdef USE_S3_OBJECT_STORE
   if (GetReplicaConfig().isReadOnly) {
     if (s3ConfigFile_.empty()) throw std::runtime_error("--s3-config-file must be provided");
-    const auto s3Config = concord::tests::config::S3ConfigFileParser::parse(s3ConfigFile_);
+    const auto s3Config = concord::tests::config::S3ConfigFileParser(s3ConfigFile_).parse();
     return std::make_unique<v1DirectKeyValue::S3StorageFactory>(dbPath.str(), s3Config);
   }
 #endif

@@ -113,6 +113,9 @@ if(CODECOVERAGE)
     message( "-- Building with llvm Code Coverage Tools")
 endif()
 
+if(USE_S3_OBJECT_STORE)
+    add_compile_definitions(USE_S3_OBJECT_STORE=1)
+endif()
 # TODO: Figure out right way to deal with -fstrict-overflow / -Wstrict-overflow related errors
 # string(APPEND CXX_FLAGS " -fno-strict-overflow")
 # Prevents some buffer overflows: https://access.redhat.com/blogs/766093/posts/1976213
