@@ -716,7 +716,7 @@ void BCStateTran::onTimerImp() {
   auto currTimeForDumping = duration_cast<std::chrono::seconds>(steady_clock::now().time_since_epoch());
   if (currTimeForDumping - last_metrics_dump_time_ >= metrics_dump_interval_in_sec_) {
     last_metrics_dump_time_ = currTimeForDumping;
-    LOG_INFO(logger_, "--BCStateTransfer metrics dump--" + metrics_component_.ToJson());
+    LOG_DEBUG(logger_, "--BCStateTransfer metrics dump--" + metrics_component_.ToJson());
   }
 
   // take a snapshot and log after time passed is approx x2 of fetchRetransmissionTimeoutMs

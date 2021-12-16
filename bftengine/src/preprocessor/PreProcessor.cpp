@@ -520,7 +520,7 @@ void PreProcessor::updateAggregatorAndDumpMetrics() {
   auto currTime = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch());
   if (currTime - metricsLastDumpTime_ >= metricsDumpIntervalInSec_) {
     metricsLastDumpTime_ = currTime;
-    LOG_INFO(logger(), "--preProcessor metrics dump--" + metricsComponent_.ToJson());
+    LOG_DEBUG(logger(), "--preProcessor metrics dump--" + metricsComponent_.ToJson());
   }
 }
 
