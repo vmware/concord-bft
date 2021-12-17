@@ -98,13 +98,28 @@ bool ClientRequestMsg::shouldValidateAsync() const {
 
 void ClientRequestMsg::validateImp(const ReplicasInfo& repInfo) const {
   const auto* header = msgBody();
+  const auto msgSize = size();
+
+  std::stringstream msg;
+  // Check message size is greater than minimum header size
+  if (msgSize < sizeof(ClientRequestMsgHeader) + spanContextSize()) {
+    msg << "Invalid Message Size " << KVLOG(msgSize, sizeof(ClientRequestMsgHeader), spanContextSize());
+    LOG_ERROR(CNSUS, msg.str());
+    throw std::runtime_error(msg.str());
+  }
+
   PrincipalId clientId = header->idOfClientProxy;
   if ((header->flags & RECONFIG_FLAG) == 0) ConcordAssert(this->senderId() != repInfo.myId());
+
   /// to do - should it be just the header?
   auto minMsgSize = sizeof(ClientRequestMsgHeader) + header->cidLength + spanContextSize() + header->reqSignatureLength;
-  const auto msgSize = size();
+  if (msgSize < minMsgSize) {
+    msg << "Invalid msgSize: " << KVLOG(msgSize, minMsgSize);
+    LOG_WARN(CNSUS, msg.str());
+    throw std::runtime_error(msg.str());
+  }
+
   uint16_t expectedSigLen = 0;
-  std::stringstream msg;
   auto sigManager = SigManager::instance();
   bool isClientTransactionSigningEnabled = sigManager->isClientTransactionSigningEnabled();
   bool isIdOfExternalClient = repInfo.isIdOfExternalClient(clientId);
