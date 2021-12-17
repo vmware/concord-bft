@@ -62,14 +62,17 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
 
   uint32_t numberOfRequiredReservedPages() const { return clientIds_.size() * reservedPagesPerClient_; }
 
-  // Loads any available client public keys and client replies from the reserved pages. Automatically deletes the oldest
-  // reply record for a client if a reply message is found in the reserved pages for that client but the ClientsManager
-  // already has a number of reply records for that client equalling or exceeding the maximum client batch size that was
-  // configured at the time of this ClientManager's construction (or 1 if client batching was disabled). If the
+  // Loads any available client public keys and client reply records from the reserved pages. Saves any client public
+  // keys loaded from the reserved pages to the KeyExchangeManager singleton. Automatically deletes the oldest reply
+  // record for a client if a reply message is found in the reserved pages for that client but the ClientsManager
+  // already has a number of reply records for that client equalling or exceeding the maximum client batch size that
+  // was configured at the time of this ClientManager's construction (or 1 if client batching was disabled). If the
   // ClientsManager already has existing reply records matching the client ID and sequence number of a reply found in
   // the reserved pages, the existing record will be overwritten. Automatically deletes any request records for a given
   // client with sequence numbers less than or equal to the sequence number of a reply to that client found in the
-  // reserved pages. Behavior is undefined if the applicable reserved pages contain malformed data.
+  // reserved pages. As a precondition to this function, the KeyExchangeManager singleton
+  // (KeyExchangeManager::instance()) must be fully initialized and usable. Behavior is undefined if it is not, and is
+  // also undefined if the applicable reserved pages contain malformed data.
   void loadInfoFromReservedPages();
 
   // Replies
@@ -85,9 +88,10 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
   // First, if this ClientsManager has a number of reply records for the given clientId equalling or exceeding the
   // maximum client batch size configured at the time of this ClientManager's construction (or 1 if client batching was
   // not enabled), deletes the oldest such record. Then, a ClientReplyMsg is allocated with the given sequence number
-  // and payload, and a copy of the message is saved to the reserved pages, and this ClientManager adds a record for
-  // this reply (potentially replacing any existing record for the given sequence number). Returns the allocated
-  // ClientReplyMsg. Behavior is undefined for all of the following cases:
+  // and payload, and a copy of the message is saved to the reserved pages (overwriting any existing reply for clientId
+  // in the reserved pages), and this ClientManager adds a record for this reply (potentially replacing any existing
+  // record for the given sequence number). Returns the allocated ClientReplyMsg. Behavior is undefined for all of the
+  // following cases:
   // - clientId does not belong to a valid client.
   // - The number of reply records this ClientsManager has for the given client is above the maximum even after the
   //   oldest one is deleted.
@@ -126,8 +130,8 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
   // - The number of requests this ClientsManager currently has recorded for that client is not exactly equal to the
   //   maximum client batch size configured at the time of this ClientsManager's construction (or 1 if client batching
   //   was not enabled).
-  // - This ClientsManager currently has any request or reply associated with that client recorded with ID matching
-  //   reqSeqNum.
+  // - This ClientsManager does not already have any request or reply associated with that client recorded with ID
+  //   matching reqSeqNum.
   // otherwise returns false.
   bool canBecomePending(NodeIdType clientId, ReqId reqSeqNum) const;
 
@@ -147,9 +151,10 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
   // Removes the current request record from the given client with the greatest sequence number if both of the following
   // are true:
   // - That greatest sequence number is greater than reqSequenceNum.
+  // - There is no current request record for the client with ID clientId and sequence number reqSequenceNum.
   // - The number of requests this ClientsManager currently has recorded for the given client is exactly equal to the
-  //   maximum client batch size configured at the time of this ClientManager's construction (or 1 if client batching
-  //   was not enabled).
+  //   global system constant maxNumOfRequestsInBatch (note this is not the same quantity as the maximum configured
+  //   client batch size).
   // Does nothing otherwise. Behavior is undefined if clientId does not belong to a valid client.
   void removeRequestsOutOfBatchBounds(NodeIdType clientId, ReqId reqSequenceNum);
 
