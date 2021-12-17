@@ -5460,22 +5460,32 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
 void ReplicaImp::sendResponses(PrePrepareMsg *ppMsg, IRequestsHandler::ExecutionRequestsQueue &accumulatedRequests) {
   TimeRecorder scoped_timer(*histograms_.prepareAndSendResponses);
   for (auto &req : accumulatedRequests) {
-    auto status = req.outExecutionStatus;
-    if (status != 0) {
-      const auto requestSeqNum = req.requestSequenceNum;
-      LOG_WARN(CNSUS, "Request execution failed: " << KVLOG(req.clientId, requestSeqNum, ppMsg->getCid()));
+    auto executionResult = req.outExecutionStatus;
+    std::unique_ptr<ClientReplyMsg> replyMsg;
+
+    if (executionResult != 0) {
+      LOG_WARN(CNSUS, "Request execution failed: " << KVLOG(req.clientId, req.requestSequenceNum, ppMsg->getCid()));
     } else {
       if (req.flags & HAS_PRE_PROCESSED_FLAG) metric_total_preexec_requests_executed_++;
       if (req.outActualReplySize != 0) {
-        auto replyMsg = clientsManager->allocateNewReplyMsgAndWriteToStorage(req.clientId,
-                                                                             req.requestSequenceNum,
-                                                                             currentPrimary(),
-                                                                             req.outReply,
-                                                                             req.outActualReplySize,
-                                                                             req.outReplicaSpecificInfoSize);
+        replyMsg = clientsManager->allocateNewReplyMsgAndWriteToStorage(req.clientId,
+                                                                        req.requestSequenceNum,
+                                                                        currentPrimary(),
+                                                                        req.outReply,
+                                                                        req.outActualReplySize,
+                                                                        req.outReplicaSpecificInfoSize,
+                                                                        executionResult);
         send(replyMsg.get(), req.clientId);
+        continue;
+      } else {
+        LOG_WARN(CNSUS, "Received zero size response." << KVLOG(req.clientId, req.requestSequenceNum, ppMsg->getCid()));
+        strcpy(req.outReply, "Executed data is empty");
+        executionResult = static_cast<uint32_t>(shared::OperationResult::EXEC_DATA_EMPTY);
       }
     }
+    replyMsg = clientsManager->allocateNewReplyMsgAndWriteToStorage(
+        req.clientId, req.requestSequenceNum, currentPrimary(), req.outReply, 0, 0, executionResult);
+    send(replyMsg.get(), req.clientId);
     free(req.outReply);
     req.outReply = nullptr;
     clientsManager->removePendingForExecutionRequest(req.clientId, req.requestSequenceNum);

@@ -45,7 +45,7 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
                                             std::string span_context,
                                             const bftEngine::RequestCallBack &callback) {
   if (callback && timeout_ms.count() == 0) {
-    callback(bftEngine::SendResult{SubmitResult::InvalidArgument});
+    callback(bftEngine::SendResult{static_cast<uint32_t>(shared::OperationResult::INVALID_REQUEST)});
     return SubmitResult::Overloaded;
   }
   externalRequest external_request;
@@ -155,7 +155,7 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
     LOG_WARN(logger_, "Cannot allocate client for" << KVLOG(correlation_id));
     if (callback) {
       if (serving_candidates == 0 && !clients_.empty()) {
-        callback(bftEngine::SendResult{SubmitResult::ClientUnavailable});
+        callback(bftEngine::SendResult{static_cast<uint32_t>(shared::OperationResult::INVALID_REQUEST)});
       } else {
         callback(bftEngine::SendResult{SubmitResult::Overloaded});
       }
@@ -219,7 +219,7 @@ SubmitResult ConcordClientPool::SendRequest(const bft::client::ReadConfig &confi
                                             const bftEngine::RequestCallBack &callback) {
   LOG_INFO(logger_, "Received read request with cid=" << config.request.correlation_id);
   if (callback && config.request.pre_execute) {
-    callback(bftEngine::SendResult{SubmitResult::InvalidArgument});
+    callback(bftEngine::SendResult{static_cast<uint32_t>(shared::OperationResult::INVALID_REQUEST)});
     return SubmitResult::Overloaded;
   }
   return SendRequest(std::forward<std::vector<uint8_t>>(request),
@@ -413,12 +413,12 @@ void SingleRequestProcessingJob::execute() {
     read_config_.request.correlation_id = correlation_id_;
     read_config_.request.span_context = span_context_;
     res = processing_client_->SendRequest(read_config_, std::move(request_));
-    reply_size = res.matched_data.size();
+    reply_size = res.matched_data.size() + sizeof(res.result);
     if (callback_) {
-      if (processing_client_->getClientRequestError() != OperationResult::TIMEOUT) {
+      if (processing_client_->getRequestExecutionResult() != OperationResult::TIMEOUT) {
         callback_(bftEngine::SendResult{res});
       } else {
-        callback_(bftEngine::SendResult{SubmitResult::TimedOut});
+        callback_(bftEngine::SendResult{static_cast<uint32_t>(shared::OperationResult::INVALID_REQUEST)});
       }
     }
   } else {
@@ -428,14 +428,14 @@ void SingleRequestProcessingJob::execute() {
     write_config_.request.span_context = span_context_;
     write_config_.request.pre_execute = flags_ & PRE_PROCESS_REQ;
     res = processing_client_->SendRequest(write_config_, std::move(request_));
-    reply_size = res.matched_data.size();
+    reply_size = res.matched_data.size() + sizeof(res.result);
     if (callback_) {
-      if (OperationResult::SUCCESS == processing_client_->getClientRequestError()) {
+      if (OperationResult::SUCCESS == processing_client_->getRequestExecutionResult()) {
         callback_(bftEngine::SendResult{res});
-      } else if (OperationResult::TIMEOUT == processing_client_->getClientRequestError()) {
-        callback_(bftEngine::SendResult{SubmitResult::TimedOut});
+      } else if (OperationResult::TIMEOUT == processing_client_->getRequestExecutionResult()) {
+        callback_(bftEngine::SendResult{static_cast<uint32_t>(shared::OperationResult::INVALID_REQUEST)});
       } else {  // Lets treat as invalid argument request.
-        callback_(bftEngine::SendResult{SubmitResult::InvalidArgument});
+        callback_(bftEngine::SendResult{static_cast<uint32_t>(shared::OperationResult::INVALID_REQUEST)});
       }
     }
   }
@@ -535,13 +535,13 @@ void ConcordClientPool::InsertClientToQueue(
       }
     }
   }
-  if (replies.second.front().cb && client->getClientRequestError() == OperationResult::TIMEOUT) {
+  if (replies.second.front().cb && client->getRequestExecutionResult() == OperationResult::TIMEOUT) {
     for (const auto &reply : replies.second) {
-      reply.cb(SendResult{SubmitResult::TimedOut});
+      reply.cb(SendResult{static_cast<uint32_t>(shared::OperationResult::INVALID_REQUEST)});
     }
-  } else if (replies.second.front().cb && client->getClientRequestError() == OperationResult::INVALID_REQUEST) {
+  } else if (replies.second.front().cb && client->getRequestExecutionResult() == OperationResult::INVALID_REQUEST) {
     for (const auto &reply : replies.second) {
-      reply.cb(SendResult{SubmitResult::InvalidArgument});
+      reply.cb(SendResult{static_cast<uint32_t>(shared::OperationResult::INVALID_REQUEST)});
     }
   }
   Done(std::move(replies));
@@ -589,8 +589,8 @@ bool ConcordClientPool::clusterHasKeys(ClientPtr &cl) {
 
 OperationResult ConcordClientPool::getClientError() {
   for (auto &client : this->clients_) {
-    if (client->getClientRequestError() != OperationResult::SUCCESS) {
-      return client->getClientRequestError();
+    if (client->getRequestExecutionResult() != OperationResult::SUCCESS) {
+      return client->getRequestExecutionResult();
     }
   }
   return OperationResult::SUCCESS;

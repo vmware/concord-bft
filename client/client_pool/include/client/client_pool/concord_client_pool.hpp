@@ -45,8 +45,6 @@ enum SubmitResult {
   Acknowledged,  // The request has been queued for submission
   Overloaded,    // There is no available client to the moment to process the
   // request
-  InvalidArgument,
-  TimedOut,
   ClientUnavailable,  // There are clients in the queue but none of them are connected to enough replicas
 };
 

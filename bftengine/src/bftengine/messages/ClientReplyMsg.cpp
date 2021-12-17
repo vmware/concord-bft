@@ -23,9 +23,10 @@ ClientReplyMsg::ClientReplyMsg(ReplicaId primaryId, ReqId reqSeqNum, ReplicaId r
   setMsgSize(sizeof(ClientReplyMsgHeader));
 }
 
-ClientReplyMsg::ClientReplyMsg(ReplicaId replicaId, ReqId reqSeqNum, char* reply, uint32_t replyLength)
+ClientReplyMsg::ClientReplyMsg(
+    ReplicaId replicaId, ReqId reqSeqNum, char* reply, uint32_t replyLength, uint32_t executionResult)
     : MessageBase(replicaId, MsgCode::ClientReply, sizeof(ClientReplyMsgHeader) + replyLength) {
-  setHeaderParameters(0, reqSeqNum, replyLength, 0);
+  setHeaderParameters(0, reqSeqNum, replyLength, executionResult);
   memcpy(body() + sizeof(ClientReplyMsgHeader), reply, replyLength);
 }
 

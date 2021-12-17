@@ -49,13 +49,13 @@ Status RequestServiceImpl::Send(ServerContext* context, const Request* proto_req
         case (concord_client_pool::Overloaded):
           status.set_value(grpc::Status(grpc::StatusCode::RESOURCE_EXHAUSTED, "All clients occupied"));
           break;
-        case (concord_client_pool::InvalidArgument):
+        case (static_cast<uint32_t>(shared::OperationResult::INVALID_REQUEST)):
           status.set_value(grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "Invalid argument"));
           break;
-        case (concord_client_pool::TimedOut):
+        case (static_cast<uint32_t>(shared::OperationResult::TIMEOUT)):
           status.set_value(grpc::Status(grpc::StatusCode::DEADLINE_EXCEEDED, "Timeout"));
           break;
-        case (concord_client_pool::ClientUnavailable):
+        case (static_cast<uint32_t>(shared::OperationResult::NOT_READY)):
           status.set_value(grpc::Status(grpc::StatusCode::UNAVAILABLE, "No clients connected to the replicas"));
           break;
         default:
