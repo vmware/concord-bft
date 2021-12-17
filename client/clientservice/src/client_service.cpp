@@ -15,11 +15,12 @@
 
 namespace concord::client::clientservice {
 
-void ClientService::start(const std::string& addr) {
+void ClientService::start(const std::string& addr, uint64_t max_receive_msg_size) {
   grpc::EnableDefaultHealthCheckService(true);
 
   grpc::ServerBuilder builder;
   builder.AddListeningPort(addr, grpc::InsecureServerCredentials());
+  builder.SetMaxReceiveMessageSize(max_receive_msg_size);
   builder.RegisterService(request_service_.get());
   builder.RegisterService(event_service_.get());
 
