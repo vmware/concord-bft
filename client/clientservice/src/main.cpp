@@ -57,6 +57,7 @@ po::variables_map parseCmdLine(int argc, char** argv) {
     ("metrics-port", po::value<int>()->default_value(9891), "Prometheus port to query clientservice metrics")
     ("secrets-url", po::value<std::string>(), "URL to decrypt private keys")
     ("jaeger", po::value<std::string>(), "Push trace data to this Jaeger Agent")
+    ("max-receive-msg-size", po::value<int>()->default_value(4194304), "Clientservice max receive message size in bytes")
   ;
   // clang-format on
   po::variables_map opts;
@@ -163,7 +164,7 @@ int main(int argc, char** argv) {
 
   auto server_addr = opts["host"].as<std::string>() + ":" + std::to_string(opts["port"].as<int>());
   LOG_INFO(logger, "Starting clientservice at " << server_addr);
-  service.start(server_addr);
+  service.start(server_addr, opts["max-receive-msg-size"].as<int>());
 
   return 0;
 }
