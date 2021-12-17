@@ -114,15 +114,15 @@ class BCStateTran : public IStateTransfer {
   void saveReservedPage(uint32_t reservedPageId, uint32_t copyLength, const char* inReservedPage) override;
   void zeroReservedPage(uint32_t reservedPageId) override;
 
-  // Handoff API- handle timeouts and messages from an external context
-  void onTimer() override { handoff_->push(std::bind(&BCStateTran::onTimerImp, this)); };
+  // Incoming Events (Handoff) - ST main thread is a consumer of timeouts and messages arriving from an external context
+  void onTimer() override { incomingEventsQ_->push(std::bind(&BCStateTran::onTimerImp, this)); };
   using LocalTimePoint = time_point<steady_clock>;
   static constexpr auto UNDEFINED_LOCAL_TIME_POINT = LocalTimePoint::max();
   void handleStateTransferMessage(char* msg, uint32_t msgLen, uint16_t senderId) override {
-    handoff_->push(std::bind(
+    incomingEventsQ_->push(std::bind(
         &BCStateTran::handleStateTransferMessageImp, this, msg, msgLen, senderId, std::chrono::steady_clock::now()));
   };
-
+  std::unique_ptr<concord::util::Handoff> incomingEventsQ_;
   std::string getStatus() override;
 
   void addOnTransferringCompleteCallback(
@@ -141,7 +141,7 @@ class BCStateTran : public IStateTransfer {
     return cre_;
   }
 
-  void handoffConsensusMessage(shared_ptr<ConsensusMsg>& msg) override;
+  void handoffConsensusMessage(const shared_ptr<ConsensusMsg>& msg) override;
   void peekConsensusMessage(shared_ptr<ConsensusMsg>& msg);
 
  protected:
@@ -181,7 +181,6 @@ class BCStateTran : public IStateTransfer {
   uint32_t cycleCounter_;
 
   std::atomic<bool> running_ = false;
-  std::unique_ptr<concord::util::Handoff> handoff_;
   IReplicaForStateTransfer* replicaForStateTransfer_ = nullptr;
 
   std::unique_ptr<char[]> buffer_;  // general use buffer
@@ -607,13 +606,14 @@ class BCStateTran : public IStateTransfer {
     static constexpr uint64_t MAX_BLOCK_SIZE = 100ULL * 1024ULL * 1024ULL;                 // 100MB
     static constexpr uint64_t MAX_BATCH_SIZE_BYTES = 10ULL * 1024ULL * 1024ULL * 1024ULL;  // 10GB
     static constexpr uint64_t MAX_BATCH_SIZE_BLOCKS = 1000ULL;
-    static constexpr uint64_t MAX_HANDOFF_QUEUE_SIZE = 10000ULL;
+    static constexpr uint64_t MAX_INCOMING_EVENTS_QUEUE_SIZE = 10000ULL;
     static constexpr uint64_t MAX_PENDING_BLOCKS_SIZE = 1000ULL;
 
     Recorders() {
       auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
       // common component
-      registrar.perf.registerComponent("state_transfer", {on_timer, time_in_handoff_queue, handoff_queue_size});
+      registrar.perf.registerComponent("state_transfer",
+                                       {on_timer, time_in_incoming_events_queue, incoming_events_queue_size});
       // destination component
       registrar.perf.registerComponent("state_transfer_dest",
                                        {
@@ -642,8 +642,9 @@ class BCStateTran : public IStateTransfer {
     // common
     DEFINE_SHARED_RECORDER(on_timer, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
     DEFINE_SHARED_RECORDER(
-        time_in_handoff_queue, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(handoff_queue_size, 1, MAX_HANDOFF_QUEUE_SIZE, 3, concord::diagnostics::Unit::COUNT);
+        time_in_incoming_events_queue, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(
+        incoming_events_queue_size, 1, MAX_INCOMING_EVENTS_QUEUE_SIZE, 3, concord::diagnostics::Unit::COUNT);
     // destination
     DEFINE_SHARED_RECORDER(
         dst_handle_ItemData_msg, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
@@ -667,7 +668,7 @@ class BCStateTran : public IStateTransfer {
   // Async time recorders - wrap the above shared recorders with the same name and prefix _rec_
   AsyncTimeRecorder<false> src_send_batch_duration_rec_;
   AsyncTimeRecorder<false> dst_time_between_sendFetchBlocksMsg_rec_;
-  AsyncTimeRecorder<false> time_in_handoff_queue_rec_;
+  AsyncTimeRecorder<false> time_in_incoming_events_queue_rec_;
   std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> cre_ = nullptr;
 };  // class BCStateTran
 
