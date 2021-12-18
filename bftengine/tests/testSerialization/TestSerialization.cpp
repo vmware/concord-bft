@@ -44,6 +44,8 @@ void printRawBuf(const UniquePtrToChar &buf, int64_t bufSize) {
 
 uint16_t fVal = 2;
 uint16_t cVal = 1;
+uint16_t clientsNum = 2;
+uint16_t batchSize = 2;
 uint16_t numReplicas = 3 * fVal + 2 * cVal + 1;
 
 const uint16_t msgsNum = 2 * fVal + 2 * cVal + 1;
@@ -391,14 +393,14 @@ int main() {
   descriptorOfLastNewView = new DescriptorOfLastNewView();
   descriptorOfLastExecution = new DescriptorOfLastExecution();
 
-  persistentStorageImp = new PersistentStorageImp(numReplicas, fVal, cVal);
+  persistentStorageImp = new PersistentStorageImp(numReplicas, fVal, cVal, numReplicas + clientsNum, batchSize);
   logging::Logger logger = logging::getLogger("testSerialization.replica");
   // uncomment if needed
   // log4cplus::Logger::getInstance( LOG4CPLUS_TEXT("serializable")).setLogLevel(log4cplus::TRACE_LOG_LEVEL);
   const string dbFile = "testPersistency.txt";
   remove(dbFile.c_str());  // Required for the init testing.
 
-  PersistentStorageImp persistentStorage(numReplicas, fVal, cVal);
+  PersistentStorageImp persistentStorage(numReplicas, fVal, cVal, numReplicas + clientsNum, batchSize);
   metadataStorage.reset(new FileStorage(logger, dbFile));
   uint16_t numOfObjects = 0;
   ObjectDescUniquePtr objectDescArray = persistentStorage.getDefaultMetadataObjectDescriptors(numOfObjects);

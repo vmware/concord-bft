@@ -156,8 +156,13 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
   uint16_t numOfObjects = 0;
   bool isNewStorage = true;
   if (metadataStorage != nullptr) {
-    persistentStoragePtr.reset(
-        new impl::PersistentStorageImp(replicaConfig.numReplicas, replicaConfig.fVal, replicaConfig.cVal));
+    persistentStoragePtr.reset(new impl::PersistentStorageImp(replicaConfig.numReplicas,
+                                                              replicaConfig.fVal,
+                                                              replicaConfig.cVal,
+                                                              replicaConfig.numReplicas + replicaConfig.numRoReplicas +
+                                                                  replicaConfig.numOfClientProxies +
+                                                                  replicaConfig.numOfExternalClients,
+                                                              replicaConfig.clientBatchingMaxMsgsNbr));
     unique_ptr<MetadataStorage> metadataStoragePtr(metadataStorage);
     auto objectDescriptors =
         ((PersistentStorageImp *)persistentStoragePtr.get())->getDefaultMetadataObjectDescriptors(numOfObjects);

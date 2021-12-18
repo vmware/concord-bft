@@ -19,30 +19,33 @@ namespace impl {
 
 ClientReplyMsg::ClientReplyMsg(ReplicaId primaryId, ReqId reqSeqNum, ReplicaId replicaId)
     : MessageBase(replicaId, MsgCode::ClientReply, ReplicaConfig::instance().getmaxExternalMessageSize()) {
-  b()->reqSeqNum = reqSeqNum;
-  b()->currentPrimaryId = primaryId;
-  b()->replyLength = 0;
-  b()->replicaSpecificInfoLength = 0;
+  setHeaderParameters(primaryId, reqSeqNum, 0, 0);
   setMsgSize(sizeof(ClientReplyMsgHeader));
 }
 
 ClientReplyMsg::ClientReplyMsg(ReplicaId replicaId, ReqId reqSeqNum, char* reply, uint32_t replyLength)
     : MessageBase(replicaId, MsgCode::ClientReply, sizeof(ClientReplyMsgHeader) + replyLength) {
-  b()->reqSeqNum = reqSeqNum;
-  b()->currentPrimaryId = 0;
-  b()->replyLength = replyLength;
-
+  setHeaderParameters(0, reqSeqNum, replyLength, 0);
   memcpy(body() + sizeof(ClientReplyMsgHeader), reply, replyLength);
-  setMsgSize(sizeof(ClientReplyMsgHeader) + replyLength);
 }
 
 ClientReplyMsg::ClientReplyMsg(ReplicaId replicaId, uint32_t replyLength)
     : MessageBase(replicaId, MsgCode::ClientReply, sizeof(ClientReplyMsgHeader) + replyLength) {
-  b()->reqSeqNum = 0;
-  b()->currentPrimaryId = 0;
-  b()->replyLength = replyLength;
+  setHeaderParameters(0, 0, replyLength, 0);
+}
 
-  setMsgSize(sizeof(ClientReplyMsgHeader) + replyLength);
+// Reply with no data; returns an error to the client
+ClientReplyMsg::ClientReplyMsg(ReplicaId primaryId, ReqId reqSeqNum, ReplicaId replicaId, uint32_t result)
+    : MessageBase(replicaId, MsgCode::ClientReply, sizeof(ClientReplyMsgHeader)) {
+  setHeaderParameters(primaryId, reqSeqNum, 0, result);
+}
+
+void ClientReplyMsg::setHeaderParameters(ReplicaId primaryId, ReqId reqSeqNum, uint32_t replyLength, uint32_t result) {
+  b()->currentPrimaryId = primaryId;
+  b()->reqSeqNum = reqSeqNum;
+  b()->replyLength = replyLength;
+  b()->result = result;
+  b()->replicaSpecificInfoLength = 0;
 }
 
 void ClientReplyMsg::setReplyLength(uint32_t replyLength) {

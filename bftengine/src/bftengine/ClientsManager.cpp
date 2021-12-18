@@ -17,14 +17,24 @@
 #include "ReplicaConfig.hpp"
 #include "bftengine/KeyExchangeManager.hpp"
 #include "Serializable.h"
+#include "PersistentStorageImp.hpp"
 
 #include <chrono>
 using namespace std::chrono;
-
+using namespace concord::serialize;
 namespace bftEngine::impl {
 // Initialize:
 // * map of client id to indices.
 // * Calculate reserved pages per client.
+ClientsManager::ClientsManager(std::shared_ptr<PersistentStorage> ps,
+                               const std::set<NodeIdType>& proxyClients,
+                               const std::set<NodeIdType>& externalClients,
+                               const std::set<NodeIdType>& internalClients,
+                               concordMetrics::Component& metrics)
+    : ClientsManager{proxyClients, externalClients, internalClients, metrics} {
+  rsiManager_.reset(new RsiDataManager(
+      proxyClients.size() + externalClients.size() + internalClients.size(), maxNumOfReqsPerClient_, ps));
+}
 ClientsManager::ClientsManager(const std::set<NodeIdType>& proxyClients,
                                const std::set<NodeIdType>& externalClients,
                                const std::set<NodeIdType>& internalClients,
@@ -48,6 +58,14 @@ ClientsManager::ClientsManager(const std::set<NodeIdType>& proxyClients,
   clientIds_.insert(externalClients_.begin(), externalClients_.end());
   clientIds_.insert(internalClients_.begin(), internalClients_.end());
   ConcordAssert(clientIds_.size() >= 1);
+
+  // For the benefit of code accessing clientsInfo_, pre-fill cliensInfo_ with a blank entry for each client to reduce
+  // ambiguity between invalid client IDs and valid client IDs for which nothing stored in clientsInfo_ has been loaded
+  // so far.
+  for (const auto& client_id : clientIds_) {
+    clientsInfo_.emplace(client_id, ClientInfo());
+  }
+
   std::ostringstream oss;
   oss << "proxy clients: ";
   std::copy(proxyClients_.begin(), proxyClients_.end(), std::ostream_iterator<NodeIdType>(oss, " "));
@@ -152,8 +170,12 @@ void ClientsManager::deleteOldestReply(NodeIdType clientId) {
 // * allocate new ClientReplyMsg
 // * calculate: num of pages, size of last page.
 // * save the reply to the reserved pages.
-std::unique_ptr<ClientReplyMsg> ClientsManager::allocateNewReplyMsgAndWriteToStorage(
-    NodeIdType clientId, ReqId requestSeqNum, uint16_t currentPrimaryId, char* reply, uint32_t replyLength) {
+std::unique_ptr<ClientReplyMsg> ClientsManager::allocateNewReplyMsgAndWriteToStorage(NodeIdType clientId,
+                                                                                     ReqId requestSeqNum,
+                                                                                     uint16_t currentPrimaryId,
+                                                                                     char* reply,
+                                                                                     uint32_t replyLength,
+                                                                                     uint32_t rsiLength) {
   ClientInfo& c = clientsInfo_[clientId];
   if (c.repliesInfo.size() >= maxNumOfReqsPerClient_) deleteOldestReply(clientId);
   if (c.repliesInfo.size() > maxNumOfReqsPerClient_) {
@@ -164,20 +186,22 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateNewReplyMsgAndWriteToSto
 
   c.repliesInfo.insert_or_assign(requestSeqNum, getMonotonicTime());
   LOG_DEBUG(CL_MNGR, KVLOG(clientId, requestSeqNum));
-  auto r = std::make_unique<ClientReplyMsg>(myId_, requestSeqNum, reply, replyLength);
+  auto r = std::make_unique<ClientReplyMsg>(myId_, requestSeqNum, reply, replyLength - rsiLength);
 
-  uint32_t numOfPages = r->size() / sizeOfReservedPage();
+  // At this point, the rsi data is not part of the reply
+  uint32_t commonMsgSize = r->size();
+  uint32_t numOfPages = commonMsgSize / sizeOfReservedPage();
   uint32_t sizeLastPage = sizeOfReservedPage();
   if (numOfPages > reservedPagesPerClient_) {
     LOG_FATAL(CL_MNGR,
-              "Client reply is larger than reservedPagesPerClient_ allows"
-                  << KVLOG(clientId, requestSeqNum, reservedPagesPerClient_ * sizeOfReservedPage(), replyLength));
+              "Client reply is larger than reservedPagesPerClient_ allows" << KVLOG(
+                  clientId, requestSeqNum, reservedPagesPerClient_ * sizeOfReservedPage(), replyLength - rsiLength));
     ConcordAssert(false);
   }
 
-  if (r->size() % sizeOfReservedPage() != 0) {
+  if (commonMsgSize % sizeOfReservedPage() != 0) {
     numOfPages++;
-    sizeLastPage = r->size() % sizeOfReservedPage();
+    sizeLastPage = commonMsgSize % sizeOfReservedPage();
   }
 
   LOG_DEBUG(CL_MNGR, KVLOG(clientId, requestSeqNum, numOfPages, sizeLastPage));
@@ -188,6 +212,12 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateNewReplyMsgAndWriteToSto
     const uint32_t sizePage = ((i < numOfPages - 1) ? sizeOfReservedPage() : sizeLastPage);
     saveReservedPage(firstPageId + i, sizePage, ptrPage);
   }
+  // now save the RSI in the rsiManager, if this ClientsManager has one.
+  if (rsiManager_) {
+    rsiManager_->setRsiForClient(clientId, requestSeqNum, std::string(reply + commonMsgSize, rsiLength));
+  }
+  // we cannot set the RSI metadata before saving the reply to the reserved paged, hence save it now.
+  r->setReplicaSpecificInfoLength(rsiLength);
 
   // write currentPrimaryId to message (we don't store the currentPrimaryId in the reserved pages)
   r->setPrimaryId(currentPrimaryId);
@@ -231,6 +261,17 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateReplyFromSavedOne(NodeId
     loadReservedPage(firstPageId + i, sizePage, ptrPage);
   }
 
+  // Load the RSI data from persistent storage, if an RSI manager is in use.
+  if (rsiManager_) {
+    auto rsiItem = rsiManager_->getRsiForClient(clientId, requestSeqNum);
+    auto rsiSize = rsiItem.data().size();
+    if (rsiSize > 0) {
+      auto commDataLength = r->replyLength();
+      r->setReplyLength(r->replyLength() + rsiSize);
+      memcpy(r->replyBuf() + commDataLength, rsiItem.data().data(), rsiSize);
+      r->setReplicaSpecificInfoLength(rsiSize);
+    }
+  }
   const auto& replySeqNum = r->reqSeqNum();
   if (replySeqNum != requestSeqNum) {
     if (maxNumOfReqsPerClient_ == 1) {
@@ -315,7 +356,7 @@ bool ClientsManager::canBecomePending(NodeIdType clientId, ReqId reqSeqNum) cons
     return true;
   } catch (const std::out_of_range& e) {
     LOG_DEBUG(CL_MNGR, "no info for client: " << clientId);
-    return true;
+    return false;
   }
 }
 

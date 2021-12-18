@@ -49,7 +49,7 @@ void ReplicaBase::start() {
         std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch());
     if (currTime - last_metrics_dump_time_ >= metrics_dump_interval_in_sec_) {
       last_metrics_dump_time_ = currTime;
-      LOG_INFO(GL, "-- ReplicaBase metrics dump--" + metrics_.ToJson());
+      LOG_DEBUG(GL, "-- ReplicaBase metrics dump--" + metrics_.ToJson());
     }
   });
   msgsCommunicator_->startCommunication(config_.replicaId);

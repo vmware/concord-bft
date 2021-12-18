@@ -19,8 +19,8 @@ import replica_specific_info as rsi
 
 class TestRepliesManager(unittest.TestCase):
 
-    def _build_msg(self, msg, primary_id=0, req_seq_num=1, rsi_length=0):
-        return bft_msgs.pack_reply(primary_id, req_seq_num, msg, rsi_length)
+    def _build_msg(self, msg, primary_id=0, req_seq_num=1, result=0, rsi_length=0):
+        return bft_msgs.pack_reply(primary_id, req_seq_num, msg, result, rsi_length)
 
     def test_add_message_to_manager(self):
         replies_manager = rsi.RepliesManager()
@@ -105,7 +105,7 @@ class TestSpecificReplyInfo(unittest.TestCase):
         msg = b'hello'
         primary_id = 0
         req_seq_num = 1
-        packed = bft_msgs.pack_reply(primary_id, req_seq_num, msg, 0)
+        packed = bft_msgs.pack_reply(primary_id, req_seq_num, msg, 0, 0)
         rsi_reply = rsi.MsgWithReplicaSpecificInfo(packed, 0)
         self.assertEqual(rsi_reply.sender_id, 0)
         common_header, common_data = rsi_reply.get_common_reply()
@@ -116,7 +116,7 @@ class TestSpecificReplyInfo(unittest.TestCase):
         msg = b'hellorsi'
         primary_id = 0
         req_seq_num = 1
-        packed = bft_msgs.pack_reply(primary_id, req_seq_num, msg, 3)
+        packed = bft_msgs.pack_reply(primary_id, req_seq_num, msg, 0, 3)
         rsi_reply = rsi.MsgWithReplicaSpecificInfo(packed, 0)
         self.assertEqual(rsi_reply.sender_id, 0)
         common_header, common_data = rsi_reply.get_common_reply()
@@ -131,10 +131,14 @@ class TestPackUnpack(unittest.TestCase):
         msg = b'hello'
         primary_id = 0
         req_seq_num = 1
-        packed = bft_msgs.pack_reply(primary_id, req_seq_num, msg)
+        result = 1
+        rsi_length = 5
+        packed = bft_msgs.pack_reply(primary_id, req_seq_num, msg, result, rsi_length)
         (header, unpacked_msg) = bft_msgs.unpack_reply(packed)
         self.assertEqual(primary_id, header.primary_id)
         self.assertEqual(req_seq_num, header.req_seq_num)
+        self.assertEqual(result, header.result)
+        self.assertEqual(rsi_length, header.rsi_length)
         self.assertEqual(msg, unpacked_msg)
 
     def test_unpack_request(self):

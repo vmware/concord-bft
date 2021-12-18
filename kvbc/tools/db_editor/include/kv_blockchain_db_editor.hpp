@@ -904,7 +904,8 @@ struct ResetMetadata {
     std::unique_ptr<MetadataStorage> mdtStorage(
         new DBMetadataStorage(adapter.db()->asIDBClient().get(), std::make_unique<MetadataKeyManipulator>()));
     // in this case n, f and c have no use
-    shared_ptr<bftEngine::impl::PersistentStorage> p(new bftEngine::impl::PersistentStorageImp(4, 1, 0));
+    shared_ptr<bftEngine::impl::PersistentStorage> p(
+        new bftEngine::impl::PersistentStorageImp(4, 1, 0, 0, 0));  // TODO: add here rsi reset
     uint16_t numOfObjects = 0;
     auto objectDescriptors = ((PersistentStorageImp *)p.get())->getDefaultMetadataObjectDescriptors(numOfObjects);
     bool isNewStorage = mdtStorage->initMaxSizeOfObjects(objectDescriptors.get(), numOfObjects);
