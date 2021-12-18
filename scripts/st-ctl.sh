@@ -6,33 +6,34 @@
 # This script assumes that the output path is empty. If not, it fails with a warning.
 set -eo pipefail
 
-# For non self-explinotary commands, a comment above the command will explain how to use the command in more details
+# For non self-explanatory commands, a comment above the command will explain how to use the command in more details
 usage() {
     short_dash_line="---------------\n"
-    printf "\n${short_dash_line}st_ctl usage:\n${short_dash_line}"
+    printf "\n${short_dash_line}st-ctl usage:\n${short_dash_line}"
     printf "%s\n" " -h --help, print this message"
-    printf "%s\n" " -s --set_concord_log_level <log level,string:TRACE|DEBUG|INFO|WARN|ERROR|FATAL>"
-    printf "%s\n" " -c --show_concord_log_properties"
-    printf "%s\n" " -m --comm_ctl <ip list,comma seperated ip list> <operation,string:down|up>"
-    printf "%s\n\t%s\n" " -f --copy_from_multi <remotes source path,string> <local destination path,string> <remotes ip list,comma-seperated ip list>" \
+    printf "%s\n" " -s --set-concord-log-level <log level,string:TRACE|DEBUG|INFO|WARN|ERROR|FATAL>"
+    printf "%s\n" " -c --show-concord-log-properties"
+    printf "%s\n" " -m --comm-ctl <ip list,comma seperated ip list> <operation,string:down|up>"
+    printf "%s\n\t%s\n" " -f --copy-from-multi <remotes source path,string> <local destination path,string> <remotes ip list,comma-seperated ip list>" \
            "<user name,string,optional,default:root> <password,string,optional,default:Bl0ckch@!n>"
-    printf "%s\n\t%s\n" " -t --copy_to_multi <local source path,string> <remote destination path,string>" \
+    printf "%s\n\t%s\n" " -t --copy-to-multi <local source path,string> <remote destination path,string>" \
            "<remotes ip list,comma-seperated ip list> <user name,string,optional,default:root> <password,string,default:Bl0ckch@!n>"
     # install packages and create profile/bashrc files to enhance the working enviorment
-    printf "%s\n" " -i --install_tools"
-    printf "%s\n" " -g --gen_concord_coredump_summary <output_path,string>"
+    printf "%s\n" " -i --install-tools"
+    printf "%s\n" " -g --gen-concord-coredump-summary <output_path,string> <container_id,12 digits string>"
     # If line number is given, version will be changed only for this line number
-    printf "%s\n" " -a --agent_replace_version <current version,integer> <new version,integer> <line number,integer,optional>"
-    printf "%s\n" " -v --agent_show_containers_version"
-    printf "%s\n" " -r --reset_containers <agent version,integer>"
-    printf "%s\n\t%s\n" " -p --compress_truncate_docker_logs <container_name,string> <output_folder_path,string> <repeat_times,integer>" \
+    printf "%s\n" " -a --agent-replace-version <current version,integer> <new version,integer> <line number,integer,optional>"
+    printf "%s\n" " -v --agent-show-containers-version"
+    printf "%s\n" " -r --reset-containers <agent version,integer>"
+    printf "%s\n\t%s\n" " -p --compress-truncate-container-logs <container_name,string> <output_folder_path,string> <repeat_times,integer>" \
         "<wait_before_iteration,seconds,optional,default=0> <wait_after_iteration,seconds,optional,default=0>"
-    printf "%s\n" " -u --truncate_docker_logs <container_name,string>"
+    printf "%s\n" " -u --truncate-container-logs <container_name,string>"
+    printf "%s\n" " -k --kill-concord-process"
 }
 
 parser() {
     cmd_set_concord_log_level=false
-    cmd_show_concord_log_config=false
+    cmd_show_concord_log_properties=false
     cmd_comm_ctl=false
     cmd_copy_from_multi=false
     cmd_copy_to_multi=false
@@ -41,8 +42,9 @@ parser() {
     cmd_agent_replace_version=false
     cmd_agent_show_containers_version=false
     cmd_reset_containers=false
-    cmd_compress_truncate_docker_logs=false
-    cmd_truncate_docker_logs=false
+    cmd_compress_truncate_container_logs=false
+    cmd_truncate_container_logs=false
+    cmd_kill_concord=false
 
     while [ "$1" ]; do
         case $1 in
@@ -51,7 +53,7 @@ parser() {
         exit
         ;;
 
-        -s | --set_concord_log_level)
+        -s | --set-concord-log-level)
         cmd_set_concord_log_level=true
         if [[ $# -lt 2 ]]; then echo "error: bad input for option -s | --set_concord_log_level!" >&2; usage; exit; fi
         concord_log_level=$2
@@ -64,12 +66,12 @@ parser() {
         break
         ;;
 
-        -c | --show_concord_log_config)
-        cmd_show_concord_log_config=true
+        -c | --show-concord-log-properties)
+        cmd_show_concord_log_properties=true
         break
         ;;
 
-        -m | --comm_ctl)
+        -m | --comm-ctl)
         cmd_comm_ctl=true
         if [[ $# -lt 3 ]] ; then echo "error: bad input for option -m | --comm_ctl!" >&2; usage; exit; fi
         ip_list=$2      # won't check for validity, too complicated
@@ -82,7 +84,7 @@ parser() {
         break
         ;;
 
-        -f | --copy_from_multi)
+        -f | --copy-from-multi)
         cmd_copy_from_multi=true
         if [[ $# -lt 4 ]]; then echo "error: bad input for option -f | --copy_from_multi!" >&2; usage; exit; fi
         from_path=$2
@@ -98,7 +100,7 @@ parser() {
         break
         ;;
 
-        -t | --copy_to_multi)
+        -t | --copy-to-multi)
         cmd_copy_to_multi=true
         if [[ $# -lt 4 ]]; then echo "error: bad input for option -t | --copy_to_multi!" >&2; usage; exit; fi
         from_path=$2
@@ -114,19 +116,20 @@ parser() {
         break
         ;;
 
-        -i | --install_tools)
+        -i | --install-tools)
         cmd_install_tools=true
         break
         ;;
 
-        -g | --gen_concord_coredump_summary)
+        -g | --gen-concord-coredump-summary)
         cmd_gen_concord_coredump_summary=true
-        if [[ $# -lt 2 ]]; then echo "error: bad input for option -g | --gen_concord_coredump_summary!" >&2; usage; exit; fi
+        if [[ $# -lt 3 ]]; then echo "error: bad input for option -g | --gen_concord_coredump_summary!" >&2; usage; exit; fi
         output_path=$2
+        container_id=$3
         break
         ;;
 
-        -a | --agent_replace_version)
+        -a | --agent-replace-version)
         cmd_agent_replace_version=true
         if [[ $# -lt 3 ]]; then echo "error: bad input for option -a | --agent_replace_version!" >&2; usage; exit; fi
         cur_ver=$2
@@ -138,23 +141,23 @@ parser() {
         break
         ;;
 
-        -v | --agent_show_containers_version)
+        -v | --agent-show-containers-version)
         cmd_agent_show_containers_version=true
         break
         ;;
 
-        -r | --reset_containers)
+        -r | --reset-containers)
         cmd_reset_containers=true
         if [[ $# -lt 2 ]]; then echo "error: bad input for option -r | --reset_containers!" >&2; usage; exit; fi
         agent_version=$2
         break
         ;;
 
-        -p | --compress_truncate_docker_logs)
-        cmd_compress_truncate_docker_logs=true
-        if [[ $# -lt 4 ]]; then echo "error: bad input for option -p | --compress_truncate_docker_logs!" >&2; usage; exit; fi
+        -p | --compress-truncate-container-logs)
+        cmd_compress_truncate_container_logs=true
+        if [[ $# -lt 4 ]]; then echo "error: bad input for option -p | --compress_truncate_container_logs!" >&2; usage; exit; fi
         container_name=$2
-        output_folder_path=$3
+        output_folder_path=$(realpath "$3")
         repeat_times=$4
         wait_before_iteration=0
         wait_after_iteration=0
@@ -162,13 +165,22 @@ parser() {
             wait_before_iteration=$5
             wait_after_iteration=$6
         fi
+        if [[ $# -eq 5 ]] || [[ $5 == -* ]] || [ "$5" == "--*" ]; then
+            wait_before_iteration=$5
+        fi
         if [ -d "${output_folder_path}" ]; then echo "${output_folder_path} already exist!"; exit 1; fi
         break
         ;;
 
-        -u | --truncate_docker_logs)
-        cmd_truncate_docker_logs=true
+        -u | --truncate-container-logs)
+        cmd_truncate_container_logs=true
+        if [[ $# -lt 2 ]]; then echo "error: bad input for option -u | --truncate-container-logs!" >&2; usage; exit; fi
         container_name=$2
+        break
+        ;;
+
+        -k | --kill-concord-process)
+        cmd_kill_concord=true
         break
         ;;
 
@@ -223,9 +235,9 @@ if $cmd_set_concord_log_level; then
 fi
 
 ##########################################
-# handle cmd_show_concord_log_config
+# handle cmd_show_concord_log_properties
 ##########################################
-if $cmd_show_concord_log_config; then
+if $cmd_show_concord_log_properties; then
     docker exec ${concord_container_name} bash -c "cat '${concord_log_properties_path}'"
 fi
 
@@ -293,6 +305,7 @@ fi
 # handle cmd_install_tools
 ##########################################
 if $cmd_install_tools; then
+rm -rf ~/.tmux.conf ~/.profile
 
 cat <<EOF > ~/.tmux.conf
 # Scroll History
@@ -318,20 +331,22 @@ sed -i "s/^export TMOUT$/#export TMOUT/g" /etc/profile.d/tmout.sh
 rpm -i https://packages.vmware.com/photon/3.0/photon_release_3.0_x86_64/x86_64/nano-3.0-1.ph3.x86_64.rpm || true
 rpm -i https://packages.vmware.com/photon/3.0/photon_release_3.0_x86_64/x86_64/tmux-2.7-1.ph3.x86_64.rpm || true
 
+cd /root/
+rm -rf ./lnav-0.9.0 ./lnav-0.9.0-musl-64bit.zip
 wget https://github.com/tstack/lnav/releases/download/v0.9.0/lnav-0.9.0-musl-64bit.zip
 unzip lnav-0.9.0-musl-64bit.zip
 mv lnav-0.9.0/lnav /usr/bin/
-rm -rf lnav lnav-0.9.0-musl-64bit.zip
+rm -rf ./lnav-0.9.0 ./lnav-0.9.0-musl-64bit.zip
 
 cat <<EOF >> ~/.profile
-alias myip="echo $(ifconfig | grep "10\." | cut -d ":" -f 2 | cut -d " " -f 1)"
+alias myip="echo $(ifconfig | grep "10\.202" | cut -d ":" -f 2 | cut -d " " -f 1)"
 alias ll="ls -la"
 alias cd_grep_log_full="docker logs concord | grep -ia"
 alias cd_grep_log_tail="docker logs concord --tail 10 -f | grep -ia"
 
 alias cd_login="docker exec -it concord /bin/bash"
 alias cd_logs_zip="docker logs concord | zip -9 log.zip -"
-alias myid="ls /config/concord/config-generated/ | cut -d "." -f 2"
+alias myid="ls /config/concord/config-generated/ 2> /dev/null | cut -d "." -f 2"
 alias cd_truncate='truncate -s 0 $(docker inspect --format='{{.LogPath}}' concord)'
 
 export PATH="$PATH:/root"
@@ -344,11 +359,12 @@ fdocker_truncate_logs() {
     if [[ $# -ne 1 ]]; then echo "usage: cd_docker_truncate_logs <container_name>"; return; fi
     truncate -s 0 $(docker inspect --format='{{.LogPath}}' $1)
 }
-echo -ne "\033]0;"$(myip)/$(myid)"\007"
-export PROMPT_COMMAND="resize &>/dev/null ; $PROMPT_COMMAND"
+# If set, Bash checks the window size after each command and, if necessary, updates the values of LINES and COLUMNS
+shopt -u checkwinsize
+export PS1="\e[0;31m[\w][id_\$(myid || "")][ip_\$(myip)]\e[m > "
 EOF
 
-# inside concod container
+# inside concord container
 docker exec -it ${concord_container_name} bash -c "apt update && apt install nano -y"  >/dev/null 2>&1 || true
 echo "Done Installing tools, please log in and out"
 fi
@@ -359,11 +375,11 @@ fi
 if $cmd_gen_concord_coredump_summary; then
     myip=$(ifconfig | grep "10\." | cut -d ":" -f 2 | cut -d " " -f 1)
     output_file="${output_path}/cores_summary_${myip}.log"
-    rm "${output_file}" || true 2> /dev/null
-    docker_container_id=$(docker ps | grep ${concord_container_name} | cut -d " " -f 1)
-    docker exec -it "${docker_container_id}" bash -c \
-        'rm ${output_path}; for filename in /concord/cores/core.concord*; do echo "***bt for ${filename}:***"; echo "set pagination off" > ~/.gdbinit; gdb concord ${filename} -ex bt -ex quit; done' >> "${output_file}"
-
+    rm -f "${output_file}" || true 2> /dev/null
+    mkdir -p ${output_path}
+    echo "Generating output file (this may take some time) ..."
+    docker exec -it "${container_id}" bash -c \
+        'for filename in /concord/cores/core.concord*; do echo "***bt for ${filename}:***"; echo "set pagination off" > ~/.gdbinit; gdb concord ${filename} -ex bt -ex quit; done' >> "${output_file}"
     echo "Done generating summary under ${output_file}"
 fi
 
@@ -371,15 +387,15 @@ fi
 # handle cmd_agent_replace_version
 ##########################################
 if $cmd_agent_replace_version; then
-    echo "before changing versions:"
+    echo "Before changing version:"
     grep -r "${cur_ver}" ${vm_agent_config_path}
 
-    echo "changing versions:"
+    echo "Changing version:"
     set -x
     sed -i "${line}s/0.0.0.0.${cur_ver}/0.0.0.0.${new_ver}/" ${vm_agent_config_path}
     set +x
 
-    echo "before changing versions:"
+    echo "After changing version:"
     grep -r "${new_ver}" $vm_agent_config_path
 
     echo "Done changing version"
@@ -414,27 +430,37 @@ if $cmd_reset_containers; then
 fi
 
 ##########################################
-# handle cmd_compress_truncate_docker_logs
+# handle cmd_compress_truncate_container_logs
 ##########################################
-if $cmd_compress_truncate_docker_logs; then
+if $cmd_compress_truncate_container_logs; then
     mkdir -p "${output_folder_path}"
     for (( c=1; c <= repeat_times; c++ )); do
         if [[ ${wait_before_iteration} -gt 0 ]]; then echo "sleeping ${wait_after_iteration} seconds (before).."; sleep "${wait_before_iteration}"; fi
-        docker logs "${container_name}" > "${output_folder_path}/${container_name}_${c}.log"
+        raw_log_path="${output_folder_path}/${container_name}_${c}.log"
+        docker logs "${container_name}" > "${raw_log_path}"
         truncate -s 0 $(docker inspect --format='{{.LogPath}}' ${container_name})
         cd "${output_folder_path}"
         echo "${container_name} log truncated!" && date
-        zip -9 "${output_folder_path}/log${c}.zip" "${container_name}_${c}.log"
-        rm -rf "${output_folder_path}/${container_name}_${c}.log"
+        output_zip_file_name="${output_folder_path}/log_n${c}_$(date +"%Y_%m_%d_%R:%S").zip"
+        zip -9 "${output_zip_file_name}" "${raw_log_path}"
+        rm -rf "${raw_log_path}"
         if [[ ${wait_after_iteration} -gt 0 ]]; then echo "sleeping ${wait_after_iteration} seconds (after).."; sleep "${wait_after_iteration}"; fi
     done
     echo "===Done!==="
 fi
 
 ##########################################
-# handle cmd_truncate_docker_logs
+# handle cmd_truncate_container_logs
 ##########################################
-if $cmd_truncate_docker_logs; then
+if $cmd_truncate_container_logs; then
     truncate -s 0 "$(docker inspect --format='{{.LogPath}}' ${container_name})"
+    echo "===Done!==="
+fi
+
+##########################################
+# handle cmd_kill_concord
+##########################################
+if $cmd_kill_concord; then
+    killall concord
     echo "===Done!==="
 fi
