@@ -213,9 +213,10 @@ if $cmd_set_concord_log_level; then
         "concord.bft.st.dst" \
         "concord.bft.st.src" \
         "concord.util.handoff" \
+        "concord.bft.st.dbdatastore" \
+        "concord.bft.st.inmem" \
         # Uncomment as needed
         #"serializable" \
-        #"concord.bft.st.dbdatastore" \
         #'rocksdb'
     )
     for logger in "${arr[@]}"
