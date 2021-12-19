@@ -443,6 +443,8 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
         deferredRORequests_.push_back(
             m);  // We should handle span and deleting the message when we handle the deferred message
         deferredRORequestsMetric_++;
+      } else {
+        delete m;
       }
     } else {
       executeReadOnlyRequest(span, m);
@@ -2364,6 +2366,8 @@ void ReplicaImp::pushDeferredMessage(MessageBase *m) {
   if (deferredMessages_.size() < maxQueueSize) {
     deferredMessages_.push_back(m);
     deferredMessagesMetric_++;
+  } else {
+    delete m;
   }
 }
 
