@@ -392,9 +392,6 @@ bool KeyValueBlockchain::deleteBlock(const BlockId& block_id) {
     return false;
   }
 
-  // Lets update the delete metrics component
-  delete_metrics_comp_.UpdateAggregator();
-
   const auto last_reachable_block_id = block_chain_.getLastReachableBlockId();
 
   // Block id belongs to the ST chain
@@ -432,13 +429,14 @@ bool KeyValueBlockchain::deleteBlock(const BlockId& block_id) {
     throw std::logic_error{"Deleting the only block in the system is not supported"};
   } else if (block_id == last_reachable_block_id) {
     deleteLastReachableBlock();
-    return true;
   } else if (block_id == genesis_block_id) {
     deleteGenesisBlock();
-    return true;
   } else {
     throw std::invalid_argument{"Cannot delete blocks in the middle of the blockchain"};
   }
+  // Lets update the delete metrics component
+  delete_metrics_comp_.UpdateAggregator();
+  return true;
 }
 
 void KeyValueBlockchain::deleteStateTransferBlock(const BlockId block_id) {
