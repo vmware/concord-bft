@@ -218,6 +218,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
 
   // Post-execution separation feature flag
   CONFIG_PARAM(enablePostExecutionSeparation, bool, true, "Post-execution separation feature flag");
+  CONFIG_PARAM(postExecutionQueuesSize, uint16_t, 50, "Post-execution deferred message queues size");
 
   // Not predefined configuration parameters
   // Example of usage:
@@ -319,6 +320,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, timeoutForPrimaryOnStartupSeconds);
     serialize(outStream, waitForFullCommOnStartup);
     serialize(outStream, enablePostExecutionSeparation);
+    serialize(outStream, postExecutionQueuesSize);
     serialize(outStream, config_params_);
   }
   void deserializeDataMembers(std::istream& inStream) {
@@ -399,6 +401,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, timeoutForPrimaryOnStartupSeconds);
     deserialize(inStream, waitForFullCommOnStartup);
     deserialize(inStream, enablePostExecutionSeparation);
+    deserialize(inStream, postExecutionQueuesSize);
     deserialize(inStream, config_params_);
   }
 
@@ -473,7 +476,8 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.prePrepareFinalizeAsyncEnabled,
               rc.threadbagConcurrencyLevel1,
               rc.threadbagConcurrencyLevel2,
-              rc.enablePostExecutionSeparation);
+              rc.enablePostExecutionSeparation,
+              rc.postExecutionQueuesSize);
 
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
   return os;
