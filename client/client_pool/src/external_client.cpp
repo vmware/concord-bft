@@ -154,6 +154,9 @@ std::pair<int8_t, ConcordClient::PendingReplies> ConcordClient::SendPendingReque
       auto data_size = rep.second.matched_data.size();
       for (auto& reply : pending_replies_) {
         if (reply.cid != cid) continue;
+        LOG_INFO(logger_,
+                 "Client has completed processing request: " << client_id_ << " with seqNum: " << rep.first
+                                                             << " with cid: " << reply.cid);
         if (reply.cb) {
           auto result = bftEngine::SendResult{rep.second};
           reply.cb(std::move(result));

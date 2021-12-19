@@ -265,6 +265,7 @@ SeqNumToReplyMap Client::sendBatch(std::deque<WriteRequest>& write_requests, con
     pending_requests_.clear();
     return replies;
   }
+  LOG_ERROR(logger_, "Expected " << pending_requests_.size() << " replies from batch, got: " << replies.size());
   pending_requests_.clear();
   expected_commit_time_ms_.add(max_time_to_wait.count());
   throw BatchTimeoutException(cid);
