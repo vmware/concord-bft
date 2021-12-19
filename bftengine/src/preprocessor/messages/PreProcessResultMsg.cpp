@@ -39,11 +39,10 @@ PreProcessResultMsg::PreProcessResultMsg(NodeIdType sender,
                        messageSignatureLen,
                        resultSignatures.size()) {
   msgBody_->msgType = MsgCode::PreProcessResult;
-  // ClientRequestMsg allocates additional memory for the signatures
-  // Get pointer to it here and assert that the buffer is big enough
+  // ClientRequestMsg allocates additional memory for the signatures.
+  // Get pointer to it here and assert if the buffer is not big enough.
   auto [pos, max_len] = getExtraBufPtr();
   ConcordAssert(max_len >= resultSignatures.size());
-
   memcpy(pos, resultSignatures.data(), resultSignatures.size());
 }
 
@@ -61,22 +60,22 @@ std::optional<std::string> PreProcessResultMsg::validatePreProcessResultSignatur
   // f+1. In theory more signatures can be accepted but this makes the non-primary replicas vulnerable to DoS attacks
   // from a malicious primary (e.g. a Primary sends a PreProcessResult message with 100 signatures, which should be
   // validated by the replica).
+  std::stringstream err;
   const auto expectedSignatureCount = fVal + 1;
   if (sigs.size() != static_cast<uint16_t>(expectedSignatureCount)) {
-    std::stringstream err;
-    err << "PreProcessResult signatures validation failure - unexpected number of signatures received. Expected "
-        << expectedSignatureCount << " got " << sigs.size() << " " << KVLOG(clientProxyId(), getCid(), requestSeqNum());
+    err << "PreProcessResult signatures validation failure - unexpected number of signatures received"
+        << KVLOG(expectedSignatureCount, sigs.size(), clientProxyId(), getCid(), requestSeqNum());
     return err.str();
   }
 
   auto hash = concord::util::SHA3_256().digest(requestBuf(), requestLength());
   std::unordered_set<bftEngine::impl::NodeIdType> seen_signatures;
   for (const auto& s : sigs) {
-    // insert returns std::pair<iterator, bool>. The bool indicates if the element was created or it was already in the
+    // insert returns std::pair<iterator, bool>. The bool indicates if the element was created, or it was already in the
     // set and no insertion was performed. The latter case indicates that we already have got a signature from this
     // replica.
     if (!seen_signatures.insert(s.sender_replica).second) {
-      return "PreProcessResult signatures validation failure - got more than one signatures with the same sender id";
+      return "PreProcessResult signatures validation failure - got more than one signature with the same sender id";
     }
 
     bool verificationResult = false;
@@ -91,9 +90,8 @@ std::optional<std::string> PreProcessResultMsg::validatePreProcessResultSignatur
     }
 
     if (!verificationResult) {
-      std::stringstream err;
-      err << "PreProcessResult signatures validation failure - invalid signature from replica " << s.sender_replica
-          << " " << KVLOG(clientProxyId(), getCid(), requestSeqNum());
+      err << "PreProcessResult signatures validation failure - invalid signature received from replica"
+          << KVLOG(s.sender_replica, clientProxyId(), getCid(), requestSeqNum());
       return err.str();
     }
   }
@@ -130,7 +128,8 @@ std::list<PreProcessResultSignature> PreProcessResultSignature::deserializeResul
 
     if (sizeof(sender_id) + sizeof(signature_size) > len - pos) {
       throw std::runtime_error(
-          "PreProcessResultSignature deserialisation error - remaining buffer length less than fixed size values size");
+          "PreProcessResultSignature deserialization error - remaining buffer length is less than fixed size values "
+          "size");
     }
 
     // Read fixed size values
@@ -141,7 +140,7 @@ std::list<PreProcessResultSignature> PreProcessResultSignature::deserializeResul
 
     if (signature_size > len - pos) {
       throw std::runtime_error(
-          "PreProcessResultSignature deserialisation error - remaining buffer length less than signature size");
+          "PreProcessResultSignature deserialization error - remaining buffer length is less than a signature size");
     }
 
     ret.emplace_back(std::vector<char>(buf + pos, buf + pos + signature_size), sender_id);

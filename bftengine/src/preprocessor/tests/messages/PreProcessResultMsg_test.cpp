@@ -140,8 +140,8 @@ TEST_F(PreProcessResultMsgTestFixture, SignatureDeserialisation) {
 
 TEST_F(PreProcessResultMsgTestFixture, MsgDeserialisation) {
   MsgParams p;
-  auto serialised = createMessage(p, replicaInfo.getNumberOfReplicas(), true /* duplicateSigs */);
-  auto m = std::make_unique<PreProcessResultMsg>((ClientRequestMsgHeader*)serialised->body());
+  auto serialized = createMessage(p, replicaInfo.getNumberOfReplicas(), true /* duplicateSigs */);
+  auto m = std::make_unique<PreProcessResultMsg>((ClientRequestMsgHeader*)serialized->body());
 
   messageSanityCheck(m, p);
 
@@ -155,7 +155,7 @@ TEST_F(PreProcessResultMsgTestFixture, MsgDeserialisation) {
     ASSERT_EQ(p.result[i], m->requestBuf()[i]);
   }
 
-  // Deserialise result signatures
+  // Deserialize result signatures
   auto [sigBuf, sigBufLen] = m->getResultSignaturesBuf();
   auto sigs = PreProcessResultSignature::deserializeResultSignatureList(sigBuf, sigBufLen);
 
@@ -173,8 +173,8 @@ TEST_F(PreProcessResultMsgTestFixture, MsgDeserialisation) {
 
 TEST_F(PreProcessResultMsgTestFixture, MsgDeserialisationFromBase) {
   MsgParams p;
-  auto serialised = createMessage(p, replicaInfo.getNumberOfReplicas(), true /* duplicateSigs */);
-  auto m = std::make_unique<PreProcessResultMsg>((MessageBase*)serialised.get());
+  auto serialized = createMessage(p, replicaInfo.getNumberOfReplicas(), true /* duplicateSigs */);
+  auto m = std::make_unique<PreProcessResultMsg>((MessageBase*)serialized.get());
   messageSanityCheck(m, p);
 
   // check message type
@@ -187,12 +187,12 @@ TEST_F(PreProcessResultMsgTestFixture, MsgDeserialisationFromBase) {
     ASSERT_EQ(p.result[i], m->requestBuf()[i]);
   }
 
-  // Deserialise result signatures
+  // Deserialize result signatures
   auto [sigBuf, sigBufLen] = m->getResultSignaturesBuf();
   auto sigs = PreProcessResultSignature::deserializeResultSignatureList(sigBuf, sigBufLen);
 
-  // Verify the signatures - SigManager can't veryfy its own signature so first the result
-  // from the message is signed and then it is compared to each signature in the message
+  // Verify the signatures - SigManager can't verify its own signature so first the result
+  // from the message is signed, and then it is compared to each signature in the message
   auto msgSigSize = sigManager->getMySigLength();
   std::vector<char> msgSig(msgSigSize, 0);
   auto hash = concord::util::SHA3_256().digest(m->requestBuf(), m->requestLength());
@@ -205,25 +205,26 @@ TEST_F(PreProcessResultMsgTestFixture, MsgDeserialisationFromBase) {
 
 TEST_F(PreProcessResultMsgTestFixture, MsgWithTooMuchSigs) {
   MsgParams p;
-  auto serialised = createMessage(p, config.fVal, false /* duplicateSigs */);
+  auto serialized = createMessage(p, config.fVal, false /* duplicateSigs */);
 
-  auto m = std::make_unique<PreProcessResultMsg>((MessageBase*)serialised.get());
+  auto m = std::make_unique<PreProcessResultMsg>((MessageBase*)serialized.get());
   auto res = m->validatePreProcessResultSignatures(config.replicaId, config.fVal);
 
   std::stringstream ss;
-  ss << "unexpected number of signatures received. Expected " << config.fVal + 1 << " got " << config.fVal;
+  ss << "expectedSignatureCount: " << config.fVal + 1 << ", sigs.size(): " << config.fVal;
+  printf("%s\n", res->c_str());
   EXPECT_TRUE(res && res->find(ss.str()) != std::string::npos);
 }
 
 TEST_F(PreProcessResultMsgTestFixture, MsgWithDuplicatedSigs) {
   MsgParams p;
-  auto serialised = createMessage(p, config.fVal + 1, true /* duplicateSigs */);
+  auto serialized = createMessage(p, config.fVal + 1, true /* duplicateSigs */);
 
-  auto m = std::make_unique<PreProcessResultMsg>((MessageBase*)serialised.get());
+  auto m = std::make_unique<PreProcessResultMsg>((MessageBase*)serialized.get());
   auto res = m->validatePreProcessResultSignatures(config.replicaId, config.fVal);
 
   std::stringstream ss;
-  ss << "got more than one signatures with the same sender id";
+  ss << "got more than one signature with the same sender id";
   EXPECT_TRUE(res);
   EXPECT_TRUE(res->find(ss.str()) != std::string::npos);
 }

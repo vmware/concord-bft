@@ -14,6 +14,7 @@
 
 namespace bft::communication::tls {
 
+// YS: TBD no need to pass std::vector<TlsTcpConfig>& config here; one runner will not create ConnMgr per principal id
 Runner::Runner(const std::vector<TlsTcpConfig>& config, const size_t num_threads)
     : logger_(logging::getLogger("concord-bft.tls.runner")), num_threads_(num_threads) {
   for (auto& c : config) {
@@ -22,12 +23,12 @@ Runner::Runner(const std::vector<TlsTcpConfig>& config, const size_t num_threads
 }
 
 bool Runner::isRunning() const {
-  std::lock_guard<std::mutex> lock(start_stop_mutex);
+  std::lock_guard<std::mutex> lock(start_stop_mutex_);
   return !io_threads_.empty();
 }
 
 void Runner::start() {
-  std::lock_guard<std::mutex> lock(start_stop_mutex);
+  std::lock_guard<std::mutex> lock(start_stop_mutex_);
   ConcordAssert(io_threads_.empty());
   LOG_INFO(logger_, "Starting TLS Runner");
   io_context_.restart();
@@ -44,10 +45,10 @@ void Runner::start() {
 }
 
 void Runner::stop() {
-  std::lock_guard<std::mutex> lock(start_stop_mutex);
+  std::lock_guard<std::mutex> lock(start_stop_mutex_);
   ConcordAssert(!io_threads_.empty());
 
-  // We want to stop all the thread from processing data before we cleanup the connection managers.
+  // We want to stop all the thread from processing data before we clean up the connection managers.
   io_context_.stop();
   for (auto& t : io_threads_) {
     t.join();

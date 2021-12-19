@@ -25,6 +25,7 @@ namespace preprocessor {
 // This class collects and stores data relevant to the processing of one specific client request by all replicas.
 
 typedef enum { NONE, CONTINUE, COMPLETE, CANCEL, EXPIRED, CANCELLED_BY_PRIMARY, RETRY_PRIMARY } PreProcessingResult;
+
 using ReplicaIdsList = std::vector<ReplicaId>;
 
 class RequestProcessingState {
@@ -100,7 +101,7 @@ class RequestProcessingState {
       const concord::util::SHA3_256::Digest&, uint64_t);
 
   // Set a new block id at the end of the result.
-  void modifyPrimayResult(const std::pair<std::string, concord::util::SHA3_256::Digest>&);
+  void modifyPrimaryResult(const std::pair<std::string, concord::util::SHA3_256::Digest>&);
 
  private:
   static uint16_t numOfRequiredEqualReplies_;
@@ -124,7 +125,7 @@ class RequestProcessingState {
   const char* primaryPreProcessResult_ = nullptr;  // This memory is statically pre-allocated per client in PreProcessor
   uint32_t primaryPreProcessResultLen_ = 0;
   concord::util::SHA3_256::Digest primaryPreProcessResultHash_ = {};
-  // Maps result hash to a list of replica signatures sent for this hash. Implcitly this also gives the number of
+  // Maps result hash to a list of replica signatures sent for this hash. This also implicitly gives the number of
   // replicas returning a specific hash.
   std::map<concord::util::SHA3_256::Digest, std::list<PreProcessResultSignature>> preProcessingResultHashes_;
   bool retrying_ = false;

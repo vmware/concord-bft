@@ -257,7 +257,7 @@ bool SeqNumInfo::committedOrHasCommitPartialFromReplica(ReplicaId repId) const {
   return isCommitted__gg() || commitMsgsCollector->hasPartialMsgFromReplica(repId);
 }
 
-Time SeqNumInfo::getTimeOfFisrtRelevantInfoFromPrimary() const { return firstSeenFromPrimary; }
+Time SeqNumInfo::getTimeOfFirstRelevantInfoFromPrimary() const { return firstSeenFromPrimary; }
 
 Time SeqNumInfo::getTimeOfLastInfoRequest() const { return timeOfLastInfoRequest; }
 

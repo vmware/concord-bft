@@ -183,7 +183,8 @@ std::pair<std::string, concord::util::SHA3_256::Digest> RequestProcessingState::
   return {"", concord::util::SHA3_256::Digest{}};
 }
 
-void RequestProcessingState::modifyPrimayResult(const std::pair<std::string, concord::util::SHA3_256::Digest> &result) {
+void RequestProcessingState::modifyPrimaryResult(
+    const std::pair<std::string, concord::util::SHA3_256::Digest> &result) {
   memcpy(const_cast<char *>(primaryPreProcessResult_), result.first.c_str(), primaryPreProcessResultLen_);
   primaryPreProcessResultHash_ = result.second;
   auto sm = SigManager::instance();
@@ -213,7 +214,7 @@ PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult()
       // A known scenario that can cause a mismatch, is due to rejection of the block id sent by the primary.
       // In this case the difference should be only the last 64 bits that encodes the `0` as the rejection value.
       if (auto modifiedResult = detectFailureDueToBlockID(itOfChosenHash->first, 0); modifiedResult.first.size() > 0) {
-        modifyPrimayResult(modifiedResult);
+        modifyPrimaryResult(modifiedResult);
         return COMPLETE;
       }
       // Primary replica calculated hash is different from a hash that passed pre-execution consensus => we don't have

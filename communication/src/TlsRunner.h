@@ -37,8 +37,9 @@ class Runner {
   logging::Logger logger_;
   size_t num_threads_;
 
-  // Protects io_threads_ whose emptyness is used as the condition of whether a thread is started or stopped.
-  mutable std::mutex start_stop_mutex;
+  // Protects io_threads_ whose emptiness is used as the condition of whether a thread is started or stopped.
+  mutable std::mutex start_stop_mutex_;
+  // A pool of threads from which completion handlers may be invoked.
   std::vector<std::thread> io_threads_;
 
   asio::io_context io_context_;

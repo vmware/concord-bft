@@ -37,7 +37,7 @@ class ConnectionManager {
   ConnectionManager(const TlsTcpConfig &, asio::io_context &);
 
   //
-  // Methods required by ICommuncication
+  // Methods required by ICommunication
   // Called as part of pImpl idiom
   //
   ConnectionStatus getCurrentConnectionStatus(const NodeNum node) const;
@@ -56,7 +56,7 @@ class ConnectionManager {
   // Start asynchronously accepting connections.
   void accept();
 
-  // Perform synhronous DNS resolution. This really only works for the listen socket, since after that we want to do a
+  // Perform synchronous DNS resolution. This really only works for the listen socket, since after that we want to do a
   // new lookup on every connect operation in case the underlying IP of the DNS address changes.
   //
   // Throws an asio::system_error if it fails to resolve
@@ -67,7 +67,7 @@ class ConnectionManager {
   // Every call to connect will call resolve before asio async_connect call.
   void resolve(NodeNum destination);
 
-  // Connet to other nodes where there is not a current connection.
+  // Connect to other nodes where there is not a current connection.
   //
   // Replicas only connect to replicas with smaller node ids.
   // This method is called at startup and also on a periodic timer tick.
@@ -77,11 +77,11 @@ class ConnectionManager {
   // Start a steady_timer in order to trigger needed `connect` operations.
   void startConnectTimer();
 
-  // Trigger the asio async_hanshake calls.
+  // Trigger the asio async_handshake calls.
   void startServerSSLHandshake(asio::ip::tcp::socket &&);
   void startClientSSLHandshake(asio::ip::tcp::socket &&socket, NodeNum destination);
 
-  // Callbacks triggered when asio async_hanshake completes for an incoming or outgoing connection.
+  // Callbacks triggered when asio async_handshake completes for an incoming or outgoing connection.
   void onServerHandshakeComplete(const asio::error_code &ec, size_t accepted_connection_id);
   void onClientHandshakeComplete(const asio::error_code &ec, NodeNum destination);
 
@@ -93,8 +93,8 @@ class ConnectionManager {
   // This is only used during shutdown after the io_service is stopped.
   void syncCloseConnection(std::shared_ptr<AsyncTlsConnection> &conn);
 
-  // The connection itself has determined it needs to be shutdown. Since it runs in a separate strand from the ConnMgr,
-  // it most post to the ConnMgr via this method.
+  // The connection itself has determined needs to be shutdown. Since it runs in a separate strand from the ConnMgr,
+  // it must post to the ConnMgr via this method.
   void remoteCloseConnection(NodeNum);
 
   // Asynchronously shutdown an SSL connection and then close the underlying TCP socket when the shutdown has
@@ -105,7 +105,7 @@ class ConnectionManager {
   bool isReplica(NodeNum id) const { return id <= static_cast<size_t>(config_.maxServerId); }
 
   // Sends from other threads in the system are posted to strand_. This callback gets run in the
-  // strand so it can lookup a connection and send it a message. This strategy avoids the need to
+  // strand, so it can look up for a connection and send it a message. This strategy avoids the need to
   // take a lock over connections_.
   void handleSend(const NodeNum destination, std::shared_ptr<OutgoingMsg> msg);
   void handleSend(const std::set<NodeNum> &destinations, const std::shared_ptr<OutgoingMsg> &msg);
