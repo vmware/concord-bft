@@ -280,9 +280,8 @@ bool ReplicaImp::validateMessage(MessageBase *msg) {
  */
 template <typename MSG>
 void ReplicaImp::asyncValidateMessage(MSG *msg) {
-  // threadpool is initialized once and kept with this function.
-  // This function is called in a single thread as the queue
-  // by dispatcher will not allow multiple threads together.
+  // The thread pool is initialized once and kept with this function.
+  // This function is called in a single thread as the queue by dispatcher will not allow multiple threads together.
   try {
     static auto &threadPool = RequestThreadPool::getThreadPool(RequestThreadPool::PoolLevel::STARTING);
 
@@ -317,9 +316,8 @@ void ReplicaImp::asyncValidateMessage(MSG *msg) {
  * @return : returns nothing
  */
 void ReplicaImp::validatePrePrepareMsg(PrePrepareMsg *&ppm) {
-  // threadpool is initialized once and kept with this function.
-  // This function is called in a single thread as the queue
-  // by dispatcher will not allow multiple threads together.
+  // The thread pool is initialized once and kept with this function.
+  // This function is called in a single thread as the queue by dispatcher will not allow multiple threads together.
   try {
     static auto &threadPool = RequestThreadPool::getThreadPool(RequestThreadPool::PoolLevel::STARTING);
     threadPool.async(
@@ -406,10 +404,10 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   span.setTag("cid", m->getCid());
   span.setTag("seq_num", reqSeqNum);
 
-  // Drop external msgs ff:
-  // -  replica keys haven't been exchanged for all replicas and it's not a key exchange msg then don't accept the
-  // msgs.
-  // -  the public keys of clients havn't been published yet.
+  // Drop external msgs off:
+  // -  in case replica keys haven't been exchanged for all replicas, and it's not a key exchange msg then don't accept
+  // the msgs.
+  // -  the public keys of the clients haven't been published yet.
   if (!KeyExchangeManager::instance().exchanged() || !KeyExchangeManager::instance().clientKeysPublished()) {
     if (!(flags & KEY_EXCHANGE_FLAG) && !(flags & CLIENTS_PUB_KEYS_FLAG)) {
       LOG_INFO(KEY_EX_LOG, "Didn't complete yet, dropping msg");
@@ -613,7 +611,7 @@ void ReplicaImp::removeDuplicatedRequestsFromRequestsQueue() {
 }
 
 // The preprepare message can be nullptr if the finalisation is happening in a separate thread.
-// So the second value of the pair provides the real indication of success of failure.
+// So, the second value of the pair provides the real indication of success of failure.
 std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) {
   if (primaryCombinedReqSize < requiredBatchSizeInBytes) {
     LOG_DEBUG(GL,
@@ -628,7 +626,7 @@ std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMsgBatchByOverallSiz
 }
 
 // The preprepare message can be nullptr if the finalisation is happening in a separate thread.
-// So the second value of the pair provides the real indication of success of failure.
+// So, the second value of the pair provides the real indication of success of failure.
 std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) {
   ConcordAssertGT(requiredRequestsNum, 0);
   // DD: To make sure that time service does not affect sending messages
@@ -735,8 +733,7 @@ ClientRequestMsg *ReplicaImp::addRequestToPrePrepareMessage(ClientRequestMsg *&n
 }
 
 // Finalize the preprepare message by adding digest at a point when no more changes will happen.
-// The digest calculation can happen in separate thread or in the same thread depending on the
-// configuration.
+// The digest calculation can happen in separate thread or in the same thread depending on the configuration.
 // This function will return failure if there are no client request messages, which is marked by the
 // second value in the returned pair.
 // The first value of the pair can be nullptr depending on the availability of the result. So the
@@ -752,15 +749,13 @@ std::pair<PrePrepareMsg *, bool> ReplicaImp::finishAddingRequestsToPrePrepareMsg
   }
   {
     if (getReplicaConfig().prePrepareFinalizeAsyncEnabled) {
-      // threadpool is initialized once and kept with this function.
-      // This function is called in a single thread as the queue
-      // by dispatcher will not allow multiple threads together.
+      // The thread pool is initialized once and kept with this function.
+      // This function is called in a single thread as the queue by dispatcher will not allow multiple threads together.
       try {
         static auto &threadPool = RequestThreadPool::getThreadPool(RequestThreadPool::PoolLevel::STARTING);
         // The UINT16 MAX is the upper bound of numOfTransientPreprepareMsgs_
-        // This upper limit should never be reached and thus this check is
-        // added. We cannot do ConcordAssert here, since there is a way to
-        // move forward if we stop just before touching this upper bound.
+        // This upper limit should never be reached and thus this check is added. We cannot do ConcordAssert here,
+        // since there is a way to move forward if we stop just before touching this upper bound.
         if ((numOfTransientPreprepareMsgs_ + 1) < std::numeric_limits<decltype(numOfTransientPreprepareMsgs_)>::max()) {
           numOfTransientPreprepareMsgs_++;
         } else {
@@ -1006,9 +1001,8 @@ bool ReplicaImp::validatePreProcessedResults(const PrePrepareMsg *msg, const Vie
   std::vector<std::future<void>> tasks;
   std::vector<std::optional<std::string>> errors(msg->numberOfRequests());
   size_t error_id = 0;
-  // threadpool is initialized once and kept with this function.
-  // This function is called in a single thread as the queue
-  // by dispatcher will not allow multiple threads together.
+  // The thread pool is initialized once and kept with this function.
+  // This function is called in a single thread as the queue by dispatcher will not allow multiple threads together.
   try {
     static auto &threadPool = RequestThreadPool::getThreadPool(RequestThreadPool::PoolLevel::FIRSTLEVEL);
 
@@ -1257,7 +1251,7 @@ void ReplicaImp::tryToAskForMissingInfo() {
 
     const SeqNumInfo &seqNumInfo = mainLog->get(i);
 
-    Time t = seqNumInfo.getTimeOfFisrtRelevantInfoFromPrimary();
+    Time t = seqNumInfo.getTimeOfFirstRelevantInfoFromPrimary();
 
     const Time lastInfoRequest = seqNumInfo.getTimeOfLastInfoRequest();
 
@@ -1563,15 +1557,13 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
     return onCarrierMessage(*vldMsg);
   }
 
-  // Handle a pre prepare sent by self
+  // Handle a PrePrepare sent by self
   if (auto *ppm = std::get_if<PrePrepareMsg *>(&msg)) {
-    // This if is guarding the numOfTransientPreprepareMsgs_ variable.
-    // This condition will always be true but keeping this to ensure that
-    // we never decrement this variable when it is at its lower bound.
-    // Why we donot use ConcordAssert here?
-    // Ans: 0 is a correct value for this variable, as this is unsigned,
-    // it will never become negative. So check for lower bound and
-    // then decrement is the correct idiom for this case.
+    // This condition will always be true but keeping this to ensure that we never decrement this variable when it is
+    // at its lower bound.
+    // Why we do not use ConcordAssert here?
+    // Ans: 0 is a correct value for this variable, as this is unsigned, it will never become negative. So check for
+    // lower bound and then decrement is the correct idiom for this case.
     if (numOfTransientPreprepareMsgs_ > 0) {
       numOfTransientPreprepareMsgs_--;
     }
@@ -1585,7 +1577,7 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
     }
   }
 
-  // Handle a the PrePrepare Carrier
+  // Handle a PrePrepare carrier
   if (auto *ppcim = std::get_if<PrePrepareCarrierInternalMsg>(&msg)) {
     if (isCollectingState() || bftEngine::ControlStateManager::instance().getPruningProcessStatus()) {
       LOG_INFO(GL, "Received PrePrepareCarrierInternalMsg while pruning or state transfer, so ignoring the message");
@@ -1597,7 +1589,7 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
     }
   }
 
-  // Handle a view change indicator and trigger view change
+  // Handle a view change indicator and trigger a view change
   if (auto *vciim = std::get_if<ViewChangeIndicatorInternalMsg>(&msg)) {
     if ((vciim->fromView_ != getCurrentView()) || isCollectingState() ||
         bftEngine::ControlStateManager::instance().getPruningProcessStatus()) {
@@ -2466,8 +2458,7 @@ void ReplicaImp::onRetransmissionsProcessingResults(SeqNum relatedLastStableSeqN
                   "Replica " << myId << " retransmits to replica " << s.replicaId
                              << " PartialCommitProofMsg with seqNumber " << s.msgSeqNum);
       } break;
-        /*  TODO(GG): do we want to use acks for FullCommitProofMsg ?
-         */
+        //  TODO(GG): do we want to use acks for FullCommitProofMsg ?
       case MsgCode::StartSlowCommit: {
         StartSlowCommitMsg *msgToSend = new StartSlowCommitMsg(myId, getCurrentView(), s.msgSeqNum);
         sendRetransmittableMsgToReplica(msgToSend, s.replicaId, s.msgSeqNum);
@@ -2595,7 +2586,7 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
   }
 
   /////////////////////////////////////////////////////////////////////////
-  // msgSenderId needes information to enter view curView
+  // msgSenderId needs an information to enter view curView
   /////////////////////////////////////////////////////////////////////////
 
   else if ((msgViewNum == getCurrentView()) && (!msg->currentViewIsActive())) {
@@ -2622,10 +2613,9 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
           sendAndIncrementMetric(nv, msgSenderId, metric_sent_newview_msg_due_to_status_);
         }
       }
-      // send all VC msgs that can help making  progress (needed because the original senders may not send
-      // the ViewChangeMsg msgs used by the primary)
-      // if viewsManager->viewIsActive(getCurrentView()), we can send only the VC msgs which are really needed for
-      // curView (see in ViewsManager)
+      // Send all VC msgs that can help to make  progress (needed because the original senders may not send
+      // the ViewChangeMsg msgs used by the primary). If viewsManager->viewIsActive(getCurrentView()), we can send only
+      // the VC msgs which are really needed for curView (see in ViewsManager).
       sendViewChangeMsgs();
 
       if (viewsManager->viewIsActive(getCurrentView())) {
@@ -3129,7 +3119,6 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
   primary_queue_size_.Get().Set(requestsQueueOfPrimary.size());
 
   // send messages
-
   if (newNewViewMsgToSend != nullptr) {
     LOG_INFO(VC_LOG, "Sending NewView message to all replicas. " << KVLOG(getCurrentView()));
     sendToAllOtherReplicas(newNewViewMsgToSend);
@@ -3177,7 +3166,7 @@ void ReplicaImp::sendCheckpointIfNeeded() {
   }
   if (activeExecutions_ > 0)
     isSendCheckpointIfNeeded_ =
-        true;  // if we defer the part of marking stable for fast path after that when we handle the defered part we
+        true;  // if we defer the part of marking stable for fast path after that when we handle the deferred part we
                // want to run the all sendCheckpointIfNeeded method to verify if its even relevant now
   else {
     tryToMarkCheckpointStableForFastPath(lastCheckpointNumber, checkInfo, checkpointMessage);
@@ -3293,7 +3282,7 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
 
 void ReplicaImp::onSeqNumIsSuperStable(SeqNum superStableSeqNum) {
   ConcordAssertEQ(activeExecutions_,
-                  0);  // We shouldnt have active executions when checking if sequence number is super stable
+                  0);  // We shouldn't have active executions when checking if sequence number is super stable
   if (lastSuperStableSeqNum >= superStableSeqNum) return;
   lastSuperStableSeqNum = superStableSeqNum;
   auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
@@ -3308,7 +3297,7 @@ void ReplicaImp::onSeqNumIsSuperStable(SeqNum superStableSeqNum) {
 
 void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformation, bool oldSeqNum) {
   ConcordAssertEQ(activeExecutions_,
-                  0);  // We shouldnt have active executions when checking if sequence number is stable
+                  0);  // We shouldn't have active executions when checking if sequence number is stable
   ConcordAssertOR(hasStateInformation, oldSeqNum);  // !hasStateInformation ==> oldSeqNum
   ConcordAssertEQ(newStableSeqNum % checkpointWindowSize, 0);
 
@@ -3460,7 +3449,7 @@ void ReplicaImp::tryToSendReqMissingDataMsg(SeqNum seqNumber, bool slowPathOnly,
   const Time curTime = getMonotonicTime();
 
   {
-    Time t = seqNumInfo.getTimeOfFisrtRelevantInfoFromPrimary();
+    Time t = seqNumInfo.getTimeOfFirstRelevantInfoFromPrimary();
     const Time lastInfoRequest = seqNumInfo.getTimeOfLastInfoRequest();
 
     if ((t < lastInfoRequest)) t = lastInfoRequest;
@@ -3785,13 +3774,13 @@ void ReplicaImp::onMessage<ReplicaRestartReadyMsg>(ReplicaRestartReadyMsg *msg) 
     metric_received_restart_ready_++;
   } else {
     LOG_INFO(GL,
-             "Recieved multiple ReplicaRestartReadyMsg from sender_id "
+             "Received multiple ReplicaRestartReadyMsg from sender_id "
                  << std::to_string(msg->idOfGeneratedReplica()) << " with seq_num" << std::to_string(msg->seqNum()));
     delete msg;
     return;
   }
   LOG_INFO(GL,
-           "Recieved ReplicaRestartReadyMsg from sender_id " << std::to_string(msg->idOfGeneratedReplica())
+           "Received ReplicaRestartReadyMsg from sender_id " << std::to_string(msg->idOfGeneratedReplica())
                                                              << " with seq_num" << std::to_string(msg->seqNum()));
   bool restart_bft_flag = bftEngine::ControlStateManager::instance().getRestartBftFlag();
   uint32_t targetNumOfMsgs =
@@ -3805,7 +3794,7 @@ void ReplicaImp::onMessage<ReplicaRestartReadyMsg>(ReplicaRestartReadyMsg *msg) 
 template <>
 void ReplicaImp::onMessage<ReplicasRestartReadyProofMsg>(ReplicasRestartReadyProofMsg *msg) {
   LOG_INFO(GL,
-           "Recieved  ReplicasRestartReadyProofMsg from sender_id "
+           "Received  ReplicasRestartReadyProofMsg from sender_id "
                << std::to_string(msg->idOfGeneratedReplica()) << " with seq_num" << std::to_string(msg->seqNum()));
   metric_received_restart_proof_++;
   ControlStateManager::instance().onRestartProof(msg->seqNum(), static_cast<uint8_t>(msg->getRestartReason()));
@@ -5067,7 +5056,7 @@ void ReplicaImp::updateLimitsAndMetrics(PrePrepareMsg *ppMsg) {
   // TODO(GG): clean the following logic
   if (mainLog->insideActiveWindow(lastExecutedSeqNum)) {  // update dynamicUpperLimitOfRounds
     SeqNumInfo &seqNumInfo = mainLog->get(lastExecutedSeqNum);
-    const Time firstInfo = seqNumInfo.getTimeOfFisrtRelevantInfoFromPrimary();
+    const Time firstInfo = seqNumInfo.getTimeOfFirstRelevantInfoFromPrimary();
     const Time currTime = getMonotonicTime();
     if ((firstInfo < currTime)) {
       const int64_t durationMilli = duration_cast<milliseconds>(currTime - firstInfo).count();
@@ -5179,7 +5168,7 @@ void ReplicaImp::onExecutionFinish() {
                                     strMsg.c_str(),
                                     60000,
                                     "wedge-noop-command-" + std::to_string(lastExecutedSeqNum + 1));
-    // Now, try to send a new prepreare immediately, without waiting to a new batch
+    // Now, try to send a new PrePrepare message immediately, without waiting to a new batch
     onMessage(crm);
     tryToSendPrePrepareMsg(false);
   }
@@ -5380,7 +5369,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
   // TODO(GG): clean the following logic
   if (mainLog->insideActiveWindow(lastExecutedSeqNum)) {  // update dynamicUpperLimitOfRounds
     const SeqNumInfo &seqNumInfo = mainLog->get(lastExecutedSeqNum);
-    const Time firstInfo = seqNumInfo.getTimeOfFisrtRelevantInfoFromPrimary();
+    const Time firstInfo = seqNumInfo.getTimeOfFirstRelevantInfoFromPrimary();
     const Time currTime = getMonotonicTime();
     if ((firstInfo < currTime)) {
       const int64_t durationMilli = duration_cast<milliseconds>(currTime - firstInfo).count();
@@ -5588,14 +5577,14 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
                                       strMsg.c_str(),
                                       60000,
                                       "wedge-noop-command-" + std::to_string(lastExecutedSeqNum + 1));
-      // Now, try to send a new prepreare immediately, without waiting to a new batch
+      // Now, try to send a new PrePrepare message immediately, without waiting to a new batch
       onMessage(crm);
       tryToSendPrePrepareMsg(false);
     }
   }
   auto seqNumToStopAt = ControlStateManager::instance().getCheckpointToStopAt();
   if (seqNumToStopAt.has_value() && seqNumToStopAt.value() > lastExecutedSeqNum && isCurrentPrimary()) {
-    // If after execution, we discover that we need to wedge at some futuer point, push a noop command to the incoming
+    // If after execution, we discover that we need to wedge at some future point, push a noop command to the incoming
     // messages queue.
     LOG_INFO(GL, "sending noop command to bring the system into wedge checkpoint");
     concord::messages::ReconfigurationRequest req;
@@ -5620,7 +5609,7 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
                                     strMsg.c_str(),
                                     60000,
                                     "wedge-noop-command-" + std::to_string(lastExecutedSeqNum));
-    // Now, try to send a new prepreare immediately, without waiting to a new batch
+    // Now, try to send a new PrePrepare message immediately, without waiting to a new batch
     onMessage(crm);
     tryToSendPrePrepareMsg(false);
   }
