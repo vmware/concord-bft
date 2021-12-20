@@ -504,6 +504,8 @@ BlockId DBAdapter::addBlock(const SetOfKeyValuePairs &updates, const OrderedKeys
   return addedBlockId;
 }
 
+void DBAdapter::linkUntilBlockId(BlockId until_block_id) { throw std::runtime_error{"Not implemented!"}; }
+
 BlockId DBAdapter::addBlock(const SetOfKeyValuePairs &updates) { return addBlock(updates, OrderedKeysSet{}); }
 
 BlockId DBAdapter::addBlock(const OrderedKeysSet &deletes) { return addBlock(SetOfKeyValuePairs{}, deletes); }
