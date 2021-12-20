@@ -116,6 +116,8 @@ class DBDataStore : public DataStore {
   }
   void setEraseDataStoreFlag() override { putInt(EraseDataOnStartup, true); }
 
+  void memoryStateToLog();
+
  private:
   void clearDataStoreData();
 
