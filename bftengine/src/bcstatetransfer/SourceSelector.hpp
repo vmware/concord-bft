@@ -58,8 +58,8 @@ class SourceSelector {
         receivedValidBlockFromSrc_(false),
         minPrePrepareMsgsForPrimaryAwarness_(minPrePrepareMsgsForPrimaryAwarness),
         logger_(logger),
-        metrics_component_{
-            concordMetrics::Component("source_selector", std::make_shared<concordMetrics::Aggregator>())},
+        metrics_component_{concordMetrics::Component("state_transfer_source_selector",
+                                                     std::make_shared<concordMetrics::Aggregator>())},
         metrics_{metrics_component_.RegisterStatus("preferred_replicas", ""),
                  metrics_component_.RegisterGauge("current_source_replica", NO_REPLICA),
                  metrics_component_.RegisterCounter("replacement_due_to_no_source"),
