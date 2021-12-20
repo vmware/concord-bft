@@ -997,6 +997,43 @@ bool BCStateTran::checkValidityAndSaveMsgSeqNum(uint16_t replicaId, uint64_t msg
 }
 
 //////////////////////////////////////////////////////////////////////////////
+// BCStateTran::BlocksBatchDesc
+//////////////////////////////////////////////////////////////////////////////
+
+inline std::ostream &operator<<(std::ostream &os, const BCStateTran::BlocksBatchDesc &b) {
+  os << KVLOG(b.minBlockId, b.maxBlockId, b.nextBlockId, b.upperBoundBlockId);
+  return os;
+}
+
+// BlocksBatchDesc A is 'behind' (aka <) BlocksBatchDesc B if:
+// minBlockId is equal: A.nextBlockId > B.nextBlockId.
+// minBlockId is not equal: A.nextBlockId < B.nextBlockId.
+// This is due to the way ST collects blocks, from newer to older inside ranges, and from older to newer ranges.
+bool BCStateTran::BlocksBatchDesc::operator<(BlocksBatchDesc &rhs) const {
+  if (minBlockId != rhs.minBlockId) {
+    return (minBlockId < rhs.minBlockId);
+  }
+  // minBlockId == rhs.minBlockId
+  return nextBlockId > rhs.nextBlockId;
+}
+
+bool BCStateTran::BlocksBatchDesc::operator==(BlocksBatchDesc &rhs) const {
+  return (minBlockId == rhs.minBlockId) && (maxBlockId == rhs.maxBlockId) && (nextBlockId == rhs.nextBlockId) &&
+         (upperBoundBlockId == rhs.upperBoundBlockId);
+}
+
+bool BCStateTran::BlocksBatchDesc::operator<=(BlocksBatchDesc &rhs) const { return (*this < rhs) || (*this == rhs); }
+
+bool BCStateTran::BlocksBatchDesc::isValid() const {
+  bool valid = ((minBlockId != 0) && (minBlockId <= maxBlockId) && (minBlockId <= nextBlockId) &&
+                (nextBlockId <= maxBlockId) && (maxBlockId <= upperBoundBlockId));
+  if (!valid) {
+    LOG_ERROR(ST_SRC_LOG, *this);
+  }
+  return valid;
+}
+
+//////////////////////////////////////////////////////////////////////////////
 // State
 //////////////////////////////////////////////////////////////////////////////
 
