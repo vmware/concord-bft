@@ -81,16 +81,16 @@ bool SourceSelector::retransmissionTimeoutExpired(uint64_t currTimeMilli) const 
   // if fetchingTimeStamp_ or fetchingTimeStamp_ are not set - no need to retransmit since destination has never yet
   // transmitted to this source
   if (currentReplica_ == NO_REPLICA) {
-    LOG_DEBUG(logger_, "Retransmit - no replica");
+    LOG_DEBUG(logger_, "Do not retransmit: no replica");
     return false;
   }
   if (fetchingTimeStamp_ == 0) {
-    LOG_DEBUG(logger_, "Retransmit" << KVLOG(fetchingTimeStamp_));
+    LOG_DEBUG(logger_, "Do not retransmit:" << KVLOG(fetchingTimeStamp_));
     return false;
   }
   auto diff = (currTimeMilli - fetchingTimeStamp_);
   if (diff > retransmissionTimeoutMilli_) {
-    LOG_DEBUG(logger_, "Retransmit" << KVLOG(diff, currTimeMilli, fetchingTimeStamp_, retransmissionTimeoutMilli_));
+    LOG_DEBUG(logger_, "Retransmit:" << KVLOG(diff, currTimeMilli, fetchingTimeStamp_, retransmissionTimeoutMilli_));
     return true;
   }
   return false;
