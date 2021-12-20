@@ -60,9 +60,6 @@ bft::client::Reply ConcordClient::SendRequest(const bft::client::WriteConfig& co
   LOG_DEBUG(logger_,
             "Request has completed processing"
                 << KVLOG(client_id_, config.request.sequence_number, config.request.correlation_id));
-  if (externalReplyBuffer) {
-    memcpy(externalReplyBuffer, res.matched_data.data(), res.matched_data.size());
-  }
   return res;
 }
 
@@ -84,10 +81,6 @@ bft::client::Reply ConcordClient::SendRequest(const bft::client::ReadConfig& con
   LOG_DEBUG(logger_,
             "Request has completed processing"
                 << KVLOG(client_id_, config.request.sequence_number, config.request.correlation_id));
-  if (externalReplyBuffer) {
-    memcpy(externalReplyBuffer, res.matched_data.data(), res.matched_data.size());
-  }
-
   return res;
 }
 
@@ -316,16 +309,6 @@ void ConcordClient::setStatics(uint16_t required_num_of_replicas,
   ConcordClient::reply_->resize((batch_size) ? batch_size * max_reply_size : max_reply_size_);
   ConcordClient::required_num_of_replicas_ = required_num_of_replicas;
   ConcordClient::num_of_replicas_ = num_of_replicas;
-}
-
-void ConcordClient::setReplyBuffer(char* buf, uint32_t size) {
-  externalReplyBuffer = buf;
-  externalReplyBufferSize = size;
-}
-
-void ConcordClient::unsetReplyBuffer() {
-  externalReplyBuffer = nullptr;
-  externalReplyBufferSize = 0;
 }
 
 void ConcordClient::setDelayFlagForTest(bool delay) { ConcordClient::delayed_behaviour_ = delay; }

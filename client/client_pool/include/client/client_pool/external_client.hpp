@@ -96,15 +96,6 @@ class ConcordClient {
   bftEngine::OperationResult getClientRequestError();
   ConcordClient(ConcordClient&& t) = delete;
 
-  // this buffer is fully owned by external application who may set it
-  // via the setExternalReplyBuffer() function.
-  // this memory is used when the callback is called and probably
-  // will be used ONLY in conjunction with external callback.
-  // the better solution is to pass it via the Send function but due to the time
-  // constraints we are not changing the interface now.
-  void setReplyBuffer(char* buf, uint32_t size);
-  void unsetReplyBuffer();
-
  private:
   void CreateClient(concord::config_pool::ConcordClientPoolConfig&, const bftEngine::SimpleClientParams& client_params);
 
@@ -128,14 +119,6 @@ class ConcordClient {
   // is not important
   static std::shared_ptr<std::vector<char>> reply_;
 
-  // this buffer is fully owned by external application who may set it
-  // via the setExternalReplyBuffer() function.
-  // this memory is used when the callback is called and probably
-  // will be used ONLY in conjunction with external callback.
-  // the better solution is to pass it via the Send function but due to the time
-  // constraints we are not changing the interface now.
-  char* externalReplyBuffer = nullptr;
-  uint32_t externalReplyBufferSize = 0;
   using PendingRequests = std::deque<bftEngine::ClientRequest>;
   PendingRequests pending_requests_;
   PendingReplies pending_replies_;
