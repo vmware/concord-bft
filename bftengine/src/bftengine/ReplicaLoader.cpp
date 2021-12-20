@@ -53,9 +53,7 @@ ReplicaLoader::ErrorCode loadConfig(LoadedReplicaData &ld) {
                                    config.replicaPrivateKey,
                                    config.publicKeysOfReplicas,
                                    concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
-                                   (config.clientTransactionSigningEnabled || !config.clientsKeysPrefix.empty())
-                                       ? &config.publicKeysOfClients
-                                       : nullptr,
+                                   ReplicaConfig::instance().getPublicKeysOfClients(),
                                    concord::util::crypto::KeyFormat::PemFormat,
                                    *ld.repsInfo);
 

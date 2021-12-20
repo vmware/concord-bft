@@ -243,6 +243,9 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     if (auto it = config_params_.find(param); it != config_params_.end()) return concord::util::to<T>(it->second);
     return defaultValue;
   }
+  inline std::set<std::pair<const std::string, std::set<uint16_t>>>* getPublicKeysOfClients() {
+    return (clientTransactionSigningEnabled || !clientsKeysPrefix.empty()) ? &publicKeysOfClients : nullptr;
+  }
 
  protected:
   ReplicaConfig() = default;
