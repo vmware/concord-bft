@@ -303,8 +303,6 @@ class BCStateTran : public IStateTransfer {
 
   static const uint64_t ID_OF_VBLOCK_RES_PAGES = UINT64_MAX;
 
-  uint64_t nextRequiredBlock_ = 0;
-  uint64_t nextBlockIdToCommit_ = 0;
   struct BlocksBatchDesc {
     uint64_t minBlockId = 0;
     uint64_t maxBlockId = 0;
@@ -364,7 +362,7 @@ class BCStateTran : public IStateTransfer {
                         uint32_t& outBlockSize,
                         bool isVBLock);
 
-  uint64_t computeNextRequiredBlock();
+  BlocksBatchDesc computeNextBatchToFetch(uint64_t minRequiredBlockId);
   bool checkBlock(uint64_t blockNum, char* block, uint32_t blockSize) const;
 
   bool checkVirtualBlockOfResPages(const STDigest& expectedDigestOfResPagesDescriptor,
