@@ -102,7 +102,7 @@ class IStateTransfer : public IReservedPages {
   virtual void setReconfigurationEngine(
       std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine>) = 0;
   virtual std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> getReconfigurationEngine() = 0;
-  virtual void handoffConsensusMessage(shared_ptr<ConsensusMsg> &msg) = 0;
+  virtual void handoffConsensusMessage(const shared_ptr<ConsensusMsg> &msg) = 0;
 };
 
 // This interface may only be used when the state transfer module is runnning
