@@ -763,6 +763,37 @@ TEST_F(BcStTest, dstValidateRealSourceListReported) {
   ASSERT_EQ(BCStateTran::FetchingState::NotFetching, stateTransfer_->getFetchingState());
 }
 
+// Validate a recurring source selection, during ongoing state transfer;
+TEST_F(BcStTest, validatePeriodicSourceReplacement) {
+  targetConfig_.sourceReplicaReplacementTimeoutMs = 1000;
+  initialize();
+  ASSERT_NO_FATAL_FAILURE(startStateTransfer());
+  mockedSrc_->replyAskForCheckpointSummariesMsg();
+  uint32_t batch_count{0};
+  while (true) {
+    // once the source is selected, adding sleep for more than source replacement time duration
+    if (batch_count < 2) {
+      this_thread::sleep_for(milliseconds(targetConfig_.sourceReplicaReplacementTimeoutMs));
+    }
+    ASSERT_NO_FATAL_FAILURE(
+        assertFetchBlocksMsgSent(test_state_.expectedFirstRequiredBlockNum, test_state_.expectedLastRequiredBlockNum));
+    mockedSrc_->replyFetchBlocksMsg();
+    if (test_state_.expectedLastRequiredBlockNum <= targetConfig_.maxNumberOfChunksInBatch) break;
+    test_state_.expectedLastRequiredBlockNum -= targetConfig_.maxNumberOfChunksInBatch;
+    // There might be pending jobs for putBlock, we need to wait some time and then finalize them by calling
+    this_thread::sleep_for(chrono::milliseconds(20));
+    onTimerImp();
+    batch_count++;
+  }
+  const auto& sources_ = getSourceSelector().getActualSources();
+  ASSERT_EQ(sources_.size(), 3);
+  ASSERT_NO_FATAL_FAILURE(assertFetchResPagesMsgSent());
+  bool doneSending = false;
+  while (!doneSending) mockedSrc_->replyResPagesMsg(doneSending);
+  ASSERT_TRUE(replica_.onTransferringCompleteCalled_);
+  ASSERT_EQ(BCStateTran::FetchingState::NotFetching, stateTransfer_->getFetchingState());
+}
+
 }  // namespace bftEngine::bcst::impl
 
 int main(int argc, char** argv) {
