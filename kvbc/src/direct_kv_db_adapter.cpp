@@ -402,6 +402,25 @@ BlockId DBAdapter::addBlock(const SetOfKeyValuePairs &kv) {
   return blockId;
 }
 
+void DBAdapter::linkUntilBlockId(BlockId until_block_id) {
+  BlockId last_reachable_block = getLastReachableBlockId();
+  BlockId last_st_block = getLatestBlockId();
+  if ((until_block_id <= last_reachable_block) || (until_block_id > last_st_block)) {
+    auto msg = std::stringstream{};
+    msg << "Cannot update last_reachable_block:" << KVLOG(until_block_id, last_reachable_block, last_st_block)
+        << std::endl;
+    throw std::invalid_argument{msg.str()};
+  }
+
+  BlockId i = last_reachable_block + 1;
+  while ((i <= until_block_id) && hasBlock(i)) {
+    ++i;
+  }
+  if (i > last_reachable_block + 1) {
+    setLastReachableBlockNum(i - 1);
+  }
+}
+
 void DBAdapter::addRawBlock(const RawBlock &block, const BlockId &blockId, bool lastBlock) {
   SetOfKeyValuePairs keys;
   if (saveKvPairsSeparately_ && block.length() > 0) {

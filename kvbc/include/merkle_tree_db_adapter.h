@@ -89,6 +89,8 @@ class DBAdapter : public IDbAdapter {
   // Returns the added block ID.
   BlockId addBlock(const OrderedKeysSet &deletes);
 
+  void linkUntilBlockId(BlockId until_block_id) override;
+
   // Adds a block from its raw representation and a block ID.
   // Typically called by state transfer when a block is received.
   // If adding the next block (i.e. getLastReachableBlockId() + 1), it is done so through the merkle tree. If it is not

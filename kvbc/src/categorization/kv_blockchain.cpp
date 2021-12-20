@@ -736,6 +736,22 @@ bool KeyValueBlockchain::hasBlock(BlockId block_id) const {
   return block_chain_.hasBlock(block_id);
 }
 
+void KeyValueBlockchain::linkUntilBlockId(BlockId from_block_id, BlockId until_block_id) {
+  const auto last_block_id = state_transfer_block_chain_.getLastBlockId();
+  if (last_block_id == 0) return;
+
+  for (auto i = from_block_id; i <= until_block_id; ++i) {
+    auto raw_block = state_transfer_block_chain_.getRawBlock(i);
+    // Caller must make sure block IDs [from_block_id, until_block_id] exist
+    ConcordAssert(raw_block != std::nullopt);
+
+    // First prune and then link the block to the chain. Rationale is that this will preserve the same order of block
+    // deletes relative to block adds on source and destination replicas.
+    pruneOnSTLink(*raw_block);
+    writeSTLinkTransaction(i, *raw_block);
+  }
+}
+
 // tries to remove blocks form the state transfer chain to the blockchain
 void KeyValueBlockchain::linkSTChainFrom(BlockId block_id) {
   const auto last_block_id = state_transfer_block_chain_.getLastBlockId();
