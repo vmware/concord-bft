@@ -473,7 +473,7 @@ class BCStateTran : public IStateTransfer {
   // soon. return: true if done procesing all futures, and false if the front one was not std::future_status::ready
   enum class PutBlockWaitPolicy { NO_WAIT, WAIT_SINGLE_JOB, WAIT_ALL_JOBS };
 
-  bool finalizePutblockAsync(PutBlockWaitPolicy waitPolicy, const bool alwaysWait = false);
+  bool finalizePutblockAsync(PutBlockWaitPolicy waitPolicy);
   //////////////////////////////////////////////////////////////////////////
   // Metrics
   ///////////////////////////////////////////////////////////////////////////
