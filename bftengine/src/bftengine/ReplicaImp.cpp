@@ -4347,17 +4347,17 @@ ReplicaImp::ReplicaImp(bool firstTime,
       internalBFTClient_, &CryptoManager::instance(), &CryptoManager::instance(), sm_, clientsManager.get(), &timers_};
 
   KeyExchangeManager::instance(&id);
+  DbCheckpointManager::instance(internalBFTClient_.get());
 
   onSeqNumIsStableCallbacks_.add([this](SeqNum seqNum) {
     auto currTime = std::chrono::system_clock::now().time_since_epoch();
     auto timeSinceLastSnapshot = (std::chrono::duration_cast<std::chrono::seconds>(currTime) -
                                   DbCheckpointManager::instance().getLastCheckpointCreationTime())
                                      .count();
-    if (getReplicaConfig().maxNumberOfDbCheckpoints && seqNum &&
+    if (getReplicaConfig().dbCheckpointFeatureEnabled && seqNum && isCurrentPrimary() &&
         !(seqNum % getReplicaConfig().dbCheckPointWindowSize) &&
         (timeSinceLastSnapshot >= getReplicaConfig().dbSnapshotIntervalSeconds.count())) {
-      auto ret = std::async(std::launch::async,
-                            [seqNum]() -> void { DbCheckpointManager::instance().createDbCheckpoint(seqNum); });
+      DbCheckpointManager::instance().sendInternalCreateDbCheckpointMsg(seqNum);
     }
   });
 

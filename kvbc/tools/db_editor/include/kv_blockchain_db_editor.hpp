@@ -1115,7 +1115,7 @@ struct VerifyDbCheckpoint {
     result["lastBlockVerification"] = "Ok";
     std::unique_ptr<MetadataStorage> mdtStorage(
         new DBMetadataStorage(adapter.db()->asIDBClient().get(), std::make_unique<MetadataKeyManipulator>()));
-    shared_ptr<bftEngine::impl::PersistentStorage> p(new bftEngine::impl::PersistentStorageImp(4, 1, 0));
+    shared_ptr<bftEngine::impl::PersistentStorage> p(new bftEngine::impl::PersistentStorageImp(4, 1, 0, 0, 0));
     uint16_t numOfObjects = 0;
     auto objectDescriptors = ((PersistentStorageImp *)p.get())->getDefaultMetadataObjectDescriptors(numOfObjects);
     mdtStorage->initMaxSizeOfObjects(objectDescriptors.get(), numOfObjects);

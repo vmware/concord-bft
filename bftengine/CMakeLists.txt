@@ -113,6 +113,7 @@ target_link_libraries(corebft PUBLIC
   concordbft_reconfiguration
   secretsmanager
   keys_and_signatures_cmf
+  db_checkpoint_msg
   cre
   stdc++fs
   )

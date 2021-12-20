@@ -19,9 +19,12 @@
 
 #include <ccron/cron_table_registry.hpp>
 #include "ccron_msgs.cmf.hpp"
+#include "db_checkpoint_msg.cmf.hpp"
+#include "DbCheckpointManager.hpp"
 
 using concord::messages::ReconfigurationRequest;
 using concord::messages::ReconfigurationResponse;
+using concord::messages::db_checkpoint_msg::CreateDbCheckpoint;
 
 namespace bftEngine {
 
@@ -111,6 +114,16 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
         LOG_WARN(GL, "Received a Tick, but the cron table registry is not initialized");
         req.outExecutionStatus = 2;
       }
+    } else if (req.flags & MsgFlag::DB_CHECKPOINT_FLAG) {
+      concord::messages::db_checkpoint_msg::CreateDbCheckpoint createDbChkPtMsg;
+      concord::messages::db_checkpoint_msg::deserialize(
+          std::vector<std::uint8_t>(req.request, req.request + req.requestSize), createDbChkPtMsg);
+
+      DbCheckpointManager::instance().createDbCheckpointAsync(createDbChkPtMsg.seqNum, timestamp);
+      std::string resp = "Ok";
+      std::copy(resp.begin(), resp.end(), req.outReply);
+      req.outActualReplySize = resp.size();
+      LOG_INFO(GL, "onCreateDbCheckpointMsg - " << KVLOG(createDbChkPtMsg.seqNum));
     }
 
     if (req.flags & READ_ONLY_FLAG) {
