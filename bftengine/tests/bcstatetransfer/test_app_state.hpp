@@ -157,7 +157,7 @@ class TestAppState : public IAppState {
   std::future<bool> putBlockAsync(uint64_t blockId,
                                   const char* block,
                                   const uint32_t blockSize,
-                                  bool lastBlock = true) override {
+                                  bool lastBlock) override {
     // TODO(GL) - At this stage we put the blocks in the main thread context. Doing so in child thread context
     // complicates the main test logic, since we have to trigger ST for multiple checks.
     // Try to do this in the future to simulate un-ordered completions.
@@ -171,10 +171,14 @@ class TestAppState : public IAppState {
     return future;
   }
 
-  // TODO(AJS): How does this differ from getLastBlockNum?
   uint64_t getLastReachableBlockNum() const override { return last_block_; }
   uint64_t getGenesisBlockNum() const override { return concord::kvbc::INITIAL_GENESIS_BLOCK_ID; }
   uint64_t getLastBlockNum() const override { return last_block_; };
+
+  void postProcessUntilBlockId(uint64_t maxBlockId) override {
+    sleepForRandomtime(1, 2);
+    return;
+  }
 
  private:
   uint64_t last_block_;
