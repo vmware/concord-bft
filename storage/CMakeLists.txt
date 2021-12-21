@@ -7,6 +7,7 @@ target_include_directories(concordbft_storage PUBLIC include)
 
 if (USE_S3_OBJECT_STORE)
 find_library(LIBS3 s3)
+target_compile_definitions(concordbft_storage PUBLIC USE_S3_OBJECT_STORE=1)
 target_sources(concordbft_storage PRIVATE src/s3/client.cpp)
 target_link_libraries(concordbft_storage PRIVATE ${LIBS3})
 endif(USE_S3_OBJECT_STORE)
