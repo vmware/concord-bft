@@ -16,6 +16,7 @@
 #include "messages/PreProcessReplyMsg.hpp"
 #include "messages/PreProcessResultMsg.hpp"
 #include "PreProcessorRecorder.hpp"
+#include "SimpleClient.hpp"
 #include <vector>
 #include <map>
 #include <list>
@@ -24,7 +25,16 @@ namespace preprocessor {
 
 // This class collects and stores data relevant to the processing of one specific client request by all replicas.
 
-typedef enum { NONE, CONTINUE, COMPLETE, CANCEL, EXPIRED, CANCELLED_BY_PRIMARY, RETRY_PRIMARY } PreProcessingResult;
+typedef enum {
+  NONE,
+  CONTINUE,
+  COMPLETE,
+  CANCEL,
+  EXPIRED,
+  FAILED,
+  CANCELLED_BY_PRIMARY,
+  RETRY_PRIMARY
+} PreProcessingResult;
 
 using ReplicaIdsList = std::vector<ReplicaId>;
 
@@ -44,7 +54,9 @@ class RequestProcessingState {
   ~RequestProcessingState() = default;
 
   // None of RequestProcessingState functions is thread-safe. They are guarded by RequestState::mutex from PreProcessor.
-  void handlePrimaryPreProcessed(const char* preProcessResult, uint32_t preProcessResultLen);
+  void handlePrimaryPreProcessed(const char* preProcessResultData,
+                                 uint32_t preProcessResultLen,
+                                 bftEngine::OperationResult preProcessResult);
   void handlePreProcessReplyMsg(const PreProcessReplyMsgSharedPtr& preProcessReplyMsg);
   std::unique_ptr<MessageBase> buildClientRequestMsg(bool emptyReq = false);
   void setPreProcessRequest(PreProcessRequestMsgSharedPtr preProcessReqMsg);
@@ -53,7 +65,7 @@ class RequestProcessingState {
   const auto getReqOffsetInBatch() const { return reqOffsetInBatch_; }
   const SeqNum getReqSeqNum() const { return reqSeqNum_; }
   PreProcessingResult definePreProcessingConsensusResult();
-  const char* getPrimaryPreProcessedResult() const { return primaryPreProcessResult_; }
+  const char* getPrimaryPreProcessedResult() const { return primaryPreProcessResultData_; }
   uint32_t getPrimaryPreProcessedResultLen() const { return primaryPreProcessResultLen_; }
   bool isReqTimedOut() const;
   const uint64_t reqRetryId() const { return reqRetryId_; }
@@ -79,8 +91,12 @@ class RequestProcessingState {
   const std::list<PreProcessResultSignature>& getPreProcessResultSignatures();
 
   static void init(uint16_t numOfRequiredReplies, preprocessor::PreProcessorRecorder* histograms);
+  static concord::util::SHA3_256::Digest createPreProcessResultHash(const char* preProcessResultData,
+                                                                    uint32_t preProcessResultLen,
+                                                                    bftEngine::OperationResult preProcessResult,
+                                                                    uint16_t clientId,
+                                                                    ReqId reqSeqNum);
   const concord::util::SHA3_256::Digest& getResultHash() { return primaryPreProcessResultHash_; };
-  const char* getResult() { return primaryPreProcessResult_; }
 
  private:
   static concord::util::SHA3_256::Digest convertToArray(
@@ -94,9 +110,9 @@ class RequestProcessingState {
   void detectNonDeterministicPreProcessing(const concord::util::SHA3_256::Digest& newHash,
                                            NodeIdType newSenderId,
                                            uint64_t reqRetryId) const;
+  const bftEngine::OperationResult getAgreedPreProcessResult() const { return agreedPreProcessResult_; }
 
-  // Detect if a hash is different from the input param because of the
-  // appended block id.
+  // Detect if a hash is different from the input parameter because of the appended block id.
   std::pair<std::string, concord::util::SHA3_256::Digest> detectFailureDueToBlockID(
       const concord::util::SHA3_256::Digest&, uint64_t);
 
@@ -122,8 +138,10 @@ class RequestProcessingState {
   PreProcessRequestMsgSharedPtr preProcessRequestMsg_;
   uint16_t numOfReceivedReplies_ = 0;
   ReplicaIdsList rejectedReplicaIds_;
-  const char* primaryPreProcessResult_ = nullptr;  // This memory is statically pre-allocated per client in PreProcessor
+  const char* primaryPreProcessResultData_ = nullptr;  // This memory is allocated in PreProcessor
   uint32_t primaryPreProcessResultLen_ = 0;
+  bftEngine::OperationResult primaryPreProcessResult_ = bftEngine::SUCCESS;
+  bftEngine::OperationResult agreedPreProcessResult_ = bftEngine::SUCCESS;
   concord::util::SHA3_256::Digest primaryPreProcessResultHash_ = {};
   // Maps result hash to a list of replica signatures sent for this hash. This also implicitly gives the number of
   // replicas returning a specific hash.

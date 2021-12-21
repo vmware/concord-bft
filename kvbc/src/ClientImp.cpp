@@ -88,8 +88,8 @@ Status ClientImp::invokeCommandSynch(const char* request,
       return Status::InvalidArgument("Specified output buffer is too small");
     case INVALID_REQUEST:
       return Status::InvalidArgument("Request is invalid");
-    case EMPTY_EXEC_RESULT:
-      return Status::GeneralError("Execution result is empty");
+    case EMPTY_EXEC_DATA:
+      return Status::GeneralError("Execution has not generated the data");
   }
   return Status::GeneralError("Unknown error");
 }

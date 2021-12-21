@@ -14,8 +14,9 @@
 
 #include "PrimitiveTypes.hpp"
 #include "messages/PreProcessReplyMsg.hpp"
+#include "messages/PreProcessResultHashCreator.hpp"
+#include "RequestProcessingState.hpp"
 #include "helper.hpp"
-#include "sha_hash.hpp"
 
 namespace {
 using namespace bftEngine::impl;
@@ -52,21 +53,22 @@ TEST_F(PreProcessReplyMsgTestFixture, getResultHashSignature) {
   const uint32_t preProcessResultBufLen = sizeof(preProcessResultBuf);
   const std::string& cid = "";
   const ReplyStatus status = STATUS_GOOD;
-
-  auto m = PreProcessReplyMsg(senderId,
-                              clientId,
-                              reqOffsetInBatch,
-                              reqSeqNum,
-                              reqRetryId,
-                              preProcessResultBuf,
-                              preProcessResultBufLen,
-                              cid,
-                              status);
-
-  auto hash = concord::util::SHA3_256().digest(preProcessResultBuf, preProcessResultBufLen);
+  const OperationResult opResult = SUCCESS;
+  auto preProcessReplyMsg = PreProcessReplyMsg(senderId,
+                                               clientId,
+                                               reqOffsetInBatch,
+                                               reqSeqNum,
+                                               reqRetryId,
+                                               preProcessResultBuf,
+                                               preProcessResultBufLen,
+                                               cid,
+                                               status,
+                                               opResult);
+  const auto hash =
+      PreProcessResultHashCreator::create(preProcessResultBuf, preProcessResultBufLen, opResult, clientId, reqSeqNum);
   auto expected_signature = std::vector<char>(sigManager->getMySigLength(), 0);
   sigManager->sign((char*)hash.data(), sizeof(hash), expected_signature.data(), expected_signature.size());
-  EXPECT_THAT(expected_signature, testing::ContainerEq(m.getResultHashSignature()));
+  EXPECT_THAT(expected_signature, testing::ContainerEq(preProcessReplyMsg.getResultHashSignature()));
 }
 
 }  // namespace

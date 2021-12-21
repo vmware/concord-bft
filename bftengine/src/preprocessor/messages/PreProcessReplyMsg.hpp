@@ -13,12 +13,13 @@
 
 #include "messages/MessageBase.hpp"
 #include "../PreProcessorRecorder.hpp"
-#include "sha_hash.hpp"
+#include "SimpleClient.hpp"
+#include "PreProcessResultHashCreator.hpp"
 #include <memory>
 
 namespace preprocessor {
 
-typedef enum { STATUS_GOOD, STATUS_REJECT } ReplyStatus;
+typedef enum { STATUS_GOOD, STATUS_REJECT, STATUS_FAILED } ReplyStatus;
 
 class PreProcessReplyMsg : public MessageBase {
  public:
@@ -30,7 +31,8 @@ class PreProcessReplyMsg : public MessageBase {
                      const char* preProcessResultBuf,
                      uint32_t preProcessResultBufLen,
                      const std::string& cid,
-                     ReplyStatus status);
+                     ReplyStatus status,
+                     bftEngine::OperationResult preProcessResult);
 
   PreProcessReplyMsg(NodeIdType senderId,
                      uint16_t clientId,
@@ -40,7 +42,8 @@ class PreProcessReplyMsg : public MessageBase {
                      const uint8_t* resultsHash,
                      const char* signature,
                      const std::string& cid,
-                     ReplyStatus status);
+                     ReplyStatus status,
+                     bftEngine::OperationResult preProcessResult);
 
   BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(PreProcessReplyMsg)
 
@@ -51,9 +54,11 @@ class PreProcessReplyMsg : public MessageBase {
   const uint64_t reqRetryId() const { return msgBody()->reqRetryId; }
   const uint32_t replyLength() const { return msgBody()->replyLength; }
   const uint8_t* resultsHash() const { return msgBody()->resultsHash; }
-  const uint8_t status() const { return msgBody()->status; }
+  const ReplyStatus status() const { return msgBody()->status; }
+  const bftEngine::OperationResult preProcessResult() const { return msgBody()->preProcessResult; }
   std::vector<char> getResultHashSignature() const;
   std::string getCid() const;
+
   static void setPreProcessorHistograms(preprocessor::PreProcessorRecorder* histograms) {
     preProcessorHistograms_ = histograms;
   }
@@ -62,15 +67,16 @@ class PreProcessReplyMsg : public MessageBase {
 #pragma pack(push, 1)
   struct Header {
     MessageBase::Header header;
-    SeqNum reqSeqNum;
-    NodeIdType senderId;
-    uint16_t clientId;
-    uint16_t reqOffsetInBatch;
-    uint8_t status;
+    SeqNum reqSeqNum = 0;
+    NodeIdType senderId = 0;
+    uint16_t clientId = 0;
+    uint16_t reqOffsetInBatch = 0;
+    ReplyStatus status = STATUS_GOOD;
+    bftEngine::OperationResult preProcessResult = bftEngine::SUCCESS;
     uint8_t resultsHash[concord::util::SHA3_256::SIZE_IN_BYTES];
-    uint32_t replyLength;
-    uint32_t cidLength;
-    uint64_t reqRetryId;
+    uint32_t replyLength = 0;
+    uint32_t cidLength = 0;
+    uint64_t reqRetryId = 0;
   };
 // The pre-executed results' hash signature resides in the message body
 #pragma pack(pop)
@@ -89,11 +95,9 @@ class PreProcessReplyMsg : public MessageBase {
                  uint16_t reqOffsetInBatch,
                  ReqId reqSeqNum,
                  uint64_t reqRetryId,
-                 ReplyStatus status);
-  void setupMsgBody(const char* preProcessResultBuf,
-                    uint32_t preProcessResultBufLen,
-                    const std::string& cid,
-                    ReplyStatus status);
+                 ReplyStatus status,
+                 bftEngine::OperationResult preProcessResult);
+  void setupMsgBody(const char* preProcessResultBuf, uint32_t preProcessResultBufLen, const std::string& cid);
   void setupMsgBody(const uint8_t* resultsHash, const char* signature, const std::string& cid);
   void setLeftMsgParams(const std::string& cid, uint16_t sigSize);
   Header* msgBody() const { return ((Header*)msgBody_); }

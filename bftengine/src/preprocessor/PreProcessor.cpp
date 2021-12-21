@@ -17,6 +17,7 @@
 #include "OpenTracing.hpp"
 #include "SigManager.hpp"
 #include "messages/PreProcessResultMsg.hpp"
+#include "messages/ClientReplyMsg.hpp"
 #include "ControlStateManager.hpp"
 
 namespace preprocessor {
@@ -568,7 +569,8 @@ void PreProcessor::sendRejectPreProcessReplyMsg(NodeIdType clientId,
                                                   getPreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch),
                                                   0,
                                                   cid,
-                                                  STATUS_REJECT);
+                                                  STATUS_REJECT,
+                                                  NOT_READY);
   LOG_DEBUG(
       logger(),
       KVLOG(reqSeqNum, senderId, clientId, reqOffsetInBatch, ongoingReqSeqNum, ongoingCid)
@@ -1097,6 +1099,7 @@ void PreProcessor::handlePreProcessReplyMsg(const string &cid,
     case NONE:      // No action required - pre-processing has been already completed
     case CONTINUE:  // Not enough equal hashes collected
     case EXPIRED:
+    case FAILED:
       break;
     case COMPLETE:  // Pre-processing consensus reached
       finalizePreProcessing(clientId, reqOffsetInBatch, batchCid);
@@ -1518,7 +1521,8 @@ void PreProcessor::launchAsyncReqPreProcessingJob(const PreProcessRequestMsgShar
   threadPool_.add(preProcessJob);
 }
 
-uint32_t PreProcessor::launchReqPreProcessing(const PreProcessRequestMsgSharedPtr &preProcessReqMsg) {
+OperationResult PreProcessor::launchReqPreProcessing(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
+                                                     uint32_t &resultLen) {
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.launchReqPreProcessing);
   const string &cid = preProcessReqMsg->getCid();
   uint16_t clientId = preProcessReqMsg->clientId();
@@ -1550,18 +1554,26 @@ uint32_t PreProcessor::launchReqPreProcessing(const PreProcessRequestMsgSharedPt
       preProcessResultBuffer});
   requestsHandler_.execute(accumulatedRequests, std::nullopt, cid, span);
   const IRequestsHandler::ExecutionRequest &request = accumulatedRequests.back();
-  const auto status = request.outExecutionStatus;
-  // Append the conflict detection block id and add sizeof(uint64_t) the resulting length.
-  memcpy(preProcessResultBuffer + request.outActualReplySize, reinterpret_cast<char *>(&blockId), sizeof(uint64_t));
-  const auto resultLen = request.outActualReplySize + sizeof(uint64_t);
-  LOG_DEBUG(logger(), "Pre-execution operation done" << KVLOG(cid, reqSeqNum, clientId, reqOffsetInBatch, blockId));
-  if (status != 0 || !resultLen) {
-    LOG_FATAL(
-        logger(),
-        "Pre-execution failed!" << KVLOG(cid, clientId, reqOffsetInBatch, reqSeqNum, (uint32_t)status, resultLen));
-    ConcordAssert(false);
+  auto preProcessResult = static_cast<OperationResult>(request.outExecutionStatus);
+  if (preProcessResult != SUCCESS) {
+    LOG_ERROR(logger(),
+              "Pre-execution failed" << KVLOG(
+                  cid, clientId, reqOffsetInBatch, reqSeqNum, (uint32_t)preProcessResult, resultLen));
+    return preProcessResult;
   }
-  return resultLen;
+  if (request.outActualReplySize == 0) {
+    preProcessResult = EMPTY_EXEC_DATA;
+    LOG_ERROR(logger(),
+              "Pre-execution failed" << KVLOG(cid, clientId, reqOffsetInBatch, reqSeqNum, (uint32_t)preProcessResult));
+    return preProcessResult;
+  }
+  // Append the conflict detection block id and add its size to the resulting length.
+  memcpy(preProcessResultBuffer + request.outActualReplySize, reinterpret_cast<char *>(&blockId), sizeof(uint64_t));
+  resultLen = request.outActualReplySize + sizeof(uint64_t);
+  LOG_DEBUG(
+      logger(),
+      "Pre-execution operation successfully completed" << KVLOG(cid, reqSeqNum, clientId, reqOffsetInBatch, blockId));
+  return SUCCESS;
 }
 
 // For test purposes
@@ -1572,15 +1584,15 @@ ReqId PreProcessor::getOngoingReqIdForClient(uint16_t clientId, uint16_t reqOffs
   return 0;
 }
 
-PreProcessingResult PreProcessor::handlePreProcessedReqByPrimaryAndGetConsensusResult(uint16_t clientId,
-                                                                                      uint16_t reqOffsetInBatch,
-                                                                                      uint32_t resultBufLen) {
+PreProcessingResult PreProcessor::handlePreProcessedReqByPrimaryAndGetConsensusResult(
+    uint16_t clientId, uint16_t reqOffsetInBatch, uint32_t resultBufLen, OperationResult preProcessResult) {
   const auto &reqEntry = ongoingReqBatches_[clientId]->getRequestState(reqOffsetInBatch);
   lock_guard<mutex> lock(reqEntry->mutex);
   if (reqEntry->reqProcessingStatePtr) {
     reqEntry->reqProcessingStatePtr->handlePrimaryPreProcessed(
         getPreProcessResultBuffer(clientId, reqEntry->reqProcessingStatePtr->getReqSeqNum(), reqOffsetInBatch),
-        resultBufLen);
+        resultBufLen,
+        preProcessResult);
     return reqEntry->reqProcessingStatePtr->definePreProcessingConsensusResult();
   }
   return NONE;
@@ -1589,9 +1601,11 @@ PreProcessingResult PreProcessor::handlePreProcessedReqByPrimaryAndGetConsensusR
 void PreProcessor::handlePreProcessedReqPrimaryRetry(NodeIdType clientId,
                                                      uint16_t reqOffsetInBatch,
                                                      uint32_t resultBufLen,
-                                                     const string &batchCid) {
+                                                     const string &batchCid,
+                                                     OperationResult preProcessResult) {
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.handlePreProcessedReqPrimaryRetry);
-  if (handlePreProcessedReqByPrimaryAndGetConsensusResult(clientId, reqOffsetInBatch, resultBufLen) == COMPLETE)
+  if (handlePreProcessedReqByPrimaryAndGetConsensusResult(clientId, reqOffsetInBatch, resultBufLen, preProcessResult) ==
+      COMPLETE)
     finalizePreProcessing(clientId, reqOffsetInBatch);
   else
     cancelPreProcessing(clientId, batchCid, reqOffsetInBatch);
@@ -1600,11 +1614,12 @@ void PreProcessor::handlePreProcessedReqPrimaryRetry(NodeIdType clientId,
 void PreProcessor::handleReqPreProcessedByPrimary(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                                   const string &batchCid,
                                                   uint16_t clientId,
-                                                  uint32_t resultBufLen) {
+                                                  uint32_t resultBufLen,
+                                                  OperationResult preProcessResult) {
   const uint16_t &reqOffsetInBatch = preProcessReqMsg->reqOffsetInBatch();
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.handlePreProcessedReqByPrimary);
   const PreProcessingResult result =
-      handlePreProcessedReqByPrimaryAndGetConsensusResult(clientId, reqOffsetInBatch, resultBufLen);
+      handlePreProcessedReqByPrimaryAndGetConsensusResult(clientId, reqOffsetInBatch, resultBufLen, preProcessResult);
   if (result != NONE)
     handlePreProcessReplyMsg(
         preProcessReqMsg->getCid(), result, clientId, reqOffsetInBatch, preProcessReqMsg->reqSeqNum());
@@ -1629,9 +1644,11 @@ void PreProcessor::handleReqPreProcessedByNonPrimary(uint16_t clientId,
                                                      ReqId reqSeqNum,
                                                      uint64_t reqRetryId,
                                                      uint32_t resBufLen,
-                                                     const std::string &cid) {
+                                                     const std::string &cid,
+                                                     OperationResult preProcessResult) {
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.handlePreProcessedReqByNonPrimary);
   setPreprocessingRightNow(clientId, reqOffsetInBatch, false);
+  const auto status = (preProcessResult == SUCCESS) ? STATUS_GOOD : STATUS_FAILED;
   auto replyMsg = make_shared<PreProcessReplyMsg>(myReplicaId_,
                                                   clientId,
                                                   reqOffsetInBatch,
@@ -1640,7 +1657,8 @@ void PreProcessor::handleReqPreProcessedByNonPrimary(uint16_t clientId,
                                                   getPreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch),
                                                   resBufLen,
                                                   cid,
-                                                  STATUS_GOOD);
+                                                  status,
+                                                  preProcessResult);
   const auto &batchEntry = ongoingReqBatches_[clientId];
   if (batchedPreProcessEnabled_ && batchEntry->isBatchInProcess()) {
     batchEntry->addReply(replyMsg);
@@ -1658,16 +1676,16 @@ void PreProcessor::handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr
   const uint16_t &clientId = preProcessReqMsg->clientId();
   const uint16_t &reqOffsetInBatch = preProcessReqMsg->reqOffsetInBatch();
   const SeqNum &reqSeqNum = preProcessReqMsg->reqSeqNum();
-  uint32_t actualResultBufLen = launchReqPreProcessing(preProcessReqMsg);
+  uint32_t actualResultBufLen;
+  const auto preProcessResult = launchReqPreProcessing(preProcessReqMsg, actualResultBufLen);
   if (isPrimary && isRetry) {
-    handlePreProcessedReqPrimaryRetry(clientId, reqOffsetInBatch, actualResultBufLen, batchCid);
+    handlePreProcessedReqPrimaryRetry(clientId, reqOffsetInBatch, actualResultBufLen, batchCid, preProcessResult);
     return;
   }
   SCOPED_MDC_CID(cid);
-  LOG_DEBUG(logger(), "Request pre-processed" << KVLOG(isPrimary, reqSeqNum, clientId, batchCid, reqOffsetInBatch));
   if (isPrimary) {
     pm_->Delay<concord::performance::SlowdownPhase::PreProcessorAfterPreexecPrimary>();
-    handleReqPreProcessedByPrimary(preProcessReqMsg, batchCid, clientId, actualResultBufLen);
+    handleReqPreProcessedByPrimary(preProcessReqMsg, batchCid, clientId, actualResultBufLen, preProcessResult);
   } else {
     pm_->Delay<concord::performance::SlowdownPhase::PreProcessorAfterPreexecNonPrimary>();
     handleReqPreProcessedByNonPrimary(clientId,
@@ -1675,7 +1693,8 @@ void PreProcessor::handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr
                                       reqSeqNum,
                                       preProcessReqMsg->reqRetryId(),
                                       actualResultBufLen,
-                                      preProcessReqMsg->getCid());
+                                      preProcessReqMsg->getCid(),
+                                      preProcessResult);
   }
 }
 

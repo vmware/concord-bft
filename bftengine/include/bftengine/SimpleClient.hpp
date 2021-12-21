@@ -46,7 +46,7 @@ enum ClientMsgFlag : uint8_t {
   EMPTY_CLIENT_REQ = 0x10,
 };
 
-enum OperationResult : uint32_t { SUCCESS, INVALID_REQUEST, NOT_READY, TIMEOUT, BUFFER_TOO_SMALL, EMPTY_EXEC_RESULT };
+enum OperationResult : uint32_t { SUCCESS, INVALID_REQUEST, NOT_READY, TIMEOUT, BUFFER_TOO_SMALL, EMPTY_EXEC_DATA };
 // Call back for request - at this point we know for sure that a client is handling the request, so we can assure that
 // we will have reply. This callback will be attached to the client reply struct and whenever we get the reply from,
 // the bft client we will activate the callback.
