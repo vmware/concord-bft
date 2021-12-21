@@ -27,7 +27,7 @@ class ClientService {
         event_service_(std::make_unique<EventServiceImpl>(client_)),
         request_service_(std::make_unique<RequestServiceImpl>(client_)){};
 
-  void start(const std::string& addr);
+  void start(const std::string& addr, uint64_t max_receive_msg_size);
 
   const std::string kRequestService{"vmware.concord.client.request.v1.RequestService"};
   const std::string kEventService{"vmware.concord.client.event.v1.EventService"};
