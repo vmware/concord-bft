@@ -127,26 +127,28 @@ void ClientRequestMsg::validateImp(const ReplicasInfo& repInfo) const {
     LOG_WARN(CNSUS, msg.str());
     throw std::runtime_error(msg.str());
   }
-  if (isIdOfExternalClient && isClientTransactionSigningEnabled) {
-    // Skip signature validation if:
-    // 1) request has been pre-processed (validation done already on pre-processor) or
-    // 2) request is empty. empty requests are sent from pre-processor in some cases - skip signature
-    if (emptyReq) {
-      expectedSigLen = 0;
-    } else if ((header->flags & RECONFIG_FLAG) != 0) {
-      expectedSigLen = header->reqSignatureLength;
-      // This message arrived from operator - no need at this stage to verifiy the request, since operator
+  if (isIdOfExternalClient) {
+    if ((header->flags & RECONFIG_FLAG) != 0) {
+      // This message arrived from operator/cre - no need at this stage to verifiy the request, since operator/cre
       // verifies it's own signatures on requests in the reconfiguration handler
+      expectedSigLen = header->reqSignatureLength;
       doSigVerify = false;
-    } else {
-      expectedSigLen = sigManager->getSigLength(clientId);
-      if (0 == expectedSigLen) {
-        msg << "Invalid expectedSigLen " << KVLOG(clientId, this->senderId());
-        LOG_ERROR(GL, msg.str());
-        throw std::runtime_error(msg.str());
-      }
-      if ((header->flags & HAS_PRE_PROCESSED_FLAG) == 0) {
-        doSigVerify = true;
+    } else if (isClientTransactionSigningEnabled) {
+      // Skip signature validation if:
+      // 1) request has been pre-processed (validation done already on pre-processor) or
+      // 2) request is empty. empty requests are sent from pre-processor in some cases - skip signature
+      if (emptyReq) {
+        expectedSigLen = 0;
+      } else {
+        expectedSigLen = sigManager->getSigLength(clientId);
+        if (0 == expectedSigLen) {
+          msg << "Invalid expectedSigLen " << KVLOG(clientId, this->senderId());
+          LOG_ERROR(GL, msg.str());
+          throw std::runtime_error(msg.str());
+        }
+        if ((header->flags & HAS_PRE_PROCESSED_FLAG) == 0) {
+          doSigVerify = true;
+        }
       }
     }
   }
