@@ -1518,7 +1518,8 @@ uint32_t PreProcessor::launchReqPreProcessing(const PreProcessRequestMsgSharedPt
   LOG_DEBUG(logger(), "Pass request for a pre-execution" << KVLOG(cid, reqSeqNum, clientId, reqOffsetInBatch));
   bftEngine::IRequestsHandler::ExecutionRequestsQueue accumulatedRequests;
   uint64_t blockId = preProcessReqMsg->primaryBlockId();
-  if (preProcessReqMsg->primaryBlockId() - GlobalData::block_delta > GlobalData::current_block_id) {
+  if (GlobalData::block_delta > 0 &&
+      preProcessReqMsg->primaryBlockId() - GlobalData::block_delta > GlobalData::current_block_id) {
     blockId = 0;
     LOG_INFO(logger(),
              "Primary block [" << preProcessReqMsg->primaryBlockId()
