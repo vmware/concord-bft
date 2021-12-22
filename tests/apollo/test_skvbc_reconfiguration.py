@@ -535,6 +535,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
                 self.assertGreater(nb_fast_path, fast_paths[r])
 
+    @unittest.skip("Unstable scenario")
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd_with_object_store_and_ke, num_ro_replicas=1, rotate_keys=True,
                       selected_configs=lambda n, f, c: n == 7)
