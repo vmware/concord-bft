@@ -78,9 +78,8 @@ std::optional<std::string> PreProcessResultMsg::validatePreProcessResultSignatur
 
   std::unordered_set<impl::NodeIdType> seen_signatures;
   for (const auto& sig : sigs) {
-    // Insert returns std::pair<iterator, bool>. The bool indicates if the element was created, or it was already in the
-    // set and no insertion was performed. The latter case indicates that we already have got a signature from this
-    // replica.
+    // logic that filters duplicate signatures exist in the preprocessing phase,
+    // therefore duplication implies that the primary is probably malicious.
     if (!seen_signatures.insert(sig.sender_replica).second) {
       return "PreProcessResult signatures validation failure - got more than one signature with the same sender id";
     }
