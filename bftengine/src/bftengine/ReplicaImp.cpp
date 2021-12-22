@@ -3531,7 +3531,7 @@ void ReplicaImp::tryToSendReqMissingDataMsg(SeqNum seqNumber, bool slowPathOnly,
 
     reqData.resetFlags();
 
-    if (missingPrePrepare) reqData.setPrePrepareIsMissing();
+    if (missingPrePrepare && destRep == source_for_rfmd_pp_) reqData.setPrePrepareIsMissing();
 
     if (missingPartialProof) reqData.setPartialProofIsMissing();
     if (missingPartialPrepare) reqData.setPartialPrepareIsMissing();
@@ -3552,6 +3552,7 @@ void ReplicaImp::tryToSendReqMissingDataMsg(SeqNum seqNumber, bool slowPathOnly,
     send(&reqData, destRep);
     metric_sent_req_for_missing_data_++;
   }
+  source_for_rfmd_pp_ = (source_for_rfmd_pp_ + 1) & config_.numReplicas;
 }
 
 template <>
