@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include "keys_and_signatures.cmf.hpp"
+#include "ReplicaConfig.hpp"
 
 using namespace std;
 
@@ -80,13 +81,14 @@ SigManager* SigManager::initImpl(ReplicaId myId,
   }
 
   LOG_INFO(GL, "Done Compute Start ctor for SigManager with " << KVLOG(publickeys.size(), publicKeysMapping.size()));
-  return new SigManager(myId,
-                        numReplicas,
-                        make_pair(mySigPrivateKey, replicasKeysFormat),
-                        publickeys,
-                        publicKeysMapping,
-                        (publicKeysOfClients != nullptr),
-                        replicasInfo);
+  return new SigManager(
+      myId,
+      numReplicas,
+      make_pair(mySigPrivateKey, replicasKeysFormat),
+      publickeys,
+      publicKeysMapping,
+      ((ReplicaConfig::instance().clientTransactionSigningEnabled) && (publicKeysOfClients != nullptr)),
+      replicasInfo);
 }
 
 SigManager* SigManager::init(ReplicaId myId,

@@ -11,7 +11,6 @@
 
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
-
 #include "PrimitiveTypes.hpp"
 #include "messages/PreProcessResultMsg.hpp"
 #include "helper.hpp"
@@ -23,13 +22,16 @@ using namespace bftEngine::impl;
 using namespace bftEngine;
 using namespace preprocessor;
 
-bftEngine::ReplicaConfig& createReplicaConfigWithExtClient(uint16_t fVal, uint16_t cVal) {
+bftEngine::ReplicaConfig& createReplicaConfigWithExtClient(uint16_t fVal,
+                                                           uint16_t cVal,
+                                                           bool transactionSigningEnabled) {
   auto& config = createReplicaConfig(fVal, cVal);
   config.numOfExternalClients = 1;
   config.numOfClientProxies = 1;
 
   auto clientPrincipalIds = std::set<uint16_t>{uint16_t(config.numReplicas + 1)};
   config.publicKeysOfClients.insert(make_pair(config.publicKeysOfReplicas.begin()->second, clientPrincipalIds));
+  config.clientTransactionSigningEnabled = transactionSigningEnabled;
   return config;
 }
 
@@ -59,11 +61,48 @@ struct MsgParams {
   const char rawSpanContext[14] = {"span_\0context"};  // make clnag-tidy happy
   const std::string spanContext{rawSpanContext};
 };
+std::pair<std::string, std::vector<char>> getProcessResultSigBuff(const std::unique_ptr<SigManager>& sigManager,
+                                                                  const MsgParams& p,
+                                                                  const int sigCount,
+                                                                  bool duplicateSigs) {
+  auto msgSigSize = sigManager->getMySigLength();
+  std::vector<char> msgSig(msgSigSize, 0);
+  auto hash = concord::util::SHA3_256().digest(p.result, sizeof(p.result));
+  sigManager->sign(reinterpret_cast<const char*>(hash.data()), hash.size(), msgSig.data(), msgSigSize);
 
+  // for simplicity, copy the same signatures
+  std::list<PreProcessResultSignature> resultSigs;
+  for (int i = 0; i < sigCount; i++) {
+    resultSigs.emplace_back(std::vector<char>(msgSig), duplicateSigs ? 0 : i);
+  }
+  return std::make_pair(PreProcessResultSignature::serializeResultSignatureList(resultSigs), msgSig);
+}
+void checkMessageSanityCheck(std::unique_ptr<preprocessor::PreProcessResultMsg>& m,
+                             MsgParams& p,
+                             const ReplicasInfo& repInfo,
+                             bool transactionSigningEnabled) {
+  EXPECT_EQ(m->clientProxyId(), p.senderId);
+  EXPECT_EQ(m->flags(), MsgFlag::HAS_PRE_PROCESSED_FLAG);
+  EXPECT_EQ(m->requestSeqNum(), p.reqSeqNum);
+  EXPECT_EQ(m->requestLength(), sizeof(p.result));
+  if (transactionSigningEnabled) {
+    EXPECT_NE(m->requestSignatureLength(), 0);
+    EXPECT_NE(m->requestSignature(), nullptr);
+  } else {
+    EXPECT_EQ(m->requestSignatureLength(), 0);
+    EXPECT_EQ(m->requestSignature(), nullptr);
+  }
+  EXPECT_NE(m->requestBuf(), p.result);
+  EXPECT_TRUE(std::memcmp(m->requestBuf(), p.result, sizeof(p.result)) == 0u);
+  EXPECT_EQ(m->getCid(), p.correlationId);
+  EXPECT_EQ(m->spanContext<ClientRequestMsg>().data(), p.spanContext);
+  EXPECT_EQ(m->requestTimeoutMilli(), p.requestTimeoutMilli);
+  EXPECT_NO_THROW(m->validate(repInfo));
+}
 class PreProcessResultMsgTestFixture : public testing::Test {
  protected:
   PreProcessResultMsgTestFixture()
-      : config{createReplicaConfigWithExtClient(1, 0)},
+      : config{createReplicaConfigWithExtClient(1, 0, true)},
         replicaInfo{config, false, false},
         sigManager(createSigManagerWithSigning(config.replicaId,
                                                config.replicaPrivateKey,
@@ -77,17 +116,7 @@ class PreProcessResultMsgTestFixture : public testing::Test {
   std::unique_ptr<SigManager> sigManager;
 
   std::unique_ptr<PreProcessResultMsg> createMessage(const MsgParams& p, const int sigCount, bool duplicateSigs) {
-    auto msgSigSize = sigManager->getMySigLength();
-    std::vector<char> msgSig(msgSigSize, 0);
-    auto hash = concord::util::SHA3_256().digest(p.result, sizeof(p.result));
-    sigManager->sign(reinterpret_cast<const char*>(hash.data()), hash.size(), msgSig.data(), msgSigSize);
-
-    // for simplicity, copy the same signatures
-    std::list<PreProcessResultSignature> resultSigs;
-    for (int i = 0; i < sigCount; i++) {
-      resultSigs.emplace_back(std::vector<char>(msgSig), duplicateSigs ? 0 : i);
-    }
-    auto resultSigsBuf = PreProcessResultSignature::serializeResultSignatureList(resultSigs);
+    auto resultSigsBuf = getProcessResultSigBuff(sigManager, p, sigCount, duplicateSigs);
 
     return std::make_unique<PreProcessResultMsg>(p.senderId,
                                                  p.reqSeqNum,
@@ -96,22 +125,48 @@ class PreProcessResultMsgTestFixture : public testing::Test {
                                                  p.requestTimeoutMilli,
                                                  p.correlationId,
                                                  concordUtils::SpanContext{p.spanContext},
-                                                 msgSig.data(),
-                                                 msgSig.size(),
-                                                 resultSigsBuf);
+                                                 resultSigsBuf.second.data(),
+                                                 resultSigsBuf.second.size(),
+                                                 resultSigsBuf.first);
   }
 
   void messageSanityCheck(std::unique_ptr<preprocessor::PreProcessResultMsg>& m, MsgParams& p) {
-    EXPECT_EQ(m->clientProxyId(), p.senderId);
-    EXPECT_EQ(m->flags(), MsgFlag::HAS_PRE_PROCESSED_FLAG);
-    EXPECT_EQ(m->requestSeqNum(), p.reqSeqNum);
-    EXPECT_EQ(m->requestLength(), sizeof(p.result));
-    EXPECT_NE(m->requestBuf(), p.result);
-    EXPECT_TRUE(std::memcmp(m->requestBuf(), p.result, sizeof(p.result)) == 0u);
-    EXPECT_EQ(m->getCid(), p.correlationId);
-    EXPECT_EQ(m->spanContext<ClientRequestMsg>().data(), p.spanContext);
-    EXPECT_EQ(m->requestTimeoutMilli(), p.requestTimeoutMilli);
-    EXPECT_NO_THROW(m->validate(replicaInfo));
+    checkMessageSanityCheck(m, p, replicaInfo, config.clientTransactionSigningEnabled);
+  }
+};
+
+class PreProcessResultMsgTxSigningOffTestFixture : public testing::Test {
+ protected:
+  PreProcessResultMsgTxSigningOffTestFixture()
+      : config{createReplicaConfigWithExtClient(1, 0, false)},
+        replicaInfo{config, false, false},
+        sigManager(createSigManagerWithSigning(config.replicaId,
+                                               config.replicaPrivateKey,
+                                               concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                                               config.publicKeysOfReplicas,
+                                               &config.publicKeysOfClients,
+                                               replicaInfo)) {}
+
+  ReplicaConfig& config;
+  ReplicasInfo replicaInfo;
+  std::unique_ptr<SigManager> sigManager;
+
+  std::unique_ptr<PreProcessResultMsg> createMessage(const MsgParams& p, const int sigCount, bool duplicateSigs) {
+    auto resultSigsBuf = getProcessResultSigBuff(sigManager, p, sigCount, duplicateSigs);
+
+    return std::make_unique<PreProcessResultMsg>(p.senderId,
+                                                 p.reqSeqNum,
+                                                 sizeof(p.result),
+                                                 p.result,
+                                                 p.requestTimeoutMilli,
+                                                 p.correlationId,
+                                                 concordUtils::SpanContext{p.spanContext},
+                                                 nullptr,
+                                                 0,
+                                                 resultSigsBuf.first);
+  }
+  void messageSanityCheck(std::unique_ptr<preprocessor::PreProcessResultMsg>& m, MsgParams& p) {
+    checkMessageSanityCheck(m, p, replicaInfo, config.clientTransactionSigningEnabled);
   }
 };
 
@@ -228,4 +283,13 @@ TEST_F(PreProcessResultMsgTestFixture, MsgWithDuplicatedSigs) {
   EXPECT_TRUE(res->find(ss.str()) != std::string::npos);
 }
 
+TEST_F(PreProcessResultMsgTxSigningOffTestFixture, ClientRequestMsgSanityChecks) {
+  MsgParams p;
+  auto m = createMessage(p, replicaInfo.getNumberOfReplicas(), false /* duplicateSigs */);
+  messageSanityCheck(m, p);
+
+  // check message type
+  MessageBase::Header* hdr = (MessageBase::Header*)m->body();
+  EXPECT_EQ(hdr->msgType, MsgCode::PreProcessResult);
+}
 }  // namespace
