@@ -1086,14 +1086,9 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
 
     return;  // TODO(GG): memory deallocation is confusing .....
   }
-  if (isCurrentPrimary() && (msg->senderId() != getReplicaConfig().replicaId)) {
-    LOG_INFO(GL, "Ignoring PrePrepareMsg since im the current primary");
-    delete msg;
-    return;
-  }
   bool msgAdded = false;
 
-  if (relevantMsgForActiveView(msg)) {
+  if (relevantMsgForActiveView(msg) && msg->senderId() == currentPrimary()) {
     sendAckIfNeeded(msg, msg->senderId(), msgSeqNum);
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
     const bool slowStarted = (msg->firstPath() == CommitPath::SLOW || seqNumInfo.slowPathStarted());
