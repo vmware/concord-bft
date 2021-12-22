@@ -694,6 +694,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   ReplicaStatusHandlers replStatusHandlers_;
   concord::util::CallbackRegistry<uint64_t> onViewNumCallbacks_;
   concord::util::CallbackRegistry<SeqNum> onSeqNumIsStableCallbacks_;
+  uint16_t source_for_rfmd_pp_ = 0;
 
 #ifdef USE_FAKE_CLOCK_IN_TS
   std::optional<TimeServiceManager<concord::util::FakeClock>> time_service_manager_;
