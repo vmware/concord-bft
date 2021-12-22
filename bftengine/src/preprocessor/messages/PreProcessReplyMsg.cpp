@@ -32,10 +32,11 @@ PreProcessReplyMsg::PreProcessReplyMsg(NodeIdType senderId,
                                        const char* preProcessResultBuf,
                                        uint32_t preProcessResultBufLen,
                                        const std::string& cid,
-                                       ReplyStatus status)
+                                       ReplyStatus status,
+                                       bftEngine::OperationResult preProcessResult)
     : MessageBase(senderId, MsgCode::PreProcessReply, 0, maxReplyMsgSize_) {
-  setParams(senderId, clientId, reqOffsetInBatch, reqSeqNum, reqRetryId, status);
-  setupMsgBody(preProcessResultBuf, preProcessResultBufLen, cid, status);
+  setParams(senderId, clientId, reqOffsetInBatch, reqSeqNum, reqRetryId, status, preProcessResult);
+  setupMsgBody(preProcessResultBuf, preProcessResultBufLen, cid);
 }
 
 // Used by PreProcessBatchReplyMsg while retrieving PreProcessReplyMsgs from the batch
@@ -47,9 +48,10 @@ PreProcessReplyMsg::PreProcessReplyMsg(NodeIdType senderId,
                                        const uint8_t* resultsHash,
                                        const char* signature,
                                        const std::string& cid,
-                                       ReplyStatus status)
+                                       ReplyStatus status,
+                                       bftEngine::OperationResult preProcessResult)
     : MessageBase(senderId, MsgCode::PreProcessReply, 0, maxReplyMsgSize_) {
-  setParams(senderId, clientId, reqOffsetInBatch, reqSeqNum, reqRetryId, status);
+  setParams(senderId, clientId, reqOffsetInBatch, reqSeqNum, reqRetryId, status, preProcessResult);
   setupMsgBody(resultsHash, signature, cid);
 }
 
@@ -101,14 +103,16 @@ void PreProcessReplyMsg::setParams(NodeIdType senderId,
                                    uint16_t reqOffsetInBatch,
                                    ReqId reqSeqNum,
                                    uint64_t reqRetryId,
-                                   ReplyStatus status) {
+                                   ReplyStatus status,
+                                   OperationResult preProcessResult) {
   msgBody()->senderId = senderId;
   msgBody()->reqSeqNum = reqSeqNum;
   msgBody()->clientId = clientId;
   msgBody()->reqOffsetInBatch = reqOffsetInBatch;
   msgBody()->reqRetryId = reqRetryId;
   msgBody()->status = status;
-  LOG_DEBUG(logger(), KVLOG(senderId, clientId, reqSeqNum, reqRetryId, status));
+  msgBody()->preProcessResult = preProcessResult;
+  LOG_DEBUG(logger(), KVLOG(senderId, clientId, reqSeqNum, reqRetryId, status, preProcessResult));
 }
 
 void PreProcessReplyMsg::setLeftMsgParams(const string& cid, uint16_t sigSize) {
@@ -123,20 +127,20 @@ void PreProcessReplyMsg::setLeftMsgParams(const string& cid, uint16_t sigSize) {
 
 void PreProcessReplyMsg::setupMsgBody(const char* preProcessResultBuf,
                                       uint32_t preProcessResultBufLen,
-                                      const string& cid,
-                                      ReplyStatus status) {
+                                      const string& cid) {
   uint16_t sigSize = 0;
-  if (status == STATUS_GOOD) {
-    auto sigManager = SigManager::instance();
-    sigSize = sigManager->getMySigLength();
-    SHA3_256::Digest hash;
-    // Calculate pre-process result hash
-    hash = SHA3_256().digest(preProcessResultBuf, preProcessResultBufLen);
-    memcpy(msgBody()->resultsHash, hash.data(), SHA3_256::SIZE_IN_BYTES);
-    {
-      concord::diagnostics::TimeRecorder scoped_timer(*preProcessorHistograms_->signPreProcessReplyHash);
-      sigManager->sign((char*)hash.data(), SHA3_256::SIZE_IN_BYTES, body() + sizeof(Header), sigSize);
-    }
+  auto sigManager = SigManager::instance();
+  sigSize = sigManager->getMySigLength();
+  // Calculate pre-process result hash
+  auto hash = PreProcessResultHashCreator::create(preProcessResultBuf,
+                                                  preProcessResultBufLen,
+                                                  msgBody()->preProcessResult,
+                                                  msgBody()->clientId,
+                                                  msgBody()->reqSeqNum);
+  memcpy(msgBody()->resultsHash, hash.data(), SHA3_256::SIZE_IN_BYTES);
+  {
+    concord::diagnostics::TimeRecorder scoped_timer(*preProcessorHistograms_->signPreProcessReplyHash);
+    sigManager->sign((char*)hash.data(), SHA3_256::SIZE_IN_BYTES, body() + sizeof(Header), sigSize);
   }
   setLeftMsgParams(cid, sigSize);
 }
