@@ -2354,9 +2354,9 @@ void ReplicaImp::onMessage<AskForCheckpointMsg>(AskForCheckpointMsg *msg) {
 void ReplicaImp::startExecution(SeqNum seqNumber,
                                 concordUtils::SpanWrapper &span,
                                 bool askForMissingInfoAboutCommittedItems) {
+  consensus_times_.end(seqNumber);
+  tryToRemovePendingRequestsForSeqNum(seqNumber);  // TODO(LG) Should verify if needed
   if (config_.enablePostExecutionSeparation) {
-    consensus_times_.end(seqNumber);
-    tryToRemovePendingRequestsForSeqNum(seqNumber);  // TODO(LG) Should verify if needed
     tryToStartOrFinishExecution(askForMissingInfoAboutCommittedItems);
   } else {
     executeNextCommittedRequests(span, askForMissingInfoAboutCommittedItems);
