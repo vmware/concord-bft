@@ -2356,6 +2356,7 @@ void ReplicaImp::startExecution(SeqNum seqNumber,
                                 bool askForMissingInfoAboutCommittedItems) {
   consensus_times_.end(seqNumber);
   tryToRemovePendingRequestsForSeqNum(seqNumber);  // TODO(LG) Should verify if needed
+  LOG_INFO(CNSUS, "Starting execution of seqNumber:" << seqNumber);
   if (config_.enablePostExecutionSeparation) {
     tryToStartOrFinishExecution(askForMissingInfoAboutCommittedItems);
   } else {
@@ -4952,7 +4953,7 @@ void ReplicaImp::finishExecutePrePrepareMsg(PrePrepareMsg *ppMsg,
     sendResponses(ppMsg, *pAccumulatedRequests);
     delete pAccumulatedRequests;
   }
-
+  LOG_INFO(CNSUS, "Finished execution of request seqNum:" << ppMsg->seqNumber());
   uint64_t checkpointNum{};
   if ((lastExecutedSeqNum + 1) % checkpointWindowSize == 0) {
     checkpointNum = (lastExecutedSeqNum + 1) / checkpointWindowSize;
