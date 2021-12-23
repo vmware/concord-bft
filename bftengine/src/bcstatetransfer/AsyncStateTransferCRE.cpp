@@ -79,6 +79,7 @@ class ReplicaTLSKeyExchangeHandler : public IStateHandler {
   bool validate(const State& state) const override {
     concord::messages::ClientStateReply crep;
     concord::messages::deserialize(state.data, crep);
+    if (crep.epoch < EpochManager::instance().getSelfEpochNumber()) return false;
     return std::holds_alternative<concord::messages::ReplicaTlsExchangeKey>(crep.response);
   }
 
