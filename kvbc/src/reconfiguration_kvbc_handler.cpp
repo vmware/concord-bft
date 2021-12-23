@@ -899,6 +899,17 @@ bool InternalPostKvReconfigurationHandler::handle(const concord::messages::Repli
       ts,
       false);
   LOG_INFO(getLogger(), "ReplicaTlsExchangeKey block id: " << blockId << " for replica " << sender_id);
+  std::string bft_replicas_cert_path = bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" +
+                                       std::to_string(sender_id) + "/server/server.cert";
+  std::string cert = command.cert;
+  secretsmanager::SecretsManagerPlain sm;
+  std::string old_cert = sm.decryptFile(bft_replicas_cert_path).value_or("");
+  if (command.cert == old_cert) {
+    LOG_INFO(getLogger(),
+             "new certificate is the same as the current one, this is probably due to restore procedure, hence the "
+             "replica will not write the new certificate to the storage");
+    return true;
+  }
   if (sender_id == bftEngine::ReplicaConfig::instance().replicaId) {
     // exchange the private key
     std::string pk_file_name = "pk.pem";
@@ -917,10 +928,6 @@ bool InternalPostKvReconfigurationHandler::handle(const concord::messages::Repli
     }
     fs::remove(new_pk);
   }
-  std::string bft_replicas_cert_path = bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" +
-                                       std::to_string(sender_id) + "/server/server.cert";
-  std::string cert = command.cert;
-  secretsmanager::SecretsManagerPlain sm;
   sm.encryptFile(bft_replicas_cert_path, cert);
   LOG_INFO(getLogger(), bft_replicas_cert_path + " is updated on the disk");
   bft_replicas_cert_path = bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" + std::to_string(sender_id) +
