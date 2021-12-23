@@ -56,6 +56,7 @@ TEST_F(ClientRequestMsgTestFixture, create_and_compare) {
                        request,
                        requestTimeoutMilli,
                        correlationId,
+                       0,
                        concordUtils::SpanContext{spanContext});
 
   EXPECT_EQ(msg.clientProxyId(), senderId);
@@ -86,6 +87,7 @@ TEST_F(ClientRequestMsgTestFixture, create_and_compare_with_empty_span) {
                        request,
                        requestTimeoutMilli,
                        correlationId,
+                       0,
                        concordUtils::SpanContext{spanContext});
 
   EXPECT_EQ(msg.clientProxyId(), senderId);
@@ -115,6 +117,7 @@ TEST_F(ClientRequestMsgTestFixture, create_and_compare_with_empty_cid) {
                        request,
                        requestTimeoutMilli,
                        correlationId,
+                       0,
                        concordUtils::SpanContext{spanContext});
 
   EXPECT_EQ(msg.clientProxyId(), senderId);
@@ -145,6 +148,7 @@ TEST_F(ClientRequestMsgTestFixture, create_from_buffer) {
                                request,
                                requestTimeoutMilli,
                                correlationId,
+                               0,
                                concordUtils::SpanContext{spanContext});
 
   ClientRequestMsg copy_msg((ClientRequestMsgHeader*)originalMsg.body());
@@ -178,6 +182,7 @@ TEST_F(ClientRequestMsgTestFixture, test_with_timestamp) {
                                request.data(),
                                requestTimeoutMilli,
                                correlationId,
+                               0,
                                concordUtils::SpanContext{spanContext});
 
   ClientRequestMsg copy_msg((ClientRequestMsgHeader*)originalMsg.body());
@@ -214,6 +219,7 @@ TEST_F(ClientRequestMsgTestFixture, base_methods) {
                        request,
                        requestTimeoutMilli,
                        correlationId,
+                       0,
                        concordUtils::SpanContext{spanContext});
   EXPECT_NO_THROW(msg.validate(replicaInfo));
   testMessageBaseMethods(msg, MsgCode::ClientRequest, senderId, spanContext);
@@ -240,6 +246,7 @@ TEST_F(ClientRequestMsgTestFixture, extra_buffer) {
                            request,
                            reqTimeoutMilli,
                            cid,
+                           0,
                            spanContext,
                            requestSignature,
                            requestSignatureLen,

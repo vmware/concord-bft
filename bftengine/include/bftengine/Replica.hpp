@@ -54,15 +54,15 @@ enum MsgFlag : uint64_t {
 
 // The IControlHandler is a group of methods that enables the userRequestHandler to perform infrastructure
 // changes in the system.
-// For example, assuming we want to upgrade the system to new software version, then:
+// For example, assuming we want to upgrade the system to a new software version, then:
 // 1. We need to bring the system to a stable state (bft responsibility)
 // 2. We need to perform the actual upgrade process (the platform responsibility)
-// Thus, once the bft brings the system to the desired stable state, it needs to invoke the a callback of the user to
-// perform the actual upgrade.
+// Once the bft brings the system to the desired stable state, it needs to invoke a user callback to perform the actual
+// upgrade.
 // More possible scenarios would be:
 // 1. Adding/removing node
 // 2. Key exchange
-// 3. Change DB scheme
+// 3. DB scheme change
 // and basically any management action that is handled by the layer that uses concord-bft.
 class IControlHandler {
  public:

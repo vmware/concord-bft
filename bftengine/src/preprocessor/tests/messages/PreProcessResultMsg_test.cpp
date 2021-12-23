@@ -135,6 +135,7 @@ class PreProcessResultMsgTestFixture : public testing::Test {
       resultSigs.emplace_back(std::vector<char>(msgSig), duplicateSigs ? 0 : i, bftEngine::SUCCESS);
     }
     return std::make_unique<PreProcessResultMsg>(params.senderId,
+                                                 0,
                                                  params.reqSeqNum,
                                                  sizeof(params.result),
                                                  params.result,
@@ -169,8 +170,8 @@ class PreProcessResultMsgTxSigningOffTestFixture : public testing::Test {
 
   std::unique_ptr<PreProcessResultMsg> createMessage(const MsgParams& params, const int sigCount, bool duplicateSigs) {
     auto resultSigsBuf = getProcessResultSigBuff(sigManager, params, sigCount, duplicateSigs);
-
     return std::make_unique<PreProcessResultMsg>(params.senderId,
+                                                 0,
                                                  params.reqSeqNum,
                                                  sizeof(params.result),
                                                  params.result,

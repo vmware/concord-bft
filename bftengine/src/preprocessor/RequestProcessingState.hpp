@@ -65,14 +65,13 @@ class RequestProcessingState {
   const auto getReqOffsetInBatch() const { return reqOffsetInBatch_; }
   const SeqNum getReqSeqNum() const { return reqSeqNum_; }
   PreProcessingResult definePreProcessingConsensusResult();
-  const char* getPrimaryPreProcessedResult() const { return primaryPreProcessResultData_; }
+  const char* getPrimaryPreProcessedResultData() const { return primaryPreProcessResultData_; }
   uint32_t getPrimaryPreProcessedResultLen() const { return primaryPreProcessResultLen_; }
   bool isReqTimedOut() const;
   const uint64_t reqRetryId() const { return reqRetryId_; }
   uint64_t getReqTimeoutMilli() const {
     return clientPreProcessReqMsg_ ? clientPreProcessReqMsg_->requestTimeoutMilli() : 0;
   }
-
   const char* getReqSignature() const {
     if (!clientRequestSignature_.empty()) {
       return clientRequestSignature_.data();
@@ -80,7 +79,6 @@ class RequestProcessingState {
     return nullptr;
   }
   uint32_t getReqSignatureLength() const { return clientRequestSignature_.size(); }
-
   const std::string getReqCid() const { return clientPreProcessReqMsg_ ? clientPreProcessReqMsg_->getCid() : ""; }
   const std::string& getBatchCid() const { return batchCid_; }
   void detectNonDeterministicPreProcessing(const uint8_t* newHash, NodeIdType newSenderId, uint64_t reqRetryId) const;
@@ -89,6 +87,8 @@ class RequestProcessingState {
   void resetRejectedReplicasList() { rejectedReplicaIds_.clear(); }
   void setPreprocessingRightNow(bool set) { preprocessingRightNow_ = set; }
   const std::list<PreProcessResultSignature>& getPreProcessResultSignatures();
+  const concord::util::SHA3_256::Digest& getResultHash() { return primaryPreProcessResultHash_; };
+  const bftEngine::OperationResult getAgreedPreProcessResult() const { return agreedPreProcessResult_; }
 
   static void init(uint16_t numOfRequiredReplies, preprocessor::PreProcessorRecorder* histograms);
   static concord::util::SHA3_256::Digest createPreProcessResultHash(const char* preProcessResultData,
@@ -96,7 +96,6 @@ class RequestProcessingState {
                                                                     bftEngine::OperationResult preProcessResult,
                                                                     uint16_t clientId,
                                                                     ReqId reqSeqNum);
-  const concord::util::SHA3_256::Digest& getResultHash() { return primaryPreProcessResultHash_; };
 
  private:
   static concord::util::SHA3_256::Digest convertToArray(
@@ -110,7 +109,6 @@ class RequestProcessingState {
   void detectNonDeterministicPreProcessing(const concord::util::SHA3_256::Digest& newHash,
                                            NodeIdType newSenderId,
                                            uint64_t reqRetryId) const;
-  const bftEngine::OperationResult getAgreedPreProcessResult() const { return agreedPreProcessResult_; }
 
   // Detect if a hash is different from the input parameter because of the appended block id.
   std::pair<std::string, concord::util::SHA3_256::Digest> detectFailureDueToBlockID(

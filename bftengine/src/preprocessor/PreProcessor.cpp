@@ -1164,14 +1164,16 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffset
       const auto &span_context = preProcessReqMsg->spanContext<PreProcessRequestMsgSharedPtr::element_type>();
       // Copy of the message body is unavoidable here, as we need to create a new message type which lifetime is
       // controlled by the replica while all PreProcessReply messages get released here.
+      const auto preProcessResult = static_cast<uint64_t>(reqProcessingStatePtr->getAgreedPreProcessResult());
       if (ReplicaConfig::instance().preExecutionResultAuthEnabled) {
         auto sigsList = reqProcessingStatePtr->getPreProcessResultSignatures();
         sigsList.resize(numOfRequiredReplies());
         auto sigsBuf = PreProcessResultSignature::serializeResultSignatureList(sigsList);
         preProcessMsg = make_unique<PreProcessResultMsg>(clientId,
+                                                         preProcessResult,
                                                          reqSeqNum,
                                                          reqProcessingStatePtr->getPrimaryPreProcessedResultLen(),
-                                                         reqProcessingStatePtr->getPrimaryPreProcessedResult(),
+                                                         reqProcessingStatePtr->getPrimaryPreProcessedResultData(),
                                                          reqProcessingStatePtr->getReqTimeoutMilli(),
                                                          cid,
                                                          span_context,
@@ -1186,9 +1188,10 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffset
                                                       HAS_PRE_PROCESSED_FLAG,
                                                       reqSeqNum,
                                                       reqProcessingStatePtr->getPrimaryPreProcessedResultLen(),
-                                                      reqProcessingStatePtr->getPrimaryPreProcessedResult(),
+                                                      reqProcessingStatePtr->getPrimaryPreProcessedResultData(),
                                                       reqProcessingStatePtr->getReqTimeoutMilli(),
                                                       cid,
+                                                      preProcessResult,
                                                       span_context,
                                                       reqProcessingStatePtr->getReqSignature(),
                                                       reqProcessingStatePtr->getReqSignatureLength());

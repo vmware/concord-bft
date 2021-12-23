@@ -39,9 +39,10 @@ class PreProcessResultMsg : public ClientRequestMsg {
   using ErrorMessage = std::optional<std::string>;
 
   PreProcessResultMsg(NodeIdType sender,
+                      uint64_t preProcessResult,
                       uint64_t reqSeqNum,
                       uint32_t resultLength,
-                      const char* result,
+                      const char* resultBuf,
                       uint64_t reqTimeoutMilli,
                       const std::string& cid = "",
                       const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{},
