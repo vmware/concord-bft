@@ -95,7 +95,8 @@ Config targetConfig() {
       2,                  // maxFetchRetransmissions
       5,                  // metricsDumpIntervalSec
       true,               // enableReservedPages
-      true                // enableSourceBlocksPreFetch
+      true,               // enableSourceBlocksPreFetch
+      true                // enableSourceSelectorPrimaryAwareness
   };
 }
 
