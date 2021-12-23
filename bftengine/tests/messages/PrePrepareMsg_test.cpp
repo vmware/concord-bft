@@ -45,6 +45,7 @@ ClientRequestMsg create_client_request() {
                           request,
                           requestTimeoutMilli,
                           correlationId,
+                          0,
                           concordUtils::SpanContext{spanContext});
 }
 
@@ -84,6 +85,7 @@ void create_random_client_requests(std::vector<std::shared_ptr<ClientRequestMsg>
                                                                           request.c_str(),
                                                                           requestTimeoutMilli,
                                                                           correlationId,
+                                                                          0,
                                                                           concordUtils::SpanContext{spanContext})});
     numMsgs--;
   }

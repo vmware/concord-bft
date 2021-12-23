@@ -183,8 +183,8 @@ class BftClient(ABC):
             if corrupt_params:
                 msg, signature, client_id = self._corrupt_signing_params(msg, signature, client_id, corrupt_params)
 
-        data = bft_msgs.pack_request(client_id, seq_num, read_only, self.config.req_timeout_milli, cid, msg,
-                                    pre_process, reconfiguration=reconfiguration, signature=signature)
+        data = bft_msgs.pack_request(client_id, seq_num, read_only, self.config.req_timeout_milli, cid, msg, 0,
+                                     pre_process, reconfiguration=reconfiguration, signature=signature)
 
         if m_of_n_quorum is None:
             m_of_n_quorum = MofNQuorum.LinearizableQuorum(self.config, [r.id for r in self.replicas])
@@ -230,11 +230,10 @@ class BftClient(ABC):
                     msg, signature, client_id = self._corrupt_signing_params(msg, signature, client_id, corrupt_params)
 
             msg_data = b''.join([msg_data, bft_msgs.pack_request(
-                self.client_id, msg_seq_num, False, self.config.req_timeout_milli, msg_cid, msg, True,
+                self.client_id, msg_seq_num, False, self.config.req_timeout_milli, msg_cid, msg, 0, True,
                 reconfiguration=False, span_context=b'', signature=signature)])
 
-        data = bft_msgs.pack_batch_request(
-            self.client_id, batch_size, msg_data, cid)
+        data = bft_msgs.pack_batch_request(self.client_id, batch_size, msg_data, cid)
 
         if m_of_n_quorum is None:
             m_of_n_quorum = MofNQuorum.LinearizableQuorum(self.config, [r.id for r in self.replicas])

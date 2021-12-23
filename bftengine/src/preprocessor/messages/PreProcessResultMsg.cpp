@@ -20,9 +20,10 @@ namespace preprocessor {
 using namespace bftEngine;
 
 PreProcessResultMsg::PreProcessResultMsg(NodeIdType sender,
+                                         uint64_t preProcessResult,
                                          uint64_t reqSeqNum,
                                          uint32_t resultLength,
-                                         const char* result,
+                                         const char* resultBuf,
                                          uint64_t reqTimeoutMilli,
                                          const std::string& cid,
                                          const concordUtils::SpanContext& spanContext,
@@ -33,9 +34,10 @@ PreProcessResultMsg::PreProcessResultMsg(NodeIdType sender,
                        HAS_PRE_PROCESSED_FLAG,
                        reqSeqNum,
                        resultLength,  // check the comment in the header to
-                       result,        // understand why result is passed as request here
+                       resultBuf,     // understand why result is passed as request here
                        reqTimeoutMilli,
                        cid,
+                       preProcessResult,
                        spanContext,
                        messageSignature,
                        messageSignatureLen,

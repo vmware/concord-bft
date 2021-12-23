@@ -148,10 +148,11 @@ class TestPackUnpack(unittest.TestCase):
         timeout_milli = 5000
         span_context = b'span context'
         msg = b'hello'
+        op_result = 5
         cid = str(req_seq_num)
 
-        packed = bft_msgs.pack_request(client_id, req_seq_num, read_only,
-                                       timeout_milli, cid, msg, pre_process=False, span_context=span_context)
+        packed = bft_msgs.pack_request(client_id, req_seq_num, read_only, timeout_milli, cid, msg, op_result,
+                                       pre_process=False, span_context=span_context)
         header, unpacked_span_context, unpacked_msg, unpacked_cid = bft_msgs.unpack_request(packed)
 
         self.assertEqual(len(span_context), header.span_context_size)
@@ -161,6 +162,7 @@ class TestPackUnpack(unittest.TestCase):
         self.assertEqual(len(msg), header.length)
         self.assertEqual(timeout_milli, header.timeout_milli)
         self.assertEqual(len(cid), header.cid)
+        self.assertEqual(op_result, header.op_result)
 
         self.assertEqual(span_context, unpacked_span_context)
         self.assertEqual(msg, unpacked_msg)

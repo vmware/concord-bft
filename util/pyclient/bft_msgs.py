@@ -34,7 +34,7 @@ MSG_TYPE_SIZE = struct.calcsize(MSG_TYPE_FMT)
 # Little Endian format with no padding
 # We don't include the msg type here, since we have to read it first to
 # understand what message is incoming.
-REQUEST_HEADER_FMT = "<LHQQLQLHL"
+REQUEST_HEADER_FMT = "<LHQQQLQLHL"
 REQUEST_HEADER_SIZE = struct.calcsize(REQUEST_HEADER_FMT)
 
 # The struct definition of the client batch request msg header
@@ -50,21 +50,21 @@ BATCH_REQUEST_HEADER_FMT = "<LHLL"
 REPLY_HEADER_FMT = "<LHQLLL"
 REPLY_HEADER_SIZE = struct.calcsize(REPLY_HEADER_FMT)
 
-RequestHeader = namedtuple('RequestHeader', ['span_context_size', 'client_id', 'flags',
-    'req_seq_num', 'length', 'timeout_milli', 'cid', 'req_sig_len', 'extra_data_length'])
-BatchRequestHeader = namedtuple('BatchRequestHeader', ['cid', 'client_id', 
-    'num_of_messages_in_batch', 'data_size'])
+RequestHeader = namedtuple('RequestHeader', ['span_context_size', 'client_id', 'flags', 'op_result', 'req_seq_num',
+                                             'length', 'timeout_milli', 'cid', 'req_sig_len', 'extra_data_length'])
+
+BatchRequestHeader = namedtuple('BatchRequestHeader', ['cid', 'client_id', 'num_of_messages_in_batch', 'data_size'])
 
 # Unless bft clients are blocking there is no actual need for span context
 # The field was added for compatibility with other messages
 # So the span context size must be 0
 #
 # Replica specific information is not used yet, so rsi_length is always 0
-ReplyHeader = namedtuple('ReplyHeader', ['span_context_size', 'primary_id',
-    'req_seq_num', 'result', 'length', 'rsi_length'])
+ReplyHeader = namedtuple('ReplyHeader', ['span_context_size', 'primary_id', 'req_seq_num', 'result', 'length',
+                                         'rsi_length'])
 
-def pack_request(client_id, req_seq_num, read_only, timeout_milli, cid, msg, pre_process=False, reconfiguration=False, 
-                span_context=b'', signature=b''):
+def pack_request(client_id, req_seq_num, read_only, timeout_milli, cid, msg, op_result = 0, pre_process=False,
+                 reconfiguration=False, span_context=b'', signature=b''):
     """Create and return a buffer with a header and message"""
     flags = 0x0
     if read_only:
@@ -75,7 +75,8 @@ def pack_request(client_id, req_seq_num, read_only, timeout_milli, cid, msg, pre
         flags |= RECONFIG_FLAG
     sig_len = len(signature) if signature else 0
     extra_data_len = 0
-    header = RequestHeader(len(span_context), client_id, flags, req_seq_num, len(msg), timeout_milli, len(cid), sig_len, extra_data_len)
+    header = RequestHeader(len(span_context), client_id, flags, op_result, req_seq_num, len(msg), timeout_milli,
+                           len(cid), sig_len, extra_data_len)
     data = b''.join([pack_request_header(header, pre_process), span_context, msg, cid.encode(), signature])
     return data
 
