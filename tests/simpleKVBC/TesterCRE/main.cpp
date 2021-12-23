@@ -427,20 +427,30 @@ int main(int argc, char** argv) {
   while (!succ) {
     states = pollBasedClient->getStateUpdate(succ);
   }
+  uint32_t highest_known_epoch = 0;
+  uint32_t highest_known_epoch_block = 0;
+  for (const auto& s : states) {
+    concord::messages::ClientStateReply csp;
+    concord::messages::deserialize(s.data, csp);
+    if (highest_known_epoch < csp.epoch) {
+      highest_known_epoch = csp.epoch;
+      highest_known_epoch_block = csp.block_id;
+    }
+  }
   for (const auto& s : states) {
     concord::messages::ClientStateReply csp;
     concord::messages::deserialize(s.data, csp);
     if (std::holds_alternative<concord::messages::ClientExchangePublicKey>(csp.response)) {
-      last_pk_status = s.blockid;
+      last_pk_status = csp.epoch < highest_known_epoch ? highest_known_epoch_block : s.blockid;
     }
     if (std::holds_alternative<concord::messages::ClientsAddRemoveUpdateCommand>(csp.response)) {
-      last_scaling_status = s.blockid;
+      last_scaling_status = csp.epoch < highest_known_epoch ? highest_known_epoch_block : s.blockid;
     }
     if (std::holds_alternative<concord::messages::ClientTlsExchangeKey>(csp.response)) {
-      last_tls_status = s.blockid;
+      last_tls_status = csp.epoch < highest_known_epoch ? highest_known_epoch_block : s.blockid;
     }
     if (std::holds_alternative<concord::messages::ClientsRestartCommand>(csp.response)) {
-      last_resatrt_status = s.blockid;
+      last_resatrt_status = csp.epoch < highest_known_epoch ? highest_known_epoch_block : s.blockid;
     }
   }
   ClientReconfigurationEngine cre(creParams.CreConfig, pollBasedClient, std::make_shared<concordMetrics::Aggregator>());
