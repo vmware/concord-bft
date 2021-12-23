@@ -604,6 +604,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
       MDC_PUT(MDC_REPLICA_ID_KEY, std::to_string(parent_.config_.replicaId));
       MDC_PUT(MDC_THREAD_KEY, "post-execution-thread");
       SCOPED_MDC_SEQ_NUM(std::to_string(ppMsg_->seqNumber()));
+      LOG_INFO(CNSUS, "Starting post-execution for seqNumber:" << ppMsg_->seqNumber());
       parent_.executeRequests(ppMsg_, requestSet_, time_);
     }
   };

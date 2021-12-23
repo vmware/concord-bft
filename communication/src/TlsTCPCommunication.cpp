@@ -14,7 +14,7 @@
 #include "TlsRunner.h"
 
 // TODO: Make this configurable
-static constexpr size_t NUM_THREADS = 2;
+static constexpr size_t NUM_THREADS = 1;
 
 namespace bft::communication {
 
