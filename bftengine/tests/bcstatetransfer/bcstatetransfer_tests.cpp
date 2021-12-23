@@ -1219,6 +1219,7 @@ void BcStTest::getReservedPagesStage() {
 /////////////////////////////////////////////////////////
 
 class BcStTestParamFixture1 : public BcStTest, public testing::WithParamInterface<tuple<uint32_t, uint32_t>> {};
+class BcStTestParamFixture2 : public BcStTest, public testing::WithParamInterface<tuple<bool, uint8_t>> {};
 
 // Validate a full state transfer
 // This is a parameterized test case, see BcStTestParamFixtureInput for all possible inputs
@@ -1247,6 +1248,47 @@ INSTANTIATE_TEST_CASE_P(BcStTest,
                                           BcStTestParamFixtureInput(100, 256),
                                           BcStTestParamFixtureInput(256, 100)), );
 
+// Validate that the source selector's primary awareness mechanism can be toggled on and off
+TEST_P(BcStTestParamFixture2, dstSourceSelectorPrimaryAwareness) {
+  auto [enable_primary_awareness, number_of_replacements] = GetParam();
+  targetConfig_.enableSourceSelectorPrimaryAwareness = enable_primary_awareness;
+  ASSERT_NFF(initialize());
+  std::once_flag once_flag;
+  ASSERT_NFF(dstStartRunningAndCollecting());
+  ASSERT_NFF(fakeSrcReplica_->replyAskForCheckpointSummariesMsg());
+  auto ss = stDelegator_->getSourceSelector();
+  const std::function<void(void)> f2 = [&]() {
+    std::call_once(once_flag, [&] {
+      std::unique_ptr<MessageBase> msg;
+      // Generate prePrepare messages to trigger source seletor to change the source to avoid primary.
+      ASSERT_NFF(msg = dataGen_->generatePrePrepareMsg(ss.currentReplica()));
+      for (uint16_t i = 1; i <= targetConfig_.minPrePrepareMsgsForPrimaryAwarness; i++) {
+        auto cmsg = make_shared<ConsensusMsg>(msg->type(), msg->senderId());
+        stateTransfer_->peekConsensusMessage(cmsg);
+      }
+    });
+  };
+  ASSERT_NFF(getMissingblocksStage(EMPTY_FUNC, f2));
+  const auto& sources = stDelegator_->getSourceSelector().getActualSources();
+  ASSERT_EQ(sources.size(), number_of_replacements);
+
+  validateSourceSelectorMetricCounters({{"total_replacements_", number_of_replacements},
+                                        {"replacement_due_to_periodic_change_", 0},
+                                        {"replacement_due_to_retransmission_timeout_", 0},
+                                        {"replacement_due_to_bad_data_", 0}});
+
+  ASSERT_NFF(getReservedPagesStage());
+  // validate completion
+  ASSERT_TRUE(testedReplicaIf_.onTransferringCompleteCalled_);
+  ASSERT_EQ(FetchingState::NotFetching, stateTransfer_->getFetchingState());
+}
+
+// 1st element - enable source selector primary awareness
+// 2nd element - the number of source replacements
+using BcStTestParamFixtureInput2 = tuple<bool, uint8_t>;
+INSTANTIATE_TEST_CASE_P(BcStTest,
+                        BcStTestParamFixture2,
+                        ::testing::Values(BcStTestParamFixtureInput2(true, 2), BcStTestParamFixtureInput2(false, 1)), );
 /**
  * Check that only actual resources are inserted into source selector's actualSources_
  * This is done by triggering multiple retransmissions and then  source replacements, and checking that only the sources
