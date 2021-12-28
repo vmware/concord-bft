@@ -20,7 +20,7 @@ namespace preprocessor {
 using namespace bftEngine;
 
 PreProcessResultMsg::PreProcessResultMsg(NodeIdType sender,
-                                         uint64_t preProcessResult,
+                                         uint32_t preProcessResult,
                                          uint64_t reqSeqNum,
                                          uint32_t resultLength,
                                          const char* resultBuf,

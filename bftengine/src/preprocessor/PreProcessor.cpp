@@ -1164,7 +1164,7 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffset
       const auto &span_context = preProcessReqMsg->spanContext<PreProcessRequestMsgSharedPtr::element_type>();
       // Copy of the message body is unavoidable here, as we need to create a new message type which lifetime is
       // controlled by the replica while all PreProcessReply messages get released here.
-      const auto preProcessResult = static_cast<uint64_t>(reqProcessingStatePtr->getAgreedPreProcessResult());
+      const auto preProcessResult = static_cast<uint32_t>(reqProcessingStatePtr->getAgreedPreProcessResult());
       if (ReplicaConfig::instance().preExecutionResultAuthEnabled) {
         auto sigsList = reqProcessingStatePtr->getPreProcessResultSignatures();
         sigsList.resize(numOfRequiredReplies());
@@ -1565,7 +1565,7 @@ OperationResult PreProcessor::launchReqPreProcessing(const PreProcessRequestMsgS
     return preProcessResult;
   }
   if (request.outActualReplySize == 0) {
-    preProcessResult = EMPTY_EXEC_DATA;
+    preProcessResult = EXEC_DATA_EMPTY;
     LOG_ERROR(logger(),
               "Pre-execution failed" << KVLOG(cid, clientId, reqOffsetInBatch, reqSeqNum, (uint32_t)preProcessResult));
     return preProcessResult;

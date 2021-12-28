@@ -34,7 +34,7 @@ MSG_TYPE_SIZE = struct.calcsize(MSG_TYPE_FMT)
 # Little Endian format with no padding
 # We don't include the msg type here, since we have to read it first to
 # understand what message is incoming.
-REQUEST_HEADER_FMT = "<LHQQQLQLHL"
+REQUEST_HEADER_FMT = "<LHQLQLQLHL"
 REQUEST_HEADER_SIZE = struct.calcsize(REQUEST_HEADER_FMT)
 
 # The struct definition of the client batch request msg header

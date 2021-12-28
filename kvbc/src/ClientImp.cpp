@@ -88,10 +88,11 @@ Status ClientImp::invokeCommandSynch(const char* request,
       return Status::InvalidArgument("Specified output buffer is too small");
     case INVALID_REQUEST:
       return Status::InvalidArgument("Request is invalid");
-    case EMPTY_EXEC_DATA:
+    case EXEC_DATA_EMPTY:
       return Status::GeneralError("Execution has not generated the data");
+    default:
+      return Status::GeneralError("Unknown error");
   }
-  return Status::GeneralError("Unknown error");
 }
 
 void ClientImp::setMetricsAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {

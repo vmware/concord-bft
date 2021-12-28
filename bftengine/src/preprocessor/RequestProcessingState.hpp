@@ -111,6 +111,10 @@ class RequestProcessingState {
   void detectNonDeterministicPreProcessing(const concord::util::SHA3_256::Digest& newHash,
                                            NodeIdType newSenderId,
                                            uint64_t reqRetryId) const;
+  void setupPreProcessResultData(bftEngine::OperationResult preProcessResult);
+  void updatePreProcessResultData(bftEngine::OperationResult preProcessResult);
+  uint32_t sizeOfPreProcessResultData() const;
+  void reportNonEqualHashes(const unsigned char* chosenData, uint32_t chosenSize) const;
 
   // Detect if a hash is different from the input parameter because of the appended block id.
   std::pair<std::string, concord::util::SHA3_256::Digest> detectFailureDueToBlockID(
@@ -140,8 +144,8 @@ class RequestProcessingState {
   ReplicaIdsList rejectedReplicaIds_;
   const char* primaryPreProcessResultData_ = nullptr;  // This memory is allocated in PreProcessor
   uint32_t primaryPreProcessResultLen_ = 0;
-  bftEngine::OperationResult primaryPreProcessResult_ = bftEngine::SUCCESS;
-  bftEngine::OperationResult agreedPreProcessResult_ = bftEngine::SUCCESS;
+  bftEngine::OperationResult primaryPreProcessResult_ = bftEngine::UNKNOWN;
+  bftEngine::OperationResult agreedPreProcessResult_ = bftEngine::UNKNOWN;
   concord::util::SHA3_256::Digest primaryPreProcessResultHash_ = {};
   // Maps result hash to a list of replica signatures sent for this hash. This also implicitly gives the number of
   // replicas returning a specific hash.

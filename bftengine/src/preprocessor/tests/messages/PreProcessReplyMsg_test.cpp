@@ -42,6 +42,45 @@ class PreProcessReplyMsgTestFixture : public testing::Test {
   PreProcessorRecorder preProcessorRecorder;
 };
 
+void clearDiagnosticsHandlers() {
+  auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+  registrar.perf.clear();
+  registrar.status.clear();
+}
+
+TEST_F(PreProcessReplyMsgTestFixture, verifyMessageParameters) {
+  ASSERT_TRUE(sigManager);
+  const NodeIdType senderId = 1;
+  const uint16_t clientId = 1;
+  const uint16_t reqOffsetInBatch = 2;
+  const uint64_t reqSeqNum = 100;
+  const uint64_t reqRetryId = 5;
+  const char preProcessResultBuf[] = "Request body";
+  const uint32_t preProcessResultBufLen = sizeof(preProcessResultBuf);
+  const std::string& cid = "abcdef1";
+  const ReplyStatus status = STATUS_FAILED;
+  const OperationResult opResult = BUFFER_TOO_SMALL;
+  auto preProcessReplyMsg = PreProcessReplyMsg(senderId,
+                                               clientId,
+                                               reqOffsetInBatch,
+                                               reqSeqNum,
+                                               reqRetryId,
+                                               preProcessResultBuf,
+                                               preProcessResultBufLen,
+                                               cid,
+                                               status,
+                                               opResult);
+  EXPECT_EQ(senderId, preProcessReplyMsg.senderId());
+  EXPECT_EQ(clientId, preProcessReplyMsg.clientId());
+  EXPECT_EQ(reqOffsetInBatch, preProcessReplyMsg.reqOffsetInBatch());
+  EXPECT_EQ(reqSeqNum, preProcessReplyMsg.reqSeqNum());
+  EXPECT_EQ(reqRetryId, preProcessReplyMsg.reqRetryId());
+  EXPECT_EQ(cid, preProcessReplyMsg.getCid());
+  EXPECT_EQ(status, preProcessReplyMsg.status());
+  EXPECT_EQ(opResult, preProcessReplyMsg.preProcessResult());
+  clearDiagnosticsHandlers();
+}
+
 TEST_F(PreProcessReplyMsgTestFixture, getResultHashSignature) {
   ASSERT_TRUE(sigManager);
   const NodeIdType senderId = 1;
@@ -69,6 +108,7 @@ TEST_F(PreProcessReplyMsgTestFixture, getResultHashSignature) {
   auto expected_signature = std::vector<char>(sigManager->getMySigLength(), 0);
   sigManager->sign((char*)hash.data(), sizeof(hash), expected_signature.data(), expected_signature.size());
   EXPECT_THAT(expected_signature, testing::ContainerEq(preProcessReplyMsg.getResultHashSignature()));
+  clearDiagnosticsHandlers();
 }
 
 }  // namespace
