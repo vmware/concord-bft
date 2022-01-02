@@ -209,6 +209,11 @@ class InternalKvReconfigurationHandler : public concord::reconfiguration::IRecon
               uint32_t,
               const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
+  bool handle(const concord::messages::ReplicaMainKeyUpdate&,
+              uint64_t,
+              uint32_t,
+              const std::optional<bftEngine::Timestamp>&,
+              concord::messages::ReconfigurationResponse&) override;
 };
 
 class InternalPostKvReconfigurationHandler : public concord::reconfiguration::IReconfigurationHandler,
