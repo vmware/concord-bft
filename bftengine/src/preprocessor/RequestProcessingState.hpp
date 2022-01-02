@@ -20,6 +20,7 @@
 #include <vector>
 #include <map>
 #include <list>
+#include <unordered_set>
 
 namespace preprocessor {
 
@@ -96,6 +97,7 @@ class RequestProcessingState {
                                                                     bftEngine::OperationResult preProcessResult,
                                                                     uint16_t clientId,
                                                                     ReqId reqSeqNum);
+  uint16_t getNumOfRecievedReplicas() { return numOfReceivedReplies_; };
 
  private:
   static concord::util::SHA3_256::Digest convertToArray(
@@ -144,6 +146,7 @@ class RequestProcessingState {
   // Maps result hash to a list of replica signatures sent for this hash. This also implicitly gives the number of
   // replicas returning a specific hash.
   std::map<concord::util::SHA3_256::Digest, std::list<PreProcessResultSignature>> preProcessingResultHashes_;
+  std::map<concord::util::SHA3_256::Digest, std::unordered_set<bftEngine::impl::NodeIdType>> seenSenders_;
   bool retrying_ = false;
   bool preprocessingRightNow_ = false;
   uint64_t reqRetryId_ = 0;

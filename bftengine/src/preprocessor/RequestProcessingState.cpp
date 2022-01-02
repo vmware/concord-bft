@@ -120,10 +120,18 @@ void RequestProcessingState::detectNonDeterministicPreProcessing(const uint8_t *
 }
 
 void RequestProcessingState::handlePreProcessReplyMsg(const PreProcessReplyMsgSharedPtr &preProcessReplyMsg) {
+  SCOPED_MDC_CID(cid_);
   const auto &senderId = preProcessReplyMsg->senderId();
   if (preProcessReplyMsg->status() == STATUS_GOOD) {
-    numOfReceivedReplies_++;
     const auto &newHashArray = convertToArray(preProcessReplyMsg->resultsHash());
+    // Do not add a duplicate signature from the same sender to the list.
+    // insert returns a pair, where the second is a boolean denoting whether the insertion took place.
+    // TODO - identify the scenarios that can cause duplicate replies to arrive.
+    if (!(seenSenders_[newHashArray]).insert(preProcessReplyMsg->senderId()).second) {
+      LOG_INFO(logger(), "Signature was already accepted for this sender " << KVLOG(senderId, reqSeqNum_, clientId_));
+      return;
+    }
+    numOfReceivedReplies_++;
     // Counts equal hashes and saves the signatures with the replica ID. They will be used as a proof that the primary
     // is sending correct pre-execution result to the rest of the replicas.
     preProcessingResultHashes_[newHashArray].emplace_back(preProcessReplyMsg->getResultHashSignature(),
@@ -131,7 +139,6 @@ void RequestProcessingState::handlePreProcessReplyMsg(const PreProcessReplyMsgSh
                                                           preProcessReplyMsg->preProcessResult());
     detectNonDeterministicPreProcessing(newHashArray, senderId, preProcessReplyMsg->reqRetryId());
   } else {
-    SCOPED_MDC_CID(cid_);
     LOG_DEBUG(logger(), "Register rejected PreProcessReplyMsg" << KVLOG(senderId, reqSeqNum_, clientId_));
     rejectedReplicaIds_.push_back(preProcessReplyMsg->senderId());
   }

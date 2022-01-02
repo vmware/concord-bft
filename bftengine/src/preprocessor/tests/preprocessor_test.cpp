@@ -384,6 +384,32 @@ TEST(requestPreprocessingState_test, notEnoughRepliesReceived) {
   clearDiagnosticsHandlers();
 }
 
+TEST(requestPreprocessingState_test, filterDuplication) {
+  RequestProcessingState reqState(replicaConfig.replicaId,
+                                  replicaConfig.numReplicas,
+                                  "",
+                                  clientId,
+                                  0,
+                                  cid,
+                                  reqSeqNum,
+                                  ClientPreProcessReqMsgUniquePtr(),
+                                  PreProcessRequestMsgSharedPtr());
+  bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
+  auto numReplicas = 3;
+  for (auto i = 1; i < numReplicas; i++) {
+    reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
+  }
+  ConcordAssertEQ(reqState.getNumOfRecievedReplicas(), numReplicas - 1);
+  // try to add the same reply
+  for (auto i = 1; i < numReplicas; i++) {
+    reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
+  }
+  ConcordAssertEQ(reqState.getNumOfRecievedReplicas(), numReplicas - 1);
+  reqState.handlePreProcessReplyMsg(preProcessNonPrimary(numReplicas, repInfo));
+  ConcordAssertEQ(reqState.getNumOfRecievedReplicas(), numReplicas);
+  clearDiagnosticsHandlers();
+}
+
 TEST(requestPreprocessingState_test, changePrimaryBlockId) {
   memset(buf, '5', bufLen);
   uint64_t blockId = 0;
