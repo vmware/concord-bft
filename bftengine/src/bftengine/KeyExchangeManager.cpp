@@ -18,6 +18,7 @@
 #include "secrets_manager_plain.h"
 #include "concord.cmf.hpp"
 #include "bftengine/EpochManager.hpp"
+#include "concord.cmf.hpp"
 #include "communication/StateControl.hpp"
 
 namespace bftEngine::impl {
@@ -192,6 +193,25 @@ void KeyExchangeManager::exchangeTlsKeys(const SeqNum& bft_sn) {
   bft::communication::StateControl::instance().restartComm(repID_);
   LOG_INFO(KEY_EX_LOG, "Replica has generated a new tls keys");
 }
+void KeyExchangeManager::sendMainPublicKey() {
+  concord::messages::ReconfigurationRequest req;
+  req.sender = repID_;
+  req.command = concord::messages::ReplicaMainKeyUpdate{repID_, "hello", "hex"};
+  // Mark this request as an internal one
+  std::vector<uint8_t> data_vec;
+  concord::messages::serialize(data_vec, req);
+  std::string sig(SigManager::instance()->getMySigLength(), '\0');
+  uint16_t sig_length{0};
+  SigManager::instance()->sign(reinterpret_cast<char*>(data_vec.data()), data_vec.size(), sig.data(), sig_length);
+  req.signature = std::vector<uint8_t>(sig.begin(), sig.end());
+  data_vec.clear();
+  concord::messages::serialize(data_vec, req);
+  std::string strMsg(data_vec.begin(), data_vec.end());
+  std::string cid = "ReplicaMainKeyUpdate_" + std::to_string(repID_);
+  client_->sendRequest(RECONFIG_FLAG, strMsg.size(), strMsg.c_str(), cid);
+  LOG_INFO(KEY_EX_LOG, "Replica has published its main public key to the consensus");
+}
+
 void KeyExchangeManager::sendKeyExchange(const SeqNum& sn) {
   if (private_keys_.lastGeneratedSeqnum() &&  // if not initial
       (sn - private_keys_.lastGeneratedSeqnum()) / checkpointWindowSize < 2) {
@@ -291,6 +311,7 @@ void KeyExchangeManager::sendInitialKey(uint32_t prim, const SeqNum& s) {
   }
   sendKeyExchange(s);
   metrics_->sent_key_exchange_on_start_status.Get().Set("True");
+  sendMainPublicKey();
 }
 
 void KeyExchangeManager::waitForLiveQuorum(uint32_t prim) {

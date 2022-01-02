@@ -31,6 +31,8 @@ class KeyExchangeManager {
   void exchangeTlsKeys(const SeqNum& bft_sn);
   // Generates and publish key to consensus
   void sendKeyExchange(const SeqNum&);
+  // Send the current main public key of the replica to consensus
+  void sendMainPublicKey();
   // Generates and publish the first replica's key,
   void sendInitialKey(uint32_t prim = 0, const SeqNum& = 0);
   // The execution handler implementation that is called when a key exchange msg has passed consensus.
