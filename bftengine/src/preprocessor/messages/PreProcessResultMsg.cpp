@@ -70,29 +70,29 @@ std::optional<std::string> PreProcessResultMsg::validatePreProcessResultSignatur
   }
 
   auto hash = concord::util::SHA3_256().digest(requestBuf(), requestLength());
+
   std::unordered_set<bftEngine::impl::NodeIdType> seen_signatures;
-  for (const auto& s : sigs) {
-    // insert returns std::pair<iterator, bool>. The bool indicates if the element was created or it was already in the
-    // set and no insertion was performed. The latter case indicates that we already have got a signature from this
-    // replica.
-    if (!seen_signatures.insert(s.sender_replica).second) {
-      return "PreProcessResult signatures validation failure - got more than one signatures with the same sender id";
+  for (const auto& sig : sigs) {
+    // logic that filters duplicate signatures exist in the preprocessing phase,
+    // therefore duplication implies that the primary is probably malicious.
+    if (!seen_signatures.insert(sig.sender_replica).second) {
+      return "PreProcessResult signatures validation failure - got more than one signature with the same sender id";
     }
 
     bool verificationResult = false;
-    if (myReplicaId == s.sender_replica) {
+    if (myReplicaId == sig.sender_replica) {
       std::vector<char> mySignature(sigManager_->getMySigLength(), '\0');
       sigManager_->sign(
           reinterpret_cast<const char*>(hash.data()), hash.size(), mySignature.data(), mySignature.size());
-      verificationResult = mySignature == s.signature;
+      verificationResult = mySignature == sig.signature;
     } else {
       verificationResult = sigManager_->verifySig(
-          s.sender_replica, (const char*)hash.data(), hash.size(), s.signature.data(), s.signature.size());
+          sig.sender_replica, (const char*)hash.data(), hash.size(), sig.signature.data(), sig.signature.size());
     }
 
     if (!verificationResult) {
       std::stringstream err;
-      err << "PreProcessResult signatures validation failure - invalid signature from replica " << s.sender_replica
+      err << "PreProcessResult signatures validation failure - invalid signature from replica " << sig.sender_replica
           << " " << KVLOG(clientProxyId(), getCid(), requestSeqNum());
       return err.str();
     }

@@ -278,7 +278,7 @@ TEST_F(PreProcessResultMsgTestFixture, MsgWithDuplicatedSigs) {
   auto res = m->validatePreProcessResultSignatures(config.replicaId, config.fVal);
 
   std::stringstream ss;
-  ss << "got more than one signatures with the same sender id";
+  ss << "got more than one signature with the same sender id";
   EXPECT_TRUE(res);
   EXPECT_TRUE(res->find(ss.str()) != std::string::npos);
 }
