@@ -33,14 +33,13 @@ static const std::string genesis_block_key(1, 0x32);
 
 enum CLIENT_COMMAND_TYPES : uint8_t {
   start_ = 0x0,
-  PUBLIC_KEY_EXCHANGE = 0x1,              // identifier of public key exchange request by client
-  CLIENT_KEY_EXCHANGE_COMMAND = 0x2,      // identifier of client key exchange request by operator
-  CLIENT_SCALING_COMMAND = 0x3,           // identifier of client scaling request by operator
-  CLIENT_SCALING_COMMAND_STATUS = 0X4,    // identifier of client update request after successful scaling
-  CLIENT_SCALING_EXECUTE_COMMAND = 0x5,   // identifier of client scaling execute request by operator
-  CLIENT_TLS_KEY_EXCHANGE_COMMAND = 0x6,  // identifier of tls key exchange request by client
-  CLIENT_RESTART_COMMAND = 0x7,           // identifier of client restart command by operator
-  CLIENT_RESTART_STATUS = 0x8,            // identifier of client restart status
+  PUBLIC_KEY_EXCHANGE = 0x1,             // identifier of public key exchange request by client
+  CLIENT_KEY_EXCHANGE_COMMAND = 0x2,     // identifier of client key exchange request by operator
+  CLIENT_SCALING_COMMAND = 0x3,          // identifier of client scaling request by operator
+  CLIENT_SCALING_COMMAND_STATUS = 0X4,   // identifier of client update request after successful scaling
+  CLIENT_SCALING_EXECUTE_COMMAND = 0x5,  // identifier of client scaling execute request by operator
+  CLIENT_RESTART_COMMAND = 0x7,          // identifier of client restart command by operator
+  CLIENT_RESTART_STATUS = 0x8,           // identifier of client restart status
   end_
 };
 }  // namespace concord::kvbc::keyTypes
