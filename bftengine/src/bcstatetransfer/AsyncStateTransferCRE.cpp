@@ -117,6 +117,7 @@ class InternalSigner : public concord::util::crypto::ISigner {
     return out;
   }
   uint32_t signatureLength() const override { return bftEngine::impl::SigManager::instance()->getMySigLength(); }
+  std::string getPrivKey() const override { return ""; }
 };
 
 class ScalingReplicaHandler : public IStateHandler {
