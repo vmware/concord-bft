@@ -167,6 +167,10 @@ concord::messages::ClientStateReply KvbcClientReconfigurationHandler::buildRepli
             concord::messages::ClientsAddRemoveExecuteCommand cmd;
             concord::messages::deserialize(data_buf, cmd);
             creply.response = cmd;
+          } else if (command_type == std::string{kvbc::keyTypes::reconfiguration_rep_main_key}) {
+            concord::messages::ReplicaMainKeyUpdate cmd;
+            concord::messages::deserialize(data_buf, cmd);
+            creply.response = cmd;
           }
           auto epoch_data = ro_storage_.get(concord::kvbc::categorization::kConcordReconfigurationCategoryId,
                                             std::string{kvbc::keyTypes::reconfiguration_epoch_key},
@@ -199,6 +203,10 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientRec
     }
     for (uint16_t i = 0; i < first_client_id; i++) {
       auto ke_csrep = buildReplicaStateReply(std::string{kvbc::keyTypes::reconfiguration_tls_exchange_key}, i);
+      if (ke_csrep.block_id > 0) rep.states.push_back(ke_csrep);
+    }
+    for (uint16_t i = 0; i < first_client_id; i++) {
+      auto ke_csrep = buildReplicaStateReply(std::string{kvbc::keyTypes::reconfiguration_rep_main_key}, i);
       if (ke_csrep.block_id > 0) rep.states.push_back(ke_csrep);
     }
   } else {
