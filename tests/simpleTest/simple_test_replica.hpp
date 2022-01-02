@@ -123,7 +123,7 @@ class SimpleAppState : public IRequestsHandler {
 
         st->markUpdate(statePtr, sizeof(State) * numOfClients);
       }
-      req.outExecutionStatus = 0;
+      req.outExecutionStatus = 0;  // SUCCESS
     }
   }
 

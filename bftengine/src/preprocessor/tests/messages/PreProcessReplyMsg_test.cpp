@@ -59,7 +59,7 @@ TEST_F(PreProcessReplyMsgTestFixture, verifyMessageParameters) {
   const uint32_t preProcessResultBufLen = sizeof(preProcessResultBuf);
   const std::string& cid = "abcdef1";
   const ReplyStatus status = STATUS_FAILED;
-  const OperationResult opResult = BUFFER_TOO_SMALL;
+  const OperationResult opResult = EXEC_DATA_TOO_LARGE;
   auto preProcessReplyMsg = PreProcessReplyMsg(senderId,
                                                clientId,
                                                reqOffsetInBatch,

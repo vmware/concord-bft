@@ -371,7 +371,7 @@ OperationResult SimpleClientImp::sendRequest(uint8_t flags,
       memcpy(replyBuffer, correctReply->replyBuf(), correctReply->replyLength());
       actualReplyLength = correctReply->replyLength();
     } else
-      res = BUFFER_TOO_SMALL;
+      res = EXEC_DATA_TOO_LARGE;
     reset();
     return res;
   } else if (requestTimedOut) {
@@ -504,7 +504,7 @@ OperationResult SimpleClientImp::sendBatch(const deque<ClientRequest>& clientReq
         givenReply->opResult = SUCCESS;
       } else {
         LOG_ERROR(logger_, "Reply buffer is too small" << KVLOG(clientId_, reqSeqNum, batchCid));
-        givenReply->opResult = BUFFER_TOO_SMALL;
+        givenReply->opResult = EXEC_DATA_TOO_LARGE;
       }
     }
     reset();

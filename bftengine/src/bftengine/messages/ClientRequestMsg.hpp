@@ -38,7 +38,7 @@ class ClientRequestMsg : public MessageBase {
                    const char* request,
                    uint64_t reqTimeoutMilli,
                    const std::string& cid = "",
-                   uint32_t opResult = 0,
+                   uint32_t opResult = 0,  // SUCCESS
                    const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{},
                    const char* requestSignature = nullptr,
                    uint32_t requestSignatureLen = 0,

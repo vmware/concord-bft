@@ -97,7 +97,7 @@ class RequestProcessingState {
                                                                     bftEngine::OperationResult preProcessResult,
                                                                     uint16_t clientId,
                                                                     ReqId reqSeqNum);
-  uint16_t getNumOfRecievedReplicas() { return numOfReceivedReplies_; };
+  uint16_t getNumOfReceivedReplicas() { return numOfReceivedReplies_; };
 
  private:
   static concord::util::SHA3_256::Digest convertToArray(

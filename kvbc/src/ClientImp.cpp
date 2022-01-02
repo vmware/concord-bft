@@ -84,12 +84,14 @@ Status ClientImp::invokeCommandSynch(const char* request,
       return Status::InterimError("The system is not ready");
     case TIMEOUT:
       return Status::GeneralError("Command timed out");
-    case BUFFER_TOO_SMALL:
+    case EXEC_DATA_TOO_LARGE:
       return Status::InvalidArgument("Specified output buffer is too small");
     case INVALID_REQUEST:
       return Status::InvalidArgument("Request is invalid");
     case EXEC_DATA_EMPTY:
       return Status::GeneralError("Execution has not generated the data");
+    case INTERNAL_ERROR:
+      return Status::GeneralError("Internal execution error");
     default:
       return Status::GeneralError("Unknown error");
   }

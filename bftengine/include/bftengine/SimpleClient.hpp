@@ -52,9 +52,10 @@ enum OperationResult : uint32_t {
   INVALID_REQUEST,
   NOT_READY,
   TIMEOUT,
-  BUFFER_TOO_SMALL,
+  EXEC_DATA_TOO_LARGE,
   EXEC_DATA_EMPTY,
-  EXECUTION_FAILED
+  CONFLICT_DETECTED,
+  INTERNAL_ERROR
 };
 
 // Call back for request - at this point we know for sure that a client is handling the request, so we can assure that

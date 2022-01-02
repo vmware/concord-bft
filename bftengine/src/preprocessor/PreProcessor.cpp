@@ -1558,6 +1558,7 @@ OperationResult PreProcessor::launchReqPreProcessing(const PreProcessRequestMsgS
   requestsHandler_.execute(accumulatedRequests, std::nullopt, cid, span);
   const IRequestsHandler::ExecutionRequest &request = accumulatedRequests.back();
   auto preProcessResult = static_cast<OperationResult>(request.outExecutionStatus);
+  resultLen = request.outActualReplySize;
   if (preProcessResult != SUCCESS) {
     LOG_ERROR(logger(),
               "Pre-execution failed" << KVLOG(
@@ -1572,7 +1573,7 @@ OperationResult PreProcessor::launchReqPreProcessing(const PreProcessRequestMsgS
   }
   // Append the conflict detection block id and add its size to the resulting length.
   memcpy(preProcessResultBuffer + request.outActualReplySize, reinterpret_cast<char *>(&blockId), sizeof(uint64_t));
-  resultLen = request.outActualReplySize + sizeof(uint64_t);
+  resultLen += sizeof(uint64_t);
   LOG_DEBUG(
       logger(),
       "Pre-execution operation successfully completed" << KVLOG(cid, reqSeqNum, clientId, reqOffsetInBatch, blockId));
@@ -1679,7 +1680,7 @@ void PreProcessor::handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr
   const uint16_t &clientId = preProcessReqMsg->clientId();
   const uint16_t &reqOffsetInBatch = preProcessReqMsg->reqOffsetInBatch();
   const SeqNum &reqSeqNum = preProcessReqMsg->reqSeqNum();
-  uint32_t actualResultBufLen;
+  uint32_t actualResultBufLen = 0;
   const auto preProcessResult = launchReqPreProcessing(preProcessReqMsg, actualResultBufLen);
   if (isPrimary && isRetry) {
     handlePreProcessedReqPrimaryRetry(clientId, reqOffsetInBatch, actualResultBufLen, batchCid, preProcessResult);
