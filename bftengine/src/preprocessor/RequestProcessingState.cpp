@@ -31,7 +31,7 @@ uint64_t RequestProcessingState::getMonotonicTimeMilli() {
 }
 
 void RequestProcessingState::init(uint16_t numOfRequiredReplies, PreProcessorRecorder *histograms) {
-  LOG_INFO(logger(), KVLOG(numOfRequiredReplies));
+  LOG_INFO(logger(), "RequestProcessingstate init:" << KVLOG(numOfRequiredReplies));
   numOfRequiredEqualReplies_ = numOfRequiredReplies;
   preProcessorHistograms_ = histograms;
 }

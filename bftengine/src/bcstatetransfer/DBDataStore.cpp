@@ -28,7 +28,7 @@ std::string toString(const DataStore::CheckpointDesc& desc) {
 void DBDataStore::load(bool loadResPages_) {
   LOG_DEBUG(logger(), "");
   if (!get<bool>(Initialized)) {
-    LOG_INFO(logger(), "Not initialized");
+    LOG_INFO(logger(), " DBDataStore is not initialized");
     return;
   }
   inmem_->setAsInitialized();

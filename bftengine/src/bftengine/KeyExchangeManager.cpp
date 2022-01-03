@@ -394,7 +394,7 @@ std::string KeyExchangeManager::getStatus() const {
 }
 
 bool KeyExchangeManager::PrivateKeys::load() {
-  LOG_INFO(KEY_EX_LOG, "");
+  LOG_INFO(KEY_EX_LOG, "Load private keys");
   auto secrets = secretsMgr_->decryptFile(secrets_file_);
   if (!secrets.has_value()) {
     LOG_WARN(KEY_EX_LOG, "Got empty string from loader. This is expected on first startup with an empty database");

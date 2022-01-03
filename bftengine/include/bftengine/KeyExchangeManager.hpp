@@ -126,7 +126,7 @@ class KeyExchangeManager {
     }
     // save to secure store
     void save() {
-      LOG_INFO(KEY_EX_LOG, "");
+      LOG_INFO(KEY_EX_LOG, "Save key");
       std::stringstream ss;
       concord::serialize::Serializable::serialize(ss, data_);
       secretsMgr_->encryptFile(secrets_file_, ss.str());

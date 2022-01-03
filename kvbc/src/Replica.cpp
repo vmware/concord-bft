@@ -311,11 +311,11 @@ void Replica::createReplicaAndSyncState() {
       const auto removedBlocksNum = replicaStateSync_->execute(
           logger, *m_kvBlockchain, m_replicaPtr->persistentStorage(), lastExecutedSeqNum, maxNumOfBlocksToDelete);
       LOG_INFO(logger,
-               KVLOG(lastExecutedSeqNum,
-                     removedBlocksNum,
-                     getLastBlockNum(),
-                     getLastReachableBlockNum(),
-                     maxNumOfBlocksToDelete));
+               "Replica Status:" << KVLOG(lastExecutedSeqNum,
+                                          removedBlocksNum,
+                                          getLastBlockNum(),
+                                          getLastReachableBlockNum(),
+                                          maxNumOfBlocksToDelete));
     } catch (std::exception &e) {
       LOG_FATAL(logger, "exception: " << e.what());
       std::terminate();

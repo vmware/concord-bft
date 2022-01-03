@@ -33,7 +33,6 @@ ReplicaBase::ReplicaBase(const ReplicaConfig& config,
       metrics_dump_interval_in_sec_(config_.metricsDumpIntervalSeconds),
       metrics_{concordMetrics::Component("replica", std::make_shared<concordMetrics::Aggregator>())},
       timers_{timers} {
-  LOG_INFO(GL, "");
   if (config_.debugStatisticsEnabled) DebugStatistics::initDebugStatisticsData();
 }
 
