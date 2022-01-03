@@ -155,6 +155,8 @@ EDBKeyType DBKeyManipulator::getDBKeyType(const Sliver &s) {
       return EDBKeyType::Key;
     case toChar(EDBKeyType::BFT):
       return EDBKeyType::BFT;
+    case toChar(EDBKeyType::Migration):
+      return EDBKeyType::Migration;
   }
   ConcordAssert(false);
 
