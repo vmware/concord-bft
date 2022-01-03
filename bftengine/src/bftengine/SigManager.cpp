@@ -215,7 +215,12 @@ bool SigManager::verifySig(
     idOfReplica = replicasInfo_.isIdOfReplica(pid);
   }
   idOfReadOnlyReplica = replicasInfo_.isIdOfPeerRoReplica(pid);
-  ConcordAssert(idOfReplica || idOfExternalClient || idOfReadOnlyReplica);
+  if (!(idOfReplica || idOfExternalClient || idOfReadOnlyReplica)) {
+    std::stringstream msg;
+    msg << "Invalid ID of replicas : " << KVLOG(idOfReplica, idOfExternalClient, idOfReadOnlyReplica);
+    LOG_ERROR(GL, msg.str());
+    return false;
+  }
   if (!result) {  // failure
     if (idOfExternalClient)
       metrics_.externalClientReqSigVerificationFailed_++;
