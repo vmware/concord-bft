@@ -1164,7 +1164,7 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffset
       const auto &span_context = preProcessReqMsg->spanContext<PreProcessRequestMsgSharedPtr::element_type>();
       // Copy of the message body is unavoidable here, as we need to create a new message type which lifetime is
       // controlled by the replica while all PreProcessReply messages get released here.
-      const auto preProcessResult = static_cast<uint64_t>(reqProcessingStatePtr->getAgreedPreProcessResult());
+      const auto preProcessResult = static_cast<uint32_t>(reqProcessingStatePtr->getAgreedPreProcessResult());
       if (ReplicaConfig::instance().preExecutionResultAuthEnabled) {
         auto sigsList = reqProcessingStatePtr->getPreProcessResultSignatures();
         sigsList.resize(numOfRequiredReplies());
@@ -1558,6 +1558,7 @@ OperationResult PreProcessor::launchReqPreProcessing(const PreProcessRequestMsgS
   requestsHandler_.execute(accumulatedRequests, std::nullopt, cid, span);
   const IRequestsHandler::ExecutionRequest &request = accumulatedRequests.back();
   auto preProcessResult = static_cast<OperationResult>(request.outExecutionStatus);
+  resultLen = request.outActualReplySize;
   if (preProcessResult != SUCCESS) {
     LOG_ERROR(logger(),
               "Pre-execution failed" << KVLOG(
@@ -1565,14 +1566,14 @@ OperationResult PreProcessor::launchReqPreProcessing(const PreProcessRequestMsgS
     return preProcessResult;
   }
   if (request.outActualReplySize == 0) {
-    preProcessResult = EMPTY_EXEC_DATA;
+    preProcessResult = EXEC_DATA_EMPTY;
     LOG_ERROR(logger(),
               "Pre-execution failed" << KVLOG(cid, clientId, reqOffsetInBatch, reqSeqNum, (uint32_t)preProcessResult));
     return preProcessResult;
   }
   // Append the conflict detection block id and add its size to the resulting length.
   memcpy(preProcessResultBuffer + request.outActualReplySize, reinterpret_cast<char *>(&blockId), sizeof(uint64_t));
-  resultLen = request.outActualReplySize + sizeof(uint64_t);
+  resultLen += sizeof(uint64_t);
   LOG_DEBUG(
       logger(),
       "Pre-execution operation successfully completed" << KVLOG(cid, reqSeqNum, clientId, reqOffsetInBatch, blockId));
@@ -1679,7 +1680,7 @@ void PreProcessor::handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr
   const uint16_t &clientId = preProcessReqMsg->clientId();
   const uint16_t &reqOffsetInBatch = preProcessReqMsg->reqOffsetInBatch();
   const SeqNum &reqSeqNum = preProcessReqMsg->reqSeqNum();
-  uint32_t actualResultBufLen;
+  uint32_t actualResultBufLen = 0;
   const auto preProcessResult = launchReqPreProcessing(preProcessReqMsg, actualResultBufLen);
   if (isPrimary && isRetry) {
     handlePreProcessedReqPrimaryRetry(clientId, reqOffsetInBatch, actualResultBufLen, batchCid, preProcessResult);

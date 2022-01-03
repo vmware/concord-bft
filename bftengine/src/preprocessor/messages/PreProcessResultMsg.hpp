@@ -39,7 +39,7 @@ class PreProcessResultMsg : public ClientRequestMsg {
   using ErrorMessage = std::optional<std::string>;
 
   PreProcessResultMsg(NodeIdType sender,
-                      uint64_t preProcessResult,
+                      uint32_t preProcessResult,
                       uint64_t reqSeqNum,
                       uint32_t resultLength,
                       const char* resultBuf,

@@ -89,12 +89,12 @@ void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequests
   auto pre_execute = requests.back().flags & bftEngine::PRE_PROCESS_FLAG;
 
   for (auto &req : requests) {
-    if (req.outExecutionStatus != 1) continue;
+    if (req.outExecutionStatus != UNKNOWN) continue;  // Request already executed (internal)
     req.outReplicaSpecificInfoSize = 0;
-    int res;
+    OperationResult res;
     if (req.requestSize <= 0) {
       LOG_ERROR(m_logger, "Received size-0 request.");
-      req.outExecutionStatus = -1;
+      req.outExecutionStatus = INVALID_REQUEST;
       continue;
     }
     bool readOnly = req.flags & MsgFlag::READ_ONLY_FLAG;
@@ -109,7 +109,6 @@ void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequests
       // Only if requests size is greater than 1 and other conditions are met, block accumulation is enabled.
       bool isBlockAccumulationEnabled =
           ((requests.size() > 1) && (!pre_execute && (req.flags & bftEngine::MsgFlag::HAS_PRE_PROCESSED_FLAG)));
-
       res = executeWriteCommand(req.requestSize,
                                 req.request,
                                 req.executionSequenceNum,
@@ -122,8 +121,8 @@ void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequests
                                 merkleUpdates);
     }
 
-    if (!res) LOG_WARN(m_logger, "Command execution failed!");
-    req.outExecutionStatus = res ? 0 : -1;
+    if (res != SUCCESS) LOG_WARN(m_logger, "Command execution failed!");
+    req.outExecutionStatus = res;
   }
 
   if (!pre_execute && (merkleUpdates.size() > 0 || verUpdates.size() > 0)) {
@@ -245,27 +244,27 @@ void InternalCommandsHandler::writeAccumulatedBlock(ExecutionRequestsQueue &bloc
   addBlock(verUpdates, merkleUpdates);
 }
 
-bool InternalCommandsHandler::verifyWriteCommand(uint32_t requestSize,
-                                                 const uint8_t *request,
-                                                 size_t maxReplySize,
-                                                 uint32_t &outReplySize) const {
+OperationResult InternalCommandsHandler::verifyWriteCommand(uint32_t requestSize,
+                                                            const uint8_t *request,
+                                                            size_t maxReplySize,
+                                                            uint32_t &outReplySize) const {
   SKVBCRequest deserialized_request;
   try {
     deserialize(request, request + requestSize, deserialized_request);
   } catch (const runtime_error &e) {
     LOG_ERROR(m_logger, "Failed to deserialize SKVBCRequest: " << e.what());
-    return false;
+    return INTERNAL_ERROR;
   }
   if (!holds_alternative<SKVBCWriteRequest>(deserialized_request.request)) {
     LOG_ERROR(m_logger, "Received an SKVBCRequest other than an SKVBCWriteRequest but not marked as read-only.");
-    return false;
+    return INVALID_REQUEST;
   }
 
   if (maxReplySize < outReplySize) {
     LOG_ERROR(m_logger, "replySize is too big: replySize=" << outReplySize << ", maxReplySize=" << maxReplySize);
-    return false;
+    return EXEC_DATA_TOO_LARGE;
   }
-  return true;
+  return SUCCESS;
 }
 
 void InternalCommandsHandler::addKeys(const SKVBCWriteRequest &writeReq,
@@ -314,23 +313,23 @@ bool InternalCommandsHandler::hasConflictInBlockAccumulatedRequests(
   return false;
 }
 
-bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
-                                                  const char *request,
-                                                  uint64_t sequenceNum,
-                                                  uint8_t flags,
-                                                  size_t maxReplySize,
-                                                  char *outReply,
-                                                  uint32_t &outReplySize,
-                                                  bool isBlockAccumulationEnabled,
-                                                  VersionedUpdates &blockAccumulatedVerUpdates,
-                                                  BlockMerkleUpdates &blockAccumulatedMerkleUpdates) {
+OperationResult InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
+                                                             const char *request,
+                                                             uint64_t sequenceNum,
+                                                             uint8_t flags,
+                                                             size_t maxReplySize,
+                                                             char *outReply,
+                                                             uint32_t &outReplySize,
+                                                             bool isBlockAccumulationEnabled,
+                                                             VersionedUpdates &blockAccumulatedVerUpdates,
+                                                             BlockMerkleUpdates &blockAccumulatedMerkleUpdates) {
   static_assert(sizeof(*request) == sizeof(uint8_t),
                 "Byte pointer type used by bftEngine::IRequestsHandler::ExecutionRequest is incompatible with byte "
                 "pointer type used by CMF.");
   const uint8_t *request_buffer_as_uint8 = reinterpret_cast<const uint8_t *>(request);
   if (!(flags & MsgFlag::HAS_PRE_PROCESSED_FLAG)) {
-    bool result = verifyWriteCommand(requestSize, request_buffer_as_uint8, maxReplySize, outReplySize);
-    if (!result) ConcordAssert(0);
+    if (verifyWriteCommand(requestSize, request_buffer_as_uint8, maxReplySize, outReplySize) != SUCCESS)
+      ConcordAssert(0);
     if (flags & MsgFlag::PRE_PROCESS_FLAG) {
       SKVBCRequest deserialized_request;
       deserialize(request_buffer_as_uint8, request_buffer_as_uint8 + requestSize, deserialized_request);
@@ -346,7 +345,7 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
       if (write_req.long_exec) sleep(LONG_EXEC_CMD_TIME_IN_SEC);
       outReplySize = requestSize;
       memcpy(outReply, request, requestSize);
-      return result;
+      return SUCCESS;
     }
   }
   SKVBCRequest deserialized_request;
@@ -360,7 +359,6 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
                << " PRE_PROCESS_FLAG=" << ((flags & MsgFlag::PRE_PROCESS_FLAG) != 0 ? "true" : "false")
                << " HAS_PRE_PROCESSED_FLAG=" << ((flags & MsgFlag::HAS_PRE_PROCESSED_FLAG) != 0 ? "true" : "false")
                << " BLOCK_ACCUMULATION_ENABLED=" << isBlockAccumulationEnabled);
-
   BlockId currBlock = m_storage->getLastBlockId();
 
   // Look for conflicts
@@ -414,20 +412,20 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
     LOG_INFO(m_logger,
              "ConditionalWrite message handled; writesCounter=" << m_writesCounter
                                                                 << " currBlock=" << write_rep.latest_block);
-  return true;
+  return SUCCESS;
 }
 
-bool InternalCommandsHandler::executeGetBlockDataCommand(const SKVBCGetBlockDataRequest &request,
-                                                         size_t maxReplySize,
-                                                         char *outReply,
-                                                         uint32_t &outReplySize) {
+OperationResult InternalCommandsHandler::executeGetBlockDataCommand(const SKVBCGetBlockDataRequest &request,
+                                                                    size_t maxReplySize,
+                                                                    char *outReply,
+                                                                    uint32_t &outReplySize) {
   LOG_INFO(m_logger, "Execute GET_BLOCK_DATA command: type=SKVBCGetBlockDataRequest, BlockId=" << request.block_id);
 
   auto block_id = request.block_id;
   const auto updates = getBlockUpdates(block_id);
   if (!updates) {
     LOG_WARN(m_logger, "GetBlockData: Failed to retrieve block ID " << block_id);
-    return false;
+    return INTERNAL_ERROR;
   }
 
   // Each block contains a single metadata key holding the sequence number
@@ -453,21 +451,20 @@ bool InternalCommandsHandler::executeGetBlockDataCommand(const SKVBCGetBlockData
   if (maxReplySize < serialized_reply.size()) {
     LOG_ERROR(m_logger,
               "replySize is too big: replySize=" << serialized_reply.size() << ", maxReplySize=" << maxReplySize);
-    return false;
+    return EXEC_DATA_TOO_LARGE;
   }
   copy(serialized_reply.begin(), serialized_reply.end(), outReply);
   outReplySize = serialized_reply.size();
-  return true;
+  return SUCCESS;
 }
 
-bool InternalCommandsHandler::executeReadCommand(const SKVBCReadRequest &request,
-                                                 size_t maxReplySize,
-                                                 char *outReply,
-                                                 uint32_t &outReplySize) {
+OperationResult InternalCommandsHandler::executeReadCommand(const SKVBCReadRequest &request,
+                                                            size_t maxReplySize,
+                                                            char *outReply,
+                                                            uint32_t &outReplySize) {
   LOG_INFO(m_logger,
            "Execute READ command: type=SKVBCReadRequest, numberOfKeysToRead=" << request.keys.size() << ", readVersion="
                                                                               << request.read_version);
-
   SKVBCReply reply;
   reply.reply = SKVBCReadReply();
   SKVBCReadReply &read_rep = std::get<SKVBCReadReply>(reply.reply);
@@ -492,18 +489,19 @@ bool InternalCommandsHandler::executeReadCommand(const SKVBCReadRequest &request
   if (maxReplySize < serialized_reply.size()) {
     LOG_ERROR(m_logger,
               "replySize is too big: replySize=" << serialized_reply.size() << ", maxReplySize=" << maxReplySize);
-    return false;
+    return EXEC_DATA_TOO_LARGE;
   }
   copy(serialized_reply.begin(), serialized_reply.end(), outReply);
   outReplySize = serialized_reply.size();
   ++m_readsCounter;
   LOG_INFO(m_logger, "READ message handled; readsCounter=" << m_readsCounter);
-  return true;
+  return SUCCESS;
 }
 
-bool InternalCommandsHandler::executeGetLastBlockCommand(size_t maxReplySize, char *outReply, uint32_t &outReplySize) {
-  LOG_INFO(m_logger, "GET LAST BLOCK!!!");
-
+OperationResult InternalCommandsHandler::executeGetLastBlockCommand(size_t maxReplySize,
+                                                                    char *outReply,
+                                                                    uint32_t &outReplySize) {
+  LOG_INFO(m_logger, "GET LAST BLOCK");
   SKVBCReply reply;
   reply.reply = SKVBCGetLastBlockReply();
   SKVBCGetLastBlockReply &glb_rep = std::get<SKVBCGetLastBlockReply>(reply.reply);
@@ -511,10 +509,10 @@ bool InternalCommandsHandler::executeGetLastBlockCommand(size_t maxReplySize, ch
 
   vector<uint8_t> serialized_reply;
   serialize(serialized_reply, reply);
-  if (maxReplySize < serialized_reply.size()) {
+  if (serialized_reply.size() > maxReplySize) {
     LOG_ERROR(m_logger,
-              "maxReplySize is too small: replySize=" << serialized_reply.size() << ", maxReplySize=" << maxReplySize);
-    return false;
+              "Reply size is too large: replySize=" << serialized_reply.size() << ", maxReplySize=" << maxReplySize);
+    return EXEC_DATA_TOO_LARGE;
   }
   copy(serialized_reply.begin(), serialized_reply.end(), outReply);
   outReplySize = serialized_reply.size();
@@ -522,15 +520,15 @@ bool InternalCommandsHandler::executeGetLastBlockCommand(size_t maxReplySize, ch
   LOG_INFO(m_logger,
            "GetLastBlock message handled; getLastBlockCounter=" << m_getLastBlockCounter
                                                                 << ", latestBlock=" << glb_rep.latest_block);
-  return true;
+  return SUCCESS;
 }
 
-bool InternalCommandsHandler::executeReadOnlyCommand(uint32_t requestSize,
-                                                     const char *request,
-                                                     size_t maxReplySize,
-                                                     char *outReply,
-                                                     uint32_t &outReplySize,
-                                                     uint32_t &specificReplicaInfoOutReplySize) {
+OperationResult InternalCommandsHandler::executeReadOnlyCommand(uint32_t requestSize,
+                                                                const char *request,
+                                                                size_t maxReplySize,
+                                                                char *outReply,
+                                                                uint32_t &outReplySize,
+                                                                uint32_t &specificReplicaInfoOutReplySize) {
   SKVBCRequest deserialized_request;
   try {
     static_assert(sizeof(*request) == sizeof(uint8_t),
@@ -541,7 +539,7 @@ bool InternalCommandsHandler::executeReadOnlyCommand(uint32_t requestSize,
   } catch (const runtime_error &e) {
     outReplySize = 0;
     LOG_ERROR(m_logger, "Failed to deserialize SKVBCRequest: " << e.what());
-    return false;
+    return INTERNAL_ERROR;
   }
   if (holds_alternative<SKVBCReadRequest>(deserialized_request.request)) {
     return executeReadCommand(
@@ -554,7 +552,7 @@ bool InternalCommandsHandler::executeReadOnlyCommand(uint32_t requestSize,
   } else {
     outReplySize = 0;
     LOG_WARN(m_logger, "Received read-only request of unrecognized message type.");
-    return false;
+    return INVALID_REQUEST;
   }
 }
 

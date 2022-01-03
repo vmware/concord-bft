@@ -48,7 +48,7 @@ class IRequestsHandler {
     uint64_t requestSequenceNum = executionSequenceNum;
     uint32_t outActualReplySize = 0;
     uint32_t outReplicaSpecificInfoSize = 0;
-    uint32_t outExecutionStatus = 1;
+    uint32_t outExecutionStatus = 1;  // UNKNOWN
     uint64_t blockId = 0;
   };
 
