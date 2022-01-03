@@ -440,7 +440,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
 
   if (readOnly) {
     if (activeExecutions_ > 0) {
-      if (deferredRORequests_.size() < maxQueueSize) {
+      if (deferredRORequests_.size() < maxQueueSize_) {
         deferredRORequests_.push_back(
             m);  // We should handle span and deleting the message when we handle the deferred message
         deferredRORequestsMetric_++;
@@ -1047,6 +1047,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
     LOG_INFO(GL,
              "Ignoring PrePrepareMsg because system is stopped at checkpoint pending control state operation (upgrade, "
              "etc...)");
+    // TODO(LG): we should delete the message.
     return;
   }
 
@@ -1082,9 +1083,14 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
 
     return;  // TODO(GG): memory deallocation is confusing .....
   }
+  if (isCurrentPrimary() && (msg->senderId() != getReplicaConfig().replicaId)) {
+    LOG_INFO(GL, "Ignoring PrePrepareMsg since im the current primary");
+    delete msg;
+    return;
+  }
   bool msgAdded = false;
 
-  if (relevantMsgForActiveView(msg) && (msg->senderId() == currentPrimary())) {
+  if (relevantMsgForActiveView(msg)) {
     sendAckIfNeeded(msg, msg->senderId(), msgSeqNum);
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
     const bool slowStarted = (msg->firstPath() == CommitPath::SLOW || seqNumInfo.slowPathStarted());
@@ -2352,7 +2358,7 @@ void ReplicaImp::startExecution(SeqNum seqNumber,
 }
 
 void ReplicaImp::pushDeferredMessage(MessageBase *m) {
-  if (deferredMessages_.size() < maxQueueSize) {
+  if (deferredMessages_.size() < maxQueueSize_) {
     deferredMessages_.push_back(m);
     deferredMessagesMetric_++;
   } else {
@@ -4255,7 +4261,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
   });
   registerMsgHandlers();
   replStatusHandlers_.registerStatusHandlers();
-
+  maxQueueSize_ = config_.postExecutionQueuesSize;
   // Register metrics component with the default aggregator.
   metrics_.Register();
 

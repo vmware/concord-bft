@@ -153,7 +153,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   // can happen only in main thread since its being called when FinishPrePrepareExecutionInternalMsg fetched m the
   // internal msgs queue.
   std::deque<MessageBase*> deferredMessages_;
-  uint16_t maxQueueSize = 50;
+  uint16_t maxQueueSize_;
   bool shouldTryToGoToNextView_ = false;
   bool shouldGoToNextView_ = false;
   bool isSendCheckpointIfNeeded_ = false;
