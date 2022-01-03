@@ -42,7 +42,7 @@ ClientRequestMsg::ClientRequestMsg(NodeIdType sender,
                                    const char* request,
                                    uint64_t reqTimeoutMilli,
                                    const std::string& cid,
-                                   uint32_t opResult,
+                                   uint32_t result,
                                    const concordUtils::SpanContext& spanContext,
                                    const char* requestSignature,
                                    uint32_t requestSignatureLen,
@@ -54,7 +54,7 @@ ClientRequestMsg::ClientRequestMsg(NodeIdType sender,
   // logical XOR - if requestSignatureLen is zero requestSignature must be null and vise versa
   ConcordAssert((requestSignature == nullptr) == (requestSignatureLen == 0));
   // set header
-  setParams(sender, reqSeqNum, requestLength, flags, reqTimeoutMilli, opResult, cid, requestSignatureLen, extraBufSize);
+  setParams(sender, reqSeqNum, requestLength, flags, reqTimeoutMilli, result, cid, requestSignatureLen, extraBufSize);
 
   // set span context
   char* position = body() + sizeof(ClientRequestMsgHeader);
@@ -203,7 +203,7 @@ void ClientRequestMsg::setParams(NodeIdType sender,
                                  uint32_t requestLength,
                                  uint64_t flags,
                                  uint64_t reqTimeoutMilli,
-                                 uint32_t opResult,
+                                 uint32_t result,
                                  const std::string& cid,
                                  uint32_t requestSignatureLen,
                                  uint32_t extraBufSize) {
@@ -213,7 +213,7 @@ void ClientRequestMsg::setParams(NodeIdType sender,
   header->reqSeqNum = reqSeqNum;
   header->requestLength = requestLength;
   header->flags = flags;
-  header->opResult = opResult;
+  header->result = result;
   header->cidLength = cid.size();
   header->reqSignatureLength = requestSignatureLen;
   header->extraDataLength = extraBufSize;

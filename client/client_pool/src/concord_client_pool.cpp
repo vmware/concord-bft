@@ -27,6 +27,7 @@ namespace concord::concord_client_pool {
 
 using bftEngine::ClientMsgFlag;
 using namespace bftEngine;
+using namespace shared;
 
 static inline const std::string kEmptySpanContext = std::string("");
 
@@ -414,7 +415,7 @@ void SingleRequestProcessingJob::execute() {
     res = processing_client_->SendRequest(read_config_, std::move(request_));
     reply_size = res.matched_data.size();
     if (callback_) {
-      if (processing_client_->getClientRequestError() != TIMEOUT) {
+      if (processing_client_->getClientRequestError() != OperationResult::TIMEOUT) {
         callback_(bftEngine::SendResult{res});
       } else {
         callback_(bftEngine::SendResult{SubmitResult::TimedOut});
@@ -534,11 +535,11 @@ void ConcordClientPool::InsertClientToQueue(
       }
     }
   }
-  if (replies.second.front().cb && client->getClientRequestError() == bftEngine::TIMEOUT) {
+  if (replies.second.front().cb && client->getClientRequestError() == OperationResult::TIMEOUT) {
     for (const auto &reply : replies.second) {
       reply.cb(SendResult{SubmitResult::TimedOut});
     }
-  } else if (replies.second.front().cb && client->getClientRequestError() == bftEngine::INVALID_REQUEST) {
+  } else if (replies.second.front().cb && client->getClientRequestError() == OperationResult::INVALID_REQUEST) {
     for (const auto &reply : replies.second) {
       reply.cb(SendResult{SubmitResult::InvalidArgument});
     }
@@ -586,13 +587,13 @@ bool ConcordClientPool::clusterHasKeys(ClientPtr &cl) {
   return result == trueReply;
 }
 
-bftEngine::OperationResult ConcordClientPool::getClientsError() {
+OperationResult ConcordClientPool::getClientError() {
   for (auto &client : this->clients_) {
-    if (client->getClientRequestError() != bftEngine::OperationResult::SUCCESS) {
+    if (client->getClientRequestError() != OperationResult::SUCCESS) {
       return client->getClientRequestError();
     }
   }
-  return bftEngine::OperationResult::SUCCESS;
+  return OperationResult::SUCCESS;
 }
 
 }  // namespace concord::concord_client_pool

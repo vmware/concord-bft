@@ -13,7 +13,6 @@
 
 #include "messages/MessageBase.hpp"
 #include "../PreProcessorRecorder.hpp"
-#include "SimpleClient.hpp"
 #include "PreProcessResultHashCreator.hpp"
 #include <memory>
 
@@ -32,7 +31,7 @@ class PreProcessReplyMsg : public MessageBase {
                      uint32_t preProcessResultBufLen,
                      const std::string& cid,
                      ReplyStatus status,
-                     bftEngine::OperationResult preProcessResult);
+                     shared::OperationResult preProcessResult);
 
   PreProcessReplyMsg(NodeIdType senderId,
                      uint16_t clientId,
@@ -43,7 +42,7 @@ class PreProcessReplyMsg : public MessageBase {
                      const char* signature,
                      const std::string& cid,
                      ReplyStatus status,
-                     bftEngine::OperationResult preProcessResult);
+                     shared::OperationResult preProcessResult);
 
   BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(PreProcessReplyMsg)
 
@@ -55,7 +54,7 @@ class PreProcessReplyMsg : public MessageBase {
   const uint32_t replyLength() const { return msgBody()->replyLength; }
   const uint8_t* resultsHash() const { return msgBody()->resultsHash; }
   const ReplyStatus status() const { return msgBody()->status; }
-  const bftEngine::OperationResult preProcessResult() const { return msgBody()->preProcessResult; }
+  const shared::OperationResult preProcessResult() const { return msgBody()->preProcessResult; }
   std::vector<char> getResultHashSignature() const;
   std::string getCid() const;
 
@@ -72,7 +71,7 @@ class PreProcessReplyMsg : public MessageBase {
     uint16_t clientId = 0;
     uint16_t reqOffsetInBatch = 0;
     ReplyStatus status = STATUS_GOOD;
-    bftEngine::OperationResult preProcessResult = bftEngine::SUCCESS;
+    shared::OperationResult preProcessResult = shared::OperationResult::SUCCESS;
     uint8_t resultsHash[concord::util::SHA3_256::SIZE_IN_BYTES];
     uint32_t replyLength = 0;
     uint32_t cidLength = 0;
@@ -96,7 +95,7 @@ class PreProcessReplyMsg : public MessageBase {
                  ReqId reqSeqNum,
                  uint64_t reqRetryId,
                  ReplyStatus status,
-                 bftEngine::OperationResult preProcessResult);
+                 shared::OperationResult preProcessResult);
   void setupMsgBody(const char* preProcessResultBuf, uint32_t preProcessResultBufLen, const std::string& cid);
   void setupMsgBody(const uint8_t* resultsHash, const char* signature, const std::string& cid);
   void setLeftMsgParams(const std::string& cid, uint16_t sigSize);
