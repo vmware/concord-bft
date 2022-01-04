@@ -45,6 +45,15 @@ Component::Handle<Gauge> Component::RegisterGauge(const string& name, const uint
   return Component::Handle<Gauge>(values_.gauges_, values_.gauges_.size() - 1, metricsEnabled_);
 }
 
+Component::Handle<Gauge> Component::RegisterGauge(const string& name,
+                                                  const uint64_t val,
+                                                  const std::unordered_map<std::string, std::string>& tag_map) {
+  names_.gauge_names_.emplace_back(name);
+  tags_.gauge_tags_.emplace_back(tag_map);
+  values_.gauges_.emplace_back(Gauge(val));
+  return Component::Handle<Gauge>(values_.gauges_, values_.gauges_.size() - 1, metricsEnabled_);
+}
+
 Component::Handle<Status> Component::RegisterStatus(const string& name, const string& val) {
   names_.status_names_.emplace_back(name);
   values_.statuses_.emplace_back(Status(val));
@@ -74,7 +83,11 @@ std::list<Metric> Component::CollectGauges() {
   if (!metricsEnabled_) return list<Metric>();
   std::list<Metric> ret;
   for (size_t i = 0; i < names_.gauge_names_.size(); i++) {
-    ret.emplace_back(Metric{name_, names_.gauge_names_[i], values_.gauges_[i]});
+    if (tags_.gauge_tags_.size() > i) {
+      ret.emplace_back(Metric{name_, names_.gauge_names_[i], values_.gauges_[i], tags_.gauge_tags_[i]});
+    } else {
+      ret.emplace_back(Metric{name_, names_.gauge_names_[i], values_.gauges_[i]});
+    }
   }
   for (std::size_t i = 0; i < names_.atomic_gauge_names_.size(); i++) {
     ret.emplace_back(Metric{name_, names_.atomic_gauge_names_[i], Gauge(values_.atomic_gauges_[i].Get())});

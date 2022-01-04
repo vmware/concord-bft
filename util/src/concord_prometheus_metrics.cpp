@@ -38,6 +38,22 @@ prometheus::ClientMetric ConcordBftPrometheusCollector::collect(const std::strin
   return metric;
 }
 
+prometheus::ClientMetric ConcordBftPrometheusCollector::collect(
+    const std::string& component,
+    concordMetrics::Gauge& g,
+    const std::unordered_map<std::string, std::string>& tags) const {
+  ClientMetric metric;
+  metric.gauge.value = g.Get();
+  metric.label = {{"source", "concordbft"}, {"component", component}};
+  for (const auto& tag : tags) {
+    prometheus::ClientMetric::Label label;
+    label.name = tag.first;
+    label.value = tag.second;
+    metric.label.emplace_back(label);
+  }
+  return metric;
+}
+
 prometheus::ClientMetric ConcordBftPrometheusCollector::collect(const std::string& component,
                                                                 concordMetrics::Status& s) const {
   return ClientMetric();
@@ -75,11 +91,25 @@ std::vector<MetricFamily> ConcordBftPrometheusCollector::collectGauges() const {
   std::vector<MetricFamily> gf;
   std::map<std::string, MetricFamily> metricsMap;
   for (auto& g : aggregator_->CollectGauges()) {
-    if (metricsMap.find(g.name) == metricsMap.end()) {
-      metricsMap[g.name] =
-          MetricFamily{getMetricName(g.name), g.name + " - a concordbft metric", MetricType::Gauge, {}};
+    if (!g.tag_map.empty()) {
+      // concatenate values in tag_map, and use `metric_name + tag_values_concat` as key in metricsMap. We don't want to
+      // skip metrics with same names but different tags.
+      std::string tag_values_concat;
+      for (const auto& tag : g.tag_map) {
+        tag_values_concat.append(tag.second);
+      }
+      if (metricsMap.find(g.name + tag_values_concat) == metricsMap.end()) {
+        metricsMap[g.name + tag_values_concat] =
+            MetricFamily{getMetricName(g.name), g.name + " - a concordbft metric", MetricType::Gauge, {}};
+      }
+      metricsMap[g.name].metric.emplace_back(collect(g.component, std::get<concordMetrics::Gauge>(g.value), g.tag_map));
+    } else {
+      if (metricsMap.find(g.name) == metricsMap.end()) {
+        metricsMap[g.name] =
+            MetricFamily{getMetricName(g.name), g.name + " - a concordbft metric", MetricType::Gauge, {}};
+      }
+      metricsMap[g.name].metric.emplace_back(collect(g.component, std::get<concordMetrics::Gauge>(g.value)));
     }
-    metricsMap[g.name].metric.emplace_back(collect(g.component, std::get<concordMetrics::Gauge>(g.value)));
   }
   gf.reserve(metricsMap.size());
   for (auto& it : metricsMap) {
