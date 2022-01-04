@@ -30,7 +30,6 @@
 using namespace std;
 using namespace std::chrono;
 using namespace bft::communication;
-using namespace shared;
 using namespace preprocessor;
 
 namespace bftEngine {

@@ -58,7 +58,7 @@ class RequestProcessingState {
   // None of RequestProcessingState functions is thread-safe. They are guarded by RequestState::mutex from PreProcessor.
   void handlePrimaryPreProcessed(const char* preProcessResultData,
                                  uint32_t preProcessResultLen,
-                                 shared::OperationResult preProcessResult);
+                                 bftEngine::OperationResult preProcessResult);
   void handlePreProcessReplyMsg(const PreProcessReplyMsgSharedPtr& preProcessReplyMsg);
   std::unique_ptr<MessageBase> buildClientRequestMsg(bool emptyReq = false);
   void setPreProcessRequest(PreProcessRequestMsgSharedPtr preProcessReqMsg);
@@ -90,12 +90,12 @@ class RequestProcessingState {
   void setPreprocessingRightNow(bool set) { preprocessingRightNow_ = set; }
   const std::list<PreProcessResultSignature>& getPreProcessResultSignatures();
   const concord::util::SHA3_256::Digest& getResultHash() { return primaryPreProcessResultHash_; };
-  const shared::OperationResult getAgreedPreProcessResult() const { return agreedPreProcessResult_; }
+  const bftEngine::OperationResult getAgreedPreProcessResult() const { return agreedPreProcessResult_; }
 
   static void init(uint16_t numOfRequiredReplies, preprocessor::PreProcessorRecorder* histograms);
   static concord::util::SHA3_256::Digest createPreProcessResultHash(const char* preProcessResultData,
                                                                     uint32_t preProcessResultLen,
-                                                                    shared::OperationResult preProcessResult,
+                                                                    bftEngine::OperationResult preProcessResult,
                                                                     uint16_t clientId,
                                                                     ReqId reqSeqNum);
   uint16_t getNumOfReceivedReplicas() { return numOfReceivedReplies_; };
@@ -112,8 +112,8 @@ class RequestProcessingState {
   void detectNonDeterministicPreProcessing(const concord::util::SHA3_256::Digest& newHash,
                                            NodeIdType newSenderId,
                                            uint64_t reqRetryId) const;
-  void setupPreProcessResultData(shared::OperationResult preProcessResult);
-  void updatePreProcessResultData(shared::OperationResult preProcessResult);
+  void setupPreProcessResultData(bftEngine::OperationResult preProcessResult);
+  void updatePreProcessResultData(bftEngine::OperationResult preProcessResult);
   uint32_t sizeOfPreProcessResultData() const;
   void reportNonEqualHashes(const unsigned char* chosenData, uint32_t chosenSize) const;
 
@@ -145,8 +145,8 @@ class RequestProcessingState {
   ReplicaIdsList rejectedReplicaIds_;
   const char* primaryPreProcessResultData_ = nullptr;  // This memory is allocated in PreProcessor
   uint32_t primaryPreProcessResultLen_ = 0;
-  shared::OperationResult primaryPreProcessResult_ = shared::OperationResult::UNKNOWN;
-  shared::OperationResult agreedPreProcessResult_ = shared::OperationResult::UNKNOWN;
+  bftEngine::OperationResult primaryPreProcessResult_ = bftEngine::OperationResult::UNKNOWN;
+  bftEngine::OperationResult agreedPreProcessResult_ = bftEngine::OperationResult::UNKNOWN;
   concord::util::SHA3_256::Digest primaryPreProcessResultHash_ = {};
   // Maps result hash to a list of replica signatures sent for this hash. This also implicitly gives the number of
   // replicas returning a specific hash.

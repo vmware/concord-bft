@@ -18,7 +18,6 @@ namespace preprocessor {
 
 using namespace std;
 using namespace bftEngine;
-using namespace shared;
 using namespace chrono;
 using namespace concord::util;
 using namespace concord::kvbc::sparse_merkle;

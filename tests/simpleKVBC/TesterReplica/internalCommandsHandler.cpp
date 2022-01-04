@@ -24,7 +24,6 @@
 #include "ReplicaConfig.hpp"
 
 using namespace bftEngine;
-using namespace shared;
 using namespace concord::kvbc::categorization;
 
 using std::holds_alternative;

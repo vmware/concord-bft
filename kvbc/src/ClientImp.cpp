@@ -78,19 +78,19 @@ Status ClientImp::invokeCommandSynch(const char* request,
                                      cid,
                                      span_context);
   switch (res) {
-    case shared::OperationResult::SUCCESS:
+    case bftEngine::OperationResult::SUCCESS:
       return Status::OK();
-    case shared::OperationResult::NOT_READY:
+    case bftEngine::OperationResult::NOT_READY:
       return Status::InterimError("The system is not ready");
-    case shared::OperationResult::TIMEOUT:
+    case bftEngine::OperationResult::TIMEOUT:
       return Status::GeneralError("Command timed out");
-    case shared::OperationResult::EXEC_DATA_TOO_LARGE:
+    case bftEngine::OperationResult::EXEC_DATA_TOO_LARGE:
       return Status::InvalidArgument("Specified output buffer is too small");
-    case shared::OperationResult::INVALID_REQUEST:
+    case bftEngine::OperationResult::INVALID_REQUEST:
       return Status::InvalidArgument("Request is invalid");
-    case shared::OperationResult::EXEC_DATA_EMPTY:
+    case bftEngine::OperationResult::EXEC_DATA_EMPTY:
       return Status::GeneralError("Execution has not generated the data");
-    case shared::OperationResult::INTERNAL_ERROR:
+    case bftEngine::OperationResult::INTERNAL_ERROR:
       return Status::GeneralError("Internal execution error");
     default:
       return Status::GeneralError("Unknown error");

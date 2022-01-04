@@ -22,7 +22,6 @@ namespace concord::external_client {
 using bftEngine::ClientMsgFlag;
 using namespace config_pool;
 using namespace bftEngine;
-using namespace shared;
 
 using namespace bft::communication;
 

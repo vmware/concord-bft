@@ -11,7 +11,7 @@
 
 #pragma once
 
-namespace shared {
+namespace bftEngine {
 
 // Definitions shared between client and replica
 
@@ -27,4 +27,4 @@ enum class OperationResult : uint32_t {
   INTERNAL_ERROR
 };
 
-}  // namespace shared
+}  // namespace bftEngine

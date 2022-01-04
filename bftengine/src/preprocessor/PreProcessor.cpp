@@ -23,7 +23,6 @@
 namespace preprocessor {
 
 using namespace bftEngine;
-using namespace shared;
 using namespace concord::util;
 using namespace concordUtils;
 using namespace std;

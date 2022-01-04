@@ -45,7 +45,7 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
   void setPerformanceManager(std::shared_ptr<concord::performance::PerformanceManager> perfManager) override;
 
  private:
-  shared::OperationResult executeWriteCommand(
+  bftEngine::OperationResult executeWriteCommand(
       uint32_t requestSize,
       const char *request,
       uint64_t sequenceNum,
@@ -57,29 +57,29 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
       concord::kvbc::categorization::VersionedUpdates &blockAccumulatedVerUpdates,
       concord::kvbc::categorization::BlockMerkleUpdates &blockAccumulatedMerkleUpdates);
 
-  shared::OperationResult executeReadOnlyCommand(uint32_t requestSize,
-                                                 const char *request,
-                                                 size_t maxReplySize,
-                                                 char *outReply,
-                                                 uint32_t &outReplySize,
-                                                 uint32_t &specificReplicaInfoOutReplySize);
+  bftEngine::OperationResult executeReadOnlyCommand(uint32_t requestSize,
+                                                    const char *request,
+                                                    size_t maxReplySize,
+                                                    char *outReply,
+                                                    uint32_t &outReplySize,
+                                                    uint32_t &specificReplicaInfoOutReplySize);
 
-  shared::OperationResult verifyWriteCommand(uint32_t requestSize,
-                                             const uint8_t *request,
-                                             size_t maxReplySize,
-                                             uint32_t &outReplySize) const;
+  bftEngine::OperationResult verifyWriteCommand(uint32_t requestSize,
+                                                const uint8_t *request,
+                                                size_t maxReplySize,
+                                                uint32_t &outReplySize) const;
 
-  shared::OperationResult executeReadCommand(const skvbc::messages::SKVBCReadRequest &request,
-                                             size_t maxReplySize,
-                                             char *outReply,
-                                             uint32_t &outReplySize);
+  bftEngine::OperationResult executeReadCommand(const skvbc::messages::SKVBCReadRequest &request,
+                                                size_t maxReplySize,
+                                                char *outReply,
+                                                uint32_t &outReplySize);
 
-  shared::OperationResult executeGetBlockDataCommand(const skvbc::messages::SKVBCGetBlockDataRequest &request,
-                                                     size_t maxReplySize,
-                                                     char *outReply,
-                                                     uint32_t &outReplySize);
+  bftEngine::OperationResult executeGetBlockDataCommand(const skvbc::messages::SKVBCGetBlockDataRequest &request,
+                                                        size_t maxReplySize,
+                                                        char *outReply,
+                                                        uint32_t &outReplySize);
 
-  shared::OperationResult executeGetLastBlockCommand(size_t maxReplySize, char *outReply, uint32_t &outReplySize);
+  bftEngine::OperationResult executeGetLastBlockCommand(size_t maxReplySize, char *outReply, uint32_t &outReplySize);
 
   void addMetadataKeyValue(concord::kvbc::categorization::VersionedUpdates &updates, uint64_t sequenceNum) const;
 

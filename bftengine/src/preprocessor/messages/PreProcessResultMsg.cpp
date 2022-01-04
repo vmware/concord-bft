@@ -18,7 +18,6 @@
 namespace preprocessor {
 
 using namespace bftEngine;
-using namespace shared;
 
 PreProcessResultMsg::PreProcessResultMsg(NodeIdType sender,
                                          uint32_t preProcessResult,
