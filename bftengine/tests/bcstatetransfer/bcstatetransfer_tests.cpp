@@ -87,6 +87,7 @@ Config targetConfig() {
       600,                // gettingMissingBlocksSummaryWindowSize
       10,                 // minPrePrepareMsgsForPrimaryAwarness
       128,                // fetchRangeSize
+      128,                // RVT_K
       300,                // refreshTimerMs
       2500,               // checkpointSummariesRetransmissionTimeoutMs
       60000,              // maxAcceptableMsgDelayMs
@@ -1129,31 +1130,21 @@ void BcStTest::configureLog(const string& logLevelStr) {
   std::set<string> possibleLogLevels = {"trace", "debug", "info", "warn", "error", "fatal"};
   ASSERT_TRUE(possibleLogLevels.find(logLevelStr) != possibleLogLevels.end());
 #ifdef USE_LOG4CPP
-  log4cplus::LogLevel logLevel =
-      logLevelStr == "trace"
-          ? log4cplus::TRACE_LOG_LEVEL
-          : logLevelStr == "debug"
-                ? log4cplus::DEBUG_LOG_LEVEL
-                : logLevelStr == "info"
-                      ? log4cplus::INFO_LOG_LEVEL
-                      : logLevelStr == "warn"
-                            ? log4cplus::WARN_LOG_LEVEL
-                            : logLevelStr == "error"
-                                  ? log4cplus::ERROR_LOG_LEVEL
-                                  : logLevelStr == "fatal" ? log4cplus::FATAL_LOG_LEVEL : log4cplus::INFO_LOG_LEVEL;
+  log4cplus::LogLevel logLevel = logLevelStr == "trace"   ? log4cplus::TRACE_LOG_LEVEL
+                                 : logLevelStr == "debug" ? log4cplus::DEBUG_LOG_LEVEL
+                                 : logLevelStr == "info"  ? log4cplus::INFO_LOG_LEVEL
+                                 : logLevelStr == "warn"  ? log4cplus::WARN_LOG_LEVEL
+                                 : logLevelStr == "error" ? log4cplus::ERROR_LOG_LEVEL
+                                 : logLevelStr == "fatal" ? log4cplus::FATAL_LOG_LEVEL
+                                                          : log4cplus::INFO_LOG_LEVEL;
 #else
-  logging::LogLevel logLevel =
-      logLevelStr == "trace"
-          ? logging::LogLevel::trace
-          : logLevelStr == "debug"
-                ? logging::LogLevel::debug
-                : logLevelStr == "info"
-                      ? logging::LogLevel::info
-                      : logLevelStr == "warn"
-                            ? logging::LogLevel::warn
-                            : logLevelStr == "error"
-                                  ? logging::LogLevel::error
-                                  : logLevelStr == "fatal" ? logging::LogLevel::fatal : logging::LogLevel::info;
+  logging::LogLevel logLevel = logLevelStr == "trace"   ? logging::LogLevel::trace
+                               : logLevelStr == "debug" ? logging::LogLevel::debug
+                               : logLevelStr == "info"  ? logging::LogLevel::info
+                               : logLevelStr == "warn"  ? logging::LogLevel::warn
+                               : logLevelStr == "error" ? logging::LogLevel::error
+                               : logLevelStr == "fatal" ? logging::LogLevel::fatal
+                                                        : logging::LogLevel::info;
 #endif
   // logging::Logger::getInstance("serializable").setLogLevel(logLevel);
   // logging::Logger::getInstance("concord.bft.st.dbdatastore").setLogLevel(logLevel);
@@ -1255,7 +1246,7 @@ TEST_P(BcStTestParamFixture1, dstFullStateTransfer) {
 }
 
 // 1st element - maxNumberOfChunksInBatch
-// 2nd element - fetchRangesize
+// 2nd element - fetchRangeSize
 // The comma at the end is due to a bug in gtest 3.09 - https://github.com/google/googletest/issues/2271 - see last
 using BcStTestParamFixtureInput = tuple<uint32_t, uint32_t>;
 INSTANTIATE_TEST_CASE_P(BcStTest,

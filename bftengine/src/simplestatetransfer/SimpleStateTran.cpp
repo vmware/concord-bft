@@ -102,6 +102,7 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
     return nullptr;
   }
   virtual void handoffConsensusMessage(const shared_ptr<ConsensusMsg>& msg) override{};
+  void reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBlockId) override{};
 
  protected:
   //////////////////////////////////////////////////////////////////////////
@@ -116,18 +117,21 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
 
     bool hasBlock(uint64_t blockId) const override;
 
-    bool getBlock(uint64_t blockId, char* outBlock, uint32_t outBlockMaxSize, uint32_t* outBlockActualSize) override;
+    bool getBlock(uint64_t blockId,
+                  char* outBlock,
+                  uint32_t outBlockMaxSize,
+                  uint32_t* outBlockActualSize) const override;
 
     std::future<bool> getBlockAsync(uint64_t blockId,
                                     char* outBlock,
                                     uint32_t outBlockMaxSize,
                                     uint32_t* outBlockActualSize) override;
 
-    bool getPrevDigestFromBlock(uint64_t blockId, bcst::StateTransferDigest* outPrevBlockDigest) override;
+    bool getPrevDigestFromBlock(uint64_t blockId, bcst::StateTransferDigest* outPrevBlockDigest) const override;
 
     void getPrevDigestFromBlock(const char* blockData,
                                 const uint32_t blockSize,
-                                bcst::StateTransferDigest* outPrevBlockDigest) override;
+                                bcst::StateTransferDigest* outPrevBlockDigest) const override;
 
     bool putBlock(const uint64_t blockId, const char* block, const uint32_t blockSize, bool lastBlock = true) override;
 
@@ -324,7 +328,8 @@ SimpleStateTran::SimpleStateTran(
       4096,                                 // sizeOfReservedPage
       600,                                  // gettingMissingBlocksSummaryWindowSize
       10,                                   // minPrePrepareMsgsForPrimaryAwarness
-      1024,                                 // fetchRangeSize
+      512,                                  // fetchRangeSize
+      1024,                                 // RVT_K
       300,                                  // refreshTimerMs
       2500,                                 // checkpointSummariesRetransmissionTimeoutMs
       60000,                                // maxAcceptableMsgDelayMs
@@ -633,7 +638,7 @@ bool SimpleStateTran::DummyBDState::hasBlock(uint64_t blockId) const { return fa
 bool SimpleStateTran::DummyBDState::getBlock(uint64_t blockId,
                                              char* outBlock,
                                              uint32_t outBlockMaxSize,
-                                             uint32_t* outBlockActualSize) {
+                                             uint32_t* outBlockActualSize) const {
   ConcordAssert(false);
   return false;
 }
@@ -647,14 +652,14 @@ std::future<bool> SimpleStateTran::DummyBDState::getBlockAsync(uint64_t blockId,
 }
 
 bool SimpleStateTran::DummyBDState::getPrevDigestFromBlock(uint64_t blockId,
-                                                           bcst::StateTransferDigest* outPrevBlockDigest) {
+                                                           bcst::StateTransferDigest* outPrevBlockDigest) const {
   ConcordAssert(false);
   return false;
 }
 
 void SimpleStateTran::DummyBDState::getPrevDigestFromBlock(const char* blockData,
                                                            const uint32_t blockSize,
-                                                           bcst::StateTransferDigest* outPrevBlockDigest) {
+                                                           bcst::StateTransferDigest* outPrevBlockDigest) const {
   ConcordAssert(false);
 }
 

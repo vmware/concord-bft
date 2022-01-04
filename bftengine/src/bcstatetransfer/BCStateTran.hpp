@@ -43,6 +43,7 @@
 #include "TimeUtils.hpp"
 #include "SimpleMemoryPool.hpp"
 #include "messages/MessageBase.hpp"
+#include "RVBManager.hpp"
 
 using std::set;
 using std::map;
@@ -152,6 +153,10 @@ class BCStateTran : public IStateTransfer {
     // TBD Filtering to drop too frequent messages
     // bind understands only shared_ptr natively
     incomingEventsQ_->push(std::bind(&BCStateTran::peekConsensusMessage, this, std::move(msg)));
+  }
+
+  void reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBlockId) override {
+    rvbm_->reportLastAgreedPrunableBlockId(lastAgreedPrunableBlockId);
   }
   void peekConsensusMessage(shared_ptr<ConsensusMsg>& msg);
 
@@ -474,6 +479,10 @@ class BCStateTran : public IStateTransfer {
   enum class PutBlockWaitPolicy { NO_WAIT, WAIT_SINGLE_JOB, WAIT_ALL_JOBS };
 
   bool finalizePutblockAsync(PutBlockWaitPolicy waitPolicy);
+  //////////////////////////////////////////////////////////////////////////
+  // Range Validation
+  ///////////////////////////////////////////////////////////////////////////
+  std::unique_ptr<RVBManager> rvbm_;
   //////////////////////////////////////////////////////////////////////////
   // Metrics
   ///////////////////////////////////////////////////////////////////////////
