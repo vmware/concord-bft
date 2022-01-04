@@ -37,9 +37,9 @@ RVBManager::RVBManager(const Config& config, const IAppState* state_api, DataSto
 
 void RVBManager::init() {
   LOG_TRACE(logger_, "");
-  bool reconstruct_rvb_data = true;
+  bool loaded_from_cp = false;
   static constexpr bool print_rvt = true;
-  CheckpointDesc desc{};
+  CheckpointDesc desc{0};
   uint64_t last_stored_cp_num = ds_->getLastStoredCheckpoint();
   std::lock_guard<std::mutex> guard(pruned_blocks_digests_mutex_);
 
@@ -54,19 +54,19 @@ void RVBManager::init() {
       // There is RVB data in this checkpoint - try to load it
       std::istringstream rvb_data(std::string(reinterpret_cast<const char*>(desc.rvbData.data()), desc.rvbData.size()));
       // TODO - deserialize should return a bool - it might fail due to logical/config issue.
-      in_mem_rvt_->deserialize(rvb_data);
-      reconstruct_rvb_data = false;
+      in_mem_rvt_->setSerializedRvbData(rvb_data);
+      loaded_from_cp = true;
     }
   }
 
-  if (reconstruct_rvb_data && (desc.maxBlockId > 0)) {
+  if (!loaded_from_cp && (desc.maxBlockId > 0)) {
     // If desc data is valid, try to reconstruct by reading digests from storage (no persistency data was found)
     addRvbDataOnBlockRange(
         as_->getGenesisBlockNum(), desc.maxBlockId, std::optional<STDigest>(desc.digestOfMaxBlockId));
   }
 
   // TODO - print also the root hash
-  LOG_INFO(logger_, std::boolalpha << KVLOG(pruned_blocks_digests_.size(), last_stored_cp_num, reconstruct_rvb_data));
+  LOG_INFO(logger_, std::boolalpha << KVLOG(pruned_blocks_digests_.size(), last_stored_cp_num, loaded_from_cp));
   if (print_rvt) {
 #ifdef USE_LOG4CPP
     auto log_level = logging::Logger::getRoot().getLogLevel();
@@ -136,26 +136,18 @@ void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_de
     in_mem_rvt_->printToLog(false);
   }  // end of critical section A
 
-  std::ostringstream rvb_data;
-  in_mem_rvt_->serialize(rvb_data);
+  auto rvb_data = in_mem_rvt_->getSerializedRvbData();
   const std::string s = rvb_data.str();
+  ConcordAssert(!s.empty());
   std::copy(s.c_str(), s.c_str() + s.length(), back_inserter(new_checkpoint_desc.rvbData));
-
   last_checkpoint_desc_ = new_checkpoint_desc;
-}
-
-std::ostringstream RVBManager::getRvbData() const {
-  LOG_TRACE(logger_, "");
-  std::ostringstream rvb_data;
-  in_mem_rvt_->serialize(rvb_data);
-  return rvb_data;
 }
 
 void RVBManager::setRvbData(std::shared_ptr<char> data, size_t data_size) {
   LOG_TRACE(logger_, "");
   std::istringstream rvb_data(std::string(reinterpret_cast<const char*>(data.get()), data_size));
   // TODO - deserialize should return a bool - it might fail due to logical/config issue. handle error in that case.
-  in_mem_rvt_->deserialize(rvb_data);
+  in_mem_rvt_->setSerializedRvbData(rvb_data);
 }
 
 // TODO - implement
