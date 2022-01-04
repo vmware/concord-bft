@@ -402,6 +402,25 @@ BlockId DBAdapter::addBlock(const SetOfKeyValuePairs &kv) {
   return blockId;
 }
 
+void DBAdapter::linkUntilBlockId(BlockId until_block_id) {
+  BlockId last_reachable_block = getLastReachableBlockId();
+  BlockId last_st_block = getLatestBlockId();
+  if ((until_block_id <= last_reachable_block) || (until_block_id > last_st_block)) {
+    auto msg = std::stringstream{};
+    msg << "Cannot update last_reachable_block:" << KVLOG(until_block_id, last_reachable_block, last_st_block)
+        << std::endl;
+    throw std::invalid_argument{msg.str()};
+  }
+
+  BlockId i = last_reachable_block + 1;
+  while ((i <= until_block_id) && hasBlock(i)) {
+    ++i;
+  }
+  if (i > last_reachable_block + 1) {
+    setLastReachableBlockNum(i - 1);
+  }
+}
+
 void DBAdapter::addRawBlock(const RawBlock &block, const BlockId &blockId, bool lastBlock) {
   SetOfKeyValuePairs keys;
   if (saveKvPairsSeparately_ && block.length() > 0) {
@@ -424,19 +443,35 @@ void DBAdapter::addRawBlock(const RawBlock &block, const BlockId &blockId, bool 
     }
   }
 
-  if (Status s = addBlockAndUpdateMultiKey(keys, blockId, block); !s.isOK())
+  if (Status s = addBlockAndUpdateMultiKey(keys, blockId, block); !s.isOK()) {
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": failed: blockId: ") + std::to_string(blockId) +
                              std::string(" reason: ") + s.toString());
+  }
 
   // when ST runs, blocks arrive in batches in reverse order. we need to keep
   // track on the "Gap" and to close it. Only when it is closed, the last
   // reachable block becomes the same as the last block
-
   {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (blockId > getLatestBlockId()) setLatestBlock(blockId);
+    if (blockId > getLatestBlockId()) {
+      setLatestBlock(blockId);
+    }
+
+    // Setting lastReachableBlockId should be done in a single thread while post processing.
+    // If calling this function in multi-threaded manner, the next section might be 'best-effort' only:
+    // Example: Thread T1 which handles block ID X1, enters this critical section before a thread T2 which handles
+    // block ID X2 where X2 < X1. In that case, argument i won't be incremented and LastReachableBlockNum won't be set.
+    // Caller must ensure a last call to set final value to LastReachableBlockNum in a single threaded manner.
+    // The bellow code tries to connect as many blocks as possible.
+    if (lastBlock) {
+      BlockId lastReachableBlockId = getLastReachableBlockId();
+      BlockId i = lastReachableBlockId + 1;
+      while (hasBlock(i)) ++i;
+      if (i > lastReachableBlockId + 1) {
+        setLastReachableBlockNum(i - 1);
+      }
+    }
   }
-  if ((lastBlock) and (blockId == getLastReachableBlockId() + 1)) setLastReachableBlockNum(getLatestBlockId());
 }
 
 Status DBAdapter::addBlockAndUpdateMultiKey(const SetOfKeyValuePairs &kvMap,

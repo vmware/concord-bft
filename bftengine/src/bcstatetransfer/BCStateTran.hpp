@@ -114,7 +114,7 @@ class BCStateTran : public IStateTransfer {
   void saveReservedPage(uint32_t reservedPageId, uint32_t copyLength, const char* inReservedPage) override;
   void zeroReservedPage(uint32_t reservedPageId) override;
 
-  // Incoming Events (Handoff) - ST main thread is a consumer of timeouts and messages arriving from an external context
+  // Incoming Events queue - ST main thread is a consumer of timeouts and messages arriving from an external context
   void onTimer() override { incomingEventsQ_->push(std::bind(&BCStateTran::onTimerImp, this)); };
   using LocalTimePoint = time_point<steady_clock>;
   static constexpr auto UNDEFINED_LOCAL_TIME_POINT = LocalTimePoint::max();
@@ -123,6 +123,13 @@ class BCStateTran : public IStateTransfer {
         &BCStateTran::handleStateTransferMessageImp, this, msg, msgLen, senderId, std::chrono::steady_clock::now()));
   };
   std::unique_ptr<concord::util::Handoff> incomingEventsQ_;
+
+  // Post processing Queue - ST main thread is a producer and post processing thread is a consumer
+  std::unique_ptr<concord::util::Handoff> postProcessingQ_;
+  uint64_t postProcessingUpperBoundBlockId_;
+  std::atomic<uint64_t> maxPostprocessedBlockId_;
+  void postProcessNextBatch(uint64_t upperBoundBlockId);
+
   std::string getStatus() override;
 
   void addOnTransferringCompleteCallback(
@@ -141,7 +148,11 @@ class BCStateTran : public IStateTransfer {
     return cre_;
   }
 
-  void handoffConsensusMessage(const shared_ptr<ConsensusMsg>& msg) override;
+  void handoffConsensusMessage(const shared_ptr<ConsensusMsg>& msg) override {
+    // TBD Filtering to drop too frequent messages
+    // bind understands only shared_ptr natively
+    incomingEventsQ_->push(std::bind(&BCStateTran::peekConsensusMessage, this, std::move(msg)));
+  }
   void peekConsensusMessage(shared_ptr<ConsensusMsg>& msg);
 
  protected:
@@ -199,10 +210,6 @@ class BCStateTran : public IStateTransfer {
   // used to computed my last msg sequence number
   uint64_t lastMilliOfUniqueFetchID_ = 0;
   uint32_t lastCountOfUniqueFetchID_ = 0;
-
-  // my last sent message (relevant for source only)
-  // do not change order!
-  std::variant<std::monostate, AskForCheckpointSummariesMsg, FetchBlocksMsg, FetchResPagesMsg> lastSentMsg_;
   uint64_t lastMsgSeqNum_ = 0;
 
   // msg sequence number from other replicas
@@ -216,9 +223,8 @@ class BCStateTran : public IStateTransfer {
   // Public for testing and status
  public:
   enum class FetchingState { NotFetching, GettingCheckpointSummaries, GettingMissingBlocks, GettingMissingResPages };
-
   static string stateName(FetchingState fs);
-
+  // TODO - should be renamed to evaluateFetchingState
   FetchingState getFetchingState();
   bool isFetching() const;
 
@@ -232,10 +238,7 @@ class BCStateTran : public IStateTransfer {
 
   void sendAskForCheckpointSummariesMsg();
 
-  void trySendFetchBlocksMsg(uint64_t firstRequiredBlock,
-                             uint64_t lastRequiredBlock,
-                             int16_t lastKnownChunkInLastRequiredBlock,
-                             string&& reason);
+  void trySendFetchBlocksMsg(int16_t lastKnownChunkInLastRequiredBlock, string&& reason);
 
   void sendFetchResPagesMsg(int16_t lastKnownChunkInLastRequiredBlock);
 
@@ -303,14 +306,41 @@ class BCStateTran : public IStateTransfer {
 
   static const uint64_t ID_OF_VBLOCK_RES_PAGES = UINT64_MAX;
 
-  uint64_t nextRequiredBlock_ = 0;
-  uint64_t nextBlockIdToCommit_ = 0;
+  struct BlocksBatchDesc {
+    uint64_t minBlockId = 0;
+    uint64_t maxBlockId = 0;
+    uint64_t nextBlockId = 0;
+    uint64_t upperBoundBlockId = 0;  // Dynamic upper limit to the next batch
+
+    inline bool operator==(BlocksBatchDesc& rhs) {
+      return (minBlockId == rhs.minBlockId) && (maxBlockId == rhs.maxBlockId) && (nextBlockId == rhs.nextBlockId) &&
+             (upperBoundBlockId == rhs.upperBoundBlockId);
+    }
+    inline bool operator!=(BlocksBatchDesc& rhs) { return !(this->operator==(rhs)); }
+    inline void reset() {
+      minBlockId = 0;
+      maxBlockId = 0;
+      nextBlockId = 0;
+      upperBoundBlockId = 0;
+    }
+    inline bool operator<(BlocksBatchDesc& rhs) const;
+    inline bool operator==(BlocksBatchDesc& rhs) const;
+    inline bool operator<=(BlocksBatchDesc& rhs) const;
+    bool isValid() const;
+    inline bool isMinBlockId(uint64_t blockId) const { return blockId == minBlockId; };
+    inline bool isMaxBlockId(uint64_t blockId) const { return blockId == maxBlockId; };
+  };
+  friend std::ostream& operator<<(std::ostream&, const BCStateTran::BlocksBatchDesc&);
+
+  BlocksBatchDesc fetchState_;
+  BlocksBatchDesc commitState_;
+
   DataStore::CheckpointDesc targetCheckpointDesc_;
   STDigest digestOfNextRequiredBlock_;
   bool postponedSendFetchBlocksMsg_;
 
-  inline bool isMinBlockIdInCurrentRange(uint64_t blockId) const;
-  inline bool isMaxBlockIdInCurrentRange(uint64_t blockId) const;
+  inline bool isMinBlockIdInFetchRange(uint64_t blockId) const;
+  inline bool isMaxBlockIdInFetchRange(uint64_t blockId) const;
   inline bool isLastFetchedBlockIdInCycle(uint64_t blockId) const;
   inline bool isRvbBlockId(uint64_t blockId) const;
 
@@ -326,6 +356,7 @@ class BCStateTran : public IStateTransfer {
   set<ItemDataMsg*, compareItemDataMsg> pendingItemDataMsgs;
   uint32_t totalSizeOfPendingItemDataMsgs = 0;
 
+  void cycleReset();
   void clearAllPendingItemsData();
   void clearPendingItemsData(uint64_t untilBlock);
   bool getNextFullBlock(uint64_t requiredBlock,
@@ -335,7 +366,7 @@ class BCStateTran : public IStateTransfer {
                         uint32_t& outBlockSize,
                         bool isVBLock);
 
-  uint64_t computeNextRequiredBlock();
+  BlocksBatchDesc computeNextBatchToFetch(uint64_t minRequiredBlockId);
   bool checkBlock(uint64_t blockNum, char* block, uint32_t blockSize) const;
 
   bool checkVirtualBlockOfResPages(const STDigest& expectedDigestOfResPagesDescriptor,
@@ -442,7 +473,7 @@ class BCStateTran : public IStateTransfer {
   // soon. return: true if done procesing all futures, and false if the front one was not std::future_status::ready
   enum class PutBlockWaitPolicy { NO_WAIT, WAIT_SINGLE_JOB, WAIT_ALL_JOBS };
 
-  bool finalizePutblockAsync(PutBlockWaitPolicy waitPolicy, const bool alwaysWait = false);
+  bool finalizePutblockAsync(PutBlockWaitPolicy waitPolicy);
   //////////////////////////////////////////////////////////////////////////
   // Metrics
   ///////////////////////////////////////////////////////////////////////////

@@ -670,6 +670,35 @@ uint64_t Replica::getLastBlockNum() const {
   return m_kvBlockchain->getLastReachableBlockId();
 }
 
+void Replica::postProcessUntilBlockId(uint64_t max_block_id) {
+  if (replicaConfig_.isReadOnly) {
+    m_bcDbAdapter->linkUntilBlockId(max_block_id);
+    return;
+  }
+  const BlockId last_reachable_block = m_kvBlockchain->getLastReachableBlockId();
+  BlockId last_st_block_id = 0;
+  if (auto last_st_block_id_opt = m_kvBlockchain->getLastStatetransferBlockId()) {
+    last_st_block_id = last_st_block_id_opt.value();
+  }
+  if ((max_block_id <= last_reachable_block) || (max_block_id > last_st_block_id)) {
+    auto msg = std::stringstream{};
+    msg << "Cannot post-process:" << KVLOG(max_block_id, last_reachable_block, last_st_block_id) << std::endl;
+    throw std::invalid_argument{msg.str()};
+  }
+
+  try {
+    m_kvBlockchain->linkUntilBlockId(last_reachable_block + 1, max_block_id);
+  } catch (const std::exception &e) {
+    LOG_FATAL(
+        CAT_BLOCK_LOG,
+        "Aborting due to failure to link," << KVLOG(last_reachable_block, max_block_id) << ", reason: " << e.what());
+    std::terminate();
+  } catch (...) {
+    LOG_FATAL(CAT_BLOCK_LOG, "Aborting due to failure to link," << KVLOG(last_reachable_block, max_block_id));
+    std::terminate();
+  }
+}
+
 RawBlock Replica::getBlockInternal(BlockId blockId) const { return m_bcDbAdapter->getRawBlock(blockId); }
 
 /*
@@ -804,11 +833,13 @@ bool Replica::getPrevDigestFromObjectStoreBlock(uint64_t blockId,
     throw;
   }
 }
+
 void Replica::registerStBasedReconfigurationHandler(
     std::shared_ptr<concord::client::reconfiguration::IStateHandler> handler) {
   // api for higher level application to register the handler
   if (handler && creEngine_) creEngine_->registerHandler(handler);
 }
+
 BlockId Replica::getLastKnownReconfigCmdBlockNum() const {
   std::string blockRawData;
   if (replicaConfig_.isReadOnly) {
@@ -830,12 +861,14 @@ BlockId Replica::getLastKnownReconfigCmdBlockNum() const {
   }
   return 0;
 }
+
 void Replica::setLastKnownReconfigCmdBlock(const std::vector<uint8_t> &blockData) {
   if (replicaConfig_.isReadOnly) {
     std::string page(blockData.begin(), blockData.end());
     m_bcDbAdapter->setLastKnownReconfigurationCmdBlock(page);
   }
 }
+
 void Replica::startRoReplicaCreEngine() {
   concord::client::reconfiguration::Config cre_config;
   BlockId id = getLastKnownReconfigCmdBlockNum();

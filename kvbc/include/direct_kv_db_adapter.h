@@ -136,6 +136,10 @@ class DBAdapter : public IDbAdapter {
   // - calculating and filling in the parent digest.
   // Typically called by the application when adding a new block.
   BlockId addBlock(const SetOfKeyValuePairs &updates) override;
+
+  // Set the lastReachable block. not multi-threaded safe.
+  void linkUntilBlockId(BlockId until_block_id) override;
+
   // Adds a block from its raw representation and a block ID. Includes:
   // - adding the key/value pairs in separate keys
   // - adding the whole block (raw block) in its own key.
