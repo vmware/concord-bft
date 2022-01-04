@@ -12,10 +12,12 @@
 #include "RequestProcessingState.hpp"
 #include "sparse_merkle/base_types.h"
 #include "SigManager.hpp"
+#include "messages/PreProcessResultHashCreator.hpp"
 
 namespace preprocessor {
 
 using namespace std;
+using namespace bftEngine;
 using namespace chrono;
 using namespace concord::util;
 using namespace concord::kvbc::sparse_merkle;
@@ -71,22 +73,48 @@ void RequestProcessingState::setPreProcessRequest(PreProcessRequestMsgSharedPtr 
   reqRetryId_ = preProcessRequestMsg_->reqRetryId();
 }
 
-void RequestProcessingState::handlePrimaryPreProcessed(const char *preProcessResult, uint32_t preProcessResultLen) {
+uint32_t RequestProcessingState::sizeOfPreProcessResultData() const {
+  return sizeof(OperationResult) + sizeof(clientId_) + sizeof(reqSeqNum_);
+}
+
+void RequestProcessingState::setupPreProcessResultData(OperationResult preProcessResult) {
+  memcpy(&primaryPreProcessResultData_, &preProcessResult, sizeof(preProcessResult));
+  primaryPreProcessResultData_ += sizeof(preProcessResult);
+  memcpy(&primaryPreProcessResultData_, &clientId_, sizeof(clientId_));
+  primaryPreProcessResultData_ += sizeof(clientId_);
+  memcpy(&primaryPreProcessResultData_, &reqSeqNum_, sizeof(reqSeqNum_));
+  primaryPreProcessResultLen_ = sizeOfPreProcessResultData();
+}
+
+void RequestProcessingState::updatePreProcessResultData(OperationResult preProcessResult) {
+  memcpy(&primaryPreProcessResultData_, &preProcessResult, sizeof(preProcessResult));
+  primaryPreProcessResultLen_ = sizeOfPreProcessResultData();
+}
+
+void RequestProcessingState::handlePrimaryPreProcessed(const char *preProcessResultData,
+                                                       uint32_t preProcessResultLen,
+                                                       OperationResult preProcessResult) {
   preprocessingRightNow_ = false;
   primaryPreProcessResult_ = preProcessResult;
-  primaryPreProcessResultLen_ = preProcessResultLen;
-  primaryPreProcessResultHash_ =
-      convertToArray(SHA3_256().digest(primaryPreProcessResult_, primaryPreProcessResultLen_).data());
+  if (preProcessResult == SUCCESS) {
+    primaryPreProcessResultData_ = preProcessResultData;
+    primaryPreProcessResultLen_ = preProcessResultLen;
+  }
+  primaryPreProcessResultHash_ = PreProcessResultHashCreator::create(
+      primaryPreProcessResultData_, primaryPreProcessResultLen_, primaryPreProcessResult_, clientId_, reqSeqNum_);
 
+  // In case the pre-processing failed on the primary replica, fill primaryPreProcessResultData_ by the result-related
+  // information.
+  if (preProcessResult != SUCCESS) setupPreProcessResultData(preProcessResult);
   auto sm = SigManager::instance();
   std::vector<char> sig(sm->getMySigLength());
   sm->sign(reinterpret_cast<const char *>(primaryPreProcessResultHash_.data()),
            primaryPreProcessResultHash_.size(),
            sig.data(),
            sig.size());
-  preProcessingResultHashes_[primaryPreProcessResultHash_].emplace_back(std::move(sig), myReplicaId_);
+  preProcessingResultHashes_[primaryPreProcessResultHash_].emplace_back(std::move(sig), myReplicaId_, preProcessResult);
   // Decision when PreProcessing is complete is made based on the value of received replies. The value should be
-  // increased for the primary hash too.
+  // increased for the primary hash, too.
   numOfReceivedReplies_++;
 }
 
@@ -115,17 +143,25 @@ void RequestProcessingState::detectNonDeterministicPreProcessing(const uint8_t *
 }
 
 void RequestProcessingState::handlePreProcessReplyMsg(const PreProcessReplyMsgSharedPtr &preProcessReplyMsg) {
+  SCOPED_MDC_CID(cid_);
   const auto &senderId = preProcessReplyMsg->senderId();
-  if (preProcessReplyMsg->status() == STATUS_GOOD) {
-    numOfReceivedReplies_++;
+  if (preProcessReplyMsg->status() != STATUS_REJECT) {
     const auto &newHashArray = convertToArray(preProcessReplyMsg->resultsHash());
+    // Do not add a duplicate signature from the same sender to the list.
+    // insert returns a pair, where the second is a boolean denoting whether the insertion took place.
+    // TODO - identify the scenarios that can cause duplicate replies to arrive.
+    if (!(seenSenders_[newHashArray]).insert(preProcessReplyMsg->senderId()).second) {
+      LOG_INFO(logger(), "Signature was already accepted for this sender " << KVLOG(senderId, reqSeqNum_, clientId_));
+      return;
+    }
+    numOfReceivedReplies_++;
     // Counts equal hashes and saves the signatures with the replica ID. They will be used as a proof that the primary
-    // is sending correct preexecution result to the rest of the replicas.
+    // is sending correct pre-execution result to the rest of the replicas.
     preProcessingResultHashes_[newHashArray].emplace_back(preProcessReplyMsg->getResultHashSignature(),
-                                                          preProcessReplyMsg->senderId());
+                                                          preProcessReplyMsg->senderId(),
+                                                          preProcessReplyMsg->preProcessResult());
     detectNonDeterministicPreProcessing(newHashArray, senderId, preProcessReplyMsg->reqRetryId());
   } else {
-    SCOPED_MDC_CID(cid_);
     LOG_DEBUG(logger(), "Register rejected PreProcessReplyMsg" << KVLOG(senderId, reqSeqNum_, clientId_));
     rejectedReplicaIds_.push_back(preProcessReplyMsg->senderId());
   }
@@ -139,7 +175,7 @@ SHA3_256::Digest RequestProcessingState::convertToArray(const uint8_t resultsHas
 
 auto RequestProcessingState::calculateMaxNbrOfEqualHashes(uint16_t &maxNumOfEqualHashes) const {
   auto itOfChosenHash = preProcessingResultHashes_.begin();
-  // Calculate a maximum number of the same hashes received from non-primary replicas
+  // Calculate a maximum number of the same hashes
   for (auto it = preProcessingResultHashes_.begin(); it != preProcessingResultHashes_.end(); it++) {
     if (it->second.size() > maxNumOfEqualHashes) {
       maxNumOfEqualHashes = it->second.size();
@@ -169,22 +205,24 @@ bool RequestProcessingState::isReqTimedOut() const {
 
 std::pair<std::string, concord::util::SHA3_256::Digest> RequestProcessingState::detectFailureDueToBlockID(
     const concord::util::SHA3_256::Digest &other, uint64_t blockId) {
-  // since this scenario is rare, a new string is allocated for safety.
-  std::string modifiedResult(primaryPreProcessResult_, primaryPreProcessResultLen_);
+  // Since this scenario is rare, a new string is allocated for safety.
+  std::string modifiedResult(primaryPreProcessResultData_, primaryPreProcessResultLen_);
   ConcordAssertGT(modifiedResult.size(), sizeof(uint64_t));
   memcpy(modifiedResult.data() + modifiedResult.size() - sizeof(uint64_t),
          reinterpret_cast<char *>(&blockId),
          sizeof(uint64_t));
-  auto modifiedHash = convertToArray(SHA3_256().digest(modifiedResult.c_str(), modifiedResult.size()).data());
+  auto modifiedHash =
+      PreProcessResultHashCreator::create(modifiedResult.data(), modifiedResult.size(), SUCCESS, clientId_, reqSeqNum_);
   if (other == modifiedHash) {
-    LOG_INFO(logger(), "Primary hash is different from quorum due to mismatch in block id " << KVLOG(reqSeqNum_));
+    LOG_INFO(logger(), "Primary hash is different from quorum due to mismatch in block id" << KVLOG(reqSeqNum_));
     return {modifiedResult, modifiedHash};
   }
   return {"", concord::util::SHA3_256::Digest{}};
 }
 
-void RequestProcessingState::modifyPrimayResult(const std::pair<std::string, concord::util::SHA3_256::Digest> &result) {
-  memcpy(const_cast<char *>(primaryPreProcessResult_), result.first.c_str(), primaryPreProcessResultLen_);
+void RequestProcessingState::modifyPrimaryResult(
+    const std::pair<std::string, concord::util::SHA3_256::Digest> &result) {
+  memcpy(const_cast<char *>(primaryPreProcessResultData_), result.first.c_str(), primaryPreProcessResultLen_);
   primaryPreProcessResultHash_ = result.second;
   auto sm = SigManager::instance();
   std::vector<char> sig(sm->getMySigLength());
@@ -192,47 +230,68 @@ void RequestProcessingState::modifyPrimayResult(const std::pair<std::string, con
            primaryPreProcessResultHash_.size(),
            sig.data(),
            sig.size());
-  preProcessingResultHashes_[primaryPreProcessResultHash_].emplace_back(std::move(sig), myReplicaId_);
+  preProcessingResultHashes_[primaryPreProcessResultHash_].emplace_back(
+      std::move(sig), myReplicaId_, primaryPreProcessResult_);
+}
+
+void RequestProcessingState::reportNonEqualHashes(const unsigned char *chosenData, uint32_t chosenSize) const {
+  // Primary replica calculated hash is different from a hash that passed pre-execution consensus => we don't have
+  // correct pre-processed results. Let's launch a pre-processing retry.
+  const auto &primaryHash =
+      Hash(SHA3_256().digest(primaryPreProcessResultHash_.data(), primaryPreProcessResultHash_.size())).toString();
+  const auto &hashPassedConsensus = Hash(SHA3_256().digest(chosenData, chosenSize)).toString();
+  LOG_WARN(logger(),
+           "Primary replica pre-processing result hash: "
+               << primaryHash << " is different from one passed the consensus: " << hashPassedConsensus
+               << KVLOG(reqSeqNum_) << "; retry pre-processing on primary replica");
 }
 
 // The primary replica logic
 PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult() {
   SCOPED_MDC_CID(cid_);
   if (numOfReceivedReplies_ < numOfRequiredEqualReplies_) {
-    LOG_DEBUG(logger(),
-              "Not enough replies received, continue waiting"
-                  << KVLOG(reqSeqNum_, numOfReceivedReplies_, numOfRequiredEqualReplies_));
+    LOG_INFO(logger(),
+             "Not enough replies received, continue waiting"
+                 << KVLOG(reqSeqNum_, numOfReceivedReplies_, numOfRequiredEqualReplies_));
     return CONTINUE;
   }
-
   uint16_t maxNumOfEqualHashes = 0;
   auto itOfChosenHash = calculateMaxNbrOfEqualHashes(maxNumOfEqualHashes);
+  LOG_INFO(logger(), KVLOG(maxNumOfEqualHashes, numOfRequiredEqualReplies_));
   if (maxNumOfEqualHashes >= numOfRequiredEqualReplies_) {
-    if (itOfChosenHash->first == primaryPreProcessResultHash_) return COMPLETE;  // Pre-execution consensus reached
+    agreedPreProcessResult_ = itOfChosenHash->second.front().getPreProcessResult();
+    if (itOfChosenHash->first == primaryPreProcessResultHash_) {
+      if (agreedPreProcessResult_ != SUCCESS)
+        LOG_INFO(logger(), "The replicas agreed on an error execution result:" << KVLOG(agreedPreProcessResult_));
+      return COMPLETE;  // Pre-execution consensus reached
+    }
+    if (primaryPreProcessResult_ == SUCCESS && agreedPreProcessResult_ != SUCCESS) {
+      // The pre-execution succeeded on a primary replica while failed on non-primaries. The consensus for an error
+      // execution result has been reached => update preProcess result data.
+      updatePreProcessResultData(agreedPreProcessResult_);
+      LOG_INFO(logger(),
+               "The replicas (except the primary) agreed on an error execution result:"
+                   << KVLOG(agreedPreProcessResult_) << ", we are done");
+      return COMPLETE;
+    }
     if (primaryPreProcessResultLen_ != 0 && !retrying_) {
       // A known scenario that can cause a mismatch, is due to rejection of the block id sent by the primary.
       // In this case the difference should be only the last 64 bits that encodes the `0` as the rejection value.
-      if (auto modifiedResult = detectFailureDueToBlockID(itOfChosenHash->first, 0); modifiedResult.first.size() > 0) {
-        modifyPrimayResult(modifiedResult);
-        return COMPLETE;
+      if (primaryPreProcessResult_ == SUCCESS) {
+        const auto modifiedResult = detectFailureDueToBlockID(itOfChosenHash->first, 0);
+        if (modifiedResult.first.size() > 0) {
+          modifyPrimaryResult(modifiedResult);
+          return COMPLETE;
+        }
       }
-      // Primary replica calculated hash is different from a hash that passed pre-execution consensus => we don't have
-      // correct pre-processed results. Let's launch a pre-processing retry.
-      const auto &primaryHash =
-          Hash(SHA3_256().digest(primaryPreProcessResultHash_.data(), primaryPreProcessResultHash_.size())).toString();
-      const auto &hashPassedConsensus =
-          Hash(SHA3_256().digest(itOfChosenHash->first.data(), itOfChosenHash->first.size())).toString();
-      LOG_WARN(logger(),
-               "Primary replica pre-processing result hash: "
-                   << primaryHash << " is different from one passed the consensus: " << hashPassedConsensus
-                   << KVLOG(reqSeqNum_) << "; retry pre-processing on primary replica");
+      reportNonEqualHashes(itOfChosenHash->first.data(), itOfChosenHash->first.size());
       retrying_ = true;
       return RETRY_PRIMARY;
     }
-    LOG_DEBUG(logger(), "Primary replica did not complete pre-processing yet, continue waiting" << KVLOG(reqSeqNum_));
+    LOG_INFO(logger(), "Primary replica did not complete pre-processing yet, continue waiting" << KVLOG(reqSeqNum_));
     return CONTINUE;
   } else
-    LOG_DEBUG(
+    LOG_INFO(
         logger(),
         "Not enough equal hashes collected yet" << KVLOG(reqSeqNum_, maxNumOfEqualHashes, numOfRequiredEqualReplies_));
 
@@ -242,9 +301,9 @@ PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult()
     LOG_WARN(logger(), "Not enough equal hashes collected, cancel request" << KVLOG(reqSeqNum_));
     return CANCEL;
   }
-  LOG_DEBUG(logger(),
-            "Continue waiting for replies to arrive"
-                << KVLOG(reqSeqNum_, numOfReceivedReplies_, maxNumOfEqualHashes, numOfRequiredEqualReplies_));
+  LOG_INFO(logger(),
+           "Continue waiting for replies to arrive"
+               << KVLOG(reqSeqNum_, numOfReceivedReplies_, maxNumOfEqualHashes, numOfRequiredEqualReplies_));
   return CONTINUE;
 }
 

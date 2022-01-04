@@ -45,21 +45,18 @@ def start_replica_cmd(builddir, replica_id, view_change_timeout_milli="10000"):
            "-v", view_change_timeout_milli,
            "-x"
            ]
-    if(replica_id == 0) :
+    if replica_id == 0 :
         cmd.extend(["-g", "MangledPreProcessResultMsgStrategy"])
 
     return cmd
 
-def start_replica_cmd_assymetric_communication(builddir, replica_id, view_change_timeout_milli="10000"):
+def start_replica_cmd_asymmetric_communication(builddir, replica_id, view_change_timeout_milli="10000"):
     """
-    Return a command that starts an skvbc replica when passed to
-    subprocess.Popen.
-    The replica is started with a short view change timeout.
-    Note each arguments is an element in a list.
-    The primary replica is started with a Byzantine Strategy, so it
-    will exhibit Byzantine behaviours. Alongwith this it will also
-    send different message to different backup replicas. This primary
-    will try to mess-up the consensus and confuse all the other replicas.
+    Return a command that starts a skvbc replica when passed to subprocess.
+    The replica is started with a short view change timeout. Note each argument is an element in a list.
+    The primary replica is started with a Byzantine Strategy, so it will exhibit Byzantine behaviours.
+    Along with this it will also send different message to different backup replicas. This primary
+    will try to mess up the consensus and confuse all the other replicas.
     """
 
     status_timer_milli = "500"
@@ -72,7 +69,7 @@ def start_replica_cmd_assymetric_communication(builddir, replica_id, view_change
            "-v", view_change_timeout_milli,
            "-x"
            ]
-    if(replica_id == 0) :
+    if replica_id == 0 :
         cmd.extend(["-d", "-g", "MangledPreProcessResultMsgStrategy"])
 
     return cmd
@@ -91,11 +88,11 @@ class SkvbcPrimaryByzantinePreExecutionTest(unittest.TestCase):
         They immediately should request for view change by sending ReplicaAsksToLeaveViewMsg.
         After that if a quorum of replica feels that new primary should be elected, a view change
         will be triggered in the system.
-        If clients donot send any message, no one will know if any Byzantine replica is present
+        If clients do not send any message, no one will know if any Byzantine replica is present
         in the system.
         This function should be called after clients start sending message.
         This function will wait for a view change. After the view change it will check the new primary
-        and then initialize the preexecution counts for the new primary and returns the new primary.
+        and then initialize the pre-execution counts for the new primary and returns the new primary.
         """
         try:
             with trio.move_on_after(seconds=4*viewchange_timeout_secs):
@@ -140,9 +137,9 @@ class SkvbcPrimaryByzantinePreExecutionTest(unittest.TestCase):
         await bft_network.assert_successful_pre_executions_count(new_primary, NUM_OF_SEQ_WRITES * BATCH_SIZE)
 
     @with_trio
-    @with_bft_network(start_replica_cmd_assymetric_communication, selected_configs=lambda n, f, c: f >= 2)
+    @with_bft_network(start_replica_cmd_asymmetric_communication, selected_configs=lambda n, f, c: f >= 2)
     @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
-    async def test_byzantine_behavior_with_assymetric_comm(self, bft_network, tracker):
+    async def test_byzantine_behavior_with_asymmetric_comm(self, bft_network, tracker):
         """
         Use a random client to launch one batch pre-process request at a time.
         As there is a Byzantine Primary in the replica cluster, which sends different messages

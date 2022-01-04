@@ -12,15 +12,18 @@
 #include "PreProcessResultMsg.hpp"
 #include "Replica.hpp"  // for HAS_PRE_PROCESSED_FLAG
 #include "SigManager.hpp"
+#include "PreProcessResultHashCreator.hpp"
 #include "endianness.hpp"
-#include "sha_hash.hpp"
 
 namespace preprocessor {
 
+using namespace bftEngine;
+
 PreProcessResultMsg::PreProcessResultMsg(NodeIdType sender,
+                                         uint32_t preProcessResult,
                                          uint64_t reqSeqNum,
                                          uint32_t resultLength,
-                                         const char* result,
+                                         const char* resultBuf,
                                          uint64_t reqTimeoutMilli,
                                          const std::string& cid,
                                          const concordUtils::SpanContext& spanContext,
@@ -28,26 +31,26 @@ PreProcessResultMsg::PreProcessResultMsg(NodeIdType sender,
                                          uint32_t messageSignatureLen,
                                          const std::string& resultSignatures)
     : ClientRequestMsg(sender,
-                       bftEngine::HAS_PRE_PROCESSED_FLAG,
+                       HAS_PRE_PROCESSED_FLAG,
                        reqSeqNum,
                        resultLength,  // check the comment in the header to
-                       result,        // understand why result is passed as request here
+                       resultBuf,     // understand why result is passed as request here
                        reqTimeoutMilli,
                        cid,
+                       preProcessResult,
                        spanContext,
                        messageSignature,
                        messageSignatureLen,
                        resultSignatures.size()) {
   msgBody_->msgType = MsgCode::PreProcessResult;
-  // ClientRequestMsg allocates additional memory for the signatures
-  // Get pointer to it here and assert that the buffer is big enough
+  // ClientRequestMsg allocates additional memory for the signatures.
+  // Get pointer to it here and assert if the buffer is not big enough.
   auto [pos, max_len] = getExtraBufPtr();
   ConcordAssert(max_len >= resultSignatures.size());
-
   memcpy(pos, resultSignatures.data(), resultSignatures.size());
 }
 
-PreProcessResultMsg::PreProcessResultMsg(bftEngine::ClientRequestMsgHeader* body) : ClientRequestMsg(body) {}
+PreProcessResultMsg::PreProcessResultMsg(ClientRequestMsgHeader* body) : ClientRequestMsg(body) {}
 
 std::pair<char*, uint32_t> PreProcessResultMsg::getResultSignaturesBuf() { return getExtraBufPtr(); }
 
@@ -61,39 +64,40 @@ std::optional<std::string> PreProcessResultMsg::validatePreProcessResultSignatur
   // f+1. In theory more signatures can be accepted but this makes the non-primary replicas vulnerable to DoS attacks
   // from a malicious primary (e.g. a Primary sends a PreProcessResult message with 100 signatures, which should be
   // validated by the replica).
+  std::stringstream err;
   const auto expectedSignatureCount = fVal + 1;
   if (sigs.size() != static_cast<uint16_t>(expectedSignatureCount)) {
-    std::stringstream err;
-    err << "PreProcessResult signatures validation failure - unexpected number of signatures received. Expected "
-        << expectedSignatureCount << " got " << sigs.size() << " " << KVLOG(clientProxyId(), getCid(), requestSeqNum());
+    err << "PreProcessResult signatures validation failure - unexpected number of signatures received"
+        << KVLOG(expectedSignatureCount, sigs.size(), clientProxyId(), getCid(), requestSeqNum());
     return err.str();
   }
 
-  auto hash = concord::util::SHA3_256().digest(requestBuf(), requestLength());
-  std::unordered_set<bftEngine::impl::NodeIdType> seen_signatures;
-  for (const auto& s : sigs) {
-    // insert returns std::pair<iterator, bool>. The bool indicates if the element was created or it was already in the
-    // set and no insertion was performed. The latter case indicates that we already have got a signature from this
-    // replica.
-    if (!seen_signatures.insert(s.sender_replica).second) {
-      return "PreProcessResult signatures validation failure - got more than one signatures with the same sender id";
+  // At this stage the pre_process_result field has to be the same for all senders.
+  auto hash = PreProcessResultHashCreator::create(
+      requestBuf(), requestLength(), sigs.begin()->pre_process_result, clientProxyId(), requestSeqNum());
+
+  std::unordered_set<impl::NodeIdType> seen_signatures;
+  for (const auto& sig : sigs) {
+    // logic that filters duplicate signatures exist in the preprocessing phase,
+    // therefore duplication implies that the primary is probably malicious.
+    if (!seen_signatures.insert(sig.sender_replica).second) {
+      return "PreProcessResult signatures validation failure - got more than one signature with the same sender id";
     }
 
     bool verificationResult = false;
-    if (myReplicaId == s.sender_replica) {
+    if (myReplicaId == sig.sender_replica) {
       std::vector<char> mySignature(sigManager_->getMySigLength(), '\0');
       sigManager_->sign(
           reinterpret_cast<const char*>(hash.data()), hash.size(), mySignature.data(), mySignature.size());
-      verificationResult = mySignature == s.signature;
+      verificationResult = mySignature == sig.signature;
     } else {
       verificationResult = sigManager_->verifySig(
-          s.sender_replica, (const char*)hash.data(), hash.size(), s.signature.data(), s.signature.size());
+          sig.sender_replica, (const char*)hash.data(), hash.size(), sig.signature.data(), sig.signature.size());
     }
 
     if (!verificationResult) {
-      std::stringstream err;
-      err << "PreProcessResult signatures validation failure - invalid signature from replica " << s.sender_replica
-          << " " << KVLOG(clientProxyId(), getCid(), requestSeqNum());
+      err << "PreProcessResult signatures validation failure - invalid signature received from replica"
+          << KVLOG(sig.sender_replica, clientProxyId(), getCid(), requestSeqNum());
       return err.str();
     }
   }
@@ -101,20 +105,20 @@ std::optional<std::string> PreProcessResultMsg::validatePreProcessResultSignatur
   return {};
 }
 
-std::string PreProcessResultSignature::serializeResultSignatureList(
-    const std::list<PreProcessResultSignature>& signatures) {
+std::string PreProcessResultSignature::serializeResultSignatureList(const std::list<PreProcessResultSignature>& sigs) {
   size_t buf_len = 0;
-  for (const auto& s : signatures) {
-    buf_len += sizeof(s.sender_replica) + sizeof(uint32_t) + s.signature.size();
+  for (const auto& sig : sigs) {
+    buf_len += sizeof(sig.sender_replica) + sizeof(sig.pre_process_result) + sizeof(uint32_t) + sig.signature.size();
   }
 
   std::string output;
   output.reserve(buf_len);
 
-  for (const auto& s : signatures) {
-    output.append(concordUtils::toBigEndianStringBuffer(s.sender_replica));
-    output.append(concordUtils::toBigEndianStringBuffer<uint32_t>(s.signature.size()));
-    output.append(s.signature.begin(), s.signature.end());
+  for (const auto& sig : sigs) {
+    output.append(concordUtils::toBigEndianStringBuffer(sig.sender_replica));
+    output.append(concordUtils::toBigEndianStringBuffer<uint32_t>(sig.pre_process_result));
+    output.append(concordUtils::toBigEndianStringBuffer<uint32_t>(sig.signature.size()));
+    output.append(sig.signature.begin(), sig.signature.end());
   }
 
   return output;
@@ -125,26 +129,27 @@ std::list<PreProcessResultSignature> PreProcessResultSignature::deserializeResul
   size_t pos = 0;
   std::list<PreProcessResultSignature> ret;
   while (1) {
-    bftEngine::impl::NodeIdType sender_id;
+    impl::NodeIdType sender_id;
     uint32_t signature_size;
+    OperationResult pre_process_result;
 
-    if (sizeof(sender_id) + sizeof(signature_size) > len - pos) {
-      throw std::runtime_error(
-          "PreProcessResultSignature deserialisation error - remaining buffer length less than fixed size values size");
+    if (sizeof(sender_id) + sizeof(pre_process_result) + sizeof(signature_size) > len - pos) {
+      throw std::runtime_error("Deserialization error - remaining buffer length is less than fixed size values size");
     }
 
     // Read fixed size values
-    sender_id = concordUtils::fromBigEndianBuffer<bftEngine::impl::NodeIdType>(buf + pos);
-    pos += sizeof(bftEngine::impl::NodeIdType);
+    sender_id = concordUtils::fromBigEndianBuffer<impl::NodeIdType>(buf + pos);
+    pos += sizeof(impl::NodeIdType);
+    pre_process_result = static_cast<OperationResult>(concordUtils::fromBigEndianBuffer<uint32_t>(buf + pos));
+    pos += sizeof(uint32_t);
     signature_size = concordUtils::fromBigEndianBuffer<uint32_t>(buf + pos);
     pos += sizeof(uint32_t);
 
     if (signature_size > len - pos) {
-      throw std::runtime_error(
-          "PreProcessResultSignature deserialisation error - remaining buffer length less than signature size");
+      throw std::runtime_error("Deserialization error - remaining buffer length is less than a signature size");
     }
 
-    ret.emplace_back(std::vector<char>(buf + pos, buf + pos + signature_size), sender_id);
+    ret.emplace_back(std::vector<char>(buf + pos, buf + pos + signature_size), sender_id, pre_process_result);
     pos += signature_size;
 
     if (len - pos == 0) {

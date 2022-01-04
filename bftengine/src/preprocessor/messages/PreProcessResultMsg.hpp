@@ -11,9 +11,9 @@
 
 #pragma once
 
-#include <list>
-
 #include "messages/ClientRequestMsg.hpp"
+#include "SimpleClient.hpp"
+#include <list>
 
 namespace preprocessor {
 
@@ -39,9 +39,10 @@ class PreProcessResultMsg : public ClientRequestMsg {
   using ErrorMessage = std::optional<std::string>;
 
   PreProcessResultMsg(NodeIdType sender,
+                      uint32_t preProcessResult,
                       uint64_t reqSeqNum,
                       uint32_t resultLength,
-                      const char* result,
+                      const char* resultBuf,
                       uint64_t reqTimeoutMilli,
                       const std::string& cid = "",
                       const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{},
@@ -60,17 +61,21 @@ class PreProcessResultMsg : public ClientRequestMsg {
 struct PreProcessResultSignature {
   std::vector<char> signature;
   NodeIdType sender_replica;
+  bftEngine::OperationResult pre_process_result;
 
   PreProcessResultSignature() = default;
 
-  PreProcessResultSignature(std::vector<char>&& sig, NodeIdType sender)
-      : signature{std::move(sig)}, sender_replica{sender} {}
+  PreProcessResultSignature(std::vector<char>&& sig, NodeIdType sender, bftEngine::OperationResult result)
+      : signature{std::move(sig)}, sender_replica{sender}, pre_process_result{result} {}
 
   bool operator==(const PreProcessResultSignature& rhs) const {
-    return signature == rhs.signature && sender_replica == rhs.sender_replica;
+    return signature == rhs.signature && sender_replica == rhs.sender_replica &&
+           pre_process_result == rhs.pre_process_result;
   }
 
-  static std::string serializeResultSignatureList(const std::list<PreProcessResultSignature>& signatures);
+  const bftEngine::OperationResult getPreProcessResult() const { return pre_process_result; }
+
+  static std::string serializeResultSignatureList(const std::list<PreProcessResultSignature>& sigs);
   static std::list<PreProcessResultSignature> deserializeResultSignatureList(const char* buf, size_t len);
 };
 

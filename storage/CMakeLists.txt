@@ -32,4 +32,6 @@ if (BUILD_ROCKSDB_STORAGE)
 
 endif(BUILD_ROCKSDB_STORAGE)
 
-add_subdirectory(test)
+if (BUILD_TESTING)
+  add_subdirectory(test)
+endif()

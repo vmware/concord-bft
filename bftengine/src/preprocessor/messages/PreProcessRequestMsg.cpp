@@ -28,7 +28,7 @@ PreProcessRequestMsg::PreProcessRequestMsg(RequestType reqType,
                                            const std::string& cid,
                                            const char* requestSignature,
                                            uint16_t requestSignatureLength,
-                                           uint64_t blockid,
+                                           uint64_t blockId,
                                            const concordUtils::SpanContext& span_context)
     : MessageBase(senderId,
                   MsgCode::PreProcessRequest,
@@ -45,7 +45,7 @@ PreProcessRequestMsg::PreProcessRequestMsg(RequestType reqType,
             reqRetryId,
             reqLength,
             requestSignatureLength,
-            blockid);
+            blockId);
   auto position = body() + sizeof(Header);
   memcpy(position, span_context.data().data(), span_context.data().size());
   position += span_context.data().size();
@@ -70,7 +70,7 @@ PreProcessRequestMsg::PreProcessRequestMsg(RequestType reqType,
                   span_context.data().size(),
                   requestSignatureLength,
                   msgLength,
-                  blockid));
+                  blockId));
 }
 
 void PreProcessRequestMsg::validate(const ReplicasInfo& repInfo) const {

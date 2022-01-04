@@ -216,7 +216,12 @@ void SeqNumInfo::forceComplete() {
 
 PrePrepareMsg* SeqNumInfo::getPrePrepareMsg() const { return prePrepareMsg; }
 
-PrePrepareMsg* SeqNumInfo::getSelfPrePrepareMsg() const { return prePrepareMsg; }
+PrePrepareMsg* SeqNumInfo::getSelfPrePrepareMsg() const {
+  if (primary) {
+    return prePrepareMsg;
+  }
+  return nullptr;
+}
 
 PreparePartialMsg* SeqNumInfo::getSelfPreparePartialMsg() const {
   PreparePartialMsg* p = prepareSigCollector->getPartialMsgFromReplica(replica->getReplicasInfo().myId());
@@ -257,7 +262,7 @@ bool SeqNumInfo::committedOrHasCommitPartialFromReplica(ReplicaId repId) const {
   return isCommitted__gg() || commitMsgsCollector->hasPartialMsgFromReplica(repId);
 }
 
-Time SeqNumInfo::getTimeOfFisrtRelevantInfoFromPrimary() const { return firstSeenFromPrimary; }
+Time SeqNumInfo::getTimeOfFirstRelevantInfoFromPrimary() const { return firstSeenFromPrimary; }
 
 Time SeqNumInfo::getTimeOfLastInfoRequest() const { return timeOfLastInfoRequest; }
 

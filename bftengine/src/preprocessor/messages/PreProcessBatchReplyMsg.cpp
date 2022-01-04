@@ -92,7 +92,8 @@ PreProcessReplyMsgsList& PreProcessBatchReplyMsg::getPreProcessReplyMsgs() {
                                                       (const uint8_t*)&singleMsgHeader.resultsHash,
                                                       sigPosition,
                                                       cid,
-                                                      (ReplyStatus)singleMsgHeader.status);
+                                                      singleMsgHeader.status,
+                                                      singleMsgHeader.preProcessResult);
     preProcessReplyMsgsList_.push_back(move(preProcessReplyMsg));
     dataPosition += sizeof(PreProcessReplyMsg::Header) + sigLen + singleMsgHeader.cidLength;
   }

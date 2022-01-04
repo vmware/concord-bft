@@ -183,8 +183,6 @@ void ConcordClientPool::assignJobToClient(const ClientPtr &client,
                                           const std::string &correlation_id,
                                           const std::string &span_context,
                                           const bftEngine::RequestCallBack &callback) {
-  if (max_reply_size) client->setReplyBuffer(reply_buffer, max_reply_size);
-
   LOG_INFO(logger_,
            "client_id=" << client->getClientId() << " starts handling reqSeqNum=" << seq_num << " cid="
                         << correlation_id << " span_context exists=" << !span_context.empty() << " flags=" << flags
@@ -461,7 +459,6 @@ void ConcordClientPool::InsertClientToQueue(
   ClientPoolMetrics_.average_req_dur_gauge.Get().Set((uint64_t)average_req_dur_.avg());
   if (average_req_dur_.numOfElements() == 1000) average_req_dur_.reset();  // reset the average every 1000 samples
   ClientPoolMetrics_.executed_requests_counter++;
-  client->unsetReplyBuffer();
   {
     std::unique_lock<std::mutex> lock(clients_queue_lock_);
     metricsComponent_.UpdateAggregator();

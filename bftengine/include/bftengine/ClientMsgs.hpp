@@ -33,11 +33,12 @@ struct ClientBatchRequestMsgHeader {
 struct ClientRequestMsgHeader {
   uint16_t msgType;  // always == REQUEST_MSG_TYPE
   uint32_t spanContextSize = 0u;
-  uint16_t idOfClientProxy;  // TODO - rename - now used mostly as id of external client
-  uint64_t flags;            // bit 0 == isReadOnly, bit 1 = preProcess, bits 2-7 are reserved
-  uint64_t reqSeqNum;
-  uint32_t requestLength;
-  uint64_t timeoutMilli;
+  uint16_t idOfClientProxy = 0;  // TODO - rename - now used mostly as id of external client
+  uint64_t flags = 0;            // bit 0 == isReadOnly, bit 1 = preProcess ...
+  uint32_t opResult = 0;         // SUCCESS
+  uint64_t reqSeqNum = 0;
+  uint32_t requestLength = 0;
+  uint64_t timeoutMilli = 0;
   uint32_t cidLength = 0;
   uint16_t reqSignatureLength = 0;
   uint32_t extraDataLength = 0;

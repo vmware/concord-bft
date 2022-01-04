@@ -66,7 +66,7 @@ void AsyncTlsConnection::readMsgSizeHeader(std::optional<size_t> bytes_already_r
 
             if (bytes_transferred != bytes_remaining) {
               LOG_DEBUG(logger_,
-                        "Short read on messsage header occurred"
+                        "Short read on message header occurred"
                             << KVLOG(peer_id_.value(), bytes_remaining, bytes_transferred));
 
               histograms_.async_read_header_partial->recordAtomic(durationInMicros(start));

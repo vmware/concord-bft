@@ -73,7 +73,7 @@ class SeqNumInfo {
   bool preparedOrHasPreparePartialFromReplica(ReplicaId repId) const;
   bool committedOrHasCommitPartialFromReplica(ReplicaId repId) const;
 
-  Time getTimeOfFisrtRelevantInfoFromPrimary() const;
+  Time getTimeOfFirstRelevantInfoFromPrimary() const;
   Time getTimeOfLastInfoRequest() const;
   Time lastUpdateTimeOfCommitMsgs() const { return commitUpdateTime; }  // TODO(GG): check usage....
 

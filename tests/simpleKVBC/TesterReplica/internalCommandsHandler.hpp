@@ -24,6 +24,7 @@
 #include <chrono>
 #include <thread>
 #include "skvbc_messages.cmf.hpp"
+#include "SimpleClient.hpp"
 
 static const std::string VERSIONED_KV_CAT_ID{"replica_tester_versioned_kv_category"};
 static const std::string BLOCK_MERKLE_CAT_ID{"replica_tester_block_merkle_category"};
@@ -44,40 +45,41 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
   void setPerformanceManager(std::shared_ptr<concord::performance::PerformanceManager> perfManager) override;
 
  private:
-  bool executeWriteCommand(uint32_t requestSize,
-                           const char *request,
-                           uint64_t sequenceNum,
-                           uint8_t flags,
-                           size_t maxReplySize,
-                           char *outReply,
-                           uint32_t &outReplySize,
-                           bool isBlockAccumulationEnabled,
-                           concord::kvbc::categorization::VersionedUpdates &blockAccumulatedVerUpdates,
-                           concord::kvbc::categorization::BlockMerkleUpdates &blockAccumulatedMerkleUpdates);
+  bftEngine::OperationResult executeWriteCommand(
+      uint32_t requestSize,
+      const char *request,
+      uint64_t sequenceNum,
+      uint8_t flags,
+      size_t maxReplySize,
+      char *outReply,
+      uint32_t &outReplySize,
+      bool isBlockAccumulationEnabled,
+      concord::kvbc::categorization::VersionedUpdates &blockAccumulatedVerUpdates,
+      concord::kvbc::categorization::BlockMerkleUpdates &blockAccumulatedMerkleUpdates);
 
-  bool executeReadOnlyCommand(uint32_t requestSize,
-                              const char *request,
-                              size_t maxReplySize,
-                              char *outReply,
-                              uint32_t &outReplySize,
-                              uint32_t &specificReplicaInfoOutReplySize);
+  bftEngine::OperationResult executeReadOnlyCommand(uint32_t requestSize,
+                                                    const char *request,
+                                                    size_t maxReplySize,
+                                                    char *outReply,
+                                                    uint32_t &outReplySize,
+                                                    uint32_t &specificReplicaInfoOutReplySize);
 
-  bool verifyWriteCommand(uint32_t requestSize,
-                          const uint8_t *request,
-                          size_t maxReplySize,
-                          uint32_t &outReplySize) const;
+  bftEngine::OperationResult verifyWriteCommand(uint32_t requestSize,
+                                                const uint8_t *request,
+                                                size_t maxReplySize,
+                                                uint32_t &outReplySize) const;
 
-  bool executeReadCommand(const skvbc::messages::SKVBCReadRequest &request,
-                          size_t maxReplySize,
-                          char *outReply,
-                          uint32_t &outReplySize);
+  bftEngine::OperationResult executeReadCommand(const skvbc::messages::SKVBCReadRequest &request,
+                                                size_t maxReplySize,
+                                                char *outReply,
+                                                uint32_t &outReplySize);
 
-  bool executeGetBlockDataCommand(const skvbc::messages::SKVBCGetBlockDataRequest &request,
-                                  size_t maxReplySize,
-                                  char *outReply,
-                                  uint32_t &outReplySize);
+  bftEngine::OperationResult executeGetBlockDataCommand(const skvbc::messages::SKVBCGetBlockDataRequest &request,
+                                                        size_t maxReplySize,
+                                                        char *outReply,
+                                                        uint32_t &outReplySize);
 
-  bool executeGetLastBlockCommand(size_t maxReplySize, char *outReply, uint32_t &outReplySize);
+  bftEngine::OperationResult executeGetLastBlockCommand(size_t maxReplySize, char *outReply, uint32_t &outReplySize);
 
   void addMetadataKeyValue(concord::kvbc::categorization::VersionedUpdates &updates, uint64_t sequenceNum) const;
 

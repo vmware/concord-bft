@@ -11,16 +11,15 @@
 // file.
 
 #include "RequestHandler.h"
-#include <optional>
-#include <sstream>
-
 #include "bftengine/KeyExchangeManager.hpp"
 #include "SigManager.hpp"
-
 #include <ccron/cron_table_registry.hpp>
 #include "ccron_msgs.cmf.hpp"
 #include "db_checkpoint_msg.cmf.hpp"
 #include "DbCheckpointManager.hpp"
+#include "SimpleClient.hpp"
+#include <optional>
+#include <sstream>
 
 using concord::messages::ReconfigurationRequest;
 using concord::messages::ReconfigurationResponse;
@@ -44,7 +43,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
         LOG_ERROR(KEY_EX_LOG, "KEY_EXCHANGE response is too large, response " << resp);
         req.outActualReplySize = 0;
       }
-      req.outExecutionStatus = 0;
+      req.outExecutionStatus = SUCCESS;
     } else if (req.flags & MsgFlag::RECONFIG_FLAG) {
       ReconfigurationRequest rreq;
       deserialize(std::vector<std::uint8_t>(req.request, req.request + req.requestSize), rreq);
@@ -87,7 +86,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
           req.outActualReplySize = 0;
         }
       }
-      req.outExecutionStatus = 0;  // stop further processing of this request
+      req.outExecutionStatus = SUCCESS;  // stop further processing of this request
       // Don't continue to process requests after pruning (in case we run in async pruning mode)
       if (std::holds_alternative<concord::messages::PruneRequest>(rreq.command)) return;
     } else if (req.flags & TICK_FLAG) {
@@ -97,12 +96,10 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
       req.outReply[0] = '\0';
       req.outReplicaSpecificInfoSize = 0;
 
-      // Default is success (0).
-      req.outExecutionStatus = 0;
-
+      req.outExecutionStatus = SUCCESS;
       if (req.flags & READ_ONLY_FLAG) {
         LOG_WARN(GL, "Received a read-only Tick, ignoring");
-        req.outExecutionStatus = 1;
+        req.outExecutionStatus = UNKNOWN;
       } else if (cron_table_registry_) {
         using namespace concord::cron;
         auto payload = ClientReqMsgTickPayload{};
@@ -112,7 +109,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
         (*cron_table_registry_)[payload.component_id].evaluate(tick);
       } else {
         LOG_WARN(GL, "Received a Tick, but the cron table registry is not initialized");
-        req.outExecutionStatus = 2;
+        req.outExecutionStatus = INTERNAL_ERROR;
       }
     } else if (req.flags & MsgFlag::DB_CHECKPOINT_FLAG) {
       concord::messages::db_checkpoint_msg::CreateDbCheckpoint createDbChkPtMsg;
@@ -130,22 +127,22 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
       // Backward compatible with read only flag prior BC-5126
       req.flags = READ_ONLY_FLAG;
     }
-    // Replicas can publish an object e.g public_keys, configuration file, etc
+    // Replicas can publish an object e.g. public_keys, configuration file, etc.
     // this object pass consensus, and replicas can perform action against is as:
     // - validated that is equal to the object that is stored in memory of the replica.
     // - save it to reserved pages.
     // - proxy it to the application command handler.
     if (req.flags & bftEngine::MsgFlag::CLIENTS_PUB_KEYS_FLAG) {
-      std::string recieved_keys(req.request, req.requestSize);
+      std::string received_keys(req.request, req.requestSize);
       std::optional<std::string> bootstrap_keys;
       if (req.flags & bftEngine::MsgFlag::PUBLISH_ON_CHAIN_OBJECT_FLAG) {
-        LOG_INFO(KEY_EX_LOG, "Recieved initial publish clients keys request");
+        LOG_INFO(KEY_EX_LOG, "Received initial publish clients keys request");
         bootstrap_keys = impl::SigManager::instance()->getClientsPublicKeys();
       } else {
-        LOG_INFO(KEY_EX_LOG, "Recieved publish clients keys request");
+        LOG_INFO(KEY_EX_LOG, "Received publish clients keys request");
       }
-      impl::KeyExchangeManager::instance().onPublishClientsKeys(recieved_keys, bootstrap_keys);
-      req.outExecutionStatus = 0;
+      impl::KeyExchangeManager::instance().onPublishClientsKeys(received_keys, bootstrap_keys);
+      req.outExecutionStatus = SUCCESS;
       req.outReply[0] = '1';
       req.outActualReplySize = 1;
     }
