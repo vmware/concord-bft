@@ -162,9 +162,9 @@ void KeyExchangeManager::exchangeTlsKeys(const std::string& type, uint64_t bft_s
     ec_f.close();
   }
 
-  concord::secretsmanager::SecretsManagerPlain psm_;
+  concord::secretsmanager::SecretsManagerPlain psm;
   // 2. exchange the certificate itself
-  psm_.encryptFile(cert_path, cert);
+  psm.encryptFile(cert_path, cert);
 
   if (type == "client") return;
   auto repId = bftEngine::ReplicaConfig::instance().replicaId;
