@@ -84,7 +84,7 @@ class IAppState {
   // Get a block (asynchronously)
   // An asynchronous version for the above getBlock.
   // For a given blockId, a job is invoked asynchronously, to get the block from storage and fill outBlock and
-  // outBlockActualSize. After job is created, this call returns immidiately with a future<bool>, while job is executed
+  // outBlockActualSize. After job is created, this call returns immediately with a future<bool>, while job is executed
   // by a separate worker thread. Before accesing buffer and size, user must call the returned future.get() to make sure
   // that job has been done. User should 1st check the future value: if true - block exist and outBlock,
   // outBlockActualSize are valid if false - block does not exist, all output should be ignored. If outBlockMaxSize is
@@ -115,8 +115,8 @@ class IAppState {
   // Add a block (asynchronously)
   // An asynchronous version for the above putBlock.
   // For a given blockId, a job is invoked asynchronously, to put the block into storage.
-  // After job is created, this call returns immidiately with a future<bool>, while job is executed by a
-  // seperate worker thread. Before accesing buffer and size, user must call the returned future.get() to make sure that
+  // After job is created, this call returns immediately with a future<bool>, while job is executed by a
+  // separate worker thread. Before accesing buffer and size, user must call the returned future.get() to make sure that
   // job has been done.
   // All exceptions in putBlock are caught within this call implementation.
   // Returns true if operation succeeded.
@@ -136,7 +136,7 @@ class IAppState {
   virtual uint64_t getLastBlockNum() const = 0;
 
   // Perform post-processing operations on all blocks until (and include) maxBlockId
-  // If those operations have already been done, function should do nothnig and return
+  // If those operations have already been done, function should do nothing and return
   virtual void postProcessUntilBlockId(uint64_t maxBlockId) = 0;
 
   // When the state is updated by the application, getLastReachableBlockNum()

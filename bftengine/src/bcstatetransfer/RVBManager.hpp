@@ -51,17 +51,20 @@ class RVBManager {
   // Called during checkpoint summaries stage by destination
   void setRvbData(std::shared_ptr<char> data, size_t data_size);
 
-  // Called during ST GettingMissingBlocks by source
-  // TODO - use RVTGroupId
-  std::vector<char> getRvbGroup(BlockId from_block_id, BlockId to_block_id) const;
+  // Called during ST GettingMissingBlocks by source when received FetchBlocksMsg with rvb_group_id != 0
+  // Returns number of bytes filled
+  size_t getSerializedRvbGroup(int64_t rvb_group_id, char* buff, size_t buff_max_size) const;
 
   // Called during ST GettingMissingBlocks by destination
-  // TODO - consider return a bool on failure. alternative - throw and exception
-  void setRvbGroup(std::shared_ptr<char> data, size_t data_size);
-  const STDigest& getDigestFromRvbGroup(BlockId block_id) const;
+  bool setSerializedRvbGroup(char* data, size_t data_size);
+  std::optional<std::reference_wrapper<const STDigest>> getDigestFromRvbGroup(BlockId block_id) const;
+
+  // This one should be called during FetchBlocksMsg by dest.
+  // If returned value is 0, no RVB group should be requested when sending FetchBlocksMsg
+  int64_t getRvbGroupId(BlockId from_block_id, BlockId to_block_id) const;
 
   // TODO - there is one case in PruningHandler::pruneThroughBlockId that might be not covered by this callback
-  // This call is called by different thread context. It must b called that way to save and persist pruned blocks
+  // This one is called by different thread context. It must b called that way to save and persist pruned blocks
   // digests
   void reportLastAgreedPrunableBlockId(BlockId lastAgreedPrunableBlockId);
 

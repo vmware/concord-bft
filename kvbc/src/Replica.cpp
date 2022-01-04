@@ -366,6 +366,12 @@ BlockId Replica::deleteBlocksUntil(BlockId until) {
     throw std::invalid_argument{"Invalid 'until' value passed to deleteBlocksUntil()"};
   }
 
+  // Inform State Transfer. We better do it in this thread context for persistency, and in this layer to lower the
+  // chance for critical bugs (multiple callers to this function) Current registration mechanism is insefficient
+  if (m_stateTransfer && m_stateTransfer->isRunning()) {
+    m_stateTransfer->reportLastAgreedPrunableBlockId(until);
+  }
+
   const auto lastReachableBlock = m_kvBlockchain->getLastReachableBlockId();
   const auto lastDeletedBlock = std::min(lastReachableBlock, until - 1);
   const auto start = std::chrono::steady_clock::now();
@@ -476,8 +482,8 @@ Replica::Replica(ICommunication *comm,
     replicaConfig_.getsizeOfReservedPage(),
     replicaConfig_.get<uint32_t>("concord.bft.st.gettingMissingBlocksSummaryWindowSize", 600),
     replicaConfig_.get<uint16_t>("concord.bft.st.minPrePrepareMsgsForPrimaryAwarness", 10),
-    replicaConfig_.get<uint32_t>("concord.bft.st.fetchRangeSize", 3),
-    replicaConfig_.get<uint32_t>("concord.bft.st.RVT_K", 4),
+    replicaConfig_.get<uint32_t>("concord.bft.st.fetchRangeSize", 512),
+    replicaConfig_.get<uint32_t>("concord.bft.st.RVT_K", 1024),
     replicaConfig_.get<uint32_t>("concord.bft.st.refreshTimerMs", 300),
     replicaConfig_.get<uint32_t>("concord.bft.st.checkpointSummariesRetransmissionTimeoutMs", 2500),
     replicaConfig_.get<uint32_t>("concord.bft.st.maxAcceptableMsgDelayMs", 60000),
