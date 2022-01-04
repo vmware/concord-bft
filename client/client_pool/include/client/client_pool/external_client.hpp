@@ -93,7 +93,7 @@ class ConcordClient {
                          uint32_t max_reply_size,
                          size_t batch_size);
   static void setDelayFlagForTest(bool delay);
-  shared::OperationResult getClientRequestError();
+  bftEngine::OperationResult getClientRequestError();
   ConcordClient(ConcordClient&& t) = delete;
 
  private:
@@ -124,7 +124,7 @@ class ConcordClient {
   PendingReplies pending_replies_;
   size_t batching_buffer_reply_offset_ = 0UL;
   static bool delayed_behaviour_;
-  shared::OperationResult clientRequestError_;
+  bftEngine::OperationResult clientRequestError_;
 };
 
 }  // namespace external_client

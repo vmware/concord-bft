@@ -21,7 +21,6 @@
 namespace {
 using namespace bftEngine::impl;
 using namespace bftEngine;
-using namespace shared;
 using namespace preprocessor;
 
 class PreProcessReplyMsgTestFixture : public testing::Test {

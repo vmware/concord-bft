@@ -21,7 +21,6 @@
 
 using concord::messages::ReconfigurationRequest;
 using concord::messages::ReconfigurationResponse;
-using namespace shared;
 
 namespace bftEngine {
 

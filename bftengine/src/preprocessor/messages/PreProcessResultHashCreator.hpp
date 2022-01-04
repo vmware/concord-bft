@@ -20,12 +20,12 @@ class PreProcessResultHashCreator {
  public:
   static concord::util::SHA3_256::Digest create(const char* preProcessResultData,
                                                 uint32_t preProcessResultLen,
-                                                shared::OperationResult preProcessResult,
+                                                bftEngine::OperationResult preProcessResult,
                                                 uint16_t clientId,
                                                 ReqId reqSeqNum) {
     auto dataDigest = concord::util::SHA3_256();
     dataDigest.init();
-    if (preProcessResult == shared::OperationResult::SUCCESS)
+    if (preProcessResult == bftEngine::OperationResult::SUCCESS)
       dataDigest.update(preProcessResultData, preProcessResultLen);
     dataDigest.update(&preProcessResult, sizeof(preProcessResult));
     dataDigest.update(&clientId, sizeof(clientId));

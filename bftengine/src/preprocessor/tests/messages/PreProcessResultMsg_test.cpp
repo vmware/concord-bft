@@ -21,7 +21,6 @@
 namespace {
 using namespace bftEngine::impl;
 using namespace bftEngine;
-using namespace shared;
 using namespace preprocessor;
 
 bftEngine::ReplicaConfig& createReplicaConfigWithExtClient(uint16_t fVal,

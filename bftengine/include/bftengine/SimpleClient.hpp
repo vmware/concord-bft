@@ -67,7 +67,7 @@ struct ClientReply {
   uint32_t lengthOfReplyBuffer = 0;
   char* replyBuffer = nullptr;
   uint32_t actualReplyLength = 0;
-  shared::OperationResult opResult = shared::OperationResult::SUCCESS;
+  bftEngine::OperationResult opResult = bftEngine::OperationResult::SUCCESS;
   std::string cid;
   std::string span_context;
   RequestCallBack cb = {};
@@ -103,21 +103,21 @@ class SimpleClient {
 
   virtual ~SimpleClient();
 
-  virtual shared::OperationResult sendRequest(uint8_t flags,
-                                              const char* request,
-                                              uint32_t lengthOfRequest,
-                                              uint64_t reqSeqNum,
-                                              uint64_t timeoutMilli,
-                                              uint32_t lengthOfReplyBuffer,
-                                              char* replyBuffer,
-                                              uint32_t& actualReplyLength,
-                                              const std::string& cid = "",
-                                              const std::string& spanContext = "") = 0;
+  virtual bftEngine::OperationResult sendRequest(uint8_t flags,
+                                                 const char* request,
+                                                 uint32_t lengthOfRequest,
+                                                 uint64_t reqSeqNum,
+                                                 uint64_t timeoutMilli,
+                                                 uint32_t lengthOfReplyBuffer,
+                                                 char* replyBuffer,
+                                                 uint32_t& actualReplyLength,
+                                                 const std::string& cid = "",
+                                                 const std::string& spanContext = "") = 0;
 
   // To be used only for write requests
-  virtual shared::OperationResult sendBatch(const std::deque<ClientRequest>& clientRequests,
-                                            std::deque<ClientReply>& clientReplies,
-                                            const std::string& batchCid) = 0;
+  virtual bftEngine::OperationResult sendBatch(const std::deque<ClientRequest>& clientRequests,
+                                               std::deque<ClientReply>& clientReplies,
+                                               const std::string& batchCid) = 0;
 
   void setAggregator(const std::shared_ptr<concordMetrics::Aggregator>& aggregator) {
     if (aggregator) metrics_.SetAggregator(aggregator);

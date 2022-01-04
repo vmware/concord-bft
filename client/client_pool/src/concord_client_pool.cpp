@@ -27,7 +27,6 @@ namespace concord::concord_client_pool {
 
 using bftEngine::ClientMsgFlag;
 using namespace bftEngine;
-using namespace shared;
 
 static inline const std::string kEmptySpanContext = std::string("");
 

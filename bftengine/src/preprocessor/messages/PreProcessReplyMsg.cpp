@@ -19,7 +19,6 @@ namespace preprocessor {
 using namespace std;
 using namespace concord::util;
 using namespace bftEngine;
-using namespace shared;
 using namespace bftEngine::impl;
 
 // maxReplyMsgSize_ = sizeof(Header) + sizeof(signature) + cid.size(), i.e 58 + 256 + up to 710 bytes of cid

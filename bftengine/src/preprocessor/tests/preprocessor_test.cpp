@@ -28,7 +28,6 @@
 using namespace std;
 using namespace bft::communication;
 using namespace bftEngine;
-using namespace shared;
 using namespace preprocessor;
 
 namespace {
