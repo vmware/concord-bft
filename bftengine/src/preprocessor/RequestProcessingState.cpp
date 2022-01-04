@@ -18,6 +18,7 @@ namespace preprocessor {
 
 using namespace std;
 using namespace bftEngine;
+using namespace shared;
 using namespace chrono;
 using namespace concord::util;
 using namespace concord::kvbc::sparse_merkle;
@@ -96,7 +97,7 @@ void RequestProcessingState::handlePrimaryPreProcessed(const char *preProcessRes
                                                        OperationResult preProcessResult) {
   preprocessingRightNow_ = false;
   primaryPreProcessResult_ = preProcessResult;
-  if (preProcessResult == SUCCESS) {
+  if (preProcessResult == OperationResult::SUCCESS) {
     primaryPreProcessResultData_ = preProcessResultData;
     primaryPreProcessResultLen_ = preProcessResultLen;
   }
@@ -105,7 +106,7 @@ void RequestProcessingState::handlePrimaryPreProcessed(const char *preProcessRes
 
   // In case the pre-processing failed on the primary replica, fill primaryPreProcessResultData_ by the result-related
   // information.
-  if (preProcessResult != SUCCESS) setupPreProcessResultData(preProcessResult);
+  if (preProcessResult != OperationResult::SUCCESS) setupPreProcessResultData(preProcessResult);
   auto sm = SigManager::instance();
   std::vector<char> sig(sm->getMySigLength());
   sm->sign(reinterpret_cast<const char *>(primaryPreProcessResultHash_.data()),
@@ -211,8 +212,8 @@ std::pair<std::string, concord::util::SHA3_256::Digest> RequestProcessingState::
   memcpy(modifiedResult.data() + modifiedResult.size() - sizeof(uint64_t),
          reinterpret_cast<char *>(&blockId),
          sizeof(uint64_t));
-  auto modifiedHash =
-      PreProcessResultHashCreator::create(modifiedResult.data(), modifiedResult.size(), SUCCESS, clientId_, reqSeqNum_);
+  auto modifiedHash = PreProcessResultHashCreator::create(
+      modifiedResult.data(), modifiedResult.size(), OperationResult::SUCCESS, clientId_, reqSeqNum_);
   if (other == modifiedHash) {
     LOG_INFO(logger(), "Primary hash is different from quorum due to mismatch in block id" << KVLOG(reqSeqNum_));
     return {modifiedResult, modifiedHash};
@@ -261,23 +262,25 @@ PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult()
   if (maxNumOfEqualHashes >= numOfRequiredEqualReplies_) {
     agreedPreProcessResult_ = itOfChosenHash->second.front().getPreProcessResult();
     if (itOfChosenHash->first == primaryPreProcessResultHash_) {
-      if (agreedPreProcessResult_ != SUCCESS)
-        LOG_INFO(logger(), "The replicas agreed on an error execution result:" << KVLOG(agreedPreProcessResult_));
+      if (agreedPreProcessResult_ != OperationResult::SUCCESS)
+        LOG_INFO(logger(),
+                 "The replicas agreed on an error execution result:"
+                     << KVLOG(static_cast<uint32_t>(agreedPreProcessResult_)));
       return COMPLETE;  // Pre-execution consensus reached
     }
-    if (primaryPreProcessResult_ == SUCCESS && agreedPreProcessResult_ != SUCCESS) {
+    if (primaryPreProcessResult_ == OperationResult::SUCCESS && agreedPreProcessResult_ != OperationResult::SUCCESS) {
       // The pre-execution succeeded on a primary replica while failed on non-primaries. The consensus for an error
       // execution result has been reached => update preProcess result data.
       updatePreProcessResultData(agreedPreProcessResult_);
       LOG_INFO(logger(),
                "The replicas (except the primary) agreed on an error execution result:"
-                   << KVLOG(agreedPreProcessResult_) << ", we are done");
+                   << KVLOG(static_cast<uint32_t>(agreedPreProcessResult_)) << ", we are done");
       return COMPLETE;
     }
     if (primaryPreProcessResultLen_ != 0 && !retrying_) {
       // A known scenario that can cause a mismatch, is due to rejection of the block id sent by the primary.
       // In this case the difference should be only the last 64 bits that encodes the `0` as the rejection value.
-      if (primaryPreProcessResult_ == SUCCESS) {
+      if (primaryPreProcessResult_ == OperationResult::SUCCESS) {
         const auto modifiedResult = detectFailureDueToBlockID(itOfChosenHash->first, 0);
         if (modifiedResult.first.size() > 0) {
           modifyPrimaryResult(modifiedResult);

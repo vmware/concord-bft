@@ -18,6 +18,7 @@
 namespace preprocessor {
 
 using namespace bftEngine;
+using namespace shared;
 
 PreProcessResultMsg::PreProcessResultMsg(NodeIdType sender,
                                          uint32_t preProcessResult,
@@ -116,7 +117,7 @@ std::string PreProcessResultSignature::serializeResultSignatureList(const std::l
 
   for (const auto& sig : sigs) {
     output.append(concordUtils::toBigEndianStringBuffer(sig.sender_replica));
-    output.append(concordUtils::toBigEndianStringBuffer<uint32_t>(sig.pre_process_result));
+    output.append(concordUtils::toBigEndianStringBuffer(static_cast<uint32_t>(sig.pre_process_result)));
     output.append(concordUtils::toBigEndianStringBuffer<uint32_t>(sig.signature.size()));
     output.append(sig.signature.begin(), sig.signature.end());
   }

@@ -21,6 +21,7 @@
 #include "Metrics.hpp"
 #include "communication/ICommunication.hpp"
 #include "PerformanceManager.hpp"
+#include "SharedTypes.hpp"
 #include "../../../bftclient/include/bftclient/base_types.h"
 
 namespace bftEngine {
@@ -46,18 +47,6 @@ enum ClientMsgFlag : uint8_t {
   EMPTY_CLIENT_REQ = 0x10,
 };
 
-enum OperationResult : uint32_t {
-  SUCCESS,
-  UNKNOWN,
-  INVALID_REQUEST,
-  NOT_READY,
-  TIMEOUT,
-  EXEC_DATA_TOO_LARGE,
-  EXEC_DATA_EMPTY,
-  CONFLICT_DETECTED,
-  INTERNAL_ERROR
-};
-
 // Call back for request - at this point we know for sure that a client is handling the request, so we can assure that
 // we will have reply. This callback will be attached to the client reply struct and whenever we get the reply from,
 // the bft client we will activate the callback.
@@ -78,7 +67,7 @@ struct ClientReply {
   uint32_t lengthOfReplyBuffer = 0;
   char* replyBuffer = nullptr;
   uint32_t actualReplyLength = 0;
-  OperationResult opResult = SUCCESS;
+  shared::OperationResult opResult = shared::OperationResult::SUCCESS;
   std::string cid;
   std::string span_context;
   RequestCallBack cb = {};
@@ -114,21 +103,21 @@ class SimpleClient {
 
   virtual ~SimpleClient();
 
-  virtual OperationResult sendRequest(uint8_t flags,
-                                      const char* request,
-                                      uint32_t lengthOfRequest,
-                                      uint64_t reqSeqNum,
-                                      uint64_t timeoutMilli,
-                                      uint32_t lengthOfReplyBuffer,
-                                      char* replyBuffer,
-                                      uint32_t& actualReplyLength,
-                                      const std::string& cid = "",
-                                      const std::string& spanContext = "") = 0;
+  virtual shared::OperationResult sendRequest(uint8_t flags,
+                                              const char* request,
+                                              uint32_t lengthOfRequest,
+                                              uint64_t reqSeqNum,
+                                              uint64_t timeoutMilli,
+                                              uint32_t lengthOfReplyBuffer,
+                                              char* replyBuffer,
+                                              uint32_t& actualReplyLength,
+                                              const std::string& cid = "",
+                                              const std::string& spanContext = "") = 0;
 
   // To be used only for write requests
-  virtual OperationResult sendBatch(const std::deque<ClientRequest>& clientRequests,
-                                    std::deque<ClientReply>& clientReplies,
-                                    const std::string& batchCid) = 0;
+  virtual shared::OperationResult sendBatch(const std::deque<ClientRequest>& clientRequests,
+                                            std::deque<ClientReply>& clientReplies,
+                                            const std::string& batchCid) = 0;
 
   void setAggregator(const std::shared_ptr<concordMetrics::Aggregator>& aggregator) {
     if (aggregator) metrics_.SetAggregator(aggregator);

@@ -29,8 +29,8 @@
 #include "PreProcessorRecorder.hpp"
 #include "diagnostics.h"
 #include "PerformanceManager.hpp"
-#include "SimpleClient.hpp"
-#include <RollingAvgAndVar.hpp>
+#include "RollingAvgAndVar.hpp"
+#include "SharedTypes.hpp"
 #include "GlobalData.hpp"
 
 // TODO[TK] till boost upgrade
@@ -216,8 +216,8 @@ class PreProcessor {
                                       bool isPrimary,
                                       bool isRetry,
                                       TimeRecorder &&totalPreExecDurationRecorder = TimeRecorder());
-  bftEngine::OperationResult launchReqPreProcessing(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
-                                                    uint32_t &resultLen);
+  shared::OperationResult launchReqPreProcessing(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
+                                                 uint32_t &resultLen);
   void handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                  const std::string &batchCid,
                                  bool isPrimary,
@@ -228,24 +228,24 @@ class PreProcessor {
                                          uint64_t reqRetryId,
                                          uint32_t resBufLen,
                                          const std::string &cid,
-                                         bftEngine::OperationResult preProcessResult);
+                                         shared::OperationResult preProcessResult);
   void handleReqPreProcessedByPrimary(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                       const std::string &batchCid,
                                       uint16_t clientId,
                                       uint32_t resultBufLen,
-                                      bftEngine::OperationResult preProcessResult);
+                                      shared::OperationResult preProcessResult);
   void handlePreProcessedReqPrimaryRetry(NodeIdType clientId,
                                          uint16_t reqOffsetInBatch,
                                          uint32_t resultBufLen,
                                          const std::string &batchCid,
-                                         bftEngine::OperationResult preProcessResult);
+                                         shared::OperationResult preProcessResult);
   void finalizePreProcessing(NodeIdType clientId, uint16_t reqOffsetInBatch, const std::string &batchCid = "");
   void cancelPreProcessing(NodeIdType clientId, const std::string &batchCid, uint16_t reqOffsetInBatch);
   void setPreprocessingRightNow(uint16_t clientId, uint16_t reqOffsetInBatch, bool set);
   PreProcessingResult handlePreProcessedReqByPrimaryAndGetConsensusResult(uint16_t clientId,
                                                                           uint16_t reqOffsetInBatch,
                                                                           uint32_t resultBufLen,
-                                                                          bftEngine::OperationResult preProcessResult);
+                                                                          shared::OperationResult preProcessResult);
   void handlePreProcessReplyMsg(const std::string &cid,
                                 PreProcessingResult result,
                                 NodeIdType clientId,

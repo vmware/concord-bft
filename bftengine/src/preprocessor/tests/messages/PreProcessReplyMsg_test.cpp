@@ -21,6 +21,7 @@
 namespace {
 using namespace bftEngine::impl;
 using namespace bftEngine;
+using namespace shared;
 using namespace preprocessor;
 
 class PreProcessReplyMsgTestFixture : public testing::Test {
@@ -59,7 +60,7 @@ TEST_F(PreProcessReplyMsgTestFixture, verifyMessageParameters) {
   const uint32_t preProcessResultBufLen = sizeof(preProcessResultBuf);
   const std::string& cid = "abcdef1";
   const ReplyStatus status = STATUS_FAILED;
-  const OperationResult opResult = EXEC_DATA_TOO_LARGE;
+  const OperationResult opResult = OperationResult::EXEC_DATA_TOO_LARGE;
   auto preProcessReplyMsg = PreProcessReplyMsg(senderId,
                                                clientId,
                                                reqOffsetInBatch,
@@ -76,7 +77,7 @@ TEST_F(PreProcessReplyMsgTestFixture, verifyMessageParameters) {
   EXPECT_EQ(reqSeqNum, preProcessReplyMsg.reqSeqNum());
   EXPECT_EQ(reqRetryId, preProcessReplyMsg.reqRetryId());
   EXPECT_EQ(cid, preProcessReplyMsg.getCid());
-  EXPECT_EQ(status, preProcessReplyMsg.status());
+  EXPECT_EQ(status, static_cast<uint32_t>(preProcessReplyMsg.status()));
   EXPECT_EQ(opResult, preProcessReplyMsg.preProcessResult());
   clearDiagnosticsHandlers();
 }
@@ -92,7 +93,7 @@ TEST_F(PreProcessReplyMsgTestFixture, getResultHashSignature) {
   const uint32_t preProcessResultBufLen = sizeof(preProcessResultBuf);
   const std::string& cid = "";
   const ReplyStatus status = STATUS_GOOD;
-  const OperationResult opResult = SUCCESS;
+  const OperationResult opResult = OperationResult::SUCCESS;
   auto preProcessReplyMsg = PreProcessReplyMsg(senderId,
                                                clientId,
                                                reqOffsetInBatch,

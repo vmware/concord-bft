@@ -28,6 +28,7 @@
 using namespace std;
 using namespace bft::communication;
 using namespace bftEngine;
+using namespace shared;
 using namespace preprocessor;
 
 namespace {
@@ -71,7 +72,7 @@ class DummyRequestsHandler : public IRequestsHandler {
                concordUtils::SpanWrapper& parent_span) override {
     for (auto& req : requests) {
       req.outActualReplySize = 256;
-      req.outExecutionStatus = SUCCESS;
+      req.outExecutionStatus = static_cast<uint32_t>(OperationResult::SUCCESS);
     }
   }
 };
@@ -379,10 +380,10 @@ TEST(requestPreprocessingState_test, notEnoughRepliesReceived) {
                                   PreProcessRequestMsgSharedPtr());
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   for (auto i = 1; i < numOfRequiredReplies - 1; i++) {
-    reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo, STATUS_GOOD, SUCCESS));
+    reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo, STATUS_GOOD, OperationResult::SUCCESS));
     ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), CONTINUE);
   }
-  reqState.handlePrimaryPreProcessed(buf, bufLen, SUCCESS);
+  reqState.handlePrimaryPreProcessed(buf, bufLen, OperationResult::SUCCESS);
   ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), CONTINUE);
   clearDiagnosticsHandlers();
 }
@@ -400,15 +401,15 @@ TEST(requestPreprocessingState_test, filterDuplication) {
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   auto numReplicas = 3;
   for (auto i = 1; i < numReplicas; i++) {
-    reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo, STATUS_GOOD, SUCCESS));
+    reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo, STATUS_GOOD, OperationResult::SUCCESS));
   }
   ConcordAssertEQ(reqState.getNumOfReceivedReplicas(), numReplicas - 1);
   // try to add the same reply
   for (auto i = 1; i < numReplicas; i++) {
-    reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo, STATUS_GOOD, SUCCESS));
+    reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo, STATUS_GOOD, OperationResult::SUCCESS));
   }
   ConcordAssertEQ(reqState.getNumOfReceivedReplicas(), numReplicas - 1);
-  reqState.handlePreProcessReplyMsg(preProcessNonPrimary(numReplicas, repInfo, STATUS_GOOD, SUCCESS));
+  reqState.handlePreProcessReplyMsg(preProcessNonPrimary(numReplicas, repInfo, STATUS_GOOD, OperationResult::SUCCESS));
   ConcordAssertEQ(reqState.getNumOfReceivedReplicas(), numReplicas);
   clearDiagnosticsHandlers();
 }
@@ -425,10 +426,11 @@ TEST(requestPreprocessingState_test, notEnoughErrorRepliesReceived) {
                                   PreProcessRequestMsgSharedPtr());
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   for (auto i = 1; i < numOfRequiredReplies - 1; i++) {
-    reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo, STATUS_FAILED, EXEC_DATA_TOO_LARGE));
+    reqState.handlePreProcessReplyMsg(
+        preProcessNonPrimary(i, repInfo, STATUS_FAILED, OperationResult::EXEC_DATA_TOO_LARGE));
     ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), CONTINUE);
   }
-  reqState.handlePrimaryPreProcessed(buf, bufLen, EXEC_DATA_TOO_LARGE);
+  reqState.handlePrimaryPreProcessed(buf, bufLen, OperationResult::EXEC_DATA_TOO_LARGE);
   ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), CONTINUE);
   clearDiagnosticsHandlers();
 }
@@ -448,14 +450,14 @@ TEST(requestPreprocessingState_test, changePrimaryBlockId) {
                                   ClientPreProcessReqMsgUniquePtr(),
                                   PreProcessRequestMsgSharedPtr());
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
-  auto reply = preProcessNonPrimary(1, repInfo, STATUS_GOOD, SUCCESS);
+  auto reply = preProcessNonPrimary(1, repInfo, STATUS_GOOD, OperationResult::SUCCESS);
   for (auto i = 1; i < numOfRequiredReplies + 1; i++) {
-    reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo, STATUS_GOOD, SUCCESS));
+    reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo, STATUS_GOOD, OperationResult::SUCCESS));
     ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), CONTINUE);
   }
   // Set block id to other than the replicas
   memcpy(buf + bufLen - sizeof(uint64_t), reinterpret_cast<char*>(&primaryBlockId), sizeof(uint64_t));
-  reqState.handlePrimaryPreProcessed(buf, bufLen, SUCCESS);
+  reqState.handlePrimaryPreProcessed(buf, bufLen, OperationResult::SUCCESS);
 
   concord::util::SHA3_256::Digest replicasHash = *((concord::util::SHA3_256::Digest*)reply->resultsHash());
   ConcordAssertNE(replicasHash, reqState.getResultHash());
@@ -476,11 +478,11 @@ TEST(requestPreprocessingState_test, allRepliesReceivedButNotEnoughSameHashesCol
                                   PreProcessRequestMsgSharedPtr());
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   memset(buf, '5', bufLen);
-  reqState.handlePrimaryPreProcessed(buf, bufLen, SUCCESS);
+  reqState.handlePrimaryPreProcessed(buf, bufLen, OperationResult::SUCCESS);
   for (auto i = 1; i < replicaConfig.numReplicas; i++) {
     if (i != replicaConfig.numReplicas - 1) ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), CONTINUE);
     memset(buf, i, bufLen);
-    reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo, STATUS_GOOD, SUCCESS));
+    reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo, STATUS_GOOD, OperationResult::SUCCESS));
   }
   ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), CANCEL);
 }
@@ -496,10 +498,11 @@ TEST(requestPreprocessingState_test, primarySucceededWhileNonPrimariesFailed_For
                                   ClientPreProcessReqMsgUniquePtr(),
                                   PreProcessRequestMsgSharedPtr());
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
-  reqState.handlePrimaryPreProcessed(buf, bufLen, SUCCESS);
+  reqState.handlePrimaryPreProcessed(buf, bufLen, OperationResult::SUCCESS);
   for (auto i = 1; i < replicaConfig.numReplicas; i++) {
     if (i != replicaConfig.numReplicas - 1) ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), CONTINUE);
-    reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo, STATUS_FAILED, EXEC_DATA_TOO_LARGE));
+    reqState.handlePreProcessReplyMsg(
+        preProcessNonPrimary(i, repInfo, STATUS_FAILED, OperationResult::EXEC_DATA_TOO_LARGE));
   }
   ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), COMPLETE);
 }
@@ -518,9 +521,9 @@ TEST(requestPreprocessingState_test, enoughSameRepliesReceived) {
   memset(buf, '5', bufLen);
   for (auto i = 1; i <= numOfRequiredReplies; i++) {
     if (i != numOfRequiredReplies - 1) ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), CONTINUE);
-    reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo, STATUS_GOOD, SUCCESS));
+    reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo, STATUS_GOOD, OperationResult::SUCCESS));
   }
-  reqState.handlePrimaryPreProcessed(buf, bufLen, SUCCESS);
+  reqState.handlePrimaryPreProcessed(buf, bufLen, OperationResult::SUCCESS);
   ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), COMPLETE);
   clearDiagnosticsHandlers();
 }
@@ -537,15 +540,15 @@ TEST(requestPreprocessingState_test, primaryReplicaPreProcessingRetrySucceeds) {
                                   PreProcessRequestMsgSharedPtr());
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   memset(buf, '5', bufLen);
-  reqState.handlePrimaryPreProcessed(buf, bufLen, SUCCESS);
+  reqState.handlePrimaryPreProcessed(buf, bufLen, OperationResult::SUCCESS);
   for (auto i = 1; i <= numOfRequiredReplies; i++) {
     if (i != replicaConfig.numReplicas - 1) ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), CONTINUE);
     memset(buf, '4', bufLen);
-    reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo, STATUS_GOOD, SUCCESS));
+    reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo, STATUS_GOOD, OperationResult::SUCCESS));
   }
   ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), RETRY_PRIMARY);
   memset(buf, '4', bufLen);
-  reqState.handlePrimaryPreProcessed(buf, bufLen, SUCCESS);
+  reqState.handlePrimaryPreProcessed(buf, bufLen, OperationResult::SUCCESS);
   ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), COMPLETE);
 }
 
@@ -560,13 +563,13 @@ TEST(requestPreprocessingState_test, primaryFailedWhileNonPrimariesSucceeded_Suc
                                   ClientPreProcessReqMsgUniquePtr(),
                                   PreProcessRequestMsgSharedPtr());
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
-  reqState.handlePrimaryPreProcessed(buf, bufLen, EXEC_DATA_EMPTY);
+  reqState.handlePrimaryPreProcessed(buf, bufLen, OperationResult::EXEC_DATA_EMPTY);
   for (auto i = 1; i <= numOfRequiredReplies; i++) {
     if (i != replicaConfig.numReplicas - 1) ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), CONTINUE);
-    reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo, STATUS_GOOD, SUCCESS));
+    reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo, STATUS_GOOD, OperationResult::SUCCESS));
   }
   ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), RETRY_PRIMARY);
-  reqState.handlePrimaryPreProcessed(buf, bufLen, SUCCESS);
+  reqState.handlePrimaryPreProcessed(buf, bufLen, OperationResult::SUCCESS);
   ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), COMPLETE);
 }
 
@@ -584,9 +587,10 @@ TEST(requestPreprocessingState_test, enoughSameErrorRepliesReceived) {
   memset(buf, '5', bufLen);
   for (auto i = 1; i <= numOfRequiredReplies; i++) {
     if (i != numOfRequiredReplies - 1) ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), CONTINUE);
-    reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo, STATUS_FAILED, EXEC_DATA_TOO_LARGE));
+    reqState.handlePreProcessReplyMsg(
+        preProcessNonPrimary(i, repInfo, STATUS_FAILED, OperationResult::EXEC_DATA_TOO_LARGE));
   }
-  reqState.handlePrimaryPreProcessed(buf, bufLen, EXEC_DATA_TOO_LARGE);
+  reqState.handlePrimaryPreProcessed(buf, bufLen, OperationResult::EXEC_DATA_TOO_LARGE);
   ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), COMPLETE);
   clearDiagnosticsHandlers();
 }
@@ -602,10 +606,11 @@ TEST(requestPreprocessingState_test, primaryReplicaPreProcessingIsDifferentThanO
                                   ClientPreProcessReqMsgUniquePtr(),
                                   PreProcessRequestMsgSharedPtr());
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
-  reqState.handlePrimaryPreProcessed(buf, bufLen, SUCCESS);
+  reqState.handlePrimaryPreProcessed(buf, bufLen, OperationResult::SUCCESS);
   for (auto i = 1; i <= numOfRequiredReplies; i++) {
     if (i != replicaConfig.numReplicas - 1) ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), CONTINUE);
-    reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo, STATUS_FAILED, EXEC_DATA_TOO_LARGE));
+    reqState.handlePreProcessReplyMsg(
+        preProcessNonPrimary(i, repInfo, STATUS_FAILED, OperationResult::EXEC_DATA_TOO_LARGE));
   }
   ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), COMPLETE);
   clearDiagnosticsHandlers();
@@ -625,10 +630,10 @@ TEST(requestPreprocessingState_test, primaryReplicaDidNotCompletePreProcessingWh
   memset(buf, '5', bufLen);
   for (auto i = 1; i <= numOfRequiredReplies; i++) {
     if (i != replicaConfig.numReplicas - 1) ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), CONTINUE);
-    reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo, STATUS_GOOD, SUCCESS));
+    reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo, STATUS_GOOD, OperationResult::SUCCESS));
   }
   ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), CONTINUE);
-  reqState.handlePrimaryPreProcessed(buf, bufLen, SUCCESS);
+  reqState.handlePrimaryPreProcessed(buf, bufLen, OperationResult::SUCCESS);
   ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), COMPLETE);
 }
 
@@ -645,10 +650,11 @@ TEST(requestPreprocessingState_test, primaryReplicaDidNotCompleteErrorPreProcess
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
   for (auto i = 1; i <= numOfRequiredReplies; i++) {
     if (i != replicaConfig.numReplicas - 1) ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), CONTINUE);
-    reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo, STATUS_FAILED, EXEC_DATA_TOO_LARGE));
+    reqState.handlePreProcessReplyMsg(
+        preProcessNonPrimary(i, repInfo, STATUS_FAILED, OperationResult::EXEC_DATA_TOO_LARGE));
   }
   ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), CONTINUE);
-  reqState.handlePrimaryPreProcessed(buf, bufLen, EXEC_DATA_TOO_LARGE);
+  reqState.handlePrimaryPreProcessed(buf, bufLen, OperationResult::EXEC_DATA_TOO_LARGE);
   ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), COMPLETE);
 }
 
@@ -705,8 +711,16 @@ TEST(requestPreprocessingState_test, validatePreProcessBatchReplyMsg) {
   const auto senderId = 2;
   SigManager::instance(sigManager[senderId].get());
   for (uint i = 0; i < numOfMsgs; i++) {
-    auto preProcessReplyMsg = make_shared<PreProcessReplyMsg>(
-        senderId, clientId, i, reqSeqNum + i, i, buf, bufLen, cid + to_string(i + 1), STATUS_GOOD, SUCCESS);
+    auto preProcessReplyMsg = make_shared<PreProcessReplyMsg>(senderId,
+                                                              clientId,
+                                                              i,
+                                                              reqSeqNum + i,
+                                                              i,
+                                                              buf,
+                                                              bufLen,
+                                                              cid + to_string(i + 1),
+                                                              STATUS_GOOD,
+                                                              OperationResult::SUCCESS);
     batch.push_back(preProcessReplyMsg);
     overallRepliesSize += preProcessReplyMsg->size();
   }

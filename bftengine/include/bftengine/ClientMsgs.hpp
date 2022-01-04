@@ -35,7 +35,7 @@ struct ClientRequestMsgHeader {
   uint32_t spanContextSize = 0u;
   uint16_t idOfClientProxy = 0;  // TODO - rename - now used mostly as id of external client
   uint64_t flags = 0;            // bit 0 == isReadOnly, bit 1 = preProcess ...
-  uint32_t opResult = 0;         // SUCCESS
+  uint32_t result = 0;           // SUCCESS
   uint64_t reqSeqNum = 0;
   uint32_t requestLength = 0;
   uint64_t timeoutMilli = 0;
@@ -54,11 +54,9 @@ struct ClientReplyMsgHeader {
   uint32_t spanContextSize = 0u;
   uint16_t currentPrimaryId;
   uint64_t reqSeqNum;
-  uint32_t result;  // Request execution result
-
+  uint32_t result = 0;  // Request execution result; SUCCESS
   // Reply length is the total length of the reply, including any replica specific info.
   uint32_t replyLength;
-
   // This is the size of the replica specific information. If it is 0, there is no replica specific
   // information. The offset of the replica specific information from the start of the reply message
   // is `replyLength - replicaSpecificInfoLength`.

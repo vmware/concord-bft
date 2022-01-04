@@ -12,7 +12,7 @@
 #pragma once
 
 #include "messages/ClientRequestMsg.hpp"
-#include "SimpleClient.hpp"
+#include "SharedTypes.hpp"
 #include <list>
 
 namespace preprocessor {
@@ -61,11 +61,11 @@ class PreProcessResultMsg : public ClientRequestMsg {
 struct PreProcessResultSignature {
   std::vector<char> signature;
   NodeIdType sender_replica;
-  bftEngine::OperationResult pre_process_result;
+  shared::OperationResult pre_process_result;
 
   PreProcessResultSignature() = default;
 
-  PreProcessResultSignature(std::vector<char>&& sig, NodeIdType sender, bftEngine::OperationResult result)
+  PreProcessResultSignature(std::vector<char>&& sig, NodeIdType sender, shared::OperationResult result)
       : signature{std::move(sig)}, sender_replica{sender}, pre_process_result{result} {}
 
   bool operator==(const PreProcessResultSignature& rhs) const {
@@ -73,7 +73,7 @@ struct PreProcessResultSignature {
            pre_process_result == rhs.pre_process_result;
   }
 
-  const bftEngine::OperationResult getPreProcessResult() const { return pre_process_result; }
+  const shared::OperationResult getPreProcessResult() const { return pre_process_result; }
 
   static std::string serializeResultSignatureList(const std::list<PreProcessResultSignature>& sigs);
   static std::list<PreProcessResultSignature> deserializeResultSignatureList(const char* buf, size_t len);

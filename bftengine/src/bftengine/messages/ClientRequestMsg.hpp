@@ -38,7 +38,7 @@ class ClientRequestMsg : public MessageBase {
                    const char* request,
                    uint64_t reqTimeoutMilli,
                    const std::string& cid = "",
-                   uint32_t opResult = 0,  // SUCCESS
+                   uint32_t result = 0,  // SUCCESS
                    const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{},
                    const char* requestSignature = nullptr,
                    uint32_t requestSignatureLen = 0,
@@ -56,7 +56,7 @@ class ClientRequestMsg : public MessageBase {
 
   uint64_t flags() const { return msgBody()->flags; }
 
-  uint32_t opResult() const { return msgBody()->opResult; }
+  uint32_t result() const { return msgBody()->result; }
 
   ReqId requestSeqNum() const { return msgBody()->reqSeqNum; }
 
@@ -92,7 +92,7 @@ class ClientRequestMsg : public MessageBase {
                  uint32_t requestLength,
                  uint64_t flags,
                  uint64_t reqTimeoutMilli,
-                 uint32_t opResult,
+                 uint32_t result,
                  const std::string& cid,
                  uint32_t requestSignatureLen,
                  uint32_t extraBufSize);

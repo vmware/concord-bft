@@ -163,7 +163,7 @@ class ConcordClientPool {
 
   inline bool IsBatchingEnabled() { return client_batching_enabled_; }
 
-  bftEngine::OperationResult getClientsError();
+  shared::OperationResult getClientError();
 
  private:
   void setUpClientParams(bftEngine::SimpleClientParams& client_params,
