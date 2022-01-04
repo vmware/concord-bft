@@ -61,6 +61,7 @@
 #include "bftengine/EpochManager.hpp"
 #include "RequestThreadPool.hpp"
 #include "DbCheckpointManager.hpp"
+#include "communication/StateControl.hpp"
 
 #define getName(var) #var
 
@@ -4274,6 +4275,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
     sigManager_.reset(sigManager);
     viewsManager = viewsMgr;
   }
+  bft::communication::StateControl::instance().setGetPeerPubKeyMethod(
+      [&](uint32_t id) { return sigManager_->getPublicKeyOfVerifier(id); });
   // clients ids are assigned as follows:
   // - client proxies starting at a subsequent id of the last (ro-)replica
   // - external clients

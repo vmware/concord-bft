@@ -101,7 +101,6 @@ class ReplicaTLSKeyExchangeHandler : public IStateHandler {
                              std::to_string(sender_id) + "/client/client.cert";
     sm_.encryptFile(bft_replicas_cert_path, cert);
     LOG_INFO(GL, bft_replicas_cert_path + " is updated on the disk");
-    StateControl::instance().restartComm(sender_id);
     return succ;
   }
 
@@ -117,6 +116,7 @@ class InternalSigner : public concord::util::crypto::ISigner {
     return out;
   }
   uint32_t signatureLength() const override { return bftEngine::impl::SigManager::instance()->getMySigLength(); }
+  std::string getPrivKey() const override { return ""; }
 };
 
 class ScalingReplicaHandler : public IStateHandler {
@@ -196,7 +196,8 @@ std::shared_ptr<ClientReconfigurationEngine> CreFactory::create(std::shared_ptr<
   IStateClient* pbc = new PollBasedStateClient(bftClient, cre_config.interval_timeout_ms_, 0, cre_config.id_);
   auto cre =
       std::make_shared<ClientReconfigurationEngine>(cre_config, pbc, std::make_shared<concordMetrics::Aggregator>());
-  cre->registerHandler(std::make_shared<ReplicaTLSKeyExchangeHandler>());
+  if (bftEngine::ReplicaConfig::instance().isReadOnly)
+    cre->registerHandler(std::make_shared<ReplicaTLSKeyExchangeHandler>());
   if (!bftEngine::ReplicaConfig::instance().isReadOnly) cre->registerHandler(std::make_shared<ScalingReplicaHandler>());
   return cre;
 }

@@ -12,6 +12,7 @@
 
 #pragma once
 #include <functional>
+#include <utility>
 #include "callback_registry.hpp"
 namespace bft::communication {
 class StateControl {
@@ -29,9 +30,15 @@ class StateControl {
   }
 
   void restartComm(uint32_t id) { comm_restart_cb_registry_.invokeAll(id); }
+  void setGetPeerPubKeyMethod(std::function<std::string(uint32_t)> m) { get_peer_pub_key_ = std::move(m); }
+  std::string getPeerPubKey(uint32_t id) {
+    if (get_peer_pub_key_) return get_peer_pub_key_(id);
+    return std::string();
+  }
 
  private:
   std::mutex lock_comm_;
   concord::util::CallbackRegistry<uint32_t> comm_restart_cb_registry_;
+  std::function<std::string(uint32_t)> get_peer_pub_key_;
 };
 }  // namespace bft::communication

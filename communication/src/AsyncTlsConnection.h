@@ -171,10 +171,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
   // Check for a specific certificate and do not rely on chain authentication.
   //
   // Return true along with the actual node id if verification succeeds, (false, 0) if not.
-  std::pair<bool, NodeNum> checkCertificate(X509* cert,
-                                            std::string connectionType,
-                                            const std::string& subject,
-                                            std::optional<NodeNum> expected_peer_id);
+  std::pair<bool, NodeNum> checkCertificate(X509* received_cert, std::optional<NodeNum> expected_peer_id);
 
   const std::string decryptPrivateKey(const boost::filesystem::path& path);
 

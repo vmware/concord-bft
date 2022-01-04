@@ -28,7 +28,7 @@ typedef int64_t SeqNum;  // TODO [TK] redefinition
 
 class KeyExchangeManager {
  public:
-  void exchangeTlsKeys(const SeqNum&);
+  void exchangeTlsKeys(const SeqNum& bft_sn);
   // Generates and publish key to consensus
   void sendKeyExchange(const SeqNum&);
   // Generates and publish the first replica's key,
@@ -180,6 +180,7 @@ class KeyExchangeManager {
   std::string generateCid(std::string);
   // build cryptosystem
   void notifyRegistry();
+  void exchangeTlsKeys(const std::string& type, const SeqNum& bft_sn);
   /**
    * Samples periodically how many connections the replica has with other replicas.
    * returns when num of connections is (clusterSize - 1) i.e. full communication.

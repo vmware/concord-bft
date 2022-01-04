@@ -22,6 +22,8 @@
 #include "TlsWriteQueue.h"
 #include "secrets_manager_enc.h"
 #include "secrets_manager_plain.h"
+#include "crypto_utils.hpp"
+#include "communication/StateControl.hpp"
 
 namespace bft::communication::tls {
 
@@ -374,8 +376,7 @@ bool AsyncTlsConnection::verifyCertificateClient(asio::ssl::verify_context& ctx,
     LOG_WARN(logger_, "No certificate from server at node " << expected_dest_id);
     return false;
   }
-  X509_NAME_oneline(X509_get_subject_name(cert), subject.data(), 256);
-  auto [valid, _] = checkCertificate(cert, "server", subject, expected_dest_id);
+  auto [valid, _] = checkCertificate(cert, expected_dest_id);
   (void)_;  // unused variable hack
   return valid;
 }
@@ -384,103 +385,57 @@ bool AsyncTlsConnection::verifyCertificateServer(asio::ssl::verify_context& ctx)
   if (X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT != X509_STORE_CTX_get_error(ctx.native_handle())) {
     return false;
   }
-  static constexpr size_t SIZE = 512;
-  std::string subject(SIZE, 0);
   X509* cert = X509_STORE_CTX_get_current_cert(ctx.native_handle());
   if (!cert) {
     LOG_WARN(logger_, "No certificate from client");
     return false;
   }
-  X509_NAME_oneline(X509_get_subject_name(cert), subject.data(), SIZE);
-  auto [valid, peer_id] = checkCertificate(cert, "client", std::string(subject), std::nullopt);
+  auto [valid, peer_id] = checkCertificate(cert, std::nullopt);
   peer_id_ = peer_id;
   return valid;
 }
 
-std::pair<bool, NodeNum> AsyncTlsConnection::checkCertificate(X509* receivedCert,
-                                                              std::string connectionType,
-                                                              const std::string& subject,
-                                                              std::optional<NodeNum> expectedPeerId) {
-  // First, perform a basic sanity test, in order to eliminate a disk read if the certificate is
-  // unknown.
-  //
-  // The certificate must have a node id, as we put it in `OU` field on creation.
-  //
-  // Since we use pinning we must know who the remote peer is.
-  // `peerIdPrefixLength` stands for the length of 'OU=' substring
-  int peerIdPrefixLength = 3;
-  std::regex r("OU=\\d*", std::regex_constants::icase);
-  std::smatch sm;
-  regex_search(subject, sm, r);
-  if (sm.length() <= peerIdPrefixLength) {
-    LOG_WARN(logger_, "OU not found or empty: " << subject);
-    return std::make_pair(false, 0);
+std::pair<bool, NodeNum> AsyncTlsConnection::checkCertificate(X509* received_cert,
+                                                              std::optional<NodeNum> expected_peer_id) {
+  uint32_t peerId = UINT32_MAX;
+  std::string conn_type;
+  // (1) First, try to verify the certificate against the latest saved certificate
+  bool res = concord::util::crypto::CertificateUtils::verifyCertificate(
+      received_cert, config_.certificatesRootPath, peerId, conn_type);
+  if (expected_peer_id.has_value() && peerId != expected_peer_id.value()) return std::make_pair(false, peerId);
+  if (res) return std::make_pair(res, peerId);
+  LOG_INFO(logger_,
+           "Unable to validate certificate against the local storage, falling back to validate against the RSA "
+           "public key");
+  std::string pem_pub_key = StateControl::instance().getPeerPubKey(peerId);
+  if (pem_pub_key.empty()) return std::make_pair(false, peerId);
+  if (concord::util::crypto::Crypto::instance().getFormat(pem_pub_key) != concord::util::crypto::KeyFormat::PemFormat) {
+    pem_pub_key = concord::util::crypto::Crypto::instance()
+                      .RsaHexToPem(std::make_pair("", StateControl::instance().getPeerPubKey(peerId)))
+                      .second;
   }
+  // (2) Try to validate the certificate against the peer's public key
+  res = concord::util::crypto::CertificateUtils::verifyCertificate(received_cert, pem_pub_key);
+  if (!res) return std::make_pair(false, peerId);
 
-  auto remPeer = sm.str().substr(peerIdPrefixLength, sm.str().length() - peerIdPrefixLength);
-  if (0 == remPeer.length()) {
-    LOG_WARN(logger_, "OU empty " << subject);
-    return std::make_pair(false, 0);
+  // (3) If valid, exchange the stored certificate
+  BIO* outbio = BIO_new(BIO_s_mem());
+  if (!PEM_write_bio_X509(outbio, received_cert)) {
+    BIO_free(outbio);
+    return std::make_pair(false, peerId);
   }
-
-  NodeNum remotePeerId;
-  try {
-    remotePeerId = stoul(remPeer, nullptr);
-  } catch (const std::invalid_argument& ia) {
-    LOG_WARN(logger_, "cannot convert OU, " << subject << ", " << ia.what());
-    return std::make_pair(false, 0);
-  } catch (const std::out_of_range& e) {
-    LOG_WARN(logger_, "cannot convert OU, " << subject << ", " << e.what());
-    return std::make_pair(false, 0);
-  }
-
-  // If the server has been verified, check that the peers match.
-  if (expectedPeerId) {
-    if (remotePeerId != expectedPeerId) {
-      LOG_WARN(logger_, "Peers don't match, expected: " << expectedPeerId.value() << ", received: " << remPeer);
-      return std::make_pair(false, remotePeerId);
-    }
-  }
-
-  // the actual pinning - read the correct certificate from the disk and
-  // compare it to the received one
-  namespace fs = boost::filesystem;
-  fs::path path;
-  try {
-    path = fs::path(config_.certificatesRootPath) / std::to_string(remotePeerId) / connectionType /
-           std::string(connectionType + ".cert");
-  } catch (std::exception& e) {
-    LOG_FATAL(logger_, "Failed to construct filesystem path: " << e.what());
-    ConcordAssert(false);
-  }
-
-  auto deleter = [](FILE* fp) {
-    if (fp) fclose(fp);
-  };
-  std::unique_ptr<FILE, decltype(deleter)> fp(fopen(path.c_str(), "r"), deleter);
-  if (!fp) {
-    LOG_ERROR(logger_, "Certificate file not found, path: " << path);
-    return std::make_pair(false, remotePeerId);
-  }
-
-  X509* localCert = PEM_read_X509(fp.get(), NULL, NULL, NULL);
-  if (!localCert) {
-    LOG_ERROR(logger_, "Cannot parse certificate, path: " << path);
-    return std::make_pair(false, remotePeerId);
-  }
-
-  // this is actual comparison, compares hash of 2 certs
-  int res = X509_cmp(receivedCert, localCert);
-  X509_free(localCert);
-  if (res == 0) {
-    // We don't put a log message here, because it will be called for each cert in the chain, resulting in duplicates.
-    // Instead we log in onXXXHandshakeComplete callbacks it TlsTcpImpl.
-    return std::make_pair(true, remotePeerId);
-  }
-  LOG_WARN(logger_,
-           "X509_cmp failed at node: " << config_.selfId << ", type: " << connectionType << ", peer: " << remotePeerId
-                                       << " res=" << res);
-  return std::make_pair(false, remotePeerId);
+  std::string local_cert_path =
+      config_.certificatesRootPath + "/" + std::to_string(peerId) + "/" + conn_type + "/" + conn_type + ".cert";
+  std::string certStr;
+  int certLen = BIO_pending(outbio);
+  certStr.resize(certLen);
+  BIO_read(outbio, (void*)&(certStr.front()), certLen);
+  std::ofstream out(local_cert_path.data());
+  out << certStr;
+  out.close();
+  BIO_free(outbio);
+  LOG_INFO(logger_, "new certificate has been updated on local storage, peer: " << peerId);
+  return std::make_pair(res, peerId);
 }
 
 using namespace concord::secretsmanager;
