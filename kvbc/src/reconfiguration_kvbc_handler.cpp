@@ -337,7 +337,7 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientKeyExchangeSt
   }
   rres.response = stats;
   return true;
-}  // namespace concord::kvbc::reconfiguration
+}
 
 bool ReconfigurationHandler::handle(const concord::messages::WedgeCommand& command,
                                     uint64_t bft_seq_num,

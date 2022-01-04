@@ -395,49 +395,46 @@ bool AsyncTlsConnection::verifyCertificateServer(asio::ssl::verify_context& ctx)
   return valid;
 }
 
-std::pair<bool, NodeNum> AsyncTlsConnection::checkCertificate(X509* receivedCert,
-                                                              std::optional<NodeNum> expectedPeerId) {
+std::pair<bool, NodeNum> AsyncTlsConnection::checkCertificate(X509* received_cert,
+                                                              std::optional<NodeNum> expected_peer_id) {
   uint32_t peerId = UINT32_MAX;
   std::string conn_type;
+  // (1) First, try to verify the certificate against the latest saved certificate
   bool res = concord::util::crypto::CertificateUtils::verifyCertificate(
-      receivedCert, config_.certificatesRootPath, peerId, conn_type);
-  if (expectedPeerId.has_value() && peerId != expectedPeerId.value()) return std::make_pair(false, peerId);
-  if (!res) {
-    LOG_INFO(logger_,
-             "Unable to validate certificate against the local storage, falling back to validate against the RSA "
-             "public key");
-    std::string pem_pub_key = StateControl::instance().getPeerPubKey(peerId);
-    if (!pem_pub_key.empty()) {
-      if (concord::util::crypto::Crypto::instance().getFormat(pem_pub_key) !=
-          concord::util::crypto::KeyFormat::PemFormat) {
-        pem_pub_key = concord::util::crypto::Crypto::instance()
-                          .RsaHexToPem(std::make_pair("", StateControl::instance().getPeerPubKey(peerId)))
-                          .second;
-      }
-      res = concord::util::crypto::CertificateUtils::verifyCertificate(receivedCert, pem_pub_key);
-    }
-    if (res) {
-      // Exchanging the stored certificate
-      BIO* outbio = BIO_new(BIO_s_mem());
-      if (!PEM_write_bio_X509(outbio, receivedCert)) {
-        BIO_free(outbio);
-        return std::make_pair(false, peerId);
-      }
-      std::string local_cert_path =
-          config_.certificatesRootPath + "/" + std::to_string(peerId) + "/" + conn_type + "/" + conn_type + ".cert";
-      std::string certStr;
-      int certLen = BIO_pending(outbio);
-      certStr.resize(certLen);
-      BIO_read(outbio, (void*)&(certStr.front()), certLen);
-      std::ofstream out(local_cert_path.data());
-      out << certStr;
-      out.close();
-      BIO_free(outbio);
-      LOG_INFO(logger_, "new certificate has been updated on local storage, peer: " << peerId);
-    } else {
-      std::make_pair(false, peerId);
-    }
+      received_cert, config_.certificatesRootPath, peerId, conn_type);
+  if (expected_peer_id.has_value() && peerId != expected_peer_id.value()) return std::make_pair(false, peerId);
+  if (res) return std::make_pair(res, peerId);
+  LOG_INFO(logger_,
+           "Unable to validate certificate against the local storage, falling back to validate against the RSA "
+           "public key");
+  std::string pem_pub_key = StateControl::instance().getPeerPubKey(peerId);
+  if (pem_pub_key.empty()) return std::make_pair(false, peerId);
+  if (concord::util::crypto::Crypto::instance().getFormat(pem_pub_key) != concord::util::crypto::KeyFormat::PemFormat) {
+    pem_pub_key = concord::util::crypto::Crypto::instance()
+                      .RsaHexToPem(std::make_pair("", StateControl::instance().getPeerPubKey(peerId)))
+                      .second;
   }
+  // (2) Try to validate the certificate against the peer's public key
+  res = concord::util::crypto::CertificateUtils::verifyCertificate(received_cert, pem_pub_key);
+  if (!res) return std::make_pair(false, peerId);
+
+  // (3) If valid, exchange the stored certificate
+  BIO* outbio = BIO_new(BIO_s_mem());
+  if (!PEM_write_bio_X509(outbio, received_cert)) {
+    BIO_free(outbio);
+    return std::make_pair(false, peerId);
+  }
+  std::string local_cert_path =
+      config_.certificatesRootPath + "/" + std::to_string(peerId) + "/" + conn_type + "/" + conn_type + ".cert";
+  std::string certStr;
+  int certLen = BIO_pending(outbio);
+  certStr.resize(certLen);
+  BIO_read(outbio, (void*)&(certStr.front()), certLen);
+  std::ofstream out(local_cert_path.data());
+  out << certStr;
+  out.close();
+  BIO_free(outbio);
+  LOG_INFO(logger_, "new certificate has been updated on local storage, peer: " << peerId);
   return std::make_pair(res, peerId);
 }
 

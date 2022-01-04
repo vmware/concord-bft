@@ -136,7 +136,7 @@ void KeyExchangeManager::loadPublicKeys() {
   notifyRegistry();
 }
 
-void KeyExchangeManager::exchangeTlsKeys(const std::string& type, uint64_t bftSn) {
+void KeyExchangeManager::exchangeTlsKeys(const std::string& type, uint64_t bft_sn) {
   auto keys = concord::util::crypto::Crypto::instance().generateECDSAKeyPair(
       concord::util::crypto::KeyFormat::PemFormat, concord::util::crypto::CurveType::secp384r1);
   std::string root_path =
@@ -181,13 +181,13 @@ void KeyExchangeManager::exchangeTlsKeys(const std::string& type, uint64_t bftSn
   data_vec.clear();
   concord::messages::serialize(data_vec, req);
   std::string strMsg(data_vec.begin(), data_vec.end());
-  std::string cid = "replicaTlsKeyExchange_" + std::to_string(bftSn) + "_" + std::to_string(repId);
+  std::string cid = "replicaTlsKeyExchange_" + std::to_string(bft_sn) + "_" + std::to_string(repId);
   client_->sendRequest(RECONFIG_FLAG, strMsg.size(), strMsg.c_str(), cid);
 }
 
-void KeyExchangeManager::exchangeTlsKeys(uint64_t bftSn) {
-  exchangeTlsKeys("server", bftSn);
-  exchangeTlsKeys("client", bftSn);
+void KeyExchangeManager::exchangeTlsKeys(uint64_t bft_sn) {
+  exchangeTlsKeys("server", bft_sn);
+  exchangeTlsKeys("client", bft_sn);
   metrics_->tls_key_exchange_requests_++;
   bft::communication::StateControl::instance().restartComm(repID_);
   LOG_INFO(KEY_EX_LOG, "Replica has generated a new tls keys");
