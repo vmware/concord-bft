@@ -136,7 +136,7 @@ void KeyExchangeManager::loadPublicKeys() {
   notifyRegistry();
 }
 
-void KeyExchangeManager::exchangeTlsKeys(const std::string& type, uint64_t bft_sn) {
+void KeyExchangeManager::exchangeTlsKeys(const std::string& type, const SeqNum& bft_sn) {
   auto keys = concord::util::crypto::Crypto::instance().generateECDSAKeyPair(
       concord::util::crypto::KeyFormat::PemFormat, concord::util::crypto::CurveType::secp384r1);
   std::string root_path =
@@ -185,7 +185,7 @@ void KeyExchangeManager::exchangeTlsKeys(const std::string& type, uint64_t bft_s
   client_->sendRequest(RECONFIG_FLAG, strMsg.size(), strMsg.c_str(), cid);
 }
 
-void KeyExchangeManager::exchangeTlsKeys(uint64_t bft_sn) {
+void KeyExchangeManager::exchangeTlsKeys(const SeqNum& bft_sn) {
   exchangeTlsKeys("server", bft_sn);
   exchangeTlsKeys("client", bft_sn);
   metrics_->tls_key_exchange_requests_++;
