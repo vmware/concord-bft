@@ -111,7 +111,8 @@ void FileStorage::write(
 
 bool FileStorage::isNewStorage() { return (objectsMetadata_ == nullptr); }
 
-bool FileStorage::initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray, uint32_t metadataObjectsArrayLength) {
+bool FileStorage::initMaxSizeOfObjects(const std::map<uint32_t, ObjectDesc> &metadataObjectsArray,
+                                       uint32_t metadataObjectsArrayLength) {
   if (!isNewStorage()) {
     LOG_WARN(logger_, "FileStorage::initMaxSizeOfObjects Storage file already initialized; ignoring");
     return false;
@@ -124,9 +125,9 @@ bool FileStorage::initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray, uint32_
   // Metadata object with id=0 is used to indicate storage initialization state (not used by FileStorage).
   for (uint32_t i = initializedObjectId_ + 1; i < metadataObjectsArrayLength; i++) {
     MetadataObjectInfo objectInfo(
-        metadataObjectsArray[i].id, objMetaOffset, objOffset, metadataObjectsArray[i].maxSize);
+        metadataObjectsArray.at(i).id, objMetaOffset, objOffset, metadataObjectsArray.at(i).maxSize);
     objMetaOffset += sizeof(objectInfo);
-    objOffset += metadataObjectsArray[i].maxSize;
+    objOffset += metadataObjectsArray.at(i).maxSize;
     objectsMetadata_->setObjectInfo(objectInfo);
   }
   const uint64_t maxObjectsSize = objOffset - fileMetadataSize;

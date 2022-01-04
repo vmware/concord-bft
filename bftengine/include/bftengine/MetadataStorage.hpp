@@ -14,6 +14,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <map>
 
 namespace bftEngine {
 
@@ -30,7 +31,8 @@ class MetadataStorage {
   // Initialize the storage before the first time used. In case storage is already initialized, do nothing.
   // Return 'true' in case DB was virgin (not initialized) before a call to this function
   // (the IDs and their maximal size are known in advance).
-  virtual bool initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray, uint32_t metadataObjectsArrayLength) = 0;
+  virtual bool initMaxSizeOfObjects(const std::map<uint32_t, ObjectDesc> &metadataObjectsArray,
+                                    uint32_t metadataObjectsArrayLength) = 0;
 
   // Return 'true' in case DB is virgin (not initialized).
   virtual bool isNewStorage() = 0;

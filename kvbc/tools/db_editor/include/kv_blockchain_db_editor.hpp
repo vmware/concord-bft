@@ -907,7 +907,7 @@ struct ResetMetadata {
         new bftEngine::impl::PersistentStorageImp(4, 1, 0, 0, 0));  // TODO: add here rsi reset
     uint16_t numOfObjects = 0;
     auto objectDescriptors = ((PersistentStorageImp *)p.get())->getDefaultMetadataObjectDescriptors(numOfObjects);
-    bool isNewStorage = mdtStorage->initMaxSizeOfObjects(objectDescriptors.get(), numOfObjects);
+    bool isNewStorage = mdtStorage->initMaxSizeOfObjects(objectDescriptors, numOfObjects);
     ((PersistentStorageImp *)p.get())->init(move(mdtStorage));
     SeqNum stableSeqNum = p->getLastStableSeqNum();
     CheckpointMsg *cpm = p->getAndAllocateCheckpointMsgInCheckWindow(stableSeqNum);

@@ -80,60 +80,56 @@ void PersistentStorageImp::setDefaultsInMetadataStorage() {
 }
 
 // This function is used by an external code to initialize MetadataStorage and enable StateTransfer using the same DB.
-ObjectDescUniquePtr PersistentStorageImp::getDefaultMetadataObjectDescriptors(uint16_t &numOfObjects) const {
-  numOfObjects = MAX_METADATA_PARAMS_NUM - FIRST_METADATA_PARAMETER;
-  ObjectDescUniquePtr metadataObjectsArray(new MetadataStorage::ObjectDesc[MAX_METADATA_PARAMS_NUM]);
-
+ObjectDescMap PersistentStorageImp::getDefaultMetadataObjectDescriptors(uint16_t &numOfObjects) const {
+  ObjectDescMap metadataObjectsArray;
   for (uint16_t i = FIRST_METADATA_PARAMETER; i < MAX_METADATA_PARAMS_NUM; ++i) {
-    metadataObjectsArray.get()[i].id = i;
-    metadataObjectsArray.get()[i].maxSize = 0;
+    metadataObjectsArray[i].id = i;
+    metadataObjectsArray[i].maxSize = 0;
   }
 
-  metadataObjectsArray.get()[VERSION_PARAMETER].maxSize = maxVersionSize_;
-  metadataObjectsArray.get()[LAST_EXEC_SEQ_NUM].maxSize = sizeof(lastExecutedSeqNum_);
-  metadataObjectsArray.get()[PRIMARY_LAST_USED_SEQ_NUM].maxSize = sizeof(primaryLastUsedSeqNum_);
-  metadataObjectsArray.get()[LOWER_BOUND_OF_SEQ_NUM].maxSize = sizeof(strictLowerBoundOfSeqNums_);
-  metadataObjectsArray.get()[LAST_VIEW_TRANSFERRED_SEQ_NUM].maxSize = sizeof(lastViewTransferredSeqNum_);
-  metadataObjectsArray.get()[LAST_STABLE_SEQ_NUM].maxSize = sizeof(lastStableSeqNum_);
-  metadataObjectsArray.get()[BEGINNING_OF_SEQ_NUM_WINDOW].maxSize = sizeof(SeqNum);
-  metadataObjectsArray.get()[BEGINNING_OF_CHECK_WINDOW].maxSize = sizeof(SeqNum);
-  metadataObjectsArray.get()[ERASE_METADATA_ON_STARTUP].maxSize = sizeof(bool);
-  metadataObjectsArray.get()[USER_DATA].maxSize = kMaxUserDataSizeBytes;
-  metadataObjectsArray.get()[START_NEW_EPOCH].maxSize = sizeof(bool);
-  metadataObjectsArray.get()[DB_CHECKPOINT_DESCRIPTOR].maxSize = DB_CHECKPOINT_METADATA_MAX_SIZE;
+  metadataObjectsArray[VERSION_PARAMETER].maxSize = maxVersionSize_;
+  metadataObjectsArray[LAST_EXEC_SEQ_NUM].maxSize = sizeof(lastExecutedSeqNum_);
+  metadataObjectsArray[PRIMARY_LAST_USED_SEQ_NUM].maxSize = sizeof(primaryLastUsedSeqNum_);
+  metadataObjectsArray[LOWER_BOUND_OF_SEQ_NUM].maxSize = sizeof(strictLowerBoundOfSeqNums_);
+  metadataObjectsArray[LAST_VIEW_TRANSFERRED_SEQ_NUM].maxSize = sizeof(lastViewTransferredSeqNum_);
+  metadataObjectsArray[LAST_STABLE_SEQ_NUM].maxSize = sizeof(lastStableSeqNum_);
+  metadataObjectsArray[BEGINNING_OF_SEQ_NUM_WINDOW].maxSize = sizeof(SeqNum);
+  metadataObjectsArray[BEGINNING_OF_CHECK_WINDOW].maxSize = sizeof(SeqNum);
+  metadataObjectsArray[ERASE_METADATA_ON_STARTUP].maxSize = sizeof(bool);
+  metadataObjectsArray[USER_DATA].maxSize = kMaxUserDataSizeBytes;
+  metadataObjectsArray[START_NEW_EPOCH].maxSize = sizeof(bool);
+  metadataObjectsArray[DB_CHECKPOINT_DESCRIPTOR].maxSize = DB_CHECKPOINT_METADATA_MAX_SIZE;
 
   for (auto i = 0; i < kWorkWindowSize; ++i) {
-    metadataObjectsArray.get()[LAST_EXIT_FROM_VIEW_DESC + 1 + i].maxSize =
-        DescriptorOfLastExitFromView::maxElementSize();
+    metadataObjectsArray[LAST_EXIT_FROM_VIEW_DESC + 1 + i].maxSize = DescriptorOfLastExitFromView::maxElementSize();
   }
 
   for (auto i = 0; i < kWorkWindowSize * numOfSeqNumWinParameters; ++i) {
-    metadataObjectsArray.get()[BEGINNING_OF_SEQ_NUM_WINDOW + SEQ_NUM_FIRST_PARAM + i].maxSize =
+    metadataObjectsArray[BEGINNING_OF_SEQ_NUM_WINDOW + SEQ_NUM_FIRST_PARAM + i].maxSize =
         SeqNumWindow::maxElementSize();
   }
 
   uint32_t viewChangeMsgsNum = DescriptorOfLastNewView::getViewChangeMsgsNum();
   for (uint32_t i = 0; i < viewChangeMsgsNum; ++i) {
-    metadataObjectsArray.get()[LAST_NEW_VIEW_DESC + 1 + i].maxSize = DescriptorOfLastNewView::maxElementSize();
+    metadataObjectsArray[LAST_NEW_VIEW_DESC + 1 + i].maxSize = DescriptorOfLastNewView::maxElementSize();
   }
 
   for (auto i = 0; i < checkWinSize * numOfCheckWinParameters; ++i)
-    metadataObjectsArray.get()[BEGINNING_OF_CHECK_WINDOW + CHECK_DATA_FIRST_PARAM + i].maxSize =
+    metadataObjectsArray[BEGINNING_OF_CHECK_WINDOW + CHECK_DATA_FIRST_PARAM + i].maxSize =
         CheckWindow::maxElementSize();
 
-  metadataObjectsArray.get()[LAST_EXIT_FROM_VIEW_DESC].maxSize = DescriptorOfLastExitFromView::simpleParamsSize();
-  metadataObjectsArray.get()[LAST_EXEC_DESC].maxSize = DescriptorOfLastExecution::maxSize();
-  metadataObjectsArray.get()[LAST_NEW_VIEW_DESC].maxSize = DescriptorOfLastNewView::simpleParamsSize();
-  metadataObjectsArray.get()[LAST_STABLE_CHECKPOINT_DESC].maxSize =
-      DescriptorOfLastStableCheckpoint::maxSize(numReplicas_);
+  metadataObjectsArray[LAST_EXIT_FROM_VIEW_DESC].maxSize = DescriptorOfLastExitFromView::simpleParamsSize();
+  metadataObjectsArray[LAST_EXEC_DESC].maxSize = DescriptorOfLastExecution::maxSize();
+  metadataObjectsArray[LAST_NEW_VIEW_DESC].maxSize = DescriptorOfLastNewView::simpleParamsSize();
+  metadataObjectsArray[LAST_STABLE_CHECKPOINT_DESC].maxSize = DescriptorOfLastStableCheckpoint::maxSize(numReplicas_);
 
   for (auto i = 0; i < numPrinciples_; i++) {
     uint32_t baseDescNum = REPLICA_SPECIFIC_INFO_BASE + viewChangeMsgsNum + maxClientBatchSize_ * i;
     for (auto j = 0; j < maxClientBatchSize_; j++) {
-      metadataObjectsArray.get()[baseDescNum + j].maxSize =
-          (RsiItem::RSI_DATA_PREFIX_SIZE + replicaSpecificInfoMaxSize);
+      metadataObjectsArray[baseDescNum + j].maxSize = (RsiItem::RSI_DATA_PREFIX_SIZE + replicaSpecificInfoMaxSize);
     }
   }
+  numOfObjects = metadataObjectsArray.size() - FIRST_METADATA_PARAMETER;
   return metadataObjectsArray;
 }
 

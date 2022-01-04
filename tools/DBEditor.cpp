@@ -107,7 +107,7 @@ void setupDBEditorParams(int argc, char **argv) {
 }
 
 void setupMetadataStorage() {
-  MetadataStorage::ObjectDesc objectsDesc[MAX_OBJECT_ID];
+  std::map<uint32_t, MetadataStorage::ObjectDesc> objectsDesc;
   MetadataStorage::ObjectDesc objectDesc = {0, MAX_OBJECT_SIZE};
   for (uint32_t i = firstObjId; i < MAX_OBJECT_ID; i++) {
     objectDesc.id = i;

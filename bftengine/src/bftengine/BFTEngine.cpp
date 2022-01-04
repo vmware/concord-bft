@@ -166,8 +166,7 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
     unique_ptr<MetadataStorage> metadataStoragePtr(metadataStorage);
     auto objectDescriptors =
         ((PersistentStorageImp *)persistentStoragePtr.get())->getDefaultMetadataObjectDescriptors(numOfObjects);
-    isNewStorage = metadataStoragePtr->initMaxSizeOfObjects(objectDescriptors.get(), numOfObjects);
-
+    isNewStorage = metadataStoragePtr->initMaxSizeOfObjects(objectDescriptors, numOfObjects);
     // Check if we need to remove the metadata or start a new epoch
     bool erasedMetaData = false;
     uint32_t actualObjectSize = 0;
@@ -185,7 +184,7 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
     LOG_INFO(GL, "erasedMetaData flag = " << erasedMetaData);
     if (erasedMetaData) {
       metadataStoragePtr->eraseData();
-      isNewStorage = metadataStoragePtr->initMaxSizeOfObjects(objectDescriptors.get(), numOfObjects);
+      isNewStorage = metadataStoragePtr->initMaxSizeOfObjects(objectDescriptors, numOfObjects);
       auto secFileDir = ReplicaConfig::instance().getkeyViewFilePath();
       LOG_INFO(GL, "removing " << secFileDir << " files if exist");
       try {

@@ -67,7 +67,7 @@ class replica_state_sync_test : public Test, public IReader {
     auto obj_descriptors = metadata_->getDefaultMetadataObjectDescriptors(num_of_objects);
     auto db_metadata_storage =
         std::make_unique<DBMetadataStorage>(db_->asIDBClient().get(), std::make_unique<MetadataKeyManipulator>());
-    db_metadata_storage->initMaxSizeOfObjects(obj_descriptors.get(), num_of_objects);
+    db_metadata_storage->initMaxSizeOfObjects(obj_descriptors, num_of_objects);
     metadata_->init(std::move(db_metadata_storage));
   }
 

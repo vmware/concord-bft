@@ -29,7 +29,8 @@ class FileStorage : public MetadataStorage {
 
   ~FileStorage() override;
 
-  bool initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray, uint32_t metadataObjectsArrayLength) override;
+  bool initMaxSizeOfObjects(const std::map<uint32_t, ObjectDesc> &metadataObjectsArray,
+                            uint32_t metadataObjectsArrayLength) override;
 
   bool isNewStorage() override;
 

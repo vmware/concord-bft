@@ -403,8 +403,8 @@ int main() {
   PersistentStorageImp persistentStorage(numReplicas, fVal, cVal, numReplicas + clientsNum, batchSize);
   metadataStorage.reset(new FileStorage(logger, dbFile));
   uint16_t numOfObjects = 0;
-  ObjectDescUniquePtr objectDescArray = persistentStorage.getDefaultMetadataObjectDescriptors(numOfObjects);
-  metadataStorage->initMaxSizeOfObjects(objectDescArray.get(), numOfObjects);
+  ObjectDescMap objectDescArray = persistentStorage.getDefaultMetadataObjectDescriptors(numOfObjects);
+  metadataStorage->initMaxSizeOfObjects(objectDescArray, numOfObjects);
   persistentStorageImp->init(move(metadataStorage));
 
   testInit();
@@ -415,7 +415,7 @@ int main() {
       // Re-open existing DB file
       metadataStorage.reset();
       metadataStorage.reset(new FileStorage(logger, dbFile));
-      metadataStorage->initMaxSizeOfObjects(objectDescArray.get(), numOfObjects);
+      metadataStorage->initMaxSizeOfObjects(objectDescArray, numOfObjects);
       persistentStorageImp->init(move(metadataStorage));
     }
     testSetSimpleParams(init);
