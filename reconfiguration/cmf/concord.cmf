@@ -261,6 +261,24 @@ Msg ClientReconfigurationStateReply 49 {
     list ClientStateReply states
 }
 
+Msg DbCheckpointInfo 58 {
+    uint64 seq_num
+    uint64 block_id
+    uint64 timestamp
+}
+
+Msg GetDbCheckpointInfoRequest 59 {
+    uint64 sender_id
+}
+
+Msg GetDbCheckpointInfoStatusResponse 62 {
+    list DbCheckpointInfo db_checkpoint_info
+}
+
+Msg CreateDbCheckpointCommand 63 {
+    uint64 sender_id
+}
+
 Msg ReconfigurationRequest 1 {
   uint64 sender
   bytes signature
@@ -295,6 +313,8 @@ Msg ReconfigurationRequest 1 {
     ClientsRestartStatus
     ClientsRestartUpdate
     PruneSwitchModeRequest
+    GetDbCheckpointInfoRequest
+    CreateDbCheckpointCommand
   } command
   bytes additional_data
 }
@@ -317,6 +337,7 @@ Msg ReconfigurationResponse 2 {
     ClientsAddRemoveStatusResponse
     ClientKeyExchangeStatusResponse
     ClientsRestartStatusResponse
+    GetDbCheckpointInfoStatusResponse
   } response
   bytes additional_data
 }

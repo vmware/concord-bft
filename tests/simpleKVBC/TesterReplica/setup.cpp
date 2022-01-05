@@ -118,7 +118,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     int optionIndex = 0;
     LOG_INFO(GL, "Command line options:");
     while ((o = getopt_long(
-                argc, argv, "i:k:n:s:v:a:3:l:e:w:c:b:m:q:z:y:udp:t:o:r:g:xf:h:", longOptions, &optionIndex)) != -1) {
+                argc, argv, "i:k:n:s:v:a:3:l:e:w:c:b:m:q:z:y:udp:t:o:r:g:xf:h:j:", longOptions, &optionIndex)) != -1) {
       switch (o) {
         case 'i': {
           replicaConfig.replicaId = concord::util::to<std::uint16_t>(std::string(optarg));
@@ -232,8 +232,13 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
           replicaConfig.maxNumberOfDbCheckpoints = concord::util::to<std::uint32_t>(std::string(optarg));
           if (replicaConfig.maxNumberOfDbCheckpoints) replicaConfig.dbCheckpointFeatureEnabled = true;
           std::stringstream dbSnapshotPath;
-          dbSnapshotPath << BasicRandomTests::DB_FILE_PREFIX << "sanpshot_" << replicaConfig.replicaId;
+          dbSnapshotPath << BasicRandomTests::DB_FILE_PREFIX << "snapshot_" << replicaConfig.replicaId;
           replicaConfig.dbCheckpointDirPath = dbSnapshotPath.str();
+          break;
+        }
+        case 'j': {
+          // updating dbCheckPointWindowSize value to test create dbSnapshot operator command
+          replicaConfig.dbCheckPointWindowSize = concord::util::to<std::uint32_t>(std::string(optarg));
           break;
         }
         case '?': {

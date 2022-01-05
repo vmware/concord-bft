@@ -4347,10 +4347,15 @@ ReplicaImp::ReplicaImp(bool firstTime,
       auto timeSinceLastSnapshot = (std::chrono::duration_cast<std::chrono::seconds>(currTime) -
                                     DbCheckpointManager::instance().getLastCheckpointCreationTime())
                                        .count();
-      if (getReplicaConfig().dbCheckpointFeatureEnabled && seqNum && isCurrentPrimary() &&
-          !(seqNum % getReplicaConfig().dbCheckPointWindowSize) &&
-          (timeSinceLastSnapshot >= getReplicaConfig().dbSnapshotIntervalSeconds.count())) {
-        DbCheckpointManager::instance().sendInternalCreateDbCheckpointMsg(seqNum);
+      if ((getReplicaConfig().dbCheckpointFeatureEnabled && seqNum && isCurrentPrimary() &&
+           !(seqNum % getReplicaConfig().dbCheckPointWindowSize) &&
+           (timeSinceLastSnapshot >= getReplicaConfig().dbSnapshotIntervalSeconds.count())) ||
+          (DbCheckpointManager::instance().getNextStableSeqNumToCreateSnapshot().has_value() &&
+           DbCheckpointManager::instance().getNextStableSeqNumToCreateSnapshot().value() == seqNum)) {
+        DbCheckpointManager::instance().sendInternalCreateDbCheckpointMsg(seqNum, false);
+        if (DbCheckpointManager::instance().getNextStableSeqNumToCreateSnapshot().has_value()) {
+          DbCheckpointManager::instance().setNextStableSeqNumToCreateSnapshot(std::nullopt);
+        }
       }
     });
   }
@@ -5182,6 +5187,17 @@ void ReplicaImp::onExecutionFinish() {
     // We are about to stop execution. To avoid VC we now clear all pending requests
     clientsManager->clearAllPendingRequests();
   }
+
+  // Sending noop client requests to get the system into a stable checkpoint,
+  // allowing the create dbCheckpoint operator command to create a dbCheckpoint/snapshot.
+  if (getReplicaConfig().dbCheckpointFeatureEnabled && isCurrentPrimary() &&
+      (DbCheckpointManager::instance().getNextStableSeqNumToCreateSnapshot().has_value() &&
+       DbCheckpointManager::instance().getNextStableSeqNumToCreateSnapshot().value() >= lastExecutedSeqNum)) {
+    DbCheckpointManager::instance().sendInternalCreateDbCheckpointMsg(
+        lastExecutedSeqNum + 1, true);  // send noop till we reach stable checkpoint
+    LOG_INFO(GL, "sendInternalCreateDbCheckpointMsg noop command ");
+  }
+
   if (isCurrentPrimary() && requestsQueueOfPrimary.size() > 0) tryToSendPrePrepareMsg(true);
 }
 

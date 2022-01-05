@@ -17,6 +17,7 @@
 #include <assertUtils.hpp>
 #include "Serializable.h"
 #include "db_checkpoint_msg.cmf.hpp"
+#include "concord.cmf.hpp"
 #include "SigManager.hpp"
 #include "Replica.hpp"
 
@@ -39,7 +40,7 @@ struct HumanReadable {
 };
 Status DbCheckpointManager::createDbCheckpoint(const CheckpointId& checkPointId,
                                                const uint64_t& lastBlockId,
-                                               const uint64_t& seqNum,
+                                               const SeqNum& seqNum,
                                                const std::optional<Timestamp>& timestamp) {
   if (seqNum <= lastCheckpointSeqNum_) return Status::OK();
   dbCheckptMetadata_.lastCmdSeqNum_ = seqNum;
@@ -76,7 +77,7 @@ Status DbCheckpointManager::createDbCheckpoint(const CheckpointId& checkPointId,
       auto count = numOfDbCheckpointsCreated_.Get().Get();
       (void)count;
       metrics_.UpdateAggregator();
-      LOG_INFO(getLogger(), "rocksdb checkpoint created: " << KVLOG(checkPointId, duration_ms.count()));
+      LOG_INFO(getLogger(), "rocksdb checkpoint created: " << KVLOG(checkPointId, duration_ms.count(), seqNum));
       lastCheckpointSeqNum_ = seqNum;
       dbCheckptMetadata_.dbCheckPoints_.insert(
           {checkPointId, {checkPointId, lastCheckpointCreationTime_, lastBlockId, lastCheckpointSeqNum_}});
@@ -192,7 +193,7 @@ void DbCheckpointManager::initializeDbCheckpointManager(std::shared_ptr<concord:
   dbCheckPointDirPath_ = ReplicaConfig::instance().getdbCheckpointDirPath();
   dbClient_->setCheckpointPath(dbCheckPointDirPath_);
   maxNumOfCheckpoints_ =
-      std::min(ReplicaConfig::instance().getmaxNumberOfDbCheckpoints(), bftEngine::impl::MAX_ALLOWED_CHECKPOINTS);
+      std::min(ReplicaConfig::instance().maxNumberOfDbCheckpoints, bftEngine::impl::MAX_ALLOWED_CHECKPOINTS);
   metrics_.SetAggregator(aggregator);
   if (getLastBlockIdCb) getLastBlockIdCb_ = getLastBlockIdCb;
   if (ReplicaConfig::instance().dbCheckpointFeatureEnabled) {
@@ -245,11 +246,12 @@ void DbCheckpointManager::updateDbCheckpointMetadata() {
   std::vector<uint8_t> v(data.begin(), data.end());
   ps_->setDbCheckpointMetadata(v);
 }
-void DbCheckpointManager::sendInternalCreateDbCheckpointMsg(const SeqNum& seqNum) {
+void DbCheckpointManager::sendInternalCreateDbCheckpointMsg(const SeqNum& seqNum, bool noop) {
   auto replica_id = bftEngine::ReplicaConfig::instance().getreplicaId();
   concord::messages::db_checkpoint_msg::CreateDbCheckpoint req;
   req.sender = replica_id;
   req.seqNum = seqNum;
+  req.noop = noop;
   std::vector<uint8_t> data_vec;
   concord::messages::db_checkpoint_msg::serialize(data_vec, req);
   std::string sig(SigManager::instance()->getMySigLength(), '\0');
@@ -263,4 +265,14 @@ void DbCheckpointManager::sendInternalCreateDbCheckpointMsg(const SeqNum& seqNum
   if (client_) client_->sendRequest(bftEngine::DB_CHECKPOINT_FLAG, strMsg.size(), strMsg.c_str(), cid);
 }
 
+void DbCheckpointManager::setNextStableSeqNumToCreateSnapshot(const std::optional<SeqNum>& seqNum) {
+  if (seqNum == std::nullopt) {
+    nextStableSeqNum_ = std::nullopt;
+    return;
+  }
+  SeqNum seq_num_to_create_snapshot = (seqNum.value() + checkpointWindowSize);
+  seq_num_to_create_snapshot = seq_num_to_create_snapshot - (seq_num_to_create_snapshot % checkpointWindowSize);
+  nextStableSeqNum_ = seq_num_to_create_snapshot;
+  LOG_INFO(getLogger(), "setNextStableSeqNumToCreateSnapshot, nextStableSeqNum_: " << nextStableSeqNum_.value());
+}
 }  // namespace bftEngine::impl
