@@ -1138,7 +1138,7 @@ struct VerifyDbCheckpoint {
     shared_ptr<bftEngine::impl::PersistentStorage> p(new bftEngine::impl::PersistentStorageImp(4, 1, 0, 0, 0));
     uint16_t numOfObjects = 0;
     auto objectDescriptors = ((PersistentStorageImp *)p.get())->getDefaultMetadataObjectDescriptors(numOfObjects);
-    mdtStorage->initMaxSizeOfObjects(objectDescriptors.get(), numOfObjects);
+    mdtStorage->initMaxSizeOfObjects(objectDescriptors, numOfObjects);
     ((PersistentStorageImp *)p.get())->init(move(mdtStorage));
     const auto &desc = p->getDescriptorOfLastStableCheckpoint();
     CheckPointMsgStatus status;
