@@ -174,6 +174,7 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
         )
         checkpoint_after_1 = await bft_network.wait_for_checkpoint(replica_id=initial_prim)
         self.assertGreaterEqual(checkpoint_before + 1, checkpoint_after_1)
+        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), checkpoint_after_1*150)
         num_of_db_snapshots =  await bft_network.get_metric(0, bft_network, "Counters", "numOfDbCheckpointsCreated", component="rocksdbCheckpoint")
         assert num_of_db_snapshots == 1
         old_snapshot_id = await bft_network.get_metric(0, bft_network, "Gauges", "lastDbCheckpointBlockId", component="rocksdbCheckpoint")
@@ -186,6 +187,7 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
         )
         checkpoint_after_2 = await bft_network.wait_for_checkpoint(replica_id=initial_prim)
         self.assertGreaterEqual(checkpoint_after_1 + 3, checkpoint_after_2)
+        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), checkpoint_after_2*150)
         num_of_db_snapshots =  await bft_network.get_metric(0, bft_network, "Counters", "numOfDbCheckpointsCreated", component="rocksdbCheckpoint")
         assert num_of_db_snapshots == 4
         self.verify_snapshot_is_available(bft_network, 0, old_snapshot_id, isPresent=False)

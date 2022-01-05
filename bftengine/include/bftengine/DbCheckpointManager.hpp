@@ -15,23 +15,23 @@
 
 #include <vector>
 #include <chrono>
-#include <PrimitiveTypes.hpp>
-#include "callback_registry.hpp"
-#include "status.hpp"
-#include "storage/db_interface.h"
-#include "Serializable.h"
-#include "bftengine/PersistentStorage.hpp"
 #include <optional>
 #include <string>
 #include <mutex>
 #include <queue>
 #include <condition_variable>
-#include <bftengine/DbCheckpointMetadata.hpp>
-#include "Metrics.hpp"
 #include <algorithm>
 #include <thread>
 #include <atomic>
+#include <PrimitiveTypes.hpp>
+#include "callback_registry.hpp"
+#include "status.hpp"
+#include "Serializable.h"
+#include "PersistentStorage.hpp"
+#include "DbCheckpointMetadata.hpp"
+#include "Metrics.hpp"
 #include "InternalBFTClient.hpp"
+#include "storage/db_interface.h"
 #if __has_include(<filesystem>)
 #include <filesystem>
 namespace fs = std::filesystem;
@@ -52,16 +52,15 @@ class DbCheckpointManager {
  public:
   // void createDbCheckpoint(const SeqNum& seqNum);
   void createDbCheckpointAsync(const SeqNum& seqNum, const std::optional<Timestamp>& timestamp);
-  std::chrono::seconds getLastCheckpointCreationTime() const { return lastCheckpointCreationTime_; }
+  Seconds getLastCheckpointCreationTime() const { return lastCheckpointCreationTime_; }
   void initializeDbCheckpointManager(std::shared_ptr<concord::storage::IDBClient> dbClient,
                                      std::shared_ptr<bftEngine::impl::PersistentStorage> p,
                                      std::shared_ptr<concordMetrics::Aggregator> aggregator,
                                      const std::function<uint64_t()>& getLastBlockIdCb);
 
- public:
-  static DbCheckpointManager& instance(InternalBftClient* client_ = nullptr) {
-    static DbCheckpointManager instance_(client_);
-    return instance_;
+  static DbCheckpointManager& instance(InternalBftClient* client = nullptr) {
+    static DbCheckpointManager instance(client);
+    return instance;
   }
   ~DbCheckpointManager() {
     stopped_ = true;

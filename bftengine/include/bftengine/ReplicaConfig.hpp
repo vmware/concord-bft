@@ -495,10 +495,11 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.prePrepareFinalizeAsyncEnabled,
               rc.threadbagConcurrencyLevel1,
               rc.threadbagConcurrencyLevel2,
-              rc.enablePostExecutionSeparation);
-  os << ",";
-  os << KVLOG(
-      rc.dbCheckpointFeatureEnabled, rc.maxNumberOfDbCheckpoints, rc.dbCheckPointWindowSize, rc.dbCheckpointDirPath);
+              rc.enablePostExecutionSeparation,
+              rc.dbCheckpointFeatureEnabled,
+              rc.maxNumberOfDbCheckpoints,
+              rc.dbCheckPointWindowSize,
+              rc.dbCheckpointDirPath);
 
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
   return os;
