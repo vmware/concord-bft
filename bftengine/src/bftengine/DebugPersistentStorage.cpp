@@ -27,7 +27,7 @@ DebugPersistentStorage::DebugPersistentStorage(uint16_t fVal, uint16_t cVal)
 
 uint8_t DebugPersistentStorage::beginWriteTran() { return ++numOfNestedTransactions; }
 
-uint8_t DebugPersistentStorage::endWriteTran() {
+uint8_t DebugPersistentStorage::endWriteTran(bool sync) {
   ConcordAssert(numOfNestedTransactions != 0);
   return --numOfNestedTransactions;
 }

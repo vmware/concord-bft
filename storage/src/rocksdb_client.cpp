@@ -520,9 +520,10 @@ Status Client::multiGet(const KeysVector &_keysVec, OUT ValuesVector &_valuesVec
   return Status::OK();
 }
 
-Status Client::launchBatchJob(::rocksdb::WriteBatch &batch) {
+Status Client::launchBatchJob(::rocksdb::WriteBatch &batch, bool sync) {
   LOG_DEBUG(logger(), "launcBatchJob: batch data size=" << batch.GetDataSize() << " num updates=" << batch.Count());
   ::rocksdb::WriteOptions wOptions = ::rocksdb::WriteOptions();
+  wOptions.sync = sync;
   ::rocksdb::Status status = dbInstance_->Write(wOptions, &batch);
   if (!status.ok()) {
     LOG_ERROR(
@@ -536,14 +537,14 @@ Status Client::launchBatchJob(::rocksdb::WriteBatch &batch) {
   return Status::OK();
 }
 
-Status Client::multiPut(const SetOfKeyValuePairs &keyValueMap) {
+Status Client::multiPut(const SetOfKeyValuePairs &keyValueMap, bool sync) {
   ::rocksdb::WriteBatch batch;
   LOG_DEBUG(logger(), "multiPut: keyValueMap.size() = " << keyValueMap.size());
   for (const auto &it : keyValueMap) {
     batch.Put(toRocksdbSlice(it.first), toRocksdbSlice(it.second));
     LOG_TRACE(logger(), "RocksDB Added entry: key =" << it.first << ", value= " << it.second << " to the batch job");
   }
-  Status status = launchBatchJob(batch);
+  Status status = launchBatchJob(batch, sync);
   if (status.isOK()) LOG_DEBUG(logger(), "Successfully put all entries to the database");
   return status;
 }

@@ -58,7 +58,7 @@ class PersistentStorage {
 
   // end re-entrant write-only transaction
   // returns the number of remaining nested transactions
-  virtual uint8_t endWriteTran() = 0;
+  virtual uint8_t endWriteTran(bool sync = false) = 0;
 
   // return true IFF write-only transactions are running now
   virtual bool isInWriteTran() const = 0;

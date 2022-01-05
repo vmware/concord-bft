@@ -46,7 +46,7 @@ class DBMetadataStorage : public bftEngine::MetadataStorage {
   void atomicWriteArbitraryObject(const std::string &key, const char *data, uint32_t dataLength) override;
   void beginAtomicWriteOnlyBatch() override;
   void writeInBatch(uint32_t objectId, const char *data, uint32_t dataLength) override;
-  void commitAtomicWriteOnlyBatch() override;
+  void commitAtomicWriteOnlyBatch(bool sync = false) override;
   concordUtils::Status multiDel(const ObjectIdsVector &objectIds);
   bool isNewStorage() override;
   void eraseData() override;

@@ -228,6 +228,12 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   // Post-execution separation feature flag
   CONFIG_PARAM(enablePostExecutionSeparation, bool, true, "Post-execution separation feature flag");
 
+  // Parameter to enable/disable waiting for transaction data to be persisted.
+  CONFIG_PARAM(syncOnUpdateOfMetadata,
+               bool,
+               true,
+               "When set to true this parameter will cause endWriteTran to block until "
+               "the transaction is persisted every time we update the metadata.");
   // Not predefined configuration parameters
   // Example of usage:
   // repclicaConfig.set(someTimeout, 6000);

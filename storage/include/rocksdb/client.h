@@ -95,7 +95,7 @@ class Client : public concord::storage::IDBClient {
   concordUtils::Status put(const concordUtils::Sliver& _key, const concordUtils::Sliver& _value) override;
   concordUtils::Status del(const concordUtils::Sliver& _key) override;
   concordUtils::Status multiGet(const KeysVector& _keysVec, ValuesVector& _valuesVec) override;
-  concordUtils::Status multiPut(const SetOfKeyValuePairs& _keyValueMap) override;
+  concordUtils::Status multiPut(const SetOfKeyValuePairs& _keyValueMap, bool sync = false) override;
   concordUtils::Status multiDel(const KeysVector& _keysVec) override;
   concordUtils::Status rangeDel(const Sliver& _beginKey, const Sliver& _endKey) override;
   ::rocksdb::Iterator* getNewRocksDbIterator() const;
@@ -139,7 +139,7 @@ class Client : public concord::storage::IDBClient {
   void openRocksDB(bool readOnly,
                    const ::rocksdb::Options& db_options,
                    std::vector<::rocksdb::ColumnFamilyDescriptor>& cf_descs);
-  concordUtils::Status launchBatchJob(::rocksdb::WriteBatch& _batchJob);
+  concordUtils::Status launchBatchJob(::rocksdb::WriteBatch& _batchJob, bool sync = false);
   concordUtils::Status get(const concordUtils::Sliver& _key, std::string& _value) const;
   bool keyIsBefore(const concordUtils::Sliver& _lhs, const concordUtils::Sliver& _rhs) const;
   bool columnFamilyIsEmpty(::rocksdb::ColumnFamilyHandle*) const;

@@ -228,7 +228,7 @@ class Client : public concord::storage::IDBClient {
     return concordUtils::Status::OK();
   }
 
-  concordUtils::Status multiPut(const SetOfKeyValuePairs& _keyValueMap) override {
+  concordUtils::Status multiPut(const SetOfKeyValuePairs& _keyValueMap, bool sync = false) override {
     ITransaction::Guard g(beginTransaction());
     for (auto&& pair : _keyValueMap) g.txn()->put(pair.first, pair.second);
     return concordUtils::Status::OK();
