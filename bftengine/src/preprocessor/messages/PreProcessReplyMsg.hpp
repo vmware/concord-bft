@@ -13,7 +13,6 @@
 
 #include "messages/MessageBase.hpp"
 #include "../PreProcessorRecorder.hpp"
-#include "SimpleClient.hpp"
 #include "PreProcessResultHashCreator.hpp"
 #include <memory>
 
@@ -72,7 +71,7 @@ class PreProcessReplyMsg : public MessageBase {
     uint16_t clientId = 0;
     uint16_t reqOffsetInBatch = 0;
     ReplyStatus status = STATUS_GOOD;
-    bftEngine::OperationResult preProcessResult = bftEngine::SUCCESS;
+    bftEngine::OperationResult preProcessResult = bftEngine::OperationResult::SUCCESS;
     uint8_t resultsHash[concord::util::SHA3_256::SIZE_IN_BYTES];
     uint32_t replyLength = 0;
     uint32_t cidLength = 0;

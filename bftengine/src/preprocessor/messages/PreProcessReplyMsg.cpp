@@ -33,7 +33,7 @@ PreProcessReplyMsg::PreProcessReplyMsg(NodeIdType senderId,
                                        uint32_t preProcessResultBufLen,
                                        const std::string& cid,
                                        ReplyStatus status,
-                                       bftEngine::OperationResult preProcessResult)
+                                       OperationResult preProcessResult)
     : MessageBase(senderId, MsgCode::PreProcessReply, 0, maxReplyMsgSize_) {
   setParams(senderId, clientId, reqOffsetInBatch, reqSeqNum, reqRetryId, status, preProcessResult);
   setupMsgBody(preProcessResultBuf, preProcessResultBufLen, cid);
@@ -49,7 +49,7 @@ PreProcessReplyMsg::PreProcessReplyMsg(NodeIdType senderId,
                                        const char* signature,
                                        const std::string& cid,
                                        ReplyStatus status,
-                                       bftEngine::OperationResult preProcessResult)
+                                       OperationResult preProcessResult)
     : MessageBase(senderId, MsgCode::PreProcessReply, 0, maxReplyMsgSize_) {
   setParams(senderId, clientId, reqOffsetInBatch, reqSeqNum, reqRetryId, status, preProcessResult);
   setupMsgBody(resultsHash, signature, cid);
@@ -112,7 +112,8 @@ void PreProcessReplyMsg::setParams(NodeIdType senderId,
   msgBody()->reqRetryId = reqRetryId;
   msgBody()->status = status;
   msgBody()->preProcessResult = preProcessResult;
-  LOG_DEBUG(logger(), KVLOG(senderId, clientId, reqSeqNum, reqRetryId, status, preProcessResult));
+  LOG_DEBUG(logger(),
+            KVLOG(senderId, clientId, reqSeqNum, reqRetryId, status, static_cast<uint32_t>(preProcessResult)));
 }
 
 void PreProcessReplyMsg::setLeftMsgParams(const string& cid, uint16_t sigSize) {

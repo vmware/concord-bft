@@ -18,6 +18,7 @@
 #include "db_checkpoint_msg.cmf.hpp"
 #include "DbCheckpointManager.hpp"
 #include "SimpleClient.hpp"
+#include "SharedTypes.hpp"
 #include <optional>
 #include <sstream>
 
@@ -43,7 +44,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
         LOG_ERROR(KEY_EX_LOG, "KEY_EXCHANGE response is too large, response " << resp);
         req.outActualReplySize = 0;
       }
-      req.outExecutionStatus = SUCCESS;
+      req.outExecutionStatus = static_cast<uint32_t>(OperationResult::SUCCESS);
     } else if (req.flags & MsgFlag::RECONFIG_FLAG) {
       ReconfigurationRequest rreq;
       deserialize(std::vector<std::uint8_t>(req.request, req.request + req.requestSize), rreq);
@@ -86,7 +87,8 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
           req.outActualReplySize = 0;
         }
       }
-      req.outExecutionStatus = SUCCESS;  // stop further processing of this request
+      // Stop further processing of this request
+      req.outExecutionStatus = static_cast<uint32_t>(OperationResult::SUCCESS);
       // Don't continue to process requests after pruning (in case we run in async pruning mode)
       if (std::holds_alternative<concord::messages::PruneRequest>(rreq.command)) return;
     } else if (req.flags & TICK_FLAG) {
@@ -96,10 +98,10 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
       req.outReply[0] = '\0';
       req.outReplicaSpecificInfoSize = 0;
 
-      req.outExecutionStatus = SUCCESS;
+      req.outExecutionStatus = static_cast<uint32_t>(OperationResult::SUCCESS);
       if (req.flags & READ_ONLY_FLAG) {
         LOG_WARN(GL, "Received a read-only Tick, ignoring");
-        req.outExecutionStatus = UNKNOWN;
+        req.outExecutionStatus = static_cast<uint32_t>(OperationResult::UNKNOWN);
       } else if (cron_table_registry_) {
         using namespace concord::cron;
         auto payload = ClientReqMsgTickPayload{};
@@ -109,7 +111,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
         (*cron_table_registry_)[payload.component_id].evaluate(tick);
       } else {
         LOG_WARN(GL, "Received a Tick, but the cron table registry is not initialized");
-        req.outExecutionStatus = INTERNAL_ERROR;
+        req.outExecutionStatus = static_cast<uint32_t>(OperationResult::INTERNAL_ERROR);
       }
     } else if (req.flags & MsgFlag::DB_CHECKPOINT_FLAG) {
       concord::messages::db_checkpoint_msg::CreateDbCheckpoint createDbChkPtMsg;
@@ -142,7 +144,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
         LOG_INFO(KEY_EX_LOG, "Received publish clients keys request");
       }
       impl::KeyExchangeManager::instance().onPublishClientsKeys(received_keys, bootstrap_keys);
-      req.outExecutionStatus = SUCCESS;
+      req.outExecutionStatus = static_cast<uint32_t>(OperationResult::SUCCESS);
       req.outReply[0] = '1';
       req.outActualReplySize = 1;
     }

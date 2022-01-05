@@ -73,6 +73,11 @@ class SigManager {
   SigManager& operator=(SigManager&&) = delete;
 
   std::string getClientsPublicKeys();
+  std::string getPublicKeyOfVerifier(uint32_t id) const {
+    if (!verifiers_.count(id)) return std::string();
+    return verifiers_.at(id)->getPubKey();
+  }
+  std::string getSelfPrivKey() const { return mySigner_->getPrivKey(); }
 
  protected:
   static constexpr uint16_t updateMetricsAggregatorThresh = 1000;

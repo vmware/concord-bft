@@ -12,6 +12,7 @@
 #pragma once
 
 #include "sha_hash.hpp"
+#include "SharedTypes.hpp"
 
 namespace preprocessor {
 
@@ -24,7 +25,8 @@ class PreProcessResultHashCreator {
                                                 ReqId reqSeqNum) {
     auto dataDigest = concord::util::SHA3_256();
     dataDigest.init();
-    if (preProcessResult == bftEngine::SUCCESS) dataDigest.update(preProcessResultData, preProcessResultLen);
+    if (preProcessResult == bftEngine::OperationResult::SUCCESS)
+      dataDigest.update(preProcessResultData, preProcessResultLen);
     dataDigest.update(&preProcessResult, sizeof(preProcessResult));
     dataDigest.update(&clientId, sizeof(clientId));
     dataDigest.update(&reqSeqNum, sizeof(reqSeqNum));

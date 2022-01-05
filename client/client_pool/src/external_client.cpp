@@ -14,7 +14,7 @@
 #include "client/client_pool/external_client.hpp"
 #include <string>
 #include <utility>
-#include "SimpleClient.hpp"
+#include "SharedTypes.hpp"
 #include "bftclient/fake_comm.h"
 
 namespace concord::external_client {
@@ -122,7 +122,7 @@ void ConcordClient::AddPendingRequest(std::vector<uint8_t>&& request,
   pending_replies_.push_back(std::move(pending_reply));
 }
 
-std::pair<int8_t, ConcordClient::PendingReplies> ConcordClient::SendPendingRequests() {
+std::pair<int32_t, ConcordClient::PendingReplies> ConcordClient::SendPendingRequests() {
   const auto& batch_cid =
       std::to_string(client_id_) + "-" + std::to_string(seqGen_->generateUniqueSequenceNumberForRequest());
   OperationResult ret = OperationResult::SUCCESS;
@@ -170,7 +170,7 @@ std::pair<int8_t, ConcordClient::PendingReplies> ConcordClient::SendPendingReque
   }
   batching_buffer_reply_offset_ = 0UL;
   pending_requests_.clear();
-  return {ret, std::move(pending_replies_)};
+  return {static_cast<uint32_t>(ret), std::move(pending_replies_)};
 }
 
 bft::communication::BaseCommConfig* ConcordClient::CreateCommConfig(int num_replicas,
@@ -313,7 +313,7 @@ void ConcordClient::setStatics(uint16_t required_num_of_replicas,
 
 void ConcordClient::setDelayFlagForTest(bool delay) { ConcordClient::delayed_behaviour_ = delay; }
 
-bftEngine::OperationResult ConcordClient::getClientRequestError() { return clientRequestError_; }
+OperationResult ConcordClient::getClientRequestError() { return clientRequestError_; }
 
 void ConcordClient::stopClientComm() { new_client_->stop(); }
 

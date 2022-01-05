@@ -16,7 +16,8 @@
 #include "messages/PreProcessReplyMsg.hpp"
 #include "messages/PreProcessResultMsg.hpp"
 #include "PreProcessorRecorder.hpp"
-#include "SimpleClient.hpp"
+#include "SharedTypes.hpp"
+
 #include <vector>
 #include <map>
 #include <list>
@@ -144,8 +145,8 @@ class RequestProcessingState {
   ReplicaIdsList rejectedReplicaIds_;
   const char* primaryPreProcessResultData_ = nullptr;  // This memory is allocated in PreProcessor
   uint32_t primaryPreProcessResultLen_ = 0;
-  bftEngine::OperationResult primaryPreProcessResult_ = bftEngine::UNKNOWN;
-  bftEngine::OperationResult agreedPreProcessResult_ = bftEngine::UNKNOWN;
+  bftEngine::OperationResult primaryPreProcessResult_ = bftEngine::OperationResult::UNKNOWN;
+  bftEngine::OperationResult agreedPreProcessResult_ = bftEngine::OperationResult::UNKNOWN;
   concord::util::SHA3_256::Digest primaryPreProcessResultHash_ = {};
   // Maps result hash to a list of replica signatures sent for this hash. This also implicitly gives the number of
   // replicas returning a specific hash.

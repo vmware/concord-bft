@@ -64,7 +64,9 @@ void RsiDataManager::init() {
     for (uint32_t offset = 0; offset < max_client_batch_size_; offset++) {
       std::vector<uint8_t> data = ps_->getReplicaSpecificInfo(clientId * max_client_batch_size_ + offset);
       if (data.empty()) continue;
-      clientRsiData.emplace_back(RsiItem::deserialize(data));
+      auto rsi_item = RsiItem::deserialize(data);
+      if (rsi_item.data().empty()) continue;
+      clientRsiData.emplace_back(rsi_item);
     }
     std::sort(clientRsiData.begin(), clientRsiData.end(), [](auto& data1, auto& data2) {
       return data1.index() < data2.index();

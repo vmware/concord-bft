@@ -29,8 +29,8 @@
 #include "PreProcessorRecorder.hpp"
 #include "diagnostics.h"
 #include "PerformanceManager.hpp"
-#include "SimpleClient.hpp"
-#include <RollingAvgAndVar.hpp>
+#include "RollingAvgAndVar.hpp"
+#include "SharedTypes.hpp"
 #include "GlobalData.hpp"
 
 // TODO[TK] till boost upgrade

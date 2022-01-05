@@ -570,7 +570,7 @@ void PreProcessor::sendRejectPreProcessReplyMsg(NodeIdType clientId,
                                                   0,
                                                   cid,
                                                   STATUS_REJECT,
-                                                  NOT_READY);
+                                                  OperationResult::NOT_READY);
   LOG_DEBUG(
       logger(),
       KVLOG(reqSeqNum, senderId, clientId, reqOffsetInBatch, ongoingReqSeqNum, ongoingCid)
@@ -1559,14 +1559,14 @@ OperationResult PreProcessor::launchReqPreProcessing(const PreProcessRequestMsgS
   const IRequestsHandler::ExecutionRequest &request = accumulatedRequests.back();
   auto preProcessResult = static_cast<OperationResult>(request.outExecutionStatus);
   resultLen = request.outActualReplySize;
-  if (preProcessResult != SUCCESS) {
+  if (preProcessResult != OperationResult::SUCCESS) {
     LOG_ERROR(logger(),
               "Pre-execution failed" << KVLOG(
                   cid, clientId, reqOffsetInBatch, reqSeqNum, (uint32_t)preProcessResult, resultLen));
     return preProcessResult;
   }
   if (request.outActualReplySize == 0) {
-    preProcessResult = EXEC_DATA_EMPTY;
+    preProcessResult = OperationResult::EXEC_DATA_EMPTY;
     LOG_ERROR(logger(),
               "Pre-execution failed" << KVLOG(cid, clientId, reqOffsetInBatch, reqSeqNum, (uint32_t)preProcessResult));
     return preProcessResult;
@@ -1577,7 +1577,7 @@ OperationResult PreProcessor::launchReqPreProcessing(const PreProcessRequestMsgS
   LOG_DEBUG(
       logger(),
       "Pre-execution operation successfully completed" << KVLOG(cid, reqSeqNum, clientId, reqOffsetInBatch, blockId));
-  return SUCCESS;
+  return OperationResult::SUCCESS;
 }
 
 // For test purposes
@@ -1652,7 +1652,7 @@ void PreProcessor::handleReqPreProcessedByNonPrimary(uint16_t clientId,
                                                      OperationResult preProcessResult) {
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.handlePreProcessedReqByNonPrimary);
   setPreprocessingRightNow(clientId, reqOffsetInBatch, false);
-  const auto status = (preProcessResult == SUCCESS) ? STATUS_GOOD : STATUS_FAILED;
+  const auto status = (preProcessResult == OperationResult::SUCCESS) ? STATUS_GOOD : STATUS_FAILED;
   auto replyMsg = make_shared<PreProcessReplyMsg>(myReplicaId_,
                                                   clientId,
                                                   reqOffsetInBatch,

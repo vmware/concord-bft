@@ -12,7 +12,7 @@
 #pragma once
 
 #include "messages/ClientRequestMsg.hpp"
-#include "SimpleClient.hpp"
+#include "SharedTypes.hpp"
 #include <list>
 
 namespace preprocessor {

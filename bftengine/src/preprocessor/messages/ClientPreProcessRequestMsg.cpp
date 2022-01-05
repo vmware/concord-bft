@@ -49,7 +49,7 @@ unique_ptr<MessageBase> ClientPreProcessRequestMsg::convertToClientRequestMsg(bo
                                                                            requestBuf(),
                                                                            requestTimeoutMilli(),
                                                                            getCid(),
-                                                                           opResult(),
+                                                                           result(),
                                                                            spanContext<ClientRequestMsg>(),
                                                                            emptyReq ? nullptr : requestSignature(),
                                                                            emptyReq ? 0 : requestSignatureLength());

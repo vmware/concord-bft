@@ -31,6 +31,7 @@
 #include "bftengine/DbMetadataStorage.hpp"
 #include "crypto_utils.hpp"
 #include "json_output.hpp"
+#include "bftengine/ReplicaSpecificInfoManager.hpp"
 
 #include <unordered_map>
 
@@ -871,13 +872,22 @@ struct ResetMetadata {
   std::string description() const {
     return "resetMetadata REPLICA_ID\n"
            "  resets BFT and State Transfer metadata for live replica restore"
-           "  REPLICA_ID - of the target replica";
+           "  REPLICA_ID - of the target replica"
+           "  F - the value of f in the original blockchain"
+           "  C - the value of c in the original blockchain"
+           "  principles - the number of principles in the original blockchain."
+           "  MAX_CLIENT_BATCH_SIZE - the maximal client's batch size in the original blockchain"
+           "  Note that if latest 4 parameters is not provided, RSIs won't be removed from the metadata";
   }
 
   std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &args) const {
     if (args.values.empty()) throw std::invalid_argument{"Missing REPLICA_ID argument"};
     std::uint16_t repId = concord::util::to<std::uint16_t>(args.values.front());
-
+    bool removeRsis = args.values.size() == 5;
+    uint32_t fVal = removeRsis ? concord::util::to<std::uint32_t>(args.values[1]) : 1;
+    uint32_t cVal = removeRsis ? concord::util::to<std::uint32_t>(args.values[2]) : 0;
+    uint32_t principles = removeRsis ? concord::util::to<std::uint32_t>(args.values[3]) : 0;
+    uint32_t maxClientBatchSize = removeRsis ? concord::util::to<std::uint32_t>(args.values[4]) : 0;
     std::map<std::string, std::string> result;
     // Update/reset ST metadata
     using namespace concord::storage;
@@ -904,8 +914,9 @@ struct ResetMetadata {
     std::unique_ptr<MetadataStorage> mdtStorage(
         new DBMetadataStorage(adapter.db()->asIDBClient().get(), std::make_unique<MetadataKeyManipulator>()));
     // in this case n, f and c have no use
-    shared_ptr<bftEngine::impl::PersistentStorage> p(
-        new bftEngine::impl::PersistentStorageImp(4, 1, 0, 0, 0));  // TODO: add here rsi reset
+    uint32_t nVal = removeRsis ? 3 * fVal + 2 * cVal + 1 : 4;
+    shared_ptr<bftEngine::impl::PersistentStorage> p(new bftEngine::impl::PersistentStorageImp(
+        nVal, fVal, cVal, principles, maxClientBatchSize));  // TODO: add here rsi reset
     uint16_t numOfObjects = 0;
     auto objectDescriptors = ((PersistentStorageImp *)p.get())->getDefaultMetadataObjectDescriptors(numOfObjects);
     bool isNewStorage = mdtStorage->initMaxSizeOfObjects(objectDescriptors.get(), numOfObjects);
@@ -921,6 +932,15 @@ struct ResetMetadata {
       result["stable seq num"] = std::to_string(stableSeqNum);
     }
     p->setPrimaryLastUsedSeqNum(lastExecutedSn);
+    if (removeRsis) {
+      for (uint32_t principle = 0; principle < nVal + principles; principle++) {
+        uint32_t baseIndex = principle * maxClientBatchSize;
+        for (uint32_t index = 0; index < maxClientBatchSize; index++) {
+          bftEngine::impl::RsiItem rsi_item(0, 0, std::string());
+          p->setReplicaSpecificInfo(baseIndex + index, rsi_item.serialize());
+        }
+      }
+    }
     p->endWriteTran();
     return toJson(result);
   }

@@ -224,11 +224,6 @@ Msg ClientsAddRemoveExecuteCommand 51 {
     bool restart
 }
 
-Msg ClientTlsExchangeKey 52 {
-    uint64 sender_id
-    list kvpair uint32 string clients_certificates
-}
-
 Msg ClientsRestartCommand 53 {
     uint64 sender_id
     string data
@@ -256,7 +251,6 @@ Msg ClientStateReply 39 {
         ClientKeyExchangeCommand
         ClientsAddRemoveExecuteCommand
         ClientsAddRemoveUpdateCommand
-        ClientTlsExchangeKey
         ClientsRestartCommand
         ReplicaTlsExchangeKey
       } response
@@ -291,7 +285,6 @@ Msg ReconfigurationRequest 1 {
     ClientKeyExchangeCommand
     ClientReconfigurationStateRequest
     ClientExchangePublicKey
-    ClientTlsExchangeKey
     RestartCommand
     ReplicaTlsExchangeKey
     ClientsAddRemoveCommand

@@ -67,7 +67,7 @@ class ConcordClient {
 
   size_t PendingRequestsCount() const { return pending_requests_.size(); }
 
-  std::pair<int8_t, PendingReplies> SendPendingRequests();
+  std::pair<int32_t, PendingReplies> SendPendingRequests();
 
   int getClientId() const;
 

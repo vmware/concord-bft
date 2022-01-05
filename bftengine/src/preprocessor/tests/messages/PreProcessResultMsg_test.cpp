@@ -71,13 +71,13 @@ std::pair<std::string, std::vector<char>> getProcessResultSigBuff(const std::uni
   auto msgSigSize = sigManager->getMySigLength();
   std::vector<char> msgSig(msgSigSize, 0);
   auto hash = PreProcessResultHashCreator::create(
-      params.result, sizeof(params.result), SUCCESS, params.senderId, params.reqSeqNum);
+      params.result, sizeof(params.result), OperationResult::SUCCESS, params.senderId, params.reqSeqNum);
   sigManager->sign(reinterpret_cast<const char*>(hash.data()), hash.size(), msgSig.data(), msgSigSize);
 
   // For simplicity, copy the same signatures
   std::list<PreProcessResultSignature> resultSigs;
   for (int i = 0; i < sigCount; i++) {
-    resultSigs.emplace_back(std::vector<char>(msgSig), duplicateSigs ? 0 : i, bftEngine::SUCCESS);
+    resultSigs.emplace_back(std::vector<char>(msgSig), duplicateSigs ? 0 : i, OperationResult::SUCCESS);
   }
   return std::make_pair(PreProcessResultSignature::serializeResultSignatureList(resultSigs), msgSig);
 }
@@ -126,13 +126,13 @@ class PreProcessResultMsgTestFixture : public testing::Test {
     std::vector<char> msgSig(msgSigSize, 0);
 
     auto hash = PreProcessResultHashCreator::create(
-        params.result, sizeof(params.result), SUCCESS, params.senderId, params.reqSeqNum);
+        params.result, sizeof(params.result), OperationResult::SUCCESS, params.senderId, params.reqSeqNum);
     sigManager->sign(reinterpret_cast<const char*>(hash.data()), hash.size(), msgSig.data(), msgSigSize);
 
     // For simplicity, copy the same signatures
     std::list<PreProcessResultSignature> resultSigs;
     for (int i = 0; i < sigCount; i++) {
-      resultSigs.emplace_back(std::vector<char>(msgSig), duplicateSigs ? 0 : i, bftEngine::SUCCESS);
+      resultSigs.emplace_back(std::vector<char>(msgSig), duplicateSigs ? 0 : i, OperationResult::SUCCESS);
     }
     return std::make_unique<PreProcessResultMsg>(params.senderId,
                                                  0,
@@ -202,7 +202,7 @@ TEST_F(PreProcessResultMsgTestFixture, SignatureDeserialization) {
 
   std::list<PreProcessResultSignature> resultSigs;
   for (int i = 0; i < replicaInfo.getNumberOfReplicas(); i++) {
-    resultSigs.emplace_back(std::vector<char>(msgSig), 0, bftEngine::SUCCESS);
+    resultSigs.emplace_back(std::vector<char>(msgSig), 0, OperationResult::SUCCESS);
   }
   auto resultSigsBuf = PreProcessResultSignature::serializeResultSignatureList(resultSigs);
   auto deserialized =
@@ -236,7 +236,7 @@ TEST_F(PreProcessResultMsgTestFixture, MsgDeserialization) {
   auto msgSigSize = sigManager->getMySigLength();
   std::vector<char> msgSig(msgSigSize, 0);
   auto hash = PreProcessResultHashCreator::create(
-      msg->requestBuf(), msg->requestLength(), SUCCESS, params.senderId, params.reqSeqNum);
+      msg->requestBuf(), msg->requestLength(), OperationResult::SUCCESS, params.senderId, params.reqSeqNum);
   sigManager->sign(reinterpret_cast<char*>(hash.data()), hash.size(), msgSig.data(), msgSigSize);
   for (const auto& sig : sigs) {
     ASSERT_EQ(sig.sender_replica, 0);
@@ -269,7 +269,7 @@ TEST_F(PreProcessResultMsgTestFixture, MsgDeserializationFromBase) {
   auto msgSigSize = sigManager->getMySigLength();
   std::vector<char> msgSig(msgSigSize, 0);
   auto hash = PreProcessResultHashCreator::create(
-      msg->requestBuf(), msg->requestLength(), SUCCESS, params.senderId, params.reqSeqNum);
+      msg->requestBuf(), msg->requestLength(), OperationResult::SUCCESS, params.senderId, params.reqSeqNum);
   sigManager->sign(reinterpret_cast<char*>(hash.data()), hash.size(), msgSig.data(), msgSigSize);
   for (const auto& sig : sigs) {
     ASSERT_EQ(sig.sender_replica, 0);
