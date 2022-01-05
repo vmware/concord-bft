@@ -39,7 +39,7 @@ class RVBManager {
  public:
   // Init / Destroy functions
   RVBManager() = delete;
-  RVBManager(const Config& config, const IAppState* state_api, DataStore* ds);
+  RVBManager(const Config& config, const IAppState* state_api, const std::shared_ptr<DataStore>& ds);
   void init();
 
   // Called during checkpointing
@@ -74,7 +74,7 @@ class RVBManager {
   std::unique_ptr<RangeValidationTree> in_mem_rvt_;
   std::unordered_map<BlockId, STDigest> current_rvb_group_;
   const IAppState* as_;
-  const std::shared_ptr<DataStore> ds_;
+  const std::shared_ptr<DataStore>& ds_;
   CheckpointDesc last_checkpoint_desc_;
   std::vector<std::pair<BlockId, STDigest>> pruned_blocks_digests_;
   std::mutex pruned_blocks_digests_mutex_;
