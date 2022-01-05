@@ -420,8 +420,12 @@ DataStore::CheckpointDesc BCStateTran::createCheckpointDesc(uint64_t checkpointN
   ConcordAssert(!checkDesc.rvbData.empty());
 
   LOG_INFO(logger_,
-           "CheckpointDesc: " << KVLOG(
-               checkpointNumber, maxBlockId, digestOfMaxBlockId, digestOfResPagesDescriptor, checkDesc.rvbData.size()));
+           "CheckpointDesc: " << KVLOG(checkpointNumber,
+                                       maxBlockId,
+                                       digestOfMaxBlockId,
+                                       digestOfResPagesDescriptor,
+                                       checkDesc.rvbData.size(),
+                                       rvbm_->getDigestOfRvbData()));
 
   return checkDesc;
 }
