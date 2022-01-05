@@ -26,7 +26,7 @@ class DebugPersistentStorage : public PersistentStorage {
 
   // Inherited via PersistentStorage
   uint8_t beginWriteTran() override;
-  uint8_t endWriteTran(bool sync=false) override;
+  uint8_t endWriteTran(bool sync = false) override;
   bool isInWriteTran() const override;
   void setLastExecutedSeqNum(SeqNum seqNum) override;
   void setPrimaryLastUsedSeqNum(SeqNum seqNum) override;

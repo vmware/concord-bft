@@ -64,7 +64,7 @@ class IDBClient {
   virtual Status put(const Sliver& _key, const Sliver& _value) = 0;
   virtual Status del(const Sliver& _key) = 0;
   virtual Status multiGet(const KeysVector& _keysVec, OUT ValuesVector& _valuesVec) = 0;
-  virtual Status multiPut(const SetOfKeyValuePairs& _keyValueMap, bool sync=false) = 0;
+  virtual Status multiPut(const SetOfKeyValuePairs& _keyValueMap, bool sync = false) = 0;
   virtual Status multiDel(const KeysVector& _keysVec) = 0;
   // Delete keys in the [_beginKey, _endKey) range (_beginKey included and _endKey excluded). If an inavlid range has
   // been passed (i.e. _endKey < _beginKey), the behavior is undefined. If _beginKey == _endKey, the call will not have
