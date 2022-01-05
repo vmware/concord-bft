@@ -27,6 +27,7 @@
 #include <string_view>
 #include <unordered_map>
 #include <vector>
+#include "details.h"
 
 namespace concord::kvbc::categorization::detail {
 
@@ -50,7 +51,7 @@ class VersionedKeyValueCategory {
   // Delete the given block ID as a genesis one.
   // Precondition: The given block ID must be the genesis one.
   // Return the number of deleted keys from the DB.
-  std::size_t deleteGenesisBlock(BlockId, const VersionedOutput &, storage::rocksdb::NativeWriteBatch &);
+  std::size_t deleteGenesisBlock(BlockId, const VersionedOutput &, detail::LocalWriteBatch &);
 
   // Delete the given block ID as a last reachable one.
   // Precondition: The given block ID must be the last reachable one.

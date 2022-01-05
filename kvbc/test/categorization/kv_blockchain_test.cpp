@@ -2286,6 +2286,71 @@ TEST_F(categorized_kvbc, root_hash) {
   }
 }
 
+TEST_F(categorized_kvbc, local_write_batch) {
+  SetUp();
+  auto cf1 = std::string("Default");
+  auto key1 = std::string("key1");
+  auto val1 = std::string("val1");
+
+  auto cf2 = std::string("Version");
+  auto key2 = std::string("key2");
+  auto val2 = std::string("val2");
+
+  auto key3 = std::string("key3");
+  auto val3 = std::string("val3");
+
+  auto key4 = std::string("key4");
+  auto val4 = std::string("val4");
+  db->createColumnFamily(cf1);
+  db->createColumnFamily(cf2);
+
+  concord::kvbc::categorization::detail::LocalWriteBatch localBatch;
+  localBatch.put(cf1, key1, val1);
+  ASSERT_EQ(localBatch.puts_.size(), 1);
+  {
+    const auto& put_update = localBatch.puts_.front();
+    ASSERT_EQ(put_update.cFamily, cf1);
+    ASSERT_EQ(put_update.key, key1);
+    ASSERT_EQ(put_update.value, val1);
+  }
+  ASSERT_EQ(localBatch.dels_.size(), 0);
+  ASSERT_EQ(localBatch.operations_.size(), 1);
+  ASSERT_EQ(localBatch.operations_.back(), localBatch.put_op_);
+
+  localBatch.put(cf1, key2, val2);
+  {
+    const auto& put_update = localBatch.puts_.back();
+    ASSERT_EQ(put_update.cFamily, cf1);
+    ASSERT_EQ(put_update.key, key2);
+    ASSERT_EQ(put_update.value, val2);
+  }
+  ASSERT_EQ(localBatch.puts_.size(), 2);
+  ASSERT_EQ(localBatch.dels_.size(), 0);
+  ASSERT_EQ(localBatch.operations_.size(), 2);
+  ASSERT_EQ(localBatch.operations_.back(), localBatch.put_op_);
+
+  localBatch.del(cf1, key1);
+  {
+    const auto& put_update = localBatch.dels_.back();
+    ASSERT_EQ(put_update.cFamily, cf1);
+    ASSERT_EQ(put_update.key, key1);
+  }
+  ASSERT_EQ(localBatch.puts_.size(), 2);
+  ASSERT_EQ(localBatch.dels_.size(), 1);
+  ASSERT_EQ(localBatch.operations_.size(), 3);
+  ASSERT_EQ(localBatch.operations_.back(), localBatch.delete_op_);
+
+  auto batch = db->getBatch();
+  localBatch.moveToBatch(batch);
+  ASSERT_EQ(batch.count(), 3);
+
+  concord::kvbc::categorization::detail::LocalWriteBatch localBatch2;
+  localBatch2.put(cf2, key3, val3);
+  localBatch2.del(cf2, key4);
+  localBatch2.moveToBatch(batch);
+  ASSERT_EQ(batch.count(), 5);
+}
+
 }  // end namespace
 
 int main(int argc, char** argv) {

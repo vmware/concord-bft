@@ -194,7 +194,7 @@ std::vector<std::string> VersionedKeyValueCategory::getBlockStaleKeys(BlockId bl
 
 std::size_t VersionedKeyValueCategory::deleteGenesisBlock(BlockId block_id,
                                                           const VersionedOutput &out,
-                                                          storage::rocksdb::NativeWriteBatch &batch) {
+                                                          detail::LocalWriteBatch &batch) {
   auto number_of_deletes = std::size_t{0};
 
   // Delete active keys from previously pruned genesis blocks.

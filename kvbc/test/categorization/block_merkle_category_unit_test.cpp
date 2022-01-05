@@ -160,7 +160,9 @@ class block_merkle_category : public Test {
 
   void deleteGenesisBlock(BlockId block_id, const BlockMerkleOutput &out) {
     auto batch = db->getBatch();
-    cat.deleteGenesisBlock(block_id, out, batch);
+    concord::kvbc::categorization::detail::LocalWriteBatch loc_batch;
+    cat.deleteGenesisBlock(block_id, out, loc_batch);
+    loc_batch.moveToBatch(batch);
     db->write(std::move(batch));
   }
 

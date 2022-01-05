@@ -133,7 +133,7 @@ std::vector<std::string> ImmutableKeyValueCategory::getBlockStaleKeys(BlockId,
 
 size_t ImmutableKeyValueCategory::deleteGenesisBlock(BlockId,
                                                      const ImmutableOutput &updates_info,
-                                                     storage::rocksdb::NativeWriteBatch &batch) {
+                                                     detail::LocalWriteBatch &batch) {
   deleteBlock(updates_info, batch);
   return updates_info.tagged_keys.size();
 }
@@ -142,13 +142,6 @@ void ImmutableKeyValueCategory::deleteLastReachableBlock(BlockId,
                                                          const ImmutableOutput &updates_info,
                                                          storage::rocksdb::NativeWriteBatch &batch) {
   deleteBlock(updates_info, batch);
-}
-
-void ImmutableKeyValueCategory::deleteBlock(const ImmutableOutput &updates_info,
-                                            storage::rocksdb::NativeWriteBatch &batch) {
-  for (const auto &kv : updates_info.tagged_keys) {
-    batch.del(cf_, kv.first);
-  }
 }
 
 std::optional<Value> ImmutableKeyValueCategory::get(const std::string &key, BlockId block_id) const {

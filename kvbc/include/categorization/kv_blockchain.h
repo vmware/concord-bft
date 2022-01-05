@@ -159,17 +159,17 @@ class KeyValueBlockchain {
   void deleteGenesisBlock(BlockId block_id,
                           const std::string& category_id,
                           const ImmutableOutput& updates_info,
-                          storage::rocksdb::NativeWriteBatch&);
+                          detail::LocalWriteBatch&);
 
   void deleteGenesisBlock(BlockId block_id,
                           const std::string& category_id,
                           const VersionedOutput& updates_info,
-                          storage::rocksdb::NativeWriteBatch&);
+                          detail::LocalWriteBatch&);
 
   void deleteGenesisBlock(BlockId block_id,
                           const std::string& category_id,
                           const BlockMerkleOutput& updates_info,
-                          storage::rocksdb::NativeWriteBatch&);
+                          detail::LocalWriteBatch&);
 
   void deleteLastReachableBlock(BlockId block_id,
                                 const std::string& category_id,
@@ -220,6 +220,8 @@ class KeyValueBlockchain {
 
   // currently we are operating with single thread
   util::ThreadPool thread_pool_{1};
+  // For concurrent deletion of the categories inside a block.
+  util::ThreadPool prunning_thread_pool_{2};
 
   // metrics
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;
