@@ -1131,31 +1131,21 @@ void BcStTest::configureLog(const string& logLevelStr) {
   std::set<string> possibleLogLevels = {"trace", "debug", "info", "warn", "error", "fatal"};
   ASSERT_TRUE(possibleLogLevels.find(logLevelStr) != possibleLogLevels.end());
 #ifdef USE_LOG4CPP
-  log4cplus::LogLevel logLevel =
-      logLevelStr == "trace"
-          ? log4cplus::TRACE_LOG_LEVEL
-          : logLevelStr == "debug"
-                ? log4cplus::DEBUG_LOG_LEVEL
-                : logLevelStr == "info"
-                      ? log4cplus::INFO_LOG_LEVEL
-                      : logLevelStr == "warn"
-                            ? log4cplus::WARN_LOG_LEVEL
-                            : logLevelStr == "error"
-                                  ? log4cplus::ERROR_LOG_LEVEL
-                                  : logLevelStr == "fatal" ? log4cplus::FATAL_LOG_LEVEL : log4cplus::INFO_LOG_LEVEL;
+  log4cplus::LogLevel logLevel = logLevelStr == "trace"   ? log4cplus::TRACE_LOG_LEVEL
+                                 : logLevelStr == "debug" ? log4cplus::DEBUG_LOG_LEVEL
+                                 : logLevelStr == "info"  ? log4cplus::INFO_LOG_LEVEL
+                                 : logLevelStr == "warn"  ? log4cplus::WARN_LOG_LEVEL
+                                 : logLevelStr == "error" ? log4cplus::ERROR_LOG_LEVEL
+                                 : logLevelStr == "fatal" ? log4cplus::FATAL_LOG_LEVEL
+                                                          : log4cplus::INFO_LOG_LEVEL;
 #else
-  logging::LogLevel logLevel =
-      logLevelStr == "trace"
-          ? logging::LogLevel::trace
-          : logLevelStr == "debug"
-                ? logging::LogLevel::debug
-                : logLevelStr == "info"
-                      ? logging::LogLevel::info
-                      : logLevelStr == "warn"
-                            ? logging::LogLevel::warn
-                            : logLevelStr == "error"
-                                  ? logging::LogLevel::error
-                                  : logLevelStr == "fatal" ? logging::LogLevel::fatal : logging::LogLevel::info;
+  logging::LogLevel logLevel = logLevelStr == "trace"   ? logging::LogLevel::trace
+                               : logLevelStr == "debug" ? logging::LogLevel::debug
+                               : logLevelStr == "info"  ? logging::LogLevel::info
+                               : logLevelStr == "warn"  ? logging::LogLevel::warn
+                               : logLevelStr == "error" ? logging::LogLevel::error
+                               : logLevelStr == "fatal" ? logging::LogLevel::fatal
+                                                        : logging::LogLevel::info;
 #endif
   // logging::Logger::getInstance("serializable").setLogLevel(logLevel);
   // logging::Logger::getInstance("concord.bft.st.dbdatastore").setLogLevel(logLevel);
@@ -1386,10 +1376,11 @@ TEST_F(BcStTest, dstValidatePeriodicSourceReplacement) {
   auto const increase_batches = std::function<void(void)>([&]() { batch_count++; });
   ASSERT_NFF(getMissingblocksStage(delay_periodically, increase_batches));
   const auto& actualSources_ = stDelegator_->getSourceSelector().getActualSources();
-  ASSERT_EQ(actualSources_.size(), 3);
-  validateSourceSelectorMetricCounters({{"total_replacements_", 3},
+  ASSERT_EQ(actualSources_.size(), 4);
+  validateSourceSelectorMetricCounters({{"total_replacements_", 4},
                                         {"replacement_due_to_no_source_", 1},
-                                        {"replacement_due_to_periodic_change_", 2},
+                                        {"replacement_due_to_source_same_as_primary_", 0},
+                                        {"replacement_due_to_periodic_change_", 3},
                                         {"replacement_due_to_retransmission_timeout_", 0},
                                         {"replacement_due_to_bad_data_", 0}});
   ASSERT_NFF(getReservedPagesStage());
@@ -1455,6 +1446,8 @@ TEST_F(BcStTest, dstPreprepareFromMultipleSourcesDuringStateTransfer) {
   // TBD metric counters in source selector should be used to validate changed sources to avoid primary
   ASSERT_EQ(sources.size(), 1);
   validateSourceSelectorMetricCounters({{"total_replacements_", 1},
+                                        {"replacement_due_to_no_source_", 1},
+                                        {"replacement_due_to_source_same_as_primary_", 0},
                                         {"replacement_due_to_periodic_change_", 0},
                                         {"replacement_due_to_retransmission_timeout_", 0},
                                         {"replacement_due_to_bad_data_", 0}});
@@ -1557,6 +1550,12 @@ TEST_F(BcStTest, srcHandleFetchResPagesMsg) {
                                                    testState_.maxRepliedCheckpointNum));
   ASSERT_NFF(srcAssertItemDataMsgBatchSentWithResPages(1, testState_.maxRepliedCheckpointNum));
 }
+
+/////////////////////////////////////////////////////////
+//
+//       BcStTest Backup Replica (Initialization, Checkpointing)
+//
+/////////////////////////////////////////////////////////
 
 }  // namespace bftEngine::bcst::impl
 

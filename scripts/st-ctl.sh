@@ -215,7 +215,7 @@ if $cmd_set_concord_log_level; then
         "concord.util.handoff" \
         "concord.bft.st.dbdatastore" \
         "concord.bft.st.inmem" \
-        "concord.bft.st.rvbm" \
+        "concord.bft.st.rvb" \
         # Uncomment as needed
         #"serializable" \
         #'rocksdb'
