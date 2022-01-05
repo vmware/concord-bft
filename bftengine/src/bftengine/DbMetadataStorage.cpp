@@ -46,12 +46,14 @@ bool DBMetadataStorage::isNewStorage() {
   return (outActualObjectSize == 0);
 }
 
-bool DBMetadataStorage::initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray, uint32_t metadataObjectsArrayLength) {
+bool DBMetadataStorage::initMaxSizeOfObjects(const std::map<uint32_t, ObjectDesc> &metadataObjectsArray,
+                                             uint32_t metadataObjectsArrayLength) {
   for (uint32_t i = objectsNumParameterId_ + 1; i < metadataObjectsArrayLength; ++i) {
-    objectIdToSizeMap_[i] = metadataObjectsArray[i].maxSize;
-    LOG_TRACE(logger_,
-              "initMaxSizeOfObjects i=" << i << " object data: id=" << metadataObjectsArray[i].id
-                                        << ", maxSize=" << metadataObjectsArray[i].maxSize);
+    const auto objectData = metadataObjectsArray.at(i);
+    objectIdToSizeMap_[i] = objectData.maxSize;
+    LOG_TRACE(
+        logger_,
+        "initMaxSizeOfObjects i=" << i << " object data: id=" << objectData.id << ", maxSize=" << objectData.maxSize);
   }
   // Metadata object with id=1 is used to indicate storage initialization state
   // (number of specified metadata objects).

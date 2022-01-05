@@ -63,7 +63,7 @@ int main(int argc, char **argv) {
     remove(dbFile.c_str());
     auto *fileStorage = new FileStorage(logger, dbFile);
     const uint32_t objNum = 6;
-    FileStorage::ObjectDesc objects[objNum];
+    std::map<uint32_t, FileStorage::ObjectDesc> objects;
     // Metadata object with id=1 is used to indicate storage initialization state
     for (uint32_t i = 2; i < objNum; i++) {
       objects[i].id = i;

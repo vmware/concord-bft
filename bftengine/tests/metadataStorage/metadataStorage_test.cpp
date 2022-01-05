@@ -62,7 +62,7 @@ DBMetadataStorage *initiateMetadataStorage(Client *dbClient, const std::string &
   }
   DBMetadataStorage *metadataStorage_ =
       new DBMetadataStorage(dbClient, std::make_unique<concord::storage::v1DirectKeyValue::MetadataKeyManipulator>());
-  bftEngine::MetadataStorage::ObjectDesc objectDesc[objectsNum];
+  std::map<uint32_t, bftEngine::MetadataStorage::ObjectDesc> objectDesc;
   for (uint32_t id = initialObjectId; id < objectsNum; ++id) {
     objectDesc[id].id = id;
     objectDesc[id].maxSize = maxObjDataSize;

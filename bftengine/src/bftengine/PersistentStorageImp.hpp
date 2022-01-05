@@ -106,7 +106,7 @@ enum ReplicaSpecificInfoParameterIds {
 
 const uint32_t replicaSpecificInfoMaxSize = 1024 * 1024;  // 1MB
 
-typedef unique_ptr<MetadataStorage::ObjectDesc[]> ObjectDescUniquePtr;
+typedef std::map<uint32_t, MetadataStorage::ObjectDesc> ObjectDescMap;
 
 class PersistentStorageImp : public PersistentStorage {
  public:
@@ -142,7 +142,7 @@ class PersistentStorageImp : public PersistentStorage {
   void setCheckpointMsgInCheckWindow(SeqNum seqNum, CheckpointMsg *msg) override;
   void setCompletedMarkInCheckWindow(SeqNum seqNum, bool completed) override;
   void clearSeqNumWindow() override;
-  ObjectDescUniquePtr getDefaultMetadataObjectDescriptors(uint16_t &numOfObjects) const;
+  ObjectDescMap getDefaultMetadataObjectDescriptors(uint16_t &numOfObjects) const;
 
   void setUserDataAtomically(const void *data, std::size_t numberOfBytes) override;
   void setUserDataInTransaction(const void *data, std::size_t numberOfBytes) override;
