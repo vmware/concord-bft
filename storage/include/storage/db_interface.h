@@ -73,6 +73,7 @@ class IDBClient {
   virtual Status rangeDel(const Sliver& _beginKey, const Sliver& _endKey) = 0;
   virtual bool isNew() = 0;
   virtual Status createCheckpoint(const uint64_t&) { return Status::IllegalOperation("Not supported"); };
+  virtual std::string getPath() const { return ""; };
   virtual void setCheckpointPath(const std::string&){};
   virtual std::string getCheckpointPath() const { return "NotSupported"; };
   virtual std::vector<uint64_t> getListOfCreatedCheckpoints() const { return {}; }

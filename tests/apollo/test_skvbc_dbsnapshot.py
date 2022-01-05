@@ -152,16 +152,58 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
         await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), 300)
         num_of_db_snapshots =  await bft_network.get_metric(0, bft_network, "Counters", "numOfDbCheckpointsCreated", component="rocksdbCheckpoint")
         assert num_of_db_snapshots == 0
+    
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    @verify_linearizability()
+    async def test_db_checkpoint_cleanup(self, bft_network, tracker):
+        '''
+        In this test, we verify that oldest db checkpoint is removed once,
+        we reach the maxNumber of allowed db checkpoints
+        '''
+        initial_prim = 0
+        bft_network.start_all_replicas()
+        client = bft_network.random_client()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=initial_prim)
+        await skvbc.fill_and_wait_for_checkpoint(
+            initial_nodes=bft_network.all_replicas(),
+            num_of_checkpoints_to_add=1,
+            verify_checkpoint_persistency=False,
+            assert_state_transfer_not_started=False
+        )
+        checkpoint_after_1 = await bft_network.wait_for_checkpoint(replica_id=initial_prim)
+        self.assertGreaterEqual(checkpoint_before + 1, checkpoint_after_1)
+        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), checkpoint_after_1*150)
+        num_of_db_snapshots =  await bft_network.get_metric(0, bft_network, "Counters", "numOfDbCheckpointsCreated", component="rocksdbCheckpoint")
+        assert num_of_db_snapshots == 1
+        old_snapshot_id = await bft_network.get_metric(0, bft_network, "Gauges", "lastDbCheckpointBlockId", component="rocksdbCheckpoint")
+        self.verify_snapshot_is_available(bft_network, 0, old_snapshot_id)
+        await skvbc.fill_and_wait_for_checkpoint(
+            initial_nodes=bft_network.all_replicas(),
+            num_of_checkpoints_to_add=3,
+            verify_checkpoint_persistency=False,
+            assert_state_transfer_not_started=False
+        )
+        checkpoint_after_2 = await bft_network.wait_for_checkpoint(replica_id=initial_prim)
+        self.assertGreaterEqual(checkpoint_after_1 + 3, checkpoint_after_2)
+        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), checkpoint_after_2*150)
+        num_of_db_snapshots =  await bft_network.get_metric(0, bft_network, "Counters", "numOfDbCheckpointsCreated", component="rocksdbCheckpoint")
+        assert num_of_db_snapshots == 4
+        self.verify_snapshot_is_available(bft_network, 0, old_snapshot_id, isPresent=False)
 
 
-    def verify_snapshot_is_available(self, bft_network, replicaId, shapshotId):
+    def verify_snapshot_is_available(self, bft_network, replicaId, shapshotId, isPresent=True):
         with log.start_action(action_type="verify snapshot db files"):
             snapshot_db_dir = os.path.join(bft_network.testdir, DB_SNAPSHOT_PREFIX + str(replicaId) + "/" + str(shapshotId))
-            assert os.path.exists(snapshot_db_dir)
-            size=0
-            for ele in os.scandir(snapshot_db_dir):
-                size+=os.path.getsize(ele)
-            assert (size > 0) #make sure that checkpoint folder is not empty
+            if isPresent == True:
+                assert os.path.exists(snapshot_db_dir)
+                size=0
+                for ele in os.scandir(snapshot_db_dir):
+                    size+=os.path.getsize(ele)
+                assert (size > 0) #make sure that checkpoint folder is not empty
+            else:
+                assert (os.path.exists(snapshot_db_dir) == False)
 
     def restore_form_older_snapshot(self, bft_network, replica, snapshot_id):
         with log.start_action(action_type="restore with older snapshot"):

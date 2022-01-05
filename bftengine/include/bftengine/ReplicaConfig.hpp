@@ -217,6 +217,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   CONFIG_PARAM(waitForFullCommOnStartup, bool, false, "whether to wait for n/n communication on startup");
 
   // Db checkpoint
+  CONFIG_PARAM(dbCheckpointFeatureEnabled, bool, false, "Feature flag for rocksDb checkpoints");
   CONFIG_PARAM(maxNumberOfDbCheckpoints, uint32_t, 0u, "Max number of db checkpoints to be created");
   CONFIG_PARAM(dbCheckPointWindowSize, uint32_t, 300u, "Db checkpoint window size in bft sequence number");
   CONFIG_PARAM(dbCheckpointDirPath, std::string, "", "Db checkpoint directory path");
@@ -329,6 +330,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, threadbagConcurrencyLevel2);
     serialize(outStream, timeoutForPrimaryOnStartupSeconds);
     serialize(outStream, waitForFullCommOnStartup);
+    serialize(outStream, dbCheckpointFeatureEnabled);
     serialize(outStream, maxNumberOfDbCheckpoints);
     serialize(outStream, dbCheckPointWindowSize);
     serialize(outStream, dbCheckpointDirPath);
@@ -413,6 +415,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, threadbagConcurrencyLevel2);
     deserialize(inStream, timeoutForPrimaryOnStartupSeconds);
     deserialize(inStream, waitForFullCommOnStartup);
+    deserialize(inStream, dbCheckpointFeatureEnabled);
     deserialize(inStream, maxNumberOfDbCheckpoints);
     deserialize(inStream, dbCheckPointWindowSize);
     deserialize(inStream, dbCheckpointDirPath);
@@ -492,9 +495,11 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.prePrepareFinalizeAsyncEnabled,
               rc.threadbagConcurrencyLevel1,
               rc.threadbagConcurrencyLevel2,
-              rc.enablePostExecutionSeparation);
-  os << ",";
-  os << KVLOG(rc.maxNumberOfDbCheckpoints, rc.dbCheckPointWindowSize, rc.dbCheckpointDirPath);
+              rc.enablePostExecutionSeparation,
+              rc.dbCheckpointFeatureEnabled,
+              rc.maxNumberOfDbCheckpoints,
+              rc.dbCheckPointWindowSize,
+              rc.dbCheckpointDirPath);
 
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
   return os;

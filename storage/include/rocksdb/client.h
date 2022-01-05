@@ -104,6 +104,7 @@ class Client : public concord::storage::IDBClient {
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) override {
     storage_metrics_.setAggregator(aggregator);
   }
+  std::string getPath() const override { return m_dbPath; }
   void setCheckpointPath(const std::string& path) override { dbCheckpointPath_ = path; }
   std::string getCheckpointPath() const override { return dbCheckpointPath_; }
   concordUtils::Status createCheckpoint(const uint64_t& checkPointId) override;

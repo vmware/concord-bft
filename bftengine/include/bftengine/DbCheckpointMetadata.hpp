@@ -53,10 +53,21 @@ struct DbCheckpointMetadata : public concord::serialize::SerializableFactory<DbC
     }
   };
   std::map<CheckpointId, DbCheckPointDescriptor> dbCheckPoints_;
+  uint64_t lastCmdSeqNum_{0};
+  TimeDuration lastCmdTimestamp_{0};
   DbCheckpointMetadata() = default;
-  void serializeDataMembers(std::ostream& outStream) const override { serialize(outStream, dbCheckPoints_); }
-  void deserializeDataMembers(std::istream& inStream) override { deserialize(inStream, dbCheckPoints_); }
+  void serializeDataMembers(std::ostream& outStream) const override {
+    serialize(outStream, lastCmdSeqNum_);
+    serialize(outStream, lastCmdTimestamp_);
+    serialize(outStream, dbCheckPoints_);
+  }
+  void deserializeDataMembers(std::istream& inStream) override {
+    deserialize(inStream, lastCmdSeqNum_);
+    deserialize(inStream, lastCmdTimestamp_);
+    deserialize(inStream, dbCheckPoints_);
+  }
 };
 constexpr size_t DB_CHECKPOINT_METADATA_MAX_SIZE{
-    MAX_ALLOWED_CHECKPOINTS * sizeof(std::pair<CheckpointId, DbCheckpointMetadata::DbCheckPointDescriptor>)};
+    MAX_ALLOWED_CHECKPOINTS * sizeof(std::pair<CheckpointId, DbCheckpointMetadata::DbCheckPointDescriptor>) +
+    sizeof(DbCheckpointMetadata::lastCmdSeqNum_) + sizeof(DbCheckpointMetadata::lastCmdTimestamp_)};
 }  // namespace bftEngine::impl
