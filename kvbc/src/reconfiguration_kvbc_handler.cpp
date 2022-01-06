@@ -163,6 +163,7 @@ concord::messages::ClientStateReply KvbcClientReconfigurationHandler::buildLates
   concord::messages::ClientStateReply creply;
   creply.block_id = 0;
   creply.epoch = 0;
+  creply.response.emplace<concord::messages::LatestEpochData>();
   auto value = ro_storage_.getLatest(concord::kvbc::categorization::kConcordReconfigurationCategoryId,
                                      std::string{keyTypes::reconfiguration_epoch_key});
   if (value.has_value()) {
