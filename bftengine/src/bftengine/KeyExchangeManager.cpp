@@ -106,7 +106,10 @@ std::string KeyExchangeManager::onKeyExchange(const KeyExchangeMsg& kemsg,
   if (ReplicaConfig::instance().getkeyExchangeOnStart() && (publicKeys_.numOfExchangedReplicas() <= liveQuorumSize))
     LOG_INFO(KEY_EX_LOG,
              "Exchanged [" << publicKeys_.numOfExchangedReplicas() << "] out of [" << liveQuorumSize << "]");
-  if (!initial_exchange_ && exchanged()) initial_exchange_ = true;
+  if (!initial_exchange_ && exchanged()) {
+    initial_exchange_ = true;
+    if (ReplicaConfig::instance().getkeyExchangeOnStart()) sendMainPublicKey();
+  }
   return "ok";
 }
 
@@ -196,7 +199,8 @@ void KeyExchangeManager::exchangeTlsKeys(const SeqNum& bft_sn) {
 void KeyExchangeManager::sendMainPublicKey() {
   concord::messages::ReconfigurationRequest req;
   req.sender = repID_;
-  req.command = concord::messages::ReplicaMainKeyUpdate{repID_, "hello", "hex"};
+  req.command =
+      concord::messages::ReplicaMainKeyUpdate{repID_, SigManager::instance()->getPublicKeyOfVerifier(repID_), "hex"};
   // Mark this request as an internal one
   std::vector<uint8_t> data_vec;
   concord::messages::serialize(data_vec, req);
@@ -311,7 +315,6 @@ void KeyExchangeManager::sendInitialKey(uint32_t prim, const SeqNum& s) {
   }
   sendKeyExchange(s);
   metrics_->sent_key_exchange_on_start_status.Get().Set("True");
-  sendMainPublicKey();
 }
 
 void KeyExchangeManager::waitForLiveQuorum(uint32_t prim) {

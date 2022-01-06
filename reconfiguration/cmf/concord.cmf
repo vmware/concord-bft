@@ -244,7 +244,7 @@ Msg ReplicaTlsExchangeKey 57 {
     string cert
 }
 
-Msg ReplicaMainKeyUpdate 58 {
+Msg ReplicaMainKeyUpdate 64 {
     uint64 sender_id
     string key
     string format

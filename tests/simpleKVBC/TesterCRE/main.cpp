@@ -23,6 +23,7 @@
 #include "crypto_utils.hpp"
 #include "secrets_manager_plain.h"
 #include "secrets_manager_enc.h"
+#include "client/reconfiguration/default_handlers.hpp"
 #include <variant>
 #include <experimental/filesystem>
 namespace fs = std::experimental::filesystem;
@@ -37,6 +38,7 @@ using bft::client::Client;
 struct creParams {
   string commConfigFile;
   string certFolder;
+  string replicasKeysFolder;
   ClientConfig bftConfig;
   Config CreConfig;
 };
@@ -52,6 +54,7 @@ creParams setupCreParams(int argc, char** argv) {
                                         {"interval-timeout", optional_argument, 0, 'o'},
                                         {0, 0, 0, 0}};
   creParams cre_param;
+  cre_param.replicasKeysFolder = "./replicas_rsa_keys";
   ClientConfig& client_config = cre_param.bftConfig;
   int o = 0;
   int optionIndex = 0;
@@ -434,6 +437,8 @@ int main(int argc, char** argv) {
   cre.registerHandler(std::make_shared<ClientsAddRemoveHandler>(last_scaling_status));
   cre.registerHandler(std::make_shared<ClientsRestartHandler>(last_resatrt_status, creParams.CreConfig.id_));
   cre.registerHandler(std::make_shared<ReplicaTLSKeyExchangeHandler>(creParams.certFolder));
+  cre.registerHandler(std::make_shared<concord::client::reconfiguration::handlers::ReplicaMainKeyPublicationHandler>(
+      creParams.replicasKeysFolder));
   cre.start();
   while (true) std::this_thread::sleep_for(1s);
 }

@@ -787,15 +787,19 @@ bool InternalKvReconfigurationHandler::verifySignature(uint32_t sender_id,
 
 bool InternalKvReconfigurationHandler::handle(const concord::messages::ReplicaMainKeyUpdate& command,
                                               uint64_t bft_seq_num,
-                                              uint32_t,
+                                              uint32_t sender_id,
                                               const std::optional<bftEngine::Timestamp>& ts,
                                               concord::messages::ReconfigurationResponse&) {
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
 
-  auto blockId = persistReconfigurationBlock(
-      serialized_command, bft_seq_num, std::string{kvbc::keyTypes::reconfiguration_rep_main_key}, ts, false);
-  LOG_INFO(getLogger(), "received ReplicaMainKeyUpdate" << KVLOG(command.sender_id, bft_seq_num, blockId));
+  auto blockId =
+      persistReconfigurationBlock(serialized_command,
+                                  bft_seq_num,
+                                  std::string{kvbc::keyTypes::reconfiguration_rep_main_key} + std::to_string(sender_id),
+                                  ts,
+                                  false);
+  LOG_INFO(getLogger(), "received ReplicaMainKeyUpdate" << KVLOG(sender_id, bft_seq_num, blockId));
   return true;
 }
 bool InternalKvReconfigurationHandler::handle(const concord::messages::WedgeCommand& command,

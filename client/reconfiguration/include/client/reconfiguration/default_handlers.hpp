@@ -15,7 +15,7 @@
 #include "secrets_manager_plain.h"
 
 namespace concord::client::reconfiguration::handlers {
-class ReplicaMainKeyPublicationHandler : IStateHandler {
+class ReplicaMainKeyPublicationHandler : public IStateHandler {
  public:
   ReplicaMainKeyPublicationHandler(const std::string& output_dir) : output_dir_{output_dir} {}
   bool validate(const State&) const override;
