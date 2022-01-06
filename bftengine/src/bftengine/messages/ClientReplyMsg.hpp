@@ -30,7 +30,7 @@ class ClientReplyMsg : public MessageBase {
  public:
   ClientReplyMsg(ReplicaId primaryId, ReqId reqSeqNum, ReplicaId replicaId);
 
-  ClientReplyMsg(ReplicaId replicaId, ReqId reqSeqNum, char* reply, uint32_t replyLength);
+  ClientReplyMsg(ReplicaId replicaId, ReqId reqSeqNum, char* reply, uint32_t replyLength, uint32_t executionResult = 0);
 
   ClientReplyMsg(ReplicaId primaryId, ReqId reqSeqNum, ReplicaId replicaId, uint32_t result);
 
