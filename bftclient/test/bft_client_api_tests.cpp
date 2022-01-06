@@ -229,6 +229,7 @@ Msg replyFromRequest(const MsgFromClient& request) {
   reply_header->msgType = REPLY_MSG_TYPE;
   reply_header->replicaSpecificInfoLength = 0;
   reply_header->replyLength = reply_data.size();
+  reply_header->result = req_header->result;
   reply_header->reqSeqNum = req_header->reqSeqNum;
   reply_header->spanContextSize = 0;
 
@@ -249,6 +250,7 @@ Msg replyFromRequestWithRSI(const MsgFromClient& request, const Msg& rsi) {
   reply_header->msgType = REPLY_MSG_TYPE;
   reply_header->replicaSpecificInfoLength = rsi.size();
   reply_header->replyLength = reply_data.size() + rsi.size();
+  reply_header->result = req_header->result;
   reply_header->reqSeqNum = req_header->reqSeqNum;
   reply_header->spanContextSize = 0;
 
@@ -393,6 +395,7 @@ TEST_F(ClientApiTestFixture, batch_of_writes) {
     for (uint32_t i = 0; i < req_header->numOfMessagesInBatch; i++) {
       const auto* req_header1 = reinterpret_cast<const ClientRequestMsgHeader*>(position);
       reply_header->reqSeqNum = req_header1->reqSeqNum;
+      reply_header->result = req_header1->result;
       reply_header->spanContextSize = 0;
       // Copy the reply data;
       memcpy(reply.data() + reply_header_size, reply_data.data(), reply_data.size());
@@ -440,6 +443,7 @@ TEST_F(ClientApiTestFixture, client_handle_several_batches) {
     for (uint32_t i = 0; i < req_header->numOfMessagesInBatch; i++) {
       const auto* req_header1 = reinterpret_cast<const ClientRequestMsgHeader*>(position);
       reply_header->reqSeqNum = req_header1->reqSeqNum;
+      reply_header->result = req_header1->result;
       reply_header->spanContextSize = 0;
       // Copy the reply data;
       memcpy(reply.data() + reply_header_size, reply_data.data(), reply_data.size());

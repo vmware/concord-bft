@@ -35,7 +35,8 @@ std::optional<Match> Matcher::match() {
   });
   if (result == matches_.end()) return std::nullopt;
   primary_ = result->first.metadata.primary;
-  return Match{Reply{result->first.data, std::move(result->second)}, result->first.metadata.primary};
+  return Match{Reply{result->first.metadata.result, result->first.data, std::move(result->second)},
+               result->first.metadata.primary};
 }
 
 bool Matcher::valid(const UnmatchedReply& reply) const {
