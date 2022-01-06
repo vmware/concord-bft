@@ -229,6 +229,9 @@ Msg ReplicaTlsExchangeKey 57 {
     string cert
 }
 
+Msg LatestEpochData 58 {
+}
+
 Msg ClientStateReply 39 {
     uint64 block_id
     oneof {
@@ -239,6 +242,7 @@ Msg ClientStateReply 39 {
         ClientTlsExchangeKey
         ClientsRestartCommand
         ReplicaTlsExchangeKey
+        LatestEpochData
       } response
     uint64 epoch
 }
