@@ -4347,15 +4347,10 @@ ReplicaImp::ReplicaImp(bool firstTime,
       auto timeSinceLastSnapshot = (std::chrono::duration_cast<std::chrono::seconds>(currTime) -
                                     DbCheckpointManager::instance().getLastCheckpointCreationTime())
                                        .count();
-      if ((getReplicaConfig().dbCheckpointFeatureEnabled && seqNum && isCurrentPrimary() &&
-           !(seqNum % getReplicaConfig().dbCheckPointWindowSize) &&
-           (timeSinceLastSnapshot >= getReplicaConfig().dbSnapshotIntervalSeconds.count())) ||
-          (DbCheckpointManager::instance().getNextStableSeqNumToCreateSnapshot().has_value() &&
-           DbCheckpointManager::instance().getNextStableSeqNumToCreateSnapshot().value() == seqNum)) {
+      if (getReplicaConfig().dbCheckpointFeatureEnabled && seqNum && isCurrentPrimary() &&
+          !(seqNum % getReplicaConfig().dbCheckPointWindowSize) &&
+          (timeSinceLastSnapshot >= getReplicaConfig().dbSnapshotIntervalSeconds.count())) {
         DbCheckpointManager::instance().sendInternalCreateDbCheckpointMsg(seqNum, false);
-        if (DbCheckpointManager::instance().getNextStableSeqNumToCreateSnapshot().has_value()) {
-          DbCheckpointManager::instance().setNextStableSeqNumToCreateSnapshot(std::nullopt);
-        }
       }
     });
   }
@@ -5152,7 +5147,7 @@ void ReplicaImp::onExecutionFinish() {
   auto seqNumToStopAt = ControlStateManager::instance().getCheckpointToStopAt();
   if (seqNumToStopAt.value_or(0) == lastExecutedSeqNum) ControlStateManager::instance().wedge();
   if (seqNumToStopAt.has_value() && seqNumToStopAt.value() > lastExecutedSeqNum && isCurrentPrimary()) {
-    // If after execution, we discover that we need to wedge at some futuer point, push a noop command to the incoming
+    // If after execution, we discover that we need to wedge at some future point, push a noop command to the incoming
     // messages queue.
     LOG_INFO(GL, "sending noop command to bring the system into wedge checkpoint");
     concord::messages::ReconfigurationRequest req;
@@ -5188,13 +5183,16 @@ void ReplicaImp::onExecutionFinish() {
     clientsManager->clearAllPendingRequests();
   }
 
-  // Sending noop client requests to get the system into a stable checkpoint,
+  // Sending noop commands to get the system into a stable checkpoint,
   // allowing the create dbCheckpoint operator command to create a dbCheckpoint/snapshot.
   if (getReplicaConfig().dbCheckpointFeatureEnabled && isCurrentPrimary() &&
-      (DbCheckpointManager::instance().getNextStableSeqNumToCreateSnapshot().has_value() &&
-       DbCheckpointManager::instance().getNextStableSeqNumToCreateSnapshot().value() >= lastExecutedSeqNum)) {
+      DbCheckpointManager::instance().isCreateDbCheckPtSeqNumSet(lastExecutedSeqNum)) {
+    bool noop =
+        (DbCheckpointManager::instance().getNextStableSeqNumToCreateSnapshot().value() != lastExecutedSeqNum + 1);
     DbCheckpointManager::instance().sendInternalCreateDbCheckpointMsg(
-        lastExecutedSeqNum + 1, true);  // send noop till we reach stable checkpoint
+        lastExecutedSeqNum + 1,
+        noop);  // send noop till we reach stable checkpoint
+    if (!noop) DbCheckpointManager::instance().setNextStableSeqNumToCreateSnapshot(std::nullopt);
     LOG_INFO(GL, "sendInternalCreateDbCheckpointMsg noop command ");
   }
 

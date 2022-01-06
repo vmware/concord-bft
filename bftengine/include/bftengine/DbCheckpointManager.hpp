@@ -59,16 +59,17 @@ class DbCheckpointManager {
   std::map<CheckpointId, DbCheckpointMetadata::DbCheckPointDescriptor> getListOfDbCheckpoints() const {
     return dbCheckptMetadata_.dbCheckPoints_;
   }
+  inline bool isCreateDbCheckPtSeqNumSet(const SeqNum& seqNum) {
+    return (DbCheckpointManager::instance().getNextStableSeqNumToCreateSnapshot().has_value() &&
+            DbCheckpointManager::instance().getNextStableSeqNumToCreateSnapshot().value() >= seqNum);
+  }
 
   /***
    * The operator command uses this function to find the next immediate stable seq number
    * with checkpointWindowSize(150) where dbCheckpoint/snapshot will be created.
    ***/
   void setNextStableSeqNumToCreateSnapshot(const std::optional<SeqNum>& seqNum);
-  std::optional<SeqNum> getNextStableSeqNumToCreateSnapshot() const {
-    if (nextStableSeqNum_ == std::nullopt) return std::nullopt;
-    return nextStableSeqNum_;
-  }
+  std::optional<SeqNum> getNextStableSeqNumToCreateSnapshot() const { return nextSeqNumToCreateCheckPt_; }
 
   static DbCheckpointManager& instance(InternalBftClient* client = nullptr) {
     static DbCheckpointManager instance(client);
@@ -123,7 +124,7 @@ class DbCheckpointManager {
   std::mutex lock_;
   uint32_t maxNumOfCheckpoints_{0};  // 0-disabled
   SeqNum lastCheckpointSeqNum_{0};
-  std::optional<SeqNum> nextStableSeqNum_ = std::nullopt;
+  std::optional<SeqNum> nextSeqNumToCreateCheckPt_{std::nullopt};
   std::chrono::seconds lastCheckpointCreationTime_{duration_cast<Seconds>(SystemClock::now().time_since_epoch())};
   std::string dbCheckPointDirPath_;
   concordMetrics::Component metrics_;

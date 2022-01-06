@@ -243,11 +243,7 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
         data = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
         assert(data.success == True)
 
-        """
-        dbcheckpoint will be created on next stable seq num 300.
-        Adding a 10-second delay to ensure that a dummy client request is sent and reaches a stable seq number of 300.
-        """
-        time.sleep(10)
+        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), 300)
 
         getrep = await op.get_dbcheckpoint_info_request()
         rsi_rep = client.get_rsi_replies()
@@ -258,6 +254,8 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
             assert(len(res[0].response.db_checkpoint_info) == 1)
             dbcheckpoint_info_list = res[0].response.db_checkpoint_info
             assert(any(dbcheckpoint_info.seq_num == 300 for dbcheckpoint_info in dbcheckpoint_info_list))
+        last_blockId =  await bft_network.get_metric(0, bft_network, "Gauges", "lastDbCheckpointBlockId", component="rocksdbCheckpoint")
+        self.verify_snapshot_is_available(bft_network, 0, last_blockId)
     
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
@@ -287,6 +285,8 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
             dbcheckpoint_info_list = res[0].response.db_checkpoint_info
             assert(any(dbcheckpoint_info.seq_num == 150 for dbcheckpoint_info in dbcheckpoint_info_list))
             assert(any(dbcheckpoint_info.seq_num == 300 for dbcheckpoint_info in dbcheckpoint_info_list))
+        last_blockId =  await bft_network.get_metric(0, bft_network, "Gauges", "lastDbCheckpointBlockId", component="rocksdbCheckpoint")
+        self.verify_snapshot_is_available(bft_network, 0, last_blockId)
 
     def verify_snapshot_is_available(self, bft_network, replicaId, shapshotId, isPresent=True):
         with log.start_action(action_type="verify snapshot db files"):

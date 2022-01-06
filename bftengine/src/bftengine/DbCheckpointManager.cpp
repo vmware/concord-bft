@@ -17,7 +17,6 @@
 #include <assertUtils.hpp>
 #include "Serializable.h"
 #include "db_checkpoint_msg.cmf.hpp"
-#include "concord.cmf.hpp"
 #include "SigManager.hpp"
 #include "Replica.hpp"
 
@@ -267,12 +266,12 @@ void DbCheckpointManager::sendInternalCreateDbCheckpointMsg(const SeqNum& seqNum
 
 void DbCheckpointManager::setNextStableSeqNumToCreateSnapshot(const std::optional<SeqNum>& seqNum) {
   if (seqNum == std::nullopt) {
-    nextStableSeqNum_ = std::nullopt;
+    nextSeqNumToCreateCheckPt_ = std::nullopt;
     return;
   }
   SeqNum seq_num_to_create_snapshot = (seqNum.value() + checkpointWindowSize);
   seq_num_to_create_snapshot = seq_num_to_create_snapshot - (seq_num_to_create_snapshot % checkpointWindowSize);
-  nextStableSeqNum_ = seq_num_to_create_snapshot;
-  LOG_INFO(getLogger(), "setNextStableSeqNumToCreateSnapshot, nextStableSeqNum_: " << nextStableSeqNum_.value());
+  nextSeqNumToCreateCheckPt_ = seq_num_to_create_snapshot;
+  LOG_INFO(getLogger(), "setNextStableSeqNumToCreateSnapshot " << KVLOG(nextSeqNumToCreateCheckPt_.value()));
 }
 }  // namespace bftEngine::impl
