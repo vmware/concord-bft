@@ -300,7 +300,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       requestsHandler_(requestsHandler),
       myReplica_(myReplica),
       myReplicaId_(myReplica.getReplicaConfig().replicaId),
-      maxPreExecResultSize_(myReplica.getReplicaConfig().maxExternalMessageSize),
+      maxPreExecResultSize_(myReplica.getReplicaConfig().maxExternalMessageSize - sizeof(uint64_t)),
       numOfReplicas_(myReplica.getReplicaConfig().numReplicas + myReplica.getReplicaConfig().numRoReplicas),
       numOfInternalClients_(myReplica.getReplicaConfig().numOfClientProxies),
       clientBatchingEnabled_(myReplica.getReplicaConfig().clientBatchingEnabled),
@@ -1540,9 +1540,7 @@ uint32_t PreProcessor::launchReqPreProcessing(const PreProcessRequestMsgSharedPt
   requestsHandler_.execute(accumulatedRequests, std::nullopt, cid, span);
   const IRequestsHandler::ExecutionRequest &request = accumulatedRequests.back();
   const auto status = request.outExecutionStatus;
-  // Append the conflict detection block id and add sizeof(uint64_t) the resulting length.
-  memcpy(preProcessResultBuffer + request.outActualReplySize, reinterpret_cast<char *>(&blockId), sizeof(uint64_t));
-  const auto resultLen = request.outActualReplySize + sizeof(uint64_t);
+  auto resultLen = request.outActualReplySize;
   LOG_DEBUG(logger(), "Pre-execution operation done" << KVLOG(cid, reqSeqNum, clientId, reqOffsetInBatch, blockId));
   if (status != 0 || !resultLen) {
     LOG_FATAL(
@@ -1550,6 +1548,9 @@ uint32_t PreProcessor::launchReqPreProcessing(const PreProcessRequestMsgSharedPt
         "Pre-execution failed!" << KVLOG(cid, clientId, reqOffsetInBatch, reqSeqNum, (uint32_t)status, resultLen));
     ConcordAssert(false);
   }
+  // Append the conflict detection block id and add sizeof(uint64_t) the resulting length.
+  memcpy(preProcessResultBuffer + request.outActualReplySize, reinterpret_cast<char *>(&blockId), sizeof(uint64_t));
+  resultLen += sizeof(uint64_t);
   return resultLen;
 }
 
