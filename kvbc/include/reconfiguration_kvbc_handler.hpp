@@ -74,6 +74,8 @@ class KvbcClientReconfigurationHandler : public concord::reconfiguration::Client
   concord::messages::ClientStateReply buildClientStateReply(kvbc::keyTypes::CLIENT_COMMAND_TYPES command_type,
                                                             uint32_t clientid);
   concord::messages::ClientStateReply buildReplicaStateReply(const std::string& command_type, uint32_t clientid);
+
+  concord::messages::ClientStateReply buildLatestEpochStateReply();
 };
 /**
  * This component is responsible for logging reconfiguration request (issued by an authorized operator) in the

@@ -158,6 +158,22 @@ concord::messages::ClientStateReply KvbcClientReconfigurationHandler::buildClien
   return creply;
 }
 
+concord::messages::ClientStateReply KvbcClientReconfigurationHandler::buildLatestEpochStateReply() {
+  concord::messages::ClientStateReply creply;
+  creply.block_id = 0;
+  creply.epoch = 0;
+  creply.response.emplace<concord::messages::LatestEpochData>();
+  auto value = ro_storage_.getLatest(concord::kvbc::categorization::kConcordReconfigurationCategoryId,
+                                     std::string{keyTypes::reconfiguration_epoch_key});
+  if (value.has_value()) {
+    const auto& epoch_str = std::get<categorization::VersionedValue>(*value).data;
+    ConcordAssertEQ(epoch_str.size(), sizeof(uint64_t));
+    creply.epoch = concordUtils::fromBigEndianBuffer<uint64_t>(epoch_str.data());
+    creply.block_id = std::get<categorization::VersionedValue>(*value).block_id;
+  }
+  return creply;
+}
+
 concord::messages::ClientStateReply KvbcClientReconfigurationHandler::buildReplicaStateReply(
     const std::string& command_type, uint32_t clientid) {
   concord::messages::ClientStateReply creply;
