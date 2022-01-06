@@ -43,7 +43,6 @@ namespace _fs = std::experimental::filesystem;
 #endif
 namespace bftEngine::impl {
 using std::chrono::duration_cast;
-using SeqNum = bftEngine::impl::SeqNum;
 using Status = concordUtils::Status;
 using SystemClock = std::chrono::system_clock;
 using Seconds = std::chrono::seconds;
@@ -57,6 +56,20 @@ class DbCheckpointManager {
                                      std::shared_ptr<bftEngine::impl::PersistentStorage> p,
                                      std::shared_ptr<concordMetrics::Aggregator> aggregator,
                                      const std::function<uint64_t()>& getLastBlockIdCb);
+  std::map<CheckpointId, DbCheckpointMetadata::DbCheckPointDescriptor> getListOfDbCheckpoints() const {
+    return dbCheckptMetadata_.dbCheckPoints_;
+  }
+  inline bool isCreateDbCheckPtSeqNumSet(const SeqNum& seqNum) {
+    return (DbCheckpointManager::instance().getNextStableSeqNumToCreateSnapshot().has_value() &&
+            DbCheckpointManager::instance().getNextStableSeqNumToCreateSnapshot().value() >= seqNum);
+  }
+
+  /***
+   * The operator command uses this function to find the next immediate stable seq number
+   * with checkpointWindowSize(150) where dbCheckpoint/snapshot will be created.
+   ***/
+  void setNextStableSeqNumToCreateSnapshot(const std::optional<SeqNum>& seqNum);
+  std::optional<SeqNum> getNextStableSeqNumToCreateSnapshot() const { return nextSeqNumToCreateCheckPt_; }
 
   static DbCheckpointManager& instance(InternalBftClient* client = nullptr) {
     static DbCheckpointManager instance(client);
@@ -66,7 +79,7 @@ class DbCheckpointManager {
     stopped_ = true;
     if (monitorThread_.joinable()) monitorThread_.join();
   }
-  void sendInternalCreateDbCheckpointMsg(const SeqNum& seqNum);
+  void sendInternalCreateDbCheckpointMsg(const SeqNum& seqNum, bool noop);
 
  private:
   logging::Logger getLogger() {
@@ -85,7 +98,7 @@ class DbCheckpointManager {
   void init();
   Status createDbCheckpoint(const uint64_t& checkPointId,
                             const uint64_t& lastBlockId,
-                            const uint64_t& seqNum,
+                            const SeqNum& seqNum,
                             const std::optional<Timestamp>& timestamp);
   void removeCheckpoint(const uint64_t& checkPointId);
   void removeAllCheckpoints() const;
@@ -99,7 +112,7 @@ class DbCheckpointManager {
   void checkAndRemove();
   void removeOldestDbCheckpoint();
   void updateDbCheckpointMetadata();
-  InternalBftClient* client_;
+  InternalBftClient* client_{nullptr};
   std::atomic<bool> stopped_ = false;
   DbCheckpointMetadata dbCheckptMetadata_;
   std::shared_ptr<concord::storage::IDBClient> dbClient_;
@@ -110,7 +123,8 @@ class DbCheckpointManager {
   std::thread monitorThread_;
   std::mutex lock_;
   uint32_t maxNumOfCheckpoints_{0};  // 0-disabled
-  uint64_t lastCheckpointSeqNum_{0};
+  SeqNum lastCheckpointSeqNum_{0};
+  std::optional<SeqNum> nextSeqNumToCreateCheckPt_{std::nullopt};
   std::chrono::seconds lastCheckpointCreationTime_{duration_cast<Seconds>(SystemClock::now().time_since_epoch())};
   std::string dbCheckPointDirPath_;
   concordMetrics::Component metrics_;

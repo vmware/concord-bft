@@ -117,7 +117,8 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
       concord::messages::db_checkpoint_msg::CreateDbCheckpoint createDbChkPtMsg;
       concord::messages::db_checkpoint_msg::deserialize(
           std::vector<std::uint8_t>(req.request, req.request + req.requestSize), createDbChkPtMsg);
-      DbCheckpointManager::instance().createDbCheckpointAsync(createDbChkPtMsg.seqNum, timestamp);
+      if (!createDbChkPtMsg.noop)
+        DbCheckpointManager::instance().createDbCheckpointAsync(createDbChkPtMsg.seqNum, timestamp);
       req.outExecutionStatus = static_cast<uint32_t>(OperationResult::SUCCESS);
       req.outReply[0] = '1';
       req.outActualReplySize = 1;
