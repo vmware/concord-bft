@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -15,6 +15,7 @@
 #include <type_traits>
 #include <bitset>
 #include <limits>
+#include <nlohmann/json.hpp>
 
 #include "ReplicaImp.hpp"
 #include "Timers.hpp"
@@ -1658,15 +1659,9 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
 }
 
 std::string ReplicaImp::getReplicaLastStableSeqNum() const {
-  std::ostringstream oss;
-  std::unordered_map<std::string, std::string> result, nested_data;
-
-  nested_data.insert(toPair(getName(lastStableSeqNum), lastStableSeqNum));
-  result.insert(
-      toPair("sequenceNumbers ", concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
-
-  oss << concordUtils::kContainerToJson(result);
-  return oss.str();
+  nlohmann::json j;
+  j["sequenceNumbers"]["lastStableSeqNum"] = lastStableSeqNum;
+  return j.dump();
 }
 
 std::string ReplicaImp::getReplicaState() const {
