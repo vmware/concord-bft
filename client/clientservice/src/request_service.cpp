@@ -46,32 +46,20 @@ Status RequestServiceImpl::Send(ServerContext* context, const Request* proto_req
     if (not std::holds_alternative<bft::client::Reply>(send_result)) {
       LOG_INFO(logger_, "Send returned error");
       switch (std::get<uint32_t>(send_result)) {
-        case (static_cast<uint32_t>(bftEngine::OperationResult::OVERLOADED)):
+        case (concord_client_pool::Overloaded):
           status.set_value(grpc::Status(grpc::StatusCode::RESOURCE_EXHAUSTED, "All clients occupied"));
           break;
-        case (static_cast<uint32_t>(bftEngine::OperationResult::INVALID_REQUEST)):
+        case (concord_client_pool::InvalidArgument):
           status.set_value(grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "Invalid argument"));
           break;
-        case (static_cast<uint32_t>(bftEngine::OperationResult::TIMEOUT)):
+        case (concord_client_pool::TimedOut):
           status.set_value(grpc::Status(grpc::StatusCode::DEADLINE_EXCEEDED, "Timeout"));
           break;
-        case (static_cast<uint32_t>(bftEngine::OperationResult::NOT_READY)):
+        case (concord_client_pool::ClientUnavailable):
           status.set_value(grpc::Status(grpc::StatusCode::UNAVAILABLE, "No clients connected to the replicas"));
           break;
-        case (static_cast<uint32_t>(bftEngine::OperationResult::INTERNAL_ERROR)):
-          status.set_value(grpc::Status(grpc::StatusCode::INTERNAL, "Internal error"));
-          break;
-        case (static_cast<uint32_t>(bftEngine::OperationResult::EXEC_DATA_TOO_LARGE)):
-          status.set_value(grpc::Status(grpc::StatusCode::RESOURCE_EXHAUSTED, "Execution data too large"));
-          break;
-        case (static_cast<uint32_t>(bftEngine::OperationResult::EXEC_DATA_EMPTY)):
-          status.set_value(grpc::Status(grpc::StatusCode::INTERNAL, "Execution data is empty"));
-          break;
-        case (static_cast<uint32_t>(bftEngine::OperationResult::CONFLICT_DETECTED)):
-          status.set_value(grpc::Status(grpc::StatusCode::ABORTED, "Aborted"));
-          break;
         default:
-          status.set_value(grpc::Status(grpc::StatusCode::UNKNOWN, "Unknown error"));
+          status.set_value(grpc::Status(grpc::StatusCode::INTERNAL, "Internal error"));
           break;
       }
       return;

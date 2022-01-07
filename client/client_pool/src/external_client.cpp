@@ -35,7 +35,7 @@ ConcordClient::ConcordClient(int client_id,
                              ConcordClientPoolConfig& struct_config,
                              const SimpleClientParams& client_params)
     : logger_(logging::getLogger("concord.client.client_pool.external_client")),
-      clientRequestExecutionResult_(OperationResult::SUCCESS) {
+      clientRequestError_(OperationResult::SUCCESS) {
   client_id_ = client_id;
   CreateClient(struct_config, client_params);
 }
@@ -44,14 +44,14 @@ ConcordClient::~ConcordClient() noexcept = default;
 
 bft::client::Reply ConcordClient::SendRequest(const bft::client::WriteConfig& config, bft::client::Msg&& request) {
   bft::client::Reply res;
-  clientRequestExecutionResult_ = OperationResult::SUCCESS;
+  clientRequestError_ = OperationResult::SUCCESS;
   try {
     res = new_client_->send(config, std::move(request));
   } catch (const BadQuorumConfigException& e) {
-    clientRequestExecutionResult_ = OperationResult::INVALID_REQUEST;
+    clientRequestError_ = OperationResult::INVALID_REQUEST;
     LOG_ERROR(logger_, "Invalid write config: " << e.what());
   } catch (const TimeoutException& e) {
-    clientRequestExecutionResult_ = OperationResult::TIMEOUT;
+    clientRequestError_ = OperationResult::TIMEOUT;
     LOG_ERROR(logger_,
               "reqSeqNum=" << config.request.sequence_number << " cid=" << config.request.correlation_id
                            << " has failed to invoke, timeout=" << config.request.timeout.count()
@@ -65,14 +65,14 @@ bft::client::Reply ConcordClient::SendRequest(const bft::client::WriteConfig& co
 
 bft::client::Reply ConcordClient::SendRequest(const bft::client::ReadConfig& config, bft::client::Msg&& request) {
   bft::client::Reply res;
-  clientRequestExecutionResult_ = OperationResult::SUCCESS;
+  clientRequestError_ = OperationResult::SUCCESS;
   try {
     res = new_client_->send(config, std::move(request));
   } catch (const BadQuorumConfigException& e) {
-    clientRequestExecutionResult_ = OperationResult::INVALID_REQUEST;
+    clientRequestError_ = OperationResult::INVALID_REQUEST;
     LOG_ERROR(logger_, "Invalid read config: " << e.what());
   } catch (const TimeoutException& e) {
-    clientRequestExecutionResult_ = OperationResult::TIMEOUT;
+    clientRequestError_ = OperationResult::TIMEOUT;
     LOG_ERROR(logger_,
               "reqSeqNum=" << config.request.sequence_number << " cid=" << config.request.correlation_id
                            << " has failed to invoke, timeout=" << config.request.timeout.count()
@@ -126,7 +126,7 @@ std::pair<int32_t, ConcordClient::PendingReplies> ConcordClient::SendPendingRequ
   const auto& batch_cid =
       std::to_string(client_id_) + "-" + std::to_string(seqGen_->generateUniqueSequenceNumberForRequest());
   OperationResult ret = OperationResult::SUCCESS;
-  clientRequestExecutionResult_ = OperationResult::SUCCESS;
+  clientRequestError_ = OperationResult::SUCCESS;
   std::deque<bft::client::WriteRequest> request_queue;
   std::map<uint64_t, std::string> seq_num_to_cid;
   for (auto req : pending_requests_) {
@@ -164,7 +164,7 @@ std::pair<int32_t, ConcordClient::PendingReplies> ConcordClient::SendPendingRequ
       }
     }
   } catch (BatchTimeoutException& e) {
-    clientRequestExecutionResult_ = OperationResult::TIMEOUT;
+    clientRequestError_ = OperationResult::TIMEOUT;
     LOG_ERROR(logger_, "Batch cid =" << batch_cid << " has failed to invoke, timeout has been reached");
     ret = OperationResult::TIMEOUT;
   }
@@ -313,7 +313,7 @@ void ConcordClient::setStatics(uint16_t required_num_of_replicas,
 
 void ConcordClient::setDelayFlagForTest(bool delay) { ConcordClient::delayed_behaviour_ = delay; }
 
-OperationResult ConcordClient::getRequestExecutionResult() { return clientRequestExecutionResult_; }
+OperationResult ConcordClient::getClientRequestError() { return clientRequestError_; }
 
 void ConcordClient::stopClientComm() { new_client_->stop(); }
 

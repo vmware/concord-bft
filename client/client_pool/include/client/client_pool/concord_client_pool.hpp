@@ -39,6 +39,17 @@ namespace concord_client_pool {
 
 using TextMap = std::unordered_map<std::string, std::string>;
 
+// Represents the answer that the DAML Ledger API could get when sending a
+// request
+enum SubmitResult {
+  Acknowledged,  // The request has been queued for submission
+  Overloaded,    // There is no available client to the moment to process the
+  // request
+  InvalidArgument,
+  TimedOut,
+  ClientUnavailable,  // There are clients in the queue but none of them are connected to enough replicas
+};
+
 // An internal error has occurred. Reason is recorded in logs.
 class InternalError : public std::exception {
  public:
@@ -105,27 +116,27 @@ class ConcordClientPool {
   // response.
   // max_reply_size - holds the size of reply_buffer.
   // seq_num - sequence number for the request
-  bftEngine::OperationResult SendRequest(std::vector<uint8_t>&& request,
-                                         bftEngine::ClientMsgFlag flags,
-                                         std::chrono::milliseconds timeout_ms,
-                                         char* reply_buffer,
-                                         std::uint32_t max_reply_size,
-                                         uint64_t seq_num,
-                                         std::string correlation_id = {},
-                                         std::string span_context = std::string(),
-                                         const bftEngine::RequestCallBack& callback = {});
+  SubmitResult SendRequest(std::vector<uint8_t>&& request,
+                           bftEngine::ClientMsgFlag flags,
+                           std::chrono::milliseconds timeout_ms,
+                           char* reply_buffer,
+                           std::uint32_t max_reply_size,
+                           uint64_t seq_num,
+                           std::string correlation_id = {},
+                           std::string span_context = std::string(),
+                           const bftEngine::RequestCallBack& callback = {});
 
   // This method is responsible to get write requests with the new client
   // paramters and parse it to the old SimpleClient interface.
-  bftEngine::OperationResult SendRequest(const bft::client::WriteConfig& config,
-                                         bft::client::Msg&& request,
-                                         const bftEngine::RequestCallBack& callback = {});
+  SubmitResult SendRequest(const bft::client::WriteConfig& config,
+                           bft::client::Msg&& request,
+                           const bftEngine::RequestCallBack& callback = {});
 
   // This method is responsible to get read requests with the new client
   // paramters and parse it to the old SimpleClient interface.
-  bftEngine::OperationResult SendRequest(const bft::client::ReadConfig& config,
-                                         bft::client::Msg&& request,
-                                         const bftEngine::RequestCallBack& callback = {});
+  SubmitResult SendRequest(const bft::client::ReadConfig& config,
+                           bft::client::Msg&& request,
+                           const bftEngine::RequestCallBack& callback = {});
 
   void InsertClientToQueue(std::shared_ptr<concord::external_client::ConcordClient>& client,
                            std::pair<int8_t, external_client::ConcordClient::PendingReplies>&& replies);
