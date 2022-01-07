@@ -128,6 +128,9 @@ class ConcordBftPrometheusCollector : public prometheus::Collectable {
  private:
   prometheus::ClientMetric collect(const std::string& component, concordMetrics::Counter& c) const;
   prometheus::ClientMetric collect(const std::string& component, concordMetrics::Gauge& g) const;
+  prometheus::ClientMetric collect(const std::string& component,
+                                   concordMetrics::Gauge& g,
+                                   const std::unordered_map<std::string, std::string>& tags) const;
   prometheus::ClientMetric collect(const std::string& component, concordMetrics::Status& s) const;
 
   std::vector<prometheus::MetricFamily> collectCounters() const;
