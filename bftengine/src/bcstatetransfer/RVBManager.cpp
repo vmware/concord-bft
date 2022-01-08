@@ -28,9 +28,9 @@ namespace bftEngine::bcst::impl {
 RVBManager::RVBManager(const Config& config, const IAppState* state_api, const std::shared_ptr<DataStore>& ds)
     : logger_{logging::getLogger("concord.bft.st.rvb")},
       config_{config},
-      in_mem_rvt_{std::make_unique<RangeValidationTree>(logger_, config_.RVT_K, config_.fetchRangeSize)},
       as_{state_api},
-      ds_{ds} {
+      ds_{ds},
+      in_mem_rvt_{std::make_unique<RangeValidationTree>(logger_, config_.RVT_K, config_.fetchRangeSize)} {
   LOG_TRACE(logger_, "");
   last_checkpoint_desc_.makeZero();
 }
@@ -102,8 +102,8 @@ void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_de
     std::lock_guard<std::mutex> guard(pruned_blocks_digests_mutex_);
     size_t i{};
 
-    // first, see if we can prune and persist pruned_blocks_digests_. We do this while comparing to
-    // last_checkpoint_desc_, while we know that all digests  up to that point are removed from RVT and RVT is persisted
+    // First, prune and persist pruned_blocks_digests_. We do this while comparing to
+    // last_checkpoint_desc_, while we know that all digests up to that point are removed from RVT and RVT is persisted
     if ((last_checkpoint_desc_.checkpointNum > 0) && (!pruned_blocks_digests_.empty())) {
       for (i = 0; i < pruned_blocks_digests_.size(); ++i) {
         if (pruned_blocks_digests_[i].first > last_checkpoint_desc_.maxBlockId) {
@@ -118,7 +118,7 @@ void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_de
         ds_->setPrunedBlocksDigests(pruned_blocks_digests_);
       }
 
-      // Now, remove all block digests rlast_checkpoint_desc_elated to the current checlast_checkpoint_desc_kpointing.
+      // Second, prune in_mem_rvt_ up to new_checkpoint_desc.maxBlockId.
       // Theoratically, there might be block digests which belong to the next checkpoint
       for (i = 0; i < pruned_blocks_digests_.size(); ++i) {
         if (pruned_blocks_digests_[i].first <= new_checkpoint_desc.maxBlockId)
@@ -149,43 +149,195 @@ void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_de
   last_checkpoint_desc_ = new_checkpoint_desc;
 }
 
-void RVBManager::setRvbData(std::shared_ptr<char> data, size_t data_size) {
+void RVBManager::setRvbData(char* data, size_t data_size) {
   LOG_TRACE(logger_, "");
-  std::istringstream rvb_data(std::string(reinterpret_cast<const char*>(data.get()), data_size));
+  std::istringstream rvb_data(std::string(data, data_size));
   // TODO - deserialize should return a bool - it might fail due to logical/config issue. handle error in that case.
   in_mem_rvt_->setSerializedRvbData(rvb_data);
 }
 
-// TODO - implement
-size_t RVBManager::getSerializedRvbGroup(int64_t rvb_group_id, char* buff, size_t buff_max_size) const {
+size_t RVBManager::getSerializedByteSizeOfRvbGroup(int64_t rvb_group_id) const {
   LOG_TRACE(logger_, "");
-  ConcordAssert(0);
-  return 0;
+  // TODO - we are calling getRvbIds twice (see getSerializedDigestsOfRvbGroup), we can optimize this
+  std::vector<RVBId> rvb_ids = in_mem_rvt_->getRvbIds(rvb_group_id);
+  return rvb_ids.size() * sizeof(RVBManager::rvbDigestInfo);
 }
 
-// TODO - implement
-bool RVBManager::setSerializedRvbGroup(char* data, size_t data_size) {
+size_t RVBManager::getSerializedDigestsOfRvbGroup(int64_t rvb_group_id, char* buff, size_t buff_max_size) const {
   LOG_TRACE(logger_, "");
-  ConcordAssert(0);
+  std::vector<RVBId> rvb_ids = in_mem_rvt_->getRvbIds(rvb_group_id);
+  size_t total_size = rvb_ids.size() * sizeof(RVBManager::rvbDigestInfo);
+  ConcordAssertLE(total_size, buff_max_size);
+  RVBManager::rvbDigestInfo* cur = reinterpret_cast<RVBManager::rvbDigestInfo*>(buff);
+  size_t num_elements{0};
+  for (const auto rvb_id : rvb_ids) {
+    cur->block_id = rvb_id;
+    if (as_->hasBlock(rvb_id + 1)) {
+      as_->getPrevDigestFromBlock(rvb_id + 1, reinterpret_cast<StateTransferDigest*>(cur->digest.getForUpdate()));
+    } else if (as_->hasBlock(rvb_id)) {
+      cur->digest = getBlockAndComputeDigest(rvb_id);
+    } else {
+      // It is not guaranteed that replicas holds the whole RVB group. In that case only part of it is sent.
+      break;
+    }
+    ++num_elements;
+    ++cur;
+  }
+  return num_elements * sizeof(RVBManager::rvbDigestInfo);
+}
+
+bool RVBManager::setSerializedDigestsOfRvbGroup(char* data, size_t data_size, BlockId min_fetch_block_id) {
+  LOG_TRACE(logger_, KVLOG(data_size));
+  ConcordAssertNE(data, nullptr);
+  rvbDigestInfo* cur = reinterpret_cast<rvbDigestInfo*>(data);
+  std::map<BlockId, STDigest> digests;
+  BlockId block_id;
+  STDigest digest;
+  size_t num_digests_added;
+  BlockId next_expected_rvb_id = stored_rvb_digests_.empty()
+                                     ? computeNextRvbBlockId(min_fetch_block_id)
+                                     : (stored_rvb_digests_.rbegin()->first + config_.fetchRangeSize);
+  std::vector<RVBGroupId> rvb_group_ids, prev_rvb_group_ids;
+  static constexpr char error_prefix[] = "Invalid digests of RVB group:";
+
+  if (((data_size % sizeof(rvbDigestInfo)) != 0) || (data_size == 0)) {
+    LOG_ERROR(logger_, error_prefix << KVLOG(data_size, sizeof(rvbDigestInfo)));
+    return false;
+  }
+  num_digests_added = data_size / sizeof(rvbDigestInfo);
+  if (num_digests_added > config_.RVT_K) {
+    LOG_ERROR(logger_, error_prefix << KVLOG(num_digests_added, config_.RVT_K));
+    return false;
+  }
+
+  for (size_t i{0}; i < num_digests_added; ++i, ++cur) {
+    memcpy(&block_id, &cur->block_id, sizeof(block_id));
+    if (stored_rvb_digests_.find(block_id) != stored_rvb_digests_.end()) {
+      LOG_WARN(logger_, error_prefix << KVLOG(block_id) << " is already inside stored_rvb_digests_");
+      return false;;
+    }
+    if (digests.find(block_id) != digests.end()) {
+      LOG_WARN(logger_,
+               error_prefix << KVLOG(block_id) << " is already inside in digests (duplicate - treated as error)");
+      return false;;
+    }
+    if ((block_id % config_.fetchRangeSize) != 0) {
+      LOG_ERROR(logger_,
+                error_prefix << KVLOG(i, block_id, config_.fetchRangeSize, (block_id % config_.fetchRangeSize)));
+      return false;
+    }
+    if (block_id != next_expected_rvb_id) {
+      LOG_ERROR(logger_, error_prefix << KVLOG(block_id, next_expected_rvb_id));
+      return false;
+    }
+    rvb_group_ids = in_mem_rvt_->getRvbGroupIds(block_id, block_id);
+    ConcordAssertEQ(rvb_group_ids.size(), 1);
+    if (rvb_group_ids.empty()) {
+      LOG_ERROR(logger_, "Bad Digests of RVB group: rvb_group_ids is empty!" << KVLOG(block_id));
+      return false;
+    }
+    if (!prev_rvb_group_ids.empty()) {
+      bool result = std::equal(prev_rvb_group_ids.begin(), prev_rvb_group_ids.end(), rvb_group_ids.begin());
+      if (!result) {
+        std::function<std::string(std::vector<RVBGroupId>&)> vec_to_str = [&](std::vector<RVBGroupId>& v) {
+          std::stringstream ss;
+          for (size_t i{0}; i < v.size(); ++i) {
+            if (i != 0) ss << ",";
+            ss << v[i];
+          }
+          return ss.str();
+        };
+        std::string prev_rvb_group_ids_str = vec_to_str(prev_rvb_group_ids);
+        std::string rvb_group_ids_str = vec_to_str(rvb_group_ids);
+        LOG_ERROR(logger_,
+                  "Bad Digests of RVB group: rvb_group_ids != prev_rvb_group_ids"
+                      << KVLOG(block_id, prev_rvb_group_ids_str, rvb_group_ids_str));
+        return false;
+      }
+    }
+    prev_rvb_group_ids = rvb_group_ids;
+    memcpy(&digest, &cur->digest, sizeof(digest));
+    digests.insert(make_pair(block_id, digest));
+    next_expected_rvb_id += config_.fetchRangeSize;
+  }  // for
+  ConcordAssertEQ(digests.size(), num_digests_added);
+
+  // insert the new group id and delete old ones, if needed. We keep the latest 2 group IDs after insertion
+  RVBGroupId rvb_group_id_added = rvb_group_ids[0];
+  RVBGroupId rvb_group_id_removed{0};
+  stored_rvb_digests_group_ids_.push_back(rvb_group_id_added);
+  size_t num_digests_removed{0};
+  if (stored_rvb_digests_group_ids_.size() > 2) {
+    rvb_group_id_removed = stored_rvb_digests_group_ids_[0];
+    auto it = stored_rvb_digests_.begin();
+    while (it != stored_rvb_digests_.end()) {
+      rvb_group_ids = in_mem_rvt_->getRvbGroupIds(it->first, it->first);
+      ConcordAssertEQ(rvb_group_ids.size(), 1);
+      if (rvb_group_ids[0] == rvb_group_id_removed) {
+        it = stored_rvb_digests_.erase(it);
+        ++num_digests_removed;
+      } else {
+        ++it;
+      }
+    }
+  }
+  stored_rvb_digests_.insert(digests.begin(), digests.end());
+  LOG_INFO(logger_,
+           "Done updating RVB stored digests:" << KVLOG(rvb_group_id_added,
+                                                        rvb_group_id_removed,
+                                                        num_digests_added,
+                                                        num_digests_removed,
+                                                        stored_rvb_digests_.size(),
+                                                        stored_rvb_digests_group_ids_.size()));
   return false;
 }
 
 std::optional<std::reference_wrapper<const STDigest>> RVBManager::getDigestFromRvbGroup(BlockId block_id) const {
   LOG_TRACE(logger_, KVLOG(block_id));
-  const auto iter = current_rvb_group_.find(block_id);
-  if (iter == current_rvb_group_.end()) {
+  const auto iter = stored_rvb_digests_.find(block_id);
+  if (iter == stored_rvb_digests_.end()) {
     ostringstream oss;
-    oss << KVLOG(block_id) << " not found in current_rvb_group_";
-    LOG_ERROR(logger_, KVLOG(block_id) << " not found in current_rvb_group_");
+    oss << KVLOG(block_id) << " not found in stored_rvb_digests_";
+    LOG_ERROR(logger_, KVLOG(block_id) << " not found in stored_rvb_digests_");
     return std::nullopt;
   }
   return std::optional<std::reference_wrapper<const STDigest>>(iter->second);
 }
 
-// TODO - implement
-int64_t RVBManager::getRvbGroupId(BlockId from_block_id, BlockId to_block_id) const {
+uint64_t RVBManager::getFetchBlocksRvbGroupId(BlockId from_block_id, BlockId to_block_id) const {
+  ConcordAssertLE(from_block_id, to_block_id);
   LOG_TRACE(logger_, KVLOG(from_block_id, to_block_id));
-  ConcordAssert(0);
+
+  BlockId min_stored_rvb_id, max_stored_rvb_id;
+  if (!stored_rvb_digests_.empty()) {
+    min_stored_rvb_id = stored_rvb_digests_.begin()->first;
+    max_stored_rvb_id = (--stored_rvb_digests_.end())->first;
+    uint64_t diff = max_stored_rvb_id - min_stored_rvb_id;
+    ConcordAssertEQ((diff % config_.fetchRangeSize), 0);
+    ConcordAssertEQ((diff / config_.fetchRangeSize) + 1, stored_rvb_digests_.size());
+
+    if ((from_block_id >= min_stored_rvb_id) && (to_block_id <= max_stored_rvb_id)) {
+      // we have all the digests, no need to ask for anything for now
+      return 0;
+    }
+  }
+
+  // If we are here, we might have non of the digests, or only part of them. Return the next fully of partial
+  // RVBGroupId which is not stored. As of now, requesting multiple RVBGroupId in a single request is not supported.
+  // 0 is returned if there are not RVBs in the range [from_block_id, to_block_id]
+  RVBId from_rvb_id = computeNextRvbBlockId(from_block_id);
+  RVBId to_rvb_id = computePrevRvbBlockId(to_block_id);
+  if (from_rvb_id > to_rvb_id) {
+    // There are no RVBs in that range
+    return 0;
+  }
+  const auto rvb_group_ids = in_mem_rvt_->getRvbGroupIds(from_rvb_id, to_rvb_id);
+  for (const auto& id : rvb_group_ids) {
+    if (std::find(stored_rvb_digests_group_ids_.begin(), stored_rvb_digests_group_ids_.end(), id) ==
+        stored_rvb_digests_group_ids_.end()) {
+      return id;
+    }
+  }
   return 0;
 }
 
@@ -279,6 +431,12 @@ void RVBManager::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBloc
                                         lastAgreedPrunableBlockId,
                                         pruned_blocks_digests_.size()));
   }
+}
+
+void RVBManager::onSourceUpdate() {
+  LOG_TRACE(logger_, "");
+  stored_rvb_digests_.clear();
+  stored_rvb_digests_group_ids_.clear();
 }
 
 }  // namespace bftEngine::bcst::impl

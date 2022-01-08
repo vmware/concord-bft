@@ -37,6 +37,7 @@ using CheckpointDesc = DataStore::CheckpointDesc;
  */
 class RVBManager {
   friend class BcStTestDelegator;
+
  public:
   // Init / Destroy functions
   RVBManager() = delete;
@@ -50,19 +51,24 @@ class RVBManager {
   std::ostringstream getRvbData() const { return in_mem_rvt_->getSerializedRvbData(); }
 
   // Called during checkpoint summaries stage by destination
-  void setRvbData(std::shared_ptr<char> data, size_t data_size);
+  void setRvbData(char* data, size_t data_size);
 
   // Called during ST GettingMissingBlocks by source when received FetchBlocksMsg with rvb_group_id != 0
-  // Returns number of bytes filled
-  size_t getSerializedRvbGroup(int64_t rvb_group_id, char* buff, size_t buff_max_size) const;
+  // Returns number of bytes filled. We assume that rvb_group_id must exist. This can be checked by calling 
+  // getSerializedByteSizeOfRvbGroup before calling this function.
+  size_t getSerializedDigestsOfRvbGroup(int64_t rvb_group_id, char* buff, size_t buff_max_size) const;
+
+
+  size_t getSerializedByteSizeOfRvbGroup(int64_t rvb_group_id) const;
 
   // Called during ST GettingMissingBlocks by destination
-  bool setSerializedRvbGroup(char* data, size_t data_size);
+  bool setSerializedDigestsOfRvbGroup(char* data, size_t data_size, BlockId min_fetch_block_id);
   std::optional<std::reference_wrapper<const STDigest>> getDigestFromRvbGroup(BlockId block_id) const;
 
   // This one should be called during FetchBlocksMsg by dest.
-  // If returned value is 0, no RVB group should be requested when sending FetchBlocksMsg
-  int64_t getRvbGroupId(BlockId from_block_id, BlockId to_block_id) const;
+  // If returned value is 0, no RVB group shouldn't be requested when sending FetchBlocksMsg
+  // This is due to the fact that all data is already stored in current_rvb_group_
+  uint64_t getFetchBlocksRvbGroupId(BlockId from_block_id, BlockId to_block_id) const;
 
   // TODO - there is one case in PruningHandler::pruneThroughBlockId that might be not covered by this callback
   // This one is called by different thread context. It must b called that way to save and persist pruned blocks
@@ -70,14 +76,15 @@ class RVBManager {
   void reportLastAgreedPrunableBlockId(BlockId lastAgreedPrunableBlockId);
 
   std::string getDigestOfRvbData() const { return in_mem_rvt_->getRootHashVal(); }
-
+  void onSourceUpdate();
  protected:
   logging::Logger logger_;
   const Config& config_;
-  std::unique_ptr<RangeValidationTree> in_mem_rvt_;
-  std::unordered_map<BlockId, STDigest> current_rvb_group_;
   const IAppState* as_;
   const std::shared_ptr<DataStore>& ds_;
+  std::unique_ptr<RangeValidationTree> in_mem_rvt_;
+  std::map<BlockId, STDigest> stored_rvb_digests_;
+  std::vector<RVBGroupId> stored_rvb_digests_group_ids_;
   CheckpointDesc last_checkpoint_desc_;
   std::vector<std::pair<BlockId, STDigest>> pruned_blocks_digests_;
   std::mutex pruned_blocks_digests_mutex_;
@@ -91,7 +98,20 @@ class RVBManager {
   void addRvbDataOnBlockRange(uint64_t min_block_id,
                               uint64_t max_block_id,
                               const std::optional<STDigest>& digest_of_max_block_id);
+  // returns the next RVB ID after block_id. If block_id is an RVB ID, returns block_id.
   inline BlockId computeNextRvbBlockId(BlockId block_id) const;
+
+  // returns the previous RVB ID to block_id. If block_id is an RVB ID, returns block_id.
+  BlockId computePrevRvbBlockId(BlockId block_id) const {
+    return config_.fetchRangeSize * (block_id / config_.fetchRangeSize);
+  }
+
+#pragma pack(push, 1)
+  struct rvbDigestInfo {
+    BlockId block_id;
+    STDigest digest;
+  };
+#pragma pack(pop)
 };  // class RVBManager
 
 }  // namespace bftEngine::bcst::impl

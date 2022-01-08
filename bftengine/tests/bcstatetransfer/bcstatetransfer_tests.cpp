@@ -144,7 +144,7 @@ struct TestConfig {
   bool fakeDbDeleteOnStart = true;
   bool fakeDbDeleteOnEnd = true;
   TestTarget testTarget = TestTarget::DESTINATION;
-  string logLevel = "error";  // choose: "trace", "debug", "info", "warn", "error", "fatal"
+  string logLevel = "info";  // choose: "trace", "debug", "info", "warn", "error", "fatal"
 };
 
 static inline std::ostream& operator<<(std::ostream& os, const TestConfig::TestTarget& c) {
@@ -774,7 +774,7 @@ FakeSources::FakeSources(const Config& targetConfig,
 void FakeSources::replyAskForCheckpointSummariesMsg() {
   // We expect a source not fetching. Sending a reject message is not yet supported
   ASSERT_FALSE(datastore_->getIsFetchingState());
-  vector<unique_ptr<CheckpointSummaryMsg>> checkpointSummaryReplies;
+  vector<shared_ptr<CheckpointSummaryMsg>> checkpointSummaryReplies;
 
   // Generate all the blocks until maxBlockId of the last checkpoint - set into appState_
   uint64_t lastBlockId = (testState_.maxRepliedCheckpointNum + 1) * testConfig_.checkpointWindowSize;
@@ -791,14 +791,16 @@ void FakeSources::replyAskForCheckpointSummariesMsg() {
   const auto& firstMsg = testedReplicaIf_.sent_messages_.front();
   auto firstAskForCheckpointSummariesMsg = reinterpret_cast<AskForCheckpointSummariesMsg*>(firstMsg.data_.get());
   for (uint64_t i = testState_.maxRepliedCheckpointNum; i >= testState_.minRepliedCheckpointNum; i--) {
-    unique_ptr<CheckpointSummaryMsg> reply = make_unique<CheckpointSummaryMsg>();
     ASSERT_TRUE(datastore_->hasCheckpointDesc(i));
     DataStore::CheckpointDesc desc = datastore_->getCheckpointDesc(i);
+    std::shared_ptr<CheckpointSummaryMsg> reply =
+        std::shared_ptr<CheckpointSummaryMsg>(CheckpointSummaryMsg::create(desc.rvbData.size()));
     reply->checkpointNum = desc.checkpointNum;
     reply->maxBlockId = desc.maxBlockId;
     reply->digestOfMaxBlockId = desc.digestOfMaxBlockId;
     reply->digestOfResPagesDescriptor = desc.digestOfResPagesDescriptor;
     reply->requestMsgSeqNum = firstAskForCheckpointSummariesMsg->msgSeqNum;
+    std::copy(desc.rvbData.begin(), desc.rvbData.end(), reply->data);
     checkpointSummaryReplies.push_back(move(reply));
   }
 
@@ -807,8 +809,7 @@ void FakeSources::replyAskForCheckpointSummariesMsg() {
   std::shuffle(std::begin(testedReplicaIf_.sent_messages_), std::end(testedReplicaIf_.sent_messages_), rng);
   for (const auto& reply : checkpointSummaryReplies) {
     for (auto& request : testedReplicaIf_.sent_messages_) {
-      CheckpointSummaryMsg* uniqueReply = new CheckpointSummaryMsg();
-      *uniqueReply = *reply.get();
+      CheckpointSummaryMsg* uniqueReply = CheckpointSummaryMsg::create(reply.get());
       stDelegator_->onMessage(uniqueReply, sizeof(CheckpointSummaryMsg), request.to_);
     }
   }
@@ -826,10 +827,12 @@ void FakeSources::replyFetchBlocksMsg() {
   // For now we assume no chunking is supported
   ConcordAssertEQ(fetchBlocksMsg->lastKnownChunkInLastRequiredBlock, 0);
   ConcordAssertLE(fetchBlocksMsg->minBlockId, fetchBlocksMsg->maxBlockId);
-
+  size_t rvbGroupDigestsExpectedSize =
+      (fetchBlocksMsg->rvbGroupid != 0) ? rvbm_->getSerializedByteSizeOfRvbGroup(fetchBlocksMsg->rvbGroupid) : 0;
   while (true) {
+    size_t rvbGroupDigestsActualSize{0};
     auto blk = appState_.peekBlock(nextBlockId);
-    ItemDataMsg* itemDataMsg = ItemDataMsg::alloc(blk->totalBlockSize);
+    ItemDataMsg* itemDataMsg = ItemDataMsg::alloc(blk->totalBlockSize + rvbGroupDigestsExpectedSize);
     bool lastInBatch = ((numOfSentChunks + 1) >= targetConfig_.maxNumberOfChunksInBatch) ||
                        ((nextBlockId - 1) < fetchBlocksMsg->minBlockId);
     itemDataMsg->lastInBatch = lastInBatch;
@@ -837,8 +840,17 @@ void FakeSources::replyFetchBlocksMsg() {
     itemDataMsg->totalNumberOfChunksInBlock = 1;
     itemDataMsg->chunkNumber = 1;
     itemDataMsg->requestMsgSeqNum = fetchBlocksMsg->msgSeqNum;
-    itemDataMsg->dataSize = blk->totalBlockSize;
-    memcpy(itemDataMsg->data, blk.get(), blk->totalBlockSize);
+
+    if (rvbGroupDigestsExpectedSize > 0) {
+      // Serialize RVB digests
+      rvbGroupDigestsActualSize =
+          rvbm_->getSerializedDigestsOfRvbGroup(fetchBlocksMsg->rvbGroupid, itemDataMsg->data, rvbGroupDigestsExpectedSize);
+      ConcordAssertLE(rvbGroupDigestsActualSize, rvbGroupDigestsActualSize);
+      rvbGroupDigestsExpectedSize = 0;
+    }
+    itemDataMsg->dataSize = blk->totalBlockSize + rvbGroupDigestsActualSize;
+    itemDataMsg->rvbDigestsSize = rvbGroupDigestsActualSize;
+    memcpy(itemDataMsg->data + rvbGroupDigestsActualSize, blk.get(), blk->totalBlockSize);
     stDelegator_->onMessage(itemDataMsg, itemDataMsg->size(), msg.to_, std::chrono::steady_clock::now());
     if (lastInBatch) {
       break;
@@ -1088,6 +1100,8 @@ void BcStTest::srcAssertCheckpointSummariesSent(uint64_t minRepliedCheckpointNum
     DataStore::CheckpointDesc desc = datastore_->getCheckpointDesc(checkpointSummaryMsg->checkpointNum);
     ASSERT_EQ(checkpointSummaryMsg->digestOfMaxBlockId, desc.digestOfMaxBlockId);
     ASSERT_EQ(checkpointSummaryMsg->digestOfResPagesDescriptor, desc.digestOfResPagesDescriptor);
+    ASSERT_EQ(checkpointSummaryMsg->sizeofRvbData(), desc.rvbData.size());
+    ASSERT_EQ(memcmp(checkpointSummaryMsg->data, desc.rvbData.data(), checkpointSummaryMsg->sizeofRvbData()), 0);
     --expectedCheckpointNum;
   }
 }
@@ -1112,9 +1126,19 @@ void BcStTest::srcAssertItemDataMsgBatchSentWithBlocks(uint64_t minExpectedBlock
     const auto blk = appState_.peekBlock(currentBlockId);
     ASSERT_TRUE(blk);
     ASSERT_EQ(blk->blockId, currentBlockId);
-    ASSERT_EQ(blk->totalBlockSize, itemDataMsg->dataSize);
-    // just compare the blocks, dont validate digests
-    ASSERT_EQ(memcmp(reinterpret_cast<char*>(blk.get()), itemDataMsg->data, itemDataMsg->dataSize), 0);
+    // just compare the blocks, dont validate digests.
+    if (itemDataMsg->rvbDigestsSize > 0) {
+      ASSERT_GT(itemDataMsg->dataSize, itemDataMsg->rvbDigestsSize);
+      ASSERT_EQ(blk->totalBlockSize, itemDataMsg->dataSize - itemDataMsg->rvbDigestsSize);
+      ASSERT_EQ(memcmp(reinterpret_cast<char*>(blk.get()),
+                       itemDataMsg->data + itemDataMsg->rvbDigestsSize,
+                       itemDataMsg->dataSize - itemDataMsg->rvbDigestsSize),
+                0);
+      // TODO - add here check for the RVB data. Need to get RVB group id from fake dest?
+    } else {
+      ASSERT_EQ(blk->totalBlockSize, itemDataMsg->dataSize);
+      ASSERT_EQ(memcmp(reinterpret_cast<char*>(blk.get()), itemDataMsg->data, itemDataMsg->dataSize), 0);
+    }
     --currentBlockId;
   }
 }

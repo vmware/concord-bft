@@ -367,7 +367,7 @@ class BCStateTran : public IStateTransfer {
                                    char* vblock,
                                    uint32_t vblockSize) const;
 
-  void processData(bool lastInBatch = false);
+  void processData(bool lastInBatch = false, uint32_t rvbDigestsSize = 0);
   void cycleEndSummary();
 
   void EnterGettingCheckpointSummariesState();
