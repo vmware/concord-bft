@@ -82,6 +82,14 @@ class RVBManager {
   std::string getDigestOfRvbData() const { return in_mem_rvt_->getRootHashVal(); }
   void reset();
 
+  // For the range [from_block_id, to_block_id], returns a block id BID, such that:
+  // 1) from_rvb_id <= BID <= to_block_id
+  // 2) For all block IDs the range [from_rvb_id, BID] there is a common single RVB group ID RVBGID
+  // 3) For all block IDs in the range (BId, to_rvb_id) the RVB group ID is not RVBGID
+  // This call is used by flow control, to avoid having to send (in rare cases) a request to fetch digests which belong
+  // to  multiple RVB groups
+  BlockId getRvbGroupUpperBoundOnBlockRange(BlockId from_block_id, BlockId to_block_id) const;
+
  protected:
   logging::Logger logger_;
   const Config& config_;
@@ -104,10 +112,10 @@ class RVBManager {
                               uint64_t max_block_id,
                               const std::optional<STDigest>& digest_of_max_block_id);
   // returns the next RVB ID after block_id. If block_id is an RVB ID, returns block_id.
-  inline BlockId computeNextRvbBlockId(BlockId block_id) const;
+  inline BlockId nextRvbBlockId(BlockId block_id) const;
 
   // returns the previous RVB ID to block_id. If block_id is an RVB ID, returns block_id.
-  BlockId computePrevRvbBlockId(BlockId block_id) const {
+  BlockId prevRvbBlockId(BlockId block_id) const {
     return config_.fetchRangeSize * (block_id / config_.fetchRangeSize);
   }
 

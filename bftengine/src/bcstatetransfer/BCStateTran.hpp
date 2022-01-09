@@ -338,8 +338,8 @@ class BCStateTran : public IStateTransfer {
   inline bool isLastFetchedBlockIdInCycle(uint64_t blockId) const;
   inline bool isMaxFetchedBlockIdInCycle(uint64_t blockId) const;
   inline bool isRvbBlockId(uint64_t blockId) const;
-  inline uint64_t computePrevRvbBlockId(uint64_t block_id) const;
-  inline uint64_t computeNextRvbBlockId(uint64_t block_id) const;
+  inline uint64_t prevRvbBlockId(uint64_t block_id) const;
+  inline uint64_t nextRvbBlockId(uint64_t block_id) const;
 
   struct compareItemDataMsg {
     bool operator()(const ItemDataMsg* l, const ItemDataMsg* r) const {

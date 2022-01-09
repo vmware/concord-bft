@@ -211,11 +211,11 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
   std::vector<RVBGroupId> rvb_group_ids /*prev_rvb_group_ids*/;
   static constexpr char error_prefix[] = "Invalid digests of RVB group:";
   // BlockId next_expected_rvb_id = stored_rvb_digests_.empty()
-  //                                    ? computeNextRvbBlockId(min_fetch_block_id)
+  //                                    ? nextRvbBlockId(min_fetch_block_id)
   //                                    : (stored_rvb_digests_.rbegin()->first + config_.fetchRangeSize);
-  BlockId next_expected_rvb_id {};
+  BlockId next_expected_rvb_id{};
   RVBGroupId next_required_rvb_group_id =
-      getNextRequiredRvbGroupid(computeNextRvbBlockId(min_fetch_block_id), computePrevRvbBlockId(max_fetch_block_id));
+      getNextRequiredRvbGroupid(nextRvbBlockId(min_fetch_block_id), prevRvbBlockId(max_fetch_block_id));
   std::function<std::string(std::vector<RVBGroupId>&)> vec_to_str = [&](std::vector<RVBGroupId>& v) {
     std::stringstream ss;
     for (size_t i{0}; i < v.size(); ++i) {
@@ -248,8 +248,7 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
       LOG_WARN(logger_, error_prefix << KVLOG(block_id) << " is already inside stored_rvb_digests_ (continue)");
     }
     if (digests.find(block_id) != digests.end()) {
-      LOG_WARN(logger_,
-               error_prefix << KVLOG(block_id) << " is already inside in digests (continue)");
+      LOG_WARN(logger_, error_prefix << KVLOG(block_id) << " is already inside in digests (continue)");
     }
     if ((block_id % config_.fetchRangeSize) != 0) {
       LOG_ERROR(logger_,
@@ -394,8 +393,8 @@ uint64_t RVBManager::getFetchBlocksRvbGroupId(BlockId from_block_id, BlockId to_
   // If we are here, we might have non of the digests, or only part of them. Return the next fully of partial
   // RVBGroupId which is not stored. As of now, requesting multiple RVBGroupId in a single request is not supported.
   // 0 is returned if there are not RVBs in the range [from_block_id, to_block_id]
-  RVBId from_rvb_id = computeNextRvbBlockId(from_block_id);
-  RVBId to_rvb_id = computePrevRvbBlockId(to_block_id);
+  RVBId from_rvb_id = nextRvbBlockId(from_block_id);
+  RVBId to_rvb_id = prevRvbBlockId(to_block_id);
   if (from_rvb_id > to_rvb_id) {
     // There are no RVBs in that range
     return 0;
@@ -415,6 +414,23 @@ RVBGroupId RVBManager::getNextRequiredRvbGroupid(RVBId from_rvb_id, RVBId to_rvb
   return 0;
 }
 
+BlockId RVBManager::getRvbGroupUpperBoundOnBlockRange(BlockId from_block_id, BlockId to_block_id) const {
+  ConcordAssertLE(from_block_id, to_block_id);
+  auto min_rvb_id = nextRvbBlockId(from_block_id);
+  auto max_rvb_id = prevRvbBlockId(to_block_id);
+  if (min_rvb_id >= max_rvb_id) {
+    return to_block_id;
+  }
+  const auto rvb_group_ids = in_mem_rvt_->getRvbGroupIds(min_rvb_id, max_rvb_id);
+  if (rvb_group_ids.size() < 2) {
+    return to_block_id;
+  }
+  // if we have 2 or more, we need to take the 1st and find the upper bound on the last RVB in the list
+  auto rvb_ids = in_mem_rvt_->getRvbIds(rvb_group_ids[0]);
+  ConcordAssert(!rvb_ids.empty());
+  return rvb_ids.back();
+}
+
 void RVBManager::computeDigestOfBlock(const uint64_t block_id,
                                       const char* block,
                                       const uint32_t block_size,
@@ -431,7 +447,7 @@ void RVBManager::computeDigestOfBlock(const uint64_t block_id,
 // BCStateTranCommon.hpp/cpp
 const STDigest RVBManager::getBlockAndComputeDigest(uint64_t block_id) const {
   static std::unique_ptr<char[]> buffer(new char[config_.maxBlockSize]);
-  STDigest digest{0};
+  STDigest digest;
   uint32_t block_size{0};
   as_->getBlock(block_id, buffer.get(), config_.maxBlockSize, &block_size);
   computeDigestOfBlock(block_id, buffer.get(), block_size, digest.getForUpdate());
@@ -443,7 +459,7 @@ void RVBManager::addRvbDataOnBlockRange(uint64_t min_block_id,
                                         const std::optional<STDigest>& digest_of_max_block_id) {
   LOG_TRACE(logger_, KVLOG(min_block_id, max_block_id));
   std::once_flag call_once_flag;
-  uint64_t current_rvb_id = computeNextRvbBlockId(min_block_id);
+  uint64_t current_rvb_id = nextRvbBlockId(min_block_id);
   while (current_rvb_id < max_block_id) {
     // TODO - As a 2nd phase - should use the thread pool to fetch a batch of digests or move to a background process
     std::call_once(call_once_flag, [&, this] {
@@ -466,7 +482,7 @@ void RVBManager::addRvbDataOnBlockRange(uint64_t min_block_id,
   }
 }
 
-BlockId RVBManager::computeNextRvbBlockId(BlockId block_id) const {
+BlockId RVBManager::nextRvbBlockId(BlockId block_id) const {
   uint64_t next_rvb_id = config_.fetchRangeSize * (block_id / config_.fetchRangeSize);
   if (next_rvb_id < block_id) {
     next_rvb_id += config_.fetchRangeSize;
@@ -480,7 +496,7 @@ void RVBManager::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBloc
   auto initial_size = pruned_blocks_digests_.size();
   BlockId start_scan_block_id =
       pruned_blocks_digests_.empty() ? as_->getGenesisBlockNum() : pruned_blocks_digests_.back().first;
-  uint64_t start_rvb_id = computeNextRvbBlockId(start_scan_block_id);
+  uint64_t start_rvb_id = nextRvbBlockId(start_scan_block_id);
   if (lastAgreedPrunableBlockId <= start_rvb_id) {
     LOG_ERROR(logger_, "Inconsistent prune report ignored:" << KVLOG(lastAgreedPrunableBlockId, start_rvb_id));
     return;
