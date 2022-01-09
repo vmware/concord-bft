@@ -75,8 +75,11 @@ struct PreProcessResultSignature {
 
   const bftEngine::OperationResult getPreProcessResult() const { return pre_process_result; }
 
-  static std::string serializeResultSignatureList(const std::list<PreProcessResultSignature>& sigs);
-  static std::list<PreProcessResultSignature> deserializeResultSignatureList(const char* buf, size_t len);
+  bool operator<(const PreProcessResultSignature& rhs) const { return sender_replica < rhs.sender_replica; }
+
+  static std::string serializeResultSignatures(const std::set<PreProcessResultSignature>& sigs,
+                                               uint16_t numOfRequiredSignatures);
+  static std::set<PreProcessResultSignature> deserializeResultSignatures(const char* buf, size_t len);
 };
 
 }  // namespace preprocessor
