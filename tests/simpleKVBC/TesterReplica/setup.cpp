@@ -113,12 +113,14 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
                                           {"time_service", optional_argument, 0, 'f'},
                                           {"pre-exec-result-auth", no_argument, 0, 'x'},
                                           {"enable-db-checkpoint", required_argument, 0, 'h'},
+                                          {"publish replicas master key on startup", optional_argument, 0, 'K'},
                                           {0, 0, 0, 0}};
     int o = 0;
     int optionIndex = 0;
     LOG_INFO(GL, "Command line options:");
     while ((o = getopt_long(
-                argc, argv, "i:k:n:s:v:a:3:l:e:w:c:b:m:q:z:y:udp:t:o:r:g:xf:h:j:", longOptions, &optionIndex)) != -1) {
+                argc, argv, "i:k:n:s:v:a:3:l:e:w:c:b:m:q:z:y:udp:t:o:r:g:xf:h:K:j:", longOptions, &optionIndex)) !=
+           -1) {
       switch (o) {
         case 'i': {
           replicaConfig.replicaId = concord::util::to<std::uint16_t>(std::string(optarg));
@@ -235,6 +237,9 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
           dbSnapshotPath << BasicRandomTests::DB_FILE_PREFIX << "snapshot_" << replicaConfig.replicaId;
           replicaConfig.dbCheckpointDirPath = dbSnapshotPath.str();
           break;
+        }
+        case 'K': {
+          replicaConfig.publishReplicasMasterKeyOnStartup = true;
         }
         case 'j': {
           // updating dbCheckPointWindowSize value to test create dbSnapshot operator command

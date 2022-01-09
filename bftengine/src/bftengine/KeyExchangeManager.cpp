@@ -108,7 +108,9 @@ std::string KeyExchangeManager::onKeyExchange(const KeyExchangeMsg& kemsg,
              "Exchanged [" << publicKeys_.numOfExchangedReplicas() << "] out of [" << liveQuorumSize << "]");
   if (!initial_exchange_ && exchanged()) {
     initial_exchange_ = true;
-    if (ReplicaConfig::instance().getkeyExchangeOnStart()) sendMainPublicKey();
+    if (ReplicaConfig::instance().getkeyExchangeOnStart() &&
+        ReplicaConfig::instance().publishReplicasMasterKeyOnStartup)
+      sendMainPublicKey();
   }
   return "ok";
 }

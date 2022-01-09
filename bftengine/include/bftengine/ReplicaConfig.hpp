@@ -215,7 +215,10 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                60,
                "timeout we ready to wait for primary to be ready on the system first startup");
   CONFIG_PARAM(waitForFullCommOnStartup, bool, false, "whether to wait for n/n communication on startup");
-
+  CONFIG_PARAM(publishReplicasMasterKeyOnStartup,
+               bool,
+               false,
+               "If true, replicas will publish their master key on startup");
   // Db checkpoint
   CONFIG_PARAM(dbCheckpointFeatureEnabled, bool, false, "Feature flag for rocksDb checkpoints");
   CONFIG_PARAM(maxNumberOfDbCheckpoints, uint32_t, 0u, "Max number of db checkpoints to be created");
@@ -234,6 +237,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                true,
                "When set to true this parameter will cause endWriteTran to block until "
                "the transaction is persisted every time we update the metadata.");
+
+  // Parameter to enable/disable waiting for transaction data to be persisted.
   // Not predefined configuration parameters
   // Example of usage:
   // repclicaConfig.set(someTimeout, 6000);
@@ -336,6 +341,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, threadbagConcurrencyLevel2);
     serialize(outStream, timeoutForPrimaryOnStartupSeconds);
     serialize(outStream, waitForFullCommOnStartup);
+    serialize(outStream, publishReplicasMasterKeyOnStartup);
     serialize(outStream, dbCheckpointFeatureEnabled);
     serialize(outStream, maxNumberOfDbCheckpoints);
     serialize(outStream, dbCheckPointWindowSize);
@@ -421,6 +427,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, threadbagConcurrencyLevel2);
     deserialize(inStream, timeoutForPrimaryOnStartupSeconds);
     deserialize(inStream, waitForFullCommOnStartup);
+    deserialize(inStream, publishReplicasMasterKeyOnStartup);
     deserialize(inStream, dbCheckpointFeatureEnabled);
     deserialize(inStream, maxNumberOfDbCheckpoints);
     deserialize(inStream, dbCheckPointWindowSize);
