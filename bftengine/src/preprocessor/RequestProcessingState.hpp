@@ -76,7 +76,7 @@ class RequestProcessingState {
   ReplicaIdsList getRejectedReplicasList() { return rejectedReplicaIds_; }
   void resetRejectedReplicasList() { rejectedReplicaIds_.clear(); }
   void setPreprocessingRightNow(bool set) { preprocessingRightNow_ = set; }
-  const std::list<PreProcessResultSignature>& getPreProcessResultSignatures();
+  const std::set<PreProcessResultSignature>& getPreProcessResultSignatures();
 
   static void init(uint16_t numOfRequiredReplies, preprocessor::PreProcessorRecorder* histograms);
   const concord::util::SHA3_256::Digest& getResultHash() { return primaryPreProcessResultHash_; };
@@ -128,8 +128,7 @@ class RequestProcessingState {
   concord::util::SHA3_256::Digest primaryPreProcessResultHash_ = {};
   // Maps result hash to a list of replica signatures sent for this hash. Implcitly this also gives the number of
   // replicas returning a specific hash.
-  std::map<concord::util::SHA3_256::Digest, std::list<PreProcessResultSignature>> preProcessingResultHashes_;
-  std::map<concord::util::SHA3_256::Digest, std::unordered_set<bftEngine::impl::NodeIdType>> seenSenders_;
+  std::map<concord::util::SHA3_256::Digest, std::set<PreProcessResultSignature>> preProcessingResultHashes_;
   bool retrying_ = false;
   bool preprocessingRightNow_ = false;
   uint64_t reqRetryId_ = 0;

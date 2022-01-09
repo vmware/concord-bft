@@ -55,7 +55,7 @@ std::optional<std::string> PreProcessResultMsg::validatePreProcessResultSignatur
                                                                                    int16_t fVal) {
   auto sigManager_ = SigManager::instance();
   const auto [buf, buf_len] = getResultSignaturesBuf();
-  auto sigs = preprocessor::PreProcessResultSignature::deserializeResultSignatureList(buf, buf_len);
+  auto sigs = preprocessor::PreProcessResultSignature::deserializeResultSignatures(buf, buf_len);
 
   // f+1 signatures are required. Primary always sends exactly f+1 signatures so the signature count should always be
   // f+1. In theory more signatures can be accepted but this makes the non-primary replicas vulnerable to DoS attacks
@@ -71,14 +71,7 @@ std::optional<std::string> PreProcessResultMsg::validatePreProcessResultSignatur
 
   auto hash = concord::util::SHA3_256().digest(requestBuf(), requestLength());
 
-  std::unordered_set<bftEngine::impl::NodeIdType> seen_signatures;
   for (const auto& sig : sigs) {
-    // logic that filters duplicate signatures exist in the preprocessing phase,
-    // therefore duplication implies that the primary is probably malicious.
-    if (!seen_signatures.insert(sig.sender_replica).second) {
-      return "PreProcessResult signatures validation failure - got more than one signature with the same sender id";
-    }
-
     bool verificationResult = false;
     if (myReplicaId == sig.sender_replica) {
       std::vector<char> mySignature(sigManager_->getMySigLength(), '\0');
@@ -101,29 +94,32 @@ std::optional<std::string> PreProcessResultMsg::validatePreProcessResultSignatur
   return {};
 }
 
-std::string PreProcessResultSignature::serializeResultSignatureList(
-    const std::list<PreProcessResultSignature>& signatures) {
+std::string PreProcessResultSignature::serializeResultSignatures(const std::set<PreProcessResultSignature>& signatures,
+                                                                 const uint16_t numOfRequiredSignatures) {
   size_t buf_len = 0;
+  auto i = 0;
   for (const auto& s : signatures) {
     buf_len += sizeof(s.sender_replica) + sizeof(uint32_t) + s.signature.size();
+    if (++i == numOfRequiredSignatures) break;
   }
 
   std::string output;
   output.reserve(buf_len);
-
+  i = 0;
   for (const auto& s : signatures) {
     output.append(concordUtils::toBigEndianStringBuffer(s.sender_replica));
     output.append(concordUtils::toBigEndianStringBuffer<uint32_t>(s.signature.size()));
     output.append(s.signature.begin(), s.signature.end());
+    if (++i == numOfRequiredSignatures) break;
   }
 
   return output;
 }
 
-std::list<PreProcessResultSignature> PreProcessResultSignature::deserializeResultSignatureList(const char* buf,
-                                                                                               size_t len) {
+std::set<PreProcessResultSignature> PreProcessResultSignature::deserializeResultSignatures(const char* buf,
+                                                                                           size_t len) {
   size_t pos = 0;
-  std::list<PreProcessResultSignature> ret;
+  std::set<PreProcessResultSignature> ret;
   while (1) {
     bftEngine::impl::NodeIdType sender_id;
     uint32_t signature_size;
@@ -144,7 +140,7 @@ std::list<PreProcessResultSignature> PreProcessResultSignature::deserializeResul
           "PreProcessResultSignature deserialisation error - remaining buffer length less than signature size");
     }
 
-    ret.emplace_back(std::vector<char>(buf + pos, buf + pos + signature_size), sender_id);
+    ret.emplace(std::vector<char>(buf + pos, buf + pos + signature_size), sender_id);
     pos += signature_size;
 
     if (len - pos == 0) {

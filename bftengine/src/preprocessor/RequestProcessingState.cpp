@@ -84,7 +84,10 @@ void RequestProcessingState::handlePrimaryPreProcessed(const char *preProcessRes
            primaryPreProcessResultHash_.size(),
            sig.data(),
            sig.size());
-  preProcessingResultHashes_[primaryPreProcessResultHash_].emplace_back(std::move(sig), myReplicaId_);
+  if (!preProcessingResultHashes_[primaryPreProcessResultHash_].emplace(std::move(sig), myReplicaId_).second) {
+    LOG_INFO(logger(), "Failed to add signature, primary already has a signature");
+    return;
+  }
   // Decision when PreProcessing is complete is made based on the value of received replies. The value should be
   // increased for the primary hash too.
   numOfReceivedReplies_++;
@@ -119,18 +122,15 @@ void RequestProcessingState::handlePreProcessReplyMsg(const PreProcessReplyMsgSh
   const auto &senderId = preProcessReplyMsg->senderId();
   if (preProcessReplyMsg->status() == STATUS_GOOD) {
     const auto &newHashArray = convertToArray(preProcessReplyMsg->resultsHash());
-    // Do not add a duplicate signature from the same sender to the list.
-    // insert returns a pair, where the second is a boolean denoting whether the insertion took place.
-    // TODO - identify the scenarios that can cause duplicate replies to arrive.
-    if (!(seenSenders_[newHashArray]).insert(preProcessReplyMsg->senderId()).second) {
+    // Counts equal hashes and saves the signatures with the replica ID. They will be used as a proof that the primary
+    // is sending correct preexecution result to the rest of the replicas.
+    if (!preProcessingResultHashes_[newHashArray]
+             .emplace(preProcessReplyMsg->getResultHashSignature(), preProcessReplyMsg->senderId())
+             .second) {
       LOG_INFO(logger(), "Signature was already accepted for this sender " << KVLOG(senderId, reqSeqNum_, clientId_));
       return;
     }
     numOfReceivedReplies_++;
-    // Counts equal hashes and saves the signatures with the replica ID. They will be used as a proof that the primary
-    // is sending correct preexecution result to the rest of the replicas.
-    preProcessingResultHashes_[newHashArray].emplace_back(preProcessReplyMsg->getResultHashSignature(),
-                                                          preProcessReplyMsg->senderId());
     detectNonDeterministicPreProcessing(newHashArray, senderId, preProcessReplyMsg->reqRetryId());
   } else {
     LOG_DEBUG(logger(), "Register rejected PreProcessReplyMsg" << KVLOG(senderId, reqSeqNum_, clientId_));
@@ -199,7 +199,9 @@ void RequestProcessingState::modifyPrimayResult(const std::pair<std::string, con
            primaryPreProcessResultHash_.size(),
            sig.data(),
            sig.size());
-  preProcessingResultHashes_[primaryPreProcessResultHash_].emplace_back(std::move(sig), myReplicaId_);
+  if (!preProcessingResultHashes_[primaryPreProcessResultHash_].emplace(std::move(sig), myReplicaId_).second) {
+    LOG_INFO(logger(), "Failed to add signature, primary already has a signature");
+  }
 }
 
 // The primary replica logic
@@ -259,7 +261,7 @@ unique_ptr<MessageBase> RequestProcessingState::buildClientRequestMsg(bool empty
   return clientPreProcessReqMsg_->convertToClientRequestMsg(emptyReq);
 }
 
-const std::list<PreProcessResultSignature> &RequestProcessingState::getPreProcessResultSignatures() {
+const std::set<PreProcessResultSignature> &RequestProcessingState::getPreProcessResultSignatures() {
   const auto &r = preProcessingResultHashes_.find(primaryPreProcessResultHash_);
   ConcordAssert(r != preProcessingResultHashes_.end());
   return r->second;

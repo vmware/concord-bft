@@ -63,19 +63,18 @@ struct MsgParams {
 };
 std::pair<std::string, std::vector<char>> getProcessResultSigBuff(const std::unique_ptr<SigManager>& sigManager,
                                                                   const MsgParams& p,
-                                                                  const int sigCount,
-                                                                  bool duplicateSigs) {
+                                                                  const int sigCount) {
   auto msgSigSize = sigManager->getMySigLength();
   std::vector<char> msgSig(msgSigSize, 0);
   auto hash = concord::util::SHA3_256().digest(p.result, sizeof(p.result));
   sigManager->sign(reinterpret_cast<const char*>(hash.data()), hash.size(), msgSig.data(), msgSigSize);
 
   // for simplicity, copy the same signatures
-  std::list<PreProcessResultSignature> resultSigs;
+  std::set<PreProcessResultSignature> resultSigs;
   for (int i = 0; i < sigCount; i++) {
-    resultSigs.emplace_back(std::vector<char>(msgSig), duplicateSigs ? 0 : i);
+    resultSigs.emplace(std::vector<char>(msgSig), i);
   }
-  return std::make_pair(PreProcessResultSignature::serializeResultSignatureList(resultSigs), msgSig);
+  return std::make_pair(PreProcessResultSignature::serializeResultSignatures(resultSigs, sigCount), msgSig);
 }
 void checkMessageSanityCheck(std::unique_ptr<preprocessor::PreProcessResultMsg>& m,
                              MsgParams& p,
@@ -115,8 +114,8 @@ class PreProcessResultMsgTestFixture : public testing::Test {
   ReplicasInfo replicaInfo;
   std::unique_ptr<SigManager> sigManager;
 
-  std::unique_ptr<PreProcessResultMsg> createMessage(const MsgParams& p, const int sigCount, bool duplicateSigs) {
-    auto resultSigsBuf = getProcessResultSigBuff(sigManager, p, sigCount, duplicateSigs);
+  std::unique_ptr<PreProcessResultMsg> createMessage(const MsgParams& p, const int sigCount) {
+    auto resultSigsBuf = getProcessResultSigBuff(sigManager, p, sigCount);
 
     return std::make_unique<PreProcessResultMsg>(p.senderId,
                                                  p.reqSeqNum,
@@ -151,8 +150,8 @@ class PreProcessResultMsgTxSigningOffTestFixture : public testing::Test {
   ReplicasInfo replicaInfo;
   std::unique_ptr<SigManager> sigManager;
 
-  std::unique_ptr<PreProcessResultMsg> createMessage(const MsgParams& p, const int sigCount, bool duplicateSigs) {
-    auto resultSigsBuf = getProcessResultSigBuff(sigManager, p, sigCount, duplicateSigs);
+  std::unique_ptr<PreProcessResultMsg> createMessage(const MsgParams& p, const int sigCount) {
+    auto resultSigsBuf = getProcessResultSigBuff(sigManager, p, sigCount);
 
     return std::make_unique<PreProcessResultMsg>(p.senderId,
                                                  p.reqSeqNum,
@@ -172,7 +171,7 @@ class PreProcessResultMsgTxSigningOffTestFixture : public testing::Test {
 
 TEST_F(PreProcessResultMsgTestFixture, ClientRequestMsgSanityChecks) {
   MsgParams p;
-  auto m = createMessage(p, replicaInfo.getNumberOfReplicas(), false /* duplicateSigs */);
+  auto m = createMessage(p, replicaInfo.getNumberOfReplicas());
   messageSanityCheck(m, p);
 
   // check message type
@@ -183,19 +182,36 @@ TEST_F(PreProcessResultMsgTestFixture, ClientRequestMsgSanityChecks) {
 TEST_F(PreProcessResultMsgTestFixture, SignatureDeserialisation) {
   std::vector<char> msgSig{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14};
 
-  std::list<PreProcessResultSignature> resultSigs;
+  std::set<PreProcessResultSignature> resultSigs;
   for (int i = 0; i < replicaInfo.getNumberOfReplicas(); i++) {
-    resultSigs.emplace_back(std::vector<char>(msgSig), 0);
+    resultSigs.emplace(std::vector<char>(msgSig), i);
   }
-  auto resultSigsBuf = PreProcessResultSignature::serializeResultSignatureList(resultSigs);
+  auto resultSigsBuf =
+      PreProcessResultSignature::serializeResultSignatures(resultSigs, replicaInfo.getNumberOfReplicas());
   auto deserialized =
-      PreProcessResultSignature::deserializeResultSignatureList(resultSigsBuf.data(), resultSigsBuf.size());
+      PreProcessResultSignature::deserializeResultSignatures(resultSigsBuf.data(), resultSigsBuf.size());
   EXPECT_THAT(resultSigs, deserialized);
+}
+
+TEST_F(PreProcessResultMsgTestFixture, ShrinkSignaturesToSize) {
+  std::vector<char> msgSig{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14};
+
+  std::set<PreProcessResultSignature> resultSigs;
+  auto numReplies = 7;
+  auto numRepliesNeeded = 4;
+  for (int i = 0; i < numReplies; i++) {
+    resultSigs.emplace(std::vector<char>(msgSig), i);
+  }
+
+  auto resultSigsBuf = PreProcessResultSignature::serializeResultSignatures(resultSigs, numRepliesNeeded);
+  auto deserialized =
+      PreProcessResultSignature::deserializeResultSignatures(resultSigsBuf.data(), resultSigsBuf.size());
+  EXPECT_THAT(deserialized.size(), numRepliesNeeded);
 }
 
 TEST_F(PreProcessResultMsgTestFixture, MsgDeserialisation) {
   MsgParams p;
-  auto serialised = createMessage(p, replicaInfo.getNumberOfReplicas(), true /* duplicateSigs */);
+  auto serialised = createMessage(p, replicaInfo.getNumberOfReplicas());
   auto m = std::make_unique<PreProcessResultMsg>((ClientRequestMsgHeader*)serialised->body());
 
   messageSanityCheck(m, p);
@@ -212,7 +228,7 @@ TEST_F(PreProcessResultMsgTestFixture, MsgDeserialisation) {
 
   // Deserialise result signatures
   auto [sigBuf, sigBufLen] = m->getResultSignaturesBuf();
-  auto sigs = PreProcessResultSignature::deserializeResultSignatureList(sigBuf, sigBufLen);
+  auto sigs = PreProcessResultSignature::deserializeResultSignatures(sigBuf, sigBufLen);
 
   // Verify the signatures - SigManager can't veryfy its own signature so first the result
   // from the message is signed and then it is compared to each signature in the message
@@ -220,15 +236,16 @@ TEST_F(PreProcessResultMsgTestFixture, MsgDeserialisation) {
   std::vector<char> msgSig(msgSigSize, 0);
   auto hash = concord::util::SHA3_256().digest(m->requestBuf(), m->requestLength());
   sigManager->sign(reinterpret_cast<char*>(hash.data()), hash.size(), msgSig.data(), msgSigSize);
+  auto i = 0;
   for (const auto& s : sigs) {
-    ASSERT_EQ(s.sender_replica, 0);
+    ASSERT_EQ(s.sender_replica, i++);
     EXPECT_THAT(msgSig, s.signature);
   }
 }
 
 TEST_F(PreProcessResultMsgTestFixture, MsgDeserialisationFromBase) {
   MsgParams p;
-  auto serialised = createMessage(p, replicaInfo.getNumberOfReplicas(), true /* duplicateSigs */);
+  auto serialised = createMessage(p, replicaInfo.getNumberOfReplicas());
   auto m = std::make_unique<PreProcessResultMsg>((MessageBase*)serialised.get());
   messageSanityCheck(m, p);
 
@@ -244,7 +261,7 @@ TEST_F(PreProcessResultMsgTestFixture, MsgDeserialisationFromBase) {
 
   // Deserialise result signatures
   auto [sigBuf, sigBufLen] = m->getResultSignaturesBuf();
-  auto sigs = PreProcessResultSignature::deserializeResultSignatureList(sigBuf, sigBufLen);
+  auto sigs = PreProcessResultSignature::deserializeResultSignatures(sigBuf, sigBufLen);
 
   // Verify the signatures - SigManager can't veryfy its own signature so first the result
   // from the message is signed and then it is compared to each signature in the message
@@ -252,15 +269,16 @@ TEST_F(PreProcessResultMsgTestFixture, MsgDeserialisationFromBase) {
   std::vector<char> msgSig(msgSigSize, 0);
   auto hash = concord::util::SHA3_256().digest(m->requestBuf(), m->requestLength());
   sigManager->sign(reinterpret_cast<char*>(hash.data()), hash.size(), msgSig.data(), msgSigSize);
+  auto i = 0;
   for (const auto& s : sigs) {
-    ASSERT_EQ(s.sender_replica, 0);
+    ASSERT_EQ(s.sender_replica, i++);
     EXPECT_THAT(msgSig, s.signature);
   }
 }
 
 TEST_F(PreProcessResultMsgTestFixture, MsgWithTooMuchSigs) {
   MsgParams p;
-  auto serialised = createMessage(p, config.fVal, false /* duplicateSigs */);
+  auto serialised = createMessage(p, config.fVal);
 
   auto m = std::make_unique<PreProcessResultMsg>((MessageBase*)serialised.get());
   auto res = m->validatePreProcessResultSignatures(config.replicaId, config.fVal);
@@ -270,22 +288,9 @@ TEST_F(PreProcessResultMsgTestFixture, MsgWithTooMuchSigs) {
   EXPECT_TRUE(res && res->find(ss.str()) != std::string::npos);
 }
 
-TEST_F(PreProcessResultMsgTestFixture, MsgWithDuplicatedSigs) {
-  MsgParams p;
-  auto serialised = createMessage(p, config.fVal + 1, true /* duplicateSigs */);
-
-  auto m = std::make_unique<PreProcessResultMsg>((MessageBase*)serialised.get());
-  auto res = m->validatePreProcessResultSignatures(config.replicaId, config.fVal);
-
-  std::stringstream ss;
-  ss << "got more than one signature with the same sender id";
-  EXPECT_TRUE(res);
-  EXPECT_TRUE(res->find(ss.str()) != std::string::npos);
-}
-
 TEST_F(PreProcessResultMsgTxSigningOffTestFixture, ClientRequestMsgSanityChecks) {
   MsgParams p;
-  auto m = createMessage(p, replicaInfo.getNumberOfReplicas(), false /* duplicateSigs */);
+  auto m = createMessage(p, replicaInfo.getNumberOfReplicas());
   messageSanityCheck(m, p);
 
   // check message type
