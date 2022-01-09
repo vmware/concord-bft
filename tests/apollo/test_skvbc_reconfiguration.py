@@ -87,7 +87,7 @@ def start_replica_cmd(builddir, replica_id):
             "-f", time_service_enabled,
             "-b", "2",
             "-q", batch_size,
-            "-o", builddir + "/operator_pub.pem"
+            "-o", builddir + "/operator_pub.pem",
             "-K"]
 
 
@@ -117,7 +117,7 @@ def start_replica_cmd_with_key_exchange(builddir, replica_id):
             "-b", "2",
             "-q", batch_size,
             "-e", str(True),
-            "-o", builddir + "/operator_pub.pem"
+            "-o", builddir + "/operator_pub.pem",
             "-K"]
 
 class SkvbcReconfigurationTest(unittest.TestCase):
