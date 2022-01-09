@@ -70,8 +70,11 @@ struct PreProcessResultSignature {
     return signature == rhs.signature && sender_replica == rhs.sender_replica;
   }
 
-  static std::string serializeResultSignatureList(const std::list<PreProcessResultSignature>& signatures);
-  static std::list<PreProcessResultSignature> deserializeResultSignatureList(const char* buf, size_t len);
+  bool operator<(const PreProcessResultSignature& rhs) const { return sender_replica < rhs.sender_replica; }
+
+  static std::string serializeResultSignatures(const std::set<PreProcessResultSignature>& signatures,
+                                               uint16_t numOfRequiredSignatures);
+  static std::set<PreProcessResultSignature> deserializeResultSignatures(const char* buf, size_t len);
 };
 
 }  // namespace preprocessor
