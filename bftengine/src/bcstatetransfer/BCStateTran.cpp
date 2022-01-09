@@ -304,11 +304,10 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
     // TODO - support any configuration, although config_.fetchRangeSize * config_.RVT_K <=
     // config_.maxNumberOfChunksInBatch is probably only for testing
     ConcordAssertGT(config_.fetchRangeSize * config_.RVT_K, config_.maxNumberOfChunksInBatch);
-    // TODO Supporting fetchRangeSize > maxNumberOfChunksInBatch make things more complicated. We will have to 
+    // TODO Supporting fetchRangeSize > maxNumberOfChunksInBatch make things more complicated. We will have to
     // delete blocks from temporary blockchain in case that RVB validation failed since some batches will be without any
     // single validation until reaching the next RVB. For now it is reasonble to have this restriction.
     ConcordAssertLE(config_.fetchRangeSize, config_.maxNumberOfChunksInBatch);
-
 
     maxNumOfStoredCheckpoints_ = maxNumOfRequiredStoredCheckpoints;
     numberOfReservedPages_ = numberOfRequiredReservedPages;
@@ -319,12 +318,13 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
              "Init BCStateTran object:" << KVLOG(
                  maxNumOfStoredCheckpoints_, numberOfReservedPages_, config_.sizeOfReservedPage));
 
+    FetchingState fs{FetchingState::NotFetching};
     if (psd_->initialized()) {
       LOG_INFO(logger_, "Loading existing data from storage");
 
       checkConsistency(config_.pedanticChecks, true);
 
-      FetchingState fs = getFetchingState();
+      fs = getFetchingState();
       LOG_INFO(logger_, "Starting state is " << stateName(fs));
 
       if (fs != FetchingState::NotFetching) {
@@ -354,7 +354,7 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
     }
     // TODO - this init may take long time in large storages. If it takes too much time, we should consider moving it
     // to the background with a new logic as a result of that move
-    rvbm_->init();
+    rvbm_->init(fs != FetchingState::NotFetching);
     {
       DataStoreTransaction::Guard g(psd_->beginTransaction());
       g.txn()->setReplicas(replicas_);
@@ -2625,6 +2625,7 @@ void BCStateTran::cycleReset() {
   clearAllPendingItemsData();
   fetchState_.reset();
   commitState_.reset();
+  rvbm_->reset();
   sourceSelector_.reset();
   targetCheckpointDesc_.makeZero();
   postponedSendFetchBlocksMsg_ = false;
@@ -2678,8 +2679,9 @@ void BCStateTran::processData(bool lastInBatch, uint32_t rvbDigestsSize) {
       }
       sourceSelector_.updateSource(currTime);
       badDataFromCurrentSourceReplica = false;
-      if (srcReplacementMode == SourceReplacementMode::IMMEDIATE) clearAllPendingItemsData();
-      rvbm_->onSourceUpdate();
+      if (srcReplacementMode == SourceReplacementMode::IMMEDIATE) {
+        clearAllPendingItemsData();
+      }
     }
 
     // We have a valid source replica at this point
@@ -2724,7 +2726,11 @@ void BCStateTran::processData(bool lastInBatch, uint32_t rvbDigestsSize) {
 
       if (rvbDigestsSize > 0) {
         LOG_INFO(logger_, "Setting RVB digests into RVB manager:" << KVLOG(rvbDigestsSize));
-        if (!rvbm_->setSerializedDigestsOfRvbGroup(rvbDigests, rvbDigestsSize, fetchState_.minBlockId, targetCheckpointDesc_.maxBlockId)) {
+        if (!rvbm_->setSerializedDigestsOfRvbGroup(rvbDigests,
+                                                   rvbDigestsSize,
+                                                   fetchState_.minBlockId,
+                                                   fetchState_.maxBlockId,
+                                                   targetCheckpointDesc_.maxBlockId)) {
           LOG_ERROR(logger_, "Setting RVB digests into RVB manager failed!");
           badDataFromCurrentSourceReplica = true;
         }

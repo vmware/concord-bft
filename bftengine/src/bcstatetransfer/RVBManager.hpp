@@ -42,7 +42,8 @@ class RVBManager {
   // Init / Destroy functions
   RVBManager() = delete;
   RVBManager(const Config& config, const IAppState* state_api, const std::shared_ptr<DataStore>& ds);
-  void init();
+  // stored_cp_num might be CheckpointBeingFetched if replica is in ST, or LastStoredCheckpoint if in consensus
+  void init(bool fetching);
 
   // Called during checkpointing
   void updateRvbDataDuringCheckpoint(CheckpointDesc& last_checkpoint_desc);
@@ -64,6 +65,7 @@ class RVBManager {
   bool setSerializedDigestsOfRvbGroup(char* data,
                                       size_t data_size,
                                       BlockId min_fetch_block_id,
+                                      BlockId max_fetch_block_id,
                                       BlockId max_block_id_in_cycle);
   std::optional<std::reference_wrapper<const STDigest>> getDigestFromRvbGroup(BlockId block_id) const;
 
@@ -78,7 +80,7 @@ class RVBManager {
   void reportLastAgreedPrunableBlockId(BlockId lastAgreedPrunableBlockId);
 
   std::string getDigestOfRvbData() const { return in_mem_rvt_->getRootHashVal(); }
-  void onSourceUpdate();
+  void reset();
 
  protected:
   logging::Logger logger_;
@@ -109,6 +111,8 @@ class RVBManager {
     return config_.fetchRangeSize * (block_id / config_.fetchRangeSize);
   }
 
+  // Returns 0 if no such ID
+  RVBGroupId getNextRequiredRvbGroupid(RVBId from_rvb_id, RVBId to_rvb_id) const;
 #pragma pack(push, 1)
   struct rvbDigestInfo {
     BlockId block_id;

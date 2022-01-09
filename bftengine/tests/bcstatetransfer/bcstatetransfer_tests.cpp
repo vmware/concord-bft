@@ -1002,7 +1002,7 @@ void BcStTest::initialize() {
 }
 
 void BcStTest::dstStartRunningAndCollecting(FetchingState expectedState) {
-  LOG_INFO(GL, "");
+  LOG_TRACE(GL, "");
   ASSERT_DEST_UNDER_TEST;
   ASSERT_TRUE(initialized_);
   cmnStartRunning(expectedState);
@@ -1010,7 +1010,7 @@ void BcStTest::dstStartRunningAndCollecting(FetchingState expectedState) {
 }
 
 void BcStTest::cmnStartRunning(FetchingState expectedState) {
-  LOG_INFO(GL, "");
+  LOG_TRACE(GL, "");
   ASSERT_TRUE(initialized_);
   ASSERT_FALSE(stateTransfer_->isRunning());
   stateTransfer_->startRunning(&testedReplicaIf_);
@@ -1019,7 +1019,7 @@ void BcStTest::cmnStartRunning(FetchingState expectedState) {
 }
 
 void BcStTest::dstStartCollecting() {
-  LOG_INFO(GL, "");
+  LOG_TRACE(GL, "");
   ASSERT_DEST_UNDER_TEST;
   ASSERT_TRUE(initialized_);
   ASSERT_TRUE(stateTransfer_->isRunning());
@@ -1030,7 +1030,7 @@ void BcStTest::dstStartCollecting() {
 }
 
 void BcStTest::dstAssertAskForCheckpointSummariesSent(uint64_t checkpoint_num) {
-  LOG_INFO(GL, "");
+  LOG_TRACE(GL, "");
   ASSERT_DEST_UNDER_TEST;
   ASSERT_EQ(testedReplicaIf_.sent_messages_.size(), targetConfig_.numReplicas - 1);
 
@@ -1046,7 +1046,6 @@ void BcStTest::dstAssertAskForCheckpointSummariesSent(uint64_t checkpoint_num) {
 }
 
 void BcStTest::dstAssertFetchBlocksMsgSent() {
-  LOG_INFO(GL, "");
   ASSERT_DEST_UNDER_TEST;
 
   auto currentSourceId = stDelegator_->getSourceSelector().currentReplica();
@@ -1072,7 +1071,7 @@ void BcStTest::dstAssertFetchBlocksMsgSent() {
 }
 
 void BcStTest::dstAssertFetchResPagesMsgSent() {
-  LOG_INFO(GL, "");
+  LOG_TRACE(GL, "");
   ASSERT_DEST_UNDER_TEST;
   ASSERT_EQ(FetchingState::GettingMissingResPages, stateTransfer_->getFetchingState());
   auto currentSourceId = stDelegator_->getSourceSelector().currentReplica();
@@ -1084,7 +1083,7 @@ void BcStTest::dstAssertFetchResPagesMsgSent() {
 }
 
 void BcStTest::srcAssertCheckpointSummariesSent(uint64_t minRepliedCheckpointNum, uint64_t maxRepliedCheckpointNum) {
-  LOG_INFO(GL, "");
+  LOG_TRACE(GL, "");
   ASSERT_SRC_UNDER_TEST;
   ASSERT_EQ(FetchingState::NotFetching, stateTransfer_->getFetchingState());
   ASSERT_EQ(testedReplicaIf_.sent_messages_.size(), maxRepliedCheckpointNum - minRepliedCheckpointNum + 1);
@@ -1107,7 +1106,7 @@ void BcStTest::srcAssertCheckpointSummariesSent(uint64_t minRepliedCheckpointNum
 }
 
 void BcStTest::srcAssertItemDataMsgBatchSentWithBlocks(uint64_t minExpectedBlockId, uint64_t maxExpectedBlockId) {
-  LOG_INFO(GL, "");
+  LOG_TRACE(GL, "");
   ASSERT_SRC_UNDER_TEST;
   ASSERT_GE(maxExpectedBlockId, minExpectedBlockId);
   ASSERT_EQ(FetchingState::NotFetching, stateTransfer_->getFetchingState());
@@ -1144,7 +1143,7 @@ void BcStTest::srcAssertItemDataMsgBatchSentWithBlocks(uint64_t minExpectedBlock
 }
 
 void BcStTest::srcAssertItemDataMsgBatchSentWithResPages(uint32_t expectedChunksSent, uint64_t requiredCheckpointNum) {
-  LOG_INFO(GL, "");
+  LOG_TRACE(GL, "");
   ASSERT_SRC_UNDER_TEST;
   ASSERT_EQ(FetchingState::NotFetching, stateTransfer_->getFetchingState());
   ASSERT_EQ(testedReplicaIf_.sent_messages_.size(), expectedChunksSent);
