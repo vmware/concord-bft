@@ -186,45 +186,68 @@ size_t RVBManager::getSerializedDigestsOfRvbGroup(int64_t rvb_group_id, char* bu
   return num_elements * sizeof(RVBManager::rvbDigestInfo);
 }
 
-bool RVBManager::setSerializedDigestsOfRvbGroup(char* data, size_t data_size, BlockId min_fetch_block_id) {
+bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
+                                                size_t data_size,
+                                                BlockId min_fetch_block_id,
+                                                BlockId max_block_id_in_cycle) {
   LOG_TRACE(logger_, KVLOG(data_size));
   ConcordAssertNE(data, nullptr);
   rvbDigestInfo* cur = reinterpret_cast<rvbDigestInfo*>(data);
   std::map<BlockId, STDigest> digests;
   BlockId block_id;
   STDigest digest;
-  size_t num_digests_added;
+  size_t num_digests_in_data;
+  std::vector<RVBGroupId> rvb_group_ids, prev_rvb_group_ids;
+  static constexpr char error_prefix[] = "Invalid digests of RVB group:";
   BlockId next_expected_rvb_id = stored_rvb_digests_.empty()
                                      ? computeNextRvbBlockId(min_fetch_block_id)
                                      : (stored_rvb_digests_.rbegin()->first + config_.fetchRangeSize);
-  std::vector<RVBGroupId> rvb_group_ids, prev_rvb_group_ids;
-  static constexpr char error_prefix[] = "Invalid digests of RVB group:";
+  std::function<std::string(std::vector<RVBGroupId>&)> vec_to_str = [&](std::vector<RVBGroupId>& v) {
+    std::stringstream ss;
+    for (size_t i{0}; i < v.size(); ++i) {
+      if (i != 0) ss << ",";
+      ss << v[i];
+    }
+    return ss.str();
+  };
 
   if (((data_size % sizeof(rvbDigestInfo)) != 0) || (data_size == 0)) {
     LOG_ERROR(logger_, error_prefix << KVLOG(data_size, sizeof(rvbDigestInfo)));
     return false;
   }
-  num_digests_added = data_size / sizeof(rvbDigestInfo);
-  if (num_digests_added > config_.RVT_K) {
-    LOG_ERROR(logger_, error_prefix << KVLOG(num_digests_added, config_.RVT_K));
+  num_digests_in_data = data_size / sizeof(rvbDigestInfo);
+  if (num_digests_in_data > config_.RVT_K) {
+    LOG_ERROR(logger_, error_prefix << KVLOG(num_digests_in_data, config_.RVT_K));
+    return false;
+  }
+  if (num_digests_in_data == 0) {
+    LOG_ERROR(logger_, error_prefix << KVLOG(num_digests_in_data));
     return false;
   }
 
-  for (size_t i{0}; i < num_digests_added; ++i, ++cur) {
+  // 1st stage: Awe would like to construct a temporary map 'digests', nominated to be inserted into stored_rvb_digests_
+  // This will be done  after basic validations + validating this list of digests agains the in memory RVT
+  // We assume digests are ordered in accending block ID order
+  for (size_t i{0}; i < num_digests_in_data; ++i, ++cur) {
     memcpy(&block_id, &cur->block_id, sizeof(block_id));
     if (stored_rvb_digests_.find(block_id) != stored_rvb_digests_.end()) {
       LOG_WARN(logger_, error_prefix << KVLOG(block_id) << " is already inside stored_rvb_digests_");
-      return false;;
+      return false;
     }
     if (digests.find(block_id) != digests.end()) {
       LOG_WARN(logger_,
                error_prefix << KVLOG(block_id) << " is already inside in digests (duplicate - treated as error)");
-      return false;;
+      return false;
     }
     if ((block_id % config_.fetchRangeSize) != 0) {
       LOG_ERROR(logger_,
                 error_prefix << KVLOG(i, block_id, config_.fetchRangeSize, (block_id % config_.fetchRangeSize)));
       return false;
+    }
+    // Break in case that we passed the max_block_id_in_cycle
+    if (block_id > max_block_id_in_cycle) {
+      LOG_INFO(logger_, "Breaking:" << (KVLOG(block_id, max_block_id_in_cycle)));
+      break;
     }
     if (block_id != next_expected_rvb_id) {
       LOG_ERROR(logger_, error_prefix << KVLOG(block_id, next_expected_rvb_id));
@@ -239,14 +262,6 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data, size_t data_size, Bl
     if (!prev_rvb_group_ids.empty()) {
       bool result = std::equal(prev_rvb_group_ids.begin(), prev_rvb_group_ids.end(), rvb_group_ids.begin());
       if (!result) {
-        std::function<std::string(std::vector<RVBGroupId>&)> vec_to_str = [&](std::vector<RVBGroupId>& v) {
-          std::stringstream ss;
-          for (size_t i{0}; i < v.size(); ++i) {
-            if (i != 0) ss << ",";
-            ss << v[i];
-          }
-          return ss.str();
-        };
         std::string prev_rvb_group_ids_str = vec_to_str(prev_rvb_group_ids);
         std::string rvb_group_ids_str = vec_to_str(rvb_group_ids);
         LOG_ERROR(logger_,
@@ -260,15 +275,52 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data, size_t data_size, Bl
     digests.insert(make_pair(block_id, digest));
     next_expected_rvb_id += config_.fetchRangeSize;
   }  // for
-  ConcordAssertEQ(digests.size(), num_digests_added);
 
-  // insert the new group id and delete old ones, if needed. We keep the latest 2 group IDs after insertion
+  ConcordAssertLE(digests.size(), num_digests_in_data);
+  if (digests.empty()) {
+    LOG_ERROR(logger_, error_prefix << " digests map is empty!");
+    return false;
+  }
   RVBGroupId rvb_group_id_added = rvb_group_ids[0];
+
+  // 2nd stage - This one isn't a mandatory, but it can help debugging - lets check that digests hold the exact needed
+  // RVB digests to build a temporary tree
+  auto rvb_ids = in_mem_rvt_->getRvbIds(rvb_group_id_added);
+  std::vector<RVBId> keys;
+  std::transform(digests.begin(),
+                 digests.end(),
+                 std::back_inserter(keys),
+                 [](const std::map<BlockId, STDigest>::value_type& pair) { return pair.first; });
+  if (keys != rvb_ids) {
+    std::string keys_str = vec_to_str(keys);
+    std::string rvb_ids_str = vec_to_str(rvb_ids);
+    LOG_ERROR(logger_, error_prefix << KVLOG(keys_str, rvb_ids_str));
+    return false;
+  }
+
+  // 3rd stage: we have constructed temporary map 'digests' of RVBs.
+  // Lets validate them against the in memory tree. We assume that no pruning was done, so we have all the RVBs
+  RangeValidationTree digests_rvt(logger_, config_.RVT_K, config_.fetchRangeSize);
+  for (const auto& p : digests) {
+    digests_rvt.addNode(p.first, p.second);
+  }
+  const std::string digests_rvt_root_val = digests_rvt.getRootHashVal();
+  const std::string rvt_parent_val = in_mem_rvt_->getDirectParentHashVal(digests.begin()->first);
+  if (digests_rvt_root_val != rvt_parent_val) {
+    LOG_ERROR(logger_,
+              error_prefix << " digests validation failed against the in_mem_rvt_!"
+                           << KVLOG(digests_rvt_root_val, rvt_parent_val));
+    return false;
+  }
+
+  // 4th stage: validation is done!
+  // insert the new group id and delete old ones, if needed. We keep the latest 2 group IDs after insertion
   RVBGroupId rvb_group_id_removed{0};
   stored_rvb_digests_group_ids_.push_back(rvb_group_id_added);
   size_t num_digests_removed{0};
   if (stored_rvb_digests_group_ids_.size() > 2) {
     rvb_group_id_removed = stored_rvb_digests_group_ids_[0];
+    stored_rvb_digests_group_ids_.erase(stored_rvb_digests_group_ids_.begin());
     auto it = stored_rvb_digests_.begin();
     while (it != stored_rvb_digests_.end()) {
       rvb_group_ids = in_mem_rvt_->getRvbGroupIds(it->first, it->first);
@@ -285,11 +337,12 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data, size_t data_size, Bl
   LOG_INFO(logger_,
            "Done updating RVB stored digests:" << KVLOG(rvb_group_id_added,
                                                         rvb_group_id_removed,
-                                                        num_digests_added,
+                                                        num_digests_in_data,
+                                                        digests.size(),
                                                         num_digests_removed,
                                                         stored_rvb_digests_.size(),
                                                         stored_rvb_digests_group_ids_.size()));
-  return false;
+  return true;
 }
 
 std::optional<std::reference_wrapper<const STDigest>> RVBManager::getDigestFromRvbGroup(BlockId block_id) const {

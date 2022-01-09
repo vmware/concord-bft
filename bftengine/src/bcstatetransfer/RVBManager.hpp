@@ -54,15 +54,17 @@ class RVBManager {
   void setRvbData(char* data, size_t data_size);
 
   // Called during ST GettingMissingBlocks by source when received FetchBlocksMsg with rvb_group_id != 0
-  // Returns number of bytes filled. We assume that rvb_group_id must exist. This can be checked by calling 
+  // Returns number of bytes filled. We assume that rvb_group_id must exist. This can be checked by calling
   // getSerializedByteSizeOfRvbGroup before calling this function.
   size_t getSerializedDigestsOfRvbGroup(int64_t rvb_group_id, char* buff, size_t buff_max_size) const;
-
 
   size_t getSerializedByteSizeOfRvbGroup(int64_t rvb_group_id) const;
 
   // Called during ST GettingMissingBlocks by destination
-  bool setSerializedDigestsOfRvbGroup(char* data, size_t data_size, BlockId min_fetch_block_id);
+  bool setSerializedDigestsOfRvbGroup(char* data,
+                                      size_t data_size,
+                                      BlockId min_fetch_block_id,
+                                      BlockId max_block_id_in_cycle);
   std::optional<std::reference_wrapper<const STDigest>> getDigestFromRvbGroup(BlockId block_id) const;
 
   // This one should be called during FetchBlocksMsg by dest.
@@ -77,6 +79,7 @@ class RVBManager {
 
   std::string getDigestOfRvbData() const { return in_mem_rvt_->getRootHashVal(); }
   void onSourceUpdate();
+
  protected:
   logging::Logger logger_;
   const Config& config_;
