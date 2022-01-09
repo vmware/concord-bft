@@ -46,23 +46,17 @@ Status RequestServiceImpl::Send(ServerContext* context, const Request* proto_req
     if (not std::holds_alternative<bft::client::Reply>(send_result)) {
       LOG_INFO(logger_, "Send returned error");
       switch (std::get<uint32_t>(send_result)) {
-        case (static_cast<uint32_t>(bftEngine::OperationResult::OVERLOADED)):
-          status.set_value(grpc::Status(grpc::StatusCode::RESOURCE_EXHAUSTED, "All clients occupied"));
-          break;
         case (static_cast<uint32_t>(bftEngine::OperationResult::INVALID_REQUEST)):
           status.set_value(grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "Invalid argument"));
-          break;
-        case (static_cast<uint32_t>(bftEngine::OperationResult::TIMEOUT)):
-          status.set_value(grpc::Status(grpc::StatusCode::DEADLINE_EXCEEDED, "Timeout"));
           break;
         case (static_cast<uint32_t>(bftEngine::OperationResult::NOT_READY)):
           status.set_value(grpc::Status(grpc::StatusCode::UNAVAILABLE, "No clients connected to the replicas"));
           break;
-        case (static_cast<uint32_t>(bftEngine::OperationResult::INTERNAL_ERROR)):
-          status.set_value(grpc::Status(grpc::StatusCode::INTERNAL, "Internal error"));
+        case (static_cast<uint32_t>(bftEngine::OperationResult::TIMEOUT)):
+          status.set_value(grpc::Status(grpc::StatusCode::DEADLINE_EXCEEDED, "Timeout"));
           break;
         case (static_cast<uint32_t>(bftEngine::OperationResult::EXEC_DATA_TOO_LARGE)):
-          status.set_value(grpc::Status(grpc::StatusCode::RESOURCE_EXHAUSTED, "Execution data too large"));
+          status.set_value(grpc::Status(grpc::StatusCode::INTERNAL, "Execution data too large"));
           break;
         case (static_cast<uint32_t>(bftEngine::OperationResult::EXEC_DATA_EMPTY)):
           status.set_value(grpc::Status(grpc::StatusCode::INTERNAL, "Execution data is empty"));
@@ -70,8 +64,11 @@ Status RequestServiceImpl::Send(ServerContext* context, const Request* proto_req
         case (static_cast<uint32_t>(bftEngine::OperationResult::CONFLICT_DETECTED)):
           status.set_value(grpc::Status(grpc::StatusCode::ABORTED, "Aborted"));
           break;
+        case (static_cast<uint32_t>(bftEngine::OperationResult::OVERLOADED)):
+          status.set_value(grpc::Status(grpc::StatusCode::RESOURCE_EXHAUSTED, "All clients occupied"));
+          break;
         default:
-          status.set_value(grpc::Status(grpc::StatusCode::UNKNOWN, "Unknown error"));
+          status.set_value(grpc::Status(grpc::StatusCode::INTERNAL, "Internal error"));
           break;
       }
       return;
