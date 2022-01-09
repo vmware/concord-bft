@@ -34,18 +34,18 @@ static auto IsGoodForBatching(ClientMsgFlag flags, bool client_batching_enabled)
   return flags & ClientMsgFlag::PRE_PROCESS_REQ && client_batching_enabled;
 }
 
-SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
-                                            ClientMsgFlag flags,
-                                            std::chrono::milliseconds timeout_ms,
-                                            char *reply_buffer,
-                                            std::uint32_t max_reply_size,
-                                            uint64_t seq_num,
-                                            std::string correlation_id,
-                                            std::string span_context,
-                                            const bftEngine::RequestCallBack &callback) {
+bftEngine::OperationResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
+                                                          ClientMsgFlag flags,
+                                                          std::chrono::milliseconds timeout_ms,
+                                                          char *reply_buffer,
+                                                          std::uint32_t max_reply_size,
+                                                          uint64_t seq_num,
+                                                          std::string correlation_id,
+                                                          std::string span_context,
+                                                          const bftEngine::RequestCallBack &callback) {
   if (callback && timeout_ms.count() == 0) {
-    callback(bftEngine::SendResult{SubmitResult::InvalidArgument});
-    return SubmitResult::Overloaded;
+    callback(bftEngine::SendResult{static_cast<uint32_t>(bftEngine::OperationResult::INVALID_REQUEST)});
+    return bftEngine::OperationResult::OVERLOADED;
   }
   externalRequest external_request;
   std::unique_lock<std::mutex> lock(clients_queue_lock_);
@@ -104,7 +104,7 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
         assignJobToClient(client);
       }
       LOG_DEBUG(logger_, "Request Acknowledged (batch)" << KVLOG(client_id, correlation_id, seq_num, flags));
-      return SubmitResult::Acknowledged;
+      return bftEngine::OperationResult::ACKNOWLEDGED;
     } else {
       clients_.pop_front();
       if (0 != client->PendingRequestsCount()) {
@@ -129,7 +129,7 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
                           span_context,
                           callback);
         LOG_DEBUG(logger_, "Request Acknowledged (single)" << KVLOG(client_id, correlation_id, seq_num, flags));
-        return SubmitResult::Acknowledged;
+        return bftEngine::OperationResult::ACKNOWLEDGED;
       }
     }
   }
@@ -147,19 +147,19 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
                                                           reply_buffer,
                                                           max_reply_size});
     LOG_DEBUG(logger_, "Request Acknowledged (external)" << KVLOG(client_id, correlation_id, seq_num, flags));
-    return SubmitResult::Acknowledged;
+    return bftEngine::OperationResult::ACKNOWLEDGED;
   } else {
     ClientPoolMetrics_.rejected_counter++;
     is_overloaded_ = true;
     LOG_WARN(logger_, "Cannot allocate client for" << KVLOG(correlation_id));
     if (callback) {
       if (serving_candidates == 0 && !clients_.empty()) {
-        callback(bftEngine::SendResult{SubmitResult::ClientUnavailable});
+        callback(bftEngine::SendResult{static_cast<uint32_t>(bftEngine::OperationResult::NOT_READY)});
       } else {
-        callback(bftEngine::SendResult{SubmitResult::Overloaded});
+        callback(bftEngine::SendResult{static_cast<uint32_t>(bftEngine::OperationResult::OVERLOADED)});
       }
     }
-    return SubmitResult::Overloaded;
+    return bftEngine::OperationResult::OVERLOADED;
   }
 }
 
@@ -196,9 +196,9 @@ void ConcordClientPool::assignJobToClient(const ClientPtr &client,
   jobs_thread_pool_.add(job);
 }
 
-SubmitResult ConcordClientPool::SendRequest(const bft::client::WriteConfig &config,
-                                            bft::client::Msg &&request,
-                                            const bftEngine::RequestCallBack &callback) {
+bftEngine::OperationResult ConcordClientPool::SendRequest(const bft::client::WriteConfig &config,
+                                                          bft::client::Msg &&request,
+                                                          const bftEngine::RequestCallBack &callback) {
   LOG_DEBUG(logger_, "Received write request with cid=" << config.request.correlation_id);
   auto request_flag = ClientMsgFlag::EMPTY_FLAGS_REQ;
   if (config.request.pre_execute) request_flag = ClientMsgFlag::PRE_PROCESS_REQ;
@@ -213,13 +213,13 @@ SubmitResult ConcordClientPool::SendRequest(const bft::client::WriteConfig &conf
                      callback);
 }
 
-SubmitResult ConcordClientPool::SendRequest(const bft::client::ReadConfig &config,
-                                            bft::client::Msg &&request,
-                                            const bftEngine::RequestCallBack &callback) {
+bftEngine::OperationResult ConcordClientPool::SendRequest(const bft::client::ReadConfig &config,
+                                                          bft::client::Msg &&request,
+                                                          const bftEngine::RequestCallBack &callback) {
   LOG_INFO(logger_, "Received read request with cid=" << config.request.correlation_id);
   if (callback && config.request.pre_execute) {
-    callback(bftEngine::SendResult{SubmitResult::InvalidArgument});
-    return SubmitResult::Overloaded;
+    callback(bftEngine::SendResult{static_cast<uint32_t>(bftEngine::OperationResult::INVALID_REQUEST)});
+    return bftEngine::OperationResult::OVERLOADED;
   }
   return SendRequest(std::forward<std::vector<uint8_t>>(request),
                      ClientMsgFlag::READ_ONLY_REQ,
@@ -414,10 +414,10 @@ void SingleRequestProcessingJob::execute() {
     res = processing_client_->SendRequest(read_config_, std::move(request_));
     reply_size = res.matched_data.size();
     if (callback_) {
-      if (processing_client_->getClientRequestError() != OperationResult::TIMEOUT) {
-        callback_(bftEngine::SendResult{res});
+      if (processing_client_->getRequestExecutionResult() != OperationResult::TIMEOUT) {
+        callback_(res);
       } else {
-        callback_(bftEngine::SendResult{SubmitResult::TimedOut});
+        callback_(static_cast<uint32_t>(bftEngine::OperationResult::TIMEOUT));
       }
     }
   } else {
@@ -429,12 +429,12 @@ void SingleRequestProcessingJob::execute() {
     res = processing_client_->SendRequest(write_config_, std::move(request_));
     reply_size = res.matched_data.size();
     if (callback_) {
-      if (OperationResult::SUCCESS == processing_client_->getClientRequestError()) {
-        callback_(bftEngine::SendResult{res});
-      } else if (OperationResult::TIMEOUT == processing_client_->getClientRequestError()) {
-        callback_(bftEngine::SendResult{SubmitResult::TimedOut});
+      if (OperationResult::SUCCESS == processing_client_->getRequestExecutionResult()) {
+        callback_(static_cast<uint32_t>(bftEngine::OperationResult::SUCCESS));
+      } else if (OperationResult::TIMEOUT == processing_client_->getRequestExecutionResult()) {
+        callback_(static_cast<uint32_t>(bftEngine::OperationResult::TIMEOUT));
       } else {  // Lets treat as invalid argument request.
-        callback_(bftEngine::SendResult{SubmitResult::InvalidArgument});
+        callback_(static_cast<uint32_t>(bftEngine::OperationResult::INVALID_REQUEST));
       }
     }
   }
@@ -534,13 +534,13 @@ void ConcordClientPool::InsertClientToQueue(
       }
     }
   }
-  if (replies.second.front().cb && client->getClientRequestError() == OperationResult::TIMEOUT) {
+  if (replies.second.front().cb && client->getRequestExecutionResult() == OperationResult::TIMEOUT) {
     for (const auto &reply : replies.second) {
-      reply.cb(SendResult{SubmitResult::TimedOut});
+      reply.cb(SendResult{static_cast<uint32_t>(bftEngine::OperationResult::TIMEOUT)});
     }
-  } else if (replies.second.front().cb && client->getClientRequestError() == OperationResult::INVALID_REQUEST) {
+  } else if (replies.second.front().cb && client->getRequestExecutionResult() == OperationResult::INVALID_REQUEST) {
     for (const auto &reply : replies.second) {
-      reply.cb(SendResult{SubmitResult::InvalidArgument});
+      reply.cb(SendResult{static_cast<uint32_t>(bftEngine::OperationResult::INVALID_REQUEST)});
     }
   }
   Done(std::move(replies));
@@ -588,8 +588,8 @@ bool ConcordClientPool::clusterHasKeys(ClientPtr &cl) {
 
 OperationResult ConcordClientPool::getClientError() {
   for (auto &client : this->clients_) {
-    if (client->getClientRequestError() != OperationResult::SUCCESS) {
-      return client->getClientRequestError();
+    if (client->getRequestExecutionResult() != OperationResult::SUCCESS) {
+      return client->getRequestExecutionResult();
     }
   }
   return OperationResult::SUCCESS;
