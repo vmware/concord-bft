@@ -24,6 +24,7 @@ enum class OperationResult : uint32_t {
   EXEC_DATA_TOO_LARGE,
   EXEC_DATA_EMPTY,
   CONFLICT_DETECTED,
+  OVERLOADED,
   INTERNAL_ERROR
 };
 

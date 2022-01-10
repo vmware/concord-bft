@@ -39,21 +39,19 @@ namespace concord_client_pool {
 
 using TextMap = std::unordered_map<std::string, std::string>;
 
-// Represents the answer that the DAML Ledger API could get when sending a
-// request
+// Represents an immediate answer that the DAML Ledger API could get when sending a request
 enum SubmitResult {
   Acknowledged,  // The request has been queued for submission
-  Overloaded,    // There is no available client to the moment to process the
-  // request
+  Overloaded,    // There is no available client at the moment to process the request
   InvalidArgument,
-  TimedOut,
   ClientUnavailable,  // There are clients in the queue but none of them are connected to enough replicas
+  InternalError,
 };
 
 // An internal error has occurred. Reason is recorded in logs.
-class InternalError : public std::exception {
+class InternalErrorException : public std::exception {
  public:
-  InternalError() = default;
+  InternalErrorException() = default;
   const char* what() const noexcept override { return "Internal error occurred, please check the log files"; }
 };
 
@@ -127,13 +125,13 @@ class ConcordClientPool {
                            const bftEngine::RequestCallBack& callback = {});
 
   // This method is responsible to get write requests with the new client
-  // paramters and parse it to the old SimpleClient interface.
+  // parameters and parse them to the old SimpleClient interface.
   SubmitResult SendRequest(const bft::client::WriteConfig& config,
                            bft::client::Msg&& request,
                            const bftEngine::RequestCallBack& callback = {});
 
   // This method is responsible to get read requests with the new client
-  // paramters and parse it to the old SimpleClient interface.
+  // parameters and parse them to the old SimpleClient interface.
   SubmitResult SendRequest(const bft::client::ReadConfig& config,
                            bft::client::Msg&& request,
                            const bftEngine::RequestCallBack& callback = {});
@@ -179,7 +177,7 @@ class ConcordClientPool {
 
   // Clients that are available for use (i.e. not already in use).
   std::deque<ClientPtr> clients_;
-  // holds jobs that no clients was available to get.
+  // The queue holds the jobs that no client was available to get.
   std::deque<externalRequest> external_requests_queue_;
   // Thread pool, on each thread on client will run
   concord::util::SimpleThreadPool jobs_thread_pool_;

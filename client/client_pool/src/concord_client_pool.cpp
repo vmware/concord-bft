@@ -44,7 +44,7 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
                                             std::string span_context,
                                             const bftEngine::RequestCallBack &callback) {
   if (callback && timeout_ms.count() == 0) {
-    callback(bftEngine::SendResult{SubmitResult::InvalidArgument});
+    callback(bftEngine::SendResult{static_cast<uint32_t>(OperationResult::INVALID_REQUEST)});
     return SubmitResult::Overloaded;
   }
   externalRequest external_request;
@@ -154,9 +154,9 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
     LOG_WARN(logger_, "Cannot allocate client for" << KVLOG(correlation_id));
     if (callback) {
       if (serving_candidates == 0 && !clients_.empty()) {
-        callback(bftEngine::SendResult{SubmitResult::ClientUnavailable});
+        callback(bftEngine::SendResult{static_cast<uint32_t>(OperationResult::NOT_READY)});
       } else {
-        callback(bftEngine::SendResult{SubmitResult::Overloaded});
+        callback(bftEngine::SendResult{static_cast<uint32_t>(OperationResult::OVERLOADED)});
       }
     }
     return SubmitResult::Overloaded;
@@ -218,7 +218,7 @@ SubmitResult ConcordClientPool::SendRequest(const bft::client::ReadConfig &confi
                                             const bftEngine::RequestCallBack &callback) {
   LOG_INFO(logger_, "Received read request with cid=" << config.request.correlation_id);
   if (callback && config.request.pre_execute) {
-    callback(bftEngine::SendResult{SubmitResult::InvalidArgument});
+    callback(bftEngine::SendResult{static_cast<uint32_t>(OperationResult::INVALID_REQUEST)});
     return SubmitResult::Overloaded;
   }
   return SendRequest(std::forward<std::vector<uint8_t>>(request),
@@ -260,9 +260,9 @@ ConcordClientPool::ConcordClientPool(config_pool::ConcordClientPoolConfig &confi
     CreatePool(config);
   } catch (std::invalid_argument &e) {
     LOG_ERROR(logger_, "Communication protocol=" << config.comm_to_use << " is not supported");
-    throw InternalError();
+    throw InternalErrorException();
   } catch (std::exception &e) {
-    throw InternalError();
+    throw InternalErrorException();
   }
 }
 
@@ -287,9 +287,9 @@ ConcordClientPool::ConcordClientPool(config_pool::ConcordClientPoolConfig &confi
     CreatePool(config);
   } catch (std::invalid_argument &e) {
     LOG_ERROR(logger_, "Communication protocol=" << config.comm_to_use << " is not supported");
-    throw InternalError();
+    throw InternalErrorException();
   } catch (std::exception &e) {
-    throw InternalError();
+    throw InternalErrorException();
   }
 }
 
@@ -412,14 +412,6 @@ void SingleRequestProcessingJob::execute() {
     read_config_.request.correlation_id = correlation_id_;
     read_config_.request.span_context = span_context_;
     res = processing_client_->SendRequest(read_config_, std::move(request_));
-    reply_size = res.matched_data.size();
-    if (callback_) {
-      if (processing_client_->getClientRequestError() != OperationResult::TIMEOUT) {
-        callback_(bftEngine::SendResult{res});
-      } else {
-        callback_(bftEngine::SendResult{SubmitResult::TimedOut});
-      }
-    }
   } else {
     write_config_.request.timeout = timeout_ms_;
     write_config_.request.sequence_number = seq_num_;
@@ -427,16 +419,14 @@ void SingleRequestProcessingJob::execute() {
     write_config_.request.span_context = span_context_;
     write_config_.request.pre_execute = flags_ & PRE_PROCESS_REQ;
     res = processing_client_->SendRequest(write_config_, std::move(request_));
-    reply_size = res.matched_data.size();
-    if (callback_) {
-      if (OperationResult::SUCCESS == processing_client_->getClientRequestError()) {
-        callback_(bftEngine::SendResult{res});
-      } else if (OperationResult::TIMEOUT == processing_client_->getClientRequestError()) {
-        callback_(bftEngine::SendResult{SubmitResult::TimedOut});
-      } else {  // Lets treat as invalid argument request.
-        callback_(bftEngine::SendResult{SubmitResult::InvalidArgument});
-      }
-    }
+  }
+  OperationResult operation_result = processing_client_->getRequestExecutionResult();
+  reply_size = res.matched_data.size();
+  if (callback_) {
+    if (operation_result == OperationResult::SUCCESS)
+      callback_(res);
+    else
+      callback_(static_cast<uint32_t>(operation_result));
   }
   external_client::ConcordClient::PendingReplies replies;
   replies.push_back(ClientReply{static_cast<uint32_t>(request_.size()),
@@ -534,14 +524,9 @@ void ConcordClientPool::InsertClientToQueue(
       }
     }
   }
-  if (replies.second.front().cb && client->getClientRequestError() == OperationResult::TIMEOUT) {
-    for (const auto &reply : replies.second) {
-      reply.cb(SendResult{SubmitResult::TimedOut});
-    }
-  } else if (replies.second.front().cb && client->getClientRequestError() == OperationResult::INVALID_REQUEST) {
-    for (const auto &reply : replies.second) {
-      reply.cb(SendResult{SubmitResult::InvalidArgument});
-    }
+  OperationResult operation_result = client->getRequestExecutionResult();
+  if (replies.second.front().cb && operation_result != OperationResult::SUCCESS) {
+    for (const auto &reply : replies.second) reply.cb(SendResult{static_cast<uint32_t>(operation_result)});
   }
   Done(std::move(replies));
 }
@@ -588,8 +573,8 @@ bool ConcordClientPool::clusterHasKeys(ClientPtr &cl) {
 
 OperationResult ConcordClientPool::getClientError() {
   for (auto &client : this->clients_) {
-    if (client->getClientRequestError() != OperationResult::SUCCESS) {
-      return client->getClientRequestError();
+    if (client->getRequestExecutionResult() != OperationResult::SUCCESS) {
+      return client->getRequestExecutionResult();
     }
   }
   return OperationResult::SUCCESS;
