@@ -86,41 +86,41 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     std::string byzantineStrategies;
     bool is_separate_communication_mode = false;
 
-    static struct option longOptions[] = {{"replica-id", required_argument, 0, 'i'},
-                                          {"key-file-prefix", required_argument, 0, 'k'},
-                                          {"network-config-file", required_argument, 0, 'n'},
-                                          {"status-report-timeout", required_argument, 0, 's'},
-                                          {"view-change-timeout", required_argument, 0, 'v'},
-                                          {"auto-primary-rotation-timeout", required_argument, 0, 'a'},
-                                          {"s3-config-file", required_argument, 0, '3'},
-                                          {"log-props-file", required_argument, 0, 'l'},
-                                          {"key-exchange-on-start", required_argument, 0, 'e'},
-                                          {"publish-client-keys", required_argument, 0, 'w'},
-                                          {"cert-root-path", required_argument, 0, 'c'},
-                                          {"consensus-batching-policy", required_argument, 0, 'b'},
-                                          {"consensus-batching-max-reqs-size", required_argument, 0, 'm'},
-                                          {"consensus-batching-max-req-num", required_argument, 0, 'q'},
-                                          {"consensus-batching-flush-period", required_argument, 0, 'z'},
-                                          {"consensus-concurrency-level", required_argument, 0, 'y'},
-                                          {"replica-block-accumulation", no_argument, 0, 'u'},
-                                          {"send-different-messages-to-different-replica", no_argument, 0, 'd'},
-                                          {"principals-mapping", optional_argument, 0, 'p'},
-                                          {"txn-signing-key-path", optional_argument, 0, 't'},
-                                          {"operator-public-key-path", optional_argument, 0, 'o'},
-                                          {"cron-entry-number-of-executes", optional_argument, 0, 'r'},
-                                          {"replica-byzantine-strategies", optional_argument, 0, 'g'},
-                                          {"pre-exec-result-auth", no_argument, 0, 'x'},
-                                          {"time_service", optional_argument, 0, 'f'},
-                                          {"pre-exec-result-auth", no_argument, 0, 'x'},
-                                          {"enable-db-checkpoint", required_argument, 0, 'h'},
-                                          {"publish replicas master key on startup", optional_argument, 0, 'K'},
-                                          {0, 0, 0, 0}};
+    static struct option longOptions[] = {
+        {"replica-id", required_argument, 0, 'i'},
+        {"key-file-prefix", required_argument, 0, 'k'},
+        {"network-config-file", required_argument, 0, 'n'},
+        {"status-report-timeout", required_argument, 0, 's'},
+        {"view-change-timeout", required_argument, 0, 'v'},
+        {"auto-primary-rotation-timeout", required_argument, 0, 'a'},
+        {"s3-config-file", required_argument, 0, '3'},
+        {"log-props-file", required_argument, 0, 'l'},
+        {"key-exchange-on-start", required_argument, 0, 'e'},
+        {"publish-client-keys", required_argument, 0, 'w'},
+        {"cert-root-path", required_argument, 0, 'c'},
+        {"consensus-batching-policy", required_argument, 0, 'b'},
+        {"consensus-batching-max-reqs-size", required_argument, 0, 'm'},
+        {"consensus-batching-max-req-num", required_argument, 0, 'q'},
+        {"consensus-batching-flush-period", required_argument, 0, 'z'},
+        {"consensus-concurrency-level", required_argument, 0, 'y'},
+        {"replica-block-accumulation", no_argument, 0, 'u'},
+        {"send-different-messages-to-different-replica", no_argument, 0, 'd'},
+        {"principals-mapping", optional_argument, 0, 'p'},
+        {"txn-signing-key-path", optional_argument, 0, 't'},
+        {"operator-public-key-path", optional_argument, 0, 'o'},
+        {"cron-entry-number-of-executes", optional_argument, 0, 'r'},
+        {"replica-byzantine-strategies", optional_argument, 0, 'g'},
+        {"pre-exec-result-auth", no_argument, 0, 'x'},
+        {"time_service", optional_argument, 0, 'f'},
+        {"pre-exec-result-auth", no_argument, 0, 'x'},
+        {"enable-db-checkpoint", required_argument, 0, 'h'},
+        {"publish-master-key-on-startup", no_argument, (int*)&replicaConfig.publishReplicasMasterKeyOnStartup, 1},
+        {0, 0, 0, 0}};
     int o = 0;
     int optionIndex = 0;
     LOG_INFO(GL, "Command line options:");
     while ((o = getopt_long(
-                argc, argv, "i:k:n:s:v:a:3:l:e:w:c:b:m:q:z:y:udp:t:o:r:g:xf:h:K:j:", longOptions, &optionIndex)) !=
-           -1) {
+                argc, argv, "i:k:n:s:v:a:3:l:e:w:c:b:m:q:z:y:udp:t:o:r:g:xf:h:j:", longOptions, &optionIndex)) != -1) {
       switch (o) {
         case 'i': {
           replicaConfig.replicaId = concord::util::to<std::uint16_t>(std::string(optarg));
@@ -237,9 +237,6 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
           dbSnapshotPath << BasicRandomTests::DB_FILE_PREFIX << "snapshot_" << replicaConfig.replicaId;
           replicaConfig.dbCheckpointDirPath = dbSnapshotPath.str();
           break;
-        }
-        case 'K': {
-          replicaConfig.publishReplicasMasterKeyOnStartup = true;
         }
         case 'j': {
           // updating dbCheckPointWindowSize value to test create dbSnapshot operator command
