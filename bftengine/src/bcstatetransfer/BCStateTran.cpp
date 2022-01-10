@@ -406,6 +406,7 @@ bool BCStateTran::isRunning() const { return running_; }
 // data.
 DataStore::CheckpointDesc BCStateTran::createCheckpointDesc(uint64_t checkpointNumber,
                                                             const STDigest &digestOfResPagesDescriptor) {
+  LOG_TRACE(logger_, KVLOG(checkpointNumber, digestOfResPagesDescriptor));
   uint64_t maxBlockId = as_->getLastReachableBlockNum();
   ConcordAssertEQ(maxBlockId, as_->getLastBlockNum());
   metrics_.last_block_.Get().Set(maxBlockId);
@@ -425,7 +426,6 @@ DataStore::CheckpointDesc BCStateTran::createCheckpointDesc(uint64_t checkpointN
   checkDesc.digestOfMaxBlockId = digestOfMaxBlockId;
   checkDesc.digestOfResPagesDescriptor = digestOfResPagesDescriptor;
   rvbm_->updateRvbDataDuringCheckpoint(checkDesc);
-  ConcordAssert(!checkDesc.rvbData.empty());
 
   LOG_INFO(logger_,
            "CheckpointDesc: " << KVLOG(checkpointNumber,

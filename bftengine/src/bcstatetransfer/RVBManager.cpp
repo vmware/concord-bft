@@ -96,6 +96,7 @@ void RVBManager::init(bool fetching) {
 }
 
 void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_desc) {
+  BlockId min_block_id{};
   LOG_DEBUG(logger_,
             "Updating RVB data for" << KVLOG(new_checkpoint_desc.checkpointNum,
                                              new_checkpoint_desc.maxBlockId,
@@ -104,9 +105,26 @@ void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_de
   ConcordAssertAND((last_checkpoint_desc_.maxBlockId <= new_checkpoint_desc.maxBlockId),
                    (last_checkpoint_desc_.checkpointNum < new_checkpoint_desc.checkpointNum));
 
-  BlockId block_id =
-      (last_checkpoint_desc_.checkpointNum == 0) ? as_->getGenesisBlockNum() : last_checkpoint_desc_.maxBlockId + 1;
-  addRvbDataOnBlockRange(block_id, new_checkpoint_desc.maxBlockId, new_checkpoint_desc.digestOfMaxBlockId);
+  if (last_checkpoint_desc_.checkpointNum != 0) {
+    min_block_id = last_checkpoint_desc_.maxBlockId + 1;
+  } else {
+    if (new_checkpoint_desc.checkpointNum == 1) {
+      min_block_id = as_->getGenesisBlockNum();
+    } else if (ds_->hasCheckpointDesc(new_checkpoint_desc.checkpointNum - 1)) {
+      last_checkpoint_desc_ = ds_->getCheckpointDesc(new_checkpoint_desc.checkpointNum - 1);
+      min_block_id = last_checkpoint_desc_.maxBlockId + 1;
+      ConcordAssertLT(min_block_id, new_checkpoint_desc.maxBlockId);
+    } else {
+      if (in_mem_rvt_->empty()) {
+        min_block_id = as_->getGenesisBlockNum();
+      } else {
+        // TODO - Take the getMaxRvbId() + FSR. add after implemented
+        ConcordAssert(false);
+      }
+    }
+  }
+
+  addRvbDataOnBlockRange(min_block_id, new_checkpoint_desc.maxBlockId, new_checkpoint_desc.digestOfMaxBlockId);
 
   {  // start of critical section A
     std::lock_guard<std::mutex> guard(pruned_blocks_digests_mutex_);
@@ -477,7 +495,7 @@ void RVBManager::addRvbDataOnBlockRange(uint64_t min_block_id,
 
     STDigest digest;
     as_->getPrevDigestFromBlock(current_rvb_id + 1, reinterpret_cast<StateTransferDigest*>(digest.getForUpdate()));
-    LOG_TRACE(logger_, KVLOG(current_rvb_id, digest.toString()));  // TODO - remove later
+    LOG_TRACE(logger_, KVLOG(current_rvb_id, digest.toString()));
     in_mem_rvt_->addNode(current_rvb_id, digest);
     current_rvb_id += config_.fetchRangeSize;
   }
