@@ -29,7 +29,7 @@ using namespace std;
 using namespace std::placeholders;
 using namespace concordUtil;
 
-uint8_t RequestState::reqProcessingHistoryHeight = 10;
+uint8_t RequestState::reqProcessingHistoryHeight = 1;
 
 //**************** Class RequestsBatch ****************//
 
@@ -272,7 +272,10 @@ void PreProcessor::addNewPreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunic
 
 void PreProcessor::setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
   if (ReplicaConfig::instance().getpreExecutionFeatureEnabled() && aggregator) {
-    for (const auto &elem : preProcessors_) elem->metricsComponent_.SetAggregator(aggregator);
+    for (const auto &elem : preProcessors_) {
+      elem->metricsComponent_.SetAggregator(aggregator);
+      elem->memoryPool_.setAggregator(aggregator);
+    }
   }
 }
 
@@ -301,10 +304,13 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       requestsHandler_(requestsHandler),
       myReplica_(myReplica),
       myReplicaId_(myReplica.getReplicaConfig().replicaId),
-      maxPreExecResultSize_(myReplica.getReplicaConfig().maxExternalMessageSize),
+      // YS TBD: remove memory allocated for the block-id after Eran's fixes for conflict detection optimization issue
+      maxPreExecResultSize_(myReplica.getReplicaConfig().maxExternalMessageSize + sizeof(uint64_t)),
       numOfReplicas_(myReplica.getReplicaConfig().numReplicas + myReplica.getReplicaConfig().numRoReplicas),
       numOfInternalClients_(myReplica.getReplicaConfig().numOfClientProxies),
       clientBatchingEnabled_(myReplica.getReplicaConfig().clientBatchingEnabled),
+      // YS TBD: remove memory allocated for the block-id after Eran's fixes for conflict detection optimization issue
+      memoryPool_(maxPreExecResultSize_, timers),
       metricsComponent_{concordMetrics::Component("preProcessor", std::make_shared<concordMetrics::Aggregator>())},
       metricsLastDumpTime_(0),
       metricsDumpIntervalInSec_{myReplica_.getReplicaConfig().metricsDumpIntervalSeconds},
@@ -336,8 +342,10 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
   const uint16_t numOfReqEntries = numOfExternalClients * clientMaxBatchSize_;
   for (uint16_t i = 0; i < numOfReqEntries; i++) {
     // Placeholders for all clients including batches
-    preProcessResultBuffers_.emplace_back(std::make_pair(false, Sliver()));
+    preProcessResultBuffers_.emplace_back(make_shared<SafeResultBuffer>());
   }
+  // Initially, allocate a memory for all batches of one client (clientMaxBatchSize_)
+  memoryPool_.allocatePool(clientMaxBatchSize_, numOfReqEntries);
   const uint16_t firstClientId = numOfReplicas_ + numOfInternalClients_;
   for (uint16_t i = 0; i < numOfExternalClients; i++) {
     // Placeholders for all client batches
@@ -1345,6 +1353,7 @@ void PreProcessor::releaseClientPreProcessRequest(const RequestStateSharedPtr &r
     if (!myReplica_.isCurrentPrimary()) {
       preProcessorMetrics_.preProcInFlyRequestsNum--;
     }
+    releasePreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch);
   }
 }
 
@@ -1458,30 +1467,34 @@ void PreProcessor::registerAndHandleClientPreProcessReqOnNonPrimary(const string
   }
 }
 
+uint32_t PreProcessor::getBufferOffset(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch) const {
+  return (clientId - numOfReplicas_ - numOfInternalClients_) * clientMaxBatchSize_ + reqOffsetInBatch;
+}
+
 const char *PreProcessor::getPreProcessResultBuffer(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch) {
-  // Allocate on first use buffers scheme:
+  // Buffers structure scheme:
   // |first client's first buffer|...|first client's last buffer|......
   // |last client's first buffer|...|last client's last buffer|
   // First client id starts after the last replica id.
   // First buffer offset = numOfReplicas_ * batchSize_
   // The number of buffers per client comes from the configuration parameter clientBatchingMaxMsgsNbr.
-  const auto bufferOffset =
-      (clientId - numOfReplicas_ - numOfInternalClients_) * clientMaxBatchSize_ + reqOffsetInBatch;
-  LOG_TRACE(logger(), KVLOG(clientId, reqSeqNum, reqOffsetInBatch, bufferOffset, reqSeqNum));
-  char *buf = nullptr;
-  if (!preProcessResultBuffers_[bufferOffset].first) {
-    // sizeof(uint64_t) -> block id of conflict detection optimization
-    buf = new char[maxPreExecResultSize_ + sizeof(uint64_t)];
-    {
-      std::unique_lock lock(resultBufferLock_);
-      if (!preProcessResultBuffers_[bufferOffset].first) {
-        preProcessResultBuffers_[bufferOffset].second = Sliver(buf, maxPreExecResultSize_);
-        preProcessResultBuffers_[bufferOffset].first = true;
-      } else
-        delete[] buf;
-    }
+  const auto bufferOffset = getBufferOffset(clientId, reqSeqNum, reqOffsetInBatch);
+  std::unique_lock lock(preProcessResultBuffers_[bufferOffset]->mutex);
+  if (!preProcessResultBuffers_[bufferOffset]->buffer) {
+    preProcessResultBuffers_[bufferOffset]->buffer = memoryPool_.getChunk();
+    LOG_TRACE(logger(), "Allocate memory from the pool" << KVLOG(clientId, reqSeqNum, reqOffsetInBatch, bufferOffset));
   }
-  return preProcessResultBuffers_[bufferOffset].second.data();
+  return preProcessResultBuffers_[bufferOffset]->buffer;
+}
+
+void PreProcessor::releasePreProcessResultBuffer(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch) {
+  const auto bufferOffset = getBufferOffset(clientId, reqSeqNum, reqOffsetInBatch);
+  std::unique_lock lock(preProcessResultBuffers_[bufferOffset]->mutex);
+  if (preProcessResultBuffers_[bufferOffset]->buffer) {
+    memoryPool_.returnChunk(preProcessResultBuffers_[bufferOffset]->buffer);
+    preProcessResultBuffers_[bufferOffset]->buffer = nullptr;
+    LOG_TRACE(logger(), "Returned memory to the pool" << KVLOG(clientId, reqSeqNum, reqOffsetInBatch, bufferOffset));
+  }
 }
 
 // Primary replica: ask all replicas to pre-process the request
