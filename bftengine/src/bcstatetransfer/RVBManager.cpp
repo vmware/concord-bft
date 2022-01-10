@@ -123,7 +123,7 @@ void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_de
       }
     }
   }
-
+  // TODO - validate maxBlockId with getMaxRvbId()
   addRvbDataOnBlockRange(min_block_id, new_checkpoint_desc.maxBlockId, new_checkpoint_desc.digestOfMaxBlockId);
 
   {  // start of critical section A
@@ -485,6 +485,8 @@ void RVBManager::addRvbDataOnBlockRange(uint64_t min_block_id,
                                         const std::optional<STDigest>& digest_of_max_block_id) {
   LOG_TRACE(logger_, KVLOG(min_block_id, max_block_id));
   std::once_flag call_once_flag;
+
+  if (max_block_id == 0) return;
   uint64_t current_rvb_id = nextRvbBlockId(min_block_id);
   while (current_rvb_id < max_block_id) {
     // TODO - As a 2nd phase - should use the thread pool to fetch a batch of digests or move to a background process
