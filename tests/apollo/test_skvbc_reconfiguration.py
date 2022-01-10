@@ -42,7 +42,7 @@ def start_replica_cmd_with_object_store(builddir, replica_id, config):
     else :
         batch_size = "1"
         time_service_enabled = "0"
-    ret.extend(["-f", time_service_enabled, "-b", "2", "-q", batch_size, "-o", builddir + "/operator_pub.pem", "--publish-master-key-on-startup"])
+    ret.extend(["-f", time_service_enabled, "-b", "2", "-q", batch_size, "-o", builddir + "/operator_pub.pem"])
     return ret
 
 def start_replica_cmd_with_object_store_and_ke(builddir, replica_id, config):
@@ -59,7 +59,7 @@ def start_replica_cmd_with_object_store_and_ke(builddir, replica_id, config):
     else :
         batch_size = "1"
         time_service_enabled = "0"
-    ret.extend(["-f", time_service_enabled, "-b", "2", "-q", batch_size, "-e", str(True), "-o", builddir + "/operator_pub.pem", "--publish-master-key-on-startup"])
+    ret.extend(["-f", time_service_enabled, "-b", "2", "-q", batch_size, "-e", str(True), "-o", builddir + "/operator_pub.pem"])
     return ret
 
 def start_replica_cmd(builddir, replica_id):
@@ -87,8 +87,7 @@ def start_replica_cmd(builddir, replica_id):
             "-f", time_service_enabled,
             "-b", "2",
             "-q", batch_size,
-            "-o", builddir + "/operator_pub.pem",
-            "--publish-master-key-on-startup"]
+            "-o", builddir + "/operator_pub.pem"]
 
 
 def start_replica_cmd_with_key_exchange(builddir, replica_id):
@@ -117,8 +116,7 @@ def start_replica_cmd_with_key_exchange(builddir, replica_id):
             "-b", "2",
             "-q", batch_size,
             "-e", str(True),
-            "-o", builddir + "/operator_pub.pem",
-            "--publish-master-key-on-startup"]
+            "-o", builddir + "/operator_pub.pem"]
 
 class SkvbcReconfigurationTest(unittest.TestCase):
     @classmethod
