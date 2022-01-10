@@ -559,7 +559,10 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
                                      const concordUtils::SpanContext& span_context);
   void onPrepareVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid);
 
-  void onCommitCombinedSigFailed(SeqNum seqNumber, ViewNum view, const std::set<uint16_t>& replicasWithBadSigs);
+  void onCommitCombinedSigFailed(SeqNum seqNumber,
+                                 ViewNum view,
+                                 CommitPath cPath,
+                                 const std::set<uint16_t>& replicasWithBadSigs);
   void onCommitCombinedSigSucceeded(SeqNum seqNumber,
                                     ViewNum view,
                                     const char* combinedSig,
@@ -567,10 +570,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
                                     const concordUtils::SpanContext& span_context);
   void onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid);
 
-  void onFastPathCommitCombinedSigFailed(SeqNum seqNumber,
-                                         ViewNum view,
-                                         CommitPath cPath,
-                                         const std::set<uint16_t>& replicasWithBadSigs);
   void onFastPathCommitCombinedSigSucceeded(SeqNum seqNumber,
                                             ViewNum view,
                                             CommitPath cPath,

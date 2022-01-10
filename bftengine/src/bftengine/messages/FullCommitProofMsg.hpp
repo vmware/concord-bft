@@ -32,15 +32,11 @@ class FullCommitProofMsg : public MessageBase {
 
   SeqNum seqNumber() const { return b()->seqNum; }
 
-  uint16_t thresholSignatureLength() const { return b()->thresholSignatureLength; }
+  uint16_t signatureLen() const { return b()->thresholSignatureLength; }
 
-  const char* thresholSignature() { return body() + sizeof(Header) + spanContextSize(); }
+  const char* signatureBody() { return body() + sizeof(Header) + spanContextSize(); }
 
   void validate(const ReplicasInfo&) const override;
-
-  // ToDo--EDJ: Temp add method names used by CollectorOfThresholdSignatures
-  uint16_t signatureLen() const { return thresholSignatureLength(); }
-  const char* signatureBody() { return thresholSignature(); }
 
  protected:
   template <typename MessageT>

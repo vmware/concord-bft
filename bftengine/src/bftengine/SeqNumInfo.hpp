@@ -21,7 +21,6 @@
 #include "messages/SignedShareMsgs.hpp"
 #include "messages/PartialCommitProofMsg.hpp"
 #include "messages/FullCommitProofMsg.hpp"
-//#include "messages/PartialProofsSet.hpp"
 #include "Logger.hpp"
 #include "CollectorOfThresholdSignatures.hpp"
 #include "SequenceWithActiveWindow.hpp"
@@ -94,7 +93,6 @@ class SeqNumInfo {
   bool addFastPathPartialCommitMsg(PartialCommitProofMsg* m);
   bool addFastPathFullCommitMsg(FullCommitProofMsg* m, bool directAdd = false);
 
-  // PartialProofsSet& partialProofs();
   void startSlowPath();
   bool slowPathStarted();
 
@@ -261,8 +259,6 @@ class SeqNumInfo {
   FastPathOptimisticCollector* fastPathOptimisticCollector;
   FastPathThresholdCollector* fastPathThresholdCollector;
   Time fastPathTimeOfSelfPartialProof;
-
-  // PartialProofsSet* partialProofsSet;  // TODO(GG): replace with an instance of CollectorOfThresholdSignatures
 
   bool primary;  // true iff PrePrepareMsg was added with addSelfMsg
 

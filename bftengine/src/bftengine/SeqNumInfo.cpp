@@ -26,7 +26,6 @@ SeqNumInfo::SeqNumInfo()
       fastPathOptimisticCollector(nullptr),
       fastPathThresholdCollector(nullptr),
       fastPathTimeOfSelfPartialProof(MinTime),
-      // partialProofsSet(nullptr),
       primary(false),
       forcedCompleted(false),
       slowPathHasStarted(false),
@@ -39,7 +38,6 @@ SeqNumInfo::~SeqNumInfo() {
 
   delete prepareSigCollector;
   delete commitMsgsCollector;
-  // delete partialProofsSet;
   delete fastPathOptimisticCollector;
   delete fastPathThresholdCollector;
 }
@@ -68,7 +66,6 @@ void SeqNumInfo::resetAndFree() {
 
   prepareSigCollector->resetAndFree();
   commitMsgsCollector->resetAndFree();
-  // partialProofsSet->resetAndFree();
   fastPathOptimisticCollector->resetAndFree();
   fastPathThresholdCollector->resetAndFree();
   fastPathTimeOfSelfPartialProof = MinTime;
@@ -230,7 +227,6 @@ bool SeqNumInfo::addMsg(CommitFullMsg* m, bool directAdd) {
 void SeqNumInfo::forceComplete() {
   ConcordAssert(!forcedCompleted);
   ConcordAssert(hasPrePrepareMsg());
-  // ConcordAssert(this->partialProofsSet->hasFullProof());
   ConcordAssert(hasFastPathFullCommitProof());
 
   forcedCompleted = true;
@@ -292,8 +288,6 @@ bool SeqNumInfo::committedOrHasCommitPartialFromReplica(ReplicaId repId) const {
 Time SeqNumInfo::getTimeOfFirstRelevantInfoFromPrimary() const { return firstSeenFromPrimary; }
 
 Time SeqNumInfo::getTimeOfLastInfoRequest() const { return timeOfLastInfoRequest; }
-
-// PartialProofsSet& SeqNumInfo::partialProofs() { return *partialProofsSet; }
 
 bool SeqNumInfo::hasFastPathFullCommitProof() const {
   auto optimistic = fastPathOptimisticCollector->getMsgWithValidCombinedSignature();
@@ -759,7 +753,7 @@ void SeqNumInfo::init(SeqNumInfo& i, void* d) {
       new CollectorOfThresholdSignatures<PreparePartialMsg, PrepareFullMsg, ExFuncForPrepareCollector>(context);
   i.commitMsgsCollector =
       new CollectorOfThresholdSignatures<CommitPartialMsg, CommitFullMsg, ExFuncForCommitCollector>(context);
-  // i.partialProofsSet = new PartialProofsSet((InternalReplicaApi*)r);
+
   i.fastPathOptimisticCollector = new FastPathOptimisticCollector(context);
   i.fastPathThresholdCollector = new FastPathThresholdCollector(context);
 }

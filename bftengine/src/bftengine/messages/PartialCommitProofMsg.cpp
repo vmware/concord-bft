@@ -50,7 +50,7 @@ void PartialCommitProofMsg::validate(const ReplicasInfo& repInfo) const {
           repInfo.myId() ||  // TODO(GG) - TBD: we should use Assert for this condition (also in other messages)
       !repInfo.isIdOfReplica(senderId()) ||
       ((commitPath() == CommitPath::FAST_WITH_THRESHOLD) && (repInfo.cVal() == 0)) ||
-      commitPath() == CommitPath::SLOW || size() < (sizeof(Header) + thresholSignatureLength() + spanContextSize()) ||
+      commitPath() == CommitPath::SLOW || size() < (sizeof(Header) + signatureLen() + spanContextSize()) ||
       !repInfo.isCollectorForPartialProofs(viewNumber(), seqNumber()))
     throw std::runtime_error(__PRETTY_FUNCTION__);
 }

@@ -52,7 +52,7 @@ TEST(PartialCommitProofMsg, create_and_compare) {
   EXPECT_EQ(msg.seqNumber(), seqNum);
   EXPECT_EQ(msg.commitPath(), commitPath);
   EXPECT_EQ(msg.spanContextSize(), spanContext.size());
-  EXPECT_EQ(msg.thresholSignatureLength(),
+  EXPECT_EQ(msg.signatureLen(),
             CryptoManager::instance().thresholdSignerForOptimisticCommit(seqNum)->requiredLengthForSignedData());
 
   std::vector<char> signature(
@@ -60,7 +60,7 @@ TEST(PartialCommitProofMsg, create_and_compare) {
   CryptoManager::instance().thresholdSignerForOptimisticCommit(seqNum)->signData(
       nullptr, 0, signature.data(), signature.size());
 
-  EXPECT_EQ(memcmp(msg.thresholSignature(), signature.data(), signature.size()), 0);
+  EXPECT_EQ(memcmp(msg.signatureBody(), signature.data(), signature.size()), 0);
   EXPECT_NO_THROW(msg.validate(replicaInfo));
 }
 
