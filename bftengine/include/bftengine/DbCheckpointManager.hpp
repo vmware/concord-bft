@@ -32,15 +32,8 @@
 #include "Metrics.hpp"
 #include "InternalBFTClient.hpp"
 #include "storage/db_interface.h"
-#if __has_include(<filesystem>)
-#include <filesystem>
-namespace fs = std::filesystem;
-#elif __has_include(<experimental/filesystem>)
-#include <experimental/filesystem>
-namespace _fs = std::experimental::filesystem;
-#else
-#error "Missing filesystem support"
-#endif
+#include <boost/filesystem.hpp>
+namespace _fs = boost::filesystem;
 namespace bftEngine::impl {
 using std::chrono::duration_cast;
 using Status = concordUtils::Status;
@@ -49,8 +42,7 @@ using Seconds = std::chrono::seconds;
 using InternalBftClient = bftEngine::impl::InternalBFTClient;
 class DbCheckpointManager {
  public:
-  // void createDbCheckpoint(const SeqNum& seqNum);
-  void createDbCheckpointAsync(const SeqNum& seqNum, const std::optional<Timestamp>& timestamp);
+  uint64_t createDbCheckpointAsync(const SeqNum& seqNum, const std::optional<Timestamp>& timestamp);
   Seconds getLastCheckpointCreationTime() const { return lastCheckpointCreationTime_; }
   void initializeDbCheckpointManager(std::shared_ptr<concord::storage::IDBClient> dbClient,
                                      std::shared_ptr<bftEngine::impl::PersistentStorage> p,
@@ -112,9 +104,13 @@ class DbCheckpointManager {
   void checkAndRemove();
   void removeOldestDbCheckpoint();
   void updateDbCheckpointMetadata();
+  void removeDbCheckpointFuture(uint64_t);
+  void updateMetrics();
   InternalBftClient* client_{nullptr};
   std::atomic<bool> stopped_ = false;
   DbCheckpointMetadata dbCheckptMetadata_;
+  std::map<uint64_t, std::future<void> > dbCreateCheckPtFuture_;
+  std::future<void> cleanUpFuture_;
   std::shared_ptr<concord::storage::IDBClient> dbClient_;
   std::shared_ptr<bftEngine::impl::PersistentStorage> ps_;
   // this thread minitors if we over use the disk space

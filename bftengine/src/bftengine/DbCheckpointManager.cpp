@@ -86,22 +86,7 @@ Status DbCheckpointManager::createDbCheckpoint(const CheckpointId& checkPointId,
       removeOldestDbCheckpoint();
     }
   }
-
-  // update metrics
-  auto ret = std::async(std::launch::async, [this]() {
-    const auto& checkpointDir = dbClient_->getCheckpointPath();
-    if (const auto it = dbCheckptMetadata_.dbCheckPoints_.crbegin(); it != dbCheckptMetadata_.dbCheckPoints_.crend()) {
-      _fs::path path(checkpointDir);
-      _fs::path chkptIdPath = path / std::to_string(it->first);
-      auto lastDbCheckpointSize = directorySize(chkptIdPath, false, true);
-      lastDbCheckpointSizeInMb_.Get().Set(lastDbCheckpointSize / (1024 * 1024));
-      metrics_.UpdateAggregator();
-      LOG_INFO(getLogger(),
-               "rocksdb check point id:" << it->first << ", size: " << HumanReadable{lastDbCheckpointSize});
-      LOG_INFO(GL, "-- RocksDb checkpoint metrics dump--" + metrics_.ToJson());
-    }
-  });
-
+  updateMetrics();
   return Status::OK();
 }
 void DbCheckpointManager::loadCheckpointDataFromPersistence() {
@@ -199,15 +184,17 @@ void DbCheckpointManager::initializeDbCheckpointManager(std::shared_ptr<concord:
     init();
   } else {
     // db checkpoint is disabled. Cleanup metadata and checkpoints created if any
-    auto ret = std::async(std::launch::async, [this]() { cleanUp(); });
+    cleanUpFuture_ = std::async(std::launch::async, [this]() { cleanUp(); });
   }
 }
 
-void DbCheckpointManager::createDbCheckpointAsync(const SeqNum& seqNum, const std::optional<Timestamp>& timestamp) {
-  auto ret = std::async(std::launch::async, [this, seqNum, timestamp]() -> void {
-    const auto& lastBlockid = getLastBlockIdCb_();
+uint64_t DbCheckpointManager::createDbCheckpointAsync(const SeqNum& seqNum, const std::optional<Timestamp>& timestamp) {
+  const auto lastBlockid = getLastBlockIdCb_();
+  auto ret = std::async(std::launch::async, [this, seqNum, timestamp, lastBlockid]() -> void {
     createDbCheckpoint(lastBlockid, lastBlockid, seqNum, timestamp);
   });
+  dbCreateCheckPtFuture_.emplace(std::make_pair(lastBlockid, std::move(ret)));
+  return lastBlockid;
 }
 void DbCheckpointManager::checkAndRemove() {
   // get current db size
@@ -236,7 +223,11 @@ void DbCheckpointManager::removeOldestDbCheckpoint() {
     dbCheckptMetadata_.dbCheckPoints_.erase(it);
     LOG_INFO(getLogger(), "removed db checkpoint, id: " << it->second.checkPointId_);
     updateDbCheckpointMetadata();
+    removeDbCheckpointFuture(it->second.checkPointId_);
   }
+}
+void DbCheckpointManager::removeDbCheckpointFuture(uint64_t id) {
+  if (auto it = dbCreateCheckPtFuture_.find(id); it != dbCreateCheckPtFuture_.end()) dbCreateCheckPtFuture_.erase(it);
 }
 void DbCheckpointManager::updateDbCheckpointMetadata() {
   std::ostringstream outStream;
@@ -273,5 +264,17 @@ void DbCheckpointManager::setNextStableSeqNumToCreateSnapshot(const std::optiona
   seq_num_to_create_snapshot = seq_num_to_create_snapshot - (seq_num_to_create_snapshot % checkpointWindowSize);
   nextSeqNumToCreateCheckPt_ = seq_num_to_create_snapshot;
   LOG_INFO(getLogger(), "setNextStableSeqNumToCreateSnapshot " << KVLOG(nextSeqNumToCreateCheckPt_.value()));
+}
+void DbCheckpointManager::updateMetrics() {
+  const auto& checkpointDir = dbClient_->getCheckpointPath();
+  if (const auto it = dbCheckptMetadata_.dbCheckPoints_.crbegin(); it != dbCheckptMetadata_.dbCheckPoints_.crend()) {
+    _fs::path path(checkpointDir);
+    _fs::path chkptIdPath = path / std::to_string(it->first);
+    auto lastDbCheckpointSize = directorySize(chkptIdPath, false, true);
+    lastDbCheckpointSizeInMb_.Get().Set(lastDbCheckpointSize / (1024 * 1024));
+    metrics_.UpdateAggregator();
+    LOG_INFO(getLogger(), "rocksdb check point id:" << it->first << ", size: " << HumanReadable{lastDbCheckpointSize});
+    LOG_INFO(GL, "-- RocksDb checkpoint metrics dump--" + metrics_.ToJson());
+  }
 }
 }  // namespace bftEngine::impl
