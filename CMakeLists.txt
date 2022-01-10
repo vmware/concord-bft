@@ -23,6 +23,7 @@ if (NOT DEFINED USE_LOG4CPP)
   option(USE_LOG4CPP "Enable LOG4CPP" ON)
 endif()
 
+option(RUN_APOLLO_TESTS "Enable Apollo tests run" ON)
 option(KEEP_APOLLO_LOGS "Retains logs from replicas in separate folder for each test in build/tests/apollo/logs" ON)
 option(TXN_SIGNING_ENABLED "Enable External concord client transcattion signing" ON)
 option(BUILD_COMM_TCP_PLAIN "Enable TCP communication" OFF)

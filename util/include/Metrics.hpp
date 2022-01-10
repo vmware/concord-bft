@@ -153,6 +153,7 @@ struct metric_ {
   std::string component;
   std::string name;
   std::variant<Counter, Gauge, Status, SummaryDescription> value;
+  std::unordered_map<std::string, std::string> tag_map;
 };
 
 /******************************** Class Values ********************************/
@@ -182,6 +183,24 @@ class Names {
   std::vector<std::string> counter_names_;
   std::vector<std::string> atomic_counter_names_;
   std::vector<std::string> atomic_gauge_names_;
+
+  friend class Component;
+  friend class Aggregator;
+};
+
+/******************************** Class Tags ********************************/
+
+// We keep the tags of values in separate vecs since they remain constant for
+// the life of the program. When we update the component in the aggregator we
+// don't have to copy all the tags every time. We just have to do it once
+// during initialization.
+class Tags {
+ private:
+  std::vector<std::unordered_map<std::string, std::string>> gauge_tags_;
+  std::vector<std::unordered_map<std::string, std::string>> status_tags_;
+  std::vector<std::unordered_map<std::string, std::string>> counter_tags_;
+  std::vector<std::unordered_map<std::string, std::string>> atomic_tags_;
+  std::vector<std::unordered_map<std::string, std::string>> atomic_gauge_tags_;
 
   friend class Component;
   friend class Aggregator;
@@ -238,6 +257,9 @@ class Component {
   // Create a Gauge, add it to the component and return a reference to the
   // gauge.
   Handle<Gauge> RegisterGauge(const std::string& name, const uint64_t val);
+  Handle<Gauge> RegisterGauge(const std::string& name,
+                              const uint64_t val,
+                              const std::unordered_map<std::string, std::string>& tag_map);
   Handle<Status> RegisterStatus(const std::string& name, const std::string& val);
   Handle<Counter> RegisterCounter(const std::string& name, const uint64_t val);
   Handle<Counter> RegisterCounter(const std::string& name) { return RegisterCounter(name, 0); }
@@ -283,6 +305,7 @@ class Component {
   const bool metricsEnabled_;
 
   Names names_;
+  Tags tags_;
   Values values_;
 };
 
