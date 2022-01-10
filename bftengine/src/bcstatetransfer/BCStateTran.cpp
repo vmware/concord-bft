@@ -1622,7 +1622,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
       // Serialize RVB digests
       size_t rvbGroupDigestsActualSize =
           rvbm_->getSerializedDigestsOfRvbGroup(m->rvbGroupid, outMsg->data, rvbGroupDigestsExpectedSize);
-      ConcordAssertLE(rvbGroupDigestsActualSize, outMsg->rvbDigestsSize);
+      ConcordAssertLE(rvbGroupDigestsActualSize, rvbGroupDigestsExpectedSize);
       outMsg->rvbDigestsSize = rvbGroupDigestsActualSize;
       memcpy(outMsg->data + rvbGroupDigestsActualSize, pRawChunk, chunkSize);
       rvbGroupDigestsExpectedSize = 0;

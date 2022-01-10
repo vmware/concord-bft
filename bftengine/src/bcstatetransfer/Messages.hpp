@@ -18,6 +18,7 @@
 #include "STDigest.hpp"
 #include "IStateTransfer.hpp"
 #include "Logger.hpp"
+#include "hex_tools.h"
 
 namespace bftEngine {
 namespace bcst {
@@ -128,6 +129,10 @@ struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
                    << " digestOfMaxBlockId=" << b->digestOfMaxBlockId.toString() << " digestOfResPagesDescriptor="
                    << b->digestOfResPagesDescriptor.toString() << " requestMsgSeqNum=" << b->requestMsgSeqNum
                    << " requestMsgSeqNum=" << b->rvbDataSize << std::endl);
+      concordUtils::HexPrintBuffer adata{a->data, a->rvbDataSize};
+      concordUtils::HexPrintBuffer bdata{b->data, b->rvbDataSize};
+      LOG_TRACE(logger, KVLOG(adata));
+      LOG_TRACE(logger, KVLOG(bdata));
       return false;
     }
     return true;
