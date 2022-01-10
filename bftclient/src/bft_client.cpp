@@ -14,6 +14,7 @@
 #include "assertUtils.hpp"
 #include "secrets_manager_enc.h"
 #include "secrets_manager_plain.h"
+#include "communication/StateControl.hpp"
 
 using namespace concord::diagnostics;
 using namespace concord::secretsmanager;
@@ -57,6 +58,11 @@ Client::Client(std::unique_ptr<bft::communication::ICommunication> comm, const C
   }
   communication_->setReceiver(config_.id.val, &receiver_);
   communication_->start();
+  bft::communication::StateControl::instance().setGetPeerPubKeyMethod([&](uint32_t rid) {
+    concord::secretsmanager::SecretsManagerPlain psm_;
+    std::string key_path = config_.replicas_master_key_folder_path + "/" + std::to_string(rid) + "/pub_key";
+    return psm_.decryptFile(key_path).value_or("");
+  });
 }
 
 Msg Client::createClientMsg(const RequestConfig& config, Msg&& request, bool read_only, uint16_t client_id) {

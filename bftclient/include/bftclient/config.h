@@ -68,6 +68,7 @@ struct ClientConfig {
   RetryTimeoutConfig retry_timeout_config;
   std::optional<std::string> transaction_signing_private_key_file_path = std::nullopt;
   std::optional<concord::secretsmanager::SecretData> secrets_manager_config = std::nullopt;
+  std::string replicas_master_key_folder_path = "./replicas_rsa_keys";
 };
 
 // Generic per-request configuration shared by reads and writes.

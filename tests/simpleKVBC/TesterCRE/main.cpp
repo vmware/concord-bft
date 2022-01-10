@@ -16,6 +16,7 @@
 #include "communication/CommFactory.hpp"
 #include "bftclient/config.h"
 #include "bftclient/bft_client.h"
+#include "bftclient/StateControl.hpp"
 #include "config/test_comm_config.hpp"
 #include "client/reconfiguration/config.hpp"
 #include "client/reconfiguration/poll_based_state_client.hpp"
@@ -113,7 +114,8 @@ auto logger = logging::getLogger("skvbtest.cre");
 ICommunication* createCommunication(const ClientConfig& cc,
                                     const std::string& commFileName,
                                     const std::string& certFolder,
-                                    std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl>& sm) {
+                                    std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl>& sm,
+                                    bool& enc) {
   TestCommConfig testCommConfig(logger);
   uint16_t numOfReplicas = cc.all_replicas.size();
   uint16_t clients = cc.id.val;
@@ -124,8 +126,10 @@ ICommunication* createCommunication(const ClientConfig& cc,
       testCommConfig.GetTlsTCPConfig(false, cc.id.val, clients, numOfReplicas, commFileName, certFolder);
   if (conf.secretData.has_value()) {
     sm = std::make_shared<concord::secretsmanager::SecretsManagerEnc>(conf.secretData.value());
+    enc = true;
   } else {
     sm = std::make_shared<concord::secretsmanager::SecretsManagerPlain>();
+    enc = false;
   }
 #else
   PlainUdpConfig conf = testCommConfig.GetUDPConfig(false, cc.id.val, clients, numOfReplicas, commFileName);
@@ -399,8 +403,9 @@ class ClientsRestartHandler : public IStateHandler {
 int main(int argc, char** argv) {
   auto creParams = setupCreParams(argc, argv);
   std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm_;
+  bool enc;
   std::unique_ptr<ICommunication> comm_ptr(
-      createCommunication(creParams.bftConfig, creParams.commConfigFile, creParams.certFolder, sm_));
+      createCommunication(creParams.bftConfig, creParams.commConfigFile, creParams.certFolder, sm_, enc));
   Client* bft_client = new Client(std::move(comm_ptr), creParams.bftConfig);
   PollBasedStateClient* pollBasedClient =
       new PollBasedStateClient(bft_client, creParams.CreConfig.interval_timeout_ms_, 0, creParams.CreConfig.id_);
@@ -427,18 +432,23 @@ int main(int argc, char** argv) {
     }
   }
   ClientReconfigurationEngine cre(creParams.CreConfig, pollBasedClient, std::make_shared<concordMetrics::Aggregator>());
-  cre.registerHandler(
-      std::make_shared<KeyExchangeCommandHandler>(creParams.CreConfig.id_,
-                                                  creParams.bftConfig.transaction_signing_private_key_file_path.value(),
-                                                  creParams.certFolder,
-                                                  last_pk_status,
-                                                  0,
-                                                  sm_));
+  std::vector<uint32_t> bft_clients;
+  bft_clients.emplace_back(creParams.bftConfig.id.val);
+  cre.registerHandler(std::make_shared<concord::client::reconfiguration::handlers::ClientTlsKeyExchangeHandler>(
+      creParams.bftConfig.transaction_signing_private_key_file_path.value(),
+      creParams.certFolder,
+      enc,
+      bft_clients,
+      sm_));
   cre.registerHandler(std::make_shared<ClientsAddRemoveHandler>(last_scaling_status));
   cre.registerHandler(std::make_shared<ClientsRestartHandler>(last_resatrt_status, creParams.CreConfig.id_));
   cre.registerHandler(std::make_shared<ReplicaTLSKeyExchangeHandler>(creParams.certFolder));
   cre.registerHandler(std::make_shared<concord::client::reconfiguration::handlers::ReplicaMainKeyPublicationHandler>(
       creParams.replicasKeysFolder));
+  bft::client::StateControl::instance().setRestartFunc([&cre, argv]() {
+    cre.stop();
+    execv(argv[0], argv);
+  });
   cre.start();
   while (true) std::this_thread::sleep_for(1s);
 }
