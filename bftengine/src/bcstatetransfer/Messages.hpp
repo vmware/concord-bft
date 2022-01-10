@@ -191,7 +191,7 @@ struct ItemDataMsg : public BCStateTranBaseMsg {
   uint16_t totalNumberOfChunksInBlock;
   uint16_t chunkNumber;
   uint32_t dataSize;
-  uint8_t  lastInBatch;
+  uint8_t lastInBatch;
   uint32_t rvbDigestsSize;  // if non-zero, the part of dataSize (rvbDigestsSize < dataSize) which is dedicated to RVB
                             // digests. Actual block data starts from (data + rvbDigestsSize).
   char data[1];
