@@ -40,14 +40,35 @@ using Status = concordUtils::Status;
 using SystemClock = std::chrono::system_clock;
 using Seconds = std::chrono::seconds;
 using InternalBftClient = bftEngine::impl::InternalBFTClient;
+using DbCheckpointId = uint64_t;
+using BlockId = uint64_t;
 class DbCheckpointManager {
  public:
-  uint64_t createDbCheckpointAsync(const SeqNum& seqNum, const std::optional<Timestamp>& timestamp);
+  /***************************************************
+   *@Input parameter1: Request sequnce number
+   *@Input parameter2: Request timestamp
+   *@Description: Creates rocksdb checkpoint asynchronously if database has new state.
+   *              If we already have a checkpoint with same state as lastBlock in the DB, we reject the request.
+   *              Creating another db checkpoint with the same state as the previous one has no use.
+   *              Note: if ReplicaConfig::maxNumberOfDbCheckpoints is set to zero, then also we do not create rocksDb
+   *              and return std::nullopt in that case
+   *@Return: returns a unique db checkpoint id. Else return std::nullopt
+   ***************************************************/
+  std::optional<CheckpointId> createDbCheckpointAsync(const SeqNum& seqNum, const std::optional<Timestamp>& timestamp);
+
+  /***************************************************
+   *@Description: Returns last created db checkpoint metadata. If there is no db-checkpoint created then it returns
+   *nullopt
+   *@Return: returns the metadata of last created checkpoint. Else return std::nullopt
+   *         Note: if ReplicaConfig::maxNumberOfDbCheckpoints is set to zero, then also this api retrun std::nullopt
+   ***************************************************/
+  std::optional<DbCheckpointMetadata::DbCheckPointDescriptor> getLastCreatedDbCheckpointMetadata();
+
   Seconds getLastCheckpointCreationTime() const { return lastCheckpointCreationTime_; }
   void initializeDbCheckpointManager(std::shared_ptr<concord::storage::IDBClient> dbClient,
                                      std::shared_ptr<bftEngine::impl::PersistentStorage> p,
                                      std::shared_ptr<concordMetrics::Aggregator> aggregator,
-                                     const std::function<uint64_t()>& getLastBlockIdCb);
+                                     const std::function<BlockId()>& getLastBlockIdCb);
   std::map<CheckpointId, DbCheckpointMetadata::DbCheckPointDescriptor> getListOfDbCheckpoints() const {
     return dbCheckptMetadata_.dbCheckPoints_;
   }
@@ -88,14 +109,14 @@ class DbCheckpointManager {
     metrics_.Register();
   }
   void init();
-  Status createDbCheckpoint(const uint64_t& checkPointId,
-                            const uint64_t& lastBlockId,
+  Status createDbCheckpoint(const DbCheckpointId& checkPointId,
+                            const BlockId& lastBlockId,
                             const SeqNum& seqNum,
                             const std::optional<Timestamp>& timestamp);
-  void removeCheckpoint(const uint64_t& checkPointId);
+  void removeCheckpoint(const DbCheckpointId& checkPointId);
   void removeAllCheckpoints() const;
   void cleanUp();
-  std::function<uint64_t()> getLastBlockIdCb_;
+  std::function<BlockId()> getLastBlockIdCb_;
   // get total size recursively
   uint64_t directorySize(const _fs::path& directory, const bool& excludeHardLinks, bool recursive);
   // get checkpoint metadata
@@ -104,12 +125,13 @@ class DbCheckpointManager {
   void checkAndRemove();
   void removeOldestDbCheckpoint();
   void updateDbCheckpointMetadata();
-  void removeDbCheckpointFuture(uint64_t);
+  void updateLastCmdInfo(const SeqNum&, const std::optional<Timestamp>&);
+  void removeDbCheckpointFuture(CheckpointId);
   void updateMetrics();
   InternalBftClient* client_{nullptr};
   std::atomic<bool> stopped_ = false;
   DbCheckpointMetadata dbCheckptMetadata_;
-  std::map<uint64_t, std::future<void> > dbCreateCheckPtFuture_;
+  std::map<CheckpointId, std::future<void> > dbCreateCheckPtFuture_;
   std::future<void> cleanUpFuture_;
   std::shared_ptr<concord::storage::IDBClient> dbClient_;
   std::shared_ptr<bftEngine::impl::PersistentStorage> ps_;
@@ -118,8 +140,11 @@ class DbCheckpointManager {
   // cleans up oldest checkpoint
   std::thread monitorThread_;
   std::mutex lock_;
+  std::mutex lockDbCheckPtFuture_;
+  std::mutex lockLastDbCheckpointDesc_;
   uint32_t maxNumOfCheckpoints_{0};  // 0-disabled
   SeqNum lastCheckpointSeqNum_{0};
+  std::optional<DbCheckpointMetadata::DbCheckPointDescriptor> lastCreatedCheckpointMetadata_{std::nullopt};
   std::optional<SeqNum> nextSeqNumToCreateCheckPt_{std::nullopt};
   std::chrono::seconds lastCheckpointCreationTime_{duration_cast<Seconds>(SystemClock::now().time_since_epoch())};
   std::string dbCheckPointDirPath_;
