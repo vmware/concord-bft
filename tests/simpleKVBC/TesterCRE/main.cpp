@@ -138,190 +138,6 @@ ICommunication* createCommunication(const ClientConfig& cc,
   return CommFactory::create(conf);
 }
 
-class KeyExchangeCommandHandler : public IStateHandler {
- public:
-  KeyExchangeCommandHandler(uint16_t clientId,
-                            const std::string& key_path,
-                            const std::string& certFolder,
-                            uint64_t init_update_block,
-                            uint64_t init_tls_update_block,
-                            std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm)
-      : clientId_{clientId}, key_path_{key_path}, tls_key_path_{certFolder}, sm_{sm} {
-    init_last_update_block_ = init_update_block;
-    init_last_tls_update_block_ = std::stol(
-        plain_sm_.decryptFile((tls_key_path_ / std::to_string(clientId_) / "client" / "client.cert.version").string())
-            .value_or("0"));
-  }
-  bool validate(const State& state) const {
-    concord::messages::ClientStateReply crep;
-    concord::messages::deserialize(state.data, crep);
-    if (std::holds_alternative<concord::messages::ClientKeyExchangeCommand>(crep.response)) {
-      concord::messages::ClientKeyExchangeCommand command =
-          std::get<concord::messages::ClientKeyExchangeCommand>(crep.response);
-      if (command.tls && state.blockid > init_last_tls_update_block_) return true;
-      if (!command.tls && state.blockid > init_last_update_block_) return true;
-    }
-    return false;
-  };
-  bool execute(const State& state, WriteState& out) {
-    concord::messages::ClientStateReply crep;
-    concord::messages::deserialize(state.data, crep);
-    concord::messages::ClientKeyExchangeCommand command =
-        std::get<concord::messages::ClientKeyExchangeCommand>(crep.response);
-    if (!command.tls) return executeTransactionSigningKeyExchange(out);
-    if (command.tls) return executeTlsKeyExchange(state.blockid, out);
-    return false;
-  }
-
- private:
-  logging::Logger getLogger() {
-    static logging::Logger logger_(logging::getLogger("concord.client.reconfiguration.testerCre.KeyExchangeHandler"));
-    return logger_;
-  }
-
-  bool executeTransactionSigningKeyExchange(WriteState& out) {
-    LOG_INFO(getLogger(), "execute transaction signing key exchange request");
-    // Generate new key pair
-    auto hex_keys = concord::util::crypto::Crypto::instance().generateRsaKeyPair(
-        2048, concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat);
-    auto pem_keys = concord::util::crypto::Crypto::instance().RsaHexToPem(hex_keys);
-
-    concord::messages::ReconfigurationRequest rreq;
-    concord::messages::ClientExchangePublicKey creq;
-    fs::path enc_file_path = key_path_;
-    enc_file_path += ".enc";
-    bool enc = false;
-    std::fstream f(enc_file_path.string());
-    if (f.good()) {
-      enc_file_path += ".new";
-      enc = true;
-      sm_->encryptFile(enc_file_path.string(), pem_keys.first);
-    }
-    fs::path new_key_path = key_path_;
-    bool non_enc = false;
-    std::fstream f2(new_key_path);
-    if (f2.good()) {
-      new_key_path += ".new";
-      plain_sm_.encryptFile(new_key_path.string(), pem_keys.first);
-      non_enc = true;
-    }
-
-    std::string new_pub_key = hex_keys.second;
-    creq.sender_id = clientId_;
-    creq.pub_key = new_pub_key;
-    rreq.command = creq;
-    std::vector<uint8_t> req_buf;
-    concord::messages::serialize(req_buf, rreq);
-    out = {req_buf, [this, non_enc, new_key_path, enc, enc_file_path]() {
-             if (enc) {
-               fs::path enc_path = this->key_path_;
-               enc_path += ".enc";
-               fs::path old_path = enc_path;
-               old_path += ".old";
-               fs::copy(enc_path, old_path, fs::copy_options::update_existing);
-               fs::copy(enc_file_path, enc_path, fs::copy_options::update_existing);
-               fs::remove(old_path);
-               fs::remove(enc_file_path);
-               LOG_INFO(this->getLogger(), "exchanged transaction signing keys (encrypted)");
-             }
-             if (non_enc) {
-               fs::path old_path = this->key_path_;
-               old_path += ".old";
-               fs::copy(this->key_path_, old_path, fs::copy_options::update_existing);
-               fs::copy(new_key_path, this->key_path_, fs::copy_options::update_existing);
-               fs::remove(old_path);
-               fs::remove(new_key_path);
-               LOG_INFO(this->getLogger(), "exchanged transaction signing keys (non encrypted)");
-             }
-           }};
-    return true;
-  }
-
-  bool executeTlsKeyExchange(uint32_t version, WriteState& out) {
-    LOG_INFO(getLogger(), "execute tls key exchange request");
-    // Generate new key pair
-    auto new_cert_keys = concord::util::crypto::Crypto::instance().generateECDSAKeyPair(
-        concord::util::crypto::KeyFormat::PemFormat, concord::util::crypto::CurveType::secp384r1);
-    fs::path enc_file_path = key_path_;
-    enc_file_path += ".enc";
-    std::string private_key_str;
-    std::fstream f(enc_file_path.string());
-    if (f.good()) {
-      private_key_str = sm_->decryptFile(enc_file_path.string()).value_or("");
-      f.close();
-    }
-    if (private_key_str.empty()) {
-      fs::path new_key_path = key_path_;
-      std::fstream f2(new_key_path);
-      if (f2.good()) {
-        private_key_str = plain_sm_.decryptFile(new_key_path.string()).value_or("");
-        f2.close();
-      }
-    }
-    if (private_key_str.empty()) LOG_FATAL(logger, "private key does not exist");
-    auto current_cert_path = (tls_key_path_ / std::to_string(clientId_) / "client" / "client.cert").string();
-    fs::path cert_priv_key_path = tls_key_path_ / std::to_string(clientId_) / "client" / "pk.pem";
-    std::string cert_enc_priv_key_path = cert_priv_key_path.string() + ".enc";
-    std::ifstream f3(cert_enc_priv_key_path);
-    if (f3.good()) {
-      sm_->encryptFile(cert_enc_priv_key_path, new_cert_keys.first);
-      f3.close();
-    }
-    std::ifstream f4(cert_priv_key_path);
-    if (f4.good()) {
-      plain_sm_.encryptFile(cert_priv_key_path.string(), new_cert_keys.first);
-      f4.close();
-    }
-    auto cert = concord::util::crypto::CertificateUtils::generateSelfSignedCert(
-        current_cert_path, new_cert_keys.second, private_key_str);
-    plain_sm_.encryptFile((tls_key_path_ / std::to_string(clientId_) / "client" / "client.cert").string(), cert);
-    auto curr_version = std::to_string(version);
-    plain_sm_.encryptFile((tls_key_path_ / std::to_string(clientId_) / "client" / "client.cert.version").string(),
-                          curr_version);
-    LOG_INFO(this->getLogger(), "exchanged tls certificate");
-    return true;
-  }
-  uint16_t clientId_;
-  fs::path key_path_;
-  fs::path tls_key_path_;
-  std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm_;
-  concord::secretsmanager::SecretsManagerPlain plain_sm_;
-  uint64_t init_last_update_block_;
-  uint64_t init_last_tls_update_block_;
-};
-
-class ReplicaTLSKeyExchangeHandler : public IStateHandler {
- public:
-  ReplicaTLSKeyExchangeHandler(const std::string& cert_root_path) : cert_root_path_{cert_root_path} {}
-
-  bool validate(const State& state) const override {
-    concord::messages::ClientStateReply crep;
-    concord::messages::deserialize(state.data, crep);
-    return std::holds_alternative<concord::messages::ReplicaTlsExchangeKey>(crep.response);
-  }
-
-  bool execute(const State& state, WriteState& out) override {
-    bool succ = true;
-    concord::messages::ClientStateReply crep;
-    concord::messages::deserialize(state.data, crep);
-    auto command = std::get<concord::messages::ReplicaTlsExchangeKey>(crep.response);
-    auto sender_id = command.sender_id;
-    concord::messages::ReconfigurationResponse response;
-    std::string bft_replicas_cert_path = cert_root_path_ + "/" + std::to_string(sender_id) + "/server/server.cert";
-    auto current_rep_cert = sm_.decryptFile(bft_replicas_cert_path);
-    if (current_rep_cert == command.cert) return succ;
-    LOG_INFO(GL, "execute replica TLS key exchange using state transfer cre" << KVLOG(sender_id));
-    std::string cert = std::move(command.cert);
-    sm_.encryptFile(bft_replicas_cert_path, cert);
-    LOG_INFO(GL, bft_replicas_cert_path + " is updated on the disk");
-    return succ;
-  }
-
- private:
-  concord::secretsmanager::SecretsManagerPlain sm_;
-  std::string cert_root_path_;
-};
-
 class ClientsAddRemoveHandler : public IStateHandler {
  public:
   ClientsAddRemoveHandler(uint64_t init_update_block) : init_last_update_block_{init_update_block} {}
@@ -440,11 +256,17 @@ int main(int argc, char** argv) {
       enc,
       bft_clients,
       sm_));
-  cre.registerHandler(std::make_shared<ClientsAddRemoveHandler>(last_scaling_status));
-  cre.registerHandler(std::make_shared<ClientsRestartHandler>(last_resatrt_status, creParams.CreConfig.id_));
-  cre.registerHandler(std::make_shared<ReplicaTLSKeyExchangeHandler>(creParams.certFolder));
+  cre.registerHandler(std::make_shared<concord::client::reconfiguration::handlers::ClientMasterKeyExchangeHandler>(
+      creParams.CreConfig.id_,
+      creParams.bftConfig.transaction_signing_private_key_file_path.value(),
+      sm_,
+      last_pk_status));
+  cre.registerHandler(std::make_shared<concord::client::reconfiguration::handlers::ClientRestartHandler>(
+      last_resatrt_status, creParams.CreConfig.id_));
   cre.registerHandler(std::make_shared<concord::client::reconfiguration::handlers::ReplicaMainKeyPublicationHandler>(
       creParams.replicasKeysFolder));
+  cre.registerHandler(std::make_shared<ClientsAddRemoveHandler>(last_scaling_status));
+
   bft::client::StateControl::instance().setRestartFunc([&cre, argv]() {
     cre.stop();
     execv(argv[0], argv);
