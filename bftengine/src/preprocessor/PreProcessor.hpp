@@ -31,6 +31,7 @@
 #include "PerformanceManager.hpp"
 #include "RollingAvgAndVar.hpp"
 #include "SharedTypes.hpp"
+#include "RawMemoryPool.hpp"
 #include "GlobalData.hpp"
 
 // TODO[TK] till boost upgrade
@@ -55,6 +56,15 @@ struct RequestState {
   uint64_t reqRetryId = 1;
 };
 
+struct SafeResultBuffer {
+  std::mutex mutex;
+  char *buffer = nullptr;
+};
+
+using SafeResultBufferSharedPtr = std::shared_ptr<SafeResultBuffer>;
+// Memory pool allocated (clientId * dataSize) buffers
+using PreProcessResultBuffers = std::deque<SafeResultBufferSharedPtr>;
+using TimeRecorder = concord::diagnostics::TimeRecorder<true>;  // use atomic recorder
 using RequestStateSharedPtr = std::shared_ptr<RequestState>;
 
 //**************** Class RequestsBatch ****************//
@@ -103,10 +113,6 @@ class RequestsBatch {
 using RequestsBatchSharedPtr = std::shared_ptr<RequestsBatch>;
 // clientId -> RequestsBatch map
 using OngoingReqBatchesMap = std::map<uint16_t, RequestsBatchSharedPtr>;
-
-// Pre-allocated (clientId * dataSize) buffers
-using PreProcessResultBuffers = std::deque<std::pair<std::atomic_bool, concordUtils::Sliver>>;
-using TimeRecorder = concord::diagnostics::TimeRecorder<true>;  // use atomic recorder
 
 //**************** Class PreProcessor ****************//
 // This class is responsible for the coordination of pre-execution activities on both - primary and non-primary
@@ -210,7 +216,9 @@ class PreProcessor {
                                        uint16_t reqOffsetInBatch,
                                        uint64_t reqRetryId,
                                        const std::string &batchCid = "");
+  uint32_t getBufferOffset(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch) const;
   const char *getPreProcessResultBuffer(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch);
+  void releasePreProcessResultBuffer(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch);
   void launchAsyncReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                       const std::string &batchCid,
                                       bool isPrimary,
@@ -296,7 +304,6 @@ class PreProcessor {
   boost::lockfree::spsc_queue<MessageBase *> msgs_{MAX_MSGS};
   std::thread msgLoopThread_;
   std::mutex msgLock_;
-  std::mutex resultBufferLock_;
   std::condition_variable msgLoopSignal_;
   std::atomic_bool msgLoopDone_{false};
 
@@ -317,6 +324,7 @@ class PreProcessor {
   // One-time allocated buffers (one per client) for the pre-execution results storage
   PreProcessResultBuffers preProcessResultBuffers_;
   OngoingReqBatchesMap ongoingReqBatches_;  // clientId -> RequestsBatch
+  concordUtil::RawMemoryPool memoryPool_;
 
   concordMetrics::Component metricsComponent_;
   std::chrono::seconds metricsLastDumpTime_;
