@@ -174,6 +174,7 @@ if(USE_GRPC)
 	add_subdirectory(thin-replica-server)
 endif()
 add_subdirectory(ccron)
+add_subdirectory(resources-manager)
 
 #
 # Setup testing

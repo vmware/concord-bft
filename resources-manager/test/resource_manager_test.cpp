@@ -12,12 +12,10 @@
 
 #include "gtest/gtest.h"
 
-#include "IntervalMappingComputingStrategy.hpp"
-#include "IResourceComputingStrategy.hpp"
+#include "IntervalMappingResourceManager.hpp"
 #include "IResourceManager.hpp"
 #include "ISystemResourceEntity.hpp"
-#include "ResourceManagerConsensusKVStorage.hpp"
-#include "SubstractFromMaxComputingStrategy.hpp"
+#include "SubstractFromMaxResourceManager.hpp"
 
 namespace {
 
@@ -35,41 +33,37 @@ class ResourceEntityMock : public ISystemResourceEntity {
   const std::string mock = "MOCK";
 };
 
-TEST(resource_manager_test, IntervalMappingComputingStrategy) {
+TEST(resource_manager_test, IntervalMappingResourceManager_test) {
   std::vector<std::pair<uint64_t, uint64_t>> mapping{{200, 100}, {600, 10}, {1000, 5}};
-  auto intervalMappingComputingStrategy = std::make_shared<IntervalMappingComputingStrategy>(std::move(mapping));
   auto consensusEngineResourceMonitor = std::make_shared<ResourceEntityMock>();
   consensusEngineResourceMonitor->availableResources = 110;
 
-  auto databaseResourceMonitor = std::make_shared<ResourceEntityMock>();
+  std::shared_ptr<IResourceManager> sut(IntervalMappingResourceManager::createIntervalMappingResourceManager(
+      consensusEngineResourceMonitor, std::move(mapping)));
 
-  ResourceManagerConsensusKVStorage sut(
-      consensusEngineResourceMonitor, databaseResourceMonitor, intervalMappingComputingStrategy);
-
-  databaseResourceMonitor->availableResources = 50;
-  EXPECT_EQ(sut.getAvailableResources(), 100);
+  EXPECT_EQ(sut->getAvailableResources(), 100);
   consensusEngineResourceMonitor->availableResources = 200;
-  EXPECT_EQ(sut.getAvailableResources(), 100);
+  EXPECT_EQ(sut->getAvailableResources(), 100);
   consensusEngineResourceMonitor->availableResources = 400;
-  EXPECT_EQ(sut.getAvailableResources(), 10);
+  EXPECT_EQ(sut->getAvailableResources(), 10);
   consensusEngineResourceMonitor->availableResources = 800;
-  EXPECT_EQ(sut.getAvailableResources(), 5);
+  EXPECT_EQ(sut->getAvailableResources(), 5);
   consensusEngineResourceMonitor->availableResources = 1800;
-  EXPECT_EQ(sut.getAvailableResources(), 0);
+  EXPECT_EQ(sut->getAvailableResources(), 0);
 }
 
-TEST(resource_manager_test, SubstractFromMaxComputingStrategy) {
-  auto substractFromMaxComputingStrategy = std::make_shared<SubstractFromMaxComputingStrategy>(1000);
+TEST(resource_manager_test, SubstractFromMaxResourceManager_test) {
   auto consensusEngineResourceMonitor = std::make_shared<ResourceEntityMock>();
   consensusEngineResourceMonitor->availableResources = 110;
 
   auto databaseResourceMonitor = std::make_shared<ResourceEntityMock>();
   databaseResourceMonitor->availableResources = 50;
+  std::vector<std::shared_ptr<ISystemResourceEntity>> systemResources = {consensusEngineResourceMonitor,
+                                                                         databaseResourceMonitor};
 
-  ResourceManagerConsensusKVStorage sut(
-      consensusEngineResourceMonitor, databaseResourceMonitor, substractFromMaxComputingStrategy);
+  std::shared_ptr<IResourceManager> sut(new SubstractFromMaxResourceManager(1000, std::move(systemResources)));
 
-  EXPECT_EQ(sut.getAvailableResources(), 840);
+  EXPECT_EQ(sut->getAvailableResources(), 840);
 }
 
 }  // anonymous namespace

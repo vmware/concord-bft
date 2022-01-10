@@ -12,22 +12,15 @@
 
 #pragma once
 
-#include "IResourceComputingStrategy.hpp"
-
 #include <cstdint>
+#include <string>
 
 namespace concord::performance {
-
-class SubstractFromMaxComputingStrategy : public IResourceComputingStrategy {
+class ISystemResourceEntity {
  public:
-  SubstractFromMaxComputingStrategy(const uint64_t maxSystemCapacity) : maxSystemCapacity(maxSystemCapacity){};
-  virtual std::uint64_t computeAvailableResources(const ISystemResourceEntity &consensusMonitor,
-                                                  const ISystemResourceEntity &storageMonitor) {
-    return maxSystemCapacity - consensusMonitor.getAvailableResources() - storageMonitor.getAvailableResources();
-  };
-
- private:
-  const uint64_t maxSystemCapacity;
+  virtual ~ISystemResourceEntity() = default;
+  virtual int64_t getAvailableResources() const = 0;
+  virtual uint64_t getMeasurements() const = 0;
+  virtual const std::string& getResourceName() const = 0;
 };
-
 }  // namespace concord::performance
