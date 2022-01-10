@@ -83,12 +83,12 @@ class RVBManager {
   void reset();
 
   // For the range [from_block_id, to_block_id], returns a block id BID, such that:
-  // 1) from_rvb_id <= BID <= to_block_id
-  // 2) For all block IDs the range [from_rvb_id, BID] there is a common single RVB group ID RVBGID
-  // 3) For all block IDs in the range (BId, to_rvb_id) the RVB group ID is not RVBGID
-  // This call is used by flow control, to avoid having to send (in rare cases) a request to fetch digests which belong
-  // to  multiple RVB groups
-  BlockId getRvbGroupUpperBoundOnBlockRange(BlockId from_block_id, BlockId to_block_id) const;
+  // 1) Find all RVB group IDS for that range [RVBG_1,RVBG_2 ... RVBG_n]
+  // 2) Remove all the already stored RVB groups. We remian with an i>=1: [RVBG_i,RVBG_i+1 ... RVBG_n]
+  // 3) BID is the max RVB block ID in RVBG_i
+  // This is done to simplify RVB digests fetching, in order to ask for a single group of digests per a single
+  // FetchBlocksMsg
+  BlockId getRvbGroupMaxBlockIdOfNonStoredRvbGroup(BlockId from_block_id, BlockId to_block_id) const;
 
  protected:
   logging::Logger logger_;

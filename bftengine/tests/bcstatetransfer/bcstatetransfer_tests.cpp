@@ -810,7 +810,7 @@ void FakeSources::replyAskForCheckpointSummariesMsg() {
   for (const auto& reply : checkpointSummaryReplies) {
     for (auto& request : testedReplicaIf_.sent_messages_) {
       CheckpointSummaryMsg* uniqueReply = CheckpointSummaryMsg::create(reply.get());
-      stDelegator_->onMessage(uniqueReply, sizeof(CheckpointSummaryMsg), request.to_);
+      stDelegator_->onMessage(uniqueReply, uniqueReply->size(), request.to_);
     }
   }
   ASSERT_EQ(clearSentMessagesByMessageType(MsgType::AskForCheckpointSummaries), targetConfig_.numReplicas - 1);

@@ -1272,8 +1272,8 @@ bool BCStateTran::onMessage(const AskForCheckpointSummariesMsg *m, uint32_t msgL
     if (!psd_->hasCheckpointDesc(i)) continue;
 
     DataStore::CheckpointDesc cpDesc = psd_->getCheckpointDesc(i);
-    std::shared_ptr<CheckpointSummaryMsg> msg =
-        std::shared_ptr<CheckpointSummaryMsg>(CheckpointSummaryMsg::create(cpDesc.rvbData.size()));
+    std::unique_ptr<CheckpointSummaryMsg> msg =
+        std::unique_ptr<CheckpointSummaryMsg>(CheckpointSummaryMsg::create(cpDesc.rvbData.size()));
 
     msg->checkpointNum = i;
     msg->maxBlockId = cpDesc.maxBlockId;
@@ -1290,7 +1290,7 @@ bool BCStateTran::onMessage(const AskForCheckpointSummariesMsg *m, uint32_t msgL
                                                        msg->digestOfResPagesDescriptor,
                                                        msg->requestMsgSeqNum));
 
-    replicaForStateTransfer_->sendStateTransferMessage(reinterpret_cast<char *>(&msg), msg->sizeOf(), replicaId);
+    replicaForStateTransfer_->sendStateTransferMessage(reinterpret_cast<char *>(msg.get()), msg->size(), replicaId);
 
     metrics_.sent_checkpoint_summary_msg_++;
     sent = true;
@@ -1316,7 +1316,7 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
   }
 
   // if msg is invalid
-  if (msgLen < sizeof(CheckpointSummaryMsg) || m->checkpointNum == 0 || m->digestOfResPagesDescriptor.isZero() ||
+  if (msgLen != m->size() || m->checkpointNum == 0 || m->digestOfResPagesDescriptor.isZero() ||
       m->requestMsgSeqNum == 0) {
     LOG_WARN(logger_,
              "Msg is invalid: " << KVLOG(
@@ -1913,7 +1913,7 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
                                     m->rvbDigestsSize));
 
   // if msg is invalid
-  if ((msgLen < m->size()) || (m->requestMsgSeqNum == 0) || (m->blockNumber == 0) ||
+  if ((msgLen != m->size()) || (m->requestMsgSeqNum == 0) || (m->blockNumber == 0) ||
       (m->totalNumberOfChunksInBlock == 0) || (m->totalNumberOfChunksInBlock > MaxNumOfChunksInBlock) ||
       (m->chunkNumber == 0) || (m->dataSize == 0) || (m->rvbDigestsSize >= m->dataSize)) {
     LOG_WARN(logger_,
@@ -2556,7 +2556,7 @@ BCStateTran::BlocksBatchDesc BCStateTran::computeNextBatchToFetch(uint64_t minRe
 
   // Check with RVB manager that we are not between borders of RVB groups. This is rare, but we want to avoid the case
   // where we will need to ask for multiple digest groups. This make code more complicated.
-  BlockId rvbmUpperBound = rvbm_->getRvbGroupUpperBoundOnBlockRange(minRequiredBlockId, maxRequiredBlockId);
+  BlockId rvbmUpperBound = rvbm_->getRvbGroupMaxBlockIdOfNonStoredRvbGroup(minRequiredBlockId, maxRequiredBlockId);
   maxRequiredBlockId = std::min(maxRequiredBlockId, rvbmUpperBound);
   BlocksBatchDesc fetchBatch;
   fetchBatch.maxBlockId = maxRequiredBlockId;
