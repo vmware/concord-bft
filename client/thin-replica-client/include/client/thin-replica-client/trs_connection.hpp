@@ -11,6 +11,8 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
+#pragma once
+
 #ifndef THIN_REPLICA_CLIENT_TRS_CONNECTION_HPP_
 #define THIN_REPLICA_CLIENT_TRS_CONNECTION_HPP_
 
@@ -21,6 +23,7 @@
 #include <grpcpp/grpcpp.h>
 #include "assertUtils.hpp"
 #include "thin_replica.grpc.pb.h"
+#include "replica_state_snapshot.grpc.pb.h"
 #include "Logger.hpp"
 
 using namespace std::chrono_literals;
@@ -146,6 +149,20 @@ class TrsConnection {
   // established before).
   virtual Result readStateHash(const com::vmware::concord::thin_replica::ReadStateHashRequest& request,
                                com::vmware::concord::thin_replica::Hash* hash);
+
+  // Open a state snapshot stream (connection has to be established before).
+  // A state snapshot stream will be open after
+  // openStateSnapshotStream returns, if and only if openStateSnapshotStream returns
+  // Result::kSuccess; a stream will not be open in the failure and timeout cases.
+  virtual Result openStateSnapshotStream(const vmware::concord::replicastatesnapshot::StreamSnapshotRequest& request);
+
+  virtual void cancelStateSnapshotStream();
+  virtual bool hasStateSnapshotStream();
+
+  // Read key values from an existing open state snapshot stream. Note readStateSnapshot
+  // will automatically close the open state snapshot stream in the event it has to time
+  // out the read.
+  virtual Result readStateSnapshot(vmware::concord::replicastatesnapshot::KeyValuePair* key_value);
 
   // Helper to print/log connection details
   friend std::ostream& operator<<(std::ostream& os, const TrsConnection& trsc) {
