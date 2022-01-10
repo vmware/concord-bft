@@ -244,6 +244,12 @@ Msg ReplicaTlsExchangeKey 57 {
     string cert
 }
 
+Msg ReplicaMainKeyUpdate 64 {
+    uint64 sender_id
+    string key
+    string format
+}
+
 Msg ClientStateReply 39 {
     uint64 block_id
     oneof {
@@ -253,6 +259,7 @@ Msg ClientStateReply 39 {
         ClientsAddRemoveUpdateCommand
         ClientsRestartCommand
         ReplicaTlsExchangeKey
+        ReplicaMainKeyUpdate
       } response
     uint64 epoch
 }
@@ -315,6 +322,7 @@ Msg ReconfigurationRequest 1 {
     PruneSwitchModeRequest
     GetDbCheckpointInfoRequest
     CreateDbCheckpointCommand
+    ReplicaMainKeyUpdate
   } command
   bytes additional_data
 }

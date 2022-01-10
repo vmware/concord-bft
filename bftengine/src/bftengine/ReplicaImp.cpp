@@ -4459,6 +4459,9 @@ void ReplicaImp::start() {
 
   if (ReplicaConfig::instance().getkeyExchangeOnStart() && !KeyExchangeManager::instance().exchanged()) {
     KeyExchangeManager::instance().sendInitialKey(currentPrimary());
+  } else {
+    // If key exchange is disabled, first publish the replica's main (rsa) key to clients
+    if (ReplicaConfig::instance().publishReplicasMasterKeyOnStartup) KeyExchangeManager::instance().sendMainPublicKey();
   }
   KeyExchangeManager::instance().sendInitialClientsKeys(SigManager::instance()->getClientsPublicKeys());
 }
