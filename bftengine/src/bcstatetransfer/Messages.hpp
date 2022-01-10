@@ -64,13 +64,12 @@ struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
     return msg;
   }
   static CheckpointSummaryMsg* create(CheckpointSummaryMsg* rMsg) {
-    auto msg = create(rMsg->sizeOf());
+    auto msg = create(rMsg->rvbDataSize);
     msg->checkpointNum = rMsg->checkpointNum;
     msg->maxBlockId = rMsg->maxBlockId;
     msg->digestOfMaxBlockId = rMsg->digestOfMaxBlockId;
     msg->digestOfResPagesDescriptor = rMsg->digestOfResPagesDescriptor;
     msg->requestMsgSeqNum = rMsg->requestMsgSeqNum;
-    msg->rvbDataSize = rMsg->rvbDataSize;
     memcpy(msg->data, rMsg->data, rMsg->rvbDataSize);
     return msg;
   }
@@ -80,7 +79,7 @@ struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
     rep->freeStateTransferMsg(const_cast<char*>(reinterpret_cast<const char*>(msg)));
   }
 
-  size_t sizeOf() const { return sizeof(CheckpointSummaryMsg) + rvbDataSize - 1; }
+  size_t size() const { return sizeof(CheckpointSummaryMsg) + rvbDataSize - 1; }
   size_t sizeofRvbData() const { return rvbDataSize; }
   uint64_t checkpointNum;
   uint64_t maxBlockId;
