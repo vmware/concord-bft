@@ -122,8 +122,9 @@ struct TestConfig {
    * You may decide a constant is configurable by moving it into the 'Configurables' part
    * In some cases you might need to write additional code to support the new configuration value
    */
-  static constexpr char BCST_DB[] = "./bcst_db";
-  static constexpr char FAKE_BCST_DB[] = "./fake_bcst_db";
+  static constexpr char bcstDbPath[] = "./bcst_db";
+  static constexpr char fakeBcstDbPath[] = "./fake_bcst_db";
+  static constexpr size_t numExpectedSourceSelectorMetricCounters = 6;
 
   /**
    * Configurable
@@ -152,8 +153,8 @@ static inline std::ostream& operator<<(std::ostream& os, const TestConfig::TestT
 
 static inline std::ostream& operator<<(std::ostream& os, const TestConfig& c) {
   os << std::boolalpha
-     << KVLOG(c.BCST_DB,
-              c.FAKE_BCST_DB,
+     << KVLOG(c.bcstDbPath,
+              c.fakeBcstDbPath,
               c.maxNumOfRequiredStoredCheckpoints,
               c.numberOfRequiredReservedPages,
               c.minNumberOfUpdatedReservedPages,
@@ -484,7 +485,7 @@ class BcStTest : public ::testing::Test {
   void cmnStartRunning(FetchingState expectedState = FetchingState::NotFetching);
 
   // Target/Product ST - Source Selector
-  using MetricKeyValPairs = std::vector<std::pair<std::string, uint64_t>>;
+  using MetricKeyValPairs = std::map<std::string, uint64_t>;
   void validateSourceSelectorMetricCounters(const MetricKeyValPairs& metricCounters);
 
   // Target/Product ST - Convenience common code
@@ -672,14 +673,14 @@ FakeReplicaBase::FakeReplicaBase(const Config& targetConfig,
       testedReplicaIf_(testedReplicaIf),
       dataGen_(dataGen),
       stDelegator_(stAdapter) {
-  if (testConfig_.fakeDbDeleteOnStart) deleteBcStateTransferDbFolder(testConfig_.FAKE_BCST_DB);
-  datastore_ = createDataStore(testConfig_.FAKE_BCST_DB, targetConfig_);
+  if (testConfig_.fakeDbDeleteOnStart) deleteBcStateTransferDbFolder(testConfig_.fakeBcstDbPath);
+  datastore_ = createDataStore(testConfig_.fakeBcstDbPath, targetConfig_);
   datastore_->setNumberOfReservedPages(testConfig_.numberOfRequiredReservedPages);
 }
 
 FakeReplicaBase::~FakeReplicaBase() {
   delete datastore_;
-  if (testConfig_.fakeDbDeleteOnEnd) deleteBcStateTransferDbFolder(testConfig_.FAKE_BCST_DB);
+  if (testConfig_.fakeDbDeleteOnEnd) deleteBcStateTransferDbFolder(testConfig_.fakeBcstDbPath);
 }
 
 /**
@@ -937,7 +938,7 @@ void BcStTest::TearDown() {
       stateTransfer_->stopRunning();
     }
   }
-  if (testConfig_.productDbDeleteOnEnd) deleteBcStateTransferDbFolder(testConfig_.BCST_DB);
+  if (testConfig_.productDbDeleteOnEnd) deleteBcStateTransferDbFolder(testConfig_.bcstDbPath);
 }
 
 // We should call this function after we made all the needed overrides (if needed) for:
@@ -949,12 +950,12 @@ void BcStTest::initialize() {
   // Set starting test state - blocks and checkpoints
   testState_.init(testConfig_, appState_);
   printConfiguration();
-  if (testConfig_.productDbDeleteOnStart) deleteBcStateTransferDbFolder(testConfig_.BCST_DB);
+  if (testConfig_.productDbDeleteOnStart) deleteBcStateTransferDbFolder(testConfig_.bcstDbPath);
   ASSERT_LE(testConfig_.minNumberOfUpdatedReservedPages, testConfig_.maxNumberOfUpdatedReservedPages);
   // For now we assume no chunking is supported
   ASSERT_EQ(targetConfig_.maxChunkSize, targetConfig_.maxBlockSize);
 
-  datastore_ = createDataStore(testConfig_.BCST_DB, targetConfig_);
+  datastore_ = createDataStore(testConfig_.bcstDbPath, targetConfig_);
   dataGen_ = make_unique<DataGenerator>(targetConfig_, testConfig_);
   stateTransfer_ = make_unique<BCStateTran>(targetConfig_, &appState_, datastore_);
   stateTransfer_->init(testConfig_.maxNumOfRequiredStoredCheckpoints,
@@ -1168,8 +1169,9 @@ void BcStTest::compareAppStateblocks(uint64_t minBlockId, uint64_t maxBlockId) c
 }
 
 void BcStTest::validateSourceSelectorMetricCounters(const MetricKeyValPairs& metricCounters) {
-  for (auto& [key, val] : metricCounters) {
-    stDelegator_->assertSourceSelectorMetricKeyVal(key, val);
+  ASSERT_EQ(metricCounters.size(), testConfig_.numExpectedSourceSelectorMetricCounters);
+  for (const auto& p : metricCounters) {
+    stDelegator_->assertSourceSelectorMetricKeyVal(p.first, p.second);
   }
 }
 
@@ -1183,7 +1185,7 @@ void BcStTest::dstRestart(std::set<size_t>& execOnIterations) {
     testedReplicaIf_.sent_messages_.clear();
     testConfig_.productDbDeleteOnStart = false;
     testConfig_.productDbDeleteOnEnd = execOnIterations.empty();
-    datastore_ = createDataStore(testConfig_.BCST_DB, targetConfig_);
+    datastore_ = createDataStore(testConfig_.bcstDbPath, targetConfig_);
     stateTransfer_ = make_unique<BCStateTran>(targetConfig_, &appState_, datastore_);
     stateTransfer_->init(testConfig_.maxNumOfRequiredStoredCheckpoints,
                          testConfig_.numberOfRequiredReservedPages,

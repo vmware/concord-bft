@@ -155,9 +155,7 @@ class BCStateTran : public IStateTransfer {
     incomingEventsQ_->push(std::bind(&BCStateTran::peekConsensusMessage, this, std::move(msg)));
   }
 
-  void reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBlockId) override {
-    rvbm_->reportLastAgreedPrunableBlockId(lastAgreedPrunableBlockId);
-  }
+  void reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBlockId) override;
   void peekConsensusMessage(shared_ptr<ConsensusMsg>& msg);
 
  protected:
@@ -317,23 +315,14 @@ class BCStateTran : public IStateTransfer {
     uint64_t nextBlockId = 0;
     uint64_t upperBoundBlockId = 0;  // Dynamic upper limit to the next batch
 
-    inline bool operator==(BlocksBatchDesc& rhs) {
-      return (minBlockId == rhs.minBlockId) && (maxBlockId == rhs.maxBlockId) && (nextBlockId == rhs.nextBlockId) &&
-             (upperBoundBlockId == rhs.upperBoundBlockId);
-    }
-    inline bool operator!=(BlocksBatchDesc& rhs) { return !(this->operator==(rhs)); }
-    inline void reset() {
-      minBlockId = 0;
-      maxBlockId = 0;
-      nextBlockId = 0;
-      upperBoundBlockId = 0;
-    }
-    inline bool operator<(BlocksBatchDesc& rhs) const;
-    inline bool operator==(BlocksBatchDesc& rhs) const;
-    inline bool operator<=(BlocksBatchDesc& rhs) const;
+    bool operator==(BlocksBatchDesc& rhs) const;
+    bool operator!=(BlocksBatchDesc &rhs) const { return !(this->operator==(rhs)); }
+    bool operator<=(BlocksBatchDesc &rhs) const { return (*this < rhs) || (*this == rhs); }
+    void reset();
+    bool operator<(BlocksBatchDesc& rhs) const;
     bool isValid() const;
-    inline bool isMinBlockId(uint64_t blockId) const { return blockId == minBlockId; };
-    inline bool isMaxBlockId(uint64_t blockId) const { return blockId == maxBlockId; };
+    bool isMinBlockId(uint64_t blockId) const { return blockId == minBlockId; };
+    bool isMaxBlockId(uint64_t blockId) const { return blockId == maxBlockId; };
   };
   friend std::ostream& operator<<(std::ostream&, const BCStateTran::BlocksBatchDesc&);
 

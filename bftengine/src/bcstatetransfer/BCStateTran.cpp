@@ -127,7 +127,7 @@ set<uint16_t> BCStateTran::generateSetOfReplicas(const int16_t numberOfReplicas)
 
 size_t BCStateTran::BlockIOContext::sizeOfBlockData = 0;
 BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataStore *ds)
-    : incomingEventsQ_{std::make_unique<concord::util::Handoff>(config.myReplicaId, "IncomingEventsQ")},
+    : incomingEventsQ_{std::make_unique<concord::util::Handoff>(config.myReplicaId, "incomingEventsQ")},
       postProcessingQ_{std::make_unique<concord::util::Handoff>(config.myReplicaId, "postProcessingQ")},
       maxPostprocessedBlockId_{0},
       as_{stateApi},
@@ -979,11 +979,18 @@ inline std::ostream &operator<<(std::ostream &os, const BCStateTran::BlocksBatch
   return os;
 }
 
+inline void BCStateTran::BlocksBatchDesc::reset() {
+  minBlockId = 0;
+  maxBlockId = 0;
+  nextBlockId = 0;
+  upperBoundBlockId = 0;
+}
+
 // BlocksBatchDesc A is 'behind' (aka <) BlocksBatchDesc B if:
 // minBlockId is equal: A.nextBlockId > B.nextBlockId.
 // minBlockId is not equal: A.nextBlockId < B.nextBlockId.
 // This is due to the way ST collects blocks, from newer to older inside ranges, and from older to newer ranges.
-bool BCStateTran::BlocksBatchDesc::operator<(BlocksBatchDesc &rhs) const {
+inline bool BCStateTran::BlocksBatchDesc::operator<(BCStateTran::BlocksBatchDesc &rhs) const {
   if (minBlockId != rhs.minBlockId) {
     return (minBlockId < rhs.minBlockId);
   }
@@ -991,18 +998,16 @@ bool BCStateTran::BlocksBatchDesc::operator<(BlocksBatchDesc &rhs) const {
   return nextBlockId > rhs.nextBlockId;
 }
 
-bool BCStateTran::BlocksBatchDesc::operator==(BlocksBatchDesc &rhs) const {
+inline bool BCStateTran::BlocksBatchDesc::operator==(BCStateTran::BlocksBatchDesc &rhs) const {
   return (minBlockId == rhs.minBlockId) && (maxBlockId == rhs.maxBlockId) && (nextBlockId == rhs.nextBlockId) &&
          (upperBoundBlockId == rhs.upperBoundBlockId);
 }
 
-bool BCStateTran::BlocksBatchDesc::operator<=(BlocksBatchDesc &rhs) const { return (*this < rhs) || (*this == rhs); }
-
-bool BCStateTran::BlocksBatchDesc::isValid() const {
+inline bool BCStateTran::BlocksBatchDesc::isValid() const {
   bool valid = ((minBlockId != 0) && (minBlockId <= maxBlockId) && (minBlockId <= nextBlockId) &&
                 (nextBlockId <= maxBlockId) && (maxBlockId <= upperBoundBlockId));
   if (!valid) {
-    LOG_ERROR(ST_SRC_LOG, *this);
+    LOG_ERROR(ST_DST_LOG, *this);
   }
   return valid;
 }
@@ -1883,7 +1888,7 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
   auto fetchingState = fs;
   if (fs == FetchingState::GettingMissingBlocks) {
     // Reasons for dropping a message as "irrelevant" for this state:
-    // 1) Not the source we choose
+    // 1) Not the source we chose
     // 2) Block ID is out of expected range [fetchState_.minBlockId, fetchState_.nextBlockId]
     // 3) Not enough memory to put block
     // We do not drop on different requestMsgSeqNum - the block arrives from the expected source and might have been
@@ -2675,7 +2680,7 @@ void BCStateTran::processData(bool lastInBatch) {
         bool lastFetchedBlockIdInCycle = isLastFetchedBlockIdInCycle(fetchState_.nextBlockId);
         bool minBlockIdInCurrentBatch = fetchState_.isMinBlockId(fetchState_.nextBlockId);
 
-        // TODO - 1) report only after we put the block succesfully 2) uncomment and fix to support new protocol
+        // TODO - 1) report only after we put the block successfully 2) uncomment and fix to support new protocol
         // Report collecting status for every block collected. Log entry is created every fixed window
         // gettingMissingBlocksSummaryWindowSize. If maxcommitNextMaxBlockId_BlockId is true: summarize the whole cycle
         // without i including "commit to chain duration" and vblock. In that case last window might be less than the
@@ -2686,7 +2691,8 @@ void BCStateTran::processData(bool lastInBatch) {
         // NO_WAIT: Opportunistic - finalize all jobs that are done, don't wait for the onging ones
         finalizePutblockAsync(ioPool_.empty() ? PutBlockWaitPolicy::WAIT_SINGLE_JOB : PutBlockWaitPolicy::NO_WAIT);
 
-        // Put the block. We distinguishe between last block in cycle, last block in fetch range, and a 'regular' block
+        // Put the block. We distinguishe between last block in cycle, minimal block ID in fetch range (last one), and a
+        // 'regular' block
         std::stringstream ss;
         ss << "Before putBlock id " << fetchState_.nextBlockId << ":" << std::boolalpha
            << KVLOG(lastFetchedBlockIdInCycle, minBlockIdInCurrentBatch, actualBlockSize);
@@ -3222,6 +3228,16 @@ void BCStateTran::peekConsensusMessage(shared_ptr<ConsensusMsg> &msg) {
     default:
       LOG_FATAL(logger_, "Unexpected message type" << KVLOG(msg_type));
   }
+}
+
+void BCStateTran::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBlockId) {
+  if (isFetching()) {
+    // This is another thread context
+    // TODO - try to make it better, check if it can happen 9ime of check /time of use)
+    LOG_WARN(logger_, "Report about pruned blocks while fetching!");
+    return;
+  }
+  rvbm_->reportLastAgreedPrunableBlockId(lastAgreedPrunableBlockId);
 }
 
 }  // namespace impl
