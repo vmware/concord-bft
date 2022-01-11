@@ -25,7 +25,7 @@ using namespace std;
 
 namespace bftEngine::bcst::impl {
 
-RVBManager::RVBManager(const Config& config, const IAppState* state_api, DataStore* ds)
+RVBManager::RVBManager(const Config& config, const IAppState* state_api, const std::shared_ptr<DataStore>& ds)
     : logger_{logging::getLogger("concord.bft.st.rvb")},
       config_{config},
       in_mem_rvt_{std::make_unique<RangeValidationTree>(logger_, config_.RVT_K, config_.fetchRangeSize)},
@@ -137,6 +137,7 @@ void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_de
   }  // end of critical section A
 
   auto rvb_data = in_mem_rvt_->getSerializedRvbData();
+  // TODO - see if we can convert the rvb_data stream straight into a vector, using stream interator
   const std::string s = rvb_data.str();
   ConcordAssert(!s.empty());
   std::copy(s.c_str(), s.c_str() + s.length(), back_inserter(new_checkpoint_desc.rvbData));

@@ -163,7 +163,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
                 LOG_DEBUG(logger_, "Waiting for previous thread to finish job on context " << KVLOG(ctx->blockId));
                 ctx->future.get();
               } catch (...) {
-                // ignore and continue, this job is irrlevant
+                // ignore and continue, this job is irrelevant
                 LOG_WARN(logger_, "Exception on irrelevant job, ignoring..");
               }
             }
@@ -172,7 +172,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
             BCStateTran::BlockIOContext::sizeOfBlockData = config_.maxBlockSize;
           }),
       oneShotTimerFlag_(true),
-      rvbm_{std::make_unique<RVBManager>(config_, as_, ds)},
+      rvbm_{std::make_unique<RVBManager>(config_, as_, psd_)},
       last_metrics_dump_time_(0),
       metrics_dump_interval_in_sec_{std::chrono::seconds(config_.metricsDumpIntervalSec)},
       metrics_component_{
