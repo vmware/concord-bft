@@ -148,10 +148,9 @@ void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_de
     in_mem_rvt_->printToLog(false);
   }  // end of critical section A
 
-  // TODO - replace with in_mem_rvt_->empty()
-  if (!in_mem_rvt_->getRootHashVal().empty()) {
+  if (!in_mem_rvt_->empty()) {
     auto rvb_data = in_mem_rvt_->getSerializedRvbData();
-    // TODO - see if we can convert the rvb_data stream straight into a vector, using stream interator
+    // TODO - see if we can convert the rvb_data stream straight into a vector, using stream iterator
     const std::string s = rvb_data.str();
     ConcordAssert(!s.empty());
     std::copy(s.c_str(), s.c_str() + s.length(), back_inserter(new_checkpoint_desc.rvbData));
@@ -414,7 +413,7 @@ RVBGroupId RVBManager::getNextRequiredRvbGroupid(RVBId from_rvb_id, RVBId to_rvb
   return 0;
 }
 
-BlockId RVBManager::getRvbGroupUpperBoundOnBlockRange(BlockId from_block_id, BlockId to_block_id) const {
+BlockId RVBManager::getRvbGroupMaxBlockIdOfNonStoredRvbGroup(BlockId from_block_id, BlockId to_block_id) const {
   ConcordAssertLE(from_block_id, to_block_id);
   auto min_rvb_id = nextRvbBlockId(from_block_id);
   auto max_rvb_id = prevRvbBlockId(to_block_id);
@@ -425,10 +424,19 @@ BlockId RVBManager::getRvbGroupUpperBoundOnBlockRange(BlockId from_block_id, Blo
   if (rvb_group_ids.size() < 2) {
     return to_block_id;
   }
-  // if we have 2 or more, we need to take the 1st and find the upper bound on the last RVB in the list
-  auto rvb_ids = in_mem_rvt_->getRvbIds(rvb_group_ids[0]);
-  ConcordAssert(!rvb_ids.empty());
-  return rvb_ids.back();
+  // if we have 2 or more, we need to take the 1st one which is not stored and find the upper bound on the last RVB in
+  // the list
+  for (const auto& rvb_group_id : rvb_group_ids) {
+    if (std::find(stored_rvb_digests_group_ids_.begin(), stored_rvb_digests_group_ids_.end(), rvb_group_id) ==
+        stored_rvb_digests_group_ids_.end()) {
+      auto rvb_ids = in_mem_rvt_->getRvbIds(rvb_group_id);
+      ConcordAssert(!rvb_ids.empty());
+      auto blockId = rvb_ids.back();
+      ConcordAssertGE(blockId, min_rvb_id);
+      return blockId;
+    }
+  }
+  return to_block_id;
 }
 
 void RVBManager::computeDigestOfBlock(const uint64_t block_id,
