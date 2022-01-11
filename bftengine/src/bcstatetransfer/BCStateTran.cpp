@@ -1503,7 +1503,9 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
     return false;
   }
 
-  if (!sourceFlag_) srcInitialize();
+  if (!sourceFlag_) {
+    srcInitialize();
+  }
   sourceSnapshotCounter_ = 0;
 
   // start recording time to send a whole batch, and its size
@@ -1622,6 +1624,14 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
       // Serialize RVB digests
       size_t rvbGroupDigestsActualSize =
           rvbm_->getSerializedDigestsOfRvbGroup(m->rvbGroupid, outMsg->data, rvbGroupDigestsExpectedSize);
+      if (rvbGroupDigestsExpectedSize != rvbGroupDigestsActualSize) {
+        LOG_WARN(logger_,
+                 "Rejecting message - not holding all requested digests.."
+                     << KVLOG(rvbGroupDigestsExpectedSize, rvbGroupDigestsActualSize));
+        ItemDataMsg::free(outMsg);
+        rejectFetchingMsg();
+        return false;
+      }
       ConcordAssertLE(rvbGroupDigestsActualSize, rvbGroupDigestsExpectedSize);
       outMsg->rvbDigestsSize = rvbGroupDigestsActualSize;
       memcpy(outMsg->data + rvbGroupDigestsActualSize, pRawChunk, chunkSize);

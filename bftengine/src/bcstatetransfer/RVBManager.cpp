@@ -96,7 +96,7 @@ void RVBManager::init(bool fetching) {
 }
 
 void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_desc) {
-  BlockId min_block_id{};
+  BlockId add_range_min_block_id{};
   LOG_DEBUG(logger_,
             "Updating RVB data for" << KVLOG(new_checkpoint_desc.checkpointNum,
                                              new_checkpoint_desc.maxBlockId,
@@ -105,31 +105,41 @@ void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_de
   ConcordAssertAND((last_checkpoint_desc_.maxBlockId <= new_checkpoint_desc.maxBlockId),
                    (last_checkpoint_desc_.checkpointNum < new_checkpoint_desc.checkpointNum));
 
+  //
+  //    Add blocks to RVT
+  //
+  auto max_rvb_id_in_rvt = in_mem_rvt_->getMaxRvbId();
   if (last_checkpoint_desc_.checkpointNum != 0) {
-    min_block_id = last_checkpoint_desc_.maxBlockId + 1;
+    add_range_min_block_id = last_checkpoint_desc_.maxBlockId + 1;
   } else {
     if (new_checkpoint_desc.checkpointNum == 1) {
-      min_block_id = as_->getGenesisBlockNum();
+      add_range_min_block_id = as_->getGenesisBlockNum();
     } else if (ds_->hasCheckpointDesc(new_checkpoint_desc.checkpointNum - 1)) {
       last_checkpoint_desc_ = ds_->getCheckpointDesc(new_checkpoint_desc.checkpointNum - 1);
-      min_block_id = last_checkpoint_desc_.maxBlockId + 1;
-      ConcordAssertLT(min_block_id, new_checkpoint_desc.maxBlockId);
+      add_range_min_block_id = last_checkpoint_desc_.maxBlockId + 1;
+      ConcordAssertLT(add_range_min_block_id, new_checkpoint_desc.maxBlockId);
     } else {
       if (in_mem_rvt_->empty()) {
-        min_block_id = as_->getGenesisBlockNum();
+        add_range_min_block_id = as_->getGenesisBlockNum();
       } else {
-        // TODO - Take the getMaxRvbId() + FSR. add after implemented
-        ConcordAssert(false);
+        add_range_min_block_id = in_mem_rvt_->getMaxRvbId() + config_.fetchRangeSize;
       }
     }
   }
-  // TODO - validate maxBlockId with getMaxRvbId()
-  addRvbDataOnBlockRange(min_block_id, new_checkpoint_desc.maxBlockId, new_checkpoint_desc.digestOfMaxBlockId);
+  ConcordAssertGT(add_range_min_block_id, max_rvb_id_in_rvt);
+  addRvbDataOnBlockRange(
+      add_range_min_block_id, new_checkpoint_desc.maxBlockId, new_checkpoint_desc.digestOfMaxBlockId);
 
+  //
+  //    Remove (Prune) blocks from RVT, and from pruned_blocks_digests_ data structure
+  //
   {  // start of critical section A
     std::lock_guard<std::mutex> guard(pruned_blocks_digests_mutex_);
     size_t i{};
 
+    if (!pruned_blocks_digests_.empty()) {
+      ConcordAssertEQ(in_mem_rvt_->getMinRvbId(), pruned_blocks_digests_[0].first);
+    }
     // First, prune and persist pruned_blocks_digests_. We do this while comparing to
     // last_checkpoint_desc_, while we know that all digests up to that point are removed from RVT and RVT is persisted
     if ((last_checkpoint_desc_.checkpointNum > 0) && (!pruned_blocks_digests_.empty())) {
@@ -204,7 +214,8 @@ size_t RVBManager::getSerializedDigestsOfRvbGroup(int64_t rvb_group_id, char* bu
     } else if (as_->hasBlock(rvb_id)) {
       cur->digest = getBlockAndComputeDigest(rvb_id);
     } else {
-      // It is not guaranteed that replicas holds the whole RVB group. In that case only part of it is sent.
+      // Currently, source may send the whole group or nothing. Sending only part of the group helps nothing since
+      // destination will not be able to validate it.
       break;
     }
     ++num_elements;
@@ -484,6 +495,7 @@ void RVBManager::addRvbDataOnBlockRange(uint64_t min_block_id,
                                         uint64_t max_block_id,
                                         const std::optional<STDigest>& digest_of_max_block_id) {
   LOG_TRACE(logger_, KVLOG(min_block_id, max_block_id));
+  ConcordAssertLE(min_block_id, max_block_id);
   std::once_flag call_once_flag;
 
   if (max_block_id == 0) return;
