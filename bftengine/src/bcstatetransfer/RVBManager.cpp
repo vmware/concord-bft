@@ -54,13 +54,15 @@ void RVBManager::init() {
       // There is RVB data in this checkpoint - try to load it
       std::istringstream rvb_data(std::string(reinterpret_cast<const char*>(desc.rvbData.data()), desc.rvbData.size()));
       // TODO - deserialize should return a bool - it might fail due to logical/config issue.
-      in_mem_rvt_->setSerializedRvbData(rvb_data);
-      loaded_from_cp = true;
+      if (!(loaded_from_cp = in_mem_rvt_->setSerializedRvbData(rvb_data))) {
+        LOG_ERROR(logger_, "Failed to load RVB data from stored checkpoint" << KVLOG(last_stored_cp_num));
+      }
     }
   }
 
   if (!loaded_from_cp && (desc.maxBlockId > 0)) {
     // If desc data is valid, try to reconstruct by reading digests from storage (no persistency data was found)
+    LOG_ERROR(logger_, "Reconstructing RVB data" << KVLOG(loaded_from_cp, desc.maxBlockId));
     addRvbDataOnBlockRange(
         as_->getGenesisBlockNum(), desc.maxBlockId, std::optional<STDigest>(desc.digestOfMaxBlockId));
   }
@@ -136,11 +138,14 @@ void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_de
     in_mem_rvt_->printToLog(false);
   }  // end of critical section A
 
-  auto rvb_data = in_mem_rvt_->getSerializedRvbData();
-  // TODO - see if we can convert the rvb_data stream straight into a vector, using stream interator
-  const std::string s = rvb_data.str();
-  ConcordAssert(!s.empty());
-  std::copy(s.c_str(), s.c_str() + s.length(), back_inserter(new_checkpoint_desc.rvbData));
+  // TODO - replace with in_mem_rvt_->empty()
+  if (!in_mem_rvt_->getRootHashVal().empty()) {
+    auto rvb_data = in_mem_rvt_->getSerializedRvbData();
+    // TODO - see if we can convert the rvb_data stream straight into a vector, using stream interator
+    const std::string s = rvb_data.str();
+    ConcordAssert(!s.empty());
+    std::copy(s.c_str(), s.c_str() + s.length(), back_inserter(new_checkpoint_desc.rvbData));
+  }
   last_checkpoint_desc_ = new_checkpoint_desc;
 }
 
@@ -247,8 +252,13 @@ void RVBManager::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBloc
   LOG_TRACE(logger_, KVLOG(lastAgreedPrunableBlockId));
   std::lock_guard<std::mutex> guard(pruned_blocks_digests_mutex_);
   auto initial_size = pruned_blocks_digests_.size();
-  BlockId min_block_id = pruned_blocks_digests_.empty() ? as_->getGenesisBlockNum() : pruned_blocks_digests_[0].first;
-  uint64_t start_rvb_id = computeNextRvbBlockId(min_block_id);
+  BlockId start_scan_block_id =
+      pruned_blocks_digests_.empty() ? as_->getGenesisBlockNum() : pruned_blocks_digests_.back().first;
+  uint64_t start_rvb_id = computeNextRvbBlockId(start_scan_block_id);
+  if (lastAgreedPrunableBlockId <= start_rvb_id) {
+    LOG_ERROR(logger_, "Inconsistent prune report ignored:" << KVLOG(lastAgreedPrunableBlockId, start_rvb_id));
+    return;
+  }
   uint64_t current_rvb_id = start_rvb_id;
   int32_t num_digests_added{0};
   while (current_rvb_id <= lastAgreedPrunableBlockId) {
@@ -261,12 +271,14 @@ void RVBManager::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBloc
 
   if (initial_size != pruned_blocks_digests_.size()) {
     ds_->setPrunedBlocksDigests(pruned_blocks_digests_);
+    LOG_INFO(logger_,
+             num_digests_added << " digests saved:"
+                               << KVLOG(start_rvb_id,
+                                        start_scan_block_id,
+                                        current_rvb_id,
+                                        lastAgreedPrunableBlockId,
+                                        pruned_blocks_digests_.size()));
   }
-  LOG_INFO(
-      logger_,
-      num_digests_added << " digests saved:"
-                        << KVLOG(
-                               start_rvb_id, current_rvb_id, lastAgreedPrunableBlockId, pruned_blocks_digests_.size()));
 }
 
 }  // namespace bftEngine::bcst::impl

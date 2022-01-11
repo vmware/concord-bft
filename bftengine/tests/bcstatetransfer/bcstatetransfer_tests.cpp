@@ -38,6 +38,7 @@
 #include "EpochManager.hpp"
 #include "messages/PrePrepareMsg.hpp"
 #include "hex_tools.h"  //leave for debug
+#include "RVBManager.hpp"
 
 #ifdef USE_ROCKSDB
 #include "rocksdb/client.h"
@@ -86,8 +87,8 @@ Config targetConfig() {
       4096,               // sizeOfReservedPage
       600,                // gettingMissingBlocksSummaryWindowSize
       10,                 // minPrePrepareMsgsForPrimaryAwarness
-      128,                // fetchRangeSize
-      128,                // RVT_K
+      8,                  // fetchRangeSize
+      8,                  // RVT_K
       300,                // refreshTimerMs
       2500,               // checkpointSummariesRetransmissionTimeoutMs
       60000,              // maxAcceptableMsgDelayMs
@@ -280,7 +281,8 @@ class DataGenerator {
   void generateCheckpointDescriptors(const TestAppState& appstate,
                                      DataStore* datastore,
                                      uint64_t minRepliedCheckpointNum,
-                                     uint64_t maxRepliedCheckpointNum);
+                                     uint64_t maxRepliedCheckpointNum,
+                                     RVBManager* rvbm = nullptr);
   std::unique_ptr<MessageBase> generatePrePrepareMsg(ReplicaId sender_id);
 
  protected:
@@ -316,6 +318,11 @@ class BcStTestDelegator {
     return stateTransfer_->onMessage(m, msgLen, replicaId, msgArrivalTime);
   }
   uint64_t getNextRequiredBlock() { return stateTransfer_->fetchState_.nextBlockId; }
+  RVBManager* getRvbManager() { return stateTransfer_->rvbm_.get(); }
+  RangeValidationTree* getRvt() { return stateTransfer_->rvbm_->in_mem_rvt_.get(); }
+  const std::vector<std::pair<BlockId, STDigest>> getPrunedBlocksDigests() {
+    return stateTransfer_->rvbm_->pruned_blocks_digests_;
+  }
   void fillHeaderOfVirtualBlock(std::unique_ptr<char[]>& rawVBlock,
                                 uint32_t numberOfUpdatedPages,
                                 uint64_t lastCheckpointKnownToRequester);
@@ -370,9 +377,10 @@ class FakeReplicaBase {
   const Config& targetConfig_;
   const TestConfig& testConfig_;
   const TestState& testState_;
-  DataStore* datastore_ = nullptr;
+  std::shared_ptr<DataStore> datastore_;
   TestAppState appState_;
   TestReplica& testedReplicaIf_;
+  unique_ptr<RVBManager> rvbm_;
   const std::shared_ptr<DataGenerator> dataGen_;
   const std::shared_ptr<BcStTestDelegator> stDelegator_;
 };
@@ -493,14 +501,15 @@ class BcStTest : public ::testing::Test {
   void getMissingblocksStage(std::function<R(Args...)> callAtStart = EMPTY_FUNC,
                              std::function<R(Args...)> callAtEnd = EMPTY_FUNC);
   void getReservedPagesStage();
+  void dstRestart(bool productDbDeleteOnEnd, FetchingState expectedState);
 
- public:  // quick workaround to allow binding on derived class
-  void dstRestart(std::set<size_t>& execOnIterations);
+ public:  // why public? quick workaround to allow binding on derived class
+  void dstRestartWithIterations(std::set<size_t>& execOnIterations, FetchingState expectedState);
 
  protected:
   // These members are used to construct stateTransfer_
   TestAppState appState_;
-  DataStore* datastore_ = nullptr;
+  DataStore* datastore_;
   TestReplica testedReplicaIf_;
   std::unique_ptr<BCStateTran> stateTransfer_;
 };  // class BcStTest
@@ -552,8 +561,10 @@ void DataGenerator::generateBlocks(TestAppState& appState, uint64_t fromBlockId,
 void DataGenerator::generateCheckpointDescriptors(const TestAppState& appState,
                                                   DataStore* datastore,
                                                   uint64_t minRepliedCheckpointNum,
-                                                  uint64_t maxRepliedCheckpointNum) {
+                                                  uint64_t maxRepliedCheckpointNum,
+                                                  RVBManager* rvbm) {
   ASSERT_LE(minRepliedCheckpointNum, maxRepliedCheckpointNum);
+  ASSERT_TRUE(rvbm);
 
   // Compute digest of last block
   uint64_t lastBlockId = (maxRepliedCheckpointNum + 1) * testConfig_.checkpointWindowSize;
@@ -563,7 +574,7 @@ void DataGenerator::generateCheckpointDescriptors(const TestAppState& appState,
   computeBlockDigest(
       lastBlockId, reinterpret_cast<const char*>(lastBlk.get()), lastBlk->totalBlockSize, &lastBlockDigest);
 
-  for (uint64_t i = maxRepliedCheckpointNum; i >= minRepliedCheckpointNum; i--) {
+  for (uint64_t i = minRepliedCheckpointNum; i <= maxRepliedCheckpointNum; ++i) {
     // for now, we do not support (expect) setting into an already set descriptor
     ASSERT_FALSE(datastore->hasCheckpointDesc(i));
     DataStore::CheckpointDesc desc;
@@ -584,6 +595,7 @@ void DataGenerator::generateCheckpointDescriptors(const TestAppState& appState,
     BCStateTran::computeDigestOfPagesDescriptor(resPagesDesc, digestOfResPagesDescriptor);
 
     desc.digestOfResPagesDescriptor = digestOfResPagesDescriptor;
+    rvbm->updateRvbDataDuringCheckpoint(desc);
     datastore->setCheckpointDesc(i, desc);
   }
 
@@ -674,12 +686,12 @@ FakeReplicaBase::FakeReplicaBase(const Config& targetConfig,
       dataGen_(dataGen),
       stDelegator_(stAdapter) {
   if (testConfig_.fakeDbDeleteOnStart) deleteBcStateTransferDbFolder(testConfig_.fakeBcstDbPath);
-  datastore_ = createDataStore(testConfig_.fakeBcstDbPath, targetConfig_);
+  datastore_.reset(createDataStore(testConfig_.fakeBcstDbPath, targetConfig_));
   datastore_->setNumberOfReservedPages(testConfig_.numberOfRequiredReservedPages);
+  rvbm_ = std::make_unique<RVBManager>(targetConfig, &appState_, datastore_);
 }
 
 FakeReplicaBase::~FakeReplicaBase() {
-  delete datastore_;
   if (testConfig_.fakeDbDeleteOnEnd) deleteBcStateTransferDbFolder(testConfig_.fakeBcstDbPath);
 }
 
@@ -769,8 +781,11 @@ void FakeSources::replyAskForCheckpointSummariesMsg() {
   ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, lastBlockId));
 
   // Generate checkpoint descriptors - - set into datastore_
-  ASSERT_NFF(dataGen_->generateCheckpointDescriptors(
-      appState_, datastore_, testState_.minRepliedCheckpointNum, testState_.maxRepliedCheckpointNum));
+  ASSERT_NFF(dataGen_->generateCheckpointDescriptors(appState_,
+                                                     datastore_.get(),
+                                                     testState_.minRepliedCheckpointNum,
+                                                     testState_.maxRepliedCheckpointNum,
+                                                     rvbm_.get()));
 
   // build a single copy of all replied messages, push to a vector
   const auto& firstMsg = testedReplicaIf_.sent_messages_.front();
@@ -865,7 +880,7 @@ void FakeSources::replyResPagesMsg(bool& outDoneSending) {
 
     for (uint32_t pageId{0}; pageId < numberOfUpdatedPages; ++pageId) {
       ConcordAssertLT(idx, numberOfUpdatedPages);
-      stDelegator_->fillElementOfVirtualBlock(datastore_,
+      stDelegator_->fillElementOfVirtualBlock(datastore_.get(),
                                               elements + idx * elementSize,
                                               pageId,
                                               fetchResPagesMsg->requiredCheckpointNum,
@@ -1175,25 +1190,29 @@ void BcStTest::validateSourceSelectorMetricCounters(const MetricKeyValPairs& met
   }
 }
 
-void BcStTest::dstRestart(std::set<size_t>& execOnIterations) {
+void BcStTest::dstRestart(bool productDbDeleteOnEnd, FetchingState expectedState) {
+  stateTransfer_->stopRunning();
+  stateTransfer_.reset(nullptr);
+  testedReplicaIf_.sent_messages_.clear();
+  testConfig_.productDbDeleteOnStart = false;
+  testConfig_.productDbDeleteOnEnd = productDbDeleteOnEnd;
+  datastore_ = createDataStore(testConfig_.bcstDbPath, targetConfig_);
+  stateTransfer_ = make_unique<BCStateTran>(targetConfig_, &appState_, datastore_);
+  stateTransfer_->init(testConfig_.maxNumOfRequiredStoredCheckpoints,
+                       testConfig_.numberOfRequiredReservedPages,
+                       targetConfig_.sizeOfReservedPage);
+  cmnStartRunning(expectedState);
+  stDelegator_->onTimerImp();
+}
+
+void BcStTest::dstRestartWithIterations(std::set<size_t>& execOnIterations, FetchingState expectedState) {
   static size_t iteration{1};
   auto iter = execOnIterations.find(iteration);
   if (iter != execOnIterations.end()) {
     execOnIterations.erase(iteration);
-    stateTransfer_->stopRunning();
-    stateTransfer_.reset(nullptr);
-    testedReplicaIf_.sent_messages_.clear();
-    testConfig_.productDbDeleteOnStart = false;
-    testConfig_.productDbDeleteOnEnd = execOnIterations.empty();
-    datastore_ = createDataStore(testConfig_.bcstDbPath, targetConfig_);
-    stateTransfer_ = make_unique<BCStateTran>(targetConfig_, &appState_, datastore_);
-    stateTransfer_->init(testConfig_.maxNumOfRequiredStoredCheckpoints,
-                         testConfig_.numberOfRequiredReservedPages,
-                         targetConfig_.sizeOfReservedPage);
-    cmnStartRunning(FetchingState::GettingMissingBlocks);
-    stDelegator_->onTimerImp();
+    dstRestart(execOnIterations.empty(), expectedState);
   }
-  ++iter;
+  ++iteration;
 }
 
 template <class R, class... Args>
@@ -1376,11 +1395,11 @@ TEST_F(BcStTest, dstValidatePeriodicSourceReplacement) {
   auto const increase_batches = std::function<void(void)>([&]() { batch_count++; });
   ASSERT_NFF(getMissingblocksStage(delay_periodically, increase_batches));
   const auto& actualSources_ = stDelegator_->getSourceSelector().getActualSources();
-  ASSERT_EQ(actualSources_.size(), 4);
-  validateSourceSelectorMetricCounters({{"total_replacements_", 4},
+  ASSERT_GT(actualSources_.size(), 1);
+  validateSourceSelectorMetricCounters({{"total_replacements_", actualSources_.size()},
                                         {"replacement_due_to_no_source_", 1},
                                         {"replacement_due_to_source_same_as_primary_", 0},
-                                        {"replacement_due_to_periodic_change_", 3},
+                                        {"replacement_due_to_periodic_change_", actualSources_.size() - 1},
                                         {"replacement_due_to_retransmission_timeout_", 0},
                                         {"replacement_due_to_bad_data_", 0}});
   ASSERT_NFF(getReservedPagesStage());
@@ -1487,7 +1506,9 @@ TEST_F(BcStTest, dstFullStateTransferWithRestarts) {
   ASSERT_NFF(fakeSrcReplica_->replyAskForCheckpointSummariesMsg());
   // Restart on 3 batches during collection
   std::set<size_t> execOnIterations{3, 5, 7};
-  const std::function<void(void)> restart_on_specific_iterations = [&]() { dstRestart(execOnIterations); };
+  const std::function<void(void)> restart_on_specific_iterations = [&]() {
+    dstRestartWithIterations(execOnIterations, FetchingState::GettingMissingBlocks);
+  };
   ASSERT_NFF(getMissingblocksStage<void>(restart_on_specific_iterations, EMPTY_FUNC));
   ASSERT_NFF(getReservedPagesStage());
   // now validate completion
@@ -1507,8 +1528,11 @@ TEST_F(BcStTest, srcHandleAskForCheckpointSummariesMsg) {
   ASSERT_NFF(cmnStartRunning());
   // Generate the data needed for a tested ST backup replica
   ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, testState_.maxRequiredBlockId));
-  ASSERT_NFF(dataGen_->generateCheckpointDescriptors(
-      appState_, datastore_, testState_.minRepliedCheckpointNum, testState_.maxRepliedCheckpointNum));
+  ASSERT_NFF(dataGen_->generateCheckpointDescriptors(appState_,
+                                                     datastore_,
+                                                     testState_.minRepliedCheckpointNum,
+                                                     testState_.maxRepliedCheckpointNum,
+                                                     stDelegator_->getRvbManager()));
   // Fake ask for checkpoint summaries
   fakeDstReplica_->sendAskForCheckpointSummariesMsg(testState_.lastCheckpointKnownToRequester);
   // Validate response from tested ST backup replica
@@ -1521,8 +1545,11 @@ TEST_F(BcStTest, srcHandleFetchBlocksMsg) {
   ASSERT_NFF(cmnStartRunning());
   // Generate the data needed for a tested ST backup replica
   ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, testState_.maxRequiredBlockId));
-  ASSERT_NFF(dataGen_->generateCheckpointDescriptors(
-      appState_, datastore_, testState_.minRepliedCheckpointNum, testState_.maxRepliedCheckpointNum));
+  ASSERT_NFF(dataGen_->generateCheckpointDescriptors(appState_,
+                                                     datastore_,
+                                                     testState_.minRepliedCheckpointNum,
+                                                     testState_.maxRepliedCheckpointNum,
+                                                     stDelegator_->getRvbManager()));
   ASSERT_NFF(fakeDstReplica_->sendFetchBlocksMsg(testState_.minRequiredBlockId, testState_.maxRequiredBlockId));
   uint64_t minExpectedBlockId = (testState_.numBlocksToCollect > targetConfig_.maxNumberOfChunksInBatch)
                                     ? (testState_.maxRequiredBlockId - targetConfig_.maxNumberOfChunksInBatch + 1)
@@ -1544,8 +1571,11 @@ TEST_F(BcStTest, srcHandleFetchResPagesMsg) {
   ASSERT_NFF(cmnStartRunning());
   // Generate the data needed for a tested ST backup replica
   ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, testState_.maxRequiredBlockId));
-  ASSERT_NFF(dataGen_->generateCheckpointDescriptors(
-      appState_, datastore_, testState_.minRepliedCheckpointNum, testState_.maxRepliedCheckpointNum));
+  ASSERT_NFF(dataGen_->generateCheckpointDescriptors(appState_,
+                                                     datastore_,
+                                                     testState_.minRepliedCheckpointNum,
+                                                     testState_.maxRepliedCheckpointNum,
+                                                     stDelegator_->getRvbManager()));
   ASSERT_NFF(fakeDstReplica_->sendFetchResPagesMsg(testState_.lastCheckpointKnownToRequester,
                                                    testState_.maxRepliedCheckpointNum));
   ASSERT_NFF(srcAssertItemDataMsgBatchSentWithResPages(1, testState_.maxRepliedCheckpointNum));
@@ -1556,7 +1586,45 @@ TEST_F(BcStTest, srcHandleFetchResPagesMsg) {
 //       BcStTest Backup Replica (Initialization, Checkpointing)
 //
 /////////////////////////////////////////////////////////
+TEST_F(BcStTest, bkpCheckCheckpointsPersistency) {
+  ASSERT_NFF(initialize());
+  ASSERT_NFF(cmnStartRunning());
+  ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, testState_.maxRequiredBlockId));
+  ASSERT_NFF(dataGen_->generateCheckpointDescriptors(appState_,
+                                                     datastore_,
+                                                     testState_.minRepliedCheckpointNum,
+                                                     testState_.maxRepliedCheckpointNum,
+                                                     stDelegator_->getRvbManager()));
+  auto rvt = stDelegator_->getRvt();
+  auto h1 = rvt->getRootHashVal();
+  ASSERT_NFF(dstRestart(false, FetchingState::NotFetching));
+  rvt = stDelegator_->getRvt();
+  auto h2 = rvt->getRootHashVal();
+  ASSERT_EQ(h1, h2);
+  testConfig_.productDbDeleteOnEnd = true;
+}
 
+TEST_F(BcStTest, bkpCheckCheckPruningPersistency) {
+  ASSERT_NFF(initialize());
+  ASSERT_NFF(cmnStartRunning());
+  ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, testState_.maxRequiredBlockId));
+  ASSERT_NFF(dataGen_->generateCheckpointDescriptors(appState_,
+                                                     datastore_,
+                                                     testState_.minRepliedCheckpointNum,
+                                                     testState_.maxRepliedCheckpointNum,
+                                                     stDelegator_->getRvbManager()));
+  uint64_t midBlockId =
+      testState_.maxRequiredBlockId - ((testState_.maxRequiredBlockId - appState_.getGenesisBlockNum() + 1) / 2);
+  ASSERT_GT(midBlockId, appState_.getGenesisBlockNum() + 1);
+  ASSERT_LT(midBlockId, testState_.maxRequiredBlockId);
+  auto rvbm = stDelegator_->getRvbManager();
+  rvbm->reportLastAgreedPrunableBlockId(midBlockId);
+  const auto digestsBefore = stDelegator_->getPrunedBlocksDigests();
+  ASSERT_NFF(dstRestart(false, FetchingState::NotFetching));
+  const auto digestsafter = stDelegator_->getPrunedBlocksDigests();
+  ASSERT_EQ(digestsBefore, digestsafter);
+  testConfig_.productDbDeleteOnEnd = true;
+}
 }  // namespace bftEngine::bcst::impl
 
 int main(int argc, char** argv) {

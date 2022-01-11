@@ -36,6 +36,7 @@ using CheckpointDesc = DataStore::CheckpointDesc;
  *
  */
 class RVBManager {
+  friend class BcStTestDelegator;
  public:
   // Init / Destroy functions
   RVBManager() = delete;
