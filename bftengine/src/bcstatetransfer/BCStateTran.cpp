@@ -172,6 +172,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
             BCStateTran::BlockIOContext::sizeOfBlockData = config_.maxBlockSize;
           }),
       oneShotTimerFlag_(true),
+      rvbm_{std::make_unique<RVBManager>(config_, as_, ds)},
       last_metrics_dump_time_(0),
       metrics_dump_interval_in_sec_{std::chrono::seconds(config_.metricsDumpIntervalSec)},
       metrics_component_{
@@ -180,7 +181,6 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
       // We must make sure that we actually initialize all these metrics in the
       // same order as defined in the header file.
       metrics_{metrics_component_.RegisterStatus("fetching_state", stateName(FetchingState::NotFetching)),
-
                metrics_component_.RegisterGauge("checkpoint_being_fetched", 0),
                metrics_component_.RegisterGauge("last_stored_checkpoint", 0),
                metrics_component_.RegisterGauge("number_of_reserved_pages", 0),
@@ -344,6 +344,9 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
 
       ConcordAssertEQ(getFetchingState(), FetchingState::NotFetching);
     }
+    // TODO - this init may take long time in large storages. If it takes too much time, we should consider moving it
+    // to the background with a new logic as a result of that move
+    rvbm_->init();
     {
       DataStoreTransaction::Guard g(psd_->beginTransaction());
       g.txn()->setReplicas(replicas_);
@@ -413,9 +416,11 @@ DataStore::CheckpointDesc BCStateTran::createCheckpointDesc(uint64_t checkpointN
   checkDesc.maxBlockId = maxBlockId;
   checkDesc.digestOfMaxBlockId = digestOfMaxBlockId;
   checkDesc.digestOfResPagesDescriptor = digestOfResPagesDescriptor;
+  rvbm_->updateRvbDataDuringCheckpoint(checkDesc);
 
   LOG_INFO(logger_,
-           "CheckpointDesc: " << KVLOG(checkpointNumber, maxBlockId, digestOfMaxBlockId, digestOfResPagesDescriptor));
+           "CheckpointDesc: " << KVLOG(
+               checkpointNumber, maxBlockId, digestOfMaxBlockId, digestOfResPagesDescriptor, checkDesc.rvbData.size()));
 
   return checkDesc;
 }
@@ -2506,7 +2511,7 @@ bool BCStateTran::isMaxBlockIdInFetchRange(uint64_t blockId) const {
 
 bool BCStateTran::isRvbBlockId(uint64_t blockId) const {
   ConcordAssertGT(blockId, 0);
-  return isMaxBlockIdInFetchRange(blockId);
+  return ((blockId % config_.fetchRangeSize) == 0);
 }
 
 bool BCStateTran::isLastFetchedBlockIdInCycle(uint64_t blockId) const {
@@ -2621,7 +2626,7 @@ void BCStateTran::processData(bool lastInBatch) {
     // TODO (GL) - for now (for simplicity) to support chunking, we call with buffer_ as an input. Later on we copy
     // buffer_ into BlockIOContext::blockData when the block is full.
     // We can save this copy by calling with BlockIOContext::blockData.
-    // But this is more complex. In general, copying memory shouldn't impact perfroamnce much (micro-seconds)
+    // But this is more complex. In general, copying memory shouldn't impact performance much (micro-seconds)
     // so we are OK with it now.
     const bool newBlock = getNextFullBlock(fetchState_.nextBlockId,
                                            badDataFromCurrentSourceReplica,

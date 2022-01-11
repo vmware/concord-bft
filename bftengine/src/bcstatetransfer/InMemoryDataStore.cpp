@@ -81,6 +81,11 @@ void InMemoryDataStore::setFirstStoredCheckpoint(uint64_t c) { firstStoredCheckp
 
 uint64_t InMemoryDataStore::getFirstStoredCheckpoint() { return firstStoredCheckpoint; }
 
+void InMemoryDataStore::setPrunedBlocksDigests(std::vector<std::pair<BlockId, STDigest>>& prunedBlocksDigests) {
+  this->prunedBlocksDigests = prunedBlocksDigests;
+}
+std::vector<std::pair<BlockId, STDigest>> InMemoryDataStore::getPrunedBlocksDigests() { return prunedBlocksDigests; }
+
 void InMemoryDataStore::setCheckpointDesc(uint64_t checkpoint, const CheckpointDesc& desc) {
   ConcordAssert(checkpoint == desc.checkpointNum);
   ConcordAssert(descMap.count(checkpoint) == 0);
