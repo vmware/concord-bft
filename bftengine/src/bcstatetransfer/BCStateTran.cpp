@@ -2543,7 +2543,7 @@ bool BCStateTran::finalizePutblockAsync(PutBlockWaitPolicy waitPolicy) {
   return doneProcesssing;
 }
 
-// Compute the next batch reqired, taking into accont: FirstRequiredBlock
+// Compute the next batch reqired, taking into accont: minRequiredBlockId
 // and configuration parameters fetchRangeSize and maxNumberOfChunksInBatch
 BCStateTran::BlocksBatchDesc BCStateTran::computeNextBatchToFetch(uint64_t minRequiredBlockId) {
   uint64_t maxRequiredBlockId = minRequiredBlockId + config_.maxNumberOfChunksInBatch - 1;
@@ -2552,13 +2552,20 @@ BCStateTran::BlocksBatchDesc BCStateTran::computeNextBatchToFetch(uint64_t minRe
     if ((maxRequiredBlockId >= deltaToNearestRVB) && (maxRequiredBlockId - deltaToNearestRVB > minRequiredBlockId))
       maxRequiredBlockId = maxRequiredBlockId - deltaToNearestRVB;
   }
+  maxRequiredBlockId = std::min(maxRequiredBlockId, psd_->getLastRequiredBlock());
+
+  // Check with RVB manager that we are not between borders of RVB groups. This is rare, but we want to avoid the case
+  // where we will need to ask for multiple digest groups. This make code more complicated.
+  BlockId rvbmUpperBound = rvbm_->getRvbGroupUpperBoundOnBlockRange(minRequiredBlockId, maxRequiredBlockId);
+  maxRequiredBlockId = std::min(maxRequiredBlockId, rvbmUpperBound);
   BlocksBatchDesc fetchBatch;
-  fetchBatch.maxBlockId = std::min(maxRequiredBlockId, psd_->getLastRequiredBlock());
+  fetchBatch.maxBlockId = maxRequiredBlockId;
   fetchBatch.nextBlockId = fetchBatch.maxBlockId;
   fetchBatch.minBlockId = minRequiredBlockId;
   fetchBatch.upperBoundBlockId = fetchBatch.maxBlockId;
   ConcordAssert(fetchBatch.isValid());
   ConcordAssertLT(fetchState_.nextBlockId, config_.maxNumberOfChunksInBatch + fetchBatch.minBlockId);
+  LOG_TRACE(logger_, KVLOG(rvbmUpperBound, maxRequiredBlockId, minRequiredBlockId));
   return fetchBatch;
 }
 
@@ -2577,11 +2584,11 @@ bool BCStateTran::isRvbBlockId(uint64_t blockId) const {
   return ((blockId % config_.fetchRangeSize) == 0);
 }
 
-uint64_t BCStateTran::computePrevRvbBlockId(uint64_t block_id) const {
+uint64_t BCStateTran::prevRvbBlockId(uint64_t block_id) const {
   return config_.fetchRangeSize * (block_id / config_.fetchRangeSize);
 }
 
-uint64_t BCStateTran::computeNextRvbBlockId(uint64_t block_id) const {
+uint64_t BCStateTran::nextRvbBlockId(uint64_t block_id) const {
   uint64_t next_rvb_id = config_.fetchRangeSize * (block_id / config_.fetchRangeSize);
   if (next_rvb_id < block_id) {
     next_rvb_id += config_.fetchRangeSize;
