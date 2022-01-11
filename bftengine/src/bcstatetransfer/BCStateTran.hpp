@@ -316,8 +316,8 @@ class BCStateTran : public IStateTransfer {
     uint64_t upperBoundBlockId = 0;  // Dynamic upper limit to the next batch
 
     bool operator==(BlocksBatchDesc& rhs) const;
-    bool operator!=(BlocksBatchDesc &rhs) const { return !(this->operator==(rhs)); }
-    bool operator<=(BlocksBatchDesc &rhs) const { return (*this < rhs) || (*this == rhs); }
+    bool operator!=(BlocksBatchDesc& rhs) const { return !(this->operator==(rhs)); }
+    bool operator<=(BlocksBatchDesc& rhs) const { return (*this < rhs) || (*this == rhs); }
     void reset();
     bool operator<(BlocksBatchDesc& rhs) const;
     bool isValid() const;

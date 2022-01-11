@@ -46,7 +46,7 @@ class RVBManager {
   void updateRvbDataDuringCheckpoint(CheckpointDesc& last_checkpoint_desc);
 
   // Called during checkpoint summaries (source)
-  std::ostringstream getRvbData() const;
+  std::ostringstream getRvbData() const { return in_mem_rvt_->getSerializedRvbData(); }
 
   // Called during checkpoint summaries stage by destination
   void setRvbData(std::shared_ptr<char> data, size_t data_size);
