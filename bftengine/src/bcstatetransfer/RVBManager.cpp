@@ -488,20 +488,22 @@ void RVBManager::addRvbDataOnBlockRange(uint64_t min_block_id,
 
   if (max_block_id == 0) return;
   uint64_t current_rvb_id = nextRvbBlockId(min_block_id);
+  RVBId max_rvb_id_in_rvt = in_mem_rvt_->getMaxRvbId();
   while (current_rvb_id < max_block_id) {
     // TODO - As a 2nd phase - should use the thread pool to fetch a batch of digests or move to a background process
     std::call_once(call_once_flag, [&, this] {
       LOG_INFO(logger_,
                "Update RVT (add):" << KVLOG(min_block_id, max_block_id, current_rvb_id, as_->getLastBlockNum()));
     });
-
-    STDigest digest;
-    as_->getPrevDigestFromBlock(current_rvb_id + 1, reinterpret_cast<StateTransferDigest*>(digest.getForUpdate()));
-    LOG_TRACE(logger_, KVLOG(current_rvb_id, digest.toString()));
-    in_mem_rvt_->addNode(current_rvb_id, digest);
+    if (current_rvb_id > max_rvb_id_in_rvt) {
+      STDigest digest;
+      as_->getPrevDigestFromBlock(current_rvb_id + 1, reinterpret_cast<StateTransferDigest*>(digest.getForUpdate()));
+      LOG_TRACE(logger_, KVLOG(current_rvb_id, digest.toString()));
+      in_mem_rvt_->addNode(current_rvb_id, digest);
+    }
     current_rvb_id += config_.fetchRangeSize;
   }
-  if (current_rvb_id == max_block_id) {
+  if ((current_rvb_id == max_block_id) && (current_rvb_id > max_rvb_id_in_rvt)) {
     if (digest_of_max_block_id)
       in_mem_rvt_->addNode(current_rvb_id, digest_of_max_block_id.value());
     else {
