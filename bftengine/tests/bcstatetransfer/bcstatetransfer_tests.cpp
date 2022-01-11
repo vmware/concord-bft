@@ -87,8 +87,8 @@ Config targetConfig() {
       4096,               // sizeOfReservedPage
       600,                // gettingMissingBlocksSummaryWindowSize
       10,                 // minPrePrepareMsgsForPrimaryAwarness
-      8,                  // fetchRangeSize
-      8,                  // RVT_K
+      16,                 // fetchRangeSize
+      12,                 // RVT_K
       300,                // refreshTimerMs
       2500,               // checkpointSummariesRetransmissionTimeoutMs
       60000,              // maxAcceptableMsgDelayMs
@@ -144,7 +144,7 @@ struct TestConfig {
   bool fakeDbDeleteOnStart = true;
   bool fakeDbDeleteOnEnd = true;
   TestTarget testTarget = TestTarget::DESTINATION;
-  string logLevel = "info";  // choose: "trace", "debug", "info", "warn", "error", "fatal"
+  string logLevel = "error";  // choose: "trace", "debug", "info", "warn", "error", "fatal"
 };
 
 static inline std::ostream& operator<<(std::ostream& os, const TestConfig::TestTarget& c) {
@@ -843,8 +843,8 @@ void FakeSources::replyFetchBlocksMsg() {
 
     if (rvbGroupDigestsExpectedSize > 0) {
       // Serialize RVB digests
-      rvbGroupDigestsActualSize =
-          rvbm_->getSerializedDigestsOfRvbGroup(fetchBlocksMsg->rvbGroupid, itemDataMsg->data, rvbGroupDigestsExpectedSize);
+      rvbGroupDigestsActualSize = rvbm_->getSerializedDigestsOfRvbGroup(
+          fetchBlocksMsg->rvbGroupid, itemDataMsg->data, rvbGroupDigestsExpectedSize);
       ConcordAssertLE(rvbGroupDigestsActualSize, rvbGroupDigestsActualSize);
       rvbGroupDigestsExpectedSize = 0;
     }
@@ -1189,10 +1189,11 @@ void BcStTest::configureLog(const string& logLevelStr) {
   // logging::Logger::getInstance("serializable").setLogLevel(logLevel);
   // logging::Logger::getInstance("concord.bft.st.dbdatastore").setLogLevel(logLevel);
   // logging::Logger::getInstance("rocksdb").setLogLevel(logLevel);
+  // logging::Logger::getInstance("concord.bft").setLogLevel(logLevel);
   logging::Logger::getInstance("concord.bft.st.dst").setLogLevel(logLevel);
   logging::Logger::getInstance("concord.bft.st.src").setLogLevel(logLevel);
   logging::Logger::getInstance("concord.util.handoff").setLogLevel(logLevel);
-  logging::Logger::getInstance("concord.bft").setLogLevel(logLevel);
+  logging::Logger::getInstance("concord.bft.st.rvb").setLogLevel(logLevel);
 }
 
 void BcStTest::compareAppStateblocks(uint64_t minBlockId, uint64_t maxBlockId) const {
@@ -1271,13 +1272,14 @@ void BcStTest::getReservedPagesStage() {
 //
 /////////////////////////////////////////////////////////
 
-class BcStTestParamFixture1 : public BcStTest, public testing::WithParamInterface<tuple<uint32_t, uint32_t>> {};
+class BcStTestParamFixture1 : public BcStTest, public testing::WithParamInterface<tuple<uint32_t, uint32_t, uint32_t>> {};
 
 // Validate a full state transfer
 // This is a parameterized test case, see BcStTestParamFixtureInput for all possible inputs
 TEST_P(BcStTestParamFixture1, dstFullStateTransfer) {
   targetConfig_.maxNumberOfChunksInBatch = get<0>(GetParam());
   targetConfig_.fetchRangeSize = get<1>(GetParam());
+  targetConfig_.RVT_K = get<2>(GetParam());
   ASSERT_NFF(initialize());
   ASSERT_NFF(dstStartRunningAndCollecting());
   ASSERT_NFF(fakeSrcReplica_->replyAskForCheckpointSummariesMsg());
@@ -1292,20 +1294,25 @@ TEST_P(BcStTestParamFixture1, dstFullStateTransfer) {
 
 // 1st element - maxNumberOfChunksInBatch
 // 2nd element - fetchRangeSize
+// 3rd element - RVT_K
 // The comma at the end is due to a bug in gtest 3.09 - https://github.com/google/googletest/issues/2271 - see last
-using BcStTestParamFixtureInput = tuple<uint32_t, uint32_t>;
+using BcStTestParamFixtureInput = tuple<uint32_t, uint32_t, uint32_t>;
 INSTANTIATE_TEST_CASE_P(BcStTest,
                         BcStTestParamFixture1,
-                        ::testing::Values(BcStTestParamFixtureInput(128, 128),
-                                          BcStTestParamFixtureInput(128, 256),
-                                          BcStTestParamFixtureInput(256, 128),
-                                          BcStTestParamFixtureInput(100, 256),
-                                          BcStTestParamFixtureInput(256, 100),
-                                          BcStTestParamFixtureInput(1024, 128),
-                                          BcStTestParamFixtureInput(2048, 512),
-                                          BcStTestParamFixtureInput(512, 2048),
-                                          BcStTestParamFixtureInput(128, 1024),
-                                          BcStTestParamFixtureInput(128, 1024)), );
+                        ::testing::Values(
+                            // BcStTestParamFixtureInput(128, 256),    // not supported for now
+                            // BcStTestParamFixtureInput(100, 256),    // not supported for now
+                            // BcStTestParamFixtureInput(512, 2048),   // not supported for now
+                            // BcStTestParamFixtureInput(128, 1024),   // not supported for now
+                            BcStTestParamFixtureInput(128, 16, 16),
+                            BcStTestParamFixtureInput(64, 16, 1024),
+                            BcStTestParamFixtureInput(128, 16, 16),
+                            BcStTestParamFixtureInput(64, 16, 32),
+                            BcStTestParamFixtureInput(128, 128, 1024),
+                            BcStTestParamFixtureInput(256, 128, 16),
+                            BcStTestParamFixtureInput(256, 100, 1024),
+                            BcStTestParamFixtureInput(1024, 128, 16),
+                            BcStTestParamFixtureInput(2048, 512, 1024)), );
 
 class BcStTestParamFixture2 : public BcStTest, public testing::WithParamInterface<tuple<bool, uint8_t>> {};
 

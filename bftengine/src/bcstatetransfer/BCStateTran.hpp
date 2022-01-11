@@ -336,7 +336,10 @@ class BCStateTran : public IStateTransfer {
   inline bool isMinBlockIdInFetchRange(uint64_t blockId) const;
   inline bool isMaxBlockIdInFetchRange(uint64_t blockId) const;
   inline bool isLastFetchedBlockIdInCycle(uint64_t blockId) const;
+  inline bool isMaxFetchedBlockIdInCycle(uint64_t blockId) const;
   inline bool isRvbBlockId(uint64_t blockId) const;
+  inline uint64_t computePrevRvbBlockId(uint64_t block_id) const;
+  inline uint64_t computeNextRvbBlockId(uint64_t block_id) const;
 
   struct compareItemDataMsg {
     bool operator()(const ItemDataMsg* l, const ItemDataMsg* r) const {
@@ -352,7 +355,7 @@ class BCStateTran : public IStateTransfer {
 
   void cycleReset();
   void clearAllPendingItemsData();
-  void clearPendingItemsData(uint64_t untilBlock);
+  void clearPendingItemsData(uint64_t fromBlock, uint64_t untilBlock);
   bool getNextFullBlock(uint64_t requiredBlock,
                         bool& outBadDataDetected,
                         int16_t& outLastChunkInRequiredBlock,
