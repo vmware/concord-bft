@@ -1198,7 +1198,7 @@ void BcStTest::configureLog(const string& logLevelStr) {
   // logging::Logger::getInstance("serializable").setLogLevel(logLevel);
   // logging::Logger::getInstance("concord.bft.st.dbdatastore").setLogLevel(logLevel);
   // logging::Logger::getInstance("rocksdb").setLogLevel(logLevel);
-  // logging::Logger::getInstance("concord.bft").setLogLevel(logLevel);
+  logging::Logger::getInstance("concord.bft").setLogLevel(logLevel);
   logging::Logger::getInstance("concord.bft.st.dst").setLogLevel(logLevel);
   logging::Logger::getInstance("concord.bft.st.src").setLogLevel(logLevel);
   logging::Logger::getInstance("concord.util.handoff").setLogLevel(logLevel);

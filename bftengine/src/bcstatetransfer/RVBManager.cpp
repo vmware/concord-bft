@@ -285,7 +285,7 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
       LOG_ERROR(logger_, "Bad Digests of RVB group:" << KVLOG(block_id, rvb_group_ids[0], next_required_rvb_group_id));
       return false;
     }
-    memcpy(&digest, &cur->digest, sizeof(digest));
+    digest = cur->digest;
     digests.insert(make_pair(block_id, digest));
     next_expected_rvb_id = block_id + config_.fetchRangeSize;
   }  // for
