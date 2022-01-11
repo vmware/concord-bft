@@ -102,7 +102,8 @@ std::vector<MetricFamily> ConcordBftPrometheusCollector::collectGauges() const {
         metricsMap[g.name + tag_values_concat] =
             MetricFamily{getMetricName(g.name), g.name + " - a concordbft metric", MetricType::Gauge, {}};
       }
-      metricsMap[g.name].metric.emplace_back(collect(g.component, std::get<concordMetrics::Gauge>(g.value), g.tag_map));
+      metricsMap[g.name + tag_values_concat].metric.emplace_back(
+          collect(g.component, std::get<concordMetrics::Gauge>(g.value), g.tag_map));
     } else {
       if (metricsMap.find(g.name) == metricsMap.end()) {
         metricsMap[g.name] =
