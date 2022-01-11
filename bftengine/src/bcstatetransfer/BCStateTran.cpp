@@ -3238,7 +3238,7 @@ void BCStateTran::peekConsensusMessage(shared_ptr<ConsensusMsg> &msg) {
 void BCStateTran::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBlockId) {
   if (isFetching()) {
     // This is another thread context
-    // TODO - try to make it better, check if it can happen 9ime of check /time of use)
+    // TODO - try to make it better, check if it can happen time of check /time of use)
     LOG_WARN(logger_, "Report about pruned blocks while fetching!");
     return;
   }

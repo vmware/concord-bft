@@ -366,10 +366,11 @@ BlockId Replica::deleteBlocksUntil(BlockId until) {
     throw std::invalid_argument{"Invalid 'until' value passed to deleteBlocksUntil()"};
   }
 
-  // Inform State Transfer. We better do it in this thread context for persistency, and in this layer to lower the
-  // chance for critical bugs (multiple callers to this function) Current registration mechanism is insefficient
+  // Inform State Transfer. We must do it in this thread context for persistency, and in this layer to lower the
+  // chance for critical bugs (multiple callers to this function). Current registration mechanisms are insefficient.
   if (m_stateTransfer && m_stateTransfer->isRunning()) {
-    m_stateTransfer->reportLastAgreedPrunableBlockId(until);
+    // We assume until > 0, see check above
+    m_stateTransfer->reportLastAgreedPrunableBlockId(until - 1);
   }
 
   const auto lastReachableBlock = m_kvBlockchain->getLastReachableBlockId();
