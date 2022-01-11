@@ -38,23 +38,9 @@ struct HumanReadable {
   }
 };
 Status DbCheckpointManager::createDbCheckpoint(const CheckpointId& checkPointId,
-                                               const uint64_t& lastBlockId,
+                                               const BlockId& lastBlockId,
                                                const SeqNum& seqNum,
                                                const std::optional<Timestamp>& timestamp) {
-  if (seqNum <= lastCheckpointSeqNum_) return Status::OK();
-  dbCheckptMetadata_.lastCmdSeqNum_ = seqNum;
-  if (timestamp.has_value()) {
-    dbCheckptMetadata_.lastCmdTimestamp_ = std::chrono::duration_cast<Seconds>(timestamp.value().time_since_epoch);
-  } else {
-    dbCheckptMetadata_.lastCmdTimestamp_ = std::chrono::duration_cast<Seconds>(SystemClock::now().time_since_epoch());
-  }
-  lastCheckpointCreationTime_ = dbCheckptMetadata_.lastCmdTimestamp_;
-  if (maxNumOfCheckpoints_ == 0) {
-    // update lastCmdSeqNum and timestamp
-    std::scoped_lock lock(lock_);
-    updateDbCheckpointMetadata();
-    return Status::OK();
-  }
   ConcordAssert(dbClient_.get() != nullptr);
   ConcordAssert(ps_.get() != nullptr);
   {
@@ -78,30 +64,19 @@ Status DbCheckpointManager::createDbCheckpoint(const CheckpointId& checkPointId,
       metrics_.UpdateAggregator();
       LOG_INFO(getLogger(), "rocksdb checkpoint created: " << KVLOG(checkPointId, duration_ms.count(), seqNum));
       lastCheckpointSeqNum_ = seqNum;
-      dbCheckptMetadata_.dbCheckPoints_.insert(
-          {checkPointId, {checkPointId, lastCheckpointCreationTime_, lastBlockId, lastCheckpointSeqNum_}});
+      {
+        std::scoped_lock lock(lockLastDbCheckpointDesc_);
+        lastCreatedCheckpointMetadata_.emplace(DbCheckpointMetadata::DbCheckPointDescriptor{
+            checkPointId, lastCheckpointCreationTime_, lastBlockId, lastCheckpointSeqNum_});
+        dbCheckptMetadata_.dbCheckPoints_.insert({checkPointId, lastCreatedCheckpointMetadata_.value()});
+      }
       updateDbCheckpointMetadata();
     }
     while (dbCheckptMetadata_.dbCheckPoints_.size() > maxNumOfCheckpoints_) {
       removeOldestDbCheckpoint();
     }
   }
-
-  // update metrics
-  auto ret = std::async(std::launch::async, [this]() {
-    const auto& checkpointDir = dbClient_->getCheckpointPath();
-    if (const auto it = dbCheckptMetadata_.dbCheckPoints_.crbegin(); it != dbCheckptMetadata_.dbCheckPoints_.crend()) {
-      _fs::path path(checkpointDir);
-      _fs::path chkptIdPath = path / std::to_string(it->first);
-      auto lastDbCheckpointSize = directorySize(chkptIdPath, false, true);
-      lastDbCheckpointSizeInMb_.Get().Set(lastDbCheckpointSize / (1024 * 1024));
-      metrics_.UpdateAggregator();
-      LOG_INFO(getLogger(),
-               "rocksdb check point id:" << it->first << ", size: " << HumanReadable{lastDbCheckpointSize});
-      LOG_INFO(GL, "-- RocksDb checkpoint metrics dump--" + metrics_.ToJson());
-    }
-  });
-
+  updateMetrics();
   return Status::OK();
 }
 void DbCheckpointManager::loadCheckpointDataFromPersistence() {
@@ -120,6 +95,7 @@ void DbCheckpointManager::loadCheckpointDataFromPersistence() {
           KVLOG(db_chkpt_id, db_chk_pt_val.creationTimeSinceEpoch_.count(), db_chk_pt_val.lastDbCheckpointSeqNum_));
     }
     if (auto it = dbCheckptMetadata_.dbCheckPoints_.rbegin(); it != dbCheckptMetadata_.dbCheckPoints_.rend()) {
+      lastCreatedCheckpointMetadata_ = it->second;
       lastCheckpointSeqNum_ = it->second.lastDbCheckpointSeqNum_;
       lastDbCheckpointBlockId_.Get().Set(it->second.lastBlockId_);
       metrics_.UpdateAggregator();
@@ -148,7 +124,7 @@ void DbCheckpointManager::init() {
     }
   });
 }
-void DbCheckpointManager::removeCheckpoint(const uint64_t& checkPointId) {
+void DbCheckpointManager::removeCheckpoint(const CheckpointId& checkPointId) {
   return dbClient_->removeCheckpoint(checkPointId);
 }
 void DbCheckpointManager::removeAllCheckpoints() const { return dbClient_->removeAllCheckpoints(); }
@@ -186,7 +162,7 @@ uint64_t DbCheckpointManager::directorySize(const _fs::path& directory, const bo
 void DbCheckpointManager::initializeDbCheckpointManager(std::shared_ptr<concord::storage::IDBClient> dbClient,
                                                         std::shared_ptr<bftEngine::impl::PersistentStorage> p,
                                                         std::shared_ptr<concordMetrics::Aggregator> aggregator,
-                                                        const std::function<uint64_t()>& getLastBlockIdCb) {
+                                                        const std::function<BlockId()>& getLastBlockIdCb) {
   dbClient_ = dbClient;
   ps_ = p;
   dbCheckPointDirPath_ = ReplicaConfig::instance().getdbCheckpointDirPath();
@@ -199,16 +175,48 @@ void DbCheckpointManager::initializeDbCheckpointManager(std::shared_ptr<concord:
     init();
   } else {
     // db checkpoint is disabled. Cleanup metadata and checkpoints created if any
-    auto ret = std::async(std::launch::async, [this]() { cleanUp(); });
+    cleanUpFuture_ = std::async(std::launch::async, [this]() { cleanUp(); });
   }
 }
-
-void DbCheckpointManager::createDbCheckpointAsync(const SeqNum& seqNum, const std::optional<Timestamp>& timestamp) {
-  auto ret = std::async(std::launch::async, [this, seqNum, timestamp]() -> void {
-    const auto& lastBlockid = getLastBlockIdCb_();
+std::optional<DbCheckpointMetadata::DbCheckPointDescriptor> DbCheckpointManager::getLastCreatedDbCheckpointMetadata() {
+  std::scoped_lock lock(lockLastDbCheckpointDesc_);
+  return lastCreatedCheckpointMetadata_;
+}
+std::optional<CheckpointId> DbCheckpointManager::createDbCheckpointAsync(const SeqNum& seqNum,
+                                                                         const std::optional<Timestamp>& timestamp) {
+  if (seqNum <= lastCheckpointSeqNum_) {
+    LOG_ERROR(getLogger(), "createDb checkpoint failed." << KVLOG(seqNum, lastCheckpointSeqNum_));
+    return std::nullopt;
+  }
+  // We can have some replicas configured to not create db checkpoint. This is because,
+  // backup functionality can be supported with a minimum of (f+1) replicas also
+  // However, we need to store the last request seqNum and timestamp because, all replicas do consensus
+  // to start the command execution at some seqNum but only replicas with non-zero numOfDbCheckpoints config
+  // actually creates db checkpoint. Hence, primary needs to know what was the last cmd seqNum and timestamp
+  updateLastCmdInfo(seqNum, timestamp);
+  if (ReplicaConfig::instance().getmaxNumberOfDbCheckpoints() == 0) {
+    LOG_WARN(getLogger(),
+             "createDb checkpoint failed. Max allowed db checkpoint is configured to "
+                 << ReplicaConfig::instance().getmaxNumberOfDbCheckpoints());
+    return std::nullopt;
+  }
+  // Get last blockId from rocksDb
+  const auto lastBlockid = getLastBlockIdCb_();
+  std::scoped_lock lock(lockDbCheckPtFuture_);
+  if (dbCreateCheckPtFuture_.find(lastBlockid) != dbCreateCheckPtFuture_.end()) {
+    // rocksDb checkpoint with this lastBlock Id is already created or in progress
+    // request to create rocksDb checkpoint is rejected in this case
+    return std::nullopt;
+  }
+  // start async create db checkpoint operation
+  auto ret = std::async(std::launch::async, [this, seqNum, timestamp, lastBlockid]() -> void {
     createDbCheckpoint(lastBlockid, lastBlockid, seqNum, timestamp);
   });
+  // store the future for the async task
+  dbCreateCheckPtFuture_.emplace(std::make_pair(lastBlockid, std::move(ret)));
+  return lastBlockid;
 }
+
 void DbCheckpointManager::checkAndRemove() {
   // get current db size
   _fs::path dbPath(dbClient_->getPath());
@@ -236,7 +244,16 @@ void DbCheckpointManager::removeOldestDbCheckpoint() {
     dbCheckptMetadata_.dbCheckPoints_.erase(it);
     LOG_INFO(getLogger(), "removed db checkpoint, id: " << it->second.checkPointId_);
     updateDbCheckpointMetadata();
+    removeDbCheckpointFuture(it->second.checkPointId_);
+    if (dbCheckptMetadata_.dbCheckPoints_.size() == 0) {
+      std::scoped_lock lock(lockLastDbCheckpointDesc_);
+      lastCreatedCheckpointMetadata_ = std::nullopt;
+    }
   }
+}
+void DbCheckpointManager::removeDbCheckpointFuture(CheckpointId id) {
+  std::scoped_lock lock(lockDbCheckPtFuture_);
+  dbCreateCheckPtFuture_.erase(id);
 }
 void DbCheckpointManager::updateDbCheckpointMetadata() {
   std::ostringstream outStream;
@@ -273,5 +290,31 @@ void DbCheckpointManager::setNextStableSeqNumToCreateSnapshot(const std::optiona
   seq_num_to_create_snapshot = seq_num_to_create_snapshot - (seq_num_to_create_snapshot % checkpointWindowSize);
   nextSeqNumToCreateCheckPt_ = seq_num_to_create_snapshot;
   LOG_INFO(getLogger(), "setNextStableSeqNumToCreateSnapshot " << KVLOG(nextSeqNumToCreateCheckPt_.value()));
+}
+void DbCheckpointManager::updateMetrics() {
+  const auto& checkpointDir = dbClient_->getCheckpointPath();
+  if (const auto it = dbCheckptMetadata_.dbCheckPoints_.crbegin(); it != dbCheckptMetadata_.dbCheckPoints_.crend()) {
+    _fs::path path(checkpointDir);
+    _fs::path chkptIdPath = path / std::to_string(it->first);
+    auto lastDbCheckpointSize = directorySize(chkptIdPath, false, true);
+    lastDbCheckpointSizeInMb_.Get().Set(lastDbCheckpointSize / (1024 * 1024));
+    metrics_.UpdateAggregator();
+    LOG_INFO(getLogger(), "rocksdb check point id:" << it->first << ", size: " << HumanReadable{lastDbCheckpointSize});
+    LOG_INFO(GL, "-- RocksDb checkpoint metrics dump--" + metrics_.ToJson());
+  }
+}
+void DbCheckpointManager::updateLastCmdInfo(const SeqNum& seqNum, const std::optional<Timestamp>& timestamp) {
+  dbCheckptMetadata_.lastCmdSeqNum_ = seqNum;
+  if (timestamp.has_value()) {
+    dbCheckptMetadata_.lastCmdTimestamp_ = std::chrono::duration_cast<Seconds>(timestamp.value().time_since_epoch);
+  } else {
+    dbCheckptMetadata_.lastCmdTimestamp_ = std::chrono::duration_cast<Seconds>(SystemClock::now().time_since_epoch());
+  }
+  lastCheckpointCreationTime_ = dbCheckptMetadata_.lastCmdTimestamp_;
+  if (maxNumOfCheckpoints_ == 0) {
+    // update lastCmdSeqNum and timestamp
+    std::scoped_lock lock(lock_);
+    updateDbCheckpointMetadata();
+  }
 }
 }  // namespace bftEngine::impl
