@@ -383,9 +383,12 @@ void RangeValidationTree::addNode(const RVBId rvb_id, const STDigest& digest) {
   }
   auto rvb_index = rvb_id / fetch_range_size_;
   auto node = make_shared<RVBNode>(rvb_index, digest);
-  // TODO You crashed when recovered from storage and while adding first node?
-  // Maybe last_added_node_id_ should have been serialized
-  ConcordAssert(last_added_node_id_ < node->id == true);
+  // ConcordAssertOR(
+  //     (last_added_node_id_.rvb_index == rvb_index),
+  //     (last_added_node_id_.rvb_index + 1 == rvb_index));
+  if (last_added_node_id_.rvb_index > 0) {
+    ConcordAssertEQ(last_added_node_id_.rvb_index + 1, rvb_index);
+  }
   addRVBNode(node);
   last_added_node_id_ = node->id;
   // LOG_TRACE(logger_, KVLOG(rvb_id, last_added_node_id_.getVal()));
@@ -398,14 +401,13 @@ void RangeValidationTree::removeNode(const RVBId rvb_id, const STDigest& digest)
   }
   auto rvb_index = rvb_id / fetch_range_size_;
   auto node = make_shared<RVBNode>(rvb_index, digest);
-  // TODO You crashed when recovered from storage and while removing first node?
-  // Maybe last_pruned_node_id_ should have been serialized
-  ConcordAssertOR(
-      (last_pruned_node_id_.getVal() == node->id.getVal()),
-      (NodeId(RVBNode::kDefaultRVBLeafLevel, last_pruned_node_id_.rvb_index + 1).getVal() == node->id.getVal()));
+  // ConcordAssertOR(
+  //     (last_removed_node_id_.rvb_index == rvb_index),
+  //     (last_removed_node_id_.rvb_index + 1 == rvb_index));
+  ConcordAssertEQ(last_removed_node_id_.rvb_index + 1, rvb_index);
   removeRVBNode(node);
-  last_pruned_node_id_ = node->id;
-  // LOG_TRACE(logger_, KVLOG(rvb_id, last_pruned_node_id_.getVal()));
+  last_removed_node_id_ = node->id;
+  // LOG_TRACE(logger_, KVLOG(rvb_id, last_removed_node_id_.getVal()));
 }
 
 std::ostringstream RangeValidationTree::getSerializedRvbData() const {
@@ -459,12 +461,13 @@ bool RangeValidationTree::setSerializedRvbData(std::istringstream& is) {
   openRVTNodeForInsertion_.clear();
   openRVTNodeForRemoval_.clear();
   RVTMetadata data;
+
   Serializable::deserialize(is, data.magic_num);
   ConcordAssertEQ(data.magic_num, magic_num_);
   Serializable::deserialize(is, data.version_num);
   ConcordAssertEQ(data.version_num, version_num_);
   Serializable::deserialize(is, data.RVT_K);
-  // TODO remove unnecessory asserts
+  // TODO remove unnecessary asserts
   ConcordAssertEQ(data.RVT_K, RVT_K);
   Serializable::deserialize(is, data.fetch_range_size);
   ConcordAssertEQ(data.fetch_range_size, fetch_range_size_);
@@ -472,15 +475,33 @@ bool RangeValidationTree::setSerializedRvbData(std::istringstream& is) {
   ConcordAssert(data.hash_size == hash_size_);
   Serializable::deserialize(is, data.root_node_id);
 
+  // populate id_to_node_map_
   Serializable::deserialize(is, data.total_nodes);
   id_to_node_map_.reserve(data.total_nodes);
+  uint64_t min_rvb_index{std::numeric_limits<uint64_t>::max()}, max_rvb_index{0};
   for (uint64_t i = 0; i < data.total_nodes; i++) {
     auto node = RVTNode::deserialize(is);
-    auto id = node->id.getVal();
+    uint64_t id = node->id.getVal();
     id_to_node_map_.emplace(id, node);
+
+    if (node->id.level == 1) {
+      // level 0 child IDs can be treated as rvb_indexes
+      if (node->min_child_id < min_rvb_index) {
+        min_rvb_index = node->min_child_id;
+      }
+      if ((node->min_child_id + node->n_child) > max_rvb_index) {
+        max_rvb_index = (node->min_child_id + node->n_child);
+      }
+    }
   }
+  if (data.total_nodes > 0) {
+    last_added_node_id_ = NodeId(0, max_rvb_index);
+    last_removed_node_id_ = NodeId(0, min_rvb_index - 1);
+  }
+
   root_ = id_to_node_map_[data.root_node_id];
 
+  // populate openRVTNodeForInsertion_
   uint64_t node_id;
   uint64_t null_node_id = 0;
   auto max_levels = root_->id.level;
@@ -492,14 +513,17 @@ bool RangeValidationTree::setSerializedRvbData(std::istringstream& is) {
       openRVTNodeForInsertion_.push_back(id_to_node_map_[node_id]);
     }
   }
+
+  // populate openRVTNodeForRemoval_
   for (size_t i = 0; i <= max_levels; i++) {
     Serializable::deserialize(is, node_id);
     if (node_id == null_node_id) {
-      openRVTNodeForInsertion_.push_back(nullptr);
+      openRVTNodeForRemoval_.push_back(nullptr);
     } else {
-      openRVTNodeForInsertion_.push_back(id_to_node_map_[node_id]);
+      openRVTNodeForRemoval_.push_back(id_to_node_map_[node_id]);
     }
   }
+
   LOG_TRACE(logger_, "Created tree with " << id_to_node_map_.size() << " nodes having root as " << root_->id.getVal());
   is.peek();
   return is.eof();
@@ -593,12 +617,12 @@ std::string RangeValidationTree::getDirectParentHashVal(RVBId rvb_id) const {
 
 // TODO Should last pruned node id be serialized?
 RVBId RangeValidationTree::getMinRvbId() const {
-  if (last_pruned_node_id_.getVal() == 0) {
+  if (last_removed_node_id_.getVal() == 0) {
     ConcordAssertEQ(id_to_node_map_.size(), 0);
     ConcordAssertEQ(root_, nullptr);
     return 0;
   }
-  return last_pruned_node_id_.rvb_index * fetch_range_size_;
+  return last_removed_node_id_.rvb_index * fetch_range_size_;
 }
 
 // TODO Should last added node id be serialized?

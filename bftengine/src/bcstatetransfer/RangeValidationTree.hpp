@@ -180,8 +180,8 @@ class RangeValidationTree {
 
     static constexpr uint8_t kDefaultRVTLeafLevel = 1;
     uint16_t n_child{0};
-    uint64_t min_child_id{0};
-    uint64_t max_child_id{0};
+    uint64_t min_child_id{0};  // minimal actual child id
+    uint64_t max_child_id{0};  // maximal possible child id . The max actual is min_child_id + n_child
     uint64_t parent_id{0};
   };
 
@@ -239,8 +239,8 @@ class RangeValidationTree {
   std::vector<std::shared_ptr<RVTNode>> openRVTNodeForRemoval_;
   std::unordered_map<uint64_t, std::shared_ptr<RVTNode>> id_to_node_map_;
   std::shared_ptr<RVTNode> root_{nullptr};
-  NodeId last_added_node_id_{0};
-  NodeId last_pruned_node_id_{0};
+  NodeId last_added_node_id_{0};    // part of the RVT
+  NodeId last_removed_node_id_{0};  // not part of the RVT anymore
   const logging::Logger& logger_;
   const uint32_t RVT_K;
   const uint32_t fetch_range_size_;

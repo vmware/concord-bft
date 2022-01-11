@@ -203,7 +203,10 @@ TEST_P(RVTTestserializeDeserializeFixture, serializeDeserialize) {
   uint32_t RVT_K = inputs.first;
   uint32_t fetch_range_size = inputs.second;
   RangeValidationTree rvt(logging::getLogger("concord.bft.st.rvt"), RVT_K, fetch_range_size);
-  for (auto i = fetch_range_size; i <= fetch_range_size * RVT_K; i = i + fetch_range_size) {
+  size_t random_num_of_nodes_added = randomNum(1, 1000 * RVT_K);
+
+  std::cout << KVLOG(random_num_of_nodes_added, RVT_K, fetch_range_size) << std::endl;
+  for (auto i = fetch_range_size; i <= fetch_range_size * random_num_of_nodes_added; i = i + fetch_range_size) {
     STDigest digest(std::to_string(i).c_str());
     rvt.addNode(i, digest);
   }
