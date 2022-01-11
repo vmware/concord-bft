@@ -14,6 +14,7 @@
 #include <iostream>
 #include <queue>
 #include <algorithm>
+#include <stack>
 
 #include "RangeValidationTree.hpp"
 
@@ -187,7 +188,7 @@ void RangeValidationTree::addRVBNode(shared_ptr<RVBNode>& rvb_node) {
     openRVTNodeForInsertion_[RVTNode::kDefaultRVTLeafLevel] = node;
     id_to_node_map_.emplace(node->id.getVal(), node);
     if (!root_) {
-      root_ = node;
+      setNewRoot(node);
       return;
     }
     addInternalNode(node, rvb_node->id.rvb_index);
@@ -204,15 +205,14 @@ void RangeValidationTree::addRVBNode(shared_ptr<RVBNode>& rvb_node) {
 void RangeValidationTree::removeRVBNode(shared_ptr<RVBNode>& rvb_node) {
   auto node = openRVTNodeForRemoval_[RVTNode::kDefaultRVTLeafLevel];
   if (!node) {
-    ConcordAssert(rvb_node->isFirstChild(RVT_K) == true);
     node = make_shared<RVTNode>(RVT_K, rvb_node);
     auto id = NodeId(RVTNode::kDefaultRVTLeafLevel, rvb_node->id.rvb_index).getVal();
     auto itr = id_to_node_map_.find(id);
     ConcordAssert(itr != id_to_node_map_.end());
     node = itr->second;
   }
-  if ((--(node->n_child) == 0) or (rvb_node->isLastChild(RVT_K))) {
-    ConcordAssertGE(node->n_child, 0);
+  --node->n_child;
+  if (rvb_node->isLastChild(RVT_K)) {
     openRVTNodeForRemoval_[RVTNode::kDefaultRVTLeafLevel] = nullptr;
     auto id = node->id.getVal();
     auto itr = id_to_node_map_.find(id);
@@ -268,7 +268,7 @@ void RangeValidationTree::removeHashValFromInternalNodes(shared_ptr<RVTNode>& no
     node = parent_node;
   }
   if (node == root_ and id_to_node_map_.size() == 0) {
-    root_ = nullptr;
+    setNewRoot(nullptr);
   }
 }
 
@@ -324,7 +324,7 @@ void RangeValidationTree::addInternalNode(shared_ptr<RVTNode>& node, uint64_t rv
   new_root->addRVTNodeHash(node);
   new_root->n_child++;  // special case
   ConcordAssert(new_root->n_child <= RVT_K);
-  root_ = new_root;
+  setNewRoot(new_root);
 }
 
 void RangeValidationTree::printToLog(bool only_node_id) const noexcept {
@@ -367,8 +367,9 @@ void RangeValidationTree::printToLog(bool only_node_id) const noexcept {
       auto& child_node = iter->second;
       q.push(child_node);
       auto level = child_node->id.level;
+      auto rvb_index = child_node->id.rvb_index;
       // Formula to find id of next sibling
-      id = NodeId(level, (child_node->id.rvb_index + pow(RVT_K, level))).getVal();
+      id = NodeId(level, (rvb_index + pow(RVT_K, level))).getVal();
     }
   }
   LOG_INFO(logger_, oss.str());
@@ -396,6 +397,10 @@ void RangeValidationTree::addNode(const RVBId rvb_id, const STDigest& digest) {
 
 void RangeValidationTree::removeNode(const RVBId rvb_id, const STDigest& digest) {
   // LOG_TRACE(logger_, KVLOG(rvb_id, digest.toString()));
+  if (not root_) {
+    LOG_WARN(logger_, "Remove node called on empty RVT" << KVLOG(rvb_id, digest));
+    return;
+  }
   if (not valid(rvb_id, digest)) {
     throw std::invalid_argument("invalid input data");
   }
@@ -460,6 +465,9 @@ bool RangeValidationTree::setSerializedRvbData(std::istringstream& is) {
   id_to_node_map_.clear();
   openRVTNodeForInsertion_.clear();
   openRVTNodeForRemoval_.clear();
+  root_ = nullptr;
+  last_added_node_id_ = 0;
+  last_removed_node_id_ = 0;
   RVTMetadata data;
 
   Serializable::deserialize(is, data.magic_num);
@@ -499,7 +507,7 @@ bool RangeValidationTree::setSerializedRvbData(std::istringstream& is) {
     last_removed_node_id_ = NodeId(0, min_rvb_index - 1);
   }
 
-  root_ = id_to_node_map_[data.root_node_id];
+  setNewRoot(id_to_node_map_[data.root_node_id]);
 
   // populate openRVTNodeForInsertion_
   uint64_t node_id;
@@ -615,17 +623,10 @@ std::string RangeValidationTree::getDirectParentHashVal(RVBId rvb_id) const {
   return hash_val;
 }
 
-// TODO Should last pruned node id be serialized?
 RVBId RangeValidationTree::getMinRvbId() const {
-  if (last_removed_node_id_.getVal() == 0) {
-    ConcordAssertEQ(id_to_node_map_.size(), 0);
-    ConcordAssertEQ(root_, nullptr);
-    return 0;
-  }
-  return last_removed_node_id_.rvb_index * fetch_range_size_;
+  return last_removed_node_id_.getVal() ? last_removed_node_id_.rvb_index * fetch_range_size_ : 0;
 }
 
-// TODO Should last added node id be serialized?
 RVBId RangeValidationTree::getMaxRvbId() const {
   if (last_added_node_id_.getVal() == 0) {
     ConcordAssertEQ(id_to_node_map_.size(), 0);
@@ -633,6 +634,65 @@ RVBId RangeValidationTree::getMaxRvbId() const {
     return 0;
   }
   return last_added_node_id_.rvb_index * fetch_range_size_;
+}
+
+bool RangeValidationTree::validateTree() noexcept {
+  if (not root_) {
+    return true;
+  }
+  std::stack<shared_ptr<RVTNode>> pstack;
+  std::stack<shared_ptr<RVTNode>> cstack;
+  cstack.push(root_);
+  while (not cstack.empty()) {
+    auto parent_node = cstack.top();
+    cstack.pop();
+    pstack.push(parent_node);
+
+    if (parent_node->id.level == RVTNode::kDefaultRVTLeafLevel || parent_node->n_child == 0) {
+      continue;
+    }
+
+    auto n_child = parent_node->n_child;
+    auto node_id = parent_node->min_child_id;
+
+    for (int cnt = 0; cnt < n_child; cnt++) {
+      auto itr = id_to_node_map_.find(node_id);
+      ConcordAssert(itr != id_to_node_map_.end());
+      auto node = itr->second;
+      cstack.push(node);
+      auto level = node->id.level;
+      auto rvb_index = node->id.rvb_index;
+      node_id = NodeId(level, (rvb_index + pow(RVT_K, level))).getVal();
+    }
+  }
+  // TODO validate hash values by poppin pstack
+
+  return true;
+}
+
+void RangeValidationTree::setNewRoot(shared_ptr<RVTNode> new_root) {
+  if (!new_root) {
+    // setting root to null
+    // ConcordAssert(root_->id.level == 1);
+    ConcordAssert(root_ != nullptr);
+    root_ = nullptr;
+    // do we need to initialize vector to nullptr explicitly?
+    for (uint8_t level = 0; level < NodeId::kRVTMaxLevels; level++) {
+      openRVTNodeForInsertion_[level] = nullptr;
+      openRVTNodeForRemoval_[level] = nullptr;
+    }
+    return;
+  } else if (root_) {
+    // replacing the root
+    int new_root_level = static_cast<int>(new_root->id.level);
+    int old_root_level = static_cast<int>(root_->id.level);
+    ConcordAssert(std::abs(new_root_level - old_root_level) == 1);
+    if (old_root_level == 1) {
+      ConcordAssert(new_root->id.level == 2);
+    }
+  }
+  root_ = new_root;
+  root_->parent_id = 0;
 }
 
 //////////////////////////////////// End of API ////////////////////////////////////////////////

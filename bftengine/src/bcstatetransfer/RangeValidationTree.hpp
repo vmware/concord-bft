@@ -231,6 +231,7 @@ class RangeValidationTree {
   void removeInternalNode(std::shared_ptr<RVTNode>& node);
   void addHashValToInternalNodes(std::shared_ptr<RVTNode>& node, std::shared_ptr<RVBNode>& rvb_node);
   void removeHashValFromInternalNodes(std::shared_ptr<RVTNode>& node, std::shared_ptr<RVBNode>& rvb_node);
+  void setNewRoot(shared_ptr<RVTNode> new_root);
 
  protected:
   // vector index represents level in tree
