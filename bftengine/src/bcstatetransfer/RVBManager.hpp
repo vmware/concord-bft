@@ -68,6 +68,7 @@ class RVBManager {
   // digests
   void reportLastAgreedPrunableBlockId(BlockId lastAgreedPrunableBlockId);
 
+  std::string getDigestOfRvbData() const { return in_mem_rvt_->getRootHashVal(); }
  protected:
   logging::Logger logger_;
   const Config& config_;
