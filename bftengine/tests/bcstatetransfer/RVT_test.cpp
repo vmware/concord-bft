@@ -255,12 +255,39 @@ INSTANTIATE_TEST_CASE_P(validateRandomFRSAndRVT_K,
                                           std::make_pair(randomNum(3, 10), randomNum(4, 20)),
                                           std::make_pair(randomNum(3, 10), randomNum(4, 20))), );
 
+  RangeValidationTree rvt(logging::getLogger("concord.bft.st.rvt"), RVT_K, fetch_range_size);
+  uint32_t n_nodes = fetch_range_size * randomNum(1024, 1024 * 1024);
 
-class RVTTestvalidateTreeFixture : public RVTTest, public testing::WithParamInterface<std::pair<uint32_t, uint32_t>> {};
-TEST_P(RVTTestvalidateTreeFixture, validateTree) {
-  auto inputs = GetParam();
-  uint32_t RVT_K = inputs.first;
-  uint32_t fetch_range_size = inputs.second;
+  auto addNode = [&](uint64_t rvb_id) {
+    STDigest digest(std::to_string(rvb_id).c_str());
+    rvt.addNode(rvb_id, digest);
+  };
+
+  auto removeNode = [&](uint64_t rvb_id) {
+    STDigest digest(std::to_string(rvb_id).c_str());
+    rvt.removeNode(rvb_id, digest);
+  };
+
+  // add, remove nodes randomly.
+  for (uint32_t i = fetch_range_size; i <= n_nodes; i = i + fetch_range_size) {
+    addNode(rvt.getMaxRvbId() + fetch_range_size);
+    removeNode(rvt.getMinRvbId() + fetch_range_size);
+    addNode(rvt.getMinRvbId() + fetch_range_size);
+    /*
+    auto num = randomNum(1, 200);
+    ((num % 2) || rvt.empty()) ? addNode(rvt.getMaxRvbId() + fetch_range_size)
+                               : removeNode(rvt.getMinRvbId() + fetch_range_size);
+                               */
+    ASSERT_EQ(rvt.validateTree(), true);
+  }
+}
+INSTANTIATE_TEST_CASE_P(validateTree,
+                        RVTTestvalidateTreeFixture,
+                        ::testing::Values(std::make_pair(randomNum(3, 10), randomNum(4, 20)),
+                                          std::make_pair(randomNum(3, 10), randomNum(4, 20)),
+                                          std::make_pair(randomNum(3, 10), randomNum(4, 20))), );
+
+
 
   RangeValidationTree rvt(logging::getLogger("concord.bft.st.rvt"), RVT_K, fetch_range_size);
   uint32_t n_nodes = fetch_range_size * randomNum(1024, 1024 * 1024);

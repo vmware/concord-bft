@@ -206,7 +206,8 @@ void RangeValidationTree::removeRVBNode(shared_ptr<RVBNode>& rvb_node) {
   auto node = openRVTNodeForRemoval_[RVTNode::kDefaultRVTLeafLevel];
   if (!node) {
     node = make_shared<RVTNode>(RVT_K, rvb_node);
-    auto id = NodeId(RVTNode::kDefaultRVTLeafLevel, rvb_node->id.rvb_index).getVal();
+    auto rvb_index_beg = rvb_node->id.rvb_index - (rvb_node->id.rvb_index % RVT_K) + 1;
+    auto id = NodeId(RVTNode::kDefaultRVTLeafLevel, rvb_index_beg).getVal();
     auto itr = id_to_node_map_.find(id);
     ConcordAssert(itr != id_to_node_map_.end());
     node = itr->second;
