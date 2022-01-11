@@ -132,8 +132,8 @@ class RangeValidationTree {
         : id(NodeId(level, rvb_index)), hash_val(computeNodeHash(id, digest)) {}
     RVBNode(uint64_t node_id, char* hash_ptr, size_t hash_size) : id(node_id), hash_val(HashVal(hash_ptr, hash_size)) {}
 
-    bool isFirstChild(uint64_t RVT_K) { return id.rvb_index % RVT_K == 1; }
-    bool isLastChild(uint64_t RVT_K) { return id.rvb_index % RVT_K == 0; }
+    bool isMinChild(uint64_t RVT_K) { return id.rvb_index % RVT_K == 1; }
+    bool isMaxChild(uint64_t RVT_K) { return id.rvb_index % RVT_K == 0; }
     shared_ptr<char[]> computeNodeHash(NodeId& node_id, const STDigest& digest);
 
     static constexpr uint8_t kDefaultRVBLeafLevel{0};
@@ -239,8 +239,8 @@ class RangeValidationTree {
   std::vector<std::shared_ptr<RVTNode>> openRVTNodeForRemoval_;
   std::unordered_map<uint64_t, std::shared_ptr<RVTNode>> id_to_node_map_;
   std::shared_ptr<RVTNode> root_{nullptr};
-  NodeId last_added_node_id_{0};    // part of the RVT
-  NodeId last_removed_node_id_{0};  // not part of the RVT anymore
+  uint64_t max_rvb_index_{0};  // RVB index is (RVB ID / fetch range size). This is the minimal index in the tree.
+  uint64_t min_rvb_index_{0};  // RVB index is (RVB ID / fetch range size). This is the maximal index in the tree.
   const logging::Logger& logger_;
   const uint32_t RVT_K;
   const uint32_t fetch_range_size_;
