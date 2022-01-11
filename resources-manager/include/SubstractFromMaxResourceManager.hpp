@@ -27,10 +27,14 @@ class SubstractFromMaxResourceManager : public IResourceManager {
                                   std::vector<std::shared_ptr<ISystemResourceEntity>> &&resourceEntities)
       : maxSystemCapacity(maxSystemCapacity), resourceEntities(std::move(resourceEntities)) {}
   virtual ~SubstractFromMaxResourceManager() = default;
-  virtual std::uint64_t getAvailableResources() const override {
+  /*
+    SubstractFromMaxResourceManager implementation sums all given measurements and substract it from configured maximum
+    system capacity.
+  */
+  virtual std::uint64_t getPruneBlocksPerSecond() const override {
     std::uint64_t sum = 0;
     for (const auto &entity : resourceEntities) {
-      sum += entity->getAvailableResources();
+      sum += entity->getMeasurements();
     }
     return maxSystemCapacity - sum;
   }

@@ -10,12 +10,13 @@
 // terms and conditions of the sub-component's license, as noted in the
 // LICENSE file.
 
-#include "gtest/gtest.h"
-
 #include "IntervalMappingResourceManager.hpp"
 #include "IResourceManager.hpp"
 #include "ISystemResourceEntity.hpp"
 #include "SubstractFromMaxResourceManager.hpp"
+#include "SumsResourceEntitiesAvailabilityManager.hpp"
+
+#include <gtest/gtest.h>
 
 namespace {
 
@@ -36,23 +37,23 @@ class ResourceEntityMock : public ISystemResourceEntity {
 TEST(resource_manager_test, IntervalMappingResourceManager_test) {
   std::vector<std::pair<uint64_t, uint64_t>> mapping{{200, 100}, {600, 10}, {1000, 5}};
   auto consensusEngineResourceMonitor = std::make_shared<ResourceEntityMock>();
-  consensusEngineResourceMonitor->availableResources = 110;
+  consensusEngineResourceMonitor->measurements = 110;
 
   std::shared_ptr<IResourceManager> sut(IntervalMappingResourceManager::createIntervalMappingResourceManager(
       consensusEngineResourceMonitor, std::move(mapping)));
 
-  EXPECT_EQ(sut->getAvailableResources(), 100);
-  consensusEngineResourceMonitor->availableResources = 200;
-  EXPECT_EQ(sut->getAvailableResources(), 100);
-  consensusEngineResourceMonitor->availableResources = 400;
-  EXPECT_EQ(sut->getAvailableResources(), 10);
-  consensusEngineResourceMonitor->availableResources = 800;
-  EXPECT_EQ(sut->getAvailableResources(), 5);
-  consensusEngineResourceMonitor->availableResources = 1800;
-  EXPECT_EQ(sut->getAvailableResources(), 0);
+  EXPECT_EQ(sut->getPruneBlocksPerSecond(), 100);
+  consensusEngineResourceMonitor->measurements = 200;
+  EXPECT_EQ(sut->getPruneBlocksPerSecond(), 100);
+  consensusEngineResourceMonitor->measurements = 400;
+  EXPECT_EQ(sut->getPruneBlocksPerSecond(), 10);
+  consensusEngineResourceMonitor->measurements = 800;
+  EXPECT_EQ(sut->getPruneBlocksPerSecond(), 5);
+  consensusEngineResourceMonitor->measurements = 1800;
+  EXPECT_EQ(sut->getPruneBlocksPerSecond(), 0);
 }
 
-TEST(resource_manager_test, SubstractFromMaxResourceManager_test) {
+TEST(resource_manager_test, SumsResourceEntitiesAvailabilityManager_test) {
   auto consensusEngineResourceMonitor = std::make_shared<ResourceEntityMock>();
   consensusEngineResourceMonitor->availableResources = 110;
 
@@ -61,9 +62,23 @@ TEST(resource_manager_test, SubstractFromMaxResourceManager_test) {
   std::vector<std::shared_ptr<ISystemResourceEntity>> systemResources = {consensusEngineResourceMonitor,
                                                                          databaseResourceMonitor};
 
+  std::shared_ptr<IResourceManager> sut(new SumsResourceEntitiesAvailabilityManager(std::move(systemResources)));
+
+  EXPECT_EQ(sut->getPruneBlocksPerSecond(), 160);
+}
+
+TEST(resource_manager_test, SubstractFromMaxResourceManager_test) {
+  auto consensusEngineResourceMonitor = std::make_shared<ResourceEntityMock>();
+  consensusEngineResourceMonitor->measurements = 110;
+
+  auto databaseResourceMonitor = std::make_shared<ResourceEntityMock>();
+  databaseResourceMonitor->measurements = 50;
+  std::vector<std::shared_ptr<ISystemResourceEntity>> systemResources = {consensusEngineResourceMonitor,
+                                                                         databaseResourceMonitor};
+
   std::shared_ptr<IResourceManager> sut(new SubstractFromMaxResourceManager(1000, std::move(systemResources)));
 
-  EXPECT_EQ(sut->getAvailableResources(), 840);
+  EXPECT_EQ(sut->getPruneBlocksPerSecond(), 840);
 }
 
 }  // anonymous namespace
