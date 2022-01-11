@@ -35,40 +35,50 @@ RVBManager::RVBManager(const Config& config, const IAppState* state_api, const s
   last_checkpoint_desc_.makeZero();
 }
 
-void RVBManager::init() {
+void RVBManager::init(bool fetching) {
   LOG_TRACE(logger_, "");
-  bool loaded_from_cp = false;
+  bool loaded_from_data_store = false;
   static constexpr bool print_rvt = true;
   CheckpointDesc desc{0};
-  uint64_t last_stored_cp_num = ds_->getLastStoredCheckpoint();
   std::lock_guard<std::mutex> guard(pruned_blocks_digests_mutex_);
+
+  // RVB Manager is unaware of the ST state. It first looks for a checkpoint being fetch. If not found, it looks for
+  // last stored cp
+  if (ds_->hasCheckpointBeingFetched()) {
+    ConcordAssert(fetching);
+    desc = ds_->getCheckpointBeingFetched();
+  } else {
+    ConcordAssert(!fetching);
+    auto last_stored_cp_num = ds_->getLastStoredCheckpoint();
+    if (last_stored_cp_num > 0) {
+      desc = ds_->getCheckpointDesc(last_stored_cp_num);
+    }
+  }
 
   // Get pruned blocks digests
   pruned_blocks_digests_ = ds_->getPrunedBlocksDigests();
 
   // Try to get RVT from persistent storage. Even if the tree exist we need to check if it
   // match current configuration
-  if (last_stored_cp_num > 0) {
-    desc = ds_->getCheckpointDesc(last_stored_cp_num);
-    if (!desc.rvbData.empty()) {
-      // There is RVB data in this checkpoint - try to load it
-      std::istringstream rvb_data(std::string(reinterpret_cast<const char*>(desc.rvbData.data()), desc.rvbData.size()));
-      // TODO - deserialize should return a bool - it might fail due to logical/config issue.
-      if (!(loaded_from_cp = in_mem_rvt_->setSerializedRvbData(rvb_data))) {
-        LOG_ERROR(logger_, "Failed to load RVB data from stored checkpoint" << KVLOG(last_stored_cp_num));
-      }
+  if ((desc.checkpointNum > 0) && (!desc.rvbData.empty())) {
+    // There is RVB data in this checkpoint - try to load it
+    std::istringstream rvb_data(std::string(reinterpret_cast<const char*>(desc.rvbData.data()), desc.rvbData.size()));
+    // TODO - deserialize should return a bool - it might fail due to logical/config issue.
+    loaded_from_data_store = in_mem_rvt_->setSerializedRvbData(rvb_data);
+    if (!loaded_from_data_store) {
+      LOG_ERROR(logger_, "Failed to load RVB data from stored checkpoint" << KVLOG(desc.checkpointNum));
     }
   }
 
-  if (!loaded_from_cp && (desc.maxBlockId > 0)) {
+  if (!loaded_from_data_store && (desc.maxBlockId > 0)) {
     // If desc data is valid, try to reconstruct by reading digests from storage (no persistency data was found)
-    LOG_ERROR(logger_, "Reconstructing RVB data" << KVLOG(loaded_from_cp, desc.maxBlockId));
+    LOG_ERROR(logger_, "Reconstructing RVB data" << KVLOG(loaded_from_data_store, desc.maxBlockId));
     addRvbDataOnBlockRange(
         as_->getGenesisBlockNum(), desc.maxBlockId, std::optional<STDigest>(desc.digestOfMaxBlockId));
   }
 
   // TODO - print also the root hash
-  LOG_INFO(logger_, std::boolalpha << KVLOG(pruned_blocks_digests_.size(), last_stored_cp_num, loaded_from_cp));
+  LOG_INFO(logger_, std::boolalpha << KVLOG(pruned_blocks_digests_.size(), desc.checkpointNum, loaded_from_data_store));
   if (print_rvt) {
 #ifdef USE_LOG4CPP
     auto log_level = logging::Logger::getRoot().getLogLevel();
@@ -189,6 +199,7 @@ size_t RVBManager::getSerializedDigestsOfRvbGroup(int64_t rvb_group_id, char* bu
 bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
                                                 size_t data_size,
                                                 BlockId min_fetch_block_id,
+                                                BlockId max_fetch_block_id,
                                                 BlockId max_block_id_in_cycle) {
   LOG_TRACE(logger_, KVLOG(data_size));
   ConcordAssertNE(data, nullptr);
@@ -197,11 +208,14 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
   BlockId block_id;
   STDigest digest;
   size_t num_digests_in_data;
-  std::vector<RVBGroupId> rvb_group_ids, prev_rvb_group_ids;
+  std::vector<RVBGroupId> rvb_group_ids /*prev_rvb_group_ids*/;
   static constexpr char error_prefix[] = "Invalid digests of RVB group:";
-  BlockId next_expected_rvb_id = stored_rvb_digests_.empty()
-                                     ? computeNextRvbBlockId(min_fetch_block_id)
-                                     : (stored_rvb_digests_.rbegin()->first + config_.fetchRangeSize);
+  // BlockId next_expected_rvb_id = stored_rvb_digests_.empty()
+  //                                    ? computeNextRvbBlockId(min_fetch_block_id)
+  //                                    : (stored_rvb_digests_.rbegin()->first + config_.fetchRangeSize);
+  BlockId next_expected_rvb_id {};
+  RVBGroupId next_required_rvb_group_id =
+      getNextRequiredRvbGroupid(computeNextRvbBlockId(min_fetch_block_id), computePrevRvbBlockId(max_fetch_block_id));
   std::function<std::string(std::vector<RVBGroupId>&)> vec_to_str = [&](std::vector<RVBGroupId>& v) {
     std::stringstream ss;
     for (size_t i{0}; i < v.size(); ++i) {
@@ -231,13 +245,11 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
   for (size_t i{0}; i < num_digests_in_data; ++i, ++cur) {
     memcpy(&block_id, &cur->block_id, sizeof(block_id));
     if (stored_rvb_digests_.find(block_id) != stored_rvb_digests_.end()) {
-      LOG_WARN(logger_, error_prefix << KVLOG(block_id) << " is already inside stored_rvb_digests_");
-      return false;
+      LOG_WARN(logger_, error_prefix << KVLOG(block_id) << " is already inside stored_rvb_digests_ (continue)");
     }
     if (digests.find(block_id) != digests.end()) {
       LOG_WARN(logger_,
-               error_prefix << KVLOG(block_id) << " is already inside in digests (duplicate - treated as error)");
-      return false;
+               error_prefix << KVLOG(block_id) << " is already inside in digests (continue)");
     }
     if ((block_id % config_.fetchRangeSize) != 0) {
       LOG_ERROR(logger_,
@@ -249,7 +261,7 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
       LOG_INFO(logger_, "Breaking:" << (KVLOG(block_id, max_block_id_in_cycle)));
       break;
     }
-    if (block_id != next_expected_rvb_id) {
+    if ((next_expected_rvb_id != 0) && (block_id != next_expected_rvb_id)) {
       LOG_ERROR(logger_, error_prefix << KVLOG(block_id, next_expected_rvb_id));
       return false;
     }
@@ -259,21 +271,25 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
       LOG_ERROR(logger_, "Bad Digests of RVB group: rvb_group_ids is empty!" << KVLOG(block_id));
       return false;
     }
-    if (!prev_rvb_group_ids.empty()) {
-      bool result = std::equal(prev_rvb_group_ids.begin(), prev_rvb_group_ids.end(), rvb_group_ids.begin());
-      if (!result) {
-        std::string prev_rvb_group_ids_str = vec_to_str(prev_rvb_group_ids);
-        std::string rvb_group_ids_str = vec_to_str(rvb_group_ids);
-        LOG_ERROR(logger_,
-                  "Bad Digests of RVB group: rvb_group_ids != prev_rvb_group_ids"
-                      << KVLOG(block_id, prev_rvb_group_ids_str, rvb_group_ids_str));
-        return false;
-      }
+    // if (!prev_rvb_group_ids.empty()) {
+    //   bool result = std::equal(prev_rvb_group_ids.begin(), prev_rvb_group_ids.end(), rvb_group_ids.begin());
+    //   if (!result) {
+    //     std::string prev_rvb_group_ids_str = vec_to_str(prev_rvb_group_ids);
+    //     std::string rvb_group_ids_str = vec_to_str(rvb_group_ids);
+    //     LOG_ERROR(logger_,
+    //               "Bad Digests of RVB group: rvb_group_ids != prev_rvb_group_ids"
+    //                   << KVLOG(block_id, prev_rvb_group_ids_str, rvb_group_ids_str));
+    //     return false;
+    //   }
+    // }
+    // prev_rvb_group_ids = rvb_group_ids;
+    if (next_required_rvb_group_id != rvb_group_ids[0]) {
+      LOG_ERROR(logger_, "Bad Digests of RVB group:" << KVLOG(block_id, rvb_group_ids[0], next_required_rvb_group_id));
+      return false;
     }
-    prev_rvb_group_ids = rvb_group_ids;
     memcpy(&digest, &cur->digest, sizeof(digest));
     digests.insert(make_pair(block_id, digest));
-    next_expected_rvb_id += config_.fetchRangeSize;
+    next_expected_rvb_id = block_id + config_.fetchRangeSize;
   }  // for
 
   ConcordAssertLE(digests.size(), num_digests_in_data);
@@ -333,7 +349,7 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
       }
     }
   }
-  stored_rvb_digests_.insert(digests.begin(), digests.end());
+  stored_rvb_digests_.merge(digests);
   LOG_INFO(logger_,
            "Done updating RVB stored digests:" << KVLOG(rvb_group_id_added,
                                                         rvb_group_id_removed,
@@ -384,6 +400,11 @@ uint64_t RVBManager::getFetchBlocksRvbGroupId(BlockId from_block_id, BlockId to_
     // There are no RVBs in that range
     return 0;
   }
+  return getNextRequiredRvbGroupid(from_rvb_id, to_rvb_id);
+}
+
+RVBGroupId RVBManager::getNextRequiredRvbGroupid(RVBId from_rvb_id, RVBId to_rvb_id) const {
+  if (from_rvb_id > to_rvb_id) return 0;
   const auto rvb_group_ids = in_mem_rvt_->getRvbGroupIds(from_rvb_id, to_rvb_id);
   for (const auto& id : rvb_group_ids) {
     if (std::find(stored_rvb_digests_group_ids_.begin(), stored_rvb_digests_group_ids_.end(), id) ==
@@ -486,10 +507,11 @@ void RVBManager::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBloc
   }
 }
 
-void RVBManager::onSourceUpdate() {
+void RVBManager::reset() {
   LOG_TRACE(logger_, "");
   stored_rvb_digests_.clear();
   stored_rvb_digests_group_ids_.clear();
+  last_checkpoint_desc_.makeZero();
 }
 
 }  // namespace bftEngine::bcst::impl
