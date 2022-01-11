@@ -31,6 +31,7 @@ static const char reconfiguration_restart_key = 0x30;
 static const char reconfiguration_ts_key = 0x31;
 static const char reconfiguration_rep_main_key = 0x32;
 static const std::string genesis_block_key(1, 0x32);
+static const std::string state_public_key_set(1, 0x33);
 
 enum CLIENT_COMMAND_TYPES : uint8_t {
   start_ = 0x0,

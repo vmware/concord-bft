@@ -37,6 +37,12 @@ Msg CategoryInput 6 {
 
 # Output for category `add`
 
+# Adding sorted list of Public keys
+Msg PublicStateKeys 7 {
+    #These are the state keys which are public, the list contains sorted keys
+    list string keys
+}
+
 Msg MerkleKeyFlag 1000 {
     bool deleted
 }
