@@ -28,8 +28,10 @@ namespace bft::client {
 struct ReplyMetadata {
   std::optional<ReplicaId> primary;
   uint64_t seq_num;
-
-  bool operator==(const ReplyMetadata& other) const { return primary == other.primary && seq_num == other.seq_num; }
+  uint32_t result;  // Request execution result
+  bool operator==(const ReplyMetadata& other) const {
+    return primary == other.primary && seq_num == other.seq_num && result == other.result;
+  }
   bool operator!=(const ReplyMetadata& other) const { return !(*this == other); }
   bool operator<(const ReplyMetadata& other) const {
     if (primary < other.primary) {

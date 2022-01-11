@@ -44,6 +44,7 @@ TEST(msg_receiver_tests, unmatched_replies_returned_no_rsi) {
   ASSERT_EQ(1, replies.size());
   ASSERT_EQ(header->currentPrimaryId, replies[0].metadata.primary->val);
   ASSERT_EQ(header->reqSeqNum, replies[0].metadata.seq_num);
+  ASSERT_EQ(header->result, replies[0].metadata.result);
   ASSERT_EQ(Msg(data_len), replies[0].data);
   ASSERT_EQ(1, replies[0].rsi.from.val);
   ASSERT_EQ(0, replies[0].rsi.data.size());
@@ -73,6 +74,7 @@ TEST(msg_receiver_tests, unmatched_replies_with_rsi) {
   ASSERT_EQ(1, replies.size());
   ASSERT_EQ(header->currentPrimaryId, replies[0].metadata.primary->val);
   ASSERT_EQ(header->reqSeqNum, replies[0].metadata.seq_num);
+  ASSERT_EQ(header->result, replies[0].metadata.result);
   ASSERT_EQ(Msg(data_len - header->replicaSpecificInfoLength), replies[0].data);
   ASSERT_EQ(1, replies[0].rsi.from.val);
   ASSERT_EQ(Msg(header->replicaSpecificInfoLength), replies[0].rsi.data);

@@ -149,6 +149,7 @@ inline std::vector<uint8_t> createReply(const MsgFromClient& msg, std::vector<ui
   reply_header->msgType = REPLY_MSG_TYPE;
   reply_header->replicaSpecificInfoLength = 0;
   reply_header->replyLength = reply_data.size();
+  reply_header->result = req_header->result;
   reply_header->reqSeqNum = req_header->reqSeqNum;
   reply_header->spanContextSize = 0;
   // Copy the reply data;

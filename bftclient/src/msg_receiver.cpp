@@ -65,6 +65,7 @@ void MsgReceiver::onNewMessage(bft::communication::NodeNum source, const char* c
   auto metadata = ReplyMetadata{};
   metadata.primary = ReplicaId{header->currentPrimaryId};
   metadata.seq_num = header->reqSeqNum;
+  metadata.result = header->result;
 
   auto data_len = header->replyLength;
   const char* start_of_body = message + sizeof(bftEngine::ClientReplyMsgHeader) + header->spanContextSize;
