@@ -625,7 +625,7 @@ std::string RangeValidationTree::getDirectParentHashVal(RVBId rvb_id) const {
 }
 
 RVBId RangeValidationTree::getMinRvbId() const {
-  return last_removed_node_id_.getVal() ? last_removed_node_id_.rvb_index * fetch_range_size_ : 0;
+  return last_removed_node_id_.getVal() ? (last_removed_node_id_.rvb_index + 1) * fetch_range_size_ : 0;
 }
 
 RVBId RangeValidationTree::getMaxRvbId() const {
@@ -635,6 +635,26 @@ RVBId RangeValidationTree::getMaxRvbId() const {
     return 0;
   }
   return last_added_node_id_.rvb_index * fetch_range_size_;
+}
+
+void RangeValidationTree::setNewRoot(shared_ptr<RVTNode> new_root) {
+  if (!new_root) {
+    // setting root to null
+    ConcordAssert(root_->id.level == 1);
+    ConcordAssert(root_ != nullptr);
+    root_ = nullptr;
+    return;
+  } else if (root_) {
+    // replacing the root
+    int new_root_level = static_cast<int>(new_root->id.level);
+    int old_root_level = static_cast<int>(root_->id.level);
+    ConcordAssert(std::abs(new_root_level - old_root_level) == 1);
+    if (old_root_level == 1) {
+      ConcordAssert(new_root->id.level == 2);
+    }
+  }
+  root_ = new_root;
+  root_->parent_id = 0;
 }
 
 bool RangeValidationTree::validateTree() noexcept {

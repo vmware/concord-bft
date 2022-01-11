@@ -182,7 +182,7 @@ class RangeValidationTree {
     uint16_t n_child{0};
     uint64_t min_child_id{0};  // minimal actual child id
     uint64_t max_child_id{0};  // maximal possible child id . The max actual is min_child_id + n_child
-    uint64_t parent_id{0};
+    uint64_t parent_id{0};     // for root - will be 0
   };
 
  public:
@@ -232,7 +232,6 @@ class RangeValidationTree {
   void addHashValToInternalNodes(std::shared_ptr<RVTNode>& node, std::shared_ptr<RVBNode>& rvb_node);
   void removeHashValFromInternalNodes(std::shared_ptr<RVTNode>& node, std::shared_ptr<RVBNode>& rvb_node);
   void setNewRoot(shared_ptr<RVTNode> new_root);
-
  protected:
   // vector index represents level in tree
   // level 0 represents RVB node so it would always hold 0x0
