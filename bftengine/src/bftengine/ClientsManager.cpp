@@ -175,7 +175,8 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateNewReplyMsgAndWriteToSto
                                                                                      uint16_t currentPrimaryId,
                                                                                      char* reply,
                                                                                      uint32_t replyLength,
-                                                                                     uint32_t rsiLength) {
+                                                                                     uint32_t rsiLength,
+                                                                                     uint32_t executionResult) {
   ClientInfo& c = clientsInfo_[clientId];
   if (c.repliesInfo.size() >= maxNumOfReqsPerClient_) deleteOldestReply(clientId);
   if (c.repliesInfo.size() > maxNumOfReqsPerClient_) {
@@ -186,7 +187,7 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateNewReplyMsgAndWriteToSto
 
   c.repliesInfo.insert_or_assign(requestSeqNum, getMonotonicTime());
   LOG_DEBUG(CL_MNGR, KVLOG(clientId, requestSeqNum));
-  auto r = std::make_unique<ClientReplyMsg>(myId_, requestSeqNum, reply, replyLength - rsiLength);
+  auto r = std::make_unique<ClientReplyMsg>(myId_, requestSeqNum, reply, replyLength - rsiLength, executionResult);
 
   // At this point, the rsi data is not part of the reply
   uint32_t commonMsgSize = r->size();

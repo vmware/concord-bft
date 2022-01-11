@@ -102,7 +102,8 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
                                                                        uint16_t currentPrimaryId,
                                                                        char* reply,
                                                                        uint32_t replyLength,
-                                                                       uint32_t rsiLength);
+                                                                       uint32_t rsiLength,
+                                                                       uint32_t executionResult = 0);
 
   // Loads a client reply message from the reserved pages, and allocates and returns a ClientReplyMsg containing the
   // loaded message. Returns a null pointer if the configuration recorded at the time of this ClientManager's

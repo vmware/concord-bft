@@ -26,6 +26,7 @@
 #include "SigManager.hpp"
 #include "ReconfigurationCmd.hpp"
 #include "json_output.hpp"
+#include "SharedTypes.hpp"
 
 using concordUtil::Timers;
 
@@ -210,7 +211,7 @@ void ReadOnlyReplica::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_s
 
   const uint16_t clientId = request.clientProxyId();
 
-  int status = 0;
+  int executionResult = 0;
   bftEngine::IRequestsHandler::ExecutionRequestsQueue accumulatedRequests;
   accumulatedRequests.push_back(bftEngine::IRequestsHandler::ExecutionRequest{clientId,
                                                                               static_cast<uint64_t>(lastExecutedSeqNum),
@@ -225,7 +226,7 @@ void ReadOnlyReplica::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_s
   // DD: Do we need to take care of Time Service here?
   bftRequestsHandler_->execute(accumulatedRequests, std::nullopt, request.getCid(), span);
   const IRequestsHandler::ExecutionRequest &single_request = accumulatedRequests.back();
-  status = single_request.outExecutionStatus;
+  executionResult = single_request.outExecutionStatus;
   const uint32_t actualReplyLength = single_request.outActualReplySize;
   const uint32_t actualReplicaSpecificInfoLength = single_request.outReplicaSpecificInfoSize;
   LOG_DEBUG(GL,
@@ -235,20 +236,24 @@ void ReadOnlyReplica::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_s
                                                     reply.maxReplyLength(),
                                                     actualReplyLength,
                                                     actualReplicaSpecificInfoLength,
-                                                    status));
+                                                    executionResult));
   // TODO(GG): TBD - how do we want to support empty replies? (actualReplyLength==0)
-  if (!status) {
+  if (!executionResult) {
     if (actualReplyLength > 0) {
       reply.setReplyLength(actualReplyLength);
       reply.setReplicaSpecificInfoLength(actualReplicaSpecificInfoLength);
       send(&reply, clientId);
     } else {
       LOG_WARN(GL, "Received zero size response. " << KVLOG(clientId));
+      strcpy(single_request.outReply, "Executed data is empty");
+      executionResult = static_cast<uint32_t>(bftEngine::OperationResult::EXEC_DATA_EMPTY);
     }
 
   } else {
-    LOG_ERROR(GL, "Received error while executing RO request. " << KVLOG(clientId, status));
+    LOG_ERROR(GL, "Received error while executing RO request. " << KVLOG(clientId, executionResult));
   }
+  ClientReplyMsg replyMsg(0, request.requestSeqNum(), single_request.outReply, config_.getreplicaId(), executionResult);
+  send(&replyMsg, clientId);
 }
 
 void ReadOnlyReplica::registerStatusHandlers() {
