@@ -318,7 +318,7 @@ FullCommitProofMsg* SeqNumInfo::getFastPathFullCommitProofMsg() const {
 
 void SeqNumInfo::setFastPathTimeOfSelfPartialProof(const Time& t) { fastPathTimeOfSelfPartialProof = t; }
 
-Time SeqNumInfo::getFastPathTimeOfSelfPartialProof() { return fastPathTimeOfSelfPartialProof; }
+Time SeqNumInfo::getFastPathTimeOfSelfPartialProof() const { return fastPathTimeOfSelfPartialProof; }
 
 bool SeqNumInfo::addFastPathSelfPartialCommitMsgAndDigest(PartialCommitProofMsg* m, Digest& commitDigest) {
   ConcordAssert(m != nullptr);
@@ -355,7 +355,6 @@ bool SeqNumInfo::addFastPathPartialCommitMsg(PartialCommitProofMsg* m) {
   ConcordAssert(!prePrepareMsg || hasMatchingPrePrepare(m->seqNumber()));
 
   if (hasFastPathFullCommitProof()) return false;
-  // if (fullCommitProof != nullptr) return false;
 
   const auto* selfPartialCommitProof = getFastPathSelfPartialCommitProofMsg();
   const CommitPath cPath = m->commitPath();

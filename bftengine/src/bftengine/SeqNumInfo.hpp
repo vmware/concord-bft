@@ -87,7 +87,7 @@ class SeqNumInfo {
   FullCommitProofMsg* getFastPathFullCommitProofMsg() const;
 
   void setFastPathTimeOfSelfPartialProof(const Time& t);
-  Time getFastPathTimeOfSelfPartialProof();
+  Time getFastPathTimeOfSelfPartialProof() const;
 
   bool addFastPathSelfPartialCommitMsgAndDigest(PartialCommitProofMsg* m, Digest& commitDigest);
   bool addFastPathPartialCommitMsg(PartialCommitProofMsg* m);

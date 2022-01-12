@@ -1443,8 +1443,6 @@ void ReplicaImp::onMessage<PartialCommitProofMsg>(PartialCommitProofMsg *msg) {
   SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
   SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
   SCOPED_MDC_PATH(CommitPathToMDCString(msg->commitPath()));
-
-  // Check Validate
   ConcordAssert(repsInfo->isIdOfPeerReplica(msgSender));
   ConcordAssert(repsInfo->isCollectorForPartialProofs(msgView, msgSeqNum));
 
@@ -2208,7 +2206,7 @@ void ReplicaImp::onFastPathCommitCombinedSigSucceeded(SeqNum seqNumber,
     ps_->endWriteTran(config_.getsyncOnUpdateOfMetadata());
   }
 
-  // We're the collector - send to other replicas
+  // We've created the full commit proof (we're the collector) - send to other replicas
   ConcordAssert(fcp->senderId() == config_.getreplicaId());
   sendToAllOtherReplicas(fcp);
 
@@ -2273,6 +2271,9 @@ void ReplicaImp::onFastPathCommitVerifyCombinedSigResult(SeqNum seqNumber,
     ps_->setForceCompletedInSeqNumWindow(seqNumber, true);
     ps_->endWriteTran(config_.getsyncOnUpdateOfMetadata());
   }
+
+  // We've received a full commit proof from a collector - don't send to other replicas
+  ConcordAssert(fcp->senderId() != config_.getreplicaId());
 
   const bool askForMissingInfoAboutCommittedItems =
       (seqNumber >
