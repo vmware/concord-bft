@@ -50,6 +50,18 @@ using RVBIndex = uint64_t;
 // 3. Each node in tree is represented as NodeId having type.
 // 4. HashVal is stored in form of CryptoPP::Integer.
 
+// TODO - move to much better place (quick and dirty pow)
+static uint64_t pow_int(uint64_t base, uint64_t exp) {
+  ConcordAssertOR(base != 0, exp != 0); // both zero are undefined
+  uint64_t res {base};
+  if (base == 0) return 1;
+  if (exp == 0) return 1;
+  for (size_t i{1}; i < exp; ++i) {
+      res *= base;
+  }
+  return res;
+}
+
 class RangeValidationTree {
   // The next friend declerations are used strictly for testing
   friend class BcStTestDelegator;
@@ -69,14 +81,13 @@ class RangeValidationTree {
       return ((level != other.level) || (rvb_index != other.rvb_index)) ? true : false;
     }
     uint64_t getVal() const { return ((static_cast<uint64_t>(level) << kNIDBitsPerRVBIndex) | rvb_index); }
-
     static constexpr size_t kNIDBitsPerLevel = 8;
     static constexpr size_t kNIDBitsPerRVBIndex = ((sizeof(uint64_t) * 8) - kNIDBitsPerLevel);
     static constexpr size_t kRVTMaxLevels = ((0x1 << kNIDBitsPerLevel) - 1);
     static constexpr uint64_t kRvbIdMask = (kRVTMaxLevels) << kNIDBitsPerRVBIndex;
     static constexpr uint64_t kRvbIndexMask = std::numeric_limits<uint64_t>::max() & (~kRvbIdMask);
-    uint64_t level : kNIDBitsPerLevel;
-    uint64_t rvb_index : kNIDBitsPerRVBIndex;
+    const uint64_t level : kNIDBitsPerLevel;
+    const uint64_t rvb_index : kNIDBitsPerRVBIndex;
   };
 
   // Initialize only once
@@ -180,7 +191,7 @@ class RangeValidationTree {
 
     static constexpr uint8_t kDefaultRVTLeafLevel = 1;
     uint16_t n_child{0};
-    uint64_t min_child_id{0};  // minimal actual child id
+    uint64_t min_child_id{0};  // minimal actual child id.
     uint64_t max_child_id{0};  // maximal possible child id . The max actual is min_child_id + n_child
     uint64_t parent_id{0};     // for root - will be 0
   };
@@ -226,21 +237,25 @@ class RangeValidationTree {
  protected:
   // tree internal manipulation
   void addRVBNode(std::shared_ptr<RVBNode>& node);
-  void addInternalNode(std::shared_ptr<RVTNode>& node, uint64_t rvb_node);
+  void addInternalNode(std::shared_ptr<RVTNode>& node);
   void removeRVBNode(std::shared_ptr<RVBNode>& node);
-  void removeInternalNode(std::shared_ptr<RVTNode>& node);
+  void removeInternalNode(std::shared_ptr<RVTNode>& node_to_remove);
   void addHashValToInternalNodes(std::shared_ptr<RVTNode>& node, std::shared_ptr<RVBNode>& rvb_node);
   void removeHashValFromInternalNodes(std::shared_ptr<RVTNode>& node, std::shared_ptr<RVBNode>& rvb_node);
   void setNewRoot(shared_ptr<RVTNode> new_root);
+  std::shared_ptr<RVTNode> openForInsertion(uint64_t level) const;
+  std::shared_ptr<RVTNode> openForRemoval(uint64_t level) const;
+  shared_ptr<RVTNode> getRVTNodeOfLeftSibling(shared_ptr<RVTNode>& node) const;
+  shared_ptr<RVTNode> getRVTNodeOfRightSibling(shared_ptr<RVTNode>& node) const;
  protected:
   // vector index represents level in tree
   // level 0 represents RVB node so it would always hold 0x0
-  std::vector<std::shared_ptr<RVTNode>> openRVTNodeForInsertion_;
-  std::vector<std::shared_ptr<RVTNode>> openRVTNodeForRemoval_;
+  std::vector<std::shared_ptr<RVTNode>> rightmostRVTNode_;
+  std::vector<std::shared_ptr<RVTNode>> leftmostRVTNode_;
   std::unordered_map<uint64_t, std::shared_ptr<RVTNode>> id_to_node_map_;
   std::shared_ptr<RVTNode> root_{nullptr};
-  uint64_t max_rvb_index_{0};  // RVB index is (RVB ID / fetch range size). This is the minimal index in the tree.
-  uint64_t min_rvb_index_{0};  // RVB index is (RVB ID / fetch range size). This is the maximal index in the tree.
+  uint64_t max_rvb_index_{0};  // RVB index is (RVB ID / fetch range size). This is the maximal index in the tree.
+  uint64_t min_rvb_index_{0};  // RVB index is (RVB ID / fetch range size). This is the minimal index in the tree.
   const logging::Logger& logger_;
   const uint32_t RVT_K;
   const uint32_t fetch_range_size_;
