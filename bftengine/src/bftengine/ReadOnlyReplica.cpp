@@ -27,6 +27,7 @@
 #include "ReconfigurationCmd.hpp"
 #include "json_output.hpp"
 #include "SharedTypes.hpp"
+#include "communication/StateControl.hpp"
 
 using concordUtil::Timers;
 
@@ -67,6 +68,8 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
 
   // Register status handler for Read-Only replica
   registerStatusHandlers();
+  bft::communication::StateControl::instance().setGetPeerPubKeyMethod(
+      [&](uint32_t id) { return SigManager::instance()->getPublicKeyOfVerifier(id); });
 }
 
 void ReadOnlyReplica::start() {
