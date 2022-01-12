@@ -472,11 +472,15 @@ class CollectorOfThresholdSignatures {
     }
     replicasInfo.clear();
 
-    if (combinedValidSignatureMsg != nullptr) delete combinedValidSignatureMsg;
-    combinedValidSignatureMsg = nullptr;
+    if (combinedValidSignatureMsg != nullptr) {
+      delete combinedValidSignatureMsg;
+      combinedValidSignatureMsg = nullptr;
+    }
 
-    if (candidateCombinedSignatureMsg != nullptr) delete candidateCombinedSignatureMsg;
-    candidateCombinedSignatureMsg = nullptr;
+    if (candidateCombinedSignatureMsg != nullptr) {
+      delete candidateCombinedSignatureMsg;
+      candidateCombinedSignatureMsg = nullptr;
+    }
 
     if (expectedSeqNumber != 0)  // if we have expected values
     {

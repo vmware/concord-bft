@@ -39,7 +39,7 @@ SeqNumInfo::~SeqNumInfo() {
   delete partialProofsSet;
 }
 
-void SeqNumInfo::resetCommitSignatres() { commitMsgsCollector->resetAndFree(); }
+void SeqNumInfo::resetCommitSignatures() { commitMsgsCollector->resetAndFree(); }
 
 void SeqNumInfo::resetPrepareSignatures() { prepareSigCollector->resetAndFree(); }
 

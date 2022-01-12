@@ -35,7 +35,7 @@ class SeqNumInfo {
   SeqNumInfo();
   ~SeqNumInfo();
 
-  void resetCommitSignatres();
+  void resetCommitSignatures();
   void resetPrepareSignatures();
   void resetAndFree();  // TODO(GG): name
   void getAndReset(PrePrepareMsg*& outPrePrepare, PrepareFullMsg*& outCombinedValidSignatureMsg);

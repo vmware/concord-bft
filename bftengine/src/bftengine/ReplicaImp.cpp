@@ -2047,7 +2047,7 @@ void ReplicaImp::onCommitCombinedSigFailed(SeqNum seqNumber,
   LOG_WARN(THRESHSIGN_LOG, KVLOG(seqNumber, view, replicasWithBadSigs.size()));
 
   if (isCollectingState() && mainLog->insideActiveWindow(seqNumber)) {
-    mainLog->get(seqNumber).resetCommitSignatres();
+    mainLog->get(seqNumber).resetCommitSignatures();
     LOG_INFO(CNSUS, "Collecting state, reset commit signatures");
     return;
   }
@@ -2075,7 +2075,7 @@ void ReplicaImp::onCommitCombinedSigSucceeded(SeqNum seqNumber,
   LOG_TRACE(THRESHSIGN_LOG, KVLOG(seqNumber, view, combinedSigLen));
 
   if (isCollectingState() && mainLog->insideActiveWindow(seqNumber)) {
-    mainLog->get(seqNumber).resetCommitSignatres();
+    mainLog->get(seqNumber).resetCommitSignatures();
     LOG_INFO(CNSUS, "Collecting state, reset commit signatures");
     return;
   }
@@ -2134,7 +2134,7 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view,
   }
 
   if (isCollectingState() && mainLog->insideActiveWindow(seqNumber)) {
-    mainLog->get(seqNumber).resetCommitSignatres();
+    mainLog->get(seqNumber).resetCommitSignatures();
     LOG_INFO(CNSUS, "Collecting state, reset commit signatures");
     return;
   }
