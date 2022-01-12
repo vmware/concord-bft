@@ -1052,8 +1052,7 @@ struct VerifyDbCheckpoint {
     return !st.isZero() && (sizeof(d) == sizeof(st)) && !std::memcmp(d.content(), st.get(), sizeof(st));
   }
   bool verify(const CheckpointMsg &msg, const CheckpointDesc &desc) const {
-    return (msg.isStableState() && isSame(msg.digestOfState(), desc.digestOfLastBlock) &&
-            (msg.state() == desc.lastBlock));
+    return (isSame(msg.digestOfState(), desc.digestOfLastBlock) && (msg.state() == desc.lastBlock));
   }
   BlockDigest getBlockDigest(const KeyValueBlockchain &adapter, const uint64_t &blockId) const {
     using bftEngine::bcst::computeBlockDigest;
