@@ -305,7 +305,7 @@ void RangeValidationTree::removeHashValFromInternalNodes(shared_ptr<RVTNode>& re
           leftmostRVTNode_[cur_node->id.level] = getRVTNodeOfRightSibling(cur_node);
         }
       }
-    }// Trim the tree from removed_rvt_node to root
+    }  // Trim the tree from removed_rvt_node to root
     parent_node->removeRVTNodeHash(cur_node);
     if (cur_node == removed_rvt_node) {
       cur_node->removeRVBNodeHash(rvb_node);

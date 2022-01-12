@@ -52,12 +52,12 @@ using RVBIndex = uint64_t;
 
 // TODO - move to much better place (quick and dirty pow)
 static uint64_t pow_int(uint64_t base, uint64_t exp) {
-  ConcordAssertOR(base != 0, exp != 0); // both zero are undefined
-  uint64_t res {base};
+  ConcordAssertOR(base != 0, exp != 0);  // both zero are undefined
+  uint64_t res{base};
   if (base == 0) return 1;
   if (exp == 0) return 1;
   for (size_t i{1}; i < exp; ++i) {
-      res *= base;
+    res *= base;
   }
   return res;
 }
@@ -247,6 +247,7 @@ class RangeValidationTree {
   std::shared_ptr<RVTNode> openForRemoval(uint64_t level) const;
   shared_ptr<RVTNode> getRVTNodeOfLeftSibling(shared_ptr<RVTNode>& node) const;
   shared_ptr<RVTNode> getRVTNodeOfRightSibling(shared_ptr<RVTNode>& node) const;
+
  protected:
   // vector index represents level in tree
   // level 0 represents RVB node so it would always hold 0x0

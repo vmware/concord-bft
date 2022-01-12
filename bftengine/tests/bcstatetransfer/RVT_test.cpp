@@ -344,7 +344,7 @@ TEST_F(RVTTest, simpleAddRemoveWithRootValidation) {
   uint64_t RVT_K = 3;
   RangeValidationTree rvt(logging::getLogger("concord.bft.st.rvt"), RVT_K, fetch_range_size);
   size_t add_i{1}, rem_i{1};
-  for (;add_i < 1000; ++add_i) {
+  for (; add_i < 1000; ++add_i) {
     std::cout << "add:" << KVLOG(add_i * fetch_range_size) << std::endl;
     rvt.addNode(add_i * fetch_range_size, {std::to_string(add_i * fetch_range_size).c_str()});
   }
@@ -362,7 +362,7 @@ TEST_F(RVTTest, simpleAddRemoveWithRootValidation) {
     rvt.removeNode(rem_i * fetch_range_size, {std::to_string(rem_i * fetch_range_size).c_str()});
   }
 
-  for ( ;add_i < 500; ++add_i) {
+  for (; add_i < 500; ++add_i) {
     std::cout << "add:" << KVLOG(add_i * fetch_range_size) << std::endl;
     rvt.addNode(add_i * fetch_range_size, {std::to_string(add_i * fetch_range_size).c_str()});
   }
