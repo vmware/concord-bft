@@ -187,6 +187,7 @@ std::shared_ptr<ClientReconfigurationEngine> CreFactory::create(std::shared_ptr<
   for (uint16_t i = repConfig.numReplicas; i < repConfig.numReplicas + repConfig.numRoReplicas; i++) {
     bftClientConf.ro_replicas.emplace(bft::client::ReplicaId{i});
   }
+  bftClientConf.replicas_master_key_folder_path = std::nullopt;
   std::unique_ptr<ICommunication> comm = std::make_unique<Communication>(msgsCommunicator, msgHandlers);
   bft::client::Client* bftClient = new bft::client::Client(std::move(comm), bftClientConf);
   bftClient->setTransactionSigner(new InternalSigner());
