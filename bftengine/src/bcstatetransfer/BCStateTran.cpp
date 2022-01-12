@@ -324,6 +324,10 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
 
       checkConsistency(config_.pedanticChecks, true);
 
+      // TODO - this init may take long time in large storages. If it takes too much time, we should consider moving it
+      // to the background or add multi-threading, with a new logic as a result of that move
+      rvbm_->init(psd_->getIsFetchingState());
+
       fs = getFetchingState();
       LOG_INFO(logger_, "Starting state is " << stateName(fs));
 
@@ -351,10 +355,8 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
       g.txn()->setAsInitialized();
 
       ConcordAssertEQ(getFetchingState(), FetchingState::NotFetching);
+      rvbm_->init(false);
     }
-    // TODO - this init may take long time in large storages. If it takes too much time, we should consider moving it
-    // to the background with a new logic as a result of that move
-    rvbm_->init(fs != FetchingState::NotFetching);
     {
       DataStoreTransaction::Guard g(psd_->beginTransaction());
       g.txn()->setReplicas(replicas_);
