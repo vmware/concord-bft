@@ -365,19 +365,20 @@ class ThinReplicaImpl {
             update_aggregator_counter = 0;
           }
         }
-        if (!is_event_group_transition) {
-          config_->subscriber_list.removeBuffer(live_updates);
-          live_updates->removeAllUpdates();
-          metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
-          metrics_.updateAggregator();
-        }
       } catch (std::exception& error) {
         LOG_INFO(logger_, "Subscription stream closed: " << error.what());
       }
-      if (context->IsCancelled()) {
-        return grpc::Status::CANCELLED;
-      }
-      if (not is_event_group_transition) {
+
+      // Clean up if we need to return
+      if (not is_event_group_transition || context->IsCancelled()) {
+        config_->subscriber_list.removeBuffer(live_updates);
+        live_updates->removeAllUpdates();
+        metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
+        metrics_.updateAggregator();
+        if (context->IsCancelled()) {
+          LOG_INFO(logger_, "Subscription cancelled");
+          return grpc::Status::CANCELLED;
+        }
         return grpc::Status::OK;
       }
     }
@@ -452,15 +453,17 @@ class ThinReplicaImpl {
           update_aggregator_counter = 0;
         }
       }
-      config_->subscriber_list.removeBuffer(live_updates);
-      live_updates->removeAllEventGroupUpdates();
-      metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
-      metrics_.updateAggregator();
     } catch (std::exception& error) {
       LOG_INFO(logger_, "Subscription stream closed: " << error.what());
     }
+
+    config_->subscriber_list.removeBuffer(live_updates);
+    live_updates->removeAllEventGroupUpdates();
+    metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
+    metrics_.updateAggregator();
+
     if (context->IsCancelled()) {
-      LOG_WARN(logger_, "Subscription cancelled");
+      LOG_INFO(logger_, "Subscription cancelled");
       return grpc::Status::CANCELLED;
     }
     return grpc::Status::OK;
