@@ -43,6 +43,7 @@ bool ReplicaMainKeyPublicationHandler::execute(const State& state, WriteState&) 
   fs::path path = fs::path(output_dir_) / std::to_string(cmd.sender_id);
   auto curr_key = file_handler_.decryptFile((path / "pub_key").string()).value_or("");
   if (curr_key != cmd.key) {
+    LOG_INFO(getLogger(), "executing ReplicaMainKeyPublicationHandler");
     if (!fs::exists(path)) fs::create_directories(path);
     file_handler_.encryptFile((path / "pub_key").string(), cmd.key);
   }
@@ -65,7 +66,8 @@ bool ClientTlsKeyExchangeHandler::execute(const State& state, WriteState&) {
   auto new_cert_keys = concord::util::crypto::Crypto::instance().generateECDSAKeyPair(
       concord::util::crypto::KeyFormat::PemFormat, concord::util::crypto::CurveType::secp384r1);
   std::string suffix = enc_ ? ".enc" : "";
-  std::string master_key = sm_->decryptString(master_key_path_).value_or(std::string());
+  std::string master_key = sm_->decryptFile(master_key_path_).value_or(std::string());
+  if (master_key.empty()) master_key = psm_.decryptFile(master_key_path_).value_or(std::string());
   if (master_key.empty()) LOG_FATAL(getLogger(), "unable to read the node master key");
   auto root = fs::path(cert_folder_);
   for (const auto& c : bft_clients_) {
@@ -123,7 +125,8 @@ bool ClientMasterKeyExchangeHandler::execute(const State& state, WriteState& out
 
   concord::messages::ReconfigurationRequest rreq;
   concord::messages::ClientExchangePublicKey creq;
-  sm_->encryptFile(master_key_path_ + ".new", pem_keys.first);
+  concord::secretsmanager::ISecretsManagerImpl& sm = master_key_path_.find(".enc") != std::string::npos ? *sm_ : psm_;
+  sm.encryptFile(master_key_path_ + ".new", pem_keys.first);
 
   std::string new_pub_key = hex_keys.second;
   creq.sender_id = client_id_;
@@ -136,7 +139,7 @@ bool ClientMasterKeyExchangeHandler::execute(const State& state, WriteState& out
            fs::copy(master_key_path_ + ".new", master_key_path_, fs::copy_options::update_existing);
            fs::remove(master_key_path_ + ".new");
            fs::remove(master_key_path_ + ".old");
-           LOG_INFO(getLogger(), "exchanged transaction signing keys (encrypted)");
+           LOG_INFO(getLogger(), "exchanged transaction signing keys " << master_key_path_);
            LOG_INFO(getLogger(), "restarting the node");
            bft::client::StateControl::instance().restart();
          }};

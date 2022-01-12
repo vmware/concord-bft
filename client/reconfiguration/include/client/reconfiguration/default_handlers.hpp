@@ -24,6 +24,11 @@ class ReplicaMainKeyPublicationHandler : public IStateHandler {
   bool execute(const State&, WriteState&) override;
 
  private:
+  logging::Logger getLogger() {
+    static logging::Logger logger_(
+        logging::getLogger("concord.client.reconfiguration.ReplicaMainKeyPublicationHandler"));
+    return logger_;
+  }
   std::string output_dir_;
   concord::secretsmanager::SecretsManagerPlain file_handler_;
 };
@@ -71,6 +76,7 @@ class ClientMasterKeyExchangeHandler : public IStateHandler {
   std::string master_key_path_;
   std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm_;
   uint64_t init_last_update_block_;
+  concord::secretsmanager::SecretsManagerPlain psm_;
 };
 
 class ClientRestartHandler : public IStateHandler {
