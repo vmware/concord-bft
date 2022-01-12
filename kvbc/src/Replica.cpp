@@ -123,9 +123,10 @@ class KvbcRequestHandler : public bftEngine::RequestHandler {
   static std::shared_ptr<KvbcRequestHandler> create(
       const std::shared_ptr<IRequestsHandler> &user_req_handler,
       const std::shared_ptr<concord::cron::CronTableRegistry> &cron_table_registry,
-      categorization::KeyValueBlockchain &blockchain) {
+      categorization::KeyValueBlockchain &blockchain,
+      std::shared_ptr<concordMetrics::Aggregator> aggregator_) {
     return std::shared_ptr<KvbcRequestHandler>{
-        new KvbcRequestHandler{user_req_handler, cron_table_registry, blockchain}};
+        new KvbcRequestHandler{user_req_handler, cron_table_registry, blockchain, aggregator_}};
   }
 
  public:
@@ -143,8 +144,9 @@ class KvbcRequestHandler : public bftEngine::RequestHandler {
  private:
   KvbcRequestHandler(const std::shared_ptr<IRequestsHandler> &user_req_handler,
                      const std::shared_ptr<concord::cron::CronTableRegistry> &cron_table_registry,
-                     categorization::KeyValueBlockchain &blockchain)
-      : blockchain_{blockchain} {
+                     categorization::KeyValueBlockchain &blockchain,
+                     std::shared_ptr<concordMetrics::Aggregator> aggregator_)
+      : bftEngine::RequestHandler(aggregator_), blockchain_{blockchain} {
     setUserRequestHandler(user_req_handler);
     setCronTableRegistry(cron_table_registry);
   }
@@ -289,7 +291,7 @@ void Replica::saveReconfigurationCmdToResPages(const std::string &key) {
 }
 void Replica::createReplicaAndSyncState() {
   ConcordAssert(m_kvBlockchain.has_value());
-  auto requestHandler = KvbcRequestHandler::create(m_cmdHandler, cronTableRegistry_, *m_kvBlockchain);
+  auto requestHandler = KvbcRequestHandler::create(m_cmdHandler, cronTableRegistry_, *m_kvBlockchain, aggregator_);
   registerReconfigurationHandlers(requestHandler);
   m_replicaPtr = bftEngine::IReplica::createNewReplica(
       replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm, m_metadataStorage, pm_, secretsManager_);
