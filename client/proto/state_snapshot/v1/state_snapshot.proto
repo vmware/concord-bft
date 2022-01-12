@@ -1,13 +1,13 @@
 // Copyright 2021 VMware, all rights reserved
 //
-// Concord Client's StateSnapshot Service
+// Concord Client's StateSnapshotService
 
 syntax = "proto3";
 package vmware.concord.client.statesnapshot.v1;
 
 option java_package = "com.vmware.concord.client.statesnapshot.v1";
 
-// The StateSnapshot service can be used to initialize an Application from a state
+// The StateSnapshotService can be used to initialize an Application from a state
 // snapshot visible to Concord Client. A state snapshot contains all key-values
 // in the `STORAGE_SPACE_MERKLE` storage space from the start of the blockchain up
 // to a specific point and is identified by a snapshot ID.
@@ -17,7 +17,7 @@ option java_package = "com.vmware.concord.client.statesnapshot.v1";
 // writes.
 //
 // See `execution_engine.proto` for more information about storage spaces.
-service StateSnapshot {
+service StateSnapshotService {
   // Get the ID of a recent and available state snapshot.
   // Errors:
   // UNAVAILABLE: if Concord Client is not ready yet to process requests.
@@ -29,7 +29,7 @@ service StateSnapshot {
   // Errors:
   // NOT_FOUND: if a state snapshot with the requested ID is not (or no longer) available.
   //            Applications are advised to retry initialization by fetching a new snapshot ID.
-  // INVALID_ARGUMENT: if resuming a stream using `from_key` and that key is not part of the
+  // INVALID_ARGUMENT: if resuming a stream using `last_received_key` and that key is not part of the
   //                   state snapshot.
   // UNAVAILABLE: if Concord Client is not ready yet to process requests.
   // FAILED_PRECONDITION: if a precondition in Concord Client is not satisfied. For example,
@@ -83,7 +83,7 @@ message GetRecentSnapshotResponse {
   // See `event.proto` for more information about events, event group IDs and
   // `EventService`.
   //
-  // Note: The StateSnapshot service only supports state snapshots based on event
+  // Note: The StateSnapshotService only supports state snapshots based on event
   // group IDs and not legacy events that are based on block IDs.
   uint64 event_group_id = 2;
 
