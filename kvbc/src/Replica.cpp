@@ -494,7 +494,8 @@ Replica::Replica(ICommunication *comm,
     replicaConfig_.get<uint32_t>("concord.bft.st.metricsDumpIntervalSec", 5),
     replicaConfig_.get("concord.bft.st.enableReservedPages", true),
     replicaConfig_.get("concord.bft.st.enableSourceBlocksPreFetch", true),
-    replicaConfig_.get("concord.bft.st.enableSourceSelectorPrimaryAwareness", true)
+    replicaConfig_.get("concord.bft.st.enableSourceSelectorPrimaryAwareness", true),
+    replicaConfig_.get("concord.bft.st.enableStoreRvbDataDuringCheckpointing", true)
   };
 
 #if !defined USE_COMM_PLAIN_TCP && !defined USE_COMM_TLS_TCP
