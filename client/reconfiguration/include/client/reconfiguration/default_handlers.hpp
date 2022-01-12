@@ -38,7 +38,7 @@ class ClientTlsKeyExchangeHandler : public IStateHandler {
   ClientTlsKeyExchangeHandler(const std::string& master_key_path,
                               const std::string& cert_folder,
                               bool enc,
-                              const std::vector<uint32_t> bft_clients,
+                              const std::vector<uint32_t>& bft_clients,
                               std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm);
   bool validate(const State&) const override;
   bool execute(const State&, WriteState&) override;

@@ -92,7 +92,7 @@ ClientTlsKeyExchangeHandler::ClientTlsKeyExchangeHandler(
     const std::string& master_key_path,
     const std::string& cert_folder,
     bool enc,
-    std::vector<uint32_t> bft_clients,
+    const std::vector<uint32_t>& bft_clients,
     std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm)
     : master_key_path_{master_key_path}, cert_folder_{cert_folder}, enc_{enc}, sm_{sm}, bft_clients_{bft_clients} {
   version_path_ = cert_folder + "/version";

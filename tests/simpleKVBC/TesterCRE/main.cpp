@@ -26,8 +26,6 @@
 #include "secrets_manager_enc.h"
 #include "client/reconfiguration/default_handlers.hpp"
 #include <variant>
-#include <experimental/filesystem>
-namespace fs = std::experimental::filesystem;
 
 using namespace bftEngine;
 using namespace bft::communication;

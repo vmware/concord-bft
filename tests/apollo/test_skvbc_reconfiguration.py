@@ -445,6 +445,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         with log.start_action(action_type="test_tls_exchange_replicas_replicas_and_replicas_client"):
             bft_network.start_all_replicas()
             bft_network.start_cre()
+            await bft_network.check_initial_master_key_publication(bft_network.all_replicas())
+            await self.wait_until_cre_gets_replicas_master_keys(bft_network, bft_network.all_replicas())
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
             initial_prim = 0
             for i in range(100):
@@ -474,6 +476,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         with log.start_action(action_type="test_tls_exchange_replicas_replicas_and_replicas_client_with_st"):
             bft_network.start_all_replicas()
             bft_network.start_cre()
+            await self.wait_until_cre_gets_replicas_master_keys(bft_network.all_replicas())
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
             initial_prim = 0
             crashed_replica = list(bft_network.random_set_of_replicas(1, {initial_prim}))
@@ -1962,6 +1965,19 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                         succ = True
                         break
             assert total == expected
+
+    async def wait_until_cre_gets_replicas_master_keys(self, bft_network, replicas):
+        with trio.fail_after(60):
+            succ = False
+            while succ is False:
+                succ = True
+                for r in replicas:
+                    master_key_path = os.path.join(bft_network.testdir, "replicas_rsa_keys", str(r), "pub_key")
+                    print(master_key_path)
+                    if os.path.isfile(master_key_path) is False:
+                        succ = False
+                        break
+
 
 if __name__ == '__main__':
     unittest.main()
