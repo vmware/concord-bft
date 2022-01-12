@@ -144,7 +144,7 @@ def with_constant_load(async_fn):
                 nursery.cancel_scope.cancel()
     return wrapper
 
-def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None, num_ro_replicas=0, rotate_keys=False, bft_configs=None, with_cre=False):
+def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None, num_ro_replicas=0, rotate_keys=False, bft_configs=None, with_cre=False, publish_master_keys=False):
     """
     Runs the decorated async function for all selected BFT configs
     start_replica_cmd is a callback which is used to start a replica. It should have the following
@@ -185,7 +185,7 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
                                                                          + "_c=" + str(bft_config['c'])
                             with log.start_task(action_type=f"{bft_network.current_test}_num_clients={config.num_clients}"):
                                 if rotate_keys:
-                                    await bft_network.check_initital_key_exchange()
+                                    await bft_network.check_initital_key_exchange(check_master_key_publication=publish_master_keys)
                                 bft_network.test_start_time = time.time()
                                 await async_fn(*args, **kwargs, bft_network=bft_network)
         return wrapper
@@ -1436,8 +1436,25 @@ class BftTestNetwork:
                 return nb_slow_path
             
         return await self.wait_for(the_number_of_slow_path_requests, 5, .5)
-        
-    async def check_initital_key_exchange(self, stop_replicas=True, full_key_exchange=False, replicas_to_start=[]):
+
+    async def check_initial_master_key_publication(self, replicas):
+        with trio.fail_after(seconds=120):
+            succ = False
+            while succ is False:
+                succ = True
+                for r in replicas:
+                    with trio.move_on_after(seconds=1):
+                        try:
+                            num_of_executions = int(await self.get_metric(r, self, "Counters", "executions", "reconfiguration_dispatcher"))
+                            if num_of_executions < len(replicas):
+                                succ = False
+                                break
+                        except trio.TooSlowError:
+                            succ = False
+                            break
+                await trio.sleep(1)
+
+    async def check_initital_key_exchange(self, stop_replicas=True, full_key_exchange=False, replicas_to_start=[], check_master_key_publication=False):
         """
         Performs initial key exchange, starts all replicas, validate the exchange and stops all replicas.
         The stop is done in order for a test who uses this functionality, to proceed without imposing n up replicas.
@@ -1478,6 +1495,8 @@ class BftTestNetwork:
                 lastExecutedKey = ['replica', 'Gauges', 'lastExecutedSeqNum']
                 rep = random.choice(replicas_to_start)
                 lastExecutedVal = await self.metrics.get(rep, *lastExecutedKey)
+            if check_master_key_publication:
+                await self.check_initial_master_key_publication(replicas_to_start)
             if stop_replicas:
                 self.stop_replicas(replicas_to_start)
             return lastExecutedVal
