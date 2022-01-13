@@ -321,6 +321,9 @@ class BcStTestDelegator {
   uint64_t getNextRequiredBlock() { return stateTransfer_->fetchState_.nextBlockId; }
   RVBManager* getRvbManager() { return stateTransfer_->rvbm_.get(); }
   RangeValidationTree* getRvt() { return stateTransfer_->rvbm_->in_mem_rvt_.get(); }
+  void createCheckpointOfCurrentState(uint64_t checkpointNum) {
+    stateTransfer_->createCheckpointOfCurrentState(checkpointNum);
+  };
   const std::vector<std::pair<BlockId, STDigest>> getPrunedBlocksDigests() {
     return stateTransfer_->rvbm_->pruned_blocks_digests_;
   }
@@ -1170,31 +1173,21 @@ void BcStTest::configureLog(const string& logLevelStr) {
   std::set<string> possibleLogLevels = {"trace", "debug", "info", "warn", "error", "fatal"};
   ASSERT_TRUE(possibleLogLevels.find(logLevelStr) != possibleLogLevels.end());
 #ifdef USE_LOG4CPP
-  log4cplus::LogLevel logLevel =
-      logLevelStr == "trace"
-          ? log4cplus::TRACE_LOG_LEVEL
-          : logLevelStr == "debug"
-                ? log4cplus::DEBUG_LOG_LEVEL
-                : logLevelStr == "info"
-                      ? log4cplus::INFO_LOG_LEVEL
-                      : logLevelStr == "warn"
-                            ? log4cplus::WARN_LOG_LEVEL
-                            : logLevelStr == "error"
-                                  ? log4cplus::ERROR_LOG_LEVEL
-                                  : logLevelStr == "fatal" ? log4cplus::FATAL_LOG_LEVEL : log4cplus::INFO_LOG_LEVEL;
+  log4cplus::LogLevel logLevel = logLevelStr == "trace"   ? log4cplus::TRACE_LOG_LEVEL
+                                 : logLevelStr == "debug" ? log4cplus::DEBUG_LOG_LEVEL
+                                 : logLevelStr == "info"  ? log4cplus::INFO_LOG_LEVEL
+                                 : logLevelStr == "warn"  ? log4cplus::WARN_LOG_LEVEL
+                                 : logLevelStr == "error" ? log4cplus::ERROR_LOG_LEVEL
+                                 : logLevelStr == "fatal" ? log4cplus::FATAL_LOG_LEVEL
+                                                          : log4cplus::INFO_LOG_LEVEL;
 #else
-  logging::LogLevel logLevel =
-      logLevelStr == "trace"
-          ? logging::LogLevel::trace
-          : logLevelStr == "debug"
-                ? logging::LogLevel::debug
-                : logLevelStr == "info"
-                      ? logging::LogLevel::info
-                      : logLevelStr == "warn"
-                            ? logging::LogLevel::warn
-                            : logLevelStr == "error"
-                                  ? logging::LogLevel::error
-                                  : logLevelStr == "fatal" ? logging::LogLevel::fatal : logging::LogLevel::info;
+  logging::LogLevel logLevel = logLevelStr == "trace"   ? logging::LogLevel::trace
+                               : logLevelStr == "debug" ? logging::LogLevel::debug
+                               : logLevelStr == "info"  ? logging::LogLevel::info
+                               : logLevelStr == "warn"  ? logging::LogLevel::warn
+                               : logLevelStr == "error" ? logging::LogLevel::error
+                               : logLevelStr == "fatal" ? logging::LogLevel::fatal
+                                                        : logging::LogLevel::info;
 #endif
   // logging::Logger::getInstance("serializable").setLogLevel(logLevel);
   // logging::Logger::getInstance("concord.bft.st.dbdatastore").setLogLevel(logLevel);
@@ -1628,6 +1621,8 @@ TEST_F(BcStTest, srcHandleFetchResPagesMsg) {
 //       BcStTest Backup Replica (Initialization, Checkpointing)
 //
 /////////////////////////////////////////////////////////
+
+// Check that a backup replica save and load checkpoints, in particular the RVT as part of the CP
 TEST_F(BcStTest, bkpCheckCheckpointsPersistency) {
   ASSERT_NFF(initialize());
   ASSERT_NFF(cmnStartRunning());
@@ -1646,6 +1641,7 @@ TEST_F(BcStTest, bkpCheckCheckpointsPersistency) {
   testConfig_.productDbDeleteOnEnd = true;
 }
 
+// Check that a backup replica save and load pruned block digests which were not yet added to the RVT
 TEST_F(BcStTest, bkpCheckCheckPruningPersistency) {
   ASSERT_NFF(initialize());
   ASSERT_NFF(cmnStartRunning());
@@ -1667,6 +1663,48 @@ TEST_F(BcStTest, bkpCheckCheckPruningPersistency) {
   ASSERT_EQ(digestsBefore, digestsafter);
   testConfig_.productDbDeleteOnEnd = true;
 }
+
+// Check inter-versions compitability: period to version 1.6 there is no RVT data in checkpoint.
+// We would like to check that replica is able to reconstruct the whole RVT from storage, when no data is found in
+// Checkpoint
+TEST_F(BcStTest, bkpCheckRvbDataReconstructionFromStorageInterVersion) {
+  // do not store RVB data in checkpoints (simulate v1.5)
+  targetConfig_.enableStoreRvbDataDuringCheckpointing = false;
+  ASSERT_NFF(initialize());
+  ASSERT_NFF(cmnStartRunning());
+  ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, testState_.maxRequiredBlockId));
+  ASSERT_NFF(dataGen_->generateCheckpointDescriptors(appState_,
+                                                     datastore_,
+                                                     testState_.minRepliedCheckpointNum,
+                                                     testState_.maxRepliedCheckpointNum,
+                                                     stDelegator_->getRvbManager()));
+  stDelegator_->createCheckpointOfCurrentState(datastore_->getLastStoredCheckpoint() + 1);
+  auto rvt = stDelegator_->getRvt();
+  auto h1 = rvt->getRootHashVal();
+
+  // Now enable keeping RVB data
+  targetConfig_.enableStoreRvbDataDuringCheckpointing = false;
+  ASSERT_NFF(dstRestart(false, FetchingState::NotFetching));
+  rvt = stDelegator_->getRvt();
+  auto h2 = rvt->getRootHashVal();
+  ASSERT_EQ(h1, h2);
+  testConfig_.productDbDeleteOnEnd = true;
+}
+
+// ASSERT_NFF(initialize());
+// ASSERT_NFF(dstStartRunningAndCollecting());
+// ASSERT_NFF(fakeSrcReplica_->replyAskForCheckpointSummariesMsg());
+// // Restart on 3 batches during collection
+// std::set<size_t> execOnIterations{3, 5, 7};
+// const std::function<void(void)> restart_on_specific_iterations = [&]() {
+//   dstRestartWithIterations(execOnIterations, FetchingState::GettingMissingBlocks);
+// };
+// ASSERT_NFF(getMissingblocksStage<void>(restart_on_specific_iterations, EMPTY_FUNC));
+// ASSERT_NFF(getReservedPagesStage());
+// // now validate completion
+// ASSERT_TRUE(testedReplicaIf_.onTransferringCompleteCalled_);
+// ASSERT_EQ(FetchingState::NotFetching, stateTransfer_->getFetchingState());
+
 }  // namespace bftEngine::bcst::impl
 
 int main(int argc, char** argv) {
