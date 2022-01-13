@@ -66,10 +66,21 @@ struct InputValues {
   Integer parent;  // mod by parent val (shld size be any different than leaf), shld be 256 byte?
 };
 
+class BcStTestDelegator {
+ public:
+  BcStTestDelegator(RangeValidationTree& rvt) : rvt_(rvt){};
+  BcStTestDelegator() = delete;
+  bool validateRVBGroupId(const RVBGroupId rvb_group_id) const { return rvt_.validateRVBGroupId(rvb_group_id); }
+
+ private:
+  RangeValidationTree& rvt_;
+};
+
 class RVTTest : public ::testing::Test {
  public:
-  RVTTest() {}
+  void init(RangeValidationTree& rvt) { delegator_ = std::make_unique<BcStTestDelegator>(rvt); }
   InputValues values_{randomString(HASH_SIZE), randomString(HASH_SIZE), randomString(HASH_SIZE)};
+  std::shared_ptr<BcStTestDelegator> delegator_;
 };
 
 /////////////////////// starting of maths properties validation test for cryptoPP::Integer class  /////////////////////
@@ -311,6 +322,8 @@ TEST_F(RVTTest, validateRvbGroupIds) {
   uint32_t RVT_K = 4;
   uint32_t fetch_range_size = 5;
   RangeValidationTree rvt(logging::getLogger("concord.bft.st.rvt"), RVT_K, fetch_range_size);
+  init(rvt);
+
   for (auto i = fetch_range_size; i <= fetch_range_size * RVT_K * 2 + fetch_range_size; i = i + fetch_range_size) {
     STDigest digest(std::to_string(i).c_str());
     rvt.addNode(i, digest);
@@ -329,7 +342,7 @@ TEST_F(RVTTest, validateRvbGroupIds) {
   ASSERT_NE(rvt.getDirectParentHashVal(randomNum(25, 40, 5)), rvt.getDirectParentHashVal(45));
 
   std::vector<BlockId> rvb_block_ids = rvt.getRvbIds(rvb_group_ids[0]);
-  if (not rvt.valid(rvb_group_ids[0])) {
+  if (not delegator_->validateRVBGroupId(rvb_group_ids[0])) {
     ASSERT_EQ(rvb_block_ids.size(), 0);
   } else {
     ASSERT_EQ(rvb_block_ids.size(), 4);
