@@ -50,18 +50,6 @@ using RVBIndex = uint64_t;
 // 3. Each node in tree is represented as NodeId having type.
 // 4. HashVal is stored in form of CryptoPP::Integer.
 
-// TODO - move to much better place (quick and dirty pow)
-static uint64_t pow_int(uint64_t base, uint64_t exp) {
-  ConcordAssertOR(base != 0, exp != 0);  // both zero are undefined
-  uint64_t res{base};
-  if (base == 0) return 1;
-  if (exp == 0) return 1;
-  for (size_t i{1}; i < exp; ++i) {
-    res *= base;
-  }
-  return res;
-}
-
 class RangeValidationTree {
   // The next friend declerations are used strictly for testing
   friend class BcStTestDelegator;
@@ -74,15 +62,15 @@ class RangeValidationTree {
     NodeId(uint8_t l, uint64_t index) : level(l), rvb_index(index & kRvbIndexMask) {}
     NodeId() = delete;
 
-    bool operator<(NodeId& other) const {
+    bool operator<(NodeId& other) const noexcept {
       return ((level <= other.level) || (rvb_index < other.rvb_index)) ? true : false;
     }
-    bool operator!=(NodeId& other) const {
+    bool operator!=(NodeId& other) const noexcept {
       return ((level != other.level) || (rvb_index != other.rvb_index)) ? true : false;
     }
-    uint64_t getVal() const { return ((static_cast<uint64_t>(level) << kNIDBitsPerRVBIndex) | rvb_index); }
+    uint64_t getVal() const noexcept { return ((static_cast<uint64_t>(level) << kNIDBitsPerRVBIndex) | rvb_index); }
     std::string getPrettyVal() const noexcept;
-    
+
     static constexpr size_t kNIDBitsPerLevel = 8;
     static constexpr size_t kNIDBitsPerRVBIndex = ((sizeof(uint64_t) * 8) - kNIDBitsPerLevel);
     static constexpr size_t kRVTMaxLevels = ((0x1 << kNIDBitsPerLevel) - 1);
@@ -92,7 +80,7 @@ class RangeValidationTree {
     const uint64_t rvb_index : kNIDBitsPerRVBIndex;
   };
 
-  // Initialize only once
+  // Initialized only once
   struct HashMaxValues {
     HashMaxValues();
     HashVal_t kNodeHashMaxValue_ = 0;
@@ -123,13 +111,13 @@ class RangeValidationTree {
     HashVal(char* val, size_t size);
     HashVal(HashVal_t* val);
     HashVal& operator=(const HashVal& other);
-    bool operator==(HashVal& other) const;
     HashVal& operator+=(HashVal& other);
     HashVal& operator-=(HashVal& other);
+    bool operator==(HashVal& other) const { return hash_val_ == other.hash_val_; }
     HashVal_t& getMaxVal() { return hash_max_val_.kNodeHashMaxValue_; }
     HashVal_t& getVal() { return hash_val_; }
-    std::string valToString();
-    std::string getDecodedHashVal() const;
+    std::string valToString() const noexcept;
+    std::string getDecodedHashVal() const noexcept;
     size_t getSize() { return hash_val_.MinEncodedSize(); }
 
     static constexpr uint8_t kNodeHashSizeBytes = 32;
@@ -191,11 +179,13 @@ class RangeValidationTree {
     std::ostringstream serialize();
     static shared_ptr<RVTNode> deserialize(std::istringstream& is);
     uint64_t getNextSiblingId(uint32_t RVT_K) noexcept;
+    // TODO - move to much better place (quick and dirty pow)
+    static uint64_t pow_int(uint64_t base, uint64_t exp) noexcept;
 
     static constexpr uint8_t kDefaultRVTLeafLevel = 1;
     uint16_t n_child{0};
-    uint64_t min_child_id{0};  // minimal actual child id.
-    uint64_t max_child_id{0};  // maximal possible child id . The max actual is min_child_id + n_child
+    uint64_t min_child_id{0};  // Minimal actual child id
+    uint64_t max_child_id{0};  // Maximal possible child id. The max actual is min_child_id + n_child.
     uint64_t parent_id{0};     // for root - will be 0
   };
 
@@ -212,7 +202,9 @@ class RangeValidationTree {
   // These API deals with range validation block ids and not indexes
   void addNode(const RVBId id, const STDigest& digest);
   void removeNode(const RVBId id, const STDigest& digest);
+  // Return complete tree along with metadata in serialized format
   std::ostringstream getSerializedRvbData() const;
+  // Initialize metadata & build tree by deserializing input stream
   bool setSerializedRvbData(std::istringstream& iss);
   std::vector<RVBGroupId> getRvbGroupIds(RVBId start_block_id, RVBId end_block_id) const;
   std::vector<RVBId> getRvbIds(RVBGroupId id) const;
@@ -249,10 +241,10 @@ class RangeValidationTree {
   void setNewRoot(shared_ptr<RVTNode> new_root);
   std::shared_ptr<RVTNode> openForInsertion(uint64_t level) const;
   std::shared_ptr<RVTNode> openForRemoval(uint64_t level) const;
+  // Helper functions
   shared_ptr<RVTNode> getRVTNodeOfLeftSibling(shared_ptr<RVTNode>& node) const;
   shared_ptr<RVTNode> getRVTNodeOfRightSibling(shared_ptr<RVTNode>& node) const;
-  shared_ptr<RVTNode> getParentNode(std::shared_ptr<RVTNode>& node);
-
+  shared_ptr<RVTNode> getParentNode(std::shared_ptr<RVTNode>& node) const noexcept;
 
  protected:
   // vector index represents level in tree

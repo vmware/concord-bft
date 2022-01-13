@@ -285,7 +285,7 @@ TEST_P(RVTTestvalidateTreeFixture, validateTree) {
   for (uint32_t i = 1; i < 1000; ++i) {
     addNode(i * fetch_range_size);
   }
-  
+
   // add, remove nodes randomly.
   for (uint32_t i = fetch_range_size; i <= n_nodes; i = i + fetch_range_size) {
     addNode(rvt.getMaxRvbId() + fetch_range_size);
