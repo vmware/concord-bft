@@ -476,7 +476,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         with log.start_action(action_type="test_tls_exchange_replicas_replicas_and_replicas_client_with_st"):
             bft_network.start_all_replicas()
             bft_network.start_cre()
-            await self.wait_until_cre_gets_replicas_master_keys(bft_network.all_replicas())
+            await self.wait_until_cre_gets_replicas_master_keys(bft_network, bft_network.all_replicas())
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
             initial_prim = 0
             crashed_replica = list(bft_network.random_set_of_replicas(1, {initial_prim}))
@@ -1516,10 +1516,17 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             bft_network.start_all_replicas()
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
             await bft_network.check_initial_master_key_publication(bft_network.all_replicas())
+            # This is a loop to make sure that all replicas are up before interfering them
+            with trio.fail_after(30):
+                nb_fast_path = await bft_network.get_metric(initial_prim, bft_network, "Counters", "totalFastPaths")
+                while nb_fast_path <= 0:
+                    for i in range(100):
+                        await skvbc.send_write_kv_set()
+                    nb_fast_path = await bft_network.get_metric(initial_prim, bft_network, "Counters", "totalFastPaths")
             with net.ReplicaSubsetIsolatingAdversary(bft_network, crashed_replica) as adversary:
                 adversary.interfere()
 
-                for i in range(1000):
+                for i in range(601):
                     await skvbc.send_write_kv_set()
                 client = bft_network.random_client()
                 client.config._replace(req_timeout_milli=10000)
