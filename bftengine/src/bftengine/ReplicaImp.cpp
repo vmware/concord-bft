@@ -5122,7 +5122,8 @@ void ReplicaImp::handleDeferredRequests() {
       tryToGoToNextView();
       shouldTryToGoToNextView_ = false;
     }
-    for (auto &msg : deferredMessages_) {
+    while (!deferredMessages_.empty()) {
+      auto msg = deferredMessages_.front();
       deferredMessages_.pop_front();
       deferredMessagesMetric_--;
       auto msgHandlerCallback = msgHandlers_->getCallback(msg->type());
@@ -5133,7 +5134,8 @@ void ReplicaImp::handleDeferredRequests() {
       }
     }
     // Currently we are avoiding duplicates on deferred RO requests queue
-    for (auto &msg : deferredRORequests_) {
+    while (!deferredRORequests_.empty()) {
+      auto msg = deferredRORequests_.front();
       deferredRORequests_.pop_front();
       deferredRORequestsMetric_--;
       auto msgHandlerCallback = msgHandlers_->getCallback(msg->type());
