@@ -324,7 +324,7 @@ class BcStTestDelegator {
   void createCheckpointOfCurrentState(uint64_t checkpointNum) {
     stateTransfer_->createCheckpointOfCurrentState(checkpointNum);
   };
-  void deleteOldCheckpoints(uint64_t checkpointNumber, DataStoreTransaction *txn) {
+  void deleteOldCheckpoints(uint64_t checkpointNumber, DataStoreTransaction* txn) {
     stateTransfer_->deleteOldCheckpoints(checkpointNumber, txn);
   }
   const std::vector<std::pair<BlockId, STDigest>> getPrunedBlocksDigests() {
@@ -1176,21 +1176,31 @@ void BcStTest::configureLog(const string& logLevelStr) {
   std::set<string> possibleLogLevels = {"trace", "debug", "info", "warn", "error", "fatal"};
   ASSERT_TRUE(possibleLogLevels.find(logLevelStr) != possibleLogLevels.end());
 #ifdef USE_LOG4CPP
-  log4cplus::LogLevel logLevel = logLevelStr == "trace"   ? log4cplus::TRACE_LOG_LEVEL
-                                 : logLevelStr == "debug" ? log4cplus::DEBUG_LOG_LEVEL
-                                 : logLevelStr == "info"  ? log4cplus::INFO_LOG_LEVEL
-                                 : logLevelStr == "warn"  ? log4cplus::WARN_LOG_LEVEL
-                                 : logLevelStr == "error" ? log4cplus::ERROR_LOG_LEVEL
-                                 : logLevelStr == "fatal" ? log4cplus::FATAL_LOG_LEVEL
-                                                          : log4cplus::INFO_LOG_LEVEL;
+  log4cplus::LogLevel logLevel =
+      logLevelStr == "trace"
+          ? log4cplus::TRACE_LOG_LEVEL
+          : logLevelStr == "debug"
+                ? log4cplus::DEBUG_LOG_LEVEL
+                : logLevelStr == "info"
+                      ? log4cplus::INFO_LOG_LEVEL
+                      : logLevelStr == "warn"
+                            ? log4cplus::WARN_LOG_LEVEL
+                            : logLevelStr == "error"
+                                  ? log4cplus::ERROR_LOG_LEVEL
+                                  : logLevelStr == "fatal" ? log4cplus::FATAL_LOG_LEVEL : log4cplus::INFO_LOG_LEVEL;
 #else
-  logging::LogLevel logLevel = logLevelStr == "trace"   ? logging::LogLevel::trace
-                               : logLevelStr == "debug" ? logging::LogLevel::debug
-                               : logLevelStr == "info"  ? logging::LogLevel::info
-                               : logLevelStr == "warn"  ? logging::LogLevel::warn
-                               : logLevelStr == "error" ? logging::LogLevel::error
-                               : logLevelStr == "fatal" ? logging::LogLevel::fatal
-                                                        : logging::LogLevel::info;
+  logging::LogLevel logLevel =
+      logLevelStr == "trace"
+          ? logging::LogLevel::trace
+          : logLevelStr == "debug"
+                ? logging::LogLevel::debug
+                : logLevelStr == "info"
+                      ? logging::LogLevel::info
+                      : logLevelStr == "warn"
+                            ? logging::LogLevel::warn
+                            : logLevelStr == "error"
+                                  ? logging::LogLevel::error
+                                  : logLevelStr == "fatal" ? logging::LogLevel::fatal : logging::LogLevel::info;
 #endif
   // logging::Logger::getInstance("serializable").setLogLevel(logLevel);
   // logging::Logger::getInstance("concord.bft.st.dbdatastore").setLogLevel(logLevel);
@@ -1703,7 +1713,8 @@ TEST_F(BcStTest, ValidateRvbDataInitialSource) {
   targetConfig_.enableStoreRvbDataDuringCheckpointing = true;
   ASSERT_NFF(dstRestart(false, FetchingState::NotFetching));
 
-  // create new checkpoints this time with RVB data. Then restart the replica, expect RvbDataInitialSource == FROM_STORAGE_CP
+  // create new checkpoints this time with RVB data. Then restart the replica, expect RvbDataInitialSource ==
+  // FROM_STORAGE_CP
   testState_.minRequiredBlockId = testState_.maxRequiredBlockId + 1;
   uint64_t nextCheckpointNum = datastore_->getLastStoredCheckpoint() + 1;
   testState_.maxRequiredBlockId += testConfig_.checkpointWindowSize;

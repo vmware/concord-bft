@@ -73,37 +73,20 @@ class RangeValidationTree {
 
     static constexpr size_t kNIDBitsPerLevel = 8;
     static constexpr size_t kNIDBitsPerRVBIndex = ((sizeof(uint64_t) * 8) - kNIDBitsPerLevel);
-    static constexpr size_t kRVTMaxLevels = ((0x1 << kNIDBitsPerLevel) - 1);
-    static constexpr uint64_t kRvbIdMask = (kRVTMaxLevels) << kNIDBitsPerRVBIndex;
+    static constexpr size_t kMaxLevels = ((0x1 << kNIDBitsPerLevel) - 1);
+    static constexpr uint64_t kRvbIdMask = (kMaxLevels) << kNIDBitsPerRVBIndex;
     static constexpr uint64_t kRvbIndexMask = std::numeric_limits<uint64_t>::max() & (~kRvbIdMask);
+
     const uint64_t level : kNIDBitsPerLevel;
     const uint64_t rvb_index : kNIDBitsPerRVBIndex;
   };
 
-  // Initialized only once
   struct HashMaxValues {
-    HashMaxValues();
-    HashVal_t kNodeHashMaxValue_ = 0;
-    HashVal_t kNodeHashModulo_ = 0;
-  };
-
-  class HashMaxValuesSingleton {
-   public:
-    // TODO Do we really need to be thread safe?
-    // std::mutex mutex;
-    // std::scoped_lock lock(mutex);
-    static HashMaxValues& getInstance() {
-      static HashMaxValues max;
-      return max;
-    }
-    HashMaxValuesSingleton(const HashMaxValuesSingleton&) = delete;
-    HashMaxValuesSingleton& operator=(const HashMaxValuesSingleton&) = delete;
-    HashMaxValuesSingleton(HashMaxValuesSingleton&&) = delete;
-    HashMaxValuesSingleton& operator=(const HashMaxValuesSingleton&&) = delete;
-
-   private:
-    HashMaxValuesSingleton() = default;
-    ~HashMaxValuesSingleton() = default;
+    static const HashVal_t kNodeHashMaxValue_;
+    static const HashVal_t kNodeHashModulo_;
+    static HashVal_t calcNodeHashMaxValue();
+    static HashVal_t calcNodeHashModulo();
+    HashMaxValues() = delete;
   };
 
   struct HashVal {
@@ -114,8 +97,8 @@ class RangeValidationTree {
     HashVal& operator+=(HashVal& other);
     HashVal& operator-=(HashVal& other);
     bool operator==(HashVal& other) const { return hash_val_ == other.hash_val_; }
-    HashVal_t& getMaxVal() { return hash_max_val_.kNodeHashMaxValue_; }
-    HashVal_t& getVal() { return hash_val_; }
+    const HashVal_t& getMaxVal() { return HashMaxValues::kNodeHashMaxValue_; }
+    const HashVal_t& getVal() { return hash_val_; }
     std::string valToString() const noexcept;
     std::string getDecodedHashVal() const noexcept;
     size_t getSize() { return hash_val_.MinEncodedSize(); }
@@ -123,7 +106,6 @@ class RangeValidationTree {
     static constexpr uint8_t kNodeHashSizeBytes = 32;
     static_assert(kNodeHashSizeBytes == BLOCK_DIGEST_SIZE);
     HashVal_t hash_val_;
-    HashMaxValues hash_max_val_;
   };
 
   struct RVBNode {
@@ -168,19 +150,17 @@ class RangeValidationTree {
   struct RVTNode : public RVBNode {
     RVTNode(uint32_t RVT_K, std::shared_ptr<RVBNode>& node);
     RVTNode(uint32_t RVT_K, std::shared_ptr<RVTNode>& node);
-    RVTNode(SerializedRVTNode& node, char*, size_t hash_size);
+    RVTNode(SerializedRVTNode& node, char* hash_val, size_t hash_size);
+    static shared_ptr<RVTNode> create(std::istringstream& is);
 
-    STDigest getZeroedDigest() { return STDigest{}; }
+    STDigest getZeroedDigest() const { return STDigest{}; }
     void addRVBNodeHash(std::shared_ptr<RVBNode>& node) { hash_val += node->hash_val; }
     void removeRVBNodeHash(std::shared_ptr<RVBNode>& node) { hash_val -= node->hash_val; }
-    // TODO known bug; fix it; verify with gtest
+    // TODO known bug; fix it; verify with GTest
     void addRVTNodeHash(std::shared_ptr<RVTNode>& node) { hash_val += node->hash_val; }
     void removeRVTNodeHash(std::shared_ptr<RVTNode>& node) { hash_val -= node->hash_val; }
     std::ostringstream serialize();
-    static shared_ptr<RVTNode> deserialize(std::istringstream& is);
     uint64_t getNextSiblingId(uint32_t RVT_K) noexcept;
-    // TODO - move to much better place (quick and dirty pow)
-    static uint64_t pow_int(uint64_t base, uint64_t exp) noexcept;
 
     static constexpr uint8_t kDefaultRVTLeafLevel = 1;
     uint16_t n_child{0};
@@ -228,6 +208,7 @@ class RangeValidationTree {
     NodeId nid(rvb_group_id);
     return ((nid.level == RVTNode::kDefaultRVTLeafLevel) && ((nid.rvb_index % RVT_K) == 1));
   }
+  static uint64_t pow_int(uint64_t base, uint64_t exp) noexcept;
 
  protected:
   // tree internal manipulation
