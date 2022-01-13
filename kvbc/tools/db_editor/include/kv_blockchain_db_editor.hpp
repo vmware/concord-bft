@@ -1024,6 +1024,9 @@ struct VerifyDbCheckpoint {
   using BlockDigest = std::array<std::uint8_t, BLOCK_DIGEST_SIZE>;
   using CheckpointDesc = bftEngine::bcst::impl::DataStore::CheckpointDesc;
   using BlockHashData = std::tuple<uint64_t, BlockDigest, BlockDigest>;  //<blockId, parentHash, blockHash>
+  using IVerifier = concord::util::crypto::IVerifier;
+  using RSAVerifier = concord::util::crypto::RSAVerifier;
+  using KeyFormat = concord::util::crypto::KeyFormat;
   const bool read_only = true;
   std::string description() const {
     std::ostringstream oss;
@@ -1050,6 +1053,26 @@ struct VerifyDbCheckpoint {
   }
   bool isSame(const Digest &d, const STDigest &st) const {
     return !st.isZero() && (sizeof(d) == sizeof(st)) && !std::memcmp(d.content(), st.get(), sizeof(st));
+  }
+  unique_ptr<IVerifier> createRsaVerifier(std::string pubKeyStr, KeyFormat format) const {
+    return std::make_unique<RSAVerifier>(pubKeyStr, format);
+  }
+  bool verifySig(const char *data,
+                 uint32_t data_len,
+                 const std::string pub_key,
+                 KeyFormat format,
+                 const char *sig,
+                 uint32_t sig_len) const {
+    auto verifier = createRsaVerifier(pub_key, format);
+    if (verifier) {
+      auto signature_len = verifier->signatureLength();
+      if (signature_len == sig_len) {
+        std::string _data(data, data_len);
+        std::string _sig(sig, sig_len);
+        return verifier->verify(_data, _sig);
+      }
+    }
+    return false;
   }
   bool verify(const CheckpointMsg &msg, const CheckpointDesc &desc) const {
     return (isSame(msg.digestOfState(), desc.digestOfLastBlock) && (msg.state() == desc.lastBlock));
