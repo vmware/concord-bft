@@ -34,7 +34,7 @@ else
    TCP_ENABLED__:=FALSE
 endif
 
-CONCORD_BFT_CMAKE_CXX_FLAGS_RELEASE?='-O3 -g'
+CONCORD_BFT_CMAKE_CXX_FLAGS_RELEASE?='-O0 -g -Og -Wfatal-errors'
 CONCORD_BFT_CMAKE_USE_LOG4CPP?=TRUE
 CONCORD_BFT_CMAKE_BUILD_ROCKSDB_STORAGE?=TRUE
 CONCORD_BFT_CMAKE_USE_S3_OBJECT_STORE?=TRUE
@@ -57,12 +57,12 @@ CONCORD_BFT_CMAKE_TSAN?=FALSE
 CONCORD_BFT_CMAKE_CODECOVERAGE?=FALSE
 CONCORD_BFT_CMAKE_USE_FAKE_CLOCK_IN_TIME_SERVICE?=FALSE
 ifeq (${CONCORD_BFT_CMAKE_ASAN},TRUE)
-	CONCORD_BFT_CMAKE_CXX_FLAGS_RELEASE='-O0 -g'
+	CONCORD_BFT_CMAKE_CXX_FLAGS_RELEASE='-O0 -g -Og -Wfatal-errors'
 else ifeq (${CONCORD_BFT_CMAKE_TSAN},TRUE)
-	CONCORD_BFT_CMAKE_CXX_FLAGS_RELEASE='-O0 -g'
+	CONCORD_BFT_CMAKE_CXX_FLAGS_RELEASE='-O0 -g -Og -Wfatal-errors'
 endif
 ifeq (${CONCORD_BFT_CMAKE_CODECOVERAGE},TRUE)
-	CONCORD_BFT_CMAKE_CXX_FLAGS_RELEASE='-O0 -g'
+	CONCORD_BFT_CMAKE_CXX_FLAGS_RELEASE='-O0 -g -Og -Wfatal-errors'
 endif
 
 CONCORD_BFT_CMAKE_FLAGS?= \
@@ -100,20 +100,22 @@ CONCORD_BFT_CORE_DIR?=${CONCORD_BFT_TARGET_SOURCE_PATH}/${CONCORD_BFT_BUILD_DIR}
 
 CONCORD_BFT_ADDITIONAL_RUN_PARAMS?=
 
+# MakefileCustom may be useful for overriding the default variables
+# or adding custom targets. The include directive is ignored if MakefileCustom file does not exist.
+-include MakefileCustom
+
 BASIC_RUN_PARAMS?=-it --init --rm --privileged=true \
 					  --memory-swap -1 \
 					  --cap-add NET_ADMIN --cap-add=SYS_PTRACE --ulimit core=-1 \
 					  --name="${CONCORD_BFT_DOCKER_CONTAINER}" \
 					  --workdir=${CONCORD_BFT_TARGET_SOURCE_PATH} \
 					  --mount type=bind,source=${CURDIR},target=${CONCORD_BFT_TARGET_SOURCE_PATH}${CONCORD_BFT_CONTAINER_MOUNT_CONSISTENCY} \
+					  --mount type=bind,source=/tmp/,target=/tmp/ \
 					  ${CONCORD_BFT_ADDITIONAL_RUN_PARAMS} \
 					  ${CONCORD_BFT_DOCKER_REPO}${CONCORD_BFT_DOCKER_IMAGE}:${CONCORD_BFT_DOCKER_IMAGE_VERSION}
 
 .DEFAULT_GOAL:=build
 
-# MakefileCustom may be useful for overriding the default variables
-# or adding custom targets. The include directive is ignored if MakefileCustom file does not exist.
--include MakefileCustom
 
 IF_CONTAINER_RUNS=$(shell docker container inspect -f '{{.State.Running}}' ${CONCORD_BFT_DOCKER_CONTAINER} 2>/dev/null)
 
@@ -121,6 +123,14 @@ IF_CONTAINER_RUNS=$(shell docker container inspect -f '{{.State.Running}}' ${CON
 help: ## The Makefile helps to build Concord-BFT in a docker container
 	@cat $(MAKEFILE_LIST) | grep -E '^[a-zA-Z_-]+:.*?## .*$$' | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+
+build-q: gen_cmake ## Build Concord-BFT source. In order to build a specific target run: make TARGET=<target name>.
+	docker run ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
+		${CONCORD_BFT_CONTAINER_SHELL} -c \
+		"cd ${CONCORD_BFT_BUILD_DIR} && \
+		make -j $$(nproc) ${TARGET}"
+	@echo
+	@echo "Build finished. The binaries are in ${CURDIR}/${CONCORD_BFT_BUILD_DIR}"
 
 .PHONY: pull
 pull: ## Pull image from remote
