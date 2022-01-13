@@ -255,24 +255,44 @@ INSTANTIATE_TEST_CASE_P(validateRandomFRSAndRVT_K,
                                           std::make_pair(randomNum(3, 10), randomNum(4, 20)),
                                           std::make_pair(randomNum(3, 10), randomNum(4, 20))), );
 
-  RangeValidationTree rvt(logging::getLogger("concord.bft.st.rvt"), RVT_K, fetch_range_size);
+class RVTTestvalidateTreeFixture : public RVTTest, public testing::WithParamInterface<std::pair<uint32_t, uint32_t>> {};
+TEST_P(RVTTestvalidateTreeFixture, validateTree) {
+  auto inputs = GetParam();
+  uint32_t RVT_K = inputs.first;
+  uint32_t fetch_range_size = inputs.second;
   uint32_t n_nodes = fetch_range_size * randomNum(1024, 1024 * 1024);
 
+  fetch_range_size = 4;
+  n_nodes = 30;
+  RVT_K = 3;
+  std::cout << KVLOG(fetch_range_size, n_nodes, RVT_K) << std::endl;
+
+  RangeValidationTree rvt(logging::getLogger("concord.bft.st.rvt"), RVT_K, fetch_range_size);
   auto addNode = [&](uint64_t rvb_id) {
+    // std::cout << "add:" << KVLOG(rvb_id) << std::endl;
     STDigest digest(std::to_string(rvb_id).c_str());
     rvt.addNode(rvb_id, digest);
   };
 
   auto removeNode = [&](uint64_t rvb_id) {
+    // std::cout << "remove:" << KVLOG(rvb_id) << std::endl;
     STDigest digest(std::to_string(rvb_id).c_str());
     rvt.removeNode(rvb_id, digest);
   };
 
+  for (uint32_t i = 1; i < 1000; ++i) {
+    addNode(i * fetch_range_size);
+  }
+  for (uint32_t i = 1; i < 1000; ++i) {
+    removeNode(i * fetch_range_size);
+  }
+#if (0)
   // add, remove nodes randomly.
   for (uint32_t i = fetch_range_size; i <= n_nodes; i = i + fetch_range_size) {
     addNode(rvt.getMaxRvbId() + fetch_range_size);
-    removeNode(rvt.getMinRvbId() + fetch_range_size);
-    addNode(rvt.getMinRvbId() + fetch_range_size);
+    addNode(rvt.getMaxRvbId() + fetch_range_size);
+    removeNode(rvt.getMinRvbId());
+
     /*
     auto num = randomNum(1, 200);
     ((num % 2) || rvt.empty()) ? addNode(rvt.getMaxRvbId() + fetch_range_size)
@@ -280,49 +300,13 @@ INSTANTIATE_TEST_CASE_P(validateRandomFRSAndRVT_K,
                                */
     ASSERT_EQ(rvt.validateTree(), true);
   }
+#endif
 }
 INSTANTIATE_TEST_CASE_P(validateTree,
                         RVTTestvalidateTreeFixture,
                         ::testing::Values(std::make_pair(randomNum(3, 10), randomNum(4, 20)),
                                           std::make_pair(randomNum(3, 10), randomNum(4, 20)),
                                           std::make_pair(randomNum(3, 10), randomNum(4, 20))), );
-
-
-
-  RangeValidationTree rvt(logging::getLogger("concord.bft.st.rvt"), RVT_K, fetch_range_size);
-  uint32_t n_nodes = fetch_range_size * randomNum(1024, 1024 * 1024);
-
-  auto addNode = [&](uint64_t rvb_id) {
-    STDigest digest(std::to_string(rvb_id).c_str());
-    std::cout << "adding" << KVLOG(rvb_id) << std::endl;
-    rvt.addNode(rvb_id, digest);
-  };
-
-  auto removeNode = [&](uint64_t rvb_id) {
-    STDigest digest(std::to_string(rvb_id).c_str());
-    std::cout << "removing" << KVLOG(rvb_id) << std::endl;
-    rvt.removeNode(rvb_id, digest);
-  };
-
-  // add, remove nodes randomly.
-  for (uint32_t i = fetch_range_size; i <= n_nodes; i = i + fetch_range_size) {
-    addNode(rvt.getMaxRvbId() + fetch_range_size);
-    removeNode(rvt.getMinRvbId() + fetch_range_size);
-    addNode(rvt.getMaxRvbId() + fetch_range_size);
-    /*
-    auto num = randomNum(1, 200);
-    ((num % 2) || rvt.empty()) ? addNode(rvt.getMaxRvbId() + fetch_range_size)
-                               : removeNode(rvt.getMinRvbId() + fetch_range_size);
-                               */
-    ASSERT_EQ(rvt.validateTree(), true);
-  } 
-}
-INSTANTIATE_TEST_CASE_P(validateTree,
-                        RVTTestvalidateTreeFixture,
-                        ::testing::Values(std::make_pair(randomNum(3, 10), randomNum(4, 20)),
-                                          std::make_pair(randomNum(3, 10), randomNum(4, 20)),
-                                          std::make_pair(randomNum(3, 10), randomNum(4, 20))), );
-
 
 // TODO Need to be improved to have random RVT_K and validation logic
 TEST_F(RVTTest, validateRvbGroupIds) {
@@ -352,6 +336,41 @@ TEST_F(RVTTest, validateRvbGroupIds) {
   } else {
     ASSERT_EQ(rvb_block_ids.size(), 4);
   }
+}
+
+// TODO - convert to parametrized
+TEST_F(RVTTest, simpleAddRemoveWithRootValidation) {
+  uint64_t fetch_range_size = 4;
+  uint64_t RVT_K = 3;
+  RangeValidationTree rvt(logging::getLogger("concord.bft.st.rvt"), RVT_K, fetch_range_size);
+  size_t add_i{1}, rem_i{1};
+  for (; add_i < 1000; ++add_i) {
+    std::cout << "add:" << KVLOG(add_i * fetch_range_size) << std::endl;
+    rvt.addNode(add_i * fetch_range_size, {std::to_string(add_i * fetch_range_size).c_str()});
+  }
+  for (; rem_i < 1000; ++rem_i) {
+    std::cout << "remove:" << KVLOG(rem_i * fetch_range_size) << std::endl;
+    rvt.removeNode(rem_i * fetch_range_size, {std::to_string(rem_i * fetch_range_size).c_str()});
+  }
+
+  for (; add_i < 500; ++add_i) {
+    std::cout << "add:" << KVLOG(add_i * fetch_range_size) << std::endl;
+    rvt.addNode(add_i * fetch_range_size, {std::to_string(add_i * fetch_range_size).c_str()});
+  }
+  for (; rem_i < 300; ++rem_i) {
+    std::cout << "remove:" << KVLOG(rem_i * fetch_range_size) << std::endl;
+    rvt.removeNode(rem_i * fetch_range_size, {std::to_string(rem_i * fetch_range_size).c_str()});
+  }
+
+  for (; add_i < 500; ++add_i) {
+    std::cout << "add:" << KVLOG(add_i * fetch_range_size) << std::endl;
+    rvt.addNode(add_i * fetch_range_size, {std::to_string(add_i * fetch_range_size).c_str()});
+  }
+  for (; rem_i < 700; ++rem_i) {
+    std::cout << "remove:" << KVLOG(rem_i * fetch_range_size) << std::endl;
+    rvt.removeNode(rem_i * fetch_range_size, {std::to_string(rem_i * fetch_range_size).c_str()});
+  }
+  ASSERT_TRUE(rvt.empty());
 }
 
 int main(int argc, char** argv) {
