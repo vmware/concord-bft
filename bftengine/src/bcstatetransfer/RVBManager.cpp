@@ -30,7 +30,8 @@ RVBManager::RVBManager(const Config& config, const IAppState* state_api, const s
       config_{config},
       as_{state_api},
       ds_{ds},
-      in_mem_rvt_{std::make_unique<RangeValidationTree>(logger_, config_.RVT_K, config_.fetchRangeSize)} {
+      in_mem_rvt_{std::make_unique<RangeValidationTree>(logger_, config_.RVT_K, config_.fetchRangeSize)},
+      rvb_data_source_(RvbDataInitialSource::NIL) {
   LOG_TRACE(logger_, "");
   last_checkpoint_desc_.makeZero();
 }
@@ -66,6 +67,8 @@ void RVBManager::init(bool fetching) {
     loaded_from_data_store = in_mem_rvt_->setSerializedRvbData(rvb_data);
     if (!loaded_from_data_store) {
       LOG_ERROR(logger_, "Failed to load RVB data from stored checkpoint" << KVLOG(desc.checkpointNum));
+    } else {
+      rvb_data_source_ = RvbDataInitialSource::FROM_STORAGE_CP;
     }
   }
 
@@ -74,6 +77,7 @@ void RVBManager::init(bool fetching) {
     LOG_ERROR(logger_, "Reconstructing RVB data" << KVLOG(loaded_from_data_store, desc.maxBlockId));
     addRvbDataOnBlockRange(
         as_->getGenesisBlockNum(), desc.maxBlockId, std::optional<STDigest>(desc.digestOfMaxBlockId));
+    rvb_data_source_ = RvbDataInitialSource::FROM_STORAGE_RECONSTRUCTION;
   }
 
   // TODO - print also the root hash
@@ -185,11 +189,16 @@ void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_de
   last_checkpoint_desc_ = new_checkpoint_desc;
 }
 
-void RVBManager::setRvbData(char* data, size_t data_size) {
+bool RVBManager::setRvbData(char* data, size_t data_size) {
   LOG_TRACE(logger_, "");
   std::istringstream rvb_data(std::string(data, data_size));
-  // TODO - deserialize should return a bool - it might fail due to logical/config issue. handle error in that case.
-  in_mem_rvt_->setSerializedRvbData(rvb_data);
+
+  if (!in_mem_rvt_->setSerializedRvbData(rvb_data)) {
+    LOG_ERROR(logger_, "Failed setting RVB data! (setSerializedRvbData failed!)");
+    return false;
+  }
+  rvb_data_source_ = RvbDataInitialSource::FROM_NETWORK;
+  return true;
 }
 
 size_t RVBManager::getSerializedByteSizeOfRvbGroup(int64_t rvb_group_id) const {

@@ -1392,7 +1392,11 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
   ConcordAssertGE(sourceSelector_.numberOfPreferredReplicas(), config_.fVal + 1);
 
   // Set (overwrite) the RVB data
-  rvbm_->setRvbData(checkSummary->data, checkSummary->sizeofRvbData());
+  if (!rvbm_->setRvbData(checkSummary->data, checkSummary->sizeofRvbData())) {
+    LOG_ERROR(logger_, "Failed to set the new RVT data!");
+    EnterGettingCheckpointSummariesState();
+    return true;
+  }
 
   // set new checkpoint
   DataStore::CheckpointDesc newCheckpoint;
@@ -2388,6 +2392,7 @@ void BCStateTran::EnterGettingCheckpointSummariesState() {
   commitState_.reset();
   digestOfNextRequiredBlock_.makeZero();
   clearAllPendingItemsData();
+  clearInfoAboutGettingCheckpointSummary();
   // TODO - consider call cycleReset() here instead of all the above + see how to use startCollectingState
   // and remove this function completely
   psd_->deleteCheckpointBeingFetched();
@@ -2646,6 +2651,7 @@ void BCStateTran::cycleReset() {
   }
   digestOfNextRequiredBlock_.makeZero();
   clearAllPendingItemsData();
+  clearInfoAboutGettingCheckpointSummary();
   fetchState_.reset();
   commitState_.reset();
   rvbm_->reset();

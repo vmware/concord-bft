@@ -39,6 +39,9 @@ class RVBManager {
   friend class BcStTestDelegator;
 
  public:
+  enum class RvbDataInitialSource { FROM_STORAGE_CP, FROM_NETWORK, FROM_STORAGE_RECONSTRUCTION, NIL };
+
+ public:
   // Init / Destroy functions
   RVBManager() = delete;
   RVBManager(const Config& config, const IAppState* state_api, const std::shared_ptr<DataStore>& ds);
@@ -52,7 +55,7 @@ class RVBManager {
   std::ostringstream getRvbData() const { return in_mem_rvt_->getSerializedRvbData(); }
 
   // Called during checkpoint summaries stage by destination
-  void setRvbData(char* data, size_t data_size);
+  bool setRvbData(char* data, size_t data_size);
 
   // Called during ST GettingMissingBlocks by source when received FetchBlocksMsg with rvb_group_id != 0
   // Returns number of bytes filled. We assume that rvb_group_id must exist. This can be checked by calling
@@ -90,12 +93,15 @@ class RVBManager {
   // FetchBlocksMsg
   BlockId getRvbGroupMaxBlockIdOfNonStoredRvbGroup(BlockId from_block_id, BlockId to_block_id) const;
 
+  RvbDataInitialSource getRvbDataSource() const { return rvb_data_source_; }
+
  protected:
   logging::Logger logger_;
   const Config& config_;
   const IAppState* as_;
   const std::shared_ptr<DataStore>& ds_;
   std::unique_ptr<RangeValidationTree> in_mem_rvt_;
+  RvbDataInitialSource rvb_data_source_;
   std::map<BlockId, STDigest> stored_rvb_digests_;
   std::vector<RVBGroupId> stored_rvb_digests_group_ids_;
   CheckpointDesc last_checkpoint_desc_;
