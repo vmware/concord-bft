@@ -1,0 +1,4 @@
+CMakeLists.txt:                message(FATAL_ERROR "chmod not found")
+Binary file util/__pycache__/bft.cpython-36.pyc matches
+util/bft.py:        Checking FATAL logs in replica logs and writing in a file.
+util/bft.py:            cmd = ['grep', '-R', 'FATAL', '--exclude=ReplicaErrorLogs.txt']
