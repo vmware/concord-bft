@@ -81,6 +81,8 @@ class RangeValidationTree {
       return ((level != other.level) || (rvb_index != other.rvb_index)) ? true : false;
     }
     uint64_t getVal() const { return ((static_cast<uint64_t>(level) << kNIDBitsPerRVBIndex) | rvb_index); }
+    std::string getPrettyVal() const noexcept;
+    
     static constexpr size_t kNIDBitsPerLevel = 8;
     static constexpr size_t kNIDBitsPerRVBIndex = ((sizeof(uint64_t) * 8) - kNIDBitsPerLevel);
     static constexpr size_t kRVTMaxLevels = ((0x1 << kNIDBitsPerLevel) - 1);
@@ -188,6 +190,7 @@ class RangeValidationTree {
     void removeRVTNodeHash(std::shared_ptr<RVTNode>& node) { hash_val -= node->hash_val; }
     std::ostringstream serialize();
     static shared_ptr<RVTNode> deserialize(std::istringstream& is);
+    uint64_t getNextSiblingId(uint32_t RVT_K) noexcept;
 
     static constexpr uint8_t kDefaultRVTLeafLevel = 1;
     uint16_t n_child{0};
@@ -226,7 +229,7 @@ class RangeValidationTree {
   // TODO Should getDecodedHashVal() be used instead?
   const std::string getRootHashVal() const { return root_ ? root_->hash_val.valToString() : ""; }
   void printToLog(bool only_node_id) const noexcept;
-  bool validateTree() noexcept;
+  bool validateTree() const noexcept;
   // Validation
   bool valid(const RVBId id, const STDigest& digest);
   bool valid(const RVBGroupId rvb_group_id) const {
@@ -248,6 +251,8 @@ class RangeValidationTree {
   std::shared_ptr<RVTNode> openForRemoval(uint64_t level) const;
   shared_ptr<RVTNode> getRVTNodeOfLeftSibling(shared_ptr<RVTNode>& node) const;
   shared_ptr<RVTNode> getRVTNodeOfRightSibling(shared_ptr<RVTNode>& node) const;
+  shared_ptr<RVTNode> getParentNode(std::shared_ptr<RVTNode>& node);
+
 
  protected:
   // vector index represents level in tree

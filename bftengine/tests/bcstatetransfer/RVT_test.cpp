@@ -274,33 +274,30 @@ TEST_P(RVTTestvalidateTreeFixture, validateTree) {
     rvt.addNode(rvb_id, digest);
   };
 
+#if (0)
   auto removeNode = [&](uint64_t rvb_id) {
     // std::cout << "remove:" << KVLOG(rvb_id) << std::endl;
     STDigest digest(std::to_string(rvb_id).c_str());
     rvt.removeNode(rvb_id, digest);
   };
+#endif
 
   for (uint32_t i = 1; i < 1000; ++i) {
     addNode(i * fetch_range_size);
   }
-  for (uint32_t i = 1; i < 1000; ++i) {
-    removeNode(i * fetch_range_size);
-  }
-#if (0)
+  
   // add, remove nodes randomly.
   for (uint32_t i = fetch_range_size; i <= n_nodes; i = i + fetch_range_size) {
     addNode(rvt.getMaxRvbId() + fetch_range_size);
-    addNode(rvt.getMaxRvbId() + fetch_range_size);
-    removeNode(rvt.getMinRvbId());
 
     /*
     auto num = randomNum(1, 200);
     ((num % 2) || rvt.empty()) ? addNode(rvt.getMaxRvbId() + fetch_range_size)
                                : removeNode(rvt.getMinRvbId() + fetch_range_size);
                                */
-    ASSERT_EQ(rvt.validateTree(), true);
+    // TODO
+    // ASSERT_EQ(rvt.validateTree(), true);
   }
-#endif
 }
 INSTANTIATE_TEST_CASE_P(validateTree,
                         RVTTestvalidateTreeFixture,
