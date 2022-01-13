@@ -64,12 +64,12 @@ HashVal& HashVal::operator=(const HashVal& other) {
   return *this;
 }
 
-HashVal& HashVal::operator+=(HashVal& other) {
+HashVal& HashVal::operator+=(const HashVal& other) {
   hash_val_ = ((hash_val_ + other.hash_val_) % HashMaxValues::kNodeHashModulo_);
   return *this;
 }
 
-HashVal& HashVal::operator-=(HashVal& other) {
+HashVal& HashVal::operator-=(const HashVal& other) {
   hash_val_ = ((hash_val_ - other.hash_val_) % HashMaxValues::kNodeHashModulo_);
   return *this;
 }
@@ -222,7 +222,7 @@ void RangeValidationTree::addRVBNode(shared_ptr<RVBNode>& rvb_node) {
     ++node->n_child;
     ConcordAssertLE(node->n_child, RVT_K);
     ConcordAssertLE(node->min_child_id + node->n_child - 1, node->max_child_id);
-    node->addRVBNodeHash(rvb_node);
+    node->addHashVal(rvb_node->hash_val);
     addHashValToInternalNodes(node, rvb_node);
   }
 }
@@ -271,7 +271,7 @@ void RangeValidationTree::addHashValToInternalNodes(shared_ptr<RVTNode>& node, s
     auto itr = id_to_node_map_.find(node->parent_id);
     ConcordAssert(itr != id_to_node_map_.end());
     auto parent_node = itr->second;
-    parent_node->addRVTNodeHash(node);
+    parent_node->addHashVal(node->hash_val);
     node = parent_node;
   }
 }
@@ -307,11 +307,11 @@ void RangeValidationTree::removeHashValFromInternalNodes(shared_ptr<RVTNode>& re
         }
       }
     }  // Trim the tree from removed_rvt_node to root
-    parent_node->removeRVTNodeHash(cur_node);
+    parent_node->removeHashVal(cur_node->hash_val);
     if (cur_node == removed_rvt_node) {
-      cur_node->removeRVBNodeHash(rvb_node);
+      cur_node->removeHashVal(rvb_node->hash_val);
     }
-    parent_node->addRVTNodeHash(cur_node);
+    parent_node->addHashVal(cur_node->hash_val);
     cur_node = parent_node;
   }
 
@@ -363,7 +363,7 @@ void RangeValidationTree::addInternalNode(shared_ptr<RVTNode>& node) {
       ConcordAssert(iter != id_to_node_map_.end());
       parent_node = iter->second;
     }
-    parent_node->addRVTNodeHash(node);
+    parent_node->addHashVal(node->hash_val);
     node = parent_node;
   }
 
@@ -378,8 +378,8 @@ void RangeValidationTree::addInternalNode(shared_ptr<RVTNode>& node) {
   node->parent_id = new_root->id.getVal();  // special case
   // TODO
   // how to recover from crash at this point?
-  new_root->addRVTNodeHash(root_);
-  new_root->addRVTNodeHash(node);
+  new_root->addHashVal(root_->hash_val);
+  new_root->addHashVal(node->hash_val);
   new_root->n_child++;  // special case
   ConcordAssert(new_root->n_child <= RVT_K);
   setNewRoot(new_root);

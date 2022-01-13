@@ -94,8 +94,8 @@ class RangeValidationTree {
     HashVal(char* val, size_t size);
     HashVal(HashVal_t* val);
     HashVal& operator=(const HashVal& other);
-    HashVal& operator+=(HashVal& other);
-    HashVal& operator-=(HashVal& other);
+    HashVal& operator+=(const HashVal& other);
+    HashVal& operator-=(const HashVal& other);
     bool operator==(HashVal& other) const { return hash_val_ == other.hash_val_; }
     const HashVal_t& getMaxVal() { return HashMaxValues::kNodeHashMaxValue_; }
     const HashVal_t& getVal() { return hash_val_; }
@@ -154,11 +154,9 @@ class RangeValidationTree {
     static shared_ptr<RVTNode> create(std::istringstream& is);
 
     STDigest getZeroedDigest() const { return STDigest{}; }
-    void addRVBNodeHash(std::shared_ptr<RVBNode>& node) { hash_val += node->hash_val; }
-    void removeRVBNodeHash(std::shared_ptr<RVBNode>& node) { hash_val -= node->hash_val; }
     // TODO known bug; fix it; verify with GTest
-    void addRVTNodeHash(std::shared_ptr<RVTNode>& node) { hash_val += node->hash_val; }
-    void removeRVTNodeHash(std::shared_ptr<RVTNode>& node) { hash_val -= node->hash_val; }
+    void addHashVal(const HashVal &hash_val) { this->hash_val += hash_val; }
+    void removeHashVal(const HashVal &hash_val) { this->hash_val -= hash_val; }
     std::ostringstream serialize();
     uint64_t getNextSiblingId(uint32_t RVT_K) noexcept;
 
