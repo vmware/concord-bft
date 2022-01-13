@@ -415,7 +415,7 @@ void DBAdapter::addRawBlock(const RawBlock &block, const BlockId &blockId, bool 
           [this, &keys, slivBlockId](auto &&arg) {
             for (auto &[k, v] : arg.kv) {
               LOG_INFO(logger_, "k: " << k);
-              concordUtils::Sliver sKey = std::string("key_to_blockid/") + k;
+              concordUtils::Sliver sKey = Sliver::copy(k.data(), k.length());
               keys[sKey] = slivBlockId;
               (void)v;
             }
@@ -443,18 +443,9 @@ Status DBAdapter::addBlockAndUpdateMultiKey(const SetOfKeyValuePairs &kvMap,
                                             const BlockId &blockId,
                                             const Sliver &rawBlock) {
   SetOfKeyValuePairs updatedKVMap;
-  if (saveKvPairsSeparately_) {
-    for (auto &[key, value] : kvMap) {
-      Sliver composedKey = keyGen_->mdtKey(key);
-      Sliver prevValue;
-      if (Status s = db_->get(composedKey, prevValue);
-          (s.isNotFound() || (s.isOK() && util::to<BlockId>(prevValue.toString()) < blockId))) {
-        LOG_TRACE(logger_,
-                  "Updating composed key " << composedKey << " with value " << value << " in block " << blockId);
-        updatedKVMap[composedKey] = value;
-      }
-    }
-  }
+  if (saveKvPairsSeparately_)
+    for (auto &[key, value] : kvMap) updatedKVMap[keyGen_->dataKey(key, 0)] = value;
+
   updatedKVMap[keyGen_->blockKey(blockId)] = rawBlock;
   return db_->multiPut(updatedKVMap);
 }
@@ -514,17 +505,14 @@ void DBAdapter::deleteLastReachableBlock() {
  * @return  outBlock BlockId object where the read version of the result is stored.
  */
 std::pair<Value, BlockId> DBAdapter::getValue(const Key &key, const BlockId &blockVersion) const {
-  LOG_TRACE(logger_, "Getting value of key " << key << " for read version " << blockVersion);
-  auto iter = db_->getIteratorGuard();
+  LOG_TRACE(logger_, "Getting value of key [" << key.toString() << "] for read version " << blockVersion);
   Key searchKey = keyGen_->dataKey(key, blockVersion);
-  KeyValuePair p = iter->seekAtLeast(searchKey);
-  if (!iter->isEnd() && DBKeyManipulator::extractTypeFromKey(p.first) == EDBKeyType::E_DB_KEY_TYPE_KEY) {
-    Key foundKey = DBKeyManipulator::composedToSimple(p).first;
-    BlockId currentReadVersion = DBKeyManipulator::extractBlockIdFromKey(p.first);
-    // TODO(JGC): Ask about reason for version comparison logic
-    if (currentReadVersion <= blockVersion && foundKey == key) return std::make_pair(p.second, currentReadVersion);
-  }
-  throw NotFoundException{__PRETTY_FUNCTION__ + std::string{": blockVersion: "} + std::to_string(blockVersion)};
+  LOG_TRACE(logger_, "searchKey: " << searchKey.toString());
+  Sliver value;
+  if (Status s = db_->get(searchKey, value); s.isOK()) return std::make_pair(value, 0);
+
+  throw NotFoundException{__PRETTY_FUNCTION__ + std::string(": key: ") + searchKey.toString() +
+                          std::string(" blockVersion: ") + std::to_string(blockVersion)};
 }
 
 /**

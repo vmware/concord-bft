@@ -158,7 +158,7 @@ TEST_F(S3Test, Iterator) {
   ASSERT_EQ(state.client->multiPut(pairs), Status::OK());
 
   auto it = state.client->getIteratorGuard();
-  auto res = it->seekAtLeast(std::string("prefix"));
+  auto res = it->seekAtLeast(std::string("prefix/multiPutKey"));
   while (!it->isEnd()) {
     LOG_INFO(GL, res.first.toString() << ": " << res.second.toString());
     Sliver value;
