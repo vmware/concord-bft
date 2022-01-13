@@ -63,7 +63,6 @@ void RVBManager::init(bool fetching) {
   if ((desc.checkpointNum > 0) && (!desc.rvbData.empty())) {
     // There is RVB data in this checkpoint - try to load it
     std::istringstream rvb_data(std::string(reinterpret_cast<const char*>(desc.rvbData.data()), desc.rvbData.size()));
-    // TODO - deserialize should return a bool - it might fail due to logical/config issue.
     loaded_from_data_store = in_mem_rvt_->setSerializedRvbData(rvb_data);
     if (!loaded_from_data_store) {
       LOG_ERROR(logger_, "Failed to load RVB data from stored checkpoint" << KVLOG(desc.checkpointNum));

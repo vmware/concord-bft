@@ -179,6 +179,7 @@ struct Config {
   bool enableReservedPages = true;
   bool enableSourceBlocksPreFetch = true;
   bool enableSourceSelectorPrimaryAwareness = true;
+  bool enableStoreRvbDataDuringCheckpointing = true;
 };
 
 inline std::ostream &operator<<(std::ostream &os, const Config &c) {
@@ -209,7 +210,8 @@ inline std::ostream &operator<<(std::ostream &os, const Config &c) {
               c.metricsDumpIntervalSec,
               c.enableReservedPages,
               c.enableSourceBlocksPreFetch,
-              c.enableSourceSelectorPrimaryAwareness);
+              c.enableSourceSelectorPrimaryAwareness,
+              c.enableStoreRvbDataDuringCheckpointing);
   return os;
 }
 // creates an instance of the state transfer module.

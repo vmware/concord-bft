@@ -98,7 +98,8 @@ Config targetConfig() {
       5,                  // metricsDumpIntervalSec
       true,               // enableReservedPages
       true,               // enableSourceBlocksPreFetch
-      true                // enableSourceSelectorPrimaryAwareness
+      true,               // enableSourceSelectorPrimaryAwareness
+      true                // enableStoreRvbDataDuringCheckpointing
   };
 }
 
