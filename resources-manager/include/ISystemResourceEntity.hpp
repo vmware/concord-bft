@@ -19,9 +19,9 @@ namespace concord::performance {
 class ISystemResourceEntity {
  public:
   virtual ~ISystemResourceEntity() = default;
-  //Implementation returns how much more pruned blocks can this entity support.
+  // Implementation returns how much more pruned blocks can this entity support.
   virtual int64_t getAvailableResources() const = 0;
-  //Measurements of handled operations. Can be transaction, prune blocks, etc.
+  // Measurements of handled operations. Can be transaction, prune blocks, etc.
   virtual uint64_t getMeasurements() const = 0;
   // Name of the resource for metrics purposes.
   virtual const std::string& getResourceName() const = 0;

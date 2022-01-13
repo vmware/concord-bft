@@ -34,11 +34,12 @@ class IntervalMappingResourceManager : public IResourceManager {
                             std::make_pair((uint64_t)consensusEngine->getMeasurements(), (u_int64_t)0))
         ->second;
   }
-  static IntervalMappingResourceManager *createIntervalMappingResourceManager(
+  static std::unique_ptr<IntervalMappingResourceManager> createIntervalMappingResourceManager(
       const std::shared_ptr<ISystemResourceEntity> &consensusEngine,
       std::vector<std::pair<uint64_t, uint64_t>> &&intervalMapping) {
     intervalMapping.push_back(std::make_pair(UINT64_MAX, 0));
-    return new IntervalMappingResourceManager(consensusEngine, std::move(intervalMapping));
+    return std::unique_ptr<IntervalMappingResourceManager>(
+        new IntervalMappingResourceManager(consensusEngine, std::move(intervalMapping)));
   }
 
  protected:

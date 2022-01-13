@@ -39,7 +39,7 @@ TEST(resource_manager_test, IntervalMappingResourceManager_test) {
   auto consensusEngineResourceMonitor = std::make_shared<ResourceEntityMock>();
   consensusEngineResourceMonitor->measurements = 110;
 
-  std::shared_ptr<IResourceManager> sut(IntervalMappingResourceManager::createIntervalMappingResourceManager(
+  std::unique_ptr<IResourceManager> sut(IntervalMappingResourceManager::createIntervalMappingResourceManager(
       consensusEngineResourceMonitor, std::move(mapping)));
 
   EXPECT_EQ(sut->getPruneBlocksPerSecond(), 100);
