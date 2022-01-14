@@ -27,11 +27,10 @@ class ResourceEntityMock : public ISystemResourceEntity {
   virtual ~ResourceEntityMock() = default;
   virtual int64_t getAvailableResources() const override { return availableResources; }
   virtual uint64_t getMeasurements() const override { return measurements; }
-  virtual const std::string& getResourceName() const override { return mock; }
+  virtual const std::string getResourceName() const override { return "MOCK"; }
 
   int64_t availableResources;
   uint64_t measurements;
-  const std::string mock = "MOCK";
 };
 
 TEST(resource_manager_test, IntervalMappingResourceManager_test) {
@@ -62,7 +61,7 @@ TEST(resource_manager_test, SumsResourceEntitiesAvailabilityManager_test) {
   std::vector<std::shared_ptr<ISystemResourceEntity>> systemResources = {consensusEngineResourceMonitor,
                                                                          databaseResourceMonitor};
 
-  std::shared_ptr<IResourceManager> sut(new SumsResourceEntitiesAvailabilityManager(std::move(systemResources)));
+  std::unique_ptr<IResourceManager> sut(new SumsResourceEntitiesAvailabilityManager(std::move(systemResources)));
 
   EXPECT_EQ(sut->getPruneBlocksPerSecond(), 160);
 }
@@ -76,7 +75,7 @@ TEST(resource_manager_test, SubstractFromMaxResourceManager_test) {
   std::vector<std::shared_ptr<ISystemResourceEntity>> systemResources = {consensusEngineResourceMonitor,
                                                                          databaseResourceMonitor};
 
-  std::shared_ptr<IResourceManager> sut(new SubstractFromMaxResourceManager(1000, std::move(systemResources)));
+  std::unique_ptr<IResourceManager> sut(new SubstractFromMaxResourceManager(1000, std::move(systemResources)));
 
   EXPECT_EQ(sut->getPruneBlocksPerSecond(), 840);
 }
