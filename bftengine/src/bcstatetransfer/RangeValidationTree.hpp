@@ -56,9 +56,35 @@ class RangeValidationTree {
   // The next friend declerations are used strictly for testing
   friend class BcStTestDelegator;
 
- public:
   using HashVal_t = CryptoPP::Integer;
 
+ public:
+  /////////////////////////// API /////////////////////////////////////
+  RangeValidationTree(const logging::Logger& logger,
+                      uint32_t RVT_K,
+                      uint32_t fetch_range_size,
+                      size_t hash_size = HashVal::kNodeHashSizeBytes);
+  ~RangeValidationTree() = default;
+  RangeValidationTree(const RangeValidationTree&) = delete;
+  RangeValidationTree& operator=(RangeValidationTree&) = delete;
+
+  // These API deals with range validation block ids and not indexes
+  void addNode(const RVBId id, const STDigest& digest);
+  void removeNode(const RVBId id, const STDigest& digest);
+  // Return complete tree along with metadata in serialized format
+  std::ostringstream getSerializedRvbData() const;
+  // Initialize metadata & build tree by deserializing input stream
+  bool setSerializedRvbData(std::istringstream& iss);
+  std::vector<RVBGroupId> getRvbGroupIds(RVBId start_block_id, RVBId end_block_id) const;
+  std::vector<RVBId> getRvbIds(RVBGroupId id) const;
+  std::string getDirectParentHashVal(RVBId rvb_id) const;
+  bool empty() const { return (id_to_node_.size() == 0) ? true : false; }
+  // Return the min RVB ID in the tree. Return 0 if tree is empty.
+  RVBId getMinRvbId() const;
+  // Return the max RVB ID in the tree. Return 0 if tree is empty.
+  RVBId getMaxRvbId() const;
+
+ public:
   struct NodeInfo {
     NodeInfo(uint64_t node_id)
         : level(node_id >> kNIDBitsPerRVBIndex),
@@ -162,13 +188,13 @@ class RangeValidationTree {
     RVTNode(std::shared_ptr<RVBNode>& node);
     RVTNode(std::shared_ptr<RVTNode>& node);
     RVTNode(SerializedRVTNode& node, char* hash_val, size_t hash_size);
-    static shared_ptr<RVTNode> create(std::istringstream& is);
+    static shared_ptr<RVTNode> createFromSerialized(std::istringstream& is);
 
     // TODO known bug; fix it; verify with GTest
     void addHashVal(const HashVal& hash_val) { this->hash_val += hash_val; }
     void removeHashVal(const HashVal& hash_val) { this->hash_val -= hash_val; }
     std::ostringstream serialize() const;
-    uint64_t getNextSiblingId() const noexcept;
+    uint64_t getRightSiblingId() const noexcept;
 
     static constexpr uint8_t kDefaultRVTLeafLevel = 1;
     uint16_t n_child{0};
@@ -176,32 +202,6 @@ class RangeValidationTree {
     uint64_t max_child_id{0};  // Maximal possible child id. The max actual is min_child_id + n_child.
     uint64_t parent_id{0};     // for root - will be 0
   };
-
- public:
-  /////////////////////////// API /////////////////////////////////////
-  RangeValidationTree(const logging::Logger& logger,
-                      uint32_t RVT_K,
-                      uint32_t fetch_range_size,
-                      size_t hash_size = HashVal::kNodeHashSizeBytes);
-  ~RangeValidationTree() = default;
-  RangeValidationTree(const RangeValidationTree&) = delete;
-  RangeValidationTree& operator=(RangeValidationTree&) = delete;
-
-  // These API deals with range validation block ids and not indexes
-  void addNode(const RVBId id, const STDigest& digest);
-  void removeNode(const RVBId id, const STDigest& digest);
-  // Return complete tree along with metadata in serialized format
-  std::ostringstream getSerializedRvbData() const;
-  // Initialize metadata & build tree by deserializing input stream
-  bool setSerializedRvbData(std::istringstream& iss);
-  std::vector<RVBGroupId> getRvbGroupIds(RVBId start_block_id, RVBId end_block_id) const;
-  std::vector<RVBId> getRvbIds(RVBGroupId id) const;
-  std::string getDirectParentHashVal(RVBId rvb_id) const;
-  bool empty() const { return (id_to_node_.size() == 0) ? true : false; }
-  // Return the min RVB ID in the tree. Return 0 if tree is empty.
-  RVBId getMinRvbId() const;
-  // Return the max RVB ID in the tree. Return 0 if tree is empty.
-  RVBId getMaxRvbId() const;
 
   ///////////////////////// Debug / Validate ////////////////////////////////////////////
   size_t totalNodes() const { return id_to_node_.size(); }

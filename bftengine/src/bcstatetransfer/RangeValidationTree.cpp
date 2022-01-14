@@ -140,7 +140,7 @@ RVTNode::RVTNode(SerializedRVTNode& node, char* hash_val, size_t hash_size)
       max_child_id{node.max_child_id},
       parent_id{node.parent_id} {}
 
-uint64_t RVTNode::getNextSiblingId() const noexcept {
+uint64_t RVTNode::getRightSiblingId() const noexcept {
   auto level = id.level;
   auto rvb_index = id.rvb_index;
   // Formula to find id of next sibling
@@ -159,7 +159,7 @@ std::ostringstream RVTNode::serialize() const {
   return os;
 }
 
-shared_ptr<RVTNode> RVTNode::create(std::istringstream& is) {
+shared_ptr<RVTNode> RVTNode::createFromSerialized(std::istringstream& is) {
   SerializedRVTNode snode;
   Serializable::deserialize(is, snode.id);
   Serializable::deserialize(is, snode.n_child);
@@ -188,7 +188,7 @@ RangeValidationTree::RangeValidationTree(const logging::Logger& logger,
 }
 
 bool RangeValidationTree::validateRvbId(const uint64_t rvb_id, const STDigest& digest) const {
-  if (rvb_id == 0 or digest.isZero() or fetch_range_size_ == 0 or rvb_id % fetch_range_size_ != 0) {
+  if ((rvb_id == 0) or digest.isZero() or (fetch_range_size_ == 0) or (rvb_id % fetch_range_size_ != 0)) {
     LOG_ERROR(logger_, "invalid input data" << KVLOG(rvb_id, digest, fetch_range_size_));
     return false;
   }
@@ -422,7 +422,7 @@ void RangeValidationTree::printToLog(bool only_node_id) const noexcept {
       ConcordAssert(iter != id_to_node_.end());
       auto& child_node = iter->second;
       q.push(child_node);
-      id = child_node->getNextSiblingId();
+      id = child_node->getRightSiblingId();
     }
   }
   LOG_INFO(logger_, oss.str());
@@ -538,7 +538,7 @@ bool RangeValidationTree::setSerializedRvbData(std::istringstream& is) {
   id_to_node_.reserve(data.total_nodes);
   uint64_t min_rvb_index{std::numeric_limits<uint64_t>::max()}, max_rvb_index{0};
   for (uint64_t i = 0; i < data.total_nodes; i++) {
-    auto node = RVTNode::create(is);
+    auto node = RVTNode::createFromSerialized(is);
     uint64_t id = node->id.id;
     id_to_node_.emplace(id, node);
 
