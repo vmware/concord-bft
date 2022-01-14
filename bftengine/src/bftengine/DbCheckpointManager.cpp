@@ -52,6 +52,7 @@ Status DbCheckpointManager::createDbCheckpoint(const CheckpointId& checkPointId,
         LOG_ERROR(getLogger(), "Failed to create rocksdb checkpoint: " << KVLOG(checkPointId));
         return status;
       }
+      prepareCheckpointCb_(lastBlockId, dbClient_->getPathForCheckpoint(checkPointId));
       auto end = Clock::now();
 
       auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
@@ -162,7 +163,8 @@ uint64_t DbCheckpointManager::directorySize(const _fs::path& directory, const bo
 void DbCheckpointManager::initializeDbCheckpointManager(std::shared_ptr<concord::storage::IDBClient> dbClient,
                                                         std::shared_ptr<bftEngine::impl::PersistentStorage> p,
                                                         std::shared_ptr<concordMetrics::Aggregator> aggregator,
-                                                        const std::function<BlockId()>& getLastBlockIdCb) {
+                                                        const std::function<BlockId()>& getLastBlockIdCb,
+                                                        const PrepareCheckpointCallback& prepareCheckpointCb) {
   dbClient_ = dbClient;
   ps_ = p;
   dbCheckPointDirPath_ = ReplicaConfig::instance().getdbCheckpointDirPath();
@@ -171,6 +173,7 @@ void DbCheckpointManager::initializeDbCheckpointManager(std::shared_ptr<concord:
       std::min(ReplicaConfig::instance().maxNumberOfDbCheckpoints, bftEngine::impl::MAX_ALLOWED_CHECKPOINTS);
   metrics_.SetAggregator(aggregator);
   if (getLastBlockIdCb) getLastBlockIdCb_ = getLastBlockIdCb;
+  prepareCheckpointCb_ = prepareCheckpointCb;
   if (ReplicaConfig::instance().dbCheckpointFeatureEnabled) {
     init();
   } else {

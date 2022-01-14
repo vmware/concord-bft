@@ -578,6 +578,10 @@ Status Client::rangeDel(const Sliver &_beginKey, const Sliver &_endKey) {
   return Status::OK();
 }
 
+std::string Client::getPathForCheckpoint(std::uint64_t checkpointId) const {
+  return (fs::path{dbCheckpointPath_} / std::to_string(checkpointId)).string();
+}
+
 Status Client::createCheckpoint(const uint64_t &checkPointId) {
   if (!dbCheckPoint_.get()) return Status::GeneralError("Checkpoint instance is not initialized");
   // create dir(remove if already exist)
@@ -592,7 +596,7 @@ Status Client::createCheckpoint(const uint64_t &checkPointId) {
     if (!fs::exists(path)) {
       fs::create_directory(path);
     }
-    fs::path chkptDirPath = path / std::to_string(checkPointId);
+    fs::path chkptDirPath = getPathForCheckpoint(checkPointId);
     // rocksDb create the dir for the checkpoint
     if (fs::exists(chkptDirPath)) fs::remove_all(chkptDirPath);
 

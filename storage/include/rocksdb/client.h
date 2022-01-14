@@ -107,6 +107,7 @@ class Client : public concord::storage::IDBClient {
   std::string getPath() const override { return m_dbPath; }
   void setCheckpointPath(const std::string& path) override { dbCheckpointPath_ = path; }
   std::string getCheckpointPath() const override { return dbCheckpointPath_; }
+  std::string getPathForCheckpoint(std::uint64_t checkpointId) const override;
   concordUtils::Status createCheckpoint(const uint64_t& checkPointId) override;
   std::vector<uint64_t> getListOfCreatedCheckpoints() const override;
   void removeCheckpoint(const uint64_t& checkPointId) const override;

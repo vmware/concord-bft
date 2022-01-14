@@ -64,11 +64,19 @@ class DbCheckpointManager {
    ***************************************************/
   std::optional<DbCheckpointMetadata::DbCheckPointDescriptor> getLastCreatedDbCheckpointMetadata();
 
+  // A callback that is called after creating a checkpoint. Its purpose is to prepare it for use. It receives as
+  // parameters:
+  //  * the block ID at which the checkpoint was created (it might be less than the last block ID in the checkpoint
+  //  itself)
+  //  * the path to the checkpoint
+  using PrepareCheckpointCallback = std::function<void(BlockId, const std::string&)>;
+
   Seconds getLastCheckpointCreationTime() const { return lastCheckpointCreationTime_; }
   void initializeDbCheckpointManager(std::shared_ptr<concord::storage::IDBClient> dbClient,
                                      std::shared_ptr<bftEngine::impl::PersistentStorage> p,
                                      std::shared_ptr<concordMetrics::Aggregator> aggregator,
-                                     const std::function<BlockId()>& getLastBlockIdCb);
+                                     const std::function<BlockId()>& getLastBlockIdCb,
+                                     const PrepareCheckpointCallback& prepareCheckpointCb);
   std::map<CheckpointId, DbCheckpointMetadata::DbCheckPointDescriptor> getListOfDbCheckpoints() const {
     return dbCheckptMetadata_.dbCheckPoints_;
   }
@@ -117,6 +125,7 @@ class DbCheckpointManager {
   void removeAllCheckpoints() const;
   void cleanUp();
   std::function<BlockId()> getLastBlockIdCb_;
+  PrepareCheckpointCallback prepareCheckpointCb_;
   // get total size recursively
   uint64_t directorySize(const _fs::path& directory, const bool& excludeHardLinks, bool recursive);
   // get checkpoint metadata

@@ -286,6 +286,33 @@ Msg CreateDbCheckpointCommand 63 {
     uint64 sender_id
 }
 
+# Sent by Clientservice to the replicas to request a DB snapshot.
+Msg StateSnapshotRequest 65 {
+  # Checkpoint the state every `checkpoint_kv_count` key-value pairs.
+  # Note: Ignored in this version of the protocol as it only supports state snapshot
+  # for new participant IDs (meaning we will only stream a relatively small amount of public state
+  # and, therefore, we don't need multiple checkpoints).
+  uint64 checkpoint_kv_count
+
+  # The participant ID that requested a snapshot.
+  string participant_id
+}
+
+Msg StateSnapshotData 66 {
+  # Unique identifier of the DB snapshot.
+  uint64 snapshot_id
+
+  # The event group ID at which the state snapshot with `snapshot_id` was taken.
+  uint64 event_group_id
+}
+
+# The response to a `StateSnapshotRequest`. Sent by the replicas to Clientservice.
+Msg StateSnapshotResponse 67 {
+  # If `data` is not set, it means that state snapshot is being created at the moment.
+  # The user is required to retry the request after some *random* amount of time has elapsed.
+  optional StateSnapshotData data
+}
+
 Msg ReconfigurationRequest 1 {
   uint64 sender
   bytes signature
@@ -323,6 +350,7 @@ Msg ReconfigurationRequest 1 {
     GetDbCheckpointInfoRequest
     CreateDbCheckpointCommand
     ReplicaMainKeyUpdate
+    StateSnapshotRequest
   } command
   bytes additional_data
 }
@@ -346,6 +374,7 @@ Msg ReconfigurationResponse 2 {
     ClientKeyExchangeStatusResponse
     ClientsRestartStatusResponse
     GetDbCheckpointInfoStatusResponse
+    StateSnapshotResponse
   } response
   bytes additional_data
 }
