@@ -129,6 +129,9 @@ void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_de
       }
     }
   }
+  if (add_range_min_block_id == 0) {
+    add_range_min_block_id == as_->getGenesisBlockNum();
+  }
   ConcordAssertGT(add_range_min_block_id, max_rvb_id_in_rvt);
   addRvbDataOnBlockRange(
       add_range_min_block_id, new_checkpoint_desc.maxBlockId, new_checkpoint_desc.digestOfMaxBlockId);
