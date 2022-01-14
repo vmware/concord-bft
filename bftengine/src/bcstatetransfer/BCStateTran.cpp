@@ -1113,8 +1113,10 @@ void BCStateTran::onFetchingStateChange(FetchingState newFetchingState) {
       digestOfNextRequiredBlock_ = targetCheckpointDesc_.digestOfResPagesDescriptor;
       break;
   }
-  lastFetchingState_ = newFetchingState;
+  
   logger_ = (newFetchingState == FetchingState::NotFetching) ? ST_SRC_LOG : ST_DST_LOG;
+  metrics_.fetching_state_.Get().Set(stateName(getFetchingState()));
+  lastFetchingState_ = newFetchingState;
 }
 
 BCStateTran::FetchingState BCStateTran::getFetchingState() {
@@ -1442,8 +1444,6 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
     }
   }
   metrics_.last_block_.Get().Set(newCheckpoint.maxBlockId);
-  fetchingState = stateName(getFetchingState());
-  metrics_.fetching_state_.Get().Set(fetchingState);
 
   processData();
   return true;

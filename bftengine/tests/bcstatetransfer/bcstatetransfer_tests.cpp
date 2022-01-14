@@ -1728,6 +1728,57 @@ TEST_F(BcStTest, ValidateRvbDataInitialSource) {
   testConfig_.productDbDeleteOnEnd = true;
 }
 
+// generate blocks an checkpoint them to simulate consensus "advancing"
+// Then validate the checkpoints and compare the in memory in the one built from the checkpoint data
+TEST_F(BcStTest, bkpValidateCheckpointingWIthBlocksAddedOnly) {
+  ASSERT_NFF(initialize());
+  ASSERT_NFF(cmnStartRunning());
+  constexpr size_t total_num_of_checkpoints = 100;
+  uint64_t nextCheckpointNum = datastore_->getLastStoredCheckpoint() + 1;
+  auto rvt = stDelegator_->getRvt();
+
+  uint64_t minBlockInCp = appState_.getGenesisBlockNum() + 1;
+  uint64_t maxBlockInCp = testConfig_.checkpointWindowSize;
+  uint64_t lastTotalLevels{}, lastTotalNodes{};
+  ASSERT_GT(maxBlockInCp, minBlockInCp);
+  for (size_t i{}; i < total_num_of_checkpoints; ++i) {
+    RangeValidationTree helper_rvt(GL, targetConfig_.RVT_K, targetConfig_.fetchRangeSize);
+    ASSERT_NFF(dataGen_->generateBlocks(appState_, minBlockInCp, maxBlockInCp));
+    stDelegator_->createCheckpointOfCurrentState(nextCheckpointNum);
+
+    // Fetch the checkpoint, construct the tree, and check that number of nodes grows as expected
+    ASSERT_TRUE(datastore_->hasCheckpointDesc(nextCheckpointNum));
+    auto desc = datastore_->getCheckpointDesc(nextCheckpointNum);
+    ASSERT_EQ(desc.checkpointNum, nextCheckpointNum);
+    ASSERT_EQ(desc.maxBlockId, maxBlockInCp);
+    ASSERT_TRUE(!desc.rvbData.empty());
+
+    std::istringstream rvb_data(std::string(reinterpret_cast<const char*>(desc.rvbData.data()), desc.rvbData.size()));
+    ASSERT_TRUE(helper_rvt.setSerializedRvbData(rvb_data));
+    // leave for debug
+    // helper_rvt.printToLog(false);
+    // rvt->printToLog(false);
+    ASSERT_EQ(helper_rvt.getRootHashVal(), rvt->getRootHashVal());
+    ASSERT_TRUE(!helper_rvt.getRootHashVal().empty());
+    ASSERT_EQ(helper_rvt.totalNodes(), rvt->totalNodes());
+    ASSERT_EQ(helper_rvt.totalLevels(), rvt->totalLevels());
+    ASSERT_EQ(helper_rvt.getMinRvbId(), rvt->getMinRvbId());
+    ASSERT_EQ(helper_rvt.getMaxRvbId(), rvt->getMaxRvbId());
+    if (lastTotalNodes > 0) {
+      ASSERT_LE(lastTotalNodes, rvt->totalNodes());
+    }
+    if (lastTotalLevels > 0) {
+      ASSERT_LE(lastTotalLevels, rvt->totalLevels());
+    }
+    lastTotalNodes = rvt->totalNodes();
+    lastTotalLevels = rvt->totalLevels();
+
+    nextCheckpointNum++;
+    minBlockInCp = maxBlockInCp + 1;
+    maxBlockInCp = minBlockInCp + testConfig_.checkpointWindowSize - 1;
+  }
+}
+
 }  // namespace bftEngine::bcst::impl
 
 int main(int argc, char** argv) {
