@@ -74,7 +74,7 @@ void RVBManager::init(bool fetching) {
 
   if (!loaded_from_data_store && (desc.maxBlockId > 0)) {
     // If desc data is valid, try to reconstruct by reading digests from storage (no persistency data was found)
-    LOG_ERROR(logger_, "Reconstructing RVB data" << KVLOG(loaded_from_data_store, desc.maxBlockId));
+    LOG_WARN(logger_, "Reconstructing RVB data" << KVLOG(loaded_from_data_store, desc.maxBlockId));
     addRvbDataOnBlockRange(
         as_->getGenesisBlockNum(), desc.maxBlockId, std::optional<STDigest>(desc.digestOfMaxBlockId));
     rvb_data_source_ = RvbDataInitialSource::FROM_STORAGE_RECONSTRUCTION;
@@ -111,7 +111,6 @@ void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_de
   //
   //    Add blocks to RVT
   //
-  auto max_rvb_id_in_rvt = in_mem_rvt_->getMaxRvbId();
   if (last_checkpoint_desc_.checkpointNum != 0) {
     add_range_min_block_id = last_checkpoint_desc_.maxBlockId + 1;
   } else {
@@ -129,10 +128,7 @@ void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_de
       }
     }
   }
-  if (add_range_min_block_id == 0) {
-    add_range_min_block_id == as_->getGenesisBlockNum();
-  }
-  ConcordAssertGT(add_range_min_block_id, max_rvb_id_in_rvt);
+  ConcordAssertGE(add_range_min_block_id, in_mem_rvt_->getMaxRvbId());
   addRvbDataOnBlockRange(
       add_range_min_block_id, new_checkpoint_desc.maxBlockId, new_checkpoint_desc.digestOfMaxBlockId);
 
@@ -419,8 +415,6 @@ std::optional<std::reference_wrapper<const STDigest>> RVBManager::getDigestFromR
   LOG_TRACE(logger_, KVLOG(block_id));
   const auto iter = stored_rvb_digests_.find(block_id);
   if (iter == stored_rvb_digests_.end()) {
-    ostringstream oss;
-    oss << KVLOG(block_id) << " not found in stored_rvb_digests_";
     LOG_ERROR(logger_, KVLOG(block_id) << " not found in stored_rvb_digests_");
     return std::nullopt;
   }
@@ -525,7 +519,10 @@ void RVBManager::addRvbDataOnBlockRange(uint64_t min_block_id,
   ConcordAssertLE(min_block_id, max_block_id);
   std::once_flag call_once_flag;
 
-  if (max_block_id == 0) return;
+  if (max_block_id == 0) {
+    LOG_WARN(logger_, KVLOG(max_block_id));
+    return;
+  }
   uint64_t current_rvb_id = nextRvbBlockId(min_block_id);
   RVBId max_rvb_id_in_rvt = in_mem_rvt_->getMaxRvbId();
   while (current_rvb_id < max_block_id) {
