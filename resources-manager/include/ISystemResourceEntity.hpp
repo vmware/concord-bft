@@ -20,6 +20,8 @@ class ISystemResourceEntity {
  public:
   virtual ~ISystemResourceEntity() = default;
   // Implementation returns how much more pruned blocks can this entity support.
+  // It also expected that current availability might be negative, due to a
+  // resource being overburden with operations.
   virtual int64_t getAvailableResources() const = 0;
   // Measurements of handled operations. Can be transaction, prune blocks, etc.
   virtual uint64_t getMeasurements() const = 0;
