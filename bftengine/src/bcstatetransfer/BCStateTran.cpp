@@ -1564,7 +1564,8 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
   char *buffer = nullptr;
   uint32_t sizeOfNextBlock = 0;
   // Source is asking all digests for RVBGroup rvbGroupid. Piggyback this data on the 1st message sent.
-  size_t rvbGroupDigestsExpectedSize = (m->rvbGroupid != 0) ? rvbm_->getSerializedByteSizeOfRvbGroup(m->rvbGroupid) : 0;
+  size_t rvbGroupDigestsExpectedSize =
+      (m->rvbGroupid != 0) ? rvbm_->getSerializedDigestsOfRvbGroup(m->rvbGroupid, nullptr, 0, true) : 0;
   do {
     auto &ctx = ioContexts_.front();
     if (getNextBlock) {
@@ -1633,10 +1634,10 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
     if (rvbGroupDigestsExpectedSize > 0) {
       // Serialize RVB digests
       size_t rvbGroupDigestsActualSize =
-          rvbm_->getSerializedDigestsOfRvbGroup(m->rvbGroupid, outMsg->data, rvbGroupDigestsExpectedSize);
-      if (rvbGroupDigestsExpectedSize != rvbGroupDigestsActualSize) {
+          rvbm_->getSerializedDigestsOfRvbGroup(m->rvbGroupid, outMsg->data, rvbGroupDigestsExpectedSize, false);
+      if ((rvbGroupDigestsActualSize == 0) || (rvbGroupDigestsExpectedSize != rvbGroupDigestsActualSize)) {
         LOG_WARN(logger_,
-                 "Rejecting message - not holding all requested digests.."
+                 "Rejecting message - not holding all requested digests (or some other error)"
                      << KVLOG(rvbGroupDigestsExpectedSize, rvbGroupDigestsActualSize));
         ItemDataMsg::free(outMsg);
         rejectFetchingMsg();
@@ -1645,7 +1646,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
       ConcordAssertLE(rvbGroupDigestsActualSize, rvbGroupDigestsExpectedSize);
       outMsg->rvbDigestsSize = rvbGroupDigestsActualSize;
       memcpy(outMsg->data + rvbGroupDigestsActualSize, pRawChunk, chunkSize);
-      rvbGroupDigestsExpectedSize = 0;
+      rvbGroupDigestsExpectedSize = 0;  // send only once
     } else {
       memcpy(outMsg->data, pRawChunk, chunkSize);
       outMsg->rvbDigestsSize = 0;

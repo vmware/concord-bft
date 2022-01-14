@@ -60,9 +60,8 @@ class RVBManager {
   // Called during ST GettingMissingBlocks by source when received FetchBlocksMsg with rvb_group_id != 0
   // Returns number of bytes filled. We assume that rvb_group_id must exist. This can be checked by calling
   // getSerializedByteSizeOfRvbGroup before calling this function.
-  size_t getSerializedDigestsOfRvbGroup(int64_t rvb_group_id, char* buff, size_t buff_max_size) const;
-
-  size_t getSerializedByteSizeOfRvbGroup(int64_t rvb_group_id) const;
+  // when sizeOnly==true, buff and buff_max_size must be null and only size in bytes is returned
+  size_t getSerializedDigestsOfRvbGroup(int64_t rvb_group_id, char* buff, size_t buff_max_size, bool size_only) const;
 
   // Called during ST GettingMissingBlocks by destination
   bool setSerializedDigestsOfRvbGroup(char* data,

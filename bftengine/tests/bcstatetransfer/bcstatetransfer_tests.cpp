@@ -835,7 +835,9 @@ void FakeSources::replyFetchBlocksMsg() {
   ConcordAssertEQ(fetchBlocksMsg->lastKnownChunkInLastRequiredBlock, 0);
   ConcordAssertLE(fetchBlocksMsg->minBlockId, fetchBlocksMsg->maxBlockId);
   size_t rvbGroupDigestsExpectedSize =
-      (fetchBlocksMsg->rvbGroupid != 0) ? rvbm_->getSerializedByteSizeOfRvbGroup(fetchBlocksMsg->rvbGroupid) : 0;
+      (fetchBlocksMsg->rvbGroupid != 0)
+          ? rvbm_->getSerializedDigestsOfRvbGroup(fetchBlocksMsg->rvbGroupid, nullptr, 0, true)
+          : 0;
   while (true) {
     size_t rvbGroupDigestsActualSize{0};
     auto blk = appState_.peekBlock(nextBlockId);
@@ -851,7 +853,7 @@ void FakeSources::replyFetchBlocksMsg() {
     if (rvbGroupDigestsExpectedSize > 0) {
       // Serialize RVB digests
       rvbGroupDigestsActualSize = rvbm_->getSerializedDigestsOfRvbGroup(
-          fetchBlocksMsg->rvbGroupid, itemDataMsg->data, rvbGroupDigestsExpectedSize);
+          fetchBlocksMsg->rvbGroupid, itemDataMsg->data, rvbGroupDigestsExpectedSize, false);
       ConcordAssertLE(rvbGroupDigestsActualSize, rvbGroupDigestsActualSize);
       rvbGroupDigestsExpectedSize = 0;
     }
@@ -1176,31 +1178,21 @@ void BcStTest::configureLog(const string& logLevelStr) {
   std::set<string> possibleLogLevels = {"trace", "debug", "info", "warn", "error", "fatal"};
   ASSERT_TRUE(possibleLogLevels.find(logLevelStr) != possibleLogLevels.end());
 #ifdef USE_LOG4CPP
-  log4cplus::LogLevel logLevel =
-      logLevelStr == "trace"
-          ? log4cplus::TRACE_LOG_LEVEL
-          : logLevelStr == "debug"
-                ? log4cplus::DEBUG_LOG_LEVEL
-                : logLevelStr == "info"
-                      ? log4cplus::INFO_LOG_LEVEL
-                      : logLevelStr == "warn"
-                            ? log4cplus::WARN_LOG_LEVEL
-                            : logLevelStr == "error"
-                                  ? log4cplus::ERROR_LOG_LEVEL
-                                  : logLevelStr == "fatal" ? log4cplus::FATAL_LOG_LEVEL : log4cplus::INFO_LOG_LEVEL;
+  log4cplus::LogLevel logLevel = logLevelStr == "trace"   ? log4cplus::TRACE_LOG_LEVEL
+                                 : logLevelStr == "debug" ? log4cplus::DEBUG_LOG_LEVEL
+                                 : logLevelStr == "info"  ? log4cplus::INFO_LOG_LEVEL
+                                 : logLevelStr == "warn"  ? log4cplus::WARN_LOG_LEVEL
+                                 : logLevelStr == "error" ? log4cplus::ERROR_LOG_LEVEL
+                                 : logLevelStr == "fatal" ? log4cplus::FATAL_LOG_LEVEL
+                                                          : log4cplus::INFO_LOG_LEVEL;
 #else
-  logging::LogLevel logLevel =
-      logLevelStr == "trace"
-          ? logging::LogLevel::trace
-          : logLevelStr == "debug"
-                ? logging::LogLevel::debug
-                : logLevelStr == "info"
-                      ? logging::LogLevel::info
-                      : logLevelStr == "warn"
-                            ? logging::LogLevel::warn
-                            : logLevelStr == "error"
-                                  ? logging::LogLevel::error
-                                  : logLevelStr == "fatal" ? logging::LogLevel::fatal : logging::LogLevel::info;
+  logging::LogLevel logLevel = logLevelStr == "trace"   ? logging::LogLevel::trace
+                               : logLevelStr == "debug" ? logging::LogLevel::debug
+                               : logLevelStr == "info"  ? logging::LogLevel::info
+                               : logLevelStr == "warn"  ? logging::LogLevel::warn
+                               : logLevelStr == "error" ? logging::LogLevel::error
+                               : logLevelStr == "fatal" ? logging::LogLevel::fatal
+                                                        : logging::LogLevel::info;
 #endif
   // logging::Logger::getInstance("serializable").setLogLevel(logLevel);
   // logging::Logger::getInstance("concord.bft.st.dbdatastore").setLogLevel(logLevel);

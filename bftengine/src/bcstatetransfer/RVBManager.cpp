@@ -201,31 +201,47 @@ bool RVBManager::setRvbData(char* data, size_t data_size) {
   return true;
 }
 
-size_t RVBManager::getSerializedByteSizeOfRvbGroup(int64_t rvb_group_id) const {
-  LOG_TRACE(logger_, "");
-  // TODO - we are calling getRvbIds twice (see getSerializedDigestsOfRvbGroup), we can optimize this
-  std::vector<RVBId> rvb_ids = in_mem_rvt_->getRvbIds(rvb_group_id);
-  return rvb_ids.size() * sizeof(RVBManager::rvbDigestInfo);
-}
-
-size_t RVBManager::getSerializedDigestsOfRvbGroup(int64_t rvb_group_id, char* buff, size_t buff_max_size) const {
-  LOG_TRACE(logger_, "");
+size_t RVBManager::getSerializedDigestsOfRvbGroup(int64_t rvb_group_id,
+                                                  char* buff,
+                                                  size_t buff_max_size,
+                                                  bool size_only) const {
+  ConcordAssertOR(size_only && !buff && buff_max_size == 0, !size_only && buff && buff_max_size > 0);
+  LOG_TRACE(logger_, KVLOG(rvb_group_id, buff_max_size));
   std::vector<RVBId> rvb_ids = in_mem_rvt_->getRvbIds(rvb_group_id);
   size_t total_size = rvb_ids.size() * sizeof(RVBManager::rvbDigestInfo);
-  ConcordAssertLE(total_size, buff_max_size);
-  RVBManager::rvbDigestInfo* cur = reinterpret_cast<RVBManager::rvbDigestInfo*>(buff);
+  ConcordAssertOR(size_only, total_size <= buff_max_size);
+  RVBManager::rvbDigestInfo* cur = size_only ? nullptr : reinterpret_cast<RVBManager::rvbDigestInfo*>(buff);
+
+  // 1) Source is working based on "best effort" - send what I have. Reject if I have not even a single block in the
+  // requested RVB group. In a case of
+  // 2) Destination has to valiadate source, and fetch block digests from local storage if it's pruning state is
+  // not synched.
+  //
+  // Requirement - the returned digests must represent a continuos series of block IDs
   size_t num_elements{0};
+  BlockId last_added_block_id = 0;
   for (const auto rvb_id : rvb_ids) {
-    cur->block_id = rvb_id;
-    if (as_->hasBlock(rvb_id + 1)) {
-      as_->getPrevDigestFromBlock(rvb_id + 1, reinterpret_cast<StateTransferDigest*>(cur->digest.getForUpdate()));
-    } else if (as_->hasBlock(rvb_id)) {
-      cur->digest = getBlockAndComputeDigest(rvb_id);
-    } else {
-      // Currently, source may send the whole group or nothing. Sending only part of the group helps nothing since
-      // destination will not be able to validate it.
-      break;
+    if ((last_added_block_id != 0) && (rvb_id != last_added_block_id + config_.fetchRangeSize)) {
+      // non continuos!
+      LOG_ERROR(logger_, KVLOG(last_added_block_id, config_.fetchRangeSize, rvb_id, num_elements, rvb_group_id));
+      return 0;
     }
+    if (as_->hasBlock(rvb_id + 1)) {
+      // have the next block - much faster to get only the digest
+      if (!size_only) {
+        as_->getPrevDigestFromBlock(rvb_id + 1, reinterpret_cast<StateTransferDigest*>(cur->digest.getForUpdate()));
+        cur->block_id = rvb_id;
+      }
+    } else if (as_->hasBlock(rvb_id)) {
+      if (!size_only) {
+        // compute the digests
+        cur->digest = getBlockAndComputeDigest(rvb_id);
+        cur->block_id = rvb_id;
+      }
+    } else {
+      continue;
+    }
+    last_added_block_id = rvb_id;
     ++num_elements;
     ++cur;
   }
