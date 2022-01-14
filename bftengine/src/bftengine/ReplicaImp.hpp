@@ -443,7 +443,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void onMessage(T* msg);
 
   void onInternalMsg(InternalMessage&& msg);
-  void onInternalMsg(FullCommitProofMsg* m);
   void onInternalMsg(GetStatus& msg) const;
 
   std::pair<PrePrepareMsg*, bool> finishAddingRequestsToPrePrepareMsg(PrePrepareMsg*& prePrepareMsg,

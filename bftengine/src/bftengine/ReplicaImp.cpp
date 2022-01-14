@@ -1725,15 +1725,6 @@ void ReplicaImp::onInternalMsg(GetStatus &status) const {
   return status.output.set_value("** - Invalid Key - **");
 }
 
-void ReplicaImp::onInternalMsg(FullCommitProofMsg *msg) {
-  if (isCollectingState() || (!currentViewIsActive()) || (getCurrentView() != msg->viewNumber()) ||
-      (!mainLog->insideActiveWindow(msg->seqNumber()))) {
-    delete msg;
-    return;
-  }
-  onMessage(msg);
-}
-
 template <>
 void ReplicaImp::onMessage<PreparePartialMsg>(PreparePartialMsg *msg) {
   metric_received_prepare_partials_++;
