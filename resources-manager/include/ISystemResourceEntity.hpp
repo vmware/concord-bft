@@ -24,6 +24,6 @@ class ISystemResourceEntity {
   // Measurements of handled operations. Can be transaction, prune blocks, etc.
   virtual uint64_t getMeasurements() const = 0;
   // Name of the resource for metrics purposes.
-  virtual const std::string& getResourceName() const = 0;
+  virtual const std::string getResourceName() const = 0;
 };
 }  // namespace concord::performance
