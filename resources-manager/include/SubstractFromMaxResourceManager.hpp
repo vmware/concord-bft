@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0 License.
@@ -41,7 +41,7 @@ class SubstractFromMaxResourceManager : public IResourceManager {
 
  private:
   const uint64_t maxSystemCapacity;
-  std::vector<std::shared_ptr<ISystemResourceEntity>> resourceEntities;
+  const std::vector<std::shared_ptr<ISystemResourceEntity>> resourceEntities;
 };
 
 }  // namespace concord::performance
