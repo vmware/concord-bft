@@ -259,8 +259,6 @@ void RangeValidationTree::removeRVBNode(shared_ptr<RVBNode>& rvb_node) {
       }
     }
     id_to_node_.erase(node_to_remove_iter);
-    // TODO
-    // ConcordAssertEQ(node->min_child_id, node->max_child_id);
   }
 
   --node->n_child;
@@ -272,9 +270,10 @@ void RangeValidationTree::removeRVBNode(shared_ptr<RVBNode>& rvb_node) {
 }
 
 void RangeValidationTree::addHashValToInternalNodes(shared_ptr<RVTNode>& node, shared_ptr<RVBNode>& rvb_node) {
-  if (!root_ || !node || !rvb_node) {
-    return;
-  }
+  ConcordAssert(root != nullptr);
+  ConcordAssert(node != nullptr);
+  ConcordAssert(rvb_node != nullptr);
+
   while (node != root_) {
     auto itr = id_to_node_.find(node->parent_id);
     ConcordAssert(itr != id_to_node_.end());
@@ -383,12 +382,10 @@ void RangeValidationTree::addInternalNode(shared_ptr<RVTNode>& node) {
   // create new root
   auto new_root = make_shared<RVTNode>(root_);
   ConcordAssert(id_to_node_.insert({new_root->id.id, new_root}).second == true);
-  node->parent_id = new_root->id.id;  // special case
-  // TODO
-  // how to recover from crash at this point?
+  node->parent_id = new_root->id.id;
   new_root->addHashVal(root_->hash_val);
   new_root->addHashVal(node->hash_val);
-  new_root->n_child++;  // special case
+  new_root->n_child++;
   ConcordAssert(new_root->n_child <= RVT_K);
   setNewRoot(new_root);
 }

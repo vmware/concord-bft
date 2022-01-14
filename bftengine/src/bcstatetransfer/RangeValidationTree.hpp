@@ -74,6 +74,7 @@ class RangeValidationTree {
   // Return complete tree along with metadata in serialized format
   std::ostringstream getSerializedRvbData() const;
   // Initialize metadata & build tree by deserializing input stream
+  // If function fails, tree reset to null and returns false.
   bool setSerializedRvbData(std::istringstream& iss);
   std::vector<RVBGroupId> getRvbGroupIds(RVBId start_block_id, RVBId end_block_id) const;
   std::vector<RVBId> getRvbIds(RVBGroupId id) const;
