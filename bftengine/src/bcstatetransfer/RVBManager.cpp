@@ -259,11 +259,10 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
   BlockId block_id;
   STDigest digest;
   size_t num_digests_in_data;
-  std::vector<RVBGroupId> rvb_group_ids /*prev_rvb_group_ids*/;
+  std::vector<RVBGroupId> rvb_group_ids;
   static constexpr char error_prefix[] = "Invalid digests of RVB group:";
-  // BlockId next_expected_rvb_id = stored_rvb_digests_.empty()
-  //                                    ? nextRvbBlockId(min_fetch_block_id)
-  //                                    : (stored_rvb_digests_.rbegin()->first + config_.fetchRangeSize);
+  RVBId max_block_in_rvt = in_mem_rvt_->getMaxRvbId();
+  RVBId min_block_in_rvt = in_mem_rvt_->getMinRvbId();
   BlockId next_expected_rvb_id{};
   RVBGroupId next_required_rvb_group_id =
       getNextRequiredRvbGroupid(nextRvbBlockId(min_fetch_block_id), prevRvbBlockId(max_fetch_block_id));
@@ -294,21 +293,24 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
   // This will be done  after basic validations + validating this list of digests agains the in memory RVT
   // We assume digests are ordered in accending block ID order
   for (size_t i{0}; i < num_digests_in_data; ++i, ++cur) {
-    memcpy(&block_id, &cur->block_id, sizeof(block_id));
-    if (stored_rvb_digests_.find(block_id) != stored_rvb_digests_.end()) {
-      LOG_WARN(logger_, error_prefix << KVLOG(block_id) << " is already inside stored_rvb_digests_ (continue)");
-    }
-    if (digests.find(block_id) != digests.end()) {
-      LOG_WARN(logger_, error_prefix << KVLOG(block_id) << " is already inside in digests (continue)");
-    }
+    block_id = cur->block_id;
     if ((block_id % config_.fetchRangeSize) != 0) {
       LOG_ERROR(logger_,
                 error_prefix << KVLOG(i, block_id, config_.fetchRangeSize, (block_id % config_.fetchRangeSize)));
       return false;
     }
-    // Break in case that we passed the max_block_id_in_cycle
-    if (block_id > max_block_id_in_cycle) {
-      LOG_INFO(logger_, "Breaking:" << (KVLOG(block_id, max_block_id_in_cycle)));
+    if (stored_rvb_digests_.find(block_id) != stored_rvb_digests_.end()) {
+      LOG_WARN(logger_, error_prefix << KVLOG(block_id) << " is already inside stored_rvb_digests_ (continue)");
+    }
+    if (digests.find(block_id) != digests.end()) {
+      LOG_WARN(logger_, error_prefix << KVLOG(block_id) << " is already inside digests (continue)");
+    }
+    if (block_id < min_block_in_rvt) {
+      LOG_WARN(logger_, error_prefix << KVLOG(block_id, min_block_in_rvt) << " (continue)");
+    }
+    // Break in case that we passed the max_block_id_in_cycle or max_block_in_rvt
+    if ((block_id > max_block_id_in_cycle) || (block_id > max_block_in_rvt)) {
+      LOG_DEBUG(logger_, "Breaking:" << (KVLOG(block_id, max_block_id_in_cycle, max_block_in_rvt)));
       break;
     }
     if ((next_expected_rvb_id != 0) && (block_id != next_expected_rvb_id)) {
@@ -321,18 +323,6 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
       LOG_ERROR(logger_, "Bad Digests of RVB group: rvb_group_ids is empty!" << KVLOG(block_id));
       return false;
     }
-    // if (!prev_rvb_group_ids.empty()) {
-    //   bool result = std::equal(prev_rvb_group_ids.begin(), prev_rvb_group_ids.end(), rvb_group_ids.begin());
-    //   if (!result) {
-    //     std::string prev_rvb_group_ids_str = vec_to_str(prev_rvb_group_ids);
-    //     std::string rvb_group_ids_str = vec_to_str(rvb_group_ids);
-    //     LOG_ERROR(logger_,
-    //               "Bad Digests of RVB group: rvb_group_ids != prev_rvb_group_ids"
-    //                   << KVLOG(block_id, prev_rvb_group_ids_str, rvb_group_ids_str));
-    //     return false;
-    //   }
-    // }
-    // prev_rvb_group_ids = rvb_group_ids;
     if (next_required_rvb_group_id != rvb_group_ids[0]) {
       LOG_ERROR(logger_, "Bad Digests of RVB group:" << KVLOG(block_id, rvb_group_ids[0], next_required_rvb_group_id));
       return false;
@@ -349,8 +339,17 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
   }
   RVBGroupId rvb_group_id_added = rvb_group_ids[0];
 
-  // 2nd stage - This one isn't a mandatory, but it can help debugging - lets check that digests hold the exact needed
-  // RVB digests to build a temporary tree
+  // 2nd stage - Check that I have the exact digests to validate the RVB group. There are 4 type of RVB groups,
+  // Level 0 in tree is represented (not in memory), 'x' represents an RVB node:
+  // 1) Full RVB Group:            [xxxxxxxxx]
+  // 2) Partial right RVB Group:   [    xxxxx]    - some left RVB are pruned. This one represents "oldest" blocks in RVT
+  // 3) Partial left RVB Group:    [xxxxx    ]    - some right RVB are not yet added. This one represents "newest"
+  // blocks in RVT
+  // 4) Partial RVB Group:         [ xxxxx ]      - some right and left RVBs are not part of the tree. In this case
+  // we expect a single root tree!
+  //
+  // In all cases, we can validate the group only if have validate the EXACT digests - no one less and not a single
+  // more!
   auto rvb_ids = in_mem_rvt_->getRvbIds(rvb_group_id_added);
   std::vector<RVBId> keys;
   std::transform(digests.begin(),
