@@ -33,7 +33,8 @@ using namespace concord::kvbc;
 static constexpr uint32_t RVT_K = 3;
 
 namespace bftEngine::bcst::impl {
-using NodeId = RangeValidationTree::NodeId;
+
+using NodeInfo = RangeValidationTree::NodeInfo;
 using RVTNode = RangeValidationTree::RVTNode;
 
 static std::string randomString(size_t length) {

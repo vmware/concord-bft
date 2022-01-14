@@ -35,6 +35,8 @@ using RVBGroupId = uint64_t;
 using RVBId = uint64_t;
 using RVBIndex = uint64_t;
 
+// TODO - add few lines on what is an RVT
+
 // A Range Validation Tree
 //
 // Terms used throughout code -
@@ -47,7 +49,7 @@ using RVBIndex = uint64_t;
 // Things to remember -
 // 1. Tree does not store RVB nodes.
 // 2. Only blocks at specific interval are validated to improve replica recovery time.
-// 3. Each node in tree is represented as NodeId having type.
+// 3. Each node in tree is represented as NodeInfo having type.
 // 4. HashVal is stored in form of CryptoPP::Integer.
 
 class RangeValidationTree {
@@ -57,19 +59,24 @@ class RangeValidationTree {
  public:
   using HashVal_t = CryptoPP::Integer;
 
-  struct NodeId {
-    NodeId(uint64_t node_id) : level(node_id >> kNIDBitsPerRVBIndex), rvb_index(node_id & kRvbIndexMask) {}
-    NodeId(uint8_t l, uint64_t index) : level(l), rvb_index(index & kRvbIndexMask) {}
-    NodeId() = delete;
+  struct NodeInfo {
+    NodeInfo(uint64_t node_id)
+        : level(node_id >> kNIDBitsPerRVBIndex),
+          rvb_index(node_id & kRvbIndexMask),
+          id((static_cast<uint64_t>(level) << kNIDBitsPerRVBIndex) | rvb_index) {}
+    NodeInfo(uint8_t l, uint64_t index)
+        : level(l),
+          rvb_index(index & kRvbIndexMask),
+          id((static_cast<uint64_t>(level) << kNIDBitsPerRVBIndex) | rvb_index) {}
+    NodeInfo() = delete;
 
-    bool operator<(NodeId& other) const noexcept {
+    bool operator<(NodeInfo& other) const noexcept {
       return ((level <= other.level) || (rvb_index < other.rvb_index)) ? true : false;
     }
-    bool operator!=(NodeId& other) const noexcept {
+    bool operator!=(NodeInfo& other) const noexcept {
       return ((level != other.level) || (rvb_index != other.rvb_index)) ? true : false;
     }
-    uint64_t getVal() const noexcept { return ((static_cast<uint64_t>(level) << kNIDBitsPerRVBIndex) | rvb_index); }
-    std::string getPrettyVal() const noexcept;
+    std::string toString() const noexcept;
 
     static constexpr size_t kNIDBitsPerLevel = 8;
     static constexpr size_t kNIDBitsPerRVBIndex = ((sizeof(uint64_t) * 8) - kNIDBitsPerLevel);
@@ -77,8 +84,12 @@ class RangeValidationTree {
     static constexpr uint64_t kRvbIdMask = (kMaxLevels) << kNIDBitsPerRVBIndex;
     static constexpr uint64_t kRvbIndexMask = std::numeric_limits<uint64_t>::max() & (~kRvbIdMask);
 
+    // node location in the tree
     const uint64_t level : kNIDBitsPerLevel;
     const uint64_t rvb_index : kNIDBitsPerRVBIndex;
+
+    // node ID
+    const uint64_t id;
   };
 
   struct HashMaxValues {
@@ -90,9 +101,9 @@ class RangeValidationTree {
   };
 
   struct HashVal {
-    HashVal(shared_ptr<char[]> val);
-    HashVal(char* val, size_t size);
-    HashVal(HashVal_t* val);
+    HashVal(const shared_ptr<char[]>&& val);
+    HashVal(const char* val, size_t size);
+    HashVal(const HashVal_t* val);
     HashVal& operator=(const HashVal& other);
     HashVal& operator+=(const HashVal& other);
     HashVal& operator-=(const HashVal& other);
@@ -110,18 +121,18 @@ class RangeValidationTree {
 
   struct RVBNode {
     RVBNode(uint64_t rvb_index, const STDigest& digest)
-        : id(NodeId(kDefaultRVBLeafLevel, rvb_index)), hash_val(computeNodeHash(id, digest)) {}
-    RVBNode(uint8_t level, uint64_t rvb_index, const STDigest& digest)
-        : id(NodeId(level, rvb_index)), hash_val(computeNodeHash(id, digest)) {}
+        : id(kDefaultRVBLeafLevel, rvb_index), hash_val(computeNodeHash(id, digest)) {}
+    RVBNode(uint8_t level, uint64_t rvb_index) : id(level, rvb_index), hash_val(computeNodeHash(id, STDigest{})) {}
     RVBNode(uint64_t node_id, char* hash_ptr, size_t hash_size) : id(node_id), hash_val(HashVal(hash_ptr, hash_size)) {}
 
-    bool isMinChild(uint64_t RVT_K) { return id.rvb_index % RVT_K == 1; }
-    bool isMaxChild(uint64_t RVT_K) { return id.rvb_index % RVT_K == 0; }
-    shared_ptr<char[]> computeNodeHash(NodeId& node_id, const STDigest& digest);
+    bool isMinChild() { return id.rvb_index % RVT_K == 1; }
+    bool isMaxChild() { return id.rvb_index % RVT_K == 0; }
+    const shared_ptr<char[]> computeNodeHash(NodeInfo& node_id, const STDigest& digest);
 
     static constexpr uint8_t kDefaultRVBLeafLevel{0};
-    NodeId id{0};
-    HashVal hash_val{0};
+    NodeInfo id;
+    HashVal hash_val;
+    static uint32_t RVT_K;
   };
 
  public:
@@ -148,17 +159,16 @@ class RangeValidationTree {
   };
 
   struct RVTNode : public RVBNode {
-    RVTNode(uint32_t RVT_K, std::shared_ptr<RVBNode>& node);
-    RVTNode(uint32_t RVT_K, std::shared_ptr<RVTNode>& node);
+    RVTNode(std::shared_ptr<RVBNode>& node);
+    RVTNode(std::shared_ptr<RVTNode>& node);
     RVTNode(SerializedRVTNode& node, char* hash_val, size_t hash_size);
     static shared_ptr<RVTNode> create(std::istringstream& is);
 
-    STDigest getZeroedDigest() const { return STDigest{}; }
     // TODO known bug; fix it; verify with GTest
     void addHashVal(const HashVal& hash_val) { this->hash_val += hash_val; }
     void removeHashVal(const HashVal& hash_val) { this->hash_val -= hash_val; }
     std::ostringstream serialize() const;
-    uint64_t getNextSiblingId(uint32_t RVT_K) const noexcept;
+    uint64_t getNextSiblingId() const noexcept;
 
     static constexpr uint8_t kDefaultRVTLeafLevel = 1;
     uint16_t n_child{0};
@@ -230,11 +240,11 @@ class RangeValidationTree {
   uint64_t max_rvb_index_{0};  // RVB index is (RVB ID / fetch range size). This is the maximal index in the tree.
   uint64_t min_rvb_index_{0};  // RVB index is (RVB ID / fetch range size). This is the minimal index in the tree.
   const logging::Logger& logger_;
-  const uint32_t RVT_K;
-  const uint32_t fetch_range_size_;
-  const size_t hash_size_;
-  static constexpr uint16_t CHECKPOINT_PERSISTENCY_VERSION = (1);
-  static constexpr uint16_t version_num_{CHECKPOINT_PERSISTENCY_VERSION};
+  const uint32_t RVT_K{0};
+  const uint32_t fetch_range_size_{0};
+  const size_t hash_size_{0};
+  static constexpr uint8_t CHECKPOINT_PERSISTENCY_VERSION{1};
+  static constexpr uint8_t version_num_{CHECKPOINT_PERSISTENCY_VERSION};
   static constexpr uint64_t magic_num_{0x1122334455667788};
 };
 
