@@ -41,7 +41,7 @@ class SubstractFromMaxResourceManager : public IResourceManager {
 
  private:
   const uint64_t maxSystemCapacity;
-  std::vector<std::shared_ptr<ISystemResourceEntity>> &&resourceEntities;
+  std::vector<std::shared_ptr<ISystemResourceEntity>> resourceEntities;
 };
 
 }  // namespace concord::performance
