@@ -1980,7 +1980,6 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 succ = True
                 for r in replicas:
                     master_key_path = os.path.join(bft_network.testdir, "replicas_rsa_keys", str(r), "pub_key")
-                    print(master_key_path)
                     if os.path.isfile(master_key_path) is False:
                         succ = False
                         break
