@@ -733,12 +733,12 @@ void BcStTestDelegator::validateEqualRVTs(const RangeValidationTree& rvtA, const
   const auto& lmB = rvtB.leftmostRVTNode_;
   for (size_t i{}; i < RangeValidationTree::NodeInfo::kMaxLevels; ++i) {
     if (rmA[i]) {
-      ASSERT_EQ(rmA[i]->id.id, rmB[i]->id.id);
+      ASSERT_EQ(rmA[i]->info.id, rmB[i]->info.id);
     } else {
       ASSERT_EQ(rmA[i], rmB[i]);
     }
     if (lmA[i]) {
-      ASSERT_EQ(lmA[i]->id.id, lmB[i]->id.id);
+      ASSERT_EQ(lmA[i]->info.id, lmB[i]->info.id);
     } else {
       ASSERT_EQ(lmA[i], lmB[i]);
     }
@@ -1262,21 +1262,31 @@ void BcStTest::configureLog() {
     exit(1);
   }
 #ifdef USE_LOG4CPP
-  log4cplus::LogLevel logLevel = logLevelStr == "trace"   ? log4cplus::TRACE_LOG_LEVEL
-                                 : logLevelStr == "debug" ? log4cplus::DEBUG_LOG_LEVEL
-                                 : logLevelStr == "info"  ? log4cplus::INFO_LOG_LEVEL
-                                 : logLevelStr == "warn"  ? log4cplus::WARN_LOG_LEVEL
-                                 : logLevelStr == "error" ? log4cplus::ERROR_LOG_LEVEL
-                                 : logLevelStr == "fatal" ? log4cplus::FATAL_LOG_LEVEL
-                                                          : log4cplus::INFO_LOG_LEVEL;
+  log4cplus::LogLevel logLevel =
+      logLevelStr == "trace"
+          ? log4cplus::TRACE_LOG_LEVEL
+          : logLevelStr == "debug"
+                ? log4cplus::DEBUG_LOG_LEVEL
+                : logLevelStr == "info"
+                      ? log4cplus::INFO_LOG_LEVEL
+                      : logLevelStr == "warn"
+                            ? log4cplus::WARN_LOG_LEVEL
+                            : logLevelStr == "error"
+                                  ? log4cplus::ERROR_LOG_LEVEL
+                                  : logLevelStr == "fatal" ? log4cplus::FATAL_LOG_LEVEL : log4cplus::INFO_LOG_LEVEL;
 #else
-  logging::LogLevel logLevel = logLevelStr == "trace"   ? logging::LogLevel::trace
-                               : logLevelStr == "debug" ? logging::LogLevel::debug
-                               : logLevelStr == "info"  ? logging::LogLevel::info
-                               : logLevelStr == "warn"  ? logging::LogLevel::warn
-                               : logLevelStr == "error" ? logging::LogLevel::error
-                               : logLevelStr == "fatal" ? logging::LogLevel::fatal
-                                                        : logging::LogLevel::info;
+  logging::LogLevel logLevel =
+      logLevelStr == "trace"
+          ? logging::LogLevel::trace
+          : logLevelStr == "debug"
+                ? logging::LogLevel::debug
+                : logLevelStr == "info"
+                      ? logging::LogLevel::info
+                      : logLevelStr == "warn"
+                            ? logging::LogLevel::warn
+                            : logLevelStr == "error"
+                                  ? logging::LogLevel::error
+                                  : logLevelStr == "fatal" ? logging::LogLevel::fatal : logging::LogLevel::info;
 #endif
   // logging::Logger::getInstance("serializable").setLogLevel(logLevel);
   // logging::Logger::getInstance("concord.bft.st.dbdatastore").setLogLevel(logLevel);

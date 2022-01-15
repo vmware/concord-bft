@@ -157,16 +157,16 @@ class RangeValidationTree {
 
   struct RVBNode {
     RVBNode(uint64_t rvb_index, const STDigest& digest)
-        : id(kDefaultRVBLeafLevel, rvb_index), hash_val(computeNodeHash(id, digest)) {}
-    RVBNode(uint8_t level, uint64_t rvb_index) : id(level, rvb_index), hash_val(computeNodeHash(id, STDigest{})) {}
-    RVBNode(uint64_t node_id, char* hash_ptr, size_t hash_size) : id(node_id), hash_val(hash_ptr, hash_size) {}
+        : info(kDefaultRVBLeafLevel, rvb_index), hash_val(computeNodeHash(info, digest)) {}
+    RVBNode(uint8_t level, uint64_t rvb_index) : info(level, rvb_index), hash_val(computeNodeHash(info, STDigest{})) {}
+    RVBNode(uint64_t node_id, char* hash_val, size_t hash_size) : info(node_id), hash_val(hash_val, hash_size) {}
 
-    bool isMinChild() { return id.rvb_index % RVT_K == 1; }
-    bool isMaxChild() { return id.rvb_index % RVT_K == 0; }
+    bool isMinChild() { return info.rvb_index % RVT_K == 1; }
+    bool isMaxChild() { return info.rvb_index % RVT_K == 0; }
     const shared_ptr<char[]> computeNodeHash(NodeInfo& node_id, const STDigest& digest);
 
     static constexpr uint8_t kDefaultRVBLeafLevel{0};
-    NodeInfo id;
+    NodeInfo info;
     HashVal hash_val;
     static uint32_t RVT_K;
   };
@@ -219,7 +219,8 @@ class RangeValidationTree {
   // validation functions
   static uint64_t pow_int(uint64_t base, uint64_t exp) noexcept;
   size_t totalNodes() const { return id_to_node_.size(); }
-  size_t totalLevels() const { return root_ ? root_->id.level : 0; }
+  size_t totalLevels() const { return root_ ? root_->info.level : 0; }
+
  protected:
   bool isValidRvbId(const RVBId& block_id) const noexcept;
   bool validateRvbId(const RVBId id, const STDigest& digest) const;
