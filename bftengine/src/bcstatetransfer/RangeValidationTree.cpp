@@ -185,8 +185,8 @@ RangeValidationTree::RangeValidationTree(const logging::Logger& logger,
                                          uint32_t RVT_K,
                                          uint32_t fetch_range_size,
                                          size_t hash_size)
-    : rightmostRVTNode_(NodeInfo::kMaxLevels, nullptr),
-      leftmostRVTNode_(NodeInfo::kMaxLevels, nullptr),
+    : rightmostRVTNode_{},
+      leftmostRVTNode_{},
       logger_(logger),
       RVT_K(RVT_K),
       fetch_range_size_(fetch_range_size),
@@ -290,26 +290,26 @@ shared_ptr<RVTNode> RangeValidationTree::getParentNode(std::shared_ptr<RVTNode>&
 }
 
 void RangeValidationTree::addRVBNode(shared_ptr<RVBNode>& rvb_node) {
-  auto node = openForInsertion(RVTNode::kDefaultRVTLeafLevel);
-  if (!node) {
-    // adding first rvb node but it might not be first child (reason: pruning)
-    node = make_shared<RVTNode>(rvb_node);
-    rightmostRVTNode_[RVTNode::kDefaultRVTLeafLevel] = node;
+  auto parent_node = openForInsertion(RVTNode::kDefaultRVTLeafLevel);
+  if (!parent_node) {
+    // adding first rvb parent_node but it might not be first child (reason: pruning)
+    parent_node = make_shared<RVTNode>(rvb_node);
+    rightmostRVTNode_[RVTNode::kDefaultRVTLeafLevel] = parent_node;
     if (!leftmostRVTNode_[RVTNode::kDefaultRVTLeafLevel]) {
-      leftmostRVTNode_[RVTNode::kDefaultRVTLeafLevel] = node;
+      leftmostRVTNode_[RVTNode::kDefaultRVTLeafLevel] = parent_node;
     }
-    ConcordAssert(id_to_node_.insert({node->id.id, node}).second == true);
+    ConcordAssert(id_to_node_.insert({parent_node->id.id, parent_node}).second == true);
     if (!root_) {
-      setNewRoot(node);
+      setNewRoot(parent_node);
       return;
     }
-    addInternalNode(node);
+    addInternalNode(parent_node);
   } else {
-    ++node->n_child;
-    ConcordAssertLE(node->n_child, RVT_K);
-    ConcordAssertLE(node->min_child_id + node->n_child - 1, node->max_child_id);
-    node->addHashVal(rvb_node->hash_val);
-    addHashValToInternalNodes(node, rvb_node);
+    ++parent_node->n_child;
+    ConcordAssertLE(parent_node->n_child, RVT_K);
+    ConcordAssertLE(parent_node->min_child_id + parent_node->n_child - 1, parent_node->max_child_id);
+    parent_node->addHashVal(rvb_node->hash_val);
+    addHashValToInternalNodes(parent_node, rvb_node);
   }
 }
 

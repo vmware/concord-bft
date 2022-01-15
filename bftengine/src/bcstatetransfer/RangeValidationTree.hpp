@@ -159,7 +159,7 @@ class RangeValidationTree {
     RVBNode(uint64_t rvb_index, const STDigest& digest)
         : id(kDefaultRVBLeafLevel, rvb_index), hash_val(computeNodeHash(id, digest)) {}
     RVBNode(uint8_t level, uint64_t rvb_index) : id(level, rvb_index), hash_val(computeNodeHash(id, STDigest{})) {}
-    RVBNode(uint64_t node_id, char* hash_ptr, size_t hash_size) : id(node_id), hash_val(HashVal(hash_ptr, hash_size)) {}
+    RVBNode(uint64_t node_id, char* hash_ptr, size_t hash_size) : id(node_id), hash_val(hash_ptr, hash_size) {}
 
     bool isMinChild() { return id.rvb_index % RVT_K == 1; }
     bool isMaxChild() { return id.rvb_index % RVT_K == 0; }
@@ -245,8 +245,8 @@ class RangeValidationTree {
   static constexpr size_t kMaxNodesToPrint{10000};
   // vector index represents level in tree
   // level 0 represents RVB node so it would always hold 0x0
-  std::vector<std::shared_ptr<RVTNode>> rightmostRVTNode_;
-  std::vector<std::shared_ptr<RVTNode>> leftmostRVTNode_;
+  std::array<std::shared_ptr<RVTNode>, NodeInfo::kMaxLevels> rightmostRVTNode_;
+  std::array<std::shared_ptr<RVTNode>, NodeInfo::kMaxLevels> leftmostRVTNode_;
   std::unordered_map<uint64_t, std::shared_ptr<RVTNode>> id_to_node_;
   std::shared_ptr<RVTNode> root_{nullptr};
   uint64_t max_rvb_index_{0};  // RVB index is (RVB ID / fetch range size). This is the maximal index in the tree.
