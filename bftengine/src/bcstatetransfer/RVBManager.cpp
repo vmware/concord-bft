@@ -80,7 +80,6 @@ void RVBManager::init(bool fetching) {
     rvb_data_source_ = RvbDataInitialSource::FROM_STORAGE_RECONSTRUCTION;
   }
 
-  // TODO - print also the root hash
   LOG_INFO(logger_, std::boolalpha << KVLOG(pruned_blocks_digests_.size(), desc.checkpointNum, loaded_from_data_store));
   if (print_rvt) {
 #ifdef USE_LOG4CPP
