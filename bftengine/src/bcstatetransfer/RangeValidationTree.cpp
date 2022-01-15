@@ -270,7 +270,7 @@ void RangeValidationTree::removeRVBNode(shared_ptr<RVBNode>& rvb_node) {
 }
 
 void RangeValidationTree::addHashValToInternalNodes(shared_ptr<RVTNode>& node, shared_ptr<RVBNode>& rvb_node) {
-  ConcordAssert(root != nullptr);
+  ConcordAssert(root_ != nullptr);
   ConcordAssert(node != nullptr);
   ConcordAssert(rvb_node != nullptr);
 
@@ -544,12 +544,14 @@ bool RangeValidationTree::setSerializedRvbData(std::istringstream& is) {
       if (node->min_child_id < min_rvb_index) {
         min_rvb_index = node->min_child_id;
       }
-      if ((node->min_child_id + node->n_child) > max_rvb_index) {
-        max_rvb_index = (node->min_child_id + node->n_child);
+      if ((node->min_child_id + node->n_child - 1) > max_rvb_index) {
+        max_rvb_index = (node->min_child_id + node->n_child - 1);
       }
     }
   }
   if (data.total_nodes > 0) {
+    ConcordAssertNE(max_rvb_index, 0);
+    ConcordAssertNE(min_rvb_index, std::numeric_limits<uint64_t>::max());
     max_rvb_index_ = max_rvb_index;
     min_rvb_index_ = min_rvb_index;
   }
@@ -633,8 +635,9 @@ std::vector<RVBId> RangeValidationTree::getRvbIds(RVBGroupId rvb_group_id) const
     return rvb_ids;
   }
 
-  auto min_child_id = iter->second->min_child_id;
-  for (size_t rvb_index{min_child_id}; rvb_index < min_child_id + iter->second->n_child; ++rvb_index) {
+  auto parent_node = iter->second;
+  auto min_child_id = parent_node->min_child_id;
+  for (size_t rvb_index{min_child_id}; rvb_index < min_child_id + parent_node->n_child; ++rvb_index) {
     rvb_ids.push_back(rvb_index * fetch_range_size_);
   }
   return rvb_ids;
