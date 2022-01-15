@@ -183,7 +183,6 @@ class RangeValidationTree {
     uint64_t root_node_id{0};
 
     static void staticAssert() noexcept;
-    // TODO num of nodes at each level
   };
 #pragma pack(pop)
 

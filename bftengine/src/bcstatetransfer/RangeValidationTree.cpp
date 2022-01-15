@@ -102,8 +102,7 @@ const shared_ptr<char[]> RVBNode::computeNodeHash(NodeInfo& node_id, const STDig
   auto nid = std::to_string(node_id.id);
   c.update(nid.c_str(), nid.size());
   c.update(digest.get(), sizeof(STDigest));
-  // TODO
-  // Use default_delete in case memleak is reported by ASAN
+  // TODO - Use default_delete in case memleak is reported by ASAN
   std::shared_ptr<char[]> outDigest(new char[sizeof(STDigest)]);
   c.writeDigest(outDigest.get());
   return outDigest;
@@ -470,13 +469,7 @@ void RangeValidationTree::setNewRoot(shared_ptr<RVTNode> new_root) {
     // setting root to null
     ConcordAssert(root_->id.level == 1);
     ConcordAssert(root_ != nullptr);
-    root_ = nullptr;
-    // do we need to initialize vector to nullptr explicitly?
-    // TODO - optimize later
-    for (uint8_t level = 0; level < NodeInfo::kMaxLevels; level++) {
-      rightmostRVTNode_[level] = nullptr;
-      leftmostRVTNode_[level] = nullptr;
-    }
+    reset();
     return;
   }
   if (root_) {
