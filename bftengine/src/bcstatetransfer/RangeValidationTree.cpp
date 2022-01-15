@@ -626,12 +626,14 @@ bool RangeValidationTree::setSerializedRvbData(std::istringstream& is) {
       if (node->min_child_id < min_rvb_index) {
         min_rvb_index = node->min_child_id;
       }
-      if ((node->min_child_id + node->n_child) > max_rvb_index) {
-        max_rvb_index = (node->min_child_id + node->n_child);
+      if ((node->min_child_id + node->n_child - 1) > max_rvb_index) {
+        max_rvb_index = (node->min_child_id + node->n_child - 1);
       }
     }
   }
   if (data.total_nodes > 0) {
+    ConcordAssertNE(max_rvb_index, 0);
+    ConcordAssertNE(min_rvb_index, std::numeric_limits<uint64_t>::max());
     max_rvb_index_ = max_rvb_index;
     min_rvb_index_ = min_rvb_index;
   }
