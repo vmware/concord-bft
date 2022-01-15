@@ -109,6 +109,23 @@ const shared_ptr<char[]> RVBNode::computeNodeHash(NodeInfo& node_id, const STDig
   return outDigest;
 }
 
+void RangeValidationTree::RVTMetadata::staticAssert() noexcept {
+  static_assert(sizeof(RVTMetadata::magic_num) == sizeof(RangeValidationTree::magic_num_));
+  static_assert(sizeof(RVTMetadata::version_num) == sizeof(RangeValidationTree::version_num_));
+  static_assert(sizeof(RVTMetadata::RVT_K) == sizeof(RangeValidationTree::RVT_K));
+  static_assert(sizeof(RVTMetadata::fetch_range_size) == sizeof(RangeValidationTree::fetch_range_size_));
+  static_assert(sizeof(RVTMetadata::hash_size) == sizeof(RangeValidationTree::hash_size_));
+}
+
+void RangeValidationTree::SerializedRVTNode::staticAssert() noexcept {
+  static_assert(sizeof(SerializedRVTNode::id) == sizeof(NodeInfo::id));
+  static_assert(sizeof(SerializedRVTNode::hash_size) == sizeof(RangeValidationTree::hash_size_));
+  static_assert(sizeof(SerializedRVTNode::n_child) == sizeof(RVTNode::n_child));
+  static_assert(sizeof(SerializedRVTNode::min_child_id) == sizeof(RVTNode::min_child_id));
+  static_assert(sizeof(SerializedRVTNode::max_child_id) == sizeof(RVTNode::max_child_id));
+  static_assert(sizeof(SerializedRVTNode::parent_id) == sizeof(RVTNode::parent_id));
+}
+
 RVTNode::RVTNode(shared_ptr<RVBNode>& node)
     : RVBNode(kDefaultRVTLeafLevel, node->id.rvb_index),
       min_child_id{node->id.rvb_index},
@@ -176,7 +193,8 @@ RangeValidationTree::RangeValidationTree(const logging::Logger& logger,
       fetch_range_size_(fetch_range_size),
       hash_size_(hash_size) {
   ConcordAssertLE(RVT_K, static_cast<uint64_t>(1ULL << (sizeof(RVTNode::n_child) * 8ULL)));
-  validateSizes();
+  RVTMetadata::staticAssert();
+  SerializedRVTNode::staticAssert();
   RVBNode::RVT_K = RVT_K;
 }
 
@@ -226,14 +244,6 @@ void RangeValidationTree::printToLog(bool only_node_id) const noexcept {
     }
   }
   LOG_INFO(logger_, oss.str());
-}
-
-void RangeValidationTree::validateSizes() const noexcept {
-  static_assert(sizeof(RVTMetadata::magic_num) == sizeof(magic_num_));
-  static_assert(sizeof(RVTMetadata::version_num) == sizeof(version_num_));
-  static_assert(sizeof(RVTMetadata::fetch_range_size) == sizeof(fetch_range_size_));
-  static_assert(sizeof(RVTMetadata::RVT_K) == sizeof(RVT_K));
-  static_assert(sizeof(RVTMetadata::hash_size) == sizeof(hash_size_));
 }
 
 bool RangeValidationTree::isValidRvbId(const RVBId& block_id) const noexcept {

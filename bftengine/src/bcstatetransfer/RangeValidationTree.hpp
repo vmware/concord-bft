@@ -179,6 +179,8 @@ class RangeValidationTree {
     size_t hash_size{0};
     uint64_t total_nodes{0};
     uint64_t root_node_id{0};
+
+    static void staticAssert() noexcept;
     // TODO num of nodes at each level
   };
 #pragma pack(pop)
@@ -190,6 +192,8 @@ class RangeValidationTree {
     uint64_t min_child_id{0};
     uint64_t max_child_id{0};
     uint64_t parent_id{0};
+
+    static void staticAssert() noexcept;
   };
 
   struct RVTNode : public RVBNode {
