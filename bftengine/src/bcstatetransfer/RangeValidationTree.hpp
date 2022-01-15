@@ -92,6 +92,8 @@ class RangeValidationTree {
   RVBId getMaxRvbId() const;
   bool empty() const { return (id_to_node_.size() == 0) ? true : false; }
   const std::string getRootHashVal() const { return root_ ? root_->hash_val.valToString() : ""; }
+  void printToLog(bool only_node_id) const noexcept;
+  bool validate() const noexcept;  // TODO
 
  public:
   struct HashMaxValues {
@@ -219,18 +221,16 @@ class RangeValidationTree {
   static uint64_t pow_int(uint64_t base, uint64_t exp) noexcept;
   size_t totalNodes() const { return id_to_node_.size(); }
   size_t totalLevels() const { return root_ ? root_->id.level : 0; }
-  void printToLog(bool only_node_id) const noexcept;
-  bool validate() const noexcept;  // TODO
-  void validateSizes() const noexcept;
-
  protected:
   bool isValidRvbId(const RVBId& block_id) const noexcept;
   bool validateRvbId(const RVBId id, const STDigest& digest) const;
   bool validateRVBGroupId(const RVBGroupId rvb_group_id) const;
+
   // Helper functions
   shared_ptr<RVTNode> getRVTNodeOfLeftSibling(shared_ptr<RVTNode>& node) const;
   shared_ptr<RVTNode> getRVTNodeOfRightSibling(shared_ptr<RVTNode>& node) const;
   shared_ptr<RVTNode> getParentNode(std::shared_ptr<RVTNode>& node) const noexcept;
+
   // tree internal manipulation functions
   void addRVBNode(std::shared_ptr<RVBNode>& node);
   void addInternalNode(std::shared_ptr<RVTNode>& node);
