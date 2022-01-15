@@ -113,10 +113,9 @@ struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
     if (b_id != std::numeric_limits<uint16_t>::max()) {
       oss << "Replica=" << b_id;
     }
-    oss << " maxBlockId=" << b->maxBlockId
-                 << " digestOfMaxBlockId=" << b->digestOfMaxBlockId.toString()
-                 << " digestOfResPagesDescriptor=" << b->digestOfResPagesDescriptor.toString()
-                 << " requestMsgSeqNum=" << b->requestMsgSeqNum << " requestMsgSeqNum=" << b->rvbDataSize << std::endl;
+    oss << " maxBlockId=" << b->maxBlockId << " digestOfMaxBlockId=" << b->digestOfMaxBlockId.toString()
+        << " digestOfResPagesDescriptor=" << b->digestOfResPagesDescriptor.toString()
+        << " requestMsgSeqNum=" << b->requestMsgSeqNum << " requestMsgSeqNum=" << b->rvbDataSize << std::endl;
     LOG_WARN(logger, oss.str());
     if (a->rvbDataSize > 0) {
       concordUtils::HexPrintBuffer adata{a->data, a->rvbDataSize};

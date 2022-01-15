@@ -160,7 +160,7 @@ void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_de
     // Second, prune in_mem_rvt_ up to new_checkpoint_desc.maxBlockId.
     // Theoratically, there might be block digests which belong to the next checkpoint
     //
-    // Comment: assume RVT span on the range [160 ... 1500] min/max RVB IDs respectively. FetchRangeSize=16 and 
+    // Comment: assume RVT span on the range [160 ... 1500] min/max RVB IDs respectively. FetchRangeSize=16 and
     // new_checkpoint_desc.maxBlockId is 1500.
     // We might have in the pruning vector the next digests 144, 160 .... 1488, 1504 ...
     // 144 and 1504 should not be pruned. 144 triggers skip (continue). 1504 triggers break
@@ -173,8 +173,8 @@ void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_de
     }
     if (i > 0) {
       LOG_INFO(logger_,
-                "Remove " << (i - 1) << " digests from in_mem_rvt_, from/to block IDs:"
-                          << KVLOG(pruned_blocks_digests_[0].first, pruned_blocks_digests_[i - 1].first));
+               "Remove " << (i - 1) << " digests from in_mem_rvt_, from/to block IDs:"
+                         << KVLOG(pruned_blocks_digests_[0].first, pruned_blocks_digests_[i - 1].first));
     }
     // We relay on caller to persist new_checkpoint_desc, and leave pruned_blocks_digests_ persisted before erase was
     // done (some redundent digests)
@@ -590,11 +590,9 @@ void RVBManager::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBloc
   if (initial_size != pruned_blocks_digests_.size()) {
     ds_->setPrunedBlocksDigests(pruned_blocks_digests_);
     LOG_INFO(logger_,
-             num_digests_added << " pruned block digests saved:"
-                               << KVLOG(start_rvb_id,
-                                        current_rvb_id,
-                                        lastAgreedPrunableBlockId,
-                                        pruned_blocks_digests_.size()));
+             num_digests_added
+                 << " pruned block digests saved:"
+                 << KVLOG(start_rvb_id, current_rvb_id, lastAgreedPrunableBlockId, pruned_blocks_digests_.size()));
   }
 }
 
