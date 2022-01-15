@@ -373,8 +373,8 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
   for (const auto& p : digests) {
     digests_rvt.addNode(p.first, p.second);
   }
-  const std::string digests_rvt_root_val = digests_rvt.getRootHashVal();
-  const std::string rvt_parent_val = in_mem_rvt_->getDirectParentHashVal(digests.begin()->first);
+  const std::string digests_rvt_root_val = digests_rvt.getRootValStr();
+  const std::string rvt_parent_val = in_mem_rvt_->getDirectParentValueStr(digests.begin()->first);
   if (digests_rvt_root_val != rvt_parent_val) {
     LOG_ERROR(logger_,
               error_prefix << " digests validation failed against the in_mem_rvt_!"

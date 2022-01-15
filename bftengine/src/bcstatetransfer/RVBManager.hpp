@@ -81,7 +81,7 @@ class RVBManager {
   // digests
   void reportLastAgreedPrunableBlockId(BlockId lastAgreedPrunableBlockId);
 
-  std::string getDigestOfRvbData() const { return in_mem_rvt_->getRootHashVal(); }
+  std::string getDigestOfRvbData() const { return in_mem_rvt_->getRootValStr(); }
   void reset();
 
   // For the range [from_block_id, to_block_id], returns a block id BID, such that:
