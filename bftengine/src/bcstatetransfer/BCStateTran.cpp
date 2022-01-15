@@ -1113,9 +1113,9 @@ void BCStateTran::onFetchingStateChange(FetchingState newFetchingState) {
       digestOfNextRequiredBlock_ = targetCheckpointDesc_.digestOfResPagesDescriptor;
       break;
   }
-  
+
   logger_ = (newFetchingState == FetchingState::NotFetching) ? ST_SRC_LOG : ST_DST_LOG;
-  metrics_.fetching_state_.Get().Set(stateName(getFetchingState()));
+  metrics_.fetching_state_.Get().Set(stateName(newFetchingState));
   lastFetchingState_ = newFetchingState;
 }
 

@@ -20,6 +20,7 @@
 #include <random>
 #include <climits>
 #include <optional>
+#include <cstring>
 
 // 3rd party includes
 #include "gtest/gtest.h"
@@ -60,6 +61,42 @@ using random_bytes_engine = std::independent_bits_engine<std::default_random_eng
   std::function<void(void)> { \
     []() {}                   \
   }
+
+// Extract user input from command line to override configuration and avoid the nee for re-compilation for some of
+// the configuration parameters
+struct UserInput {
+  std::string loglevel_ = "";
+  const set<std::string> expectedInputArgs{"--log_level"};
+  static UserInput* getInstance() {
+    static UserInput inputConfig;
+    return &inputConfig;
+  }
+
+  void extractUserInput(int argc, char** argv) {
+    vector<string> tokens;
+
+    for (size_t i{1}; i < argc; ++i) {
+      std::string s(argv[i]);
+      char* token = std::strtok(const_cast<char*>(s.c_str()), "= ");
+      while (token) {
+        tokens.push_back(token);
+        token = std::strtok(nullptr, "= ");
+      }
+    }
+
+    set<std::string>::iterator iter = expectedInputArgs.end();
+    for (const auto& tok : tokens) {
+      if (iter == expectedInputArgs.end()) {
+        iter = std::find(expectedInputArgs.begin(), expectedInputArgs.end(), tok);
+      } else {
+        if (*iter == std::string("--log_level")) {
+          loglevel_ = tok;
+          iter = expectedInputArgs.end();
+        }
+      }
+    }
+  }
+};
 
 namespace bftEngine::bcst::impl {
 
@@ -145,7 +182,7 @@ struct TestConfig {
   bool fakeDbDeleteOnStart = true;
   bool fakeDbDeleteOnEnd = true;
   TestTarget testTarget = TestTarget::DESTINATION;
-  string logLevel = "error";  // choose: "trace", "debug", "info", "warn", "error", "fatal"
+  string logLevel = "info";  // choose: "trace", "debug", "info", "warn", "error", "fatal"
 };
 
 static inline std::ostream& operator<<(std::ostream& os, const TestConfig::TestTarget& c) {
@@ -477,7 +514,7 @@ class BcStTest : public ::testing::Test {
  private:
   // Infra initialize helpers
   void printConfiguration();
-  void configureLog(const string& logLevel);
+  void configureLog();
   bool initialized_ = false;
 
  protected:
@@ -982,7 +1019,7 @@ void BcStTest::TearDown() {
 // 2) targetConfig_
 void BcStTest::initialize() {
   Block::setMaxTotalBlockSize(targetConfig_.maxBlockSize);
-  ASSERT_NFF(configureLog(testConfig_.logLevel));
+  ASSERT_NFF(configureLog());
   // Set starting test state - blocks and checkpoints
   testState_.init(testConfig_, appState_);
   printConfiguration();
@@ -1174,9 +1211,16 @@ void BcStTest::printConfiguration() {
   LOG_INFO(GL, "testState_:" << std::boolalpha << testState_);
 }
 
-void BcStTest::configureLog(const string& logLevelStr) {
+void BcStTest::configureLog() {
   std::set<string> possibleLogLevels = {"trace", "debug", "info", "warn", "error", "fatal"};
-  ASSERT_TRUE(possibleLogLevels.find(logLevelStr) != possibleLogLevels.end());
+  if (!UserInput::getInstance()->loglevel_.empty()) {
+    testConfig_.logLevel =  UserInput::getInstance()->loglevel_;
+  }
+  auto logLevelStr = testConfig_.logLevel;
+  if (possibleLogLevels.find(logLevelStr) == possibleLogLevels.end()) {
+    std::cout << "\n===\n\n" << "Unknown log level! " << logLevelStr << "\n\n===\n\n";
+    exit(1);
+  }
 #ifdef USE_LOG4CPP
   log4cplus::LogLevel logLevel = logLevelStr == "trace"   ? log4cplus::TRACE_LOG_LEVEL
                                  : logLevelStr == "debug" ? log4cplus::DEBUG_LOG_LEVEL
@@ -1728,22 +1772,42 @@ TEST_F(BcStTest, ValidateRvbDataInitialSource) {
   testConfig_.productDbDeleteOnEnd = true;
 }
 
+class BcStTestParamFixture3 : public BcStTest,
+                              public testing::WithParamInterface<tuple<size_t, size_t, size_t, size_t>> {};
+
 // generate blocks an checkpoint them to simulate consensus "advancing"
 // Then validate the checkpoints and compare the in memory in the one built from the checkpoint data
-TEST_F(BcStTest, bkpValidateCheckpointingWIthBlocksAddedOnly) {
+TEST_P(BcStTestParamFixture3, bkpValidateCheckpointingWithConsensusCommitsAndPruning) {
+  auto maxBlockIdOnFirstCycle = get<0>(GetParam()) * testConfig_.checkpointWindowSize / 100;
+  auto numBlocksToAdd = get<1>(GetParam()) * testConfig_.checkpointWindowSize / 100;
+  auto numBlocksToPrune = get<2>(GetParam()) * testConfig_.checkpointWindowSize / 100;
+  auto totalCP = get<3>(GetParam());
+  bool firstIteration = true;
+
   ASSERT_NFF(initialize());
   ASSERT_NFF(cmnStartRunning());
-  constexpr size_t total_num_of_checkpoints = 100;
   uint64_t nextCheckpointNum = datastore_->getLastStoredCheckpoint() + 1;
   auto rvt = stDelegator_->getRvt();
+  auto rvbm = stDelegator_->getRvbManager();
 
   uint64_t minBlockInCp = appState_.getGenesisBlockNum() + 1;
-  uint64_t maxBlockInCp = testConfig_.checkpointWindowSize;
+  uint64_t maxBlockInCp = maxBlockIdOnFirstCycle;
   uint64_t lastTotalLevels{}, lastTotalNodes{};
+  uint64_t pruneTillBlockId = (numBlocksToPrune == 0) ? 0 : minBlockInCp + numBlocksToPrune - 1;
   ASSERT_GT(maxBlockInCp, minBlockInCp);
-  for (size_t i{}; i < total_num_of_checkpoints; ++i) {
+  for (size_t i{}; i < totalCP; ++i) {
     RangeValidationTree helper_rvt(GL, targetConfig_.RVT_K, targetConfig_.fetchRangeSize);
-    ASSERT_NFF(dataGen_->generateBlocks(appState_, minBlockInCp, maxBlockInCp));
+
+    // Add blocks
+    if (firstIteration || (numBlocksToAdd > 0)) {
+      ASSERT_NFF(dataGen_->generateBlocks(appState_, minBlockInCp, maxBlockInCp));
+      firstIteration = false;
+    }
+    // Prune blocks
+    if (pruneTillBlockId > 0) {
+      rvbm->reportLastAgreedPrunableBlockId(pruneTillBlockId);
+    }
+    // create chceckpoint
     stDelegator_->createCheckpointOfCurrentState(nextCheckpointNum);
 
     // Fetch the checkpoint, construct the tree, and check that number of nodes grows as expected
@@ -1764,27 +1828,60 @@ TEST_F(BcStTest, bkpValidateCheckpointingWIthBlocksAddedOnly) {
     ASSERT_EQ(helper_rvt.totalLevels(), rvt->totalLevels());
     ASSERT_EQ(helper_rvt.getMinRvbId(), rvt->getMinRvbId());
     ASSERT_EQ(helper_rvt.getMaxRvbId(), rvt->getMaxRvbId());
+    // when only pruning, tree must shrink over time
+    // when only adding tree must grows over time
     if (lastTotalNodes > 0) {
-      ASSERT_LE(lastTotalNodes, rvt->totalNodes());
+      if ((numBlocksToAdd > 0) && numBlocksToPrune == 0) {
+        ASSERT_LE(lastTotalNodes, rvt->totalNodes());
+      } else if ((numBlocksToAdd == 0) && numBlocksToPrune > 0) {
+        ASSERT_GE(lastTotalNodes, rvt->totalNodes());
+      }
     }
     if (lastTotalLevels > 0) {
-      ASSERT_LE(lastTotalLevels, rvt->totalLevels());
+      if ((numBlocksToAdd > 0) && numBlocksToPrune == 0) {
+        ASSERT_LE(lastTotalLevels, rvt->totalLevels());
+      } else if ((numBlocksToAdd == 0) && numBlocksToPrune > 0) {
+        ASSERT_GE(lastTotalLevels, rvt->totalLevels());
+      }
     }
     lastTotalNodes = rvt->totalNodes();
     lastTotalLevels = rvt->totalLevels();
 
     nextCheckpointNum++;
-    minBlockInCp = maxBlockInCp + 1;
-    maxBlockInCp = minBlockInCp + testConfig_.checkpointWindowSize - 1;
+    if (numBlocksToAdd) {
+      minBlockInCp = maxBlockInCp + 1;
+      maxBlockInCp = minBlockInCp + numBlocksToAdd - 1;
+    }
+    if (numBlocksToPrune > 0) {
+      pruneTillBlockId += numBlocksToPrune - 1;
+    }
   }
 }
+
+// All 1st 3 elements are % of testConfig_.checkpointWindowSize. They can be > 100% too.
+// 1st element - max block ID to reach while adding blocks on 1st cycle
+// 2nd element - # blocks to add on every next cycle
+// 3rd element - # blocks to prune each cycle
+// 4th element - # of cycles
+using BcStTestParamFixtureInput3 = tuple<size_t, size_t, size_t, size_t>;
+INSTANTIATE_TEST_CASE_P(BcStTest,
+                        BcStTestParamFixture3,
+                        ::testing::Values(
+                            // Add blocks only
+                            BcStTestParamFixtureInput3(100, 100, 0, 100),
+                            // Prune blocks only
+                            BcStTestParamFixtureInput3(1000, 0, 100, 9),
+                            // Add blocks and Prune
+                            BcStTestParamFixtureInput3(100, 100, 50, 100)), );
 
 }  // namespace bftEngine::bcst::impl
 
 int main(int argc, char** argv) {
   srand(time(NULL));
+  UserInput::getInstance()->extractUserInput(argc, argv);
   testing::InitGoogleTest(&argc, argv);
   testing::FLAGS_gtest_death_test_style =
       "threadsafe";  // mitigate the risks of testing in a possibly multithreaded environment
+
   return RUN_ALL_TESTS();
 }
