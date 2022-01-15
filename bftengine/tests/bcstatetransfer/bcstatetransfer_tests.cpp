@@ -1214,11 +1214,12 @@ void BcStTest::printConfiguration() {
 void BcStTest::configureLog() {
   std::set<string> possibleLogLevels = {"trace", "debug", "info", "warn", "error", "fatal"};
   if (!UserInput::getInstance()->loglevel_.empty()) {
-    testConfig_.logLevel =  UserInput::getInstance()->loglevel_;
+    testConfig_.logLevel = UserInput::getInstance()->loglevel_;
   }
   auto logLevelStr = testConfig_.logLevel;
   if (possibleLogLevels.find(logLevelStr) == possibleLogLevels.end()) {
-    std::cout << "\n===\n\n" << "Unknown log level! " << logLevelStr << "\n\n===\n\n";
+    std::cout << "\n===\n\n"
+              << "Unknown log level! " << logLevelStr << "\n\n===\n\n";
     exit(1);
   }
 #ifdef USE_LOG4CPP
@@ -1773,7 +1774,7 @@ TEST_F(BcStTest, ValidateRvbDataInitialSource) {
 }
 
 class BcStTestParamFixture3 : public BcStTest,
-                              public testing::WithParamInterface<tuple<size_t, size_t, size_t, size_t>> {};
+                              public testing::WithParamInterface<tuple<size_t, size_t, size_t, size_t, bool>> {};
 
 // generate blocks an checkpoint them to simulate consensus "advancing"
 // Then validate the checkpoints and compare the in memory in the one built from the checkpoint data
@@ -1782,13 +1783,12 @@ TEST_P(BcStTestParamFixture3, bkpValidateCheckpointingWithConsensusCommitsAndPru
   auto numBlocksToAdd = get<1>(GetParam()) * testConfig_.checkpointWindowSize / 100;
   auto numBlocksToPrune = get<2>(GetParam()) * testConfig_.checkpointWindowSize / 100;
   auto totalCP = get<3>(GetParam());
+  bool resetartBetweenCP = get<4>(GetParam());
   bool firstIteration = true;
 
   ASSERT_NFF(initialize());
   ASSERT_NFF(cmnStartRunning());
   uint64_t nextCheckpointNum = datastore_->getLastStoredCheckpoint() + 1;
-  auto rvt = stDelegator_->getRvt();
-  auto rvbm = stDelegator_->getRvbManager();
 
   uint64_t minBlockInCp = appState_.getGenesisBlockNum() + 1;
   uint64_t maxBlockInCp = maxBlockIdOnFirstCycle;
@@ -1796,8 +1796,6 @@ TEST_P(BcStTestParamFixture3, bkpValidateCheckpointingWithConsensusCommitsAndPru
   uint64_t pruneTillBlockId = (numBlocksToPrune == 0) ? 0 : minBlockInCp + numBlocksToPrune - 1;
   ASSERT_GT(maxBlockInCp, minBlockInCp);
   for (size_t i{}; i < totalCP; ++i) {
-    RangeValidationTree helper_rvt(GL, targetConfig_.RVT_K, targetConfig_.fetchRangeSize);
-
     // Add blocks
     if (firstIteration || (numBlocksToAdd > 0)) {
       ASSERT_NFF(dataGen_->generateBlocks(appState_, minBlockInCp, maxBlockInCp));
@@ -1805,9 +1803,13 @@ TEST_P(BcStTestParamFixture3, bkpValidateCheckpointingWithConsensusCommitsAndPru
     }
     // Prune blocks
     if (pruneTillBlockId > 0) {
+      auto rvbm = stDelegator_->getRvbManager();
       rvbm->reportLastAgreedPrunableBlockId(pruneTillBlockId);
     }
     // create chceckpoint
+    if (resetartBetweenCP) {
+      ASSERT_NFF(dstRestart(false, FetchingState::NotFetching));
+    }
     stDelegator_->createCheckpointOfCurrentState(nextCheckpointNum);
 
     // Fetch the checkpoint, construct the tree, and check that number of nodes grows as expected
@@ -1816,6 +1818,9 @@ TEST_P(BcStTestParamFixture3, bkpValidateCheckpointingWithConsensusCommitsAndPru
     ASSERT_EQ(desc.checkpointNum, nextCheckpointNum);
     ASSERT_EQ(desc.maxBlockId, maxBlockInCp);
     ASSERT_TRUE(!desc.rvbData.empty());
+
+    RangeValidationTree helper_rvt(GL, targetConfig_.RVT_K, targetConfig_.fetchRangeSize);
+    auto rvt = stDelegator_->getRvt();
 
     std::istringstream rvb_data(std::string(reinterpret_cast<const char*>(desc.rvbData.data()), desc.rvbData.size()));
     ASSERT_TRUE(helper_rvt.setSerializedRvbData(rvb_data));
@@ -1863,16 +1868,23 @@ TEST_P(BcStTestParamFixture3, bkpValidateCheckpointingWithConsensusCommitsAndPru
 // 2nd element - # blocks to add on every next cycle
 // 3rd element - # blocks to prune each cycle
 // 4th element - # of cycles
-using BcStTestParamFixtureInput3 = tuple<size_t, size_t, size_t, size_t>;
+// 5th element - resetart between checkpoints?
+using BcStTestParamFixtureInput3 = tuple<size_t, size_t, size_t, size_t, bool>;
 INSTANTIATE_TEST_CASE_P(BcStTest,
                         BcStTestParamFixture3,
                         ::testing::Values(
                             // Add blocks only
-                            BcStTestParamFixtureInput3(100, 100, 0, 100),
+                            BcStTestParamFixtureInput3(100, 100, 0, 100, false),
                             // Prune blocks only
-                            BcStTestParamFixtureInput3(1000, 0, 100, 9),
+                            BcStTestParamFixtureInput3(1000, 0, 100, 9, false),
                             // Add blocks and Prune
-                            BcStTestParamFixtureInput3(100, 100, 50, 100)), );
+                            BcStTestParamFixtureInput3(100, 100, 50, 100, false),
+                            // Add blocks only and restart between checkpointing
+                            BcStTestParamFixtureInput3(100, 100, 0, 100, true),
+                            // Prune blocks only and restart between checkpointing
+                            BcStTestParamFixtureInput3(1000, 0, 100, 9, true),
+                            // Add blocks and Prune and restart between checkpointing
+                            BcStTestParamFixtureInput3(100, 100, 50, 100, true)), );
 
 }  // namespace bftEngine::bcst::impl
 
