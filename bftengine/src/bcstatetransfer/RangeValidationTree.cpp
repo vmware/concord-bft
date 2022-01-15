@@ -212,6 +212,65 @@ uint64_t RangeValidationTree::pow_int(uint64_t base, uint64_t exp) noexcept {
   return res;
 }
 
+bool RangeValidationTree::validate() const noexcept {
+  if (not root_) {
+    return true;
+  }
+  auto validateHashValues = [&](vector<RangeValidationTree::HashVal> child_hashes, string parent_hash) -> bool {
+    auto first_hash_val = child_hashes[0].getDecodedHashVal();
+    HashVal child_hash_sum(first_hash_val);
+    LOG_INFO(logger_, "input parent hash " << parent_hash);
+    LOG_INFO(logger_, "1st child hash " << child_hash_sum.valToString());
+    for (size_t i = 1; i < child_hashes.size(); i++) {
+      child_hash_sum += child_hashes[i];
+      LOG_INFO(logger_, "added child hash " << child_hashes[i].valToString());
+      LOG_INFO(logger_, KVLOG(i, child_hash_sum.valToString()));
+    }
+    LOG_INFO(logger_, "calculatd parent hash " << child_hash_sum.valToString());
+    return (parent_hash == child_hash_sum.valToString());
+  };
+
+  // step 1: validate hash of parent is matching with sum of all childs
+  queue<shared_ptr<RVTNode>> q;
+  q.push(root_);
+  string parent_hash = root_->hash_val.valToString();
+
+  while (q.size()) {
+    auto total_nodes = q.size();
+    vector<RangeValidationTree::HashVal> child_hashes;
+    for (size_t cnt = 0; cnt < total_nodes; cnt++) {
+      auto& node = q.front();
+      q.pop();
+
+      if (node->info.level == 1) {
+        continue;
+      }
+
+      uint64_t id = node->min_child_id;
+      for (uint16_t count = 0; count < node->n_child; count++) {
+        auto iter = id_to_node_.find(id);
+        ConcordAssert(iter != id_to_node_.end());
+        auto& child_node = iter->second;
+        child_hashes.push_back(child_node->hash_val);
+        q.push(child_node);
+        id = child_node->getRightSiblingId();
+      }
+    }
+    if (child_hashes.empty()) {
+      continue;
+    }
+    if (not validateHashValues(child_hashes, parent_hash)) {
+      LOG_ERROR(logger_, "validation failed");
+      return false;
+    }
+  }
+  LOG_INFO(logger_,
+           "validation succedded for " << root_->info.toString() << " " << root_->hash_val.valToString() << " "
+                                       << parent_hash);
+
+  return true;
+}
+
 void RangeValidationTree::printToLog(bool only_node_id) const noexcept {
   if (!root_ or totalNodes() == 0) {
     LOG_INFO(logger_, "Empty RVT");
