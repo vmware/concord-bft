@@ -182,7 +182,7 @@ struct TestConfig {
   bool fakeDbDeleteOnStart = true;
   bool fakeDbDeleteOnEnd = true;
   TestTarget testTarget = TestTarget::DESTINATION;
-  string logLevel = "info";  // choose: "trace", "debug", "info", "warn", "error", "fatal"
+  string logLevel = "error";  // choose: "trace", "debug", "info", "warn", "error", "fatal"
 };
 
 static inline std::ostream& operator<<(std::ostream& os, const TestConfig::TestTarget& c) {
@@ -389,6 +389,8 @@ class BcStTestDelegator {
   // Source Selector
   void assertSourceSelectorMetricKeyVal(const std::string& key, uint64_t val);
   SourceSelector& getSourceSelector() { return stateTransfer_->sourceSelector_; }
+
+  void validateEqualRVTs(const RangeValidationTree& rvtA, const RangeValidationTree& rvtB) const;
 
  private:
   const std::unique_ptr<BCStateTran>& stateTransfer_;
@@ -711,6 +713,43 @@ void BcStTestDelegator::assertSourceSelectorMetricKeyVal(const std::string& key,
     ASSERT_EQ(ssMetrics_.replacement_due_to_source_same_as_primary_.Get().Get(), val);
   } else {
     FAIL() << "Unexpected key!";
+  }
+}
+
+void BcStTestDelegator::validateEqualRVTs(const RangeValidationTree& rvtA, const RangeValidationTree& rvtB) const {
+  ASSERT_EQ(rvtA.getRootHashVal(), rvtB.getRootHashVal());
+  ASSERT_EQ(rvtA.totalNodes(), rvtB.totalNodes());
+  ASSERT_EQ(rvtA.totalLevels(), rvtB.totalLevels());
+  ASSERT_EQ(rvtA.getMinRvbId(), rvtB.getMinRvbId());
+  ASSERT_EQ(rvtA.getMaxRvbId(), rvtB.getMaxRvbId());
+  ASSERT_EQ(rvtA.rightmostRVTNode_.size(), rvtB.rightmostRVTNode_.size());
+  ASSERT_EQ(rvtA.leftmostRVTNode_.size(), rvtB.leftmostRVTNode_.size());
+  ASSERT_EQ(rvtA.leftmostRVTNode_.size(), RangeValidationTree::NodeInfo::kMaxLevels);
+  ASSERT_EQ(rvtA.rightmostRVTNode_.size(), RangeValidationTree::NodeInfo::kMaxLevels);
+
+  const auto& rmA = rvtA.rightmostRVTNode_;
+  const auto& rmB = rvtB.rightmostRVTNode_;
+  const auto& lmA = rvtA.leftmostRVTNode_;
+  const auto& lmB = rvtB.leftmostRVTNode_;
+  for (size_t i{}; i < RangeValidationTree::NodeInfo::kMaxLevels; ++i) {
+    if (rmA[i]) {
+      ASSERT_EQ(rmA[i]->id.id, rmB[i]->id.id);
+    } else {
+      ASSERT_EQ(rmA[i], rmB[i]);
+    }
+    if (lmA[i]) {
+      ASSERT_EQ(lmA[i]->id.id, lmB[i]->id.id);
+    } else {
+      ASSERT_EQ(lmA[i], lmB[i]);
+    }
+  }
+  ASSERT_EQ(rvtA.max_rvb_index_, rvtB.max_rvb_index_);
+  ASSERT_EQ(rvtA.min_rvb_index_, rvtB.min_rvb_index_);
+  if (rvtA.root_ && (rvtA.root_ == rvtB.root_)) {
+    ASSERT_EQ(rvtA.root_->n_child, rvtB.root_->n_child);
+    ASSERT_EQ(rvtA.root_->min_child_id, rvtB.root_->min_child_id);
+    ASSERT_EQ(rvtA.root_->max_child_id, rvtB.root_->max_child_id);
+    ASSERT_EQ(rvtA.root_->parent_id, rvtB.root_->parent_id);
   }
 }
 
@@ -1223,31 +1262,21 @@ void BcStTest::configureLog() {
     exit(1);
   }
 #ifdef USE_LOG4CPP
-  log4cplus::LogLevel logLevel =
-      logLevelStr == "trace"
-          ? log4cplus::TRACE_LOG_LEVEL
-          : logLevelStr == "debug"
-                ? log4cplus::DEBUG_LOG_LEVEL
-                : logLevelStr == "info"
-                      ? log4cplus::INFO_LOG_LEVEL
-                      : logLevelStr == "warn"
-                            ? log4cplus::WARN_LOG_LEVEL
-                            : logLevelStr == "error"
-                                  ? log4cplus::ERROR_LOG_LEVEL
-                                  : logLevelStr == "fatal" ? log4cplus::FATAL_LOG_LEVEL : log4cplus::INFO_LOG_LEVEL;
+  log4cplus::LogLevel logLevel = logLevelStr == "trace"   ? log4cplus::TRACE_LOG_LEVEL
+                                 : logLevelStr == "debug" ? log4cplus::DEBUG_LOG_LEVEL
+                                 : logLevelStr == "info"  ? log4cplus::INFO_LOG_LEVEL
+                                 : logLevelStr == "warn"  ? log4cplus::WARN_LOG_LEVEL
+                                 : logLevelStr == "error" ? log4cplus::ERROR_LOG_LEVEL
+                                 : logLevelStr == "fatal" ? log4cplus::FATAL_LOG_LEVEL
+                                                          : log4cplus::INFO_LOG_LEVEL;
 #else
-  logging::LogLevel logLevel =
-      logLevelStr == "trace"
-          ? logging::LogLevel::trace
-          : logLevelStr == "debug"
-                ? logging::LogLevel::debug
-                : logLevelStr == "info"
-                      ? logging::LogLevel::info
-                      : logLevelStr == "warn"
-                            ? logging::LogLevel::warn
-                            : logLevelStr == "error"
-                                  ? logging::LogLevel::error
-                                  : logLevelStr == "fatal" ? logging::LogLevel::fatal : logging::LogLevel::info;
+  logging::LogLevel logLevel = logLevelStr == "trace"   ? logging::LogLevel::trace
+                               : logLevelStr == "debug" ? logging::LogLevel::debug
+                               : logLevelStr == "info"  ? logging::LogLevel::info
+                               : logLevelStr == "warn"  ? logging::LogLevel::warn
+                               : logLevelStr == "error" ? logging::LogLevel::error
+                               : logLevelStr == "fatal" ? logging::LogLevel::fatal
+                                                        : logging::LogLevel::info;
 #endif
   // logging::Logger::getInstance("serializable").setLogLevel(logLevel);
   // logging::Logger::getInstance("concord.bft.st.dbdatastore").setLogLevel(logLevel);
@@ -1834,15 +1863,13 @@ TEST_P(BcStTestParamFixture3, bkpValidateCheckpointingWithConsensusCommitsAndPru
 
     std::istringstream rvb_data(std::string(reinterpret_cast<const char*>(desc.rvbData.data()), desc.rvbData.size()));
     ASSERT_TRUE(helper_rvt.setSerializedRvbData(rvb_data));
+    ASSERT_NFF(stDelegator_->validateEqualRVTs(helper_rvt, *rvt));
+    ASSERT_TRUE(!helper_rvt.getRootHashVal().empty());
+
     // leave for debug
     // helper_rvt.printToLog(false);
     // rvt->printToLog(false);
-    ASSERT_EQ(helper_rvt.getRootHashVal(), rvt->getRootHashVal());
-    ASSERT_TRUE(!helper_rvt.getRootHashVal().empty());
-    ASSERT_EQ(helper_rvt.totalNodes(), rvt->totalNodes());
-    ASSERT_EQ(helper_rvt.totalLevels(), rvt->totalLevels());
-    ASSERT_EQ(helper_rvt.getMinRvbId(), rvt->getMinRvbId());
-    ASSERT_EQ(helper_rvt.getMaxRvbId(), rvt->getMaxRvbId());
+
     // when only pruning, tree must shrink over time
     // when only adding tree must grows over time
     if (lastTotalNodes > 0) {
