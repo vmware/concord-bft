@@ -141,8 +141,8 @@ RVTNode::RVTNode(std::shared_ptr<RVTNode>& node) : RVBNode(node->info_.level + 1
   ConcordAssert(n_child <= RVT_K);
 }
 
-RVTNode::RVTNode(SerializedRVTNode& node, char* val, size_t hash_size)
-    : RVBNode(node.id, val, hash_size),
+RVTNode::RVTNode(SerializedRVTNode& node, char* val, size_t value_size)
+    : RVBNode(node.id, val, value_size),
       n_child{node.n_child},
       min_child_id{node.min_child_id},
       max_child_id{node.max_child_id},
@@ -189,7 +189,7 @@ RangeValidationTree::RangeValidationTree(const logging::Logger& logger,
       logger_(logger),
       RVT_K(RVT_K),
       fetch_range_size_(fetch_range_size),
-      //value_size_(hash_size) {
+      //value_size_(value_size) {
       value_size_(2) { // temporary
   NodeVal::kNodeValueMax_ = NodeVal::calcMaxValue(value_size_);
   NodeVal::kNodeValueModulo_ = NodeVal::calcModulo(value_size_);
@@ -218,28 +218,28 @@ bool RangeValidationTree::validate() const noexcept {
   if (not root_) {
     return true;
   }
-  auto validateHashValues = [&](vector<RangeValidationTree::NodeVal> child_hashes, string parent_val) -> bool {
-    auto first_hash_val = child_hashes[0].getDecoded();
-    NodeVal child_hash_sum(first_hash_val.c_str(), first_hash_val.size());
+  auto validateValues = [&](vector<RangeValidationTree::NodeVal> child_values, string parent_val) -> bool {
+    auto first_val = child_values[0].getDecoded();
+    NodeVal child_values_sum(first_val.c_str(), first_val.size());
     LOG_INFO(logger_, "input parent value " << parent_val);
-    LOG_INFO(logger_, "1st child hash " << child_hash_sum.toString());
-    for (size_t i = 1; i < child_hashes.size(); i++) {
-      child_hash_sum += child_hashes[i];
-      LOG_INFO(logger_, "added child hash " << child_hashes[i].toString());
-      LOG_INFO(logger_, KVLOG(i, child_hash_sum.toString()));
+    LOG_INFO(logger_, "1st child value " << child_values_sum.toString());
+    for (size_t i = 1; i < child_values.size(); i++) {
+      child_values_sum += child_values[i];
+      LOG_INFO(logger_, "added child value " << child_values[i].toString());
+      LOG_INFO(logger_, KVLOG(i, child_values_sum.toString()));
     }
-    LOG_INFO(logger_, "calculatd parent hash " << child_hash_sum.toString());
-    return (parent_val == child_hash_sum.toString());
+    LOG_INFO(logger_, "calculatd parent value " << child_values_sum.toString());
+    return (parent_val == child_values_sum.toString());
   };
 
-  // step 1: validate hash of parent is matching with sum of all childs
+  // step 1: validate value of parent is matching with sum of all childs
   queue<shared_ptr<RVTNode>> q;
   q.push(root_);
   string parent_val = root_->nvalue_.toString();
 
   while (q.size()) {
     auto total_nodes = q.size();
-    vector<RangeValidationTree::NodeVal> child_hashes;
+    vector<RangeValidationTree::NodeVal> child_values;
     for (size_t cnt = 0; cnt < total_nodes; cnt++) {
       auto& node = q.front();
       q.pop();
@@ -253,15 +253,15 @@ bool RangeValidationTree::validate() const noexcept {
         auto iter = id_to_node_.find(id);
         ConcordAssert(iter != id_to_node_.end());
         auto& child_node = iter->second;
-        child_hashes.push_back(child_node->nvalue_);
+        child_values.push_back(child_node->nvalue_);
         q.push(child_node);
         id = child_node->getRightSiblingId();
       }
     }
-    if (child_hashes.empty()) {
+    if (child_values.empty()) {
       continue;
     }
-    if (not validateHashValues(child_hashes, parent_val)) {
+    if (not validateValues(child_values, parent_val)) {
       LOG_ERROR(logger_, "validation failed");
       return false;
     }
@@ -463,7 +463,7 @@ void RangeValidationTree::addInternalNode(shared_ptr<RVTNode>& node) {
     node = parent_node;
   }
 
-  // no need to create new root as we have reached to root while updating hash
+  // no need to create new root as we have reached to root while updating value
   if (node->info_.id == root_->info_.id) {
     return;
   }
@@ -664,7 +664,7 @@ std::ostringstream RangeValidationTree::getSerializedRvbData() const {
     }
   }
   LOG_TRACE(logger_, KVLOG(os.str().size()));
-  LOG_TRACE(logger_, "Nodes:" << totalNodes() << " root hash:" << root_->nvalue_.toString());
+  LOG_TRACE(logger_, "Nodes:" << totalNodes() << " root value:" << root_->nvalue_.toString());
   return os;
 }
 
