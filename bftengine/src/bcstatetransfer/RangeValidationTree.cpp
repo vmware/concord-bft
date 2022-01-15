@@ -231,7 +231,9 @@ void RangeValidationTree::printToLog(bool only_node_id) const noexcept {
     if (not only_node_id) {
       oss << " = " << node->hash_val.valToString() << " ";
     }
-    if (node->id.level == 1) continue;
+    if (node->id.level == 1) {
+      continue;
+    }
 
     uint16_t count = 0;
     uint64_t id = node->min_child_id;
@@ -265,14 +267,18 @@ bool RangeValidationTree::validateRVBGroupId(const RVBGroupId rvb_group_id) cons
 }
 
 shared_ptr<RVTNode> RangeValidationTree::getRVTNodeOfLeftSibling(shared_ptr<RVTNode>& node) const {
-  if (leftmostRVTNode_[node->id.level] == node) return nullptr;
+  if (leftmostRVTNode_[node->id.level] == node) {
+    return nullptr;
+  }
   auto id = NodeInfo(node->id.level, node->id.rvb_index - RangeValidationTree::pow_int(RVT_K, node->id.level)).id;
   auto iter = id_to_node_.find(id);
   return (iter == id_to_node_.end()) ? nullptr : iter->second;
 }
 
 shared_ptr<RVTNode> RangeValidationTree::getRVTNodeOfRightSibling(shared_ptr<RVTNode>& node) const {
-  if (rightmostRVTNode_[node->id.level] == node) return nullptr;
+  if (rightmostRVTNode_[node->id.level] == node) {
+    return nullptr;
+  }
   auto id = NodeInfo(node->id.level, node->id.rvb_index + RangeValidationTree::pow_int(RVT_K, node->id.level)).id;
   auto iter = id_to_node_.find(id);
   return (iter == id_to_node_.end()) ? nullptr : iter->second;
@@ -657,9 +663,9 @@ bool RangeValidationTree::setSerializedRvbData(std::istringstream& is) {
   for (size_t i = 0; i <= max_levels; i++) {
     Serializable::deserialize(is, node_id);
     if (node_id == null_node_id) {
-      rightmostRVTNode_.push_back(nullptr);
+      rightmostRVTNode_[i] = nullptr;
     } else {
-      rightmostRVTNode_.push_back(id_to_node_[node_id]);
+      rightmostRVTNode_[i] = id_to_node_[node_id];
     }
   }
 
@@ -667,9 +673,9 @@ bool RangeValidationTree::setSerializedRvbData(std::istringstream& is) {
   for (size_t i = 0; i <= max_levels; i++) {
     Serializable::deserialize(is, node_id);
     if (node_id == null_node_id) {
-      leftmostRVTNode_.push_back(nullptr);
+      leftmostRVTNode_[i] = nullptr;
     } else {
-      leftmostRVTNode_.push_back(id_to_node_[node_id]);
+      leftmostRVTNode_[i] = id_to_node_[node_id];
     }
   }
 

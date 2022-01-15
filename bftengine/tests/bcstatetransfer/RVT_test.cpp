@@ -223,7 +223,6 @@ TEST_P(RVTTestserializeDeserializeFixture, serializeDeserialize) {
     rvt.addNode(i, digest);
   }
   // TODO - move this into ctor on product in RVTNode
-  // static_assert(sizeof(RangeValidationTree::RVTNode) == 80);
   auto root_hash = rvt.getRootHashVal();
   auto total_levels = rvt.totalLevels();
   auto total_nodes = rvt.totalNodes();
@@ -358,29 +357,29 @@ TEST_F(RVTTest, simpleAddRemoveWithRootValidation) {
   size_t add_i{1}, rem_i{1};
 
   for (; add_i < 1000; ++add_i) {
-    std::cout << "add:" << KVLOG(add_i * fetch_range_size) << std::endl;
+    // std::cout << "add:" << KVLOG(add_i * fetch_range_size) << std::endl;
     rvt.addNode(add_i * fetch_range_size, {std::to_string(add_i * fetch_range_size).c_str()});
   }
   for (; rem_i < 1000; ++rem_i) {
-    std::cout << "remove:" << KVLOG(rem_i * fetch_range_size) << std::endl;
+    // std::cout << "remove:" << KVLOG(rem_i * fetch_range_size) << std::endl;
     rvt.removeNode(rem_i * fetch_range_size, {std::to_string(rem_i * fetch_range_size).c_str()});
   }
 
   for (; add_i < 500; ++add_i) {
-    std::cout << "add:" << KVLOG(add_i * fetch_range_size) << std::endl;
+    // std::cout << "add:" << KVLOG(add_i * fetch_range_size) << std::endl;
     rvt.addNode(add_i * fetch_range_size, {std::to_string(add_i * fetch_range_size).c_str()});
   }
   for (; rem_i < 300; ++rem_i) {
-    std::cout << "remove:" << KVLOG(rem_i * fetch_range_size) << std::endl;
+    // std::cout << "remove:" << KVLOG(rem_i * fetch_range_size) << std::endl;
     rvt.removeNode(rem_i * fetch_range_size, {std::to_string(rem_i * fetch_range_size).c_str()});
   }
 
   for (; add_i < 500; ++add_i) {
-    std::cout << "add:" << KVLOG(add_i * fetch_range_size) << std::endl;
+    // std::cout << "add:" << KVLOG(add_i * fetch_range_size) << std::endl;
     rvt.addNode(add_i * fetch_range_size, {std::to_string(add_i * fetch_range_size).c_str()});
   }
   for (; rem_i < 700; ++rem_i) {
-    std::cout << "remove:" << KVLOG(rem_i * fetch_range_size) << std::endl;
+    // std::cout << "remove:" << KVLOG(rem_i * fetch_range_size) << std::endl;
     rvt.removeNode(rem_i * fetch_range_size, {std::to_string(rem_i * fetch_range_size).c_str()});
   }
   ASSERT_TRUE(rvt.empty());
