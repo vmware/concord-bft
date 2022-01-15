@@ -223,7 +223,7 @@ TEST_P(RVTTestserializeDeserializeFixture, serializeDeserialize) {
     rvt.addNode(i, digest);
   }
   // TODO - move this into ctor on product in RVTNode
-  auto root_hash = rvt.getRootHashVal();
+  auto root_hash = rvt.getRootValStr();
   auto total_levels = rvt.totalLevels();
   auto total_nodes = rvt.totalNodes();
 
@@ -232,7 +232,7 @@ TEST_P(RVTTestserializeDeserializeFixture, serializeDeserialize) {
   std::istringstream iss(oss.str());
   rvt.setSerializedRvbData(iss);
 
-  ASSERT_EQ(root_hash, rvt.getRootHashVal());
+  ASSERT_EQ(root_hash, rvt.getRootValStr());
   ASSERT_EQ(total_nodes, rvt.totalNodes());
   ASSERT_EQ(total_levels, rvt.totalLevels());
 }
@@ -331,15 +331,15 @@ TEST_F(RVTTest, validateRvbGroupIds) {
   std::vector<RVBGroupId> rvb_group_ids;
   rvb_group_ids = rvt.getRvbGroupIds(5, 5);
   ASSERT_EQ(rvb_group_ids.size(), 1);
-  auto hash_val_1 = rvt.getDirectParentHashVal(randomNum(5, 10, 5));
-  auto hash_val_2 = rvt.getDirectParentHashVal(randomNum(15, 20, 5));
+  auto hash_val_1 = rvt.getDirectParentValueStr(randomNum(5, 10, 5));
+  auto hash_val_2 = rvt.getDirectParentValueStr(randomNum(15, 20, 5));
   ASSERT_EQ(hash_val_1, hash_val_2);
 
   rvb_group_ids = rvt.getRvbGroupIds(5, 45);
   ASSERT_EQ(rvb_group_ids.size(), 3);
-  ASSERT_NE(rvt.getDirectParentHashVal(randomNum(5, 20, 5)), rvt.getDirectParentHashVal(randomNum(25, 40, 5)));
-  ASSERT_NE(rvt.getDirectParentHashVal(randomNum(5, 20, 5)), rvt.getDirectParentHashVal(45));
-  ASSERT_NE(rvt.getDirectParentHashVal(randomNum(25, 40, 5)), rvt.getDirectParentHashVal(45));
+  ASSERT_NE(rvt.getDirectParentValueStr(randomNum(5, 20, 5)), rvt.getDirectParentValueStr(randomNum(25, 40, 5)));
+  ASSERT_NE(rvt.getDirectParentValueStr(randomNum(5, 20, 5)), rvt.getDirectParentValueStr(45));
+  ASSERT_NE(rvt.getDirectParentValueStr(randomNum(25, 40, 5)), rvt.getDirectParentValueStr(45));
 
   std::vector<BlockId> rvb_block_ids = rvt.getRvbIds(rvb_group_ids[0]);
   if (not delegator_->validateRVBGroupId(rvb_group_ids[0])) {

@@ -54,20 +54,17 @@ using RVBIndex = uint64_t;
 // 1. Tree does not store RVB nodes.
 // 2. Only blocks at specific interval are validated to improve replica recovery time.
 // 3. Each node in tree is represented as NodeInfo having type.
-// 4. HashVal is stored in form of CryptoPP::Integer.
+// 4. NodeVal is stored in form of CryptoPP::Integer.
 
 class RangeValidationTree {
   // The next friend declerations are used strictly for testing
   friend class BcStTestDelegator;
 
-  using HashVal_t = CryptoPP::Integer;
+  using NodeVal_t = CryptoPP::Integer;
 
  public:
   /////////////////////////// API /////////////////////////////////////
-  RangeValidationTree(const logging::Logger& logger,
-                      uint32_t RVT_K,
-                      uint32_t fetch_range_size,
-                      size_t hash_size = HashVal::kNodeHashSizeBytes);
+  RangeValidationTree(const logging::Logger& logger, uint32_t RVT_K, uint32_t fetch_range_size, size_t value_size = 32);
   ~RangeValidationTree() = default;
   RangeValidationTree(const RangeValidationTree&) = delete;
   RangeValidationTree& operator=(RangeValidationTree&) = delete;
@@ -84,42 +81,41 @@ class RangeValidationTree {
   std::vector<RVBGroupId> getRvbGroupIds(RVBId start_block_id, RVBId end_block_id) const;
   // Returns min actual and max actual RVB ids in ascending order. In case of error, returns empty vector.
   std::vector<RVBId> getRvbIds(RVBGroupId id) const;
-  // Returns hash of direct parent on RVB. In case of error, returns empty string with size zero.
-  std::string getDirectParentHashVal(RVBId rvb_id) const;
+  // Returns value of direct parent on RVB. In case of error, returns empty string with size zero.
+  std::string getDirectParentValueStr(RVBId rvb_id) const;
   // Return the min RVB ID in the tree. Return 0 if tree is empty.
   RVBId getMinRvbId() const;
   // Return the max RVB ID in the tree. Return 0 if tree is empty.
   RVBId getMaxRvbId() const;
   bool empty() const { return (id_to_node_.size() == 0) ? true : false; }
-  const std::string getRootHashVal() const { return root_ ? root_->hash_val.valToString() : ""; }
+  const std::string getRootValStr() const { return root_ ? root_->nvalue_.toString() : ""; }
   void printToLog(bool only_node_id) const noexcept;
   bool validate() const noexcept;  // TODO
 
  public:
-  struct HashMaxValues {
-    static const HashVal_t kNodeHashMaxValue_;
-    static const HashVal_t kNodeHashModulo_;
-    static HashVal_t calcNodeHashMaxValue();
-    static HashVal_t calcNodeHashModulo();
-    HashMaxValues() = delete;
-  };
+  struct NodeVal {
+    static NodeVal_t kNodeValueMax_;
+    static NodeVal_t kNodeValueModulo_;
+    static NodeVal_t calcMaxValue(size_t val_size);
+    static NodeVal_t calcModulo(size_t val_size);
 
-  struct HashVal {
-    HashVal(const shared_ptr<char[]>&& val);
-    HashVal(const char* val, size_t size);
-    HashVal(const HashVal_t* val);
-    HashVal& operator+=(const HashVal& other);
-    HashVal& operator-=(const HashVal& other);
-    bool operator==(HashVal& other) const { return hash_val_ == other.hash_val_; }
-    const HashVal_t& getMaxVal() const { return HashMaxValues::kNodeHashMaxValue_; }
-    const HashVal_t& getVal() const { return hash_val_; }
-    std::string valToString() const noexcept;
-    std::string getDecodedHashVal() const noexcept;
-    size_t getSize() const { return hash_val_.MinEncodedSize(); }
+    NodeVal(const shared_ptr<char[]>&& val, size_t size);
+    NodeVal(const char* val, size_t size);
+    NodeVal(const NodeVal_t* val);
 
-    static constexpr uint8_t kNodeHashSizeBytes = 32;
-    static_assert(kNodeHashSizeBytes == BLOCK_DIGEST_SIZE);
-    HashVal_t hash_val_;
+    NodeVal& operator+=(const NodeVal& other);
+    NodeVal& operator-=(const NodeVal& other);
+    bool operator==(NodeVal& other) const { return val_ == other.val_; }
+
+    const NodeVal_t& getMaxVal() const { return kNodeValueMax_; }
+    const NodeVal_t& getVal() const { return val_; }
+    std::string toString() const noexcept;
+    std::string getDecoded() const noexcept;
+    size_t getSize() const { return val_.MinEncodedSize(); }
+
+    // static constexpr uint8_t kNodeHashSizeBytes = 32;
+    // static_assert(kNodeHashSizeBytes == BLOCK_DIGEST_SIZE);
+    NodeVal_t val_;
   };
 
   struct NodeInfo {
@@ -157,17 +153,18 @@ class RangeValidationTree {
 
   struct RVBNode {
     RVBNode(uint64_t rvb_index, const STDigest& digest)
-        : info(kDefaultRVBLeafLevel, rvb_index), hash_val(computeNodeHash(info, digest)) {}
-    RVBNode(uint8_t level, uint64_t rvb_index) : info(level, rvb_index), hash_val(computeNodeHash(info, STDigest{})) {}
-    RVBNode(uint64_t node_id, char* hash_val, size_t hash_size) : info(node_id), hash_val(hash_val, hash_size) {}
+        : info_(kDefaultRVBLeafLevel, rvb_index), nvalue_(computeNodeInitialValue(info_, digest), sizeof(digest)) {}
+    RVBNode(uint8_t level, uint64_t rvb_index)
+        : info_(level, rvb_index), nvalue_(computeNodeInitialValue(info_, STDigest{}), sizeof(STDigest)) {}
+    RVBNode(uint64_t node_id, char* val, size_t size) : info_(node_id), nvalue_(val, size) {}
 
-    bool isMinChild() { return info.rvb_index % RVT_K == 1; }
-    bool isMaxChild() { return info.rvb_index % RVT_K == 0; }
-    const shared_ptr<char[]> computeNodeHash(NodeInfo& node_id, const STDigest& digest);
+    bool isMinChild() { return info_.rvb_index % RVT_K == 1; }
+    bool isMaxChild() { return info_.rvb_index % RVT_K == 0; }
+    const shared_ptr<char[]> computeNodeInitialValue(NodeInfo& node_id, const STDigest& digest);
 
     static constexpr uint8_t kDefaultRVBLeafLevel{0};
-    NodeInfo info;
-    HashVal hash_val;
+    NodeInfo info_;
+    NodeVal nvalue_;
     static uint32_t RVT_K;
   };
 
@@ -178,7 +175,7 @@ class RangeValidationTree {
     uint8_t version_num{0};
     uint32_t RVT_K{0};
     uint32_t fetch_range_size{0};
-    size_t hash_size{0};
+    size_t value_size{0};
     uint64_t total_nodes{0};
     uint64_t root_node_id{0};
 
@@ -188,7 +185,7 @@ class RangeValidationTree {
 
   struct SerializedRVTNode {
     uint64_t id{0};
-    size_t hash_size{0};
+    size_t value_size{0};
     uint16_t n_child{0};
     uint64_t min_child_id{0};
     uint64_t max_child_id{0};
@@ -200,11 +197,11 @@ class RangeValidationTree {
   struct RVTNode : public RVBNode {
     RVTNode(std::shared_ptr<RVBNode>& node);
     RVTNode(std::shared_ptr<RVTNode>& node);
-    RVTNode(SerializedRVTNode& node, char* hash_val, size_t hash_size);
+    RVTNode(SerializedRVTNode& node, char* val, size_t value_size);
     static shared_ptr<RVTNode> createFromSerialized(std::istringstream& is);
 
-    void addHashVal(const HashVal& hash_val) { this->hash_val += hash_val; }
-    void removeHashVal(const HashVal& hash_val) { this->hash_val -= hash_val; }
+    void addValue(const NodeVal& nvalue) { this->nvalue_ += nvalue; }
+    void removeValue(const NodeVal& nvalue) { this->nvalue_ -= nvalue; }
     std::ostringstream serialize() const;
     uint64_t getRightSiblingId() const noexcept;
 
@@ -219,7 +216,7 @@ class RangeValidationTree {
   // validation functions
   static uint64_t pow_int(uint64_t base, uint64_t exp) noexcept;
   size_t totalNodes() const { return id_to_node_.size(); }
-  size_t totalLevels() const { return root_ ? root_->info.level : 0; }
+  size_t totalLevels() const { return root_ ? root_->info_.level : 0; }
 
  protected:
   bool isValidRvbId(const RVBId& block_id) const noexcept;
@@ -235,7 +232,7 @@ class RangeValidationTree {
   void addRVBNode(std::shared_ptr<RVBNode>& node);
   void addInternalNode(std::shared_ptr<RVTNode>& node);
   void removeRVBNode(std::shared_ptr<RVBNode>& node);
-  void addHashValToInternalNodes(std::shared_ptr<RVTNode>& node, std::shared_ptr<RVBNode>& rvb_node);
+  void addValueToInternalNodes(std::shared_ptr<RVTNode>& node, std::shared_ptr<RVBNode>& rvb_node);
   void removeAndUpdateInternalNodes(std::shared_ptr<RVTNode>& node, std::shared_ptr<RVBNode>& rvb_node);
   void setNewRoot(shared_ptr<RVTNode> new_root);
   std::shared_ptr<RVTNode> openForInsertion(uint64_t level) const;
@@ -256,7 +253,7 @@ class RangeValidationTree {
   const logging::Logger& logger_;
   const uint32_t RVT_K{0};
   const uint32_t fetch_range_size_{0};
-  const size_t hash_size_{0};
+  const size_t value_size_{0};
   static constexpr uint8_t CHECKPOINT_PERSISTENCY_VERSION{1};
   static constexpr uint8_t version_num_{CHECKPOINT_PERSISTENCY_VERSION};
   static constexpr uint64_t magic_num_{0x1122334455667788};
