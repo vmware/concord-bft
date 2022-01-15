@@ -14,6 +14,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <limits>
 
 #include "STDigest.hpp"
 #include "IStateTransfer.hpp"
@@ -94,6 +95,39 @@ struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
  public:
   char data[1];
 
+  static void logOnMismatch(const CheckpointSummaryMsg* a,
+                            const CheckpointSummaryMsg* b,
+                            uint16_t a_id = std::numeric_limits<uint16_t>::max(),
+                            uint16_t b_id = std::numeric_limits<uint16_t>::max()) {
+    auto logger = logging::getLogger("state-transfer");
+    std::ostringstream oss;
+    oss << "Mismatched Checkpoints for checkpointNum=" << a->checkpointNum << std::endl;
+
+    if (a_id != std::numeric_limits<uint16_t>::max()) {
+      oss << "Replica=" << a_id;
+    }
+    oss << " maxBlockId=" << a->maxBlockId << " digestOfMaxBlockId=" << a->digestOfMaxBlockId.toString()
+        << " digestOfResPagesDescriptor=" << a->digestOfResPagesDescriptor.toString()
+        << " requestMsgSeqNum=" << a->requestMsgSeqNum << " rvbDataSize=" << a->rvbDataSize << std::endl;
+
+    if (b_id != std::numeric_limits<uint16_t>::max()) {
+      oss << "Replica=" << b_id;
+    }
+    oss << " maxBlockId=" << b->maxBlockId
+                 << " digestOfMaxBlockId=" << b->digestOfMaxBlockId.toString()
+                 << " digestOfResPagesDescriptor=" << b->digestOfResPagesDescriptor.toString()
+                 << " requestMsgSeqNum=" << b->requestMsgSeqNum << " requestMsgSeqNum=" << b->rvbDataSize << std::endl;
+    LOG_WARN(logger, oss.str());
+    if (a->rvbDataSize > 0) {
+      concordUtils::HexPrintBuffer adata{a->data, a->rvbDataSize};
+      LOG_TRACE(logger, KVLOG(adata));
+    }
+    if (b->rvbDataSize > 0) {
+      concordUtils::HexPrintBuffer bdata{b->data, b->rvbDataSize};
+      LOG_TRACE(logger, KVLOG(bdata));
+    }
+  }
+
   static bool equivalent(const CheckpointSummaryMsg* a, const CheckpointSummaryMsg* b) {
     static_assert((sizeof(CheckpointSummaryMsg) - sizeof(requestMsgSeqNum) == 87),
                   "Should newly added field be compared below?");
@@ -101,11 +135,15 @@ struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
         ((a->maxBlockId == b->maxBlockId) && (a->checkpointNum == b->checkpointNum) &&
          (a->digestOfMaxBlockId == b->digestOfMaxBlockId) &&
          (a->digestOfResPagesDescriptor == b->digestOfResPagesDescriptor) && (a->rvbDataSize == b->rvbDataSize));
-    bool cmp2{false};
+    bool cmp2{true};
     if (cmp1 && (a->rvbDataSize > 0)) {
       cmp2 = (0 == memcmp(a->data, b->data, a->rvbDataSize));
     }
-    return cmp1 && cmp2;
+    bool equal = cmp1 && cmp2;
+    if (!equal) {
+      logOnMismatch(a, b);
+    }
+    return equal;
   }
 
   static bool equivalent(const CheckpointSummaryMsg* a, uint16_t a_id, const CheckpointSummaryMsg* b, uint16_t b_id) {
@@ -115,24 +153,7 @@ struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
         (a->digestOfMaxBlockId != b->digestOfMaxBlockId) ||
         (a->digestOfResPagesDescriptor != b->digestOfResPagesDescriptor) || (a->rvbDataSize != b->rvbDataSize) ||
         (0 != memcmp(a->data, b->data, a->rvbDataSize))) {
-      auto logger = logging::getLogger("state-transfer");
-      LOG_WARN(logger,
-               "Mismatched Checkpoints for checkpointNum="
-                   << a->checkpointNum << std::endl
-
-                   << "    Replica=" << a_id << " maxBlockId=" << a->maxBlockId
-                   << " digestOfMaxBlockId=" << a->digestOfMaxBlockId.toString()
-                   << " digestOfResPagesDescriptor=" << a->digestOfResPagesDescriptor.toString()
-                   << " requestMsgSeqNum=" << a->requestMsgSeqNum << " rvbDataSize=" << a->rvbDataSize << std::endl
-
-                   << "    Replica=" << b_id << " maxBlockId=" << b->maxBlockId
-                   << " digestOfMaxBlockId=" << b->digestOfMaxBlockId.toString() << " digestOfResPagesDescriptor="
-                   << b->digestOfResPagesDescriptor.toString() << " requestMsgSeqNum=" << b->requestMsgSeqNum
-                   << " requestMsgSeqNum=" << b->rvbDataSize << std::endl);
-      concordUtils::HexPrintBuffer adata{a->data, a->rvbDataSize};
-      concordUtils::HexPrintBuffer bdata{b->data, b->rvbDataSize};
-      LOG_TRACE(logger, KVLOG(adata));
-      LOG_TRACE(logger, KVLOG(bdata));
+      logOnMismatch(a, b, a_id, b_id);
       return false;
     }
     return true;
