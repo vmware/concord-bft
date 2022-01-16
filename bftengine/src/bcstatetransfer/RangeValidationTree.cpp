@@ -203,13 +203,6 @@ void RVTNode::substructValue(const NodeVal& nvalue) {
   // logInfoVal("after sub]");
 }
 
-uint64_t RVTNode::getRightSiblingId() const noexcept {
-  auto level = info_.level;
-  auto rvb_index = info_.rvb_index;
-  // Formula to find id of next sibling
-  return NodeInfo(level, (rvb_index + RangeValidationTree::pow_int(RVT_K, level))).id;
-}
-
 std::ostringstream RVTNode::serialize() const {
   std::ostringstream os;
   Serializable::serialize(os, n_child);
@@ -300,15 +293,17 @@ bool RangeValidationTree::validateTreeValues() const noexcept {
   ConcordAssert(current_node != nullptr);
 
   do {
-    uint64_t id = current_node->min_child_id;
     NodeVal sum_of_childs{};
+    auto iter = id_to_node_.find(current_node->min_child_id);
+    ConcordAssert(iter != id_to_node_.end());
+    auto child_node = iter->second;
 
     for (uint16_t i = 0; i < current_node->n_child; ++i) {
-      auto iter = id_to_node_.find(id);
-      ConcordAssert(iter != id_to_node_.end());
-      auto child_node = iter->second;
       sum_of_childs += child_node->current_value_;
-      id = child_node->getRightSiblingId();
+      child_node = getRVTNodeOfRightSibling(child_node);
+      if (i < current_node->n_child - 1) {
+        ConcordAssert(child_node != nullptr);
+      }
     }
 
     // Forumula:
@@ -434,13 +429,15 @@ void RangeValidationTree::printToLog(bool only_node_id) const noexcept {
     }
 
     uint16_t count = 0;
-    uint64_t id = node->min_child_id;
+    auto iter = id_to_node_.find(node->min_child_id);
+    ConcordAssert(iter != id_to_node_.end());
+    auto child_node = iter->second;
     while (count++ < node->n_child) {
-      auto iter = id_to_node_.find(id);
-      ConcordAssert(iter != id_to_node_.end());
-      auto& child_node = iter->second;
       q.push(child_node);
-      id = child_node->getRightSiblingId();
+      child_node = getRVTNodeOfRightSibling(child_node);
+      if (count < node->n_child) {
+        ConcordAssert(child_node != nullptr);
+      }
     }
   }
   LOG_INFO(logger_, oss.str());
@@ -724,9 +721,7 @@ inline RVTNodePtr RangeValidationTree::openForInsertion(uint64_t level) const {
   return (max_child_actual_rvb_index < max_child_possible_rvb_index) ? node : nullptr;
 }
 
-inline RVTNodePtr RangeValidationTree::openForRemoval(uint64_t level) const {
-  return leftmostRVTNode_[level];
-}
+inline RVTNodePtr RangeValidationTree::openForRemoval(uint64_t level) const { return leftmostRVTNode_[level]; }
 
 void RangeValidationTree::reset() noexcept {
   // clear() reduced size to 0 and crashed while setting new root using operator []

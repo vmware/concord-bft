@@ -210,7 +210,6 @@ class RangeValidationTree {
     void addValue(const NodeVal& nvalue);
     void substructValue(const NodeVal& nvalue);
     std::ostringstream serialize() const;
-    uint64_t getRightSiblingId() const noexcept;
 
     static constexpr uint8_t kDefaultRVTLeafLevel = 1;
     uint16_t n_child{0};
