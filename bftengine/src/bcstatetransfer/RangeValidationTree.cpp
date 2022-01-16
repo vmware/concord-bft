@@ -31,17 +31,13 @@ using NodeInfo = RangeValidationTree::NodeInfo;
 /////////////////////////////////////////// NodeVal Operations ////////////////////////////////////////////////
 
 NodeVal_t NodeVal::calcMaxValue(size_t val_size) {
-  std::string maxVal("0x");
-  std::string maxValSuffix(val_size, 'F');
-  maxVal += maxValSuffix;
-  return NodeVal_t(maxVal.c_str());
+  val_size = (1ULL << (val_size * 8ULL)) - 1ULL;
+  return NodeVal_t(val_size);
 }
 
 NodeVal_t NodeVal::calcModulo(size_t val_size) {
-  std::string nodeModulo("0x1");
-  std::string nodeModuloSuffix(val_size, '0');
-  nodeModulo += nodeModuloSuffix;
-  return NodeVal_t(nodeModulo.c_str());
+  val_size = 1ULL << (val_size * 8ULL);
+  return NodeVal_t(val_size);
 }
 
 NodeVal_t NodeVal::kNodeValueMax_ = 0;
@@ -55,15 +51,14 @@ NodeVal::NodeVal(const char* val, size_t size) {
   val_ = NodeVal_t(reinterpret_cast<const unsigned char*>(val), size) % kNodeValueModulo_;
 }
 
-NodeVal::NodeVal(const NodeVal_t* val) { val_ = *val; }
+NodeVal::NodeVal(const NodeVal_t* val) { val_ = (*val) % kNodeValueModulo_; }
 
 NodeVal& NodeVal::operator+=(const NodeVal& other) {
-  val_ = ((val_ + other.val_) % kNodeValueModulo_);
+  val_ = (val_ + other.val_) % kNodeValueModulo_;
   return *this;
 }
 
 NodeVal& NodeVal::operator-=(const NodeVal& other) {
-  ConcordAssert(val_ >= other.val_);
   val_ = ((val_ - other.val_) % kNodeValueModulo_);
   return *this;
 }
@@ -71,7 +66,8 @@ NodeVal& NodeVal::operator-=(const NodeVal& other) {
 // Used only to print
 std::string NodeVal::toString() const noexcept {
   std::ostringstream oss;
-  oss << std::hex << val_;
+  oss << std::dec << val_;
+  // oss << std::hex << val_;
   return oss.str();
 }
 
@@ -98,8 +94,8 @@ uint32_t RVBNode::RVT_K{};
 const shared_ptr<char[]> RVBNode::computeNodeInitialValue(NodeInfo& node_info, const STDigest& digest) {
   ConcordAssertGT(node_info.id, 0);
   DigestContext c;
-  auto nid = std::to_string(node_info.id);
-  c.update(nid.c_str(), nid.size());
+
+  c.update(reinterpret_cast<const char*>(&node_info.id), sizeof(node_info.id));
   c.update(digest.get(), sizeof(STDigest));
   // TODO - Use default_delete in case memleak is reported by ASAN
   std::shared_ptr<char[]> outDigest(new char[sizeof(STDigest)]);
@@ -122,6 +118,30 @@ void RangeValidationTree::SerializedRVTNode::staticAssert() noexcept {
   static_assert(sizeof(SerializedRVTNode::min_child_id) == sizeof(RVTNode::min_child_id));
   static_assert(sizeof(SerializedRVTNode::max_child_id) == sizeof(RVTNode::max_child_id));
   static_assert(sizeof(SerializedRVTNode::parent_id) == sizeof(RVTNode::parent_id));
+}
+
+void RVBNode::logInfoVal(std::string prefix) {
+  // uncomment to debug
+  ostringstream oss;
+  oss << prefix << info_.toString() << " " << nvalue_.toString();
+  //LOG_ERROR(GL, oss.str());
+}
+
+RVBNode::RVBNode(uint64_t rvb_index, const STDigest& digest)
+    : info_(kDefaultRVBLeafLevel, rvb_index), nvalue_(computeNodeInitialValue(info_, digest), sizeof(digest)) {
+  // leave for debug
+  logInfoVal("construct: ");
+}
+
+RVBNode::RVBNode(uint8_t level, uint64_t rvb_index)
+    : info_(level, rvb_index), nvalue_(computeNodeInitialValue(info_, STDigest{}), sizeof(STDigest)) {
+  // leave for debug
+  logInfoVal("construct: ");
+}
+
+RVBNode::RVBNode(uint64_t node_id, char* val, size_t size) : info_(node_id), nvalue_(val, size) {
+  // leave for debug
+  logInfoVal("construct: ");
 }
 
 RVTNode::RVTNode(shared_ptr<RVBNode>& node)
@@ -147,6 +167,22 @@ RVTNode::RVTNode(SerializedRVTNode& node, char* val, size_t value_size)
       min_child_id{node.min_child_id},
       max_child_id{node.max_child_id},
       parent_id{node.parent_id} {}
+
+void RVTNode::addValue(const NodeVal& nvalue) {
+  logInfoVal("[before add: ");  // leave for debug
+  this->nvalue_ += nvalue;
+  // leave for debugstart
+  //LOG_ERROR(GL, "Adding value " << nvalue.toString());
+  logInfoVal("after add]");
+}
+
+void RVTNode::substructValue(const NodeVal& nvalue) {
+  logInfoVal();  // leave for debug
+  this->nvalue_ -= nvalue;
+  // leave for debug
+  //LOG_ERROR(GL, "Substructing value " << nvalue.toString());
+  logInfoVal();
+}
 
 uint64_t RVTNode::getRightSiblingId() const noexcept {
   auto level = info_.level;
@@ -189,8 +225,8 @@ RangeValidationTree::RangeValidationTree(const logging::Logger& logger,
       logger_(logger),
       RVT_K(RVT_K),
       fetch_range_size_(fetch_range_size),
-      //value_size_(value_size) {
-      value_size_(2) { // temporary
+      // value_size_(value_size) {
+      value_size_(1) {  // temporary
   NodeVal::kNodeValueMax_ = NodeVal::calcMaxValue(value_size_);
   NodeVal::kNodeValueModulo_ = NodeVal::calcModulo(value_size_);
   ConcordAssertLE(RVT_K, static_cast<uint64_t>(1ULL << (sizeof(RVTNode::n_child) * 8ULL)));
@@ -266,9 +302,9 @@ bool RangeValidationTree::validate() const noexcept {
       return false;
     }
   }
-  LOG_INFO(logger_,
-           "validation succeeded for " << root_->info_.toString() << " " << root_->nvalue_.toString() << " "
-                                       << parent_val);
+  LOG_INFO(
+      logger_,
+      "validation succeeded for " << root_->info_.toString() << " " << root_->nvalue_.toString() << " " << parent_val);
 
   return true;
 }
@@ -336,7 +372,8 @@ shared_ptr<RVTNode> RangeValidationTree::getRVTNodeOfLeftSibling(shared_ptr<RVTN
   if (leftmostRVTNode_[node->info_.level] == node) {
     return nullptr;
   }
-  auto id = NodeInfo(node->info_.level, node->info_.rvb_index - RangeValidationTree::pow_int(RVT_K, node->info_.level)).id;
+  auto id =
+      NodeInfo(node->info_.level, node->info_.rvb_index - RangeValidationTree::pow_int(RVT_K, node->info_.level)).id;
   auto iter = id_to_node_.find(id);
   return (iter == id_to_node_.end()) ? nullptr : iter->second;
 }
@@ -345,7 +382,8 @@ shared_ptr<RVTNode> RangeValidationTree::getRVTNodeOfRightSibling(shared_ptr<RVT
   if (rightmostRVTNode_[node->info_.level] == node) {
     return nullptr;
   }
-  auto id = NodeInfo(node->info_.level, node->info_.rvb_index + RangeValidationTree::pow_int(RVT_K, node->info_.level)).id;
+  auto id =
+      NodeInfo(node->info_.level, node->info_.rvb_index + RangeValidationTree::pow_int(RVT_K, node->info_.level)).id;
   auto iter = id_to_node_.find(id);
   return (iter == id_to_node_.end()) ? nullptr : iter->second;
 }
@@ -374,7 +412,7 @@ void RangeValidationTree::addRVBNode(shared_ptr<RVBNode>& rvb_node) {
     ++parent_node->n_child;
     ConcordAssertLE(parent_node->n_child, RVT_K);
     ConcordAssertLE(parent_node->min_child_id + parent_node->n_child - 1, parent_node->max_child_id);
-    parent_node->addValue(rvb_node->nvalue_);
+    // parent_node->addValue(rvb_node->nvalue_);
   }
   addValueToInternalNodes(parent_node, rvb_node);
 }
@@ -413,16 +451,25 @@ void RangeValidationTree::removeRVBNode(shared_ptr<RVBNode>& rvb_node) {
   removeAndUpdateInternalNodes(node, rvb_node);
 }
 
-void RangeValidationTree::addValueToInternalNodes(shared_ptr<RVTNode>& node, shared_ptr<RVBNode>& rvb_node) {
-  ConcordAssert(node != nullptr);
+void RangeValidationTree::addValueToInternalNodes(std::shared_ptr<RVTNode>& direct_parent,
+                                                  std::shared_ptr<RVBNode>& rvb_node) {
+  ConcordAssert(direct_parent != nullptr);
   ConcordAssert(rvb_node != nullptr);
 
-  while (node != root_) {
-    auto itr = id_to_node_.find(node->parent_id);
-    ConcordAssert(itr != id_to_node_.end());
-    auto parent_node = itr->second;
-    parent_node->addValue(node->nvalue_);
-    node = parent_node;
+  auto current_node = direct_parent;
+  do {
+    current_node->addValue(rvb_node->nvalue_);
+    if (current_node->parent_id != 0) {
+      ConcordAssert(root_ != current_node);
+      auto itr = id_to_node_.find(current_node->parent_id);
+      ConcordAssert(itr != id_to_node_.end());
+      current_node = itr->second;
+    } else {
+      ConcordAssert(root_ == current_node);
+    }
+  } while (current_node != root_);
+  if (current_node != direct_parent) {
+    current_node->addValue(rvb_node->nvalue_);
   }
 }
 
@@ -472,26 +519,26 @@ void RangeValidationTree::addInternalNode(shared_ptr<RVTNode>& node) {
   auto new_root = make_shared<RVTNode>(root_);
   ConcordAssert(id_to_node_.insert({new_root->info_.id, new_root}).second == true);
   node->parent_id = new_root->info_.id;
+  new_root->n_child++;
   new_root->addValue(root_->nvalue_);
   new_root->addValue(node->nvalue_);
-  new_root->n_child++;
   ConcordAssert(new_root->n_child <= RVT_K);
   setNewRoot(new_root);
 }
 
-void RangeValidationTree::removeAndUpdateInternalNodes(shared_ptr<RVTNode>& removed_rvt_node,
+void RangeValidationTree::removeAndUpdateInternalNodes(shared_ptr<RVTNode>& rvt_node,
                                                        shared_ptr<RVBNode>& rvb_node) {
   ConcordAssert(root_ != nullptr);
-  ConcordAssert(removed_rvt_node != nullptr);
+  ConcordAssert(rvt_node != nullptr);
   ConcordAssert(rvb_node != nullptr);
 
   // Loop 1
-  // Trim the tree from removed_rvt_node to root
-  shared_ptr<RVTNode> cur_node = removed_rvt_node;
+  // Trim the tree from rvt_node to root
+  shared_ptr<RVTNode> cur_node = rvt_node;
   while (cur_node != root_) {
     auto parent_node = getParentNode(cur_node);
 
-    // When removed_rvt_node is removed, we need to update its parent
+    // When rvt_node is removed, we need to update its parent
     if (cur_node->n_child == 0) {
       --parent_node->n_child;
       if (parent_node->n_child > 0) {
@@ -500,7 +547,7 @@ void RangeValidationTree::removeAndUpdateInternalNodes(shared_ptr<RVTNode>& remo
         ConcordAssert(id_to_node_.find(id) != id_to_node_.end());
         parent_node->min_child_id = id;
       }
-      if (cur_node != removed_rvt_node) {
+      if (cur_node != rvt_node) {
         id_to_node_.erase(cur_node->info_.id);
         if ((leftmostRVTNode_[cur_node->info_.level] == cur_node) &&
             (rightmostRVTNode_[cur_node->info_.level] == cur_node)) {
@@ -510,12 +557,13 @@ void RangeValidationTree::removeAndUpdateInternalNodes(shared_ptr<RVTNode>& remo
           leftmostRVTNode_[cur_node->info_.level] = getRVTNodeOfRightSibling(cur_node);
         }
       }
-    }  // Trim the tree from removed_rvt_node to root
-    parent_node->removeValue(cur_node->nvalue_);
-    if (cur_node == removed_rvt_node) {
-      cur_node->removeValue(rvb_node->nvalue_);
-    }
-    parent_node->addValue(cur_node->nvalue_);
+    }  // Trim the tree from rvt_node to root
+    // parent_node->substructValue(cur_node->nvalue_);
+    // if (cur_node == rvt_node) {
+    //   cur_node->substructValue(rvb_node->nvalue_);
+    // }
+    // parent_node->addValue(cur_node->nvalue_);
+    cur_node->substructValue(rvb_node->nvalue_);
     cur_node = parent_node;
   }
 
@@ -595,11 +643,13 @@ void RangeValidationTree::addNode(const RVBId rvb_id, const STDigest& digest) {
     throw std::invalid_argument("invalid input data");
   }
   auto rvb_index = rvb_id / fetch_range_size_;
+  //LOG_ERROR(GL, "===start");
   auto node = make_shared<RVBNode>(rvb_index, digest);
   if (max_rvb_index_ > 0) {
     ConcordAssertEQ(max_rvb_index_ + 1, rvb_index);
   }
   addRVBNode(node);
+  //LOG_ERROR(GL, "===end");
   max_rvb_index_ = rvb_index;
   if (min_rvb_index_ == 0) {
     min_rvb_index_ = rvb_index;

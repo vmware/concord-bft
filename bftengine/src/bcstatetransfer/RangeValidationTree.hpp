@@ -152,14 +152,13 @@ class RangeValidationTree {
   };
 
   struct RVBNode {
-    RVBNode(uint64_t rvb_index, const STDigest& digest)
-        : info_(kDefaultRVBLeafLevel, rvb_index), nvalue_(computeNodeInitialValue(info_, digest), sizeof(digest)) {}
-    RVBNode(uint8_t level, uint64_t rvb_index)
-        : info_(level, rvb_index), nvalue_(computeNodeInitialValue(info_, STDigest{}), sizeof(STDigest)) {}
-    RVBNode(uint64_t node_id, char* val, size_t size) : info_(node_id), nvalue_(val, size) {}
+    RVBNode(uint64_t rvb_index, const STDigest& digest);
+    RVBNode(uint8_t level, uint64_t rvb_index);
+    RVBNode(uint64_t node_id, char* val, size_t size);
 
     bool isMinChild() { return info_.rvb_index % RVT_K == 1; }
     bool isMaxChild() { return info_.rvb_index % RVT_K == 0; }
+    void logInfoVal(std::string prefix="");
     const shared_ptr<char[]> computeNodeInitialValue(NodeInfo& node_id, const STDigest& digest);
 
     static constexpr uint8_t kDefaultRVBLeafLevel{0};
@@ -200,8 +199,8 @@ class RangeValidationTree {
     RVTNode(SerializedRVTNode& node, char* val, size_t value_size);
     static shared_ptr<RVTNode> createFromSerialized(std::istringstream& is);
 
-    void addValue(const NodeVal& nvalue) { this->nvalue_ += nvalue; }
-    void removeValue(const NodeVal& nvalue) { this->nvalue_ -= nvalue; }
+    void addValue(const NodeVal& nvalue);
+    void substructValue(const NodeVal& nvalue);
     std::ostringstream serialize() const;
     uint64_t getRightSiblingId() const noexcept;
 
@@ -232,8 +231,8 @@ class RangeValidationTree {
   void addRVBNode(std::shared_ptr<RVBNode>& node);
   void addInternalNode(std::shared_ptr<RVTNode>& node);
   void removeRVBNode(std::shared_ptr<RVBNode>& node);
-  void addValueToInternalNodes(std::shared_ptr<RVTNode>& node, std::shared_ptr<RVBNode>& rvb_node);
-  void removeAndUpdateInternalNodes(std::shared_ptr<RVTNode>& node, std::shared_ptr<RVBNode>& rvb_node);
+  void addValueToInternalNodes(std::shared_ptr<RVTNode>& direct_parent, std::shared_ptr<RVBNode>& rvb_node);
+  void removeAndUpdateInternalNodes(std::shared_ptr<RVTNode>& rvt_node, std::shared_ptr<RVBNode>& rvb_node);
   void setNewRoot(shared_ptr<RVTNode> new_root);
   std::shared_ptr<RVTNode> openForInsertion(uint64_t level) const;
   std::shared_ptr<RVTNode> openForRemoval(uint64_t level) const;

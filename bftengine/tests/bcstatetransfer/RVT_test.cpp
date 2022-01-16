@@ -79,7 +79,14 @@ class BcStTestDelegator {
 
 class RVTTest : public ::testing::Test {
  public:
-  void init(RangeValidationTree& rvt) { delegator_ = std::make_unique<BcStTestDelegator>(rvt); }
+  void init(RangeValidationTree& rvt) {
+    delegator_ = std::make_unique<BcStTestDelegator>(rvt);
+    logging::Logger::getInstance("concord.bft").setLogLevel(log4cplus::ERROR_LOG_LEVEL);
+    logging::Logger::getInstance("concord.bft.st.dst").setLogLevel(log4cplus::ERROR_LOG_LEVEL);
+    logging::Logger::getInstance("concord.bft.st.src").setLogLevel(log4cplus::ERROR_LOG_LEVEL);
+    logging::Logger::getInstance("concord.util.handoff").setLogLevel(log4cplus::ERROR_LOG_LEVEL);
+    logging::Logger::getInstance("concord.bft.st.rvb").setLogLevel(log4cplus::ERROR_LOG_LEVEL);
+  }
   InputValues values_{randomString(HASH_SIZE), randomString(HASH_SIZE), randomString(HASH_SIZE)};
   std::shared_ptr<BcStTestDelegator> delegator_;
 };
