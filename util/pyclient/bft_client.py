@@ -128,22 +128,31 @@ class BftClient(ABC):
     def get_total_num_replicas(self):
         return len(self.replicas)
 
-    async def write(self, msg, seq_num=None, cid=None, pre_process=False, m_of_n_quorum=None,
-                    reconfiguration=False, corrupt_params={}, no_retries=False):
+    async def write_with_result(self, msg, seq_num=None, cid=None, pre_process=False, m_of_n_quorum=None,
+                    reconfiguration=False, corrupt_params={}, no_retries=False, result=1):
         """ A wrapper around sendSync for requests that mutate state """
         return await self.sendSync(
             msg, False, seq_num, cid, pre_process, m_of_n_quorum, reconfiguration,
-            corrupt_params=corrupt_params, no_retries=no_retries)
+            corrupt_params=corrupt_params, no_retries=no_retries, result=result)
+
+    async def write(self, msg, seq_num=None, cid=None, pre_process=False, m_of_n_quorum=None,
+                    reconfiguration=False, corrupt_params={}, no_retries=False, result=1):
+        """ A wrapper around sendSync for requests that mutate state """
+        reply = await self.sendSync(
+            msg, False, seq_num, cid, pre_process, m_of_n_quorum, reconfiguration,
+            corrupt_params=corrupt_params, no_retries=no_retries, result=result)
+        return reply[0] if reply else None
 
     async def read(self, msg, seq_num=None, cid=None, m_of_n_quorum=None,
-                   reconfiguration=False, include_ro=False, corrupt_params={}, no_retries=False):
+                   reconfiguration=False, include_ro=False, corrupt_params={}, no_retries=False, result=1):
         """ A wrapper around sendSync for requests that do not mutate state """
-        return await self.sendSync(
+        reply = await self.sendSync(
             msg, True, seq_num, cid, m_of_n_quorum=m_of_n_quorum,
-            reconfiguration=reconfiguration, include_ro=include_ro, corrupt_params=corrupt_params, no_retries=no_retries)
+            reconfiguration=reconfiguration, include_ro=include_ro, corrupt_params=corrupt_params, no_retries=no_retries, result=result)
+        return reply[0] if reply else None
 
     async def sendSync(self, msg, read_only, seq_num=None, cid=None, pre_process=False, m_of_n_quorum=None, \
-        reconfiguration=False, include_ro=False, corrupt_params={}, no_retries=False):
+        reconfiguration=False, include_ro=False, corrupt_params={}, no_retries=False, result=1):
         """
         Send a client request and wait for a m_of_n_quorum (if None, it will set to 2F+C+1 quorum) of replies.
 
@@ -183,7 +192,7 @@ class BftClient(ABC):
             if corrupt_params:
                 msg, signature, client_id = self._corrupt_signing_params(msg, signature, client_id, corrupt_params)
 
-        data = bft_msgs.pack_request(client_id, seq_num, read_only, self.config.req_timeout_milli, cid, msg, 0,
+        data = bft_msgs.pack_request(client_id, seq_num, read_only, self.config.req_timeout_milli, cid, msg, result,
                                      pre_process, reconfiguration=reconfiguration, signature=signature)
 
         if m_of_n_quorum is None:
@@ -195,7 +204,7 @@ class BftClient(ABC):
                 self._reset_on_new_request([seq_num])
                 replies = await self._send_receive_loop(
                     data, read_only, m_of_n_quorum, include_ro=include_ro, no_retries=no_retries)
-                return next(iter(self.replies.values())).get_common_data() if replies else None
+                return next(iter(self.replies.values())).get_common_data_with_result() if replies else None
         except trio.TooSlowError:
             print("TooSlowError thrown from client_id", self.client_id, "for seq_num", seq_num)
             raise trio.TooSlowError

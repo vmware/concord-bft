@@ -1164,7 +1164,12 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffset
       const auto &span_context = preProcessReqMsg->spanContext<PreProcessRequestMsgSharedPtr::element_type>();
       // Copy of the message body is unavoidable here, as we need to create a new message type which lifetime is
       // controlled by the replica while all PreProcessReply messages get released here.
-      const auto preProcessResult = static_cast<uint32_t>(reqProcessingStatePtr->getAgreedPreProcessResult());
+      auto preProcessResult = static_cast<uint32_t>(reqProcessingStatePtr->getAgreedPreProcessResult());
+
+      // Changing preProcessResult to UNKNOWN for post-execution to verify the replies in apollo tests.
+      if (preProcessResult == static_cast<uint32_t>(OperationResult::SUCCESS)) {
+        preProcessResult = static_cast<uint32_t>(OperationResult::UNKNOWN);
+      }
       if (ReplicaConfig::instance().preExecutionResultAuthEnabled) {
         auto sigsList = reqProcessingStatePtr->getPreProcessResultSignatures();
         sigsList.resize(numOfRequiredReplies());
@@ -1182,7 +1187,7 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffset
                                                          sigsBuf);
         LOG_DEBUG(logger(),
                   "Pass PreProcessResultMsg to ReplicaImp for consensus"
-                      << KVLOG(cid, batchCid, reqSeqNum, clientId, reqOffsetInBatch));
+                      << KVLOG(cid, batchCid, reqSeqNum, clientId, reqOffsetInBatch, preProcessResult));
       } else {
         preProcessMsg = make_unique<ClientRequestMsg>(clientId,
                                                       HAS_PRE_PROCESSED_FLAG,
@@ -1197,7 +1202,7 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffset
                                                       reqProcessingStatePtr->getReqSignatureLength());
         LOG_DEBUG(logger(),
                   "Pass pre-processed ClientRequestMsg to ReplicaImp for consensus"
-                      << KVLOG(cid, batchCid, reqSeqNum, clientId, reqOffsetInBatch));
+                      << KVLOG(cid, batchCid, reqSeqNum, clientId, reqOffsetInBatch, preProcessResult));
       }
 
       preProcessorMetrics_.preProcReqCompleted++;
@@ -1554,7 +1559,9 @@ OperationResult PreProcessor::launchReqPreProcessing(const PreProcessRequestMsgS
       preProcessReqMsg->requestBuf(),
       std::string(preProcessReqMsg->requestSignature(), preProcessReqMsg->requestSignatureLength()),
       maxPreExecResultSize_,
-      preProcessResultBuffer});
+      preProcessResultBuffer,
+      reqSeqNum,
+      preProcessReqMsg->result()});
   requestsHandler_.execute(accumulatedRequests, std::nullopt, cid, span);
   const IRequestsHandler::ExecutionRequest &request = accumulatedRequests.back();
   auto preProcessResult = static_cast<OperationResult>(request.outExecutionStatus);
