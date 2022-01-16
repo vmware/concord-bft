@@ -211,14 +211,21 @@ void AsyncTlsConnection::send(std::shared_ptr<OutgoingMsg>&& msg) {
 void AsyncTlsConnection::write(std::shared_ptr<OutgoingMsg> msg) {
   if (disposed_ || !msg) return;
 
+  bool expected = true;
   // There is already an in-flight msg
-  if (write_msg_) {
+  if (write_msg_used_.compare_exchange_weak(expected, true)) {
     write_queue_.push(std::move(msg));
     return;
   }
-
+  expected = false;
   // Set the in-flight msg
-  write_msg_ = std::move(msg);
+  if (write_msg_used_.compare_exchange_weak(expected, true)) {
+    write_msg_ = std::move(msg);
+  } else {
+    write_queue_.push(std::move(msg));
+    LOG_ERROR(logger_, "write_msg_ already in use by other thread, msg pushed to the write queue.");
+    return;
+  }
   LOG_DEBUG(logger_, "Writing" << KVLOG(write_msg_->msg.size()));
 
   // We don't want to include tcp transmission time.
@@ -248,6 +255,7 @@ void AsyncTlsConnection::write(std::shared_ptr<OutgoingMsg> msg) {
         write_timer_.cancel();
         histograms_.sent_msg_size->recordAtomic(static_cast<int64_t>(write_msg_->msg.size()));
         write_msg_ = nullptr;
+        write_msg_used_ = false;
         write(write_queue_.pop());
       }));
   startWriteTimer();

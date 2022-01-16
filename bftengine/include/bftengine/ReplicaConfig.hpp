@@ -230,6 +230,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                "Interval time to create db snapshot in seconds");
   // Post-execution separation feature flag
   CONFIG_PARAM(enablePostExecutionSeparation, bool, true, "Post-execution separation feature flag");
+  CONFIG_PARAM(postExecutionQueuesSize, uint16_t, 50, "Post-execution deferred message queues size");
 
   // Parameter to enable/disable waiting for transaction data to be persisted.
   CONFIG_PARAM(syncOnUpdateOfMetadata,
@@ -348,6 +349,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, dbCheckpointDirPath);
     serialize(outStream, dbSnapshotIntervalSeconds);
     serialize(outStream, enablePostExecutionSeparation);
+    serialize(outStream, postExecutionQueuesSize);
     serialize(outStream, config_params_);
   }
   void deserializeDataMembers(std::istream& inStream) {
@@ -434,6 +436,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, dbCheckpointDirPath);
     deserialize(inStream, dbSnapshotIntervalSeconds);
     deserialize(inStream, enablePostExecutionSeparation);
+    deserialize(inStream, postExecutionQueuesSize);
     deserialize(inStream, config_params_);
   }
 
@@ -509,6 +512,7 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.threadbagConcurrencyLevel1,
               rc.threadbagConcurrencyLevel2,
               rc.enablePostExecutionSeparation,
+              rc.postExecutionQueuesSize,
               rc.dbCheckpointFeatureEnabled,
               rc.maxNumberOfDbCheckpoints,
               rc.dbCheckPointWindowSize,

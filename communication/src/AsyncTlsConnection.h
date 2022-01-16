@@ -210,6 +210,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
   std::vector<char> read_msg_;
 
   // Message being currently written.
+  std::atomic_bool write_msg_used_{false};
   std::shared_ptr<OutgoingMsg> write_msg_;
 
   TlsTcpConfig& config_;
