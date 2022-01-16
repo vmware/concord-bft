@@ -1515,6 +1515,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             bft_network.start_all_replicas()
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
             await bft_network.check_initial_master_key_publication(bft_network.all_replicas())
+            for i in range(100):
+                await skvbc.send_write_kv_set()
             # This is a loop to make sure that all replicas are up before interfering them
             with trio.fail_after(30):
                 nb_fast_path = await bft_network.get_metric(initial_prim, bft_network, "Counters", "totalFastPaths")
@@ -1525,18 +1527,17 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             with net.ReplicaSubsetIsolatingAdversary(bft_network, crashed_replica) as adversary:
                 adversary.interfere()
 
-                for i in range(850):
+                for i in range(601):
                     await skvbc.send_write_kv_set()
                 client = bft_network.random_client()
                 client.config._replace(req_timeout_milli=10000)
                 op = operator.Operator(bft_network.config, client,  bft_network.builddir)
                 test_config = 'new_configuration_n_7_f_2_c_0'
                 await op.add_remove_with_wedge(test_config, bft=True, restart=False)
-                await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=False)
-                new_replicas = {4, 5, 6}
-                replicas_for_st = {6}
-                source = list(bft_network.random_set_of_replicas(1, without=crashed_replica)).pop()
-
+            new_replicas = {4, 5, 6}
+            replicas_for_st = {6}
+            source = list(bft_network.random_set_of_replicas(1, without=crashed_replica)).pop()
+            await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=False)
             await bft_network.wait_for_state_transfer_to_start()
 
             # Lets wait until the late replica gets the new configuration
@@ -1602,7 +1603,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
                 self.assertGreater(nb_fast_path, 0)
             await self.validate_initial_key_exchange(bft_network, bft_network.all_replicas(), metrics_id="self_key_exchange", expected=bft_network.config.n)
-    
+
 
 
     @with_trio
