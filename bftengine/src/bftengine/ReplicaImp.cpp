@@ -410,7 +410,8 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   // -  in case replica keys haven't been exchanged for all replicas, and it's not a key exchange msg then don't accept
   // the msgs.
   // -  the public keys of the clients haven't been published yet.
-  if (!KeyExchangeManager::instance().exchanged() || !KeyExchangeManager::instance().clientKeysPublished()) {
+  if (!KeyExchangeManager::instance().exchanged() ||
+      (!KeyExchangeManager::instance().clientKeysPublished() && repsInfo->isIdOfClientProxy(senderId))) {
     if (!(flags & KEY_EXCHANGE_FLAG) && !(flags & CLIENTS_PUB_KEYS_FLAG)) {
       LOG_INFO(KEY_EX_LOG, "Didn't complete yet, dropping msg");
       delete m;
