@@ -90,8 +90,7 @@ class RangeValidationTree {
   bool empty() const { return (id_to_node_.size() == 0) ? true : false; }
   const std::string getRootCurrentValueStr() const { return root_ ? root_->current_value_.toString() : ""; }
   void printToLog(bool only_node_id) const noexcept;
-  bool validate() const noexcept;  // TODO
-  bool validate_new() const noexcept;
+  bool validate() const noexcept;
 
  public:
   struct NodeVal {
@@ -119,8 +118,6 @@ class RangeValidationTree {
     std::string getDecoded() const noexcept;
     size_t getSize() const { return val_.MinEncodedSize(); }
 
-    // static constexpr uint8_t kNodeHashSizeBytes = 32;
-    // static_assert(kNodeHashSizeBytes == BLOCK_DIGEST_SIZE);
     NodeVal_t val_;
   };
 
@@ -200,12 +197,15 @@ class RangeValidationTree {
     static void staticAssert() noexcept;
   };
 
+  struct RVTNode;
+  using RVBNodePtr = std::shared_ptr<RVBNode>;
+  using RVTNodePtr = std::shared_ptr<RVTNode>;
   struct RVTNode : public RVBNode {
-    RVTNode(const std::shared_ptr<RVBNode>& node);
-    RVTNode(const std::shared_ptr<RVTNode>& node);
+    RVTNode(const RVBNodePtr& node);
+    RVTNode(const RVTNodePtr& node);
     RVTNode(
         SerializedRVTNode& node, char* cur_val_ptr, size_t cur_value_size, char* init_val_ptr, size_t init_value_size);
-    static shared_ptr<RVTNode> createFromSerialized(std::istringstream& is);
+    static RVTNodePtr createFromSerialized(std::istringstream& is);
 
     void addValue(const NodeVal& nvalue);
     void substructValue(const NodeVal& nvalue);
@@ -234,29 +234,29 @@ class RangeValidationTree {
   bool validateTreeValues() const noexcept;
 
   // Helper functions
-  shared_ptr<RVTNode> getRVTNodeOfLeftSibling(shared_ptr<RVTNode>& node) const;
-  shared_ptr<RVTNode> getRVTNodeOfRightSibling(shared_ptr<RVTNode>& node) const;
-  shared_ptr<RVTNode> getParentNode(const std::shared_ptr<RVTNode>& node) const noexcept;
+  RVTNodePtr getRVTNodeOfLeftSibling(RVTNodePtr& node) const;
+  RVTNodePtr getRVTNodeOfRightSibling(RVTNodePtr& node) const;
+  RVTNodePtr getParentNode(const RVTNodePtr& node) const noexcept;
 
   // tree internal manipulation functions
-  void addRVBNode(const std::shared_ptr<RVBNode>& node);
-  void addInternalNode(const std::shared_ptr<RVTNode>& node);
-  void removeRVBNode(const std::shared_ptr<RVBNode>& node);
-  void addValueToInternalNodes(const std::shared_ptr<RVTNode>& bottom_node, const NodeVal& value);
-  void removeAndUpdateInternalNodes(const std::shared_ptr<RVTNode>& rvt_node, const NodeVal& value);
-  void setNewRoot(const shared_ptr<RVTNode>& new_root);
-  std::shared_ptr<RVTNode> openForInsertion(uint64_t level) const;
-  std::shared_ptr<RVTNode> openForRemoval(uint64_t level) const;
+  void addRVBNode(const RVBNodePtr& node);
+  void addInternalNode(const RVTNodePtr& node);
+  void removeRVBNode(const RVBNodePtr& node);
+  void addValueToInternalNodes(const RVTNodePtr& bottom_node, const NodeVal& value);
+  void removeAndUpdateInternalNodes(const RVTNodePtr& rvt_node, const NodeVal& value);
+  void setNewRoot(const RVTNodePtr& new_root);
+  RVTNodePtr openForInsertion(uint64_t level) const;
+  RVTNodePtr openForRemoval(uint64_t level) const;
   void reset() noexcept;
 
  protected:
   static constexpr size_t kMaxNodesToPrint{10000};
   // vector index represents level in tree
   // level 0 represents RVB node so it would always hold 0x0
-  std::array<std::shared_ptr<RVTNode>, NodeInfo::kMaxLevels> rightmostRVTNode_;
-  std::array<std::shared_ptr<RVTNode>, NodeInfo::kMaxLevels> leftmostRVTNode_;
-  std::unordered_map<uint64_t, std::shared_ptr<RVTNode>> id_to_node_;
-  std::shared_ptr<RVTNode> root_{nullptr};
+  std::array<RVTNodePtr, NodeInfo::kMaxLevels> rightmostRVTNode_;
+  std::array<RVTNodePtr, NodeInfo::kMaxLevels> leftmostRVTNode_;
+  std::unordered_map<uint64_t, RVTNodePtr> id_to_node_;
+  RVTNodePtr root_{nullptr};
   uint64_t max_rvb_index_{0};  // RVB index is (RVB ID / fetch range size). This is the maximal index in the tree.
   uint64_t min_rvb_index_{0};  // RVB index is (RVB ID / fetch range size). This is the minimal index in the tree.
 
