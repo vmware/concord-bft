@@ -1166,9 +1166,8 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffset
       // controlled by the replica while all PreProcessReply messages get released here.
       const auto preProcessResult = static_cast<uint32_t>(reqProcessingStatePtr->getAgreedPreProcessResult());
       if (ReplicaConfig::instance().preExecutionResultAuthEnabled) {
-        auto sigsList = reqProcessingStatePtr->getPreProcessResultSignatures();
-        sigsList.resize(numOfRequiredReplies());
-        auto sigsBuf = PreProcessResultSignature::serializeResultSignatureList(sigsList);
+        const auto &sigsSet = reqProcessingStatePtr->getPreProcessResultSignatures();
+        auto sigsBuf = PreProcessResultSignature::serializeResultSignatures(sigsSet, numOfRequiredReplies());
         preProcessMsg = make_unique<PreProcessResultMsg>(clientId,
                                                          preProcessResult,
                                                          reqSeqNum,
