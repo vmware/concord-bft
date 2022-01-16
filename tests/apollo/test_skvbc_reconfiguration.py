@@ -1512,7 +1512,6 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             initial_prim = 0
             crashed_replica = bft_network.random_set_of_replicas(1, {initial_prim})
             log.log_message(message_type=f"crashed replica is {crashed_replica}")
-            live_replicas = bft_network.all_replicas(without=crashed_replica)
             bft_network.start_all_replicas()
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
             await bft_network.check_initial_master_key_publication(bft_network.all_replicas())
@@ -1526,7 +1525,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             with net.ReplicaSubsetIsolatingAdversary(bft_network, crashed_replica) as adversary:
                 adversary.interfere()
 
-                for i in range(601):
+                for i in range(850):
                     await skvbc.send_write_kv_set()
                 client = bft_network.random_client()
                 client.config._replace(req_timeout_milli=10000)
