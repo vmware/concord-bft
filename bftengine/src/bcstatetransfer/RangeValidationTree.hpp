@@ -88,9 +88,10 @@ class RangeValidationTree {
   // Return the max RVB ID in the tree. Return 0 if tree is empty.
   RVBId getMaxRvbId() const;
   bool empty() const { return (id_to_node_.size() == 0) ? true : false; }
-  const std::string getRootValStr() const { return root_ ? root_->nvalue_.toString() : ""; }
+  const std::string getRootCurrentValueStr() const { return root_ ? root_->current_value_.toString() : ""; }
   void printToLog(bool only_node_id) const noexcept;
   bool validate() const noexcept;  // TODO
+  bool validate_new() const noexcept;
 
  public:
   struct NodeVal {
@@ -100,11 +101,16 @@ class RangeValidationTree {
     static NodeVal_t calcModulo(size_t val_size);
 
     NodeVal(const shared_ptr<char[]>&& val, size_t size);
-    NodeVal(const char* val, size_t size);
+    NodeVal(const char* val_ptr, size_t size);
     NodeVal(const NodeVal_t* val);
+    NodeVal(const NodeVal_t& val);
+    NodeVal(const NodeVal_t&& val);
+    NodeVal();
 
     NodeVal& operator+=(const NodeVal& other);
     NodeVal& operator-=(const NodeVal& other);
+    bool operator!=(const NodeVal& other);
+    bool operator==(const NodeVal& other);
     bool operator==(NodeVal& other) const { return val_ == other.val_; }
 
     const NodeVal_t& getMaxVal() const { return kNodeValueMax_; }
@@ -158,12 +164,12 @@ class RangeValidationTree {
 
     bool isMinChild() { return info_.rvb_index % RVT_K == 1; }
     bool isMaxChild() { return info_.rvb_index % RVT_K == 0; }
-    void logInfoVal(std::string prefix="");
+    void logInfoVal(std::string prefix = "");
     const shared_ptr<char[]> computeNodeInitialValue(NodeInfo& node_id, const STDigest& digest);
 
     static constexpr uint8_t kDefaultRVBLeafLevel{0};
     NodeInfo info_;
-    NodeVal nvalue_;
+    NodeVal current_value_;
     static uint32_t RVT_K;
   };
 
@@ -184,7 +190,8 @@ class RangeValidationTree {
 
   struct SerializedRVTNode {
     uint64_t id{0};
-    size_t value_size{0};
+    size_t current_value_size{0};
+    size_t initial_value_size{0};
     uint16_t n_child{0};
     uint64_t min_child_id{0};
     uint64_t max_child_id{0};
@@ -194,9 +201,10 @@ class RangeValidationTree {
   };
 
   struct RVTNode : public RVBNode {
-    RVTNode(std::shared_ptr<RVBNode>& node);
-    RVTNode(std::shared_ptr<RVTNode>& node);
-    RVTNode(SerializedRVTNode& node, char* val, size_t value_size);
+    RVTNode(const std::shared_ptr<RVBNode>& node);
+    RVTNode(const std::shared_ptr<RVTNode>& node);
+    RVTNode(
+        SerializedRVTNode& node, char* cur_val_ptr, size_t cur_value_size, char* init_val_ptr, size_t init_value_size);
     static shared_ptr<RVTNode> createFromSerialized(std::istringstream& is);
 
     void addValue(const NodeVal& nvalue);
@@ -206,9 +214,10 @@ class RangeValidationTree {
 
     static constexpr uint8_t kDefaultRVTLeafLevel = 1;
     uint16_t n_child{0};
-    uint64_t min_child_id{0};  // Minimal actual child id
-    uint64_t max_child_id{0};  // Maximal possible child id. The max actual is min_child_id + n_child.
-    uint64_t parent_id{0};     // for root - will be 0
+    uint64_t min_child_id{0};      // Minimal actual child id
+    uint64_t max_child_id{0};      // Maximal possible child id. The max actual is min_child_id + n_child.
+    uint64_t parent_id{0};         // for root - will be 0
+    const NodeVal initial_value_;  // We need to keep this value to validate node's current value
   };
 
  public:
@@ -221,19 +230,21 @@ class RangeValidationTree {
   bool isValidRvbId(const RVBId& block_id) const noexcept;
   bool validateRvbId(const RVBId id, const STDigest& digest) const;
   bool validateRVBGroupId(const RVBGroupId rvb_group_id) const;
+  bool validateTreeStructure() const noexcept;
+  bool validateTreeValues() const noexcept;
 
   // Helper functions
   shared_ptr<RVTNode> getRVTNodeOfLeftSibling(shared_ptr<RVTNode>& node) const;
   shared_ptr<RVTNode> getRVTNodeOfRightSibling(shared_ptr<RVTNode>& node) const;
-  shared_ptr<RVTNode> getParentNode(std::shared_ptr<RVTNode>& node) const noexcept;
+  shared_ptr<RVTNode> getParentNode(const std::shared_ptr<RVTNode>& node) const noexcept;
 
   // tree internal manipulation functions
-  void addRVBNode(std::shared_ptr<RVBNode>& node);
-  void addInternalNode(std::shared_ptr<RVTNode>& node);
-  void removeRVBNode(std::shared_ptr<RVBNode>& node);
-  void addValueToInternalNodes(std::shared_ptr<RVTNode>& direct_parent, std::shared_ptr<RVBNode>& rvb_node);
-  void removeAndUpdateInternalNodes(std::shared_ptr<RVTNode>& rvt_node, std::shared_ptr<RVBNode>& rvb_node);
-  void setNewRoot(shared_ptr<RVTNode> new_root);
+  void addRVBNode(const std::shared_ptr<RVBNode>& node);
+  void addInternalNode(const std::shared_ptr<RVTNode>& node);
+  void removeRVBNode(const std::shared_ptr<RVBNode>& node);
+  void addValueToInternalNodes(const std::shared_ptr<RVTNode>& bottom_node, const NodeVal& value);
+  void removeAndUpdateInternalNodes(const std::shared_ptr<RVTNode>& rvt_node, const NodeVal& value);
+  void setNewRoot(const shared_ptr<RVTNode>& new_root);
   std::shared_ptr<RVTNode> openForInsertion(uint64_t level) const;
   std::shared_ptr<RVTNode> openForRemoval(uint64_t level) const;
   void reset() noexcept;
