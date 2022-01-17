@@ -19,7 +19,6 @@
 #include <unordered_map>
 #include <string>
 #include <cmath>
-#include <mutex>
 #include <limits>
 
 #include <cryptopp/integer.h>
@@ -27,7 +26,6 @@
 #include "Serializable.h"
 #include "STDigest.hpp"
 #include "Logger.hpp"
-#include "kv_types.hpp"
 
 namespace bftEngine::bcst::impl {
 
@@ -91,6 +89,7 @@ class RangeValidationTree {
   const std::string getRootCurrentValueStr() const { return root_ ? root_->current_value_.toString() : ""; }
   void printToLog(bool only_node_id) const noexcept;
   bool validate() const noexcept;
+  void clear() noexcept;
 
  public:
   struct NodeVal {
@@ -187,8 +186,7 @@ class RangeValidationTree {
 
   struct SerializedRVTNode {
     uint64_t id{0};
-    size_t current_value_size{0};
-    size_t initial_value_size{0};
+    size_t current_value_encoded_size{0};
     uint16_t n_child{0};
     uint64_t min_child_id{0};
     uint64_t max_child_id{0};
@@ -203,8 +201,7 @@ class RangeValidationTree {
   struct RVTNode : public RVBNode {
     RVTNode(const RVBNodePtr& node);
     RVTNode(const RVTNodePtr& node);
-    RVTNode(
-        SerializedRVTNode& node, char* cur_val_ptr, size_t cur_value_size, char* init_val_ptr, size_t init_value_size);
+    RVTNode(SerializedRVTNode& node, char* cur_val_ptr, size_t cur_value_size);
     static RVTNodePtr createFromSerialized(std::istringstream& is);
 
     void addValue(const NodeVal& nvalue);
@@ -246,7 +243,6 @@ class RangeValidationTree {
   void setNewRoot(const RVTNodePtr& new_root);
   RVTNodePtr openForInsertion(uint64_t level) const;
   RVTNodePtr openForRemoval(uint64_t level) const;
-  void reset() noexcept;
 
  protected:
   static constexpr size_t kMaxNodesToPrint{10000};

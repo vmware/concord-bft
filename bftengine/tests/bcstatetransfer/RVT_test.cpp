@@ -23,6 +23,7 @@
 
 #include "RangeValidationTree.hpp"
 #include "Logger.hpp"
+#include "kv_types.hpp"
 
 #define HASH_SIZE 32
 
@@ -230,7 +231,7 @@ TEST_P(RVTTestserializeDeserializeFixture, serializeDeserialize) {
     rvt.addNode(i, digest);
   }
   // TODO - move this into ctor on product in RVTNode
-  auto root_hash = rvt.getRootValStr();
+  auto root_hash = rvt.getRootCurrentValueStr();
   auto total_levels = rvt.totalLevels();
   auto total_nodes = rvt.totalNodes();
 
@@ -239,7 +240,7 @@ TEST_P(RVTTestserializeDeserializeFixture, serializeDeserialize) {
   std::istringstream iss(oss.str());
   rvt.setSerializedRvbData(iss);
 
-  ASSERT_EQ(root_hash, rvt.getRootValStr());
+  ASSERT_EQ(root_hash, rvt.getRootCurrentValueStr());
   ASSERT_EQ(total_nodes, rvt.totalNodes());
   ASSERT_EQ(total_levels, rvt.totalLevels());
 }
@@ -362,32 +363,21 @@ TEST_F(RVTTest, simpleAddRemoveWithRootValidation) {
   uint64_t RVT_K = 3;
   RangeValidationTree rvt(logging::getLogger("concord.bft.st.rvt"), RVT_K, fetch_range_size);
   size_t add_i{1}, rem_i{1};
+  std::vector<size_t> add_nodes_itertion_size{1000, 500, 500, 400};
+  std::vector<size_t> remove_nodes_itertion_size{1000, 300, 600, 500};
 
-  for (; add_i < 1000; ++add_i) {
-    // std::cout << "add:" << KVLOG(add_i * fetch_range_size) << std::endl;
-    rvt.addNode(add_i * fetch_range_size, {std::to_string(add_i * fetch_range_size).c_str()});
-  }
-  for (; rem_i < 1000; ++rem_i) {
-    // std::cout << "remove:" << KVLOG(rem_i * fetch_range_size) << std::endl;
-    rvt.removeNode(rem_i * fetch_range_size, {std::to_string(rem_i * fetch_range_size).c_str()});
-  }
-
-  for (; add_i < 500; ++add_i) {
-    // std::cout << "add:" << KVLOG(add_i * fetch_range_size) << std::endl;
-    rvt.addNode(add_i * fetch_range_size, {std::to_string(add_i * fetch_range_size).c_str()});
-  }
-  for (; rem_i < 300; ++rem_i) {
-    // std::cout << "remove:" << KVLOG(rem_i * fetch_range_size) << std::endl;
-    rvt.removeNode(rem_i * fetch_range_size, {std::to_string(rem_i * fetch_range_size).c_str()});
-  }
-
-  for (; add_i < 500; ++add_i) {
-    // std::cout << "add:" << KVLOG(add_i * fetch_range_size) << std::endl;
-    rvt.addNode(add_i * fetch_range_size, {std::to_string(add_i * fetch_range_size).c_str()});
-  }
-  for (; rem_i < 700; ++rem_i) {
-    // std::cout << "remove:" << KVLOG(rem_i * fetch_range_size) << std::endl;
-    rvt.removeNode(rem_i * fetch_range_size, {std::to_string(rem_i * fetch_range_size).c_str()});
+  ASSERT_EQ(add_nodes_itertion_size.size(), remove_nodes_itertion_size.size());
+  for (size_t i{}; i < add_nodes_itertion_size.size(); ++i) {
+    for (; add_i < add_nodes_itertion_size[i]; ++add_i) {
+      // std::cout << "add:" << KVLOG(add_i * fetch_range_size) << std::endl;
+      rvt.addNode(add_i * fetch_range_size, {std::to_string(add_i * fetch_range_size).c_str()});
+      ASSERT_TRUE(rvt.validate());
+    }
+    for (; rem_i < remove_nodes_itertion_size[i]; ++rem_i) {
+      // std::cout << "remove:" << KVLOG(rem_i * fetch_range_size) << std::endl;
+      rvt.removeNode(rem_i * fetch_range_size, {std::to_string(rem_i * fetch_range_size).c_str()});
+      ASSERT_TRUE(rvt.validate());
+    }
   }
   ASSERT_TRUE(rvt.empty());
 }

@@ -17,7 +17,6 @@
 #include "RangeValidationTree.hpp"
 
 using namespace std;
-using namespace concord::kvbc;
 using namespace concord::serialize;
 
 namespace bftEngine::bcst::impl {
@@ -78,7 +77,6 @@ bool NodeVal::operator==(const NodeVal& other) { return (val_ == other.val_); }
 std::string NodeVal::toString() const noexcept {
   std::ostringstream oss;
   oss << std::dec << val_;
-  // oss << std::hex << val_;
   return oss.str();
 }
 
@@ -124,8 +122,6 @@ void RangeValidationTree::RVTMetadata::staticAssert() noexcept {
 
 void RangeValidationTree::SerializedRVTNode::staticAssert() noexcept {
   static_assert(sizeof(SerializedRVTNode::id) == sizeof(NodeInfo::id));
-  static_assert(sizeof(SerializedRVTNode::current_value_size) == sizeof(RangeValidationTree::value_size_));
-  static_assert(sizeof(SerializedRVTNode::initial_value_size) == sizeof(RangeValidationTree::value_size_));
   static_assert(sizeof(SerializedRVTNode::n_child) == sizeof(RVTNode::n_child));
   static_assert(sizeof(SerializedRVTNode::min_child_id) == sizeof(RVTNode::min_child_id));
   static_assert(sizeof(SerializedRVTNode::max_child_id) == sizeof(RVTNode::max_child_id));
@@ -134,9 +130,9 @@ void RangeValidationTree::SerializedRVTNode::staticAssert() noexcept {
 
 void RVBNode::logInfoVal(std::string prefix) {
   // uncomment to debug
-  ostringstream oss;
-  oss << prefix << info_.toString() << " " << current_value_.toString();
-  LOG_ERROR(GL, oss.str());
+  // ostringstream oss;
+  // oss << prefix << info_.toString() << " " << current_value_.toString();
+  // LOG_ERROR(GL, oss.str());
 }
 
 RVBNode::RVBNode(uint64_t rvb_index, const STDigest& digest)
@@ -175,15 +171,13 @@ RVTNode::RVTNode(const RVTNodePtr& node)
   ConcordAssert(n_child <= RVT_K);
 }
 
-// RVTNode::RVTNode(SerializedRVTNode& node, char* val, size_t value_size)
-RVTNode::RVTNode(
-    SerializedRVTNode& node, char* cur_val_ptr, size_t cur_value_size, char* init_val_ptr, size_t init_value_size)
+RVTNode::RVTNode(SerializedRVTNode& node, char* cur_val_ptr, size_t cur_value_size)
     : RVBNode(node.id, cur_val_ptr, cur_value_size),
       n_child{node.n_child},
       min_child_id{node.min_child_id},
       max_child_id{node.max_child_id},
       parent_id{node.parent_id},
-      initial_value_(init_val_ptr, init_value_size) {}
+      initial_value_(computeNodeInitialValue(info_, STDigest{}), sizeof(STDigest)) {}
 
 void RVTNode::addValue(const NodeVal& nvalue) {
   //// leave for debug
@@ -214,9 +208,7 @@ std::ostringstream RVTNode::serialize() const {
   auto decoded_val = current_value_.getDecoded();
   Serializable::serialize(os, decoded_val.data(), current_value_.getSize());
 
-  Serializable::serialize(os, initial_value_.getSize());
-  decoded_val = initial_value_.getDecoded();
-  Serializable::serialize(os, decoded_val.data(), initial_value_.getSize());
+  // We do not serialize initial_value_ since it can be easily re-calculated
   return os;
 }
 
@@ -228,18 +220,10 @@ RVTNodePtr RVTNode::createFromSerialized(std::istringstream& is) {
   Serializable::deserialize(is, snode.max_child_id);
   Serializable::deserialize(is, snode.parent_id);
 
-  Serializable::deserialize(is, snode.current_value_size);
-  std::unique_ptr<char[]> ptr_cur = std::make_unique<char[]>(snode.current_value_size);
-  Serializable::deserialize(is, ptr_cur.get(), snode.current_value_size);
-
-  Serializable::deserialize(is, snode.initial_value_size);
-  std::unique_ptr<char[]> ptr_init = std::make_unique<char[]>(snode.initial_value_size);
-  Serializable::deserialize(is, ptr_init.get(), snode.initial_value_size);
-
-  // TODO - I don't think we need initial_value_size, current_value_size. value size should be fixed. there is just
-  // value_size that can be kept one time on SerializedRVTNode
-  return std::make_shared<RVTNode>(
-      snode, ptr_cur.get(), snode.current_value_size, ptr_init.get(), snode.initial_value_size);
+  Serializable::deserialize(is, snode.current_value_encoded_size);
+  std::unique_ptr<char[]> ptr_cur = std::make_unique<char[]>(snode.current_value_encoded_size);
+  Serializable::deserialize(is, ptr_cur.get(), snode.current_value_encoded_size);
+  return std::make_shared<RVTNode>(snode, ptr_cur.get(), snode.current_value_encoded_size);
 }
 
 RangeValidationTree::RangeValidationTree(const logging::Logger& logger,
@@ -612,10 +596,6 @@ void RangeValidationTree::addInternalNode(const RVTNodePtr& node_to_add) {
 
   // no need to create new root as we have reached to root while updating value
   if (current_node->info_.id == root_->info_.id) {
-    // auto parent_node = getParentNode(node_to_add);
-    // if (parent_node) {
-    //   addValueToInternalNodes(parent_node, node_to_add);
-    // }
     return;
   }
 
@@ -685,7 +665,7 @@ void RangeValidationTree::setNewRoot(const RVTNodePtr& new_root) {
   if (!new_root) {
     ConcordAssert(root_->info_.level == 1);
     ConcordAssert(root_ != nullptr);
-    reset();
+    clear();
     return;
   }
   if (root_) {
@@ -723,7 +703,7 @@ inline RVTNodePtr RangeValidationTree::openForInsertion(uint64_t level) const {
 
 inline RVTNodePtr RangeValidationTree::openForRemoval(uint64_t level) const { return leftmostRVTNode_[level]; }
 
-void RangeValidationTree::reset() noexcept {
+void RangeValidationTree::clear() noexcept {
   // clear() reduced size to 0 and crashed while setting new root using operator []
   for (uint8_t level = 0; level < NodeInfo::kMaxLevels; level++) {
     rightmostRVTNode_[level] = nullptr;
@@ -821,7 +801,7 @@ bool RangeValidationTree::setSerializedRvbData(std::istringstream& is) {
     return false;
   }
 
-  reset();
+  clear();
   RVTMetadata data;
   Serializable::deserialize(is, data.magic_num);
   Serializable::deserialize(is, data.version_num);
@@ -832,7 +812,7 @@ bool RangeValidationTree::setSerializedRvbData(std::istringstream& is) {
   if ((data.magic_num != magic_num_) || (data.version_num != version_num_) || (data.RVT_K != RVT_K) ||
       (data.fetch_range_size != fetch_range_size_) || (data.value_size != value_size_)) {
     LOG_ERROR(logger_, "Failed to deserialize metadata");
-    reset();
+    clear();
     return false;
   }
 
@@ -889,7 +869,7 @@ bool RangeValidationTree::setSerializedRvbData(std::istringstream& is) {
   is.peek();
   if (not is.eof()) {
     LOG_ERROR(logger_, "Still some data left to read from stream");
-    reset();
+    clear();
     return false;
   }
 
@@ -956,7 +936,6 @@ std::vector<RVBId> RangeValidationTree::getRvbIds(RVBGroupId rvb_group_id) const
 // FR = 256 rvbid = 256/1, 512/2, ...
 // RVT_K = 1024 * 256 = single RVGGroupId represents 256K blocks
 // received only 128K blocks from network
-
 std::string RangeValidationTree::getDirectParentValueStr(RVBId rvb_id) const {
   std::string val;
   if (!isValidRvbId(rvb_id)) {
