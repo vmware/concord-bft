@@ -78,6 +78,7 @@ void parseConfigFile(ConcordClientConfig& config, const YAML::Node& yaml) {
   readYamlField(yaml, "client_batching_enabled", config.topology.client_batching_enabled);
   readYamlField(yaml, "client_batching_max_messages_nbr", config.topology.client_batching_max_messages_nbr);
   readYamlField(yaml, "client_batching_flush_timeout_ms", config.topology.client_batching_flush_timeout_ms);
+  readYamlField(yaml, "path_to_replicas_master_key", config.topology.path_to_replicas_master_key);
 
   ConcordAssert(yaml["node"].IsSequence());
   for (const auto& node : yaml["node"]) {

@@ -75,6 +75,7 @@ typedef struct ConcordClientPoolConfig {
   std::unordered_map<bft::communication::NodeNum, Replica> node;
   std::deque<ParticipantNode> participant_nodes;
   secretsmanager::SecretData secret_data;
+  std::string path_to_replicas_master_key = std::string();
 } ConcordClientPoolConfig;
 
 class ClientPoolConfig {

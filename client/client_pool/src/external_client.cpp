@@ -268,7 +268,8 @@ void ConcordClient::CreateClient(ConcordClientPoolConfig& config, const SimpleCl
                                                 client_params.numberOfStandardDeviationsToTolerate,
                                                 client_params.samplesPerEvaluation,
                                                 static_cast<int16_t>(client_params.samplesUntilReset)};
-
+  if (!config.path_to_replicas_master_key.empty())
+    cfg.replicas_master_key_folder_path = config.path_to_replicas_master_key;
   bool transaction_signing_enabled = config.transaction_signing_enabled;
   if (transaction_signing_enabled) {
     std::string priv_key_path = config.signing_key_path;

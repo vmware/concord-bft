@@ -63,6 +63,7 @@ struct BftTopology {
   bool client_batching_enabled;
   size_t client_batching_max_messages_nbr;
   std::uint64_t client_batching_flush_timeout_ms;
+  std::string path_to_replicas_master_key = std::string();
 };
 
 struct BftClientInfo {
