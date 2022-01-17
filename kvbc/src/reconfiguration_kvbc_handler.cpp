@@ -202,10 +202,6 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientRec
       rep.states.push_back(csrep);
     }
     for (uint16_t i = 0; i < first_client_id; i++) {
-      auto ke_csrep = buildReplicaStateReply(std::string{kvbc::keyTypes::reconfiguration_tls_exchange_key}, i);
-      if (ke_csrep.block_id > 0) rep.states.push_back(ke_csrep);
-    }
-    for (uint16_t i = 0; i < first_client_id; i++) {
       auto ke_csrep = buildReplicaStateReply(std::string{kvbc::keyTypes::reconfiguration_rep_main_key}, i);
       if (ke_csrep.block_id > 0) rep.states.push_back(ke_csrep);
     }
@@ -391,12 +387,6 @@ bool ReconfigurationHandler::handle(const concord::messages::KeyExchangeCommand&
                                     uint32_t,
                                     const std::optional<bftEngine::Timestamp>& ts,
                                     concord::messages::ReconfigurationResponse& rres) {
-  if (command.tls && command.target_replicas.size() > bftEngine::ReplicaConfig::instance().fVal) {
-    concord::messages::ReconfigurationErrorMsg error_msg{
-        "Unable to perform tls key exchange for more than f replicas at once"};
-    rres.response = error_msg;
-    return false;
-  }
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
   auto blockId = persistReconfigurationBlock(

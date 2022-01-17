@@ -15,6 +15,7 @@
 #include "reconfiguration/reconfiguration_handler.hpp"
 #include "reconfiguration/dispatcher.hpp"
 #include "IRequestHandler.hpp"
+#include "Metrics.hpp"
 
 #include <ccron/cron_table_registry.hpp>
 #include <optional>
@@ -23,11 +24,13 @@ namespace bftEngine {
 
 class RequestHandler : public IRequestsHandler {
  public:
-  RequestHandler() {
+  RequestHandler(
+      std::shared_ptr<concordMetrics::Aggregator> aggregator_ = std::make_shared<concordMetrics::Aggregator>()) {
     using namespace concord::reconfiguration;
     reconfig_handler_ = std::make_shared<ReconfigurationHandler>();
     reconfig_dispatcher_.addReconfigurationHandler(reconfig_handler_);
     reconfig_dispatcher_.addReconfigurationHandler(std::make_shared<ClientReconfigurationHandler>());
+    reconfig_dispatcher_.setAggregator(aggregator_);
   }
 
   void execute(ExecutionRequestsQueue &requests,

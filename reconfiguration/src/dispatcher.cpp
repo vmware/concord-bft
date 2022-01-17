@@ -38,6 +38,7 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
   auto ser_sig = std::string(request.signature.begin(), request.signature.end());
   rresp.success = true;
   auto sender_id = request.sender;
+  executions_++;
   try {
     // Run pre-reconfiguration handlers
     for (auto& handler : pre_reconfig_handlers_) {
@@ -81,8 +82,12 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
                      request.command);
     }
 
-    if (!valid) rresp.success = false;  // If no handler was able to verify the request, it is an invalid request
+    if (!valid) {
+      failures_++;
+      rresp.success = false;  // If no handler was able to verify the request, it is an invalid request
+    }
   } catch (const std::exception& e) {
+    failures_++;
     rresp.success = false;
     LOG_ERROR(getLogger(),
               "Reconfiguration request from sender: "
@@ -90,7 +95,17 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
     ADDITIONAL_DATA(rresp,
                     "Reconfiguration request " + std::to_string(sequence_num) + " failed, exception: " + e.what());
   }
+  component_.UpdateAggregator();
   return rresp;
+}
+Dispatcher::Dispatcher()
+    : aggregator_{std::make_shared<concordMetrics::Aggregator>()},
+      component_{"reconfiguration_dispatcher", aggregator_},
+      executions_{component_.RegisterCounter("executions")},
+      failures_{component_.RegisterCounter("failures")},
+      auth_failures_{component_.RegisterCounter("auth_failures")} {
+  component_.Register();
+  component_.UpdateAggregator();
 }
 
 }  // namespace concord::reconfiguration

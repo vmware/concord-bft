@@ -14,6 +14,8 @@
 #include "cre_interfaces.hpp"
 #include "secrets_manager_plain.h"
 
+#include <vector>
+
 namespace concord::client::reconfiguration::handlers {
 class ReplicaMainKeyPublicationHandler : public IStateHandler {
  public:
@@ -22,8 +24,75 @@ class ReplicaMainKeyPublicationHandler : public IStateHandler {
   bool execute(const State&, WriteState&) override;
 
  private:
+  logging::Logger getLogger() {
+    static logging::Logger logger_(
+        logging::getLogger("concord.client.reconfiguration.ReplicaMainKeyPublicationHandler"));
+    return logger_;
+  }
   std::string output_dir_;
   concord::secretsmanager::SecretsManagerPlain file_handler_;
-  uint32_t latest_known_update_{0};
+};
+
+class ClientTlsKeyExchangeHandler : public IStateHandler {
+ public:
+  ClientTlsKeyExchangeHandler(const std::string& master_key_path,
+                              const std::string& cert_folder,
+                              bool enc,
+                              const std::vector<uint32_t>& bft_clients,
+                              std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm);
+  bool validate(const State&) const override;
+  bool execute(const State&, WriteState&) override;
+
+ private:
+  logging::Logger getLogger() {
+    static logging::Logger logger_(logging::getLogger("concord.client.reconfiguration.ClientTlsKeyExchangeHandler"));
+    return logger_;
+  }
+  std::string master_key_path_;
+  std::string cert_folder_;
+  bool enc_;
+  std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm_;
+  std::vector<uint32_t> bft_clients_;
+  uint64_t init_last_tls_update_block_;
+  concord::secretsmanager::SecretsManagerPlain psm_;
+  std::string version_path_;
+};
+
+class ClientMasterKeyExchangeHandler : public IStateHandler {
+ public:
+  ClientMasterKeyExchangeHandler(uint32_t client_id,
+                                 const std::string& master_key_path,
+                                 std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm,
+                                 uint64_t last_update_block);
+  bool validate(const State&) const override;
+  bool execute(const State&, WriteState&) override;
+
+ private:
+  logging::Logger getLogger() {
+    static logging::Logger logger_(logging::getLogger("concord.client.reconfiguration.ClientMasterKeyExchangeHandler"));
+    return logger_;
+  }
+  uint32_t client_id_;
+  std::string master_key_path_;
+  std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm_;
+  uint64_t init_last_update_block_;
+  concord::secretsmanager::SecretsManagerPlain psm_;
+};
+
+class ClientRestartHandler : public IStateHandler {
+ public:
+  ClientRestartHandler(uint64_t init_update_block, uint16_t client_id)
+      : init_update_block_{init_update_block}, client_id_{client_id} {}
+  bool validate(const State&) const override;
+  bool execute(const State&, WriteState&) override;
+
+ private:
+  logging::Logger getLogger() {
+    static logging::Logger logger_(logging::getLogger("concord.client.reconfiguration.ClientRestartHandler"));
+    return logger_;
+  }
+
+  uint64_t init_update_block_;
+  uint32_t client_id_;
 };
 }  // namespace concord::client::reconfiguration::handlers

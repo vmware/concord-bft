@@ -211,6 +211,7 @@ class KeyExchangeManager {
   std::vector<IKeyExchanger*> registryToExchange_;
   IMultiSigKeyGenerator* multiSigKeyHdlr_{nullptr};
   IClientPublicKeyStore* clientPublicKeyStore_{nullptr};
+  bool publishedMasterKey = false;
   std::mutex startup_mutex_;
 
   struct Metrics {

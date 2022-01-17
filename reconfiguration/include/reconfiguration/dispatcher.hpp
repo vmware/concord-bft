@@ -16,13 +16,14 @@
 #include "concord.cmf.hpp"
 #include "OpenTracing.hpp"
 #include "Logger.hpp"
+#include "Metrics.hpp"
 
 namespace concord::reconfiguration {
 // The dispatcher forwards all messages to their appropriate handlers.
 // All handled messages are defined in the IReconfigurationHandler interface.
 class Dispatcher {
  public:
-  Dispatcher() = default;
+  Dispatcher();
   // This method is the gate for all reconfiguration actions. It works as
   // follows:
   // 1. Validate the request against the reconfiguration system operator (RSO)
@@ -54,6 +55,11 @@ class Dispatcher {
     }
   }
 
+  void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
+    aggregator_ = aggregator;
+    component_.SetAggregator(aggregator_);
+  }
+
  private:
   logging::Logger getLogger() {
     static logging::Logger logger_(logging::getLogger("concord.reconfiguration"));
@@ -71,6 +77,11 @@ class Dispatcher {
   std::vector<std::shared_ptr<IReconfigurationHandler>> pre_reconfig_handlers_;
   std::vector<std::shared_ptr<IReconfigurationHandler>> reconfig_handlers_;
   std::vector<std::shared_ptr<IReconfigurationHandler>> post_reconfig_handlers_;
+  std::shared_ptr<concordMetrics::Aggregator> aggregator_;
+  concordMetrics::Component component_;
+  concordMetrics::CounterHandle executions_;
+  concordMetrics::CounterHandle failures_;
+  concordMetrics::CounterHandle auth_failures_;
 };
 
 }  // namespace concord::reconfiguration

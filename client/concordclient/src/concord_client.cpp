@@ -39,6 +39,7 @@ ConcordClient::ConcordClient(const ConcordClientConfig& config, std::shared_ptr<
 
 ConcordClientPoolConfig ConcordClient::createClientPoolStruct(const ConcordClientConfig& config) {
   ConcordClientPoolConfig client_pool_config;
+  client_pool_config.path_to_replicas_master_key = config.topology.path_to_replicas_master_key;
   int id = 0;
   for (const auto& replica : config_.topology.replicas) {
     Replica client_pool_replica;

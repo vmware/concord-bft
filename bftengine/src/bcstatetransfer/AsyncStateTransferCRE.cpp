@@ -72,41 +72,6 @@ class Communication : public ICommunication {
   uint16_t repId_;
 };
 
-class ReplicaTLSKeyExchangeHandler : public IStateHandler {
- public:
-  ReplicaTLSKeyExchangeHandler() {}
-
-  bool validate(const State& state) const override {
-    concord::messages::ClientStateReply crep;
-    concord::messages::deserialize(state.data, crep);
-    return std::holds_alternative<concord::messages::ReplicaTlsExchangeKey>(crep.response);
-  }
-
-  bool execute(const State& state, WriteState& out) override {
-    bool succ = true;
-    concord::messages::ClientStateReply crep;
-    concord::messages::deserialize(state.data, crep);
-    auto command = std::get<concord::messages::ReplicaTlsExchangeKey>(crep.response);
-    auto sender_id = command.sender_id;
-    concord::messages::ReconfigurationResponse response;
-    std::string bft_replicas_cert_path = bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" +
-                                         std::to_string(sender_id) + "/server/server.cert";
-    auto current_rep_cert = sm_.decryptFile(bft_replicas_cert_path);
-    if (current_rep_cert == command.cert) return succ;
-    LOG_INFO(GL, "execute replica TLS key exchange using state transfer cre" << KVLOG(sender_id));
-    std::string cert = std::move(command.cert);
-    sm_.encryptFile(bft_replicas_cert_path, cert);
-    LOG_INFO(GL, bft_replicas_cert_path + " is updated on the disk");
-    bft_replicas_cert_path = bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" +
-                             std::to_string(sender_id) + "/client/client.cert";
-    sm_.encryptFile(bft_replicas_cert_path, cert);
-    LOG_INFO(GL, bft_replicas_cert_path + " is updated on the disk");
-    return succ;
-  }
-
- private:
-  concord::secretsmanager::SecretsManagerPlain sm_;
-};
 class InternalSigner : public concord::util::crypto::ISigner {
  public:
   std::string sign(const std::string& data) override {
@@ -187,6 +152,7 @@ std::shared_ptr<ClientReconfigurationEngine> CreFactory::create(std::shared_ptr<
   for (uint16_t i = repConfig.numReplicas; i < repConfig.numReplicas + repConfig.numRoReplicas; i++) {
     bftClientConf.ro_replicas.emplace(bft::client::ReplicaId{i});
   }
+  bftClientConf.replicas_master_key_folder_path = std::nullopt;
   std::unique_ptr<ICommunication> comm = std::make_unique<Communication>(msgsCommunicator, msgHandlers);
   bft::client::Client* bftClient = new bft::client::Client(std::move(comm), bftClientConf);
   bftClient->setTransactionSigner(new InternalSigner());
@@ -196,8 +162,6 @@ std::shared_ptr<ClientReconfigurationEngine> CreFactory::create(std::shared_ptr<
   IStateClient* pbc = new PollBasedStateClient(bftClient, cre_config.interval_timeout_ms_, 0, cre_config.id_);
   auto cre =
       std::make_shared<ClientReconfigurationEngine>(cre_config, pbc, std::make_shared<concordMetrics::Aggregator>());
-  if (bftEngine::ReplicaConfig::instance().isReadOnly)
-    cre->registerHandler(std::make_shared<ReplicaTLSKeyExchangeHandler>());
   if (!bftEngine::ReplicaConfig::instance().isReadOnly) cre->registerHandler(std::make_shared<ScalingReplicaHandler>());
   return cre;
 }
