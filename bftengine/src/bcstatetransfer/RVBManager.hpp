@@ -108,6 +108,7 @@ class RVBManager {
   CheckpointDesc last_checkpoint_desc_;
   std::vector<std::pair<BlockId, STDigest>> pruned_blocks_digests_;
   std::mutex pruned_blocks_digests_mutex_;
+  const std::set<std::string> debug_prints_log_level{"trace", "debug"};
 
  protected:
   const STDigest getBlockAndComputeDigest(uint64_t block_id) const;
@@ -128,6 +129,8 @@ class RVBManager {
   void pruneRvbDataDuringCheckpoint(const CheckpointDesc& new_checkpoint_desc);
   // Returns 0 if no such ID
   RVBGroupId getNextRequiredRvbGroupid(RVBId from_rvb_id, RVBId to_rvb_id) const;
+
+  std::string getLogLevel() const;
 #pragma pack(push, 1)
   struct rvbDigestInfo {
     BlockId block_id;

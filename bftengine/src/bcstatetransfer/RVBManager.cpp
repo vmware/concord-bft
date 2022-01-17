@@ -25,6 +25,9 @@ using namespace std;
 
 namespace bftEngine::bcst::impl {
 
+template <typename T>
+static inline std::string vecToStr(const std::vector<T>& vec);
+
 RVBManager::RVBManager(const Config& config, const IAppState* state_api, const std::shared_ptr<DataStore>& ds)
     : logger_{logging::getLogger("concord.bft.st.rvb")},
       config_{config},
@@ -53,6 +56,7 @@ void RVBManager::init(bool fetching) {
     auto last_stored_cp_num = ds_->getLastStoredCheckpoint();
     if (last_stored_cp_num > 0) {
       desc = ds_->getCheckpointDesc(last_stored_cp_num);
+      last_checkpoint_desc_ = desc;
     }
   }
 
@@ -76,9 +80,7 @@ void RVBManager::init(bool fetching) {
       // reconstruct from storage
       LOG_ERROR(logger_, "Failed to validate loaded RVB data from stored checkpoint" << KVLOG(desc.checkpointNum));
       loaded_from_data_store = false;
-      in_mem_rvt_->validate();
       in_mem_rvt_->clear();
-      in_mem_rvt_->validate();
       rvb_data_source_ = RvbDataInitialSource::NIL;
     }
   }
@@ -95,22 +97,8 @@ void RVBManager::init(bool fetching) {
   }
 
   LOG_INFO(logger_, std::boolalpha << KVLOG(pruned_blocks_digests_.size(), desc.checkpointNum, loaded_from_data_store));
-  if (print_rvt) {
-#ifdef USE_LOG4CPP
-    auto log_level = logging::Logger::getRoot().getLogLevel();
-    if ((log_level == log4cplus::DEBUG_LOG_LEVEL) || (log_level == log4cplus::TRACE_LOG_LEVEL)) {
-      in_mem_rvt_->validate();
-      in_mem_rvt_->printToLog(false);
-      in_mem_rvt_->validate();
-    }
-#else
-    auto log_level = logger_.getLogLevel();
-    if ((log_level == logging::LogLevel::debug) || (log_level == logging::LogLevel::trace)) {
-      in_mem_rvt_->validate();
-      in_mem_rvt_->printToLog(false);
-      in_mem_rvt_->validate();
-    }
-#endif
+  if (print_rvt && (debug_prints_log_level.find(getLogLevel()) != debug_prints_log_level.end())) {
+    in_mem_rvt_->printToLog(false);
   }
 }
 
@@ -124,26 +112,28 @@ void RVBManager::pruneRvbDataDuringCheckpoint(const CheckpointDesc& new_checkpoi
   if (pruned_blocks_digests_.empty()) {
     return;
   }
+  ConcordAssertGE(new_checkpoint_desc.checkpointNum, last_checkpoint_desc_.checkpointNum);
+  ConcordAssertGE(new_checkpoint_desc.maxBlockId, last_checkpoint_desc_.maxBlockId);
 
-  // ConcordAssertEQ(in_mem_rvt_->getMinRvbId(), pruned_blocks_digests_[0].first);
-  // First, prune and persist pruned_blocks_digests_. We do this while comparing to
-  // last_checkpoint_desc_, while we know that all digests up to that point are removed from RVT and RVT is persisted
-  in_mem_rvt_->validate();
-  RVBId min_rvb_id_in_rvt = in_mem_rvt_->getMinRvbId();
-  in_mem_rvt_->validate();
-  for (i = 0; i < pruned_blocks_digests_.size(); ++i) {
-    if (pruned_blocks_digests_[i].first >= min_rvb_id_in_rvt) {
-      break;
+  if (last_checkpoint_desc_.checkpointNum > 0) {
+    // Remove old blocks from pruned_blocks_digests_, then persist it. These blocks were already removed from RVB data
+    // and the removal is reflected in the RVB persisted tree of the last checkpoint.
+    //
+    // We must prune the pruning vector based on some persisted checkpoint in the past.
+    // We cannot allow loosing digests, we will never get them back (blocks are not in storage anymore) and will have
+    // to reconstruct the whole tree.
+    for (i = 0; i < pruned_blocks_digests_.size(); ++i) {
+      if (pruned_blocks_digests_[i].first >= last_checkpoint_desc_.maxBlockId) {
+        break;
+      }
     }
-  }
-  if (i > 0) {
-    // The (+1, leave_one) at the end: keep 1 (newest) block as reference for the next time
-    size_t leave_one = (i == pruned_blocks_digests_.size());
-    LOG_DEBUG(logger_,
-              "Remove " << i << " digests from pruned_blocks_digests_, from/to block IDs:"
-                        << KVLOG(pruned_blocks_digests_[leave_one].first, pruned_blocks_digests_[i].first));
-    pruned_blocks_digests_.erase(pruned_blocks_digests_.begin() + leave_one, pruned_blocks_digests_.begin() + i);
-    ds_->setPrunedBlocksDigests(pruned_blocks_digests_);
+    if (i > 0) {
+      LOG_DEBUG(logger_,
+                "Remove " << i << " digests from pruned_blocks_digests_, from/to block IDs:"
+                          << KVLOG(pruned_blocks_digests_[0].first, pruned_blocks_digests_[i].first));
+      pruned_blocks_digests_.erase(pruned_blocks_digests_.begin(), pruned_blocks_digests_.begin() + i);
+      ds_->setPrunedBlocksDigests(pruned_blocks_digests_);
+    }
   }
 
   // Second, prune in_mem_rvt_ up to new_checkpoint_desc.maxBlockId.
@@ -156,22 +146,28 @@ void RVBManager::pruneRvbDataDuringCheckpoint(const CheckpointDesc& new_checkpoi
   for (i = 0; i < pruned_blocks_digests_.size(); ++i) {
     RVBId rvb_id = pruned_blocks_digests_[i].first;
     auto digest = pruned_blocks_digests_[i].second;
-    in_mem_rvt_->validate();
-    if ((rvb_id <= new_checkpoint_desc.maxBlockId) && (rvb_id >= in_mem_rvt_->getMinRvbId())) {
+    if ((rvb_id <= new_checkpoint_desc.maxBlockId) && (rvb_id == in_mem_rvt_->getMinRvbId())) {
       LOG_TRACE(logger_, "Remove digest for block " << rvb_id << " ,Digest: " << digest.toString());
       in_mem_rvt_->removeNode(rvb_id, digest.get(), BLOCK_DIGEST_SIZE);
     } else if (rvb_id > new_checkpoint_desc.maxBlockId) {
       break;
     }
-    in_mem_rvt_->validate();
   }
   if (i > 0) {
     LOG_INFO(logger_,
-             "Remove " << (i - 1) << " digests from in_mem_rvt_, from/to block IDs:"
-                       << KVLOG(pruned_blocks_digests_[0].first, pruned_blocks_digests_[i - 1].first));
+             "Removed " << (i - 1) << " digests from in_mem_rvt_, from/to block IDs:"
+                        << KVLOG(pruned_blocks_digests_[0].first, pruned_blocks_digests_[i - 1].first));
   }
-  // We relay on caller to persist new_checkpoint_desc, and leave pruned_blocks_digests_ persisted before erase was
-  // done (some redundent digests)
+  if (!pruned_blocks_digests_.empty() && (debug_prints_log_level.find(getLogLevel()) != debug_prints_log_level.end())) {
+    ostringstream oss;
+    oss << "pruned_blocks_digests_: size: " << pruned_blocks_digests_.size() << " Pairs: ";
+    for (auto const pair : pruned_blocks_digests_) {
+      oss << ",[" << std::to_string(pair.first) << "," << pair.second.toString() << "]";
+    }
+    LOG_DEBUG(logger_, oss.str());
+  }
+  // We relay on caller to persist new_checkpoint_desc, and leave pruned_blocks_digests_ persisted before erase
+  // was done (some redundent digests)
 }
 
 void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_desc) {
@@ -210,15 +206,13 @@ void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_de
   pruneRvbDataDuringCheckpoint(new_checkpoint_desc);
 
   if (!in_mem_rvt_->empty()) {
-    // keep for debug
-    in_mem_rvt_->validate();
     auto rvb_data = in_mem_rvt_->getSerializedRvbData();
+
     // TODO - see if we can convert the rvb_data stream straight into a vector, using stream iterator
     const std::string s = rvb_data.str();
     ConcordAssert(!s.empty());
     std::copy(s.c_str(), s.c_str() + s.length(), back_inserter(new_checkpoint_desc.rvbData));
     in_mem_rvt_->printToLog(false);
-    in_mem_rvt_->validate();
   }
   last_checkpoint_desc_ = new_checkpoint_desc;
 }
@@ -248,9 +242,7 @@ size_t RVBManager::getSerializedDigestsOfRvbGroup(int64_t rvb_group_id,
                                                   bool size_only) const {
   ConcordAssertOR(size_only && !buff && buff_max_size == 0, !size_only && buff && buff_max_size > 0);
   LOG_TRACE(logger_, KVLOG(rvb_group_id, buff_max_size));
-  in_mem_rvt_->validate();
   std::vector<RVBId> rvb_ids = in_mem_rvt_->getRvbIds(rvb_group_id);
-  in_mem_rvt_->validate();
   size_t total_size = rvb_ids.size() * sizeof(RVBManager::rvbDigestInfo);
   ConcordAssertOR(size_only, total_size <= buff_max_size);
   RVBManager::rvbDigestInfo* cur = size_only ? nullptr : reinterpret_cast<RVBManager::rvbDigestInfo*>(buff);
@@ -305,21 +297,11 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
   size_t num_digests_in_data;
   std::vector<RVBGroupId> rvb_group_ids;
   static constexpr char error_prefix[] = "Invalid digests of RVB group:";
-  in_mem_rvt_->validate();
   RVBId max_block_in_rvt = in_mem_rvt_->getMaxRvbId();
   RVBId min_block_in_rvt = in_mem_rvt_->getMinRvbId();
-  in_mem_rvt_->validate();
   BlockId next_expected_rvb_id{};
   RVBGroupId next_required_rvb_group_id =
       getNextRequiredRvbGroupid(nextRvbBlockId(min_fetch_block_id), prevRvbBlockId(max_fetch_block_id));
-  std::function<std::string(std::vector<RVBGroupId>&)> vec_to_str = [&](std::vector<RVBGroupId>& v) {
-    std::stringstream ss;
-    for (size_t i{0}; i < v.size(); ++i) {
-      if (i != 0) ss << ",";
-      ss << v[i];
-    }
-    return ss.str();
-  };
 
   if (((data_size % sizeof(rvbDigestInfo)) != 0) || (data_size == 0)) {
     LOG_ERROR(logger_, error_prefix << KVLOG(data_size, sizeof(rvbDigestInfo)));
@@ -335,9 +317,9 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
     return false;
   }
 
-  // 1st stage: Awe would like to construct a temporary map 'digests', nominated to be inserted into stored_rvb_digests_
-  // This will be done  after basic validations + validating this list of digests agains the in memory RVT
-  // We assume digests are ordered in accending block ID order
+  // 1st stage: Awe would like to construct a temporary map 'digests', nominated to be inserted into
+  // stored_rvb_digests_ This will be done  after basic validations + validating this list of digests agains the in
+  // memory RVT We assume digests are ordered in accending block ID order
   for (size_t i{0}; i < num_digests_in_data; ++i, ++cur) {
     block_id = cur->block_id;
     if ((block_id % config_.fetchRangeSize) != 0) {
@@ -363,9 +345,7 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
       LOG_ERROR(logger_, error_prefix << KVLOG(block_id, next_expected_rvb_id));
       return false;
     }
-    in_mem_rvt_->validate();
     rvb_group_ids = in_mem_rvt_->getRvbGroupIds(block_id, block_id);
-    in_mem_rvt_->validate();
     ConcordAssertEQ(rvb_group_ids.size(), 1);
     if (rvb_group_ids.empty()) {
       LOG_ERROR(logger_, "Bad Digests of RVB group: rvb_group_ids is empty!" << KVLOG(block_id));
@@ -390,25 +370,22 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
   // 2nd stage - Check that I have the exact digests to validate the RVB group. There are 4 type of RVB groups,
   // Level 0 in tree is represented (not in memory), 'x' represents an RVB node:
   // 1) Full RVB Group:            [xxxxxxxxx]
-  // 2) Partial right RVB Group:   [    xxxxx]    - some left RVB are pruned. This one represents "oldest" blocks in RVT
-  // 3) Partial left RVB Group:    [xxxxx    ]    - some right RVB are not yet added. This one represents "newest"
-  // blocks in RVT
-  // 4) Partial RVB Group:         [ xxxxx ]      - some right and left RVBs are not part of the tree. In this case
-  // we expect a single root tree!
+  // 2) Partial right RVB Group:   [    xxxxx]    - some left RVB are pruned. This one represents "oldest" blocks in
+  // RVT 3) Partial left RVB Group:    [xxxxx    ]    - some right RVB are not yet added. This one represents
+  // "newest" blocks in RVT 4) Partial RVB Group:         [ xxxxx ]      - some right and left RVBs are not part of
+  // the tree. In this case we expect a single root tree!
   //
   // In all cases, we can validate the group only if have validate the EXACT digests - no one less and not a single
   // more!
-  in_mem_rvt_->validate();
   auto rvb_ids = in_mem_rvt_->getRvbIds(rvb_group_id_added);
-  in_mem_rvt_->validate();
   std::vector<RVBId> keys;
   std::transform(digests.begin(),
                  digests.end(),
                  std::back_inserter(keys),
                  [](const std::map<BlockId, STDigest>::value_type& pair) { return pair.first; });
   if (keys != rvb_ids) {
-    std::string keys_str = vec_to_str(keys);
-    std::string rvb_ids_str = vec_to_str(rvb_ids);
+    std::string keys_str = vecToStr(keys);
+    std::string rvb_ids_str = vecToStr(rvb_ids);
     LOG_ERROR(logger_, error_prefix << KVLOG(keys_str, rvb_ids_str));
     return false;
   }
@@ -420,9 +397,7 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
     digests_rvt.addNode(p.first, p.second.get(), BLOCK_DIGEST_SIZE);
   }
   const std::string digests_rvt_root_val = digests_rvt.getRootCurrentValueStr();
-  in_mem_rvt_->validate();
   const std::string rvt_parent_val = in_mem_rvt_->getDirectParentValueStr(digests.begin()->first);
-  in_mem_rvt_->validate();
   if (digests_rvt_root_val != rvt_parent_val) {
     LOG_ERROR(logger_,
               error_prefix << " digests validation failed against the in_mem_rvt_!"
@@ -440,9 +415,7 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
     stored_rvb_digests_group_ids_.erase(stored_rvb_digests_group_ids_.begin());
     auto it = stored_rvb_digests_.begin();
     while (it != stored_rvb_digests_.end()) {
-      in_mem_rvt_->validate();
       rvb_group_ids = in_mem_rvt_->getRvbGroupIds(it->first, it->first);
-      in_mem_rvt_->validate();
       ConcordAssertEQ(rvb_group_ids.size(), 1);
       if (rvb_group_ids[0] == rvb_group_id_removed) {
         it = stored_rvb_digests_.erase(it);
@@ -506,9 +479,7 @@ uint64_t RVBManager::getFetchBlocksRvbGroupId(BlockId from_block_id, BlockId to_
 
 RVBGroupId RVBManager::getNextRequiredRvbGroupid(RVBId from_rvb_id, RVBId to_rvb_id) const {
   if (from_rvb_id > to_rvb_id) return 0;
-  in_mem_rvt_->validate();
   const auto rvb_group_ids = in_mem_rvt_->getRvbGroupIds(from_rvb_id, to_rvb_id);
-  in_mem_rvt_->validate();
   for (const auto& id : rvb_group_ids) {
     if (std::find(stored_rvb_digests_group_ids_.begin(), stored_rvb_digests_group_ids_.end(), id) ==
         stored_rvb_digests_group_ids_.end()) {
@@ -525,20 +496,16 @@ BlockId RVBManager::getRvbGroupMaxBlockIdOfNonStoredRvbGroup(BlockId from_block_
   if (min_rvb_id >= max_rvb_id) {
     return to_block_id;
   }
-  in_mem_rvt_->validate();
   const auto rvb_group_ids = in_mem_rvt_->getRvbGroupIds(min_rvb_id, max_rvb_id);
-  in_mem_rvt_->validate();
   if (rvb_group_ids.size() < 2) {
     return to_block_id;
   }
-  // if we have 2 or more, we need to take the 1st one which is not stored and find the upper bound on the last RVB in
-  // the list
+  // if we have 2 or more, we need to take the 1st one which is not stored and find the upper bound on the last RVB
+  // in the list
   for (const auto& rvb_group_id : rvb_group_ids) {
     if (std::find(stored_rvb_digests_group_ids_.begin(), stored_rvb_digests_group_ids_.end(), rvb_group_id) ==
         stored_rvb_digests_group_ids_.end()) {
-      in_mem_rvt_->validate();
       auto rvb_ids = in_mem_rvt_->getRvbIds(rvb_group_id);
-      in_mem_rvt_->validate();
       ConcordAssert(!rvb_ids.empty());
       auto blockId = rvb_ids.back();
       ConcordAssertGE(blockId, min_rvb_id);
@@ -583,26 +550,22 @@ void RVBManager::addRvbDataOnBlockRange(uint64_t min_block_id,
     return;
   }
   uint64_t current_rvb_id = nextRvbBlockId(min_block_id);
-  in_mem_rvt_->validate();
   RVBId max_rvb_id_in_rvt = in_mem_rvt_->getMaxRvbId();
-  in_mem_rvt_->validate();
   while (current_rvb_id < max_block_id) {
-    // TODO - As a 2nd phase - should use the thread pool to fetch a batch of digests or move to a background process
+    // TODO - As a 2nd phase - should use the thread pool to fetch a batch of digests or move to a background
+    // process
     if (current_rvb_id > max_rvb_id_in_rvt) {
       STDigest digest;
       as_->getPrevDigestFromBlock(current_rvb_id + 1, reinterpret_cast<StateTransferDigest*>(digest.getForUpdate()));
-      in_mem_rvt_->validate();
       LOG_TRACE(logger_,
                 "Add digest for block " << current_rvb_id << " "
                                         << " Digest: " << digest.toString());
       in_mem_rvt_->addNode(current_rvb_id, digest.getForUpdate(), BLOCK_DIGEST_SIZE);
-      in_mem_rvt_->validate();
     }
     current_rvb_id += config_.fetchRangeSize;
     ++rvb_nodes_added;
   }
   if ((current_rvb_id == max_block_id) && (current_rvb_id > max_rvb_id_in_rvt)) {
-    in_mem_rvt_->validate();
     if (digest_of_max_block_id) {
       auto digest = digest_of_max_block_id.value();
       LOG_TRACE(logger_,
@@ -616,7 +579,6 @@ void RVBManager::addRvbDataOnBlockRange(uint64_t min_block_id,
                                         << " ,Digest: " << digest.toString());
       in_mem_rvt_->addNode(current_rvb_id, digest.get(), BLOCK_DIGEST_SIZE);
     }
-    in_mem_rvt_->validate();
     ++rvb_nodes_added;
   }
   if (rvb_nodes_added > 0) {
@@ -639,9 +601,7 @@ void RVBManager::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBloc
   auto initial_size = pruned_blocks_digests_.size();
   RVBId start_rvb_id;
 
-  in_mem_rvt_->validate();
   start_rvb_id = in_mem_rvt_->getMinRvbId();
-  in_mem_rvt_->validate();
   if (start_rvb_id == 0) {
     // In some cases tree is still not built, we still have to keep the pruned digests
     start_rvb_id = pruned_blocks_digests_.empty() ? as_->getGenesisBlockNum() : pruned_blocks_digests_.back().first;
@@ -672,14 +632,51 @@ void RVBManager::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBloc
 
 void RVBManager::reset() {
   LOG_TRACE(logger_, "");
-  in_mem_rvt_->validate();
   in_mem_rvt_->clear();
-  in_mem_rvt_->validate();
   stored_rvb_digests_.clear();
   stored_rvb_digests_group_ids_.clear();
   last_checkpoint_desc_.makeZero();
   rvb_data_source_ = RvbDataInitialSource::NIL;
   // we do not clear the prunned digests
+}
+
+std::string RVBManager::getLogLevel() const {
+  auto log_level = logger_.getLogLevel();
+#ifdef USE_LOG4CPP
+  return (log_level == log4cplus::TRACE_LOG_LEVEL)
+             ? "trace"
+             : (log_level == log4cplus::DEBUG_LOG_LEVEL)
+                   ? "trace"
+                   : (log_level == log4cplus::INFO_LOG_LEVEL)
+                         ? "info"
+                         : (log_level == log4cplus::WARN_LOG_LEVEL)
+                               ? "warning"
+                               : (log_level == log4cplus::ERROR_LOG_LEVEL)
+                                     ? "error"
+                                     : (log_level == log4cplus::FATAL_LOG_LEVEL) ? "fatal" : "info";
+#else
+  return (log_level == logging::LogLevel::trace)
+             ? "trace"
+             : (log_level == logging::LogLevel::debug)
+                   ? "trace"
+                   : (log_level == logging::LogLevel::info)
+                         ? "info"
+                         : (log_level == logging::LogLevel::warning)
+                               ? "warning"
+                               : (log_level == logging::LogLevel::error)
+                                     ? "error"
+                                     : (log_level == logging::LogLevel::fatal) ? "fatal" : "info";
+#endif
+}
+
+template <typename T>
+static inline std::string vecToStr(const std::vector<T>& vec) {
+  std::stringstream ss;
+  for (size_t i{0}; i < vec.size(); ++i) {
+    if (i != 0) ss << ",";
+    ss << vec[i];
+  }
+  return ss.str();
 }
 
 }  // namespace bftEngine::bcst::impl
