@@ -149,7 +149,8 @@ void RVBManager::pruneRvbDataDuringCheckpoint(const CheckpointDesc& new_checkpoi
   for (i = 0; i < pruned_blocks_digests_.size(); ++i) {
     RVBId rvb_id = pruned_blocks_digests_[i].first;
     if ((rvb_id <= new_checkpoint_desc.maxBlockId) && (rvb_id >= min_rvb_id_in_rvt))
-      in_mem_rvt_->removeNode(pruned_blocks_digests_[i].first, pruned_blocks_digests_[i].second);
+      in_mem_rvt_->removeNode(
+          pruned_blocks_digests_[i].first, pruned_blocks_digests_[i].second.get(), BLOCK_DIGEST_SIZE);
     else if (rvb_id > new_checkpoint_desc.maxBlockId)
       break;
   }
@@ -393,8 +394,8 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
   // 3rd stage: we have constructed temporary map 'digests' of RVBs.
   // Lets validate them against the in memory tree. We assume that no pruning was done, so we have all the RVBs
   RangeValidationTree digests_rvt(logger_, config_.RVT_K, config_.fetchRangeSize);
-  for (const auto& p : digests) {
-    digests_rvt.addNode(p.first, p.second);
+  for (auto& p : digests) {
+    digests_rvt.addNode(p.first, p.second.get(), BLOCK_DIGEST_SIZE);
   }
   const std::string digests_rvt_root_val = digests_rvt.getRootCurrentValueStr();
   const std::string rvt_parent_val = in_mem_rvt_->getDirectParentValueStr(digests.begin()->first);
@@ -557,16 +558,16 @@ void RVBManager::addRvbDataOnBlockRange(uint64_t min_block_id,
       STDigest digest;
       as_->getPrevDigestFromBlock(current_rvb_id + 1, reinterpret_cast<StateTransferDigest*>(digest.getForUpdate()));
       LOG_TRACE(logger_, KVLOG(current_rvb_id, digest.toString()));
-      in_mem_rvt_->addNode(current_rvb_id, digest);
+      in_mem_rvt_->addNode(current_rvb_id, digest.getForUpdate(), BLOCK_DIGEST_SIZE);
     }
     current_rvb_id += config_.fetchRangeSize;
     ++rvb_nodes_added;
   }
   if ((current_rvb_id == max_block_id) && (current_rvb_id > max_rvb_id_in_rvt)) {
     if (digest_of_max_block_id)
-      in_mem_rvt_->addNode(current_rvb_id, digest_of_max_block_id.value());
+      in_mem_rvt_->addNode(current_rvb_id, digest_of_max_block_id.value().get(), BLOCK_DIGEST_SIZE);
     else {
-      in_mem_rvt_->addNode(current_rvb_id, getBlockAndComputeDigest(max_block_id));
+      in_mem_rvt_->addNode(current_rvb_id, getBlockAndComputeDigest(max_block_id).get(), BLOCK_DIGEST_SIZE);
     }
     ++rvb_nodes_added;
   }
