@@ -15,6 +15,7 @@
 #include <algorithm>
 
 #include "RangeValidationTree.hpp"
+#include "STDigest.hpp"
 
 using namespace std;
 using namespace concord::serialize;
@@ -103,14 +104,16 @@ std::string NodeInfo::toString() const noexcept {
 
 uint32_t RVBNode::RVT_K{};
 
-const shared_ptr<char[]> RVBNode::computeNodeInitialValue(NodeInfo& node_info, const STDigest& digest) {
+// TODO - for now, the outDigest is of a fixed size. We can match the final size to RangeValidationTree::value_size
+// This requires us to write our own DigestContext
+const shared_ptr<char[]> RVBNode::computeNodeInitialValue(NodeInfo& node_info, const char* data, size_t data_size) {
   ConcordAssertGT(node_info.id, 0);
   DigestContext c;
 
   c.update(reinterpret_cast<const char*>(&node_info.id), sizeof(node_info.id));
-  c.update(digest.get(), sizeof(STDigest));
+  c.update(data, data_size);
   // TODO - Use default_delete in case memleak is reported by ASAN
-  std::shared_ptr<char[]> outDigest(new char[sizeof(STDigest)]);
+  static std::shared_ptr<char[]> outDigest(new char[NodeVal::kDigestContextOutputSize]);
   c.writeDigest(outDigest.get());
   return outDigest;
 }
@@ -138,21 +141,25 @@ void RVBNode::logInfoVal(const std::string& prefix) {
   // LOG_ERROR(GL, oss.str());
 }
 
-RVBNode::RVBNode(uint64_t rvb_index, const STDigest& digest)
-    : info_(kDefaultRVBLeafLevel, rvb_index), current_value_(computeNodeInitialValue(info_, digest), sizeof(digest)) {
+RVBNode::RVBNode(uint64_t rvb_index, const char* data, size_t data_size)
+    : info_(kDefaultRVBLeafLevel, rvb_index),
+      current_value_(computeNodeInitialValue(info_, data, data_size), NodeVal::kDigestContextOutputSize) {
   // leave for debug
-  // logInfoVal("construct: ");
+  logInfoVal("construct: ");
 }
 
 RVBNode::RVBNode(uint8_t level, uint64_t rvb_index)
-    : info_(level, rvb_index), current_value_(computeNodeInitialValue(info_, STDigest{}), sizeof(STDigest)) {
+    : info_(level, rvb_index),
+      current_value_(
+          computeNodeInitialValue(info_, NodeVal::initialValueZeroData.data(), NodeVal::kDigestContextOutputSize),
+          NodeVal::kDigestContextOutputSize) {
   // leave for debug
-  // logInfoVal("construct: ");
+  logInfoVal("construct: ");
 }
 
 RVBNode::RVBNode(uint64_t node_id, char* val_ptr, size_t size) : info_(node_id), current_value_(val_ptr, size) {
   // leave for debug
-  // logInfoVal("construct: ");
+  logInfoVal("construct: ");
 }
 
 RVTNode::RVTNode(const shared_ptr<RVBNode>& node)
@@ -180,24 +187,26 @@ RVTNode::RVTNode(SerializedRVTNode& node, char* cur_val_ptr, size_t cur_value_si
       min_child_id{node.min_child_id},
       max_child_id{node.max_child_id},
       parent_id{node.parent_id},
-      initial_value_(computeNodeInitialValue(info_, STDigest{}), sizeof(STDigest)) {}
+      initial_value_(
+          computeNodeInitialValue(info_, NodeVal::initialValueZeroData.data(), NodeVal::kDigestContextOutputSize),
+          NodeVal::kDigestContextOutputSize) {}
 
 void RVTNode::addValue(const NodeVal& nvalue) {
   //// leave for debug
-  // logInfoVal("[before add: ");  // leave for debug
+  logInfoVal("[before add: ");  // leave for debug
   this->current_value_ += nvalue;
   // leave for debug
   // LOG_ERROR(GL, "Adding value " << nvalue.toString());
-  // logInfoVal("after add]");
+  logInfoVal("after add]");
 }
 
 void RVTNode::substructValue(const NodeVal& nvalue) {
   // leave for debug
-  // logInfoVal("[before sub");
+  logInfoVal("[before sub");
   this->current_value_ -= nvalue;
   // leave for debug
   // LOG_ERROR(GL, "Substructing value " << nvalue.toString());
-  // logInfoVal("after sub]");
+  logInfoVal("after sub]");
 }
 
 std::ostringstream RVTNode::serialize() const {
@@ -437,9 +446,9 @@ bool RangeValidationTree::isValidRvbId(const RVBId& block_id) const noexcept {
   return ((block_id != 0) && (fetch_range_size_ != 0) && (block_id % fetch_range_size_ == 0));
 }
 
-bool RangeValidationTree::validateRvbId(const uint64_t rvb_id, const STDigest& digest) const {
-  if ((!isValidRvbId(rvb_id)) || digest.isZero()) {
-    LOG_ERROR(logger_, "invalid input data" << KVLOG(rvb_id, digest, fetch_range_size_));
+bool RangeValidationTree::validateRvbId(const uint64_t rvb_id, const char* data, size_t data_size) const {
+  if (!isValidRvbId(rvb_id)) {
+    LOG_ERROR(logger_, "invalid input data" << KVLOG(rvb_id, data_size, fetch_range_size_));
     return false;
   }
   return true;
@@ -723,12 +732,12 @@ void RangeValidationTree::clear() noexcept {
 
 /////////////////////////////////// start of API //////////////////////////////////////////////
 
-void RangeValidationTree::addNode(const RVBId rvb_id, const STDigest& digest) {
-  if (not validateRvbId(rvb_id, digest)) {
+void RangeValidationTree::addNode(const RVBId rvb_id, const char* data, size_t data_size) {
+  if (not validateRvbId(rvb_id, data, data_size)) {
     throw std::invalid_argument("invalid input data");
   }
   auto rvb_index = rvb_id / fetch_range_size_;
-  auto node = make_shared<RVBNode>(rvb_index, digest);
+  auto node = make_shared<RVBNode>(rvb_index, data, data_size);
   if (max_rvb_index_ > 0) {
     ConcordAssertEQ(max_rvb_index_ + 1, rvb_index);
   }
@@ -740,13 +749,13 @@ void RangeValidationTree::addNode(const RVBId rvb_id, const STDigest& digest) {
   LOG_TRACE(logger_, KVLOG(rvb_id, max_rvb_index_));
 }
 
-void RangeValidationTree::removeNode(const RVBId rvb_id, const STDigest& digest) {
+void RangeValidationTree::removeNode(const RVBId rvb_id, const char* data, size_t data_size) {
   ConcordAssert(root_ != nullptr);
-  if (not validateRvbId(rvb_id, digest)) {
+  if (not validateRvbId(rvb_id, data, data_size)) {
     throw std::invalid_argument("invalid input data");
   }
   auto rvb_index = rvb_id / fetch_range_size_;
-  auto node = make_shared<RVBNode>(rvb_index, digest);
+  auto node = make_shared<RVBNode>(rvb_index, data, data_size);
   ConcordAssertEQ(min_rvb_index_, rvb_index);
   removeRVBNode(node);
   if (!root_) {

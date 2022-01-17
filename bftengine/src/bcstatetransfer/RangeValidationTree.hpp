@@ -23,8 +23,8 @@
 
 #include <cryptopp/integer.h>
 
-#include "Serializable.h"
 #include "STDigest.hpp"
+#include "Serializable.h"
 #include "Logger.hpp"
 
 namespace bftEngine::bcst::impl {
@@ -39,7 +39,7 @@ using RVBIndex = uint64_t;
 // are valid and true. This is done by validating digest of certain blocks at frequent interval (RVB) against the tree.
 // RVT would be updated during checkpointing and also in the context of pruning. New nodes would be added to RVT during
 // checkpointing where as existing nodes would be deleted when pruning on old blocks begins.
-//
+// Comment: this data strucutre is easy to be used to validate any type of data, not only block digests.
 //
 // Terms used throughout code -
 // 1. RVT_K = Maximum number of children any node can have
@@ -68,8 +68,8 @@ class RangeValidationTree {
   RangeValidationTree& operator=(RangeValidationTree&) = delete;
 
   // These API deals with range validation block ids
-  void addNode(const RVBId id, const STDigest& digest);
-  void removeNode(const RVBId id, const STDigest& digest);
+  void addNode(const RVBId id, const char* data, size_t data_size);
+  void removeNode(const RVBId id, const char* data, size_t data_size);
   // Return complete tree along with metadata in serialized format
   std::ostringstream getSerializedRvbData() const;
   // Initialize metadata & build tree by deserializing input stream
@@ -98,7 +98,7 @@ class RangeValidationTree {
     static NodeVal_t calcMaxValue(size_t val_size);
     static NodeVal_t calcModulo(size_t val_size);
 
-    NodeVal(const shared_ptr<char[]>&& val, size_t size);
+    NodeVal(const std::shared_ptr<char[]>&& val, size_t size);
     NodeVal(const char* val_ptr, size_t size);
     NodeVal(const NodeVal_t* val);
     NodeVal(const NodeVal_t& val);
@@ -116,6 +116,9 @@ class RangeValidationTree {
     std::string toString() const noexcept;
     std::string getDecoded() const noexcept;
     size_t getSize() const { return val_.MinEncodedSize(); }
+
+    static constexpr size_t kDigestContextOutputSize = BLOCK_DIGEST_SIZE;
+    static constexpr std::array<char, kDigestContextOutputSize> initialValueZeroData{};
 
     NodeVal_t val_;
   };
@@ -154,14 +157,14 @@ class RangeValidationTree {
   };
 
   struct RVBNode {
-    RVBNode(uint64_t rvb_index, const STDigest& digest);
+    RVBNode(uint64_t rvb_index, const char* data, size_t data_size);
     RVBNode(uint8_t level, uint64_t rvb_index);
     RVBNode(uint64_t node_id, char* val, size_t size);
 
     bool isMinChild() { return info_.rvb_index % RVT_K == 1; }
     bool isMaxChild() { return info_.rvb_index % RVT_K == 0; }
     void logInfoVal(const std::string& prefix = "");
-    const shared_ptr<char[]> computeNodeInitialValue(NodeInfo& node_id, const STDigest& digest);
+    const std::shared_ptr<char[]> computeNodeInitialValue(NodeInfo& node_id, const char* data, size_t data_size);
 
     static constexpr uint8_t kDefaultRVBLeafLevel{0};
     NodeInfo info_;
@@ -224,7 +227,7 @@ class RangeValidationTree {
 
  protected:
   bool isValidRvbId(const RVBId& block_id) const noexcept;
-  bool validateRvbId(const RVBId id, const STDigest& digest) const;
+  bool validateRvbId(const RVBId id, const char* data, size_t data_size) const;
   bool validateRVBGroupId(const RVBGroupId rvb_group_id) const;
   bool validateTreeStructure() const noexcept;
   bool validateTreeValues() const noexcept;
