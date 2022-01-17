@@ -117,14 +117,14 @@ Config targetConfig() {
       false,              // pedanticChecks
       false,              // isReadOnly
       1024,               // maxChunkSize
-      12,                 // maxNumberOfChunksInBatch
+      24,                 // maxNumberOfChunksInBatch
       1024,               // maxBlockSize
       256 * 1024 * 1024,  // maxPendingDataFromSourceReplica
       2048,               // maxNumOfReservedPages
       4096,               // sizeOfReservedPage
       600,                // gettingMissingBlocksSummaryWindowSize
       10,                 // minPrePrepareMsgsForPrimaryAwarness
-      12,                 // fetchRangeSize
+      24,                 // fetchRangeSize
       6,                  // RVT_K
       300,                // refreshTimerMs
       2500,               // checkpointSummariesRetransmissionTimeoutMs
