@@ -289,7 +289,7 @@ TEST_P(RVTTestvalidateTreeFixture, validateTree) {
   auto inputs = GetParam();
   uint32_t RVT_K = inputs.first;
   uint32_t fetch_range_size = inputs.second;
-  uint32_t n_nodes = fetch_range_size * randomNum(1024, 1024 * 1024);
+  uint32_t n_nodes = fetch_range_size * randomNum(1024, 1024 * 10);
 
   fetch_range_size = 4;
   n_nodes = 30;
@@ -304,32 +304,21 @@ TEST_P(RVTTestvalidateTreeFixture, validateTree) {
     ASSERT_TRUE(rvt.validate());
   };
 
-#if (0)
-  auto removeNode = [&](uint64_t rvb_id) {
-    // std::cout << "remove:" << KVLOG(rvb_id) << std::endl;
-    STDigest digest(std::to_string(rvb_id).c_str());
-    rvt.removeNode(rvb_id, digest.get(), BLOCK_DIGEST_SIZE);
-    ASSERT_TRUE(rvt.validate());
-  };
-#endif
-
-  for (uint32_t i = 1; i < 1000; ++i) {
-    addNode(i * fetch_range_size);
-    ASSERT_TRUE(rvt.validate());
-  }
+  // auto removeNode = [&](uint64_t rvb_id) {
+  // std::cout << "remove:" << KVLOG(rvb_id) << std::endl;
+  //  STDigest digest(std::to_string(rvb_id).c_str());
+  //  rvt.removeNode(rvb_id, digest);
+  // };
 
   // add, remove nodes randomly.
   for (uint32_t i = fetch_range_size; i <= n_nodes; i = i + fetch_range_size) {
     addNode(rvt.getMaxRvbId() + fetch_range_size);
+    // TODO Enable and fix issue
+    //
+    // auto num = randomNum(1, 2);
+    // ((num % 2) || rvt.empty()) ? addNode(rvt.getMaxRvbId() + fetch_range_size)
+    //                            : removeNode(rvt.getMinRvbId());
     ASSERT_TRUE(rvt.validate());
-
-    /*
-    auto num = randomNum(1, 200);
-    ((num % 2) || rvt.empty()) ? addNode(rvt.getMaxRvbId() + fetch_range_size)
-                               : removeNode(rvt.getMinRvbId() + fetch_range_size);
-                               */
-    // TODO
-    // ASSERT_EQ(rvt.validateTree(), true);
   }
 }
 INSTANTIATE_TEST_CASE_P(validateTree,
@@ -346,10 +335,16 @@ TEST_F(RVTTest, validateRvbGroupIds) {
   init(rvt);
 
   for (auto i = fetch_range_size; i <= fetch_range_size * RVT_K * 2 + fetch_range_size; i = i + fetch_range_size) {
+    // TODO genesis block to have 0 digest?
+    // if (i == fetch_range_size) {
+    //  rvt.addNode(i, STDigest{});
+    // } else {
     STDigest digest(std::to_string(i).c_str());
     rvt.addNode(i, digest.get(), BLOCK_DIGEST_SIZE);
     ASSERT_TRUE(rvt.validate());
   }
+
+  // Both blocks fall under same parent rvb-group-id
   std::vector<RVBGroupId> rvb_group_ids;
   rvb_group_ids = rvt.getRvbGroupIds(5, 5);
   ASSERT_EQ(rvb_group_ids.size(), 1);
@@ -357,6 +352,7 @@ TEST_F(RVTTest, validateRvbGroupIds) {
   auto hash_val_2 = rvt.getDirectParentValueStr(randomNum(15, 20, 5));
   ASSERT_EQ(hash_val_1, hash_val_2);
 
+  // Blocks span across multiple rvb-group-ids
   rvb_group_ids = rvt.getRvbGroupIds(5, 45);
   ASSERT_EQ(rvb_group_ids.size(), 3);
   ASSERT_NE(rvt.getDirectParentValueStr(randomNum(5, 20, 5)), rvt.getDirectParentValueStr(randomNum(25, 40, 5)));

@@ -109,7 +109,6 @@ class RangeValidationTree {
     NodeVal& operator-=(const NodeVal& other);
     bool operator!=(const NodeVal& other);
     bool operator==(const NodeVal& other);
-    bool operator==(NodeVal& other) const { return val_ == other.val_; }
 
     const NodeVal_t& getMaxVal() const { return kNodeValueMax_; }
     const NodeVal_t& getVal() const { return val_; }
@@ -227,7 +226,6 @@ class RangeValidationTree {
 
  protected:
   bool isValidRvbId(const RVBId& block_id) const noexcept;
-  bool validateRvbId(const RVBId id, const char* data, size_t data_size) const;
   bool validateRVBGroupId(const RVBGroupId rvb_group_id) const;
   bool validateTreeStructure() const noexcept;
   bool validateTreeValues() const noexcept;
