@@ -370,14 +370,22 @@ TEST_F(RVTTest, validateRvbGroupIds) {
   }
 }
 
-// TODO - convert to parametrized
-TEST_F(RVTTest, simpleAddRemoveWithRootValidation) {
+class RVTTestFixture
+    : public RVTTest,
+      public testing::WithParamInterface<tuple<uint64_t, uint64_t, tuple<vector<size_t>, vector<size_t>>>> {};
+
+TEST_P(RVTTestFixture, simpleAddRemoveWithRootValidation) {
+  uint64_t test_progress{0};
   uint64_t fetch_range_size = 4;
-  uint64_t RVT_K = 3;
-  RangeValidationTree rvt(logging::getLogger("concord.bft.st.rvt"), RVT_K, fetch_range_size);
+  uint64_t RVT_K = get<0>(GetParam());
+  auto rvt_value_size =  get<1>(GetParam());
+  RangeValidationTree rvt(logging::getLogger("concord.bft.st.rvt"), RVT_K, fetch_range_size, rvt_value_size);
   size_t add_i{1}, rem_i{1};
-  std::vector<size_t> add_nodes_itertion_size{1000, 500, 500, 400};
-  std::vector<size_t> remove_nodes_itertion_size{1000, 300, 600, 500};
+  auto scenario = get<2>(GetParam());
+  auto add_nodes_itertion_size = get<0>(scenario);
+  auto remove_nodes_itertion_size = get<1>(scenario);
+
+  std::cout << "Params:" << KVLOG(RVT_K,rvt_value_size) << endl;
 
   ASSERT_EQ(add_nodes_itertion_size.size(), remove_nodes_itertion_size.size());
   for (size_t i{}; i < add_nodes_itertion_size.size(); ++i) {
@@ -385,15 +393,34 @@ TEST_F(RVTTest, simpleAddRemoveWithRootValidation) {
       // std::cout << "add:" << KVLOG(add_i * fetch_range_size) << std::endl;
       rvt.addNode(add_i * fetch_range_size, {std::to_string(add_i * fetch_range_size).c_str()});
       ASSERT_TRUE(rvt.validate());
+      ++test_progress;
+      if (test_progress % 100000 == 0) {
+        std::cout << "Iteration # " << test_progress << std::endl;
+      }
     }
     for (; rem_i < remove_nodes_itertion_size[i]; ++rem_i) {
       // std::cout << "remove:" << KVLOG(rem_i * fetch_range_size) << std::endl;
       rvt.removeNode(rem_i * fetch_range_size, {std::to_string(rem_i * fetch_range_size).c_str()});
       ASSERT_TRUE(rvt.validate());
+      ++test_progress;
+      if (test_progress % 100000 == 0) {
+        std::cout << "Iteration # " << test_progress << std::endl;
+      }
     }
   }
   ASSERT_TRUE(rvt.empty());
 }
+
+std::vector<uint64_t> RVT_Ks = {4, 1024};
+std::vector<uint64_t> value_sizes = {1, 32};
+vector<std::tuple<std::vector<size_t>, std::vector<size_t>>> scenarios = {
+    {{1000, 500, 500, 400}, {1000, 300, 600, 500}}, {{1024*5}, {1024*5}}};
+
+INSTANTIATE_TEST_CASE_P(RVTTest,
+                        RVTTestFixture,
+                        ::testing::Combine(::testing::ValuesIn(RVT_Ks),
+                                           ::testing::ValuesIn(value_sizes),
+                                           ::testing::ValuesIn(scenarios)), );
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
