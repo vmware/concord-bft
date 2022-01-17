@@ -131,7 +131,7 @@ void RangeValidationTree::SerializedRVTNode::staticAssert() noexcept {
   static_assert(sizeof(SerializedRVTNode::parent_id) == sizeof(RVTNode::parent_id));
 }
 
-void RVBNode::logInfoVal(std::string prefix) {
+void RVBNode::logInfoVal(const std::string& prefix) {
   // uncomment to debug
   // ostringstream oss;
   // oss << prefix << info_.toString() << " " << current_value_.toString();

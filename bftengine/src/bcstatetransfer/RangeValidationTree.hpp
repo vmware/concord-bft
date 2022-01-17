@@ -160,7 +160,7 @@ class RangeValidationTree {
 
     bool isMinChild() { return info_.rvb_index % RVT_K == 1; }
     bool isMaxChild() { return info_.rvb_index % RVT_K == 0; }
-    void logInfoVal(std::string prefix = "");
+    void logInfoVal(const std::string& prefix = "");
     const shared_ptr<char[]> computeNodeInitialValue(NodeInfo& node_id, const STDigest& digest);
 
     static constexpr uint8_t kDefaultRVBLeafLevel{0};
