@@ -54,7 +54,8 @@ void SeqNumInfo::resetCommitSignatures(CommitPath cPath) {
       fastPathThresholdCollector->resetAndFree();
       break;
     default:
-      ConcordAssert(false && "Unhandled CommitPath!");
+      LOG_ERROR(CNSUS, "Invalid CommitPath value: " << (int)cPath);
+      ConcordAssert(false);
   }
 }
 
@@ -339,7 +340,8 @@ bool SeqNumInfo::addFastPathSelfPartialCommitMsgAndDigest(PartialCommitProofMsg*
       result = fastPathThresholdCollector->addMsgWithPartialSignature(m, myId);
       break;
     default:
-      ConcordAssert(false && "Unhandled CommitPath!");
+      LOG_ERROR(CNSUS, "Invalid CommitPath value: " << (int)m->commitPath());
+      ConcordAssert(false);
   }
 
   return result;
@@ -376,7 +378,8 @@ bool SeqNumInfo::addFastPathPartialCommitMsg(PartialCommitProofMsg* m) {
       result = fastPathThresholdCollector->addMsgWithPartialSignature(m, repId);
       break;
     default:
-      ConcordAssert(false && "Unhandled CommitPath!");
+      LOG_ERROR(CNSUS, "Invalid CommitPath value: " << (int)cPath);
+      ConcordAssert(false);
   }
 
   return result;
@@ -413,7 +416,8 @@ bool SeqNumInfo::addFastPathFullCommitMsg(FullCommitProofMsg* m, bool directAdd)
                          : fastPathThresholdCollector->addMsgWithCombinedSignature(m);
       break;
     default:
-      ConcordAssert(false && "Unhandled CommitPath!");
+      LOG_ERROR(CNSUS, "Invalid CommitPath value: " << (int)cPath);
+      ConcordAssert(false);
   }
 
   return result;
@@ -459,7 +463,8 @@ void SeqNumInfo::onCompletionOfCommitSignaturesProcessing(SeqNum seqNumber,
       fastPathThresholdCollector->onCompletionOfSignaturesProcessing(seqNumber, viewNumber, replicasWithBadSigs);
       break;
     default:
-      ConcordAssert(false && "Unhandled CommitPath!");
+      LOG_ERROR(CNSUS, "Invalid CommitPath value: " << (int)cPath);
+      ConcordAssert(false);
   }
 }
 
@@ -483,7 +488,8 @@ void SeqNumInfo::onCompletionOfCommitSignaturesProcessing(SeqNum seqNumber,
           seqNumber, viewNumber, combinedSig, combinedSigLen, span_context);
       break;
     default:
-      ConcordAssert(false && "Unhandled CommitPath!");
+      LOG_ERROR(CNSUS, "Invalid CommitPath value: " << (int)cPath);
+      ConcordAssert(false);
   }
 }
 
@@ -502,7 +508,8 @@ void SeqNumInfo::onCompletionOfCombinedCommitSigVerification(SeqNum seqNumber,
       fastPathThresholdCollector->onCompletionOfCombinedSigVerification(seqNumber, viewNumber, isValid);
       break;
     default:
-      ConcordAssert(false && "Unhandled CommitPath!");
+      LOG_ERROR(CNSUS, "Invalid CommitPath value: " << (int)cPath);
+      ConcordAssert(false);
   }
 }
 

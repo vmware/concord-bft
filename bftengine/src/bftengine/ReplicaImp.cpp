@@ -2041,7 +2041,7 @@ void ReplicaImp::onCommitCombinedSigFailed(SeqNum seqNumber,
 
   SeqNumInfo &seqNumInfo = mainLog->get(seqNumber);
 
-  seqNumInfo.onCompletionOfCommitSignaturesProcessing(seqNumber, view, CommitPath::SLOW, replicasWithBadSigs);
+  seqNumInfo.onCompletionOfCommitSignaturesProcessing(seqNumber, view, cPath, replicasWithBadSigs);
 
   // TODO(GG): add logic that handles bad replicas ...
 }
