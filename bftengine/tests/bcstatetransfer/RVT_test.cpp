@@ -161,6 +161,7 @@ TEST_F(RVTTest, constructTreeWithSingleFirstNode) {
   for (auto i = fetch_range_size; i <= fetch_range_size; i = i + fetch_range_size) {
     STDigest digest(std::to_string(i).c_str());
     rvt.addNode(i, digest);
+    ASSERT_TRUE(rvt.validate());
   }
   ASSERT_EQ(rvt.totalNodes(), 1);
   ASSERT_EQ(rvt.empty(), false);
@@ -173,6 +174,7 @@ TEST_F(RVTTest, constructTreeWithSingleMiddleNode) {
   for (auto i = fetch_range_size * 2; i <= fetch_range_size * 2; i = i + fetch_range_size) {
     STDigest digest(std::to_string(i).c_str());
     rvt.addNode(i, digest);
+    ASSERT_TRUE(rvt.validate());
   }
   ASSERT_EQ(rvt.totalNodes(), 1);
   ASSERT_EQ(rvt.totalLevels(), 1);
@@ -184,6 +186,7 @@ TEST_F(RVTTest, constructTreeWithSingleLastNode) {
   for (auto i = fetch_range_size * RVT_K; i <= fetch_range_size * RVT_K; i = i + fetch_range_size) {
     STDigest digest(std::to_string(i).c_str());
     rvt.addNode(i, digest);
+    ASSERT_TRUE(rvt.validate());
   }
   ConcordAssertEQ(rvt.totalNodes(), 1);
   ConcordAssertEQ(rvt.totalLevels(), 1);
@@ -195,6 +198,7 @@ TEST_F(RVTTest, constructTreeWithTwoNodes) {
   for (auto i = fetch_range_size; i <= fetch_range_size * RVT_K + fetch_range_size; i = i + fetch_range_size) {
     STDigest digest(std::to_string(i).c_str());
     rvt.addNode(i, digest);
+    ASSERT_TRUE(rvt.validate());
   }
   rvt.printToLog(false);
   ConcordAssertEQ(rvt.totalLevels(), 2);
@@ -207,10 +211,12 @@ TEST_F(RVTTest, TreeNodeRemovalBasic) {
   for (auto i = fetch_range_size; i <= fetch_range_size * RVT_K + fetch_range_size; i = i + fetch_range_size) {
     STDigest digest(std::to_string(i).c_str());
     rvt.addNode(i, digest);
+    ASSERT_TRUE(rvt.validate());
   }
   for (auto i = fetch_range_size; i <= fetch_range_size * RVT_K + fetch_range_size; i = i + fetch_range_size) {
     STDigest digest(std::to_string(i).c_str());
     rvt.removeNode(i, digest);
+    ASSERT_TRUE(rvt.validate());
   }
   ASSERT_EQ(rvt.totalNodes(), 0);
   ASSERT_EQ(rvt.empty(), true);
@@ -229,6 +235,7 @@ TEST_P(RVTTestserializeDeserializeFixture, serializeDeserialize) {
   for (auto i = fetch_range_size; i <= fetch_range_size * random_num_of_nodes_added; i = i + fetch_range_size) {
     STDigest digest(std::to_string(i).c_str());
     rvt.addNode(i, digest);
+    ASSERT_TRUE(rvt.validate());
   }
   // TODO - move this into ctor on product in RVTNode
   auto root_hash = rvt.getRootCurrentValueStr();
@@ -257,10 +264,11 @@ TEST_P(RVTTestRandomFRSAndRVT_KFixture, validateRandomFRSAndRVT_K) {
   uint32_t RVT_K = inputs.first;
   uint32_t fetch_range_size = inputs.second;
   RangeValidationTree rvt(logging::getLogger("concord.bft.st.rvt"), RVT_K, fetch_range_size);
-  uint32_t n_nodes = fetch_range_size * randomNum(1024, 1024 * 1024);
+  uint32_t n_nodes = fetch_range_size * randomNum(1024, 1024 * 10);
   for (uint32_t i = fetch_range_size; i <= n_nodes; i = i + fetch_range_size) {
     STDigest digest(std::to_string(i).c_str());
     rvt.addNode(i, digest);
+    ASSERT_TRUE(rvt.validate());
   }
   // TODO Find formula to validate total nodes
   auto min_rvb = 1;
@@ -292,6 +300,7 @@ TEST_P(RVTTestvalidateTreeFixture, validateTree) {
     // std::cout << "add:" << KVLOG(rvb_id) << std::endl;
     STDigest digest(std::to_string(rvb_id).c_str());
     rvt.addNode(rvb_id, digest);
+    ASSERT_TRUE(rvt.validate());
   };
 
 #if (0)
@@ -299,16 +308,19 @@ TEST_P(RVTTestvalidateTreeFixture, validateTree) {
     // std::cout << "remove:" << KVLOG(rvb_id) << std::endl;
     STDigest digest(std::to_string(rvb_id).c_str());
     rvt.removeNode(rvb_id, digest);
+    ASSERT_TRUE(rvt.validate());
   };
 #endif
 
   for (uint32_t i = 1; i < 1000; ++i) {
     addNode(i * fetch_range_size);
+    ASSERT_TRUE(rvt.validate());
   }
 
   // add, remove nodes randomly.
   for (uint32_t i = fetch_range_size; i <= n_nodes; i = i + fetch_range_size) {
     addNode(rvt.getMaxRvbId() + fetch_range_size);
+    ASSERT_TRUE(rvt.validate());
 
     /*
     auto num = randomNum(1, 200);
@@ -335,6 +347,7 @@ TEST_F(RVTTest, validateRvbGroupIds) {
   for (auto i = fetch_range_size; i <= fetch_range_size * RVT_K * 2 + fetch_range_size; i = i + fetch_range_size) {
     STDigest digest(std::to_string(i).c_str());
     rvt.addNode(i, digest);
+    ASSERT_TRUE(rvt.validate());
   }
   std::vector<RVBGroupId> rvb_group_ids;
   rvb_group_ids = rvt.getRvbGroupIds(5, 5);

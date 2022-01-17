@@ -31,13 +31,15 @@ using RVTNodePtr = RangeValidationTree::RVTNodePtr;
 /////////////////////////////////////////// NodeVal Operations ////////////////////////////////////////////////
 
 NodeVal_t NodeVal::calcMaxValue(size_t val_size) {
-  val_size = (1ULL << (val_size * 8ULL)) - 1ULL;
-  return NodeVal_t(val_size);
+  NodeVal_t v = NodeVal_t(1);
+  v = (v << (val_size * 8ULL)) - NodeVal_t(1);
+  return v;
 }
 
 NodeVal_t NodeVal::calcModulo(size_t val_size) {
-  val_size = 1ULL << (val_size * 8ULL);
-  return NodeVal_t(val_size);
+  NodeVal_t v = NodeVal_t(1);
+  v = v << (val_size * 8ULL);
+  return v;
 }
 
 NodeVal_t NodeVal::kNodeValueMax_ = 0;
@@ -76,7 +78,8 @@ bool NodeVal::operator==(const NodeVal& other) { return (val_ == other.val_); }
 // Used only to print
 std::string NodeVal::toString() const noexcept {
   std::ostringstream oss;
-  oss << std::dec << val_;
+  // oss << std::dec << val_;
+  oss << std::hex << val_;
   return oss.str();
 }
 
@@ -238,6 +241,9 @@ RangeValidationTree::RangeValidationTree(const logging::Logger& logger,
       value_size_(value_size) {
   NodeVal::kNodeValueMax_ = NodeVal::calcMaxValue(value_size_);
   NodeVal::kNodeValueModulo_ = NodeVal::calcModulo(value_size_);
+  ConcordAssertEQ(NodeVal::kNodeValueMax_ + NodeVal_t(1), NodeVal::kNodeValueModulo_);
+  ConcordAssert(NodeVal::kNodeValueMax_ != NodeVal_t(static_cast<signed long>(0)));
+  ConcordAssert(NodeVal::kNodeValueModulo_ != NodeVal_t(static_cast<signed long>(0)));
   ConcordAssertLE(RVT_K, static_cast<uint64_t>(1ULL << (sizeof(RVTNode::n_child) * 8ULL)));
   RVTMetadata::staticAssert();
   SerializedRVTNode::staticAssert();
