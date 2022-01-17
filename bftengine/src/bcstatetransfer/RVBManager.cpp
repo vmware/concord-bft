@@ -70,6 +70,15 @@ void RVBManager::init(bool fetching) {
     } else {
       rvb_data_source_ = RvbDataInitialSource::FROM_STORAGE_CP;
     }
+
+    if (!in_mem_rvt_->validate()) {
+      // in some cases, if not fetching, we might try to look for other checkpoint but this is fatal enough to
+      // reconstruct from storage
+      LOG_ERROR(logger_, "Failed to validate loaded RVB data from stored checkpoint" << KVLOG(desc.checkpointNum));
+      loaded_from_data_store = false;
+      in_mem_rvt_->clear();
+      rvb_data_source_ = RvbDataInitialSource::NIL;
+    }
   }
 
   if (!loaded_from_data_store && (desc.maxBlockId > 0)) {
@@ -77,6 +86,9 @@ void RVBManager::init(bool fetching) {
     LOG_WARN(logger_, "Reconstructing RVB data" << KVLOG(loaded_from_data_store, desc.maxBlockId));
     addRvbDataOnBlockRange(
         as_->getGenesisBlockNum(), desc.maxBlockId, std::optional<STDigest>(desc.digestOfMaxBlockId));
+    if (!in_mem_rvt_->validate()) {
+      LOG_FATAL(logger_, "Failed to validate reconstructed RVB data from storage" << KVLOG(desc.checkpointNum));
+    }
     rvb_data_source_ = RvbDataInitialSource::FROM_STORAGE_RECONSTRUCTION;
   }
 
@@ -88,13 +100,66 @@ void RVBManager::init(bool fetching) {
       in_mem_rvt_->printToLog(false);
     }
 #else
-    // TODO - check that this compiles
     auto log_level = logger_.getLogLevel();
     if ((log_level == logging::LogLevel::debug) || (log_level == logging::LogLevel::trace)) {
       in_mem_rvt_->printToLog(false);
     }
 #endif
   }
+}
+
+//
+//    Remove (Prune) blocks from RVT, and from pruned_blocks_digests_ data structure
+//
+void RVBManager::pruneRvbDataDuringCheckpoint(const CheckpointDesc& new_checkpoint_desc) {
+  std::lock_guard<std::mutex> guard(pruned_blocks_digests_mutex_);
+  size_t i{};
+
+  if (pruned_blocks_digests_.empty()) {
+    return;
+  }
+
+  // ConcordAssertEQ(in_mem_rvt_->getMinRvbId(), pruned_blocks_digests_[0].first);
+  // First, prune and persist pruned_blocks_digests_. We do this while comparing to
+  // last_checkpoint_desc_, while we know that all digests up to that point are removed from RVT and RVT is persisted
+  RVBId min_rvb_id_in_rvt = in_mem_rvt_->getMinRvbId();
+  if (last_checkpoint_desc_.checkpointNum > 0) {
+    for (i = 0; i < pruned_blocks_digests_.size(); ++i) {
+      if (pruned_blocks_digests_[i].first >= min_rvb_id_in_rvt) {
+        break;
+      }
+    }
+    if (i > 0) {
+      LOG_DEBUG(logger_,
+                "Remove " << i << " digests from pruned_blocks_digests_, from/to block IDs:"
+                          << KVLOG(pruned_blocks_digests_[0].first, pruned_blocks_digests_[i - 1].first));
+      // The (- 1) at the end: keep 1 block as reference for the next time
+      pruned_blocks_digests_.erase(pruned_blocks_digests_.begin(), pruned_blocks_digests_.begin() + i - 1);
+      ds_->setPrunedBlocksDigests(pruned_blocks_digests_);
+    }
+  }
+
+  // Second, prune in_mem_rvt_ up to new_checkpoint_desc.maxBlockId.
+  // Theoratically, there might be block digests which belong to the next checkpoint
+  //
+  // Comment: assume RVT span on the range [160 ... 1500] min/max RVB IDs respectively. FetchRangeSize=16 and
+  // new_checkpoint_desc.maxBlockId is 1500.
+  // We might have in the pruning vector the next digests 144, 160 .... 1488, 1504 ...
+  // 144 and 1504 should not be pruned. 144 triggers skip (continue). 1504 triggers break
+  for (i = 0; i < pruned_blocks_digests_.size(); ++i) {
+    RVBId rvb_id = pruned_blocks_digests_[i].first;
+    if ((rvb_id <= new_checkpoint_desc.maxBlockId) && (rvb_id >= min_rvb_id_in_rvt))
+      in_mem_rvt_->removeNode(pruned_blocks_digests_[i].first, pruned_blocks_digests_[i].second);
+    else if (rvb_id > new_checkpoint_desc.maxBlockId)
+      break;
+  }
+  if (i > 0) {
+    LOG_INFO(logger_,
+             "Remove " << (i - 1) << " digests from in_mem_rvt_, from/to block IDs:"
+                       << KVLOG(pruned_blocks_digests_[0].first, pruned_blocks_digests_[i - 1].first));
+  }
+  // We relay on caller to persist new_checkpoint_desc, and leave pruned_blocks_digests_ persisted before erase was
+  // done (some redundent digests)
 }
 
 void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_desc) {
@@ -130,56 +195,7 @@ void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_de
   addRvbDataOnBlockRange(
       add_range_min_block_id, new_checkpoint_desc.maxBlockId, new_checkpoint_desc.digestOfMaxBlockId);
 
-  //
-  //    Remove (Prune) blocks from RVT, and from pruned_blocks_digests_ data structure
-  //
-  if (!pruned_blocks_digests_.empty()) {  // start of critical section A
-    std::lock_guard<std::mutex> guard(pruned_blocks_digests_mutex_);
-    size_t i{};
-
-    // ConcordAssertEQ(in_mem_rvt_->getMinRvbId(), pruned_blocks_digests_[0].first);
-    // First, prune and persist pruned_blocks_digests_. We do this while comparing to
-    // last_checkpoint_desc_, while we know that all digests up to that point are removed from RVT and RVT is persisted
-    RVBId min_rvb_id_in_rvt = in_mem_rvt_->getMinRvbId();
-    if (last_checkpoint_desc_.checkpointNum > 0) {
-      for (i = 0; i < pruned_blocks_digests_.size(); ++i) {
-        if (pruned_blocks_digests_[i].first >= min_rvb_id_in_rvt) {
-          break;
-        }
-      }
-      if (i > 0) {
-        LOG_DEBUG(logger_,
-                  "Remove " << i << " digests from pruned_blocks_digests_, from/to block IDs:"
-                            << KVLOG(pruned_blocks_digests_[0].first, pruned_blocks_digests_[i - 1].first));
-        // The (- 1) at the end: keep 1 block as reference for the next time
-        pruned_blocks_digests_.erase(pruned_blocks_digests_.begin(), pruned_blocks_digests_.begin() + i - 1);
-        ds_->setPrunedBlocksDigests(pruned_blocks_digests_);
-      }
-    }
-
-    // Second, prune in_mem_rvt_ up to new_checkpoint_desc.maxBlockId.
-    // Theoratically, there might be block digests which belong to the next checkpoint
-    //
-    // Comment: assume RVT span on the range [160 ... 1500] min/max RVB IDs respectively. FetchRangeSize=16 and
-    // new_checkpoint_desc.maxBlockId is 1500.
-    // We might have in the pruning vector the next digests 144, 160 .... 1488, 1504 ...
-    // 144 and 1504 should not be pruned. 144 triggers skip (continue). 1504 triggers break
-    for (i = 0; i < pruned_blocks_digests_.size(); ++i) {
-      RVBId rvb_id = pruned_blocks_digests_[i].first;
-      if ((rvb_id <= new_checkpoint_desc.maxBlockId) && (rvb_id >= min_rvb_id_in_rvt))
-        in_mem_rvt_->removeNode(pruned_blocks_digests_[i].first, pruned_blocks_digests_[i].second);
-      else if (rvb_id > new_checkpoint_desc.maxBlockId)
-        break;
-    }
-    if (i > 0) {
-      LOG_INFO(logger_,
-               "Remove " << (i - 1) << " digests from in_mem_rvt_, from/to block IDs:"
-                         << KVLOG(pruned_blocks_digests_[0].first, pruned_blocks_digests_[i - 1].first));
-    }
-    // We relay on caller to persist new_checkpoint_desc, and leave pruned_blocks_digests_ persisted before erase was
-    // done (some redundent digests)
-
-  }  // end of critical section A
+  pruneRvbDataDuringCheckpoint(new_checkpoint_desc);
 
   if (!in_mem_rvt_->empty()) {
     auto rvb_data = in_mem_rvt_->getSerializedRvbData();
@@ -200,6 +216,13 @@ bool RVBManager::setRvbData(char* data, size_t data_size) {
     LOG_ERROR(logger_, "Failed setting RVB data! (setSerializedRvbData failed!)");
     return false;
   }
+
+  if (!in_mem_rvt_->validate()) {
+    LOG_ERROR(logger_, "Failed to validate RVB serialized data");
+    in_mem_rvt_->clear();
+    return false;
+  }
+
   rvb_data_source_ = RvbDataInitialSource::FROM_NETWORK;
   return true;
 }
@@ -373,7 +396,7 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
   for (const auto& p : digests) {
     digests_rvt.addNode(p.first, p.second);
   }
-  const std::string digests_rvt_root_val = digests_rvt.getRootValStr();
+  const std::string digests_rvt_root_val = digests_rvt.getRootCurrentValueStr();
   const std::string rvt_parent_val = in_mem_rvt_->getDirectParentValueStr(digests.begin()->first);
   if (digests_rvt_root_val != rvt_parent_val) {
     LOG_ERROR(logger_,
@@ -598,9 +621,12 @@ void RVBManager::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBloc
 
 void RVBManager::reset() {
   LOG_TRACE(logger_, "");
+  in_mem_rvt_->clear();
   stored_rvb_digests_.clear();
   stored_rvb_digests_group_ids_.clear();
   last_checkpoint_desc_.makeZero();
+  rvb_data_source_ = RvbDataInitialSource::NIL;
+  // we do not clear the prunned digests
 }
 
 }  // namespace bftEngine::bcst::impl

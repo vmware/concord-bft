@@ -3109,6 +3109,8 @@ void BCStateTran::checkConsistency(bool checkAllBlocks, bool duringInit) {
   } else {
     ConcordAssertEQ(psd_->numOfAllPendingResPage(), 0);
   }
+
+  ConcordAssert(rvbm_->validate());
 }
 
 void BCStateTran::checkConfig() {

@@ -81,8 +81,10 @@ class RVBManager {
   // digests
   void reportLastAgreedPrunableBlockId(BlockId lastAgreedPrunableBlockId);
 
-  std::string getDigestOfRvbData() const { return in_mem_rvt_->getRootValStr(); }
+  std::string getDigestOfRvbData() const { return in_mem_rvt_->getRootCurrentValueStr(); }
   void reset();
+
+  bool validate() const { return in_mem_rvt_->validate(); };
 
   // For the range [from_block_id, to_block_id], returns a block id BID, such that:
   // 1) Find all RVB group IDS for that range [RVBG_1,RVBG_2 ... RVBG_n]
@@ -123,7 +125,7 @@ class RVBManager {
   BlockId prevRvbBlockId(BlockId block_id) const {
     return config_.fetchRangeSize * (block_id / config_.fetchRangeSize);
   }
-
+  void pruneRvbDataDuringCheckpoint(const CheckpointDesc& new_checkpoint_desc);
   // Returns 0 if no such ID
   RVBGroupId getNextRequiredRvbGroupid(RVBId from_rvb_id, RVBId to_rvb_id) const;
 #pragma pack(push, 1)

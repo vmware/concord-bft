@@ -117,15 +117,15 @@ Config targetConfig() {
       false,              // pedanticChecks
       false,              // isReadOnly
       1024,               // maxChunkSize
-      128,                // maxNumberOfChunksInBatch
+      12,                 // maxNumberOfChunksInBatch
       1024,               // maxBlockSize
       256 * 1024 * 1024,  // maxPendingDataFromSourceReplica
       2048,               // maxNumOfReservedPages
       4096,               // sizeOfReservedPage
       600,                // gettingMissingBlocksSummaryWindowSize
       10,                 // minPrePrepareMsgsForPrimaryAwarness
-      16,                 // fetchRangeSize
-      12,                 // RVT_K
+      12,                 // fetchRangeSize
+      6,                  // RVT_K
       300,                // refreshTimerMs
       2500,               // checkpointSummariesRetransmissionTimeoutMs
       60000,              // maxAcceptableMsgDelayMs
@@ -717,7 +717,7 @@ void BcStTestDelegator::assertSourceSelectorMetricKeyVal(const std::string& key,
 }
 
 void BcStTestDelegator::validateEqualRVTs(const RangeValidationTree& rvtA, const RangeValidationTree& rvtB) const {
-  ASSERT_EQ(rvtA.getRootValStr(), rvtB.getRootValStr());
+  ASSERT_EQ(rvtA.getRootCurrentValueStr(), rvtB.getRootCurrentValueStr());
   ASSERT_EQ(rvtA.totalNodes(), rvtB.totalNodes());
   ASSERT_EQ(rvtA.totalLevels(), rvtB.totalLevels());
   ASSERT_EQ(rvtA.getMinRvbId(), rvtB.getMinRvbId());
@@ -1732,10 +1732,10 @@ TEST_F(BcStTest, bkpCheckCheckpointsPersistency) {
                                                      testState_.maxRepliedCheckpointNum,
                                                      stDelegator_->getRvbManager()));
   auto rvt = stDelegator_->getRvt();
-  auto h1 = rvt->getRootValStr();
+  auto h1 = rvt->getRootCurrentValueStr();
   ASSERT_NFF(dstRestart(false, FetchingState::NotFetching));
   rvt = stDelegator_->getRvt();
-  auto h2 = rvt->getRootValStr();
+  auto h2 = rvt->getRootCurrentValueStr();
   ASSERT_EQ(h1, h2);
   testConfig_.productDbDeleteOnEnd = true;
 }
@@ -1778,7 +1778,7 @@ TEST_F(BcStTest, ValidateRvbDataInitialSource) {
   // Node is up with an empty storage: Check that trrr is empty and RVB data source is NIL
   ASSERT_EQ(rvbm->getRvbDataSource(), RVBManager::RvbDataInitialSource::NIL);
   ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, testState_.maxRequiredBlockId));
-  ASSERT_TRUE(rvt->getRootValStr().empty());
+  ASSERT_TRUE(rvt->getRootCurrentValueStr().empty());
 
   // Create some checkpoints. Since enableStoreRvbDataDuringCheckpointing=false, no RVB data is stored in dataStore
   // This will trigger the next stage to reconstruct from storage
@@ -1792,7 +1792,7 @@ TEST_F(BcStTest, ValidateRvbDataInitialSource) {
   ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, testState_.maxRequiredBlockId));
   rvt = stDelegator_->getRvt();
   rvbm = stDelegator_->getRvbManager();
-  root_hash = rvt->getRootValStr();
+  root_hash = rvt->getRootCurrentValueStr();
   ASSERT_EQ(rvbm->getRvbDataSource(), RVBManager::RvbDataInitialSource::FROM_STORAGE_RECONSTRUCTION);
   ASSERT_TRUE(!root_hash.empty());
 
@@ -1809,7 +1809,7 @@ TEST_F(BcStTest, ValidateRvbDataInitialSource) {
   ASSERT_NFF(dstRestart(false, FetchingState::NotFetching));
   rvt = stDelegator_->getRvt();
   rvbm = stDelegator_->getRvbManager();
-  root_hash = rvt->getRootValStr();
+  root_hash = rvt->getRootCurrentValueStr();
   ASSERT_EQ(rvbm->getRvbDataSource(), RVBManager::RvbDataInitialSource::FROM_STORAGE_CP);
   ASSERT_TRUE(!root_hash.empty());
 
@@ -1874,7 +1874,7 @@ TEST_P(BcStTestParamFixture3, bkpValidateCheckpointingWithConsensusCommitsAndPru
     std::istringstream rvb_data(std::string(reinterpret_cast<const char*>(desc.rvbData.data()), desc.rvbData.size()));
     ASSERT_TRUE(helper_rvt.setSerializedRvbData(rvb_data));
     ASSERT_NFF(stDelegator_->validateEqualRVTs(helper_rvt, *rvt));
-    ASSERT_TRUE(!helper_rvt.getRootValStr().empty());
+    ASSERT_TRUE(!helper_rvt.getRootCurrentValueStr().empty());
 
     // leave for debug
     // helper_rvt.printToLog(false);
