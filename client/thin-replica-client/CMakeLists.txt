@@ -26,6 +26,7 @@ target_link_libraries(thin_replica_client_lib
   opentracing
   util
   thin-replica-proto
+  state-snapshot-proto
   concordclient-event-api
 )
 

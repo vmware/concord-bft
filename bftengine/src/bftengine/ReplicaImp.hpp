@@ -153,7 +153,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   // can happen only in main thread since its being called when FinishPrePrepareExecutionInternalMsg fetched m the
   // internal msgs queue.
   std::deque<MessageBase*> deferredMessages_;
-  uint16_t maxQueueSize = 50;
+  uint16_t maxQueueSize_;
   bool shouldTryToGoToNextView_ = false;
   bool shouldGoToNextView_ = false;
   bool isSendCheckpointIfNeeded_ = false;
@@ -600,7 +600,13 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
     virtual void release() override { delete this; }
 
-    virtual void execute() override { parent_.executeRequests(ppMsg_, requestSet_, time_); }
+    virtual void execute() override {
+      MDC_PUT(MDC_REPLICA_ID_KEY, std::to_string(parent_.config_.replicaId));
+      MDC_PUT(MDC_THREAD_KEY, "post-execution-thread");
+      SCOPED_MDC_SEQ_NUM(std::to_string(ppMsg_->seqNumber()));
+      LOG_INFO(CNSUS, "Starting post-execution for seqNumber:" << ppMsg_->seqNumber());
+      parent_.executeRequests(ppMsg_, requestSet_, time_);
+    }
   };
 
   // 5 years

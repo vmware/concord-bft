@@ -301,7 +301,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       requestsHandler_(requestsHandler),
       myReplica_(myReplica),
       myReplicaId_(myReplica.getReplicaConfig().replicaId),
-      maxPreExecResultSize_(myReplica.getReplicaConfig().maxExternalMessageSize),
+      maxPreExecResultSize_(myReplica.getReplicaConfig().maxExternalMessageSize - sizeof(uint64_t)),
       numOfReplicas_(myReplica.getReplicaConfig().numReplicas + myReplica.getReplicaConfig().numRoReplicas),
       numOfInternalClients_(myReplica.getReplicaConfig().numOfClientProxies),
       clientBatchingEnabled_(myReplica.getReplicaConfig().clientBatchingEnabled),
@@ -1166,9 +1166,8 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffset
       // controlled by the replica while all PreProcessReply messages get released here.
       const auto preProcessResult = static_cast<uint32_t>(reqProcessingStatePtr->getAgreedPreProcessResult());
       if (ReplicaConfig::instance().preExecutionResultAuthEnabled) {
-        auto sigsList = reqProcessingStatePtr->getPreProcessResultSignatures();
-        sigsList.resize(numOfRequiredReplies());
-        auto sigsBuf = PreProcessResultSignature::serializeResultSignatureList(sigsList);
+        const auto &sigsSet = reqProcessingStatePtr->getPreProcessResultSignatures();
+        auto sigsBuf = PreProcessResultSignature::serializeResultSignatures(sigsSet, numOfRequiredReplies());
         preProcessMsg = make_unique<PreProcessResultMsg>(clientId,
                                                          preProcessResult,
                                                          reqSeqNum,

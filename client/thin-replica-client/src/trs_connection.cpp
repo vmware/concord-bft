@@ -356,4 +356,27 @@ TrsConnection::Result TrsConnection::readHash(Hash* hash) {
   return Result::kFailure;
 }
 
+TrsConnection::Result TrsConnection::openStateSnapshotStream(
+    const vmware::concord::replicastatesnapshot::StreamSnapshotRequest& request) {
+  // TODO: Add implementation
+  ConcordAssert("openStateSnapshotStream should not be called. It is unimplemented." && false);
+  return Result::kFailure;
+}
+
+void TrsConnection::cancelStateSnapshotStream() {
+  // TODO: Add implementation
+  ConcordAssert("cancelStateSnapshotStream should not be called. It is unimplemented." && false);
+  return;
+}
+bool TrsConnection::hasStateSnapshotStream() {
+  // TODO: Add implementation
+  ConcordAssert("hasStateSnapshotStream should not be called. It is unimplemented." && false);
+  return false;
+}
+TrsConnection::Result TrsConnection::readStateSnapshot(vmware::concord::replicastatesnapshot::KeyValuePair* key_value) {
+  // TODO: Add implementation
+  ConcordAssert("readStateSnapshot should not be called. It is unimplemented." && false);
+  return Result::kFailure;
+}
+
 }  // namespace client::thin_replica_client

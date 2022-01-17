@@ -122,6 +122,17 @@ struct SubscribeRequest {
   std::variant<EventGroupRequest, LegacyEventRequest> request;
 };
 
+struct GetRecentSnapshotRequest {};
+
+struct StreamSnapshotRequest {
+  uint64_t snapshot_id;
+};
+
+struct ReadAsOfRequest {
+  uint64_t snapshot_id;
+  std::vector<std::string> keys;
+};
+
 // ConcordClient combines two different client functionalities into one interface.
 // On one side, the bft client to send/recieve request/response and on the other, the subscription API to
 // observe events.
@@ -146,6 +157,16 @@ class ConcordClient {
   // Note, if the caller doesn't unsubscribe and no runtime error occurs then resources
   // will be occupied forever.
   void unsubscribe();
+
+  // Get the ID of a recent and available state snapshot
+  void getRecentSnapshot(const GetRecentSnapshotRequest& request);
+
+  // Stream a specific state snapshot in a resumable fashion as a finite stream of key-values.
+  // Key-values are streamed with lexicographic order on keys.
+  void streamSnapshot(const StreamSnapshotRequest& request);
+
+  // Read the values of the given keys as of a specific state snapshot.
+  void readAsOf(const ReadAsOfRequest& request);
 
  private:
   config_pool::ConcordClientPoolConfig createClientPoolStruct(const ConcordClientConfig& config);

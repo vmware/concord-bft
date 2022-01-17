@@ -1,0 +1,59 @@
+// Concord
+//
+// Copyright 2022 VMware, all rights reserved
+//
+// Concord's StateSnapshotService
+
+// TODO: Rename the file to state_snapshot.proto
+syntax = "proto3";
+package vmware.concord.replicastatesnapshot;
+
+option java_package = "com.vmware.concord.replicastatesnapshot";
+
+// The Concord StateSnapshotService can be used by the concord client to 
+// retrieve state snapshot from a concord cluster
+// See `client/proto/state_snapshot` for definition(s) of state snapshot.
+
+service StateSnapshotService {
+  // Stream a specific state snapshot in a resumable fashion as a finite stream of key-values.
+  // Key-values are streamed with lexicographic order on keys.
+  // Errors:
+  // NOT_FOUND: if a state snapshot with the requested ID is not (or no longer) available.
+  //            Concord client can be directed by the application to retry initialization by 
+  //            fetching a new snapshot ID.
+  // INVALID_ARGUMENT: if resuming a stream using `last_received_key` and that key is not part of the
+  //                   state snapshot.
+  // UNAVAILABLE: if Concord replica is not ready yet to process requests, for e.g., state 
+  //              snapshot is unavailable at the time of the request.
+  // FAILED_PRECONDITION: if a precondition in Concord replica is not satisfied. For example,
+  //                      the state might be corrupted or invalid and, in that case, there
+  //                      would be no point in proceeding with streaming.
+  // UNKNOWN: exact cause is unknown.
+  rpc StreamSnapshot(StreamSnapshotRequest) returns (stream StreamSnapshotResponse);
+}
+
+message StreamSnapshotRequest {  
+  // The ID of the state snapshot to be streamed.
+  uint64 snapshot_id = 1;
+
+  // If set, start streaming from `last_received_key` onwards, excluding
+  // `last_received_key`.
+  // If `last_received_key` is not part of the state snapshot, an INVALID_ARGUMENT
+  // error is returned.
+  //
+  // If not set, start streaming from the first key-value in the state snapshot.
+  //
+  // The empty bytestring is a valid key.
+  //
+  // Key-values are streamed with lexicographic order on keys.
+  optional bytes last_received_key = 2;
+}
+
+message KeyValuePair {
+  bytes key = 1;
+  bytes value = 2;
+}
+
+message StreamSnapshotResponse {
+  KeyValuePair key_value = 1;
+}

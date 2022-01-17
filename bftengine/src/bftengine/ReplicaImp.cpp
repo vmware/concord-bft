@@ -440,10 +440,12 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
 
   if (readOnly) {
     if (activeExecutions_ > 0) {
-      if (deferredRORequests_.size() < maxQueueSize) {
+      if (deferredRORequests_.size() < maxQueueSize_) {
         deferredRORequests_.push_back(
             m);  // We should handle span and deleting the message when we handle the deferred message
         deferredRORequestsMetric_++;
+      } else {
+        delete m;
       }
     } else {
       executeReadOnlyRequest(span, m);
@@ -1080,6 +1082,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
 
     return;  // TODO(GG): memory deallocation is confusing .....
   }
+
   bool msgAdded = false;
 
   if (relevantMsgForActiveView(msg) && (msg->senderId() == currentPrimary())) {
@@ -2340,9 +2343,10 @@ void ReplicaImp::onMessage<AskForCheckpointMsg>(AskForCheckpointMsg *msg) {
 void ReplicaImp::startExecution(SeqNum seqNumber,
                                 concordUtils::SpanWrapper &span,
                                 bool askForMissingInfoAboutCommittedItems) {
+  consensus_times_.end(seqNumber);
+  tryToRemovePendingRequestsForSeqNum(seqNumber);  // TODO(LG) Should verify if needed
+  LOG_INFO(CNSUS, "Starting execution of seqNumber:" << seqNumber);
   if (config_.enablePostExecutionSeparation) {
-    consensus_times_.end(seqNumber);
-    tryToRemovePendingRequestsForSeqNum(seqNumber);  // TODO(LG) Should verify if needed
     tryToStartOrFinishExecution(askForMissingInfoAboutCommittedItems);
   } else {
     executeNextCommittedRequests(span, askForMissingInfoAboutCommittedItems);
@@ -2350,9 +2354,11 @@ void ReplicaImp::startExecution(SeqNum seqNumber,
 }
 
 void ReplicaImp::pushDeferredMessage(MessageBase *m) {
-  if (deferredMessages_.size() < maxQueueSize) {
+  if (deferredMessages_.size() < maxQueueSize_) {
     deferredMessages_.push_back(m);
     deferredMessagesMetric_++;
+  } else {
+    delete m;
   }
 }
 
@@ -4251,7 +4257,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
   });
   registerMsgHandlers();
   replStatusHandlers_.registerStatusHandlers();
-
+  maxQueueSize_ = config_.postExecutionQueuesSize;
   // Register metrics component with the default aggregator.
   metrics_.Register();
 
@@ -4956,7 +4962,7 @@ void ReplicaImp::finishExecutePrePrepareMsg(PrePrepareMsg *ppMsg,
     sendResponses(ppMsg, *pAccumulatedRequests);
     delete pAccumulatedRequests;
   }
-
+  LOG_INFO(CNSUS, "Finished execution of request seqNum:" << ppMsg->seqNumber());
   uint64_t checkpointNum{};
   if ((lastExecutedSeqNum + 1) % checkpointWindowSize == 0) {
     checkpointNum = (lastExecutedSeqNum + 1) / checkpointWindowSize;
@@ -5116,7 +5122,8 @@ void ReplicaImp::handleDeferredRequests() {
       tryToGoToNextView();
       shouldTryToGoToNextView_ = false;
     }
-    for (auto &msg : deferredMessages_) {
+    while (!deferredMessages_.empty()) {
+      auto msg = deferredMessages_.front();
       deferredMessages_.pop_front();
       deferredMessagesMetric_--;
       auto msgHandlerCallback = msgHandlers_->getCallback(msg->type());
@@ -5127,7 +5134,8 @@ void ReplicaImp::handleDeferredRequests() {
       }
     }
     // Currently we are avoiding duplicates on deferred RO requests queue
-    for (auto &msg : deferredRORequests_) {
+    while (!deferredRORequests_.empty()) {
+      auto msg = deferredRORequests_.front();
       deferredRORequests_.pop_front();
       deferredRORequestsMetric_--;
       auto msgHandlerCallback = msgHandlers_->getCallback(msg->type());

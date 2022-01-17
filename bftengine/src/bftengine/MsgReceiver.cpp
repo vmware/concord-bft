@@ -22,8 +22,14 @@ using namespace bft::communication;
 MsgReceiver::MsgReceiver(std::shared_ptr<IncomingMsgsStorage> &storage) : incomingMsgsStorage_(storage) {}
 
 void MsgReceiver::onNewMessage(NodeNum sourceNode, const char *const message, size_t messageLength) {
-  if (messageLength > ReplicaConfig::instance().getmaxExternalMessageSize()) return;
-  if (messageLength < sizeof(MessageBase::Header)) return;
+  if (messageLength > ReplicaConfig::instance().getmaxExternalMessageSize()) {
+    LOG_WARN(GL, "Msg exceeds allowed max msg size, size " << messageLength << " source " << sourceNode);
+    return;
+  }
+  if (messageLength < sizeof(MessageBase::Header)) {
+    LOG_WARN(GL, "Msg length is smaller than expected msg header, size " << messageLength << " source " << sourceNode);
+    return;
+  }
 
   auto *msgBody = (MessageBase::Header *)std::malloc(messageLength);
   memcpy(msgBody, message, messageLength);
