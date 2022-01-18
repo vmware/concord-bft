@@ -102,6 +102,7 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
     return nullptr;
   }
   virtual void handoffConsensusMessage(const shared_ptr<ConsensusMsg>& msg) override{};
+  void reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBlockId) override{};
 
  protected:
   //////////////////////////////////////////////////////////////////////////
