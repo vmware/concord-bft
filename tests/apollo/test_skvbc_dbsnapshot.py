@@ -125,16 +125,15 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability()
     async def test_db_checkpoint_creation(self, bft_network, tracker):
-
         bft_network.start_all_replicas()
-        client = bft_network.random_client()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
         for i in range(150): 
             await skvbc.send_write_kv_set()
         await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), 150)
-        num_of_db_snapshots =  await bft_network.get_metric(0, bft_network, "Counters", "numOfDbCheckpointsCreated", component="rocksdbCheckpoint")
-        self.assertEqual(num_of_db_snapshots, 1)
+        await self.wait_for_created_snapshots_metric(bft_network, 1)
+        # TODO: Consider verifying the metric for all replicas.
         last_blockId =  await bft_network.get_metric(0, bft_network, "Gauges", "lastDbCheckpointBlockId", component="rocksdbCheckpoint")
+        self.assertEqual(last_blockId, 150)
         for replica_id in range(len(bft_network.all_replicas())):
             self.verify_snapshot_is_available(bft_network, replica_id, last_blockId)
     
@@ -148,9 +147,10 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
         for i in range(150): 
             await skvbc.send_write_kv_set()
         await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), 150)
-        num_of_db_snapshots =  await bft_network.get_metric(0, bft_network, "Counters", "numOfDbCheckpointsCreated", component="rocksdbCheckpoint")
-        self.assertEqual(num_of_db_snapshots, 1)
+        await self.wait_for_created_snapshots_metric(bft_network, 1)
+        # TODO: Consider verifying the metric for all replicas.
         snapshot_id = await bft_network.get_metric(0, bft_network, "Gauges", "lastDbCheckpointBlockId", component="rocksdbCheckpoint")
+        self.assertEqual(snapshot_id, 150)
         for replica_id in range(len(bft_network.all_replicas())):
             self.verify_snapshot_is_available(bft_network, replica_id, snapshot_id)
         fast_paths = {}
@@ -185,8 +185,7 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
         for i in range(300): 
             await skvbc.send_write_kv_set()
         await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), 300)
-        num_of_db_snapshots =  await bft_network.get_metric(0, bft_network, "Counters", "numOfDbCheckpointsCreated", component="rocksdbCheckpoint")
-        self.assertEqual(num_of_db_snapshots, 0)
+        await self.wait_for_created_snapshots_metric(bft_network, 0)
     
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
@@ -198,7 +197,6 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
         '''
         initial_prim = 0
         bft_network.start_all_replicas()
-        client = bft_network.random_client()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
         checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=initial_prim)
         await skvbc.fill_and_wait_for_checkpoint(
@@ -210,8 +208,8 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
         checkpoint_after_1 = await bft_network.wait_for_checkpoint(replica_id=initial_prim)
         self.assertGreaterEqual(checkpoint_before + 1, checkpoint_after_1)
         await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), checkpoint_after_1*150)
-        num_of_db_snapshots =  await bft_network.get_metric(0, bft_network, "Counters", "numOfDbCheckpointsCreated", component="rocksdbCheckpoint")
-        self.assertEqual(num_of_db_snapshots, 1)
+        await self.wait_for_created_snapshots_metric(bft_network, 1)
+        # TODO: Consider verifying the metric for all replicas.
         old_snapshot_id = await bft_network.get_metric(0, bft_network, "Gauges", "lastDbCheckpointBlockId", component="rocksdbCheckpoint")
         self.verify_snapshot_is_available(bft_network, 0, old_snapshot_id)
         await skvbc.fill_and_wait_for_checkpoint(
@@ -223,8 +221,7 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
         checkpoint_after_2 = await bft_network.wait_for_checkpoint(replica_id=initial_prim)
         self.assertGreaterEqual(checkpoint_after_1 + 3, checkpoint_after_2)
         await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), checkpoint_after_2*150)
-        num_of_db_snapshots =  await bft_network.get_metric(0, bft_network, "Counters", "numOfDbCheckpointsCreated", component="rocksdbCheckpoint")
-        self.assertEqual(num_of_db_snapshots, 4)
+        await self.wait_for_created_snapshots_metric(bft_network, 4)
         for replica_id in range(len(bft_network.all_replicas())):
             self.verify_snapshot_is_available(bft_network, replica_id, old_snapshot_id, isPresent=False)
 
@@ -257,6 +254,8 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
             self.assertEqual(len(res[0].response.db_checkpoint_info), 1)
             dbcheckpoint_info_list = res[0].response.db_checkpoint_info
             self.assertTrue(any(dbcheckpoint_info.seq_num == 300 for dbcheckpoint_info in dbcheckpoint_info_list))
+        # TODO: Consider verifying the metric for all replicas. Additionally, there is a race between
+        # wait_for_stable_checkpoint() above and the metric being updated.
         last_blockId =  await bft_network.get_metric(0, bft_network, "Gauges", "lastDbCheckpointBlockId", component="rocksdbCheckpoint")
         for replica_id in range(len(bft_network.all_replicas())):
             self.verify_snapshot_is_available(bft_network, replica_id, last_blockId)
@@ -275,8 +274,7 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
             await skvbc.send_write_kv_set()
         # There will be 2 dbcheckpoints created on stable seq num 150 and 300.
         await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), 300)
-        num_of_db_snapshots =  await bft_network.get_metric(0, bft_network, "Counters", "numOfDbCheckpointsCreated", component="rocksdbCheckpoint")
-        self.assertEqual(num_of_db_snapshots, 2)
+        await self.wait_for_created_snapshots_metric(bft_network, 2)
         
         op = operator.Operator(bft_network.config, client, bft_network.builddir)
         rep = await op.get_dbcheckpoint_info_request()
@@ -289,6 +287,7 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
             dbcheckpoint_info_list = res[0].response.db_checkpoint_info
             self.assertTrue(any(dbcheckpoint_info.seq_num == 150 for dbcheckpoint_info in dbcheckpoint_info_list))
             self.assertTrue(any(dbcheckpoint_info.seq_num == 300 for dbcheckpoint_info in dbcheckpoint_info_list))
+        # TODO: Consider verifying the metric for all replicas.
         last_blockId =  await bft_network.get_metric(0, bft_network, "Gauges", "lastDbCheckpointBlockId", component="rocksdbCheckpoint")
         for replica_id in range(len(bft_network.all_replicas())):
             self.verify_snapshot_is_available(bft_network, replica_id, last_blockId)
@@ -303,8 +302,7 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
         for i in range(300): 
             await skvbc.send_write_kv_set()
         await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), 300)
-        num_of_db_snapshots = await bft_network.get_metric(0, bft_network, "Counters", "numOfDbCheckpointsCreated", component="rocksdbCheckpoint")
-        self.assertEqual(num_of_db_snapshots, 0)
+        await self.wait_for_created_snapshots_metric(bft_network, 0)
 
         op = operator.Operator(bft_network.config, client, bft_network.builddir)
         rep = await op.state_snapshot_req()
@@ -326,6 +324,8 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
         
         # Expect that a snapshot/checkpoint with an ID of 600 is available. For that, we assume that the snapshot/checkpoint ID
         # is the last block ID at which the snapshot/checkpoint is created.
+        await self.wait_for_created_snapshots_metric(bft_network, 1)
+        # TODO: Consider verifying the metric for all replicas.
         last_block_id = await bft_network.get_metric(0, bft_network, "Gauges", "lastDbCheckpointBlockId", component="rocksdbCheckpoint")
         self.assertEqual(last_block_id, 600)
         for replica_id in range(len(bft_network.all_replicas())):
@@ -431,3 +431,18 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
                         all_in_checkpoint = False
                         break
                 await trio.sleep(0.5)
+
+    async def wait_for_created_snapshots_metric(self, bft_network, expected_num_of_created_snapshots):
+      with trio.fail_after(seconds=30):
+          while True:
+              found_mismatch = False
+              for replica_id in range(len(bft_network.all_replicas())):
+                  num_of_created_snapshots = await bft_network.get_metric(replica_id, bft_network,
+                      "Counters", "numOfDbCheckpointsCreated", component="rocksdbCheckpoint") 
+                  if num_of_created_snapshots != expected_num_of_created_snapshots:
+                      found_mismatch = True
+                      break
+              if found_mismatch:
+                  await trio.sleep(0.5)
+              else:
+                  break
