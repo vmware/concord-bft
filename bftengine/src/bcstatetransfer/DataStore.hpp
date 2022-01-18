@@ -28,6 +28,7 @@ namespace bftEngine {
 namespace bcst {
 namespace impl {
 
+using BlockId = uint64_t;
 class DataStoreTransaction;
 
 class DataStore : public std::enable_shared_from_this<DataStore> {
@@ -67,20 +68,28 @@ class DataStore : public std::enable_shared_from_this<DataStore> {
   virtual uint64_t getFirstStoredCheckpoint() = 0;
 
   //////////////////////////////////////////////////////////////////////////
+  // Range Validation Blocks
+  //////////////////////////////////////////////////////////////////////////
+  virtual void setPrunedBlocksDigests(const std::vector<std::pair<BlockId, STDigest>>& prunedBlocksDigests) = 0;
+  virtual std::vector<std::pair<BlockId, STDigest>> getPrunedBlocksDigests() = 0;
+
+  //////////////////////////////////////////////////////////////////////////
   // Checkpoints
   //////////////////////////////////////////////////////////////////////////
-
   struct CheckpointDesc {
     void makeZero() {
       checkpointNum = 0;
       maxBlockId = 0;
       digestOfMaxBlockId.makeZero();
       digestOfResPagesDescriptor.makeZero();
+      rvbData.clear();
     }
+
     uint64_t checkpointNum = 0;
     uint64_t maxBlockId = 0;
     STDigest digestOfMaxBlockId;
     STDigest digestOfResPagesDescriptor;
+    std::vector<char> rvbData{};
   };
 
   virtual void setCheckpointDesc(uint64_t checkpoint, const CheckpointDesc& desc) = 0;
@@ -242,6 +251,10 @@ class DataStoreTransaction : public DataStore, public ITransaction {
   uint64_t getLastStoredCheckpoint() override { return ds_->getLastStoredCheckpoint(); }
   uint64_t getFirstStoredCheckpoint() override { return ds_->getFirstStoredCheckpoint(); }
   uint64_t getFirstRequiredBlock() override { return ds_->getFirstRequiredBlock(); }
+  void setPrunedBlocksDigests(const std::vector<std::pair<BlockId, STDigest>>& prunedBlocksDigests) override {
+    ds_->setPrunedBlocksDigests(prunedBlocksDigests);
+  }
+  std::vector<std::pair<BlockId, STDigest>> getPrunedBlocksDigests() override { return ds_->getPrunedBlocksDigests(); }
   uint64_t getLastRequiredBlock() override { return ds_->getLastRequiredBlock(); }
   uint32_t numOfAllPendingResPage() override { return ds_->numOfAllPendingResPage(); }
   set<uint32_t> getNumbersOfPendingResPages() override { return ds_->getNumbersOfPendingResPages(); }
