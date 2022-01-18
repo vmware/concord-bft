@@ -669,21 +669,29 @@ void RVBManager::reset() {
 std::string RVBManager::getLogLevel() const {
   auto log_level = logger_.getLogLevel();
 #ifdef USE_LOG4CPP
-  return (log_level == log4cplus::TRACE_LOG_LEVEL)   ? "trace"
-         : (log_level == log4cplus::DEBUG_LOG_LEVEL) ? "trace"
-         : (log_level == log4cplus::INFO_LOG_LEVEL)  ? "info"
-         : (log_level == log4cplus::WARN_LOG_LEVEL)  ? "warning"
-         : (log_level == log4cplus::ERROR_LOG_LEVEL) ? "error"
-         : (log_level == log4cplus::FATAL_LOG_LEVEL) ? "fatal"
-                                                     : "info";
+  return (log_level == log4cplus::TRACE_LOG_LEVEL)
+             ? "trace"
+             : (log_level == log4cplus::DEBUG_LOG_LEVEL)
+                   ? "trace"
+                   : (log_level == log4cplus::INFO_LOG_LEVEL)
+                         ? "info"
+                         : (log_level == log4cplus::WARN_LOG_LEVEL)
+                               ? "warning"
+                               : (log_level == log4cplus::ERROR_LOG_LEVEL)
+                                     ? "error"
+                                     : (log_level == log4cplus::FATAL_LOG_LEVEL) ? "fatal" : "info";
 #else
-  return (log_level == logging::LogLevel::trace)     ? "trace"
-         : (log_level == logging::LogLevel::debug)   ? "trace"
-         : (log_level == logging::LogLevel::info)    ? "info"
-         : (log_level == logging::LogLevel::warning) ? "warning"
-         : (log_level == logging::LogLevel::error)   ? "error"
-         : (log_level == logging::LogLevel::fatal)   ? "fatal"
-                                                     : "info";
+  return (log_level == logging::LogLevel::trace)
+             ? "trace"
+             : (log_level == logging::LogLevel::debug)
+                   ? "trace"
+                   : (log_level == logging::LogLevel::info)
+                         ? "info"
+                         : (log_level == logging::LogLevel::warning)
+                               ? "warning"
+                               : (log_level == logging::LogLevel::error)
+                                     ? "error"
+                                     : (log_level == logging::LogLevel::fatal) ? "fatal" : "info";
 #endif
 }
 
