@@ -1063,7 +1063,6 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 min_prunebale_block_b = lpab.response.block_id
         assert min_prunebale_block < min_prunebale_block_b
 
-    @unittest.skip("Skip only in branch state_transfer_v1.6_dev")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_pruning_command(self, bft_network):
@@ -1093,6 +1092,11 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             pruned_block = int(data.additional_data.decode('utf-8'))
             log.log_message(message_type=f"pruned_block {pruned_block}")
             assert pruned_block <= 90
+
+            k, v = await skvbc.send_write_kv_set()
+            for i in range(300):
+                v = skvbc.random_value()
+                await client.write(skvbc.write_req([], [(k, v)], 0))
 
     @unittest.skip("Disabled till pruning of reconfiguration blocks during state transfer is fixed")
     @with_trio
