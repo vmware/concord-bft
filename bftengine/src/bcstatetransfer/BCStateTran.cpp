@@ -2294,11 +2294,12 @@ bool BCStateTran::checkBlock(uint64_t blockId, char *block, uint32_t blockSize) 
   computeDigestOfBlock(blockId, block, blockSize, &computedBlockDigest);
   if (isRvbBlockId(blockId)) {
     auto rvbDigest = rvbm_->getDigestFromRvbGroup(blockId);
+    std::string rvbDigestStr = !rvbDigest ? "" : rvbDigest.value().get().toString();
     if (!rvbDigest || (rvbDigest.value().get() != computedBlockDigest)) {
-      std::string rvbDigestStr = !rvbDigest ? "" : rvbDigest.value().get().toString();
       LOG_ERROR(logger_, "Digest validation failed (RVB):" << KVLOG(blockId, rvbDigestStr, computedBlockDigest));
       return false;
     }
+    LOG_DEBUG(logger_, "Digest validation success (RVB):" << KVLOG(blockId, rvbDigestStr, computedBlockDigest));
     return true;
   }
   if (isMaxFetchedBlockIdInCycle(blockId)) {
