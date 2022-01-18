@@ -94,7 +94,10 @@ class TestAppState : public IAppState {
     return it != blocks_.end();
   }
 
-  bool getBlock(uint64_t blockId, char* outBlock, uint32_t outBlockMaxSize, uint32_t* outBlockActualSize) override {
+  bool getBlock(uint64_t blockId,
+                char* outBlock,
+                uint32_t outBlockMaxSize,
+                uint32_t* outBlockActualSize) const override {
     std::lock_guard<std::mutex> lg(mtx);
     auto it = blocks_.find(blockId);
     if (it == blocks_.end()) {
@@ -128,7 +131,7 @@ class TestAppState : public IAppState {
     return future;
   }
 
-  bool getPrevDigestFromBlock(uint64_t blockId, StateTransferDigest* outPrevBlockDigest) override {
+  bool getPrevDigestFromBlock(uint64_t blockId, StateTransferDigest* outPrevBlockDigest) const override {
     std::lock_guard<std::mutex> lg(mtx);
     ConcordAssert(blockId > 0);
     auto it = blocks_.find(blockId);
@@ -139,7 +142,7 @@ class TestAppState : public IAppState {
 
   void getPrevDigestFromBlock(const char* blockData,
                               const uint32_t blockSize,
-                              StateTransferDigest* outPrevBlockDigest) override {
+                              StateTransferDigest* outPrevBlockDigest) const override {
     const Block* blk = reinterpret_cast<const Block*>(blockData);
     ConcordAssertEQ(blockSize, blk->totalBlockSize);
     std::memcpy(outPrevBlockDigest, &blk->digestPrev, sizeof(blk->digestPrev));
