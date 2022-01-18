@@ -310,7 +310,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
 
         try:
             with trio.move_on_after(seconds=10):
-                await skvbc.send_indefinite_ops(write_weight=1)
+                await skvbc.send_indefinite_ops(write_weight=1, excluded_clients={client})
         except trio.TooSlowError:
             pass
         finally:
