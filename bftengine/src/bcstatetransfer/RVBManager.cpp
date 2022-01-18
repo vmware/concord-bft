@@ -166,7 +166,7 @@ void RVBManager::pruneRvbDataDuringCheckpoint(const CheckpointDesc& new_checkpoi
   if (!pruned_blocks_digests_.empty() && (debug_prints_log_level.find(getLogLevel()) != debug_prints_log_level.end())) {
     ostringstream oss;
     oss << "pruned_blocks_digests_: size: " << pruned_blocks_digests_.size() << " Pairs: ";
-    for (auto const pair : pruned_blocks_digests_) {
+    for (auto const& pair : pruned_blocks_digests_) {
       oss << ",[" << std::to_string(pair.first) << "," << pair.second.toString() << "]";
     }
     LOG_DEBUG(logger_, oss.str());
