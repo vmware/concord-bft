@@ -21,6 +21,7 @@
 #include "categorization/kv_blockchain.h"
 #include "execution_data.cmf.hpp"
 #include "keys_and_signatures.cmf.hpp"
+#include "concord.cmf.hpp"
 #include "db_interfaces.h"
 #include "kvbc_key_types.h"
 #include "categorization/db_categories.h"
@@ -1024,6 +1025,10 @@ struct VerifyDbCheckpoint {
   using BlockDigest = std::array<std::uint8_t, BLOCK_DIGEST_SIZE>;
   using CheckpointDesc = bftEngine::bcst::impl::DataStore::CheckpointDesc;
   using BlockHashData = std::tuple<uint64_t, BlockDigest, BlockDigest>;  //<blockId, parentHash, blockHash>
+  using IVerifier = concord::util::crypto::IVerifier;
+  using RSAVerifier = concord::util::crypto::RSAVerifier;
+  using KeyFormat = concord::util::crypto::KeyFormat;
+  using ReplicaId = uint16_t;
   const bool read_only = true;
   std::string description() const {
     std::ostringstream oss;
@@ -1031,8 +1036,10 @@ struct VerifyDbCheckpoint {
         << " verifies block digest added on lastStable checkpoint against the digest "
         << " recorded with checkpoint descriptor and the digest from (2f+1) checkpoint messages \n"
         << " optionally it verifies N number of blocks from the block added"
-        << " on last stable checkpoint in reverse order\n"
-        << " N - Number of blocks to verify\n";
+        << " on last stable checkpoint in reverse order"
+        << " and optionally verifies signature of bft-checkpoint messages\n"
+        << " N - Number of blocks to verify\n"
+        << " Usage: verifyDbCheckpoint [N] [true/false]\n";
     return oss.str();
   }
   std::string toString(const CheckPointMsgStatus &statusList) const {
@@ -1051,8 +1058,63 @@ struct VerifyDbCheckpoint {
   bool isSame(const Digest &d, const STDigest &st) const {
     return !st.isZero() && (sizeof(d) == sizeof(st)) && !std::memcmp(d.content(), st.get(), sizeof(st));
   }
-  bool verify(const CheckpointMsg &msg, const CheckpointDesc &desc) const {
-    return (isSame(msg.digestOfState(), desc.digestOfLastBlock) && (msg.state() == desc.lastBlock));
+  std::map<ReplicaId, std::unique_ptr<IVerifier>> getVerifiers(std::set<ReplicaId> replicas,
+                                                               const KeyValueBlockchain &adapter) const {
+    auto category_id = concord::kvbc::categorization::kConcordReconfigurationCategoryId;
+    auto key_prefix = std::string{kvbc::keyTypes::reconfiguration_rep_main_key};
+    std::map<ReplicaId, unique_ptr<IVerifier>> replica_keys;
+    for (auto repId : replicas) {
+      auto key = key_prefix + std::to_string(repId);
+      auto val = adapter.getLatest(category_id, key);
+      if (val.has_value()) {
+        std::visit(
+            [&](auto &&arg) {
+              auto strval = arg.data;
+              std::vector<uint8_t> data_buf(strval.begin(), strval.end());
+              concord::messages::ReplicaMainKeyUpdate cmd;
+              concord::messages::deserialize(data_buf, cmd);
+              auto format = cmd.format;
+              transform(format.begin(), format.end(), format.begin(), ::tolower);
+              auto key_format = ((format == "hex") ? KeyFormat::HexaDecimalStrippedFormat : KeyFormat::PemFormat);
+              replica_keys.emplace(repId, std::make_unique<RSAVerifier>(cmd.key, key_format));
+            },
+            *val);
+      }
+    }
+    return replica_keys;
+  }
+
+  bool verifySig(const char *data, uint32_t data_len, const char *sig, uint32_t sig_len, IVerifier *verifier) const {
+    if (verifier) {
+      auto signature_len = verifier->signatureLength();
+      if (signature_len == sig_len) {
+        std::string _data(data, data_len);
+        std::string _sig(sig, sig_len);
+        return verifier->verify(_data, _sig);
+      }
+    }
+    return false;
+  }
+  bool verify(const CheckpointMsg &msg,
+              const CheckpointDesc &desc,
+              bool verifySignature,
+              const std::map<ReplicaId, std::unique_ptr<IVerifier>> &verifiers) const {
+    auto is_digest_valid = (isSame(msg.digestOfState(), desc.digestOfLastBlock) && (msg.state() == desc.lastBlock));
+    auto is_check_point_signature_valild{true};
+    if (verifySignature) {
+      is_check_point_signature_valild = false;
+      if (auto it = verifiers.find(msg.idOfGeneratedReplica()); it != verifiers.end()) {
+        auto verifier = (it->second).get();
+        if (verifier) {
+          is_check_point_signature_valild = verifySig(msg.body(),
+                                                      msg.getHeaderLen(),
+                                                      msg.body() + msg.getHeaderLen() + msg.spanContextSize(),
+                                                      msg.size() - msg.getHeaderLen() - msg.spanContextSize(),
+                                                      verifier);
+        }
+      }
+    }
+    return is_digest_valid && is_check_point_signature_valild;
   }
   BlockDigest getBlockDigest(const KeyValueBlockchain &adapter, const uint64_t &blockId) const {
     using bftEngine::bcst::computeBlockDigest;
@@ -1107,12 +1169,20 @@ struct VerifyDbCheckpoint {
     using storage::v2MerkleTree::MetadataKeyManipulator;
     using bftEngine::MetadataStorage;
     uint64_t numOfBlocksToVerify{0};
+    auto verifyCheckpointMsgSignature{false};
     if (!args.values.empty()) {
       numOfBlocksToVerify = toBlockId(args.values.front());
+      if (args.values.size() == 2) {
+        auto verify_sig = args.values.back();
+        transform(verify_sig.begin(), verify_sig.end(), verify_sig.begin(), ::tolower);
+        verifyCheckpointMsgSignature = (verify_sig == "true");
+      }
     }
     std::unique_ptr<DataStore> ds = std::make_unique<DBDataStore>(
         adapter.db()->asIDBClient(), 1024 * 4, std::make_shared<STKeyManipulator>(), true);
     result["MyReplicaId"] = std::to_string(ds->getMyReplicaId());
+    auto replicas = ds->getReplicas();
+    auto verifiers = getVerifiers(replicas, adapter);
     const auto &f = ds->getFVal();
     result["LastStoredCheckpoint"] = std::to_string(ds->getLastStoredCheckpoint());
     auto chckp = ds->getLastStoredCheckpoint();
@@ -1142,8 +1212,7 @@ struct VerifyDbCheckpoint {
     const auto &desc = p->getDescriptorOfLastStableCheckpoint();
     CheckPointMsgStatus status;
     for (const auto &cp : desc.checkpointMsgs) {
-      // TODO(NK): Add signature verification
-      if (cp) status.push_back({*cp, verify(*cp, checkPtDesc)});
+      if (cp) status.push_back({*cp, verify(*cp, checkPtDesc, verifyCheckpointMsgSignature, verifiers)});
     }
     result["LastStableCheckpointMsgs"] = toString(status);
     const auto &numOfValidCheckPtMsgs =

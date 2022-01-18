@@ -60,6 +60,7 @@ class CheckpointMsg : public MessageBase {
     return (a->seqNumber() == b->seqNumber()) && (a->digestOfState() == b->digestOfState()) &&
            (a->otherDigest() == b->otherDigest()) && (a->state() == b->state());
   }
+  inline size_t getHeaderLen() const { return sizeof(Header); }
 
  protected:
   template <typename MessageT>
