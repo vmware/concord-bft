@@ -76,7 +76,7 @@ def interesting_configs(selected=None):
     if selected is None:
         selected=lambda *config: True
 
-    bft_configs = [{'n': 6, 'f': 1, 'c': 1, 'num_clients': BFT_CONFIGS_NUM_CLIENTS},
+    bft_configs = [#{'n': 6, 'f': 1, 'c': 1, 'num_clients': BFT_CONFIGS_NUM_CLIENTS},
                    {'n': 7, 'f': 2, 'c': 0, 'num_clients': BFT_CONFIGS_NUM_CLIENTS},
                    # {'n': 4, 'f': 1, 'c': 0, 'num_clients': BFT_CONFIGS_NUM_CLIENTS},
                    # {'n': 9, 'f': 2, 'c': 1, 'num_clients': BFT_CONFIGS_NUM_CLIENTS}
@@ -228,6 +228,7 @@ class BftTestNetwork:
             self.metrics.__exit__()
             self.stop_all_replicas()
             os.chdir(self.origdir)
+            # uncomment when needed
             shutil.rmtree(self.testdir, ignore_errors=True)
             shutil.rmtree(self.certdir, ignore_errors=True)
             shutil.rmtree(self.txn_signing_keys_base_path, ignore_errors=True)
@@ -724,6 +725,8 @@ class BftTestNetwork:
 
                 os.makedirs(self.test_dir, exist_ok=True)
 
+                # stdout_file = open(test_log, 'a+')
+                # stderr_file = open(test_log, 'a+')
                 stdout_file = open(test_log, 'w+')
                 stderr_file = open(test_log, 'w+')
 
