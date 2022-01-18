@@ -43,6 +43,7 @@
 #include "TimeUtils.hpp"
 #include "SimpleMemoryPool.hpp"
 #include "messages/MessageBase.hpp"
+#include "RVBManager.hpp"
 
 using std::set;
 using std::map;
@@ -153,6 +154,10 @@ class BCStateTran : public IStateTransfer {
     // bind understands only shared_ptr natively
     incomingEventsQ_->push(std::bind(&BCStateTran::peekConsensusMessage, this, std::move(msg)));
   }
+
+  // Calls into RVB manager on an external thread context. Reports of the last agreed prunable block. Relevant only for
+  // replica in consensus.
+  void reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBlockId) override;
   void peekConsensusMessage(shared_ptr<ConsensusMsg>& msg);
 
  protected:
@@ -312,23 +317,14 @@ class BCStateTran : public IStateTransfer {
     uint64_t nextBlockId = 0;
     uint64_t upperBoundBlockId = 0;  // Dynamic upper limit to the next batch
 
-    inline bool operator==(BlocksBatchDesc& rhs) {
-      return (minBlockId == rhs.minBlockId) && (maxBlockId == rhs.maxBlockId) && (nextBlockId == rhs.nextBlockId) &&
-             (upperBoundBlockId == rhs.upperBoundBlockId);
-    }
-    inline bool operator!=(BlocksBatchDesc& rhs) { return !(this->operator==(rhs)); }
-    inline void reset() {
-      minBlockId = 0;
-      maxBlockId = 0;
-      nextBlockId = 0;
-      upperBoundBlockId = 0;
-    }
-    inline bool operator<(BlocksBatchDesc& rhs) const;
-    inline bool operator==(BlocksBatchDesc& rhs) const;
-    inline bool operator<=(BlocksBatchDesc& rhs) const;
+    bool operator==(BlocksBatchDesc& rhs) const;
+    bool operator!=(BlocksBatchDesc& rhs) const { return !(this->operator==(rhs)); }
+    bool operator<=(BlocksBatchDesc& rhs) const { return (*this < rhs) || (*this == rhs); }
+    void reset();
+    bool operator<(BlocksBatchDesc& rhs) const;
     bool isValid() const;
-    inline bool isMinBlockId(uint64_t blockId) const { return blockId == minBlockId; };
-    inline bool isMaxBlockId(uint64_t blockId) const { return blockId == maxBlockId; };
+    bool isMinBlockId(uint64_t blockId) const { return blockId == minBlockId; };
+    bool isMaxBlockId(uint64_t blockId) const { return blockId == maxBlockId; };
   };
   friend std::ostream& operator<<(std::ostream&, const BCStateTran::BlocksBatchDesc&);
 
@@ -342,7 +338,10 @@ class BCStateTran : public IStateTransfer {
   inline bool isMinBlockIdInFetchRange(uint64_t blockId) const;
   inline bool isMaxBlockIdInFetchRange(uint64_t blockId) const;
   inline bool isLastFetchedBlockIdInCycle(uint64_t blockId) const;
+  inline bool isMaxFetchedBlockIdInCycle(uint64_t blockId) const;
   inline bool isRvbBlockId(uint64_t blockId) const;
+  inline uint64_t prevRvbBlockId(uint64_t block_id) const;
+  inline uint64_t nextRvbBlockId(uint64_t block_id) const;
 
   struct compareItemDataMsg {
     bool operator()(const ItemDataMsg* l, const ItemDataMsg* r) const {
@@ -358,7 +357,7 @@ class BCStateTran : public IStateTransfer {
 
   void cycleReset();
   void clearAllPendingItemsData();
-  void clearPendingItemsData(uint64_t untilBlock);
+  void clearPendingItemsData(uint64_t fromBlock, uint64_t untilBlock);
   bool getNextFullBlock(uint64_t requiredBlock,
                         bool& outBadDataDetected,
                         int16_t& outLastChunkInRequiredBlock,
@@ -373,7 +372,7 @@ class BCStateTran : public IStateTransfer {
                                    char* vblock,
                                    uint32_t vblockSize) const;
 
-  void processData(bool lastInBatch = false);
+  void processData(bool lastInBatch = false, uint32_t rvbDigestsSize = 0);
   void cycleEndSummary();
 
   void EnterGettingCheckpointSummariesState();
@@ -474,6 +473,13 @@ class BCStateTran : public IStateTransfer {
   enum class PutBlockWaitPolicy { NO_WAIT, WAIT_SINGLE_JOB, WAIT_ALL_JOBS };
 
   bool finalizePutblockAsync(PutBlockWaitPolicy waitPolicy);
+  //////////////////////////////////////////////////////////////////////////
+  // Range Validation
+  ///////////////////////////////////////////////////////////////////////////
+  std::unique_ptr<RVBManager> rvbm_;
+
+ public:
+  void reportCollectingStatus(const uint64_t firstRequiredBlock, const uint32_t actualBlockSize, bool toLog = false);
   //////////////////////////////////////////////////////////////////////////
   // Metrics
   ///////////////////////////////////////////////////////////////////////////
@@ -619,7 +625,6 @@ class BCStateTran : public IStateTransfer {
 
   // used to print periodic summary of recent checkpoints, and collected date while in state GettingMissingBlocks
   std::string logsForCollectingStatus(const uint64_t firstRequiredBlock);
-  void reportCollectingStatus(const uint64_t firstRequiredBlock, const uint32_t actualBlockSize, bool toLog = false);
   void startCollectingStats();
 
   // These 2 variables are used to snapshot source historgrams for GettingMissingBlocks state
