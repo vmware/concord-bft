@@ -594,10 +594,10 @@ class SimpleKVBCProtocol:
                 sent += len(clients)
         return read_count, write_count
 
-    async def send_indefinite_batch_writes(self, batch_size, time_interval=.01, excluded_clients=None):
+    async def send_indefinite_batch_writes(self, batch_size, time_interval=.01):
         max_size = len(self.keys) // 2
         while True:
-            client = self.bft_network.random_client(without=excluded_clients)
+            client = self.bft_network.random_client()
             async with trio.open_nursery() as nursery:
                 try:
                     nursery.start_soon(self.send_write_kv_set_batch, client, max_size, batch_size)
@@ -605,10 +605,10 @@ class SimpleKVBCProtocol:
                     pass
                 await trio.sleep(time_interval)
 
-    async def send_indefinite_ops(self, write_weight=.70, time_interval=.01):
+    async def send_indefinite_ops(self, write_weight=.70, time_interval=.01, excluded_clients=None):
         max_size = len(self.keys) // 2
         while True:
-            client = self.bft_network.random_client()
+            client = self.bft_network.random_client(without=excluded_clients)
             async with trio.open_nursery() as nursery:
                 try:
                     if random.random() < write_weight:
