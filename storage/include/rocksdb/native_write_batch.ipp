@@ -55,6 +55,12 @@ void NativeWriteBatch::del(const std::string &cFamily, const KeySpan &key) {
   detail::throwOnError("batch del failed"sv, std::move(s));
 }
 
+template <>
+inline void NativeWriteBatch::del<::rocksdb::Slice>(const std::string &cFamily, const ::rocksdb::Slice &key) {
+  auto s = batch_.Delete(client_->columnFamilyHandle(cFamily), key);
+  detail::throwOnError("batch del failed"sv, std::move(s));
+}
+
 template <typename KeySpan>
 void NativeWriteBatch::del(const KeySpan &key) {
   del(NativeClient::defaultColumnFamily(), key);

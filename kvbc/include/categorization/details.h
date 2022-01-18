@@ -23,6 +23,7 @@
 #include <string>
 #include <type_traits>
 #include <vector>
+#include <queue>
 
 namespace concord::kvbc::categorization::detail {
 
@@ -96,5 +97,57 @@ inline void sortAndRemoveDuplicates(std::vector<std::string> &vec) {
   std::sort(vec.begin(), vec.end());
   vec.erase(std::unique(vec.begin(), vec.end()), vec.end());
 }
+// A LocalWriteBatch is used in a multithreaded context, where several jobs need to collect updates.
+// Each job gets its LocalWriteBatch.
+// then all updates are added to the Global NativeWriteBatch, which is not thread safe.
+struct LocalWriteBatch {
+  struct Put {
+    std::string cFamily;
+    std::string key;
+    std::string value;
+  };
+
+  struct Delete {
+    std::string cFamily;
+    std::string key;
+  };
+
+  template <typename KeySpan, typename ValueSpan>
+  void put(const std::string &cFamily, const KeySpan &key, const ValueSpan &value) {
+    puts_.push({cFamily,
+                std::string(reinterpret_cast<const char *>(key.data()), key.size()),
+                std::string(reinterpret_cast<const char *>(value.data()), value.size())});
+    operations_.push(put_op_);
+  }
+
+  void moveToBatch(storage::rocksdb::NativeWriteBatch &batch) noexcept {
+    while (!operations_.empty()) {
+      if (operations_.front() == put_op_) {
+        const auto &put = puts_.front();
+        batch.put(put.cFamily, put.key, put.value);
+        puts_.pop();
+      } else {
+        const auto &del = dels_.front();
+        batch.del(del.cFamily, del.key);
+        dels_.pop();
+      }
+      operations_.pop();
+    }
+    ConcordAssert(puts_.empty());
+    ConcordAssert(dels_.empty());
+  }
+
+  template <typename KeySpan>
+  void del(const std::string &cFamily, const KeySpan &key) {
+    dels_.push(Delete{cFamily, std::string(reinterpret_cast<const char *>(key.data()), key.size())});
+    operations_.push(delete_op_);
+  }
+
+  std::queue<Put> puts_;
+  std::queue<Delete> dels_;
+  std::queue<uint8_t> operations_;
+  const uint8_t delete_op_{0};
+  const uint8_t put_op_{1};
+};  // namespace concord::kvbc::categorization::detail
 
 }  // namespace concord::kvbc::categorization::detail

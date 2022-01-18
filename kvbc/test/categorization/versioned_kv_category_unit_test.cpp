@@ -590,7 +590,9 @@ TEST_F(versioned_kv_category, delete_genesis_with_update) {
   // Delete genesis block 1.
   {
     auto batch = db->getBatch();
-    cat.deleteGenesisBlock(1, out1, batch);
+    concord::kvbc::categorization::detail::LocalWriteBatch loc_batch;
+    cat.deleteGenesisBlock(1, out1, loc_batch);
+    loc_batch.moveToBatch(batch);
     db->write(std::move(batch));
   }
 
@@ -684,7 +686,9 @@ TEST_F(versioned_kv_category, delete_genesis_with_deletes) {
   // Delete genesis block 1.
   {
     auto batch = db->getBatch();
-    cat.deleteGenesisBlock(1, out, batch);
+    concord::kvbc::categorization::detail::LocalWriteBatch loc_batch;
+    cat.deleteGenesisBlock(1, out, loc_batch);
+    loc_batch.moveToBatch(batch);
     db->write(std::move(batch));
   }
 
@@ -724,14 +728,18 @@ TEST_F(versioned_kv_category, delete_genesis_with_update_and_delete_afterwards) 
   // Delete genesis block 1.
   {
     auto batch = db->getBatch();
-    cat.deleteGenesisBlock(1, out1, batch);
+    concord::kvbc::categorization::detail::LocalWriteBatch loc_batch;
+    cat.deleteGenesisBlock(1, out1, loc_batch);
+    loc_batch.moveToBatch(batch);
     db->write(std::move(batch));
   }
 
   // Delete genesis block 2.
   {
     auto batch = db->getBatch();
-    cat.deleteGenesisBlock(2, out2, batch);
+    concord::kvbc::categorization::detail::LocalWriteBatch loc_batch;
+    cat.deleteGenesisBlock(2, out2, loc_batch);
+    loc_batch.moveToBatch(batch);
     db->write(std::move(batch));
   }
 
@@ -780,14 +788,18 @@ TEST_F(versioned_kv_category, delete_genesis_with_delete_and_update_afterwards) 
   // Delete genesis block 1.
   {
     auto batch = db->getBatch();
-    cat.deleteGenesisBlock(1, out1, batch);
+    concord::kvbc::categorization::detail::LocalWriteBatch loc_batch;
+    cat.deleteGenesisBlock(1, out1, loc_batch);
+    loc_batch.moveToBatch(batch);
     db->write(std::move(batch));
   }
 
   // Delete genesis block 2.
   {
     auto batch = db->getBatch();
-    cat.deleteGenesisBlock(2, out2, batch);
+    concord::kvbc::categorization::detail::LocalWriteBatch loc_batch;
+    cat.deleteGenesisBlock(2, out2, loc_batch);
+    loc_batch.moveToBatch(batch);
     db->write(std::move(batch));
   }
 
@@ -820,7 +832,9 @@ TEST_F(versioned_kv_category, delete_genesis_with_active_keys) {
   // Delete genesis block 1 with active keys inside.
   {
     auto batch = db->getBatch();
-    cat.deleteGenesisBlock(1, out1, batch);
+    concord::kvbc::categorization::detail::LocalWriteBatch loc_batch;
+    cat.deleteGenesisBlock(1, out1, loc_batch);
+    loc_batch.moveToBatch(batch);
     db->write(std::move(batch));
   }
 
@@ -851,7 +865,9 @@ TEST_F(versioned_kv_category, delete_genesis_with_active_keys) {
   // anymore and can be deleted.
   {
     auto batch = db->getBatch();
-    cat.deleteGenesisBlock(2, out2, batch);
+    concord::kvbc::categorization::detail::LocalWriteBatch loc_batch;
+    cat.deleteGenesisBlock(2, out2, loc_batch);
+    loc_batch.moveToBatch(batch);
     db->write(std::move(batch));
   }
 
@@ -888,7 +904,9 @@ TEST_F(versioned_kv_category, delete_genesis_with_active_keys_and_previous_activ
   // Delete genesis block 1 with active keys inside.
   {
     auto batch = db->getBatch();
-    cat.deleteGenesisBlock(1, out1, batch);
+    concord::kvbc::categorization::detail::LocalWriteBatch loc_batch;
+    cat.deleteGenesisBlock(1, out1, loc_batch);
+    loc_batch.moveToBatch(batch);
     db->write(std::move(batch));
   }
 
@@ -910,7 +928,9 @@ TEST_F(versioned_kv_category, delete_genesis_with_active_keys_and_previous_activ
   // active key column family.
   {
     auto batch = db->getBatch();
-    cat.deleteGenesisBlock(2, out2, batch);
+    concord::kvbc::categorization::detail::LocalWriteBatch loc_batch;
+    cat.deleteGenesisBlock(2, out2, loc_batch);
+    loc_batch.moveToBatch(batch);
     db->write(std::move(batch));
   }
 

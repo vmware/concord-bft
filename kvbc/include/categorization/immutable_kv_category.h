@@ -25,6 +25,7 @@
 #include <utility>
 #include <variant>
 #include <vector>
+#include "details.h"
 
 namespace concord::kvbc::categorization::detail {
 
@@ -51,13 +52,18 @@ class ImmutableKeyValueCategory {
   std::vector<std::string> getBlockStaleKeys(BlockId, const ImmutableOutput &) const;
 
   // Delete the genesis block. Implemented by directly calling deleteBlock().
-  std::size_t deleteGenesisBlock(BlockId, const ImmutableOutput &, storage::rocksdb::NativeWriteBatch &);
+  std::size_t deleteGenesisBlock(BlockId, const ImmutableOutput &, detail::LocalWriteBatch &);
 
   // Delete the last reachable block. Implemented by directly calling deleteBlock().
   void deleteLastReachableBlock(BlockId, const ImmutableOutput &, storage::rocksdb::NativeWriteBatch &);
 
   // Deletes the keys for the passed updates info.
-  void deleteBlock(const ImmutableOutput &, storage::rocksdb::NativeWriteBatch &);
+  template <typename Batch>
+  void deleteBlock(const ImmutableOutput &updates_info, Batch &batch) {
+    for (const auto &kv : updates_info.tagged_keys) {
+      batch.del(cf_, kv.first);
+    }
+  }
 
   // Get the value of an immutable key in `block_id`.
   // Return std::nullopt if `key` doesn't exist in `block_id`.

@@ -71,7 +71,7 @@ class BlockMerkleCategory {
   std::vector<std::string> getBlockStaleKeys(BlockId, const BlockMerkleOutput&) const;
   // Delete the given block ID as a genesis one.
   // Precondition: The given block ID must be the genesis one.
-  std::size_t deleteGenesisBlock(BlockId, const BlockMerkleOutput&, storage::rocksdb::NativeWriteBatch&);
+  std::size_t deleteGenesisBlock(BlockId, const BlockMerkleOutput&, detail::LocalWriteBatch&);
 
   // Delete the given block ID as a last reachable one.
   // Precondition: The given block ID must be the last reachable one.
@@ -104,7 +104,8 @@ class BlockMerkleCategory {
                 std::vector<std::optional<Value>>& values) const;
 
   // The last deleted tree version is stored at key `0` in BLOCK_MERKLE_STALE_CF
-  void putLastDeletedTreeVersion(uint64_t tree_version, storage::rocksdb::NativeWriteBatch&);
+  template <typename Batch>
+  void putLastDeletedTreeVersion(uint64_t tree_version, Batch&);
 
   // During initial pruning of a genesis block, rewrite the merkle tree value if some keys are still active.
   // This is necessary for proofs.
@@ -117,9 +118,7 @@ class BlockMerkleCategory {
   // Also write corrsponding active key indexes and pruned block index to their respective column families.
   //
   // Return the serialized `BlockMerkleValue` so we only update the tree once in `deleteGenesisBlock`.
-  concordUtils::Sliver writePrunedBlock(BlockId,
-                                        std::vector<KeyHash>&& active_keys,
-                                        storage::rocksdb::NativeWriteBatch&);
+  concordUtils::Sliver writePrunedBlock(BlockId, std::vector<KeyHash>&& active_keys, detail::LocalWriteBatch&);
 
   // When a block gets pruned, any keys that are still `active` (latest version of a key) are
   // tracked in a `PrunedBlock`. PrunedBlocks are kept in their own column family. Additionally, a
@@ -150,7 +149,7 @@ class BlockMerkleCategory {
   //
   // Returns added blocks and deleted keys so we only update the tree a single time in `deleteGenesisBlock`.
   std::pair<SetOfKeyValuePairs, KeysVector> rewriteAlreadyPrunedBlocks(
-      std::unordered_map<BlockId, std::vector<KeyHash>>& deleted_keys, storage::rocksdb::NativeWriteBatch& batch);
+      std::unordered_map<BlockId, std::vector<KeyHash>>& deleted_keys, detail::LocalWriteBatch& batch);
 
   // When a genesis block is pruned, we must delete all data that is stale as of `tree_version`.
   //
@@ -160,7 +159,7 @@ class BlockMerkleCategory {
   // prune N blocks in a row before we add a new block, X, then when we prune Block X, we will have
   // to lookup all the indexes for those pruned N tree versions and delete the internal and leaf
   // nodes in the indexes.
-  void deleteStaleData(uint64_t tree_version, storage::rocksdb::NativeWriteBatch&);
+  void deleteStaleData(uint64_t tree_version, detail::LocalWriteBatch&);
 
   // Delete a batch of stale merkle nodes as part of `deleteStaleData`.
   //
@@ -194,7 +193,7 @@ class BlockMerkleCategory {
   MerkleBlockValue computeRootHash(BlockId block_id,
                                    const std::vector<KeyHash>& active_keys,
                                    bool write_active_key,
-                                   storage::rocksdb::NativeWriteBatch&);
+                                   detail::LocalWriteBatch&);
 
  private:
   class Reader : public sparse_merkle::IDBReader {

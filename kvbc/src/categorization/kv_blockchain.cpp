@@ -453,6 +453,9 @@ void KeyValueBlockchain::deleteStateTransferBlock(const BlockId block_id) {
 void KeyValueBlockchain::deleteGenesisBlock() {
   // We assume there are blocks in the system.
   auto genesis_id = block_chain_.getGenesisBlockId();
+  // If a versioned/Merkle category contains more keys than concurrent_threshold
+  // It will be executed in a separate thread.
+  const auto concurrent_threshold = 10;
   ConcordAssertGE(genesis_id, INITIAL_GENESIS_BLOCK_ID);
   // And we assume this is not the only block in the blockchain. That excludes ST temporary blocks as they are not yet
   // part of the blockchain.
@@ -470,13 +473,55 @@ void KeyValueBlockchain::deleteGenesisBlock() {
 
   // Iterate over groups and call corresponding deleteGenesisBlock,
   // Each group is responsible to fill its deltetes to the batch
+  const auto start = std::chrono::steady_clock::now();
+  std::vector<std::future<void>> futures;
+  futures.reserve((*block).data.categories_updates_info.size());
+  std::vector<detail::LocalWriteBatch> write_batches;
+  write_batches.reserve((*block).data.categories_updates_info.size());
   for (auto&& [category_id, update_info] : (*block).data.categories_updates_info) {
-    std::visit([&genesis_id, category_id = category_id, &write_batch, this](
-                   const auto& update_info) { deleteGenesisBlock(genesis_id, category_id, update_info, write_batch); },
-               update_info);
+    uint64_t num_of_keys = 0;
+    // Decide whether to perform the deletion on a separate thread based on the number of keys
+    // Immutable category, should always be sequential as its deletion is fast.
+    if (std::holds_alternative<VersionedOutput>(update_info)) {
+      num_of_keys = std::get<VersionedOutput>(update_info).keys.size();
+    } else if (std::holds_alternative<BlockMerkleOutput>(update_info)) {
+      num_of_keys = std::get<BlockMerkleOutput>(update_info).keys.size();
+    }
+    std::visit(
+        [genesis_id, category_id = category_id, &write_batches, &futures, &num_of_keys, this](const auto& update_info) {
+          write_batches.push_back(detail::LocalWriteBatch());
+          if (num_of_keys > concurrent_threshold) {
+            futures.push_back(prunning_thread_pool_.async(
+                [&](BlockId genesis_id,
+                    std::string category_id,
+                    const auto& update_info,
+                    detail::LocalWriteBatch& write_batch) {
+                  LOG_DEBUG(CAT_BLOCK_LOG, "Deletion of " << category_id << " will be performed in a seperate thread");
+                  deleteGenesisBlock(genesis_id, category_id, update_info, write_batch);
+                },
+                genesis_id,
+                category_id,
+                std::ref(update_info),
+                std::ref(write_batches.back())));
+
+          } else {
+            deleteGenesisBlock(genesis_id, category_id, update_info, write_batches.back());
+          }
+        },
+        update_info);
+  }
+  for (auto& future : futures) {
+    future.get();
+  }
+  for (auto& write_batche : write_batches) {
+    write_batche.moveToBatch(write_batch);
   }
 
   native_client_->write(std::move(write_batch));
+
+  auto jobDuration =
+      std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
+  LOG_INFO(CAT_BLOCK_LOG, "CONC_DEL deleteGenesisBlock took " << jobDuration << " micro, block " << genesis_id);
   // Increment the genesis block ID cache.
   block_chain_.setGenesisBlockId(genesis_id + 1);
 }
@@ -552,28 +597,25 @@ std::vector<std::string> KeyValueBlockchain::getStaleKeys(BlockId block_id,
 void KeyValueBlockchain::deleteGenesisBlock(BlockId block_id,
                                             const std::string& category_id,
                                             const ImmutableOutput& updates_info,
-                                            storage::rocksdb::NativeWriteBatch& batch) {
-  auto num_of_deletes = std::get<detail::ImmutableKeyValueCategory>(getCategoryRef(category_id))
-                            .deleteGenesisBlock(block_id, updates_info, batch);
-  immutable_num_of_deleted_keys_ += num_of_deletes;
+                                            detail::LocalWriteBatch& batch) {
+  immutable_num_of_deleted_keys_ += std::get<detail::ImmutableKeyValueCategory>(getCategoryRef(category_id))
+                                        .deleteGenesisBlock(block_id, updates_info, batch);
 }
 
 void KeyValueBlockchain::deleteGenesisBlock(BlockId block_id,
                                             const std::string& category_id,
                                             const VersionedOutput& updates_info,
-                                            storage::rocksdb::NativeWriteBatch& batch) {
-  auto num_of_deletes = std::get<detail::VersionedKeyValueCategory>(getCategoryRef(category_id))
-                            .deleteGenesisBlock(block_id, updates_info, batch);
-  versioned_num_of_deletes_keys_ += num_of_deletes;
+                                            detail::LocalWriteBatch& batch) {
+  versioned_num_of_deletes_keys_ += std::get<detail::VersionedKeyValueCategory>(getCategoryRef(category_id))
+                                        .deleteGenesisBlock(block_id, updates_info, batch);
 }
 
 void KeyValueBlockchain::deleteGenesisBlock(BlockId block_id,
                                             const std::string& category_id,
                                             const BlockMerkleOutput& updates_info,
-                                            storage::rocksdb::NativeWriteBatch& batch) {
-  auto num_of_deletes = std::get<detail::BlockMerkleCategory>(getCategoryRef(category_id))
-                            .deleteGenesisBlock(block_id, updates_info, batch);
-  merkle_num_of_deleted_keys_ += num_of_deletes;
+                                            detail::LocalWriteBatch& batch) {
+  merkle_num_of_deleted_keys_ += std::get<detail::BlockMerkleCategory>(getCategoryRef(category_id))
+                                     .deleteGenesisBlock(block_id, updates_info, batch);
 }
 
 void KeyValueBlockchain::deleteLastReachableBlock(BlockId block_id,
