@@ -103,6 +103,9 @@ class IStateTransfer : public IReservedPages {
       std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine>) = 0;
   virtual std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> getReconfigurationEngine() = 0;
   virtual void handoffConsensusMessage(const shared_ptr<ConsensusMsg> &msg) = 0;
+  // Reports State Transfer whenever a prune command is triggered into storage, after a consensus on the last prunable block.
+  // lastAgreedPrunableBlockId is the maximal block to be deleted from local storage.
+  virtual void reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBlockId) = 0;
 };
 
 // This interface may only be used when the state transfer module is runnning

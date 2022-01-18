@@ -98,15 +98,18 @@ class Replica : public IReplica,
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // IAppState implementation
   bool hasBlock(BlockId blockId) const override;
-  bool getBlock(uint64_t blockId, char *outBlock, uint32_t outBlockMaxSize, uint32_t *outBlockActualSize) override;
+  bool getBlock(uint64_t blockId,
+                char *outBlock,
+                uint32_t outBlockMaxSize,
+                uint32_t *outBlockActualSize) const override;
   std::future<bool> getBlockAsync(uint64_t blockId,
                                   char *outBlock,
                                   uint32_t outBlockMaxSize,
                                   uint32_t *outBlockActualSize) override;
-  bool getPrevDigestFromBlock(uint64_t blockId, bftEngine::bcst::StateTransferDigest *) override;
+  bool getPrevDigestFromBlock(uint64_t blockId, bftEngine::bcst::StateTransferDigest *) const override;
   void getPrevDigestFromBlock(const char *blockData,
                               const uint32_t blockSize,
-                              bftEngine::bcst::StateTransferDigest *outPrevBlockDige) override;
+                              bftEngine::bcst::StateTransferDigest *outPrevBlockDigest) const override;
   bool putBlock(const uint64_t blockId,
                 const char *blockData,
                 const uint32_t blockSize,
@@ -123,8 +126,11 @@ class Replica : public IReplica,
   void postProcessUntilBlockId(uint64_t max_block_id) override;
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  bool getBlockFromObjectStore(uint64_t blockId, char *outBlock, uint32_t outblockMaxSize, uint32_t *outBlockSize);
-  bool getPrevDigestFromObjectStoreBlock(uint64_t blockId, bftEngine::bcst::StateTransferDigest *);
+  bool getBlockFromObjectStore(uint64_t blockId,
+                               char *outBlock,
+                               uint32_t outblockMaxSize,
+                               uint32_t *outBlockSize) const;
+  bool getPrevDigestFromObjectStoreBlock(uint64_t blockId, bftEngine::bcst::StateTransferDigest *) const;
   bool putBlockToObjectStore(const uint64_t blockId,
                              const char *blockData,
                              const uint32_t blockSize,
