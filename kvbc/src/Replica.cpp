@@ -329,9 +329,9 @@ void Replica::createReplicaAndSyncState() {
       m_replicaPtr->persistentStorage(),
       aggregator_,
       [this]() -> uint64_t { return getLastBlockId(); },
-      [](BlockId blockIdAtCheckpoint, const std::string &path) {
-        if (blockIdAtCheckpoint < INITIAL_GENESIS_BLOCK_ID) {
-          LOG_INFO(GL, "DB checkpoint done at block ID = " << blockIdAtCheckpoint << ", no need to prepare it");
+      [](BlockId block_id_at_checkpoint, const std::string &path) {
+        if (block_id_at_checkpoint < INITIAL_GENESIS_BLOCK_ID) {
+          LOG_INFO(GL, "DB checkpoint done at block ID = " << block_id_at_checkpoint << ", no need to prepare it");
           return;
         }
         const auto read_only = false;
@@ -339,7 +339,7 @@ void Replica::createReplicaAndSyncState() {
         auto db = storage::rocksdb::NativeClient::newClient(
             path, read_only, storage::rocksdb::NativeClient::DefaultOptions{});
         auto kvbc = categorization::KeyValueBlockchain{db, link_st_chain};
-        while (blockIdAtCheckpoint < kvbc.getLastReachableBlockId()) {
+        while (block_id_at_checkpoint < kvbc.getLastReachableBlockId()) {
           LOG_INFO(
               GL, "Deleting last reachable block = " << kvbc.getLastReachableBlockId() << ", DB checkpoint = " << path);
           kvbc.deleteLastReachableBlock();

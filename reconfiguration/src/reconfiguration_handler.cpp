@@ -236,7 +236,8 @@ bool ReconfigurationHandler::handle(const concord::messages::StateSnapshotReques
                                     uint32_t,
                                     const std::optional<bftEngine::Timestamp>& timestamp,
                                     concord::messages::ReconfigurationResponse& rres) {
-  if (!bftEngine::ReplicaConfig::instance().dbCheckpointFeatureEnabled) {
+  if (!bftEngine::ReplicaConfig::instance().dbCheckpointFeatureEnabled ||
+      bftEngine::ReplicaConfig::instance().maxNumberOfDbCheckpoints == 0) {
     const auto err = "StateSnapshotRequest(participant ID = " + cmd.participant_id +
                      "): failed, the DB checkpoint feature is disabled";
     LOG_WARN(getLogger(), err);
