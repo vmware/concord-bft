@@ -24,4 +24,4 @@ target_include_directories(source_selector_test PRIVATE ${bftengine_SOURCE_DIR}/
 add_executable(RVT_test RVT_test.cpp)
 add_test(RVT_test RVT_test)
 target_link_libraries(RVT_test GTest::Main ${CRYPTOPP_LIBRARIES} corebft)
-target_include_directories(RVT_test PRIVATE ${CRYPTOPP_INCLUDE_DIRS})
+target_include_directories(RVT_test PRIVATE ${CRYPTOPP_INCLUDE_DIRS} PRIVATE ${bftengine_SOURCE_DIR}/src/bcstatetransfer)
