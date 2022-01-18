@@ -367,9 +367,8 @@ BlockId Replica::deleteBlocksUntil(BlockId until) {
   }
 
   // Inform State Transfer about pruning. We must do it in this thread context for persistency considerations, and in
-  // this layer to lower the chance for bugs (there are multiple callers to this function), in which pruning is not notified
-  // to ST. In that case, ST state will be corrupted.
-  and for future bugs/
+  // this layer to lower the chance for bugs (there are multiple callers to this function), in which pruning is not
+  // notified to ST. In that case, ST state will be corrupted.
   if (m_stateTransfer && m_stateTransfer->isRunning()) {
     // We assume until > 0, see check above
     m_stateTransfer->reportLastAgreedPrunableBlockId(until - 1);
