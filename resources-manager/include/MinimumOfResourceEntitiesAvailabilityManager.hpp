@@ -21,21 +21,20 @@
 
 namespace concord::performance {
 
-class SumsResourceEntitiesAvailabilityManager : public IResourceManager {
+class MinimumOfResourceEntitiesAvailabilityManager : public IResourceManager {
  public:
-  SumsResourceEntitiesAvailabilityManager(std::vector<std::shared_ptr<ISystemResourceEntity>> &&resourceEntities)
+  MinimumOfResourceEntitiesAvailabilityManager(std::vector<std::shared_ptr<ISystemResourceEntity>> &&resourceEntities)
       : resourceEntities(std::move(resourceEntities)) {}
   /*
-    SumsResourceEntitiesAvailabilityManager implementation sums all given avialabile resources and outputs as blocks per
-    second to be pruned.
+    MinimumOfResourceEntitiesAvailabilityManager implementation returns a minimum of all the available resources.
   */
   virtual uint64_t getPruneBlocksPerSecond() const override {
-    int64_t sum = 0;
+    int64_t minimum = INT64_MAX;
     for (const auto &entity : resourceEntities) {
-      sum += entity->getAvailableResources();
+      minimum = std::min(minimum, entity->getAvailableResources());
     }
 
-    return (uint64_t)std::max(sum, (int64_t)0);
+    return (uint64_t)std::max(minimum, (int64_t)0);
   }
 
  private:

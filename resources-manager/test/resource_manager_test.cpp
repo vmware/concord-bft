@@ -13,8 +13,7 @@
 #include "IntervalMappingResourceManager.hpp"
 #include "IResourceManager.hpp"
 #include "ISystemResourceEntity.hpp"
-#include "SubstractFromMaxResourceManager.hpp"
-#include "SumsResourceEntitiesAvailabilityManager.hpp"
+#include "MinimumOfResourceEntitiesAvailabilityManager.hpp"
 
 #include <gtest/gtest.h>
 
@@ -61,23 +60,9 @@ TEST(resource_manager_test, SumsResourceEntitiesAvailabilityManager_test) {
   std::vector<std::shared_ptr<ISystemResourceEntity>> systemResources = {consensusEngineResourceMonitor,
                                                                          databaseResourceMonitor};
 
-  std::unique_ptr<IResourceManager> sut(new SumsResourceEntitiesAvailabilityManager(std::move(systemResources)));
+  std::unique_ptr<IResourceManager> sut(new MinimumOfResourceEntitiesAvailabilityManager(std::move(systemResources)));
 
-  EXPECT_EQ(sut->getPruneBlocksPerSecond(), 160);
-}
-
-TEST(resource_manager_test, SubstractFromMaxResourceManager_test) {
-  auto consensusEngineResourceMonitor = std::make_shared<ResourceEntityMock>();
-  consensusEngineResourceMonitor->measurements = 110;
-
-  auto databaseResourceMonitor = std::make_shared<ResourceEntityMock>();
-  databaseResourceMonitor->measurements = 50;
-  std::vector<std::shared_ptr<ISystemResourceEntity>> systemResources = {consensusEngineResourceMonitor,
-                                                                         databaseResourceMonitor};
-
-  std::unique_ptr<IResourceManager> sut(new SubstractFromMaxResourceManager(1000, std::move(systemResources)));
-
-  EXPECT_EQ(sut->getPruneBlocksPerSecond(), 840);
+  EXPECT_EQ(sut->getPruneBlocksPerSecond(), 50);
 }
 
 }  // anonymous namespace
