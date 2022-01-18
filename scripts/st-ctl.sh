@@ -215,6 +215,7 @@ if $cmd_set_concord_log_level; then
         "concord.util.handoff" \
         "concord.bft.st.dbdatastore" \
         "concord.bft.st.inmem" \
+        "concord.bft.st.rvb" \
         # Uncomment as needed
         #"serializable" \
         #'rocksdb'
@@ -333,11 +334,11 @@ rpm -i https://packages.vmware.com/photon/3.0/photon_release_3.0_x86_64/x86_64/n
 rpm -i https://packages.vmware.com/photon/3.0/photon_release_3.0_x86_64/x86_64/tmux-2.7-1.ph3.x86_64.rpm || true
 
 cd /root/
-rm -rf ./lnav-0.9.0 ./lnav-0.9.0-musl-64bit.zip
-wget https://github.com/tstack/lnav/releases/download/v0.9.0/lnav-0.9.0-musl-64bit.zip
-unzip lnav-0.9.0-musl-64bit.zip
-mv lnav-0.9.0/lnav /usr/bin/
-rm -rf ./lnav-0.9.0 ./lnav-0.9.0-musl-64bit.zip
+rm -rf ./lnav-0.10.1 ./lnav-0.10.1-musl-64bit.zip
+wget https://github.com/tstack/lnav/releases/download/v0.10.1/lnav-0.10.1-musl-64bit.zip
+unzip lnav-0.10.1-musl-64bit.zip
+mv lnav-0.10.1/lnav /usr/bin/
+rm -rf ./lnav-0.10.1 ./lnav-0.10.1-musl-64bit.zip
 
 cat <<EOF >> ~/.profile
 alias myip="echo $(ifconfig | grep "10\.202" | cut -d ":" -f 2 | cut -d " " -f 1)"
