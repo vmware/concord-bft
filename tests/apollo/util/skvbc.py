@@ -605,10 +605,10 @@ class SimpleKVBCProtocol:
                     pass
                 await trio.sleep(time_interval)
 
-    async def send_indefinite_ops(self, write_weight=.70, time_interval=.01):
+    async def send_indefinite_ops(self, write_weight=.70, time_interval=.01, excluded_clients=None):
         max_size = len(self.keys) // 2
         while True:
-            client = self.bft_network.random_client()
+            client = self.bft_network.random_client(without=excluded_clients)
             async with trio.open_nursery() as nursery:
                 try:
                     if random.random() < write_weight:

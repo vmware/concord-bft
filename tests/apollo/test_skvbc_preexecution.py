@@ -309,8 +309,8 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         bft_network.stop_replica(initial_primary)
 
         try:
-            with trio.move_on_after(seconds=10):
-                await skvbc.send_indefinite_ops(write_weight=1)
+            with trio.move_on_after(seconds=1):
+                await skvbc.send_indefinite_ops(write_weight=1, excluded_clients={client})
         except trio.TooSlowError:
             pass
         finally:

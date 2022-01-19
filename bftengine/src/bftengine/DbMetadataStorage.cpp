@@ -171,6 +171,9 @@ void DBMetadataStorage::cleanDB() {
   try {
     ObjectIdsVector objectIds = {objectsNumParameterId_};
     for (const auto &id : objectIdToSizeMap_) {
+      // If the object id is higher than the objectsNum_ it means that we try to remove metadata (and hence the size of
+      // objectsNum_ is still the old one)
+      if (id.first > objectsNum_) continue;
       objectIds.push_back(id.first);
     }
     multiDel(objectIds);
