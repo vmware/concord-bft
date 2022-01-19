@@ -77,6 +77,15 @@ Msg PruneSwitchModeRequest 50 {
     configuration
 }
 
+Msg PruneTicksChangeRequest 68 {
+    uint64 sender_id
+    # TicksGenerator period in seconds.
+    uint32 tick_period_seconds
+
+    # The number of blocks in a pruning batch.
+    uint64 batch_blocks_num
+}
+
 Msg GetVersionCommand 19 {
   bytes place_holder
 }
@@ -325,6 +334,7 @@ Msg ReconfigurationRequest 1 {
     LatestPrunableBlockRequest
     PruneRequest
     PruneStatusRequest
+    PruneTicksChangeRequest
     InstallCommand
     InstallStatusCommand
     KeyExchangeCommand
