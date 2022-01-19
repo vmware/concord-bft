@@ -1052,7 +1052,7 @@ struct VerifyDbCheckpoint {
     return !st.isZero() && (sizeof(d) == sizeof(st)) && !std::memcmp(d.content(), st.get(), sizeof(st));
   }
   bool verify(const CheckpointMsg &msg, const CheckpointDesc &desc) const {
-    return (isSame(msg.digestOfState(), desc.digestOfLastBlock) && (msg.state() == desc.lastBlock));
+    return (isSame(msg.digestOfState(), desc.digestOfMaxBlockId) && (msg.state() == desc.maxBlockId));
   }
   BlockDigest getBlockDigest(const KeyValueBlockchain &adapter, const uint64_t &blockId) const {
     using bftEngine::bcst::computeBlockDigest;
@@ -1119,11 +1119,11 @@ struct VerifyDbCheckpoint {
     CheckpointDesc checkPtDesc;
     if (ds->hasCheckpointDesc(chckp)) {
       checkPtDesc = ds->getCheckpointDesc(chckp);
-      result["LastStoredCheckpointBlockId"] = std::to_string(checkPtDesc.lastBlock);
-      auto computedDigest = getBlockDigest(adapter, checkPtDesc.lastBlock);
+      result["LastStoredCheckpointBlockId"] = std::to_string(checkPtDesc.maxBlockId);
+      auto computedDigest = getBlockDigest(adapter, checkPtDesc.maxBlockId);
       result["calculatedBlockHash"] = concordUtils::bufferToHex(computedDigest.data(), computedDigest.size());
-      if (computedDigest.size() != sizeof(checkPtDesc.digestOfLastBlock) ||
-          (std::memcmp(computedDigest.data(), checkPtDesc.digestOfLastBlock.get(), computedDigest.size()))) {
+      if (computedDigest.size() != sizeof(checkPtDesc.digestOfMaxBlockId) ||
+          (std::memcmp(computedDigest.data(), checkPtDesc.digestOfMaxBlockId.get(), computedDigest.size()))) {
         result["lastBlockVerification"] = "Fail";
         return concordUtils::toJson(result);
       }
@@ -1156,10 +1156,11 @@ struct VerifyDbCheckpoint {
     result["ValidCheckpointMsgsCount"] = std::to_string(numOfValidCheckPtMsgs);
     if (numOfBlocksToVerify) {
       const auto &gensisBlockId = adapter.getGenesisBlockId();
-      numOfBlocksToVerify = std::min(numOfBlocksToVerify, (checkPtDesc.lastBlock - gensisBlockId));
+      numOfBlocksToVerify = std::min(numOfBlocksToVerify, (checkPtDesc.maxBlockId - gensisBlockId));
       result["BlockChainVerificationStatus"] =
-          verifyBlockChain(adapter, (checkPtDesc.lastBlock - numOfBlocksToVerify - 1), checkPtDesc.lastBlock) ? "Ok"
-                                                                                                              : "Fail";
+          verifyBlockChain(adapter, (checkPtDesc.maxBlockId - numOfBlocksToVerify - 1), checkPtDesc.maxBlockId)
+              ? "Ok"
+              : "Fail";
     }
     return concordUtils::toJson(result);
   }
