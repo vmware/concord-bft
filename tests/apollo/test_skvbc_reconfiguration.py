@@ -129,6 +129,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
     def tearDownClass(cls):
         pass
 
+    @unittest.skip("Skip only in branch state_transfer_v1.6_dev")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True, publish_master_keys=True)
     async def test_clients_add_remove_cmd(self, bft_network):
@@ -167,6 +168,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                         assert(k ==  bft_network.cre_id)
                         assert(v == config_desc)
 
+    @unittest.skip("Skip only in branch state_transfer_v1.6_dev")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True, publish_master_keys=True)
     async def test_client_key_exchange_command(self, bft_network):
@@ -247,6 +249,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.start_cre()
         bft_network.restart_clients(generate_tx_signing_keys=False, restart_replicas=False)
 
+    @unittest.skip("Skip only in branch state_transfer_v1.6_dev")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True, publish_master_keys=True)
     async def test_tls_exchange_client_replica(self, bft_network):
@@ -311,6 +314,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             for i in range(100):
                 await skvbc.send_write_kv_set()
 
+    @unittest.skip("Skip only in branch state_transfer_v1.6_dev")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True, publish_master_keys=True)
     async def test_client_restart_command(self, bft_network):
@@ -436,6 +440,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                     return None
         return ts
 
+    @unittest.skip("Skip only in branch state_transfer_v1.6_dev")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True, publish_master_keys=True)
     async def test_tls_exchange_replicas_replicas_and_replicas_client(self, bft_network):
@@ -588,6 +593,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                         succ = False
                         break
 
+    @unittest.skip("Skip only in branch state_transfer_v1.6_dev")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_key_exchange(self, bft_network):
@@ -606,6 +612,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                                                  num_of_checkpoints_to_add=3, 
                                                  verify_checkpoint_persistency=False)
 
+    @unittest.skip("Skip only in branch state_transfer_v1.6_dev")
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd_with_key_exchange, 
                       selected_configs=lambda n, f, c: n == 7,
@@ -649,6 +656,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                                                  num_of_checkpoints_to_add=2, 
                                                  verify_checkpoint_persistency=False)
 
+    @unittest.skip("Skip only in branch state_transfer_v1.6_dev")
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd_with_key_exchange, 
                       bft_configs=[{'n': 4, 'f': 1, 'c': 0, 'num_clients': 10}],
@@ -733,6 +741,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                             #assert public_key_exchange_for_peer_counter ==  public_key_exchange_for_peer_counter_before + 1
                             break
 
+    @unittest.skip("Skip only in branch state_transfer_v1.6_dev")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_wedge_command(self, bft_network):
@@ -756,6 +765,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         await self.verify_last_executed_seq_num(bft_network, checkpoint_before)
         await self.validate_stop_on_super_stable_checkpoint(bft_network, skvbc)
 
+    @unittest.skip("Skip only in branch state_transfer_v1.6_dev")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_unwedge_command(self, bft_network):
@@ -901,7 +911,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                                                               stop_on_stable_seq_num=False)
         await skvbc.wait_for_liveness()
 
-
+    @unittest.skip("Skip only in branch state_transfer_v1.6_dev")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_unwedge_command_with_f_failures(self, bft_network):
@@ -953,6 +963,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         for i in range(100):
             await skvbc.send_write_kv_set()
 
+    @unittest.skip("Skip only in branch state_transfer_v1.6_dev")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_wedge_status_command(self, bft_network):
@@ -984,7 +995,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
         await self.validate_start_on_unwedge(bft_network,skvbc,fullWedge=False)
 
-
+    @unittest.skip("Skip only in branch state_transfer_v1.6_dev")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_get_latest_pruneable_block(self, bft_network):
@@ -1027,6 +1038,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 min_prunebale_block_b = lpab.response.block_id
         assert min_prunebale_block < min_prunebale_block_b
 
+    @unittest.skip("Skip only in branch state_transfer_v1.6_dev")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_pruning_command(self, bft_network):
@@ -1130,6 +1142,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             bft_network.start_replica(crashed_replica)
             await self._wait_for_st(bft_network, crashed_replica, 2100)
     
+    @unittest.skip("Skip only in branch state_transfer_v1.6_dev")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_pruning_status_command(self, bft_network):
@@ -1265,7 +1278,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         rep = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
         assert rep.success is False
 
-
+    @unittest.skip("Skip only in branch state_transfer_v1.6_dev")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_restart_command(self, bft_network):
@@ -1310,6 +1323,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         for i in range(100):
             await skvbc.send_write_kv_set()
 
+    @unittest.skip("Skip only in branch state_transfer_v1.6_dev")
     @with_trio
     @with_bft_network(start_replica_cmd_with_key_exchange, selected_configs=lambda n, f, c: n == 7, rotate_keys=True, publish_master_keys=True)
     async def test_remove_nodes(self, bft_network):
@@ -1353,6 +1367,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(nb_fast_path, 0)
 
+    @unittest.skip("Skip only in branch state_transfer_v1.6_dev")
     @with_trio
     @with_bft_network(start_replica_cmd_with_key_exchange, selected_configs=lambda n, f, c: n == 7, rotate_keys=True, publish_master_keys=True)
     async def test_remove_nodes_with_f_failures(self, bft_network):
@@ -1401,6 +1416,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(nb_fast_path, 0)
 
+    @unittest.skip("Skip only in branch state_transfer_v1.6_dev")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_remove_nodes_with_unwedge(self, bft_network):
@@ -1446,6 +1462,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             self.assertGreater(nb_fast_path, 0)
         await self.validate_epoch_number(bft_network, 1, bft_network.all_replicas())
 
+    @unittest.skip("Skip only in branch state_transfer_v1.6_dev")
     @with_trio
     @with_bft_network(start_replica_cmd, bft_configs=[{'n': 4, 'f': 1, 'c': 0, 'num_clients': 10}], publish_master_keys=True)
     async def test_add_nodes(self, bft_network):
@@ -1491,6 +1508,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(nb_fast_path, 0)
     
+    @unittest.skip("Skip only in branch state_transfer_v1.6_dev")
     @with_trio
     @with_bft_network(start_replica_cmd, bft_configs=[{'n': 4, 'f': 1, 'c': 0, 'num_clients': 10}], publish_master_keys=True)
     async def test_add_nodes_with_failures(self, bft_network):
@@ -1605,7 +1623,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             await self.validate_initial_key_exchange(bft_network, bft_network.all_replicas(), metrics_id="self_key_exchange", expected=bft_network.config.n)
 
 
-
+    @unittest.skip("Skip only in branch state_transfer_v1.6_dev")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_addRemoveStatusError(self, bft_network):
@@ -1732,6 +1750,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         #validate the blockId is same as the 2nd reconfiguration command block
         self.assertEqual(blockIdRor, blockIdreplica)
 
+    @unittest.skip("Skip only in branch state_transfer_v1.6_dev")
     @with_trio
     @with_bft_network(start_replica_cmd_with_key_exchange, selected_configs=lambda n, f, c: n == 7, rotate_keys=True, publish_master_keys=True)
     async def test_install_command(self, bft_network):
