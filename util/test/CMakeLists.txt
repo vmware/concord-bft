@@ -71,6 +71,10 @@ add_executable(simple_memory_pool_test simple_memory_pool_test.cpp)
 add_test(simple_memory_pool_test simple_memory_pool_test)
 target_link_libraries(simple_memory_pool_test GTest::Main util)
 
+add_executable(RawMemoryPool_test RawMemoryPool_test.cpp)
+add_test(RawMemoryPool_test RawMemoryPool_test)
+target_link_libraries(RawMemoryPool_test GTest::Main util)
+
 add_executable(crypto_utils_test crypto_utils_test.cpp )
 add_test(crypto_utils_test crypto_utils_test)
 target_link_libraries(crypto_utils_test GTest::Main util)

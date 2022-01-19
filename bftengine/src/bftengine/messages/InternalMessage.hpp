@@ -59,6 +59,9 @@ using InternalMessage = std::variant<FullCommitProofMsg*,
                                      CombinedCommitSigSucceededInternalMsg,
                                      CombinedCommitSigFailedInternalMsg,
                                      VerifyCombinedCommitSigResultInternalMsg,
+                                     FastPathCombinedCommitSigSucceededInternalMsg,
+                                     FastPathCombinedCommitSigFailedInternalMsg,
+                                     FastPathVerifyCombinedCommitSigResultInternalMsg,
 
                                      // Move to next view due to some valid reason
                                      ViewChangeIndicatorInternalMsg,

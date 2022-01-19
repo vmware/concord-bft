@@ -1,0 +1,6 @@
+find_package(GTest REQUIRED)
+
+add_executable(resource_manager_test resource_manager_test.cpp)
+target_link_libraries(resource_manager_test GTest::Main concord_resources_manager)
+
+add_test(resource_manager_test resource_manager_test)

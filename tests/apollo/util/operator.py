@@ -176,6 +176,12 @@ class Operator:
         cp_command = cmf_msgs.CreateDbCheckpointCommand()
         cp_command.sender_id = 1000
         return self._construct_basic_reconfiguration_request(cp_command)
+
+    def _construct_reconfiguration_state_snapshot_req(self):
+        req = cmf_msgs.StateSnapshotRequest()
+        req.checkpoint_kv_count = 0
+        req.participant_id = 'apollo_test_participant_id'
+        return self._construct_basic_reconfiguration_request(req)
     
     def get_rsi_replies(self):
         return self.client.get_rsi_replies()
@@ -297,3 +303,7 @@ class Operator:
     async def create_dbcheckpoint_cmd(self):
         cp = self._construct_reconfiguration_create_dbcheckpoint_command()
         return await self.client.write(cp.serialize(), reconfiguration=True)
+
+    async def state_snapshot_req(self):
+        req = self._construct_reconfiguration_state_snapshot_req()
+        return await self.client.write(req.serialize(), reconfiguration=True)

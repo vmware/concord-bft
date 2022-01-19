@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "assertUtils.hpp"
 #include "sliver.hpp"
 #include "status.hpp"
 #include <unordered_map>
@@ -76,6 +77,7 @@ class IDBClient {
   virtual std::string getPath() const { return ""; };
   virtual void setCheckpointPath(const std::string&){};
   virtual std::string getCheckpointPath() const { return "NotSupported"; };
+  virtual std::string getPathForCheckpoint(std::uint64_t checkpointId) const { ConcordAssert(false); };
   virtual std::vector<uint64_t> getListOfCreatedCheckpoints() const { return {}; }
   virtual void removeCheckpoint(const uint64_t&) const {}
   virtual void removeAllCheckpoints() const {};

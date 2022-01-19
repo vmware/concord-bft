@@ -325,8 +325,25 @@ void Replica::createReplicaAndSyncState() {
   handleNewEpochEvent();
   handleWedgeEvent();
   bftEngine::impl::DbCheckpointManager::instance().initializeDbCheckpointManager(
-      m_dbSet.dataDBClient, m_replicaPtr->persistentStorage(), aggregator_, [this]() -> uint64_t {
-        return getLastBlockId();
+      m_dbSet.dataDBClient,
+      m_replicaPtr->persistentStorage(),
+      aggregator_,
+      [this]() -> uint64_t { return getLastBlockId(); },
+      [](BlockId block_id_at_checkpoint, const std::string &path) {
+        if (block_id_at_checkpoint < INITIAL_GENESIS_BLOCK_ID) {
+          LOG_INFO(GL, "DB checkpoint done at block ID = " << block_id_at_checkpoint << ", no need to prepare it");
+          return;
+        }
+        const auto read_only = false;
+        const auto link_st_chain = false;
+        auto db = storage::rocksdb::NativeClient::newClient(
+            path, read_only, storage::rocksdb::NativeClient::DefaultOptions{});
+        auto kvbc = categorization::KeyValueBlockchain{db, link_st_chain};
+        while (block_id_at_checkpoint < kvbc.getLastReachableBlockId()) {
+          LOG_INFO(
+              GL, "Deleting last reachable block = " << kvbc.getLastReachableBlockId() << ", DB checkpoint = " << path);
+          kvbc.deleteLastReachableBlock();
+        }
       });
 }
 
