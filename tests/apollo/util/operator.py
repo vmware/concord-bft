@@ -296,9 +296,13 @@ class Operator:
         reconf_msg = self._construct_reconfiguration_addRemoveWithWedgeStatus_command()
         return await self.client.read(reconf_msg.serialize(), m_of_n_quorum=quorum, reconfiguration=True)
 
-    async def get_dbcheckpoint_info_request(self):
+    async def get_dbcheckpoint_info_request(self, bft=False):
+        if bft is True:
+            quorum = bft_client.MofNQuorum.LinearizableQuorum(self.client.config, [r for r in range(self.config.n)])
+        else:
+            quorum = bft_client.MofNQuorum.All(self.client.config, [r for r in range(self.config.n)])
         cpinfo_msg = self._construct_reconfiguration_get_dbcheckpoint_info_request()
-        return await self.client.read(cpinfo_msg.serialize(), reconfiguration=True)
+        return await self.client.read(cpinfo_msg.serialize(), m_of_n_quorum=quorum, reconfiguration=True)
     
     async def create_dbcheckpoint_cmd(self):
         cp = self._construct_reconfiguration_create_dbcheckpoint_command()
