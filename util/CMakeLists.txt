@@ -11,7 +11,8 @@ set(util_source_files
     src/hex_tools.cpp
     src/OpenTracing.cpp
     src/throughput.cpp
-    src/crypto_utils.cpp)
+    src/crypto_utils.cpp
+    src/RawMemoryPool.cpp)
 
 
 add_library(util        STATIC ${util_source_files})
