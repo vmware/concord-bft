@@ -98,7 +98,7 @@ class RVTTest : public ::testing::Test {
 TEST_F(RVTTest, basicAdditionSubtraction) {
   auto a = values_.leaf1;
   auto b = values_.leaf2;
-  auto c = values_.leaf1 + values_.leaf2;
+  auto c = a + b;
   ASSERT_EQ(a + b, c);
   ASSERT_EQ(c - b, a);
 }
@@ -107,9 +107,13 @@ TEST_F(RVTTest, cumulativeAssociativeProperty) {
   auto a = values_.leaf1;
   auto b = values_.leaf2;
   auto c = values_.parent;
+
   ASSERT_EQ(a + b + c, c + a + b);
-  ASSERT_NE(a - b, b - a);
   ASSERT_EQ(a + (b + c), (c + a) + b);
+  if ((a == (-b)) || (c == b) || (b == 0)) {
+    return;
+  }
+  ASSERT_NE(a - b, b - a);
   ASSERT_NE(a + (b + c), (c + a) - b);
 }
 
