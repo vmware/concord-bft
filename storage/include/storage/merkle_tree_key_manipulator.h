@@ -14,6 +14,9 @@
 #pragma once
 
 #include "key_manipulator_interface.h"
+#include "string.hpp"
+
+#include <string>
 
 namespace concord::storage::v2MerkleTree {
 
@@ -30,5 +33,11 @@ class STKeyManipulator : public ISTKeyManipulator {
   concordUtils::Sliver generateSTReservedPageDynamicKey(uint32_t pageId, uint64_t chkpt) const override;
   concordUtils::Sliver getReservedPageKeyPrefix() const override;
 };
+
+namespace detail {
+inline std::string serialize(detail::EBFTSubtype type) {
+  return std::string{concord::util::toChar(detail::EDBKeyType::BFT), concord::util::toChar(type)};
+}
+}  // namespace detail
 
 }  // namespace concord::storage::v2MerkleTree

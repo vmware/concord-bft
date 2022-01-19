@@ -43,6 +43,12 @@ Msg PublicStateKeys 7 {
     list string keys
 }
 
+# The state hash (public or per participant) at a particular block.
+Msg StateHash 8 {
+    uint64 block_id
+    fixedlist uint8 32 hash
+}
+
 Msg MerkleKeyFlag 1000 {
     bool deleted
 }

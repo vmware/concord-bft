@@ -203,6 +203,8 @@ EBFTSubtype DBKeyManipulator::getBftSubtype(const Sliver &s) {
       return EBFTSubtype::STCheckpointDescriptor;
     case toChar(EBFTSubtype::STTempBlock):
       return EBFTSubtype::STTempBlock;
+    case toChar(EBFTSubtype::PublicStateHashAtDbCheckpoint):
+      return EBFTSubtype::PublicStateHashAtDbCheckpoint;
   }
   ConcordAssert(false);
 

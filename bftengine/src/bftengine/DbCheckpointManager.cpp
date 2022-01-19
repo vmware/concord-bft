@@ -181,10 +181,30 @@ void DbCheckpointManager::initializeDbCheckpointManager(std::shared_ptr<concord:
     cleanUpFuture_ = std::async(std::launch::async, [this]() { cleanUp(); });
   }
 }
+
 std::optional<DbCheckpointMetadata::DbCheckPointDescriptor> DbCheckpointManager::getLastCreatedDbCheckpointMetadata() {
   std::scoped_lock lock(lockLastDbCheckpointDesc_);
   return lastCreatedCheckpointMetadata_;
 }
+
+DbCheckpointManager::CheckpointState DbCheckpointManager::getCheckpointState(CheckpointId id) const {
+  {
+    auto lock = std::scoped_lock{lockDbCheckPtFuture_};
+    if (dbCreateCheckPtFuture_.count(id)) {
+      return CheckpointState::kPending;
+    }
+  }
+
+  {
+    auto lock = std::scoped_lock{lock_};
+    if (dbCheckptMetadata_.dbCheckPoints_.count(id)) {
+      return CheckpointState::kCreated;
+    }
+  }
+
+  return CheckpointState::kNonExistent;
+}
+
 std::optional<CheckpointId> DbCheckpointManager::createDbCheckpointAsync(const SeqNum& seqNum,
                                                                          const std::optional<Timestamp>& timestamp) {
   if (seqNum <= lastCheckpointSeqNum_) {
@@ -205,6 +225,10 @@ std::optional<CheckpointId> DbCheckpointManager::createDbCheckpointAsync(const S
   }
   // Get last blockId from rocksDb
   const auto lastBlockid = getLastBlockIdCb_();
+  if (lastBlockid == 0) {
+    LOG_WARN(getLogger(), "createDb checkpoint failed. Refusing to create a checkpoint for an empty blockchain.");
+    return std::nullopt;
+  }
   std::scoped_lock lock(lockDbCheckPtFuture_);
   if (dbCreateCheckPtFuture_.find(lastBlockid) != dbCreateCheckPtFuture_.end()) {
     // rocksDb checkpoint with this lastBlock Id is already created or in progress

@@ -15,17 +15,13 @@
 
 #include "endianness.hpp"
 #include "storage/db_types.h"
-#include "string.hpp"
 
 #include <string>
 
 namespace {
 
 using namespace ::concord::storage::v2MerkleTree::detail;
-using concord::util::toChar;
 using concordUtils::toBigEndianStringBuffer;
-
-std::string serialize(EBFTSubtype type) { return std::string{toChar(EDBKeyType::BFT), toChar(type)}; }
 
 }  // namespace
 
