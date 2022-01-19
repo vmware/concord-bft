@@ -107,6 +107,7 @@ KvbFilteredUpdate::OrderedKVPairs KvbAppFilter::filterKeyValuePairs(const kvbc::
 KvbFilteredEventGroupUpdate::EventGroup KvbAppFilter::filterEventsInEventGroup(
     EventGroupId event_group_id, const kvbc::categorization::EventGroup &event_group) {
   KvbFilteredEventGroupUpdate::EventGroup filtered_event_group;
+  filtered_event_group.record_time = event_group.record_time;
 
   for (auto event : event_group.events) {
     // If no TRIDs attached then everyone is allowed to view the pair
