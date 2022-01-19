@@ -39,9 +39,9 @@ class PartialCommitProofMsg : public MessageBase {
 
   CommitPath commitPath() const { return b()->commitPath; }
 
-  uint16_t thresholSignatureLength() const { return b()->thresholSignatureLength; }
+  uint16_t signatureLen() const { return b()->thresholSignatureLength; }
 
-  const char* thresholSignature() const { return body() + sizeof(Header) + b()->header.spanContextSize; }
+  const char* signatureBody() const { return body() + sizeof(Header) + b()->header.spanContextSize; }
 
   void validate(const ReplicasInfo&) const override;
 

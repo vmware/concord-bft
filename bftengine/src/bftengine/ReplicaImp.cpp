@@ -1174,13 +1174,13 @@ void ReplicaImp::tryToStartSlowPaths() {
   for (SeqNum i = minSeqNum; i <= maxSeqNum; i++) {
     SeqNumInfo &seqNumInfo = mainLog->get(i);
 
-    if (seqNumInfo.partialProofs().hasFullProof() ||                          // already has a full proof
-        seqNumInfo.slowPathStarted() ||                                       // slow path has already  started
-        seqNumInfo.partialProofs().getSelfPartialCommitProof() == nullptr ||  // did not start a fast path
+    if (seqNumInfo.hasFastPathFullCommitProof() ||                       // already has a full proof
+        seqNumInfo.slowPathStarted() ||                                  // slow path has already  started
+        seqNumInfo.getFastPathSelfPartialCommitProofMsg() == nullptr ||  // did not start a fast path
         (!seqNumInfo.hasPrePrepareMsg()))
       continue;  // slow path is not needed
 
-    const Time timeOfPartProof = seqNumInfo.partialProofs().getTimeOfSelfPartialProof();
+    const Time timeOfPartProof = seqNumInfo.getFastPathTimeOfSelfPartialProof();
 
     if (currTime - timeOfPartProof < milliseconds(controller->timeToStartSlowPathMilli())) break;
     SCOPED_MDC_SEQ_NUM(std::to_string(i));
@@ -1320,19 +1320,17 @@ void ReplicaImp::onMessage<StartSlowCommitMsg>(StartSlowCommitMsg *msg) {
 }
 
 void ReplicaImp::sendPartialProof(SeqNumInfo &seqNumInfo) {
-  PartialProofsSet &partialProofs = seqNumInfo.partialProofs();
-
   if (!seqNumInfo.hasPrePrepareMsg()) return;
 
   PrePrepareMsg *pp = seqNumInfo.getPrePrepareMsg();
   Digest &ppDigest = pp->digestOfRequests();
   const SeqNum seqNum = pp->seqNumber();
 
-  if (!partialProofs.hasFullProof()) {
+  if (!seqNumInfo.hasFastPathFullCommitProof()) {
     // send PartialCommitProofMsg to all collectors
     LOG_INFO(CNSUS, "Sending PartialCommitProofMsg, sequence number:" << pp->seqNumber());
 
-    PartialCommitProofMsg *part = partialProofs.getSelfPartialCommitProof();
+    PartialCommitProofMsg *part = seqNumInfo.getFastPathSelfPartialCommitProofMsg();
 
     if (part == nullptr) {
       std::shared_ptr<IThresholdSigner> commitSigner;
@@ -1351,10 +1349,10 @@ void ReplicaImp::sendPartialProof(SeqNumInfo &seqNumInfo) {
       const auto &span_context = pp->spanContext<std::remove_pointer<decltype(pp)>::type>();
       part = new PartialCommitProofMsg(
           config_.getreplicaId(), getCurrentView(), seqNum, commitPath, tmpDigest, commitSigner, span_context);
-      partialProofs.addSelfMsgAndPPDigest(part, tmpDigest);
+      seqNumInfo.addFastPathSelfPartialCommitMsgAndDigest(part, tmpDigest);
     }
 
-    partialProofs.setTimeOfSelfPartialProof(getMonotonicTime());
+    seqNumInfo.setFastPathTimeOfSelfPartialProof(getMonotonicTime());
 
     if (!seqNumInfo.isTimeCorrect()) return;
     // send PartialCommitProofMsg (only if, from my point of view, at most MaxConcurrentFastPaths are in progress)
@@ -1458,9 +1456,8 @@ void ReplicaImp::onMessage<PartialCommitProofMsg>(PartialCommitProofMsg *msg) {
 
     if (msgSeqNum > lastExecutedSeqNum + activeExecutions_) {
       SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
-      PartialProofsSet &pps = seqNumInfo.partialProofs();
 
-      if (pps.addMsg(msg)) {
+      if (seqNumInfo.addFastPathPartialCommitMsg(msg)) {
         return;
       }
     }
@@ -1483,6 +1480,7 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
   const SeqNum msgSeqNum = msg->seqNumber();
   SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
   SCOPED_MDC_SEQ_NUM(std::to_string(msg->seqNumber()));
+  // ToDo--EDJ: FullCommitProofMsg might be created for FAST_WITH_THRESHOLD but OPTIMISTIC_FAST is hardcoded here
   SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::OPTIMISTIC_FAST));
 
   LOG_INFO(
@@ -1491,39 +1489,14 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
 
   if (relevantMsgForActiveView(msg)) {
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
-    PartialProofsSet &pps = seqNumInfo.partialProofs();
-
-    if (!pps.hasFullProof() && pps.addMsg(msg))  // TODO(GG): consider to verify the signature in another thread
-    {
-      ConcordAssert(seqNumInfo.hasPrePrepareMsg());
-
-      seqNumInfo.forceComplete();  // TODO(GG): remove forceComplete() (we know that  seqNumInfo is committed because
-      // of the  FullCommitProofMsg message)
-
-      if (ps_) {
-        ps_->beginWriteTran();
-        ps_->setFullCommitProofMsgInSeqNumWindow(msgSeqNum, msg);
-        ps_->setForceCompletedInSeqNumWindow(msgSeqNum, true);
-        ps_->endWriteTran(config_.getsyncOnUpdateOfMetadata());
-      }
-
-      if (msg->senderId() == config_.getreplicaId()) sendToAllOtherReplicas(msg);
-
-      const bool askForMissingInfoAboutCommittedItems =
-          (msgSeqNum > lastExecutedSeqNum + config_.getconcurrencyLevel() +
-                           activeExecutions_);  // TODO(GG): check/improve this logic
-
-      auto execution_span = concordUtils::startChildSpan("bft_execute_committed_reqs", span);
-      metric_total_committed_sn_++;
-      pm_->Delay<concord::performance::SlowdownPhase::ConsensusFullCommitMsgProcess>();
-      startExecution(msgSeqNum, span, askForMissingInfoAboutCommittedItems);
-      return;
-    } else if (pps.hasFullProof()) {
-      const auto fullProofCollectorId = pps.getFullProof()->senderId();
+    if (seqNumInfo.hasFastPathFullCommitProof()) {
+      const auto fullProofCollectorId = seqNumInfo.getFastPathFullCommitProofMsg()->senderId();
       LOG_INFO(CNSUS,
                "FullCommitProof for seq num " << msgSeqNum << " was already received from replica "
                                               << fullProofCollectorId << " and has been processed."
                                               << " Ignoring the FullCommitProof from replica " << msg->senderId());
+    } else if (seqNumInfo.addFastPathFullCommitMsg(msg)) {
+      return;  // We've added the msg -- don't delete!
     }
   }
 
@@ -1551,11 +1524,6 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
   if (auto *t = std::get_if<FinishPrePrepareExecutionInternalMsg>(&msg)) {
     ConcordAssert(t->prePrepareMsg != nullptr);
     return finishExecutePrePrepareMsg(t->prePrepareMsg, t->pAccumulatedRequests);
-  }
-
-  // Handle a full commit proof sent by self
-  if (auto *fcp = std::get_if<FullCommitProofMsg *>(&msg)) {
-    return onInternalMsg(*fcp);
   }
 
   // Handle vaidated messages
@@ -1629,10 +1597,26 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
         ccss->seqNumber, ccss->view, ccss->combinedSig.data(), ccss->combinedSig.size(), ccss->span_context_);
   }
   if (auto *ccsf = std::get_if<CombinedCommitSigFailedInternalMsg>(&msg)) {
-    return onCommitCombinedSigFailed(ccsf->seqNumber, ccsf->view, ccsf->replicasWithBadSigs);
+    return onCommitCombinedSigFailed(ccsf->seqNumber, ccsf->view, CommitPath::SLOW, ccsf->replicasWithBadSigs);
   }
   if (auto *vccs = std::get_if<VerifyCombinedCommitSigResultInternalMsg>(&msg)) {
     return onCommitVerifyCombinedSigResult(vccs->seqNumber, vccs->view, vccs->isValid);
+  }
+
+  // Handle Fast Path Commit related internal messages
+  if (auto *ccss = std::get_if<FastPathCombinedCommitSigSucceededInternalMsg>(&msg)) {
+    return onFastPathCommitCombinedSigSucceeded(ccss->seqNumber,
+                                                ccss->view,
+                                                ccss->commitPath,
+                                                ccss->combinedSig.data(),
+                                                ccss->combinedSig.size(),
+                                                ccss->span_context_);
+  }
+  if (auto *ccsf = std::get_if<FastPathCombinedCommitSigFailedInternalMsg>(&msg)) {
+    return onCommitCombinedSigFailed(ccsf->seqNumber, ccsf->view, ccsf->commitPath, ccsf->replicasWithBadSigs);
+  }
+  if (auto *vccs = std::get_if<FastPathVerifyCombinedCommitSigResultInternalMsg>(&msg)) {
+    return onFastPathCommitVerifyCombinedSigResult(vccs->seqNumber, vccs->view, vccs->commitPath, vccs->isValid);
   }
 
   // Handle a response from a RetransmissionManagerJob
@@ -1741,15 +1725,6 @@ void ReplicaImp::onInternalMsg(GetStatus &status) const {
   return status.output.set_value("** - Invalid Key - **");
 }
 
-void ReplicaImp::onInternalMsg(FullCommitProofMsg *msg) {
-  if (isCollectingState() || (!currentViewIsActive()) || (getCurrentView() != msg->viewNumber()) ||
-      (!mainLog->insideActiveWindow(msg->seqNumber()))) {
-    delete msg;
-    return;
-  }
-  onMessage(msg);
-}
-
 template <>
 void ReplicaImp::onMessage<PreparePartialMsg>(PreparePartialMsg *msg) {
   metric_received_prepare_partials_++;
@@ -1777,7 +1752,7 @@ void ReplicaImp::onMessage<PreparePartialMsg>(PreparePartialMsg *msg) {
 
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
 
-    FullCommitProofMsg *fcp = seqNumInfo.partialProofs().getFullProof();
+    FullCommitProofMsg *fcp = seqNumInfo.getFastPathFullCommitProofMsg();
 
     CommitFullMsg *commitFull = seqNumInfo.getValidCommitFullMsg();
 
@@ -1826,7 +1801,7 @@ void ReplicaImp::onMessage<CommitPartialMsg>(CommitPartialMsg *msg) {
 
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
 
-    FullCommitProofMsg *fcp = seqNumInfo.partialProofs().getFullProof();
+    FullCommitProofMsg *fcp = seqNumInfo.getFastPathFullCommitProofMsg();
 
     CommitFullMsg *commitFull = seqNumInfo.getValidCommitFullMsg();
 
@@ -1865,7 +1840,7 @@ void ReplicaImp::onMessage<PrepareFullMsg>(PrepareFullMsg *msg) {
 
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
 
-    FullCommitProofMsg *fcp = seqNumInfo.partialProofs().getFullProof();
+    FullCommitProofMsg *fcp = seqNumInfo.getFastPathFullCommitProofMsg();
 
     CommitFullMsg *commitFull = seqNumInfo.getValidCommitFullMsg();
 
@@ -1907,7 +1882,7 @@ void ReplicaImp::onMessage<CommitFullMsg>(CommitFullMsg *msg) {
 
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
 
-    FullCommitProofMsg *fcp = seqNumInfo.partialProofs().getFullProof();
+    FullCommitProofMsg *fcp = seqNumInfo.getFastPathFullCommitProofMsg();
 
     CommitFullMsg *commitFull = seqNumInfo.getValidCommitFullMsg();
 
@@ -1976,7 +1951,7 @@ void ReplicaImp::onPrepareCombinedSigSucceeded(SeqNum seqNumber,
 
   seqNumInfo.onCompletionOfPrepareSignaturesProcessing(seqNumber, view, combinedSig, combinedSigLen, span_context);
 
-  FullCommitProofMsg *fcp = seqNumInfo.partialProofs().getFullProof();
+  FullCommitProofMsg *fcp = seqNumInfo.getFastPathFullCommitProofMsg();
 
   PrepareFullMsg *preFull = seqNumInfo.getValidPrepareFullMsg();
 
@@ -2028,7 +2003,7 @@ void ReplicaImp::onPrepareVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view
 
   if (!isValid) return;  // TODO(GG): we should do something about the replica that sent this invalid message
 
-  FullCommitProofMsg *fcp = seqNumInfo.partialProofs().getFullProof();
+  FullCommitProofMsg *fcp = seqNumInfo.getFastPathFullCommitProofMsg();
 
   if (fcp != nullptr) return;  // don't send if we already have FullCommitProofMsg
 
@@ -2047,11 +2022,14 @@ void ReplicaImp::onPrepareVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view
 
 void ReplicaImp::onCommitCombinedSigFailed(SeqNum seqNumber,
                                            ViewNum view,
+                                           CommitPath cPath,
                                            const std::set<uint16_t> &replicasWithBadSigs) {
-  LOG_WARN(THRESHSIGN_LOG, KVLOG(seqNumber, view, replicasWithBadSigs.size()));
+  LOG_WARN(THRESHSIGN_LOG,
+           "Commit combined sig failed (" << CommitPathToStr(cPath) << ") "
+                                          << KVLOG(seqNumber, viewChangeProtocolEnabled, replicasWithBadSigs.size()));
 
   if (isCollectingState() && mainLog->insideActiveWindow(seqNumber)) {
-    mainLog->get(seqNumber).resetCommitSignatures();
+    mainLog->get(seqNumber).resetCommitSignatures(cPath);
     LOG_INFO(CNSUS, "Collecting state, reset commit signatures");
     return;
   }
@@ -2063,7 +2041,7 @@ void ReplicaImp::onCommitCombinedSigFailed(SeqNum seqNumber,
 
   SeqNumInfo &seqNumInfo = mainLog->get(seqNumber);
 
-  seqNumInfo.onCompletionOfCommitSignaturesProcessing(seqNumber, view, replicasWithBadSigs);
+  seqNumInfo.onCompletionOfCommitSignaturesProcessing(seqNumber, view, cPath, replicasWithBadSigs);
 
   // TODO(GG): add logic that handles bad replicas ...
 }
@@ -2079,7 +2057,7 @@ void ReplicaImp::onCommitCombinedSigSucceeded(SeqNum seqNumber,
   LOG_TRACE(THRESHSIGN_LOG, KVLOG(seqNumber, view, combinedSigLen));
 
   if (isCollectingState() && mainLog->insideActiveWindow(seqNumber)) {
-    mainLog->get(seqNumber).resetCommitSignatures();
+    mainLog->get(seqNumber).resetCommitSignatures(CommitPath::SLOW);
     LOG_INFO(CNSUS, "Collecting state, reset commit signatures");
     return;
   }
@@ -2093,9 +2071,10 @@ void ReplicaImp::onCommitCombinedSigSucceeded(SeqNum seqNumber,
 
   SeqNumInfo &seqNumInfo = mainLog->get(seqNumber);
 
-  seqNumInfo.onCompletionOfCommitSignaturesProcessing(seqNumber, view, combinedSig, combinedSigLen, span_context);
+  seqNumInfo.onCompletionOfCommitSignaturesProcessing(
+      seqNumber, view, CommitPath::SLOW, combinedSig, combinedSigLen, span_context);
 
-  FullCommitProofMsg *fcp = seqNumInfo.partialProofs().getFullProof();
+  FullCommitProofMsg *fcp = seqNumInfo.getFastPathFullCommitProofMsg();
   CommitFullMsg *commitFull = seqNumInfo.getValidCommitFullMsg();
 
   ConcordAssertNE(commitFull, nullptr);
@@ -2138,7 +2117,7 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view,
   }
 
   if (isCollectingState() && mainLog->insideActiveWindow(seqNumber)) {
-    mainLog->get(seqNumber).resetCommitSignatures();
+    mainLog->get(seqNumber).resetCommitSignatures(CommitPath::SLOW);
     LOG_INFO(CNSUS, "Collecting state, reset commit signatures");
     return;
   }
@@ -2152,7 +2131,7 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view,
 
   SeqNumInfo &seqNumInfo = mainLog->get(seqNumber);
 
-  seqNumInfo.onCompletionOfCombinedCommitSigVerification(seqNumber, view, isValid);
+  seqNumInfo.onCompletionOfCombinedCommitSigVerification(seqNumber, view, CommitPath::SLOW, isValid);
 
   if (!isValid) return;  // TODO(GG): we should do something about the replica that sent this invalid message
 
@@ -2172,6 +2151,131 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view,
   bool askForMissingInfoAboutCommittedItems =
       (seqNumber > lastExecutedSeqNum + config_.getconcurrencyLevel() + activeExecutions_);
   metric_total_committed_sn_++;
+  startExecution(seqNumber, span, askForMissingInfoAboutCommittedItems);
+}
+
+void ReplicaImp::onFastPathCommitCombinedSigSucceeded(SeqNum seqNumber,
+                                                      ViewNum view,
+                                                      CommitPath cPath,
+                                                      const char *combinedSig,
+                                                      uint16_t combinedSigLen,
+                                                      const concordUtils::SpanContext &span_context) {
+  SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
+  SCOPED_MDC_SEQ_NUM(std::to_string(seqNumber));
+  SCOPED_MDC_PATH(CommitPathToMDCString(cPath));
+  LOG_TRACE(THRESHSIGN_LOG, KVLOG(seqNumber, view, combinedSigLen));
+
+  if (isCollectingState() && mainLog->insideActiveWindow(seqNumber)) {
+    mainLog->get(seqNumber).resetCommitSignatures(cPath);
+    LOG_INFO(CNSUS, "Collecting state, reset commit signatures");
+    return;
+  }
+
+  if ((!currentViewIsActive()) || (getCurrentView() != view) || (!mainLog->insideActiveWindow(seqNumber))) {
+    LOG_INFO(CNSUS,
+             "Not sending fast path full commit: Invalid view, or sequence number."
+                 << KVLOG(view, getCurrentView(), mainLog->insideActiveWindow(seqNumber)));
+    return;
+  }
+
+  SeqNumInfo &seqNumInfo = mainLog->get(seqNumber);
+
+  seqNumInfo.onCompletionOfCommitSignaturesProcessing(
+      seqNumber, view, cPath, combinedSig, combinedSigLen, span_context);
+
+  ConcordAssert(seqNumInfo.hasPrePrepareMsg());
+  seqNumInfo.forceComplete();  // TODO(GG): remove forceComplete() (we know that  seqNumInfo is committed because
+  // of the  FullCommitProofMsg message)
+
+  FullCommitProofMsg *fcp = seqNumInfo.getFastPathFullCommitProofMsg();
+  ConcordAssert(fcp != nullptr);
+
+  if (ps_) {
+    ps_->beginWriteTran();
+    ps_->setFullCommitProofMsgInSeqNumWindow(seqNumber, fcp);
+    ps_->setForceCompletedInSeqNumWindow(seqNumber, true);
+    ps_->endWriteTran(config_.getsyncOnUpdateOfMetadata());
+  }
+
+  // We've created the full commit proof (we're the collector) - send to other replicas
+  ConcordAssert(fcp->senderId() == config_.getreplicaId());
+  sendToAllOtherReplicas(fcp);
+
+  const bool askForMissingInfoAboutCommittedItems =
+      (seqNumber >
+       lastExecutedSeqNum + config_.getconcurrencyLevel() + activeExecutions_);  // TODO(GG): check/improve this logic
+
+  auto span = concordUtils::startChildSpanFromContext(fcp->spanContext<std::remove_pointer<decltype(fcp)>::type>(),
+                                                      "bft_execute_committed_reqs");
+
+  metric_total_committed_sn_++;
+
+  pm_->Delay<concord::performance::SlowdownPhase::ConsensusFullCommitMsgProcess>();
+  startExecution(seqNumber, span, askForMissingInfoAboutCommittedItems);
+}
+
+void ReplicaImp::onFastPathCommitVerifyCombinedSigResult(SeqNum seqNumber,
+                                                         ViewNum view,
+                                                         CommitPath cPath,
+                                                         bool isValid) {
+  SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
+  SCOPED_MDC_SEQ_NUM(std::to_string(seqNumber));
+  SCOPED_MDC_PATH(CommitPathToMDCString(cPath));
+
+  if (!isValid) {
+    LOG_WARN(
+        THRESHSIGN_LOG,
+        "Commit combined sig verify failed (" << CommitPathToStr(cPath) << ") " << KVLOG(seqNumber, view, isValid));
+  } else {
+    LOG_TRACE(THRESHSIGN_LOG, KVLOG(seqNumber, view, isValid));
+  }
+
+  if (isCollectingState() && mainLog->insideActiveWindow(seqNumber)) {
+    mainLog->get(seqNumber).resetCommitSignatures(cPath);
+    LOG_INFO(CNSUS, "Collecting state, reset fast path commit signatures");
+    return;
+  }
+
+  if ((!currentViewIsActive()) || (getCurrentView() != view) || (!mainLog->insideActiveWindow(seqNumber))) {
+    LOG_INFO(
+        CNSUS,
+        "Invalid view, or sequence number." << KVLOG(view, getCurrentView(), mainLog->insideActiveWindow(seqNumber)));
+    return;
+  }
+
+  SeqNumInfo &seqNumInfo = mainLog->get(seqNumber);
+
+  seqNumInfo.onCompletionOfCombinedCommitSigVerification(seqNumber, view, cPath, isValid);
+
+  if (!isValid) return;  // TODO(GG): we should do something about the replica that sent this invalid message
+
+  ConcordAssert(seqNumInfo.hasPrePrepareMsg());
+  seqNumInfo.forceComplete();  // TODO(GG): remove forceComplete() (we know that  seqNumInfo is committed because
+  // of the  FullCommitProofMsg message)
+
+  FullCommitProofMsg *fcp = seqNumInfo.getFastPathFullCommitProofMsg();
+  ConcordAssert(fcp != nullptr);
+
+  if (ps_) {
+    ps_->beginWriteTran();
+    ps_->setFullCommitProofMsgInSeqNumWindow(seqNumber, fcp);
+    ps_->setForceCompletedInSeqNumWindow(seqNumber, true);
+    ps_->endWriteTran(config_.getsyncOnUpdateOfMetadata());
+  }
+
+  // We've received a full commit proof from a collector - don't send to other replicas
+  ConcordAssert(fcp->senderId() != config_.getreplicaId());
+
+  const bool askForMissingInfoAboutCommittedItems =
+      (seqNumber >
+       lastExecutedSeqNum + config_.getconcurrencyLevel() + activeExecutions_);  // TODO(GG): check/improve this logic
+
+  auto span = concordUtils::startChildSpanFromContext(fcp->spanContext<std::remove_pointer<decltype(fcp)>::type>(),
+                                                      "bft_execute_committed_reqs");
+
+  metric_total_committed_sn_++;
+
+  pm_->Delay<concord::performance::SlowdownPhase::ConsensusFullCommitMsgProcess>();
   startExecution(seqNumber, span, askForMissingInfoAboutCommittedItems);
 }
 
@@ -2454,7 +2558,7 @@ void ReplicaImp::onRetransmissionsProcessingResults(SeqNum relatedLastStableSeqN
       } break;
       case MsgCode::PartialCommitProof: {
         SeqNumInfo &seqNumInfo = mainLog->get(s.msgSeqNum);
-        PartialCommitProofMsg *msgToSend = seqNumInfo.partialProofs().getSelfPartialCommitProof();
+        PartialCommitProofMsg *msgToSend = seqNumInfo.getFastPathSelfPartialCommitProofMsg();
         ConcordAssertNE(msgToSend, nullptr);
         sendRetransmittableMsgToReplica(msgToSend, s.replicaId, s.msgSeqNum);
         LOG_DEBUG(CNSUS,
@@ -3187,7 +3291,7 @@ void ReplicaImp::tryToMarkCheckpointStableForFastPath(const SeqNum &lastCheckpoi
   {
     SeqNumInfo &seqNumInfo = mainLog->get(lastExecutedSeqNum);
 
-    if (seqNumInfo.partialProofs().hasFullProof()) {
+    if (seqNumInfo.hasFastPathFullCommitProof()) {
       checkInfo.tryToMarkCheckpointCertificateCompleted();
 
       ConcordAssert(checkInfo.isCheckpointCertificateComplete());
@@ -3447,7 +3551,6 @@ void ReplicaImp::tryToSendReqMissingDataMsg(SeqNum seqNumber, bool slowPathOnly,
   }
 
   SeqNumInfo &seqNumInfo = mainLog->get(seqNumber);
-  PartialProofsSet &partialProofsSet = seqNumInfo.partialProofs();
 
   const Time curTime = getMonotonicTime();
 
@@ -3501,10 +3604,11 @@ void ReplicaImp::tryToSendReqMissingDataMsg(SeqNum seqNumber, bool slowPathOnly,
 
     const bool missingFullCommit = !seqNumInfo.committedOrHasCommitPartialFromReplica(destRep);
 
-    const bool missingPartialProof = !slowPathOnly && routerForPartialProofs && !partialProofsSet.hasFullProof() &&
-                                     !partialProofsSet.hasPartialProofFromReplica(destRep);
+    const bool missingPartialProof = !slowPathOnly && routerForPartialProofs &&
+                                     !seqNumInfo.hasFastPathFullCommitProof() &&
+                                     !seqNumInfo.hasFastPathPartialCommitProofFromReplica(destRep);
 
-    const bool missingFullProof = !slowPathOnly && !partialProofsSet.hasFullProof();
+    const bool missingFullProof = !slowPathOnly && !seqNumInfo.hasFastPathFullCommitProof();
 
     bool sendNeeded = missingPartialProof || missingPartialPrepare || missingFullPrepare || missingPartialCommit ||
                       missingFullCommit || missingFullProof;
@@ -3570,15 +3674,15 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
       }
     }
 
-    if (msg->getFullCommitProofIsMissing() && seqNumInfo.partialProofs().hasFullProof()) {
-      FullCommitProofMsg *fcp = seqNumInfo.partialProofs().getFullProof();
+    if (msg->getFullCommitProofIsMissing() && seqNumInfo.hasFastPathFullCommitProof()) {
+      FullCommitProofMsg *fcp = seqNumInfo.getFastPathFullCommitProofMsg();
       LOG_INFO(CNSUS, "Sending FullCommitProof message as a response of RFMD" << KVLOG(msgSender, msgSeqNum));
       sendAndIncrementMetric(fcp, msgSender, metric_sent_fullCommitProof_msg_due_to_reqMissingData_);
     }
 
     if (msg->getPartialProofIsMissing()) {
       // TODO(GG): consider not to send if msgSender is not a collector
-      PartialCommitProofMsg *pcf = seqNumInfo.partialProofs().getSelfPartialCommitProof();
+      PartialCommitProofMsg *pcf = seqNumInfo.getFastPathSelfPartialCommitProofMsg();
 
       if (pcf != nullptr) {
         LOG_INFO(CNSUS, "Sending PartialProof message as a response of RFMD" << KVLOG(msgSender, msgSeqNum));
@@ -3978,10 +4082,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
 
         PartialCommitProofMsg *p = new PartialCommitProofMsg(
             config_.getreplicaId(), getCurrentView(), seqNum, pathInPrePrepare, tmpDigest, commitSigner);
-        seqNumInfo.partialProofs().addSelfMsgAndPPDigest(
-            p,
-            tmpDigest);  // TODO(GG): consider using a method that directly adds the message/digest (as in the
-        // examples below)
+        seqNumInfo.addFastPathSelfPartialCommitMsgAndDigest(p, tmpDigest);
       }
 
       if (e.getSlowStarted()) {
@@ -4029,10 +4130,8 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
       }
 
       if (e.isFullCommitProofMsgSet()) {
-        PartialProofsSet &pps = seqNumInfo.partialProofs();
-        ConcordAssert(pps.addMsg(e.getFullCommitProofMsg()));  // TODO(GG): consider using a method that directly adds
-        // the message (as in the examples below)
-        ConcordAssert(e.getFullCommitProofMsg()->equals(*pps.getFullProof()));
+        ConcordAssert(seqNumInfo.addFastPathFullCommitMsg(e.getFullCommitProofMsg(), true /*directAdd*/));
+        ConcordAssert(e.getFullCommitProofMsg()->equals(*seqNumInfo.getFastPathFullCommitProofMsg()));
       }
 
       if (e.getForceCompleted()) seqNumInfo.forceComplete();

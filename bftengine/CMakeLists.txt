@@ -48,7 +48,6 @@ set(corebft_source_files
     src/bftengine/messages/FullCommitProofMsg.cpp
     src/bftengine/messages/MessageBase.cpp
     src/bftengine/messages/PartialCommitProofMsg.cpp
-    src/bftengine/messages/PartialProofsSet.cpp
     src/bftengine/messages/ClientReplyMsg.cpp
     src/bftengine/messages/ReqMissingDataMsg.cpp
     src/bftengine/messages/ClientRequestMsg.cpp

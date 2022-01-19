@@ -443,7 +443,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void onMessage(T* msg);
 
   void onInternalMsg(InternalMessage&& msg);
-  void onInternalMsg(FullCommitProofMsg* m);
   void onInternalMsg(GetStatus& msg) const;
 
   std::pair<PrePrepareMsg*, bool> finishAddingRequestsToPrePrepareMsg(PrePrepareMsg*& prePrepareMsg,
@@ -559,13 +558,24 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
                                      const concordUtils::SpanContext& span_context);
   void onPrepareVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid);
 
-  void onCommitCombinedSigFailed(SeqNum seqNumber, ViewNum view, const std::set<uint16_t>& replicasWithBadSigs);
+  void onCommitCombinedSigFailed(SeqNum seqNumber,
+                                 ViewNum view,
+                                 CommitPath cPath,
+                                 const std::set<uint16_t>& replicasWithBadSigs);
   void onCommitCombinedSigSucceeded(SeqNum seqNumber,
                                     ViewNum view,
                                     const char* combinedSig,
                                     uint16_t combinedSigLen,
                                     const concordUtils::SpanContext& span_context);
   void onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid);
+
+  void onFastPathCommitCombinedSigSucceeded(SeqNum seqNumber,
+                                            ViewNum view,
+                                            CommitPath cPath,
+                                            const char* combinedSig,
+                                            uint16_t combinedSigLen,
+                                            const concordUtils::SpanContext& span_context);
+  void onFastPathCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, CommitPath cPath, bool isValid);
 
   void onRetransmissionsProcessingResults(SeqNum relatedLastStableSeqNum,
                                           const ViewNum relatedViewNumber,
