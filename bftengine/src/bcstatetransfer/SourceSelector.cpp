@@ -19,7 +19,10 @@ namespace impl {
 
 bool SourceSelector::hasSource() const { return currentReplica_ != NO_REPLICA && sourceSelectionTimeMilli_ > 0; }
 
-void SourceSelector::setSourceSelectionTime(uint64_t currTimeMilli) { sourceSelectionTimeMilli_ = currTimeMilli; }
+void SourceSelector::setSourceSelectionTime(uint64_t currTimeMilli) {
+  LOG_TRACE(logger_, KVLOG(sourceSelectionTimeMilli_, currTimeMilli));
+  sourceSelectionTimeMilli_ = currTimeMilli;
+}
 
 void SourceSelector::setFetchingTimeStamp(uint64_t currTimeMilli, bool retransmissionOngoing) {
   fetchingTimeStamp_ = currTimeMilli;
@@ -32,6 +35,7 @@ void SourceSelector::removeCurrentReplica() {
   preferredReplicas_.erase(currentReplica_);
   currentReplica_ = NO_REPLICA;
   receivedValidBlockFromSrc_ = false;
+  setSourceSelectionTime(0);
 }
 
 void SourceSelector::onReceivedValidBlockFromSource() {
@@ -48,7 +52,7 @@ void SourceSelector::setAllReplicasAsPreferred() { preferredReplicas_ = allOther
 void SourceSelector::reset() {
   preferredReplicas_.clear();
   currentReplica_ = NO_REPLICA;
-  sourceSelectionTimeMilli_ = 0;
+  setSourceSelectionTime(0);
   fetchingTimeStamp_ = 0;
   fetchRetransmissionCounter_ = 0;
   fetchRetransmissionOngoing_ = false;
@@ -112,13 +116,15 @@ std::string SourceSelector::preferredReplicasToString() const {
   return oss.str();
 }
 
-bool SourceSelector::shouldReplaceSource(uint64_t currTimeMilli, bool badDataFromCurrentSource) const {
+SourceReplacementMode SourceSelector::shouldReplaceSource(uint64_t currTimeMilli,
+                                                          bool badDataFromCurrentSource,
+                                                          bool lastInBatch) const {
   if (currentReplica_ == NO_REPLICA) {
     LOG_INFO(logger_, "Should replace source: no source");
-    return true;
+    return SourceReplacementMode::IMMEDIATE;
   } else if (badDataFromCurrentSource) {
     LOG_INFO(logger_, "Should replace source: bad data from" << KVLOG(currentReplica_));
-    return true;
+    return SourceReplacementMode::IMMEDIATE;
   } else if (retransmissionTimeoutExpired(currTimeMilli)) {
     if (fetchRetransmissionOngoing_) {
       ++fetchRetransmissionCounter_;
@@ -140,20 +146,18 @@ bool SourceSelector::shouldReplaceSource(uint64_t currTimeMilli, bool badDataFro
                                                                                 retransmissionTimeoutMilli_,
                                                                                 fetchRetransmissionCounter_,
                                                                                 maxFetchRetransmissions_));
-    return true;
+    return SourceReplacementMode::IMMEDIATE;
   }
-
-  if (sourceReplacementTimeoutMilli_ > 0) {
+  if (lastInBatch && (sourceReplacementTimeoutMilli_ > 0)) {
     auto dt = timeSinceSourceSelectedMilli(currTimeMilli);
     if (dt > sourceReplacementTimeoutMilli_) {
       LOG_INFO(logger_,
                "Should replace source: source replacement timeout:" << KVLOG(
                    currentReplica_, dt, sourceReplacementTimeoutMilli_));
-      return true;
+      return SourceReplacementMode::GRACEFUL;
     }
   }
-
-  return false;
+  return SourceReplacementMode::DO_NOT;
 }
 
 void SourceSelector::selectSource(uint64_t currTimeMilli) {
@@ -170,7 +174,7 @@ void SourceSelector::selectSource(uint64_t currTimeMilli) {
     }
   }
   currentReplica_ = *i;
-  sourceSelectionTimeMilli_ = currTimeMilli;
+  setSourceSelectionTime(currTimeMilli);
   fetchRetransmissionOngoing_ = false;
   fetchingTimeStamp_ = 0;
   fetchRetransmissionCounter_ = 0;
