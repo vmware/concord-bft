@@ -34,7 +34,8 @@ class PreProcessRequestMsg : public MessageBase {
                        const char* requestSignature,
                        uint16_t requestSignatureLength,
                        uint64_t blockid,
-                       const concordUtils::SpanContext& span_context = concordUtils::SpanContext{});
+                       const concordUtils::SpanContext& span_context = concordUtils::SpanContext{},
+                       uint32_t result = 1);  // UNKNOWN
 
   BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(PreProcessRequestMsg)
 
@@ -55,6 +56,7 @@ class PreProcessRequestMsg : public MessageBase {
       return body() + sizeof(Header) + spanContextSize() + header->requestLength + header->cidLength;
     return nullptr;
   }
+  const uint32_t result() const { return msgBody()->result; }
 
  public:
 #pragma pack(push, 1)
@@ -71,6 +73,7 @@ class PreProcessRequestMsg : public MessageBase {
     uint64_t reqRetryId;
     uint16_t reqSignatureLength;
     uint64_t primaryBlockId;
+    uint32_t result;
   };
 #pragma pack(pop)
 
@@ -93,7 +96,8 @@ class PreProcessRequestMsg : public MessageBase {
                  uint64_t reqRetryId,
                  uint32_t reqLength,
                  uint16_t reqSignatureLength,
-                 uint64_t blockId);
+                 uint64_t blockId,
+                 uint32_t result);
   Header* msgBody() const { return ((Header*)msgBody_); }
 };
 

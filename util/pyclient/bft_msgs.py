@@ -11,6 +11,7 @@
 # file.
 
 from collections import namedtuple
+from enum import IntEnum
 import struct
 
 class MsgError(Exception):
@@ -62,6 +63,18 @@ BatchRequestHeader = namedtuple('BatchRequestHeader', ['cid', 'client_id', 'num_
 # Replica specific information is not used yet, so rsi_length is always 0
 ReplyHeader = namedtuple('ReplyHeader', ['span_context_size', 'primary_id', 'req_seq_num', 'result', 'length',
                                          'rsi_length'])
+
+class OperationResult(IntEnum):
+    SUCCESS = 0
+    UNKNOWN = 1
+    INVALID_REQUEST = 2
+    NOT_READY = 3
+    TIMEOUT = 4
+    EXEC_DATA_TOO_LARGE = 5
+    EXEC_DATA_EMPTY = 6
+    CONFLICT_DETECTED = 7
+    OVERLOADED = 8
+    INTERNAL_ERROR = 9
 
 def pack_request(client_id, req_seq_num, read_only, timeout_milli, cid, msg, op_result = 0, pre_process=False,
                  reconfiguration=False, span_context=b'', signature=b''):

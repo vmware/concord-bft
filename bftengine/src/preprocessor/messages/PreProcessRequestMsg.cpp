@@ -29,7 +29,8 @@ PreProcessRequestMsg::PreProcessRequestMsg(RequestType reqType,
                                            const char* requestSignature,
                                            uint16_t requestSignatureLength,
                                            uint64_t blockId,
-                                           const concordUtils::SpanContext& span_context)
+                                           const concordUtils::SpanContext& span_context,
+                                           uint32_t result)
     : MessageBase(senderId,
                   MsgCode::PreProcessRequest,
                   span_context.data().size(),
@@ -45,7 +46,8 @@ PreProcessRequestMsg::PreProcessRequestMsg(RequestType reqType,
             reqRetryId,
             reqLength,
             requestSignatureLength,
-            blockId);
+            blockId,
+            result);
   auto position = body() + sizeof(Header);
   memcpy(position, span_context.data().data(), span_context.data().size());
   position += span_context.data().size();
@@ -70,7 +72,8 @@ PreProcessRequestMsg::PreProcessRequestMsg(RequestType reqType,
                   span_context.data().size(),
                   requestSignatureLength,
                   msgLength,
-                  blockId));
+                  blockId,
+                  result));
 }
 
 void PreProcessRequestMsg::validate(const ReplicasInfo& repInfo) const {
@@ -118,7 +121,8 @@ void PreProcessRequestMsg::setParams(RequestType reqType,
                                      uint64_t reqRetryId,
                                      uint32_t reqLength,
                                      uint16_t reqSignatureLength,
-                                     uint64_t blockId) {
+                                     uint64_t blockId,
+                                     uint32_t result) {
   auto* header = msgBody();
   header->reqType = reqType;
   header->senderId = senderId;
@@ -131,6 +135,7 @@ void PreProcessRequestMsg::setParams(RequestType reqType,
   header->requestLength = reqLength;
   header->reqSignatureLength = reqSignatureLength;
   header->primaryBlockId = blockId;
+  header->result = result;
 }
 
 std::string PreProcessRequestMsg::getCid() const {
