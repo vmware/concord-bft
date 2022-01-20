@@ -42,9 +42,6 @@ class SkvbcMultiSig(unittest.TestCase):
 
     __test__ = False  # so that PyTest ignores this test scenario
 
-    def setUp(self):
-        self.evaluation_period_seq_num = 64
-
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, rotate_keys=True )
     async def test_happy_initial_key_exchange(self, bft_network):
