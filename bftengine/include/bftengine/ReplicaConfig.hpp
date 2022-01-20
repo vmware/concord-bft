@@ -247,6 +247,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                std::uint32_t,
                30u,
                "Amount of keys to get at once via multiGet when iterating state");
+               
+  CONFIG_PARAM(enableMultiplexChannel, bool, false, "whether multiplex channel communication is enabled")
 
   // Parameter to enable/disable waiting for transaction data to be persisted.
   // Not predefined configuration parameters
@@ -361,6 +363,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, enablePostExecutionSeparation);
     serialize(outStream, postExecutionQueuesSize);
     serialize(outStream, config_params_);
+    serialize(outStream, enableMultiplexChannel);
   }
   void deserializeDataMembers(std::istream& inStream) {
     deserialize(inStream, isReadOnly);
@@ -449,6 +452,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, enablePostExecutionSeparation);
     deserialize(inStream, postExecutionQueuesSize);
     deserialize(inStream, config_params_);
+    deserialize(inStream, enableMultiplexChannel);
   }
 
  private:
@@ -529,7 +533,8 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.dbCheckPointWindowSize,
               rc.dbCheckpointDirPath,
               rc.dbSnapshotIntervalSeconds.count(),
-              rc.dbCheckpointMonitorIntervalSeconds.count());
+              rc.dbCheckpointMonitorIntervalSeconds.count(),
+              rc.enableMultiplexChannel);
 
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
   return os;
