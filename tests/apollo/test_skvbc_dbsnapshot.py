@@ -261,7 +261,49 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
             last_blockId =  await bft_network.get_metric(replica_id, bft_network, 
                 "Gauges", "lastDbCheckpointBlockId", component="rocksdbCheckpoint")
             self.verify_snapshot_is_available(bft_network, replica_id, last_blockId)
-    
+
+    @with_trio
+    @with_bft_network(start_replica_cmd_with_operator, selected_configs=lambda n, f, c: n == 7)
+    @verify_linearizability()
+    async def test_create_dbcheckpoint_with_parallel_client_requests(self, bft_network, tracker):
+        """
+            sends a createdbCheckpoint command and test for created dbcheckpoints.
+            We send empty requests to fill the checkpoint window. In this test, after 
+            sending operator command, we continue to send write kv requests and test 
+            for db checkpoint creation
+        """
+        bft_network.start_all_replicas()
+        client = bft_network.random_client()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+        for i in range(200):
+            await skvbc.send_write_kv_set()
+        # db checkpoint is created on stable bft-checkpoint
+        # we use empty request to fill the checkpoint window
+        op = operator.Operator(bft_network.config, client, bft_network.builddir)
+        rep = await op.create_dbcheckpoint_cmd()
+        data = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
+        self.assertTrue(data.success)
+        #execute some write kv requests after create command
+        #these requests are executed in parallel with empty 
+        #requests to fill the checkpoint window
+        for i in range(150):
+            await skvbc.send_write_kv_set()
+        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), 300)
+        await self.wait_for_created_snapshots_metric(bft_network, 1)
+        rep = await op.get_dbcheckpoint_info_request()
+        rsi_rep = client.get_rsi_replies()
+        data = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
+        self.assertTrue(data.success)
+        for r in rsi_rep.values():
+            res = cmf_msgs.ReconfigurationResponse.deserialize(r)
+            self.assertEqual(len(res[0].response.db_checkpoint_info), 1)
+            dbcheckpoint_info_list = res[0].response.db_checkpoint_info
+            self.assertTrue(any(dbcheckpoint_info.seq_num == 300 for dbcheckpoint_info in dbcheckpoint_info_list))
+        for replica_id in range(len(bft_network.all_replicas())):
+            last_blockId =  await bft_network.get_metric(replica_id, bft_network, 
+                "Gauges", "lastDbCheckpointBlockId", component="rocksdbCheckpoint")
+            self.verify_snapshot_is_available(bft_network, replica_id, last_blockId)
+
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability()

@@ -5294,8 +5294,10 @@ void ReplicaImp::onExecutionFinish() {
   if (getReplicaConfig().dbCheckpointFeatureEnabled && isCurrentPrimary() &&
       DbCheckpointManager::instance().isCreateDbCheckPtSeqNumSet(lastExecutedSeqNum)) {
     DbCheckpointManager::instance().sendInternalCreateDbCheckpointMsg(lastExecutedSeqNum + 1, true);  // noop=true
-    if (DbCheckpointManager::instance().getNextStableSeqNumToCreateSnapshot().value() == lastExecutedSeqNum + 1) {
-      auto seq_num_to_create_dbcheckpoint = lastExecutedSeqNum + 1;
+    if (DbCheckpointManager::instance().getNextStableSeqNumToCreateSnapshot().value() <=
+        (lastExecutedSeqNum + activeExecutions_ + 1)) {
+      auto seq_num_to_create_dbcheckpoint =
+          DbCheckpointManager::instance().getNextStableSeqNumToCreateSnapshot().value();
       onSeqNumIsStableCallbacks_.add([seq_num_to_create_dbcheckpoint](SeqNum seqNum) {
         if (seqNum == seq_num_to_create_dbcheckpoint) {
           DbCheckpointManager::instance().sendInternalCreateDbCheckpointMsg(seqNum, false);  // noop=false
@@ -5303,7 +5305,7 @@ void ReplicaImp::onExecutionFinish() {
       });
       DbCheckpointManager::instance().setNextStableSeqNumToCreateSnapshot(std::nullopt);
     }
-    LOG_INFO(GL, "sendInternalCreateDbCheckpointMsg command " << KVLOG(lastExecutedSeqNum));
+    LOG_INFO(GL, "sendInternalCreateDbCheckpointMsg command " << KVLOG(lastExecutedSeqNum, activeExecutions_));
   }
   if (isCurrentPrimary() && requestsQueueOfPrimary.size() > 0) tryToSendPrePrepareMsg(true);
 }
