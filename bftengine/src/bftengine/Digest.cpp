@@ -13,7 +13,7 @@
 
 #include <string.h>
 #include <stdio.h>
-
+#include <iomanip>
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 #include <cryptopp/dll.h>
@@ -97,20 +97,10 @@ DigestUtil::Context::~Context() {
 Digest::Digest(char* buf, size_t len) { DigestUtil::compute(buf, len, (char*)d, sizeof(Digest)); }
 
 std::string Digest::toString() const {
-  char c[DIGEST_SIZE * 2];
-  char t[3];
-  for (size_t i = 0; i < DIGEST_SIZE; i++) {
-    // TODO(DD): Is it by design?
-    // NOLINTNEXTLINE(bugprone-signed-char-misuse)
-    unsigned int b = (unsigned char)d[i];
-    snprintf(t, 3, "%02X", b);
-    c[i * 2] = t[0];
-    c[i * 2 + 1] = t[1];
-  }
-
-  std::string ret(c, DIGEST_SIZE * 2);
-
-  return ret;
+  std::ostringstream oss;
+  for (size_t i = 0; i < DigestType::DIGESTSIZE; ++i)
+    oss << std::setfill('0') << std::setw(2) << std::hex << std::uppercase << (0xff & (unsigned int)d[i]);
+  return oss.str();
 }
 
 void Digest::print() { printf("digest=[%s]", toString().c_str()); }

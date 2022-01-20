@@ -21,27 +21,17 @@
 
 #include <cassert>
 #include <string>
+#include <iomanip>
 
 namespace bftEngine {
 namespace bcst {
 namespace impl {
 
 std::string STDigest::toString() const {
-  char c[BLOCK_DIGEST_SIZE * 2];
-  char t[3];
-  static_assert(sizeof(t) == 3, "");
-  for (size_t i = 0; i < BLOCK_DIGEST_SIZE; i++) {
-    // TODO(DD): Is it by design?
-    // NOLINTNEXTLINE(bugprone-signed-char-misuse)
-    unsigned int b = (unsigned char)content[i];
-    snprintf(t, sizeof(t), "%02X", b);
-    c[i * 2] = t[0];
-    c[i * 2 + 1] = t[1];
-  }
-
-  std::string ret(c, BLOCK_DIGEST_SIZE * 2);
-
-  return ret;
+  std::ostringstream oss;
+  for (size_t i = 0; i < BLOCK_DIGEST_SIZE; ++i)
+    oss << std::setfill('0') << std::setw(2) << std::hex << std::uppercase << (0xff & (unsigned int)content[i]);
+  return oss.str();
 }
 
 DigestContext::DigestContext() {

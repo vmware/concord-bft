@@ -18,6 +18,7 @@
 #include <mutex>
 #include <thread>
 #include <mutex>
+#include <functional>
 #include "Logger.hpp"
 #include "kvstream.h"
 #include "assertUtils.hpp"
@@ -106,8 +107,10 @@ class Client : public concord::storage::IDBClient {
     ~Iterator() { LOG_INFO(GL, ""); }
 
     KeyValuePair first() override { return toKvPair(cb_data_.results.begin()); }
-    // returns last of already retrieved results
-    KeyValuePair last() override { return toKvPair(--(cb_data_.results.end())); }
+    KeyValuePair last() override {
+      while (!isEnd()) seek(prefix_);
+      return toKvPair(--(cb_data_.results.end()));
+    }
     KeyValuePair seekAtLeast(const concordUtils::Sliver& searchKey) override {
       prefix_ = searchKey.clone();
       return seek(prefix_);
@@ -145,9 +148,13 @@ class Client : public concord::storage::IDBClient {
     KeyValuePair seek(const concordUtils::Sliver& prefix);
     KeyValuePair toKvPair(const std::vector<Result>::const_iterator& it) {
       if (it == cb_data_.results.end()) return KeyValuePair();
-      return KeyValuePair(Sliver::copy(it->key.data(), it->key.length()),
-                          Sliver::copy(it->eTag.data(), it->eTag.length()));
+      std::string lm = std::to_string(it->lastModified);
+      return KeyValuePair(Sliver::copy(it->key.data(), it->key.length()), Sliver::copy(lm.data(), lm.length()));
     }
+    static int sort_by_modified_desc(const Result& a, const Result& b) { return a.lastModified > b.lastModified; }
+    static int sort_by_modified_asc(const Result& a, const Result& b) { return a.lastModified < b.lastModified; };
+    static int sort_by_key_desc(const Result& a, const Result& b) { return a.key > b.key; };
+    static int sort_by_key_asc(const Result& a, const Result& b) { return a.key < b.key; };
 
    public:
     struct ListBucketCallbackData : public ResponseData {
@@ -166,6 +173,49 @@ class Client : public concord::storage::IDBClient {
     Sliver prefix_;  // for subsequent seeks;
     logging::Logger logger_ = logging::getLogger("concord.storage.s3");
   };
+
+  template <int (*F)(const Iterator::Result&, const Iterator::Result&)>
+  class SortableIterator : public concord::storage::s3::Client::Iterator {
+   public:
+    SortableIterator(const Client* client) : Iterator(client) {}
+    concord::storage::KeyValuePair first() override {
+      Iterator::last();
+      sort();
+      return toKvPair(cb_data_.results.begin());
+    }
+    concord::storage::KeyValuePair last() override {
+      Iterator::last();
+      sort();
+      return toKvPair(--(cb_data_.results.end()));
+    }
+    KeyValuePair seekAtLeast(const concordUtils::Sliver& searchKey) override {
+      Iterator::seekAtLeast(searchKey);
+      Iterator::last();
+      sort();
+      iterator_ = cb_data_.results.begin();
+      return getCurrent();
+    }
+
+   protected:
+    void sort() {
+      if (sorted_) return;
+      std::sort(cb_data_.results.begin(), cb_data_.results.end(), F);
+      sorted_ = true;
+    }
+
+   protected:
+    bool sorted_ = false;
+  };
+
+  typedef SortableIterator<Iterator::sort_by_modified_desc> SortByModifiedDescIterator;
+  typedef SortableIterator<Iterator::sort_by_modified_asc> SortByModifiedAscIterator;
+  typedef SortableIterator<Iterator::sort_by_key_desc> SortByKeyDescIterator;
+  typedef SortableIterator<Iterator::sort_by_key_asc> SortByKeyAscIterator;
+
+  template <typename T>
+  T* getIterator() {
+    return new T(this);
+  }
 
   Client(const StoreConfig& config) : config_{config} { LOG_INFO(logger_, "S3 client created"); }
 

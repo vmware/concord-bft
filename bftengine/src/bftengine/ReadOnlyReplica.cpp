@@ -156,7 +156,16 @@ void ReadOnlyReplica::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
 void ReadOnlyReplica::persistCheckpointDescriptor(const SeqNum &seqnum, const CheckpointInfo<false> &chckpinfo) {
   std::vector<CheckpointMsg *> msgs;
   msgs.reserve(chckpinfo.getAllCheckpointMsgs().size());
-  for (const auto &m : chckpinfo.getAllCheckpointMsgs()) msgs.push_back(m.second);
+  for (const auto &m : chckpinfo.getAllCheckpointMsgs()) {
+    msgs.push_back(m.second);
+    LOG_INFO(GL,
+             KVLOG(m.second->seqNumber(),
+                   m.second->epochNumber(),
+                   m.second->state(),
+                   m.second->digestOfState(),
+                   m.second->otherDigest(),
+                   m.second->idOfGeneratedReplica()));
+  }
   DescriptorOfLastStableCheckpoint desc(ReplicaConfig::instance().getnumReplicas(), msgs);
   const size_t bufLen = DescriptorOfLastStableCheckpoint::maxSize(ReplicaConfig::instance().getnumReplicas());
   concord::serialize::UniquePtrToChar descBuf(new char[bufLen]);
@@ -166,13 +175,10 @@ void ReadOnlyReplica::persistCheckpointDescriptor(const SeqNum &seqnum, const Ch
   ConcordAssertNE(actualSize, 0);
 
   // TODO [TK] S3KeyGenerator
-  // checkpoints/<SeqNum>/<BlockId>/<RepId>
+  // checkpoints/<BlockId>/<RepId>
   std::ostringstream oss;
-  oss << "checkpoints/" << seqnum << "/" << msgs[0]->state() << "/" << config_.replicaId;
+  oss << "checkpoints/" << msgs[0]->state() << "/" << config_.replicaId;
   metadataStorage_->atomicWriteArbitraryObject(oss.str(), descBuf.get(), actualSize);
-  metadataStorage_->atomicWriteArbitraryObject("digests/" + std::to_string(msgs[0]->state()),
-                                               msgs[0]->otherDigest().toString().data(),
-                                               msgs[0]->otherDigest().toString().length());
 }
 
 template <>
