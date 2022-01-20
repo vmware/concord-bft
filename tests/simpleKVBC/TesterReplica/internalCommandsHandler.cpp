@@ -143,6 +143,38 @@ void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequests
   }
 }
 
+void InternalCommandsHandler::preExecute(IRequestsHandler::ExecutionRequest &req,
+                                         std::optional<bftEngine::Timestamp> timestamp,
+                                         const std::string &batchCid,
+                                         concordUtils::SpanWrapper &parent_span) {
+  const uint8_t *request_buffer_as_uint8 = reinterpret_cast<const uint8_t *>(req.request);
+  bool readOnly = req.flags & MsgFlag::READ_ONLY_FLAG;
+  if (readOnly) return;
+
+  if (verifyWriteCommand(req.requestSize, request_buffer_as_uint8, req.maxReplySize, req.outActualReplySize) !=
+      OperationResult::SUCCESS) {
+    ConcordAssert(0);
+  }
+
+  auto flags = req.flags;
+  SKVBCRequest deserialized_request;
+  deserialize(request_buffer_as_uint8, request_buffer_as_uint8 + req.requestSize, deserialized_request);
+  const SKVBCWriteRequest &write_req = std::get<SKVBCWriteRequest>(deserialized_request.request);
+  LOG_INFO(m_logger,
+           "Execute WRITE command:"
+               << " type=SKVBCWriteRequest seqNum=" << req.executionSequenceNum
+               << " numOfWrites=" << write_req.writeset.size() << " numOfKeysInReadSet=" << write_req.readset.size()
+               << " readVersion=" << write_req.read_version
+               << " READ_ONLY_FLAG=" << ((flags & MsgFlag::READ_ONLY_FLAG) != 0 ? "true" : "false")
+               << " PRE_PROCESS_FLAG=" << ((flags & MsgFlag::PRE_PROCESS_FLAG) != 0 ? "true" : "false")
+               << " HAS_PRE_PROCESSED_FLAG=" << ((flags & MsgFlag::HAS_PRE_PROCESSED_FLAG) != 0 ? "true" : "false"));
+  if (write_req.long_exec) sleep(LONG_EXEC_CMD_TIME_IN_SEC);
+  req.outActualReplySize = req.requestSize;
+  memcpy(req.outReply, req.request, req.requestSize);
+  req.outExecutionStatus = static_cast<uint32_t>(OperationResult::SUCCESS);
+  // return OperationResult::SUCCESS;
+}
+
 void InternalCommandsHandler::addMetadataKeyValue(VersionedUpdates &updates, uint64_t sequenceNum) const {
   updates.addUpdate(std::string{concord::kvbc::IBlockMetadata::kBlockMetadataKeyStr},
                     m_blockMetadata->serialize(sequenceNum));

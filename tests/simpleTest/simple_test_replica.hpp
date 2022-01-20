@@ -127,6 +127,11 @@ class SimpleAppState : public IRequestsHandler {
     }
   }
 
+  void preExecute(IRequestsHandler::ExecutionRequest &req,
+                  std::optional<Timestamp> timestamp,
+                  const std::string &batchCid,
+                  concordUtils::SpanWrapper &parent_span) override {}
+
   struct State {
     // Number of modifications made.
     uint64_t stateNum = 0;

@@ -1620,7 +1620,9 @@ OperationResult PreProcessor::launchReqPreProcessing(const PreProcessRequestMsgS
       preProcessResultBuffer,
       reqSeqNum,
       preProcessReqMsg->result()});
-  requestsHandler_.execute(accumulatedRequests, std::nullopt, cid, span);
+
+  requestsHandler_.preExecute(accumulatedRequests.front(), std::nullopt, cid, span);
+  // requestsHandler_.execute(accumulatedRequests, std::nullopt, cid, span);
   const IRequestsHandler::ExecutionRequest &request = accumulatedRequests.back();
   auto preProcessResult = static_cast<OperationResult>(request.outExecutionStatus);
   resultLen = request.outActualReplySize;

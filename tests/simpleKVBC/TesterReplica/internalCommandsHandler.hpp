@@ -55,6 +55,11 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
                const std::string &batchCid,
                concordUtils::SpanWrapper &parent_span) override;
 
+  void preExecute(IRequestsHandler::ExecutionRequest &req,
+                  std::optional<bftEngine::Timestamp> timestamp,
+                  const std::string &batchCid,
+                  concordUtils::SpanWrapper &parent_span) override;
+
   void setPerformanceManager(std::shared_ptr<concord::performance::PerformanceManager> perfManager) override;
 
  private:
