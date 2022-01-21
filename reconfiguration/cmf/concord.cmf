@@ -58,34 +58,6 @@ Msg PruneStatus 18 {
     string configuration_json
 }
 
-Msg PruneConfigurationMax 60 {
-    uint32 dbMaxRate
-    uint32 consensusEngineMaxRate
-}
-
-Msg PruneConfigurationMap 61 {
-   list kvpair uint64 uint64 mapConsensusRateToPruningRate
-}
-
-Msg PruneSwitchModeRequest 50 {
-    uint64 sender_id
-    uint8 mode
-    oneof {
-        PruneConfigurationMap
-        PruneConfigurationMax
-    }
-    configuration
-}
-
-Msg PruneTicksChangeRequest 68 {
-    uint64 sender_id
-    # TicksGenerator period in seconds.
-    uint32 tick_period_seconds
-
-    # The number of blocks in a pruning batch.
-    uint64 batch_blocks_num
-}
-
 Msg GetVersionCommand 19 {
   bytes place_holder
 }
@@ -322,6 +294,88 @@ Msg StateSnapshotResponse 67 {
   optional StateSnapshotData data
 }
 
+# Sent by Clientservice to request the signed hash of the public state at `snapshot_id`.
+Msg SignedPublicStateHashRequest 68 {
+  # Unique identifier of the DB snapshot at which the signed public state hash is requested.
+  uint64 snapshot_id
+
+  # The participant ID that requested the signed public state hash.
+  string participant_id
+}
+
+Msg SignedPublicStateHashData 69 {
+  # The ID of the snapshot for which the signed public state hash was requested.
+  uint64 snapshot_id
+
+  # The ID of the responding replica.
+  uint64 replica_id
+
+  # The block ID at which the public state hash is computed.
+  uint64 block_id
+
+  # The SHA3-256 hash of the public state at `snapshot_id`.
+  fixedlist uint8 32 hash
+}
+
+# Represents the status of a `SignedPublicStateHashResponse`.
+Enum SignedPublicStateHashStatus {
+  # Successful response.
+  Success,
+
+  # The snapshot with the given ID is valid, but is still pending creation.
+  # Clientservice is advised to retry.
+  SnapshotPending,
+
+  # A snapshot with the given ID is non-existent.
+  # Clientservice must request a new snapshot ID.
+  SnapshotNonExistent,
+
+  # An internal error has occurred. Clientservice might either retry
+  # or request a new snapshot ID.
+  InternalError
+}
+
+# Returned as replica-specific-information (RSI).
+Msg SignedPublicStateHashResponse 70 {
+  # The status of the response.
+  # Note that `data` and `signature` are only relevant if status is `Success`.
+  SignedPublicStateHashStatus status
+
+  # The public state hash data.
+  SignedPublicStateHashData data
+
+  # An RSA signature from the responding replica on the serialization of `data`.
+  bytes signature
+}
+
+Msg PruneConfigurationMax 71 {
+    uint32 dbMaxRate
+    uint32 consensusEngineMaxRate
+}
+
+Msg PruneConfigurationMap 72 {
+   list kvpair uint64 uint64 mapConsensusRateToPruningRate
+}
+
+Msg PruneSwitchModeRequest 73 {
+    uint64 sender_id
+    uint8 mode
+    oneof {
+        PruneConfigurationMap
+        PruneConfigurationMax
+    }
+    configuration
+}
+
+Msg PruneTicksChangeRequest 74 {
+    uint64 sender_id
+    # TicksGenerator period in seconds.
+    uint32 tick_period_seconds
+
+    # The number of blocks in a pruning batch.
+    uint64 batch_blocks_num
+}
+
 Msg ReconfigurationRequest 1 {
   uint64 sender
   bytes signature
@@ -361,6 +415,7 @@ Msg ReconfigurationRequest 1 {
     CreateDbCheckpointCommand
     ReplicaMainKeyUpdate
     StateSnapshotRequest
+    SignedPublicStateHashRequest
   } command
   bytes additional_data
 }
@@ -385,6 +440,7 @@ Msg ReconfigurationResponse 2 {
     ClientsRestartStatusResponse
     GetDbCheckpointInfoStatusResponse
     StateSnapshotResponse
+    SignedPublicStateHashResponse
   } response
   bytes additional_data
 }
