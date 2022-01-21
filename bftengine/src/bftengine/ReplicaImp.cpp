@@ -4622,14 +4622,12 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
                                                                               request->requestBuf(),
                                                                               "",
                                                                               reply.maxReplyLength(),
-                                                                              reply.replyBuf(),
-                                                                              request->requestSeqNum(),
-                                                                              request->result()});
+                                                                              reply.replyBuf()});
   {
     TimeRecorder scoped_timer(*histograms_.executeReadOnlyRequest);
     bftRequestsHandler_->execute(accumulatedRequests, std::nullopt, request->getCid(), span);
   }
-  IRequestsHandler::ExecutionRequest &single_request = accumulatedRequests.back();
+  const IRequestsHandler::ExecutionRequest &single_request = accumulatedRequests.back();
   status = single_request.outExecutionStatus;
   const uint32_t actualReplyLength = single_request.outActualReplySize;
   const uint32_t actualReplicaSpecificInfoLength = single_request.outReplicaSpecificInfoSize;
@@ -4647,20 +4645,14 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
       reply.setReplyLength(actualReplyLength);
       reply.setReplicaSpecificInfoLength(actualReplicaSpecificInfoLength);
       send(&reply, clientId);
-      return;
     } else {
       LOG_WARN(GL, "Received zero size response. " << KVLOG(clientId));
-      strcpy(single_request.outReply, "Executed data is empty");
-      single_request.outActualReplySize = strlen(single_request.outReply);
-      status = static_cast<uint32_t>(bftEngine::OperationResult::EXEC_DATA_EMPTY);
     }
 
   } else {
     LOG_WARN(GL, "Received error while executing RO request. " << KVLOG(clientId, status));
   }
-  ClientReplyMsg replyMsg(
-      0, request->requestSeqNum(), single_request.outReply, single_request.outActualReplySize, status);
-  send(&replyMsg, clientId);
+
   if (config_.getdebugStatisticsEnabled()) {
     DebugStatistics::onRequestCompleted(true);
   }
@@ -4954,8 +4946,7 @@ void ReplicaImp::executeSpecialRequests(PrePrepareMsg *ppMsg,
           std::string(req.requestSignature(), req.requestSignatureLength()),
           static_cast<uint32_t>(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
           (char *)std::malloc(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
-          req.requestSeqNum(),
-          req.result()});
+          req.requestSeqNum()});
 
       numOfSpecialReqs--;
     }
@@ -5015,8 +5006,7 @@ void ReplicaImp::executeRequests(PrePrepareMsg *ppMsg, Bitmap &requestSet, Times
         std::string(req.requestSignature(), req.requestSignatureLength()),
         static_cast<uint32_t>(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
         (char *)std::malloc(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
-        req.requestSeqNum(),
-        req.result()});
+        req.requestSeqNum()});
 
     if (req.flags() & HAS_PRE_PROCESSED_FLAG) {
       setConflictDetectionBlockId(req, pAccumulatedRequests->back());
@@ -5561,8 +5551,7 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
         std::string(req.requestSignature(), req.requestSignatureLength()),
         static_cast<uint32_t>(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
         (char *)std::malloc(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
-        req.requestSeqNum(),
-        req.result()});
+        req.requestSeqNum()});
     // Decode the pre-execution block-id for the conflict detection optimization,
     // and pass it to the post-execution.
     if (req.flags() & HAS_PRE_PROCESSED_FLAG) {
@@ -5623,18 +5612,12 @@ void ReplicaImp::sendResponses(PrePrepareMsg *ppMsg, IRequestsHandler::Execution
       } else {
         LOG_WARN(CNSUS, "Received zero size response." << KVLOG(req.clientId, req.requestSequenceNum, ppMsg->getCid()));
         strcpy(req.outReply, "Executed data is empty");
-        req.outActualReplySize = strlen(req.outReply);
         executionResult = static_cast<uint32_t>(bftEngine::OperationResult::EXEC_DATA_EMPTY);
       }
     }
 
-    replyMsg = clientsManager->allocateNewReplyMsgAndWriteToStorage(req.clientId,
-                                                                    req.requestSequenceNum,
-                                                                    currentPrimary(),
-                                                                    req.outReply,
-                                                                    req.outActualReplySize,
-                                                                    0,
-                                                                    executionResult);
+    replyMsg = clientsManager->allocateNewReplyMsgAndWriteToStorage(
+        req.clientId, req.requestSequenceNum, currentPrimary(), req.outReply, 0, 0, executionResult);
     send(replyMsg.get(), req.clientId);
     free(req.outReply);
     req.outReply = nullptr;

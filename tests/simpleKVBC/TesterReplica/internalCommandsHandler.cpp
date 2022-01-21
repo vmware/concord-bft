@@ -91,7 +91,7 @@ void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequests
 
   for (auto &req : requests) {
     if (req.outExecutionStatus != static_cast<uint32_t>(OperationResult::UNKNOWN))
-      continue;  // Request already executed (internal)
+      continue;  // Request already executed (internal or pre-executed)
     req.outReplicaSpecificInfoSize = 0;
     OperationResult res;
     if (req.requestSize <= 0) {
@@ -123,12 +123,7 @@ void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequests
                                 merkleUpdates);
     }
     if (res != OperationResult::SUCCESS) LOG_WARN(m_logger, "Command execution failed!");
-
-    // This is added, as Apollo test sets req.outExecutionStatus to an error to verify that the error reply gets
-    // returned.
-    if (req.outExecutionStatus == static_cast<uint32_t>(OperationResult::UNKNOWN)) {
-      req.outExecutionStatus = static_cast<uint32_t>(res);
-    }
+    req.outExecutionStatus = static_cast<uint32_t>(res);
   }
 
   if (!pre_execute && (merkleUpdates.size() > 0 || verUpdates.size() > 0)) {
@@ -334,11 +329,9 @@ OperationResult InternalCommandsHandler::executeWriteCommand(uint32_t requestSiz
                 "pointer type used by CMF.");
   const uint8_t *request_buffer_as_uint8 = reinterpret_cast<const uint8_t *>(request);
   if (!(flags & MsgFlag::HAS_PRE_PROCESSED_FLAG)) {
-    auto res = verifyWriteCommand(requestSize, request_buffer_as_uint8, maxReplySize, outReplySize);
-    if (res != OperationResult::SUCCESS) {
-      LOG_INFO(GL, "Operation result is not success in verifying write command");
-      return res;
-    }
+    if (verifyWriteCommand(requestSize, request_buffer_as_uint8, maxReplySize, outReplySize) !=
+        OperationResult::SUCCESS)
+      ConcordAssert(0);
     if (flags & MsgFlag::PRE_PROCESS_FLAG) {
       SKVBCRequest deserialized_request;
       deserialize(request_buffer_as_uint8, request_buffer_as_uint8 + requestSize, deserialized_request);
@@ -546,9 +539,8 @@ OperationResult InternalCommandsHandler::executeReadOnlyCommand(uint32_t request
     const uint8_t *request_buffer_as_uint8 = reinterpret_cast<const uint8_t *>(request);
     deserialize(request_buffer_as_uint8, request_buffer_as_uint8 + requestSize, deserialized_request);
   } catch (const runtime_error &e) {
+    outReplySize = 0;
     LOG_ERROR(m_logger, "Failed to deserialize SKVBCRequest: " << e.what());
-    strcpy(outReply, "Failed to deserialize SKVBCRequest");
-    outReplySize = strlen(outReply);
     return OperationResult::INTERNAL_ERROR;
   }
   if (holds_alternative<SKVBCReadRequest>(deserialized_request.request)) {
@@ -560,9 +552,8 @@ OperationResult InternalCommandsHandler::executeReadOnlyCommand(uint32_t request
     return executeGetBlockDataCommand(
         std::get<SKVBCGetBlockDataRequest>(deserialized_request.request), maxReplySize, outReply, outReplySize);
   } else {
+    outReplySize = 0;
     LOG_WARN(m_logger, "Received read-only request of unrecognized message type.");
-    strcpy(outReply, "Invalid read request");
-    outReplySize = strlen(outReply);
     return OperationResult::INVALID_REQUEST;
   }
 }

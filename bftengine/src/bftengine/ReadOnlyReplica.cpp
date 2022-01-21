@@ -230,13 +230,11 @@ void ReadOnlyReplica::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_s
                                                                               request.requestBuf(),
                                                                               "",
                                                                               reply.maxReplyLength(),
-                                                                              reply.replyBuf(),
-                                                                              request.requestSeqNum(),
-                                                                              request.result()});
+                                                                              reply.replyBuf()});
 
   // DD: Do we need to take care of Time Service here?
   bftRequestsHandler_->execute(accumulatedRequests, std::nullopt, request.getCid(), span);
-  IRequestsHandler::ExecutionRequest &single_request = accumulatedRequests.back();
+  const IRequestsHandler::ExecutionRequest &single_request = accumulatedRequests.back();
   executionResult = single_request.outExecutionStatus;
   const uint32_t actualReplyLength = single_request.outActualReplySize;
   const uint32_t actualReplicaSpecificInfoLength = single_request.outReplicaSpecificInfoSize;
@@ -254,19 +252,16 @@ void ReadOnlyReplica::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_s
       reply.setReplyLength(actualReplyLength);
       reply.setReplicaSpecificInfoLength(actualReplicaSpecificInfoLength);
       send(&reply, clientId);
-      return;
     } else {
       LOG_WARN(GL, "Received zero size response. " << KVLOG(clientId));
       strcpy(single_request.outReply, "Executed data is empty");
-      single_request.outActualReplySize = strlen(single_request.outReply);
       executionResult = static_cast<uint32_t>(bftEngine::OperationResult::EXEC_DATA_EMPTY);
     }
 
   } else {
     LOG_ERROR(GL, "Received error while executing RO request. " << KVLOG(clientId, executionResult));
   }
-  ClientReplyMsg replyMsg(
-      0, request.requestSeqNum(), single_request.outReply, single_request.outActualReplySize, executionResult);
+  ClientReplyMsg replyMsg(0, request.requestSeqNum(), single_request.outReply, config_.getreplicaId(), executionResult);
   send(&replyMsg, clientId);
 }
 

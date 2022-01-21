@@ -29,7 +29,6 @@ class MsgWithReplicaSpecificInfo:
         self.common_data = orig_data[:rsi_loc]
         self.sender_id = sender_id
         self.primary_id = orig_header.primary_id
-        self.result = orig_header.result
 
     def get_common_reply(self):
         return self.common_header, self.common_data
@@ -51,9 +50,6 @@ class MsgWithReplicaSpecificInfo:
 
     def get_primary(self):
         return self.primary_id
-
-    def get_common_data_with_result(self):
-        return self.common_data, self.result
 
 class RepliesManager:
     def __init__(self):
