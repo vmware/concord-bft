@@ -34,6 +34,7 @@ apt-get update && apt-get ${APT_GET_FLAGS} install \
     psmisc \
     python3-pip \
     python3-setuptools \
+    python3-dev \
     sudo \
     vim \
     iproute2 \
@@ -70,7 +71,10 @@ pip3 install \
     tatsu==4.4.0 \
     pytest \
     pycryptodome \
-    ecdsa
+    ecdsa \
+    protobuf==3.15.8 \
+    grpcio==1.37.1 \
+    grpcio-tools==1.37.1
 
 # Build 3rd parties
 wget ${WGET_FLAGS} -O cmake-linux.sh \
