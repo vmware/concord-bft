@@ -189,16 +189,16 @@ std::optional<DbCheckpointMetadata::DbCheckPointDescriptor> DbCheckpointManager:
 
 DbCheckpointManager::CheckpointState DbCheckpointManager::getCheckpointState(CheckpointId id) const {
   {
-    auto lock = std::scoped_lock{lockDbCheckPtFuture_};
-    if (dbCreateCheckPtFuture_.count(id)) {
-      return CheckpointState::kPending;
+    auto lock = std::scoped_lock{lock_};
+    if (dbCheckptMetadata_.dbCheckPoints_.count(id)) {
+      return CheckpointState::kCreated;
     }
   }
 
   {
-    auto lock = std::scoped_lock{lock_};
-    if (dbCheckptMetadata_.dbCheckPoints_.count(id)) {
-      return CheckpointState::kCreated;
+    auto lock = std::scoped_lock{lockDbCheckPtFuture_};
+    if (dbCreateCheckPtFuture_.count(id)) {
+      return CheckpointState::kPending;
     }
   }
 
