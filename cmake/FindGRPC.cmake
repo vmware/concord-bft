@@ -4,10 +4,13 @@
 # Adds the following targets:
 #
 #  gRPC::grpc - gRPC library
+#  gRPC::gpr - GPR library
 #  gRPC::grpc++ - gRPC C++ library
 #  gRPC::grpc++_reflection - gRPC C++ reflection library
 #  gRPC::grpc_cpp_plugin - C++ generator plugin for Protocol Buffers
 #
+
+include_guard()
 
 #
 # Generates C++ sources from the .proto files
@@ -83,6 +86,15 @@ endif()
 find_path(GRPC_INCLUDE_DIR grpc/grpc.h)
 mark_as_advanced(GRPC_INCLUDE_DIR)
 
+# Find gRPC gpr (Google Portable Runtime)
+find_library(GRPC_GPR_LIBRARY NAMES gpr)
+mark_as_advanced(GRPC_GPR_LIBRARY)
+add_library(gRPC::gpr UNKNOWN IMPORTED)
+set_target_properties(gRPC::gpr PROPERTIES
+    INTERFACE_INCLUDE_DIRECTORIES ${GRPC_INCLUDE_DIR}
+    IMPORTED_LOCATION ${GRPC_GPR_LIBRARY}
+)
+
 # Find gRPC library
 find_library(GRPC_LIBRARY NAMES grpc)
 mark_as_advanced(GRPC_LIBRARY)
@@ -99,7 +111,7 @@ mark_as_advanced(GRPC_GRPC++_LIBRARY)
 add_library(gRPC::grpc++ UNKNOWN IMPORTED)
 set_target_properties(gRPC::grpc++ PROPERTIES
     INTERFACE_INCLUDE_DIRECTORIES ${GRPC_INCLUDE_DIR}
-    INTERFACE_LINK_LIBRARIES gRPC::grpc
+    INTERFACE_LINK_LIBRARIES "gRPC::grpc;gRPC::gpr"
     IMPORTED_LOCATION ${GRPC_GRPC++_LIBRARY}
 )
 
