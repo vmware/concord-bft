@@ -3521,6 +3521,11 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
                  newStableSeqNum, metric_last_stable_seq_num_.Get().Get()));
     IControlHandler::instance()->onStableCheckpoint();
     ControlStateManager::instance().wedge();
+    // We create a db-snapshot when we wedge the replicas
+    // reason: wedge is performed for some maintainance, scaling, reconfiguration etc.
+    // so, we create a snapshot of the database, when we stop the replicas
+    if (getReplicaConfig().dbCheckpointFeatureEnabled)
+      DbCheckpointManager::instance().createDbCheckpointAsync(seq_num_to_stop_at.value(), std::nullopt);
   }
   onSeqNumIsStableCallbacks_.invokeAll(newStableSeqNum);
 }
@@ -4452,7 +4457,9 @@ ReplicaImp::ReplicaImp(bool firstTime,
           !(seqNum % getReplicaConfig().dbCheckPointWindowSize) &&
           (timeSinceLastSnapshot >= getReplicaConfig().dbSnapshotIntervalSeconds.count())) {
         DbCheckpointManager::instance().sendInternalCreateDbCheckpointMsg(seqNum, false);
+        LOG_INFO(GL, "send msg to create Db Checkpoint:" << KVLOG(seqNum));
       }
+      DbCheckpointManager::instance().onStableSeqNum(seqNum);
     });
   }
   LOG_INFO(GL, "ReplicaConfig parameters: " << config);
@@ -5311,6 +5318,7 @@ void ReplicaImp::onExecutionFinish() {
       onSeqNumIsStableCallbacks_.add([seq_num_to_create_dbcheckpoint](SeqNum seqNum) {
         if (seqNum == seq_num_to_create_dbcheckpoint) {
           DbCheckpointManager::instance().sendInternalCreateDbCheckpointMsg(seqNum, false);  // noop=false
+          LOG_INFO(GL, "sendInternalCreateDbCheckpointMsg " << KVLOG(seq_num_to_create_dbcheckpoint));
         }
       });
       DbCheckpointManager::instance().setNextStableSeqNumToCreateSnapshot(std::nullopt);

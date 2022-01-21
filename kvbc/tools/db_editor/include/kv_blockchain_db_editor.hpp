@@ -1038,7 +1038,7 @@ struct VerifyDbCheckpoint {
         << " optionally it verifies N number of blocks from the block added"
         << " on last stable checkpoint in reverse order"
         << " and optionally verifies signature of bft-checkpoint messages\n"
-        << " N - Number of blocks to verify\n"
+        << " N - Number of additional blocks to verify from the block added on last stable checkpoint\n"
         << " Usage: verifyDbCheckpoint [N] [true/false]\n";
     return oss.str();
   }
@@ -1230,6 +1230,7 @@ struct VerifyDbCheckpoint {
           verifyBlockChain(adapter, (checkPtDesc.lastBlock - numOfBlocksToVerify - 1), checkPtDesc.lastBlock) ? "Ok"
                                                                                                               : "Fail";
     }
+    result["NumOfBlocksVerifiedFromLastStableCheckPtBlock"] = std::to_string(numOfBlocksToVerify);
     return concordUtils::toJson(result);
   }
 };
