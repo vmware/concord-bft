@@ -62,7 +62,7 @@ class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
   void onPrivateKeyExchange(const std::string& secretKey,
                             const std::string& verificationKey,
                             const SeqNum& sn) override {
-    LOG_INFO(logger(), KVLOG(sn, verificationKey));
+    LOG_INFO(logger(), "Private key exchange:" << KVLOG(sn, verificationKey));
     auto sys_wrapper = create(sn);
     sys_wrapper->cryptosys_->updateKeys(secretKey, verificationKey);
     sys_wrapper->init();
@@ -70,7 +70,7 @@ class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
   void onPublicKeyExchange(const std::string& verificationKey,
                            const std::uint16_t& signerIndex,
                            const SeqNum& sn) override {
-    LOG_INFO(logger(), KVLOG(sn, signerIndex, verificationKey));
+    LOG_INFO(logger(), "Public key exchange:" << KVLOG(sn, signerIndex, verificationKey));
     auto sys = create(sn);
     // the +1 is due to Crypto system starts counting from 1
     sys->cryptosys_->updateVerificationKey(verificationKey, signerIndex + 1);
@@ -78,7 +78,7 @@ class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
   }
 
   void onCheckpoint(const uint64_t& checkpoint) {
-    LOG_INFO(logger(), "chckp: " << checkpoint);
+    LOG_INFO(logger(), "Checkpoint: " << checkpoint);
     // clearOldKeys();
   }
 

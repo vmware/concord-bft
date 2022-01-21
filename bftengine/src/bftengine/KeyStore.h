@@ -41,7 +41,7 @@ class ClusterKeyStore : public ResPagesClient<ClusterKeyStore> {
   };
 
   ClusterKeyStore(uint32_t size) : clusterSize_(size), buffer_(sizeOfReservedPage(), 0) {
-    LOG_INFO(KEY_EX_LOG, "size: " << size);
+    LOG_INFO(KEY_EX_LOG, "Cluster Keys size: " << size);
     ConcordAssertGT(sizeOfReservedPage(), 0);
     loadAllReplicasKeyStoresFromReservedPages();
   }

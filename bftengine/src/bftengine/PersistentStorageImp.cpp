@@ -60,7 +60,7 @@ bool PersistentStorageImp::init(unique_ptr<MetadataStorage> metadataStorage) {
 }
 
 void PersistentStorageImp::setDefaultsInMetadataStorage() {
-  LOG_INFO(GL, "");
+  LOG_INFO(GL, "Set default values");
   beginWriteTran();
 
   setVersion();

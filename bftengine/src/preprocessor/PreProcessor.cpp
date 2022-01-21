@@ -362,17 +362,17 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
   threadPool_.start(numOfThreads);
   msgLoopThread_ = std::thread{&PreProcessor::msgProcessingLoop, this};
   LOG_INFO(logger(),
-           KVLOG(numOfReplicas_,
-                 numOfExternalClients,
-                 numOfInternalClients_,
-                 numOfReqEntries,
-                 firstClientId,
-                 clientBatchingEnabled_,
-                 clientMaxBatchSize_,
-                 maxPreExecResultSize_,
-                 preExecReqStatusCheckPeriodMilli_,
-                 numOfThreads,
-                 ReplicaConfig::instance().preExecutionResultAuthEnabled));
+           "PreProcessor initialization:" << KVLOG(numOfReplicas_,
+                                                   numOfExternalClients,
+                                                   numOfInternalClients_,
+                                                   numOfReqEntries,
+                                                   firstClientId,
+                                                   clientBatchingEnabled_,
+                                                   clientMaxBatchSize_,
+                                                   maxPreExecResultSize_,
+                                                   preExecReqStatusCheckPeriodMilli_,
+                                                   numOfThreads,
+                                                   ReplicaConfig::instance().preExecutionResultAuthEnabled));
   RequestProcessingState::init(numOfRequiredReplies(), &histograms_);
   PreProcessReplyMsg::setPreProcessorHistograms(&histograms_);
   addTimers();
@@ -666,7 +666,8 @@ bool PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUnique
   SCOPED_MDC_CID(clientMsg->getCid());
   const NodeIdType &clientId = clientMsg->clientProxyId();
   const ReqId &reqSeqNum = clientMsg->requestSeqNum();
-  LOG_DEBUG(logger(), KVLOG(batchCid, reqSeqNum, clientId, senderId, arrivedInBatch, reqOffsetInBatch));
+  LOG_DEBUG(logger(),
+            "Handle Request:" << KVLOG(batchCid, reqSeqNum, clientId, senderId, arrivedInBatch, reqOffsetInBatch));
 
   bool registerSucceeded = false;
   {

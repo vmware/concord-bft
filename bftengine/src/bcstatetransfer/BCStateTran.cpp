@@ -376,7 +376,7 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
 }
 
 void BCStateTran::startRunning(IReplicaForStateTransfer *r) {
-  LOG_INFO(logger_, "");
+  LOG_INFO(logger_, "Starting");
   if (!config_.isReadOnly && cre_) cre_->halt();
   if (cre_) cre_->start();
   ConcordAssertNE(r, nullptr);
@@ -391,7 +391,7 @@ void BCStateTran::startRunning(IReplicaForStateTransfer *r) {
 }
 
 void BCStateTran::stopRunning() {
-  LOG_INFO(logger_, "");
+  LOG_INFO(logger_, "Stopping");
   ConcordAssert(running_);
   ConcordAssertNE(replicaForStateTransfer_, nullptr);
   if (handoff_) handoff_->stop();
@@ -2856,7 +2856,6 @@ void BCStateTran::checkConfig() {
 }
 
 void BCStateTran::checkFirstAndLastCheckpoint(uint64_t firstStoredCheckpoint, uint64_t lastStoredCheckpoint) {
-  LOG_INFO(logger_, KVLOG(firstStoredCheckpoint, lastStoredCheckpoint));
   ConcordAssertGE(lastStoredCheckpoint, firstStoredCheckpoint);
   ConcordAssertLE(lastStoredCheckpoint - firstStoredCheckpoint + 1, maxNumOfStoredCheckpoints_);
   ConcordAssertOR((lastStoredCheckpoint == 0), psd_->hasCheckpointDesc(lastStoredCheckpoint));

@@ -447,7 +447,7 @@ void ClientsManager::logAllPendingRequestsExceedingThreshold(const int64_t thres
         const auto delayed = duration_cast<milliseconds>(currTime - req.second.time).count();
         const auto& CID = req.second.cid;
         if (delayed > threshold) {
-          LOG_INFO(VC_LOG, "" << KVLOG(CID, delayed));
+          LOG_INFO(VC_LOG, "Request exceeding threshold:" << KVLOG(CID, delayed));
           numExceeding++;
         }
       }

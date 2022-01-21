@@ -258,6 +258,7 @@ void AsyncTlsConnection::write(std::shared_ptr<OutgoingMsg> msg) {
         write_msg_used_ = false;
         write(write_queue_.pop());
       }));
+  LOG_DEBUG(logger_, "Write:" << KVLOG(peer_id_.value()));
   startWriteTimer();
 }
 
@@ -302,7 +303,7 @@ void AsyncTlsConnection::initClientSSLContext(NodeNum destination) {
 
   // Only allow using the strongest cipher suites.
   if (!SSL_CTX_set_ciphersuites(ssl_context_.native_handle(), config_.cipherSuite.c_str())) {
-    LOG_ERROR(logger_, "Failed to set TLS cipher suite from config: " << config_.cipherSuite.c_str());
+    LOG_WARN(logger_, "Failed to set TLS cipher suite from config: " << config_.cipherSuite.c_str());
 
     // Setting to Default
     if (!SSL_CTX_set_ciphersuites(ssl_context_.native_handle(), "TLS_AES_256_GCM_SHA384"))
@@ -366,7 +367,7 @@ void AsyncTlsConnection::initServerSSLContext() {
 
   // Only allow using the strongest cipher suites.
   if (!SSL_CTX_set_ciphersuites(ssl_context_.native_handle(), config_.cipherSuite.c_str())) {
-    LOG_ERROR(logger_, "Failed to set TLS cipher suite from config : " << config_.cipherSuite.c_str());
+    LOG_WARN(logger_, "Failed to set TLS cipher suite from config: " << config_.cipherSuite.c_str());
 
     // Setting to default
     if (!SSL_CTX_set_ciphersuites(ssl_context_.native_handle(), "TLS_AES_256_GCM_SHA384"))
