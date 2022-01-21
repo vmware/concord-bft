@@ -642,7 +642,9 @@ void DataGenerator::generateCheckpointDescriptors(const TestAppState& appState,
     BCStateTran::computeDigestOfPagesDescriptor(resPagesDesc, digestOfResPagesDescriptor);
 
     desc.digestOfResPagesDescriptor = digestOfResPagesDescriptor;
+    rvbm->validate();
     rvbm->updateRvbDataDuringCheckpoint(desc);
+    rvbm->validate();
     datastore->setCheckpointDesc(i, desc);
   }
 
@@ -734,12 +736,12 @@ void BcStTestDelegator::validateEqualRVTs(const RangeValidationTree& rvtA, const
   const auto& lmB = rvtB.leftmostRVTNode_;
   for (size_t i{}; i < RangeValidationTree::NodeInfo::kMaxLevels; ++i) {
     if (rmA[i]) {
-      ASSERT_EQ(rmA[i]->info_.id, rmB[i]->info_.id);
+      ASSERT_EQ(rmA[i]->info_.id(), rmB[i]->info_.id());
     } else {
       ASSERT_EQ(rmA[i], rmB[i]);
     }
     if (lmA[i]) {
-      ASSERT_EQ(lmA[i]->info_.id, lmB[i]->info_.id);
+      ASSERT_EQ(lmA[i]->info_.id(), lmB[i]->info_.id());
     } else {
       ASSERT_EQ(lmA[i], lmB[i]);
     }
@@ -747,10 +749,9 @@ void BcStTestDelegator::validateEqualRVTs(const RangeValidationTree& rvtA, const
   ASSERT_EQ(rvtA.max_rvb_index_, rvtB.max_rvb_index_);
   ASSERT_EQ(rvtA.min_rvb_index_, rvtB.min_rvb_index_);
   if (rvtA.root_ && (rvtA.root_ == rvtB.root_)) {
-    ASSERT_EQ(rvtA.root_->n_child, rvtB.root_->n_child);
-    ASSERT_EQ(rvtA.root_->min_child_id, rvtB.root_->min_child_id);
-    ASSERT_EQ(rvtA.root_->max_child_id, rvtB.root_->max_child_id);
-    ASSERT_EQ(rvtA.root_->parent_id, rvtB.root_->parent_id);
+    ASSERT_EQ(rvtA.root_->numChilds(), rvtB.root_->numChilds());
+    ASSERT_EQ(rvtA.root_->parent_id_, rvtB.root_->parent_id_);
+    ASSERT_EQ(rvtA.root_->last_insertion_index_, rvtB.root_->last_insertion_index_);
   }
 }
 
@@ -1326,9 +1327,9 @@ void BcStTest::dstRestart(bool productDbDeleteOnEnd, FetchingState expectedState
   testConfig_.productDbDeleteOnEnd = productDbDeleteOnEnd;
   datastore_ = createDataStore(testConfig_.bcstDbPath, targetConfig_);
   stateTransfer_ = make_unique<BCStateTran>(targetConfig_, &appState_, datastore_);
-  stateTransfer_->init(testConfig_.maxNumOfRequiredStoredCheckpoints,
-                       testConfig_.numberOfRequiredReservedPages,
-                       targetConfig_.sizeOfReservedPage);
+  ASSERT_NFF(stateTransfer_->init(testConfig_.maxNumOfRequiredStoredCheckpoints,
+                                  testConfig_.numberOfRequiredReservedPages,
+                                  targetConfig_.sizeOfReservedPage));
   cmnStartRunning(expectedState);
   stDelegator_->onTimerImp();
 }
@@ -1817,7 +1818,7 @@ TEST_F(BcStTest, ValidateRvbDataInitialSource) {
   // Get the serialized data, and set it back, expect RvbDataInitialSource == FROM_NETWORK
   auto rvbData = rvbm->getRvbData();
   string s = rvbData.str();
-  rvbm->setRvbData(s.data(), s.size());
+  rvbm->setRvbData(s.data(), s.size(), testState_.minRequiredBlockId, testState_.maxRequiredBlockId);
   ASSERT_EQ(rvbm->getRvbDataSource(), RVBManager::RvbDataInitialSource::FROM_NETWORK);
 
   testConfig_.productDbDeleteOnEnd = true;
@@ -1878,8 +1879,8 @@ TEST_P(BcStTestParamFixture3, bkpValidateCheckpointingWithConsensusCommitsAndPru
     ASSERT_TRUE(!helper_rvt.getRootCurrentValueStr().empty());
 
     // leave for debug
-    // helper_rvt.printToLog(false);
-    // rvt->printToLog(false);
+    // helper_rvt.printToLog(LogPrintVerbosity::DETAILED);
+    // rvt->printToLog(LogPrintVerbosity::DETAILED);
 
     // when only pruning, tree must shrink over time
     // when only adding tree must grow over time

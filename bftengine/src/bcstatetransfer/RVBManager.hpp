@@ -84,7 +84,8 @@ class RVBManager {
   std::ostringstream getRvbData() const;
 
   // Get a serialized RVB data. Used by ST destination (during checkpoint summaries)
-  bool setRvbData(char* data, size_t data_size);
+  // min_block_id_span, max_block_id_span are used to validate that the tree indeed span the whole collecting range
+  bool setRvbData(char* data, size_t data_size, BlockId min_block_id_span, BlockId max_block_id_span);
 
   // Called during ST GettingMissingBlocks by source when received FetchBlocksMsg with rvb_group_id != 0
   // Returns number of bytes filled. We assume that rvb_group_id must exist. This can be checked by calling
@@ -175,12 +176,10 @@ class RVBManager {
                               uint64_t max_block_id,
                               const std::optional<STDigest>& digest_of_max_block_id);
   // returns the next RVB ID after block_id. If block_id is an RVB ID, returns block_id.
-  inline BlockId nextRvbBlockId(BlockId block_id) const;
+  inline RVBId nextRvbBlockId(BlockId block_id) const;
 
   // returns the previous RVB ID to block_id. If block_id is an RVB ID, returns block_id.
-  BlockId prevRvbBlockId(BlockId block_id) const {
-    return config_.fetchRangeSize * (block_id / config_.fetchRangeSize);
-  }
+  RVBId prevRvbBlockId(BlockId block_id) const { return config_.fetchRangeSize * (block_id / config_.fetchRangeSize); }
   void pruneRvbDataDuringCheckpoint(const CheckpointDesc& new_checkpoint_desc);
   // Returns 0 if no such ID
   RVBGroupId getNextRequiredRvbGroupid(RVBId from_rvb_id, RVBId to_rvb_id) const;

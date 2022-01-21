@@ -82,18 +82,25 @@ class RVTTest : public ::testing::Test {
  public:
   void init(RangeValidationTree& rvt) {
     delegator_ = std::make_unique<BcStTestDelegator>(rvt);
-    logging::Logger::getInstance("concord.bft").setLogLevel(log4cplus::ERROR_LOG_LEVEL);
-    logging::Logger::getInstance("concord.bft.st.dst").setLogLevel(log4cplus::ERROR_LOG_LEVEL);
-    logging::Logger::getInstance("concord.bft.st.src").setLogLevel(log4cplus::ERROR_LOG_LEVEL);
-    logging::Logger::getInstance("concord.util.handoff").setLogLevel(log4cplus::ERROR_LOG_LEVEL);
-    logging::Logger::getInstance("concord.bft.st.rvb").setLogLevel(log4cplus::ERROR_LOG_LEVEL);
+    logging::Logger::getInstance("concord.bft.st.rvb").setLogLevel(log4cplus::INFO_LOG_LEVEL);
   }
   InputValues values_{randomString(HASH_SIZE), randomString(HASH_SIZE), randomString(HASH_SIZE)};
   std::shared_ptr<BcStTestDelegator> delegator_;
-  logging::Logger logger_{logging::getLogger("concord.bft.st.rvt")};
+  logging::Logger logger_{logging::getLogger("concord.bft.st.rvb")};
 };
 
 /////////////////////// starting of maths properties validation test for cryptoPP::Integer class  /////////////////////
+
+TEST_F(RVTTest, StartIntheMiddleInsertionsOnly) {
+  RangeValidationTree rvt1(logger_, 12, 27);
+  auto fetch_range_size = 27;
+  string str{"11"};
+  for (size_t i{4}; i <= 16; ++i) {
+    rvt1.addNode(i * fetch_range_size, str.data(), str.size());
+    rvt1.validate();
+    rvt1.printToLog(LogPrintVerbosity::DETAILED);
+  }
+}
 
 TEST_F(RVTTest, basicAdditionSubtraction) {
   auto a = values_.leaf1;
@@ -170,6 +177,7 @@ TEST_F(RVTTest, constructTreeWithSingleFirstNode) {
   for (auto i = fetch_range_size; i <= fetch_range_size; i = i + fetch_range_size) {
     STDigest digest(std::to_string(i).c_str());
     rvt.addNode(i, digest.get(), BLOCK_DIGEST_SIZE);
+    rvt.validate();
     ASSERT_TRUE(rvt.validate());
   }
   ASSERT_EQ(rvt.totalNodes(), 1);
@@ -183,6 +191,7 @@ TEST_F(RVTTest, constructTreeWithSingleMiddleNode) {
   for (auto i = fetch_range_size * 2; i <= fetch_range_size * 2; i = i + fetch_range_size) {
     STDigest digest(std::to_string(i).c_str());
     rvt.addNode(i, digest.get(), BLOCK_DIGEST_SIZE);
+    rvt.validate();
     ASSERT_TRUE(rvt.validate());
   }
   ASSERT_EQ(rvt.totalNodes(), 1);
@@ -195,6 +204,7 @@ TEST_F(RVTTest, constructTreeWithSingleLastNode) {
   for (auto i = fetch_range_size * RVT_K; i <= fetch_range_size * RVT_K; i = i + fetch_range_size) {
     STDigest digest(std::to_string(i).c_str());
     rvt.addNode(i, digest.get(), BLOCK_DIGEST_SIZE);
+    rvt.validate();
     ASSERT_TRUE(rvt.validate());
   }
   ConcordAssertEQ(rvt.totalNodes(), 1);
@@ -209,7 +219,7 @@ TEST_F(RVTTest, constructTreeWithTwoNodes) {
     rvt.addNode(i, digest.get(), BLOCK_DIGEST_SIZE);
     ASSERT_TRUE(rvt.validate());
   }
-  rvt.printToLog(false);
+  rvt.printToLog(LogPrintVerbosity::DETAILED);
   ConcordAssertEQ(rvt.totalLevels(), 2);
   ConcordAssertEQ(rvt.totalNodes(), 3);
 }
@@ -220,11 +230,13 @@ TEST_F(RVTTest, TreeNodeRemovalBasic) {
   for (auto i = fetch_range_size; i <= fetch_range_size * RVT_K + fetch_range_size; i = i + fetch_range_size) {
     STDigest digest(std::to_string(i).c_str());
     rvt.addNode(i, digest.get(), BLOCK_DIGEST_SIZE);
+    rvt.validate();
     ASSERT_TRUE(rvt.validate());
   }
   for (auto i = fetch_range_size; i <= fetch_range_size * RVT_K + fetch_range_size; i = i + fetch_range_size) {
     STDigest digest(std::to_string(i).c_str());
     rvt.removeNode(i, digest.get(), BLOCK_DIGEST_SIZE);
+    rvt.validate();
     ASSERT_TRUE(rvt.validate());
   }
   ASSERT_EQ(rvt.totalNodes(), 0);
@@ -244,6 +256,7 @@ TEST_P(RVTTestserializeDeserializeFixture, serializeDeserialize) {
   for (auto i = fetch_range_size; i <= fetch_range_size * random_num_of_nodes_added; i = i + fetch_range_size) {
     STDigest digest(std::to_string(i).c_str());
     rvt.addNode(i, digest.get(), BLOCK_DIGEST_SIZE);
+    rvt.validate();
     ASSERT_TRUE(rvt.validate());
   }
   // TODO - move this into ctor on product in RVTNode
@@ -278,6 +291,7 @@ TEST_P(RVTTestRandomFRSAndRVT_KFixture, validateRandomFRSAndRVT_K) {
   for (uint32_t i = fetch_range_size; i <= n_nodes; i = i + fetch_range_size) {
     STDigest digest(std::to_string(i).c_str());
     rvt.addNode(i, digest.get(), BLOCK_DIGEST_SIZE);
+    rvt.validate();
     ASSERT_TRUE(rvt.validate());
   }
   // TODO Find formula to validate total nodes
@@ -306,6 +320,7 @@ TEST_P(RVTTestvalidateTreeFixture, validateTree) {
     // std::cout << "add:" << KVLOG(rvb_id) << std::endl;
     STDigest digest(std::to_string(rvb_id).c_str());
     rvt.addNode(rvb_id, digest.get(), BLOCK_DIGEST_SIZE);
+    rvt.validate();
     ASSERT_TRUE(rvt.validate());
   };
 
@@ -318,6 +333,7 @@ TEST_P(RVTTestvalidateTreeFixture, validateTree) {
   // add, remove nodes randomly.
   for (uint32_t i = fetch_range_size; i <= n_nodes; i = i + fetch_range_size) {
     addNode(rvt.getMaxRvbId() + fetch_range_size);
+    rvt.validate();
     // TODO Enable and fix issue
     //
     // auto num = randomNum(1, 2);
@@ -336,7 +352,7 @@ INSTANTIATE_TEST_CASE_P(validateTree,
 TEST_F(RVTTest, validateRvbGroupIds) {
   uint32_t RVT_K = 4;
   const uint32_t fetch_range_size = 5;
-  RangeValidationTree rvt(logger_, RVT_K, fetch_range_size);
+  RangeValidationTree rvt(logger_, RVT_K, fetch_range_size, 1);
   init(rvt);
 
   for (auto i = fetch_range_size; i <= fetch_range_size * RVT_K * 2 + fetch_range_size; i = i + fetch_range_size) {
@@ -346,6 +362,8 @@ TEST_F(RVTTest, validateRvbGroupIds) {
     // } else {
     STDigest digest(std::to_string(i).c_str());
     rvt.addNode(i, digest.get(), BLOCK_DIGEST_SIZE);
+    rvt.validate();
+    rvt.printToLog(LogPrintVerbosity::DETAILED);
     ASSERT_TRUE(rvt.validate());
   }
 
@@ -376,7 +394,7 @@ class RVTTestFixture
     : public RVTTest,
       public testing::WithParamInterface<tuple<uint64_t, uint64_t, tuple<vector<size_t>, vector<size_t>>>> {};
 
-TEST_P(RVTTestFixture, simpleAddRemoveWithRootValidation) {
+TEST_P(RVTTestFixture, addRemoveWithRootValidation) {
   uint64_t test_progress{0};
   uint64_t fetch_range_size = 4;
   uint64_t RVT_K = get<0>(GetParam());
@@ -395,6 +413,7 @@ TEST_P(RVTTestFixture, simpleAddRemoveWithRootValidation) {
       // std::cout << "add:" << KVLOG(add_i * fetch_range_size) << std::endl;
       string str{{std::to_string(add_i * fetch_range_size)}};
       rvt.addNode(add_i * fetch_range_size, str.data(), str.size());
+      rvt.validate();
       ASSERT_TRUE(rvt.validate());
       ++test_progress;
       if (test_progress % 100000 == 0) {
@@ -405,6 +424,7 @@ TEST_P(RVTTestFixture, simpleAddRemoveWithRootValidation) {
       // std::cout << "remove:" << KVLOG(rem_i * fetch_range_size) << std::endl;
       string str{{std::to_string(rem_i * fetch_range_size)}};
       rvt.removeNode(rem_i * fetch_range_size, str.data(), str.size());
+      rvt.validate();
       ASSERT_TRUE(rvt.validate());
       ++test_progress;
       if (test_progress % 100000 == 0) {
