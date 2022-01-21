@@ -1597,7 +1597,6 @@ OperationResult PreProcessor::launchReqPreProcessing(const PreProcessRequestMsgS
   // Unused for now. Replica Specific Info not currently supported in pre-execution.
   auto span = concordUtils::startChildSpanFromContext(span_context, "bft_process_preprocess_msg");
   LOG_DEBUG(logger(), "Pass request for a pre-execution" << KVLOG(cid, reqSeqNum, clientId, reqOffsetInBatch));
-  bftEngine::IRequestsHandler::ExecutionRequestsQueue accumulatedRequests;
   uint64_t blockId = preProcessReqMsg->primaryBlockId();
   if (preProcessReqMsg->primaryBlockId() - GlobalData::block_delta > GlobalData::current_block_id) {
     blockId = 0;
@@ -1608,7 +1607,7 @@ OperationResult PreProcessor::launchReqPreProcessing(const PreProcessRequestMsgS
     GlobalData::increment_step = true;
   }
   auto preProcessResultBuffer = (char *)getPreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch);
-  accumulatedRequests.push_back(bftEngine::IRequestsHandler::ExecutionRequest{
+  IRequestsHandler::ExecutionRequest request = bftEngine::IRequestsHandler::ExecutionRequest{
       clientId,
       reqSeqNum,
       cid,
@@ -1619,11 +1618,9 @@ OperationResult PreProcessor::launchReqPreProcessing(const PreProcessRequestMsgS
       maxPreExecResultSize_,
       preProcessResultBuffer,
       reqSeqNum,
-      preProcessReqMsg->result()});
+      preProcessReqMsg->result()};
 
-  requestsHandler_.preExecute(accumulatedRequests.front(), std::nullopt, cid, span);
-  // requestsHandler_.execute(accumulatedRequests, std::nullopt, cid, span);
-  const IRequestsHandler::ExecutionRequest &request = accumulatedRequests.back();
+  requestsHandler_.preExecute(request, std::nullopt, cid, span);
   auto preProcessResult = static_cast<OperationResult>(request.outExecutionStatus);
   resultLen = request.outActualReplySize;
   if (preProcessResult != OperationResult::SUCCESS) {
