@@ -50,8 +50,9 @@ class DbCheckpointManager {
    *@Description: Creates rocksdb checkpoint asynchronously if database has new state.
    *              If we already have a checkpoint with same state as lastBlock in the DB, we reject the request.
    *              Creating another db checkpoint with the same state as the previous one has no use.
-   *              Note: if ReplicaConfig::maxNumberOfDbCheckpoints is set to zero, then also we do not create rocksDb
+   *              Note1: if ReplicaConfig::maxNumberOfDbCheckpoints is set to zero, then also we do not create rocksDb
    *              and return std::nullopt in that case
+   *              Note2: if there is no state in the blockchain, we don't create a snapshot and return std::nullopt.
    *@Return: returns a unique db checkpoint id. Else return std::nullopt
    ***************************************************/
   std::optional<CheckpointId> createDbCheckpointAsync(const SeqNum& seqNum, const std::optional<Timestamp>& timestamp);
@@ -63,6 +64,19 @@ class DbCheckpointManager {
    *         Note: if ReplicaConfig::maxNumberOfDbCheckpoints is set to zero, then also this api retrun std::nullopt
    ***************************************************/
   std::optional<DbCheckpointMetadata::DbCheckPointDescriptor> getLastCreatedDbCheckpointMetadata();
+
+  enum class CheckpointState {
+    kCreated,  // Note that even though the current state of a checkpoint might be `kCreated`, it might be deleted at
+               // any future point in time by the checkpoint manager.
+
+    kPending,  // It is expected that if a checkpoint is `kPending`, it will become `kCreated` at a future point in
+               // time.
+
+    kNonExistent
+  };
+  CheckpointState getCheckpointState(CheckpointId id) const;
+
+  std::string getPathForCheckpoint(CheckpointId id) const { return dbClient_->getPathForCheckpoint(id); }
 
   // A callback that is called after creating a checkpoint. Its purpose is to prepare it for use. It receives as
   // parameters:
@@ -148,8 +162,8 @@ class DbCheckpointManager {
   // for rocksDb checkpooints then, it logs error and
   // cleans up oldest checkpoint
   std::thread monitorThread_;
-  std::mutex lock_;
-  std::mutex lockDbCheckPtFuture_;
+  mutable std::mutex lock_;
+  mutable std::mutex lockDbCheckPtFuture_;
   std::mutex lockLastDbCheckpointDesc_;
   uint32_t maxNumOfCheckpoints_{0};  // 0-disabled
   SeqNum lastCheckpointSeqNum_{0};
