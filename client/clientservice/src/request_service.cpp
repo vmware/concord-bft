@@ -10,83 +10,105 @@
 // file.
 
 #include <chrono>
-#include <future>
-#include <iostream>
 #include <opentracing/tracer.h>
 
 #include "client/clientservice/request_service.hpp"
 #include "client/concordclient/concord_client.hpp"
 
-using grpc::Status;
-using grpc::ServerContext;
-
-using vmware::concord::client::request::v1::Request;
-using vmware::concord::client::request::v1::Response;
-
-namespace cc = concord::client::concordclient;
-
 namespace concord::client::clientservice {
 
-Status RequestServiceImpl::Send(ServerContext* context, const Request* proto_request, Response* proto_response) {
-  bft::client::Msg msg(proto_request->request().begin(), proto_request->request().end());
+namespace requestservice {
 
-  auto seconds = std::chrono::seconds{proto_request->timeout().seconds()};
-  auto nanos = std::chrono::nanoseconds{proto_request->timeout().nanos()};
+void RequestServiceCallData::proceed() {
+  if (state_ == CREATE) {
+    state_ = SEND_TO_CONCORDCLIENT;
+    // Request to handle an incoming `Send` RPC -> will put an event on the cq if ready
+    service_->RequestSend(&ctx_, &request_, &responder_, cq_, cq_, this);
+  } else if (state_ == SEND_TO_CONCORDCLIENT) {
+    // We are handling an incoming `Send` right now, let's make sure we handle the next one too
+    new requestservice::RequestServiceCallData(service_, cq_, client_);
+    // Forward request to concord client (non-blocking)
+    sendToConcordClient();
+    // Note: The next state transition happens in `populateResult`
+  } else if (state_ == PROCESS_CALLBACK_RESULT) {
+    state_ = FINISH;
+    // Once the response is sent, an event will be put on the cq for cleanup
+    responder_.Finish(response_, return_status_, this);
+  } else {
+    ConcordAssertEQ(state_, FINISH);
+    delete this;
+  }
+}
+
+void RequestServiceCallData::populateResult(grpc::Status status) {
+  // Push an event onto the completion queue so that PROCESS_CALLBACK_RESULT is handled
+  state_ = PROCESS_CALLBACK_RESULT;
+  return_status_ = std::move(status);
+  ConcordAssertNE(cq_, nullptr);
+  callback_alarm_.Set(cq_, gpr_now(gpr_clock_type::GPR_CLOCK_REALTIME), this);
+}
+
+void RequestServiceCallData::sendToConcordClient() {
+  bft::client::Msg msg(request_.request().begin(), request_.request().end());
+
+  auto seconds = std::chrono::seconds{request_.timeout().seconds()};
+  auto nanos = std::chrono::nanoseconds{request_.timeout().nanos()};
   auto timeout = std::chrono::duration_cast<std::chrono::milliseconds>(seconds + nanos);
 
   bft::client::RequestConfig req_config;
-  req_config.pre_execute = proto_request->pre_execute();
+  req_config.pre_execute = request_.pre_execute();
   req_config.timeout = timeout;
-  req_config.correlation_id = proto_request->correlation_id();
+  req_config.correlation_id = request_.correlation_id();
 
-  std::promise<grpc::Status> status;
-  auto status_future = status.get_future();
-
-  auto callback = [&](cc::SendResult&& send_result) {
+  auto callback = [this, req_config](concord::client::concordclient::SendResult&& send_result) {
+    grpc::Status status;
+    auto logger = logging::getLogger("concord.client.clientservice.request.callback");
     if (not std::holds_alternative<bft::client::Reply>(send_result)) {
       switch (std::get<uint32_t>(send_result)) {
         case (static_cast<uint32_t>(bftEngine::OperationResult::INVALID_REQUEST)):
-          LOG_INFO(logger_, "Request failed with INVALID_ARGUMENT error for cid=" << req_config.correlation_id);
-          status.set_value(grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "Invalid argument"));
+          LOG_INFO(logger, "Request failed with INVALID_ARGUMENT error for cid=" << req_config.correlation_id);
+          status = grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "Invalid argument");
           break;
         case (static_cast<uint32_t>(bftEngine::OperationResult::NOT_READY)):
-          LOG_INFO(logger_, "Request failed with NOT_READY error for cid=" << req_config.correlation_id);
-          status.set_value(grpc::Status(grpc::StatusCode::UNAVAILABLE, "No clients connected to the replicas"));
+          LOG_INFO(logger, "Request failed with NOT_READY error for cid=" << req_config.correlation_id);
+          status = grpc::Status(grpc::StatusCode::UNAVAILABLE, "No clients connected to the replicas");
           break;
         case (static_cast<uint32_t>(bftEngine::OperationResult::TIMEOUT)):
-          LOG_INFO(logger_, "Request failed with TIMEOUT error for cid=" << req_config.correlation_id);
-          status.set_value(grpc::Status(grpc::StatusCode::DEADLINE_EXCEEDED, "Timeout"));
+          LOG_INFO(logger, "Request failed with TIMEOUT error for cid=" << req_config.correlation_id);
+          status = grpc::Status(grpc::StatusCode::DEADLINE_EXCEEDED, "Timeout");
           break;
         case (static_cast<uint32_t>(bftEngine::OperationResult::EXEC_DATA_TOO_LARGE)):
-          LOG_INFO(logger_, "Request failed with EXEC_DATA_TOO_LARGE error for cid=" << req_config.correlation_id);
-          status.set_value(grpc::Status(grpc::StatusCode::INTERNAL, "Execution data too large"));
+          LOG_INFO(logger, "Request failed with EXEC_DATA_TOO_LARGE error for cid=" << req_config.correlation_id);
+          status = grpc::Status(grpc::StatusCode::INTERNAL, "Execution data too large");
           break;
         case (static_cast<uint32_t>(bftEngine::OperationResult::EXEC_DATA_EMPTY)):
-          LOG_INFO(logger_, "Request failed with EXEC_DATA_EMPTY error for cid=" << req_config.correlation_id);
-          status.set_value(grpc::Status(grpc::StatusCode::INTERNAL, "Execution data is empty"));
+          LOG_INFO(logger, "Request failed with EXEC_DATA_EMPTY error for cid=" << req_config.correlation_id);
+          status = grpc::Status(grpc::StatusCode::INTERNAL, "Execution data is empty");
           break;
         case (static_cast<uint32_t>(bftEngine::OperationResult::CONFLICT_DETECTED)):
-          LOG_INFO(logger_, "Request failed with CONFLICT_DETECTED error for cid=" << req_config.correlation_id);
-          status.set_value(grpc::Status(grpc::StatusCode::ABORTED, "Aborted"));
+          LOG_INFO(logger, "Request failed with CONFLICT_DETECTED error for cid=" << req_config.correlation_id);
+          status = grpc::Status(grpc::StatusCode::ABORTED, "Aborted");
           break;
         case (static_cast<uint32_t>(bftEngine::OperationResult::OVERLOADED)):
-          LOG_INFO(logger_, "Request failed with OVERLOADED error for cid=" << req_config.correlation_id);
-          status.set_value(grpc::Status(grpc::StatusCode::RESOURCE_EXHAUSTED, "All clients occupied"));
+          LOG_INFO(logger, "Request failed with OVERLOADED error for cid=" << req_config.correlation_id);
+          status = grpc::Status(grpc::StatusCode::RESOURCE_EXHAUSTED, "All clients occupied");
           break;
         default:
-          LOG_INFO(logger_, "Request failed with INTERNAL error for cid=" << req_config.correlation_id);
-          status.set_value(grpc::Status(grpc::StatusCode::INTERNAL, "Internal error"));
+          LOG_INFO(logger, "Request failed with INTERNAL error for cid=" << req_config.correlation_id);
+          status = grpc::Status(grpc::StatusCode::INTERNAL, "Internal error");
           break;
       }
+      this->populateResult(status);
       return;
     }
     auto reply = std::get<bft::client::Reply>(send_result);
-    // TODO: Can we use set_allocated_response instead of copying? (vector<uint8_t> vs string)
-    proto_response->set_response({reply.matched_data.begin(), reply.matched_data.end()});
-    status.set_value(grpc::Status::OK);
+    // We need to copy because there is no implicit conversion between vector<uint8> and std::string
+    std::string data(reply.matched_data.begin(), reply.matched_data.end());
+    this->response_.set_response(std::move(data));
+    this->populateResult(grpc::Status::OK);
   };
 
-  if (proto_request->read_only()) {
+  if (request_.read_only()) {
     bft::client::ReadConfig config;
     config.request = req_config;
     auto span = opentracing::Tracer::Global()->StartSpan("send_ro", {});
@@ -103,8 +125,7 @@ Status RequestServiceImpl::Send(ServerContext* context, const Request* proto_req
     config.request.span_context = carrier.str();
     client_->send(config, std::move(msg), callback);
   }
-
-  return status_future.get();
 }
+}  // namespace requestservice
 
 }  // namespace concord::client::clientservice
