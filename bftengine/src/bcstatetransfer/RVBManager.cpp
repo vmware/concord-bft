@@ -384,7 +384,7 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
       LOG_ERROR(logger_, error_prefix << KVLOG(block_id, next_expected_rvb_id));
       return false;
     }
-    rvb_group_ids = in_mem_rvt_->getRvbGroupIds(block_id, block_id);
+    rvb_group_ids = in_mem_rvt_->getRvbGroupIds(block_id, block_id, true);
     ConcordAssertEQ(rvb_group_ids.size(), 1);
     if (rvb_group_ids.empty()) {
       LOG_ERROR(logger_, "Bad Digests of RVB group: rvb_group_ids is empty!" << KVLOG(block_id));
@@ -454,7 +454,7 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
     stored_rvb_digests_group_ids_.erase(stored_rvb_digests_group_ids_.begin());
     auto it = stored_rvb_digests_.begin();
     while (it != stored_rvb_digests_.end()) {
-      rvb_group_ids = in_mem_rvt_->getRvbGroupIds(it->first, it->first);
+      rvb_group_ids = in_mem_rvt_->getRvbGroupIds(it->first, it->first, true);
       ConcordAssertEQ(rvb_group_ids.size(), 1);
       if (rvb_group_ids[0] == rvb_group_id_removed) {
         it = stored_rvb_digests_.erase(it);
@@ -519,7 +519,7 @@ RVBGroupId RVBManager::getFetchBlocksRvbGroupId(BlockId from_block_id, BlockId t
 RVBGroupId RVBManager::getNextRequiredRvbGroupid(RVBId from_rvb_id, RVBId to_rvb_id) const {
   LOG_TRACE(logger_, KVLOG(from_rvb_id, to_rvb_id));
   if (from_rvb_id > to_rvb_id) return 0;
-  const auto rvb_group_ids = in_mem_rvt_->getRvbGroupIds(from_rvb_id, to_rvb_id);
+  const auto rvb_group_ids = in_mem_rvt_->getRvbGroupIds(from_rvb_id, to_rvb_id, true);
   for (const auto& id : rvb_group_ids) {
     if (std::find(stored_rvb_digests_group_ids_.begin(), stored_rvb_digests_group_ids_.end(), id) ==
         stored_rvb_digests_group_ids_.end()) {
@@ -539,7 +539,7 @@ BlockId RVBManager::getRvbGroupMaxBlockIdOfNonStoredRvbGroup(BlockId from_block_
     return to_block_id;
   }
 
-  const auto rvb_group_ids = in_mem_rvt_->getRvbGroupIds(min_rvb_id, max_rvb_id);
+  const auto rvb_group_ids = in_mem_rvt_->getRvbGroupIds(min_rvb_id, max_rvb_id, true);
   LOG_TRACE(logger_, KVLOG(rvb_group_ids.size()));
   if (rvb_group_ids.size() < 2) {
     return to_block_id;

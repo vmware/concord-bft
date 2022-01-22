@@ -751,7 +751,7 @@ void BcStTestDelegator::validateEqualRVTs(const RangeValidationTree& rvtA, const
   if (rvtA.root_ && (rvtA.root_ == rvtB.root_)) {
     ASSERT_EQ(rvtA.root_->numChilds(), rvtB.root_->numChilds());
     ASSERT_EQ(rvtA.root_->parent_id_, rvtB.root_->parent_id_);
-    ASSERT_EQ(rvtA.root_->last_insertion_index_, rvtB.root_->last_insertion_index_);
+    ASSERT_EQ(rvtA.root_->insertion_counter_, rvtB.root_->insertion_counter_);
   }
 }
 

@@ -128,10 +128,13 @@ class RVBManager {
   // Validate integrity of RVBM data. In particular, validated the RVT
   bool validate() const;
 
-  // For the range [from_block_id, to_block_id], returns a block id BID, such that:
-  // 1) Find all RVB group IDS for that range [RVBG_1,RVBG_2 ... RVBG_n]
+  // For the range [from_block_id, to_block_id], we 1st perform:
+  // 1) Find all RVB group IDS for that range [RVBG_1,RVBG_2 ... RVBG_n].In simple words - all level 1 nodes which are
+  // direct parents of 1 or more blocks in that range.
   // 2) Remove all the already stored RVB groups. We remian with an i>=1: [RVBG_i,RVBG_i+1 ... RVBG_n]
-  // 3) BID is the max RVB block ID in RVBG_i
+  //
+  // Return a block id BID, such that BID is the max RVB block ID in RVBG_i
+  //
   // This is done to simplify RVB digests fetching, in order to ask for a single group of digests per a single
   // FetchBlocksMsg
   BlockId getRvbGroupMaxBlockIdOfNonStoredRvbGroup(BlockId from_block_id, BlockId to_block_id) const;

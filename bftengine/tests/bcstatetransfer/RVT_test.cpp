@@ -91,17 +91,6 @@ class RVTTest : public ::testing::Test {
 
 /////////////////////// starting of maths properties validation test for cryptoPP::Integer class  /////////////////////
 
-TEST_F(RVTTest, StartIntheMiddleInsertionsOnly) {
-  RangeValidationTree rvt1(logger_, 12, 27);
-  auto fetch_range_size = 27;
-  string str{"11"};
-  for (size_t i{4}; i <= 16; ++i) {
-    rvt1.addNode(i * fetch_range_size, str.data(), str.size());
-    rvt1.validate();
-    rvt1.printToLog(LogPrintVerbosity::DETAILED);
-  }
-}
-
 TEST_F(RVTTest, basicAdditionSubtraction) {
   auto a = values_.leaf1;
   auto b = values_.leaf2;
@@ -171,6 +160,24 @@ INSTANTIATE_TEST_CASE_P(validateRawValue,
 
 /////////////////// ending  of maths properties validation test for cryptoPP::Integer class ///////////////////////
 
+TEST_F(RVTTest, StartIntheMiddleInsertionsOnly) {
+  uint32_t RVT_K = 12;
+  uint32_t fetch_range_size_ = 5;
+  RangeValidationTree rvt1(logger_, RVT_K, fetch_range_size_);
+  // These are block Ids, the matching RVB index is 1,10,600,30
+  std::vector<RVBId> start_rvb_ids{5, 50, 3000, 150};
+  string str{"11"};
+
+  for (const auto& start_rvb_id : start_rvb_ids) {
+    for (RVBId i{0}; i <= 1000; ++i) {
+      rvt1.addNode(start_rvb_id + i * fetch_range_size_, str.data(), str.size());
+      rvt1.validate();
+      // rvt1.printToLog(LogPrintVerbosity::DETAILED);
+    }
+    rvt1.clear();
+  }
+}
+
 TEST_F(RVTTest, constructTreeWithSingleFirstNode) {
   static constexpr uint32_t fetch_range_size = 4;
   RangeValidationTree rvt(logger_, RVT_K, fetch_range_size);
@@ -219,7 +226,7 @@ TEST_F(RVTTest, constructTreeWithTwoNodes) {
     rvt.addNode(i, digest.get(), BLOCK_DIGEST_SIZE);
     ASSERT_TRUE(rvt.validate());
   }
-  rvt.printToLog(LogPrintVerbosity::DETAILED);
+  // rvt.printToLog(LogPrintVerbosity::DETAILED);
   ConcordAssertEQ(rvt.totalLevels(), 2);
   ConcordAssertEQ(rvt.totalNodes(), 3);
 }
@@ -363,20 +370,20 @@ TEST_F(RVTTest, validateRvbGroupIds) {
     STDigest digest(std::to_string(i).c_str());
     rvt.addNode(i, digest.get(), BLOCK_DIGEST_SIZE);
     rvt.validate();
-    rvt.printToLog(LogPrintVerbosity::DETAILED);
+    // rvt.printToLog(LogPrintVerbosity::DETAILED);
     ASSERT_TRUE(rvt.validate());
   }
 
   // Both blocks fall under same parent rvb-group-id
   std::vector<RVBGroupId> rvb_group_ids;
-  rvb_group_ids = rvt.getRvbGroupIds(5, 5);
+  rvb_group_ids = rvt.getRvbGroupIds(5, 5, true);
   ASSERT_EQ(rvb_group_ids.size(), 1);
   auto hash_val_1 = rvt.getDirectParentValueStr(randomNum(5, 10, 5));
   auto hash_val_2 = rvt.getDirectParentValueStr(randomNum(15, 20, 5));
   ASSERT_EQ(hash_val_1, hash_val_2);
 
   // Blocks span across multiple rvb-group-ids
-  rvb_group_ids = rvt.getRvbGroupIds(5, 45);
+  rvb_group_ids = rvt.getRvbGroupIds(5, 45, true);
   ASSERT_EQ(rvb_group_ids.size(), 3);
   ASSERT_NE(rvt.getDirectParentValueStr(randomNum(5, 20, 5)), rvt.getDirectParentValueStr(randomNum(25, 40, 5)));
   ASSERT_NE(rvt.getDirectParentValueStr(randomNum(5, 20, 5)), rvt.getDirectParentValueStr(45));
