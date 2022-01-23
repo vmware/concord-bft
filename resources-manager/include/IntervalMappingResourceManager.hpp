@@ -32,25 +32,27 @@ class IntervalMappingResourceManager : public IResourceManager {
     return PruneInfo{
         (long double)std::upper_bound(intervalMapping.begin(),
                                       intervalMapping.end(),
-                                      std::make_pair((uint64_t)consensusEngine->getMeasurements(), (u_int64_t)0))
+                                      std::make_pair((uint64_t)replicaResources->getMeasurement(
+                                                         ISystemResourceEntity::type::consensus_accumulated),
+                                                     (u_int64_t)0))
             ->second,
         20};
   }
   static std::unique_ptr<IntervalMappingResourceManager> createIntervalMappingResourceManager(
-      const std::shared_ptr<ISystemResourceEntity> &consensusEngine,
+      const std::shared_ptr<ISystemResourceEntity> &replicaResources,
       std::vector<std::pair<uint64_t, uint64_t>> &&intervalMapping) {
     intervalMapping.push_back(std::make_pair(UINT64_MAX, 0));
     return std::unique_ptr<IntervalMappingResourceManager>(
-        new IntervalMappingResourceManager(consensusEngine, std::move(intervalMapping)));
+        new IntervalMappingResourceManager(replicaResources, std::move(intervalMapping)));
   }
 
  protected:
-  IntervalMappingResourceManager(const std::shared_ptr<ISystemResourceEntity> &consensusEngine,
+  IntervalMappingResourceManager(const std::shared_ptr<ISystemResourceEntity> &replicaResources,
                                  std::vector<std::pair<uint64_t, uint64_t>> &&intervalMapping)
-      : consensusEngine(consensusEngine), intervalMapping(std::move(intervalMapping)) {}
+      : replicaResources(replicaResources), intervalMapping(std::move(intervalMapping)) {}
 
  private:
-  const std::shared_ptr<ISystemResourceEntity> consensusEngine;
+  const std::shared_ptr<ISystemResourceEntity> replicaResources;
   const std::vector<std::pair<uint64_t, uint64_t>> intervalMapping;
 };
 }  // namespace concord::performance

@@ -303,7 +303,7 @@ TEST_F(replica_state_sync_on_block_id_test, metadata_block_id_bigger_than_last_b
   ASSERT_EQ(1, blockchain_->getLastReachableBlockId());
 }
 
-TEST_F(replica_state_sync_on_block_id_test, max_num_of_blocks_to_delete_is_honoured) {
+TEST_F(replica_state_sync_on_block_id_test, max_num_of_blocksto_delete_is_honoured) {
   addBlockWithoutBftSeqNum();
   addBlockWithoutBftSeqNum();
   persistLastBlockIdInMetadata();

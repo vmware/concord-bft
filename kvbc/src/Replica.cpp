@@ -45,6 +45,7 @@ using bftEngine::bcst::StateTransferDigest;
 using concord::kvbc::categorization::kConcordInternalCategoryId;
 using concord::kvbc::categorization::kConcordReconfigurationCategoryId;
 using namespace concord::diagnostics;
+using namespace concord::performance;
 
 using concord::storage::DBMetadataStorage;
 
@@ -63,7 +64,8 @@ Status Replica::initInternals() {
 
   if (replicaConfig_.isReadOnly) {
     LOG_INFO(logger, "ReadOnly mode");
-    auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler, cronTableRegistry_);
+    auto requestHandler =
+        bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler, cronTableRegistry_, replicaResources_);
     requestHandler->setReconfigurationHandler(std::make_shared<pruning::ReadOnlyReplicaPruningHandler>(*this));
     m_replicaPtr = bftEngine::IReplica::createNewRoReplica(
         replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm, m_metadataStorage);
@@ -124,9 +126,10 @@ class KvbcRequestHandler : public bftEngine::RequestHandler {
       const std::shared_ptr<IRequestsHandler> &user_req_handler,
       const std::shared_ptr<concord::cron::CronTableRegistry> &cron_table_registry,
       categorization::KeyValueBlockchain &blockchain,
-      std::shared_ptr<concordMetrics::Aggregator> aggregator_) {
+      std::shared_ptr<concordMetrics::Aggregator> aggregator_,
+      ISystemResourceEntity &resourceEntity) {
     return std::shared_ptr<KvbcRequestHandler>{
-        new KvbcRequestHandler{user_req_handler, cron_table_registry, blockchain, aggregator_}};
+        new KvbcRequestHandler{user_req_handler, cron_table_registry, blockchain, aggregator_, resourceEntity}};
   }
 
  public:
@@ -145,8 +148,9 @@ class KvbcRequestHandler : public bftEngine::RequestHandler {
   KvbcRequestHandler(const std::shared_ptr<IRequestsHandler> &user_req_handler,
                      const std::shared_ptr<concord::cron::CronTableRegistry> &cron_table_registry,
                      categorization::KeyValueBlockchain &blockchain,
-                     std::shared_ptr<concordMetrics::Aggregator> aggregator_)
-      : bftEngine::RequestHandler(aggregator_), blockchain_{blockchain} {
+                     std::shared_ptr<concordMetrics::Aggregator> aggregator_,
+                     ISystemResourceEntity &resourceEntity)
+      : bftEngine::RequestHandler(resourceEntity, aggregator_), blockchain_{blockchain} {
     setUserRequestHandler(user_req_handler);
     setCronTableRegistry(cron_table_registry);
   }
@@ -292,7 +296,8 @@ void Replica::saveReconfigurationCmdToResPages(const std::string &key) {
 
 void Replica::createReplicaAndSyncState() {
   ConcordAssert(m_kvBlockchain.has_value());
-  auto requestHandler = KvbcRequestHandler::create(m_cmdHandler, cronTableRegistry_, *m_kvBlockchain, aggregator_);
+  auto requestHandler =
+      KvbcRequestHandler::create(m_cmdHandler, cronTableRegistry_, *m_kvBlockchain, aggregator_, replicaResources_);
   registerReconfigurationHandlers(requestHandler);
   m_replicaPtr = bftEngine::IReplica::createNewReplica(
       replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm, m_metadataStorage, pm_, secretsManager_);
@@ -372,6 +377,7 @@ void Replica::deleteGenesisBlock() {
 }
 
 BlockId Replica::deleteBlocksUntil(BlockId until) {
+  ISystemResourceEntity::scopedDurMeasurment mes(replicaResources_, ISystemResourceEntity::type::pruning_utilization);
   const auto genesisBlock = m_kvBlockchain->getGenesisBlockId();
   if (genesisBlock == 0) {
     throw std::logic_error{"Cannot delete a block range from an empty blockchain"};
@@ -383,6 +389,8 @@ BlockId Replica::deleteBlocksUntil(BlockId until) {
   const auto lastDeletedBlock = std::min(lastReachableBlock, until - 1);
   const auto start = std::chrono::steady_clock::now();
   for (auto i = genesisBlock; i <= lastDeletedBlock; ++i) {
+    ISystemResourceEntity::scopedDurMeasurment mes(replicaResources_,
+                                                   ISystemResourceEntity::type::pruning_avg_time_micro);
     ConcordAssert(m_kvBlockchain->deleteBlock(i));
   }
   auto jobDuration =
@@ -391,7 +399,10 @@ BlockId Replica::deleteBlocksUntil(BlockId until) {
   return lastDeletedBlock;
 }
 
-BlockId Replica::add(categorization::Updates &&updates) { return m_kvBlockchain->addBlock(std::move(updates)); }
+BlockId Replica::add(categorization::Updates &&updates) {
+  replicaResources_.addMeasurement({ISystemResourceEntity::type::add_blocks_accumulated, 1, 0, 0});
+  return m_kvBlockchain->addBlock(std::move(updates));
+}
 
 std::optional<categorization::Value> Replica::get(const std::string &category_id,
                                                   const std::string &key,

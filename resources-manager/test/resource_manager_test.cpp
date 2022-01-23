@@ -25,12 +25,23 @@ class ResourceEntityMock : public ISystemResourceEntity {
  public:
   virtual ~ResourceEntityMock() = default;
   virtual int64_t getAvailableResources() const override { return availableResources; }
-  virtual uint64_t getMeasurements() const override { return measurements; }
+  virtual uint64_t getMeasurement(const type type) const override { return measurements; }
+
   virtual const std::string getResourceName() const override { return "MOCK"; }
+
+  virtual void reset() override {
+    availableResources = 0;
+    measurements = 0;
+  }
+
+  virtual void stop() override {}
+  virtual void start() override {}
+
+  virtual void addMeasurement(const measurement& measurement) override {}
 
   int64_t availableResources;
   uint64_t measurements;
-};
+};  // namespace
 
 TEST(resource_manager_test, IntervalMappingResourceManager_test) {
   std::vector<std::pair<uint64_t, uint64_t>> mapping{{200, 100}, {600, 10}, {1000, 5}};
