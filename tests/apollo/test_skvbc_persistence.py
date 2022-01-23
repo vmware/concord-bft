@@ -188,6 +188,7 @@ class SkvbcPersistenceTest(ApolloTest):
 
         await skvbc.read_your_writes()
 
+    @unittest.skip("disabled on ST dev branch until fix")
     @with_trio
     @with_bft_network(start_replica_cmd)
     @verify_linearizability()

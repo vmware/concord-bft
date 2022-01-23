@@ -141,11 +141,12 @@ add_test(NAME skvbc_block_accumulation_tests COMMAND sh -c
         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_block_accumulation_tests python3 -m unittest test_skvbc_block_accumulation ${TEST_OUTPUT}"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
-if (TXN_SIGNING_ENABLED)
-    add_test(NAME skvbc_client_transaction_signing COMMAND sh -c
-            "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_client_transaction_signing python3 -m unittest test_skvbc_client_transaction_signing ${TEST_OUTPUT}"
-            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-endif()
+# disabled temporary in state transfer dev branch
+# if (TXN_SIGNING_ENABLED)
+#     add_test(NAME skvbc_client_transaction_signing COMMAND sh -c
+#             "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_client_transaction_signing python3 -m unittest test_skvbc_client_transaction_signing ${TEST_OUTPUT}"
+#             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+# endif()
 
 add_test(NAME skvbc_pyclient_tests COMMAND sh -c
         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_pyclient_tests python3 -m unittest test_skvbc_pyclient ${TEST_OUTPUT}"
