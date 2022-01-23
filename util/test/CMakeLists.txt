@@ -82,3 +82,7 @@ target_link_libraries(crypto_utils_test GTest::Main util)
 add_executable(synchronized_value_test synchronized_value_test.cpp)
 add_test(synchronized_value_test synchronized_value_test)
 target_link_libraries(synchronized_value_test GTest::Main util)
+
+add_executable(utilization_test utilization_test.cpp)
+add_test(utilization_test utilization_test)
+target_link_libraries(utilization_test GTest::Main util)

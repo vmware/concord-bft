@@ -31,6 +31,10 @@ add_test(order_test order_test)
 target_link_libraries(order_test GTest::Main kvbc util)
 target_compile_options(order_test PUBLIC -Wno-sign-compare)
 
+add_executable(replica_resources_test replica_resources_test.cpp )
+add_test(replica_resources_test order_test)
+target_link_libraries(replica_resources_test GTest::Main kvbc util)
+
 add_executable(kvbc_dbadapter_test kvbc_dbadapter_test.cpp )
 add_test(kvbc_dbadapter_test kvbc_dbadapter_test)
 target_link_libraries(kvbc_dbadapter_test GTest::Main kvbc util)
