@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2021-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use
 // this product except in compliance with the Apache 2.0 License.
@@ -18,7 +18,7 @@ namespace bft::communication::tls {
 Runner::Runner(const std::vector<TlsTcpConfig>& config, const size_t num_threads)
     : logger_(logging::getLogger("concord-bft.tls.runner")), num_threads_(num_threads) {
   for (auto& c : config) {
-    principals_.try_emplace(c.selfId, c, io_context_);
+    principals_.try_emplace(c.selfId_, c, io_context_);
   }
 }
 

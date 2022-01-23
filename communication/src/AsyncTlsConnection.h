@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2020-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0 License.
@@ -83,7 +83,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
         connection_manager_(conn_mgr),
         read_timer_(io_context_),
         write_timer_(io_context_),
-        read_msg_(config.bufferLength),
+        read_msg_(config.bufferLength_),
         config_(config),
         status_(status),
         histograms_(histograms),
@@ -106,7 +106,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
         connection_manager_(conn_mgr),
         read_timer_(io_context_),
         write_timer_(io_context_),
-        read_msg_(config.bufferLength),
+        read_msg_(config.bufferLength_),
         config_(config),
         status_(status),
         histograms_(histograms),

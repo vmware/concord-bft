@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2020-2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2020-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0 License.
@@ -75,9 +75,9 @@ void AsyncTlsConnection::readMsgSizeHeader(std::optional<size_t> bytes_already_r
               readMsgSizeHeader(MSG_HEADER_SIZE - (bytes_remaining - bytes_transferred));
             } else {
               // The message size header was read completely.
-              if (getReadMsgSize() > config_.bufferLength) {
+              if (getReadMsgSize() > config_.bufferLength_) {
                 LOG_WARN(logger_,
-                         "Message Size: " << getReadMsgSize() << " exceeds maximum: " << config_.bufferLength
+                         "Message Size: " << getReadMsgSize() << " exceeds maximum: " << config_.bufferLength_
                                           << " for node " << peer_id_.value());
                 return dispose();
               }
@@ -274,7 +274,7 @@ void AsyncTlsConnection::initClientSSLContext(NodeNum destination) {
   namespace fs = boost::filesystem;
   fs::path path;
   try {
-    path = fs::path(config_.certificatesRootPath) / fs::path(std::to_string(config_.selfId)) / "client";
+    path = fs::path(config_.certificatesRootPath_) / fs::path(std::to_string(config_.selfId_)) / "client";
   } catch (std::exception& e) {
     LOG_FATAL(logger_, "Failed to construct filesystem path: " << e.what());
     ConcordAssert(false);
@@ -302,8 +302,8 @@ void AsyncTlsConnection::initClientSSLContext(NodeNum destination) {
   }
 
   // Only allow using the strongest cipher suites.
-  if (!SSL_CTX_set_ciphersuites(ssl_context_.native_handle(), config_.cipherSuite.c_str())) {
-    LOG_WARN(logger_, "Failed to set TLS cipher suite from config: " << config_.cipherSuite.c_str());
+  if (!SSL_CTX_set_ciphersuites(ssl_context_.native_handle(), config_.cipherSuite_.c_str())) {
+    LOG_WARN(logger_, "Failed to set TLS cipher suite from config: " << config_.cipherSuite_.c_str());
 
     // Setting to Default
     if (!SSL_CTX_set_ciphersuites(ssl_context_.native_handle(), "TLS_AES_256_GCM_SHA384"))
@@ -321,7 +321,7 @@ void AsyncTlsConnection::initServerSSLContext() {
 
   asio::error_code ec;
   ssl_context_.set_verify_callback(
-      [this, self](auto /*preverified*/, auto& ctx) -> bool {
+      [this, self](auto /*pre-verified*/, auto& ctx) -> bool {
         if (self.expired()) return false;
         return verifyCertificateServer(ctx);
       },
@@ -334,7 +334,7 @@ void AsyncTlsConnection::initServerSSLContext() {
   namespace fs = boost::filesystem;
   fs::path path;
   try {
-    path = fs::path(config_.certificatesRootPath) / fs::path(std::to_string(config_.selfId)) / fs::path("server");
+    path = fs::path(config_.certificatesRootPath_) / fs::path(std::to_string(config_.selfId_)) / fs::path("server");
   } catch (std::exception& e) {
     LOG_FATAL(logger_, "Failed to construct filesystem path: " << e.what());
     ConcordAssert(false);
@@ -366,8 +366,8 @@ void AsyncTlsConnection::initServerSSLContext() {
   EC_KEY_free(ecdh);
 
   // Only allow using the strongest cipher suites.
-  if (!SSL_CTX_set_ciphersuites(ssl_context_.native_handle(), config_.cipherSuite.c_str())) {
-    LOG_WARN(logger_, "Failed to set TLS cipher suite from config: " << config_.cipherSuite.c_str());
+  if (!SSL_CTX_set_ciphersuites(ssl_context_.native_handle(), config_.cipherSuite_.c_str())) {
+    LOG_WARN(logger_, "Failed to set TLS cipher suite from config: " << config_.cipherSuite_.c_str());
 
     // Setting to default
     if (!SSL_CTX_set_ciphersuites(ssl_context_.native_handle(), "TLS_AES_256_GCM_SHA384"))
@@ -410,7 +410,7 @@ std::pair<bool, NodeNum> AsyncTlsConnection::checkCertificate(X509* received_cer
   std::string conn_type;
   // (1) First, try to verify the certificate against the latest saved certificate
   bool res = concord::util::crypto::CertificateUtils::verifyCertificate(
-      received_cert, config_.certificatesRootPath, peerId, conn_type);
+      received_cert, config_.certificatesRootPath_, peerId, conn_type);
   if (expected_peer_id.has_value() && peerId != expected_peer_id.value()) return std::make_pair(false, peerId);
   if (res) return std::make_pair(res, peerId);
   LOG_INFO(logger_,
@@ -434,7 +434,7 @@ std::pair<bool, NodeNum> AsyncTlsConnection::checkCertificate(X509* received_cer
     return std::make_pair(false, peerId);
   }
   std::string local_cert_path =
-      config_.certificatesRootPath + "/" + std::to_string(peerId) + "/" + conn_type + "/" + conn_type + ".cert";
+      config_.certificatesRootPath_ + "/" + std::to_string(peerId) + "/" + conn_type + "/" + conn_type + ".cert";
   std::string certStr;
   int certLen = BIO_pending(outbio);
   certStr.resize(certLen);
@@ -454,9 +454,9 @@ const std::string AsyncTlsConnection::decryptPrivateKey(const boost::filesystem:
   std::string pkpath;
 
   std::unique_ptr<ISecretsManagerImpl> secrets_manager;
-  if (config_.secretData) {
+  if (config_.secretData_) {
     pkpath = (path / fs::path("pk.pem.enc")).string();
-    secrets_manager.reset(new SecretsManagerEnc(config_.secretData.value()));
+    secrets_manager.reset(new SecretsManagerEnc(config_.secretData_.value()));
   } else {
     pkpath = (path / fs::path("pk.pem")).string();
     secrets_manager.reset(new SecretsManagerPlain());

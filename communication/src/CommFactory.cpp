@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -23,11 +23,11 @@ logging::Logger CommFactory::_logger = logging::getLogger("communication.factory
 
 ICommunication *CommFactory::create(const BaseCommConfig &config) {
   ICommunication *res = nullptr;
-  switch (config.commType) {
+  switch (config.commType_) {
     case CommType::PlainUdp:
       LOG_INFO(_logger,
                "Using PlainUDP: "
-                   << "Host=" << config.listenHost << ", Port=" << config.listenPort);
+                   << "Host=" << config.listenHost_ << ", Port=" << config.listenPort_);
       res = PlainUDPCommunication::create(dynamic_cast<const PlainUdpConfig &>(config));
       break;
     case CommType::SimpleAuthUdp:
@@ -36,7 +36,7 @@ ICommunication *CommFactory::create(const BaseCommConfig &config) {
 #ifdef USE_COMM_PLAIN_TCP
       LOG_INFO(_logger,
                "Using PlainTCP: "
-                   << "Host=" << config.listenHost << ", Port=" << config.listenPort);
+                   << "Host=" << config.listenHost_ << ", Port=" << config.listenPort_);
       res = PlainTCPCommunication::create(dynamic_cast<const PlainTcpConfig &>(config));
 #endif
       break;
@@ -46,7 +46,7 @@ ICommunication *CommFactory::create(const BaseCommConfig &config) {
 #ifdef USE_COMM_TLS_TCP
       LOG_INFO(_logger,
                "Using TlsTCP: "
-                   << "Host=" << config.listenHost << ", Port=" << config.listenPort);
+                   << "Host=" << config.listenHost_ << ", Port=" << config.listenPort_);
       res = TlsTCPCommunication::create(dynamic_cast<const TlsTcpConfig &>(config));
 #endif
       break;

@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0 License.
@@ -39,84 +39,88 @@ typedef std::unordered_map<NodeNum, NodeInfo> NodeMap;
 
 enum CommType { PlainUdp, SimpleAuthUdp, PlainTcp, SimpleAuthTcp, TlsTcp };
 
-struct BaseCommConfig {
-  CommType commType;
-  std::string listenHost;
-  uint16_t listenPort;
-  uint32_t bufferLength;
-  NodeMap nodes;
-  UPDATE_CONNECTIVITY_FN statusCallback;
-  NodeNum selfId;
-
+class BaseCommConfig {
+ public:
   BaseCommConfig(CommType type,
                  const std::string &host,
                  uint16_t port,
                  uint32_t bufLength,
-                 NodeMap _nodes,
-                 NodeNum _selfId,
-                 UPDATE_CONNECTIVITY_FN _statusCallback = nullptr)
-      : commType{type},
-        listenHost{host},
-        listenPort{port},
-        bufferLength{bufLength},
-        nodes{std::move(_nodes)},
-        statusCallback{std::move(_statusCallback)},
-        selfId{_selfId} {}
+                 NodeMap nodes,
+                 NodeNum selfId,
+                 UPDATE_CONNECTIVITY_FN statusCallback = nullptr)
+      : commType_{type},
+        listenHost_{host},
+        listenPort_{port},
+        bufferLength_{bufLength},
+        nodes_{std::move(nodes)},
+        statusCallback_{std::move(statusCallback)},
+        selfId_{selfId} {}
 
   virtual ~BaseCommConfig() = default;
+
+ public:
+  CommType commType_;
+  std::string listenHost_;
+  uint16_t listenPort_;
+  uint32_t bufferLength_;
+  NodeMap nodes_;
+  UPDATE_CONNECTIVITY_FN statusCallback_;
+  NodeNum selfId_;
 };
 
-struct PlainUdpConfig : BaseCommConfig {
+class PlainUdpConfig : public BaseCommConfig {
+ public:
   PlainUdpConfig(const std::string &host,
                  uint16_t port,
                  uint32_t bufLength,
-                 NodeMap _nodes,
-                 NodeNum _selfId,
-                 UPDATE_CONNECTIVITY_FN _statusCallback = nullptr)
-      : BaseCommConfig(
-            CommType::PlainUdp, host, port, bufLength, std::move(_nodes), _selfId, std::move(_statusCallback)) {}
+                 NodeMap nodes,
+                 NodeNum selfId,
+                 UPDATE_CONNECTIVITY_FN statusCallback = nullptr)
+      : BaseCommConfig(CommType::PlainUdp, host, port, bufLength, std::move(nodes), selfId, std::move(statusCallback)) {
+  }
 };
 
-struct PlainTcpConfig : BaseCommConfig {
-  int32_t maxServerId;
-
+class PlainTcpConfig : public BaseCommConfig {
+ public:
   PlainTcpConfig(const std::string &host,
                  uint16_t port,
                  uint32_t bufLength,
-                 NodeMap _nodes,
-                 int32_t _maxServerId,
-                 NodeNum _selfId,
-                 UPDATE_CONNECTIVITY_FN _statusCallback = nullptr)
-      : BaseCommConfig(
-            CommType::PlainTcp, host, port, bufLength, std::move(_nodes), _selfId, std::move(_statusCallback)),
-        maxServerId{_maxServerId} {}
+                 NodeMap nodes,
+                 int32_t maxServerId,
+                 NodeNum selfId,
+                 UPDATE_CONNECTIVITY_FN statusCallback = nullptr)
+      : BaseCommConfig(CommType::PlainTcp, host, port, bufLength, std::move(nodes), selfId, std::move(statusCallback)),
+        maxServerId_{maxServerId} {}
+
+ public:
+  int32_t maxServerId_;
 };
 
-struct TlsTcpConfig : PlainTcpConfig {
-  std::string certificatesRootPath;
-
+class TlsTcpConfig : public PlainTcpConfig {
+ public:
   // set specific suite or list of suites, as described in OpenSSL
   // https://www.openssl.org/docs/man1.1.1/man1/ciphers.html
-  std::string cipherSuite;
-
-  std::optional<concord::secretsmanager::SecretData> secretData;
-
   TlsTcpConfig(const std::string &host,
                uint16_t port,
                uint32_t bufLength,
-               NodeMap _nodes,
-               int32_t _maxServerId,
-               NodeNum _selfId,
+               NodeMap nodes,
+               int32_t maxServerId,
+               NodeNum selfId,
                const std::string &certRootPath,
-               const std::string &ciphSuite,
-               UPDATE_CONNECTIVITY_FN _statusCallback = nullptr,
+               const std::string &cipherSuite,
+               UPDATE_CONNECTIVITY_FN statusCallback = nullptr,
                std::optional<concord::secretsmanager::SecretData> decryptionSecretData = std::nullopt)
-      : PlainTcpConfig(host, port, bufLength, std::move(_nodes), _maxServerId, _selfId, std::move(_statusCallback)),
-        certificatesRootPath{certRootPath},
-        cipherSuite{ciphSuite},
-        secretData{std::move(decryptionSecretData)} {
-    commType = CommType::TlsTcp;
+      : PlainTcpConfig(host, port, bufLength, std::move(nodes), maxServerId, selfId, std::move(statusCallback)),
+        certificatesRootPath_{certRootPath},
+        cipherSuite_{cipherSuite},
+        secretData_{std::move(decryptionSecretData)} {
+    commType_ = CommType::TlsTcp;
   }
+
+ public:
+  std::string certificatesRootPath_;
+  std::string cipherSuite_;
+  std::optional<concord::secretsmanager::SecretData> secretData_;
 };
 
 class PlainUDPCommunication : public ICommunication {
@@ -141,7 +145,7 @@ class PlainUDPCommunication : public ICommunication {
   class PlainUdpImpl;
 
   // TODO(IG): convert to smart ptr
-  PlainUdpImpl *_ptrImpl = nullptr;
+  PlainUdpImpl *ptrImpl_ = nullptr;
 
   explicit PlainUDPCommunication(const PlainUdpConfig &config);
 };
@@ -166,7 +170,7 @@ class PlainTCPCommunication : public ICommunication {
 
  private:
   class PlainTcpImpl;
-  PlainTcpImpl *_ptrImpl = nullptr;
+  PlainTcpImpl *ptrImpl_ = nullptr;
 
   explicit PlainTCPCommunication(const PlainTcpConfig &config);
 };

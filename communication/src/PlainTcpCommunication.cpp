@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0 License.
@@ -56,53 +56,19 @@ typedef boost::system::error_code B_ERROR_CODE;
 typedef boost::shared_ptr<AsyncTcpConnection> ASYNC_CONN_PTR;
 typedef tcp::socket B_TCP_SOCKET;
 
-// first 4 bytes - message length, next 2 bytes - message type
+// First 4 bytes - message length, next 2 bytes - message type
 static constexpr uint8_t LENGTH_FIELD_SIZE = 4;
-static constexpr uint8_t MSGTYPE_FIELD_SIZE = 2;
+static constexpr uint8_t MSG_TYPE_FIELD_SIZE = 2;
 
 enum MessageType : uint16_t { Reserved = 0, Hello, Regular };
 
 enum ConnType : uint8_t { Incoming, Outgoing };
 
-/** this class will handle single connection using boost::make_shared idiom
- * will receive the IReceiver as a parameter and call it when new message
- * is available
- * TODO(IG): add multithreading
- */
+// This class will handle single connection using boost::make_shared idiom will receive the IReceiver as a parameter
+// and call it when new message is available.
 class AsyncTcpConnection : public boost::enable_shared_from_this<AsyncTcpConnection> {
- private:
-  bool _isReplica = false;
-  bool _destIsReplica = false;
-  io_service *_service = nullptr;
-  uint32_t _bufferLength;
-  char *_inBuffer = nullptr;
-  char *_outBuffer = nullptr;
-  IReceiver *_receiver = nullptr;
-  function<void(NodeNum)> _fOnError = nullptr;
-  function<void(NodeNum, ASYNC_CONN_PTR)> _fOnHellOMessage = nullptr;
-  NodeNum _destId;
-  NodeNum _selfId;
-  string _host = "";
-  uint16_t _port = 0;
-  deadline_timer _connectTimer;
-  ConnType _connType;
-  bool _closed;
-  logging::Logger _logger;
-  uint16_t _minTimeout = 256;
-  uint16_t _maxTimeout = 8192;
-  uint16_t _currentTimeout = _minTimeout;
-  bool _wasError = false;
-  bool _connecting = false;
-  UPDATE_CONNECTIVITY_FN _statusCallback = nullptr;
-  NodeMap _nodes;
-  recursive_mutex _connectionsGuard;
-
  public:
   bool isConnected() const { return connected; }
-
- public:
-  B_TCP_SOCKET socket;
-  bool connected;
 
  private:
   AsyncTcpConnection(io_service *service,
@@ -311,7 +277,7 @@ class AsyncTcpConnection : public boost::enable_shared_from_this<AsyncTcpConnect
     uint16_t msgType = *(static_cast<uint16_t *>(static_cast<void *>(_inBuffer + LENGTH_FIELD_SIZE)));
     switch (msgType) {
       case MessageType::Hello:
-        _destId = *(static_cast<NodeNum *>(static_cast<void *>(_inBuffer + LENGTH_FIELD_SIZE + MSGTYPE_FIELD_SIZE)));
+        _destId = *(static_cast<NodeNum *>(static_cast<void *>(_inBuffer + LENGTH_FIELD_SIZE + MSG_TYPE_FIELD_SIZE)));
 
         LOG_DEBUG(_logger, "node: " << _selfId << " got hello from:" << _destId);
 
@@ -343,7 +309,7 @@ class AsyncTcpConnection : public boost::enable_shared_from_this<AsyncTcpConnect
     if (!is_service_message()) {
       LOG_DEBUG(_logger, "data msg received, msgLen: " << bytesRead);
       _receiver->onNewMessage(
-          _destId, _inBuffer + LENGTH_FIELD_SIZE + MSGTYPE_FIELD_SIZE, bytesRead - MSGTYPE_FIELD_SIZE);
+          _destId, _inBuffer + LENGTH_FIELD_SIZE + MSG_TYPE_FIELD_SIZE, bytesRead - MSG_TYPE_FIELD_SIZE);
     }
 
     read_header_async();
@@ -400,8 +366,8 @@ class AsyncTcpConnection : public boost::enable_shared_from_this<AsyncTcpConnect
     memset(_outBuffer, 0, _bufferLength);
     uint32_t size = sizeof(msgType) + dataLength;
     memcpy(_outBuffer, &size, LENGTH_FIELD_SIZE);
-    memcpy(_outBuffer + LENGTH_FIELD_SIZE, &msgType, MSGTYPE_FIELD_SIZE);
-    return LENGTH_FIELD_SIZE + MSGTYPE_FIELD_SIZE;
+    memcpy(_outBuffer + LENGTH_FIELD_SIZE, &msgType, MSG_TYPE_FIELD_SIZE);
+    return LENGTH_FIELD_SIZE + MSG_TYPE_FIELD_SIZE;
   }
 
   void send_hello() {
@@ -577,6 +543,37 @@ class AsyncTcpConnection : public boost::enable_shared_from_this<AsyncTcpConnect
         _logger,
         "exit, node " << _selfId << ", dest: " << _destId << ", connected: " << connected << ", closed: " << _closed);
   }
+
+ public:
+  B_TCP_SOCKET socket;
+  bool connected;
+
+ private:
+  bool _isReplica = false;
+  bool _destIsReplica = false;
+  io_service *_service = nullptr;
+  uint32_t _bufferLength;
+  char *_inBuffer = nullptr;
+  char *_outBuffer = nullptr;
+  IReceiver *_receiver = nullptr;
+  function<void(NodeNum)> _fOnError = nullptr;
+  function<void(NodeNum, ASYNC_CONN_PTR)> _fOnHellOMessage = nullptr;
+  NodeNum _destId;
+  NodeNum _selfId;
+  string _host = "";
+  uint16_t _port = 0;
+  deadline_timer _connectTimer;
+  ConnType _connType;
+  bool _closed;
+  logging::Logger _logger;
+  uint16_t _minTimeout = 256;
+  uint16_t _maxTimeout = 8192;
+  uint16_t _currentTimeout = _minTimeout;
+  bool _wasError = false;
+  bool _connecting = false;
+  UPDATE_CONNECTIVITY_FN _statusCallback = nullptr;
+  NodeMap _nodes;
+  recursive_mutex _connectionsGuard;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -814,13 +811,13 @@ class PlainTCPCommunication::PlainTcpImpl {
 };
 
 PlainTCPCommunication::~PlainTCPCommunication() {
-  if (_ptrImpl) {
-    delete _ptrImpl;
+  if (ptrImpl_) {
+    delete ptrImpl_;
   }
 }
 
 PlainTCPCommunication::PlainTCPCommunication(const PlainTcpConfig &config) {
-  _ptrImpl = PlainTcpImpl::create(config.selfId,
+  ptrImpl_ = PlainTcpImpl::create(config.selfId,
                                   config.nodes,
                                   config.bufferLength,
                                   config.listenPort,
@@ -833,31 +830,31 @@ PlainTCPCommunication *PlainTCPCommunication::create(const PlainTcpConfig &confi
   return new PlainTCPCommunication(config);
 }
 
-int PlainTCPCommunication::getMaxMessageSize() { return _ptrImpl->getMaxMessageSize(); }
+int PlainTCPCommunication::getMaxMessageSize() { return ptrImpl_->getMaxMessageSize(); }
 
-int PlainTCPCommunication::start() { return _ptrImpl->Start(); }
+int PlainTCPCommunication::start() { return ptrImpl_->Start(); }
 
 int PlainTCPCommunication::stop() {
-  if (!_ptrImpl) return 0;
+  if (!ptrImpl_) return 0;
 
-  auto res = _ptrImpl->Stop();
+  auto res = ptrImpl_->Stop();
   return res;
 }
 
-bool PlainTCPCommunication::isRunning() const { return _ptrImpl->isRunning(); }
+bool PlainTCPCommunication::isRunning() const { return ptrImpl_->isRunning(); }
 
 ConnectionStatus PlainTCPCommunication::getCurrentConnectionStatus(const NodeNum node) {
-  return _ptrImpl->getCurrentConnectionStatus(node);
+  return ptrImpl_->getCurrentConnectionStatus(node);
 }
 
 int PlainTCPCommunication::send(NodeNum destNode, std::vector<uint8_t> &&msg) {
-  return _ptrImpl->sendAsyncMessage(destNode, (char *)msg.data(), msg.size());
+  return ptrImpl_->sendAsyncMessage(destNode, (char *)msg.data(), msg.size());
 }
 
 std::set<NodeNum> PlainTCPCommunication::send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg) {
   std::set<NodeNum> failed_nodes;
   for (auto &d : dests) {
-    if (_ptrImpl->sendAsyncMessage(d, (char *)msg.data(), msg.size()) != 0) {
+    if (ptrImpl_->sendAsyncMessage(d, (char *)msg.data(), msg.size()) != 0) {
       failed_nodes.insert(d);
     }
   }
@@ -865,7 +862,7 @@ std::set<NodeNum> PlainTCPCommunication::send(std::set<NodeNum> dests, std::vect
 }
 
 void PlainTCPCommunication::setReceiver(NodeNum receiverNum, IReceiver *receiver) {
-  _ptrImpl->setReceiver(receiverNum, receiver);
+  ptrImpl_->setReceiver(receiverNum, receiver);
 }
 
 }  // namespace bft::communication

@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2020-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -235,7 +235,7 @@ void ConcordClient::CreateClient(ConcordClientPoolConfig& config, const SimpleCl
     node_info.host = replica_conf.replica_host;
     node_info.port = replica_conf.replica_port;
     node_info.isReplica = true;
-    (*comm_config).nodes[replica_id] = node_info;
+    (*comm_config).nodes_[replica_id] = node_info;
     all_replicas.insert(ReplicaId{static_cast<uint16_t>(i)});
   }
   // Ensure exception safety by creating local pointers and only moving to
@@ -276,9 +276,9 @@ void ConcordClient::CreateClient(ConcordClientPoolConfig& config, const SimpleCl
     const char* transaction_signing_file_name = transaction_signing_plain_file_name;
 
     auto tls_config = dynamic_cast<TlsTcpConfig*>(comm_config);
-    if (tls_config->secretData) {
+    if (tls_config->secretData_) {
       transaction_signing_file_name = transaction_signing_enc_file_name;
-      cfg.secrets_manager_config = tls_config->secretData;
+      cfg.secrets_manager_config = tls_config->secretData_;
     }
     cfg.transaction_signing_private_key_file_path = priv_key_path + std::string("/") + transaction_signing_file_name;
   }
@@ -319,18 +319,18 @@ OperationResult ConcordClient::getRequestExecutionResult() { return clientReques
 void ConcordClient::stopClientComm() { new_client_->stop(); }
 
 std::unique_ptr<bft::communication::ICommunication> ConcordClient::ToCommunication(const BaseCommConfig& comm_config) {
-  if (comm_config.commType == TlsTcp) {
+  if (comm_config.commType_ == TlsTcp) {
     return std::unique_ptr<ICommunication>{CommFactory::create(comm_config)};
-  } else if (comm_config.commType == PlainUdp) {
-    const auto udp_config = PlainUdpConfig{comm_config.listenHost,
-                                           comm_config.listenPort,
-                                           comm_config.bufferLength,
-                                           comm_config.nodes,
-                                           comm_config.selfId,
-                                           comm_config.statusCallback};
+  } else if (comm_config.commType_ == PlainUdp) {
+    const auto udp_config = PlainUdpConfig{comm_config.listenHost_,
+                                           comm_config.listenPort_,
+                                           comm_config.bufferLength_,
+                                           comm_config.nodes_,
+                                           comm_config.selfId_,
+                                           comm_config.statusCallback_};
     return std::unique_ptr<ICommunication>{CommFactory::create(udp_config)};
   }
-  throw std::invalid_argument{"Unknown communication module type=" + std::to_string(comm_config.commType)};
+  throw std::invalid_argument{"Unknown communication module type=" + std::to_string(comm_config.commType_)};
 }
 
 }  // namespace concord::external_client

@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0 License.
@@ -23,7 +23,7 @@ TlsTCPCommunication::TlsTCPCommunication(const TlsTcpConfig &config) : config_(c
   // Runners can actually support multiple principals. The Communication interface does not though. Currently we are
   // focused on backwards compatibility, and will use the future runner functionality to replace client thread pools.
   const auto configs = std::vector<TlsTcpConfig>{config};
-  if (config.selfId > static_cast<uint64_t>(config.maxServerId))
+  if (config.selfId_ > static_cast<uint64_t>(config.maxServerId_))
     runner_.reset(new tls::Runner(configs, 1));
   else
     runner_.reset(new tls::Runner(configs, NUM_THREADS));
@@ -35,9 +35,9 @@ TlsTCPCommunication *TlsTCPCommunication::create(const TlsTcpConfig &config) { r
 
 int TlsTCPCommunication::getMaxMessageSize() {
   try {
-    return runner_->principals().at(config_.selfId).getMaxMessageSize();
+    return runner_->principals().at(config_.selfId_).getMaxMessageSize();
   } catch (const std::out_of_range &e) {
-    LOG_FATAL(GL, "runner_->principals.at() failed for " << KVLOG(config_.selfId) << e.what());
+    LOG_FATAL(GL, "runner_->principals.at() failed for " << KVLOG(config_.selfId_) << e.what());
     throw;
   }
 }
@@ -59,9 +59,9 @@ bool TlsTCPCommunication::isRunning() const { return runner_->isRunning(); }
 
 ConnectionStatus TlsTCPCommunication::getCurrentConnectionStatus(const NodeNum node) {
   try {
-    return runner_->principals().at(config_.selfId).getCurrentConnectionStatus(node);
+    return runner_->principals().at(config_.selfId_).getCurrentConnectionStatus(node);
   } catch (const std::out_of_range &e) {
-    LOG_FATAL(GL, "runner_->principals.at() failed for " << KVLOG(config_.selfId) << e.what());
+    LOG_FATAL(GL, "runner_->principals.at() failed for " << KVLOG(config_.selfId_) << e.what());
     throw;
   }
 }
@@ -69,9 +69,9 @@ ConnectionStatus TlsTCPCommunication::getCurrentConnectionStatus(const NodeNum n
 int TlsTCPCommunication::send(NodeNum destNode, std::vector<uint8_t> &&msg) {
   auto omsg = std::make_shared<tls::OutgoingMsg>(std::move(msg));
   try {
-    runner_->principals().at(config_.selfId).send(destNode, omsg);
+    runner_->principals().at(config_.selfId_).send(destNode, omsg);
   } catch (const std::out_of_range &e) {
-    LOG_FATAL(GL, "runner_->principals.at() failed for " << KVLOG(config_.selfId) << e.what());
+    LOG_FATAL(GL, "runner_->principals.at() failed for " << KVLOG(config_.selfId_) << e.what());
     throw;
   }
   return 0;
@@ -81,9 +81,9 @@ std::set<NodeNum> TlsTCPCommunication::send(std::set<NodeNum> dests, std::vector
   std::set<NodeNum> failed_nodes;
   auto omsg = std::make_shared<tls::OutgoingMsg>(std::move(msg));
   try {
-    runner_->principals().at(config_.selfId).send(dests, omsg);
+    runner_->principals().at(config_.selfId_).send(dests, omsg);
   } catch (const std::out_of_range &e) {
-    LOG_FATAL(GL, "runner_->principals.at() failed for " << KVLOG(config_.selfId) << e.what());
+    LOG_FATAL(GL, "runner_->principals.at() failed for " << KVLOG(config_.selfId_) << e.what());
     throw;
   }
   return failed_nodes;
@@ -91,15 +91,15 @@ std::set<NodeNum> TlsTCPCommunication::send(std::set<NodeNum> dests, std::vector
 
 void TlsTCPCommunication::setReceiver(NodeNum id, IReceiver *receiver) {
   try {
-    runner_->principals().at(config_.selfId).setReceiver(id, receiver);
+    runner_->principals().at(config_.selfId_).setReceiver(id, receiver);
   } catch (const std::out_of_range &e) {
-    LOG_FATAL(GL, "runner_->principals.at() failed for " << KVLOG(config_.selfId) << e.what());
+    LOG_FATAL(GL, "runner_->principals.at() failed for " << KVLOG(config_.selfId_) << e.what());
     throw;
   }
 }
 
 void TlsTCPCommunication::restartCommunication(NodeNum i) {
-  if (i == config_.selfId) {
+  if (i == config_.selfId_) {
     runner_->stop();
     runner_->start();
   }

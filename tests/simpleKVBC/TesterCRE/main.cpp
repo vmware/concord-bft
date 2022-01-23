@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -122,8 +122,8 @@ ICommunication* createCommunication(const ClientConfig& cc,
 #elif USE_COMM_TLS_TCP
   TlsTcpConfig conf =
       testCommConfig.GetTlsTCPConfig(false, cc.id.val, clients, numOfReplicas, commFileName, certFolder);
-  if (conf.secretData.has_value()) {
-    sm = std::make_shared<concord::secretsmanager::SecretsManagerEnc>(conf.secretData.value());
+  if (conf.secretData_.has_value()) {
+    sm = std::make_shared<concord::secretsmanager::SecretsManagerEnc>(conf.secretData_.value());
     enc = true;
   } else {
     sm = std::make_shared<concord::secretsmanager::SecretsManagerPlain>();
