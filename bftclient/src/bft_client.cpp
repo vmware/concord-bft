@@ -98,6 +98,9 @@ Msg Client::createClientMsg(const RequestConfig& config, Msg&& request, bool rea
   header->requestLength = request.size();
   header->timeoutMilli = config.timeout.count();
   header->cidLength = config.correlation_id.size();
+  header->result = 1;  // UNKNOWN
+  header->reqSignatureLength = 0;
+  header->extraDataLength = 0;
 
   auto* position = msg.data() + header_size;
 
