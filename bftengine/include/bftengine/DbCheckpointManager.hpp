@@ -46,22 +46,31 @@ class DbCheckpointManager {
  public:
   /***************************************************
    *@Input parameter1: Request sequnce number
-   *@Input parameter2: Request timestamp
+   *@Input parameter2: Optional request timestamp
+   *@Input parameter3: Optional snapshotId
    *@Description: Creates rocksdb checkpoint asynchronously if database has new state.
-   *              If we already have a checkpoint with same state as lastBlock in the DB, we reject the request.
-   *              Creating another db checkpoint with the same state as the previous one has no use.
-   *              Note1: if ReplicaConfig::maxNumberOfDbCheckpoints is set to zero, then also we do not create rocksDb
-   *              and return std::nullopt in that case
-   *              Note2: if there is no state in the blockchain, we don't create a snapshot and return std::nullopt.
+   *  If we already have a checkpoint with same state as lastBlock in the DB, we reject the request.
+   *  Creating another db checkpoint with the same state as the previous one has no use.
+   *  Note1: if ReplicaConfig::maxNumberOfDbCheckpoints is set to zero, then also we do not create rocksDb
+   *  and return std::nullopt in that case
+   *  Note2: if there is no state in the blockchain, we don't create a snapshot and return std::nullopt.
+   *  Note3: We create db-snapshot only on stable seq number. But, we need same snapshot id for all
+   *  replicas. All replicas handle db-snapshot create request at same seq num and snapshot id is equal to
+   *  the last reachable block number at that time. Some replicas may not have reached stable sequence number while
+   *  handling the request, in that case it waits to reach the sable sequence number before creating snapshot. In
+   *  such a case, we pass snapshot id as input paramter, and it is used to trim extra blocks that might be present in
+   *  the db snapshot if required.
    *@Return: returns a unique db checkpoint id. Else return std::nullopt
    ***************************************************/
-  std::optional<CheckpointId> createDbCheckpointAsync(const SeqNum& seqNum, const std::optional<Timestamp>& timestamp);
+  std::optional<CheckpointId> createDbCheckpointAsync(const SeqNum& seqNum,
+                                                      const std::optional<Timestamp>& timestamp,
+                                                      const std::optional<DbCheckpointId>& snapshotId);
 
   /***************************************************
    *@Description: Returns last created db checkpoint metadata. If there is no db-checkpoint created then it returns
    *nullopt
    *@Return: returns the metadata of last created checkpoint. Else return std::nullopt
-   *         Note: if ReplicaConfig::maxNumberOfDbCheckpoints is set to zero, then also this api retrun std::nullopt
+   *  Note: if ReplicaConfig::maxNumberOfDbCheckpoints is set to zero, then also this api retrun std::nullopt
    ***************************************************/
   std::optional<DbCheckpointMetadata::DbCheckPointDescriptor> getLastCreatedDbCheckpointMetadata();
 
@@ -115,6 +124,7 @@ class DbCheckpointManager {
     if (monitorThread_.joinable()) monitorThread_.join();
   }
   void sendInternalCreateDbCheckpointMsg(const SeqNum& seqNum, bool noop);
+  BlockId getLastReachableBlock() const;
   SeqNum getLastStableSeqNum() const;
   void setOnStableSeqNumCb_(std::function<void(SeqNum)> cb) { onStableSeqNumCb_ = cb; }
   void onStableSeqNum(SeqNum s) {

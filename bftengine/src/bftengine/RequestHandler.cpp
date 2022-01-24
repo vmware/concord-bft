@@ -120,16 +120,18 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
       if (!createDbChkPtMsg.noop) {
         const auto& lastStableSeqNum = DbCheckpointManager::instance().getLastStableSeqNum();
         if (lastStableSeqNum == static_cast<SeqNum>(createDbChkPtMsg.seqNum)) {
-          DbCheckpointManager::instance().createDbCheckpointAsync(createDbChkPtMsg.seqNum, timestamp);
+          DbCheckpointManager::instance().createDbCheckpointAsync(createDbChkPtMsg.seqNum, timestamp, std::nullopt);
         } else {
           // this replica has not reached stable seqNum yet to create snapshot at requested seqNum
           // add a callback to be called when seqNum is stable. We need to create snapshot on stable
           // seq num because checkpoint msg certificate is stored on stable seq num and is used for intergrity
           // check of db snapshots
           const auto& seqNumToCreateSanpshot = createDbChkPtMsg.seqNum;
-          DbCheckpointManager::instance().setOnStableSeqNumCb_([seqNumToCreateSanpshot, timestamp](SeqNum s) {
+          std::optional snapshotId(DbCheckpointManager::instance().getLastReachableBlock());
+          DbCheckpointManager::instance().setOnStableSeqNumCb_([seqNumToCreateSanpshot, timestamp, snapshotId](
+                                                                   SeqNum s) {
             if (s == static_cast<SeqNum>(seqNumToCreateSanpshot))
-              DbCheckpointManager::instance().createDbCheckpointAsync(seqNumToCreateSanpshot, timestamp);
+              DbCheckpointManager::instance().createDbCheckpointAsync(seqNumToCreateSanpshot, timestamp, snapshotId);
           });
         }
       }
