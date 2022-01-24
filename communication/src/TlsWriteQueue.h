@@ -28,19 +28,26 @@
 #include "TlsDiagnostics.h"
 
 namespace bft::communication::tls {
-
+#pragma pack(push, 1)
+struct Header {
+  uint32_t msg_size;
+  NodeNum endpoint_num;
+};
+#pragma pack(pop)
 // Any message attempted to be put on the queue that causes the total size of the queue to exceed
 // this value will be dropped. This is to prevent indefinite backups and useless stale messages.
 // The number is very large right now so as not to affect current setups. In the future we will
 // have better admission control.
 static constexpr size_t MAX_QUEUE_SIZE_IN_BYTES = 1024 * 1024 * 1024;  // 1 GB
-static constexpr size_t MSG_HEADER_SIZE = 4;
+static constexpr size_t MSG_HEADER_SIZE = sizeof(Header);
 
 struct OutgoingMsg {
-  OutgoingMsg(std::vector<uint8_t>&& raw_msg)
+  OutgoingMsg(std::vector<uint8_t>&& raw_msg, NodeNum endpointNum)
       : msg(raw_msg.size() + MSG_HEADER_SIZE), send_time(std::chrono::steady_clock::now()) {
-    uint32_t msg_size = htonl(static_cast<uint32_t>(raw_msg.size()));
-    std::memcpy(msg.data(), &msg_size, MSG_HEADER_SIZE);
+    uint32_t msg_size = htonl(static_cast<uint32_t>(raw_msg.size()) + MSG_HEADER_SIZE);
+    auto const endpoint = htonl(endpointNum);
+    const Header header{msg_size, endpoint};
+    std::memcpy(msg.data(), &header, MSG_HEADER_SIZE);
     std::memcpy(msg.data() + MSG_HEADER_SIZE, raw_msg.data(), raw_msg.size());
   }
   std::vector<uint8_t> msg;
