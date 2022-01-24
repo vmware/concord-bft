@@ -14,11 +14,17 @@
 #include "ControlStateManager.hpp"
 #include "bftengine/EpochManager.hpp"
 #include "bftengine/ReconfigurationCmd.hpp"
+#include "bftengine/DbCheckpointManager.hpp"
+#include "bftengine/SigManager.hpp"
 #include "endianness.hpp"
 #include "kvbc_app_filter/kvbc_key_types.h"
 #include "concord.cmf.hpp"
 #include "secrets_manager_plain.h"
 #include "communication/StateControl.hpp"
+#include "rocksdb/native_client.h"
+#include "categorization/kv_blockchain.h"
+#include "categorization/details.h"
+#include "categorized_kvbc_msgs.cmf.hpp"
 
 namespace concord::kvbc::reconfiguration {
 
@@ -764,6 +770,82 @@ bool ReconfigurationHandler::handle(const messages::UnwedgeStatusRequest& req,
   response.signature = std::vector<uint8_t>(sig.begin(), sig.end());
   LOG_INFO(getLogger(), "Replica is ready to unwedge " << KVLOG(curr_epoch));
   rres.response = response;
+  return true;
+}
+
+bool ReconfigurationHandler::handle(const concord::messages::SignedPublicStateHashRequest& req,
+                                    uint64_t,
+                                    uint32_t,
+                                    const std::optional<bftEngine::Timestamp>&,
+                                    concord::messages::ReconfigurationResponse& reconf_resp) {
+  using bftEngine::impl::DbCheckpointManager;
+  using bftEngine::impl::SigManager;
+  using bftEngine::ReplicaConfig;
+  using concord::kvbc::categorization::StateHash;
+  using concord::kvbc::categorization::KeyValueBlockchain;
+  using concord::kvbc::categorization::detail::deserialize;
+  using concord::kvbc::categorization::detail::serialize;
+  using concord::messages::SignedPublicStateHashResponse;
+  using concord::messages::SignedPublicStateHashStatus;
+  using concord::storage::rocksdb::NativeClient;
+
+  auto resp = SignedPublicStateHashResponse{};
+  const auto state = DbCheckpointManager::instance().getCheckpointState(req.snapshot_id);
+  switch (state) {
+    case DbCheckpointManager::CheckpointState::kNonExistent:
+      LOG_INFO(getLogger(),
+               "SignedPublicStateHashRequest: snapshot ID = "
+                   << req.snapshot_id << " is non-existent, requesting participant ID = " << req.participant_id);
+      resp.status = SignedPublicStateHashStatus::SnapshotNonExistent;
+      break;
+    case DbCheckpointManager::CheckpointState::kPending:
+      LOG_INFO(getLogger(),
+               "SignedPublicStateHashRequest: snapshot ID = "
+                   << req.snapshot_id << " is pending creation, requesting participant ID = " << req.participant_id);
+      resp.status = SignedPublicStateHashStatus::SnapshotPending;
+      break;
+    case DbCheckpointManager::CheckpointState::kCreated: {
+      const auto snapshot_path = DbCheckpointManager::instance().getPathForCheckpoint(req.snapshot_id);
+      const auto read_only = true;
+      try {
+        auto db = NativeClient::newClient(snapshot_path, read_only, NativeClient::DefaultOptions{});
+        const auto ser_hash = db->get(KeyValueBlockchain::publicStateHashKey());
+        if (!ser_hash) {
+          LOG_ERROR(getLogger(),
+                    "SignedPublicStateHashRequest: missing public state hash for snapshot ID = "
+                        << req.snapshot_id << ", requesting participant ID = " << req.participant_id);
+          resp.status = SignedPublicStateHashStatus::InternalError;
+        } else {
+          auto public_state_hash = StateHash{};
+          deserialize(*ser_hash, public_state_hash);
+          resp.status = SignedPublicStateHashStatus::Success;
+          resp.data.snapshot_id = req.snapshot_id;
+          resp.data.replica_id = ReplicaConfig::instance().replicaId;
+          resp.data.block_id = public_state_hash.block_id;
+          resp.data.hash = public_state_hash.hash;
+          resp.signature.assign(SigManager::instance()->getMySigLength(), 0);
+          const auto data_ser = serialize(resp.data);
+          // We pass 0 as the last parameter. At the time of writing this code, the last parameter's value is not used
+          // and is not a reference. Therefore, we pass a temporary here so that if the type is changed to a reference,
+          // it will break and will prompt the user to review it again.
+          SigManager::instance()->sign(reinterpret_cast<const char*>(data_ser.data()),
+                                       data_ser.size(),
+                                       reinterpret_cast<char*>(resp.signature.data()),
+                                       0);
+          LOG_INFO(getLogger(),
+                   "SignedPublicStateHashRequest: successful request for snapshot ID = "
+                       << req.snapshot_id << ", requesting participant ID = " << req.participant_id);
+        }
+      } catch (const std::exception& e) {
+        LOG_ERROR(getLogger(),
+                  "SignedPublicStateHashRequest: failed for snapshot ID = "
+                      << req.snapshot_id << ", requesting participant ID = " << req.participant_id
+                      << ", error =  " << e.what());
+        resp.status = SignedPublicStateHashStatus::InternalError;
+      }
+    } break;
+  }
+  reconf_resp.response = resp;
   return true;
 }
 
