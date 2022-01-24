@@ -345,7 +345,7 @@ void DbCheckpointManager::updateLastCmdInfo(const SeqNum& seqNum, const std::opt
   }
 }
 SeqNum DbCheckpointManager::getLastStableSeqNum() const {
-  ConcordAssert(ps_.get() != nullptr);
-  return ps_->getLastStableSeqNum();
+  if (getLastStableSeqNumCb_) return getLastStableSeqNumCb_();
+  return 0;
 }
 }  // namespace bftEngine::impl

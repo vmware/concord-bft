@@ -4461,6 +4461,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       }
       DbCheckpointManager::instance().onStableSeqNum(seqNum);
     });
+    DbCheckpointManager::instance().setGetLastStableSeqNumCb([this]() -> SeqNum { return lastStableSeqNum; });
   }
   LOG_INFO(GL, "ReplicaConfig parameters: " << config);
   auto numThreads = 8;

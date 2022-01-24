@@ -120,6 +120,7 @@ class DbCheckpointManager {
   void onStableSeqNum(SeqNum s) {
     if (onStableSeqNumCb_) onStableSeqNumCb_(s);
   }
+  void setGetLastStableSeqNumCb(std::function<SeqNum()> cb) { getLastStableSeqNumCb_ = cb; }
 
  private:
   logging::Logger getLogger() {
@@ -176,6 +177,7 @@ class DbCheckpointManager {
   std::optional<SeqNum> nextSeqNumToCreateCheckPt_{std::nullopt};
   std::chrono::seconds lastCheckpointCreationTime_{duration_cast<Seconds>(SystemClock::now().time_since_epoch())};
   std::function<void(SeqNum)> onStableSeqNumCb_;
+  std::function<SeqNum()> getLastStableSeqNumCb_;
   std::string dbCheckPointDirPath_;
   concordMetrics::Component metrics_;
   concordMetrics::GaugeHandle maxDbCheckpointCreationTimeMsec_;
