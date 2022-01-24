@@ -118,6 +118,27 @@ class KeyValueBlockchain {
   std::shared_ptr<concord::storage::rocksdb::NativeClient> db() { return native_client_; }
   std::shared_ptr<const concord::storage::rocksdb::NativeClient> db() const { return native_client_; }
 
+  // Trims the DB snapshot such that its last reachable block is equal to `block_id_at_checkpoint`.
+  // This method is supposed to be called on DB snapshots only and not on the actual blockchain.
+  // Precondition1: The current KeyValueBlockchain instance points to a DB snapshot.
+  // Precondition2: `block_id_at_checkpoint` >= INITIAL_GENESIS_BLOCK_ID
+  // Precondition3: `block_id_at_checkpoint` <= getLastReachableBlockId()
+  void trimBlocksFromSnapshot(BlockId block_id_at_checkpoint);
+
+  // Computes and persists the public state hash by:
+  //  h0 = hash("")
+  //  h1 = hash(h0 || hash(k1) || v1)
+  //  h2 = hash(h1 || hash(k2) || v2)
+  //  ...
+  //  hN = hash(hN-1 || hash(kN) || vN)
+  //
+  // This method is supposed to be called on DB snapshots only and not on the actual blockchain.
+  // Precondition: The current KeyValueBlockchain instance points to a DB snapshot.
+  void computeAndPersistPublicStateHash(BlockId checkpoint_block_id);
+
+  // The key used in the default column family for persisting the current public state hash.
+  static std::string publicStateHashKey();
+
  private:
   BlockId addBlock(CategoryInput&& category_updates, concord::storage::rocksdb::NativeWriteBatch& write_batch);
 

@@ -61,6 +61,7 @@ enum class EBFTSubtype : std::uint8_t {
   STReservedPageDynamic,
   STCheckpointDescriptor,
   STTempBlock,
+  PublicStateHashAtDbCheckpoint,
 };
 
 enum class EMigrationSubType : std::uint8_t {

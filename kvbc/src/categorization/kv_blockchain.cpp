@@ -21,6 +21,10 @@
 #include "categorization/db_categories.h"
 #include "endianness.hpp"
 #include "migrations/block_merkle_latest_ver_cf_migration.h"
+#include "storage/merkle_tree_key_manipulator.h"
+#include "categorized_kvbc_msgs.cmf.hpp"
+#include "categorization/details.h"
+#include "ReplicaConfig.hpp"
 
 #include <stdexcept>
 
@@ -375,6 +379,75 @@ std::map<std::string, std::vector<std::string>> KeyValueBlockchain::getBlockStal
                    update_info);
   }
   return stale_keys;
+}
+
+void KeyValueBlockchain::trimBlocksFromSnapshot(BlockId block_id_at_checkpoint) {
+  ConcordAssertGE(block_id_at_checkpoint, INITIAL_GENESIS_BLOCK_ID);
+  ConcordAssertLE(block_id_at_checkpoint, getLastReachableBlockId());
+  while (block_id_at_checkpoint < getLastReachableBlockId()) {
+    LOG_INFO(GL,
+             "Deleting last reachable block = " << getLastReachableBlockId() << ", DB checkpoint = " << db()->path());
+    deleteLastReachableBlock();
+  }
+}
+
+static const auto kPublicStateHashKey = concord::storage::v2MerkleTree::detail::serialize(
+    concord::storage::v2MerkleTree::detail::EBFTSubtype::PublicStateHashAtDbCheckpoint);
+
+std::string KeyValueBlockchain::publicStateHashKey() { return kPublicStateHashKey; }
+
+static const auto kInitialHash = detail::hash(std::string{});
+
+void KeyValueBlockchain::computeAndPersistPublicStateHash(BlockId checkpoint_block_id) {
+  auto hash = kInitialHash;
+
+  auto persist = [&, this]() {
+    native_client_->put(kPublicStateHashKey, detail::serialize(StateHash{checkpoint_block_id, hash}));
+  };
+
+  const auto opt_val = getLatest(kConcordInternalCategoryId, keyTypes::state_public_key_set);
+  if (!opt_val) {
+    // No public state keys - persist the hash of the empty string as a result.
+    persist();
+    return;
+  }
+  auto public_state = PublicStateKeys{};
+  const auto val = std::get_if<VersionedValue>(&opt_val.value());
+  ConcordAssertNE(val, nullptr);
+  detail::deserialize(val->data, public_state);
+
+  auto idx = 0ull;
+  auto keys_batch = std::vector<std::string>{};
+  keys_batch.reserve(bftEngine::ReplicaConfig::instance().hashStateMultiGetBatchSize);
+  auto values = std::vector<std::optional<Value>>{};
+  values.reserve(bftEngine::ReplicaConfig::instance().hashStateMultiGetBatchSize);
+  while (idx < public_state.keys.size()) {
+    keys_batch.clear();
+    values.clear();
+    while (keys_batch.size() < bftEngine::ReplicaConfig::instance().hashStateMultiGetBatchSize) {
+      if (idx == public_state.keys.size()) {
+        break;
+      }
+      keys_batch.push_back(public_state.keys[idx]);
+      ++idx;
+    }
+    multiGetLatest(kExecutionProvableCategory, keys_batch, values);
+    ConcordAssertEQ(keys_batch.size(), values.size());
+
+    for (auto i = 0ull; i < keys_batch.size(); ++i) {
+      auto hasher = Hasher{};
+      hasher.init();
+      hasher.update(hash.data(), hash.size());
+      const auto key_hash = detail::hash(keys_batch[i]);
+      hasher.update(key_hash.data(), key_hash.size());
+      ConcordAssert(values[i].has_value());
+      const auto val = std::get_if<MerkleValue>(&values[i].value());
+      ConcordAssertNE(val, nullptr);
+      hasher.update(val->data.data(), val->data.size());
+      hash = hasher.finish();
+    }
+  }
+  persist();
 }
 
 /////////////////////// Delete block ///////////////////////

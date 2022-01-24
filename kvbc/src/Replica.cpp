@@ -289,6 +289,7 @@ void Replica::saveReconfigurationCmdToResPages(const std::string &key) {
         rreq, key, blockid, wedgePoint, epochNum);
   }
 }
+
 void Replica::createReplicaAndSyncState() {
   ConcordAssert(m_kvBlockchain.has_value());
   auto requestHandler = KvbcRequestHandler::create(m_cmdHandler, cronTableRegistry_, *m_kvBlockchain, aggregator_);
@@ -330,20 +331,13 @@ void Replica::createReplicaAndSyncState() {
       aggregator_,
       [this]() -> uint64_t { return getLastBlockId(); },
       [](BlockId block_id_at_checkpoint, const std::string &path) {
-        if (block_id_at_checkpoint < INITIAL_GENESIS_BLOCK_ID) {
-          LOG_INFO(GL, "DB checkpoint done at block ID = " << block_id_at_checkpoint << ", no need to prepare it");
-          return;
-        }
         const auto read_only = false;
-        const auto link_st_chain = false;
         auto db = storage::rocksdb::NativeClient::newClient(
             path, read_only, storage::rocksdb::NativeClient::DefaultOptions{});
+        const auto link_st_chain = false;
         auto kvbc = categorization::KeyValueBlockchain{db, link_st_chain};
-        while (block_id_at_checkpoint < kvbc.getLastReachableBlockId()) {
-          LOG_INFO(
-              GL, "Deleting last reachable block = " << kvbc.getLastReachableBlockId() << ", DB checkpoint = " << path);
-          kvbc.deleteLastReachableBlock();
-        }
+        kvbc.trimBlocksFromSnapshot(block_id_at_checkpoint);
+        kvbc.computeAndPersistPublicStateHash(block_id_at_checkpoint);
       });
 }
 
