@@ -2475,7 +2475,7 @@ TEST_F(categorized_kvbc, compute_and_persist_hash_batch_size_equals_key_count) {
       std::map<std::string, CATEGORY_TYPE>{{kExecutionProvableCategory, CATEGORY_TYPE::block_merkle},
                                            {kConcordInternalCategoryId, CATEGORY_TYPE::versioned_kv}}};
   addPublicState(kvbc);
-  bftEngine::ReplicaConfig::instance().hashStateMultiGetBatchSize = 4;
+  bftEngine::ReplicaConfig::instance().stateIterationMultiGetBatchSize = 4;
   kvbc.computeAndPersistPublicStateHash(1);
   assertPublicStateHash();
 }
@@ -2488,7 +2488,7 @@ TEST_F(categorized_kvbc, compute_and_persist_hash_batch_size_bigger_than_key_cou
       std::map<std::string, CATEGORY_TYPE>{{kExecutionProvableCategory, CATEGORY_TYPE::block_merkle},
                                            {kConcordInternalCategoryId, CATEGORY_TYPE::versioned_kv}}};
   addPublicState(kvbc);
-  bftEngine::ReplicaConfig::instance().hashStateMultiGetBatchSize = 5;
+  bftEngine::ReplicaConfig::instance().stateIterationMultiGetBatchSize = 5;
   kvbc.computeAndPersistPublicStateHash(1);
   assertPublicStateHash();
 }
@@ -2501,7 +2501,7 @@ TEST_F(categorized_kvbc, compute_and_persist_hash_batch_size_bigger_than_key_cou
       std::map<std::string, CATEGORY_TYPE>{{kExecutionProvableCategory, CATEGORY_TYPE::block_merkle},
                                            {kConcordInternalCategoryId, CATEGORY_TYPE::versioned_kv}}};
   addPublicState(kvbc);
-  bftEngine::ReplicaConfig::instance().hashStateMultiGetBatchSize = 6;
+  bftEngine::ReplicaConfig::instance().stateIterationMultiGetBatchSize = 6;
   kvbc.computeAndPersistPublicStateHash(1);
   assertPublicStateHash();
 }
@@ -2514,7 +2514,7 @@ TEST_F(categorized_kvbc, compute_and_persist_hash_batch_size_less_than_key_count
       std::map<std::string, CATEGORY_TYPE>{{kExecutionProvableCategory, CATEGORY_TYPE::block_merkle},
                                            {kConcordInternalCategoryId, CATEGORY_TYPE::versioned_kv}}};
   addPublicState(kvbc);
-  bftEngine::ReplicaConfig::instance().hashStateMultiGetBatchSize = 3;
+  bftEngine::ReplicaConfig::instance().stateIterationMultiGetBatchSize = 3;
   kvbc.computeAndPersistPublicStateHash(1);
   assertPublicStateHash();
 }
@@ -2527,9 +2527,68 @@ TEST_F(categorized_kvbc, compute_and_persist_hash_batch_size_less_than_key_count
       std::map<std::string, CATEGORY_TYPE>{{kExecutionProvableCategory, CATEGORY_TYPE::block_merkle},
                                            {kConcordInternalCategoryId, CATEGORY_TYPE::versioned_kv}}};
   addPublicState(kvbc);
-  bftEngine::ReplicaConfig::instance().hashStateMultiGetBatchSize = 2;
+  bftEngine::ReplicaConfig::instance().stateIterationMultiGetBatchSize = 2;
   kvbc.computeAndPersistPublicStateHash(1);
   assertPublicStateHash();
+}
+
+TEST_F(categorized_kvbc, iterate_partial_public_state) {
+  const auto link_st_chain = true;
+  auto kvbc = KeyValueBlockchain{
+      db,
+      link_st_chain,
+      std::map<std::string, CATEGORY_TYPE>{{kExecutionProvableCategory, CATEGORY_TYPE::block_merkle},
+                                           {kConcordInternalCategoryId, CATEGORY_TYPE::versioned_kv}}};
+  addPublicState(kvbc);
+  auto iterated_key_values = std::vector<std::pair<std::string, std::string>>{};
+  ASSERT_TRUE(kvbc.iteratePublicStateKeyValues(
+      [&](std::string&& key, std::string&& value) { iterated_key_values.push_back(std::make_pair(key, value)); }, "b"));
+  ASSERT_THAT(iterated_key_values,
+              ContainerEq(std::vector<std::pair<std::string, std::string>>{{"c", "vc"}, {"d", "vd"}}));
+}
+
+TEST_F(categorized_kvbc, iterate_public_state_after_first_key) {
+  const auto link_st_chain = true;
+  auto kvbc = KeyValueBlockchain{
+      db,
+      link_st_chain,
+      std::map<std::string, CATEGORY_TYPE>{{kExecutionProvableCategory, CATEGORY_TYPE::block_merkle},
+                                           {kConcordInternalCategoryId, CATEGORY_TYPE::versioned_kv}}};
+  addPublicState(kvbc);
+  auto iterated_key_values = std::vector<std::pair<std::string, std::string>>{};
+  ASSERT_TRUE(kvbc.iteratePublicStateKeyValues(
+      [&](std::string&& key, std::string&& value) { iterated_key_values.push_back(std::make_pair(key, value)); }, "a"));
+  ASSERT_THAT(iterated_key_values,
+              ContainerEq(std::vector<std::pair<std::string, std::string>>{{"b", "vb"}, {"c", "vc"}, {"d", "vd"}}));
+}
+
+TEST_F(categorized_kvbc, iterate_public_state_after_last_key) {
+  const auto link_st_chain = true;
+  auto kvbc = KeyValueBlockchain{
+      db,
+      link_st_chain,
+      std::map<std::string, CATEGORY_TYPE>{{kExecutionProvableCategory, CATEGORY_TYPE::block_merkle},
+                                           {kConcordInternalCategoryId, CATEGORY_TYPE::versioned_kv}}};
+  addPublicState(kvbc);
+  auto iterated_key_values = std::vector<std::pair<std::string, std::string>>{};
+  ASSERT_TRUE(kvbc.iteratePublicStateKeyValues(
+      [&](std::string&& key, std::string&& value) { iterated_key_values.push_back(std::make_pair(key, value)); }, "d"));
+  ASSERT_TRUE(iterated_key_values.empty());
+}
+
+TEST_F(categorized_kvbc, iterate_public_state_key_not_found) {
+  const auto link_st_chain = true;
+  auto kvbc = KeyValueBlockchain{
+      db,
+      link_st_chain,
+      std::map<std::string, CATEGORY_TYPE>{{kExecutionProvableCategory, CATEGORY_TYPE::block_merkle},
+                                           {kConcordInternalCategoryId, CATEGORY_TYPE::versioned_kv}}};
+  addPublicState(kvbc);
+  auto iterated_key_values = std::vector<std::pair<std::string, std::string>>{};
+  ASSERT_FALSE(kvbc.iteratePublicStateKeyValues(
+      [&](std::string&& key, std::string&& value) { iterated_key_values.push_back(std::make_pair(key, value)); },
+      "NON-EXISTENT"));
+  ASSERT_TRUE(iterated_key_values.empty());
 }
 
 }  // end namespace

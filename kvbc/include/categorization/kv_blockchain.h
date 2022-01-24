@@ -15,7 +15,6 @@
 
 #include "updates.h"
 #include "rocksdb/native_client.h"
-#include <memory>
 #include "blocks.h"
 #include "blockchain.h"
 #include "immutable_kv_category.h"
@@ -28,6 +27,12 @@
 #include "diagnostics.h"
 #include "performance_handler.h"
 #include "bftengine/ReplicaConfig.hpp"
+#include "categorized_kvbc_msgs.cmf.hpp"
+
+#include <functional>
+#include <memory>
+#include <optional>
+#include <string>
 
 namespace concord::kvbc::categorization {
 
@@ -136,10 +141,32 @@ class KeyValueBlockchain {
   // Precondition: The current KeyValueBlockchain instance points to a DB snapshot.
   void computeAndPersistPublicStateHash(BlockId checkpoint_block_id);
 
+  // Returns the public state keys as of the current point in the blockchain's history.
+  // Returns std::nullopt if no public keys have been persisted.
+  std::optional<PublicStateKeys> getPublicStateKeys() const;
+
+  // Iterate over all public key values, calling the given function multiple times with two parameters:
+  // * key
+  // * value
+  void iteratePublicStateKeyValues(const std::function<void(std::string&&, std::string&&)>& f) const;
+
+  // Iterate over public key values from the key after `after_key`, calling the given function multiple times with two
+  // parameters:
+  // * key
+  // * value
+  //
+  // If `after_key` is not a public key, false is returned and no iteration is done (no calls to `f`). Else, iteration
+  // is done and the returned value is true, even if there are 0 public keys to actually iterate.
+  bool iteratePublicStateKeyValues(const std::function<void(std::string&&, std::string&&)>& f,
+                                   const std::string& after_key) const;
+
   // The key used in the default column family for persisting the current public state hash.
   static std::string publicStateHashKey();
 
  private:
+  bool iteratePublicStateKeyValuesImpl(const std::function<void(std::string&&, std::string&&)>& f,
+                                       const std::optional<std::string>& after_key) const;
+
   BlockId addBlock(CategoryInput&& category_updates, concord::storage::rocksdb::NativeWriteBatch& write_batch);
 
   // tries to link the state transfer chain to the main blockchain

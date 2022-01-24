@@ -243,10 +243,10 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                "When set to true this parameter will cause endWriteTran to block until "
                "the transaction is persisted every time we update the metadata.");
 
-  CONFIG_PARAM(hashStateMultiGetBatchSize,
+  CONFIG_PARAM(stateIterationMultiGetBatchSize,
                std::uint32_t,
                30u,
-               "Amount of keys to get at once via multiGet when hashing state");
+               "Amount of keys to get at once via multiGet when iterating state");
 
   // Parameter to enable/disable waiting for transaction data to be persisted.
   // Not predefined configuration parameters
