@@ -82,15 +82,11 @@ class RVTTest : public ::testing::Test {
  public:
   void init(RangeValidationTree& rvt) {
     delegator_ = std::make_unique<BcStTestDelegator>(rvt);
-    logging::Logger::getInstance("concord.bft").setLogLevel(log4cplus::ERROR_LOG_LEVEL);
-    logging::Logger::getInstance("concord.bft.st.dst").setLogLevel(log4cplus::ERROR_LOG_LEVEL);
-    logging::Logger::getInstance("concord.bft.st.src").setLogLevel(log4cplus::ERROR_LOG_LEVEL);
-    logging::Logger::getInstance("concord.util.handoff").setLogLevel(log4cplus::ERROR_LOG_LEVEL);
-    logging::Logger::getInstance("concord.bft.st.rvb").setLogLevel(log4cplus::ERROR_LOG_LEVEL);
+    logging::Logger::getInstance("concord.bft.st.rvb").setLogLevel(log4cplus::INFO_LOG_LEVEL);
   }
   InputValues values_{randomString(HASH_SIZE), randomString(HASH_SIZE), randomString(HASH_SIZE)};
   std::shared_ptr<BcStTestDelegator> delegator_;
-  logging::Logger logger_{logging::getLogger("concord.bft.st.rvt")};
+  logging::Logger logger_{logging::getLogger("concord.bft.st.rvb")};
 };
 
 /////////////////////// starting of maths properties validation test for cryptoPP::Integer class  /////////////////////
@@ -164,6 +160,23 @@ INSTANTIATE_TEST_CASE_P(validateRawValue,
 
 /////////////////// ending  of maths properties validation test for cryptoPP::Integer class ///////////////////////
 
+TEST_F(RVTTest, StartIntheMiddleInsertionsOnly) {
+  uint32_t RVT_K = 12;
+  uint32_t fetch_range_size_ = 5;
+  RangeValidationTree rvt(logger_, RVT_K, fetch_range_size_);
+  // These are block Ids, the matching RVB index is 1,10,600,30
+  std::vector<RVBId> start_rvb_ids{5, 50, 3000, 150};
+  string str{"11"};
+
+  for (const auto& start_rvb_id : start_rvb_ids) {
+    for (RVBId i{0}; i <= 1000; ++i) {
+      rvt.addNode(start_rvb_id + i * fetch_range_size_, str.data(), str.size());
+      rvt.validate();
+    }
+    rvt.clear();
+  }
+}
+
 TEST_F(RVTTest, constructTreeWithSingleFirstNode) {
   static constexpr uint32_t fetch_range_size = 4;
   RangeValidationTree rvt(logger_, RVT_K, fetch_range_size);
@@ -177,16 +190,27 @@ TEST_F(RVTTest, constructTreeWithSingleFirstNode) {
   ASSERT_EQ(rvt.totalLevels(), 1);
 }
 
-TEST_F(RVTTest, constructTreeWithSingleMiddleNode) {
-  static constexpr uint32_t fetch_range_size = 4;
+TEST_F(RVTTest, constructTreesWithSingleMiddleNode) {
+  size_t fetch_range_size = 4;
+  uint32_t RVT_K = 4;
   RangeValidationTree rvt(logger_, RVT_K, fetch_range_size);
-  for (auto i = fetch_range_size * 2; i <= fetch_range_size * 2; i = i + fetch_range_size) {
-    STDigest digest(std::to_string(i).c_str());
-    rvt.addNode(i, digest.get(), BLOCK_DIGEST_SIZE);
-    ASSERT_TRUE(rvt.validate());
+
+  for (size_t i = 100; i < 1000; ++i) {
+    for (size_t j{i}; j < (i + RVT_K * 2 + 1); ++j) {
+      STDigest digest{};
+      auto str = std::to_string(i);
+      memcpy(digest.getForUpdate(), str.c_str(), str.size());
+      rvt.addNode(j * fetch_range_size, digest.get(), BLOCK_DIGEST_SIZE);
+      ASSERT_TRUE(rvt.validate());
+    }
+    for (size_t j{i}; j < (i + RVT_K * 2 + 1); ++j) {
+      STDigest digest{};
+      auto str = std::to_string(i);
+      memcpy(digest.getForUpdate(), str.c_str(), str.size());
+      rvt.removeNode(j * fetch_range_size, digest.get(), BLOCK_DIGEST_SIZE);
+      ASSERT_TRUE(rvt.validate());
+    }
   }
-  ASSERT_EQ(rvt.totalNodes(), 1);
-  ASSERT_EQ(rvt.totalLevels(), 1);
 }
 
 TEST_F(RVTTest, constructTreeWithSingleLastNode) {
@@ -209,7 +233,6 @@ TEST_F(RVTTest, constructTreeWithTwoNodes) {
     rvt.addNode(i, digest.get(), BLOCK_DIGEST_SIZE);
     ASSERT_TRUE(rvt.validate());
   }
-  rvt.printToLog(false);
   ConcordAssertEQ(rvt.totalLevels(), 2);
   ConcordAssertEQ(rvt.totalNodes(), 3);
 }
@@ -351,14 +374,14 @@ TEST_F(RVTTest, validateRvbGroupIds) {
 
   // Both blocks fall under same parent rvb-group-id
   std::vector<RVBGroupId> rvb_group_ids;
-  rvb_group_ids = rvt.getRvbGroupIds(5, 5);
+  rvb_group_ids = rvt.getRvbGroupIds(5, 5, true);
   ASSERT_EQ(rvb_group_ids.size(), 1);
   auto hash_val_1 = rvt.getDirectParentValueStr(randomNum(5, 10, 5));
   auto hash_val_2 = rvt.getDirectParentValueStr(randomNum(15, 20, 5));
   ASSERT_EQ(hash_val_1, hash_val_2);
 
   // Blocks span across multiple rvb-group-ids
-  rvb_group_ids = rvt.getRvbGroupIds(5, 45);
+  rvb_group_ids = rvt.getRvbGroupIds(5, 45, true);
   ASSERT_EQ(rvb_group_ids.size(), 3);
   ASSERT_NE(rvt.getDirectParentValueStr(randomNum(5, 20, 5)), rvt.getDirectParentValueStr(randomNum(25, 40, 5)));
   ASSERT_NE(rvt.getDirectParentValueStr(randomNum(5, 20, 5)), rvt.getDirectParentValueStr(45));
@@ -376,7 +399,7 @@ class RVTTestFixture
     : public RVTTest,
       public testing::WithParamInterface<tuple<uint64_t, uint64_t, tuple<vector<size_t>, vector<size_t>>>> {};
 
-TEST_P(RVTTestFixture, simpleAddRemoveWithRootValidation) {
+TEST_P(RVTTestFixture, addRemoveWithRootValidation) {
   uint64_t test_progress{0};
   uint64_t fetch_range_size = 4;
   uint64_t RVT_K = get<0>(GetParam());

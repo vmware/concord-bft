@@ -20,6 +20,7 @@
 #include <string>
 #include <cmath>
 #include <limits>
+#include <unordered_set>
 
 #include <cryptopp/integer.h>
 
@@ -39,14 +40,14 @@ using RVBIndex = uint64_t;
 // are valid and true. This is done by validating digest of certain blocks at frequent interval (RVB) against the tree.
 // RVT would be updated during checkpointing and also in the context of pruning. New nodes would be added to RVT during
 // checkpointing where as existing nodes would be deleted when pruning on old blocks begins.
-// Comment: this data strucutre is easy to be used to validate any type of data, not only block digests.
+// Comment: this data structure is easy to be used to validate any type of data, not only block digests.
 //
 // Terms used throughout code -
 // 1. RVT_K = Maximum number of children any node can have
 // 2. Fetch range = Not all blocks will be validated. Only max block from given fetch range will be validated.
 // 3. RVB Id = Any block id in multiple of fetch range size
-// 4. RVB Index = RVBId / fetch range size
-// 5. RVB GroupIndex = Minimum of RVBIndex of all childrens
+// 4. RVB Index = RVBId / fetch range size (RVB Index must divide to a positive integer to be valid)
+// 5. RVB GroupIndex (RVBGroupId) = Minimum of RVBIndex of all childrens.
 //
 // Things to remember -
 // 1. Tree does not store RVB nodes.
@@ -85,8 +86,13 @@ class RangeValidationTree {
   // In case of failure can assert
   bool setSerializedRvbData(std::istringstream& iss);
 
-  // Returns RVB group ids in ascending order. In case of failure, returns empty vector.
-  std::vector<RVBGroupId> getRvbGroupIds(RVBId start_block_id, RVBId end_block_id) const;
+  // Returns RVB group ids for the range [start_block_id, end_block_id] in ascending order.
+  // In case of failure, returns an empty vector.
+  // The blocks start/end should be RVB Block Ids.
+  // if must_be_in_tree is true, every RVBGroupId returned in the vector is expected to be part of the tree, else all
+  // ids are not checked against the tree.
+  std::vector<RVBGroupId> getRvbGroupIds(RVBId start_rvb_id, RVBId end_rvb_id, bool must_be_in_tree) const;
+
   // Returns all actual childs in ascending order. In case of failure, returns empty vector.
   std::vector<RVBId> getRvbIds(RVBGroupId id) const;
   // Returns value of direct parent of RVB. In case of failure, returns empty string with size zero.
@@ -101,10 +107,15 @@ class RangeValidationTree {
   // Clear all data structures
   void clear() noexcept;
 
+  enum class LogPrintVerbosity { DETAILED, SUMMARY };
   // Log tree only if total elements are less than 10K. In case of failure can assert.
-  void printToLog(bool only_node_id) const noexcept;
+  // SUMMARY - prints basic structure and node ids only
+  void printToLog(LogPrintVerbosity verbosity) const noexcept;  // change to 3 levels
   // Validate structure and values inside tree. In case of failure can assert.
   bool validate() const noexcept;
+
+  size_t totalNodes() const { return id_to_node_.size(); }
+  size_t totalLevels() const { return root_ ? root_->info_.level() : 0; }
 
  public:
   struct NodeVal {
@@ -138,37 +149,67 @@ class RangeValidationTree {
   };
 
   struct NodeInfo {
-    NodeInfo(uint64_t node_id)
-        : level(node_id >> kNIDBitsPerRVBIndex),
-          rvb_index(node_id & kRvbIndexMask),
-          id((static_cast<uint64_t>(level) << kNIDBitsPerRVBIndex) | rvb_index) {}
-    NodeInfo(uint8_t l, uint64_t index)
-        : level(l),
-          rvb_index(index & kRvbIndexMask),
-          id((static_cast<uint64_t>(level) << kNIDBitsPerRVBIndex) | rvb_index) {}
+    NodeInfo(uint64_t node_id) : id_data_(node_id) {}
+    NodeInfo(uint8_t l, uint64_t index) : id_data_(l, index) {}
     NodeInfo() = delete;
 
     bool operator<(NodeInfo& other) const noexcept {
-      return ((level <= other.level) || (rvb_index < other.rvb_index)) ? true : false;
+      return ((level() <= other.level()) || (rvb_index() < other.rvb_index())) ? true : false;
     }
     bool operator!=(NodeInfo& other) const noexcept {
-      return ((level != other.level) || (rvb_index != other.rvb_index)) ? true : false;
+      return ((level() != other.level()) || (rvb_index() != other.rvb_index())) ? true : false;
     }
     std::string toString() const noexcept;
 
     static constexpr size_t kNIDBitsPerLevel = 8;
-    static constexpr size_t kNIDBitsPerRVBIndex = ((sizeof(uint64_t) * 8) - kNIDBitsPerLevel);
-    static constexpr size_t kMaxLevels = ((0x1 << kNIDBitsPerLevel) - 1);
-    static constexpr uint64_t kRvbIdMask = (kMaxLevels) << kNIDBitsPerRVBIndex;
-    static constexpr uint64_t kRvbIndexMask = std::numeric_limits<uint64_t>::max() & (~kRvbIdMask);
+    static constexpr size_t kNIDBitsPerRVBIndex = ((sizeof(uint64_t) * 8) - kNIDBitsPerLevel);  // 56
+    static constexpr size_t kMaxLevels = ((0x1 << kNIDBitsPerLevel) - 1);                       // 0xFF
+    static constexpr uint64_t kLevelMask = (kMaxLevels) << kNIDBitsPerRVBIndex;                 // 0xFF000000 00000000
+    static constexpr uint64_t kRvbIndexMask =
+        std::numeric_limits<uint64_t>::max() & (~kLevelMask);  // 0x00FFFFFF FFFFFFFF
 
-    // TODO - Helper functions to cast between id, level, rvb_index
-    // node location in the tree
-    const uint64_t level : kNIDBitsPerLevel;
-    const uint64_t rvb_index : kNIDBitsPerRVBIndex;
+    union IdData {
+      friend NodeInfo;
 
-    // node ID
-    const uint64_t id;
+     public:
+      IdData() = default;
+      IdData(uint64_t node_id) : id(node_id){};
+      IdData(uint8_t l, uint64_t index) {
+        bits.rvb_index = index;
+        bits.level = l;
+      }
+
+     private:
+      struct IdBits {
+        uint64_t rvb_index : kNIDBitsPerRVBIndex;
+        uint64_t level : kNIDBitsPerLevel;
+      } bits;
+      const uint64_t id{};
+    } id_data_;
+
+   public:
+    uint64_t rvb_index() const { return id_data_.bits.rvb_index; };
+    uint64_t level() const { return id_data_.bits.level; };
+    uint64_t id() const { return id_data_.id; };
+
+    static uint64_t rvb_index(uint64_t id) { return IdData(id).bits.rvb_index; }
+    static uint8_t level(uint64_t id) { return IdData(id).bits.level; }
+    static uint64_t id(uint8_t level, uint64_t rvb_index);
+
+    // The min/max possible rvt_index of a parent childs, given one of the potential childs rvb index and level (parents
+    // level is level+1)
+    static inline uint64_t parentRvbIndexFromChild(uint64_t child_rvb_index, uint8_t child_level);
+
+    // For a given child rvb index and child level, calculate the min rvb index of all potential siblings
+    // All siblings must have the same parents. Not all siblings must currently be childs of that parent.
+    static inline uint64_t minPossibleSiblingRvbIndex(uint64_t child_rvb_index, uint8_t child_level);
+    static inline uint64_t maxPossibleSiblingRvbIndex(uint64_t child_rvb_index, uint8_t child_level);
+
+    // for a give RVB index, return the next/prev one depends on level
+    // rvb_index must be valid and fullfill : (rvb_index-1) % (RVT_K^level) == 0
+    static inline uint64_t nextRvbIndex(uint64_t rvb_index, uint8_t level);
+    // caller should not call with 1st rvb_index
+    static inline uint64_t prevRvbIndex(uint64_t rvb_index, uint8_t level);
   };
 
   // Each node, even 0 level nodes, holds a current value and an initial value.
@@ -185,16 +226,11 @@ class RangeValidationTree {
     RVBNode(uint64_t rvb_index, const char* data, size_t data_size);
     RVBNode(uint8_t level, uint64_t rvb_index);
     RVBNode(uint64_t node_id, char* val, size_t size);
-
-    bool isMinChild() { return info_.rvb_index % RVT_K == 1; }
-    bool isMaxChild() { return info_.rvb_index % RVT_K == 0; }
     void logInfoVal(const std::string& prefix = "");
     const std::shared_ptr<char[]> computeNodeInitialValue(NodeInfo& node_id, const char* data, size_t data_size);
 
-    static constexpr uint8_t kDefaultRVBLeafLevel{0};
     NodeInfo info_;
     NodeVal current_value_;
-    static uint32_t RVT_K;
   };
 
  public:
@@ -205,8 +241,8 @@ class RangeValidationTree {
     uint32_t RVT_K;
     uint32_t fetch_range_size;
     size_t value_size;
-    uint64_t total_nodes;
     uint64_t root_node_id;
+    uint64_t total_nodes;
 
     static void staticAssert() noexcept;
   };
@@ -214,11 +250,10 @@ class RangeValidationTree {
 
   struct SerializedRVTNode {
     uint64_t id;
-    size_t current_value_encoded_size;
-    uint16_t n_child;
-    uint64_t min_child_id;
-    uint64_t max_child_id;
     uint64_t parent_id;
+    size_t last_insertion_index;
+    std::deque<uint64_t> child_ids;
+    size_t current_value_encoded_size;
 
     static void staticAssert() noexcept;
   };
@@ -226,9 +261,10 @@ class RangeValidationTree {
   struct RVTNode;
   using RVBNodePtr = std::shared_ptr<RVBNode>;
   using RVTNodePtr = std::shared_ptr<RVTNode>;
+
   struct RVTNode : public RVBNode {
-    RVTNode(const RVBNodePtr& node);
-    RVTNode(const RVTNodePtr& node);
+    RVTNode(const RVBNodePtr& child_node);
+    RVTNode(uint8_t level, uint64_t rvb_index);
     RVTNode(SerializedRVTNode& node, char* cur_val_ptr, size_t cur_value_size);
     static RVTNodePtr createFromSerialized(std::istringstream& is);
 
@@ -236,31 +272,46 @@ class RangeValidationTree {
     void substractValue(const NodeVal& nvalue);
     std::ostringstream serialize() const;
 
-    static constexpr uint8_t kDefaultRVTLeafLevel = 1;
-    uint16_t n_child{0};
-    uint64_t min_child_id{0};      // Minimal actual child id
-    uint64_t max_child_id{0};      // Maximal possible child id. The max actual is min_child_id + n_child.
-    uint64_t parent_id{0};         // for root - will be 0
+    uint64_t parent_id_;
+    std::deque<uint64_t> child_ids_;
+    static constexpr size_t kInsertionCounterNotInitialized_ = std::numeric_limits<size_t>::max();
+    size_t insertion_counter_;     // When reaches RVT_K, node is considered closed.
     const NodeVal initial_value_;  // We need to keep this value to validate node's current value
+
+    size_t insertionsLeft() const { return RangeValidationTree::RVT_K - insertion_counter_; }
+    size_t numChildren() const { return child_ids_.size(); }
+    size_t hasNoChilds() const { return child_ids_.empty(); }
+    size_t hasChilds() const { return !child_ids_.empty(); }
+    const uint64_t minChildId() const { return child_ids_.front(); }
+    const uint64_t maxChildId() const { return child_ids_.back(); }
+    bool openForInsertion() const { return insertionsLeft() > 0; }
+    bool openForRemoval() const { return numChildren() > 0; }
+    void pushChildId(uint64_t id);
+    void popChildId(uint64_t id);
   };
 
- public:
   // validation functions
-  static uint64_t pow_uint(uint64_t base, uint64_t exp) noexcept;
-  size_t totalNodes() const { return id_to_node_.size(); }
-  size_t totalLevels() const { return root_ ? root_->info_.level : 0; }
-
  protected:
-  bool isValidRvbId(const RVBId& block_id) const noexcept;
-  bool validateRVBGroupId(const RVBGroupId rvb_group_id) const;
+  static uint64_t pow_uint(uint64_t base, uint64_t exp) noexcept;
+  bool isValidRvbId(RVBId block_id) const noexcept;
+  bool validateRVBGroupId(RVBGroupId rvb_group_id) const;
   bool validateTreeStructure() const noexcept;
   bool validateTreeValues() const noexcept;
 
   // Helper functions
-  RVTNodePtr getRVTNodeOfLeftSibling(const RVTNodePtr& node) const;
-  RVTNodePtr getRVTNodeOfRightSibling(const RVTNodePtr& node) const;
-  RVTNodePtr getParentNode(const RVTNodePtr& node) const noexcept;
-  RVTNodePtr getLeftMostChildNode(const RVTNodePtr& node) const noexcept;
+  enum class NodeType {
+    PARENT,
+    RIGHT_SIBLING,  // Sibling: must have common parent
+    LEFT_SIBLING,
+    LEFTMOST_SAME_LEVEL_NODE,  // Same level node: we not necessarily share the same parent
+    RIGHTMOST_SAME_LEVEL_NODE,
+    LEFTMOST_CHILD,  // Child: Must be one of my childs
+    RIGHTMOST_CHILD,
+    LEFTMOST_LEVEL_DOWN_NODE,  // Level down node: not has to be my child. If my level is X, this nodes level is x-1.
+    RIGHTMOST_LEVEL_DOWN_NODE
+  };
+  // will never return the input node. If couldn't find such node, returns nullptr
+  RVTNodePtr getRVTNodeByType(const RVTNodePtr& node, NodeType type) const;
 
   // tree internal manipulation functions
   void addRVBNode(const RVBNodePtr& node);
@@ -271,25 +322,36 @@ class RangeValidationTree {
   void setNewRoot(const RVTNodePtr& new_root);
   RVTNodePtr openForInsertion(uint64_t level) const;
   RVTNodePtr openForRemoval(uint64_t level) const;
+  uint64_t rvbIdToIndex(RVBId rvb_id) const;  // rvb_id must be valid
+  uint64_t rvbIndexToId(RVBId rvb_id) const;  // rvb_id must be valid
+
+  enum class ArrUpdateType { ADD_NODE_TO_RIGHT, CHECK_REMOVE_NODE };
+  void updateOpenRvtNodeArrays(ArrUpdateType update_type, const RVTNodePtr& node);
 
  protected:
-  static constexpr size_t kMaxNodesToPrint{10000};
   // vector index represents level in tree
   // level 0 represents RVB node so it would always hold 0x0
-  std::array<RVTNodePtr, NodeInfo::kMaxLevels> rightmostRVTNode_;
-  std::array<RVTNodePtr, NodeInfo::kMaxLevels> leftmostRVTNode_;
+  std::array<RVTNodePtr, NodeInfo::kMaxLevels> rightmost_rvt_node_;
+  std::array<RVTNodePtr, NodeInfo::kMaxLevels> leftmost_rvt_node_;
   std::unordered_map<uint64_t, RVTNodePtr> id_to_node_;
   RVTNodePtr root_{nullptr};
-  uint64_t max_rvb_index_{0};  // RVB index is (RVB ID / fetch range size). This is the maximal index in the tree.
-  uint64_t min_rvb_index_{0};  // RVB index is (RVB ID / fetch range size). This is the minimal index in the tree.
-
+  uint64_t min_rvb_index_{};  // RVB index is (RVB ID / fetch range size). This is the minimal index in the tree.
+  uint64_t max_rvb_index_{};  // RVB index is (RVB ID / fetch range size). This is the maximal index in the tree.
+  std::unordered_set<uint64_t> node_ids_to_erase_;
   const logging::Logger& logger_;
-  const uint32_t RVT_K{0};
-  const uint32_t fetch_range_size_{0};
-  const size_t value_size_{0};
+
+  // constants
+  static uint32_t RVT_K;
+  const uint32_t fetch_range_size_{};
+  const size_t value_size_{};
+  static constexpr size_t kMaxNodesToPrint{10000};
   static constexpr uint8_t CHECKPOINT_PERSISTENCY_VERSION{1};
   static constexpr uint8_t version_num_{CHECKPOINT_PERSISTENCY_VERSION};
   static constexpr uint64_t magic_num_{0x1122334455667788};
+  static constexpr uint8_t kDefaultRVBLeafLevel = 0;
+  static constexpr uint8_t kDefaultRVTLeafLevel = 1;
 };
+
+using LogPrintVerbosity = RangeValidationTree::LogPrintVerbosity;
 
 }  // namespace bftEngine::bcst::impl
