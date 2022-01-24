@@ -148,28 +148,30 @@ void InternalCommandsHandler::preExecute(IRequestsHandler::ExecutionRequest &req
   const uint8_t *request_buffer_as_uint8 = reinterpret_cast<const uint8_t *>(req.request);
   bool readOnly = req.flags & MsgFlag::READ_ONLY_FLAG;
   if (readOnly) {
+    LOG_ERROR(m_logger,
+              "Received READ command for pre execution: "
+                  << "seqNum=" << req.executionSequenceNum << " batchCid" << batchCid);
     return;
   }
-
-  if (verifyWriteCommand(req.requestSize, request_buffer_as_uint8, req.maxReplySize, req.outActualReplySize) !=
-      OperationResult::SUCCESS) {
-    ConcordAssert(0);
-  }
-
-  SKVBCRequest deserialized_request;
-  deserialize(request_buffer_as_uint8, request_buffer_as_uint8 + req.requestSize, deserialized_request);
-  const SKVBCWriteRequest &write_req = std::get<SKVBCWriteRequest>(deserialized_request.request);
-  LOG_INFO(m_logger,
-           "Pre execute WRITE command:"
-               << " type=SKVBCWriteRequest seqNum=" << req.executionSequenceNum
-               << " numOfWrites=" << write_req.writeset.size() << " numOfKeysInReadSet=" << write_req.readset.size()
-               << " readVersion=" << write_req.read_version);
-  if (write_req.long_exec) {
-    sleep(LONG_EXEC_CMD_TIME_IN_SEC);
+  auto res = verifyWriteCommand(req.requestSize, request_buffer_as_uint8, req.maxReplySize, req.outActualReplySize);
+  if (res != OperationResult::SUCCESS) {
+    LOG_INFO(GL, "Operation result is not success in verifying write command");
+  } else {
+    SKVBCRequest deserialized_request;
+    deserialize(request_buffer_as_uint8, request_buffer_as_uint8 + req.requestSize, deserialized_request);
+    const SKVBCWriteRequest &write_req = std::get<SKVBCWriteRequest>(deserialized_request.request);
+    LOG_INFO(m_logger,
+             "Pre execute WRITE command:"
+                 << " type=SKVBCWriteRequest seqNum=" << req.executionSequenceNum
+                 << " numOfWrites=" << write_req.writeset.size() << " numOfKeysInReadSet=" << write_req.readset.size()
+                 << " readVersion=" << write_req.read_version);
+    if (write_req.long_exec) {
+      sleep(LONG_EXEC_CMD_TIME_IN_SEC);
+    }
   }
   req.outActualReplySize = req.requestSize;
   memcpy(req.outReply, req.request, req.requestSize);
-  req.outExecutionStatus = static_cast<uint32_t>(OperationResult::SUCCESS);
+  req.outExecutionStatus = static_cast<uint32_t>(res);
 }
 
 void InternalCommandsHandler::addMetadataKeyValue(VersionedUpdates &updates, uint64_t sequenceNum) const {
