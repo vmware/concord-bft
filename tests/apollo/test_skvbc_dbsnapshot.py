@@ -64,7 +64,7 @@ def start_replica_cmd(builddir, replica_id):
             "-o", builddir + "/operator_pub.pem"]
 
 
-def start_replica_cmd_for_manual_db_snapshot_creation(builddir, replica_id):
+def start_replica_cmd_with_operator(builddir, replica_id):
     """
     Return a command with operator that starts an skvbc replica when passed to
     subprocess.Popen.
@@ -237,7 +237,7 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
             self.verify_snapshot_is_available(bft_network, replica_id, old_snapshot_id, isPresent=False)
 
     @with_trio
-    @with_bft_network(start_replica_cmd_for_manual_db_snapshot_creation, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd_with_operator, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability()
     async def test_create_dbcheckpoint_cmd(self, bft_network, tracker):
         """
@@ -273,7 +273,7 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
             self.verify_snapshot_is_available(bft_network, replica_id, last_blockId)
 
     @with_trio
-    @with_bft_network(start_replica_cmd_for_manual_db_snapshot_creation, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd_with_operator, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability()
     async def test_create_dbcheckpoint_with_parallel_client_requests(self, bft_network, tracker):
         """
@@ -428,7 +428,7 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
                          "StateSnapshotRequest(participant ID = apollo_test_participant_id): failed, the DB checkpoint feature is disabled")
 
     @with_trio
-    @with_bft_network(start_replica_cmd_for_manual_db_snapshot_creation, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd_with_operator, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability()
     async def test_state_snapshot_req_existing_checkpoint(self, bft_network, tracker):
         bft_network.start_all_replicas()
@@ -458,7 +458,7 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
         self.assertEqual(resp.response.data.event_group_id, 0)
 
     @with_trio
-    @with_bft_network(start_replica_cmd_for_manual_db_snapshot_creation, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd_with_operator, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability()
     async def test_state_snapshot_req_non_existent_checkpoint(self, bft_network, tracker):
         bft_network.start_all_replicas()
@@ -488,7 +488,7 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
             await self.wait_for_snapshot(bft_network, replica_id, last_block_id)
 
     @with_trio
-    @with_bft_network(start_replica_cmd_for_manual_db_snapshot_creation, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd_with_operator, selected_configs=lambda n, f, c: n == 7)
     async def test_db_checkpoint_creation_with_wedge(self, bft_network):
         """
             We create a db-snapshot when we wedge the replicas.
@@ -567,7 +567,7 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
         
     
     @with_trio
-    @with_bft_network(start_replica_cmd_for_manual_db_snapshot_creation, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd_with_operator, selected_configs=lambda n, f, c: n == 7)
     async def test_scale_and_restart_blockchain_with_db_snapshot(self, bft_network):
         """
              Sends a scale replica command and checks that new configuration is written to blockchain.
@@ -609,6 +609,60 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
             self.assertGreater(nb_fast_path, 0)
     
 
+    @with_bft_network(start_replica_cmd_with_operator, selected_configs=lambda n, f, c: n == 7)
+    @verify_linearizability()
+    async def test_signed_public_state_hash_req_existing_checkpoint(self, bft_network, tracker):
+        bft_network.start_all_replicas()
+        client = bft_network.random_client()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+        for i in range(600):
+            await skvbc.send_write_kv_set()
+        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), 600)
+
+        # Expect that a snapshot/checkpoint with an ID of 600 is available. For that, we assume that the snapshot/checkpoint ID
+        # is the last block ID at which the snapshot/checkpoint is created.
+        await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(), 1)
+        for replica_id in range(len(bft_network.all_replicas())):
+            last_block_id = await bft_network.get_metric(replica_id, bft_network,
+                                                         "Gauges", "lastDbCheckpointBlockId", component="rocksdbCheckpoint")
+            self.assertEqual(last_block_id, 600)
+            await self.wait_for_snapshot(bft_network, replica_id, last_block_id)
+
+        op = operator.Operator(bft_network.config, client, bft_network.builddir)
+        ser_resp = await op.signed_public_state_hash_req(600)
+        ser_rsis = op.get_rsi_replies()
+        resp = cmf_msgs.ReconfigurationResponse.deserialize(ser_resp)[0]
+        self.assertTrue(resp.success)
+        replica_ids = set()
+        signatures = set()
+        for ser_rsi in ser_rsis.values():
+            rsi_resp = cmf_msgs.ReconfigurationResponse.deserialize(ser_rsi)[0]
+            self.assertEqual(rsi_resp.response.status, cmf_msgs.SignedPublicStateHashStatus.Success)
+            self.assertEqual(rsi_resp.response.data.snapshot_id, 600)
+            self.assertEqual(rsi_resp.response.data.block_id, 600)
+            # Expect the SHA3-256 hash of the empty string.
+            self.assertEqual(bytearray(rsi_resp.response.data.hash), bytes.fromhex("a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a"))
+            replica_ids.add(rsi_resp.response.data.replica_id)
+            signatures.add(rsi_resp.response.signature)
+        # Make sure the replica IDs and the signatures are unique.
+        self.assertEqual(len(replica_ids), len(bft_network.all_replicas()))
+        self.assertEqual(len(signatures), len(bft_network.all_replicas()))
+
+    @with_trio
+    @with_bft_network(start_replica_cmd_with_operator, selected_configs=lambda n, f, c: n == 7)
+    @verify_linearizability()
+    async def test_signed_public_state_hash_req_non_existent_checkpoint(self, bft_network, tracker):
+        bft_network.start_all_replicas()
+        client = bft_network.random_client()
+        op = operator.Operator(bft_network.config, client, bft_network.builddir)
+        ser_resp = await op.signed_public_state_hash_req(42)
+        ser_rsis = op.get_rsi_replies()
+        resp = cmf_msgs.ReconfigurationResponse.deserialize(ser_resp)[0]
+        self.assertTrue(resp.success)
+        for ser_rsi in ser_rsis.values():
+            rsi_resp = cmf_msgs.ReconfigurationResponse.deserialize(ser_rsi)[0]
+            self.assertEqual(rsi_resp.response.status, cmf_msgs.SignedPublicStateHashStatus.SnapshotNonExistent)
+    
     def verify_snapshot_is_available(self, bft_network, replica_id, snapshot_id, isPresent=True):
         with log.start_action(action_type="verify snapshot db files"):
             snapshot_db_dir = os.path.join(
