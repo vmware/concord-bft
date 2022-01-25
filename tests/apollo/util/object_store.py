@@ -11,6 +11,7 @@
 # file.
 import os
 import random
+import string
 import subprocess
 import tempfile
 import shutil
@@ -38,7 +39,7 @@ def start_replica_cmd_prefix(builddir, replica_id, config):
     statusTimerMilli = "500"
     path_to_s3_config = os.path.join(builddir, "test_s3_config_prefix.txt")
     if replica_id >= config.n and replica_id < config.n + config.num_ro_replicas:
-        bucket = "blockchain_" + ''.join(random.choice('0123456789ABCDEF') for i in range(6))
+        bucket = "blockchain-" + ''.join(random.choice('0123456789abcdefghijklmnopqrstuvwxyz') for i in range(6))
         with open(path_to_s3_config, "w") as f:
             f.write("# test configuration for S3-compatible storage\n"
                     "s3-bucket-name:" + bucket + "\n"
@@ -74,7 +75,9 @@ class ObjectStore:
         # self.dest_dir will contain data dir for minio buckets and the minio binary
         # if there are any directories inside data dir - they become buckets
         self.work_dir = MINIO_DATA_DIR
-        self.minio_server_data_dir = os.path.join(self.work_dir, "data")
+
+        random_end_str = ''.join(random.choice(string.ascii_letters) for i in range(20))
+        self.minio_server_data_dir = os.path.join(self.work_dir, "data_",random_end_str)
         os.makedirs(os.path.join(self.minio_server_data_dir))
         log.log_message(message_type=f"Working in {self.work_dir}")
         self.start_s3_server()
