@@ -40,12 +40,6 @@ class SkvbcFastPathTest(unittest.TestCase):
 
     __test__ = False  # so that PyTest ignores this test scenario
 
-    def setUp(self):
-        # Whenever a replica goes down, all messages initially go via the slow path.
-        # However, when an "evaluation period" elapses (set at 64 sequence numbers),
-        # the system should return to the fast path.
-        self.evaluation_period_seq_num = 64
-
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n >= 6, rotate_keys=True)
     @verify_linearizability()
@@ -54,8 +48,8 @@ class SkvbcFastPathTest(unittest.TestCase):
         This test aims to check that the fast commit path is prevalent
         in the normal, synchronous case (no failed replicas, no network partitioning).
 
-        First we write a series of K/V entries and tracked them using the tracker from the decorator.
-        Then we check that, in the process, we have stayed on the fast path.
+        First we write a series of K/V entries and check that in the process
+        we have stayed on the fast path.
 
         Finally the decorator verifies the KV execution.
         """
@@ -72,11 +66,10 @@ class SkvbcFastPathTest(unittest.TestCase):
         """
         This test aims to check the correct transition from fast to slow commit path.
 
-        First we write a series of K/V entries and track them using the tracker from the decorator, making sure
-        we stay on the fast path.
+        First we write a series of K/V entries making sure we stay on the fast path.
 
-        Once the first series of K/V writes have been processed, we bring down
-        one of the replicas, which should trigger a transition to the slow path.
+        Once the first series of K/V writes have been processed we bring down C + 1
+        replicas (more than what the fast path can tolerate), which should trigger a transition to the slow path.
 
         We send a new series of K/V writes and make sure they
         have been processed using the slow commit path.
@@ -88,9 +81,8 @@ class SkvbcFastPathTest(unittest.TestCase):
         await bft_network.wait_for_fast_path_to_be_prevalent(
             run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
 
-        unstable_replicas = bft_network.all_replicas(without={0})
-        bft_network.stop_replica(
-            replica_id=random.choice(unstable_replicas))
+        crash_targets = random.sample(bft_network.all_replicas(without={0}), bft_network.config.c + 1)
+        bft_network.stop_replicas(crash_targets)
 
         await bft_network.wait_for_slow_path_to_be_prevalent(
             run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
@@ -102,29 +94,19 @@ class SkvbcFastPathTest(unittest.TestCase):
     @verify_linearizability()
     async def test_fast_path_resilience_to_crashes(self, bft_network, tracker):
         """
-        In this test we check the fast path's resilience when up to "c" nodes fail.
+        In this test we check the fast path's resilience when "c" nodes fail.
 
-        As a first step, we bring down no more than c replicas,
-        triggering initially the slow path.
-
-        Then we write a series of K/V entries and track them using the tracker from the decorator, making sure
-        the fast path is eventually restored and becomes prevalent.
+        We write a series of K/V entries making sure the fast path is prevalent despite the crashes.
 
         Finally the decorator verifies the KV execution.
         """
 
         bft_network.start_all_replicas()
-        unstable_replicas = bft_network.all_replicas(without={0})
-        for _ in range(bft_network.config.c):
-            replica_to_stop = random.choice(unstable_replicas)
-            bft_network.stop_replica(replica_to_stop)
 
-        # make sure we first downgrade to the slow path...
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network,tracker)
-        await bft_network.wait_for_slow_path_to_be_prevalent(
-            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
+        crash_targets = random.sample(bft_network.all_replicas(without={0}), bft_network.config.c)
+        bft_network.stop_replicas(crash_targets)
 
-        # ...but eventually (after the evaluation period), the fast path is restored!
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
 
         await bft_network.wait_for_fast_path_to_be_prevalent(
             run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)

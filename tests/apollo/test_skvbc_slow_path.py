@@ -44,12 +44,6 @@ class SkvbcSlowPathTest(unittest.TestCase):
 
     __test__ = False  # so that PyTest ignores this test scenario
 
-    def setUp(self):
-        # Whenever a replica goes down, all messages initially go via the slow path.
-        # However, when an "evaluation period" elapses (set at 64 sequence numbers),
-        # the system should return to the fast path.
-        self.evaluation_period_seq_num = 64
-
     @with_trio
     @with_bft_network(start_replica_cmd,
                       selected_configs=lambda n, f, c: c == 0 and n >= 6, rotate_keys=True)
