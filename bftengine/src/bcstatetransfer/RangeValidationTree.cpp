@@ -97,13 +97,13 @@ std::string NodeVal::toString() const noexcept {
 
 std::string NodeVal::getDecoded() const noexcept {
   // Encode to string does not work
-  vector<char> enc_input(val_.MinEncodedSize());
-  val_.Encode(reinterpret_cast<CryptoPP::byte*>(enc_input.data()), enc_input.size());
-  ostringstream oss_en;
-  for (auto& c : enc_input) {
-    oss_en << c;
+  vector<char> output(val_.MinEncodedSize());
+  val_.Encode(reinterpret_cast<CryptoPP::byte*>(output.data()), output.size());
+  ostringstream oss;
+  for (auto& c : output) {
+    oss << c;
   }
-  return oss_en.str();
+  return oss.str();
 }
 
 //////////////////////////////// NodeInfo  ///////////////////////////////////
@@ -224,7 +224,9 @@ RVTNode::RVTNode(uint8_t level, uint64_t rvb_index)
       parent_id_{},
       // node is initially closed, until 1st push. Then the counter is initialized, depends on child rvb_index
       insertion_counter_{kInsertionCounterNotInitialized_},
-      initial_value_(current_value_) {}
+      initial_value_(current_value_) {
+  ConcordAssertLE(info_.level(), NodeInfo::kMaxLevels);
+}
 
 // Created from serialized data
 RVTNode::RVTNode(SerializedRVTNode& node, char* cur_val_ptr, size_t cur_value_size)
@@ -326,6 +328,7 @@ RangeValidationTree::RangeValidationTree(const logging::Logger& logger,
       logger_(logger),
       fetch_range_size_(fetch_range_size),
       value_size_(value_size) {
+  LOG_INFO(logger_, KVLOG(RVT_K, fetch_range_size_, value_size));
   NodeVal::kNodeValueMax_ = NodeVal::calcMaxValue(value_size_);
   NodeVal::kNodeValueModulo_ = NodeVal::calcModulo(value_size_);
   ConcordAssertEQ(NodeVal::kNodeValueMax_ + NodeVal_t(1), NodeVal::kNodeValueModulo_);
@@ -349,6 +352,106 @@ uint64_t RangeValidationTree::pow_uint(uint64_t base, uint64_t exp) noexcept {
     res *= base;
   }
   return res;
+}
+
+bool RangeValidationTree::validateTreeStructure() const noexcept {
+  if (root_ and empty()) {
+    LOG_ERROR(logger_, "Found stale root with empty tree");
+    return false;
+  }
+  if (!root_ and !empty()) {
+    LOG_ERROR(logger_, "Found null root with stale map");
+    return false;
+  }
+  if (root_ == nullptr) {
+    return true;
+  }
+  if (totalLevels() > NodeInfo::kMaxLevels) {
+    LOG_ERROR(logger_, "Found corrupt root node");
+    return false;
+  }
+  // Root at level more than 1 should always have more than 1 child.
+  if (root_->info_.level() > kDefaultRVTLeafLevel && root_->numChildren() == 1) {
+    LOG_ERROR(logger_, "Root having single child. Issue with tree rotation during remove operations?");
+    return false;
+  }
+  // Leftmost & righmost nodes at levels lesser than root should never be empty.
+  for (size_t i = kDefaultRVTLeafLevel; i < totalLevels(); i++) {
+    if (leftmost_rvt_node_[i] == nullptr || rightmost_rvt_node_[i] == nullptr) {
+      LOG_ERROR(logger_, "Could be issue with leftmost, rightmost calculation");
+      return false;
+    } else {
+      if (id_to_node_.find(leftmost_rvt_node_[i]->info_.id()) == id_to_node_.end()) {
+        LOG_ERROR(logger_, "Could be issue with leftmost, rightmost calculation");
+        return false;
+      }
+      if (leftmost_rvt_node_[i]->info_.level() != i) {
+        LOG_ERROR(logger_, "Level mismatch");
+        return false;
+      }
+    }
+    if (leftmost_rvt_node_[i]->info_.id() > rightmost_rvt_node_[i]->info_.id()) {
+      LOG_ERROR(logger_, "Validate min, max rvb id calcuation");
+      return false;
+    }
+  }
+  // Negative test to confirm that levels above root are set to nullptr
+  for (size_t i = totalLevels() + 1; i < NodeInfo::kMaxLevels; i++) {
+    if (leftmost_rvt_node_[i] != nullptr || rightmost_rvt_node_[i] != nullptr) {
+      LOG_ERROR(logger_, "Could be issue with cleanup during remove operation.");
+      return false;
+    }
+  }
+  // Travel to root from all nodes present at level 1.
+  // Count number of nodes visited. They should never be more than total levels in tree.
+  if (totalLevels() > kDefaultRVTLeafLevel) {
+    auto current_node = leftmost_rvt_node_[kDefaultRVTLeafLevel];
+    do {
+      if (current_node->info_.rvb_index() > max_rvb_index_) {
+        LOG_ERROR(logger_, "Max rvb index found corrupted");
+        return false;
+      }
+      RVTNodePtr copy_of_current_node = current_node;
+      RVTNodePtr parent_node;
+      for (size_t i = kDefaultRVTLeafLevel; i <= totalLevels(); ++i) {
+        parent_node = getRVTNodeByType(current_node, NodeType::PARENT);
+        // nodes in path before reaching root should not be null
+        if (parent_node == nullptr && i != totalLevels()) {
+          LOG_ERROR(logger_, "Could be issue with setting up parent_id");
+          return false;
+        }
+        // parent of root node should be null
+        // parent id of root node should be 0
+        if ((i == totalLevels()) && (parent_node || current_node->parent_id_)) {
+          LOG_ERROR(logger_, "Could be issue with tree rotation during remove operations");
+          return false;
+        }
+        if (parent_node) {
+          // rvb_index of child should be within range covered by parent
+          auto rvb_index = current_node->info_.rvb_index();
+          auto level = current_node->info_.level();
+          if (rvb_index > current_node->info_.maxPossibleSiblingRvbIndex(rvb_index, level)) {
+            LOG_ERROR(logger_, "Could be issue with creating new root node");
+            return false;
+          }
+          if (rvb_index < current_node->info_.minPossibleSiblingRvbIndex(rvb_index, level)) {
+            LOG_ERROR(logger_, "Could be issue with creating new root node");
+            return false;
+          }
+          // next node is correct
+          auto right_sibling = getRVTNodeByType(current_node, NodeType::RIGHT_SIBLING);
+          if (right_sibling && right_sibling->info_.rvb_index() != current_node->info_.nextRvbIndex(rvb_index, level)) {
+            LOG_ERROR(logger_, "Found next node incorrect");
+            return false;
+          }
+        }
+        current_node = parent_node;
+      }
+      current_node = getRVTNodeByType(copy_of_current_node, NodeType::RIGHT_SIBLING);
+    } while (current_node);
+  }
+
+  return true;
 }
 
 bool RangeValidationTree::validateTreeValues() const noexcept {
@@ -423,8 +526,6 @@ bool RangeValidationTree::validateTreeValues() const noexcept {
 
   return true;
 }
-
-bool RangeValidationTree::validateTreeStructure() const noexcept { return true; }
 
 bool RangeValidationTree::validate() const noexcept {
   if (validateTreeStructure()) {
@@ -691,17 +792,17 @@ void RangeValidationTree::addInternalNode(const RVTNodePtr& node_to_add) {
 
   /* If we are here, we might need to create multiple levels, dependend on belonging of current_node to an RVB group.
     tree is aligned to rvb index 1.
-    There might be a tree ike this (RVT_K=4)
-    L3       1
-    L2   33			49
-    L1   45			49
+    There might be a tree like this (RVT_K=4)
+    L3        1
+    L2   33			    49
+    L1   45			    49
     L0   46	47	48	49
 
     In the above tree L0 is in storage. (L1,45) is parent of 46 to 48. (L1,49) is parent of 49. 45 and 49 can't share
     the same parent, according to the formula presented in parentRvbIndexFromChild. We continue creating parents at
     level 2, which in this special example do not share same parent as well. (L3,1) span  already cover (L2,33) and
     (L2,49),
-    therefor it becomes the new root.
+    therefore it becomes the new root.
   */
   uint64_t current_root_parent_rvb_index{}, current_root_sibling_rvb_index{};
   do {
@@ -1102,8 +1203,8 @@ std::vector<RVBId> RangeValidationTree::getRvbIds(RVBGroupId rvb_group_id) const
     return rvb_ids;
   }
 
-  auto minChildId = iter->second->minChildId();
-  for (size_t rvb_index{minChildId}; rvb_index < minChildId + iter->second->numChildren(); ++rvb_index) {
+  auto min_child_id = iter->second->minChildId();
+  for (size_t rvb_index{min_child_id}; rvb_index < min_child_id + iter->second->numChildren(); ++rvb_index) {
     rvb_ids.push_back(rvbIndexToId(rvb_index));
   }
   return rvb_ids;
