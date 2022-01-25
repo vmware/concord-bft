@@ -186,6 +186,12 @@ class PreProcessor {
   void handleClientPreProcessRequestByPrimary(PreProcessRequestMsgSharedPtr preProcessRequestMsg,
                                               const std::string &batchCid,
                                               bool arrivedInBatch);
+  bool checkPreProcessReplyPrerequisites(SeqNum reqSeqNum,
+                                         const std::string &cid,
+                                         NodeIdType senderId,
+                                         const std::string &batchCid,
+                                         uint16_t offsetInBatch);
+  bool checkPreProcessBatchReplyMsgCorrectness(const PreProcessBatchReplyMsgSharedPtr &batchReply);
   void registerAndHandleClientPreProcessReqOnNonPrimary(const std::string &batchCid,
                                                         uint32_t batchSize,
                                                         ClientPreProcessReqMsgUniquePtr clientReqMsg,
