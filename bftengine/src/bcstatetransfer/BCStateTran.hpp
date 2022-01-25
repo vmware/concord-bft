@@ -116,6 +116,8 @@ class BCStateTran : public IStateTransfer {
   void saveReservedPage(uint32_t reservedPageId, uint32_t copyLength, const char* inReservedPage) override;
   void zeroReservedPage(uint32_t reservedPageId) override;
 
+  logging::Logger& logger_;
+
   // Incoming Events queue - ST main thread is a consumer of timeouts and messages arriving from an external context
   void onTimer() override { timerHandler_(); };
 
@@ -326,11 +328,13 @@ class BCStateTran : public IStateTransfer {
     bool operator==(const BlocksBatchDesc& rhs) const;
     bool operator!=(const BlocksBatchDesc& rhs) const { return !(this->operator==(rhs)); }
     bool operator<=(const BlocksBatchDesc& rhs) const { return (*this < rhs) || (*this == rhs); }
-    void reset();
     bool operator<(const BlocksBatchDesc& rhs) const;
+
+    void reset();
     bool isValid() const;
     bool isMinBlockId(uint64_t blockId) const { return blockId == minBlockId; };
     bool isMaxBlockId(uint64_t blockId) const { return blockId == maxBlockId; };
+    std::string toString() const;
   };
   friend std::ostream& operator<<(std::ostream&, const BCStateTran::BlocksBatchDesc&);
 
@@ -574,9 +578,15 @@ class BCStateTran : public IStateTransfer {
     GaugeHandle prev_win_blocks_throughput_;
     GaugeHandle prev_win_bytes_collected_;
     GaugeHandle prev_win_bytes_throughput_;
-  };
 
+    // TODO - consider moving into RVB Manager + add more metrics as needed.
+    CounterHandle overall_rvb_digests_validated_;
+    CounterHandle overall_rvb_digest_groups_validated_;
+    CounterHandle overall_rvb_digests_validation_failed_;
+    CounterHandle overall_rvb_digest_groups_validation_failed_;
+  };
   mutable Metrics metrics_;
+  Metrics createRegisterMetrics();
 
   std::map<uint64_t, concord::util::CallbackRegistry<uint64_t>> on_transferring_complete_cb_registry_;
   concord::util::CallbackRegistry<uint64_t> on_fetching_state_change_cb_registry_;
@@ -614,20 +624,23 @@ class BCStateTran : public IStateTransfer {
   // Internal Statistics (debuging, logging)
   ///////////////////////////////////////////////////////////////////////////
  protected:
-  Throughput blocks_collected_;
-  Throughput bytes_collected_;
-  std::optional<uint64_t> firstCollectedBlockId_;
-  std::optional<uint64_t> lastCollectedBlockId_;
+  // Three stages : Fetch / Commit / Post-Process
+  // Commit is less interesting for statistic, we track only 1st and 3rd
+  Throughput blocksFetched_;
+  Throughput bytesFetched_;
+  Throughput blocksPostProcessed_;
 
-  // Duration Trackers
+  uint64_t minBlockIdToCollectInCycle_;
+  uint64_t maxBlockIdToCollectInCycle_;
+  uint64_t totalBlocksLeftToCollectInCycle_;
+
   DurationTracker<std::chrono::milliseconds> cycleDT_;
-  DurationTracker<std::chrono::milliseconds> commitToChainDT_;
+  DurationTracker<std::chrono::milliseconds> postProcessingDT_;
   DurationTracker<std::chrono::milliseconds> gettingCheckpointSummariesDT_;
   DurationTracker<std::chrono::milliseconds> gettingMissingBlocksDT_;
   DurationTracker<std::chrono::milliseconds> gettingMissingResPagesDT_;
 
   FetchingState lastFetchingState_;
-  logging::Logger& logger_;
 
   void onFetchingStateChange(FetchingState newFetchingState);
 
@@ -635,18 +648,19 @@ class BCStateTran : public IStateTransfer {
   void finalizeSource(bool logSrcHistograms);
 
   // used to print periodic summary of recent checkpoints, and collected date while in state GettingMissingBlocks
-  std::string logsForCollectingStatus(const uint64_t firstRequiredBlock);
-  void reportCollectingStatus(const uint64_t firstRequiredBlock, const uint32_t actualBlockSize, bool toLog = false);
+  std::string logsForCollectingStatus();
+  void reportCollectingStatus(const uint32_t actualBlockSize, bool toLog = false);
   void startCollectingStats();
+  std::string convertUInt64ToReadableStr(uint64_t num, std::string&& trailer = "") const;
+  std::string convertMillisecToReadableStr(uint64_t ms) const;
 
   // These 2 variables are used to snapshot source historgrams for GettingMissingBlocks state
   bool sourceFlag_;
   uint8_t sourceSnapshotCounter_;
-
   uint64_t sourceBatchCounter_ = 0;
 
   ///////////////////////////////////////////////////////////////////////////
-  // Latency Historgrams
+  // Latency Historgrams (snapshots)
   ///////////////////////////////////////////////////////////////////////////
  private:
   struct Recorders {
@@ -661,7 +675,11 @@ class BCStateTran : public IStateTransfer {
       auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
       // common component
       registrar.perf.registerComponent("state_transfer",
-                                       {on_timer, time_in_incoming_events_queue, incoming_events_queue_size});
+                                       {on_timer,
+                                        time_in_incoming_events_queue,
+                                        incoming_events_queue_size,
+                                        compute_block_digest_duration,
+                                        compute_block_digest_size});
       // destination component
       registrar.perf.registerComponent("state_transfer_dest",
                                        {
@@ -676,7 +694,7 @@ class BCStateTran : public IStateTransfer {
                                         src_get_block_size_bytes,
                                         src_send_batch_duration,
                                         src_send_batch_size_bytes,
-                                        src_send_batch_size_chunks});
+                                        src_send_batch_num_of_chunks});
     }
     ~Recorders() {
       auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
@@ -693,6 +711,9 @@ class BCStateTran : public IStateTransfer {
         time_in_incoming_events_queue, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
     DEFINE_SHARED_RECORDER(
         incoming_events_queue_size, 1, MAX_INCOMING_EVENTS_QUEUE_SIZE, 3, concord::diagnostics::Unit::COUNT);
+    DEFINE_SHARED_RECORDER(
+        compute_block_digest_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(compute_block_digest_size, 1, MAX_BLOCK_SIZE, 3, concord::diagnostics::Unit::COUNT);
     // destination
     DEFINE_SHARED_RECORDER(
         dst_handle_ItemData_msg, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
@@ -709,7 +730,8 @@ class BCStateTran : public IStateTransfer {
     DEFINE_SHARED_RECORDER(
         src_send_batch_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
     DEFINE_SHARED_RECORDER(src_send_batch_size_bytes, 1, MAX_BATCH_SIZE_BYTES, 3, concord::diagnostics::Unit::BYTES);
-    DEFINE_SHARED_RECORDER(src_send_batch_size_chunks, 1, MAX_BATCH_SIZE_BLOCKS, 3, concord::diagnostics::Unit::COUNT);
+    DEFINE_SHARED_RECORDER(
+        src_send_batch_num_of_chunks, 1, MAX_BATCH_SIZE_BLOCKS, 3, concord::diagnostics::Unit::COUNT);
   };
   Recorders histograms_;
 
