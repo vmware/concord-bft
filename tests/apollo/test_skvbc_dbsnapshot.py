@@ -489,6 +489,127 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd_with_operator, selected_configs=lambda n, f, c: n == 7)
+    async def test_db_checkpoint_creation_with_wedge(self, bft_network):
+        """
+            We create a db-snapshot when we wedge the replicas.
+            Steps performed in this test:
+            1. Configure replicas to create db-snapshot with bft-sequence number window sz = 600
+            2. Send a wedge command to wedge replicas at seq number 300
+            3. Verify replicas are wedged
+            4. Verify db-checkpoints are created on stable sequence number
+            5. Unwedge replicas
+            6. Write kv requests.
+            7. Verify that 2nd db-checkpoint is created at seqNum 600 as a result of configured policy
+         """
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        client = bft_network.random_client()
+        # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
+        client.config._replace(req_timeout_milli=10000)
+        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
+        op = operator.Operator(
+            bft_network.config, client,  bft_network.builddir)
+        await op.wedge()
+        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), (checkpoint_before+2)*150)
+        await self.validate_stop_on_wedge_point(bft_network, skvbc=skvbc, fullWedge=True)
+        #verify that snapshot is created on wedge point
+        await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(), 1)
+        for replica_id in range(len(bft_network.all_replicas())):
+            last_block_id = await bft_network.get_metric(replica_id, bft_network,
+                                                         "Gauges", "lastDbCheckpointBlockId", component="rocksdbCheckpoint")
+            await self.wait_for_snapshot(bft_network, replica_id, last_block_id)
+        #verify from operatore get db snapshot status command
+        rep = await op.get_dbcheckpoint_info_request(bft=False)
+        data = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
+        self.assertTrue(data.success)
+        for r in client.get_rsi_replies().values():
+            res = cmf_msgs.ReconfigurationResponse.deserialize(r)
+            self.assertEqual(len(res[0].response.db_checkpoint_info), 1)
+            dbcheckpoint_info_list = res[0].response.db_checkpoint_info
+            self.assertTrue(any(dbcheckpoint_info.seq_num ==
+                            300 for dbcheckpoint_info in dbcheckpoint_info_list))
+        #unwedge replicas
+        await op.unwedge()
+        protocol = kvbc.SimpleKVBCProtocol(bft_network)
+        key = protocol.random_key()
+        value = protocol.random_value()
+        kv_pair = [(key, value)]
+        await client.write(protocol.write_req([], kv_pair, 0))
+        read_result = await client.read(protocol.read_req([key]))
+        value_read = (protocol.parse_reply(read_result))[key]
+        #verify that un-wedge was successfull
+        self.assertEqual(value, value_read, "A BFT Client failed to read a key-value pair from a "
+                         "SimpleKVBC cluster matching the key-value pair it wrote "
+                         "immediately prior to the read.")
+        for r in bft_network.all_replicas():
+            epoch = await bft_network.get_metric(r, bft_network, "Gauges", "epoch_number", component="epoch_manager")
+            self.assertEqual(epoch, 1)
+        for i in range(300):
+            await skvbc.send_write_kv_set()
+        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), 600)
+        await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(), 2)
+        for replica_id in range(len(bft_network.all_replicas())):
+            last_block_id = await bft_network.get_metric(replica_id, bft_network,
+                                                         "Gauges", "lastDbCheckpointBlockId", component="rocksdbCheckpoint")
+            await self.wait_for_snapshot(bft_network, replica_id, last_block_id)
+        #verify from operatore get db snapshot status command
+        rep = await op.get_dbcheckpoint_info_request(bft=False)
+        data = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
+        self.assertTrue(data.success)
+        for r in client.get_rsi_replies().values():
+            res = cmf_msgs.ReconfigurationResponse.deserialize(r)
+            self.assertEqual(len(res[0].response.db_checkpoint_info), 2)
+            dbcheckpoint_info_list = res[0].response.db_checkpoint_info
+            self.assertTrue(any(dbcheckpoint_info.seq_num ==
+                            300 for dbcheckpoint_info in dbcheckpoint_info_list))
+            self.assertTrue(any(dbcheckpoint_info.seq_num ==
+                            600 for dbcheckpoint_info in dbcheckpoint_info_list))
+        
+    
+    @with_trio
+    @with_bft_network(start_replica_cmd_with_operator, selected_configs=lambda n, f, c: n == 7)
+    async def test_scale_and_restart_blockchain_with_db_snapshot(self, bft_network):
+        """
+             Sends a scale replica command and checks that new configuration is written to blockchain.
+             Note that in this test we assume no failures and synchronized network.
+             The test does the following:
+             1. A client sends a scale replica command which will also wedge the system on next next checkpoint
+             2. Validate that all replicas have stopped
+             3. Replicas create db snapshot at wedge point
+             4. Use db snapshot to restart blockchain
+             This test is equivalent to starting a new blockchain with db snapshot
+         """
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        for i in range(100):
+            await skvbc.send_write_kv_set()
+        key, val = await skvbc.send_write_kv_set()
+        client = bft_network.random_client()
+        client.config._replace(req_timeout_milli=10000)
+        op = operator.Operator(bft_network.config, client,  bft_network.builddir)
+        test_config = 'new_configuration'
+        await op.add_remove_with_wedge(test_config, bft=False)  
+    
+        #verify that snapshot is created on wedge point
+        await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(), 1)
+        last_block_id = await bft_network.get_metric(0, bft_network,
+                                                         "Gauges", "lastDbCheckpointBlockId", component="rocksdbCheckpoint")
+        for replica_id in range(len(bft_network.all_replicas())):
+            await self.wait_for_snapshot(bft_network, replica_id, last_block_id)
+        bft_network.stop_all_replicas()
+        for r in bft_network.all_replicas():
+            #restore all replicas using snapshot created in replica id=0
+            self.restore_form_older_snapshot(bft_network, 0, last_block_id)
+        #replicas will clean metadata and start a new blockchain
+        bft_network.start_all_replicas()
+        for i in range(100):
+            await skvbc.send_write_kv_set()
+        for r in bft_network.all_replicas():
+            nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
+            self.assertGreater(nb_fast_path, 0)
+    
+
+    @with_bft_network(start_replica_cmd_with_operator, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability()
     async def test_signed_public_state_hash_req_existing_checkpoint(self, bft_network, tracker):
         bft_network.start_all_replicas()
@@ -624,3 +745,27 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
                   await trio.sleep(0.5)
               else:
                   break
+    
+
+    async def validate_stop_on_wedge_point(self, bft_network, skvbc, fullWedge=False):
+        with log.start_action(action_type="validate_stop_on_stable_checkpoint") as action:
+            with trio.fail_after(seconds=90):
+                client = bft_network.random_client()
+                client.config._replace(req_timeout_milli=10000)
+                op = operator.Operator(bft_network.config, client,  bft_network.builddir)
+                done = False
+                quorum = None if fullWedge is True else bft_client.MofNQuorum.LinearizableQuorum(bft_network.config, [r.id for r in bft_network.replicas])
+                while done is False:
+                    stopped_replicas = 0
+                    await op.wedge_status(quorum=quorum, fullWedge=fullWedge)
+                    rsi_rep = client.get_rsi_replies()
+                    done = True
+                    for r in rsi_rep.values():
+                        res = cmf_msgs.ReconfigurationResponse.deserialize(r)
+                        status = res[0].response.stopped
+                        if status:
+                            stopped_replicas += 1
+                    stop_condition = bft_network.config.n if fullWedge is True else (bft_network.config.n - bft_network.config.f)
+                    if stopped_replicas < stop_condition:
+                        done = False
+

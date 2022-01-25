@@ -206,7 +206,8 @@ DbCheckpointManager::CheckpointState DbCheckpointManager::getCheckpointState(Che
 }
 
 std::optional<CheckpointId> DbCheckpointManager::createDbCheckpointAsync(const SeqNum& seqNum,
-                                                                         const std::optional<Timestamp>& timestamp) {
+                                                                         const std::optional<Timestamp>& timestamp,
+                                                                         const std::optional<DbCheckpointId>& blockId) {
   if (seqNum <= lastCheckpointSeqNum_) {
     LOG_ERROR(getLogger(), "createDb checkpoint failed." << KVLOG(seqNum, lastCheckpointSeqNum_));
     return std::nullopt;
@@ -224,7 +225,12 @@ std::optional<CheckpointId> DbCheckpointManager::createDbCheckpointAsync(const S
     return std::nullopt;
   }
   // Get last blockId from rocksDb
-  const auto lastBlockid = getLastBlockIdCb_();
+  auto lastBlockid = BlockId{0};
+  if (blockId.has_value()) {
+    lastBlockid = blockId.value();
+  } else {
+    lastBlockid = getLastBlockIdCb_();
+  }
   if (lastBlockid == 0) {
     LOG_WARN(getLogger(), "createDb checkpoint failed. Refusing to create a checkpoint for an empty blockchain.");
     return std::nullopt;
@@ -343,5 +349,13 @@ void DbCheckpointManager::updateLastCmdInfo(const SeqNum& seqNum, const std::opt
     std::scoped_lock lock(lock_);
     updateDbCheckpointMetadata();
   }
+}
+SeqNum DbCheckpointManager::getLastStableSeqNum() const {
+  if (getLastStableSeqNumCb_) return getLastStableSeqNumCb_();
+  return 0;
+}
+BlockId DbCheckpointManager::getLastReachableBlock() const {
+  if (getLastBlockIdCb_) return getLastBlockIdCb_();
+  return 0;
 }
 }  // namespace bftEngine::impl

@@ -266,7 +266,8 @@ bool ReconfigurationHandler::handle(const concord::messages::StateSnapshotReques
              "StateSnapshotRequest(participant ID = " << cmd.participant_id << "): using existing last checkpoint ID: "
                                                       << last_checkpoint_desc->checkPointId_);
   } else {
-    const auto checkpoint_id = DbCheckpointManager::instance().createDbCheckpointAsync(sequence_number, timestamp);
+    const auto checkpoint_id =
+        DbCheckpointManager::instance().createDbCheckpointAsync(sequence_number, timestamp, std::nullopt);
     if (checkpoint_id) {
       resp.data.emplace();
       resp.data->snapshot_id = *checkpoint_id;
