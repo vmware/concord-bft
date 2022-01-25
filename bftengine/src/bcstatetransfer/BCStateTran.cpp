@@ -1387,7 +1387,10 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
 
   // Set (overwrite) the RVB data
   if (m->sizeofRvbData() > 0) {
-    if (!rvbm_->setRvbData(checkSummary->data, checkSummary->sizeofRvbData())) {
+    if (!rvbm_->setRvbData(checkSummary->data,
+                           checkSummary->sizeofRvbData(),
+                           as_->getLastReachableBlockNum() + 1,
+                           checkSummary->maxBlockId)) {
       LOG_ERROR(logger_, "Failed to set the new RVT data!");
       rvbm_->reset();
       EnterGettingCheckpointSummariesState();
