@@ -33,7 +33,7 @@ ClientPreProcessRequestMsg::ClientPreProcessRequestMsg(NodeIdType sender,
                        request,
                        reqTimeoutMilli,
                        cid,
-                       0,
+                       1,
                        spanContext,
                        requestSignature,
                        requestSignatureLen) {
