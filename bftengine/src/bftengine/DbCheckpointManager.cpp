@@ -121,7 +121,7 @@ void DbCheckpointManager::init() {
   monitorThread_ = std::thread([this]() {
     while (maxNumOfCheckpoints_ && !stopped_) {
       checkAndRemove();
-      std::this_thread::sleep_for(std::chrono::seconds{60});
+      std::this_thread::sleep_for(std::chrono::seconds{ReplicaConfig::instance().dbCheckpointMonitorIntervalSeconds});
     }
   });
 }

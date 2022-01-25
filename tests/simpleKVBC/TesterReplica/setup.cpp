@@ -231,6 +231,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
           replicaConfig.dbCheckpointFeatureEnabled = false;
           replicaConfig.dbCheckPointWindowSize = 150;
           replicaConfig.dbSnapshotIntervalSeconds = std::chrono::seconds{0};
+          replicaConfig.dbCheckpointMonitorIntervalSeconds = std::chrono::seconds{5};
           replicaConfig.maxNumberOfDbCheckpoints = concord::util::to<std::uint32_t>(std::string(optarg));
           if (replicaConfig.maxNumberOfDbCheckpoints) replicaConfig.dbCheckpointFeatureEnabled = true;
           std::stringstream dbSnapshotPath;
