@@ -175,9 +175,10 @@ class RVBManager {
                             const char* block,
                             const uint32_t block_size,
                             char* out_digest) const;
-  void addRvbDataOnBlockRange(uint64_t min_block_id,
-                              uint64_t max_block_id,
-                              const std::optional<STDigest>& digest_of_max_block_id);
+  // Returns # of RVBs added
+  uint64_t addRvbDataOnBlockRange(uint64_t min_block_id,
+                                  uint64_t max_block_id,
+                                  const std::optional<STDigest>& digest_of_max_block_id);
   // returns the next RVB ID after block_id. If block_id is an RVB ID, returns block_id.
   inline RVBId nextRvbBlockId(BlockId block_id) const;
 

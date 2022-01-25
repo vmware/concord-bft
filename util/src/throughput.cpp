@@ -26,10 +26,11 @@ void Throughput::start() {
 }
 
 void Throughput::end() {
-  ConcordAssert(started_);
   started_ = false;
   overall_stats_.reset();
-  if (num_reports_per_window_ > 0ul) current_window_stats_.reset();
+  if (num_reports_per_window_ > 0ul) {
+    current_window_stats_.reset();
+  }
 }
 
 bool Throughput::report(uint64_t items_processed, bool trigger_calc_throughput) {
@@ -68,8 +69,11 @@ void Throughput::resume() {
 
 const Throughput::Results& Throughput::getOverallResults() {
   if (!prev_win_calculated_) {
-    ConcordAssert(started_);
-    overall_stats_.calcThroughput();
+    if (started_) {
+      overall_stats_.calcThroughput();
+    } else {
+      memset(&overall_stats_.results_, 0, sizeof(overall_stats_.results_));
+    }
   }
   return overall_stats_.results_;
 }
