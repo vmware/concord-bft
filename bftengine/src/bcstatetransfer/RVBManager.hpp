@@ -84,7 +84,8 @@ class RVBManager {
   std::ostringstream getRvbData() const;
 
   // Get a serialized RVB data. Used by ST destination (during checkpoint summaries)
-  bool setRvbData(char* data, size_t data_size);
+  // min_block_id_span, max_block_id_span are used to validate that the tree indeed span the whole collecting range
+  bool setRvbData(char* data, size_t data_size, BlockId min_block_id_span, BlockId max_block_id_span);
 
   // Called during ST GettingMissingBlocks by source when received FetchBlocksMsg with rvb_group_id != 0
   // Returns number of bytes filled. We assume that rvb_group_id must exist. This can be checked by calling
@@ -127,10 +128,13 @@ class RVBManager {
   // Validate integrity of RVBM data. In particular, validated the RVT
   bool validate() const;
 
-  // For the range [from_block_id, to_block_id], returns a block id BID, such that:
-  // 1) Find all RVB group IDS for that range [RVBG_1,RVBG_2 ... RVBG_n]
+  // For the range [from_block_id, to_block_id], we 1st perform:
+  // 1) Find all RVB group IDS for that range [RVBG_1,RVBG_2 ... RVBG_n].In simple words - all level 1 nodes which are
+  // direct parents of 1 or more blocks in that range.
   // 2) Remove all the already stored RVB groups. We remian with an i>=1: [RVBG_i,RVBG_i+1 ... RVBG_n]
-  // 3) BID is the max RVB block ID in RVBG_i
+  //
+  // Return a block id BID, such that BID is the max RVB block ID in RVBG_i
+  //
   // This is done to simplify RVB digests fetching, in order to ask for a single group of digests per a single
   // FetchBlocksMsg
   BlockId getRvbGroupMaxBlockIdOfNonStoredRvbGroup(BlockId from_block_id, BlockId to_block_id) const;
@@ -175,12 +179,10 @@ class RVBManager {
                               uint64_t max_block_id,
                               const std::optional<STDigest>& digest_of_max_block_id);
   // returns the next RVB ID after block_id. If block_id is an RVB ID, returns block_id.
-  inline BlockId nextRvbBlockId(BlockId block_id) const;
+  inline RVBId nextRvbBlockId(BlockId block_id) const;
 
   // returns the previous RVB ID to block_id. If block_id is an RVB ID, returns block_id.
-  BlockId prevRvbBlockId(BlockId block_id) const {
-    return config_.fetchRangeSize * (block_id / config_.fetchRangeSize);
-  }
+  RVBId prevRvbBlockId(BlockId block_id) const { return config_.fetchRangeSize * (block_id / config_.fetchRangeSize); }
   void pruneRvbDataDuringCheckpoint(const CheckpointDesc& new_checkpoint_desc);
   // Returns 0 if no such ID
   RVBGroupId getNextRequiredRvbGroupid(RVBId from_rvb_id, RVBId to_rvb_id) const;
