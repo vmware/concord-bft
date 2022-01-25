@@ -205,8 +205,9 @@ DbCheckpointManager::CheckpointState DbCheckpointManager::getCheckpointState(Che
   return CheckpointState::kNonExistent;
 }
 
-std::optional<CheckpointId> DbCheckpointManager::createDbCheckpointAsync(
-    const SeqNum& seqNum, const std::optional<Timestamp>& timestamp, const std::optional<DbCheckpointId>& snapshotId) {
+std::optional<CheckpointId> DbCheckpointManager::createDbCheckpointAsync(const SeqNum& seqNum,
+                                                                         const std::optional<Timestamp>& timestamp,
+                                                                         const std::optional<DbCheckpointId>& blockId) {
   if (seqNum <= lastCheckpointSeqNum_) {
     LOG_ERROR(getLogger(), "createDb checkpoint failed." << KVLOG(seqNum, lastCheckpointSeqNum_));
     return std::nullopt;
@@ -225,8 +226,8 @@ std::optional<CheckpointId> DbCheckpointManager::createDbCheckpointAsync(
   }
   // Get last blockId from rocksDb
   auto lastBlockid = BlockId{0};
-  if (snapshotId.has_value()) {
-    lastBlockid = snapshotId.value();
+  if (blockId.has_value()) {
+    lastBlockid = blockId.value();
   } else {
     lastBlockid = getLastBlockIdCb_();
   }

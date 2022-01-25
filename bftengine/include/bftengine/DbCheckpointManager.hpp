@@ -47,7 +47,7 @@ class DbCheckpointManager {
   /***************************************************
    *@Input parameter1: Request sequnce number
    *@Input parameter2: Optional request timestamp
-   *@Input parameter3: Optional snapshotId
+   *@Input parameter3: Optional blockId
    *@Description: Creates rocksdb checkpoint asynchronously if database has new state.
    *  If we already have a checkpoint with same state as lastBlock in the DB, we reject the request.
    *  Creating another db checkpoint with the same state as the previous one has no use.
@@ -58,13 +58,13 @@ class DbCheckpointManager {
    *  replicas. All replicas handle db-snapshot create request at same seq num and snapshot id is equal to
    *  the last reachable block number at that time. Some replicas may not have reached stable sequence number while
    *  handling the request, in that case it waits to reach the sable sequence number before creating snapshot. In
-   *  such a case, we pass snapshot id as input paramter, and it is used to trim extra blocks that might be present in
+   *  such a case, we pass block id as input paramter, and it is used to trim extra blocks that might be present in
    *  the db snapshot if required.
    *@Return: returns a unique db checkpoint id. Else return std::nullopt
    ***************************************************/
   std::optional<CheckpointId> createDbCheckpointAsync(const SeqNum& seqNum,
                                                       const std::optional<Timestamp>& timestamp,
-                                                      const std::optional<DbCheckpointId>& snapshotId);
+                                                      const std::optional<DbCheckpointId>& blockId);
 
   /***************************************************
    *@Description: Returns last created db checkpoint metadata. If there is no db-checkpoint created then it returns
