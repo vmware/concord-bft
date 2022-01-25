@@ -161,6 +161,9 @@ class BCStateTran : public IStateTransfer {
   void peekConsensusMessage(shared_ptr<ConsensusMsg>& msg);
 
  protected:
+  // enter a new cycle internally
+  void startCollectingStateInternal();
+
   // handling messages from other context
   void handleStateTransferMessageImp(char* msg,
                                      uint32_t msgLen,
@@ -195,6 +198,7 @@ class BCStateTran : public IStateTransfer {
   uint64_t maxNumOfStoredCheckpoints_;
   uint64_t numberOfReservedPages_;
   uint32_t cycleCounter_;
+  uint32_t internalCycleCounter_;
 
   std::atomic<bool> running_ = false;
   IReplicaForStateTransfer* replicaForStateTransfer_ = nullptr;
@@ -376,8 +380,6 @@ class BCStateTran : public IStateTransfer {
 
   void processData(bool lastInBatch = false, uint32_t rvbDigestsSize = 0);
   void cycleEndSummary();
-
-  void EnterGettingCheckpointSummariesState();
   set<uint16_t> allOtherReplicas();
   void SetAllReplicasAsPreferred();
 
@@ -581,6 +583,8 @@ class BCStateTran : public IStateTransfer {
   Metrics createRegisterMetrics();
 
   std::map<uint64_t, concord::util::CallbackRegistry<uint64_t>> on_transferring_complete_cb_registry_;
+  // TODO - on_fetching_state_change_cb_registry_ should be removed
+  // All callbacks should be integrated as a callback into on_transferring_complete_cb_registry_.
   concord::util::CallbackRegistry<uint64_t> on_fetching_state_change_cb_registry_;
 
  protected:
@@ -731,6 +735,8 @@ class BCStateTran : public IStateTransfer {
   AsyncTimeRecorder<false> src_send_batch_duration_rec_;
   AsyncTimeRecorder<false> dst_time_between_sendFetchBlocksMsg_rec_;
   AsyncTimeRecorder<false> time_in_incoming_events_queue_rec_;
+
+  // TODO - This member do not belong here (CRE) - move outside
   std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> cre_ = nullptr;
 };  // class BCStateTran
 
