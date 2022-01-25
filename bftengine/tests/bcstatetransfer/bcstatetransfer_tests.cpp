@@ -1325,9 +1325,9 @@ void BcStTest::dstRestart(bool productDbDeleteOnEnd, FetchingState expectedState
   testConfig_.productDbDeleteOnEnd = productDbDeleteOnEnd;
   datastore_ = createDataStore(testConfig_.bcstDbPath, targetConfig_);
   stateTransfer_ = make_unique<BCStateTran>(targetConfig_, &appState_, datastore_);
-  stateTransfer_->init(testConfig_.maxNumOfRequiredStoredCheckpoints,
-                       testConfig_.numberOfRequiredReservedPages,
-                       targetConfig_.sizeOfReservedPage);
+  ASSERT_NFF(stateTransfer_->init(testConfig_.maxNumOfRequiredStoredCheckpoints,
+                                  testConfig_.numberOfRequiredReservedPages,
+                                  targetConfig_.sizeOfReservedPage));
   cmnStartRunning(expectedState);
   stDelegator_->onTimerImp();
 }
@@ -1816,7 +1816,7 @@ TEST_F(BcStTest, ValidateRvbDataInitialSource) {
   // Get the serialized data, and set it back, expect RvbDataInitialSource == FROM_NETWORK
   auto rvbData = rvbm->getRvbData();
   string s = rvbData.str();
-  rvbm->setRvbData(s.data(), s.size());
+  rvbm->setRvbData(s.data(), s.size(), testState_.minRequiredBlockId, testState_.maxRequiredBlockId);
   ASSERT_EQ(rvbm->getRvbDataSource(), RVBManager::RvbDataInitialSource::FROM_NETWORK);
 
   testConfig_.productDbDeleteOnEnd = true;
