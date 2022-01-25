@@ -131,7 +131,7 @@ class RVBManager {
   // For the range [from_block_id, to_block_id], we 1st perform:
   // 1) Find all RVB group IDS for that range [RVBG_1,RVBG_2 ... RVBG_n].In simple words - all level 1 nodes which are
   // direct parents of 1 or more blocks in that range.
-  // 2) Remove all the already stored RVB groups. We remian with an i>=1: [RVBG_i,RVBG_i+1 ... RVBG_n]
+  // 2) Remove all the already stored RVB groups. We remain with an i>=1: [RVBG_i,RVBG_i+1 ... RVBG_n]
   //
   // Return a block id BID, such that BID is the max RVB block ID in RVBG_i
   //
@@ -175,9 +175,10 @@ class RVBManager {
                             const char* block,
                             const uint32_t block_size,
                             char* out_digest) const;
-  void addRvbDataOnBlockRange(uint64_t min_block_id,
-                              uint64_t max_block_id,
-                              const std::optional<STDigest>& digest_of_max_block_id);
+  // Returns # of RVBs added
+  uint64_t addRvbDataOnBlockRange(uint64_t min_block_id,
+                                  uint64_t max_block_id,
+                                  const std::optional<STDigest>& digest_of_max_block_id);
   // returns the next RVB ID after block_id. If block_id is an RVB ID, returns block_id.
   inline RVBId nextRvbBlockId(BlockId block_id) const;
 

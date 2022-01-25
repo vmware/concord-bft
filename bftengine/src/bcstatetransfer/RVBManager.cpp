@@ -21,8 +21,10 @@
 
 #include "RangeValidationTree.hpp"
 #include "RVBManager.hpp"
+#include "throughput.hpp"
 
 using namespace std;
+using namespace concord::util;
 
 namespace bftEngine::bcst::impl {
 
@@ -90,12 +92,16 @@ void RVBManager::init(bool fetching) {
   if (!loaded_from_data_store && (desc.maxBlockId > 0)) {
     // If desc data is valid, try to reconstruct by reading digests from storage (no persistency data was found)
     LOG_WARN(logger_, "Reconstructing RVB data" << KVLOG(loaded_from_data_store, desc.maxBlockId));
-    addRvbDataOnBlockRange(
+    DurationTracker<std::chrono::milliseconds> reconstruct_dt;
+    reconstruct_dt.start();
+    auto num_rvbs_added = addRvbDataOnBlockRange(
         as_->getGenesisBlockNum(), desc.maxBlockId, std::optional<STDigest>(desc.digestOfMaxBlockId));
     if (!in_mem_rvt_->validate()) {
       LOG_FATAL(logger_, "Failed to validate reconstructed RVB data from storage" << KVLOG(desc.checkpointNum));
     }
     rvb_data_source_ = RvbDataInitialSource::FROM_STORAGE_RECONSTRUCTION;
+    auto total_duration = reconstruct_dt.totalDuration(true);
+    LOG_INFO(logger_, "Done Reconstructing RVB data from storage" << KVLOG(total_duration, num_rvbs_added));
   }
 
   LOG_INFO(logger_, std::boolalpha << KVLOG(pruned_blocks_digests_.size(), desc.checkpointNum, loaded_from_data_store));
@@ -579,16 +585,16 @@ const STDigest RVBManager::getBlockAndComputeDigest(uint64_t block_id) const {
   return digest;
 }
 
-void RVBManager::addRvbDataOnBlockRange(uint64_t min_block_id,
-                                        uint64_t max_block_id,
-                                        const std::optional<STDigest>& digest_of_max_block_id) {
+uint64_t RVBManager::addRvbDataOnBlockRange(uint64_t min_block_id,
+                                            uint64_t max_block_id,
+                                            const std::optional<STDigest>& digest_of_max_block_id) {
   LOG_TRACE(logger_, KVLOG(min_block_id, max_block_id));
   ConcordAssertLE(min_block_id, max_block_id);
   uint64_t rvb_nodes_added{};
 
   if (max_block_id == 0) {
     LOG_WARN(logger_, KVLOG(max_block_id));
-    return;
+    return 0;
   }
   uint64_t current_rvb_id = nextRvbBlockId(min_block_id);
   RVBId max_rvb_id_in_rvt = in_mem_rvt_->getMaxRvbId();
@@ -626,6 +632,7 @@ void RVBManager::addRvbDataOnBlockRange(uint64_t min_block_id,
     LOG_INFO(logger_,
              "Updated RVT (add):" << KVLOG(min_block_id, max_block_id, rvb_nodes_added, as_->getLastBlockNum()));
   }
+  return rvb_nodes_added;
 }
 
 RVBId RVBManager::nextRvbBlockId(BlockId block_id) const {
