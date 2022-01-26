@@ -1332,6 +1332,61 @@ TEST_F(BcStTest, dstPreprepareFromMultipleSourcesDuringStateTransfer) {
   ASSERT_EQ(BCStateTran::FetchingState::NotFetching, stateTransfer_->getFetchingState());
 }
 
+/////////////////////////////////////////////////////////
+//
+//       BcStTest Source Test Cases
+//
+/////////////////////////////////////////////////////////
+
+TEST_F(BcStTest, srcHandleAskForCheckpointSummariesMsg) {
+  testConfig_.testTarget = TestConfig::TestTarget::SOURCE;
+  ASSERT_NFF(initialize());
+  ASSERT_NFF(cmnStartRunning());
+  // Generate the data needed for a tested ST backup replica
+  ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, testState_.maxRequiredBlockId));
+  ASSERT_NFF(dataGen_->generateCheckpointDescriptors(
+      appState_, datastore_, testState_.fromCheckpoint, testState_.toCheckpoint));
+  // Fake ask for checkpoint summaries
+  fakeDstReplica_->sendAskForCheckpointSummariesMsg(testState_.lastCheckpointKnownToRequester);
+  // Validate response from tested ST backup replica
+  ASSERT_NFF(srcAssertCheckpointSummariesSent(testState_.fromCheckpoint, testState_.toCheckpoint));
+}
+
+TEST_F(BcStTest, srcHandleFetchBlocksMsg) {
+  testConfig_.testTarget = TestConfig::TestTarget::SOURCE;
+  ASSERT_NFF(initialize());
+  ASSERT_NFF(cmnStartRunning());
+  // Generate the data needed for a tested ST backup replica
+  ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, testState_.maxRequiredBlockId));
+  ASSERT_NFF(dataGen_->generateCheckpointDescriptors(
+      appState_, datastore_, testState_.fromCheckpoint, testState_.toCheckpoint));
+  ASSERT_NFF(fakeDstReplica_->sendFetchBlocksMsg(testState_.minRequiredBlockId, testState_.maxRequiredBlockId));
+  uint64_t minExpectedBlockId = (testState_.numBlocksToCollect > targetConfig_.maxNumberOfChunksInBatch)
+                                    ? (testState_.maxRequiredBlockId - targetConfig_.maxNumberOfChunksInBatch + 1)
+                                    : testState_.minRequiredBlockId;
+  ASSERT_NFF(srcAssertItemDataMsgBatchSentWithBlocks(minExpectedBlockId, testState_.maxRequiredBlockId));
+}
+
+TEST_F(BcStTest, srcHandleFetchResPagesMsg) {
+  testConfig_.testTarget = TestConfig::TestTarget::SOURCE;
+  // we want to make sure size of vBlock will enter a single chunk
+  testConfig_.maxNumberOfUpdatedReservedPages =
+      targetConfig_.maxNumberOfChunksInBatch /
+      (targetConfig_.sizeOfReservedPage / targetConfig_.maxBlockSize + 1);  // approx calculation
+  targetConfig_.maxBlockSize = std::max(
+      targetConfig_.sizeOfReservedPage + testConfig_.maxNumberOfUpdatedReservedPages * targetConfig_.sizeOfReservedPage,
+      targetConfig_.maxBlockSize);
+  targetConfig_.maxChunkSize = targetConfig_.maxBlockSize;
+  ASSERT_NFF(initialize());
+  ASSERT_NFF(cmnStartRunning());
+  // Generate the data needed for a tested ST backup replica
+  ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, testState_.maxRequiredBlockId));
+  ASSERT_NFF(dataGen_->generateCheckpointDescriptors(
+      appState_, datastore_, testState_.fromCheckpoint, testState_.toCheckpoint));
+  ASSERT_NFF(fakeDstReplica_->sendFetchResPagesMsg(testState_.lastCheckpointKnownToRequester, testState_.toCheckpoint));
+  ASSERT_NFF(srcAssertItemDataMsgBatchSentWithResPages(1, testState_.toCheckpoint));
+}
+
 }  // namespace bftEngine::bcst::impl
 
 int main(int argc, char** argv) {
