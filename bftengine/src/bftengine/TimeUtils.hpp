@@ -27,26 +27,48 @@
 namespace bftEngine {
 namespace impl {
 
-typedef std::chrono::steady_clock::time_point Time;
+using std::chrono::steady_clock;
+using std::chrono::duration_cast;
+using std::chrono::seconds;
+using std::chrono::milliseconds;
+using std::chrono::microseconds;
+using std::chrono::time_point;
+using std::chrono::system_clock;
 
-const Time MaxTime = std::chrono::steady_clock::time_point::max();
+typedef steady_clock::time_point Time;
+
+const Time MaxTime = steady_clock::time_point::max();
 
 // Don't use time_point::min() as it returns a time_since_epoch that is
 // negative. This is because the underlying representation is a signed long.
 // The default constructor on the other hand returns a time_since_epoch of 0,
 // which is what we want.
-const Time MinTime = std::chrono::steady_clock::time_point();
+const Time MinTime = steady_clock::time_point();
 
-#define getMonotonicTime std::chrono::steady_clock::now
+#define getMonotonicTime steady_clock::now
 
 // Make a steady clock printable in UTC
-inline std::string utcstr(const std::chrono::steady_clock::time_point &time_point) {
+inline std::string utcstr(const steady_clock::time_point &time_point) {
   using namespace std::chrono;
   time_t systime = system_clock::to_time_t(system_clock::now() +
                                            duration_cast<system_clock::duration>(time_point - steady_clock::now()));
   std::ostringstream os;
   os << std::put_time(std::gmtime(&systime), "%c %Z");
   return os.str();
+}
+
+inline uint64_t getMonotonicTimeMicro() {
+  steady_clock::time_point curTimePoint = steady_clock::now();
+  auto timeSinceEpoch = curTimePoint.time_since_epoch();
+  uint64_t micro = duration_cast<microseconds>(timeSinceEpoch).count();
+  return micro;
+}
+
+inline uint64_t getMonotonicTimeMilli() {
+  steady_clock::time_point curTimePoint = steady_clock::now();
+  auto timeSinceEpoch = curTimePoint.time_since_epoch();
+  uint64_t milli = duration_cast<milliseconds>(timeSinceEpoch).count();
+  return milli;
 }
 
 }  // namespace impl

@@ -103,7 +103,6 @@ class RequestProcessingState {
  private:
   static concord::util::SHA3_256::Digest convertToArray(
       const uint8_t resultsHash[concord::util::SHA3_256::SIZE_IN_BYTES]);
-  static uint64_t getMonotonicTimeMilli();
   static logging::Logger& logger() {
     static logging::Logger logger_ = logging::getLogger("concord.preprocessor");
     return logger_;
