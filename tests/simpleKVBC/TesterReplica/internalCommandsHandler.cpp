@@ -145,6 +145,17 @@ void InternalCommandsHandler::preExecute(IRequestsHandler::ExecutionRequest &req
                                          std::optional<bftEngine::Timestamp> timestamp,
                                          const std::string &batchCid,
                                          concordUtils::SpanWrapper &parent_span) {
+  if (req.flags & bftEngine::DB_CHECKPOINT_FLAG) return;
+
+  if (req.outExecutionStatus != static_cast<uint32_t>(OperationResult::UNKNOWN)) {
+    return;  // Request already executed (internal)
+  }
+  OperationResult res;
+  if (req.requestSize <= 0) {
+    LOG_ERROR(m_logger, "Received size-0 request.");
+    req.outExecutionStatus = static_cast<uint32_t>(OperationResult::INVALID_REQUEST);
+    return;
+  }
   const uint8_t *request_buffer_as_uint8 = reinterpret_cast<const uint8_t *>(req.request);
   bool readOnly = req.flags & MsgFlag::READ_ONLY_FLAG;
   if (readOnly) {
@@ -153,7 +164,7 @@ void InternalCommandsHandler::preExecute(IRequestsHandler::ExecutionRequest &req
                   << "seqNum=" << req.executionSequenceNum << " batchCid" << batchCid);
     return;
   }
-  auto res = verifyWriteCommand(req.requestSize, request_buffer_as_uint8, req.maxReplySize, req.outActualReplySize);
+  res = verifyWriteCommand(req.requestSize, request_buffer_as_uint8, req.maxReplySize, req.outActualReplySize);
   if (res != OperationResult::SUCCESS) {
     LOG_INFO(GL, "Operation result is not success in verifying write command");
   } else {
