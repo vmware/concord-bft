@@ -813,77 +813,73 @@ void FakeSources::replyResPagesMsg(bool& outDoneSending) {
 }
 
 /////////////////////////////////////////////////////////
-// BcStTest - Test fixture for blockchain state transfer tests
+// BcStTest
+//
+// Test fixture for blockchain state transfer tests
 /////////////////////////////////////////////////////////
 class BcStTest : public ::testing::Test {
-  using MetricKeyValPairs = std::vector<std::pair<std::string, uint64_t>>;
-
+  /**
+   * We are testing destination or source ST replica.
+   * To simplify code, and to avoid having another hierarchy of production dest/source "replicas" which wrap ST
+   * module in test, we include in this fixture 2 types of members:
+   * 1) Test infrastructure-related members
+   * 2) State Transfer building blocks, which represent an ST replica in test, with ST being tested.
+   */
  protected:
-  // Initializers and finalizers
-  void SetUp() override;
+  // Infra - Initializers and finalizers
+  void SetUp() override{};
   void TearDown() override;
   void initialize();
 
-  // State Transfer proxies (BcStTest is a friend class)
-  void onTimerImp() { stateTransfer_->onTimerImp(); }
-  SourceSelector& getSourceSelector() { return stateTransfer_->sourceSelector_; }
+  // Infra configuration and initialization
+  Config targetConfig_ = targetConfig();
+  TestConfig testConfig_;
+  TestState testState_;
 
-  // Tests common
-  void startStateTransfer();
-  void assertAskForCheckpointSummariesSent(uint64_t checkpoint_num);
-  void assertFetchBlocksMsgSent(uint64_t firstRequiredBlock, uint64_t lastRequiredBlock);
-  void assertFetchResPagesMsgSent();
+  // Infra Fake replicas
+  std::unique_ptr<FakeSources> fakeSrcReplica_;
+  std::unique_ptr<FakeDestination> fakeDstReplica_;
 
-  // Source Selector metric
-  void assertSourceSelectorMetricKeyVal(const std::string& key, uint64_t val);
-  void validateSourceSelectorMetricCounters(const MetricKeyValPairs& metric_counters);
+  // Infra services
+  std::shared_ptr<DataGenerator> dataGen_;
+  std::shared_ptr<BcStTestDelegator> stDelegator_;
 
  private:
+  // Infra initialize helpers
   void printConfiguration();
-
-  // Test Target vars - all the below are used to create a tested replica
- protected:
-  Config targetConfig_ = targetConfig();
-  TestAppState appState_;
-  TestReplica replica_;
-  std::shared_ptr<BCStateTran> stateTransfer_;
-  DataStore* datastore_ = nullptr;
-
-  // Test body related members
-  std::unique_ptr<MockedSources> mockedSrc_;
-  TestConfig testConfig_;
-  TestState test_state_;
+  void configureLog(const string& logLevel);
   bool initialized_ = false;
-  MsgGenerator msg_generator_;
-  bftEngine::test::ReservedPagesMock<EpochManager> res_pages_mock_;
+
+ protected:
+  // Target/Product ST - destination API & assertions
+  void dstStartRunningAndCollecting();
+  void dstStartCollecting();
+  void dstAssertAskForCheckpointSummariesSent(uint64_t checkpoint_num);
+  void dstAssertFetchBlocksMsgSent(uint64_t firstRequiredBlock, uint64_t lastRequiredBlock);
+  void dstAssertFetchResPagesMsgSent();
+
+  // Target/Product ST - source API & assertions// This should be the same as TestConfig
+  void srcAssertCheckpointSummariesSent(uint64_t fromCheckpoint, uint64_t toCheckpoint);
+  void srcAssertItemDataMsgBatchSentWithBlocks(uint64_t minExpectedBlockId, uint64_t maxExpectedBlockId);
+  void srcAssertItemDataMsgBatchSentWithResPages(uint32_t expectedChunksSent, uint64_t requiredCheckpointNum);
+
+  // Target/Product ST - common (as source/destination) API & assertions
+  void cmnStartRunning();
+
+  // Target/Product ST - Source Selector
+  using MetricKeyValPairs = std::vector<std::pair<std::string, uint64_t>>;
+  void validateSourceSelectorMetricCounters(const MetricKeyValPairs& metricCounters);
+
+  // These members are used to construct stateTransfer_
+  TestAppState appState_;
+  DataStore* datastore_ = nullptr;
+  TestReplica testedReplicaIf_;
+  std::shared_ptr<BCStateTran> stateTransfer_;
 };  // class BcStTest
 
 /////////////////////////////////////////////////////////
 // BcStTest - definition
 /////////////////////////////////////////////////////////
-void BcStTest::SetUp() {
-  // Uncomment if needed after setting the required log level
-#ifdef USE_LOG4CPP
-  log4cplus::LogLevel logLevel = log4cplus::INFO_LOG_LEVEL;
-  // logging::Logger::getInstance("serializable").setLogLevel(logLevel);
-  // logging::Logger::getInstance("concord.bft.st.dbdatastore").setLogLevel(logLevel);
-  logging::Logger::getInstance("concord.bft.st.dst").setLogLevel(logLevel);
-  logging::Logger::getInstance("concord.bft.st.src").setLogLevel(logLevel);
-  logging::Logger::getInstance("concord.util.handoff").setLogLevel(logLevel);
-  logging::Logger::getInstance("concord.bft").setLogLevel(logLevel);
-  // logging::Logger::getInstance("rocksdb").setLogLevel(logLevel);
-#else
-  logging::LogLevel logLevel = logging::LogLevel::info;
-  // logging::Logger::getInstance("serializable").setLogLevel(logLevel);
-  // logging::Logger::getInstance("concord.bft.st.dbdatastore").setLogLevel(logLevel);
-  // logging::Logger::getInstance("rocksdb").setLogLevel(logLevel);
-  logging::Logger::getInstance("concord.bft.st.dst").setLogLevel(logLevel);
-  logging::Logger::getInstance("concord.bft.st.src").setLogLevel(logLevel);
-  logging::Logger::getInstance("concord.util.handoff").setLogLevel(logLevel);
-  logging::Logger::getInstance("concord.bft").setLogLevel(logLevel);
-#endif
-}
-
 void BcStTest::TearDown() {
   if (stateTransfer_) {
     // Must stop running before destruction
@@ -898,62 +894,70 @@ void BcStTest::TearDown() {
 // 1) testConfig_
 // 2) targetConfig_
 void BcStTest::initialize() {
+  Block::setMaxTotalBlockSize(targetConfig_.maxBlockSize);
+  ASSERT_NFF(configureLog(testConfig_.logLevel));
+  // Set starting test state - blocks and checkpoints
+  testState_.init(testConfig_, appState_);
   printConfiguration();
   if (testConfig_.productDbDeleteOnStart) deleteBcStateTransferDbFolder(testConfig_.BCST_DB);
-
+  ASSERT_LE(testConfig_.minNumberOfUpdatedReservedPages, testConfig_.maxNumberOfUpdatedReservedPages);
   // For now we assume no chunking is supported
-  ConcordAssertEQ(targetConfig_.maxChunkSize, targetConfig_.maxBlockSize);
+  ASSERT_EQ(targetConfig_.maxChunkSize, targetConfig_.maxBlockSize);
 
-  test_state_.expectedFirstRequiredBlockNum = appState_.getGenesisBlockNum() + 1;
-  test_state_.expectedLastRequiredBlockNum =
-      (testConfig_.lastReachedcheckpointNum + 1) * testConfig_.checkpointWindowSize;
-
-#ifdef USE_ROCKSDB
-  auto* db_key_comparator = new concord::kvbc::v1DirectKeyValue::DBKeyComparator();
-  concord::storage::IDBClient::ptr dbc(new concord::storage::rocksdb::Client(
-      string(testConfig_.BCST_DB), make_unique<KeyComparator>(db_key_comparator)));
-  dbc->init();
-  datastore_ = new DBDataStore(dbc,
-                               targetConfig_.sizeOfReservedPage,
-                               make_shared<concord::storage::v1DirectKeyValue::STKeyManipulator>(),
-                               targetConfig_.enableReservedPages);
-#else
-  auto comparator = concord::storage::memorydb::KeyComparator(db_key_comparator);
-  concord::storage::IDBClient::ptr dbc1(new concord::storage::memorydb::Client(comparator));
-  datastore_ = new InMemoryDataStore(targetConfig_.sizeOfReservedPage);
-#endif
-
-  stateTransfer_.reset(new BCStateTran(targetConfig_, &appState_, datastore_));
+  datastore_ = createDataStore(testConfig_.BCST_DB, targetConfig_);
+  dataGen_ = make_unique<DataGenerator>(targetConfig_, testConfig_);
+  stateTransfer_ = make_unique<BCStateTran>(targetConfig_, &appState_, datastore_);
   stateTransfer_->init(testConfig_.maxNumOfRequiredStoredCheckpoints,
                        testConfig_.numberOfRequiredReservedPages,
                        targetConfig_.sizeOfReservedPage);
   for (uint32_t i{0}; i < testConfig_.numberOfRequiredReservedPages; ++i) {
     stateTransfer_->zeroReservedPage(i);
   }
-  mockedSrc_.reset(new MockedSources(targetConfig_, testConfig_, replica_, stateTransfer_));
-  ASSERT_FALSE(stateTransfer_->isRunning());
-  stateTransfer_->startRunning(&replica_);
-  ASSERT_TRUE(stateTransfer_->isRunning());
-  ASSERT_EQ(BCStateTran::FetchingState::NotFetching, stateTransfer_->getFetchingState());
-  ASSERT_LE(testConfig_.minNumberOfUpdatedReservedPages, testConfig_.maxNumberOfUpdatedReservedPages);
-  ASSERT_LE(test_state_.expectedFirstRequiredBlockNum, test_state_.expectedLastRequiredBlockNum);
-  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
+  stDelegator_ = make_shared<BcStTestDelegator>(stateTransfer_);
+  if (testConfig_.testTarget == TestConfig::TestTarget::DESTINATION)
+    fakeSrcReplica_ =
+        make_unique<FakeSources>(targetConfig_, testConfig_, testState_, testedReplicaIf_, dataGen_, stDelegator_);
+  else
+    fakeDstReplica_ =
+        make_unique<FakeDestination>(targetConfig_, testConfig_, testState_, testedReplicaIf_, dataGen_, stDelegator_);
   initialized_ = true;
 }
 
-void BcStTest::startStateTransfer() {
+void BcStTest::dstStartRunningAndCollecting() {
+  LOG_INFO(GL, "");
+  ASSERT_DEST_UNDER_TEST;
   ASSERT_TRUE(initialized_);
+  cmnStartRunning();
+  dstStartCollecting();
+}
+
+void BcStTest::cmnStartRunning() {
+  LOG_INFO(GL, "");
+  ASSERT_TRUE(initialized_);
+  ASSERT_FALSE(stateTransfer_->isRunning());
+  stateTransfer_->startRunning(&testedReplicaIf_);
+  ASSERT_TRUE(stateTransfer_->isRunning());
+  ASSERT_EQ(BCStateTran::FetchingState::NotFetching, stateTransfer_->getFetchingState());
+}
+
+void BcStTest::dstStartCollecting() {
+  LOG_INFO(GL, "");
+  ASSERT_DEST_UNDER_TEST;
+  ASSERT_TRUE(initialized_);
+  ASSERT_TRUE(stateTransfer_->isRunning());
   stateTransfer_->startCollectingState();
   ASSERT_EQ(BCStateTran::FetchingState::GettingCheckpointSummaries, stateTransfer_->getFetchingState());
   auto min_relevant_checkpoint = 1;
-  assertAskForCheckpointSummariesSent(min_relevant_checkpoint);
+  dstAssertAskForCheckpointSummariesSent(min_relevant_checkpoint);
 }
 
-void BcStTest::assertAskForCheckpointSummariesSent(uint64_t checkpoint_num) {
-  ASSERT_EQ(replica_.sent_messages_.size(), targetConfig_.numReplicas - 1);
+void BcStTest::dstAssertAskForCheckpointSummariesSent(uint64_t checkpoint_num) {
+  LOG_INFO(GL, "");
+  ASSERT_DEST_UNDER_TEST;
+  ASSERT_EQ(testedReplicaIf_.sent_messages_.size(), targetConfig_.numReplicas - 1);
 
   set<uint16_t> dests;
-  for (auto& msg : replica_.sent_messages_) {
+  for (auto& msg : testedReplicaIf_.sent_messages_) {
     auto p = dests.insert(msg.to_);
     ASSERT_TRUE(p.second);  // destinations must be unique
     assertMsgType(msg, MsgType::AskForCheckpointSummaries);
@@ -963,53 +967,144 @@ void BcStTest::assertAskForCheckpointSummariesSent(uint64_t checkpoint_num) {
   }
 }
 
-void BcStTest::assertFetchBlocksMsgSent(uint64_t firstRequiredBlock, uint64_t lastRequiredBlock) {
+void BcStTest::dstAssertFetchBlocksMsgSent(uint64_t firstRequiredBlock, uint64_t lastRequiredBlock) {
+  LOG_INFO(GL, "");
+  ASSERT_DEST_UNDER_TEST;
   ASSERT_EQ(BCStateTran::FetchingState::GettingMissingBlocks, stateTransfer_->getFetchingState());
-  auto currentSourceId = getSourceSelector().currentReplica();
+  auto currentSourceId = stDelegator_->getSourceSelector().currentReplica();
   ASSERT_NE(currentSourceId, NO_REPLICA);
   ASSERT_EQ(datastore_->getFirstRequiredBlock(), firstRequiredBlock);
   ASSERT_EQ(datastore_->getLastRequiredBlock(), lastRequiredBlock);
-  ASSERT_EQ(replica_.sent_messages_.size(), 1);
-  assertMsgType(replica_.sent_messages_.front(), MsgType::FetchBlocks);
-  ASSERT_EQ(replica_.sent_messages_.front().to_, currentSourceId);
+  ASSERT_EQ(testedReplicaIf_.sent_messages_.size(), 1);
+  assertMsgType(testedReplicaIf_.sent_messages_.front(), MsgType::FetchBlocks);
+  ASSERT_EQ(testedReplicaIf_.sent_messages_.front().to_, currentSourceId);
 }
 
-void BcStTest::assertFetchResPagesMsgSent() {
+void BcStTest::dstAssertFetchResPagesMsgSent() {
+  LOG_INFO(GL, "");
+  ASSERT_DEST_UNDER_TEST;
   ASSERT_EQ(BCStateTran::FetchingState::GettingMissingResPages, stateTransfer_->getFetchingState());
-  auto currentSourceId = getSourceSelector().currentReplica();
+  auto currentSourceId = stDelegator_->getSourceSelector().currentReplica();
   ASSERT_NE(currentSourceId, NO_REPLICA);
   ASSERT_EQ(datastore_->getFirstRequiredBlock(), datastore_->getLastRequiredBlock());
-  ASSERT_EQ(replica_.sent_messages_.size(), 1);
-  assertMsgType(replica_.sent_messages_.front(), MsgType::FetchResPages);
-  ASSERT_EQ(replica_.sent_messages_.front().to_, currentSourceId);
+  ASSERT_EQ(testedReplicaIf_.sent_messages_.size(), 1);
+  assertMsgType(testedReplicaIf_.sent_messages_.front(), MsgType::FetchResPages);
+  ASSERT_EQ(testedReplicaIf_.sent_messages_.front().to_, currentSourceId);
+}
+
+void BcStTest::srcAssertCheckpointSummariesSent(uint64_t fromCheckpoint, uint64_t toCheckpoint) {
+  LOG_INFO(GL, "");
+  ASSERT_SRC_UNDER_TEST;
+  ASSERT_EQ(BCStateTran::FetchingState::NotFetching, stateTransfer_->getFetchingState());
+  ASSERT_EQ(testedReplicaIf_.sent_messages_.size(), toCheckpoint - fromCheckpoint + 1);
+  uint64_t expectedCheckpointNum = toCheckpoint;
+  for (const auto& msg : testedReplicaIf_.sent_messages_) {
+    assertMsgType(msg, MsgType::CheckpointsSummary);
+    const auto* checkpointSummaryMsg = reinterpret_cast<CheckpointSummaryMsg*>(msg.data_.get());
+    ASSERT_EQ(checkpointSummaryMsg->checkpointNum, expectedCheckpointNum);
+    ASSERT_EQ(checkpointSummaryMsg->requestMsgSeqNum, fakeDstReplica_->getLastMsgSeqNum());
+    ASSERT_EQ(checkpointSummaryMsg->lastBlock, (expectedCheckpointNum + 1) * testConfig_.checkpointWindowSize);
+    // We want to check that messages are sent, here we won't validate the content of the digests.
+    ASSERT_TRUE(datastore_->hasCheckpointDesc(checkpointSummaryMsg->checkpointNum));
+    DataStore::CheckpointDesc desc = datastore_->getCheckpointDesc(checkpointSummaryMsg->checkpointNum);
+    ASSERT_EQ(checkpointSummaryMsg->digestOfLastBlock, desc.digestOfLastBlock);
+    ASSERT_EQ(checkpointSummaryMsg->digestOfResPagesDescriptor, desc.digestOfResPagesDescriptor);
+    --expectedCheckpointNum;
+  }
+}
+
+void BcStTest::srcAssertItemDataMsgBatchSentWithBlocks(uint64_t minExpectedBlockId, uint64_t maxExpectedBlockId) {
+  LOG_INFO(GL, "");
+  ASSERT_SRC_UNDER_TEST;
+  ASSERT_GE(maxExpectedBlockId, minExpectedBlockId);
+  ASSERT_EQ(BCStateTran::FetchingState::NotFetching, stateTransfer_->getFetchingState());
+  ASSERT_EQ(testedReplicaIf_.sent_messages_.size(), maxExpectedBlockId - minExpectedBlockId + 1);
+  uint64_t currentBlockId = maxExpectedBlockId;  // we expect to get blocks in reverse order, chunking not supported
+
+  ASSERT_TRUE(datastore_->hasCheckpointDesc(testState_.toCheckpoint));
+  const DataStore::CheckpointDesc desc = datastore_->getCheckpointDesc(testState_.toCheckpoint);
+  ASSERT_EQ(desc.lastBlock, maxExpectedBlockId);
+  for (const auto& msg : testedReplicaIf_.sent_messages_) {
+    const auto* itemDataMsg = reinterpret_cast<ItemDataMsg*>(msg.data_.get());
+    ASSERT_EQ(1, itemDataMsg->totalNumberOfChunksInBlock);
+    ASSERT_EQ(1, itemDataMsg->chunkNumber);
+    ASSERT_EQ(itemDataMsg->requestMsgSeqNum, fakeDstReplica_->getLastMsgSeqNum());
+    ASSERT_EQ(currentBlockId == minExpectedBlockId, (bool)itemDataMsg->lastInBatch);
+    const auto blk = appState_.peekBlock(currentBlockId);
+    ASSERT_TRUE(blk);
+    ASSERT_EQ(blk->blockId, currentBlockId);
+    ASSERT_EQ(blk->totalBlockSize, itemDataMsg->dataSize);
+    // just compare the blocks, dont validate digests
+    ASSERT_EQ(memcmp(reinterpret_cast<char*>(blk.get()), itemDataMsg->data, itemDataMsg->dataSize), 0);
+    --currentBlockId;
+  }
+}
+
+void BcStTest::srcAssertItemDataMsgBatchSentWithResPages(uint32_t expectedChunksSent, uint64_t requiredCheckpointNum) {
+  LOG_INFO(GL, "");
+  ASSERT_SRC_UNDER_TEST;
+  ASSERT_EQ(BCStateTran::FetchingState::NotFetching, stateTransfer_->getFetchingState());
+  ASSERT_EQ(testedReplicaIf_.sent_messages_.size(), expectedChunksSent);
+  const auto& msg = testedReplicaIf_.sent_messages_.front();
+  assertMsgType(msg, MsgType::ItemData);
+  auto* itemDataMsg = reinterpret_cast<ItemDataMsg*>(msg.data_.get());
+  ASSERT_EQ(itemDataMsg->requestMsgSeqNum, fakeDstReplica_->getLastMsgSeqNum());
+  ASSERT_EQ(itemDataMsg->blockNumber, stDelegator_->ID_OF_VBLOCK_RES_PAGES);
+  ASSERT_EQ(itemDataMsg->totalNumberOfChunksInBlock, 1);
+  ASSERT_EQ(itemDataMsg->chunkNumber, 1);
+  ASSERT_TRUE((bool)itemDataMsg->lastInBatch);
+  // Comment: It is too complicated to validate the reserved pages descriptor.
+  // Infra does not support it currently in a fake destination.
 }
 
 void BcStTest::printConfiguration() {
   LOG_INFO(GL, "testConfig_:" << std::boolalpha << testConfig_);
   LOG_INFO(GL, "targetConfig_:" << std::boolalpha << targetConfig_);
+  LOG_INFO(GL, "testState_:" << std::boolalpha << testState_);
 }
 
-void BcStTest::assertSourceSelectorMetricKeyVal(const std::string& key, uint64_t val) {
-  if (key == "total_replacements_") {
-    ASSERT_EQ(getSourceSelector().metrics_.total_replacements_.Get().Get(), val);
-  } else if (key == "replacement_due_to_no_source_") {
-    ASSERT_EQ(getSourceSelector().metrics_.replacement_due_to_no_source_.Get().Get(), val);
-  } else if (key == "replacement_due_to_bad_data_") {
-    ASSERT_EQ(getSourceSelector().metrics_.replacement_due_to_bad_data_.Get().Get(), val);
-  } else if (key == "replacement_due_to_retransmission_timeout_") {
-    ASSERT_EQ(getSourceSelector().metrics_.replacement_due_to_retransmission_timeout_.Get().Get(), val);
-  } else if (key == "replacement_due_to_periodic_change_") {
-    ASSERT_EQ(getSourceSelector().metrics_.replacement_due_to_periodic_change_.Get().Get(), val);
-  } else if (key == "replacement_due_to_source_same_as_primary_") {
-    ASSERT_EQ(getSourceSelector().metrics_.replacement_due_to_source_same_as_primary_.Get().Get(), val);
-  } else {
-    FAIL() << "Unexpected key!";
-  }
+void BcStTest::configureLog(const string& logLevelStr) {
+  std::set<string> possibleLogLevels = {"trace", "debug", "info", "warn", "error", "fatal"};
+  ASSERT_TRUE(possibleLogLevels.find(logLevelStr) != possibleLogLevels.end());
+#ifdef USE_LOG4CPP
+  log4cplus::LogLevel logLevel =
+      logLevelStr == "trace"
+          ? log4cplus::TRACE_LOG_LEVEL
+          : logLevelStr == "debug"
+                ? log4cplus::DEBUG_LOG_LEVEL
+                : logLevelStr == "info"
+                      ? log4cplus::INFO_LOG_LEVEL
+                      : logLevelStr == "warn"
+                            ? log4cplus::WARN_LOG_LEVEL
+                            : logLevelStr == "error"
+                                  ? log4cplus::ERROR_LOG_LEVEL
+                                  : logLevelStr == "fatal" ? log4cplus::FATAL_LOG_LEVEL : log4cplus::INFO_LOG_LEVEL;
+#else
+  logging::LogLevel logLevel =
+      logLevelStr == "trace"
+          ? logging::LogLevel::trace
+          : logLevelStr == "debug"
+                ? logging::LogLevel::debug
+                : logLevelStr == "info"
+                      ? logging::LogLevel::info
+                      : logLevelStr == "warn"
+                            ? logging::LogLevel::warn
+                            : logLevelStr == "error"
+                                  ? logging::LogLevel::error
+                                  : logLevelStr == "fatal" ? logging::LogLevel::fatal : logging::LogLevel::info;
+#endif
+  // logging::Logger::getInstance("serializable").setLogLevel(logLevel);
+  // logging::Logger::getInstance("concord.bft.st.dbdatastore").setLogLevel(logLevel);
+  // logging::Logger::getInstance("rocksdb").setLogLevel(logLevel);
+  logging::Logger::getInstance("concord.bft.st.dst").setLogLevel(logLevel);
+  logging::Logger::getInstance("concord.bft.st.src").setLogLevel(logLevel);
+  logging::Logger::getInstance("concord.util.handoff").setLogLevel(logLevel);
+  logging::Logger::getInstance("concord.bft").setLogLevel(logLevel);
 }
 
-void BcStTest::validateSourceSelectorMetricCounters(const MetricKeyValPairs& metric_counters) {
-  for (auto& [key, val] : metric_counters) {
-    assertSourceSelectorMetricKeyVal(key, val);
+void BcStTest::validateSourceSelectorMetricCounters(const MetricKeyValPairs& metricCounters) {
+  for (auto& [key, val] : metricCounters) {
+    stDelegator_->assertSourceSelectorMetricKeyVal(key, val);
   }
 }
 
