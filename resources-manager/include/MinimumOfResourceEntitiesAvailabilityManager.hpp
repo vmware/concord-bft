@@ -28,13 +28,13 @@ class MinimumOfResourceEntitiesAvailabilityManager : public IResourceManager {
   /*
     MinimumOfResourceEntitiesAvailabilityManager implementation returns a minimum of all the available resources.
   */
-  virtual uint64_t getPruneBlocksPerSecond() const override {
+  virtual PruneInfo getPruneInfo() override {
     int64_t minimum = INT64_MAX;
     for (const auto &entity : resourceEntities) {
       minimum = std::min(minimum, entity->getAvailableResources());
     }
 
-    return (uint64_t)std::max(minimum, (int64_t)0);
+    return PruneInfo{(uint64_t)std::max(minimum, (int64_t)0), 20};
   }
 
  private:

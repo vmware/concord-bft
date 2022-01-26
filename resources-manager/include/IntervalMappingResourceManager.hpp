@@ -28,11 +28,12 @@ class IntervalMappingResourceManager : public IResourceManager {
    which maps the consensus engine load to prune blocks per second. E.g. {{100, 200}, {400, 100}, {600, 10}}.
    Traffic up to 100 tps gvies 200 bps to prune, Up to 400 tps 100 bps ... TPS above the max is always 0 bps.
   */
-  virtual uint64_t getPruneBlocksPerSecond() const override {
-    return std::upper_bound(intervalMapping.begin(),
-                            intervalMapping.end(),
-                            std::make_pair((uint64_t)consensusEngine->getMeasurements(), (u_int64_t)0))
-        ->second;
+  virtual PruneInfo getPruneInfo() override {
+    return PruneInfo{std::upper_bound(intervalMapping.begin(),
+                                      intervalMapping.end(),
+                                      std::make_pair((uint64_t)consensusEngine->getMeasurements(), (u_int64_t)0))
+                         ->second,
+                     20};
   }
   static std::unique_ptr<IntervalMappingResourceManager> createIntervalMappingResourceManager(
       const std::shared_ptr<ISystemResourceEntity> &consensusEngine,

@@ -15,13 +15,19 @@
 #include <cstdint>
 
 namespace concord::performance {
+
+struct PruneInfo {
+  uint64_t blocksPerSecond;
+  uint64_t batchSize;
+};
+
 class IResourceManager {
  public:
   virtual ~IResourceManager() = default;
   /*
-    getPruneBlocksPerSecond implementation computes proper pruning pace on its measuremnts.
+    getPruneBlocksPerSecond implementation computes proper pruning pace based on its measuremnts.
   */
-  virtual uint64_t getPruneBlocksPerSecond() const = 0;
+  virtual PruneInfo getPruneInfo() = 0;
 };
 
 }  // namespace concord::performance
