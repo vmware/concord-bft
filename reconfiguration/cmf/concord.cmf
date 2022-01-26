@@ -376,6 +376,10 @@ Msg PruneTicksChangeRequest 74 {
     uint64 batch_blocks_num
 }
 
+Msg PruneStopRequest 75 {
+    uint64 sender_id
+}
+
 Msg ReconfigurationRequest 1 {
   uint64 sender
   bytes signature
@@ -411,6 +415,7 @@ Msg ReconfigurationRequest 1 {
     ClientsRestartStatus
     ClientsRestartUpdate
     PruneSwitchModeRequest
+    PruneStopRequest
     GetDbCheckpointInfoRequest
     CreateDbCheckpointCommand
     ReplicaMainKeyUpdate

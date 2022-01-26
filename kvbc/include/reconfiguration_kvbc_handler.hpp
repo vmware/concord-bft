@@ -193,6 +193,24 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
               uint32_t,
               const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
+
+  bool handle(const concord::messages::PruneTicksChangeRequest&,
+              uint64_t,
+              uint32_t,
+              const std::optional<bftEngine::Timestamp>&,
+              concord::messages::ReconfigurationResponse&) override;
+
+  bool handle(const concord::messages::PruneSwitchModeRequest&,
+              uint64_t,
+              uint32_t,
+              const std::optional<bftEngine::Timestamp>&,
+              concord::messages::ReconfigurationResponse&) override;
+
+  bool handle(const concord::messages::PruneStopRequest&,
+              uint64_t,
+              uint32_t,
+              const std::optional<bftEngine::Timestamp>&,
+              concord::messages::ReconfigurationResponse&) override;
 };
 /**
  * This component is reposnsible for logging internal reconfiguration requests to the blockchain (such as noop
