@@ -36,8 +36,8 @@ void SourceSelector::removeCurrentReplica() {
   currentReplica_ = NO_REPLICA;
   receivedValidBlockFromSrc_ = false;
   setSourceSelectionTime(0);
-  updateCurrentReplicaMetric();
-  updatePreferredReplicasMetric();
+  metrics_.current_source_replica_.Get().Set(currentReplica_);
+  metrics_.preferred_replicas_.Get().Set(preferredReplicasToString());
 }
 
 void SourceSelector::onReceivedValidBlockFromSource() {
@@ -51,7 +51,7 @@ void SourceSelector::onReceivedValidBlockFromSource() {
 
 void SourceSelector::setAllReplicasAsPreferred() {
   preferredReplicas_ = allOtherReplicas_;
-  updatePreferredReplicasMetric();
+  metrics_.preferred_replicas_.Get().Set(preferredReplicasToString());
 }
 
 void SourceSelector::reset() {
@@ -66,7 +66,8 @@ void SourceSelector::reset() {
   currentPrimary_ = NO_REPLICA;
   nominatedPrimary_ = NO_REPLICA;
   nominatedPrimaryCounter_ = 0;
-  updateCurrentReplicaMetric();
+  metrics_.current_source_replica_.Get().Set(currentReplica_);
+  metrics_.preferred_replicas_.Get().Set("");
 }
 
 bool SourceSelector::isReset() const {
@@ -133,9 +134,11 @@ SourceReplacementMode SourceSelector::shouldReplaceSource(uint64_t currTimeMilli
                                                           bool lastInBatch) const {
   if (currentReplica_ == NO_REPLICA) {
     LOG_INFO(logger_, "Should replace source: no source");
+    metrics_.replacement_due_to_no_source_++;
     return SourceReplacementMode::IMMEDIATE;
   } else if (badDataFromCurrentSource) {
     LOG_INFO(logger_, "Should replace source: bad data from" << KVLOG(currentReplica_));
+    metrics_.replacement_due_to_bad_data_++;
     return SourceReplacementMode::IMMEDIATE;
   } else if (retransmissionTimeoutExpired(currTimeMilli)) {
     if (fetchRetransmissionOngoing_) {
@@ -158,6 +161,7 @@ SourceReplacementMode SourceSelector::shouldReplaceSource(uint64_t currTimeMilli
                                                                                 retransmissionTimeoutMilli_,
                                                                                 fetchRetransmissionCounter_,
                                                                                 maxFetchRetransmissions_));
+    metrics_.replacement_due_to_retransmission_timeout_++;
     return SourceReplacementMode::IMMEDIATE;
   }
   if (lastInBatch && (sourceReplacementTimeoutMilli_ > 0)) {
@@ -166,11 +170,14 @@ SourceReplacementMode SourceSelector::shouldReplaceSource(uint64_t currTimeMilli
       LOG_INFO(logger_,
                "Should replace source: source replacement timeout:" << KVLOG(
                    currentReplica_, dt, sourceReplacementTimeoutMilli_));
+      metrics_.replacement_due_to_periodic_change_++;
       return SourceReplacementMode::GRACEFUL;
     }
   }
   if ((lastInBatch) and (currentReplica_ == currentPrimary_)) {
-    LOG_INFO(logger_, "Current replica has become primary" << KVLOG(currentReplica_, currentPrimary_));
+    LOG_INFO(logger_,
+             "Should replace source: current replica has become primary" << KVLOG(currentReplica_, currentPrimary_));
+    metrics_.replacement_due_to_source_same_as_primary_++;
     return SourceReplacementMode::GRACEFUL;
   }
   return SourceReplacementMode::DO_NOT;
@@ -191,8 +198,9 @@ void SourceSelector::selectSource(uint64_t currTimeMilli) {
   }
   currentReplica_ = *i;
   setSourceSelectionTime(currTimeMilli);
-  updateCurrentReplicaMetric();
-  updatePreferredReplicasMetric();
+  metrics_.total_replacements_++;
+  metrics_.current_source_replica_.Get().Set(currentReplica_);
+  metrics_.preferred_replicas_.Get().Set(preferredReplicasToString());
   fetchRetransmissionOngoing_ = false;
   fetchingTimeStamp_ = 0;
   fetchRetransmissionCounter_ = 0;
