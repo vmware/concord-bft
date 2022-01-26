@@ -61,8 +61,7 @@ namespace bftEngine::bcst::impl {
 
 class BCStateTran : public IStateTransfer {
   // The next friend declerations are used strictly for testing
-  friend class BcStTest;
-  friend class MockedSources;
+  friend class BcStTestDelegator;
 
  public:
   //////////////////////////////////////////////////////////////////////////////
