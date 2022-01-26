@@ -276,6 +276,9 @@ TEST_F(SourceSelectorTestFixture, change_source_after_too_many_retransmissions) 
 }  // namespace
 
 int main(int argc, char** argv) {
-  ::testing::InitGoogleTest(&argc, argv);
+  testing::InitGoogleTest(&argc, argv);
+  testing::FLAGS_gtest_death_test_style =
+      "threadsafe";  // mitigate the risks of testing in a possibly multithreaded environment
+
   return RUN_ALL_TESTS();
 }
