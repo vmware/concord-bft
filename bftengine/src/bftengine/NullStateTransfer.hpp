@@ -54,7 +54,7 @@ class NullStateTransfer : public IStateTransfer {
     return nullptr;
   }
 
-  virtual void handoffConsensusMessage(shared_ptr<ConsensusMsg>& msg) override{};
+  virtual void handoffConsensusMessage(const shared_ptr<ConsensusMsg>& msg) override{};
 
   virtual ~NullStateTransfer();
 
