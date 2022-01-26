@@ -272,7 +272,6 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
                                                         "Gauges", "lastDbCheckpointBlockId", component="rocksdbCheckpoint")
             self.verify_snapshot_is_available(bft_network, replica_id, last_blockId)
 
-    @unittest.skip("Disabled until fixed")
     @with_trio
     @with_bft_network(start_replica_cmd_with_operator, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability()
