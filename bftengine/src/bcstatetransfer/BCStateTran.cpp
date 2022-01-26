@@ -2684,7 +2684,7 @@ void BCStateTran::processData(bool lastInBatch) {
 
         sourceSelector_.onReceivedValidBlockFromSource();
         bool lastFetchedBlockIdInCycle = isLastFetchedBlockIdInCycle(fetchState_.nextBlockId);
-        bool minBlockIdInCurrentBatch = isMinBlockIdInCurrentBatch(fetchState_.nextBlockId);
+        bool minBlockIdInCurrentBatch = fetchState_.isMinBlockId(fetchState_.nextBlockId);
 
         // TODO - 1) report only after we put the block succesfully 2) uncomment and fix to support new protocol
         // Report collecting status for every block collected. Log entry is created every fixed window
