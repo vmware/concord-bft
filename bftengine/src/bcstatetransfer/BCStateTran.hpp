@@ -114,7 +114,7 @@ class BCStateTran : public IStateTransfer {
   void saveReservedPage(uint32_t reservedPageId, uint32_t copyLength, const char* inReservedPage) override;
   void zeroReservedPage(uint32_t reservedPageId) override;
 
-  // Incoming Events (Handoff) - ST main thread is a consumer of timeouts and messages arriving from an external context
+  // Incoming Events queue - ST main thread is a consumer of timeouts and messages arriving from an external context
   void onTimer() override { incomingEventsQ_->push(std::bind(&BCStateTran::onTimerImp, this)); };
   using LocalTimePoint = time_point<steady_clock>;
   static constexpr auto UNDEFINED_LOCAL_TIME_POINT = LocalTimePoint::max();
@@ -123,6 +123,13 @@ class BCStateTran : public IStateTransfer {
         &BCStateTran::handleStateTransferMessageImp, this, msg, msgLen, senderId, std::chrono::steady_clock::now()));
   };
   std::unique_ptr<concord::util::Handoff> incomingEventsQ_;
+
+  // Post processing Queue - ST main thread is a producer and post processing thread is a consumer
+  std::unique_ptr<concord::util::Handoff> postProcessingQ_;
+  uint64_t postProcessingUpperBoundBlockId_;
+  std::atomic<uint64_t> maxPostprocessedBlockId_;
+  void postProcessNextBatch(uint64_t upperBoundBlockId);
+
   std::string getStatus() override;
 
   void addOnTransferringCompleteCallback(
