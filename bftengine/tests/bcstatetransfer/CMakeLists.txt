@@ -20,3 +20,8 @@ add_test(source_selector_test source_selector_test)
 target_link_libraries(source_selector_test GTest::Main corebft)
 # Not using target_link_libraries, because the header is in the src directory.
 target_include_directories(source_selector_test PRIVATE ${bftengine_SOURCE_DIR}/src/bcstatetransfer)
+
+add_executable(RVT_test RVT_test.cpp)
+add_test(RVT_test RVT_test)
+target_link_libraries(RVT_test GTest::Main ${CRYPTOPP_LIBRARIES} corebft)
+target_include_directories(RVT_test PRIVATE ${CRYPTOPP_INCLUDE_DIRS})
