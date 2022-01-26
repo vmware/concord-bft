@@ -1117,31 +1117,31 @@ void BcStTest::validateSourceSelectorMetricCounters(const MetricKeyValPairs& met
 
 /////////////////////////////////////////////////////////
 //
-//                BcStTest Test Cases
+//       BcStTest Destination Test Cases
 //
 /////////////////////////////////////////////////////////
 
 // Validate a full state transfer
 TEST_F(BcStTest, dstFullStateTransfer) {
-  initialize();
-  ASSERT_NO_FATAL_FAILURE(startStateTransfer());
-  mockedSrc_->replyAskForCheckpointSummariesMsg();
+  ASSERT_NFF(initialize());
+  ASSERT_NFF(dstStartRunningAndCollecting());
+  ASSERT_NFF(fakeSrcReplica_->replyAskForCheckpointSummariesMsg());
   while (true) {
-    ASSERT_NO_FATAL_FAILURE(
-        assertFetchBlocksMsgSent(test_state_.expectedFirstRequiredBlockNum, test_state_.expectedLastRequiredBlockNum));
-    mockedSrc_->replyFetchBlocksMsg();
-    if (test_state_.expectedLastRequiredBlockNum <= targetConfig_.maxNumberOfChunksInBatch) break;
-    test_state_.expectedLastRequiredBlockNum -= targetConfig_.maxNumberOfChunksInBatch;
+    ASSERT_NFF(dstAssertFetchBlocksMsgSent(testState_.minRequiredBlockId, testState_.maxRequiredBlockId));
+    ASSERT_NFF(fakeSrcReplica_->replyFetchBlocksMsg());
+    if (testState_.maxRequiredBlockId <= targetConfig_.maxNumberOfChunksInBatch) break;
+    testState_.maxRequiredBlockId -= targetConfig_.maxNumberOfChunksInBatch;
     // There might be pending jobs for putBlock, we need to wait some time and then finalize them by calling
-    // onTimerImp()test
     this_thread::sleep_for(chrono::milliseconds(20));
-    onTimerImp();
+    stDelegator_->onTimerImp();
   }
-  ASSERT_NO_FATAL_FAILURE(assertFetchResPagesMsgSent());
+  ASSERT_NFF(dstAssertFetchResPagesMsgSent());
   bool doneSending = false;
-  while (!doneSending) mockedSrc_->replyResPagesMsg(doneSending);
+  while (!doneSending) {
+    ASSERT_NFF(fakeSrcReplica_->replyResPagesMsg(doneSending));
+  }
   // now validate commpletion
-  ASSERT_TRUE(replica_.onTransferringCompleteCalled_);
+  ASSERT_TRUE(testedReplicaIf_.onTransferringCompleteCalled_);
   ASSERT_EQ(BCStateTran::FetchingState::NotFetching, stateTransfer_->getFetchingState());
 }
 
@@ -1152,7 +1152,7 @@ TEST_F(BcStTest, dstFullStateTransfer) {
  * The check is done only for FetchingMissingblocks state sources.
  */
 TEST_F(BcStTest, dstValidateRealSourceListReported) {
-  initialize();
+  ASSERT_NFF(initialize());
   uint16_t currentSrc;
   /**
    * Add callback to ST to be executed when transferring is completed.
@@ -1160,17 +1160,17 @@ TEST_F(BcStTest, dstValidateRealSourceListReported) {
    * retransmissions and a few sources were selected.
    */
   stateTransfer_->addOnTransferringCompleteCallback([this, &currentSrc](std::uint64_t) {
-    const auto& sources_ = getSourceSelector().getActualSources();
+    const auto& sources_ = stDelegator_->getSourceSelector().getActualSources();
     ASSERT_EQ(sources_.size(), 1);
     ASSERT_EQ(sources_[0], currentSrc);
   });
 
-  ASSERT_NO_FATAL_FAILURE(startStateTransfer());
-  mockedSrc_->replyAskForCheckpointSummariesMsg();
+  ASSERT_NFF(dstStartRunningAndCollecting());
+  ASSERT_NFF(fakeSrcReplica_->replyAskForCheckpointSummariesMsg());
 
   // Trigger multiple retransmissions to 2 sources. none will be answered, then we expect the replica to move into the
   // 3rd source
-  auto& sourceSelector = getSourceSelector();
+  auto& sourceSelector = stDelegator_->getSourceSelector();
   set<uint16_t> sources;
   for (uint32_t i{0}; i < 2; ++i) {
     for (uint32_t j{0}; j < targetConfig_.maxFetchRetransmissions; ++j) {
@@ -1181,98 +1181,100 @@ TEST_F(BcStTest, dstValidateRealSourceListReported) {
       } else {
         ASSERT_EQ(currentSrc, sourceSelector.currentReplica());
       }
-      ASSERT_EQ(replica_.sent_messages_.size(), 1);
-      ASSERT_EQ(replica_.sent_messages_.front().to_, currentSrc);
-      replica_.sent_messages_.clear();
+      ASSERT_EQ(testedReplicaIf_.sent_messages_.size(), 1);
+      ASSERT_EQ(testedReplicaIf_.sent_messages_.front().to_, currentSrc);
+      testedReplicaIf_.sent_messages_.clear();
       this_thread::sleep_for(chrono::milliseconds(targetConfig_.fetchRetransmissionTimeoutMs + 10));
-      onTimerImp();
+      stDelegator_->onTimerImp();
     }
   }
-  ASSERT_EQ(replica_.sent_messages_.size(), 1);
+  ASSERT_EQ(testedReplicaIf_.sent_messages_.size(), 1);
   currentSrc = sourceSelector.currentReplica();
   while (true) {
-    ASSERT_NO_FATAL_FAILURE(
-        assertFetchBlocksMsgSent(test_state_.expectedFirstRequiredBlockNum, test_state_.expectedLastRequiredBlockNum));
-    mockedSrc_->replyFetchBlocksMsg();
-    if (test_state_.expectedLastRequiredBlockNum <= targetConfig_.maxNumberOfChunksInBatch) break;
-    test_state_.expectedLastRequiredBlockNum -= targetConfig_.maxNumberOfChunksInBatch;
+    ASSERT_NFF(dstAssertFetchBlocksMsgSent(testState_.minRequiredBlockId, testState_.maxRequiredBlockId));
+    ASSERT_NFF(fakeSrcReplica_->replyFetchBlocksMsg());
+    if (testState_.maxRequiredBlockId <= targetConfig_.maxNumberOfChunksInBatch) break;
+    testState_.maxRequiredBlockId -= targetConfig_.maxNumberOfChunksInBatch;
     // There might be pending jobs for putBlock, we need to wait some time and then finalize them by calling
-    // onTimerImp()
     this_thread::sleep_for(chrono::milliseconds(20));
-    onTimerImp();
+    stDelegator_->onTimerImp();
   }
-  ASSERT_NO_FATAL_FAILURE(assertFetchResPagesMsgSent());
+  ASSERT_NFF(dstAssertFetchResPagesMsgSent());
   bool doneSending = false;
-  while (!doneSending) mockedSrc_->replyResPagesMsg(doneSending);
+  while (!doneSending) {
+    ASSERT_NFF(fakeSrcReplica_->replyResPagesMsg(doneSending));
+  }
   // now validate completion
-  ASSERT_TRUE(replica_.onTransferringCompleteCalled_);
+  ASSERT_TRUE(testedReplicaIf_.onTransferringCompleteCalled_);
   ASSERT_EQ(BCStateTran::FetchingState::NotFetching, stateTransfer_->getFetchingState());
 }
 
 // Validate a recurring source selection, during ongoing state transfer;
-TEST_F(BcStTest, validatePeriodicSourceReplacement) {
+TEST_F(BcStTest, dstValidatePeriodicSourceReplacement) {
   targetConfig_.sourceReplicaReplacementTimeoutMs = 1000;
-  initialize();
-  ASSERT_NO_FATAL_FAILURE(startStateTransfer());
-  mockedSrc_->replyAskForCheckpointSummariesMsg();
+  ASSERT_NFF(initialize());
+  ASSERT_NFF(dstStartRunningAndCollecting());
+  ASSERT_NFF(fakeSrcReplica_->replyAskForCheckpointSummariesMsg());
   uint32_t batch_count{0};
   while (true) {
     // once the source is selected, adding sleep for more than source replacement time duration
     if (batch_count < 2) {
       this_thread::sleep_for(milliseconds(targetConfig_.sourceReplicaReplacementTimeoutMs));
     }
-    ASSERT_NO_FATAL_FAILURE(
-        assertFetchBlocksMsgSent(test_state_.expectedFirstRequiredBlockNum, test_state_.expectedLastRequiredBlockNum));
-    mockedSrc_->replyFetchBlocksMsg();
-    if (test_state_.expectedLastRequiredBlockNum <= targetConfig_.maxNumberOfChunksInBatch) break;
-    test_state_.expectedLastRequiredBlockNum -= targetConfig_.maxNumberOfChunksInBatch;
+    ASSERT_NFF(dstAssertFetchBlocksMsgSent(testState_.minRequiredBlockId, testState_.maxRequiredBlockId));
+    ASSERT_NFF(fakeSrcReplica_->replyFetchBlocksMsg());
+    if (testState_.maxRequiredBlockId <= targetConfig_.maxNumberOfChunksInBatch) break;
+    testState_.maxRequiredBlockId -= targetConfig_.maxNumberOfChunksInBatch;
     // There might be pending jobs for putBlock, we need to wait some time and then finalize them by calling
     this_thread::sleep_for(chrono::milliseconds(20));
-    onTimerImp();
+    stDelegator_->onTimerImp();
     batch_count++;
   }
-  const auto& sources_ = getSourceSelector().getActualSources();
+  const auto& sources_ = stDelegator_->getSourceSelector().getActualSources();
   ASSERT_EQ(sources_.size(), 3);
   validateSourceSelectorMetricCounters({{"total_replacements_", 3},
                                         {"replacement_due_to_periodic_change_", 2},
                                         {"replacement_due_to_retransmission_timeout_", 0},
                                         {"replacement_due_to_bad_data_", 0}});
 
-  ASSERT_NO_FATAL_FAILURE(assertFetchResPagesMsgSent());
+  ASSERT_NFF(dstAssertFetchResPagesMsgSent());
   bool doneSending = false;
-  while (!doneSending) mockedSrc_->replyResPagesMsg(doneSending);
-  ASSERT_TRUE(replica_.onTransferringCompleteCalled_);
+  while (!doneSending) {
+    ASSERT_NFF(fakeSrcReplica_->replyResPagesMsg(doneSending));
+  }
+  ASSERT_TRUE(testedReplicaIf_.onTransferringCompleteCalled_);
   ASSERT_EQ(BCStateTran::FetchingState::NotFetching, stateTransfer_->getFetchingState());
 }
 
 // TBD BC-14432
-TEST_F(BcStTest, sendPrePrepareMsgsDuringStateTransfer) {
-  initialize();
+TEST_F(BcStTest, dstSendPrePrepareMsgsDuringStateTransfer) {
+  ASSERT_NFF(initialize());
   std::once_flag once_flag;
-  ASSERT_NO_FATAL_FAILURE(startStateTransfer());
-  mockedSrc_->replyAskForCheckpointSummariesMsg();
-  auto ss = getSourceSelector();
+  ASSERT_NFF(dstStartRunningAndCollecting());
+  ASSERT_NFF(fakeSrcReplica_->replyAskForCheckpointSummariesMsg());
+  auto ss = stDelegator_->getSourceSelector();
   while (true) {
-    ASSERT_NO_FATAL_FAILURE(
-        assertFetchBlocksMsgSent(test_state_.expectedFirstRequiredBlockNum, test_state_.expectedLastRequiredBlockNum));
-    mockedSrc_->replyFetchBlocksMsg();
-    if (test_state_.expectedLastRequiredBlockNum <= targetConfig_.maxNumberOfChunksInBatch) break;
-    test_state_.expectedLastRequiredBlockNum -= targetConfig_.maxNumberOfChunksInBatch;
+    ASSERT_NFF(dstAssertFetchBlocksMsgSent(testState_.minRequiredBlockId, testState_.maxRequiredBlockId));
+    ASSERT_NFF(fakeSrcReplica_->replyFetchBlocksMsg());
+    if (testState_.maxRequiredBlockId <= targetConfig_.maxNumberOfChunksInBatch) break;
+    testState_.maxRequiredBlockId -= targetConfig_.maxNumberOfChunksInBatch;
     this_thread::sleep_for(chrono::milliseconds(20));
-    onTimerImp();
+    stDelegator_->onTimerImp();
 
     std::call_once(once_flag, [&] {
+      std::unique_ptr<MessageBase> msg;
       // Generate prePrepare messages to trigger source seletor to change the source to avoid primary.
-      auto msg = msg_generator_.generatePrePrepareMsg(ss.currentReplica());
+      ASSERT_NFF(msg = dataGen_->generatePrePrepareMsg(ss.currentReplica()));
       for (uint16_t i = 1; i <= targetConfig_.minPrePrepareMsgsForPrimaryAwarness; i++) {
         auto cmsg = make_shared<ConsensusMsg>(msg->type(), msg->senderId());
         stateTransfer_->peekConsensusMessage(cmsg);
       }
     });
   }
-  ASSERT_NO_FATAL_FAILURE(assertFetchResPagesMsgSent());
+  ASSERT_NFF(dstAssertFetchResPagesMsgSent());
   bool doneSending = false;
-  const auto& sources = getSourceSelector().getActualSources();
+  const auto& sources = stDelegator_->getSourceSelector().getActualSources();
+  // TBD metric counters in source selector should be used to validate changed sources to avoid primary
   ASSERT_EQ(sources.size(), 2);
   validateSourceSelectorMetricCounters({{"total_replacements_", 2},
                                         {"replacement_due_to_source_same_as_primary_", 1},
@@ -1280,30 +1282,30 @@ TEST_F(BcStTest, sendPrePrepareMsgsDuringStateTransfer) {
                                         {"replacement_due_to_retransmission_timeout_", 0},
                                         {"replacement_due_to_bad_data_", 0}});
 
-  while (!doneSending) mockedSrc_->replyResPagesMsg(doneSending);
+  while (!doneSending) fakeSrcReplica_->replyResPagesMsg(doneSending);
   // validate completion
-  ASSERT_TRUE(replica_.onTransferringCompleteCalled_);
+  ASSERT_TRUE(testedReplicaIf_.onTransferringCompleteCalled_);
   ASSERT_EQ(BCStateTran::FetchingState::NotFetching, stateTransfer_->getFetchingState());
 }
 
-TEST_F(BcStTest, preprepareFromMultipleSourcesDuringStateTransfer) {
-  initialize();
+TEST_F(BcStTest, dstPreprepareFromMultipleSourcesDuringStateTransfer) {
+  ASSERT_NFF(initialize());
   std::once_flag once_flag;
-  ASSERT_NO_FATAL_FAILURE(startStateTransfer());
-  mockedSrc_->replyAskForCheckpointSummariesMsg();
-  auto ss = getSourceSelector();
+  ASSERT_NFF(dstStartRunningAndCollecting());
+  ASSERT_NFF(fakeSrcReplica_->replyAskForCheckpointSummariesMsg());
+  auto ss = stDelegator_->getSourceSelector();
   while (true) {
-    ASSERT_NO_FATAL_FAILURE(
-        assertFetchBlocksMsgSent(test_state_.expectedFirstRequiredBlockNum, test_state_.expectedLastRequiredBlockNum));
-    mockedSrc_->replyFetchBlocksMsg();
-    if (test_state_.expectedLastRequiredBlockNum <= targetConfig_.maxNumberOfChunksInBatch) break;
-    test_state_.expectedLastRequiredBlockNum -= targetConfig_.maxNumberOfChunksInBatch;
+    ASSERT_NFF(dstAssertFetchBlocksMsgSent(testState_.minRequiredBlockId, testState_.maxRequiredBlockId));
+    ASSERT_NFF(fakeSrcReplica_->replyFetchBlocksMsg());
+    if (testState_.maxRequiredBlockId <= targetConfig_.maxNumberOfChunksInBatch) break;
+    testState_.maxRequiredBlockId -= targetConfig_.maxNumberOfChunksInBatch;
     this_thread::sleep_for(chrono::milliseconds(20));
-    onTimerImp();
+    stDelegator_->onTimerImp();
 
     std::call_once(once_flag, [&] {
+      std::unique_ptr<MessageBase> msg;
       // Generate enough prePrepare messages but from more than one source so that source does not get changed
-      auto msg = msg_generator_.generatePrePrepareMsg(ss.currentReplica());
+      ASSERT_NFF(msg = dataGen_->generatePrePrepareMsg(ss.currentReplica()));
       for (uint16_t i = 1; i <= targetConfig_.minPrePrepareMsgsForPrimaryAwarness - 1; i++) {
         auto cmsg = make_shared<ConsensusMsg>(msg->type(), msg->senderId());
         stateTransfer_->peekConsensusMessage(cmsg);
@@ -1312,18 +1314,21 @@ TEST_F(BcStTest, preprepareFromMultipleSourcesDuringStateTransfer) {
       stateTransfer_->peekConsensusMessage(cmsg);
     });
   }
-  ASSERT_NO_FATAL_FAILURE(assertFetchResPagesMsgSent());
+  ASSERT_NFF(dstAssertFetchResPagesMsgSent());
   bool doneSending = false;
-  const auto& sources = getSourceSelector().getActualSources();
+  const auto& sources = stDelegator_->getSourceSelector().getActualSources();
+  // TBD metric counters in source selector should be used to validate changed sources to avoid primary
   ASSERT_EQ(sources.size(), 1);
   validateSourceSelectorMetricCounters({{"total_replacements_", 1},
                                         {"replacement_due_to_periodic_change_", 0},
                                         {"replacement_due_to_retransmission_timeout_", 0},
                                         {"replacement_due_to_bad_data_", 0}});
 
-  while (!doneSending) mockedSrc_->replyResPagesMsg(doneSending);
+  while (!doneSending) {
+    ASSERT_NFF(fakeSrcReplica_->replyResPagesMsg(doneSending));
+  }
   // validate completion
-  ASSERT_TRUE(replica_.onTransferringCompleteCalled_);
+  ASSERT_TRUE(testedReplicaIf_.onTransferringCompleteCalled_);
   ASSERT_EQ(BCStateTran::FetchingState::NotFetching, stateTransfer_->getFetchingState());
 }
 
