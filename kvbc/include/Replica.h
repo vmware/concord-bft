@@ -118,12 +118,13 @@ class Replica : public IReplica,
   std::future<bool> putBlockAsync(uint64_t blockId,
                                   const char *block,
                                   const uint32_t blockSize,
-                                  bool lastBlock = true) override;
+                                  bool lastblock) override;
   uint64_t getLastReachableBlockNum() const override;
   uint64_t getGenesisBlockNum() const override;
   // This method is used by state-transfer in order to find the latest block id in either the state-transfer chain or
   // the main blockchain
   uint64_t getLastBlockNum() const override;
+  void postProcessUntilBlockId(uint64_t max_block_id) override;
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   bool getBlockFromObjectStore(uint64_t blockId, char *outBlock, uint32_t outblockMaxSize, uint32_t *outBlockSize);
