@@ -50,8 +50,7 @@ class ReplicaForStateTransfer : public IReplicaForStateTransfer, public ReplicaB
   template <typename T>
   void peekConsensusMessage(MessageBase* msg) {
     if (msgs_to_peek_.find(msg->type()) != msgs_to_peek_.end()) {
-      auto cmsg = std::make_shared<ConsensusMsg>(msg->type(), msg->senderId());
-      stateTransfer->handoffConsensusMessage(cmsg);
+      stateTransfer->handoffConsensusMessage(std::make_shared<ConsensusMsg>(msg->type(), msg->senderId()));
     }
   }
 
