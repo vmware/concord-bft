@@ -231,9 +231,8 @@ class BCStateTran : public IStateTransfer {
   // Public for testing and status
  public:
   enum class FetchingState { NotFetching, GettingCheckpointSummaries, GettingMissingBlocks, GettingMissingResPages };
-
   static string stateName(FetchingState fs);
-
+  // TODO - should be renamed to evaluateFetchingState
   FetchingState getFetchingState();
   bool isFetching() const;
 
@@ -247,10 +246,7 @@ class BCStateTran : public IStateTransfer {
 
   void sendAskForCheckpointSummariesMsg();
 
-  void trySendFetchBlocksMsg(uint64_t firstRequiredBlock,
-                             uint64_t lastRequiredBlock,
-                             int16_t lastKnownChunkInLastRequiredBlock,
-                             string&& reason);
+  void trySendFetchBlocksMsg(int16_t lastKnownChunkInLastRequiredBlock, string&& reason);
 
   void sendFetchResPagesMsg(int16_t lastKnownChunkInLastRequiredBlock);
 
@@ -368,6 +364,7 @@ class BCStateTran : public IStateTransfer {
   set<ItemDataMsg*, compareItemDataMsg> pendingItemDataMsgs;
   uint32_t totalSizeOfPendingItemDataMsgs = 0;
 
+  void cycleReset();
   void clearAllPendingItemsData();
   void clearPendingItemsData(uint64_t untilBlock);
   bool getNextFullBlock(uint64_t requiredBlock,
