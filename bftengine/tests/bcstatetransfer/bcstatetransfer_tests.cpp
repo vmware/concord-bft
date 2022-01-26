@@ -662,12 +662,12 @@ void BcStTest::assertFetchResPagesMsgSent() {
   ASSERT_EQ(replica_.sent_messages_.size(), 1);
   assertMsgType(replica_.sent_messages_.front(), MsgType::FetchResPages);
   ASSERT_EQ(replica_.sent_messages_.front().to_, currentSourceId);
-};
+}
 
 void BcStTest::printConfiguration() {
   LOG_INFO(GL, "testConfig_:" << std::boolalpha << testConfig_);
   LOG_INFO(GL, "targetConfig_:" << std::boolalpha << targetConfig_);
-};
+}
 
 /////////////////////////////////////////////////////////
 //
