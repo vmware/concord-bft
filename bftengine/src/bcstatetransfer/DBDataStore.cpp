@@ -14,7 +14,8 @@ std::ostream& operator<<(std::ostream& os, const DataStore::CheckpointDesc& desc
   os << "CheckpointDesc "
      << " checkpointNum: " << desc.checkpointNum << " lastBlock: " << desc.maxBlockId
      << " digestOfLastBlock: " << desc.digestOfMaxBlockId.toString()
-     << " digestOfResPagesDescriptor:" << desc.digestOfResPagesDescriptor.toString();
+     << " digestOfResPagesDescriptor:" << desc.digestOfResPagesDescriptor.toString()
+     << " rvbData size:" << desc.rvbData.size();
   return os;
 }
 
@@ -46,6 +47,13 @@ void DBDataStore::memoryStateToLog() {
   }
   oss << " ,FirstRequiredBlock: " << inmem_->getFirstRequiredBlock();
   oss << " ,LastRequiredBlock: " << inmem_->getLastRequiredBlock();
+  auto prunedDigests = inmem_->getPrunedBlocksDigests();
+  if (!prunedDigests.empty()) {
+    oss << " ,PrunedBlocksDigests (size=" << prunedDigests.size() << ")";
+    for (const auto& p : prunedDigests) {
+      oss << "[" << p.first << "," << p.second.toString() << " ] ";
+    }
+  }
   LOG_INFO(logger(), "Current In Memory State:" << oss.str());
 }
 
@@ -87,6 +95,13 @@ void DBDataStore::load(bool loadResPages_) {
     loadPendingPages();
   }
 
+  Sliver pbd;
+  if (get(PrunedBlocksDigests, pbd)) {
+    std::istringstream iss(std::string(reinterpret_cast<const char*>(pbd.data()), pbd.length()));
+    std::vector<std::pair<BlockId, STDigest>> digests;
+    deserializePrunedBlocksDigests(iss, digests);
+    inmem_->setPrunedBlocksDigests(digests);
+  }
   memoryStateToLog();
 
   if (get<bool>(EraseDataOnStartup)) {
@@ -164,12 +179,14 @@ void DBDataStore::serializeCheckpoint(std::ostream& os, const CheckpointDesc& de
   Serializable::serialize(os, desc.maxBlockId);
   Serializable::serialize(os, desc.digestOfMaxBlockId.get(), BLOCK_DIGEST_SIZE);
   Serializable::serialize(os, desc.digestOfResPagesDescriptor.get(), BLOCK_DIGEST_SIZE);
+  Serializable::serialize(os, desc.rvbData);
 }
 void DBDataStore::deserializeCheckpoint(std::istream& is, CheckpointDesc& desc) const {
   Serializable::deserialize(is, desc.checkpointNum);
   Serializable::deserialize(is, desc.maxBlockId);
   Serializable::deserialize(is, desc.digestOfMaxBlockId.getForUpdate(), BLOCK_DIGEST_SIZE);
   Serializable::deserialize(is, desc.digestOfResPagesDescriptor.getForUpdate(), BLOCK_DIGEST_SIZE);
+  Serializable::deserialize(is, desc.rvbData);
 }
 void DBDataStore::setCheckpointDesc(uint64_t checkpoint, const CheckpointDesc& desc) {
   LOG_DEBUG(logger(), toString(desc));
@@ -438,12 +455,46 @@ void DBDataStore::clearDataStoreData() {
   del(Replicas);
   del(CheckpointBeingFetched);
   del(EraseDataOnStartup);
+  del(PrunedBlocksDigests);
   deleteAllPendingPages();
   deleteCheckpointBeingFetched();
   deleteAllResPages();
   deleteAllDesc();
 
   inmem_.reset(new InMemoryDataStore(inmem_->getSizeOfReservedPage()));
+}
+
+/** ******************************************************************************************************************
+ *  Range Validation Blocks
+ */
+
+void DBDataStore::serializePrunedBlocksDigests(std::ostream& os,
+                                               const std::vector<std::pair<BlockId, STDigest>>& digests) const {
+  Serializable::serialize(os, digests.size());
+  for (size_t i{0}; i < digests.size(); ++i) {
+    Serializable::serialize(os, digests[i].first);
+    Serializable::serialize(os, digests[i].second.get(), BLOCK_DIGEST_SIZE);
+  }
+}
+void DBDataStore::deserializePrunedBlocksDigests(std::istream& is,
+                                                 std::vector<std::pair<BlockId, STDigest>>& outDigests) const {
+  size_t size{};
+  Serializable::deserialize(is, size);
+  for (size_t i{0}; i < size; ++i) {
+    std::pair<BlockId, STDigest> p;
+    BlockId blockId;
+    STDigest digest;
+    Serializable::deserialize(is, blockId);
+    Serializable::deserialize(is, digest.getForUpdate(), BLOCK_DIGEST_SIZE);
+    outDigests.emplace_back(std::make_pair(blockId, digest));
+  }
+}
+
+void DBDataStore::setPrunedBlocksDigests(const std::vector<std::pair<BlockId, STDigest>>& digests) {
+  std::ostringstream oss;
+  serializePrunedBlocksDigests(oss, digests);
+  put(PrunedBlocksDigests, oss.str());
+  inmem_->setPrunedBlocksDigests(digests);
 }
 
 /** ******************************************************************************************************************/
