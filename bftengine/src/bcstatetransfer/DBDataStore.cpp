@@ -25,6 +25,30 @@ std::string toString(const DataStore::CheckpointDesc& desc) {
 }
 
 /** ******************************************************************************************************************/
+void DBDataStore::memoryStateToLog() {
+  std::ostringstream oss;
+
+  const auto replicas = inmem_->getReplicas();
+  const auto numbersOfPendingResPages = inmem_->getNumbersOfPendingResPages();
+  oss << "Replicas(): ";
+  std::copy(replicas.begin(), replicas.end(), std::ostream_iterator<int>(oss, " "));
+  oss << " ,MyReplicaId: " << inmem_->getMyReplicaId();
+  oss << " ,FVal: " << inmem_->getFVal();
+  oss << " ,MaxNumOfStoredCheckpoints: " << inmem_->getMaxNumOfStoredCheckpoints();
+  oss << " ,NumberOfReservedPages: " << inmem_->getNumberOfReservedPages();
+  oss << " ,LastStoredCheckpoint: " << inmem_->getLastStoredCheckpoint();
+  oss << " ,FirstStoredCheckpoint: " << inmem_->getFirstStoredCheckpoint();
+  oss << " ,NumbersOfPendingResPages: ";
+  std::copy(numbersOfPendingResPages.begin(), numbersOfPendingResPages.end(), std::ostream_iterator<int>(oss, " "));
+  oss << std::boolalpha << " IsFetchingState: " << inmem_->getIsFetchingState();
+  if (inmem_->hasCheckpointBeingFetched()) {
+    oss << " ,CheckpointBeingFetched: " << inmem_->getCheckpointBeingFetched();
+  }
+  oss << " ,FirstRequiredBlock: " << inmem_->getFirstRequiredBlock();
+  oss << " ,LastRequiredBlock: " << inmem_->getLastRequiredBlock();
+  LOG_INFO(logger(), "Current In Memory State:" << oss.str());
+}
+
 void DBDataStore::load(bool loadResPages_) {
   LOG_DEBUG(logger(), "");
   if (!get<bool>(Initialized)) {
@@ -63,17 +87,7 @@ void DBDataStore::load(bool loadResPages_) {
     loadPendingPages();
   }
 
-  LOG_DEBUG(logger(), "MyReplicaId: " << inmem_->getMyReplicaId());
-  LOG_DEBUG(logger(), "MaxNumOfStoredCheckpoints: " << inmem_->getMaxNumOfStoredCheckpoints());
-  LOG_DEBUG(logger(), "NumberOfReservedPages: " << inmem_->getNumberOfReservedPages());
-  LOG_DEBUG(logger(), "LastStoredCheckpoint: " << inmem_->getLastStoredCheckpoint());
-  LOG_DEBUG(logger(), "FirstStoredCheckpoint: " << inmem_->getFirstStoredCheckpoint());
-  LOG_DEBUG(logger(), "IsFetchingState: " << inmem_->getIsFetchingState());
-  LOG_DEBUG(logger(), "fVal: " << inmem_->getFVal());
-  LOG_DEBUG(logger(), "FirstRequiredBlock: " << inmem_->getFirstRequiredBlock());
-  LOG_DEBUG(logger(), "LastRequiredBlock:" << inmem_->getLastRequiredBlock());
-  // LOG_DEBUG(logger(), "Replicas" << inmem_->getReplicas());
-  LOG_DEBUG(logger(), "CheckpointBeingFetched: " << inmem_->getMyReplicaId());
+  memoryStateToLog();
 
   if (get<bool>(EraseDataOnStartup)) {
     try {
