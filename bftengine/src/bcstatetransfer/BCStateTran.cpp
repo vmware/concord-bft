@@ -3225,7 +3225,9 @@ void BCStateTran::peekConsensusMessage(shared_ptr<ConsensusMsg> &msg) {
 
   switch (msg_type) {
     case MsgCode::PrePrepare:
-      sourceSelector_.updateCurrentPrimary(msg->sender_id_);
+      if (config_.enableSourceSelectorPrimaryAwareness) {
+        sourceSelector_.updateCurrentPrimary(msg->sender_id_);
+      }
       break;
     default:
       LOG_FATAL(logger_, "Unexpected message type" << KVLOG(msg_type));

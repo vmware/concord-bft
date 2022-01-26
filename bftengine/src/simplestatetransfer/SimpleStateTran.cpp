@@ -334,7 +334,8 @@ SimpleStateTran::SimpleStateTran(
       5,                                    // metricsDumpIntervalSec
       true,                                 // runInSeparateThread
       true,                                 // enableReservedPages
-      true                                  // enableSourceBlocksPreFetch
+      true,                                 // enableSourceBlocksPreFetch
+      true                                  // enableSourceSelectorPrimaryAwareness
   };
 
   auto comparator = concord::storage::memorydb::KeyComparator();
