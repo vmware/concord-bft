@@ -31,16 +31,21 @@ class Handoff {
   typedef std::function<void()> func_type;
 
  public:
-  Handoff(std::uint16_t replicaId) {
+  Handoff(std::uint16_t replicaId, const std::string&& name = "")
+      : logger_{logging::getLogger("concord.util.handoff")} {
+    if (!name.empty()) {
+      name_ = std::move(name);
+    }
+    log_prefix_ = name_ + ": ";
     thread_ = std::thread([this, replicaId] {
       try {
         MDC_PUT(MDC_REPLICA_ID_KEY, std::to_string(replicaId));
         MDC_PUT(MDC_THREAD_KEY, "handoff");
         for (;;) pop()();
       } catch (ThreadCanceledException& e) {
-        LOG_INFO(getLogger(), "thread cancelled " << std::this_thread::get_id());
+        LOG_INFO(logger_, log_prefix_ << "thread cancelled " << std::this_thread::get_id());
       } catch (const std::exception& e) {
-        LOG_FATAL(getLogger(), "exception: " << e.what());
+        LOG_FATAL(logger_, log_prefix_ << "exception: " << e.what());
         std::terminate();
       }
     });
@@ -53,7 +58,7 @@ class Handoff {
     queue_cond_.notify_one();
     auto tid = thread_.get_id();
     thread_.join();
-    LOG_INFO(getLogger(), "thread joined " << tid);
+    LOG_INFO(logger_, log_prefix_ << "thread joined " << tid);
   }
 
   void push(func_type f) {
@@ -69,10 +74,15 @@ class Handoff {
     return task_queue_.size();
   }
 
+  size_t empty() const {
+    guard g(queue_lock_);
+    return task_queue_.empty();
+  }
+
  protected:
   class ThreadCanceledException : public std::runtime_error {
    public:
-    ThreadCanceledException() : std::runtime_error("thread cancelled") {}
+    ThreadCanceledException(const std::string& log_prefix) : std::runtime_error(log_prefix + "thread cancelled") {}
     const char* what() const noexcept override { return std::runtime_error::what(); }
   };
 
@@ -86,14 +96,9 @@ class Handoff {
         task_queue_.pop();
         return f;
       }
-      LOG_INFO(getLogger(), "Handoff thread stopped!");
-      throw ThreadCanceledException();
+      LOG_INFO(logger_, log_prefix_ << "Handoff thread stopped!");
+      throw ThreadCanceledException(log_prefix_);
     }
-  }
-
-  static logging::Logger getLogger() {
-    static logging::Logger logger_ = logging::getLogger("concord.util.handoff");
-    return logger_;
   }
 
  protected:
@@ -102,6 +107,9 @@ class Handoff {
   std::condition_variable queue_cond_;
   std::atomic_bool stopped_{false};
   std::thread thread_;
+  std::string name_ = "handoff";
+  std::string log_prefix_;
+  logging::Logger logger_;
 };  // class Handoff
 
 }  // namespace concord::util
