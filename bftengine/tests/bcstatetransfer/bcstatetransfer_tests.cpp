@@ -111,12 +111,19 @@ class MsgGenerator {
 /////////////////////////////////////////////////////////
 struct TestConfig {
   /**
+   *  TestTarget
+   * SOURCE: testing ST source production code, destination is fake
+   * DESTINAION: testing ST destination production code, source is fake
+   */
+  enum class TestTarget { SOURCE, DESTINATION };
+
+  /**
    * Constants
    * You may decide a constant is configurable by moving it into the 'Configurables' part
    * In some cases you might need to write additional code to support the new configuration value
    */
   static constexpr char BCST_DB[] = "./bcst_db";
-  static constexpr char MOCKED_BCST_DB[] = "./mocked_bcst_db";
+  static constexpr char FAKE_BCST_DB[] = "./fake_bcst_db";
 
   /**
    * Configurable
@@ -132,14 +139,21 @@ struct TestConfig {
   uint32_t lastReachedcheckpointNum = 10;
   bool productDbDeleteOnStart = true;
   bool productDbDeleteOnEnd = true;
-  bool mockDbDeleteOnStart = true;
-  bool mockDbDeleteOnEnd = true;
+  bool fakeDbDeleteOnStart = true;
+  bool fakeDbDeleteOnEnd = true;
+  TestTarget testTarget = TestTarget::DESTINATION;
+  string logLevel = "error";
 };
+
+static inline std::ostream& operator<<(std::ostream& os, const TestConfig::TestTarget& c) {
+  os << ((c == TestConfig::TestTarget::DESTINATION) ? "DESTINATION" : "SOURCE");
+  return os;
+}
 
 static inline std::ostream& operator<<(std::ostream& os, const TestConfig& c) {
   os << std::boolalpha
      << KVLOG(c.BCST_DB,
-              c.MOCKED_BCST_DB,
+              c.FAKE_BCST_DB,
               c.maxNumOfRequiredStoredCheckpoints,
               c.numberOfRequiredReservedPages,
               c.minNumberOfUpdatedReservedPages,
@@ -149,8 +163,10 @@ static inline std::ostream& operator<<(std::ostream& os, const TestConfig& c) {
               c.lastReachedcheckpointNum,
               c.productDbDeleteOnStart,
               c.productDbDeleteOnEnd,
-              c.mockDbDeleteOnStart,
-              c.mockDbDeleteOnEnd);
+              c.fakeDbDeleteOnStart,
+              c.fakeDbDeleteOnEnd,
+              c.testTarget,
+              c.logLevel);
   return os;
 }
 
