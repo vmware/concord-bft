@@ -26,6 +26,7 @@ using bftEngine::impl::getMonotonicTimeMilli;
 using concordMetrics::StatusHandle;
 using concordMetrics::GaugeHandle;
 using concordMetrics::Aggregator;
+using concordMetrics::CounterHandle;
 
 namespace bftEngine {
 namespace bcst {
@@ -40,6 +41,7 @@ enum class SourceReplacementMode { GRACEFUL, IMMEDIATE, DO_NOT };
 class SourceSelector {
   // This class is strictly used for testing
   friend class SourceSelectorTestFixture;
+  friend class BcStTest;
 
  public:
   SourceSelector(std::set<uint16_t> allOtherReplicas,
@@ -60,7 +62,13 @@ class SourceSelector {
         metrics_component_{
             concordMetrics::Component("source_selector", std::make_shared<concordMetrics::Aggregator>())},
         metrics_{metrics_component_.RegisterStatus("preferred_replicas", ""),
-                 metrics_component_.RegisterGauge("current_source_replica", NO_REPLICA)} {}
+                 metrics_component_.RegisterGauge("current_source_replica", NO_REPLICA),
+                 metrics_component_.RegisterCounter("replacement_due_to_no_source"),
+                 metrics_component_.RegisterCounter("replacement_due_to_bad_data"),
+                 metrics_component_.RegisterCounter("replacement_due_to_retransmission_timeout"),
+                 metrics_component_.RegisterCounter("replacement_due_to_periodic_change"),
+                 metrics_component_.RegisterCounter("replacement_due_to_source_same_as_primary"),
+                 metrics_component_.RegisterCounter("total_replacements")} {}
 
   bool hasSource() const;
   void removeCurrentReplica();
@@ -91,7 +99,10 @@ class SourceSelector {
 
   bool noPreferredReplicas() const { return preferredReplicas_.empty(); }
 
-  void addPreferredReplica(uint16_t replicaId) { preferredReplicas_.insert(replicaId); }
+  void addPreferredReplica(uint16_t replicaId) {
+    preferredReplicas_.insert(replicaId);
+    metrics_.preferred_replicas_.Get().Set(preferredReplicasToString());
+  }
 
   uint16_t currentPrimary() { return currentPrimary_; }
 
@@ -114,18 +125,11 @@ class SourceSelector {
   uint16_t minPrePrepareMsgsForPrimaryAwarness() { return minPrePrepareMsgsForPrimaryAwarness_; }
 
   // Metric
-  inline void updatePreferredReplicasMetric() const {
-    metrics_.preferred_replicas_.Get().Set(preferredReplicasToString());
-  }
-  inline void updatePreferredReplicasMetric(std::string replicas) const {
-    metrics_.preferred_replicas_.Get().Set(replicas);
-  }
-  inline void updateCurrentReplicaMetric() const { metrics_.current_source_replica_.Get().Set(currentReplica_); }
-  inline void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
+  void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
     metrics_component_.SetAggregator(aggregator);
   }
-  inline void updateMetricToAggregator() { metrics_component_.UpdateAggregator(); }
-  inline concordMetrics::Component &getMetricComponent() { return metrics_component_; }
+  void updateMetricToAggregator() { metrics_component_.UpdateAggregator(); }
+  concordMetrics::Component &getMetricComponent() { return metrics_component_; }
 
  private:
   uint64_t timeSinceSourceSelectedMilli(uint64_t currTimeMilli) const;
@@ -157,11 +161,19 @@ class SourceSelector {
   uint16_t minPrePrepareMsgsForPrimaryAwarness_ = 10;
   logging::Logger &logger_;
 
+ protected:
   // Metrics
   concordMetrics::Component metrics_component_;
   struct Metrics {
     StatusHandle preferred_replicas_;
     GaugeHandle current_source_replica_;
+
+    CounterHandle replacement_due_to_no_source_;
+    CounterHandle replacement_due_to_bad_data_;
+    CounterHandle replacement_due_to_retransmission_timeout_;
+    CounterHandle replacement_due_to_periodic_change_;
+    CounterHandle replacement_due_to_source_same_as_primary_;
+    CounterHandle total_replacements_;
   };
   mutable Metrics metrics_;
 };
