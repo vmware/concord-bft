@@ -70,11 +70,6 @@ jobs:
           with:
             name: artifacts-${{ matrix.compiler }}-${{ matrix.ci_build_type }}-${{ github.sha }}
             path: ${{ github.workspace }}/artifact/
-        - name: Check ERROR/FATAL logs
-          if: always()
-          run: |
-            ./.github/success_action_if_err_logs_exist.sh ./build/tests/apollo/logs
-            echo "file_count=$(find ./build/tests/apollo/logs -name ReplicaErrorLogs.txt | wc -l)" >> $GITHUB_ENV
         - name: Prepare error artifacts
           id: prepare_err_artifacts
           if: ${{ env.file_count > 0 }}
