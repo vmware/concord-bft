@@ -763,7 +763,7 @@ RawBlock Replica::getBlockInternal(BlockId blockId) const { return m_bcDbAdapter
  * This method assumes that *outBlock is big enough to hold block content
  * The caller is the owner of the memory
  */
-bool Replica::getBlock(uint64_t blockId, char *outBlock, uint32_t outBlockMaxSize, uint32_t *outBlockActualSize) {
+bool Replica::getBlock(uint64_t blockId, char *outBlock, uint32_t outBlockMaxSize, uint32_t *outBlockActualSize) const {
   if (replicaConfig_.isReadOnly) {
     return getBlockFromObjectStore(blockId, outBlock, outBlockMaxSize, outBlockActualSize);
   }
@@ -827,7 +827,7 @@ std::future<bool> Replica::getBlockAsync(uint64_t blockId,
 bool Replica::getBlockFromObjectStore(uint64_t blockId,
                                       char *outBlock,
                                       uint32_t outblockMaxSize,
-                                      uint32_t *outBlockSize) {
+                                      uint32_t *outBlockSize) const {
   try {
     RawBlock block = getBlockInternal(blockId);
     if (block.length() > outblockMaxSize) {
@@ -850,7 +850,7 @@ bool Replica::hasBlock(BlockId blockId) const {
   return m_kvBlockchain->hasBlock(blockId);
 }
 
-bool Replica::getPrevDigestFromBlock(BlockId blockId, StateTransferDigest *outPrevBlockDigest) {
+bool Replica::getPrevDigestFromBlock(BlockId blockId, StateTransferDigest *outPrevBlockDigest) const {
   if (replicaConfig_.isReadOnly) {
     return getPrevDigestFromObjectStoreBlock(blockId, outPrevBlockDigest);
   }
@@ -865,7 +865,7 @@ bool Replica::getPrevDigestFromBlock(BlockId blockId, StateTransferDigest *outPr
 
 void Replica::getPrevDigestFromBlock(const char *blockData,
                                      const uint32_t blockSize,
-                                     StateTransferDigest *outPrevBlockDigest) {
+                                     StateTransferDigest *outPrevBlockDigest) const {
   ConcordAssertGT(blockSize, 0);
   auto view = std::string_view{blockData, blockSize};
   const auto rawBlock = categorization::RawBlock::deserialize(view);
@@ -876,7 +876,7 @@ void Replica::getPrevDigestFromBlock(const char *blockData,
 }
 
 bool Replica::getPrevDigestFromObjectStoreBlock(uint64_t blockId,
-                                                bftEngine::bcst::StateTransferDigest *outPrevBlockDigest) {
+                                                bftEngine::bcst::StateTransferDigest *outPrevBlockDigest) const {
   ConcordAssert(blockId > 0);
   try {
     const auto rawBlockSer = m_bcDbAdapter->getRawBlock(blockId);
