@@ -20,11 +20,14 @@
 #include "communication/CommDefs.hpp"
 #include "SimpleClient.hpp"
 #include "histogram.hpp"
-#include "misc.hpp"
+#include "TimeUtils.hpp"
 #include "assertUtils.hpp"
+
 using namespace bftEngine;
 using namespace bft::communication;
 using namespace std;
+
+using bftEngine::impl::getMonotonicTimeMicro;
 
 #define test_assert(statement, message)                                                                          \
   {                                                                                                              \
@@ -114,7 +117,7 @@ class SimpleTestClient {
         printf("Total iterations count: %i\n", i);
       }
 
-      uint64_t start = get_monotonic_time();
+      uint64_t start = getMonotonicTimeMicro();
       if (i % readMod == 0) {
         // Read the latest value every readMod-th operation.
 
@@ -198,7 +201,7 @@ class SimpleTestClient {
         }
       }
 
-      uint64_t end = get_monotonic_time();
+      uint64_t end = getMonotonicTimeMicro();
       uint64_t elapsedMicro = end - start;
 
       if (cp.measurePerformance) {
