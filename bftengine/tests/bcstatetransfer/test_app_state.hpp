@@ -97,21 +97,33 @@ class TestAppState : public IAppState {
   bool getBlock(uint64_t blockId, char* outBlock, uint32_t outBlockMaxSize, uint32_t* outBlockActualSize) override {
     std::lock_guard<std::mutex> lg(mtx);
     auto it = blocks_.find(blockId);
-    if (it == blocks_.end()) return false;
+    if (it == blocks_.end()) {
+      return false;
+    }
     ConcordAssert(outBlockMaxSize >= it->second->totalBlockSize);
     std::memcpy(outBlock, it->second.get(), it->second->totalBlockSize);
     *outBlockActualSize = it->second->totalBlockSize;
     return true;
   };
 
+  const std::shared_ptr<Block> peekBlock(uint64_t blockId) const {
+    std::lock_guard<std::mutex> lg(mtx);
+    auto it = blocks_.find(blockId);
+    if (it == blocks_.end()) {
+      return nullptr;
+    }
+    return it->second;
+  };
+
   std::future<bool> getBlockAsync(uint64_t blockId,
                                   char* outBlock,
                                   uint32_t outBlockMaxSize,
                                   uint32_t* outBlockActualSize) override {
-    std::future<bool> future = std::async(std::launch::async, [&]() {
+    bool res = getBlock(blockId, outBlock, outBlockMaxSize, outBlockActualSize);
+    std::future<bool> future = std::async(std::launch::async, [&, res]() {
       // simulate processing time
       sleepForRandomtime(blockIoMinLatencyMs, blockIoMaxLatencyMs);
-      return getBlock(blockId, outBlock, outBlockMaxSize, outBlockActualSize);
+      return res;
     });
     return future;
   }
