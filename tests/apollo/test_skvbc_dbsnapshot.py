@@ -126,6 +126,37 @@ def start_replica_cmd_db_snapshot_disabled(builddir, replica_id):
             "-h", "0",
             "-o", builddir + "/operator_pub.pem"]
 
+def start_replica_cmd_with_operator_and_public_keys(builddir, replica_id):
+    """
+    Return a command with operator that starts an skvbc replica when passed to
+    subprocess.Popen.
+
+    Note each arguments is an element in a list.
+    """
+    statusTimerMilli = "500"
+    viewChangeTimeoutMilli = "10000"
+    path = os.path.join(builddir, "tests", "simpleKVBC",
+                        "TesterReplica", "skvbc_replica")
+    if os.environ.get('TIME_SERVICE_ENABLED', default="FALSE").lower() == "true":
+        batch_size = "2"
+        time_service_enabled = "1"
+    else:
+        batch_size = "1"
+        time_service_enabled = "0"
+    return [path,
+            "-k", KEY_FILE_PREFIX,
+            "-i", str(replica_id),
+            "-s", statusTimerMilli,
+            "-v", viewChangeTimeoutMilli,
+            "-l", os.path.join(builddir, "tests", "simpleKVBC",
+                               "scripts", "logging.properties"),
+            "-f", time_service_enabled,
+            "-b", "2",
+            "-q", batch_size,
+            "-h", "3",
+            "-j", "600",
+            "-o", builddir + "/operator_pub.pem",
+            "--add-all-keys-as-public"]
 
 class SkvbcDbSnapshotTest(unittest.TestCase):
     __test__ = False  # so that PyTest ignores this test scenario
@@ -428,9 +459,18 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
                          "StateSnapshotRequest(participant ID = apollo_test_participant_id): failed, the DB checkpoint feature is disabled")
 
     @with_trio
+    @with_bft_network(start_replica_cmd_with_operator_and_public_keys, selected_configs=lambda n, f, c: n == 7)
+    @verify_linearizability()
+    async def test_state_snapshot_req_existing_checkpoint_with_public_keys(self, bft_network, tracker):
+        await self.state_snapshot_req_existing_checkpoint(bft_network, tracker, 600)
+
+    @with_trio
     @with_bft_network(start_replica_cmd_with_operator, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability()
-    async def test_state_snapshot_req_existing_checkpoint(self, bft_network, tracker):
+    async def test_state_snapshot_req_existing_checkpoint_without_public_keys(self, bft_network, tracker):
+        await self.state_snapshot_req_existing_checkpoint(bft_network, tracker, 0)
+
+    async def state_snapshot_req_existing_checkpoint(self, bft_network, tracker, expected_key_value_count_estimate):
         bft_network.start_all_replicas()
         client = bft_network.random_client()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
@@ -456,11 +496,21 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
         self.assertIsNotNone(resp.response.data)
         self.assertEqual(resp.response.data.snapshot_id, 600)
         self.assertEqual(resp.response.data.event_group_id, 0)
+        self.assertEqual(resp.response.data.key_value_count_estimate, expected_key_value_count_estimate)
+
+    @with_trio
+    @with_bft_network(start_replica_cmd_with_operator_and_public_keys, selected_configs=lambda n, f, c: n == 7)
+    @verify_linearizability()
+    async def test_state_snapshot_req_non_existent_checkpoint_with_public_keys(self, bft_network, tracker):
+        await self.state_snapshot_req_non_existent_checkpoint(bft_network, tracker, 100)
 
     @with_trio
     @with_bft_network(start_replica_cmd_with_operator, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability()
-    async def test_state_snapshot_req_non_existent_checkpoint(self, bft_network, tracker):
+    async def test_state_snapshot_req_non_existent_checkpoint_without_public_keys(self, bft_network, tracker):
+        await self.state_snapshot_req_non_existent_checkpoint(bft_network, tracker, 0)
+
+    async def state_snapshot_req_non_existent_checkpoint(self, bft_network, tracker, expected_key_value_count_estimate):
         bft_network.start_all_replicas()
         client = bft_network.random_client()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
@@ -480,6 +530,7 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
         self.assertIsNotNone(resp.response.data)
         self.assertEqual(resp.response.data.snapshot_id, 100)
         self.assertEqual(resp.response.data.event_group_id, 0)
+        self.assertEqual(resp.response.data.key_value_count_estimate, expected_key_value_count_estimate)
 
         # Expect that a snapshot/checkpoint with an ID of 100 is available. For that, we assume that the snapshot/checkpoint ID
         # is the last block ID at which the snapshot/checkpoint is created.
@@ -608,7 +659,7 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(nb_fast_path, 0)
     
-
+    @with_trio
     @with_bft_network(start_replica_cmd_with_operator, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability()
     async def test_signed_public_state_hash_req_existing_checkpoint(self, bft_network, tracker):

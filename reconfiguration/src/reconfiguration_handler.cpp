@@ -240,54 +240,6 @@ bool ReconfigurationHandler::handle(const concord::messages::CreateDbCheckpointC
   }
 }
 
-bool ReconfigurationHandler::handle(const concord::messages::StateSnapshotRequest& cmd,
-                                    uint64_t sequence_number,
-                                    uint32_t,
-                                    const std::optional<bftEngine::Timestamp>& timestamp,
-                                    concord::messages::ReconfigurationResponse& rres) {
-  if (!bftEngine::ReplicaConfig::instance().dbCheckpointFeatureEnabled ||
-      bftEngine::ReplicaConfig::instance().maxNumberOfDbCheckpoints == 0) {
-    const auto err = "StateSnapshotRequest(participant ID = " + cmd.participant_id +
-                     "): failed, the DB checkpoint feature is disabled";
-    LOG_WARN(getLogger(), err);
-    rres.response = concord::messages::ReconfigurationErrorMsg{err};
-    return false;
-  }
-
-  auto resp = StateSnapshotResponse{};
-  const auto last_checkpoint_desc = DbCheckpointManager::instance().getLastCreatedDbCheckpointMetadata();
-  // TODO: We currently only support new participants and, therefore, the event group ID will always be the one before
-  // the first one, namely 0.
-  if (last_checkpoint_desc) {
-    resp.data.emplace();
-    resp.data->snapshot_id = last_checkpoint_desc->checkPointId_;
-    resp.data->event_group_id = 0;
-    LOG_INFO(getLogger(),
-             "StateSnapshotRequest(participant ID = " << cmd.participant_id << "): using existing last checkpoint ID: "
-                                                      << last_checkpoint_desc->checkPointId_);
-  } else {
-    const auto checkpoint_id =
-        DbCheckpointManager::instance().createDbCheckpointAsync(sequence_number, timestamp, std::nullopt);
-    if (checkpoint_id) {
-      resp.data.emplace();
-      resp.data->snapshot_id = *checkpoint_id;
-      resp.data->event_group_id = 0;
-      LOG_INFO(getLogger(),
-               "StateSnapshotRequest(participant ID = " << cmd.participant_id
-                                                        << "): creating checkpoint with ID: " << *checkpoint_id);
-    } else {
-      // If we couldn't create a DB checkpoint and there is no last one created, we just leave `resp.data`
-      // nullopt, indicating to the client that it should retry.
-      LOG_INFO(getLogger(),
-               "StateSnapshotRequest(participant ID = "
-                   << cmd.participant_id
-                   << "): cannot create a checkpoint and there is no existing one, client must retry");
-    }
-  }
-  rres.response = std::move(resp);
-  return true;
-}
-
 BftReconfigurationHandler::BftReconfigurationHandler() {
   auto operatorPubKeyPath = bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_;
   if (operatorPubKeyPath.empty()) {

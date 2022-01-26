@@ -81,12 +81,6 @@ class ReconfigurationHandler : public BftReconfigurationHandler {
               const std::optional<bftEngine::Timestamp> &,
               concord::messages::ReconfigurationResponse &) override;
 
-  bool handle(const concord::messages::StateSnapshotRequest &,
-              uint64_t,
-              uint32_t,
-              const std::optional<bftEngine::Timestamp> &,
-              concord::messages::ReconfigurationResponse &) override;
-
  private:
   void handleWedgeCommands(
       bool bft_support, bool remove_metadata, bool restart, bool unwedge, bool blockNewConnections);
