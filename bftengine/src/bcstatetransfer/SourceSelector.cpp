@@ -58,6 +58,9 @@ void SourceSelector::reset() {
   fetchRetransmissionOngoing_ = false;
   receivedValidBlockFromSrc_ = false;
   actualSources_.clear();
+  currentPrimary_ = NO_REPLICA;
+  nominatedPrimary_ = NO_REPLICA;
+  nominatedPrimaryCounter_ = 0;
 }
 
 bool SourceSelector::isReset() const {
@@ -99,6 +102,9 @@ void SourceSelector::updateSource(uint64_t currTimeMilli) {
   }
   if (preferredReplicas_.empty()) {
     preferredReplicas_ = allOtherReplicas_;
+    if (currentPrimary_ != NO_REPLICA) {
+      preferredReplicas_.erase(currentPrimary_);
+    }
   }
   selectSource(currTimeMilli);
 }
@@ -157,6 +163,10 @@ SourceReplacementMode SourceSelector::shouldReplaceSource(uint64_t currTimeMilli
       return SourceReplacementMode::GRACEFUL;
     }
   }
+  if ((lastInBatch) and (currentReplica_ == currentPrimary_)) {
+    LOG_INFO(logger_, "Current replica has become primary" << KVLOG(currentReplica_, currentPrimary_));
+    return SourceReplacementMode::GRACEFUL;
+  }
   return SourceReplacementMode::DO_NOT;
 }
 
@@ -179,7 +189,52 @@ void SourceSelector::selectSource(uint64_t currTimeMilli) {
   fetchingTimeStamp_ = 0;
   fetchRetransmissionCounter_ = 0;
   receivedValidBlockFromSrc_ = false;
+
+  LOG_INFO(logger_, "Selected new source replica " << currentReplica_);
 }
+
+void SourceSelector::updateCurrentPrimary(uint16_t newPrimary) {
+  if (currentPrimary_ == newPrimary) return;
+  auto resetNominatedPrimary = [&]() {
+    nominatedPrimary_ = NO_REPLICA;
+    nominatedPrimaryCounter_ = 0;
+  };
+  if (!isValidSourceId(newPrimary)) {
+    resetNominatedPrimary();
+    LOG_ERROR(logger_, "Invalid replica id" << KVLOG(newPrimary));
+    return;
+  }
+
+  nominatedPrimaryCounter_++;
+  if (nominatedPrimary_ == NO_REPLICA) {
+    nominatedPrimary_ = newPrimary;
+    return;
+  }
+
+  if ((newPrimary != nominatedPrimary_) and (nominatedPrimaryCounter_ < minPrePrepareMsgsForPrimaryAwarness_)) {
+    resetNominatedPrimary();
+    return;
+  }
+
+  if (nominatedPrimaryCounter_ < minPrePrepareMsgsForPrimaryAwarness_) {
+    return;
+  }
+
+  resetNominatedPrimary();
+
+  if (currentPrimary_ != newPrimary) {
+    if (currentPrimary_ != NO_REPLICA) {
+      addPreferredReplica(currentPrimary_);
+    }
+    // Remove immediately as retransmission timeout, rotating source may end up choosing
+    // current primary as new source
+    removePreferredReplica(newPrimary);
+  }
+
+  LOG_INFO(logger_, KVLOG(currentReplica_, currentPrimary_, newPrimary));
+  currentPrimary_ = newPrimary;
+}
+
 }  // namespace impl
 }  // namespace bcst
 }  // namespace bftEngine
