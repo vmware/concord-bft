@@ -28,21 +28,30 @@ class ClientService {
       : logger_(logging::getLogger("concord.client.clientservice")),
         client_(std::move(client)),
         event_service_(std::make_unique<EventServiceImpl>(client_)),
-        request_service_(std::make_unique<RequestServiceImpl>(client_)),
         state_snapshot_service_(std::make_unique<StateSnapshotServiceImpl>(client_)){};
 
-  void start(const std::string& addr, uint64_t max_receive_msg_size);
+  void start(const std::string& addr, int num_async_threads, uint64_t max_receive_msg_size);
 
   const std::string kRequestService{"vmware.concord.client.request.v1.RequestService"};
   const std::string kEventService{"vmware.concord.client.event.v1.EventService"};
   const std::string kStateSnapshotService{"vmware.concord.client.statesnapshot.v1.StateSnapshotService"};
 
  private:
+  // Handler for asynchronous services
+  void handleRpcs(int thread_idx);
+
   logging::Logger logger_;
   std::shared_ptr<concord::client::concordclient::ConcordClient> client_;
+
+  // Synchronous services
   std::unique_ptr<EventServiceImpl> event_service_;
-  std::unique_ptr<RequestServiceImpl> request_service_;
   std::unique_ptr<StateSnapshotServiceImpl> state_snapshot_service_;
+
+  // Asynchronous services
+  vmware::concord::client::request::v1::RequestService::AsyncService request_service_;
+
+  std::vector<std::unique_ptr<grpc::ServerCompletionQueue>> cqs_;
+  std::vector<std::thread> server_threads_;
 };
 
 }  // namespace concord::client::clientservice

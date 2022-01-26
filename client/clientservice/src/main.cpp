@@ -14,7 +14,6 @@
 #include <string>
 #include <vector>
 #include <chrono>
-#include <grpcpp/grpcpp.h>
 #include <boost/program_options.hpp>
 #include <yaml-cpp/yaml.h>
 
@@ -51,6 +50,7 @@ po::variables_map parseCmdLine(int argc, char** argv) {
     ("config", po::value<std::string>()->required(), "YAML configuration file for the RequestService")
     ("host", po::value<std::string>()->default_value("0.0.0.0"), "Clientservice gRPC service host")
     ("port", po::value<int>()->default_value(50505), "Clientservice gRPC service port")
+    ("num-async-threads", po::value<int>()->default_value(1), "Number of threads for async gRPC services")
     ("tr-id", po::value<std::string>()->required(), "ID used to subscribe to replicas for data/hashes")
     ("tr-insecure", po::value<bool>()->default_value(false), "Testing only: Allow insecure connection with TRS on replicas")
     ("tr-tls-path", po::value<std::string>()->default_value(""), "Path to thin replica TLS certificates")
@@ -164,7 +164,7 @@ int main(int argc, char** argv) {
 
   auto server_addr = opts["host"].as<std::string>() + ":" + std::to_string(opts["port"].as<int>());
   LOG_INFO(logger, "Starting clientservice at " << server_addr);
-  service.start(server_addr, opts["max-receive-msg-size"].as<int>());
+  service.start(server_addr, opts["num-async-threads"].as<int>(), opts["max-receive-msg-size"].as<int>());
 
   return 0;
 }
