@@ -115,12 +115,13 @@ class BCStateTran : public IStateTransfer {
   void saveReservedPage(uint32_t reservedPageId, uint32_t copyLength, const char* inReservedPage) override;
   void zeroReservedPage(uint32_t reservedPageId) override;
 
-  void onTimer() override { timerHandler_(); };
-
+  // Handoff API- handle timeouts and messages from an external context
+  void onTimer() override { handoff_->push(std::bind(&BCStateTran::onTimerImp, this)); };
   using LocalTimePoint = time_point<steady_clock>;
   static constexpr auto UNDEFINED_LOCAL_TIME_POINT = LocalTimePoint::max();
   void handleStateTransferMessage(char* msg, uint32_t msgLen, uint16_t senderId) override {
-    messageHandler_(msg, msgLen, senderId, UNDEFINED_LOCAL_TIME_POINT);
+    handoff_->push(std::bind(
+        &BCStateTran::handleStateTransferMessageImp, this, msg, msgLen, senderId, std::chrono::steady_clock::now()));
   };
 
   std::string getStatus() override;
@@ -146,20 +147,12 @@ class BCStateTran : public IStateTransfer {
 
  protected:
   // handling messages from other context
-  std::function<void(char*, uint32_t, uint16_t, LocalTimePoint)> messageHandler_;
   void handleStateTransferMessageImp(char* msg,
                                      uint32_t msgLen,
                                      uint16_t senderId,
                                      LocalTimePoint msgArrivalTime = UNDEFINED_LOCAL_TIME_POINT);
-  void handoffMsg(char* msg, uint32_t msgLen, uint16_t senderId) {
-    handoff_->push(
-        std::bind(&BCStateTran::handleStateTransferMessageImp, this, msg, msgLen, senderId, steady_clock::now()));
-  }
-
   // handling timer from other context
-  std::function<void()> timerHandler_;
   void onTimerImp();
-  void handoffTimer() { handoff_->push(std::bind(&BCStateTran::onTimerImp, this)); }
 
   ///////////////////////////////////////////////////////////////////////////
   // Constants
