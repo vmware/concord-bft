@@ -164,6 +164,7 @@ struct Config {
   uint32_t gettingMissingBlocksSummaryWindowSize = 0;
   uint16_t minPrePrepareMsgsForPrimaryAwarness = 0;
   uint32_t fetchRangeSize = 0;
+  uint32_t RVT_K = 0;
 
   // timeouts
   uint32_t refreshTimerMs = 0;
@@ -179,6 +180,7 @@ struct Config {
   bool enableReservedPages = true;
   bool enableSourceBlocksPreFetch = true;
   bool enableSourceSelectorPrimaryAwareness = true;
+  bool enableStoreRvbDataDuringCheckpointing = true;
 };
 
 inline std::ostream &operator<<(std::ostream &os, const Config &c) {
@@ -199,7 +201,8 @@ inline std::ostream &operator<<(std::ostream &os, const Config &c) {
               c.minPrePrepareMsgsForPrimaryAwarness,
               c.fetchRangeSize);
   os << ",";
-  os << KVLOG(c.refreshTimerMs,
+  os << KVLOG(c.RVT_K,
+              c.refreshTimerMs,
               c.checkpointSummariesRetransmissionTimeoutMs,
               c.maxAcceptableMsgDelayMs,
               c.sourceReplicaReplacementTimeoutMs,
@@ -209,7 +212,8 @@ inline std::ostream &operator<<(std::ostream &os, const Config &c) {
               c.runInSeparateThread,
               c.enableReservedPages,
               c.enableSourceBlocksPreFetch,
-              c.enableSourceSelectorPrimaryAwareness);
+              c.enableSourceSelectorPrimaryAwareness,
+              c.enableStoreRvbDataDuringCheckpointing);
   return os;
 }
 // creates an instance of the state transfer module.

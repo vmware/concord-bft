@@ -77,6 +77,8 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     replicaConfig.set("sourceReplicaReplacementTimeoutMilli", 6000);
     replicaConfig.set("concord.bft.st.runInSeparateThread", true);
     replicaConfig.set("concord.bft.keyExchage.clientKeysEnabled", false);
+    replicaConfig.set("concord.bft.st.fetchRangeSize", 27);
+    replicaConfig.set("concord.bft.st.RVT_K", 12);
     replicaConfig.preExecutionResultAuthEnabled = false;
     const auto persistMode = PersistencyMode::RocksDB;
     std::string keysFilePrefix;
