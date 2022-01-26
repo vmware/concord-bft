@@ -533,7 +533,8 @@ Replica::Replica(ICommunication *comm,
     replicaConfig_.getsizeOfReservedPage(),
     replicaConfig_.get<uint32_t>("concord.bft.st.gettingMissingBlocksSummaryWindowSize", 600),
     replicaConfig_.get<uint16_t>("concord.bft.st.minPrePrepareMsgsForPrimaryAwarness", 10),
-    replicaConfig_.get<uint32_t>("concord.bft.st.fetchRangeSize", 1024),
+    replicaConfig_.get<uint32_t>("concord.bft.st.fetchRangeSize", 256),
+    replicaConfig_.get<uint32_t>("concord.bft.st.RVT_K", 1024),
     replicaConfig_.get<uint32_t>("concord.bft.st.refreshTimerMs", 300),
     replicaConfig_.get<uint32_t>("concord.bft.st.checkpointSummariesRetransmissionTimeoutMs", 2500),
     replicaConfig_.get<uint32_t>("concord.bft.st.maxAcceptableMsgDelayMs", 60000),
@@ -544,7 +545,8 @@ Replica::Replica(ICommunication *comm,
     replicaConfig_.get("concord.bft.st.runInSeparateThread", !replicaConfig_.isReadOnly),
     replicaConfig_.get("concord.bft.st.enableReservedPages", true),
     replicaConfig_.get("concord.bft.st.enableSourceBlocksPreFetch", true),
-    replicaConfig_.get("concord.bft.st.enableSourceSelectorPrimaryAwareness", true)
+    replicaConfig_.get("concord.bft.st.enableSourceSelectorPrimaryAwareness", true),
+    replicaConfig_.get("concord.bft.st.enableStoreRvbDataDuringCheckpointing", true)
   };
   if (replicaConfig_.isReadOnly) stConfig.runInSeparateThread = false;
 
@@ -554,6 +556,7 @@ Replica::Replica(ICommunication *comm,
     LOG_WARN(logger, "overriding incorrect chunking configuration for UDP");
     stConfig.maxChunkSize = 2048;
     stConfig.maxNumberOfChunksInBatch = 32;
+    stConfig.fetchRangeSize = 32;
   }
 #endif
 
