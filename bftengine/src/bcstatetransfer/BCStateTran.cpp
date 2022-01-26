@@ -3234,6 +3234,18 @@ void BCStateTran::peekConsensusMessage(shared_ptr<ConsensusMsg> &msg) {
   }
 }
 
+void BCStateTran::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBlockId) {
+  if (isFetching()) {
+    // This is another thread context
+    // Worst scenario - moving from not fetching -> fetching (time of check/ time of use)
+    // The other case cannot happen.
+    // In the worst case redundant blocks will be saved and persisted and removed later.
+    LOG_WARN(logger_, "Report about pruned blocks while fetching!");
+    return;
+  }
+  rvbm_->reportLastAgreedPrunableBlockId(lastAgreedPrunableBlockId);
+}
+
 }  // namespace impl
 }  // namespace bcst
 }  // namespace bftEngine
