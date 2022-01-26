@@ -2481,18 +2481,21 @@ bool BCStateTran::finalizePutblockAsync(PutBlockWaitPolicy waitPolicy, bool alwa
 
 // Compute the next batch reqired, taking into accont: FirstRequiredBlock
 // and configuration parameters fetchRangeSize and maxNumberOfChunksInBatch
-uint64_t BCStateTran::computeNextRequiredBlock() {
-  const uint64_t minRequiredBlockId = psd_->getFirstRequiredBlock();
-  uint64_t maxBlockIdInRange = minRequiredBlockId / config_.fetchRangeSize;
-  if (minRequiredBlockId % config_.fetchRangeSize != 0) {
-    ++maxBlockIdInRange;
+BCStateTran::BlocksBatchDesc BCStateTran::computeNextBatchToFetch(uint64_t minRequiredBlockId) {
+  uint64_t maxRequiredBlockId = minRequiredBlockId + config_.maxNumberOfChunksInBatch - 1;
+  if (!isRvbBlockId(maxRequiredBlockId)) {
+    uint64_t deltaToNearestRVB = maxRequiredBlockId % config_.fetchRangeSize;
+    if ((maxRequiredBlockId >= deltaToNearestRVB) && (maxRequiredBlockId - deltaToNearestRVB > minRequiredBlockId))
+      maxRequiredBlockId = maxRequiredBlockId - deltaToNearestRVB;
   }
-  maxBlockIdInRange = maxBlockIdInRange * config_.fetchRangeSize;
-  uint64_t maxBlockIdInBatch = minRequiredBlockId + config_.maxNumberOfChunksInBatch - 1;
-  while (maxBlockIdInRange + config_.fetchRangeSize <= maxBlockIdInBatch) {
-    maxBlockIdInRange += config_.fetchRangeSize;
-  }
-  return std::min(maxBlockIdInRange, psd_->getLastRequiredBlock());
+  BlocksBatchDesc fetchBatch;
+  fetchBatch.maxBlockId = std::min(maxRequiredBlockId, psd_->getLastRequiredBlock());
+  fetchBatch.nextBlockId = fetchBatch.maxBlockId;
+  fetchBatch.minBlockId = minRequiredBlockId;
+  fetchBatch.upperBoundBlockId = fetchBatch.maxBlockId;
+  ConcordAssert(fetchBatch.isValid());
+  ConcordAssertLT(fetchState_.nextBlockId, config_.maxNumberOfChunksInBatch + fetchBatch.minBlockId);
+  return fetchBatch;
 }
 
 bool BCStateTran::isMinBlockIdInFetchRange(uint64_t blockId) const {
