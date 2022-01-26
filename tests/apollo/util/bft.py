@@ -1125,7 +1125,7 @@ class BftTestNetwork:
     async def source_replica(self, replica_id):
         """Return whether the current replica has a source replica already set"""
         with log.start_action(action_type="source_replica", replica=replica_id):
-            key = ['source_selector', 'Gauges', 'current_source_replica']
+            key = ['state_transfer_source_selector', 'Gauges', 'current_source_replica']
             source_replica_id = await self.metrics.get(replica_id, *key)
             return source_replica_id
 
