@@ -173,7 +173,12 @@ void DBMetadataStorage::cleanDB() {
     for (const auto &id : objectIdToSizeMap_) {
       // If the object id is higher than the objectsNum_ it means that we try to remove metadata (and hence the size of
       // objectsNum_ is still the old one)
-      if (id.first > objectsNum_) continue;
+      if (id.first >= objectsNum_) {
+        LOG_WARN(
+            logger_,
+            "during cleaning the metadata, an invalid object was detected, this is probably due to reconfiguration");
+        continue;
+      }
       objectIds.push_back(id.first);
     }
     multiDel(objectIds);
