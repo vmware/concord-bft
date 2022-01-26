@@ -36,6 +36,8 @@ void SourceSelector::removeCurrentReplica() {
   currentReplica_ = NO_REPLICA;
   receivedValidBlockFromSrc_ = false;
   setSourceSelectionTime(0);
+  updateCurrentReplicaMetric();
+  updatePreferredReplicasMetric();
 }
 
 void SourceSelector::onReceivedValidBlockFromSource() {
@@ -47,7 +49,10 @@ void SourceSelector::onReceivedValidBlockFromSource() {
   }
 }
 
-void SourceSelector::setAllReplicasAsPreferred() { preferredReplicas_ = allOtherReplicas_; }
+void SourceSelector::setAllReplicasAsPreferred() {
+  preferredReplicas_ = allOtherReplicas_;
+  updatePreferredReplicasMetric();
+}
 
 void SourceSelector::reset() {
   preferredReplicas_.clear();
@@ -61,6 +66,7 @@ void SourceSelector::reset() {
   currentPrimary_ = NO_REPLICA;
   nominatedPrimary_ = NO_REPLICA;
   nominatedPrimaryCounter_ = 0;
+  updateCurrentReplicaMetric();
 }
 
 bool SourceSelector::isReset() const {
@@ -185,6 +191,8 @@ void SourceSelector::selectSource(uint64_t currTimeMilli) {
   }
   currentReplica_ = *i;
   setSourceSelectionTime(currTimeMilli);
+  updateCurrentReplicaMetric();
+  updatePreferredReplicasMetric();
   fetchRetransmissionOngoing_ = false;
   fetchingTimeStamp_ = 0;
   fetchRetransmissionCounter_ = 0;
