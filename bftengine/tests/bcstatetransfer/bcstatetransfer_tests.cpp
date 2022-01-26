@@ -176,10 +176,42 @@ static inline std::ostream& operator<<(std::ostream& os, const TestConfig& c) {
 // Test initial state is calculated usually as test starts. You shouldn't change a test state directly, you can alter it
 // by changing test infra code, product code, or test configuration (for example).
 /////////////////////////////////////////////////////////
-struct TestState {
-  uint64_t expectedFirstRequiredBlockNum;
-  uint64_t expectedLastRequiredBlockNum;
+class TestState {
+ public:
+  uint64_t minRequiredBlockId = 0;
+  uint64_t maxRequiredBlockId = 0;
+  uint64_t toCheckpoint = 0;
+  uint64_t fromCheckpoint = 0;
+  uint64_t numBlocksToCollect = 0;
+  uint64_t lastCheckpointKnownToRequester = 0;
+
+  void init(const TestConfig& testConfig, const TestAppState& appState);
 };
+
+void TestState::init(const TestConfig& testConfig, const TestAppState& appState) {
+  minRequiredBlockId = appState.getGenesisBlockNum() + 1;
+  maxRequiredBlockId = (testConfig.lastReachedcheckpointNum + 1) * testConfig.checkpointWindowSize;
+  ASSERT_LE(minRequiredBlockId, maxRequiredBlockId);
+
+  toCheckpoint = testConfig.lastReachedcheckpointNum;
+  fromCheckpoint = testConfig.lastReachedcheckpointNum - testConfig.maxNumOfRequiredStoredCheckpoints + 1;
+  ASSERT_GE(toCheckpoint, fromCheckpoint);
+  ASSERT_GT(toCheckpoint, lastCheckpointKnownToRequester);
+
+  lastCheckpointKnownToRequester = minRequiredBlockId / testConfig.checkpointWindowSize + 1;
+  numBlocksToCollect = maxRequiredBlockId - minRequiredBlockId + 1;
+}
+
+static inline std::ostream& operator<<(std::ostream& os, const TestState& c) {
+  os << std::boolalpha
+     << KVLOG(c.minRequiredBlockId,
+              c.maxRequiredBlockId,
+              c.toCheckpoint,
+              c.fromCheckpoint,
+              c.lastCheckpointKnownToRequester,
+              c.numBlocksToCollect);
+  return os;
+}
 
 /////////////////////////////////////////////////////////
 // Global static helper functions
