@@ -171,7 +171,9 @@ void InternalCommandsHandler::preExecute(IRequestsHandler::ExecutionRequest &req
   }
   req.outActualReplySize = req.requestSize;
   memcpy(req.outReply, req.request, req.requestSize);
-  req.outExecutionStatus = static_cast<uint32_t>(res);
+  if (req.outExecutionStatus == static_cast<uint32_t>(OperationResult::UNKNOWN)) {
+    req.outExecutionStatus = static_cast<uint32_t>(res);
+  }
 }
 
 void InternalCommandsHandler::addMetadataKeyValue(VersionedUpdates &updates, uint64_t sequenceNum) const {
