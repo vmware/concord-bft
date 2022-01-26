@@ -3143,12 +3143,6 @@ inline std::string BCStateTran::getSequenceNumber(uint16_t replicaId,
          std::to_string(chunkNum);
 }
 
-// TBD Filtering to drop too frequent messages
-void BCStateTran::handoffConsensusMessage(const shared_ptr<ConsensusMsg> &msg) {
-  // bind understands only shared_ptr natively
-  incomingEventsQ_->push(std::bind(&BCStateTran::peekConsensusMessage, this, msg));
-}
-
 void BCStateTran::peekConsensusMessage(shared_ptr<ConsensusMsg> &msg) {
   auto msg_type = msg->type_;
   LOG_TRACE(logger_, KVLOG(msg_type, msg->sender_id_));
