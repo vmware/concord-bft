@@ -28,7 +28,7 @@ class utilization {
   };
 
   void addDuration(durtionMicro&& dur) {
-    ConcordAssertGT(dur.end, dur.start);
+    ConcordAssertGE(dur.end, dur.start);
     if (utilization_.size() > 0) {
       ConcordAssertGE(dur.start, utilization_.back().end);
     }

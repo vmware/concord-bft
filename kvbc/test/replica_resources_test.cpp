@@ -134,12 +134,13 @@ TEST(replica_resources_test, stop_start) {
   rre.addMeasurement({ISystemResourceEntity::type::post_execution_utilization, 0, 180, 200});
   rre.addMeasurement({ISystemResourceEntity::type::pruning_utilization, 0, 100, 140});
 
+  // no change
   m = rre.getMeasurement(ISystemResourceEntity::type::pruning_avg_time_micro);
-  ASSERT_EQ(m, 0);
+  ASSERT_EQ(m, 30);
   m = rre.getMeasurement(ISystemResourceEntity::type::post_execution_utilization);
-  ASSERT_EQ(m, 0);
+  ASSERT_EQ(m, 60);
   m = rre.getMeasurement(ISystemResourceEntity::type::pruning_utilization);
-  ASSERT_EQ(m, 0);
+  ASSERT_EQ(m, 100);
 
   rre.start();
 
@@ -160,7 +161,10 @@ TEST(replica_resources_test, scoped_dur) {
   ReplicaResourceEntity rre;
   auto m = rre.getMeasurement(ISystemResourceEntity::type::pruning_utilization);
   ASSERT_EQ(m, 0);
-  { ISystemResourceEntity::scopedDurMeasurment mes(rre, ISystemResourceEntity::type::pruning_utilization); }
+  {
+    ISystemResourceEntity::scopedDurMeasurment mes(rre, ISystemResourceEntity::type::pruning_utilization);
+    std::this_thread::sleep_for(1ms);
+  }
   m = rre.getMeasurement(ISystemResourceEntity::type::pruning_utilization);
   ASSERT_GT(m, 0);
   {
@@ -170,11 +174,13 @@ TEST(replica_resources_test, scoped_dur) {
   {
     std::this_thread::sleep_for(1ms);
     ISystemResourceEntity::scopedDurMeasurment mes(rre, ISystemResourceEntity::type::post_execution_utilization);
+    std::this_thread::sleep_for(1ms);
   }
   m = rre.getMeasurement(ISystemResourceEntity::type::post_execution_utilization);
   ASSERT_GT(m, 0);
   ASSERT_LT(m, 100);
 }
+
 TEST(replica_resources_test, scoped_dur_no_commit) {
   using namespace std::chrono_literals;
   ReplicaResourceEntity rre;
@@ -183,8 +189,8 @@ TEST(replica_resources_test, scoped_dur_no_commit) {
     std::this_thread::sleep_for(1ms);
   }
   {
-    std::this_thread::sleep_for(1ms);
     ISystemResourceEntity::scopedDurMeasurment mes(rre, ISystemResourceEntity::type::post_execution_utilization, false);
+    std::this_thread::sleep_for(1ms);
   }
   auto m = rre.getMeasurement(ISystemResourceEntity::type::post_execution_utilization);
   ASSERT_EQ(m, 0);

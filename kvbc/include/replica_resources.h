@@ -17,18 +17,19 @@ class ReplicaResourceEntity : public concord::performance::ISystemResourceEntity
   // Not meaningful, should consider removing from interface
   virtual int64_t getAvailableResources() const { return 0; }
 
-  virtual void stop() { is_stopped = true; }
+  virtual void stop();
   virtual void start() { is_stopped = false; }
 
  private:
-  mutable std::mutex mutex_;
-  std::atomic_uint64_t pruned_blocks{0};
-  std::atomic_uint64_t pruning_accumulated_time{0};
+  uint64_t pruned_blocks{0};
+  uint64_t pruning_accumulated_time{0};
   concordUtil::utilization pruning_utilization;
-  std::atomic_uint64_t post_exec_ops{0};
-  std::atomic_uint64_t post_exec_accumulated_time{0};
+  uint64_t post_exec_ops{0};
+  uint64_t post_exec_accumulated_time{0};
   concordUtil::utilization post_exec_utilization;
-  std::atomic_uint64_t num_of_consensus{0};
-  std::atomic_uint64_t num_of_blocks{0};
+  uint64_t num_of_consensus{0};
+  uint64_t num_of_blocks{0};
+  //
   std::atomic_bool is_stopped{false};
+  std::atomic_bool is_busy{false};
 };
