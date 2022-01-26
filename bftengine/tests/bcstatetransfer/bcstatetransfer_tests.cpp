@@ -34,11 +34,10 @@
 #include "direct_kv_db_adapter.h"
 #include "memorydb/client.h"
 #include "storage/direct_kv_key_manipulator.h"
-#include "Logger.hpp"
-
 #include "ReservedPagesMock.hpp"
 #include "EpochManager.hpp"
 #include "messages/PrePrepareMsg.hpp"
+#include "hex_tools.h"  //leave for debug
 
 #ifdef USE_ROCKSDB
 #include "rocksdb/client.h"
@@ -50,6 +49,10 @@ using std::chrono::milliseconds;
 using namespace std;
 using random_bytes_engine = std::independent_bits_engine<std::default_random_engine, CHAR_BIT, unsigned char>;
 using namespace bftEngine::bcst;
+
+#define ASSERT_NFF ASSERT_NO_FATAL_FAILURE
+#define ASSERT_DEST_UNDER_TEST ASSERT_TRUE(testConfig_.testTarget == TestConfig::TestTarget::DESTINATION)
+#define ASSERT_SRC_UNDER_TEST ASSERT_TRUE(testConfig_.testTarget == TestConfig::TestTarget::SOURCE)
 
 namespace bftEngine::bcst::impl {
 
@@ -69,7 +72,7 @@ Config targetConfig() {
       false,              // isReadOnly
       1024,               // maxChunkSize
       256,                // maxNumberOfChunksInBatch
-      kMaxBlockSize,      // maxBlockSize
+      1024,               // maxBlockSize
       256 * 1024 * 1024,  // maxPendingDataFromSourceReplica
       2048,               // maxNumOfReservedPages
       4096,               // sizeOfReservedPage
@@ -87,19 +90,6 @@ Config targetConfig() {
       true                // enableSourceBlocksPreFetch
   };
 }
-
-// TBD BC-14432
-class MsgGenerator {
- private:
-  static constexpr ViewNum view_num_ = 1u;
-  static constexpr SeqNum seq_num_ = 2u;
-  static constexpr CommitPath commit_path_ = CommitPath::OPTIMISTIC_FAST;
-
- public:
-  std::unique_ptr<MessageBase> generatePrePrepareMsg(ReplicaId sender_id) {
-    return make_unique<PrePrepareMsg>(sender_id, view_num_, seq_num_, commit_path_, 0);
-  }
-};
 
 /////////////////////////////////////////////////////////
 // TestConfig
@@ -232,6 +222,23 @@ static void deleteBcStateTransferDbFolder(const string& path) {
   if (system(cmd.c_str())) {
     ASSERT_TRUE(false);
   }
+}
+
+static DataStore* createDataStore(const string& dbName, const Config& targetConfig) {
+#ifdef USE_ROCKSDB
+  // create a data store
+  auto* db_key_comparator = new concord::kvbc::v1DirectKeyValue::DBKeyComparator();
+  concord::storage::IDBClient::ptr dbc(
+      new concord::storage::rocksdb::Client(string(dbName), make_unique<KeyComparator>(db_key_comparator)));
+  dbc->init();
+  return new DBDataStore(dbc,
+                         targetConfig.sizeOfReservedPage,
+                         make_shared<concord::storage::v1DirectKeyValue::STKeyManipulator>(),
+                         targetConfig.enableReservedPages);
+#else
+  concord::storage::IDBClient::ptr dbc2(new concord::storage::memorydb::Client(comparator));
+  return new InMemoryDataStore(targetConfig.sizeOfReservedPage);
+#endif
 }
 
 /////////////////////////////////////////////////////////
