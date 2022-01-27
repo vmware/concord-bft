@@ -849,6 +849,60 @@ bool ReconfigurationHandler::handle(const concord::messages::SignedPublicStateHa
   return true;
 }
 
+bool ReconfigurationHandler::handle(const concord::messages::PruneTicksChangeRequest& command,
+                                    uint64_t bft_seq_num,
+                                    uint32_t sender_id,
+                                    const std::optional<bftEngine::Timestamp>& ts,
+                                    concord::messages::ReconfigurationResponse&) {
+  std::vector<uint8_t> serialized_command;
+  concord::messages::serialize(serialized_command, command);
+  auto blockId = persistReconfigurationBlock(
+      serialized_command,
+      bft_seq_num,
+      std::string{kvbc::keyTypes::reconfiguration_pruning_key,
+                  static_cast<char>(kvbc::keyTypes::PRUNING_COMMAND_TYPES::TICKS_CHANGE_REQUEST)},
+      ts,
+      false);
+  LOG_INFO(getLogger(), "block id: " << KVLOG(blockId, sender_id));
+  return true;
+}
+
+bool ReconfigurationHandler::handle(const concord::messages::PruneSwitchModeRequest& command,
+                                    uint64_t bft_seq_num,
+                                    uint32_t sender_id,
+                                    const std::optional<bftEngine::Timestamp>& ts,
+                                    concord::messages::ReconfigurationResponse&) {
+  std::vector<uint8_t> serialized_command;
+  concord::messages::serialize(serialized_command, command);
+  auto blockId = persistReconfigurationBlock(
+      serialized_command,
+      bft_seq_num,
+      std::string{kvbc::keyTypes::reconfiguration_pruning_key,
+                  static_cast<char>(kvbc::keyTypes::PRUNING_COMMAND_TYPES::SWITCH_MODE_REQUEST)},
+      ts,
+      false);
+  LOG_INFO(getLogger(), "block id: " << KVLOG(blockId, sender_id));
+  return true;
+}
+
+bool ReconfigurationHandler::handle(const concord::messages::PruneStopRequest& command,
+                                    uint64_t bft_seq_num,
+                                    uint32_t sender_id,
+                                    const std::optional<bftEngine::Timestamp>& ts,
+                                    concord::messages::ReconfigurationResponse&) {
+  std::vector<uint8_t> serialized_command;
+  concord::messages::serialize(serialized_command, command);
+  auto blockId =
+      persistReconfigurationBlock(serialized_command,
+                                  bft_seq_num,
+                                  std::string{kvbc::keyTypes::reconfiguration_pruning_key,
+                                              static_cast<char>(kvbc::keyTypes::PRUNING_COMMAND_TYPES::STOP_REQUEST)},
+                                  ts,
+                                  false);
+  LOG_INFO(getLogger(), "block id: " << KVLOG(blockId, sender_id));
+  return true;
+}
+
 bool InternalKvReconfigurationHandler::verifySignature(uint32_t sender_id,
                                                        const std::string& data,
                                                        const std::string& signature) const {
