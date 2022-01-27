@@ -71,8 +71,6 @@ class SkvbcStateTransferTest(unittest.TestCase):
         await bft_network.force_quorum_including_replica(stale_node)
         await skvbc.assert_successful_put_get()
 
-    @unittest.skip("disabled on ST dev branch until fix")
-    @with_trio
     @with_bft_network(start_replica_cmd, rotate_keys=True)
     async def test_state_transfer_with_multiple_clients(self, bft_network,exchange_keys=True):
         """
@@ -99,7 +97,6 @@ class SkvbcStateTransferTest(unittest.TestCase):
         await bft_network.force_quorum_including_replica(stale_node)
         await skvbc.assert_successful_put_get()
 
-    @unittest.skip("disabled on ST dev branch until fix")
     @skip_for_tls
     @with_trio
     @with_bft_network(start_replica_cmd,

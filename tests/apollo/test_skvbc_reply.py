@@ -42,6 +42,7 @@ def start_replica_cmd(builddir, replica_id):
 
 class SkvbcReplyTest(unittest.TestCase):
 
+    @unittest.skip("disabled on ST dev branch.")
     @with_trio
     @with_bft_network(start_replica_cmd)
     async def test_expected_replies_from_replicas(self, bft_network):
@@ -93,6 +94,7 @@ class SkvbcReplyTest(unittest.TestCase):
         assert reply[1] == bft_msgs.OperationResult.INTERNAL_ERROR, \
                         f"Expected Reply={bft_msgs.OperationResult.INTERNAL_ERROR}; actual={reply[1]}"
 
+    @unittest.skip("disabled on ST dev branch.")
     @with_trio
     @with_bft_network(start_replica_cmd)
     async def test_conflict_detected_from_replicas(self, bft_network):
