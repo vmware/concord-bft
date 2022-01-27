@@ -983,6 +983,48 @@ void PreProcessor::onMessage<PreProcessReplyMsg>(PreProcessReplyMsg *message) {
   handleSinglePreProcessReplyMsg(msg);
 }
 
+bool PreProcessor::checkPreProcessReplyPrerequisites(
+    SeqNum reqSeqNum, const string &cid, NodeIdType senderId, const string &batchCid, uint16_t offsetInBatch) {
+  if (myReplica_.isCollectingState()) {
+    LOG_INFO(logger(),
+             "Ignore PreProcessReplyMsg as the replica is collecting missing state from other replicas"
+                 << KVLOG(reqSeqNum, cid, batchCid, senderId, offsetInBatch));
+    return false;
+  }
+
+  if (!myReplica_.isCurrentPrimary()) {
+    LOG_WARN(logger(),
+             "Ignore PreProcessReplyMsg as current replica is not the primary"
+                 << KVLOG(reqSeqNum, cid, batchCid, senderId, offsetInBatch));
+    return false;
+  }
+
+  if (!myReplica_.currentViewIsActive()) {
+    LOG_INFO(logger(),
+             "Ignore PreProcessReplyMsg as current view is inactive"
+                 << KVLOG(reqSeqNum, cid, batchCid, senderId, offsetInBatch));
+    return false;
+  }
+  return true;
+}
+
+bool PreProcessor::checkPreProcessBatchReplyMsgCorrectness(const PreProcessBatchReplyMsgSharedPtr &batchReply) {
+  const auto &preProcessReplyMsgs = batchReply->getPreProcessReplyMsgs();
+  NodeIdType senderId = batchReply->senderId();
+  const string batchCid = batchReply->getCid();
+  bool valid = true;
+
+  for (const auto &replyMsg : preProcessReplyMsgs) {
+    if (!checkPreProcessReplyPrerequisites(
+            replyMsg->reqSeqNum(), replyMsg->getCid(), senderId, batchCid, replyMsg->reqOffsetInBatch()) ||
+        !validateMessage(replyMsg.get())) {
+      valid = false;
+      break;
+    }
+  }
+  return valid;
+}
+
 // Primary replica handling
 template <>
 void PreProcessor::onMessage<PreProcessBatchReplyMsg>(PreProcessBatchReplyMsg *msg) {
@@ -1002,6 +1044,9 @@ void PreProcessor::onMessage<PreProcessBatchReplyMsg>(PreProcessBatchReplyMsg *m
                   << KVLOG(batchCid, ongoingBatchCid, senderId, clientId));
     return;
   }
+
+  if (!checkPreProcessBatchReplyMsgCorrectness(batchMsg)) return;
+
   for (auto &singleReplyMsg : preProcessReplyMsgs) {
     const auto &reqSeqNum = singleReplyMsg->reqSeqNum();
     const auto &cid = singleReplyMsg->getCid();
