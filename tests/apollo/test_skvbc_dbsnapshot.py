@@ -476,7 +476,9 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
         client = bft_network.random_client()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
         for i in range(600):
-            await skvbc.send_write_kv_set()
+            key = skvbc.unique_random_key()
+            value = skvbc.random_value()
+            await skvbc.send_kv_set(client, set(), [(key, value)], 0)
         await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), 600)
 
         # Expect that a snapshot/checkpoint with an ID of 600 is available. For that, we assume that the snapshot/checkpoint ID
@@ -516,7 +518,9 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
         client = bft_network.random_client()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
         for i in range(100):
-            await skvbc.send_write_kv_set()
+            key = skvbc.unique_random_key()
+            value = skvbc.random_value()
+            await skvbc.send_kv_set(client, set(), [(key, value)], 0)
 
         # Make sure no snapshots exist.
         for replica_id in bft_network.all_replicas():
@@ -688,7 +692,7 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
         signatures = set()
         for ser_rsi in ser_rsis.values():
             rsi_resp = cmf_msgs.ReconfigurationResponse.deserialize(ser_rsi)[0]
-            self.assertEqual(rsi_resp.response.status, cmf_msgs.SignedPublicStateHashStatus.Success)
+            self.assertEqual(rsi_resp.response.status, cmf_msgs.SnapshotResponseStatus.Success)
             self.assertEqual(rsi_resp.response.data.snapshot_id, 600)
             self.assertEqual(rsi_resp.response.data.block_id, 600)
             # Expect the SHA3-256 hash of the empty string.
@@ -712,7 +716,131 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
         self.assertTrue(resp.success)
         for ser_rsi in ser_rsis.values():
             rsi_resp = cmf_msgs.ReconfigurationResponse.deserialize(ser_rsi)[0]
-            self.assertEqual(rsi_resp.response.status, cmf_msgs.SignedPublicStateHashStatus.SnapshotNonExistent)
+            self.assertEqual(rsi_resp.response.status, cmf_msgs.SnapshotResponseStatus.SnapshotNonExistent)
+
+    @with_trio
+    @with_bft_network(start_replica_cmd_with_high_db_window_size, selected_configs=lambda n, f, c: n == 7)
+    @verify_linearizability()
+    async def test_signed_state_snapshot_read_as_of_req_without_public_keys(self, bft_network, tracker):
+        bft_network.start_all_replicas()
+        client = bft_network.random_client()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+        kvs = []
+        for i in range(600):
+            key = skvbc.unique_random_key()
+            value = skvbc.random_value()
+            kvs.append((key.decode(), value.decode()))
+            await skvbc.send_kv_set(client, set(), [(key, value)], 0)
+        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), 600)
+
+        # Expect that a snapshot/checkpoint with an ID of 600 is available. For that, we assume that the snapshot/checkpoint ID
+        # is the last block ID at which the snapshot/checkpoint is created.
+        await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(), 1)
+        for replica_id in range(len(bft_network.all_replicas())):
+            last_block_id = await bft_network.get_metric(replica_id, bft_network,
+                                                         "Gauges", "lastDbCheckpointBlockId", component="rocksdbCheckpoint")
+            self.assertEqual(last_block_id, 600)
+            await self.wait_for_snapshot(bft_network, replica_id, last_block_id)
+
+        op = operator.Operator(bft_network.config, client, bft_network.builddir)
+        # Try to read two of the keys that we wrote. We shouldn't be able to get them, though, because they are not public.
+        ser_resp = await op.state_snapshot_read_as_of_req(600, [kvs[0][0], kvs[1][0]])
+        ser_rsis = op.get_rsi_replies()
+        resp = cmf_msgs.ReconfigurationResponse.deserialize(ser_resp)[0]
+        self.assertTrue(resp.success)
+        for ser_rsi in ser_rsis.values():
+            rsi_resp = cmf_msgs.ReconfigurationResponse.deserialize(ser_rsi)[0]
+            self.assertEqual(rsi_resp.response.status, cmf_msgs.SnapshotResponseStatus.Success)
+            self.assertEqual(len(rsi_resp.response.values), 2)
+            self.assertEqual(rsi_resp.response.values[0], None)
+            self.assertEqual(rsi_resp.response.values[1], None)
+
+    @with_trio
+    @with_bft_network(start_replica_cmd_with_operator_and_public_keys, selected_configs=lambda n, f, c: n == 7)
+    @verify_linearizability()
+    async def test_signed_state_snapshot_read_as_of_req_with_public_keys(self, bft_network, tracker):
+        bft_network.start_all_replicas()
+        client = bft_network.random_client()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+        kvs = []
+        for i in range(600):
+            key = skvbc.unique_random_key()
+            value = skvbc.random_value()
+            kvs.append((key.decode(), value.decode()))
+            await skvbc.send_kv_set(client, set(), [(key, value)], 0)
+        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), 600)
+
+        # Expect that a snapshot/checkpoint with an ID of 600 is available. For that, we assume that the snapshot/checkpoint ID
+        # is the last block ID at which the snapshot/checkpoint is created.
+        await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(), 1)
+        for replica_id in range(len(bft_network.all_replicas())):
+            last_block_id = await bft_network.get_metric(replica_id, bft_network,
+                                                         "Gauges", "lastDbCheckpointBlockId", component="rocksdbCheckpoint")
+            self.assertEqual(last_block_id, 600)
+            await self.wait_for_snapshot(bft_network, replica_id, last_block_id)
+
+        op = operator.Operator(bft_network.config, client, bft_network.builddir)
+        # Read two of the keys that we wrote.
+        ser_resp = await op.state_snapshot_read_as_of_req(600, [kvs[0][0], kvs[1][0]])
+        ser_rsis = op.get_rsi_replies()
+        resp = cmf_msgs.ReconfigurationResponse.deserialize(ser_resp)[0]
+        self.assertTrue(resp.success)
+        for ser_rsi in ser_rsis.values():
+            rsi_resp = cmf_msgs.ReconfigurationResponse.deserialize(ser_rsi)[0]
+            self.assertEqual(rsi_resp.response.status, cmf_msgs.SnapshotResponseStatus.Success)
+            self.assertEqual(len(rsi_resp.response.values), 2)
+            self.assertEqual(rsi_resp.response.values[0], kvs[0][1])
+            self.assertEqual(rsi_resp.response.values[1], kvs[1][1])
+
+    @with_trio
+    @with_bft_network(start_replica_cmd_with_operator_and_public_keys, selected_configs=lambda n, f, c: n == 7)
+    @verify_linearizability()
+    async def test_signed_state_snapshot_read_as_of_req_invalid_key_with_public_keys(self, bft_network, tracker):
+        bft_network.start_all_replicas()
+        client = bft_network.random_client()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+        for i in range(600):
+            key = skvbc.unique_random_key()
+            value = skvbc.random_value()
+            await skvbc.send_kv_set(client, set(), [(key, value)], 0)
+        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), 600)
+
+        # Expect that a snapshot/checkpoint with an ID of 600 is available. For that, we assume that the snapshot/checkpoint ID
+        # is the last block ID at which the snapshot/checkpoint is created.
+        await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(), 1)
+        for replica_id in range(len(bft_network.all_replicas())):
+            last_block_id = await bft_network.get_metric(replica_id, bft_network,
+                                                         "Gauges", "lastDbCheckpointBlockId", component="rocksdbCheckpoint")
+            self.assertEqual(last_block_id, 600)
+            await self.wait_for_snapshot(bft_network, replica_id, last_block_id)
+
+        op = operator.Operator(bft_network.config, client, bft_network.builddir)
+        # Read two keys that we haven't written.
+        ser_resp = await op.state_snapshot_read_as_of_req(600, [skvbc.unique_random_key().decode(), skvbc.unique_random_key().decode()])
+        ser_rsis = op.get_rsi_replies()
+        resp = cmf_msgs.ReconfigurationResponse.deserialize(ser_resp)[0]
+        self.assertTrue(resp.success)
+        for ser_rsi in ser_rsis.values():
+            rsi_resp = cmf_msgs.ReconfigurationResponse.deserialize(ser_rsi)[0]
+            self.assertEqual(rsi_resp.response.status, cmf_msgs.SnapshotResponseStatus.Success)
+            self.assertEqual(len(rsi_resp.response.values), 2)
+            self.assertEqual(rsi_resp.response.values[0], None)
+            self.assertEqual(rsi_resp.response.values[1], None)
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    @verify_linearizability()
+    async def test_signed_state_snapshot_read_as_of_req_non_existent_checkpoint(self, bft_network, tracker):
+        bft_network.start_all_replicas()
+        client = bft_network.random_client()
+        op = operator.Operator(bft_network.config, client, bft_network.builddir)
+        ser_resp = await op.state_snapshot_read_as_of_req(42, [])
+        ser_rsis = op.get_rsi_replies()
+        resp = cmf_msgs.ReconfigurationResponse.deserialize(ser_resp)[0]
+        self.assertTrue(resp.success)
+        for ser_rsi in ser_rsis.values():
+            rsi_resp = cmf_msgs.ReconfigurationResponse.deserialize(ser_rsi)[0]
+            self.assertEqual(rsi_resp.response.status, cmf_msgs.SnapshotResponseStatus.SnapshotNonExistent)
     
     def verify_snapshot_is_available(self, bft_network, replica_id, snapshot_id, isPresent=True):
         with log.start_action(action_type="verify snapshot db files"):

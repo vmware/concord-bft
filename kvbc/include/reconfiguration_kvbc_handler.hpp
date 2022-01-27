@@ -19,6 +19,11 @@
 #include "kvbc_key_types.hpp"
 #include "SigManager.hpp"
 #include "reconfiguration/reconfiguration_handler.hpp"
+#include "categorization/kv_blockchain.h"
+
+#include <functional>
+#include <string>
+#include <utility>
 
 namespace concord::kvbc::reconfiguration {
 class ReconfigurationBlockTools {
@@ -39,6 +44,14 @@ class ReconfigurationBlockTools {
   kvbc::IBlockAdder& blocks_adder_;
   BlockMetadata block_metadata_;
   kvbc::IReader& ro_storage_;
+};
+
+// Allows users to convert state values to any format that is appropriate.
+// The default converter returns the input string as is, without modifying it.
+class StateValueConverter {
+ protected:
+  categorization::KeyValueBlockchain::Converter state_value_converter_{
+      [](std::string&& v) -> std::string { return std::move(v); }};
 };
 
 /*
@@ -80,7 +93,8 @@ class KvbcClientReconfigurationHandler : public concord::reconfiguration::Client
  * blockchian.
  */
 class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurationHandler,
-                               public ReconfigurationBlockTools {
+                               public ReconfigurationBlockTools,
+                               public StateValueConverter {
  public:
   ReconfigurationHandler(kvbc::IBlockAdder& block_adder, kvbc::IReader& ro_storage)
       : ReconfigurationBlockTools{block_adder, ro_storage} {}
@@ -213,6 +227,12 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
               concord::messages::ReconfigurationResponse&) override;
 
   bool handle(const concord::messages::PruneStopRequest&,
+              uint64_t,
+              uint32_t,
+              const std::optional<bftEngine::Timestamp>&,
+              concord::messages::ReconfigurationResponse&) override;
+
+  bool handle(const concord::messages::StateSnapshotReadAsOfRequest&,
               uint64_t,
               uint32_t,
               const std::optional<bftEngine::Timestamp>&,

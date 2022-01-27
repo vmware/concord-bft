@@ -312,8 +312,13 @@ void InternalCommandsHandler::addBlock(VersionedUpdates &verUpdates, BlockMerkle
     }
     for (const auto &[k, _] : merkleUpdates.getData().kv) {
       (void)_;
-      public_state->keys.push_back(k);
+      // We don't allow duplicates.
+      auto it = std::lower_bound(public_state->keys.cbegin(), public_state->keys.cend(), k);
+      if (it != public_state->keys.cend() && *it == k) {
+        continue;
+      }
       // We always persist public state keys in sorted order.
+      public_state->keys.push_back(k);
       std::sort(public_state->keys.begin(), public_state->keys.end());
     }
     const auto public_state_ser = detail::serialize(*public_state);

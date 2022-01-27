@@ -40,6 +40,11 @@ class KeyValueBlockchain {
   using VersionedRawBlock = std::pair<BlockId, std::optional<categorization::RawBlockData>>;
 
  public:
+  // Key or value converter interface.
+  // Allows users to convert keys or values to any format that is appropriate.
+  using Converter = std::function<std::string(std::string&&)>;
+
+ public:
   // Creates a key-value blockchain.
   // If `category_types` is nullopt, the persisted categories in storage will be used.
   // If `category_types` has a value, it should contain all persisted categories in storage at a minimum. New ones will
