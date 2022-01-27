@@ -689,6 +689,9 @@ std::string BCStateTran::convertUInt64ToReadableStr(uint64_t num, std::string &&
   auto str = oss.str();
   while (str[str.size() - 1] == '0' || str[str.size() - 1] == '.')  // remove trailing zeroes
     str.resize(str.size() - 1);
+  if (str.empty()) {
+    str = "NA";
+  }
   if (addTrailingSpace) {
     str += " ";
   }
@@ -733,6 +736,9 @@ std::string BCStateTran::convertMillisecToReadableStr(uint64_t ms) const {
   if (mls) {
     str += std::to_string(mls) + " ms";
   }
+  if (str.empty()) {
+    str = "NA";
+  }
   return str;
 }
 
@@ -748,7 +754,6 @@ void BCStateTran::startCollectingStats() {
   gettingCheckpointSummariesDT_.reset();
   gettingMissingResPagesDT_.reset();
   cycleDT_.reset();
-  postProcessingDT_.reset();
 
   // reset metrics
   metrics_.overall_blocks_collected_.Get().Set(0ull);
@@ -1142,7 +1147,7 @@ bool BCStateTran::checkValidityAndSaveMsgSeqNum(uint16_t replicaId, uint64_t msg
 //////////////////////////////////////////////////////////////////////////////
 
 inline std::ostream &operator<<(std::ostream &os, const BCStateTran::BlocksBatchDesc &b) {
-  os << KVLOG(b.minBlockId, b.maxBlockId, b.nextBlockId, b.upperBoundBlockId);
+  os << b.toString();
   return os;
 }
 
@@ -2034,9 +2039,9 @@ bool BCStateTran::onMessage(const RejectFetchingMsg *m, uint32_t msgLen, uint16_
 
   FetchingState fs = getFetchingState();
   if (fs != FetchingState::GettingMissingBlocks && fs != FetchingState::GettingMissingResPages) {
-    LOG_FATAL(logger_,
+    LOG_ERROR(logger_,
               "Expected Fetching State GettingMissingBlocks or GettingMissingResPages. Got: " << stateName(fs));
-    ConcordAssert(false);
+    return false;
   }
 
   // if msg is invalid
@@ -2086,9 +2091,9 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
 
   FetchingState fs = getFetchingState();
   if ((fs != FetchingState::GettingMissingBlocks) && (fs != FetchingState::GettingMissingResPages)) {
-    LOG_FATAL(logger_,
+    LOG_ERROR(logger_,
               "Expected Fetching State GettingMissingBlocks or GettingMissingResPages. Got: " << stateName(fs));
-    ConcordAssert(false);
+    return false;
   }
 
   if (!sourceSelector_.isValidSourceId(replicaId)) {
@@ -2591,29 +2596,32 @@ void BCStateTran::reportCollectingStatus(const uint32_t actualBlockSize, bool to
 
 std::string BCStateTran::logsForCollectingStatus() {
   std::ostringstream oss;
-  std::unordered_map<std::string, std::string> result, nested_data, nested_nested_data;
+  std::vector<std::pair<std::string, std::string>> result, nested_data, nested_nested_data;
   auto blocks_overall_r = blocksFetched_.getOverallResults();
   auto bytes_overall_r = bytesFetched_.getOverallResults();
 
-  nested_data.insert(
+  nested_data.push_back(toPair("cycle", cycleCounter_));
+  nested_data.push_back(toPair("Cycle elapsedTime", convertMillisecToReadableStr(cycleDT_.totalDuration(false))));
+  nested_data.push_back(
+      toPair("GettingMissingBlocks elapsedTime", convertMillisecToReadableStr(blocks_overall_r.elapsed_time_ms_)));
+  nested_data.push_back(
       toPair("collectRange",
              std::to_string(minBlockIdToCollectInCycle_) + ", " + std::to_string(maxBlockIdToCollectInCycle_)));
-  nested_data.insert(toPair("lastCollectedBlock", fetchState_.nextBlockId));
-  nested_data.insert(toPair("blocksLeft", totalBlocksLeftToCollectInCycle_));
-  nested_data.insert(toPair("fetchState", fetchState_.toString()));
-  nested_data.insert(toPair("post-processing upper bound block id", std::to_string(postProcessingUpperBoundBlockId_)));
-  nested_data.insert(toPair("post-processed max block id", std::to_string(maxPostprocessedBlockId_)));
-  nested_data.insert(
+  nested_data.push_back(toPair("lastCollectedBlock", fetchState_.nextBlockId));
+  nested_data.push_back(toPair("blocksLeft", totalBlocksLeftToCollectInCycle_));
+  nested_data.push_back(toPair("fetchState", fetchState_.toString()));
+  nested_data.push_back(
+      toPair("post-processing upper bound block id", std::to_string(postProcessingUpperBoundBlockId_)));
+  nested_data.push_back(toPair("post-processed max block id", std::to_string(maxPostprocessedBlockId_)));
+  nested_data.push_back(
       toPair("RVB digests validated", std::to_string(metrics_.overall_rvb_digests_validated_.Get().Get())));
-  nested_data.insert(toPair("cycle", cycleCounter_));
-  nested_data.insert(toPair("elapsedTime", convertMillisecToReadableStr(blocks_overall_r.elapsed_time_ms_)));
-  nested_data.insert(toPair("collected",
-                            convertUInt64ToReadableStr(blocks_overall_r.num_processed_items_, "Block") + " & " +
-                                convertUInt64ToReadableStr(bytes_overall_r.num_processed_items_, "B")));
-  nested_data.insert(toPair("throughput",
-                            convertUInt64ToReadableStr(blocks_overall_r.throughput_, "Block/s ") +
-                                convertUInt64ToReadableStr(bytes_overall_r.throughput_, "B/s")));
-  result.insert(
+  nested_data.push_back(toPair("collected",
+                               convertUInt64ToReadableStr(blocks_overall_r.num_processed_items_, "Blocks") +
+                                   convertUInt64ToReadableStr(bytes_overall_r.num_processed_items_, ", B")));
+  nested_data.push_back(toPair("throughput",
+                               convertUInt64ToReadableStr(blocks_overall_r.throughput_, "Blocks/s") +
+                                   convertUInt64ToReadableStr(bytes_overall_r.throughput_, ", B/s")));
+  result.push_back(
       toPair("overallStats", concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
   nested_data.clear();
 
@@ -2622,25 +2630,25 @@ std::string BCStateTran::logsForCollectingStatus() {
     auto bytes_win_r = bytesFetched_.getPrevWinResults();
     auto prev_win_index = blocksFetched_.getPrevWinIndex();
 
-    nested_data.insert(toPair("index", prev_win_index));
-    nested_data.insert(toPair("elapsedTime", convertMillisecToReadableStr(blocks_win_r.elapsed_time_ms_)));
-    nested_data.insert(toPair("collected",
-                              convertUInt64ToReadableStr(blocks_win_r.num_processed_items_, "Block") + " & " +
-                                  convertUInt64ToReadableStr(bytes_win_r.num_processed_items_, "B ")));
-    nested_data.insert(toPair("throughput",
-                              convertUInt64ToReadableStr(blocks_win_r.throughput_, "Block/s ") + " & " +
-                                  convertUInt64ToReadableStr(bytes_win_r.throughput_, "B/s ")));
-    result.insert(
+    nested_data.push_back(toPair("index", prev_win_index));
+    nested_data.push_back(toPair("elapsedTime", convertMillisecToReadableStr(blocks_win_r.elapsed_time_ms_)));
+    nested_data.push_back(toPair("collected",
+                                 convertUInt64ToReadableStr(blocks_win_r.num_processed_items_, "Blocks") + " / " +
+                                     convertUInt64ToReadableStr(bytes_win_r.num_processed_items_, "B ")));
+    nested_data.push_back(toPair("throughput",
+                                 convertUInt64ToReadableStr(blocks_win_r.throughput_, "Block/s ") + " / " +
+                                     convertUInt64ToReadableStr(bytes_win_r.throughput_, "B/s ")));
+    result.push_back(
         toPair("lastWindow", concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
     nested_data.clear();
   }
 
-  nested_data.insert(toPair("lastStored checkpoint", psd_->getLastStoredCheckpoint()));
-  nested_nested_data.insert(toPair("target checkpointNum", targetCheckpointDesc_.checkpointNum));
-  nested_nested_data.insert(toPair("maxBlockId", targetCheckpointDesc_.maxBlockId));
-  nested_data.insert(
+  nested_data.push_back(toPair("lastStored checkpoint", psd_->getLastStoredCheckpoint()));
+  nested_nested_data.push_back(toPair("target checkpointNum", targetCheckpointDesc_.checkpointNum));
+  nested_nested_data.push_back(toPair("maxBlockId", targetCheckpointDesc_.maxBlockId));
+  nested_data.push_back(
       toPair("beingFetched", concordUtils::kvContainerToJson(nested_nested_data, [](const auto &arg) { return arg; })));
-  result.insert(
+  result.push_back(
       toPair("checkpointInfo", concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
 
   oss << concordUtils::kContainerToJson(result);
@@ -2819,6 +2827,7 @@ void BCStateTran::postProcessNextBatch(uint64_t upperBoundBlockId) {
   }
 
   ConcordAssertGT(upperBoundBlockId, maxPostprocessedBlockId_);
+  LOG_TRACE(logger_, "Before postProcessUntilBlockId" << KVLOG(upperBoundBlockId));
   as_->postProcessUntilBlockId(upperBoundBlockId);
   ++iteration;
   uint64_t totalBlocksProcessed = upperBoundBlockId - maxPostprocessedBlockId_;
@@ -2924,6 +2933,7 @@ void BCStateTran::processData(bool lastInBatch, uint32_t rvbDigestsSize) {
       LOG_FATAL(logger_,
                 "Invalid fetch/commit state:" << KVLOG(
                     stateName(fetchingState), fetchState_, commitState_, digestOfNextRequiredBlock_));
+      ConcordAssert(false);
     }
     LOG_DEBUG(
         logger_,
@@ -3120,7 +3130,7 @@ void BCStateTran::processData(bool lastInBatch, uint32_t rvbDigestsSize) {
             LOG_INFO(logger_, registrar.perf.toString(registrar.perf.get("state_transfer")));
             LOG_INFO(logger_, registrar.perf.toString(registrar.perf.get("state_transfer_dest")));
           } else {
-            LOG_INFO(logger_, "skip logging snapshots, cycle is very short (not enough statistics)" << duration);
+            LOG_INFO(logger_, "skip logging snapshots, cycle is very short (not enough statistics)" << KVLOG(duration));
           }
 
           sendFetchResPagesMsg(0);
@@ -3259,7 +3269,7 @@ void BCStateTran::cycleEndSummary() {
   auto cycleDuration = cycleDT_.totalDuration(true);
   auto gettingCheckpointSummariesDuration = gettingCheckpointSummariesDT_.totalDuration(true);
   auto gettingMissingBlocksDuration = gettingMissingBlocksDT_.totalDuration(true);
-  auto commitToChainDuration = postProcessingDT_.totalDuration(true);
+  auto postProcessingDuration = postProcessingDT_.totalDuration(true);
   auto gettingMissingResPagesDuration = gettingMissingResPagesDT_.totalDuration(true);
   LOG_INFO(
       logger_,
@@ -3268,22 +3278,27 @@ void BCStateTran::cycleEndSummary() {
           << " ,Total Duration: " << convertMillisecToReadableStr(cycleDuration)
           << " ,Time to get checkpoint summaries: " << convertMillisecToReadableStr(gettingCheckpointSummariesDuration)
           << " ,Time to fetch missing blocks: " << convertMillisecToReadableStr(gettingMissingBlocksDuration)
-          << " ,Time to commit to chain: " << convertMillisecToReadableStr(commitToChainDuration)
+          << " ,Time to post-process blocks: " << convertMillisecToReadableStr(postProcessingDuration)
           << " ,Time to get reserved pages (vblock): " << convertMillisecToReadableStr(gettingMissingResPagesDuration)
-          << " ,Collected blocks range [" << std::to_string(minBlockIdToCollectInCycle_)
+          << " ,Collected " << convertUInt64ToReadableStr(blocksCollectedResults.num_processed_items_, "Blocks")
+          << " / " << convertUInt64ToReadableStr(bytesCollectedResults.num_processed_items_, "B")
+          << " ,Collected Blocks Range=[" << std::to_string(minBlockIdToCollectInCycle_) << ", "
           << std::to_string(maxBlockIdToCollectInCycle_) << "]"
-          << " ,Collected " << convertUInt64ToReadableStr(blocksCollectedResults.num_processed_items_, "Block")
-          << " and " << convertUInt64ToReadableStr(bytesCollectedResults.num_processed_items_, "B")
-          << " ,#RVB digests validated: " << std::to_string(metrics_.overall_rvb_digests_validated_.Get().Get())
-          << " ,Throughput {GettingMissingBlocks}: "
-          << convertUInt64ToReadableStr(blocksCollectedResults.throughput_, "Block/sec") << " and "
+          << " ,#RVB digests validated: "
+          << std::to_string(metrics_.overall_rvb_digests_validated_.Get().Get())
+          // GettingMissingBlocks Throughput
+          << " ,GettingMissingBlocks Throughput: "
+          << convertUInt64ToReadableStr(blocksCollectedResults.throughput_, "Blocks/sec") << " / "
           << convertUInt64ToReadableStr(bytesCollectedResults.throughput_, "B/sec")
-          << " ,Throughput {Post-Processing}: "
-          << convertUInt64ToReadableStr(blocksPostProcessedResults.throughput_, "Block/sec") << " ,Throughput {cycle}: "
+          // Post-Processing Throughput
+          << " ,Post-Processing Throughput: "
+          << convertUInt64ToReadableStr(blocksPostProcessedResults.throughput_, "Blocks/sec")
+          // cycle Throughput
+          << " ,Cycle Throughput: "
           << convertUInt64ToReadableStr(
                  static_cast<uint64_t>((1000 * blocksCollectedResults.num_processed_items_) / cycleDuration),
-                 "Block/sec")
-          << "and "
+                 "Blocks/sec")
+          << " / "
           << convertUInt64ToReadableStr(
                  static_cast<uint64_t>((1000 * bytesCollectedResults.num_processed_items_) / cycleDuration), "B/sec")
           << ", #" << sources_.size() << " sources (first to last): [" << sources_str.str() << "]");
@@ -3308,6 +3323,7 @@ void BCStateTran::checkConsistency(bool checkAllBlocks, bool duringInit) {
   if (checkAllBlocks) {
     checkReachableBlocks(genesisBlockNum, lastReachableBlockNum);
   }
+
   checkUnreachableBlocks(lastReachableBlockNum, lastBlockNum, duringInit);
   checkBlocksBeingFetchedNow(checkAllBlocks, lastReachableBlockNum, lastBlockNum);
   checkStoredCheckpoints(firstStoredCheckpoint, lastStoredCheckpoint);
@@ -3378,7 +3394,9 @@ void BCStateTran::checkUnreachableBlocks(uint64_t lastReachableBlockNum, uint64_
     LOG_INFO(logger_, std::boolalpha << KVLOG(lastReachableBlockNum, lastBlockNum, duringInit));
     ConcordAssertEQ(getFetchingState(), FetchingState::GettingMissingBlocks);
     uint64_t x = lastBlockNum - 1;
-    while (as_->hasBlock(x)) x--;
+    while (as_->hasBlock(x)) {
+      x--;
+    }
 
     // we should have a hole
     ConcordAssertGT(x, lastReachableBlockNum);
@@ -3580,8 +3598,10 @@ void BCStateTran::peekConsensusMessage(shared_ptr<ConsensusMsg> &msg) {
         sourceSelector_.updateCurrentPrimary(msg->sender_id_);
       }
       break;
-    default:
+    default: {
       LOG_FATAL(logger_, "Unexpected message type" << KVLOG(msg_type));
+      ConcordAssert(false);
+    }
   }
   time_in_incoming_events_queue_rec_.start();
 }
