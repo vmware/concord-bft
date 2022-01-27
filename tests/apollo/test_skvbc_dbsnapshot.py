@@ -64,7 +64,7 @@ def start_replica_cmd(builddir, replica_id):
             "-o", builddir + "/operator_pub.pem"]
 
 
-def start_replica_cmd_with_operator(builddir, replica_id):
+def start_replica_cmd_with_high_db_window_size(builddir, replica_id):
     """
     Return a command with operator that starts an skvbc replica when passed to
     subprocess.Popen.
@@ -125,6 +125,7 @@ def start_replica_cmd_db_snapshot_disabled(builddir, replica_id):
             "-q", batch_size,
             "-h", "0",
             "-o", builddir + "/operator_pub.pem"]
+
 
 def start_replica_cmd_with_operator_and_public_keys(builddir, replica_id):
     """
@@ -268,7 +269,7 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
             self.verify_snapshot_is_available(bft_network, replica_id, old_snapshot_id, isPresent=False)
 
     @with_trio
-    @with_bft_network(start_replica_cmd_with_operator, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd_with_high_db_window_size, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability()
     async def test_create_dbcheckpoint_cmd(self, bft_network, tracker):
         """
@@ -298,13 +299,13 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
             dbcheckpoint_info_list = res[0].response.db_checkpoint_info
             self.assertTrue(any(dbcheckpoint_info.seq_num ==
                             300 for dbcheckpoint_info in dbcheckpoint_info_list))
-        for replica_id in range(len(bft_network.all_replicas())):
+        for replica_id in bft_network.all_replicas():
             last_blockId = await bft_network.get_metric(replica_id, bft_network,
                                                         "Gauges", "lastDbCheckpointBlockId", component="rocksdbCheckpoint")
             self.verify_snapshot_is_available(bft_network, replica_id, last_blockId)
 
     @with_trio
-    @with_bft_network(start_replica_cmd_with_operator, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd_with_high_db_window_size, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability()
     async def test_create_dbcheckpoint_with_parallel_client_requests(self, bft_network, tracker):
         """
@@ -465,7 +466,7 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
         await self.state_snapshot_req_existing_checkpoint(bft_network, tracker, 600)
 
     @with_trio
-    @with_bft_network(start_replica_cmd_with_operator, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd_with_high_db_window_size, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability()
     async def test_state_snapshot_req_existing_checkpoint_without_public_keys(self, bft_network, tracker):
         await self.state_snapshot_req_existing_checkpoint(bft_network, tracker, 0)
@@ -481,7 +482,7 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
         # Expect that a snapshot/checkpoint with an ID of 600 is available. For that, we assume that the snapshot/checkpoint ID
         # is the last block ID at which the snapshot/checkpoint is created.
         await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(), 1)
-        for replica_id in range(len(bft_network.all_replicas())):
+        for replica_id in bft_network.all_replicas():
             last_block_id = await bft_network.get_metric(replica_id, bft_network,
                                                          "Gauges", "lastDbCheckpointBlockId", component="rocksdbCheckpoint")
             self.assertEqual(last_block_id, 600)
@@ -505,7 +506,7 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
         await self.state_snapshot_req_non_existent_checkpoint(bft_network, tracker, 100)
 
     @with_trio
-    @with_bft_network(start_replica_cmd_with_operator, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability()
     async def test_state_snapshot_req_non_existent_checkpoint_without_public_keys(self, bft_network, tracker):
         await self.state_snapshot_req_non_existent_checkpoint(bft_network, tracker, 0)
@@ -539,7 +540,7 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
             await self.wait_for_snapshot(bft_network, replica_id, last_block_id)
 
     @with_trio
-    @with_bft_network(start_replica_cmd_with_operator, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd_with_high_db_window_size, selected_configs=lambda n, f, c: n == 7)
     async def test_db_checkpoint_creation_with_wedge(self, bft_network):
         """
             We create a db-snapshot when we wedge the replicas.
@@ -565,7 +566,7 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
         await self.validate_stop_on_wedge_point(bft_network, skvbc=skvbc, fullWedge=True)
         #verify that snapshot is created on wedge point
         await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(), 1)
-        for replica_id in range(len(bft_network.all_replicas())):
+        for replica_id in bft_network.all_replicas():
             last_block_id = await bft_network.get_metric(replica_id, bft_network,
                                                          "Gauges", "lastDbCheckpointBlockId", component="rocksdbCheckpoint")
             await self.wait_for_snapshot(bft_network, replica_id, last_block_id)
@@ -599,7 +600,7 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
             await skvbc.send_write_kv_set()
         await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), 600)
         await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(), 2)
-        for replica_id in range(len(bft_network.all_replicas())):
+        for replica_id in bft_network.all_replicas():
             last_block_id = await bft_network.get_metric(replica_id, bft_network,
                                                          "Gauges", "lastDbCheckpointBlockId", component="rocksdbCheckpoint")
             await self.wait_for_snapshot(bft_network, replica_id, last_block_id)
@@ -616,9 +617,8 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
             self.assertTrue(any(dbcheckpoint_info.seq_num ==
                             600 for dbcheckpoint_info in dbcheckpoint_info_list))
         
-    
     @with_trio
-    @with_bft_network(start_replica_cmd_with_operator, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd_with_high_db_window_size, selected_configs=lambda n, f, c: n == 7)
     async def test_scale_and_restart_blockchain_with_db_snapshot(self, bft_network):
         """
              Sends a scale replica command and checks that new configuration is written to blockchain.
@@ -639,13 +639,13 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
         client.config._replace(req_timeout_milli=10000)
         op = operator.Operator(bft_network.config, client,  bft_network.builddir)
         test_config = 'new_configuration'
-        await op.add_remove_with_wedge(test_config, bft=False)  
+        await op.add_remove_with_wedge(test_config, bft=False, restart=False)
     
         #verify that snapshot is created on wedge point
         await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(), 1)
-        last_block_id = await bft_network.get_metric(0, bft_network,
+        for replica_id in bft_network.all_replicas():
+            last_block_id = await bft_network.get_metric(replica_id, bft_network,
                                                          "Gauges", "lastDbCheckpointBlockId", component="rocksdbCheckpoint")
-        for replica_id in range(len(bft_network.all_replicas())):
             await self.wait_for_snapshot(bft_network, replica_id, last_block_id)
         bft_network.stop_all_replicas()
         for r in bft_network.all_replicas():
@@ -660,7 +660,7 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
             self.assertGreater(nb_fast_path, 0)
     
     @with_trio
-    @with_bft_network(start_replica_cmd_with_operator, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd_with_high_db_window_size, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability()
     async def test_signed_public_state_hash_req_existing_checkpoint(self, bft_network, tracker):
         bft_network.start_all_replicas()
@@ -673,7 +673,7 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
         # Expect that a snapshot/checkpoint with an ID of 600 is available. For that, we assume that the snapshot/checkpoint ID
         # is the last block ID at which the snapshot/checkpoint is created.
         await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(), 1)
-        for replica_id in range(len(bft_network.all_replicas())):
+        for replica_id in bft_network.all_replicas():
             last_block_id = await bft_network.get_metric(replica_id, bft_network,
                                                          "Gauges", "lastDbCheckpointBlockId", component="rocksdbCheckpoint")
             self.assertEqual(last_block_id, 600)
@@ -700,7 +700,7 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
         self.assertEqual(len(signatures), len(bft_network.all_replicas()))
 
     @with_trio
-    @with_bft_network(start_replica_cmd_with_operator, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability()
     async def test_signed_public_state_hash_req_non_existent_checkpoint(self, bft_network, tracker):
         bft_network.start_all_replicas()
@@ -797,7 +797,6 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
               else:
                   break
     
-
     async def validate_stop_on_wedge_point(self, bft_network, skvbc, fullWedge=False):
         with log.start_action(action_type="validate_stop_on_stable_checkpoint") as action:
             with trio.fail_after(seconds=90):
