@@ -103,10 +103,6 @@ class DbCheckpointManager {
   std::map<CheckpointId, DbCheckpointMetadata::DbCheckPointDescriptor> getListOfDbCheckpoints() const {
     return dbCheckptMetadata_.dbCheckPoints_;
   }
-  inline bool isCreateDbCheckPtSeqNumSet(const SeqNum& seqNum) {
-    return (DbCheckpointManager::instance().getNextStableSeqNumToCreateSnapshot().has_value() &&
-            DbCheckpointManager::instance().getNextStableSeqNumToCreateSnapshot().value() >= seqNum);
-  }
 
   /***
    * The operator command uses this function to find the next immediate stable seq number
