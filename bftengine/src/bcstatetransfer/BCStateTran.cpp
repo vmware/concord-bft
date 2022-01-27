@@ -2676,7 +2676,6 @@ bool BCStateTran::finalizePutblockAsync(PutBlockWaitPolicy waitPolicy) {
   ConcordAssertGT(commitState_.nextBlockId, 0);
 
   uint64_t firstRequiredBlockId = std::numeric_limits<uint64_t>::max();
-  DataStoreTransaction::Guard g(psd_->beginTransaction());
   while (!ioContexts_.empty()) {
     auto &ctx = ioContexts_.front();
     ConcordAssert(ctx->future.valid());
@@ -2693,6 +2692,7 @@ bool BCStateTran::finalizePutblockAsync(PutBlockWaitPolicy waitPolicy) {
       }
       break;
     }
+    // currently, fetch must wait to commit before moving into the next batch, so the next assert must always be true
     ConcordAssertEQ(ctx->blockId, commitState_.nextBlockId);
     try {
       ConcordAssertEQ(ctx->future.get(), true);
@@ -2723,16 +2723,13 @@ bool BCStateTran::finalizePutblockAsync(PutBlockWaitPolicy waitPolicy) {
       }
       firstRequiredBlockId = commitState_.maxBlockId + 1;
       auto oldCommitState_ = commitState_;
-      commitState_.minBlockId = commitState_.maxBlockId + 1;
-      commitState_.maxBlockId = commitState_.upperBoundBlockId;
-      commitState_.nextBlockId = commitState_.upperBoundBlockId;
-      LOG_TRACE(logger_, KVLOG(fetchState_, commitState_));
-      ConcordAssert(commitState_.isValid());
       ConcordAssertLE(firstRequiredBlockId, psd_->getLastRequiredBlock());
       LOG_DEBUG(logger_,
                 "Done committing blocks [" << oldCommitState_.minBlockId << "," << oldCommitState_.maxBlockId
                                            << "], new commitState_:" << commitState_
                                            << KVLOG(firstRequiredBlockId, postProcessingUpperBoundBlockId_));
+      ConcordAssert(ioContexts_.empty());
+      break;
     } else {
       --commitState_.nextBlockId;
       LOG_TRACE(logger_, KVLOG(commitState_));
@@ -2740,10 +2737,10 @@ bool BCStateTran::finalizePutblockAsync(PutBlockWaitPolicy waitPolicy) {
     if (waitPolicy == PutBlockWaitPolicy::WAIT_SINGLE_JOB) {
       waitPolicy = PutBlockWaitPolicy::NO_WAIT;
     }
-  }
+  }  // while
 
   if (firstRequiredBlockId != std::numeric_limits<uint64_t>::max()) {
-    g.txn()->setFirstRequiredBlock(firstRequiredBlockId);
+    psd_->setFirstRequiredBlock(firstRequiredBlockId);
   }
   return doneProcesssing;
 }
@@ -2757,7 +2754,8 @@ BCStateTran::BlocksBatchDesc BCStateTran::computeNextBatchToFetch(uint64_t minRe
     if ((maxRequiredBlockId >= deltaToNearestRVB) && (maxRequiredBlockId - deltaToNearestRVB > minRequiredBlockId))
       maxRequiredBlockId = maxRequiredBlockId - deltaToNearestRVB;
   }
-  maxRequiredBlockId = std::min(maxRequiredBlockId, psd_->getLastRequiredBlock());
+  auto lastRequiredBlock = psd_->getLastRequiredBlock();
+  maxRequiredBlockId = std::min(maxRequiredBlockId, lastRequiredBlock);
 
   // Check with RVB manager that we are not between borders of RVB groups. This is rare, but we want to avoid the case
   // where we will need to ask for multiple digest groups. This make code more complicated.
@@ -2771,7 +2769,7 @@ BCStateTran::BlocksBatchDesc BCStateTran::computeNextBatchToFetch(uint64_t minRe
   digestOfNextRequiredBlock_.makeZero();
   ConcordAssert(fetchBatch.isValid());
   ConcordAssertLT(fetchState_.nextBlockId, config_.maxNumberOfChunksInBatch + fetchBatch.minBlockId);
-  LOG_TRACE(logger_, KVLOG(rvbmUpperBound, maxRequiredBlockId, minRequiredBlockId));
+  LOG_TRACE(logger_, KVLOG(minRequiredBlockId, maxRequiredBlockId, rvbmUpperBound, fetchBatch, lastRequiredBlock));
   return fetchBatch;
 }
 
@@ -3042,14 +3040,18 @@ void BCStateTran::processData(bool lastInBatch, uint32_t rvbDigestsSize) {
             uint64_t nextBatcheMinBlockId = fetchState_.maxBlockId + 1;
             ConcordAssertLE(nextBatcheMinBlockId, psd_->getLastRequiredBlock());
             auto oldFetchState_ = fetchState_;
+
+            // Currently, for simplicity - wait for temproary commit to end.
+            // TODO - it should be possible to push fetchState_ into a new data structure and replace it with
+            // commitState upperBound  work on in the next batch
+            finalizePutblockAsync(PutBlockWaitPolicy::WAIT_ALL_JOBS);
             fetchState_ = computeNextBatchToFetch(nextBatcheMinBlockId);
-            commitState_.upperBoundBlockId = fetchState_.upperBoundBlockId;
-            LOG_TRACE(logger_, KVLOG(fetchState_, commitState_, nextBatcheMinBlockId));
+            commitState_ = fetchState_;
+            LOG_TRACE(logger_, KVLOG(fetchState_, nextBatcheMinBlockId));
             ConcordAssert(commitState_.isValid());
             LOG_DEBUG(logger_,
-                      "Done putting (async) blocks ["
-                          << oldFetchState_.minBlockId << "," << oldFetchState_.maxBlockId << "], new fetchState_:"
-                          << fetchState_ << KVLOG(postProcessingUpperBoundBlockId_, commitState_.upperBoundBlockId));
+                      "Done putting (async) blocks [" << oldFetchState_.minBlockId << "," << oldFetchState_.maxBlockId
+                                                      << "]," << KVLOG(fetchState_));
           }
           if (lastInBatch || postponedSendFetchBlocksMsg_ || newSourceReplica) {
             trySendFetchBlocksMsg(0, KVLOG(lastInBatch, postponedSendFetchBlocksMsg_, newSourceReplica));
