@@ -3685,7 +3685,7 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
       sendAndIncrementMetric(fcp, msgSender, metric_sent_fullCommitProof_msg_due_to_reqMissingData_);
     }
 
-    if (msg->getPartialProofIsMissing()) {
+    if (msg->getPartialProofIsMissing() && seqNumInfo.isTimeCorrect()) {
       // TODO(GG): consider not to send if msgSender is not a collector
       PartialCommitProofMsg *pcf = seqNumInfo.getFastPathSelfPartialCommitProofMsg();
 
@@ -3695,7 +3695,7 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
       }
     }
 
-    if (msg->getPartialPrepareIsMissing() && (currentPrimary() == msgSender)) {
+    if (msg->getPartialPrepareIsMissing() && (currentPrimary() == msgSender) && seqNumInfo.isTimeCorrect()) {
       PreparePartialMsg *pr = seqNumInfo.getSelfPreparePartialMsg();
 
       if (pr != nullptr) {
@@ -3713,7 +3713,7 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
       }
     }
 
-    if (msg->getPartialCommitIsMissing() && (currentPrimary() == msgSender)) {
+    if (msg->getPartialCommitIsMissing() && (currentPrimary() == msgSender) && seqNumInfo.isTimeCorrect()) {
       CommitPartialMsg *c = seqNumInfo.getSelfCommitPartialMsg();
       if (c != nullptr) {
         LOG_INFO(CNSUS, "Sending PartialCommit message as a response of RFMD" << KVLOG(msgSender, msgSeqNum));
