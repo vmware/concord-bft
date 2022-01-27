@@ -34,7 +34,7 @@ class MinimumOfResourceEntitiesAvailabilityManager : public IResourceManager {
       minimum = std::min(minimum, entity->getAvailableResources());
     }
 
-    return PruneInfo{(uint64_t)std::max(minimum, (int64_t)0), 20};
+    return PruneInfo{(long double)std::max(minimum, (int64_t)0), 20};
   }
 
  private:

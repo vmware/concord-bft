@@ -29,11 +29,12 @@ class IntervalMappingResourceManager : public IResourceManager {
    Traffic up to 100 tps gvies 200 bps to prune, Up to 400 tps 100 bps ... TPS above the max is always 0 bps.
   */
   virtual PruneInfo getPruneInfo() override {
-    return PruneInfo{std::upper_bound(intervalMapping.begin(),
+    return PruneInfo{
+        (long double)std::upper_bound(intervalMapping.begin(),
                                       intervalMapping.end(),
                                       std::make_pair((uint64_t)consensusEngine->getMeasurements(), (u_int64_t)0))
-                         ->second,
-                     20};
+            ->second,
+        20};
   }
   static std::unique_ptr<IntervalMappingResourceManager> createIntervalMappingResourceManager(
       const std::shared_ptr<ISystemResourceEntity> &consensusEngine,

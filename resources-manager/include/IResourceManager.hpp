@@ -17,7 +17,7 @@
 namespace concord::performance {
 
 struct PruneInfo {
-  uint64_t blocksPerSecond;
+  long double blocksPerSecond;
   uint64_t batchSize;
 };
 
