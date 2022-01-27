@@ -96,6 +96,7 @@ class SkvbcReplyTest(ApolloTest):
         assert reply[1] == bft_msgs.OperationResult.INTERNAL_ERROR, \
                         f"Expected Reply={bft_msgs.OperationResult.INTERNAL_ERROR}; actual={reply[1]}"
 
+    @unittest.skip("disabled on ST dev branch.")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: c == 0 and n > 6)
     async def test_conflict_detected_from_replicas(self, bft_network):
