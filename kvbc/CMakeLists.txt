@@ -1,6 +1,7 @@
 cmake_minimum_required (VERSION 3.2)
 project(libkvbc VERSION 0.1.0.0 LANGUAGES CXX)
 
+find_package(Boost ${MIN_BOOST_VERSION} COMPONENTS filesystem REQUIRED)
 
 add_library(concord_block_update INTERFACE)
 target_include_directories(concord_block_update INTERFACE
@@ -38,7 +39,8 @@ if (BUILD_ROCKSDB_STORAGE)
                                 src/categorization/kv_blockchain.cpp
                                 src/categorization/blocks.cpp
                                 src/categorization/blockchain.cpp
-                                src/categorization/block_merkle_category.cpp)
+                                src/categorization/block_merkle_category.cpp
+                                src/migrations/block_merkle_latest_ver_cf_migration.cpp)
 
 endif (BUILD_ROCKSDB_STORAGE)
 target_link_libraries(kvbc PUBLIC corebft util)
@@ -54,6 +56,7 @@ if(NOT BUILD_THIRDPARTY)
     find_package(OpenSSL REQUIRED)
 endif()
 target_link_libraries(kvbc PRIVATE OpenSSL::Crypto)
+target_link_libraries(kvbc PRIVATE ${Boost_LIBRARIES})
 
 if (BUILD_TESTING)
     add_subdirectory(test)
