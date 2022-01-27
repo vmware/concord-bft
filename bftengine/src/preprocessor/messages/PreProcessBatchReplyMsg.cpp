@@ -54,6 +54,12 @@ void PreProcessBatchReplyMsg::validate(const ReplicasInfo& repInfo) const {
     LOG_WARN(logger(), "Message sender is invalid" << KVLOG(senderId()));
     throw std::runtime_error(__PRETTY_FUNCTION__);
   }
+
+  const auto numOfMessagesInBatch = msgBody()->numOfMessagesInBatch;
+  if (!numOfMessagesInBatch || (numOfMessagesInBatch > MAX_BATCH_SIZE)) {
+    LOG_WARN(logger(), "Too many messages in batch" << KVLOG(numOfMessagesInBatch));
+    throw std::runtime_error(__PRETTY_FUNCTION__);
+  }
 }
 
 void PreProcessBatchReplyMsg::setParams(NodeIdType senderId,
