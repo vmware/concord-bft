@@ -20,6 +20,8 @@
 #include "AsyncTlsConnection.h"
 #include "communication/StateControl.hpp"
 
+using namespace std::placeholders;
+
 namespace bft::communication::tls {
 
 void setSocketOptions(asio::ip::tcp::socket& socket) { socket.set_option(asio::ip::tcp::no_delay(true)); }
@@ -59,7 +61,7 @@ void ConnectionManager::stop() {
   acceptor_.close();
   for (auto& [_, sock] : connecting_) {
     (void)_;  // unused variable hack
-    sock.close();
+    sock.first.close();
   }
   for (auto& [id, conn] : connected_waiting_for_handshake_) {
     LOG_DEBUG(logger_, "Closing connection from: " << config_.selfId_ << ", to: " << id);
@@ -311,24 +313,33 @@ void ConnectionManager::resolve(NodeNum i) {
 }
 
 void ConnectionManager::connect(NodeNum i, const asio::ip::tcp::endpoint& endpoint) {
-  auto [it, inserted] = connecting_.emplace(i, asio::ip::tcp::socket(io_context_));
+  auto [it, inserted] =
+      connecting_.emplace(i, std::make_pair(asio::ip::tcp::socket(io_context_), asio::steady_timer(io_context_)));
   ConcordAssert(inserted);
   status_->num_connecting = connecting_.size();
-  it->second.async_connect(
+  LOG_DEBUG(logger_, "connecting to node : " << i);
+  // If async_connect takes too long to finish
+  // the timeout will happen after given duration
+  connecting_.at(i).second.expires_after(CONNECT_DEADLINE);
+  it->second.first.async_connect(
       endpoint, asio::bind_executor(strand_, [this, i, endpoint](const auto& error_code) {
         if (error_code) {
           LOG_WARN(logger_, "Failed to connect to node " << i << ": " << endpoint << " : " << error_code.message());
-          connecting_.at(i).close();
-          connecting_.erase(i);
-          status_->num_connecting = connecting_.size();
+          if (connecting_.find(i) != connecting_.end()) {
+            connecting_.at(i).first.close();
+            LOG_WARN(logger_, "socket closed ");
+            connecting_.at(i).second.cancel();
+          }
           return;
         }
         LOG_INFO(logger_, "Connected to node " << i << ": " << endpoint);
-        auto connected_socket = std::move(connecting_.at(i));
-        connecting_.erase(i);
-        status_->num_connecting = connecting_.size();
+        auto connected_socket = std::move(connecting_.at(i).first);
+        // cleanup of entry from connecting map is being done in callback of timer
+        connecting_.at(i).second.cancel();
         startClientSSLHandshake(std::move(connected_socket), i);
       }));
+  connecting_.at(i).second.async_wait(
+      asio::bind_executor(strand_, std::bind(&ConnectionManager::handleConnectTimeout, this, i, _1)));
 }
 
 void ConnectionManager::connect() {
@@ -339,6 +350,17 @@ void ConnectionManager::connect() {
       resolve(i);
     }
   }
+}
+
+void ConnectionManager::handleConnectTimeout(NodeNum i, const std::error_code& error_code) {
+  asio::steady_timer& deadline_timer = connecting_.at(i).second;
+  if (deadline_timer.expiry() <= asio::steady_timer::clock_type::now()) {
+    LOG_WARN(logger_, "Timeout during connecting to node : " << i << ": " << error_code.message());
+    connecting_.at(i).first.close();
+  }
+  LOG_DEBUG(logger_, "socket connect timeout end");
+  connecting_.erase(i);
+  status_->num_connecting = connecting_.size();
 }
 
 asio::ip::tcp::endpoint ConnectionManager::syncResolve() {

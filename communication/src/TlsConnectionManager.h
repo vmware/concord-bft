@@ -30,6 +30,7 @@ class AsyncTlsConnection;
 class ConnectionManager {
   static constexpr size_t MSG_HEADER_SIZE = 4;
   static constexpr std::chrono::seconds CONNECT_TICK = std::chrono::seconds(1);
+  static constexpr std::chrono::seconds CONNECT_DEADLINE = std::chrono::seconds(2);
   friend class Runner;
   friend class AsyncTlsConnection;
 
@@ -114,6 +115,9 @@ class ConnectionManager {
   // Returns true in the promise if the destination is connected, false otherwise.
   void handleConnStatus(const NodeNum destination, std::promise<bool> &connected) const;
 
+  // callback for steady timer timeout during socket connect
+  void handleConnectTimeout(NodeNum i, const std::error_code &error_code);
+
  private:
   logging::Logger logger_;
   TlsTcpConfig config_;
@@ -136,8 +140,8 @@ class ConnectionManager {
 
   // Sockets that are in progress of connecting.
   // When these connections complete, an AsyncTlsConnection will be created and moved into
-  // `connected_waiting_for_handshake_`.
-  std::unordered_map<NodeNum, asio::ip::tcp::socket> connecting_;
+  // `connected_waiting_for_handshake_`.Each socket have a connection timeout.
+  std::unordered_map<NodeNum, std::pair<asio::ip::tcp::socket, asio::steady_timer>> connecting_;
 
   // Connections that are in progress of waiting for a handshake to complete.
   // When the handshake completes these will be moved into `connections_`.
