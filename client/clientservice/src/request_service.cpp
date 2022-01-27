@@ -33,7 +33,11 @@ void RequestServiceCallData::proceed() {
   } else if (state_ == PROCESS_CALLBACK_RESULT) {
     state_ = FINISH;
     // Once the response is sent, an event will be put on the cq for cleanup
-    responder_.Finish(response_, return_status_, this);
+    if (return_status_.ok()) {
+      responder_.Finish(response_, return_status_, this);
+    } else {
+      responder_.FinishWithError(return_status_, this);
+    }
   } else {
     ConcordAssertEQ(state_, FINISH);
     delete this;
