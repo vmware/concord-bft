@@ -67,12 +67,8 @@ add_test(NAME test_skvbc_history_tracker COMMAND sudo sh -c
         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=test_skvbc_history_tracker python3 -m unittest test_skvbc_history_tracker ${TEST_OUTPUT}"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
-add_test(NAME skvbc_fast_path_tests COMMAND sh -c
-        "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_fast_path_tests python3 -m unittest test_skvbc_fast_path ${TEST_OUTPUT}"
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-
-add_test(NAME skvbc_slow_path_tests COMMAND sh -c
-        "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_slow_path_tests python3 -m unittest test_skvbc_slow_path ${TEST_OUTPUT}"
+add_test(NAME skvbc_commit_path_tests COMMAND sh -c
+        "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_commit_path_tests python3 -m unittest test_skvbc_commit_path ${TEST_OUTPUT}"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_test(NAME skvbc_view_change_tests COMMAND sudo sh -c
