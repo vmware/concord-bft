@@ -267,7 +267,7 @@ class SkvbcReconfigurationTest(ApolloTest):
             for i in range(100):
                 await skvbc.send_write_kv_set()
 
-    @unittest.skip("disabled on ST dev branch. Suspect a bug in secret manager/cre")
+    @unittest.skip("disabled on ST dev branch.")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True, publish_master_keys=True)
     async def test_tls_exchange_client_replica_with_st(self, bft_network):
@@ -275,30 +275,41 @@ class SkvbcReconfigurationTest(ApolloTest):
             Operator sends client key exchange command for cre client
         """
         with log.start_action(action_type="test_tls_exchange_client_replica_with_st"):
+            print("1")
             bft_network.start_all_replicas()
             bft_network.start_cre()
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+            print("2")
             for i in range(100):
                 await skvbc.send_write_kv_set()
+            print("3")
             initial_prim = 0
             next_primary = 1
             bft_network.stop_replica(next_primary)
+            print("4")
             next_prime_cert = self.collect_client_certificates(bft_network, [next_primary])
             await self.run_client_tls_key_exchange_cycle(bft_network, list(bft_network.all_replicas(without={next_primary})) + [bft_network.cre_id])
+            print("5")
             for i in range(500):
                 await skvbc.send_write_kv_set()
+            print("6")
             current_view = await bft_network.wait_for_view(0)
             # Let the next primary complete state transfer
             bft_network.start_replica(next_primary)
             await bft_network.wait_for_state_transfer_to_start()
+
+            print("7")
             await bft_network.wait_for_state_transfer_to_stop(initial_prim,
                                                               next_primary,
                                                               stop_on_stable_seq_num=False)
+            print("8")
             new_cert = self.collect_client_certificates(bft_network, [next_primary])
+            print("9")
             diff = difflib.unified_diff(next_prime_cert[next_primary], new_cert[next_primary], fromfile="old", tofile="new", lineterm='')
             lines = sum(1 for l in diff)
             assert lines > 0
             # Now, stop the primary and wait for VC to happen
+            print("10")
             bft_network.stop_replica(initial_prim)
             async with trio.open_nursery() as nursery:
                 nursery.start_soon(skvbc.send_indefinite_ops, 1)
@@ -306,11 +317,12 @@ class SkvbcReconfigurationTest(ApolloTest):
                     while current_view != 1:
                         current_view = await bft_network.wait_for_view(1, expected=lambda v: v == 1)
                 nursery.cancel_scope.cancel()
-
+            print("11")
             # Now lets run another Client TLS key exchange and make sure the new primary is able
             # to communicate with the client after its state transfer
-            await self.run_client_tls_key_exchange_cycle(bft_network, list(bft_network.all_replicas(without={initial_prim})) + [bft_network.cre_id])
-
+            await self.run_client_tls_key_exchange_cycle(bft_network, list(bft_network.all_replicas(without={initial_prim})) + 
+            [bft_network.cre_id])
+            print("12")
             for i in range(100):
                 await skvbc.send_write_kv_set()
 
@@ -516,7 +528,6 @@ class SkvbcReconfigurationTest(ApolloTest):
                 nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
                 self.assertGreater(nb_fast_path, fast_paths[r])
 
-    @unittest.skip("disabled on ST dev branch until fix")
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd_with_object_store_and_ke, num_ro_replicas=1, rotate_keys=True,
                       selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
@@ -1061,7 +1072,6 @@ class SkvbcReconfigurationTest(ApolloTest):
             log.log_message(message_type=f"pruned_block {pruned_block}")
             assert pruned_block <= 97
 
-    @unittest.skip("disabled on ST dev branch until fix")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_pruning_command_with_failures(self, bft_network):
@@ -1181,7 +1191,6 @@ class SkvbcReconfigurationTest(ApolloTest):
             assert status.response.in_progress is False
             assert status.response.last_pruned_block <= 97
 
-    @unittest.skip("disabled on ST dev branch until fix")
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd_with_object_store, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_pruning_with_ro_replica(self, bft_network):
@@ -1227,7 +1236,6 @@ class SkvbcReconfigurationTest(ApolloTest):
             assert status.response.in_progress is False
             assert status.response.last_pruned_block == 150
 
-    @unittest.skip("disabled on ST dev branch until fix")
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd_with_object_store, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_pruning_with_ro_replica_failure(self, bft_network):
@@ -1497,7 +1505,6 @@ class SkvbcReconfigurationTest(ApolloTest):
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(nb_fast_path, 0)
 
-    @unittest.skip("disabled on ST dev branch until fix")
     @with_trio
     @with_bft_network(start_replica_cmd, bft_configs=[{'n': 4, 'f': 1, 'c': 0, 'num_clients': 10}], publish_master_keys=True)
     async def test_add_nodes_with_failures(self, bft_network):
