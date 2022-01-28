@@ -401,7 +401,7 @@ class SimpleKVBCProtocol:
             assert kv2 == dict(kv)
             action.log(message_type=f'[READ-YOUR-WRITES] OK.')
 
-    async def send_write_kv_set(self, client=None, kv=None, max_set_size=None, long_exec=False, assert_reply=True, raise_slowErrorIfAny=True):
+    async def send_write_kv_set(self, client=None, kv=None, max_set_size=None, long_exec=False, assert_reply=True, raise_slowErrorIfAny=True, quorum=None):
         with log.start_action(action_type="send_write_kv_set") as action:
             readset = set()
             read_version = 0
@@ -424,14 +424,14 @@ class SimpleKVBCProtocol:
                 max_read_set_size = 0 if self.tracker.no_conflicts else max_set_size
                 read_version = self.tracker.read_block_id()
                 readset = self.readset(0, max_read_set_size)
-            reply = await self.send_kv_set(client, readset, writeset, read_version, long_exec, assert_reply, raise_slowErrorIfAny)
+            reply = await self.send_kv_set(client, readset, writeset, read_version, long_exec, assert_reply, raise_slowErrorIfAny, quorum)
             action.log(message_type="[send_write_kv_set] OK")
             if kv_input is True:
                 return reply
             else:
                 return writeset[0][0],writeset[0][1]
 
-    async def send_kv_set(self, client, readset, writeset, read_version, long_exec=False, reply_assert=True, raise_slowErrorIfAny=True):
+    async def send_kv_set(self, client, readset, writeset, read_version, long_exec=False, reply_assert=True, raise_slowErrorIfAny=True, quorum=None):
         with log.start_action(action_type="send_kv_set"):
             msg = self.write_req(readset, writeset, read_version, long_exec)
             seq_num = client.req_seq_num.next()
@@ -439,7 +439,7 @@ class SimpleKVBCProtocol:
             if self.tracker is not None:
                 self.tracker.send_write(client_id, seq_num, readset, dict(writeset), read_version)
             try:
-                serialized_reply = await client.write(msg, seq_num, pre_process=self.pre_exec_all)
+                serialized_reply = await client.write(msg, seq_num, pre_process=self.pre_exec_all, m_of_n_quorum=quorum)
                 reply = self.parse_reply(serialized_reply)
                 if reply_assert is True:
                     assert reply.success
