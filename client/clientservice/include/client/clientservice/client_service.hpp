@@ -30,7 +30,7 @@ class ClientService {
         event_service_(std::make_unique<EventServiceImpl>(client_)),
         state_snapshot_service_(std::make_unique<StateSnapshotServiceImpl>(client_)){};
 
-  void start(const std::string& addr, int num_async_threads, uint64_t max_receive_msg_size);
+  void start(const std::string& addr, unsigned num_async_threads, uint64_t max_receive_msg_size);
 
   const std::string kRequestService{"vmware.concord.client.request.v1.RequestService"};
   const std::string kEventService{"vmware.concord.client.event.v1.EventService"};
@@ -38,7 +38,7 @@ class ClientService {
 
  private:
   // Handler for asynchronous services
-  void handleRpcs(int thread_idx);
+  void handleRpcs(unsigned thread_idx);
 
   logging::Logger logger_;
   std::shared_ptr<concord::client::concordclient::ConcordClient> client_;

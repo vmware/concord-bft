@@ -49,15 +49,15 @@ po::variables_map parseCmdLine(int argc, char** argv) {
   desc.add_options()
     ("config", po::value<std::string>()->required(), "YAML configuration file for the RequestService")
     ("host", po::value<std::string>()->default_value("0.0.0.0"), "Clientservice gRPC service host")
-    ("port", po::value<int>()->default_value(50505), "Clientservice gRPC service port")
-    ("num-async-threads", po::value<int>()->default_value(1), "Number of threads for async gRPC services")
+    ("port", po::value<unsigned>()->default_value(50505), "Clientservice gRPC service port")
+    ("num-async-threads", po::value<unsigned>()->default_value(1), "Number of threads for async gRPC services")
     ("tr-id", po::value<std::string>()->required(), "ID used to subscribe to replicas for data/hashes")
     ("tr-insecure", po::value<bool>()->default_value(false), "Testing only: Allow insecure connection with TRS on replicas")
     ("tr-tls-path", po::value<std::string>()->default_value(""), "Path to thin replica TLS certificates")
-    ("metrics-port", po::value<int>()->default_value(9891), "Prometheus port to query clientservice metrics")
+    ("metrics-port", po::value<unsigned>()->default_value(9891), "Prometheus port to query clientservice metrics")
     ("secrets-url", po::value<std::string>(), "URL to decrypt private keys")
     ("jaeger", po::value<std::string>(), "Push trace data to this Jaeger Agent")
-    ("max-receive-msg-size", po::value<int>()->default_value(4194304), "Clientservice max receive message size in bytes")
+    ("max-receive-msg-size", po::value<uint64_t>()->default_value(4194304), "Clientservice max receive message size in bytes")
   ;
   // clang-format on
   po::variables_map opts;
@@ -69,7 +69,7 @@ po::variables_map parseCmdLine(int argc, char** argv) {
 
 std::tuple<std::shared_ptr<concord::utils::PrometheusRegistry>,
            std::shared_ptr<concord::utils::ConcordBftPrometheusCollector>>
-initPrometheus(int port) {
+initPrometheus(unsigned port) {
   std::string bind_address = "0.0.0.0:" + std::to_string(port);
   auto registry = std::make_shared<concord::utils::PrometheusRegistry>(bind_address);
   auto collector = std::make_shared<concord::utils::ConcordBftPrometheusCollector>();
@@ -145,7 +145,7 @@ int main(int argc, char** argv) {
   LOG_INFO(logger, "ConcordClient configured");
 
   // Metrics
-  auto port = opts["metrics-port"].as<int>();
+  auto port = opts["metrics-port"].as<unsigned>();
   const auto& ptuple = initPrometheus(port);
   const auto& metrics_collector = std::get<1>(ptuple);
   LOG_INFO(logger, "Prometheus metrics available on port " << port);
@@ -162,9 +162,9 @@ int main(int argc, char** argv) {
   auto concord_client = std::make_unique<ConcordClient>(config, metrics_collector->getAggregator());
   ClientService service(std::move(concord_client));
 
-  auto server_addr = opts["host"].as<std::string>() + ":" + std::to_string(opts["port"].as<int>());
+  auto server_addr = opts["host"].as<std::string>() + ":" + std::to_string(opts["port"].as<unsigned>());
   LOG_INFO(logger, "Starting clientservice at " << server_addr);
-  service.start(server_addr, opts["num-async-threads"].as<int>(), opts["max-receive-msg-size"].as<int>());
+  service.start(server_addr, opts["num-async-threads"].as<unsigned>(), opts["max-receive-msg-size"].as<uint64_t>());
 
   return 0;
 }

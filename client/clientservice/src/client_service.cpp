@@ -15,7 +15,7 @@
 
 namespace concord::client::clientservice {
 
-void ClientService::start(const std::string& addr, int num_async_threads, uint64_t max_receive_msg_size) {
+void ClientService::start(const std::string& addr, unsigned num_async_threads, uint64_t max_receive_msg_size) {
   grpc::EnableDefaultHealthCheckService(true);
 
   grpc::ServerBuilder builder;
@@ -28,7 +28,7 @@ void ClientService::start(const std::string& addr, int num_async_threads, uint64
   // Register asynchronous services
   builder.RegisterService(&request_service_);
 
-  for (int i = 0; i < num_async_threads; ++i) {
+  for (unsigned i = 0; i < num_async_threads; ++i) {
     cqs_.emplace_back(builder.AddCompletionQueue());
   }
 
@@ -36,7 +36,7 @@ void ClientService::start(const std::string& addr, int num_async_threads, uint64
 
   // From the "C++ Performance Notes" in the gRPC documentation:
   // "Right now, the best performance trade-off is having numcpu's threads and one completion queue per thread."
-  for (int i = 0; i < num_async_threads; ++i) {
+  for (unsigned i = 0; i < num_async_threads; ++i) {
     server_threads_.emplace_back(std::thread([this, i] { this->handleRpcs(i); }));
   }
 
@@ -52,7 +52,7 @@ void ClientService::start(const std::string& addr, int num_async_threads, uint64
   }
 }
 
-void ClientService::handleRpcs(int thread_idx) {
+void ClientService::handleRpcs(unsigned thread_idx) {
   // Note: Memory is freed in `proceed`
   new requestservice::RequestServiceCallData(&request_service_, cqs_[thread_idx].get(), client_);
 
