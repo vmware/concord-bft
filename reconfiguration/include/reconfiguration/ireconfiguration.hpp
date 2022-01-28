@@ -292,6 +292,14 @@ class IReconfigurationHandler {
     return true;
   }
 
+  virtual bool handle(const concord::messages::StateSnapshotReadAsOfRequest &,
+                      uint64_t,
+                      uint32_t,
+                      const std::optional<bftEngine::Timestamp> &,
+                      concord::messages::ReconfigurationResponse &) {
+    return true;
+  }
+
   virtual bool handle(const concord::messages::PruneStopRequest &,
                       uint64_t,
                       uint32_t,

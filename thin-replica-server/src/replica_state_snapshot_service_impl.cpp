@@ -13,7 +13,6 @@
 
 #include "thin-replica-server/replica_state_snapshot_service_impl.hpp"
 
-#include "categorization/kv_blockchain.h"
 #include "Logger.hpp"
 #include "rocksdb/native_client.h"
 
@@ -73,7 +72,7 @@ grpc::Status ReplicaStateSnapshotServiceImpl::StreamSnapshot(grpc::ServerContext
       auto resp_key = kv->mutable_key();
       auto resp_value = kv->mutable_value();
       *resp_key = std::move(key);
-      *resp_value = std::move(value);
+      *resp_value = state_value_converter_(std::move(value));
       if (!writer->Write(resp)) {
         const auto err =
             "Streaming of State Snapshot ID = " + snapshot_id_str + " failed, reason = gRPC:Write() failure";

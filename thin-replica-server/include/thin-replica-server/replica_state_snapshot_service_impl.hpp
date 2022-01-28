@@ -16,6 +16,7 @@
 #include "replica_state_snapshot.grpc.pb.h"
 
 #include "bftengine/DbCheckpointManager.hpp"
+#include "categorization/kv_blockchain.h"
 
 #include <optional>
 #include <string>
@@ -32,6 +33,11 @@ class ReplicaStateSnapshotServiceImpl
       const ::vmware::concord::replicastatesnapshot::StreamSnapshotRequest* request,
       ::grpc::ServerWriter< ::vmware::concord::replicastatesnapshot::StreamSnapshotResponse>* writer) override;
 
+  // Allows users to convert state values to any format that is appropriate.
+  void setStateValueConverter(const kvbc::categorization::KeyValueBlockchain::Converter& c) {
+    state_value_converter_ = c;
+  }
+
   // Following methods are used for testing only. Please do not use in production.
   void overrideCheckpointPathForTest(const std::string& path) { overriden_path_for_test_ = path; }
   void overrideCheckpointStateForTest(bftEngine::impl::DbCheckpointManager::CheckpointState state) {
@@ -43,6 +49,9 @@ class ReplicaStateSnapshotServiceImpl
   std::optional<std::string> overriden_path_for_test_;
   std::optional<bftEngine::impl::DbCheckpointManager::CheckpointState> overriden_checkpoint_state_for_test_;
   bool throw_exception_for_test_{false};
+  // The default converter returns the input string as is, without modifying it.
+  kvbc::categorization::KeyValueBlockchain::Converter state_value_converter_{
+      [](std::string&& v) -> std::string { return std::move(v); }};
 };
 
 }  // namespace concord::thin_replica

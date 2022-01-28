@@ -183,6 +183,13 @@ class Operator:
         req.participant_id = 'apollo_test_participant_id'
         return self._construct_basic_reconfiguration_request(req)
 
+    def _construct_reconfiguration_state_snapshot_read_as_of_req(self, snapshot_id, keys):
+        req = cmf_msgs.StateSnapshotReadAsOfRequest()
+        req.snapshot_id = snapshot_id
+        req.participant_id = 'apollo_test_participant_id'
+        req.keys = keys
+        return self._construct_basic_reconfiguration_request(req)        
+
     def _construct_reconfiguration_state_snapshot_req(self):
         req = cmf_msgs.StateSnapshotRequest()
         req.checkpoint_kv_count = 0
@@ -320,5 +327,10 @@ class Operator:
 
     async def signed_public_state_hash_req(self, snapshot_id):
         req = self._construct_reconfiguration_signed_public_state_hash_req(snapshot_id)
+        return await self.client.read(req.serialize(), m_of_n_quorum=bft_client.MofNQuorum.All(self.client.config,
+                                        [r for r in range(self.config.n)]), reconfiguration=True)
+
+    async def state_snapshot_read_as_of_req(self, snapshot_id, keys):
+        req = self._construct_reconfiguration_state_snapshot_read_as_of_req(snapshot_id, keys)
         return await self.client.read(req.serialize(), m_of_n_quorum=bft_client.MofNQuorum.All(self.client.config,
                                         [r for r in range(self.config.n)]), reconfiguration=True)
