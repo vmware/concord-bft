@@ -40,15 +40,15 @@ TEST(resource_manager_test, IntervalMappingResourceManager_test) {
   std::unique_ptr<IResourceManager> sut(IntervalMappingResourceManager::createIntervalMappingResourceManager(
       consensusEngineResourceMonitor, std::move(mapping)));
 
-  EXPECT_EQ(sut->getPruneBlocksPerSecond(), 100);
+  EXPECT_EQ(sut->getPruneInfo().blocksPerSecond, 100);
   consensusEngineResourceMonitor->measurements = 200;
-  EXPECT_EQ(sut->getPruneBlocksPerSecond(), 100);
+  EXPECT_EQ(sut->getPruneInfo().blocksPerSecond, 100);
   consensusEngineResourceMonitor->measurements = 400;
-  EXPECT_EQ(sut->getPruneBlocksPerSecond(), 10);
+  EXPECT_EQ(sut->getPruneInfo().blocksPerSecond, 10);
   consensusEngineResourceMonitor->measurements = 800;
-  EXPECT_EQ(sut->getPruneBlocksPerSecond(), 5);
+  EXPECT_EQ(sut->getPruneInfo().blocksPerSecond, 5);
   consensusEngineResourceMonitor->measurements = 1800;
-  EXPECT_EQ(sut->getPruneBlocksPerSecond(), 0);
+  EXPECT_EQ(sut->getPruneInfo().blocksPerSecond, 0);
 }
 
 TEST(resource_manager_test, SumsResourceEntitiesAvailabilityManager_test) {
@@ -62,7 +62,7 @@ TEST(resource_manager_test, SumsResourceEntitiesAvailabilityManager_test) {
 
   std::unique_ptr<IResourceManager> sut(new MinimumOfResourceEntitiesAvailabilityManager(std::move(systemResources)));
 
-  EXPECT_EQ(sut->getPruneBlocksPerSecond(), 50);
+  EXPECT_EQ(sut->getPruneInfo().blocksPerSecond, 50);
 }
 
 }  // anonymous namespace
