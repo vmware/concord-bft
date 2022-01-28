@@ -2560,10 +2560,12 @@ void ReplicaImp::onRetransmissionsProcessingResults(SeqNum relatedLastStableSeqN
         SeqNumInfo &seqNumInfo = mainLog->get(s.msgSeqNum);
         PartialCommitProofMsg *msgToSend = seqNumInfo.getFastPathSelfPartialCommitProofMsg();
         ConcordAssertNE(msgToSend, nullptr);
-        sendRetransmittableMsgToReplica(msgToSend, s.replicaId, s.msgSeqNum);
-        LOG_DEBUG(CNSUS,
-                  "Replica " << myId << " retransmits to replica " << s.replicaId
-                             << " PartialCommitProofMsg with seqNumber " << s.msgSeqNum);
+        if (seqNumInfo.isTimeCorrect()) {
+          sendRetransmittableMsgToReplica(msgToSend, s.replicaId, s.msgSeqNum);
+          LOG_DEBUG(CNSUS,
+                    "Replica " << myId << " retransmits to replica " << s.replicaId
+                               << " PartialCommitProofMsg with seqNumber " << s.msgSeqNum);
+        }
       } break;
         //  TODO(GG): do we want to use acks for FullCommitProofMsg ?
       case MsgCode::StartSlowCommit: {
@@ -2578,10 +2580,12 @@ void ReplicaImp::onRetransmissionsProcessingResults(SeqNum relatedLastStableSeqN
         SeqNumInfo &seqNumInfo = mainLog->get(s.msgSeqNum);
         PreparePartialMsg *msgToSend = seqNumInfo.getSelfPreparePartialMsg();
         ConcordAssertNE(msgToSend, nullptr);
-        sendRetransmittableMsgToReplica(msgToSend, s.replicaId, s.msgSeqNum);
-        LOG_DEBUG(CNSUS,
-                  "Replica " << myId << " retransmits to replica " << s.replicaId
-                             << " PreparePartialMsg with seqNumber " << s.msgSeqNum);
+        if (seqNumInfo.isTimeCorrect()) {
+          sendRetransmittableMsgToReplica(msgToSend, s.replicaId, s.msgSeqNum);
+          LOG_DEBUG(CNSUS,
+                    "Replica " << myId << " retransmits to replica " << s.replicaId
+                               << " PreparePartialMsg with seqNumber " << s.msgSeqNum);
+        }
       } break;
       case MsgCode::PrepareFull: {
         SeqNumInfo &seqNumInfo = mainLog->get(s.msgSeqNum);
