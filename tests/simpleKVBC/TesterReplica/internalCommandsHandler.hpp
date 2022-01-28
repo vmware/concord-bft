@@ -25,17 +25,30 @@
 #include <thread>
 #include "skvbc_messages.cmf.hpp"
 #include "SharedTypes.hpp"
+#include "categorization/db_categories.h"
+#include "categorization/kv_blockchain.h"
 
-static const std::string VERSIONED_KV_CAT_ID{"replica_tester_versioned_kv_category"};
-static const std::string BLOCK_MERKLE_CAT_ID{"replica_tester_block_merkle_category"};
+static const std::string VERSIONED_KV_CAT_ID{concord::kvbc::categorization::kExecutionPrivateCategory};
+static const std::string BLOCK_MERKLE_CAT_ID{concord::kvbc::categorization::kExecutionProvableCategory};
 
 class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
  public:
   InternalCommandsHandler(concord::kvbc::IReader *storage,
                           concord::kvbc::IBlockAdder *blocksAdder,
                           concord::kvbc::IBlockMetadata *blockMetadata,
-                          logging::Logger &logger)
-      : m_storage(storage), m_blockAdder(blocksAdder), m_blockMetadata(blockMetadata), m_logger(logger) {}
+                          logging::Logger &logger,
+                          bool addAllKeysAsPublic = false,
+                          concord::kvbc::categorization::KeyValueBlockchain *kvbc = nullptr)
+      : m_storage(storage),
+        m_blockAdder(blocksAdder),
+        m_blockMetadata(blockMetadata),
+        m_logger(logger),
+        m_addAllKeysAsPublic{addAllKeysAsPublic},
+        m_kvbc{kvbc} {
+    if (m_addAllKeysAsPublic) {
+      ConcordAssertNE(m_kvbc, nullptr);
+    }
+  }
 
   void execute(ExecutionRequestsQueue &requests,
                std::optional<bftEngine::Timestamp> timestamp,
@@ -45,6 +58,11 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
   void setPerformanceManager(std::shared_ptr<concord::performance::PerformanceManager> perfManager) override;
 
  private:
+  void add(std::string &&key,
+           std::string &&value,
+           concord::kvbc::categorization::VersionedUpdates &,
+           concord::kvbc::categorization::BlockMerkleUpdates &) const;
+
   bftEngine::OperationResult executeWriteCommand(
       uint32_t requestSize,
       const char *request,
@@ -112,4 +130,6 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
   size_t m_writesCounter = 0;
   size_t m_getLastBlockCounter = 0;
   std::shared_ptr<concord::performance::PerformanceManager> perfManager_;
+  bool m_addAllKeysAsPublic{false};  // Add all key-values in the block merkle category as public ones.
+  concord::kvbc::categorization::KeyValueBlockchain *m_kvbc{nullptr};
 };

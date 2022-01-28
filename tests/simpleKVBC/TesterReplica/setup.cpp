@@ -85,6 +85,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     std::optional<std::uint32_t> cronEntryNumberOfExecutes;
     std::string byzantineStrategies;
     bool is_separate_communication_mode = false;
+    int addAllKeysAsPublic = 0;
 
     static struct option longOptions[] = {
         {"replica-id", required_argument, 0, 'i'},
@@ -115,6 +116,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
         {"pre-exec-result-auth", no_argument, 0, 'x'},
         {"enable-db-checkpoint", required_argument, 0, 'h'},
         {"publish-master-key-on-startup", no_argument, (int*)&replicaConfig.publishReplicasMasterKeyOnStartup, 1},
+        {"add-all-keys-as-public", no_argument, &addAllKeysAsPublic, 1},
         {0, 0, 0, 0}};
     int o = 0;
     int optionIndex = 0;
@@ -317,7 +319,8 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
                               persistMode == PersistencyMode::RocksDB,
                               s3ConfigFile,
                               logPropsFile,
-                              cronEntryNumberOfExecutes));
+                              cronEntryNumberOfExecutes,
+                              addAllKeysAsPublic != 0));
     setup->sm_ = sm_;
     return setup;
 

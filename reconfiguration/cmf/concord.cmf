@@ -285,6 +285,11 @@ Msg StateSnapshotData 66 {
 
   # The event group ID at which the state snapshot with `snapshot_id` was taken.
   uint64 event_group_id
+
+  # An estimate (with reasonable accuracy) of the count of key-values contained
+  # in the state snapshot. Please note that this is an estimation and *not* the
+  # actual count.
+  uint64 key_value_count_estimate
 }
 
 # The response to a `StateSnapshotRequest`. Sent by the replicas to Clientservice.

@@ -156,6 +156,8 @@ class Replica : public IReplica,
     return nullptr;
   }
 
+  std::optional<categorization::KeyValueBlockchain> &kvBlockchain() { return m_kvBlockchain; }
+
   ~Replica() override;
 
  protected:

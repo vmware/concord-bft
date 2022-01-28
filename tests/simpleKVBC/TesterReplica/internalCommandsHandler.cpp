@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <variant>
 #include "ReplicaConfig.hpp"
+#include "kvbc_key_types.hpp"
 
 using namespace bftEngine;
 using namespace concord::kvbc::categorization;
@@ -64,16 +65,21 @@ static const std::string &keyHashToCategory(const Hash &keyHash) {
 
 static const std::string &keyToCategory(const std::string &key) { return keyHashToCategory(hash(key)); }
 
-static void add(std::string &&key,
-                std::string &&value,
-                VersionedUpdates &verUpdates,
-                BlockMerkleUpdates &merkleUpdates) {
-  const auto &cat = keyToCategory(key);
-  if (cat == VERSIONED_KV_CAT_ID) {
-    verUpdates.addUpdate(std::move(key), std::move(value));
-    return;
+void InternalCommandsHandler::add(std::string &&key,
+                                  std::string &&value,
+                                  VersionedUpdates &verUpdates,
+                                  BlockMerkleUpdates &merkleUpdates) const {
+  // Add all key-values in the block merkle category as public ones.
+  if (m_addAllKeysAsPublic) {
+    merkleUpdates.addUpdate(std::move(key), std::move(value));
+  } else {
+    const auto &cat = keyToCategory(key);
+    if (cat == VERSIONED_KV_CAT_ID) {
+      verUpdates.addUpdate(std::move(key), std::move(value));
+      return;
+    }
+    merkleUpdates.addUpdate(std::move(key), std::move(value));
   }
-  merkleUpdates.addUpdate(std::move(key), std::move(value));
 }
 
 void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequestsQueue &requests,
@@ -295,8 +301,28 @@ void InternalCommandsHandler::addKeys(const SKVBCWriteRequest &writeReq,
 
 void InternalCommandsHandler::addBlock(VersionedUpdates &verUpdates, BlockMerkleUpdates &merkleUpdates) {
   BlockId currBlock = m_storage->getLastBlockId();
-
   Updates updates;
+
+  // Add all key-values in the block merkle category as public ones.
+  if (m_addAllKeysAsPublic) {
+    ConcordAssertNE(m_kvbc, nullptr);
+    auto public_state = m_kvbc->getPublicStateKeys();
+    if (!public_state) {
+      public_state = PublicStateKeys{};
+    }
+    for (const auto &[k, _] : merkleUpdates.getData().kv) {
+      (void)_;
+      public_state->keys.push_back(k);
+      // We always persist public state keys in sorted order.
+      std::sort(public_state->keys.begin(), public_state->keys.end());
+    }
+    const auto public_state_ser = detail::serialize(*public_state);
+    auto public_state_updates = VersionedUpdates{};
+    public_state_updates.addUpdate(std::string{concord::kvbc::keyTypes::state_public_key_set},
+                                   std::string{public_state_ser.cbegin(), public_state_ser.cend()});
+    updates.add(kConcordInternalCategoryId, std::move(public_state_updates));
+  }
+
   updates.add(VERSIONED_KV_CAT_ID, std::move(verUpdates));
   updates.add(BLOCK_MERKLE_CAT_ID, std::move(merkleUpdates));
   const auto newBlockId = m_blockAdder->add(std::move(updates));

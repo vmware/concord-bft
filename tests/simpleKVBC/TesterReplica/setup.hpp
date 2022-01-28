@@ -46,6 +46,7 @@ class TestSetup {
   std::string getLogPropertiesFile() { return logPropsFile_; }
   std::shared_ptr<concord::performance::PerformanceManager> GetPerformanceManager() { return pm_; }
   std::optional<std::uint32_t> GetCronEntryNumberOfExecutes() const { return cronEntryNumberOfExecutes_; }
+  bool AddAllKeysAsPublic() const { return addAllKeysAsPublic_; }
 
   static inline constexpr auto kCronTableComponentId = 42;
   static inline constexpr auto kTickGeneratorPeriod = std::chrono::seconds{1};
@@ -58,7 +59,8 @@ class TestSetup {
             bool usePersistentStorage,
             const std::string& s3ConfigFile,
             const std::string& logPropsFile,
-            const std::optional<std::uint32_t>& cronEntryNumberOfExecutes)
+            const std::optional<std::uint32_t>& cronEntryNumberOfExecutes,
+            bool addAllKeysAsPublic)
       : replicaConfig_(config),
         communication_(std::move(comm)),
         logger_(logger),
@@ -67,7 +69,8 @@ class TestSetup {
         s3ConfigFile_(s3ConfigFile),
         logPropsFile_(logPropsFile),
         pm_{std::make_shared<concord::performance::PerformanceManager>()},
-        cronEntryNumberOfExecutes_{cronEntryNumberOfExecutes} {}
+        cronEntryNumberOfExecutes_{cronEntryNumberOfExecutes},
+        addAllKeysAsPublic_{addAllKeysAsPublic} {}
 
   TestSetup() = delete;
 
@@ -87,6 +90,7 @@ class TestSetup {
   std::shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
   std::optional<std::uint32_t> cronEntryNumberOfExecutes_;
   std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm_;
+  bool addAllKeysAsPublic_{false};
 };
 
 }  // namespace concord::kvbc
