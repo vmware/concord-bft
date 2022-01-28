@@ -46,10 +46,17 @@ void ClientService::start(const std::string& addr, unsigned num_async_threads, u
 
   clientservice_server->Wait();
 
-  LOG_INFO(logger_, "Wait for async gRPC threads to finish");
-  for (auto& t : server_threads_) {
-    t.join();
+  LOG_INFO(logger_, "Shutting down and emptying completion queues");
+  std::for_each(cqs_.begin(), cqs_.end(), [](auto& cq) { cq->Shutdown(); });
+  for (auto& cq : cqs_) {
+    void* tag;
+    bool ok;
+    while (cq->Next(&tag, &ok))
+      ;
   }
+
+  LOG_INFO(logger_, "Waiting for async gRPC threads to return");
+  std::for_each(server_threads_.begin(), server_threads_.end(), [](auto& t) { t.join(); });
 }
 
 void ClientService::handleRpcs(unsigned thread_idx) {
