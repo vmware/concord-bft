@@ -69,9 +69,13 @@ void ClientService::handleRpcs(int thread_idx) {
       LOG_INFO(logger_, "Completion queue drained and shutdown, stop processing.");
       return;
     }
-    // We expect a successful event or an alarm to be expired (alarm cancelled is false)
+    // We expect a successful event or an alarm to be expired - `ok` is true in either case.
+    // If the alarm was cancelled `ok` will be false - we don't cancel alarms.
+    // An unsuccessful event either means GRPC_QUEUE_SHUTDOWN or GRPC_QUEUE_TIMEOUT.
+    // The former will be signaled on the following Next() call and handled.
+    // The latter means that there is no event present.
     if (not ok) {
-      LOG_WARN(logger_, "Got unsuccessful event from completion queue with tag " << tag);
+      continue;
     }
     static_cast<requestservice::RequestServiceCallData*>(tag)->proceed();
   }
