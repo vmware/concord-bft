@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2019-2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -281,8 +281,8 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
 #elif USE_COMM_TLS_TCP
     bft::communication::TlsTcpConfig conf = testCommConfig.GetTlsTCPConfig(
         true, replicaConfig.replicaId, numOfClients, numOfReplicas, commConfigFile, certRootPath);
-    if (conf.secretData.has_value()) {
-      sm_ = std::make_shared<concord::secretsmanager::SecretsManagerEnc>(conf.secretData.value());
+    if (conf.secretData_.has_value()) {
+      sm_ = std::make_shared<concord::secretsmanager::SecretsManagerEnc>(conf.secretData_.value());
     } else {
       sm_ = std::make_shared<concord::secretsmanager::SecretsManagerPlain>();
     }
@@ -308,7 +308,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
                                                          << is_separate_communication_mode);
     }
 
-    uint16_t metricsPort = conf.listenPort + 1000;
+    uint16_t metricsPort = conf.listenPort_ + 1000;
 
     LOG_INFO(logger, "\nReplica Configuration: \n" << replicaConfig);
     std::unique_ptr<TestSetup> setup = nullptr;

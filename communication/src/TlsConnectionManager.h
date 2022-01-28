@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2021-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use
 // this product except in compliance with the Apache 2.0 License.
@@ -101,8 +101,8 @@ class ConnectionManager {
   // completed.
   void closeConnection(std::shared_ptr<AsyncTlsConnection> conn);
 
-  bool isReplica() const { return isReplica(config_.selfId); }
-  bool isReplica(NodeNum id) const { return id <= static_cast<size_t>(config_.maxServerId); }
+  bool isReplica() const { return isReplica(config_.selfId_); }
+  bool isReplica(NodeNum id) const { return id <= static_cast<size_t>(config_.maxServerId_); }
 
   // Sends from other threads in the system are posted to strand_. This callback gets run in the
   // strand, so it can look up for a connection and send it a message. This strategy avoids the need to

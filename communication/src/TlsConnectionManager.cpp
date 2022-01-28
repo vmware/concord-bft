@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2021-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use
 // this product except in compliance with the Apache 2.0 License.
@@ -33,15 +33,15 @@ ConnectionManager::ConnectionManager(const TlsTcpConfig& config, asio::io_contex
       resolver_(io_context_),
       connect_timer_(io_context_),
       status_(std::make_shared<TlsStatus>()),
-      histograms_(Recorders(std::to_string(config.selfId), config.bufferLength, MAX_QUEUE_SIZE_IN_BYTES)) {
+      histograms_(Recorders(std::to_string(config.selfId_), config.bufferLength_, MAX_QUEUE_SIZE_IN_BYTES)) {
   auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
   concord::diagnostics::StatusHandler handler(
-      "tls" + std::to_string(config.selfId), "TLS status", [this]() { return status_->status(); });
+      "tls" + std::to_string(config.selfId_), "TLS status", [this]() { return status_->status(); });
   registrar.status.registerHandler(handler);
 }
 
 void ConnectionManager::start() {
-  LOG_INFO(logger_, "Starting connection manager for " << config_.selfId);
+  LOG_INFO(logger_, "Starting connection manager for " << config_.selfId_);
   stopped_ = false;
   if (isReplica()) {
     listen();
@@ -53,7 +53,7 @@ void ConnectionManager::start() {
 }
 
 void ConnectionManager::stop() {
-  LOG_INFO(logger_, "Stopping connection manager for " << config_.selfId);
+  LOG_INFO(logger_, "Stopping connection manager for " << config_.selfId_);
   stopped_ = true;
   status_->reset();
   acceptor_.close();
@@ -62,17 +62,17 @@ void ConnectionManager::stop() {
     sock.close();
   }
   for (auto& [id, conn] : connected_waiting_for_handshake_) {
-    LOG_DEBUG(logger_, "Closing connection from: " << config_.selfId << ", to: " << id);
+    LOG_DEBUG(logger_, "Closing connection from: " << config_.selfId_ << ", to: " << id);
     syncCloseConnection(conn);
   }
 
   for (auto& [id, conn] : accepted_waiting_for_handshake_) {
-    LOG_DEBUG(logger_, "Closing connection from: " << config_.selfId << ", to: " << id);
+    LOG_DEBUG(logger_, "Closing connection from: " << config_.selfId_ << ", to: " << id);
     syncCloseConnection(conn);
   }
 
   for (auto& [id, conn] : connections_) {
-    LOG_DEBUG(logger_, "Closing connection from: " << config_.selfId << ", to: " << id);
+    LOG_DEBUG(logger_, "Closing connection from: " << config_.selfId_ << ", to: " << id);
     syncCloseConnection(conn);
   }
 }
@@ -86,11 +86,11 @@ void ConnectionManager::listen() {
     acceptor_.set_option(asio::socket_base::reuse_address(true));
     acceptor_.bind(endpoint);
     acceptor_.listen();
-    LOG_INFO(logger_, "TLS server listening at " << endpoint << " for replica " << config_.selfId);
+    LOG_INFO(logger_, "TLS server listening at " << endpoint << " for replica " << config_.selfId_);
   } catch (const asio::system_error& e) {
     LOG_FATAL(logger_,
-              "Failed to start TLS acceptor at " << config_.listenHost << ":" << config_.listenPort << " for replica"
-                                                 << config_.selfId << ": " << e.what());
+              "Failed to start TLS acceptor at " << config_.listenHost_ << ":" << config_.listenPort_ << " for replica"
+                                                 << config_.selfId_ << ": " << e.what());
     abort();
   }
 }
@@ -111,7 +111,7 @@ void ConnectionManager::startConnectTimer() {
 }  // namespace bft::communication::tls
 
 void ConnectionManager::send(const NodeNum destination, const std::shared_ptr<OutgoingMsg>& msg) {
-  auto max_size = config_.bufferLength - MSG_HEADER_SIZE;
+  auto max_size = config_.bufferLength_ - MSG_HEADER_SIZE;
   if (msg->payload_size() > max_size) {
     status_->total_messages_dropped++;
     LOG_ERROR(logger_, "Msg Dropped. Size exceeds max message size: " << KVLOG(msg->payload_size(), max_size));
@@ -124,7 +124,7 @@ void ConnectionManager::send(const NodeNum destination, const std::shared_ptr<Ou
 }
 
 void ConnectionManager::send(const std::set<NodeNum>& destinations, const std::shared_ptr<OutgoingMsg>& msg) {
-  auto max_size = config_.bufferLength - MSG_HEADER_SIZE;
+  auto max_size = config_.bufferLength_ - MSG_HEADER_SIZE;
   if (msg->payload_size() > max_size) {
     status_->total_messages_dropped++;
     LOG_ERROR(logger_, "Msg Dropped. Size exceeds max message size: " << KVLOG(msg->payload_size(), max_size));
@@ -172,7 +172,7 @@ void ConnectionManager::remoteCloseConnection(NodeNum id) {
     // have been erased.
     if (!connections_.count(id)) return;
 
-    LOG_INFO(logger_, "Closing connection from: " << config_.selfId << ", to: " << id);
+    LOG_INFO(logger_, "Closing connection from: " << config_.selfId_ << ", to: " << id);
     auto conn = std::move(connections_.at(id));
     connections_.erase(id);
     status_->num_connections = connections_.size();
@@ -288,7 +288,7 @@ void ConnectionManager::accept() {
 void ConnectionManager::resolve(NodeNum i) {
   resolving_.insert(i);
   status_->num_resolving = resolving_.size();
-  auto node = config_.nodes.at(i);
+  auto node = config_.nodes_.at(i);
   resolver_.async_resolve(
       asio::ip::tcp::v4(),
       node.host,
@@ -332,7 +332,7 @@ void ConnectionManager::connect(NodeNum i, const asio::ip::tcp::endpoint& endpoi
 }
 
 void ConnectionManager::connect() {
-  auto end = std::min<size_t>(config_.selfId, config_.maxServerId + 1);
+  auto end = std::min<size_t>(config_.selfId_, config_.maxServerId_ + 1);
   for (auto i = 0u; i < end; i++) {
     if (connections_.count(i) == 0 && connecting_.count(i) == 0 && resolving_.count(i) == 0 &&
         connected_waiting_for_handshake_.count(i) == 0) {
@@ -342,13 +342,13 @@ void ConnectionManager::connect() {
 }
 
 asio::ip::tcp::endpoint ConnectionManager::syncResolve() {
-  auto results = resolver_.resolve(asio::ip::tcp::v4(), config_.listenHost, std::to_string(config_.listenPort));
+  auto results = resolver_.resolve(asio::ip::tcp::v4(), config_.listenHost_, std::to_string(config_.listenPort_));
   asio::ip::tcp::endpoint endpoint = *results;
-  LOG_INFO(logger_, "Resolved " << config_.listenHost << ":" << config_.listenPort << " to " << endpoint);
+  LOG_INFO(logger_, "Resolved " << config_.listenHost_ << ":" << config_.listenPort_ << " to " << endpoint);
   return endpoint;
 }
 
-int ConnectionManager::getMaxMessageSize() const { return static_cast<int>(config_.bufferLength); }
+int ConnectionManager::getMaxMessageSize() const { return static_cast<int>(config_.bufferLength_); }
 
 ConnectionStatus ConnectionManager::getCurrentConnectionStatus(const NodeNum id) const {
   std::promise<bool> connected;
