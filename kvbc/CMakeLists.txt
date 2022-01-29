@@ -31,6 +31,7 @@ add_library(kvbc  src/ClientImp.cpp
     src/sparse_merkle/walker.cpp
     
     src/reconfiguration_kvbc_handler.cpp
+    src/replica_resources.cpp
 )
 
 if (BUILD_ROCKSDB_STORAGE)
@@ -51,6 +52,7 @@ target_sources(kvbc PRIVATE src/kvbc_app_filter/kvbc_app_filter.cpp)
 target_link_libraries(kvbc PUBLIC concord_block_update concord-kvbc-proto)
 
 target_include_directories(kvbc PUBLIC include util)
+target_include_directories(kvbc PUBLIC ${bftengine_SOURCE_DIR}/../resources-manager/include)
 
 if(NOT BUILD_THIRDPARTY)
     find_package(OpenSSL REQUIRED)
