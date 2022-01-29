@@ -209,8 +209,7 @@ class SkvbcPersistenceTest(ApolloTest):
         skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
 
         client, known_key, known_val = \
-            await skvbc.prime_for_state_transfer(stale_nodes={stale_node})
-
+            await skvbc.prime_for_state_transfer(stale_nodes={stale_node}, checkpoints_num=10)
         # Start the empty replica, wait for it to start fetching, then stop
         # it.
         bft_network.start_replica(stale_node)
