@@ -153,6 +153,9 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
   // Return the recently read size header as an integer. Assume network byte order.
   uint32_t getReadMsgSize();
 
+  // Return the recently read endpoint number from header as an integer. Assume network byte order
+  NodeNum getReadMsgEndpointNum() const;
+
   void startReadTimer();
   void startWriteTimer();
 

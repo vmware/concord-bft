@@ -39,7 +39,10 @@ void UnmatchedReplyQueue::clear() {
   msgs_.clear();
 }
 
-void MsgReceiver::onNewMessage(bft::communication::NodeNum source, const char* const message, size_t msg_len) {
+void MsgReceiver::onNewMessage(bft::communication::NodeNum source,
+                               const char* const message,
+                               size_t msg_len,
+                               bft::communication::NodeNum endpointNum) {
   auto max_reply_size = max_reply_size_.load();
   if (max_reply_size == 0) {
     // There are no outstanding requests, so any replies are stale.

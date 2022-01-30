@@ -224,13 +224,13 @@ Reply Client::send(const MatchConfig& match_config,
   while (std::chrono::steady_clock::now() < end) {
     bft::client::Msg msg(orig_msg);  // create copy here due to the loop
     if (primary_ && !read_only) {
-      communication_->send(primary_.value().val, std::move(msg));
+      communication_->send(primary_.value().val, std::move(msg), config_.id.val);
     } else {
       std::set<bft::communication::NodeNum> dests;
       for (const auto& d : match_config.quorum.destinations) {
         dests.emplace(d.val);
       }
-      communication_->send(dests, std::move(msg));
+      communication_->send(dests, std::move(msg), config_.id.val);
     }
 
     if (auto reply = wait()) {
@@ -257,13 +257,13 @@ SeqNumToReplyMap Client::sendBatch(std::deque<WriteRequest>& write_requests, con
   while (std::chrono::steady_clock::now() < end && replies.size() != pending_requests_.size()) {
     bft::client::Msg msg(batch_msg);  // create copy here due to the loop
     if (primary_) {
-      communication_->send(primary_.value().val, std::move(msg));
+      communication_->send(primary_.value().val, std::move(msg), config_.id.val);
     } else {
       std::set<bft::communication::NodeNum> dests;
       for (const auto& d : match_config.quorum.destinations) {
         dests.emplace(d.val);
       }
-      communication_->send(dests, std::move(msg));
+      communication_->send(dests, std::move(msg), config_.id.val);
     }
 
     wait(replies);

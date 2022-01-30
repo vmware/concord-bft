@@ -60,7 +60,7 @@ class SimpleClientImp : public SimpleClient, public IReceiver {
                             const std::string& batchCid) override;
 
   // IReceiver methods
-  void onNewMessage(NodeNum sourceNode, const char* const message, size_t messageLength) override;
+  void onNewMessage(NodeNum sourceNode, const char* const message, size_t messageLength, NodeNum endpointNum) override;
   void onConnectionStatusChanged(NodeNum node, ConnectionStatus newStatus) override;
 
   // used by  MsgsCertificate
@@ -549,7 +549,10 @@ void SimpleClientImp::reset() {
   numberOfTransmissions_ = 0;
 }
 
-void SimpleClientImp::onNewMessage(NodeNum sourceNode, const char* const message, size_t messageLength) {
+void SimpleClientImp::onNewMessage(NodeNum sourceNode,
+                                   const char* const message,
+                                   size_t messageLength,
+                                   NodeNum endpointNum) {
   // check source
   int16_t senderId = (int16_t)sourceNode;
   if (replicas_.count(senderId) == 0) return;
@@ -585,11 +588,11 @@ void SimpleClientImp::sendRequestToAllOrToPrimary(bool sendToAll, char* data, ui
   const auto& firstReqSeqNum = pendingRequests_[0]->requestSeqNum();
   if (sendToAll) {
     LOG_DEBUG(logger_, "Send request to all replicas" << KVLOG(clientId_, firstReqSeqNum));
-    communication_->send(std::set<NodeNum>(replicas_.begin(), replicas_.end()), std::move(msg));
+    communication_->send(std::set<NodeNum>(replicas_.begin(), replicas_.end()), std::move(msg), clientId_);
   } else {
     LOG_DEBUG(logger_, "Send request to primary replica" << KVLOG(clientId_, firstReqSeqNum));
     pm_->Delay<concord::performance::SlowdownPhase::BftClientBeforeSendPrimary>();
-    communication_->send(knownPrimaryReplica_, std::move(msg));
+    communication_->send(knownPrimaryReplica_, std::move(msg), clientId_);
   }
 }
 

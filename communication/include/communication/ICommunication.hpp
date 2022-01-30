@@ -19,6 +19,7 @@
 namespace bft::communication {
 
 typedef uint64_t NodeNum;
+const NodeNum MAX_ENDPOINT_NUM = 0xFFFFFFFFFFFFFFFF;
 
 enum class ConnectionStatus { Unknown = 0, Connected, Disconnected };
 
@@ -27,7 +28,10 @@ class IReceiver {
   // Invoked when a new message is received
   // Notice that the memory pointed by message may be freed immediately
   // after the execution of this method.
-  virtual void onNewMessage(NodeNum sourceNode, const char* const message, size_t messageLength) = 0;
+  virtual void onNewMessage(NodeNum sourceNode,
+                            const char* const message,
+                            size_t messageLength,
+                            NodeNum endpointNum = MAX_ENDPOINT_NUM) = 0;
 
   // Invoked when the known status of a connection is changed.
   // For each NodeNum, this method will never be concurrently
@@ -56,14 +60,16 @@ class ICommunication {
   // destination node. Asynchronous (non-blocking) method.
   // The function takes ownership of the buffer provided.
   // Returns 0 on success.
-  virtual int send(NodeNum destNode, std::vector<uint8_t>&& msg) = 0;
+  virtual int send(NodeNum destNode, std::vector<uint8_t>&& msg, NodeNum endpointNum = MAX_ENDPOINT_NUM) = 0;
 
   // Sends a message to all nodes in dests set.
   // The function takes ownership of the buffer provided.
   // The return value is a set<NodeNum>.
   //    On success the set is empty.
   //    On failure it contains the NodeNum-s of the destinations for which the message sending has failed.
-  virtual std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t>&& msg) = 0;
+  virtual std::set<NodeNum> send(std::set<NodeNum> dests,
+                                 std::vector<uint8_t>&& msg,
+                                 NodeNum endpointNum = MAX_ENDPOINT_NUM) = 0;
 
   virtual void setReceiver(NodeNum receiverNum, IReceiver* receiver) = 0;
 

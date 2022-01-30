@@ -247,8 +247,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                std::uint32_t,
                30u,
                "Amount of keys to get at once via multiGet when iterating state");
-               
-  CONFIG_PARAM(enableMultiplexChannel, bool, false, "whether multiplex channel communication is enabled")
+
+  CONFIG_PARAM(enableMultiplexChannel, bool, false, "whether multiplex communication channel is enabled")
 
   // Parameter to enable/disable waiting for transaction data to be persisted.
   // Not predefined configuration parameters

@@ -51,15 +51,15 @@ ConnectionStatus TlsTCPCommunication::getCurrentConnectionStatus(const NodeNum n
   return runner_->getCurrentConnectionStatus(node);
 }
 
-int TlsTCPCommunication::send(NodeNum destNode, std::vector<uint8_t> &&msg) {
-  auto outgoingMsg = std::make_shared<tls::OutgoingMsg>(std::move(msg));
+int TlsTCPCommunication::send(NodeNum destNode, std::vector<uint8_t> &&msg, NodeNum endpointNum) {
+  auto outgoingMsg = std::make_shared<tls::OutgoingMsg>(std::move(msg), endpointNum);
   runner_->send(destNode, outgoingMsg);
   return 0;
 }
 
-std::set<NodeNum> TlsTCPCommunication::send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg) {
+std::set<NodeNum> TlsTCPCommunication::send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg, NodeNum endpointNum) {
   std::set<NodeNum> failed_nodes;
-  auto outgoingMsg = std::make_shared<tls::OutgoingMsg>(std::move(msg));
+  auto outgoingMsg = std::make_shared<tls::OutgoingMsg>(std::move(msg), endpointNum);
   runner_->send(dests, outgoingMsg);
   return failed_nodes;
 }

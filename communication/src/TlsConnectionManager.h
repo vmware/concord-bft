@@ -28,7 +28,6 @@ class AsyncTlsConnection;
 //
 // Peers with higher ids connect to peers with lower ids.
 class ConnectionManager {
-  static constexpr size_t MSG_HEADER_SIZE = 4;
   static constexpr std::chrono::seconds CONNECT_TICK = std::chrono::seconds(1);
   friend class Runner;
   friend class AsyncTlsConnection;
