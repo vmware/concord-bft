@@ -100,6 +100,7 @@ class SimpleAppState : public IRequestsHandler {
       } else {
         // Our read-write request includes one eight-byte argument, in addition to
         // the request type.
+        if (req.flags != SET_VAL_REQ) continue;
         test_assert_replica(req.requestSize == 2 * sizeof(uint64_t), "requestSize != " << 2 * sizeof(uint64_t));
 
         // We only support the WRITE operation in read-write mode.
