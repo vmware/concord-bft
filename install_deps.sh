@@ -11,6 +11,8 @@ set -e
 APT_GET_FLAGS="-y --no-install-recommends"
 WGET_FLAGS="--https-only"
 
+echo ca_certificate=/etc/ssl/certs/ca-certificates.crt > ~/.wgetrc
+
 # Install tools
 apt-get update && apt-get ${APT_GET_FLAGS} install \
     autoconf \
@@ -18,7 +20,7 @@ apt-get update && apt-get ${APT_GET_FLAGS} install \
     build-essential \
     ccache \
     clang-9 \
-    clang-format-9 \
+    clang-format-10 \
     clang-tidy-10 \
     curl \
     gdb \
@@ -42,8 +44,8 @@ apt-get update && apt-get ${APT_GET_FLAGS} install \
 
 update-alternatives --install /usr/bin/clang clang /usr/lib/llvm-9/bin/clang 100
 update-alternatives --install /usr/bin/clang++ clang++ /usr/lib/llvm-9/bin/clang++ 100
-update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-9 100
-update-alternatives --install /usr/bin/clang-format-diff clang-format-diff /usr/bin/clang-format-diff-9 100
+update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-10 100
+update-alternatives --install /usr/bin/clang-format-diff clang-format-diff /usr/bin/clang-format-diff-10 100
 update-alternatives --install /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-10 100
 update-alternatives --install /usr/bin/llvm-symbolizer llvm-symbolizer /usr/lib/llvm-9/bin/llvm-symbolizer 100
 update-alternatives --install /usr/bin/llvm-profdata llvm-profdata /usr/lib/llvm-9/bin/llvm-profdata 100
