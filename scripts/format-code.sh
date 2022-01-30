@@ -34,13 +34,12 @@ FILES_TO_FORMAT=$(find ${ABS_CONCORD_PATH} \
 
 if [ -n "$2" ]; then
   if [ "$2" = "--is-required" ]; then
-    NUM_CHANGES=$(clang-format \
+    $(clang-format \
       -style=file \
       -fallback-style=none \
-      -output-replacements-xml ${FILES_TO_FORMAT} \
-      | grep "<replacement offset" \
-      | wc -l)
-    if [ ${NUM_CHANGES} -ne 0 ]; then
+      --dry-run --Werror ${FILES_TO_FORMAT})
+
+    if [ $? -ne 0 ]; then
       # Note: exit_code = return_value % 255
       echo "Code format changes needed"
       return 1

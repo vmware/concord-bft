@@ -54,6 +54,6 @@ class ScopeExit {
 // Deduction guide, allowing code such as:
 //   auto s = ScopeExit{[] () {}};
 template <typename EF>
-ScopeExit(EF)->ScopeExit<EF>;
+ScopeExit(EF) -> ScopeExit<EF>;
 
 }  // namespace concord::util
