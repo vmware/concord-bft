@@ -18,6 +18,7 @@ import time
 import difflib
 import subprocess
 import shutil
+import tempfile
 from util import bft
 from util import skvbc as kvbc
 from util.skvbc import SimpleKVBCProtocol
@@ -31,6 +32,7 @@ import sys
 sys.path.append(os.path.abspath("../../util/pyclient"))
 import bft_client
 
+TEMP_DB_SNAPSHOT_PREFIX = "TEMP_DB_SNAPSHOT_PREFIX"
 
 def start_replica_cmd(builddir, replica_id):
     """
@@ -204,7 +206,7 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
         for i in range(450):
             await skvbc.send_write_kv_set()
         for r in crashed_replica:
-            self.restore_form_older_snapshot(bft_network, r, snapshot_id)
+            self.restore_form_older_snapshot(bft_network, snapshot_id, src_replica=r, dest_replicas=[r])
         bft_network.start_replicas(crashed_replica)
         await bft_network.wait_for_state_transfer_to_start()
         for r in crashed_replica:
@@ -652,9 +654,8 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
                                                          "Gauges", "lastDbCheckpointBlockId", component="rocksdbCheckpoint")
             await self.wait_for_snapshot(bft_network, replica_id, last_block_id)
         bft_network.stop_all_replicas()
-        for r in bft_network.all_replicas():
-            #restore all replicas using snapshot created in replica id=0
-            self.restore_form_older_snapshot(bft_network, 0, last_block_id)
+        #restore all replicas using snapshot created in replica id=0
+        self.restore_form_older_snapshot(bft_network, last_block_id, src_replica = 0, dest_replicas = bft_network.all_replicas())
         #replicas will clean metadata and start a new blockchain
         bft_network.start_all_replicas()
         for i in range(100):
@@ -873,17 +874,21 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
                     break
                 await trio.sleep(0.5)
 
-    def restore_form_older_snapshot(self, bft_network, replica, snapshot_id):
+    def restore_form_older_snapshot(self, bft_network, snapshot_id, src_replica, dest_replicas):
         with log.start_action(action_type="restore with older snapshot"):
             snapshot_db_dir = os.path.join(
-                bft_network.testdir, DB_SNAPSHOT_PREFIX + str(replica) + "/" + str(snapshot_id))
-            dest_db_dir = os.path.join(
-                bft_network.testdir, DB_FILE_PREFIX + str(replica))
-            if os.path.exists(dest_db_dir):
-                shutil.rmtree(dest_db_dir)
-            ret = shutil.copytree(snapshot_db_dir, dest_db_dir)
-            log.log_message(
-                message_type=f"copy db files from {snapshot_db_dir} to {dest_db_dir}, result is {ret}")
+                bft_network.testdir, DB_SNAPSHOT_PREFIX + str(src_replica) + "/" + str(snapshot_id))
+            temp_dir = os.path.join(tempfile.gettempdir(), TEMP_DB_SNAPSHOT_PREFIX + str(src_replica) + "/" + str(snapshot_id))
+            ret = shutil.copytree(snapshot_db_dir, temp_dir)
+            for r in dest_replicas:
+                dest_db_dir = os.path.join(
+                    bft_network.testdir, DB_FILE_PREFIX + str(r))
+                if os.path.exists(dest_db_dir):
+                    shutil.rmtree(dest_db_dir)
+                ret = shutil.copytree(temp_dir, dest_db_dir)
+                log.log_message(
+                    message_type=f"copy db files from {snapshot_db_dir} to {dest_db_dir}, result is {ret}")
+            shutil.rmtree(temp_dir)
 
     def transfer_dbcheckpoint_files(self, bft_network, source_replica, snapshot_id, dest_replicas):
         with log.start_action(action_type="transfer snapshot db files"):
