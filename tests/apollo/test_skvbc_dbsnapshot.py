@@ -304,6 +304,7 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
                                                         "Gauges", "lastDbCheckpointBlockId", component="rocksdbCheckpoint")
             self.verify_snapshot_is_available(bft_network, replica_id, last_blockId)
 
+    @unittest.skip("Disable until fixed. Unstable test because of BC-17338")
     @with_trio
     @with_bft_network(start_replica_cmd_with_high_db_window_size, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability()
@@ -620,7 +621,8 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
                             300 for dbcheckpoint_info in dbcheckpoint_info_list))
             self.assertTrue(any(dbcheckpoint_info.seq_num ==
                             600 for dbcheckpoint_info in dbcheckpoint_info_list))
-        
+
+    @unittest.skip("Disable until fixed. Unstable test because of BC-17338")
     @with_trio
     @with_bft_network(start_replica_cmd_with_high_db_window_size, selected_configs=lambda n, f, c: n == 7)
     async def test_scale_and_restart_blockchain_with_db_snapshot(self, bft_network):
