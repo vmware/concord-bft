@@ -173,7 +173,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
         resourceEntity_, ISystemResourceEntity::type::post_execution_utilization, isPost);
     userRequestsHandler_->execute(requests, timestamp, batchCid, parent_span);
     // the size of the queue resembles how many requests have passed consensus.
-    resourceEntity_.addMeasurement({ISystemResourceEntity::type::consensus_accumulated, requests.size(), 0, 0});
+    resourceEntity_.addMeasurement({ISystemResourceEntity::type::transactions_accumulated, requests.size(), 0, 0});
   }
   return;
 }

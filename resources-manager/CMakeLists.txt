@@ -1,7 +1,6 @@
 add_subdirectory(test)
 
-add_library(concord_resources_manager INTERFACE)
+add_library(concord_resources_manager STATIC src/IntervalMappingResourceManager.cpp)
 
-target_include_directories(concord_resources_manager INTERFACE
-  include
+target_include_directories(concord_resources_manager PUBLIC include
 )

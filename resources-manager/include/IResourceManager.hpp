@@ -17,8 +17,8 @@
 namespace concord::performance {
 
 struct PruneInfo {
-  long double blocksPerSecond;
-  uint64_t batchSize;
+  long double blocksPerSecond{0};
+  uint64_t batchSize{0};
 };
 
 class IResourceManager {
