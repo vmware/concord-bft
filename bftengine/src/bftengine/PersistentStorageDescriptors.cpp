@@ -35,12 +35,18 @@ bool DescriptorOfLastExitFromView::equals(const DescriptorOfLastExitFromView &ot
 
   if (other.elements.size() != elements.size()) return false;
 
+  if (other.complaints.size() != complaints.size()) return false;
+
   if ((other.myViewChangeMsg && !myViewChangeMsg) || (!other.myViewChangeMsg && myViewChangeMsg)) return false;
   bool res = myViewChangeMsg ? (other.myViewChangeMsg->equals(*myViewChangeMsg)) : true;
   if (!res) return false;
 
   for (uint32_t i = 0; i < elements.size(); ++i)
     if (!elements[i].equals(other.elements[i])) return false;
+
+  for (uint32_t i = 0; i < complaints.size(); ++i)
+    if (!complaints[i]->equals(*other.complaints[i])) return false;
+
   return (other.view == view && other.lastStable == lastStable && other.lastExecuted == lastExecuted &&
           other.stableLowerBoundWhenEnteredToView == stableLowerBoundWhenEnteredToView);
 }
