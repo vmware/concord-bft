@@ -6,7 +6,7 @@
 #include "gtest/gtest.h"
 #include "s3/client.hpp"
 #include "Logger.hpp"
-#include "config_file_parser.hpp"
+#include "s3/config_parser.hpp"
 #include "sliver.hpp"
 
 #include <random>
@@ -110,7 +110,7 @@ class S3Test : public ::testing::Test {
         << "s3-url: 127.0.0.1:9000\n"
         << "s3-secret-key: concordbft\n";
     ofs.flush();
-    state.config = concord::tests::config::S3ConfigFileParser(config_file.c_str()).parse();
+    state.config = concord::storage::s3::ConfigFileParser(config_file.c_str()).parse();
     LOG_INFO(GL, " s3 configuration: " << state.config);
   }
 
