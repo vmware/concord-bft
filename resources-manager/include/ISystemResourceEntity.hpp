@@ -27,7 +27,7 @@ class ISystemResourceEntity {
     post_execution_utilization,
     post_execution_avg_time_micro,
     add_blocks_accumulated,
-    consensus_accumulated
+    transactions_accumulated
   };
   struct measurement {
     ISystemResourceEntity::type type;

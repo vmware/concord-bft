@@ -13,7 +13,8 @@
 #include "IntervalMappingResourceManager.hpp"
 #include "IResourceManager.hpp"
 #include "ISystemResourceEntity.hpp"
-#include "MinimumOfResourceEntitiesAvailabilityManager.hpp"
+#include <thread>
+using namespace std::chrono_literals;
 
 #include <gtest/gtest.h>
 
@@ -43,37 +44,69 @@ class ResourceEntityMock : public ISystemResourceEntity {
   uint64_t measurements;
 };  // namespace
 
-TEST(resource_manager_test, IntervalMappingResourceManager_test) {
+TEST(IntervalMappingResourceManager_test, duration) {
   std::vector<std::pair<uint64_t, uint64_t>> mapping{{200, 100}, {600, 10}, {1000, 5}};
   auto consensusEngineResourceMonitor = std::make_shared<ResourceEntityMock>();
-  consensusEngineResourceMonitor->measurements = 110;
 
-  std::unique_ptr<IResourceManager> sut(IntervalMappingResourceManager::createIntervalMappingResourceManager(
-      consensusEngineResourceMonitor, std::move(mapping)));
-
-  EXPECT_EQ(sut->getPruneInfo().blocksPerSecond, 100);
-  consensusEngineResourceMonitor->measurements = 200;
-  EXPECT_EQ(sut->getPruneInfo().blocksPerSecond, 100);
-  consensusEngineResourceMonitor->measurements = 400;
-  EXPECT_EQ(sut->getPruneInfo().blocksPerSecond, 10);
-  consensusEngineResourceMonitor->measurements = 800;
-  EXPECT_EQ(sut->getPruneInfo().blocksPerSecond, 5);
-  consensusEngineResourceMonitor->measurements = 1800;
-  EXPECT_EQ(sut->getPruneInfo().blocksPerSecond, 0);
+  auto interval_mapping = IntervalMappingResourceManager(consensusEngineResourceMonitor, std::move(mapping));
+  auto first_duration = interval_mapping.getDurationFromLastCallSec();
+  // First duration is 0
+  ASSERT_EQ(first_duration, 0);
+  // Second duration, short interval, should be rounded up to 1
+  {
+    auto duration = interval_mapping.getDurationFromLastCallSec();
+    ASSERT_EQ(duration, 1);
+  }
+  {
+    std::this_thread::sleep_for(2s);
+    auto duration = interval_mapping.getDurationFromLastCallSec();
+    ASSERT_EQ(duration, 2);
+  }
 }
 
-TEST(resource_manager_test, SumsResourceEntitiesAvailabilityManager_test) {
+TEST(IntervalMappingResourceManager_test, prune_info) {
+  std::vector<std::pair<uint64_t, uint64_t>> mapping{{60, 40}, {100, 30}, {300, 20}, {500, 10}};
   auto consensusEngineResourceMonitor = std::make_shared<ResourceEntityMock>();
-  consensusEngineResourceMonitor->availableResources = 110;
 
-  auto databaseResourceMonitor = std::make_shared<ResourceEntityMock>();
-  databaseResourceMonitor->availableResources = 50;
-  std::vector<std::shared_ptr<ISystemResourceEntity>> systemResources = {consensusEngineResourceMonitor,
-                                                                         databaseResourceMonitor};
-
-  std::unique_ptr<IResourceManager> sut(new MinimumOfResourceEntitiesAvailabilityManager(std::move(systemResources)));
-
-  EXPECT_EQ(sut->getPruneInfo().blocksPerSecond, 50);
+  auto interval_mapping = IntervalMappingResourceManager(consensusEngineResourceMonitor, std::move(mapping));
+  // First prune info is 0
+  consensusEngineResourceMonitor->measurements = 110;
+  {
+    auto prune_info = interval_mapping.getPruneInfo();
+    ASSERT_EQ(prune_info.blocksPerSecond, 0);
+  }
+  consensusEngineResourceMonitor->measurements = 110;
+  // second prune gets rate of 110tps
+  {
+    auto prune_info = interval_mapping.getPruneInfo();
+    ASSERT_EQ(prune_info.blocksPerSecond, 20);
+  }
+  // tps is now will be devided by two i.e. 119/2 = 59
+  consensusEngineResourceMonitor->measurements = 119;
+  {
+    std::this_thread::sleep_for(2s);
+    auto prune_info = interval_mapping.getPruneInfo();
+    ASSERT_EQ(prune_info.blocksPerSecond, 40);
+  }
+  // duration 1 -> 600 tps
+  consensusEngineResourceMonitor->measurements = 600;
+  {
+    auto prune_info = interval_mapping.getPruneInfo();
+    ASSERT_EQ(prune_info.blocksPerSecond, 0);
+  }
+  // duration 4 -> 150 tps
+  consensusEngineResourceMonitor->measurements = 600;
+  {
+    std::this_thread::sleep_for(4s);
+    auto prune_info = interval_mapping.getPruneInfo();
+    ASSERT_EQ(prune_info.blocksPerSecond, 20);
+  }
+  // duration 1 -> 300 tps
+  consensusEngineResourceMonitor->measurements = 300;
+  {
+    auto prune_info = interval_mapping.getPruneInfo();
+    ASSERT_EQ(prune_info.blocksPerSecond, 20);
+  }
 }
 
 }  // anonymous namespace

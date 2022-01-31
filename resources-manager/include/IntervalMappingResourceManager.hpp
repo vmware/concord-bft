@@ -28,16 +28,8 @@ class IntervalMappingResourceManager : public IResourceManager {
    which maps the consensus engine load to prune blocks per second. E.g. {{100, 200}, {400, 100}, {600, 10}}.
    Traffic up to 100 tps gvies 200 bps to prune, Up to 400 tps 100 bps ... TPS above the max is always 0 bps.
   */
-  virtual PruneInfo getPruneInfo() override {
-    return PruneInfo{
-        (long double)std::upper_bound(intervalMapping.begin(),
-                                      intervalMapping.end(),
-                                      std::make_pair((uint64_t)replicaResources->getMeasurement(
-                                                         ISystemResourceEntity::type::consensus_accumulated),
-                                                     (u_int64_t)0))
-            ->second,
-        20};
-  }
+  virtual PruneInfo getPruneInfo() override;
+
   static std::unique_ptr<IntervalMappingResourceManager> createIntervalMappingResourceManager(
       const std::shared_ptr<ISystemResourceEntity> &replicaResources,
       std::vector<std::pair<uint64_t, uint64_t>> &&intervalMapping) {
@@ -46,13 +38,15 @@ class IntervalMappingResourceManager : public IResourceManager {
         new IntervalMappingResourceManager(replicaResources, std::move(intervalMapping)));
   }
 
- protected:
   IntervalMappingResourceManager(const std::shared_ptr<ISystemResourceEntity> &replicaResources,
                                  std::vector<std::pair<uint64_t, uint64_t>> &&intervalMapping)
-      : replicaResources(replicaResources), intervalMapping(std::move(intervalMapping)) {}
+      : replicaResources_(replicaResources), intervalMapping_(std::move(intervalMapping)) {}
+
+  std::uint64_t getDurationFromLastCallSec();
 
  private:
-  const std::shared_ptr<ISystemResourceEntity> replicaResources;
-  const std::vector<std::pair<uint64_t, uint64_t>> intervalMapping;
+  const std::shared_ptr<ISystemResourceEntity> replicaResources_;
+  const std::vector<std::pair<uint64_t, uint64_t>> intervalMapping_;
+  std::uint64_t lastInvocationTime_{0};
 };
 }  // namespace concord::performance
