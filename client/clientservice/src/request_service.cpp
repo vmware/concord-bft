@@ -20,23 +20,39 @@ namespace concord::client::clientservice {
 namespace requestservice {
 
 void RequestServiceCallData::proceed() {
-  if (state_ == CREATE) {
-    state_ = SEND_TO_CONCORDCLIENT;
-    // Request to handle an incoming `Send` RPC -> will put an event on the cq if ready
-    service_->RequestSend(&ctx_, &request_, &responder_, cq_, cq_, this);
-  } else if (state_ == SEND_TO_CONCORDCLIENT) {
-    // We are handling an incoming `Send` right now, let's make sure we handle the next one too
-    new requestservice::RequestServiceCallData(service_, cq_, client_);
-    // Forward request to concord client (non-blocking)
-    sendToConcordClient();
-    // Note: The next state transition happens in `populateResult`
-  } else if (state_ == PROCESS_CALLBACK_RESULT) {
-    state_ = FINISH;
-    // Once the response is sent, an event will be put on the cq for cleanup
-    responder_.Finish(response_, return_status_, this);
-  } else {
-    ConcordAssertEQ(state_, FINISH);
+  if (state_ == FINISH) {
     delete this;
+    return;
+  }
+
+  try {
+    if (state_ == CREATE) {
+      state_ = SEND_TO_CONCORDCLIENT;
+      // Request to handle an incoming `Send` RPC -> will put an event on the cq if ready
+      service_->RequestSend(&ctx_, &request_, &responder_, cq_, cq_, this);
+    } else if (state_ == SEND_TO_CONCORDCLIENT) {
+      // We are handling an incoming `Send` right now, let's make sure we handle the next one too
+      new requestservice::RequestServiceCallData(service_, cq_, client_);
+      // Forward request to concord client (non-blocking)
+      sendToConcordClient();
+      // Note: The next state transition happens in `populateResult`
+    } else if (state_ == PROCESS_CALLBACK_RESULT) {
+      state_ = FINISH;
+      // Once the response is sent, an event will be put on the cq for cleanup
+      if (return_status_.ok()) {
+        responder_.Finish(response_, return_status_, this);
+      } else {
+        responder_.FinishWithError(return_status_, this);
+      }
+    } else {
+      // Unreachable - all states are handled above
+      ConcordAssert(false);
+    }
+  } catch (std::exception& e) {
+    LOG_ERROR(logger_, "Unexpected exception (cid=" << request_.correlation_id() << "): " << e.what());
+    state_ = FINISH;
+    auto status = grpc::Status(grpc::StatusCode::INTERNAL, "Unexpected exception occured");
+    responder_.FinishWithError(status, this);
   }
 }
 
