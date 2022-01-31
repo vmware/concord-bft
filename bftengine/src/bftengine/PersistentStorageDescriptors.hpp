@@ -22,6 +22,7 @@
 #include "messages/NewViewMsg.hpp"
 #include "messages/FullCommitProofMsg.hpp"
 #include "messages/CheckpointMsg.hpp"
+#include "messages/ReplicaAsksToLeaveViewMsg.hpp"
 #include "SysConsts.hpp"
 #include "TimeService.hpp"
 
@@ -40,33 +41,40 @@ struct DescriptorOfLastExitFromView {
                                SeqNum execNum,
                                PrevViewInfoElements elements,
                                ViewChangeMsg *viewChangeMsg,
-                               SeqNum stableLowerBound)
+                               SeqNum stableLowerBound,
+                               SequenceOfComplaints complaints)
       : isDefault(false),
         view(viewNum),
         lastStable(stableNum),
         lastExecuted(execNum),
         stableLowerBoundWhenEnteredToView(stableLowerBound),
         myViewChangeMsg(viewChangeMsg),
-        elements(move(elements)) {}
+        elements(move(elements)),
+        complaints(move(complaints)) {}
 
   DescriptorOfLastExitFromView() : isDefault(true){};
 
   void clean();
   void serializeSimpleParams(char *buf, size_t bufLen, size_t &actualSize) const;
   void serializeElement(uint32_t id, char *buf, size_t bufLen, size_t &actualSize) const;
+  void serializeComplaint(uint32_t id, char *buf, size_t bufLen, size_t &actualSize) const;
 
   void deserializeSimpleParams(char *buf, size_t bufLen, uint32_t &actualSize);
   void deserializeElement(uint32_t id, char *buf, size_t bufLen, uint32_t &actualSize);
+  void deserializeComplaint(uint32_t id, char *buf, size_t bufLen, uint32_t &actualSize);
 
   bool equals(const DescriptorOfLastExitFromView &other) const;
 
   static uint32_t simpleParamsSize() {
     uint32_t elementsNum;
+    uint32_t complaintsNum;
     uint8_t msgFilledFlag;
     return (sizeof(isDefault) + sizeof(view) + sizeof(lastStable) + sizeof(lastExecuted) +
             sizeof(stableLowerBoundWhenEnteredToView) + sizeof(msgFilledFlag) +
-            maxMessageSizeInLocalBuffer<ViewChangeMsg>() + sizeof(elementsNum));
+            maxMessageSizeInLocalBuffer<ViewChangeMsg>() + sizeof(elementsNum) + sizeof(complaintsNum));
   }
+
+  static uint32_t maxComplaintSize() { return (maxMessageSizeInLocalBuffer<ReplicaAsksToLeaveViewMsg>()); }
 
   static uint32_t maxElementSize() {
     uint8_t msgFilledFlag;
@@ -99,6 +107,9 @@ struct DescriptorOfLastExitFromView {
 
   // elements.size() <= kWorkWindowSize; the messages in elements[i] may be null
   PrevViewInfoElements elements;
+
+  // ReplicaAsksToLeaveViewMsg-s (Complaints) stored as proof we need to exit the View.
+  SequenceOfComplaints complaints;
 };
 
 /***** DescriptorOfLastNewView *****/

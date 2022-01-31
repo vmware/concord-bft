@@ -122,7 +122,8 @@ ViewsManager* ViewsManager::createOutsideView(const ReplicasInfo* const r,
                                               SeqNum lastExecuted,
                                               SeqNum stableLowerBound,
                                               ViewChangeMsg* myLastViewChange,
-                                              std::vector<PrevViewInfo>& elementsOfPrevView) {
+                                              std::vector<PrevViewInfo>& elementsOfPrevView,
+                                              SequenceOfComplaints complaints) {
   // check arguments
   ConcordAssert(lastActiveView >= 0);
   ConcordAssert(lastStable >= 0);
@@ -154,6 +155,8 @@ ViewsManager* ViewsManager::createOutsideView(const ReplicasInfo* const r,
   v->myLatestPendingView = lastActiveView;
   v->viewChangeMessages[v->myId] = myLastViewChange;
   v->lowerBoundStableForPendingView = stableLowerBound;
+
+  v->complainedReplicas.populateFromSequenceOfComplaints(complaints);
 
   v->exitFromCurrentView(lastStable, lastExecuted, elementsOfPrevView);
 
@@ -1116,9 +1119,8 @@ ViewChangeMsg* ViewsManager::prepareViewChangeMsgAndSetHigherView(ViewNum nextVi
     pVC->setNewViewNumber(nextView);
   }
 
-  for (const auto& i : complainedReplicas.getAllMsgs()) {
-    pVC->addComplaint(i.second.get());
-    const auto& complaint = i.second;
+  for (const auto& complaint : getSeqOfComplaintsSortedByIssuerID()) {
+    pVC->addComplaint(complaint.get());
     LOG_DEBUG(VC_LOG,
               "Putting complaint in VC msg: " << KVLOG(
                   getCurrentView(), nextView, complaint->idOfGeneratedReplica(), complaint->viewNumber()));

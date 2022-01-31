@@ -270,7 +270,7 @@ void testSetDescriptors(bool toSet) {
   SeqNum lastStable = 48;
   auto *viewChangeMsg = new ViewChangeMsg(senderId, viewNum + 1, lastStable);
   DescriptorOfLastExitFromView lastExitFromViewDesc(
-      viewNum, lastExitStableNum, lastExitExecNum, elements, viewChangeMsg, lastExitStableLowerBound);
+      viewNum, lastExitStableNum, lastExitExecNum, elements, viewChangeMsg, lastExitStableLowerBound, {});
 
   ViewChangeMsgsVector msgs;
   ViewNum newViewNum = 1;

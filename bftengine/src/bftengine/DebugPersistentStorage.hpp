@@ -99,7 +99,7 @@ class DebugPersistentStorage : public PersistentStorage {
 
   bool hasDescriptorOfLastExitFromView_ = false;
   DescriptorOfLastExitFromView descriptorOfLastExitFromView_ =
-      DescriptorOfLastExitFromView{0, 0, 0, std::vector<ViewsManager::PrevViewInfo>(0), 0, 0};
+      DescriptorOfLastExitFromView{0, 0, 0, std::vector<ViewsManager::PrevViewInfo>(0), 0, 0, {}};
   bool hasDescriptorOfLastNewView_ = false;
   DescriptorOfLastNewView descriptorOfLastNewView_ =
       DescriptorOfLastNewView{0, nullptr, std::vector<ViewChangeMsg*>(0), nullptr, 0, 0};

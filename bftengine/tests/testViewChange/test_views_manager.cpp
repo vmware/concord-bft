@@ -78,6 +78,7 @@ TEST_F(ViewsManagerTest, store_complaint) {
   }
 
   ASSERT_EQ(viewsManager->getAllMsgsFromComplainedReplicas().size(), 1);
+  ASSERT_EQ(viewsManager->getSeqOfComplaintsSortedByIssuerID().size(), 1);
 }
 
 TEST_F(ViewsManagerTest, form_a_quorum_of_complaints) {
@@ -127,6 +128,9 @@ TEST_F(ViewsManagerTest, status_message_with_complaints) {
 
   for (const auto& i : viewsManager->getAllMsgsFromComplainedReplicas()) {
     ASSERT_TRUE(replicaStatusMessage.hasComplaintFromReplica(i.first));
+  }
+  for (const auto& i : viewsManager->getSeqOfComplaintsSortedByIssuerID()) {
+    ASSERT_TRUE(replicaStatusMessage.hasComplaintFromReplica(i->idOfGeneratedReplica()));
   }
 }
 

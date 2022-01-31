@@ -3029,6 +3029,8 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
       }
     }
 
+    auto complaints = viewsManager->getSeqOfComplaintsSortedByIssuerID();
+
     if (ps_) {
       ViewChangeMsg *myVC = (getCurrentView() == 0 ? nullptr : viewsManager->getMyLatestViewChangeMsg());
       SeqNum stableLowerBoundWhenEnteredToView = viewsManager->stableLowerBoundWhenEnteredToView();
@@ -3037,7 +3039,8 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
                                               lastExecutedSeqNum,
                                               prevViewInfo,
                                               myVC,
-                                              stableLowerBoundWhenEnteredToView};
+                                              stableLowerBoundWhenEnteredToView,
+                                              std::move(complaints)};
       ps_->beginWriteTran();
       ps_->setDescriptorOfLastExitFromView(desc);
       ps_->clearSeqNumWindow();

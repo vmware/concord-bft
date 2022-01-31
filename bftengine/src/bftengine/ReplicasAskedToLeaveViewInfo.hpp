@@ -18,6 +18,9 @@
 #include <unordered_map>
 
 namespace bftEngine::impl {
+
+using SequenceOfComplaints = std::vector<std::shared_ptr<ReplicaAsksToLeaveViewMsg>>;
+
 class ReplicasAskedToLeaveViewInfo {
  public:
   ReplicasAskedToLeaveViewInfo(const int16_t fVal) : f_val(fVal) {}
@@ -34,6 +37,27 @@ class ReplicasAskedToLeaveViewInfo {
 
   void store(std::unique_ptr<ReplicaAsksToLeaveViewMsg>&& msg) {
     msgs.emplace(msg->idOfGeneratedReplica(), std::move(msg));
+  }
+
+  void populateFromSequenceOfComplaints(const SequenceOfComplaints& sequenceOfComplaints) {
+    msgs.clear();
+    for (auto& msg : sequenceOfComplaints) {
+      msgs[msg->idOfGeneratedReplica()] = msg;
+    }
+  }
+
+  SequenceOfComplaints getSeqOfComplaintsSortedByIssuerID() {
+    SequenceOfComplaints retval;
+    for (auto& msg : msgs) {
+      retval.emplace_back(msg.second);
+    }
+    std::sort(retval.begin(),
+              retval.end(),
+              [](const std::shared_ptr<ReplicaAsksToLeaveViewMsg>& lhs,
+                 const std::shared_ptr<ReplicaAsksToLeaveViewMsg>& rhs) {
+                return lhs->idOfGeneratedReplica() < rhs->idOfGeneratedReplica();
+              });
+    return retval;
   }
 
   void clear() { msgs.clear(); }
