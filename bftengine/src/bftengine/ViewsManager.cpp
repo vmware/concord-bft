@@ -123,7 +123,7 @@ ViewsManager* ViewsManager::createOutsideView(const ReplicasInfo* const r,
                                               SeqNum stableLowerBound,
                                               ViewChangeMsg* myLastViewChange,
                                               std::vector<PrevViewInfo>& elementsOfPrevView,
-                                              SequenceOfComplaints complaints) {
+                                              const SequenceOfComplaints& complaints) {
   // check arguments
   ConcordAssert(lastActiveView >= 0);
   ConcordAssert(lastStable >= 0);

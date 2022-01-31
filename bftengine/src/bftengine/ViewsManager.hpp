@@ -68,7 +68,7 @@ class ViewsManager {
                                          SeqNum stableLowerBound,
                                          ViewChangeMsg *myLastViewChange,
                                          std::vector<PrevViewInfo> &elementsOfPrevView,
-                                         SequenceOfComplaints complaints);
+                                         const SequenceOfComplaints &complaints);
 
   static ViewsManager *createInsideViewZero(const ReplicasInfo *const r);
 
