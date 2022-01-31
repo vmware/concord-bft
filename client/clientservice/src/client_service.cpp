@@ -15,7 +15,7 @@
 
 namespace concord::client::clientservice {
 
-void ClientService::start(const std::string& addr, int num_async_threads, uint64_t max_receive_msg_size) {
+void ClientService::start(const std::string& addr, unsigned num_async_threads, uint64_t max_receive_msg_size) {
   grpc::EnableDefaultHealthCheckService(true);
 
   grpc::ServerBuilder builder;
@@ -28,7 +28,7 @@ void ClientService::start(const std::string& addr, int num_async_threads, uint64
   // Register asynchronous services
   builder.RegisterService(&request_service_);
 
-  for (int i = 0; i < num_async_threads; ++i) {
+  for (unsigned i = 0; i < num_async_threads; ++i) {
     cqs_.emplace_back(builder.AddCompletionQueue());
   }
 
@@ -36,7 +36,7 @@ void ClientService::start(const std::string& addr, int num_async_threads, uint64
 
   // From the "C++ Performance Notes" in the gRPC documentation:
   // "Right now, the best performance trade-off is having numcpu's threads and one completion queue per thread."
-  for (int i = 0; i < num_async_threads; ++i) {
+  for (unsigned i = 0; i < num_async_threads; ++i) {
     server_threads_.emplace_back(std::thread([this, i] { this->handleRpcs(i); }));
   }
 
@@ -46,13 +46,20 @@ void ClientService::start(const std::string& addr, int num_async_threads, uint64
 
   clientservice_server->Wait();
 
-  LOG_INFO(logger_, "Wait for async gRPC threads to finish");
-  for (auto& t : server_threads_) {
-    t.join();
+  LOG_INFO(logger_, "Shutting down and emptying completion queues");
+  std::for_each(cqs_.begin(), cqs_.end(), [](auto& cq) { cq->Shutdown(); });
+  for (auto& cq : cqs_) {
+    void* tag;
+    bool ok;
+    while (cq->Next(&tag, &ok))
+      ;
   }
+
+  LOG_INFO(logger_, "Waiting for async gRPC threads to return");
+  std::for_each(server_threads_.begin(), server_threads_.end(), [](auto& t) { t.join(); });
 }
 
-void ClientService::handleRpcs(int thread_idx) {
+void ClientService::handleRpcs(unsigned thread_idx) {
   // Note: Memory is freed in `proceed`
   new requestservice::RequestServiceCallData(&request_service_, cqs_[thread_idx].get(), client_);
 
@@ -69,9 +76,13 @@ void ClientService::handleRpcs(int thread_idx) {
       LOG_INFO(logger_, "Completion queue drained and shutdown, stop processing.");
       return;
     }
-    // We expect a successful event or an alarm to be expired (alarm cancelled is false)
+    // We expect a successful event or an alarm to be expired - `ok` is true in either case.
+    // If the alarm was cancelled `ok` will be false - we don't cancel alarms.
+    // An unsuccessful event either means GRPC_QUEUE_SHUTDOWN or GRPC_QUEUE_TIMEOUT.
+    // The former will be signaled on the following Next() call and handled.
+    // The latter means that there is no event present.
     if (not ok) {
-      LOG_WARN(logger_, "Got unsuccessful event from completion queue with tag " << tag);
+      continue;
     }
     static_cast<requestservice::RequestServiceCallData*>(tag)->proceed();
   }

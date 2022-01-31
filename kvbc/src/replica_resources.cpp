@@ -33,7 +33,7 @@ void ReplicaResourceEntity::addMeasurement(const ISystemResourceEntity::measurem
       ++post_exec_ops;
       break;
     // Count of reached consensus
-    case ISystemResourceEntity::type::consensus_accumulated:
+    case ISystemResourceEntity::type::transactions_accumulated:
       num_of_consensus += m.count;
       break;
     // Count of block addition
@@ -67,7 +67,7 @@ uint64_t ReplicaResourceEntity::getMeasurement(const ISystemResourceEntity::type
       ret = (post_exec_ops != 0) ? (post_exec_accumulated_time / post_exec_ops) : 0;
       break;
     // Count of reached consesnus
-    case ISystemResourceEntity::type::consensus_accumulated:
+    case ISystemResourceEntity::type::transactions_accumulated:
       ret = num_of_consensus;
       break;
     // Count of block addition
