@@ -24,7 +24,6 @@ from math import inf
 from util.bft import KEY_FILE_PREFIX, with_trio, with_bft_network, skip_for_tls
 from util import eliot_logging as log
 
-from bft_client import MofNQuorum
 
 def start_replica_cmd(builddir, replica_id):
     """
@@ -116,17 +115,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
         """
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
-
-        # Ensure execution happens on all replicas before shutdown
-        # by requiring an N of N quorum of replies.
-        # Since we're creating a single block on the chain we try to 
-        # avoid the state where some replica failed to execute the block
-        # and needs to recover by starting from the genesis block. A recovery with less than 2
-        # total blocks on the chain is unhandled by the system.
-        # For more info see BC-17607.
-
-        full_quorum = MofNQuorum.All(bft_network.config, bft_network.all_replicas())
-        (key, val) = await skvbc.send_write_kv_set(quorum=full_quorum)
+        (key, val) = await skvbc.send_write_kv_set()
 
         bft_network.stop_all_replicas()
         bft_network.start_all_replicas()
