@@ -195,7 +195,7 @@ void DescriptorOfLastExitFromView::deserializeComplaint(uint32_t id, char *buf, 
   {
     std::unique_ptr<MessageBase> baseMsg(MessageBase::deserializeMsg(buf, bufLen, msgSize));
     if (baseMsg) {
-      replicaAsksToLeaveViewMsg = make_unique<ReplicaAsksToLeaveViewMsg>(ReplicaAsksToLeaveViewMsg(baseMsg.get()));
+      replicaAsksToLeaveViewMsg = make_unique<ReplicaAsksToLeaveViewMsg>(baseMsg.get());
     }
   }
 

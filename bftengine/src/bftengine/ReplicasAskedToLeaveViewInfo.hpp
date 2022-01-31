@@ -46,20 +46,6 @@ class ReplicasAskedToLeaveViewInfo {
     }
   }
 
-  SequenceOfComplaints getSeqOfComplaintsSortedByIssuerID() {
-    SequenceOfComplaints retval;
-    for (auto& msg : msgs) {
-      retval.emplace_back(msg.second);
-    }
-    std::sort(retval.begin(),
-              retval.end(),
-              [](const std::shared_ptr<ReplicaAsksToLeaveViewMsg>& lhs,
-                 const std::shared_ptr<ReplicaAsksToLeaveViewMsg>& rhs) {
-                return lhs->idOfGeneratedReplica() < rhs->idOfGeneratedReplica();
-              });
-    return retval;
-  }
-
   void clear() { msgs.clear(); }
 
   bool empty() const { return msgs.empty(); }
@@ -72,7 +58,21 @@ class ReplicasAskedToLeaveViewInfo {
     return nullptr;
   }
 
-  const auto& getAllMsgs() const { return msgs; }
+  SequenceOfComplaints getAllMsgs(bool sortedByIssuerID) const {
+    SequenceOfComplaints retval;
+    for (auto& msg : msgs) {
+      retval.emplace_back(msg.second);
+    }
+    if (sortedByIssuerID) {
+      std::sort(retval.begin(),
+                retval.end(),
+                [](const std::shared_ptr<ReplicaAsksToLeaveViewMsg>& lhs,
+                   const std::shared_ptr<ReplicaAsksToLeaveViewMsg>& rhs) {
+                  return lhs->idOfGeneratedReplica() < rhs->idOfGeneratedReplica();
+                });
+    }
+    return retval;
+  }
 
  private:
   const int16_t f_val;

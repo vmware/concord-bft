@@ -143,11 +143,11 @@ class ViewsManager {
 
   bool hasViewChangeMessageForFutureView(uint16_t repId);
 
-  const auto &getAllMsgsFromComplainedReplicas() const { return complainedReplicas.getAllMsgs(); }
-  SequenceOfComplaints getSeqOfComplaintsSortedByIssuerID() {
-    return complainedReplicas.getSeqOfComplaintsSortedByIssuerID();
+  auto getAllMsgsFromComplainedReplicas(bool sortedByIssuerID = false) const {
+    return complainedReplicas.getAllMsgs(sortedByIssuerID);
   }
   void storeComplaint(std::unique_ptr<ReplicaAsksToLeaveViewMsg> &&complaintMessage);
+  void insertStoredComplaintsIntoVCMsg(ViewChangeMsg *pVC);
   bool hasQuorumToLeaveView() const { return complainedReplicas.hasQuorumToLeaveView(); }
   std::shared_ptr<ReplicaAsksToLeaveViewMsg> getComplaintFromReplica(ReplicaId replicaId) {
     return complainedReplicas.getComplaintFromReplica(replicaId);

@@ -1066,8 +1066,8 @@ void ViewsManager::storeComplaintForHigherView(std::unique_ptr<ReplicaAsksToLeav
 }
 
 void ViewsManager::addComplaintsToStatusMessage(ReplicaStatusMsg& replicaStatusMessage) const {
-  for (const auto& i : complainedReplicas.getAllMsgs()) {
-    replicaStatusMessage.setComplaintFromReplica(i.first);
+  for (const auto& it : getAllMsgsFromComplainedReplicas()) {
+    replicaStatusMessage.setComplaintFromReplica(it->idOfGeneratedReplica());
   }
 }
 
@@ -1119,19 +1119,23 @@ ViewChangeMsg* ViewsManager::prepareViewChangeMsgAndSetHigherView(ViewNum nextVi
     pVC->setNewViewNumber(nextView);
   }
 
-  for (const auto& complaint : getSeqOfComplaintsSortedByIssuerID()) {
-    pVC->addComplaint(complaint.get());
-    LOG_DEBUG(VC_LOG,
-              "Putting complaint in VC msg: " << KVLOG(
-                  getCurrentView(), nextView, complaint->idOfGeneratedReplica(), complaint->viewNumber()));
-  }
+  insertStoredComplaintsIntoVCMsg(pVC);
 
-  complainedReplicas.clear();
   setHigherView(nextView);
 
   pVC->finalizeMessage();
 
   return pVC;
+}
+
+void ViewsManager::insertStoredComplaintsIntoVCMsg(ViewChangeMsg* pVC) {
+  for (const auto& complaint : getAllMsgsFromComplainedReplicas(true)) {
+    pVC->addComplaint(complaint.get());
+    LOG_DEBUG(VC_LOG,
+              "Putting complaint in VC msg: " << KVLOG(
+                  getCurrentView(), pVC->newView(), complaint->idOfGeneratedReplica(), complaint->viewNumber()));
+  }
+  complainedReplicas.clear();
 }
 
 void ViewsManager::processComplaintsFromViewChangeMessage(ViewChangeMsg* msg,
