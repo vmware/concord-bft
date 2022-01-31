@@ -28,14 +28,21 @@ class AdaptivePruningManager {
   }
   PruningMode getCurrentMode() { return mode.load(); }
 
-  void youArePrimary() {  // Is there a listener for becoming a primary replica?
+  void youArePrimary() {
     amIPrimary = true;
     conditionVar.notify_one();
   }
 
-  void youAreNotPrimary() {  // Is there a listener for not being a primary anymore?
-    amIPrimary = false;
+  void youAreNotPrimary() { amIPrimary = false; }
+
+  void setResourceManager(const std::shared_ptr<concord::performance::IResourceManager> &resourceManagerNew) {
+    {
+      std::unique_lock<std::mutex> lk(conditionLock);
+      resourceManager = resourceManagerNew;
+    }
+    start();
   }
+
   void start();
   void stop();
 

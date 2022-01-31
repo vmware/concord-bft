@@ -2,6 +2,7 @@
 #include "Bitmap.hpp"
 #include "ReplicaConfig.hpp"
 #include "concord.cmf.hpp"
+#include "SigManager.hpp"
 
 using namespace concord::performance;
 
@@ -24,23 +25,26 @@ void AdaptivePruningManager::notifyReplicas(const long double &rate, const uint6
 
   concord::messages::PruneTicksChangeRequest pruneRequest;
   pruneRequest.sender_id = bftClient->getClientId();
-  // numOfConnectedReplicas requires cluster size. How can I get it?
-  // pruneRequest.tick_period_seconds = rate / bftClient->numOfConnectedReplicas();
+  pruneRequest.tick_period_seconds =
+      rate / bftClient->numOfConnectedReplicas(bftEngine::ReplicaConfig::instance().numReplicas);
   pruneRequest.batch_blocks_num = batchSize;
 
   rreq.command = pruneRequest;
   rreq.sender = bftClient->getClientId();
 
   std::vector<uint8_t> serialized_req;
-  rreq.signature = {};
+
   concord::messages::serialize(serialized_req, rreq);
 
-  // auto sig = signer_->sign(std::string(serialized_req.begin(), serialized_req.end()));
-  // request.signature = std::vector<uint8_t>(sig.begin(), sig.end());
-  // rreq.signature =
   uint64_t flags{};
   const std::string cid = "adaptive-pruning-manager-cid";
   std::string serializedString(serialized_req.begin(), serialized_req.end());
+
+  std::string sig(SigManager::instance()->getMySigLength(), '\0');
+  uint16_t sig_length{0};
+  SigManager::instance()->sign(
+      reinterpret_cast<char *>(serialized_req.data()), serialized_req.size(), sig.data(), sig_length);
+  rreq.signature = std::vector<uint8_t>(sig.begin(), sig.end());
 
   bftClient->sendRequest(flags, serializedString.length(), serializedString.c_str(), cid);
 }
@@ -52,16 +56,17 @@ void AdaptivePruningManager::threadFunction() {
       conditionVar.wait(lk, [this]() { return mode.load() == ADAPTIVE && amIPrimary.load(); });
     }
     if (isRunning.load()) {
+      std::unique_lock<std::mutex> lk(conditionLock);
       auto info = resourceManager->getPruneInfo();
       notifyReplicas(info.blocksPerSecond, info.batchSize);
-      std::unique_lock<std::mutex> lk(conditionLock);
       conditionVar.wait_for(lk, interval);
     }
   }
 }
 
 void AdaptivePruningManager::start() {
-  if (!isRunning.load()) {
+  std::unique_lock<std::mutex> lk(conditionLock);
+  if (!isRunning.load() && resourceManager.get() != nullptr) {
     isRunning = true;
     workThread = std::thread(&AdaptivePruningManager::threadFunction, this);
   }
