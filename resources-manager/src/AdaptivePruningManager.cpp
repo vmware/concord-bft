@@ -25,9 +25,10 @@ void AdaptivePruningManager::notifyReplicas(const long double &rate, const uint6
 
   concord::messages::PruneTicksChangeRequest pruneRequest;
   pruneRequest.sender_id = bftClient->getClientId();
-  pruneRequest.tick_period_seconds =
+  pruneRequest.tick_period_seconds = 1;
+
+  pruneRequest.batch_blocks_num =
       rate / bftClient->numOfConnectedReplicas(bftEngine::ReplicaConfig::instance().numReplicas);
-  pruneRequest.batch_blocks_num = batchSize;
 
   rreq.command = pruneRequest;
   rreq.sender = bftClient->getClientId();
