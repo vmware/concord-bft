@@ -40,6 +40,11 @@ class RequestHandler : public IRequestsHandler {
                const std::string &batchCid,
                concordUtils::SpanWrapper &) override;
 
+  void preExecute(IRequestsHandler::ExecutionRequest &req,
+                  std::optional<Timestamp> timestamp,
+                  const std::string &batchCid,
+                  concordUtils::SpanWrapper &parent_span) override;
+
   void setUserRequestHandler(std::shared_ptr<IRequestsHandler> userHdlr) {
     if (userHdlr) {
       userRequestsHandler_ = userHdlr;

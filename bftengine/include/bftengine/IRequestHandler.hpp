@@ -64,6 +64,11 @@ class IRequestsHandler {
                        const std::string &batchCid,
                        concordUtils::SpanWrapper &parent_span) = 0;
 
+  virtual void preExecute(IRequestsHandler::ExecutionRequest &req,
+                          std::optional<Timestamp> timestamp,
+                          const std::string &batchCid,
+                          concordUtils::SpanWrapper &parent_span) = 0;
+
   virtual void onFinishExecutingReadWriteRequests() {}
 
   std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> getReconfigurationHandler() const {

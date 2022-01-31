@@ -177,4 +177,11 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
   }
   return;
 }
+
+void RequestHandler::preExecute(IRequestsHandler::ExecutionRequest& req,
+                                std::optional<Timestamp> timestamp,
+                                const std::string& batchCid,
+                                concordUtils::SpanWrapper& parent_span) {
+  if (userRequestsHandler_) return userRequestsHandler_->preExecute(req, timestamp, batchCid, parent_span);
+}
 }  // namespace bftEngine

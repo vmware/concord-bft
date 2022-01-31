@@ -74,6 +74,13 @@ class DummyRequestsHandler : public IRequestsHandler {
       req.outExecutionStatus = static_cast<uint32_t>(OperationResult::SUCCESS);
     }
   }
+  void preExecute(IRequestsHandler::ExecutionRequest& req,
+                  std::optional<Timestamp> timestamp,
+                  const std::string& batchCid,
+                  concordUtils::SpanWrapper& parent_span) override {
+    req.outActualReplySize = 256;
+    req.outExecutionStatus = static_cast<uint32_t>(OperationResult::SUCCESS);
+  }
 };
 
 class DummyReceiver : public IReceiver {

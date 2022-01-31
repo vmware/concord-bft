@@ -93,8 +93,6 @@ void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequests
   VersionedUpdates verUpdates;
   BlockMerkleUpdates merkleUpdates;
 
-  auto pre_execute = requests.back().flags & bftEngine::PRE_PROCESS_FLAG;
-
   for (auto &req : requests) {
     if (req.outExecutionStatus != static_cast<uint32_t>(OperationResult::UNKNOWN))
       continue;  // Request already executed (internal)
@@ -116,7 +114,7 @@ void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequests
     } else {
       // Only if requests size is greater than 1 and other conditions are met, block accumulation is enabled.
       bool isBlockAccumulationEnabled =
-          ((requests.size() > 1) && (!pre_execute && (req.flags & bftEngine::MsgFlag::HAS_PRE_PROCESSED_FLAG)));
+          ((requests.size() > 1) && (req.flags & bftEngine::MsgFlag::HAS_PRE_PROCESSED_FLAG));
       res = executeWriteCommand(req.requestSize,
                                 req.request,
                                 req.executionSequenceNum,
@@ -137,9 +135,55 @@ void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequests
     }
   }
 
-  if (!pre_execute && (merkleUpdates.size() > 0 || verUpdates.size() > 0)) {
+  if (merkleUpdates.size() > 0 || verUpdates.size() > 0) {
     // Write Block accumulated requests
     writeAccumulatedBlock(requests, verUpdates, merkleUpdates);
+  }
+}
+
+void InternalCommandsHandler::preExecute(IRequestsHandler::ExecutionRequest &req,
+                                         std::optional<bftEngine::Timestamp> timestamp,
+                                         const std::string &batchCid,
+                                         concordUtils::SpanWrapper &parent_span) {
+  if (req.flags & bftEngine::DB_CHECKPOINT_FLAG) return;
+
+  if (req.outExecutionStatus != static_cast<uint32_t>(OperationResult::UNKNOWN)) {
+    return;  // Request already executed (internal)
+  }
+  OperationResult res;
+  if (req.requestSize <= 0) {
+    LOG_ERROR(m_logger, "Received size-0 request.");
+    req.outExecutionStatus = static_cast<uint32_t>(OperationResult::INVALID_REQUEST);
+    return;
+  }
+  const uint8_t *request_buffer_as_uint8 = reinterpret_cast<const uint8_t *>(req.request);
+  bool readOnly = req.flags & MsgFlag::READ_ONLY_FLAG;
+  if (readOnly) {
+    LOG_ERROR(m_logger,
+              "Received READ command for pre execution: "
+                  << "seqNum=" << req.executionSequenceNum << " batchCid" << batchCid);
+    return;
+  }
+  res = verifyWriteCommand(req.requestSize, request_buffer_as_uint8, req.maxReplySize, req.outActualReplySize);
+  if (res != OperationResult::SUCCESS) {
+    LOG_INFO(GL, "Operation result is not success in verifying write command");
+  } else {
+    SKVBCRequest deserialized_request;
+    deserialize(request_buffer_as_uint8, request_buffer_as_uint8 + req.requestSize, deserialized_request);
+    const SKVBCWriteRequest &write_req = std::get<SKVBCWriteRequest>(deserialized_request.request);
+    LOG_INFO(m_logger,
+             "Pre execute WRITE command:"
+                 << " type=SKVBCWriteRequest seqNum=" << req.executionSequenceNum
+                 << " numOfWrites=" << write_req.writeset.size() << " numOfKeysInReadSet=" << write_req.readset.size()
+                 << " readVersion=" << write_req.read_version);
+    if (write_req.long_exec) {
+      sleep(LONG_EXEC_CMD_TIME_IN_SEC);
+    }
+  }
+  req.outActualReplySize = req.requestSize;
+  memcpy(req.outReply, req.request, req.requestSize);
+  if (req.outExecutionStatus == static_cast<uint32_t>(OperationResult::UNKNOWN)) {
+    req.outExecutionStatus = static_cast<uint32_t>(res);
   }
 }
 
@@ -369,23 +413,6 @@ OperationResult InternalCommandsHandler::executeWriteCommand(uint32_t requestSiz
     if (res != OperationResult::SUCCESS) {
       LOG_INFO(GL, "Operation result is not success in verifying write command");
       return res;
-    }
-    if (flags & MsgFlag::PRE_PROCESS_FLAG) {
-      SKVBCRequest deserialized_request;
-      deserialize(request_buffer_as_uint8, request_buffer_as_uint8 + requestSize, deserialized_request);
-      const SKVBCWriteRequest &write_req = std::get<SKVBCWriteRequest>(deserialized_request.request);
-      LOG_INFO(m_logger,
-               "Execute WRITE command:"
-                   << " type=SKVBCWriteRequest seqNum=" << sequenceNum << " numOfWrites=" << write_req.writeset.size()
-                   << " numOfKeysInReadSet=" << write_req.readset.size() << " readVersion=" << write_req.read_version
-                   << " READ_ONLY_FLAG=" << ((flags & MsgFlag::READ_ONLY_FLAG) != 0 ? "true" : "false")
-                   << " PRE_PROCESS_FLAG=" << ((flags & MsgFlag::PRE_PROCESS_FLAG) != 0 ? "true" : "false")
-                   << " HAS_PRE_PROCESSED_FLAG=" << ((flags & MsgFlag::HAS_PRE_PROCESSED_FLAG) != 0 ? "true" : "false")
-                   << " BLOCK_ACCUMULATION_ENABLED=" << isBlockAccumulationEnabled);
-      if (write_req.long_exec) sleep(LONG_EXEC_CMD_TIME_IN_SEC);
-      outReplySize = requestSize;
-      memcpy(outReply, request, requestSize);
-      return OperationResult::SUCCESS;
     }
   }
   SKVBCRequest deserialized_request;
