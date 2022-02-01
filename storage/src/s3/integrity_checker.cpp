@@ -11,19 +11,20 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "IntegrityChecker.hpp"
 #include <getopt.h>
-#include "string.hpp"
-#include "ReplicaConfig.hpp"
-#include "ReplicasInfo.hpp"
-#include "config/config_file_parser.hpp"
-#include "KeyfileIOUtils.hpp"
-#include "SigManager.hpp"
-#include "direct_kv_storage_factory.h"
-#include "CheckpointInfo.hpp"
-#include "bcstatetransfer/BCStateTran.hpp"
 
-namespace concord::tests::integrity {
+#include "string.hpp"
+#include "s3/integrity_checker.hpp"
+#include "s3/config_parser.hpp"
+#include "bftengine/ReplicaConfig.hpp"
+#include "bftengine/ReplicasInfo.hpp"
+#include "bftengine/SigManager.hpp"
+#include "bftengine/CheckpointInfo.hpp"
+#include "bcstatetransfer/BCStateTran.hpp"
+#include "KeyfileIOUtils.hpp"
+#include "direct_kv_storage_factory.h"
+
+namespace concord::storage::s3 {
 
 std::string hex2string(const std::string& s) {
   std::string result;
@@ -61,7 +62,6 @@ void IntegrityChecker::setupParams(int argc, char** argv) {
   };
   int o = 0;
   int optionIndex = 0;
-  LOG_INFO(GL, "Command line options:");
   while ((o = getopt_long(argc, argv, "k:3:v:ah", longOptions, &optionIndex)) != -1) {
     switch (o) {
       case 'k': {
@@ -81,9 +81,9 @@ void IntegrityChecker::setupParams(int argc, char** argv) {
       } break;
       case '3': {
         params_.s3_config_present = true;
-        auto s3_config = config::S3ConfigFileParser(optarg).parse();
+        auto s3_config = ConfigFileParser(optarg).parse();
         dbset_ = std::make_unique<S3StorageFactory>(std::string("not used"), s3_config)->newDatabaseSet();
-        LOG_INFO(GL, " s3 configuration: " << s3_config);
+        LOG_DEBUG(logger_, "s3 configuration: " << s3_config);
       } break;
       case 'v': {
         params_.validate_key_present = true;
@@ -113,16 +113,17 @@ void IntegrityChecker::setupParams(int argc, char** argv) {
 
 std::pair<BlockId, STDigest> IntegrityChecker::getLatestsCheckpointDescriptor() const {
   BlockId lastBlock = dbset_.dbAdapter->getLatestBlockId();
-  LOG_INFO(GL, "last block: " << lastBlock);
+  LOG_INFO(logger_, "Last block: " << lastBlock);
   auto it =
       dynamic_cast<s3::Client*>(dbset_.metadataDBClient.get())->getIterator<s3::Client::SortByModifiedDescIterator>();
   std::string checkpoints_prefix("concord/metadata/checkpoints/");
   auto [key, val] = it->seekAtLeast(Sliver::copy(checkpoints_prefix.data(), checkpoints_prefix.length()));
+  (void)val;
   if (it->isEnd()) throw std::runtime_error("no checkpoints information in S3 storage");
 
   std::string suff = key.toString().substr(checkpoints_prefix.length());
   BlockId block = concord::util::to<BlockId>(suff.substr(0, suff.find_last_of('/')));
-  LOG_INFO(GL, key.toString() << ": " << val.toString() << " blockId: " << block);
+  LOG_INFO(logger_, "Latest checkpoint descriptor: " << key.toString() << " for block: " << block);
   delete it;
   auto desc = getCheckpointDescriptor(key);
   STDigest digest(desc.checkpointMsgs[0]->digestOfState().content());
@@ -130,10 +131,11 @@ std::pair<BlockId, STDigest> IntegrityChecker::getLatestsCheckpointDescriptor() 
 }
 
 DescriptorOfLastStableCheckpoint IntegrityChecker::getCheckpointDescriptor(const Sliver& key) const {
-  LOG_DEBUG(GL, "key: " << key.toString());
+  LOG_DEBUG(logger_, "key: " << key.toString());
   Sliver checkpoint_descriptor;
   if (Status s = dbset_.metadataDBClient->get(key, checkpoint_descriptor); !s.isOK()) {
-    LOG_FATAL(GL, "failed to get checkpoint descriptor for key: " << key.toString() << " status: " << s.toString());
+    LOG_FATAL(logger_,
+              "failed to get checkpoint descriptor for key: " << key.toString() << " status: " << s.toString());
     std::exit(1);
   }
   auto& config = bftEngine::ReplicaConfig::instance();
@@ -160,7 +162,7 @@ std::pair<BlockId, STDigest> IntegrityChecker::getCheckpointDescriptor(const Blo
     std::string suff = key_val.first.toString().substr(checkpoints_prefix.length());
     BlockId block = concord::util::to<BlockId>(suff.substr(0, suff.find_last_of('/')));
     first_good_block_descriptor_key = key_val.first.clone();
-    LOG_DEBUG(GL, "descriptor key: " << key_val.first.toString() << " blockId: " << block);
+    LOG_DEBUG(logger_, "descriptor key: " << key_val.first.toString() << " blockId: " << block);
     if (block < block_id) break;
 
     first_good_block_descriptor = block;
@@ -178,16 +180,19 @@ void IntegrityChecker::validateCheckpointDescriptor(const DescriptorOfLastStable
   checkpointsInfo.clear();
   for (auto m : desc.checkpointMsgs) {
     m->validate(*params_.repsInfo);
-    LOG_INFO(GL,
-             KVLOG(m->seqNumber(),
-                   m->epochNumber(),
-                   m->state(),
-                   m->digestOfState(),
-                   m->otherDigest(),
-                   m->idOfGeneratedReplica()));
+    LOG_INFO(logger_,
+             "Checkpoint message from replica: " << m->idOfGeneratedReplica() << " block:" << m->state()
+                                                 << " digest: " << m->digestOfState());
+    LOG_DEBUG(logger_,
+              KVLOG(m->seqNumber(),
+                    m->epochNumber(),
+                    m->state(),
+                    m->digestOfState(),
+                    m->otherDigest(),
+                    m->idOfGeneratedReplica()));
     checkpointsInfo[m->seqNumber()].addCheckpointMsg(m, m->idOfGeneratedReplica());
     if (checkpointsInfo[m->seqNumber()].isCheckpointCertificateComplete()) {
-      LOG_INFO(GL, "Checkpoint descriptor is valid for block " << m->state());
+      LOG_INFO(logger_, "Checkpoint descriptor is valid for block " << m->state());
       return;
     }
   }
@@ -201,7 +206,7 @@ STDigest IntegrityChecker::checkBlock(const BlockId& block_id, const STDigest& e
   static_assert(rawBlock.data.parent_digest.size() == BLOCK_DIGEST_SIZE);
   static_assert(sizeof(Digest) == BLOCK_DIGEST_SIZE);
   memcpy(const_cast<char*>(parentBlockDigest.get()), rawBlock.data.parent_digest.data(), BLOCK_DIGEST_SIZE);
-  LOG_DEBUG(GL, "parent block digest: " << parentBlockDigest.toString());
+  LOG_DEBUG(logger_, "parent block digest: " << parentBlockDigest.toString());
   return parentBlockDigest;
 }
 
@@ -219,7 +224,7 @@ concord::kvbc::categorization::RawBlock IntegrityChecker::getBlock(const BlockId
   BCStateTran::computeDigestOfBlock(
       block_id, reinterpret_cast<const char*>(rawBlockSer.data()), rawBlockSer.size(), &calcDigest);
   if (expected_digest == calcDigest) {
-    LOG_INFO(GL, "block: " << block_id << " digest match: " << expected_digest.toString());
+    LOG_INFO(logger_, "block: " << block_id << " digest match: " << expected_digest.toString());
   } else
     throw std::runtime_error("block:" + std::to_string(block_id) + std::string(" expected digest: ") +
                              expected_digest.toString() + std::string(" doesn't match calculated digest: ") +
@@ -238,7 +243,7 @@ void IntegrityChecker::validateKey(const std::string& key) const {
   auto [containing_block, _] = dbset_.dbAdapter->getValue(sKey, 0);
   (void)_;
   auto containing_block_id = concord::util::to<BlockId>(containing_block.data());
-  LOG_INFO(GL, "containing_block_id: " << containing_block_id);
+  LOG_INFO(logger_, "containing_block_id: " << containing_block_id);
 
   auto [block_id, digest] = getCheckpointDescriptor(containing_block_id);
   for (auto block = block_id; block >= containing_block_id; --block) digest = checkBlock(block, digest);
@@ -248,26 +253,26 @@ void IntegrityChecker::validateKey(const std::string& key) const {
   for (auto& [category, value] : raw_block.data.updates.kv) {
     auto cat = category;
     std::visit(
-        [cat, key](auto&& arg) {
+        [cat, key, this](auto&& arg) {
           using T = std::decay_t<decltype(arg)>;
           if constexpr (std::is_same_v<T, concord::kvbc::categorization::BlockMerkleInput>) {
             auto search = arg.kv.find(key);
             if (search == arg.kv.end())
-              LOG_DEBUG(GL, "key [" << key << "] not found in category: " << cat);
+              LOG_DEBUG(logger_, "key [" << key << "] not found in category: " << cat);
             else
-              LOG_INFO(GL, "found key [ " << key << "] value [" << search->second << "] in category " << cat);
+              LOG_INFO(logger_, "found key [ " << key << "] value [" << search->second << "] in category " << cat);
           } else if constexpr (std::is_same_v<T, concord::kvbc::categorization::VersionedInput>) {
             auto search = arg.kv.find(key);
             if (search == arg.kv.end())
-              LOG_DEBUG(GL, "key [" << key << "] not found in category: " << cat);
+              LOG_DEBUG(logger_, "key [" << key << "] not found in category: " << cat);
             else
-              LOG_INFO(GL, "found key [ " << key << "] value [" << search->second.data << "] in category " << cat);
+              LOG_INFO(logger_, "found key [ " << key << "] value [" << search->second.data << "] in category " << cat);
           } else if constexpr (std::is_same_v<T, concord::kvbc::categorization::ImmutableInput>) {
             auto search = arg.kv.find(key);
             if (search == arg.kv.end())
-              LOG_DEBUG(GL, "key [" << key << "] not found in category: " << cat);
+              LOG_DEBUG(logger_, "key [" << key << "] not found in category: " << cat);
             else
-              LOG_INFO(GL, "found key [ " << key << "] value [" << search->second.data << "] in category " << cat);
+              LOG_INFO(logger_, "found key [ " << key << "] value [" << search->second.data << "] in category " << cat);
           }
         },
         value);
@@ -277,28 +282,28 @@ void IntegrityChecker::validateKey(const std::string& key) const {
 
 void IntegrityChecker::printBlockContent(const BlockId& block_id,
                                          const concord::kvbc::categorization::RawBlock& raw_block) const {
-  LOG_INFO(GL, "======================= BLOCK " << block_id << " =======================");
+  LOG_INFO(logger_, "======================= BLOCK " << block_id << " =======================");
   for (auto& [cat, value] : raw_block.data.updates.kv) {
-    LOG_INFO(GL, "category: " << cat);
+    LOG_INFO(logger_, "category: " << cat);
     std::visit(
-        [](auto&& arg) {
+        [this](auto&& arg) {
           using T = std::decay_t<decltype(arg)>;
           if constexpr (std::is_same_v<T, concord::kvbc::categorization::BlockMerkleInput>) {
-            for (auto& [k, v] : arg.kv) LOG_INFO(GL, "kv: " << k << " " << v);
-            for (auto& v : arg.deletes) LOG_INFO(GL, "deletes: " << v);
+            for (auto& [k, v] : arg.kv) LOG_INFO(logger_, "kv: " << k << " " << v);
+            for (auto& v : arg.deletes) LOG_INFO(logger_, "deletes: " << v);
           } else if constexpr (std::is_same_v<T, concord::kvbc::categorization::VersionedInput>) {
-            for (auto& [k, v] : arg.kv) LOG_INFO(GL, "kv: " << k << " " << v.data);
-            for (auto& v : arg.deletes) LOG_INFO(GL, "deletes: " << v);
+            for (auto& [k, v] : arg.kv) LOG_INFO(logger_, "kv: " << k << " " << v.data);
+            for (auto& v : arg.deletes) LOG_INFO(logger_, "deletes: " << v);
           } else if constexpr (std::is_same_v<T, concord::kvbc::categorization::ImmutableInput>) {
             for (auto& [k, v] : arg.kv) {
-              LOG_INFO(GL, "kv: " << k << " " << v.data);
-              for (auto& t : v.tags) LOG_INFO(GL, "tags: " << t);
+              LOG_INFO(logger_, "kv: " << k << " " << v.data);
+              for (auto& t : v.tags) LOG_INFO(logger_, "tags: " << t);
             }
           }
         },
         value);
   }
-  LOG_INFO(GL, "==========================================================");
+  LOG_INFO(logger_, "==========================================================");
 }
 
-}  // namespace concord::tests::integrity
+}  // namespace concord::storage::s3

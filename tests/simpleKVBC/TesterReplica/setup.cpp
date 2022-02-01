@@ -28,7 +28,7 @@
 #include "commonKVBTests.hpp"
 #include "memorydb/client.h"
 #include "string.hpp"
-#include "config/config_file_parser.hpp"
+#include "config_file_parser.hpp"
 #include "direct_kv_storage_factory.h"
 #include "merkle_tree_storage_factory.h"
 #include "secrets_manager_plain.h"
@@ -41,6 +41,10 @@
 #include "strategy/MangledPreProcessResultMsgStrategy.hpp"
 #include "WrapCommunication.hpp"
 #include "secrets_manager_enc.h"
+
+#ifdef USE_S3_OBJECT_STORE
+#include "s3/config_parser.hpp"
+#endif
 
 namespace fs = std::experimental::filesystem;
 
@@ -338,7 +342,7 @@ std::unique_ptr<IStorageFactory> TestSetup::GetStorageFactory() {
 #ifdef USE_S3_OBJECT_STORE
   if (GetReplicaConfig().isReadOnly) {
     if (s3ConfigFile_.empty()) throw std::runtime_error("--s3-config-file must be provided");
-    const auto s3Config = concord::tests::config::S3ConfigFileParser(s3ConfigFile_).parse();
+    const auto s3Config = concord::storage::s3::ConfigFileParser(s3ConfigFile_).parse();
     return std::make_unique<v1DirectKeyValue::S3StorageFactory>(dbPath.str(), s3Config);
   }
 #endif

@@ -1,4 +1,4 @@
-#include "config/config_file_parser.hpp"
+#include "config_file_parser.hpp"
 #include "assertUtils.hpp"
 
 #include <iostream>
@@ -31,7 +31,7 @@ int main(int argc, char **argv) {
   cin >> given_config_file;
   if (given_config_file != use_default_config_file) config_file = given_config_file;
   logging::Logger logger = logging::getLogger("simpletest.test");
-  concord::tests::config::ConfigFileParser parser(logger, config_file);
+  concord::util::ConfigFileParser parser(logger, config_file);
   if (!parser.Parse()) return 1;
 
   cout << "\n";

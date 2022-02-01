@@ -16,7 +16,7 @@
 #include "bcstatetransfer/STDigest.hpp"
 #include "Logger.hpp"
 #include "s3/client.hpp"
-#include "PersistentStorage.hpp"
+#include "bftengine/PersistentStorage.hpp"
 #include "storage_factory_interface.h"
 #include "categorization/blocks.h"
 
@@ -27,7 +27,7 @@ namespace concord::kvbc {
 class IStorageFactory;
 }
 
-namespace concord::tests::integrity {
+namespace concord::storage::s3 {
 
 using namespace concord::storage;
 using concordUtils::Sliver;
@@ -117,6 +117,7 @@ class IntegrityChecker {
   } params_;
 
   concord::kvbc::IStorageFactory::DatabaseSet dbset_;
+  logging::Logger logger_ = logging::getLogger("concord.storage.s3.integrity");
 };
 
-}  // namespace concord::tests::integrity
+}  // namespace concord::storage::s3

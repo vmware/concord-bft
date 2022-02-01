@@ -19,11 +19,8 @@
 #include <map>
 #include <vector>
 #include "string.hpp"
-#ifdef USE_S3_OBJECT_STORE
-#include "s3/client.hpp"
-#endif
 
-namespace concord::tests::config {
+namespace concord::util {
 
 class ConfigFileParser {
   typedef std::multimap<std::string, std::string> ParamsMultiMap;
@@ -60,33 +57,4 @@ class ConfigFileParser {
   logging::Logger& logger_;
 };
 
-#ifdef USE_S3_OBJECT_STORE
-
-class S3ConfigFileParser {
- public:
-  S3ConfigFileParser(const std::string& s3ConfigFile) : parser_{logger_, s3ConfigFile} {}
-  concord::storage::s3::StoreConfig parse();
-
- protected:
-  template <typename T>
-  T get_optional_value(const std::string& key, const T& defaultValue) {
-    std::vector<std::string> v = parser_.GetValues(key);
-    if (v.size())
-      return concord::util::to<T>(v[0]);
-    else
-      return defaultValue;
-  }
-  template <typename T>
-  T get_value(const std::string& key) {
-    std::vector<std::string> v = parser_.GetValues(key);
-    if (v.size())
-      return concord::util::to<T>(v[0]);
-    else
-      throw std::runtime_error("failed to parse " + parser_.getConfigFileName() + ": " + key + " is not set.");
-  }
-
-  logging::Logger logger_ = logging::getLogger("concord.tests.config.s3");
-  ConfigFileParser parser_;
-};
-#endif
-}  // namespace concord::tests::config
+}  // namespace concord::util
