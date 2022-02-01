@@ -166,7 +166,7 @@ class ThinReplicaImpl {
     }
 
     std::stringstream msg;
-    if (isRequestOutOfRange(request, msg, kvb_filter)) return grpc::Status(grpc::StatusCode::OUT_OF_RANGE, msg.str());
+    if (isRequestOutOfRange(request, kvb_filter)) return grpc::Status(grpc::StatusCode::OUT_OF_RANGE, msg.str());
     if (isUpdatePruned(request, msg, kvb_filter)) return grpc::Status(grpc::StatusCode::NOT_FOUND, msg.str());
 
     LOG_DEBUG(logger_, "ReadStateHash");
@@ -235,7 +235,6 @@ class ThinReplicaImpl {
   grpc::Status SubscribeToUpdates(ServerContextT* context,
                                   const com::vmware::concord::thin_replica::SubscriptionRequest* request,
                                   ServerWriterT* stream) {
-    LOG_DEBUG(logger_, "SubscribeToUpdates " << (request->has_events() ? "legacy" : "event groups"));
     std::string stream_type;
     if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Data>()) {
       stream_type = "data";
@@ -252,7 +251,7 @@ class ThinReplicaImpl {
     }
 
     std::stringstream msg;
-    if (isRequestOutOfRange(request, msg, kvb_filter)) return grpc::Status(grpc::StatusCode::OUT_OF_RANGE, msg.str());
+    if (isRequestOutOfRange(request, kvb_filter)) return grpc::Status(grpc::StatusCode::OUT_OF_RANGE, msg.str());
     if (isUpdatePruned(request, msg, kvb_filter)) return grpc::Status(grpc::StatusCode::NOT_FOUND, msg.str());
 
     auto [subscribe_status, live_updates] = subscribeToLiveUpdates(request, getClientId(context), kvb_filter);
@@ -479,23 +478,17 @@ class ThinReplicaImpl {
   }
 
   template <typename RequestT>
-  bool isRequestOutOfRange(RequestT* request, std::stringstream& msg, KvbAppFilterPtr kvb_filter) {
+  bool isRequestOutOfRange(RequestT* request, KvbAppFilterPtr kvb_filter) {
     if (request->has_events()) {
       // Determine latest block available
       auto last_block_id = (config_->rostorage)->getLastBlockId();
       if (request->events().block_id() > last_block_id) {
-        msg << "Block " << request->events().block_id() << " doesn't exist yet "
-            << " latest block is " << last_block_id;
-        LOG_DEBUG(logger_, msg.str());
         return true;
       }
     } else {
       // Determine latest event group available
       auto last_eg_id = kvb_filter->newestTagSpecificPublicEventGroupId();
       if (request->event_groups().event_group_id() > last_eg_id) {
-        msg << "Event group ID " << request->event_groups().event_group_id() << " doesn't exist yet."
-            << " Latest event_group_id is " << last_eg_id;
-        LOG_DEBUG(logger_, msg.str());
         return true;
       }
     }
