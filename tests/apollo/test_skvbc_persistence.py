@@ -115,12 +115,31 @@ class SkvbcPersistenceTest(unittest.TestCase):
         """
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+
+        # Pre-write a number of blocks to the chain to avoid the situation where
+        # a replica fails to execute and needs to recover from the genesis block - this is an unhandled
+        # edge case. This is possible when only a single write is used because
+        # a reply guarantees 2f + 1 executions while the remaining f replicas race
+        # to execute concurrently with the shutdown. By pre-writing to the chain we make sure
+        # some number of blocks > 1 are created on every replica.
+        # See BC-17607 for more info.
+        
+        # Important: block accumulation is assumed to be turned off!
+        for _ in range(5):
+            await skvbc.send_write_kv_set()
+        
+        client = bft_network.random_client()
+        
+        # Check that we've created more than 1 block
+        last_block_id = skvbc.parse_reply(await client.read(skvbc.get_last_block_req()))
+        self.assertGreater(last_block_id, 1) 
+
         (key, val) = await skvbc.send_write_kv_set()
 
         bft_network.stop_all_replicas()
         bft_network.start_all_replicas()
 
-        kv_reply = await skvbc.send_read_kv_set(bft_network.random_client(), key)
+        kv_reply = await skvbc.send_read_kv_set(client, key)
 
         self.assertEqual({key: val}, kv_reply)
 
