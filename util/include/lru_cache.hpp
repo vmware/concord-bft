@@ -58,7 +58,21 @@ class LruCache {
 
   Stats getStats() const { return stats_; }
 
+  void clear() {
+    keys_.clear();
+    map_.clear();
+    stats_ = Stats{};
+  }
+
  protected:
+  using MapVal = std::pair<Value, typename std::list<Key>::iterator>;
+
+  const size_t capacity_;
+  // Access list from most recently used at the front, to least recently used at the back
+  std::list<Key> keys_;
+  std::unordered_map<Key, MapVal> map_;
+  Stats stats_;
+
   void moveToFront(typename std::list<Key>::iterator it) { keys_.splice(keys_.begin(), keys_, it); }
 
   template <typename K, typename V>
@@ -81,16 +95,6 @@ class LruCache {
 
   // A call back method, if a derived class needs to do something before it erases the element.
   virtual void beforeErase() {}
-
-  const size_t capacity_;
-
-  using MapVal = std::pair<Value, typename std::list<Key>::iterator>;
-
-  // Access list from most recently used at the front, to least recently used at the back
-  std::list<Key> keys_;
-  std::unordered_map<Key, MapVal> map_;
-
-  Stats stats_;
 };
 
 }  // namespace concord::util
