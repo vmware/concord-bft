@@ -99,6 +99,12 @@ CONCORD_BFT_USER_GROUP?=--user `id -u`:`id -g`
 CONCORD_BFT_CORE_DIR?=${CONCORD_BFT_TARGET_SOURCE_PATH}/${CONCORD_BFT_BUILD_DIR}/cores
 
 CONCORD_BFT_ADDITIONAL_RUN_PARAMS?=
+APOLLO_CTEST_RUN_PARAMS?=
+
+ifneq (${APOLLO_LOG_STDOUT},)
+	CONCORD_BFT_ADDITIONAL_RUN_PARAMS+=--env APOLLO_LOG_STDOUT=TRUE
+    CONCORD_BFT_ADDITIONAL_CTEST_RUN_PARAMS+=-V
+endif
 
 BASIC_RUN_PARAMS?=-it --init --rm --privileged=true \
 					  --memory-swap -1 \
@@ -170,7 +176,7 @@ test-range: ## Run all tests in the range [START,END], inclusive: `make test-ran
 			${CONCORD_BFT_CONTAINER_SHELL} -c \
 			"mkdir -p ${CONCORD_BFT_CORE_DIR} && \
 			cd ${CONCORD_BFT_BUILD_DIR} && \
-			ctest -I ${START},${END}"
+			ctest ${CONCORD_BFT_ADDITIONAL_CTEST_RUN_PARAMS} -I ${START},${END}"
 
 .PHONY: format
 format: gen_cmake ## Format Concord-BFT source with clang-format
@@ -208,7 +214,7 @@ test: ## Run all tests
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"mkdir -p ${CONCORD_BFT_CORE_DIR} && \
 		cd ${CONCORD_BFT_BUILD_DIR} && \
-		ctest --timeout ${CONCORD_BFT_CTEST_TIMEOUT} --output-on-failure"
+		ctest ${CONCORD_BFT_ADDITIONAL_CTEST_RUN_PARAMS} --timeout ${CONCORD_BFT_CTEST_TIMEOUT} --output-on-failure"
 
 .PHONY: list-tests
 list-tests: gen_cmake ## List all tests. This one is helpful to choose which test to run when calling `make single-test TEST_NAME=<test name>`
@@ -223,7 +229,7 @@ single-test: ## Run a single test `make single-test TEST_NAME=<test name>`
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"mkdir -p ${CONCORD_BFT_CORE_DIR} && \
 		cd ${CONCORD_BFT_BUILD_DIR} && \
-		ctest -V -R ${TEST_NAME} --timeout ${CONCORD_BFT_CTEST_TIMEOUT} --output-on-failure"
+		ctest ${CONCORD_BFT_ADDITIONAL_CTEST_RUN_PARAMS} -V -R ${TEST_NAME} --timeout ${CONCORD_BFT_CTEST_TIMEOUT} --output-on-failure"
 
 .PHONY: clean
 clean: ## Clean Concord-BFT build directory

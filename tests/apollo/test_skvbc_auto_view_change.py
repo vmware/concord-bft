@@ -15,6 +15,7 @@ import random
 import unittest
 from os import environ
 
+from util.test_base import ApolloTest
 from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 from util.skvbc_history_tracker import verify_linearizability
@@ -38,7 +39,7 @@ def start_replica_cmd(builddir, replica_id):
             ]
 
 
-class SkvbcAutoViewChangeTest(unittest.TestCase):
+class SkvbcAutoViewChangeTest(ApolloTest):
 
     @with_trio
     @with_bft_network(start_replica_cmd)

@@ -19,6 +19,7 @@ import difflib
 import subprocess
 import shutil
 import tempfile
+from util.test_base import ApolloTest
 from util import bft
 from util import skvbc as kvbc
 from util.skvbc import SimpleKVBCProtocol
@@ -161,7 +162,7 @@ def start_replica_cmd_with_operator_and_public_keys(builddir, replica_id):
             "-o", builddir + "/operator_pub.pem",
             "--add-all-keys-as-public"]
 
-class SkvbcDbSnapshotTest(unittest.TestCase):
+class SkvbcDbSnapshotTest(ApolloTest):
     __test__ = False  # so that PyTest ignores this test scenario
 
     @with_trio

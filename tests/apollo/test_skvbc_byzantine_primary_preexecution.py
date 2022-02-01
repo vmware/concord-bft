@@ -16,6 +16,7 @@ from os import environ
 
 import trio
 
+from util.test_base import ApolloTest
 from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, with_constant_load
 from util.skvbc_history_tracker import verify_linearizability
@@ -75,7 +76,7 @@ def start_replica_cmd_asymmetric_communication(builddir, replica_id, view_change
     return cmd
 
 
-class SkvbcPrimaryByzantinePreExecutionTest(unittest.TestCase):
+class SkvbcPrimaryByzantinePreExecutionTest(ApolloTest):
 
     __test__ = False  # so that PyTest ignores this test scenario
 

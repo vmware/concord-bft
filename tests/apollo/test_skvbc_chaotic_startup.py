@@ -18,6 +18,7 @@ from os import environ
 
 import trio
 
+from util.test_base import ApolloTest
 from util.bft import with_trio, with_bft_network, with_constant_load, KEY_FILE_PREFIX, skip_for_tls
 from util import bft_network_partitioning as net
 from util import eliot_logging as log
@@ -46,7 +47,7 @@ def start_replica_cmd_with_vc_timeout(vc_timeout):
     return wrapper
 
 
-class SkvbcChaoticStartupTest(unittest.TestCase):
+class SkvbcChaoticStartupTest(ApolloTest):
 
     __test__ = False  # so that PyTest ignores this test scenario
 

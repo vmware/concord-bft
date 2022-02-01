@@ -13,6 +13,7 @@
 import os.path
 import unittest
 
+from util.test_base import ApolloTest
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 
 expected_number_of_executes = 3
@@ -36,7 +37,7 @@ def start_replica_cmd(builddir, replica_id):
             "-r", str(expected_number_of_executes)
             ]
 
-class SkvbcTestCron(unittest.TestCase):
+class SkvbcTestCron(ApolloTest):
     __test__ = False  # so that PyTest ignores this test scenario
 
     expected_component_id = "42"
