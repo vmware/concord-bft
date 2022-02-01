@@ -18,7 +18,13 @@ AdaptivePruningManager::AdaptivePruningManager(
       resourceManager(resourceManager),
       mode(LEGACY),
       interval(interval),
-      ro_storage_(ro_storage) {
+      ro_storage_(ro_storage),
+      metricComponent(std::string("Adaptive Pruning"), std::make_shared<concordMetrics::Aggregator>()),
+      ticksPerSecondMetric(metricComponent.RegisterGauge("ticks_per_second", 0)),
+      batchSizeMetric(metricComponent.RegisterGauge("batch_size", 0)),
+      transactionsPerSecondMetric(metricComponent.RegisterGauge("transactions_per_second", 0)),
+      postExecUtilizationMetric(metricComponent.RegisterGauge("post_exec_utilization", 0)),
+      pruningAvgTimeMicroMetric(metricComponent.RegisterGauge("pruning_avg_time_micro", 0)) {
   (void)ro_storage_;
   resourceManager->setPeriod(bftEngine::ReplicaConfig::instance().adaptivePruningIntervalPeriod);
 }
@@ -38,6 +44,17 @@ void AdaptivePruningManager::notifyReplicas(const long double &rate, const uint6
   pruneRequest.tick_period_seconds = 1;
 
   pruneRequest.batch_blocks_num = rate / bftEngine::ReplicaConfig::instance().numReplicas;
+
+  // Is this going to register all send values or just update current
+  ticksPerSecondMetric.Get().Set(pruneRequest.ticks_per_second);
+  batchSizeMetric.Get().Set(pruneRequest.batch_blocks_num);
+  transactionPerSecondMetric.Get().Set(pruneRequest.transactionsPerSecond);
+  postExecUtilizationMetric.Get().Set(pruneRequest.postExecUtilization);
+  pruningAvgTimeMicroMetric.Get().Set(pruneRequest.pruningAvgTimeMicro);
+
+  LOG_DEBUG(ADPTV_PRUNING,
+            "Sending PruneTicksChangeRequest { ticks per second = "
+                << pruneRequest.ticks_per_second << ", blocks per tick = " << pruneRequest.batch_blocks_num << " }");
 
   rreq.command = pruneRequest;
   rreq.sender = bftEngine::ReplicaConfig::instance().replicaId;
@@ -83,6 +100,7 @@ void AdaptivePruningManager::threadFunction() {
     if (isRunning.load()) {
       std::unique_lock<std::mutex> lk(conditionLock);
       auto info = resourceManager->getPruneInfo();
+
       notifyReplicas(info.blocksPerSecond, info.batchSize);
       conditionVar.wait_for(lk, interval);
     }

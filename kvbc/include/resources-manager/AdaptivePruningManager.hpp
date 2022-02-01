@@ -53,7 +53,7 @@ class AdaptivePruningManager {
   void notifyReplicas(const long double &rate, const uint64_t batchSize);
   const concord::messages::PruneSwitchModeRequest &getLatestConfiguration();
   void onTickChangeRequest(concord::messages::PruneTicksChangeRequest req) {
-    current_pruning_pace_ = req.tick_period_seconds;
+    current_pruning_pace_ = req.ticks_per_second;
     current_batch_size_ = req.batch_blocks_num;
   }
   uint32_t getCurrentPace() { return current_pruning_pace_; }
@@ -76,5 +76,8 @@ class AdaptivePruningManager {
   concord::messages::PruneSwitchModeRequest latestConfiguration_{0, PruningMode::LEGACY, {}};
   uint32_t current_pruning_pace_;
   uint64_t current_batch_size_;
+  concordMetrics::Component metricComponent;
+  concordMetrics::Component::Handle<concordMetrics::Gauge> ticksPerSecondMetric, batchSizeMetric,
+      transactionsPerSecondMetric, postExecUtilizationMetric, pruningAvgTimeMicroMetric;
 };
 }  // namespace concord::performance
