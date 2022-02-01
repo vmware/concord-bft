@@ -273,11 +273,12 @@ void DbCheckpointManager::checkAndRemove() {
 
 void DbCheckpointManager::removeOldestDbCheckpoint() {
   if (auto it = dbCheckptMetadata_.dbCheckPoints_.begin(); it != dbCheckptMetadata_.dbCheckPoints_.end()) {
-    removeCheckpoint(it->second.checkPointId_);
+    const auto checkpoint_id = it->second.checkPointId_;
+    removeCheckpoint(checkpoint_id);
     dbCheckptMetadata_.dbCheckPoints_.erase(it);
-    LOG_INFO(getLogger(), "removed db checkpoint, id: " << it->second.checkPointId_);
+    LOG_INFO(getLogger(), "removed db checkpoint, id: " << checkpoint_id);
     updateDbCheckpointMetadata();
-    removeDbCheckpointFuture(it->second.checkPointId_);
+    removeDbCheckpointFuture(checkpoint_id);
     if (dbCheckptMetadata_.dbCheckPoints_.size() == 0) {
       std::scoped_lock lock(lockLastDbCheckpointDesc_);
       lastCreatedCheckpointMetadata_ = std::nullopt;
