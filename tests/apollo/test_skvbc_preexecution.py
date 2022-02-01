@@ -97,6 +97,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
             await trio.sleep(.1)
         return read_count + write_count
 
+    @unittest.skip("Unstable test - BC-17831")
     @with_trio
     @with_bft_network(start_replica_cmd)
     @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
@@ -246,6 +247,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
                                             expected=lambda v: v == expected_next_primary,
                                             err_msg="Make sure view change has been triggered.")
 
+    @unittest.skip("Unstable test - BC-17831")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     @with_constant_load
