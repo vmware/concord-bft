@@ -74,7 +74,7 @@ NUM_PARTICIPANTS = 5
 @log_call(action_type="Test_Configs", include_args=[])
 def interesting_configs(selected=None):
     if selected is None:
-        selected=lambda *config: True
+        selected=lambda n, f, c: c == 0
 
     bft_configs = [{'n': 6, 'f': 1, 'c': 1, 'num_clients': BFT_CONFIGS_NUM_CLIENTS},
                    {'n': 7, 'f': 2, 'c': 0, 'num_clients': BFT_CONFIGS_NUM_CLIENTS},
