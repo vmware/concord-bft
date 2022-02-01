@@ -26,6 +26,7 @@ from datetime import datetime
 from functools import partial
 import inspect
 import time
+from typing import Callable
 
 import trio
 
@@ -57,6 +58,11 @@ class ConsensusPathPrevalentResult(Enum):
    OK = 0
    TOO_FEW_REQUESTS_ON_EXPECTED_PATH = 1
    TOO_MANY_REQUESTS_ON_UNEXPECTED_PATH = 2
+
+class ConsensusPathType(Enum):
+    SLOW = 'slow'
+    FAST_WITH_THRESHOLD = 'fast_with_threshold'
+    OPTIMISTIC_FAST = 'optimistic_fast'
 
 KEY_FILE_PREFIX = "replica_keys_"
 # bft_client.py  implement 2 types of clients currently:
@@ -183,7 +189,7 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
                             bft_network.current_test = async_fn.__name__ + "_n=" + str(bft_config['n']) \
                                                                          + "_f=" + str(bft_config['f']) \
                                                                          + "_c=" + str(bft_config['c'])
-                            with log.start_task(action_type=f"{bft_network.current_test}_num_clients={config.num_clients}"):
+                            with log.start_task(action_type=f"{bft_network.current_test}_num_clients={config.num_clients}", seed=args[0].test_seed) as action:
                                 if rotate_keys:
                                     await bft_network.check_initital_key_exchange(check_master_key_publication=publish_master_keys)
                                 bft_network.test_start_time = time.time()
@@ -1312,6 +1318,50 @@ class BftTestNetwork:
                                 # wait a bit before resending new requests
                                 await trio.sleep(seconds=5)
 
+
+    async def wait_for_consensus_path(self, path_type: ConsensusPathType,
+                                      send_request_func: Callable,
+                                      threshold: int,
+                                      replica_id: int = 0,
+                                      sleep_seconds: int = 1,
+                                      timeout: int = 60):
+        """
+        Waits until at least threshold operations are being executed in the selected path.
+          run_ops: lambda that executes skvbc.run_concurrent_ops or creates requests in some other way
+          threshold: minimum number of requests that have to be executed in the correct path
+        run_ops should produce at least threshold executions
+        """
+        path_to_metric = {ConsensusPathType.SLOW : self.num_of_slow_path_requests,
+                          ConsensusPathType.OPTIMISTIC_FAST : self.num_of_fast_path_requests,
+                          }
+        initial_count = await path_to_metric[path_type](replica_id)
+        print(f"type: {path_type}, initial_count: {initial_count}")
+        prev_diff = threshold
+
+        with log.start_action(action_type=f"wait_for_requests_in_path",
+                              path_type=path_type.value, request_count=threshold), \
+                trio.fail_after(seconds=timeout) as action:
+            for _ in range(threshold):
+                await send_request_func()
+
+            while True:
+                await trio.sleep(seconds=sleep_seconds)
+                current_count = await path_to_metric[path_type](replica_id)
+                assert initial_count < current_count, f"Inconsistent metrics values. initial value: {initial_count}," \
+                                                      f"current value: {current_count}"
+                counter_diff = current_count - initial_count
+                print(f"prv:{prev_diff} cnt:{counter_diff}")
+                if counter_diff >= threshold:
+                    break
+                if counter_diff < prev_diff:
+                    print("PROGRESS")
+                    action.log(message_type=f"info", path_type=path_type.value, remaining=f'counter_diff')
+                prev_diff = counter_diff
+
+
+
+
+
     async def wait_for_last_executed_seq_num(self, replica_id=0, expected=0):
         with log.start_action(action_type="wait_for_last_executed_seq_num"):
             async def expected_seq_num_to_be_reached():
@@ -1417,7 +1467,7 @@ class BftTestNetwork:
         """
         Returns the total number of requests processed on the fast commit path
         """
-        with log.start_action(action_type="num_of_fast_path_requests"):
+        with log.start_action(action_type="num_of_fast_path_requests", replica_id=replica_id):
             async def the_number_of_fast_path_requests():
                 metric_key = ['replica', 'Counters', 'totalFastPathRequests']
                 nb_fast_path = await self.retrieve_metric(replica_id, *metric_key)
@@ -1429,7 +1479,7 @@ class BftTestNetwork:
         """
         Returns the total number of requests processed on the slow commit path
         """
-        with log.start_action(action_type="num_of_slow_path_requests"):
+        with log.start_action(action_type="num_of_slow_path_requests", replica_id=replica_id):
             async def the_number_of_slow_path_requests():
                 metric_key = ['replica', 'Counters', 'totalSlowPathRequests']
                 nb_slow_path = await self.retrieve_metric(replica_id, *metric_key)

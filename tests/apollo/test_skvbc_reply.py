@@ -16,6 +16,8 @@ import random
 import unittest
 import trio
 
+from util.test_base import ApolloTest
+
 sys.path.append(os.path.abspath("../../util/pyclient"))
 
 from util import skvbc as kvbc
@@ -40,7 +42,7 @@ def start_replica_cmd(builddir, replica_id):
             "-e", str(True)
             ]
 
-class SkvbcReplyTest(unittest.TestCase):
+class SkvbcReplyTest(ApolloTest):
 
     @unittest.skip("Unstable test - BC-18035")
     @with_trio

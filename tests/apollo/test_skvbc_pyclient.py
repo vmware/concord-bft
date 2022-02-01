@@ -26,6 +26,8 @@ import sys
 import trio
 import unittest
 
+from util.test_base import ApolloTest
+
 sys.path.append(os.path.abspath("../../util/pyclient"))
 
 from bft_client import MofNQuorum
@@ -48,7 +50,7 @@ def start_replica_cmd(builddir, replica_id):
             "-s", status_timer_milli,
             ]
 
-class SkvbcPyclientTest(unittest.TestCase):
+class SkvbcPyclientTest(ApolloTest):
 
     
     @with_trio
