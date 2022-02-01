@@ -67,6 +67,7 @@ enum MsgFlag : uint64_t {
 // and basically any management action that is handled by the layer that uses concord-bft.
 class IControlHandler {
  public:
+  enum CallbackPriorities { HIGH = 0, DEFAULT = 20, LOW = 40 };
   static const std::shared_ptr<IControlHandler> instance(IControlHandler *ch = nullptr) {
     static const std::shared_ptr<IControlHandler> ch_(ch);
     return ch_;
@@ -77,8 +78,10 @@ class IControlHandler {
   virtual bool isOnNOutOfNCheckpoint() const = 0;
   virtual bool isOnStableCheckpoint() const = 0;
   virtual void setOnPruningProcess(bool inProcess) = 0;
-  virtual void addOnSuperStableCheckpointCallBack(const std::function<void()> &cb) = 0;
-  virtual void addOnStableCheckpointCallBack(const std::function<void()> &cb) = 0;
+  virtual void addOnSuperStableCheckpointCallBack(const std::function<void()> &cb,
+                                                  CallbackPriorities prio = IControlHandler::DEFAULT) = 0;
+  virtual void addOnStableCheckpointCallBack(const std::function<void()> &cb,
+                                             CallbackPriorities prio = IControlHandler::DEFAULT) = 0;
   virtual void resetState() = 0;
   virtual ~IControlHandler() = default;
 };

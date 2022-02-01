@@ -84,6 +84,7 @@ class ReconfigurationHandler : public BftReconfigurationHandler {
  private:
   void handleWedgeCommands(
       bool bft_support, bool remove_metadata, bool restart, bool unwedge, bool blockNewConnections);
+  void addCreateDbSnapshotCbOnWedge(bool bft_support);
 };
 
 class ClientReconfigurationHandler : public concord::reconfiguration::IReconfigurationHandler {
