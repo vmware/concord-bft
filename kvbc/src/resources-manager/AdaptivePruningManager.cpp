@@ -8,27 +8,27 @@ using namespace concord::performance;
 
 AdaptivePruningManager::AdaptivePruningManager(
     const std::shared_ptr<concord::performance::IResourceManager> &resourceManager,
-    const std::chrono::duration<double, std::milli> &interval,
-    const std::shared_ptr<bftEngine::impl::IInternalBFTClient> &bftClient)
+    const std::chrono::duration<double, std::milli> &interval)
     : repId(bftEngine::ReplicaConfig::instance().getreplicaId()),
       resourceManager(resourceManager),
       mode(LEGACY),
-      interval(interval),
-      bftClient(bftClient) {
-  start();
-}
+      interval(interval) {}
 
 AdaptivePruningManager::~AdaptivePruningManager() { stop(); }
 
 void AdaptivePruningManager::notifyReplicas(const long double &rate, const uint64_t batchSize) {
+  if (!bftClient) {
+    LOG_ERROR(ADPTV_PRUNING, "BFT client is not set");
+    return;
+  }
   concord::messages::ReconfigurationRequest rreq;
 
   concord::messages::PruneTicksChangeRequest pruneRequest;
+
   pruneRequest.sender_id = bftClient->getClientId();
   pruneRequest.tick_period_seconds = 1;
 
-  pruneRequest.batch_blocks_num =
-      rate / bftClient->numOfConnectedReplicas(bftEngine::ReplicaConfig::instance().numReplicas);
+  pruneRequest.batch_blocks_num = rate / bftEngine::ReplicaConfig::instance().numReplicas;
 
   rreq.command = pruneRequest;
   rreq.sender = bftClient->getClientId();
@@ -67,9 +67,11 @@ void AdaptivePruningManager::threadFunction() {
 
 void AdaptivePruningManager::start() {
   std::unique_lock<std::mutex> lk(conditionLock);
-  if (!isRunning.load() && resourceManager.get() != nullptr) {
+  if (!isRunning.load() && resourceManager.get() != nullptr && bftClient.get() != nullptr) {
     isRunning = true;
     workThread = std::thread(&AdaptivePruningManager::threadFunction, this);
+  } else {
+    LOG_INFO(ADPTV_PRUNING, "Failed to start thread");
   }
 }
 
@@ -79,4 +81,10 @@ void AdaptivePruningManager::stop() {
     conditionVar.notify_one();
     workThread.join();
   }
+}
+
+void AdaptivePruningManager::initBFTClient(const std::shared_ptr<bftEngine::impl::IInternalBFTClient> &cl) {
+  bftClient = cl;
+  start();
+  LOG_INFO(ADPTV_PRUNING, "Initializing client and starting the thread");
 }

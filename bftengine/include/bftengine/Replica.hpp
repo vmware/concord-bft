@@ -27,6 +27,7 @@
 #include "PerformanceManager.hpp"
 #include "PersistentStorage.hpp"
 #include "IRequestHandler.hpp"
+#include "InternalBFTClient.hpp"
 
 namespace concord::cron {
 class TicksGenerator;
@@ -92,7 +93,8 @@ class IReplica {
                                       bft::communication::ICommunication *,
                                       MetadataStorage *,
                                       std::shared_ptr<concord::performance::PerformanceManager> pm,
-                                      const std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> &sm);
+                                      const std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> &sm,
+                                      const std::function<void(bool)> &);
   static IReplicaPtr createNewReplica(const ReplicaConfig &,
                                       std::shared_ptr<IRequestsHandler>,
                                       IStateTransfer *,
@@ -100,7 +102,8 @@ class IReplica {
                                       MetadataStorage *,
                                       bool &erasedMetadata,
                                       std::shared_ptr<concord::performance::PerformanceManager> pm,
-                                      const std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> &sm);
+                                      const std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> &sm,
+                                      const std::function<void(bool)> &);
 
   static IReplicaPtr createNewRoReplica(const ReplicaConfig &,
                                         std::shared_ptr<IRequestsHandler>,
@@ -124,6 +127,9 @@ class IReplica {
 
   // Returns the internal ticks generator or nullptr if not applicable.
   virtual std::shared_ptr<concord::cron::TicksGenerator> ticksGenerator() const = 0;
+
+  // Returns the internal client or nullptr if not applicable.
+  virtual std::shared_ptr<IInternalBFTClient> internalClient() const = 0;
 
   // Returns the internal persistent storage object.
   virtual std::shared_ptr<impl::PersistentStorage> persistentStorage() const = 0;

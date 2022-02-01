@@ -20,6 +20,7 @@
 #include "SigManager.hpp"
 #include "reconfiguration/reconfiguration_handler.hpp"
 #include "categorization/kv_blockchain.h"
+#include "AdaptivePruningManager.hpp"
 
 #include <functional>
 #include <string>
@@ -96,8 +97,12 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
                                public ReconfigurationBlockTools,
                                public StateValueConverter {
  public:
-  ReconfigurationHandler(kvbc::IBlockAdder& block_adder, kvbc::IReader& ro_storage)
-      : ReconfigurationBlockTools{block_adder, ro_storage} {}
+  ReconfigurationHandler(kvbc::IBlockAdder& block_adder,
+                         kvbc::IReader& ro_storage,
+                         concord::performance::AdaptivePruningManager& apm)
+      : ReconfigurationBlockTools{block_adder, ro_storage}, apm_(apm) {
+    (void)apm_;  // unused for now
+  }
   bool handle(const concord::messages::WedgeCommand& command,
               uint64_t bft_seq_num,
               uint32_t,
@@ -237,6 +242,9 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
               uint32_t,
               const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
+
+ private:
+  concord::performance::AdaptivePruningManager& apm_;
 };
 /**
  * This component is reposnsible for logging internal reconfiguration requests to the blockchain (such as noop
@@ -245,8 +253,12 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
 class InternalKvReconfigurationHandler : public concord::reconfiguration::IReconfigurationHandler,
                                          public ReconfigurationBlockTools {
  public:
-  InternalKvReconfigurationHandler(kvbc::IBlockAdder& block_adder, kvbc::IReader& ro_storage)
-      : ReconfigurationBlockTools{block_adder, ro_storage} {}
+  InternalKvReconfigurationHandler(kvbc::IBlockAdder& block_adder,
+                                   kvbc::IReader& ro_storage,
+                                   concord::performance::AdaptivePruningManager& apm)
+      : ReconfigurationBlockTools{block_adder, ro_storage}, apm_(apm) {
+    (void)apm_;  // unsused for now
+  }
   bool verifySignature(uint32_t sender_id, const std::string& data, const std::string& signature) const override;
 
   bool handle(const concord::messages::WedgeCommand& command,
@@ -264,6 +276,9 @@ class InternalKvReconfigurationHandler : public concord::reconfiguration::IRecon
               uint32_t,
               const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
+
+ private:
+  concord::performance::AdaptivePruningManager& apm_;
 };
 
 class InternalPostKvReconfigurationHandler : public concord::reconfiguration::IReconfigurationHandler,

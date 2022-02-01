@@ -39,6 +39,7 @@
 #include "bftengine/ReplicaConfig.hpp"
 #include "communication/StateControl.hpp"
 #include "bftengine/DbCheckpointManager.hpp"
+#include "IntervalMappingResourceManager.hpp"
 
 using bft::communication::ICommunication;
 using bftEngine::bcst::StateTransferDigest;
@@ -46,6 +47,7 @@ using concord::kvbc::categorization::kConcordInternalCategoryId;
 using concord::kvbc::categorization::kConcordReconfigurationCategoryId;
 using namespace concord::diagnostics;
 using namespace concord::performance;
+using namespace std::chrono_literals;
 
 using concord::storage::DBMetadataStorage;
 
@@ -166,11 +168,11 @@ class KvbcRequestHandler : public bftEngine::RequestHandler {
 };
 void Replica::registerReconfigurationHandlers(std::shared_ptr<bftEngine::IRequestsHandler> requestHandler) {
   requestHandler->setReconfigurationHandler(
-      std::make_shared<kvbc::reconfiguration::ReconfigurationHandler>(*this, *this),
+      std::make_shared<kvbc::reconfiguration::ReconfigurationHandler>(*this, *this, this->AdaptivePruningManager_),
       concord::reconfiguration::ReconfigurationHandlerType::PRE);
-  requestHandler->setReconfigurationHandler(
-      std::make_shared<kvbc::reconfiguration::InternalKvReconfigurationHandler>(*this, *this),
-      concord::reconfiguration::ReconfigurationHandlerType::PRE);
+  requestHandler->setReconfigurationHandler(std::make_shared<kvbc::reconfiguration::InternalKvReconfigurationHandler>(
+                                                *this, *this, this->AdaptivePruningManager_),
+                                            concord::reconfiguration::ReconfigurationHandlerType::PRE);
   requestHandler->setReconfigurationHandler(
       std::make_shared<kvbc::reconfiguration::KvbcClientReconfigurationHandler>(*this, *this),
       concord::reconfiguration::ReconfigurationHandlerType::PRE);
@@ -300,8 +302,16 @@ void Replica::createReplicaAndSyncState() {
       KvbcRequestHandler::create(m_cmdHandler, cronTableRegistry_, *m_kvBlockchain, aggregator_, replicaResources_);
   registerReconfigurationHandlers(requestHandler);
   m_replicaPtr = bftEngine::IReplica::createNewReplica(
-      replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm, m_metadataStorage, pm_, secretsManager_);
+      replicaConfig_,
+      requestHandler,
+      m_stateTransfer,
+      m_ptrComm,
+      m_metadataStorage,
+      pm_,
+      secretsManager_,
+      std::bind(&AdaptivePruningManager::setPrimay, &AdaptivePruningManager_, std::placeholders::_1));
   requestHandler->setPersistentStorage(m_replicaPtr->persistentStorage());
+  AdaptivePruningManager_.initBFTClient(m_replicaPtr->internalClient());
 
   // Make sure that when state transfer completes, we persist the last kvbc block ID in metadata.
   m_stateTransfer->addOnTransferringCompleteCallback([this](std::uint64_t) {
@@ -474,7 +484,13 @@ Replica::Replica(ICommunication *comm,
       pm_{pm},
       secretsManager_{secretsManager},
       blocksIOWorkersPool_((replicaConfig.numWorkerThreadsForBlockIO > 0) ? replicaConfig.numWorkerThreadsForBlockIO
-                                                                          : std::thread::hardware_concurrency()) {
+                                                                          : std::thread::hardware_concurrency()),
+      AdaptivePruningManager_{
+          concord::performance::IntervalMappingResourceManager::createIntervalMappingResourceManager(
+              replicaResources_,
+              std::vector<std::pair<uint64_t, uint64_t>>{
+                  concord::performance::IntervalMappingResourceManager::default_mapping}),
+          20000ms} {
   bft::communication::StateControl::instance().setCommRestartCallBack(
       [this](uint32_t i) { m_ptrComm->restartCommunication(i); });
   // Populate ST configuration

@@ -14,21 +14,44 @@
 
 using namespace concord::performance;
 
+// IntervalMappingResourceManager::IntervalMappingResourceManager(ISystemResourceEntity &replicaResources,
+//                                  std::vector<std::pair<uint64_t, uint64_t>> &&intervalMapping)
+//       : replicaResources_(replicaResources), intervalMapping_(std::move(intervalMapping)) {
+//         std::ostringstream intervals;
+//         for(const auto& p:intervalMapping_){
+//           intervals << "{" << p.first << "," << p.second << "},";
+//         }
+//         LOG_INFO(ADPTV_PRUNING,"Constructing with the following intervals " << intervals.str());
+// }
+
+const std::vector<std::pair<uint64_t, uint64_t>> IntervalMappingResourceManager::default_mapping = {
+    {20, 35}, {100, 21}, {300, 14}, {500, 7}};
+
+IntervalMappingResourceManager::IntervalMappingResourceManager(
+    ISystemResourceEntity &replicaResources, std::vector<std::pair<uint64_t, uint64_t>> &&intervalMapping)
+    : replicaResources_(replicaResources), intervalMapping_(std::move(intervalMapping)) {
+  std::ostringstream intervals;
+  for (const auto &[rate, blocks] : intervalMapping_) {
+    intervals << "{" << rate << "," << blocks << "},";
+  }
+  LOG_INFO(ADPTV_PRUNING, "Constructing with the following intervals {rate,blocks}" << intervals.str());
+}
+
 PruneInfo IntervalMappingResourceManager::getPruneInfo() {
   auto duration = getDurationFromLastCallSec();
   if (duration == 0) {
-    replicaResources_->reset();
+    replicaResources_.reset();
     return PruneInfo{};
   }
 
   // Get measurements and emit stats log
-  auto transactions = replicaResources_->getMeasurement(ISystemResourceEntity::type::transactions_accumulated);
-  auto postExecUtilization = replicaResources_->getMeasurement(ISystemResourceEntity::type::post_execution_utilization);
-  auto pruningUtilization = replicaResources_->getMeasurement(ISystemResourceEntity::type::pruning_utilization);
-  auto pruningAvgTimeMicro = replicaResources_->getMeasurement(ISystemResourceEntity::type::pruning_avg_time_micro);
+  auto transactions = replicaResources_.getMeasurement(ISystemResourceEntity::type::transactions_accumulated);
+  auto postExecUtilization = replicaResources_.getMeasurement(ISystemResourceEntity::type::post_execution_utilization);
+  auto pruningUtilization = replicaResources_.getMeasurement(ISystemResourceEntity::type::pruning_utilization);
+  auto pruningAvgTimeMicro = replicaResources_.getMeasurement(ISystemResourceEntity::type::pruning_avg_time_micro);
   auto tps = transactions / duration;
   // in order to give an up to date result in the next invocation
-  replicaResources_->reset();
+  replicaResources_.reset();
   auto it = std::upper_bound(intervalMapping_.begin(), intervalMapping_.end(), std::make_pair(tps, (u_int64_t)0));
 
   PruneInfo ret;
