@@ -231,6 +231,9 @@ Msg ReplicaMainKeyUpdate 64 {
     string format
 }
 
+Msg LatestEpochData 75 {
+}
+
 Msg ClientStateReply 39 {
     uint64 block_id
     oneof {
@@ -240,6 +243,7 @@ Msg ClientStateReply 39 {
         ClientsAddRemoveUpdateCommand
         ClientsRestartCommand
         ReplicaTlsExchangeKey
+        LatestEpochData
         ReplicaMainKeyUpdate
       } response
     uint64 epoch
