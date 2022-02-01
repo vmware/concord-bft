@@ -71,7 +71,7 @@ class PreProcessReplyMsg : public MessageBase {
     uint16_t clientId = 0;
     uint16_t reqOffsetInBatch = 0;
     ReplyStatus status = STATUS_GOOD;
-    bftEngine::OperationResult preProcessResult = bftEngine::OperationResult::SUCCESS;
+    bftEngine::OperationResult preProcessResult = bftEngine::OperationResult::UNKNOWN;
     uint8_t resultsHash[concord::util::SHA3_256::SIZE_IN_BYTES];
     uint32_t replyLength = 0;
     uint32_t cidLength = 0;
