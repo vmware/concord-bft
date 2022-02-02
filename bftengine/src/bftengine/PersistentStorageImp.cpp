@@ -237,11 +237,11 @@ void PersistentStorageImp::saveDescriptorOfLastExitFromView(const DescriptorOfLa
   uint32_t maxComplaintSize = DescriptorOfLastExitFromView::maxComplaintSize();
   UniquePtrToChar complaintBuf(new char[maxComplaintSize]);
   for (size_t i = 0; i < complaintsNum; ++i) {
-    newDesc.serializeComplaint(i, elementBuf.get(), maxComplaintSize, actualComplaintSize);
+    newDesc.serializeComplaint(i, complaintBuf.get(), maxComplaintSize, actualComplaintSize);
     ConcordAssertNE(actualComplaintSize, 0);
     uint32_t itemId = LAST_COMPLAINTS_DESC + i;
     ConcordAssertLT(itemId, LAST_EXEC_DESC);
-    metadataStorage_->writeInBatch(itemId, elementBuf.get(), actualComplaintSize);
+    metadataStorage_->writeInBatch(itemId, complaintBuf.get(), actualComplaintSize);
   }
 }
 
