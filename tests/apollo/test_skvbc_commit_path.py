@@ -44,7 +44,6 @@ class SkvbcCommitPathTest(unittest.TestCase):
 
     __test__ = False  # so that PyTest ignores this test scenario
 
-    @unittest.skip("This is the initial state covered in test_commit_path_transitions and is kept as a manual testing option.")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n >= 6, rotate_keys=True)
     @verify_linearizability()
