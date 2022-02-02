@@ -159,6 +159,9 @@ class Replica : public IReplica,
   }
 
   std::optional<categorization::KeyValueBlockchain> &kvBlockchain() { return m_kvBlockchain; }
+  void setStateSnapshotValueConverter(const categorization::KeyValueBlockchain::Converter &c) {
+    m_stateSnapshotValueConverter = c;
+  }
 
   ~Replica() override;
 
@@ -212,6 +215,8 @@ class Replica : public IReplica,
   concord::kvbc::IStorageFactory::DatabaseSet m_dbSet;
   // The categorization KeyValueBlockchain is used for a normal read-write replica.
   std::optional<categorization::KeyValueBlockchain> m_kvBlockchain;
+  categorization::KeyValueBlockchain::Converter m_stateSnapshotValueConverter{
+      categorization::KeyValueBlockchain::kNoopConverter};
   // The IdbAdapter instance is used for a read-only replica.
   std::unique_ptr<IDbAdapter> m_bcDbAdapter;
   std::shared_ptr<storage::IDBClient> m_metadataDBClient;

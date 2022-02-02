@@ -44,13 +44,15 @@ class KeyValueBlockchain {
   // Allows users to convert keys or values to any format that is appropriate.
   using Converter = std::function<std::string(std::string&&)>;
 
+  // The noop converter returns the input string as is, without modifying it.
+  static const Converter kNoopConverter;
+
  public:
   // Creates a key-value blockchain.
   // If `category_types` is nullopt, the persisted categories in storage will be used.
-  // If `category_types` has a value, it should contain all persisted categories in storage at a minimum. New ones will
-  // be created and persisted.
-  // Users are required to pass a value for `category_types` on first construction (i.e. a new blockchain) in order to
-  // specify the categories in use. Failure to do so will generate an exception.
+  // If `category_types` has a value, it should contain all persisted categories in storage at a minimum. New ones
+  // will be created and persisted. Users are required to pass a value for `category_types` on first construction
+  // (i.e. a new blockchain) in order to specify the categories in use. Failure to do so will generate an exception.
   KeyValueBlockchain(const std::shared_ptr<concord::storage::rocksdb::NativeClient>& native_client,
                      bool link_st_chain,
                      const std::optional<std::map<std::string, CATEGORY_TYPE>>& category_types = std::nullopt);
@@ -144,7 +146,7 @@ class KeyValueBlockchain {
   //
   // This method is supposed to be called on DB snapshots only and not on the actual blockchain.
   // Precondition: The current KeyValueBlockchain instance points to a DB snapshot.
-  void computeAndPersistPublicStateHash(BlockId checkpoint_block_id);
+  void computeAndPersistPublicStateHash(BlockId checkpoint_block_id, const Converter& value_converter = kNoopConverter);
 
   // Returns the public state keys as of the current point in the blockchain's history.
   // Returns std::nullopt if no public keys have been persisted.
