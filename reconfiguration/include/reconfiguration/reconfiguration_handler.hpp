@@ -88,6 +88,7 @@ class ReconfigurationHandler : public BftReconfigurationHandler {
 };
 
 class ClientReconfigurationHandler : public concord::reconfiguration::IReconfigurationHandler {
+ public:
   bool handle(const concord::messages::ClientExchangePublicKey &,
               uint64_t,
               uint32_t,

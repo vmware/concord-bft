@@ -170,6 +170,9 @@ void Replica::registerReconfigurationHandlers(std::shared_ptr<bftEngine::IReques
   requestHandler->setReconfigurationHandler(
       std::make_shared<kvbc::reconfiguration::ReconfigurationHandler>(*this, *this, this->AdaptivePruningManager_),
       concord::reconfiguration::ReconfigurationHandlerType::PRE);
+  requestHandler->setReconfigurationHandler(
+      std::make_shared<kvbc::reconfiguration::StateSnapshotReconfigurationHandler>(*this, *this),
+      concord::reconfiguration::ReconfigurationHandlerType::PRE);
   requestHandler->setReconfigurationHandler(std::make_shared<kvbc::reconfiguration::InternalKvReconfigurationHandler>(
                                                 *this, *this, this->AdaptivePruningManager_),
                                             concord::reconfiguration::ReconfigurationHandlerType::PRE);
@@ -345,14 +348,14 @@ void Replica::createReplicaAndSyncState() {
       m_replicaPtr->persistentStorage(),
       aggregator_,
       [this]() -> uint64_t { return getLastBlockId(); },
-      [](BlockId block_id_at_checkpoint, const std::string &path) {
+      [value_converter = m_stateSnapshotValueConverter](BlockId block_id_at_checkpoint, const std::string &path) {
         const auto read_only = false;
         auto db = storage::rocksdb::NativeClient::newClient(
             path, read_only, storage::rocksdb::NativeClient::DefaultOptions{});
         const auto link_st_chain = false;
         auto kvbc = categorization::KeyValueBlockchain{db, link_st_chain};
         kvbc.trimBlocksFromSnapshot(block_id_at_checkpoint);
-        kvbc.computeAndPersistPublicStateHash(block_id_at_checkpoint);
+        kvbc.computeAndPersistPublicStateHash(block_id_at_checkpoint, value_converter);
       });
 }
 

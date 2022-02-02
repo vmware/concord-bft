@@ -159,6 +159,222 @@ concord::messages::ClientStateReply KvbcClientReconfigurationHandler::buildClien
   return creply;
 }
 
+bool StateSnapshotReconfigurationHandler::handle(const concord::messages::StateSnapshotRequest& cmd,
+                                                 uint64_t sequence_number,
+                                                 uint32_t,
+                                                 const std::optional<bftEngine::Timestamp>& timestamp,
+                                                 concord::messages::ReconfigurationResponse& rres) {
+  if (!bftEngine::ReplicaConfig::instance().dbCheckpointFeatureEnabled ||
+      bftEngine::ReplicaConfig::instance().maxNumberOfDbCheckpoints == 0) {
+    const auto err = "StateSnapshotRequest(participant ID = " + cmd.participant_id +
+                     "): failed, the DB checkpoint feature is disabled";
+    LOG_WARN(getLogger(), err);
+    rres.response = concord::messages::ReconfigurationErrorMsg{err};
+    return false;
+  }
+
+  auto resp = concord::messages::StateSnapshotResponse{};
+  const auto last_checkpoint_desc = DbCheckpointManager::instance().getLastCreatedDbCheckpointMetadata();
+  // TODO: We currently only support new participants and, therefore, the event group ID will always be the one before
+  // the first one, namely 0.
+  if (last_checkpoint_desc) {
+    resp.data.emplace();
+    resp.data->snapshot_id = last_checkpoint_desc->checkPointId_;
+    resp.data->event_group_id = 0;
+    const auto read_only = true;
+    auto db = NativeClient::newClient(
+        DbCheckpointManager::instance().getPathForCheckpoint(last_checkpoint_desc->checkPointId_),
+        read_only,
+        NativeClient::DefaultOptions{});
+    const auto link_st_chain = false;
+    const auto kvbc = KeyValueBlockchain{db, link_st_chain};
+    const auto public_state = kvbc.getPublicStateKeys();
+    if (!public_state) {
+      resp.data->key_value_count_estimate = 0;
+    } else {
+      resp.data->key_value_count_estimate = public_state->keys.size();
+    }
+    LOG_INFO(getLogger(),
+             "StateSnapshotRequest(participant ID = " << cmd.participant_id << "): using existing last checkpoint ID: "
+                                                      << last_checkpoint_desc->checkPointId_);
+  } else {
+    const auto checkpoint_id =
+        DbCheckpointManager::instance().createDbCheckpointAsync(sequence_number, timestamp, std::nullopt);
+    if (checkpoint_id) {
+      resp.data.emplace();
+      resp.data->snapshot_id = *checkpoint_id;
+      resp.data->event_group_id = 0;
+      // If we are creating the snapshot now, return an estimate based on the blockchain and not on the snapshot itself
+      // (as it is created asynchronously).
+      const auto opt_val =
+          ro_storage_.getLatest(categorization::kConcordInternalCategoryId, keyTypes::state_public_key_set);
+      if (!opt_val) {
+        resp.data->key_value_count_estimate = 0;
+      } else {
+        auto public_state = categorization::PublicStateKeys{};
+        const auto val = std::get_if<categorization::VersionedValue>(&opt_val.value());
+        ConcordAssertNE(val, nullptr);
+        categorization::detail::deserialize(val->data, public_state);
+        resp.data->key_value_count_estimate = public_state.keys.size();
+      }
+      LOG_INFO(getLogger(),
+               "StateSnapshotRequest(participant ID = " << cmd.participant_id
+                                                        << "): creating checkpoint with ID: " << *checkpoint_id);
+    } else {
+      // If we couldn't create a DB checkpoint and there is no last one created, we just leave `resp.data`
+      // nullopt, indicating to the client that it should retry.
+      LOG_INFO(getLogger(),
+               "StateSnapshotRequest(participant ID = "
+                   << cmd.participant_id
+                   << "): cannot create a checkpoint and there is no existing one, client must retry");
+    }
+  }
+  rres.response = std::move(resp);
+  return true;
+}
+
+bool StateSnapshotReconfigurationHandler::handle(const concord::messages::SignedPublicStateHashRequest& req,
+                                                 uint64_t,
+                                                 uint32_t,
+                                                 const std::optional<bftEngine::Timestamp>&,
+                                                 concord::messages::ReconfigurationResponse& reconf_resp) {
+  using bftEngine::ReplicaConfig;
+  using concord::kvbc::categorization::StateHash;
+  using concord::kvbc::categorization::detail::deserialize;
+  using concord::kvbc::categorization::detail::serialize;
+  using concord::messages::SignedPublicStateHashResponse;
+
+  auto resp = SignedPublicStateHashResponse{};
+  const auto state = DbCheckpointManager::instance().getCheckpointState(req.snapshot_id);
+  switch (state) {
+    case DbCheckpointManager::CheckpointState::kNonExistent:
+      LOG_INFO(getLogger(),
+               "SignedPublicStateHashRequest: snapshot ID = "
+                   << req.snapshot_id << " is non-existent, requesting participant ID = " << req.participant_id);
+      resp.status = SnapshotResponseStatus::SnapshotNonExistent;
+      break;
+    case DbCheckpointManager::CheckpointState::kPending:
+      LOG_INFO(getLogger(),
+               "SignedPublicStateHashRequest: snapshot ID = "
+                   << req.snapshot_id << " is pending creation, requesting participant ID = " << req.participant_id);
+      resp.status = SnapshotResponseStatus::SnapshotPending;
+      break;
+    case DbCheckpointManager::CheckpointState::kCreated: {
+      const auto snapshot_path = DbCheckpointManager::instance().getPathForCheckpoint(req.snapshot_id);
+      const auto read_only = true;
+      try {
+        auto db = NativeClient::newClient(snapshot_path, read_only, NativeClient::DefaultOptions{});
+        const auto ser_hash = db->get(KeyValueBlockchain::publicStateHashKey());
+        if (!ser_hash) {
+          LOG_ERROR(getLogger(),
+                    "SignedPublicStateHashRequest: missing public state hash for snapshot ID = "
+                        << req.snapshot_id << ", requesting participant ID = " << req.participant_id);
+          resp.status = SnapshotResponseStatus::InternalError;
+        } else {
+          auto public_state_hash = StateHash{};
+          deserialize(*ser_hash, public_state_hash);
+          resp.status = SnapshotResponseStatus::Success;
+          resp.data.snapshot_id = req.snapshot_id;
+          resp.data.replica_id = ReplicaConfig::instance().replicaId;
+          resp.data.block_id = public_state_hash.block_id;
+          resp.data.hash = public_state_hash.hash;
+          resp.signature.assign(SigManager::instance()->getMySigLength(), 0);
+          const auto data_ser = serialize(resp.data);
+          // We pass 0 as the last parameter. At the time of writing this code, the last parameter's value is not used
+          // and is not a reference. Therefore, we pass a temporary here so that if the type is changed to a reference,
+          // it will break and will prompt the user to review it again.
+          SigManager::instance()->sign(reinterpret_cast<const char*>(data_ser.data()),
+                                       data_ser.size(),
+                                       reinterpret_cast<char*>(resp.signature.data()),
+                                       0);
+          LOG_INFO(getLogger(),
+                   "SignedPublicStateHashRequest: successful request for snapshot ID = "
+                       << req.snapshot_id << ", requesting participant ID = " << req.participant_id);
+        }
+      } catch (const std::exception& e) {
+        LOG_ERROR(getLogger(),
+                  "SignedPublicStateHashRequest: failed for snapshot ID = "
+                      << req.snapshot_id << ", requesting participant ID = " << req.participant_id
+                      << ", error =  " << e.what());
+        resp.status = SnapshotResponseStatus::InternalError;
+      }
+    } break;
+  }
+  reconf_resp.response = std::move(resp);
+  return true;
+}
+
+bool StateSnapshotReconfigurationHandler::handle(const concord::messages::StateSnapshotReadAsOfRequest& req,
+                                                 uint64_t,
+                                                 uint32_t,
+                                                 const std::optional<bftEngine::Timestamp>&,
+                                                 concord::messages::ReconfigurationResponse& reconf_resp) {
+  auto resp = concord::messages::StateSnapshotReadAsOfResponse{};
+  const auto state = DbCheckpointManager::instance().getCheckpointState(req.snapshot_id);
+  switch (state) {
+    case DbCheckpointManager::CheckpointState::kNonExistent:
+      LOG_INFO(getLogger(),
+               "StateSnapshotReadAsOfResponse: snapshot ID = "
+                   << req.snapshot_id << " is non-existent, requesting participant ID = " << req.participant_id);
+      resp.status = SnapshotResponseStatus::SnapshotNonExistent;
+      break;
+    case DbCheckpointManager::CheckpointState::kPending:
+      LOG_INFO(getLogger(),
+               "StateSnapshotReadAsOfResponse: snapshot ID = "
+                   << req.snapshot_id << " is pending creation, requesting participant ID = " << req.participant_id);
+      resp.status = SnapshotResponseStatus::SnapshotPending;
+      break;
+    case DbCheckpointManager::CheckpointState::kCreated: {
+      const auto snapshot_path = DbCheckpointManager::instance().getPathForCheckpoint(req.snapshot_id);
+      const auto read_only = true;
+      try {
+        auto db = NativeClient::newClient(snapshot_path, read_only, NativeClient::DefaultOptions{});
+        const auto link_st_chain = false;
+        const auto kvbc = KeyValueBlockchain{db, link_st_chain};
+        const auto public_state = kvbc.getPublicStateKeys();
+        auto values = std::vector<std::optional<categorization::Value>>{};
+        kvbc.multiGetLatest(categorization::kExecutionProvableCategory, req.keys, values);
+        ConcordAssertEQ(req.keys.size(), values.size());
+        for (auto i = 0ull; i < req.keys.size(); ++i) {
+          auto& val = values[i];
+          const auto& key = req.keys[i];
+          if (!val) {
+            resp.values.push_back(std::nullopt);
+          } else {
+            auto merkle_val = std::get_if<categorization::MerkleValue>(&val.value());
+            ConcordAssertNE(merkle_val, nullptr);
+            // Make sure no non-public keys are requested.
+            // TODO: This will change when we start streaming non-public keys.
+            if (public_state) {
+              auto it = std::lower_bound(public_state->keys.cbegin(), public_state->keys.cend(), key);
+              if (it == public_state->keys.cend() || *it != key) {
+                resp.values.push_back(std::nullopt);
+              } else {
+                resp.values.push_back(state_value_converter_(std::move(merkle_val->data)));
+              }
+            } else {
+              resp.values.push_back(std::nullopt);
+            }
+          }
+        }
+        resp.status = SnapshotResponseStatus::Success;
+        LOG_DEBUG(getLogger(),
+                  "StateSnapshotReadAsOfResponse: successful request for snapshot ID = "
+                      << req.snapshot_id << ", requesting participant ID = " << req.participant_id);
+      } catch (const std::exception& e) {
+        LOG_ERROR(getLogger(),
+                  "StateSnapshotReadAsOfResponse: failed for snapshot ID = "
+                      << req.snapshot_id << ", requesting participant ID = " << req.participant_id
+                      << ", error =  " << e.what());
+        resp.status = SnapshotResponseStatus::InternalError;
+      }
+      break;
+    }
+  }
+  reconf_resp.response = std::move(resp);
+  return true;
+}
+
 concord::messages::ClientStateReply KvbcClientReconfigurationHandler::buildReplicaStateReply(
     const std::string& command_type, uint32_t clientid) {
   concord::messages::ClientStateReply creply;
@@ -778,222 +994,6 @@ bool ReconfigurationHandler::handle(const messages::UnwedgeStatusRequest& req,
   response.signature = std::vector<uint8_t>(sig.begin(), sig.end());
   LOG_INFO(getLogger(), "Replica is ready to unwedge " << KVLOG(curr_epoch));
   rres.response = response;
-  return true;
-}
-
-bool ReconfigurationHandler::handle(const concord::messages::StateSnapshotRequest& cmd,
-                                    uint64_t sequence_number,
-                                    uint32_t,
-                                    const std::optional<bftEngine::Timestamp>& timestamp,
-                                    concord::messages::ReconfigurationResponse& rres) {
-  if (!bftEngine::ReplicaConfig::instance().dbCheckpointFeatureEnabled ||
-      bftEngine::ReplicaConfig::instance().maxNumberOfDbCheckpoints == 0) {
-    const auto err = "StateSnapshotRequest(participant ID = " + cmd.participant_id +
-                     "): failed, the DB checkpoint feature is disabled";
-    LOG_WARN(getLogger(), err);
-    rres.response = concord::messages::ReconfigurationErrorMsg{err};
-    return false;
-  }
-
-  auto resp = concord::messages::StateSnapshotResponse{};
-  const auto last_checkpoint_desc = DbCheckpointManager::instance().getLastCreatedDbCheckpointMetadata();
-  // TODO: We currently only support new participants and, therefore, the event group ID will always be the one before
-  // the first one, namely 0.
-  if (last_checkpoint_desc) {
-    resp.data.emplace();
-    resp.data->snapshot_id = last_checkpoint_desc->checkPointId_;
-    resp.data->event_group_id = 0;
-    const auto read_only = true;
-    auto db = NativeClient::newClient(
-        DbCheckpointManager::instance().getPathForCheckpoint(last_checkpoint_desc->checkPointId_),
-        read_only,
-        NativeClient::DefaultOptions{});
-    const auto link_st_chain = false;
-    const auto kvbc = KeyValueBlockchain{db, link_st_chain};
-    const auto public_state = kvbc.getPublicStateKeys();
-    if (!public_state) {
-      resp.data->key_value_count_estimate = 0;
-    } else {
-      resp.data->key_value_count_estimate = public_state->keys.size();
-    }
-    LOG_INFO(getLogger(),
-             "StateSnapshotRequest(participant ID = " << cmd.participant_id << "): using existing last checkpoint ID: "
-                                                      << last_checkpoint_desc->checkPointId_);
-  } else {
-    const auto checkpoint_id =
-        DbCheckpointManager::instance().createDbCheckpointAsync(sequence_number, timestamp, std::nullopt);
-    if (checkpoint_id) {
-      resp.data.emplace();
-      resp.data->snapshot_id = *checkpoint_id;
-      resp.data->event_group_id = 0;
-      // If we are creating the snapshot now, return an estimate based on the blockchain and not on the snapshot itself
-      // (as it is created asynchronously).
-      const auto opt_val =
-          ro_storage_.getLatest(categorization::kConcordInternalCategoryId, keyTypes::state_public_key_set);
-      if (!opt_val) {
-        resp.data->key_value_count_estimate = 0;
-      } else {
-        auto public_state = categorization::PublicStateKeys{};
-        const auto val = std::get_if<categorization::VersionedValue>(&opt_val.value());
-        ConcordAssertNE(val, nullptr);
-        categorization::detail::deserialize(val->data, public_state);
-        resp.data->key_value_count_estimate = public_state.keys.size();
-      }
-      LOG_INFO(getLogger(),
-               "StateSnapshotRequest(participant ID = " << cmd.participant_id
-                                                        << "): creating checkpoint with ID: " << *checkpoint_id);
-    } else {
-      // If we couldn't create a DB checkpoint and there is no last one created, we just leave `resp.data`
-      // nullopt, indicating to the client that it should retry.
-      LOG_INFO(getLogger(),
-               "StateSnapshotRequest(participant ID = "
-                   << cmd.participant_id
-                   << "): cannot create a checkpoint and there is no existing one, client must retry");
-    }
-  }
-  rres.response = std::move(resp);
-  return true;
-}
-
-bool ReconfigurationHandler::handle(const concord::messages::SignedPublicStateHashRequest& req,
-                                    uint64_t,
-                                    uint32_t,
-                                    const std::optional<bftEngine::Timestamp>&,
-                                    concord::messages::ReconfigurationResponse& reconf_resp) {
-  using bftEngine::ReplicaConfig;
-  using concord::kvbc::categorization::StateHash;
-  using concord::kvbc::categorization::detail::deserialize;
-  using concord::kvbc::categorization::detail::serialize;
-  using concord::messages::SignedPublicStateHashResponse;
-
-  auto resp = SignedPublicStateHashResponse{};
-  const auto state = DbCheckpointManager::instance().getCheckpointState(req.snapshot_id);
-  switch (state) {
-    case DbCheckpointManager::CheckpointState::kNonExistent:
-      LOG_INFO(getLogger(),
-               "SignedPublicStateHashRequest: snapshot ID = "
-                   << req.snapshot_id << " is non-existent, requesting participant ID = " << req.participant_id);
-      resp.status = SnapshotResponseStatus::SnapshotNonExistent;
-      break;
-    case DbCheckpointManager::CheckpointState::kPending:
-      LOG_INFO(getLogger(),
-               "SignedPublicStateHashRequest: snapshot ID = "
-                   << req.snapshot_id << " is pending creation, requesting participant ID = " << req.participant_id);
-      resp.status = SnapshotResponseStatus::SnapshotPending;
-      break;
-    case DbCheckpointManager::CheckpointState::kCreated: {
-      const auto snapshot_path = DbCheckpointManager::instance().getPathForCheckpoint(req.snapshot_id);
-      const auto read_only = true;
-      try {
-        auto db = NativeClient::newClient(snapshot_path, read_only, NativeClient::DefaultOptions{});
-        const auto ser_hash = db->get(KeyValueBlockchain::publicStateHashKey());
-        if (!ser_hash) {
-          LOG_ERROR(getLogger(),
-                    "SignedPublicStateHashRequest: missing public state hash for snapshot ID = "
-                        << req.snapshot_id << ", requesting participant ID = " << req.participant_id);
-          resp.status = SnapshotResponseStatus::InternalError;
-        } else {
-          auto public_state_hash = StateHash{};
-          deserialize(*ser_hash, public_state_hash);
-          resp.status = SnapshotResponseStatus::Success;
-          resp.data.snapshot_id = req.snapshot_id;
-          resp.data.replica_id = ReplicaConfig::instance().replicaId;
-          resp.data.block_id = public_state_hash.block_id;
-          resp.data.hash = public_state_hash.hash;
-          resp.signature.assign(SigManager::instance()->getMySigLength(), 0);
-          const auto data_ser = serialize(resp.data);
-          // We pass 0 as the last parameter. At the time of writing this code, the last parameter's value is not used
-          // and is not a reference. Therefore, we pass a temporary here so that if the type is changed to a reference,
-          // it will break and will prompt the user to review it again.
-          SigManager::instance()->sign(reinterpret_cast<const char*>(data_ser.data()),
-                                       data_ser.size(),
-                                       reinterpret_cast<char*>(resp.signature.data()),
-                                       0);
-          LOG_INFO(getLogger(),
-                   "SignedPublicStateHashRequest: successful request for snapshot ID = "
-                       << req.snapshot_id << ", requesting participant ID = " << req.participant_id);
-        }
-      } catch (const std::exception& e) {
-        LOG_ERROR(getLogger(),
-                  "SignedPublicStateHashRequest: failed for snapshot ID = "
-                      << req.snapshot_id << ", requesting participant ID = " << req.participant_id
-                      << ", error =  " << e.what());
-        resp.status = SnapshotResponseStatus::InternalError;
-      }
-    } break;
-  }
-  reconf_resp.response = std::move(resp);
-  return true;
-}
-
-bool ReconfigurationHandler::handle(const concord::messages::StateSnapshotReadAsOfRequest& req,
-                                    uint64_t,
-                                    uint32_t,
-                                    const std::optional<bftEngine::Timestamp>&,
-                                    concord::messages::ReconfigurationResponse& reconf_resp) {
-  auto resp = concord::messages::StateSnapshotReadAsOfResponse{};
-  const auto state = DbCheckpointManager::instance().getCheckpointState(req.snapshot_id);
-  switch (state) {
-    case DbCheckpointManager::CheckpointState::kNonExistent:
-      LOG_INFO(getLogger(),
-               "StateSnapshotReadAsOfResponse: snapshot ID = "
-                   << req.snapshot_id << " is non-existent, requesting participant ID = " << req.participant_id);
-      resp.status = SnapshotResponseStatus::SnapshotNonExistent;
-      break;
-    case DbCheckpointManager::CheckpointState::kPending:
-      LOG_INFO(getLogger(),
-               "StateSnapshotReadAsOfResponse: snapshot ID = "
-                   << req.snapshot_id << " is pending creation, requesting participant ID = " << req.participant_id);
-      resp.status = SnapshotResponseStatus::SnapshotPending;
-      break;
-    case DbCheckpointManager::CheckpointState::kCreated: {
-      const auto snapshot_path = DbCheckpointManager::instance().getPathForCheckpoint(req.snapshot_id);
-      const auto read_only = true;
-      try {
-        auto db = NativeClient::newClient(snapshot_path, read_only, NativeClient::DefaultOptions{});
-        const auto link_st_chain = false;
-        const auto kvbc = KeyValueBlockchain{db, link_st_chain};
-        const auto public_state = kvbc.getPublicStateKeys();
-        auto values = std::vector<std::optional<categorization::Value>>{};
-        kvbc.multiGetLatest(categorization::kExecutionProvableCategory, req.keys, values);
-        ConcordAssertEQ(req.keys.size(), values.size());
-        for (auto i = 0ull; i < req.keys.size(); ++i) {
-          auto& val = values[i];
-          const auto& key = req.keys[i];
-          if (!val) {
-            resp.values.push_back(std::nullopt);
-          } else {
-            auto merkle_val = std::get_if<categorization::MerkleValue>(&val.value());
-            ConcordAssertNE(merkle_val, nullptr);
-            // Make sure no non-public keys are requested.
-            // TODO: This will change when we start streaming non-public keys.
-            if (public_state) {
-              auto it = std::lower_bound(public_state->keys.cbegin(), public_state->keys.cend(), key);
-              if (it == public_state->keys.cend() || *it != key) {
-                resp.values.push_back(std::nullopt);
-              } else {
-                resp.values.push_back(state_value_converter_(std::move(merkle_val->data)));
-              }
-            } else {
-              resp.values.push_back(std::nullopt);
-            }
-          }
-        }
-        resp.status = SnapshotResponseStatus::Success;
-        LOG_DEBUG(getLogger(),
-                  "StateSnapshotReadAsOfResponse: successful request for snapshot ID = "
-                      << req.snapshot_id << ", requesting participant ID = " << req.participant_id);
-      } catch (const std::exception& e) {
-        LOG_ERROR(getLogger(),
-                  "StateSnapshotReadAsOfResponse: failed for snapshot ID = "
-                      << req.snapshot_id << ", requesting participant ID = " << req.participant_id
-                      << ", error =  " << e.what());
-        resp.status = SnapshotResponseStatus::InternalError;
-      }
-      break;
-    }
-  }
-  reconf_resp.response = std::move(resp);
   return true;
 }
 

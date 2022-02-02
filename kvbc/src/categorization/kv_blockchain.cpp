@@ -39,6 +39,10 @@ void nullopts(std::vector<std::optional<T>>& vec, std::size_t count) {
   vec.resize(count, std::nullopt);
 }
 
+const KeyValueBlockchain::Converter KeyValueBlockchain::kNoopConverter = [](std::string&& v) -> std::string {
+  return std::move(v);
+};
+
 KeyValueBlockchain::Recorders KeyValueBlockchain::histograms_;
 
 KeyValueBlockchain::KeyValueBlockchain(const std::shared_ptr<concord::storage::rocksdb::NativeClient>& native_client,
@@ -466,9 +470,11 @@ bool KeyValueBlockchain::iteratePublicStateKeyValuesImpl(const std::function<voi
 
 static const auto kInitialHash = detail::hash(std::string{});
 
-void KeyValueBlockchain::computeAndPersistPublicStateHash(BlockId checkpoint_block_id) {
+void KeyValueBlockchain::computeAndPersistPublicStateHash(BlockId checkpoint_block_id,
+                                                          const Converter& value_converter) {
   auto hash = kInitialHash;
-  iteratePublicStateKeyValues([&](const std::string& key, const std::string& value) {
+  iteratePublicStateKeyValues([&](std::string&& key, std::string&& value) {
+    value = value_converter(std::move(value));
     auto hasher = Hasher{};
     hasher.init();
     hasher.update(hash.data(), hash.size());
