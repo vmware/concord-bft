@@ -147,9 +147,6 @@ void InternalCommandsHandler::preExecute(IRequestsHandler::ExecutionRequest &req
                                          concordUtils::SpanWrapper &parent_span) {
   if (req.flags & bftEngine::DB_CHECKPOINT_FLAG) return;
 
-  if (req.outExecutionStatus != static_cast<uint32_t>(OperationResult::UNKNOWN)) {
-    return;  // Request already executed (internal)
-  }
   OperationResult res;
   if (req.requestSize <= 0) {
     LOG_ERROR(m_logger, "Received size-0 request.");

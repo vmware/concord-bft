@@ -1456,7 +1456,8 @@ bool PreProcessor::registerRequestOnPrimaryReplica(const string &batchCid,
                                         clientReqMsg->requestSignature(),
                                         clientReqMsg->requestSignatureLength(),
                                         blockId,
-                                        clientReqMsg->spanContext<ClientPreProcessReqMsgUniquePtr::element_type>());
+                                        clientReqMsg->spanContext<ClientPreProcessReqMsgUniquePtr::element_type>(),
+                                        clientReqMsg->result());
   const auto registerSucceeded =
       registerRequest(batchCid, batchSize, move(clientReqMsg), preProcessRequestMsg, reqOffsetInBatch);
   if (registerSucceeded)
@@ -1627,21 +1628,23 @@ OperationResult PreProcessor::launchReqPreProcessing(const PreProcessRequestMsgS
     LOG_ERROR(logger(),
               "Pre-execution failed" << KVLOG(
                   cid, clientId, reqOffsetInBatch, reqSeqNum, (uint32_t)preProcessResult, resultLen));
-    return preProcessResult;
   }
+
   if (request.outActualReplySize == 0) {
+    const string err{"Executed data is empty"};
+    strcpy(preProcessResultBuffer, err.c_str());
+    resultLen = err.size();
     preProcessResult = OperationResult::EXEC_DATA_EMPTY;
     LOG_ERROR(logger(),
               "Pre-execution failed" << KVLOG(cid, clientId, reqOffsetInBatch, reqSeqNum, (uint32_t)preProcessResult));
-    return preProcessResult;
   }
   // Append the conflict detection block id and add its size to the resulting length.
-  memcpy(preProcessResultBuffer + request.outActualReplySize, reinterpret_cast<char *>(&blockId), sizeof(uint64_t));
+  memcpy(preProcessResultBuffer + resultLen, reinterpret_cast<char *>(&blockId), sizeof(uint64_t));
   resultLen += sizeof(uint64_t);
   LOG_DEBUG(
       logger(),
       "Pre-execution operation successfully completed" << KVLOG(cid, reqSeqNum, clientId, reqOffsetInBatch, blockId));
-  return OperationResult::SUCCESS;
+  return preProcessResult;
 }
 
 // For test purposes
@@ -1704,7 +1707,8 @@ void PreProcessor::releaseReqAndSendReplyMsg(PreProcessReplyMsgSharedPtr replyMs
                         replyMsg->reqOffsetInBatch(),
                         replyMsg->getCid(),
                         replyMsg->reqRetryId(),
-                        myReplica_.currentPrimary()));
+                        myReplica_.currentPrimary(),
+                        (uint32_t)replyMsg->preProcessResult()));
 }
 
 void PreProcessor::handleReqPreProcessedByNonPrimary(uint16_t clientId,
