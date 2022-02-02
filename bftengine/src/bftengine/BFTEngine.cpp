@@ -52,8 +52,13 @@ class ReplicaInternal : public IReplica {
 
  public:
   ReplicaInternal(const std::shared_ptr<concord::cron::TicksGenerator> &ticks_gen = nullptr,
-                  const std::shared_ptr<PersistentStorage> &persistent_storage = nullptr)
-      : ticks_gen_{ticks_gen}, persistent_storage_{persistent_storage} {}
+                  const std::shared_ptr<PersistentStorage> &persistent_storage = nullptr,
+                  const std::shared_ptr<IInternalBFTClient> &internal_client = nullptr,
+                  const std::function<void(bool)> &viewChangeCallBack = nullptr)
+      : ticks_gen_{ticks_gen},
+        persistent_storage_{persistent_storage},
+        internal_client_{internal_client},
+        viewChangeCallBack_(viewChangeCallBack) {}
 
   bool isRunning() const override;
 
@@ -71,12 +76,16 @@ class ReplicaInternal : public IReplica {
 
   std::shared_ptr<PersistentStorage> persistentStorage() const override;
 
+  std::shared_ptr<IInternalBFTClient> internalClient() const override { return internal_client_; }
+
  private:
   std::unique_ptr<ReplicaBase> replica_;
   std::condition_variable debugWait_;
   std::mutex debugWaitLock_;
   std::shared_ptr<concord::cron::TicksGenerator> ticks_gen_;
   std::shared_ptr<PersistentStorage> persistent_storage_;
+  std::shared_ptr<IInternalBFTClient> internal_client_;
+  std::function<void(bool)> viewChangeCallBack_;
 };
 
 bool ReplicaInternal::isRunning() const { return replica_->isRunning(); }
@@ -124,7 +133,8 @@ void ReplicaInternal::restartForDebug(uint32_t delayMillis) {
                                   replicaImp->getMsgHandlersRegistrator(),
                                   replicaImp->timers(),
                                   pm,
-                                  replicaImp->getSecretsManager()));
+                                  replicaImp->getSecretsManager(),
+                                  viewChangeCallBack_));
 
   } else {
     //  TODO [TK] rep.reset(new ReadOnlyReplicaImp());
@@ -146,7 +156,8 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
                                                  bft::communication::ICommunication *communication,
                                                  MetadataStorage *metadataStorage,
                                                  std::shared_ptr<concord::performance::PerformanceManager> pm,
-                                                 const shared_ptr<concord::secretsmanager::ISecretsManagerImpl> &sm) {
+                                                 const shared_ptr<concord::secretsmanager::ISecretsManagerImpl> &sm,
+                                                 const std::function<void(bool)> &viewChangeCallBack) {
   shared_ptr<PersistentStorage> persistentStoragePtr;
   if (replicaConfig.debugPersistentStorageEnabled)
     if (metadataStorage == nullptr)
@@ -219,8 +230,10 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
                                                    msgHandlersPtr,
                                                    timers,
                                                    pm,
-                                                   sm);
-    replicaInternal = std::make_unique<ReplicaInternal>(replicaImp->ticksGenerator(), persistentStoragePtr);
+                                                   sm,
+                                                   viewChangeCallBack);
+    replicaInternal = std::make_unique<ReplicaInternal>(
+        replicaImp->ticksGenerator(), persistentStoragePtr, replicaImp->internalClient(), viewChangeCallBack);
     replicaInternal->replica_ = std::move(replicaImp);
   } else {
     ReplicaLoader::ErrorCode loadErrCode;
@@ -238,8 +251,10 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
                                                    msgHandlersPtr,
                                                    timers,
                                                    pm,
-                                                   sm);
-    replicaInternal = std::make_unique<ReplicaInternal>(replicaImp->ticksGenerator(), persistentStoragePtr);
+                                                   sm,
+                                                   viewChangeCallBack);
+    replicaInternal = std::make_unique<ReplicaInternal>(
+        replicaImp->ticksGenerator(), persistentStoragePtr, replicaImp->internalClient(), viewChangeCallBack);
     replicaInternal->replica_ = std::move(replicaImp);
   }
   preprocessor::PreProcessor::addNewPreProcessor(msgsCommunicatorPtr,

@@ -11,7 +11,7 @@ if(Boost_FOUND)
         kvbc
     )
 endif()
-
+add_subdirectory(resources-manager)
 add_test(NAME kvbc_filter_test COMMAND kvbc_filter_test)
 add_executable(kvbc_filter_test
         kvbc_app_filter/kvbc_filter_test.cpp)

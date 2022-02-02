@@ -22,6 +22,7 @@
 namespace concord::performance {
 class IntervalMappingResourceManager : public IResourceManager {
  public:
+  static const std::vector<std::pair<uint64_t, uint64_t>> default_mapping;
   virtual ~IntervalMappingResourceManager() = default;
   /*
    IntervalMappingResourceManager implementation takes a vector of sorted uint64_t pairs,
@@ -31,21 +32,19 @@ class IntervalMappingResourceManager : public IResourceManager {
   virtual PruneInfo getPruneInfo() override;
 
   static std::unique_ptr<IntervalMappingResourceManager> createIntervalMappingResourceManager(
-      const std::shared_ptr<ISystemResourceEntity> &replicaResources,
-      std::vector<std::pair<uint64_t, uint64_t>> &&intervalMapping) {
+      ISystemResourceEntity &replicaResources, std::vector<std::pair<uint64_t, uint64_t>> &&intervalMapping) {
     intervalMapping.push_back(std::make_pair(UINT64_MAX, 0));
     return std::unique_ptr<IntervalMappingResourceManager>(
         new IntervalMappingResourceManager(replicaResources, std::move(intervalMapping)));
   }
 
-  IntervalMappingResourceManager(const std::shared_ptr<ISystemResourceEntity> &replicaResources,
-                                 std::vector<std::pair<uint64_t, uint64_t>> &&intervalMapping)
-      : replicaResources_(replicaResources), intervalMapping_(std::move(intervalMapping)) {}
+  IntervalMappingResourceManager(ISystemResourceEntity &replicaResources,
+                                 std::vector<std::pair<uint64_t, uint64_t>> &&intervalMapping);
 
   std::uint64_t getDurationFromLastCallSec();
 
  private:
-  const std::shared_ptr<ISystemResourceEntity> replicaResources_;
+  ISystemResourceEntity &replicaResources_;
   const std::vector<std::pair<uint64_t, uint64_t>> intervalMapping_;
   std::uint64_t lastInvocationTime_{0};
 };

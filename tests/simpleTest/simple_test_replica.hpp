@@ -169,7 +169,8 @@ class SimpleTestReplica {
                                          comm,
                                          metaDataStorage,
                                          std::make_shared<concord::performance::PerformanceManager>(),
-                                         nullptr /*SecretsManagerEnc*/);
+                                         nullptr /*SecretsManagerEnc*/,
+                                         nullptr);  // call back
   }
 
   ~SimpleTestReplica() {

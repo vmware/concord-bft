@@ -32,7 +32,8 @@
 #include "client/reconfiguration/client_reconfiguration_engine.hpp"
 #include <ccron/cron_table_registry.hpp>
 #include <ccron/ticks_generator.hpp>
-#include "replica_resources.h"
+#include "ReplicaResources.h"
+#include "AdaptivePruningManager.hpp"
 
 namespace concord::kvbc {
 
@@ -232,6 +233,7 @@ class Replica : public IReplica,
   std::unique_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> creEngine_;
   std::shared_ptr<concord::client::reconfiguration::IStateClient> creClient_;
   ReplicaResourceEntity replicaResources_;
+  performance::AdaptivePruningManager AdaptivePruningManager_;
 
  private:
   struct Recorders {

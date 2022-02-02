@@ -1,6 +1,6 @@
 // Copyright 2022 VMware, all rights reserved
 
-#include "replica_resources.h"
+#include "ReplicaResources.h"
 #include "Logger.hpp"
 #include <thread>
 
