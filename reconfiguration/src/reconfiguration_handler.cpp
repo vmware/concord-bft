@@ -34,6 +34,8 @@ bool ReconfigurationHandler::handle(const WedgeCommand& cmd,
                                     concord::messages::ReconfigurationResponse&) {
   LOG_INFO(getLogger(), "Wedge command instructs replica to stop at sequence number " << bft_seq_num);
   bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(bft_seq_num);
+  if (cmd.noop == false) addCreateDbSnapshotCbOnWedge(true);
+
   return true;
 }
 
@@ -80,6 +82,7 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeC
   LOG_INFO(getLogger(), "AddRemoveWithWedgeCommand instructs replica to stop at seq_num " << bft_seq_num);
   bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(bft_seq_num);
   handleWedgeCommands(command.bft_support, true, command.restart, true, true);
+  addCreateDbSnapshotCbOnWedge(command.bft_support);
   std::ofstream configuration_file;
   configuration_file.open(bftEngine::ReplicaConfig::instance().configurationViewFilePath + "/" +
                               configurationsFileName + "." +
@@ -126,6 +129,24 @@ void ReconfigurationHandler::handleWedgeCommands(
     if (blockNewConnections) {
       bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
           [=]() { bft::communication::StateControl::instance().lockComm(); });
+    }
+  }
+}
+
+// We create a db-snapshot when we wedge the replicas
+// reason: wedge is performed for some maintainance, scaling, reconfiguration etc.
+// so, we create a snapshot of the database, when we stop the replicas
+void ReconfigurationHandler::addCreateDbSnapshotCbOnWedge(bool bft_support) {
+  auto wedgePt = bftEngine::ControlStateManager::instance().getCheckpointToStopAt();
+  if (wedgePt.has_value()) {
+    if (bft_support) {
+      bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
+          [wedgePt]() { DbCheckpointManager::instance().checkAndCreateDbSnapshot(wedgePt.value()); },
+          bftEngine::IControlHandler::LOW);
+    } else {
+      bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
+          [wedgePt]() { DbCheckpointManager::instance().checkAndCreateDbSnapshot(wedgePt.value()); },
+          bftEngine::IControlHandler::LOW);
     }
   }
 }

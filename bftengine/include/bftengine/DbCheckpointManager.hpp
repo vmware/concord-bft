@@ -127,6 +127,10 @@ class DbCheckpointManager {
     if (onStableSeqNumCb_) onStableSeqNumCb_(s);
   }
   void setGetLastStableSeqNumCb(std::function<SeqNum()> cb) { getLastStableSeqNumCb_ = cb; }
+  inline void checkAndCreateDbSnapshot(SeqNum seqNum) {
+    if (ReplicaConfig::instance().dbCheckpointFeatureEnabled)
+      createDbCheckpointAsync(seqNum, std::nullopt, std::nullopt);
+  }
 
  private:
   logging::Logger getLogger() {

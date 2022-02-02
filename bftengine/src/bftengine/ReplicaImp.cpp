@@ -3525,11 +3525,6 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
                  newStableSeqNum, metric_last_stable_seq_num_.Get().Get()));
     IControlHandler::instance()->onStableCheckpoint();
     ControlStateManager::instance().wedge();
-    // We create a db-snapshot when we wedge the replicas
-    // reason: wedge is performed for some maintainance, scaling, reconfiguration etc.
-    // so, we create a snapshot of the database, when we stop the replicas
-    if (getReplicaConfig().dbCheckpointFeatureEnabled)
-      DbCheckpointManager::instance().createDbCheckpointAsync(seq_num_to_stop_at.value(), std::nullopt, std::nullopt);
   }
   onSeqNumIsStableCallbacks_.invokeAll(newStableSeqNum);
 }
