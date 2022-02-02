@@ -139,12 +139,12 @@ class SkvbcRestartRecoveryTest(unittest.TestCase):
 
             old_view = view
 
-            view = await bft_network.get_current_view()
             with trio.fail_after(seconds=40):
                 while view == old_view:
                     log.log_message(f"waiting for vc view={view}")
                     await skvbc.run_concurrent_ops(1)
-                    view = await bft_network.get_current_view()
+                    with trio.move_on_after(seconds=5):
+                        view = await bft_network.get_current_view()
                     await trio.sleep(seconds=1)
 
             advance = view - old_view
@@ -160,7 +160,17 @@ class SkvbcRestartRecoveryTest(unittest.TestCase):
                 if fetching:
                     log.log_message(f"Replica {r} is fetching, waiting for ST to finish ...")
                     # assuming Primary has latest state
-                    await bft_network.wait_for_state_transfer_to_stop(current_primary, r)
+                    with trio.fail_after(seconds=100):
+                        key = ['replica', 'Gauges', 'lastStableSeqNum']
+                        primary_last_stable = await bft_network.metrics.get(current_primary, *key)
+                        fetching_last_stable = await bft_network.metrics.get(r, *key)
+                        while primary_last_stable != fetching_last_stable:
+                            primary_last_stable = await bft_network.metrics.get(current_primary, *key)
+                            fetching_last_stable = await bft_network.metrics.get(r, *key)
+                            log.log_message(f"primary_last_stable={primary_last_stable} fetching_last_stable={fetching_last_stable}")
+                            await skvbc.run_concurrent_ops(50)
+                            await trio.sleep(seconds=5)
+
 
             log.log_message("wait for fast path to be prevalent")
             await bft_network.wait_for_fast_path_to_be_prevalent(
