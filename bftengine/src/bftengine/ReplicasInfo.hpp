@@ -83,6 +83,7 @@ class ReplicasInfo {
   uint16_t getNumOfClientProxies() { return _numOfClientProxies; }
   uint16_t getNumberOfExternalClients() { return _numberOfExternalClients; }
   uint16_t getNumberOfInternalClients() { return _numberOfInternalClients; }
+  uint16_t getNumberOfClientServices() { return _numberOfClientServices; }
 
  protected:
   const ReplicaId _myId = 0;

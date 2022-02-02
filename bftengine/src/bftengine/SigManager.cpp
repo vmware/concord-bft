@@ -45,6 +45,8 @@ SigManager* SigManager::initImpl(ReplicaId myId,
   auto numRoReplicas = replicasInfo.getNumberOfRoReplicas();
   auto numOfClientProxies = replicasInfo.getNumOfClientProxies();
   auto numOfExternalClients = replicasInfo.getNumberOfExternalClients();
+  auto numOfInternalClients = replicasInfo.getNumberOfInternalClients();
+  auto numOfClientServices = replicasInfo.getNumberOfClientServices();
 
   LOG_INFO(
       GL,
@@ -65,7 +67,7 @@ SigManager* SigManager::initImpl(ReplicaId myId,
     // Also, we do not enforce to have all range between [lowBound, highBound] construcred. We might want to have less
     // principal ids mapped to keys than what is stated in the range.
     lowBound = numRoReplicas + numReplicas + numOfClientProxies;
-    highBound = lowBound + numOfExternalClients - 1;
+    highBound = lowBound + numOfExternalClients + numOfInternalClients + numOfClientServices - 1;
     for (const auto& p : (*publicKeysOfClients)) {
       ConcordAssert(!p.first.empty());
       publickeys.push_back(make_pair(p.first, clientsKeysFormat));
