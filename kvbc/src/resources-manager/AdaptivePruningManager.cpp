@@ -3,16 +3,22 @@
 #include "ReplicaConfig.hpp"
 #include "concord.cmf.hpp"
 #include "SigManager.hpp"
-
+#include "kvbc_key_types.hpp"
+#include "categorization/db_categories.h"
+#include "concord.cmf.hpp"
 using namespace concord::performance;
 
 AdaptivePruningManager::AdaptivePruningManager(
     const std::shared_ptr<concord::performance::IResourceManager> &resourceManager,
-    const std::chrono::duration<double, std::milli> &interval)
+    const std::chrono::duration<double, std::milli> &interval,
+    concord::kvbc::IReader &ro_storage)
     : repId(bftEngine::ReplicaConfig::instance().getreplicaId()),
       resourceManager(resourceManager),
       mode(LEGACY),
-      interval(interval) {}
+      interval(interval),
+      ro_storage_(ro_storage) {
+  (void)ro_storage_;
+}
 
 AdaptivePruningManager::~AdaptivePruningManager() { stop(); }
 
@@ -50,6 +56,19 @@ void AdaptivePruningManager::notifyReplicas(const long double &rate, const uint6
   bftClient->sendRequest(flags, serializedString.length(), serializedString.c_str(), cid);
 }
 
+const concord::messages::PruneSwitchModeRequest &AdaptivePruningManager::getLatestConfiguration() {
+  const auto val =
+      ro_storage_.getLatest(concord::kvbc::categorization::kConcordReconfigurationCategoryId,
+                            std::string{kvbc::keyTypes::reconfiguration_pruning_key,
+                                        static_cast<char>(kvbc::keyTypes::PRUNING_COMMAND_TYPES::SWITCH_MODE_REQUEST)});
+  if (val.has_value()) {
+    const auto &strval = std::get<kvbc::categorization::VersionedValue>(*val).data;
+    std::vector<uint8_t> data_buf(strval.begin(), strval.end());
+    concord::messages::deserialize(data_buf, latestConfiguration_);
+  }
+  return latestConfiguration_;
+  // TODO: Add log line that describes the given stored configuration
+}
 void AdaptivePruningManager::threadFunction() {
   while (isRunning.load()) {
     {
