@@ -73,7 +73,6 @@ class StReconfigurationHandler {
   bool handle(const concord::messages::RestartCommand&, uint64_t, uint64_t, uint64_t);
   bool handle(const concord::messages::PruneRequest&, uint64_t, uint64_t, uint64_t);
   bool handle(const concord::messages::InstallCommand&, uint64_t, uint64_t, uint64_t);
-  bool handle(const concord::messages::PruneTicksChangeRequest&, uint64_t, uint64_t, uint64_t);
   bool handle(const concord::messages::PruneSwitchModeRequest&, uint64_t, uint64_t, uint64_t);
 
   logging::Logger& getLogger() const {

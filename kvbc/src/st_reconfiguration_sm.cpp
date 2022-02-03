@@ -17,7 +17,6 @@
 #include "bftengine/EpochManager.hpp"
 #include "messages/ReplicaRestartReadyMsg.hpp"
 #include "communication/StateControl.hpp"
-#include "concurrent_pruning_manager.hpp"
 
 namespace concord::kvbc {
 
@@ -62,11 +61,6 @@ void StReconfigurationHandler::stCallBack(uint64_t current_cp_num) {
                                                              current_cp_num);
   handleStoredCommand<concord::messages::AddRemoveCommand>(std::string{kvbc::keyTypes::reconfiguration_add_remove},
                                                            current_cp_num);
-  handleStoredCommand<concord::messages::PruneTicksChangeRequest>(
-      std::string{kvbc::keyTypes::reconfiguration_pruning_key,
-                  static_cast<char>(kvbc::keyTypes::PRUNING_COMMAND_TYPES::TICKS_CHANGE_REQUEST)},
-      current_cp_num);
-
   handleStoredCommand<concord::messages::PruneSwitchModeRequest>(
       std::string{kvbc::keyTypes::reconfiguration_pruning_key,
                   static_cast<char>(kvbc::keyTypes::PRUNING_COMMAND_TYPES::SWITCH_MODE_REQUEST)},
@@ -148,14 +142,6 @@ bool StReconfigurationHandler::handle(const concord::messages::RestartCommand &c
                                       uint64_t bid) {
   return handleWedgeCommands(
       command, bid, current_cp_num, bft_seq_num, command.bft_support, true, command.restart, command.restart);
-}
-bool StReconfigurationHandler::handle(const concord::messages::PruneTicksChangeRequest &command,
-                                      uint64_t bft_seq_num,
-                                      uint64_t current_cp_num,
-                                      uint64_t bid) {
-  kvbc::pruning::ConcurrentPruningManager::instance().setTicksConfiguration(
-      {command.tick_period_seconds, command.batch_blocks_num});
-  return true;
 }
 
 bool StReconfigurationHandler::handle(const concord::messages::PruneSwitchModeRequest &command,

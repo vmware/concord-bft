@@ -26,7 +26,6 @@
 #include "categorization/details.h"
 #include "categorized_kvbc_msgs.cmf.hpp"
 #include "IntervalMappingResourceManager.hpp"
-#include "concurrent_pruning_manager.hpp"
 #include <chrono>
 #include <algorithm>
 
@@ -1063,19 +1062,6 @@ bool ReconfigurationHandler::handle(const concord::messages::PruneStopRequest& c
                                   ts,
                                   false);
   LOG_INFO(getLogger(), "block id: " << KVLOG(blockId, sender_id));
-
-  // Stopping pruning means that we simply reduce the ticks rate to 0.
-  concord::messages::PruneTicksChangeRequest tick_config{0, 0, 0};
-  serialized_command.clear();
-  concord::messages::serialize(serialized_command, tick_config);
-  persistReconfigurationBlock(
-      serialized_command,
-      bft_seq_num,
-      std::string{kvbc::keyTypes::reconfiguration_pruning_key,
-                  static_cast<char>(kvbc::keyTypes::PRUNING_COMMAND_TYPES::TICKS_CHANGE_REQUEST)},
-      ts,
-      false);
-  concord::kvbc::pruning::ConcurrentPruningManager::instance().setTicksConfiguration({0, 0});
   return true;
 }
 
@@ -1163,10 +1149,6 @@ bool InternalKvReconfigurationHandler::handle(const concord::messages::PruneTick
       ts,
       false);
   LOG_INFO(getLogger(), "block id: " << KVLOG(blockId, sender_id));
-  // We now change the ticks configuration such that the concurrent pruning implementation will know to grab the current
-  // pruning rate.
-  concord::kvbc::pruning::ConcurrentPruningManager::instance().setTicksConfiguration(
-      {command.tick_period_seconds, command.batch_blocks_num});
   return true;
 }
 
