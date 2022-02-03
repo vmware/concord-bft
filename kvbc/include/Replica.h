@@ -177,6 +177,7 @@ class Replica : public IReplica,
   template <typename T>
   void saveReconfigurationCmdToResPages(const std::string &);
   void handleWedgeEvent();
+  void loadLatestPruningTicksConfiguration();
   uint64_t getStoredReconfigData(const std::string &kCategory, const std::string &key, const kvbc::BlockId &bid);
   void startRoReplicaCreEngine();
   BlockId getLastKnownReconfigCmdBlockNum() const;

@@ -40,6 +40,7 @@
 #include "communication/StateControl.hpp"
 #include "bftengine/DbCheckpointManager.hpp"
 #include "IntervalMappingResourceManager.hpp"
+#include "concurrent_pruning_manager.hpp"
 
 using bft::communication::ICommunication;
 using bftEngine::bcst::StateTransferDigest;
@@ -207,6 +208,23 @@ uint64_t Replica::getStoredReconfigData(const std::string &kCategory,
   ConcordAssertEQ(data.size(), sizeof(uint64_t));
   return concordUtils::fromBigEndianBuffer<uint64_t>(data.data());
 }
+void Replica::loadLatestPruningTicksConfiguration() {
+  const auto val =
+      getLatest(concord::kvbc::categorization::kConcordReconfigurationCategoryId,
+                std::string{kvbc::keyTypes::reconfiguration_pruning_key,
+                            static_cast<char>(kvbc::keyTypes::PRUNING_COMMAND_TYPES::TICKS_CHANGE_REQUEST)});
+  if (!val.has_value()) {
+    // set the default ticks configuration
+    concord::kvbc::pruning::ConcurrentPruningManager::instance().setTicksConfiguration({UINT32_MAX, UINT64_MAX});
+    return;
+  }
+  const auto &strval = std::get<kvbc::categorization::VersionedValue>(*val).data;
+  std::vector<uint8_t> data_buf(strval.begin(), strval.end());
+  concord::messages::PruneTicksChangeRequest ticks_conf;
+  concord::messages::deserialize(data_buf, ticks_conf);
+  concord::kvbc::pruning::ConcurrentPruningManager::instance().setTicksConfiguration(
+      {ticks_conf.tick_period_seconds, ticks_conf.batch_blocks_num});
+}
 void Replica::handleWedgeEvent() {
   auto lastExecutedSeqNum = m_replicaPtr->getLastExecutedSequenceNum();
   uint64_t wedgeBlock{0};
@@ -343,6 +361,7 @@ void Replica::createReplicaAndSyncState() {
 
   handleNewEpochEvent();
   handleWedgeEvent();
+  loadLatestPruningTicksConfiguration();
   bftEngine::impl::DbCheckpointManager::instance().initializeDbCheckpointManager(
       m_dbSet.dataDBClient,
       m_replicaPtr->persistentStorage(),
