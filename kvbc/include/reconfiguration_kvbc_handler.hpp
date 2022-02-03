@@ -21,7 +21,7 @@
 #include "reconfiguration/reconfiguration_handler.hpp"
 #include "categorization/kv_blockchain.h"
 #include "AdaptivePruningManager.hpp"
-
+#include "IntervalMappingResourceManager.hpp"
 #include <functional>
 #include <string>
 #include <utility>
@@ -242,12 +242,6 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
               const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
 
-  bool handle(const concord::messages::PruneTicksChangeRequest&,
-              uint64_t,
-              uint32_t,
-              const std::optional<bftEngine::Timestamp>&,
-              concord::messages::ReconfigurationResponse&) override;
-
   bool handle(const concord::messages::PruneSwitchModeRequest&,
               uint64_t,
               uint32_t,
@@ -262,6 +256,7 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
 
  private:
   concord::performance::AdaptivePruningManager& apm_;
+  concord::performance::ISystemResourceEntity& replicaResources_;
 };
 /**
  * This component is reposnsible for logging internal reconfiguration requests to the blockchain (such as noop
@@ -270,12 +265,8 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
 class InternalKvReconfigurationHandler : public concord::reconfiguration::IReconfigurationHandler,
                                          public ReconfigurationBlockTools {
  public:
-  InternalKvReconfigurationHandler(kvbc::IBlockAdder& block_adder,
-                                   kvbc::IReader& ro_storage,
-                                   concord::performance::AdaptivePruningManager& apm)
-      : ReconfigurationBlockTools{block_adder, ro_storage}, apm_(apm) {
-    (void)apm_;  // unsused for now
-  }
+  InternalKvReconfigurationHandler(kvbc::IBlockAdder& block_adder, kvbc::IReader& ro_storage)
+      : ReconfigurationBlockTools{block_adder, ro_storage} {}
   bool verifySignature(uint32_t sender_id, const std::string& data, const std::string& signature) const override;
 
   bool handle(const concord::messages::WedgeCommand& command,
@@ -293,9 +284,11 @@ class InternalKvReconfigurationHandler : public concord::reconfiguration::IRecon
               uint32_t,
               const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
-
- private:
-  concord::performance::AdaptivePruningManager& apm_;
+  bool handle(const concord::messages::PruneTicksChangeRequest&,
+              uint64_t,
+              uint32_t,
+              const std::optional<bftEngine::Timestamp>&,
+              concord::messages::ReconfigurationResponse&) override;
 };
 
 class InternalPostKvReconfigurationHandler : public concord::reconfiguration::IReconfigurationHandler,

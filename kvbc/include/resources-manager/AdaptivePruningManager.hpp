@@ -3,7 +3,8 @@
 #include "IRequestHandler.hpp"
 #include "IResourceManager.hpp"
 #include "InternalBFTClient.hpp"
-
+#include "db_interfaces.h"
+#include "concord.cmf.hpp"
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -12,13 +13,14 @@
 #include <mutex>
 #include <thread>
 
-enum PruningMode { LEGACY, ADAPTIVE };
-
 namespace concord::performance {
+enum PruningMode : uint8_t { LEGACY = 0x0, ADAPTIVE = 0x1 };
+
 class AdaptivePruningManager {
  public:
   AdaptivePruningManager(const std::shared_ptr<concord::performance::IResourceManager> &resourceManager,
-                         const std::chrono::duration<double, std::milli> &interval);
+                         const std::chrono::duration<double, std::milli> &interval,
+                         concord::kvbc::IReader &ro_storage);
   virtual ~AdaptivePruningManager();
 
   void switchMode(PruningMode newMode) {
@@ -37,12 +39,13 @@ class AdaptivePruningManager {
     }
   }
 
-  void setResourceManager(const std::shared_ptr<concord::performance::IResourceManager> &resourceManagerNew) {
+  void setResourceManager(const std::shared_ptr<concord::performance::IResourceManager> &resourceManagerNew,
+                          bool start_ = true) {
     {
       std::unique_lock<std::mutex> lk(conditionLock);
       resourceManager = resourceManagerNew;
     }
-    start();
+    if (start_) start();
   }
   void initBFTClient(const std::shared_ptr<bftEngine::impl::IInternalBFTClient> &cl);
   void start();
@@ -50,6 +53,7 @@ class AdaptivePruningManager {
 
  protected:
   void notifyReplicas(const long double &rate, const uint64_t batchSize);
+  const concord::messages::PruneSwitchModeRequest &getLatestConfiguration();
 
  private:
   void threadFunction();
@@ -64,5 +68,7 @@ class AdaptivePruningManager {
   std::atomic<bool> isRunning, amIPrimary;
   std::condition_variable conditionVar;
   std::mutex conditionLock;
+  concord::kvbc::IReader &ro_storage_;
+  concord::messages::PruneSwitchModeRequest latestConfiguration_{0, PruningMode::LEGACY, {}};
 };
 }  // namespace concord::performance

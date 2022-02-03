@@ -25,7 +25,9 @@
 #include "categorization/db_categories.h"
 #include "categorization/details.h"
 #include "categorized_kvbc_msgs.cmf.hpp"
-
+#include "IntervalMappingResourceManager.hpp"
+#include "concurrent_pruning_manager.hpp"
+#include <chrono>
 #include <algorithm>
 
 namespace concord::kvbc::reconfiguration {
@@ -997,29 +999,42 @@ bool ReconfigurationHandler::handle(const messages::UnwedgeStatusRequest& req,
   return true;
 }
 
-bool ReconfigurationHandler::handle(const concord::messages::PruneTicksChangeRequest& command,
-                                    uint64_t bft_seq_num,
-                                    uint32_t sender_id,
-                                    const std::optional<bftEngine::Timestamp>& ts,
-                                    concord::messages::ReconfigurationResponse&) {
-  std::vector<uint8_t> serialized_command;
-  concord::messages::serialize(serialized_command, command);
-  auto blockId = persistReconfigurationBlock(
-      serialized_command,
-      bft_seq_num,
-      std::string{kvbc::keyTypes::reconfiguration_pruning_key,
-                  static_cast<char>(kvbc::keyTypes::PRUNING_COMMAND_TYPES::TICKS_CHANGE_REQUEST)},
-      ts,
-      false);
-  LOG_INFO(getLogger(), "block id: " << KVLOG(blockId, sender_id));
-  return true;
-}
-
 bool ReconfigurationHandler::handle(const concord::messages::PruneSwitchModeRequest& command,
                                     uint64_t bft_seq_num,
                                     uint32_t sender_id,
                                     const std::optional<bftEngine::Timestamp>& ts,
-                                    concord::messages::ReconfigurationResponse&) {
+                                    concord::messages::ReconfigurationResponse& rres) {
+  if (command.mode == concord::performance::PruningMode::LEGACY) {
+    if (!std::holds_alternative<concord::messages::PruneLegacyConfiguration>(command.configuration)) {
+      auto error_msg = "got an invalid legacy configuration from operator";
+      LOG_WARN(getLogger(), error_msg);
+      rres.response = concord::messages::ReconfigurationErrorMsg{error_msg};
+      return false;
+    }
+    concord::messages::PruneLegacyConfiguration conf =
+        std::get<concord::messages::PruneLegacyConfiguration>(command.configuration);
+    LOG_INFO(getLogger(), "switching to legacy mode " << KVLOG(conf.tick_period_seconds, conf.batch_blocks_num));
+    // Handle legacy pruning configuration
+    apm_.switchMode(concord::performance::PruningMode::LEGACY);
+    apm_.notifyReplicas(conf.tick_period_seconds, conf.batch_blocks_num);
+    return true;
+  }
+  // Handler adaptive pruning configuration
+  if (std::holds_alternative<concord::messages::PruneConfigurationMax>(command.configuration)) {
+    auto error_msg = "max configuration is not supported yet";
+    rres.response = concord::messages::ReconfigurationErrorMsg{error_msg};
+    LOG_ERROR(getLogger(), error_msg);
+    return false;
+  } else if (std::holds_alternative<concord::messages::PruneConfigurationMap>(command.configuration)) {
+    LOG_INFO(getLogger(), "switching to adaptive mode");
+    concord::messages::PruneConfigurationMap conf =
+        std::get<concord::messages::PruneConfigurationMap>(command.configuration);
+    apm_.setResourceManager(concord::performance::IntervalMappingResourceManager::createIntervalMappingResourceManager(
+                                replicaResources_, std::move(conf.mapConsensusRateToPruningRate)),
+                            false);
+    apm_.switchMode(concord::performance::PruningMode::ADAPTIVE);
+  }
+
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
   auto blockId = persistReconfigurationBlock(
@@ -1048,6 +1063,19 @@ bool ReconfigurationHandler::handle(const concord::messages::PruneStopRequest& c
                                   ts,
                                   false);
   LOG_INFO(getLogger(), "block id: " << KVLOG(blockId, sender_id));
+
+  // Stopping pruning means that we simply reduce the ticks rate to 0.
+  concord::messages::PruneTicksChangeRequest tick_config{0, 0, 0};
+  serialized_command.clear();
+  concord::messages::serialize(serialized_command, tick_config);
+  persistReconfigurationBlock(
+      serialized_command,
+      bft_seq_num,
+      std::string{kvbc::keyTypes::reconfiguration_pruning_key,
+                  static_cast<char>(kvbc::keyTypes::PRUNING_COMMAND_TYPES::TICKS_CHANGE_REQUEST)},
+      ts,
+      false);
+  concord::kvbc::pruning::ConcurrentPruningManager::instance().setTicksConfiguration({0, 0});
   return true;
 }
 
@@ -1117,6 +1145,28 @@ bool InternalKvReconfigurationHandler::handle(const concord::messages::ReplicaTl
       ts,
       false);
   LOG_INFO(getLogger(), "ReplicaTlsExchangeKey block id: " << blockId << " for replica " << sender_id);
+  return true;
+}
+
+bool InternalKvReconfigurationHandler::handle(const concord::messages::PruneTicksChangeRequest& command,
+                                              uint64_t bft_seq_num,
+                                              uint32_t sender_id,
+                                              const std::optional<bftEngine::Timestamp>& ts,
+                                              concord::messages::ReconfigurationResponse&) {
+  std::vector<uint8_t> serialized_command;
+  concord::messages::serialize(serialized_command, command);
+  auto blockId = persistReconfigurationBlock(
+      serialized_command,
+      bft_seq_num,
+      std::string{kvbc::keyTypes::reconfiguration_pruning_key,
+                  static_cast<char>(kvbc::keyTypes::PRUNING_COMMAND_TYPES::TICKS_CHANGE_REQUEST)},
+      ts,
+      false);
+  LOG_INFO(getLogger(), "block id: " << KVLOG(blockId, sender_id));
+  // We now change the ticks configuration such that the concurrent pruning implementation will know to grab the current
+  // pruning rate.
+  concord::kvbc::pruning::ConcurrentPruningManager::instance().setTicksConfiguration(
+      {command.tick_period_seconds, command.batch_blocks_num});
   return true;
 }
 

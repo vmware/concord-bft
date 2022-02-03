@@ -167,15 +167,15 @@ class KvbcRequestHandler : public bftEngine::RequestHandler {
   categorization::KeyValueBlockchain &blockchain_;
 };
 void Replica::registerReconfigurationHandlers(std::shared_ptr<bftEngine::IRequestsHandler> requestHandler) {
-  requestHandler->setReconfigurationHandler(
-      std::make_shared<kvbc::reconfiguration::ReconfigurationHandler>(*this, *this, this->AdaptivePruningManager_),
-      concord::reconfiguration::ReconfigurationHandlerType::PRE);
+  requestHandler->setReconfigurationHandler(std::make_shared<kvbc::reconfiguration::ReconfigurationHandler>(
+                                                *this, *this, this->AdaptivePruningManager_, this->replicaResources_),
+                                            concord::reconfiguration::ReconfigurationHandlerType::PRE);
   requestHandler->setReconfigurationHandler(
       std::make_shared<kvbc::reconfiguration::StateSnapshotReconfigurationHandler>(*this, *this),
       concord::reconfiguration::ReconfigurationHandlerType::PRE);
-  requestHandler->setReconfigurationHandler(std::make_shared<kvbc::reconfiguration::InternalKvReconfigurationHandler>(
-                                                *this, *this, this->AdaptivePruningManager_),
-                                            concord::reconfiguration::ReconfigurationHandlerType::PRE);
+  requestHandler->setReconfigurationHandler(
+      std::make_shared<kvbc::reconfiguration::InternalKvReconfigurationHandler>(*this, *this),
+      concord::reconfiguration::ReconfigurationHandlerType::PRE);
   requestHandler->setReconfigurationHandler(
       std::make_shared<kvbc::reconfiguration::KvbcClientReconfigurationHandler>(*this, *this),
       concord::reconfiguration::ReconfigurationHandlerType::PRE);
@@ -493,7 +493,8 @@ Replica::Replica(ICommunication *comm,
               replicaResources_,
               std::vector<std::pair<uint64_t, uint64_t>>{
                   concord::performance::IntervalMappingResourceManager::default_mapping}),
-          20000ms} {
+          20000ms,
+          *this} {
   bft::communication::StateControl::instance().setCommRestartCallBack(
       [this](uint32_t i) { m_ptrComm->restartCommunication(i); });
   // Populate ST configuration
