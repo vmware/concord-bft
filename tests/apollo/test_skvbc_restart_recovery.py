@@ -124,6 +124,12 @@ class SkvbcRestartRecoveryTest(unittest.TestCase):
         #
         # log = foo()
 
+
+        def advance_current_next_primary(new_view, num_replicas):
+            _current_primary = new_view % num_replicas
+            _next_primary = (current_primary + 1) % num_replicas
+            return _current_primary, _next_primary
+
         while view < 100:
             replica_to_restart = random.choice(
                 bft_network.all_replicas(without={current_primary, next_primary}))
@@ -147,10 +153,7 @@ class SkvbcRestartRecoveryTest(unittest.TestCase):
                         view = await bft_network.get_current_view()
                     await trio.sleep(seconds=1)
 
-            advance = view - old_view
-            current_primary += advance
-            current_primary = current_primary % bft_network.config.n
-            next_primary = (current_primary + 1) % bft_network.config.n
+            current_primary, next_primary = advance_current_next_primary(view, bft_network.config.n)
 
             log.log_message(f"view is {view}")
 
@@ -171,6 +174,12 @@ class SkvbcRestartRecoveryTest(unittest.TestCase):
                             await skvbc.run_concurrent_ops(50)
                             await trio.sleep(seconds=5)
 
+            view_after_st = await bft_network.get_current_view()
+            log.log_message(f"view_after_st={view_after_st}")
+            if view != view_after_st:
+                log.log_message(f"during ST we got a View Change from view {view} to {view_after_st}")
+                view = view_after_st
+                current_primary, next_primary = advance_current_next_primary(view, bft_network.config.n)
 
             log.log_message("wait for fast path to be prevalent")
             await bft_network.wait_for_fast_path_to_be_prevalent(
