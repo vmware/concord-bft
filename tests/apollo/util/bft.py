@@ -59,11 +59,6 @@ class ConsensusPathPrevalentResult(Enum):
    TOO_FEW_REQUESTS_ON_EXPECTED_PATH = 1
    TOO_MANY_REQUESTS_ON_UNEXPECTED_PATH = 2
 
-class ConsensusPathType(Enum):
-    SLOW = 'slow'
-    FAST_WITH_THRESHOLD = 'fast_with_threshold'
-    OPTIMISTIC_FAST = 'optimistic_fast'
-
 KEY_FILE_PREFIX = "replica_keys_"
 # bft_client.py  implement 2 types of clients currently:
 # UdpClient for UDP communication and TcpTlsClient for for TCP/TLS communication
@@ -1317,50 +1312,6 @@ class BftTestNetwork:
                             if res == ConsensusPathPrevalentResult.TOO_MANY_REQUESTS_ON_UNEXPECTED_PATH:
                                 # wait a bit before resending new requests
                                 await trio.sleep(seconds=5)
-
-
-    async def wait_for_consensus_path(self, path_type: ConsensusPathType,
-                                      send_request_func: Callable,
-                                      threshold: int,
-                                      replica_id: int = 0,
-                                      sleep_seconds: int = 1,
-                                      timeout: int = 60):
-        """
-        Waits until at least threshold operations are being executed in the selected path.
-          run_ops: lambda that executes skvbc.run_concurrent_ops or creates requests in some other way
-          threshold: minimum number of requests that have to be executed in the correct path
-        run_ops should produce at least threshold executions
-        """
-        path_to_metric = {ConsensusPathType.SLOW : self.num_of_slow_path_requests,
-                          ConsensusPathType.OPTIMISTIC_FAST : self.num_of_fast_path_requests,
-                          }
-        initial_count = await path_to_metric[path_type](replica_id)
-        print(f"type: {path_type}, initial_count: {initial_count}")
-        prev_diff = threshold
-
-        with log.start_action(action_type=f"wait_for_requests_in_path",
-                              path_type=path_type.value, request_count=threshold), \
-                trio.fail_after(seconds=timeout) as action:
-            for _ in range(threshold):
-                await send_request_func()
-
-            while True:
-                await trio.sleep(seconds=sleep_seconds)
-                current_count = await path_to_metric[path_type](replica_id)
-                assert initial_count < current_count, f"Inconsistent metrics values. initial value: {initial_count}," \
-                                                      f"current value: {current_count}"
-                counter_diff = current_count - initial_count
-                print(f"prv:{prev_diff} cnt:{counter_diff}")
-                if counter_diff >= threshold:
-                    break
-                if counter_diff < prev_diff:
-                    print("PROGRESS")
-                    action.log(message_type=f"info", path_type=path_type.value, remaining=f'counter_diff')
-                prev_diff = counter_diff
-
-
-
-
 
     async def wait_for_last_executed_seq_num(self, replica_id=0, expected=0):
         with log.start_action(action_type="wait_for_last_executed_seq_num"):
