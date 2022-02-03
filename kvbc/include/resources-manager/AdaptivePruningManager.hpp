@@ -3,8 +3,13 @@
 #include "IRequestHandler.hpp"
 #include "IResourceManager.hpp"
 #include "InternalBFTClient.hpp"
+<<<<<<< HEAD
 #include "db_interfaces.h"
 #include "concord.cmf.hpp"
+=======
+#include "Metrics.hpp"
+
+>>>>>>> Improvements
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -22,9 +27,7 @@ class AdaptivePruningManager {
                          const std::chrono::duration<double, std::milli> &interval,
                          const std::shared_ptr<concordMetrics::Aggregator> &aggregator,
                          concord::kvbc::IReader &ro_storage);
-=======
 
->>>>>>> Conflicts fix
   virtual ~AdaptivePruningManager();
 
   void switchMode(PruningMode newMode) {

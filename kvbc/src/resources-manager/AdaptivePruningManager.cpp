@@ -100,10 +100,13 @@ void AdaptivePruningManager::threadFunction() {
                         [this]() { return !isRunning.load() || (getCurrentMode() == ADAPTIVE && amIPrimary.load()); });
     }
     if (isRunning.load()) {
-      std::unique_lock<std::mutex> lk(conditionLock);
-      auto info = resourceManager->getPruneInfo();
-
+      concord::performance::PruneInfo info;
+      {
+        std::unique_lock<std::mutex> lk(conditionLock);
+        info = resourceManager->getPruneInfo();
+      }
       notifyReplicas(info.blocksPerSecond, info.batchSize);
+      std::unique_lock<std::mutex> lk(conditionLock);
       conditionVar.wait_for(lk, interval);
     }
   }
