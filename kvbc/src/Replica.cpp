@@ -525,10 +525,11 @@ Replica::Replica(ICommunication *comm,
     replicaConfig_.get<uint32_t>("concord.bft.st.fetchRetransmissionTimeoutMs", 2000),
     replicaConfig_.get<uint32_t>("concord.bft.st.maxFetchRetransmissions", 2),
     replicaConfig_.get<uint32_t>("concord.bft.st.metricsDumpIntervalSec", 5),
-    replicaConfig_.get("concord.bft.st.runInSeparateThread", replicaConfig_.isReadOnly),
+    replicaConfig_.get("concord.bft.st.runInSeparateThread", !replicaConfig_.isReadOnly),
     replicaConfig_.get("concord.bft.st.enableReservedPages", true),
     replicaConfig_.get("concord.bft.st.enableSourceBlocksPreFetch", true)
   };
+  if (replicaConfig_.isReadOnly) stConfig.runInSeparateThread = false;
 
 #if !defined USE_COMM_PLAIN_TCP && !defined USE_COMM_TLS_TCP
   // maxChunkSize * maxNumberOfChunksInBatch shouldn't exceed UDP message size which is limited to 64KB
