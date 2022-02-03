@@ -391,12 +391,17 @@ Msg PruneConfigurationMap 74 {
    list kvpair uint64 uint64 mapConsensusRateToPruningRate
 }
 
+Msg PruneLegacyConfiguration 78 {
+  uint32 tick_period_seconds
+  uint64 batch_blocks_num
+}
 Msg PruneSwitchModeRequest 75 {
     uint64 sender_id
     uint8 mode
     oneof {
         PruneConfigurationMap
         PruneConfigurationMax
+        PruneLegacyConfiguration
     }
     configuration
 }
