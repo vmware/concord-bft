@@ -134,9 +134,28 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
  public:
   ReconfigurationHandler(kvbc::IBlockAdder& block_adder,
                          kvbc::IReader& ro_storage,
-                         concord::performance::AdaptivePruningManager& apm)
-      : ReconfigurationBlockTools{block_adder, ro_storage}, apm_(apm) {
-    (void)apm_;  // unused for now
+                         concord::performance::AdaptivePruningManager& apm,
+                         concord::performance::ISystemResourceEntity& replicaResources)
+      : ReconfigurationBlockTools{block_adder, ro_storage}, apm_(apm), replicaResources_(replicaResources) {
+    const auto& command = apm_.getLatestConfiguration();
+    if (command.sender_id != 0) {
+      if (command.mode == concord::performance::PruningMode::LEGACY) {
+        concord::messages::PruneLegacyConfiguration conf =
+            std::get<concord::messages::PruneLegacyConfiguration>(command.configuration);
+        LOG_INFO(getLogger(), "switching to legacy mode " << KVLOG(conf.tick_period_seconds, conf.batch_blocks_num));
+        // Handle legacy pruning configuration
+        apm_.switchMode(concord::performance::PruningMode::LEGACY);
+      } else if (std::holds_alternative<concord::messages::PruneConfigurationMap>(command.configuration)) {
+        LOG_INFO(getLogger(), "switching to adaptive mode");
+        concord::messages::PruneConfigurationMap conf =
+            std::get<concord::messages::PruneConfigurationMap>(command.configuration);
+        apm_.setResourceManager(
+            concord::performance::IntervalMappingResourceManager::createIntervalMappingResourceManager(
+                replicaResources_, std::move(conf.mapConsensusRateToPruningRate)),
+            false);
+        apm_.switchMode(concord::performance::PruningMode::ADAPTIVE);
+      }
+    }
   }
   bool handle(const concord::messages::WedgeCommand& command,
               uint64_t bft_seq_num,
