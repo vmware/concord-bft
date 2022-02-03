@@ -42,6 +42,7 @@ def start_replica_cmd(builddir, replica_id):
 
 class SkvbcReplyTest(unittest.TestCase):
 
+    @unittest.skip("Unstable test - BC-18035")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: c == 0 and n > 6)
     async def test_expected_replies_from_replicas(self, bft_network):
