@@ -24,7 +24,7 @@
 #include "secrets_manager_plain.h"
 #include "crypto_utils.hpp"
 #include "communication/StateControl.hpp"
-
+#include "hex_tools.h"
 namespace bft::communication::tls {
 
 void AsyncTlsConnection::startReading() {
@@ -39,7 +39,6 @@ void AsyncTlsConnection::readMsgSizeHeader(std::optional<size_t> bytes_already_r
   const size_t bytes_remaining = MSG_HEADER_SIZE - offset;
   auto buf = asio::buffer(read_size_buf_.data() + offset, bytes_remaining);
   status_.msg_size_header_read_attempts++;
-
   auto start = std::chrono::steady_clock::now();
   socket_->async_read_some(
       buf,
@@ -128,7 +127,8 @@ void AsyncTlsConnection::readMsg() {
         histograms_.received_msg_size->recordAtomic(bytes_transferred);
         {
           concord::diagnostics::TimeRecorder<true> scoped_timer(*histograms_.read_enqueue_time);
-          receiver_->onNewMessage(peer_id_.value(), read_msg_.data(), bytes_transferred);
+          NodeNum endpoint_num = getReadMsgEndpointNum();
+          receiver_->onNewMessage(peer_id_.value(), read_msg_.data(), bytes_transferred, endpoint_num);
         }
         readMsgSizeHeader();
       }));
@@ -176,6 +176,15 @@ uint32_t AsyncTlsConnection::getReadMsgSize() {
   uint32_t num;
   memcpy(&num, read_size_buf_.data(), 4);
   return ntohl(num);
+}
+
+NodeNum AsyncTlsConnection::getReadMsgEndpointNum() const {
+  LOG_DEBUG(logger_, KVLOG(peer_id_.value(), (void*)read_size_buf_.data()));
+  // We send in network byte order
+  // We must use memcpy to get aligned access
+  NodeNum endpointNum;
+  memcpy(&endpointNum, read_size_buf_.data() + sizeof(Header::msg_size), sizeof(Header::endpoint_num));
+  return concordUtils::netToHost<NodeNum>(endpointNum);
 }
 
 void AsyncTlsConnection::remoteDispose() {

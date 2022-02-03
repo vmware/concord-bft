@@ -847,11 +847,13 @@ ConnectionStatus PlainTCPCommunication::getCurrentConnectionStatus(const NodeNum
   return ptrImpl_->getCurrentConnectionStatus(node);
 }
 
-int PlainTCPCommunication::send(NodeNum destNode, std::vector<uint8_t> &&msg) {
+int PlainTCPCommunication::send(NodeNum destNode, std::vector<uint8_t> &&msg, NodeNum endpointNum) {
   return ptrImpl_->sendAsyncMessage(destNode, (char *)msg.data(), msg.size());
 }
 
-std::set<NodeNum> PlainTCPCommunication::send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg) {
+std::set<NodeNum> PlainTCPCommunication::send(std::set<NodeNum> dests,
+                                              std::vector<uint8_t> &&msg,
+                                              NodeNum endpointNum) {
   std::set<NodeNum> failed_nodes;
   for (auto &d : dests) {
     if (ptrImpl_->sendAsyncMessage(d, (char *)msg.data(), msg.size()) != 0) {

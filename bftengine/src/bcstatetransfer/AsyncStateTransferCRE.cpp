@@ -48,13 +48,13 @@ class Communication : public ICommunication {
     if (!is_running_) return ConnectionStatus::Disconnected;
     return ConnectionStatus::Connected;
   }
-  int send(NodeNum destNode, std::vector<uint8_t>&& msg) override {
+  int send(NodeNum destNode, std::vector<uint8_t>&& msg, NodeNum endpointNum) override {
     if (destNode == repId_) {
       return msg.size();
     }
     return msgsCommunicator_->sendAsyncMessage(destNode, reinterpret_cast<char*>(msg.data()), msg.size());
   }
-  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t>&& msg) override {
+  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t>&& msg, NodeNum endpointNum) override {
     auto ret = dests;
     if (dests.find(repId_) != dests.end()) {
       dests.erase(repId_);

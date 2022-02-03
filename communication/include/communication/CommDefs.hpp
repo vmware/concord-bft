@@ -28,13 +28,18 @@
 
 namespace bft::communication {
 typedef struct sockaddr_in Addr;
-
 struct NodeInfo {
   std::string host;
   std::uint16_t port;
   bool isReplica;
 };
-
+#pragma pack(push, 1)
+struct Header {
+  uint32_t msg_size;
+  NodeNum endpoint_num;
+};
+#pragma pack(pop)
+static constexpr size_t MSG_HEADER_SIZE = sizeof(Header);
 typedef std::unordered_map<NodeNum, NodeInfo> NodeMap;
 
 enum CommType { PlainUdp, SimpleAuthUdp, PlainTcp, SimpleAuthTcp, TlsTcp };
@@ -133,8 +138,8 @@ class PlainUDPCommunication : public ICommunication {
   bool isRunning() const override;
   ConnectionStatus getCurrentConnectionStatus(NodeNum node) override;
 
-  int send(NodeNum destNode, std::vector<uint8_t> &&msg) override;
-  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg) override;
+  int send(NodeNum destNode, std::vector<uint8_t> &&msg, NodeNum endpointNum) override;
+  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg, NodeNum endpointNum) override;
 
   void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
 
@@ -160,8 +165,8 @@ class PlainTCPCommunication : public ICommunication {
   bool isRunning() const override;
   ConnectionStatus getCurrentConnectionStatus(NodeNum node) override;
 
-  int send(NodeNum destNode, std::vector<uint8_t> &&msg) override;
-  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg) override;
+  int send(NodeNum destNode, std::vector<uint8_t> &&msg, NodeNum endpointNum) override;
+  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg, NodeNum endpointNum) override;
 
   void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
 
@@ -189,8 +194,8 @@ class TlsTCPCommunication : public ICommunication {
   bool isRunning() const override;
   ConnectionStatus getCurrentConnectionStatus(NodeNum node) override;
 
-  int send(NodeNum destNode, std::vector<uint8_t> &&msg) override;
-  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg) override;
+  int send(NodeNum destNode, std::vector<uint8_t> &&msg, NodeNum endpointNum) override;
+  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg, NodeNum endpointNum) override;
 
   void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
 

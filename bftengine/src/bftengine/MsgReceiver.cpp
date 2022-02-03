@@ -21,7 +21,10 @@ using namespace bft::communication;
 
 MsgReceiver::MsgReceiver(std::shared_ptr<IncomingMsgsStorage> &storage) : incomingMsgsStorage_(storage) {}
 
-void MsgReceiver::onNewMessage(NodeNum sourceNode, const char *const message, size_t messageLength) {
+void MsgReceiver::onNewMessage(NodeNum sourceNode,
+                               const char *const message,
+                               size_t messageLength,
+                               NodeNum endpointNum) {
   if (messageLength > ReplicaConfig::instance().getmaxExternalMessageSize()) {
     LOG_WARN(GL, "Msg exceeds allowed max msg size, size " << messageLength << " source " << sourceNode);
     return;
