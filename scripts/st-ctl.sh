@@ -20,7 +20,7 @@ usage() {
            "<remotes ip list,comma-seperated ip list> <user name,string,optional,default:root> <password,string,default:Bl0ckch@!n>"
     # install packages and create profile/bashrc files to enhance the working enviorment
     printf "%s\n" " -i --install-tools"
-    printf "%s\n" " -g --gen-concord-coredump-summary <output_path,string> <container_id,12 digits string>"
+    printf "%s\n" " -g --gen-concord-coredump-summary <output_path,string> <container_name,string>"
     # If line number is given, version will be changed only for this line number
     printf "%s\n" " -a --agent-replace-version <current version,integer> <new version,integer> <line number,integer,optional>"
     printf "%s\n" " -v --agent-show-containers-version"
@@ -29,6 +29,7 @@ usage() {
         "<wait_before_iteration,seconds,optional,default=0> <wait_after_iteration,seconds,optional,default=0>"
     printf "%s\n" " -u --truncate-container-logs <container_name,string>"
     printf "%s\n" " -k --kill-concord-process"
+    printf "%s\n" " -sr --show-rvb_data-state <period (seconds),integer,0 to print once only"
 }
 
 parser() {
@@ -45,6 +46,7 @@ parser() {
     cmd_compress_truncate_container_logs=false
     cmd_truncate_container_logs=false
     cmd_kill_concord=false
+    cmd_show_rvb_data_state=false
 
     while [ "$1" ]; do
         case $1 in
@@ -125,7 +127,7 @@ parser() {
         cmd_gen_concord_coredump_summary=true
         if [[ $# -lt 3 ]]; then echo "error: bad input for option -g | --gen_concord_coredump_summary!" >&2; usage; exit; fi
         output_path=$2
-        container_id=$3
+        container_name=$3
         break
         ;;
 
@@ -184,6 +186,13 @@ parser() {
         break
         ;;
 
+        -sr | --show-rvb_data-state)
+        cmd_show_rvb_data_state=true
+        if [[ $# -lt 2 ]]; then echo "error: bad input for option -sr | --show-rvb_data-state!" >&2; usage; exit; fi
+        period_in_seconds=$2
+        break
+        ;;
+
         *)
         echo "error: unknown input $1!" >&2
         usage
@@ -215,6 +224,11 @@ if $cmd_set_concord_log_level; then
         "concord.util.handoff" \
         "concord.bft.st.dbdatastore" \
         "concord.bft.st.inmem" \
+        "concord.bft.st.rvb" \
+        "concord.storage.s3" \
+        "concord.kvbc.S3KeyGenerator" \
+        "skvbc.replica"
+
         # Uncomment as needed
         #"serializable" \
         #'rocksdb'
@@ -333,11 +347,11 @@ rpm -i https://packages.vmware.com/photon/3.0/photon_release_3.0_x86_64/x86_64/n
 rpm -i https://packages.vmware.com/photon/3.0/photon_release_3.0_x86_64/x86_64/tmux-2.7-1.ph3.x86_64.rpm || true
 
 cd /root/
-rm -rf ./lnav-0.9.0 ./lnav-0.9.0-musl-64bit.zip
-wget https://github.com/tstack/lnav/releases/download/v0.9.0/lnav-0.9.0-musl-64bit.zip
-unzip lnav-0.9.0-musl-64bit.zip
-mv lnav-0.9.0/lnav /usr/bin/
-rm -rf ./lnav-0.9.0 ./lnav-0.9.0-musl-64bit.zip
+rm -rf ./lnav-0.10.1 ./lnav-0.10.1-musl-64bit.zip
+wget https://github.com/tstack/lnav/releases/download/v0.10.1/lnav-0.10.1-musl-64bit.zip
+unzip lnav-0.10.1-musl-64bit.zip
+mv lnav-0.10.1/lnav /usr/bin/
+rm -rf ./lnav-0.10.1 ./lnav-0.10.1-musl-64bit.zip
 
 cat <<EOF >> ~/.profile
 alias myip="echo $(ifconfig | grep "10\.202" | cut -d ":" -f 2 | cut -d " " -f 1)"
@@ -362,7 +376,7 @@ fdocker_truncate_logs() {
 }
 # If set, Bash checks the window size after each command and, if necessary, updates the values of LINES and COLUMNS
 shopt -u checkwinsize
-export PS1="\e[0;31m[\w][id_\$(myid || "")][ip_\$(myip)]\e[m > "
+export PS1="\e[0;31m[id_\$(myid || "")][ip_\$(myip)][\w]\e[m > "
 EOF
 
 # inside concord container
@@ -379,7 +393,7 @@ if $cmd_gen_concord_coredump_summary; then
     rm -f "${output_file}" || true 2> /dev/null
     mkdir -p ${output_path}
     echo "Generating output file (this may take some time) ..."
-    docker exec -it "${container_id}" bash -c \
+    docker exec -it "${container_name}" bash -c \
         'for filename in /concord/cores/core.concord*; do echo "***bt for ${filename}:***"; echo "set pagination off" > ~/.gdbinit; gdb concord ${filename} -ex bt -ex quit; done' >> "${output_file}"
     echo "Done generating summary under ${output_file}"
 fi
@@ -463,5 +477,19 @@ fi
 ##########################################
 if $cmd_kill_concord; then
     killall concord
+    echo "===Done!==="
+fi
+
+##########################################
+# handle cmd_show_rvb_data_state
+##########################################
+if $cmd_show_rvb_data_state; then
+    for i in {1..1000000}; do
+      docker exec -it concord bash -c "./concord-ctl status get state-transfer" | grep -oE "rvb_data_state.{0,70}"
+      sleep ${period_in_seconds}
+      if [[ ${period_in_seconds} -eq 0 ]]; then
+        break;
+      fi
+    done
     echo "===Done!==="
 fi
