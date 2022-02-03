@@ -1407,9 +1407,7 @@ void PreProcessor::releaseClientPreProcessRequest(const RequestStateSharedPtr &r
 
 void PreProcessor::sendMsg(char *msg, NodeIdType dest, uint16_t msgType, MsgSize msgSize) {
   int errorCode = msgsCommunicator_->sendAsyncMessage(dest, msg, msgSize);
-  if (errorCode != 0) {
-    LOG_ERROR(logger(), "sendMsg: sendAsyncMessage returned error" << KVLOG(errorCode, dest, msgType));
-  }
+  if (errorCode != 0) LOG_ERROR(logger(), "sendAsyncMessage returned error" << KVLOG(errorCode, dest, msgType));
 }
 
 // This function should be called under a reqEntry->mutex lock
@@ -1555,10 +1553,9 @@ void PreProcessor::sendPreProcessRequestToAllReplicas(const PreProcessRequestMsg
   for (auto destId : idsOfPeerReplicas) {
     if (destId != myReplicaId_) {
       // sendMsg works asynchronously, so we can launch it sequentially here
-      LOG_DEBUG(logger(),
-                "Sending PreProcessRequestMsg clientId: " << preProcessReqMsg->clientId()
-                                                          << ", reqSeqNum: " << preProcessReqMsg->reqSeqNum()
-                                                          << ", to the replica: " << destId);
+      LOG_DEBUG(
+          logger(),
+          "Sending PreProcessRequestMsg" << KVLOG(preProcessReqMsg->clientId(), preProcessReqMsg->reqSeqNum(), destId));
       sendMsg(preProcessReqMsg->body(), destId, preProcessReqMsg->type(), preProcessReqMsg->size());
     }
   }
@@ -1640,9 +1637,9 @@ OperationResult PreProcessor::launchReqPreProcessing(const PreProcessRequestMsgS
   // Append the conflict detection block id and add its size to the resulting length.
   memcpy(preProcessResultBuffer + resultLen, reinterpret_cast<char *>(&blockId), sizeof(uint64_t));
   resultLen += sizeof(uint64_t);
-  LOG_DEBUG(
-      logger(),
-      "Pre-execution operation successfully completed" << KVLOG(cid, reqSeqNum, clientId, reqOffsetInBatch, blockId));
+  LOG_DEBUG(logger(),
+            "Pre-execution operation completed"
+                << KVLOG(cid, reqSeqNum, clientId, reqOffsetInBatch, blockId, (uint32_t)preProcessResult));
   return preProcessResult;
 }
 

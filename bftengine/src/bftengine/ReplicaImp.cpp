@@ -5004,10 +5004,8 @@ void ReplicaImp::executeSpecialRequests(PrePrepareMsg *ppMsg,
 
 // TODO(LG) - make this method static
 void ReplicaImp::executeRequests(PrePrepareMsg *ppMsg, Bitmap &requestSet, Timestamp time) {
-  //   TimeRecorder scoped_timer(*histograms_.executeRequestsAndSendResponses);
-  //  SCOPED_MDC("pp_msg_cid", ppMsg->getCid());
-  auto pAccumulatedRequests =
-      make_unique<IRequestsHandler::ExecutionRequestsQueue>();  // new IRequestsHandler::ExecutionRequestsQueue;
+  // TimeRecorder scoped_timer(*histograms_.executeRequestsAndSendResponses);
+  auto pAccumulatedRequests = make_unique<IRequestsHandler::ExecutionRequestsQueue>();
   size_t reqIdx = 0;
   RequestsIterator reqIter(ppMsg);
   char *requestBody = nullptr;
@@ -5021,9 +5019,10 @@ void ReplicaImp::executeRequests(PrePrepareMsg *ppMsg, Bitmap &requestSet, Times
       continue;
     }
 
-    //    SCOPED_MDC_CID(req.getCid());
+    uint32_t replySize = 0;
+    if ((req.flags() & HAS_PRE_PROCESSED_FLAG) && (req.result() != static_cast<uint32_t>(OperationResult::UNKNOWN)))
+      replySize = req.requestLength();
     NodeIdType clientId = req.clientProxyId();
-
     pAccumulatedRequests->push_back(IRequestsHandler::ExecutionRequest{
         clientId,
         static_cast<uint64_t>(lastExecutedSeqNum + 1),
@@ -5035,17 +5034,16 @@ void ReplicaImp::executeRequests(PrePrepareMsg *ppMsg, Bitmap &requestSet, Times
         static_cast<uint32_t>(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
         (char *)std::malloc(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
         req.requestSeqNum(),
-        req.result()});
-
+        req.result(),
+        replySize});
     if (req.flags() & HAS_PRE_PROCESSED_FLAG) {
       setConflictDetectionBlockId(req, pAccumulatedRequests->back());
     }
   }
   if (ReplicaConfig::instance().blockAccumulation) {
-    LOG_DEBUG(GL,
-              "Executing all the requests of preprepare message with cid: " << ppMsg->getCid() << " with accumulation");
+    LOG_DEBUG(GL, "Executing all the requests of prePrepare message with accumulation" << KVLOG(ppMsg->getCid()));
     {
-      //      TimeRecorder scoped_timer1(*histograms_.executeWriteRequest);
+      // TimeRecorder scoped_timer1(*histograms_.executeWriteRequest);
       const concordUtils::SpanContext &span_context{""};
       auto span = concordUtils::startChildSpanFromContext(span_context, "bft_client_request");
       span.setTag("rid", config_.getreplicaId());
@@ -5054,19 +5052,19 @@ void ReplicaImp::executeRequests(PrePrepareMsg *ppMsg, Bitmap &requestSet, Times
       bftRequestsHandler_->execute(*pAccumulatedRequests, time, ppMsg->getCid(), span);
     }
   } else {
-    LOG_INFO(
-        GL,
-        "Executing all the requests of preprepare message with cid: " << ppMsg->getCid() << " without accumulation");
+    LOG_INFO(GL,
+             "Executing all the requests of prePrepare message without block accumulation" << KVLOG(ppMsg->getCid()));
     IRequestsHandler::ExecutionRequestsQueue singleRequest;
     for (auto &req : *pAccumulatedRequests) {
       singleRequest.push_back(req);
       {
-        //        TimeRecorder scoped_timer1(*histograms_.executeWriteRequest);
+        // TimeRecorder scoped_timer1(*histograms_.executeWriteRequest);
         const concordUtils::SpanContext &span_context{""};
         auto span = concordUtils::startChildSpanFromContext(span_context, "bft_client_request");
         span.setTag("rid", config_.getreplicaId());
         span.setTag("cid", ppMsg->getCid());
         span.setTag("seq_num", ppMsg->seqNumber());
+        LOG_INFO(GL, KVLOG(singleRequest[0].outActualReplySize));
         bftRequestsHandler_->execute(singleRequest, time, ppMsg->getCid(), span);
         if (config_.timeServiceEnabled) {
           time.request_position++;
@@ -5441,7 +5439,6 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
     if (dur > 0) {
       // Primary
       LOG_INFO(CNSUS, "Consensus reached, sleep_duration_ms [" << dur << "ms]");
-
     } else {
       LOG_INFO(CNSUS, "Consensus reached");
     }
@@ -5577,6 +5574,9 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
     SCOPED_MDC_CID(req.getCid());
     NodeIdType clientId = req.clientProxyId();
 
+    uint32_t replySize = 0;
+    if ((req.flags() & HAS_PRE_PROCESSED_FLAG) && (req.result() != static_cast<uint32_t>(OperationResult::UNKNOWN)))
+      replySize = req.requestLength();
     accumulatedRequests.push_back(IRequestsHandler::ExecutionRequest{
         clientId,
         static_cast<uint64_t>(lastExecutedSeqNum + 1),
@@ -5588,9 +5588,9 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
         static_cast<uint32_t>(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
         (char *)std::malloc(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
         req.requestSeqNum(),
-        req.result()});
-    // Decode the pre-execution block-id for the conflict detection optimization,
-    // and pass it to the post-execution.
+        req.result(),
+        replySize});
+    // Decode the pre-execution block-id for the conflict detection optimization and pass it to the post-execution.
     if (req.flags() & HAS_PRE_PROCESSED_FLAG) {
       setConflictDetectionBlockId(req, accumulatedRequests.back());
     }
@@ -5629,8 +5629,10 @@ void ReplicaImp::sendResponses(PrePrepareMsg *ppMsg, IRequestsHandler::Execution
     auto executionResult = req.outExecutionStatus;
     std::unique_ptr<ClientReplyMsg> replyMsg;
 
-    if (executionResult != 0) {
-      LOG_WARN(CNSUS, "Request execution failed: " << KVLOG(req.clientId, req.requestSequenceNum, ppMsg->getCid()));
+    if (executionResult != static_cast<uint32_t>(OperationResult::SUCCESS)) {
+      LOG_WARN(GL,
+               "Request execution failed:" << KVLOG(
+                   executionResult, req.clientId, req.requestSequenceNum, req.outActualReplySize, ppMsg->getCid()));
     } else {
       if (req.flags & HAS_PRE_PROCESSED_FLAG) metric_total_preexec_requests_executed_++;
       if (req.outActualReplySize != 0) {
@@ -5647,13 +5649,12 @@ void ReplicaImp::sendResponses(PrePrepareMsg *ppMsg, IRequestsHandler::Execution
         clientsManager->removePendingForExecutionRequest(req.clientId, req.requestSequenceNum);
         continue;
       } else {
-        LOG_WARN(CNSUS, "Received zero size response." << KVLOG(req.clientId, req.requestSequenceNum, ppMsg->getCid()));
+        LOG_WARN(GL, "Received zero size response." << KVLOG(req.clientId, req.requestSequenceNum, ppMsg->getCid()));
         strcpy(req.outReply, "Executed data is empty");
         req.outActualReplySize = strlen(req.outReply);
         executionResult = static_cast<uint32_t>(bftEngine::OperationResult::EXEC_DATA_EMPTY);
       }
     }
-
     replyMsg = clientsManager->allocateNewReplyMsgAndWriteToStorage(req.clientId,
                                                                     req.requestSequenceNum,
                                                                     currentPrimary(),
@@ -5662,6 +5663,9 @@ void ReplicaImp::sendResponses(PrePrepareMsg *ppMsg, IRequestsHandler::Execution
                                                                     0,
                                                                     executionResult);
     send(replyMsg.get(), req.clientId);
+    LOG_DEBUG(GL,
+              "Error response has been sent" << KVLOG(
+                  req.clientId, req.requestSequenceNum, ppMsg->getCid(), req.outActualReplySize, executionResult));
     free(req.outReply);
     req.outReply = nullptr;
     clientsManager->removePendingForExecutionRequest(req.clientId, req.requestSequenceNum);

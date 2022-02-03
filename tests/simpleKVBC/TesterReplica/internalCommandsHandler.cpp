@@ -94,8 +94,10 @@ void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequests
   BlockMerkleUpdates merkleUpdates;
 
   for (auto &req : requests) {
-    if (req.outExecutionStatus != static_cast<uint32_t>(OperationResult::UNKNOWN))
-      continue;  // Request already executed (internal)
+    bool hasPreExecuted = req.flags & bftEngine::MsgFlag::HAS_PRE_PROCESSED_FLAG;
+    if ((req.outExecutionStatus != static_cast<uint32_t>(OperationResult::UNKNOWN) && !hasPreExecuted) ||
+        (hasPreExecuted && (req.outExecutionStatus != static_cast<uint32_t>(OperationResult::SUCCESS))))
+      continue;  // Request already executed (internal) or pre-execution failed
     req.outReplicaSpecificInfoSize = 0;
     OperationResult res;
     if (req.requestSize <= 0) {
@@ -113,8 +115,7 @@ void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequests
                                    req.outReplicaSpecificInfoSize);
     } else {
       // Only if requests size is greater than 1 and other conditions are met, block accumulation is enabled.
-      bool isBlockAccumulationEnabled =
-          ((requests.size() > 1) && (req.flags & bftEngine::MsgFlag::HAS_PRE_PROCESSED_FLAG));
+      bool isBlockAccumulationEnabled = (requests.size() > 1) && hasPreExecuted;
       res = executeWriteCommand(req.requestSize,
                                 req.request,
                                 req.executionSequenceNum,
@@ -134,7 +135,6 @@ void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequests
       req.outExecutionStatus = static_cast<uint32_t>(res);
     }
   }
-
   if (merkleUpdates.size() > 0 || verUpdates.size() > 0) {
     // Write Block accumulated requests
     writeAccumulatedBlock(requests, verUpdates, merkleUpdates);
@@ -168,11 +168,10 @@ void InternalCommandsHandler::preExecute(IRequestsHandler::ExecutionRequest &req
     SKVBCRequest deserialized_request;
     deserialize(request_buffer_as_uint8, request_buffer_as_uint8 + req.requestSize, deserialized_request);
     const SKVBCWriteRequest &write_req = std::get<SKVBCWriteRequest>(deserialized_request.request);
-    LOG_INFO(m_logger,
-             "Pre execute WRITE command:"
-                 << " type=SKVBCWriteRequest seqNum=" << req.executionSequenceNum
-                 << " numOfWrites=" << write_req.writeset.size() << " numOfKeysInReadSet=" << write_req.readset.size()
-                 << " readVersion=" << write_req.read_version);
+    LOG_INFO(
+        m_logger,
+        "Pre-execute WRITE command:" << KVLOG(
+            req.executionSequenceNum, write_req.writeset.size(), write_req.readset.size(), write_req.read_version));
     if (write_req.long_exec) {
       sleep(LONG_EXEC_CMD_TIME_IN_SEC);
     }
@@ -182,6 +181,8 @@ void InternalCommandsHandler::preExecute(IRequestsHandler::ExecutionRequest &req
   if (req.outExecutionStatus == static_cast<uint32_t>(OperationResult::UNKNOWN)) {
     req.outExecutionStatus = static_cast<uint32_t>(res);
   }
+  LOG_INFO(m_logger,
+           "Command pre-executed:" << KVLOG(req.executionSequenceNum, req.outActualReplySize, req.outExecutionStatus));
 }
 
 void InternalCommandsHandler::addMetadataKeyValue(VersionedUpdates &updates, uint64_t sequenceNum) const {
