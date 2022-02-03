@@ -16,7 +16,7 @@ import unittest
 import trio
 
 from util.test_base import ApolloTest
-from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
+from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, ConsensusPathType
 from util.skvbc_history_tracker import verify_linearizability
 from util import skvbc as kvbc
 from util import eliot_logging as log
@@ -69,7 +69,7 @@ class SkvbcCommitPathTest(ApolloTest):
 
     @unittest.skip("This is a transition covered in test_commit_path_transitions and is kept as a manual testing option.")
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n >= 6, rotate_keys=True)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n >= 6 and c>0, rotate_keys=True)
     @verify_linearizability()
     async def test_fast_to_slow_path(self, bft_network, tracker):
         """
@@ -100,6 +100,43 @@ class SkvbcCommitPathTest(ApolloTest):
 
         await bft_network.wait_for_slow_path_to_be_prevalent(
             run_ops=lambda: skvbc.run_concurrent_ops(num_ops=NUM_OPS, write_weight=1), threshold=NUM_OPS)
+
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n >= 6 and c>0, rotate_keys=True)
+    @verify_linearizability()
+    async def test_fast_to_fast_with_threshold_path(self, bft_network, tracker):
+        """
+        This test check the transitions from fast to fast_with_threshold commit path.
+        First we write a series of K/V entries making sure we stay on the fast path.
+
+        Once the first series of K/V writes have been executed we bring down a single replica,
+        which should trigger a transition to the fast_with_threshold path.
+
+        We send a new series of K/V writes and make sure they
+        have been executed using the fast_with_threshold commit path.
+        """
+
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network,tracker)
+        fast_ops = 10
+        # This is constant is shared between the c++ (EvaluationPeriod = 64) and the python code
+        # TODO: Share properly via a configuration file
+        evaluation_period = 64
+        ops_for_transition = int(evaluation_period * 1.5)
+
+        # Initially all replicas are running on the fast path
+        await bft_network.wait_for_consensus_path(path_type=ConsensusPathType.OPTIMISTIC_FAST,
+                                                  run_ops=lambda: skvbc.run_concurrent_ops(num_ops=fast_ops,
+                                                                                           write_weight=1),
+                                                  threshold=fast_ops)
+
+        bft_network.stop_replicas(random.sample(bft_network.all_replicas(without={0}), 1))
+
+        await bft_network.wait_for_consensus_path(path_type=ConsensusPathType.FAST_WITH_THRESHOLD,
+                                                  run_ops=lambda: skvbc.run_concurrent_ops(num_ops=ops_for_transition,
+                                                                                           write_weight=1),
+                                                  threshold=5)
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n >= 6, rotate_keys=True)

@@ -26,7 +26,7 @@ from datetime import datetime
 from functools import partial
 import inspect
 import time
-from typing import Callable
+from typing import Generator
 
 import trio
 
@@ -63,6 +63,15 @@ class ConsensusPathType(Enum):
     SLOW = 'slow'
     FAST_WITH_THRESHOLD = 'fast_with_threshold'
     OPTIMISTIC_FAST = 'optimistic_fast'
+
+PathMetricParams = namedtuple('PathMetricParams', ['metric_name', 'timeout', 'interval'])
+PATH_TYPE_TO_METRIC_PARAMS = {
+    ConsensusPathType.SLOW : PathMetricParams(metric_name='totalSlowPaths', timeout=5., interval=.5),
+    ConsensusPathType.FAST_WITH_THRESHOLD: PathMetricParams(metric_name='totalFastThresholdPathCount',
+                                                            timeout=5., interval=2.),
+    ConsensusPathType.OPTIMISTIC_FAST: PathMetricParams(metric_name='totalFastPaths',
+                                                            timeout=5., interval=2.),
+}
 
 KEY_FILE_PREFIX = "replica_keys_"
 # bft_client.py  implement 2 types of clients currently:
@@ -1320,47 +1329,39 @@ class BftTestNetwork:
 
 
     async def wait_for_consensus_path(self, path_type: ConsensusPathType,
-                                      send_request_func: Callable,
+                                      run_ops: Generator,
                                       threshold: int,
                                       replica_id: int = 0,
                                       sleep_seconds: int = 1,
-                                      timeout: int = 60):
+                                      timeout_seconds: int = 60):
         """
-        Waits until at least threshold operations are being executed in the selected path.
-          run_ops: lambda that executes skvbc.run_concurrent_ops or creates requests in some other way
-          threshold: minimum number of requests that have to be executed in the correct path
-        run_ops should produce at least threshold executions
+        Pools until either threshold operations are being executed in the selected path or the operation times out.
+        path_type: The consensus path type to wait for
+        run_ops: A generator which sends requests to the network
+        threshold: The number of messages to be committed in path_type
+        sleep_seconds: Time to sleep between polls in seconds
+        timeout_seconds: Timeout for waiting in seconds
         """
-        path_to_metric = {ConsensusPathType.SLOW : self.num_of_slow_path_requests,
-                          ConsensusPathType.OPTIMISTIC_FAST : self.num_of_fast_path_requests,
-                          }
-        initial_count = await path_to_metric[path_type](replica_id)
-        print(f"type: {path_type}, initial_count: {initial_count}")
+        initial_count = await self.num_of_path_sequenced_executions(path_type, replica_id)
         prev_diff = threshold
 
-        with log.start_action(action_type=f"wait_for_requests_in_path",
-                              path_type=path_type.value, request_count=threshold), \
-                trio.fail_after(seconds=timeout) as action:
-            for _ in range(threshold):
-                await send_request_func()
+        await run_ops()
 
+        with log.start_action(action_type=f"wait_for_requests_in_path",
+                              path_type=path_type.value, request_count=threshold) as action, \
+                trio.fail_after(seconds=timeout_seconds):
             while True:
                 await trio.sleep(seconds=sleep_seconds)
-                current_count = await path_to_metric[path_type](replica_id)
-                assert initial_count < current_count, f"Inconsistent metrics values. initial value: {initial_count}," \
-                                                      f"current value: {current_count}"
+                current_count = await self.num_of_path_sequenced_executions(path_type, replica_id)
+                assert initial_count <= current_count, f"Inconsistent metrics values. initial value: {initial_count}," \
+                                                       f"current value: {current_count}"
                 counter_diff = current_count - initial_count
-                print(f"prv:{prev_diff} cnt:{counter_diff}")
                 if counter_diff >= threshold:
                     break
                 if counter_diff < prev_diff:
-                    print("PROGRESS")
-                    action.log(message_type=f"info", path_type=path_type.value, remaining=f'counter_diff')
+                    action.log(message_type=f"info", title='consensus_progress',
+                               path_type=path_type.value, remaining=counter_diff)
                 prev_diff = counter_diff
-
-
-
-
 
     async def wait_for_last_executed_seq_num(self, replica_id=0, expected=0):
         with log.start_action(action_type="wait_for_last_executed_seq_num"):
@@ -1463,6 +1464,18 @@ class BftTestNetwork:
         except KeyError:
             return None    
 
+    async def num_of_path_sequenced_executions(self, path_type: ConsensusPathType, replica_id: int = 0):
+        """
+        Returns the total number of executed sequence numbers on path_type
+        """
+        metric_params = PATH_TYPE_TO_METRIC_PARAMS[path_type]
+        with log.start_action(action_type="num_of_requests", path_type=path_type.value, replica_id=replica_id):
+            async def request_count():
+                metric_key = ['replica', 'Counters', metric_params.metric_name]
+                return await self.retrieve_metric(replica_id, *metric_key)
+
+        return await self.wait_for(request_count, timeout=metric_params.timeout, interval=metric_params.interval)
+
     async def num_of_fast_path_requests(self, replica_id=0):
         """
         Returns the total number of requests processed on the fast commit path
@@ -1484,7 +1497,7 @@ class BftTestNetwork:
                 metric_key = ['replica', 'Counters', 'totalSlowPathRequests']
                 nb_slow_path = await self.retrieve_metric(replica_id, *metric_key)
                 return nb_slow_path
-            
+
         return await self.wait_for(the_number_of_slow_path_requests, 5, .5)
 
     async def check_initial_master_key_publication(self, replicas):

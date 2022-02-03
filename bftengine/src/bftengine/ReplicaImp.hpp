@@ -131,7 +131,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   // represents the number of running executions at this moment.
   // This should not be thread safe because its been changed in 3 places:
-  // 1) startPrePrepareMsgExecution - when we are getting empty PP its simbulize that we should push
+  // 1) startPrePrepareMsgExecution - when we are getting empty PP its symbolize that we should push
   // FinishPrePrepareExecutionInternalMsg which can happen only on the main thread. 2) executeAllPrePreparedRequests -
   // just before we insert the job to execution thread which means we are in the main thread. 3)
   // finishExecutePrePrepareMsg   - which can be called only when we fetch FinishPrePrepareExecutionInternalMsg from the
@@ -257,16 +257,25 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   GaugeHandle deferredMessagesMetric_;
   // The first commit path being attempted for a new request.
   StatusHandle metric_first_commit_path_;
-
   CounterHandle batch_closed_on_logic_off_;
   CounterHandle batch_closed_on_logic_on_;
   CounterHandle metric_indicator_of_non_determinism_;
   CounterHandle metric_total_committed_sn_;
-  CounterHandle metric_slow_path_count_;
+  /// Executed slow consensuses
+  CounterHandle metric_total_slowPath_;
+  /// Inner requests in slow executions
+  CounterHandle metric_total_slowPath_requests_;
+  /// StartSlowCommitMsg received
+  CounterHandle metric_received_start_slow_commits_;
+  /// Executed FAST_WITH_THRESHOLD consensuses
+  CounterHandle metric_fast_threshold_path_count_;
+  /// Executed fast consensuses
+  CounterHandle metric_total_fastPath_;
+  /// Inner requests in fast executions
+  CounterHandle metric_total_fastPath_requests_;
   CounterHandle metric_received_internal_msgs_;
   CounterHandle metric_received_client_requests_;
   CounterHandle metric_received_pre_prepares_;
-  CounterHandle metric_received_start_slow_commits_;
   CounterHandle metric_received_partial_commit_proofs_;
   CounterHandle metric_received_full_commit_proofs_;
   CounterHandle metric_received_prepare_partials_;
@@ -295,10 +304,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   CounterHandle metric_sent_commitFull_msg_due_to_reqMissingData_;
   CounterHandle metric_sent_fullCommitProof_msg_due_to_reqMissingData_;
   CounterHandle metric_total_finished_consensuses_;
-  CounterHandle metric_total_slowPath_;
-  CounterHandle metric_total_fastPath_;
-  CounterHandle metric_total_slowPath_requests_;
-  CounterHandle metric_total_fastPath_requests_;
   CounterHandle metric_total_preexec_requests_executed_;
   CounterHandle metric_received_restart_ready_;
   CounterHandle metric_received_restart_proof_;
@@ -376,7 +381,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void finalizeExecution();
   void updateLimitsAndMetrics(PrePrepareMsg* ppMsg);
   void finishExecutePrePrepareMsg(PrePrepareMsg* pp, IRequestsHandler::ExecutionRequestsQueue* pAccumulatedRequests);
-  void executeRequests(PrePrepareMsg* pp, Bitmap& requestSet, Timestamp time);
+  /// This functions is mostly called through the separate thread execution flow
+  void executeRequests(PrePrepareMsg* ppMsg, Bitmap& requestSet, Timestamp time);
   void executeSpecialRequests(PrePrepareMsg* ppMsg,
                               uint16_t numOfSpecialReqs,
                               bool recoverFromErrorInRequestsExecution,
@@ -500,6 +506,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   void executeReadOnlyRequest(concordUtils::SpanWrapper& parent_span, ClientRequestMsg* m);
 
+  /// Single threaded execution only
   void executeNextCommittedRequests(concordUtils::SpanWrapper& parent_span, bool requestMissingInfo = false);
 
   void executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper& parent_span,
@@ -599,6 +606,12 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   EpochNum getSelfEpochNumber() { return static_cast<EpochNum>(EpochManager::instance().getSelfEpochNumber()); }
 
   void setConflictDetectionBlockId(const ClientRequestMsg&, IRequestsHandler::ExecutionRequest&);
+  /**
+   * Updates execution related metrics
+   * @param executionPath - The consensus path type
+   * @param numOfRequests - The number of executed requests
+   */
+  void updateExecutedPathMetrics(const CommitPath executionPath, uint16_t numOfRequests);
 
   class PostExecJob : public concord::util::SimpleThreadPool::Job {
    private:
