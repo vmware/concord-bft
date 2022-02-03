@@ -43,13 +43,13 @@ class Block {
                                                StateTransferDigest& digestPrev) {
     auto totalBlockSize = calcTotalBlockSize(dataSize);
     ConcordAssertLE(totalBlockSize, kMaxBlockSize_);
-    Block* blk = reinterpret_cast<Block*>(std::malloc(totalBlockSize));
+    Block* blk = reinterpret_cast<Block*>(new char[totalBlockSize]);
     return std::shared_ptr<Block>(blk->initBlock(data, dataSize, totalBlockSize, blockId, digestPrev));
   }
 
   static std::shared_ptr<Block> createFromBlock(const char* blk, uint32_t blkSize) {
     ConcordAssertLE(blkSize, kMaxBlockSize_);
-    char* buff = static_cast<char*>(std::malloc(blkSize));
+    char* buff = static_cast<char*>(new char[blkSize]);
     memcpy(buff, blk, blkSize);
     return std::shared_ptr<Block>(reinterpret_cast<Block*>(buff));
   }
