@@ -100,6 +100,7 @@ class PrePrepareMsg : public MessageBase {
   std::string getCid() const;
   void setCid(SeqNum s);
 
+  /// This is actually the final commit path of the request
   CommitPath firstPath() const;
 
   bool isNull() const { return ((b()->flags & 0x1) == 0); }

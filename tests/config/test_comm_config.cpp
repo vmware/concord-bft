@@ -22,7 +22,7 @@
 
 #include "communication/CommFactory.hpp"
 #include "KeyfileIOUtils.hpp"
-#include "config_file_parser.hpp"
+#include "../../util/include/config_file_parser.hpp"
 #include "CryptoManager.hpp"
 
 using bft::communication::PlainUdpConfig;
