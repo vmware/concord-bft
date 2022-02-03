@@ -50,8 +50,6 @@ class AdaptivePruningManager {
   void initBFTClient(const std::shared_ptr<bftEngine::impl::IInternalBFTClient> &cl);
   void start();
   void stop();
-
- protected:
   void notifyReplicas(const long double &rate, const uint64_t batchSize);
   const concord::messages::PruneSwitchModeRequest &getLatestConfiguration();
 

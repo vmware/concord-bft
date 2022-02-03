@@ -17,6 +17,7 @@
 #include "bftengine/EpochManager.hpp"
 #include "messages/ReplicaRestartReadyMsg.hpp"
 #include "communication/StateControl.hpp"
+#include "concurrent_pruning_manager.hpp"
 
 namespace concord::kvbc {
 
@@ -61,6 +62,15 @@ void StReconfigurationHandler::stCallBack(uint64_t current_cp_num) {
                                                              current_cp_num);
   handleStoredCommand<concord::messages::AddRemoveCommand>(std::string{kvbc::keyTypes::reconfiguration_add_remove},
                                                            current_cp_num);
+  handleStoredCommand<concord::messages::PruneTicksChangeRequest>(
+      std::string{kvbc::keyTypes::reconfiguration_pruning_key,
+                  static_cast<char>(kvbc::keyTypes::PRUNING_COMMAND_TYPES::TICKS_CHANGE_REQUEST)},
+      current_cp_num);
+
+  handleStoredCommand<concord::messages::PruneSwitchModeRequest>(
+      std::string{kvbc::keyTypes::reconfiguration_pruning_key,
+                  static_cast<char>(kvbc::keyTypes::PRUNING_COMMAND_TYPES::SWITCH_MODE_REQUEST)},
+      current_cp_num);
   handleStoredCommand<concord::messages::AddRemoveWithWedgeCommand>(
       std::string{kvbc::keyTypes::reconfiguration_add_remove, 0x1}, current_cp_num);
   if (bftEngine::ReplicaConfig::instance().pruningEnabled_) {
@@ -138,6 +148,39 @@ bool StReconfigurationHandler::handle(const concord::messages::RestartCommand &c
                                       uint64_t bid) {
   return handleWedgeCommands(
       command, bid, current_cp_num, bft_seq_num, command.bft_support, true, command.restart, command.restart);
+}
+bool StReconfigurationHandler::handle(const concord::messages::PruneTicksChangeRequest &command,
+                                      uint64_t bft_seq_num,
+                                      uint64_t current_cp_num,
+                                      uint64_t bid) {
+  kvbc::pruning::ConcurrentPruningManager::instance().setTicksConfiguration(
+      {command.tick_period_seconds, command.batch_blocks_num});
+  return true;
+}
+
+bool StReconfigurationHandler::handle(const concord::messages::PruneSwitchModeRequest &command,
+                                      uint64_t bft_seq_num,
+                                      uint64_t current_cp_num,
+                                      uint64_t bid) {
+  if (command.mode == concord::performance::PruningMode::LEGACY) {
+    concord::messages::PruneLegacyConfiguration conf =
+        std::get<concord::messages::PruneLegacyConfiguration>(command.configuration);
+    LOG_INFO(getLogger(), "switching to legacy mode " << KVLOG(conf.tick_period_seconds, conf.batch_blocks_num));
+    // Handle legacy pruning configuration
+    apm_.switchMode(concord::performance::PruningMode::LEGACY);
+    return true;
+  }
+  // Handle adaptive pruning configuration
+  if (std::holds_alternative<concord::messages::PruneConfigurationMap>(command.configuration)) {
+    LOG_INFO(getLogger(), "switching to adaptive mode");
+    concord::messages::PruneConfigurationMap conf =
+        std::get<concord::messages::PruneConfigurationMap>(command.configuration);
+    apm_.setResourceManager(concord::performance::IntervalMappingResourceManager::createIntervalMappingResourceManager(
+                                replicaResources_, std::move(conf.mapConsensusRateToPruningRate)),
+                            false);
+    apm_.switchMode(concord::performance::PruningMode::ADAPTIVE);
+  }
+  return true;
 }
 bool StReconfigurationHandler::handle(const concord::messages::InstallCommand &cmd,
                                       uint64_t bft_seq_num,

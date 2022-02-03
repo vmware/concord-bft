@@ -599,7 +599,8 @@ Replica::Replica(ICommunication *comm,
   auto stKeyManipulator = std::shared_ptr<storage::ISTKeyManipulator>{storageFactory->newSTKeyManipulator()};
   m_stateTransfer = bftEngine::bcst::create(stConfig, this, m_metadataDBClient, stKeyManipulator, aggregator_);
   if (!replicaConfig.isReadOnly) {
-    stReconfigurationSM_ = std::make_unique<concord::kvbc::StReconfigurationHandler>(*m_stateTransfer, *this);
+    stReconfigurationSM_ = std::make_unique<concord::kvbc::StReconfigurationHandler>(
+        *m_stateTransfer, *this, this->AdaptivePruningManager_, this->replicaResources_);
     m_metadataStorage = new DBMetadataStorage(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator());
   } else {
     m_metadataStorage =
