@@ -341,9 +341,9 @@ class Client : public concord::storage::IDBClient {
       LOG_DEBUG(logger_, msg << " status: " << rd.status << " (OK)");
       return Status::OK();
     }
-    LOG_ERROR(logger_, msg << " status: " << rd.status << " error: " << rd.errorMessage);
+    LOG_DEBUG(logger_, msg << " status: " << rd.status << " error: " << rd.errorMessage);
     if (S3_status_is_not_found(rd.status)) return Status::NotFound("Status: " + rd.errorMessage);
-
+    LOG_ERROR(logger_, msg << " status: " << rd.status << " error: " << rd.errorMessage);
     return Status::GeneralError("Status: " + rd.errorMessage);
   }
 

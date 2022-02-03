@@ -689,25 +689,8 @@ bool Replica::putBlockToObjectStore(const uint64_t blockId,
                                     const uint32_t blockSize,
                                     bool lastBlock) {
   Sliver block = Sliver::copy(blockData, blockSize);
-
-  if (m_bcDbAdapter->hasBlock(blockId)) {
-    // if we already have a block with the same ID
-    RawBlock existingBlock = m_bcDbAdapter->getRawBlock(blockId);
-    if (existingBlock.length() != block.length() || memcmp(existingBlock.data(), block.data(), block.length()) != 0) {
-      // the replica is corrupted !
-      LOG_ERROR(logger,
-                "found block " << blockId << ", size in db is " << existingBlock.length() << ", inserted is "
-                               << block.length() << ", data in db " << existingBlock << ", data inserted " << block);
-      LOG_ERROR(logger,
-                "Block size test " << (existingBlock.length() != block.length()) << ", block data test "
-                                   << (memcmp(existingBlock.data(), block.data(), block.length())));
-
-      m_bcDbAdapter->deleteBlock(blockId);
-      throw std::runtime_error(__PRETTY_FUNCTION__ + std::string("data corrupted blockId: ") + std::to_string(blockId));
-    }
-  } else {
-    m_bcDbAdapter->addRawBlock(block, blockId, lastBlock);
-  }
+  // We do not need to check if block exist, just overwrite it
+  m_bcDbAdapter->addRawBlock(block, blockId, lastBlock);
 
   return true;
 }
