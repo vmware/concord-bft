@@ -20,7 +20,11 @@ class AdaptivePruningManager {
  public:
   AdaptivePruningManager(const std::shared_ptr<concord::performance::IResourceManager> &resourceManager,
                          const std::chrono::duration<double, std::milli> &interval,
+                         const std::shared_ptr<concordMetrics::Aggregator> &aggregator,
                          concord::kvbc::IReader &ro_storage);
+=======
+
+>>>>>>> Conflicts fix
   virtual ~AdaptivePruningManager();
 
   void switchMode(PruningMode newMode) {
@@ -77,7 +81,7 @@ class AdaptivePruningManager {
   uint32_t current_pruning_pace_;
   uint64_t current_batch_size_;
   concordMetrics::Component metricComponent;
-  concordMetrics::Component::Handle<concordMetrics::Gauge> ticksPerSecondMetric, batchSizeMetric,
-      transactionsPerSecondMetric, postExecUtilizationMetric, pruningAvgTimeMicroMetric;
+  concordMetrics::Component::Handle<concordMetrics::AtomicGauge> ticksPerSecondMetric, batchSizeMetric;
+
 };
 }  // namespace concord::performance

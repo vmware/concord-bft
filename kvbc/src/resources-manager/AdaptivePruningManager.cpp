@@ -13,13 +13,14 @@ using namespace concord::performance;
 AdaptivePruningManager::AdaptivePruningManager(
     const std::shared_ptr<concord::performance::IResourceManager> &resourceManager,
     const std::chrono::duration<double, std::milli> &interval,
+    const std::shared_ptr<concordMetrics::Aggregator> &aggregator,
     concord::kvbc::IReader &ro_storage)
     : repId(bftEngine::ReplicaConfig::instance().getreplicaId()),
       resourceManager(resourceManager),
       mode(LEGACY),
       interval(interval),
       ro_storage_(ro_storage),
-      metricComponent(std::string("Adaptive Pruning"), std::make_shared<concordMetrics::Aggregator>()),
+      metricComponent(std::string("Adaptive Pruning"), aggregator),
       ticksPerSecondMetric(metricComponent.RegisterGauge("ticks_per_second", 0)),
       batchSizeMetric(metricComponent.RegisterGauge("batch_size", 0)),
       transactionsPerSecondMetric(metricComponent.RegisterGauge("transactions_per_second", 0)),
@@ -27,6 +28,7 @@ AdaptivePruningManager::AdaptivePruningManager(
       pruningAvgTimeMicroMetric(metricComponent.RegisterGauge("pruning_avg_time_micro", 0)) {
   (void)ro_storage_;
   resourceManager->setPeriod(bftEngine::ReplicaConfig::instance().adaptivePruningIntervalPeriod);
+
 }
 
 AdaptivePruningManager::~AdaptivePruningManager() { stop(); }
