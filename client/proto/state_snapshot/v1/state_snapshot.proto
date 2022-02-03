@@ -5,6 +5,8 @@
 syntax = "proto3";
 package vmware.concord.client.statesnapshot.v1;
 
+import "google/protobuf/timestamp.proto";
+
 option java_package = "com.vmware.concord.client.statesnapshot.v1";
 
 // The StateSnapshotService can be used to initialize an Application from a state
@@ -91,6 +93,9 @@ message GetRecentSnapshotResponse {
   // in the state snapshot. Please note that this is an estimation and *not* the
   // actual count.
   uint64 key_value_count_estimate = 3;
+
+  // The ledger time at which the snapshot was taken.
+  google.protobuf.Timestamp ledger_time = 4;
 }
 
 message StreamSnapshotRequest {  
