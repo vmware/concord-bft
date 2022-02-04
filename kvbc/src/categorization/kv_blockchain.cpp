@@ -24,6 +24,7 @@
 #include "storage/merkle_tree_key_manipulator.h"
 #include "categorization/details.h"
 #include "ReplicaConfig.hpp"
+#include "throughput.hpp"
 
 #include <algorithm>
 #include <iterator>
@@ -78,7 +79,9 @@ KeyValueBlockchain::KeyValueBlockchain(const std::shared_ptr<concord::storage::r
   // interrupted, getLatestBlockId() should be equal to getLastReachableBlockId() on the next startup. Another example
   // is getValue() that returns keys from the blockchain only and ignores keys in the temporary state
   // transfer chain.
+  LOG_INFO(CAT_BLOCK_LOG, "Ensure maximal link of partial/whole ST temporary chain, this might take some time...");
   linkSTChainFrom(getLastReachableBlockId() + 1);
+  LOG_INFO(CAT_BLOCK_LOG, "Done linking (as much as possible) partial/whole ST temporary chain");
   delete_metrics_comp_.Register();
   add_metrics_comp_.Register();
 
@@ -888,11 +891,16 @@ bool KeyValueBlockchain::hasBlock(BlockId block_id) const {
 }
 
 void KeyValueBlockchain::linkUntilBlockId(BlockId from_block_id, BlockId until_block_id) {
+  static constexpr uint64_t report_thresh{1000};
+  static uint64_t report_counter{};
   const auto last_block_id = state_transfer_block_chain_.getLastBlockId();
+
   if (last_block_id == 0) {
     return;
   }
 
+  concord::util::DurationTracker<std::chrono::milliseconds> link_duration;
+  link_duration.start();
   for (auto i = from_block_id; i <= until_block_id; ++i) {
     auto raw_block = state_transfer_block_chain_.getRawBlock(i);
     if (!raw_block) {
@@ -904,6 +912,20 @@ void KeyValueBlockchain::linkUntilBlockId(BlockId from_block_id, BlockId until_b
     // deletes relative to block adds on source and destination replicas.
     pruneOnSTLink(*raw_block);
     writeSTLinkTransaction(i, *raw_block);
+    if ((++report_counter % report_thresh) == 0) {
+      auto elapsed_time_ms = link_duration.totalDuration();
+      uint64_t blocks_linked_per_sec = (((i - from_block_id + 1) * 1000) / (elapsed_time_ms));
+      uint64_t blocks_left_to_link = until_block_id - i;
+      uint64_t estimated_time_left_sec = blocks_left_to_link / blocks_linked_per_sec;
+      LOG_INFO(CAT_BLOCK_LOG,
+               "Last block ID connected: " << i << ","
+                                           << KVLOG(from_block_id,
+                                                    until_block_id,
+                                                    elapsed_time_ms,
+                                                    blocks_linked_per_sec,
+                                                    blocks_left_to_link,
+                                                    estimated_time_left_sec));
+    }
   }
 }
 
