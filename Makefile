@@ -151,7 +151,8 @@ gen_cmake: ## Generate cmake files, used internally
 build: gen_cmake ## Build Concord-BFT source. In order to build a specific target run: make TARGET=<target name>.
 	docker run ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
-	        "echo nproc: $$(nproc)) && \
+	        "echo nproc: && \
+		 nproc && \
 		 echo not actually building"
 #		"cd ${CONCORD_BFT_BUILD_DIR} && \
 #		make format-check && \
