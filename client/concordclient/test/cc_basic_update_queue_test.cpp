@@ -11,7 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "client/concordclient/event_update_queue.hpp"
+#include "client/concordclient/remote_update_queue.hpp"
 #include "client/concordclient/concord_client_exceptions.hpp"
 
 #include <thread>
@@ -36,7 +36,7 @@ using std::this_thread::sleep_for;
 using namespace std::chrono_literals;
 
 using concord::client::concordclient::BasicUpdateQueue;
-using concord::client::concordclient::EventVariant;
+using concord::client::concordclient::RemoteData;
 using concord::client::concordclient::Update;
 using concord::client::concordclient::OutOfRangeSubscriptionRequest;
 
@@ -44,8 +44,8 @@ const milliseconds kBriefDelayDuration = 10ms;
 const uint64_t kNumUpdatesToTest = (uint64_t)1 << 18;
 const size_t kRacingThreadsToTest = 4;
 
-unique_ptr<EventVariant> MakeUniqueUpdate(uint64_t block_id, const vector<pair<string, string>>& kv_pairs) {
-  auto update = make_unique<EventVariant>();
+unique_ptr<RemoteData> MakeUniqueUpdate(uint64_t block_id, const vector<pair<string, string>>& kv_pairs) {
+  auto update = make_unique<RemoteData>();
   auto& legacy_event = std::get<Update>(*update);
   legacy_event.block_id = block_id;
   legacy_event.kv_pairs = kv_pairs;
@@ -128,7 +128,7 @@ TEST(trc_basic_update_queue_test, test_push) {
 
 TEST(trc_basic_update_queue_test, test_pop) {
   BasicUpdateQueue queue;
-  unique_ptr<EventVariant> update;
+  unique_ptr<RemoteData> update;
   thread consumer([&]() {
     EXPECT_NO_THROW(update = queue.pop()) << "BasicUpdateQueue::pop call initiated on an empty queue failed with "
                                              "an exception.";
@@ -210,7 +210,7 @@ TEST(trc_basic_update_queue_test, test_ordering) {
   });
   thread consumer([&]() {
     for (uint64_t i = 0; i < kNumUpdatesToTest; ++i) {
-      unique_ptr<EventVariant> update(nullptr);
+      unique_ptr<RemoteData> update(nullptr);
       if (i % 2 == 0) {
         EXPECT_NO_THROW(update = queue.pop()) << "BasicUpdateQueue::pop call failed with an exception.";
         ASSERT_TRUE((bool)update) << "BasicUpdateQueue::pop returned a null pointer in the absence "
@@ -245,7 +245,7 @@ void TestNoUpdateDuplicationOrLossConsumer(BasicUpdateQueue& queue,
                                            vector<uint64_t>& observed_updates,
                                            uint64_t consumer_index) {
   for (uint64_t i = consumer_index; i < kNumUpdatesToTest; i += kRacingThreadsToTest) {
-    unique_ptr<EventVariant> update(nullptr);
+    unique_ptr<RemoteData> update(nullptr);
     if (((i / kRacingThreadsToTest) % 2) == 0) {
       EXPECT_NO_THROW(update = queue.pop()) << "BasicUpdateQueue::pop call failed with an exception.";
       ASSERT_TRUE((bool)update) << "BasicUpdateQueue::pop returned a null pointer in the absence of "

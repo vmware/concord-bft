@@ -40,4 +40,17 @@ class InternalError : public std::runtime_error {
  public:
   InternalError() : std::runtime_error("an internal error occurred"){};
 };
+
+// The stream ended
+class EndOfStream : public std::runtime_error {
+ public:
+  EndOfStream() : std::runtime_error("Stream Ended Successfully"){};
+};
+
+// An internal error may occur due to service unavailability.
+class StreamUnavailable : public std::runtime_error {
+ public:
+  StreamUnavailable() : std::runtime_error("Stream is not available"){};
+};
+
 }  // namespace concord::client::concordclient

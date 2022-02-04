@@ -19,7 +19,7 @@
 // only use the RPC calls as intended.
 
 #include "client/thin-replica-client/thin_replica_client.hpp"
-#include "client/thin-replica-client/trs_connection.hpp"
+#include "client/thin-replica-client/grpc_connection.hpp"
 
 #include "gtest/gtest.h"
 #include "thin_replica_client_mocks.hpp"
@@ -33,8 +33,8 @@ using std::shared_ptr;
 using std::string;
 using std::vector;
 using concord::client::concordclient::BasicUpdateQueue;
-using client::thin_replica_client::ThinReplicaClient;
-using client::thin_replica_client::ThinReplicaClientConfig;
+using client::concordclient::ThinReplicaClient;
+using client::concordclient::ThinReplicaClientConfig;
 
 const string kTestingClientID = "mock_client_id";
 const string kTestingJaegerAddress = "127.0.0.1:6831";
@@ -61,8 +61,7 @@ TEST(trc_rpc_use_test, test_trc_constructor_and_destructor) {
 
   auto server_recorders = CreateMockServerRecorders(num_replicas, stream_preparer, hasher, record);
   auto mock_servers = CreateTrsConnections(server_recorders);
-  auto trc_config =
-      make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
+  auto trc_config = make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, mock_servers);
   std::shared_ptr<concordMetrics::Aggregator> aggregator;
   auto trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
 
@@ -94,8 +93,7 @@ TEST(trc_rpc_use_test, test_trc_subscribe) {
 
   auto server_recorders = CreateMockServerRecorders(num_replicas, stream_preparer, hasher, record);
   auto mock_servers = CreateTrsConnections(server_recorders);
-  auto trc_config =
-      make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
+  auto trc_config = make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, mock_servers);
   std::shared_ptr<concordMetrics::Aggregator> aggregator;
   auto trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
 
@@ -150,7 +148,6 @@ TEST(trc_rpc_use_test, test_trc_subscribe) {
          "unexpected RPC calls.";
 
   record->ClearRecords();
-  mock_servers = CreateTrsConnections(server_recorders);
 
   // Note we explicitly reset the trc pointer before the line constructing a new
   // ThinReplicaClient and assigning it to the pointer in order to force the
@@ -158,8 +155,7 @@ TEST(trc_rpc_use_test, test_trc_subscribe) {
   // one.
   trc_config.reset();
   trc.reset();
-  trc_config =
-      make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
+  trc_config = make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, mock_servers);
   trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
   update_queue->clear();
   trc->Subscribe(1);

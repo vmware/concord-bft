@@ -29,12 +29,12 @@ using opentracing::TextMapReader;
 using opentracing::TextMapWriter;
 
 using concord::client::concordclient::EventGroup;
-using concord::client::concordclient::EventVariant;
+using concord::client::concordclient::RemoteData;
 using concord::client::concordclient::Update;
 
 using SpanPtr = std::unique_ptr<opentracing::Span>;
 
-namespace client::thin_replica_client {
+namespace client::concordclient {
 
 const std::string kCorrelationIdTag = "cid";
 
@@ -57,7 +57,7 @@ struct SimpleTextMapReaderWriter : public opentracing::TextMapWriter, public ope
   std::unordered_map<std::string, std::string>& text_map;
 };
 
-void TraceContexts::InjectSpan(const TraceContexts::SpanPtr& span, EventVariant& update) {
+void TraceContexts::InjectSpan(const TraceContexts::SpanPtr& span, RemoteData& update) {
   if (not span) {
     return;
   }
@@ -75,7 +75,7 @@ void TraceContexts::InjectSpan(const TraceContexts::SpanPtr& span, EventVariant&
   }
 }
 
-expected<std::unique_ptr<opentracing::SpanContext>> TraceContexts::ExtractSpan(const EventVariant& update) {
+expected<std::unique_ptr<opentracing::SpanContext>> TraceContexts::ExtractSpan(const RemoteData& update) {
   if (std::holds_alternative<EventGroup>(update)) {
     auto& eg = std::get<EventGroup>(update);
     if (!eg.trace_context.empty()) {
@@ -111,4 +111,4 @@ SpanPtr TraceContexts::CreateChildSpanFromBinary(const std::string& trace_contex
   return opentracing::Tracer::Global()->StartSpan(
       child_name, {opentracing::FollowsFrom(&**parent_span_context), opentracing::SetTag{kCorrelationIdTag, cid}});
 }
-}  // namespace client::thin_replica_client
+}  // namespace client::concordclient

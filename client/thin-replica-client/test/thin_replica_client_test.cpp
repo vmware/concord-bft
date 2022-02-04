@@ -12,8 +12,8 @@
 // file.
 
 #include "client/thin-replica-client/thin_replica_client.hpp"
-#include "client/thin-replica-client/trs_connection.hpp"
-#include "client/concordclient/event_update_queue.hpp"
+#include "client/thin-replica-client/grpc_connection.hpp"
+#include "client/concordclient/remote_update_queue.hpp"
 
 #include "gtest/gtest.h"
 #include "thin_replica_client_mocks.hpp"
@@ -34,11 +34,11 @@ using std::vector;
 using std::chrono::milliseconds;
 using std::this_thread::sleep_for;
 using concord::client::concordclient::BasicUpdateQueue;
-using concord::client::concordclient::EventVariant;
+using concord::client::concordclient::RemoteData;
 using concord::client::concordclient::Update;
 using concord::client::concordclient::UpdateQueue;
-using client::thin_replica_client::ThinReplicaClient;
-using client::thin_replica_client::ThinReplicaClientConfig;
+using client::concordclient::ThinReplicaClient;
+using client::concordclient::ThinReplicaClientConfig;
 
 const string kTestingClientID = "mock_client_id";
 const string kTestingJaegerAddress = "127.0.0.1:6831";
@@ -58,20 +58,24 @@ TEST(thin_replica_client_test, test_destructor_always_successful) {
 
   uint16_t max_faulty = 1;
   size_t num_replicas = 3 * max_faulty + 1;
+  unique_ptr<ThinReplicaClient> trc;
 
   shared_ptr<UpdateQueue> update_queue = make_shared<BasicUpdateQueue>();
 
   auto mock_servers = CreateTrsConnections(num_replicas);
-  auto trc_config =
-      make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
+  auto trc_config = make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, mock_servers);
   std::shared_ptr<concordMetrics::Aggregator> aggregator;
-  auto trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
+  trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
   EXPECT_NO_THROW(trc.reset()) << "ThinReplicaClient destructor failed.";
   update_queue->clear();
 
+  for (const auto& ms : mock_servers) {
+    ms->disconnect();
+  }
+  mock_servers.clear();
+
   mock_servers = CreateTrsConnections(num_replicas, stream_preparer, hasher);
-  trc_config =
-      make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
+  trc_config = make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, mock_servers);
   trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
   trc->Subscribe();
   update_queue->pop();
@@ -80,10 +84,13 @@ TEST(thin_replica_client_test, test_destructor_always_successful) {
   EXPECT_NO_THROW(trc.reset()) << "ThinReplicaClient destructor failed when destructing a "
                                   "ThinReplicaClient with an active subscription.";
   update_queue->clear();
+  for (const auto& ms : mock_servers) {
+    ms->disconnect();
+  }
+  mock_servers.clear();
 
   mock_servers = CreateTrsConnections(num_replicas, stream_preparer, hasher);
-  trc_config =
-      make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
+  trc_config = make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, mock_servers);
   trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
   trc->Subscribe();
   update_queue->pop();
@@ -110,8 +117,7 @@ TEST(thin_replica_client_test, test_no_parameter_subscribe_success_cases) {
   shared_ptr<UpdateQueue> update_queue = make_shared<BasicUpdateQueue>();
 
   auto mock_servers = CreateTrsConnections(num_replicas, stream_preparer, hasher);
-  auto trc_config =
-      make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
+  auto trc_config = make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, mock_servers);
   std::shared_ptr<concordMetrics::Aggregator> aggregator;
   auto trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
   EXPECT_NO_THROW(trc->Subscribe()) << "ThinReplicaClient::Subscribe's no-parameter overload failed.";
@@ -139,12 +145,11 @@ TEST(thin_replica_client_test, test_1_parameter_subscribe_success_cases) {
   shared_ptr<UpdateQueue> update_queue = make_shared<BasicUpdateQueue>();
 
   auto mock_servers = CreateTrsConnections(num_replicas, stream_preparer, hasher);
-  auto trc_config =
-      make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
+  auto trc_config = make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, mock_servers);
   std::shared_ptr<concordMetrics::Aggregator> aggregator;
   auto trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
   trc->Subscribe();
-  unique_ptr<EventVariant> update_received = update_queue->pop();
+  unique_ptr<RemoteData> update_received = update_queue->pop();
   EXPECT_TRUE(std::holds_alternative<Update>(*update_received));
   uint64_t block_id = std::get<Update>(*update_received).block_id;
   trc->Unsubscribe();
@@ -189,8 +194,7 @@ TEST(thin_replica_client_test, test_1_parameter_subscribe_to_unresponsive_server
   shared_ptr<UpdateQueue> update_queue = make_shared<BasicUpdateQueue>();
 
   auto mock_servers = CreateTrsConnections(num_replicas, stream_preparer, hasher, num_unresponsive);
-  auto trc_config =
-      make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
+  auto trc_config = make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, mock_servers);
   std::shared_ptr<concordMetrics::Aggregator> aggregator;
   auto trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
   EXPECT_ANY_THROW(trc->Subscribe()) << "ThinReplicaClient::Subscribe's no-parameter overload doesn't throw an "
@@ -198,10 +202,13 @@ TEST(thin_replica_client_test, test_1_parameter_subscribe_to_unresponsive_server
                                         "servers responsive.";
   trc_config.reset();
   trc.reset();
+  for (const auto& ms : mock_servers) {
+    ms->disconnect();
+  }
+  mock_servers.clear();
 
   mock_servers = CreateTrsConnections(num_replicas, num_replicas);
-  trc_config =
-      make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
+  trc_config = make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, mock_servers);
   trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
   EXPECT_ANY_THROW(trc->Subscribe()) << "ThinReplicaClient::Subscribe's no-parameter overload doesn't throw an "
                                         "exception when trying to subscribe to a cluster with no responsive "
@@ -224,8 +231,7 @@ TEST(thin_replica_client_test, test_unsubscribe_successful) {
   shared_ptr<UpdateQueue> update_queue = make_shared<BasicUpdateQueue>();
 
   auto mock_servers = CreateTrsConnections(num_replicas, stream_preparer, hasher);
-  auto trc_config =
-      make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
+  auto trc_config = make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, mock_servers);
   std::shared_ptr<concordMetrics::Aggregator> aggregator;
   auto trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
   EXPECT_NO_THROW(trc->Unsubscribe()) << "ThinReplicaClient::Unsubscribe failed for a newly-constructed "
@@ -260,12 +266,11 @@ TEST(thin_replica_client_test, test_pop_fetches_updates_) {
   shared_ptr<UpdateQueue> update_queue = make_shared<BasicUpdateQueue>();
 
   auto mock_servers = CreateTrsConnections(num_replicas, stream_preparer, hasher);
-  auto trc_config =
-      make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
+  auto trc_config = make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, mock_servers);
   std::shared_ptr<concordMetrics::Aggregator> aggregator;
   auto trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
   trc->Subscribe();
-  unique_ptr<EventVariant> update_received = update_queue->pop();
+  unique_ptr<RemoteData> update_received = update_queue->pop();
   EXPECT_TRUE((bool)update_received) << "ThinReplicaClient failed to publish update from initial state.";
 
   thread delay_thread([&]() {
@@ -302,8 +307,7 @@ TEST(thin_replica_client_test, test_acknowledge_block_id_success) {
   shared_ptr<UpdateQueue> update_queue = make_shared<BasicUpdateQueue>();
 
   auto mock_servers = CreateTrsConnections(num_replicas, stream_preparer, hasher);
-  auto trc_config =
-      make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
+  auto trc_config = make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, mock_servers);
   std::shared_ptr<concordMetrics::Aggregator> aggregator;
   auto trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
   EXPECT_NO_THROW(trc->AcknowledgeBlockID(1)) << "ThinReplicaClient::AcknowledgeBlockID fails when called on a "
@@ -354,8 +358,7 @@ TEST(thin_replica_client_test, test_correct_data_returned_) {
   shared_ptr<UpdateQueue> update_queue = make_shared<BasicUpdateQueue>();
 
   auto mock_servers = CreateTrsConnections(num_replicas, stream_preparer, hasher);
-  auto trc_config =
-      make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
+  auto trc_config = make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, mock_servers);
   std::shared_ptr<concordMetrics::Aggregator> aggregator;
   auto trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
   EXPECT_FALSE((bool)(update_queue->tryPop())) << "ThinReplicaClient appears to have published state to update queue "
@@ -364,7 +367,7 @@ TEST(thin_replica_client_test, test_correct_data_returned_) {
   trc->Subscribe();
   trc->Unsubscribe();
   for (size_t i = 0; i < num_initial_updates; ++i) {
-    unique_ptr<EventVariant> received_update = update_queue->tryPop();
+    unique_ptr<RemoteData> received_update = update_queue->tryPop();
     Data& expected_update = update_data[i];
     EXPECT_TRUE((bool)received_update) << "ThinReplicaClient failed to fetch an expected update included in "
                                           "the initial state.";
@@ -399,7 +402,7 @@ TEST(thin_replica_client_test, test_correct_data_returned_) {
   for (size_t i = num_initial_updates; i < update_data.size(); ++i) {
     *spurious_wakeup_indicator = false;
     delay_condition->notify_one();
-    unique_ptr<EventVariant> received_update = update_queue->pop();
+    unique_ptr<RemoteData> received_update = update_queue->pop();
     *spurious_wakeup_indicator = true;
     Data& expected_update = update_data[i];
 

@@ -9,7 +9,7 @@ target_link_libraries(concordclient PUBLIC
 )
 
 find_package(Protobuf REQUIRED)
-add_library(concordclient-event-api STATIC "src/event_update_queue.cpp")
+add_library(concordclient-event-api STATIC "src/remote_update_queue.cpp")
 target_include_directories(concordclient-event-api PUBLIC include)
 target_link_libraries(concordclient-event-api PRIVATE
   protobuf::libprotobuf # Needed for the timestamp in EventGroup

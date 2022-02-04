@@ -13,7 +13,7 @@
 
 #include <grpcpp/grpcpp.h>
 #include "state_snapshot.grpc.pb.h"
-
+#include "sha_hash.hpp"
 #include "Logger.hpp"
 #include "client/concordclient/concord_client.hpp"
 
@@ -37,6 +37,11 @@ class StateSnapshotServiceImpl final
                         vmware::concord::client::statesnapshot::v1::ReadAsOfResponse* response) override;
 
  private:
+  void isHashValid(uint64_t snapshot_id,
+                   const concord::util::SHA3_256::Digest& final_hash,
+                   const std::chrono::milliseconds& timeout,
+                   grpc::Status& return_status) const;
+
   logging::Logger logger_;
   std::shared_ptr<concord::client::concordclient::ConcordClient> client_;
 };

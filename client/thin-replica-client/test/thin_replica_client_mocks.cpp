@@ -12,7 +12,7 @@
 // file.
 
 #include "client/thin-replica-client/thin_replica_client.hpp"
-#include "client/thin-replica-client/trs_connection.hpp"
+#include "client/thin-replica-client/grpc_connection.hpp"
 
 #include "assertUtils.hpp"
 #include "gmock/gmock.h"
@@ -51,16 +51,16 @@ using std::this_thread::sleep_for;
 using testing::Invoke;
 using testing::InvokeWithoutArgs;
 using testing::Return;
-using client::thin_replica_client::hashState;
-using client::thin_replica_client::hashUpdate;
-using client::thin_replica_client::TrsConnection;
+using client::concordclient::hashState;
+using client::concordclient::hashUpdate;
+using client::concordclient::GrpcConnection;
 
-MockTrsConnection::MockTrsConnection() : TrsConnection("mock_address", "mock_client_id", 1, 1) {
+MockTrsConnection::MockTrsConnection() : GrpcConnection("mock_address", "mock_client_id", 1, 1, 1) {
   this->data_timeout_ = kTestingTimeout;
   this->hash_timeout_ = kTestingTimeout;
-  this->stub_.reset(new MockThinReplicaStub());
+  this->trc_stub_.reset(new MockThinReplicaStub());
 }
-MockThinReplicaStub* MockTrsConnection::GetStub() { return dynamic_cast<MockThinReplicaStub*>(this->stub_.get()); }
+MockThinReplicaStub* MockTrsConnection::GetStub() { return dynamic_cast<MockThinReplicaStub*>(this->trc_stub_.get()); }
 bool MockTrsConnection::isConnected() { return true; }
 
 Data FilterUpdate(const Data& raw_update) {
@@ -692,25 +692,25 @@ void SetMockServerUnresponsive(MockTrsConnection* server) {
       .WillByDefault(Return(Status(StatusCode::UNAVAILABLE, "This server is non-responsive")));
 }
 
-vector<unique_ptr<TrsConnection>> CreateTrsConnections(size_t num_servers, size_t num_unresponsive) {
-  vector<unique_ptr<TrsConnection>> mock_servers;
+vector<shared_ptr<GrpcConnection>> CreateTrsConnections(size_t num_servers, size_t num_unresponsive) {
+  vector<shared_ptr<GrpcConnection>> mock_servers;
   for (size_t i = 0; i < num_servers; ++i) {
     auto conn = new MockTrsConnection();
     if (num_unresponsive > 0) {
       SetMockServerUnresponsive(conn);
       num_unresponsive--;
     }
-    auto server = dynamic_cast<TrsConnection*>(conn);
-    mock_servers.push_back(unique_ptr<TrsConnection>(server));
+    auto server = dynamic_cast<GrpcConnection*>(conn);
+    mock_servers.push_back(shared_ptr<GrpcConnection>(server));
   }
   return mock_servers;
 }
 
-vector<unique_ptr<TrsConnection>> CreateTrsConnections(size_t num_servers,
-                                                       shared_ptr<MockDataStreamPreparer> stream_preparer,
-                                                       MockOrderedDataStreamHasher& hasher,
-                                                       size_t num_unresponsive) {
-  vector<unique_ptr<TrsConnection>> mock_servers;
+vector<shared_ptr<GrpcConnection>> CreateTrsConnections(size_t num_servers,
+                                                        shared_ptr<MockDataStreamPreparer> stream_preparer,
+                                                        MockOrderedDataStreamHasher& hasher,
+                                                        size_t num_unresponsive) {
+  vector<shared_ptr<GrpcConnection>> mock_servers;
   for (size_t i = 0; i < num_servers; ++i) {
     auto conn = new MockTrsConnection();
     SetMockServerBehavior(conn, stream_preparer, hasher);
@@ -718,8 +718,8 @@ vector<unique_ptr<TrsConnection>> CreateTrsConnections(size_t num_servers,
       SetMockServerUnresponsive(conn);
       num_unresponsive--;
     }
-    auto server = dynamic_cast<TrsConnection*>(conn);
-    mock_servers.push_back(unique_ptr<TrsConnection>(server));
+    auto server = dynamic_cast<GrpcConnection*>(conn);
+    mock_servers.push_back(shared_ptr<GrpcConnection>(server));
   }
   return mock_servers;
 }

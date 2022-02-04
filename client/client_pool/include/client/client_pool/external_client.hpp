@@ -98,6 +98,8 @@ class ConcordClient {
 
   static void setDelayFlagForTest(bool delay);
 
+  std::string messageSignature(bft::client::Msg&);
+
  private:
   void CreateClient();
 

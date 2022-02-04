@@ -46,6 +46,11 @@ struct Update {
   std::string span_context;
 };
 
-typedef std::variant<Update, EventGroup> EventVariant;
+struct SnapshotKVPair {
+  std::string key;
+  std::string val;
+};
+
+typedef std::variant<Update, EventGroup, SnapshotKVPair> RemoteData;
 
 }  // namespace concord::client::concordclient

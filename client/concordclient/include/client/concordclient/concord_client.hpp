@@ -26,7 +26,7 @@
 #include "bftclient/bft_client.h"
 #include "client/thin-replica-client/thin_replica_client.hpp"
 #include "client/client_pool/concord_client_pool.hpp"
-#include "client/concordclient/event_update_queue.hpp"
+#include "client/concordclient/remote_update_queue.hpp"
 #include "client/concordclient/concord_client_exceptions.hpp"
 #include "Metrics.hpp"
 
@@ -119,6 +119,11 @@ struct ConcordClientConfig {
   SubscribeConfig subscribe_config;
 };
 
+struct StreamSnapshotRequest {
+  uint64_t snapshot_id;
+  std::optional<std::string> last_received_key;
+};
+
 struct EventGroupRequest {
   uint64_t event_group_id;
 };
@@ -129,17 +134,6 @@ struct SubscribeRequest {
   // Depending on the type, the subscription will either return Events or EventGroups
   // Use EventGroups, BlockIds are deprecated.
   std::variant<EventGroupRequest, LegacyEventRequest> request;
-};
-
-struct GetRecentSnapshotRequest {};
-
-struct StreamSnapshotRequest {
-  uint64_t snapshot_id;
-};
-
-struct ReadAsOfRequest {
-  uint64_t snapshot_id;
-  std::vector<std::string> keys;
 };
 
 // ConcordClient combines two different client functionalities into one interface.
@@ -167,18 +161,16 @@ class ConcordClient {
   // will be occupied forever.
   void unsubscribe();
 
-  // Get the ID of a recent and available state snapshot
-  void getRecentSnapshot(const GetRecentSnapshotRequest& request);
-
   // Stream a specific state snapshot in a resumable fashion as a finite stream of key-values.
   // Key-values are streamed with lexicographic order on keys.
-  void streamSnapshot(const StreamSnapshotRequest& request);
+  void readStream(const StreamSnapshotRequest& request, std::shared_ptr<UpdateQueue>& remote_queue);
 
-  // Read the values of the given keys as of a specific state snapshot.
-  void readAsOf(const ReadAsOfRequest& request);
+  // Get participant_id
+  std::string getTRId() const { return config_.subscribe_config.id; }
 
  private:
   config_pool::ConcordClientPoolConfig createClientPoolStruct(const ConcordClientConfig& config);
+  void checkAndReConnectGrpcConnections();
 
   logging::Logger logger_;
   const ConcordClientConfig& config_;
@@ -187,8 +179,8 @@ class ConcordClient {
   // TODO: Allow multiple subscriptions
   std::atomic_bool active_subscription_{false};
 
-  std::shared_ptr<BasicUpdateQueue> trc_queue_;
-  std::unique_ptr<::client::thin_replica_client::ThinReplicaClient> trc_;
+  std::vector<std::shared_ptr<::client::concordclient::GrpcConnection>> grpc_connections_;
+  std::unique_ptr<::client::concordclient::ThinReplicaClient> trc_;
   std::unique_ptr<concord::concord_client_pool::ConcordClientPool> client_pool_;
 };
 
