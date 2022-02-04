@@ -168,6 +168,8 @@ class ConcordClientPool {
                          const concord::config_pool::ConcordClientPoolConfig&);
   void CreatePool(concord::config_pool::ConcordClientPoolConfig&);
 
+  void AddSenderAndSignature(std::vector<uint8_t>& request, const ClientPtr& chosenClient);
+
   void OnBatchingTimeout(ClientPtr client);
   bool clusterHasKeys(ClientPtr& cl);
   std::atomic_bool hasKeys_{false};

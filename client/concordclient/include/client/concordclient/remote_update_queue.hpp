@@ -19,7 +19,7 @@
 #include <mutex>
 #include <exception>
 
-#include "client/concordclient/event_update.hpp"
+#include "client/concordclient/remote_update_data.hpp"
 
 namespace concord::client::concordclient {
 
@@ -54,7 +54,7 @@ class UpdateQueue {
   // the update being pushed. Note the update is passed by unique_ptr, as this operation gives ownership of the
   // allocated update to the queue. UpdateQueue implementations may choose whether they keep this allocated Update or
   // free it after storing the data from the update by some other means.
-  virtual void push(std::unique_ptr<EventVariant> update) = 0;
+  virtual void push(std::unique_ptr<RemoteData> update) = 0;
 
   // Synchronously pop and return the update at the front of the queue. Normally, if there are no updates available in
   // the queue, this function should block the calling thread and wait until an update that can be popped is available.
@@ -65,13 +65,13 @@ class UpdateQueue {
   // other means. If ReleaseConsumers is called, any currently waiting Pop calls will be unblocked, and will return a
   // unique_ptr to null rather than continuing to wait for new updates. Furthermore, a call to ReleaseConsumers will
   // cause any subsequent calls to Pop to return nullptr and will prevent them from blocking their caller.
-  virtual std::unique_ptr<EventVariant> pop() = 0;
+  virtual std::unique_ptr<RemoteData> pop() = 0;
 
   // Synchronously pop an update from the front of the queue if one is available, but do not block the calling thread to
   // wait on one if one is not immediately found. Returns a unique_ptr to nullptr if no update is immediately found, and
   // a unique_ptr giving ownership of an allocated Update otherwise (this may involve dynamic memory allocation at the
   // discretion of the UpdateQueue implementation).
-  virtual std::unique_ptr<EventVariant> tryPop() = 0;
+  virtual std::unique_ptr<RemoteData> tryPop() = 0;
 
   virtual uint64_t size() = 0;
 
@@ -84,7 +84,7 @@ class UpdateQueue {
 // of this library.
 class BasicUpdateQueue : public UpdateQueue {
  private:
-  std::list<std::unique_ptr<EventVariant>> queue_data_;
+  std::list<std::unique_ptr<RemoteData>> queue_data_;
   std::mutex mutex_;
   std::condition_variable condition_;
   bool release_consumers_;
@@ -107,9 +107,9 @@ class BasicUpdateQueue : public UpdateQueue {
   virtual ~BasicUpdateQueue() override;
   virtual void releaseConsumers() override;
   virtual void clear() override;
-  virtual void push(std::unique_ptr<EventVariant> update) override;
-  virtual std::unique_ptr<EventVariant> pop() override;
-  virtual std::unique_ptr<EventVariant> tryPop() override;
+  virtual void push(std::unique_ptr<RemoteData> update) override;
+  virtual std::unique_ptr<RemoteData> pop() override;
+  virtual std::unique_ptr<RemoteData> tryPop() override;
   virtual uint64_t size() override;
   virtual void setException(std::exception_ptr e) override;
 };

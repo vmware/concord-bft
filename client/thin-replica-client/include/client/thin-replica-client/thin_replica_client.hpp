@@ -40,7 +40,7 @@
 #define THIN_REPLICA_CLIENT_HPP_
 
 #include "thin_replica.pb.h"
-#include "trs_connection.hpp"
+#include "grpc_connection.hpp"
 #include "assertUtils.hpp"
 #include "Metrics.hpp"
 
@@ -48,10 +48,10 @@
 #include <condition_variable>
 #include <thread>
 #include "Logger.hpp"
-#include "client/concordclient/event_update_queue.hpp"
+#include "client/concordclient/remote_update_queue.hpp"
 #include "client/concordclient/concord_client_exceptions.hpp"
 
-namespace client::thin_replica_client {
+namespace client::concordclient {
 
 // For the life time of an instance of this object we store the correlation ID
 // in the loggers context. Log messages are composed from this context together
@@ -101,7 +101,7 @@ struct ThinReplicaClientConfig {
   std::size_t max_faulty;
   // trs_conns is a vector of connection objects. Each representing a direct
   // connection from this TRC to a specific Thin Replica Server.
-  std::vector<std::unique_ptr<TrsConnection>> trs_conns;
+  std::vector<std::shared_ptr<GrpcConnection>>& trs_conns;
   // the time duration the TRC waits before printing warning logs when
   // responsive agreeing servers are less than config_->max_faulty + 1
   std::chrono::seconds no_agreement_warn_duration;
@@ -109,12 +109,12 @@ struct ThinReplicaClientConfig {
   ThinReplicaClientConfig(std::string client_id_,
                           std::shared_ptr<concord::client::concordclient::UpdateQueue> update_queue_,
                           std::size_t max_faulty_,
-                          std::vector<std::unique_ptr<TrsConnection>> trs_conns_,
+                          std::vector<std::shared_ptr<GrpcConnection>>& trs_conns_,
                           std::chrono::seconds no_agreement_warn_duration_ = kNoAgreementWarnDuration)
       : client_id(std::move(client_id_)),
         update_queue(update_queue_),
         max_faulty(max_faulty_),
-        trs_conns(std::move(trs_conns_)),
+        trs_conns(trs_conns_),
         no_agreement_warn_duration(no_agreement_warn_duration_) {}
 
  private:
@@ -209,7 +209,7 @@ class ThinReplicaClient final {
 
   // Push update to update queue for consumption by the application using TRC.
   // Set TRC metrics before receiving next update
-  void pushUpdateToUpdateQueue(std::unique_ptr<concord::client::concordclient::EventVariant> update,
+  void pushUpdateToUpdateQueue(std::unique_ptr<concord::client::concordclient::RemoteData> update,
                                const std::chrono::steady_clock::time_point& start,
                                bool is_event_group);
 
@@ -244,11 +244,11 @@ class ThinReplicaClient final {
   using HashRecordMap = std::map<HashRecord, std::unordered_set<size_t>, CompareHashRecord>;
 
   using SpanPtr = std::unique_ptr<opentracing::Span>;
-  std::pair<TrsConnection::Result, SpanPtr> readBlock(com::vmware::concord::thin_replica::Data& update_in,
-                                                      HashRecordMap& agreeing_subset_members,
-                                                      size_t& most_agreeing,
-                                                      HashRecord& most_agreed_block,
-                                                      std::unique_ptr<LogCid>& cid);
+  std::pair<GrpcConnection::Result, SpanPtr> readBlock(com::vmware::concord::thin_replica::Data& update_in,
+                                                       HashRecordMap& agreeing_subset_members,
+                                                       size_t& most_agreeing,
+                                                       HashRecord& most_agreed_block,
+                                                       std::unique_ptr<LogCid>& cid);
 
   // Opens hash streams to all the replicas and tries to read hash updates
   // from opened streams to check for maximal agreement.
@@ -269,12 +269,12 @@ class ThinReplicaClient final {
                                  SpanPtr& parent_span,
                                  std::unique_ptr<LogCid>& cid);
 
-  TrsConnection::Result resetDataStreamTo(size_t server_idx);
-  TrsConnection::Result startHashStreamWith(size_t server_idx);
+  GrpcConnection::Result resetDataStreamTo(size_t server_idx);
+  GrpcConnection::Result startHashStreamWith(size_t server_idx);
   void closeAllHashStreams();
 
   // Helper functions to receiveUpdates.
-  void logDataStreamResetResult(const TrsConnection::Result& result, size_t server_index);
+  void logDataStreamResetResult(const GrpcConnection::Result& result, size_t server_index);
   void recordCollectedHash(size_t update_source,
                            bool is_event_group,
                            uint64_t id,
@@ -436,6 +436,6 @@ class ThinReplicaClient final {
   void setMetricsCallback(const std::function<void(const ThinReplicaClientMetrics&)>& exposeAndSetMetrics);
 };
 
-}  // namespace client::thin_replica_client
+}  // namespace client::concordclient
 
 #endif  // THIN_REPLICA_CLIENT_HPP_

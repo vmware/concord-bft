@@ -13,7 +13,7 @@
 
 #include "client/thin-replica-client/thin_replica_client.hpp"
 #include "client/thin-replica-client/trc_hash.hpp"
-#include "client/thin-replica-client/trs_connection.hpp"
+#include "client/thin-replica-client/grpc_connection.hpp"
 
 #include "gtest/gtest.h"
 #include "assertUtils.hpp"
@@ -43,12 +43,13 @@ using std::chrono::steady_clock;
 using std::chrono::time_point;
 using std::this_thread::sleep_for;
 using concord::client::concordclient::BasicUpdateQueue;
-using concord::client::concordclient::EventVariant;
+using concord::client::concordclient::RemoteData;
 using concord::client::concordclient::Update;
 using concord::client::concordclient::UpdateQueue;
-using client::thin_replica_client::kThinReplicaHashLength;
-using client::thin_replica_client::ThinReplicaClient;
-using client::thin_replica_client::ThinReplicaClientConfig;
+using client::concordclient::kThinReplicaHashLength;
+using client::concordclient::GrpcConnection;
+using client::concordclient::ThinReplicaClient;
+using client::concordclient::ThinReplicaClientConfig;
 
 const string kTestingClientID = "mock_client_id";
 const string kTestingJaegerAddress = "127.0.0.1:6831";
@@ -57,7 +58,7 @@ static_assert((kMaxFaultyIn4NodeCluster * 3 + 1) == 4);
 
 // Helper function(s) and struct(s) to test case(s) in this suite.
 
-bool UpdateMatchesExpected(const std::unique_ptr<EventVariant>& update_received, const Data& update_expected) {
+bool UpdateMatchesExpected(const std::unique_ptr<RemoteData>& update_received, const Data& update_expected) {
   EXPECT_TRUE(std::holds_alternative<Update>(*update_received));
   auto& legacy_event = std::get<Update>(*update_received);
   if ((legacy_event.block_id != update_expected.events().block_id()) ||
@@ -78,7 +79,7 @@ void VerifyInitialState(shared_ptr<UpdateQueue>& received_updates,
                         size_t num_updates,
                         const string& faulty_description) {
   for (size_t i = 0; i < num_updates; ++i) {
-    unique_ptr<EventVariant> received_update = received_updates->pop();
+    unique_ptr<RemoteData> received_update = received_updates->pop();
     ASSERT_TRUE((bool)received_update) << "ThinReplicaClient failed to fetch an expected update from the "
                                           "initial state in the presence of "
                                        << faulty_description << ".";
@@ -93,7 +94,7 @@ void VerifyUpdates(shared_ptr<UpdateQueue>& received_updates,
                    const vector<Data>& expected_updates,
                    const string& faulty_description) {
   for (size_t i = 0; i < expected_updates.size(); ++i) {
-    unique_ptr<EventVariant> received_update = received_updates->pop();
+    unique_ptr<RemoteData> received_update = received_updates->pop();
     ASSERT_TRUE((bool)received_update) << "ThinReplicaClient failed to stream an expected update from a "
                                           "subscription in the presence of "
                                        << faulty_description << ".";
@@ -139,6 +140,7 @@ struct ByzantineTestCaseState {
   // Objects we anticipate the test case(s) will actually use once the
   // ByzantineTestCaseState is fully set up.
   shared_ptr<UpdateQueue> update_queue_;
+  vector<shared_ptr<GrpcConnection>> trs_connections_;
   unique_ptr<ThinReplicaClientConfig> trc_config_;
   shared_ptr<concordMetrics::Aggregator> aggregator_;
   unique_ptr<ThinReplicaClient> trc_;
@@ -163,11 +165,9 @@ struct ByzantineTestCaseState {
         server_preparer_(correct_data_preparer_, correct_hasher_, byzantine_behavior_),
         mock_servers_(CreateByzantineMockServers(num_servers, server_preparer_)),
         update_queue_(new BasicUpdateQueue()),
-        trc_config_(new ThinReplicaClientConfig(
-            kTestingClientID,
-            update_queue_,
-            max_faulty,
-            CreateTrsConnections<ByzantineMockThinReplicaServerPreparer::ByzantineMockServer>(mock_servers_))),
+        trs_connections_(
+            CreateTrsConnections<ByzantineMockThinReplicaServerPreparer::ByzantineMockServer>(mock_servers_)),
+        trc_config_(new ThinReplicaClientConfig(kTestingClientID, update_queue_, max_faulty, trs_connections_)),
         aggregator_(std::make_shared<concordMetrics::Aggregator>()),
         trc_(new ThinReplicaClient(std::move(trc_config_), aggregator_)) {}
 };

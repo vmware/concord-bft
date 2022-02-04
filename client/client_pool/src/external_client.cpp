@@ -158,6 +158,7 @@ std::pair<int32_t, ConcordClient::PendingReplies> ConcordClient::SendPendingRequ
     single_config.request.correlation_id = req.cid;
     seq_num_to_cid.insert(std::make_pair(req.reqSeqNum, req.cid));
     single_config.request.span_context = req.span_context;
+    single_config.request.reconfiguration = req.flags & bftEngine::RECONFIG_FLAG_REQ;
     single_config.request.pre_execute = req.flags & bftEngine::PRE_PROCESS_REQ;
     request_queue.push_back(bft::client::WriteRequest{single_config, std::move(req.request)});
   }
@@ -330,6 +331,8 @@ bool ConcordClient::isServing() const { return new_client_->isServing(num_of_rep
 void ConcordClient::setDelayFlagForTest(bool delay) { ConcordClient::delayed_behaviour_ = delay; }
 
 OperationResult ConcordClient::getRequestExecutionResult() { return clientRequestExecutionResult_; }
+
+std::string ConcordClient::messageSignature(bft::client::Msg& message) { return new_client_->signMessage(message); }
 
 void ConcordClient::stopClientComm() { new_client_->stop(); }
 

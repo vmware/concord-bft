@@ -11,7 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "client/concordclient/event_update_queue.hpp"
+#include "client/concordclient/remote_update_queue.hpp"
 
 #include "assertUtils.hpp"
 
@@ -39,7 +39,7 @@ void BasicUpdateQueue::clear() {
   queue_data_.clear();
 }
 
-void BasicUpdateQueue::push(unique_ptr<EventVariant> update) {
+void BasicUpdateQueue::push(unique_ptr<RemoteData> update) {
   {
     lock_guard<mutex> lock(mutex_);
     queue_data_.push_back(move(update));
@@ -47,7 +47,7 @@ void BasicUpdateQueue::push(unique_ptr<EventVariant> update) {
   condition_.notify_one();
 }
 
-unique_ptr<EventVariant> BasicUpdateQueue::pop() {
+unique_ptr<RemoteData> BasicUpdateQueue::pop() {
   unique_lock<mutex> lock(mutex_);
   while (!(exception_ || release_consumers_ || (queue_data_.size() > 0))) {
     condition_.wait(lock);
@@ -58,15 +58,15 @@ unique_ptr<EventVariant> BasicUpdateQueue::pop() {
     std::rethrow_exception(e);
   }
   if (release_consumers_) {
-    return unique_ptr<EventVariant>(nullptr);
+    return unique_ptr<RemoteData>(nullptr);
   }
   ConcordAssert(queue_data_.size() > 0);
-  unique_ptr<EventVariant> ret = move(queue_data_.front());
+  unique_ptr<RemoteData> ret = move(queue_data_.front());
   queue_data_.pop_front();
   return ret;
 }
 
-unique_ptr<EventVariant> BasicUpdateQueue::tryPop() {
+unique_ptr<RemoteData> BasicUpdateQueue::tryPop() {
   lock_guard<mutex> lock(mutex_);
   if (exception_) {
     auto e = exception_;
@@ -74,11 +74,11 @@ unique_ptr<EventVariant> BasicUpdateQueue::tryPop() {
     std::rethrow_exception(e);
   }
   if (queue_data_.size() > 0) {
-    unique_ptr<EventVariant> ret = move(queue_data_.front());
+    unique_ptr<RemoteData> ret = move(queue_data_.front());
     queue_data_.pop_front();
     return ret;
   } else {
-    return unique_ptr<EventVariant>(nullptr);
+    return unique_ptr<RemoteData>(nullptr);
   }
 }
 

@@ -26,7 +26,7 @@ using vmware::concord::client::event::v1::SubscribeResponse;
 using vmware::concord::client::event::v1::Event;
 using vmware::concord::client::event::v1::EventGroup;
 using vmware::concord::client::event::v1::Events;
-using concord::client::concordclient::EventVariant;
+using concord::client::concordclient::RemoteData;
 using concord::client::concordclient::UpdateNotFound;
 using concord::client::concordclient::OutOfRangeSubscriptionRequest;
 using concord::client::concordclient::SubscriptionExists;
@@ -66,7 +66,7 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
   auto status = grpc::Status::OK;
   while (!context->IsCancelled()) {
     SubscribeResponse response;
-    std::unique_ptr<EventVariant> update;
+    std::unique_ptr<RemoteData> update;
     try {
       update = update_queue->tryPop();
     } catch (const UpdateNotFound& e) {

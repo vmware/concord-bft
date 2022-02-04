@@ -24,6 +24,7 @@ void ClientService::start(const std::string& addr, unsigned num_async_threads, u
 
   // Register synchronous services
   builder.RegisterService(event_service_.get());
+  builder.RegisterService(state_snapshot_service_.get());
 
   // Register asynchronous services
   builder.RegisterService(&request_service_);
