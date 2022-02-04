@@ -43,13 +43,15 @@ class MockComm : public bft::communication::ICommunication {
 
   bool isRunning() const override { return true; }
 
-  int send(NodeNum destNode, std::vector<uint8_t>&& msg) override {
+  int send(NodeNum destNode, std::vector<uint8_t>&& msg, NodeNum endpointNum = MAX_ENDPOINT_NUM) override {
     (void)destNode;
     (void)msg;
     return 0;
   }
 
-  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t>&& msg) override {
+  std::set<NodeNum> send(std::set<NodeNum> dests,
+                         std::vector<uint8_t>&& msg,
+                         NodeNum endpointNum = MAX_ENDPOINT_NUM) override {
     (void)dests;
     (void)msg;
     return {};
