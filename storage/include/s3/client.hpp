@@ -190,9 +190,11 @@ class Client : public concord::storage::IDBClient {
     }
     KeyValuePair seekAtLeast(const concordUtils::Sliver& searchKey) override {
       Iterator::seekAtLeast(searchKey);
-      Iterator::last();
-      sort();
-      iterator_ = cb_data_.results.begin();
+      if (!isEnd()) {
+        Iterator::last();
+        sort();
+        iterator_ = cb_data_.results.begin();
+      }
       return getCurrent();
     }
 
@@ -309,10 +311,12 @@ class Client : public concord::storage::IDBClient {
     metrics_.metrics_component.SetAggregator(aggregator);
     metrics_.metrics_component.UpdateAggregator();
   }
-
   ///////////////////////// protected /////////////////////////////
  protected:
-  // if status is retryable, retry forever, increasing the waiting timeout until it reaches the defined maximum
+  /**
+   * If status is not NotFound, retry until operation timeout reached, increasing the waiting interval between attempts.
+   * TODO [TK] finer error check granularity.
+   */
   template <typename F, typename... Args>
   Status do_with_retry(const std::string_view msg, F&& f, Args&&... args) const {
     uint16_t delay = initialDelay_;
@@ -324,25 +328,28 @@ class Client : public concord::storage::IDBClient {
           delay += retries * initialDelay_;
         else
           break;
-        LOG_INFO(
+        LOG_ERROR(
             logger_,
             msg << " status: " << rd.status << " error: " << rd.errorMessage << ", retrying after " << delay << " ms.");
         std::this_thread::sleep_for(std::chrono::milliseconds(delay));
       }
       rd = std::forward<F>(f)(std::forward<Args>(args)...);
-
-    } while (S3_status_is_retryable(rd.status));
+    } while (rd.status != S3Status::S3StatusOK && S3_status_is_retryable(rd.status) &&
+             !S3_status_is_not_found(rd.status));
 
     if (rd.status == S3Status::S3StatusOK) {
       LOG_DEBUG(logger_, msg << " status: " << rd.status << " (OK)");
       return Status::OK();
     }
     LOG_ERROR(logger_, msg << " status: " << rd.status << " error: " << rd.errorMessage);
-    if (rd.status == S3Status::S3StatusHttpErrorNotFound || rd.status == S3Status::S3StatusErrorNoSuchBucket ||
-        rd.status == S3Status::S3StatusErrorNoSuchKey)
-      return Status::NotFound("Status: " + rd.errorMessage);
+    if (S3_status_is_not_found(rd.status)) return Status::NotFound("Status: " + rd.errorMessage);
 
     return Status::GeneralError("Status: " + rd.errorMessage);
+  }
+
+  bool S3_status_is_not_found(S3Status s) const {
+    return s == S3Status::S3StatusHttpErrorNotFound || s == S3Status::S3StatusErrorNoSuchBucket ||
+           s == S3Status::S3StatusErrorNoSuchKey;
   }
 
   struct GetObjectResponseData : public ResponseData {

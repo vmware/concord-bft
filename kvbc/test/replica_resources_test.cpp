@@ -4,7 +4,7 @@
  */
 
 #include "gtest/gtest.h"
-#include "replica_resources.h"
+#include "ReplicaResources.h"
 #include <thread>
 
 namespace {

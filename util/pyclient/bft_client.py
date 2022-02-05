@@ -109,7 +109,7 @@ class BftClient(ABC):
         pass
 
     @abstractmethod
-    async def _send_data(self, data, replica):
+    async def _send_data(self, data, replica, endpoint_num=0xFFFFFFFFFFFFFFFF):
         """ Send data to a replica by the client specific implementation """
         pass
 
@@ -440,7 +440,9 @@ class TcpTlsClient(BftClient):
     # This is the host name (domain name) to be verified.
     CERT_DOMAIN_FORMAT="node%dser"
     # Taken from TlsTCPCommunication.cpp (we prefer hard-code and not to parse the file)
-    MSG_HEADER_SIZE=4
+    MSG_LEN_SIZE = 4
+    ENDPOINT_SIZE = 8
+    MSG_HEADER_SIZE = MSG_LEN_SIZE + ENDPOINT_SIZE 
 
     def __init__(self, config, replicas, background_nursery, ro_replicas=[]):
         super().__init__(config, replicas, ro_replicas)
@@ -531,16 +533,17 @@ class TcpTlsClient(BftClient):
         if dest_addr in self.ssl_streams:
             await self._close_ssl_stream(dest_addr)
 
-    async def _send_data(self, data, dest_replica):
+    async def _send_data(self, data, dest_replica, endpoint_num=0xFFFFFFFFFFFFFFFF):
         """ Try to send data to dest_replica. On exception - close the SSL stream. """
         dest_addr = (dest_replica.ip, dest_replica.port)
         if dest_addr not in self.ssl_streams.keys():
             # dest_replica is not connected (crushed? isolated?)
             self.establish_ssl_stream_parklot[dest_addr].unpark()
             return
-        # first 4 bytes include the data header (message size), then comes the data
+        # first 4 bytes include the data header (message size), then comes the endpoint and data
         data_len = len(data)
-        out_buff = bytearray(data_len.to_bytes(self.MSG_HEADER_SIZE, "big"))
+        out_buff = bytearray(data_len.to_bytes(self.MSG_LEN_SIZE, "big"))
+        out_buff += bytearray(endpoint_num.to_bytes(self.ENDPOINT_SIZE, "big"))
         out_buff += bytearray(data)
         stream = self.ssl_streams[dest_addr]
         try:
@@ -572,7 +575,7 @@ class TcpTlsClient(BftClient):
     async def _receive_from_replica(self, dest_addr, replicas_addr, required_replies, cancel_scope):
         """
         Receive from a single replica. 3 stages:
-        1) Wait for the 1st 4 bytes which contains the header (payload length)
+        1) Wait for the 1st 12 bytes which contains the header (payload length and endpoint number)
         2) Receive the rest of the payload.
         3) Process the received message payload.
         If there is an error in stages 1 or 2 - exit straight (connection is closed inside _stream_recv_some)
@@ -586,7 +589,8 @@ class TcpTlsClient(BftClient):
             while len(data) < self.MSG_HEADER_SIZE:
                 if not await self._stream_recv_some(data, dest_addr, stream, self.MSG_HEADER_SIZE):
                     return
-            payload_size = int.from_bytes(data[:self.MSG_HEADER_SIZE], "big")
+            payload_size = int.from_bytes(data[:self.MSG_LEN_SIZE], "big")
+            endpoint_num = int.from_bytes(data[self.MSG_LEN_SIZE:self.MSG_HEADER_SIZE], "big")
             del data[:self.MSG_HEADER_SIZE]
             while len(data) < payload_size:
                 if not await self._stream_recv_some(data, dest_addr, stream, payload_size - len(data)):

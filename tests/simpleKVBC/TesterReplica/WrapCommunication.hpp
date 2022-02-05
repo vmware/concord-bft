@@ -37,8 +37,8 @@ class WrapCommunication : public ICommunication {
     return communication_->getCurrentConnectionStatus(node);
   }
 
-  int send(NodeNum destNode, std::vector<uint8_t> &&msg) override;
-  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg) override;
+  int send(NodeNum destNode, std::vector<uint8_t> &&msg, NodeNum endpointNum = MAX_ENDPOINT_NUM) override;
+  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg, NodeNum endpointNum) override;
 
   void setReceiver(NodeNum receiverNum, IReceiver *receiver) override {
     communication_->setReceiver(receiverNum, receiver);

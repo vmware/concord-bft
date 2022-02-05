@@ -316,7 +316,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
              shared_ptr<MsgHandlersRegistrator> msgHandlers,
              concordUtil::Timers& timers,
              shared_ptr<concord::performance::PerformanceManager> pm,
-             shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm);
+             shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm,
+             const std::function<void(bool)>& viewChangeCallBack);
 
   ReplicaImp(const LoadedReplicaData&,
              shared_ptr<IRequestsHandler>,
@@ -326,12 +327,15 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
              shared_ptr<MsgHandlersRegistrator> msgHandlers,
              concordUtil::Timers& timers,
              shared_ptr<concord::performance::PerformanceManager> pm,
-             shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm);
+             shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm,
+             const std::function<void(bool)>& viewChangeCallBack);
 
   virtual ~ReplicaImp();
 
   void start() override;
   void stop() override;
+
+  std::shared_ptr<IInternalBFTClient> internalClient() const { return internalBFTClient_; }
 
   std::shared_ptr<concord::cron::TicksGenerator> ticksGenerator() const { return ticks_gen_; }
 
@@ -410,7 +414,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
              concordUtil::Timers& timers,
              shared_ptr<concord::performance::PerformanceManager> pm,
              shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm,
-             shared_ptr<PersistentStorage> ps);
+             shared_ptr<PersistentStorage> ps,
+             const std::function<void(bool)>& viewChangeCallBack);
 
   void registerMsgHandlers();
 

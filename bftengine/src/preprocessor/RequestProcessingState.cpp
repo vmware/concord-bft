@@ -78,11 +78,11 @@ uint32_t RequestProcessingState::sizeOfPreProcessResultData() const {
 }
 
 void RequestProcessingState::setupPreProcessResultData(OperationResult preProcessResult) {
-  memcpy(&primaryPreProcessResultData_, &preProcessResult, sizeof(preProcessResult));
+  memcpy((void *)primaryPreProcessResultData_, &preProcessResult, sizeof(preProcessResult));
   primaryPreProcessResultData_ += sizeof(preProcessResult);
-  memcpy(&primaryPreProcessResultData_, &clientId_, sizeof(clientId_));
+  memcpy((void *)primaryPreProcessResultData_, &clientId_, sizeof(clientId_));
   primaryPreProcessResultData_ += sizeof(clientId_);
-  memcpy(&primaryPreProcessResultData_, &reqSeqNum_, sizeof(reqSeqNum_));
+  memcpy((void *)primaryPreProcessResultData_, &reqSeqNum_, sizeof(reqSeqNum_));
   primaryPreProcessResultLen_ = sizeOfPreProcessResultData();
 }
 
@@ -96,10 +96,11 @@ void RequestProcessingState::handlePrimaryPreProcessed(const char *preProcessRes
                                                        OperationResult preProcessResult) {
   preprocessingRightNow_ = false;
   primaryPreProcessResult_ = preProcessResult;
-  if (preProcessResult == OperationResult::SUCCESS) {
+  if (preProcessResult != OperationResult::UNKNOWN) {
     primaryPreProcessResultData_ = preProcessResultData;
     primaryPreProcessResultLen_ = preProcessResultLen;
   }
+
   primaryPreProcessResultHash_ = PreProcessResultHashCreator::create(
       primaryPreProcessResultData_, primaryPreProcessResultLen_, primaryPreProcessResult_, clientId_, reqSeqNum_);
 

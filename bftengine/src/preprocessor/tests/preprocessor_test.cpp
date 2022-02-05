@@ -87,7 +87,10 @@ class DummyReceiver : public IReceiver {
  public:
   virtual ~DummyReceiver() = default;
 
-  void onNewMessage(const NodeNum sourceNode, const char* const message, const size_t messageLength) override {}
+  void onNewMessage(const NodeNum sourceNode,
+                    const char* const message,
+                    const size_t messageLength,
+                    NodeNum endpointNum) override {}
   void onConnectionStatusChanged(const NodeNum node, const ConnectionStatus newStatus) override {}
 };
 

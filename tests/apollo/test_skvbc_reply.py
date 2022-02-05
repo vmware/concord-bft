@@ -42,8 +42,9 @@ def start_replica_cmd(builddir, replica_id):
 
 class SkvbcReplyTest(unittest.TestCase):
 
+    @unittest.skip("Unstable test - BC-18035")
     @with_trio
-    @with_bft_network(start_replica_cmd)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: c == 0 and n > 6)
     async def test_expected_replies_from_replicas(self, bft_network):
 
         """
@@ -61,40 +62,40 @@ class SkvbcReplyTest(unittest.TestCase):
         value = skvbc.random_value()
         kv_pair = [(key, value)]
 
-        reply = await client.write_with_result(skvbc.write_req([], kv_pair, 0), result=bft_msgs.OperationResult.INVALID_REQUEST)
+        reply = await client.write_with_result(skvbc.write_req([], kv_pair, 0), pre_process=True, result=bft_msgs.OperationResult.INVALID_REQUEST)
         assert reply[1] == bft_msgs.OperationResult.INVALID_REQUEST, \
                         f"Expected Reply={bft_msgs.OperationResult.INVALID_REQUEST}; actual={reply[1]}"
 
-        reply = await client.write_with_result(skvbc.write_req([], kv_pair, 0), result=bft_msgs.OperationResult.NOT_READY)
+        reply = await client.write_with_result(skvbc.write_req([], kv_pair, 0), pre_process=True, result=bft_msgs.OperationResult.NOT_READY)
         assert reply[1] == bft_msgs.OperationResult.NOT_READY, \
                         f"Expected Reply={bft_msgs.OperationResult.NOT_READY}; actual={reply[1]}"
 
-        reply = await client.write_with_result(skvbc.write_req([], kv_pair, 0), result=bft_msgs.OperationResult.TIMEOUT)
+        reply = await client.write_with_result(skvbc.write_req([], kv_pair, 0), pre_process=True, result=bft_msgs.OperationResult.TIMEOUT)
         assert reply[1] == bft_msgs.OperationResult.TIMEOUT, \
                         f"Expected Reply={bft_msgs.OperationResult.TIMEOUT}; actual={reply[1]}"
 
-        reply = await client.write_with_result(skvbc.write_req([], kv_pair, 0), result=bft_msgs.OperationResult.EXEC_DATA_TOO_LARGE)
+        reply = await client.write_with_result(skvbc.write_req([], kv_pair, 0), pre_process=True, result=bft_msgs.OperationResult.EXEC_DATA_TOO_LARGE)
         assert reply[1] == bft_msgs.OperationResult.EXEC_DATA_TOO_LARGE, \
                         f"Expected Reply={bft_msgs.OperationResult.EXEC_DATA_TOO_LARGE}; actual={reply[1]}"
 
-        reply = await client.write_with_result(skvbc.write_req([], kv_pair, 0), result=bft_msgs.OperationResult.EXEC_DATA_EMPTY)
+        reply = await client.write_with_result(skvbc.write_req([], kv_pair, 0), pre_process=True, result=bft_msgs.OperationResult.EXEC_DATA_EMPTY)
         assert reply[1] == bft_msgs.OperationResult.EXEC_DATA_EMPTY, \
                         f"Expected Reply={bft_msgs.OperationResult.EXEC_DATA_EMPTY}; actual={reply[1]}"
 
-        reply = await client.write_with_result(skvbc.write_req([], kv_pair, 0), result=bft_msgs.OperationResult.CONFLICT_DETECTED)
+        reply = await client.write_with_result(skvbc.write_req([], kv_pair, 0), pre_process=True, result=bft_msgs.OperationResult.CONFLICT_DETECTED)
         assert reply[1] == bft_msgs.OperationResult.CONFLICT_DETECTED, \
                         f"Expected Reply={bft_msgs.OperationResult.CONFLICT_DETECTED}; actual={reply[1]}"
 
-        reply = await client.write_with_result(skvbc.write_req([], kv_pair, 0), result=bft_msgs.OperationResult.OVERLOADED)
+        reply = await client.write_with_result(skvbc.write_req([], kv_pair, 0), pre_process=True, result=bft_msgs.OperationResult.OVERLOADED)
         assert reply[1] == bft_msgs.OperationResult.OVERLOADED, \
                         f"Expected Reply={bft_msgs.OperationResult.OVERLOADED}; actual={reply[1]}"
     
-        reply = await client.write_with_result(skvbc.write_req([], kv_pair, 0), result=bft_msgs.OperationResult.INTERNAL_ERROR)
+        reply = await client.write_with_result(skvbc.write_req([], kv_pair, 0), pre_process=True, result=bft_msgs.OperationResult.INTERNAL_ERROR)
         assert reply[1] == bft_msgs.OperationResult.INTERNAL_ERROR, \
                         f"Expected Reply={bft_msgs.OperationResult.INTERNAL_ERROR}; actual={reply[1]}"
 
     @with_trio
-    @with_bft_network(start_replica_cmd)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: c == 0 and n > 6)
     async def test_conflict_detected_from_replicas(self, bft_network):
     
         """

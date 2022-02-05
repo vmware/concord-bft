@@ -20,6 +20,7 @@
 #include "SigManager.hpp"
 #include "reconfiguration/reconfiguration_handler.hpp"
 #include "categorization/kv_blockchain.h"
+#include "AdaptivePruningManager.hpp"
 
 #include <functional>
 #include <string>
@@ -46,12 +47,48 @@ class ReconfigurationBlockTools {
   kvbc::IReader& ro_storage_;
 };
 
-// Allows users to convert state values to any format that is appropriate.
-// The default converter returns the input string as is, without modifying it.
-class StateValueConverter {
+// Handles State Snapshot requests from both the Operator and Clients.
+class StateSnapshotReconfigurationHandler : public ReconfigurationBlockTools,
+                                            public concord::reconfiguration::IReconfigurationHandler {
+ public:
+  StateSnapshotReconfigurationHandler(kvbc::IBlockAdder& block_adder, kvbc::IReader& ro_storage)
+      : ReconfigurationBlockTools{block_adder, ro_storage} {}
+
+  bool handle(const concord::messages::StateSnapshotRequest&,
+              uint64_t,
+              uint32_t,
+              const std::optional<bftEngine::Timestamp>&,
+              concord::messages::ReconfigurationResponse&) override;
+
+  bool handle(const concord::messages::SignedPublicStateHashRequest&,
+              uint64_t,
+              uint32_t,
+              const std::optional<bftEngine::Timestamp>&,
+              concord::messages::ReconfigurationResponse&) override;
+
+  bool handle(const concord::messages::StateSnapshotReadAsOfRequest&,
+              uint64_t,
+              uint32_t,
+              const std::optional<bftEngine::Timestamp>&,
+              concord::messages::ReconfigurationResponse&) override;
+
+  // Allow snapshot requests from the Operator and from Clients.
+  bool verifySignature(uint32_t sender_id, const std::string& data, const std::string& signature) const override {
+    // Try the BFT reconfiguration handler first. If not verified by the reconfiguration handler, try the
+    // ClientReconfigurationHandler.
+    return (bft_reconf_handler_.verifySignature(sender_id, data, signature) ||
+            client_reconf_handler_.verifySignature(sender_id, data, signature));
+  }
+
  protected:
+  // Allows users to convert state values to any format that is appropriate.
+  // The default converter returns the input string as is, without modifying it.
   categorization::KeyValueBlockchain::Converter state_value_converter_{
       [](std::string&& v) -> std::string { return std::move(v); }};
+
+ private:
+  const concord::reconfiguration::BftReconfigurationHandler bft_reconf_handler_;
+  const concord::reconfiguration::ClientReconfigurationHandler client_reconf_handler_;
 };
 
 /*
@@ -93,11 +130,14 @@ class KvbcClientReconfigurationHandler : public concord::reconfiguration::Client
  * blockchian.
  */
 class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurationHandler,
-                               public ReconfigurationBlockTools,
-                               public StateValueConverter {
+                               public ReconfigurationBlockTools {
  public:
-  ReconfigurationHandler(kvbc::IBlockAdder& block_adder, kvbc::IReader& ro_storage)
-      : ReconfigurationBlockTools{block_adder, ro_storage} {}
+  ReconfigurationHandler(kvbc::IBlockAdder& block_adder,
+                         kvbc::IReader& ro_storage,
+                         concord::performance::AdaptivePruningManager& apm)
+      : ReconfigurationBlockTools{block_adder, ro_storage}, apm_(apm) {
+    (void)apm_;  // unused for now
+  }
   bool handle(const concord::messages::WedgeCommand& command,
               uint64_t bft_seq_num,
               uint32_t,
@@ -202,18 +242,6 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
               const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
 
-  bool handle(const concord::messages::StateSnapshotRequest&,
-              uint64_t,
-              uint32_t,
-              const std::optional<bftEngine::Timestamp>&,
-              concord::messages::ReconfigurationResponse&) override;
-
-  bool handle(const concord::messages::SignedPublicStateHashRequest&,
-              uint64_t,
-              uint32_t,
-              const std::optional<bftEngine::Timestamp>&,
-              concord::messages::ReconfigurationResponse&) override;
-
   bool handle(const concord::messages::PruneTicksChangeRequest&,
               uint64_t,
               uint32_t,
@@ -232,11 +260,8 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
               const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
 
-  bool handle(const concord::messages::StateSnapshotReadAsOfRequest&,
-              uint64_t,
-              uint32_t,
-              const std::optional<bftEngine::Timestamp>&,
-              concord::messages::ReconfigurationResponse&) override;
+ private:
+  concord::performance::AdaptivePruningManager& apm_;
 };
 /**
  * This component is reposnsible for logging internal reconfiguration requests to the blockchain (such as noop
@@ -245,8 +270,12 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
 class InternalKvReconfigurationHandler : public concord::reconfiguration::IReconfigurationHandler,
                                          public ReconfigurationBlockTools {
  public:
-  InternalKvReconfigurationHandler(kvbc::IBlockAdder& block_adder, kvbc::IReader& ro_storage)
-      : ReconfigurationBlockTools{block_adder, ro_storage} {}
+  InternalKvReconfigurationHandler(kvbc::IBlockAdder& block_adder,
+                                   kvbc::IReader& ro_storage,
+                                   concord::performance::AdaptivePruningManager& apm)
+      : ReconfigurationBlockTools{block_adder, ro_storage}, apm_(apm) {
+    (void)apm_;  // unsused for now
+  }
   bool verifySignature(uint32_t sender_id, const std::string& data, const std::string& signature) const override;
 
   bool handle(const concord::messages::WedgeCommand& command,
@@ -264,6 +293,9 @@ class InternalKvReconfigurationHandler : public concord::reconfiguration::IRecon
               uint32_t,
               const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
+
+ private:
+  concord::performance::AdaptivePruningManager& apm_;
 };
 
 class InternalPostKvReconfigurationHandler : public concord::reconfiguration::IReconfigurationHandler,

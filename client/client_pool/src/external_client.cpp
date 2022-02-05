@@ -246,7 +246,7 @@ void ConcordClient::CreateClient(ConcordClientPoolConfig& config, const SimpleCl
       std::unique_ptr<FakeCommunication> fakecomm(new FakeCommunication(delayedBehaviour));
       comm_ = std::move(fakecomm);
     } else {
-      std::unique_ptr<FakeCommunication> fakecomm(new FakeCommunication(immideateBehaviour));
+      std::unique_ptr<FakeCommunication> fakecomm(new FakeCommunication(immediateBehaviour));
       comm_ = std::move(fakecomm);
     }
   } else {

@@ -32,7 +32,8 @@
 #include "client/reconfiguration/client_reconfiguration_engine.hpp"
 #include <ccron/cron_table_registry.hpp>
 #include <ccron/ticks_generator.hpp>
-#include "replica_resources.h"
+#include "ReplicaResources.h"
+#include "AdaptivePruningManager.hpp"
 
 namespace concord::kvbc {
 
@@ -158,6 +159,9 @@ class Replica : public IReplica,
   }
 
   std::optional<categorization::KeyValueBlockchain> &kvBlockchain() { return m_kvBlockchain; }
+  void setStateSnapshotValueConverter(const categorization::KeyValueBlockchain::Converter &c) {
+    m_stateSnapshotValueConverter = c;
+  }
 
   ~Replica() override;
 
@@ -211,6 +215,8 @@ class Replica : public IReplica,
   concord::kvbc::IStorageFactory::DatabaseSet m_dbSet;
   // The categorization KeyValueBlockchain is used for a normal read-write replica.
   std::optional<categorization::KeyValueBlockchain> m_kvBlockchain;
+  categorization::KeyValueBlockchain::Converter m_stateSnapshotValueConverter{
+      categorization::KeyValueBlockchain::kNoopConverter};
   // The IdbAdapter instance is used for a read-only replica.
   std::unique_ptr<IDbAdapter> m_bcDbAdapter;
   std::shared_ptr<storage::IDBClient> m_metadataDBClient;
@@ -232,6 +238,7 @@ class Replica : public IReplica,
   std::unique_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> creEngine_;
   std::shared_ptr<concord::client::reconfiguration::IStateClient> creClient_;
   ReplicaResourceEntity replicaResources_;
+  performance::AdaptivePruningManager AdaptivePruningManager_;
 
  private:
   struct Recorders {
