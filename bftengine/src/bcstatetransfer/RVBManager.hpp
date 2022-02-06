@@ -190,7 +190,7 @@ class RVBManager {
 
   std::string getLogLevel() const;
 #pragma pack(push, 1)
-  struct rvbDigestInfo {
+  struct RvbDigestInfo {
     BlockId block_id;
     STDigest digest;
   };
