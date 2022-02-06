@@ -242,7 +242,10 @@ bool PruningHandler::handle(const concord::messages::PruneStatusRequest&,
                             const std::optional<bftEngine::Timestamp>&,
                             concord::messages::ReconfigurationResponse& rres) {
   if (!pruning_enabled_) return true;
-  concord::messages::PruneStatus prune_status;
+  if (!std::holds_alternative<concord::messages::PruneStatus>(rres.response)) {
+    rres.response = concord::messages::PruneStatus{};
+  }
+  concord::messages::PruneStatus& prune_status = std::get<concord::messages::PruneStatus>(rres.response);
   std::lock_guard lock(pruning_status_lock_);
   const auto genesis_id = ro_storage_.getGenesisBlockId();
   prune_status.last_pruned_block = (genesis_id > INITIAL_GENESIS_BLOCK_ID ? genesis_id - 1 : 0);

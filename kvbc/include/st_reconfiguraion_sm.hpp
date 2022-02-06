@@ -20,6 +20,8 @@
 #include "SysConsts.hpp"
 #include "block_metadata.hpp"
 #include "secrets_manager_plain.h"
+#include "AdaptivePruningManager.hpp"
+#include "IntervalMappingResourceManager.hpp"
 
 namespace concord::kvbc {
 /*
@@ -28,8 +30,11 @@ namespace concord::kvbc {
  */
 class StReconfigurationHandler {
  public:
-  StReconfigurationHandler(bftEngine::IStateTransfer& st, IReader& ro_storage)
-      : ro_storage_(ro_storage), block_metadata_{ro_storage_} {
+  StReconfigurationHandler(bftEngine::IStateTransfer& st,
+                           IReader& ro_storage,
+                           concord::performance::AdaptivePruningManager& apm,
+                           concord::performance::ISystemResourceEntity& replicaResources)
+      : ro_storage_(ro_storage), block_metadata_{ro_storage_}, apm_{apm}, replicaResources_{replicaResources} {
     st.addOnTransferringCompleteCallback([&](uint64_t cp) { stCallBack(cp); },
                                          bftEngine::IStateTransfer::StateTransferCallBacksPriorities::HIGH);
   }
@@ -68,10 +73,18 @@ class StReconfigurationHandler {
   bool handle(const concord::messages::RestartCommand&, uint64_t, uint64_t, uint64_t);
   bool handle(const concord::messages::PruneRequest&, uint64_t, uint64_t, uint64_t);
   bool handle(const concord::messages::InstallCommand&, uint64_t, uint64_t, uint64_t);
+  bool handle(const concord::messages::PruneSwitchModeRequest&, uint64_t, uint64_t, uint64_t);
+
+  logging::Logger& getLogger() const {
+    static logging::Logger logger_(logging::getLogger("concord.kvbc.StReconfigurationHandler"));
+    return logger_;
+  }
 
   kvbc::IReader& ro_storage_;
   BlockMetadata block_metadata_;
   std::vector<std::shared_ptr<concord::reconfiguration::IReconfigurationHandler>> orig_reconf_handlers_;
   concord::secretsmanager::SecretsManagerPlain sm_;
+  concord::performance::AdaptivePruningManager& apm_;
+  concord::performance::ISystemResourceEntity& replicaResources_;
 };
 }  // namespace concord::kvbc

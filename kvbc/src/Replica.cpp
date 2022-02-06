@@ -167,9 +167,9 @@ class KvbcRequestHandler : public bftEngine::RequestHandler {
   categorization::KeyValueBlockchain &blockchain_;
 };
 void Replica::registerReconfigurationHandlers(std::shared_ptr<bftEngine::IRequestsHandler> requestHandler) {
-  requestHandler->setReconfigurationHandler(
-      std::make_shared<kvbc::reconfiguration::ReconfigurationHandler>(*this, *this, this->AdaptivePruningManager_),
-      concord::reconfiguration::ReconfigurationHandlerType::PRE);
+  requestHandler->setReconfigurationHandler(std::make_shared<kvbc::reconfiguration::ReconfigurationHandler>(
+                                                *this, *this, this->AdaptivePruningManager_, this->replicaResources_),
+                                            concord::reconfiguration::ReconfigurationHandlerType::PRE);
   requestHandler->setReconfigurationHandler(
       std::make_shared<kvbc::reconfiguration::StateSnapshotReconfigurationHandler>(*this, *this),
       concord::reconfiguration::ReconfigurationHandlerType::PRE);
@@ -493,7 +493,8 @@ Replica::Replica(ICommunication *comm,
               replicaResources_,
               std::vector<std::pair<uint64_t, uint64_t>>{
                   concord::performance::IntervalMappingResourceManager::default_mapping}),
-          20000ms} {
+          20000ms,
+          *this} {
   bft::communication::StateControl::instance().setCommRestartCallBack(
       [this](uint32_t i) { m_ptrComm->restartCommunication(i); });
   // Populate ST configuration
@@ -579,7 +580,8 @@ Replica::Replica(ICommunication *comm,
   auto stKeyManipulator = std::shared_ptr<storage::ISTKeyManipulator>{storageFactory->newSTKeyManipulator()};
   m_stateTransfer = bftEngine::bcst::create(stConfig, this, m_metadataDBClient, stKeyManipulator, aggregator_);
   if (!replicaConfig.isReadOnly) {
-    stReconfigurationSM_ = std::make_unique<concord::kvbc::StReconfigurationHandler>(*m_stateTransfer, *this);
+    stReconfigurationSM_ = std::make_unique<concord::kvbc::StReconfigurationHandler>(
+        *m_stateTransfer, *this, this->AdaptivePruningManager_, this->replicaResources_);
     m_metadataStorage = new DBMetadataStorage(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator());
   } else {
     m_metadataStorage =
