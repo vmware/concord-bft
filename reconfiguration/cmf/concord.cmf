@@ -55,7 +55,10 @@ Msg PruneStatus 18 {
     uint64 sender
     bool in_progress
     uint64 last_pruned_block
-    string configuration_json
+    string operation_mode
+    string mode
+    uint32 pruning_pace
+    uint64 batch_size
 }
 
 Msg GetVersionCommand 19 {
@@ -382,11 +385,6 @@ Msg StateSnapshotReadAsOfResponse 72 {
   list optional string values
 }
 
-Msg PruneConfigurationMax 73 {
-    uint32 dbMaxRate
-    uint32 consensusEngineMaxRate
-}
-
 Msg PruneConfigurationMap 74 {
    list kvpair uint64 uint64 mapConsensusRateToPruningRate
 }
@@ -400,7 +398,6 @@ Msg PruneSwitchModeRequest 75 {
     uint8 mode
     oneof {
         PruneConfigurationMap
-        PruneConfigurationMax
         PruneLegacyConfiguration
     }
     configuration

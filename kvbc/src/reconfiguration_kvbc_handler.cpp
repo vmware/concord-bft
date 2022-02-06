@@ -25,7 +25,6 @@
 #include "categorization/db_categories.h"
 #include "categorization/details.h"
 #include "categorized_kvbc_msgs.cmf.hpp"
-#include "IntervalMappingResourceManager.hpp"
 #include <chrono>
 #include <algorithm>
 
@@ -1019,12 +1018,7 @@ bool ReconfigurationHandler::handle(const concord::messages::PruneSwitchModeRequ
     return true;
   }
   // Handler adaptive pruning configuration
-  if (std::holds_alternative<concord::messages::PruneConfigurationMax>(command.configuration)) {
-    auto error_msg = "max configuration is not supported yet";
-    rres.response = concord::messages::ReconfigurationErrorMsg{error_msg};
-    LOG_ERROR(getLogger(), error_msg);
-    return false;
-  } else if (std::holds_alternative<concord::messages::PruneConfigurationMap>(command.configuration)) {
+  if (std::holds_alternative<concord::messages::PruneConfigurationMap>(command.configuration)) {
     LOG_INFO(getLogger(), "switching to adaptive mode");
     concord::messages::PruneConfigurationMap conf =
         std::get<concord::messages::PruneConfigurationMap>(command.configuration);
@@ -1061,7 +1055,26 @@ bool ReconfigurationHandler::handle(const concord::messages::PruneStopRequest& c
                                               static_cast<char>(kvbc::keyTypes::PRUNING_COMMAND_TYPES::STOP_REQUEST)},
                                   ts,
                                   false);
+  // For having eventually a record for the latest pruning pace
+  apm_.notifyReplicas(0, 0);
   LOG_INFO(getLogger(), "block id: " << KVLOG(blockId, sender_id));
+  return true;
+}
+
+bool ReconfigurationHandler::handle(const concord::messages::PruneStatusRequest& command,
+                                    uint64_t bft_seq_num,
+                                    uint32_t sender_id,
+                                    const std::optional<bftEngine::Timestamp>& ts,
+                                    concord::messages::ReconfigurationResponse& rres) {
+  if (std::holds_alternative<concord::messages::ReconfigurationErrorMsg>(rres.response)) return rres.success;
+  if (!std::holds_alternative<concord::messages::PruneStatus>(rres.response)) {
+    rres.response = concord::messages::PruneStatus{};
+  }
+  auto& prune_status = std::get<concord::messages::PruneStatus>(rres.response);
+  prune_status.operation_mode = bftEngine::ReplicaConfig::instance().pruningEnabled_ ? "BLOCKING" : "NOT_ENABLED";
+  prune_status.mode = apm_.getCurrentMode() == concord::performance::PruningMode::LEGACY ? "LEGACY" : "ADATPTIVE";
+  prune_status.pruning_pace = apm_.getCurrentPace();
+  prune_status.batch_size = apm_.getCurrentBatch();
   return true;
 }
 
@@ -1148,6 +1161,7 @@ bool InternalKvReconfigurationHandler::handle(const concord::messages::PruneTick
                   static_cast<char>(kvbc::keyTypes::PRUNING_COMMAND_TYPES::TICKS_CHANGE_REQUEST)},
       ts,
       false);
+  apm_.onTickChangeRequest(command);
   LOG_INFO(getLogger(), "block id: " << KVLOG(blockId, sender_id));
   return true;
 }
