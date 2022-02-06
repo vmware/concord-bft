@@ -28,6 +28,7 @@ class IResourceManager {
     getPruneBlocksPerSecond implementation computes proper pruning pace based on its measuremnts.
   */
   virtual PruneInfo getPruneInfo() = 0;
+  virtual void setPeriod(std::uint64_t) = 0;
 };
 
 }  // namespace concord::performance

@@ -493,7 +493,7 @@ Replica::Replica(ICommunication *comm,
               replicaResources_,
               std::vector<std::pair<uint64_t, uint64_t>>{
                   concord::performance::IntervalMappingResourceManager::default_mapping}),
-          20000ms,
+          bftEngine::ReplicaConfig::instance().adaptivePruningIntervalDuration,
           *this} {
   bft::communication::StateControl::instance().setCommRestartCallBack(
       [this](uint32_t i) { m_ptrComm->restartCommunication(i); });

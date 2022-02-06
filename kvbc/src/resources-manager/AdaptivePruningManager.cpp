@@ -18,6 +18,7 @@ AdaptivePruningManager::AdaptivePruningManager(
       interval(interval),
       ro_storage_(ro_storage) {
   (void)ro_storage_;
+  resourceManager->setPeriod(bftEngine::ReplicaConfig::instance().adaptivePruningIntervalPeriod);
 }
 
 AdaptivePruningManager::~AdaptivePruningManager() { stop(); }

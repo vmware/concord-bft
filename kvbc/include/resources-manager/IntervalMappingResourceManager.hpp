@@ -42,10 +42,13 @@ class IntervalMappingResourceManager : public IResourceManager {
                                  std::vector<std::pair<uint64_t, uint64_t>> &&intervalMapping);
 
   std::uint64_t getDurationFromLastCallSec();
+  virtual void setPeriod(std::uint64_t interval) override { periodicInterval_ = interval; }
 
  private:
   ISystemResourceEntity &replicaResources_;
   const std::vector<std::pair<uint64_t, uint64_t>> intervalMapping_;
   std::uint64_t lastInvocationTime_{0};
+  std::uint64_t period_{0};
+  std::uint64_t periodicInterval_{20};  // config
 };
 }  // namespace concord::performance

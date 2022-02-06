@@ -39,7 +39,9 @@ IntervalMappingResourceManager::IntervalMappingResourceManager(
 
 PruneInfo IntervalMappingResourceManager::getPruneInfo() {
   auto duration = getDurationFromLastCallSec();
-  if (duration == 0) {
+  if (duration == 0 || (++period_) % periodicInterval_ == 0) {
+    LOG_DEBUG(ADPTV_PRUNING, "Resetting measurements");
+    period_ = 0;
     replicaResources_.reset();
     return PruneInfo{};
   }

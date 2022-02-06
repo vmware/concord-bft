@@ -108,6 +108,59 @@ TEST(IntervalMappingResourceManager_test, prune_info) {
   }
 }
 
+TEST(IntervalMappingResourceManager_test, periodic_interval) {
+  std::vector<std::pair<uint64_t, uint64_t>> mapping{{60, 40}, {100, 30}, {300, 20}, {500, 10}};
+  auto consensusEngineResourceMonitor = ResourceEntityMock{};
+  auto interval_mapping = IntervalMappingResourceManager(consensusEngineResourceMonitor, std::move(mapping));
+  // reset every three calls
+  interval_mapping.setPeriod(3);
+  // First prune info is 0
+  consensusEngineResourceMonitor.measurements = 80;
+  {
+    auto prune_info = interval_mapping.getPruneInfo();
+    ASSERT_EQ(prune_info.blocksPerSecond, 0);
+  }
+
+  consensusEngineResourceMonitor.measurements = 110;
+  // second prune gets rate of 110tps
+  {
+    auto prune_info = interval_mapping.getPruneInfo();
+    ASSERT_EQ(prune_info.blocksPerSecond, 20);
+  }
+  // tps is now will be devided by two i.e. 119/2 = 59
+  consensusEngineResourceMonitor.measurements = 119;
+  {
+    std::this_thread::sleep_for(2s);
+    auto prune_info = interval_mapping.getPruneInfo();
+    ASSERT_EQ(prune_info.blocksPerSecond, 40);
+  }
+  // period should happen
+  consensusEngineResourceMonitor.measurements = 110;
+  {
+    auto prune_info = interval_mapping.getPruneInfo();
+    ASSERT_EQ(prune_info.blocksPerSecond, 0);
+  }
+
+  consensusEngineResourceMonitor.measurements = 310;
+  // second prune gets rate of 110tps
+  {
+    auto prune_info = interval_mapping.getPruneInfo();
+    ASSERT_EQ(prune_info.blocksPerSecond, 10);
+  }
+  // tps is now will be devided by two i.e. 119/2 = 59
+  consensusEngineResourceMonitor.measurements = 119;
+  {
+    auto prune_info = interval_mapping.getPruneInfo();
+    ASSERT_EQ(prune_info.blocksPerSecond, 20);
+  }
+  // period should happen
+  consensusEngineResourceMonitor.measurements = 10;
+  {
+    auto prune_info = interval_mapping.getPruneInfo();
+    ASSERT_EQ(prune_info.blocksPerSecond, 0);
+  }
+}
+
 }  // anonymous namespace
 
 int main(int argc, char* argv[]) {

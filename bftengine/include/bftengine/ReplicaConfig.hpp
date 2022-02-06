@@ -250,6 +250,16 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
 
   CONFIG_PARAM(enableMultiplexChannel, bool, false, "whether multiplex communication channel is enabled")
 
+  CONFIG_PARAM(adaptivePruningIntervalDuration,
+               std::chrono::milliseconds,
+               std::chrono::milliseconds{20000},
+               "The polling frequency of pruning info in ms");
+
+  CONFIG_PARAM(adaptivePruningIntervalPeriod,
+               std::uint64_t,
+               20,
+               "Resetting the measurements and starting again after polling X times");
+
   // Parameter to enable/disable waiting for transaction data to be persisted.
   // Not predefined configuration parameters
   // Example of usage:
@@ -362,6 +372,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, dbCheckpointMonitorIntervalSeconds);
     serialize(outStream, enablePostExecutionSeparation);
     serialize(outStream, postExecutionQueuesSize);
+    serialize(outStream, adaptivePruningIntervalDuration);
+    serialize(outStream, adaptivePruningIntervalPeriod);
     serialize(outStream, config_params_);
     serialize(outStream, enableMultiplexChannel);
   }
@@ -451,6 +463,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, dbCheckpointMonitorIntervalSeconds);
     deserialize(inStream, enablePostExecutionSeparation);
     deserialize(inStream, postExecutionQueuesSize);
+    deserialize(inStream, adaptivePruningIntervalDuration);
+    deserialize(inStream, adaptivePruningIntervalPeriod);
     deserialize(inStream, config_params_);
     deserialize(inStream, enableMultiplexChannel);
   }
@@ -532,6 +546,8 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.maxNumberOfDbCheckpoints,
               rc.dbCheckPointWindowSize,
               rc.dbCheckpointDirPath,
+              rc.adaptivePruningIntervalDuration.count(),
+              rc.adaptivePruningIntervalPeriod,
               rc.dbSnapshotIntervalSeconds.count(),
               rc.dbCheckpointMonitorIntervalSeconds.count(),
               rc.enableMultiplexChannel);
