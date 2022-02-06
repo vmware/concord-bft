@@ -285,9 +285,9 @@ size_t RVBManager::getSerializedDigestsOfRvbGroup(int64_t rvb_group_id,
   LOG_TRACE(logger_, KVLOG(rvb_group_id, buff_max_size));
   ConcordAssertOR((size_only && !buff && buff_max_size == 0), (!size_only && buff && buff_max_size > 0));
   std::vector<RVBId> rvb_ids = in_mem_rvt_->getRvbIds(rvb_group_id);
-  size_t total_size = rvb_ids.size() * sizeof(RVBManager::rvbDigestInfo);
+  size_t total_size = rvb_ids.size() * sizeof(RVBManager::RvbDigestInfo);
   ConcordAssertOR(size_only, total_size <= buff_max_size);
-  RVBManager::rvbDigestInfo* cur = size_only ? nullptr : reinterpret_cast<RVBManager::rvbDigestInfo*>(buff);
+  RVBManager::RvbDigestInfo* cur = size_only ? nullptr : reinterpret_cast<RVBManager::RvbDigestInfo*>(buff);
 
   // 1) Source is working based on "best-effort" - send what I have. Reject if I have not even a single block in the
   // requested RVB group. In the case of
@@ -322,7 +322,7 @@ size_t RVBManager::getSerializedDigestsOfRvbGroup(int64_t rvb_group_id,
     ++num_elements;
     ++cur;
   }
-  return num_elements * sizeof(RVBManager::rvbDigestInfo);
+  return num_elements * sizeof(RVBManager::RvbDigestInfo);
 }
 
 bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
@@ -332,7 +332,7 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
                                                 BlockId max_block_id_in_cycle) {
   LOG_TRACE(logger_, KVLOG(data_size));
   ConcordAssertNE(data, nullptr);
-  rvbDigestInfo* cur = reinterpret_cast<rvbDigestInfo*>(data);
+  RvbDigestInfo* cur = reinterpret_cast<RvbDigestInfo*>(data);
   std::map<BlockId, STDigest> digests;
   BlockId block_id;
   STDigest digest;
@@ -345,11 +345,11 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
   RVBGroupId next_required_rvb_group_id =
       getNextRequiredRvbGroupid(nextRvbBlockId(min_fetch_block_id), prevRvbBlockId(max_fetch_block_id));
 
-  if (((data_size % sizeof(rvbDigestInfo)) != 0) || (data_size == 0)) {
-    LOG_ERROR(logger_, error_prefix << KVLOG(data_size, sizeof(rvbDigestInfo)));
+  if (((data_size % sizeof(RvbDigestInfo)) != 0) || (data_size == 0)) {
+    LOG_ERROR(logger_, error_prefix << KVLOG(data_size, sizeof(RvbDigestInfo)));
     return false;
   }
-  num_digests_in_data = data_size / sizeof(rvbDigestInfo);
+  num_digests_in_data = data_size / sizeof(RvbDigestInfo);
   if (num_digests_in_data > config_.RVT_K) {
     LOG_ERROR(logger_, error_prefix << KVLOG(num_digests_in_data, config_.RVT_K));
     return false;
