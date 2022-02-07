@@ -122,8 +122,13 @@ void DebugPersistentStorage::setDescriptorOfLastExitFromView(const DescriptorOfL
   if (descriptorOfLastExitFromView_.myViewChangeMsg != nullptr) delete descriptorOfLastExitFromView_.myViewChangeMsg;
 
   hasDescriptorOfLastExitFromView_ = true;
-  descriptorOfLastExitFromView_ = DescriptorOfLastExitFromView{
-      d.view, d.lastStable, d.lastExecuted, clonedElements, clonedViewChangeMsg, d.stableLowerBoundWhenEnteredToView};
+  descriptorOfLastExitFromView_ = DescriptorOfLastExitFromView{d.view,
+                                                               d.lastStable,
+                                                               d.lastExecuted,
+                                                               clonedElements,
+                                                               clonedViewChangeMsg,
+                                                               d.stableLowerBoundWhenEnteredToView,
+                                                               d.complaints};
 }
 
 void DebugPersistentStorage::setDescriptorOfLastNewView(const DescriptorOfLastNewView &d) {
@@ -332,7 +337,7 @@ DescriptorOfLastExitFromView DebugPersistentStorage::getAndAllocateDescriptorOfL
   if (d.myViewChangeMsg != nullptr) myVCMsg = (ViewChangeMsg *)d.myViewChangeMsg->cloneObjAndMsg();
 
   DescriptorOfLastExitFromView retVal{
-      d.view, d.lastStable, d.lastExecuted, elements, myVCMsg, d.stableLowerBoundWhenEnteredToView};
+      d.view, d.lastStable, d.lastExecuted, elements, myVCMsg, d.stableLowerBoundWhenEnteredToView, d.complaints};
 
   return retVal;
 }

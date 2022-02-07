@@ -122,7 +122,8 @@ ViewsManager* ViewsManager::createOutsideView(const ReplicasInfo* const r,
                                               SeqNum lastExecuted,
                                               SeqNum stableLowerBound,
                                               ViewChangeMsg* myLastViewChange,
-                                              std::vector<PrevViewInfo>& elementsOfPrevView) {
+                                              std::vector<PrevViewInfo>& elementsOfPrevView,
+                                              const SequenceOfComplaints& complaints) {
   // check arguments
   ConcordAssert(lastActiveView >= 0);
   ConcordAssert(lastStable >= 0);
@@ -154,6 +155,8 @@ ViewsManager* ViewsManager::createOutsideView(const ReplicasInfo* const r,
   v->myLatestPendingView = lastActiveView;
   v->viewChangeMessages[v->myId] = myLastViewChange;
   v->lowerBoundStableForPendingView = stableLowerBound;
+
+  v->complainedReplicas.populateFromSequenceOfComplaints(complaints);
 
   v->exitFromCurrentView(lastStable, lastExecuted, elementsOfPrevView);
 
@@ -1063,8 +1066,8 @@ void ViewsManager::storeComplaintForHigherView(std::unique_ptr<ReplicaAsksToLeav
 }
 
 void ViewsManager::addComplaintsToStatusMessage(ReplicaStatusMsg& replicaStatusMessage) const {
-  for (const auto& i : complainedReplicas.getAllMsgs()) {
-    replicaStatusMessage.setComplaintFromReplica(i.first);
+  for (const auto& it : getAllMsgsFromComplainedReplicas()) {
+    replicaStatusMessage.setComplaintFromReplica(it->idOfGeneratedReplica());
   }
 }
 
@@ -1116,20 +1119,23 @@ ViewChangeMsg* ViewsManager::prepareViewChangeMsgAndSetHigherView(ViewNum nextVi
     pVC->setNewViewNumber(nextView);
   }
 
-  for (const auto& i : complainedReplicas.getAllMsgs()) {
-    pVC->addComplaint(i.second.get());
-    const auto& complaint = i.second;
-    LOG_DEBUG(VC_LOG,
-              "Putting complaint in VC msg: " << KVLOG(
-                  getCurrentView(), nextView, complaint->idOfGeneratedReplica(), complaint->viewNumber()));
-  }
+  insertStoredComplaintsIntoVCMsg(pVC);
 
-  complainedReplicas.clear();
   setHigherView(nextView);
 
   pVC->finalizeMessage();
 
   return pVC;
+}
+
+void ViewsManager::insertStoredComplaintsIntoVCMsg(ViewChangeMsg* pVC) {
+  for (const auto& complaint : getAllMsgsFromComplainedReplicas(true)) {
+    pVC->addComplaint(complaint.get());
+    LOG_DEBUG(VC_LOG,
+              "Putting complaint in VC msg: " << KVLOG(
+                  getCurrentView(), pVC->newView(), complaint->idOfGeneratedReplica(), complaint->viewNumber()));
+  }
+  complainedReplicas.clear();
 }
 
 void ViewsManager::processComplaintsFromViewChangeMessage(ViewChangeMsg* msg,

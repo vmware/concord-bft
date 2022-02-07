@@ -35,12 +35,18 @@ bool DescriptorOfLastExitFromView::equals(const DescriptorOfLastExitFromView &ot
 
   if (other.elements.size() != elements.size()) return false;
 
+  if (other.complaints.size() != complaints.size()) return false;
+
   if ((other.myViewChangeMsg && !myViewChangeMsg) || (!other.myViewChangeMsg && myViewChangeMsg)) return false;
   bool res = myViewChangeMsg ? (other.myViewChangeMsg->equals(*myViewChangeMsg)) : true;
   if (!res) return false;
 
   for (uint32_t i = 0; i < elements.size(); ++i)
     if (!elements[i].equals(other.elements[i])) return false;
+
+  for (uint32_t i = 0; i < complaints.size(); ++i)
+    if (!complaints[i]->equals(*other.complaints[i])) return false;
+
   return (other.view == view && other.lastStable == lastStable && other.lastExecuted == lastExecuted &&
           other.stableLowerBoundWhenEnteredToView == stableLowerBoundWhenEnteredToView);
 }
@@ -73,9 +79,15 @@ void DescriptorOfLastExitFromView::serializeSimpleParams(char *buf, size_t bufLe
   uint32_t elementsNum = elements.size();
   size_t elementsNumSize = sizeof(elementsNum);
   memcpy(buf, &elementsNum, elementsNumSize);
+  buf += elementsNumSize;
+
+  uint32_t complaintsNum = complaints.size();
+  size_t complaintsNumSize = sizeof(complaintsNum);
+  memcpy(buf, &complaintsNum, complaintsNumSize);
+  buf += complaintsNumSize;
 
   actualSize = isDefaultSize + viewSize + lastStableSize + lastExecutedSize + stableLowerBoundWhenEnteredToViewSize +
-               myViewChangeMsgSize + elementsNumSize;
+               myViewChangeMsgSize + elementsNumSize + complaintsNumSize;
 }
 
 void DescriptorOfLastExitFromView::serializeElement(uint32_t id, char *buf, size_t bufLen, size_t &actualSize) const {
@@ -92,6 +104,14 @@ void DescriptorOfLastExitFromView::serializeElement(uint32_t id, char *buf, size
   size_t hasAllRequestsSize = sizeof(elements[id].hasAllRequests);
   memcpy(buf, &elements[id].hasAllRequests, hasAllRequestsSize);
   actualSize += hasAllRequestsSize;
+}
+
+void DescriptorOfLastExitFromView::serializeComplaint(uint32_t id, char *buf, size_t bufLen, size_t &actualSize) const {
+  actualSize = 0;
+  ConcordAssert(id < complaints.size());
+  ConcordAssert(bufLen >= maxComplaintSize());
+
+  actualSize += MessageBase::serializeMsg(buf, complaints[id].get());
 }
 
 void DescriptorOfLastExitFromView::deserializeSimpleParams(char *buf, size_t bufLen, uint32_t &actualSize) {
@@ -127,11 +147,19 @@ void DescriptorOfLastExitFromView::deserializeSimpleParams(char *buf, size_t buf
   uint32_t elementsNum;
   size_t elementsNumSize = sizeof(elementsNum);
   memcpy(&elementsNum, buf, elementsNumSize);
+  buf += elementsNumSize;
 
   if (elementsNum) elements.resize(elementsNum);
 
+  uint32_t complaintsNum;
+  size_t complaintsNumSize = sizeof(complaintsNum);
+  memcpy(&complaintsNum, buf, complaintsNumSize);
+  buf += complaintsNumSize;
+
+  if (complaintsNum) complaints.resize(complaintsNum);
+
   actualSize = isDefaultSize + viewSize + lastStableSize + lastExecutedSize + stableLowerBoundWhenEnteredToViewSize +
-               actualMsgSize + elementsNumSize;
+               complaintsNumSize + actualMsgSize + elementsNumSize;
 }
 
 void DescriptorOfLastExitFromView::deserializeElement(uint32_t id, char *buf, size_t bufLen, uint32_t &actualSize) {
@@ -164,6 +192,25 @@ void DescriptorOfLastExitFromView::deserializeElement(uint32_t id, char *buf, si
   actualSize = msgSize1 + msgSize2 + hasAllRequestsSize;
 }
 
+void DescriptorOfLastExitFromView::deserializeComplaint(uint32_t id, char *buf, size_t bufLen, uint32_t &actualSize) {
+  actualSize = 0;
+  size_t msgSize = 0;
+
+  std::unique_ptr<ReplicaAsksToLeaveViewMsg> replicaAsksToLeaveViewMsg;
+
+  {
+    std::unique_ptr<MessageBase> baseMsg(MessageBase::deserializeMsg(buf, bufLen, msgSize));
+    if (baseMsg) {
+      replicaAsksToLeaveViewMsg = make_unique<ReplicaAsksToLeaveViewMsg>(baseMsg.get());
+    }
+  }
+
+  ConcordAssert(complaints[id] == nullptr);
+
+  complaints[id] = move(replicaAsksToLeaveViewMsg);
+
+  actualSize = msgSize;
+}
 /***** DescriptorOfLastNewView *****/
 
 // This static variable is needed for an initial values population.

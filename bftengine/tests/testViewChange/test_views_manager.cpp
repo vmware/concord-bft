@@ -126,7 +126,7 @@ TEST_F(ViewsManagerTest, status_message_with_complaints) {
   viewsManager->addComplaintsToStatusMessage(replicaStatusMessage);
 
   for (const auto& i : viewsManager->getAllMsgsFromComplainedReplicas()) {
-    ASSERT_TRUE(replicaStatusMessage.hasComplaintFromReplica(i.first));
+    ASSERT_TRUE(replicaStatusMessage.hasComplaintFromReplica(i->idOfGeneratedReplica()));
   }
 }
 

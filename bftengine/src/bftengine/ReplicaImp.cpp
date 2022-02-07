@@ -2812,9 +2812,9 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
   /////////////////////////////////////////////////////////////////////////
 
   if (msg->getViewNumber() == getCurrentView()) {
-    for (const auto &i : viewsManager->getAllMsgsFromComplainedReplicas()) {
-      if (!msg->hasComplaintFromReplica(i.first)) {
-        sendAndIncrementMetric(i.second.get(), msgSenderId, metric_sent_replica_asks_to_leave_view_msg_due_to_status_);
+    for (const auto &it : viewsManager->getAllMsgsFromComplainedReplicas()) {
+      if (!msg->hasComplaintFromReplica(it->idOfGeneratedReplica())) {
+        sendAndIncrementMetric(it.get(), msgSenderId, metric_sent_replica_asks_to_leave_view_msg_due_to_status_);
       }
     }
   }
@@ -3029,6 +3029,8 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
       }
     }
 
+    auto complaints = viewsManager->getAllMsgsFromComplainedReplicas(true);
+
     if (ps_) {
       ViewChangeMsg *myVC = (getCurrentView() == 0 ? nullptr : viewsManager->getMyLatestViewChangeMsg());
       SeqNum stableLowerBoundWhenEnteredToView = viewsManager->stableLowerBoundWhenEnteredToView();
@@ -3037,7 +3039,8 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
                                               lastExecutedSeqNum,
                                               prevViewInfo,
                                               myVC,
-                                              stableLowerBoundWhenEnteredToView};
+                                              stableLowerBoundWhenEnteredToView,
+                                              std::move(complaints)};
       ps_->beginWriteTran();
       ps_->setDescriptorOfLastExitFromView(desc);
       ps_->clearSeqNumWindow();
@@ -3993,6 +3996,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
     ViewChangeMsg *t = ld.viewsManager->getMyLatestViewChangeMsg();
     ConcordAssert(t != nullptr);
     ConcordAssert(t->newView() == getCurrentView());
+    viewsManager->insertStoredComplaintsIntoVCMsg(t);
     t->finalizeMessage();  // needed to initialize the VC message
   }
 

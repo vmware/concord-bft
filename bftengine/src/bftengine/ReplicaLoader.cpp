@@ -118,7 +118,8 @@ ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedRe
                                                    descriptorOfLastExitFromView.lastExecuted,
                                                    descriptorOfLastExitFromView.stableLowerBoundWhenEnteredToView,
                                                    descriptorOfLastExitFromView.myViewChangeMsg,
-                                                   descriptorOfLastExitFromView.elements);
+                                                   descriptorOfLastExitFromView.elements,
+                                                   descriptorOfLastExitFromView.complaints);
 
     Verify((viewsManager->latestActiveView() == 0), InconsistentErr);
     Verify((!viewsManager->viewIsActive(0)), InconsistentErr);
@@ -134,7 +135,8 @@ ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedRe
                                                    descriptorOfLastExitFromView.lastExecuted,
                                                    descriptorOfLastExitFromView.stableLowerBoundWhenEnteredToView,
                                                    descriptorOfLastExitFromView.myViewChangeMsg,
-                                                   descriptorOfLastExitFromView.elements);
+                                                   descriptorOfLastExitFromView.elements,
+                                                   descriptorOfLastExitFromView.complaints);
 
     Verify((viewsManager->latestActiveView() == descriptorOfLastExitFromView.view), InconsistentErr);
     Verify((!viewsManager->viewIsActive(descriptorOfLastExitFromView.view)), InconsistentErr);

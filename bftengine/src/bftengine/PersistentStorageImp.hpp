@@ -51,6 +51,7 @@ namespace impl {
 // Make a reservation for future params
 const uint16_t reservedSimpleParamsNum = 499;
 const uint16_t reservedWindowParamsNum = 3000;
+const uint16_t reservedComplaintsNum = 300;
 
 const uint16_t MAX_METADATA_PARAMS_NUM = 10000;
 
@@ -94,7 +95,8 @@ const uint16_t numOfLastExitFromViewDescObjs = kWorkWindowSize + 1;
 // objects plus one - for simple descriptor parameters.
 enum DescMetadataParameterIds {
   LAST_EXIT_FROM_VIEW_DESC = WIN_PARAMETERS_NUM + reservedWindowParamsNum,
-  LAST_EXEC_DESC = LAST_EXIT_FROM_VIEW_DESC + numOfLastExitFromViewDescObjs,
+  LAST_COMPLAINTS_DESC = LAST_EXIT_FROM_VIEW_DESC + numOfLastExitFromViewDescObjs,
+  LAST_EXEC_DESC = LAST_COMPLAINTS_DESC + reservedComplaintsNum + 1,
   LAST_STABLE_CHECKPOINT_DESC,
   LAST_NEW_VIEW_DESC
 };

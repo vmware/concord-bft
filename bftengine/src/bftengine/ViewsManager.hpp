@@ -67,7 +67,8 @@ class ViewsManager {
                                          SeqNum lastExecuted,
                                          SeqNum stableLowerBound,
                                          ViewChangeMsg *myLastViewChange,
-                                         std::vector<PrevViewInfo> &elementsOfPrevView);
+                                         std::vector<PrevViewInfo> &elementsOfPrevView,
+                                         const SequenceOfComplaints &complaints);
 
   static ViewsManager *createInsideViewZero(const ReplicasInfo *const r);
 
@@ -142,8 +143,11 @@ class ViewsManager {
 
   bool hasViewChangeMessageForFutureView(uint16_t repId);
 
-  const auto &getAllMsgsFromComplainedReplicas() const { return complainedReplicas.getAllMsgs(); }
+  auto getAllMsgsFromComplainedReplicas(bool sortedByIssuerID = false) const {
+    return complainedReplicas.getAllMsgs(sortedByIssuerID);
+  }
   void storeComplaint(std::unique_ptr<ReplicaAsksToLeaveViewMsg> &&complaintMessage);
+  void insertStoredComplaintsIntoVCMsg(ViewChangeMsg *pVC);
   bool hasQuorumToLeaveView() const { return complainedReplicas.hasQuorumToLeaveView(); }
   std::shared_ptr<ReplicaAsksToLeaveViewMsg> getComplaintFromReplica(ReplicaId replicaId) {
     return complainedReplicas.getComplaintFromReplica(replicaId);

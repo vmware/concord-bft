@@ -119,6 +119,9 @@ ObjectDescMap PersistentStorageImp::getDefaultMetadataObjectDescriptors(uint16_t
         CheckWindow::maxElementSize();
 
   metadataObjectsArray[LAST_EXIT_FROM_VIEW_DESC].maxSize = DescriptorOfLastExitFromView::simpleParamsSize();
+  for (uint32_t i = 0; i < reservedComplaintsNum; ++i) {
+    metadataObjectsArray[LAST_COMPLAINTS_DESC + i].maxSize = DescriptorOfLastExitFromView::maxComplaintSize();
+  }
   metadataObjectsArray[LAST_EXEC_DESC].maxSize = DescriptorOfLastExecution::maxSize();
   metadataObjectsArray[LAST_NEW_VIEW_DESC].maxSize = DescriptorOfLastNewView::simpleParamsSize();
   metadataObjectsArray[LAST_STABLE_CHECKPOINT_DESC].maxSize = DescriptorOfLastStableCheckpoint::maxSize(numReplicas_);
@@ -225,8 +228,20 @@ void PersistentStorageImp::saveDescriptorOfLastExitFromView(const DescriptorOfLa
     newDesc.serializeElement(i, elementBuf.get(), maxElementSize, actualElementSize);
     ConcordAssertNE(actualElementSize, 0);
     uint32_t itemId = LAST_EXIT_FROM_VIEW_DESC + 1 + i;
-    ConcordAssertLT(itemId, LAST_EXEC_DESC);
+    ConcordAssertLT(itemId, LAST_COMPLAINTS_DESC);
     metadataStorage_->writeInBatch(itemId, elementBuf.get(), actualElementSize);
+  }
+
+  size_t actualComplaintSize = 0;
+  uint32_t complaintsNum = newDesc.complaints.size();
+  uint32_t maxComplaintSize = DescriptorOfLastExitFromView::maxComplaintSize();
+  UniquePtrToChar complaintBuf(new char[maxComplaintSize]);
+  for (size_t i = 0; i < complaintsNum; ++i) {
+    newDesc.serializeComplaint(i, complaintBuf.get(), maxComplaintSize, actualComplaintSize);
+    ConcordAssertNE(actualComplaintSize, 0);
+    uint32_t itemId = LAST_COMPLAINTS_DESC + i;
+    ConcordAssertLT(itemId, LAST_EXEC_DESC);
+    metadataStorage_->writeInBatch(itemId, complaintBuf.get(), actualComplaintSize);
   }
 }
 
@@ -616,11 +631,24 @@ DescriptorOfLastExitFromView PersistentStorageImp::getAndAllocateDescriptorOfLas
   uint32_t elementsNum = dbDesc.elements.size();
   for (uint32_t i = 0; i < elementsNum; ++i) {
     uint32_t itemId = LAST_EXIT_FROM_VIEW_DESC + 1 + i;
-    ConcordAssertLT(itemId, LAST_EXEC_DESC);
+    ConcordAssertLT(itemId, LAST_COMPLAINTS_DESC);
     metadataStorage_->read(itemId, maxElementSize, elementBuf.get(), actualSize);
     dbDesc.deserializeElement(i, elementBuf.get(), actualSize, actualElementSize);
     ConcordAssertNE(actualElementSize, 0);
   }
+
+  const size_t maxComplaintSize = DescriptorOfLastExitFromView::maxComplaintSize();
+  UniquePtrToChar complaintBuf(new char[maxComplaintSize]);
+  uint32_t actualComplaintSize = 0;
+  uint32_t complaintsNum = dbDesc.complaints.size();
+  for (uint32_t i = 0; i < complaintsNum; ++i) {
+    uint32_t itemId = LAST_COMPLAINTS_DESC + i;
+    ConcordAssertLT(itemId, LAST_EXEC_DESC);
+    metadataStorage_->read(itemId, maxComplaintSize, complaintBuf.get(), actualSize);
+    dbDesc.deserializeComplaint(i, complaintBuf.get(), actualSize, actualComplaintSize);
+    ConcordAssertNE(actualComplaintSize, 0);
+  }
+
   return dbDesc;
 }
 
