@@ -464,12 +464,8 @@ DataStore::CheckpointDesc BCStateTran::createCheckpointDesc(uint64_t checkpointN
   checkDesc.maxBlockId = maxBlockId;
   checkDesc.digestOfMaxBlockId = digestOfMaxBlockId;
   checkDesc.digestOfResPagesDescriptor = digestOfResPagesDescriptor;
-  if (config_.enableStoreRvbDataDuringCheckpointing) {
-    rvbm_->updateRvbDataDuringCheckpoint(checkDesc);
-    metrics_.current_rvb_data_state_.Get().Set(rvbm_->getStateOfRvbData());
-  } else {
-    checkDesc.rvbData.clear();
-  }
+  rvbm_->updateRvbDataDuringCheckpoint(checkDesc);
+  metrics_.current_rvb_data_state_.Get().Set(rvbm_->getStateOfRvbData());
 
   LOG_INFO(logger_,
            "CheckpointDesc: " << KVLOG(checkpointNumber,
