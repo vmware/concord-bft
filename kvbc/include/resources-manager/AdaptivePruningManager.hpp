@@ -3,13 +3,9 @@
 #include "IRequestHandler.hpp"
 #include "IResourceManager.hpp"
 #include "InternalBFTClient.hpp"
-<<<<<<< HEAD
 #include "db_interfaces.h"
 #include "concord.cmf.hpp"
-=======
 #include "Metrics.hpp"
-
->>>>>>> Improvements
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -57,7 +53,7 @@ class AdaptivePruningManager {
   void initBFTClient(const std::shared_ptr<bftEngine::impl::IInternalBFTClient> &cl);
   void start();
   void stop();
-  void notifyReplicas(const long double &rate, const uint64_t batchSize);
+  void notifyReplicas(const PruneInfo &pruneInfo);
   const concord::messages::PruneSwitchModeRequest &getLatestConfiguration();
   void onTickChangeRequest(concord::messages::PruneTicksChangeRequest req) {
     current_pruning_pace_ = req.ticks_per_second;
@@ -84,7 +80,7 @@ class AdaptivePruningManager {
   uint32_t current_pruning_pace_;
   uint64_t current_batch_size_;
   concordMetrics::Component metricComponent;
-  concordMetrics::Component::Handle<concordMetrics::AtomicGauge> ticksPerSecondMetric, batchSizeMetric;
-
+  concordMetrics::Component::Handle<concordMetrics::AtomicGauge> ticksPerSecondMetric, batchSizeMetric,
+      transactionsPerSecondMetric, postExecUtilizationMetric, pruningAvgTimeMicroMetric;
 };
 }  // namespace concord::performance

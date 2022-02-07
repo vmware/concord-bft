@@ -21,38 +21,37 @@ AdaptivePruningManager::AdaptivePruningManager(
       interval(interval),
       ro_storage_(ro_storage),
       metricComponent(std::string("Adaptive Pruning"), aggregator),
-      ticksPerSecondMetric(metricComponent.RegisterGauge("ticks_per_second", 0)),
-      batchSizeMetric(metricComponent.RegisterGauge("batch_size", 0)),
-      transactionsPerSecondMetric(metricComponent.RegisterGauge("transactions_per_second", 0)),
-      postExecUtilizationMetric(metricComponent.RegisterGauge("post_exec_utilization", 0)),
-      pruningAvgTimeMicroMetric(metricComponent.RegisterGauge("pruning_avg_time_micro", 0)) {
+      ticksPerSecondMetric(metricComponent.RegisterAtomicGauge(std::string("ticks_per_second"), 0)),
+      batchSizeMetric(metricComponent.RegisterAtomicGauge("batch_size", 0)),
+      transactionsPerSecondMetric(metricComponent.RegisterAtomicGauge("transactions_per_second", 0)),
+      postExecUtilizationMetric(metricComponent.RegisterAtomicGauge("post_exec_utilization", 0)),
+      pruningAvgTimeMicroMetric(metricComponent.RegisterAtomicGauge("pruning_avg_time_micro", 0)) {
   (void)ro_storage_;
   resourceManager->setPeriod(bftEngine::ReplicaConfig::instance().adaptivePruningIntervalPeriod);
-
 }
 
 AdaptivePruningManager::~AdaptivePruningManager() { stop(); }
 
-void AdaptivePruningManager::notifyReplicas(const long double &rate, const uint64_t batchSize) {
+void AdaptivePruningManager::notifyReplicas(const PruneInfo &pruneInfo) {
   if (!bftClient) {
     LOG_ERROR(ADPTV_PRUNING, "BFT client is not set");
     return;
   }
   concord::messages::ReconfigurationRequest rreq;
-
   concord::messages::PruneTicksChangeRequest pruneRequest;
 
   pruneRequest.sender_id = bftEngine::ReplicaConfig::instance().replicaId;
   pruneRequest.tick_period_seconds = 1;
 
-  pruneRequest.batch_blocks_num = rate / bftEngine::ReplicaConfig::instance().numReplicas;
+
+  pruneRequest.batch_blocks_num = pruneInfo.blocksPerSecond / bftEngine::ReplicaConfig::instance().numReplicas;
 
   // Is this going to register all send values or just update current
-  ticksPerSecondMetric.Get().Set(pruneRequest.ticks_per_second);
-  batchSizeMetric.Get().Set(pruneRequest.batch_blocks_num);
-  transactionPerSecondMetric.Get().Set(pruneRequest.transactionsPerSecond);
-  postExecUtilizationMetric.Get().Set(pruneRequest.postExecUtilization);
-  pruningAvgTimeMicroMetric.Get().Set(pruneRequest.pruningAvgTimeMicro);
+  ticksPerSecondMetric.Get().Set(pruneRequest.batch_blocks_num);
+  batchSizeMetric.Get().Set(pruneInfo.batchSize);
+  transactionsPerSecondMetric.Get().Set(pruneInfo.transactionsPerSecond);
+  postExecUtilizationMetric.Get().Set(pruneInfo.postExecUtilization);
+  pruningAvgTimeMicroMetric.Get().Set(pruneInfo.pruningAvgTimeMicro);
 
   LOG_DEBUG(ADPTV_PRUNING,
             "Sending PruneTicksChangeRequest { ticks per second = "
@@ -105,7 +104,7 @@ void AdaptivePruningManager::threadFunction() {
         std::unique_lock<std::mutex> lk(conditionLock);
         info = resourceManager->getPruneInfo();
       }
-      notifyReplicas(info.blocksPerSecond, info.batchSize);
+      notifyReplicas(info);
       std::unique_lock<std::mutex> lk(conditionLock);
       conditionVar.wait_for(lk, interval);
     }
