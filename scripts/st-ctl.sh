@@ -22,7 +22,7 @@ usage() {
     printf "%s\n" " -i --install-tools"
     printf "%s\n" " -g --gen-concord-coredump-summary <output_path,string> <container_name,string>"
     # If line number is given, version will be changed only for this line number
-    printf "%s\n" " -a --agent-replace-version <current version,integer> <new version,integer> <line number,integer,optional>"
+    printf "%s\n" " -a --agent-replace-version <current version,format:X.X.X.X.X> <new version,format:X.X.X.X.X> <line number,integer,optional>"
     printf "%s\n" " -v --agent-show-containers-version"
     printf "%s\n" " -r --reset-containers <agent version,integer>"
     printf "%s\n\t%s\n" " -p --compress-truncate-container-logs <container_name,string> <output_folder_path,string> <repeat_times,integer>" \
@@ -30,6 +30,11 @@ usage() {
     printf "%s\n" " -u --truncate-container-logs <container_name,string>"
     printf "%s\n" " -k --kill-concord-process"
     printf "%s\n" " -sr --show-rvb_data-state <period (seconds),integer,0 to print once only"
+    printf "%s\n" " -ss --save-snapshot <snapshot name>"
+    printf "%s\n" " -lds --load-snapshot <snapshot name>"
+    printf "%s\n" " -lss --list-snapshots"
+    printf "%s\n" " -bst --set-concord-bft-config-parameter <parameter name, string> <parameter value>"
+    printf "%s\n" " -bsh --show-concord-bft-config"
 }
 
 parser() {
@@ -47,6 +52,11 @@ parser() {
     cmd_truncate_container_logs=false
     cmd_kill_concord=false
     cmd_show_rvb_data_state=false
+    cmd_save_snapshot=false
+    cmd_load_snapshot=false
+    cmd_list_snapshots=false
+    cmd_set_concord_bft_config_parameter=false
+    cmd_show_concord_bft_config=false
 
     while [ "$1" ]; do
         case $1 in
@@ -193,6 +203,38 @@ parser() {
         break
         ;;
 
+        -ss | --save-snapshot)
+        cmd_save_snapshot=true
+        if [[ $# -lt 2 ]]; then echo "error: bad input for option -ss | --save-snapshot!" >&2; usage; exit; fi
+        snapshot_name=$2
+        break
+        ;;
+
+        -lds | --load-snapshot)
+        cmd_load_snapshot=true
+        if [[ $# -lt 2 ]]; then echo "error: bad input for option -ls | --load-snapshot!" >&2; usage; exit; fi
+        snapshot_name=$2
+        break
+        ;;
+
+        -lss | --list-snapshots)
+        cmd_list_snapshots=true
+        break
+        ;;
+
+        -bst | --set-concord-bft-config-parameter)
+        cmd_set_concord_bft_config_parameter=true
+        if [[ $# -lt 3 ]] ; then echo "error: bad input for option -bst | --set-concord-bft-config-parameter!" >&2; usage; exit; fi
+        param_key=$2
+        param_val=$3
+        break
+        ;;
+
+        -bsh | --show-concord-bft-config-parameter)
+        cmd_show_concord_bft_config=true
+        break
+        ;;
+
         *)
         echo "error: unknown input $1!" >&2
         usage
@@ -212,6 +254,7 @@ parser "$@"
 concord_container_name="concord"
 vm_agent_config_path="/config/agent/config.json"
 concord_log_properties_path="/concord/resources/log4cplus.properties"
+concord_bft_config_path="/concord/resources/bft_config.yaml"
 ####
 
 ##########################################
@@ -235,7 +278,7 @@ if $cmd_set_concord_log_level; then
     )
     for logger in "${arr[@]}"
     do
-        rc=$(docker exec -t ${concord_container_name} bash -c "grep -q \"$logger\" \"${concord_log_properties_path}\"; echo $?")
+      rc=$(docker exec -t ${concord_container_name} bash -c "grep -q \"$logger\" \"${concord_log_properties_path}\"; echo $?")
 	    rc=`echo $rc | tr -d '\r'`
         if [[ "$rc" -eq 0 ]]; then
             docker exec ${concord_container_name} bash -c \
@@ -354,7 +397,7 @@ mv lnav-0.10.1/lnav /usr/bin/
 rm -rf ./lnav-0.10.1 ./lnav-0.10.1-musl-64bit.zip
 
 cat <<EOF >> ~/.profile
-alias myip="echo $(ifconfig | grep "10\.202" | cut -d ":" -f 2 | cut -d " " -f 1)"
+alias myip="echo \$(ifconfig | grep "10\.202" | cut -d ":" -f 2 | cut -d " " -f 1)"
 alias ll="ls -la"
 alias cd_grep_log_full="docker logs concord | grep -ia"
 alias cd_grep_log_tail="docker logs concord --tail 10 -f | grep -ia"
@@ -363,6 +406,22 @@ alias cd_login="docker exec -it concord /bin/bash"
 alias cd_logs_zip="docker logs concord | zip -9 log.zip -"
 alias myid="ls /config/concord/config-generated/ 2> /dev/null | cut -d "." -f 2"
 alias cd_truncate='truncate -s 0 $(docker inspect --format='{{.LogPath}}' concord)'
+
+my_id() {
+  local id=\$(myid)
+  if [ -z "\$id" ]; then
+    n=\$(grep -ai -A 1000000 ro_node /config/concord/config-local/deployment.config | grep -n \$(myip)  | cut -f1 -d:)
+	  re='^[0-9]+$'
+	  if [[ \$n =~ \$re ]] ; then
+		  n=\$((n-2))
+		  n=\$(grep -ai -A 1000000 ro_node /config/concord/config-local/deployment.config  | sed -n \${n}p | cut -f2 -d ':')
+		  id="id_ro_"\${n//[[:space:]]/}
+	  fi
+  else
+    id="id_"\$(myid)
+  fi
+  echo "\${id}"
+}
 
 export PATH="$PATH:/root"
 fagent_change_config_ver() {
@@ -375,8 +434,32 @@ fdocker_truncate_logs() {
     truncate -s 0 $(docker inspect --format='{{.LogPath}}' $1)
 }
 # If set, Bash checks the window size after each command and, if necessary, updates the values of LINES and COLUMNS
-shopt -u checkwinsize
-export PS1="\e[0;31m[id_\$(myid || "")][ip_\$(myip)][\w]\e[m > "
+
+myroid_result=
+PS1=$(shopt -u checkwinsize)
+PS1+="\[\e[0;31m\][\$(my_id || "")][ip_\$(myip)][\w]\n\[\e[m\]> "
+export PS1
+shopt -s checkwinsize
+if [ ! -e "/logs" ] || [ ! -e "/mnt/data/logs/" ]; then
+  mkdir -p /mnt/data/logs/
+  rm /logs
+  ln -s /mnt/data/logs/ /logs
+fi
+
+
+if [ ! -e "/coredump_logs" ] || [ ! -e "/mnt/data/coredump_logs/" ]; then
+  mkdir -p /mnt/data/coredump_logs/
+  rm /logs
+  ln -s /mnt/data/coredump_logs/ /coredump_logs
+fi
+
+if [ ! -e "/keep" ] || [ ! -e "/mnt/data/keep/" ]; then
+  mkdir -p /mnt/data/keep/
+  rm /keep
+  ln -s /mnt/data/keep/ /keep
+fi
+
+cd /mnt/data/
 EOF
 
 # inside concord container
@@ -402,12 +485,23 @@ fi
 # handle cmd_agent_replace_version
 ##########################################
 if $cmd_agent_replace_version; then
+    cur_ver_dot_count="${cur_ver//[^.]}"
+    new_ver_dot_count="${new_ver//[^.]}"
+    if [[ "${#cur_ver_dot_count}" -ne 4 ]]; then 
+      echo "cur_ver=${cur_ver} has wrong format.."
+      exit 1
+    fi
+    if [[ "${#new_ver_dot_count}" -ne 4 ]]; then 
+      echo "cur_ver=${new_ver} has wrong format.."
+      exit 1
+    fi
+
     echo "Before changing version:"
     grep -r "${cur_ver}" ${vm_agent_config_path}
 
     echo "Changing version:"
     set -x
-    sed -i "${line}s/0.0.0.0.${cur_ver}/0.0.0.0.${new_ver}/" ${vm_agent_config_path}
+    sed -i "${line}s/${cur_ver}/${new_ver}/" ${vm_agent_config_path}
     set +x
 
     echo "After changing version:"
@@ -432,8 +526,8 @@ if $cmd_reset_containers; then
     docker stop $(docker ps -a -q) || true
     docker rm -f $(docker ps -a -q) || true
     rm -rf /config/daml-index-db/*
-    rm -rf /config/concord/config-generated/*
     rm -rf /mnt/data/db/*
+    rm -rf /config/concord/config-generated/*
     rm -rf /mnt/data/rocksdbdata/*
     docker volume prune -f || true
     docker run -d --name=agent --restart=always \
@@ -486,10 +580,206 @@ fi
 if $cmd_show_rvb_data_state; then
     for i in {1..1000000}; do
       docker exec -it concord bash -c "./concord-ctl status get state-transfer" | grep -oE "rvb_data_state.{0,70}"
+      printf "\r"
       sleep ${period_in_seconds}
       if [[ ${period_in_seconds} -eq 0 ]]; then
         break;
       fi
     done
     echo "===Done!==="
+fi
+
+##########################################
+# handle cmd_save_snapshot
+##########################################
+if $cmd_save_snapshot; then
+  concord_exist=false
+  daml_index_db_exist=false
+  daml_ledger_api_exist=false
+  concord_run=false
+  daml_index_db_run=false
+  daml_ledger_api_run=false
+
+  snapshot_path="/mnt/data/snapshots/${snapshot_name}/"
+
+  if [ -d ${snapshot_path} ]; then
+    echo "Error: path ${snapshot_path} already exist!"
+    exit 1
+  fi
+
+  mkdir -p ${snapshot_path}
+  echo "Created folder ${snapshot_path}..."
+
+  if [ $(docker ps -a | grep concord | wc -l) -eq '1' ]; then
+    concord_exist=true
+    if [[ ! "$(docker top concord 2>&1 | grep 'is not run' | wc -l)" -eq "1" ]]; then
+      concord_run=true;
+      echo "Stop: docker stop concord"
+      docker stop concord
+    fi
+    echo "Copy: cp -R /mnt/data/rocksdbdata ${snapshot_path}"
+    cp -R /mnt/data/rocksdbdata ${snapshot_path}
+    echo "Copy: cp -R /config/concord/config-generated ${snapshot_path}"
+    cp -R /config/concord/config-generated ${snapshot_path}
+  fi
+
+  if [ $(docker ps -a | grep daml_index_db | wc -l) -eq '1' ]; then
+    daml_index_db_exist=true
+    if [[ ! "$(docker top daml_index_db 2>&1 | grep 'is not run' | wc -l)" -eq "1" ]]; then
+      daml_index_db_run=true;
+      echo "Stop: docker stop daml_index_db"
+      docker stop daml_index_db
+    fi
+    echo "Copy: cp -R /mnt/data/db ${snapshot_path}"
+    cp -R /mnt/data/db ${snapshot_path}
+    echo "Copy: cp -R /config/daml-index-db ${snapshot_path}"
+    cp -R /config/daml-index-db ${snapshot_path}
+  fi
+
+  if [ $(docker ps -a | grep daml_ledger_api | wc -l) -eq '1' ]; then
+    daml_ledger_api_exist=true
+    if [[ ! "$(docker top daml_ledger_api 2>&1 | grep 'is not run' | wc -l)" -eq "1" ]]; then 
+      daml_ledger_api_run=true;
+      echo "Stop: docker stop daml_ledger_api"
+      docker stop daml_ledger_api
+    fi
+  fi
+
+  if $daml_ledger_api_run; then
+    echo "Restart: docker restart daml_ledger_api"
+    docker restart daml_ledger_api
+  fi
+  if $daml_index_db_run; then
+    echo "Restart: docker restart daml_index_db"
+    docker restart daml_index_db
+  fi
+  if $concord_run; then
+    echo "Restart: docker restart concord"
+    docker restart concord
+  fi
+  echo "-------------------"
+  echo "Done! snapshot is under ${snapshot_path}"
+  echo "Don't forget to run script under particpants if you would like having background load during ST."
+  echo "(RO replica is not supported!)"
+  echo "-------------------"
+fi
+
+##########################################
+# handle cmd_load_snapshot
+##########################################
+if $cmd_load_snapshot; then
+  concord_exist=false
+  daml_index_db_exist=false
+  daml_ledger_api_exist=false
+  concord_run=false
+  daml_index_db_run=false
+  daml_ledger_api_run=false
+
+  snapshot_path="/mnt/data/snapshots/${snapshot_name}/"
+
+  if [ ! -d ${snapshot_path} ]; then
+    echo "Error: path ${snapshot_path} does not exist!"
+    exit 1
+  fi
+
+  echo "Found snapshot under ${snapshot_path}, are you sure you want to replace it with current one (y/n)?"
+  read answer
+  if [[ ! "${answer}" == "y" ]]; then
+    exit 0
+  fi
+
+  mkdir -p ${snapshot_path}
+  echo "Created folder ${snapshot_path}..."
+
+  if [ $(docker ps -a | grep concord | wc -l) -eq '1' ]; then
+    concord_exist=true
+    if [[ ! "$(docker top concord 2>&1 | grep 'is not run' | wc -l)" -eq "1" ]]; then
+      concord_run=true;
+      echo "Stop: docker stop concord"
+      docker stop concord
+    fi
+    echo "Delete: rm -rf /mnt/data/rocksdbdata/*"
+    rm -rf /mnt/data/rocksdbdata/*
+    echo "Copy: cp -R ${snapshot_path}/rocksdbdata/* /mnt/data/rocksdbdata/"
+    cp -R ${snapshot_path}/rocksdbdata/* /mnt/data/rocksdbdata/
+    echo "Delete: rm -rf /config/concord/config-generated/*"
+    rm -rf /config/concord/config-generated/*
+    echo "Copy: cp -R ${snapshot_path}/config-generated/* /config/concord/config-generated/"
+    cp -R ${snapshot_path}/config-generated/* /config/concord/config-generated/
+  fi
+
+  if [ $(docker ps -a | grep daml_index_db | wc -l) -eq '1' ]; then
+    daml_index_db_exist=true
+    if [[ ! "$(docker top daml_index_db 2>&1 | grep 'is not run' | wc -l)" -eq "1" ]]; then
+      daml_index_db_run=true;
+      echo "Stop: docker stop daml_index_db"
+      docker stop daml_index_db
+    fi
+    echo "Delete: rm -rf /mnt/data/db/*"
+    rm -rf /mnt/data/db/*
+    echo "Copy: cp -R ${snapshot_path}/db/* /mnt/data/db/"
+    cp -R ${snapshot_path}/db/* /mnt/data/db/
+    echo "Delete: rm -rf /config/daml-index-db/*"
+    rm -rf /config/daml-index-db/*
+    echo "Copy: cp -R ${snapshot_path}/daml-index-db/* /config/daml-index-db/"
+    cp -R ${snapshot_path}/daml-index-db/* /config/daml-index-db/ || true
+  fi
+
+  if [ $(docker ps -a | grep daml_ledger_api | wc -l) -eq '1' ]; then
+    daml_ledger_api_exist=true
+    if [[ ! "$(docker top daml_ledger_api 2>&1 | grep 'is not run' | wc -l)" -eq "1" ]]; then 
+      daml_ledger_api_run=true;
+      echo "Stop: docker stop daml_ledger_api"
+      docker stop daml_ledger_api
+    fi
+  fi
+
+  if $daml_ledger_api_run; then
+    echo "Restart: docker restart daml_ledger_api"
+    docker restart daml_ledger_api
+  fi
+  if $daml_index_db_run; then
+    echo "Restart: docker restart daml_index_db"
+    docker restart daml_index_db
+  fi
+  if $concord_run; then
+    echo "Restart: docker restart concord"
+    docker restart concord
+  fi
+  echo "-------------------"
+  echo "Done! snapshot is under ${snapshot_path}"
+  echo "Don't forget to run script under particpants if you would like having background load during ST."
+  echo "(RO replica is not supported!)"
+  echo "-------------------"
+fi
+
+##########################################
+# handle cmd_list_snapshots
+##########################################
+if $cmd_list_snapshots; then
+  echo "Total $(cd /mnt/data/snapshots; ls -d * | wc -l) snapshots:"
+  cd /mnt/data/snapshots/
+  for i in $(ls -d *); do
+    echo ${i};
+  done
+fi
+
+##########################################
+# handle cmd_set_concord_bft_config_parameter
+##########################################
+if $cmd_set_concord_bft_config_parameter; then
+  count=$(docker exec ${concord_container_name} bash -c "grep ${param_key} ${concord_bft_config_path} | wc -l")
+  if [[ ${count} -ne 1 ]]; then
+    echo "Error: Parameter ${param_key} should be exactly once in ${concord_bft_config_path} inside container ${concord_container_name}!"
+    exit 1
+  fi
+  docker exec ${concord_container_name} bash -c "sed -r -i 's/^(\s*${param_key}\s*:\s*).*/\1${param_val}/' '$concord_bft_config_path'"
+  echo "===Done!==="
+fi
+
+##########################################
+# handle cmd_show_concord_bft_config
+##########################################
+if $cmd_show_concord_bft_config; then
+  docker exec ${concord_container_name} bash -c "cat '${concord_bft_config_path}'"
 fi
