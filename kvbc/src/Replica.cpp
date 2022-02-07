@@ -185,7 +185,9 @@ void Replica::registerReconfigurationHandlers(std::shared_ptr<bftEngine::IReques
   auto pruning_handler = std::shared_ptr<kvbc::pruning::PruningHandler>(
       new concord::kvbc::pruning::PruningHandler(*this, *this, *this, true));
   requestHandler->setReconfigurationHandler(pruning_handler);
-  stReconfigurationSM_->registerHandler(m_cmdHandler->getReconfigurationHandler());
+  for (const auto &rh : m_cmdHandler->getReconfigurationHandler()) {
+    stReconfigurationSM_->registerHandler(rh);
+  }
   stReconfigurationSM_->registerHandler(pruning_handler);
   if (bftEngine::ReplicaConfig::instance().pruningEnabled_) {
     stReconfigurationSM_->pruneOnStartup();
