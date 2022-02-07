@@ -17,6 +17,7 @@
 #include "RangeValidationTree.hpp"
 #include "STDigest.hpp"
 #include "type_traits"
+#include "throughput.hpp"
 
 using namespace std;
 using namespace concord::serialize;
@@ -528,10 +529,12 @@ bool RangeValidationTree::validateTreeValues() const noexcept {
 }
 
 bool RangeValidationTree::validate() const noexcept {
-  if (validateTreeStructure()) {
-    return validateTreeValues();
-  }
-  return false;
+  // TODO - remove duration tracker + log later on
+  concord::util::DurationTracker<std::chrono::microseconds> validation_dt;
+  validation_dt.start();
+  bool ret = validateTreeStructure() && validateTreeValues();
+  LOG_DEBUG(logger_, KVLOG(validation_dt.totalDuration()));
+  return ret;
 }
 
 void RangeValidationTree::printToLog(LogPrintVerbosity verbosity) const noexcept {
@@ -1081,7 +1084,17 @@ bool RangeValidationTree::setSerializedRvbData(std::istringstream& is) {
 
   if ((data.magic_num != magic_num_) || (data.version_num != version_num_) || (data.RVT_K != RVT_K) ||
       (data.fetch_range_size != fetch_range_size_) || (data.value_size != value_size_)) {
-    LOG_ERROR(logger_, "Failed to deserialize metadata");
+    LOG_ERROR(logger_,
+              "Failed to deserialize metadata" << KVLOG(data.magic_num,
+                                                        magic_num_,
+                                                        data.version_num,
+                                                        version_num_,
+                                                        data.RVT_K,
+                                                        RVT_K,
+                                                        data.fetch_range_size,
+                                                        fetch_range_size_,
+                                                        data.value_size,
+                                                        value_size_));
     clear();
     return false;
   }
