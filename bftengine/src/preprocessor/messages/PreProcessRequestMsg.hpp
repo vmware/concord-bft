@@ -34,6 +34,7 @@ class PreProcessRequestMsg : public MessageBase {
                        const char* requestSignature,
                        uint16_t requestSignatureLength,
                        uint64_t blockid,
+                       ViewNum viewNum,
                        const concordUtils::SpanContext& span_context = concordUtils::SpanContext{},
                        uint32_t result = 1);  // UNKNOWN
 
@@ -49,6 +50,7 @@ class PreProcessRequestMsg : public MessageBase {
   const uint64_t reqRetryId() const { return msgBody()->reqRetryId; }
   const uint64_t primaryBlockId() const { return msgBody()->primaryBlockId; }
   const uint32_t requestSignatureLength() const { return msgBody()->reqSignatureLength; }
+  const ViewNum viewNum() const { return msgBody()->viewNum; }
   std::string getCid() const;
   inline char* requestSignature() const {
     auto* header = msgBody();
@@ -74,6 +76,7 @@ class PreProcessRequestMsg : public MessageBase {
     uint16_t reqSignatureLength;
     uint64_t primaryBlockId;
     uint32_t result;
+    ViewNum viewNum;
   };
 #pragma pack(pop)
 
@@ -97,7 +100,8 @@ class PreProcessRequestMsg : public MessageBase {
                  uint32_t reqLength,
                  uint16_t reqSignatureLength,
                  uint64_t blockId,
-                 uint32_t result);
+                 uint32_t result,
+                 ViewNum viewNum);
   Header* msgBody() const { return ((Header*)msgBody_); }
 };
 

@@ -60,6 +60,7 @@ TEST_F(PreProcessReplyMsgTestFixture, verifyMessageParameters) {
   const std::string& cid = "abcdef1";
   const ReplyStatus status = STATUS_FAILED;
   const OperationResult opResult = OperationResult::EXEC_DATA_TOO_LARGE;
+  ViewNum viewNum = 1;
   auto preProcessReplyMsg = PreProcessReplyMsg(senderId,
                                                clientId,
                                                reqOffsetInBatch,
@@ -69,7 +70,8 @@ TEST_F(PreProcessReplyMsgTestFixture, verifyMessageParameters) {
                                                preProcessResultBufLen,
                                                cid,
                                                status,
-                                               opResult);
+                                               opResult,
+                                               viewNum);
   EXPECT_EQ(senderId, preProcessReplyMsg.senderId());
   EXPECT_EQ(clientId, preProcessReplyMsg.clientId());
   EXPECT_EQ(reqOffsetInBatch, preProcessReplyMsg.reqOffsetInBatch());
@@ -93,6 +95,7 @@ TEST_F(PreProcessReplyMsgTestFixture, getResultHashSignature) {
   const std::string& cid = "";
   const ReplyStatus status = STATUS_GOOD;
   const OperationResult opResult = OperationResult::SUCCESS;
+  ViewNum viewNum = 1;
   auto preProcessReplyMsg = PreProcessReplyMsg(senderId,
                                                clientId,
                                                reqOffsetInBatch,
@@ -102,7 +105,8 @@ TEST_F(PreProcessReplyMsgTestFixture, getResultHashSignature) {
                                                preProcessResultBufLen,
                                                cid,
                                                status,
-                                               opResult);
+                                               opResult,
+                                               viewNum);
   const auto hash =
       PreProcessResultHashCreator::create(preProcessResultBuf, preProcessResultBufLen, opResult, clientId, reqSeqNum);
   auto expected_signature = std::vector<char>(sigManager->getMySigLength(), 0);

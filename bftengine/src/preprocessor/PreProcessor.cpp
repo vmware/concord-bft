@@ -190,7 +190,8 @@ void RequestsBatch::releaseReqsAndSendBatchedReplyIfCompleted() {
       replyMsgsSize += replyMsg->size();
       preProcessor_.releaseClientPreProcessRequestSafe(clientId_, replyMsg->reqOffsetInBatch(), COMPLETE);
     }
-    batchReplyMsg = make_shared<PreProcessBatchReplyMsg>(clientId_, senderId, repliesList_, cid_, replyMsgsSize);
+    batchReplyMsg = make_shared<PreProcessBatchReplyMsg>(
+        clientId_, senderId, repliesList_, cid_, replyMsgsSize, preProcessor_.myReplica_.getCurrentView());
     resetBatchParams();
   }
   preProcessor_.sendMsg(batchReplyMsg->body(), primaryId, batchReplyMsg->type(), batchReplyMsg->size());
@@ -235,12 +236,18 @@ void RequestsBatch::sendCancelBatchedPreProcessingMsgToNonPrimaries(const Client
                                           nullptr,
                                           0,
                                           0,
+                                          preProcessor_.myReplica_.getCurrentView(),
                                           clientMsg->spanContext<ClientPreProcessReqMsgUniquePtr::element_type>());
     reqsBatch.push_back(preProcessReqMsg);
     overallPreProcessReqMsgsSize += preProcessReqMsg->size();
   }
-  auto preProcessBatchReqMsg = make_shared<PreProcessBatchRequestMsg>(
-      REQ_TYPE_CANCEL, clientId_, preProcessor_.myReplicaId_, reqsBatch, cid_, overallPreProcessReqMsgsSize);
+  auto preProcessBatchReqMsg = make_shared<PreProcessBatchRequestMsg>(REQ_TYPE_CANCEL,
+                                                                      clientId_,
+                                                                      preProcessor_.myReplicaId_,
+                                                                      reqsBatch,
+                                                                      cid_,
+                                                                      overallPreProcessReqMsgsSize,
+                                                                      preProcessor_.myReplica_.getCurrentView());
   LOG_DEBUG(preProcessor_.logger(),
             "Sending PreProcessBatchRequestMsg with REQ_TYPE_CANCEL" << KVLOG(clientId_, cid_, destId));
   preProcessor_.sendMsg(
@@ -551,6 +558,7 @@ void PreProcessor::cancelPreProcessingOnNonPrimary(const ClientPreProcessReqMsgU
                                         nullptr,
                                         0,
                                         0,
+                                        myReplica_.getCurrentView(),
                                         clientReqMsg->spanContext<ClientPreProcessReqMsgUniquePtr::element_type>());
   SCOPED_MDC_CID(preProcessReqMsg->getCid());
   LOG_DEBUG(logger(),
@@ -576,7 +584,8 @@ void PreProcessor::sendRejectPreProcessReplyMsg(NodeIdType clientId,
                                                   0,
                                                   cid,
                                                   STATUS_REJECT,
-                                                  OperationResult::NOT_READY);
+                                                  OperationResult::NOT_READY,
+                                                  myReplica_.getCurrentView());
   LOG_DEBUG(
       logger(),
       KVLOG(reqSeqNum, senderId, clientId, reqOffsetInBatch, ongoingReqSeqNum, ongoingCid)
@@ -722,8 +731,13 @@ void PreProcessor::sendPreProcessBatchReqToAllReplicas(ClientBatchRequestMsgUniq
   ongoingReqBatches_[clientId]->updateBatchSize(batchSize);
   LOG_DEBUG(logger(), "Send PreProcessBatchRequestMsg to non-primary replicas" << KVLOG(clientId, batchCid, batchSize));
 
-  auto preProcessBatchReqMsg = make_shared<PreProcessBatchRequestMsg>(
-      REQ_TYPE_PRE_PROCESS, clientId, myReplicaId_, preProcessReqMsgList, batchCid, requestsSize);
+  auto preProcessBatchReqMsg = make_shared<PreProcessBatchRequestMsg>(REQ_TYPE_PRE_PROCESS,
+                                                                      clientId,
+                                                                      myReplicaId_,
+                                                                      preProcessReqMsgList,
+                                                                      batchCid,
+                                                                      requestsSize,
+                                                                      myReplica_.getCurrentView());
 
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.sendPreProcessBatchRequestToAllReplicas);
   const set<ReplicaId> &idsOfPeerReplicas = myReplica_.getIdsOfPeerReplicas();
@@ -821,6 +835,14 @@ bool PreProcessor::checkPreProcessReqPrerequisites(SeqNum reqSeqNum,
 bool PreProcessor::checkPreProcessBatchReqMsgCorrectness(const PreProcessBatchReqMsgSharedPtr &batchReq) {
   const auto &preProcessRequestMsgs = batchReq->getPreProcessRequestMsgs();
   bool valid = true;
+
+  if (batchReq->viewNum() != myReplica_.getCurrentView()) {
+    LOG_INFO(logger(),
+             "Ignore PreProcessBatchRequestMsg as the view is invalid"
+                 << KVLOG(batchReq->senderId(), batchReq->clientId(), batchReq->getCid(), batchReq->viewNum()));
+    return false;
+  }
+
   for (const auto &msg : preProcessRequestMsgs) {
     if (!checkPreProcessReqPrerequisites(msg->reqSeqNum(),
                                          msg->getCid(),
@@ -928,9 +950,18 @@ void PreProcessor::onMessage<PreProcessRequestMsg>(PreProcessRequestMsg *message
   const string reqType = msg->reqType() == REQ_TYPE_PRE_PROCESS ? "REQ_TYPE_PRE_PROCESS" : "REQ_TYPE_CANCEL";
   LOG_DEBUG(logger(),
             "Received PreProcessRequestMsg" << KVLOG(
-
                 reqType, msg->reqSeqNum(), msg->getCid(), msg->senderId(), msg->clientId(), msg->reqOffsetInBatch()));
-  handleSinglePreProcessRequestMsg(msg);
+  if (msg->viewNum() != myReplica_.getCurrentView()) {
+    LOG_INFO(logger(),
+             "Ignore PreProcessRequestMsg as the view is invalid" << KVLOG(msg->getCid(),
+                                                                           msg->reqSeqNum(),
+                                                                           msg->senderId(),
+                                                                           msg->clientId(),
+                                                                           msg->reqOffsetInBatch(),
+                                                                           message->viewNum()));
+  } else {
+    handleSinglePreProcessRequestMsg(msg);
+  }
 }
 
 void PreProcessor::handleSinglePreProcessReplyMsg(PreProcessReplyMsgSharedPtr preProcessReplyMsg,
@@ -980,7 +1011,18 @@ void PreProcessor::onMessage<PreProcessReplyMsg>(PreProcessReplyMsg *message) {
   LOG_DEBUG(logger(),
             "Received PreProcessReplyMsg"
                 << KVLOG(msg->reqSeqNum(), msg->senderId(), msg->clientId(), msg->reqOffsetInBatch(), replyStatus));
-  handleSinglePreProcessReplyMsg(msg);
+  if (message->viewNum() != myReplica_.getCurrentView()) {
+    LOG_INFO(logger(),
+             "Ignore PreProcessReplyMsg as the view is invalid" << KVLOG(msg->getCid(),
+                                                                         msg->reqSeqNum(),
+                                                                         msg->senderId(),
+                                                                         msg->clientId(),
+                                                                         msg->reqOffsetInBatch(),
+                                                                         replyStatus,
+                                                                         message->viewNum()));
+  } else {
+    handleSinglePreProcessReplyMsg(msg);
+  }
 }
 
 bool PreProcessor::checkPreProcessReplyPrerequisites(
@@ -1013,6 +1055,13 @@ bool PreProcessor::checkPreProcessBatchReplyMsgCorrectness(const PreProcessBatch
   NodeIdType senderId = batchReply->senderId();
   const string batchCid = batchReply->getCid();
   bool valid = true;
+
+  if (batchReply->viewNum() != myReplica_.getCurrentView()) {
+    LOG_INFO(
+        logger(),
+        "Ignore PreProcessBatchReplyMsg as the view is invalid" << KVLOG(batchCid, senderId, batchReply->viewNum()));
+    return false;
+  }
 
   for (const auto &replyMsg : preProcessReplyMsgs) {
     if (!checkPreProcessReplyPrerequisites(
@@ -1456,6 +1505,7 @@ bool PreProcessor::registerRequestOnPrimaryReplica(const string &batchCid,
                                         clientReqMsg->requestSignature(),
                                         clientReqMsg->requestSignatureLength(),
                                         blockId,
+                                        myReplica_.getCurrentView(),
                                         clientReqMsg->spanContext<ClientPreProcessReqMsgUniquePtr::element_type>(),
                                         clientReqMsg->result());
   const auto registerSucceeded =
@@ -1730,7 +1780,8 @@ void PreProcessor::handleReqPreProcessedByNonPrimary(uint16_t clientId,
                                                   resBufLen,
                                                   cid,
                                                   status,
-                                                  preProcessResult);
+                                                  preProcessResult,
+                                                  myReplica_.getCurrentView());
   const auto &batchEntry = ongoingReqBatches_[clientId];
   if (batchedPreProcessEnabled_ && batchEntry->isBatchInProcess()) {
     batchEntry->addReply(replyMsg);

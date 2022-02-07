@@ -21,10 +21,11 @@ PreProcessBatchRequestMsg::PreProcessBatchRequestMsg(RequestType reqType,
                                                      NodeIdType senderId,
                                                      const PreProcessReqMsgsList& batch,
                                                      const string& cid,
-                                                     uint32_t requestsSize)
+                                                     uint32_t requestsSize,
+                                                     ViewNum viewNum)
     : MessageBase(senderId, MsgCode::PreProcessBatchRequest, 0, sizeof(Header) + requestsSize + cid.size()) {
   const uint32_t numOfMessagesInBatch = batch.size();
-  setParams(clientId, senderId, reqType, numOfMessagesInBatch, requestsSize);
+  setParams(clientId, senderId, reqType, numOfMessagesInBatch, requestsSize, viewNum);
   msgBody()->cidLength = cid.size();
   auto position = body() + sizeof(Header);
   if (cid.size()) {
@@ -89,14 +90,19 @@ bool PreProcessBatchRequestMsg::checkElements() const {
   return true;
 }
 
-void PreProcessBatchRequestMsg::setParams(
-    uint16_t clientId, NodeIdType senderId, RequestType reqType, uint32_t numOfMessagesInBatch, uint32_t requestsSize) {
+void PreProcessBatchRequestMsg::setParams(uint16_t clientId,
+                                          NodeIdType senderId,
+                                          RequestType reqType,
+                                          uint32_t numOfMessagesInBatch,
+                                          uint32_t requestsSize,
+                                          ViewNum viewNum) {
   auto* header = msgBody();
   header->reqType = reqType;
   header->clientId = clientId;
   header->senderId = senderId;
   header->numOfMessagesInBatch = numOfMessagesInBatch;
   header->requestsSize = requestsSize;
+  header->viewNum = viewNum;
 }
 
 string PreProcessBatchRequestMsg::getCid() const { return string(body() + sizeof(Header), msgBody()->cidLength); }
@@ -130,6 +136,7 @@ PreProcessReqMsgsList& PreProcessBatchRequestMsg::getPreProcessRequestMsgs() {
                                                                             requestSignaturePosition,
                                                                             singleMsgHeader.reqSignatureLength,
                                                                             singleMsgHeader.primaryBlockId,
+                                                                            singleMsgHeader.viewNum,
                                                                             spanContext);
     preProcessReqMsgsList_.push_back(move(preProcessReqMsg));
     dataPosition += sizeof(PreProcessRequestMsg::Header) + singleMsgHeader.spanContextSize +

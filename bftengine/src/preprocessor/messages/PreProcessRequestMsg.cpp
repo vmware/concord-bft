@@ -29,6 +29,7 @@ PreProcessRequestMsg::PreProcessRequestMsg(RequestType reqType,
                                            const char* requestSignature,
                                            uint16_t requestSignatureLength,
                                            uint64_t blockId,
+                                           ViewNum viewNum,
                                            const concordUtils::SpanContext& span_context,
                                            uint32_t result)
     : MessageBase(senderId,
@@ -47,7 +48,8 @@ PreProcessRequestMsg::PreProcessRequestMsg(RequestType reqType,
             reqLength,
             requestSignatureLength,
             blockId,
-            result);
+            result,
+            viewNum);
   auto position = body() + sizeof(Header);
   memcpy(position, span_context.data().data(), span_context.data().size());
   position += span_context.data().size();
@@ -122,7 +124,8 @@ void PreProcessRequestMsg::setParams(RequestType reqType,
                                      uint32_t reqLength,
                                      uint16_t reqSignatureLength,
                                      uint64_t blockId,
-                                     uint32_t result) {
+                                     uint32_t result,
+                                     ViewNum viewNum) {
   auto* header = msgBody();
   header->reqType = reqType;
   header->senderId = senderId;
@@ -136,6 +139,7 @@ void PreProcessRequestMsg::setParams(RequestType reqType,
   header->reqSignatureLength = reqSignatureLength;
   header->primaryBlockId = blockId;
   header->result = result;
+  header->viewNum = viewNum;
 }
 
 std::string PreProcessRequestMsg::getCid() const {

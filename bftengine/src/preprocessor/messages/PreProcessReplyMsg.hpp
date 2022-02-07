@@ -31,7 +31,8 @@ class PreProcessReplyMsg : public MessageBase {
                      uint32_t preProcessResultBufLen,
                      const std::string& cid,
                      ReplyStatus status,
-                     bftEngine::OperationResult preProcessResult);
+                     bftEngine::OperationResult preProcessResult,
+                     ViewNum viewNum);
 
   PreProcessReplyMsg(NodeIdType senderId,
                      uint16_t clientId,
@@ -42,7 +43,8 @@ class PreProcessReplyMsg : public MessageBase {
                      const char* signature,
                      const std::string& cid,
                      ReplyStatus status,
-                     bftEngine::OperationResult preProcessResult);
+                     bftEngine::OperationResult preProcessResult,
+                     ViewNum viewNum);
 
   BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(PreProcessReplyMsg)
 
@@ -55,6 +57,7 @@ class PreProcessReplyMsg : public MessageBase {
   const uint8_t* resultsHash() const { return msgBody()->resultsHash; }
   const ReplyStatus status() const { return msgBody()->status; }
   const bftEngine::OperationResult preProcessResult() const { return msgBody()->preProcessResult; }
+  const ViewNum viewNum() const { return msgBody()->viewNum; }
   std::vector<char> getResultHashSignature() const;
   std::string getCid() const;
 
@@ -76,6 +79,7 @@ class PreProcessReplyMsg : public MessageBase {
     uint32_t replyLength = 0;
     uint32_t cidLength = 0;
     uint64_t reqRetryId = 0;
+    ViewNum viewNum;
   };
 // The pre-executed results' hash signature resides in the message body
 #pragma pack(pop)
@@ -95,7 +99,8 @@ class PreProcessReplyMsg : public MessageBase {
                  ReqId reqSeqNum,
                  uint64_t reqRetryId,
                  ReplyStatus status,
-                 bftEngine::OperationResult preProcessResult);
+                 bftEngine::OperationResult preProcessResult,
+                 ViewNum viewNum);
   void setupMsgBody(const char* preProcessResultBuf, uint32_t preProcessResultBufLen, const std::string& cid);
   void setupMsgBody(const uint8_t* resultsHash, const char* signature, const std::string& cid);
   void setLeftMsgParams(const std::string& cid, uint16_t sigSize);
