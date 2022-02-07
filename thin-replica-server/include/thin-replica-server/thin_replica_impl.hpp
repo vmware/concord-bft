@@ -274,6 +274,31 @@ class ThinReplicaImpl {
       return subscribe_status;
     }
 
+    // If last_known + 1 update requested keep waiting until we have at least one live update
+    // Note that TRS considers last_known + 1 update request as valid, even if the requested
+    // update doesn't exist in storage yet.
+    if (request->has_events()) {
+      auto last_block_id = (config_->rostorage)->getLastBlockId();
+      if (request->events().block_id() == last_block_id + 1) {
+        while (not live_updates->waitUntilNonEmpty(kWaitForUpdateTimeout)) {
+          if (context->IsCancelled()) {
+            LOG_INFO(logger_, "StreamCancelled while waiting for the next live update.");
+            return grpc::Status::CANCELLED;
+          }
+        }
+      }
+    } else {
+      auto last_eg_id = kvb_filter->newestTagSpecificPublicEventGroupId();
+      if (request->event_groups().event_group_id() == last_eg_id + 1) {
+        while (not live_updates->waitForEventGroupUntilNonEmpty(kWaitForUpdateTimeout)) {
+          if (context->IsCancelled()) {
+            LOG_INFO(logger_, "StreamCancelled while waiting for the next live update.");
+            return grpc::Status::CANCELLED;
+          }
+        }
+      }
+    }
+
     // TRS metrics
     ThinReplicaServerMetrics metrics_(stream_type, getClientId(context));
     metrics_.setAggregator(aggregator_);
@@ -479,16 +504,20 @@ class ThinReplicaImpl {
 
   template <typename RequestT>
   bool isRequestOutOfRange(RequestT* request, KvbAppFilterPtr kvb_filter) {
+    // A request is considered out of range iff the requested update ID is greater than
+    // `last_known_update_id + 1`, i.e.; TRS allows an application to subscribe to
+    // `last_known_update_id + 1` without throwing an error, with the expectation that
+    // TRC would resubscribe.
     if (request->has_events()) {
       // Determine latest block available
       auto last_block_id = (config_->rostorage)->getLastBlockId();
-      if (request->events().block_id() > last_block_id) {
+      if (request->events().block_id() > last_block_id + 1) {
         return true;
       }
     } else {
       // Determine latest event group available
       auto last_eg_id = kvb_filter->newestTagSpecificPublicEventGroupId();
-      if (request->event_groups().event_group_id() > last_eg_id) {
+      if (request->event_groups().event_group_id() > last_eg_id + 1) {
         return true;
       }
     }
