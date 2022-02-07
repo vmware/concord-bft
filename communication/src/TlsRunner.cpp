@@ -41,7 +41,7 @@ void Runner::start() {
 
 void Runner::stop() {
   std::lock_guard<std::mutex> lock(start_stop_mutex_);
-  ConcordAssert(!io_threads_.empty());
+  if (!io_threads_.empty()) return;  // Will happen only in the tests
 
   // We want to stop all the thread from processing data before we clean up the connection managers.
   io_context_.stop();

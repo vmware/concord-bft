@@ -550,10 +550,12 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.dbCheckPointWindowSize,
               rc.dbCheckpointDirPath,
               rc.adaptivePruningIntervalDuration.count(),
-              rc.adaptivePruningIntervalPeriod);
+              rc.adaptivePruningIntervalPeriod,
+              rc.dbSnapshotIntervalSeconds.count(),
+              rc.dbCheckpointMonitorIntervalSeconds.count());
   os << ",";
-  os << KVLOG(
-      rc.dbSnapshotIntervalSeconds.count(), rc.dbCheckpointMonitorIntervalSeconds.count(), rc.enableMultiplexChannel);
+  os << KVLOG(rc.enableMultiplexChannel);
+  os << ", ";
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
   return os;
 }

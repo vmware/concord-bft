@@ -31,9 +31,9 @@ void TlsMultiplexCommunication::TlsMultiplexReceiver::onNewMessage(NodeNum sourc
   // replica -> client: endpointNum = clientId
   // replica1 -> replica2: endpointNum = destNode = replica2
   NodeNum receiverId = MAX_ENDPOINT_NUM;
-  if (config_.amIReplica_) {
-    receiverId = config_.selfId_;
-    if (config_.isClient(endpointNum))
+  if (multiplexConfig_->amIReplica_) {
+    receiverId = multiplexConfig_->selfId_;
+    if (multiplexConfig_->isClient(endpointNum))
       sourceNode = endpointNum;  // Replica received client message => set correct source node
   } else
     receiverId = endpointNum;
@@ -54,19 +54,17 @@ void TlsMultiplexCommunication::TlsMultiplexReceiver::onConnectionStatusChanged(
 
 TlsMultiplexCommunication::TlsMultiplexCommunication(const TlsMultiplexConfig &config)
     : TlsTCPCommunication(config), logger_(logging::getLogger("concord-bft.tls.multiplex")) {
-  ownReceiver_ = new TlsMultiplexReceiver(config);
-  config_ = static_cast<TlsMultiplexConfig *>(config_);
+  multiplexConfig_ = make_shared<TlsMultiplexConfig>(config);
+  ownReceiver_ = make_shared<TlsMultiplexReceiver>(multiplexConfig_);
 }
 
 TlsMultiplexCommunication *TlsMultiplexCommunication::create(const TlsMultiplexConfig &config) {
   return new TlsMultiplexCommunication(config);
 }
 
-TlsMultiplexCommunication::~TlsMultiplexCommunication() { delete ownReceiver_; }
-
 int TlsMultiplexCommunication::start() {
   auto const result = TlsTCPCommunication::start();
-  if (!result) runner_->setReceiver(config_->selfId_, ownReceiver_);
+  if (!result) runner_->setReceiver(multiplexConfig_->selfId_, ownReceiver_.get());
   return result;
 }
 
@@ -76,26 +74,32 @@ void TlsMultiplexCommunication::setReceiver(NodeNum receiverNum, IReceiver *rece
   ownReceiver_->setReceiver(receiverNum, receiver);
 }
 
+NodeNum TlsMultiplexCommunication::getConnectionByEndpointNum(NodeNum destNode, NodeNum endpointNum) {
+  // Find connection-id to be used to reach specified endpoint entity.
+  // client service connection to be used to reach clients, replicas' connection - to reach replicas.
+  const auto &connectionId = multiplexConfig_->endpointIdToNodeIdMap_.find(endpointNum);
+  if (connectionId != multiplexConfig_->endpointIdToNodeIdMap_.end()) {
+    LOG_DEBUG(logger_, "Connection found:" << KVLOG(destNode, endpointNum, connectionId->second));
+    return connectionId->second;
+  }
+  LOG_ERROR(logger_, "Connection not found for destination endpoint" << KVLOG(destNode, endpointNum));
+  return MAX_ENDPOINT_NUM;
+}
+
 int TlsMultiplexCommunication::send(NodeNum destNode, std::vector<uint8_t> &&msg, NodeNum endpointNum) {
   // client -> replica: endpointNum = clientId
   // replica -> client: endpointNum = clientId
   // replica1 -> replica2: endpointNum = destNode = replica2
   if (endpointNum == MAX_ENDPOINT_NUM) endpointNum = destNode;
 
-  // Find connection-id to be used to reach specified endpoint entity.
-  // clientservice connection to be used to reach clients, replicas' connection - to reach replicas.
-  const auto &connectionId = config_->endpointIdToNodeIdMap_.find(endpointNum);
-  if (connectionId != config_->endpointIdToNodeIdMap_.end()) {
-    LOG_DEBUG(logger_, "Connection found:" << KVLOG(destNode, connectionId->second));
-    return TlsTCPCommunication::send(connectionId->second, move(msg), endpointNum);
-  }
-  LOG_ERROR(logger_, "Connection not found for destination endpoint" << KVLOG(destNode));
+  const NodeNum connectionId = getConnectionByEndpointNum(destNode, endpointNum);
+  if (connectionId != MAX_ENDPOINT_NUM) return TlsTCPCommunication::send(connectionId, move(msg), endpointNum);
   return 1;
 }
 
 ConnectionStatus TlsMultiplexCommunication::getCurrentConnectionStatus(NodeNum endpointNum) {
-  auto const nodeEntryIt = config_->endpointIdToNodeIdMap_.find(endpointNum);
-  if (nodeEntryIt != config_->endpointIdToNodeIdMap_.end()) {
+  auto const nodeEntryIt = multiplexConfig_->endpointIdToNodeIdMap_.find(endpointNum);
+  if (nodeEntryIt != multiplexConfig_->endpointIdToNodeIdMap_.end()) {
     const auto connectionStatus = runner_->getCurrentConnectionStatus(nodeEntryIt->second);
     LOG_DEBUG(logger_, "Connection status:" << KVLOG(endpointNum, static_cast<int>(connectionStatus)));
     return connectionStatus;

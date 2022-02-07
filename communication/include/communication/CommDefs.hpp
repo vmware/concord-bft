@@ -147,12 +147,12 @@ class TlsMultiplexConfig : public TlsTcpConfig {
   TlsMultiplexConfig(const std::string &host,
                      uint16_t port,
                      uint32_t bufLength,
-                     NodeMap nodes,
+                     NodeMap &nodes,
                      int32_t maxServerId,
                      NodeNum selfId,
                      const std::string &certRootPath,
                      const std::string &cipherSuite,
-                     std::unordered_map<NodeNum, NodeNum> endpointIdToNodeIdMap,
+                     std::unordered_map<NodeNum, NodeNum> &endpointIdToNodeIdMap,
                      UPDATE_CONNECTIVITY_FN statusCallback = nullptr,
                      std::optional<concord::secretsmanager::SecretData> secretData = std::nullopt)
       : TlsTcpConfig(host,
@@ -249,16 +249,17 @@ class TlsMultiplexCommunication : public TlsTCPCommunication {
   static TlsMultiplexCommunication *create(const TlsMultiplexConfig &config);
 
   int start() override;
+  NodeNum getConnectionByEndpointNum(NodeNum destNode, NodeNum endpointNum);
   ConnectionStatus getCurrentConnectionStatus(NodeNum nodeNum) override;
   void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
   int send(NodeNum destNode, std::vector<uint8_t> &&msg, NodeNum endpointNum) override;
-  ~TlsMultiplexCommunication() override;
+  virtual ~TlsMultiplexCommunication() = default;
 
  private:
   class TlsMultiplexReceiver : public IReceiver {
    public:
-    TlsMultiplexReceiver(const TlsMultiplexConfig &config)
-        : logger_(logging::getLogger("concord-bft.tls.multiplex")), config_(config) {}
+    TlsMultiplexReceiver(std::shared_ptr<TlsMultiplexConfig> multiplexConfig)
+        : logger_(logging::getLogger("concord-bft.tls.multiplex")), multiplexConfig_(multiplexConfig) {}
     virtual ~TlsMultiplexReceiver() = default;
     void setReceiver(NodeNum receiverNum, IReceiver *receiver);
     void onNewMessage(NodeNum sourceNode,
@@ -269,14 +270,14 @@ class TlsMultiplexCommunication : public TlsTCPCommunication {
 
    private:
     logging::Logger logger_;
-    const TlsMultiplexConfig &config_;
+    std::shared_ptr<TlsMultiplexConfig> multiplexConfig_;
     std::unordered_map<NodeNum, IReceiver *> receiversMap_;  // Source endpoint -> receiver object
   };
 
  private:
   logging::Logger logger_;
-  TlsMultiplexReceiver *ownReceiver_;
-  TlsMultiplexConfig *config_;
+  std::shared_ptr<TlsMultiplexReceiver> ownReceiver_;
+  std::shared_ptr<TlsMultiplexConfig> multiplexConfig_;
   explicit TlsMultiplexCommunication(const TlsMultiplexConfig &config);
 };
 
