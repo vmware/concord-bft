@@ -7,6 +7,7 @@
 #include "categorization/db_categories.h"
 #include "concord.cmf.hpp"
 #include "bftclient/base_types.h"
+#include "bftengine/ReplicaConfig.hpp"
 using namespace concord::performance;
 
 AdaptivePruningManager::AdaptivePruningManager(
@@ -33,13 +34,13 @@ void AdaptivePruningManager::notifyReplicas(const long double &rate, const uint6
 
   concord::messages::PruneTicksChangeRequest pruneRequest;
 
-  pruneRequest.sender_id = bftClient->getClientId();
+  pruneRequest.sender_id = bftEngine::ReplicaConfig::instance().replicaId;
   pruneRequest.tick_period_seconds = 1;
 
   pruneRequest.batch_blocks_num = rate / bftEngine::ReplicaConfig::instance().numReplicas;
 
   rreq.command = pruneRequest;
-  rreq.sender = bftClient->getClientId();
+  rreq.sender = bftEngine::ReplicaConfig::instance().replicaId;
 
   std::vector<uint8_t> serialized_req;
 
@@ -47,14 +48,15 @@ void AdaptivePruningManager::notifyReplicas(const long double &rate, const uint6
 
   uint64_t flags = bft::client::Flags::RECONFIG_FLAG;
   const std::string cid = "adaptive-pruning-manager-cid";
-  std::string serializedString(serialized_req.begin(), serialized_req.end());
 
   std::string sig(SigManager::instance()->getMySigLength(), '\0');
   uint16_t sig_length{0};
   SigManager::instance()->sign(
       reinterpret_cast<char *>(serialized_req.data()), serialized_req.size(), sig.data(), sig_length);
   rreq.signature = std::vector<uint8_t>(sig.begin(), sig.end());
-
+  serialized_req.clear();
+  concord::messages::serialize(serialized_req, rreq);
+  std::string serializedString(serialized_req.begin(), serialized_req.end());
   bftClient->sendRequest(flags, serializedString.length(), serializedString.c_str(), cid);
 }
 
