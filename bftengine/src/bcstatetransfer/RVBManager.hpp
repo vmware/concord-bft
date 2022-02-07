@@ -195,6 +195,7 @@ class RVBManager {
     STDigest digest;
   };
 #pragma pack(pop)
+  using RvbDigestInfoPtr = RvbDigestInfo*;
 };  // class RVBManager
 
 }  // namespace bftEngine::bcst::impl

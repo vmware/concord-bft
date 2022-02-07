@@ -293,9 +293,9 @@ size_t RVBManager::getSerializedDigestsOfRvbGroup(int64_t rvb_group_id,
   LOG_TRACE(logger_, KVLOG(rvb_group_id, buff_max_size));
   ConcordAssertOR((size_only && !buff && buff_max_size == 0), (!size_only && buff && buff_max_size > 0));
   std::vector<RVBId> rvb_ids = in_mem_rvt_->getRvbIds(rvb_group_id);
-  size_t total_size = rvb_ids.size() * sizeof(RVBManager::RvbDigestInfo);
+  size_t total_size = rvb_ids.size() * sizeof(RvbDigestInfo);
   ConcordAssertOR(size_only, total_size <= buff_max_size);
-  RVBManager::RvbDigestInfo* cur = size_only ? nullptr : reinterpret_cast<RVBManager::RvbDigestInfo*>(buff);
+  RvbDigestInfoPtr cur = size_only ? nullptr : reinterpret_cast<RvbDigestInfoPtr>(buff);
 
   // 1) Source is working based on "best-effort" - send what I have. Reject if I have not even a single block in the
   // requested RVB group. In the case of
@@ -330,7 +330,7 @@ size_t RVBManager::getSerializedDigestsOfRvbGroup(int64_t rvb_group_id,
     ++num_elements;
     ++cur;
   }
-  return num_elements * sizeof(RVBManager::RvbDigestInfo);
+  return num_elements * sizeof(RvbDigestInfo);
 }
 
 bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
@@ -340,7 +340,7 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
                                                 BlockId max_block_id_in_cycle) {
   LOG_TRACE(logger_, KVLOG(data_size));
   ConcordAssertNE(data, nullptr);
-  RvbDigestInfo* cur = reinterpret_cast<RvbDigestInfo*>(data);
+  RvbDigestInfoPtr cur = reinterpret_cast<RvbDigestInfoPtr>(data);
   std::map<BlockId, STDigest> digests;
   BlockId block_id;
   STDigest digest;
