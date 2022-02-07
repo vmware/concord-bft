@@ -6,6 +6,7 @@
 #include "kvbc_key_types.hpp"
 #include "categorization/db_categories.h"
 #include "concord.cmf.hpp"
+#include "bftclient/base_types.h"
 using namespace concord::performance;
 
 AdaptivePruningManager::AdaptivePruningManager(
@@ -44,7 +45,7 @@ void AdaptivePruningManager::notifyReplicas(const long double &rate, const uint6
 
   concord::messages::serialize(serialized_req, rreq);
 
-  uint64_t flags{};
+  uint64_t flags = bft::client::Flags::RECONFIG_FLAG;
   const std::string cid = "adaptive-pruning-manager-cid";
   std::string serializedString(serialized_req.begin(), serialized_req.end());
 
