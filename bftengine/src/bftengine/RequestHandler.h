@@ -29,8 +29,10 @@ class RequestHandler : public IRequestsHandler {
       std::shared_ptr<concordMetrics::Aggregator> aggregator_ = std::make_shared<concordMetrics::Aggregator>())
       : resourceEntity_(resourceEntity) {
     using namespace concord::reconfiguration;
-    reconfig_handler_ = std::make_shared<ReconfigurationHandler>();
-    reconfig_dispatcher_.addReconfigurationHandler(reconfig_handler_);
+    reconfig_handler_.push_back(std::make_shared<ReconfigurationHandler>());
+    for (const auto &rh : reconfig_handler_) {
+      reconfig_dispatcher_.addReconfigurationHandler(rh);
+    }
     reconfig_dispatcher_.addReconfigurationHandler(std::make_shared<ClientReconfigurationHandler>());
     reconfig_dispatcher_.setAggregator(aggregator_);
   }
@@ -48,7 +50,9 @@ class RequestHandler : public IRequestsHandler {
   void setUserRequestHandler(std::shared_ptr<IRequestsHandler> userHdlr) {
     if (userHdlr) {
       userRequestsHandler_ = userHdlr;
-      reconfig_dispatcher_.addReconfigurationHandler(userHdlr->getReconfigurationHandler());
+      for (const auto &rh : userHdlr->getReconfigurationHandler()) {
+        reconfig_dispatcher_.addReconfigurationHandler(rh);
+      }
     }
   }
 
