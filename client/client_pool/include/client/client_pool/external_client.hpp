@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2020-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -85,16 +85,20 @@ class ConcordClient {
 
   void stopClientComm();
 
+  bftEngine::OperationResult getRequestExecutionResult();
+
+  ConcordClient(ConcordClient&& t) = delete;
+
   static std::unique_ptr<bft::communication::ICommunication> ToCommunication(
       const bft::communication::BaseCommConfig& comm_config);
 
   static void setStatics(uint16_t required_num_of_replicas,
                          uint16_t num_of_replicas,
                          uint32_t max_reply_size,
-                         size_t batch_size);
+                         size_t batch_size,
+                         bft::communication::BaseCommConfig* multiplexConfig);
+
   static void setDelayFlagForTest(bool delay);
-  bftEngine::OperationResult getRequestExecutionResult();
-  ConcordClient(ConcordClient&& t) = delete;
 
  private:
   void CreateClient(concord::config_pool::ConcordClientPoolConfig&, const bftEngine::SimpleClientParams& client_params);
@@ -102,28 +106,27 @@ class ConcordClient {
   bft::communication::BaseCommConfig* CreateCommConfig(int num_replicas,
                                                        const config_pool::ConcordClientPoolConfig&) const;
 
-  std::unique_ptr<bft::communication::ICommunication> comm_;
-  std::unique_ptr<bft::client::Client> new_client_;
-
-  // Logger
-  logging::Logger logger_;
-  int client_id_;
-  bool enable_mock_comm_ = false;
-  std::unique_ptr<bftEngine::SeqNumberGeneratorForClientRequests> seqGen_;
-  std::chrono::steady_clock::time_point start_job_time_ = std::chrono::steady_clock::now();
-  std::chrono::steady_clock::time_point waiting_job_time_ = std::chrono::steady_clock::now();
+ private:
   static uint16_t num_of_replicas_;
   static uint16_t required_num_of_replicas_;
   static size_t max_reply_size_;
-  // A shared memory for all clients to return reply because for now the reply
-  // is not important
+  // A shared memory for all clients to return reply because for now the reply is not important
   static std::shared_ptr<std::vector<char>> reply_;
+  static bool delayed_behaviour_;
+  static bft::communication::BaseCommConfig* multiplexConfig_;
 
+  std::unique_ptr<bftEngine::SeqNumberGeneratorForClientRequests> seqGen_;
+  std::chrono::steady_clock::time_point start_job_time_ = std::chrono::steady_clock::now();
+  std::chrono::steady_clock::time_point waiting_job_time_ = std::chrono::steady_clock::now();
+  std::unique_ptr<bft::communication::ICommunication> comm_;
+  std::unique_ptr<bft::client::Client> new_client_;
+  logging::Logger logger_;
+  int client_id_;
+  bool enable_mock_comm_ = false;
   using PendingRequests = std::deque<bftEngine::ClientRequest>;
   PendingRequests pending_requests_;
   PendingReplies pending_replies_;
   size_t batching_buffer_reply_offset_ = 0UL;
-  static bool delayed_behaviour_;
   bftEngine::OperationResult clientRequestExecutionResult_;
 };
 
