@@ -58,9 +58,11 @@ int TlsTCPCommunication::send(NodeNum destNode, std::vector<uint8_t> &&msg, Node
   return 0;
 }
 
-std::set<NodeNum> TlsTCPCommunication::send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg, NodeNum endpointNum) {
+std::set<NodeNum> TlsTCPCommunication::send(std::set<NodeNum> dests,
+                                            std::vector<uint8_t> &&msg,
+                                            NodeNum srcEndpointNum) {
   std::set<NodeNum> failed_nodes;
-  auto outgoingMsg = std::make_shared<tls::OutgoingMsg>(std::move(msg), endpointNum);
+  auto outgoingMsg = std::make_shared<tls::OutgoingMsg>(std::move(msg), srcEndpointNum);
   runner_->send(dests, outgoingMsg);
   return failed_nodes;
 }

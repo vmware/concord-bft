@@ -31,10 +31,11 @@
 namespace bft::client {
 
 typedef std::unordered_map<uint64_t, Reply> SeqNumToReplyMap;
+typedef std::shared_ptr<bft::communication::ICommunication> SharedCommPtr;
 
 class Client {
  public:
-  Client(std::unique_ptr<bft::communication::ICommunication> comm, const ClientConfig& config);
+  Client(SharedCommPtr comm, const ClientConfig& config);
 
   void setAggregator(const std::shared_ptr<concordMetrics::Aggregator>& aggregator) {
     metrics_.setAggregator(aggregator);
@@ -99,7 +100,7 @@ class Client {
 
   MsgReceiver receiver_;
 
-  std::unique_ptr<bft::communication::ICommunication> communication_;
+  SharedCommPtr communication_;
   ClientConfig config_;
   logging::Logger logger_ = logging::getLogger("bftclient");
   std::deque<Msg> pending_requests_;
@@ -139,7 +140,7 @@ class Client {
       registrar.perf.unRegisterComponent(component_name_);
     }
 
-    const std::string& getComponenetName() { return component_name_; }
+    const std::string& getComponentName() { return component_name_; }
 
    private:
     std::string component_name_;

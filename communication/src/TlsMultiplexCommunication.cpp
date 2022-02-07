@@ -44,7 +44,7 @@ void TlsMultiplexCommunication::TlsMultiplexReceiver::onNewMessage(NodeNum sourc
     LOG_DEBUG(logger_, "Receiver found for" << KVLOG(receiverId, endpointNum, sourceNode));
     return;
   }
-  LOG_WARN(logger_, "Receiver not found for" << KVLOG(receiverId, endpointNum, sourceNode));
+  LOG_ERROR(logger_, "Receiver not found for" << KVLOG(receiverId, endpointNum, sourceNode));
 }
 
 void TlsMultiplexCommunication::TlsMultiplexReceiver::onConnectionStatusChanged(NodeNum node,
@@ -82,13 +82,14 @@ int TlsMultiplexCommunication::send(NodeNum destNode, std::vector<uint8_t> &&msg
   // replica1 -> replica2: endpointNum = destNode = replica2
   if (endpointNum == MAX_ENDPOINT_NUM) endpointNum = destNode;
 
-  // Find connection-id to be used to reach specified endpoint entity
+  // Find connection-id to be used to reach specified endpoint entity.
+  // clientservice connection to be used to reach clients, replicas' connection - to reach replicas.
   const auto &connectionId = config_->endpointIdToNodeIdMap_.find(endpointNum);
   if (connectionId != config_->endpointIdToNodeIdMap_.end()) {
     LOG_DEBUG(logger_, "Connection found:" << KVLOG(destNode, connectionId->second));
     return TlsTCPCommunication::send(connectionId->second, move(msg), endpointNum);
   }
-  LOG_WARN(logger_, "Connection not found for destination endpoint" << KVLOG(destNode));
+  LOG_ERROR(logger_, "Connection not found for destination endpoint" << KVLOG(destNode));
   return 1;
 }
 

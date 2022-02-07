@@ -48,6 +48,7 @@ tls_certificates_folder_path: /clientservice/bft_certs
 tls_cipher_suite_list: ECDHE-ECDSA-AES256-GCM-SHA384
 tls_1_3_cipher_suite_list: TLS_AES_256_GCM_SHA384
 transaction_signing_enabled: true
+enable_multiplex_channel: false
 with_cre: false
 node:
   - replica:
@@ -73,6 +74,7 @@ node:
 participant_nodes:
   - participant_node:
       - participant_node_host: 0.0.0.0
+        principal_id: 55
         external_clients:
           - client:
               - client_port: 3502

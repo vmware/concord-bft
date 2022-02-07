@@ -62,17 +62,16 @@ class BaseCommConfig {
         bufferLength_{bufLength},
         nodes_{std::move(nodes)},
         statusCallback_{std::move(statusCallback)},
-        selfId_{selfId},
-        logger_(logging::getLogger("concord-bft.tls.basecommconfig")) {
+        selfId_{selfId} {
     const auto myNode = nodes_.find(selfId_);
-    ConcordAssertNE(myNode, nodes_.end());
-    amIReplica_ = myNode->second.isReplica;
+    // A replica node is always a part of the configuration. A client node is presented only in replicas' configuration.
+    if (myNode != nodes_.end()) amIReplica_ = myNode->second.isReplica;
   }
 
   bool isClient(NodeNum nodeNum) const {
     const auto node = nodes_.find(nodeNum);
     if (node != nodes_.end()) return !(node->second.isReplica);
-    LOG_ERROR(logger_, "The node " << nodeNum << " has not been found");
+    // A client node is presented only in replicas' configuration.
     return false;
   }
   virtual ~BaseCommConfig() = default;
@@ -85,8 +84,7 @@ class BaseCommConfig {
   NodeMap nodes_;
   UPDATE_CONNECTIVITY_FN statusCallback_;
   NodeNum selfId_;
-  bool amIReplica_;
-  logging::Logger logger_;
+  bool amIReplica_ = false;
 };
 
 class PlainUdpConfig : public BaseCommConfig {
