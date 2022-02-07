@@ -48,6 +48,15 @@ ICommunication *CommFactory::create(const BaseCommConfig &config) {
                "Using TlsTCP: "
                    << "Host=" << config.listenHost_ << ", Port=" << config.listenPort_);
       res = TlsTCPCommunication::create(dynamic_cast<const TlsTcpConfig &>(config));
+      break;
+#endif
+      break;
+    case CommType::TlsMultiplex:
+#ifdef USE_COMM_TLS_TCP
+      LOG_INFO(_logger,
+               "Using TlsMultiplex: "
+                   << "Host=" << config.listenHost_ << ", Port=" << config.listenPort_);
+      res = TlsMultiplexCommunication::create(dynamic_cast<const TlsMultiplexConfig &>(config));
 #endif
       break;
   }

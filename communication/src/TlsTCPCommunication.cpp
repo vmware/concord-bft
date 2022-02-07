@@ -19,14 +19,15 @@ static constexpr size_t NUM_THREADS = 1;
 namespace bft::communication {
 
 // This is the public interface to this library. TlsTcpCommunication implements ICommunication.
-TlsTCPCommunication::TlsTCPCommunication(const TlsTcpConfig &config) : config_(config) {
+TlsTCPCommunication::TlsTCPCommunication(const TlsTcpConfig &config) {
+  config_ = new TlsTcpConfig(config);
   if (config.selfId_ > static_cast<uint64_t>(config.maxServerId_))
     runner_.reset(new tls::Runner(config, 1));
   else
     runner_.reset(new tls::Runner(config, NUM_THREADS));
 }
 
-TlsTCPCommunication::~TlsTCPCommunication() {}
+TlsTCPCommunication::~TlsTCPCommunication() { delete config_; }
 
 TlsTCPCommunication *TlsTCPCommunication::create(const TlsTcpConfig &config) { return new TlsTCPCommunication(config); }
 
@@ -67,7 +68,7 @@ std::set<NodeNum> TlsTCPCommunication::send(std::set<NodeNum> dests, std::vector
 void TlsTCPCommunication::setReceiver(NodeNum id, IReceiver *receiver) { runner_->setReceiver(id, receiver); }
 
 void TlsTCPCommunication::restartCommunication(NodeNum i) {
-  if (i == config_.selfId_) {
+  if (i == config_->selfId_) {
     runner_->stop();
     runner_->start();
   }

@@ -16,7 +16,6 @@
 #include <cstdint>
 #include <memory>
 #include <unordered_map>
-
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <sys/socket.h>
@@ -25,24 +24,28 @@
 #include "communication/ICommunication.hpp"
 #include "communication/StatusInfo.h"
 #include "secret_data.h"
+#include "assertUtils.hpp"
 
 namespace bft::communication {
 typedef struct sockaddr_in Addr;
+
 struct NodeInfo {
   std::string host;
   std::uint16_t port;
   bool isReplica;
 };
+
 #pragma pack(push, 1)
 struct Header {
   uint32_t msg_size;
   NodeNum endpoint_num;
 };
 #pragma pack(pop)
+
 static constexpr size_t MSG_HEADER_SIZE = sizeof(Header);
 typedef std::unordered_map<NodeNum, NodeInfo> NodeMap;
 
-enum CommType { PlainUdp, SimpleAuthUdp, PlainTcp, SimpleAuthTcp, TlsTcp };
+enum CommType { PlainUdp, SimpleAuthUdp, PlainTcp, SimpleAuthTcp, TlsTcp, TlsMultiplex };
 
 class BaseCommConfig {
  public:
@@ -59,8 +62,19 @@ class BaseCommConfig {
         bufferLength_{bufLength},
         nodes_{std::move(nodes)},
         statusCallback_{std::move(statusCallback)},
-        selfId_{selfId} {}
+        selfId_{selfId},
+        logger_(logging::getLogger("concord-bft.tls.basecommconfig")) {
+    const auto myNode = nodes_.find(selfId_);
+    ConcordAssertNE(myNode, nodes_.end());
+    amIReplica_ = myNode->second.isReplica;
+  }
 
+  bool isClient(NodeNum nodeNum) const {
+    const auto node = nodes_.find(nodeNum);
+    if (node != nodes_.end()) return !(node->second.isReplica);
+    LOG_ERROR(logger_, "The node " << nodeNum << " has not been found");
+    return false;
+  }
   virtual ~BaseCommConfig() = default;
 
  public:
@@ -71,6 +85,8 @@ class BaseCommConfig {
   NodeMap nodes_;
   UPDATE_CONNECTIVITY_FN statusCallback_;
   NodeNum selfId_;
+  bool amIReplica_;
+  logging::Logger logger_;
 };
 
 class PlainUdpConfig : public BaseCommConfig {
@@ -103,7 +119,7 @@ class PlainTcpConfig : public BaseCommConfig {
 
 class TlsTcpConfig : public PlainTcpConfig {
  public:
-  // set specific suite or list of suites, as described in OpenSSL
+  // Set specific suite or list of suites, as described in OpenSSL
   // https://www.openssl.org/docs/man1.1.1/man1/ciphers.html
   TlsTcpConfig(const std::string &host,
                uint16_t port,
@@ -128,6 +144,37 @@ class TlsTcpConfig : public PlainTcpConfig {
   std::optional<concord::secretsmanager::SecretData> secretData_;
 };
 
+class TlsMultiplexConfig : public TlsTcpConfig {
+ public:
+  TlsMultiplexConfig(const std::string &host,
+                     uint16_t port,
+                     uint32_t bufLength,
+                     NodeMap nodes,
+                     int32_t maxServerId,
+                     NodeNum selfId,
+                     const std::string &certRootPath,
+                     const std::string &cipherSuite,
+                     std::unordered_map<NodeNum, NodeNum> endpointIdToNodeIdMap,
+                     UPDATE_CONNECTIVITY_FN statusCallback = nullptr,
+                     std::optional<concord::secretsmanager::SecretData> secretData = std::nullopt)
+      : TlsTcpConfig(host,
+                     port,
+                     bufLength,
+                     std::move(nodes),
+                     maxServerId,
+                     selfId,
+                     certRootPath,
+                     cipherSuite,
+                     std::move(statusCallback),
+                     secretData),
+        endpointIdToNodeIdMap_(endpointIdToNodeIdMap) {
+    commType_ = CommType::TlsMultiplex;
+  }
+
+ public:
+  std::unordered_map<NodeNum, NodeNum> endpointIdToNodeIdMap_;
+};
+
 class PlainUDPCommunication : public ICommunication {
  public:
   static PlainUDPCommunication *create(const PlainUdpConfig &config);
@@ -137,19 +184,15 @@ class PlainUDPCommunication : public ICommunication {
   int stop() override;
   bool isRunning() const override;
   ConnectionStatus getCurrentConnectionStatus(NodeNum node) override;
-
   int send(NodeNum destNode, std::vector<uint8_t> &&msg, NodeNum endpointNum) override;
-  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg, NodeNum endpointNum) override;
-
+  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg, NodeNum srcEndpointNum) override;
   void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
-
   void restartCommunication(NodeNum i) override{};
   ~PlainUDPCommunication() override;
 
  private:
   class PlainUdpImpl;
 
-  // TODO(IG): convert to smart ptr
   PlainUdpImpl *ptrImpl_ = nullptr;
 
   explicit PlainUDPCommunication(const PlainUdpConfig &config);
@@ -164,12 +207,9 @@ class PlainTCPCommunication : public ICommunication {
   int stop() override;
   bool isRunning() const override;
   ConnectionStatus getCurrentConnectionStatus(NodeNum node) override;
-
   int send(NodeNum destNode, std::vector<uint8_t> &&msg, NodeNum endpointNum) override;
-  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg, NodeNum endpointNum) override;
-
+  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg, NodeNum srcEndpointNum) override;
   void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
-
   void restartCommunication(NodeNum i) override {}
   ~PlainTCPCommunication() override;
 
@@ -193,20 +233,53 @@ class TlsTCPCommunication : public ICommunication {
   int stop() override;
   bool isRunning() const override;
   ConnectionStatus getCurrentConnectionStatus(NodeNum node) override;
-
   int send(NodeNum destNode, std::vector<uint8_t> &&msg, NodeNum endpointNum) override;
-  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg, NodeNum endpointNum) override;
-
+  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg, NodeNum srcEndpointNum) override;
   void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
-
   void restartCommunication(NodeNum i) override;
   ~TlsTCPCommunication() override;
 
- private:
-  TlsTcpConfig config_;
+ protected:
+  TlsTcpConfig *config_;
   std::unique_ptr<tls::Runner> runner_;
 
   explicit TlsTCPCommunication(const TlsTcpConfig &config);
+};
+
+class TlsMultiplexCommunication : public TlsTCPCommunication {
+ public:
+  static TlsMultiplexCommunication *create(const TlsMultiplexConfig &config);
+
+  int start() override;
+  ConnectionStatus getCurrentConnectionStatus(NodeNum nodeNum) override;
+  void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
+  int send(NodeNum destNode, std::vector<uint8_t> &&msg, NodeNum endpointNum) override;
+  ~TlsMultiplexCommunication() override;
+
+ private:
+  class TlsMultiplexReceiver : public IReceiver {
+   public:
+    TlsMultiplexReceiver(const TlsMultiplexConfig &config)
+        : logger_(logging::getLogger("concord-bft.tls.multiplex")), config_(config) {}
+    virtual ~TlsMultiplexReceiver() = default;
+    void setReceiver(NodeNum receiverNum, IReceiver *receiver);
+    void onNewMessage(NodeNum sourceNode,
+                      const char *const message,
+                      size_t messageLength,
+                      NodeNum endpointNum) override;
+    void onConnectionStatusChanged(NodeNum node, ConnectionStatus newStatus) override;
+
+   private:
+    logging::Logger logger_;
+    const TlsMultiplexConfig &config_;
+    std::unordered_map<NodeNum, IReceiver *> receiversMap_;  // Source endpoint -> receiver object
+  };
+
+ private:
+  logging::Logger logger_;
+  TlsMultiplexReceiver *ownReceiver_;
+  TlsMultiplexConfig *config_;
+  explicit TlsMultiplexCommunication(const TlsMultiplexConfig &config);
 };
 
 }  // namespace bft::communication
