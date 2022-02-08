@@ -71,18 +71,18 @@ class IRequestsHandler {
 
   virtual void onFinishExecutingReadWriteRequests() {}
 
-  std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> getReconfigurationHandler() const {
+  std::vector<std::shared_ptr<concord::reconfiguration::IReconfigurationHandler>> getReconfigurationHandler() const {
     return reconfig_handler_;
   }
   virtual void setReconfigurationHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> rh,
                                          concord::reconfiguration::ReconfigurationHandlerType type =
                                              static_cast<concord::reconfiguration::ReconfigurationHandlerType>(1)) {
-    reconfig_handler_ = rh;
+    reconfig_handler_.push_back(rh);
   }
 
   virtual ~IRequestsHandler() = default;
 
  protected:
-  std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> reconfig_handler_;
+  std::vector<std::shared_ptr<concord::reconfiguration::IReconfigurationHandler>> reconfig_handler_;
 };
 }  // namespace bftEngine

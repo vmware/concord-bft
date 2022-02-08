@@ -1071,8 +1071,8 @@ bool ReconfigurationHandler::handle(const concord::messages::PruneStatusRequest&
     rres.response = concord::messages::PruneStatus{};
   }
   auto& prune_status = std::get<concord::messages::PruneStatus>(rres.response);
-  prune_status.operation_mode = bftEngine::ReplicaConfig::instance().pruningEnabled_ ? "BLOCKING" : "NOT_ENABLED";
-  prune_status.mode = apm_.getCurrentMode() == concord::performance::PruningMode::LEGACY ? "LEGACY" : "ADATPTIVE";
+  prune_status.operation_mode = "BLOCKING";
+  prune_status.mode = apm_.getCurrentMode() == concord::performance::PruningMode::LEGACY ? "LEGACY" : "ADAPTIVE";
   prune_status.pruning_pace = apm_.getCurrentPace();
   prune_status.batch_size = apm_.getCurrentBatch();
   return true;
