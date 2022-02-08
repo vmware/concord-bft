@@ -58,6 +58,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                "replicaId should also represent this replica in ICommunication.");
   CONFIG_PARAM(numOfClientProxies, uint16_t, 0, "number of objects that represent clients, numOfClientProxies >= 1");
   CONFIG_PARAM(numOfExternalClients, uint16_t, 0, "number of objects that represent external clients");
+  CONFIG_PARAM(numOfClientServices, uint16_t, 0, "number of objects that represent client services");
   CONFIG_PARAM(sizeOfInternalThreadPool, uint16_t, 8, "number of threads in the internal replica thread pool");
   CONFIG_PARAM(statusReportTimerMillisec, uint16_t, 0, "how often the replica sends a status report to other replicas");
   CONFIG_PARAM(clientRequestRetransmissionTimerMilli,
@@ -295,6 +296,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, replicaId);
     serialize(outStream, numOfClientProxies);
     serialize(outStream, numOfExternalClients);
+    serialize(outStream, numOfClientServices);
     serialize(outStream, statusReportTimerMillisec);
     serialize(outStream, concurrencyLevel);
     serialize(outStream, numWorkerThreadsForBlockIO);
@@ -386,6 +388,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, replicaId);
     deserialize(inStream, numOfClientProxies);
     deserialize(inStream, numOfExternalClients);
+    deserialize(inStream, numOfClientServices);
     deserialize(inStream, statusReportTimerMillisec);
     deserialize(inStream, concurrencyLevel);
     deserialize(inStream, numWorkerThreadsForBlockIO);
@@ -542,16 +545,16 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.threadbagConcurrencyLevel2,
               rc.enablePostExecutionSeparation,
               rc.postExecutionQueuesSize,
+              rc.numOfClientServices,
               rc.dbCheckpointFeatureEnabled,
               rc.maxNumberOfDbCheckpoints,
               rc.dbCheckPointWindowSize,
               rc.dbCheckpointDirPath,
               rc.adaptivePruningIntervalDuration.count(),
-              rc.adaptivePruningIntervalPeriod,
-              rc.dbSnapshotIntervalSeconds.count(),
-              rc.dbCheckpointMonitorIntervalSeconds.count(),
-              rc.enableMultiplexChannel);
-
+              rc.adaptivePruningIntervalPeriod);
+  os << ",";
+  os << KVLOG(
+      rc.dbSnapshotIntervalSeconds.count(), rc.dbCheckpointMonitorIntervalSeconds.count(), rc.enableMultiplexChannel);
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
   return os;
 }

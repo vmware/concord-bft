@@ -83,6 +83,7 @@ class ReplicasInfo {
   uint16_t getNumOfClientProxies() { return _numOfClientProxies; }
   uint16_t getNumberOfExternalClients() { return _numberOfExternalClients; }
   uint16_t getNumberOfInternalClients() { return _numberOfInternalClients; }
+  uint16_t getNumberOfClientServices() { return _numberOfClientServices; }
 
  protected:
   const ReplicaId _myId = 0;
@@ -90,6 +91,7 @@ class ReplicasInfo {
   const uint16_t _numberOfRoReplicas = 0;
   const uint16_t _numOfClientProxies = 0;
   const uint16_t _numberOfExternalClients = 0;
+  const uint16_t _numberOfClientServices = 0;
   const uint16_t _numberOfInternalClients = 0;
   const uint16_t _maxValidPrincipalId = 0;
   const uint16_t _fVal = 0;
@@ -103,6 +105,7 @@ class ReplicasInfo {
   const std::set<PrincipalId> _idsOfClientProxies;
   const std::set<PrincipalId> _idsOfExternalClients;
   const std::set<PrincipalId> _idsOfInternalClients;
+  const std::set<PrincipalId> _idsOfClientServices;
 };
 }  // namespace impl
 }  // namespace bftEngine
