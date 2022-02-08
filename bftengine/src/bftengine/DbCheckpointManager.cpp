@@ -175,6 +175,11 @@ void DbCheckpointManager::initializeDbCheckpointManager(std::shared_ptr<concord:
   if (getLastBlockIdCb) getLastBlockIdCb_ = getLastBlockIdCb;
   prepareCheckpointCb_ = prepareCheckpointCb;
   if (ReplicaConfig::instance().dbCheckpointFeatureEnabled) {
+    // in case of upgrade, we need to set the lastStableCheckpointSeqNum from persistence
+    // instead of 0. if there is a db checkpoint metatdata present in persistence
+    // then this gets overriden by the lastCheckpointSeqNum loaded from persistence
+    if (getLastStableSeqNumCb_) lastCheckpointSeqNum_ = getLastStableSeqNumCb_();
+
     init();
   } else {
     // db checkpoint is disabled. Cleanup metadata and checkpoints created if any
