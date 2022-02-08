@@ -20,6 +20,7 @@
 #include "SigManager.hpp"
 #include "reconfiguration/reconfiguration_handler.hpp"
 #include "categorization/kv_blockchain.h"
+#include "kvbc_app_filter/value_from_kvbc_proto.h"
 #include "AdaptivePruningManager.hpp"
 #include "IntervalMappingResourceManager.hpp"
 #include <functional>
@@ -51,8 +52,10 @@ class ReconfigurationBlockTools {
 class StateSnapshotReconfigurationHandler : public ReconfigurationBlockTools,
                                             public concord::reconfiguration::IReconfigurationHandler {
  public:
-  StateSnapshotReconfigurationHandler(kvbc::IBlockAdder& block_adder, kvbc::IReader& ro_storage)
-      : ReconfigurationBlockTools{block_adder, ro_storage} {}
+  StateSnapshotReconfigurationHandler(kvbc::IBlockAdder& block_adder,
+                                      kvbc::IReader& ro_storage,
+                                      const categorization::KeyValueBlockchain::Converter& state_value_converter)
+      : ReconfigurationBlockTools{block_adder, ro_storage}, state_value_converter_{state_value_converter} {}
 
   bool handle(const concord::messages::StateSnapshotRequest&,
               uint64_t,
@@ -80,13 +83,11 @@ class StateSnapshotReconfigurationHandler : public ReconfigurationBlockTools,
             client_reconf_handler_.verifySignature(sender_id, data, signature));
   }
 
- protected:
-  // Allows users to convert state values to any format that is appropriate.
-  // The default converter returns the input string as is, without modifying it.
-  categorization::KeyValueBlockchain::Converter state_value_converter_{
-      [](std::string&& v) -> std::string { return std::move(v); }};
-
  private:
+  // Allows users to convert state values to any format that is appropriate.
+  // The default converter extracts the value from the ValueWithTrids protobuf type.
+  categorization::KeyValueBlockchain::Converter state_value_converter_{valueFromKvbcProto};
+
   const concord::reconfiguration::BftReconfigurationHandler bft_reconf_handler_;
   const concord::reconfiguration::ClientReconfigurationHandler client_reconf_handler_;
 };

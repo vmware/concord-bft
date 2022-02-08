@@ -53,6 +53,7 @@ using vmware::concord::replicastatesnapshot::StreamSnapshotResponse;
 class replica_state_snapshot_service_test : public Test {
   void SetUp() override {
     destroyDb();
+    service_.setStateValueConverter(KeyValueBlockchain::kNoopConverter);
     db_ = TestRocksDb::createNative();
     const auto link_st_chain = false;
     kvbc_ = std::make_unique<KeyValueBlockchain>(
