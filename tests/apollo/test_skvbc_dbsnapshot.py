@@ -603,9 +603,9 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
         for r in bft_network.all_replicas():
             epoch = await bft_network.get_metric(r, bft_network, "Gauges", "epoch_number", component="epoch_manager")
             self.assertEqual(epoch, 1)
-        for i in range(300):
+        for i in range(600):
             await skvbc.send_write_kv_set()
-        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), 600)
+        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), 900)
         await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(), 2)
         for replica_id in bft_network.all_replicas():
             last_block_id = await bft_network.get_metric(replica_id, bft_network,
@@ -622,7 +622,7 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
             self.assertTrue(any(dbcheckpoint_info.seq_num ==
                             300 for dbcheckpoint_info in dbcheckpoint_info_list))
             self.assertTrue(any(dbcheckpoint_info.seq_num ==
-                            600 for dbcheckpoint_info in dbcheckpoint_info_list))
+                            900 for dbcheckpoint_info in dbcheckpoint_info_list))
 
     @with_trio
     @with_bft_network(start_replica_cmd_with_high_db_window_size, selected_configs=lambda n, f, c: n == 7)

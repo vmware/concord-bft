@@ -4463,8 +4463,9 @@ ReplicaImp::ReplicaImp(bool firstTime,
       auto timeSinceLastSnapshot = (std::chrono::duration_cast<std::chrono::seconds>(currTime) -
                                     DbCheckpointManager::instance().getLastCheckpointCreationTime())
                                        .count();
+      auto seqNumsExecutedSinceLastDbCheckPt = seqNum - DbCheckpointManager::instance().getLastDbCheckpointSeqNum();
       if (getReplicaConfig().dbCheckpointFeatureEnabled && seqNum && isCurrentPrimary() &&
-          !(seqNum % getReplicaConfig().dbCheckPointWindowSize) &&
+          (seqNumsExecutedSinceLastDbCheckPt >= getReplicaConfig().dbCheckPointWindowSize) &&
           (timeSinceLastSnapshot >= getReplicaConfig().dbSnapshotIntervalSeconds.count())) {
         DbCheckpointManager::instance().sendInternalCreateDbCheckpointMsg(seqNum, false);
         LOG_INFO(GL, "send msg to create Db Checkpoint:" << KVLOG(seqNum));

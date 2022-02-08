@@ -131,6 +131,7 @@ class DbCheckpointManager {
     if (ReplicaConfig::instance().dbCheckpointFeatureEnabled)
       createDbCheckpointAsync(seqNum, std::nullopt, std::nullopt);
   }
+  inline auto getLastDbCheckpointSeqNum() const { return lastCheckpointSeqNum_; }
 
  private:
   logging::Logger getLogger() {
