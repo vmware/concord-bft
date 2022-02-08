@@ -87,7 +87,7 @@ void RVBManager::init(bool fetching) {
           in_mem_rvt_->clear();
           rvb_data_source_ = RvbDataInitialSource::NIL;
         }
-        LOG_INFO(logger_, "Success setting and validating new RVB data from storage!");
+        LOG_INFO(logger_, "Success setting and validating new RVB data from data store!");
       }
     }
   }
@@ -654,6 +654,8 @@ RVBId RVBManager::nextRvbBlockId(BlockId block_id) const {
 
 void RVBManager::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBlockId) {
   LOG_TRACE(logger_, KVLOG(lastAgreedPrunableBlockId));
+  DurationTracker<std::chrono::milliseconds> store_pruned_digests_dt;
+  store_pruned_digests_dt.start();
   std::lock_guard<std::mutex> guard(pruned_blocks_digests_mutex_);
   auto initial_size = pruned_blocks_digests_.size();
   RVBId start_rvb_id = in_mem_rvt_->getMinRvbId();
@@ -680,11 +682,15 @@ void RVBManager::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBloc
   }
 
   if (initial_size != pruned_blocks_digests_.size()) {
+    auto total_duration = store_pruned_digests_dt.totalDuration();
     ds_->setPrunedBlocksDigests(pruned_blocks_digests_);
     LOG_INFO(logger_,
-             num_digests_added
-                 << " pruned block digests saved:"
-                 << KVLOG(start_rvb_id, current_rvb_id, lastAgreedPrunableBlockId, pruned_blocks_digests_.size()));
+             num_digests_added << " pruned block digests saved:"
+                               << KVLOG(start_rvb_id,
+                                        current_rvb_id,
+                                        lastAgreedPrunableBlockId,
+                                        pruned_blocks_digests_.size(),
+                                        total_duration));
   }
 }
 
