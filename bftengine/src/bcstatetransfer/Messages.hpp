@@ -58,9 +58,9 @@ struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
   CheckpointSummaryMsg() = delete;
 
   static CheckpointSummaryMsg* create(size_t rvbDataSize) {
-    size_t totalSize = sizeof(CheckpointSummaryMsg) + rvbDataSize - 1;
-    CheckpointSummaryMsg* msg{reinterpret_cast<CheckpointSummaryMsg*>(new char[totalSize])};
-    memset(msg, 0, totalSize);
+    size_t totalByteSize = sizeof(CheckpointSummaryMsg) + rvbDataSize - 1;
+    CheckpointSummaryMsg* msg{reinterpret_cast<CheckpointSummaryMsg*>(new char[totalByteSize])};
+    memset(msg, 0, totalByteSize);
     msg->type = MsgType::CheckpointsSummary;
     msg->rvbDataSize = rvbDataSize;
     return msg;
