@@ -362,12 +362,14 @@ std::string CertificateUtils::generateSelfSignedCert(const std::string& origin_c
   if (priv_bio_write_ret <= 0) {
     EVP_PKEY_free(priv_key);
     BIO_free(priv_bio);
+    X509_free(cert);
     LOG_ERROR(GL, "Unable to create private key object");
     return std::string();
   }
   if (!PEM_read_bio_PrivateKey(priv_bio, &priv_key, NULL, NULL)) {
     EVP_PKEY_free(priv_key);
     BIO_free(priv_bio);
+    X509_free(cert);
     LOG_ERROR(GL, "Unable to create private key object");
     return std::string();
   }
@@ -375,14 +377,20 @@ std::string CertificateUtils::generateSelfSignedCert(const std::string& origin_c
   BIO* pub_bio = BIO_new(BIO_s_mem());
   int pub_bio_write_ret = BIO_write(pub_bio, static_cast<const char*>(public_key.c_str()), public_key.size());
   if (pub_bio_write_ret <= 0) {
+    EVP_PKEY_free(priv_key);
     EVP_PKEY_free(pub_key);
+    BIO_free(priv_bio);
     BIO_free(pub_bio);
+    X509_free(cert);
     LOG_ERROR(GL, "Unable to create public key object");
     return std::string();
   }
   if (!PEM_read_bio_PUBKEY(pub_bio, &pub_key, NULL, NULL)) {
+    EVP_PKEY_free(priv_key);
     EVP_PKEY_free(pub_key);
+    BIO_free(priv_bio);
     BIO_free(pub_bio);
+    X509_free(cert);
     LOG_ERROR(GL, "Unable to create public key object");
     return std::string();
   }
@@ -393,9 +401,9 @@ std::string CertificateUtils::generateSelfSignedCert(const std::string& origin_c
   BIO* outbio = BIO_new(BIO_s_mem());
   if (!PEM_write_bio_X509(outbio, cert)) {
     BIO_free(outbio);
+    EVP_PKEY_free(priv_key);
     EVP_PKEY_free(pub_key);
-    BIO_free(pub_bio);
-    EVP_PKEY_free(pub_key);
+    BIO_free(priv_bio);
     BIO_free(pub_bio);
     X509_free(cert);
     LOG_ERROR(GL, "Unable to create certificate object");
@@ -430,6 +438,7 @@ bool CertificateUtils::verifyCertificate(X509* cert, const std::string& public_k
   }
   int r = X509_verify(cert, pub_key);
   EVP_PKEY_free(pub_key);
+  BIO_free(pub_bio);
   return (bool)r;
 }
 }  // namespace concord::util::crypto
