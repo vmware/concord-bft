@@ -233,8 +233,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                std::chrono::seconds,
                std::chrono::seconds{60},
                "Time interval in seconds to monitor disk usage by db checkpoints");
-  // Post-execution separation feature flag
-  CONFIG_PARAM(enablePostExecutionSeparation, bool, true, "Post-execution separation feature flag");
+  CONFIG_PARAM(enablePostExecutionSeparation, bool, true, "Post-execution thread separation feature flag");
   CONFIG_PARAM(postExecutionQueuesSize, uint16_t, 50, "Post-execution deferred message queues size");
 
   // Parameter to enable/disable waiting for transaction data to be persisted.

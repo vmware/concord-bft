@@ -15,6 +15,7 @@ import unittest
 
 import trio
 
+from util.test_base import ApolloTest
 from util import bft_network_partitioning as net
 
 from util import skvbc as kvbc
@@ -38,7 +39,7 @@ def start_replica_cmd(builddir, replica_id):
             ]
 
 
-class SkvbcCheckpointTest(unittest.TestCase):
+class SkvbcCheckpointTest(ApolloTest):
 
     __test__ = False  # so that PyTest ignores this test scenario
 

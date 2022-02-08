@@ -17,6 +17,7 @@ from os import environ
 
 import trio
 
+from util.test_base import ApolloTest
 from util import bft_network_partitioning as net
 from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, skip_for_tls
@@ -41,7 +42,7 @@ def start_replica_cmd(builddir, replica_id):
             ]
 
 
-class SkvbcViewChangeTest(unittest.TestCase):
+class SkvbcViewChangeTest(ApolloTest):
 
     __test__ = False  # so that PyTest ignores this test scenario
 

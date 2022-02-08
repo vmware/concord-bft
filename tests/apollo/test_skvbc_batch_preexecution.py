@@ -15,6 +15,7 @@ import unittest
 import trio
 import random
 
+from util.test_base import ApolloTest
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, with_constant_load
 from util.skvbc_history_tracker import verify_linearizability
 from util import skvbc as kvbc
@@ -55,7 +56,7 @@ def start_replica_cmd_with_vc_timeout(vc_timeout):
     return wrapper
 
 
-class SkvbcBatchPreExecutionTest(unittest.TestCase):
+class SkvbcBatchPreExecutionTest(ApolloTest):
 
     __test__ = False  # so that PyTest ignores this test scenario
 

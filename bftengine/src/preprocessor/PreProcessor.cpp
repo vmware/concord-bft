@@ -1605,7 +1605,6 @@ OperationResult PreProcessor::launchReqPreProcessing(const PreProcessRequestMsgS
              "Primary block [" << preProcessReqMsg->primaryBlockId()
                                << "] is too advanced for conflict detection optimization, replica block id ["
                                << GlobalData::current_block_id << "] delta [" << GlobalData::block_delta << "]");
-    GlobalData::increment_step = true;
   }
   auto preProcessResultBuffer = (char *)getPreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch);
   IRequestsHandler::ExecutionRequest request = bftEngine::IRequestsHandler::ExecutionRequest{

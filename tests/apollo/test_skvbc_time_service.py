@@ -17,6 +17,7 @@ import time
 
 import trio
 
+from util.test_base import ApolloTest
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 from util.skvbc_history_tracker import verify_linearizability
 from util import eliot_logging as log
@@ -51,7 +52,7 @@ def start_replica_cmd_without_time_service(disable_time_service):
         return start_replica_cmd(*args, **kwargs, time_service_enabled=disable_time_service)
     return wrapper
 
-class SkvbcTimeServiceTest(unittest.TestCase):
+class SkvbcTimeServiceTest(ApolloTest):
 
     __test__ = False  # so that PyTest ignores this test scenario
 

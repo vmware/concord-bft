@@ -15,6 +15,7 @@ import trio
 import os.path
 import random
 
+from util.test_base import ApolloTest
 from util import bft
 from util import skvbc as kvbc
 from util.skvbc import SimpleKVBCProtocol
@@ -46,7 +47,7 @@ def start_replica_cmd(builddir, replica_id):
             ]
 
 
-class SkvbcPersistenceTest(unittest.TestCase):
+class SkvbcPersistenceTest(ApolloTest):
 
     __test__ = False  # so that PyTest ignores this test scenario
 

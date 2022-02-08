@@ -26,6 +26,7 @@ from datetime import datetime
 from functools import partial
 import inspect
 import time
+from typing import Callable
 
 import trio
 
@@ -183,7 +184,7 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
                             bft_network.current_test = async_fn.__name__ + "_n=" + str(bft_config['n']) \
                                                                          + "_f=" + str(bft_config['f']) \
                                                                          + "_c=" + str(bft_config['c'])
-                            with log.start_task(action_type=f"{bft_network.current_test}_num_clients={config.num_clients}"):
+                            with log.start_task(action_type=f"{bft_network.current_test}_num_clients={config.num_clients}", seed=args[0].test_seed) as action:
                                 if rotate_keys:
                                     await bft_network.check_initital_key_exchange(check_master_key_publication=publish_master_keys)
                                 bft_network.test_start_time = time.time()
@@ -1417,7 +1418,7 @@ class BftTestNetwork:
         """
         Returns the total number of requests processed on the fast commit path
         """
-        with log.start_action(action_type="num_of_fast_path_requests"):
+        with log.start_action(action_type="num_of_fast_path_requests", replica_id=replica_id):
             async def the_number_of_fast_path_requests():
                 metric_key = ['replica', 'Counters', 'totalFastPathRequests']
                 nb_fast_path = await self.retrieve_metric(replica_id, *metric_key)
@@ -1429,7 +1430,7 @@ class BftTestNetwork:
         """
         Returns the total number of requests processed on the slow commit path
         """
-        with log.start_action(action_type="num_of_slow_path_requests"):
+        with log.start_action(action_type="num_of_slow_path_requests", replica_id=replica_id):
             async def the_number_of_slow_path_requests():
                 metric_key = ['replica', 'Counters', 'totalSlowPathRequests']
                 nb_slow_path = await self.retrieve_metric(replica_id, *metric_key)

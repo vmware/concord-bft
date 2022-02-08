@@ -499,12 +499,12 @@ class SimpleKVBCProtocol:
                             write_count += 1
                     sent += len(clients)
             return write_count
-    
-    async def run_concurrent_ops(self, num_ops, write_weight=.70):
-        with log.start_action(action_type="run_concurrent_ops"):
-            max_concurrency = len(self.bft_network.clients) // 2
-            max_size = len(self.keys) // 2
-            return await self.send_concurrent_ops(num_ops, max_concurrency, max_size, write_weight, create_conflicts=True)
+
+    async def run_concurrent_ops(self, num_ops: int, write_weight: float = .70):
+        return await self.send_concurrent_ops(exit_factor=num_ops,
+                                              max_concurrency=len(self.bft_network.clients) // 2,
+                                              max_size=len(self.keys) // 2,
+                                              write_weight=write_weight, create_conflicts=True)
 
     async def run_concurrent_conflict_ops(self, num_ops, write_weight=.70):
         if self.tracker is not None:

@@ -15,6 +15,8 @@ import time
 from shutil import copy2
 import trio
 import difflib
+
+from util.test_base import ApolloTest
 from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, TestConfig
 from util import operator
@@ -120,7 +122,7 @@ def start_replica_cmd_with_key_exchange(builddir, replica_id):
             "-o", builddir + "/operator_pub.pem",
             "--publish-master-key-on-startup"]
 
-class SkvbcReconfigurationTest(unittest.TestCase):
+class SkvbcReconfigurationTest(ApolloTest):
     @classmethod
     def setUpClass(cls):
         cls.object_store = ObjectStore()

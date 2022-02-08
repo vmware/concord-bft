@@ -40,7 +40,7 @@ def start_replica_cmd(builddir, replica_id):
             ]
 
 
-class SkvbcStateTransferTest(unittest.TestCase):
+class SkvbcStateTransferTest():
 
     __test__ = False  # so that PyTest ignores this test scenario
 

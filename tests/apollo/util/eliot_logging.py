@@ -33,11 +33,26 @@ def set_file_destination():
 
 # Set logs to the console
 def stdout(message):
-    if message is not "":
-        print(message)
+    if message.get("action_status", "") == "succeeded":
+        return
 
+    fields = [datetime.fromtimestamp(message["timestamp"]).strftime("%d/%m/%Y %H:%M:%S.%f"),
+     message.get("message_type", None),
+     message.get("action_type", None),
+     message.get("action_status", None),
+     message.get("result", None),
+     str([(key, val) for key, val in message.items() if key not in
+          ("action_type", "action_status", "result", "task_uuid", "timestamp", "task_level", "message_type")]),
+     message["task_uuid"],
+     ]
+
+    print(f' - '.join([field for field in fields if field]))
+
+
+if os.getenv('APOLLO_LOG_STDOUT', False):
+    add_destinations(stdout)
 
 if os.environ.get('KEEP_APOLLO_LOGS', "").lower() in ["true", "on"]:
     # Uncomment to see logs in console
-    #add_destinations(stdout)
     set_file_destination()
+
