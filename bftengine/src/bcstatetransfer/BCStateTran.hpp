@@ -370,7 +370,10 @@ class BCStateTran : public IStateTransfer {
   set<ItemDataMsg*, compareItemDataMsg> pendingItemDataMsgs;
   uint32_t totalSizeOfPendingItemDataMsgs = 0;
 
-  void stReset(bool hardReset);
+  void stReset(DataStoreTransaction* txn,
+               bool resetRvbm = false,
+               bool resetStoredCp = false,
+               bool resetDataStore = false);
   void clearAllPendingItemsData();
   void clearPendingItemsData(uint64_t fromBlock, uint64_t untilBlock);
   bool getNextFullBlock(uint64_t requiredBlock,
@@ -389,6 +392,7 @@ class BCStateTran : public IStateTransfer {
 
   void processData(bool lastInBatch = false, uint32_t rvbDigestsSize = 0);
   void cycleEndSummary();
+  void onGettingMissingBlocksEnd(DataStoreTransaction* txn);
   set<uint16_t> allOtherReplicas();
   void SetAllReplicasAsPreferred();
 
@@ -476,16 +480,16 @@ class BCStateTran : public IStateTransfer {
   // lastBlock: is true if we put the oldest block (firstRequiredBlock)
   //
   // waitPolicy:
-  // NO_WAIT: if caller would like to exit immidiately if the next future is not ready
+  // NO_WAIT: if caller would like to exit immediately if the next future is not ready
   // (job not ended yet).
-  // WAIT_SINGLE_JOB: if caller would like to wait for a single job to finish and exit immidiately if the next job is
+  // WAIT_SINGLE_JOB: if caller would like to wait for a single job to finish and exit immediately if the next job is
   // not ready. WAIT_ALL_JOBS - wait for all jobs to finalize.
   //
   // In any case of an early exit (before all jobs are finalized), a ONESHOT timer is invoked to check the future again
   // soon. return: true if done procesing all futures, and false if the front one was not std::future_status::ready
   enum class PutBlockWaitPolicy { NO_WAIT, WAIT_SINGLE_JOB, WAIT_ALL_JOBS };
 
-  bool finalizePutblockAsync(PutBlockWaitPolicy waitPolicy);
+  bool finalizePutblockAsync(PutBlockWaitPolicy waitPolicy, DataStoreTransaction* txn);
   //////////////////////////////////////////////////////////////////////////
   // Range Validation
   //////////////////////////////////////////////////////////////////////////
