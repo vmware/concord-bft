@@ -638,6 +638,66 @@ TEST(thin_replica_server_test, SubscribeToNextBlockNotInStorage) {
   context.TryCancel();
 }
 
+TEST(thin_replica_server_test, SubscribeToFirstEventGroupNotInStorage) {
+  FakeStorage storage(generateEventGroupMap(0, 0, EventGroupType::PublicAndPrivateEventGroups));
+  EXPECT_EQ(storage.getLastEventGroupId(), 0);
+  auto live_update_event_groups = generateEventGroupMap(0, 0, EventGroupType::PublicAndPrivateEventGroups);
+  EXPECT_EQ(live_update_event_groups.size(), 0);
+  TestStateMachine<Data> state_machine{storage, live_update_event_groups, 1};
+  TestSubBufferList<Data> buffer{state_machine};
+  TestServerWriter<Data> stream{state_machine};
+
+  bool is_insecure_trs = true;
+  std::string tls_trs_cert_path;
+  std::unordered_set<std::string> client_id_set;
+  uint16_t update_metrics_aggregator_thresh = 100;
+
+  auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
+      is_insecure_trs, tls_trs_cert_path, &storage, buffer, client_id_set, update_metrics_aggregator_thresh);
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
+  TestServerContext context;
+  SubscriptionRequest request;
+  request.mutable_event_groups()->set_event_group_id(1u);
+
+  std::chrono::seconds data_timeout_ = 3s;
+  auto stream_out = async(std::launch::async, [&] {
+    return replica.SubscribeToUpdates<TestServerContext, TestServerWriter<Data>, Data>(&context, &request, &stream);
+  });
+  auto status = stream_out.wait_for(data_timeout_);
+  EXPECT_EQ(status, std::future_status::timeout);
+  context.TryCancel();
+}
+
+TEST(thin_replica_server_test, SubscribeToNextEventGroupNotInStorage) {
+  FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId, EventGroupType::PublicAndPrivateEventGroups));
+  EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId);
+  auto live_update_event_groups = generateEventGroupMap(0, 0, EventGroupType::PublicAndPrivateEventGroups);
+  EXPECT_EQ(live_update_event_groups.size(), 0);
+  TestStateMachine<Data> state_machine{storage, live_update_event_groups, 6};
+  TestSubBufferList<Data> buffer{state_machine};
+  TestServerWriter<Data> stream{state_machine};
+
+  bool is_insecure_trs = true;
+  std::string tls_trs_cert_path;
+  std::unordered_set<std::string> client_id_set;
+  uint16_t update_metrics_aggregator_thresh = 100;
+
+  auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
+      is_insecure_trs, tls_trs_cert_path, &storage, buffer, client_id_set, update_metrics_aggregator_thresh);
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
+  TestServerContext context;
+  SubscriptionRequest request;
+  request.mutable_event_groups()->set_event_group_id(6u);
+
+  std::chrono::seconds data_timeout_ = 3s;
+  auto stream_out = async(std::launch::async, [&] {
+    return replica.SubscribeToUpdates<TestServerContext, TestServerWriter<Data>, Data>(&context, &request, &stream);
+  });
+  auto status = stream_out.wait_for(data_timeout_);
+  EXPECT_EQ(status, std::future_status::timeout);
+  context.TryCancel();
+}
+
 TEST(thin_replica_server_test, SubscribeToUpdatesAlreadySynced) {
   FakeStorage storage{generate_kvp(1, kLastBlockId)};
   storage.genesis_block_id = 1;
