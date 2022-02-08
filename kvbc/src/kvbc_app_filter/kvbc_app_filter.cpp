@@ -49,7 +49,9 @@ using concord::util::openssl_utils::kExpectedSHA256HashLengthInBytes;
 namespace concord {
 namespace kvbc {
 
-uint64_t KvbAppFilter::getOldestEventGroupId() { return getValueFromLatestTable(kGlobalEgIdKeyOldest); }
+uint64_t KvbAppFilter::getOldestEventGroupId() const { return getValueFromLatestTable(kGlobalEgIdKeyOldest); }
+
+uint64_t KvbAppFilter::getNewestPublicEventGroupId() const { return getValueFromLatestTable(kPublicEgIdKeyNewest); }
 
 optional<BlockId> KvbAppFilter::getOldestEventGroupBlockId() {
   uint64_t global_eg_id_oldest = getOldestEventGroupId();
@@ -274,7 +276,7 @@ void KvbAppFilter::readBlockRange(BlockId block_id_start,
   }
 }
 
-uint64_t KvbAppFilter::getValueFromLatestTable(const std::string &key) {
+uint64_t KvbAppFilter::getValueFromLatestTable(const std::string &key) const {
   const auto opt = rostorage_->getLatest(kvbc::categorization::kExecutionEventGroupLatestCategory, key);
   if (not opt) {
     LOG_DEBUG(logger_, "Tag-specific event group ID for key \"" << key << "\" doesn't exist yet");
@@ -291,7 +293,7 @@ uint64_t KvbAppFilter::getValueFromLatestTable(const std::string &key) {
   return concordUtils::fromBigEndianBuffer<uint64_t>(val->data.data());
 }
 
-uint64_t KvbAppFilter::getValueFromTagTable(const std::string &key) {
+uint64_t KvbAppFilter::getValueFromTagTable(const std::string &key) const {
   const auto opt = rostorage_->getLatest(concord::kvbc::categorization::kExecutionEventGroupTagCategory, key);
   if (not opt) {
     std::stringstream msg;
@@ -317,7 +319,7 @@ uint64_t KvbAppFilter::getValueFromTagTable(const std::string &key) {
 
 // This function returns the oldest tag-specific public event group id that the user can request.
 // Due to pruning, it depends on the oldest public event group and the oldest tag-specific event group available.
-uint64_t KvbAppFilter::oldestTagSpecificPublicEventGroupId() {
+uint64_t KvbAppFilter::oldestTagSpecificPublicEventGroupId() const {
   uint64_t public_oldest = getValueFromLatestTable(kPublicEgIdKeyOldest);
   uint64_t private_oldest = getValueFromLatestTable(client_id_ + "_oldest");
   if (!public_oldest && !private_oldest) return 0;
@@ -331,7 +333,7 @@ uint64_t KvbAppFilter::oldestTagSpecificPublicEventGroupId() {
 
 // This function returns the newest tag-specific public event group id that the user can request.
 // Note that newest tag-specific event group ids will not be updated by pruning
-uint64_t KvbAppFilter::newestTagSpecificPublicEventGroupId() {
+uint64_t KvbAppFilter::newestTagSpecificPublicEventGroupId() const {
   uint64_t public_newest = getValueFromLatestTable(kPublicEgIdKeyNewest);
   uint64_t private_newest = getValueFromLatestTable(client_id_ + "_newest");
   return public_newest + private_newest;

@@ -17,21 +17,26 @@
 #include "bftengine/DbCheckpointManager.hpp"
 #include "bftengine/SigManager.hpp"
 #include "endianness.hpp"
+#include "kvbc_app_filter/kvbc_app_filter.h"
 #include "kvbc_app_filter/kvbc_key_types.h"
 #include "concord.cmf.hpp"
 #include "secrets_manager_plain.h"
 #include "communication/StateControl.hpp"
 #include "rocksdb/native_client.h"
+#include "categorization/categorized_reader.h"
 #include "categorization/db_categories.h"
 #include "categorization/details.h"
 #include "categorized_kvbc_msgs.cmf.hpp"
 #include <chrono>
 #include <algorithm>
+#include <memory>
 
 namespace concord::kvbc::reconfiguration {
 
 using bftEngine::impl::DbCheckpointManager;
 using bftEngine::impl::SigManager;
+using concord::kvbc::KvbAppFilter;
+using concord::kvbc::categorization::CategorizedReader;
 using concord::kvbc::categorization::KeyValueBlockchain;
 using concord::messages::SnapshotResponseStatus;
 using concord::storage::rocksdb::NativeClient;
@@ -175,20 +180,22 @@ bool StateSnapshotReconfigurationHandler::handle(const concord::messages::StateS
 
   auto resp = concord::messages::StateSnapshotResponse{};
   const auto last_checkpoint_desc = DbCheckpointManager::instance().getLastCreatedDbCheckpointMetadata();
-  // TODO: We currently only support new participants and, therefore, the event group ID will always be the one before
-  // the first one, namely 0.
   if (last_checkpoint_desc) {
     resp.data.emplace();
     resp.data->snapshot_id = last_checkpoint_desc->checkPointId_;
-    resp.data->event_group_id = 0;
     const auto read_only = true;
     auto db = NativeClient::newClient(
         DbCheckpointManager::instance().getPathForCheckpoint(last_checkpoint_desc->checkPointId_),
         read_only,
         NativeClient::DefaultOptions{});
     const auto link_st_chain = false;
-    const auto kvbc = KeyValueBlockchain{db, link_st_chain};
-    const auto public_state = kvbc.getPublicStateKeys();
+    const auto kvbc = std::make_shared<const KeyValueBlockchain>(db, link_st_chain);
+    const auto reader = CategorizedReader{kvbc};
+    const auto filter = KvbAppFilter{&reader, ""};
+    // TODO: We currently only support new participants and, therefore, the event group ID will always be the last
+    // (newest) public event group ID.
+    resp.data->event_group_id = filter.getNewestPublicEventGroupId();
+    const auto public_state = kvbc->getPublicStateKeys();
     if (!public_state) {
       resp.data->key_value_count_estimate = 0;
     } else {
@@ -203,7 +210,10 @@ bool StateSnapshotReconfigurationHandler::handle(const concord::messages::StateS
     if (checkpoint_id) {
       resp.data.emplace();
       resp.data->snapshot_id = *checkpoint_id;
-      resp.data->event_group_id = 0;
+      const auto filter = KvbAppFilter{&ro_storage_, ""};
+      // TODO: We currently only support new participants and, therefore, the event group ID will always be the last
+      // (newest) public event group ID.
+      resp.data->event_group_id = filter.getNewestPublicEventGroupId();
       // If we are creating the snapshot now, return an estimate based on the blockchain and not on the snapshot itself
       // (as it is created asynchronously).
       const auto opt_val =
