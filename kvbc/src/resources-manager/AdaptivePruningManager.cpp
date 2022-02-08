@@ -25,7 +25,8 @@ AdaptivePruningManager::AdaptivePruningManager(
       batchSizeMetric(metricComponent.RegisterAtomicGauge("batch_size", 0)),
       transactionsPerSecondMetric(metricComponent.RegisterAtomicGauge("transactions_per_second", 0)),
       postExecUtilizationMetric(metricComponent.RegisterAtomicGauge("post_exec_utilization", 0)),
-      pruningAvgTimeMicroMetric(metricComponent.RegisterAtomicGauge("pruning_avg_time_micro", 0)) {
+      pruningAvgTimeMicroMetric(metricComponent.RegisterAtomicGauge("pruning_avg_time_micro", 0)),
+      pruningUtilizationMetric(metricComponent.RegisterAtomicGauge("pruning_utilization", 0)) {
   (void)ro_storage_;
   resourceManager->setPeriod(bftEngine::ReplicaConfig::instance().adaptivePruningIntervalPeriod);
 }
@@ -52,6 +53,7 @@ void AdaptivePruningManager::notifyReplicas(const PruneInfo &pruneInfo) {
   transactionsPerSecondMetric.Get().Set(pruneInfo.transactionsPerSecond);
   postExecUtilizationMetric.Get().Set(pruneInfo.postExecUtilization);
   pruningAvgTimeMicroMetric.Get().Set(pruneInfo.pruningAvgTimeMicro);
+  pruningUtilizationMetric.Get().Set(pruneInfo.pruningUtilization);
 
   LOG_DEBUG(ADPTV_PRUNING,
             "Sending PruneTicksChangeRequest { ticks per second = "

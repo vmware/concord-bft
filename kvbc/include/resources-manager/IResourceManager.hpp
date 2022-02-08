@@ -22,6 +22,7 @@ struct PruneInfo {
   uint64_t transactionsPerSecond{0};
   uint64_t postExecUtilization{0};
   uint64_t pruningAvgTimeMicro{0};
+  uint64_t pruningUtilization{0};
 };
 
 class IResourceManager {

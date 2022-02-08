@@ -60,6 +60,10 @@ PruneInfo IntervalMappingResourceManager::getPruneInfo() {
   if (it != intervalMapping_.end()) {
     ret.blocksPerSecond = static_cast<long double>(it->second);
     ret.batchSize = 1;
+    ret.postExecUtilization = postExecUtilization;
+    ret.pruningUtilization = pruningUtilization;
+    ret.pruningAvgTimeMicro = pruningAvgTimeMicro;
+    ret.transactionsPerSecond = tps;
   }
   LOG_INFO(ADPTV_PRUNING,
            "calculated [" << tps << "] transactions per second, mapped to pruning [" << ret.blocksPerSecond
