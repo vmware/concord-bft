@@ -23,6 +23,7 @@
 #include <set>
 #include "Logger.hpp"
 
+#include "assertUtils.hpp"
 #include "block_update/block_update.hpp"
 #include "block_update/event_group_update.hpp"
 #include "db_interfaces.h"
@@ -159,16 +160,15 @@ class KvbAppFilter {
  public:
   KvbAppFilter(const concord::kvbc::IReader *rostorage, const std::string &client_id)
       : logger_(logging::getLogger("concord.storage.KvbAppFilter")), rostorage_(rostorage), client_id_(client_id) {
-    if (rostorage_) {
-      auto eg_id_pub_oldest = getValueFromLatestTable(kPublicEgIdKeyOldest);
-      auto eg_id_pub_newest = getValueFromLatestTable(kPublicEgIdKeyNewest);
-      auto eg_id_pvt_oldest = getValueFromLatestTable(client_id + "_oldest");
-      auto eg_id_pvt_newest = getValueFromLatestTable(client_id + "_newest");
-      eg_hash_state_ = std::make_shared<EventGroupClientState>(
-          eg_id_pub_oldest, eg_id_pub_newest, eg_id_pvt_oldest, eg_id_pvt_newest);
-      eg_data_state_ = std::make_shared<EventGroupClientState>(
-          eg_id_pub_oldest, eg_id_pub_newest, eg_id_pvt_oldest, eg_id_pvt_newest);
-    }
+    ConcordAssertNE(rostorage_, nullptr);
+    auto eg_id_pub_oldest = getValueFromLatestTable(kPublicEgIdKeyOldest);
+    auto eg_id_pub_newest = getValueFromLatestTable(kPublicEgIdKeyNewest);
+    auto eg_id_pvt_oldest = getValueFromLatestTable(client_id + "_oldest");
+    auto eg_id_pvt_newest = getValueFromLatestTable(client_id + "_newest");
+    eg_hash_state_ =
+        std::make_shared<EventGroupClientState>(eg_id_pub_oldest, eg_id_pub_newest, eg_id_pvt_oldest, eg_id_pvt_newest);
+    eg_data_state_ =
+        std::make_shared<EventGroupClientState>(eg_id_pub_oldest, eg_id_pub_newest, eg_id_pvt_oldest, eg_id_pvt_newest);
   }
 
   // Filter legacy events
@@ -180,8 +180,8 @@ class KvbAppFilter {
                                                                    const kvbc::categorization::EventGroup &event_group);
 
   // Compute hash for the given update
-  std::string hashUpdate(const KvbFilteredUpdate &update);
-  std::string hashEventGroupUpdate(const KvbFilteredEventGroupUpdate &update);
+  static std::string hashUpdate(const KvbFilteredUpdate &update);
+  static std::string hashEventGroupUpdate(const KvbFilteredEventGroupUpdate &update);
 
   // Return all key-value pairs from the KVB in the block range [earliest block
   // available, given block_id] with the following conditions:
@@ -217,13 +217,13 @@ class KvbAppFilter {
   // Filter the given set of key-value pairs and return the result.
   KvbFilteredUpdate::OrderedKVPairs filterKeyValuePairs(const kvbc::categorization::ImmutableInput &kvs);
 
-  uint64_t getValueFromLatestTable(const std::string &key);
+  uint64_t getValueFromLatestTable(const std::string &key) const;
 
-  uint64_t getValueFromTagTable(const std::string &key);
+  uint64_t getValueFromTagTable(const std::string &key) const;
 
-  uint64_t oldestTagSpecificPublicEventGroupId();
+  uint64_t oldestTagSpecificPublicEventGroupId() const;
 
-  uint64_t newestTagSpecificPublicEventGroupId();
+  uint64_t newestTagSpecificPublicEventGroupId() const;
 
   // Generate event group ids in batches from storage
   // We do not want to process in memory, all the event group ids generated in a pruning window
@@ -233,7 +233,9 @@ class KvbAppFilter {
 
   // Return the oldest global event group id.
   // If no event group can be found then 0 (invalid group id) is returned.
-  uint64_t getOldestEventGroupId();
+  uint64_t getOldestEventGroupId() const;
+
+  uint64_t getNewestPublicEventGroupId() const;
 
   // Return the block number of the very first global event group.
   // Optional because during start-up there might be no block/event group written yet.
@@ -241,7 +243,7 @@ class KvbAppFilter {
 
  private:
   logging::Logger logger_;
-  const concord::kvbc::IReader *rostorage_;
+  const concord::kvbc::IReader *rostorage_{nullptr};
   const std::string client_id_;
   static inline const std::string kGlobalEgIdKeyOldest{"_global_eg_id_oldest"};
   static inline const std::string kPublicEgIdKeyOldest{"_public_eg_id_oldest"};
