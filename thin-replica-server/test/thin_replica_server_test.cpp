@@ -67,6 +67,7 @@ Block generate_block(BlockId block_id) {
 
 BlockMap generate_kvp(BlockId start, BlockId end) {
   BlockMap blocks;
+  if (start == end && end == 0) return blocks;
   for (BlockId block = start; block <= end; ++block) {
     blocks.emplace(generate_block(block));
   }
@@ -109,6 +110,7 @@ EventGroup generateEventGroup(EventGroupId eg_id, bool is_public) {
 
 EventGroupMap generateEventGroupMap(EventGroupId start, EventGroupId end, EventGroupType eg_type) {
   EventGroupMap event_group_map;
+  if (start == end && end == 0) return event_group_map;
   if (eg_type == EventGroupType::PublicAndPrivateEventGroups) {
     for (EventGroupId eg_id = start; eg_id <= end; ++eg_id) {
       bool is_public = false;
@@ -1315,7 +1317,7 @@ TEST(thin_replica_server_test, SubscribeWithPrunedBlockId) {
   FakeStorage storage{generate_kvp(1, 10)};
   storage.genesis_block_id = 5;
   auto live_update_blocks = generate_kvp(0, 0);
-  TestStateMachine<Data> state_machine{storage, live_update_blocks, 1};
+  TestStateMachine<Data> state_machine{storage, live_update_blocks, 11};
   TestSubBufferList<Data> buffer{state_machine};
   TestServerWriter<Data> stream{state_machine};
 
@@ -1339,7 +1341,7 @@ TEST(thin_replica_server_test, SubscribeWithPrunedEventGroupIdPrivate) {
   FakeStorage storage(generateEventGroupMap(1, 10, EventGroupType::PrivateEventGroupsOnly));
   storage.updateLatestTableAfterPruning(kClientId, 5);
   auto live_update_event_groups = generateEventGroupMap(0, 0, EventGroupType::PrivateEventGroupsOnly);
-  TestStateMachine<Data> state_machine{storage, live_update_event_groups, 1};
+  TestStateMachine<Data> state_machine{storage, live_update_event_groups, 11};
   TestSubBufferList<Data> buffer{state_machine};
   TestServerWriter<Data> stream{state_machine};
 
@@ -1363,7 +1365,7 @@ TEST(thin_replica_server_test, SubscribeWithPrunedEventGroupIdPublic) {
   FakeStorage storage(generateEventGroupMap(1, 10, EventGroupType::PublicEventGroupsOnly));
   storage.updateLatestTableAfterPruning(kPublicEgIdKey, 5);
   auto live_update_event_groups = generateEventGroupMap(0, 0, EventGroupType::PublicEventGroupsOnly);
-  TestStateMachine<Data> state_machine{storage, live_update_event_groups, 1};
+  TestStateMachine<Data> state_machine{storage, live_update_event_groups, 11};
   TestSubBufferList<Data> buffer{state_machine};
   TestServerWriter<Data> stream{state_machine};
 
@@ -1388,7 +1390,7 @@ TEST(thin_replica_server_test, SubscribeWithPrunedEventGroupIdPublicAndPrivate) 
   storage.updateLatestTableAfterPruning(kPublicEgIdKey, 2);
   storage.updateLatestTableAfterPruning(kClientId, 3);
   auto live_update_event_groups = generateEventGroupMap(0, 0, EventGroupType::PublicAndPrivateEventGroups);
-  TestStateMachine<Data> state_machine{storage, live_update_event_groups, 1};
+  TestStateMachine<Data> state_machine{storage, live_update_event_groups, 11};
   TestSubBufferList<Data> buffer{state_machine};
   TestServerWriter<Data> stream{state_machine};
 
