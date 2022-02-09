@@ -101,7 +101,7 @@ void GrpcConnection::disconnect() {
   cancelStateStream();
   cancelDataStream();
   cancelHashStream();
-  cancelStateSnapshotStream();
+  cancelAllStateSnapshotStreams();
   trc_stub_.reset();
   rss_stub_.reset();
   channel_.reset();
@@ -443,7 +443,7 @@ void GrpcConnection::cancelStateSnapshotStream(RequestId request_id) {
   }
 }
 
-void GrpcConnection::cancelStateSnapshotStream() {
+void GrpcConnection::cancelAllStateSnapshotStreams() {
   {
     ReadLock read_lock(rss_streams_mutex_);
     for (auto& c : rss_streams_) {

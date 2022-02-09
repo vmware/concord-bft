@@ -12,9 +12,9 @@
 // file.
 
 #include <random>
-#include "client/thin-replica-client/replica_stream_snapshot_client.hpp"
+#include "client/thin-replica-client/replica_state_snapshot_client.hpp"
 #include "client/thin-replica-client/grpc_connection.hpp"
-#include "client/concordclient/remote_update_queue.hpp"
+#include "client/concordclient/snapshot_update.hpp"
 #include "client/concordclient/concord_client_exceptions.hpp"
 #include "thin_replica_mock.grpc.pb.h"
 #include "replica_state_snapshot_mock.grpc.pb.h"
@@ -34,13 +34,14 @@ using std::vector;
 using std::chrono::milliseconds;
 using concord::util::ThreadPool;
 using concord::client::concordclient::SnapshotKVPair;
-using concord::client::concordclient::StreamUpdateQueue;
+using concord::client::concordclient::SnapshotQueue;
+using concord::client::concordclient::BasicSnapshotQueue;
 using client::concordclient::GrpcConnection;
 using client::concordclient::GrpcConnectionConfig;
 using com::vmware::concord::thin_replica::MockThinReplicaStub;
 using vmware::concord::replicastatesnapshot::ReplicaStateSnapshotService;
 using vmware::concord::replicastatesnapshot::MockReplicaStateSnapshotServiceStub;
-using client::replica_state_snapshot_client::ReplicaStreamSnapshotClient;
+using client::replica_state_snapshot_client::ReplicaStateSnapshotClient;
 using client::replica_state_snapshot_client::ReplicaStateSnapshotClientConfig;
 
 const string kTestingClientID = "mock_client_id";
@@ -165,9 +166,9 @@ TEST(replica_stream_snapshot_client_test, test_destructor_always_successful) {
   ThreadPool thread_pool{10};
   auto read_snapshot = [&grpc_connections]() {
     auto rss_config = std::make_unique<ReplicaStateSnapshotClientConfig>(grpc_connections, 8);
-    auto rss = std::make_unique<ReplicaStreamSnapshotClient>(std::move(rss_config));
+    auto rss = std::make_unique<ReplicaStateSnapshotClient>(std::move(rss_config));
 
-    auto remote_queue = std::make_shared<StreamUpdateQueue>();
+    std::shared_ptr<SnapshotQueue> remote_queue = std::make_shared<BasicSnapshotQueue>();
     ASSERT_EQ(remote_queue->size(), 0);
     ::client::replica_state_snapshot_client::SnapshotRequest rss_request;
     rss_request.snapshot_id = 1;
@@ -224,9 +225,9 @@ TEST(replica_stream_snapshot_client_test, test_real_action) {
   ThreadPool thread_pool{10};
   auto read_snapshot = [&grpc_connections](size_t len) {
     auto rss_config = std::make_unique<ReplicaStateSnapshotClientConfig>(grpc_connections, 8);
-    auto rss = std::make_unique<ReplicaStreamSnapshotClient>(std::move(rss_config));
+    auto rss = std::make_unique<ReplicaStateSnapshotClient>(std::move(rss_config));
 
-    auto remote_queue = std::make_shared<StreamUpdateQueue>();
+    std::shared_ptr<SnapshotQueue> remote_queue = std::make_shared<BasicSnapshotQueue>();
     ASSERT_EQ(remote_queue->size(), 0);
     ::client::replica_state_snapshot_client::SnapshotRequest rss_request;
     rss_request.snapshot_id = len;
@@ -239,7 +240,7 @@ TEST(replica_stream_snapshot_client_test, test_real_action) {
           while (true) {
             std::unique_ptr<SnapshotKVPair> update;
             try {
-              update = remote_queue->pop();
+              update = remote_queue->tryPop();
             } catch (...) {
               break;
             }

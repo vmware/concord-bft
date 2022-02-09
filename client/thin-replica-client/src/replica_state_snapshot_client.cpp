@@ -12,7 +12,7 @@
 // file.
 
 #include "client/concordclient/concord_client_exceptions.hpp"
-#include "client/thin-replica-client/replica_stream_snapshot_client.hpp"
+#include "client/thin-replica-client/replica_state_snapshot_client.hpp"
 
 using client::concordclient::GrpcConnection;
 using concord::client::concordclient::SnapshotKVPair;
@@ -21,13 +21,13 @@ using concord::client::concordclient::OutOfRangeSubscriptionRequest;
 using concord::client::concordclient::InternalError;
 using concord::client::concordclient::EndOfStream;
 using concord::client::concordclient::StreamUnavailable;
-using concord::client::concordclient::StreamUpdateQueue;
+using concord::client::concordclient::SnapshotQueue;
 using vmware::concord::replicastatesnapshot::StreamSnapshotRequest;
 using vmware::concord::replicastatesnapshot::StreamSnapshotResponse;
 
 namespace client::replica_state_snapshot_client {
-void ReplicaStreamSnapshotClient::readSnapshotStream(const SnapshotRequest& request,
-                                                     std::shared_ptr<StreamUpdateQueue> remote_queue) {
+void ReplicaStateSnapshotClient::readSnapshotStream(const SnapshotRequest& request,
+                                                    std::shared_ptr<SnapshotQueue> remote_queue) {
   threadpool_.async([this, remote_queue, request]() {
     try {
       this->receiveSnapshot(request, remote_queue);
@@ -38,8 +38,8 @@ void ReplicaStreamSnapshotClient::readSnapshotStream(const SnapshotRequest& requ
   });
 }
 
-void ReplicaStreamSnapshotClient::receiveSnapshot(const SnapshotRequest& request,
-                                                  std::shared_ptr<StreamUpdateQueue> remote_queue) {
+void ReplicaStateSnapshotClient::receiveSnapshot(const SnapshotRequest& request,
+                                                 std::shared_ptr<SnapshotQueue> remote_queue) {
   ConcordAssert(config_->rss_conns.size() > 0);
   uint16_t replica_id = 0;
   GrpcConnection::Result result = GrpcConnection::Result::kUnknown;
@@ -83,17 +83,17 @@ void ReplicaStreamSnapshotClient::receiveSnapshot(const SnapshotRequest& request
   }
   pushFinalStateToRemoteQueue(result);
 }
-void ReplicaStreamSnapshotClient::pushDatumToRemoteQueue(const StreamSnapshotResponse& datum,
-                                                         std::shared_ptr<StreamUpdateQueue> remote_queue,
-                                                         std::string& last_key) {
+void ReplicaStateSnapshotClient::pushDatumToRemoteQueue(const StreamSnapshotResponse& datum,
+                                                        std::shared_ptr<SnapshotQueue> remote_queue,
+                                                        std::string& last_key) {
   if (datum.has_key_value()) {
     last_key.assign(datum.key_value().key());
-    auto snapshot_datum = std::make_unique<SnapshotKVPair>(last_key, datum.key_value().value());
+    auto snapshot_datum = std::unique_ptr<SnapshotKVPair>{new SnapshotKVPair{last_key, datum.key_value().value()}};
     remote_queue->push(std::move(snapshot_datum));
   }
 }
 
-void ReplicaStreamSnapshotClient::pushFinalStateToRemoteQueue(const GrpcConnection::Result& result) {
+void ReplicaStateSnapshotClient::pushFinalStateToRemoteQueue(const GrpcConnection::Result& result) {
   switch (result) {
     case GrpcConnection::Result::kEndOfStream:
       throw EndOfStream();

@@ -17,11 +17,11 @@
 #include "assertUtils.hpp"
 #include "client/concordclient/concord_client.hpp"
 #include "client/thin-replica-client/thin_replica_client.hpp"
-#include "client/thin-replica-client/replica_stream_snapshot_client.hpp"
+#include "client/thin-replica-client/replica_state_snapshot_client.hpp"
 
-using ::client::concordclient::ThinReplicaClient;
-using ::client::concordclient::ThinReplicaClientConfig;
-using ::client::replica_state_snapshot_client::ReplicaStreamSnapshotClient;
+using ::client::thin_replica_client::ThinReplicaClient;
+using ::client::thin_replica_client::ThinReplicaClientConfig;
+using ::client::replica_state_snapshot_client::ReplicaStateSnapshotClient;
 using ::client::replica_state_snapshot_client::ReplicaStateSnapshotClientConfig;
 using ::client::concordclient::GrpcConnection;
 using concord::config_pool::ConcordClientPoolConfig;
@@ -151,7 +151,7 @@ void ConcordClient::checkAndReConnectGrpcConnections() {
 }
 
 void ConcordClient::subscribe(const SubscribeRequest& sub_req,
-                              std::shared_ptr<UpdateQueue>& queue,
+                              std::shared_ptr<EventUpdateQueue>& queue,
                               const std::unique_ptr<opentracing::Span>& parent_span) {
   bool expected = false;
   if (!active_subscription_.compare_exchange_weak(expected, true)) {
@@ -166,7 +166,7 @@ void ConcordClient::subscribe(const SubscribeRequest& sub_req,
   trc_ = std::make_unique<ThinReplicaClient>(std::move(trc_config), metrics_);
 
   if (std::holds_alternative<EventGroupRequest>(sub_req.request)) {
-    ::client::concordclient::SubscribeRequest trc_request;
+    ::client::thin_replica_client::SubscribeRequest trc_request;
     trc_request.event_group_id = std::get<EventGroupRequest>(sub_req.request).event_group_id;
     trc_->Subscribe(trc_request);
   } else if (std::holds_alternative<LegacyEventRequest>(sub_req.request)) {
@@ -186,17 +186,21 @@ void ConcordClient::unsubscribe() {
   }
 }
 
-void ConcordClient::readStream(const StreamSnapshotRequest& request, std::shared_ptr<StreamUpdateQueue>& remote_queue) {
+void ConcordClient::getSnapshot(const StateSnapshotRequest& request, std::shared_ptr<SnapshotQueue>& remote_queue) {
+  LOG_INFO(logger_, "getSnapshot called.");
   checkAndReConnectGrpcConnections();
-  auto rss_config = std::make_unique<ReplicaStateSnapshotClientConfig>(grpc_connections_, /*TODO: config*/ 32);
-  auto rss = std::make_unique<ReplicaStreamSnapshotClient>(std::move(rss_config));
+  if (!rss_) {
+    // Lazy initialization, when required for the first time.
+    auto rss_config = std::make_unique<ReplicaStateSnapshotClientConfig>(grpc_connections_, /*TODO: config*/ 32);
+    rss_ = std::make_unique<ReplicaStateSnapshotClient>(std::move(rss_config));
+  }
 
   ::client::replica_state_snapshot_client::SnapshotRequest rss_request;
   rss_request.snapshot_id = request.snapshot_id;
   if (request.last_received_key.has_value()) {
     rss_request.last_received_key = request.last_received_key.value();
   }
-  rss->readSnapshotStream(rss_request, remote_queue);
+  rss_->readSnapshotStream(rss_request, remote_queue);
 }
 
 }  // namespace concord::client::concordclient

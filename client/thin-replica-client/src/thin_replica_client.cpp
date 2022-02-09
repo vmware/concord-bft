@@ -31,13 +31,14 @@ using com::vmware::concord::thin_replica::KVPair;
 using com::vmware::concord::thin_replica::ReadStateHashRequest;
 using com::vmware::concord::thin_replica::ReadStateRequest;
 using com::vmware::concord::thin_replica::SubscriptionRequest;
+using client::concordclient::GrpcConnection;
 using concord::client::concordclient::EventVariant;
 using concord::client::concordclient::EventGroup;
 using concord::client::concordclient::Update;
 using concord::client::concordclient::UpdateNotFound;
 using concord::client::concordclient::OutOfRangeSubscriptionRequest;
 using concord::client::concordclient::InternalError;
-using concord::client::concordclient::UpdateQueue;
+using concord::client::concordclient::EventUpdateQueue;
 using std::atomic_bool;
 using std::list;
 using std::logic_error;
@@ -53,7 +54,7 @@ using std::unordered_set;
 using std::vector;
 using std::chrono::steady_clock;
 
-namespace client::concordclient {
+namespace client::thin_replica_client {
 
 const string LogCid::cid_key_ = "cid";
 atomic_bool LogCid::cid_set_ = false;
@@ -1069,4 +1070,4 @@ void ThinReplicaClient::receiveUpdatesWrapper() {
   }
 }
 
-}  // namespace client::concordclient
+}  // namespace client::thin_replica_client

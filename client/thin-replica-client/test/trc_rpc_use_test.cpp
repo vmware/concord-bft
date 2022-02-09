@@ -32,9 +32,10 @@ using std::make_unique;
 using std::shared_ptr;
 using std::string;
 using std::vector;
-using concord::client::concordclient::UpdateQueue;
-using client::concordclient::ThinReplicaClient;
-using client::concordclient::ThinReplicaClientConfig;
+using concord::client::concordclient::EventUpdateQueue;
+using concord::client::concordclient::BasicEventUpdateQueue;
+using client::thin_replica_client::ThinReplicaClient;
+using client::thin_replica_client::ThinReplicaClientConfig;
 
 const string kTestingClientID = "mock_client_id";
 const string kTestingJaegerAddress = "127.0.0.1:6831";
@@ -56,7 +57,7 @@ TEST(trc_rpc_use_test, test_trc_constructor_and_destructor) {
   uint16_t max_faulty = 1;
   size_t num_replicas = 3 * max_faulty + 1;
 
-  auto update_queue = make_shared<UpdateQueue>();
+  shared_ptr<EventUpdateQueue> update_queue = make_shared<BasicEventUpdateQueue>();
   auto record = make_shared<ThinReplicaCommunicationRecord>();
 
   auto server_recorders = CreateMockServerRecorders(num_replicas, stream_preparer, hasher, record);
@@ -88,7 +89,7 @@ TEST(trc_rpc_use_test, test_trc_subscribe) {
   uint16_t max_faulty = 3;
   size_t num_replicas = 3 * max_faulty + 1;
 
-  auto update_queue = make_shared<UpdateQueue>();
+  shared_ptr<EventUpdateQueue> update_queue = make_shared<BasicEventUpdateQueue>();
   auto record = make_shared<ThinReplicaCommunicationRecord>();
 
   auto server_recorders = CreateMockServerRecorders(num_replicas, stream_preparer, hasher, record);

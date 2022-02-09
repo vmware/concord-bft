@@ -26,9 +26,11 @@
 #include "bftclient/bft_client.h"
 #include "client/thin-replica-client/thin_replica_client.hpp"
 #include "client/client_pool/concord_client_pool.hpp"
-#include "client/concordclient/remote_update_queue.hpp"
+#include "client/concordclient/event_update.hpp"
+#include "client/concordclient/snapshot_update.hpp"
 #include "client/concordclient/concord_client_exceptions.hpp"
 #include "Metrics.hpp"
+#include "client/thin-replica-client/replica_state_snapshot_client.hpp"
 
 namespace concord::client::concordclient {
 
@@ -119,7 +121,7 @@ struct ConcordClientConfig {
   SubscribeConfig subscribe_config;
 };
 
-struct StreamSnapshotRequest {
+struct StateSnapshotRequest {
   uint64_t snapshot_id;
   std::optional<std::string> last_received_key;
 };
@@ -154,7 +156,7 @@ class ConcordClient {
 
   // Subscribe to events which are pushed into the given update queue.
   void subscribe(const SubscribeRequest& request,
-                 std::shared_ptr<UpdateQueue>& queue,
+                 std::shared_ptr<EventUpdateQueue>& queue,
                  const std::unique_ptr<opentracing::Span>& parent_span);
 
   // Note, if the caller doesn't unsubscribe and no runtime error occurs then resources
@@ -163,10 +165,10 @@ class ConcordClient {
 
   // Stream a specific state snapshot in a resumable fashion as a finite stream of key-values.
   // Key-values are streamed with lexicographic order on keys.
-  void readStream(const StreamSnapshotRequest& request, std::shared_ptr<StreamUpdateQueue>& remote_queue);
+  void getSnapshot(const StateSnapshotRequest& request, std::shared_ptr<SnapshotQueue>& remote_queue);
 
-  // Get participant_id
-  std::string getTRId() const { return config_.subscribe_config.id; }
+  // Get subscription id.
+  std::string getSubscriptionId() const { return config_.subscribe_config.id; }
 
  private:
   config_pool::ConcordClientPoolConfig createClientPoolStruct(const ConcordClientConfig& config);
@@ -180,7 +182,8 @@ class ConcordClient {
   std::atomic_bool active_subscription_{false};
 
   std::vector<std::shared_ptr<::client::concordclient::GrpcConnection>> grpc_connections_;
-  std::unique_ptr<::client::concordclient::ThinReplicaClient> trc_;
+  std::unique_ptr<::client::thin_replica_client::ThinReplicaClient> trc_;
+  std::unique_ptr<::client::replica_state_snapshot_client::ReplicaStateSnapshotClient> rss_;
   std::unique_ptr<concord::concord_client_pool::ConcordClientPool> client_pool_;
 };
 

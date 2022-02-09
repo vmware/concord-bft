@@ -51,8 +51,8 @@ using std::this_thread::sleep_for;
 using testing::Invoke;
 using testing::InvokeWithoutArgs;
 using testing::Return;
-using client::concordclient::hashState;
-using client::concordclient::hashUpdate;
+using client::thin_replica_client::hashState;
+using client::thin_replica_client::hashUpdate;
 using client::concordclient::GrpcConnection;
 
 MockTrsConnection::MockTrsConnection() : GrpcConnection("mock_address", "mock_client_id", 1, 1, 1) {

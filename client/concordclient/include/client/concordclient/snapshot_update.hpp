@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2021-2022 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -11,6 +11,20 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "client/concordclient/remote_update_queue.hpp"
+#pragma once
 
-// Empty file created for concordclient-event-api
+#include <string>
+
+#include "client/concordclient/thread_safe_queue.hpp"
+
+namespace concord::client::concordclient {
+
+struct SnapshotKVPair {
+  std::string key;
+  std::string val;
+};
+
+using SnapshotQueue = IQueue<SnapshotKVPair>;
+using BasicSnapshotQueue = BasicThreadSafeQueue<SnapshotKVPair>;
+
+}  // namespace concord::client::concordclient

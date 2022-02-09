@@ -9,13 +9,13 @@
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "concord.cmf.hpp"
+#include <condition_variable>
 #include <opentracing/tracer.h>
 #include <google/protobuf/util/time_util.h>
 
 #include "assertUtils.hpp"
 #include "client/clientservice/state_snapshot_service.hpp"
-#include "client/clientservice/event_service.hpp"
+#include "client/concordclient/snapshot_update.hpp"
 
 using grpc::Status;
 using grpc::ServerContext;
@@ -38,11 +38,13 @@ using concord::messages::SignedPublicStateHashResponse;
 using concord::messages::SnapshotResponseStatus;
 using concord::messages::ReconfigurationRequest;
 using concord::messages::ReconfigurationResponse;
+using concord::messages::ReconfigurationErrorMsg;
 using concord::messages::StateSnapshotReadAsOfRequest;
 using concord::messages::StateSnapshotReadAsOfResponse;
 
 using concord::client::concordclient::SnapshotKVPair;
-using concord::client::concordclient::StreamUpdateQueue;
+using concord::client::concordclient::SnapshotQueue;
+using concord::client::concordclient::BasicSnapshotQueue;
 using concord::client::concordclient::UpdateNotFound;
 using concord::client::concordclient::OutOfRangeSubscriptionRequest;
 using concord::client::concordclient::StreamUnavailable;
@@ -70,6 +72,7 @@ struct ResponseType {
   std::variant<ResponseT, std::vector<std::unique_ptr<ResponseT>>> response;
 };
 
+// If is_rsi is true then the response is in the rsi vector else the matched data will be used.
 template <typename ResponseT>
 static void getResponseSetStatus(concord::client::concordclient::SendResult&& send_result,
                                  ResponseType<ResponseT>& response,
@@ -125,18 +128,68 @@ static void getResponseSetStatus(concord::client::concordclient::SendResult&& se
   }
   return_status = grpc::Status::OK;
   auto reply = std::get<bft::client::Reply>(send_result);
-  if (is_rsi) {
-    ReconfigurationResponse res;
-    concord::messages::deserialize(reply.matched_data, res);
-    response.response.template emplace<ResponseT>(std::get<ResponseT>(res.response));
-  } else {
-    std::vector<std::unique_ptr<ResponseT>> responses;
-    for (const auto& r : reply.rsi) {
+  try {
+    if (is_rsi) {
+      std::vector<std::unique_ptr<ResponseT>> responses;
+      for (const auto& r : reply.rsi) {
+        ReconfigurationResponse res;
+        concord::messages::deserialize(r.second, res);
+        if (res.success) {
+          if (std::holds_alternative<ResponseT>(res.response)) {
+            responses.emplace_back(std::make_unique<ResponseT>(std::get<ResponseT>(res.response)));
+          } else {
+            LOG_INFO(logger, "Request failed from replica id : " << r.first.val);
+            return_status = grpc::Status(grpc::StatusCode::UNKNOWN, "Failure due to some internal error");
+            return;
+          }
+        } else {
+          if (std::holds_alternative<ReconfigurationErrorMsg>(res.response)) {
+            LOG_WARN(logger,
+                     "Request failed from replica id : " << r.first.val << " with message : "
+                                                         << std::get<ReconfigurationErrorMsg>(res.response).error_msg
+                                                         << " for response result : " << reply.result);
+          }
+          LOG_WARN(logger,
+                   "Request failed in RSI with INTERNAL error for cid="
+                       << correlation_id << " replica sent variant of index : " << res.response.index()
+                       << " for response result : " << reply.result);
+          return_status = grpc::Status(grpc::StatusCode::UNKNOWN, "Failure due to some internal error");
+          return;
+        }
+      }
+      response.response.template emplace<std::vector<std::unique_ptr<ResponseT>>>(std::move(responses));
+    } else {
       ReconfigurationResponse res;
-      concord::messages::deserialize(r.second, res);
-      responses.emplace_back(std::make_unique<ResponseT>(std::get<ResponseT>(res.response)));
+      concord::messages::deserialize(reply.matched_data, res);
+      if (res.success) {
+        if (std::holds_alternative<ResponseT>(res.response)) {
+          response.response.template emplace<ResponseT>(std::get<ResponseT>(res.response));
+        } else {
+          LOG_INFO(logger, "Request failed from replicas");
+          return_status = grpc::Status(grpc::StatusCode::UNKNOWN, "Failure due to some internal error");
+          return;
+        }
+      } else {
+        if (std::holds_alternative<ReconfigurationErrorMsg>(res.response)) {
+          LOG_WARN(logger,
+                   "Request failed from replicas with message : "
+                       << std::get<ReconfigurationErrorMsg>(res.response).error_msg
+                       << " for response result : " << reply.result);
+          return_status = grpc::Status(grpc::StatusCode::UNKNOWN, "Failure due to some internal error");
+        }
+        LOG_WARN(logger,
+                 "Response failed with INTERNAL error for cid=" << correlation_id << " replica sent variant of index : "
+                                                                << res.response.index()
+                                                                << " for response result : " << reply.result);
+        return_status = grpc::Status(grpc::StatusCode::UNKNOWN, "Failure due to some internal error");
+        return;
+      }
     }
-    response.response.template emplace<std::vector<std::unique_ptr<ResponseT>>>(std::move(responses));
+  } catch (std::exception& e) {
+    LOG_FATAL(logger,
+              "Response parsing failed with parse error for cid=" << correlation_id << " exception = " << e.what()
+                                                                  << " for response result : " << reply.result);
+    ConcordAssert(false);
   }
 }
 
@@ -153,30 +206,49 @@ Status StateSnapshotServiceImpl::GetRecentSnapshot(ServerContext* context,
     }
   }
 
+  LOG_INFO(logger_, "Received a GetRecentSnapshotRequest with timeout : " << timeout.count() << "ms");
+
   WriteConfig write_config{RequestConfig{false, 0, 1024 * 1024, timeout, "snapshotreq", "", false, true},
                            bft::client::LinearizableQuorum{}};
   StateSnapshotResponse snapshot_response;
-  grpc::Status return_status;
-  auto callback =
-      [&snapshot_response, &return_status, &write_config](concord::client::concordclient::SendResult&& send_result) {
-        ResponseType<StateSnapshotResponse> reponse;
-        getResponseSetStatus(std::move(send_result),
-                             reponse,
-                             return_status,
-                             write_config.request.correlation_id,
-                             false,
-                             "concord.client.clientservice.state_snapshot_service.GetRecentSnapshot.callback");
-        snapshot_response = std::get<StateSnapshotResponse>(reponse.response);
-      };
+  grpc::Status return_status = grpc::Status(grpc::StatusCode::UNAVAILABLE, "Timeout");
+  std::condition_variable wait_for_me;
+  bool reply_available = false;
+  auto callback = [&snapshot_response, &return_status, &write_config, &wait_for_me, &reply_available](
+                      concord::client::concordclient::SendResult&& send_result) {
+    ResponseType<StateSnapshotResponse> reponse;
+    getResponseSetStatus(std::move(send_result),
+                         reponse,
+                         return_status,
+                         write_config.request.correlation_id,
+                         false,
+                         "concord.client.clientservice.state_snapshot_service.getrecentsnapshot.callback");
+    if (return_status.ok()) {
+      snapshot_response = std::get<StateSnapshotResponse>(reponse.response);
+    }
+    reply_available = true;
+    wait_for_me.notify_one();
+  };
 
   ReconfigurationRequest rreq;
   StateSnapshotRequest cmd;
   cmd.checkpoint_kv_count = 0;
-  cmd.participant_id = client_->getTRId();
+  cmd.participant_id = client_->getSubscriptionId();
   rreq.command = cmd;
   bft::client::Msg message;
   concord::messages::serialize(message, rreq);
   client_->send(write_config, std::move(message), callback);
+  bool response_available = false;
+  {
+    std::mutex mtx;
+    std::unique_lock<std::mutex> lck(mtx);
+    response_available = wait_for_me.wait_for(lck, timeout, [&reply_available]() { return reply_available; });
+  }
+
+  if (!response_available) {
+    return grpc::Status(grpc::StatusCode::UNAVAILABLE, "Timeout");
+  }
+
   if (return_status.ok() && snapshot_response.data.has_value()) {
     response->set_snapshot_id(snapshot_response.data->snapshot_id);
     response->set_event_group_id(snapshot_response.data->event_group_id);
@@ -191,14 +263,18 @@ Status StateSnapshotServiceImpl::StreamSnapshot(ServerContext* context,
                                                 const StreamSnapshotRequest* proto_request,
                                                 ServerWriter<StreamSnapshotResponse>* stream) {
   ConcordAssertNE(proto_request, nullptr);
-  concord::client::concordclient::StreamSnapshotRequest request;
+  LOG_INFO(logger_,
+           "Received a StreamSnapshotRequest with snapshot id : "
+               << proto_request->snapshot_id() << " with last received key "
+               << (proto_request->has_last_received_key() ? proto_request->last_received_key() : "EMPTY"));
+  concord::client::concordclient::StateSnapshotRequest request;
   request.snapshot_id = proto_request->snapshot_id();
   if (proto_request->has_last_received_key()) {
     request.last_received_key = proto_request->last_received_key();
   }
-  std::shared_ptr<StreamUpdateQueue> update_queue = std::make_shared<StreamUpdateQueue>();
+  std::shared_ptr<SnapshotQueue> update_queue = std::make_shared<BasicSnapshotQueue>();
 
-  client_->readStream(request, update_queue);
+  client_->getSnapshot(request, update_queue);
 
   Status status = grpc::Status(grpc::StatusCode::UNAVAILABLE, "Service not available");
   bool is_end_of_stream = false;
@@ -207,7 +283,7 @@ Status StateSnapshotServiceImpl::StreamSnapshot(ServerContext* context,
     StreamSnapshotResponse response;
     std::unique_ptr<SnapshotKVPair> update;
     try {
-      update = update_queue->pop();
+      update = update_queue->tryPop();
     } catch (const UpdateNotFound& e) {
       status = grpc::Status(grpc::StatusCode::NOT_FOUND, e.what());
       break;
@@ -229,8 +305,7 @@ Status StateSnapshotServiceImpl::StreamSnapshot(ServerContext* context,
     }
 
     if (!update) {
-      status = grpc::Status(grpc::StatusCode::UNAVAILABLE, "Stream ended abruptly");
-      break;
+      continue;
     }
 
     auto kvpair = response.mutable_key_value();
@@ -262,28 +337,47 @@ void StateSnapshotServiceImpl::isHashValid(uint64_t snapshot_id,
                                            Status& return_status) const {
   ReadConfig read_config{RequestConfig{false, 0, 1024 * 1024, timeout, "signedHashReq", "", false, true},
                          bft::client::ByzantineSafeQuorum{}};
+  std::condition_variable wait_for_me;
+  bool reply_available = false;
   std::vector<std::unique_ptr<SignedPublicStateHashResponse>> signed_hash_responses;
-  auto callback =
-      [&signed_hash_responses, &return_status, &read_config](concord::client::concordclient::SendResult&& send_result) {
-        ResponseType<SignedPublicStateHashResponse> reponse;
-        getResponseSetStatus(std::move(send_result),
-                             reponse,
-                             return_status,
-                             read_config.request.correlation_id,
-                             true,
-                             "concord.client.clientservice.state_snapshot_service.signedhash.callback");
-        signed_hash_responses =
-            std::get<std::vector<std::unique_ptr<SignedPublicStateHashResponse>>>(std::move(reponse.response));
-      };
+  auto callback = [&signed_hash_responses, &return_status, &read_config, &wait_for_me, &reply_available](
+                      concord::client::concordclient::SendResult&& send_result) {
+    ResponseType<SignedPublicStateHashResponse> reponse;
+    getResponseSetStatus(std::move(send_result),
+                         reponse,
+                         return_status,
+                         read_config.request.correlation_id,
+                         true,
+                         "concord.client.clientservice.state_snapshot_service.signedhash.callback");
+    if (return_status.ok()) {
+      signed_hash_responses =
+          std::get<std::vector<std::unique_ptr<SignedPublicStateHashResponse>>>(std::move(reponse.response));
+    }
+    reply_available = true;
+    wait_for_me.notify_one();
+  };
 
   ReconfigurationRequest rreq;
   SignedPublicStateHashRequest cmd;
   cmd.snapshot_id = snapshot_id;
-  cmd.participant_id = client_->getTRId();
+  cmd.participant_id = client_->getSubscriptionId();
   rreq.command = cmd;
   bft::client::Msg message;
   concord::messages::serialize(message, rreq);
   client_->send(read_config, std::move(message), callback);
+
+  bool response_available = false;
+  {
+    std::mutex mtx;
+    std::unique_lock<std::mutex> lck(mtx);
+    response_available = wait_for_me.wait_for(lck, timeout, [&reply_available]() { return reply_available; });
+  }
+
+  if (!response_available) {
+    return_status = grpc::Status(grpc::StatusCode::UNAVAILABLE, "Timeout");
+    return;
+  }
+
   for (const auto& res : signed_hash_responses) {
     if (return_status.ok()) {
       switch (res->status) {
@@ -314,6 +408,45 @@ void StateSnapshotServiceImpl::isHashValid(uint64_t snapshot_id,
   }
 }
 
+void StateSnapshotServiceImpl::compareWithRsiAndSetReadAsOfResponse(
+    const std::unique_ptr<StateSnapshotReadAsOfResponse>& bft_readasof_response,
+    const ReadAsOfRequest* const proto_request,
+    ReadAsOfResponse*& response,
+    grpc::Status& return_status) const {
+  auto rv_size = bft_readasof_response->values.size();
+  auto pr_size = proto_request->keys_size();
+  if (rv_size != static_cast<decltype(rv_size)>(pr_size)) {
+    return_status = grpc::Status(grpc::StatusCode::UNKNOWN, "Internal error");
+    return;
+  }
+  // If the value is empty then indicate that we have to assign the first value.
+  bool have_to_set_value = (response->values_size() == 0);
+  size_t pos = 0;
+  // Set value from the first replica in rsi and compare values from other replicas.
+  for (const auto& v : bft_readasof_response->values) {
+    if (have_to_set_value) {
+      auto* resp_val = response->add_values();
+      if (v.has_value()) {
+        resp_val->set_value(v.value());
+      }
+    } else {
+      // This is the case of comparing the values from rsi.
+      if (v.has_value()) {
+        // If the value is available then chech the actual value
+        if (v.value() != response->values(pos).value()) {
+          return_status = grpc::Status(grpc::StatusCode::UNKNOWN, "Got different values from different replicas");
+        }
+      } else {
+        // If the value is not available the it should be set for the response aswell.
+        if ((response->values(pos)).has_value()) {
+          return_status = grpc::Status(grpc::StatusCode::UNKNOWN, "Got different values from different replicas");
+        }
+      }
+      pos++;
+    }
+  }
+}
+
 Status StateSnapshotServiceImpl::ReadAsOf(ServerContext* context,
                                           const ReadAsOfRequest* proto_request,
                                           ReadAsOfResponse* response) {
@@ -327,29 +460,37 @@ Status StateSnapshotServiceImpl::ReadAsOf(ServerContext* context,
     }
   }
 
+  LOG_INFO(logger_, "Received a ReadAsOfRequest with timeout : " << timeout.count() << "ms");
+
   ReadConfig read_config{RequestConfig{false, 0, 1024 * 1024, timeout, "readasofreq", "", false, true},
                          bft::client::ByzantineSafeQuorum{}};
 
   std::vector<std::unique_ptr<StateSnapshotReadAsOfResponse>> read_as_of_responses;
-  grpc::Status return_status;
-  auto callback =
-      [&read_as_of_responses, &return_status, &read_config](concord::client::concordclient::SendResult&& send_result) {
-        ResponseType<StateSnapshotReadAsOfResponse> reponse;
-        getResponseSetStatus(std::move(send_result),
-                             reponse,
-                             return_status,
-                             read_config.request.correlation_id,
-                             true,
-                             "concord.client.clientservice.state_snapshot_service.signedhash.callback");
-        read_as_of_responses =
-            std::get<std::vector<std::unique_ptr<StateSnapshotReadAsOfResponse>>>(std::move(reponse.response));
-      };
+  std::condition_variable wait_for_me;
+  bool reply_available = false;
+  grpc::Status return_status = grpc::Status(grpc::StatusCode::UNAVAILABLE, "Timeout");
+  auto callback = [&read_as_of_responses, &return_status, &read_config, &wait_for_me, &reply_available](
+                      concord::client::concordclient::SendResult&& send_result) {
+    ResponseType<StateSnapshotReadAsOfResponse> reponse;
+    getResponseSetStatus(std::move(send_result),
+                         reponse,
+                         return_status,
+                         read_config.request.correlation_id,
+                         true,
+                         "concord.client.clientservice.state_snapshot_service.readasof.callback");
+    if (return_status.ok()) {
+      read_as_of_responses =
+          std::get<std::vector<std::unique_ptr<StateSnapshotReadAsOfResponse>>>(std::move(reponse.response));
+    }
+    reply_available = true;
+    wait_for_me.notify_one();
+  };
 
   ConcordAssertNE(proto_request, nullptr);
   ReconfigurationRequest rreq;
   StateSnapshotReadAsOfRequest cmd;
   cmd.snapshot_id = proto_request->snapshot_id();
-  cmd.participant_id = client_->getTRId();
+  cmd.participant_id = client_->getSubscriptionId();
   for (int i = 0; i < proto_request->keys_size(); ++i) {
     cmd.keys.push_back(proto_request->keys(i));
   }
@@ -357,55 +498,38 @@ Status StateSnapshotServiceImpl::ReadAsOf(ServerContext* context,
   bft::client::Msg message;
   concord::messages::serialize(message, rreq);
   client_->send(read_config, std::move(message), callback);
+  bool response_available = false;
+  {
+    std::mutex mtx;
+    std::unique_lock<std::mutex> lck(mtx);
+    response_available = wait_for_me.wait_for(lck, timeout, [&reply_available]() { return reply_available; });
+  }
+
+  if (!response_available) {
+    return grpc::Status(grpc::StatusCode::UNAVAILABLE, "Timeout");
+  }
+
   for (const auto& res : read_as_of_responses) {
-    if (return_status.ok()) {
-      switch (res->status) {
-        case SnapshotResponseStatus::InternalError:
-          return_status = grpc::Status(grpc::StatusCode::UNKNOWN, "Internal error");
-          break;
-        case SnapshotResponseStatus::SnapshotNonExistent:
-          return_status = grpc::Status(grpc::StatusCode::UNAVAILABLE, "Snapshot doesn't exist");
-          break;
-        case SnapshotResponseStatus::SnapshotPending:
-          return_status = grpc::Status(grpc::StatusCode::UNAVAILABLE, "Snapshot not ready");
-          break;
-        case SnapshotResponseStatus::Success: {
-          auto rv_size = res->values.size();
-          auto pr_size = proto_request->keys_size();
-          if (rv_size != static_cast<decltype(rv_size)>(pr_size)) {
-            return_status = grpc::Status(grpc::StatusCode::UNKNOWN, "Internal error");
-          } else {
-            bool set_values = (response->values_size() == 0);
-            size_t pos = 0;
-            for (const auto& v : res->values) {
-              if (set_values) {
-                auto* resp_val = response->add_values();
-                if (v.has_value()) {
-                  resp_val->set_value(v.value());
-                }
-              } else {
-                if (v.has_value()) {
-                  if (v.value() != response->values(pos).value()) {
-                    return_status =
-                        grpc::Status(grpc::StatusCode::UNKNOWN, "Got different values from different replicas");
-                  }
-                } else {
-                  if ((response->values(pos)).has_value()) {
-                    return_status =
-                        grpc::Status(grpc::StatusCode::UNKNOWN, "Got different values from different replicas");
-                  }
-                }
-                pos++;
-              }
-            }
-          }
-        } break;
-        default:
-          ConcordAssert(false);
-          break;
-      }
-    } else {
-      break;  // Break the for loop.
+    if (!return_status.ok()) {
+      break;
+    }
+
+    switch (res->status) {
+      case SnapshotResponseStatus::InternalError:
+        return_status = grpc::Status(grpc::StatusCode::UNKNOWN, "Internal error");
+        break;
+      case SnapshotResponseStatus::SnapshotNonExistent:
+        return_status = grpc::Status(grpc::StatusCode::UNAVAILABLE, "Snapshot doesn't exist");
+        break;
+      case SnapshotResponseStatus::SnapshotPending:
+        return_status = grpc::Status(grpc::StatusCode::UNAVAILABLE, "Snapshot not ready");
+        break;
+      case SnapshotResponseStatus::Success:
+        compareWithRsiAndSetReadAsOfResponse(res, proto_request, response, return_status);
+        break;
+      default:
+        ConcordAssert(false);
+        break;
     }
   }
   return return_status;

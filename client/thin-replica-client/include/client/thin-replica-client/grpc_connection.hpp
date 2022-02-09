@@ -13,9 +13,6 @@
 
 #pragma once
 
-#ifndef THIN_REPLICA_CLIENT_TRS_CONNECTION_HPP_
-#define THIN_REPLICA_CLIENT_TRS_CONNECTION_HPP_
-
 #include <shared_mutex>
 #include <algorithm>
 #include <fstream>
@@ -33,9 +30,8 @@ using namespace std::chrono_literals;
 namespace client::concordclient {
 
 using RequestId = uint64_t;
-using Latch = std::shared_mutex;
-using WriteLock = std::unique_lock<Latch>;
-using ReadLock = std::shared_lock<Latch>;
+using WriteLock = std::unique_lock<std::shared_mutex>;
+using ReadLock = std::shared_lock<std::shared_mutex>;
 
 struct GrpcConnectionConfig {
   // use_tls determines if a TLS enabled secure channel will be opened
@@ -169,7 +165,7 @@ class GrpcConnection {
                                          RequestId& request_id);
 
   virtual void cancelStateSnapshotStream(RequestId request_id);
-  virtual void cancelStateSnapshotStream();
+  virtual void cancelAllStateSnapshotStreams();
   virtual bool hasStateSnapshotStream(RequestId request_id);
 
   // Read key values from an existing open state snapshot stream. Note readStateSnapshot
@@ -208,7 +204,7 @@ class GrpcConnection {
                      std::unique_ptr<
                          grpc::ClientReaderInterface<vmware::concord::replicastatesnapshot::StreamSnapshotResponse>>>>
       rss_streams_;
-  Latch rss_streams_mutex_;
+  std::shared_mutex rss_streams_mutex_;
   std::atomic_uint64_t current_req_id_{1};
 
   // gRPC connection
@@ -225,5 +221,3 @@ class GrpcConnection {
 };
 
 }  // namespace client::concordclient
-
-#endif  // THIN_REPLICA_CLIENT_TRS_CONNECTION_HPP_

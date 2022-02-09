@@ -34,7 +34,7 @@ using concord::client::concordclient::Update;
 
 using SpanPtr = std::unique_ptr<opentracing::Span>;
 
-namespace client::concordclient {
+namespace client::thin_replica_client {
 
 const std::string kCorrelationIdTag = "cid";
 
@@ -111,4 +111,4 @@ SpanPtr TraceContexts::CreateChildSpanFromBinary(const std::string& trace_contex
   return opentracing::Tracer::Global()->StartSpan(
       child_name, {opentracing::FollowsFrom(&**parent_span_context), opentracing::SetTag{kCorrelationIdTag, cid}});
 }
-}  // namespace client::concordclient
+}  // namespace client::thin_replica_client

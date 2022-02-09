@@ -238,8 +238,8 @@ SubmitResult ConcordClientPool::SendRequest(const bft::client::ReadConfig &confi
     callback(bftEngine::SendResult{static_cast<uint32_t>(OperationResult::INVALID_REQUEST)});
     return SubmitResult::Overloaded;
   }
-  auto request_flag = ClientMsgFlag::READ_ONLY_REQ;
-  if (config.request.reconfiguration) request_flag = ClientMsgFlag::RECONFIG_READ_ONLY_REQ;
+  auto request_flag =
+      config.request.reconfiguration ? ClientMsgFlag::RECONFIG_READ_ONLY_REQ : ClientMsgFlag::READ_ONLY_REQ;
   return SendRequest(std::forward<std::vector<uint8_t>>(request),
                      request_flag,
                      config.request.timeout,
