@@ -172,7 +172,7 @@ void Replica::registerReconfigurationHandlers(std::shared_ptr<bftEngine::IReques
                                             concord::reconfiguration::ReconfigurationHandlerType::PRE);
   requestHandler->setReconfigurationHandler(
       std::make_shared<kvbc::reconfiguration::StateSnapshotReconfigurationHandler>(
-          *this, *this, m_stateSnapshotValueConverter),
+          *this, *this, m_stateSnapshotValueConverter, m_lastAppTxnCallback),
       concord::reconfiguration::ReconfigurationHandlerType::PRE);
   requestHandler->setReconfigurationHandler(std::make_shared<kvbc::reconfiguration::InternalKvReconfigurationHandler>(
                                                 *this, *this, this->AdaptivePruningManager_),

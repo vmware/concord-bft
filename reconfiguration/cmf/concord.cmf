@@ -293,6 +293,10 @@ Msg StateSnapshotData 66 {
   # in the state snapshot. Please note that this is an estimation and *not* the
   # actual count.
   uint64 key_value_count_estimate
+
+  # The time of the last application-level transaction in the given snapshot
+  # in the form of seconds since epoch.
+  uint64 last_application_transaction_time
 }
 
 # The response to a `StateSnapshotRequest`. Sent by the replicas to Clientservice.

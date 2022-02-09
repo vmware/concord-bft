@@ -9,6 +9,8 @@
 #include "categorization/base_types.h"
 #include "categorization/updates.h"
 
+#include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -96,5 +98,11 @@ class IBlocksDeleter {
 
   virtual ~IBlocksDeleter() = default;
 };
+
+// Given an IReader, return the time of the last application-level transaction stored in the blockchain in the form of
+// seconds since epoch.
+using LastApplicationTransactionTimeCallback = std::function<std::uint64_t(const IReader &)>;
+
+inline std::uint64_t epochLastApplicationTransactionTime(const kvbc::IReader &) { return 0; }
 
 }  // namespace concord::kvbc
