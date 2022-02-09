@@ -36,6 +36,18 @@ class utilization {
     utilization_.push_back(std::move(dur));
   }
 
+  // Convenience method for adding marker measurements.
+  // i.e. start and end
+  void addDuration() {
+    durtionMicro dur;
+    dur.start =
+        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())
+            .count();
+    dur.end = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())
+                  .count();
+    addDuration(std::move(dur));
+  }
+
   // Calculate the total time and then subtracts the intervals between the operations.
   std::uint64_t getUtilization() const {
     if (utilization_.size() == 0) return 0;
