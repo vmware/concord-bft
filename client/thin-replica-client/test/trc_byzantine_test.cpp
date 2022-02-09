@@ -42,8 +42,7 @@ using std::chrono::milliseconds;
 using std::chrono::steady_clock;
 using std::chrono::time_point;
 using std::this_thread::sleep_for;
-using concord::client::concordclient::BasicUpdateQueue;
-using concord::client::concordclient::RemoteData;
+using concord::client::concordclient::EventVariant;
 using concord::client::concordclient::Update;
 using concord::client::concordclient::UpdateQueue;
 using client::concordclient::kThinReplicaHashLength;
@@ -58,7 +57,7 @@ static_assert((kMaxFaultyIn4NodeCluster * 3 + 1) == 4);
 
 // Helper function(s) and struct(s) to test case(s) in this suite.
 
-bool UpdateMatchesExpected(const std::unique_ptr<RemoteData>& update_received, const Data& update_expected) {
+bool UpdateMatchesExpected(const std::unique_ptr<EventVariant>& update_received, const Data& update_expected) {
   EXPECT_TRUE(std::holds_alternative<Update>(*update_received));
   auto& legacy_event = std::get<Update>(*update_received);
   if ((legacy_event.block_id != update_expected.events().block_id()) ||
@@ -79,7 +78,7 @@ void VerifyInitialState(shared_ptr<UpdateQueue>& received_updates,
                         size_t num_updates,
                         const string& faulty_description) {
   for (size_t i = 0; i < num_updates; ++i) {
-    unique_ptr<RemoteData> received_update = received_updates->pop();
+    unique_ptr<EventVariant> received_update = received_updates->pop();
     ASSERT_TRUE((bool)received_update) << "ThinReplicaClient failed to fetch an expected update from the "
                                           "initial state in the presence of "
                                        << faulty_description << ".";
@@ -94,7 +93,7 @@ void VerifyUpdates(shared_ptr<UpdateQueue>& received_updates,
                    const vector<Data>& expected_updates,
                    const string& faulty_description) {
   for (size_t i = 0; i < expected_updates.size(); ++i) {
-    unique_ptr<RemoteData> received_update = received_updates->pop();
+    unique_ptr<EventVariant> received_update = received_updates->pop();
     ASSERT_TRUE((bool)received_update) << "ThinReplicaClient failed to stream an expected update from a "
                                           "subscription in the presence of "
                                        << faulty_description << ".";
@@ -164,7 +163,7 @@ struct ByzantineTestCaseState {
         byzantine_behavior_(byzantine_behavior),
         server_preparer_(correct_data_preparer_, correct_hasher_, byzantine_behavior_),
         mock_servers_(CreateByzantineMockServers(num_servers, server_preparer_)),
-        update_queue_(new BasicUpdateQueue()),
+        update_queue_(new UpdateQueue()),
         trs_connections_(
             CreateTrsConnections<ByzantineMockThinReplicaServerPreparer::ByzantineMockServer>(mock_servers_)),
         trc_config_(new ThinReplicaClientConfig(kTestingClientID, update_queue_, max_faulty, trs_connections_)),

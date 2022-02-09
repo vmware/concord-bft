@@ -31,7 +31,7 @@ using com::vmware::concord::thin_replica::KVPair;
 using com::vmware::concord::thin_replica::ReadStateHashRequest;
 using com::vmware::concord::thin_replica::ReadStateRequest;
 using com::vmware::concord::thin_replica::SubscriptionRequest;
-using concord::client::concordclient::RemoteData;
+using concord::client::concordclient::EventVariant;
 using concord::client::concordclient::EventGroup;
 using concord::client::concordclient::Update;
 using concord::client::concordclient::UpdateNotFound;
@@ -657,7 +657,7 @@ void ThinReplicaClient::receiveUpdates() {
 
     ConcordAssertNE(config_->update_queue, nullptr);
 
-    auto update = std::make_unique<RemoteData>();
+    auto update = std::make_unique<EventVariant>();
     if (update_in.has_event_group()) {
       EventGroup event_group;
       event_group.id = update_in.event_group().id();
@@ -710,7 +710,7 @@ void ThinReplicaClient::receiveUpdates() {
   stop_subscription_thread_ = true;
 }
 
-void ThinReplicaClient::pushUpdateToUpdateQueue(std::unique_ptr<RemoteData> update,
+void ThinReplicaClient::pushUpdateToUpdateQueue(std::unique_ptr<EventVariant> update,
                                                 const std::chrono::steady_clock::time_point& start,
                                                 bool is_event_group) {
   // update current queue size metric before pushing to the update_queue
@@ -781,7 +781,7 @@ void ThinReplicaClient::Subscribe() {
 
   bool has_verified_state = false;
   size_t data_server_index = 0;
-  list<unique_ptr<RemoteData>> state;
+  list<unique_ptr<EventVariant>> state;
   uint64_t block_id = 0;
 
   while (!has_verified_state && (data_server_index < config_->trs_conns.size())) {
@@ -826,7 +826,7 @@ void ThinReplicaClient::Subscribe() {
         received_state_invalid = true;
       } else {
         block_id = response.events().block_id();
-        auto update = std::make_unique<RemoteData>();
+        auto update = std::make_unique<EventVariant>();
         auto& legacy_event = std::get<Update>(*update);
         legacy_event.block_id = block_id;
         legacy_event.correlation_id_ = response.events().correlation_id();

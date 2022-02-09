@@ -15,20 +15,19 @@
 #include "client/thin-replica-client/replica_stream_snapshot_client.hpp"
 
 using client::concordclient::GrpcConnection;
-using concord::client::concordclient::RemoteData;
 using concord::client::concordclient::SnapshotKVPair;
 using concord::client::concordclient::UpdateNotFound;
 using concord::client::concordclient::OutOfRangeSubscriptionRequest;
 using concord::client::concordclient::InternalError;
 using concord::client::concordclient::EndOfStream;
 using concord::client::concordclient::StreamUnavailable;
-using concord::client::concordclient::UpdateQueue;
+using concord::client::concordclient::StreamUpdateQueue;
 using vmware::concord::replicastatesnapshot::StreamSnapshotRequest;
 using vmware::concord::replicastatesnapshot::StreamSnapshotResponse;
 
 namespace client::replica_state_snapshot_client {
 void ReplicaStreamSnapshotClient::readSnapshotStream(const SnapshotRequest& request,
-                                                     std::shared_ptr<UpdateQueue> remote_queue) {
+                                                     std::shared_ptr<StreamUpdateQueue> remote_queue) {
   threadpool_.async([this, remote_queue, request]() {
     try {
       this->receiveSnapshot(request, remote_queue);
@@ -40,7 +39,7 @@ void ReplicaStreamSnapshotClient::readSnapshotStream(const SnapshotRequest& requ
 }
 
 void ReplicaStreamSnapshotClient::receiveSnapshot(const SnapshotRequest& request,
-                                                  std::shared_ptr<UpdateQueue> remote_queue) {
+                                                  std::shared_ptr<StreamUpdateQueue> remote_queue) {
   ConcordAssert(config_->rss_conns.size() > 0);
   uint16_t replica_id = 0;
   GrpcConnection::Result result = GrpcConnection::Result::kUnknown;
@@ -85,15 +84,11 @@ void ReplicaStreamSnapshotClient::receiveSnapshot(const SnapshotRequest& request
   pushFinalStateToRemoteQueue(result);
 }
 void ReplicaStreamSnapshotClient::pushDatumToRemoteQueue(const StreamSnapshotResponse& datum,
-                                                         std::shared_ptr<UpdateQueue> remote_queue,
+                                                         std::shared_ptr<StreamUpdateQueue> remote_queue,
                                                          std::string& last_key) {
   if (datum.has_key_value()) {
-    auto snapshot_datum = std::make_unique<RemoteData>();
-    SnapshotKVPair kv_pair;
-    kv_pair.key = datum.key_value().key();
-    last_key.assign(kv_pair.key);
-    kv_pair.val = datum.key_value().value();
-    snapshot_datum->emplace<SnapshotKVPair>(kv_pair);
+    last_key.assign(datum.key_value().key());
+    auto snapshot_datum = std::make_unique<SnapshotKVPair>(last_key, datum.key_value().value());
     remote_queue->push(std::move(snapshot_datum));
   }
 }

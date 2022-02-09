@@ -32,7 +32,7 @@ using std::make_unique;
 using std::shared_ptr;
 using std::string;
 using std::vector;
-using concord::client::concordclient::BasicUpdateQueue;
+using concord::client::concordclient::UpdateQueue;
 using client::concordclient::ThinReplicaClient;
 using client::concordclient::ThinReplicaClientConfig;
 
@@ -56,7 +56,7 @@ TEST(trc_rpc_use_test, test_trc_constructor_and_destructor) {
   uint16_t max_faulty = 1;
   size_t num_replicas = 3 * max_faulty + 1;
 
-  auto update_queue = make_shared<BasicUpdateQueue>();
+  auto update_queue = make_shared<UpdateQueue>();
   auto record = make_shared<ThinReplicaCommunicationRecord>();
 
   auto server_recorders = CreateMockServerRecorders(num_replicas, stream_preparer, hasher, record);
@@ -88,7 +88,7 @@ TEST(trc_rpc_use_test, test_trc_subscribe) {
   uint16_t max_faulty = 3;
   size_t num_replicas = 3 * max_faulty + 1;
 
-  auto update_queue = make_shared<BasicUpdateQueue>();
+  auto update_queue = make_shared<UpdateQueue>();
   auto record = make_shared<ThinReplicaCommunicationRecord>();
 
   auto server_recorders = CreateMockServerRecorders(num_replicas, stream_preparer, hasher, record);

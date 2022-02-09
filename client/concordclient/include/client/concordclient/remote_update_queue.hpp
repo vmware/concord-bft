@@ -19,13 +19,16 @@
 #include <mutex>
 #include <exception>
 
+#include "assertUtils.hpp"
+
 #include "client/concordclient/remote_update_data.hpp"
 
 namespace concord::client::concordclient {
 
 // An implementation of UpdateQueue should guarantee that ReleaseConsumers, Clear, Push, Pop, and TryPop are all
 // mutually thread safe.
-class UpdateQueue {
+template <typename T>
+class RemoteUpdateQueue {
  public:
   // Destructor for UpdateQueue (which UpdateQueue implementations should override). Note the UpdateQueue interface does
   // NOT require that implementations guarantee the destructor be thread safe. the UpdateQueue functions' behavior may
@@ -36,7 +39,7 @@ class UpdateQueue {
   // there are no outstanding calls to the UpdateQueue's functions and that no thread will start new ones before
   // destroying an instance. Note the ReleaseConsumers function can be used to have the queue unblock and release any
   // threads still waiting on UpdateQueue::Pop calls.
-  virtual ~UpdateQueue() {}
+  virtual ~RemoteUpdateQueue() {}
 
   // Release any threads currently waiting on blocking UpdateQueue::Pop calls made to this UpdateQueue, making those
   // calls return pointers to null; making this call also puts the UpdateQueue into a state where any new calls to the
@@ -54,7 +57,7 @@ class UpdateQueue {
   // the update being pushed. Note the update is passed by unique_ptr, as this operation gives ownership of the
   // allocated update to the queue. UpdateQueue implementations may choose whether they keep this allocated Update or
   // free it after storing the data from the update by some other means.
-  virtual void push(std::unique_ptr<RemoteData> update) = 0;
+  virtual void push(std::unique_ptr<T> update) = 0;
 
   // Synchronously pop and return the update at the front of the queue. Normally, if there are no updates available in
   // the queue, this function should block the calling thread and wait until an update that can be popped is available.
@@ -65,13 +68,13 @@ class UpdateQueue {
   // other means. If ReleaseConsumers is called, any currently waiting Pop calls will be unblocked, and will return a
   // unique_ptr to null rather than continuing to wait for new updates. Furthermore, a call to ReleaseConsumers will
   // cause any subsequent calls to Pop to return nullptr and will prevent them from blocking their caller.
-  virtual std::unique_ptr<RemoteData> pop() = 0;
+  virtual std::unique_ptr<T> pop() = 0;
 
   // Synchronously pop an update from the front of the queue if one is available, but do not block the calling thread to
   // wait on one if one is not immediately found. Returns a unique_ptr to nullptr if no update is immediately found, and
   // a unique_ptr giving ownership of an allocated Update otherwise (this may involve dynamic memory allocation at the
   // discretion of the UpdateQueue implementation).
-  virtual std::unique_ptr<RemoteData> tryPop() = 0;
+  virtual std::unique_ptr<T> tryPop() = 0;
 
   virtual uint64_t size() = 0;
 
@@ -82,36 +85,42 @@ class UpdateQueue {
 // interface, but details of this class's implementation should be considered subject to change as we may revise it as
 // we implement, harden, and test the Thin Replica Client Library and develop a more complete understanding of the needs
 // of this library.
-class BasicUpdateQueue : public UpdateQueue {
+template <typename T>
+class BasicRemoteUpdateQueue : public RemoteUpdateQueue<T> {
  private:
-  std::list<std::unique_ptr<RemoteData>> queue_data_;
+  std::list<std::unique_ptr<T>> queue_data_;
   std::mutex mutex_;
   std::condition_variable condition_;
   bool release_consumers_;
   std::exception_ptr exception_;
 
  public:
-  // Construct a BasicUpdateQueue.
-  BasicUpdateQueue();
+  // Construct a BasicRemoteUpdateQueue.
+  BasicRemoteUpdateQueue();
 
-  // Copying or moving a BasicUpdateQueue is explicitly disallowed, as we do not know of a compelling use case requiring
-  // copying or moving BasicUpdateQueues, we believe semantics for these operations are likely to be messy in some
-  // cases, and we believe implementation may be non-trivial. We may revisit the decision to disallow these operations
-  // should compelling use cases for them be found in the future.
-  BasicUpdateQueue(const BasicUpdateQueue& other) = delete;
-  BasicUpdateQueue(const BasicUpdateQueue&& other) = delete;
-  BasicUpdateQueue& operator=(const BasicUpdateQueue& other) = delete;
-  BasicUpdateQueue& operator=(const BasicUpdateQueue&& other) = delete;
+  // Copying or moving a BasicRemoteUpdateQueue is explicitly disallowed, as we do not know of a compelling use case
+  // requiring copying or moving BasicRemoteUpdateQueue, we believe semantics for these operations are likely to be
+  // messy in some cases, and we believe implementation may be non-trivial. We may revisit the decision to disallow
+  // these operations should compelling use cases for them be found in the future.
+  BasicRemoteUpdateQueue(const BasicRemoteUpdateQueue& other) = delete;
+  BasicRemoteUpdateQueue(const BasicRemoteUpdateQueue&& other) = delete;
+  BasicRemoteUpdateQueue& operator=(const BasicRemoteUpdateQueue& other) = delete;
+  BasicRemoteUpdateQueue& operator=(const BasicRemoteUpdateQueue&& other) = delete;
 
   // Implementation of UpdateQueue interface
-  virtual ~BasicUpdateQueue() override;
+  virtual ~BasicRemoteUpdateQueue() override;
   virtual void releaseConsumers() override;
   virtual void clear() override;
-  virtual void push(std::unique_ptr<RemoteData> update) override;
-  virtual std::unique_ptr<RemoteData> pop() override;
-  virtual std::unique_ptr<RemoteData> tryPop() override;
+  virtual void push(std::unique_ptr<T> update) override;
+  virtual std::unique_ptr<T> pop() override;
+  virtual std::unique_ptr<T> tryPop() override;
   virtual uint64_t size() override;
   virtual void setException(std::exception_ptr e) override;
 };
 
+using StreamUpdateQueue = BasicRemoteUpdateQueue<SnapshotKVPair>;
+using UpdateQueue = BasicRemoteUpdateQueue<EventVariant>;
+
 }  // namespace concord::client::concordclient
+
+#include "remote_update_queue.ipp"

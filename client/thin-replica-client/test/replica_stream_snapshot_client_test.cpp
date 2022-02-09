@@ -33,9 +33,8 @@ using std::unique_ptr;
 using std::vector;
 using std::chrono::milliseconds;
 using concord::util::ThreadPool;
-using concord::client::concordclient::BasicUpdateQueue;
-using concord::client::concordclient::RemoteData;
-using concord::client::concordclient::UpdateQueue;
+using concord::client::concordclient::SnapshotKVPair;
+using concord::client::concordclient::StreamUpdateQueue;
 using client::concordclient::GrpcConnection;
 using client::concordclient::GrpcConnectionConfig;
 using com::vmware::concord::thin_replica::MockThinReplicaStub;
@@ -168,7 +167,7 @@ TEST(replica_stream_snapshot_client_test, test_destructor_always_successful) {
     auto rss_config = std::make_unique<ReplicaStateSnapshotClientConfig>(grpc_connections, 8);
     auto rss = std::make_unique<ReplicaStreamSnapshotClient>(std::move(rss_config));
 
-    std::shared_ptr<UpdateQueue> remote_queue = std::make_shared<BasicUpdateQueue>();
+    auto remote_queue = std::make_shared<StreamUpdateQueue>();
     ASSERT_EQ(remote_queue->size(), 0);
     ::client::replica_state_snapshot_client::SnapshotRequest rss_request;
     rss_request.snapshot_id = 1;
@@ -227,7 +226,7 @@ TEST(replica_stream_snapshot_client_test, test_real_action) {
     auto rss_config = std::make_unique<ReplicaStateSnapshotClientConfig>(grpc_connections, 8);
     auto rss = std::make_unique<ReplicaStreamSnapshotClient>(std::move(rss_config));
 
-    std::shared_ptr<UpdateQueue> remote_queue = std::make_shared<BasicUpdateQueue>();
+    auto remote_queue = std::make_shared<StreamUpdateQueue>();
     ASSERT_EQ(remote_queue->size(), 0);
     ::client::replica_state_snapshot_client::SnapshotRequest rss_request;
     rss_request.snapshot_id = len;
@@ -238,7 +237,7 @@ TEST(replica_stream_snapshot_client_test, test_real_action) {
         [&remote_queue](size_t l) {
           size_t num_received = 0;
           while (true) {
-            std::unique_ptr<RemoteData> update;
+            std::unique_ptr<SnapshotKVPair> update;
             try {
               update = remote_queue->pop();
             } catch (...) {
