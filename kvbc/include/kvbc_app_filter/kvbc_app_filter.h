@@ -40,6 +40,8 @@ typedef size_t KvbStateHash;
 
 typedef BlockUpdate KvbUpdate;
 typedef EventGroupUpdate EgUpdate;
+// global_event_group_id, external_tag_event_group_id
+typedef std::pair<uint64_t, uint64_t> TagTableValue;
 
 struct KvbFilteredUpdate {
   using OrderedKVPairs = std::vector<std::pair<std::string, std::string>>;
@@ -219,7 +221,7 @@ class KvbAppFilter {
 
   uint64_t getValueFromLatestTable(const std::string &key) const;
 
-  uint64_t getValueFromTagTable(const std::string &key) const;
+  TagTableValue getValueFromTagTable(const std::string &key) const;
 
   uint64_t oldestTagSpecificPublicEventGroupId() const;
 
