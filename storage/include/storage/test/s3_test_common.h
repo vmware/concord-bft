@@ -127,7 +127,7 @@ class S3Test : public ::testing::Test {
   struct shared_state {
     concord::storage::s3::StoreConfig config;
     fs::path test_dir;
-    std::unique_ptr<concord::storage::s3::Client> client;
+    std::shared_ptr<concord::storage::s3::Client> client;
     std::unique_ptr<IS3Server> server;
   };
   static shared_state state;

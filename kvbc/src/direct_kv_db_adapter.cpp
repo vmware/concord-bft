@@ -20,6 +20,7 @@
 #include "direct_kv_db_adapter.h"
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
 #include "hex_tools.h"
+#include "sha_hash.hpp"
 #include "string.hpp"
 #include "assertUtils.hpp"
 #include "categorization/kv_blockchain.h"
@@ -76,8 +77,10 @@ Key S3KeyGenerator::blockKey(const BlockId &blockId) const {
 }
 
 Key S3KeyGenerator::dataKey(const Key &key, const BlockId &blockId) const {
-  LOG_DEBUG(logger(), prefix_ + std::string("keys/") + string2hex(key.toString()));
-  return prefix_ + std::string("keys/") + string2hex(key.toString());
+  auto digest = concord::util::SHA3_256().digest(key.data(), key.length());
+  auto digest_str = concord::util::SHA3_256::toHexString(digest);
+  LOG_DEBUG(logger(), prefix_ + std::string("keys/") + digest_str);
+  return prefix_ + std::string("keys/") + digest_str;
 }
 
 Key S3KeyGenerator::mdtKey(const Key &key) const {
@@ -410,11 +413,11 @@ void DBAdapter::addRawBlock(const RawBlock &block, const BlockId &blockId, bool 
     concordUtils::Sliver slivBlockId = concordUtils::Sliver::copy(strBlockId.data(), strBlockId.length());
     parsedBlock = concord::kvbc::categorization::RawBlock::deserialize(block);
     for (auto &[key, value] : parsedBlock.data.updates.kv) {
-      LOG_INFO(logger_, "key: " << key);
+      LOG_DEBUG(logger_, "key: " << key);
       std::visit(
           [this, &keys, slivBlockId](auto &&arg) {
             for (auto &[k, v] : arg.kv) {
-              LOG_INFO(logger_, "k: " << k);
+              LOG_DEBUG(logger_, "k: " << k);
               concordUtils::Sliver sKey = Sliver::copy(k.data(), k.length());
               keys[sKey] = slivBlockId;
               (void)v;
