@@ -46,7 +46,7 @@ void ReplicaResourceEntity::addMeasurement(const ISystemResourceEntity::measurem
   mutex_.unlock();
 }
 
-uint64_t ReplicaResourceEntity::getMeasurement(const ISystemResourceEntity::type type) const {
+uint64_t ReplicaResourceEntity::getMeasurement(const ISystemResourceEntity::type type) {
   mutex_.lock();
   uint64_t ret = 0;
   switch (type) {
@@ -56,10 +56,12 @@ uint64_t ReplicaResourceEntity::getMeasurement(const ISystemResourceEntity::type
       break;
     // Pruning utilization
     case ISystemResourceEntity::type::pruning_utilization:
+      pruning_utilization.addDuration();
       ret = pruning_utilization.getUtilization();
       break;
     // Poset-exec utilization
     case ISystemResourceEntity::type::post_execution_utilization:
+      post_exec_utilization.addDuration();
       ret = post_exec_utilization.getUtilization();
       break;
     // Poset-exec avg
@@ -88,7 +90,9 @@ void ReplicaResourceEntity::start() { is_stopped = false; }
 void ReplicaResourceEntity::reset() {
   mutex_.lock();
   pruning_utilization.restart();
+  pruning_utilization.addDuration();
   post_exec_utilization.restart();
+  post_exec_utilization.addDuration();
   pruned_blocks = 0;
   pruning_accumulated_time = 0;
   num_of_consensus = 0;

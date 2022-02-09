@@ -26,7 +26,7 @@ class ResourceEntityMock : public ISystemResourceEntity {
  public:
   virtual ~ResourceEntityMock() = default;
   virtual int64_t getAvailableResources() const override { return availableResources; }
-  virtual uint64_t getMeasurement(const type type) const override { return measurements; }
+  virtual uint64_t getMeasurement(const type type) override { return measurements; }
 
   virtual const std::string getResourceName() const override { return "MOCK"; }
 
