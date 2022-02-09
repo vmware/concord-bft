@@ -102,7 +102,7 @@ Client::ResponseData Client::delete_internal(const Sliver& key) {
   return rData;
 }
 
-Client::GetObjectResponseData Client::get_internal(const Sliver& key, OUT Sliver& outValue) const {
+Client::GetObjectResponseData Client::get_internal(const Sliver& key, Sliver& outValue) const {
   ConcordAssert(init_);
   LOG_DEBUG(logger_, "key: " << key.toString());
   GetObjectResponseData cbData(kInitialGetBufferSize_);
@@ -252,6 +252,24 @@ KeyValuePair Client::Iterator::seek(const Sliver& prefix) {
     LOG_ERROR(logger_, "ERROR: " << S3_get_status_name(cb_data_.status) << cb_data_.errorMessage);
   iterator_ = cb_data_.results.begin() + prevKeyCount;
   return getCurrent();
+}
+void Client::Transaction::commit() {
+  static logging::Logger logger_ = logging::getLogger("concord.storage.s3");
+  std::vector<std::future<concordUtils::Status>> futures;
+  for (auto& pair : multiput_)
+    futures.emplace_back(
+        client_->put_thread_pool_.async([this, pair] { return client_->put(pair.first, pair.second); }));
+  for (auto& key : keys_to_delete_)
+    futures.emplace_back(client_->put_thread_pool_.async([this, key] { return client_->del(key); }));
+  for (auto& f : futures) {
+    concordUtils::Status s = f.get();
+    LOG_TRACE(logger_, "status: " << s.toString());
+    if (s != concordUtils::Status::OK()) {
+      throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(" txn id[") + getIdStr() +
+                               std::string("], failed, status: ") + s.toString());
+    }
+  }
+  LOG_DEBUG(logger_, "txn id[" + getIdStr() + std::string("]"));
 }
 
 }  // namespace concord::storage::s3

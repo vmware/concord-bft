@@ -410,11 +410,11 @@ void DBAdapter::addRawBlock(const RawBlock &block, const BlockId &blockId, bool 
     concordUtils::Sliver slivBlockId = concordUtils::Sliver::copy(strBlockId.data(), strBlockId.length());
     parsedBlock = concord::kvbc::categorization::RawBlock::deserialize(block);
     for (auto &[key, value] : parsedBlock.data.updates.kv) {
-      LOG_INFO(logger_, "key: " << key);
+      LOG_DEBUG(logger_, "key: " << key);
       std::visit(
           [this, &keys, slivBlockId](auto &&arg) {
             for (auto &[k, v] : arg.kv) {
-              LOG_INFO(logger_, "k: " << k);
+              LOG_DEBUG(logger_, "k: " << k);
               concordUtils::Sliver sKey = Sliver::copy(k.data(), k.length());
               keys[sKey] = slivBlockId;
               (void)v;
