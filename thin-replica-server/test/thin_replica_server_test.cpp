@@ -301,11 +301,21 @@ class FakeStorage : public concord::kvbc::IReader {
     latest_table[key + "_oldest"] = concordUtils::toBigEndianStringBuffer(id);
   }
 
-  void updateTagTable(const std::string& trid, const uint64_t global_event_group_id) {
+  void updateTagTable(const std::string& trid, const uint64_t global_event_group_id, uint64_t external_tag_eg_id = 0) {
     // We need to be able to map the global event_group_id to the trid specific event_group_id
     auto logger = logging::getLogger("thin_replica_server_test");
+    if (trid != kPublicEgIdKey) {
+      if (latest_table.find(kPublicEgIdKey + "_oldest") != latest_table.end()) {
+        external_tag_eg_id =
+            concordUtils::fromBigEndianBuffer<uint64_t>(latest_table[trid + "_newest"].data()) +
+            concordUtils::fromBigEndianBuffer<uint64_t>(latest_table[kPublicEgIdKey + "_newest"].data());
+      } else {
+        external_tag_eg_id = concordUtils::fromBigEndianBuffer<uint64_t>(latest_table[trid + "_newest"].data());
+      }
+    }
     tag_table[trid + kTagTableKeySeparator + latest_table[trid + "_newest"]] =
-        concordUtils::toBigEndianStringBuffer(global_event_group_id);
+        concordUtils::toBigEndianStringBuffer(global_event_group_id) + kTagTableKeySeparator +
+        concordUtils::toBigEndianStringBuffer(external_tag_eg_id);
     LOG_DEBUG(logger,
               "key: " << trid + kTagTableKeySeparator
                       << concordUtils::fromBigEndianBuffer<uint64_t>(latest_table[trid + "_newest"].data())
