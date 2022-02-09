@@ -77,7 +77,8 @@ void AdaptivePruningManager::threadFunction() {
   while (isRunning.load()) {
     {
       std::unique_lock<std::mutex> lk(conditionLock);
-      conditionVar.wait(lk, [this]() { return mode.load() == ADAPTIVE && amIPrimary.load(); });
+      conditionVar.wait(lk,
+                        [this]() { return !isRunning.load() || (getCurrentMode() == ADAPTIVE && amIPrimary.load()); });
     }
     if (isRunning.load()) {
       std::unique_lock<std::mutex> lk(conditionLock);
@@ -91,7 +92,7 @@ void AdaptivePruningManager::threadFunction() {
 void AdaptivePruningManager::start() {
   std::unique_lock<std::mutex> lk(conditionLock);
   if (!isRunning.load() && resourceManager.get() != nullptr && bftClient.get() != nullptr) {
-    isRunning = true;
+    isRunning.store(true);
     workThread = std::thread(&AdaptivePruningManager::threadFunction, this);
   } else {
     LOG_INFO(ADPTV_PRUNING, "Failed to start thread");
@@ -100,7 +101,7 @@ void AdaptivePruningManager::start() {
 
 void AdaptivePruningManager::stop() {
   if (isRunning.load()) {
-    isRunning = false;
+    isRunning.store(false);
     conditionVar.notify_one();
     workThread.join();
   }
