@@ -34,6 +34,7 @@
 #include <ccron/ticks_generator.hpp>
 #include "ReplicaResources.h"
 #include "AdaptivePruningManager.hpp"
+#include "kvbc_app_filter/value_from_kvbc_proto.h"
 
 namespace concord::kvbc {
 
@@ -215,8 +216,7 @@ class Replica : public IReplica,
   concord::kvbc::IStorageFactory::DatabaseSet m_dbSet;
   // The categorization KeyValueBlockchain is used for a normal read-write replica.
   std::optional<categorization::KeyValueBlockchain> m_kvBlockchain;
-  categorization::KeyValueBlockchain::Converter m_stateSnapshotValueConverter{
-      categorization::KeyValueBlockchain::kNoopConverter};
+  categorization::KeyValueBlockchain::Converter m_stateSnapshotValueConverter{concord::kvbc::valueFromKvbcProto};
   // The IdbAdapter instance is used for a read-only replica.
   std::unique_ptr<IDbAdapter> m_bcDbAdapter;
   std::shared_ptr<storage::IDBClient> m_metadataDBClient;
