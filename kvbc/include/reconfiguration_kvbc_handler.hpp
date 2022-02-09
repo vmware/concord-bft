@@ -54,8 +54,11 @@ class StateSnapshotReconfigurationHandler : public ReconfigurationBlockTools,
  public:
   StateSnapshotReconfigurationHandler(kvbc::IBlockAdder& block_adder,
                                       kvbc::IReader& ro_storage,
-                                      const categorization::KeyValueBlockchain::Converter& state_value_converter)
-      : ReconfigurationBlockTools{block_adder, ro_storage}, state_value_converter_{state_value_converter} {}
+                                      const categorization::KeyValueBlockchain::Converter& state_value_converter,
+                                      const kvbc::LastApplicationTransactionTimeCallback& last_app_txn_time_cb_)
+      : ReconfigurationBlockTools{block_adder, ro_storage},
+        state_value_converter_{state_value_converter},
+        last_app_txn_time_cb_{last_app_txn_time_cb_} {}
 
   bool handle(const concord::messages::StateSnapshotRequest&,
               uint64_t,
@@ -87,6 +90,10 @@ class StateSnapshotReconfigurationHandler : public ReconfigurationBlockTools,
   // Allows users to convert state values to any format that is appropriate.
   // The default converter extracts the value from the ValueWithTrids protobuf type.
   categorization::KeyValueBlockchain::Converter state_value_converter_{valueFromKvbcProto};
+
+  // Returns the time of the last application-level transaction stored in the blockchain in the form of seconds since
+  // epoch. The default callback returns epoch (0).
+  kvbc::LastApplicationTransactionTimeCallback last_app_txn_time_cb_{kvbc::epochLastApplicationTransactionTime};
 
   const concord::reconfiguration::BftReconfigurationHandler bft_reconf_handler_;
   const concord::reconfiguration::ClientReconfigurationHandler client_reconf_handler_;

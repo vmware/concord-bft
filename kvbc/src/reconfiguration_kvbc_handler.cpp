@@ -201,6 +201,7 @@ bool StateSnapshotReconfigurationHandler::handle(const concord::messages::StateS
     } else {
       resp.data->key_value_count_estimate = public_state->keys.size();
     }
+    resp.data->last_application_transaction_time = last_app_txn_time_cb_(reader);
     LOG_INFO(getLogger(),
              "StateSnapshotRequest(participant ID = " << cmd.participant_id << "): using existing last checkpoint ID: "
                                                       << last_checkpoint_desc->checkPointId_);
@@ -226,6 +227,7 @@ bool StateSnapshotReconfigurationHandler::handle(const concord::messages::StateS
         ConcordAssertNE(val, nullptr);
         categorization::detail::deserialize(val->data, public_state);
         resp.data->key_value_count_estimate = public_state.keys.size();
+        resp.data->last_application_transaction_time = last_app_txn_time_cb_(ro_storage_);
       }
       LOG_INFO(getLogger(),
                "StateSnapshotRequest(participant ID = " << cmd.participant_id
