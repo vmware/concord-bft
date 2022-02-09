@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2021-2022 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2020-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -16,14 +16,13 @@
 namespace concord::client::concordclient {
 
 template <typename T>
-BasicRemoteUpdateQueue<T>::BasicRemoteUpdateQueue()
-    : queue_data_(), mutex_(), condition_(), release_consumers_(false) {}
+BasicThreadSafeQueue<T>::BasicThreadSafeQueue() : queue_data_(), mutex_(), condition_(), release_consumers_(false) {}
 
 template <typename T>
-BasicRemoteUpdateQueue<T>::~BasicRemoteUpdateQueue() {}
+BasicThreadSafeQueue<T>::~BasicThreadSafeQueue() {}
 
 template <typename T>
-void BasicRemoteUpdateQueue<T>::releaseConsumers() {
+void BasicThreadSafeQueue<T>::releaseConsumers() {
   {
     std::lock_guard<std::mutex> lock(mutex_);
     release_consumers_ = true;
@@ -32,13 +31,13 @@ void BasicRemoteUpdateQueue<T>::releaseConsumers() {
 }
 
 template <typename T>
-void BasicRemoteUpdateQueue<T>::clear() {
+void BasicThreadSafeQueue<T>::clear() {
   std::lock_guard<std::mutex> lock(mutex_);
   queue_data_.clear();
 }
 
 template <typename T>
-void BasicRemoteUpdateQueue<T>::push(std::unique_ptr<T> update) {
+void BasicThreadSafeQueue<T>::push(std::unique_ptr<T> update) {
   {
     std::lock_guard<std::mutex> lock(mutex_);
     queue_data_.push_back(move(update));
@@ -47,7 +46,7 @@ void BasicRemoteUpdateQueue<T>::push(std::unique_ptr<T> update) {
 }
 
 template <typename T>
-std::unique_ptr<T> BasicRemoteUpdateQueue<T>::pop() {
+std::unique_ptr<T> BasicThreadSafeQueue<T>::pop() {
   std::unique_lock<std::mutex> lock(mutex_);
   while (!(exception_ || release_consumers_ || (queue_data_.size() > 0))) {
     condition_.wait(lock);
@@ -67,7 +66,7 @@ std::unique_ptr<T> BasicRemoteUpdateQueue<T>::pop() {
 }
 
 template <typename T>
-std::unique_ptr<T> BasicRemoteUpdateQueue<T>::tryPop() {
+std::unique_ptr<T> BasicThreadSafeQueue<T>::tryPop() {
   std::lock_guard<std::mutex> lock(mutex_);
   if (exception_) {
     auto e = exception_;
@@ -84,13 +83,13 @@ std::unique_ptr<T> BasicRemoteUpdateQueue<T>::tryPop() {
 }
 
 template <typename T>
-uint64_t BasicRemoteUpdateQueue<T>::size() {
+uint64_t BasicThreadSafeQueue<T>::size() {
   std::scoped_lock sl(mutex_);
   return queue_data_.size();
 }
 
 template <typename T>
-void BasicRemoteUpdateQueue<T>::setException(std::exception_ptr e) {
+void BasicThreadSafeQueue<T>::setException(std::exception_ptr e) {
   {
     std::lock_guard<std::mutex> lock(mutex_);
     exception_ = e;

@@ -30,7 +30,7 @@ using std::map;
 using std::set;
 using std::string;
 
-namespace client::concordclient {
+namespace client::thin_replica_client {
 
 // Hash functions in this file may be defined in a way assuming char is an 8 bit
 // type.
@@ -165,4 +165,4 @@ string hashState(const list<string>& state) {
   return computeSHA256Hash(concatenated_update_hashes);
 }
 
-}  // namespace client::concordclient
+}  // namespace client::thin_replica_client

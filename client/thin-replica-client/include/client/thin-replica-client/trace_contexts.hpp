@@ -18,14 +18,14 @@
 #include <optional>
 
 #include "thin_replica.pb.h"
-#include "client/concordclient/remote_update_data.hpp"
+#include "client/concordclient/event_update.hpp"
 #include "Logger.hpp"
 
 using opentracing::expected;
 
 namespace cc = concord::client::concordclient;
 
-namespace client::concordclient {
+namespace client::thin_replica_client {
 
 class TraceContexts {
  public:
@@ -38,6 +38,6 @@ class TraceContexts {
                                            const std::string& correlation_id = {});
 };
 
-}  // namespace client::concordclient
+}  // namespace client::thin_replica_client
 
 #endif  // THIN_REPLICA_CLIENT_TRACE_CONTEXTS_HPP_

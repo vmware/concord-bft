@@ -19,9 +19,9 @@
 #include <list>
 #include "openssl_crypto.hpp"
 #include "thin_replica.grpc.pb.h"
-#include "client/concordclient/remote_update_data.hpp"
+#include "client/concordclient/event_update.hpp"
 
-namespace client::concordclient {
+namespace client::thin_replica_client {
 
 const size_t kThinReplicaHashLength = concord::util::openssl_utils::kExpectedSHA256HashLengthInBytes;
 
@@ -43,6 +43,6 @@ std::string hashUpdate(const com::vmware::concord::thin_replica::Data& update);
 // hash.
 std::string hashState(const std::list<std::string>& state);
 
-}  // namespace client::concordclient
+}  // namespace client::thin_replica_client
 
 #endif  // TRC_HASH_HPP_

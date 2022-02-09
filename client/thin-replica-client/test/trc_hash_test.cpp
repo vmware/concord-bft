@@ -14,14 +14,14 @@
 #include "gtest/gtest.h"
 
 #include "client/thin-replica-client/trc_hash.hpp"
-#include "client/concordclient/remote_update_data.hpp"
+#include "client/concordclient/event_update.hpp"
 #include "kvbc_app_filter/kvbc_app_filter.h"
 
 using com::vmware::concord::thin_replica::Data;
 using std::make_pair;
 using std::string;
 using std::to_string;
-using client::concordclient::hashUpdate;
+using client::thin_replica_client::hashUpdate;
 using concord::client::concordclient::EventVariant;
 using concord::client::concordclient::Update;
 
