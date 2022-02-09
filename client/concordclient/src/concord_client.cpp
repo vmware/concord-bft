@@ -186,7 +186,7 @@ void ConcordClient::unsubscribe() {
   }
 }
 
-void ConcordClient::readStream(const StreamSnapshotRequest& request, std::shared_ptr<UpdateQueue>& remote_queue) {
+void ConcordClient::readStream(const StreamSnapshotRequest& request, std::shared_ptr<StreamUpdateQueue>& remote_queue) {
   checkAndReConnectGrpcConnections();
   auto rss_config = std::make_unique<ReplicaStateSnapshotClientConfig>(grpc_connections_, /*TODO: config*/ 32);
   auto rss = std::make_unique<ReplicaStreamSnapshotClient>(std::move(rss_config));

@@ -209,7 +209,7 @@ class ThinReplicaClient final {
 
   // Push update to update queue for consumption by the application using TRC.
   // Set TRC metrics before receiving next update
-  void pushUpdateToUpdateQueue(std::unique_ptr<concord::client::concordclient::RemoteData> update,
+  void pushUpdateToUpdateQueue(std::unique_ptr<concord::client::concordclient::EventVariant> update,
                                const std::chrono::steady_clock::time_point& start,
                                bool is_event_group);
 

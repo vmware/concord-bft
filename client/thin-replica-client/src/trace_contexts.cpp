@@ -29,7 +29,7 @@ using opentracing::TextMapReader;
 using opentracing::TextMapWriter;
 
 using concord::client::concordclient::EventGroup;
-using concord::client::concordclient::RemoteData;
+using concord::client::concordclient::EventVariant;
 using concord::client::concordclient::Update;
 
 using SpanPtr = std::unique_ptr<opentracing::Span>;
@@ -57,7 +57,7 @@ struct SimpleTextMapReaderWriter : public opentracing::TextMapWriter, public ope
   std::unordered_map<std::string, std::string>& text_map;
 };
 
-void TraceContexts::InjectSpan(const TraceContexts::SpanPtr& span, RemoteData& update) {
+void TraceContexts::InjectSpan(const TraceContexts::SpanPtr& span, EventVariant& update) {
   if (not span) {
     return;
   }
@@ -75,7 +75,7 @@ void TraceContexts::InjectSpan(const TraceContexts::SpanPtr& span, RemoteData& u
   }
 }
 
-expected<std::unique_ptr<opentracing::SpanContext>> TraceContexts::ExtractSpan(const RemoteData& update) {
+expected<std::unique_ptr<opentracing::SpanContext>> TraceContexts::ExtractSpan(const EventVariant& update) {
   if (std::holds_alternative<EventGroup>(update)) {
     auto& eg = std::get<EventGroup>(update);
     if (!eg.trace_context.empty()) {

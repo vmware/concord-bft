@@ -42,9 +42,7 @@ using concord::messages::StateSnapshotReadAsOfRequest;
 using concord::messages::StateSnapshotReadAsOfResponse;
 
 using concord::client::concordclient::SnapshotKVPair;
-using concord::client::concordclient::UpdateQueue;
-using concord::client::concordclient::BasicUpdateQueue;
-using concord::client::concordclient::RemoteData;
+using concord::client::concordclient::StreamUpdateQueue;
 using concord::client::concordclient::UpdateNotFound;
 using concord::client::concordclient::OutOfRangeSubscriptionRequest;
 using concord::client::concordclient::StreamUnavailable;
@@ -198,7 +196,7 @@ Status StateSnapshotServiceImpl::StreamSnapshot(ServerContext* context,
   if (proto_request->has_last_received_key()) {
     request.last_received_key = proto_request->last_received_key();
   }
-  std::shared_ptr<UpdateQueue> update_queue = std::make_shared<BasicUpdateQueue>();
+  std::shared_ptr<StreamUpdateQueue> update_queue = std::make_shared<StreamUpdateQueue>();
 
   client_->readStream(request, update_queue);
 
@@ -207,7 +205,7 @@ Status StateSnapshotServiceImpl::StreamSnapshot(ServerContext* context,
   auto accumulated_hash = singleHash(std::string{});
   while (!context->IsCancelled()) {
     StreamSnapshotResponse response;
-    std::unique_ptr<RemoteData> update;
+    std::unique_ptr<SnapshotKVPair> update;
     try {
       update = update_queue->pop();
     } catch (const UpdateNotFound& e) {
@@ -235,15 +233,11 @@ Status StateSnapshotServiceImpl::StreamSnapshot(ServerContext* context,
       break;
     }
 
-    if (std::holds_alternative<SnapshotKVPair>(*update)) {
-      auto& kv_pair_in = std::get<SnapshotKVPair>(*update);
-
-      auto kvpair = response.mutable_key_value();
-      kvpair->set_key(kv_pair_in.key);
-      kvpair->set_value(kv_pair_in.val);
-      stream->Write(response);
-      nextHash(kv_pair_in.key, kv_pair_in.val, accumulated_hash);
-    }
+    auto kvpair = response.mutable_key_value();
+    kvpair->set_key(update->key);
+    kvpair->set_value(update->val);
+    stream->Write(response);
+    nextHash(update->key, update->val, accumulated_hash);
   }
 
   if (is_end_of_stream && status.ok()) {

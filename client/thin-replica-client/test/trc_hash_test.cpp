@@ -22,7 +22,7 @@ using std::make_pair;
 using std::string;
 using std::to_string;
 using client::concordclient::hashUpdate;
-using concord::client::concordclient::RemoteData;
+using concord::client::concordclient::EventVariant;
 using concord::client::concordclient::Update;
 
 const string kSampleUpdateExpectedHash({'\x02', '\x3D', '\x0D', '\x8B', '\xC6', '\x54', '\x07', '\xD7',
@@ -38,7 +38,7 @@ TEST(trc_hash, hash_update) {
   for (int i = 0; i < 3; ++i) {
     legacy_event.kv_pairs.push_back(make_pair(to_string(i), to_string(i)));
   }
-  RemoteData update = legacy_event;
+  EventVariant update = legacy_event;
   EXPECT_EQ(hashUpdate(update), kSampleUpdateExpectedHash);
 }
 

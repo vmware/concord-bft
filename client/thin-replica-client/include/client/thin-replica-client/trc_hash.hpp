@@ -30,7 +30,7 @@ const size_t kThinReplicaHashLength = concord::util::openssl_utils::kExpectedSHA
 // kThinReplicaHashLength. Throws an std::invalid_argument in the event the
 // update contains any duplicated keys (which is something disallowed by the
 // Thin Replica Mechanism).
-std::string hashUpdate(const concord::client::concordclient::RemoteData& update);
+std::string hashUpdate(const concord::client::concordclient::EventVariant& update);
 std::string hashUpdate(const com::vmware::concord::thin_replica::Data& update);
 
 // Compute the Thin Replica Mechanism hash of a given state (i.e. an ordered

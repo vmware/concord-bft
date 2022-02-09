@@ -163,7 +163,7 @@ class ConcordClient {
 
   // Stream a specific state snapshot in a resumable fashion as a finite stream of key-values.
   // Key-values are streamed with lexicographic order on keys.
-  void readStream(const StreamSnapshotRequest& request, std::shared_ptr<UpdateQueue>& remote_queue);
+  void readStream(const StreamSnapshotRequest& request, std::shared_ptr<StreamUpdateQueue>& remote_queue);
 
   // Get participant_id
   std::string getTRId() const { return config_.subscribe_config.id; }

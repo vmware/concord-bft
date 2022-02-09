@@ -20,7 +20,7 @@
 #include "assertUtils.hpp"
 
 using com::vmware::concord::thin_replica::Data;
-using concord::client::concordclient::RemoteData;
+using concord::client::concordclient::EventVariant;
 using concord::client::concordclient::EventGroup;
 using concord::client::concordclient::Update;
 using concord::util::openssl_utils::computeSHA256Hash;
@@ -99,7 +99,7 @@ static string hashUpdateFromEntryHashes(uint64_t id, const set<string>& entry_ha
   return computeSHA256Hash(concatenated_entry_hashes);
 }
 
-string hashUpdate(const RemoteData& ev) {
+string hashUpdate(const EventVariant& ev) {
   if (std::holds_alternative<Update>(ev)) {
     auto& legacy_event = std::get<Update>(ev);
     map<string, string> entry_hashes;

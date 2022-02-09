@@ -26,7 +26,7 @@ using vmware::concord::client::event::v1::SubscribeResponse;
 using vmware::concord::client::event::v1::Event;
 using vmware::concord::client::event::v1::EventGroup;
 using vmware::concord::client::event::v1::Events;
-using concord::client::concordclient::RemoteData;
+using concord::client::concordclient::EventVariant;
 using concord::client::concordclient::UpdateNotFound;
 using concord::client::concordclient::OutOfRangeSubscriptionRequest;
 using concord::client::concordclient::SubscriptionExists;
@@ -59,14 +59,14 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
   }
 
   auto span = opentracing::Tracer::Global()->StartSpan("subscribe", {});
-  std::shared_ptr<cc::UpdateQueue> update_queue = std::make_shared<cc::BasicUpdateQueue>();
+  std::shared_ptr<cc::UpdateQueue> update_queue = std::make_shared<cc::UpdateQueue>();
   client_->subscribe(request, update_queue, span);
 
   // TODO: Return UNAVAILABLE as documented in event.proto if ConcordClient is unhealthy
   auto status = grpc::Status::OK;
   while (!context->IsCancelled()) {
     SubscribeResponse response;
-    std::unique_ptr<RemoteData> update;
+    std::unique_ptr<EventVariant> update;
     try {
       update = update_queue->tryPop();
     } catch (const UpdateNotFound& e) {
