@@ -56,7 +56,6 @@ void RVBManager::init(bool fetching) {
     desc = ds_->getCheckpointBeingFetched();
   } else {
     // unknown state for RVBM
-    // ConcordAssert(!fetching);
     auto last_stored_cp_num = ds_->getLastStoredCheckpoint();
     if (last_stored_cp_num > 0) {
       desc = ds_->getCheckpointDesc(last_stored_cp_num);
@@ -617,9 +616,9 @@ uint64_t RVBManager::addRvbDataOnBlockRange(uint64_t min_block_id,
                 "Add digest for block " << current_rvb_id << " "
                                         << " Digest: " << digest.toString());
       in_mem_rvt_->addNode(current_rvb_id, digest.getForUpdate(), BLOCK_DIGEST_SIZE);
+      ++rvb_nodes_added;
     }
     current_rvb_id += config_.fetchRangeSize;
-    ++rvb_nodes_added;
   }
   if ((current_rvb_id == max_block_id) && (current_rvb_id > max_rvb_id_in_rvt)) {
     if (digest_of_max_block_id) {
@@ -628,14 +627,15 @@ uint64_t RVBManager::addRvbDataOnBlockRange(uint64_t min_block_id,
                 "Add digest for block " << current_rvb_id << " "
                                         << " ,Digest: " << digest.toString());
       in_mem_rvt_->addNode(current_rvb_id, digest.get(), BLOCK_DIGEST_SIZE);
+      ++rvb_nodes_added;
     } else {
       auto digest = getBlockAndComputeDigest(max_block_id);
       LOG_DEBUG(logger_,
                 "Add digest for block " << current_rvb_id << " "
                                         << " ,Digest: " << digest.toString());
       in_mem_rvt_->addNode(current_rvb_id, digest.get(), BLOCK_DIGEST_SIZE);
+      ++rvb_nodes_added;
     }
-    ++rvb_nodes_added;
   }
   if (rvb_nodes_added > 0) {
     LOG_INFO(logger_,
