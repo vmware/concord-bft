@@ -56,7 +56,7 @@ class AdaptivePruningManager {
   void notifyReplicas(const PruneInfo &pruneInfo);
   const concord::messages::PruneSwitchModeRequest &getLatestConfiguration();
   void onTickChangeRequest(concord::messages::PruneTicksChangeRequest req) {
-    current_pruning_pace_ = req.ticks_per_second;
+    current_pruning_pace_ = req.interval_between_ticks_seconds;
     current_batch_size_ = req.batch_blocks_num;
   }
   uint32_t getCurrentPace() { return current_pruning_pace_; }

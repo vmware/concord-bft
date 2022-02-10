@@ -410,7 +410,7 @@ Msg PruneSwitchModeRequest 75 {
 Msg PruneTicksChangeRequest 76 {
     uint64 sender_id
     # TicksGenerator period in seconds.
-    uint32 ticks_per_second
+    uint32 interval_between_ticks_seconds
 
     # The number of blocks in a pruning batch.
     uint64 batch_blocks_num

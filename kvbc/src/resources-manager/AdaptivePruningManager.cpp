@@ -42,8 +42,7 @@ void AdaptivePruningManager::notifyReplicas(const PruneInfo &pruneInfo) {
   concord::messages::PruneTicksChangeRequest pruneRequest;
 
   pruneRequest.sender_id = bftEngine::ReplicaConfig::instance().replicaId;
-  pruneRequest.tick_period_seconds = 1;
-
+  pruneRequest.interval_between_ticks_seconds = 1;
 
   pruneRequest.batch_blocks_num = pruneInfo.blocksPerSecond / bftEngine::ReplicaConfig::instance().numReplicas;
 
@@ -56,8 +55,9 @@ void AdaptivePruningManager::notifyReplicas(const PruneInfo &pruneInfo) {
   pruningUtilizationMetric.Get().Set(pruneInfo.pruningUtilization);
 
   LOG_DEBUG(ADPTV_PRUNING,
-            "Sending PruneTicksChangeRequest { ticks per second = "
-                << pruneRequest.ticks_per_second << ", blocks per tick = " << pruneRequest.batch_blocks_num << " }");
+            "Sending PruneTicksChangeRequest { interval between ticks seconds = "
+                << pruneRequest.interval_between_ticks_seconds
+                << ", blocks per tick = " << pruneRequest.batch_blocks_num << " }");
 
   rreq.command = pruneRequest;
   rreq.sender = bftEngine::ReplicaConfig::instance().replicaId;
