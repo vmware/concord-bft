@@ -223,6 +223,7 @@ class FakeStorage : public concord::kvbc::IReader {
       event.tags.push_back(trid);
       concord::kvbc::categorization::EventGroup event_group;
       event_group.events.emplace_back(event);
+      uint64_t external_tag_eg_id = 0;
       if (latest_table[trid + "_oldest"].empty()) {
         uint64_t id = 1;
         latest_table[trid + "_newest"] = concordUtils::toBigEndianStringBuffer(id);
@@ -236,8 +237,18 @@ class FakeStorage : public concord::kvbc::IReader {
       }
       latest_table[kGlobalEgIdKey + "_newest"] = concordUtils::toBigEndianStringBuffer(i);
 
+      if (trid != kPublicEgIdKey) {
+        if (latest_table.find(kPublicEgIdKey + "_oldest") != latest_table.end()) {
+          external_tag_eg_id =
+              concordUtils::fromBigEndianBuffer<uint64_t>(latest_table[trid + "_newest"].data()) +
+              concordUtils::fromBigEndianBuffer<uint64_t>(latest_table[kPublicEgIdKey + "_newest"].data());
+        } else {
+          external_tag_eg_id = concordUtils::fromBigEndianBuffer<uint64_t>(latest_table[trid + "_newest"].data());
+        }
+      }
       tag_table[trid + kTagTableKeySeparator + latest_table[trid + "_newest"]] =
-          concordUtils::toBigEndianStringBuffer(i);
+          concordUtils::toBigEndianStringBuffer(i) + kTagTableKeySeparator +
+          concordUtils::toBigEndianStringBuffer(external_tag_eg_id);
       eg_data_.push_back({i, std::move(event_group)});
     }
     first_event_group_block_id_ = first_event_group_block_id_ ? first_event_group_block_id_ : blockId_ + 1;
@@ -629,7 +640,7 @@ TEST(kvbc_filter_test, kvbfilter_start_eg_greater_then_end_eg) {
   auto kvb_filter = KvbAppFilter(&storage, client_id);
   size_t num_event_groups_to_fill = 10;
   storage.fillWithEventGroupData(num_event_groups_to_fill, client_id);
-  EventGroupId eg_id_start = 11;
+  EventGroupId eg_id_start = 12;
   spsc_queue<KvbFilteredEventGroupUpdate> queue_out{num_event_groups_to_fill};
   std::atomic_bool stop_exec = false;
   EXPECT_THROW(kvb_filter.readEventGroupRange(eg_id_start, queue_out, stop_exec);, InvalidEventGroupRange);
