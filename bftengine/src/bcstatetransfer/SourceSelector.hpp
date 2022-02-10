@@ -47,7 +47,7 @@ class SourceSelector {
                  uint32_t retransmissionTimeoutMilli,
                  uint32_t sourceReplicaReplacementTimeoutMilli,
                  uint32_t maxFetchRetransmissions,
-                 uint16_t minPrePrepareMsgsForPrimaryAwarness,
+                 uint16_t minPrePrepareMsgsForPrimaryAwareness,
                  logging::Logger &logger)
       : allOtherReplicas_(std::move(allOtherReplicas)),
         randomGen_(std::random_device()()),
@@ -56,7 +56,7 @@ class SourceSelector {
         retransmissionTimeoutMilli_(retransmissionTimeoutMilli),
         fetchRetransmissionOngoing_(false),
         receivedValidBlockFromSrc_(false),
-        minPrePrepareMsgsForPrimaryAwarness_(minPrePrepareMsgsForPrimaryAwarness),
+        minPrePrepareMsgsForPrimaryAwareness_(minPrePrepareMsgsForPrimaryAwareness),
         logger_(logger),
         metrics_component_{concordMetrics::Component("state_transfer_source_selector",
                                                      std::make_shared<concordMetrics::Aggregator>())},
@@ -121,7 +121,7 @@ class SourceSelector {
 
   void updateCurrentPrimary(uint16_t newPrimaryReplicaId);
 
-  uint16_t minPrePrepareMsgsForPrimaryAwarness() { return minPrePrepareMsgsForPrimaryAwarness_; }
+  uint16_t minPrePrepareMsgsForPrimaryAwareness() { return minPrePrepareMsgsForPrimaryAwareness_; }
 
   // Metric
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
@@ -157,7 +157,7 @@ class SourceSelector {
 
   uint16_t nominatedPrimary_ = NO_REPLICA;
   uint16_t nominatedPrimaryCounter_ = 0;
-  uint16_t minPrePrepareMsgsForPrimaryAwarness_ = 10;
+  uint16_t minPrePrepareMsgsForPrimaryAwareness_ = 10;
   logging::Logger &logger_;
 
  protected:

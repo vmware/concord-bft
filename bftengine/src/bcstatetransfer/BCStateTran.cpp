@@ -232,7 +232,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
                       config_.fetchRetransmissionTimeoutMs,
                       config_.sourceReplicaReplacementTimeoutMs,
                       config_.maxFetchRetransmissions,
-                      config_.minPrePrepareMsgsForPrimaryAwarness,
+                      config_.minPrePrepareMsgsForPrimaryAwareness,
                       ST_SRC_LOG},
       fetchState_{0},
       commitState_{0},
