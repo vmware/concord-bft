@@ -97,4 +97,8 @@ class IBlocksDeleter {
   virtual ~IBlocksDeleter() = default;
 };
 
+// Given an IReader, return the time of the last application-level transaction stored in the blockchain.
+// The result must be a string that can be parsed via google::protobuf::util::TimeUtil::FromString().
+using LastApplicationTransactionTimeCallback = std::function<std::string(const IReader &)>;
+
 }  // namespace concord::kvbc

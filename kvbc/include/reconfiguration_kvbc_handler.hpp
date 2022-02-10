@@ -23,6 +23,7 @@
 #include "kvbc_app_filter/value_from_kvbc_proto.h"
 #include "AdaptivePruningManager.hpp"
 #include "IntervalMappingResourceManager.hpp"
+#include "newest_public_event_group_record_time.h"
 #include <functional>
 #include <string>
 #include <utility>
@@ -87,6 +88,10 @@ class StateSnapshotReconfigurationHandler : public ReconfigurationBlockTools,
   // Allows users to convert state values to any format that is appropriate.
   // The default converter extracts the value from the ValueWithTrids protobuf type.
   categorization::KeyValueBlockchain::Converter state_value_converter_{valueFromKvbcProto};
+
+  // Return the time of the last application-level transaction stored in the blockchain.
+  // The result must be a string that can be parsed via google::protobuf::util::TimeUtil::FromString().
+  kvbc::LastApplicationTransactionTimeCallback last_app_txn_time_cb_{kvbc::newestPublicEventGroupRecordTime};
 
   const concord::reconfiguration::BftReconfigurationHandler bft_reconf_handler_;
   const concord::reconfiguration::ClientReconfigurationHandler client_reconf_handler_;
