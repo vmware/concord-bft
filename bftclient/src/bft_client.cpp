@@ -12,6 +12,7 @@
 #include "bftclient/bft_client.h"
 #include "bftengine/ClientMsgs.hpp"
 #include "assertUtils.hpp"
+#include "secrets_manager_impl.h"
 #include "secrets_manager_enc.h"
 #include "secrets_manager_plain.h"
 #include "communication/StateControl.hpp"
@@ -43,15 +44,16 @@ Client::Client(std::unique_ptr<bft::communication::ICommunication> comm, const C
     // transaction signing is enabled
     auto file_path = config.transaction_signing_private_key_file_path.value();
     std::optional<std::string> key_plaintext;
+    std::unique_ptr<ISecretsManagerImpl> secretsManager;
 
     if (config.secrets_manager_config) {
-      SecretsManagerEnc sme(config.secrets_manager_config.value());
-      key_plaintext = sme.decryptFile(file_path);
+      secretsManager = std::make_unique<SecretsManagerEnc>(config.secrets_manager_config.value());
     } else {
       // private key file is in plain text, use secrets manager plain to read the file
-      SecretsManagerPlain smp;
-      key_plaintext = smp.decryptFile(file_path);
+      secretsManager = std::make_unique<SecretsManagerPlain>();
     }
+
+    key_plaintext = secretsManager->decryptFile(file_path);
     if (!key_plaintext) throw InvalidPrivateKeyException(file_path, config.secrets_manager_config != std::nullopt);
     transaction_signer_ = std::make_unique<concord::util::crypto::RSASigner>(
         key_plaintext.value().c_str(), concord::util::crypto::KeyFormat::PemFormat);
