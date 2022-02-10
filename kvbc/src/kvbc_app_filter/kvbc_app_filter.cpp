@@ -53,6 +53,18 @@ uint64_t KvbAppFilter::getOldestEventGroupId() const { return getValueFromLatest
 
 uint64_t KvbAppFilter::getNewestPublicEventGroupId() const { return getValueFromLatestTable(kPublicEgIdKeyNewest); }
 
+std::optional<kvbc::categorization::EventGroup> KvbAppFilter::getNewestPublicEventGroup() const {
+  const auto newest_pub_eg_id = getNewestPublicEventGroupId();
+  if (newest_pub_eg_id == 0) {
+    // No public event group ID.
+    return std::nullopt;
+  }
+  const auto [global_eg_id, _] = getValueFromTagTable(kPublicEgId + kTagTableKeySeparator +
+                                                      concordUtils::toBigEndianStringBuffer(newest_pub_eg_id));
+  (void)_;
+  return getEventGroup(global_eg_id);
+}
+
 optional<BlockId> KvbAppFilter::getOldestEventGroupBlockId() {
   uint64_t global_eg_id_oldest = getOldestEventGroupId();
   const auto opt = rostorage_->getLatestVersion(concord::kvbc::categorization::kExecutionEventGroupDataCategory,
@@ -554,8 +566,7 @@ void KvbAppFilter::readEventGroupRange(EventGroupId event_group_id_start,
     if (eg_data_state_->curr_trid_event_group_id < event_group_id_start) {
       continue;
     }
-    std::string cid;
-    auto event_group = getEventGroup(global_event_group_id, cid);
+    auto event_group = getEventGroup(global_event_group_id);
     if (event_group.events.empty()) {
       std::stringstream msg;
       msg << "EventGroup doesn't exist for valid event_group_id: " << global_event_group_id;
@@ -637,11 +648,10 @@ string KvbAppFilter::readEventGroupHash(EventGroupId requested_event_group_id) {
       }
     }
   }
-  std::string cid;
   LOG_DEBUG(logger_,
             "In readEventGroupHash, requested_event_group_id: " << requested_event_group_id
                                                                 << " global_event_group_id: " << global_event_group_id);
-  auto event_group = getEventGroup(global_event_group_id, cid);
+  auto event_group = getEventGroup(global_event_group_id);
   if (event_group.events.empty()) {
     std::stringstream msg;
     msg << "Couldn't retrieve block event groups for event_group_id " << global_event_group_id;
@@ -723,10 +733,9 @@ string KvbAppFilter::readEventGroupRangeHash(EventGroupId event_group_id_start) 
     // eg_data_state_->curr_trid_event_group_id until we reach the start
     if (eg_hash_state_->curr_trid_event_group_id < event_group_id_start) continue;
 
-    std::string cid;
     LOG_DEBUG(logger_,
               "Event_group_id_start: " << event_group_id_start << " global_event_group_id: " << global_event_group_id);
-    auto event_group = getEventGroup(global_event_group_id, cid);
+    auto event_group = getEventGroup(global_event_group_id);
     if (event_group.events.empty()) {
       std::stringstream msg;
       msg << "EventGroup doesn't exist for valid event_group_id: " << global_event_group_id;
@@ -760,8 +769,7 @@ std::optional<kvbc::categorization::ImmutableInput> KvbAppFilter::getBlockEvents
   return std::get<kvbc::categorization::ImmutableInput>(immutable->get());
 }
 
-kvbc::categorization::EventGroup KvbAppFilter::getEventGroup(kvbc::EventGroupId global_event_group_id,
-                                                             std::string &cid) {
+kvbc::categorization::EventGroup KvbAppFilter::getEventGroup(kvbc::EventGroupId global_event_group_id) const {
   LOG_DEBUG(logger_,
             " Get EventGroup, global_event_group_id: " << global_event_group_id << " for client: " << client_id_);
   // get event group

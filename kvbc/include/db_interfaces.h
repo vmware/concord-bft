@@ -99,10 +99,8 @@ class IBlocksDeleter {
   virtual ~IBlocksDeleter() = default;
 };
 
-// Given an IReader, return the time of the last application-level transaction stored in the blockchain in the form of
-// seconds since epoch.
-using LastApplicationTransactionTimeCallback = std::function<std::uint64_t(const IReader &)>;
-
-inline std::uint64_t epochLastApplicationTransactionTime(const kvbc::IReader &) { return 0; }
+// Given an IReader, return the time of the last application-level transaction stored in the blockchain.
+// The result must be a string that can be parsed via google::protobuf::util::TimeUtil::FromString().
+using LastApplicationTransactionTimeCallback = std::function<std::string(const IReader &)>;
 
 }  // namespace concord::kvbc

@@ -35,6 +35,7 @@
 #include "ReplicaResources.h"
 #include "AdaptivePruningManager.hpp"
 #include "kvbc_app_filter/value_from_kvbc_proto.h"
+#include "newest_public_event_group_record_time.h"
 
 namespace concord::kvbc {
 
@@ -222,7 +223,7 @@ class Replica : public IReplica,
   // The categorization KeyValueBlockchain is used for a normal read-write replica.
   std::optional<categorization::KeyValueBlockchain> m_kvBlockchain;
   categorization::KeyValueBlockchain::Converter m_stateSnapshotValueConverter{concord::kvbc::valueFromKvbcProto};
-  kvbc::LastApplicationTransactionTimeCallback m_lastAppTxnCallback{kvbc::epochLastApplicationTransactionTime};
+  kvbc::LastApplicationTransactionTimeCallback m_lastAppTxnCallback{newestPublicEventGroupRecordTime};
   // The IdbAdapter instance is used for a read-only replica.
   std::unique_ptr<IDbAdapter> m_bcDbAdapter;
   std::shared_ptr<storage::IDBClient> m_metadataDBClient;
