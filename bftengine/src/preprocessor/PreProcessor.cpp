@@ -943,6 +943,20 @@ void PreProcessor::handleSinglePreProcessRequestMsg(PreProcessRequestMsgSharedPt
   }
 }
 
+bool PreProcessor::checkPreProcessRequestMsgCorrectness(const PreProcessRequestMsgSharedPtr &requestMsg) {
+  if (requestMsg->viewNum() != myReplica_.getCurrentView()) {
+    LOG_INFO(logger(),
+             "Ignore PreProcessRequestMsg as the view is invalid" << KVLOG(requestMsg->getCid(),
+                                                                           requestMsg->reqSeqNum(),
+                                                                           requestMsg->senderId(),
+                                                                           requestMsg->clientId(),
+                                                                           requestMsg->reqOffsetInBatch(),
+                                                                           requestMsg->viewNum()));
+    return false;
+  }
+  return true;
+}
+
 // Non-primary replica request handling
 template <>
 void PreProcessor::onMessage<PreProcessRequestMsg>(PreProcessRequestMsg *message) {
@@ -951,15 +965,7 @@ void PreProcessor::onMessage<PreProcessRequestMsg>(PreProcessRequestMsg *message
   LOG_DEBUG(logger(),
             "Received PreProcessRequestMsg" << KVLOG(
                 reqType, msg->reqSeqNum(), msg->getCid(), msg->senderId(), msg->clientId(), msg->reqOffsetInBatch()));
-  if (msg->viewNum() != myReplica_.getCurrentView()) {
-    LOG_INFO(logger(),
-             "Ignore PreProcessRequestMsg as the view is invalid" << KVLOG(msg->getCid(),
-                                                                           msg->reqSeqNum(),
-                                                                           msg->senderId(),
-                                                                           msg->clientId(),
-                                                                           msg->reqOffsetInBatch(),
-                                                                           message->viewNum()));
-  } else {
+  if (checkPreProcessRequestMsgCorrectness(msg)) {
     handleSinglePreProcessRequestMsg(msg);
   }
 }
@@ -1002,6 +1008,19 @@ void PreProcessor::handleSinglePreProcessReplyMsg(PreProcessReplyMsgSharedPtr pr
   handlePreProcessReplyMsg(cid, result, clientId, reqOffsetInBatch, reqSeqNum, batchCid);
 }
 
+bool PreProcessor::checkPreProcessReplyMsgCorrectness(const PreProcessReplyMsgSharedPtr &replyMsg) {
+  if (replyMsg->viewNum() != myReplica_.getCurrentView()) {
+    LOG_INFO(logger(),
+             "Ignore PreProcessReplyMsg as the view is invalid" << KVLOG(replyMsg->getCid(),
+                                                                         replyMsg->reqSeqNum(),
+                                                                         replyMsg->senderId(),
+                                                                         replyMsg->clientId(),
+                                                                         replyMsg->reqOffsetInBatch(),
+                                                                         replyMsg->viewNum()));
+    return false;
+  }
+  return true;
+}
 // Primary replica handling
 template <>
 void PreProcessor::onMessage<PreProcessReplyMsg>(PreProcessReplyMsg *message) {
@@ -1011,16 +1030,7 @@ void PreProcessor::onMessage<PreProcessReplyMsg>(PreProcessReplyMsg *message) {
   LOG_DEBUG(logger(),
             "Received PreProcessReplyMsg"
                 << KVLOG(msg->reqSeqNum(), msg->senderId(), msg->clientId(), msg->reqOffsetInBatch(), replyStatus));
-  if (message->viewNum() != myReplica_.getCurrentView()) {
-    LOG_INFO(logger(),
-             "Ignore PreProcessReplyMsg as the view is invalid" << KVLOG(msg->getCid(),
-                                                                         msg->reqSeqNum(),
-                                                                         msg->senderId(),
-                                                                         msg->clientId(),
-                                                                         msg->reqOffsetInBatch(),
-                                                                         replyStatus,
-                                                                         message->viewNum()));
-  } else {
+  if (checkPreProcessReplyMsgCorrectness(msg)) {
     handleSinglePreProcessReplyMsg(msg);
   }
 }
