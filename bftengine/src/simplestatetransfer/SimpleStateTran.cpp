@@ -327,7 +327,7 @@ SimpleStateTran::SimpleStateTran(
       2048,                                 // maxNumOfReservedPages
       4096,                                 // sizeOfReservedPage
       600,                                  // gettingMissingBlocksSummaryWindowSize
-      10,                                   // minPrePrepareMsgsForPrimaryAwarness
+      10,                                   // minPrePrepareMsgsForPrimaryAwareness
       256,                                  // fetchRangeSize
       1024,                                 // RVT_K
       300,                                  // refreshTimerMs

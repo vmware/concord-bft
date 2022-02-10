@@ -227,12 +227,12 @@ void SourceSelector::updateCurrentPrimary(uint16_t newPrimary) {
     return;
   }
 
-  if ((newPrimary != nominatedPrimary_) and (nominatedPrimaryCounter_ < minPrePrepareMsgsForPrimaryAwarness_)) {
+  if ((newPrimary != nominatedPrimary_) and (nominatedPrimaryCounter_ < minPrePrepareMsgsForPrimaryAwareness_)) {
     resetNominatedPrimary();
     return;
   }
 
-  if (nominatedPrimaryCounter_ < minPrePrepareMsgsForPrimaryAwarness_) {
+  if (nominatedPrimaryCounter_ < minPrePrepareMsgsForPrimaryAwareness_) {
     return;
   }
 
