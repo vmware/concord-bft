@@ -85,8 +85,9 @@ void RVBManager::init(bool fetching) {
           loaded_from_data_store = false;
           in_mem_rvt_->clear();
           rvb_data_source_ = RvbDataInitialSource::NIL;
+        } else {
+          LOG_INFO(logger_, "Success setting and validating new RVB data from data store!");
         }
-        LOG_INFO(logger_, "Success setting and validating new RVB data from data store!");
       }
     }
   }
@@ -666,8 +667,9 @@ void RVBManager::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBloc
   }
 
   start_rvb_id = nextRvbBlockId(start_rvb_id);
-  if (lastAgreedPrunableBlockId <= start_rvb_id) {
-    LOG_WARN(logger_, "Inconsistent prune report ignored:" << KVLOG(lastAgreedPrunableBlockId, start_rvb_id));
+  if (lastAgreedPrunableBlockId < start_rvb_id) {
+    LOG_WARN(logger_,
+             "Current pruning report has no impact on RVB data:" << KVLOG(lastAgreedPrunableBlockId, start_rvb_id));
     return;
   }
 
