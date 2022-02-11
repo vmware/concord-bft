@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0 License.
@@ -66,10 +66,10 @@ class ICommunication {
   // The function takes ownership of the buffer provided.
   // The return value is a set<NodeNum>.
   //    On success the set is empty.
-  //    On failure it contains the NodeNum-s of the destinations for which the message sending has failed.
+  //    On failure, it contains the NodeNum-s of the destinations for which the message sending has failed.
   virtual std::set<NodeNum> send(std::set<NodeNum> dests,
                                  std::vector<uint8_t>&& msg,
-                                 NodeNum endpointNum = MAX_ENDPOINT_NUM) = 0;
+                                 NodeNum srcEndpointNum = MAX_ENDPOINT_NUM) = 0;
 
   virtual void setReceiver(NodeNum receiverNum, IReceiver* receiver) = 0;
 

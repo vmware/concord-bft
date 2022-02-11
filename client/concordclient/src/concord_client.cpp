@@ -1,4 +1,6 @@
-// Copyright (c) 2021 VMware, Inc. All Rights Reserved.
+// Concord
+//
+// Copyright (c) 2021-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -20,10 +22,11 @@ using ::client::thin_replica_client::ThinReplicaClient;
 using ::client::thin_replica_client::ThinReplicaClientConfig;
 using ::client::thin_replica_client::TrsConnection;
 using concord::config_pool::ConcordClientPoolConfig;
-using concord::config_pool::Replica;
 using concord::config_pool::ExternalClient;
 using concord::config_pool::ParticipantNode;
 using ::client::thin_replica_client::TrsConnectionConfig;
+using bft::communication::NodeMap;
+using bft::communication::NodeInfo;
 
 namespace concord::client::concordclient {
 
@@ -40,19 +43,19 @@ ConcordClient::ConcordClient(const ConcordClientConfig& config, std::shared_ptr<
 ConcordClientPoolConfig ConcordClient::createClientPoolStruct(const ConcordClientConfig& config) {
   ConcordClientPoolConfig client_pool_config;
   client_pool_config.path_to_replicas_master_key = config.topology.path_to_replicas_master_key;
-  int id = 0;
+  NodeMap& replicas = client_pool_config.replicas;
   for (const auto& replica : config_.topology.replicas) {
-    Replica client_pool_replica;
-    auto replica_id = replica.id.val;
-    client_pool_replica.principal_id = replica_id;
-    client_pool_replica.replica_host = replica.host;
-    client_pool_replica.replica_port = replica.bft_port;
-    client_pool_config.node[id] = client_pool_replica;
-    id++;
+    NodeInfo replica_info;
+    replica_info.host = replica.host;
+    replica_info.port = replica.bft_port;
+    replica_info.isReplica = true;
+    replicas[replica.id.val] = replica_info;
   }
 
   ParticipantNode client_pool_pn;
-  id = 0;
+  client_pool_pn.participant_node_host = config_.client_service.host;
+  client_pool_pn.principal_id = config_.client_service.id.val;
+  int id = 0;
   for (const auto& bft_client : config_.bft_clients) {
     ExternalClient client_pool_ec;
     auto external_client_id = bft_client.id.val;
@@ -61,7 +64,7 @@ ConcordClientPoolConfig ConcordClient::createClientPoolStruct(const ConcordClien
     client_pool_pn.externalClients[id] = client_pool_ec;
     id++;
   }
-  client_pool_pn.participant_node_host = config_.bft_clients[0].host;
+
   client_pool_config.participant_nodes.push_back(client_pool_pn);
   client_pool_config.clients_per_participant_node = config_.num_of_used_bft_clients;
 
@@ -93,6 +96,7 @@ ConcordClientPoolConfig ConcordClient::createClientPoolStruct(const ConcordClien
   client_pool_config.comm_to_use = config.transport.comm_type == TransportConfig::Invalid
                                        ? "Invalid"
                                        : config.transport.comm_type == TransportConfig::TlsTcp ? "tls" : "udp";
+  client_pool_config.enable_multiplex_channel = config.transport.enable_multiplex_channel;
   client_pool_config.concord_bft_communication_buffer_length = std::to_string(config.transport.buffer_length);
   client_pool_config.tls_certificates_folder_path = config.transport.tls_cert_root_path;
   client_pool_config.tls_cipher_suite_list = config.transport.tls_cipher_suite;

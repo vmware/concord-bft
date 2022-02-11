@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2021-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -35,7 +35,7 @@ static void readYamlField(const YAML::Node& yaml, const std::string& index, T& o
     out = yaml[index].as<T>();
   } catch (const std::exception& e) {
     if (value_required) {
-      // We ignore the YAML excpetions because they aren't useful
+      // We ignore the YAML exceptions because they aren't useful
       std::ostringstream msg;
       msg << "Failed to read \"" << index << "\"";
       throw std::runtime_error(msg.str().data());
@@ -52,7 +52,7 @@ static void readYamlField(const YAML::Node& yaml,
     out = std::chrono::milliseconds(yaml[index].as<uint64_t>());
   } catch (const std::exception& e) {
     if (value_required) {
-      // We ignore the YAML excpetions because they aren't useful
+      // We ignore the YAML exceptions because they aren't useful
       std::ostringstream msg;
       msg << "Failed to read milliseconds \"" << index << "\"";
       throw std::runtime_error(msg.str().data());
@@ -104,10 +104,9 @@ void parseConfigFile(ConcordClientConfig& config, const YAML::Node& yaml) {
                 "client_number_of_standard_deviations_to_tolerate",
                 config.topology.client_retry_config.number_of_standard_deviations_to_tolerate);
   readYamlField(yaml, "client_samples_until_reset", config.topology.client_retry_config.samples_until_reset);
+  readYamlField(yaml, "enable_multiplex_channel", config.transport.enable_multiplex_channel);
   readYamlField(yaml, "enable_mock_comm", config.transport.enable_mock_comm);
-
   readYamlField(yaml, "concord-bft_communication_buffer_length", config.transport.buffer_length);
-
   concord::client::concordclient::TransportConfig::CommunicationType comm_type;
   std::string comm;
   readYamlField(yaml, "comm_to_use", comm);
@@ -127,6 +126,10 @@ void parseConfigFile(ConcordClientConfig& config, const YAML::Node& yaml) {
   ConcordAssert(node["participant_node"].IsSequence());
   ConcordAssert(node["participant_node"][0].IsMap());
   ConcordAssert(node["participant_node"][0]["external_clients"].IsSequence());
+
+  readYamlField(node["participant_node"][0], "participant_node_host", config.client_service.host);
+  readYamlField(node["participant_node"][0], "principal_id", config.client_service.id.val);
+
   for (const auto& item : node["participant_node"][0]["external_clients"]) {
     ConcordAssert(item.IsMap());
     ConcordAssert(item["client"].IsSequence());
@@ -136,7 +139,6 @@ void parseConfigFile(ConcordClientConfig& config, const YAML::Node& yaml) {
     concord::client::concordclient::BftClientInfo ci;
     readYamlField(client, "principal_id", ci.id.val);
     readYamlField(client, "client_port", ci.port);
-    readYamlField(node["participant_node"][0], "participant_node_host", ci.host);
     config.bft_clients.push_back(ci);
   }
 
