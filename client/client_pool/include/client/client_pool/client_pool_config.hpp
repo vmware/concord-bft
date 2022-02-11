@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2020-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -31,14 +31,9 @@ typedef struct ExternalClient {
 
 typedef struct ParticipantNode {
   std::string participant_node_host;
+  std::uint16_t principal_id;
   std::unordered_map<uint16_t, ExternalClient> externalClients;
 } ParticipantNode;
-
-typedef struct Replica {
-  bft::communication::NodeNum principal_id;
-  std::string replica_host;
-  std::uint32_t replica_port;
-} Replica;
 
 typedef struct ConcordClientPoolConfig {
   std::uint16_t c_val = 0;
@@ -66,13 +61,14 @@ typedef struct ConcordClientPoolConfig {
   std::uint32_t trace_sampling_rate = 0;
   std::string file_name;
   bool client_batching_enabled = false;
+  bool enable_multiplex_channel = false;
   size_t client_batching_max_messages_nbr = 20;
   std::uint64_t client_batching_flush_timeout_ms = 100;
   bool encrypted_config_enabled = false;
   bool transaction_signing_enabled = false;
   bool with_cre = false;
   std::string secrets_url;
-  std::unordered_map<bft::communication::NodeNum, Replica> node;
+  bft::communication::NodeMap replicas;
   std::deque<ParticipantNode> participant_nodes;
   secretsmanager::SecretData secret_data;
   std::string path_to_replicas_master_key = std::string();
@@ -116,6 +112,7 @@ class ClientPoolConfig {
   const std::string TRANSACTION_SIGNING_ENABLED = "transaction_signing_enabled";
   const std::string TRANSACTION_SIGNING_KEY_PATH = "signing_key_path";
   const std::string CLIENT_BATCHING_ENABLED = "client_batching_enabled";
+  const std::string MULTIPLEX_CHANNEL_ENABLED = "enable_multiplex_channel";
   const std::string CLIENT_BATCHING_MAX_MSG_NUM = "client_batching_max_messages_nbr";
   const std::string CLIENT_BATCHING_TIMEOUT_MILLI = "client_batching_flush_timeout_ms";
   const std::string TRACE_SAMPLING_RATE = "trace_sampling_rate";

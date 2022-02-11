@@ -23,7 +23,7 @@ using namespace bftEngine::impl;
 
 namespace bft::client {
 
-Client::Client(std::unique_ptr<bft::communication::ICommunication> comm, const ClientConfig& config)
+Client::Client(SharedCommPtr comm, const ClientConfig& config)
     : communication_(std::move(comm)),
       config_(config),
       quorum_converter_(config_.all_replicas, config.ro_replicas, config.f_val, config_.c_val),
@@ -134,7 +134,7 @@ Msg Client::createClientMsg(const RequestConfig& config, Msg&& request, bool rea
     metrics_.transactionSigning++;
     if ((metrics_.transactionSigning.Get().Get() % count_between_snapshots) == 0) {
       auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-      auto& name = histograms_->getComponenetName();
+      auto& name = histograms_->getComponentName();
       registrar.perf.snapshot(name);
       LOG_DEBUG(logger_,
                 "Signing stats snapshot #" << snapshot_index_ << " for " << name << std::endl

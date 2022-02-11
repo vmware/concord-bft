@@ -19,14 +19,15 @@ static constexpr size_t NUM_THREADS = 1;
 namespace bft::communication {
 
 // This is the public interface to this library. TlsTcpCommunication implements ICommunication.
-TlsTCPCommunication::TlsTCPCommunication(const TlsTcpConfig &config) : config_(config) {
+TlsTCPCommunication::TlsTCPCommunication(const TlsTcpConfig &config) {
+  config_ = new TlsTcpConfig(config);
   if (config.selfId_ > static_cast<uint64_t>(config.maxServerId_))
     runner_.reset(new tls::Runner(config, 1));
   else
     runner_.reset(new tls::Runner(config, NUM_THREADS));
 }
 
-TlsTCPCommunication::~TlsTCPCommunication() {}
+TlsTCPCommunication::~TlsTCPCommunication() { delete config_; }
 
 TlsTCPCommunication *TlsTCPCommunication::create(const TlsTcpConfig &config) { return new TlsTCPCommunication(config); }
 
@@ -57,9 +58,11 @@ int TlsTCPCommunication::send(NodeNum destNode, std::vector<uint8_t> &&msg, Node
   return 0;
 }
 
-std::set<NodeNum> TlsTCPCommunication::send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg, NodeNum endpointNum) {
+std::set<NodeNum> TlsTCPCommunication::send(std::set<NodeNum> dests,
+                                            std::vector<uint8_t> &&msg,
+                                            NodeNum srcEndpointNum) {
   std::set<NodeNum> failed_nodes;
-  auto outgoingMsg = std::make_shared<tls::OutgoingMsg>(std::move(msg), endpointNum);
+  auto outgoingMsg = std::make_shared<tls::OutgoingMsg>(std::move(msg), srcEndpointNum);
   runner_->send(dests, outgoingMsg);
   return failed_nodes;
 }
@@ -67,7 +70,7 @@ std::set<NodeNum> TlsTCPCommunication::send(std::set<NodeNum> dests, std::vector
 void TlsTCPCommunication::setReceiver(NodeNum id, IReceiver *receiver) { runner_->setReceiver(id, receiver); }
 
 void TlsTCPCommunication::restartCommunication(NodeNum i) {
-  if (i == config_.selfId_) {
+  if (i == config_->selfId_) {
     runner_->stop();
     runner_->start();
   }
