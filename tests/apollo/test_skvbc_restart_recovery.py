@@ -17,6 +17,7 @@ from os import environ
 
 import trio
 
+from util.test_base import ApolloTest
 from util import bft_network_partitioning as net
 from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, skip_for_tls
@@ -44,9 +45,15 @@ def start_replica_cmd(builddir, replica_id):
             ]
 
 
-class SkvbcRestartRecoveryTest(unittest.TestCase):
+class SkvbcRestartRecoveryTest(ApolloTest):
 
     __test__ = False  # so that PyTest ignores this test scenario
+
+    @staticmethod
+    def _advance_current_next_primary(new_view, num_replicas):
+        _current_primary = new_view % num_replicas
+        _next_primary = (_current_primary + 1) % num_replicas
+        return _current_primary, _next_primary
 
     @with_trio
     @with_bft_network(start_replica_cmd, rotate_keys=True)
@@ -115,15 +122,7 @@ class SkvbcRestartRecoveryTest(unittest.TestCase):
             run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
         log.log_message("fast path prevailed")
 
-
-    @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f >= 2, rotate_keys=False)
-    async def test_restarting_replica_during_system_is_in_view_change(self, bft_network):
-        """
-        The goal of this test is trigger multiple View Changes and restart 1 non-next Primary replica
-        in order to test restart recovery during the replicas performing a View Change.
-        """
-
+    async def _restarting_replica_during_system_is_in_view_change(self, bft_network, restart_next_primary):
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
@@ -138,48 +137,55 @@ class SkvbcRestartRecoveryTest(unittest.TestCase):
         #
         # log = foo()
 
-
-        def advance_current_next_primary(new_view, num_replicas):
-            _current_primary = new_view % num_replicas
-            _next_primary = (current_primary + 1) % num_replicas
-            return _current_primary, _next_primary
-
         # Perform multiple view changes and restart 1 replica while the replicas are agreeing the new View
         while view < 100:
             # Pick one replica to restart while the others are agreeing the next View.
             # We want a replica other than the current primary, which will be restarted to trigger the view change
-            # and we want also the restarted replica to be different from the next primary, since this will cause
-            # additional view change.
+            # and we want also the restarted replica to be different from the next primary
             replica_to_restart = random.choice(
                 bft_network.all_replicas(without={current_primary, next_primary}))
-            log.log_message(f"Initiating View Change by restarting replica {current_primary} in view {view}")
+            log.log_message(f"Initiating View Change by stopping replica {current_primary} in view {view}")
             # Stop the current primary.
             bft_network.stop_replica(current_primary, True)
+            if restart_next_primary:
+                # Stop the next primary.
+                log.log_message(f"Stopping the next primary: replica {next_primary} in view {view}")
+                bft_network.stop_replica(next_primary, True)
             # Run client operations to trigger view Change
             await skvbc.run_concurrent_ops(5)
+
+            wait_period = viewChangeTimeoutSec
+            # If we restart the next primary, wait for the second view increment to happen in replicas.
+            if restart_next_primary:
+                wait_period *= 2
+            log.log_message(f"waiting for {wait_period}s")
             # Wait for replicas to start initiating ReplicaAsksToLeaveView msgs followed by ViewChange msgs.
-            await trio.sleep(seconds=viewChangeTimeoutSec)
+            await trio.sleep(seconds=wait_period)
             log.log_message(f"Restarting replica during View Change {replica_to_restart}")
-            # Restart the previously selected replica while the others are performing the view change
+            # Restart the previously selected replica while the others are performing the view change.
             bft_network.stop_replica(replica_to_restart, True)
             bft_network.start_replica(replica_to_restart)
             await trio.sleep(seconds=1)
-            # Start the primary of the previous view
+            # Starting previously stopped replicas.
+            log.log_message(f"Starting replica {current_primary}")
             bft_network.start_replica(current_primary)
+            if restart_next_primary:
+                log.log_message(f"Starting replica {next_primary}")
+                bft_network.start_replica(next_primary)
 
             old_view = view
 
             # Wait for quorum of replicas to move to a higher view
             with trio.fail_after(seconds=40):
                 while view == old_view:
-                    log.log_message(f"waiting for vc view={view}")
+                    log.log_message(f"waiting for vc current view={view}")
                     await skvbc.run_concurrent_ops(1)
                     with trio.move_on_after(seconds=5):
                         view = await bft_network.get_current_view()
                     await trio.sleep(seconds=1)
 
             # Update the values of the current_primary and next_primary according to the new view the system is in
-            current_primary, next_primary = advance_current_next_primary(view, bft_network.config.n)
+            current_primary, next_primary = self._advance_current_next_primary(view, bft_network.config.n)
 
             log.log_message(f"view is {view}")
 
@@ -210,7 +216,7 @@ class SkvbcRestartRecoveryTest(unittest.TestCase):
                 log.log_message(f"during ST we got a View Change from view {view} to {view_after_st}")
                 view = view_after_st
                 # Update the values of the current_primary and next_primary according to the new view the system is in
-                current_primary, next_primary = advance_current_next_primary(view, bft_network.config.n)
+                current_primary, next_primary = self._advance_current_next_primary(view, bft_network.config.n)
 
             log.log_message("wait for fast path to be prevalent")
             # Make sure fast path is prevalent before moving to another round ot the test
@@ -222,3 +228,24 @@ class SkvbcRestartRecoveryTest(unittest.TestCase):
         # the restarts we performed while the system was in view change.
         await bft_network.wait_for_fast_path_to_be_prevalent(
             run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f >= 2, rotate_keys=False)
+    async def test_restarting_replica_during_system_is_in_view_change(self, bft_network):
+        """
+        The goal of this test is trigger multiple View Changes and restart 1 non-next Primary replica
+        in order to test restart recovery during the replicas performing a View Change.
+        """
+
+        await self._restarting_replica_during_system_is_in_view_change(bft_network, False)
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f >= 2, rotate_keys=False)
+    async def test_restarting_replica_during_system_is_in_view_change_next_primary_down(self, bft_network):
+        """
+        The goal of this test is trigger multiple View Changes with the current and next Primaries down and restart 1
+        replica in order to test restart recovery during the replicas performing a View Change with
+        multiple view increments.
+        """
+
+        await self._restarting_replica_during_system_is_in_view_change(bft_network, True)
