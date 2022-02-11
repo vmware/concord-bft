@@ -274,10 +274,29 @@ class ThinReplicaImpl {
       return subscribe_status;
     }
 
+    // TRS metrics
+    ThinReplicaServerMetrics metrics_(stream_type, getClientId(context));
+    metrics_.setAggregator(aggregator_);
+    uint16_t update_aggregator_counter = 0;
+    metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
+
+    // If legacy event request then mark whether we need to transition into event groups
+    bool is_event_group_transition = false;
+
+    kvbc::BlockId start_block_id;
+    if (request->has_events()) {
+      start_block_id = request->events().block_id();
+      if (auto opt = kvb_filter->getOldestEventGroupBlockId()) {
+        if (start_block_id >= opt.value()) {
+          is_event_group_transition = true;
+        }
+      }
+    }
+
     // If last_known + 1 update requested keep waiting until we have at least one live update
     // Note that TRS considers last_known + 1 update request as valid, even if the requested
     // update doesn't exist in storage yet.
-    if (request->has_events()) {
+    if (request->has_events() && !is_event_group_transition) {
       auto last_block_id = (config_->rostorage)->getLastBlockId();
       if (request->events().block_id() == last_block_id + 1) {
         while (not live_updates->waitUntilNonEmpty(kWaitForUpdateTimeout)) {
@@ -295,25 +314,6 @@ class ThinReplicaImpl {
             LOG_INFO(logger_, "StreamCancelled while waiting for the next live update.");
             return grpc::Status::CANCELLED;
           }
-        }
-      }
-    }
-
-    // TRS metrics
-    ThinReplicaServerMetrics metrics_(stream_type, getClientId(context));
-    metrics_.setAggregator(aggregator_);
-    uint16_t update_aggregator_counter = 0;
-    metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
-
-    // If legacy event request then mark whether we need to transition into event groups
-    bool is_event_group_transition = false;
-
-    kvbc::BlockId start_block_id;
-    if (request->has_events()) {
-      start_block_id = request->events().block_id();
-      if (auto opt = kvb_filter->getOldestEventGroupBlockId()) {
-        if (start_block_id >= opt.value()) {
-          is_event_group_transition = true;
         }
       }
     }
