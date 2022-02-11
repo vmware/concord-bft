@@ -98,7 +98,6 @@ class SkvbcPreExecutionTest(ApolloTest):
             await trio.sleep(.1)
         return read_count + write_count
 
-    @unittest.skip("Unstable test - BC-17831")
     @with_trio
     @with_bft_network(start_replica_cmd)
     @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)

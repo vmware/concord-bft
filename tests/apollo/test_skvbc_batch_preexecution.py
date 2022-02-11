@@ -78,6 +78,7 @@ class SkvbcBatchPreExecutionTest(ApolloTest):
         writeset_values = skvbc.random_values(len(writeset_keys))
         return list(zip(writeset_keys, writeset_values))
 
+    @unittest.skip("Unstable test - BC-17831")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
