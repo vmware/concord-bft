@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2020-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the 'License").
 // You may not use this product except in compliance with the Apache 2.0 License.
@@ -118,7 +118,7 @@ class FakeCommunication : public bft::communication::ICommunication {
     return 0;
   }
 
-  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t>&& msg, NodeNum endpointNum) override {
+  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t>&& msg, NodeNum srcEndpointNum) override {
     for (auto& d : dests) {
       // This is a class used for unit testing, so a copy is passed for simplicity
       runner_.send(MsgFromClient{ReplicaId{(uint16_t)d}, msg});  // a copy is made here!

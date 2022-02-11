@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2020-2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2020-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -27,6 +27,7 @@ namespace concord::concord_client_pool {
 
 using bftEngine::ClientMsgFlag;
 using namespace bftEngine;
+using namespace bft::communication;
 
 static inline const std::string kEmptySpanContext = std::string("");
 
@@ -314,47 +315,72 @@ void ConcordClientPool::setUpClientParams(SimpleClientParams &client_params,
       struct_config.client_sends_request_to_all_replicas_period_thresh;
   client_params.clientPeriodicResetThresh = struct_config.client_periodic_reset_thresh;
   LOG_INFO(logger_,
-           "clientInitialRetryTimeoutMilli="
-               << client_params.clientInitialRetryTimeoutMilli
-               << " clientMinRetryTimeoutMilli=" << client_params.clientMinRetryTimeoutMilli
-               << " clientMaxRetryTimeoutMilli=" << client_params.clientMaxRetryTimeoutMilli
-               << " numberOfStandardDeviationsToTolerate=" << client_params.numberOfStandardDeviationsToTolerate
-               << " samplesPerEvaluation=" << client_params.samplesPerEvaluation << " samplesUntilReset="
-               << client_params.samplesUntilReset << " clientSendsRequestToAllReplicasFirstThresh="
-               << client_params.clientSendsRequestToAllReplicasFirstThresh
-               << " clientSendsRequestToAllReplicasPeriodThresh="
-               << client_params.clientSendsRequestToAllReplicasPeriodThresh
-               << " clientPeriodicResetThresh=" << client_params.clientPeriodicResetThresh);
+           "Client configuration parameters" << KVLOG(client_params.clientInitialRetryTimeoutMilli,
+                                                      client_params.clientMinRetryTimeoutMilli,
+                                                      client_params.numberOfStandardDeviationsToTolerate,
+                                                      client_params.samplesPerEvaluation,
+                                                      client_params.clientSendsRequestToAllReplicasFirstThresh,
+                                                      client_params.clientSendsRequestToAllReplicasPeriodThresh,
+                                                      client_params.clientPeriodicResetThresh));
 }
 
 void ConcordClientPool::CreatePool(concord::config_pool::ConcordClientPoolConfig &config) {
   auto num_clients = config.clients_per_participant_node - (int)config.with_cre;
-  LOG_INFO(logger_, "Creating pool" << KVLOG(num_clients));
   auto f_val = config.f_val;
   auto c_val = config.c_val;
   auto max_buf_size = stol(config.concord_bft_communication_buffer_length);
   const auto num_replicas = 3 * f_val + 2 * c_val + 1;
   const auto required_num_of_replicas = 2 * f_val + 1;
-
+  LOG_INFO(logger_,
+           "Creating pool" << KVLOG(c_val,
+                                    f_val,
+                                    config.clients_per_participant_node,
+                                    config.comm_to_use,
+                                    config.concord_bft_communication_buffer_length,
+                                    config.num_replicas,
+                                    config.clients_per_participant_node,
+                                    config.client_batching_enabled,
+                                    config.enable_multiplex_channel,
+                                    config.client_batching_max_messages_nbr,
+                                    config.encrypted_config_enabled,
+                                    config.transaction_signing_enabled,
+                                    config.with_cre));
   auto timeout = std::chrono::milliseconds{0UL};
   if (config.client_batching_enabled) {
     batch_size_ = config.client_batching_max_messages_nbr;
     timeout = std::chrono::milliseconds(config.client_batching_flush_timeout_ms);
     client_batching_enabled_ = true;
-    LOG_INFO(logger_,
-             "Batching for client pool is enabled with the next params: "
-             "timeout="
-                 << timeout.count() << " ms, batch size=" << batch_size_);
-  } else {
-    LOG_INFO(logger_, "Batching for client pool is disabled");
   }
   batch_timer_ =
       std::make_unique<Timer_t>(timeout, [this](ClientPtr client) -> void { OnBatchingTimeout(std::move(client)); });
-  external_client::ConcordClient::setStatics(required_num_of_replicas, num_replicas, max_buf_size, batch_size_);
+
+  TlsMultiplexConfig *tlsMultiplexConfig = nullptr;
+  if (config.enable_multiplex_channel) {
+    std::unordered_map<NodeNum, NodeNum> endpointIdToNodeIdMap;
+    // For clients, endpointIdToNodeIdMap maps replica-id to replica-id (1 to 1, 2 to 2, etc.)
+    for (const auto &replica : config.replicas) endpointIdToNodeIdMap[replica.first] = replica.first;
+    auto const secretData = config.encrypted_config_enabled
+                                ? std::optional<concord::secretsmanager::SecretData>(config.secret_data)
+                                : std::nullopt;
+    LOG_INFO(logger_, "Create TLS Multiplex configuration");
+    tlsMultiplexConfig = new TlsMultiplexConfig("tls_multiplex_channel",
+                                                0,
+                                                std::stoul(config.concord_bft_communication_buffer_length),
+                                                config.replicas,
+                                                static_cast<int32_t>(config.num_replicas - 1),
+                                                config.participant_nodes[0].principal_id,
+                                                config.tls_certificates_folder_path,
+                                                config.tls_cipher_suite_list,
+                                                endpointIdToNodeIdMap,
+                                                nullptr,
+                                                secretData);
+  }
   bftEngine::SimpleClientParams clientParams;
   setUpClientParams(clientParams, config);
+  external_client::ConcordClient::setStatics(
+      required_num_of_replicas, num_replicas, max_buf_size, batch_size_, config, clientParams, tlsMultiplexConfig);
   for (int i = 0; i < num_clients; i++) {
-    clients_.push_back(std::make_shared<external_client::ConcordClient>(i, config, clientParams));
+    clients_.push_back(std::make_shared<external_client::ConcordClient>(i));
     ClientPoolMetrics_.clients_gauge++;
   }
   jobs_thread_pool_.start(num_clients);
@@ -385,7 +411,6 @@ ConcordClientPool::~ConcordClientPool() {
     client->stopClientComm();
   }
   clients_.clear();
-  LOG_INFO(logger_, "Clients cleanup complete");
 }
 
 void ConcordClientPool::SetDoneCallback(EXT_DONE_CALLBACK cb) { done_callback_ = std::move(cb); }

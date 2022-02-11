@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -36,7 +36,7 @@ int WrapCommunication::send(NodeNum destNode, std::vector<uint8_t>&& msg, NodeNu
   }
 }
 
-std::set<NodeNum> WrapCommunication::send(std::set<NodeNum> dests, std::vector<uint8_t>&& msg, NodeNum endpointNum) {
+std::set<NodeNum> WrapCommunication::send(std::set<NodeNum> dests, std::vector<uint8_t>&& msg, NodeNum srcEndpointNum) {
   if (separate_communication_) {
     std::set<NodeNum> failedNodes;
     for (auto dst : dests) {

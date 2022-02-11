@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2020-2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2020-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -14,7 +14,6 @@
 #include "PreProcessor.hpp"
 #include "OpenTracing.hpp"
 #include "Timers.hpp"
-#include "messages/FullCommitProofMsg.hpp"
 #include "messages/PreProcessBatchRequestMsg.hpp"
 #include "InternalReplicaApi.hpp"
 #include "communication/CommFactory.hpp"
@@ -348,7 +347,7 @@ void setUpCommunication() {
   unordered_map<NodeNum, NodeInfo> nodes;
 
   NodeInfo nodeInfo{"128.0.0.1", 4321, true};
-  nodes[1] = nodeInfo;
+  nodes[0] = nodeInfo;
 
   PlainUdpConfig configuration("128.0.0.1", 1234, 4096, nodes, replicaConfig.replicaId);
   communicatorPtr.reset(CommFactory::create(configuration), [](ICommunication* c) {

@@ -1,4 +1,6 @@
-// Copyright (c) 2021 VMware, Inc. All Rights Reserved.
+// Concord
+//
+// Copyright (c) 2021-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -66,16 +68,21 @@ struct BftTopology {
   std::string path_to_replicas_master_key = std::string();
 };
 
+struct ClientServiceInfo {
+  bft::client::ClientId id;
+  std::string host;
+};
+
 struct BftClientInfo {
   // ID needs to match the values set in Concord's configuration
   bft::client::ClientId id;
   uint16_t port;
-  std::string host;
 };
 
 struct TransportConfig {
   enum CommunicationType { Invalid, TlsTcp, PlainUdp };
   CommunicationType comm_type;
+  bool enable_multiplex_channel;
   // for testing purposes
   bool enable_mock_comm;
   // Communication buffer length
@@ -105,6 +112,7 @@ struct ConcordClientConfig {
   // Communication layer configuration
   TransportConfig transport;
   // BFT client descriptors
+  ClientServiceInfo client_service;
   std::vector<BftClientInfo> bft_clients;
   std::uint16_t num_of_used_bft_clients;
   // Configuration for subscribe requests
