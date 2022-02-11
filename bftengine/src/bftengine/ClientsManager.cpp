@@ -253,7 +253,7 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateReplyFromSavedOne(NodeId
     sizeLastPage = replyMsgSize % sizeOfReservedPage();
   }
   LOG_DEBUG(CL_MNGR, KVLOG(clientId, numOfPages, sizeLastPage));
-  auto r = std::make_unique<ClientReplyMsg>(myId_, replyHeader->replyLength);
+  auto r = std::make_unique<ClientReplyMsg>(myId_, replyHeader->replyLength, replyHeader->result);
 
   // load reply message from reserved pages
   for (uint32_t i = 0; i < numOfPages; i++) {
