@@ -725,7 +725,13 @@ void Replica::postProcessUntilBlockId(uint64_t max_block_id) {
   if (auto last_st_block_id_opt = m_kvBlockchain->getLastStatetransferBlockId()) {
     last_st_block_id = last_st_block_id_opt.value();
   }
-  if ((max_block_id <= last_reachable_block) || (max_block_id > last_st_block_id)) {
+  if ((max_block_id == last_reachable_block) && (last_st_block_id == 0)) {
+    LOG_INFO(CAT_BLOCK_LOG,
+             "Consensus blockchain is fully linked, no proc-processing is required!"
+                 << KVLOG(max_block_id, last_reachable_block));
+    return;
+  }
+  if ((max_block_id < last_reachable_block) || (max_block_id > last_st_block_id)) {
     auto msg = std::stringstream{};
     msg << "Cannot post-process:" << KVLOG(max_block_id, last_reachable_block, last_st_block_id) << std::endl;
     throw std::invalid_argument{msg.str()};
