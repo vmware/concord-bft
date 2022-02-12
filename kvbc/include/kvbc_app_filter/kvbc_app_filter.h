@@ -20,6 +20,7 @@
 #include <atomic>
 #include <boost/lockfree/spsc_queue.hpp>
 #include <future>
+#include <optional>
 #include <set>
 #include "Logger.hpp"
 
@@ -40,6 +41,8 @@ typedef size_t KvbStateHash;
 
 typedef BlockUpdate KvbUpdate;
 typedef EventGroupUpdate EgUpdate;
+// global_event_group_id, external_tag_event_group_id
+typedef std::pair<uint64_t, uint64_t> TagTableValue;
 
 struct KvbFilteredUpdate {
   using OrderedKVPairs = std::vector<std::pair<std::string, std::string>>;
@@ -219,7 +222,7 @@ class KvbAppFilter {
 
   uint64_t getValueFromLatestTable(const std::string &key) const;
 
-  uint64_t getValueFromTagTable(const std::string &key) const;
+  TagTableValue getValueFromTagTable(const std::string &key) const;
 
   uint64_t oldestTagSpecificPublicEventGroupId() const;
 
@@ -229,22 +232,25 @@ class KvbAppFilter {
   // We do not want to process in memory, all the event group ids generated in a pruning window
   std::optional<uint64_t> getNextEventGroupId(std::shared_ptr<EventGroupClientState> &eg_state);
 
-  kvbc::categorization::EventGroup getEventGroup(kvbc::EventGroupId event_group_id, std::string &cid);
+  kvbc::categorization::EventGroup getEventGroup(kvbc::EventGroupId event_group_id) const;
 
   // Return the oldest global event group id.
   // If no event group can be found then 0 (invalid group id) is returned.
   uint64_t getOldestEventGroupId() const;
 
+  // Return the ID of the newest public event group.
+  // If no event group can be found, then 0 is returned.
   uint64_t getNewestPublicEventGroupId() const;
+
+  // Return the newest public event group, if existing. If non-existent, return std::nullopt.
+  // Throws on errors.
+  std::optional<kvbc::categorization::EventGroup> getNewestPublicEventGroup() const;
 
   // Return the block number of the very first global event group.
   // Optional because during start-up there might be no block/event group written yet.
   std::optional<BlockId> getOldestEventGroupBlockId();
 
- private:
-  logging::Logger logger_;
-  const concord::kvbc::IReader *rostorage_{nullptr};
-  const std::string client_id_;
+ public:
   static inline const std::string kGlobalEgIdKeyOldest{"_global_eg_id_oldest"};
   static inline const std::string kPublicEgIdKeyOldest{"_public_eg_id_oldest"};
   static inline const std::string kPublicEgIdKeyNewest{"_public_eg_id_newest"};
@@ -253,6 +259,11 @@ class KvbAppFilter {
   // tag + kTagTableKeySeparator + latest_tag_event_group_id concatenation is used as key for kv-updates of type
   // kExecutionEventGroupTagCategory
   static inline const std::string kTagTableKeySeparator{"#"};
+
+ private:
+  logging::Logger logger_;
+  const concord::kvbc::IReader *rostorage_{nullptr};
+  const std::string client_id_;
 
   // event groups are read in batches from storage, to avoid saving large number of event groups in memory
   // see method definition for getNextEventGroupId()

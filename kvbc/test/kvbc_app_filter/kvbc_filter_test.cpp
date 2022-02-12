@@ -125,10 +125,11 @@ class FakeStorage : public concord::kvbc::IReader {
     } else if (category_id == concord::kvbc::categorization::kExecutionEventGroupDataCategory) {
       // get event group
       std::vector<uint8_t> output;
-      if (concordUtils::fromBigEndianBuffer<uint64_t>(key.data()) - 1 >= eg_data_.size())
+      const auto key_idx = concordUtils::fromBigEndianBuffer<uint64_t>(key.data());
+      if (key_idx == 0 || key_idx - 1 >= eg_data_.size())
         throw std::runtime_error("The key: " + key +
                                  "for category kExecutionEventGroupDataCategory doesn't exist in storage!");
-      auto event_group_input = eg_data_.at(concordUtils::fromBigEndianBuffer<uint64_t>(key.data()) - 1).event_group;
+      auto event_group_input = eg_data_.at(key_idx - 1).event_group;
       concord::kvbc::categorization::serialize(output, event_group_input);
       return concord::kvbc::categorization::ImmutableValue{{block_id, std::string(output.begin(), output.end())}};
     } else {
@@ -223,6 +224,7 @@ class FakeStorage : public concord::kvbc::IReader {
       event.tags.push_back(trid);
       concord::kvbc::categorization::EventGroup event_group;
       event_group.events.emplace_back(event);
+      uint64_t external_tag_eg_id = 0;
       if (latest_table[trid + "_oldest"].empty()) {
         uint64_t id = 1;
         latest_table[trid + "_newest"] = concordUtils::toBigEndianStringBuffer(id);
@@ -236,8 +238,18 @@ class FakeStorage : public concord::kvbc::IReader {
       }
       latest_table[kGlobalEgIdKey + "_newest"] = concordUtils::toBigEndianStringBuffer(i);
 
+      if (trid != kPublicEgIdKey) {
+        if (latest_table.find(kPublicEgIdKey + "_oldest") != latest_table.end()) {
+          external_tag_eg_id =
+              concordUtils::fromBigEndianBuffer<uint64_t>(latest_table[trid + "_newest"].data()) +
+              concordUtils::fromBigEndianBuffer<uint64_t>(latest_table[kPublicEgIdKey + "_newest"].data());
+        } else {
+          external_tag_eg_id = concordUtils::fromBigEndianBuffer<uint64_t>(latest_table[trid + "_newest"].data());
+        }
+      }
       tag_table[trid + kTagTableKeySeparator + latest_table[trid + "_newest"]] =
-          concordUtils::toBigEndianStringBuffer(i);
+          concordUtils::toBigEndianStringBuffer(i) + kTagTableKeySeparator +
+          concordUtils::toBigEndianStringBuffer(external_tag_eg_id);
       eg_data_.push_back({i, std::move(event_group)});
     }
     first_event_group_block_id_ = first_event_group_block_id_ ? first_event_group_block_id_ : blockId_ + 1;
@@ -629,7 +641,7 @@ TEST(kvbc_filter_test, kvbfilter_start_eg_greater_then_end_eg) {
   auto kvb_filter = KvbAppFilter(&storage, client_id);
   size_t num_event_groups_to_fill = 10;
   storage.fillWithEventGroupData(num_event_groups_to_fill, client_id);
-  EventGroupId eg_id_start = 11;
+  EventGroupId eg_id_start = 12;
   spsc_queue<KvbFilteredEventGroupUpdate> queue_out{num_event_groups_to_fill};
   std::atomic_bool stop_exec = false;
   EXPECT_THROW(kvb_filter.readEventGroupRange(eg_id_start, queue_out, stop_exec);, InvalidEventGroupRange);
@@ -920,6 +932,58 @@ TEST(kvbc_filter_test, event_group_client_state) {
     EventGroupClientState state(pub_o, pub_n, pvt_o, pvt_n);
     EXPECT_EQ(state.curr_trid_event_group_id, exp);
   }
+}
+
+TEST(kvbc_filter_test, get_newest_public_event_group_id) {
+  auto storage = FakeStorage{};
+  auto kvb_filter = KvbAppFilter(&storage, "1");
+  const auto newest_pub_eg_id = std::uint64_t{42};
+  storage.latest_table[KvbAppFilter::kPublicEgIdKeyNewest] = concordUtils::toBigEndianStringBuffer(newest_pub_eg_id);
+  ASSERT_EQ(newest_pub_eg_id, kvb_filter.getNewestPublicEventGroupId());
+}
+
+TEST(kvbc_filter_test, no_newest_public_event_group_id) {
+  auto storage = FakeStorage{};
+  auto kvb_filter = KvbAppFilter(&storage, "1");
+  ASSERT_EQ(0, kvb_filter.getNewestPublicEventGroupId());
+}
+
+TEST(kvbc_filter_test, get_newest_public_event_group) {
+  auto storage = FakeStorage{};
+  auto kvb_filter = KvbAppFilter(&storage, "1");
+
+  const auto newest_pub_eg_id = std::uint64_t{5};
+  storage.latest_table[KvbAppFilter::kPublicEgIdKeyNewest] = concordUtils::toBigEndianStringBuffer(newest_pub_eg_id);
+
+  const auto eg_id = 9ul;
+  const auto external_tag_eg_id = 0ul;
+  const auto record_time = "10:00";
+  const auto data = "data";
+  storage.eg_data_.resize(eg_id);
+  auto eg_update = EgUpdate{};
+  eg_update.event_group_id = eg_id;
+  auto event = convertToEvent(data, {});
+  addEventToEventGroup(std::move(event), eg_update.event_group);
+  eg_update.event_group.record_time = record_time;
+  storage.eg_data_[eg_id - 1] = eg_update;
+
+  storage.tag_table[KvbAppFilter::kPublicEgId + KvbAppFilter::kTagTableKeySeparator +
+                    concordUtils::toBigEndianStringBuffer(newest_pub_eg_id)] =
+      concordUtils::toBigEndianStringBuffer(eg_id) + KvbAppFilter::kTagTableKeySeparator +
+      concordUtils::toBigEndianStringBuffer(external_tag_eg_id);
+
+  const auto newest_pub_eg = kvb_filter.getNewestPublicEventGroup();
+  ASSERT_TRUE(newest_pub_eg.has_value());
+  ASSERT_EQ(newest_pub_eg->events.size(), 1);
+  ASSERT_EQ(newest_pub_eg->events[0].data, data);
+  ASSERT_TRUE(newest_pub_eg->events[0].tags.empty());
+  ASSERT_EQ(newest_pub_eg->record_time, record_time);
+}
+
+TEST(kvbc_filter_test, no_newest_public_event_group) {
+  auto storage = FakeStorage{};
+  auto kvb_filter = KvbAppFilter(&storage, "1");
+  ASSERT_FALSE(kvb_filter.getNewestPublicEventGroup().has_value());
 }
 
 }  // anonymous namespace
