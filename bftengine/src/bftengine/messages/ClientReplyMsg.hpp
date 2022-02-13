@@ -34,7 +34,7 @@ class ClientReplyMsg : public MessageBase {
 
   ClientReplyMsg(ReplicaId primaryId, ReqId reqSeqNum, ReplicaId replicaId, uint32_t result);
 
-  ClientReplyMsg(ReplicaId replicaId, uint32_t replyLength);
+  ClientReplyMsg(ReplicaId replicaId, uint32_t replyLength, uint32_t executionResult = 0);
 
   uint32_t maxReplyLength() const { return internalStorageSize() - sizeof(ClientReplyMsgHeader); }
 
