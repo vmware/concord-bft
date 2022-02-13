@@ -388,7 +388,7 @@ class BcStTestDelegator {
                                     logging::Logger& logger) {
     return stateTransfer_->checkStructureOfVirtualBlock(virtualBlock, virtualBlockSize, pageSize, logger);
   }
-
+  void peekConsensusMessage(const shared_ptr<ConsensusMsg>& msg) { stateTransfer_->peekConsensusMessage(msg); }
   // Source Selector
   void assertSourceSelectorMetricKeyVal(const std::string& key, uint64_t val);
   SourceSelector& getSourceSelector() { return stateTransfer_->sourceSelector_; }
@@ -1477,7 +1477,7 @@ TEST_P(BcStTestParamFixture2, dstSourceSelectorPrimaryAwareness) {
       ASSERT_NFF(msg = dataGen_->generatePrePrepareMsg(ss.currentReplica()));
       for (uint16_t i = 1; i <= targetConfig_.minPrePrepareMsgsForPrimaryAwareness; i++) {
         auto cmsg = make_shared<ConsensusMsg>(msg->type(), msg->senderId());
-        stateTransfer_->peekConsensusMessage(cmsg);
+        stDelegator_->peekConsensusMessage(cmsg);
       }
     });
   };
@@ -1597,7 +1597,7 @@ TEST_F(BcStTest, dstSendPrePrepareMsgsDuringStateTransfer) {
       ASSERT_NFF(msg = dataGen_->generatePrePrepareMsg(ss.currentReplica()));
       for (uint16_t i = 1; i <= targetConfig_.minPrePrepareMsgsForPrimaryAwareness; i++) {
         auto cmsg = make_shared<ConsensusMsg>(msg->type(), msg->senderId());
-        stateTransfer_->peekConsensusMessage(cmsg);
+        stDelegator_->peekConsensusMessage(cmsg);
       }
     });
   };
@@ -1630,10 +1630,10 @@ TEST_F(BcStTest, dstPreprepareFromMultipleSourcesDuringStateTransfer) {
       ASSERT_NFF(msg = dataGen_->generatePrePrepareMsg(ss.currentReplica()));
       for (uint16_t i = 1; i <= targetConfig_.minPrePrepareMsgsForPrimaryAwareness - 1; i++) {
         auto cmsg = make_shared<ConsensusMsg>(msg->type(), msg->senderId());
-        stateTransfer_->peekConsensusMessage(cmsg);
+        stDelegator_->peekConsensusMessage(cmsg);
       }
       auto cmsg = make_shared<ConsensusMsg>(msg->type(), (msg->senderId() + 1) % targetConfig_.numReplicas);
-      stateTransfer_->peekConsensusMessage(cmsg);
+      stDelegator_->peekConsensusMessage(cmsg);
     });
   };
   ASSERT_NFF(getMissingblocksStage(EMPTY_FUNC, generate_preprepare_messages));

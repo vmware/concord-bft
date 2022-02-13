@@ -119,12 +119,12 @@ class BCStateTran : public IStateTransfer {
   logging::Logger& logger_;
 
   // Incoming Events queue - ST main thread is a consumer of timeouts and messages arriving from an external context
-  void onTimer() override { timerHandler_(); };
+  void onTimer() override { timeoutHandler_(); };
 
   using LocalTimePoint = time_point<steady_clock>;
   static constexpr auto UNDEFINED_LOCAL_TIME_POINT = LocalTimePoint::max();
   void handleStateTransferMessage(char* msg, uint32_t msgLen, uint16_t senderId) override {
-    messageHandler_(msg, msgLen, senderId, UNDEFINED_LOCAL_TIME_POINT);
+    incomingStateTransferMsgHandler_(msg, msgLen, senderId, UNDEFINED_LOCAL_TIME_POINT);
   };
   std::unique_ptr<concord::util::Handoff> incomingEventsQ_;
 
@@ -153,33 +153,37 @@ class BCStateTran : public IStateTransfer {
     return cre_;
   }
 
-  void handoffConsensusMessage(const shared_ptr<ConsensusMsg>& msg) override {
-    // TBD Filtering to drop too frequent messages
-    // bind understands only shared_ptr natively
-    incomingEventsQ_->push(std::bind(&BCStateTran::peekConsensusMessage, this, std::move(msg)));
-  }
-
-  void peekConsensusMessage(shared_ptr<ConsensusMsg>& msg);
-
  protected:
   // enter a new cycle internally
   void startCollectingStateInternal();
 
-  // handling messages from other context
-  std::function<void(char*, uint32_t, uint16_t, LocalTimePoint)> messageHandler_;
+  // handling incoming State Transfer messages from other context
+  std::function<void(char*, uint32_t, uint16_t, LocalTimePoint)> incomingStateTransferMsgHandler_;
   void handleStateTransferMessageImp(char* msg,
                                      uint32_t msgLen,
                                      uint16_t senderId,
                                      LocalTimePoint msgArrivalTime = UNDEFINED_LOCAL_TIME_POINT);
-  void handoffMsg(char* msg, uint32_t msgLen, uint16_t senderId) {
-    handoff_->push(
+  void handleIncomingStateTransferMessage(char* msg, uint32_t msgLen, uint16_t senderId) {
+    incomingEventsQ_->push(
         std::bind(&BCStateTran::handleStateTransferMessageImp, this, msg, msgLen, senderId, steady_clock::now()));
   }
 
-  // handling timer from other context
-  std::function<void()> timerHandler_;
+  // handling incoming consensus messages from other context
+  void peekConsensusMessage(const shared_ptr<ConsensusMsg>& msg);
+  void handleIncomingConsensusMessage(const shared_ptr<ConsensusMsg>& msg) override {
+    // TBD Filtering to drop too frequent messages
+    // bind understands only shared_ptr natively
+    if (config_.runInSeparateThread) {
+      incomingEventsQ_->push(std::bind(&BCStateTran::peekConsensusMessage, this, std::move(msg)));
+    } else {
+      peekConsensusMessage(msg);
+    }
+  }
+
+  // handling timeouts from other context
+  std::function<void()> timeoutHandler_;
   void onTimerImp();
-  void handoffTimer() { handoff_->push(std::bind(&BCStateTran::onTimerImp, this)); }
+  void handleTimeout() { incomingEventsQ_->push(std::bind(&BCStateTran::onTimerImp, this)); }
 
   ///////////////////////////////////////////////////////////////////////////
   // Constants
