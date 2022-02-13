@@ -1,9 +1,14 @@
-name: Release build (clang)
-on: [push, pull_request]
+name: Test (Debug, clang)
+on:
+  workflow_run:
+    workflows: ["Build (Debug, clang)"]
+    branches: [master]
+    types:
+      - completed
 
 jobs:
   build:
-    name: Build
+    name: Test
     runs-on: ubuntu-18.04
     outputs:
       err_output: ${{ steps.prepare_err_artifacts.outputs.test}}
@@ -13,8 +18,8 @@ jobs:
             compiler:
                 - "CONCORD_BFT_CONTAINER_CC=clang CONCORD_BFT_CONTAINER_CXX=clang++"
             ci_build_type:
-                - "-DCMAKE_BUILD_TYPE=RELEASE -DBUILD_COMM_TCP_TLS=FALSE"
-                - "-DCMAKE_BUILD_TYPE=RELEASE -DBUILD_COMM_TCP_TLS=TRUE"
+                - "-DCMAKE_BUILD_TYPE=Debug -DBUILD_COMM_TCP_TLS=FALSE"
+                - "-DCMAKE_BUILD_TYPE=Debug -DBUILD_COMM_TCP_TLS=TRUE"
             use_s3_obj_store:
                 - "-DUSE_S3_OBJECT_STORE=ON"
                 - "-DUSE_S3_OBJECT_STORE=OFF"
@@ -30,6 +35,15 @@ jobs:
           uses: actions/checkout@v2
         - name: Create artifact directory
           run: mkdir -p ${{ github.workspace }}/artifact
+        - name: Docker Pull
+          run: |
+              script -q -e -c "make pull"
+        - name: Download Build artifact
+          uses: dawidd6/action-download-artifact@v2
+          with:
+            github_token: ${{ secrets.GITHUB_TOKEN }}
+            workflow: build_clang_debug.yml
+            run_id: ${{ github.event.workflow_run.id }}
         #- name: Configure core dump location
         #  run: |
             # Uncomment the line below to enable core dump collection
@@ -39,25 +53,17 @@ jobs:
             # Refer to https://github.com/marketplace/actions/debugging-with-tmate
         #- name: Setup tmate session
         #  uses: mxschmitt/action-tmate@v2
-        - name: Build and test
+        - name: Test
           run: |
-              script -q -e -c "make pull"
+              script -q -e -c "ls -l"
+              script -q -e -c "cat ./wat.txt"
+              script -q -e -c "ls -l"
               sudo df -h
-              script -q -e -c "make build \
-                              ${{ matrix.compiler}} \
-                              CONCORD_BFT_CMAKE_FLAGS=\"\
-                              ${{ matrix.ci_build_type }} \
-                              -DBUILD_TESTING=ON \
-                              -DBUILD_COMM_TCP_PLAIN=FALSE \
-                              -DCMAKE_CXX_FLAGS_RELEASE='-O3 -g' \
-                              -DUSE_LOG4CPP=TRUE \
-                              -DBUILD_ROCKSDB_STORAGE=TRUE \
-                              ${{ matrix.use_s3_obj_store }} \
-                              -DUSE_OPENTRACING=ON \
-                              -DOMIT_TEST_OUTPUT=OFF\
-                              -DKEEP_APOLLO_LOGS=TRUE\
-                              -DUSE_FAKE_CLOCK_IN_TIME_SERVICE=TRUE\" "\
-              && script -q -e -c "make test"
+        #- name: Test
+        #  run: |
+        #      script -q -e -c "make pull"
+        #      sudo df -h
+        #      script -q -e -c "APOLLO_LOG_STDOUT=1 make TEST_NAME=skvbc_commit_path_tests single-test"
         - name: Prepare artifacts
           if: failure()
           run: |
@@ -91,6 +97,18 @@ jobs:
           with:
             name: artifacts-${{ matrix.compiler }}-${{ matrix.ci_build_type }}-${{ github.sha }}
             path: ${{ github.workspace }}/artifact/
+
+  runtest:
+    name: Check ERROR/FATAL logs(Apollo)
+    runs-on: ubuntu-18.04
+    continue-on-error: true
+    needs: build
+    steps:
+      - name: Check ERROR/FATAL logs in apollo
+        if: needs.build.outputs.err_output == 'success'
+        run: |
+          echo "Errors exist in replica logs. Please check Artifacts"
+          exit 1
   testlog:
     name: Check ERROR/FATAL logs(Apollo)
     runs-on: ubuntu-18.04
