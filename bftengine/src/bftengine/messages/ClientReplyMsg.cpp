@@ -30,9 +30,9 @@ ClientReplyMsg::ClientReplyMsg(
   memcpy(body() + sizeof(ClientReplyMsgHeader), reply, replyLength);
 }
 
-ClientReplyMsg::ClientReplyMsg(ReplicaId replicaId, uint32_t replyLength)
+ClientReplyMsg::ClientReplyMsg(ReplicaId replicaId, uint32_t replyLength, uint32_t executionResult)
     : MessageBase(replicaId, MsgCode::ClientReply, sizeof(ClientReplyMsgHeader) + replyLength) {
-  setHeaderParameters(0, 0, replyLength, 0);
+  setHeaderParameters(0, 0, replyLength, executionResult);
 }
 
 // Reply with no data; returns an error to the client
