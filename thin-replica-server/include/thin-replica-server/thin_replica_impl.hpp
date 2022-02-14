@@ -304,6 +304,11 @@ class ThinReplicaImpl {
         auto has_update = live_updates->waitForEventGroupUntilNonEmpty(kWaitForUpdateTimeout);
         if (context->IsCancelled()) {
           LOG_INFO(logger_, "StreamCancelled while waiting for the first live event group.");
+          config_->subscriber_list.removeBuffer(live_updates);
+          live_updates->removeAllUpdates();
+          live_updates->removeAllEventGroupUpdates();
+          metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
+          metrics_.updateAggregator();
           return grpc::Status::CANCELLED;
         }
         if (has_update) {
@@ -319,6 +324,11 @@ class ThinReplicaImpl {
         auto has_update = live_updates->waitForEventGroupUntilNonEmpty(kWaitForUpdateTimeout);
         if (context->IsCancelled()) {
           LOG_INFO(logger_, "StreamCancelled while waiting for the next live event group.");
+          config_->subscriber_list.removeBuffer(live_updates);
+          live_updates->removeAllUpdates();
+          live_updates->removeAllEventGroupUpdates();
+          metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
+          metrics_.updateAggregator();
           return grpc::Status::CANCELLED;
         }
         if (has_update) {
@@ -333,6 +343,11 @@ class ThinReplicaImpl {
         while (not live_updates->waitUntilNonEmpty(kWaitForUpdateTimeout)) {
           if (context->IsCancelled()) {
             LOG_INFO(logger_, "StreamCancelled while waiting for the next live update.");
+            config_->subscriber_list.removeBuffer(live_updates);
+            live_updates->removeAllUpdates();
+            live_updates->removeAllEventGroupUpdates();
+            metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
+            metrics_.updateAggregator();
             return grpc::Status::CANCELLED;
           }
         }
