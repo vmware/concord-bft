@@ -5024,6 +5024,13 @@ void ReplicaImp::executeRequests(PrePrepareMsg *ppMsg, Bitmap &requestSet, Times
     //    SCOPED_MDC_CID(req.getCid());
     NodeIdType clientId = req.clientProxyId();
 
+    auto replyBuffer = (char *)std::malloc(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader));
+    uint32_t replySize = 0;
+    if ((req.flags() & HAS_PRE_PROCESSED_FLAG) && (req.result() != static_cast<uint32_t>(OperationResult::UNKNOWN))) {
+      replySize = req.requestLength();
+      memcpy(replyBuffer, req.requestBuf(), req.requestLength());
+    }
+
     pAccumulatedRequests->push_back(IRequestsHandler::ExecutionRequest{
         clientId,
         static_cast<uint64_t>(lastExecutedSeqNum + 1),
@@ -5033,9 +5040,10 @@ void ReplicaImp::executeRequests(PrePrepareMsg *ppMsg, Bitmap &requestSet, Times
         req.requestBuf(),
         std::string(req.requestSignature(), req.requestSignatureLength()),
         static_cast<uint32_t>(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
-        (char *)std::malloc(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
+        replyBuffer,
         req.requestSeqNum(),
-        req.result()});
+        req.result(),
+        replySize});
 
     if (req.flags() & HAS_PRE_PROCESSED_FLAG) {
       setConflictDetectionBlockId(req, pAccumulatedRequests->back());
@@ -5577,6 +5585,13 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
     SCOPED_MDC_CID(req.getCid());
     NodeIdType clientId = req.clientProxyId();
 
+    auto replyBuffer = (char *)std::malloc(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader));
+    uint32_t replySize = 0;
+    if ((req.flags() & HAS_PRE_PROCESSED_FLAG) && (req.result() != static_cast<uint32_t>(OperationResult::UNKNOWN))) {
+      replySize = req.requestLength();
+      memcpy(replyBuffer, req.requestBuf(), req.requestLength());
+    }
+
     accumulatedRequests.push_back(IRequestsHandler::ExecutionRequest{
         clientId,
         static_cast<uint64_t>(lastExecutedSeqNum + 1),
@@ -5586,9 +5601,10 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
         req.requestBuf(),
         std::string(req.requestSignature(), req.requestSignatureLength()),
         static_cast<uint32_t>(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
-        (char *)std::malloc(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
+        replyBuffer,
         req.requestSeqNum(),
-        req.result()});
+        req.result(),
+        replySize});
     // Decode the pre-execution block-id for the conflict detection optimization,
     // and pass it to the post-execution.
     if (req.flags() & HAS_PRE_PROCESSED_FLAG) {
@@ -5630,7 +5646,13 @@ void ReplicaImp::sendResponses(PrePrepareMsg *ppMsg, IRequestsHandler::Execution
     std::unique_ptr<ClientReplyMsg> replyMsg;
 
     if (executionResult != 0) {
-      LOG_WARN(CNSUS, "Request execution failed: " << KVLOG(req.clientId, req.requestSequenceNum, ppMsg->getCid()));
+      LOG_WARN(GL,
+               "Request execution failed: " << KVLOG(req.clientId,
+                                                     req.requestSequenceNum,
+                                                     ppMsg->getCid(),
+                                                     req.outExecutionStatus,
+                                                     req.outReply,
+                                                     req.outActualReplySize));
     } else {
       if (req.flags & HAS_PRE_PROCESSED_FLAG) metric_total_preexec_requests_executed_++;
       if (req.outActualReplySize != 0) {
