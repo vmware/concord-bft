@@ -24,7 +24,7 @@ usage() {
     # If line number is given, version will be changed only for this line number
     printf "%s\n" " -a --agent-replace-version <current version,format:X.X.X.X.X> <new version,format:X.X.X.X.X> <line number,integer,optional>"
     printf "%s\n" " -v --agent-show-containers-version"
-    printf "%s\n" " -r --reset-containers <agent version,integer>"
+    printf "%s\n" " -r --reset-containers <agent version,format:X.X.X.X.X>"
     printf "%s\n\t%s\n" " -p --compress-truncate-container-logs <container_name,string> <output_folder_path,string> <repeat_times,integer>" \
         "<wait_before_iteration,seconds,optional,default=0> <wait_after_iteration,seconds,optional,default=0>"
     printf "%s\n" " -u --truncate-container-logs <container_name,string>"
@@ -35,6 +35,7 @@ usage() {
     printf "%s\n" " -lss --list-snapshots"
     printf "%s\n" " -bst --set-concord-bft-config-parameter <parameter name, string> <parameter value>"
     printf "%s\n" " -bsh --show-concord-bft-config"
+    printf "%s\n" " -mcrab --mc-reset-all-buckets"
 }
 
 parser() {
@@ -57,6 +58,7 @@ parser() {
     cmd_list_snapshots=false
     cmd_set_concord_bft_config_parameter=false
     cmd_show_concord_bft_config=false
+    cmd_mc_reset_all_buckets=false
 
     while [ "$1" ]; do
         case $1 in
@@ -235,6 +237,11 @@ parser() {
         break
         ;;
 
+        -mcrab | --mc-reset-all-buckets)
+        cmd_mc_reset_all_buckets=true
+        break
+        ;;
+
         *)
         echo "error: unknown input $1!" >&2
         usage
@@ -255,6 +262,8 @@ concord_container_name="concord"
 vm_agent_config_path="/config/agent/config.json"
 concord_log_properties_path="/concord/resources/log4cplus.properties"
 concord_bft_config_path="/concord/resources/bft_config.yaml"
+minio_alias_name="min"
+minio_command_line_tool_path="/mnt/data/mc"
 ####
 
 ##########################################
@@ -363,7 +372,7 @@ fi
 # handle cmd_install_tools
 ##########################################
 if $cmd_install_tools; then
-rm -rf ~/.tmux.conf ~/.profile
+rm -rf ~/.tmux.conf ~/.profile ~/root/.mc/
 
 cat <<EOF > ~/.tmux.conf
 # Scroll History
@@ -397,47 +406,43 @@ mv lnav-0.10.1/lnav /usr/bin/
 rm -rf ./lnav-0.10.1 ./lnav-0.10.1-musl-64bit.zip
 
 cat <<EOF >> ~/.profile
-alias myip="echo \$(ifconfig | grep "10\.202" | cut -d ":" -f 2 | cut -d " " -f 1)"
 alias ll="ls -la"
 alias cd_grep_log_full="docker logs concord | grep -ia"
 alias cd_grep_log_tail="docker logs concord --tail 10 -f | grep -ia"
-
 alias cd_login="docker exec -it concord /bin/bash"
 alias cd_logs_zip="docker logs concord | zip -9 log.zip -"
-alias myid="ls /config/concord/config-generated/ 2> /dev/null | cut -d "." -f 2"
-alias cd_truncate='truncate -s 0 $(docker inspect --format='{{.LogPath}}' concord)'
+
+myip() {
+  echo $(ifconfig | grep  -m 1 -Eo '10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | cut -d ":" -f 2 | cut -d " " -f 1 | grep -v 255)
+}
+
+_myid() {
+  echo $(ls /config/concord/config-generated/ 2> /dev/null | cut -d "." -f 2)
+}
 
 my_id() {
-  local id=\$(myid)
-  if [ -z "\$id" ]; then
-    n=\$(grep -ai -A 1000000 ro_node /config/concord/config-local/deployment.config | grep -n \$(myip)  | cut -f1 -d:)
-	  re='^[0-9]+$'
-	  if [[ \$n =~ \$re ]] ; then
-		  n=\$((n-2))
-		  n=\$(grep -ai -A 1000000 ro_node /config/concord/config-local/deployment.config  | sed -n \${n}p | cut -f2 -d ':')
-		  id="id_ro_"\${n//[[:space:]]/}
-	  fi
+  if [ "$(docker ps -a | grep concord | wc -l)" -eq "0" ]; then
+    local id="ledger"
   else
-    id="id_"\$(myid)
+    local id=\$(_myid)
+    if [ -z "\$id" ]; then
+      n=\$(grep -ai -A 1000000 ro_node /config/concord/config-local/deployment.config | grep -n \$(myip)  | cut -f1 -d:)
+      re='^[0-9]+$'
+      if [[ \$n =~ \$re ]] ; then
+        n=\$((n-2))
+        n=\$(grep -ai -A 1000000 ro_node /config/concord/config-local/deployment.config  | sed -n \${n}p | cut -f2 -d ':')
+        id="id_ro_"\${n//[[:space:]]/}
+      fi
+    else
+      id="id_"\$(_myid)
+    fi
   fi
   echo "\${id}"
 }
 
 export PATH="$PATH:/root"
-fagent_change_config_ver() {
-    if [[ $# -ne 2 ]]; then echo "usage: agent_change_config_ver <old_ver> <new_ver>"; return; fi
-    sed -i 's/$1/$2/g' /config/agent/config.json
-}
 
-fdocker_truncate_logs() {
-    if [[ $# -ne 1 ]]; then echo "usage: cd_docker_truncate_logs <container_name>"; return; fi
-    truncate -s 0 $(docker inspect --format='{{.LogPath}}' $1)
-}
-# If set, Bash checks the window size after each command and, if necessary, updates the values of LINES and COLUMNS
-
-myroid_result=
-PS1=$(shopt -u checkwinsize)
-PS1+="\[\e[0;31m\][\$(my_id || "")][ip_\$(myip)][\w]\n\[\e[m\]> "
+PS1='\[\e[0;31m\][\$(my_id || "")][ip_\$(myip)][\w]\n\[\e[m\]> '
 export PS1
 shopt -s checkwinsize
 if [ ! -e "/logs" ] || [ ! -e "/mnt/data/logs/" ]; then
@@ -445,7 +450,6 @@ if [ ! -e "/logs" ] || [ ! -e "/mnt/data/logs/" ]; then
   rm /logs
   ln -s /mnt/data/logs/ /logs
 fi
-
 
 if [ ! -e "/coredump_logs" ] || [ ! -e "/mnt/data/coredump_logs/" ]; then
   mkdir -p /mnt/data/coredump_logs/
@@ -458,20 +462,41 @@ if [ ! -e "/keep" ] || [ ! -e "/mnt/data/keep/" ]; then
   rm /keep
   ln -s /mnt/data/keep/ /keep
 fi
-
 cd /mnt/data/
+
 EOF
 
 # inside concord container
 docker exec -it ${concord_container_name} bash -c "apt update && apt install nano -y"  >/dev/null 2>&1 || true
-echo "Done Installing tools, please log in and out"
+
+. ~/.profile
+
+# install minio command line tool 'mc' in RO replica
+if [[ "$(my_id)" == *"id_ro"* ]]; then
+  rm -rf ${minio_command_line_tool_path}*
+  echo "Installing minio mc under /mnt/data/"
+  wget https://dl.min.io/client/mc/release/linux-amd64/mc
+  chmod +x ${minio_command_line_tool_path}
+  ip=$(cat /config/concord/config-local/deployment.config | grep -m1 s3-url | cut -d ":" -f 2)
+  port=$(cat /config/concord/config-local/deployment.config | grep -m1 s3-url | cut -d ":" -f 3)
+  secret_key=$(cat /config/concord/config-local/deployment.config | grep -m1 s3-secret-key | cut -d ' ' -f 6)
+  access_key=$(cat /config/concord/config-local/deployment.config | grep -m1 s3-access-key| cut -d ' ' -f 6)
+  ip=$(echo ${ip} | xargs)
+  port=$(echo ${port} | xargs)
+  secret_key=$(echo ${secret_key} | xargs)
+  access_key=$(echo ${access_key} | xargs)
+  echo "Adding alias: ./mc alias set min http://${ip}:${port} ${access_key} ${secret_key}"
+  ${minio_command_line_tool_path} alias set ${minio_alias_name}/ http://${ip}:${port} ${access_key} ${secret_key}
 fi
+
+echo "Done Installing tools, please log in and out"
+fi # if $cmd_install_tools; then
 
 ##########################################
 # handle cmd_gen_concord_coredump_summary
 ##########################################
 if $cmd_gen_concord_coredump_summary; then
-    myip=$(ifconfig | grep "10\." | cut -d ":" -f 2 | cut -d " " -f 1)
+    myip=$(ifconfig | grep  -m 1 -Eo '10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | cut -d ":" -f 2 | cut -d " " -f 1 | grep -v 255)
     output_file="${output_path}/cores_summary_${myip}.log"
     rm -f "${output_file}" || true 2> /dev/null
     mkdir -p ${output_path}
@@ -487,12 +512,12 @@ fi
 if $cmd_agent_replace_version; then
     cur_ver_dot_count="${cur_ver//[^.]}"
     new_ver_dot_count="${new_ver//[^.]}"
-    if [[ "${#cur_ver_dot_count}" -ne 4 ]]; then 
-      echo "cur_ver=${cur_ver} has wrong format.."
+    if [[ "${#cur_ver_dot_count}" -ne 4 ]]; then
+      echo "cur_ver=${cur_ver} has wrong format. (format:X.X.X.X.X)"
       exit 1
     fi
     if [[ "${#new_ver_dot_count}" -ne 4 ]]; then 
-      echo "cur_ver=${new_ver} has wrong format.."
+      echo "cur_ver=${new_ver} has wrong format. (format:X.X.X.X.X)"
       exit 1
     fi
 
@@ -522,7 +547,12 @@ fi
 # handle cmd_reset_containers
 ##########################################
 if $cmd_reset_containers; then
-    agent_full_version=0.0.0.0.${agent_version}
+    agent_ver_dot_count="${agent_version//[^.]}"
+    if [[ "${#agent_ver_dot_count}" -ne 4 ]]; then 
+      echo "agent_version=${agent_version} has wrong format. (format:X.X.X.X.X)"
+      exit 1
+    fi
+
     docker stop $(docker ps -a -q) || true
     docker rm -f $(docker ps -a -q) || true
     rm -rf /config/daml-index-db/*
@@ -534,7 +564,7 @@ if $cmd_reset_containers; then
                         --network=blockchain-fabric \
                         -p 127.0.0.1:8546:8546 \
                         -v /config:/config -v /var/run/docker.sock:/var/run/docker.sock \
-                        blockchain-docker-internal.artifactory.eng.vmware.com/vmwblockchain/agent:${agent_full_version}
+                        blockchain-docker-internal.artifactory.eng.vmware.com/vmwblockchain/agent:${agent_version}
     echo "===Done!==="
 fi
 
@@ -617,10 +647,10 @@ if $cmd_save_snapshot; then
       echo "Stop: docker stop concord"
       docker stop concord
     fi
-    echo "Copy: cp -R /mnt/data/rocksdbdata ${snapshot_path}"
-    cp -R /mnt/data/rocksdbdata ${snapshot_path}
-    echo "Copy: cp -R /config/concord/config-generated ${snapshot_path}"
-    cp -R /config/concord/config-generated ${snapshot_path}
+    echo "Copy: cp -R -a /mnt/data/rocksdbdata ${snapshot_path}"
+    cp -R -a /mnt/data/rocksdbdata ${snapshot_path}
+    echo "Copy: cp -R -a /config/concord/config-generated ${snapshot_path}"
+    cp -R -a /config/concord/config-generated ${snapshot_path}
   fi
 
   if [ $(docker ps -a | grep daml_index_db | wc -l) -eq '1' ]; then
@@ -630,10 +660,10 @@ if $cmd_save_snapshot; then
       echo "Stop: docker stop daml_index_db"
       docker stop daml_index_db
     fi
-    echo "Copy: cp -R /mnt/data/db ${snapshot_path}"
-    cp -R /mnt/data/db ${snapshot_path}
-    echo "Copy: cp -R /config/daml-index-db ${snapshot_path}"
-    cp -R /config/daml-index-db ${snapshot_path}
+    echo "Copy: cp -R -a /mnt/data/db ${snapshot_path}"
+    cp -R -a /mnt/data/db ${snapshot_path}
+    echo "Copy: cp -R -a /config/daml-index-db ${snapshot_path}"
+    cp -R -a /config/daml-index-db ${snapshot_path}
   fi
 
   if [ $(docker ps -a | grep daml_ledger_api | wc -l) -eq '1' ]; then
@@ -700,12 +730,12 @@ if $cmd_load_snapshot; then
     fi
     echo "Delete: rm -rf /mnt/data/rocksdbdata/*"
     rm -rf /mnt/data/rocksdbdata/*
-    echo "Copy: cp -R ${snapshot_path}/rocksdbdata/* /mnt/data/rocksdbdata/"
-    cp -R ${snapshot_path}/rocksdbdata/* /mnt/data/rocksdbdata/
+    echo "Copy: cp -R -a ${snapshot_path}/rocksdbdata/* /mnt/data/rocksdbdata/"
+    cp -R -a ${snapshot_path}/rocksdbdata/* /mnt/data/rocksdbdata/
     echo "Delete: rm -rf /config/concord/config-generated/*"
     rm -rf /config/concord/config-generated/*
-    echo "Copy: cp -R ${snapshot_path}/config-generated/* /config/concord/config-generated/"
-    cp -R ${snapshot_path}/config-generated/* /config/concord/config-generated/
+    echo "Copy: cp -R -a ${snapshot_path}/config-generated/* /config/concord/config-generated/"
+    cp -R -a ${snapshot_path}/config-generated/* /config/concord/config-generated/
   fi
 
   if [ $(docker ps -a | grep daml_index_db | wc -l) -eq '1' ]; then
@@ -717,12 +747,12 @@ if $cmd_load_snapshot; then
     fi
     echo "Delete: rm -rf /mnt/data/db/*"
     rm -rf /mnt/data/db/*
-    echo "Copy: cp -R ${snapshot_path}/db/* /mnt/data/db/"
-    cp -R ${snapshot_path}/db/* /mnt/data/db/
+    echo "Copy: cp -R -a ${snapshot_path}/db/* /mnt/data/db/"
+    cp -R -a ${snapshot_path}/db/* /mnt/data/db/
     echo "Delete: rm -rf /config/daml-index-db/*"
     rm -rf /config/daml-index-db/*
-    echo "Copy: cp -R ${snapshot_path}/daml-index-db/* /config/daml-index-db/"
-    cp -R ${snapshot_path}/daml-index-db/* /config/daml-index-db/ || true
+    echo "Copy: cp -R -a ${snapshot_path}/daml-index-db/* /config/daml-index-db/"
+    cp -R -a ${snapshot_path}/daml-index-db/* /config/daml-index-db/ || true
   fi
 
   if [ $(docker ps -a | grep daml_ledger_api | wc -l) -eq '1' ]; then
@@ -768,7 +798,7 @@ fi
 # handle cmd_set_concord_bft_config_parameter
 ##########################################
 if $cmd_set_concord_bft_config_parameter; then
-  count=$(docker exec ${concord_container_name} bash -c "grep ${param_key} ${concord_bft_config_path} | wc -l")
+  count=$(docker exec ${concord_container_name} bash -c "grep ${param_key}: ${concord_bft_config_path} | wc -l")
   if [[ ${count} -ne 1 ]]; then
     echo "Error: Parameter ${param_key} should be exactly once in ${concord_bft_config_path} inside container ${concord_container_name}!"
     exit 1
@@ -783,3 +813,45 @@ fi
 if $cmd_show_concord_bft_config; then
   docker exec ${concord_container_name} bash -c "cat '${concord_bft_config_path}'"
 fi
+
+##########################################
+# handle cmd_mc_reset_all_buckets
+##########################################
+if $cmd_mc_reset_all_buckets; then
+  ip=$(cat /config/concord/config-local/deployment.config | grep -m1 s3-url | cut -d ":" -f 2)
+  secret_key=$(cat /config/concord/config-local/deployment.config | grep -m1 s3-secret-key | cut -d ' ' -f 6)
+  access_key=$(cat /config/concord/config-local/deployment.config | grep -m1 s3-access-key| cut -d ' ' -f 6)
+  port=$(cat /config/concord/config-local/deployment.config | grep -m1 s3-url | cut -d ":" -f 3)
+  ip=$(echo ${ip} | xargs)
+  secret_key=$(echo ${secret_key} | xargs)
+  access_key=$(echo ${access_key} | xargs)
+  port=$(echo ${port} | xargs)
+
+  # delete all buckets
+  echo sshpass -p 'ca$hc0w' ssh -o StrictHostKeychecking=no  "root@${ip}" \
+    "docker stop minio > /dev/null 2>&1; docker rm minio > /dev/null 2>&1;" \
+    "docker run -d -t --rm  -p ${port}:${port} -e MINIO_ACCESS_KEY='${access_key}'" \
+    " -e MINIO_SECRET_KEY='${secret_key}' -e MINIO_HTTP_TRACE=/dev/stdout" \
+    " --name=minio athena-docker-local.artifactory.eng.vmware.com/minio/minio:RELEASE.2020-09-05T07-14-49Z server /data" \
+    " sleep 1; docker ps -a"
+
+  sshpass -p 'ca$hc0w' ssh -o StrictHostKeychecking=no  "root@${ip}" \
+    "docker stop minio > /dev/null 2>&1; docker rm minio > /dev/null 2>&1;" \
+    "docker run -d -t --rm  -p ${port}:${port} -e MINIO_ACCESS_KEY='${access_key}'" \
+    " -e MINIO_SECRET_KEY='${secret_key}' -e MINIO_HTTP_TRACE=/dev/stdout" \
+    " --name=minio athena-docker-local.artifactory.eng.vmware.com/minio/minio:RELEASE.2020-09-05T07-14-49Z server /data;" \
+    " sleep 1; docker ps -a"
+
+  # create new buckets
+  bucket_names=($(cat /config/concord/config-local/deployment.config | grep s3-bucket-name | cut -d ":" -f 2))
+  for bn in "${bucket_names[@]}"
+  do
+    bn=$(echo ${bn} | xargs)
+    echo bn=$bn
+    echo "${minio_command_line_tool_path} mb ${minio_alias_name}/${bn}"
+    ${minio_command_line_tool_path} mb ${minio_alias_name}/${bn}
+  done
+  ${minio_command_line_tool_path} ls ${minio_alias_name}
+  echo "===Done!==="
+fi
+
