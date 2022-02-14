@@ -497,9 +497,11 @@ Replica::Replica(ICommunication *comm,
               std::vector<std::pair<uint64_t, uint64_t>>{
                   concord::performance::IntervalMappingResourceManager::default_mapping}),
           bftEngine::ReplicaConfig::instance().adaptivePruningIntervalDuration,
+          aggregator_,
           *this} {
   bft::communication::StateControl::instance().setCommRestartCallBack(
       [this](uint32_t i) { m_ptrComm->restartCommunication(i); });
+
   // Populate ST configuration
   bftEngine::bcst::Config stConfig = {
     replicaConfig_.replicaId,
@@ -594,7 +596,7 @@ Replica::Replica(ICommunication *comm,
   // If an application instantiation has already taken a place this will have no effect.
   bftEngine::IControlHandler::instance(new bftEngine::ControlHandler());
   bftEngine::ReconfigurationCmd::instance().setAggregator(aggregator);
-}
+}  // namespace concord::kvbc
 
 Replica::~Replica() {
   if (m_replicaPtr) {
