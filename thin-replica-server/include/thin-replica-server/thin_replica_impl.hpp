@@ -296,20 +296,41 @@ class ThinReplicaImpl {
     // If last_known + 1 update requested keep waiting until we have at least one live update
     // Note that TRS considers last_known + 1 update request as valid, even if the requested
     // update doesn't exist in storage yet.
-    if (request->has_events() && !is_event_group_transition) {
-      auto last_block_id = (config_->rostorage)->getLastBlockId();
-      if (request->events().block_id() == last_block_id + 1) {
-        while (not live_updates->waitUntilNonEmpty(kWaitForUpdateTimeout)) {
-          if (context->IsCancelled()) {
-            LOG_INFO(logger_, "StreamCancelled while waiting for the next live update.");
-            return grpc::Status::CANCELLED;
-          }
+    if (is_event_group_transition) {
+      // For an event group transition we need to check if the first/oldest tag-specific event group is available. If
+      // not then we wait because it is similar to waiting for X+1 whereby X is 0.
+      auto oldest_eg_id = kvb_filter->oldestTagSpecificPublicEventGroupId();
+      while (not oldest_eg_id) {
+        auto has_update = live_updates->waitForEventGroupUntilNonEmpty(kWaitForUpdateTimeout);
+        if (context->IsCancelled()) {
+          LOG_INFO(logger_, "StreamCancelled while waiting for the first live event group.");
+          return grpc::Status::CANCELLED;
+        }
+        if (has_update) {
+          // If there was an update for us then we must have updated storage
+          oldest_eg_id = kvb_filter->oldestTagSpecificPublicEventGroupId();
+        }
+      }
+    } else if (request->has_event_groups()) {
+      auto requested_eg_id = request->event_groups().event_group_id();
+      auto newest_eg_id = kvb_filter->newestTagSpecificPublicEventGroupId();
+      // We already know that the request is valid hence the requested id can only be newest + 1 or less
+      while (newest_eg_id < requested_eg_id) {
+        auto has_update = live_updates->waitForEventGroupUntilNonEmpty(kWaitForUpdateTimeout);
+        if (context->IsCancelled()) {
+          LOG_INFO(logger_, "StreamCancelled while waiting for the next live event group.");
+          return grpc::Status::CANCELLED;
+        }
+        if (has_update) {
+          // If there was an update for us then we must have updated storage
+          newest_eg_id = kvb_filter->newestTagSpecificPublicEventGroupId();
         }
       }
     } else {
-      auto last_eg_id = kvb_filter->newestTagSpecificPublicEventGroupId();
-      if (request->event_groups().event_group_id() == last_eg_id + 1) {
-        while (not live_updates->waitForEventGroupUntilNonEmpty(kWaitForUpdateTimeout)) {
+      ConcordAssert(request->has_events());
+      auto last_block_id = (config_->rostorage)->getLastBlockId();
+      if (request->events().block_id() == last_block_id + 1) {
+        while (not live_updates->waitUntilNonEmpty(kWaitForUpdateTimeout)) {
           if (context->IsCancelled()) {
             LOG_INFO(logger_, "StreamCancelled while waiting for the next live update.");
             return grpc::Status::CANCELLED;
@@ -413,7 +434,7 @@ class ThinReplicaImpl {
       ConcordAssert(request->has_events());
       // We assume that the caller wants updates but we cannot determine the event group id the caller is looking for.
       // Therefore, we start at the beginning.
-      event_group_id = kvb_filter->getOldestEventGroupId();
+      event_group_id = kvb_filter->oldestTagSpecificPublicEventGroupId();
       // If an event group transition is happening then we already confirmed that event groups are available.
       ConcordAssertNE(event_group_id, 0);
       LOG_INFO(logger_, "Legacy event request will receive event groups starting at id " << event_group_id);
