@@ -100,10 +100,15 @@ CONCORD_BFT_CORE_DIR?=${CONCORD_BFT_TARGET_SOURCE_PATH}/${CONCORD_BFT_BUILD_DIR}
 
 CONCORD_BFT_ADDITIONAL_RUN_PARAMS?=
 APOLLO_CTEST_RUN_PARAMS?=
+CONCORD_BFT_FORMAT_CMD=make format-check &&
 
 ifneq (${APOLLO_LOG_STDOUT},)
 	CONCORD_BFT_ADDITIONAL_RUN_PARAMS+=--env APOLLO_LOG_STDOUT=TRUE
-    CONCORD_BFT_ADDITIONAL_CTEST_RUN_PARAMS+=-V
+	CONCORD_BFT_ADDITIONAL_CTEST_RUN_PARAMS+=-V
+endif
+
+ifneq (${SKIP_FORMAT},)
+	CONCORD_BFT_FORMAT_CMD=
 endif
 
 BASIC_RUN_PARAMS?=-it --init --rm --privileged=true \
@@ -158,7 +163,7 @@ build: gen_cmake ## Build Concord-BFT source. In order to build a specific targe
 	docker run ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"cd ${CONCORD_BFT_BUILD_DIR} && \
-		make format-check && \
+		${CONCORD_BFT_FORMAT_CMD} \
 		make -j $$(nproc) ${TARGET}"
 	@echo
 	@echo "Build finished. The binaries are in ${CURDIR}/${CONCORD_BFT_BUILD_DIR}"

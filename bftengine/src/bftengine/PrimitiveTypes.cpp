@@ -34,5 +34,7 @@ std::string CommitPathToMDCString(CommitPath path) {
   }
 }
 
+std::ostream& operator<<(std::ostream& os, const CommitPath& path) { return os << CommitPathToStr(path); }
+
 }  // namespace impl
 }  // namespace bftEngine

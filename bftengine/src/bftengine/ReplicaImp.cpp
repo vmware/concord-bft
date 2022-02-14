@@ -927,8 +927,7 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isCreatedEarlier)
   }
 
   if (firstPath == CommitPath::SLOW) {
-    seqNumInfo.startSlowPath();
-    metric_slow_path_count_++;
+    startSlowPath(seqNumInfo);
     TimeRecorder scoped_timer1(*histograms_.sendPreparePartialToSelf);
     sendPreparePartial(seqNumInfo);
   } else {
@@ -1134,8 +1133,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
       {
         sendPartialProof(seqNumInfo);
       } else {
-        seqNumInfo.startSlowPath();
-        metric_slow_path_count_++;
+        startSlowPath(seqNumInfo);
         sendPreparePartial(seqNumInfo);
       }
       // if time is not ok, we do not continue with consensus flow
@@ -1193,8 +1191,7 @@ void ReplicaImp::tryToStartSlowPaths() {
 
     controller->onStartingSlowCommit(i);
 
-    seqNumInfo.startSlowPath();
-    metric_slow_path_count_++;
+    startSlowPath(seqNumInfo);
 
     if (ps_) {
       ps_->beginWriteTran();
@@ -1203,7 +1200,6 @@ void ReplicaImp::tryToStartSlowPaths() {
     }
 
     // send StartSlowCommitMsg to all replicas
-
     StartSlowCommitMsg *startSlow = new StartSlowCommitMsg(config_.getreplicaId(), getCurrentView(), i);
 
     if (!retransmissionsLogicEnabled) {
@@ -1300,8 +1296,7 @@ void ReplicaImp::onMessage<StartSlowCommitMsg>(StartSlowCommitMsg *msg) {
     if (!seqNumInfo.slowPathStarted() && !seqNumInfo.isPrepared() && seqNumInfo.isTimeCorrect()) {
       LOG_INFO(CNSUS, "Start slow path.");
 
-      seqNumInfo.startSlowPath();
-      metric_slow_path_count_++;
+      startSlowPath(seqNumInfo);
 
       if (ps_) {
         ps_->beginWriteTran();
@@ -1480,12 +1475,8 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
   const SeqNum msgSeqNum = msg->seqNumber();
   SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
   SCOPED_MDC_SEQ_NUM(std::to_string(msg->seqNumber()));
-  // ToDo--EDJ: FullCommitProofMsg might be created for FAST_WITH_THRESHOLD but OPTIMISTIC_FAST is hardcoded here
-  SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::OPTIMISTIC_FAST));
 
-  LOG_INFO(
-      CNSUS,
-      "Reached consensus, Received FullCommitProofMsg message. " << KVLOG(msg->senderId(), msgSeqNum, msg->size()));
+  LOG_INFO(CNSUS, "Received FullCommitProofMsg message. " << KVLOG(msg->senderId(), msgSeqNum, msg->size()));
 
   if (relevantMsgForActiveView(msg)) {
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
@@ -1496,6 +1487,9 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
                                               << fullProofCollectorId << " and has been processed."
                                               << " Ignoring the FullCommitProof from replica " << msg->senderId());
     } else if (seqNumInfo.addFastPathFullCommitMsg(msg)) {
+      auto commitPath = seqNumInfo.getFastPathSelfPartialCommitProofMsg()->commitPath();
+      SCOPED_MDC_PATH(CommitPathToMDCString(commitPath));
+      LOG_INFO(CNSUS, "Added FullCommitProof to verification queue" << KVLOG(msg->senderId(), msgSeqNum, msg->size()));
       return;  // We've added the msg -- don't delete!
     }
   }
@@ -2101,7 +2095,7 @@ void ReplicaImp::onCommitCombinedSigSucceeded(SeqNum seqNumber,
 
   auto span = concordUtils::startChildSpanFromContext(
       commitFull->spanContext<std::remove_pointer<decltype(commitFull)>::type>(), "bft_execute_committed_reqs");
-  metric_total_committed_sn_++;
+  updateCommitMetrics(CommitPath::SLOW);
   startExecution(seqNumber, span, askForMissingInfoAboutCommittedItems);
 }
 
@@ -2150,7 +2144,7 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view,
       commitFull->spanContext<std::remove_pointer<decltype(commitFull)>::type>(), "bft_execute_committed_reqs");
   bool askForMissingInfoAboutCommittedItems =
       (seqNumber > lastExecutedSeqNum + config_.getconcurrencyLevel() + activeExecutions_);
-  metric_total_committed_sn_++;
+  updateCommitMetrics(CommitPath::SLOW);
   startExecution(seqNumber, span, askForMissingInfoAboutCommittedItems);
 }
 
@@ -2208,7 +2202,7 @@ void ReplicaImp::onFastPathCommitCombinedSigSucceeded(SeqNum seqNumber,
   auto span = concordUtils::startChildSpanFromContext(fcp->spanContext<std::remove_pointer<decltype(fcp)>::type>(),
                                                       "bft_execute_committed_reqs");
 
-  metric_total_committed_sn_++;
+  updateCommitMetrics(cPath);
 
   pm_->Delay<concord::performance::SlowdownPhase::ConsensusFullCommitMsgProcess>();
   startExecution(seqNumber, span, askForMissingInfoAboutCommittedItems);
@@ -2273,7 +2267,7 @@ void ReplicaImp::onFastPathCommitVerifyCombinedSigResult(SeqNum seqNumber,
   auto span = concordUtils::startChildSpanFromContext(fcp->spanContext<std::remove_pointer<decltype(fcp)>::type>(),
                                                       "bft_execute_committed_reqs");
 
-  metric_total_committed_sn_++;
+  updateCommitMetrics(cPath);
 
   pm_->Delay<concord::performance::SlowdownPhase::ConsensusFullCommitMsgProcess>();
   startExecution(seqNumber, span, askForMissingInfoAboutCommittedItems);
@@ -3208,7 +3202,6 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
       seqNumInfo.addMsg(pp);
 
     seqNumInfo.startSlowPath();
-    metric_slow_path_count_++;
   }
 
   if (ps_) ps_->endWriteTran(config_.getsyncOnUpdateOfMetadata());
@@ -4096,7 +4089,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
       }
 
       if (e.getSlowStarted()) {
-        seqNumInfo.startSlowPath();
+        startSlowPath(seqNumInfo);
 
         // add PreparePartialMsg
         PrePrepareMsg *pp = seqNumInfo.getPrePrepareMsg();
@@ -4289,11 +4282,17 @@ ReplicaImp::ReplicaImp(bool firstTime,
       batch_closed_on_logic_on_{metrics_.RegisterCounter("total_number_batch_closed_on_logic_on")},
       metric_indicator_of_non_determinism_{metrics_.RegisterCounter("indicator_of_non_determinism")},
       metric_total_committed_sn_{metrics_.RegisterCounter("total_committed_seqNum")},
-      metric_slow_path_count_{metrics_.RegisterCounter("slowPathCount", 0)},
+      metric_total_slowPath_{metrics_.RegisterCounter("totalSlowPaths")},
+      metric_total_slowPath_requests_{metrics_.RegisterCounter("totalSlowPathRequests")},
+      metric_received_start_slow_commits_{metrics_.RegisterCounter("receivedStartSlowCommitMsgs")},
+      metric_total_fastPath_{metrics_.RegisterCounter("totalFastPaths")},
+      metric_committed_slow_{metrics_.RegisterCounter("CommittedSlow")},
+      metric_committed_fast_threshold_{metrics_.RegisterCounter("CommittedFastThreshold")},
+      metric_committed_fast_{metrics_.RegisterCounter("CommittedFast")},
+      metric_total_fastPath_requests_{metrics_.RegisterCounter("totalFastPathRequests")},
       metric_received_internal_msgs_{metrics_.RegisterCounter("receivedInternalMsgs")},
       metric_received_client_requests_{metrics_.RegisterCounter("receivedClientRequestMsgs")},
       metric_received_pre_prepares_{metrics_.RegisterCounter("receivedPrePrepareMsgs")},
-      metric_received_start_slow_commits_{metrics_.RegisterCounter("receivedStartSlowCommitMsgs")},
       metric_received_partial_commit_proofs_{metrics_.RegisterCounter("receivedPartialCommitProofMsgs")},
       metric_received_full_commit_proofs_{metrics_.RegisterCounter("receivedFullCommitProofMsgs")},
       metric_received_prepare_partials_{metrics_.RegisterCounter("receivedPreparePartialMsgs")},
@@ -4331,10 +4330,6 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_sent_fullCommitProof_msg_due_to_reqMissingData_{
           metrics_.RegisterCounter("sentFullCommitProofMsgDueToReqMissingData")},
       metric_total_finished_consensuses_{metrics_.RegisterCounter("totalOrderedRequests")},
-      metric_total_slowPath_{metrics_.RegisterCounter("totalSlowPaths")},
-      metric_total_fastPath_{metrics_.RegisterCounter("totalFastPaths")},
-      metric_total_slowPath_requests_{metrics_.RegisterCounter("totalSlowPathRequests")},
-      metric_total_fastPath_requests_{metrics_.RegisterCounter("totalFastPathRequests")},
       metric_total_preexec_requests_executed_{metrics_.RegisterCounter("totalPreExecRequestsExecuted")},
       metric_received_restart_ready_{metrics_.RegisterCounter("receivedRestartReadyMsg", 0)},
       metric_received_restart_proof_{metrics_.RegisterCounter("receivedRestartProofMsg", 0)},
@@ -4605,18 +4600,8 @@ void ReplicaImp::recoverRequests() {
     const uint16_t numOfRequests = pp->numberOfRequests();
     executeRequestsInPrePrepareMsg(span, pp, true);
     metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
-    metric_total_finished_consensuses_++;
-    if (seqNumInfo.slowPathStarted()) {
-      metric_total_slowPath_++;
-      if (numOfRequests > 0) {
-        metric_total_slowPath_requests_ += numOfRequests;
-      }
-    } else {
-      metric_total_fastPath_++;
-      if (numOfRequests > 0) {
-        metric_total_fastPath_requests_ += numOfRequests;
-      }
-    }
+    // TODO: check if these metric updates can be removed since the replica is started over
+    updateExecutedPathMetrics(seqNumInfo.slowPathStarted(), numOfRequests);
     recoveringFromExecutionOfRequests = false;
     mapOfRecoveredRequests = Bitmap();
   }
@@ -4701,6 +4686,7 @@ void ReplicaImp::setConflictDetectionBlockId(const ClientRequestMsg &clientReqMs
 // have some committed seq numbers)
 // TODO(GG): move the "logic related to requestMissingInfo" to the caller of this method (e.g., by returning a value
 // to the caller)
+// Pushes execution requests to another thread
 void ReplicaImp::tryToStartOrFinishExecution(bool requestMissingInfo) {
   ConcordAssert(!isCollectingState());
   ConcordAssert(currentViewIsActive());
@@ -4808,7 +4794,7 @@ void ReplicaImp::startPrePrepareMsgExecution(PrePrepareMsg *ppMsg,
           reqIdx++;
           continue;
         }
-        // TODO(GG): should be verified in the validation of the PrePrepare . Consdier to remove this assert
+        // TODO(GG): should be verified in the validation of the PrePrepare . Consider to remove this assert
         ConcordAssert(!(req.flags() & MsgFlag::TIME_SERVICE_FLAG));
         if ((req.flags() & MsgFlag::KEY_EXCHANGE_FLAG) || (req.flags() & MsgFlag::RECONFIG_FLAG)) {
           numOfSpecialReqs++;
@@ -5197,6 +5183,14 @@ void ReplicaImp::finalizeExecution() {
   }
 }
 
+void ReplicaImp::updateExecutedPathMetrics(const bool isSlow, uint16_t numOfRequests) {
+  metric_total_finished_consensuses_++;
+  auto &pathCounter = isSlow ? metric_total_slowPath_ : metric_total_fastPath_;
+  auto &pathRequestCounter = isSlow ? metric_total_slowPath_requests_ : metric_total_fastPath_requests_;
+  pathCounter++;
+  pathRequestCounter += numOfRequests;
+}
+
 void ReplicaImp::updateLimitsAndMetrics(PrePrepareMsg *ppMsg) {
   // TODO(GG): clean the following logic
   if (mainLog->insideActiveWindow(lastExecutedSeqNum)) {  // update dynamicUpperLimitOfRounds
@@ -5213,19 +5207,8 @@ void ReplicaImp::updateLimitsAndMetrics(PrePrepareMsg *ppMsg) {
       consensus_avg_time_.Get().Set((uint64_t)consensus_time_.avg());
       if (consensus_time_.numOfElements() == 1000) consensus_time_.reset();  // We reset the average every 1000 samples
       metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
-      metric_total_finished_consensuses_++;
-      if (seqNumInfo.slowPathStarted()) {
-        metric_total_slowPath_++;
-        if (numOfRequests > 0) {
-          metric_total_slowPath_requests_ += numOfRequests;
-        }
-      } else {
-        metric_total_fastPath_++;
-        if (numOfRequests > 0) {
-          metric_total_fastPath_requests_ += numOfRequests;
-        }
-      }
     }
+    updateExecutedPathMetrics(seqNumInfo.slowPathStarted(), numOfRequests);
   }
 
   if (config_.getdebugStatisticsEnabled()) {
@@ -5744,18 +5727,7 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
     consensus_avg_time_.Get().Set((uint64_t)consensus_time_.avg());
     if (consensus_time_.numOfElements() == 1000) consensus_time_.reset();  // We reset the average every 1000 samples
     metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
-    metric_total_finished_consensuses_++;
-    if (seqNumInfo.slowPathStarted()) {
-      metric_total_slowPath_++;
-      if (numOfRequests > 0) {
-        metric_total_slowPath_requests_ += numOfRequests;
-      }
-    } else {
-      metric_total_fastPath_++;
-      if (numOfRequests > 0) {
-        metric_total_fastPath_requests_ += numOfRequests;
-      }
-    }
+    updateExecutedPathMetrics(seqNumInfo.slowPathStarted(), numOfRequests);
 
     auto seqNumToStopAt = ControlStateManager::instance().getCheckpointToStopAt();
     if (seqNumToStopAt.value_or(0) == lastExecutedSeqNum) ControlStateManager::instance().wedge();
@@ -5839,6 +5811,27 @@ void ReplicaImp::tryToGoToNextView() {
 }
 
 IncomingMsgsStorage &ReplicaImp::getIncomingMsgsStorage() { return *msgsCommunicator_->getIncomingMsgsStorage(); }
+
+void ReplicaImp::startSlowPath(SeqNumInfo &seqNumInfo) {
+  seqNumInfo.startSlowPath();
+  metric_total_slowPath_++;
+}
+void ReplicaImp::updateCommitMetrics(const CommitPath &commitPath) {
+  metric_total_committed_sn_++;
+  switch (commitPath) {
+    case CommitPath::FAST_WITH_THRESHOLD:
+      metric_committed_fast_threshold_++;
+      break;
+    case CommitPath::OPTIMISTIC_FAST:
+      metric_committed_fast_++;
+      break;
+    case CommitPath::SLOW:
+      metric_committed_slow_++;
+      break;
+    default:
+      LOG_ERROR(CNSUS, "Invalid commit path value: " << static_cast<int8_t>(commitPath));
+  }
+}
 
 // TODO(GG): the timer for state transfer !!!!
 
