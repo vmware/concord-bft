@@ -56,46 +56,69 @@ message GetRecentSnapshotResponse {
   // The ID of a recent and available state snapshot.
   uint64 snapshot_id = 1;
 
-  // The event group ID at which the state snapshot with `snapshot_id` was taken.
+  // `taken_at` contains the event group ID or the block ID at which the state snapshot with
+  // `snapshot_id` was taken. Concord Client will either use event group IDs or block IDs and
+  // never mix and match them.
   //
-  // The event group ID can be used in the `EventService` to subscribe to events
-  // that were created after the snapshot was taken.
-  // Note: Events and, consequently, the `EventService` are optional. The execution
-  // engine might not generate any events. In that case, the event group ID will be 0.
+  // `taken_at` can be used in the `EventService` to subscribe to events that were created
+  // after the state snapshot was taken.
   //
-  // To visualize, we show how events are streamed from Concord Client to the
-  // Application and the relation between state snapshot and event group IDs:
-  // -----------------------------------------------------------------------------
+  // Note: Events and, consequently, the `EventService` are optional. The execution engine
+  // might not generate any events. In that case:
+  //  * if event group IDs are used, the event group ID will be 0
+  //  * if block IDs are used, the block ID will not be 0 - instead, it will be some block
+  //    ID at which the state snapshot was taken. In that case, blocks streamed subsequently
+  //    via `EventService` will be empty (not containing any events).
+  //
+  // To visualize, we show how events are streamed from Concord Client to the Application
+  // and the relation between state snapshot and event group IDs and block IDs.
+  //
+  // Streaming via event group IDs:
+  // -------------------------------------------------------------------------------------
   //                               [State Snapshot at evgN]
   //                                          |
   //                                          v
   // ------------------                                            ---------------
   // | Concord Client |  -- evg1, evg2, ..., evgN, evgN+1, ... ->  | Application |
   // ------------------                                            ---------------
-  // -----------------------------------------------------------------------------
+  // -------------------------------------------------------------------------------------
   // where `evgN` is the Nth event group streamed from Concord Client to the Application.
-  // After receiving a state snapshot at `evgN`, an Application can continue operation by
-  // consuming event groups from `evgN+1` onwards.
+  //
+  // Streaming via block IDs:
+  // -------------------------------------------------------------------------------------
+  //                                    [State Snapshot at blockN]
+  //                                               |
+  //                                               v
+  // ------------------                                                    ---------------
+  // | Concord Client |  -- block1, block2, ..., blockN, blockN+1, ... ->  | Application |
+  // ------------------                                                    ---------------
+  // -------------------------------------------------------------------------------------
+  // where `blockN` is the Nth block streamed from Concord Client to the Application. A thing
+  // to note here is that a block might not contain any events for the application. However,
+  // the block will still be streamed, but with an empty list of events.
+  //
+  // After receiving a state snapshot at `evgN` or `blockN`, an Application can continue
+  // operation by consuming event groups from `evgN+1` onwards or blocks from `blockN+1`
+  // onwards, respectively.
   //
   // Concord Client ensures that there is always at least one reasonably recent
   // state snapshot that can be served. The intention is that this state snapshot
   // can be used to initialize the Application after the blockchain has been pruned and
   // some set of historical events are no longer available via the `EventService`.
   //
-  // See `event.proto` for more information about events, event group IDs and
-  // `EventService`.
-  //
-  // Note: The StateSnapshotService only supports state snapshots based on event
-  // group IDs and not legacy events that are based on block IDs.
-  uint64 event_group_id = 2;
+  // See `event.proto` for more information about events, event group IDs and `EventService`.
+  oneof taken_at {
+    uint64 event_group_id = 2;
+    uint64 block_id = 3;
+  }
 
   // An estimate (with reasonable accuracy) of the count of key-values contained
   // in the state snapshot. Please note that this is an estimation and *not* the
   // actual count.
-  uint64 key_value_count_estimate = 3;
+  uint64 key_value_count_estimate = 4;
 
   // The ledger time at which the snapshot was taken.
-  google.protobuf.Timestamp ledger_time = 4;
+  google.protobuf.Timestamp ledger_time = 5;
 }
 
 message StreamSnapshotRequest {  
