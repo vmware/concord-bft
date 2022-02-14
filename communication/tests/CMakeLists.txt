@@ -1,3 +1,4 @@
+if(BUILD_COMM_TCP_TLS)
 find_package(GTest REQUIRED)
 
 add_executable(multiplex_comm_test multiplex_comm_test.cpp )
@@ -7,5 +8,6 @@ target_include_directories(multiplex_comm_test PUBLIC ..)
 
 target_link_libraries(multiplex_comm_test PUBLIC
         GTest::Main
-        corebft)
-
+        diagnostics
+        bftcommunication)
+endif()

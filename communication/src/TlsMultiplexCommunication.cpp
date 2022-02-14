@@ -41,7 +41,7 @@ void TlsMultiplexCommunication::TlsMultiplexReceiver::onNewMessage(NodeNum sourc
   const auto &receiver = receiversMap_.find(receiverId);
   if (receiver != receiversMap_.end()) {
     receiver->second->onNewMessage(sourceNode, message, messageLength);
-    LOG_DEBUG(logger_, "Receiver found for" << KVLOG(receiverId, endpointNum, sourceNode));
+    LOG_INFO(logger_, "Receiver found for" << KVLOG(receiverId, endpointNum, sourceNode));
     return;
   }
   LOG_ERROR(logger_, "Receiver not found for" << KVLOG(receiverId, endpointNum, sourceNode));
@@ -56,6 +56,7 @@ TlsMultiplexCommunication::TlsMultiplexCommunication(const TlsMultiplexConfig &c
     : TlsTCPCommunication(config), logger_(logging::getLogger("concord-bft.tls.multiplex")) {
   multiplexConfig_ = make_shared<TlsMultiplexConfig>(config);
   ownReceiver_ = make_shared<TlsMultiplexReceiver>(multiplexConfig_);
+  LOG_INFO(logger_, "Created TlsMultiplexCommunication" << KVLOG(config.selfId_, config.amIReplica_));
 }
 
 TlsMultiplexCommunication *TlsMultiplexCommunication::create(const TlsMultiplexConfig &config) {
@@ -63,6 +64,7 @@ TlsMultiplexCommunication *TlsMultiplexCommunication::create(const TlsMultiplexC
 }
 
 int TlsMultiplexCommunication::start() {
+  LOG_INFO(logger_, "Start TlsMultiplexCommunication");
   auto const result = TlsTCPCommunication::start();
   if (!result) runner_->setReceiver(multiplexConfig_->selfId_, ownReceiver_.get());
   return result;
@@ -71,6 +73,7 @@ int TlsMultiplexCommunication::start() {
 void TlsMultiplexCommunication::setReceiver(NodeNum receiverNum, IReceiver *receiver) {
   // For a replica: the same receiver object serves all endpoint clients.
   // For a client: one receiver object serves one endpoint client.
+  LOG_INFO(logger_, KVLOG(receiverNum));
   ownReceiver_->setReceiver(receiverNum, receiver);
 }
 
@@ -79,7 +82,7 @@ NodeNum TlsMultiplexCommunication::getConnectionByEndpointNum(NodeNum destNode, 
   // client service connection to be used to reach clients, replicas' connection - to reach replicas.
   const auto &connectionId = multiplexConfig_->endpointIdToNodeIdMap_.find(endpointNum);
   if (connectionId != multiplexConfig_->endpointIdToNodeIdMap_.end()) {
-    LOG_DEBUG(logger_, "Connection found:" << KVLOG(destNode, endpointNum, connectionId->second));
+    LOG_INFO(logger_, "Connection found:" << KVLOG(destNode, endpointNum, connectionId->second));
     return connectionId->second;
   }
   LOG_ERROR(logger_, "Connection not found for destination endpoint" << KVLOG(destNode, endpointNum));
@@ -101,7 +104,7 @@ ConnectionStatus TlsMultiplexCommunication::getCurrentConnectionStatus(NodeNum e
   auto const nodeEntryIt = multiplexConfig_->endpointIdToNodeIdMap_.find(endpointNum);
   if (nodeEntryIt != multiplexConfig_->endpointIdToNodeIdMap_.end()) {
     const auto connectionStatus = runner_->getCurrentConnectionStatus(nodeEntryIt->second);
-    LOG_DEBUG(logger_, "Connection status:" << KVLOG(endpointNum, static_cast<int>(connectionStatus)));
+    LOG_INFO(logger_, "Connection status:" << KVLOG(endpointNum, static_cast<int>(connectionStatus)));
     return connectionStatus;
   }
   LOG_WARN(logger_, "An active connection not found for node" << KVLOG(endpointNum));

@@ -63,9 +63,10 @@ elseif(BUILD_COMM_TCP_TLS)
 
 endif()
 
+install(DIRECTORY include/communication DESTINATION include)
+install (TARGETS bftcommunication_shared DESTINATION lib${LIB_SUFFIX})
+
 if (BUILD_TESTING)
     add_subdirectory(tests)
 endif()
 
-install(DIRECTORY include/communication DESTINATION include)
-install (TARGETS bftcommunication_shared DESTINATION lib${LIB_SUFFIX})

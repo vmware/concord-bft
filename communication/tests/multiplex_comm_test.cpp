@@ -9,16 +9,17 @@
 // these subcomponents is subject to the terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
+#define CONCORD_BFT_TESTING
+
 #include "communication/CommDefs.hpp"
 #include "communication/CommFactory.hpp"
 #include "diagnostics.h"
-
 #include <gtest/gtest.h>
-#include <gmock/gmock.h>
 
-namespace {
 using namespace bft::communication;
 using namespace std;
+
+namespace {
 
 const string host = "128.0.0.1";
 const uint16_t port = 0;
