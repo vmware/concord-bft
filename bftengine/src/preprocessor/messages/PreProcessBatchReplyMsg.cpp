@@ -23,10 +23,11 @@ PreProcessBatchReplyMsg::PreProcessBatchReplyMsg(uint16_t clientId,
                                                  NodeIdType senderId,
                                                  const PreProcessReplyMsgsList& batch,
                                                  const std::string& cid,
-                                                 uint32_t repliesSize)
+                                                 uint32_t repliesSize,
+                                                 ViewNum viewNum)
     : MessageBase(senderId, MsgCode::PreProcessBatchReply, 0, sizeof(Header) + repliesSize + cid.size()) {
   const uint32_t numOfMessagesInBatch = batch.size();
-  setParams(senderId, clientId, numOfMessagesInBatch, repliesSize);
+  setParams(senderId, clientId, numOfMessagesInBatch, repliesSize, viewNum);
   msgBody()->cidLength = cid.size();
   auto position = body() + sizeof(Header);
   if (cid.size()) {
@@ -62,14 +63,13 @@ void PreProcessBatchReplyMsg::validate(const ReplicasInfo& repInfo) const {
   }
 }
 
-void PreProcessBatchReplyMsg::setParams(NodeIdType senderId,
-                                        uint16_t clientId,
-                                        uint32_t numOfMessagesInBatch,
-                                        uint32_t repliesSize) {
+void PreProcessBatchReplyMsg::setParams(
+    NodeIdType senderId, uint16_t clientId, uint32_t numOfMessagesInBatch, uint32_t repliesSize, ViewNum viewNum) {
   msgBody()->senderId = senderId;
   msgBody()->clientId = clientId;
   msgBody()->numOfMessagesInBatch = numOfMessagesInBatch;
   msgBody()->repliesSize = repliesSize;
+  msgBody()->viewNum = viewNum;
 }
 
 std::string PreProcessBatchReplyMsg::getCid() const { return string(body() + sizeof(Header), msgBody()->cidLength); }
@@ -99,7 +99,8 @@ PreProcessReplyMsgsList& PreProcessBatchReplyMsg::getPreProcessReplyMsgs() {
                                                       sigPosition,
                                                       cid,
                                                       singleMsgHeader.status,
-                                                      singleMsgHeader.preProcessResult);
+                                                      singleMsgHeader.preProcessResult,
+                                                      singleMsgHeader.viewNum);
     preProcessReplyMsgsList_.push_back(move(preProcessReplyMsg));
     dataPosition += sizeof(PreProcessReplyMsg::Header) + sigLen + singleMsgHeader.cidLength;
   }

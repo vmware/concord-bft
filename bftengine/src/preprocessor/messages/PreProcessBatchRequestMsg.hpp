@@ -25,7 +25,8 @@ class PreProcessBatchRequestMsg : public MessageBase {
                             NodeIdType senderId,
                             const PreProcessReqMsgsList& batch,
                             const std::string& cid,
-                            uint32_t requestsSize);
+                            uint32_t requestsSize,
+                            ViewNum viewNum);
 
   BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(PreProcessBatchRequestMsg)
 
@@ -33,6 +34,7 @@ class PreProcessBatchRequestMsg : public MessageBase {
   uint16_t clientId() const { return msgBody()->clientId; }
   uint32_t numOfMessagesInBatch() const { return msgBody()->numOfMessagesInBatch; }
   const RequestType reqType() const { return msgBody()->reqType; }
+  const ViewNum viewNum() const { return msgBody()->viewNum; }
   PreProcessReqMsgsList& getPreProcessRequestMsgs();
   void validate(const ReplicasInfo&) const override;
 
@@ -49,6 +51,7 @@ class PreProcessBatchRequestMsg : public MessageBase {
     uint32_t cidLength;
     uint32_t numOfMessagesInBatch;
     uint32_t requestsSize;
+    ViewNum viewNum;
   };
 #pragma pack(pop)
 
@@ -61,7 +64,8 @@ class PreProcessBatchRequestMsg : public MessageBase {
                  NodeIdType senderId,
                  RequestType reqType,
                  uint32_t numOfMessagesInBatch,
-                 uint32_t requestsSize);
+                 uint32_t requestsSize,
+                 ViewNum viewNum);
   Header* msgBody() const { return ((Header*)msgBody_); }
 
  private:

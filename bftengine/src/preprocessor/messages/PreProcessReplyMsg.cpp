@@ -33,9 +33,10 @@ PreProcessReplyMsg::PreProcessReplyMsg(NodeIdType senderId,
                                        uint32_t preProcessResultBufLen,
                                        const std::string& cid,
                                        ReplyStatus status,
-                                       OperationResult preProcessResult)
+                                       OperationResult preProcessResult,
+                                       ViewNum viewNum)
     : MessageBase(senderId, MsgCode::PreProcessReply, 0, maxReplyMsgSize_) {
-  setParams(senderId, clientId, reqOffsetInBatch, reqSeqNum, reqRetryId, status, preProcessResult);
+  setParams(senderId, clientId, reqOffsetInBatch, reqSeqNum, reqRetryId, status, preProcessResult, viewNum);
   setupMsgBody(preProcessResultBuf, preProcessResultBufLen, cid);
 }
 
@@ -49,9 +50,10 @@ PreProcessReplyMsg::PreProcessReplyMsg(NodeIdType senderId,
                                        const char* signature,
                                        const std::string& cid,
                                        ReplyStatus status,
-                                       OperationResult preProcessResult)
+                                       OperationResult preProcessResult,
+                                       ViewNum viewNum)
     : MessageBase(senderId, MsgCode::PreProcessReply, 0, maxReplyMsgSize_) {
-  setParams(senderId, clientId, reqOffsetInBatch, reqSeqNum, reqRetryId, status, preProcessResult);
+  setParams(senderId, clientId, reqOffsetInBatch, reqSeqNum, reqRetryId, status, preProcessResult, viewNum);
   setupMsgBody(resultsHash, signature, cid);
 }
 
@@ -104,7 +106,8 @@ void PreProcessReplyMsg::setParams(NodeIdType senderId,
                                    ReqId reqSeqNum,
                                    uint64_t reqRetryId,
                                    ReplyStatus status,
-                                   OperationResult preProcessResult) {
+                                   OperationResult preProcessResult,
+                                   ViewNum viewNum) {
   msgBody()->senderId = senderId;
   msgBody()->reqSeqNum = reqSeqNum;
   msgBody()->clientId = clientId;
@@ -112,6 +115,7 @@ void PreProcessReplyMsg::setParams(NodeIdType senderId,
   msgBody()->reqRetryId = reqRetryId;
   msgBody()->status = status;
   msgBody()->preProcessResult = preProcessResult;
+  msgBody()->viewNum = viewNum;
   LOG_DEBUG(logger(),
             KVLOG(senderId, clientId, reqSeqNum, reqRetryId, status, static_cast<uint32_t>(preProcessResult)));
 }

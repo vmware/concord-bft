@@ -25,13 +25,15 @@ class PreProcessBatchReplyMsg : public MessageBase {
                           NodeIdType senderId,
                           const PreProcessReplyMsgsList& batch,
                           const std::string& cid,
-                          uint32_t repliesSize);
+                          uint32_t repliesSize,
+                          ViewNum viewNum);
 
   BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(PreProcessBatchReplyMsg)
 
   std::string getCid() const;
   uint16_t clientId() const { return msgBody()->clientId; }
   uint32_t numOfMessagesInBatch() const { return msgBody()->numOfMessagesInBatch; }
+  ViewNum viewNum() const { return msgBody()->viewNum; }
   PreProcessReplyMsgsList& getPreProcessReplyMsgs();
   void validate(const ReplicasInfo&) const override;
 
@@ -47,6 +49,7 @@ class PreProcessBatchReplyMsg : public MessageBase {
     uint32_t cidLength;
     uint32_t numOfMessagesInBatch;
     uint32_t repliesSize;
+    ViewNum viewNum;
   };
 #pragma pack(pop)
 
@@ -55,7 +58,8 @@ class PreProcessBatchReplyMsg : public MessageBase {
     static logging::Logger logger_ = logging::getLogger("concord.preprocessor");
     return logger_;
   }
-  void setParams(NodeIdType senderId, uint16_t clientId, uint32_t numOfMessagesInBatch, uint32_t repliesSize);
+  void setParams(
+      NodeIdType senderId, uint16_t clientId, uint32_t numOfMessagesInBatch, uint32_t repliesSize, ViewNum viewNum);
   Header* msgBody() const { return ((Header*)msgBody_); }
 
  private:

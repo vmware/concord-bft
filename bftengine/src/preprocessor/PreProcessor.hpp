@@ -144,6 +144,12 @@ class PreProcessor {
 
   ReqId getOngoingReqIdForClient(uint16_t clientId, uint16_t reqOffsetInBatch);
 
+ protected:
+  bool checkPreProcessRequestMsgCorrectness(const PreProcessRequestMsgSharedPtr &requestMsg);
+  bool checkPreProcessReplyMsgCorrectness(const PreProcessReplyMsgSharedPtr &replyMsg);
+  bool checkPreProcessBatchReqMsgCorrectness(const PreProcessBatchReqMsgSharedPtr &batchReq);
+  bool checkPreProcessBatchReplyMsgCorrectness(const PreProcessBatchReplyMsgSharedPtr &batchReply);
+
  private:
   friend class AsyncPreProcessJob;
   friend class RequestsBatch;
@@ -188,7 +194,6 @@ class PreProcessor {
                                        NodeIdType clientId,
                                        const std::string &batchCid,
                                        uint16_t reqOffsetInBatch);
-  bool checkPreProcessBatchReqMsgCorrectness(const PreProcessBatchReqMsgSharedPtr &batchReq);
   void handleClientPreProcessRequestByPrimary(PreProcessRequestMsgSharedPtr preProcessRequestMsg,
                                               const std::string &batchCid,
                                               bool arrivedInBatch);
@@ -197,7 +202,6 @@ class PreProcessor {
                                          NodeIdType senderId,
                                          const std::string &batchCid,
                                          uint16_t offsetInBatch);
-  bool checkPreProcessBatchReplyMsgCorrectness(const PreProcessBatchReplyMsgSharedPtr &batchReply);
   void registerAndHandleClientPreProcessReqOnNonPrimary(const std::string &batchCid,
                                                         uint32_t batchSize,
                                                         ClientPreProcessReqMsgUniquePtr clientReqMsg,

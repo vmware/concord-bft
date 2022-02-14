@@ -53,6 +53,7 @@ const NodeIdType replica_1 = 1;
 const NodeIdType replica_2 = 2;
 const NodeIdType replica_3 = 3;
 const NodeIdType replica_4 = 4;
+const ViewNum viewNum = 1;
 PreProcessorRecorder preProcessorRecorder;
 std::shared_ptr<concord::performance::PerformanceManager> sdm = make_shared<concord::performance::PerformanceManager>();
 
@@ -108,7 +109,7 @@ class DummyReplica : public InternalReplicaApi {
   bool isValidClient(NodeIdType) const override { return true; }
   bool isIdOfReplica(NodeIdType) const override { return false; }
   const set<ReplicaId>& getIdsOfPeerReplicas() const override { return replicaIds_; }
-  ViewNum getCurrentView() const override { return 0; }
+  ViewNum getCurrentView() const override { return 1; }
   ReplicaId currentPrimary() const override { return replicaConfig.replicaId; }
 
   bool isCurrentPrimary() const override { return primary_; }
@@ -133,6 +134,24 @@ class DummyReplica : public InternalReplicaApi {
   concord::util::SimpleThreadPool pool_;
   bftEngine::impl::ReplicasInfo replicasInfo_;
   set<ReplicaId> replicaIds_;
+};
+
+class DummyPreProcessor : public PreProcessor {
+ public:
+  using PreProcessor::PreProcessor;
+
+  bool validateRequestMsgCorrectness(const PreProcessRequestMsgSharedPtr& requestMsg) {
+    return checkPreProcessRequestMsgCorrectness(requestMsg);
+  }
+  bool validateReplyMsgCorrectness(const PreProcessReplyMsgSharedPtr& replyMsg) {
+    return checkPreProcessReplyMsgCorrectness(replyMsg);
+  }
+  bool validateBatchRequestMsgCorrectness(const PreProcessBatchReqMsgSharedPtr& batchReq) {
+    return checkPreProcessBatchReqMsgCorrectness(batchReq);
+  }
+  bool validateBatchReplyMsgCorrectness(const PreProcessBatchReplyMsgSharedPtr& batchReply) {
+    return checkPreProcessBatchReplyMsgCorrectness(batchReply);
+  }
 };
 
 // clang-format off
@@ -363,8 +382,8 @@ PreProcessReplyMsgSharedPtr preProcessNonPrimary(NodeIdType replicaId,
                                                  ReplyStatus status,
                                                  OperationResult opResult) {
   SigManager::instance(sigManager[replicaId].get());
-  auto preProcessReplyMsg =
-      make_shared<PreProcessReplyMsg>(replicaId, clientId, 0, reqSeqNum, reqRetryId, buf, bufLen, "", status, opResult);
+  auto preProcessReplyMsg = make_shared<PreProcessReplyMsg>(
+      replicaId, clientId, 0, reqSeqNum, reqRetryId, buf, bufLen, "", status, opResult, viewNum);
   SigManager::instance(sigManager[repInfo.myId()].get());
   preProcessReplyMsg->validate(repInfo);
   return preProcessReplyMsg;
@@ -685,12 +704,13 @@ TEST(requestPreprocessingState_test, validatePreProcessBatchRequestMsg) {
                                                               cid + to_string(i + 1),
                                                               nullptr,
                                                               0,
-                                                              GlobalData::current_block_id);
+                                                              GlobalData::current_block_id,
+                                                              viewNum);
     batch.push_back(preProcessReqMsg);
     overallReqSize += preProcessReqMsg->size();
   }
-  auto preProcessBatchReqMsg =
-      make_shared<PreProcessBatchRequestMsg>(REQ_TYPE_PRE_PROCESS, clientId, senderId, batch, cid, overallReqSize);
+  auto preProcessBatchReqMsg = make_shared<PreProcessBatchRequestMsg>(
+      REQ_TYPE_PRE_PROCESS, clientId, senderId, batch, cid, overallReqSize, viewNum);
   preProcessBatchReqMsg->validate(repInfo);
   const auto msgs = preProcessBatchReqMsg->getPreProcessRequestMsgs();
   ConcordAssertEQ(preProcessBatchReqMsg->clientId(), clientId);
@@ -728,12 +748,13 @@ TEST(requestPreprocessingState_test, validatePreProcessBatchReplyMsg) {
                                                               bufLen,
                                                               cid + to_string(i + 1),
                                                               STATUS_GOOD,
-                                                              OperationResult::SUCCESS);
+                                                              OperationResult::SUCCESS,
+                                                              viewNum);
     batch.push_back(preProcessReplyMsg);
     overallRepliesSize += preProcessReplyMsg->size();
   }
   auto preProcessBatchReplyMsg =
-      make_shared<PreProcessBatchReplyMsg>(clientId, senderId, batch, cid, overallRepliesSize);
+      make_shared<PreProcessBatchReplyMsg>(clientId, senderId, batch, cid, overallRepliesSize, viewNum);
   preProcessBatchReplyMsg->validate(repInfo);
   const auto msgs = preProcessBatchReplyMsg->getPreProcessReplyMsgs();
   ConcordAssertEQ(preProcessBatchReplyMsg->clientId(), clientId);
@@ -824,6 +845,7 @@ TEST(requestPreprocessingState_test, primaryCrashNotDetected) {
                                                     nullptr,
                                                     0,
                                                     GlobalData::current_block_id,
+                                                    replica.getCurrentView(),
                                                     span);
   msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::PreProcessRequest);
   msgHandlerCallback(preProcessReqMsg);
@@ -926,13 +948,24 @@ TEST(requestPreprocessingState_test, handlePreProcessBatchRequestMsg) {
   uint overallReqSize = 0;
   const auto numOfMsgs = 4;
   for (uint i = 0; i < numOfMsgs; i++) {
-    auto preProcessReqMsg = make_shared<PreProcessRequestMsg>(
-        REQ_TYPE_PRE_PROCESS, 1, clientId, i, i + 5, i, bufLen, buf, to_string(i + 1), nullptr, 0, 0);
+    auto preProcessReqMsg = make_shared<PreProcessRequestMsg>(REQ_TYPE_PRE_PROCESS,
+                                                              1,
+                                                              clientId,
+                                                              i,
+                                                              i + 5,
+                                                              i,
+                                                              bufLen,
+                                                              buf,
+                                                              to_string(i + 1),
+                                                              nullptr,
+                                                              0,
+                                                              0,
+                                                              replica.getCurrentView());
     batch.push_back(preProcessReqMsg);
     overallReqSize += preProcessReqMsg->size();
   }
-  auto* preProcessBatchReqMsg =
-      new PreProcessBatchRequestMsg(REQ_TYPE_PRE_PROCESS, clientId, 1, batch, cid, overallReqSize);
+  auto* preProcessBatchReqMsg = new PreProcessBatchRequestMsg(
+      REQ_TYPE_PRE_PROCESS, clientId, 1, batch, cid, overallReqSize, replica.getCurrentView());
   auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::PreProcessBatchRequest);
   msgHandlerCallback(preProcessBatchReqMsg);
   usleep(waitForExecTimerMillisec * 1000);
@@ -941,6 +974,112 @@ TEST(requestPreprocessingState_test, handlePreProcessBatchRequestMsg) {
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 2), 0);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 3), 0);
   clearDiagnosticsHandlers();
+}
+
+TEST(requestPreprocessingState_test, rejectMsgWithInvalidView) {
+  bftEngine::impl::ReplicasInfo repInfo(replicaConfig, false, false);
+  DummyReplica replica(repInfo);
+  replica.setPrimary(false);
+  concordUtil::Timers timers;
+  DummyPreProcessor preProcessor(
+      msgsCommunicator, msgsStorage, msgHandlersRegPtr, requestsHandler, replica, timers, sdm);
+
+  ViewNum oldViewNum = 0;
+  ViewNum currentView = replica.getCurrentView();
+  NodeIdType senderId = 2;
+
+  auto requestMsgValidView = make_shared<PreProcessRequestMsg>(
+      REQ_TYPE_PRE_PROCESS, senderId, clientId, 0, reqSeqNum, reqRetryId, bufLen, buf, cid, nullptr, 0, 0, currentView);
+
+  auto requestMsgInvalidView = make_shared<PreProcessRequestMsg>(
+      REQ_TYPE_PRE_PROCESS, senderId, clientId, 0, reqSeqNum, reqRetryId, bufLen, buf, cid, nullptr, 0, 0, oldViewNum);
+
+  ConcordAssert(preProcessor.validateRequestMsgCorrectness(requestMsgValidView));
+  ConcordAssert(!preProcessor.validateRequestMsgCorrectness(requestMsgInvalidView));
+
+  auto replyMsgValidView = make_shared<PreProcessReplyMsg>(senderId,
+                                                           clientId,
+                                                           0,
+                                                           reqSeqNum,
+                                                           reqRetryId,
+                                                           buf,
+                                                           bufLen,
+                                                           cid,
+                                                           STATUS_GOOD,
+                                                           OperationResult::SUCCESS,
+                                                           currentView);
+  auto replyMsgInvalidView = make_shared<PreProcessReplyMsg>(senderId,
+                                                             clientId,
+                                                             0,
+                                                             reqSeqNum,
+                                                             reqRetryId,
+                                                             buf,
+                                                             bufLen,
+                                                             cid,
+                                                             STATUS_GOOD,
+                                                             OperationResult::SUCCESS,
+                                                             oldViewNum);
+
+  ConcordAssert(preProcessor.validateReplyMsgCorrectness(replyMsgValidView));
+  ConcordAssert(!preProcessor.validateReplyMsgCorrectness(replyMsgInvalidView));
+
+  PreProcessReqMsgsList reqBatch;
+  uint overallReqSize = 0;
+  const auto numOfMsgs = 3;
+  for (uint i = 0; i < numOfMsgs; i++) {
+    auto preProcessReqMsg = make_shared<PreProcessRequestMsg>(REQ_TYPE_PRE_PROCESS,
+                                                              senderId,
+                                                              clientId,
+                                                              i,
+                                                              i + 5,
+                                                              i,
+                                                              bufLen,
+                                                              buf,
+                                                              to_string(i + 1),
+                                                              nullptr,
+                                                              0,
+                                                              0,
+                                                              currentView);
+    reqBatch.push_back(preProcessReqMsg);
+    overallReqSize += preProcessReqMsg->size();
+  }
+
+  auto batchRequestValidView = make_shared<PreProcessBatchRequestMsg>(
+      REQ_TYPE_PRE_PROCESS, clientId, senderId, reqBatch, cid, overallReqSize, currentView);
+  auto batchRequestInvalidView = make_shared<PreProcessBatchRequestMsg>(
+      REQ_TYPE_PRE_PROCESS, clientId, senderId, reqBatch, cid, overallReqSize, oldViewNum);
+
+  ConcordAssert(preProcessor.validateBatchRequestMsgCorrectness(batchRequestValidView));
+  ConcordAssert(!preProcessor.validateBatchRequestMsgCorrectness(batchRequestInvalidView));
+
+  SigManager::instance(sigManager[senderId].get());
+  PreProcessReplyMsgsList batch;
+  uint overallRepliesSize = 0;
+  for (uint i = 0; i < numOfMsgs; i++) {
+    auto preProcessReplyMsg = make_shared<PreProcessReplyMsg>(senderId,
+                                                              clientId,
+                                                              i,
+                                                              reqSeqNum + i,
+                                                              i,
+                                                              buf,
+                                                              bufLen,
+                                                              cid + to_string(i + 1),
+                                                              STATUS_GOOD,
+                                                              OperationResult::SUCCESS,
+                                                              currentView);
+    batch.push_back(preProcessReplyMsg);
+    overallRepliesSize += preProcessReplyMsg->size();
+  }
+
+  auto batchReplyValidView =
+      make_shared<PreProcessBatchReplyMsg>(clientId, senderId, batch, cid, overallRepliesSize, currentView);
+  auto batchReplyInvalidView =
+      make_shared<PreProcessBatchReplyMsg>(clientId, senderId, batch, cid, overallRepliesSize, oldViewNum);
+
+  replica.setPrimary(true);
+  SigManager::instance(sigManager[repInfo.myId()].get());
+  ConcordAssert(preProcessor.validateBatchReplyMsgCorrectness(batchReplyValidView));
+  ConcordAssert(!preProcessor.validateBatchReplyMsgCorrectness(batchReplyInvalidView));
 }
 
 }  // end namespace
