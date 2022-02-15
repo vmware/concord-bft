@@ -301,7 +301,6 @@ class SkvbcTimeServiceTest(ApolloTest):
         await bft_network.wait_for_fast_path_to_be_prevalent(
         run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
 
-    @unittest.skip("Unstable test - BC-17829")
     @with_trio
     @with_bft_network(start_replica_cmd,
             selected_configs=lambda n, f, c: c == 0 and n >= 6, rotate_keys=True)
@@ -332,11 +331,15 @@ class SkvbcTimeServiceTest(ApolloTest):
             await skvbc.run_concurrent_ops(100, 1)
             
             with log.start_action(action_type="get_soft_limit_reached_counter") as action:
-                soft_limit_cnt = await bft_network.get_metric(non_primary_replica, bft_network, "Counters",
-                        "soft_limit_reached_counter", "time_service")
-                action.log(
-                        message_type=f'soft_limit_reached_counter #{soft_limit_cnt}')
-                self.assertGreater(soft_limit_cnt, 0)
+                with trio.fail_after(30):
+                    while(True):
+                            soft_limit_cnt = await bft_network.get_metric(non_primary_replica, bft_network, "Counters",
+                                "soft_limit_reached_counter", "time_service")
+                            action.log(
+                                message_type=f'soft_limit_reached_counter #{soft_limit_cnt}')
+                            if(soft_limit_cnt > 0):
+                                break    
+                            await trio.sleep(1)
 
     @classmethod
     async def manipulate_time_file_write(self, path, data):
