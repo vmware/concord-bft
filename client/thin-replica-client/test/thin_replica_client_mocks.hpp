@@ -16,11 +16,11 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "thin_replica_mock.grpc.pb.h"
-#include "client/thin-replica-client/trs_connection.hpp"
+#include "client/thin-replica-client/grpc_connection.hpp"
 
 const std::chrono::milliseconds kTestingTimeout(10);
 
-class MockTrsConnection : public client::thin_replica_client::TrsConnection {
+class MockTrsConnection : public client::concordclient::GrpcConnection {
  public:
   MockTrsConnection();
   ~MockTrsConnection() override {}
@@ -536,11 +536,11 @@ void SetMockServerBehavior(MockTrsConnection* server,
                            const std::shared_ptr<MockDataStreamPreparer>& data_preparer,
                            const MockOrderedDataStreamHasher& hasher);
 
-void SetMockServerUnresponsive(client::thin_replica_client::TrsConnection* server);
+void SetMockServerUnresponsive(client::concordclient::GrpcConnection* server);
 
-std::vector<std::unique_ptr<client::thin_replica_client::TrsConnection>> CreateTrsConnections(
-    size_t num_servers, size_t num_unresponsive = 0);
-std::vector<std::unique_ptr<client::thin_replica_client::TrsConnection>> CreateTrsConnections(
+std::vector<std::shared_ptr<client::concordclient::GrpcConnection>> CreateTrsConnections(size_t num_servers,
+                                                                                         size_t num_unresponsive = 0);
+std::vector<std::shared_ptr<client::concordclient::GrpcConnection>> CreateTrsConnections(
     size_t num_servers,
     std::shared_ptr<MockDataStreamPreparer> stream_preparer,
     MockOrderedDataStreamHasher& hasher,
@@ -572,21 +572,21 @@ void SetMockServerBehavior(MockTrsConnection* server, MockThinReplicaServer& moc
 }
 
 template <class MockThinReplicaServer>
-std::vector<std::unique_ptr<client::thin_replica_client::TrsConnection>> CreateTrsConnections(
+std::vector<std::shared_ptr<client::concordclient::GrpcConnection>> CreateTrsConnections(
     std::vector<std::unique_ptr<MockThinReplicaServer>>& mock_servers) {
-  std::vector<std::unique_ptr<client::thin_replica_client::TrsConnection>> mock_connections;
+  std::vector<std::shared_ptr<client::concordclient::GrpcConnection>> mock_connections;
   for (size_t i = 0; i < mock_servers.size(); ++i) {
     auto conn = new MockTrsConnection();
     SetMockServerBehavior(conn, *(mock_servers[i]));
-    auto server = dynamic_cast<client::thin_replica_client::TrsConnection*>(conn);
-    mock_connections.push_back(std::unique_ptr<client::thin_replica_client::TrsConnection>(server));
+    auto server = dynamic_cast<client::concordclient::GrpcConnection*>(conn);
+    mock_connections.push_back(std::shared_ptr<client::concordclient::GrpcConnection>(server));
   }
   return mock_connections;
 }
 
-std::vector<std::unique_ptr<client::thin_replica_client::TrsConnection>> CreateTrsConnections(
+std::vector<std::shared_ptr<client::concordclient::GrpcConnection>> CreateTrsConnections(
     std::vector<MockThinReplicaServerRecorder>& mock_server_recorders);
-std::vector<std::unique_ptr<client::thin_replica_client::TrsConnection>> CreateTrsConnections(
+std::vector<std::shared_ptr<client::concordclient::GrpcConnection>> CreateTrsConnections(
     std::vector<std::unique_ptr<ByzantineMockThinReplicaServerPreparer::ByzantineMockServer>>& mock_servers);
 
 template <class DataType>
