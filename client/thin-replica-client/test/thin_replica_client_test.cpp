@@ -396,14 +396,10 @@ TEST(thin_replica_client_test, test_correct_data_returned_) {
   sleep_for(kBriefDelayDuration);
   EXPECT_FALSE((bool)(update_queue->tryPop())) << "ThinReplicaClient appears to have received an update after "
                                                   "unsubscribing.";
-  *spurious_wakeup_indicator = true;
 
   trc->Subscribe(num_initial_updates);
   for (size_t i = num_initial_updates; i < update_data.size(); ++i) {
-    *spurious_wakeup_indicator = false;
-    delay_condition->notify_one();
     unique_ptr<EventVariant> received_update = update_queue->pop();
-    *spurious_wakeup_indicator = true;
     Data& expected_update = update_data[i];
 
     EXPECT_TRUE((bool)received_update) << "ThinReplicaClient failed to fetch an expected update from an "
