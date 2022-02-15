@@ -142,8 +142,11 @@ class SkvbcRestartRecoveryTest(ApolloTest):
             # Pick one replica to restart while the others are agreeing the next View.
             # We want a replica other than the current primary, which will be restarted to trigger the view change
             # and we want also the restarted replica to be different from the next primary
+            excluded_replcias = {current_primary, next_primary}
+            if restart_next_primary:
+                excluded_replcias.add(next_primary + 1 % bft_network.config.n)
             replica_to_restart = random.choice(
-                bft_network.all_replicas(without={current_primary, next_primary}))
+                bft_network.all_replicas(without=excluded_replcias))
             log.log_message(f"Initiating View Change by stopping replica {current_primary} in view {view}")
             # Stop the current primary.
             bft_network.stop_replica(current_primary, True)
