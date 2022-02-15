@@ -45,3 +45,15 @@ target_link_libraries(trc_hash_tests
   kvbc
   GTest::Main
   GTest::GTest)
+
+add_test(NAME replica_stream_snapshot_client_tests COMMAND replica_stream_snapshot_client_tests)
+add_executable(replica_stream_snapshot_client_tests
+        replica_stream_snapshot_client_test.cpp
+        thin_replica_client_mocks.hpp
+        thin_replica_client_mocks.cpp)
+target_include_directories(replica_stream_snapshot_client_tests PRIVATE ../src)
+target_link_libraries(replica_stream_snapshot_client_tests
+        ${GMOCK_LIBRARY}
+        thin_replica_client_lib
+        GTest::Main
+        GTest::GTest)

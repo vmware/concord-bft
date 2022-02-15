@@ -22,6 +22,7 @@
 
 #include "KeyExchangeMsg.hpp"
 #include "OpenTracing.hpp"
+#include "concord.cmf.hpp"
 
 namespace concord::concord_client_pool {
 
@@ -68,13 +69,20 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
     }
     if (0 == seq_num) {
       seq_num = client->generateClientSeqNum();
+      if (flags & ClientMsgFlag::RECONFIG_FLAG_REQ) {
+        correlation_id += ("-" + std::to_string(seq_num));
+      }
     }
+
     if (IsGoodForBatching(flags, client_batching_enabled_)) {
       if (0 == client->PendingRequestsCount()) {
         LOG_TRACE(logger_, "Set batching timer" << KVLOG(client_id));
         batch_timer_->set(client);
       }
 
+      if (flags & ClientMsgFlag::RECONFIG_FLAG_REQ) {
+        AddSenderAndSignature(request, client);
+      }
       client->AddPendingRequest(std::move(request),
                                 flags,
                                 reply_buffer,
@@ -119,6 +127,9 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
         ClientPoolMetrics_.full_batch_counter++;
         assignJobToClient(client);
       } else {
+        if (flags & ClientMsgFlag::RECONFIG_FLAG_REQ) {
+          AddSenderAndSignature(request, client);
+        }
         assignJobToClient(client,
                           std::move(request),
                           flags,
@@ -202,7 +213,12 @@ SubmitResult ConcordClientPool::SendRequest(const bft::client::WriteConfig &conf
                                             const bftEngine::RequestCallBack &callback) {
   LOG_DEBUG(logger_, "Received write request with cid=" << config.request.correlation_id);
   auto request_flag = ClientMsgFlag::EMPTY_FLAGS_REQ;
-  if (config.request.pre_execute) request_flag = ClientMsgFlag::PRE_PROCESS_REQ;
+  if (config.request.reconfiguration) {
+    request_flag = ClientMsgFlag::RECONFIG_FLAG_REQ;
+  } else if (config.request.pre_execute) {
+    request_flag = ClientMsgFlag::PRE_PROCESS_REQ;
+  }
+
   return SendRequest(std::forward<std::vector<uint8_t>>(request),
                      request_flag,
                      config.request.timeout,
@@ -222,8 +238,10 @@ SubmitResult ConcordClientPool::SendRequest(const bft::client::ReadConfig &confi
     callback(bftEngine::SendResult{static_cast<uint32_t>(OperationResult::INVALID_REQUEST)});
     return SubmitResult::Overloaded;
   }
+  auto request_flag =
+      config.request.reconfiguration ? ClientMsgFlag::RECONFIG_READ_ONLY_REQ : ClientMsgFlag::READ_ONLY_REQ;
   return SendRequest(std::forward<std::vector<uint8_t>>(request),
-                     ClientMsgFlag::READ_ONLY_REQ,
+                     request_flag,
                      config.request.timeout,
                      nullptr,
                      0,
@@ -387,6 +405,18 @@ void ConcordClientPool::CreatePool(concord::config_pool::ConcordClientPoolConfig
   jobs_queue_max_size_ = config.external_requests_queue_size;
 }
 
+void ConcordClientPool::AddSenderAndSignature(std::vector<uint8_t> &request, const ClientPtr &chosenClient) {
+  concord::messages::ReconfigurationRequest rreq;
+  concord::messages::deserialize(request, rreq);
+  rreq.sender = static_cast<decltype(rreq.sender)>(chosenClient->getClientId());
+  request.clear();
+  concord::messages::serialize(request, rreq);
+  auto sig = chosenClient->messageSignature(request);
+  rreq.signature = std::vector<uint8_t>(sig.begin(), sig.end());
+  request.clear();
+  concord::messages::serialize(request, rreq);
+}
+
 void ConcordClientPool::OnBatchingTimeout(std::shared_ptr<concord::external_client::ConcordClient> client) {
   {
     std::unique_lock<std::mutex> lock(clients_queue_lock_);
@@ -436,12 +466,14 @@ void SingleRequestProcessingJob::execute() {
     read_config_.request.sequence_number = seq_num_;
     read_config_.request.correlation_id = correlation_id_;
     read_config_.request.span_context = span_context_;
+    read_config_.request.reconfiguration = flags_ & RECONFIG_FLAG_REQ;
     res = processing_client_->SendRequest(read_config_, std::move(request_));
   } else {
     write_config_.request.timeout = timeout_ms_;
     write_config_.request.sequence_number = seq_num_;
     write_config_.request.correlation_id = correlation_id_;
     write_config_.request.span_context = span_context_;
+    write_config_.request.reconfiguration = flags_ & RECONFIG_FLAG_REQ;
     write_config_.request.pre_execute = flags_ & PRE_PROCESS_REQ;
     res = processing_client_->SendRequest(write_config_, std::move(request_));
   }

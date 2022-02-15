@@ -11,7 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "client/thin-replica-client/trs_connection.hpp"
+#include "client/thin-replica-client/grpc_connection.hpp"
 
 #include <grpcpp/grpcpp.h>
 #include <future>
@@ -23,6 +23,7 @@ using com::vmware::concord::thin_replica::ReadStateHashRequest;
 using com::vmware::concord::thin_replica::ReadStateRequest;
 using com::vmware::concord::thin_replica::SubscriptionRequest;
 using com::vmware::concord::thin_replica::ThinReplica;
+using vmware::concord::replicastatesnapshot::ReplicaStateSnapshotService;
 
 using grpc::ChannelArguments;
 using grpc::ClientContext;
@@ -36,14 +37,18 @@ using std::launch;
 
 using namespace std::chrono_literals;
 
-namespace client::thin_replica_client {
+namespace client::concordclient {
 
-void TrsConnection::createStub() {
+void GrpcConnection::createTrcStub() {
   ConcordAssertNE(channel_, nullptr);
-  stub_ = ThinReplica::NewStub(channel_);
+  trc_stub_ = ThinReplica::NewStub(channel_);
+}
+void GrpcConnection::createRssStub() {
+  ConcordAssertNE(channel_, nullptr);
+  rss_stub_ = ReplicaStateSnapshotService::NewStub(channel_);
 }
 
-void TrsConnection::createChannel() {
+void GrpcConnection::createChannel() {
   grpc::ChannelArguments args;
   args.SetMaxReceiveMessageSize(kGrpcMaxInboundMsgSizeInBytes);
 
@@ -60,19 +65,25 @@ void TrsConnection::createChannel() {
   }
 }
 
-void TrsConnection::connect(std::unique_ptr<TrsConnectionConfig>& config) {
+void GrpcConnection::connect(std::unique_ptr<GrpcConnectionConfig>& config) {
   if (!channel_) {
     config_ = std::move(config);
     createChannel();
-    createStub();
-  } else if (!stub_) {
-    createStub();
+    createTrcStub();
+    createRssStub();
+  } else {
+    if (!trc_stub_) {
+      createTrcStub();
+    }
+    if (!rss_stub_) {
+      createRssStub();
+    }
   }
   // Initiate connection
   channel_->GetState(true);
 }
 
-bool TrsConnection::isConnected() {
+bool GrpcConnection::isConnected() {
   if (!channel_) {
     return false;
   }
@@ -81,16 +92,23 @@ bool TrsConnection::isConnected() {
   return status == GRPC_CHANNEL_READY;
 }
 
-void TrsConnection::disconnect() {
+void GrpcConnection::reConnect(std::unique_ptr<GrpcConnectionConfig>& config) {
+  disconnect();
+  connect(config);
+}
+
+void GrpcConnection::disconnect() {
   cancelStateStream();
   cancelDataStream();
   cancelHashStream();
-  stub_.reset();
+  cancelAllStateSnapshotStreams();
+  trc_stub_.reset();
+  rss_stub_.reset();
   channel_.reset();
 }
 
-TrsConnection::Result TrsConnection::openDataStream(const SubscriptionRequest& request) {
-  ConcordAssertNE(stub_, nullptr);
+GrpcConnection::Result GrpcConnection::openDataStream(const SubscriptionRequest& request) {
+  ConcordAssertNE(trc_stub_, nullptr);
   ConcordAssertEQ(data_stream_, nullptr);
   ConcordAssertEQ(data_context_, nullptr);
 
@@ -98,7 +116,7 @@ TrsConnection::Result TrsConnection::openDataStream(const SubscriptionRequest& r
   data_context_->AddMetadata("client_id", client_id_);
 
   auto stream =
-      async(launch::async, [this, &request] { return stub_->SubscribeToUpdates(data_context_.get(), request); });
+      async(launch::async, [this, &request] { return trc_stub_->SubscribeToUpdates(data_context_.get(), request); });
   auto status = stream.wait_for(data_timeout_);
   if (status == future_status::timeout || status == future_status::deferred) {
     data_context_->TryCancel();
@@ -124,7 +142,7 @@ TrsConnection::Result TrsConnection::openDataStream(const SubscriptionRequest& r
   return Result::kFailure;
 }
 
-void TrsConnection::cancelDataStream() {
+void GrpcConnection::cancelDataStream() {
   if (!data_stream_) {
     ConcordAssertEQ(data_context_, nullptr);
     return;
@@ -135,9 +153,9 @@ void TrsConnection::cancelDataStream() {
   data_stream_.reset();
 }
 
-bool TrsConnection::hasDataStream() { return bool(data_stream_); }
+bool GrpcConnection::hasDataStream() { return bool(data_stream_); }
 
-TrsConnection::Result TrsConnection::readData(Data* data) {
+GrpcConnection::Result GrpcConnection::readData(Data* data) {
   ConcordAssertNE(data_stream_, nullptr);
   ConcordAssertNE(data_context_, nullptr);
 
@@ -160,15 +178,15 @@ TrsConnection::Result TrsConnection::readData(Data* data) {
   return Result::kFailure;
 }
 
-TrsConnection::Result TrsConnection::openStateStream(const ReadStateRequest& request) {
-  ConcordAssertNE(stub_, nullptr);
+GrpcConnection::Result GrpcConnection::openStateStream(const ReadStateRequest& request) {
+  ConcordAssertNE(trc_stub_, nullptr);
   ConcordAssertEQ(state_stream_, nullptr);
   ConcordAssertEQ(state_context_, nullptr);
 
   state_context_.reset(new grpc::ClientContext());
   state_context_->AddMetadata("client_id", client_id_);
 
-  auto stream = async(launch::async, [this, &request] { return stub_->ReadState(state_context_.get(), request); });
+  auto stream = async(launch::async, [this, &request] { return trc_stub_->ReadState(state_context_.get(), request); });
   auto status = stream.wait_for(data_timeout_);
   if (status == future_status::timeout || status == future_status::deferred) {
     state_context_->TryCancel();
@@ -193,7 +211,7 @@ TrsConnection::Result TrsConnection::openStateStream(const ReadStateRequest& req
   }
 }
 
-void TrsConnection::cancelStateStream() {
+void GrpcConnection::cancelStateStream() {
   if (!state_stream_) {
     ConcordAssertEQ(state_context_, nullptr);
     return;
@@ -204,7 +222,7 @@ void TrsConnection::cancelStateStream() {
   state_stream_.reset();
 }
 
-TrsConnection::Result TrsConnection::closeStateStream() {
+GrpcConnection::Result GrpcConnection::closeStateStream() {
   if (!state_stream_) {
     return Result::kSuccess;
   }
@@ -236,9 +254,9 @@ TrsConnection::Result TrsConnection::closeStateStream() {
   }
 }
 
-bool TrsConnection::hasStateStream() { return bool(state_stream_); }
+bool GrpcConnection::hasStateStream() { return bool(state_stream_); }
 
-TrsConnection::Result TrsConnection::readState(Data* data) {
+GrpcConnection::Result GrpcConnection::readState(Data* data) {
   ConcordAssertNE(state_stream_, nullptr);
   ConcordAssertNE(state_context_, nullptr);
 
@@ -256,13 +274,13 @@ TrsConnection::Result TrsConnection::readState(Data* data) {
   return result.get() ? Result::kSuccess : Result::kFailure;
 }
 
-TrsConnection::Result TrsConnection::readStateHash(const ReadStateHashRequest& request, Hash* hash) {
-  ConcordAssertNE(stub_, nullptr);
+GrpcConnection::Result GrpcConnection::readStateHash(const ReadStateHashRequest& request, Hash* hash) {
+  ConcordAssertNE(trc_stub_, nullptr);
 
   ClientContext context;
   context.AddMetadata("client_id", client_id_);
-  auto result =
-      async(launch::async, [this, &context, &request, hash] { return stub_->ReadStateHash(&context, request, hash); });
+  auto result = async(launch::async,
+                      [this, &context, &request, hash] { return trc_stub_->ReadStateHash(&context, request, hash); });
   auto status = result.wait_for(hash_timeout_);
   if (status == future_status::timeout || status == future_status::deferred) {
     context.TryCancel();
@@ -285,16 +303,16 @@ TrsConnection::Result TrsConnection::readStateHash(const ReadStateHashRequest& r
   return Result::kFailure;
 }
 
-TrsConnection::Result TrsConnection::openHashStream(SubscriptionRequest& request) {
-  ConcordAssertNE(stub_, nullptr);
+GrpcConnection::Result GrpcConnection::openHashStream(SubscriptionRequest& request) {
+  ConcordAssertNE(trc_stub_, nullptr);
   ConcordAssertEQ(hash_stream_, nullptr);
   ConcordAssertEQ(hash_context_, nullptr);
 
   hash_context_.reset(new grpc::ClientContext());
   hash_context_->AddMetadata("client_id", client_id_);
 
-  auto stream =
-      async(launch::async, [this, &request] { return stub_->SubscribeToUpdateHashes(hash_context_.get(), request); });
+  auto stream = async(launch::async,
+                      [this, &request] { return trc_stub_->SubscribeToUpdateHashes(hash_context_.get(), request); });
   auto status = stream.wait_for(data_timeout_);
   if (status == future_status::timeout || status == future_status::deferred) {
     hash_context_->TryCancel();
@@ -320,7 +338,7 @@ TrsConnection::Result TrsConnection::openHashStream(SubscriptionRequest& request
   return Result::kFailure;
 }
 
-void TrsConnection::cancelHashStream() {
+void GrpcConnection::cancelHashStream() {
   if (!hash_stream_) {
     ConcordAssertEQ(hash_context_, nullptr);
     return;
@@ -331,9 +349,9 @@ void TrsConnection::cancelHashStream() {
   hash_stream_.reset();
 }
 
-bool TrsConnection::hasHashStream() { return bool(hash_stream_); }
+bool GrpcConnection::hasHashStream() { return bool(hash_stream_); }
 
-TrsConnection::Result TrsConnection::readHash(Hash* hash) {
+GrpcConnection::Result GrpcConnection::readHash(Hash* hash) {
   ConcordAssertNE(hash_stream_, nullptr);
   ConcordAssertNE(hash_context_, nullptr);
 
@@ -356,27 +374,148 @@ TrsConnection::Result TrsConnection::readHash(Hash* hash) {
   return Result::kFailure;
 }
 
-TrsConnection::Result TrsConnection::openStateSnapshotStream(
-    const vmware::concord::replicastatesnapshot::StreamSnapshotRequest& request) {
-  // TODO: Add implementation
-  ConcordAssert("openStateSnapshotStream should not be called. It is unimplemented." && false);
+GrpcConnection::Result GrpcConnection::openStateSnapshotStream(
+    const vmware::concord::replicastatesnapshot::StreamSnapshotRequest& request, RequestId& request_id) {
+  ConcordAssertNE(rss_stub_, nullptr);
+  request_id = current_req_id_.fetch_add(1u);
+
+  vmware::concord::replicastatesnapshot::StreamSnapshotRequest req;
+  req.set_snapshot_id(request.snapshot_id());
+  req.set_last_received_key(request.last_received_key());
+
+  std::unique_ptr<grpc::ClientContext> snapshot_context = std::make_unique<grpc::ClientContext>();
+  snapshot_context->AddMetadata("client_id", client_id_);
+
+  std::unique_ptr<grpc::ClientReaderInterface<vmware::concord::replicastatesnapshot::StreamSnapshotResponse>>
+      snapshot_stream;
+
+  auto stream = async(launch::async, [this, &req, &snapshot_context] {
+    return rss_stub_->StreamSnapshot(snapshot_context.get(), req);
+  });
+  auto status = stream.wait_for(data_timeout_);
+  if (status == future_status::timeout || status == future_status::deferred) {
+    snapshot_context->TryCancel();
+    stream.wait();
+    snapshot_context.reset();
+
+    // If StreamSnapshot did end up returning a pointer to an allocated
+    // stream, make sure it does not get leaked.
+    snapshot_stream = stream.get();
+    snapshot_stream.reset();
+    current_req_id_.fetch_sub(1u);
+    request_id = 0u;
+    return Result::kTimeout;
+  }
+
+  ConcordAssert(status == future_status::ready);
+  snapshot_stream = stream.get();
+  if (snapshot_stream) {
+    WriteLock write_lock(rss_streams_mutex_);
+    rss_streams_.emplace(request_id, std::make_pair(std::move(snapshot_context), std::move(snapshot_stream)));
+    return Result::kSuccess;
+  }
+
+  current_req_id_.fetch_sub(1u);
+  request_id = 0u;
+  snapshot_stream.reset();
+  snapshot_context.reset();
   return Result::kFailure;
 }
 
-void TrsConnection::cancelStateSnapshotStream() {
-  // TODO: Add implementation
-  ConcordAssert("cancelStateSnapshotStream should not be called. It is unimplemented." && false);
-  return;
+void GrpcConnection::cancelStateSnapshotStream(RequestId request_id) {
+  {
+    ReadLock read_lock(rss_streams_mutex_);
+    auto it = rss_streams_.find(request_id);
+    if (it != rss_streams_.end()) {
+      if (!(it->second).second) {
+        ConcordAssertEQ((it->second).first, nullptr);
+        return;
+      }
+      ConcordAssertNE((it->second).first, nullptr);
+      (it->second).first->TryCancel();
+      (it->second).first.reset();
+      (it->second).second.reset();
+    }
+  }
+  {
+    WriteLock write_lock(rss_streams_mutex_);
+    rss_streams_.erase(request_id);
+  }
 }
-bool TrsConnection::hasStateSnapshotStream() {
-  // TODO: Add implementation
-  ConcordAssert("hasStateSnapshotStream should not be called. It is unimplemented." && false);
+
+void GrpcConnection::cancelAllStateSnapshotStreams() {
+  {
+    ReadLock read_lock(rss_streams_mutex_);
+    for (auto& c : rss_streams_) {
+      if (!c.second.second) {
+        ConcordAssertEQ(c.second.first, nullptr);
+        continue;
+      }
+      ConcordAssertNE(c.second.first, nullptr);
+      c.second.first->TryCancel();
+      c.second.first.reset();
+      c.second.second.reset();
+    }
+  }
+  {
+    WriteLock write_lock(rss_streams_mutex_);
+    rss_streams_.clear();
+  }
+}
+
+bool GrpcConnection::hasStateSnapshotStream(RequestId request_id) {
+  ReadLock read_lock(rss_streams_mutex_);
+  auto it = rss_streams_.find(request_id);
+  if (it != rss_streams_.end()) {
+    return bool((it->second).second);
+  }
   return false;
 }
-TrsConnection::Result TrsConnection::readStateSnapshot(vmware::concord::replicastatesnapshot::KeyValuePair* key_value) {
-  // TODO: Add implementation
-  ConcordAssert("readStateSnapshot should not be called. It is unimplemented." && false);
+
+GrpcConnection::Result GrpcConnection::readStateSnapshot(
+    RequestId request_id, vmware::concord::replicastatesnapshot::StreamSnapshotResponse* snapshot_response) {
+  auto result = async(launch::async, [this, snapshot_response, request_id] {
+    ReadLock read_lock(rss_streams_mutex_);
+    return (((this->rss_streams_)[request_id]).second)->Read(snapshot_response);
+  });
+  auto status = result.wait_for(snapshot_timeout_);
+
+  if (status == future_status::timeout || status == future_status::deferred) {
+    {
+      ReadLock read_lock(rss_streams_mutex_);
+      auto it = rss_streams_.find(request_id);
+      if (it != rss_streams_.end()) {
+        ((it->second).first)->TryCancel();
+        result.wait();
+        ((it->second).first).reset();
+        ((it->second).second).reset();
+      }
+    }
+    {
+      WriteLock write_lock(rss_streams_mutex_);
+      rss_streams_.erase(request_id);
+    }
+
+    return Result::kTimeout;
+  }
+
+  ConcordAssert(status == future_status::ready);
+  if (result.get()) {
+    return Result::kSuccess;
+  }
+
+  {
+    ReadLock read_lock(rss_streams_mutex_);
+    auto it = rss_streams_.find(request_id);
+    if (it != rss_streams_.end()) {
+      auto grpc_status = ((it->second).second)->Finish();
+      if (grpc_status.error_code() == grpc::StatusCode::OK) return Result::kEndOfStream;
+      if (grpc_status.error_code() == grpc::StatusCode::OUT_OF_RANGE) return Result::kOutOfRange;
+      if (grpc_status.error_code() == grpc::StatusCode::NOT_FOUND) return Result::kNotFound;
+    }
+  }
+
   return Result::kFailure;
 }
 
-}  // namespace client::thin_replica_client
+}  // namespace client::concordclient

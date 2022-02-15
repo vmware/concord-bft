@@ -13,12 +13,11 @@
 
 #pragma once
 
-#ifndef THIN_REPLICA_CLIENT_TRS_CONNECTION_HPP_
-#define THIN_REPLICA_CLIENT_TRS_CONNECTION_HPP_
-
+#include <shared_mutex>
 #include <algorithm>
 #include <fstream>
 #include <sstream>
+#include <atomic>
 
 #include <grpcpp/grpcpp.h>
 #include "assertUtils.hpp"
@@ -28,9 +27,13 @@
 
 using namespace std::chrono_literals;
 
-namespace client::thin_replica_client {
+namespace client::concordclient {
 
-struct TrsConnectionConfig {
+using RequestId = uint64_t;
+using WriteLock = std::unique_lock<std::shared_mutex>;
+using ReadLock = std::shared_lock<std::shared_mutex>;
+
+struct GrpcConnectionConfig {
   // use_tls determines if a TLS enabled secure channel will be opened
   // by the thin replica client, or an insecure channel will be employed.
   const bool use_tls;
@@ -40,10 +43,10 @@ struct TrsConnectionConfig {
   const std::string& client_cert;
   const std::string& server_cert;
 
-  TrsConnectionConfig(const bool use_tls_,
-                      const std::string& client_key_,
-                      const std::string& client_cert_,
-                      const std::string& server_cert_)
+  GrpcConnectionConfig(const bool use_tls_,
+                       const std::string& client_key_,
+                       const std::string& client_cert_,
+                       const std::string& server_cert_)
       : use_tls(use_tls_), client_key(client_key_), client_cert(client_cert_), server_cert(server_cert_) {}
 };
 
@@ -57,37 +60,41 @@ const int kGrpcMaxInboundMsgSizeInBytes = 1 << 24;
 
 // Class for managing a connection from a Thin Replica Client to a Thin Replica
 // Server, abstracting the connection and communication implementations from the
-// core Thin Replica Client logic in thin_replica_client::ThinReplicaClient.
+// core Thin Replica Client logic in concordclient::ThinReplicaClient.
 //
-// The TrsConnection itself provides the production implementation used for
-// communication by the Thin Replica Client Library, however, TrsConnection also
+// The GrpcConnection itself provides the production implementation used for
+// communication by the Thin Replica Client Library, however, GrpcConnection also
 // defines the interface (with its virtual functions) that the ThinReplicaClient
 // implementation abstractly uses for communication, so it can be extended in
 // order to use an alternative connection and communication implementation (for
 // example, for testing).
 //
-// TrsConnection provides NO thread safety guarantees in the event more than one
-// call to a TrsConnection function executes concurrently on the same
-// TrsConnection object.
-class TrsConnection {
+// GrpcConnection provides NO thread safety guarantees in the event more than one
+// call to a GrpcConnection function executes concurrently on the same
+// GrpcConnection object.
+class GrpcConnection {
  public:
-  // Possible results of RPC operations a TrsConnection may report.
-  enum class Result { kUnknown, kSuccess, kFailure, kTimeout, kOutOfRange, kNotFound };
+  // Possible results of RPC operations a GrpcConnection may report.
+  enum class Result { kUnknown, kSuccess, kFailure, kTimeout, kOutOfRange, kNotFound, kEndOfStream };
 
-  TrsConnection(const std::string& address,
-                const std::string& client_id,
-                uint16_t data_operation_timeout_seconds,
-                uint16_t hash_operation_timeout_seconds)
+  GrpcConnection(const std::string& address,
+                 const std::string& client_id,
+                 uint16_t data_operation_timeout_seconds,
+                 uint16_t hash_operation_timeout_seconds,
+                 uint16_t snapshot_operation_timeout_seconds = 5)
       : logger_(logging::getLogger("concord.client.thin_replica.trscon")),
         address_(address),
         client_id_(client_id),
         data_timeout_(std::chrono::seconds(data_operation_timeout_seconds)),
-        hash_timeout_(std::chrono::seconds(hash_operation_timeout_seconds)) {}
-  virtual ~TrsConnection() { this->disconnect(); }
+        hash_timeout_(std::chrono::seconds(hash_operation_timeout_seconds)),
+        snapshot_timeout_(std::chrono::seconds(snapshot_operation_timeout_seconds)) {}
+
+  virtual ~GrpcConnection() { this->disconnect(); }
 
   // Connect & disconnect from the TRS
-  virtual void connect(std::unique_ptr<TrsConnectionConfig>& config);
+  virtual void connect(std::unique_ptr<GrpcConnectionConfig>& config);
   virtual bool isConnected();
+  virtual void reConnect(std::unique_ptr<GrpcConnectionConfig>& config);
   virtual void disconnect();
 
   // Open a data subscription stream (connection has to be established before).
@@ -154,24 +161,29 @@ class TrsConnection {
   // A state snapshot stream will be open after
   // openStateSnapshotStream returns, if and only if openStateSnapshotStream returns
   // Result::kSuccess; a stream will not be open in the failure and timeout cases.
-  virtual Result openStateSnapshotStream(const vmware::concord::replicastatesnapshot::StreamSnapshotRequest& request);
+  virtual Result openStateSnapshotStream(const vmware::concord::replicastatesnapshot::StreamSnapshotRequest& request,
+                                         RequestId& request_id);
 
-  virtual void cancelStateSnapshotStream();
-  virtual bool hasStateSnapshotStream();
+  virtual void cancelStateSnapshotStream(RequestId request_id);
+  virtual void cancelAllStateSnapshotStreams();
+  virtual bool hasStateSnapshotStream(RequestId request_id);
 
   // Read key values from an existing open state snapshot stream. Note readStateSnapshot
   // will automatically close the open state snapshot stream in the event it has to time
   // out the read.
-  virtual Result readStateSnapshot(vmware::concord::replicastatesnapshot::KeyValuePair* key_value);
+  virtual Result readStateSnapshot(RequestId request_id,
+                                   vmware::concord::replicastatesnapshot::StreamSnapshotResponse* snapshot_response);
 
   // Helper to print/log connection details
-  friend std::ostream& operator<<(std::ostream& os, const TrsConnection& trsc) {
+  friend std::ostream& operator<<(std::ostream& os, const GrpcConnection& trsc) {
     return os << trsc.client_id_ << " (" << trsc.address_ << ")";
   }
 
  protected:
   // Helper function to deal with gRPC
-  void createStub();
+  void createTrcStub();
+  void createRssStub();
+
   void createChannel();
 
   logging::Logger logger_;
@@ -187,18 +199,25 @@ class TrsConnection {
   std::unique_ptr<grpc::ClientReaderInterface<com::vmware::concord::thin_replica::Data>> state_stream_;
   std::unique_ptr<grpc::ClientContext> hash_context_;
   std::unique_ptr<grpc::ClientReaderInterface<com::vmware::concord::thin_replica::Hash>> hash_stream_;
+  std::map<RequestId,
+           std::pair<std::unique_ptr<grpc::ClientContext>,
+                     std::unique_ptr<
+                         grpc::ClientReaderInterface<vmware::concord::replicastatesnapshot::StreamSnapshotResponse>>>>
+      rss_streams_;
+  std::shared_mutex rss_streams_mutex_;
+  std::atomic_uint64_t current_req_id_{1};
 
   // gRPC connection
   std::shared_ptr<grpc::Channel> channel_;
-  std::unique_ptr<com::vmware::concord::thin_replica::ThinReplica::StubInterface> stub_;
+  std::unique_ptr<com::vmware::concord::thin_replica::ThinReplica::StubInterface> trc_stub_;
+  std::unique_ptr<vmware::concord::replicastatesnapshot::ReplicaStateSnapshotService::StubInterface> rss_stub_;
 
   // TRS connection config
-  std::unique_ptr<TrsConnectionConfig> config_;
+  std::unique_ptr<GrpcConnectionConfig> config_;
 
   std::chrono::milliseconds data_timeout_;
   std::chrono::milliseconds hash_timeout_;
+  std::chrono::milliseconds snapshot_timeout_;
 };
 
-}  // namespace client::thin_replica_client
-
-#endif  // THIN_REPLICA_CLIENT_TRS_CONNECTION_HPP_
+}  // namespace client::concordclient

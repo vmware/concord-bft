@@ -13,7 +13,7 @@
 
 #include "client/thin-replica-client/thin_replica_client.hpp"
 #include "client/thin-replica-client/trc_hash.hpp"
-#include "client/thin-replica-client/trs_connection.hpp"
+#include "client/thin-replica-client/grpc_connection.hpp"
 
 #include "gtest/gtest.h"
 #include "assertUtils.hpp"
@@ -42,10 +42,11 @@ using std::chrono::milliseconds;
 using std::chrono::steady_clock;
 using std::chrono::time_point;
 using std::this_thread::sleep_for;
-using concord::client::concordclient::BasicUpdateQueue;
 using concord::client::concordclient::EventVariant;
 using concord::client::concordclient::Update;
-using concord::client::concordclient::UpdateQueue;
+using concord::client::concordclient::EventUpdateQueue;
+using concord::client::concordclient::BasicEventUpdateQueue;
+using client::concordclient::GrpcConnection;
 using client::thin_replica_client::kThinReplicaHashLength;
 using client::thin_replica_client::ThinReplicaClient;
 using client::thin_replica_client::ThinReplicaClientConfig;
@@ -73,7 +74,7 @@ bool UpdateMatchesExpected(const std::unique_ptr<EventVariant>& update_received,
   return true;
 }
 
-void VerifyInitialState(shared_ptr<UpdateQueue>& received_updates,
+void VerifyInitialState(shared_ptr<EventUpdateQueue>& received_updates,
                         const vector<Data>& expected_updates,
                         size_t num_updates,
                         const string& faulty_description) {
@@ -89,7 +90,7 @@ void VerifyInitialState(shared_ptr<UpdateQueue>& received_updates,
   }
 }
 
-void VerifyUpdates(shared_ptr<UpdateQueue>& received_updates,
+void VerifyUpdates(shared_ptr<EventUpdateQueue>& received_updates,
                    const vector<Data>& expected_updates,
                    const string& faulty_description) {
   for (size_t i = 0; i < expected_updates.size(); ++i) {
@@ -138,7 +139,8 @@ struct ByzantineTestCaseState {
 
   // Objects we anticipate the test case(s) will actually use once the
   // ByzantineTestCaseState is fully set up.
-  shared_ptr<UpdateQueue> update_queue_;
+  shared_ptr<EventUpdateQueue> update_queue_;
+  vector<shared_ptr<GrpcConnection>> trs_connections_;
   unique_ptr<ThinReplicaClientConfig> trc_config_;
   shared_ptr<concordMetrics::Aggregator> aggregator_;
   unique_ptr<ThinReplicaClient> trc_;
@@ -150,7 +152,7 @@ struct ByzantineTestCaseState {
   // needed to do this as needed and storing those objects (possibly either
   // directly or by smart pointer at the discretion of ByzantineTestCaseState's
   // implementation) in the constructed ByzantineTestCaseState. Note this
-  // construction of needed objects includes construction of a new UpdateQueue
+  // construction of needed objects includes construction of a new EventUpdateQueue
   // that trc_ will use and storage of a pointer to this update queue in
   // update_queue_.
   ByzantineTestCaseState(shared_ptr<MockDataStreamPreparer> data_preparer,
@@ -162,12 +164,10 @@ struct ByzantineTestCaseState {
         byzantine_behavior_(byzantine_behavior),
         server_preparer_(correct_data_preparer_, correct_hasher_, byzantine_behavior_),
         mock_servers_(CreateByzantineMockServers(num_servers, server_preparer_)),
-        update_queue_(new BasicUpdateQueue()),
-        trc_config_(new ThinReplicaClientConfig(
-            kTestingClientID,
-            update_queue_,
-            max_faulty,
-            CreateTrsConnections<ByzantineMockThinReplicaServerPreparer::ByzantineMockServer>(mock_servers_))),
+        update_queue_(new BasicEventUpdateQueue()),
+        trs_connections_(
+            CreateTrsConnections<ByzantineMockThinReplicaServerPreparer::ByzantineMockServer>(mock_servers_)),
+        trc_config_(new ThinReplicaClientConfig(kTestingClientID, update_queue_, max_faulty, trs_connections_)),
         aggregator_(std::make_shared<concordMetrics::Aggregator>()),
         trc_(new ThinReplicaClient(std::move(trc_config_), aggregator_)) {}
 };

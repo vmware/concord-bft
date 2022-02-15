@@ -11,44 +11,43 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "client/concordclient/event_update_queue.hpp"
-
-#include "assertUtils.hpp"
-
-using std::lock_guard;
-using std::mutex;
-using std::unique_ptr;
-using std::unique_lock;
+#pragma once
 
 namespace concord::client::concordclient {
 
-BasicUpdateQueue::BasicUpdateQueue() : queue_data_(), mutex_(), condition_(), release_consumers_(false) {}
+template <typename T>
+BasicThreadSafeQueue<T>::BasicThreadSafeQueue() : queue_data_(), mutex_(), condition_(), release_consumers_(false) {}
 
-BasicUpdateQueue::~BasicUpdateQueue() {}
+template <typename T>
+BasicThreadSafeQueue<T>::~BasicThreadSafeQueue() {}
 
-void BasicUpdateQueue::releaseConsumers() {
+template <typename T>
+void BasicThreadSafeQueue<T>::releaseConsumers() {
   {
-    lock_guard<mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(mutex_);
     release_consumers_ = true;
   }
   condition_.notify_all();
 }
 
-void BasicUpdateQueue::clear() {
-  lock_guard<mutex> lock(mutex_);
+template <typename T>
+void BasicThreadSafeQueue<T>::clear() {
+  std::lock_guard<std::mutex> lock(mutex_);
   queue_data_.clear();
 }
 
-void BasicUpdateQueue::push(unique_ptr<EventVariant> update) {
+template <typename T>
+void BasicThreadSafeQueue<T>::push(std::unique_ptr<T> update) {
   {
-    lock_guard<mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(mutex_);
     queue_data_.push_back(move(update));
   }
   condition_.notify_one();
 }
 
-unique_ptr<EventVariant> BasicUpdateQueue::pop() {
-  unique_lock<mutex> lock(mutex_);
+template <typename T>
+std::unique_ptr<T> BasicThreadSafeQueue<T>::pop() {
+  std::unique_lock<std::mutex> lock(mutex_);
   while (!(exception_ || release_consumers_ || (queue_data_.size() > 0))) {
     condition_.wait(lock);
   }
@@ -58,38 +57,41 @@ unique_ptr<EventVariant> BasicUpdateQueue::pop() {
     std::rethrow_exception(e);
   }
   if (release_consumers_) {
-    return unique_ptr<EventVariant>(nullptr);
+    return std::unique_ptr<T>(nullptr);
   }
   ConcordAssert(queue_data_.size() > 0);
-  unique_ptr<EventVariant> ret = move(queue_data_.front());
+  std::unique_ptr<T> ret = move(queue_data_.front());
   queue_data_.pop_front();
   return ret;
 }
 
-unique_ptr<EventVariant> BasicUpdateQueue::tryPop() {
-  lock_guard<mutex> lock(mutex_);
+template <typename T>
+std::unique_ptr<T> BasicThreadSafeQueue<T>::tryPop() {
+  std::lock_guard<std::mutex> lock(mutex_);
   if (exception_) {
     auto e = exception_;
     exception_ = nullptr;
     std::rethrow_exception(e);
   }
   if (queue_data_.size() > 0) {
-    unique_ptr<EventVariant> ret = move(queue_data_.front());
+    std::unique_ptr<T> ret = move(queue_data_.front());
     queue_data_.pop_front();
     return ret;
   } else {
-    return unique_ptr<EventVariant>(nullptr);
+    return std::unique_ptr<T>(nullptr);
   }
 }
 
-uint64_t BasicUpdateQueue::size() {
+template <typename T>
+uint64_t BasicThreadSafeQueue<T>::size() {
   std::scoped_lock sl(mutex_);
   return queue_data_.size();
 }
 
-void BasicUpdateQueue::setException(std::exception_ptr e) {
+template <typename T>
+void BasicThreadSafeQueue<T>::setException(std::exception_ptr e) {
   {
-    lock_guard<mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(mutex_);
     exception_ = e;
   }
   condition_.notify_all();
