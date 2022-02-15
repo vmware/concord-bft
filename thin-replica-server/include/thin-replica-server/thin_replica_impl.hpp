@@ -280,6 +280,15 @@ class ThinReplicaImpl {
     uint16_t update_aggregator_counter = 0;
     metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
 
+#define CLEANUP_SUBSCRIPTION()                                                \
+  {                                                                           \
+    config_->subscriber_list.removeBuffer(live_updates);                      \
+    live_updates->removeAllUpdates();                                         \
+    live_updates->removeAllEventGroupUpdates();                               \
+    metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size()); \
+    metrics_.updateAggregator();                                              \
+  }
+
     // If legacy event request then mark whether we need to transition into event groups
     bool is_event_group_transition = false;
 
@@ -296,22 +305,46 @@ class ThinReplicaImpl {
     // If last_known + 1 update requested keep waiting until we have at least one live update
     // Note that TRS considers last_known + 1 update request as valid, even if the requested
     // update doesn't exist in storage yet.
-    if (request->has_events() && !is_event_group_transition) {
+    if (is_event_group_transition) {
+      // For an event group transition we need to check if the first/oldest tag-specific event group is available. If
+      // not then we wait because it is similar to waiting for X+1 whereby X is 0.
+      auto oldest_eg_id = kvb_filter->oldestTagSpecificPublicEventGroupId();
+      while (not oldest_eg_id) {
+        auto has_update = live_updates->waitForEventGroupUntilNonEmpty(kWaitForUpdateTimeout);
+        if (context->IsCancelled()) {
+          LOG_INFO(logger_, "StreamCancelled while waiting for the first live event group.");
+          CLEANUP_SUBSCRIPTION();
+          return grpc::Status::CANCELLED;
+        }
+        if (has_update) {
+          // If there was an update for us then we must have updated storage
+          oldest_eg_id = kvb_filter->oldestTagSpecificPublicEventGroupId();
+        }
+      }
+    } else if (request->has_event_groups()) {
+      auto requested_eg_id = request->event_groups().event_group_id();
+      auto newest_eg_id = kvb_filter->newestTagSpecificPublicEventGroupId();
+      // We already know that the request is valid hence the requested id can only be newest + 1 or less
+      while (newest_eg_id < requested_eg_id) {
+        auto has_update = live_updates->waitForEventGroupUntilNonEmpty(kWaitForUpdateTimeout);
+        if (context->IsCancelled()) {
+          LOG_INFO(logger_, "StreamCancelled while waiting for the next live event group.");
+          CLEANUP_SUBSCRIPTION();
+          return grpc::Status::CANCELLED;
+        }
+        if (has_update) {
+          // If there was an update for us then we must have updated storage
+          newest_eg_id = kvb_filter->newestTagSpecificPublicEventGroupId();
+        }
+      }
+    } else {
+      ConcordAssert(request->has_events());
       auto last_block_id = (config_->rostorage)->getLastBlockId();
       if (request->events().block_id() == last_block_id + 1) {
         while (not live_updates->waitUntilNonEmpty(kWaitForUpdateTimeout)) {
           if (context->IsCancelled()) {
             LOG_INFO(logger_, "StreamCancelled while waiting for the next live update.");
-            return grpc::Status::CANCELLED;
-          }
-        }
-      }
-    } else {
-      auto last_eg_id = kvb_filter->newestTagSpecificPublicEventGroupId();
-      if (request->event_groups().event_group_id() == last_eg_id + 1) {
-        while (not live_updates->waitForEventGroupUntilNonEmpty(kWaitForUpdateTimeout)) {
-          if (context->IsCancelled()) {
-            LOG_INFO(logger_, "StreamCancelled while waiting for the next live update.");
+            CLEANUP_SUBSCRIPTION();
             return grpc::Status::CANCELLED;
           }
         }
@@ -325,26 +358,15 @@ class ThinReplicaImpl {
         LOG_WARN(logger_, error.what());
         is_event_group_transition = true;
       } catch (StreamCancelled& error) {
-        config_->subscriber_list.removeBuffer(live_updates);
-        live_updates->removeAllUpdates();
-        metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
-        metrics_.updateAggregator();
+        CLEANUP_SUBSCRIPTION();
         return grpc::Status(grpc::StatusCode::CANCELLED, error.what());
       } catch (UpdatePruned& error) {
         LOG_WARN(logger_, "Requested update pruned in syncAndSend: " << error.what());
-        config_->subscriber_list.removeBuffer(live_updates);
-        live_updates->removeAllEventGroupUpdates();
-        metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
-        metrics_.updateAggregator();
+        CLEANUP_SUBSCRIPTION();
         return grpc::Status(grpc::StatusCode::NOT_FOUND, error.what());
       } catch (std::exception& error) {
         LOG_ERROR(logger_, error.what());
-        config_->subscriber_list.removeBuffer(live_updates);
-        live_updates->removeAllUpdates();
-
-        metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
-        metrics_.updateAggregator();
-
+        CLEANUP_SUBSCRIPTION();
         std::stringstream msg;
         msg << "Couldn't transition from block id " << start_block_id << " to new blocks";
         return grpc::Status(grpc::StatusCode::UNKNOWN, msg.str());
@@ -395,10 +417,7 @@ class ThinReplicaImpl {
 
       // Clean up if we need to return
       if (not is_event_group_transition || context->IsCancelled()) {
-        config_->subscriber_list.removeBuffer(live_updates);
-        live_updates->removeAllUpdates();
-        metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
-        metrics_.updateAggregator();
+        CLEANUP_SUBSCRIPTION();
         if (context->IsCancelled()) {
           LOG_INFO(logger_, "Subscription cancelled");
           return grpc::Status::CANCELLED;
@@ -413,7 +432,7 @@ class ThinReplicaImpl {
       ConcordAssert(request->has_events());
       // We assume that the caller wants updates but we cannot determine the event group id the caller is looking for.
       // Therefore, we start at the beginning.
-      event_group_id = kvb_filter->getOldestEventGroupId();
+      event_group_id = kvb_filter->oldestTagSpecificPublicEventGroupId();
       // If an event group transition is happening then we already confirmed that event groups are available.
       ConcordAssertNE(event_group_id, 0);
       LOG_INFO(logger_, "Legacy event request will receive event groups starting at id " << event_group_id);
@@ -427,26 +446,15 @@ class ThinReplicaImpl {
           context, event_group_id, live_updates, stream, kvb_filter);
     } catch (StreamCancelled& error) {
       LOG_WARN(logger_, "StreamCancelled in syncAndSendEventGroups: " << error.what());
-      config_->subscriber_list.removeBuffer(live_updates);
-      live_updates->removeAllEventGroupUpdates();
-      metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
-      metrics_.updateAggregator();
+      CLEANUP_SUBSCRIPTION();
       return grpc::Status(grpc::StatusCode::CANCELLED, error.what());
     } catch (UpdatePruned& error) {
       LOG_WARN(logger_, "Requested update pruned in syncAndSendEventGroups: " << error.what());
-      config_->subscriber_list.removeBuffer(live_updates);
-      live_updates->removeAllEventGroupUpdates();
-      metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
-      metrics_.updateAggregator();
+      CLEANUP_SUBSCRIPTION();
       return grpc::Status(grpc::StatusCode::NOT_FOUND, error.what());
     } catch (std::exception& error) {
       LOG_ERROR(logger_, "Exception in syncAndSendEventGroups: " << error.what());
-      config_->subscriber_list.removeBuffer(live_updates);
-      live_updates->removeAllEventGroupUpdates();
-
-      metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
-      metrics_.updateAggregator();
-
+      CLEANUP_SUBSCRIPTION();
       std::stringstream msg;
       msg << "Couldn't transition from event_group_id " << event_group_id << " to new event groups";
       return grpc::Status(grpc::StatusCode::UNKNOWN, msg.str());
@@ -481,10 +489,8 @@ class ThinReplicaImpl {
       LOG_INFO(logger_, "Subscription stream closed: " << error.what());
     }
 
-    config_->subscriber_list.removeBuffer(live_updates);
-    live_updates->removeAllEventGroupUpdates();
-    metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
-    metrics_.updateAggregator();
+    CLEANUP_SUBSCRIPTION();
+#undef CLEANUP_SUBSCRIPTION
 
     if (context->IsCancelled()) {
       LOG_INFO(logger_, "Subscription cancelled");
