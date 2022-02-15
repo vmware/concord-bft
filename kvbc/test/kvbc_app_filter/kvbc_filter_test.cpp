@@ -601,7 +601,7 @@ TEST(kvbc_filter_test, kvbfilter_get_oldest_tag_specific_eg_id_pvt) {
   auto kvb_filter = KvbAppFilter(&storage, client_id);
   size_t num_event_groups_to_fill = 5;
   storage.fillWithEventGroupData(num_event_groups_to_fill, client_id);
-  EXPECT_EQ(kvb_filter.oldestTagSpecificPublicEventGroupId(), 1);
+  EXPECT_EQ(kvb_filter.oldestExternalTagSpecificEventGroupId(), 1);
 }
 
 TEST(kvbc_filter_test, kvbfilter_get_oldest_tag_specific_eg_id_pub) {
@@ -610,7 +610,7 @@ TEST(kvbc_filter_test, kvbfilter_get_oldest_tag_specific_eg_id_pub) {
   auto kvb_filter = KvbAppFilter(&storage, client_id);
   size_t num_event_groups_to_fill = 5;
   storage.fillWithEventGroupData(num_event_groups_to_fill, kPublicEgIdKey);
-  EXPECT_EQ(kvb_filter.oldestTagSpecificPublicEventGroupId(), 1);
+  EXPECT_EQ(kvb_filter.oldestExternalTagSpecificEventGroupId(), 1);
 }
 
 TEST(kvbc_filter_test, kvbfilter_get_oldest_tag_specific_eg_id_pvt_pub) {
@@ -620,7 +620,7 @@ TEST(kvbc_filter_test, kvbfilter_get_oldest_tag_specific_eg_id_pvt_pub) {
   size_t num_event_groups_to_fill = 5;
   storage.fillWithEventGroupData(num_event_groups_to_fill, client_id);
   storage.fillWithEventGroupData(num_event_groups_to_fill, kPublicEgIdKey);
-  EXPECT_EQ(kvb_filter.oldestTagSpecificPublicEventGroupId(), 1);
+  EXPECT_EQ(kvb_filter.oldestExternalTagSpecificEventGroupId(), 1);
 }
 
 TEST(kvbc_filter_test, kvbfilter_start_block_greater_then_end_block) {

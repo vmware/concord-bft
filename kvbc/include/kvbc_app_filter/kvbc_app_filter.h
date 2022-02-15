@@ -177,9 +177,9 @@ class KvbAppFilter {
 
   TagTableValue getValueFromTagTable(const std::string &key) const;
 
-  uint64_t oldestTagSpecificPublicEventGroupId() const;
+  uint64_t oldestExternalTagSpecificEventGroupId() const;
 
-  uint64_t newestTagSpecificPublicEventGroupId() const;
+  uint64_t newestExternalTagSpecificEventGroupId() const;
 
   // Given a tag-specific public (external) event group id, return the corresponding global event group id
   // Precondition: We expect that the requested external event group id exists in storage
