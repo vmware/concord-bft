@@ -41,8 +41,8 @@ Run the image connected to your filesystem so you can edit in your OS, and then 
 mkdir work
 cd work
 docker container run -t -i --mount src="`pwd`",target=/home/dafnyserver/work,type=bind --workdir /home/dafnyserver/work jonhdotnet/summer_school:1.1 /bin/bash
-git clone https://github.com/HristoStaykov/sbft-formal-verification-model.git
-cd sbft-formal-verification-model
+git clone https://github.com/vmware/concord-bft
+cd concord-bft/docs/sbft-formal-model
 ```
 
 Now you can edit files using your preferred native OS editor under the work/
