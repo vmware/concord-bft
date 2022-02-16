@@ -770,67 +770,16 @@ string KvbAppFilter::readBlockRangeHash(BlockId block_id_start, BlockId block_id
   return computeSHA256Hash(concatenated_update_hashes);
 }
 
-string KvbAppFilter::readEventGroupRangeHash(EventGroupId event_group_id_start) {
-  uint64_t public_start = getValueFromLatestTable(kPublicEgIdKeyOldest);
-  uint64_t public_end = getValueFromLatestTable(kPublicEgIdKeyNewest);
-  uint64_t private_start = getValueFromLatestTable(client_id_ + "_oldest");
-  uint64_t private_end = getValueFromLatestTable(client_id_ + "_newest");
-  if (!public_start && !private_start) {
-    std::stringstream msg;
-    msg << "Event groups do not exist for client: " << client_id_ << " yet.";
-    LOG_ERROR(logger_, msg.str());
-    throw std::runtime_error(msg.str());
-  }
-  uint64_t event_group_id_end = private_end + public_end;
-  if (event_group_id_start == 0) {
-    throw InvalidEventGroupId(event_group_id_start);
-  }
-  if (event_group_id_start > event_group_id_end) {
-    throw InvalidEventGroupRange(event_group_id_start, event_group_id_end);
-  }
-  string concatenated_update_hashes;
-  // we might reserve more than we need because we can have duplicate entries b/w [event_group_id_start,
-  // event_group_id_end]
-  concatenated_update_hashes.reserve((1 + event_group_id_end - event_group_id_start) *
-                                     kExpectedSHA256HashLengthInBytes);
-
-  // update the offsets if we now have corresponding public/private event groups in storage
-  if (eg_hash_state_->public_offset == 0) eg_hash_state_->public_offset = public_start;
-  if (eg_hash_state_->private_offset == 0) eg_hash_state_->private_offset = private_start;
-
-  // populate and read global event group ids from eg_data_state_->event_group_id_batch in batches of size kBatchSize.
-  // For every global event group id received, lookup the data table to fetch the event group, filter and calculate the
-  // concatenate hash from the filtered event group
-  while (eg_hash_state_->curr_trid_event_group_id < event_group_id_end) {
-    auto opt = getNextEventGroupId(eg_hash_state_);
-    uint64_t global_event_group_id;
-    if (opt.has_value()) {
-      global_event_group_id = opt.value();
-    } else {
-      std::stringstream msg;
-      msg << "No more event groups in storage";
-      LOG_WARN(logger_, msg.str());
-      break;
-    }
-    eg_hash_state_->curr_trid_event_group_id++;
-    // we are not at the starting point in the event group list yet, let's keep incrementing
-    // eg_data_state_->curr_trid_event_group_id until we reach the start
-    if (eg_hash_state_->curr_trid_event_group_id < event_group_id_start) continue;
-
-    LOG_DEBUG(logger_,
-              "Event_group_id_start: " << event_group_id_start << " global_event_group_id: " << global_event_group_id);
-    auto event_group = getEventGroup(global_event_group_id);
-    if (event_group.events.empty()) {
-      std::stringstream msg;
-      msg << "EventGroup doesn't exist for valid event_group_id: " << global_event_group_id;
-      throw KvbReadError(msg.str());
-    }
-    KvbFilteredEventGroupUpdate filtered_update{
-        eg_hash_state_->curr_trid_event_group_id,
-        filterEventsInEventGroup(eg_hash_state_->curr_trid_event_group_id, event_group)};
-    concatenated_update_hashes.append(hashEventGroupUpdate(filtered_update));
-  }
-  return computeSHA256Hash(concatenated_update_hashes);
+string KvbAppFilter::readEventGroupRangeHash(EventGroupId external_eg_id_start) {
+  auto external_eg_id_end = newestTagSpecificPublicEventGroupId();
+  string concatenated_hashes;
+  concatenated_hashes.reserve((1 + external_eg_id_end - external_eg_id_start) * kExpectedSHA256HashLengthInBytes);
+  auto process = [&](KvbFilteredEventGroupUpdate &&update) {
+    concatenated_hashes.append(hashEventGroupUpdate(update));
+    return true;
+  };
+  readEventGroups(external_eg_id_start, process);
+  return computeSHA256Hash(concatenated_hashes);
 }
 
 std::optional<kvbc::categorization::ImmutableInput> KvbAppFilter::getBlockEvents(kvbc::BlockId block_id,
