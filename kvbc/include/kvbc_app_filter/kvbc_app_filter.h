@@ -228,6 +228,9 @@ class KvbAppFilter {
 
   uint64_t newestTagSpecificPublicEventGroupId() const;
 
+  // Given a tag-specific public (external) event group id, return the corresponding global event group id
+  uint64_t findGlobalEventGroupId(uint64_t external_event_group_id) const;
+
   // Generate event group ids in batches from storage
   // We do not want to process in memory, all the event group ids generated in a pruning window
   std::optional<uint64_t> getNextEventGroupId(std::shared_ptr<EventGroupClientState> &eg_state);
