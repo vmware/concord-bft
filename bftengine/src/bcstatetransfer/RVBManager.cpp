@@ -116,7 +116,12 @@ void RVBManager::init(bool fetching) {
 
 // Remove (Prune) blocks from RVT, and from pruned_blocks_digests_ data structure
 void RVBManager::pruneRvbDataDuringCheckpoint(const CheckpointDesc& new_checkpoint_desc) {
-  LOG_TRACE(logger_, KVLOG(pruned_blocks_digests_.size()));
+  LOG_TRACE(logger_,
+            KVLOG(pruned_blocks_digests_.size(),
+                  new_checkpoint_desc.checkpointNum,
+                  last_checkpoint_desc_.checkpointNum,
+                  new_checkpoint_desc.maxBlockId,
+                  last_checkpoint_desc_.maxBlockId));
   std::lock_guard<std::mutex> guard(pruned_blocks_digests_mutex_);
   size_t i{};
 
@@ -129,12 +134,13 @@ void RVBManager::pruneRvbDataDuringCheckpoint(const CheckpointDesc& new_checkpoi
   // First, Remove old blocks from pruned_blocks_digests_, then persist it. These blocks were already removed from RVB
   // data and the removal is reflected in the RVB persisted tree of the last checkpoint.
   //
-  // We must prune the pruning vector based on some persisted checkpoint in the past.
+  // We must prune the pruning vector based on the fact that the tree is persisted at least once in the past.
   // We cannot allow losing digests, we will never get them back (blocks are not in storage anymore) and will have
   // to reconstruct the whole tree.
   if (last_checkpoint_desc_.checkpointNum > 0) {
+    auto min_rvb_id = in_mem_rvt_->getMinRvbId();
     for (i = 0; i < pruned_blocks_digests_.size(); ++i) {
-      if (pruned_blocks_digests_[i].first >= last_checkpoint_desc_.maxBlockId) {
+      if (pruned_blocks_digests_[i].first >= min_rvb_id) {
         break;
       }
     }
@@ -182,7 +188,7 @@ void RVBManager::pruneRvbDataDuringCheckpoint(const CheckpointDesc& new_checkpoi
     LOG_DEBUG(logger_, oss.str());
   }
   // We relay on caller to persist new_checkpoint_desc, and leave pruned_blocks_digests_ persisted before erase
-  // was done (some redundent digests)
+  // was done (some redundent digests stay in vector till next checkpointing)
 }
 
 void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_desc) {
@@ -294,8 +300,11 @@ size_t RVBManager::getSerializedDigestsOfRvbGroup(int64_t rvb_group_id,
   ConcordAssertOR((size_only && !buff && buff_max_size == 0), (!size_only && buff && buff_max_size > 0));
   std::vector<RVBId> rvb_ids = in_mem_rvt_->getRvbIds(rvb_group_id);
   size_t total_size = rvb_ids.size() * sizeof(RvbDigestInfo);
-  ConcordAssertOR(size_only, total_size <= buff_max_size);
   RvbDigestInfoPtr cur = size_only ? nullptr : reinterpret_cast<RvbDigestInfoPtr>(buff);
+
+  if (!size_only) {
+    ConcordAssertLE(total_size, buff_max_size);
+  }
 
   // 1) Source is working based on "best-effort" - send what I have. Reject if I have not even a single block in the
   // requested RVB group. In the case of
@@ -314,7 +323,8 @@ size_t RVBManager::getSerializedDigestsOfRvbGroup(int64_t rvb_group_id,
     if (as_->hasBlock(rvb_id + 1)) {
       // have the next block - much faster to get only the digest
       if (!size_only) {
-        as_->getPrevDigestFromBlock(rvb_id + 1, reinterpret_cast<StateTransferDigest*>(cur->digest.getForUpdate()));
+        ConcordAssert(as_->getPrevDigestFromBlock(rvb_id + 1,
+                                                  reinterpret_cast<StateTransferDigest*>(cur->digest.getForUpdate())));
         cur->block_id = rvb_id;
       }
     } else if (as_->hasBlock(rvb_id)) {
@@ -612,7 +622,8 @@ uint64_t RVBManager::addRvbDataOnBlockRange(uint64_t min_block_id,
     // process
     if (current_rvb_id > max_rvb_id_in_rvt) {
       STDigest digest;
-      as_->getPrevDigestFromBlock(current_rvb_id + 1, reinterpret_cast<StateTransferDigest*>(digest.getForUpdate()));
+      ConcordAssert(as_->getPrevDigestFromBlock(current_rvb_id + 1,
+                                                reinterpret_cast<StateTransferDigest*>(digest.getForUpdate())));
       LOG_DEBUG(logger_,
                 "Add digest for block " << current_rvb_id << " "
                                         << " Digest: " << digest.toString());
@@ -654,10 +665,10 @@ RVBId RVBManager::nextRvbBlockId(BlockId block_id) const {
 }
 
 void RVBManager::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBlockId) {
+  std::lock_guard<std::mutex> guard(pruned_blocks_digests_mutex_);
   LOG_TRACE(logger_, KVLOG(lastAgreedPrunableBlockId));
   DurationTracker<std::chrono::milliseconds> store_pruned_digests_dt;
   store_pruned_digests_dt.start();
-  std::lock_guard<std::mutex> guard(pruned_blocks_digests_mutex_);
   auto initial_size = pruned_blocks_digests_.size();
   RVBId start_rvb_id = in_mem_rvt_->getMinRvbId();
 
@@ -677,7 +688,8 @@ void RVBManager::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBloc
   int32_t num_digests_added{0};
   while (current_rvb_id <= lastAgreedPrunableBlockId) {
     STDigest digest;
-    as_->getPrevDigestFromBlock(current_rvb_id + 1, reinterpret_cast<StateTransferDigest*>(digest.getForUpdate()));
+    ConcordAssert(
+        as_->getPrevDigestFromBlock(current_rvb_id + 1, reinterpret_cast<StateTransferDigest*>(digest.getForUpdate())));
     pruned_blocks_digests_.push_back(std::make_pair(current_rvb_id, std::move(digest)));
     current_rvb_id += config_.fetchRangeSize;
     ++num_digests_added;
