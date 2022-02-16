@@ -707,64 +707,33 @@ string KvbAppFilter::readBlockHash(BlockId block_id) {
   return hashUpdate(filtered_update);
 }
 
-string KvbAppFilter::readEventGroupHash(EventGroupId requested_event_group_id) {
-  if (requested_event_group_id == 0) {
-    throw InvalidEventGroupId(requested_event_group_id);
-  }
-  uint64_t public_start = getValueFromLatestTable(kPublicEgIdKeyOldest);
-  uint64_t private_start = getValueFromLatestTable(client_id_ + "_oldest");
-  uint64_t public_end = getValueFromLatestTable(kPublicEgIdKeyNewest);
-  uint64_t private_end = getValueFromLatestTable(client_id_ + "_newest");
-  if (!public_start && !private_start) {
+string KvbAppFilter::readEventGroupHash(EventGroupId external_eg_id) {
+  uint64_t oldest_external_eg_id = oldestTagSpecificPublicEventGroupId();
+  uint64_t newest_external_eg_id = newestTagSpecificPublicEventGroupId();
+  if (not oldest_external_eg_id) {
     std::stringstream msg;
     msg << "Event groups do not exist for client: " << client_id_ << " yet.";
     LOG_ERROR(logger_, msg.str());
     throw std::runtime_error(msg.str());
   }
-  uint64_t event_group_id_end = private_end + public_end;
-  if (requested_event_group_id > event_group_id_end) {
-    throw InvalidEventGroupRange(requested_event_group_id, event_group_id_end);
+
+  if (external_eg_id == 0) {
+    throw InvalidEventGroupId(external_eg_id);
+  }
+  if (external_eg_id < oldest_external_eg_id || external_eg_id > newest_external_eg_id) {
+    // TODO: Change exception to (id, begin, end)
+    throw InvalidEventGroupRange(external_eg_id, oldest_external_eg_id);
   }
 
-  // update the offsets if we now have corresponding public/private event groups in storage
-  if (eg_hash_state_->public_offset == 0) eg_hash_state_->public_offset = public_start;
-  if (eg_hash_state_->private_offset == 0) eg_hash_state_->private_offset = private_start;
-
-  uint64_t global_event_group_id = 0;
-  std::optional<uint64_t> opt;
-  // populate and read global event group ids from eg_data_state_->event_group_id_batch in batches of size kBatchSize,
-  // until requested_event_group_id reached. When global event group id for requested_event_group_id is received, lookup
-  // the data table to fetch the event group, filter the event group, and calculate the hash from the filtered event
-  // group update.
-  while (eg_hash_state_->curr_trid_event_group_id < requested_event_group_id) {
-    LOG_DEBUG(logger_,
-              "Requested_event_group_id: " << requested_event_group_id
-                                           << ", trid_event_group_id: " << eg_hash_state_->curr_trid_event_group_id);
-    opt = getNextEventGroupId(eg_hash_state_);
-    eg_hash_state_->curr_trid_event_group_id++;
-    if (eg_hash_state_->curr_trid_event_group_id == requested_event_group_id) {
-      if (opt.has_value()) {
-        ConcordAssertNE(opt.value(), 0);
-        global_event_group_id = opt.value();
-        break;
-      } else {
-        std::stringstream msg;
-        msg << "No more event groups in storage";
-        throw KvbReadError(msg.str());
-      }
-    }
-  }
-  LOG_DEBUG(logger_,
-            "In readEventGroupHash, requested_event_group_id: " << requested_event_group_id
-                                                                << " global_event_group_id: " << global_event_group_id);
-  auto event_group = getEventGroup(global_event_group_id);
+  auto result = findGlobalEventGroupId(external_eg_id);
+  LOG_DEBUG(logger_, "external_eg_id " << external_eg_id << " global_id " << result.global_id);
+  auto event_group = getEventGroup(result.global_id);
   if (event_group.events.empty()) {
     std::stringstream msg;
-    msg << "Couldn't retrieve block event groups for event_group_id " << global_event_group_id;
+    msg << "Couldn't retrieve block event groups for event_group_id " << result.global_id;
     throw KvbReadError(msg.str());
   }
-  KvbFilteredEventGroupUpdate filtered_update{requested_event_group_id,
-                                              filterEventsInEventGroup(requested_event_group_id, event_group)};
+  KvbFilteredEventGroupUpdate filtered_update{external_eg_id, filterEventsInEventGroup(result.global_id, event_group)};
   return hashEventGroupUpdate(filtered_update);
 }
 
