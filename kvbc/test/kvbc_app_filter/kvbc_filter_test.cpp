@@ -713,6 +713,80 @@ TEST(kvbc_filter_test, kvbfilter_success_hash_of_event_groups_in_range_eg) {
   EXPECT_EQ(hash_value, computeSHA256Hash(concatenated_update_hashes));
 }
 
+TEST(kvbc_filter_test, read_eg_range_external_id_mixed) {
+  FakeStorage storage;
+  storage.fillWithEventGroupData(1, "A");
+  storage.fillWithEventGroupData(5, kPublicEgIdKey);
+  storage.fillWithEventGroupData(3, "B");
+  storage.fillWithEventGroupData(1, kPublicEgIdKey);
+  storage.fillWithEventGroupData(1, "A");
+  storage.fillWithEventGroupData(3, "C");
+  storage.fillWithEventGroupData(1, "B");
+  storage.fillWithEventGroupData(4, kPublicEgIdKey);
+
+  KvbFilteredEventGroupUpdate update;
+
+  // Everything for "A"
+  auto filter_a = KvbAppFilter(&storage, "A");
+  spsc_queue<KvbFilteredEventGroupUpdate> queue_out{100};
+  filter_a.readEventGroupRange(1, queue_out, false);
+  uint64_t expected_eg_id = 0;
+  while (queue_out.pop(update)) {
+    ASSERT_EQ(update.event_group_id, ++expected_eg_id);
+  }
+  ASSERT_EQ(expected_eg_id, 12);
+
+  // Almost all for "A"
+  filter_a.readEventGroupRange(3, queue_out, false);
+  expected_eg_id = 2;
+  while (queue_out.pop(update)) {
+    ASSERT_EQ(update.event_group_id, ++expected_eg_id);
+  }
+  ASSERT_EQ(expected_eg_id, 12);
+
+  // Last for "A"
+  filter_a.readEventGroupRange(12, queue_out, false);
+  expected_eg_id = 11;
+  while (queue_out.pop(update)) {
+    ASSERT_EQ(update.event_group_id, ++expected_eg_id);
+  }
+  ASSERT_EQ(expected_eg_id, 12);
+
+  // Everything for "B"
+  auto filter_b = KvbAppFilter(&storage, "B");
+  filter_b.readEventGroupRange(1, queue_out, false);
+  expected_eg_id = 0;
+  while (queue_out.pop(update)) {
+    ASSERT_EQ(update.event_group_id, ++expected_eg_id);
+  }
+  ASSERT_EQ(expected_eg_id, 14);
+
+  // Almost all for "B"
+  filter_b.readEventGroupRange(5, queue_out, false);
+  expected_eg_id = 4;
+  while (queue_out.pop(update)) {
+    ASSERT_EQ(update.event_group_id, ++expected_eg_id);
+  }
+  ASSERT_EQ(expected_eg_id, 14);
+
+  // Last for "B"
+  filter_b.readEventGroupRange(14, queue_out, false);
+  expected_eg_id = 13;
+  while (queue_out.pop(update)) {
+    ASSERT_EQ(update.event_group_id, ++expected_eg_id);
+  }
+  ASSERT_EQ(expected_eg_id, 14);
+
+  // Everything for "D" (doesn't exist - public events only)
+  auto filter_d = KvbAppFilter(&storage, "D");
+  filter_d.readEventGroupRange(1, queue_out, false);
+  expected_eg_id = 0;
+  while (queue_out.pop(update)) {
+    ASSERT_EQ(update.event_group_id, ++expected_eg_id);
+  }
+  ASSERT_EQ(expected_eg_id, 10);
+}
+
 TEST(kvbc_filter_test, kvbfilter_success_hash_of_block) {
   FakeStorage storage;
   int client_id = 1;
