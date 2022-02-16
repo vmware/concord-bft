@@ -13,31 +13,51 @@ using namespace concord::performance;
 AdaptivePruningManager::AdaptivePruningManager(
     const std::shared_ptr<concord::performance::IResourceManager> &resourceManager,
     const std::chrono::duration<double, std::milli> &interval,
+    const std::shared_ptr<concordMetrics::Aggregator> &aggregator,
     concord::kvbc::IReader &ro_storage)
     : repId(bftEngine::ReplicaConfig::instance().getreplicaId()),
       resourceManager(resourceManager),
       mode(LEGACY),
       interval(interval),
-      ro_storage_(ro_storage) {
+      ro_storage_(ro_storage),
+      metricComponent(std::string("Adaptive Pruning"), aggregator),
+      ticksPerSecondMetric(metricComponent.RegisterAtomicGauge(std::string("ticks_per_second"), 0)),
+      batchSizeMetric(metricComponent.RegisterAtomicGauge("batch_size", 0)),
+      transactionsPerSecondMetric(metricComponent.RegisterAtomicGauge("transactions_per_second", 0)),
+      postExecUtilizationMetric(metricComponent.RegisterAtomicGauge("post_exec_utilization", 0)),
+      pruningAvgTimeMicroMetric(metricComponent.RegisterAtomicGauge("pruning_avg_time_micro", 0)),
+      pruningUtilizationMetric(metricComponent.RegisterAtomicGauge("pruning_utilization", 0)) {
   (void)ro_storage_;
   resourceManager->setPeriod(bftEngine::ReplicaConfig::instance().adaptivePruningIntervalPeriod);
 }
 
 AdaptivePruningManager::~AdaptivePruningManager() { stop(); }
 
-void AdaptivePruningManager::notifyReplicas(const long double &rate, const uint64_t batchSize) {
+void AdaptivePruningManager::notifyReplicas(const PruneInfo &pruneInfo) {
   if (!bftClient) {
     LOG_ERROR(ADPTV_PRUNING, "BFT client is not set");
     return;
   }
   concord::messages::ReconfigurationRequest rreq;
-
   concord::messages::PruneTicksChangeRequest pruneRequest;
 
   pruneRequest.sender_id = bftEngine::ReplicaConfig::instance().replicaId;
-  pruneRequest.tick_period_seconds = 1;
+  pruneRequest.interval_between_ticks_seconds = 1;
 
-  pruneRequest.batch_blocks_num = rate / bftEngine::ReplicaConfig::instance().numReplicas;
+  pruneRequest.batch_blocks_num = pruneInfo.blocksPerSecond / bftEngine::ReplicaConfig::instance().numReplicas;
+
+  // Is this going to register all send values or just update current
+  ticksPerSecondMetric.Get().Set(pruneRequest.batch_blocks_num);
+  batchSizeMetric.Get().Set(pruneInfo.batchSize);
+  transactionsPerSecondMetric.Get().Set(pruneInfo.transactionsPerSecond);
+  postExecUtilizationMetric.Get().Set(pruneInfo.postExecUtilization);
+  pruningAvgTimeMicroMetric.Get().Set(pruneInfo.pruningAvgTimeMicro);
+  pruningUtilizationMetric.Get().Set(pruneInfo.pruningUtilization);
+
+  LOG_DEBUG(ADPTV_PRUNING,
+            "Sending PruneTicksChangeRequest { interval between ticks seconds = "
+                << pruneRequest.interval_between_ticks_seconds
+                << ", blocks per tick = " << pruneRequest.batch_blocks_num << " }");
 
   rreq.command = pruneRequest;
   rreq.sender = bftEngine::ReplicaConfig::instance().replicaId;
@@ -80,9 +100,13 @@ void AdaptivePruningManager::threadFunction() {
       conditionVar.wait(lk, [this]() { return mode.load() == ADAPTIVE && amIPrimary.load(); });
     }
     if (isRunning.load()) {
+      concord::performance::PruneInfo info;
+      {
+        std::unique_lock<std::mutex> lk(conditionLock);
+        info = resourceManager->getPruneInfo();
+      }
+      notifyReplicas(info);
       std::unique_lock<std::mutex> lk(conditionLock);
-      auto info = resourceManager->getPruneInfo();
-      notifyReplicas(info.blocksPerSecond, info.batchSize);
       conditionVar.wait_for(lk, interval);
     }
   }

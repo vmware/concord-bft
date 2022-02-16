@@ -5,6 +5,7 @@
 #include "InternalBFTClient.hpp"
 #include "db_interfaces.h"
 #include "concord.cmf.hpp"
+#include "Metrics.hpp"
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -20,7 +21,9 @@ class AdaptivePruningManager {
  public:
   AdaptivePruningManager(const std::shared_ptr<concord::performance::IResourceManager> &resourceManager,
                          const std::chrono::duration<double, std::milli> &interval,
+                         const std::shared_ptr<concordMetrics::Aggregator> &aggregator,
                          concord::kvbc::IReader &ro_storage);
+
   virtual ~AdaptivePruningManager();
 
   void switchMode(PruningMode newMode) {
@@ -50,10 +53,10 @@ class AdaptivePruningManager {
   void initBFTClient(const std::shared_ptr<bftEngine::impl::IInternalBFTClient> &cl);
   void start();
   void stop();
-  void notifyReplicas(const long double &rate, const uint64_t batchSize);
+  void notifyReplicas(const PruneInfo &pruneInfo);
   const concord::messages::PruneSwitchModeRequest &getLatestConfiguration();
   void onTickChangeRequest(concord::messages::PruneTicksChangeRequest req) {
-    current_pruning_pace_ = req.tick_period_seconds;
+    current_pruning_pace_ = req.interval_between_ticks_seconds;
     current_batch_size_ = req.batch_blocks_num;
   }
   uint32_t getCurrentPace() { return current_pruning_pace_; }
@@ -76,5 +79,8 @@ class AdaptivePruningManager {
   concord::messages::PruneSwitchModeRequest latestConfiguration_{0, PruningMode::LEGACY, {}};
   uint32_t current_pruning_pace_;
   uint64_t current_batch_size_;
+  concordMetrics::Component metricComponent;
+  concordMetrics::Component::Handle<concordMetrics::AtomicGauge> ticksPerSecondMetric, batchSizeMetric,
+      transactionsPerSecondMetric, postExecUtilizationMetric, pruningAvgTimeMicroMetric, pruningUtilizationMetric;
 };
 }  // namespace concord::performance

@@ -1024,7 +1024,8 @@ bool ReconfigurationHandler::handle(const concord::messages::PruneSwitchModeRequ
     LOG_INFO(getLogger(), "switching to legacy mode " << KVLOG(conf.tick_period_seconds, conf.batch_blocks_num));
     // Handle legacy pruning configuration
     apm_.switchMode(concord::performance::PruningMode::LEGACY);
-    apm_.notifyReplicas(conf.tick_period_seconds, conf.batch_blocks_num);
+    concord::performance::PruneInfo pruneInfo{(long double)conf.tick_period_seconds, conf.batch_blocks_num};
+    apm_.notifyReplicas(pruneInfo);
     return true;
   }
   // Handler adaptive pruning configuration
@@ -1066,7 +1067,7 @@ bool ReconfigurationHandler::handle(const concord::messages::PruneStopRequest& c
                                   ts,
                                   false);
   // For having eventually a record for the latest pruning pace
-  apm_.notifyReplicas(0, 0);
+  apm_.notifyReplicas(concord::performance::PruneInfo{});
   LOG_INFO(getLogger(), "block id: " << KVLOG(blockId, sender_id));
   return true;
 }
