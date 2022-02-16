@@ -598,9 +598,8 @@ std::optional<uint64_t> KvbAppFilter::getNextEventGroupId(std::shared_ptr<EventG
   return *eg_state->it++;
 }
 
-void KvbAppFilter::readEventGroupRange(EventGroupId external_eg_id_start,
-                                       spsc_queue<KvbFilteredEventGroupUpdate> &queue_out,
-                                       const std::atomic_bool &stop_execution) {
+void KvbAppFilter::readEventGroups(EventGroupId external_eg_id_start,
+                                   const std::function<bool(KvbFilteredEventGroupUpdate &&)> &process_update) {
   uint64_t newest_public_eg_id = getNewestPublicEventGroupId();
   uint64_t newest_private_eg_id = getValueFromLatestTable(client_id_ + "_newest");
   uint64_t oldest_external_eg_id = oldestTagSpecificPublicEventGroupId();
@@ -655,11 +654,8 @@ void KvbAppFilter::readEventGroupRange(EventGroupId external_eg_id_start,
     }
     KvbFilteredEventGroupUpdate update{ext_eg_id, filterEventsInEventGroup(global_eg_id, event_group)};
 
-    // Push to queue
-    while (!stop_execution) {
-      if (queue_out.push(update)) break;
-    }
-    if (stop_execution) break;
+    // Process update and stop producing more updates if anything goes wrong
+    if (not process_update(std::move(update))) break;
     if (ext_eg_id == newest_external_eg_id) break;
 
     // Update next public or private ids; Only one needs to be udpated
@@ -689,6 +685,19 @@ void KvbAppFilter::readEventGroupRange(EventGroupId external_eg_id_start,
     }
     ext_eg_id += 1;
   }
+}
+
+void KvbAppFilter::readEventGroupRange(EventGroupId external_eg_id_start,
+                                       spsc_queue<KvbFilteredEventGroupUpdate> &queue_out,
+                                       const std::atomic_bool &stop_execution) {
+  auto process = [&](KvbFilteredEventGroupUpdate &&update) {
+    while (!stop_execution) {
+      if (queue_out.push(update)) break;
+    }
+    if (stop_execution) return false;
+    return true;
+  };
+  readEventGroups(external_eg_id_start, process);
 }
 
 string KvbAppFilter::readBlockHash(BlockId block_id) {

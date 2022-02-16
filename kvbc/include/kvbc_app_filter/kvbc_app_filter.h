@@ -209,8 +209,9 @@ class KvbAppFilter {
                       boost::lockfree::spsc_queue<KvbFilteredUpdate> &queue_out,
                       const std::atomic_bool &stop_execution);
 
+  void readEventGroups(kvbc::EventGroupId event_group_id_start,
+                       const std::function<bool(KvbFilteredEventGroupUpdate &&)> &);
   void readEventGroupRange(kvbc::EventGroupId event_group_id_start,
-
                            boost::lockfree::spsc_queue<KvbFilteredEventGroupUpdate> &queue_out,
                            const std::atomic_bool &stop_execution);
 
