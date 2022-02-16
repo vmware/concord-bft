@@ -1,13 +1,15 @@
 # Project overview
-[SBFT](https://arxiv.org/pdf/1804.01626.pdf) is a byzantine fault-tolerant protocol (BFT) for state machine replication (SMR) designed and implemented in-house at VMware. SBFT is implemented in the [concord-bft](https://github.com/vmware/concord-bft) open source project. It is the foundation on which the [VMware Blockchain](https://docs.vmware.com/en/VMware-Blockchain/1.3/getting_started/GUID-6BD4CD5F-6AC6-4B05-BCB3-A76626BB2777.html) product has been built. A layered architecture enables integration with various smart contract execution engines, the currently supported ones being DAML and Ethereum’s EVM. We can think of VMware Blockchain as a new type of virtualized infrastructure that provides something beyond compute, a human value, which is trust.
+The aim of this sub-project is to both document and to formally specify the concord-bft state machine replication (SMR) protocol. 
 
-Given the distributed nature of VMware Blockchain, unit tests offer limited means of establishing the correctness of the SMR protocol. The main tool we use for proving correctness is an integration testing framework code-named [Apollo](https://github.com/vmware/concord-bft/tree/master/tests/apollo) which creates mini-blockchain deployments and exercises various runtime scenarios (including straight case, replica failures, network faults, as well as certain byzantine cases).
+Given the distributed nature of the concord-bft protocol, unit tests offer limited means of establishing the desired state machine replication (SMR) safety properties. The main tool we use for proving correctness is an integration testing framework code-named [Apollo](https://github.com/vmware/concord-bft/tree/master/tests/apollo) which creates mini-blockchain deployments and exercises various runtime scenarios (including straight case, replica failures, network faults, as well as certain byzantine cases).
 
-Apollo does give us good confidence as to the correctness and fault tolerance of the system that we sell to our customers. But even if we bring test coverage to 100%, we can never be sure that we have discovered all possible bugs and failure scenarios, especially in a complex distributed system, such as VMware Blockchain.
+Apollo does give us good confidence as to the correctness and fault tolerance of the concord-bft SMR. But even if we bring test coverage to 100%, we can never be sure that we have discovered all possible bugs and failure scenarios.
 
-The aim of this open source project is to reach beyond automated testing, into formal verification territory. This means using first-order logic to model and prove properties of the protocol. We are developing a formal model of the SBFT protocol using the Dafny language and framework, to formally prove interesting correctness properties of the SBFT consensus algorithm.
+We use Dafny and first-order logic to model and prove the safety properties of the protocol's core state machine (liveness properties are out of scope for now).
 
 # Dev instructions
+
+The Dafny model can be used as a document, for proving SBFT correctness properties, or as input for property-based tests of the implementation's core components.
 
 ## Install Docker itself if you don't have it already.
 
@@ -72,4 +74,4 @@ Dafny program verifier finished with 10 verified, 0 errors
 This project builds on top of the concepts and framework described in
 https://github.com/GLaDOS-Michigan/summer-school-2021<br>
 
-Special thanks to Jon Howell for his help and support along the way.
+Special thanks to [@jonhnet|https://github.com/jonhnet] for his help and support along the way.
