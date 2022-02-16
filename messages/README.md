@@ -27,6 +27,7 @@ The great thing about generating code via a visitor, is that [tests can be gener
 
  * [C++](compiler/cpp/cppgen.py)
  * [Python](compiler/python/pygen.py)
+ * [Rust (WIP)](compiler/rust/rustgen.py)
 
 # Usage
 
@@ -58,6 +59,14 @@ Generate Python code:
 
 ```bash
 ./cmfc.py --input ../example.cmf --output example --language python
+```
+
+## Rust (WIP)
+
+(note Rust support is still a work in progress and is only partially implemented)
+Generate Rust code:
+```bash
+./cmfc.py --input ../example.cmf --output example --language rust
 ```
 
 
