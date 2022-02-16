@@ -57,6 +57,17 @@ struct KvbFilteredEventGroupUpdate {
   EventGroup event_group;
 };
 
+struct FindGlobalEgIdResult {
+  // Global event group id matching the given external id
+  uint64_t global_id;
+  // Whether the event group is private to the client or public
+  bool is_private;
+  // Either the matching private/public id or the newest up to this external id
+  // Note: The one that is not matching could be pruned (not queryable)
+  uint64_t private_id;
+  uint64_t public_id;
+};
+
 // We need to preserve state per client across calls to getNextEventGroupId method
 struct EventGroupClientState {
   EventGroupClientState(const uint64_t pub_oldest,
@@ -229,7 +240,7 @@ class KvbAppFilter {
   uint64_t newestTagSpecificPublicEventGroupId() const;
 
   // Given a tag-specific public (external) event group id, return the corresponding global event group id
-  uint64_t findGlobalEventGroupId(uint64_t external_event_group_id) const;
+  FindGlobalEgIdResult findGlobalEventGroupId(uint64_t external_event_group_id) const;
 
   // Generate event group ids in batches from storage
   // We do not want to process in memory, all the event group ids generated in a pruning window

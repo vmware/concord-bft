@@ -994,10 +994,10 @@ TEST(kvbc_filter_test, find_external_eg_one_client_private_only) {
 
   storage.fillWithEventGroupData(4, "A");
 
-  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(1), 1);
-  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(2), 2);
-  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(3), 3);
-  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(4), 4);
+  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(1).global_id, 1);
+  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(2).global_id, 2);
+  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(3).global_id, 3);
+  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(4).global_id, 4);
 }
 
 TEST(kvbc_filter_test, find_external_eg_out_of_range) {
@@ -1007,7 +1007,7 @@ TEST(kvbc_filter_test, find_external_eg_out_of_range) {
   storage.fillWithEventGroupData(3, "A");
   storage.fillWithEventGroupData(3, kPublicEgIdKey);
 
-  ASSERT_ANY_THROW(kvb_filter.findGlobalEventGroupId(100));
+  ASSERT_DEATH(kvb_filter.findGlobalEventGroupId(100), "");
 }
 
 TEST(kvbc_filter_test, find_external_eg_one_client_public_only) {
@@ -1016,10 +1016,10 @@ TEST(kvbc_filter_test, find_external_eg_one_client_public_only) {
 
   storage.fillWithEventGroupData(4, kPublicEgIdKey);
 
-  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(1), 1);
-  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(2), 2);
-  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(3), 3);
-  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(4), 4);
+  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(1).global_id, 1);
+  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(2).global_id, 2);
+  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(3).global_id, 3);
+  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(4).global_id, 4);
 }
 
 TEST(kvbc_filter_test, find_external_eg_one_client_mixed) {
@@ -1027,25 +1027,25 @@ TEST(kvbc_filter_test, find_external_eg_one_client_mixed) {
   auto kvb_filter = KvbAppFilter(&storage, "A");
 
   storage.fillWithEventGroupData(1, kPublicEgIdKey);
-  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(1), 1);
+  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(1).global_id, 1);
   storage.fillWithEventGroupData(1, "A");
-  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(2), 2);
+  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(2).global_id, 2);
   storage.fillWithEventGroupData(1, kPublicEgIdKey);
-  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(3), 3);
+  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(3).global_id, 3);
   storage.fillWithEventGroupData(1, "A");
-  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(4), 4);
+  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(4).global_id, 4);
   storage.fillWithEventGroupData(1, kPublicEgIdKey);
 
-  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(1), 1);
-  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(2), 2);
-  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(3), 3);
-  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(4), 4);
-  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(5), 5);
+  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(1).global_id, 1);
+  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(2).global_id, 2);
+  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(3).global_id, 3);
+  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(4).global_id, 4);
+  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(5).global_id, 5);
 
   storage.fillWithEventGroupData(5, kPublicEgIdKey);
   storage.fillWithEventGroupData(1, "A");
 
-  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(8), 8);
+  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(8).global_id, 8);
 }
 
 TEST(kvbc_filter_test, find_external_eg_two_clients_private_only) {
@@ -1054,20 +1054,20 @@ TEST(kvbc_filter_test, find_external_eg_two_clients_private_only) {
 
   storage.fillWithEventGroupData(1, "B");
   storage.fillWithEventGroupData(1, "A");
-  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(1), 2);
+  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(1).global_id, 2);
   storage.fillWithEventGroupData(1, "B");
   storage.fillWithEventGroupData(1, "A");
-  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(2), 4);
+  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(2).global_id, 4);
   storage.fillWithEventGroupData(1, "B");
 
-  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(1), 2);
-  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(2), 4);
+  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(1).global_id, 2);
+  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(2).global_id, 4);
 
   storage.fillWithEventGroupData(5, "B");
   storage.fillWithEventGroupData(1, "A");
   storage.fillWithEventGroupData(2, "B");
 
-  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(3), 11);
+  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(3).global_id, 11);
 }
 
 TEST(kvbc_filter_test, find_external_eg_two_clients_mixed) {
@@ -1076,22 +1076,82 @@ TEST(kvbc_filter_test, find_external_eg_two_clients_mixed) {
 
   storage.fillWithEventGroupData(1, "B");
   storage.fillWithEventGroupData(1, "A");
-  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(1), 2);
+  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(1).global_id, 2);
   storage.fillWithEventGroupData(1, kPublicEgIdKey);
-  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(2), 3);
+  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(2).global_id, 3);
   storage.fillWithEventGroupData(1, "A");
-  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(3), 4);
+  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(3).global_id, 4);
   storage.fillWithEventGroupData(1, "B");
 
-  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(1), 2);
-  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(2), 3);
-  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(3), 4);
+  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(1).global_id, 2);
+  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(2).global_id, 3);
+  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(3).global_id, 4);
 
   storage.fillWithEventGroupData(5, kPublicEgIdKey);
   storage.fillWithEventGroupData(1, "A");
   storage.fillWithEventGroupData(2, "B");
 
-  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(9), 11);
+  ASSERT_EQ(kvb_filter.findGlobalEventGroupId(9).global_id, 11);
+}
+
+TEST(kvbc_filter_test, find_external_eg_check_result) {
+  auto storage = FakeStorage{};
+  auto kvb_filter = KvbAppFilter(&storage, "A");
+
+  storage.fillWithEventGroupData(1, "B");
+  storage.fillWithEventGroupData(1, "A");
+  auto result = kvb_filter.findGlobalEventGroupId(1);
+  ASSERT_EQ(result.global_id, 2);
+  ASSERT_EQ(result.is_private, true);
+  ASSERT_EQ(result.private_id, 1);
+  ASSERT_EQ(result.public_id, 0);
+
+  storage.fillWithEventGroupData(1, kPublicEgIdKey);
+  result = kvb_filter.findGlobalEventGroupId(2);
+  ASSERT_EQ(result.global_id, 3);
+  ASSERT_EQ(result.is_private, false);
+  ASSERT_EQ(result.private_id, 1);
+  ASSERT_EQ(result.public_id, 1);
+
+  storage.fillWithEventGroupData(1, "A");
+  result = kvb_filter.findGlobalEventGroupId(3);
+  ASSERT_EQ(result.global_id, 4);
+  ASSERT_EQ(result.is_private, true);
+  ASSERT_EQ(result.private_id, 2);
+  ASSERT_EQ(result.public_id, 1);
+
+  storage.fillWithEventGroupData(1, "B");
+
+  result = kvb_filter.findGlobalEventGroupId(1);
+  ASSERT_EQ(result.global_id, 2);
+  ASSERT_EQ(result.is_private, true);
+  ASSERT_EQ(result.private_id, 1);
+  ASSERT_EQ(result.public_id, 0);
+  result = kvb_filter.findGlobalEventGroupId(2);
+  ASSERT_EQ(result.global_id, 3);
+  ASSERT_EQ(result.is_private, false);
+  ASSERT_EQ(result.private_id, 1);
+  ASSERT_EQ(result.public_id, 1);
+  result = kvb_filter.findGlobalEventGroupId(3);
+  ASSERT_EQ(result.global_id, 4);
+  ASSERT_EQ(result.is_private, true);
+  ASSERT_EQ(result.private_id, 2);
+  ASSERT_EQ(result.public_id, 1);
+
+  storage.fillWithEventGroupData(5, kPublicEgIdKey);
+  storage.fillWithEventGroupData(1, "A");
+  storage.fillWithEventGroupData(2, "B");
+
+  result = kvb_filter.findGlobalEventGroupId(8);
+  ASSERT_EQ(result.global_id, 10);
+  ASSERT_EQ(result.is_private, false);
+  ASSERT_EQ(result.private_id, 2);
+  ASSERT_EQ(result.public_id, 6);
+  result = kvb_filter.findGlobalEventGroupId(9);
+  ASSERT_EQ(result.global_id, 11);
+  ASSERT_EQ(result.is_private, true);
+  ASSERT_EQ(result.private_id, 3);
+  ASSERT_EQ(result.public_id, 6);
 }
 
 }  // anonymous namespace
