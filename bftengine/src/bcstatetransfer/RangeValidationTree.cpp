@@ -32,7 +32,7 @@ using NodeInfo = RangeValidationTree::NodeInfo;
 using RVTNodePtr = RangeValidationTree::RVTNodePtr;
 
 // uncomment to add debug prints
-#define DO_DEBUG
+// #define DO_DEBUG
 #ifdef DO_DEBUG
 #define DEBUG_PRINT(x, y) LOG_DEBUG(x, y)
 #define logInfoVal(x) logInfoVal(x)
@@ -182,7 +182,7 @@ void RangeValidationTree::SerializedRVTNode::staticAssert() noexcept {
 #ifdef DO_DEBUG
 void RVBNode::logInfoVal(const std::string& prefix) {
   ostringstream oss;
-  oss << prefix << info_.toString() << " " << current_value_.toString();
+  oss << prefix << info_.toString() << " (" << info_.id() << ") " << current_value_.toString();
   // Keep for debug, do not remove please!
   DEBUG_PRINT(GL, oss.str());
 }
@@ -528,14 +528,7 @@ bool RangeValidationTree::validateTreeValues() const noexcept {
   return true;
 }
 
-bool RangeValidationTree::validate() const noexcept {
-  // TODO - remove duration tracker + log later on
-  concord::util::DurationTracker<std::chrono::microseconds> validation_dt;
-  validation_dt.start();
-  bool ret = validateTreeStructure() && validateTreeValues();
-  LOG_DEBUG(logger_, KVLOG(validation_dt.totalDuration()));
-  return ret;
-}
+bool RangeValidationTree::validate() const noexcept { return validateTreeStructure() && validateTreeValues(); }
 
 void RangeValidationTree::printToLog(LogPrintVerbosity verbosity) const noexcept {
   if (!root_ or totalNodes() == 0) {
@@ -1218,7 +1211,7 @@ std::vector<RVBId> RangeValidationTree::getRvbIds(RVBGroupId rvb_group_id) const
   }
 
   auto min_child_id = iter->second->minChildId();
-  for (size_t rvb_index{min_child_id}; rvb_index < min_child_id + iter->second->numChildren(); ++rvb_index) {
+  for (size_t rvb_index{min_child_id}; rvb_index <= iter->second->maxChildId(); ++rvb_index) {
     rvb_ids.push_back(rvbIndexToId(rvb_index));
   }
   return rvb_ids;
