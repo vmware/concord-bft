@@ -22,6 +22,7 @@
 #include "client/clientservice/client_service.hpp"
 
 using concord::client::concordclient::ConcordClientConfig;
+using concord::client::concordclient::StateSnapshotConfig;
 
 static auto logger = logging::getLogger("concord.client.clientservice.configuration");
 
@@ -62,6 +63,19 @@ static void readYamlField(const YAML::Node& yaml,
   }
 }
 
+static void parseConfigFileForStateSnapshot(StateSnapshotConfig& state_snapshot_config, const YAML::Node& yaml) {
+  // Set the default number of threads and then override
+  // that with the value available from config.
+  // It's not mandatory that config will provide a value.
+  state_snapshot_config.num_threads = std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 8;
+  readYamlField(yaml, "state_snapshot_num_threads", state_snapshot_config.num_threads, false);
+
+  // Setting 5 sec as default.
+  // This is not mandatory setting.
+  state_snapshot_config.timeout_in_sec = 5;
+  readYamlField(yaml, "state_snapshot_operation_timeout", state_snapshot_config.timeout_in_sec, false);
+}
+
 void parseConfigFile(ConcordClientConfig& config, const YAML::Node& yaml) {
   readYamlField(yaml, "f_val", config.topology.f_val);
   readYamlField(yaml, "c_val", config.topology.c_val);
@@ -79,6 +93,8 @@ void parseConfigFile(ConcordClientConfig& config, const YAML::Node& yaml) {
   readYamlField(yaml, "client_batching_max_messages_nbr", config.topology.client_batching_max_messages_nbr);
   readYamlField(yaml, "client_batching_flush_timeout_ms", config.topology.client_batching_flush_timeout_ms);
   readYamlField(yaml, "replicas_master_key_path", config.topology.path_to_replicas_master_key, false);
+
+  parseConfigFileForStateSnapshot(config.state_snapshot_config, yaml);
 
   ConcordAssert(yaml["node"].IsSequence());
   for (const auto& node : yaml["node"]) {

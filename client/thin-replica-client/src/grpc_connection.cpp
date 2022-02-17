@@ -379,18 +379,14 @@ GrpcConnection::Result GrpcConnection::openStateSnapshotStream(
   ConcordAssertNE(rss_stub_, nullptr);
   request_id = current_req_id_.fetch_add(1u);
 
-  vmware::concord::replicastatesnapshot::StreamSnapshotRequest req;
-  req.set_snapshot_id(request.snapshot_id());
-  req.set_last_received_key(request.last_received_key());
-
   std::unique_ptr<grpc::ClientContext> snapshot_context = std::make_unique<grpc::ClientContext>();
   snapshot_context->AddMetadata("client_id", client_id_);
 
   std::unique_ptr<grpc::ClientReaderInterface<vmware::concord::replicastatesnapshot::StreamSnapshotResponse>>
       snapshot_stream;
 
-  auto stream = async(launch::async, [this, &req, &snapshot_context] {
-    return rss_stub_->StreamSnapshot(snapshot_context.get(), req);
+  auto stream = async(launch::async, [this, &request, &snapshot_context] {
+    return rss_stub_->StreamSnapshot(snapshot_context.get(), request);
   });
   auto status = stream.wait_for(data_timeout_);
   if (status == future_status::timeout || status == future_status::deferred) {

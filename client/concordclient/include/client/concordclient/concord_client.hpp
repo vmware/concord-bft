@@ -108,6 +108,13 @@ struct SubscribeConfig {
   std::string pem_private_key;
 };
 
+struct StateSnapshotConfig {
+  // Number of threads available for state snapshot
+  uint32_t num_threads;
+  // Timeout till grpc connection with replicas will wait.
+  uint16_t timeout_in_sec;
+};
+
 struct ConcordClientConfig {
   // Description of the replica network
   BftTopology topology;
@@ -119,6 +126,7 @@ struct ConcordClientConfig {
   std::uint16_t num_of_used_bft_clients;
   // Configuration for subscribe requests
   SubscribeConfig subscribe_config;
+  StateSnapshotConfig state_snapshot_config;
 };
 
 struct StateSnapshotRequest {
@@ -172,6 +180,7 @@ class ConcordClient {
 
  private:
   config_pool::ConcordClientPoolConfig createClientPoolStruct(const ConcordClientConfig& config);
+  void createGrpcConnections();
   void checkAndReConnectGrpcConnections();
 
   logging::Logger logger_;
