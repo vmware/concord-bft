@@ -254,7 +254,10 @@ Status StateSnapshotServiceImpl::GetRecentSnapshot(ServerContext* context,
     response->set_event_group_id(snapshot_response.data->event_group_id);
     response->set_key_value_count_estimate(snapshot_response.data->key_value_count_estimate);
     auto* ledger_time = response->mutable_ledger_time();
-    *ledger_time = google::protobuf::util::TimeUtil::GetEpoch();
+    if (!google::protobuf::util::TimeUtil::FromString(snapshot_response.data->last_application_transaction_time,
+                                                      ledger_time)) {
+      *ledger_time = google::protobuf::util::TimeUtil::GetEpoch();
+    }
   }
   return return_status;
 }
@@ -279,11 +282,13 @@ Status StateSnapshotServiceImpl::StreamSnapshot(ServerContext* context,
   Status status = grpc::Status(grpc::StatusCode::UNAVAILABLE, "Service not available");
   bool is_end_of_stream = false;
   auto accumulated_hash = singleHash(std::string{});
+  // Wait for the update from other thread for 500 ms before checking the context
+  auto pop_timeout = 500ms;
   while (!context->IsCancelled()) {
     StreamSnapshotResponse response;
     std::unique_ptr<SnapshotKVPair> update;
     try {
-      update = update_queue->tryPop();
+      update = update_queue->popTill(pop_timeout);
     } catch (const UpdateNotFound& e) {
       status = grpc::Status(grpc::StatusCode::NOT_FOUND, e.what());
       break;
@@ -392,7 +397,7 @@ void StateSnapshotServiceImpl::isHashValid(uint64_t snapshot_id,
           break;
         case SnapshotResponseStatus::Success:
           if ((res->data).snapshot_id != snapshot_id) {
-            return_status = grpc::Status(grpc::StatusCode::FAILED_PRECONDITION, "Hash mismatch from replicas");
+            return_status = grpc::Status(grpc::StatusCode::FAILED_PRECONDITION, "snapshot id mismatch from replicas");
           }
           if ((res->data).hash != final_hash) {
             return_status = grpc::Status(grpc::StatusCode::FAILED_PRECONDITION, "Hash mismatch from replicas");
