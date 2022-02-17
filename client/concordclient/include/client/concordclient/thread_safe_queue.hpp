@@ -18,6 +18,7 @@
 #include <memory>
 #include <mutex>
 #include <exception>
+#include <chrono>
 
 #include "assertUtils.hpp"
 
@@ -68,6 +69,12 @@ class IQueue {
   // cause any subsequent calls to Pop to return nullptr and will prevent them from blocking their caller.
   virtual std::unique_ptr<T> pop() = 0;
 
+  // Synchronously pop an update from the front of the queue if one is available, block the calling thread and wait till
+  // till the timeout milli seconds. Returns a unique_ptr to nullptr if no update is found within the timeout, and
+  // a unique_ptr giving ownership of an allocated Update otherwise (this may involve dynamic memory allocation at the
+  // discretion of the IQueue implementation).
+  virtual std::unique_ptr<T> popTill(std::chrono::milliseconds timeout) = 0;
+
   // Synchronously pop an update from the front of the queue if one is available, but do not block the calling thread to
   // wait on one if one is not immediately found. Returns a unique_ptr to nullptr if no update is immediately found, and
   // a unique_ptr giving ownership of an allocated Update otherwise (this may involve dynamic memory allocation at the
@@ -111,6 +118,7 @@ class BasicThreadSafeQueue : public IQueue<T> {
   virtual void clear() override;
   virtual void push(std::unique_ptr<T> update) override;
   virtual std::unique_ptr<T> pop() override;
+  virtual std::unique_ptr<T> popTill(std::chrono::milliseconds timeout) override;
   virtual std::unique_ptr<T> tryPop() override;
   virtual uint64_t size() override;
   virtual void setException(std::exception_ptr e) override;

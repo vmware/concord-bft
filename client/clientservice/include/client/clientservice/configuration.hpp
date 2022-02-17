@@ -12,6 +12,7 @@
 #pragma once
 
 #include <yaml-cpp/yaml.h>
+#include <thread>
 
 #include "client/concordclient/concord_client.hpp"
 
