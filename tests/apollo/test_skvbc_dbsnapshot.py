@@ -494,15 +494,16 @@ class SkvbcDbSnapshotTest(ApolloTest):
             self.assertEqual(last_block_id, 600)
             await self.wait_for_snapshot(bft_network, replica_id, last_block_id)
 
-        # Send a StateSnapshotRequest and make sure we get the already existing checkpoint/snapshot ID of 600
-        # and an event group ID of 0.
+        # Send a StateSnapshotRequest and make sure we get the already existing checkpoint/snapshot ID of 600.
         op = operator.Operator(bft_network.config, client, bft_network.builddir)
         rep = await op.state_snapshot_req()
         resp = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
         self.assertTrue(resp.success)
         self.assertIsNotNone(resp.response.data)
         self.assertEqual(resp.response.data.snapshot_id, 600)
-        self.assertEqual(resp.response.data.event_group_id, 0)
+        # TODO: add test for BlockchainHeightType.EventGroupId here (including support for it in TesterReplica).
+        self.assertEqual(resp.response.data.blockchain_height, 600)
+        self.assertEqual(resp.response.data.blockchain_height_type, cmf_msgs.BlockchainHeightType.BlockId)
         self.assertEqual(resp.response.data.key_value_count_estimate, expected_key_value_count_estimate)
 
     @with_trio
@@ -531,14 +532,15 @@ class SkvbcDbSnapshotTest(ApolloTest):
             self.assertFalse(self.snapshot_exists(bft_network, replica_id))
 
         # Send a StateSnapshotRequest and make sure a new checkpoint/snapshot ID of 100 is created.
-        # Expect an event group ID of 0.
         op = operator.Operator(bft_network.config, client, bft_network.builddir)
         rep = await op.state_snapshot_req()
         resp = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
         self.assertTrue(resp.success)
         self.assertIsNotNone(resp.response.data)
         self.assertEqual(resp.response.data.snapshot_id, 100)
-        self.assertEqual(resp.response.data.event_group_id, 0)
+        self.assertEqual(resp.response.data.blockchain_height, 100)
+        # TODO: add test for BlockchainHeightType.EventGroupId here (including support for it in TesterReplica).
+        self.assertEqual(resp.response.data.blockchain_height_type, cmf_msgs.BlockchainHeightType.BlockId)
         self.assertEqual(resp.response.data.key_value_count_estimate, expected_key_value_count_estimate)
 
         # Expect that a snapshot/checkpoint with an ID of 100 is available. For that, we assume that the snapshot/checkpoint ID

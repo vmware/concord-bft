@@ -282,12 +282,20 @@ Msg StateSnapshotRequest 65 {
   string participant_id
 }
 
+Enum BlockchainHeightType {
+  EventGroupId,
+  BlockId
+}
+
 Msg StateSnapshotData 66 {
   # Unique identifier of the DB snapshot.
   uint64 snapshot_id
 
-  # The event group ID at which the state snapshot with `snapshot_id` was taken.
-  uint64 event_group_id
+  # The blockchain height at which the state snapshot with `snapshot_id` was taken.
+  uint64 blockchain_height
+
+  # The type of the blockchain height in the `blockchain_height` field.
+  BlockchainHeightType blockchain_height_type
 
   # An estimate (with reasonable accuracy) of the count of key-values contained
   # in the state snapshot. Please note that this is an estimation and *not* the
