@@ -251,7 +251,14 @@ Status StateSnapshotServiceImpl::GetRecentSnapshot(ServerContext* context,
 
   if (return_status.ok() && snapshot_response.data.has_value()) {
     response->set_snapshot_id(snapshot_response.data->snapshot_id);
-    response->set_event_group_id(snapshot_response.data->event_group_id);
+    switch (snapshot_response.data->blockchain_height_type) {
+      case concord::messages::BlockchainHeightType::EventGroupId:
+        response->set_event_group_id(snapshot_response.data->blockchain_height);
+        break;
+      case concord::messages::BlockchainHeightType::BlockId:
+        response->set_block_id(snapshot_response.data->blockchain_height);
+        break;
+    }
     response->set_key_value_count_estimate(snapshot_response.data->key_value_count_estimate);
     auto* ledger_time = response->mutable_ledger_time();
     if (!google::protobuf::util::TimeUtil::FromString(snapshot_response.data->last_application_transaction_time,

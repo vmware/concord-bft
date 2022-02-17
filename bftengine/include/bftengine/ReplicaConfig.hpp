@@ -260,6 +260,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                20,
                "Resetting the measurements and starting again after polling X times");
 
+  CONFIG_PARAM(enableEventGroups, bool, false, "A flag to specify whether event groups are enabled or not.");
+
   // Parameter to enable/disable waiting for transaction data to be persisted.
   // Not predefined configuration parameters
   // Example of usage:
@@ -373,10 +375,12 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, dbCheckpointMonitorIntervalSeconds);
     serialize(outStream, enablePostExecutionSeparation);
     serialize(outStream, postExecutionQueuesSize);
+    serialize(outStream, stateIterationMultiGetBatchSize);
     serialize(outStream, adaptivePruningIntervalDuration);
     serialize(outStream, adaptivePruningIntervalPeriod);
     serialize(outStream, config_params_);
     serialize(outStream, enableMultiplexChannel);
+    serialize(outStream, enableEventGroups);
   }
   void deserializeDataMembers(std::istream& inStream) {
     deserialize(inStream, isReadOnly);
@@ -465,10 +469,12 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, dbCheckpointMonitorIntervalSeconds);
     deserialize(inStream, enablePostExecutionSeparation);
     deserialize(inStream, postExecutionQueuesSize);
+    deserialize(inStream, stateIterationMultiGetBatchSize);
     deserialize(inStream, adaptivePruningIntervalDuration);
     deserialize(inStream, adaptivePruningIntervalPeriod);
     deserialize(inStream, config_params_);
     deserialize(inStream, enableMultiplexChannel);
+    deserialize(inStream, enableEventGroups);
   }
 
  private:
@@ -544,6 +550,7 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.threadbagConcurrencyLevel2,
               rc.enablePostExecutionSeparation,
               rc.postExecutionQueuesSize,
+              rc.stateIterationMultiGetBatchSize,
               rc.numOfClientServices,
               rc.dbCheckpointFeatureEnabled,
               rc.maxNumberOfDbCheckpoints,
@@ -552,8 +559,10 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.adaptivePruningIntervalDuration.count(),
               rc.adaptivePruningIntervalPeriod);
   os << ",";
-  os << KVLOG(
-      rc.dbSnapshotIntervalSeconds.count(), rc.dbCheckpointMonitorIntervalSeconds.count(), rc.enableMultiplexChannel);
+  os << KVLOG(rc.dbSnapshotIntervalSeconds.count(),
+              rc.dbCheckpointMonitorIntervalSeconds.count(),
+              rc.enableMultiplexChannel,
+              rc.enableEventGroups);
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
   return os;
 }
