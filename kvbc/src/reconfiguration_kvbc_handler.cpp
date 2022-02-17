@@ -192,9 +192,15 @@ bool StateSnapshotReconfigurationHandler::handle(const concord::messages::StateS
     const auto kvbc = std::make_shared<const KeyValueBlockchain>(db, link_st_chain);
     const auto reader = CategorizedReader{kvbc};
     const auto filter = KvbAppFilter{&reader, ""};
-    // TODO: We currently only support new participants and, therefore, the event group ID will always be the last
-    // (newest) public event group ID.
-    resp.data->event_group_id = filter.getNewestPublicEventGroupId();
+    if (bftEngine::ReplicaConfig::instance().enableEventGroups) {
+      // TODO: We currently only support new participants and, therefore, the event group ID will always be the last
+      // (newest) public event group ID.
+      resp.data->blockchain_height = filter.getNewestPublicEventGroupId();
+      resp.data->blockchain_height_type = messages::BlockchainHeightType::EventGroupId;
+    } else {
+      resp.data->blockchain_height = reader.getLastBlockId();
+      resp.data->blockchain_height_type = messages::BlockchainHeightType::BlockId;
+    }
     const auto public_state = kvbc->getPublicStateKeys();
     if (!public_state) {
       resp.data->key_value_count_estimate = 0;
@@ -211,9 +217,15 @@ bool StateSnapshotReconfigurationHandler::handle(const concord::messages::StateS
       resp.data.emplace();
       resp.data->snapshot_id = *checkpoint_id;
       const auto filter = KvbAppFilter{&ro_storage_, ""};
-      // TODO: We currently only support new participants and, therefore, the event group ID will always be the last
-      // (newest) public event group ID.
-      resp.data->event_group_id = filter.getNewestPublicEventGroupId();
+      if (bftEngine::ReplicaConfig::instance().enableEventGroups) {
+        // TODO: We currently only support new participants and, therefore, the event group ID will always be the last
+        // (newest) public event group ID.
+        resp.data->blockchain_height = filter.getNewestPublicEventGroupId();
+        resp.data->blockchain_height_type = messages::BlockchainHeightType::EventGroupId;
+      } else {
+        resp.data->blockchain_height = ro_storage_.getLastBlockId();
+        resp.data->blockchain_height_type = messages::BlockchainHeightType::BlockId;
+      }
       // If we are creating the snapshot now, return an estimate based on the blockchain and not on the snapshot itself
       // (as it is created asynchronously).
       const auto opt_val =
