@@ -376,7 +376,12 @@ void ConcordClientPool::CreatePool(concord::config_pool::ConcordClientPoolConfig
   if (config.enable_multiplex_channel) {
     std::unordered_map<NodeNum, NodeNum> endpointIdToNodeIdMap;
     // For clients, endpointIdToNodeIdMap maps replica-id to replica-id (1 to 1, 2 to 2, etc.)
-    for (const auto &replica : config.replicas) endpointIdToNodeIdMap[replica.first] = replica.first;
+    for (const auto &replica : config.replicas) {
+      const auto replicaId = replica.first;
+      const auto connectionId = replicaId;
+      endpointIdToNodeIdMap[replicaId] = connectionId;
+      LOG_INFO(logger_, "Setting endpointIdToNodeIdMap" << KVLOG(replicaId, connectionId));
+    }
     auto const secretData = config.encrypted_config_enabled
                                 ? std::optional<concord::secretsmanager::SecretData>(config.secret_data)
                                 : std::nullopt;
@@ -593,7 +598,8 @@ PoolStatus ConcordClientPool::HealthStatus() {
   for (auto &client : clients_) {
     if (client->isServing()) {
       if (!hasKeys_ && !(hasKeys_ = clusterHasKeys(client))) {
-        break;
+        LOG_DEBUG(logger_, "The key exchange is not completed - the pool is not ready");
+        return PoolStatus::NotServing;
       }
       LOG_INFO(logger_, "client_id=" << client->getClientId() << " is serving - the pool is ready");
       return PoolStatus::Serving;
