@@ -1,0 +1,242 @@
+Frame 16: 2302 bytes on wire (18416 bits), 2302 bytes captured (18416 bits) on interface 0
+    Interface id: 0 (lo)
+        Interface name: lo
+    Encapsulation type: Ethernet (1)
+    Arrival Time: Feb 14, 2022 00:42:46.882886242 PST
+    [Time shift for this packet: 0.000000000 seconds]
+    Epoch Time: 1644828166.882886242 seconds
+    [Time delta from previous captured frame: 0.000168662 seconds]
+    [Time delta from previous displayed frame: 0.000168662 seconds]
+    [Time since reference or first frame: 0.012365602 seconds]
+    Frame Number: 16
+    Frame Length: 2302 bytes (18416 bits)
+    Capture Length: 2302 bytes (18416 bits)
+    [Frame is marked: False]
+    [Frame is ignored: False]
+    [Protocols in frame: eth:ethertype:ip:tcp:ssl]
+Ethernet II, Src: 00:00:00_00:00:00 (00:00:00:00:00:00), Dst: 00:00:00_00:00:00 (00:00:00:00:00:00)
+    Destination: 00:00:00_00:00:00 (00:00:00:00:00:00)
+        Address: 00:00:00_00:00:00 (00:00:00:00:00:00)
+        .... ..0. .... .... .... .... = LG bit: Globally unique address (factory default)
+        .... ...0 .... .... .... .... = IG bit: Individual address (unicast)
+    Source: 00:00:00_00:00:00 (00:00:00:00:00:00)
+        Address: 00:00:00_00:00:00 (00:00:00:00:00:00)
+        .... ..0. .... .... .... .... = LG bit: Globally unique address (factory default)
+        .... ...0 .... .... .... .... = IG bit: Individual address (unicast)
+    Type: IPv4 (0x0800)
+Internet Protocol Version 4, Src: 127.0.0.1, Dst: 127.0.0.1
+    0100 .... = Version: 4
+    .... 0101 = Header Length: 20 bytes (5)
+    Differentiated Services Field: 0x00 (DSCP: CS0, ECN: Not-ECT)
+        0000 00.. = Differentiated Services Codepoint: Default (0)
+        .... ..00 = Explicit Congestion Notification: Not ECN-Capable Transport (0)
+    Total Length: 2288
+    Identification: 0x35d0 (13776)
+    Flags: 0x4000, Don't fragment
+        0... .... .... .... = Reserved bit: Not set
+        .1.. .... .... .... = Don't fragment: Set
+        ..0. .... .... .... = More fragments: Not set
+        ...0 0000 0000 0000 = Fragment offset: 0
+    Time to live: 64
+    Protocol: TCP (6)
+    Header checksum: 0xfe35 [validation disabled]
+    [Header checksum status: Unverified]
+    Source: 127.0.0.1
+    Destination: 127.0.0.1
+Transmission Control Protocol, Src Port: 4448, Dst Port: 32864, Seq: 1832, Ack: 698, Len: 2236
+    Source Port: 4448
+    Destination Port: 32864
+    [Stream index: 0]
+    [TCP Segment Len: 2236]
+    Sequence number: 1832    (relative sequence number)
+    [Next sequence number: 4068    (relative sequence number)]
+    Acknowledgment number: 698    (relative ack number)
+    1000 .... = Header Length: 32 bytes (8)
+    Flags: 0x018 (PSH, ACK)
+        000. .... .... = Reserved: Not set
+        ...0 .... .... = Nonce: Not set
+        .... 0... .... = Congestion Window Reduced (CWR): Not set
+        .... .0.. .... = ECN-Echo: Not set
+        .... ..0. .... = Urgent: Not set
+        .... ...1 .... = Acknowledgment: Set
+        .... .... 1... = Push: Set
+        .... .... .0.. = Reset: Not set
+        .... .... ..0. = Syn: Not set
+        .... .... ...0 = Fin: Not set
+        [TCP Flags: ·······AP···]
+    Window size value: 512
+    [Calculated window size: 65536]
+    [Window size scaling factor: 128]
+    Checksum: 0x06e5 [unverified]
+    [Checksum Status: Unverified]
+    Urgent pointer: 0
+    Options: (12 bytes), No-Operation (NOP), No-Operation (NOP), Timestamps
+        TCP Option - No-Operation (NOP)
+            Kind: No-Operation (1)
+        TCP Option - No-Operation (NOP)
+            Kind: No-Operation (1)
+        TCP Option - Timestamps: TSval 1258160591, TSecr 1258160590
+            Kind: Time Stamp Option (8)
+            Length: 10
+            Timestamp value: 1258160591
+            Timestamp echo reply: 1258160590
+    [SEQ/ACK analysis]
+        [iRTT: 0.000076444 seconds]
+        [Bytes in flight: 2236]
+        [Bytes sent since last PSH flag: 2236]
+    [Timestamps]
+        [Time since first frame in this TCP stream: 0.012365602 seconds]
+        [Time since previous frame in this TCP stream: 0.000168662 seconds]
+    TCP payload (2236 bytes)
+Secure Sockets Layer
+    TLSv1.3 Record Layer: Application Data Protocol: http-over-tls
+        Opaque Type: Application Data (23)
+        Version: TLS 1.2 (0x0303)
+        Length: 2231
+        Encrypted Application Data: afc14a3dff029ec4b78b6544e1f83e6af7edd1e29692643e...
+
+0000  00 00 00 00 00 00 00 00 00 00 00 00 08 00 45 00   ..............E.
+0010  08 f0 35 d0 40 00 40 06 fe 35 7f 00 00 01 7f 00   ..5.@.@..5......
+0020  00 01 11 60 80 60 eb a9 df 1e 6a cb 0a 75 80 18   ...`.`....j..u..
+0030  02 00 06 e5 00 00 01 01 08 0a 4a fe 01 cf 4a fe   ..........J...J.
+0040  01 ce 17 03 03 08 b7 af c1 4a 3d ff 02 9e c4 b7   .........J=.....
+0050  8b 65 44 e1 f8 3e 6a f7 ed d1 e2 96 92 64 3e 11   .eD..>j......d>.
+0060  34 ce 3a f8 ca 73 a4 d4 1c 1d ab 74 d7 b8 17 ee   4.:..s.....t....
+0070  4d 3d 29 41 ad 5d 18 ea c7 c2 28 c2 2d 44 d5 63   M=)A.]....(.-D.c
+0080  94 70 dc 26 b0 2b f2 8c 46 de 43 01 e7 86 ca bf   .p.&.+..F.C.....
+0090  78 57 fd 55 64 73 63 dc 89 85 2d 54 f7 78 b3 e6   xW.Udsc...-T.x..
+00a0  c3 fa 0c 06 ee fa a5 30 d0 87 7e c7 3d 9a a1 ec   .......0..~.=...
+00b0  69 bc 1c 60 04 68 c7 25 df a3 6e 5f f3 1d cc f9   i..`.h.%..n_....
+00c0  0b 97 27 95 2b 0a ae cf 05 b8 a3 e7 9d 75 11 ab   ..'.+........u..
+00d0  96 09 a4 58 fd 50 bb 43 01 cb 84 1b 17 f9 58 aa   ...X.P.C......X.
+00e0  4c ce cd 1e 4f 86 43 d0 4c 8a e9 b7 6f 28 6f 64   L...O.C.L...o(od
+00f0  df 10 e8 f6 06 f8 c6 ed 55 1b 2d 1a d6 68 ec 5a   ........U.-..h.Z
+0100  76 bb 59 fb 9e e4 fc 54 12 29 49 63 b7 44 c9 fd   v.Y....T.)Ic.D..
+0110  24 21 ec 7c 77 fd 25 75 6d ab 63 73 f7 7c ca b7   $!.|w.%um.cs.|..
+0120  c4 17 f7 b9 00 ef db ee 32 48 47 8c 7e db d7 c6   ........2HG.~...
+0130  87 01 ae 1a 4b 7a 23 cd 9d 3e 41 ef 1a f1 5c cd   ....Kz#..>A...\.
+0140  0b f6 23 81 e1 82 62 d7 d3 37 3c 24 34 54 63 9b   ..#...b..7<$4Tc.
+0150  80 db cd 97 1e f8 19 6b 8f a0 6b 4e a3 b8 9b 40   .......k..kN...@
+0160  de d0 6d b1 e8 09 35 29 45 5f 64 a1 d9 2d 47 1c   ..m...5)E_d..-G.
+0170  c8 b3 ba 9b 38 c2 ab ed df 73 50 52 0d c9 34 99   ....8....sPR..4.
+0180  8d 3e cf 0d c2 67 d5 6b d0 f5 02 7b ae ee 57 47   .>...g.k...{..WG
+0190  0d f1 bd 46 ae 85 3b e2 b5 d1 70 f3 95 ec 7a 24   ...F..;...p...z$
+01a0  a8 2d 49 2b 6a fb cd a4 cd aa 36 41 e4 93 cf 1c   .-I+j.....6A....
+01b0  6a 99 bb 2e 8c f6 f4 b5 0a eb e6 63 d5 e7 4a 94   j..........c..J.
+01c0  a0 2e 17 88 24 5f 82 a7 de a3 c9 01 36 1d c5 25   ....$_......6..%
+01d0  0a 9d 1b 0a 14 0c 64 88 22 30 ea 13 34 49 3b 3f   ......d."0..4I;?
+01e0  71 b4 ca ca f0 26 d9 a4 35 ef 9c 66 d9 8e e1 bc   q....&..5..f....
+01f0  61 f4 f5 98 7b ea 77 59 68 f7 cd 63 5f 23 07 8c   a...{.wYh..c_#..
+0200  47 fc 80 5a d7 63 0f 5f ef fa 66 a2 3e c0 79 22   G..Z.c._..f.>.y"
+0210  61 be 20 53 25 4b 69 69 61 d1 40 72 7c 2b 6e 95   a. S%Kiia.@r|+n.
+0220  88 4d 4c 42 ed 11 60 3a e2 f9 c8 96 f9 96 60 aa   .MLB..`:......`.
+0230  36 49 e7 f7 8b 99 12 68 5d e8 bb 25 6f 1d 22 cb   6I.....h]..%o.".
+0240  74 ce 96 96 14 72 1e 0e db 94 5b b5 f0 af bf ba   t....r....[.....
+0250  37 3d be 66 b2 ef cb e9 c0 cc 75 87 a0 31 0f 4f   7=.f......u..1.O
+0260  72 59 c4 80 93 52 ec 18 bf f0 92 79 83 f5 16 74   rY...R.....y...t
+0270  55 27 9b 0d b2 1c 6a 7a da 25 44 51 16 56 d9 fe   U'....jz.%DQ.V..
+0280  4c 44 c1 06 8b da 31 4e 63 7e 4d e0 e9 12 ed b9   LD....1Nc~M.....
+0290  48 49 9e 39 37 63 72 d9 f5 6e 2b 07 2f b6 f8 f7   HI.97cr..n+./...
+02a0  3f 44 df 58 c4 ca ca 46 9d 89 6a 60 2f 90 60 8d   ?D.X...F..j`/.`.
+02b0  97 0f d0 2f 06 5f 2b 5d 77 8d 9d 91 d6 af 90 ac   .../._+]w.......
+02c0  93 5c 41 d5 03 2d 89 3b 35 22 27 a2 2c 67 53 f5   .\A..-.;5"'.,gS.
+02d0  8c 9b b0 0a 90 80 73 80 4d 2f 76 50 69 36 3b 4a   ......s.M/vPi6;J
+02e0  3a 94 b3 09 17 d3 22 7e c6 d1 f8 64 87 00 6b 0b   :....."~...d..k.
+02f0  51 44 7e 95 8d 7b c9 c3 0b 05 aa 81 35 50 cc cf   QD~..{......5P..
+0300  79 1a 92 6d 44 ab 7c c5 1d 49 26 6a 02 21 c6 97   y..mD.|..I&j.!..
+0310  c3 75 ad 0b 97 d0 75 11 97 04 16 de 2a ab 61 77   .u....u.....*.aw
+0320  b0 67 96 7a 76 65 a5 e4 9b 92 78 70 ce 3c 27 d5   .g.zve....xp.<'.
+0330  57 5e 09 ea 0a 09 dd ae 80 d7 91 4c 40 9f ec 37   W^.........L@..7
+0340  2e b4 20 24 fd 1c 36 b5 b5 0a 7c d5 25 9a 91 ee   .. $..6...|.%...
+0350  74 0b 3e 9a 98 f0 67 95 57 ac 1b 6e c0 a2 e9 0f   t.>...g.W..n....
+0360  15 1c d1 45 74 77 3d d5 7f 41 ba 45 86 f5 62 60   ...Etw=..A.E..b`
+0370  24 5f f2 85 0b c6 ee 11 74 ac 07 82 fe 88 dd 73   $_......t......s
+0380  08 fb 08 ec 39 32 36 64 eb 91 34 16 4d ce e7 bc   ....926d..4.M...
+0390  f3 28 8d 61 4b e3 21 14 88 59 08 a5 1c 19 10 6f   .(.aK.!..Y.....o
+03a0  b8 22 26 c9 a4 9a 16 a2 ca c9 5e 00 42 cf aa d7   ."&.......^.B...
+03b0  a1 fc 2f 89 74 48 c5 7f bd b6 3e 25 9e fc fa 04   ../.tH....>%....
+03c0  d2 df 6c 59 16 3c 59 26 6e 7a 49 63 26 83 bb 22   ..lY.<Y&nzIc&.."
+03d0  6a e9 e8 2d 62 10 df 56 36 6f 03 db 85 70 59 21   j..-b..V6o...pY!
+03e0  37 1d 0a a0 82 c1 ef 0c 41 9a a5 49 67 6d 14 f5   7.......A..Igm..
+03f0  29 a9 ca a6 4a bf 1d db 8c f2 b9 87 92 2c 9e 9d   )...J........,..
+0400  27 db 5f ab 1e 9e 1a bb c1 91 2a cc 44 07 1b 18   '._.......*.D...
+0410  be d6 b8 8e bb 44 78 92 cb 85 c4 34 88 5f 29 97   .....Dx....4._).
+0420  52 8d 4d 3a ab 3a a3 e0 3e c7 2a 9b 50 08 94 2d   R.M:.:..>.*.P..-
+0430  c4 2b be 3d 29 f6 73 d2 cd 91 15 13 af fe c2 87   .+.=).s.........
+0440  16 e1 53 74 6b 7b 01 c0 bc 8b 0f f1 60 06 4c 06   ..Stk{......`.L.
+0450  5f 87 75 8d ac f2 86 bd 80 7a d7 03 1e 77 9f 3d   _.u......z...w.=
+0460  6e 4b 98 0c bd 65 4b 92 5e 89 0d f2 57 9b 0e 95   nK...eK.^...W...
+0470  39 67 d3 f0 69 5d de 0e 21 f6 55 86 8c 15 7e e5   9g..i]..!.U...~.
+0480  41 f2 c3 1a c8 3f 77 c9 3f 8e 6e 4d 76 13 b9 64   A....?w.?.nMv..d
+0490  df af ca f9 86 27 1e 8d 82 3c 89 a9 01 80 38 e1   .....'...<....8.
+04a0  0a e4 cf 90 7d e9 b8 07 09 ce 69 fb cf da 33 16   ....}.....i...3.
+04b0  77 5e a1 1f 75 64 86 89 3e 1f f1 88 48 00 17 a9   w^..ud..>...H...
+04c0  c9 ac 67 f6 2b 0b 03 49 24 13 91 46 69 a8 d6 2e   ..g.+..I$..Fi...
+04d0  ef d9 2b 88 56 c0 79 2b d4 88 4a 0f 57 45 18 0e   ..+.V.y+..J.WE..
+04e0  e4 01 6e 57 5c ac d3 4a 0a 87 eb f9 bb 15 f6 e1   ..nW\..J........
+04f0  d4 d1 5c 68 fa 15 4c 8b 58 ae e2 da 97 db 98 eb   ..\h..L.X.......
+0500  67 6f 66 b3 ba 90 1e d8 09 37 9a a4 25 10 5d 41   gof......7..%.]A
+0510  29 ce 89 84 47 3e 2d 7c aa 4e 1b e6 e2 66 bb 67   )...G>-|.N...f.g
+0520  25 c3 5b 09 c5 d5 03 bd f9 4f d8 f4 35 47 54 f5   %.[......O..5GT.
+0530  38 6f 2e d7 b5 0f 90 48 7f cb b7 ec 34 da 96 70   8o.....H....4..p
+0540  88 23 0e a0 ba 62 19 af b1 40 e0 7b b4 38 c1 b6   .#...b...@.{.8..
+0550  e9 44 8f 7d cc 20 c9 51 85 12 cb 39 94 1e 02 39   .D.}. .Q...9...9
+0560  16 83 92 9c 93 8a c4 37 b5 04 11 e6 a7 4e 5f 34   .......7.....N_4
+0570  97 dc 02 a6 a8 c8 66 aa bf e1 d9 8a 32 a3 97 a9   ......f.....2...
+0580  07 65 31 2b 43 bb 39 d4 3b 7e a3 7d 28 b7 fe 08   .e1+C.9.;~.}(...
+0590  89 d6 7f f3 7b f3 1f be 8e da 0b 44 a4 23 80 e9   ....{......D.#..
+05a0  34 e7 6c 37 5a 47 b3 cb 42 9a b5 0e 61 60 92 55   4.l7ZG..B...a`.U
+05b0  e9 f9 e5 80 29 f0 d2 f2 46 1c 84 a6 bf 8c 29 35   ....)...F.....)5
+05c0  9c 2c 0c 9a 5e 8f 8f 95 1e 2f d5 24 9b 7b f3 4d   .,..^..../.$.{.M
+05d0  9a 29 a1 1e 05 d2 ca 31 21 bf 0b a2 a2 0d cd 61   .).....1!......a
+05e0  f7 57 d7 c8 27 cc 93 bf c3 43 23 9a d6 4b 26 5b   .W..'....C#..K&[
+05f0  6d 36 b5 10 02 3f 7d 8d 73 24 12 8d 67 ca 8c 2a   m6...?}.s$..g..*
+0600  f4 15 2b c7 f2 81 9a 97 81 06 44 ad 4a 2a 52 3c   ..+.......D.J*R<
+0610  57 ed 27 1c 6a db b6 6e 24 6d 9b c3 68 58 eb fe   W.'.j..n$m..hX..
+0620  cf eb 0d 7b 90 95 ed 9c ad ba 6b d9 e3 87 f0 ad   ...{......k.....
+0630  71 72 7a eb 74 03 4a a1 17 ee 81 ed 4c 1f 3a 8a   qrz.t.J.....L.:.
+0640  49 70 d9 80 b3 ba 62 3f 1e 3d 5a 16 d3 c1 34 dc   Ip....b?.=Z...4.
+0650  9d 83 f1 93 79 99 a1 92 2d 2a 8d 83 97 2d 84 4a   ....y...-*...-.J
+0660  c0 0c 0a 3d ff 92 21 e9 26 12 fb 5d aa 7f aa c5   ...=..!.&..]....
+0670  b4 2b 45 87 f9 42 b4 83 25 2a 18 a0 03 c0 98 b6   .+E..B..%*......
+0680  d4 d1 6e 76 e9 b8 a0 4e ae 41 17 e6 fd 43 8b 59   ..nv...N.A...C.Y
+0690  4e 15 88 4b db 6d 6f 74 e1 bc 5d 9b 73 24 d8 ba   N..K.mot..].s$..
+06a0  bb 5d 98 5a a8 9a 4a 49 d2 e9 f6 73 ea 60 eb ec   .].Z..JI...s.`..
+06b0  9b 4f b1 7f b8 2c e4 46 10 50 cb 60 f9 9e 9b d6   .O...,.F.P.`....
+06c0  49 21 dc f9 94 d4 d7 ef 6f 5f 30 0f 2b 75 17 29   I!......o_0.+u.)
+06d0  25 37 0a 4c ce 1c 26 91 d6 68 e9 ed 78 6b ca f5   %7.L..&..h..xk..
+06e0  26 7a 5a 58 27 3d d8 05 17 0e e9 aa af 58 c3 40   &zZX'=.......X.@
+06f0  b1 c3 a8 f2 e4 43 15 59 d1 5f e7 3e 15 a7 dc b0   .....C.Y._.>....
+0700  db f7 2c da 6b bd 6d 28 34 76 54 b5 ed 25 8b e9   ..,.k.m(4vT..%..
+0710  11 47 95 db d8 23 c5 81 d8 61 0f fb 1c f3 ef 2a   .G...#...a.....*
+0720  b8 52 99 18 6e 17 90 ca 02 d5 20 b5 14 75 76 4c   .R..n..... ..uvL
+0730  4b f0 88 80 bd f7 96 21 b6 84 2c 13 01 08 27 dc   K......!..,...'.
+0740  a0 c7 d9 36 bf b7 de 76 5d 3c 4b 22 4b ae cc 70   ...6...v]<K"K..p
+0750  3c 41 29 a2 00 bc a6 c9 2a 0b 1f fa 22 c8 d4 c6   <A).....*..."...
+0760  d0 f7 e1 5c 01 67 8c 30 4e 94 d5 3c 1a f3 b3 27   ...\.g.0N..<...'
+0770  42 62 76 c6 bf 1f e9 c8 0b de aa 5a 85 8e f1 4c   Bbv........Z...L
+0780  2a 4a e4 92 39 2d 01 13 be 02 3c 18 8a 88 a4 2e   *J..9-....<.....
+0790  b0 40 b9 32 7d 40 da 7e 72 b6 e4 2c 34 ca 26 1a   .@.2}@.~r..,4.&.
+07a0  1d 04 f4 be 2d 81 8f 40 a3 de 92 74 5c 5e d9 d1   ....-..@...t\^..
+07b0  81 b7 83 46 e0 34 3d 15 94 ba 68 da fd 2e f0 1c   ...F.4=...h.....
+07c0  01 2e 5b ba 28 a2 33 14 c4 f8 0f ba 80 4a 23 2d   ..[.(.3......J#-
+07d0  63 45 a9 49 b6 9e d5 71 ea f4 47 ce 56 98 5c 81   cE.I...q..G.V.\.
+07e0  6f 31 75 07 62 05 88 45 0a d7 ea ac 47 4f b6 d9   o1u.b..E....GO..
+07f0  11 e2 22 07 fc 22 ee af 30 cf 91 7a f8 f9 21 7f   ..".."..0..z..!.
+0800  f7 fa 99 9c fa 18 69 87 0b 0f 50 ef f2 50 4a 97   ......i...P..PJ.
+0810  1b f8 65 2c 42 39 d8 55 96 54 aa e9 46 ea 88 a9   ..e,B9.U.T..F...
+0820  78 aa 66 65 93 5e d8 47 25 ef e3 d7 62 98 be 01   x.fe.^.G%...b...
+0830  b9 d9 71 73 2a c4 49 e7 e2 16 3d 1a 3d 14 62 b2   ..qs*.I...=.=.b.
+0840  f1 a3 83 42 d0 85 5c dc d2 10 0b d8 f4 40 d9 93   ...B..\......@..
+0850  4e bc ee ed 74 75 f5 7d af 11 b5 14 98 51 12 e5   N...tu.}.....Q..
+0860  f7 98 7b 05 58 6e 9d be b5 81 f5 84 e9 ee 95 fd   ..{.Xn..........
+0870  43 d7 a5 27 9d 57 8d e6 45 ff e1 6d ab f9 b3 4c   C..'.W..E..m...L
+0880  d7 0a 46 00 50 78 11 50 d4 36 61 42 95 1e fe fb   ..F.Px.P.6aB....
+0890  d9 f1 d3 1d c7 8d 2d 77 85 44 db 3e 68 a6 76 68   ......-w.D.>h.vh
+08a0  28 26 84 9b b3 7f 56 59 ba 84 7c d1 2f 92 9b 1e   (&....VY..|./...
+08b0  d8 5e 98 f2 60 ba cf 65 e9 5c dc 2b d9 a4 b2 50   .^..`..e.\.+...P
+08c0  bd 07 91 96 c2 ba f5 01 f5 9c e2 89 21 64 6b c6   ............!dk.
+08d0  2d 8e de 6c 25 0f b7 aa f0 83 be d4 e5 06 2a 0e   -..l%.........*.
+08e0  e0 07 ff dd 81 3b 8e 88 4e 81 76 1f 66 0e b2 e5   .....;..N.v.f...
+08f0  f2 2b 11 ae 2f 12 05 f4 64 e4 70 e5 e4 ee         .+../...d.p...
+

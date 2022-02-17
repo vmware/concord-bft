@@ -1,0 +1,10 @@
+{
+    "SourceIP": null, 
+    "Port": null, 
+    "dumppath": "/home/ssitu/b_pro/tcpdump", 
+    "keylogfile": null, 
+    "keypath": "/home/ssitu/b_pro/key.pem", 
+    "certpath": "/home/ssitu/b_pro/certificate.pem", 
+    "protocol": "SSL", 
+    "interface": "lo"
+  }

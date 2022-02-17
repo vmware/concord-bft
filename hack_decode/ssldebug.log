@@ -1,0 +1,233 @@
+Wireshark SSL debug log 
+
+Wireshark version: 2.6.10 (Git v2.6.10 packaged as 2.6.10-1~ubuntu18.04.0)
+GnuTLS version:    3.5.18
+Libgcrypt version: 1.8.1
+
+KeyID[20]:
+| 28 5a 47 c0 15 30 8b e7 1c e8 bc 50 0e 2e 11 11 |(ZG..0.....P....|
+| 1c 1a 16 b7                                     |....            |
+ssl_init private key file server.pem successfully loaded.
+ssl_init port '4451' filename 'server.pem' password(only for p12 file) ''
+association_add ssl.port port 4451 handle 0x7fcdc6c62580
+
+dissect_ssl enter frame #4 (first time)
+packet_from_server: is from server - FALSE
+  conversation = 0x7fcdbf52bb00, ssl_session = 0x7fcdbf52c6e0
+  record: offset = 0, reported_length_remaining = 517
+dissect_ssl3_record: content_type 22 Handshake
+decrypt_ssl3_record: app_data len 512, ssl state 0x00
+packet_from_server: is from server - FALSE
+decrypt_ssl3_record: using client decoder
+decrypt_ssl3_record: no decoder available
+dissect_ssl3_handshake iteration 1 type 1 offset 5 length 508 bytes, remaining 517 
+Calculating hash with offset 5 512
+ssl_dissect_hnd_hello_common found CLIENT RANDOM -> state 0x01
+
+dissect_ssl enter frame #6 (first time)
+packet_from_server: is from server - TRUE
+  conversation = 0x7fcdbf52bb00, ssl_session = 0x7fcdbf52c6e0
+  record: offset = 0, reported_length_remaining = 1337
+ssl_try_set_version found version 0x0303 -> state 0x91
+dissect_ssl3_record: content_type 22 Handshake
+decrypt_ssl3_record: app_data len 122, ssl state 0x91
+packet_from_server: is from server - TRUE
+decrypt_ssl3_record: using server decoder
+decrypt_ssl3_record: no decoder available
+dissect_ssl3_handshake iteration 1 type 2 offset 5 length 118 bytes, remaining 127 
+ssl_try_set_version found version 0x0304 -> state 0x91
+ssl_dissect_hnd_hello_common found SERVER RANDOM -> state 0x93
+ssl_set_cipher found CIPHER 0x1302 TLS_AES_256_GCM_SHA384 -> state 0x97
+ssl_load_keyfile dtls/ssl.keylog_file is not configured!
+tls13_load_secret transitioning to new key, old state 0x97
+tls13_load_secret Cannot find CLIENT_HANDSHAKE_TRAFFIC_SECRET, decryption impossible
+tls13_load_secret transitioning to new key, old state 0x97
+tls13_load_secret Cannot find SERVER_HANDSHAKE_TRAFFIC_SECRET, decryption impossible
+  record: offset = 127, reported_length_remaining = 1210
+dissect_ssl3_record: content_type 20 Change Cipher Spec
+  record: offset = 133, reported_length_remaining = 1204
+dissect_ssl3_record: content_type 23 Application Data
+decrypt_ssl3_record: app_data len 23, ssl state 0x97
+packet_from_server: is from server - TRUE
+decrypt_ssl3_record: using server decoder
+decrypt_ssl3_record: no decoder available
+  record: offset = 161, reported_length_remaining = 1176
+dissect_ssl3_record: content_type 23 Application Data
+decrypt_ssl3_record: app_data len 811, ssl state 0x97
+packet_from_server: is from server - TRUE
+decrypt_ssl3_record: using server decoder
+decrypt_ssl3_record: no decoder available
+  record: offset = 977, reported_length_remaining = 360
+dissect_ssl3_record: content_type 23 Application Data
+decrypt_ssl3_record: app_data len 281, ssl state 0x97
+packet_from_server: is from server - TRUE
+decrypt_ssl3_record: using server decoder
+decrypt_ssl3_record: no decoder available
+  record: offset = 1263, reported_length_remaining = 74
+dissect_ssl3_record: content_type 23 Application Data
+decrypt_ssl3_record: app_data len 69, ssl state 0x97
+packet_from_server: is from server - TRUE
+decrypt_ssl3_record: using server decoder
+decrypt_ssl3_record: no decoder available
+
+dissect_ssl enter frame #8 (first time)
+packet_from_server: is from server - FALSE
+  conversation = 0x7fcdbf52bb00, ssl_session = 0x7fcdbf52c6e0
+  record: offset = 0, reported_length_remaining = 80
+dissect_ssl3_record: content_type 20 Change Cipher Spec
+  record: offset = 6, reported_length_remaining = 74
+dissect_ssl3_record: content_type 23 Application Data
+decrypt_ssl3_record: app_data len 69, ssl state 0x97
+packet_from_server: is from server - FALSE
+decrypt_ssl3_record: using client decoder
+decrypt_ssl3_record: no decoder available
+
+dissect_ssl enter frame #10 (first time)
+packet_from_server: is from server - FALSE
+  conversation = 0x7fcdbf52bb00, ssl_session = 0x7fcdbf52c6e0
+  record: offset = 0, reported_length_remaining = 34
+dissect_ssl3_record: content_type 23 Application Data
+decrypt_ssl3_record: app_data len 29, ssl state 0x97
+packet_from_server: is from server - FALSE
+decrypt_ssl3_record: using client decoder
+decrypt_ssl3_record: no decoder available
+
+dissect_ssl enter frame #12 (first time)
+packet_from_server: is from server - TRUE
+  conversation = 0x7fcdbf52bb00, ssl_session = 0x7fcdbf52c6e0
+  record: offset = 0, reported_length_remaining = 255
+dissect_ssl3_record: content_type 23 Application Data
+decrypt_ssl3_record: app_data len 250, ssl state 0x97
+packet_from_server: is from server - TRUE
+decrypt_ssl3_record: using server decoder
+decrypt_ssl3_record: no decoder available
+
+dissect_ssl enter frame #14 (first time)
+packet_from_server: is from server - TRUE
+  conversation = 0x7fcdbf52bb00, ssl_session = 0x7fcdbf52c6e0
+  record: offset = 0, reported_length_remaining = 255
+dissect_ssl3_record: content_type 23 Application Data
+decrypt_ssl3_record: app_data len 250, ssl state 0x97
+packet_from_server: is from server - TRUE
+decrypt_ssl3_record: using server decoder
+decrypt_ssl3_record: no decoder available
+
+dissect_ssl enter frame #16 (first time)
+packet_from_server: is from server - FALSE
+  conversation = 0x7fcdbf52bb00, ssl_session = 0x7fcdbf52c6e0
+  record: offset = 0, reported_length_remaining = 34
+dissect_ssl3_record: content_type 23 Application Data
+decrypt_ssl3_record: app_data len 29, ssl state 0x97
+packet_from_server: is from server - FALSE
+decrypt_ssl3_record: using client decoder
+decrypt_ssl3_record: no decoder available
+
+dissect_ssl enter frame #18 (first time)
+packet_from_server: is from server - FALSE
+  conversation = 0x7fcdbf52bb00, ssl_session = 0x7fcdbf52c6e0
+  record: offset = 0, reported_length_remaining = 34
+dissect_ssl3_record: content_type 23 Application Data
+decrypt_ssl3_record: app_data len 29, ssl state 0x97
+packet_from_server: is from server - FALSE
+decrypt_ssl3_record: using client decoder
+decrypt_ssl3_record: no decoder available
+
+dissect_ssl enter frame #20 (first time)
+packet_from_server: is from server - FALSE
+  conversation = 0x7fcdbf52bb00, ssl_session = 0x7fcdbf52c6e0
+  record: offset = 0, reported_length_remaining = 34
+dissect_ssl3_record: content_type 23 Application Data
+decrypt_ssl3_record: app_data len 29, ssl state 0x97
+packet_from_server: is from server - FALSE
+decrypt_ssl3_record: using client decoder
+decrypt_ssl3_record: no decoder available
+
+dissect_ssl enter frame #22 (first time)
+packet_from_server: is from server - FALSE
+  conversation = 0x7fcdbf52bb00, ssl_session = 0x7fcdbf52c6e0
+  record: offset = 0, reported_length_remaining = 34
+dissect_ssl3_record: content_type 23 Application Data
+decrypt_ssl3_record: app_data len 29, ssl state 0x97
+packet_from_server: is from server - FALSE
+decrypt_ssl3_record: using client decoder
+decrypt_ssl3_record: no decoder available
+
+dissect_ssl enter frame #24 (first time)
+packet_from_server: is from server - FALSE
+  conversation = 0x7fcdbf52bb00, ssl_session = 0x7fcdbf52c6e0
+  record: offset = 0, reported_length_remaining = 34
+dissect_ssl3_record: content_type 23 Application Data
+decrypt_ssl3_record: app_data len 29, ssl state 0x97
+packet_from_server: is from server - FALSE
+decrypt_ssl3_record: using client decoder
+decrypt_ssl3_record: no decoder available
+
+dissect_ssl enter frame #26 (first time)
+packet_from_server: is from server - FALSE
+  conversation = 0x7fcdbf52bb00, ssl_session = 0x7fcdbf52c6e0
+  record: offset = 0, reported_length_remaining = 34
+dissect_ssl3_record: content_type 23 Application Data
+decrypt_ssl3_record: app_data len 29, ssl state 0x97
+packet_from_server: is from server - FALSE
+decrypt_ssl3_record: using client decoder
+decrypt_ssl3_record: no decoder available
+
+dissect_ssl enter frame #31 (first time)
+packet_from_server: is from server - FALSE
+  conversation = 0x7fcdbf52bb00, ssl_session = 0x7fcdbf52c6e0
+  record: offset = 0, reported_length_remaining = 34
+dissect_ssl3_record: content_type 23 Application Data
+decrypt_ssl3_record: app_data len 29, ssl state 0x97
+packet_from_server: is from server - FALSE
+decrypt_ssl3_record: using client decoder
+decrypt_ssl3_record: no decoder available
+
+dissect_ssl enter frame #33 (first time)
+packet_from_server: is from server - FALSE
+  conversation = 0x7fcdbf52bb00, ssl_session = 0x7fcdbf52c6e0
+  record: offset = 0, reported_length_remaining = 34
+dissect_ssl3_record: content_type 23 Application Data
+decrypt_ssl3_record: app_data len 29, ssl state 0x97
+packet_from_server: is from server - FALSE
+decrypt_ssl3_record: using client decoder
+decrypt_ssl3_record: no decoder available
+
+dissect_ssl enter frame #35 (first time)
+packet_from_server: is from server - FALSE
+  conversation = 0x7fcdbf52bb00, ssl_session = 0x7fcdbf52c6e0
+  record: offset = 0, reported_length_remaining = 34
+dissect_ssl3_record: content_type 23 Application Data
+decrypt_ssl3_record: app_data len 29, ssl state 0x97
+packet_from_server: is from server - FALSE
+decrypt_ssl3_record: using client decoder
+decrypt_ssl3_record: no decoder available
+
+dissect_ssl enter frame #37 (first time)
+packet_from_server: is from server - FALSE
+  conversation = 0x7fcdbf52bb00, ssl_session = 0x7fcdbf52c6e0
+  record: offset = 0, reported_length_remaining = 34
+dissect_ssl3_record: content_type 23 Application Data
+decrypt_ssl3_record: app_data len 29, ssl state 0x97
+packet_from_server: is from server - FALSE
+decrypt_ssl3_record: using client decoder
+decrypt_ssl3_record: no decoder available
+
+dissect_ssl enter frame #39 (first time)
+packet_from_server: is from server - FALSE
+  conversation = 0x7fcdbf52bb00, ssl_session = 0x7fcdbf52c6e0
+  record: offset = 0, reported_length_remaining = 34
+dissect_ssl3_record: content_type 23 Application Data
+decrypt_ssl3_record: app_data len 29, ssl state 0x97
+packet_from_server: is from server - FALSE
+decrypt_ssl3_record: using client decoder
+decrypt_ssl3_record: no decoder available
+
+dissect_ssl enter frame #41 (first time)
+packet_from_server: is from server - FALSE
+  conversation = 0x7fcdbf52bb00, ssl_session = 0x7fcdbf52c6e0
+  record: offset = 0, reported_length_remaining = 34
+dissect_ssl3_record: content_type 23 Application Data
+decrypt_ssl3_record: app_data len 29, ssl state 0x97
+packet_from_server: is from server - FALSE
+decrypt_ssl3_record: using client decoder
+decrypt_ssl3_record: no decoder available
