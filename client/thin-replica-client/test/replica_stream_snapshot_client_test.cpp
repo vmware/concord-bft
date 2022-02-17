@@ -231,7 +231,6 @@ TEST(replica_stream_snapshot_client_test, test_real_action) {
     ASSERT_EQ(remote_queue->size(), 0);
     ::client::replica_state_snapshot_client::SnapshotRequest rss_request;
     rss_request.snapshot_id = len;
-    rss_request.last_received_key = "";
     rss->readSnapshotStream(rss_request, remote_queue);
     ThreadPool read_thread_pool{1};
     read_thread_pool.async(
@@ -240,7 +239,7 @@ TEST(replica_stream_snapshot_client_test, test_real_action) {
           while (true) {
             std::unique_ptr<SnapshotKVPair> update;
             try {
-              update = remote_queue->tryPop();
+              update = remote_queue->popTill(500ms);
             } catch (...) {
               break;
             }

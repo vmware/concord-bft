@@ -49,7 +49,9 @@ void ReplicaStateSnapshotClient::receiveSnapshot(const SnapshotRequest& request,
     vmware::concord::replicastatesnapshot::StreamSnapshotRequest stream_snapshot_request;
     stream_snapshot_request.set_snapshot_id(request.snapshot_id);
     if (last_read_key.empty()) {
-      stream_snapshot_request.set_last_received_key(request.last_received_key);
+      if (request.last_received_key.has_value()) {
+        stream_snapshot_request.set_last_received_key(request.last_received_key.value());
+      }
     } else {
       stream_snapshot_request.set_last_received_key(last_read_key);
     }

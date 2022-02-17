@@ -48,7 +48,7 @@ struct ReplicaStateSnapshotClientConfig {
 
 struct SnapshotRequest {
   uint64_t snapshot_id;
-  std::string last_received_key;
+  std::optional<std::string> last_received_key;
 };
 
 class ReplicaStateSnapshotClient {

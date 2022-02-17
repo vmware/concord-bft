@@ -41,20 +41,7 @@ ConcordClient::ConcordClient(const ConcordClientConfig& config, std::shared_ptr<
     LOG_INFO(logger_, "Waiting for client pool to connect");
     std::this_thread::sleep_for(std::chrono::seconds(2));
   }
-  for (const auto& replica : config_.topology.replicas) {
-    auto addr = replica.host + ":" + std::to_string(replica.event_port);
-    auto grpc_conn =
-        std::make_shared<GrpcConnection>(addr, config_.subscribe_config.id, /* TODO */ 3, /* TODO */ 3, /* TODO */ 5);
-
-    // TODO: Adapt TRC API to support PEM buffers
-    auto trsc_config = std::make_unique<GrpcConnectionConfig>(config_.subscribe_config.use_tls,
-                                                              config_.subscribe_config.pem_private_key,
-                                                              config_.subscribe_config.pem_cert_chain,
-                                                              config_.transport.event_pem_certs);
-
-    grpc_conn->connect(trsc_config);
-    grpc_connections_.push_back(std::move(grpc_conn));
-  }
+  createGrpcConnections();
 }
 
 ConcordClientPoolConfig ConcordClient::createClientPoolStruct(const ConcordClientConfig& config) {
@@ -138,6 +125,23 @@ void ConcordClient::send(const bft::client::WriteConfig& config,
   client_pool_->SendRequest(config, std::forward<bft::client::Msg>(msg), callback);
 }
 
+void ConcordClient::createGrpcConnections() {
+  for (const auto& replica : config_.topology.replicas) {
+    auto addr = replica.host + ":" + std::to_string(replica.event_port);
+    auto grpc_conn = std::make_shared<GrpcConnection>(
+        addr, config_.subscribe_config.id, /* TODO */ 3, /* TODO */ 3, config_.state_snapshot_config.timeout_in_sec);
+
+    // TODO: Adapt TRC API to support PEM buffers
+    auto trsc_config = std::make_unique<GrpcConnectionConfig>(config_.subscribe_config.use_tls,
+                                                              config_.subscribe_config.pem_private_key,
+                                                              config_.subscribe_config.pem_cert_chain,
+                                                              config_.transport.event_pem_certs);
+
+    grpc_conn->connect(trsc_config);
+    grpc_connections_.push_back(std::move(grpc_conn));
+  }
+}
+
 void ConcordClient::checkAndReConnectGrpcConnections() {
   for (size_t con_offset = 0; con_offset < config_.topology.replicas.size(); ++con_offset) {
     if (!(grpc_connections_[con_offset])->isConnected()) {
@@ -191,7 +195,8 @@ void ConcordClient::getSnapshot(const StateSnapshotRequest& request, std::shared
   checkAndReConnectGrpcConnections();
   if (!rss_) {
     // Lazy initialization, when required for the first time.
-    auto rss_config = std::make_unique<ReplicaStateSnapshotClientConfig>(grpc_connections_, /*TODO: config*/ 32);
+    auto rss_config = std::make_unique<ReplicaStateSnapshotClientConfig>(grpc_connections_,
+                                                                         config_.state_snapshot_config.num_threads);
     rss_ = std::make_unique<ReplicaStateSnapshotClient>(std::move(rss_config));
   }
 

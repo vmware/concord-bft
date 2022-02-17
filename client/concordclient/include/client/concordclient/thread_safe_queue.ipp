@@ -66,6 +66,30 @@ std::unique_ptr<T> BasicThreadSafeQueue<T>::pop() {
 }
 
 template <typename T>
+std::unique_ptr<T> BasicThreadSafeQueue<T>::popTill(std::chrono::milliseconds timeout) {
+  std::unique_lock<std::mutex> lock(mutex_);
+
+  auto is_timeout = !condition_.wait_for(lock, timeout, [this]() {
+    return this->exception_ || this->release_consumers_ || ((this->queue_data_).size() > 0);
+  });
+  if (is_timeout) {
+    return std::unique_ptr<T>(nullptr);
+  }
+  if (exception_) {
+    auto e = exception_;
+    exception_ = nullptr;
+    std::rethrow_exception(e);
+  }
+  if (release_consumers_) {
+    return std::unique_ptr<T>(nullptr);
+  }
+  ConcordAssert(queue_data_.size() > 0);
+  std::unique_ptr<T> ret = move(queue_data_.front());
+  queue_data_.pop_front();
+  return ret;
+}
+
+template <typename T>
 std::unique_ptr<T> BasicThreadSafeQueue<T>::tryPop() {
   std::lock_guard<std::mutex> lock(mutex_);
   if (exception_) {
