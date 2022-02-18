@@ -592,7 +592,7 @@ void DataGenerator::generateBlocks(TestAppState& appState, uint64_t fromBlockId,
     fillRandomBytes(buff.get(), dataSize);
     std::shared_ptr<Block> blk;
     StateTransferDigest digestPrev{1};
-    if (i == fromBlockId) {
+    if ((i == fromBlockId) && (!appState.hasBlock(i - 1))) {
       blk = Block::createFromData(dataSize, buff.get(), i, digestPrev);
     } else {
       if (!prevBlk) {
@@ -2022,8 +2022,10 @@ INSTANTIATE_TEST_CASE_P(BcStTest,
                             BcStTestParamFixtureInput3(100, 100, 0, 100, false),
                             // Prune blocks only
                             BcStTestParamFixtureInput3(1000, 0, 100, 9, false),
-                            // Add blocks and Prune
+                            // Add1 blocks and Prune
                             BcStTestParamFixtureInput3(100, 100, 50, 100, false),
+                            // Add blocks and Prune II
+                            BcStTestParamFixtureInput3(100, 100, 5, 500, false),
                             // Add blocks only and restart between checkpointing
                             BcStTestParamFixtureInput3(100, 100, 0, 100, true),
                             // Prune blocks only and restart between checkpointing
