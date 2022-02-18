@@ -233,6 +233,10 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                std::chrono::seconds,
                std::chrono::seconds{60},
                "Time interval in seconds to monitor disk usage by db checkpoints");
+  CONFIG_PARAM(dbCheckpointDiskSpaceThreshold,
+               std::string,
+               "0.5",
+               "Free disk space threshold for db checkpoint cleanup");
   CONFIG_PARAM(enablePostExecutionSeparation, bool, true, "Post-execution thread separation feature flag");
   CONFIG_PARAM(postExecutionQueuesSize, uint16_t, 50, "Post-execution deferred message queues size");
 
@@ -373,6 +377,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, dbCheckpointDirPath);
     serialize(outStream, dbSnapshotIntervalSeconds);
     serialize(outStream, dbCheckpointMonitorIntervalSeconds);
+    serialize(outStream, dbCheckpointDiskSpaceThreshold);
     serialize(outStream, enablePostExecutionSeparation);
     serialize(outStream, postExecutionQueuesSize);
     serialize(outStream, stateIterationMultiGetBatchSize);
@@ -467,6 +472,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, dbCheckpointDirPath);
     deserialize(inStream, dbSnapshotIntervalSeconds);
     deserialize(inStream, dbCheckpointMonitorIntervalSeconds);
+    deserialize(inStream, dbCheckpointDiskSpaceThreshold);
     deserialize(inStream, enablePostExecutionSeparation);
     deserialize(inStream, postExecutionQueuesSize);
     deserialize(inStream, stateIterationMultiGetBatchSize);
@@ -561,6 +567,7 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
   os << ",";
   os << KVLOG(rc.dbSnapshotIntervalSeconds.count(),
               rc.dbCheckpointMonitorIntervalSeconds.count(),
+              rc.dbCheckpointDiskSpaceThreshold,
               rc.enableMultiplexChannel,
               rc.enableEventGroups);
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
