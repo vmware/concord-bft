@@ -902,8 +902,7 @@ void KeyValueBlockchain::linkUntilBlockId(BlockId from_block_id, BlockId until_b
     return;
   }
 
-  concord::util::DurationTracker<std::chrono::milliseconds> link_duration;
-  link_duration.start();
+  concord::util::DurationTracker<std::chrono::milliseconds> link_duration("link_duration", true);
   for (auto i = from_block_id; i <= until_block_id; ++i) {
     auto raw_block = state_transfer_block_chain_.getRawBlock(i);
     if (!raw_block) {
