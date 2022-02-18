@@ -53,4 +53,10 @@ class StreamUnavailable : public std::runtime_error {
   StreamUnavailable() : std::runtime_error("Stream is not available"){};
 };
 
+// An internal error may occur due to service unavailability.
+class RequestOverload : public std::runtime_error {
+ public:
+  RequestOverload() : std::runtime_error("Server overloaded with requests"){};
+};
+
 }  // namespace concord::client::concordclient
