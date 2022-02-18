@@ -50,6 +50,7 @@ using concord::client::concordclient::OutOfRangeSubscriptionRequest;
 using concord::client::concordclient::StreamUnavailable;
 using concord::client::concordclient::InternalError;
 using concord::client::concordclient::EndOfStream;
+using concord::client::concordclient::RequestOverload;
 
 namespace concord::client::clientservice {
 
@@ -306,6 +307,9 @@ Status StateSnapshotServiceImpl::StreamSnapshot(ServerContext* context,
       status = grpc::Status(grpc::StatusCode::UNKNOWN, e.what());
       break;
     } catch (const StreamUnavailable& e) {
+      status = grpc::Status(grpc::StatusCode::UNAVAILABLE, e.what());
+      break;
+    } catch (const RequestOverload& e) {
       status = grpc::Status(grpc::StatusCode::UNAVAILABLE, e.what());
       break;
     } catch (const EndOfStream& e) {
