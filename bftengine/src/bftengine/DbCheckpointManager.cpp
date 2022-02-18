@@ -261,9 +261,19 @@ void DbCheckpointManager::checkAndRemove() {
   const auto& dbCurrentSize = directorySize(dbPath, false, false);
   try {
     const _fs::space_info diskSpace = _fs::space(dbPath);
-    // make sure that we have at least equal amount of free storage available
-    // all the time to avoid any failure dure to low disk space
-    if (diskSpace.available < dbCurrentSize) {
+    // Threshold for available disk space is kept at (0.5 * curr_sizeof(rocksDb)). Assumption
+    // is that this is enough to run compaction in rocksdb
+    // Before starting a compaction, RocksDB will check if there is enough room to create the output SST files.
+    // This is done by calling SstFileManager::EnoughRoomForCompaction(). This function conservatively estimates
+    // the output size as the sum of the sizes of all the input SST files to the compaction.
+    // Assumption:  SstFileManager::EnoughRoomForCompaction() < (0.5 * curr_sizeof(rocksDb)) all the time
+    const double lowDiskThresholdFactor =
+        stod(bftEngine::ReplicaConfig::instance().getdbCheckpointDiskSpaceThreshold());
+    // make sure that we have at least (lowDiskThresholdFactor * dbCurrentSize) of free storage available
+    // all the time to avoid any failure due to low disk space
+    bool isSpaceBelowThreshold =
+        (static_cast<double>(diskSpace.available) < (static_cast<double>(dbCurrentSize) * lowDiskThresholdFactor));
+    if (isSpaceBelowThreshold) {
       LOG_WARN(getLogger(),
                "low disk space. Removing oldest db checkpoint. " << KVLOG(dbCurrentSize, diskSpace.available));
       {
