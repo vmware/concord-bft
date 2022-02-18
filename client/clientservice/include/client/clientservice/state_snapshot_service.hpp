@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include <vector>
+#include <mutex>
 #include <grpcpp/grpcpp.h>
 #include "state_snapshot.grpc.pb.h"
 #include "sha_hash.hpp"
@@ -41,15 +43,21 @@ class StateSnapshotServiceImpl final
   void isHashValid(uint64_t snapshot_id,
                    const concord::util::SHA3_256::Digest& final_hash,
                    const std::chrono::milliseconds& timeout,
-                   grpc::Status& return_status) const;
+                   grpc::Status& return_status);
+
   void compareWithRsiAndSetReadAsOfResponse(
       const std::unique_ptr<concord::messages::StateSnapshotReadAsOfResponse>& bft_readasof_response,
       const vmware::concord::client::statesnapshot::v1::ReadAsOfRequest* const proto_request,
       vmware::concord::client::statesnapshot::v1::ReadAsOfResponse*& response,
       grpc::Status& return_status) const;
 
+  void clearAllPrevDoneCallbacksAndAdd(std::shared_ptr<bool> condition,
+                                       std::shared_ptr<bftEngine::RequestCallBack> callback);
+
   logging::Logger logger_;
   std::shared_ptr<concord::client::concordclient::ConcordClient> client_;
+  std::map<std::shared_ptr<bool>, std::shared_ptr<bftEngine::RequestCallBack>> callbacks_for_cleanup_;
+  std::mutex cleanup_mutex_;
 };
 
 }  // namespace concord::client::clientservice
