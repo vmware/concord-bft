@@ -95,7 +95,7 @@ void RVBManager::init(bool fetching) {
   if (!loaded_from_data_store && (desc.maxBlockId > 0)) {
     // If desc data is valid, try to reconstruct by reading digests from storage (no persistency data was found)
     LOG_WARN(logger_, "Reconstructing RVB data" << KVLOG(loaded_from_data_store, desc.maxBlockId));
-    DurationTracker<std::chrono::milliseconds> reconstruct_dt;
+    DurationTracker<std::chrono::milliseconds> reconstruct_dt("reconstruct_dt");
     reconstruct_dt.start();
     auto num_rvbs_added = addRvbDataOnBlockRange(
         as_->getGenesisBlockNum(), desc.maxBlockId, std::optional<STDigest>(desc.digestOfMaxBlockId));
@@ -667,7 +667,7 @@ RVBId RVBManager::nextRvbBlockId(BlockId block_id) const {
 void RVBManager::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBlockId) {
   std::lock_guard<std::mutex> guard(pruned_blocks_digests_mutex_);
   LOG_TRACE(logger_, KVLOG(lastAgreedPrunableBlockId));
-  DurationTracker<std::chrono::milliseconds> store_pruned_digests_dt;
+  DurationTracker<std::chrono::milliseconds> store_pruned_digests_dt("store_pruned_digests_dt");
   store_pruned_digests_dt.start();
   auto initial_size = pruned_blocks_digests_.size();
   RVBId start_rvb_id = in_mem_rvt_->getMinRvbId();
