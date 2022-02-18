@@ -470,16 +470,30 @@ class ThinReplicaImpl {
         if (not is_update_available) {
           continue;
         }
+        auto last_global_eg_id_read = kvb_filter->getLastGlobalEgIdRead();
+        if (sub_eg_update.event_group_id <= last_global_eg_id_read) {
+          continue;
+        }
+
         auto eg_update = kvbc::EgUpdate{sub_eg_update.event_group_id, std::move(sub_eg_update.event_group)};
-        const auto& filtered_eg_update = kvb_filter->filterEventGroupUpdate(eg_update);
+
+        auto next_ext_eg_id = kvb_filter->getNextExternalEgIdToRead();
+        const auto& filtered_eg_update = kvb_filter->filterEventGroupUpdate(eg_update, next_ext_eg_id);
+        if (!filtered_eg_update) {
+          continue;
+        }
+        kvb_filter->setNextExternalEgIdToRead(++next_ext_eg_id);
+        kvb_filter->setLastGlobalEgIdRead(sub_eg_update.event_group_id);
+
         if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Data>()) {
           //  auto correlation_id = filtered_update.correlation_id; (TODO (Shruti) - Get correlation ID)
-          sendEventGroupData(stream, filtered_eg_update, sub_eg_update.parent_span);
+          sendEventGroupData(stream, filtered_eg_update.value(), sub_eg_update.parent_span);
         } else if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Hash>()) {
-          sendEventGroupHash(
-              stream, sub_eg_update.event_group_id, kvb_filter->hashEventGroupUpdate(filtered_eg_update));
+          sendEventGroupHash(stream,
+                             filtered_eg_update.value().event_group_id,
+                             kvb_filter->hashEventGroupUpdate(filtered_eg_update.value()));
         }
-        metrics_.last_sent_event_group_id.Get().Set(sub_eg_update.event_group_id);
+        metrics_.last_sent_event_group_id.Get().Set(filtered_eg_update.value().event_group_id);
         if (++update_aggregator_counter == config_->update_metrics_aggregator_thresh) {
           metrics_.updateAggregator();
           update_aggregator_counter = 0;
@@ -909,48 +923,69 @@ class ThinReplicaImpl {
     ConcordAssert(first_eg_id <= end);
     ConcordAssert(start <= end);
 
-    // Let's not wait for a live update yet due to there might be lots of
+    // Let's not wait for a live update yet as there might be lots of
     // history we have to catch up with first
     LOG_INFO(logger_, "Sync reading event groups from KVB [" << start << ", " << end << "]");
     readAndSendEventGroups<ServerContextT, ServerWriterT, DataT>(logger_, context, stream, start, end, kvb_filter);
 
-    // Let's wait until we have at least one live update
+    auto last_global_eg_id_read = kvb_filter->getLastGlobalEgIdRead();
+    auto newest_eg_id = kvb_filter->newestExternalTagSpecificEventGroupId();
+    // Let's wait until we have at least one live update for the requesting client
     bool is_update_available = false;
     while (not is_update_available) {
       is_update_available = live_updates->waitForEventGroupUntilNonEmpty(kWaitForUpdateTimeout);
       if (context->IsCancelled()) {
         throw StreamCancelled("StreamCancelled while waiting for the first live update");
       }
+      if (is_update_available) {
+        newest_eg_id = kvb_filter->newestExternalTagSpecificEventGroupId();
+        // There are two scenarios in which updates will be dropped from the live-update-queue
+        // 1. If the oldest global-eg-id on the live-update-queue is less than the next global-eg-id to be read
+        // (corresponds to external-eg-id `end+1`)
+        // 2. If the update available on the live-update-queue is for another client (i.e., newest_eg_id in storage is
+        // less than the next expected external-eg-id)
+        if (live_updates->oldestEventGroupId() < last_global_eg_id_read + 1 || (newest_eg_id < end + 1)) {
+          SubEventGroupUpdate sub_eg_update;
+          live_updates->PopEventGroup(sub_eg_update);
+          is_update_available = false;
+        }
+      }
     }
-
-    // We are in sync already
-    if (live_updates->oldestEventGroupId() == (end + 1)) {
+    ConcordAssertGE(newest_eg_id, end + 1);
+    ConcordAssertGT(live_updates->oldestEventGroupId(), last_global_eg_id_read);
+    auto global_eg_id_to_read = kvb_filter->findGlobalEventGroupId(end + 1).global_id;
+    // We are in sync already if the oldest event global-eg-id on live_updates is same as next global_eg_id_to_read
+    if (live_updates->oldestEventGroupId() == global_eg_id_to_read) {
+      ConcordAssertGE(global_eg_id_to_read, live_updates->oldestEventGroupId());
+      ConcordAssertLE(global_eg_id_to_read, live_updates->newestEventGroupId());
       return;
     }
 
     // Gap:
-    // If the first live update is not the follow-up to the last read block from
+    // If the first live update is not the follow-up to the last read event group from
     // KVB then we need to fill the gap. Let's read from KVB starting at end + 1
     // up to updates that are part of the live updates already. Thereby, we
     // create an overlap between what we read from KVB and what is currently in
     // the live updates.
-    if (live_updates->oldestEventGroupId() > (end + 1)) {
+    if (live_updates->oldestEventGroupId() > global_eg_id_to_read) {
+      ConcordAssertGT(kvb_filter->newestExternalTagSpecificEventGroupId(), end + 1);
       start = end + 1;
-      end = live_updates->newestEventGroupId();
+      end = kvb_filter->newestExternalTagSpecificEventGroupId();
 
       LOG_INFO(logger_, "Sync filling gap [" << start << ", " << end << "]");
       readAndSendEventGroups<ServerContextT, ServerWriterT, DataT>(logger_, context, stream, start, end, kvb_filter);
     }
 
+    last_global_eg_id_read = kvb_filter->getLastGlobalEgIdRead();
     // Overlap:
     // If we read updates from KVB that were added to the live updates already
     // then we just need to drop the overlap and return
-    ConcordAssert(live_updates->oldestEventGroupId() <= end);
+    ConcordAssert(live_updates->oldestEventGroupId() <= last_global_eg_id_read);
     SubEventGroupUpdate update;
     do {
       live_updates->PopEventGroup(update);
       LOG_INFO(logger_, "Sync dropping " << update.event_group_id);
-    } while (update.event_group_id < end);
+    } while (update.event_group_id < last_global_eg_id_read);
   }
 
   // Send* prepares the response object and puts it on the stream
