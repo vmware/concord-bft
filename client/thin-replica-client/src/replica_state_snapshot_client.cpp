@@ -21,6 +21,7 @@ using concord::client::concordclient::OutOfRangeSubscriptionRequest;
 using concord::client::concordclient::InternalError;
 using concord::client::concordclient::EndOfStream;
 using concord::client::concordclient::StreamUnavailable;
+using concord::client::concordclient::RequestOverload;
 using concord::client::concordclient::SnapshotQueue;
 using vmware::concord::replicastatesnapshot::StreamSnapshotRequest;
 using vmware::concord::replicastatesnapshot::StreamSnapshotResponse;
@@ -28,6 +29,12 @@ using vmware::concord::replicastatesnapshot::StreamSnapshotResponse;
 namespace client::replica_state_snapshot_client {
 void ReplicaStateSnapshotClient::readSnapshotStream(const SnapshotRequest& request,
                                                     std::shared_ptr<SnapshotQueue> remote_queue) {
+  if (count_of_concurrent_request_.load() > config_->concurrency_level) {
+    remote_queue->setException(std::make_exception_ptr(RequestOverload()));
+    return;
+  }
+  ++count_of_concurrent_request_;
+
   threadpool_.async([this, remote_queue, request]() {
     try {
       this->receiveSnapshot(request, remote_queue);
@@ -35,6 +42,7 @@ void ReplicaStateSnapshotClient::readSnapshotStream(const SnapshotRequest& reque
       // Set exception and quit receiveUpdates
       remote_queue->setException(std::current_exception());
     }
+    --(this->count_of_concurrent_request_);
   });
 }
 
