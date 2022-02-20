@@ -4401,7 +4401,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
   std::set<NodeIdType> internalClients;
   uint16_t clientId = config_.getnumReplicas() + config_.getnumRoReplicas();
   for (int i = 0; i < config_.getnumOfClientProxies(); ++i) proxyClients.insert(clientId++);
-  for (int i = 0; i < config_.getnumOfExternalClients(); ++i) externalClients.insert(clientId++);
+  for (int i = 0; i < config_.getnumOfExternalClients() + config_.numOfClientServices; ++i)
+    externalClients.insert(clientId++);
   for (int i = 0; i < config_.getnumReplicas(); ++i) internalClients.insert(clientId++);
   clientsManager = std::make_shared<ClientsManager>(ps, proxyClients, externalClients, internalClients, metrics_);
   internalBFTClient_.reset(
