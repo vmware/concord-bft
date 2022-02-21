@@ -24,3 +24,8 @@ MakefileCustom
 # Apollo test output
 */apollo/Testing/*
 Testing
+
+# Dafny profiling logs
+/.dafny
+dafny-qi.profile
+triggers
