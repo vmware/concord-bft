@@ -44,6 +44,8 @@ class DebugPersistentStorage : public PersistentStorage {
   void setForceCompletedInSeqNumWindow(SeqNum seqNum, bool forceCompleted) override;
   void setPrepareFullMsgInSeqNumWindow(SeqNum seqNum, PrepareFullMsg* msg) override;
   void setCommitFullMsgInSeqNumWindow(SeqNum seqNum, CommitFullMsg* msg) override;
+  void setRequestsMapInSeqNumWindow(SeqNum seqNum, const Bitmap& reqeustMap) override;
+  void setIsExecutedInSeqNumWindow(SeqNum seqNum, bool isExecuted) override;
   void setCheckpointMsgInCheckWindow(SeqNum seqNum, CheckpointMsg* msg) override;
   void setCompletedMarkInCheckWindow(SeqNum seqNum, bool mark) override;
   void setUserDataAtomically(const void* data, std::size_t numberOfBytes) override;
