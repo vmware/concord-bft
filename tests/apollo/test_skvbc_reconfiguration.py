@@ -306,6 +306,17 @@ class SkvbcReconfigurationTest(ApolloTest):
                         current_view = await bft_network.wait_for_view(1, expected=lambda v: v == 1)
                 nursery.cancel_scope.cancel()
 
+            # It might take time to transfer all previous view pp to the new view, hence we will first wait for at least
+            # good transaction (waiting for 1 minute)
+            with trio.fail_after(60):
+                while True:
+                    try:
+                        await skvbc.send_write_kv_set()
+                    except trio.TooSlowError:
+                        log.log_message("probably system is still executing the pps of the previous view")
+                        continue
+                    break
+
             # Now lets run another Client TLS key exchange and make sure the new primary is able
             # to communicate with the client after its state transfer
             await self.run_client_tls_key_exchange_cycle(bft_network, list(bft_network.all_replicas(without={initial_prim})) + [bft_network.cre_id])
@@ -750,7 +761,7 @@ class SkvbcReconfigurationTest(ApolloTest):
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
         # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
-        client.config._replace(req_timeout_milli=10000)
+
         checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
         op = operator.Operator(bft_network.config, client,  bft_network.builddir)
         await op.wedge()
@@ -775,7 +786,7 @@ class SkvbcReconfigurationTest(ApolloTest):
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
         # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
-        client.config._replace(req_timeout_milli=10000)
+
         checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
         op = operator.Operator(
             bft_network.config, client,  bft_network.builddir)
@@ -826,7 +837,7 @@ class SkvbcReconfigurationTest(ApolloTest):
 
         client = bft_network.random_client()
         # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
-        client.config._replace(req_timeout_milli=10000)
+
         op = operator.Operator(bft_network.config, client,  bft_network.builddir)
         await op.wedge()
         await self.validate_stop_on_wedge_point(bft_network=bft_network, skvbc=skvbc, fullWedge=False)
@@ -836,7 +847,7 @@ class SkvbcReconfigurationTest(ApolloTest):
         for r in late_replicas:
             await bft_network.wait_for_state_transfer_to_stop(initial_prim,
                                                               r,
-                                                              stop_on_stable_seq_num=False)
+                                                              stop_on_stable_seq_num=True)
         await self.try_to_unwedge(bft_network=bft_network, bft=False, restart=False)
         for i in range(100):
             await skvbc.send_write_kv_set()
@@ -868,7 +879,7 @@ class SkvbcReconfigurationTest(ApolloTest):
 
         client = bft_network.random_client()
         # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
-        client.config._replace(req_timeout_milli=10000)
+
         with log.start_action(action_type="send_wedge_cmd",
                               checkpoint_before=checkpoint_before):
             op = operator.Operator(
@@ -930,7 +941,7 @@ class SkvbcReconfigurationTest(ApolloTest):
 
         client = bft_network.random_client()
         # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
-        client.config._replace(req_timeout_milli=10000)
+
         with log.start_action(action_type="send_wedge_cmd",
                               checkpoint_before=checkpoint_before,
                               stopped_replicas=list(replicas_to_stop)):
@@ -970,7 +981,6 @@ class SkvbcReconfigurationTest(ApolloTest):
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
         # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
-        client.config._replace(req_timeout_milli=10000)
 
         op = operator.Operator(
             bft_network.config, client,  bft_network.builddir)
@@ -1331,7 +1341,7 @@ class SkvbcReconfigurationTest(ApolloTest):
             await skvbc.send_write_kv_set()
         key, val = await skvbc.send_write_kv_set()
         client = bft_network.random_client()
-        client.config._replace(req_timeout_milli=10000)
+
         op = operator.Operator(bft_network.config, client,  bft_network.builddir)
         test_config = 'new_configuration_n_4_f_1_c_0'
         stopped_replicas = {4, 5, 6}
@@ -1380,7 +1390,7 @@ class SkvbcReconfigurationTest(ApolloTest):
         live_replicas = bft_network.all_replicas(without=crashed_replicas)
 
         client = bft_network.random_client()
-        client.config._replace(req_timeout_milli=10000)
+
         op = operator.Operator(bft_network.config, client,  bft_network.builddir)
         test_config = 'new_configuration_n_4_f_1_c_0'
         conf = TestConfig(n=4,
@@ -1422,7 +1432,7 @@ class SkvbcReconfigurationTest(ApolloTest):
             await skvbc.send_write_kv_set()
         key, val = await skvbc.send_write_kv_set()
         client = bft_network.random_client()
-        client.config._replace(req_timeout_milli=10000)
+
         op = operator.Operator(bft_network.config, client,  bft_network.builddir)
         test_config = 'new_configuration_n_4_f_1_c_0'
         stopped_replicas = {4, 5, 6}
@@ -1467,7 +1477,7 @@ class SkvbcReconfigurationTest(ApolloTest):
         for i in range(100):
             await skvbc.send_write_kv_set()
         client = bft_network.random_client()
-        client.config._replace(req_timeout_milli=10000)
+
         op = operator.Operator(bft_network.config, client,  bft_network.builddir)
         test_config = 'new_configuration_n_7_f_2_c_0'
         await op.add_remove_with_wedge(test_config, bft=False, restart=False)
@@ -1532,7 +1542,7 @@ class SkvbcReconfigurationTest(ApolloTest):
                 for i in range(601):
                     await skvbc.send_write_kv_set()
                 client = bft_network.random_client()
-                client.config._replace(req_timeout_milli=10000)
+
                 op = operator.Operator(bft_network.config, client,  bft_network.builddir)
                 test_config = 'new_configuration_n_7_f_2_c_0'
                 await op.add_remove_with_wedge(test_config, bft=True, restart=False)
@@ -1657,7 +1667,7 @@ class SkvbcReconfigurationTest(ApolloTest):
             await skvbc.send_write_kv_set()
         key, val = await skvbc.send_write_kv_set()
         client = bft_network.random_client()
-        client.config._replace(req_timeout_milli=10000)
+
         op = operator.Operator(bft_network.config, client,  bft_network.builddir)
         test_config = 'new_configuration_1'
         await op.add_remove_with_wedge(test_config, bft=False, restart=False)
@@ -1702,7 +1712,7 @@ class SkvbcReconfigurationTest(ApolloTest):
         bft_network.stop_replica(ro_replica_id)
         test_config = 'new_configuration_2'
         client = bft_network.random_client()
-        client.config._replace(req_timeout_milli=10000)
+
         op = operator.Operator(bft_network.config, client,  bft_network.builddir)
         await op.add_remove_with_wedge(test_config, bft=False, restart=False)
         await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=True)
@@ -1752,7 +1762,7 @@ class SkvbcReconfigurationTest(ApolloTest):
             await skvbc.send_write_kv_set()
         key, val = await skvbc.send_write_kv_set()
         client = bft_network.random_client()
-        client.config._replace(req_timeout_milli=10000)
+
         version = 'version1'
         op = operator.Operator(bft_network.config, client,  bft_network.builddir)
         await op.install_cmd(version, bft=False)
@@ -1784,7 +1794,7 @@ class SkvbcReconfigurationTest(ApolloTest):
     async def try_to_unwedge(self, bft_network, bft, restart, quorum=None):
         with trio.fail_after(seconds=60):
             client = bft_network.random_client()
-            client.config._replace(req_timeout_milli=10000)
+
             op = operator.Operator(bft_network.config, client,  bft_network.builddir)
             while True:
                 try:
@@ -1800,7 +1810,7 @@ class SkvbcReconfigurationTest(ApolloTest):
         with log.start_action(action_type="validate_stop_on_stable_checkpoint") as action:
             with trio.fail_after(seconds=90):
                 client = bft_network.random_client()
-                client.config._replace(req_timeout_milli=10000)
+
                 op = operator.Operator(bft_network.config, client,  bft_network.builddir)
                 done = False
                 quorum = None if fullWedge is True else bft_client.MofNQuorum.LinearizableQuorum(bft_network.config, [r.id for r in bft_network.replicas])
@@ -1825,7 +1835,7 @@ class SkvbcReconfigurationTest(ApolloTest):
         with log.start_action(action_type="validate_start_on_unwedge") as action:
             with trio.fail_after(seconds=90):
                 client = bft_network.random_client()
-                client.config._replace(req_timeout_milli=10000)
+
                 op = operator.Operator(bft_network.config, client,  bft_network.builddir)
                 done = False
                 quorum = None if fullWedge is True else bft_client.MofNQuorum.LinearizableQuorum(bft_network.config, [r.id for r in bft_network.replicas])

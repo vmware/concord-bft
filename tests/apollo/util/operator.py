@@ -30,6 +30,7 @@ class Operator:
     def __init__(self, config, client, priv_key_dir):
         self.config = config
         self.client = client
+        self.client.config._replace(req_timeout_milli=10000)
         with open(priv_key_dir + "/operator_priv.pem") as f:
             self.private_key = SigningKey.from_pem(f.read(), hashlib.sha256)
 
