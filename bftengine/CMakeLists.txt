@@ -69,6 +69,8 @@ set(corebft_source_files
     src/bftengine/TimeServiceResPageClient.cpp
     src/bftengine/DbCheckpointManager.cpp
     src/bftengine/ReplicaSpecificInfoManager.cpp
+        src/bftengine/BftExecutionEngineBase.cpp
+    src/bftengine/BftExecutionEngineFactory.cpp
     ../ccron/src/ticks_generator.cpp
     ../ccron/src/periodic_action.cpp
     ../ccron/src/cron_table.cpp
