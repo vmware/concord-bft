@@ -43,6 +43,7 @@
 #include "FakeClock.hpp"
 #include <ccron/ticks_generator.hpp>
 #include "EpochManager.hpp"
+#include "BftExecutionEngineBase.hpp"
 #include "PerfMetrics.hpp"
 
 namespace preprocessor {
@@ -162,6 +163,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   bool startedExecution = false;
   concord::util::SimpleThreadPool postExecThread_;
 
+  SeqNum lastCollectedSn = 0;
   // bounded log used to store information about SeqNums in the range (lastStableSeqNum,lastStableSeqNum +
   // kWorkWindowSize]
   typedef SequenceWithActiveWindow<kWorkWindowSize, 1, SeqNum, SeqNumInfo, SeqNumInfo, 1, false> WindowOfSeqNumInfo;
@@ -213,6 +215,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   concordUtil::Timers::Handle statusReportTimer_;
   concordUtil::Timers::Handle viewChangeTimer_;
   concordUtil::Timers::Handle clientRequestsRetransmissionTimer_;
+  concordUtil::Timers::Handle startExecutionTimer_;
 
   int viewChangeTimerMilli = 0;
   int autoPrimaryRotationTimerMilli = 0;
@@ -221,6 +224,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   bool recoveringFromExecutionOfRequests = false;
   Bitmap mapOfRecoveredRequests;
+  std::vector<std::pair<bool, Bitmap>> vectorMapOfRecoveredRequests;
   ConsensusTickRep recoveredTime = 0;
 
   shared_ptr<concord::performance::PerformanceManager> pm_;
@@ -320,6 +324,14 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   RollingAvgAndVar accumulating_batch_time_;
   Time time_to_collect_batch_ = MinTime;
 
+  std::unique_ptr<BftExecutionEngineBase> main_execution_engine_;
+  std::unique_ptr<BftExecutionEngineBase> skip_execution_engine_;
+
+  void initExecutionEngines();
+  void finalizePPExecution(PrePrepareMsg*);
+  void sendWedgeCommandIfNeeded();
+  void sendClientReplies(IRequestsHandler::ExecutionRequestsQueue& reqs);
+
  public:
   ReplicaImp(const ReplicaConfig&,
              shared_ptr<IRequestsHandler>,
@@ -414,6 +426,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
                                    bool recoverFromErrorInRequestsExecution);
   void tryToStartOrFinishExecution(bool requestMissingInfo = false);
   void startExecution(SeqNum seqNumber, concordUtils::SpanWrapper& parent_span, bool requestMissingInfo);
+  void startExecution();
   void pushDeferredMessage(MessageBase*);
 
  protected:
@@ -514,8 +527,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void sendCommitPartial(SeqNum);  // TODO(GG): the argument should be a ref to SeqNumInfo
 
   void executeReadOnlyRequest(concordUtils::SpanWrapper& parent_span, ClientRequestMsg* m);
-
-  /// Single threaded execution only
+  std::vector<PrePrepareMsg*> collectPrePrepares(concordUtils::SpanWrapper& parent_span, bool requestMissingInfo);
   void executeNextCommittedRequests(concordUtils::SpanWrapper& parent_span, bool requestMissingInfo = false);
 
   void executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper& parent_span,
@@ -744,9 +756,9 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   concord::util::CallbackRegistry<SeqNum> onSeqNumIsStableCallbacks_;
 
 #ifdef USE_FAKE_CLOCK_IN_TS
-  std::optional<TimeServiceManager<concord::util::FakeClock>> time_service_manager_;
+  std::shared_ptr<TimeServiceManager<concord::util::FakeClock>> time_service_manager_;
 #else
-  std::optional<TimeServiceManager<std::chrono::system_clock>> time_service_manager_;
+  std::shared_ptr<TimeServiceManager<std::chrono::system_clock>> time_service_manager_;
 #endif
 };  // namespace bftEngine::impl
 

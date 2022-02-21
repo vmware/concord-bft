@@ -63,6 +63,7 @@
 #include "RequestThreadPool.hpp"
 #include "DbCheckpointManager.hpp"
 #include "communication/StateControl.hpp"
+#include "BftExecutionEngineFactory.hpp"
 
 #define getName(var) #var
 
@@ -299,7 +300,7 @@ void ReplicaImp::asyncValidateMessage(MSG *msg) {
           }
         },
         msg,
-        repsInfo,
+        repsInfo.get(),
         &(getIncomingMsgsStorage()));
   } catch (std::out_of_range &ex) {
     LOG_ERROR(GL, "The request threadpool selector is selecting some non-existent threadpool");
@@ -341,7 +342,7 @@ void ReplicaImp::validatePrePrepareMsg(PrePrepareMsg *&ppm) {
           }
         },
         ppm,
-        repsInfo,
+        repsInfo.get(),
         &(getIncomingMsgsStorage()),
         getCurrentView());
   } catch (std::out_of_range &ex) {
@@ -378,7 +379,7 @@ void ReplicaImp::onReportAboutInvalidMessage(MessageBase *msg, const char *reaso
 
 template <>
 void ReplicaImp::onMessage<StateTransferMsg>(StateTransferMsg *m) {
-  if (activeExecutions_ > 0) {
+  if (main_execution_engine_->isExecuting()) {
     pushDeferredMessage(m);
     return;
   } else {
@@ -439,7 +440,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   }
 
   if (readOnly) {
-    if (activeExecutions_ > 0) {
+    if (main_execution_engine_->isExecuting()) {
       if (deferredRORequests_.size() < maxQueueSize_) {
         deferredRORequests_.push_back(
             m);  // We should handle span and deleting the message when we handle the deferred message
@@ -454,8 +455,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
     return;
   }
 
-  if ((isCurrentPrimary() && isSeqNumToStopAt(primaryLastUsedSeqNum + 1)) ||
-      isSeqNumToStopAt(lastExecutedSeqNum + activeExecutions_ + 1)) {
+  if (isCurrentPrimary() && isSeqNumToStopAt(primaryLastUsedSeqNum + 1)) {
     LOG_INFO(CNSUS,
              "Ignoring ClientRequest because system is stopped at checkpoint pending control state operation (upgrade, "
              "etc...)");
@@ -535,7 +535,7 @@ void ReplicaImp::onMessage<preprocessor::PreProcessResultMsg>(preprocessor::PreP
 
 template <>
 void ReplicaImp::onMessage<ReplicaAsksToLeaveViewMsg>(ReplicaAsksToLeaveViewMsg *m) {
-  if (activeExecutions_ > 0) {
+  if (main_execution_engine_->isExecuting()) {
     pushDeferredMessage(m);
     return;
   }
@@ -584,18 +584,17 @@ bool ReplicaImp::checkSendPrePrepareMsgPrerequisites() {
     return false;
   }
 
-  if (primaryLastUsedSeqNum + numOfTransientPreprepareMsgs_ + 1 >
-      lastExecutedSeqNum + config_.getconcurrencyLevel() + activeExecutions_) {
+  if (primaryLastUsedSeqNum + numOfTransientPreprepareMsgs_ + 1 > lastExecutedSeqNum + config_.getconcurrencyLevel()) {
     LOG_INFO(GL,
              "Will not send PrePrepare since next sequence number ["
                  << primaryLastUsedSeqNum + numOfTransientPreprepareMsgs_ + 1 << "] exceeds concurrency threshold ["
-                 << lastExecutedSeqNum + config_.getconcurrencyLevel() + activeExecutions_ << "]");
+                 << lastExecutedSeqNum + config_.getconcurrencyLevel() << "]");
     return false;
   }
   metric_concurrency_level_.Get().Set(primaryLastUsedSeqNum + numOfTransientPreprepareMsgs_ + 1 - lastExecutedSeqNum);
-  ConcordAssertGE(primaryLastUsedSeqNum, lastExecutedSeqNum + activeExecutions_);
+  ConcordAssertGE(primaryLastUsedSeqNum, lastExecutedSeqNum);
   // Because maxConcurrentAgreementsByPrimary <  MaxConcurrentFastPaths
-  ConcordAssertLE((primaryLastUsedSeqNum + 1), lastExecutedSeqNum + MaxConcurrentFastPaths + activeExecutions_);
+  ConcordAssertLE((primaryLastUsedSeqNum + 1), lastExecutedSeqNum + MaxConcurrentFastPaths);
 
   if (requestsQueueOfPrimary.empty()) LOG_DEBUG(GL, "requestsQueueOfPrimary is empty");
 
@@ -1153,7 +1152,7 @@ void ReplicaImp::tryToStartSlowPaths() {
     return;  // TODO(GG): consider to stop the related timer when this method is not needed (to avoid useless
   // invocations)
 
-  const SeqNum minSeqNum = lastExecutedSeqNum + activeExecutions_ + 1;
+  const SeqNum minSeqNum = lastExecutedSeqNum + 1;
   SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
 
   if (minSeqNum > lastStableSeqNum + kWorkWindowSize) {
@@ -1233,7 +1232,7 @@ void ReplicaImp::tryToAskForMissingInfo() {
   const int16_t searchWindow = 32;  // TODO(GG): TBD - read from configuration
 
   if (!recentViewChange) {
-    minSeqNum = lastExecutedSeqNum + activeExecutions_ + 1;
+    minSeqNum = lastExecutedSeqNum + 1;
     maxSeqNum = std::min(minSeqNum + searchWindow - 1, lastStableSeqNum + kWorkWindowSize);
   } else {
     minSeqNum = lastStableSeqNum + 1;
@@ -1454,7 +1453,7 @@ void ReplicaImp::onMessage<PartialCommitProofMsg>(PartialCommitProofMsg *msg) {
   if (relevantMsgForActiveView(msg)) {
     sendAckIfNeeded(msg, msgSender, msgSeqNum);
 
-    if (msgSeqNum > lastExecutedSeqNum + activeExecutions_) {
+    if (msgSeqNum > lastExecutedSeqNum) {
       SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
 
       if (seqNumInfo.addFastPathPartialCommitMsg(msg)) {
@@ -1522,7 +1521,9 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
 
   if (auto *t = std::get_if<FinishPrePrepareExecutionInternalMsg>(&msg)) {
     ConcordAssert(t->prePrepareMsg != nullptr);
-    return finishExecutePrePrepareMsg(t->prePrepareMsg, t->pAccumulatedRequests);
+    t->registry.invokeAll(t->prePrepareMsg, *(t->pAccumulatedRequests));
+    delete t->pAccumulatedRequests;
+    return;
   }
 
   if (auto *rpferMsg = std::get_if<RemovePendingForExecutionRequest>(&msg)) {
@@ -2089,13 +2090,12 @@ void ReplicaImp::onCommitCombinedSigSucceeded(SeqNum seqNumber,
 
   ConcordAssert(seqNumInfo.isCommitted__gg());
 
-  bool askForMissingInfoAboutCommittedItems =
-      (seqNumber > lastExecutedSeqNum + config_.getconcurrencyLevel() + activeExecutions_);
-
   auto span = concordUtils::startChildSpanFromContext(
       commitFull->spanContext<std::remove_pointer<decltype(commitFull)>::type>(), "bft_execute_committed_reqs");
   updateCommitMetrics(CommitPath::SLOW);
-  startExecution(seqNumber, span, askForMissingInfoAboutCommittedItems);
+  metric_total_committed_sn_++;
+  consensus_times_.end(seqNumber);
+  startExecution();
 }
 
 void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) {
@@ -2141,10 +2141,10 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view,
 
   auto span = concordUtils::startChildSpanFromContext(
       commitFull->spanContext<std::remove_pointer<decltype(commitFull)>::type>(), "bft_execute_committed_reqs");
-  bool askForMissingInfoAboutCommittedItems =
-      (seqNumber > lastExecutedSeqNum + config_.getconcurrencyLevel() + activeExecutions_);
   updateCommitMetrics(CommitPath::SLOW);
-  startExecution(seqNumber, span, askForMissingInfoAboutCommittedItems);
+  metric_total_committed_sn_++;
+  consensus_times_.end(seqNumber);
+  startExecution();
 }
 
 void ReplicaImp::onFastPathCommitCombinedSigSucceeded(SeqNum seqNumber,
@@ -2194,17 +2194,14 @@ void ReplicaImp::onFastPathCommitCombinedSigSucceeded(SeqNum seqNumber,
   ConcordAssert(fcp->senderId() == config_.getreplicaId());
   sendToAllOtherReplicas(fcp);
 
-  const bool askForMissingInfoAboutCommittedItems =
-      (seqNumber >
-       lastExecutedSeqNum + config_.getconcurrencyLevel() + activeExecutions_);  // TODO(GG): check/improve this logic
-
   auto span = concordUtils::startChildSpanFromContext(fcp->spanContext<std::remove_pointer<decltype(fcp)>::type>(),
                                                       "bft_execute_committed_reqs");
 
   updateCommitMetrics(cPath);
 
   pm_->Delay<concord::performance::SlowdownPhase::ConsensusFullCommitMsgProcess>();
-  startExecution(seqNumber, span, askForMissingInfoAboutCommittedItems);
+  consensus_times_.end(seqNumber);
+  startExecution();
 }
 
 void ReplicaImp::onFastPathCommitVerifyCombinedSigResult(SeqNum seqNumber,
@@ -2259,22 +2256,19 @@ void ReplicaImp::onFastPathCommitVerifyCombinedSigResult(SeqNum seqNumber,
   // We've received a full commit proof from a collector - don't send to other replicas
   ConcordAssert(fcp->senderId() != config_.getreplicaId());
 
-  const bool askForMissingInfoAboutCommittedItems =
-      (seqNumber >
-       lastExecutedSeqNum + config_.getconcurrencyLevel() + activeExecutions_);  // TODO(GG): check/improve this logic
-
   auto span = concordUtils::startChildSpanFromContext(fcp->spanContext<std::remove_pointer<decltype(fcp)>::type>(),
                                                       "bft_execute_committed_reqs");
 
   updateCommitMetrics(cPath);
 
   pm_->Delay<concord::performance::SlowdownPhase::ConsensusFullCommitMsgProcess>();
-  startExecution(seqNumber, span, askForMissingInfoAboutCommittedItems);
+  consensus_times_.end(seqNumber);
+  startExecution();
 }
 
 template <>
 void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
-  if (activeExecutions_ > 0) {
+  if (main_execution_engine_->isExecuting()) {
     pushDeferredMessage(msg);
     return;
   }
@@ -2331,8 +2325,8 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
 
   bool askForStateTransfer = false;
 
-  if (msgIsStable && ((msgEpochNum == getSelfEpochNumber() && msgSeqNum > lastExecutedSeqNum + activeExecutions_) ||
-                      msgEpochNum > getSelfEpochNumber())) {
+  if (msgIsStable &&
+      ((msgEpochNum == getSelfEpochNumber() && msgSeqNum > lastExecutedSeqNum) || msgEpochNum > getSelfEpochNumber())) {
     auto pos = tableOfStableCheckpoints.find(msgGenReplicaId);
     if (pos == tableOfStableCheckpoints.end() || pos->second->seqNumber() <= msgSeqNum ||
         msgEpochNum >= pos->second->epochNumber()) {
@@ -2397,7 +2391,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   }
 
   if (askForStateTransfer && !stateTransfer->isCollectingState()) {
-    if (activeExecutions_ > 0)
+    if (main_execution_engine_->isExecuting())
       isStartCollectingState_ = true;
     else {
       LOG_INFO(GL, "Call to startCollectingState()");
@@ -2436,6 +2430,28 @@ void ReplicaImp::onMessage<AskForCheckpointMsg>(AskForCheckpointMsg *msg) {
 
     send(checkpointMsg, m->senderId());
   }
+}
+
+void ReplicaImp::startExecution() {
+  if (bftEngine::ControlStateManager::instance().getPruningProcessStatus()) {
+    return;
+  }
+  if (lastCollectedSn % checkpointWindowSize == 0 && main_execution_engine_->isExecuting()) {
+    LOG_INFO(GL, "we must wait for the latest checkpoint creation to finish before continue executing");
+    return;
+  }
+
+  if (!deferredMessages_.empty() || !deferredRORequests_.empty()) {
+    LOG_INFO(GL, "prioritize deferred messages on top of executions");
+    return;
+  }
+  concordUtils::SpanWrapper span;
+  auto pps = collectPrePrepares(span, true);
+  for (auto pp : pps) tryToRemovePendingRequestsForSeqNum(pp->seqNumber());
+  if (pps.empty()) return;
+  LOG_INFO(CNSUS, "Start execution");
+  skip_execution_engine_->addExecutions(pps);
+  main_execution_engine_->addExecutions(pps);
 }
 
 void ReplicaImp::startExecution(SeqNum seqNumber,
@@ -2869,7 +2885,7 @@ void ReplicaImp::tryToSendStatusReport(bool onTimer) {
   }
 
   // Fill missing pre-prepare and view change messages.
-  viewsManager->fillPropertiesOfStatusMessage(msg, repsInfo, lastStableSeqNum);
+  viewsManager->fillPropertiesOfStatusMessage(msg, repsInfo.get(), lastStableSeqNum);
 
   sendToAllOtherReplicas(&msg);
   if (!onTimer) metric_sent_status_msgs_not_due_timer_++;
@@ -2882,7 +2898,7 @@ void ReplicaImp::onMessage<ViewChangeMsg>(ViewChangeMsg *msg) {
     delete msg;
     return;
   }
-  if (activeExecutions_ > 0) {
+  if (main_execution_engine_->isExecuting()) {
     pushDeferredMessage(msg);
     return;
   }
@@ -2903,7 +2919,7 @@ void ReplicaImp::onMessage<ViewChangeMsg>(ViewChangeMsg *msg) {
   viewsManager->processComplaintsFromViewChangeMessage(msg, getMessageValidator());
 
   if (viewsManager->hasQuorumToLeaveView()) {
-    if (activeExecutions_ > 0)
+    if (main_execution_engine_->isExecuting())
       shouldGoToNextView_ = true;
     else
       goToNextView();
@@ -2960,7 +2976,7 @@ void ReplicaImp::onMessage<NewViewMsg>(NewViewMsg *msg) {
     delete msg;
     return;
   }
-  if (activeExecutions_ > 0) {
+  if (main_execution_engine_->isExecuting()) {
     pushDeferredMessage(msg);
     return;
   }
@@ -3072,7 +3088,7 @@ void ReplicaImp::goToNextView() {
 
 bool ReplicaImp::tryToEnterView() {
   ConcordAssert(!currentViewIsActive());
-  ConcordAssertEQ(activeExecutions_, 0);
+  ConcordAssertEQ(main_execution_engine_->isExecuting(), false);
   std::vector<PrePrepareMsg *> prePreparesForNewView;
 
   bool enteredView =
@@ -3275,7 +3291,7 @@ void ReplicaImp::sendCheckpointIfNeeded() {
     sendToAllOtherReplicas(checkpointMessage, true);
     return;
   }
-  if (activeExecutions_ > 0)
+  if (main_execution_engine_->isExecuting())
     isSendCheckpointIfNeeded_ =
         true;  // if we defer the part of marking stable for fast path after that when we handle the deferred part we
                // want to run the all sendCheckpointIfNeeded method to verify if its even relevant now
@@ -3287,7 +3303,7 @@ void ReplicaImp::sendCheckpointIfNeeded() {
 void ReplicaImp::tryToMarkCheckpointStableForFastPath(const SeqNum &lastCheckpointNumber,
                                                       CheckpointInfo<> &checkInfo,
                                                       CheckpointMsg *checkpointMessage) {
-  ConcordAssertEQ(activeExecutions_, 0);
+  ConcordAssertEQ(main_execution_engine_->isExecuting(), false);
   const SeqNum refSeqNumberForCheckpoint = lastCheckpointNumber + MaxConcurrentFastPaths;
   if (lastExecutedSeqNum < refSeqNumberForCheckpoint) return;
 
@@ -3313,7 +3329,7 @@ void ReplicaImp::tryToMarkCheckpointStableForFastPath(const SeqNum &lastCheckpoi
 }
 
 void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
-  ConcordAssertEQ(activeExecutions_, 0);
+  ConcordAssertEQ(main_execution_engine_->isExecuting(), false);
   SCOPED_MDC_SEQ_NUM(std::to_string(getCurrentView()));
   TimeRecorder scoped_timer(*histograms_.onTransferringCompleteImp);
   time_in_state_transfer_.end();
@@ -3333,6 +3349,7 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
     return;
   }
   lastExecutedSeqNum = newCheckpointSeqNum;
+  lastCollectedSn = lastExecutedSeqNum;
   if (ps_) ps_->setLastExecutedSeqNum(lastExecutedSeqNum);
   if (config_.getdebugStatisticsEnabled()) {
     DebugStatistics::onLastExecutedSequenceNumberChanged(lastExecutedSeqNum);
@@ -3392,8 +3409,8 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
 }
 
 void ReplicaImp::onSeqNumIsSuperStable(SeqNum superStableSeqNum) {
-  ConcordAssertEQ(activeExecutions_,
-                  0);  // We shouldn't have active executions when checking if sequence number is super stable
+  ConcordAssertEQ(main_execution_engine_->isExecuting(),
+                  false);  // We shouldn't have active executions when checking if sequence number is super stable
   if (lastSuperStableSeqNum >= superStableSeqNum) return;
   lastSuperStableSeqNum = superStableSeqNum;
   auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
@@ -3407,8 +3424,8 @@ void ReplicaImp::onSeqNumIsSuperStable(SeqNum superStableSeqNum) {
 }
 
 void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformation, bool oldSeqNum) {
-  ConcordAssertEQ(activeExecutions_,
-                  0);  // We shouldn't have active executions when checking if sequence number is stable
+  ConcordAssertEQ(main_execution_engine_->isExecuting(),
+                  false);  // We shouldn't have active executions when checking if sequence number is stable
   ConcordAssertOR(hasStateInformation, oldSeqNum);  // !hasStateInformation ==> oldSeqNum
   ConcordAssertEQ(newStableSeqNum % checkpointWindowSize, 0);
 
@@ -3737,7 +3754,7 @@ void ReplicaImp::askToLeaveView(ReplicaAsksToLeaveViewMsg::Reason reasonToLeave)
   viewsManager->storeComplaint(std::move(askToLeaveView));
   metric_sent_replica_asks_to_leave_view_msg_++;
 
-  if (activeExecutions_ > 0)
+  if (main_execution_engine_->isExecuting())
     shouldTryToGoToNextView_ = true;
   else
     tryToGoToNextView();
@@ -3767,7 +3784,7 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
       LOG_INFO(VC_LOG,
                "Initiate automatic view change in view=" << getCurrentView() << " (" << diffMilli
                                                          << " milli seconds after start working in the previous view)");
-      if (activeExecutions_ > 0)
+      if (main_execution_engine_->isExecuting())
         shouldGoToNextView_ = true;
       else
         goToNextView();
@@ -3952,6 +3969,271 @@ void ReplicaImp::onReportAboutLateReplica(ReplicaId reportedReplica, SeqNum seqN
   tryToSendStatusReport();
 }
 
+void ReplicaImp::finalizePPExecution(PrePrepareMsg *ppMsg) {
+  main_execution_engine_->onExecutionComplete(ppMsg->seqNumber());
+  uint64_t checkpointNum{};
+  auto currExecutedSeqNum = ppMsg->seqNumber();
+  if (lastExecutedSeqNum + 1 != currExecutedSeqNum) {
+    LOG_FATAL(GL, KVLOG(lastExecutedSeqNum + 1, currExecutedSeqNum));
+  }
+  if ((currExecutedSeqNum) % checkpointWindowSize == 0) {
+    checkpointNum = (currExecutedSeqNum) / checkpointWindowSize;
+    stateTransfer->createCheckpointOfCurrentState(checkpointNum);
+    checkpoint_times_.start(currExecutedSeqNum - 1);
+  }
+
+  LOG_INFO(CNSUS, "Finalized execution. " << KVLOG(currExecutedSeqNum, getCurrentView(), lastStableSeqNum));
+
+  if (ps_) {
+    ps_->beginWriteTran();
+    ps_->setIsExecutedInSeqNumWindow(currExecutedSeqNum, false);
+    auto ticks = config_.timeServiceEnabled ? time_service_manager_->getTime().count() : 0;
+    DescriptorOfLastExecution execDesc{ppMsg->seqNumber(), Bitmap{}, ticks};
+    ps_->setDescriptorOfLastExecution(execDesc);
+    ps_->setLastExecutedSeqNum(currExecutedSeqNum);
+  }
+
+  lastExecutedSeqNum = currExecutedSeqNum;
+
+  if (config_.getdebugStatisticsEnabled()) {
+    DebugStatistics::onLastExecutedSequenceNumberChanged(lastExecutedSeqNum);
+  }
+  if (lastViewThatTransferredSeqNumbersFullyExecuted < getCurrentView() &&
+      (lastExecutedSeqNum >= maxSeqNumTransferredFromPrevViews)) {
+    // we store the old value of the seqNum column so we can return to it after logging the view number
+    auto mdcSeqNum = MDC_GET(MDC_SEQ_NUM_KEY);
+    MDC_PUT(MDC_SEQ_NUM_KEY, std::to_string(getCurrentView()));
+
+    LOG_INFO(VC_LOG,
+             "Rebuilding of previous View's Working Window complete. "
+                 << KVLOG(getCurrentView(),
+                          lastViewThatTransferredSeqNumbersFullyExecuted,
+                          lastExecutedSeqNum,
+                          maxSeqNumTransferredFromPrevViews));
+    lastViewThatTransferredSeqNumbersFullyExecuted = getCurrentView();
+    MDC_PUT(MDC_SEQ_NUM_KEY, mdcSeqNum);
+    if (ps_) {
+      ps_->setLastViewThatTransferredSeqNumbersFullyExecuted(lastViewThatTransferredSeqNumbersFullyExecuted);
+    }
+  }
+
+  if (lastExecutedSeqNum % checkpointWindowSize == 0) {
+    // Load the epoch to the reserved pages
+    auto epoch = bftEngine::EpochManager::instance().getSelfEpochNumber();
+    bftEngine::EpochManager::instance().setSelfEpochNumber(epoch);
+    bftEngine::EpochManager::instance().setGlobalEpochNumber(epoch);
+    Digest stateDigest;
+    Digest otherDigest;
+    CheckpointMsg::State state;
+    const uint64_t checkpointNum = lastExecutedSeqNum / checkpointWindowSize;
+    stateTransfer->getDigestOfCheckpoint(
+        checkpointNum, sizeof(Digest), state, (char *)&stateDigest, (char *)&otherDigest);
+    CheckpointMsg *checkMsg =
+        new CheckpointMsg(config_.getreplicaId(), lastExecutedSeqNum, state, stateDigest, otherDigest, false);
+    checkMsg->sign();
+    auto &checkInfo = checkpointsLog->get(lastExecutedSeqNum);
+    checkInfo.addCheckpointMsg(checkMsg, config_.getreplicaId());
+
+    if (ps_) ps_->setCheckpointMsgInCheckWindow(lastExecutedSeqNum, checkMsg);
+
+    if (checkInfo.isCheckpointCertificateComplete()) {
+      onSeqNumIsStable(lastExecutedSeqNum);
+    }
+    checkInfo.setSelfExecutionTime(getMonotonicTime());
+    if (checkInfo.isCheckpointSuperStable()) {
+      onSeqNumIsSuperStable(lastStableSeqNum);
+    }
+
+    CryptoManager::instance().onCheckpoint(checkpointNum);
+  }
+  if (ps_) ps_->endWriteTran(config_.getsyncOnUpdateOfMetadata());
+  sendCheckpointIfNeeded();
+
+  bool firstCommitPathChanged = controller->onNewSeqNumberExecution(lastExecutedSeqNum);
+
+  if (firstCommitPathChanged) {
+    metric_first_commit_path_.Get().Set(CommitPathToStr(controller->getCurrentFirstPath()));
+  }
+  // TODO(GG): clean the following logic
+  if (mainLog->insideActiveWindow(lastExecutedSeqNum)) {  // update dynamicUpperLimitOfRounds
+    const SeqNumInfo &seqNumInfo = mainLog->get(lastExecutedSeqNum);
+    const Time firstInfo = seqNumInfo.getTimeOfFirstRelevantInfoFromPrimary();
+    const Time currTime = getMonotonicTime();
+    if ((firstInfo < currTime)) {
+      const int64_t durationMilli = duration_cast<milliseconds>(currTime - firstInfo).count();
+      dynamicUpperLimitOfRounds->add(durationMilli);
+    }
+  }
+
+  if (config_.getdebugStatisticsEnabled()) {
+    DebugStatistics::onRequestCompleted(false);
+  }
+}
+
+void ReplicaImp::sendClientReplies(IRequestsHandler::ExecutionRequestsQueue &reqs) {
+  for (auto &req : reqs) {
+    clientsManager->removePendingForExecutionRequest(req.clientId, req.requestSequenceNum);
+    if (clientsManager->hasReply(req.clientId, req.requestSequenceNum)) {
+      auto replyMsg = clientsManager->allocateReplyFromSavedOne(req.clientId, req.requestSequenceNum, currentPrimary());
+      if (replyMsg) {
+        send((MessageBase *)replyMsg.get(), req.clientId);
+        continue;
+      }
+      ConcordAssert(replyMsg != nullptr);
+    }
+    auto executionResult = req.outExecutionStatus;
+    std::unique_ptr<ClientReplyMsg> replyMsg;
+
+    if (executionResult != 0) {
+      LOG_WARN(CNSUS,
+               "Request execution failed: " << KVLOG(req.clientId, req.requestSequenceNum, req.executionSequenceNum));
+    } else {
+      if (req.flags & HAS_PRE_PROCESSED_FLAG) metric_total_preexec_requests_executed_++;
+      if (req.outActualReplySize != 0) {
+        replyMsg = clientsManager->allocateNewReplyMsgAndWriteToStorage(req.clientId,
+                                                                        req.requestSequenceNum,
+                                                                        currentPrimary(),
+                                                                        req.outReply,
+                                                                        req.outActualReplySize,
+                                                                        req.outReplicaSpecificInfoSize,
+                                                                        executionResult);
+        send((MessageBase *)replyMsg.get(), req.clientId);
+        free(req.outReply);
+        req.outReply = nullptr;
+        clientsManager->removePendingForExecutionRequest(req.clientId, req.requestSequenceNum);
+        continue;
+      } else {
+        LOG_WARN(
+            CNSUS,
+            "Received zero size response." << KVLOG(req.clientId, req.requestSequenceNum, req.executionSequenceNum));
+        strcpy(req.outReply, "Executed data is empty");
+        req.outActualReplySize = strlen(req.outReply);
+        executionResult = static_cast<uint32_t>(bftEngine::OperationResult::EXEC_DATA_EMPTY);
+      }
+    }
+
+    replyMsg = clientsManager->allocateNewReplyMsgAndWriteToStorage(req.clientId,
+                                                                    req.requestSequenceNum,
+                                                                    currentPrimary(),
+                                                                    req.outReply,
+                                                                    req.outActualReplySize,
+                                                                    0,
+                                                                    executionResult);
+    send((MessageBase *)replyMsg.get(), req.clientId);
+    free(req.outReply);
+    req.outReply = nullptr;
+    clientsManager->removePendingForExecutionRequest(req.clientId, req.requestSequenceNum);
+  }
+}
+void ReplicaImp::sendWedgeCommandIfNeeded() {
+  auto seqNumToStopAt = ControlStateManager::instance().getCheckpointToStopAt();
+  if (seqNumToStopAt.value_or(0) == lastExecutedSeqNum) ControlStateManager::instance().wedge();
+  if (seqNumToStopAt.has_value() && seqNumToStopAt.value() > lastExecutedSeqNum && isCurrentPrimary()) {
+    // If after execution, we discover that we need to wedge at some futuer point, push a noop command to the incoming
+    // messages queue.
+    LOG_INFO(GL, "sending noop command to bring the system into wedge checkpoint");
+    concord::messages::ReconfigurationRequest req;
+    req.sender = config_.replicaId;
+    req.command = concord::messages::WedgeCommand{config_.replicaId, true};
+    // Mark this request as an internal one
+    std::vector<uint8_t> data_vec;
+    concord::messages::serialize(data_vec, req);
+    std::string sig(SigManager::instance()->getMySigLength(), '\0');
+    uint16_t sig_length{0};
+    SigManager::instance()->sign(reinterpret_cast<char *>(data_vec.data()), data_vec.size(), sig.data(), sig_length);
+    req.signature = std::vector<uint8_t>(sig.begin(), sig.end());
+    data_vec.clear();
+    concord::messages::serialize(data_vec, req);
+    std::string strMsg(data_vec.begin(), data_vec.end());
+    auto requestSeqNum =
+        std::chrono::duration_cast<std::chrono::microseconds>(getMonotonicTime().time_since_epoch()).count();
+    auto crm = new ClientRequestMsg(internalBFTClient_->getClientId(),
+                                    RECONFIG_FLAG,
+                                    requestSeqNum,
+                                    strMsg.size(),
+                                    strMsg.c_str(),
+                                    60000,
+                                    "wedge-noop-command-" + std::to_string(lastExecutedSeqNum + 1));
+    // Now, try to send a new PrePrepare message immediately, without waiting to a new batch
+    onMessage(crm);
+    tryToSendPrePrepareMsg(false);
+    if (ControlStateManager::instance().getCheckpointToStopAt().has_value() &&
+        lastExecutedSeqNum == ControlStateManager::instance().getCheckpointToStopAt()) {
+      // We are about to stop execution. To avoid VC we now clear all pending requests
+      clientsManager->clearAllPendingRequests();
+    }
+  }
+
+  // Sending noop commands to get the system to a stable checkpoint,
+  // allowing the create dbCheckpoint operator command to create a dbCheckpoint/snapshot.
+  if (getReplicaConfig().dbCheckpointFeatureEnabled && isCurrentPrimary()) {
+    const auto &seq_num_to_create_dbcheckpoint = DbCheckpointManager::instance().getNextStableSeqNumToCreateSnapshot();
+    if (seq_num_to_create_dbcheckpoint.has_value()) {
+      if (seq_num_to_create_dbcheckpoint.value() > (lastExecutedSeqNum)) {
+        DbCheckpointManager::instance().sendInternalCreateDbCheckpointMsg(lastExecutedSeqNum + 1,
+                                                                          true);  // noop=true
+      } else {
+        onSeqNumIsStableCallbacks_.add([seq_num_to_create_dbcheckpoint](SeqNum seqNum) {
+          if (seqNum == seq_num_to_create_dbcheckpoint) {
+            DbCheckpointManager::instance().sendInternalCreateDbCheckpointMsg(seqNum, false);  // noop=false
+            LOG_INFO(GL,
+                     "sendInternalCreateDbCheckpointMsg with noop: false, "
+                         << KVLOG(seq_num_to_create_dbcheckpoint.value()));
+          }
+        });
+        DbCheckpointManager::instance().setNextStableSeqNumToCreateSnapshot(std::nullopt);
+      }
+      LOG_INFO(
+          GL,
+          "sendInternalCreateDbCheckpointMsg: " << KVLOG(lastExecutedSeqNum, seq_num_to_create_dbcheckpoint.value()));
+    }
+  }
+}
+void ReplicaImp::initExecutionEngines() {
+  BftExecutionEngineBase::ExecutionMetrics metrics{histograms_.numRequestsInPrePrepareMsg,
+                                                   histograms_.executeRequestsInPrePrepareMsg,
+                                                   histograms_.executeRequestsAndSendResponses,
+                                                   histograms_.executeWriteRequest};
+  skip_execution_engine_ =
+      BftExecutionEngineFactory::create(bftRequestsHandler_, clientsManager, repsInfo, ps_, time_service_manager_);
+  skip_execution_engine_->setMetrics(metrics);
+  skip_execution_engine_->addPostExecCallBack(
+      [&](PrePrepareMsg *ppMsg, IRequestsHandler::ExecutionRequestsQueue &reqs) { sendClientReplies(reqs); });
+  main_execution_engine_ =
+      BftExecutionEngineFactory::create(bftRequestsHandler_, clientsManager, repsInfo, ps_, time_service_manager_);
+  auto main_callback = [&](PrePrepareMsg *ppMsg, IRequestsHandler::ExecutionRequestsQueue &requests_for_execution) {
+    if (requests_for_execution.size() > 0) {
+      ps_->beginWriteTran();
+      bftRequestsHandler_->onFinishExecutingReadWriteRequests();
+      ps_->endWriteTran();
+    }
+    finalizePPExecution(ppMsg);
+    sendWedgeCommandIfNeeded();
+    if (isCurrentPrimary() && requestsQueueOfPrimary.size() > 0) tryToSendPrePrepareMsg(true);
+    sendClientReplies(requests_for_execution);
+    updateLimitsAndMetrics(ppMsg);
+  };
+  if (config_.enablePostExecutionSeparation) {
+    main_execution_engine_->addPostExecCallBack([&](PrePrepareMsg *ppMsg,
+                                                    IRequestsHandler::ExecutionRequestsQueue &reqs) {
+      IRequestsHandler::ExecutionRequestsQueue *requests = new IRequestsHandler::ExecutionRequestsQueue();
+      *requests = reqs;
+      FinishPrePrepareExecutionInternalMsg msg_{ppMsg, requests};
+      msg_.registry.add(main_callback);
+      msg_.registry.add([&](PrePrepareMsg *ppMsg, IRequestsHandler::ExecutionRequestsQueue &requests_for_execution) {
+        if (!main_execution_engine_->isExecuting()) handleDeferredRequests();
+        // Once we done with execution, lets try to run another phase of execution.
+        startExecution();
+      });
+      InternalMessage imsg;
+      imsg.emplace<FinishPrePrepareExecutionInternalMsg>(msg_);
+      getIncomingMsgsStorage().pushInternalMsg(std::move(imsg));
+    });
+  } else {
+    main_execution_engine_->addPostExecCallBack(main_callback);
+  }
+  main_execution_engine_->setMetrics(metrics);
+}
 ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
                        shared_ptr<IRequestsHandler> requestsHandler,
                        IStateTransfer *stateTrans,
@@ -4142,6 +4424,9 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
       }
 
       if (e.getForceCompleted()) seqNumInfo.forceComplete();
+      if (e.getIsExecuted()) ConcordAssert(e.getPrePrepareMsg()->seqNumber() > lastExecutedSeqNum);
+      vectorMapOfRecoveredRequests.push_back(std::make_pair<bool, Bitmap>(e.getIsExecuted(), e.getRequestsMap()));
+      if (e.getIsExecuted()) recoveringFromExecutionOfRequests = true;
     }
   }
 
@@ -4192,7 +4477,6 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
     }
     ConcordAssertLE(expectedValidRequests, pp->numberOfRequests());
 
-    recoveringFromExecutionOfRequests = true;
     mapOfRecoveredRequests = b;
     recoveredTime = ld.timeInTicks;
   }
@@ -4378,7 +4662,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
   metrics_.Register();
 
   if (firstTime) {
-    repsInfo = new ReplicasInfo(config_, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
+    repsInfo =
+        std::make_shared<ReplicasInfo>(config_, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
     sigManager_.reset(SigManager::init(config_.replicaId,
                                        config_.replicaPrivateKey,
                                        config_.publicKeysOfReplicas,
@@ -4386,9 +4671,9 @@ ReplicaImp::ReplicaImp(bool firstTime,
                                        ReplicaConfig::instance().getPublicKeysOfClients(),
                                        concord::util::crypto::KeyFormat::PemFormat,
                                        *repsInfo));
-    viewsManager = new ViewsManager(repsInfo);
+    viewsManager = new ViewsManager(repsInfo.get());
   } else {
-    repsInfo = replicasInfo;
+    repsInfo.reset(replicasInfo);
     sigManager_.reset(sigManager);
     viewsManager = viewsMgr;
   }
@@ -4487,7 +4772,6 @@ ReplicaImp::~ReplicaImp() {
   delete controller;
   delete dynamicUpperLimitOfRounds;
   delete checkpointsLog;
-  delete repsInfo;
   free(replyBuffer);
 
   for (auto it = tableOfStableCheckpoints.begin(); it != tableOfStableCheckpoints.end(); it++) {
@@ -4506,6 +4790,7 @@ void ReplicaImp::stop() {
   timers_.cancel(infoReqTimer_);
   timers_.cancel(statusReportTimer_);
   timers_.cancel(clientRequestsRetransmissionTimer_);
+  if (config_.enablePostExecutionSeparation) timers_.cancel(startExecutionTimer_);
   if (viewChangeProtocolEnabled) timers_.cancel(viewChangeTimer_);
   ReplicaForStateTransfer::stop();
 }
@@ -4554,6 +4839,14 @@ void ReplicaImp::addTimers() {
   infoReqTimer_ = timers_.add(milliseconds(dynamicUpperLimitOfRounds->upperLimit() / 2),
                               Timers::Timer::RECURRING,
                               [this](Timers::Handle h) { onInfoRequestTimer(h); });
+  if (config_.enablePostExecutionSeparation) {
+    startExecutionTimer_ = timers_.add(
+        milliseconds(dynamicUpperLimitOfRounds->upperLimit() / 2), Timers::Timer::RECURRING, [this](Timers::Handle h) {
+          if (!main_execution_engine_->isExecuting()) handleDeferredRequests();
+          if (!currentViewIsActive()) return;
+          startExecution();
+        });
+  }
 }
 
 void ReplicaImp::start() {
@@ -4563,12 +4856,19 @@ void ReplicaImp::start() {
   ReplicaForStateTransfer::start();
 
   if (config_.timeServiceEnabled) {
-    time_service_manager_.emplace(aggregator_);
+#ifdef USE_FAKE_CLOCK_IN_TS
+    time_service_manager_ = std::make_shared<TimeServiceManager<concord::util::FakeClock>>(aggregator_);
+#else
+    time_service_manager_ = std::make_shared<TimeServiceManager<std::chrono::system_clock>>(aggregator_);
+#endif
     LOG_INFO(GL, "Time Service enabled");
   }
 
   if (!firstTime_ || config_.getdebugPersistentStorageEnabled()) clientsManager->loadInfoFromReservedPages();
   addTimers();
+
+  initExecutionEngines();
+
   recoverRequests();
 
   // The following line will start the processing thread.
@@ -4590,16 +4890,21 @@ void ReplicaImp::recoverRequests() {
     if (config_.timeServiceEnabled) {
       time_service_manager_->recoverTime(recoveredTime);
     }
-    SeqNumInfo &seqNumInfo = mainLog->get(lastExecutedSeqNum + 1);
-    PrePrepareMsg *pp = seqNumInfo.getPrePrepareMsg();
-    ConcordAssertNE(pp, nullptr);
-    auto span = concordUtils::startSpan("bft_recover_requests_on_start");
-    SCOPED_MDC_SEQ_NUM(std::to_string(pp->seqNumber()));
-    const uint16_t numOfRequests = pp->numberOfRequests();
-    executeRequestsInPrePrepareMsg(span, pp, true);
-    metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
-    // TODO: check if these metric updates can be removed since the replica is started over
+    for (auto i = lastExecutedSeqNum + 1; i < mainLog->currentActiveWindow().second; i++) {
+      SeqNumInfo &seqNumInfo = mainLog->get(i);
+      PrePrepareMsg *pp = seqNumInfo.getPrePrepareMsg();
+      if (!pp) break;
+      auto span = concordUtils::startSpan("bft_recover_requests_on_start");
+      SCOPED_MDC_SEQ_NUM(std::to_string(pp->seqNumber()));
+      ConcordAssert(vectorMapOfRecoveredRequests[i].first);
     updateExecutedPathMetrics(seqNumInfo.slowPathStarted(), numOfRequests);
+      main_execution_engine_->setRequestsMap(vectorMapOfRecoveredRequests[i].second);
+      main_execution_engine_->addExecutions({pp});
+      // In case we run in the async mode, we still want to run this part synchronously
+      while (main_execution_engine_->isExecuting()) {
+      }
+    }
+    main_execution_engine_->setRequestsMap(Bitmap());
     recoveringFromExecutionOfRequests = false;
     mapOfRecoveredRequests = Bitmap();
   }
@@ -4690,7 +4995,7 @@ void ReplicaImp::tryToStartOrFinishExecution(bool requestMissingInfo) {
   ConcordAssert(currentViewIsActive());
   ConcordAssertGE(lastExecutedSeqNum, lastStableSeqNum);
 
-  if (activeExecutions_ > 0) {
+  if (main_execution_engine_->isExecuting()) {
     ConcordAssert(startedExecution);
     return;  // because this method will be called again as soon as the execution completes
   }
@@ -4813,8 +5118,7 @@ void ReplicaImp::startPrePrepareMsgExecution(PrePrepareMsg *ppMsg,
   } else  // if we don't have requests in ppMsg
   {
     // send internal message that will call to finishExecutePrePrepareMsg
-    ConcordAssert(activeExecutions_ == 0);
-    activeExecutions_ = 1;
+    ConcordAssert(main_execution_engine_->isExecuting() == false);
     InternalMessage im = FinishPrePrepareExecutionInternalMsg{ppMsg, nullptr};  // TODO(GG): check....
     getIncomingMsgsStorage().pushInternalMsg(std::move(im));
   }
@@ -4905,8 +5209,7 @@ void ReplicaImp::executeAllPrePreparedRequests(bool allowParallelExecution,
 
   if (numOfSpecialReqs > 0) executeSpecialRequests(ppMsg, numOfSpecialReqs, recoverFromErrorInRequestsExecution, time);
 
-  ConcordAssert(activeExecutions_ == 0);
-  activeExecutions_ = 1;
+  ConcordAssert(main_execution_engine_->isExecuting() == false);
   if (shouldRunRequestsInParallel) {
     PostExecJob *j = new PostExecJob(ppMsg, requestSet, time, *this);
     postExecThread_.add(j);
@@ -5078,8 +5381,6 @@ void ReplicaImp::executeRequests(PrePrepareMsg *ppMsg, Bitmap &requestSet, Times
 
 void ReplicaImp::finishExecutePrePrepareMsg(PrePrepareMsg *ppMsg,
                                             IRequestsHandler::ExecutionRequestsQueue *pAccumulatedRequests) {
-  activeExecutions_ = 0;
-
   if (pAccumulatedRequests != nullptr) {
     sendResponses(ppMsg, *pAccumulatedRequests);
     delete pAccumulatedRequests;
@@ -5196,8 +5497,8 @@ void ReplicaImp::updateExecutedPathMetrics(const bool isSlow, uint16_t numOfRequ
 
 void ReplicaImp::updateLimitsAndMetrics(PrePrepareMsg *ppMsg) {
   // TODO(GG): clean the following logic
-  if (mainLog->insideActiveWindow(lastExecutedSeqNum)) {  // update dynamicUpperLimitOfRounds
-    SeqNumInfo &seqNumInfo = mainLog->get(lastExecutedSeqNum);
+  if (mainLog->insideActiveWindow(ppMsg->seqNumber())) {  // update dynamicUpperLimitOfRounds
+    SeqNumInfo &seqNumInfo = mainLog->get(ppMsg->seqNumber());
     const Time firstInfo = seqNumInfo.getTimeOfFirstRelevantInfoFromPrimary();
     const Time currTime = getMonotonicTime();
     if ((firstInfo < currTime)) {
@@ -5209,7 +5510,7 @@ void ReplicaImp::updateLimitsAndMetrics(PrePrepareMsg *ppMsg) {
       consensus_time_.add(seqNumInfo.getCommitDurationMs());
       consensus_avg_time_.Get().Set((uint64_t)consensus_time_.avg());
       if (consensus_time_.numOfElements() == 1000) consensus_time_.reset();  // We reset the average every 1000 samples
-      metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
+      metric_last_executed_seq_num_.Get().Set(ppMsg->seqNumber());
     }
     updateExecutedPathMetrics(seqNumInfo.slowPathStarted(), numOfRequests);
   }
@@ -5317,8 +5618,8 @@ void ReplicaImp::onExecutionFinish() {
   if (getReplicaConfig().dbCheckpointFeatureEnabled && isCurrentPrimary()) {
     const auto &seq_num_to_create_dbcheckpoint = DbCheckpointManager::instance().getNextStableSeqNumToCreateSnapshot();
     if (seq_num_to_create_dbcheckpoint.has_value()) {
-      if (seq_num_to_create_dbcheckpoint.value() > (lastExecutedSeqNum + activeExecutions_)) {
-        DbCheckpointManager::instance().sendInternalCreateDbCheckpointMsg(lastExecutedSeqNum + activeExecutions_ + 1,
+      if (seq_num_to_create_dbcheckpoint.value() > (lastExecutedSeqNum)) {
+        DbCheckpointManager::instance().sendInternalCreateDbCheckpointMsg(lastExecutedSeqNum + 1,
                                                                           true);  // noop=true
       } else {
         onSeqNumIsStableCallbacks_.add([seq_num_to_create_dbcheckpoint](SeqNum seqNum) {
@@ -5331,9 +5632,9 @@ void ReplicaImp::onExecutionFinish() {
         });
         DbCheckpointManager::instance().setNextStableSeqNumToCreateSnapshot(std::nullopt);
       }
-      LOG_INFO(GL,
-               "sendInternalCreateDbCheckpointMsg: " << KVLOG(
-                   lastExecutedSeqNum, activeExecutions_, seq_num_to_create_dbcheckpoint.value()));
+      LOG_INFO(
+          GL,
+          "sendInternalCreateDbCheckpointMsg: " << KVLOG(lastExecutedSeqNum, seq_num_to_create_dbcheckpoint.value()));
     }
   }
 
@@ -5697,7 +5998,44 @@ void ReplicaImp::tryToRemovePendingRequestsForSeqNum(SeqNum seqNum) {
     clientsManager->markRequestAsCommitted(clientId, req.requestSeqNum());
   }
 }
+std::vector<PrePrepareMsg *> ReplicaImp::collectPrePrepares(concordUtils::SpanWrapper &parent_span,
+                                                            bool askForMissingInfo) {
+  if (!isCollectingState()) ConcordAssert(currentViewIsActive());
+  ConcordAssertGE(lastExecutedSeqNum, lastStableSeqNum);
+  auto span = concordUtils::startChildSpan("bft_execute_next_committed_requests", parent_span);
+  std::vector<PrePrepareMsg *> pps;
+  if (lastCollectedSn == 0) lastCollectedSn = lastExecutedSeqNum;
+  while (lastCollectedSn < lastStableSeqNum + kWorkWindowSize) {
+    if (lastCollectedSn % checkpointWindowSize == 0 && main_execution_engine_->isExecuting()) {
+      LOG_INFO(GL, "we must wait for the latest checkpoint creation to finish before continue executing");
+      break;
+    }
+    SCOPED_MDC_SEQ_NUM(std::to_string(lastCollectedSn + 1));
+    if (ControlStateManager::instance().isWedged()) {
+      LOG_INFO(CNSUS, "system is wedged, no new prePrepare requests will be executed until its unwedged");
+      break;
+    }
+    SeqNumInfo &seqNumInfo = mainLog->get(lastCollectedSn + 1);
 
+    PrePrepareMsg *prePrepareMsg = seqNumInfo.getPrePrepareMsg();
+
+    const bool ready = (prePrepareMsg != nullptr) && (seqNumInfo.isCommitted__gg());
+    if (askForMissingInfo && !ready) {
+      LOG_INFO(GL,
+               "Asking for missing information: " << KVLOG(lastCollectedSn + 1, getCurrentView(), lastStableSeqNum));
+      tryToSendReqMissingDataMsg(lastCollectedSn + 1);
+    }
+
+    if (!ready) break;
+    if (prePrepareMsg->seqNumber() % checkpointWindowSize == 0 && lastCollectedSn < lastExecutedSeqNum) {
+      LOG_INFO(GL, "We want to first execute the callbacks before proceeding beyond the near checkpoint");
+      break;
+    }
+    pps.push_back(prePrepareMsg);
+    lastCollectedSn++;
+  }
+  return pps;
+}
 void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_span, bool requestMissingInfo) {
   if (!isCollectingState()) ConcordAssert(currentViewIsActive());
   ConcordAssertGE(lastExecutedSeqNum, lastStableSeqNum);
@@ -5737,8 +6075,8 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
     auto seqNumToStopAt = ControlStateManager::instance().getCheckpointToStopAt();
     if (seqNumToStopAt.value_or(0) == lastExecutedSeqNum) ControlStateManager::instance().wedge();
     if (seqNumToStopAt.has_value() && seqNumToStopAt.value() > lastExecutedSeqNum && isCurrentPrimary()) {
-      // If after execution, we discover that we need to wedge at some futuer point, push a noop command to the incoming
-      // messages queue.
+      // If after execution, we discover that we need to wedge at some futuer point, push a noop command to the
+      // incoming messages queue.
       LOG_INFO(GL, "sending noop command to bring the system into wedge checkpoint");
       concord::messages::ReconfigurationRequest req;
       req.sender = config_.replicaId;
