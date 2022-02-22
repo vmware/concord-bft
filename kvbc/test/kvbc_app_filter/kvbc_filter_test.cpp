@@ -1146,21 +1146,21 @@ TEST(kvbc_filter_test, find_external_eg_check_result) {
   storage.fillWithEventGroupData(1, "A");
   auto result = kvb_filter.findGlobalEventGroupId(1);
   ASSERT_EQ(result.global_id, 2);
-  ASSERT_EQ(result.is_private, true);
+  ASSERT_EQ(result.is_public, false);
   ASSERT_EQ(result.private_id, 1);
   ASSERT_EQ(result.public_id, 0);
 
   storage.fillWithEventGroupData(1, kPublicEgIdKey);
   result = kvb_filter.findGlobalEventGroupId(2);
   ASSERT_EQ(result.global_id, 3);
-  ASSERT_EQ(result.is_private, false);
+  ASSERT_EQ(result.is_public, true);
   ASSERT_EQ(result.private_id, 1);
   ASSERT_EQ(result.public_id, 1);
 
   storage.fillWithEventGroupData(1, "A");
   result = kvb_filter.findGlobalEventGroupId(3);
   ASSERT_EQ(result.global_id, 4);
-  ASSERT_EQ(result.is_private, true);
+  ASSERT_EQ(result.is_public, false);
   ASSERT_EQ(result.private_id, 2);
   ASSERT_EQ(result.public_id, 1);
 
@@ -1168,17 +1168,17 @@ TEST(kvbc_filter_test, find_external_eg_check_result) {
 
   result = kvb_filter.findGlobalEventGroupId(1);
   ASSERT_EQ(result.global_id, 2);
-  ASSERT_EQ(result.is_private, true);
+  ASSERT_EQ(result.is_public, false);
   ASSERT_EQ(result.private_id, 1);
   ASSERT_EQ(result.public_id, 0);
   result = kvb_filter.findGlobalEventGroupId(2);
   ASSERT_EQ(result.global_id, 3);
-  ASSERT_EQ(result.is_private, false);
+  ASSERT_EQ(result.is_public, true);
   ASSERT_EQ(result.private_id, 1);
   ASSERT_EQ(result.public_id, 1);
   result = kvb_filter.findGlobalEventGroupId(3);
   ASSERT_EQ(result.global_id, 4);
-  ASSERT_EQ(result.is_private, true);
+  ASSERT_EQ(result.is_public, false);
   ASSERT_EQ(result.private_id, 2);
   ASSERT_EQ(result.public_id, 1);
 
@@ -1188,12 +1188,12 @@ TEST(kvbc_filter_test, find_external_eg_check_result) {
 
   result = kvb_filter.findGlobalEventGroupId(8);
   ASSERT_EQ(result.global_id, 10);
-  ASSERT_EQ(result.is_private, false);
+  ASSERT_EQ(result.is_public, true);
   ASSERT_EQ(result.private_id, 2);
   ASSERT_EQ(result.public_id, 6);
   result = kvb_filter.findGlobalEventGroupId(9);
   ASSERT_EQ(result.global_id, 11);
-  ASSERT_EQ(result.is_private, true);
+  ASSERT_EQ(result.is_public, false);
   ASSERT_EQ(result.private_id, 3);
   ASSERT_EQ(result.public_id, 6);
 }
