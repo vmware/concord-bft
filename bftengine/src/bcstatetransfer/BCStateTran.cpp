@@ -725,6 +725,16 @@ std::string BCStateTran::convertMillisecToReadableStr(uint64_t ms) const {
   }
   string legend;
   std::ostringstream oss;
+  auto padZeroes = [](std::string &&str, size_t expectedSize, bool shouldPad) {
+    ConcordAssertGE(expectedSize, str.size());
+    if (shouldPad) {
+      auto padSize = expectedSize - str.size();
+      for (size_t i{}; i < padSize; ++i) {
+        str.insert(0, "0");
+      }
+    }
+    return std::move(str);
+  };
 
   // fixed point notation and 2 digits precision
   oss << std::fixed;
@@ -746,25 +756,31 @@ std::string BCStateTran::convertMillisecToReadableStr(uint64_t ms) const {
   auto days = n;
 
   std::string str;
+  bool shouldPad = false;
   if (days) {
-    str += std::to_string(days) + ":";
-    legend += "D:";
+    str += padZeroes(std::to_string(days), 2, shouldPad) + ":";
+    legend += "DD:";
+    shouldPad = true;
   }
   if (hr || !legend.empty()) {
-    str += std::to_string(hr) + ":";
+    str += padZeroes(std::to_string(hr), 2, shouldPad) + ":";
     legend += "HH:";
+    shouldPad = true;
   }
   if (min || !legend.empty()) {
-    str += std::to_string(min) + ":";
+    str += padZeroes(std::to_string(min), 2, shouldPad) + ":";
     legend += "MM:";
+    shouldPad = true;
   }
   if (sec || !legend.empty()) {
-    str += std::to_string(sec) + ".";
+    str += padZeroes(std::to_string(sec), 2, shouldPad) + ".";
     legend += "SS.";
+    shouldPad = true;
   }
   if (mls || !legend.empty()) {
-    str += std::to_string(mls);
+    str += padZeroes(std::to_string(mls), 3, shouldPad);
     legend += "ms";
+    shouldPad = true;
   }
   if (str.empty()) {
     str = "NA";
