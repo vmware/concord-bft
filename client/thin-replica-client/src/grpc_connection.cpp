@@ -51,7 +51,6 @@ void GrpcConnection::createRssStub() {
 void GrpcConnection::createChannel() {
   grpc::ChannelArguments args;
   args.SetMaxReceiveMessageSize(kGrpcMaxInboundMsgSizeInBytes);
-
   if (config_->use_tls) {
     LOG_INFO(logger_, "TLS for thin replica client is enabled for server: " << address_);
 
@@ -84,17 +83,17 @@ void GrpcConnection::connect(std::unique_ptr<GrpcConnectionConfig>& config) {
 }
 
 bool GrpcConnection::isConnected() {
+  ReadLock read_lock(channel_mutex_);
+  return isConnectedNoLock();
+}
+
+bool GrpcConnection::isConnectedNoLock() {
   if (!channel_) {
     return false;
   }
   auto status = channel_->GetState(false);
   LOG_DEBUG(logger_, "gRPC connection status (" << address_ << ") " << status);
   return status == GRPC_CHANNEL_READY;
-}
-
-void GrpcConnection::reConnect(std::unique_ptr<GrpcConnectionConfig>& config) {
-  disconnect();
-  connect(config);
 }
 
 void GrpcConnection::disconnect() {
@@ -107,7 +106,16 @@ void GrpcConnection::disconnect() {
   channel_.reset();
 }
 
+void GrpcConnection::checkAndReConnect(std::unique_ptr<GrpcConnectionConfig>& config) {
+  WriteLock write_lock(channel_mutex_);
+  if (!isConnectedNoLock()) {
+    disconnect();
+    connect(config);
+  }
+}
+
 GrpcConnection::Result GrpcConnection::openDataStream(const SubscriptionRequest& request) {
+  ReadLock read_lock(channel_mutex_);
   ConcordAssertNE(trc_stub_, nullptr);
   ConcordAssertEQ(data_stream_, nullptr);
   ConcordAssertEQ(data_context_, nullptr);
@@ -115,8 +123,10 @@ GrpcConnection::Result GrpcConnection::openDataStream(const SubscriptionRequest&
   data_context_.reset(new grpc::ClientContext());
   data_context_->AddMetadata("client_id", client_id_);
 
-  auto stream =
-      async(launch::async, [this, &request] { return trc_stub_->SubscribeToUpdates(data_context_.get(), request); });
+  auto stream = async(launch::async, [this, &request] {
+    ReadLock read_lock(channel_mutex_);
+    return trc_stub_->SubscribeToUpdates(data_context_.get(), request);
+  });
   auto status = stream.wait_for(data_timeout_);
   if (status == future_status::timeout || status == future_status::deferred) {
     data_context_->TryCancel();
@@ -179,6 +189,7 @@ GrpcConnection::Result GrpcConnection::readData(Data* data) {
 }
 
 GrpcConnection::Result GrpcConnection::openStateStream(const ReadStateRequest& request) {
+  ReadLock read_lock(channel_mutex_);
   ConcordAssertNE(trc_stub_, nullptr);
   ConcordAssertEQ(state_stream_, nullptr);
   ConcordAssertEQ(state_context_, nullptr);
@@ -186,7 +197,10 @@ GrpcConnection::Result GrpcConnection::openStateStream(const ReadStateRequest& r
   state_context_.reset(new grpc::ClientContext());
   state_context_->AddMetadata("client_id", client_id_);
 
-  auto stream = async(launch::async, [this, &request] { return trc_stub_->ReadState(state_context_.get(), request); });
+  auto stream = async(launch::async, [this, &request] {
+    ReadLock read_lock(channel_mutex_);
+    return trc_stub_->ReadState(state_context_.get(), request);
+  });
   auto status = stream.wait_for(data_timeout_);
   if (status == future_status::timeout || status == future_status::deferred) {
     state_context_->TryCancel();
@@ -275,12 +289,15 @@ GrpcConnection::Result GrpcConnection::readState(Data* data) {
 }
 
 GrpcConnection::Result GrpcConnection::readStateHash(const ReadStateHashRequest& request, Hash* hash) {
+  ReadLock read_lock(channel_mutex_);
   ConcordAssertNE(trc_stub_, nullptr);
 
   ClientContext context;
   context.AddMetadata("client_id", client_id_);
-  auto result = async(launch::async,
-                      [this, &context, &request, hash] { return trc_stub_->ReadStateHash(&context, request, hash); });
+  auto result = async(launch::async, [this, &context, &request, hash] {
+    ReadLock read_lock(channel_mutex_);
+    return trc_stub_->ReadStateHash(&context, request, hash);
+  });
   auto status = result.wait_for(hash_timeout_);
   if (status == future_status::timeout || status == future_status::deferred) {
     context.TryCancel();
@@ -304,6 +321,7 @@ GrpcConnection::Result GrpcConnection::readStateHash(const ReadStateHashRequest&
 }
 
 GrpcConnection::Result GrpcConnection::openHashStream(SubscriptionRequest& request) {
+  ReadLock read_lock(channel_mutex_);
   ConcordAssertNE(trc_stub_, nullptr);
   ConcordAssertEQ(hash_stream_, nullptr);
   ConcordAssertEQ(hash_context_, nullptr);
@@ -311,8 +329,10 @@ GrpcConnection::Result GrpcConnection::openHashStream(SubscriptionRequest& reque
   hash_context_.reset(new grpc::ClientContext());
   hash_context_->AddMetadata("client_id", client_id_);
 
-  auto stream = async(launch::async,
-                      [this, &request] { return trc_stub_->SubscribeToUpdateHashes(hash_context_.get(), request); });
+  auto stream = async(launch::async, [this, &request] {
+    ReadLock read_lock(channel_mutex_);
+    return trc_stub_->SubscribeToUpdateHashes(hash_context_.get(), request);
+  });
   auto status = stream.wait_for(data_timeout_);
   if (status == future_status::timeout || status == future_status::deferred) {
     hash_context_->TryCancel();
@@ -376,6 +396,7 @@ GrpcConnection::Result GrpcConnection::readHash(Hash* hash) {
 
 GrpcConnection::Result GrpcConnection::openStateSnapshotStream(
     const vmware::concord::replicastatesnapshot::StreamSnapshotRequest& request, RequestId& request_id) {
+  ReadLock read_lock(channel_mutex_);
   ConcordAssertNE(rss_stub_, nullptr);
   request_id = current_req_id_.fetch_add(1u);
 
@@ -386,6 +407,7 @@ GrpcConnection::Result GrpcConnection::openStateSnapshotStream(
       snapshot_stream;
 
   auto stream = async(launch::async, [this, &request, &snapshot_context] {
+    ReadLock read_lock(channel_mutex_);
     return rss_stub_->StreamSnapshot(snapshot_context.get(), request);
   });
   auto status = stream.wait_for(data_timeout_);
