@@ -81,7 +81,9 @@ class AsyncTcpConnection : public boost::enable_shared_from_this<AsyncTcpConnect
                      logging::Logger logger,
                      UPDATE_CONNECTIVITY_FN statusCallback,
                      NodeMap nodes)
-      : _service(service),
+      : socket(*service),
+        connected(false),
+        _service(service),
         _bufferLength(bufferLength),
         _fOnError(onError),
         _fOnHellOMessage(onHelloMsg),
@@ -92,9 +94,7 @@ class AsyncTcpConnection : public boost::enable_shared_from_this<AsyncTcpConnect
         _closed(false),
         _logger(logger),
         _statusCallback{statusCallback},
-        _nodes{std::move(nodes)},
-        socket(*service),
-        connected(false) {
+        _nodes{std::move(nodes)} {
     LOG_TRACE(_logger, "enter, node " << _selfId << ", dest: " << _destId);
 
     _isReplica = check_replica(_selfId);
@@ -817,13 +817,13 @@ PlainTCPCommunication::~PlainTCPCommunication() {
 }
 
 PlainTCPCommunication::PlainTCPCommunication(const PlainTcpConfig &config) {
-  ptrImpl_ = PlainTcpImpl::create(config.selfId,
-                                  config.nodes,
-                                  config.bufferLength,
-                                  config.listenPort,
-                                  config.maxServerId,
-                                  config.listenHost,
-                                  config.statusCallback);
+  ptrImpl_ = PlainTcpImpl::create(config.selfId_,
+                                  config.nodes_,
+                                  config.bufferLength_,
+                                  config.listenPort_,
+                                  config.maxServerId_,
+                                  config.listenHost_,
+                                  config.statusCallback_);
 }
 
 PlainTCPCommunication *PlainTCPCommunication::create(const PlainTcpConfig &config) {
