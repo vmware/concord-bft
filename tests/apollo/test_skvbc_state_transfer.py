@@ -16,6 +16,7 @@ from os import environ
 from util import bft_network_traffic_control as ntc
 import trio
 
+from util.test_base import ApolloTest
 from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, skip_for_tls
 from util import eliot_logging as log
@@ -40,7 +41,7 @@ def start_replica_cmd(builddir, replica_id):
             ]
 
 
-class SkvbcStateTransferTest():
+class SkvbcStateTransferTest(ApolloTest):
 
     __test__ = False  # so that PyTest ignores this test scenario
 
