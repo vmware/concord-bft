@@ -13,17 +13,38 @@
 import os
 import random
 import unittest
+import util.eliot_logging as log
+from functools import wraps
 
 
 class ApolloTest(unittest.TestCase):
-
-    _SEED = os.getenv('APOLLO_SEED', random.randint(0, 1 << 32))
 
     @property
     def test_seed(self):
         return self._test_seed
 
     def setUp(self):
-        self._test_seed = random.randint(0, 1 << 32)
+        self._test_seed = os.getenv('APOLLO_SEED', random.randint(0, 1 << 32))
         random.seed(self._test_seed)
         print(f'Test seed set to {self._test_seed}')
+
+
+def retry_test(max_retries: int):
+    """
+    Runs a test multiple times until a run succeeds min_passes times
+    """
+
+    def decorator(async_fn):
+        @wraps(async_fn)
+        async def wrapper(*args, **kwargs):
+            for i in range(1, max_retries + 1):
+                try:
+                    await async_fn(*args, **kwargs)
+                    break
+                except Exception as e:
+                    log.log_message(message_type='Test attempt failed', run=i, max_retries=max_retries)
+                    if i == max_retries:
+                        raise e
+
+        return wrapper
+    return decorator

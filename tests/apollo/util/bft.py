@@ -30,6 +30,8 @@ from typing import Coroutine
 
 import trio
 
+from util.test_base import retry_test
+
 sys.path.append(os.path.abspath("../../util/pyclient"))
 
 import bft_config
@@ -159,7 +161,9 @@ def with_constant_load(async_fn):
                 nursery.cancel_scope.cancel()
     return wrapper
 
-def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None, num_ro_replicas=0, rotate_keys=False, bft_configs=None, with_cre=False, publish_master_keys=False):
+def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None, num_ro_replicas=0,
+                     rotate_keys=False, bft_configs=None, with_cre=False, publish_master_keys=False,
+                     retries=1):
     """
     Runs the decorated async function for all selected BFT configs
     start_replica_cmd is a callback which is used to start a replica. It should have the following
@@ -194,16 +198,22 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
                                         stop_replica_cmd=None,
                                         num_ro_replicas=num_ro_replicas)
                     async with trio.open_nursery() as background_nursery:
-                        with BftTestNetwork.new(config, background_nursery, with_cre=with_cre) as bft_network:
-                            bft_network.current_test = async_fn.__name__ + "_n=" + str(bft_config['n']) \
-                                                                         + "_f=" + str(bft_config['f']) \
-                                                                         + "_c=" + str(bft_config['c'])
-                            with log.start_task(action_type=f"{bft_network.current_test}_num_clients={config.num_clients}", seed=args[0].test_seed) as action:
-                                random.seed(args[0].test_seed)
-                                if rotate_keys:
-                                    await bft_network.check_initital_key_exchange(check_master_key_publication=publish_master_keys)
-                                bft_network.test_start_time = time.time()
-                                await async_fn(*args, **kwargs, bft_network=bft_network)
+                        @retry_test(retries)
+                        async def test_with_bft_network():
+                            with BftTestNetwork.new(config, background_nursery, with_cre=with_cre) as bft_network:
+                                bft_network.current_test = async_fn.__name__ + "_n=" + str(bft_config['n']) \
+                                                                             + "_f=" + str(bft_config['f']) \
+                                                                             + "_c=" + str(bft_config['c'])
+                                with log.start_task(
+                                        action_type=f"{bft_network.current_test}_num_clients={config.num_clients}",
+                                        seed=args[0].test_seed):
+                                    random.seed(args[0].test_seed)
+                                    if rotate_keys:
+                                        await bft_network.check_initital_key_exchange(
+                                            check_master_key_publication=publish_master_keys)
+                                    bft_network.test_start_time = time.time()
+                                    await async_fn(*args, **kwargs, bft_network=bft_network)
+                        await test_with_bft_network()
         return wrapper
 
     return decorator
