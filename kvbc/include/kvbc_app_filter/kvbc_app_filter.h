@@ -61,7 +61,7 @@ struct FindGlobalEgIdResult {
   // Global event group id matching the given external id
   uint64_t global_id;
   // Whether the event group is private to the client or public
-  bool is_private;
+  bool is_public;
   // Either the matching private/public id or the newest up to this external id
   // Note: The one that is not matching could be pruned (not queryable)
   uint64_t private_id;
