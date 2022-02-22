@@ -4392,20 +4392,11 @@ ReplicaImp::ReplicaImp(bool firstTime,
   }
   bft::communication::StateControl::instance().setGetPeerPubKeyMethod(
       [&](uint32_t id) { return sigManager_->getPublicKeyOfVerifier(id); });
-  // clients ids are assigned as follows:
-  // - client proxies starting at a subsequent id of the last (ro-)replica
-  // - external clients
-  // - internal replicas' client ids
-  std::set<NodeIdType> proxyClients;
-  std::set<NodeIdType> externalClients;
-  std::set<NodeIdType> internalClients;
-  uint16_t clientId = config_.getnumReplicas() + config_.getnumRoReplicas();
-  for (int i = 0; i < config_.getnumOfClientProxies(); ++i) proxyClients.insert(clientId++);
-  for (int i = 0; i < config_.getnumOfExternalClients(); ++i) externalClients.insert(clientId++);
-  for (int i = 0; i < config_.getnumReplicas(); ++i) internalClients.insert(clientId++);
-  clientsManager = std::make_shared<ClientsManager>(ps, proxyClients, externalClients, internalClients, metrics_);
+
+  clientsManager = std::make_shared<ClientsManager>(
+      ps, repsInfo->idsOfClientProxies(), repsInfo->idsOfExternalClients(), repsInfo->idsOfInternalClients(), metrics_);
   internalBFTClient_.reset(
-      new InternalBFTClient(*internalClients.cbegin() + config_.getreplicaId(), msgsCommunicator_));
+      new InternalBFTClient(*(repsInfo->idsOfInternalClients()).cbegin() + config_.getreplicaId(), msgsCommunicator_));
 
   // autoPrimaryRotationEnabled implies viewChangeProtocolEnabled
   // Note: "p=>q" is equivalent to "not p or q"
