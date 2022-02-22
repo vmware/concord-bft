@@ -133,7 +133,6 @@ void BftExecutionEngineBase::addPostExecCallBack(
   post_exec_handlers_.add(cb);
 }
 void BftExecutionEngineBase::execute(std::deque<IRequestsHandler::ExecutionRequest> &accumulatedRequests) {
-  if (bftEngine::ControlStateManager::instance().getPruningProcessStatus()) return;
   const std::string cid = accumulatedRequests.back().cid;
   const auto sn = accumulatedRequests.front().executionSequenceNum;
   concordUtils::SpanWrapper span_wrapper{};

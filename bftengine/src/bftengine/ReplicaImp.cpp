@@ -2441,8 +2441,8 @@ void ReplicaImp::startExecution() {
     return;
   }
 
-  if (!deferredMessages_.empty() || !deferredRORequests_.empty()) {
-    LOG_INFO(GL, "prioritize deferred messages on top of executions");
+  if (!deferredRORequests_.empty()) {
+    LOG_INFO(GL, "prioritize read only reqeusts on top of executions");
     return;
   }
   concordUtils::SpanWrapper span;
@@ -2451,7 +2451,9 @@ void ReplicaImp::startExecution() {
   if (pps.empty()) return;
   LOG_INFO(CNSUS, "Start execution");
   skip_execution_engine_->addExecutions(pps);
-  main_execution_engine_->addExecutions(pps);
+  auto sn = main_execution_engine_->addExecutions(pps);
+  ConcordAssert(sn <= lastCollectedSn);
+  if (sn < lastCollectedSn) lastCollectedSn = sn;
 }
 
 void ReplicaImp::startExecution(SeqNum seqNumber,
@@ -4194,33 +4196,30 @@ void ReplicaImp::initExecutionEngines() {
                                                    histograms_.executeRequestsInPrePrepareMsg,
                                                    histograms_.executeRequestsAndSendResponses,
                                                    histograms_.executeWriteRequest};
-  skip_execution_engine_ =
-      BftExecutionEngineFactory::create(bftRequestsHandler_, clientsManager, repsInfo, ps_, time_service_manager_);
+  skip_execution_engine_ = BftExecutionEngineFactory::create(
+      bftRequestsHandler_, clientsManager, repsInfo, ps_, time_service_manager_, BftExecutionEngineFactory::TYPE::SKIP);
   skip_execution_engine_->setMetrics(metrics);
   skip_execution_engine_->addPostExecCallBack(
       [&](PrePrepareMsg *ppMsg, IRequestsHandler::ExecutionRequestsQueue &reqs) { sendClientReplies(reqs); });
   main_execution_engine_ =
       BftExecutionEngineFactory::create(bftRequestsHandler_, clientsManager, repsInfo, ps_, time_service_manager_);
-  auto main_callback = [&](PrePrepareMsg *ppMsg, IRequestsHandler::ExecutionRequestsQueue &requests_for_execution) {
-    if (requests_for_execution.size() > 0) {
-      ps_->beginWriteTran();
-      bftRequestsHandler_->onFinishExecutingReadWriteRequests();
-      ps_->endWriteTran();
-    }
-    finalizePPExecution(ppMsg);
-    sendWedgeCommandIfNeeded();
-    if (isCurrentPrimary() && requestsQueueOfPrimary.size() > 0) tryToSendPrePrepareMsg(true);
-    sendClientReplies(requests_for_execution);
-    updateLimitsAndMetrics(ppMsg);
-  };
   if (config_.enablePostExecutionSeparation) {
     main_execution_engine_->addPostExecCallBack([&](PrePrepareMsg *ppMsg,
                                                     IRequestsHandler::ExecutionRequestsQueue &reqs) {
       IRequestsHandler::ExecutionRequestsQueue *requests = new IRequestsHandler::ExecutionRequestsQueue();
       *requests = reqs;
       FinishPrePrepareExecutionInternalMsg msg_{ppMsg, requests};
-      msg_.registry.add(main_callback);
       msg_.registry.add([&](PrePrepareMsg *ppMsg, IRequestsHandler::ExecutionRequestsQueue &requests_for_execution) {
+        if (requests_for_execution.size() > 0) {
+          ps_->beginWriteTran();
+          bftRequestsHandler_->onFinishExecutingReadWriteRequests();
+          ps_->endWriteTran();
+        }
+        finalizePPExecution(ppMsg);
+        sendWedgeCommandIfNeeded();
+        if (isCurrentPrimary() && requestsQueueOfPrimary.size() > 0) tryToSendPrePrepareMsg(true);
+        sendClientReplies(requests_for_execution);
+        updateLimitsAndMetrics(ppMsg);
         if (!main_execution_engine_->isExecuting()) handleDeferredRequests();
         // Once we done with execution, lets try to run another phase of execution.
         startExecution();
@@ -4230,7 +4229,19 @@ void ReplicaImp::initExecutionEngines() {
       getIncomingMsgsStorage().pushInternalMsg(std::move(imsg));
     });
   } else {
-    main_execution_engine_->addPostExecCallBack(main_callback);
+    main_execution_engine_->addPostExecCallBack(
+        [&](PrePrepareMsg *ppMsg, IRequestsHandler::ExecutionRequestsQueue &requests_for_execution) {
+          if (requests_for_execution.size() > 0) {
+            ps_->beginWriteTran();
+            bftRequestsHandler_->onFinishExecutingReadWriteRequests();
+            ps_->endWriteTran();
+          }
+          finalizePPExecution(ppMsg);
+          sendWedgeCommandIfNeeded();
+          if (isCurrentPrimary() && requestsQueueOfPrimary.size() > 0) tryToSendPrePrepareMsg(true);
+          sendClientReplies(requests_for_execution);
+          updateLimitsAndMetrics(ppMsg);
+        });
   }
   main_execution_engine_->setMetrics(metrics);
 }
@@ -4886,6 +4897,30 @@ void ReplicaImp::start() {
 
 void ReplicaImp::recoverRequests() {
   if (recoveringFromExecutionOfRequests) {
+    auto recover_exec_engine = BftExecutionEngineFactory::create(bftRequestsHandler_,
+                                                                 clientsManager,
+                                                                 repsInfo,
+                                                                 ps_,
+                                                                 time_service_manager_,
+                                                                 BftExecutionEngineFactory::TYPE::SYNC);
+    recover_exec_engine->addPostExecCallBack(
+        [&](PrePrepareMsg *ppMsg, IRequestsHandler::ExecutionRequestsQueue &requests_for_execution) {
+          if (requests_for_execution.size() > 0) {
+            ps_->beginWriteTran();
+            bftRequestsHandler_->onFinishExecutingReadWriteRequests();
+            ps_->endWriteTran();
+          }
+          finalizePPExecution(ppMsg);
+          sendWedgeCommandIfNeeded();
+          if (isCurrentPrimary() && requestsQueueOfPrimary.size() > 0) tryToSendPrePrepareMsg(true);
+          sendClientReplies(requests_for_execution);
+          updateLimitsAndMetrics(ppMsg);
+        });
+    recover_exec_engine->setMetrics(
+        BftExecutionEngineBase::ExecutionMetrics{histograms_.numRequestsInPrePrepareMsg,
+                                                 histograms_.executeRequestsInPrePrepareMsg,
+                                                 histograms_.executeRequestsAndSendResponses,
+                                                 histograms_.executeWriteRequest});
     LOG_INFO(GL, "Recovering execution of requests");
     if (config_.timeServiceEnabled) {
       time_service_manager_->recoverTime(recoveredTime);
@@ -4898,13 +4933,9 @@ void ReplicaImp::recoverRequests() {
       SCOPED_MDC_SEQ_NUM(std::to_string(pp->seqNumber()));
       ConcordAssert(vectorMapOfRecoveredRequests[i].first);
     updateExecutedPathMetrics(seqNumInfo.slowPathStarted(), numOfRequests);
-      main_execution_engine_->setRequestsMap(vectorMapOfRecoveredRequests[i].second);
-      main_execution_engine_->addExecutions({pp});
-      // In case we run in the async mode, we still want to run this part synchronously
-      while (main_execution_engine_->isExecuting()) {
-      }
+      recover_exec_engine->setRequestsMap(vectorMapOfRecoveredRequests[i].second);
+      recover_exec_engine->addExecutions({pp});
     }
-    main_execution_engine_->setRequestsMap(Bitmap());
     recoveringFromExecutionOfRequests = false;
     mapOfRecoveredRequests = Bitmap();
   }

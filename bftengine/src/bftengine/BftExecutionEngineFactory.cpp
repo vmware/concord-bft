@@ -26,8 +26,11 @@ class BlockAccumulationExecutionEngine : public BftExecutionEngineBase {
                                    std::shared_ptr<PersistentStorage> ps,
                                    std::shared_ptr<TimeServiceManager<std::chrono::system_clock>> time_service_manager)
       : BftExecutionEngineBase{requests_handler, client_manager, reps_info, ps, time_service_manager} {}
-  void addExecutions(const std::vector<PrePrepareMsg*>& ppMsgs) override {
+  SeqNum addExecutions(const std::vector<PrePrepareMsg*>& ppMsgs) override {
+    SeqNum sn = 0;
     for (auto ppMsg : ppMsgs) {
+      sn = ppMsg->seqNumber();
+      if (bftEngine::ControlStateManager::instance().getPruningProcessStatus()) return sn;
       TimeRecorder scoped_timer(*metrics_.executeRequestsInPrePrepareMsg);
       auto requests_for_execution = collectRequests(*ppMsg);
       TimeRecorder scoped_timer1(*metrics_.executeRequestsAndSendResponses);
@@ -36,6 +39,7 @@ class BlockAccumulationExecutionEngine : public BftExecutionEngineBase {
       timestamps.erase(ppMsg->seqNumber());
       post_exec_handlers_.invokeAll(ppMsg, requests_for_execution);
     }
+    return sn;
   }
 
  private:
@@ -53,8 +57,11 @@ class SingleRequestExecutionEngine : public BftExecutionEngineBase {
                                std::shared_ptr<PersistentStorage> ps,
                                std::shared_ptr<TimeServiceManager<std::chrono::system_clock>> time_service_manager)
       : BftExecutionEngineBase{requests_handler, client_manager, reps_info, ps, time_service_manager} {}
-  void addExecutions(const std::vector<PrePrepareMsg*>& ppMsgs) override {
+  SeqNum addExecutions(const std::vector<PrePrepareMsg*>& ppMsgs) override {
+    SeqNum sn = 0;
     for (auto ppMsg : ppMsgs) {
+      sn = ppMsg->seqNumber();
+      if (bftEngine::ControlStateManager::instance().getPruningProcessStatus()) return sn;
       TimeRecorder scoped_timer(*metrics_.executeRequestsInPrePrepareMsg);
       auto requests_for_execution = collectRequests(*ppMsg);
       std::deque<IRequestsHandler::ExecutionRequest> single_req_queue;
@@ -70,6 +77,7 @@ class SingleRequestExecutionEngine : public BftExecutionEngineBase {
       timestamps.erase(ppMsg->seqNumber());
       post_exec_handlers_.invokeAll(ppMsg, requests_for_execution);
     }
+    return sn;
   }
 
  private:
@@ -90,8 +98,11 @@ class AsyncExecutionEngine : public BftExecutionEngineBase {
     active_ = true;
     worker_ = std::thread([&]() { thread_function(); });
   }
-  void addExecutions(const std::vector<PrePrepareMsg*>& ppMsgs) override {
+  SeqNum addExecutions(const std::vector<PrePrepareMsg*>& ppMsgs) override {
+    SeqNum sn = 0;
     for (auto pp : ppMsgs) {
+      sn = pp->seqNumber();
+      if (bftEngine::ControlStateManager::instance().getPruningProcessStatus()) return sn;
       requests_++;
       auto requests_for_execution =
           std::make_shared<std::deque<IRequestsHandler::ExecutionRequest>>(collectRequests(*pp));
@@ -99,6 +110,7 @@ class AsyncExecutionEngine : public BftExecutionEngineBase {
       data_.emplace_back(pp, requests_for_execution);
       var_.notify_one();
     }
+    return sn;
   }
   virtual ~AsyncExecutionEngine() {
     active_ = false;
@@ -124,6 +136,7 @@ class AsyncExecutionEngine : public BftExecutionEngineBase {
             return !data_.empty() && !bftEngine::ControlStateManager::instance().getPruningProcessStatus();
           });
           if (!active_) return;
+          if (bftEngine::ControlStateManager::instance().getPruningProcessStatus()) continue;
           candidate = data_.front();
           data_.pop_front();
         }
@@ -189,12 +202,13 @@ class SkipAndSendExecutionEngine : public BftExecutionEngineBase {
                              std::shared_ptr<PersistentStorage> ps,
                              std::shared_ptr<TimeServiceManager<std::chrono::system_clock>> time_service_manager)
       : BftExecutionEngineBase{requests_handler, client_manager, reps_info, ps, time_service_manager} {}
-  void addExecutions(const std::vector<PrePrepareMsg*>& ppMsgs) override {
+  SeqNum addExecutions(const std::vector<PrePrepareMsg*>& ppMsgs) override {
     for (auto ppMsg : ppMsgs) {
       auto requests_for_execution = collectRequests(*ppMsg);
       if (requests_for_execution.empty()) continue;
       post_exec_handlers_.invokeAll(ppMsg, requests_for_execution);
     }
+    return 0;
   }
 
  private:
@@ -223,10 +237,12 @@ std::unique_ptr<BftExecutionEngineBase> BftExecutionEngineFactory::create(
     std::shared_ptr<ClientsManager> client_manager,
     std::shared_ptr<ReplicasInfo> reps_info,
     std::shared_ptr<PersistentStorage> ps,
-    std::shared_ptr<TimeServiceManager<std::chrono::system_clock>> time_service_manager) {
+    std::shared_ptr<TimeServiceManager<std::chrono::system_clock>> time_service_manager,
+    TYPE type) {
   bool accumulated = bftEngine::ReplicaConfig::instance().blockAccumulation;
-  TYPE type = bftEngine::ReplicaConfig::instance().enablePostExecutionSeparation ? ASYNC : SYNC;
-  switch (type) {
+  TYPE type_ = type;
+  if (type == CONFIG) type_ = bftEngine::ReplicaConfig::instance().enablePostExecutionSeparation ? ASYNC : SYNC;
+  switch (type_) {
     case SYNC:
       if (accumulated)
         return std::make_unique<BlockAccumulationExecutionEngine>(
@@ -242,6 +258,8 @@ std::unique_ptr<BftExecutionEngineBase> BftExecutionEngineFactory::create(
     case SKIP:
       return std::make_unique<SkipAndSendExecutionEngine>(
           requests_handler, client_manager, reps_info, ps, time_service_manager);
+    case CONFIG:
+      return nullptr;
   }
 }
 }  // namespace bftEngine::impl

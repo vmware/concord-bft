@@ -31,7 +31,7 @@ class BftExecutionEngineBase {
                          std::shared_ptr<ReplicasInfo> reps_info,
                          std::shared_ptr<PersistentStorage> ps,
                          std::shared_ptr<TimeServiceManager<std::chrono::system_clock>> time_service_manager);
-  virtual void addExecutions(const std::vector<PrePrepareMsg*>&) = 0;
+  virtual SeqNum addExecutions(const std::vector<PrePrepareMsg*>&) = 0;
   void addPostExecCallBack(std::function<void(PrePrepareMsg*, IRequestsHandler::ExecutionRequestsQueue&)> cb);
   virtual ~BftExecutionEngineBase() = default;
   virtual bool isExecuting() { return false; }
