@@ -64,9 +64,9 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
       _dynamicCollectorForExecutionProofs{dynamicCollectorForExecutionProofs},
 
       /*
-       * Ids order is: [replicas, ro-replicas, clientProxies, client-service external clients, client-service ID,
-       * operator, internal-clients]. Notice, that in case we have an operator, it is included in numOfExternalClients,
-       * so no need in any special handling.
+       * Ids order is: [replicas, ro-replicas, clientProxies, client-service clients (aka external clients) including
+       * cre, client-service ID, operator, internal-clients]. Notice, that in case we have an operator, it is included
+       * in numOfExternalClients, so no need in any special handling.
        */
       _idsOfPeerReplicas{[&config]() {
         std::set<ReplicaId> ret;
