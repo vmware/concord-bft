@@ -397,35 +397,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   std::pair<PrePrepareMsg*, bool> buildPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) override;
   std::pair<PrePrepareMsg*, bool> buildPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) override;
   void handleDeferredRequests();
-  void onExecutionFinish();
-  void finalizeExecution();
   void updateLimitsAndMetrics(PrePrepareMsg* ppMsg);
-  void updateCommitMetrics(const CommitPath& commitPath);
-  void finishExecutePrePrepareMsg(PrePrepareMsg* pp, IRequestsHandler::ExecutionRequestsQueue* pAccumulatedRequests);
-  /// This function is mostly called through the separate thread execution flow
-  void executeRequests(PrePrepareMsg* ppMsg, Bitmap& requestSet, Timestamp time);
-  void executeSpecialRequests(PrePrepareMsg* ppMsg,
-                              uint16_t numOfSpecialReqs,
-                              bool recoverFromErrorInRequestsExecution,
-                              Timestamp& outTimestamp);
-  void executeAllPrePreparedRequests(bool allowParallelExecution,
-                                     bool shouldRunRequestsInParallel,
-                                     uint16_t numOfSpecialReqs,
-                                     PrePrepareMsg* ppMsg,
-                                     Bitmap& requestSet,
-                                     bool recoverFromErrorInRequestsExecution);
-  void markSpecialRequests(RequestsIterator& reqIter,
-                           char* requestBody,
-                           uint16_t& numOfSpecialReqs,
-                           size_t& reqIdx,
-                           Bitmap& requestSet,
-                           bool allowParallelExecution,
-                           bool& shouldRunRequestsInParallel);
-  void startPrePrepareMsgExecution(PrePrepareMsg* ppMsg,
-                                   bool allowParallelExecution,
-                                   bool recoverFromErrorInRequestsExecution);
-  void tryToStartOrFinishExecution(bool requestMissingInfo = false);
-  void startExecution(SeqNum seqNumber, concordUtils::SpanWrapper& parent_span, bool requestMissingInfo);
   void startExecution();
   void pushDeferredMessage(MessageBase*);
 
@@ -528,14 +500,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   void executeReadOnlyRequest(concordUtils::SpanWrapper& parent_span, ClientRequestMsg* m);
   std::vector<PrePrepareMsg*> collectPrePrepares(concordUtils::SpanWrapper& parent_span, bool requestMissingInfo);
-  void executeNextCommittedRequests(concordUtils::SpanWrapper& parent_span, bool requestMissingInfo = false);
-
-  void executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper& parent_span,
-                                      PrePrepareMsg* pp,
-                                      bool recoverFromErrorInRequestsExecution = false);
-
-  void executeRequestsAndSendResponses(PrePrepareMsg* pp, Bitmap& requestSet, concordUtils::SpanWrapper& span);
-  void sendResponses(PrePrepareMsg* ppMsg, IRequestsHandler::ExecutionRequestsQueue& accumulatedRequests);
 
   void onSeqNumIsStable(
       SeqNum newStableSeqNum,
@@ -638,30 +602,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
    * @param numOfRequests - The number of executed requests
    */
   void updateExecutedPathMetrics(const bool isSlow, uint16_t numOfRequests);
-
-  class PostExecJob : public concord::util::SimpleThreadPool::Job {
-   private:
-    PrePrepareMsg* ppMsg_;
-    Bitmap requestSet_;
-    Timestamp time_;
-    ReplicaImp& parent_;
-
-   public:
-    PostExecJob(PrePrepareMsg* ppMsg, Bitmap requestSet, Timestamp time, ReplicaImp& p)
-        : ppMsg_{ppMsg}, requestSet_{std::move(requestSet)}, time_{time}, parent_{p} {}
-
-    virtual ~PostExecJob() {}
-
-    virtual void release() override { delete this; }
-
-    virtual void execute() override {
-      MDC_PUT(MDC_REPLICA_ID_KEY, std::to_string(parent_.config_.replicaId));
-      MDC_PUT(MDC_THREAD_KEY, "post-execution-thread");
-      SCOPED_MDC_SEQ_NUM(std::to_string(ppMsg_->seqNumber()));
-      LOG_INFO(CNSUS, "Starting post-execution for seqNumber:" << ppMsg_->seqNumber());
-      parent_.executeRequests(ppMsg_, requestSet_, time_);
-    }
-  };
 
   // 5 years
   static constexpr int64_t MAX_VALUE_SECONDS = 60 * 60 * 24 * 365 * 5;
