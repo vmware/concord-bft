@@ -80,7 +80,7 @@ class AdaptivePruningManager {
   uint32_t current_pruning_pace_;
   uint64_t current_batch_size_;
   concordMetrics::Component metricComponent;
-  concordMetrics::Component::Handle<concordMetrics::AtomicGauge> intervalBetweenTicksSecondsMetric, batchSizeMetric,
+  concordMetrics::Component::Handle<concordMetrics::AtomicGauge> blocksPerSecondMetric, batchSizeMetric,
       transactionsPerSecondMetric, postExecUtilizationMetric, pruningAvgTimeMicroMetric, pruningUtilizationMetric;
 };
 }  // namespace concord::performance
