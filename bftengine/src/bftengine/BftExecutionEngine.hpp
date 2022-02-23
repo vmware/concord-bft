@@ -72,4 +72,16 @@ class BftExecutionEngineBase {
   ExecutionMetrics metrics_;
 };
 
+class BftExecutionEngineFactory {
+ public:
+  enum TYPE { SYNC, ASYNC, SKIP, CONFIG };
+  static std::unique_ptr<BftExecutionEngineBase> create(
+      std::shared_ptr<IRequestsHandler> requests_handler,
+      std::shared_ptr<ClientsManager> client_manager,
+      std::shared_ptr<ReplicasInfo> reps_info,
+      std::shared_ptr<PersistentStorage> ps,
+      std::shared_ptr<TimeServiceManager<std::chrono::system_clock>> time_service_manager,
+      TYPE type);
+};
+
 }  // namespace bftEngine::impl

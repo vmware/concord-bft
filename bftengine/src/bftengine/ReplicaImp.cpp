@@ -63,7 +63,6 @@
 #include "RequestThreadPool.hpp"
 #include "DbCheckpointManager.hpp"
 #include "communication/StateControl.hpp"
-#include "BftExecutionEngineFactory.hpp"
 
 #define getName(var) #var
 
@@ -1521,7 +1520,10 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
 
   if (auto *t = std::get_if<FinishPrePrepareExecutionInternalMsg>(&msg)) {
     ConcordAssert(t->prePrepareMsg != nullptr);
-    t->registry.invokeAll(t->prePrepareMsg, *(t->pAccumulatedRequests));
+    postBftExecutionActions(t->prePrepareMsg, *(t->pAccumulatedRequests));
+    if (!main_execution_engine_->isExecuting()) handleDeferredRequests();
+    // Once we done with execution, lets try to run another phase of execution.
+    startExecution();
     delete t->pAccumulatedRequests;
     return;
   }
@@ -2457,6 +2459,7 @@ void ReplicaImp::startExecution() {
   }
   if (pps.empty()) return;
   LOG_INFO(CNSUS, "Start execution");
+  metric_number_of_current_executions_ += pps.size();
   skip_execution_engine_->addExecutions(pps);
   auto sn = main_execution_engine_->addExecutions(pps);
   ConcordAssert(sn <= lastCollectedSn);
@@ -4180,6 +4183,21 @@ void ReplicaImp::sendWedgeCommandIfNeeded() {
     }
   }
 }
+
+void ReplicaImp::postBftExecutionActions(PrePrepareMsg *ppMsg,
+                                         IRequestsHandler::ExecutionRequestsQueue &requests_for_execution) {
+  if (requests_for_execution.size() > 0) {
+    ps_->beginWriteTran();
+    bftRequestsHandler_->onFinishExecutingReadWriteRequests();
+    ps_->endWriteTran();
+  }
+  finalizePPExecution(ppMsg);
+  sendWedgeCommandIfNeeded();
+  if (isCurrentPrimary() && requestsQueueOfPrimary.size() > 0) tryToSendPrePrepareMsg(true);
+  sendClientReplies(requests_for_execution);
+  updateLimitsAndMetrics(ppMsg);
+  metric_number_of_current_executions_--;
+}
 void ReplicaImp::initExecutionEngines() {
   BftExecutionEngineBase::ExecutionMetrics metrics{histograms_.numRequestsInPrePrepareMsg,
                                                    histograms_.executeRequestsInPrePrepareMsg,
@@ -4190,46 +4208,26 @@ void ReplicaImp::initExecutionEngines() {
   skip_execution_engine_->setMetrics(metrics);
   skip_execution_engine_->addPostExecCallBack(
       [&](PrePrepareMsg *ppMsg, IRequestsHandler::ExecutionRequestsQueue &reqs) { sendClientReplies(reqs); });
-  main_execution_engine_ =
-      BftExecutionEngineFactory::create(bftRequestsHandler_, clientsManager, repsInfo, ps_, time_service_manager_);
+  main_execution_engine_ = BftExecutionEngineFactory::create(bftRequestsHandler_,
+                                                             clientsManager,
+                                                             repsInfo,
+                                                             ps_,
+                                                             time_service_manager_,
+                                                             BftExecutionEngineFactory::TYPE::CONFIG);
   if (config_.enablePostExecutionSeparation) {
-    main_execution_engine_->addPostExecCallBack([&](PrePrepareMsg *ppMsg,
-                                                    IRequestsHandler::ExecutionRequestsQueue &reqs) {
-      IRequestsHandler::ExecutionRequestsQueue *requests = new IRequestsHandler::ExecutionRequestsQueue();
-      *requests = reqs;
-      FinishPrePrepareExecutionInternalMsg msg_{ppMsg, requests};
-      msg_.registry.add([&](PrePrepareMsg *ppMsg, IRequestsHandler::ExecutionRequestsQueue &requests_for_execution) {
-        if (requests_for_execution.size() > 0) {
-          ps_->beginWriteTran();
-          bftRequestsHandler_->onFinishExecutingReadWriteRequests();
-          ps_->endWriteTran();
-        }
-        finalizePPExecution(ppMsg);
-        sendWedgeCommandIfNeeded();
-        if (isCurrentPrimary() && requestsQueueOfPrimary.size() > 0) tryToSendPrePrepareMsg(true);
-        sendClientReplies(requests_for_execution);
-        updateLimitsAndMetrics(ppMsg);
-        if (!main_execution_engine_->isExecuting()) handleDeferredRequests();
-        // Once we done with execution, lets try to run another phase of execution.
-        startExecution();
-      });
-      InternalMessage imsg;
-      imsg.emplace<FinishPrePrepareExecutionInternalMsg>(msg_);
-      getIncomingMsgsStorage().pushInternalMsg(std::move(imsg));
-    });
+    main_execution_engine_->addPostExecCallBack(
+        [&](PrePrepareMsg *ppMsg, IRequestsHandler::ExecutionRequestsQueue &reqs) {
+          IRequestsHandler::ExecutionRequestsQueue *requests = new IRequestsHandler::ExecutionRequestsQueue();
+          *requests = reqs;
+          FinishPrePrepareExecutionInternalMsg msg_{ppMsg, requests};
+          InternalMessage imsg;
+          imsg.emplace<FinishPrePrepareExecutionInternalMsg>(msg_);
+          getIncomingMsgsStorage().pushInternalMsg(std::move(imsg));
+        });
   } else {
     main_execution_engine_->addPostExecCallBack(
         [&](PrePrepareMsg *ppMsg, IRequestsHandler::ExecutionRequestsQueue &requests_for_execution) {
-          if (requests_for_execution.size() > 0) {
-            ps_->beginWriteTran();
-            bftRequestsHandler_->onFinishExecutingReadWriteRequests();
-            ps_->endWriteTran();
-          }
-          finalizePPExecution(ppMsg);
-          sendWedgeCommandIfNeeded();
-          if (isCurrentPrimary() && requestsQueueOfPrimary.size() > 0) tryToSendPrePrepareMsg(true);
-          sendClientReplies(requests_for_execution);
-          updateLimitsAndMetrics(ppMsg);
+          postBftExecutionActions(ppMsg, requests_for_execution);
         });
   }
   main_execution_engine_->setMetrics(metrics);
@@ -4566,6 +4564,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       deferredMessagesMetric_{metrics_.RegisterGauge("deferredMessages", 0)},
       metric_first_commit_path_{metrics_.RegisterStatus(
           "firstCommitPath", CommitPathToStr(ControllerWithSimpleHistory_debugInitialFirstPath))},
+      metric_number_of_current_executions_{metrics_.RegisterCounter("numberOfCurrentExecutions", 0)},
       batch_closed_on_logic_off_{metrics_.RegisterCounter("total_number_batch_closed_on_logic_off")},
       batch_closed_on_logic_on_{metrics_.RegisterCounter("total_number_batch_closed_on_logic_on")},
       metric_indicator_of_non_determinism_{metrics_.RegisterCounter("indicator_of_non_determinism")},
@@ -4894,16 +4893,7 @@ void ReplicaImp::recoverRequests() {
                                                                  BftExecutionEngineFactory::TYPE::SYNC);
     recover_exec_engine->addPostExecCallBack(
         [&](PrePrepareMsg *ppMsg, IRequestsHandler::ExecutionRequestsQueue &requests_for_execution) {
-          if (requests_for_execution.size() > 0) {
-            ps_->beginWriteTran();
-            bftRequestsHandler_->onFinishExecutingReadWriteRequests();
-            ps_->endWriteTran();
-          }
-          finalizePPExecution(ppMsg);
-          sendWedgeCommandIfNeeded();
-          if (isCurrentPrimary() && requestsQueueOfPrimary.size() > 0) tryToSendPrePrepareMsg(true);
-          sendClientReplies(requests_for_execution);
-          updateLimitsAndMetrics(ppMsg);
+          postBftExecutionActions(ppMsg, requests_for_execution);
         });
     recover_exec_engine->setMetrics(
         BftExecutionEngineBase::ExecutionMetrics{histograms_.numRequestsInPrePrepareMsg,

@@ -19,7 +19,6 @@ namespace bftEngine::impl {
 struct FinishPrePrepareExecutionInternalMsg {
   PrePrepareMsg* prePrepareMsg = nullptr;
   IRequestsHandler::ExecutionRequestsQueue* pAccumulatedRequests = nullptr;
-  concord::util::CallbackRegistry<PrePrepareMsg*, IRequestsHandler::ExecutionRequestsQueue&> registry;
   FinishPrePrepareExecutionInternalMsg(PrePrepareMsg* pp, IRequestsHandler::ExecutionRequestsQueue* q)
       : prePrepareMsg{pp}, pAccumulatedRequests{q} {}
 };

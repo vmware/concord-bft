@@ -117,6 +117,7 @@ class BasicCounter {
   }
   // postfix
   BasicCounter operator++(int) { return BasicCounter(val_++); }
+  BasicCounter operator--(int) { return BasicCounter(val_--); }
   BasicCounter& operator+=(const T& rhs) {
     val_ += rhs;
     return *this;
