@@ -5636,6 +5636,8 @@ void ReplicaImp::sendResponses(PrePrepareMsg *ppMsg, IRequestsHandler::Execution
     auto executionResult = req.outExecutionStatus;
     std::unique_ptr<ClientReplyMsg> replyMsg;
 
+    // Internal clients don't expect to be answered
+    if (repsInfo->isIdOfInternalClient(req.clientId)) continue;
     if (executionResult != 0) {
       LOG_WARN(GL,
                "Request execution failed: " << KVLOG(req.clientId,
