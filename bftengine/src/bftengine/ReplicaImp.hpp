@@ -400,6 +400,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   std::pair<PrePrepareMsg*, bool> buildPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) override;
   void handleDeferredRequests();
   void updateLimitsAndMetrics(PrePrepareMsg* ppMsg);
+  void updateCommitMetrics(const CommitPath& commitPath);
   void startExecution();
   void pushDeferredMessage(MessageBase*);
 
