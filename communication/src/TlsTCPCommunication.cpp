@@ -19,12 +19,11 @@ static constexpr size_t NUM_THREADS = 1;
 namespace bft::communication {
 
 // This is the public interface to this library. TlsTcpCommunication implements ICommunication.
-TlsTCPCommunication::TlsTCPCommunication(const TlsTcpConfig &config) {
+TlsTCPCommunication::TlsTCPCommunication(const TlsTcpConfig &config)
+    : logger_(logging::getLogger("concord-bft.tls.comm")) {
   config_ = new TlsTcpConfig(config);
-  if (config.selfId_ > static_cast<uint64_t>(config.maxServerId_))
-    runner_.reset(new tls::Runner(config, 1));
-  else
-    runner_.reset(new tls::Runner(config, NUM_THREADS));
+  int numOfRunnerThreads = config.selfId_ > static_cast<uint64_t>(config.maxServerId_) ? 1 : NUM_THREADS;
+  runner_.reset(new tls::Runner(config, numOfRunnerThreads));
 }
 
 TlsTCPCommunication::~TlsTCPCommunication() { delete config_; }
