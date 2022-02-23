@@ -36,7 +36,6 @@ comm_to_use: tls
 concord-bft_communication_buffer_length: 16777216
 enable_mock_comm: false
 encrypted_config_enabled: false
-external_requests_queue_size: 0
 f_val: 1
 num_replicas: 4
 num_ro_replicas: 1

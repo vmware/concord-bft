@@ -89,7 +89,6 @@ ConcordClientPoolConfig ConcordClient::createClientPoolStruct(const ConcordClien
   client_pool_config.num_replicas = config.topology.replicas.size();
   client_pool_config.client_proxies_per_replica = config.topology.client_proxies_per_replica;
   client_pool_config.signing_key_path = config.topology.signing_key_path;
-  client_pool_config.external_requests_queue_size = config.topology.external_requests_queue_size;
   client_pool_config.encrypted_config_enabled = config.topology.encrypted_config_enabled;
   client_pool_config.transaction_signing_enabled = config.topology.transaction_signing_enabled;
   client_pool_config.with_cre = config.topology.with_cre;

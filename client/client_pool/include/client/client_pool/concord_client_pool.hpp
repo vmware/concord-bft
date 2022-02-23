@@ -118,7 +118,7 @@ class ConcordClientPool {
                            std::uint32_t max_reply_size,
                            uint64_t seq_num,
                            std::string correlation_id = {},
-                           std::string span_context = std::string(),
+                           const std::string& span_context = std::string(),
                            const bftEngine::RequestCallBack& callback = {});
 
   // This method is responsible to get write requests with the new client
@@ -133,8 +133,8 @@ class ConcordClientPool {
                            bft::client::Msg&& request,
                            const bftEngine::RequestCallBack& callback = {});
 
-  void InsertClientToQueue(std::shared_ptr<concord::external_client::ConcordClient>& client,
-                           std::pair<int8_t, external_client::ConcordClient::PendingReplies>&& replies);
+  void processReplies(std::shared_ptr<concord::external_client::ConcordClient>& client,
+                      std::pair<int8_t, external_client::ConcordClient::PendingReplies>&& replies);
 
   // For batching jobs
   void assignJobToClient(const ClientPtr& client);
@@ -173,8 +173,7 @@ class ConcordClientPool {
 
   // Clients that are available for use (i.e. not already in use).
   std::deque<ClientPtr> clients_;
-  // The queue holds the jobs that no client was available to get.
-  std::deque<externalRequest> external_requests_queue_;
+
   // Thread pool, on each thread on client will run
   concord::util::SimpleThreadPool jobs_thread_pool_;
   // Clients queue mutex
@@ -201,7 +200,6 @@ class ConcordClientPool {
   // Logger
   logging::Logger logger_;
   std::atomic_bool is_overloaded_ = false;
-  uint32_t jobs_queue_max_size_ = 0;
   using Timer_t = ::concord_client_pool::Timer<ClientPtr>;
   std::unique_ptr<Timer_t> batch_timer_;
   bftEngine::impl::RollingAvgAndVar average_req_dur_;
