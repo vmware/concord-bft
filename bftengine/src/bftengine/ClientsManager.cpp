@@ -93,6 +93,7 @@ uint32_t ClientsManager::reservedPagesPerClient(const uint32_t& sizeOfReservedPa
 // * remove pending request if loaded reply is newer
 void ClientsManager::loadInfoFromReservedPages() {
   for (auto const& clientId : clientIds_) {
+    if (internalClients_.find(clientId) != internalClients_.end()) continue;
     if (loadReservedPage(getKeyPageId(clientId), sizeOfReservedPage(), scratchPage_.data())) {
       auto& info = clientsInfo_[clientId];
       std::istringstream iss(scratchPage_);
