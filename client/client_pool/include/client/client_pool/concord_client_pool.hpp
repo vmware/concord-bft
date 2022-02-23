@@ -237,6 +237,7 @@ class SingleRequestProcessingJob : public BatchRequestProcessingJob {
                              std::vector<uint8_t>&& request,
                              bftEngine::ClientMsgFlag flags,
                              std::chrono::milliseconds timeout_ms,
+                             uint32_t max_reply_size,
                              std::string correlation_id,
                              uint64_t seq_num,
                              std::string span_context,
@@ -245,6 +246,7 @@ class SingleRequestProcessingJob : public BatchRequestProcessingJob {
         request_(std::move(request)),
         flags_{flags},
         timeout_ms_{timeout_ms},
+        max_reply_size_{max_reply_size},
         correlation_id_{std::move(correlation_id)},
         span_context_{std::move(span_context)},
         seq_num_{seq_num},
@@ -256,6 +258,7 @@ class SingleRequestProcessingJob : public BatchRequestProcessingJob {
   std::vector<uint8_t> request_;
   bftEngine::ClientMsgFlag flags_;
   std::chrono::milliseconds timeout_ms_;
+  uint32_t max_reply_size_;
   const std::string correlation_id_;
   std::string span_context_;
   uint64_t seq_num_;
