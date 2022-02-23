@@ -55,6 +55,20 @@ module ClusterConfig {
       2 * F() + 1
     }
 
+    predicate IsHonestReplica(id:HostId)
+      requires WF()
+    {
+      && ValidHostId(id)
+      && F() <= id < N()
+    }
+
+    predicate IsFaultyReplica(id:HostId)
+      requires WF()
+    {
+      && ValidHostId(id)
+      && 0 <= id < F()
+    }
+
     predicate IsReplica(id:HostId)
       requires WF()
     {
