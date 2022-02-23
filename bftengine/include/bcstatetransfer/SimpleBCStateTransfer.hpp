@@ -137,7 +137,8 @@ class IAppState {
 
   // Perform post-processing operations on all blocks until (and include) maxBlockId
   // If those operations have already been done, function should do nothing and return
-  virtual void postProcessUntilBlockId(uint64_t maxBlockId) = 0;
+  // return number of blocks that were actually post-processed
+  virtual size_t postProcessUntilBlockId(uint64_t maxBlockId) = 0;
 
   // When the state is updated by the application, getLastReachableBlockNum()
   // and getLastBlockNum() should always return the same block number.
