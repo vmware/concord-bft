@@ -304,14 +304,13 @@ TEST(ClientsManager, numberOfRequiredReservedPagesSucceeds) {
 }
 
 TEST(ClientsManager, loadInfoFromReservedPagesLoadsCorrectInfo) {
-  set<NodeIdType> client_ids{1, 2, 3, 4, 5, 6};
+  set<NodeIdType> client_ids{1, 2, 3, 4};
   set<NodeIdType> proxy_client_ids{1, 2, 3};
   set<NodeIdType> external_client_ids{4};
-  set<NodeIdType> internal_client_ids{5, 6};
+  set<NodeIdType> internal_client_ids{};
 
   map<NodeIdType, pair<string, string>> client_keys;
   client_keys[2] = Crypto::instance().generateRsaKeyPair(kRSASigLengthForTesting, kKeyFormatForTesting);
-  client_keys[5] = Crypto::instance().generateRsaKeyPair(kRSASigLengthForTesting, kKeyFormatForTesting);
 
   map<NodeIdType, pair<ReqId, string>> client_replies;
   client_replies[2] = {9, "reply 9 to client 2"};
@@ -455,10 +454,10 @@ TEST(ClientsManager, loadInfoFromReservedPagesHandlesSingleClientClientsManager)
 }
 
 TEST(ClientsManager, loadInfoFromReservedPagesCorrectlyDeletesOldReplies) {
-  set<NodeIdType> client_ids{1, 2, 3, 4, 5, 6};
+  set<NodeIdType> client_ids{1, 2, 3, 4};
   set<NodeIdType> proxy_client_ids{1, 2, 3};
   set<NodeIdType> external_client_ids{4};
-  set<NodeIdType> internal_client_ids{5, 6};
+  set<NodeIdType> internal_client_ids{};
 
   map<NodeIdType, pair<ReqId, string>> client_replies;
   client_replies[2] = {9, "reply 9 to client 2"};
@@ -1311,16 +1310,13 @@ TEST(ClientsManager, setClientPublicKey) {
   pair<string, string> client_7_key =
       Crypto::instance().generateRsaKeyPair(kRSASigLengthForTesting, kKeyFormatForTesting);
 
-  unique_ptr<ClientsManager> cm(new ClientsManager({}, {4, 5, 7}, {2}, metrics));
-  cm->setClientPublicKey(2, client_2_key.second, kKeyFormatForTesting);
+  unique_ptr<ClientsManager> cm(new ClientsManager({}, {4, 5, 7}, {}, metrics));
   cm->setClientPublicKey(7, client_7_key.second, kKeyFormatForTesting);
 
   clearClientPublicKeysLoadedToKEM();
-  cm.reset(new ClientsManager({}, {4, 5, 7}, {2}, metrics));
+  cm.reset(new ClientsManager({}, {4, 5, 7}, {}, metrics));
   cm->loadInfoFromReservedPages();
 
-  EXPECT_TRUE(verifyClientPublicKeyLoadedToKEM(2, client_2_key))
-      << "ClientsManager::setClientPublicKey failed to correctly write the given public key to the reserved pages.";
   EXPECT_TRUE(verifyClientPublicKeyLoadedToKEM(7, client_7_key))
       << "ClientsManager::setClientPublicKey failed to correctly write the given public key to the reserved pages.";
   EXPECT_TRUE(verifyNoClientPublicKeyLoadedToKEM(4))

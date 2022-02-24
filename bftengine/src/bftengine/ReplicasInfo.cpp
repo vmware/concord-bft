@@ -63,6 +63,11 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
       _dynamicCollectorForPartialProofs{dynamicCollectorForPartialProofs},
       _dynamicCollectorForExecutionProofs{dynamicCollectorForExecutionProofs},
 
+      /*
+       * Ids order is: [replicas, ro-replicas, clientProxies, client-service clients (aka external clients) including
+       * cre, client-service ID, operator, internal-clients]. Notice, that in case we have an operator, it is included
+       * in numOfExternalClients, so no need in any special handling.
+       */
       _idsOfPeerReplicas{[&config]() {
         std::set<ReplicaId> ret;
         for (auto i = 0; i < config.numReplicas; ++i)
@@ -100,17 +105,22 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
         std::set<ReplicaId> ret;
         auto start = config.numReplicas + config.numRoReplicas + config.numOfClientProxies;
         auto end = start + config.numOfExternalClients;
-        for (auto i = start; i < end; ++i) {
+        for (auto i = start; i < (end - ((uint16_t)config.operatorEnabled_)); ++i) {
           ret.insert(i);
         }
-        if (start != end) LOG_INFO(GL, "Principal ids in _idsOfExternalClients: " << start << " to " << end - 1);
+        ret.insert(end + config.numOfClientServices - 1);
+        if (start != end)
+          LOG_INFO(GL,
+                   "Principal ids in _idsOfExternalClients: " << start << " to "
+                                                              << end - 1 - ((uint16_t)config.operatorEnabled_));
+        if (config.operatorEnabled_) LOG_INFO(GL, "Operator id: " << end + config.numOfClientServices - 1);
         return ret;
       }()},
 
       _idsOfInternalClients{[&config]() {
         std::set<ReplicaId> ret;
-        auto start =
-            config.numReplicas + config.numRoReplicas + config.numOfClientProxies + config.numOfExternalClients;
+        auto start = config.numReplicas + config.numRoReplicas + config.numOfClientProxies +
+                     config.numOfExternalClients + config.numOfClientServices;
         auto end = start + config.numReplicas;
         for (auto i = start; i < end; ++i) {
           ret.insert(i);
@@ -122,12 +132,12 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
       _idsOfClientServices{[&config]() {
         std::set<ReplicaId> ret;
         auto start = config.numReplicas + config.numRoReplicas + config.numOfClientProxies +
-                     config.numOfExternalClients + config.numReplicas;
+                     config.numOfExternalClients - ((uint16_t)config.operatorEnabled_);
         auto end = start + config.numOfClientServices;
         for (auto i = start; i < end; ++i) {
           ret.insert(i);
         }
-        if (start != end) LOG_INFO(GL, "Principal ids in _idsOfClientServices: " << start << " to " << end - 1);
+        if (start != end) LOG_INFO(GL, "Principal ids in _idsOfClientServices: " << start << " to " << end);
         return ret;
       }()} {
   ConcordAssert(_numberOfReplicas == (3 * _fVal + 2 * _cVal + 1));
