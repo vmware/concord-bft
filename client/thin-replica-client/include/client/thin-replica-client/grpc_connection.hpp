@@ -63,15 +63,15 @@ const int kGrpcMaxInboundMsgSizeInBytes = 1 << 24;
 // core Thin Replica Client logic in concordclient::ThinReplicaClient.
 //
 // The GrpcConnection itself provides the production implementation used for
-// communication by the Thin Replica Client Library, however, GrpcConnection also
-// defines the interface (with its virtual functions) that the ThinReplicaClient
-// implementation abstractly uses for communication, so it can be extended in
-// order to use an alternative connection and communication implementation (for
-// example, for testing).
+// communication by the Thin Replica Client Library and Replica State Snapshot,
+// however, GrpcConnection also defines the interface (with its virtual functions)
+// that the ThinReplicaClient implementation abstractly uses for communication,
+// so it can be extended in order to use an alternative connection and communication
+// implementation (for example, for testing).
 //
-// GrpcConnection provides NO thread safety guarantees in the event more than one
+// GrpcConnection provides thread safety guarantees in the event more than one
 // call to a GrpcConnection function executes concurrently on the same
-// GrpcConnection object.
+// GrpcConnection object. The GrpcConnection object is shared across different services.
 class GrpcConnection {
  public:
   // Possible results of RPC operations a GrpcConnection may report.
@@ -94,7 +94,7 @@ class GrpcConnection {
   // Connect & disconnect from the TRS
   virtual void connect(std::unique_ptr<GrpcConnectionConfig>& config);
   virtual bool isConnected();
-  virtual void reConnect(std::unique_ptr<GrpcConnectionConfig>& config);
+  virtual void checkAndReConnect(std::unique_ptr<GrpcConnectionConfig>& config);
   virtual void disconnect();
 
   // Open a data subscription stream (connection has to be established before).
@@ -186,6 +186,8 @@ class GrpcConnection {
 
   void createChannel();
 
+  bool isConnectedNoLock();
+
   logging::Logger logger_;
 
   // Connection identifiers
@@ -209,6 +211,7 @@ class GrpcConnection {
 
   // gRPC connection
   std::shared_ptr<grpc::Channel> channel_;
+  std::shared_mutex channel_mutex_;
   std::unique_ptr<com::vmware::concord::thin_replica::ThinReplica::StubInterface> trc_stub_;
   std::unique_ptr<vmware::concord::replicastatesnapshot::ReplicaStateSnapshotService::StubInterface> rss_stub_;
 
