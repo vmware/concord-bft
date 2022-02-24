@@ -131,16 +131,13 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
 
       _idsOfClientServices{[&config]() {
         std::set<ReplicaId> ret;
-        auto start =
-            config.numReplicas + config.numRoReplicas + config.numOfClientProxies + config.numOfExternalClients;
+        auto start = config.numReplicas + config.numRoReplicas + config.numOfClientProxies +
+                     config.numOfExternalClients - ((uint16_t)config.operatorEnabled_);
         auto end = start + config.numOfClientServices;
-        for (auto i = start; i < (end - ((uint16_t)config.operatorEnabled_)); ++i) {
+        for (auto i = start; i < end; ++i) {
           ret.insert(i);
         }
-        if (start != end)
-          LOG_INFO(GL,
-                   "Principal ids in _idsOfClientServices: " << start << " to "
-                                                             << end - 1 - ((uint16_t)config.operatorEnabled_));
+        if (start != end) LOG_INFO(GL, "Principal ids in _idsOfClientServices: " << start << " to " << end);
         return ret;
       }()} {
   ConcordAssert(_numberOfReplicas == (3 * _fVal + 2 * _cVal + 1));
