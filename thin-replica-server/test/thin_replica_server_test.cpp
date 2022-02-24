@@ -53,7 +53,8 @@ constexpr uint64_t kLastEventGroupId{5u};
 
 static inline const std::string kGlobalEgIdKey{"_global_eg_id"};
 static inline const std::string kPublicEgIdKey{"_public_eg_id"};
-static inline const std::string kClientId{"TEST_ID"};
+static inline const std::string kClientId1{"TEST_ID1"};
+static inline const std::string kClientId2{"TEST_ID2"};
 static inline const std::string kTagTableKeySeparator{"#"};
 
 Block generate_block(BlockId block_id) {
@@ -95,20 +96,23 @@ std::string CreateTridKvbValue(const std::string& value, const std::vector<std::
   return ret;
 }
 
-EventGroup generateEventGroup(EventGroupId eg_id, bool is_public) {
+EventGroup generateEventGroup(EventGroupId eg_id, bool is_public, const std::string& trid) {
   concord::kvbc::categorization::Event event;
   EventGroup event_group;
   // we are adding just one event per event group
   const std::string data = "val eg_id#" + std::to_string(eg_id);
   std::vector<std::string> trid_list = {};
-  if (!is_public) trid_list.emplace_back(kClientId);
+  if (!is_public) trid_list.emplace_back(trid);
   event.data = CreateTridKvbValue(data, trid_list);
   event.tags = trid_list;
   event_group.events.emplace_back(event);
   return event_group;
 }
 
-EventGroupMap generateEventGroupMap(EventGroupId start, EventGroupId end, EventGroupType eg_type) {
+EventGroupMap generateEventGroupMap(EventGroupId start,
+                                    EventGroupId end,
+                                    EventGroupType eg_type,
+                                    const std::string& trid = kClientId1) {
   EventGroupMap event_group_map;
   if (start == end && end == 0) return event_group_map;
   if (eg_type == EventGroupType::PublicAndPrivateEventGroups) {
@@ -117,7 +121,7 @@ EventGroupMap generateEventGroupMap(EventGroupId start, EventGroupId end, EventG
       if (eg_id % 2 == 0) {
         is_public = true;
       }
-      EventGroup event_group = generateEventGroup(eg_id, is_public);
+      EventGroup event_group = generateEventGroup(eg_id, is_public, trid);
       auto key = concordUtils::toBigEndianStringBuffer(eg_id);
       event_group_map[key] = event_group;
     }
@@ -126,7 +130,7 @@ EventGroupMap generateEventGroupMap(EventGroupId start, EventGroupId end, EventG
   bool is_public = false;
   if (eg_type == EventGroupType::PublicEventGroupsOnly) is_public = true;
   for (EventGroupId eg_id = start; eg_id <= end; ++eg_id) {
-    EventGroup event_group = generateEventGroup(eg_id, is_public);
+    EventGroup event_group = generateEventGroup(eg_id, is_public, trid);
     auto key = concordUtils::toBigEndianStringBuffer(eg_id);
     event_group_map[key] = event_group;
   }
@@ -362,7 +366,7 @@ class FakeStorage : public concord::kvbc::IReader {
 };
 
 class TestServerContext {
-  std::multimap<std::string, std::string> metadata_ = {{"client_id", kClientId}};
+  std::multimap<std::string, std::string> metadata_ = {{"client_id", kClientId1}};
   bool context_cancelled_ = false;
 
   class AuthContext {
@@ -790,6 +794,52 @@ TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdatesAlreadySynced)
   EXPECT_EQ(state_machine.numEventGroupsReceived(), total_event_groups);
 }
 
+TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdatesAlreadySyncedTwoClients) {
+  FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PrivateEventGroupsOnly));
+  auto storage_egs = storage.getEventGroups();
+  EventGroupMap live_updates = storage_egs;
+  EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
+  TestStateMachine<Data> state_machine{storage, live_updates, 1, true};
+  state_machine.current_eg_type = EventGroupType::PrivateEventGroupsOnly;
+  TestSubBufferList<Data> buffer{state_machine};
+  TestServerWriter<Data> stream{state_machine};
+
+  bool is_insecure_trs = true;
+  std::string tls_trs_cert_path;
+  std::unordered_set<std::string> client_id_set;
+  uint16_t update_metrics_aggregator_thresh = 100;
+
+  auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
+      is_insecure_trs, tls_trs_cert_path, &storage, buffer, client_id_set, update_metrics_aggregator_thresh);
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
+  TestServerContext context;
+  SubscriptionRequest request;
+  request.mutable_event_groups()->set_event_group_id(1u);
+  auto out_stream = std::async(std::launch::async, [&] {
+    return replica.SubscribeToUpdates<TestServerContext, TestServerWriter<Data>, Data>(&context, &request, &stream);
+  });
+  auto status = out_stream.wait_for(1s);
+  auto more_live_updates = generateEventGroupMap(1, 1, EventGroupType::PrivateEventGroupsOnly, kClientId2);
+  auto live_updates_cl1 = generateEventGroupMap(
+      kLastEventGroupId + 6, kLastEventGroupId + 6, EventGroupType::PrivateEventGroupsOnly, kClientId1);
+  more_live_updates.insert(live_updates_cl1.begin(), live_updates_cl1.end());
+  storage.addEventGroups(more_live_updates);
+  storage.updateEventGroupStorageMaps(more_live_updates);
+  state_machine.toggle_more_event_groups_to_add_(false);
+  for (const auto& [key, val] : more_live_updates) {
+    EventGroupId eg_id(concordUtils::fromBigEndianBuffer<uint64_t>(key.data()));
+    concord::thin_replica::SubEventGroupUpdate update{eg_id, val};
+    buffer.updateEventGroupSubBuffers(update);
+  }
+  state_machine.set_expected_last_event_group_to_send(12u);
+  if (status != std::future_status::ready) {
+    out_stream.wait();
+  }
+  auto total_event_groups = kLastEventGroupId + 5 + 1;
+  EXPECT_EQ(out_stream.get().error_code(), grpc::StatusCode::OK);
+  EXPECT_EQ(state_machine.numEventGroupsReceived(), total_event_groups);
+}
+
 TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdatesAlreadySynced) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PublicEventGroupsOnly));
   auto storage_egs = storage.getEventGroups();
@@ -834,6 +884,52 @@ TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdatesAlreadySynced) 
   EXPECT_EQ(state_machine.numEventGroupsReceived(), total_event_groups);
 }
 
+TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdatesAlreadySyncedTwoClients) {
+  FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PublicEventGroupsOnly));
+  auto storage_egs = storage.getEventGroups();
+  EventGroupMap live_updates = storage_egs;
+  EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
+  TestStateMachine<Data> state_machine{storage, live_updates, 1, true};
+  state_machine.current_eg_type = EventGroupType::PublicEventGroupsOnly;
+  TestSubBufferList<Data> buffer{state_machine};
+  TestServerWriter<Data> stream{state_machine};
+
+  bool is_insecure_trs = true;
+  std::string tls_trs_cert_path;
+  std::unordered_set<std::string> client_id_set;
+  uint16_t update_metrics_aggregator_thresh = 100;
+
+  auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
+      is_insecure_trs, tls_trs_cert_path, &storage, buffer, client_id_set, update_metrics_aggregator_thresh);
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
+  TestServerContext context;
+  SubscriptionRequest request;
+  request.mutable_event_groups()->set_event_group_id(1u);
+  auto out_stream = std::async(std::launch::async, [&] {
+    return replica.SubscribeToUpdates<TestServerContext, TestServerWriter<Data>, Data>(&context, &request, &stream);
+  });
+  auto status = out_stream.wait_for(1s);
+  auto more_live_updates = generateEventGroupMap(1, 1, EventGroupType::PrivateEventGroupsOnly, kClientId2);
+  auto live_updates_pub =
+      generateEventGroupMap(kLastEventGroupId + 6, kLastEventGroupId + 6, EventGroupType::PublicEventGroupsOnly);
+  more_live_updates.insert(live_updates_pub.begin(), live_updates_pub.end());
+  storage.addEventGroups(more_live_updates);
+  storage.updateEventGroupStorageMaps(more_live_updates);
+  state_machine.toggle_more_event_groups_to_add_(false);
+  for (const auto& [key, val] : more_live_updates) {
+    EventGroupId eg_id(concordUtils::fromBigEndianBuffer<uint64_t>(key.data()));
+    concord::thin_replica::SubEventGroupUpdate update{eg_id, val};
+    buffer.updateEventGroupSubBuffers(update);
+  }
+  state_machine.set_expected_last_event_group_to_send(12u);
+  if (status != std::future_status::ready) {
+    out_stream.wait();
+  }
+  auto total_event_groups = kLastEventGroupId + 5 + 1;
+  EXPECT_EQ(out_stream.get().error_code(), grpc::StatusCode::OK);
+  EXPECT_EQ(state_machine.numEventGroupsReceived(), total_event_groups);
+}
+
 TEST(thin_replica_server_test, SubscribeToPublicAndPrivateEventGroupUpdatesAlreadySynced) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PublicAndPrivateEventGroups));
   auto storage_egs = storage.getEventGroups();
@@ -861,6 +957,52 @@ TEST(thin_replica_server_test, SubscribeToPublicAndPrivateEventGroupUpdatesAlrea
   auto status = out_stream.wait_for(1s);
   auto more_live_updates =
       generateEventGroupMap(kLastEventGroupId + 6, kLastEventGroupId + 6, EventGroupType::PrivateEventGroupsOnly);
+  storage.addEventGroups(more_live_updates);
+  storage.updateEventGroupStorageMaps(more_live_updates);
+  state_machine.toggle_more_event_groups_to_add_(false);
+  for (const auto& [key, val] : more_live_updates) {
+    EventGroupId eg_id(concordUtils::fromBigEndianBuffer<uint64_t>(key.data()));
+    concord::thin_replica::SubEventGroupUpdate update{eg_id, val};
+    buffer.updateEventGroupSubBuffers(update);
+  }
+  state_machine.set_expected_last_event_group_to_send(12u);
+  if (status != std::future_status::ready) {
+    out_stream.wait();
+  }
+  auto total_event_groups = kLastEventGroupId + 5 + 1;
+  EXPECT_EQ(out_stream.get().error_code(), grpc::StatusCode::OK);
+  EXPECT_EQ(state_machine.numEventGroupsReceived(), total_event_groups);
+}
+
+TEST(thin_replica_server_test, SubscribeToPublicAndPrivateEventGroupUpdatesAlreadySyncedTwoClients) {
+  FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PublicAndPrivateEventGroups));
+  auto storage_egs = storage.getEventGroups();
+  EventGroupMap live_updates = storage_egs;
+  EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
+  TestStateMachine<Data> state_machine{storage, live_updates, 1, true};
+  state_machine.current_eg_type = EventGroupType::PublicAndPrivateEventGroups;
+  TestSubBufferList<Data> buffer{state_machine};
+  TestServerWriter<Data> stream{state_machine};
+
+  bool is_insecure_trs = true;
+  std::string tls_trs_cert_path;
+  std::unordered_set<std::string> client_id_set;
+  uint16_t update_metrics_aggregator_thresh = 100;
+
+  auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
+      is_insecure_trs, tls_trs_cert_path, &storage, buffer, client_id_set, update_metrics_aggregator_thresh);
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
+  TestServerContext context;
+  SubscriptionRequest request;
+  request.mutable_event_groups()->set_event_group_id(1u);
+  auto out_stream = std::async(std::launch::async, [&] {
+    return replica.SubscribeToUpdates<TestServerContext, TestServerWriter<Data>, Data>(&context, &request, &stream);
+  });
+  auto status = out_stream.wait_for(1s);
+  auto more_live_updates = generateEventGroupMap(1, 1, EventGroupType::PrivateEventGroupsOnly, kClientId2);
+  auto live_updates_cl1 = generateEventGroupMap(
+      kLastEventGroupId + 6, kLastEventGroupId + 6, EventGroupType::PublicAndPrivateEventGroups, kClientId1);
+  more_live_updates.insert(live_updates_cl1.begin(), live_updates_cl1.end());
   storage.addEventGroups(more_live_updates);
   storage.updateEventGroupStorageMaps(more_live_updates);
   state_machine.toggle_more_event_groups_to_add_(false);
@@ -946,6 +1088,57 @@ TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdatesWithGap) {
   EXPECT_EQ(state_machine.numEventGroupsReceived(), total_event_groups);
 }
 
+TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdatesWithGapTwoClients) {
+  FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PrivateEventGroupsOnly));
+  auto storage_egs = storage.getEventGroups();
+  EventGroupMap live_updates = storage_egs;
+  EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
+  TestStateMachine<Data> state_machine{storage, live_updates, 1, true};
+  state_machine.current_eg_type = EventGroupType::PrivateEventGroupsOnly;
+  TestSubBufferList<Data> buffer{state_machine};
+  TestServerWriter<Data> stream{state_machine};
+
+  bool is_insecure_trs = true;
+  std::string tls_trs_cert_path;
+  std::unordered_set<std::string> client_id_set;
+  uint16_t update_metrics_aggregator_thresh = 100;
+
+  auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
+      is_insecure_trs, tls_trs_cert_path, &storage, buffer, client_id_set, update_metrics_aggregator_thresh);
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
+  TestServerContext context;
+  SubscriptionRequest request;
+  request.mutable_event_groups()->set_event_group_id(1u);
+  auto out_stream = std::async(std::launch::async, [&] {
+    return replica.SubscribeToUpdates<TestServerContext, TestServerWriter<Data>, Data>(&context, &request, &stream);
+  });
+  auto status = out_stream.wait_for(1s);
+  state_machine.set_expected_last_event_group_to_send(14u);
+  auto more_live_updates = generateEventGroupMap(1, 2, EventGroupType::PrivateEventGroupsOnly, kClientId2);
+  auto live_updates_cl1 = generateEventGroupMap(
+      kLastEventGroupId + 6, kLastEventGroupId + 7, EventGroupType::PrivateEventGroupsOnly, kClientId1);
+  auto live_updates_cl2 = generateEventGroupMap(3, 6, EventGroupType::PrivateEventGroupsOnly, kClientId2);
+  auto live_updates_cl1_last = generateEventGroupMap(
+      kLastEventGroupId + 8, kLastEventGroupId + 8, EventGroupType::PrivateEventGroupsOnly, kClientId1);
+  more_live_updates.insert(live_updates_cl1.begin(), live_updates_cl1.end());
+  more_live_updates.insert(live_updates_cl2.begin(), live_updates_cl2.end());
+  more_live_updates.insert(live_updates_cl1_last.begin(), live_updates_cl1_last.end());
+  storage.addEventGroups(more_live_updates);
+  storage.updateEventGroupStorageMaps(more_live_updates);
+  state_machine.toggle_more_event_groups_to_add_(false);
+  for (const auto& [key, val] : more_live_updates) {
+    EventGroupId eg_id(concordUtils::fromBigEndianBuffer<uint64_t>(key.data()));
+    concord::thin_replica::SubEventGroupUpdate update{eg_id, val};
+    buffer.updateEventGroupSubBuffers(update);
+  }
+  if (status != std::future_status::ready) {
+    out_stream.wait();
+  }
+  auto total_event_groups = kLastEventGroupId + 5 + 3;
+  EXPECT_EQ(out_stream.get().error_code(), grpc::StatusCode::OK);
+  EXPECT_EQ(state_machine.numEventGroupsReceived(), total_event_groups);
+}
+
 TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdatesWithGap) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PublicEventGroupsOnly));
   auto storage_egs = storage.getEventGroups();
@@ -990,6 +1183,57 @@ TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdatesWithGap) {
   EXPECT_EQ(state_machine.numEventGroupsReceived(), total_event_groups);
 }
 
+TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdatesWithGapTwoClients) {
+  FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PublicEventGroupsOnly));
+  auto storage_egs = storage.getEventGroups();
+  EventGroupMap live_updates = storage_egs;
+  EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
+  TestStateMachine<Data> state_machine{storage, live_updates, 1, true};
+  state_machine.current_eg_type = EventGroupType::PublicEventGroupsOnly;
+  TestSubBufferList<Data> buffer{state_machine};
+  TestServerWriter<Data> stream{state_machine};
+
+  bool is_insecure_trs = true;
+  std::string tls_trs_cert_path;
+  std::unordered_set<std::string> client_id_set;
+  uint16_t update_metrics_aggregator_thresh = 100;
+
+  auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
+      is_insecure_trs, tls_trs_cert_path, &storage, buffer, client_id_set, update_metrics_aggregator_thresh);
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
+  TestServerContext context;
+  SubscriptionRequest request;
+  request.mutable_event_groups()->set_event_group_id(1u);
+  auto out_stream = std::async(std::launch::async, [&] {
+    return replica.SubscribeToUpdates<TestServerContext, TestServerWriter<Data>, Data>(&context, &request, &stream);
+  });
+  auto status = out_stream.wait_for(1s);
+  state_machine.set_expected_last_event_group_to_send(14u);
+  auto more_live_updates = generateEventGroupMap(1, 2, EventGroupType::PrivateEventGroupsOnly, kClientId2);
+  auto live_updates_pub =
+      generateEventGroupMap(kLastEventGroupId + 6, kLastEventGroupId + 7, EventGroupType::PublicEventGroupsOnly);
+  auto live_updates_cl2 = generateEventGroupMap(3, 6, EventGroupType::PrivateEventGroupsOnly, kClientId2);
+  auto live_updates_pub_last =
+      generateEventGroupMap(kLastEventGroupId + 8, kLastEventGroupId + 8, EventGroupType::PublicEventGroupsOnly);
+  more_live_updates.insert(live_updates_pub.begin(), live_updates_pub.end());
+  more_live_updates.insert(live_updates_cl2.begin(), live_updates_cl2.end());
+  more_live_updates.insert(live_updates_pub_last.begin(), live_updates_pub_last.end());
+  storage.addEventGroups(more_live_updates);
+  storage.updateEventGroupStorageMaps(more_live_updates);
+  state_machine.toggle_more_event_groups_to_add_(false);
+  for (const auto& [key, val] : more_live_updates) {
+    EventGroupId eg_id(concordUtils::fromBigEndianBuffer<uint64_t>(key.data()));
+    concord::thin_replica::SubEventGroupUpdate update{eg_id, val};
+    buffer.updateEventGroupSubBuffers(update);
+  }
+  if (status != std::future_status::ready) {
+    out_stream.wait();
+  }
+  auto total_event_groups = kLastEventGroupId + 5 + 3;
+  EXPECT_EQ(out_stream.get().error_code(), grpc::StatusCode::OK);
+  EXPECT_EQ(state_machine.numEventGroupsReceived(), total_event_groups);
+}
+
 TEST(thin_replica_server_test, SubscribeToPublicAndPrivateEventGroupUpdatesWithGap) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PublicAndPrivateEventGroups));
   auto storage_egs = storage.getEventGroups();
@@ -1018,6 +1262,57 @@ TEST(thin_replica_server_test, SubscribeToPublicAndPrivateEventGroupUpdatesWithG
   state_machine.set_expected_last_event_group_to_send(14u);
   auto more_live_updates =
       generateEventGroupMap(kLastEventGroupId + 6, kLastEventGroupId + 8, EventGroupType::PublicAndPrivateEventGroups);
+  storage.addEventGroups(more_live_updates);
+  storage.updateEventGroupStorageMaps(more_live_updates);
+  state_machine.toggle_more_event_groups_to_add_(false);
+  for (const auto& [key, val] : more_live_updates) {
+    EventGroupId eg_id(concordUtils::fromBigEndianBuffer<uint64_t>(key.data()));
+    concord::thin_replica::SubEventGroupUpdate update{eg_id, val};
+    buffer.updateEventGroupSubBuffers(update);
+  }
+  if (status != std::future_status::ready) {
+    out_stream.wait();
+  }
+  auto total_event_groups = kLastEventGroupId + 5 + 3;
+  EXPECT_EQ(out_stream.get().error_code(), grpc::StatusCode::OK);
+  EXPECT_EQ(state_machine.numEventGroupsReceived(), total_event_groups);
+}
+
+TEST(thin_replica_server_test, SubscribeToPublicAndPrivateEventGroupUpdatesWithGapTwoClients) {
+  FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PublicAndPrivateEventGroups));
+  auto storage_egs = storage.getEventGroups();
+  EventGroupMap live_updates = storage_egs;
+  EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
+  TestStateMachine<Data> state_machine{storage, live_updates, 1, true};
+  state_machine.current_eg_type = EventGroupType::PublicAndPrivateEventGroups;
+  TestSubBufferList<Data> buffer{state_machine};
+  TestServerWriter<Data> stream{state_machine};
+
+  bool is_insecure_trs = true;
+  std::string tls_trs_cert_path;
+  std::unordered_set<std::string> client_id_set;
+  uint16_t update_metrics_aggregator_thresh = 100;
+
+  auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
+      is_insecure_trs, tls_trs_cert_path, &storage, buffer, client_id_set, update_metrics_aggregator_thresh);
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
+  TestServerContext context;
+  SubscriptionRequest request;
+  request.mutable_event_groups()->set_event_group_id(1u);
+  auto out_stream = std::async(std::launch::async, [&] {
+    return replica.SubscribeToUpdates<TestServerContext, TestServerWriter<Data>, Data>(&context, &request, &stream);
+  });
+  auto status = out_stream.wait_for(1s);
+  state_machine.set_expected_last_event_group_to_send(14u);
+  auto more_live_updates = generateEventGroupMap(1, 2, EventGroupType::PrivateEventGroupsOnly, kClientId2);
+  auto live_updates_cl1 = generateEventGroupMap(
+      kLastEventGroupId + 6, kLastEventGroupId + 7, EventGroupType::PublicAndPrivateEventGroups, kClientId1);
+  auto live_updates_cl2 = generateEventGroupMap(3, 6, EventGroupType::PrivateEventGroupsOnly, kClientId2);
+  auto live_updates_cl1_last = generateEventGroupMap(
+      kLastEventGroupId + 8, kLastEventGroupId + 8, EventGroupType::PublicAndPrivateEventGroups, kClientId1);
+  more_live_updates.insert(live_updates_cl1.begin(), live_updates_cl1.end());
+  more_live_updates.insert(live_updates_cl2.begin(), live_updates_cl2.end());
+  more_live_updates.insert(live_updates_cl1_last.begin(), live_updates_cl1_last.end());
   storage.addEventGroups(more_live_updates);
   storage.updateEventGroupStorageMaps(more_live_updates);
   state_machine.toggle_more_event_groups_to_add_(false);
@@ -1261,6 +1556,52 @@ TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdateHashesAlreadySy
   EXPECT_EQ(state_machine.numEventGroupsReceived(), total_event_groups);
 }
 
+TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdateHashesAlreadySyncedTwoClients) {
+  FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PrivateEventGroupsOnly));
+  auto storage_egs = storage.getEventGroups();
+  EventGroupMap live_updates = storage_egs;
+  EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
+  TestStateMachine<Hash> state_machine{storage, live_updates, 1, true};
+  state_machine.current_eg_type = EventGroupType::PrivateEventGroupsOnly;
+  TestSubBufferList<Hash> buffer{state_machine};
+  TestServerWriter<Hash> stream{state_machine};
+
+  bool is_insecure_trs = true;
+  std::string tls_trs_cert_path;
+  std::unordered_set<std::string> client_id_set;
+  uint16_t update_metrics_aggregator_thresh = 100;
+
+  auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
+      is_insecure_trs, tls_trs_cert_path, &storage, buffer, client_id_set, update_metrics_aggregator_thresh);
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
+  TestServerContext context;
+  SubscriptionRequest request;
+  request.mutable_event_groups()->set_event_group_id(1u);
+  auto out_stream = std::async(std::launch::async, [&] {
+    return replica.SubscribeToUpdates<TestServerContext, TestServerWriter<Hash>, Hash>(&context, &request, &stream);
+  });
+  auto status = out_stream.wait_for(1s);
+  auto more_live_updates = generateEventGroupMap(1, 1, EventGroupType::PrivateEventGroupsOnly, kClientId2);
+  auto live_updates_cl1 = generateEventGroupMap(
+      kLastEventGroupId + 6, kLastEventGroupId + 6, EventGroupType::PrivateEventGroupsOnly, kClientId1);
+  more_live_updates.insert(live_updates_cl1.begin(), live_updates_cl1.end());
+  storage.addEventGroups(more_live_updates);
+  storage.updateEventGroupStorageMaps(more_live_updates);
+  state_machine.toggle_more_event_groups_to_add_(false);
+  for (const auto& [key, val] : more_live_updates) {
+    EventGroupId eg_id(concordUtils::fromBigEndianBuffer<uint64_t>(key.data()));
+    concord::thin_replica::SubEventGroupUpdate update{eg_id, val};
+    buffer.updateEventGroupSubBuffers(update);
+  }
+  state_machine.set_expected_last_event_group_to_send(12u);
+  if (status != std::future_status::ready) {
+    out_stream.wait();
+  }
+  auto total_event_groups = kLastEventGroupId + 5 + 1;
+  EXPECT_EQ(out_stream.get().error_code(), grpc::StatusCode::OK);
+  EXPECT_EQ(state_machine.numEventGroupsReceived(), total_event_groups);
+}
+
 TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdateHashesAlreadySynced) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PublicEventGroupsOnly));
   auto storage_egs = storage.getEventGroups();
@@ -1305,6 +1646,52 @@ TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdateHashesAlreadySyn
   EXPECT_EQ(state_machine.numEventGroupsReceived(), total_event_groups);
 }
 
+TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdateHashesAlreadySyncedTwoClients) {
+  FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PublicEventGroupsOnly));
+  auto storage_egs = storage.getEventGroups();
+  EventGroupMap live_updates = storage_egs;
+  EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
+  TestStateMachine<Hash> state_machine{storage, live_updates, 1, true};
+  state_machine.current_eg_type = EventGroupType::PublicEventGroupsOnly;
+  TestSubBufferList<Hash> buffer{state_machine};
+  TestServerWriter<Hash> stream{state_machine};
+
+  bool is_insecure_trs = true;
+  std::string tls_trs_cert_path;
+  std::unordered_set<std::string> client_id_set;
+  uint16_t update_metrics_aggregator_thresh = 100;
+
+  auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
+      is_insecure_trs, tls_trs_cert_path, &storage, buffer, client_id_set, update_metrics_aggregator_thresh);
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
+  TestServerContext context;
+  SubscriptionRequest request;
+  request.mutable_event_groups()->set_event_group_id(1u);
+  auto out_stream = std::async(std::launch::async, [&] {
+    return replica.SubscribeToUpdates<TestServerContext, TestServerWriter<Hash>, Hash>(&context, &request, &stream);
+  });
+  auto status = out_stream.wait_for(1s);
+  auto more_live_updates = generateEventGroupMap(1, 1, EventGroupType::PrivateEventGroupsOnly, kClientId2);
+  auto live_updates_pub =
+      generateEventGroupMap(kLastEventGroupId + 6, kLastEventGroupId + 6, EventGroupType::PublicEventGroupsOnly);
+  more_live_updates.insert(live_updates_pub.begin(), live_updates_pub.end());
+  storage.addEventGroups(more_live_updates);
+  storage.updateEventGroupStorageMaps(more_live_updates);
+  state_machine.toggle_more_event_groups_to_add_(false);
+  for (const auto& [key, val] : more_live_updates) {
+    EventGroupId eg_id(concordUtils::fromBigEndianBuffer<uint64_t>(key.data()));
+    concord::thin_replica::SubEventGroupUpdate update{eg_id, val};
+    buffer.updateEventGroupSubBuffers(update);
+  }
+  state_machine.set_expected_last_event_group_to_send(12u);
+  if (status != std::future_status::ready) {
+    out_stream.wait();
+  }
+  auto total_event_groups = kLastEventGroupId + 5 + 1;
+  EXPECT_EQ(out_stream.get().error_code(), grpc::StatusCode::OK);
+  EXPECT_EQ(state_machine.numEventGroupsReceived(), total_event_groups);
+}
+
 TEST(thin_replica_server_test, SubscribeToPublicAndPrivateEventGroupUpdateHashesAlreadySynced) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PublicAndPrivateEventGroups));
   auto storage_egs = storage.getEventGroups();
@@ -1332,6 +1719,52 @@ TEST(thin_replica_server_test, SubscribeToPublicAndPrivateEventGroupUpdateHashes
   auto status = out_stream.wait_for(1s);
   auto more_live_updates =
       generateEventGroupMap(kLastEventGroupId + 6, kLastEventGroupId + 6, EventGroupType::PrivateEventGroupsOnly);
+  storage.addEventGroups(more_live_updates);
+  storage.updateEventGroupStorageMaps(more_live_updates);
+  state_machine.toggle_more_event_groups_to_add_(false);
+  for (const auto& [key, val] : more_live_updates) {
+    EventGroupId eg_id(concordUtils::fromBigEndianBuffer<uint64_t>(key.data()));
+    concord::thin_replica::SubEventGroupUpdate update{eg_id, val};
+    buffer.updateEventGroupSubBuffers(update);
+  }
+  state_machine.set_expected_last_event_group_to_send(12u);
+  if (status != std::future_status::ready) {
+    out_stream.wait();
+  }
+  auto total_event_groups = kLastEventGroupId + 5 + 1;
+  EXPECT_EQ(out_stream.get().error_code(), grpc::StatusCode::OK);
+  EXPECT_EQ(state_machine.numEventGroupsReceived(), total_event_groups);
+}
+
+TEST(thin_replica_server_test, SubscribeToPublicAndPrivateEventGroupUpdateHashesAlreadySyncedTwoClients) {
+  FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PublicAndPrivateEventGroups));
+  auto storage_egs = storage.getEventGroups();
+  EventGroupMap live_updates = storage_egs;
+  EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
+  TestStateMachine<Hash> state_machine{storage, live_updates, 1, true};
+  state_machine.current_eg_type = EventGroupType::PublicAndPrivateEventGroups;
+  TestSubBufferList<Hash> buffer{state_machine};
+  TestServerWriter<Hash> stream{state_machine};
+
+  bool is_insecure_trs = true;
+  std::string tls_trs_cert_path;
+  std::unordered_set<std::string> client_id_set;
+  uint16_t update_metrics_aggregator_thresh = 100;
+
+  auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
+      is_insecure_trs, tls_trs_cert_path, &storage, buffer, client_id_set, update_metrics_aggregator_thresh);
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
+  TestServerContext context;
+  SubscriptionRequest request;
+  request.mutable_event_groups()->set_event_group_id(1u);
+  auto out_stream = std::async(std::launch::async, [&] {
+    return replica.SubscribeToUpdates<TestServerContext, TestServerWriter<Hash>, Hash>(&context, &request, &stream);
+  });
+  auto status = out_stream.wait_for(1s);
+  auto more_live_updates = generateEventGroupMap(1, 1, EventGroupType::PrivateEventGroupsOnly, kClientId2);
+  auto live_updates_cl1 = generateEventGroupMap(
+      kLastEventGroupId + 6, kLastEventGroupId + 6, EventGroupType::PublicAndPrivateEventGroups, kClientId1);
+  more_live_updates.insert(live_updates_cl1.begin(), live_updates_cl1.end());
   storage.addEventGroups(more_live_updates);
   storage.updateEventGroupStorageMaps(more_live_updates);
   state_machine.toggle_more_event_groups_to_add_(false);
@@ -1417,7 +1850,58 @@ TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdateHashesWithGap) 
   EXPECT_EQ(state_machine.numEventGroupsReceived(), total_event_groups);
 }
 
-TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdateHashesSyncedWithGap) {
+TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdateHashesWithGapTwoClients) {
+  FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PrivateEventGroupsOnly));
+  auto storage_egs = storage.getEventGroups();
+  EventGroupMap live_updates = storage_egs;
+  EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
+  TestStateMachine<Hash> state_machine{storage, live_updates, 1, true};
+  state_machine.current_eg_type = EventGroupType::PrivateEventGroupsOnly;
+  TestSubBufferList<Hash> buffer{state_machine};
+  TestServerWriter<Hash> stream{state_machine};
+
+  bool is_insecure_trs = true;
+  std::string tls_trs_cert_path;
+  std::unordered_set<std::string> client_id_set;
+  uint16_t update_metrics_aggregator_thresh = 100;
+
+  auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
+      is_insecure_trs, tls_trs_cert_path, &storage, buffer, client_id_set, update_metrics_aggregator_thresh);
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
+  TestServerContext context;
+  SubscriptionRequest request;
+  request.mutable_event_groups()->set_event_group_id(1u);
+  auto out_stream = std::async(std::launch::async, [&] {
+    return replica.SubscribeToUpdates<TestServerContext, TestServerWriter<Hash>, Hash>(&context, &request, &stream);
+  });
+  auto status = out_stream.wait_for(1s);
+  auto more_live_updates = generateEventGroupMap(1, 2, EventGroupType::PrivateEventGroupsOnly, kClientId2);
+  auto live_updates_cl1 = generateEventGroupMap(
+      kLastEventGroupId + 6, kLastEventGroupId + 7, EventGroupType::PrivateEventGroupsOnly, kClientId1);
+  auto live_updates_cl2 = generateEventGroupMap(3, 6, EventGroupType::PrivateEventGroupsOnly, kClientId2);
+  auto live_updates_cl1_last = generateEventGroupMap(
+      kLastEventGroupId + 8, kLastEventGroupId + 8, EventGroupType::PrivateEventGroupsOnly, kClientId1);
+  more_live_updates.insert(live_updates_cl1.begin(), live_updates_cl1.end());
+  more_live_updates.insert(live_updates_cl2.begin(), live_updates_cl2.end());
+  more_live_updates.insert(live_updates_cl1_last.begin(), live_updates_cl1_last.end());
+  storage.addEventGroups(more_live_updates);
+  storage.updateEventGroupStorageMaps(more_live_updates);
+  state_machine.toggle_more_event_groups_to_add_(false);
+  for (const auto& [key, val] : more_live_updates) {
+    EventGroupId eg_id(concordUtils::fromBigEndianBuffer<uint64_t>(key.data()));
+    concord::thin_replica::SubEventGroupUpdate update{eg_id, val};
+    buffer.updateEventGroupSubBuffers(update);
+  }
+  state_machine.set_expected_last_event_group_to_send(14u);
+  if (status != std::future_status::ready) {
+    out_stream.wait();
+  }
+  auto total_event_groups = kLastEventGroupId + 5 + 3;
+  EXPECT_EQ(out_stream.get().error_code(), grpc::StatusCode::OK);
+  EXPECT_EQ(state_machine.numEventGroupsReceived(), total_event_groups);
+}
+
+TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdateHashesWithGap) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PublicEventGroupsOnly));
   auto storage_egs = storage.getEventGroups();
   EventGroupMap live_updates = storage_egs;
@@ -1444,6 +1928,57 @@ TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdateHashesSyncedWith
   auto status = out_stream.wait_for(1s);
   auto more_live_updates =
       generateEventGroupMap(kLastEventGroupId + 6, kLastEventGroupId + 8, EventGroupType::PublicEventGroupsOnly);
+  storage.addEventGroups(more_live_updates);
+  storage.updateEventGroupStorageMaps(more_live_updates);
+  state_machine.toggle_more_event_groups_to_add_(false);
+  for (const auto& [key, val] : more_live_updates) {
+    EventGroupId eg_id(concordUtils::fromBigEndianBuffer<uint64_t>(key.data()));
+    concord::thin_replica::SubEventGroupUpdate update{eg_id, val};
+    buffer.updateEventGroupSubBuffers(update);
+  }
+  state_machine.set_expected_last_event_group_to_send(14u);
+  if (status != std::future_status::ready) {
+    out_stream.wait();
+  }
+  auto total_event_groups = kLastEventGroupId + 5 + 3;
+  EXPECT_EQ(out_stream.get().error_code(), grpc::StatusCode::OK);
+  EXPECT_EQ(state_machine.numEventGroupsReceived(), total_event_groups);
+}
+
+TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdateHashesWithGapTwoClients) {
+  FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PublicEventGroupsOnly));
+  auto storage_egs = storage.getEventGroups();
+  EventGroupMap live_updates = storage_egs;
+  EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
+  TestStateMachine<Hash> state_machine{storage, live_updates, 1, true};
+  state_machine.current_eg_type = EventGroupType::PublicEventGroupsOnly;
+  TestSubBufferList<Hash> buffer{state_machine};
+  TestServerWriter<Hash> stream{state_machine};
+
+  bool is_insecure_trs = true;
+  std::string tls_trs_cert_path;
+  std::unordered_set<std::string> client_id_set;
+  uint16_t update_metrics_aggregator_thresh = 100;
+
+  auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
+      is_insecure_trs, tls_trs_cert_path, &storage, buffer, client_id_set, update_metrics_aggregator_thresh);
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
+  TestServerContext context;
+  SubscriptionRequest request;
+  request.mutable_event_groups()->set_event_group_id(1u);
+  auto out_stream = std::async(std::launch::async, [&] {
+    return replica.SubscribeToUpdates<TestServerContext, TestServerWriter<Hash>, Hash>(&context, &request, &stream);
+  });
+  auto status = out_stream.wait_for(1s);
+  auto more_live_updates = generateEventGroupMap(1, 2, EventGroupType::PrivateEventGroupsOnly, kClientId2);
+  auto live_updates_pub =
+      generateEventGroupMap(kLastEventGroupId + 6, kLastEventGroupId + 7, EventGroupType::PublicEventGroupsOnly);
+  auto live_updates_cl2 = generateEventGroupMap(3, 6, EventGroupType::PrivateEventGroupsOnly, kClientId2);
+  auto live_updates_pub_last =
+      generateEventGroupMap(kLastEventGroupId + 8, kLastEventGroupId + 8, EventGroupType::PublicEventGroupsOnly);
+  more_live_updates.insert(live_updates_pub.begin(), live_updates_pub.end());
+  more_live_updates.insert(live_updates_cl2.begin(), live_updates_cl2.end());
+  more_live_updates.insert(live_updates_pub_last.begin(), live_updates_pub_last.end());
   storage.addEventGroups(more_live_updates);
   storage.updateEventGroupStorageMaps(more_live_updates);
   state_machine.toggle_more_event_groups_to_add_(false);
@@ -1488,6 +2023,57 @@ TEST(thin_replica_server_test, SubscribeToPublicAndPrivateEventGroupUpdateHashes
   auto status = out_stream.wait_for(1s);
   auto more_live_updates =
       generateEventGroupMap(kLastEventGroupId + 6, kLastEventGroupId + 8, EventGroupType::PublicAndPrivateEventGroups);
+  storage.addEventGroups(more_live_updates);
+  storage.updateEventGroupStorageMaps(more_live_updates);
+  state_machine.toggle_more_event_groups_to_add_(false);
+  for (const auto& [key, val] : more_live_updates) {
+    EventGroupId eg_id(concordUtils::fromBigEndianBuffer<uint64_t>(key.data()));
+    concord::thin_replica::SubEventGroupUpdate update{eg_id, val};
+    buffer.updateEventGroupSubBuffers(update);
+  }
+  state_machine.set_expected_last_event_group_to_send(14u);
+  if (status != std::future_status::ready) {
+    out_stream.wait();
+  }
+  auto total_event_groups = kLastEventGroupId + 5 + 3;
+  EXPECT_EQ(out_stream.get().error_code(), grpc::StatusCode::OK);
+  EXPECT_EQ(state_machine.numEventGroupsReceived(), total_event_groups);
+}
+
+TEST(thin_replica_server_test, SubscribeToPublicAndPrivateEventGroupUpdateHashesWithGapTwoClients) {
+  FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PublicAndPrivateEventGroups));
+  auto storage_egs = storage.getEventGroups();
+  EventGroupMap live_updates = storage_egs;
+  EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
+  TestStateMachine<Hash> state_machine{storage, live_updates, 1, true};
+  state_machine.current_eg_type = EventGroupType::PublicAndPrivateEventGroups;
+  TestSubBufferList<Hash> buffer{state_machine};
+  TestServerWriter<Hash> stream{state_machine};
+
+  bool is_insecure_trs = true;
+  std::string tls_trs_cert_path;
+  std::unordered_set<std::string> client_id_set;
+  uint16_t update_metrics_aggregator_thresh = 100;
+
+  auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
+      is_insecure_trs, tls_trs_cert_path, &storage, buffer, client_id_set, update_metrics_aggregator_thresh);
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
+  TestServerContext context;
+  SubscriptionRequest request;
+  request.mutable_event_groups()->set_event_group_id(1u);
+  auto out_stream = std::async(std::launch::async, [&] {
+    return replica.SubscribeToUpdates<TestServerContext, TestServerWriter<Hash>, Hash>(&context, &request, &stream);
+  });
+  auto status = out_stream.wait_for(1s);
+  auto more_live_updates = generateEventGroupMap(1, 2, EventGroupType::PrivateEventGroupsOnly, kClientId2);
+  auto live_updates_cl1 = generateEventGroupMap(
+      kLastEventGroupId + 6, kLastEventGroupId + 7, EventGroupType::PublicAndPrivateEventGroups, kClientId1);
+  auto live_updates_cl2 = generateEventGroupMap(3, 6, EventGroupType::PrivateEventGroupsOnly, kClientId2);
+  auto live_updates_cl1_last = generateEventGroupMap(
+      kLastEventGroupId + 8, kLastEventGroupId + 8, EventGroupType::PublicAndPrivateEventGroups, kClientId1);
+  more_live_updates.insert(live_updates_cl1.begin(), live_updates_cl1.end());
+  more_live_updates.insert(live_updates_cl2.begin(), live_updates_cl2.end());
+  more_live_updates.insert(live_updates_cl1_last.begin(), live_updates_cl1_last.end());
   storage.addEventGroups(more_live_updates);
   storage.updateEventGroupStorageMaps(more_live_updates);
   state_machine.toggle_more_event_groups_to_add_(false);
@@ -1710,7 +2296,7 @@ TEST(thin_replica_server_test, SubscribeWithPrunedBlockId) {
 
 TEST(thin_replica_server_test, SubscribeWithPrunedEventGroupIdPrivate) {
   FakeStorage storage(generateEventGroupMap(1, 10, EventGroupType::PrivateEventGroupsOnly));
-  storage.updateLatestTableAfterPruning(kClientId, 5);
+  storage.updateLatestTableAfterPruning(kClientId1, 5);
   auto live_update_event_groups = generateEventGroupMap(0, 0, EventGroupType::PrivateEventGroupsOnly);
   TestStateMachine<Data> state_machine{storage, live_update_event_groups, 11};
   TestSubBufferList<Data> buffer{state_machine};
@@ -1759,7 +2345,7 @@ TEST(thin_replica_server_test, SubscribeWithPrunedEventGroupIdPublic) {
 TEST(thin_replica_server_test, SubscribeWithPrunedEventGroupIdPublicAndPrivate) {
   FakeStorage storage(generateEventGroupMap(1, 10, EventGroupType::PublicAndPrivateEventGroups));
   storage.updateLatestTableAfterPruning(kPublicEgIdKey, 2);
-  storage.updateLatestTableAfterPruning(kClientId, 3);
+  storage.updateLatestTableAfterPruning(kClientId1, 3);
   auto live_update_event_groups = generateEventGroupMap(0, 0, EventGroupType::PublicAndPrivateEventGroups);
   TestStateMachine<Data> state_machine{storage, live_update_event_groups, 11};
   TestSubBufferList<Data> buffer{state_machine};
