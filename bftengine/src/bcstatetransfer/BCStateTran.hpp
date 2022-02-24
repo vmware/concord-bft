@@ -643,6 +643,7 @@ class BCStateTran : public IStateTransfer {
   Throughput blocksFetched_;
   Throughput bytesFetched_;
   Throughput blocksPostProcessed_;
+  static constexpr size_t blocksPostProcessedReportWindow = 3;
 
   uint64_t minBlockIdToCollectInCycle_;
   uint64_t maxBlockIdToCollectInCycle_;
@@ -697,12 +698,11 @@ class BCStateTran : public IStateTransfer {
                                         compute_block_digest_size});
       // destination component
       registrar.perf.registerComponent("state_transfer_dest",
-                                       {
-                                           dst_handle_ItemData_msg,
-                                           dst_time_between_sendFetchBlocksMsg,
-                                           dst_num_pending_blocks_to_commit,
-                                           dst_digest_calc_duration,
-                                       });
+                                       {dst_handle_ItemData_msg,
+                                        dst_time_between_sendFetchBlocksMsg,
+                                        dst_num_pending_blocks_to_commit,
+                                        dst_digest_calc_duration,
+                                        dst_time_ItemData_msg_in_incoming_events_queue});
       // source component
       registrar.perf.registerComponent("state_transfer_src",
                                        {src_handle_FetchBlocks_msg,
@@ -738,6 +738,11 @@ class BCStateTran : public IStateTransfer {
         dst_num_pending_blocks_to_commit, 1, MAX_PENDING_BLOCKS_SIZE, 3, concord::diagnostics::Unit::COUNT);
     DEFINE_SHARED_RECORDER(
         dst_digest_calc_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(dst_time_ItemData_msg_in_incoming_events_queue,
+                           1,
+                           MAX_VALUE_MICROSECONDS,
+                           3,
+                           concord::diagnostics::Unit::MICROSECONDS);
     // source
     DEFINE_SHARED_RECORDER(
         src_handle_FetchBlocks_msg, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
