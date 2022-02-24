@@ -2859,15 +2859,16 @@ void BCStateTran::postProcessNextBatch(uint64_t upperBoundBlockId) {
 
   ConcordAssertGT(upperBoundBlockId, maxPostprocessedBlockId_);
   LOG_DEBUG(logger_, "Before postProcessUntilBlockId" << KVLOG(upperBoundBlockId));
-  as_->postProcessUntilBlockId(upperBoundBlockId);
+  auto totalBlocksProcessed = as_->postProcessUntilBlockId(upperBoundBlockId);
   ++iteration;
-  uint64_t totalBlocksProcessed = upperBoundBlockId - maxPostprocessedBlockId_;
   bool reportToLog = (iteration % blocksPostProcessedReportWindow) == 0;
-  blocksPostProcessed_.report(totalBlocksProcessed, reportToLog);
+  if (totalBlocksProcessed) {
+    blocksPostProcessed_.report(totalBlocksProcessed, reportToLog);
+  }
   if (reportToLog) {
     std::ostringstream oss;
-    oss << "Done post-processing " << totalBlocksProcessed << " blocks, range=[" << (maxPostprocessedBlockId_ + 1)
-        << "," << upperBoundBlockId << "]"
+    oss << "Done post-processing (iteration #" << iteration << ") " << totalBlocksProcessed << " blocks, range=["
+        << (maxPostprocessedBlockId_ + 1) << "," << upperBoundBlockId << "]"
         << KVLOG(upperBoundBlockId, maxPostprocessedBlockId_, postProcessingQ_->size());
     auto overallResults = blocksPostProcessed_.getOverallResults();
     auto prevWinResults = blocksPostProcessed_.getPrevWinResults();
@@ -3689,6 +3690,8 @@ void BCStateTran::triggerPostProcessing() {
   uint64_t firstRequiredBlockId = psd_->getFirstRequiredBlock();
   LOG_INFO(logger_, KVLOG(firstRequiredBlockId, lastReachableBlockId));
   if ((firstRequiredBlockId > 1) && ((firstRequiredBlockId - 1) > (lastReachableBlockId + 1))) {
+    postProcessingDT_.start();
+    blocksPostProcessed_.start();
     postProcessingQ_->push(std::bind(&BCStateTran::postProcessNextBatch, this, firstRequiredBlockId - 1));
   }
 }
