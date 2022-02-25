@@ -753,9 +753,8 @@ TEST(thin_replica_server_test, SubscribeToUpdatesAlreadySynced) {
 TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdatesAlreadySynced) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PrivateEventGroupsOnly));
   auto storage_egs = storage.getEventGroups();
-  EventGroupMap live_updates = storage_egs;
   EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
-  TestStateMachine<Data> state_machine{storage, live_updates, 1, true};
+  TestStateMachine<Data> state_machine{storage, storage_egs, 1, true};
   state_machine.current_eg_type = EventGroupType::PrivateEventGroupsOnly;
   TestSubBufferList<Data> buffer{state_machine};
   TestServerWriter<Data> stream{state_machine};
@@ -797,9 +796,8 @@ TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdatesAlreadySynced)
 TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdatesAlreadySyncedTwoClients) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PrivateEventGroupsOnly));
   auto storage_egs = storage.getEventGroups();
-  EventGroupMap live_updates = storage_egs;
   EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
-  TestStateMachine<Data> state_machine{storage, live_updates, 1, true};
+  TestStateMachine<Data> state_machine{storage, storage_egs, 1, true};
   state_machine.current_eg_type = EventGroupType::PrivateEventGroupsOnly;
   TestSubBufferList<Data> buffer{state_machine};
   TestServerWriter<Data> stream{state_machine};
@@ -843,9 +841,8 @@ TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdatesAlreadySyncedT
 TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdatesAlreadySynced) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PublicEventGroupsOnly));
   auto storage_egs = storage.getEventGroups();
-  EventGroupMap live_updates = storage_egs;
   EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
-  TestStateMachine<Data> state_machine{storage, live_updates, 1, true};
+  TestStateMachine<Data> state_machine{storage, storage_egs, 1, true};
   state_machine.current_eg_type = EventGroupType::PublicEventGroupsOnly;
   TestSubBufferList<Data> buffer{state_machine};
   TestServerWriter<Data> stream{state_machine};
@@ -887,9 +884,8 @@ TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdatesAlreadySynced) 
 TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdatesAlreadySyncedTwoClients) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PublicEventGroupsOnly));
   auto storage_egs = storage.getEventGroups();
-  EventGroupMap live_updates = storage_egs;
   EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
-  TestStateMachine<Data> state_machine{storage, live_updates, 1, true};
+  TestStateMachine<Data> state_machine{storage, storage_egs, 1, true};
   state_machine.current_eg_type = EventGroupType::PublicEventGroupsOnly;
   TestSubBufferList<Data> buffer{state_machine};
   TestServerWriter<Data> stream{state_machine};
@@ -933,9 +929,8 @@ TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdatesAlreadySyncedTw
 TEST(thin_replica_server_test, SubscribeToPublicAndPrivateEventGroupUpdatesAlreadySynced) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PublicAndPrivateEventGroups));
   auto storage_egs = storage.getEventGroups();
-  EventGroupMap live_updates = storage_egs;
   EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
-  TestStateMachine<Data> state_machine{storage, live_updates, 1, true};
+  TestStateMachine<Data> state_machine{storage, storage_egs, 1, true};
   state_machine.current_eg_type = EventGroupType::PublicAndPrivateEventGroups;
   TestSubBufferList<Data> buffer{state_machine};
   TestServerWriter<Data> stream{state_machine};
@@ -977,9 +972,8 @@ TEST(thin_replica_server_test, SubscribeToPublicAndPrivateEventGroupUpdatesAlrea
 TEST(thin_replica_server_test, SubscribeToPublicAndPrivateEventGroupUpdatesAlreadySyncedTwoClients) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PublicAndPrivateEventGroups));
   auto storage_egs = storage.getEventGroups();
-  EventGroupMap live_updates = storage_egs;
   EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
-  TestStateMachine<Data> state_machine{storage, live_updates, 1, true};
+  TestStateMachine<Data> state_machine{storage, storage_egs, 1, true};
   state_machine.current_eg_type = EventGroupType::PublicAndPrivateEventGroups;
   TestSubBufferList<Data> buffer{state_machine};
   TestServerWriter<Data> stream{state_machine};
@@ -1047,9 +1041,8 @@ TEST(thin_replica_server_test, SubscribeToUpdatesWithGap) {
 TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdatesWithGap) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PrivateEventGroupsOnly));
   auto storage_egs = storage.getEventGroups();
-  EventGroupMap live_updates = storage_egs;
   EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
-  TestStateMachine<Data> state_machine{storage, live_updates, 1, true};
+  TestStateMachine<Data> state_machine{storage, storage_egs, 1, true};
   state_machine.current_eg_type = EventGroupType::PrivateEventGroupsOnly;
   TestSubBufferList<Data> buffer{state_machine};
   TestServerWriter<Data> stream{state_machine};
@@ -1091,9 +1084,8 @@ TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdatesWithGap) {
 TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdatesWithGapTwoClients) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PrivateEventGroupsOnly));
   auto storage_egs = storage.getEventGroups();
-  EventGroupMap live_updates = storage_egs;
   EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
-  TestStateMachine<Data> state_machine{storage, live_updates, 1, true};
+  TestStateMachine<Data> state_machine{storage, storage_egs, 1, true};
   state_machine.current_eg_type = EventGroupType::PrivateEventGroupsOnly;
   TestSubBufferList<Data> buffer{state_machine};
   TestServerWriter<Data> stream{state_machine};
@@ -1142,9 +1134,8 @@ TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdatesWithGapTwoClie
 TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdatesWithGap) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PublicEventGroupsOnly));
   auto storage_egs = storage.getEventGroups();
-  EventGroupMap live_updates = storage_egs;
   EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
-  TestStateMachine<Data> state_machine{storage, live_updates, 1, true};
+  TestStateMachine<Data> state_machine{storage, storage_egs, 1, true};
   state_machine.current_eg_type = EventGroupType::PublicEventGroupsOnly;
   TestSubBufferList<Data> buffer{state_machine};
   TestServerWriter<Data> stream{state_machine};
@@ -1186,9 +1177,8 @@ TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdatesWithGap) {
 TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdatesWithGapTwoClients) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PublicEventGroupsOnly));
   auto storage_egs = storage.getEventGroups();
-  EventGroupMap live_updates = storage_egs;
   EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
-  TestStateMachine<Data> state_machine{storage, live_updates, 1, true};
+  TestStateMachine<Data> state_machine{storage, storage_egs, 1, true};
   state_machine.current_eg_type = EventGroupType::PublicEventGroupsOnly;
   TestSubBufferList<Data> buffer{state_machine};
   TestServerWriter<Data> stream{state_machine};
@@ -1237,9 +1227,8 @@ TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdatesWithGapTwoClien
 TEST(thin_replica_server_test, SubscribeToPublicAndPrivateEventGroupUpdatesWithGap) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PublicAndPrivateEventGroups));
   auto storage_egs = storage.getEventGroups();
-  EventGroupMap live_updates = storage_egs;
   EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
-  TestStateMachine<Data> state_machine{storage, live_updates, 1, true};
+  TestStateMachine<Data> state_machine{storage, storage_egs, 1, true};
   state_machine.current_eg_type = EventGroupType::PublicAndPrivateEventGroups;
   TestSubBufferList<Data> buffer{state_machine};
   TestServerWriter<Data> stream{state_machine};
@@ -1281,9 +1270,8 @@ TEST(thin_replica_server_test, SubscribeToPublicAndPrivateEventGroupUpdatesWithG
 TEST(thin_replica_server_test, SubscribeToPublicAndPrivateEventGroupUpdatesWithGapTwoClients) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PublicAndPrivateEventGroups));
   auto storage_egs = storage.getEventGroups();
-  EventGroupMap live_updates = storage_egs;
   EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
-  TestStateMachine<Data> state_machine{storage, live_updates, 1, true};
+  TestStateMachine<Data> state_machine{storage, storage_egs, 1, true};
   state_machine.current_eg_type = EventGroupType::PublicAndPrivateEventGroups;
   TestSubBufferList<Data> buffer{state_machine};
   TestServerWriter<Data> stream{state_machine};
@@ -1356,9 +1344,8 @@ TEST(thin_replica_server_test, SubscribeToUpdatesWithGapFromTheMiddleBlock) {
 TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdatesWithGapFromTheMiddleBlock) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId, EventGroupType::PrivateEventGroupsOnly));
   auto storage_egs = storage.getEventGroups();
-  EventGroupMap live_updates = storage_egs;
   EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId);
-  TestStateMachine<Data> state_machine{storage, live_updates, 3, true};
+  TestStateMachine<Data> state_machine{storage, storage_egs, 3, true};
   TestSubBufferList<Data> buffer{state_machine};
   TestServerWriter<Data> stream{state_machine};
 
@@ -1401,9 +1388,8 @@ TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdatesWithGapFromThe
 TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdatesWithGapFromTheMiddleBlock) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId, EventGroupType::PublicEventGroupsOnly));
   auto storage_egs = storage.getEventGroups();
-  EventGroupMap live_updates = storage_egs;
   EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId);
-  TestStateMachine<Data> state_machine{storage, live_updates, 3, true};
+  TestStateMachine<Data> state_machine{storage, storage_egs, 3, true};
   TestSubBufferList<Data> buffer{state_machine};
   TestServerWriter<Data> stream{state_machine};
 
@@ -1446,9 +1432,8 @@ TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdatesWithGapFromTheM
 TEST(thin_replica_server_test, SubscribeToPublicAndPrivateEventGroupUpdatesWithGapFromTheMiddleBlock) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId, EventGroupType::PublicAndPrivateEventGroups));
   auto storage_egs = storage.getEventGroups();
-  EventGroupMap live_updates = storage_egs;
   EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId);
-  TestStateMachine<Data> state_machine{storage, live_updates, 3, true};
+  TestStateMachine<Data> state_machine{storage, storage_egs, 3, true};
   TestSubBufferList<Data> buffer{state_machine};
   TestServerWriter<Data> stream{state_machine};
 
@@ -1515,9 +1500,8 @@ TEST(thin_replica_server_test, SubscribeToUpdateHashesAlreadySynced) {
 TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdateHashesAlreadySynced) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PrivateEventGroupsOnly));
   auto storage_egs = storage.getEventGroups();
-  EventGroupMap live_updates = storage_egs;
   EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
-  TestStateMachine<Hash> state_machine{storage, live_updates, 1, true};
+  TestStateMachine<Hash> state_machine{storage, storage_egs, 1, true};
   state_machine.current_eg_type = EventGroupType::PrivateEventGroupsOnly;
   TestSubBufferList<Hash> buffer{state_machine};
   TestServerWriter<Hash> stream{state_machine};
@@ -1559,9 +1543,8 @@ TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdateHashesAlreadySy
 TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdateHashesAlreadySyncedTwoClients) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PrivateEventGroupsOnly));
   auto storage_egs = storage.getEventGroups();
-  EventGroupMap live_updates = storage_egs;
   EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
-  TestStateMachine<Hash> state_machine{storage, live_updates, 1, true};
+  TestStateMachine<Hash> state_machine{storage, storage_egs, 1, true};
   state_machine.current_eg_type = EventGroupType::PrivateEventGroupsOnly;
   TestSubBufferList<Hash> buffer{state_machine};
   TestServerWriter<Hash> stream{state_machine};
@@ -1605,9 +1588,8 @@ TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdateHashesAlreadySy
 TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdateHashesAlreadySynced) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PublicEventGroupsOnly));
   auto storage_egs = storage.getEventGroups();
-  EventGroupMap live_updates = storage_egs;
   EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
-  TestStateMachine<Hash> state_machine{storage, live_updates, 1, true};
+  TestStateMachine<Hash> state_machine{storage, storage_egs, 1, true};
   state_machine.current_eg_type = EventGroupType::PublicEventGroupsOnly;
   TestSubBufferList<Hash> buffer{state_machine};
   TestServerWriter<Hash> stream{state_machine};
@@ -1649,9 +1631,8 @@ TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdateHashesAlreadySyn
 TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdateHashesAlreadySyncedTwoClients) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PublicEventGroupsOnly));
   auto storage_egs = storage.getEventGroups();
-  EventGroupMap live_updates = storage_egs;
   EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
-  TestStateMachine<Hash> state_machine{storage, live_updates, 1, true};
+  TestStateMachine<Hash> state_machine{storage, storage_egs, 1, true};
   state_machine.current_eg_type = EventGroupType::PublicEventGroupsOnly;
   TestSubBufferList<Hash> buffer{state_machine};
   TestServerWriter<Hash> stream{state_machine};
@@ -1695,9 +1676,8 @@ TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdateHashesAlreadySyn
 TEST(thin_replica_server_test, SubscribeToPublicAndPrivateEventGroupUpdateHashesAlreadySynced) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PublicAndPrivateEventGroups));
   auto storage_egs = storage.getEventGroups();
-  EventGroupMap live_updates = storage_egs;
   EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
-  TestStateMachine<Hash> state_machine{storage, live_updates, 1, true};
+  TestStateMachine<Hash> state_machine{storage, storage_egs, 1, true};
   state_machine.current_eg_type = EventGroupType::PublicAndPrivateEventGroups;
   TestSubBufferList<Hash> buffer{state_machine};
   TestServerWriter<Hash> stream{state_machine};
@@ -1739,9 +1719,8 @@ TEST(thin_replica_server_test, SubscribeToPublicAndPrivateEventGroupUpdateHashes
 TEST(thin_replica_server_test, SubscribeToPublicAndPrivateEventGroupUpdateHashesAlreadySyncedTwoClients) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PublicAndPrivateEventGroups));
   auto storage_egs = storage.getEventGroups();
-  EventGroupMap live_updates = storage_egs;
   EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
-  TestStateMachine<Hash> state_machine{storage, live_updates, 1, true};
+  TestStateMachine<Hash> state_machine{storage, storage_egs, 1, true};
   state_machine.current_eg_type = EventGroupType::PublicAndPrivateEventGroups;
   TestSubBufferList<Hash> buffer{state_machine};
   TestServerWriter<Hash> stream{state_machine};
@@ -1809,9 +1788,8 @@ TEST(thin_replica_server_test, SubscribeToUpdateHashesWithGap) {
 TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdateHashesWithGap) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PrivateEventGroupsOnly));
   auto storage_egs = storage.getEventGroups();
-  EventGroupMap live_updates = storage_egs;
   EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
-  TestStateMachine<Hash> state_machine{storage, live_updates, 1, true};
+  TestStateMachine<Hash> state_machine{storage, storage_egs, 1, true};
   state_machine.current_eg_type = EventGroupType::PrivateEventGroupsOnly;
   TestSubBufferList<Hash> buffer{state_machine};
   TestServerWriter<Hash> stream{state_machine};
@@ -1853,9 +1831,8 @@ TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdateHashesWithGap) 
 TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdateHashesWithGapTwoClients) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PrivateEventGroupsOnly));
   auto storage_egs = storage.getEventGroups();
-  EventGroupMap live_updates = storage_egs;
   EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
-  TestStateMachine<Hash> state_machine{storage, live_updates, 1, true};
+  TestStateMachine<Hash> state_machine{storage, storage_egs, 1, true};
   state_machine.current_eg_type = EventGroupType::PrivateEventGroupsOnly;
   TestSubBufferList<Hash> buffer{state_machine};
   TestServerWriter<Hash> stream{state_machine};
@@ -1904,9 +1881,8 @@ TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdateHashesWithGapTw
 TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdateHashesWithGap) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PublicEventGroupsOnly));
   auto storage_egs = storage.getEventGroups();
-  EventGroupMap live_updates = storage_egs;
   EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
-  TestStateMachine<Hash> state_machine{storage, live_updates, 1, true};
+  TestStateMachine<Hash> state_machine{storage, storage_egs, 1, true};
   state_machine.current_eg_type = EventGroupType::PublicEventGroupsOnly;
   TestSubBufferList<Hash> buffer{state_machine};
   TestServerWriter<Hash> stream{state_machine};
@@ -1948,9 +1924,8 @@ TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdateHashesWithGap) {
 TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdateHashesWithGapTwoClients) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PublicEventGroupsOnly));
   auto storage_egs = storage.getEventGroups();
-  EventGroupMap live_updates = storage_egs;
   EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
-  TestStateMachine<Hash> state_machine{storage, live_updates, 1, true};
+  TestStateMachine<Hash> state_machine{storage, storage_egs, 1, true};
   state_machine.current_eg_type = EventGroupType::PublicEventGroupsOnly;
   TestSubBufferList<Hash> buffer{state_machine};
   TestServerWriter<Hash> stream{state_machine};
@@ -1999,9 +1974,8 @@ TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdateHashesWithGapTwo
 TEST(thin_replica_server_test, SubscribeToPublicAndPrivateEventGroupUpdateHashesWithGap) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PublicAndPrivateEventGroups));
   auto storage_egs = storage.getEventGroups();
-  EventGroupMap live_updates = storage_egs;
   EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
-  TestStateMachine<Hash> state_machine{storage, live_updates, 1, true};
+  TestStateMachine<Hash> state_machine{storage, storage_egs, 1, true};
   state_machine.current_eg_type = EventGroupType::PublicAndPrivateEventGroups;
   TestSubBufferList<Hash> buffer{state_machine};
   TestServerWriter<Hash> stream{state_machine};
@@ -2043,9 +2017,8 @@ TEST(thin_replica_server_test, SubscribeToPublicAndPrivateEventGroupUpdateHashes
 TEST(thin_replica_server_test, SubscribeToPublicAndPrivateEventGroupUpdateHashesWithGapTwoClients) {
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 5, EventGroupType::PublicAndPrivateEventGroups));
   auto storage_egs = storage.getEventGroups();
-  EventGroupMap live_updates = storage_egs;
   EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 5);
-  TestStateMachine<Hash> state_machine{storage, live_updates, 1, true};
+  TestStateMachine<Hash> state_machine{storage, storage_egs, 1, true};
   state_machine.current_eg_type = EventGroupType::PublicAndPrivateEventGroups;
   TestSubBufferList<Hash> buffer{state_machine};
   TestServerWriter<Hash> stream{state_machine};
@@ -2504,11 +2477,10 @@ TEST(thin_replica_server_test, SubscribeToUpdatesLegacyRequestEventGroups) {
   // Storage contains event groups only
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId + 10, EventGroupType::PrivateEventGroupsOnly));
   auto storage_egs = storage.getEventGroups();
-  // Live updates can contain event groups only
-  EventGroupMap live_updates = storage_egs;
   EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId + 10);
   EXPECT_EQ(storage.getOldestEventGroupBlockId(), 1);
-  TestStateMachine<Data> state_machine{storage, live_updates, 1, true};
+  // Live updates can contain event groups only (storage_egs = live_updates)
+  TestStateMachine<Data> state_machine{storage, storage_egs, 1, true};
   state_machine.current_eg_type = EventGroupType::PrivateEventGroupsOnly;
   TestSubBufferList<Data> buffer{state_machine};
   TestServerWriter<Data> stream{state_machine};
