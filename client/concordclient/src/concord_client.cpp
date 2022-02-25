@@ -143,13 +143,20 @@ void ConcordClient::createGrpcConnections() {
 }
 
 void ConcordClient::checkAndReConnectGrpcConnections() {
+  bool need_reconnection = false;
   for (size_t con_offset = 0; con_offset < config_.topology.replicas.size(); ++con_offset) {
     if (!(grpc_connections_[con_offset])->isConnected()) {
+      need_reconnection = true;
+      break;
+    }
+  }
+  if (need_reconnection) {
+    for (size_t con_offset = 0; con_offset < config_.topology.replicas.size(); ++con_offset) {
       auto trsc_config = std::make_unique<GrpcConnectionConfig>(config_.subscribe_config.use_tls,
                                                                 config_.subscribe_config.pem_private_key,
                                                                 config_.subscribe_config.pem_cert_chain,
                                                                 config_.transport.event_pem_certs);
-      (grpc_connections_[con_offset])->reConnect(trsc_config);
+      (grpc_connections_[con_offset])->checkAndReConnect(trsc_config);
     }
   }
 }
