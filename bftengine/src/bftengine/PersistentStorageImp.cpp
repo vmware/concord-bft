@@ -289,6 +289,10 @@ void PersistentStorageImp::setDescriptorOfLastNewView(const DescriptorOfLastNewV
   saveDescriptorOfLastNewView(desc);
 }
 
+void PersistentStorageImp::removeDescriptorOfLastExitFromView() { initDescriptorOfLastExitFromView(); }
+
+void PersistentStorageImp::removeDescriptorOfLastNewView() { initDescriptorOfLastNewView(); }
+
 void PersistentStorageImp::setDescriptorOfLastNewView(const DescriptorOfLastNewView &desc) {
   setDescriptorOfLastNewView(desc, false);
   hasDescriptorOfLastNewView_ = true;
