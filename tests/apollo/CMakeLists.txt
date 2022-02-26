@@ -55,6 +55,24 @@ add_test(NAME skvbc_basic_tests COMMAND sh -c
         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_basic_tests python3 -m unittest test_skvbc ${TEST_OUTPUT}"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+if (BUILD_ROCKSDB_STORAGE)
+    add_test(NAME skvbc_persistence_tests COMMAND sh -c
+            "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_persistence_tests python3 -m unittest test_skvbc_persistence ${TEST_OUTPUT}"
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+    if (USE_S3_OBJECT_STORE)
+        add_test(NAME skvbc_ro_replica_tests COMMAND sh -c
+                "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_ro_replica_tests python3 -m unittest test_skvbc_ro_replica ${TEST_OUTPUT}"
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    endif()
+endif()
+
+if (USE_S3_OBJECT_STORE AND BUILD_COMM_TCP_TLS AND TXN_SIGNING_ENABLED)
+    add_test(NAME skvbc_reconfiguration COMMAND sh -c
+            "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_reconfiguration python3 -m unittest test_skvbc_reconfiguration ${TEST_OUTPUT}"
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+endif()
+
 add_test(NAME skvbc_multi_sig COMMAND sh -c
         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_multi_sig python3 -m unittest test_skvbc_multi_sig ${TEST_OUTPUT}"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
@@ -115,12 +133,6 @@ add_test(NAME skvbc_backup_restore COMMAND sh -c
         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_backup_restore python3 -m unittest test_skvbc_backup_restore 2>&1 > /dev/null"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
-if (USE_S3_OBJECT_STORE AND BUILD_COMM_TCP_TLS AND TXN_SIGNING_ENABLED)
-     add_test(NAME skvbc_reconfiguration COMMAND sh -c
-             "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_reconfiguration python3 -m unittest test_skvbc_reconfiguration ${TEST_OUTPUT}"
-            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-endif()
-
 add_test(NAME skvbc_consensus_batching COMMAND sh -c
         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_consensus_batching python3 -m unittest test_skvbc_consensus_batching ${TEST_OUTPUT}"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
@@ -128,18 +140,6 @@ add_test(NAME skvbc_consensus_batching COMMAND sh -c
 add_test(NAME skvbc_block_accumulation_tests COMMAND sh -c
         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_block_accumulation_tests python3 -m unittest test_skvbc_block_accumulation ${TEST_OUTPUT}"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-
-if (BUILD_ROCKSDB_STORAGE)
-  add_test(NAME skvbc_persistence_tests COMMAND sh -c
-          "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_persistence_tests python3 -m unittest test_skvbc_persistence ${TEST_OUTPUT}"
-          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-
-  if (USE_S3_OBJECT_STORE)
-    add_test(NAME skvbc_ro_replica_tests COMMAND sh -c
-            "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_ro_replica_tests python3 -m unittest test_skvbc_ro_replica ${TEST_OUTPUT}"
-            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-  endif()
-endif()
 
 if (TXN_SIGNING_ENABLED)
     add_test(NAME skvbc_client_transaction_signing COMMAND sh -c

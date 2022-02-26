@@ -60,7 +60,7 @@ class BaseCommConfig {
         listenHost_{host},
         listenPort_{port},
         bufferLength_{bufLength},
-        nodes_{std::move(nodes)},
+        nodes_{nodes},
         statusCallback_{std::move(statusCallback)},
         selfId_{selfId} {
     const auto myNode = nodes_.find(selfId_);
@@ -95,8 +95,7 @@ class PlainUdpConfig : public BaseCommConfig {
                  NodeMap nodes,
                  NodeNum selfId,
                  UPDATE_CONNECTIVITY_FN statusCallback = nullptr)
-      : BaseCommConfig(CommType::PlainUdp, host, port, bufLength, std::move(nodes), selfId, std::move(statusCallback)) {
-  }
+      : BaseCommConfig(CommType::PlainUdp, host, port, bufLength, nodes, selfId, std::move(statusCallback)) {}
 };
 
 class PlainTcpConfig : public BaseCommConfig {
@@ -108,7 +107,7 @@ class PlainTcpConfig : public BaseCommConfig {
                  int32_t maxServerId,
                  NodeNum selfId,
                  UPDATE_CONNECTIVITY_FN statusCallback = nullptr)
-      : BaseCommConfig(CommType::PlainTcp, host, port, bufLength, std::move(nodes), selfId, std::move(statusCallback)),
+      : BaseCommConfig(CommType::PlainTcp, host, port, bufLength, nodes, selfId, std::move(statusCallback)),
         maxServerId_{maxServerId} {}
 
  public:
@@ -129,7 +128,7 @@ class TlsTcpConfig : public PlainTcpConfig {
                const std::string &cipherSuite,
                UPDATE_CONNECTIVITY_FN statusCallback = nullptr,
                std::optional<concord::secretsmanager::SecretData> decryptionSecretData = std::nullopt)
-      : PlainTcpConfig(host, port, bufLength, std::move(nodes), maxServerId, selfId, std::move(statusCallback)),
+      : PlainTcpConfig(host, port, bufLength, nodes, maxServerId, selfId, std::move(statusCallback)),
         certificatesRootPath_{certRootPath},
         cipherSuite_{cipherSuite},
         secretData_{std::move(decryptionSecretData)} {
@@ -147,18 +146,18 @@ class TlsMultiplexConfig : public TlsTcpConfig {
   TlsMultiplexConfig(const std::string &host,
                      uint16_t port,
                      uint32_t bufLength,
-                     NodeMap nodes,
+                     NodeMap &nodes,
                      int32_t maxServerId,
                      NodeNum selfId,
                      const std::string &certRootPath,
                      const std::string &cipherSuite,
-                     std::unordered_map<NodeNum, NodeNum> endpointIdToNodeIdMap,
+                     std::unordered_map<NodeNum, NodeNum> &endpointIdToNodeIdMap,
                      UPDATE_CONNECTIVITY_FN statusCallback = nullptr,
                      std::optional<concord::secretsmanager::SecretData> secretData = std::nullopt)
       : TlsTcpConfig(host,
                      port,
                      bufLength,
-                     std::move(nodes),
+                     nodes,
                      maxServerId,
                      selfId,
                      certRootPath,
@@ -238,6 +237,7 @@ class TlsTCPCommunication : public ICommunication {
   ~TlsTCPCommunication() override;
 
  protected:
+  logging::Logger logger_;
   TlsTcpConfig *config_;
   std::unique_ptr<tls::Runner> runner_;
 
@@ -249,16 +249,18 @@ class TlsMultiplexCommunication : public TlsTCPCommunication {
   static TlsMultiplexCommunication *create(const TlsMultiplexConfig &config);
 
   int start() override;
+  NodeNum getConnectionByEndpointNum(NodeNum destNode, NodeNum endpointNum);
   ConnectionStatus getCurrentConnectionStatus(NodeNum nodeNum) override;
   void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
   int send(NodeNum destNode, std::vector<uint8_t> &&msg, NodeNum endpointNum) override;
-  ~TlsMultiplexCommunication() override;
+  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg, NodeNum srcEndpointNum) override;
+  virtual ~TlsMultiplexCommunication() = default;
 
  private:
   class TlsMultiplexReceiver : public IReceiver {
    public:
-    TlsMultiplexReceiver(const TlsMultiplexConfig &config)
-        : logger_(logging::getLogger("concord-bft.tls.multiplex")), config_(config) {}
+    TlsMultiplexReceiver(std::shared_ptr<TlsMultiplexConfig> multiplexConfig)
+        : logger_(logging::getLogger("concord-bft.tls.multiplex")), multiplexConfig_(multiplexConfig) {}
     virtual ~TlsMultiplexReceiver() = default;
     void setReceiver(NodeNum receiverNum, IReceiver *receiver);
     void onNewMessage(NodeNum sourceNode,
@@ -269,14 +271,14 @@ class TlsMultiplexCommunication : public TlsTCPCommunication {
 
    private:
     logging::Logger logger_;
-    const TlsMultiplexConfig &config_;
+    std::shared_ptr<TlsMultiplexConfig> multiplexConfig_;
     std::unordered_map<NodeNum, IReceiver *> receiversMap_;  // Source endpoint -> receiver object
   };
 
  private:
   logging::Logger logger_;
-  TlsMultiplexReceiver *ownReceiver_;
-  TlsMultiplexConfig *config_;
+  std::shared_ptr<TlsMultiplexReceiver> ownReceiver_;
+  std::shared_ptr<TlsMultiplexConfig> multiplexConfig_;
   explicit TlsMultiplexCommunication(const TlsMultiplexConfig &config);
 };
 

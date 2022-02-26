@@ -50,6 +50,7 @@ using concord::client::concordclient::OutOfRangeSubscriptionRequest;
 using concord::client::concordclient::StreamUnavailable;
 using concord::client::concordclient::InternalError;
 using concord::client::concordclient::EndOfStream;
+using concord::client::concordclient::RequestOverload;
 
 namespace concord::client::clientservice {
 
@@ -193,6 +194,10 @@ static void getResponseSetStatus(concord::client::concordclient::SendResult&& se
   }
 }
 
+static std::shared_ptr<bftEngine::RequestCallBack> getCallbackLambda(const bftEngine::RequestCallBack& callback) {
+  return std::make_shared<bftEngine::RequestCallBack>(callback);
+}
+
 Status StateSnapshotServiceImpl::GetRecentSnapshot(ServerContext* context,
                                                    const GetRecentSnapshotRequest* proto_request,
                                                    GetRecentSnapshotResponse* response) {
@@ -208,27 +213,28 @@ Status StateSnapshotServiceImpl::GetRecentSnapshot(ServerContext* context,
 
   LOG_INFO(logger_, "Received a GetRecentSnapshotRequest with timeout : " << timeout.count() << "ms");
 
-  WriteConfig write_config{RequestConfig{false, 0, 1024 * 1024, timeout, "snapshotreq", "", false, true},
-                           bft::client::LinearizableQuorum{}};
-  StateSnapshotResponse snapshot_response;
-  grpc::Status return_status = grpc::Status(grpc::StatusCode::UNAVAILABLE, "Timeout");
-  std::condition_variable wait_for_me;
-  bool reply_available = false;
-  auto callback = [&snapshot_response, &return_status, &write_config, &wait_for_me, &reply_available](
-                      concord::client::concordclient::SendResult&& send_result) {
+  auto write_config = std::shared_ptr<WriteConfig>(
+      new WriteConfig{RequestConfig{false, 0, 1024 * 1024, timeout, "snapshotreq", "", false, true},
+                      bft::client::LinearizableQuorum{}});
+  auto snapshot_response = std::make_shared<StateSnapshotResponse>();
+  auto return_status = std::make_shared<grpc::Status>(grpc::StatusCode::UNAVAILABLE, "Timeout");
+  auto wait_for_me = std::make_shared<std::condition_variable>();
+  auto reply_available = std::make_shared<bool>(false);
+  auto callback = getCallbackLambda([snapshot_response, return_status, write_config, wait_for_me, reply_available](
+                                        concord::client::concordclient::SendResult&& send_result) {
     ResponseType<StateSnapshotResponse> reponse;
     getResponseSetStatus(std::move(send_result),
                          reponse,
-                         return_status,
-                         write_config.request.correlation_id,
+                         *return_status,
+                         (write_config->request).correlation_id,
                          false,
                          "concord.client.clientservice.state_snapshot_service.getrecentsnapshot.callback");
-    if (return_status.ok()) {
-      snapshot_response = std::get<StateSnapshotResponse>(reponse.response);
+    if (return_status->ok()) {
+      *snapshot_response = std::get<StateSnapshotResponse>(reponse.response);
     }
-    reply_available = true;
-    wait_for_me.notify_one();
-  };
+    *reply_available = true;
+    wait_for_me->notify_one();
+  });
 
   ReconfigurationRequest rreq;
   StateSnapshotRequest cmd;
@@ -237,36 +243,37 @@ Status StateSnapshotServiceImpl::GetRecentSnapshot(ServerContext* context,
   rreq.command = cmd;
   bft::client::Msg message;
   concord::messages::serialize(message, rreq);
-  client_->send(write_config, std::move(message), callback);
+  client_->send(*write_config, std::move(message), *callback);
   bool response_available = false;
   {
     std::mutex mtx;
     std::unique_lock<std::mutex> lck(mtx);
-    response_available = wait_for_me.wait_for(lck, timeout, [&reply_available]() { return reply_available; });
+    response_available = wait_for_me->wait_for(lck, timeout, [reply_available]() { return *reply_available; });
   }
 
   if (!response_available) {
+    clearAllPrevDoneCallbacksAndAdd(reply_available, callback);
     return grpc::Status(grpc::StatusCode::UNAVAILABLE, "Timeout");
   }
 
-  if (return_status.ok() && snapshot_response.data.has_value()) {
-    response->set_snapshot_id(snapshot_response.data->snapshot_id);
-    switch (snapshot_response.data->blockchain_height_type) {
+  if (return_status->ok() && snapshot_response->data.has_value()) {
+    response->set_snapshot_id(snapshot_response->data->snapshot_id);
+    switch (snapshot_response->data->blockchain_height_type) {
       case concord::messages::BlockchainHeightType::EventGroupId:
-        response->set_event_group_id(snapshot_response.data->blockchain_height);
+        response->set_event_group_id(snapshot_response->data->blockchain_height);
         break;
       case concord::messages::BlockchainHeightType::BlockId:
-        response->set_block_id(snapshot_response.data->blockchain_height);
+        response->set_block_id(snapshot_response->data->blockchain_height);
         break;
     }
-    response->set_key_value_count_estimate(snapshot_response.data->key_value_count_estimate);
+    response->set_key_value_count_estimate(snapshot_response->data->key_value_count_estimate);
     auto* ledger_time = response->mutable_ledger_time();
-    if (!google::protobuf::util::TimeUtil::FromString(snapshot_response.data->last_application_transaction_time,
+    if (!google::protobuf::util::TimeUtil::FromString(snapshot_response->data->last_application_transaction_time,
                                                       ledger_time)) {
       *ledger_time = google::protobuf::util::TimeUtil::GetEpoch();
     }
   }
-  return return_status;
+  return *return_status;
 }
 
 Status StateSnapshotServiceImpl::StreamSnapshot(ServerContext* context,
@@ -308,6 +315,9 @@ Status StateSnapshotServiceImpl::StreamSnapshot(ServerContext* context,
     } catch (const StreamUnavailable& e) {
       status = grpc::Status(grpc::StatusCode::UNAVAILABLE, e.what());
       break;
+    } catch (const RequestOverload& e) {
+      status = grpc::Status(grpc::StatusCode::UNAVAILABLE, e.what());
+      break;
     } catch (const EndOfStream& e) {
       is_end_of_stream = true;
       status = grpc::Status(grpc::StatusCode::OK, "All good");
@@ -346,28 +356,31 @@ Status StateSnapshotServiceImpl::StreamSnapshot(ServerContext* context,
 void StateSnapshotServiceImpl::isHashValid(uint64_t snapshot_id,
                                            const concord::util::SHA3_256::Digest& final_hash,
                                            const std::chrono::milliseconds& timeout,
-                                           Status& return_status) const {
-  ReadConfig read_config{RequestConfig{false, 0, 1024 * 1024, timeout, "signedHashReq", "", false, true},
-                         bft::client::ByzantineSafeQuorum{}};
-  std::condition_variable wait_for_me;
-  bool reply_available = false;
-  std::vector<std::unique_ptr<SignedPublicStateHashResponse>> signed_hash_responses;
-  auto callback = [&signed_hash_responses, &return_status, &read_config, &wait_for_me, &reply_available](
-                      concord::client::concordclient::SendResult&& send_result) {
-    ResponseType<SignedPublicStateHashResponse> reponse;
-    getResponseSetStatus(std::move(send_result),
-                         reponse,
-                         return_status,
-                         read_config.request.correlation_id,
-                         true,
-                         "concord.client.clientservice.state_snapshot_service.signedhash.callback");
-    if (return_status.ok()) {
-      signed_hash_responses =
-          std::get<std::vector<std::unique_ptr<SignedPublicStateHashResponse>>>(std::move(reponse.response));
-    }
-    reply_available = true;
-    wait_for_me.notify_one();
-  };
+                                           Status& return_status) {
+  auto read_config = std::shared_ptr<ReadConfig>(
+      new ReadConfig{RequestConfig{false, 0, 1024 * 1024, timeout, "signedHashReq", "", false, true},
+                     bft::client::ByzantineSafeQuorum{}});
+  auto wait_for_me = std::make_shared<std::condition_variable>();
+  auto reply_available = std::make_shared<bool>(false);
+  auto hash_valid_return_status = std::make_shared<grpc::Status>(grpc::StatusCode::UNAVAILABLE, "Timeout");
+  auto signed_hash_responses = std::make_shared<std::vector<std::unique_ptr<SignedPublicStateHashResponse>>>();
+  auto callback =
+      getCallbackLambda([signed_hash_responses, hash_valid_return_status, read_config, wait_for_me, reply_available](
+                            concord::client::concordclient::SendResult&& send_result) {
+        ResponseType<SignedPublicStateHashResponse> reponse;
+        getResponseSetStatus(std::move(send_result),
+                             reponse,
+                             *hash_valid_return_status,
+                             (read_config->request).correlation_id,
+                             true,
+                             "concord.client.clientservice.state_snapshot_service.signedhash.callback");
+        if (hash_valid_return_status->ok()) {
+          *signed_hash_responses =
+              std::get<std::vector<std::unique_ptr<SignedPublicStateHashResponse>>>(std::move(reponse.response));
+        }
+        *reply_available = true;
+        wait_for_me->notify_one();
+      });
 
   ReconfigurationRequest rreq;
   SignedPublicStateHashRequest cmd;
@@ -376,21 +389,26 @@ void StateSnapshotServiceImpl::isHashValid(uint64_t snapshot_id,
   rreq.command = cmd;
   bft::client::Msg message;
   concord::messages::serialize(message, rreq);
-  client_->send(read_config, std::move(message), callback);
+  client_->send(*read_config, std::move(message), *callback);
 
   bool response_available = false;
   {
     std::mutex mtx;
     std::unique_lock<std::mutex> lck(mtx);
-    response_available = wait_for_me.wait_for(lck, timeout, [&reply_available]() { return reply_available; });
+    response_available = wait_for_me->wait_for(lck, timeout, [reply_available]() { return *reply_available; });
   }
 
   if (!response_available) {
+    clearAllPrevDoneCallbacksAndAdd(reply_available, callback);
     return_status = grpc::Status(grpc::StatusCode::UNAVAILABLE, "Timeout");
     return;
   }
 
-  for (const auto& res : signed_hash_responses) {
+  if (response_available) {
+    return_status = *hash_valid_return_status;
+  }
+
+  for (const auto& res : *signed_hash_responses) {
     if (return_status.ok()) {
       switch (res->status) {
         case SnapshotResponseStatus::InternalError:
@@ -474,29 +492,30 @@ Status StateSnapshotServiceImpl::ReadAsOf(ServerContext* context,
 
   LOG_INFO(logger_, "Received a ReadAsOfRequest with timeout : " << timeout.count() << "ms");
 
-  ReadConfig read_config{RequestConfig{false, 0, 1024 * 1024, timeout, "readasofreq", "", false, true},
-                         bft::client::ByzantineSafeQuorum{}};
-
-  std::vector<std::unique_ptr<StateSnapshotReadAsOfResponse>> read_as_of_responses;
-  std::condition_variable wait_for_me;
-  bool reply_available = false;
-  grpc::Status return_status = grpc::Status(grpc::StatusCode::UNAVAILABLE, "Timeout");
-  auto callback = [&read_as_of_responses, &return_status, &read_config, &wait_for_me, &reply_available](
-                      concord::client::concordclient::SendResult&& send_result) {
+  auto read_config = std::shared_ptr<ReadConfig>(
+      new ReadConfig{RequestConfig{false, 0, 1024 * 1024, timeout, "readasofreq", "", false, true},
+                     bft::client::ByzantineSafeQuorum{}});
+  auto signed_hash_responses = std::make_shared<std::vector<std::unique_ptr<SignedPublicStateHashResponse>>>();
+  auto read_as_of_responses = std::make_shared<std::vector<std::unique_ptr<StateSnapshotReadAsOfResponse>>>();
+  auto wait_for_me = std::make_shared<std::condition_variable>();
+  auto reply_available = std::make_shared<bool>(false);
+  auto return_status = std::make_shared<grpc::Status>(grpc::StatusCode::UNAVAILABLE, "Timeout");
+  auto callback = getCallbackLambda([read_as_of_responses, return_status, read_config, wait_for_me, reply_available](
+                                        concord::client::concordclient::SendResult&& send_result) {
     ResponseType<StateSnapshotReadAsOfResponse> reponse;
     getResponseSetStatus(std::move(send_result),
                          reponse,
-                         return_status,
-                         read_config.request.correlation_id,
+                         *return_status,
+                         (read_config->request).correlation_id,
                          true,
                          "concord.client.clientservice.state_snapshot_service.readasof.callback");
-    if (return_status.ok()) {
-      read_as_of_responses =
+    if (return_status->ok()) {
+      *read_as_of_responses =
           std::get<std::vector<std::unique_ptr<StateSnapshotReadAsOfResponse>>>(std::move(reponse.response));
     }
-    reply_available = true;
-    wait_for_me.notify_one();
-  };
+    *reply_available = true;
+    wait_for_me->notify_one();
+  });
 
   ConcordAssertNE(proto_request, nullptr);
   ReconfigurationRequest rreq;
@@ -509,42 +528,61 @@ Status StateSnapshotServiceImpl::ReadAsOf(ServerContext* context,
   rreq.command = cmd;
   bft::client::Msg message;
   concord::messages::serialize(message, rreq);
-  client_->send(read_config, std::move(message), callback);
+  client_->send(*read_config, std::move(message), *callback);
   bool response_available = false;
   {
     std::mutex mtx;
     std::unique_lock<std::mutex> lck(mtx);
-    response_available = wait_for_me.wait_for(lck, timeout, [&reply_available]() { return reply_available; });
+    response_available = wait_for_me->wait_for(lck, timeout, [reply_available]() { return *reply_available; });
   }
 
   if (!response_available) {
+    clearAllPrevDoneCallbacksAndAdd(reply_available, callback);
     return grpc::Status(grpc::StatusCode::UNAVAILABLE, "Timeout");
   }
 
-  for (const auto& res : read_as_of_responses) {
-    if (!return_status.ok()) {
+  for (const auto& res : *read_as_of_responses) {
+    if (!return_status->ok()) {
       break;
     }
 
     switch (res->status) {
       case SnapshotResponseStatus::InternalError:
-        return_status = grpc::Status(grpc::StatusCode::UNKNOWN, "Internal error");
+        *return_status = grpc::Status(grpc::StatusCode::UNKNOWN, "Internal error");
         break;
       case SnapshotResponseStatus::SnapshotNonExistent:
-        return_status = grpc::Status(grpc::StatusCode::UNAVAILABLE, "Snapshot doesn't exist");
+        *return_status = grpc::Status(grpc::StatusCode::UNAVAILABLE, "Snapshot doesn't exist");
         break;
       case SnapshotResponseStatus::SnapshotPending:
-        return_status = grpc::Status(grpc::StatusCode::UNAVAILABLE, "Snapshot not ready");
+        *return_status = grpc::Status(grpc::StatusCode::UNAVAILABLE, "Snapshot not ready");
         break;
       case SnapshotResponseStatus::Success:
-        compareWithRsiAndSetReadAsOfResponse(res, proto_request, response, return_status);
+        compareWithRsiAndSetReadAsOfResponse(res, proto_request, response, *return_status);
         break;
       default:
         ConcordAssert(false);
         break;
     }
   }
-  return return_status;
+  return *return_status;
+}
+
+void StateSnapshotServiceImpl::clearAllPrevDoneCallbacksAndAdd(std::shared_ptr<bool> condition,
+                                                               std::shared_ptr<bftEngine::RequestCallBack> callback) {
+  std::unique_lock<std::mutex> cleanup_lck(cleanup_mutex_);
+  bool got_value = false;
+  do {
+    got_value = false;
+    for (auto it = callbacks_for_cleanup_.begin(); it != callbacks_for_cleanup_.end(); ++it) {
+      if (*(it->first)) {
+        // We can delete this callback
+        got_value = true;
+        callbacks_for_cleanup_.erase(it);
+        break;
+      }
+    }
+  } while (got_value);
+  callbacks_for_cleanup_.emplace(condition, callback);
 }
 
 }  // namespace concord::client::clientservice

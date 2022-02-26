@@ -26,7 +26,10 @@ bool Runner::isRunning() const {
 
 void Runner::start() {
   std::lock_guard<std::mutex> lock(start_stop_mutex_);
-  ConcordAssert(io_threads_.empty());
+  if (!io_threads_.empty()) {
+    LOG_INFO(logger_, "TLS Runner has been already started; ignore operation");
+    return;
+  }
   LOG_INFO(logger_, "Starting TLS Runner");
   io_context_.restart();
 
@@ -41,15 +44,14 @@ void Runner::start() {
 
 void Runner::stop() {
   std::lock_guard<std::mutex> lock(start_stop_mutex_);
-  ConcordAssert(!io_threads_.empty());
-
-  // We want to stop all the thread from processing data before we clean up the connection managers.
-  io_context_.stop();
-  for (auto& t : io_threads_) {
-    t.join();
+  if (!io_threads_.empty()) {
+    // We want to stop all the thread from processing data before we clean up the connection managers.
+    io_context_.stop();
+    for (auto& t : io_threads_) {
+      t.join();
+    }
+    io_threads_.clear();
   }
-  io_threads_.clear();
-
   // Synchronously close the socket and cleanup state in the connection manager.
   connectionManager_.stop();
 }

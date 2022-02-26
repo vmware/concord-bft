@@ -147,6 +147,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
 
   // Reconfiguration credentials
   CONFIG_PARAM(pathToOperatorPublicKey_, std::string, "", "Path to the operator public key pem file");
+  CONFIG_PARAM(operatorEnabled_, bool, true, "true if operator is enabled");
   // Pruning parameters
   CONFIG_PARAM(pruningEnabled_, bool, false, "Enable pruning");
   CONFIG_PARAM(numBlocksToKeep_, uint64_t, 0, "how much blocks to keep while pruning");
@@ -343,6 +344,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, thresholdVerificationKeys_);
 
     serialize(outStream, pathToOperatorPublicKey_);
+    serialize(outStream, operatorEnabled_);
     serialize(outStream, pruningEnabled_);
     serialize(outStream, numBlocksToKeep_);
 
@@ -438,6 +440,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, thresholdVerificationKeys_);
 
     deserialize(inStream, pathToOperatorPublicKey_);
+    deserialize(inStream, operatorEnabled_);
     deserialize(inStream, pruningEnabled_);
     deserialize(inStream, numBlocksToKeep_);
 
@@ -563,13 +566,14 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.dbCheckPointWindowSize,
               rc.dbCheckpointDirPath,
               rc.adaptivePruningIntervalDuration.count(),
-              rc.adaptivePruningIntervalPeriod);
+              rc.adaptivePruningIntervalPeriod,
+              rc.dbSnapshotIntervalSeconds.count());
   os << ",";
-  os << KVLOG(rc.dbSnapshotIntervalSeconds.count(),
-              rc.dbCheckpointMonitorIntervalSeconds.count(),
+  os << KVLOG(rc.dbCheckpointMonitorIntervalSeconds.count(),
               rc.dbCheckpointDiskSpaceThreshold,
               rc.enableMultiplexChannel,
               rc.enableEventGroups);
+  os << ", ";
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
   return os;
 }

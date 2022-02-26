@@ -49,7 +49,6 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
     callback(bftEngine::SendResult{static_cast<uint32_t>(OperationResult::INVALID_REQUEST)});
     return SubmitResult::Overloaded;
   }
-  externalRequest external_request;
   std::unique_lock<std::mutex> lock(clients_queue_lock_);
   metricsComponent_.UpdateAggregator();
   auto serving_candidates = clients_.size();
@@ -146,8 +145,10 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
     }
   }
 
-  // Request hasn't been processed yet
-  if (external_requests_queue_.size() < jobs_queue_max_size_) {
+  // Request hasn't been processed yet and this is not a reconfiguration request then only allow the request to wait in
+  // the external request queue. Reconfigution requests are unbatched and in general require immediate response. So
+  // waiting is not acceptable.
+  if ((external_requests_queue_.size() < jobs_queue_max_size_) && (!(flags & ClientMsgFlag::RECONFIG_FLAG_REQ))) {
     LOG_DEBUG(logger_, "Request has been inserted to the wait queue" << KVLOG(correlation_id, seq_num));
     external_requests_queue_.emplace_back(externalRequest{std::move(request),
                                                           flags,
@@ -196,13 +197,22 @@ void ConcordClientPool::assignJobToClient(const ClientPtr &client,
                                           const std::string &span_context,
                                           const bftEngine::RequestCallBack &callback) {
   LOG_INFO(logger_,
-           "client_id=" << client->getClientId() << " starts handling reqSeqNum=" << seq_num << " cid="
-                        << correlation_id << " span_context exists=" << !span_context.empty() << " flags=" << flags
-                        << " request_size=" << request.size() << " timeout_ms=" << timeout_ms.count());
+           "client_id=" << client->getClientId() << " starts handling reqSeqNum=" << seq_num
+                        << " cid=" << correlation_id << " span_context exists=" << !span_context.empty()
+                        << " flags=" << flags << " request_size=" << request.size()
+                        << " timeout_ms=" << timeout_ms.count() << " max_reply_size = " << max_reply_size);
 
   client->setStartRequestTime();
-  auto *job = new SingleRequestProcessingJob(
-      *this, client, std::move(request), flags, timeout_ms, correlation_id, seq_num, span_context, callback);
+  auto *job = new SingleRequestProcessingJob(*this,
+                                             client,
+                                             std::move(request),
+                                             flags,
+                                             timeout_ms,
+                                             max_reply_size,
+                                             correlation_id,
+                                             seq_num,
+                                             span_context,
+                                             callback);
   ClientPoolMetrics_.requests_counter++;
   ClientPoolMetrics_.clients_gauge.Get().Set(clients_.size());
   jobs_thread_pool_.add(job);
@@ -223,7 +233,7 @@ SubmitResult ConcordClientPool::SendRequest(const bft::client::WriteConfig &conf
                      request_flag,
                      config.request.timeout,
                      nullptr,
-                     0,
+                     config.request.max_reply_size,
                      config.request.sequence_number,
                      config.request.correlation_id,
                      config.request.span_context,
@@ -244,7 +254,7 @@ SubmitResult ConcordClientPool::SendRequest(const bft::client::ReadConfig &confi
                      request_flag,
                      config.request.timeout,
                      nullptr,
-                     0,
+                     config.request.max_reply_size,
                      config.request.sequence_number,
                      config.request.correlation_id,
                      config.request.span_context,
@@ -376,7 +386,12 @@ void ConcordClientPool::CreatePool(concord::config_pool::ConcordClientPoolConfig
   if (config.enable_multiplex_channel) {
     std::unordered_map<NodeNum, NodeNum> endpointIdToNodeIdMap;
     // For clients, endpointIdToNodeIdMap maps replica-id to replica-id (1 to 1, 2 to 2, etc.)
-    for (const auto &replica : config.replicas) endpointIdToNodeIdMap[replica.first] = replica.first;
+    for (const auto &replica : config.replicas) {
+      const auto replicaId = replica.first;
+      const auto connectionId = replicaId;
+      endpointIdToNodeIdMap[replicaId] = connectionId;
+      LOG_INFO(logger_, "Setting endpointIdToNodeIdMap" << KVLOG(replicaId, connectionId));
+    }
     auto const secretData = config.encrypted_config_enabled
                                 ? std::optional<concord::secretsmanager::SecretData>(config.secret_data)
                                 : std::nullopt;
@@ -466,6 +481,9 @@ void SingleRequestProcessingJob::execute() {
     read_config_.request.sequence_number = seq_num_;
     read_config_.request.correlation_id = correlation_id_;
     read_config_.request.span_context = span_context_;
+    if (max_reply_size_ > 0) {
+      read_config_.request.max_reply_size = max_reply_size_;
+    }
     read_config_.request.reconfiguration = flags_ & RECONFIG_FLAG_REQ;
     res = processing_client_->SendRequest(read_config_, std::move(request_));
   } else {
@@ -473,6 +491,9 @@ void SingleRequestProcessingJob::execute() {
     write_config_.request.sequence_number = seq_num_;
     write_config_.request.correlation_id = correlation_id_;
     write_config_.request.span_context = span_context_;
+    if (max_reply_size_ > 0) {
+      write_config_.request.max_reply_size = max_reply_size_;
+    }
     write_config_.request.reconfiguration = flags_ & RECONFIG_FLAG_REQ;
     write_config_.request.pre_execute = flags_ & PRE_PROCESS_REQ;
     res = processing_client_->SendRequest(write_config_, std::move(request_));
@@ -593,7 +614,8 @@ PoolStatus ConcordClientPool::HealthStatus() {
   for (auto &client : clients_) {
     if (client->isServing()) {
       if (!hasKeys_ && !(hasKeys_ = clusterHasKeys(client))) {
-        break;
+        LOG_DEBUG(logger_, "The key exchange is not completed - the pool is not ready");
+        return PoolStatus::NotServing;
       }
       LOG_INFO(logger_, "client_id=" << client->getClientId() << " is serving - the pool is ready");
       return PoolStatus::Serving;
