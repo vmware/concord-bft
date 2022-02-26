@@ -926,6 +926,8 @@ struct ResetMetadata {
     CheckpointMsg *cpm = p->getAndAllocateCheckpointMsgInCheckWindow(stableSeqNum);
     result["new bft mdt"] = std::to_string(isNewStorage);
     auto lastExecutedSn = p->getLastExecutedSeqNum();
+    bool hasDescriptorOfLastExitFromView = p->hasDescriptorOfLastExitFromView();
+    bool hasDescriptorOfLastNewView = p->hasDescriptorOfLastNewView();
     p->beginWriteTran();
     if (cpm && cpm->senderId() != repId) {
       cpm->setSenderId(repId);
@@ -942,6 +944,8 @@ struct ResetMetadata {
         }
       }
     }
+    if (hasDescriptorOfLastExitFromView) p->removeDescriptorOfLastExitFromView();
+    if (hasDescriptorOfLastNewView) p->removeDescriptorOfLastNewView();
     p->endWriteTran();
     return toJson(result);
   }

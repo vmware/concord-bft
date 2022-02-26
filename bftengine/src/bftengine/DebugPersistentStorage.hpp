@@ -79,6 +79,8 @@ class DebugPersistentStorage : public PersistentStorage {
 
   void setNewEpochFlag(bool flag) override {}
   bool getNewEpochFlag() override { return false; };
+  void removeDescriptorOfLastExitFromView() override {}
+  void removeDescriptorOfLastNewView() override {}
 
  protected:
   bool setIsAllowed() const;

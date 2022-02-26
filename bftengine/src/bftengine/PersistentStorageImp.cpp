@@ -299,6 +299,10 @@ void PersistentStorageImp::initDescriptorOfLastNewView() {
   setDescriptorOfLastNewView(desc, true);
 }
 
+void PersistentStorageImp::removeDescriptorOfLastExitFromView() { initDescriptorOfLastExitFromView(); }
+
+void PersistentStorageImp::removeDescriptorOfLastNewView() { initDescriptorOfLastNewView(); }
+
 void PersistentStorageImp::saveDescriptorOfLastExecution(const DescriptorOfLastExecution &newDesc) {
   const size_t bufLen = DescriptorOfLastExecution::maxSize();
   UniquePtrToChar descBuf(new char[bufLen]);

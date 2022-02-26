@@ -124,6 +124,8 @@ class PersistentStorage {
   virtual bool getNewEpochFlag() = 0;
 
   virtual bool setReplicaSpecificInfo(uint32_t index, const std::vector<uint8_t> &data) = 0;
+  virtual void removeDescriptorOfLastExitFromView() = 0;
+  virtual void removeDescriptorOfLastNewView() = 0;
 
   //////////////////////////////////////////////////////////////////////////
   // Read methods (should only be used before using write-only transactions)
