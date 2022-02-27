@@ -69,7 +69,7 @@ class DurationTracker {
   // Returns total_duration_ value before optional reset.
   // Consecutive calls to stop with same flags returns the same total_duration_
   uint64_t stop(bool do_reset = false) {
-    uint64_t ret = totalDuration();
+    uint64_t ret = totalDuration(do_reset);
     running_ = false;
     DEBUG_TRP_PRINT(GL, KVLOG(name_, running_, total_duration_, ret, do_reset));
     return ret;
