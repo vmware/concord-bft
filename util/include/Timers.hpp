@@ -18,7 +18,7 @@
 #include <vector>
 #include <algorithm>
 #include <mutex>
-
+#include "Logger.hpp"
 namespace concordUtil {
 
 // A collection of timers backed by a vector.
@@ -62,7 +62,13 @@ class Timers {
 
     bool recurring() const { return type_ == Type::RECURRING; }
 
-    void run_callback(Handle h) { callback_(h); }
+    void run_callback(Handle h) {
+      if (callback_) {
+        callback_(h);
+      } else {
+        LOG_ERROR(logging::getLogger("concord.util.Timers"), "invalid callback: " << callback_.target_type().name());
+      }
+    }
 
     void reset(std::chrono::steady_clock::time_point now) { expires_at_ = now + duration_; }
 

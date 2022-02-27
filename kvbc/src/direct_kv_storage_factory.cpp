@@ -18,7 +18,7 @@
 #include "storage/direct_kv_key_manipulator.h"
 #include "rocksdb/client.h"
 #include "rocksdb/key_comparator.h"
-
+#include "ReplicaConfig.hpp"
 #ifdef USE_S3_OBJECT_STORE
 #include "s3/key_manipulator.h"
 #include "s3/client.hpp"
@@ -83,7 +83,10 @@ IStorageFactory::DatabaseSet S3StorageFactory::newDatabaseSet() const {
 
   auto dataKeyGenerator = std::make_unique<S3KeyGenerator>(s3Conf_.pathPrefix);
   ret.dbAdapter = std::make_unique<DBAdapter>(
-      ret.dataDBClient, std::move(dataKeyGenerator), true /* use_mdt */, true /* save_kv_pairs_separately */);
+      ret.dataDBClient,
+      std::move(dataKeyGenerator),
+      true /* use_mdt */,
+      bftEngine::ReplicaConfig::instance().get<bool>("concord.storage.s3.save_kv_pairs_separately", true));
 
   return ret;
 }

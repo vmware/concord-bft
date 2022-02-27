@@ -15,6 +15,7 @@
 
 #include <array>
 #include <utility>
+#include <iomanip>
 
 #include <openssl/evp.h>
 
@@ -96,6 +97,12 @@ class EVPHash {
     ConcordAssert(_digest_len == SIZE_IN_BYTES);
     updating_ = false;
     return digest;
+  }
+  static std::string toHexString(const Digest& digest) {
+    std::ostringstream oss;
+    for (size_t i = 0; i < SIZE_IN_BYTES; ++i)
+      oss << std::setfill('0') << std::setw(2) << std::hex << std::uppercase << (0xff & (unsigned int)digest[i]);
+    return oss.str();
   }
 
  private:
