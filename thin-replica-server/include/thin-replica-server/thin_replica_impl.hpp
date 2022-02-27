@@ -343,7 +343,7 @@ class ThinReplicaImpl {
       if (request->events().block_id() == last_block_id + 1) {
         while (not live_updates->waitUntilNonEmpty(kWaitForUpdateTimeout)) {
           if (context->IsCancelled()) {
-            LOG_INFO(logger_, "StreamCancelled while waiting for the next live update.");
+            LOG_DEBUG(logger_, "StreamCancelled while waiting for the next live update.");
             CLEANUP_SUBSCRIPTION();
             return grpc::Status::CANCELLED;
           }
