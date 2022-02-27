@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include "ReplicaConfig.hpp"
 #include "reconfiguration/ireconfiguration.hpp"
 #include "db_interfaces.h"
 #include "hex_tools.h"
@@ -82,9 +83,15 @@ class StateSnapshotReconfigurationHandler : public ReconfigurationBlockTools,
   // Allow snapshot requests from the Operator and from Clients.
   bool verifySignature(uint32_t sender_id, const std::string& data, const std::string& signature) const override {
     // Try the BFT reconfiguration handler first. If not verified by the reconfiguration handler, try the
-    // ClientReconfigurationHandler.
-    return (bft_reconf_handler_.verifySignature(sender_id, data, signature) ||
-            client_reconf_handler_.verifySignature(sender_id, data, signature));
+    // ClientReconfigurationHandler, if transaction signing is enabled, else donot check the signature.
+    // For StateSnapshotRequest, SignedPublicStateHashRequest and StateSnapshotReadAsOfRequest, we will
+    // allow the reconfiguration request without verification.
+    if (bftEngine::ReplicaConfig::instance().clientTransactionSigningEnabled) {
+      return (bft_reconf_handler_.verifySignature(sender_id, data, signature) ||
+              client_reconf_handler_.verifySignature(sender_id, data, signature));
+    } else {
+      return true;
+    }
   }
 
  private:
