@@ -90,6 +90,8 @@ class CallbackRegistry {
   using CallbackHandle = GenericCallbackHandle<Iterator>;
 
   CallbackRegistry() = default;
+  CallbackRegistry(const CallbackRegistry&) = delete;
+  CallbackRegistry& operator=(const CallbackRegistry&) = delete;
 
   // Registers a callback and returns a handle to it. Handles are only valid for the registry instance that created
   // them. Additionally, handles are invalidated when the registry is destructed. Using handles across registries or

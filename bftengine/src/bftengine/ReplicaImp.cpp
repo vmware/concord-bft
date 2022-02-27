@@ -1521,10 +1521,10 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
   if (auto *t = std::get_if<FinishPrePrepareExecutionInternalMsg>(&msg)) {
     ConcordAssert(t->prePrepareMsg != nullptr);
     postBftExecutionActions(t->prePrepareMsg, *(t->pAccumulatedRequests));
+    delete t->pAccumulatedRequests;
     if (!main_execution_engine_->isExecuting()) handleDeferredRequests();
     // Once we done with execution, lets try to run another phase of execution.
     startExecution();
-    delete t->pAccumulatedRequests;
     return;
   }
 
@@ -2433,7 +2433,8 @@ void ReplicaImp::onMessage<AskForCheckpointMsg>(AskForCheckpointMsg *msg) {
 }
 
 void ReplicaImp::startExecution() {
-  if (bftEngine::ControlStateManager::instance().getPruningProcessStatus()) {
+  if (isCollectingState() || bftEngine::ControlStateManager::instance().isWedged() ||
+      bftEngine::ControlStateManager::instance().getPruningProcessStatus()) {
     return;
   }
   if (lastCollectedSn % checkpointWindowSize == 0 && main_execution_engine_->isExecuting()) {
@@ -4064,6 +4065,10 @@ void ReplicaImp::finalizePPExecution(PrePrepareMsg *ppMsg) {
 
 void ReplicaImp::sendClientReplies(IRequestsHandler::ExecutionRequestsQueue &reqs) {
   for (auto &req : reqs) {
+    if (repsInfo->isIdOfInternalClient(req.clientId)) {
+      clientsManager->removePendingForExecutionRequest(req.clientId, req.requestSequenceNum);
+      continue;
+    }
     clientsManager->removePendingForExecutionRequest(req.clientId, req.requestSequenceNum);
     if (clientsManager->hasReply(req.clientId, req.requestSequenceNum)) {
       auto replyMsg = clientsManager->allocateReplyFromSavedOne(req.clientId, req.requestSequenceNum, currentPrimary());
@@ -5108,29 +5113,29 @@ std::vector<PrePrepareMsg *> ReplicaImp::collectPrePrepares(concordUtils::SpanWr
       LOG_INFO(GL, "we must wait for the latest checkpoint creation to finish before continue executing");
       break;
     }
-    SCOPED_MDC_SEQ_NUM(std::to_string(lastCollectedSn + 1));
+    SeqNum nextSnToCollect = lastCollectedSn + 1;
+    SCOPED_MDC_SEQ_NUM(std::to_string(nextSnToCollect));
     if (ControlStateManager::instance().isWedged()) {
       LOG_INFO(CNSUS, "system is wedged, no new prePrepare requests will be executed until its unwedged");
       break;
     }
-    SeqNumInfo &seqNumInfo = mainLog->get(lastCollectedSn + 1);
+    SeqNumInfo &seqNumInfo = mainLog->get(nextSnToCollect);
 
     PrePrepareMsg *prePrepareMsg = seqNumInfo.getPrePrepareMsg();
 
     const bool ready = (prePrepareMsg != nullptr) && (seqNumInfo.isCommitted__gg());
     if (askForMissingInfo && !ready) {
-      LOG_INFO(GL,
-               "Asking for missing information: " << KVLOG(lastCollectedSn + 1, getCurrentView(), lastStableSeqNum));
-      tryToSendReqMissingDataMsg(lastCollectedSn + 1);
+      LOG_INFO(GL, "Asking for missing information: " << KVLOG(nextSnToCollect, getCurrentView(), lastStableSeqNum));
+      tryToSendReqMissingDataMsg(nextSnToCollect);
     }
 
     if (!ready) break;
-    if (prePrepareMsg->seqNumber() % checkpointWindowSize == 0 && lastCollectedSn < lastExecutedSeqNum) {
-      LOG_INFO(GL, "We want to first execute the callbacks before proceeding beyond the near checkpoint");
-      break;
-    }
     pps.push_back(prePrepareMsg);
     lastCollectedSn++;
+    if (lastCollectedSn % checkpointWindowSize == 0) {
+      LOG_INFO(GL, "we must wait for the latest checkpoint creation to finish before continue executing");
+      break;
+    }
   }
   return pps;
 }

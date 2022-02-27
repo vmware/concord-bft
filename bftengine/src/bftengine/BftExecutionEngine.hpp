@@ -23,6 +23,12 @@
 #include "diagnostics.h"
 #include "Metrics.hpp"
 
+#ifdef USE_FAKE_CLOCK_IN_TS
+#include "FakeClock.hpp"
+#define CLOCK_TYPE concord::util::FakeClock
+#else
+#define CLOCK_TYPE std::chrono::system_clock
+#endif
 namespace bftEngine::impl {
 class BftExecutionEngineBase {
  public:
@@ -30,7 +36,7 @@ class BftExecutionEngineBase {
                          std::shared_ptr<ClientsManager>,
                          std::shared_ptr<ReplicasInfo> reps_info,
                          std::shared_ptr<PersistentStorage> ps,
-                         std::shared_ptr<TimeServiceManager<std::chrono::system_clock>> time_service_manager);
+                         std::shared_ptr<TimeServiceManager<CLOCK_TYPE>> time_service_manager);
   virtual SeqNum addExecutions(const std::vector<PrePrepareMsg*>&) = 0;
   void addPostExecCallBack(std::function<void(PrePrepareMsg*, IRequestsHandler::ExecutionRequestsQueue&)> cb);
   virtual ~BftExecutionEngineBase() = default;
@@ -48,13 +54,13 @@ class BftExecutionEngineBase {
  protected:
   virtual Bitmap filterRequests(const PrePrepareMsg&);
   std::deque<IRequestsHandler::ExecutionRequest> collectRequests(const PrePrepareMsg&);
-  virtual void execute(std::deque<IRequestsHandler::ExecutionRequest>&);
+  virtual void execute(std::deque<IRequestsHandler::ExecutionRequest>&, Timestamp&);
   std::shared_ptr<IRequestsHandler> requests_handler_;
   bftEngine::ReplicaConfig& config_;
   std::shared_ptr<ClientsManager> clients_manager_;
   std::shared_ptr<ReplicasInfo> reps_info_;
   std::shared_ptr<PersistentStorage> ps_;
-  std::shared_ptr<TimeServiceManager<std::chrono::system_clock>> time_service_manager_;
+  std::shared_ptr<TimeServiceManager<CLOCK_TYPE>> time_service_manager_;
   concord::util::CallbackRegistry<PrePrepareMsg*, IRequestsHandler::ExecutionRequestsQueue&> post_exec_handlers_;
   Bitmap requestsMap_;
   std::map<SeqNum, Timestamp> timestamps;
@@ -80,7 +86,7 @@ class BftExecutionEngineFactory {
       std::shared_ptr<ClientsManager> client_manager,
       std::shared_ptr<ReplicasInfo> reps_info,
       std::shared_ptr<PersistentStorage> ps,
-      std::shared_ptr<TimeServiceManager<std::chrono::system_clock>> time_service_manager,
+      std::shared_ptr<TimeServiceManager<CLOCK_TYPE>> time_service_manager,
       TYPE type);
 };
 

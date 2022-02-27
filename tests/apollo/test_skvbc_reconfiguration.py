@@ -892,14 +892,7 @@ class SkvbcReconfigurationTest(ApolloTest):
                                                               initial_prim})
         bft_network.stop_replicas(replicas_to_stop)
 
-        with log.start_action(action_type="send_unwedge_cmd",
-                              checkpoint_before=checkpoint_before,
-                              stopped_replicas=list(replicas_to_stop)):
-            op = operator.Operator(
-                bft_network.config, client,  bft_network.builddir)
-            await op.unwedge(bft=True)
-
-        await self.validate_start_on_unwedge(bft_network,skvbc,fullWedge=False)
+        await self.unwedge_and_validate_start(bft_network,skvbc,fullWedge=False)
 
         # Make sure the system is able to make progress
         for i in range(500):
@@ -953,14 +946,7 @@ class SkvbcReconfigurationTest(ApolloTest):
 
         bft_network.stop_replicas(replicas_to_stop)
 
-        with log.start_action(action_type="send_unwedge_cmd",
-                              checkpoint_before=checkpoint_before,
-                              stopped_replicas=list(replicas_to_stop)):
-            op = operator.Operator(
-                bft_network.config, client,  bft_network.builddir)
-            await op.unwedge(bft=True)
-
-        await self.validate_start_on_unwedge(bft_network,skvbc,fullWedge=False)
+        await self.unwedge_and_validate_start(bft_network,skvbc,fullWedge=False)
 
         # Make sure the system is able to make progress
         for i in range(100):
@@ -990,11 +976,7 @@ class SkvbcReconfigurationTest(ApolloTest):
 
         await self.validate_stop_on_super_stable_checkpoint(bft_network, skvbc)
 
-        op = operator.Operator(
-            bft_network.config, client,  bft_network.builddir)
-        await op.unwedge()
-
-        await self.validate_start_on_unwedge(bft_network,skvbc,fullWedge=False)
+        await self.unwedge_and_validate_start(bft_network,skvbc,fullWedge=False)
 
 
     @with_trio
@@ -1597,7 +1579,7 @@ class SkvbcReconfigurationTest(ApolloTest):
             await self.validate_epoch_number(bft_network, 1, live_replicas)
             await self.validate_initial_key_exchange(bft_network, crashed_replica, metrics_id="self_key_exchange", expected=1)
             bft_network.start_replicas(replicas_for_st)
-            await self.validate_initial_key_exchange(bft_network, replicas_for_st, metrics_id="self_key_exchange", expected=0)
+            await self.validate_initial_key_exchange(bft_network, replicas_for_st, metrics_id="self_key_exchange", expected=1)
             for i in range(601):
                 await skvbc.send_write_kv_set()
 
@@ -1831,15 +1813,15 @@ class SkvbcReconfigurationTest(ApolloTest):
                     with self.assertRaises(trio.TooSlowError):
                         await skvbc.send_write_kv_set()
 
-    async def validate_start_on_unwedge(self, bft_network, skvbc, fullWedge=False):
-        with log.start_action(action_type="validate_start_on_unwedge") as action:
+    async def unwedge_and_validate_start(self, bft_network, skvbc, fullWedge=False):
+        with log.start_action(action_type="unwedge_and_validate_start") as action:
             with trio.fail_after(seconds=90):
                 client = bft_network.random_client()
-
                 op = operator.Operator(bft_network.config, client,  bft_network.builddir)
                 done = False
                 quorum = None if fullWedge is True else bft_client.MofNQuorum.LinearizableQuorum(bft_network.config, [r.id for r in bft_network.replicas])
                 while done is False:
+                    await op.unwedge(bft= not fullWedge)
                     started_replicas = 0
                     await op.wedge_status(quorum=quorum, fullWedge=fullWedge)
                     rsi_rep = client.get_rsi_replies()
@@ -1972,7 +1954,7 @@ class SkvbcReconfigurationTest(ApolloTest):
                         break
     async def validate_initial_key_exchange(self, bft_network, replicas, metrics_id, expected):
         total = 0
-        with trio.fail_after(seconds=10):
+        with trio.fail_after(seconds=20):
             succ = False
             while not succ:
                 succ = True
