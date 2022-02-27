@@ -24,6 +24,7 @@
 #include "assertUtils.hpp"
 #include "storage/db_interface.h"
 #include "s3_metrics.hpp"
+#include "thread_pool.hpp"
 
 #pragma once
 
@@ -63,17 +64,8 @@ class Client : public concord::storage::IDBClient {
   /** Transaction class. Is used also internally to implement multiPut()*/
   class Transaction : public ITransaction {
    public:
-    Transaction(Client* client) : ITransaction(nextId()), client_{client} {}
-    void commit() override {
-      for (auto& pair : multiput_)
-        if (concordUtils::Status s = client_->put(pair.first, pair.second); !s.isOK())
-          throw std::runtime_error("S3 commit failed while putting a value for key: " + pair.first.toString() +
-                                   std::string(" txn id[") + getIdStr() + std::string("], reason: ") + s.toString());
-      for (auto& key : keys_to_delete_)
-        if (concordUtils::Status s = client_->del(key); !s.isOK())
-          throw std::runtime_error("S3 commit failed while deleting a vallue for key: " + key.toString() +
-                                   std::string(" txn id[") + getIdStr() + std::string("], reason: ") + s.toString());
-    }
+    Transaction(Client* client) : ITransaction(nextId()), client_{client->shared_from_this()} {}
+    void commit() override;
     void rollback() override { multiput_.clear(); }
     void put(const concordUtils::Sliver& key, const concordUtils::Sliver& value) override {
       multiput_[key.clone()] = value.clone();
@@ -85,7 +77,7 @@ class Client : public concord::storage::IDBClient {
     }
 
    protected:
-    Client* client_;
+    std::shared_ptr<IDBClient> client_;
     SetOfKeyValuePairs multiput_;
     std::set<concordUtils::Sliver> keys_to_delete_;
     ID nextId() {
@@ -230,15 +222,15 @@ class Client : public concord::storage::IDBClient {
 
   void init(bool readOnly) override;
 
-  concordUtils::Status get(const concordUtils::Sliver& key, OUT concordUtils::Sliver& outValue) const override {
+  concordUtils::Status get(const concordUtils::Sliver& key, concordUtils::Sliver& outValue) const override {
     LOG_DEBUG(logger_, key.toString());
     return do_with_retry("get_internal", std::bind(&Client::get_internal, this, _1, _2), key, outValue);
   }
 
   concordUtils::Status get(const concordUtils::Sliver& _key,
-                           OUT char*& buf,
+                           char*& buf,
                            uint32_t bufSize,
-                           OUT uint32_t& _size) const override {
+                           uint32_t& _size) const override {
     concordUtils::Sliver res;
     if (Status s = get(_key, res); !s.isOK()) return s;
     size_t len = std::min(res.length(), (size_t)bufSize);
@@ -272,7 +264,7 @@ class Client : public concord::storage::IDBClient {
     return do_with_retry("delete_internal", std::bind(&Client::delete_internal, this, _1), key);
   }
 
-  concordUtils::Status multiGet(const KeysVector& _keysVec, OUT ValuesVector& _valuesVec) override {
+  concordUtils::Status multiGet(const KeysVector& _keysVec, ValuesVector& _valuesVec) override {
     ConcordAssert(_keysVec.size() == _valuesVec.size());
     for (KeysVector::size_type i = 0; i < _keysVec.size(); ++i)
       if (Status s = get(_keysVec[i], _valuesVec[i]); !s.isOK()) return s;
@@ -287,8 +279,8 @@ class Client : public concord::storage::IDBClient {
   }
 
   concordUtils::Status multiDel(const KeysVector& _keysVec) override {
-    for (const auto& key : _keysVec)
-      if (Status s = del(key); !s.isOK()) return s;
+    ITransaction::Guard g(beginTransaction());
+    for (const auto& key : _keysVec) g.txn()->del(key);
     return concordUtils::Status::OK();
   }
 
@@ -320,29 +312,30 @@ class Client : public concord::storage::IDBClient {
   template <typename F, typename... Args>
   Status do_with_retry(const std::string_view msg, F&& f, Args&&... args) const {
     uint16_t delay = initialDelay_;
-    uint16_t retries = 0;
-    ResponseData rd;
-    do {
-      if (retries++) {
-        if (delay < config_.operationTimeout)
-          delay += retries * initialDelay_;
-        else
-          break;
+    ResponseData rd{S3Status::S3StatusErrorUnknown, ""};
+
+    for (uint16_t retries = 0;
+         rd.status != S3Status::S3StatusOK && !S3_status_is_not_found(rd.status) && delay < config_.operationTimeout;
+         ++retries) {
+      if (retries > 0) {
+        delay += retries * initialDelay_;
         LOG_ERROR(
             logger_,
             msg << " status: " << rd.status << " error: " << rd.errorMessage << ", retrying after " << delay << " ms.");
         std::this_thread::sleep_for(std::chrono::milliseconds(delay));
       }
       rd = std::forward<F>(f)(std::forward<Args>(args)...);
-    } while (rd.status != S3Status::S3StatusOK && S3_status_is_retryable(rd.status) &&
-             !S3_status_is_not_found(rd.status));
+    }
 
     if (rd.status == S3Status::S3StatusOK) {
-      LOG_DEBUG(logger_, msg << " status: " << rd.status << " (OK)");
+      LOG_DEBUG(logger_, msg << " status: " << rd.status);
       return Status::OK();
     }
+    if (S3_status_is_not_found(rd.status)) {
+      LOG_DEBUG(logger_, msg << "not found, status: " << rd.status << " error: " << rd.errorMessage);
+      return Status::NotFound("Status: " + rd.errorMessage);
+    }
     LOG_ERROR(logger_, msg << " status: " << rd.status << " error: " << rd.errorMessage);
-    if (S3_status_is_not_found(rd.status)) return Status::NotFound("Status: " + rd.errorMessage);
 
     return Status::GeneralError("Status: " + rd.errorMessage);
   }
@@ -385,7 +378,7 @@ class Client : public concord::storage::IDBClient {
     size_t putCount = 0;
   };
 
-  GetObjectResponseData get_internal(const concordUtils::Sliver& _key, OUT concordUtils::Sliver& _outValue) const;
+  GetObjectResponseData get_internal(const concordUtils::Sliver& _key, concordUtils::Sliver& _outValue) const;
   PutObjectResponseData put_internal(const concordUtils::Sliver& _key, const concordUtils::Sliver& _value);
   ResponseData object_exists_internal(const concordUtils::Sliver& key) const;
   ResponseData delete_internal(const concordUtils::Sliver& key);
@@ -400,6 +393,7 @@ class Client : public concord::storage::IDBClient {
   logging::Logger logger_ = logging::getLogger("concord.storage.s3");
   uint16_t initialDelay_ = 100;
   Metrics metrics_;
+  util::ThreadPool thread_pool_{std::thread::hardware_concurrency()};
 };
 
 }  // namespace concord::storage::s3

@@ -35,7 +35,7 @@ void Client::init(bool readOnly) {}
  *                  successful.
  * @return Status NotFound if no mapping is found, else, Status OK.
  */
-Status Client::get(const Sliver &_key, OUT Sliver &_outValue) const {
+Status Client::get(const Sliver &_key, Sliver &_outValue) const {
   try {
     _outValue = map_.at(_key);
   } catch (const std::out_of_range &oor) {
@@ -46,7 +46,7 @@ Status Client::get(const Sliver &_key, OUT Sliver &_outValue) const {
   return Status::OK();
 }
 
-Status Client::get(const Sliver &_key, OUT char *&buf, uint32_t bufSize, OUT uint32_t &_size) const {
+Status Client::get(const Sliver &_key, char *&buf, uint32_t bufSize, uint32_t &_size) const {
   Sliver value;
   auto status = get(_key, value);
   if (!status.isOK()) return status;
@@ -119,7 +119,7 @@ Status Client::del(const Sliver &_key) {
   return Status::OK();
 }
 
-Status Client::multiGet(const KeysVector &_keysVec, OUT ValuesVector &_valuesVec) {
+Status Client::multiGet(const KeysVector &_keysVec, ValuesVector &_valuesVec) {
   Status status = Status::OK();
   for (auto const &it : _keysVec) {
     Sliver sliver;

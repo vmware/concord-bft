@@ -94,7 +94,11 @@ class ThreadPool {
       auto task = std::move(task_queue_.tasks.front());
       task_queue_.tasks.pop();
       lock.unlock();
-      task();
+      try {
+        task();
+      } catch (const std::exception& e) {
+        LOG_ERROR(logging::getLogger("concord.util.thread-pool"), e.what());
+      }
     }
   }
 
