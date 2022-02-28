@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from util.bft import BftTestNetwork
     from util.skvbc_history_tracker import SkvbcTracker
 
+
 def start_replica_cmd(builddir, replica_id):
     """
     Return a command that starts an skvbc replica when passed to
@@ -48,6 +49,7 @@ def start_replica_cmd(builddir, replica_id):
             "-e", str(True)
             ]
 
+
 class SkvbcCommitPathTest(ApolloTest):
     __test__ = False  # so that PyTest ignores this test scenario
     # This is constant is shared between the c++ (EvaluationPeriod = 64) and the python code
@@ -56,22 +58,12 @@ class SkvbcCommitPathTest(ApolloTest):
     # There is no need to rotate keys as it is unrelated to path transition and takes time
     ROTATE_KEYS = False
 
-    @staticmethod
-    async def send_kvs_sequentially(skvbc: 'SimpleKVBCProtocol', kv_count: int, client: 'BftClient' = None):
-        """
-        Reaches a consensus over kv_count blocks, Waits for execution reply message after each block
-        so that multiple client requests are not batched
-        """
-        client = client or skvbc.bft_network.random_client()
-        for i in range(kv_count):
-            await skvbc.send_write_kv_set(client=client, kv=[(b'A' * i, b'')], description=f'{i}')
-
     async def wait_for_stable_state(self, skvbc: 'SimpleKVBCProtocol', timeout_secs: int,
                                     sleep_time: float = 1, client: 'BftClient' = None):
         with trio.fail_after(timeout_secs):
             while True:
                 try:
-                    await self.send_kvs_sequentially(skvbc, 1, client)
+                    await skvbc.send_n_kvs_sequentially(1, client)
                     break
                 except:
                     await trio.sleep(sleep_time)
@@ -94,10 +86,11 @@ class SkvbcCommitPathTest(ApolloTest):
         skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
 
         await bft_network.wait_for_consensus_path(path_type=ConsensusPathType.OPTIMISTIC_FAST,
-                                                  run_ops=lambda: self.send_kvs_sequentially(skvbc, op_count),
+                                                  run_ops=lambda: skvbc.send_n_kvs_sequentially(op_count),
                                                   threshold=op_count)
 
-    @unittest.skip("This is a transition covered in test_commit_path_transitions and is kept as a manual testing option.")
+    @unittest.skip(
+        "This is a transition covered in test_commit_path_transitions and is kept as a manual testing option.")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n >= 6, rotate_keys=ROTATE_KEYS)
     @verify_linearizability()
@@ -127,7 +120,7 @@ class SkvbcCommitPathTest(ApolloTest):
         bft_network.stop_replicas(crash_targets)
 
         await bft_network.wait_for_consensus_path(path_type=ConsensusPathType.SLOW,
-                                                  run_ops=lambda: self.send_kvs_sequentially(skvbc, op_count),
+                                                  run_ops=lambda: skvbc.send_n_kvs_sequentially(op_count),
                                                   threshold=op_count)
 
     @with_trio
@@ -153,14 +146,14 @@ class SkvbcCommitPathTest(ApolloTest):
 
         # Initially all replicas are running on the fast path
         await bft_network.wait_for_consensus_path(path_type=ConsensusPathType.OPTIMISTIC_FAST,
-                                                  run_ops=lambda: self.send_kvs_sequentially(skvbc, fast_ops),
+                                                  run_ops=lambda: skvbc.send_n_kvs_sequentially(fast_ops),
                                                   threshold=fast_ops)
 
         crash_targets = random.sample(bft_network.all_replicas(without={primary_num}), bft_network.config.c)
         bft_network.stop_replicas(crash_targets)
 
         await bft_network.wait_for_consensus_path(path_type=ConsensusPathType.FAST_WITH_THRESHOLD,
-                                                  run_ops=lambda: self.send_kvs_sequentially(skvbc, ops_for_transition),
+                                                  run_ops=lambda: skvbc.send_n_kvs_sequentially(ops_for_transition),
                                                   threshold=1)
 
         slow_commits = await bft_network.commit_count_by_path(ConsensusPathType.SLOW)
@@ -195,7 +188,7 @@ class SkvbcCommitPathTest(ApolloTest):
         # Initially all replicas are running on the fast path
         await bft_network.wait_for_consensus_path(
             path_type=ConsensusPathType.OPTIMISTIC_FAST,
-            run_ops=lambda: self.send_kvs_sequentially(skvbc, num_ops),
+            run_ops=lambda: skvbc.send_n_kvs_sequentially(num_ops),
             threshold=num_ops)
 
         # Crash C+1 replicas excluding the primary - this ensures that the slow path will be used
@@ -205,7 +198,7 @@ class SkvbcCommitPathTest(ApolloTest):
 
         await bft_network.wait_for_consensus_path(
             path_type=ConsensusPathType.SLOW,
-            run_ops=lambda: self.send_kvs_sequentially(skvbc, num_ops),
+            run_ops=lambda: skvbc.send_n_kvs_sequentially(num_ops),
             threshold=num_ops)
 
         # Recover crashed replicas and check that the fast path is recovered
@@ -213,7 +206,7 @@ class SkvbcCommitPathTest(ApolloTest):
 
         await bft_network.wait_for_consensus_path(
             path_type=ConsensusPathType.OPTIMISTIC_FAST,
-            run_ops=lambda: self.send_kvs_sequentially(skvbc, self.EVALUATION_PERIOD_SEQUENCES),
+            run_ops=lambda: skvbc.send_n_kvs_sequentially(self.EVALUATION_PERIOD_SEQUENCES),
             threshold=5)
 
     @with_trio
@@ -240,7 +233,7 @@ class SkvbcCommitPathTest(ApolloTest):
 
         await bft_network.wait_for_consensus_path(
             path_type=ConsensusPathType.OPTIMISTIC_FAST,
-            run_ops=lambda: self.send_kvs_sequentially(skvbc, num_ops),
+            run_ops=lambda: skvbc.send_n_kvs_sequentially(num_ops),
             threshold=num_ops)
 
         # Stop the primary
@@ -269,5 +262,5 @@ class SkvbcCommitPathTest(ApolloTest):
         # View change recovers
         await bft_network.wait_for_consensus_path(
             path_type=ConsensusPathType.OPTIMISTIC_FAST,
-            run_ops=lambda: self.send_kvs_sequentially(skvbc, int(1.1 * self.EVALUATION_PERIOD_SEQUENCES)),
+            run_ops=lambda: skvbc.send_n_kvs_sequentially(int(1.1 * self.EVALUATION_PERIOD_SEQUENCES)),
             threshold=num_ops)

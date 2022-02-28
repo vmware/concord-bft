@@ -655,7 +655,16 @@ class SimpleKVBCProtocol:
                 if self.tracker is not None:
                     self.tracker.status.record_client_timeout(client_id)
                 return
-                
+
+    async def send_n_kvs_sequentially(self, kv_count: int, client: 'BftClient' = None):
+        """
+        Reaches a consensus over kv_count blocks, Waits for execution reply message after each block
+        so that multiple client requests are not batched
+        """
+        client = client or self.bft_network.random_client()
+        for i in range(kv_count):
+            await self.send_write_kv_set(client=client, kv=[(b'A' * i, b'')], description=f'{i}')
+
     def readset(self, min_size, max_size):
         return self.random_keys(random.randint(min_size, max_size))
 
