@@ -41,7 +41,9 @@ void RawMemoryPool::allocatePool(int32_t initialChunksNum, int32_t maxChunksNum)
   maxChunksNum_ = maxChunksNum;
   pool_ = make_shared<boost::lockfree::queue<char*, boost::lockfree::fixed_sized<true>>>(maxChunksNum_);
   for (int32_t i = 0; i < initialChunksNum_; ++i) {
-    pool_->push(new char[chunkSize_]);
+    char* chunk = new char[chunkSize_];
+    pool_->push(chunk);
+    LOG_INFO(logger(), "Initial chunk allocation" << KVLOG((void*)chunk));
     metrics_.increaseAvailableChunksNum();
     metrics_.increaseAllocatedChunksNum();
   }
@@ -81,10 +83,10 @@ char* RawMemoryPool::allocateChunk() {
   if (numOfAllocatedChunks_ < maxChunksNum_) {
     chunk = new char[chunkSize_];
     increaseNumOfAllocatedChunks();
-    increaseNumOfAvailableChunks();
   }
   if (chunk)
-    LOG_DEBUG(logger(), "A chunk has been allocated" << KVLOG(numOfAllocatedChunks_, numOfAvailableChunks_));
+    LOG_DEBUG(logger(),
+              "A chunk has been allocated" << KVLOG(numOfAllocatedChunks_, numOfAvailableChunks_, (void*)chunk));
   else
     LOG_WARN(logger(),
              "The pool size has reached the maximum, wait for a chunk to become available" << KVLOG(maxChunksNum_));
@@ -92,15 +94,18 @@ char* RawMemoryPool::allocateChunk() {
 }
 
 void RawMemoryPool::deleteChunk(char*& chunk) {
+  LOG_DEBUG(logger(), "Going to delete a chunk" << KVLOG(numOfAllocatedChunks_, numOfAvailableChunks_, (void*)chunk));
   delete[] chunk;
+  chunk = nullptr;
   decreaseNumOfAllocatedChunks();
-  LOG_DEBUG(logger(), "A chunk has been deleted" << KVLOG(numOfAllocatedChunks_, numOfAvailableChunks_));
 }
 
 void RawMemoryPool::returnChunkToThePool(char* chunk) {
   pool_->push(chunk);
   increaseNumOfAvailableChunks();
-  LOG_DEBUG(logger(), "A chunk has been returned to the pool" << KVLOG(numOfAllocatedChunks_, numOfAvailableChunks_));
+  LOG_DEBUG(
+      logger(),
+      "A chunk has been returned to the pool" << KVLOG(numOfAllocatedChunks_, numOfAvailableChunks_, (void*)chunk));
   waitForAvailChunkCond_.notify_one();
 }
 
@@ -112,21 +117,27 @@ bool RawMemoryPool::isPoolPruningRequired() {
 char* RawMemoryPool::getChunk() {
   ConcordAssert(pool_.get() != nullptr);
   char* chunk = nullptr;
-  if (!pool_->pop(chunk)) {
-    // No available chunks => allocate a new one, if permitted
+  bool chunkAllocatedFromPool = true;
+  bool isChunkAvailable = pool_->pop(chunk);
+  if (!isChunkAvailable) {
+    // No available chunks => allocate a new one from the heap, if permitted
     chunk = allocateChunk();
-    if (!chunk) {
+    if (chunk)
+      chunkAllocatedFromPool = false;
+    else {
       // Pool size limit has been reached; wait until some chunk gets released
       unique_lock<mutex> lock(waitForAvailChunkLock_);
-      while (!stopWorking_ && !chunk) {
+      while (!stopWorking_ && !isChunkAvailable) {
         waitForAvailChunkCond_.wait_until(lock, steady_clock::now() + milliseconds(WAIT_TIMEOUT_MILLI));
-        pool_->pop(chunk);
+        isChunkAvailable = pool_->pop(chunk);
       }
     }
   }
   if (chunk) {
-    decreaseNumOfAvailableChunks();
-    LOG_DEBUG(logger(), "A chunk has been taken" << KVLOG(numOfAllocatedChunks_, numOfAvailableChunks_));
+    if (chunkAllocatedFromPool) decreaseNumOfAvailableChunks();
+    LOG_DEBUG(logger(),
+              "A chunk has been consumed"
+                  << KVLOG(numOfAllocatedChunks_, numOfAvailableChunks_, chunkAllocatedFromPool, (void*)chunk));
   }
   return chunk;
 }
@@ -135,7 +146,7 @@ void RawMemoryPool::returnChunk(char* chunk) {
   if (numOfAvailableChunks_ >= maxChunksNum_) {
     stringstream err;
     err << "Returned chunk overflows the pool size limit: numOfAvailableChunks_=" << numOfAvailableChunks_
-        << ", maxChunksNum_=" << maxChunksNum_;
+        << ", maxChunksNum_=" << maxChunksNum_ << ", chunk=" << (void*)chunk;
     LOG_ERROR(logger(), KVLOG(err.str()));
     throw std::runtime_error(__PRETTY_FUNCTION__ + err.str());
   }

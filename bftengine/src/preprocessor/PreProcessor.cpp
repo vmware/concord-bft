@@ -313,7 +313,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       myReplicaId_(myReplica.getReplicaConfig().replicaId),
       maxPreExecResultSize_(myReplica.getReplicaConfig().maxExternalMessageSize - sizeof(uint64_t)),
       numOfReplicas_(myReplica.getReplicaConfig().numReplicas + myReplica.getReplicaConfig().numRoReplicas),
-      numOfInternalClients_(myReplica.getReplicaConfig().numOfClientProxies),
+      numOfClientProxies_(myReplica.getReplicaConfig().numOfClientProxies),
       clientBatchingEnabled_(myReplica.getReplicaConfig().clientBatchingEnabled),
       memoryPool_(myReplica.getReplicaConfig().maxExternalMessageSize, timers),
       metricsComponent_{concordMetrics::Component("preProcessor", std::make_shared<concordMetrics::Aggregator>())},
@@ -351,7 +351,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
   }
   // Initially, allocate a memory for all batches of one client (clientMaxBatchSize_)
   memoryPool_.allocatePool(clientMaxBatchSize_, numOfReqEntries);
-  const uint16_t firstClientId = numOfReplicas_ + numOfInternalClients_;
+  const uint16_t firstClientId = numOfReplicas_ + numOfClientProxies_;
   for (uint16_t i = 0; i < numOfExternalClients; i++) {
     // Placeholders for all client batches
     const uint16_t clientId = firstClientId + i;
@@ -371,7 +371,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
   LOG_INFO(logger(),
            "PreProcessor initialization:" << KVLOG(numOfReplicas_,
                                                    numOfExternalClients,
-                                                   numOfInternalClients_,
+                                                   numOfClientProxies_,
                                                    numOfReqEntries,
                                                    firstClientId,
                                                    clientBatchingEnabled_,
@@ -1577,8 +1577,11 @@ void PreProcessor::registerAndHandleClientPreProcessReqOnNonPrimary(const string
 }
 
 uint32_t PreProcessor::getBufferOffset(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch) const {
-  ConcordAssertGE(clientId - numOfReplicas_ - numOfInternalClients_, 0);
-  return (clientId - numOfReplicas_ - numOfInternalClients_) * clientMaxBatchSize_ + reqOffsetInBatch;
+  const auto clientIndex = clientId - numOfReplicas_ - numOfClientProxies_;
+  ConcordAssertGE(clientIndex, 0);
+  const auto reqOffset = clientIndex * clientMaxBatchSize_ + reqOffsetInBatch;
+  LOG_DEBUG(logger(), KVLOG(clientId, reqSeqNum, clientIndex, reqOffsetInBatch));
+  return reqOffset;
 }
 
 const char *PreProcessor::getPreProcessResultBuffer(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch) {
