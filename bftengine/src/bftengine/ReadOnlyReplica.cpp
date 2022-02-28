@@ -273,15 +273,17 @@ void ReadOnlyReplica::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_s
 void ReadOnlyReplica::registerStatusHandlers() {
   auto h = concord::diagnostics::StatusHandler(
       "replica", "Last executed sequence number of the read-only replica", [this]() {
-        std::ostringstream oss;
-        std::unordered_map<std::string, std::string> result, nested_data;
+        concordUtils::BuildJson bj;
 
-        nested_data.insert(concordUtils::toPair("lastExecutedSeqNum", last_executed_seq_num_));
-        result.insert(concordUtils::toPair(
-            "sequenceNumbers ", concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
+        bj.startJson();
+        bj.startNested("sequenceNumbers");
+        bj.addKv("lastExecutedSeqNum", last_executed_seq_num_);
+        bj.endNested();
+        bj.endJson();
 
-        oss << concordUtils::kContainerToJson(result);
-        return oss.str();
+        char *cstr = new char[bj.getJson().length() + 1];
+        std::strcpy(cstr, bj.getJson().c_str());
+        return cstr;
       });
   concord::diagnostics::RegistrarSingleton::getInstance().status.registerHandler(h);
 }

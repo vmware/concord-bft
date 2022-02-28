@@ -22,6 +22,8 @@
 
 namespace concordUtils {
 
+// Note: these templated functions are deprecated.  Use the BuildJson class below for new code.
+
 template <typename KVContainer, typename Encoder>
 inline std::string kvContainerToJson(const KVContainer &kv, const Encoder &enc) {
   auto out = std::string{"{\n"};
@@ -77,5 +79,57 @@ inline std::pair<std::string, std::string> toPair(const std::string &key, const 
 inline std::pair<std::string, std::string> toPair(const std::string &key, const std::string &value) {
   return std::make_pair(key, value);
 }
+
+// Build a JSON object.  Supports nested objects.
+class BuildJson {
+ public:
+  inline BuildJson() {}
+
+  // Start a root JSON object.
+  inline void startJson() { str += "\n{\n"; }
+
+  // End the root JSON object.
+  inline void endJson() {
+    if (str.size() >= 2 && str[str.size() - 2] == ',') {
+      str.erase(str.size() - 2, 1);
+    }
+    str += "\n}\n";
+  }
+
+  // Start a nested JSON object.
+  inline void startNested(const std::string &key) { str += "\"" + key + "\" : {\n"; }
+
+  // End a nested JSON object.
+  inline void endNested() {
+    if (str.size() >= 2 && str[str.size() - 2] == ',') {
+      str.erase(str.size() - 2, 1);
+    }
+    str += "\n},\n";
+  }
+
+  // Add a key and a string value to the current object.
+  inline void addKv(const std::string &key, const std::string &value) {
+    str += "\"" + key + "\" : \"" + value + "\",\n";
+  }
+
+  // Add a key and a non-string value to the current object.
+  template <typename T>
+  inline void addKv(const std::string &key, const T &value) {
+    str += "\"" + key + "\" : \"" + std::to_string(value) + "\",\n";
+  }
+
+  // Add a nested JSON object.  The "json" parameter is expected to be a
+  // quoted JSON object in braces with no key prefix.
+  inline void addNestedJson(const std::string &key, const std::string &json) {
+    str += "\"" + key + "\" : ";
+    str += json + ",\n";
+  }
+
+  // Return the generated JSON.  Should be called after endJson().
+  inline std::string getJson() { return str; }
+
+ private:
+  std::string str;
+};
 
 }  // namespace concordUtils
