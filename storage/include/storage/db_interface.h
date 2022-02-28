@@ -9,8 +9,6 @@
 #include <vector>
 #include "Metrics.hpp"
 
-#define OUT
-
 namespace concord {
 namespace storage {
 
@@ -54,17 +52,17 @@ class ITransaction {
   ID id_;
 };
 
-class IDBClient {
+class IDBClient : public std::enable_shared_from_this<IDBClient> {
  public:
   typedef std::shared_ptr<IDBClient> ptr;
   virtual ~IDBClient() = default;
   virtual void init(bool readOnly = false) = 0;
-  virtual Status get(const Sliver& _key, OUT Sliver& _outValue) const = 0;
-  virtual Status get(const Sliver& _key, OUT char*& buf, uint32_t bufSize, OUT uint32_t& _size) const = 0;
+  virtual Status get(const Sliver& _key, Sliver& _outValue) const = 0;
+  virtual Status get(const Sliver& _key, char*& buf, uint32_t bufSize, uint32_t& _size) const = 0;
   virtual Status has(const Sliver& _key) const = 0;
   virtual Status put(const Sliver& _key, const Sliver& _value) = 0;
   virtual Status del(const Sliver& _key) = 0;
-  virtual Status multiGet(const KeysVector& _keysVec, OUT ValuesVector& _valuesVec) = 0;
+  virtual Status multiGet(const KeysVector& _keysVec, ValuesVector& _valuesVec) = 0;
   virtual Status multiPut(const SetOfKeyValuePairs& _keyValueMap, bool sync = false) = 0;
   virtual Status multiDel(const KeysVector& _keysVec) = 0;
   // Delete keys in the [_beginKey, _endKey) range (_beginKey included and _endKey excluded). If an inavlid range has

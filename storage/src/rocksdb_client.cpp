@@ -334,7 +334,7 @@ void Client::init(bool readOnly) {
   initDB(readOnly, std::nullopt, applyOptimizations);
 }
 
-Status Client::get(const Sliver &_key, OUT std::string &_value) const {
+Status Client::get(const Sliver &_key, std::string &_value) const {
   ++g_rocksdb_called_read;
   if (g_rocksdb_print_measurements) {
     LOG_DEBUG(logger(), "Reading count = " << g_rocksdb_called_read << ", key " << _key);
@@ -383,7 +383,7 @@ bool Client::columnFamilyIsEmpty(::rocksdb::ColumnFamilyHandle *cf) const {
  * @return Status NotFound if key is not present, Status GeneralError if error
  *         in Get, else Status OK.
  */
-Status Client::get(const Sliver &_key, OUT Sliver &_outValue) const {
+Status Client::get(const Sliver &_key, Sliver &_outValue) const {
   std::string value;
   Status ret = get(_key, value);
   if (!ret.isOK()) return ret;
@@ -392,7 +392,7 @@ Status Client::get(const Sliver &_key, OUT Sliver &_outValue) const {
 }
 
 // A memory for the output buffer is expected to be allocated by a caller.
-Status Client::get(const Sliver &_key, OUT char *&buf, uint32_t bufSize, OUT uint32_t &_realSize) const {
+Status Client::get(const Sliver &_key, char *&buf, uint32_t bufSize, uint32_t &_realSize) const {
   std::string value;
   Status ret = get(_key, value);
   if (!ret.isOK()) return ret;
@@ -502,7 +502,7 @@ Status Client::del(const Sliver &_key) {
   return Status::OK();
 }
 
-Status Client::multiGet(const KeysVector &_keysVec, OUT ValuesVector &_valuesVec) {
+Status Client::multiGet(const KeysVector &_keysVec, ValuesVector &_valuesVec) {
   std::vector<std::string> values;
   std::vector<::rocksdb::Slice> keys;
   for (auto const &it : _keysVec) keys.push_back(toRocksdbSlice(it));

@@ -153,18 +153,6 @@ target_link_libraries(kv_blockchain_db_editor_test PUBLIC
 )
 endif(BUILD_ROCKSDB_STORAGE)
 
-if(USE_S3_OBJECT_STORE)
-add_executable(s3_storage_factory_test s3_storage_factory_test.cpp )
-add_test(s3_storage_factory_test s3_storage_factory_test)
-target_include_directories(s3_storage_factory_test PUBLIC
-    kvbc
-)
-target_link_libraries(s3_storage_factory_test PUBLIC
-    GTest::Main
-    kvbc
-)
-endif(USE_S3_OBJECT_STORE)
-
 if (BUILD_ROCKSDB_STORAGE)
     add_executable(categorized_kv_blockchain_unit_test
         categorization/kv_blockchain_test.cpp )
