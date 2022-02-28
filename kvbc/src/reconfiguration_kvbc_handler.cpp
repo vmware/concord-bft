@@ -48,18 +48,14 @@ kvbc::BlockId ReconfigurationBlockTools::persistReconfigurationBlock(
     const std::optional<bftEngine::Timestamp>& timestamp,
     bool include_wedge) {
   concord::kvbc::categorization::VersionedUpdates ver_updates;
-  ver_updates.addUpdate(std::move(key), std::string(data.begin(), data.end()));
-
-  uint64_t epoch = 0;
-  auto value = ro_storage_.getLatest(concord::kvbc::categorization::kConcordReconfigurationCategoryId,
-                                     std::string{keyTypes::reconfiguration_epoch_key});
-  if (value.has_value()) {
-    const auto& epoch_str = std::get<categorization::VersionedValue>(*value).data;
-    ConcordAssertEQ(epoch_str.size(), sizeof(uint64_t));
-    epoch = concordUtils::fromBigEndianBuffer<uint64_t>(epoch_str.data());
-  }
+  uint64_t epoch = bftEngine::EpochManager::instance().getSelfEpochNumber();
   auto current_epoch_buf = concordUtils::toBigEndianStringBuffer(epoch);
-  ver_updates.addUpdate(std::string{keyTypes::reconfiguration_epoch_key}, std::move(current_epoch_buf));
+  // Set the global epoch number
+  ver_updates.addUpdate(std::string{keyTypes::reconfiguration_epoch_key}, concordUtils::toBigEndianStringBuffer(epoch));
+  // Set the epoch number of this action
+  ver_updates.addUpdate(std::string{keyTypes::reconfiguration_epoch_key} + key,
+                        concordUtils::toBigEndianStringBuffer(epoch));
+  ver_updates.addUpdate(std::move(key), std::string(data.begin(), data.end()));
   try {
     return persistReconfigurationBlock(ver_updates, bft_seq_num, timestamp, include_wedge);
   } catch (const std::exception& e) {
@@ -158,6 +154,17 @@ concord::messages::ClientStateReply KvbcClientReconfigurationHandler::buildClien
               break;
           }
           creply.block_id = arg.block_id;
+          auto epoch_data = ro_storage_.get(
+              concord::kvbc::categorization::kConcordReconfigurationCategoryId,
+              std::string{kvbc::keyTypes::reconfiguration_epoch_key} +
+                  std::string{kvbc::keyTypes::reconfiguration_client_data_prefix, static_cast<char>(command_type)} +
+                  std::to_string(clientid),
+              arg.block_id);
+          ConcordAssert(epoch_data.has_value());
+          const auto& epoch_str = std::get<categorization::VersionedValue>(*epoch_data).data;
+          ConcordAssertEQ(epoch_str.size(), sizeof(uint64_t));
+          uint64_t epoch = concordUtils::fromBigEndianBuffer<uint64_t>(epoch_str.data());
+          creply.epoch = epoch;
         },
         *res);
   }
@@ -424,9 +431,10 @@ concord::messages::ClientStateReply KvbcClientReconfigurationHandler::buildRepli
             concord::messages::deserialize(data_buf, cmd);
             creply.response = cmd;
           }
-          auto epoch_data = ro_storage_.get(concord::kvbc::categorization::kConcordReconfigurationCategoryId,
-                                            std::string{kvbc::keyTypes::reconfiguration_epoch_key},
-                                            arg.block_id);
+          auto epoch_data = ro_storage_.get(
+              concord::kvbc::categorization::kConcordReconfigurationCategoryId,
+              std::string{kvbc::keyTypes::reconfiguration_epoch_key} + command_type + std::to_string(clientid),
+              arg.block_id);
           ConcordAssert(epoch_data.has_value());
           const auto& epoch_str = std::get<categorization::VersionedValue>(*epoch_data).data;
           ConcordAssertEQ(epoch_str.size(), sizeof(uint64_t));
@@ -690,6 +698,8 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeC
     std::vector<uint8_t> serialized_cmd_data;
     concord::messages::serialize(serialized_cmd_data, cmd);
     // CRE will get this command and execute it
+    ver_updates.addUpdate(std::string{keyTypes::reconfiguration_epoch_key} + execute_key_prefix + std::to_string(i),
+                          concordUtils::toBigEndianStringBuffer(epoch));
     ver_updates.addUpdate(execute_key_prefix + std::to_string(i),
                           std::string(serialized_cmd_data.begin(), serialized_cmd_data.end()));
   }
@@ -823,7 +833,10 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientKeyExchangeCo
                                 static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_KEY_EXCHANGE_COMMAND)};
   concord::kvbc::categorization::VersionedUpdates ver_updates;
   concord::messages::ClientKeyExchangeCommandResponse ckecr;
+  auto epoch = bftEngine::EpochManager::instance().getSelfEpochNumber();
   for (auto clientid : target_clients) {
+    ver_updates.addUpdate(std::string{keyTypes::reconfiguration_epoch_key} + key_prefix + std::to_string(clientid),
+                          concordUtils::toBigEndianStringBuffer(epoch));
     ver_updates.addUpdate(key_prefix + std::to_string(clientid),
                           std::string(serialized_command.begin(), serialized_command.end()));
   }
@@ -858,6 +871,7 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientsAddRemoveCom
                   static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_SCALING_EXECUTE_COMMAND)};
   concord::kvbc::categorization::VersionedUpdates ver_updates;
   ver_updates.addUpdate(std::move(key_prefix), std::string(serialized_command.begin(), serialized_command.end()));
+  auto epoch = bftEngine::EpochManager::instance().getSelfEpochNumber();
   for (auto clientid : target_clients) {
     concord::messages::ClientsAddRemoveExecuteCommand cmd;
     cmd.config_descriptor = command.config_descriptor;
@@ -868,7 +882,11 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientsAddRemoveCom
     // CRE will get this command and execute it
     ver_updates.addUpdate(execute_key_prefix + std::to_string(clientid),
                           std::string(serialized_cmd_data.begin(), serialized_cmd_data.end()));
+    ver_updates.addUpdate(
+        std::string{keyTypes::reconfiguration_epoch_key} + execute_key_prefix + std::to_string(clientid),
+        concordUtils::toBigEndianStringBuffer(epoch));
   }
+  ver_updates.addUpdate(std::string{keyTypes::reconfiguration_epoch_key}, concordUtils::toBigEndianStringBuffer(epoch));
   auto block_id = persistReconfigurationBlock(ver_updates, sequence_number, ts, false);
   LOG_INFO(getLogger(), "ClientsAddRemoveCommand block_id is: " << block_id);
   return true;
@@ -890,10 +908,12 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientsRestartComma
                                 static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_RESTART_COMMAND)};
   concord::kvbc::categorization::VersionedUpdates ver_updates;
   ver_updates.addUpdate(std::string(key_prefix), std::string(serialized_command.begin(), serialized_command.end()));
-
+  auto epoch = bftEngine::EpochManager::instance().getSelfEpochNumber();
   for (auto clientid : target_clients) {
     ver_updates.addUpdate(key_prefix + std::to_string(clientid),
                           std::string(serialized_command.begin(), serialized_command.end()));
+    ver_updates.addUpdate(std::string{keyTypes::reconfiguration_epoch_key} + key_prefix + std::to_string(clientid),
+                          concordUtils::toBigEndianStringBuffer(epoch));
   }
   auto block_id = persistReconfigurationBlock(ver_updates, bft_seq_num, ts, false);
 
@@ -1196,8 +1216,15 @@ bool InternalPostKvReconfigurationHandler::handle(const concord::messages::Clien
                                                   concord::messages::ReconfigurationResponse& response) {
   concord::kvbc::categorization::VersionedUpdates ver_updates;
   auto updated_client_keys = SigManager::instance()->getClientsPublicKeys();
-
+  auto epoch = bftEngine::EpochManager::instance().getSelfEpochNumber();
+  std::string command_key = std::string(1, concord::kvbc::kClientsPublicKeys);
+  ver_updates.addUpdate(std::string(1, concord::kvbc::kClientsPublicKeys),
+                        concordUtils::toBigEndianStringBuffer(epoch));
+  ver_updates.addUpdate(std::string{keyTypes::reconfiguration_epoch_key}, concordUtils::toBigEndianStringBuffer(epoch));
   ver_updates.addUpdate(std::string(1, concord::kvbc::kClientsPublicKeys), std::string(updated_client_keys));
+  ver_updates.addUpdate(
+      std::string{keyTypes::reconfiguration_epoch_key} + std::string(1, concord::kvbc::kClientsPublicKeys),
+      concordUtils::toBigEndianStringBuffer(epoch));
   auto id = persistReconfigurationBlock(ver_updates, sequence_number, ts, false);
   LOG_INFO(getLogger(),
            "Writing client keys to block [" << id << "] after key exchange, keys "
