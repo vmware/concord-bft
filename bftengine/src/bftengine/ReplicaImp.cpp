@@ -4203,21 +4203,22 @@ void ReplicaImp::postBftExecutionActions(PrePrepareMsg *ppMsg,
   metric_number_of_current_executions_--;
 }
 void ReplicaImp::initExecutionEngines() {
-  BftExecutionEngineBase::ExecutionMetrics metrics{histograms_.numRequestsInPrePrepareMsg,
-                                                   histograms_.executeRequestsInPrePrepareMsg,
-                                                   histograms_.executeRequestsAndSendResponses,
-                                                   histograms_.executeWriteRequest};
-  skip_execution_engine_ = BftExecutionEngineFactory::create(
-      bftRequestsHandler_, clientsManager, repsInfo, ps_, time_service_manager_, BftExecutionEngineFactory::TYPE::SKIP);
+  BftExecutionEngine::ExecutionMetrics metrics{histograms_.numRequestsInPrePrepareMsg,
+                                               histograms_.executeRequestsInPrePrepareMsg,
+                                               histograms_.executeRequestsAndSendResponses,
+                                               histograms_.executeWriteRequest};
+  skip_execution_engine_ = std::make_unique<SkipAndSendExecutionEngine>(
+      bftRequestsHandler_, clientsManager, repsInfo, ps_, time_service_manager_);
   skip_execution_engine_->setMetrics(metrics);
   skip_execution_engine_->addPostExecCallBack(
       [&](PrePrepareMsg *ppMsg, IRequestsHandler::ExecutionRequestsQueue &reqs) { sendClientReplies(reqs); });
-  main_execution_engine_ = BftExecutionEngineFactory::create(bftRequestsHandler_,
-                                                             clientsManager,
-                                                             repsInfo,
-                                                             ps_,
-                                                             time_service_manager_,
-                                                             BftExecutionEngineFactory::TYPE::CONFIG);
+  main_execution_engine_ = std::make_unique<BftExecutionEngine>(bftRequestsHandler_,
+                                                                clientsManager,
+                                                                repsInfo,
+                                                                ps_,
+                                                                time_service_manager_,
+                                                                config_.blockAccumulation,
+                                                                config_.enablePostExecutionSeparation);
   if (config_.enablePostExecutionSeparation) {
     main_execution_engine_->addPostExecCallBack(
         [&](PrePrepareMsg *ppMsg, IRequestsHandler::ExecutionRequestsQueue &reqs) {
@@ -4889,21 +4890,16 @@ void ReplicaImp::start() {
 
 void ReplicaImp::recoverRequests() {
   if (recoveringFromExecutionOfRequests) {
-    auto recover_exec_engine = BftExecutionEngineFactory::create(bftRequestsHandler_,
-                                                                 clientsManager,
-                                                                 repsInfo,
-                                                                 ps_,
-                                                                 time_service_manager_,
-                                                                 BftExecutionEngineFactory::TYPE::SYNC);
+    auto recover_exec_engine = std::make_unique<BftExecutionEngine>(
+        bftRequestsHandler_, clientsManager, repsInfo, ps_, time_service_manager_, config_.blockAccumulation, false);
     recover_exec_engine->addPostExecCallBack(
         [&](PrePrepareMsg *ppMsg, IRequestsHandler::ExecutionRequestsQueue &requests_for_execution) {
           postBftExecutionActions(ppMsg, requests_for_execution);
         });
-    recover_exec_engine->setMetrics(
-        BftExecutionEngineBase::ExecutionMetrics{histograms_.numRequestsInPrePrepareMsg,
-                                                 histograms_.executeRequestsInPrePrepareMsg,
-                                                 histograms_.executeRequestsAndSendResponses,
-                                                 histograms_.executeWriteRequest});
+    recover_exec_engine->setMetrics(BftExecutionEngine::ExecutionMetrics{histograms_.numRequestsInPrePrepareMsg,
+                                                                         histograms_.executeRequestsInPrePrepareMsg,
+                                                                         histograms_.executeRequestsAndSendResponses,
+                                                                         histograms_.executeWriteRequest});
     LOG_INFO(GL, "Recovering execution of requests");
     if (config_.timeServiceEnabled) {
       time_service_manager_->recoverTime(recoveredTime);

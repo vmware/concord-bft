@@ -22,6 +22,9 @@
 #include "callback_registry.hpp"
 #include "diagnostics.h"
 #include "Metrics.hpp"
+#include "thread_pool.hpp"
+
+#include <iterator>
 
 #ifdef USE_FAKE_CLOCK_IN_TS
 #include "FakeClock.hpp"
@@ -30,19 +33,25 @@
 #define CLOCK_TYPE std::chrono::system_clock
 #endif
 namespace bftEngine::impl {
-class BftExecutionEngineBase {
+class BftExecutionEngine {
  public:
-  BftExecutionEngineBase(std::shared_ptr<IRequestsHandler> requests_handler,
-                         std::shared_ptr<ClientsManager>,
-                         std::shared_ptr<ReplicasInfo> reps_info,
-                         std::shared_ptr<PersistentStorage> ps,
-                         std::shared_ptr<TimeServiceManager<CLOCK_TYPE>> time_service_manager);
-  virtual SeqNum addExecutions(const std::vector<PrePrepareMsg*>&) = 0;
+  BftExecutionEngine(std::shared_ptr<IRequestsHandler> requests_handler,
+                     std::shared_ptr<ClientsManager>,
+                     std::shared_ptr<ReplicasInfo> reps_info,
+                     std::shared_ptr<PersistentStorage> ps,
+                     std::shared_ptr<TimeServiceManager<CLOCK_TYPE>> time_service_manager,
+                     bool blockAccumulation,
+                     bool async);
+
+  virtual SeqNum addExecutions(const std::vector<PrePrepareMsg*>&);
   void addPostExecCallBack(std::function<void(PrePrepareMsg*, IRequestsHandler::ExecutionRequestsQueue&)> cb);
-  virtual ~BftExecutionEngineBase() = default;
-  virtual bool isExecuting() { return false; }
+  virtual ~BftExecutionEngine() = default;
+  bool isExecuting() { return in_execution > 0; }
   void setRequestsMap(const Bitmap& requestsMap) { requestsMap_ = requestsMap; }
-  virtual void onExecutionComplete(SeqNum) { return; }
+  void onExecutionComplete(SeqNum sn) {
+    in_execution--;
+    timestamps.erase(sn);
+  }
   void loadTime(SeqNum);
 
  private:
@@ -64,6 +73,9 @@ class BftExecutionEngineBase {
   concord::util::CallbackRegistry<PrePrepareMsg*, IRequestsHandler::ExecutionRequestsQueue&> post_exec_handlers_;
   Bitmap requestsMap_;
   std::map<SeqNum, Timestamp> timestamps;
+  std::shared_ptr<concord::util::ThreadPool> thread_pool_;
+  std::atomic_uint64_t in_execution{0};
+  bool block_accumulation_;
 
  public:
   // Metrics
@@ -75,19 +87,22 @@ class BftExecutionEngineBase {
   };
   void setMetrics(const ExecutionMetrics& execution_metrics) { metrics_ = execution_metrics; }
 
+ protected:
   ExecutionMetrics metrics_;
 };
 
-class BftExecutionEngineFactory {
+class SkipAndSendExecutionEngine : public BftExecutionEngine {
  public:
-  enum TYPE { SYNC, ASYNC, SKIP, CONFIG };
-  static std::unique_ptr<BftExecutionEngineBase> create(
-      std::shared_ptr<IRequestsHandler> requests_handler,
-      std::shared_ptr<ClientsManager> client_manager,
-      std::shared_ptr<ReplicasInfo> reps_info,
-      std::shared_ptr<PersistentStorage> ps,
-      std::shared_ptr<TimeServiceManager<CLOCK_TYPE>> time_service_manager,
-      TYPE type);
+  SkipAndSendExecutionEngine(std::shared_ptr<IRequestsHandler> requests_handler,
+                             std::shared_ptr<ClientsManager> client_manager,
+                             std::shared_ptr<ReplicasInfo> reps_info,
+                             std::shared_ptr<PersistentStorage> ps,
+                             std::shared_ptr<TimeServiceManager<CLOCK_TYPE>> time_service_manager)
+      : BftExecutionEngine{requests_handler, client_manager, reps_info, ps, time_service_manager, false, false} {}
+  SeqNum addExecutions(const std::vector<PrePrepareMsg*>& ppMsgs) override;
+
+ private:
+  Bitmap filterRequests(const PrePrepareMsg& ppMsg) override;
 };
 
 }  // namespace bftEngine::impl

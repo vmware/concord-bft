@@ -326,8 +326,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   RollingAvgAndVar accumulating_batch_time_;
   Time time_to_collect_batch_ = MinTime;
 
-  std::unique_ptr<BftExecutionEngineBase> main_execution_engine_;
-  std::unique_ptr<BftExecutionEngineBase> skip_execution_engine_;
+  std::unique_ptr<BftExecutionEngine> main_execution_engine_;
+  std::unique_ptr<BftExecutionEngine> skip_execution_engine_;
 
   void initExecutionEngines();
   void finalizePPExecution(PrePrepareMsg*);

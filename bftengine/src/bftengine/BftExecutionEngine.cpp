@@ -22,18 +22,82 @@
 #include "assertUtils.hpp"
 namespace bftEngine::impl {
 
-BftExecutionEngineBase::BftExecutionEngineBase(std::shared_ptr<IRequestsHandler> requests_handler,
-                                               std::shared_ptr<ClientsManager> client_manager,
-                                               std::shared_ptr<ReplicasInfo> reps_info,
-                                               std::shared_ptr<PersistentStorage> ps,
-                                               std::shared_ptr<TimeServiceManager<CLOCK_TYPE>> time_service_manager)
+typedef std::iterator<std::input_iterator_tag,
+                      PrePrepareMsg*,
+                      uint32_t,
+                      const IRequestsHandler::ExecutionRequestsQueue*,
+                      IRequestsHandler::ExecutionRequestsQueue>
+    ExecutionIterator;
+class RequestIterator : public ExecutionIterator {
+ public:
+  explicit RequestIterator(std::deque<IRequestsHandler::ExecutionRequest>& requests) : requests_{requests} {};
+  virtual RequestIterator& operator++() {
+    position++;
+    return *this;
+  }
+  bool operator==(const RequestIterator& other) const { return position == other.position; }
+  bool operator!=(const RequestIterator& other) const { return position != other.position; }
+  virtual reference operator*() const {
+    std::deque<IRequestsHandler::ExecutionRequest> single_req_queue;
+    single_req_queue.push_back(requests_[position]);
+    return single_req_queue;
+  }
+  virtual ~RequestIterator() = default;
+
+ protected:
+  std::deque<IRequestsHandler::ExecutionRequest>& requests_;
+  uint32_t position = 0;
+};
+
+class BlockAccumulationIterator : public RequestIterator {
+ public:
+  explicit BlockAccumulationIterator(std::deque<IRequestsHandler::ExecutionRequest>& requests)
+      : RequestIterator{requests} {};
+  BlockAccumulationIterator& operator++() override {
+    if (position < requests_.size()) position = requests_.size();
+    return *this;
+  }
+  reference operator*() const override { return requests_; }
+};
+
+class RequestsSelector {
+ public:
+  RequestsSelector(
+      const std::deque<IRequestsHandler::ExecutionRequest>& requests,
+      const std::function<RequestIterator*(std::deque<IRequestsHandler::ExecutionRequest>&)> iterator_factory)
+      : requests_{requests}, iterator_factory_{iterator_factory} {
+    begin_.reset(iterator_factory_(requests_));
+    end_.reset(iterator_factory_(requests_));
+    for (auto i = 0u; i < requests_.size(); i++) ++(*end_);
+  };
+
+  RequestIterator& begin() { return *begin_; }
+  RequestIterator& end() { return *end_; }
+
+ private:
+  std::deque<IRequestsHandler::ExecutionRequest> requests_;
+  std::function<RequestIterator*(std::deque<IRequestsHandler::ExecutionRequest>&)> iterator_factory_;
+  std::unique_ptr<RequestIterator> begin_;
+  std::unique_ptr<RequestIterator> end_;
+};
+
+BftExecutionEngine::BftExecutionEngine(std::shared_ptr<IRequestsHandler> requests_handler,
+                                       std::shared_ptr<ClientsManager> client_manager,
+                                       std::shared_ptr<ReplicasInfo> reps_info,
+                                       std::shared_ptr<PersistentStorage> ps,
+                                       std::shared_ptr<TimeServiceManager<CLOCK_TYPE>> time_service_manager,
+                                       bool blockAccumulation,
+                                       bool async)
     : requests_handler_{requests_handler},
       config_{bftEngine::ReplicaConfig::instance()},
       clients_manager_{client_manager},
       reps_info_{reps_info},
       ps_{ps},
-      time_service_manager_{time_service_manager} {}
-Bitmap BftExecutionEngineBase::filterRequests(const PrePrepareMsg& ppMsg) {
+      time_service_manager_{time_service_manager},
+      block_accumulation_{blockAccumulation} {
+  if (async) thread_pool_ = std::make_shared<concord::util::ThreadPool>(1);
+}
+Bitmap BftExecutionEngine::filterRequests(const PrePrepareMsg& ppMsg) {
   if (!requestsMap_.isEmpty()) return requestsMap_;
   const uint16_t numOfRequests = ppMsg.numberOfRequests();
   Bitmap requestSet(numOfRequests);
@@ -75,7 +139,7 @@ Bitmap BftExecutionEngineBase::filterRequests(const PrePrepareMsg& ppMsg) {
   }
   return requestSet;
 }
-std::deque<IRequestsHandler::ExecutionRequest> BftExecutionEngineBase::collectRequests(const PrePrepareMsg& ppMsg) {
+std::deque<IRequestsHandler::ExecutionRequest> BftExecutionEngine::collectRequests(const PrePrepareMsg& ppMsg) {
   metrics_.numRequestsInPrePrepareMsg->record(ppMsg.numberOfRequests());
   auto requestSet = filterRequests(ppMsg);
   if (!requestsMap_.isEmpty()) requestSet += requestsMap_;
@@ -127,280 +191,89 @@ std::deque<IRequestsHandler::ExecutionRequest> BftExecutionEngineBase::collectRe
   }
   return accumulatedRequests;
 }
-void BftExecutionEngineBase::addPostExecCallBack(
+void BftExecutionEngine::addPostExecCallBack(
     std::function<void(PrePrepareMsg*, IRequestsHandler::ExecutionRequestsQueue&)> cb) {
   post_exec_handlers_.add(std::move(cb));
 }
-void BftExecutionEngineBase::execute(std::deque<IRequestsHandler::ExecutionRequest>& accumulatedRequests,
-                                     Timestamp& timestamp) {
+void BftExecutionEngine::execute(std::deque<IRequestsHandler::ExecutionRequest>& accumulatedRequests,
+                                 Timestamp& timestamp) {
   const std::string cid = accumulatedRequests.back().cid;
   const auto sn = accumulatedRequests.front().executionSequenceNum;
   concordUtils::SpanWrapper span_wrapper{};
   LOG_INFO(getLogger(), "Executing all the requests of preprepare message: " << KVLOG(cid, sn));
-  concord::diagnostics::TimeRecorder scoped_timer1(*metrics_.executeWriteRequest);
-  requests_handler_->execute(accumulatedRequests, timestamp, cid, span_wrapper);
-  if (accumulatedRequests.size() == 1) timestamp.request_position++;
+  RequestsSelector execution_selector(
+      accumulatedRequests, [&](std::deque<IRequestsHandler::ExecutionRequest>& requests) -> RequestIterator* {
+        if (block_accumulation_) return new BlockAccumulationIterator(requests);
+        return new RequestIterator(requests);
+      });
+  accumulatedRequests.clear();
+  for (RequestIterator iter = execution_selector.begin(); iter != execution_selector.end(); ++iter) {
+    concord::diagnostics::TimeRecorder scoped_timer1(*metrics_.executeWriteRequest);
+    auto data = *iter;
+    requests_handler_->execute(data, timestamp, cid, span_wrapper);
+    if (data.size() == 1) timestamp.request_position++;
+    accumulatedRequests.insert(accumulatedRequests.end(), data.begin(), data.end());
+  }
 }
-void BftExecutionEngineBase::loadTime(SeqNum sn) {
+void BftExecutionEngine::loadTime(SeqNum sn) {
   if (config_.timeServiceEnabled) {
     timestamps[sn].time_since_epoch = time_service_manager_->compareAndUpdate(timestamps[sn].time_since_epoch);
     LOG_INFO(getLogger(),
              "Timestamp to be provided to the execution: " << timestamps[sn].time_since_epoch.count() << "ms");
   }
 }
-
 using namespace concord::diagnostics;
-
-class BlockAccumulationExecutionEngine : public BftExecutionEngineBase {
- public:
-  BlockAccumulationExecutionEngine(std::shared_ptr<IRequestsHandler> requests_handler,
-                                   std::shared_ptr<ClientsManager> client_manager,
-                                   std::shared_ptr<ReplicasInfo> reps_info,
-                                   std::shared_ptr<PersistentStorage> ps,
-                                   std::shared_ptr<TimeServiceManager<CLOCK_TYPE>> time_service_manager)
-      : BftExecutionEngineBase{requests_handler, client_manager, reps_info, ps, time_service_manager} {}
-  SeqNum addExecutions(const std::vector<PrePrepareMsg*>& ppMsgs) override {
-    SeqNum sn = 0;
-    for (auto ppMsg : ppMsgs) {
-      sn = ppMsg->seqNumber();
-      if (bftEngine::ControlStateManager::instance().getPruningProcessStatus()) return sn;
-      TimeRecorder scoped_timer(*metrics_.executeRequestsInPrePrepareMsg);
-      auto requests_for_execution = collectRequests(*ppMsg);
-      TimeRecorder scoped_timer1(*metrics_.executeRequestsAndSendResponses);
-      loadTime(ppMsg->seqNumber());
-      if (!requests_for_execution.empty()) execute(requests_for_execution, timestamps[ppMsg->seqNumber()]);
-      timestamps.erase(ppMsg->seqNumber());
-      post_exec_handlers_.invokeAll(ppMsg, requests_for_execution);
-    }
-    return sn;
-  }
-
- private:
-  logging::Logger& getLogger() const {
-    static logging::Logger logger = logging::getLogger("bftEngine.impl.BlockAccumulationExecutionEngine");
-    return logger;
-  }
-};
-
-class SingleRequestExecutionEngine : public BftExecutionEngineBase {
- public:
-  SingleRequestExecutionEngine(std::shared_ptr<IRequestsHandler> requests_handler,
-                               std::shared_ptr<ClientsManager> client_manager,
-                               std::shared_ptr<ReplicasInfo> reps_info,
-                               std::shared_ptr<PersistentStorage> ps,
-                               std::shared_ptr<TimeServiceManager<CLOCK_TYPE>> time_service_manager)
-      : BftExecutionEngineBase{requests_handler, client_manager, reps_info, ps, time_service_manager} {}
-  SeqNum addExecutions(const std::vector<PrePrepareMsg*>& ppMsgs) override {
-    SeqNum sn = 0;
-    for (auto ppMsg : ppMsgs) {
-      sn = ppMsg->seqNumber();
-      if (bftEngine::ControlStateManager::instance().getPruningProcessStatus()) return sn;
-      TimeRecorder scoped_timer(*metrics_.executeRequestsInPrePrepareMsg);
-      auto requests_for_execution = collectRequests(*ppMsg);
-      std::deque<IRequestsHandler::ExecutionRequest> single_req_queue;
-      TimeRecorder scoped_timer1(*metrics_.executeRequestsAndSendResponses);
-      loadTime(ppMsg->seqNumber());
-      for (auto& req : requests_for_execution) {
-        TimeRecorder scoped_timer2(*metrics_.executeWriteRequest);
-        single_req_queue.push_back(req);
-        execute(single_req_queue, timestamps[ppMsg->seqNumber()]);
-        req = single_req_queue.back();
-        single_req_queue.clear();
-      }
-      timestamps.erase(ppMsg->seqNumber());
-      post_exec_handlers_.invokeAll(ppMsg, requests_for_execution);
-    }
-    return sn;
-  }
-
- private:
-  logging::Logger& getLogger() const {
-    static logging::Logger logger = logging::getLogger("bftEngine.impl.SingleRequestExecutionEngine");
-    return logger;
-  }
-};
-
-class AsyncExecutionEngine : public BftExecutionEngineBase {
- public:
-  AsyncExecutionEngine(std::shared_ptr<IRequestsHandler> requests_handler,
-                       std::shared_ptr<ClientsManager> client_manager,
-                       std::shared_ptr<ReplicasInfo> reps_info,
-                       std::shared_ptr<PersistentStorage> ps,
-                       std::shared_ptr<TimeServiceManager<CLOCK_TYPE>> time_service_manager)
-      : BftExecutionEngineBase{requests_handler, client_manager, reps_info, ps, time_service_manager} {
-    active_ = true;
-    worker_ = std::thread([&]() { thread_function(); });
-  }
-  SeqNum addExecutions(const std::vector<PrePrepareMsg*>& ppMsgs) override {
-    SeqNum sn = 0;
-    for (auto pp : ppMsgs) {
-      sn = pp->seqNumber();
-      if (bftEngine::ControlStateManager::instance().getPruningProcessStatus()) return sn;
-      requests_++;
-      auto requests_for_execution =
-          std::make_shared<std::deque<IRequestsHandler::ExecutionRequest>>(collectRequests(*pp));
-      loadTime(pp->seqNumber());
-      std::unique_lock<std::mutex> lk(lock_);
-      data_.emplace_back(pp, requests_for_execution, timestamps[pp->seqNumber()]);
-      var_.notify_one();
-    }
-    return sn;
-  }
-  virtual ~AsyncExecutionEngine() {
-    active_ = false;
-    var_.notify_one();
-    worker_.join();
-  }
-  bool isExecuting() override { return requests_ > 0; }
-  void onExecutionComplete(SeqNum sn) override {
-    requests_--;
-    timestamps.erase(sn);
-  }
-
- private:
-  logging::Logger& getLogger() const {
-    static logging::Logger logger = logging::getLogger("bftEngine.impl.AsyncExecutionEngine");
-    return logger;
-  }
-  virtual void runExecutions(std::deque<IRequestsHandler::ExecutionRequest>& requests_for_execution, Timestamp&) = 0;
-  void thread_function() {
-    while (active_) {
-      std::tuple<PrePrepareMsg*, std::shared_ptr<std::deque<IRequestsHandler::ExecutionRequest>>, Timestamp> candidate;
-      {
-        {
-          std::unique_lock<std::mutex> lk(lock_);
-          var_.wait(lk, [this]() {
-            return !data_.empty() && !bftEngine::ControlStateManager::instance().getPruningProcessStatus();
-          });
-          if (!active_) return;
-          if (bftEngine::ControlStateManager::instance().getPruningProcessStatus()) continue;
-          candidate = data_.front();
-          data_.pop_front();
-        }
-        auto& requests_for_execution = *(std::get<1>(candidate));
-        TimeRecorder scoped_timer(*metrics_.executeRequestsInPrePrepareMsg);
-        if (!requests_for_execution.empty()) {
-          auto timestamp = std::get<2>(candidate);
-          runExecutions(requests_for_execution, timestamp);
-        }
-        post_exec_handlers_.invokeAll(std::get<0>(candidate), requests_for_execution);
-      }
+SeqNum BftExecutionEngine::addExecutions(const vector<PrePrepareMsg*>& ppMsgs) {
+  SeqNum sn = 0;
+  for (auto ppMsg : ppMsgs) {
+    sn = ppMsg->seqNumber();
+    if (bftEngine::ControlStateManager::instance().getPruningProcessStatus()) return sn;
+    TimeRecorder scoped_timer(*metrics_.executeRequestsInPrePrepareMsg);
+    auto requests_for_execution = collectRequests(*ppMsg);
+    TimeRecorder scoped_timer1(*metrics_.executeRequestsAndSendResponses);
+    loadTime(ppMsg->seqNumber());
+    auto exec = [&](PrePrepareMsg* ppMsg_,
+                    IRequestsHandler::ExecutionRequestsQueue requests_for_execution_,
+                    Timestamp timestamp) {
+      if (!requests_for_execution_.empty()) execute(requests_for_execution_, timestamp);
+      post_exec_handlers_.invokeAll(ppMsg_, requests_for_execution_);
+    };
+    in_execution++;
+    if (thread_pool_) {
+      thread_pool_->async(exec, ppMsg, requests_for_execution, timestamps[ppMsg->seqNumber()]);
+    } else {
+      exec(ppMsg, requests_for_execution, timestamps[ppMsg->seqNumber()]);
+      onExecutionComplete(ppMsg->seqNumber());
     }
   }
-  std::mutex lock_;
-  std::condition_variable var_;
-  std::thread worker_;
-  std::deque<std::tuple<PrePrepareMsg*, std::shared_ptr<std::deque<IRequestsHandler::ExecutionRequest>>, Timestamp>>
-      data_;
-  std::atomic_bool active_;
-  std::atomic_uint32_t requests_{0};
-};
-
-class SingleRequestAsyncExecutionEngine : public AsyncExecutionEngine {
- public:
-  SingleRequestAsyncExecutionEngine(std::shared_ptr<IRequestsHandler> requests_handler,
-                                    std::shared_ptr<ClientsManager> client_manager,
-                                    std::shared_ptr<ReplicasInfo> reps_info,
-                                    std::shared_ptr<PersistentStorage> ps,
-                                    std::shared_ptr<TimeServiceManager<CLOCK_TYPE>> time_service_manager)
-      : AsyncExecutionEngine{requests_handler, client_manager, reps_info, ps, time_service_manager} {}
-
- private:
-  void runExecutions(std::deque<IRequestsHandler::ExecutionRequest>& requests_for_execution,
-                     Timestamp& timestamp) override {
-    std::deque<IRequestsHandler::ExecutionRequest> single_req_queue;
-    for (auto& req : requests_for_execution) {
-      single_req_queue.push_back(req);
-      execute(single_req_queue, timestamp);
-      req = single_req_queue.back();
-      single_req_queue.clear();
-    }
-  }
-};
-
-class AccumulatedAsyncExecutionEngine : public AsyncExecutionEngine {
- public:
-  AccumulatedAsyncExecutionEngine(std::shared_ptr<IRequestsHandler> requests_handler,
-                                  std::shared_ptr<ClientsManager> client_manager,
-                                  std::shared_ptr<ReplicasInfo> reps_info,
-                                  std::shared_ptr<PersistentStorage> ps,
-                                  std::shared_ptr<TimeServiceManager<CLOCK_TYPE>> time_service_manager)
-      : AsyncExecutionEngine{requests_handler, client_manager, reps_info, ps, time_service_manager} {}
-
- private:
-  void runExecutions(std::deque<IRequestsHandler::ExecutionRequest>& requests_for_execution,
-                     Timestamp& timestamp) override {
-    execute(requests_for_execution, timestamp);
-  }
-};
-class SkipAndSendExecutionEngine : public BftExecutionEngineBase {
- public:
-  SkipAndSendExecutionEngine(std::shared_ptr<IRequestsHandler> requests_handler,
-                             std::shared_ptr<ClientsManager> client_manager,
-                             std::shared_ptr<ReplicasInfo> reps_info,
-                             std::shared_ptr<PersistentStorage> ps,
-                             std::shared_ptr<TimeServiceManager<CLOCK_TYPE>> time_service_manager)
-      : BftExecutionEngineBase{requests_handler, client_manager, reps_info, ps, time_service_manager} {}
-  SeqNum addExecutions(const std::vector<PrePrepareMsg*>& ppMsgs) override {
-    for (auto ppMsg : ppMsgs) {
-      auto requests_for_execution = collectRequests(*ppMsg);
-      if (requests_for_execution.empty()) continue;
-      post_exec_handlers_.invokeAll(ppMsg, requests_for_execution);
-    }
-    return 0;
-  }
-
- private:
-  Bitmap filterRequests(const PrePrepareMsg& ppMsg) override {
-    const uint16_t numOfRequests = ppMsg.numberOfRequests();
-    Bitmap requestSet(numOfRequests);
-    size_t reqIdx = 0;
-    RequestsIterator reqIter(&ppMsg);
-    char* requestBody = nullptr;
-    while (reqIter.getAndGoToNext(requestBody)) {
-      ClientRequestMsg req(reinterpret_cast<ClientRequestMsgHeader*>(requestBody));
-      SCOPED_MDC_CID(req.getCid());
-      NodeIdType clientId = req.clientProxyId();
-      if (clients_manager_->hasReply(clientId, req.requestSeqNum())) {
-        requestSet.set(reqIdx++);
-      } else {
-        reqIdx++;
-      }
-    }
-    return requestSet;
-  }
-};
-
-std::unique_ptr<BftExecutionEngineBase> BftExecutionEngineFactory::create(
-    std::shared_ptr<IRequestsHandler> requests_handler,
-    std::shared_ptr<ClientsManager> client_manager,
-    std::shared_ptr<ReplicasInfo> reps_info,
-    std::shared_ptr<PersistentStorage> ps,
-    std::shared_ptr<TimeServiceManager<CLOCK_TYPE>> time_service_manager,
-    TYPE type) {
-  bool accumulated = bftEngine::ReplicaConfig::instance().blockAccumulation;
-  TYPE type_ = type;
-  if (type == CONFIG) type_ = bftEngine::ReplicaConfig::instance().enablePostExecutionSeparation ? ASYNC : SYNC;
-  switch (type_) {
-    case SYNC:
-      if (accumulated)
-        return std::make_unique<BlockAccumulationExecutionEngine>(
-            requests_handler, client_manager, reps_info, ps, time_service_manager);
-      return std::make_unique<SingleRequestExecutionEngine>(
-          requests_handler, client_manager, reps_info, ps, time_service_manager);
-    case ASYNC:
-      if (accumulated)
-        return std::make_unique<AccumulatedAsyncExecutionEngine>(
-            requests_handler, client_manager, reps_info, ps, time_service_manager);
-      return std::make_unique<SingleRequestAsyncExecutionEngine>(
-          requests_handler, client_manager, reps_info, ps, time_service_manager);
-    case SKIP:
-      return std::make_unique<SkipAndSendExecutionEngine>(
-          requests_handler, client_manager, reps_info, ps, time_service_manager);
-    case CONFIG:
-      return nullptr;
-  }
-  return nullptr;
+  return sn;
 }
 
+SeqNum SkipAndSendExecutionEngine::addExecutions(const std::vector<PrePrepareMsg*>& ppMsgs) {
+  for (auto ppMsg : ppMsgs) {
+    auto requests_for_execution = collectRequests(*ppMsg);
+    if (requests_for_execution.empty()) continue;
+    post_exec_handlers_.invokeAll(ppMsg, requests_for_execution);
+  }
+  return 0;
+}
+
+Bitmap SkipAndSendExecutionEngine::filterRequests(const PrePrepareMsg& ppMsg) {
+  const uint16_t numOfRequests = ppMsg.numberOfRequests();
+  Bitmap requestSet(numOfRequests);
+  size_t reqIdx = 0;
+  RequestsIterator reqIter(&ppMsg);
+  char* requestBody = nullptr;
+  while (reqIter.getAndGoToNext(requestBody)) {
+    ClientRequestMsg req(reinterpret_cast<ClientRequestMsgHeader*>(requestBody));
+    SCOPED_MDC_CID(req.getCid());
+    NodeIdType clientId = req.clientProxyId();
+    if (clients_manager_->hasReply(clientId, req.requestSeqNum())) {
+      requestSet.set(reqIdx++);
+    } else {
+      reqIdx++;
+    }
+  }
+  return requestSet;
+}
 }  // namespace bftEngine::impl
