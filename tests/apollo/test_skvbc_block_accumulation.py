@@ -135,7 +135,7 @@ class SkvbcBlockAccumulationTest(ApolloTest):
         final_block_count = await tracker.get_last_block_id(read_client)
         print(f"final_block_count {final_block_count}")
         print(f"computed_block_count =  {computed_block_count}")
-        self.assertTrue((final_block_count < wr * BATCH_SIZE),
+        self.assertTrue((final_block_count <= wr * BATCH_SIZE),
                         "Final Block Count is not as expected for Block Accumulation")
 
     @with_trio
