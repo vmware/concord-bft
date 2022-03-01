@@ -41,6 +41,7 @@ SigManager* SigManager::initImpl(ReplicaId myId,
   vector<pair<Key, concord::util::crypto::KeyFormat>> publickeys;
   map<PrincipalId, SigManager::KeyIndex> publicKeysMapping;
   size_t lowBound, highBound;
+  auto numOperator = ReplicaConfig::instance().operatorEnabled_ ? 1 : 0;
   auto numReplicas = replicasInfo.getNumberOfReplicas();
   auto numRoReplicas = replicasInfo.getNumberOfRoReplicas();
   auto numOfClientProxies = replicasInfo.getNumOfClientProxies();
@@ -67,7 +68,7 @@ SigManager* SigManager::initImpl(ReplicaId myId,
     // Also, we do not enforce to have all range between [lowBound, highBound] construcred. We might want to have less
     // principal ids mapped to keys than what is stated in the range.
     lowBound = numRoReplicas + numReplicas + numOfClientProxies;
-    highBound = lowBound + numOfExternalClients + numOfInternalClients + numOfClientServices - 1;
+    highBound = lowBound + numOfExternalClients + numOfInternalClients + numOfClientServices - 1 - numOperator;
     for (const auto& p : (*publicKeysOfClients)) {
       ConcordAssert(!p.first.empty());
       publickeys.push_back(make_pair(p.first, clientsKeysFormat));
