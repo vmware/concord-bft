@@ -150,7 +150,7 @@ class Bitmap {
   Bitmap& operator+=(const Bitmap& other) {
     ConcordAssert(numOfBits() == other.numOfBits());
     for (size_t i = 0; i < other.numOfBits(); i++) {
-      set(i);
+      if (other.get(i)) set(i);
     }
     return *this;
   }

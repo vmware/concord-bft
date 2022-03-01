@@ -40,6 +40,7 @@ enum SeqNumDataParameters {
 
 class SeqNumData {
   static constexpr size_t EMPTY_MESSAGE_FLAG_SIZE = sizeof(bool);
+  static constexpr uint32_t MAX_NUM_OF_REQUESTS = 4096;
 
  public:
   SeqNumData(PrePrepareMsg *prePrepare,

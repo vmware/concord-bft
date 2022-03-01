@@ -95,7 +95,7 @@ SeqNumData SeqNumData::deserialize(char *buf, uint32_t bufLen, uint32_t &actualS
   const bool forceCompleted = deserializeOneByte(buf);
   const bool slowStarted = deserializeOneByte(buf);
   uint32_t bitMapSize = 0;
-  auto number_of_reqeusts = 4096;
+  auto number_of_reqeusts = MAX_NUM_OF_REQUESTS;
   if (prePrepareMsg) {
     number_of_reqeusts = ((PrePrepareMsg *)prePrepareMsg)->numberOfRequests();
   }
@@ -131,7 +131,7 @@ bool SeqNumData::equals(const SeqNumData &other) const {
 uint32_t SeqNumData::maxSize() {
   return SeqNumData::maxMessageSize<PrePrepareMsg>() + SeqNumData::maxMessageSize<FullCommitProofMsg>() +
          SeqNumData::maxMessageSize<PrepareFullMsg>() + SeqNumData::maxMessageSize<CommitFullMsg>() +
-         sizeof(slowStarted_) + sizeof(forceCompleted_) + Bitmap::maxSizeNeededToStoreInBuffer(4096) +
+         sizeof(slowStarted_) + sizeof(forceCompleted_) + Bitmap::maxSizeNeededToStoreInBuffer(MAX_NUM_OF_REQUESTS) +
          sizeof(isExecuted_);  // TODO: configurable ?
 }
 

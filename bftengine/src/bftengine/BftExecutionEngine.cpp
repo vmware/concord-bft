@@ -64,7 +64,7 @@ class RequestsSelector {
  public:
   RequestsSelector(
       const std::deque<IRequestsHandler::ExecutionRequest>& requests,
-      const std::function<RequestIterator*(std::deque<IRequestsHandler::ExecutionRequest>&)> iterator_factory)
+      const std::function<RequestIterator*(std::deque<IRequestsHandler::ExecutionRequest>&)>& iterator_factory)
       : requests_{requests}, iterator_factory_{iterator_factory} {
     begin_.reset(iterator_factory_(requests_));
     end_.reset(iterator_factory_(requests_));
@@ -130,11 +130,11 @@ Bitmap BftExecutionEngine::filterRequests(const PrePrepareMsg& ppMsg) {
     }
     requestSet.set(reqIdx++);
   }
-
+  auto sn = ppMsg.seqNumber();
   if (ps_) {
     ps_->beginWriteTran();
-    ps_->setRequestsMapInSeqNumWindow(ppMsg.seqNumber(), requestSet);
-    ps_->setIsExecutedInSeqNumWindow(ppMsg.seqNumber(), true);
+    ps_->setRequestsMapInSeqNumWindow(sn, requestSet);
+    ps_->setIsExecutedInSeqNumWindow(sn, true);
     ps_->endWriteTran(config_.getsyncOnUpdateOfMetadata());
   }
   return requestSet;
@@ -155,10 +155,11 @@ std::deque<IRequestsHandler::ExecutionRequest> BftExecutionEngine::collectReques
     if (!requestSet.get(tmp) || req.requestLength() == 0) {
       continue;
     }
+    auto sn = ppMsg.seqNumber();
     if (config_.timeServiceEnabled) {
       if (req.flags() & MsgFlag::TIME_SERVICE_FLAG) {
-        timestamps.emplace(ppMsg.seqNumber(), Timestamp());
-        timestamps[ppMsg.seqNumber()].time_since_epoch =
+        timestamps.emplace(sn, Timestamp());
+        timestamps[sn].time_since_epoch =
             concord::util::deserialize<ConsensusTime>(req.requestBuf(), req.requestBuf() + req.requestLength());
         continue;
       }
@@ -167,7 +168,7 @@ std::deque<IRequestsHandler::ExecutionRequest> BftExecutionEngine::collectReques
     NodeIdType clientId = req.clientProxyId();
     IRequestsHandler::ExecutionRequest execution_request{
         clientId,
-        static_cast<uint64_t>(ppMsg.seqNumber()),
+        static_cast<uint64_t>(sn),
         ppMsg.getCid(),
         req.flags(),
         req.requestLength(),
@@ -225,7 +226,7 @@ void BftExecutionEngine::loadTime(SeqNum sn) {
 using namespace concord::diagnostics;
 SeqNum BftExecutionEngine::addExecutions(const vector<PrePrepareMsg*>& ppMsgs) {
   SeqNum sn = 0;
-  for (auto ppMsg : ppMsgs) {
+  for (auto* ppMsg : ppMsgs) {
     sn = ppMsg->seqNumber();
     if (bftEngine::ControlStateManager::instance().getPruningProcessStatus()) return sn;
     TimeRecorder scoped_timer(*metrics_.executeRequestsInPrePrepareMsg);
@@ -250,7 +251,7 @@ SeqNum BftExecutionEngine::addExecutions(const vector<PrePrepareMsg*>& ppMsgs) {
 }
 
 SeqNum SkipAndSendExecutionEngine::addExecutions(const std::vector<PrePrepareMsg*>& ppMsgs) {
-  for (auto ppMsg : ppMsgs) {
+  for (auto* ppMsg : ppMsgs) {
     auto requests_for_execution = collectRequests(*ppMsg);
     if (requests_for_execution.empty()) continue;
     post_exec_handlers_.invokeAll(ppMsg, requests_for_execution);

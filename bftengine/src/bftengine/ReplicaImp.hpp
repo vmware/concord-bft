@@ -224,7 +224,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   bool recoveringFromExecutionOfRequests = false;
   Bitmap mapOfRecoveredRequests;
-  std::vector<std::pair<bool, Bitmap>> vectorMapOfRecoveredRequests;
+  std::vector<std::pair<bool, Bitmap>> recoveredRequests;
   ConsensusTickRep recoveredTime = 0;
 
   shared_ptr<concord::performance::PerformanceManager> pm_;
@@ -260,10 +260,10 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   GaugeHandle accumulating_batch_avg_time_;
   GaugeHandle deferredRORequestsMetric_;
   GaugeHandle deferredMessagesMetric_;
+  GaugeHandle metric_number_of_current_executions_;
 
   // The first commit path being attempted for a new request.
   StatusHandle metric_first_commit_path_;
-  CounterHandle metric_number_of_current_executions_;
   CounterHandle batch_closed_on_logic_off_;
   CounterHandle batch_closed_on_logic_on_;
   CounterHandle metric_indicator_of_non_determinism_;
@@ -587,7 +587,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void addTimers();
   void startConsensusProcess(PrePrepareMsg* pp, bool isCreatedEarlier);
   void startConsensusProcess(PrePrepareMsg* pp);
-  void postBftExecutionActions(PrePrepareMsg* ppMsg, IRequestsHandler::ExecutionRequestsQueue& requests_for_execution);
+  void postBftExecutionActions(PrePrepareMsg* ppMsg, IRequestsHandler::ExecutionRequestsQueue& requestsForExecution);
   /**
    * Updates both seqNumInfo and slow_path metric
    * @param seqNumInfo

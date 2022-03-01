@@ -2457,7 +2457,16 @@ void ReplicaImp::startExecution() {
     }
   }
   if (pps.empty()) return;
-  LOG_INFO(CNSUS, "Start execution");
+  std::ostringstream oss;
+  bool first_pp = true;
+  for (auto *pp : pps) {
+    tryToRemovePendingRequestsForSeqNum(pp->seqNumber());
+    if (!first_pp) oss << ",";
+    oss << pp->seqNumber();
+    first_pp = false;
+  }
+  std::string pps_sequence_number = oss.str();
+  LOG_INFO(CNSUS, "Start execution for " << pps_sequence_number);
   metric_number_of_current_executions_ += pps.size();
   skip_execution_engine_->addExecutions(pps);
   auto sn = main_execution_engine_->addExecutions(pps);
@@ -4427,9 +4436,11 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
       }
 
       if (e.getForceCompleted()) seqNumInfo.forceComplete();
-      if (e.getIsExecuted()) ConcordAssert(e.getPrePrepareMsg()->seqNumber() > lastExecutedSeqNum);
-      vectorMapOfRecoveredRequests.push_back(std::make_pair<bool, Bitmap>(e.getIsExecuted(), e.getRequestsMap()));
-      if (e.getIsExecuted()) recoveringFromExecutionOfRequests = true;
+      if (e.getIsExecuted()) {
+        ConcordAssert(e.getPrePrepareMsg()->seqNumber() > lastExecutedSeqNum);
+        recoveringFromExecutionOfRequests = true;
+      }
+      recoveredRequests.push_back(std::make_pair<bool, Bitmap>(e.getIsExecuted(), e.getRequestsMap()));
     }
   }
 
@@ -4567,9 +4578,9 @@ ReplicaImp::ReplicaImp(bool firstTime,
       accumulating_batch_avg_time_{metrics_.RegisterGauge("accumualating_batch_avg_time", 0)},
       deferredRORequestsMetric_{metrics_.RegisterGauge("deferrdRORequests", 0)},
       deferredMessagesMetric_{metrics_.RegisterGauge("deferredMessages", 0)},
+      metric_number_of_current_executions_{metrics_.RegisterGauge("number_of_current_executions", 0)},
       metric_first_commit_path_{metrics_.RegisterStatus(
           "firstCommitPath", CommitPathToStr(ControllerWithSimpleHistory_debugInitialFirstPath))},
-      metric_number_of_current_executions_{metrics_.RegisterCounter("numberOfCurrentExecutions", 0)},
       batch_closed_on_logic_off_{metrics_.RegisterCounter("total_number_batch_closed_on_logic_off")},
       batch_closed_on_logic_on_{metrics_.RegisterCounter("total_number_batch_closed_on_logic_on")},
       metric_indicator_of_non_determinism_{metrics_.RegisterCounter("indicator_of_non_determinism")},
@@ -4910,9 +4921,9 @@ void ReplicaImp::recoverRequests() {
       if (!pp) break;
       auto span = concordUtils::startSpan("bft_recover_requests_on_start");
       SCOPED_MDC_SEQ_NUM(std::to_string(pp->seqNumber()));
-      ConcordAssert(vectorMapOfRecoveredRequests[i].first);
+      ConcordAssert(recoveredRequests[i].first);
       updateExecutedPathMetrics(seqNumInfo.slowPathStarted(), pp->numberOfRequests());
-      recover_exec_engine->setRequestsMap(vectorMapOfRecoveredRequests[i].second);
+      recover_exec_engine->setRequestsMap(recoveredRequests[i].second);
       recover_exec_engine->addExecutions({pp});
     }
     recoveringFromExecutionOfRequests = false;
