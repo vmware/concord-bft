@@ -36,10 +36,6 @@
 #include <boost/algorithm/string.hpp>
 #include <experimental/filesystem>
 
-#include "strategy/ByzantineStrategy.hpp"
-#include "strategy/ShufflePrePrepareMsgStrategy.hpp"
-#include "strategy/MangledPreProcessResultMsgStrategy.hpp"
-#include "WrapCommunication.hpp"
 #include "secrets_manager_enc.h"
 
 #ifdef USE_S3_OBJECT_STORE
@@ -49,8 +45,6 @@
 namespace fs = std::experimental::filesystem;
 
 namespace concord::kvbc {
-
-using bft::communication::WrapCommunication;
 
 std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
   std::stringstream args;
@@ -69,8 +63,8 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     replicaConfig.statusReportTimerMillisec = 10 * 1000;
     replicaConfig.preExecutionFeatureEnabled = true;
     replicaConfig.clientBatchingEnabled = true;
-    replicaConfig.pruningEnabled_ = true;
-    replicaConfig.numBlocksToKeep_ = 10;
+    // replicaConfig.pruningEnabled_ = false;
+    // replicaConfig.numBlocksToKeep_ = 10;
     replicaConfig.batchedPreProcessEnabled = true;
     replicaConfig.timeServiceEnabled = true;
     replicaConfig.enablePostExecutionSeparation = true;
@@ -88,7 +82,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     std::string principalsMapping;
     std::string txnSigningKeysPath;
     std::optional<std::uint32_t> cronEntryNumberOfExecutes;
-    std::string byzantineStrategies;
+    // std::string byzantineStrategies;
     bool is_separate_communication_mode = false;
     int addAllKeysAsPublic = 0;
 
@@ -220,10 +214,10 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
           cronEntryNumberOfExecutes = concord::util::to<std::uint32_t>(optarg);
           break;
         }
-        case 'g': {
-          byzantineStrategies = optarg;
-          break;
-        }
+        // case 'g': {
+        //   byzantineStrategies = optarg;
+        //   break;
+        // }
         case 'x': {
           replicaConfig.preExecutionResultAuthEnabled = true;
           break;
@@ -297,21 +291,6 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
 #endif
     replicaConfig.certificatesRootPath = certRootPath;
     std::unique_ptr<bft::communication::ICommunication> comm(bft::communication::CommFactory::create(conf));
-
-    if (!byzantineStrategies.empty()) {
-      // Initialise all the strategies here at once.
-      const std::vector<std::shared_ptr<concord::kvbc::strategy::IByzantineStrategy>> allStrategies = {
-          std::make_shared<concord::kvbc::strategy::ShufflePrePrepareMsgStrategy>(logger),
-          std::make_shared<concord::kvbc::strategy::MangledPreProcessResultMsgStrategy>(logger)};
-      WrapCommunication::addStrategies(byzantineStrategies, ',', allStrategies);
-
-      std::unique_ptr<bft::communication::ICommunication> wrappedComm =
-          std::make_unique<WrapCommunication>(std::move(comm), is_separate_communication_mode, logger);
-      comm.swap(wrappedComm);
-      LOG_INFO(logger,
-               "Starting the replica with strategies : " << byzantineStrategies << " and randomized send : "
-                                                         << is_separate_communication_mode);
-    }
 
     uint16_t metricsPort = conf.listenPort_ + 1000;
 
