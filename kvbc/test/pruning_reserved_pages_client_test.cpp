@@ -49,14 +49,6 @@ TEST_F(pruning_reserved_pages_client_test, create_valid_agreement) {
   ASSERT_EQ(agreement.last_agreed_prunable_block_id, last_agreed_prunable_block_id_);
 }
 
-TEST_F(pruning_reserved_pages_client_test, create_agreement_with_0s_tick_period) {
-  ASSERT_THROW(createAgreement(0s, batch_blocks_num_, last_agreed_prunable_block_id_), std::invalid_argument);
-}
-
-TEST_F(pruning_reserved_pages_client_test, create_agreement_with_0_batch_blocks_num) {
-  ASSERT_THROW(createAgreement(tick_period_, 0, last_agreed_prunable_block_id_), std::invalid_argument);
-}
-
 TEST_F(pruning_reserved_pages_client_test, create_agreement_with_invalid_last_agreed) {
   ASSERT_THROW(
       createAgreement(tick_period_, batch_blocks_num_, INITIAL_GENESIS_BLOCK_ID > 0 ? INITIAL_GENESIS_BLOCK_ID - 1 : 0),
