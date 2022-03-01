@@ -1,0 +1,6 @@
+# test configuration for S3-compatible storage
+s3-bucket-name: blockchain
+s3-access-key: concordbft
+s3-protocol: HTTP
+s3-url: 127.0.0.1:9000
+s3-secret-key: concordbft
