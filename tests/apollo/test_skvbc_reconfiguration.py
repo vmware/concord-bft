@@ -1570,7 +1570,7 @@ class SkvbcReconfigurationTest(ApolloTest):
             for i in range(601):
                 await skvbc.send_write_kv_set()
             bft_network.start_replicas(crashed_replica)
-            await self.validate_initial_key_exchange(bft_network, crashed_replica, metrics_id="self_key_exchange", expected=0)
+            await self.validate_initial_key_exchange(bft_network, crashed_replica, metrics_id="self_key_exchange", expected=1)
             for r in crashed_replica:
                 await bft_network.wait_for_state_transfer_to_stop(initial_prim,
                                                                   r,
