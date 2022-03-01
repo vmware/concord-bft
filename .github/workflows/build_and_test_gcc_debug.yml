@@ -1,5 +1,9 @@
 name: Debug build (gcc)
-on: [push, pull_request]
+on: [ push, pull_request ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -8,8 +12,8 @@ jobs:
     outputs:
       err_output: ${{ steps.prepare_err_artifacts.outputs.test}}
     strategy:
-        fail-fast: false
-        matrix:
+      fail-fast: false
+      matrix:
             compiler:
                 - "CONCORD_BFT_CONTAINER_CC=gcc CONCORD_BFT_CONTAINER_CXX=g++"
             ci_build_type:
