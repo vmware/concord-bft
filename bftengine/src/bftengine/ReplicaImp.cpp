@@ -1519,6 +1519,11 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
     return finishExecutePrePrepareMsg(t->prePrepareMsg, t->pAccumulatedRequests);
   }
 
+  if (auto *rpferMsg = std::get_if<RemovePendingForExecutionRequest>(&msg)) {
+    clientsManager->removePendingForExecutionRequest(rpferMsg->clientProxyId, rpferMsg->requestSeqNum);
+    return;
+  }
+
   // Handle vaidated messages
   if (auto *vldMsg = std::get_if<CarrierMesssage *>(&msg)) {
     return onCarrierMessage(*vldMsg);
@@ -4989,7 +4994,8 @@ void ReplicaImp::executeRequests(PrePrepareMsg *ppMsg, Bitmap &requestSet, Times
     ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
 
     if (!requestSet.get(tmp) || req.requestLength() == 0) {
-      clientsManager->removePendingForExecutionRequest(req.clientProxyId(), req.requestSeqNum());
+      InternalMessage im = RemovePendingForExecutionRequest{req.clientProxyId(), req.requestSeqNum()};
+      getIncomingMsgsStorage().pushInternalMsg(std::move(im));
       continue;
     }
 
