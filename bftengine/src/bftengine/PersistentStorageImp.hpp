@@ -133,6 +133,8 @@ class PersistentStorageImp : public PersistentStorage {
   void setDescriptorOfLastNewView(const DescriptorOfLastNewView &prevViewDesc) override;
   void setDescriptorOfLastExecution(const DescriptorOfLastExecution &prevViewDesc) override;
   void setDescriptorOfLastStableCheckpoint(const DescriptorOfLastStableCheckpoint &stableCheckDesc) override;
+  void checkAndClearDescriptorOfLastExitFromView() override;
+  void checkAndClearDescriptorOfLastNewView() override;
 
   void setLastStableSeqNum(SeqNum seqNum) override;
   void setPrePrepareMsgInSeqNumWindow(SeqNum seqNum, PrePrepareMsg *msg) override;

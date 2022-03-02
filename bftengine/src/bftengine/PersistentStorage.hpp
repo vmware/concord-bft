@@ -125,6 +125,9 @@ class PersistentStorage {
 
   virtual bool setReplicaSpecificInfo(uint32_t index, const std::vector<uint8_t> &data) = 0;
 
+  virtual void checkAndClearDescriptorOfLastExitFromView() = 0;
+  virtual void checkAndClearDescriptorOfLastNewView() = 0;
+
   //////////////////////////////////////////////////////////////////////////
   // Read methods (should only be used before using write-only transactions)
   //////////////////////////////////////////////////////////////////////////
