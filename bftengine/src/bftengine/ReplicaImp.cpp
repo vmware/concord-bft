@@ -1519,8 +1519,8 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
     return finishExecutePrePrepareMsg(t->prePrepareMsg, t->pAccumulatedRequests);
   }
 
-  if (auto *t = std::get_if<RemovePendingForExecutionRequest>(&msg)) {
-    clientsManager->removePendingForExecutionRequest(t->clientProxyId, t->requestSeqNum);
+  if (auto *rpferMsg = std::get_if<RemovePendingForExecutionRequest>(&msg)) {
+    clientsManager->removePendingForExecutionRequest(rpferMsg->clientProxyId, rpferMsg->requestSeqNum);
     return;
   }
 
