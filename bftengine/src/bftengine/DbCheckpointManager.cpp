@@ -133,7 +133,7 @@ void DbCheckpointManager::cleanUp() {
   // this gets called when db checkpoint is disabled
   // check if there is chkpt data in persistence
   loadCheckpointDataFromPersistence();
-  if (!maxNumOfCheckpoints_) {
+  if (!ReplicaConfig::instance().dbCheckpointFeatureEnabled || !maxNumOfCheckpoints_) {
     if (!dbCheckptMetadata_.dbCheckPoints_.empty()) {
       dbCheckptMetadata_.dbCheckPoints_.clear();
       updateDbCheckpointMetadata();

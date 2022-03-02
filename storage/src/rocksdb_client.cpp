@@ -646,6 +646,7 @@ void Client::removeAllCheckpoints() const {
       for (const auto &entry : fs::directory_iterator(path)) {
         fs::remove_all(entry.path());
       }
+      fs::remove_all(path);
     }
   } catch (std::exception &e) {
     LOG_FATAL(logger(), "Failed remove rocksdb checkpoint: " << e.what());
