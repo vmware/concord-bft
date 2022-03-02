@@ -308,7 +308,7 @@ class ThinReplicaImpl {
     if (is_event_group_transition) {
       // For an event group transition we need to check if the first/oldest tag-specific event group is available. If
       // not then we wait because it is similar to waiting for X+1 whereby X is 0.
-      auto oldest_eg_id = kvb_filter->oldestExternalTagSpecificEventGroupId();
+      auto oldest_eg_id = kvb_filter->oldestExternalEventGroupId();
       while (not oldest_eg_id) {
         auto has_update = live_updates->waitForEventGroupUntilNonEmpty(kWaitForUpdateTimeout);
         if (context->IsCancelled()) {
@@ -318,12 +318,12 @@ class ThinReplicaImpl {
         }
         if (has_update) {
           // If there was an update for us then we must have updated storage
-          oldest_eg_id = kvb_filter->oldestExternalTagSpecificEventGroupId();
+          oldest_eg_id = kvb_filter->oldestExternalEventGroupId();
         }
       }
     } else if (request->has_event_groups()) {
       auto requested_eg_id = request->event_groups().event_group_id();
-      auto newest_eg_id = kvb_filter->newestExternalTagSpecificEventGroupId();
+      auto newest_eg_id = kvb_filter->newestExternalEventGroupId();
       // We already know that the request is valid hence the requested id can only be newest + 1 or less
       while (newest_eg_id < requested_eg_id) {
         auto has_update = live_updates->waitForEventGroupUntilNonEmpty(kWaitForUpdateTimeout);
@@ -334,7 +334,7 @@ class ThinReplicaImpl {
         }
         if (has_update) {
           // If there was an update for us then we must have updated storage
-          newest_eg_id = kvb_filter->newestExternalTagSpecificEventGroupId();
+          newest_eg_id = kvb_filter->newestExternalEventGroupId();
         }
       }
     } else {
@@ -432,7 +432,7 @@ class ThinReplicaImpl {
       ConcordAssert(request->has_events());
       // We assume that the caller wants updates but we cannot determine the event group id the caller is looking for.
       // Therefore, we start at the beginning.
-      event_group_id = kvb_filter->oldestExternalTagSpecificEventGroupId();
+      event_group_id = kvb_filter->oldestExternalEventGroupId();
       // If an event group transition is happening then we already confirmed that event groups are available.
       ConcordAssertNE(event_group_id, 0);
       LOG_INFO(logger_, "Legacy event request will receive event groups starting at id " << event_group_id);
@@ -470,20 +470,21 @@ class ThinReplicaImpl {
         if (not is_update_available) {
           continue;
         }
-        auto last_global_eg_id_read = kvb_filter->getLastGlobalEgIdRead();
-        if (sub_eg_update.event_group_id <= last_global_eg_id_read) {
-          continue;
-        }
+        auto last_global_eg_id_read = kvb_filter->getLastGlobalEgIdReadForClient();
+        // Event group read from live update queue should always be greater than last global event group ID read and
+        // sent
+        ConcordAssertGT(sub_eg_update.event_group_id, last_global_eg_id_read);
 
         auto eg_update = kvbc::EgUpdate{sub_eg_update.event_group_id, std::move(sub_eg_update.event_group)};
 
         auto next_ext_eg_id = kvb_filter->getNextExternalEgIdToRead();
-        const auto& filtered_eg_update = kvb_filter->filterEventGroupUpdate(eg_update, next_ext_eg_id);
+        auto filtered_eg_update = kvb_filter->filterEventGroupUpdate(eg_update);
         if (!filtered_eg_update) {
           continue;
         }
-        kvb_filter->setNextExternalEgIdToRead(++next_ext_eg_id);
-        kvb_filter->setLastGlobalEgIdRead(sub_eg_update.event_group_id);
+        // Overwrite event group ID in the filtered update to external event group ID
+        // We don't want to expose the global event group ID to the client
+        filtered_eg_update.value().event_group_id = next_ext_eg_id;
 
         if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Data>()) {
           //  auto correlation_id = filtered_update.correlation_id; (TODO (Shruti) - Get correlation ID)
@@ -493,6 +494,10 @@ class ThinReplicaImpl {
                              filtered_eg_update.value().event_group_id,
                              kvb_filter->hashEventGroupUpdate(filtered_eg_update.value()));
         }
+
+        kvb_filter->setNextExternalEgIdToRead(++next_ext_eg_id);
+        kvb_filter->setLastGlobalEgIdReadForClient(sub_eg_update.event_group_id);
+
         metrics_.last_sent_event_group_id.Get().Set(filtered_eg_update.value().event_group_id);
         if (++update_aggregator_counter == config_->update_metrics_aggregator_thresh) {
           metrics_.updateAggregator();
@@ -536,7 +541,7 @@ class ThinReplicaImpl {
       }
     } else {
       // Determine latest event group available
-      auto last_eg_id = kvb_filter->newestExternalTagSpecificEventGroupId();
+      auto last_eg_id = kvb_filter->newestExternalEventGroupId();
       if (request->event_groups().event_group_id() > last_eg_id + 1) {
         return true;
       }
@@ -557,8 +562,8 @@ class ThinReplicaImpl {
       }
     } else {
       // Determine oldest event group available (pruning)
-      auto first_eg_id = kvb_filter->oldestExternalTagSpecificEventGroupId();
-      auto last_eg_id = kvb_filter->newestExternalTagSpecificEventGroupId();
+      auto first_eg_id = kvb_filter->oldestExternalEventGroupId();
+      auto last_eg_id = kvb_filter->newestExternalEventGroupId();
       if (request->event_groups().event_group_id() < first_eg_id || (last_eg_id && !first_eg_id)) {
         msg << "Event group ID " << request->event_groups().event_group_id() << " has been pruned."
             << " First event_group_id is " << first_eg_id;
@@ -906,8 +911,8 @@ class ThinReplicaImpl {
                               std::shared_ptr<SubUpdateBuffer>& live_updates,
                               ServerWriterT* stream,
                               std::shared_ptr<kvbc::KvbAppFilter>& kvb_filter) {
-    auto first_eg_id = kvb_filter->oldestExternalTagSpecificEventGroupId();
-    auto end = kvb_filter->newestExternalTagSpecificEventGroupId();
+    auto first_eg_id = kvb_filter->oldestExternalEventGroupId();
+    auto end = kvb_filter->newestExternalEventGroupId();
     if (start < first_eg_id || (end && !first_eg_id)) {
       std::stringstream msg;
       msg << "Requested event group ID: " << start
@@ -928,8 +933,8 @@ class ThinReplicaImpl {
     LOG_INFO(logger_, "Sync reading event groups from KVB [" << start << ", " << end << "]");
     readAndSendEventGroups<ServerContextT, ServerWriterT, DataT>(logger_, context, stream, start, end, kvb_filter);
 
-    auto last_global_eg_id_read = kvb_filter->getLastGlobalEgIdRead();
-    auto newest_eg_id = kvb_filter->newestExternalTagSpecificEventGroupId();
+    auto last_global_eg_id_read = kvb_filter->getLastGlobalEgIdReadForClient();
+    uint64_t newest_eg_id = 0;
     // Let's wait until we have at least one live update for the requesting client
     bool is_update_available = false;
     while (not is_update_available) {
@@ -938,10 +943,9 @@ class ThinReplicaImpl {
         throw StreamCancelled("StreamCancelled while waiting for the first live update");
       }
       if (is_update_available) {
-        newest_eg_id = kvb_filter->newestExternalTagSpecificEventGroupId();
+        newest_eg_id = kvb_filter->newestExternalEventGroupId();
         // There are two scenarios in which updates will be dropped from the live-update-queue
-        // 1. If the oldest global-eg-id on the live-update-queue is less than the next global-eg-id to be read
-        // (corresponds to external-eg-id `end+1`)
+        // 1. If the oldest global-eg-id on the live-update-queue is less than last_global_eg_id_read + 1
         // 2. If the update available on the live-update-queue is for another client (i.e., newest_eg_id in storage is
         // less than the next expected external-eg-id)
         if (live_updates->oldestEventGroupId() < last_global_eg_id_read + 1 || (newest_eg_id < end + 1)) {
@@ -954,6 +958,15 @@ class ThinReplicaImpl {
     ConcordAssertGE(newest_eg_id, end + 1);
     ConcordAssertGT(live_updates->oldestEventGroupId(), last_global_eg_id_read);
     auto global_eg_id_to_read = kvb_filter->findGlobalEventGroupId(end + 1).global_id;
+    while (live_updates->oldestEventGroupId() < global_eg_id_to_read) {
+      // Drop updates from the live-update-queue if the oldest global-eg-id on the live-update-queue is less than the
+      // next global-eg-id to be read (corresponds to external-eg-id `end+1`)
+      SubEventGroupUpdate sub_eg_update;
+      live_updates->PopEventGroup(sub_eg_update);
+      if (live_updates->EmptyEventGroupQueue()) {
+        is_update_available = live_updates->waitForEventGroupUntilNonEmpty(kWaitForUpdateTimeout);
+      }
+    }
     // We are in sync already if the oldest event global-eg-id on live_updates is same as next global_eg_id_to_read
     if (live_updates->oldestEventGroupId() == global_eg_id_to_read) {
       ConcordAssertGE(global_eg_id_to_read, live_updates->oldestEventGroupId());
@@ -968,15 +981,15 @@ class ThinReplicaImpl {
     // create an overlap between what we read from KVB and what is currently in
     // the live updates.
     if (live_updates->oldestEventGroupId() > global_eg_id_to_read) {
-      ConcordAssertGT(kvb_filter->newestExternalTagSpecificEventGroupId(), end + 1);
+      ConcordAssertGT(kvb_filter->newestExternalEventGroupId(), end + 1);
       start = end + 1;
-      end = kvb_filter->newestExternalTagSpecificEventGroupId();
+      end = kvb_filter->newestExternalEventGroupId();
 
       LOG_INFO(logger_, "Sync filling gap [" << start << ", " << end << "]");
       readAndSendEventGroups<ServerContextT, ServerWriterT, DataT>(logger_, context, stream, start, end, kvb_filter);
     }
 
-    last_global_eg_id_read = kvb_filter->getLastGlobalEgIdRead();
+    last_global_eg_id_read = kvb_filter->getLastGlobalEgIdReadForClient();
     // Overlap:
     // If we read updates from KVB that were added to the live updates already
     // then we just need to drop the overlap and return
