@@ -29,7 +29,7 @@ namespace requestservice {
 // FINISH - clean-up
 class RequestServiceCallData {
  public:
-  RequestServiceCallData(vmware::concord::client::request::v1::RequestService::AsyncService* service,
+  RequestServiceCallData(vmware::concord::client::request::v2::RequestService::AsyncService* service,
                          grpc::ServerCompletionQueue* cq,
                          std::shared_ptr<concord::client::concordclient::ConcordClient> client)
       : logger_(logging::getLogger("concord.client.clientservice.requestservice")),
@@ -51,16 +51,16 @@ class RequestServiceCallData {
  private:
   logging::Logger logger_;
 
-  vmware::concord::client::request::v1::RequestService::AsyncService* service_;
+  vmware::concord::client::request::v2::RequestService::AsyncService* service_;
   grpc::ServerCompletionQueue* cq_;
   grpc::ServerContext ctx_;
-  grpc::ServerAsyncResponseWriter<vmware::concord::client::request::v1::Response> responder_;
+  grpc::ServerAsyncResponseWriter<vmware::concord::client::request::v2::Response> responder_;
 
   grpc::Alarm callback_alarm_;
   grpc::Status return_status_;
 
-  vmware::concord::client::request::v1::Request request_;
-  vmware::concord::client::request::v1::Response response_;
+  vmware::concord::client::request::v2::Request request_;
+  vmware::concord::client::request::v2::Response response_;
 
   enum RpcState { CREATE, SEND_TO_CONCORDCLIENT, PROCESS_CALLBACK_RESULT, FINISH };
   RpcState state_;

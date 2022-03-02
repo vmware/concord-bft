@@ -65,7 +65,14 @@ void RequestServiceCallData::populateResult(grpc::Status status) {
 }
 
 void RequestServiceCallData::sendToConcordClient() {
-  bft::client::Msg msg(request_.request().begin(), request_.request().end());
+  bft::client::Msg msg;
+
+  // Check if application request is any type for backward compatibility
+  if (request_.has_new_request()) {
+    std::string str = request_.new_request().SerializeAsString();
+    msg = bft::client::Msg(str.begin(), str.end());
+  } else
+    msg = bft::client::Msg(request_.request().begin(), request_.request().end());
 
   auto seconds = std::chrono::seconds{request_.timeout().seconds()};
   auto nanos = std::chrono::nanoseconds{request_.timeout().nanos()};
@@ -120,7 +127,14 @@ void RequestServiceCallData::sendToConcordClient() {
     auto reply = std::get<bft::client::Reply>(send_result);
     // We need to copy because there is no implicit conversion between vector<uint8> and std::string
     std::string data(reply.matched_data.begin(), reply.matched_data.end());
-    this->response_.set_response(std::move(data));
+
+    // Check if the application response is of Any Type then set it to Any response.
+    google::protobuf::Any* anyResponse = this->response_.mutable_new_response();
+    if (anyResponse->ParseFromString(data) == false) {
+      this->response_.set_response(std::move(data));
+      this->response_.release_new_response();
+    }
+
     this->populateResult(grpc::Status::OK);
   };
 

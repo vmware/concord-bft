@@ -4,12 +4,12 @@ find_package(GRPC REQUIRED)
 include_directories(${GRPC_INCLUDE_DIR})
 
 protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS ${CMAKE_CURRENT_BINARY_DIR}
-  request/v1/request.proto
+  request/v2/request.proto
   event/v1/event.proto
   state_snapshot/v1/state_snapshot.proto
 )
 grpc_generate_cpp(GRPC_SRCS GRPC_HDRS ${CMAKE_CURRENT_BINARY_DIR}
-  request/v1/request.proto
+  request/v2/request.proto
   event/v1/event.proto
   state_snapshot/v1/state_snapshot.proto
 )

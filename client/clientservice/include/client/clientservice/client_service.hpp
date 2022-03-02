@@ -32,7 +32,7 @@ class ClientService {
 
   void start(const std::string& addr, unsigned num_async_threads, uint64_t max_receive_msg_size);
 
-  const std::string kRequestService{"vmware.concord.client.request.v1.RequestService"};
+  const std::string kRequestService{"vmware.concord.client.request.v2.RequestService"};
   const std::string kEventService{"vmware.concord.client.event.v1.EventService"};
   const std::string kStateSnapshotService{"vmware.concord.client.statesnapshot.v1.StateSnapshotService"};
 
@@ -48,7 +48,7 @@ class ClientService {
   std::unique_ptr<StateSnapshotServiceImpl> state_snapshot_service_;
 
   // Asynchronous services
-  vmware::concord::client::request::v1::RequestService::AsyncService request_service_;
+  vmware::concord::client::request::v2::RequestService::AsyncService request_service_;
 
   std::vector<std::unique_ptr<grpc::ServerCompletionQueue>> cqs_;
   std::vector<std::thread> server_threads_;
