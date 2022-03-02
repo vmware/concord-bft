@@ -217,6 +217,7 @@ void PersistentStorageImp::saveDescriptorOfLastExitFromView(const DescriptorOfLa
   UniquePtrToChar simpleParamsBuf(new char[simpleParamsSize]);
   memset(simpleParamsBuf.get(), 0, simpleParamsSize);
   size_t actualSize = 0;
+  LOG_INFO(GL, "saveDescriptorOfLastExitFromView. " << KVLOG(simpleParamsSize));
   newDesc.serializeSimpleParams(simpleParamsBuf.get(), simpleParamsSize, actualSize);
   metadataStorage_->writeInBatch(LAST_EXIT_FROM_VIEW_DESC, simpleParamsBuf.get(), simpleParamsSize);
 
@@ -608,6 +609,46 @@ ViewNum PersistentStorageImp::getLastViewThatTransferredSeqNumbersFullyExecuted(
   ConcordAssert(getIsAllowed());
   lastViewTransferredSeqNum_ = getSeqNum(LAST_VIEW_TRANSFERRED_SEQ_NUM, sizeof(lastViewTransferredSeqNum_));
   return lastViewTransferredSeqNum_;
+}
+void PersistentStorageImp::checkAndClearDescriptorOfLastExitFromView() {
+  DescriptorOfLastExitFromView storedDesc;
+  const size_t simpleParamsSize = DescriptorOfLastExitFromView::simpleParamsSize();
+  uint32_t sizeInDb = 0;
+  UniquePtrToChar simpleParamsBuf(new char[simpleParamsSize]);
+  metadataStorage_->read(LAST_EXIT_FROM_VIEW_DESC, simpleParamsSize, simpleParamsBuf.get(), sizeInDb);
+  LOG_INFO(GL, "checkAndClearDescriptorOfLastExitFromView. " << KVLOG(simpleParamsSize, sizeInDb));
+  ConcordAssertGE(simpleParamsSize, sizeInDb);
+  uint32_t actualSize = 0;
+  storedDesc.deserializeSimpleParams(simpleParamsBuf.get(), simpleParamsSize, actualSize);
+  if (!storedDesc.isDefault) {
+    DescriptorOfLastExitFromView defaultDesc;
+    UniquePtrToChar simpleParamsNewBuf(new char[simpleParamsSize]);
+    memset(simpleParamsNewBuf.get(), 0, simpleParamsSize);
+    size_t sz = 0;
+    defaultDesc.serializeSimpleParams(simpleParamsNewBuf.get(), simpleParamsSize, sz);
+    metadataStorage_->writeInBatch(LAST_EXIT_FROM_VIEW_DESC, simpleParamsNewBuf.get(), sizeInDb);
+  }
+  storedDesc.clean();
+}
+void PersistentStorageImp::checkAndClearDescriptorOfLastNewView() {
+  DescriptorOfLastNewView storedDesc;
+  const size_t simpleParamsSize = DescriptorOfLastNewView::simpleParamsSize();
+  uint32_t sizeInDb = 0;
+  UniquePtrToChar simpleParamsBuf(new char[simpleParamsSize]);
+  metadataStorage_->read(LAST_NEW_VIEW_DESC, simpleParamsSize, simpleParamsBuf.get(), sizeInDb);
+  LOG_INFO(GL, "checkAndClearDescriptorOfLastNewView. " << KVLOG(simpleParamsSize, sizeInDb));
+  ConcordAssertGE(simpleParamsSize, sizeInDb);
+  uint32_t actualSize = 0;
+  storedDesc.deserializeSimpleParams(simpleParamsBuf.get(), simpleParamsSize, actualSize);
+  if (!storedDesc.isDefault) {
+    DescriptorOfLastNewView defaultDesc;
+    UniquePtrToChar simpleParamsNewBuf(new char[simpleParamsSize]);
+    size_t sz = 0;
+    defaultDesc.serializeSimpleParams(simpleParamsNewBuf.get(), simpleParamsSize, sz);
+    ConcordAssertLE(sz, sizeInDb);
+    metadataStorage_->writeInBatch(LAST_NEW_VIEW_DESC, simpleParamsNewBuf.get(), sz);
+  }
+  storedDesc.clean();
 }
 
 /***** Descriptors handling *****/
