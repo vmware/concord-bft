@@ -336,8 +336,7 @@ TEST(kvbc_filter_test, kvbfilter_update_success_eg) {
   event2.tags = {"0"};
   event_group.events.emplace_back(event1);
   event_group.events.emplace_back(event2);
-  const auto next_ext_eg_id = EventGroupId{1};
-  const auto &filtered = kvb_filter.filterEventGroupUpdate({eg_id, event_group}, next_ext_eg_id);
+  const auto &filtered = kvb_filter.filterEventGroupUpdate({eg_id, event_group});
 
   EXPECT_TRUE(filtered.has_value());
   EXPECT_EQ(filtered.value().event_group_id, eg_id);
@@ -602,7 +601,7 @@ TEST(kvbc_filter_test, kvbfilter_get_oldest_tag_specific_eg_id_pvt) {
   auto kvb_filter = KvbAppFilter(&storage, client_id);
   size_t num_event_groups_to_fill = 5;
   storage.fillWithEventGroupData(num_event_groups_to_fill, client_id);
-  EXPECT_EQ(kvb_filter.oldestExternalTagSpecificEventGroupId(), 1);
+  EXPECT_EQ(kvb_filter.oldestExternalEventGroupId(), 1);
 }
 
 TEST(kvbc_filter_test, kvbfilter_get_oldest_tag_specific_eg_id_pub) {
@@ -611,7 +610,7 @@ TEST(kvbc_filter_test, kvbfilter_get_oldest_tag_specific_eg_id_pub) {
   auto kvb_filter = KvbAppFilter(&storage, client_id);
   size_t num_event_groups_to_fill = 5;
   storage.fillWithEventGroupData(num_event_groups_to_fill, kPublicEgIdKey);
-  EXPECT_EQ(kvb_filter.oldestExternalTagSpecificEventGroupId(), 1);
+  EXPECT_EQ(kvb_filter.oldestExternalEventGroupId(), 1);
 }
 
 TEST(kvbc_filter_test, kvbfilter_get_oldest_tag_specific_eg_id_pvt_pub) {
@@ -621,7 +620,7 @@ TEST(kvbc_filter_test, kvbfilter_get_oldest_tag_specific_eg_id_pvt_pub) {
   size_t num_event_groups_to_fill = 5;
   storage.fillWithEventGroupData(num_event_groups_to_fill, client_id);
   storage.fillWithEventGroupData(num_event_groups_to_fill, kPublicEgIdKey);
-  EXPECT_EQ(kvb_filter.oldestExternalTagSpecificEventGroupId(), 1);
+  EXPECT_EQ(kvb_filter.oldestExternalEventGroupId(), 1);
 }
 
 TEST(kvbc_filter_test, kvbfilter_start_block_greater_then_end_block) {
@@ -820,8 +819,7 @@ TEST(kvbc_filter_test, kvbfilter_success_hash_of_event_group) {
   EventGroupId eg_id_start = 1;
 
   auto hash_value = kvb_filter.readEventGroupHash(eg_id_start);
-  const auto next_ext_eg_id = EventGroupId{1};
-  const auto &filtered = kvb_filter.filterEventGroupUpdate(storage.eg_data_[0], next_ext_eg_id);
+  const auto &filtered = kvb_filter.filterEventGroupUpdate(storage.eg_data_[0]);
   EXPECT_TRUE(filtered.has_value());
   EXPECT_EQ(filtered.value().event_group_id, 1);
   std::string concatenated_entry_hashes;
