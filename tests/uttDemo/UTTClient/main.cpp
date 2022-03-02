@@ -24,6 +24,9 @@
 #include "config/test_comm_config.hpp"
 #include "config/test_parameters.hpp"
 #include "communication/CommFactory.hpp"
+#include "bftclient/config.h"
+#include "bftclient/bft_client.h"
+#include "skvbc_messages.cmf.hpp"
 
 using namespace bftEngine;
 using namespace bft::communication;
@@ -33,6 +36,10 @@ using std::string;
 
 using concord::kvbc::BlockId;
 using concord::kvbc::ClientConfig;
+
+std::vector<uint8_t> CopyBytes(const char *str) {
+  return str ? std::vector<uint8_t>(str, str + strlen(str)) : std::vector<uint8_t>{};
+}
 
 ClientParams setupClientParams(int argc, char **argv) {
   ClientParams clientParams;
@@ -120,14 +127,70 @@ int main(int argc, char **argv) {
   try {
     logging::initLogger("logging.properties");
     ClientParams clientParams = setupClientParams(argc, argv);
+
     if (clientParams.clientId == UINT16_MAX || clientParams.numOfFaulty == UINT16_MAX ||
         clientParams.numOfSlow == UINT16_MAX || clientParams.numOfOperations == UINT32_MAX) {
       LOG_ERROR(logger, "Wrong usage! Required parameters: " << argv[0] << " -f F -c C -p NUM_OPS -i ID");
       exit(-1);
     }
-    BasicRandomTestsRunner testsRunner(
-        concord::kvbc::createClient(setupConsensusParams(clientParams), setupCommunicationParams(clientParams)));
-    testsRunner.run(clientParams.numOfOperations);
+
+    // This is the test fixture
+    // BasicRandomTestsRunner testsRunner(
+    //     concord::kvbc::createClient(setupConsensusParams(clientParams), setupCommunicationParams(clientParams)));
+    // testsRunner.run(clientParams.numOfOperations);
+
+    // Create and run some commmands from a bft client
+
+    // unique_ptr<FakeCommunication> comm(new FakeCommunication(WriteBehavior));
+
+    bft::client::SharedCommPtr comm = bft::client::SharedCommPtr(setupCommunicationParams(clientParams));
+
+    bft::client::ClientConfig clientConfig;
+    clientConfig.f_val = clientParams.numOfFaulty;
+    for (uint16_t i = 0; i < clientParams.numOfReplicas; ++i)
+      clientConfig.all_replicas.emplace(bft::client::ReplicaId{i});
+    clientConfig.id = bft::client::ClientId{clientParams.clientId};
+
+    LOG_INFO(GL, "Starting bft client id=" << clientConfig.id.val);
+
+    bft::client::Client client(comm, clientConfig);
+
+    // Write account balances as kv pairs
+    skvbc::messages::SKVBCWriteRequest writeReq;
+    // The expected values by the execution engine in the kv pair are strings
+    writeReq.writeset.emplace_back(CopyBytes("Account-1"), CopyBytes("100"));
+    writeReq.writeset.emplace_back(CopyBytes("Account-2"), CopyBytes("200"));
+    writeReq.writeset.emplace_back(CopyBytes("Account-3"), CopyBytes("300"));
+
+    skvbc::messages::SKVBCRequest req;
+    req.request = std::move(writeReq);
+
+    // Ensure we only wait for F+1 replies (ByzantineSafeQuorum)
+    bft::client::WriteConfig config{bft::client::RequestConfig{false, 1}, bft::client::ByzantineSafeQuorum{}};
+    config.request.timeout = 500ms;
+
+    bft::client::Msg reqBytes;
+    skvbc::messages::serialize(reqBytes, req);
+
+    // Test deserialize
+    {
+      skvbc::messages::SKVBCRequest req2;
+      skvbc::messages::deserialize(reqBytes, req2);
+      LOG_INFO(GL, "test desserialize id=" << req2.id);
+    }
+
+    auto replyBytes = client.send(config, std::move(reqBytes));  // Sync send
+
+    skvbc::messages::SKVBCReply reply;
+    skvbc::messages::deserialize(replyBytes.matched_data, reply);
+
+    const auto &writeReply = std::get<skvbc::messages::SKVBCWriteReply>(reply.reply);  // throws if unexpected variant
+    LOG_INFO(GL, "Got SKVBCWriteReply, success=" << writeReply.success << " latest_block=" << writeReply.latest_block);
+
+    // To-Do: Check written values
+
+    client.stop();
+
   } catch (const std::exception &e) {
     LOG_ERROR(GL, "Exception: " << e.what());
   }
