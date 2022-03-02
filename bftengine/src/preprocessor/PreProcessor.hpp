@@ -88,7 +88,6 @@ class RequestsBatch {
   void finalizeBatchIfCompleted();
   void handlePossiblyExpiredRequests();
   void sendCancelBatchedPreProcessingMsgToNonPrimaries(const ClientMsgsList &clientMsgs, NodeIdType destId);
-  void updateRegisteredBatchIfNeeded(const std::string &batchCid, const PreProcessReqMsgsList &preProcessReqs);
   uint64_t getBlockId() const { return cidToBlockid_.second; }
 
  private:
@@ -323,7 +322,7 @@ class PreProcessor {
   const ReplicaId myReplicaId_;
   const uint32_t maxPreExecResultSize_;
   const uint16_t numOfReplicas_;
-  const uint16_t numOfInternalClients_;
+  const uint16_t numOfClientProxies_;
   const bool clientBatchingEnabled_;
   inline static uint16_t clientMaxBatchSize_ = 0;
   concord::util::SimpleThreadPool threadPool_;

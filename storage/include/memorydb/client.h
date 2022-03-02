@@ -72,14 +72,14 @@ class Client : public IDBClient {
         map_([this](const Sliver &a, const Sliver &b) { return comp_(a, b); }) {}
 
   void init(bool readOnly = false) override;
-  concordUtils::Status get(const Sliver &_key, OUT Sliver &_outValue) const override;
-  concordUtils::Status get(const Sliver &_key, OUT char *&buf, uint32_t bufSize, OUT uint32_t &_size) const override;
+  concordUtils::Status get(const Sliver &_key, Sliver &_outValue) const override;
+  concordUtils::Status get(const Sliver &_key, char *&buf, uint32_t bufSize, uint32_t &_size) const override;
   concordUtils::Status has(const Sliver &_key) const override;
   virtual IDBClientIterator *getIterator() const override;
   virtual concordUtils::Status freeIterator(IDBClientIterator *_iter) const override;
   virtual concordUtils::Status put(const Sliver &_key, const Sliver &_value) override;
   virtual concordUtils::Status del(const Sliver &_key) override;
-  concordUtils::Status multiGet(const KeysVector &_keysVec, OUT ValuesVector &_valuesVec) override;
+  concordUtils::Status multiGet(const KeysVector &_keysVec, ValuesVector &_valuesVec) override;
   concordUtils::Status multiPut(const SetOfKeyValuePairs &_keyValueMap, bool sync = false) override;
   concordUtils::Status multiDel(const KeysVector &_keysVec) override;
   concordUtils::Status rangeDel(const Sliver &_beginKey, const Sliver &_endKey) override;

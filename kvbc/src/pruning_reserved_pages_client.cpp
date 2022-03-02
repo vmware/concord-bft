@@ -23,7 +23,7 @@ static char* data(std::vector<std::uint8_t>& v) { return reinterpret_cast<char*>
 static const char* cdata(const std::vector<std::uint8_t>& v) { return reinterpret_cast<const char*>(v.data()); }
 
 static std::uint32_t toSecondsCount(const std::chrono::seconds& s) {
-  if (s.count() <= 0 || s.count() > std::numeric_limits<std::uint32_t>::max()) {
+  if (s.count() > std::numeric_limits<std::uint32_t>::max()) {
     throw std::invalid_argument{"Invalid tick period (seconds) value"};
   }
   return static_cast<std::uint32_t>(s.count());
@@ -32,7 +32,7 @@ static std::uint32_t toSecondsCount(const std::chrono::seconds& s) {
 Agreement createAgreement(const std::chrono::seconds& tick_period,
                           std::uint64_t batch_blocks_num,
                           BlockId last_agreed_prunable_block_id) {
-  if (batch_blocks_num == 0 || last_agreed_prunable_block_id < INITIAL_GENESIS_BLOCK_ID) {
+  if (last_agreed_prunable_block_id < INITIAL_GENESIS_BLOCK_ID) {
     throw std::invalid_argument{"Invalid pruning agreement paramteres"};
   }
   return Agreement{toSecondsCount(tick_period), batch_blocks_num, last_agreed_prunable_block_id};

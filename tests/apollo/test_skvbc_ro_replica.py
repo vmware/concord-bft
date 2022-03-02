@@ -152,7 +152,6 @@ class SkvbcReadOnlyReplicaTest(ApolloTest):
                                 log.log_message(message_type="Replica" + str(ro_replica_id) + " : lastExecutedSeqNum:" + str(lastExecutedSeqNum))
                                 nursery.cancel_scope.cancel()
 
-    @unittest.skip("Unstable test - BC-17828")
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7)
     async def test_ro_replica_with_late_s3_start(self, bft_network):
@@ -185,7 +184,6 @@ class SkvbcReadOnlyReplicaTest(ApolloTest):
 
         await self._wait_for_st(bft_network, ro_replica_id)
 
-    @unittest.skip("Unstable test - BC-17828")
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7)
     async def test_ro_replica_with_s3_failures(self, bft_network):
@@ -217,7 +215,6 @@ class SkvbcReadOnlyReplicaTest(ApolloTest):
 
         await self._wait_for_st(bft_network, ro_replica_id)
 
-    @unittest.skip("Unstable test - BC-17828")
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd_prefix, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7)
     async def test_ro_replica_with_restart(self, bft_network):
