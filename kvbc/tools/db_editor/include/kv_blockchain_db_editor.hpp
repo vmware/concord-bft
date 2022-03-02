@@ -896,6 +896,11 @@ struct ResetMetadata {
     using storage::v2MerkleTree::STKeyManipulator;
     using storage::v2MerkleTree::MetadataKeyManipulator;
     using bftEngine::MetadataStorage;
+    // Buffer size used to store descriptors for lastExitFromView and lastNewView
+    // is configurable. Here we use a large buffer to read the object from persistence
+    // and get the actual object size in the DB. This actual size is used to
+    // re-write the default descriptors in resetMeatadata
+    bftEngine::ReplicaConfig::instance().setmaxExternalMessageSize(33554432);
     std::unique_ptr<DataStore> ds = std::make_unique<DBDataStore>(
         adapter.db()->asIDBClient(), 1024 * 4, std::make_shared<STKeyManipulator>(), true);
 
@@ -926,8 +931,6 @@ struct ResetMetadata {
     CheckpointMsg *cpm = p->getAndAllocateCheckpointMsgInCheckWindow(stableSeqNum);
     result["new bft mdt"] = std::to_string(isNewStorage);
     auto lastExecutedSn = p->getLastExecutedSeqNum();
-    bool hasDescriptorOfLastExitFromView = p->hasDescriptorOfLastExitFromView();
-    bool hasDescriptorOfLastNewView = p->hasDescriptorOfLastNewView();
     p->beginWriteTran();
     if (cpm && cpm->senderId() != repId) {
       cpm->setSenderId(repId);
@@ -944,8 +947,10 @@ struct ResetMetadata {
         }
       }
     }
-    if (hasDescriptorOfLastExitFromView) p->removeDescriptorOfLastExitFromView();
-    if (hasDescriptorOfLastNewView) p->removeDescriptorOfLastNewView();
+    p->checkAndClearDescriptorOfLastExitFromView();
+    p->checkAndClearDescriptorOfLastNewView();
+    p->setLastViewThatTransferredSeqNumbersFullyExecuted(0);
+    p->clearSeqNumWindow();
     p->endWriteTran();
     return toJson(result);
   }
