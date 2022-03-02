@@ -48,7 +48,7 @@ using concord::util::openssl_utils::kExpectedSHA256HashLengthInBytes;
 namespace concord {
 namespace kvbc {
 
-uint64_t KvbAppFilter::getOldestEventGroupId() const { return getValueFromLatestTable(kGlobalEgIdKeyOldest); }
+uint64_t KvbAppFilter::getOldestGlobalEventGroupId() const { return getValueFromLatestTable(kGlobalEgIdKeyOldest); }
 
 uint64_t KvbAppFilter::getNewestPublicEventGroupId() const { return getValueFromLatestTable(kPublicEgIdKeyNewest); }
 
@@ -65,7 +65,7 @@ std::optional<kvbc::categorization::EventGroup> KvbAppFilter::getNewestPublicEve
 }
 
 optional<BlockId> KvbAppFilter::getOldestEventGroupBlockId() {
-  uint64_t global_eg_id_oldest = getOldestEventGroupId();
+  uint64_t global_eg_id_oldest = getOldestGlobalEventGroupId();
   const auto opt = rostorage_->getLatestVersion(concord::kvbc::categorization::kExecutionEventGroupDataCategory,
                                                 concordUtils::toBigEndianStringBuffer(global_eg_id_oldest));
   if (not opt.has_value()) {
@@ -165,9 +165,14 @@ KvbFilteredUpdate KvbAppFilter::filterUpdate(const KvbUpdate &update) {
   return KvbFilteredUpdate{block_id, cid, filterKeyValuePairs(updates)};
 }
 
-KvbFilteredEventGroupUpdate KvbAppFilter::filterEventGroupUpdate(const EgUpdate &update) {
+std::optional<KvbFilteredEventGroupUpdate> KvbAppFilter::filterEventGroupUpdate(const EgUpdate &update) {
   auto &[event_group_id, event_group, _] = update;
-  return KvbFilteredEventGroupUpdate{event_group_id, filterEventsInEventGroup(event_group_id, event_group)};
+  KvbFilteredEventGroupUpdate filtered_update{event_group_id, filterEventsInEventGroup(event_group_id, event_group)};
+  // Ignore empty event groups
+  if (filtered_update.event_group.events.empty()) {
+    return std::nullopt;
+  }
+  return filtered_update;
 }
 
 string KvbAppFilter::hashUpdate(const KvbFilteredUpdate &update) {
@@ -334,7 +339,7 @@ TagTableValue KvbAppFilter::getValueFromTagTable(const std::string &key) const {
 
 // This function returns the oldest tag-specific public event group id that the user can request.
 // Due to pruning, it depends on the oldest public event group and the oldest tag-specific event group available.
-uint64_t KvbAppFilter::oldestTagSpecificPublicEventGroupId() const {
+uint64_t KvbAppFilter::oldestExternalEventGroupId() const {
   uint64_t public_oldest = getValueFromLatestTable(kPublicEgIdKeyOldest);
   uint64_t private_oldest = getValueFromLatestTable(client_id_ + "_oldest");
   if (!public_oldest && !private_oldest) return 0;
@@ -348,15 +353,15 @@ uint64_t KvbAppFilter::oldestTagSpecificPublicEventGroupId() const {
 
 // This function returns the newest tag-specific public event group id that the user can request.
 // Note that newest tag-specific event group ids will not be updated by pruning
-uint64_t KvbAppFilter::newestTagSpecificPublicEventGroupId() const {
+uint64_t KvbAppFilter::newestExternalEventGroupId() const {
   uint64_t public_newest = getValueFromLatestTable(kPublicEgIdKeyNewest);
   uint64_t private_newest = getValueFromLatestTable(client_id_ + "_newest");
   return public_newest + private_newest;
 }
 
 FindGlobalEgIdResult KvbAppFilter::findGlobalEventGroupId(uint64_t external_event_group_id) const {
-  auto external_oldest = oldestTagSpecificPublicEventGroupId();
-  auto external_newest = newestTagSpecificPublicEventGroupId();
+  auto external_oldest = oldestExternalEventGroupId();
+  auto external_newest = newestExternalEventGroupId();
   ConcordAssertNE(external_oldest, 0);  // Everything pruned or was never created
   ConcordAssertLE(external_oldest, external_event_group_id);
   ConcordAssertGE(external_newest, external_event_group_id);
@@ -449,8 +454,8 @@ void KvbAppFilter::readEventGroups(EventGroupId external_eg_id_start,
 
   uint64_t newest_public_eg_id = getNewestPublicEventGroupId();
   uint64_t newest_private_eg_id = getValueFromLatestTable(client_id_ + "_newest");
-  uint64_t oldest_external_eg_id = oldestTagSpecificPublicEventGroupId();
-  uint64_t newest_external_eg_id = newestTagSpecificPublicEventGroupId();
+  uint64_t oldest_external_eg_id = oldestExternalEventGroupId();
+  uint64_t newest_external_eg_id = newestExternalEventGroupId();
   if (not oldest_external_eg_id) {
     std::stringstream msg;
     msg << "Event groups do not exist for client: " << client_id_ << " yet.";
@@ -534,6 +539,8 @@ void KvbAppFilter::readEventGroups(EventGroupId external_eg_id_start,
     }
     ext_eg_id += 1;
   }
+  setNextExternalEgIdToRead(++ext_eg_id);
+  setLastGlobalEgIdReadForClient(global_eg_id);
 }
 
 void KvbAppFilter::readEventGroupRange(EventGroupId external_eg_id_start,
@@ -566,8 +573,8 @@ string KvbAppFilter::readBlockHash(BlockId block_id) {
 }
 
 string KvbAppFilter::readEventGroupHash(EventGroupId external_eg_id) {
-  uint64_t oldest_external_eg_id = oldestTagSpecificPublicEventGroupId();
-  uint64_t newest_external_eg_id = newestTagSpecificPublicEventGroupId();
+  uint64_t oldest_external_eg_id = oldestExternalEventGroupId();
+  uint64_t newest_external_eg_id = newestExternalEventGroupId();
   if (not oldest_external_eg_id) {
     std::stringstream msg;
     msg << "Event groups do not exist for client: " << client_id_ << " yet.";
@@ -592,6 +599,8 @@ string KvbAppFilter::readEventGroupHash(EventGroupId external_eg_id) {
     throw KvbReadError(msg.str());
   }
   KvbFilteredEventGroupUpdate filtered_update{external_eg_id, filterEventsInEventGroup(result.global_id, event_group)};
+  setLastGlobalEgIdReadForClient(result.global_id);
+  setNextExternalEgIdToRead(++external_eg_id);
   return hashEventGroupUpdate(filtered_update);
 }
 
@@ -620,7 +629,7 @@ string KvbAppFilter::readBlockRangeHash(BlockId block_id_start, BlockId block_id
 }
 
 string KvbAppFilter::readEventGroupRangeHash(EventGroupId external_eg_id_start) {
-  auto external_eg_id_end = newestTagSpecificPublicEventGroupId();
+  auto external_eg_id_end = newestExternalEventGroupId();
   string concatenated_hashes;
   concatenated_hashes.reserve((1 + external_eg_id_end - external_eg_id_start) * kExpectedSHA256HashLengthInBytes);
   auto process = [&](KvbFilteredEventGroupUpdate &&update) {
@@ -680,6 +689,14 @@ kvbc::categorization::EventGroup KvbAppFilter::getEventGroup(kvbc::EventGroupId 
   }
   return event_group_out;
 }
+
+void KvbAppFilter::setNextExternalEgIdToRead(uint64_t ext_eg_id) { next_ext_eg_id_to_read_ = ext_eg_id; }
+
+uint64_t KvbAppFilter::getNextExternalEgIdToRead() const { return next_ext_eg_id_to_read_; }
+
+void KvbAppFilter::setLastGlobalEgIdReadForClient(uint64_t global_eg_id) { last_global_eg_id_read_ = global_eg_id; }
+
+uint64_t KvbAppFilter::getLastGlobalEgIdReadForClient() const { return last_global_eg_id_read_; }
 
 }  // namespace kvbc
 }  // namespace concord
