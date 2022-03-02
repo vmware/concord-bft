@@ -336,12 +336,12 @@ TEST(kvbc_filter_test, kvbfilter_update_success_eg) {
   event2.tags = {"0"};
   event_group.events.emplace_back(event1);
   event_group.events.emplace_back(event2);
-
   const auto &filtered = kvb_filter.filterEventGroupUpdate({eg_id, event_group});
 
-  EXPECT_EQ(filtered.event_group_id, eg_id);
-  EXPECT_EQ(filtered.event_group.events.size(), 1);
-  EXPECT_EQ(filtered.event_group.events[0].data, "TridVal1");
+  EXPECT_TRUE(filtered.has_value());
+  EXPECT_EQ(filtered.value().event_group_id, eg_id);
+  EXPECT_EQ(filtered.value().event_group.events.size(), 1);
+  EXPECT_EQ(filtered.value().event_group.events[0].data, "TridVal1");
 }
 
 TEST(kvbc_filter_test, kvbfilter_update_message_empty_prefix) {
@@ -601,7 +601,7 @@ TEST(kvbc_filter_test, kvbfilter_get_oldest_tag_specific_eg_id_pvt) {
   auto kvb_filter = KvbAppFilter(&storage, client_id);
   size_t num_event_groups_to_fill = 5;
   storage.fillWithEventGroupData(num_event_groups_to_fill, client_id);
-  EXPECT_EQ(kvb_filter.oldestTagSpecificPublicEventGroupId(), 1);
+  EXPECT_EQ(kvb_filter.oldestExternalEventGroupId(), 1);
 }
 
 TEST(kvbc_filter_test, kvbfilter_get_oldest_tag_specific_eg_id_pub) {
@@ -610,7 +610,7 @@ TEST(kvbc_filter_test, kvbfilter_get_oldest_tag_specific_eg_id_pub) {
   auto kvb_filter = KvbAppFilter(&storage, client_id);
   size_t num_event_groups_to_fill = 5;
   storage.fillWithEventGroupData(num_event_groups_to_fill, kPublicEgIdKey);
-  EXPECT_EQ(kvb_filter.oldestTagSpecificPublicEventGroupId(), 1);
+  EXPECT_EQ(kvb_filter.oldestExternalEventGroupId(), 1);
 }
 
 TEST(kvbc_filter_test, kvbfilter_get_oldest_tag_specific_eg_id_pvt_pub) {
@@ -620,7 +620,7 @@ TEST(kvbc_filter_test, kvbfilter_get_oldest_tag_specific_eg_id_pvt_pub) {
   size_t num_event_groups_to_fill = 5;
   storage.fillWithEventGroupData(num_event_groups_to_fill, client_id);
   storage.fillWithEventGroupData(num_event_groups_to_fill, kPublicEgIdKey);
-  EXPECT_EQ(kvb_filter.oldestTagSpecificPublicEventGroupId(), 1);
+  EXPECT_EQ(kvb_filter.oldestExternalEventGroupId(), 1);
 }
 
 TEST(kvbc_filter_test, kvbfilter_start_block_greater_then_end_block) {
@@ -819,13 +819,13 @@ TEST(kvbc_filter_test, kvbfilter_success_hash_of_event_group) {
   EventGroupId eg_id_start = 1;
 
   auto hash_value = kvb_filter.readEventGroupHash(eg_id_start);
-  const auto &[eg_id, filtered] = kvb_filter.filterEventGroupUpdate(storage.eg_data_[0]);
-
-  EXPECT_EQ(eg_id, 1);
+  const auto &filtered = kvb_filter.filterEventGroupUpdate(storage.eg_data_[0]);
+  EXPECT_TRUE(filtered.has_value());
+  EXPECT_EQ(filtered.value().event_group_id, 1);
   std::string concatenated_entry_hashes;
-  concatenated_entry_hashes += blockIdToByteStringLittleEndian(eg_id);
+  concatenated_entry_hashes += blockIdToByteStringLittleEndian(filtered.value().event_group_id);
   std::set<std::string> entry_hashes;
-  for (const auto &event : filtered.events) {
+  for (const auto &event : filtered.value().event_group.events) {
     entry_hashes.emplace(computeSHA256Hash(event.data));
   }
   for (const auto &event_hash : entry_hashes) {

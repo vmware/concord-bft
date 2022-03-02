@@ -131,7 +131,7 @@ class KvbAppFilter {
   KvbFilteredUpdate filterUpdate(const KvbUpdate &update);
 
   // Filter event groups
-  KvbFilteredEventGroupUpdate filterEventGroupUpdate(const EgUpdate &update);
+  std::optional<KvbFilteredEventGroupUpdate> filterEventGroupUpdate(const EgUpdate &update);
   KvbFilteredEventGroupUpdate::EventGroup filterEventsInEventGroup(kvbc::EventGroupId event_group_id,
                                                                    const kvbc::categorization::EventGroup &event_group);
   // Compute hash for the given update
@@ -177,9 +177,9 @@ class KvbAppFilter {
 
   TagTableValue getValueFromTagTable(const std::string &key) const;
 
-  uint64_t oldestTagSpecificPublicEventGroupId() const;
+  uint64_t oldestExternalEventGroupId() const;
 
-  uint64_t newestTagSpecificPublicEventGroupId() const;
+  uint64_t newestExternalEventGroupId() const;
 
   // Given a tag-specific public (external) event group id, return the corresponding global event group id
   // Precondition: We expect that the requested external event group id exists in storage
@@ -189,7 +189,7 @@ class KvbAppFilter {
 
   // Return the oldest global event group id.
   // If no event group can be found then 0 (invalid group id) is returned.
-  uint64_t getOldestEventGroupId() const;
+  uint64_t getOldestGlobalEventGroupId() const;
 
   // Return the ID of the newest public event group.
   // If no event group can be found, then 0 is returned.
@@ -203,8 +203,17 @@ class KvbAppFilter {
   // Optional because during start-up there might be no block/event group written yet.
   std::optional<BlockId> getOldestEventGroupBlockId();
 
+  void setNextExternalEgIdToRead(uint64_t ext_eg_id);
+
+  uint64_t getNextExternalEgIdToRead() const;
+
+  void setLastGlobalEgIdReadForClient(uint64_t global_eg_id);
+
+  uint64_t getLastGlobalEgIdReadForClient() const;
+
  public:
   static inline const std::string kGlobalEgIdKeyOldest{"_global_eg_id_oldest"};
+  static inline const std::string kGlobalEgIdKeyNewest{"_global_eg_id_newest"};
   static inline const std::string kPublicEgIdKeyOldest{"_public_eg_id_oldest"};
   static inline const std::string kPublicEgIdKeyNewest{"_public_eg_id_newest"};
   static inline const std::string kPublicEgId{"_public_eg_id"};
@@ -217,6 +226,11 @@ class KvbAppFilter {
   logging::Logger logger_;
   const concord::kvbc::IReader *rostorage_{nullptr};
   const std::string client_id_;
+
+  // next external event group ID to be read
+  uint64_t next_ext_eg_id_to_read_{0};
+  // last global event group ID read
+  uint64_t last_global_eg_id_read_{0};
 };
 
 }  // namespace kvbc
