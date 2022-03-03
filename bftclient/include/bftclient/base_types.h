@@ -54,7 +54,7 @@ typedef std::vector<uint8_t> Msg;
 // `matched_data` contains any data that must be identical for a quorum of replicas
 // `rsi` contains replica specific information that was received for each replying replica.
 struct Reply {
-  uint32_t result;
+  uint32_t result = 0;
   Msg matched_data;
   std::map<ReplicaId, Msg> rsi;
 };

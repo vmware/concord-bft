@@ -64,6 +64,9 @@ ConcordClient::ConcordClient(int client_id)
 ConcordClient::~ConcordClient() noexcept = default;
 
 bft::client::Reply ConcordClient::SendRequest(const bft::client::WriteConfig& config, bft::client::Msg&& request) {
+  LOG_INFO(
+      logger_,
+      "Start request processing" << KVLOG(client_id_, config.request.sequence_number, config.request.correlation_id));
   bft::client::Reply res;
   clientRequestExecutionResult_ = OperationResult::SUCCESS;
   try {
@@ -78,13 +81,20 @@ bft::client::Reply ConcordClient::SendRequest(const bft::client::WriteConfig& co
                            << " has failed to invoke, timeout=" << config.request.timeout.count()
                            << " ms has been reached");
   }
-  LOG_DEBUG(logger_,
-            "Request has completed processing"
-                << KVLOG(client_id_, config.request.sequence_number, config.request.correlation_id));
+  if (res.result != static_cast<uint32_t>(OperationResult::SUCCESS))
+    clientRequestExecutionResult_ = static_cast<OperationResult>(res.result);
+  LOG_INFO(logger_,
+           "Request has completed processing" << KVLOG(client_id_,
+                                                       config.request.sequence_number,
+                                                       config.request.correlation_id,
+                                                       static_cast<uint32_t>(clientRequestExecutionResult_)));
   return res;
 }
 
 bft::client::Reply ConcordClient::SendRequest(const bft::client::ReadConfig& config, bft::client::Msg&& request) {
+  LOG_INFO(
+      logger_,
+      "Start request processing" << KVLOG(client_id_, config.request.sequence_number, config.request.correlation_id));
   bft::client::Reply res;
   clientRequestExecutionResult_ = OperationResult::SUCCESS;
   try {
@@ -99,9 +109,13 @@ bft::client::Reply ConcordClient::SendRequest(const bft::client::ReadConfig& con
                            << " has failed to invoke, timeout=" << config.request.timeout.count()
                            << " ms has been reached");
   }
-  LOG_DEBUG(logger_,
-            "Request has completed processing"
-                << KVLOG(client_id_, config.request.sequence_number, config.request.correlation_id));
+  if (res.result != static_cast<uint32_t>(OperationResult::SUCCESS))
+    clientRequestExecutionResult_ = static_cast<OperationResult>(res.result);
+  LOG_INFO(logger_,
+           "Request has completed processing" << KVLOG(client_id_,
+                                                       config.request.sequence_number,
+                                                       config.request.correlation_id,
+                                                       static_cast<uint32_t>(clientRequestExecutionResult_)));
   return res;
 }
 
