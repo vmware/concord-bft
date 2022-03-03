@@ -86,42 +86,46 @@ class BuildJson {
   inline BuildJson() {}
 
   // Start a root JSON object.
-  inline void startJson() { str += "\n{\n"; }
+  inline void startJson() { str += "{\n"; }
 
   // End the root JSON object.
   inline void endJson() {
-    if (str.size() >= 2 && str[str.size() - 2] == ',') {
+    if ((str.size() >= 2) && (str[str.size() - 2] == ',')) {
+      // If the previous clause wasn't empty, we added a comma and a newline;
+      // the comma needs to be removed since we are at the end of the generated JSON.
       str.erase(str.size() - 2, 1);
     }
-    str += "\n}\n";
+    str += "}";
   }
 
   // Start a nested JSON object.
-  inline void startNested(const std::string &key) { str += "\"" + key + "\" : {\n"; }
+  inline void startNested(const std::string &key) { str += "  \"" + key + "\" : {\n"; }
 
   // End a nested JSON object.
   inline void endNested() {
-    if (str.size() >= 2 && str[str.size() - 2] == ',') {
+    if ((str.size() >= 2) && (str[str.size() - 2] == ',')) {
+      // If the previous clause wasn't empty, we added a comma and a newline;
+      // the comma needs to be removed since we are at the end of the nested JSON clause.
       str.erase(str.size() - 2, 1);
     }
-    str += "\n},\n";
+    str += "},\n";
   }
 
   // Add a key and a string value to the current object.
   inline void addKv(const std::string &key, const std::string &value) {
-    str += "\"" + key + "\" : \"" + value + "\",\n";
+    str += "  \"" + key + "\" : \"" + value + "\",\n";
   }
 
   // Add a key and a non-string value to the current object.
   template <typename T>
   inline void addKv(const std::string &key, const T &value) {
-    str += "\"" + key + "\" : \"" + std::to_string(value) + "\",\n";
+    str += "  \"" + key + "\" : \"" + std::to_string(value) + "\",\n";
   }
 
   // Add a nested JSON object.  The "json" parameter is expected to be a
   // quoted JSON object in braces with no key prefix.
   inline void addNestedJson(const std::string &key, const std::string &json) {
-    str += "\"" + key + "\" : ";
+    str += "  \"" + key + "\" : ";
     str += json + ",\n";
   }
 
