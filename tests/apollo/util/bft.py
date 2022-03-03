@@ -1523,6 +1523,18 @@ class BftTestNetwork:
 
         return await self.wait_for(the_number_of_slow_path_requests, 5, .5)
 
+    async def last_db_checkpoint_block_id(self, replica_id=0):
+        """
+        Returns the block ID of the last RocksDB checkpoint
+        """
+        with log.start_action(action_type="last_db_checkpoint_block_id", replica_id=replica_id):
+            async def the_last_db_checkpoint_block_id():
+                metric_key = ['rocksdbCheckpoint', 'Gauges', 'lastDbCheckpointBlockId']
+                snapshot_id = await self.retrieve_metric(replica_id, *metric_key)
+                return snapshot_id
+
+        return await self.wait_for(the_last_db_checkpoint_block_id, 5, .5)
+
     async def check_initial_master_key_publication(self, replicas):
         with trio.fail_after(seconds=120):
             succ = False

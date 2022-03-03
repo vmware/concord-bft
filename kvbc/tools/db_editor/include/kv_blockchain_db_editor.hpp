@@ -872,12 +872,12 @@ struct ResetMetadata {
   const bool read_only = false;
   std::string description() const {
     return "resetMetadata REPLICA_ID\n"
-           "  resets BFT and State Transfer metadata for live replica restore"
-           "  REPLICA_ID - of the target replica"
-           "  F - the value of f in the original blockchain"
-           "  C - the value of c in the original blockchain"
-           "  principles - the number of principles in the original blockchain."
-           "  MAX_CLIENT_BATCH_SIZE - the maximal client's batch size in the original blockchain"
+           "  resets BFT and State Transfer metadata for live replica restore\n"
+           "  REPLICA_ID - of the target replica\n"
+           "  F - the value of f in the original blockchain\n"
+           "  C - the value of c in the original blockchain\n"
+           "  principles - the number of principles in the original blockchain.\n"
+           "  MAX_CLIENT_BATCH_SIZE - the maximal client's batch size in the original blockchain\n"
            "  Note that if latest 4 parameters is not provided, RSIs won't be removed from the metadata";
   }
 
