@@ -200,6 +200,8 @@ class ConcordClientPool {
     concordMetrics::GaugeHandle last_request_time_gauge;
     concordMetrics::GaugeHandle average_req_dur_gauge;
     concordMetrics::GaugeHandle average_batch_agg_dur_gauge;
+    concordMetrics::GaugeHandle average_cid_rcv_dur_gauge;
+    concordMetrics::GaugeHandle average_cid_finish_dur_gauge;
   } ClientPoolMetrics_;
 
   // Logger
@@ -211,6 +213,9 @@ class ConcordClientPool {
   std::unique_ptr<Timer_t> batch_timer_;
   bftEngine::impl::RollingAvgAndVar average_req_dur_;
   bftEngine::impl::RollingAvgAndVar batch_agg_dur_;
+  bftEngine::impl::RollingAvgAndVar average_cid_receive_dur_;
+  bftEngine::impl::RollingAvgAndVar average_cid_close_dur_;
+  std::unordered_map<std::string, std::chrono::steady_clock::time_point> cid_arrival_map_;
 };
 
 class BatchRequestProcessingJob : public concord::util::SimpleThreadPool::Job {
