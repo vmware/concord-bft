@@ -90,10 +90,12 @@ class BuildJson {
 
   // End the root JSON object.
   inline void endJson() {
-    if (str.size() >= 2 && str[str.size() - 2] == ',') {
+    if ((str.size() >= 2) && (str[str.size() - 2] == ',')) {
+      // If the previous clause wasn't empty, we added a comma and a newline;
+      // the comma needs to be removed since we are at the end of the generated JSON.
       str.erase(str.size() - 2, 1);
     }
-    str += "\n}\n";
+    str += "}\n";
   }
 
   // Start a nested JSON object.
@@ -101,10 +103,16 @@ class BuildJson {
 
   // End a nested JSON object.
   inline void endNested() {
-    if (str.size() >= 2 && str[str.size() - 2] == ',') {
+    if ((str.size() >= 2) && (str[str.size() - 2] == ',')) {
+      // If the previous clause wasn't empty, we added a comma and a newline;
+      // the comma needs to be removed since we are at the end of the nested JSON clause.
       str.erase(str.size() - 2, 1);
+    } else if ((str.size() >= 1) && (str[str.size() - 1] == '\n')) {
+      // If the previous clause was empty, we added a newline;
+      // it needs to be removed since we are at the end of the nested JSON clause.
+      str.erase(str.size() - 1, 1);
     }
-    str += "\n},\n";
+    str += "},\n";
   }
 
   // Add a key and a string value to the current object.
