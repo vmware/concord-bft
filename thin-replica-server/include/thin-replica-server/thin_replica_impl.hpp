@@ -364,6 +364,10 @@ class ThinReplicaImpl {
         LOG_WARN(logger_, "Requested update pruned in syncAndSend: " << error.what());
         CLEANUP_SUBSCRIPTION();
         return grpc::Status(grpc::StatusCode::NOT_FOUND, error.what());
+      } catch (StreamClosed& error) {
+        LOG_INFO(logger_, "StreamClosed in syncAndSend: " << error.what());
+        CLEANUP_SUBSCRIPTION();
+        return grpc::Status(grpc::StatusCode::CANCELLED, error.what());
       } catch (std::exception& error) {
         LOG_ERROR(logger_, error.what());
         CLEANUP_SUBSCRIPTION();
@@ -452,6 +456,10 @@ class ThinReplicaImpl {
       LOG_WARN(logger_, "Requested update pruned in syncAndSendEventGroups: " << error.what());
       CLEANUP_SUBSCRIPTION();
       return grpc::Status(grpc::StatusCode::NOT_FOUND, error.what());
+    } catch (StreamClosed& error) {
+      LOG_INFO(logger_, "StreamClosed in syncAndSendEventGroups: " << error.what());
+      CLEANUP_SUBSCRIPTION();
+      return grpc::Status(grpc::StatusCode::CANCELLED, error.what());
     } catch (std::exception& error) {
       LOG_ERROR(logger_, "Exception in syncAndSendEventGroups: " << error.what());
       CLEANUP_SUBSCRIPTION();
