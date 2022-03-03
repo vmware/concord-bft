@@ -637,7 +637,7 @@ bool ConcordClientPool::clusterHasKeys(ClientPtr &cl) {
   auto sn = now_ms.count();
   auto trueReply = std::string(KeyExchangeMsg::hasKeysTrueReply);
   bft::client::ReadConfig config;
-  config.request.max_reply_size = 32;
+  config.request.max_reply_size = 1024;
   config.request.correlation_id = std::string{"HAS-KEYS-"} + std::to_string(sn);
   config.request.key_exchange = true;
   config.request.timeout = std::chrono::milliseconds(60000);
