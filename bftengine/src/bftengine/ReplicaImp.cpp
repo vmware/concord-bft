@@ -1528,11 +1528,6 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
     return;
   }
 
-  if (auto *rpferMsg = std::get_if<RemovePendingForExecutionRequest>(&msg)) {
-    clientsManager->removePendingForExecutionRequest(rpferMsg->clientProxyId, rpferMsg->requestSeqNum);
-    return;
-  }
-
   // Handle vaidated messages
   if (auto *vldMsg = std::get_if<CarrierMesssage *>(&msg)) {
     return onCarrierMessage(*vldMsg);
