@@ -198,7 +198,7 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
   uint32_t getReplyFirstPageId(NodeIdType clientId) const { return getKeyPageId(clientId) + 1; }
 
   uint32_t getKeyPageId(NodeIdType clientId) const {
-    return (clientId - *clientIds_.cbegin()) * reservedPagesPerClient_;
+    return clientIdsToReservedPages_.at(clientId) * reservedPagesPerClient_;
   }
 
   const ReplicaId myId_;
@@ -226,6 +226,7 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
   std::set<NodeIdType> externalClients_;
   std::set<NodeIdType> internalClients_;
   std::set<NodeIdType> clientIds_;
+  std::map<NodeIdType, uint32_t> clientIdsToReservedPages_;
   std::unordered_map<NodeIdType, ClientInfo> clientsInfo_;
   const uint32_t maxReplySize_;
   const uint16_t maxNumOfReqsPerClient_;
