@@ -1478,8 +1478,11 @@ bool PreProcessor::registerRequestOnPrimaryReplica(const string &batchCid,
                                                    PreProcessRequestMsgSharedPtr &preProcessRequestMsg,
                                                    uint16_t reqOffsetInBatch,
                                                    RequestStateSharedPtr reqEntry) {
+  // save in local var cause we might use it (for metrics) after clientReqMsg obj is moved
+  const std::string reqCid = clientReqMsg->getCid();
+
   if (myReplica_.isCurrentPrimary()) {
-    metric_pre_exe_duration_.addStartTimeStamp(clientReqMsg->getCid());
+    metric_pre_exe_duration_.addStartTimeStamp(reqCid);
   }
 
   (reqEntry->reqRetryId)++;
@@ -1522,7 +1525,7 @@ bool PreProcessor::registerRequestOnPrimaryReplica(const string &batchCid,
                                                                       blockId));
   } else {
     // delete this cid from time stamp map cause registration failed
-    metric_pre_exe_duration_.deleteSingleEntry(clientReqMsg->getCid());
+    metric_pre_exe_duration_.deleteSingleEntry(reqCid);
   }
 
   return registerSucceeded;
