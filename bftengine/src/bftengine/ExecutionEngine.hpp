@@ -13,16 +13,12 @@
 
 #pragma once
 #include "Logger.hpp"
-#include "Bitmap.hpp"
 #include "bftengine/ReplicaConfig.hpp"
-#include "ClientsManager.hpp"
-#include "ReplicasInfo.hpp"
-#include "PersistentStorage.hpp"
-#include "TimeServiceManager.hpp"
 #include "callback_registry.hpp"
 #include "diagnostics.h"
 #include "Metrics.hpp"
 #include "thread_pool.hpp"
+#include "TimeServiceManager.hpp"
 
 #include <iterator>
 
@@ -33,19 +29,24 @@
 #define CLOCK_TYPE std::chrono::system_clock
 #endif
 namespace bftEngine::impl {
-class BftExecutionEngine {
+class Bitmap;
+class ClientsManager;
+class ReplicasInfo;
+class PersistentStorage;
+
+class ExecutionEngine {
  public:
-  BftExecutionEngine(std::shared_ptr<IRequestsHandler> requests_handler,
-                     std::shared_ptr<ClientsManager>,
-                     std::shared_ptr<ReplicasInfo> reps_info,
-                     std::shared_ptr<PersistentStorage> ps,
-                     std::shared_ptr<TimeServiceManager<CLOCK_TYPE>> time_service_manager,
-                     bool blockAccumulation,
-                     bool async);
+  ExecutionEngine(std::shared_ptr<IRequestsHandler> requests_handler,
+                  std::shared_ptr<ClientsManager>,
+                  std::shared_ptr<ReplicasInfo> reps_info,
+                  std::shared_ptr<PersistentStorage> ps,
+                  std::shared_ptr<TimeServiceManager<CLOCK_TYPE>> time_service_manager,
+                  bool blockAccumulation,
+                  bool async);
 
   virtual SeqNum addExecutions(const std::vector<PrePrepareMsg*>&);
   void addPostExecCallBack(std::function<void(PrePrepareMsg*, IRequestsHandler::ExecutionRequestsQueue&)> cb);
-  virtual ~BftExecutionEngine() = default;
+  virtual ~ExecutionEngine() = default;
   bool isExecuting() { return in_execution > 0; }
   void setRequestsMap(const Bitmap& requestsMap) { requestsMap_ = requestsMap; }
   void onExecutionComplete(SeqNum sn) {
@@ -56,7 +57,7 @@ class BftExecutionEngine {
 
  private:
   logging::Logger& getLogger() const {
-    static logging::Logger logger = logging::getLogger("bftEngine.impl.BasicBftExecutionEngine");
+    static logging::Logger logger = logging::getLogger("bftEngine.impl.BasicExecutionEngine");
     return logger;
   }
 
@@ -91,14 +92,14 @@ class BftExecutionEngine {
   ExecutionMetrics metrics_;
 };
 
-class SkipAndSendExecutionEngine : public BftExecutionEngine {
+class SkipAndSendExecutionEngine : public ExecutionEngine {
  public:
   SkipAndSendExecutionEngine(std::shared_ptr<IRequestsHandler> requests_handler,
                              std::shared_ptr<ClientsManager> client_manager,
                              std::shared_ptr<ReplicasInfo> reps_info,
                              std::shared_ptr<PersistentStorage> ps,
                              std::shared_ptr<TimeServiceManager<CLOCK_TYPE>> time_service_manager)
-      : BftExecutionEngine{requests_handler, client_manager, reps_info, ps, time_service_manager, false, false} {}
+      : ExecutionEngine{requests_handler, client_manager, reps_info, ps, time_service_manager, false, false} {}
   SeqNum addExecutions(const std::vector<PrePrepareMsg*>& ppMsgs) override;
 
  private:

@@ -16,10 +16,15 @@
 #include "ControlStateManager.hpp"
 #include "performance_handler.h"
 #include <utility>
-#include "BftExecutionEngine.hpp"
+#include "ExecutionEngine.hpp"
 #include "messages/ClientRequestMsg.hpp"
 #include "serialize.hpp"
 #include "assertUtils.hpp"
+#include "Bitmap.hpp"
+#include "ClientsManager.hpp"
+#include "ReplicasInfo.hpp"
+#include "PersistentStorage.hpp"
+
 namespace bftEngine::impl {
 
 typedef std::iterator<std::input_iterator_tag,
@@ -81,13 +86,13 @@ class RequestsSelector {
   std::unique_ptr<RequestIterator> end_;
 };
 
-BftExecutionEngine::BftExecutionEngine(std::shared_ptr<IRequestsHandler> requests_handler,
-                                       std::shared_ptr<ClientsManager> client_manager,
-                                       std::shared_ptr<ReplicasInfo> reps_info,
-                                       std::shared_ptr<PersistentStorage> ps,
-                                       std::shared_ptr<TimeServiceManager<CLOCK_TYPE>> time_service_manager,
-                                       bool blockAccumulation,
-                                       bool async)
+ExecutionEngine::ExecutionEngine(std::shared_ptr<IRequestsHandler> requests_handler,
+                                 std::shared_ptr<ClientsManager> client_manager,
+                                 std::shared_ptr<ReplicasInfo> reps_info,
+                                 std::shared_ptr<PersistentStorage> ps,
+                                 std::shared_ptr<TimeServiceManager<CLOCK_TYPE>> time_service_manager,
+                                 bool blockAccumulation,
+                                 bool async)
     : requests_handler_{requests_handler},
       config_{bftEngine::ReplicaConfig::instance()},
       clients_manager_{client_manager},
@@ -97,7 +102,7 @@ BftExecutionEngine::BftExecutionEngine(std::shared_ptr<IRequestsHandler> request
       block_accumulation_{blockAccumulation} {
   if (async) thread_pool_ = std::make_shared<concord::util::ThreadPool>(1);
 }
-Bitmap BftExecutionEngine::filterRequests(const PrePrepareMsg& ppMsg) {
+Bitmap ExecutionEngine::filterRequests(const PrePrepareMsg& ppMsg) {
   if (!requestsMap_.isEmpty()) return requestsMap_;
   const uint16_t numOfRequests = ppMsg.numberOfRequests();
   Bitmap requestSet(numOfRequests);
@@ -139,7 +144,7 @@ Bitmap BftExecutionEngine::filterRequests(const PrePrepareMsg& ppMsg) {
   }
   return requestSet;
 }
-std::deque<IRequestsHandler::ExecutionRequest> BftExecutionEngine::collectRequests(const PrePrepareMsg& ppMsg) {
+std::deque<IRequestsHandler::ExecutionRequest> ExecutionEngine::collectRequests(const PrePrepareMsg& ppMsg) {
   metrics_.numRequestsInPrePrepareMsg->record(ppMsg.numberOfRequests());
   auto requestSet = filterRequests(ppMsg);
   if (!requestsMap_.isEmpty()) requestSet += requestsMap_;
@@ -153,6 +158,7 @@ std::deque<IRequestsHandler::ExecutionRequest> BftExecutionEngine::collectReques
     ClientRequestMsg req(reinterpret_cast<ClientRequestMsgHeader*>(requestBody));
 
     if (!requestSet.get(tmp) || req.requestLength() == 0) {
+      clients_manager_->removePendingForExecutionRequest(req.clientProxyId(), req.requestSeqNum());
       continue;
     }
     auto sn = ppMsg.seqNumber();
@@ -192,12 +198,12 @@ std::deque<IRequestsHandler::ExecutionRequest> BftExecutionEngine::collectReques
   }
   return accumulatedRequests;
 }
-void BftExecutionEngine::addPostExecCallBack(
+void ExecutionEngine::addPostExecCallBack(
     std::function<void(PrePrepareMsg*, IRequestsHandler::ExecutionRequestsQueue&)> cb) {
   post_exec_handlers_.add(std::move(cb));
 }
-void BftExecutionEngine::execute(std::deque<IRequestsHandler::ExecutionRequest>& accumulatedRequests,
-                                 Timestamp& timestamp) {
+void ExecutionEngine::execute(std::deque<IRequestsHandler::ExecutionRequest>& accumulatedRequests,
+                              Timestamp& timestamp) {
   const std::string cid = accumulatedRequests.back().cid;
   const auto sn = accumulatedRequests.front().executionSequenceNum;
   concordUtils::SpanWrapper span_wrapper{};
@@ -216,7 +222,7 @@ void BftExecutionEngine::execute(std::deque<IRequestsHandler::ExecutionRequest>&
     accumulatedRequests.insert(accumulatedRequests.end(), data.begin(), data.end());
   }
 }
-void BftExecutionEngine::loadTime(SeqNum sn) {
+void ExecutionEngine::loadTime(SeqNum sn) {
   if (config_.timeServiceEnabled) {
     timestamps[sn].time_since_epoch = time_service_manager_->compareAndUpdate(timestamps[sn].time_since_epoch);
     LOG_INFO(getLogger(),
@@ -224,7 +230,7 @@ void BftExecutionEngine::loadTime(SeqNum sn) {
   }
 }
 using namespace concord::diagnostics;
-SeqNum BftExecutionEngine::addExecutions(const vector<PrePrepareMsg*>& ppMsgs) {
+SeqNum ExecutionEngine::addExecutions(const vector<PrePrepareMsg*>& ppMsgs) {
   SeqNum sn = 0;
   for (auto* ppMsg : ppMsgs) {
     sn = ppMsg->seqNumber();
