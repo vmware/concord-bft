@@ -32,9 +32,34 @@ using std::string;
 using namespace skvbc::messages;
 using namespace bft::client;
 
-std::vector<uint8_t> StrToBytes(const char *str) {
-  return str ? std::vector<uint8_t>(str, str + strlen(str)) : std::vector<uint8_t>{};
+class Account {
+ public:
+  Account(std::string id) : id_(std::move(id)) {}
+
+  const std::string getId() const { return id_; }
+
+  int getBalancePublic() const { return publicBalance_; }
+
+  void depositPublic(int val) { publicBalance_ += val; }
+
+  int withdrawPublic(int val) {
+    val = std::min<int>(publicBalance_, val);
+    publicBalance_ -= val;
+    return val;
+  }
+
+ private:
+  std::string id_;
+  int publicBalance_ = 0;
+  // To-Do: add UTT wallet
+};
+
+uint64_t nextSeqNum() {
+  static uint64_t nextSeqNum = 1;
+  return nextSeqNum++;
 }
+
+std::vector<uint8_t> StrToBytes(const std::string &str) { return std::vector<uint8_t>(str.begin(), str.end()); }
 
 std::string BytesToStr(const std::vector<uint8_t> &bytes) { return std::string{bytes.begin(), bytes.end()}; }
 
@@ -123,6 +148,11 @@ int main(int argc, char **argv) {
       exit(-1);
     }
 
+    std::vector<Account> accounts;
+    accounts.emplace_back("Account_1");
+    accounts.emplace_back("Account_2");
+    accounts.emplace_back("Account_3");
+
     SharedCommPtr comm = SharedCommPtr(setupCommunicationParams(clientParams));
 
     ClientConfig clientConfig;
@@ -134,23 +164,23 @@ int main(int argc, char **argv) {
 
     Client client(comm, clientConfig);
 
-    // To-Do: Introduce request sequence number generator -- the requests have
-    // hardcoded sequences
-
-    // Write some kv pairs to the BC
+    // Deposit initial balances
     {
+      std::vector<int> deposits = {88, 99, 101};
+
       SKVBCWriteRequest writeReq;
       // The expected values by the execution engine in the kv pair are strings
-      writeReq.writeset.emplace_back(StrToBytes("Account_1"), StrToBytes("100"));
-      writeReq.writeset.emplace_back(StrToBytes("Account_2"), StrToBytes("200"));
-      writeReq.writeset.emplace_back(StrToBytes("Account_3"), StrToBytes("300"));
+      for (int i = 0; i < 3; ++i)
+        writeReq.writeset.emplace_back(StrToBytes(accounts[i].getId()), StrToBytes(std::to_string(deposits[i])));
 
       SKVBCRequest req;
       req.request = std::move(writeReq);
 
       // Ensure we only wait for F+1 replies (ByzantineSafeQuorum)
-      WriteConfig writeConf{RequestConfig{false, 1}, ByzantineSafeQuorum{}};
-      writeConf.request.timeout = 500ms;
+      WriteConfig writeConf{RequestConfig{false, nextSeqNum()}, ByzantineSafeQuorum{}};
+      // To-Do: the request fails with only 500ms timeout, but maybe that's due to
+      // initialization of the database
+      writeConf.request.timeout = 5000ms;
 
       Msg reqBytes;
       serialize(reqBytes, req);
@@ -162,22 +192,24 @@ int main(int argc, char **argv) {
       const auto &writeReply = std::get<SKVBCWriteReply>(reply.reply);  // throws if unexpected variant
       LOG_INFO(GL,
                "Got SKVBCWriteReply, success=" << writeReply.success << " latest_block=" << writeReply.latest_block);
+
+      if (writeReply.success) {
+        for (int i = 0; i < 3; ++i) accounts[i].depositPublic(deposits[i]);
+      }
     }
 
-    // Read back written values
+    // Read back the account balances
     {
       SKVBCReadRequest readReq;
       readReq.read_version = 1;
       // The expected values by the execution engine in the kv pair are strings
-      readReq.keys.emplace_back(StrToBytes("Account_1"));
-      readReq.keys.emplace_back(StrToBytes("Account_2"));
-      readReq.keys.emplace_back(StrToBytes("Account_3"));
+      for (const auto &account : accounts) readReq.keys.emplace_back(StrToBytes(account.getId()));
 
       SKVBCRequest req;
       req.request = std::move(readReq);
 
       // Ensure we wait for 2F+1 replies
-      ReadConfig readConf{RequestConfig{false, 2}, LinearizableQuorum{}};
+      ReadConfig readConf{RequestConfig{false, nextSeqNum()}, LinearizableQuorum{}};
       readConf.request.timeout = 500ms;
 
       Msg reqBytes;
@@ -189,8 +221,21 @@ int main(int argc, char **argv) {
 
       const auto &readReply = std::get<SKVBCReadReply>(reply.reply);  // throws if unexpected variant
       LOG_INFO(GL, "Got SKVBCReadReply with reads:");
-      for (const auto &kvp : readReply.reads)
-        LOG_INFO(GL, '\t' << BytesToStr(kvp.first) << " : " << BytesToStr(kvp.second));
+
+      for (const auto &kvp : readReply.reads) {
+        auto accountId = BytesToStr(kvp.first);
+        auto publicBalanceStr = BytesToStr(kvp.second);
+        int publicBalance = std::atoi(publicBalanceStr.c_str());
+
+        LOG_INFO(GL, '\t' << accountId << " : " << publicBalance);
+
+        // Assert we got the same balance values that we wrote
+        auto it = std::find_if(
+            accounts.begin(), accounts.end(), [&](const Account &account) { return account.getId() == accountId; });
+
+        ConcordAssert(it != accounts.end());
+        ConcordAssert(it->getBalancePublic() == publicBalance);
+      }
     }
 
     client.stop();
