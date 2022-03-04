@@ -58,7 +58,11 @@ ClientsManager::ClientsManager(const std::set<NodeIdType>& proxyClients,
   clientIds_.insert(externalClients_.begin(), externalClients_.end());
   clientIds_.insert(internalClients_.begin(), internalClients_.end());
   ConcordAssert(clientIds_.size() >= 1);
-
+  uint32_t rpage = 0;
+  for (const auto cid : clientIds_) {
+    clientIdsToReservedPages_.emplace(cid, rpage);
+    rpage++;
+  }
   // For the benefit of code accessing clientsInfo_, pre-fill cliensInfo_ with a blank entry for each client to reduce
   // ambiguity between invalid client IDs and valid client IDs for which nothing stored in clientsInfo_ has been loaded
   // so far.
