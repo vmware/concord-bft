@@ -19,8 +19,6 @@
 #include <sys/param.h>
 #include <unistd.h>
 
-#include "basicRandomTestsRunner.hpp"
-#include "KVBCInterfaces.h"
 #include "config/test_comm_config.hpp"
 #include "config/test_parameters.hpp"
 #include "communication/CommFactory.hpp"
@@ -30,16 +28,15 @@
 
 using namespace bftEngine;
 using namespace bft::communication;
-using concord::kvbc::test::BasicRandomTestsRunner;
-
 using std::string;
+using namespace skvbc::messages;
+using namespace bft::client;
 
-using concord::kvbc::BlockId;
-using concord::kvbc::ClientConfig;
-
-std::vector<uint8_t> CopyBytes(const char *str) {
+std::vector<uint8_t> StrToBytes(const char *str) {
   return str ? std::vector<uint8_t>(str, str + strlen(str)) : std::vector<uint8_t>{};
 }
+
+std::string BytesToStr(const std::vector<uint8_t> &bytes) { return std::string{bytes.begin(), bytes.end()}; }
 
 ClientParams setupClientParams(int argc, char **argv) {
   ClientParams clientParams;
@@ -115,14 +112,6 @@ ICommunication *setupCommunicationParams(ClientParams &cp) {
   return CommFactory::create(conf);
 }
 
-ClientConfig setupConsensusParams(ClientParams &clientParams) {
-  ClientConfig clientConfig;
-  clientConfig.clientId = clientParams.clientId;
-  clientConfig.fVal = clientParams.numOfFaulty;
-  clientConfig.cVal = clientParams.numOfSlow;
-  return clientConfig;
-}
-
 int main(int argc, char **argv) {
   try {
     logging::initLogger("logging.properties");
@@ -134,60 +123,75 @@ int main(int argc, char **argv) {
       exit(-1);
     }
 
-    // This is the test fixture
-    // BasicRandomTestsRunner testsRunner(
-    //     concord::kvbc::createClient(setupConsensusParams(clientParams), setupCommunicationParams(clientParams)));
-    // testsRunner.run(clientParams.numOfOperations);
+    SharedCommPtr comm = SharedCommPtr(setupCommunicationParams(clientParams));
 
-    // Create and run some commmands from a bft client
-
-    // unique_ptr<FakeCommunication> comm(new FakeCommunication(WriteBehavior));
-
-    bft::client::SharedCommPtr comm = bft::client::SharedCommPtr(setupCommunicationParams(clientParams));
-
-    bft::client::ClientConfig clientConfig;
+    ClientConfig clientConfig;
     clientConfig.f_val = clientParams.numOfFaulty;
-    for (uint16_t i = 0; i < clientParams.numOfReplicas; ++i)
-      clientConfig.all_replicas.emplace(bft::client::ReplicaId{i});
-    clientConfig.id = bft::client::ClientId{clientParams.clientId};
+    for (uint16_t i = 0; i < clientParams.numOfReplicas; ++i) clientConfig.all_replicas.emplace(ReplicaId{i});
+    clientConfig.id = ClientId{clientParams.clientId};
 
     LOG_INFO(GL, "Starting bft client id=" << clientConfig.id.val);
 
-    bft::client::Client client(comm, clientConfig);
+    Client client(comm, clientConfig);
 
-    // Write account balances as kv pairs
-    skvbc::messages::SKVBCWriteRequest writeReq;
-    // The expected values by the execution engine in the kv pair are strings
-    writeReq.writeset.emplace_back(CopyBytes("Account-1"), CopyBytes("100"));
-    writeReq.writeset.emplace_back(CopyBytes("Account-2"), CopyBytes("200"));
-    writeReq.writeset.emplace_back(CopyBytes("Account-3"), CopyBytes("300"));
+    // To-Do: Introduce request sequence number generator -- the requests have
+    // hardcoded sequences
 
-    skvbc::messages::SKVBCRequest req;
-    req.request = std::move(writeReq);
-
-    // Ensure we only wait for F+1 replies (ByzantineSafeQuorum)
-    bft::client::WriteConfig config{bft::client::RequestConfig{false, 1}, bft::client::ByzantineSafeQuorum{}};
-    config.request.timeout = 500ms;
-
-    bft::client::Msg reqBytes;
-    skvbc::messages::serialize(reqBytes, req);
-
-    // Test deserialize
+    // Write some kv pairs to the BC
     {
-      skvbc::messages::SKVBCRequest req2;
-      skvbc::messages::deserialize(reqBytes, req2);
-      LOG_INFO(GL, "test desserialize id=" << req2.id);
+      SKVBCWriteRequest writeReq;
+      // The expected values by the execution engine in the kv pair are strings
+      writeReq.writeset.emplace_back(StrToBytes("Account_1"), StrToBytes("100"));
+      writeReq.writeset.emplace_back(StrToBytes("Account_2"), StrToBytes("200"));
+      writeReq.writeset.emplace_back(StrToBytes("Account_3"), StrToBytes("300"));
+
+      SKVBCRequest req;
+      req.request = std::move(writeReq);
+
+      // Ensure we only wait for F+1 replies (ByzantineSafeQuorum)
+      WriteConfig writeConf{RequestConfig{false, 1}, ByzantineSafeQuorum{}};
+      writeConf.request.timeout = 500ms;
+
+      Msg reqBytes;
+      serialize(reqBytes, req);
+      auto replyBytes = client.send(writeConf, std::move(reqBytes));  // Sync send
+
+      SKVBCReply reply;
+      deserialize(replyBytes.matched_data, reply);
+
+      const auto &writeReply = std::get<SKVBCWriteReply>(reply.reply);  // throws if unexpected variant
+      LOG_INFO(GL,
+               "Got SKVBCWriteReply, success=" << writeReply.success << " latest_block=" << writeReply.latest_block);
     }
 
-    auto replyBytes = client.send(config, std::move(reqBytes));  // Sync send
+    // Read back written values
+    {
+      SKVBCReadRequest readReq;
+      readReq.read_version = 1;
+      // The expected values by the execution engine in the kv pair are strings
+      readReq.keys.emplace_back(StrToBytes("Account_1"));
+      readReq.keys.emplace_back(StrToBytes("Account_2"));
+      readReq.keys.emplace_back(StrToBytes("Account_3"));
 
-    skvbc::messages::SKVBCReply reply;
-    skvbc::messages::deserialize(replyBytes.matched_data, reply);
+      SKVBCRequest req;
+      req.request = std::move(readReq);
 
-    const auto &writeReply = std::get<skvbc::messages::SKVBCWriteReply>(reply.reply);  // throws if unexpected variant
-    LOG_INFO(GL, "Got SKVBCWriteReply, success=" << writeReply.success << " latest_block=" << writeReply.latest_block);
+      // Ensure we wait for 2F+1 replies
+      ReadConfig readConf{RequestConfig{false, 2}, LinearizableQuorum{}};
+      readConf.request.timeout = 500ms;
 
-    // To-Do: Check written values
+      Msg reqBytes;
+      serialize(reqBytes, req);
+      auto replyBytes = client.send(readConf, std::move(reqBytes));  // Sync send
+
+      SKVBCReply reply;
+      deserialize(replyBytes.matched_data, reply);
+
+      const auto &readReply = std::get<SKVBCReadReply>(reply.reply);  // throws if unexpected variant
+      LOG_INFO(GL, "Got SKVBCReadReply with reads:");
+      for (const auto &kvp : readReply.reads)
+        LOG_INFO(GL, '\t' << BytesToStr(kvp.first) << " : " << BytesToStr(kvp.second));
+    }
 
     client.stop();
 
