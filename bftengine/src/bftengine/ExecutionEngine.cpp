@@ -158,7 +158,6 @@ std::deque<IRequestsHandler::ExecutionRequest> ExecutionEngine::collectRequests(
     ClientRequestMsg req(reinterpret_cast<ClientRequestMsgHeader*>(requestBody));
 
     if (!requestSet.get(tmp) || req.requestLength() == 0) {
-      clients_manager_->removePendingForExecutionRequest(req.clientProxyId(), req.requestSeqNum());
       continue;
     }
     auto sn = ppMsg.seqNumber();
