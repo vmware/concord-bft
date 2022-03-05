@@ -33,6 +33,7 @@ TEST(msg_receiver_tests, unmatched_replies_returned_no_rsi) {
   header->reqSeqNum = 100;
   header->replyLength = data_len;
   header->replicaSpecificInfoLength = 0;
+  header->result = 7;
 
   // Handle the message
   auto source = 1;
@@ -159,12 +160,14 @@ TEST(matcher_tests, wait_for_1_out_of_1) {
   auto rsi = ReplicaSpecificInfo{source, {'r', 's', 'i'}};
 
   ReplicaId primary{1};
-  UnmatchedReply reply{ReplyMetadata{primary, seq_num}, msg, rsi};
+  uint32_t result = 7;
+  UnmatchedReply reply{ReplyMetadata{primary, seq_num, result}, msg, rsi};
   auto match = matcher.onReply(std::move(reply));
   ASSERT_TRUE(match.has_value());
   ASSERT_EQ(match.value().reply.matched_data, msg);
   ASSERT_EQ(match.value().reply.rsi[source], rsi.data);
   ASSERT_EQ(match.value().primary.value(), primary);
+  ASSERT_EQ(match.value().reply.result, result);
 }
 
 TEST(matcher_tests, wait_for_3_out_of_4) {
