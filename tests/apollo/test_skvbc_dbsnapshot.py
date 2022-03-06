@@ -834,6 +834,7 @@ class SkvbcDbSnapshotTest(ApolloTest):
             rsi_resp = cmf_msgs.ReconfigurationResponse.deserialize(ser_rsi)[0]
             self.assertEqual(rsi_resp.response.status, cmf_msgs.SnapshotResponseStatus.SnapshotNonExistent)
 
+    @unittest.skip("Disable until fixed")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability()
