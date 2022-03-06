@@ -5648,13 +5648,10 @@ void ReplicaImp::sendResponses(PrePrepareMsg *ppMsg, IRequestsHandler::Execution
       continue;
     }
     if (executionResult != 0) {
-      LOG_WARN(GL,
-               "Request execution failed: " << KVLOG(req.clientId,
-                                                     req.requestSequenceNum,
-                                                     ppMsg->getCid(),
-                                                     req.outExecutionStatus,
-                                                     req.outReply,
-                                                     req.outActualReplySize));
+      LOG_WARN(
+          GL,
+          "Request execution failed: " << KVLOG(
+              req.clientId, req.requestSequenceNum, ppMsg->getCid(), req.outExecutionStatus, req.outActualReplySize));
     } else {
       if (req.flags & HAS_PRE_PROCESSED_FLAG) metric_total_preexec_requests_executed_++;
       if (req.outActualReplySize != 0) {
