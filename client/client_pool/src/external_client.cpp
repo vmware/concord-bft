@@ -66,7 +66,7 @@ ConcordClient::~ConcordClient() noexcept = default;
 bft::client::Reply ConcordClient::SendRequest(const bft::client::WriteConfig& config, bft::client::Msg&& request) {
   LOG_INFO(
       logger_,
-      "Start request processing" << KVLOG(client_id_, config.request.sequence_number, config.request.correlation_id));
+      "Request processing started" << KVLOG(client_id_, config.request.sequence_number, config.request.correlation_id));
   bft::client::Reply res;
   clientRequestExecutionResult_ = OperationResult::SUCCESS;
   try {
@@ -86,17 +86,17 @@ bft::client::Reply ConcordClient::SendRequest(const bft::client::WriteConfig& co
   if (res.result != static_cast<uint32_t>(OperationResult::SUCCESS))
     clientRequestExecutionResult_ = static_cast<OperationResult>(res.result);
   LOG_INFO(logger_,
-           "Request has completed processing" << KVLOG(client_id_,
-                                                       config.request.sequence_number,
-                                                       config.request.correlation_id,
-                                                       static_cast<uint32_t>(clientRequestExecutionResult_)));
+           "Request processing completed" << KVLOG(client_id_,
+                                                   config.request.sequence_number,
+                                                   config.request.correlation_id,
+                                                   static_cast<uint32_t>(clientRequestExecutionResult_)));
   return res;
 }
 
 bft::client::Reply ConcordClient::SendRequest(const bft::client::ReadConfig& config, bft::client::Msg&& request) {
   LOG_INFO(
       logger_,
-      "Start request processing" << KVLOG(client_id_, config.request.sequence_number, config.request.correlation_id));
+      "Request processing started" << KVLOG(client_id_, config.request.sequence_number, config.request.correlation_id));
   bft::client::Reply res;
   clientRequestExecutionResult_ = OperationResult::SUCCESS;
   try {
@@ -116,10 +116,10 @@ bft::client::Reply ConcordClient::SendRequest(const bft::client::ReadConfig& con
   if (res.result != static_cast<uint32_t>(OperationResult::SUCCESS))
     clientRequestExecutionResult_ = static_cast<OperationResult>(res.result);
   LOG_INFO(logger_,
-           "Request has completed processing" << KVLOG(client_id_,
-                                                       config.request.sequence_number,
-                                                       config.request.correlation_id,
-                                                       static_cast<uint32_t>(clientRequestExecutionResult_)));
+           "Request processing completed" << KVLOG(client_id_,
+                                                   config.request.sequence_number,
+                                                   config.request.correlation_id,
+                                                   static_cast<uint32_t>(clientRequestExecutionResult_)));
   return res;
 }
 
@@ -182,26 +182,42 @@ std::pair<int32_t, ConcordClient::PendingReplies> ConcordClient::SendPendingRequ
     cid_before_send_map_[req.cid] = std::chrono::steady_clock::now();
   }
   try {
-    auto res = new_client_->sendBatch(request_queue, batch_cid);
-    for (const auto& rep : res) {
-      auto cid = seq_num_to_cid.find(rep.first)->second;
+    LOG_INFO(logger_, "Batch processing started" << KVLOG(client_id_, batch_cid));
+    auto received_replies_map = new_client_->sendBatch(request_queue, batch_cid);
+    for (const auto& received_reply_entry : received_replies_map) {
+      const auto received_reply_seq_num = received_reply_entry.first;
+      const auto& pending_seq_num_to_cid_entry = seq_num_to_cid.find(received_reply_seq_num);
+      if (pending_seq_num_to_cid_entry == seq_num_to_cid.end()) {
+        LOG_ERROR(logger_,
+                  "Received reply for a non pending for reply request"
+                      << KVLOG(client_id_, batch_cid, received_reply_seq_num));
+        continue;
+      }
+      auto cid = pending_seq_num_to_cid_entry->second;
       cid_response_map_[cid] = std::chrono::steady_clock::now();
-      auto data_size = rep.second.matched_data.size();
-      for (auto& reply : pending_replies_) {
-        if (reply.cid != cid) continue;
-        if (reply.cb) {
-          auto result = bftEngine::SendResult{rep.second};
-          reply.cb(std::move(result));
-          LOG_DEBUG(logger_, "Request processing via callback completed " << KVLOG(client_id_, batch_cid, reply.cid));
+      auto data_size = received_reply_entry.second.matched_data.size();
+      for (auto& pending_reply : pending_replies_) {
+        if (pending_reply.cid != cid) continue;
+        auto response = received_reply_entry.second.result ? bftEngine::SendResult{received_reply_entry.second.result}
+                                                           : bftEngine::SendResult{received_reply_entry.second};
+        if (pending_reply.cb) {
+          pending_reply.cb(move(response));
+          LOG_INFO(logger_,
+                   "Request processing completed; return response through the callback"
+                       << KVLOG(client_id_, batch_cid, pending_reply.cid, received_reply_entry.second.result));
         } else {
-          // TODO: Used for testing only
-          if (data_size > reply.lengthOfReplyBuffer) {
-            LOG_WARN(logger_, "Reply too big " << KVLOG(client_id_, cid, reply.lengthOfReplyBuffer, data_size));
+          // Used for testing only
+          if (data_size > pending_reply.lengthOfReplyBuffer) {
+            LOG_WARN(logger_,
+                     "Reply is too big" << KVLOG(client_id_, cid, pending_reply.lengthOfReplyBuffer, data_size));
             continue;
           }
-          memcpy(reply.replyBuffer, rep.second.matched_data.data(), data_size);
-          reply.actualReplyLength = data_size;
-          LOG_DEBUG(logger_, "Request processing completed " << KVLOG(client_id_, batch_cid, reply.cid));
+          memcpy(pending_reply.replyBuffer, received_reply_entry.second.matched_data.data(), data_size);
+          pending_reply.actualReplyLength = data_size;
+          pending_reply.opResult = static_cast<bftEngine::OperationResult>(received_reply_entry.second.result);
+          LOG_INFO(logger_,
+                   "Request processing completed"
+                       << KVLOG(client_id_, batch_cid, pending_reply.cid, received_reply_entry.second.result));
         }
       }
     }
@@ -210,6 +226,7 @@ std::pair<int32_t, ConcordClient::PendingReplies> ConcordClient::SendPendingRequ
     LOG_ERROR(logger_, "Batch cid =" << batch_cid << " has failed to invoke, timeout has been reached");
     ret = OperationResult::TIMEOUT;
   }
+  LOG_INFO(logger_, "Batch processing completed" << KVLOG(client_id_, batch_cid));
   batching_buffer_reply_offset_ = 0UL;
   pending_requests_.clear();
   return {static_cast<uint32_t>(ret), std::move(pending_replies_)};
