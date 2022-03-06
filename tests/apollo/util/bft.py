@@ -206,7 +206,7 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
                                                                              + "_c=" + str(bft_config['c'])
                                 with log.start_task(
                                         action_type=f"{bft_network.current_test}_num_clients={config.num_clients}",
-                                        seed=args[0].test_seed):
+                                        seed=args[0].test_seed, max_retries=retries):
                                     random.seed(args[0].test_seed)
                                     if rotate_keys:
                                         await bft_network.check_initital_key_exchange(

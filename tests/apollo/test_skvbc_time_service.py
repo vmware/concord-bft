@@ -303,7 +303,7 @@ class SkvbcTimeServiceTest(ApolloTest):
 
     @with_trio
     @with_bft_network(start_replica_cmd,
-            selected_configs=lambda n, f, c: c == 0 and n >= 6, rotate_keys=True)
+            selected_configs=lambda n, f, c: c == 0 and n >= 6, rotate_keys=True, retries=4)
     async def test_delay_with_soft_limit_reached_counter(self, bft_network):
         """
         1. Start all replicas except a non-primary
