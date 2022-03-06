@@ -70,7 +70,9 @@ bft::client::Reply ConcordClient::SendRequest(const bft::client::WriteConfig& co
   bft::client::Reply res;
   clientRequestExecutionResult_ = OperationResult::SUCCESS;
   try {
+    cid_before_send_map_[config.request.correlation_id] = std::chrono::steady_clock::now();
     res = new_client_->send(config, std::move(request));
+    cid_response_map_[config.request.correlation_id] = std::chrono::steady_clock::now();
   } catch (const BadQuorumConfigException& e) {
     clientRequestExecutionResult_ = OperationResult::INVALID_REQUEST;
     LOG_ERROR(logger_, "Invalid write config: " << e.what());
@@ -98,7 +100,9 @@ bft::client::Reply ConcordClient::SendRequest(const bft::client::ReadConfig& con
   bft::client::Reply res;
   clientRequestExecutionResult_ = OperationResult::SUCCESS;
   try {
+    cid_before_send_map_[config.request.correlation_id] = std::chrono::steady_clock::now();
     res = new_client_->send(config, std::move(request));
+    cid_response_map_[config.request.correlation_id] = std::chrono::steady_clock::now();
   } catch (const BadQuorumConfigException& e) {
     clientRequestExecutionResult_ = OperationResult::INVALID_REQUEST;
     LOG_ERROR(logger_, "Invalid read config: " << e.what());
@@ -175,11 +179,13 @@ std::pair<int32_t, ConcordClient::PendingReplies> ConcordClient::SendPendingRequ
     single_config.request.reconfiguration = req.flags & bftEngine::RECONFIG_FLAG_REQ;
     single_config.request.pre_execute = req.flags & bftEngine::PRE_PROCESS_REQ;
     request_queue.push_back(bft::client::WriteRequest{single_config, std::move(req.request)});
+    cid_before_send_map_[req.cid] = std::chrono::steady_clock::now();
   }
   try {
     auto res = new_client_->sendBatch(request_queue, batch_cid);
     for (const auto& rep : res) {
       auto cid = seq_num_to_cid.find(rep.first)->second;
+      cid_response_map_[cid] = std::chrono::steady_clock::now();
       auto data_size = rep.second.matched_data.size();
       for (auto& reply : pending_replies_) {
         if (reply.cid != cid) continue;
@@ -335,6 +341,18 @@ uint64_t ConcordClient::generateClientSeqNum() { return seqGen_->generateUniqueS
 void ConcordClient::setStartRequestTime() { start_job_time_ = std::chrono::steady_clock::now(); }
 
 std::chrono::steady_clock::time_point ConcordClient::getStartRequestTime() const { return start_job_time_; }
+
+std::chrono::steady_clock::time_point ConcordClient::getAndDeleteCidBeforeSendTime(const std::string& cid) {
+  auto time = cid_before_send_map_[cid];
+  cid_before_send_map_.erase(cid);
+  return time;
+}
+
+std::chrono::steady_clock::time_point ConcordClient::getAndDeleteCidResponseTime(const std::string& cid) {
+  auto time = cid_response_map_[cid];
+  cid_response_map_.erase(cid);
+  return time;
+}
 
 void ConcordClient::setStartWaitingTime() { waiting_job_time_ = std::chrono::steady_clock::now(); }
 

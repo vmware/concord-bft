@@ -72,7 +72,9 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
         correlation_id += ("-" + std::to_string(seq_num));
       }
     }
-
+    if (cid_arrival_map_.size() > 7000)  // 7000 == 5 seconds of 700 trades per second
+      cid_arrival_map_.clear();
+    cid_arrival_map_[correlation_id] = std::chrono::steady_clock::now();
     if (IsGoodForBatching(flags, client_batching_enabled_)) {
       if (0 == client->PendingRequestsCount()) {
         LOG_TRACE(logger_, "Set batching timer" << KVLOG(client_id));
@@ -281,7 +283,9 @@ ConcordClientPool::ConcordClientPool(config_pool::ConcordClientPoolConfig &confi
                          metricsComponent_.RegisterGauge("clients_gauge", 0),
                          metricsComponent_.RegisterGauge("last_request_time_gauge", 0),
                          metricsComponent_.RegisterGauge("average_req_dur_gauge", 0),
-                         metricsComponent_.RegisterGauge("average_batch_agg_dur_gauge", 0)},
+                         metricsComponent_.RegisterGauge("average_batch_agg_dur_gauge", 0),
+                         metricsComponent_.RegisterGauge("average_cid_rcv_dur_gauge", 0),
+                         metricsComponent_.RegisterGauge("average_cid_finish_dur_gauge", 0)},
       logger_(logging::getLogger("com.vmware.external_client_pool")) {
   concord::external_client::ConcordClient::setDelayFlagForTest(delay_behavior);
   try {
@@ -309,7 +313,9 @@ ConcordClientPool::ConcordClientPool(config_pool::ConcordClientPoolConfig &confi
                          metricsComponent_.RegisterGauge("clients_gauge", 0),
                          metricsComponent_.RegisterGauge("last_request_time_gauge", 0),
                          metricsComponent_.RegisterGauge("average_req_dur_gauge", 0),
-                         metricsComponent_.RegisterGauge("average_batch_agg_dur_gauge", 0)},
+                         metricsComponent_.RegisterGauge("average_batch_agg_dur_gauge", 0),
+                         metricsComponent_.RegisterGauge("average_cid_rcv_dur_gauge", 0),
+                         metricsComponent_.RegisterGauge("average_cid_finish_dur_gauge", 0)},
       logger_(logging::getLogger("com.vmware.external_client_pool")) {
   try {
     metricsComponent_.SetAggregator(aggregator);
@@ -598,6 +604,23 @@ void ConcordClientPool::InsertClientToQueue(
                           req.span_context,
                           nullptr);
       } else {
+        auto finish = std::chrono::steady_clock::now();
+        for (const auto &reply : replies.second) {
+          auto before_send = client->getAndDeleteCidBeforeSendTime(reply.cid);
+          auto arrival_time = cid_arrival_map_[reply.cid];
+          cid_arrival_map_.erase(reply.cid);
+          duration = std::chrono::duration_cast<std::chrono::milliseconds>(before_send - arrival_time).count();
+          average_cid_receive_dur_.add(duration);
+
+          auto after_send = client->getAndDeleteCidResponseTime(reply.cid);
+          duration = std::chrono::duration_cast<std::chrono::milliseconds>(finish - after_send).count();
+          average_cid_close_dur_.add(duration);
+        }
+        ClientPoolMetrics_.average_cid_finish_dur_gauge.Get().Set((uint64_t)average_cid_close_dur_.avg());
+        if (average_cid_close_dur_.numOfElements() >= 1000) average_cid_close_dur_.reset();
+        ClientPoolMetrics_.average_cid_rcv_dur_gauge.Get().Set((uint64_t)average_cid_receive_dur_.avg());
+        if (average_cid_receive_dur_.numOfElements() >= 1000) average_cid_receive_dur_.reset();
+
         clients_.push_back(client);
       }
     }
