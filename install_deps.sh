@@ -213,6 +213,8 @@ wget ${WGET_FLAGS} \
     https://dl.min.io/server/minio/release/linux-amd64/minio && \
     chmod 755 ${HOME}/minio
 
+pip3 install minio
+
 cd ${HOME}
 wget ${WGET_FLAGS} \
     https://github.com/opentracing/opentracing-cpp/archive/v1.6.0.tar.gz && \
@@ -333,7 +335,7 @@ git clone -b v0.9.7 --depth 1 https://github.com/yhirose/cpp-httplib && \
 
 # Thrift is the protocol used by Jaeger to export metrics
 cd $HOME
-wget ${WGET_FLAGS} https://downloads.apache.org/thrift/0.11.0/thrift-0.11.0.tar.gz && \
+wget ${WGET_FLAGS} https://archive.apache.org/dist/thrift/0.11.0/thrift-0.11.0.tar.gz && \
     tar xzf thrift-0.11.0.tar.gz && \
     cd thrift-0.11.0 && \
     ./configure CXXFLAGS='-g -O2' \
