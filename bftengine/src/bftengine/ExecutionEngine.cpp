@@ -157,9 +157,6 @@ std::deque<IRequestsHandler::ExecutionRequest> ExecutionEngine::collectRequests(
     reqIdx++;
     ClientRequestMsg req(reinterpret_cast<ClientRequestMsgHeader*>(requestBody));
 
-    if (!requestSet.get(tmp) || req.requestLength() == 0) {
-      continue;
-    }
     auto sn = ppMsg.seqNumber();
     if (config_.timeServiceEnabled) {
       if (req.flags() & MsgFlag::TIME_SERVICE_FLAG) {
@@ -168,6 +165,9 @@ std::deque<IRequestsHandler::ExecutionRequest> ExecutionEngine::collectRequests(
             concord::util::deserialize<ConsensusTime>(req.requestBuf(), req.requestBuf() + req.requestLength());
         continue;
       }
+    }
+    if (!requestSet.get(tmp) || req.requestLength() == 0) {
+      continue;
     }
     SCOPED_MDC_CID(req.getCid());
     NodeIdType clientId = req.clientProxyId();
