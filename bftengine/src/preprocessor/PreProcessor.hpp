@@ -186,7 +186,7 @@ class PreProcessor {
                                  bool isReadOnly,
                                  uint16_t clientId,
                                  NodeIdType senderId,
-                                 const std::string &batchCid = "") const;
+                                 const std::string &batchCid) const;
   bool checkClientBatchMsgCorrectness(const ClientBatchRequestMsgUniquePtr &clientBatchReqMsg);
   bool checkPreProcessReqPrerequisites(SeqNum reqSeqNum,
                                        const std::string &cid,
@@ -225,7 +225,7 @@ class PreProcessor {
                                        NodeIdType destId,
                                        uint16_t reqOffsetInBatch,
                                        uint64_t reqRetryId,
-                                       const std::string &batchCid = "");
+                                       const std::string &batchCid);
   uint32_t getBufferOffset(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch) const;
   const char *getPreProcessResultBuffer(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch);
   void releasePreProcessResultBuffer(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch);
@@ -257,7 +257,7 @@ class PreProcessor {
                                          uint32_t resultBufLen,
                                          const std::string &batchCid,
                                          bftEngine::OperationResult preProcessResult);
-  void finalizePreProcessing(NodeIdType clientId, uint16_t reqOffsetInBatch, const std::string &batchCid = "");
+  void finalizePreProcessing(NodeIdType clientId, uint16_t reqOffsetInBatch, const std::string &batchCid);
   void cancelPreProcessing(NodeIdType clientId, const std::string &batchCid, uint16_t reqOffsetInBatch);
   void setPreprocessingRightNow(uint16_t clientId, uint16_t reqOffsetInBatch, bool set);
   PreProcessingResult handlePreProcessedReqByPrimaryAndGetConsensusResult(uint16_t clientId,
@@ -269,7 +269,7 @@ class PreProcessor {
                                 NodeIdType clientId,
                                 uint16_t reqOffsetInBatch,
                                 SeqNum reqSeqNum,
-                                const std::string &batchCid = "");
+                                const std::string &batchCid);
   void updateAggregatorAndDumpMetrics();
   void addTimers();
   void cancelTimers();
@@ -279,12 +279,12 @@ class PreProcessor {
                                         bool arrivedInBatch,
                                         uint16_t msgOffsetInBatch,
                                         PreProcessRequestMsgSharedPtr &preProcessRequestMsg,
-                                        const std::string &batchCid = "",
-                                        uint32_t batchSize = 1);
+                                        const std::string &batchCid,
+                                        uint32_t batchSize);
   void handleSinglePreProcessRequestMsg(PreProcessRequestMsgSharedPtr preProcessReqMsg,
-                                        const std::string &batchCid = "",
-                                        uint32_t batchSize = 1);
-  void handleSinglePreProcessReplyMsg(PreProcessReplyMsgSharedPtr preProcessReplyMsg, const std::string &batchCid = "");
+                                        const std::string &batchCid,
+                                        uint32_t batchSize);
+  void handleSinglePreProcessReplyMsg(PreProcessReplyMsgSharedPtr preProcessReplyMsg, const std::string &batchCid);
   bool isRequestPreProcessingRightNow(const RequestStateSharedPtr &reqEntry,
                                       ReqId reqSeqNum,
                                       NodeIdType clientId,
