@@ -83,13 +83,11 @@ inline std::pair<std::string, std::string> toPair(const std::string &key, const 
 // Build a JSON object.  Supports nested objects.
 class BuildJson {
  public:
-  inline BuildJson() {}
-
   // Start a root JSON object.
-  inline void startJson() { str += "{\n"; }
+  void startJson() { str += "{\n"; }
 
   // End the root JSON object.
-  inline void endJson() {
+  void endJson() {
     if ((str.size() >= 2) && (str[str.size() - 2] == ',')) {
       // If the previous clause wasn't empty, we added a comma and a newline;
       // the comma needs to be removed since we are at the end of the generated JSON.
@@ -99,10 +97,10 @@ class BuildJson {
   }
 
   // Start a nested JSON object.
-  inline void startNested(const std::string &key) { str += "  \"" + key + "\" : {\n"; }
+  void startNested(const std::string &key) { str += "  \"" + key + "\" : {\n"; }
 
   // End a nested JSON object.
-  inline void endNested() {
+  void endNested() {
     if ((str.size() >= 2) && (str[str.size() - 2] == ',')) {
       // If the previous clause wasn't empty, we added a comma and a newline;
       // the comma needs to be removed since we are at the end of the nested JSON clause.
@@ -112,25 +110,23 @@ class BuildJson {
   }
 
   // Add a key and a string value to the current object.
-  inline void addKv(const std::string &key, const std::string &value) {
-    str += "  \"" + key + "\" : \"" + value + "\",\n";
-  }
+  void addKv(const std::string &key, const std::string &value) { str += "  \"" + key + "\" : \"" + value + "\",\n"; }
 
   // Add a key and a non-string value to the current object.
   template <typename T>
-  inline void addKv(const std::string &key, const T &value) {
+  void addKv(const std::string &key, const T &value) {
     str += "  \"" + key + "\" : \"" + std::to_string(value) + "\",\n";
   }
 
   // Add a nested JSON object.  The "json" parameter is expected to be a
   // quoted JSON object in braces with no key prefix.
-  inline void addNestedJson(const std::string &key, const std::string &json) {
+  void addNestedJson(const std::string &key, const std::string &json) {
     str += "  \"" + key + "\" : ";
     str += json + ",\n";
   }
 
   // Return the generated JSON.  Should be called after endJson().
-  inline std::string getJson() { return str; }
+  std::string getJson() { return str; }
 
  private:
   std::string str;
