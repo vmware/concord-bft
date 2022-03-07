@@ -865,7 +865,7 @@ class SkvbcDbSnapshotTest(ApolloTest):
         bft_network.start_replica(crashed_replica)
 
         # make sure that the restored replica participates in consensus
-        await skvbc.send_n_kvs_sequentially(DB_CHECKPOINT_WIN_SIZE)
+        await skvbc.send_n_kvs_sequentially(DB_CHECKPOINT_WIN_SIZE * 2)
 
         non_crash_reps = bft_network.all_replicas(without={crashed_replica})
         for r in non_crash_reps:
