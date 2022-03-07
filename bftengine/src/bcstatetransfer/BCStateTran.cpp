@@ -231,8 +231,8 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
 
                metrics_component_.RegisterAtomicCounter("create_checkpoint"),
                metrics_component_.RegisterCounter("mark_checkpoint_as_stable"),
-               metrics_component_.RegisterCounter("load_reserved_page"),
-               metrics_component_.RegisterCounter("load_reserved_page_from_pending"),
+               metrics_component_.RegisterAtomicCounter("load_reserved_page"),
+               metrics_component_.RegisterAtomicCounter("load_reserved_page_from_pending"),
                metrics_component_.RegisterAtomicCounter("load_reserved_page_from_checkpoint"),
                metrics_component_.RegisterAtomicCounter("save_reserved_page"),
                metrics_component_.RegisterCounter("zero_reserved_page"),

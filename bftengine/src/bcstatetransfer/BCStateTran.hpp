@@ -502,8 +502,8 @@ class BCStateTran : public IStateTransfer {
 
     AtomicCounterHandle create_checkpoint_;
     CounterHandle mark_checkpoint_as_stable_;
-    CounterHandle load_reserved_page_;
-    CounterHandle load_reserved_page_from_pending_;
+    AtomicCounterHandle load_reserved_page_;
+    AtomicCounterHandle load_reserved_page_from_pending_;
     AtomicCounterHandle load_reserved_page_from_checkpoint_;
     AtomicCounterHandle save_reserved_page_;
     CounterHandle zero_reserved_page_;
