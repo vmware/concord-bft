@@ -21,12 +21,12 @@ AdaptivePruningManager::AdaptivePruningManager(
       interval(interval),
       ro_storage_(ro_storage),
       metricComponent(std::string("Adaptive Pruning"), aggregator),
-      blocksPerSecondMetric(metricComponent.RegisterAtomicGauge(std::string("blocks_per_second"), 0)),
-      batchSizeMetric(metricComponent.RegisterAtomicGauge("batch_size", 0)),
-      transactionsPerSecondMetric(metricComponent.RegisterAtomicGauge("transactions_per_second", 0)),
-      postExecUtilizationMetric(metricComponent.RegisterAtomicGauge("post_exec_utilization", 0)),
-      pruningAvgTimeMicroMetric(metricComponent.RegisterAtomicGauge("pruning_avg_time_micro", 0)),
-      pruningUtilizationMetric(metricComponent.RegisterAtomicGauge("pruning_utilization", 0)) {
+      blocksPerSecondMetric(metricComponent.RegisterAtomicGauge(std::string("reportedBlocksPerSecondToPrune"), 0)),
+      batchSizeMetric(metricComponent.RegisterAtomicGauge("batchToPruneAtOnceSize", 0)),
+      transactionsPerSecondMetric(metricComponent.RegisterAtomicGauge("transactionsPerSecondObserved", 0)),
+      postExecUtilizationMetric(metricComponent.RegisterAtomicGauge("percantageOfTimeUtilizedByUser", 0)),
+      pruningAvgTimeMicroMetric(metricComponent.RegisterAtomicGauge("avgBlockPruneTime", 0)),
+      pruningUtilizationMetric(metricComponent.RegisterAtomicGauge("percantageOfTimeUtilizedByPruning", 0)) {
   (void)ro_storage_;
   resourceManager->setPeriod(bftEngine::ReplicaConfig::instance().adaptivePruningIntervalPeriod);
 }
