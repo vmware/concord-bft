@@ -213,7 +213,7 @@ void ExecutionEngine::execute(std::deque<IRequestsHandler::ExecutionRequest>& ac
         return new RequestIterator(requests);
       });
   accumulatedRequests.clear();
-  for (RequestIterator iter = execution_selector.begin(); iter != execution_selector.end(); ++iter) {
+  for (auto& iter = execution_selector.begin(); iter != execution_selector.end(); ++iter) {
     concord::diagnostics::TimeRecorder scoped_timer1(*metrics_.executeWriteRequest);
     auto data = *iter;
     requests_handler_->execute(data, timestamp, cid, span_wrapper);
@@ -241,6 +241,7 @@ SeqNum ExecutionEngine::addExecutions(const vector<PrePrepareMsg*>& ppMsgs) {
     auto exec = [&](PrePrepareMsg* ppMsg_,
                     IRequestsHandler::ExecutionRequestsQueue requests_for_execution_,
                     Timestamp timestamp) {
+      SCOPED_MDC_SEQ_NUM(std::to_string(ppMsg_->seqNumber()));
       if (!requests_for_execution_.empty()) execute(requests_for_execution_, timestamp);
       post_exec_handlers_.invokeAll(ppMsg_, requests_for_execution_);
     };
