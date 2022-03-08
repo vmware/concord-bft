@@ -24,7 +24,7 @@ from util import bft
 from util import skvbc as kvbc
 from util.skvbc import SimpleKVBCProtocol
 from util.skvbc_history_tracker import verify_linearizability
-from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, DB_FILE_PREFIX, DB_SNAPSHOT_PREFIX
+from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, DB_FILE_PREFIX, DB_SNAPSHOT_PREFIX, ConsensusPathType
 from util import bft_metrics, eliot_logging as log
 from util.object_store import ObjectStore, start_replica_cmd_prefix, with_object_store
 from util import operator
@@ -834,7 +834,6 @@ class SkvbcDbSnapshotTest(ApolloTest):
             rsi_resp = cmf_msgs.ReconfigurationResponse.deserialize(ser_rsi)[0]
             self.assertEqual(rsi_resp.response.status, cmf_msgs.SnapshotResponseStatus.SnapshotNonExistent)
 
-    @unittest.skip("Disable until fixed")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability()
@@ -844,11 +843,6 @@ class SkvbcDbSnapshotTest(ApolloTest):
         skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
         await skvbc.send_n_kvs_sequentially(DB_CHECKPOINT_WIN_SIZE)  # get to a checkpoint
 
-        fast_paths = {}
-        for r in bft_network.all_replicas():
-            nb_fast_path = await bft_network.num_of_fast_path_requests(r)
-            fast_paths[r] = nb_fast_path
-
         crashed_replica = list(bft_network.random_set_of_replicas(1, {initial_prim}))[0]
         bft_network.stop_replica(crashed_replica)
         await skvbc.send_n_kvs_sequentially(DB_CHECKPOINT_WIN_SIZE)  # run till the next checkpoint
@@ -857,24 +851,21 @@ class SkvbcDbSnapshotTest(ApolloTest):
         await self.wait_for_stable_checkpoint(bft_network, {src_replica}, 2 * DB_CHECKPOINT_WIN_SIZE)
         await self.wait_for_created_snapshots_metric(bft_network, {src_replica}, 2)
         snapshot_id = await bft_network.last_db_checkpoint_block_id(src_replica)
-        await skvbc.send_n_kvs_sequentially(DB_CHECKPOINT_WIN_SIZE)
-
         self.verify_snapshot_is_available(bft_network, src_replica, snapshot_id)
         self.restore_form_older_snapshot(bft_network, snapshot_id, src_replica=src_replica,
                                          dest_replicas=[crashed_replica])
         self.reset_metadata(bft_network, crashed_replica)
+        await skvbc.send_n_kvs_sequentially(3 * DB_CHECKPOINT_WIN_SIZE)
+
         bft_network.start_replica(crashed_replica)
-
+        await bft_network.wait_for_state_transfer_to_start()
+        await bft_network.wait_for_state_transfer_to_stop(initial_prim,
+                                                          crashed_replica,
+                                                          stop_on_stable_seq_num=False)
         # make sure that the restored replica participates in consensus
-        await skvbc.send_n_kvs_sequentially(DB_CHECKPOINT_WIN_SIZE)
-
-        non_crash_reps = bft_network.all_replicas(without={crashed_replica})
-        for r in non_crash_reps:
-            nb_fast_path = await bft_network.num_of_fast_path_requests(r)
-            self.assertGreater(nb_fast_path, fast_paths[r])
-            fast_paths[r] = (fast_paths[r], nb_fast_path)
-        nb_fast_path = await bft_network.num_of_fast_path_requests(crashed_replica)
-        self.assertGreater(nb_fast_path, 0)
+        await bft_network.wait_for_consensus_path(path_type=ConsensusPathType.OPTIMISTIC_FAST,
+                                                  run_ops=lambda: skvbc.send_n_kvs_sequentially(DB_CHECKPOINT_WIN_SIZE),
+                                                  threshold=5)
 
     def verify_snapshot_is_available(self, bft_network, replica_id, snapshot_id, isPresent=True):
         with log.start_action(action_type="verify snapshot db files"):
@@ -986,7 +977,7 @@ class SkvbcDbSnapshotTest(ApolloTest):
                         if status:
                             stopped_replicas += 1
                     stop_condition = bft_network.config.n if fullWedge is True else (
-                                bft_network.config.n - bft_network.config.f)
+                            bft_network.config.n - bft_network.config.f)
                     if stopped_replicas < stop_condition:
                         done = False
 
