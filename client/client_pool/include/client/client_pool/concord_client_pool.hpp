@@ -27,9 +27,6 @@
 #include "client_pool_timer.hpp"
 #include "external_client.hpp"
 
-// the parameters are sequence number and cid
-typedef std::function<void(const std::string /* cid */, uint32_t /*reply_size*/)> EXT_DONE_CALLBACK;
-
 namespace concord {
 namespace external_client {
 class ConcordClient;
@@ -156,9 +153,6 @@ class ConcordClientPool {
 
   PoolStatus HealthStatus();
 
-  void Done(std::pair<int8_t, external_client::ConcordClient::PendingReplies>&& replies);
-  void SetDoneCallback(EXT_DONE_CALLBACK cb);
-
   inline bool IsBatchingEnabled() { return client_batching_enabled_; }
 
   bftEngine::OperationResult getClientError();
@@ -207,7 +201,6 @@ class ConcordClientPool {
   // Logger
   logging::Logger logger_;
   std::atomic_bool is_overloaded_ = false;
-  EXT_DONE_CALLBACK done_callback_ = nullptr;
   uint32_t jobs_queue_max_size_ = 0;
   using Timer_t = ::concord_client_pool::Timer<ClientPtr>;
   std::unique_ptr<Timer_t> batch_timer_;

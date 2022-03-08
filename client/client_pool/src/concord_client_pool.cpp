@@ -464,17 +464,6 @@ ConcordClientPool::~ConcordClientPool() {
   clients_.clear();
 }
 
-void ConcordClientPool::SetDoneCallback(EXT_DONE_CALLBACK cb) { done_callback_ = std::move(cb); }
-
-void ConcordClientPool::Done(std::pair<int8_t, external_client::ConcordClient::PendingReplies> &&replies) {
-  if (done_callback_) {
-    for (const auto &reply : replies.second) {
-      LOG_DEBUG(logger_, "Return client reply to the sender" << KVLOG(reply.cid, reply.actualReplyLength));
-      done_callback_(reply.cid, reply.actualReplyLength);
-    }
-  }
-}
-
 void BatchRequestProcessingJob::execute() {
   clients_pool_.InsertClientToQueue(processing_client_, processing_client_->SendPendingRequests());
 }
@@ -629,7 +618,6 @@ void ConcordClientPool::InsertClientToQueue(
   if (replies.second.front().cb && operation_result != OperationResult::SUCCESS) {
     for (const auto &reply : replies.second) reply.cb(SendResult{static_cast<uint32_t>(operation_result)});
   }
-  Done(std::move(replies));
 }
 
 PoolStatus ConcordClientPool::HealthStatus() {
