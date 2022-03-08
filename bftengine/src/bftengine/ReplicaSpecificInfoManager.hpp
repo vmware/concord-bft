@@ -49,7 +49,6 @@ class RsiDataManager {
 
  private:
   void init();
-
   uint32_t num_of_principles_;
   uint32_t max_client_batch_size_;
   std::shared_ptr<PersistentStorage> ps_;
