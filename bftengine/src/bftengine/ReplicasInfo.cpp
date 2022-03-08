@@ -12,9 +12,12 @@
 #include "ReplicasInfo.hpp"
 #include "ReplicaConfig.hpp"
 #include "assertUtils.hpp"
+#include <boost/iterator/counting_iterator.hpp>
 
 namespace bftEngine {
 namespace impl {
+
+using boost::counting_iterator;
 
 // We assume that the range of ids is as follows:
 //
@@ -31,18 +34,14 @@ namespace impl {
 //  [numReplicas+numRoReplicas+numOfClientProxies-1,
 //  numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients-1] inclusive
 //
-// Internal clients address range:
-//  [numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients-1,
-//  numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients+numOfInternalClients-1] inclusive
-//
 // Client services address range:
-//  [numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients+numOfInternalClients-1,
-//  numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients+numOfInternalClients+numOfClientServices-1]
+//  [numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients-1,
+//  numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients+numOfClientServices-1]
 //  inclusive
 //
 // Example:
-//  numReplicas = 7, numRoReplicas = 1, numOfClientProxies=14, numOfExternalClients=100, numOfInternalClients=7,
-//  numOfClientServices=2 address range in this order: [0,6], [7,7], [8,21] , [22,121], [122,128], [129,130] - total 130
+//  numReplicas = 7, numRoReplicas = 1, numOfClientProxies=14, numOfExternalClients=100,
+//  numOfClientServices=2 address range in this order: [0,6], [7,7], [8,21], [22,121], [122,122] - total 123
 //  participants
 //
 ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
@@ -117,17 +116,7 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
         return ret;
       }()},
 
-      _idsOfInternalClients{[&config]() {
-        std::set<ReplicaId> ret;
-        auto start = config.numReplicas + config.numRoReplicas + config.numOfClientProxies +
-                     config.numOfExternalClients + config.numOfClientServices;
-        auto end = start + config.numReplicas;
-        for (auto i = start; i < end; ++i) {
-          ret.insert(i);
-        }
-        if (start != end) LOG_INFO(GL, "Principal ids in _idsOfInternalClients: " << start << " to " << end - 1);
-        return ret;
-      }()},
+      _idsOfInternalClients{counting_iterator<ReplicaId>(0), counting_iterator<ReplicaId>(config.numReplicas)},
 
       _idsOfClientServices{[&config]() {
         std::set<ReplicaId> ret;

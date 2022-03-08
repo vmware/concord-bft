@@ -356,8 +356,8 @@ std::function<bool(MessageBase *)> ReplicaImp::getMessageValidator() {
 }
 
 void ReplicaImp::send(MessageBase *m, NodeIdType dest) {
-  if (clientsManager->isInternal(dest)) {
-    LOG_DEBUG(GL, "Not sending reply to internal client id - " << dest);
+  if (dest == config_.getreplicaId()) {
+    LOG_DEBUG(GL, "Not sending reply to own internal client");
     return;
   }
   TimeRecorder scoped_timer(*histograms_.send);
@@ -420,8 +420,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
 
   // check message validity
   const bool invalidClient =
-      !isValidClient(clientId) &&
-      !((repsInfo->isIdOfReplica(clientId) || repsInfo->isIdOfPeerRoReplica(clientId)) && (flags & RECONFIG_FLAG));
+      !isValidClient(clientId) && !(repsInfo->isIdOfPeerRoReplica(clientId) && (flags & RECONFIG_FLAG));
   const bool sentFromReplicaToNonPrimary =
       !(flags & RECONFIG_FLAG) && repsInfo->isIdOfReplica(senderId) && !isCurrentPrimary();
 
@@ -4696,8 +4695,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
                                                     repsInfo->idsOfIClientServices(),
                                                     repsInfo->idsOfInternalClients(),
                                                     metrics_);
-  internalBFTClient_.reset(
-      new InternalBFTClient(*(repsInfo->idsOfInternalClients()).cbegin() + config_.getreplicaId(), msgsCommunicator_));
+  internalBFTClient_.reset(new InternalBFTClient(config_.getreplicaId(), msgsCommunicator_));
 
   // autoPrimaryRotationEnabled implies viewChangeProtocolEnabled
   // Note: "p=>q" is equivalent to "not p or q"

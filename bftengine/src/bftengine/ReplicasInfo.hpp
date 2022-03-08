@@ -40,6 +40,7 @@ class ReplicasInfo {
   bool isIdOfInternalClient(PrincipalId id) const {
     return _idsOfInternalClients.find(id) != _idsOfInternalClients.end();
   }
+
   bool isIdOfClientService(NodeIdType id) { return _idsOfClientServices.find(id) != _idsOfClientServices.end(); }
   bool isValidPrincipalId(PrincipalId id) const { return id <= _maxValidPrincipalId; }
   const std::set<ReplicaId>& idsOfPeerReplicas() const { return _idsOfPeerReplicas; }

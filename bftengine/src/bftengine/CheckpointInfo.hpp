@@ -54,6 +54,7 @@ class CheckpointInfo {
   }
 
   bool addCheckpointMsg(CheckpointMsg* msg, ReplicaId replicaId) {
+    LOG_INFO(GL, "Adding checkpoint message");
     return checkpointCertificate->addMsg(msg, replicaId);
   }
 

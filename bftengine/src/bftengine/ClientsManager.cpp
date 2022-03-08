@@ -77,15 +77,12 @@ ClientsManager::ClientsManager(const std::set<NodeIdType>& proxyClients,
     clientsInfo_.emplace(client_id, ClientInfo());
   }
 
-  std::ostringstream oss;
-  oss << "proxy clients: ";
-  std::copy(proxyClients_.begin(), proxyClients_.end(), std::ostream_iterator<NodeIdType>(oss, " "));
-  oss << "external clients: ";
-  std::copy(externalClients_.begin(), externalClients_.end(), std::ostream_iterator<NodeIdType>(oss, " "));
-  oss << "internal clients: ";
-  std::copy(internalClients_.begin(), internalClients_.end(), std::ostream_iterator<NodeIdType>(oss, " "));
-  LOG_INFO(CL_MNGR,
-           oss.str() << KVLOG(sizeOfReservedPage(), reservedPagesPerClient_, maxReplySize_, maxNumOfReqsPerClient_));
+  LOG_INFO(
+      CL_MNGR,
+      "proxy clients: " << concord::util::toString(proxyClients_, " ")
+                        << "external clients: " << concord::util::toString(externalClients_, " ")
+                        << "internal clients: " << concord::util::toString(internalClients_, " ")
+                        << KVLOG(sizeOfReservedPage(), reservedPagesPerClient_, maxReplySize_, maxNumOfReqsPerClient_));
 }
 
 uint32_t ClientsManager::reservedPagesPerClient(const uint32_t& sizeOfReservedPage, const uint32_t& maxReplySize) {
@@ -468,6 +465,10 @@ void ClientsManager::logAllPendingRequestsExceedingThreshold(const int64_t thres
   if (numExceeding) {
     LOG_INFO(VC_LOG, "Total Client request with more than " << threshold << "ms delay: " << numExceeding);
   }
+}
+
+bool ClientsManager::isInternal(NodeIdType clientId) const {
+  return internalClients_.find(clientId) != internalClients_.end();
 }
 
 }  // namespace bftEngine::impl
