@@ -18,6 +18,7 @@
 #include "bftengine/KeyExchangeManager.hpp"
 #include "Serializable.h"
 #include "PersistentStorageImp.hpp"
+#include "ReplicasInfo.hpp"
 
 #include <chrono>
 using namespace std::chrono;
@@ -32,8 +33,10 @@ ClientsManager::ClientsManager(std::shared_ptr<PersistentStorage> ps,
                                const std::set<NodeIdType>& internalClients,
                                concordMetrics::Component& metrics)
     : ClientsManager{proxyClients, externalClients, internalClients, metrics} {
-  rsiManager_.reset(new RsiDataManager(
-      proxyClients.size() + externalClients.size() + internalClients.size(), maxNumOfReqsPerClient_, ps));
+  rsiManager_.reset(new RsiDataManager(proxyClients.size() + externalClients.size() + internalClients.size() +
+                                           ReplicaConfig::instance().numOfClientServices,
+                                       maxNumOfReqsPerClient_,
+                                       ps));
 }
 ClientsManager::ClientsManager(const std::set<NodeIdType>& proxyClients,
                                const std::set<NodeIdType>& externalClients,
