@@ -262,6 +262,25 @@ void DebugPersistentStorage::setCommitFullMsgInSeqNumWindow(SeqNum seqNum, Commi
   seqNumData.setCommitFullMsg(msg->cloneObjAndMsg());
 }
 
+void DebugPersistentStorage::setIsExecutedInSeqNumWindow(SeqNum seqNum, bool isExecuted) {
+  ConcordAssert(seqNumWindow.insideActiveWindow(seqNum));
+  SeqNumData &seqNumData = seqNumWindow.get(seqNum);
+  seqNumData.setIsExecuted(isExecuted);
+}
+
+void DebugPersistentStorage::setRequestsMapInSeqNumWindow(SeqNum seqNum, const Bitmap &reqeustMap) {
+  ConcordAssert(seqNumWindow.insideActiveWindow(seqNum));
+  SeqNumData &seqNumData = seqNumWindow.get(seqNum);
+  auto currentBitMap = seqNumData.getRequestsMap();
+  if (currentBitMap.isEmpty()) {
+    seqNumData.setRequestsMap(currentBitMap);
+  } else {
+    // combine the two requests map
+    currentBitMap += reqeustMap;
+    seqNumData.setRequestsMap(currentBitMap);
+  }
+}
+
 void DebugPersistentStorage::setCheckpointMsgInCheckWindow(SeqNum s, CheckpointMsg *msg) {
   ConcordAssert(checkWindow.insideActiveWindow(s));
   CheckData &checkData = checkWindow.get(s);

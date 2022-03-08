@@ -147,6 +147,13 @@ class Bitmap {
     p_[byteIndex] = p_[byteIndex] & byteMask;
   }
 
+  Bitmap& operator+=(const Bitmap& other) {
+    ConcordAssert(numOfBits() == other.numOfBits());
+    for (size_t i = 0; i < other.numOfBits(); i++) {
+      if (other.get(i)) set(i);
+    }
+    return *this;
+  }
   void writeToBuffer(char* buffer, uint32_t bufferLength, uint32_t* actualSize) const {
     const uint32_t sizeNeeded = sizeNeededInBuffer();
     ConcordAssert(bufferLength >= sizeNeeded);

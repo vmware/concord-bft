@@ -25,13 +25,18 @@ from ecdsa import SigningKey
 from ecdsa import SECP256k1
 import hashlib
 from Crypto.PublicKey import RSA
+from util.bft import REQ_TIMEOUT_MILLI
 
 class Operator:
     def __init__(self, config, client, priv_key_dir):
         self.config = config
         self.client = client
+        self.client.config._replace(req_timeout_milli=10000)
         with open(priv_key_dir + "/operator_priv.pem") as f:
             self.private_key = SigningKey.from_pem(f.read(), hashlib.sha256)
+
+    def __del__(self):
+        self.client.config._replace(req_timeout_milli=REQ_TIMEOUT_MILLI)
 
     def _sign_reconf_msg(self, msg):
         return self.private_key.sign_deterministic(msg.serialize())

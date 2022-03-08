@@ -13,7 +13,7 @@
 
 #include <cstdint>
 #include "IRequestHandler.hpp"
-
+#include "callback_registry.hpp"
 namespace bftEngine::impl {
 
 struct FinishPrePrepareExecutionInternalMsg {

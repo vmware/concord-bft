@@ -96,6 +96,10 @@ class BasicGauge {
   BasicGauge operator++(int) { return BasicGauge(val_++); }
   // postfix
   BasicGauge operator--(int) { return BasicGauge(val_--); }
+  BasicGauge& operator+=(const T& rhs) {
+    val_ += rhs;
+    return *this;
+  }
   void Set(const uint64_t val) { val_ = val; }
   T& Get() { return val_; }
 

@@ -44,6 +44,7 @@
 #include <ccron/ticks_generator.hpp>
 #include "EpochManager.hpp"
 #include "PerfMetrics.hpp"
+#include "ExecutionEngine.hpp"
 
 namespace preprocessor {
 class PreProcessResultMsg;
@@ -162,6 +163,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   bool startedExecution = false;
   concord::util::SimpleThreadPool postExecThread_;
 
+  SeqNum lastCollectedSn = 0;
   // bounded log used to store information about SeqNums in the range (lastStableSeqNum,lastStableSeqNum +
   // kWorkWindowSize]
   typedef SequenceWithActiveWindow<kWorkWindowSize, 1, SeqNum, SeqNumInfo, SeqNumInfo, 1, false> WindowOfSeqNumInfo;
@@ -213,6 +215,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   concordUtil::Timers::Handle statusReportTimer_;
   concordUtil::Timers::Handle viewChangeTimer_;
   concordUtil::Timers::Handle clientRequestsRetransmissionTimer_;
+  concordUtil::Timers::Handle startExecutionTimer_;
 
   int viewChangeTimerMilli = 0;
   int autoPrimaryRotationTimerMilli = 0;
@@ -221,6 +224,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   bool recoveringFromExecutionOfRequests = false;
   Bitmap mapOfRecoveredRequests;
+  std::vector<std::pair<bool, Bitmap>> recoveredRequests;
   ConsensusTickRep recoveredTime = 0;
 
   shared_ptr<concord::performance::PerformanceManager> pm_;
@@ -256,6 +260,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   GaugeHandle accumulating_batch_avg_time_;
   GaugeHandle deferredRORequestsMetric_;
   GaugeHandle deferredMessagesMetric_;
+  GaugeHandle metric_number_of_current_executions_;
+
   // The first commit path being attempted for a new request.
   StatusHandle metric_first_commit_path_;
   CounterHandle batch_closed_on_logic_off_;
@@ -319,6 +325,14 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   RollingAvgAndVar consensus_time_;
   RollingAvgAndVar accumulating_batch_time_;
   Time time_to_collect_batch_ = MinTime;
+
+  std::unique_ptr<ExecutionEngine> main_execution_engine_;
+  std::unique_ptr<ExecutionEngine> skip_execution_engine_;
+
+  void initExecutionEngines();
+  void finalizePPExecution(PrePrepareMsg*);
+  void sendWedgeCommandIfNeeded();
+  void sendClientReplies(IRequestsHandler::ExecutionRequestsQueue& reqs);
 
  public:
   ReplicaImp(const ReplicaConfig&,
@@ -385,35 +399,9 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   std::pair<PrePrepareMsg*, bool> buildPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) override;
   std::pair<PrePrepareMsg*, bool> buildPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) override;
   void handleDeferredRequests();
-  void onExecutionFinish();
-  void finalizeExecution();
   void updateLimitsAndMetrics(PrePrepareMsg* ppMsg);
   void updateCommitMetrics(const CommitPath& commitPath);
-  void finishExecutePrePrepareMsg(PrePrepareMsg* pp, IRequestsHandler::ExecutionRequestsQueue* pAccumulatedRequests);
-  /// This function is mostly called through the separate thread execution flow
-  void executeRequests(PrePrepareMsg* ppMsg, Bitmap& requestSet, Timestamp time);
-  void executeSpecialRequests(PrePrepareMsg* ppMsg,
-                              uint16_t numOfSpecialReqs,
-                              bool recoverFromErrorInRequestsExecution,
-                              Timestamp& outTimestamp);
-  void executeAllPrePreparedRequests(bool allowParallelExecution,
-                                     bool shouldRunRequestsInParallel,
-                                     uint16_t numOfSpecialReqs,
-                                     PrePrepareMsg* ppMsg,
-                                     Bitmap& requestSet,
-                                     bool recoverFromErrorInRequestsExecution);
-  void markSpecialRequests(RequestsIterator& reqIter,
-                           char* requestBody,
-                           uint16_t& numOfSpecialReqs,
-                           size_t& reqIdx,
-                           Bitmap& requestSet,
-                           bool allowParallelExecution,
-                           bool& shouldRunRequestsInParallel);
-  void startPrePrepareMsgExecution(PrePrepareMsg* ppMsg,
-                                   bool allowParallelExecution,
-                                   bool recoverFromErrorInRequestsExecution);
-  void tryToStartOrFinishExecution(bool requestMissingInfo = false);
-  void startExecution(SeqNum seqNumber, concordUtils::SpanWrapper& parent_span, bool requestMissingInfo);
+  void startExecution();
   void pushDeferredMessage(MessageBase*);
 
  protected:
@@ -514,16 +502,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void sendCommitPartial(SeqNum);  // TODO(GG): the argument should be a ref to SeqNumInfo
 
   void executeReadOnlyRequest(concordUtils::SpanWrapper& parent_span, ClientRequestMsg* m);
-
-  /// Single threaded execution only
-  void executeNextCommittedRequests(concordUtils::SpanWrapper& parent_span, bool requestMissingInfo = false);
-
-  void executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper& parent_span,
-                                      PrePrepareMsg* pp,
-                                      bool recoverFromErrorInRequestsExecution = false);
-
-  void executeRequestsAndSendResponses(PrePrepareMsg* pp, Bitmap& requestSet, concordUtils::SpanWrapper& span);
-  void sendResponses(PrePrepareMsg* ppMsg, IRequestsHandler::ExecutionRequestsQueue& accumulatedRequests);
+  std::vector<PrePrepareMsg*> collectPrePrepares(concordUtils::SpanWrapper& parent_span, bool requestMissingInfo);
 
   void onSeqNumIsStable(
       SeqNum newStableSeqNum,
@@ -608,6 +587,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void addTimers();
   void startConsensusProcess(PrePrepareMsg* pp, bool isCreatedEarlier);
   void startConsensusProcess(PrePrepareMsg* pp);
+  void postBftExecutionActions(PrePrepareMsg* ppMsg, IRequestsHandler::ExecutionRequestsQueue& requestsForExecution);
   /**
    * Updates both seqNumInfo and slow_path metric
    * @param seqNumInfo
@@ -626,30 +606,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
    * @param numOfRequests - The number of executed requests
    */
   void updateExecutedPathMetrics(const bool isSlow, uint16_t numOfRequests);
-
-  class PostExecJob : public concord::util::SimpleThreadPool::Job {
-   private:
-    PrePrepareMsg* ppMsg_;
-    Bitmap requestSet_;
-    Timestamp time_;
-    ReplicaImp& parent_;
-
-   public:
-    PostExecJob(PrePrepareMsg* ppMsg, Bitmap requestSet, Timestamp time, ReplicaImp& p)
-        : ppMsg_{ppMsg}, requestSet_{std::move(requestSet)}, time_{time}, parent_{p} {}
-
-    virtual ~PostExecJob() {}
-
-    virtual void release() override { delete this; }
-
-    virtual void execute() override {
-      MDC_PUT(MDC_REPLICA_ID_KEY, std::to_string(parent_.config_.replicaId));
-      MDC_PUT(MDC_THREAD_KEY, "post-execution-thread");
-      SCOPED_MDC_SEQ_NUM(std::to_string(ppMsg_->seqNumber()));
-      LOG_INFO(CNSUS, "Starting post-execution for seqNumber:" << ppMsg_->seqNumber());
-      parent_.executeRequests(ppMsg_, requestSet_, time_);
-    }
-  };
 
   // 5 years
   static constexpr int64_t MAX_VALUE_SECONDS = 60 * 60 * 24 * 365 * 5;
@@ -744,9 +700,9 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   concord::util::CallbackRegistry<SeqNum> onSeqNumIsStableCallbacks_;
 
 #ifdef USE_FAKE_CLOCK_IN_TS
-  std::optional<TimeServiceManager<concord::util::FakeClock>> time_service_manager_;
+  std::shared_ptr<TimeServiceManager<concord::util::FakeClock>> time_service_manager_;
 #else
-  std::optional<TimeServiceManager<std::chrono::system_clock>> time_service_manager_;
+  std::shared_ptr<TimeServiceManager<std::chrono::system_clock>> time_service_manager_;
 #endif
 };  // namespace bftEngine::impl
 
