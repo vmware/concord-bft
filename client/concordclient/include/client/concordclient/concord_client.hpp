@@ -60,7 +60,6 @@ struct BftTopology {
   std::uint16_t client_sends_request_to_all_replicas_period_thresh;
   std::uint32_t client_proxies_per_replica;
   std::string signing_key_path;
-  std::uint32_t external_requests_queue_size;
   bool encrypted_config_enabled;
   bool transaction_signing_enabled;
   bool with_cre;

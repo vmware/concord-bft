@@ -57,7 +57,6 @@ typedef struct ConcordClientPoolConfig {
   std::string tls_certificates_folder_path = "/concord/tls_certs";
   std::string tls_cipher_suite_list = "ECDHE-ECDSA-AES256-GCM-SHA384";
   std::string signing_key_path = "resources/signing_keys";
-  std::uint32_t external_requests_queue_size = 0;
   std::uint32_t trace_sampling_rate = 0;
   std::string file_name;
   bool client_batching_enabled = false;

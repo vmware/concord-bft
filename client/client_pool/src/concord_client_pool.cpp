@@ -43,7 +43,7 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
                                             std::uint32_t max_reply_size,
                                             uint64_t seq_num,
                                             std::string correlation_id,
-                                            std::string span_context,
+                                            const std::string &span_context,
                                             const bftEngine::RequestCallBack &callback) {
   if (callback && timeout_ms.count() == 0) {
     callback(bftEngine::SendResult{static_cast<uint32_t>(OperationResult::INVALID_REQUEST)});
@@ -147,35 +147,20 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
     }
   }
 
-  // Request hasn't been processed yet and this is not a reconfiguration request then only allow the request to wait in
-  // the external request queue. Reconfigution requests are unbatched and in general require immediate response. So
-  // waiting is not acceptable.
-  if ((external_requests_queue_.size() < jobs_queue_max_size_) && (!(flags & ClientMsgFlag::RECONFIG_FLAG_REQ))) {
-    LOG_DEBUG(logger_, "Request has been inserted to the wait queue" << KVLOG(correlation_id, seq_num));
-    external_requests_queue_.emplace_back(externalRequest{std::move(request),
-                                                          flags,
-                                                          timeout_ms,
-                                                          seq_num,
-                                                          std::move(correlation_id),
-                                                          std::move(span_context),
-                                                          std::chrono::steady_clock::now(),
-                                                          reply_buffer,
-                                                          max_reply_size});
-    LOG_DEBUG(logger_, "Request Acknowledged (external)" << KVLOG(client_id, correlation_id, seq_num, flags));
-    return SubmitResult::Acknowledged;
-  } else {
-    ClientPoolMetrics_.rejected_counter++;
-    is_overloaded_ = true;
-    LOG_WARN(logger_, "Cannot allocate client for" << KVLOG(correlation_id));
-    if (callback) {
-      if (serving_candidates == 0 && !clients_.empty()) {
-        callback(bftEngine::SendResult{static_cast<uint32_t>(OperationResult::NOT_READY)});
-      } else {
-        callback(bftEngine::SendResult{static_cast<uint32_t>(OperationResult::OVERLOADED)});
-      }
+  // None of the available clients are either ready or all of the clients are busy,
+  // so client pool will have to reject the request
+  ClientPoolMetrics_.rejected_counter++;
+  is_overloaded_ = true;
+  LOG_WARN(logger_, "Cannot allocate client for" << KVLOG(correlation_id));
+  if (callback) {
+    if (serving_candidates == 0 && !clients_.empty()) {
+      callback(bftEngine::SendResult{static_cast<uint32_t>(OperationResult::NOT_READY)});
+    } else {
+      callback(bftEngine::SendResult{static_cast<uint32_t>(OperationResult::OVERLOADED)});
     }
-    return SubmitResult::Overloaded;
   }
+
+  return SubmitResult::Overloaded;
 }
 
 void ConcordClientPool::assignJobToClient(const ClientPtr &client) {
@@ -423,7 +408,6 @@ void ConcordClientPool::CreatePool(concord::config_pool::ConcordClientPoolConfig
     ClientPoolMetrics_.clients_gauge++;
   }
   jobs_thread_pool_.start(num_clients);
-  jobs_queue_max_size_ = config.external_requests_queue_size;
 }
 
 void ConcordClientPool::AddSenderAndSignature(std::vector<uint8_t> &request, const ClientPtr &chosenClient) {
@@ -465,7 +449,7 @@ ConcordClientPool::~ConcordClientPool() {
 }
 
 void BatchRequestProcessingJob::execute() {
-  clients_pool_.InsertClientToQueue(processing_client_, processing_client_->SendPendingRequests());
+  clients_pool_.processReplies(processing_client_, processing_client_->SendPendingRequests());
 }
 
 void SingleRequestProcessingJob::execute() {
@@ -508,11 +492,11 @@ void SingleRequestProcessingJob::execute() {
                                 OperationResult::SUCCESS,
                                 correlation_id_,
                                 span_context_});
-  clients_pool_.InsertClientToQueue(processing_client_, {0, std::move(replies)});
+  clients_pool_.processReplies(processing_client_, {0, std::move(replies)});
 }
 
-void ConcordClientPool::InsertClientToQueue(
-    ClientPtr &client, std::pair<int8_t, external_client::ConcordClient::PendingReplies> &&replies) {
+void ConcordClientPool::processReplies(ClientPtr &client,
+                                       std::pair<int8_t, external_client::ConcordClient::PendingReplies> &&replies) {
   const auto client_id = client->getClientId();
   LOG_DEBUG(logger_, "Client has completed processing request" << KVLOG(client_id));
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
@@ -525,94 +509,7 @@ void ConcordClientPool::InsertClientToQueue(
   {
     std::unique_lock<std::mutex> lock(clients_queue_lock_);
     metricsComponent_.UpdateAggregator();
-    while (!external_requests_queue_.empty() && client->PendingRequestsCount() < batch_size_) {
-      auto &req = external_requests_queue_.front();
-      auto remaining_time =
-          std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - req.arrival_time);
-
-      if (remaining_time > req.timeout_ms) {
-        LOG_INFO(logger_,
-                 "Dropping request due to timeout"
-                     << KVLOG(client_id, req.seq_num, req.correlation_id, req.timeout_ms.count()));
-        external_requests_queue_.pop_front();
-        continue;
-      }
-
-      if (IsGoodForBatching(req.flags, client_batching_enabled_)) {
-        if (0 == client->PendingRequestsCount()) {
-          LOG_TRACE(logger_, "Set batching timer for client" << KVLOG(client_id));
-          batch_timer_->set(client);
-        }
-        client->AddPendingRequest(std::move(req.request),
-                                  req.flags,
-                                  req.reply_buffer,
-                                  req.timeout_ms,
-                                  req.reply_size,
-                                  req.seq_num,
-                                  req.correlation_id,
-                                  req.span_context);
-
-        LOG_DEBUG(logger_,
-                  "Added request to the client" << KVLOG(
-                      client_id, req.seq_num, req.correlation_id, client->PendingRequestsCount(), batch_size_));
-        external_requests_queue_.pop_front();
-      } else {
-        // No need to loop anymore
-        break;
-      }
-    }
-    if (client->PendingRequestsCount() > 0) {
-      if (client->PendingRequestsCount() >= batch_size_) {
-        LOG_TRACE(logger_, "Cancel batching timer for client_id=" << client->getClientId());
-        auto batch_wait_time = batch_timer_->cancel();
-        batch_agg_dur_.add(batch_wait_time.count());
-        ClientPoolMetrics_.average_batch_agg_dur_gauge.Get().Set((uint64_t)batch_agg_dur_.avg());
-        if (batch_agg_dur_.numOfElements() == 1000) batch_agg_dur_.reset();  // reset the average every 1000 samples
-        ClientPoolMetrics_.full_batch_counter++;
-        assignJobToClient(client);
-      } else {
-        if (is_overloaded_) {
-          client->setStartWaitingTime();
-        }
-        LOG_TRACE(logger_, "Return client with pending jobs to the queue" << KVLOG(client_id));
-        clients_.push_back(client);
-      }
-    } else {
-      if (!external_requests_queue_.empty()) {
-        auto req = std::move(external_requests_queue_.front());
-        external_requests_queue_.pop_front();
-
-        assignJobToClient(client,
-                          std::move(req.request),
-                          req.flags,
-                          req.timeout_ms,
-                          req.reply_buffer,
-                          req.reply_size,
-                          req.seq_num,
-                          req.correlation_id,
-                          req.span_context,
-                          nullptr);
-      } else {
-        auto finish = std::chrono::steady_clock::now();
-        for (const auto &reply : replies.second) {
-          auto before_send = client->getAndDeleteCidBeforeSendTime(reply.cid);
-          auto arrival_time = cid_arrival_map_[reply.cid];
-          cid_arrival_map_.erase(reply.cid);
-          duration = std::chrono::duration_cast<std::chrono::milliseconds>(before_send - arrival_time).count();
-          average_cid_receive_dur_.add(duration);
-
-          auto after_send = client->getAndDeleteCidResponseTime(reply.cid);
-          duration = std::chrono::duration_cast<std::chrono::milliseconds>(finish - after_send).count();
-          average_cid_close_dur_.add(duration);
-        }
-        ClientPoolMetrics_.average_cid_finish_dur_gauge.Get().Set((uint64_t)average_cid_close_dur_.avg());
-        if (average_cid_close_dur_.numOfElements() >= 1000) average_cid_close_dur_.reset();
-        ClientPoolMetrics_.average_cid_rcv_dur_gauge.Get().Set((uint64_t)average_cid_receive_dur_.avg());
-        if (average_cid_receive_dur_.numOfElements() >= 1000) average_cid_receive_dur_.reset();
-
-        clients_.push_back(client);
-      }
-    }
+    clients_.push_back(client);
   }
   OperationResult operation_result = client->getRequestExecutionResult();
   if (replies.second.front().cb && operation_result != OperationResult::SUCCESS) {
