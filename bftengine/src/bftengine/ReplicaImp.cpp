@@ -1297,7 +1297,7 @@ void ReplicaImp::onMessage<StartSlowCommitMsg>(StartSlowCommitMsg *msg) {
 
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
 
-    if (!seqNumInfo.slowPathStarted() && !seqNumInfo.isPrepared() && seqNumInfo.isTimeCorrect()) {
+    if (!seqNumInfo.slowPathStarted() && !seqNumInfo.isPrepared()) {
       LOG_INFO(CNSUS, "Start slow path.");
 
       seqNumInfo.startSlowPath();
