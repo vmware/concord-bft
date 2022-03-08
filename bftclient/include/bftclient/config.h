@@ -63,8 +63,8 @@ struct ClientConfig {
   ClientId id;
   std::set<ReplicaId> all_replicas;
   std::set<ReplicaId> ro_replicas;
-  uint16_t f_val;
-  uint16_t c_val;
+  uint16_t f_val = 0;
+  uint16_t c_val = 0;
   RetryTimeoutConfig retry_timeout_config;
   std::optional<std::string> transaction_signing_private_key_file_path = std::nullopt;
   std::optional<concord::secretsmanager::SecretData> secrets_manager_config = std::nullopt;

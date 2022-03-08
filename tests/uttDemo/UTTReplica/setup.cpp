@@ -319,13 +319,13 @@ std::unique_ptr<IStorageFactory> TestSetup::GetStorageFactory() {
   std::stringstream dbPath;
   dbPath << BasicRandomTests::DB_FILE_PREFIX << GetReplicaConfig().replicaId;
 
-#ifdef USE_S3_OBJECT_STORE
-  if (GetReplicaConfig().isReadOnly) {
-    if (s3ConfigFile_.empty()) throw std::runtime_error("--s3-config-file must be provided");
-    const auto s3Config = concord::storage::s3::ConfigFileParser(s3ConfigFile_).parse();
-    return std::make_unique<v1DirectKeyValue::S3StorageFactory>(dbPath.str(), s3Config);
-  }
-#endif
+  // #ifdef USE_S3_OBJECT_STORE
+  //   if (GetReplicaConfig().isReadOnly) {
+  //     if (s3ConfigFile_.empty()) throw std::runtime_error("--s3-config-file must be provided");
+  //     const auto s3Config = concord::storage::s3::ConfigFileParser(s3ConfigFile_).parse();
+  //     return std::make_unique<v1DirectKeyValue::S3StorageFactory>(dbPath.str(), s3Config);
+  //   }
+  // #endif
   return std::make_unique<v2MerkleTree::RocksDBStorageFactory>(dbPath.str());
 }
 

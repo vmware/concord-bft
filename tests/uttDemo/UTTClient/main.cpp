@@ -18,6 +18,7 @@
 #include <cstring>
 #include <sys/param.h>
 #include <unistd.h>
+#include <iostream>
 
 #include "config/test_comm_config.hpp"
 #include "config/test_parameters.hpp"
@@ -118,7 +119,7 @@ ClientParams setupClientParams(int argc, char **argv) {
   return clientParams;
 }
 
-auto logger = logging::getLogger("skvbtest.client");
+auto logger = logging::getLogger("uttdemo.client");
 
 ICommunication *setupCommunicationParams(ClientParams &cp) {
   TestCommConfig testCommConfig(logger);
@@ -137,6 +138,89 @@ ICommunication *setupCommunicationParams(ClientParams &cp) {
   return CommFactory::create(conf);
 }
 
+void SimpleSKVBCDemo(bft::client::Client &client) {
+  std::vector<Account> accounts;
+  accounts.emplace_back("Account_1");
+  accounts.emplace_back("Account_2");
+  accounts.emplace_back("Account_3");
+
+  // Deposit initial balances
+  {
+    std::vector<int> deposits = {101, 202, 303};
+
+    SKVBCWriteRequest writeReq;
+    // The expected values by the execution engine in the kv pair are strings
+    for (int i = 0; i < 3; ++i)
+      writeReq.writeset.emplace_back(StrToBytes(accounts[i].getId()), StrToBytes(std::to_string(deposits[i])));
+
+    SKVBCRequest req;
+    req.request = std::move(writeReq);
+
+    // Ensure we only wait for F+1 replies (ByzantineSafeQuorum)
+    WriteConfig writeConf{RequestConfig{false, nextSeqNum()}, ByzantineSafeQuorum{}};
+    writeConf.request.timeout = 5000ms;
+
+    Msg reqBytes;
+    serialize(reqBytes, req);
+    auto replyBytes = client.send(writeConf, std::move(reqBytes));  // Sync send
+
+    SKVBCReply reply;
+    deserialize(replyBytes.matched_data, reply);
+
+    const auto &writeReply = std::get<SKVBCWriteReply>(reply.reply);  // throws if unexpected variant
+    std::cout << "Got SKVBCWriteReply, success=" << writeReply.success << " latest_block=" << writeReply.latest_block
+              << '\n';
+
+    if (writeReply.success) {
+      for (int i = 0; i < 3; ++i) accounts[i].depositPublic(deposits[i]);
+    } else {
+      throw std::runtime_error("Failed to write values to the BC!\n");
+    }
+  }
+
+  // Read back the account balances
+  {
+    SKVBCReadRequest readReq;
+    readReq.read_version = 1;
+    // The expected values by the execution engine in the kv pair are strings
+    for (const auto &account : accounts) readReq.keys.emplace_back(StrToBytes(account.getId()));
+
+    SKVBCRequest req;
+    req.request = std::move(readReq);
+
+    // Ensure we wait for 2F+1 replies
+    ReadConfig readConf{RequestConfig{false, nextSeqNum()}, LinearizableQuorum{}};
+    // To-Do: the request timeouts frequently, maybe due to
+    // initialization of the database
+    readConf.request.timeout = 5000ms;
+
+    Msg reqBytes;
+    serialize(reqBytes, req);
+    auto replyBytes = client.send(readConf, std::move(reqBytes));  // Sync send
+
+    SKVBCReply reply;
+    deserialize(replyBytes.matched_data, reply);
+
+    const auto &readReply = std::get<SKVBCReadReply>(reply.reply);  // throws if unexpected variant
+    std::cout << "Got SKVBCReadReply with reads:\n";
+
+    for (const auto &kvp : readReply.reads) {
+      auto accountId = BytesToStr(kvp.first);
+      auto publicBalanceStr = BytesToStr(kvp.second);
+      int publicBalance = std::atoi(publicBalanceStr.c_str());
+
+      std::cout << '\t' << accountId << " : " << publicBalance << '\n';
+
+      // Assert we got the same balance values that we wrote
+      auto it = std::find_if(
+          accounts.begin(), accounts.end(), [&](const Account &account) { return account.getId() == accountId; });
+
+      ConcordAssert(it != accounts.end());
+      ConcordAssert(it->getBalancePublic() == publicBalance);
+    }
+  }
+}
+
 int main(int argc, char **argv) {
   try {
     logging::initLogger("logging.properties");
@@ -144,14 +228,9 @@ int main(int argc, char **argv) {
 
     if (clientParams.clientId == UINT16_MAX || clientParams.numOfFaulty == UINT16_MAX ||
         clientParams.numOfSlow == UINT16_MAX || clientParams.numOfOperations == UINT32_MAX) {
-      LOG_ERROR(logger, "Wrong usage! Required parameters: " << argv[0] << " -f F -c C -p NUM_OPS -i ID");
+      std::cout << "Wrong usage! Required parameters: " << argv[0] << " -f F -c C -p NUM_OPS -i ID";
       exit(-1);
     }
-
-    std::vector<Account> accounts;
-    accounts.emplace_back("Account_1");
-    accounts.emplace_back("Account_2");
-    accounts.emplace_back("Account_3");
 
     SharedCommPtr comm = SharedCommPtr(setupCommunicationParams(clientParams));
 
@@ -160,87 +239,30 @@ int main(int argc, char **argv) {
     for (uint16_t i = 0; i < clientParams.numOfReplicas; ++i) clientConfig.all_replicas.emplace(ReplicaId{i});
     clientConfig.id = ClientId{clientParams.clientId};
 
-    LOG_INFO(GL, "Starting bft client id=" << clientConfig.id.val);
-
     Client client(comm, clientConfig);
 
-    // Deposit initial balances
-    {
-      std::vector<int> deposits = {88, 99, 101};
+    while (true) {
+      std::cout << "\nEnter command (type 'help' for commands, 'end' to exit):\n";
+      std::string cmd;
+      std::cin >> cmd;
 
-      SKVBCWriteRequest writeReq;
-      // The expected values by the execution engine in the kv pair are strings
-      for (int i = 0; i < 3; ++i)
-        writeReq.writeset.emplace_back(StrToBytes(accounts[i].getId()), StrToBytes(std::to_string(deposits[i])));
-
-      SKVBCRequest req;
-      req.request = std::move(writeReq);
-
-      // Ensure we only wait for F+1 replies (ByzantineSafeQuorum)
-      WriteConfig writeConf{RequestConfig{false, nextSeqNum()}, ByzantineSafeQuorum{}};
-      // To-Do: the request fails with only 500ms timeout, but maybe that's due to
-      // initialization of the database
-      writeConf.request.timeout = 5000ms;
-
-      Msg reqBytes;
-      serialize(reqBytes, req);
-      auto replyBytes = client.send(writeConf, std::move(reqBytes));  // Sync send
-
-      SKVBCReply reply;
-      deserialize(replyBytes.matched_data, reply);
-
-      const auto &writeReply = std::get<SKVBCWriteReply>(reply.reply);  // throws if unexpected variant
-      LOG_INFO(GL,
-               "Got SKVBCWriteReply, success=" << writeReply.success << " latest_block=" << writeReply.latest_block);
-
-      if (writeReply.success) {
-        for (int i = 0; i < 3; ++i) accounts[i].depositPublic(deposits[i]);
+      try {
+        if (cmd == "end") {
+          std::cout << "Finished!\n";
+          client.stop();
+          return 0;
+        } else if (cmd == "help") {
+          std::cout << "list of commands is empty (NYI)\n";
+        } else if (cmd == "demo") {
+          SimpleSKVBCDemo(client);
+        } else {
+          std::cout << "Unknown command '" << cmd << "'\n";
+        }
+      } catch (const bft::client::TimeoutException &e) {
+        std::cout << "Request timeout: " << e.what() << '\n';
       }
     }
-
-    // Read back the account balances
-    {
-      SKVBCReadRequest readReq;
-      readReq.read_version = 1;
-      // The expected values by the execution engine in the kv pair are strings
-      for (const auto &account : accounts) readReq.keys.emplace_back(StrToBytes(account.getId()));
-
-      SKVBCRequest req;
-      req.request = std::move(readReq);
-
-      // Ensure we wait for 2F+1 replies
-      ReadConfig readConf{RequestConfig{false, nextSeqNum()}, LinearizableQuorum{}};
-      readConf.request.timeout = 500ms;
-
-      Msg reqBytes;
-      serialize(reqBytes, req);
-      auto replyBytes = client.send(readConf, std::move(reqBytes));  // Sync send
-
-      SKVBCReply reply;
-      deserialize(replyBytes.matched_data, reply);
-
-      const auto &readReply = std::get<SKVBCReadReply>(reply.reply);  // throws if unexpected variant
-      LOG_INFO(GL, "Got SKVBCReadReply with reads:");
-
-      for (const auto &kvp : readReply.reads) {
-        auto accountId = BytesToStr(kvp.first);
-        auto publicBalanceStr = BytesToStr(kvp.second);
-        int publicBalance = std::atoi(publicBalanceStr.c_str());
-
-        LOG_INFO(GL, '\t' << accountId << " : " << publicBalance);
-
-        // Assert we got the same balance values that we wrote
-        auto it = std::find_if(
-            accounts.begin(), accounts.end(), [&](const Account &account) { return account.getId() == accountId; });
-
-        ConcordAssert(it != accounts.end());
-        ConcordAssert(it->getBalancePublic() == publicBalance);
-      }
-    }
-
-    client.stop();
-
   } catch (const std::exception &e) {
-    LOG_ERROR(GL, "Exception: " << e.what());
+    std::cout << "Exception: " << e.what() << '\n';
   }
 }
