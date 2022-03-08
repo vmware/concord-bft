@@ -574,9 +574,9 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
   const auto &reqTimeoutMilli = clientMsg->requestTimeoutMilli();
   SCOPED_MDC_CID(cid);
   LOG_DEBUG(logger(), "Received ClientPreProcessRequestMsg" << KVLOG(reqSeqNum, clientId, senderId, reqTimeoutMilli));
-  if (!checkClientMsgCorrectness(reqSeqNum, cid, clientMsg->isReadOnly(), clientId, senderId)) return;
+  if (!checkClientMsgCorrectness(reqSeqNum, cid, clientMsg->isReadOnly(), clientId, senderId, "")) return;
   PreProcessRequestMsgSharedPtr preProcessRequestMsg;
-  handleSingleClientRequestMessage(move(clientMsg), senderId, false, 0, preProcessRequestMsg);
+  handleSingleClientRequestMessage(move(clientMsg), senderId, false, 0, preProcessRequestMsg, "", 1);
 }
 
 // Should be called under reqEntry->mutex lock
@@ -658,12 +658,12 @@ bool PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUnique
       if (!batchedPreProcessEnabled_ && (senderId != clientId))
         // Send 'cancel' request to non-primary replicas to release them from waiting to a 'real' PreProcessRequestMsg,
         // which will not arrive in this case. Doing this to avoid request from being timed out on non-primary replicas.
-        cancelPreProcessingOnNonPrimary(clientMsg, senderId, reqOffsetInBatch, (reqEntry->reqRetryId)++);
+        cancelPreProcessingOnNonPrimary(clientMsg, senderId, reqOffsetInBatch, (reqEntry->reqRetryId)++, batchCid);
       return false;
     }
     if (myReplica_.isReplyAlreadySentToClient(clientId, reqSeqNum)) {
       if (!batchedPreProcessEnabled_ && (senderId != clientId))
-        cancelPreProcessingOnNonPrimary(clientMsg, senderId, reqOffsetInBatch, (reqEntry->reqRetryId)++);
+        cancelPreProcessingOnNonPrimary(clientMsg, senderId, reqOffsetInBatch, (reqEntry->reqRetryId)++, batchCid);
       LOG_INFO(logger(),
                "Request has already been executed - let replica decide how to proceed further"
                    << KVLOG(batchCid, batchSize, reqSeqNum, clientId, senderId));
@@ -910,7 +910,7 @@ void PreProcessor::onMessage<PreProcessRequestMsg>(PreProcessRequestMsg *message
             "Received PreProcessRequestMsg" << KVLOG(
 
                 reqType, msg->reqSeqNum(), msg->getCid(), msg->senderId(), msg->clientId(), msg->reqOffsetInBatch()));
-  handleSinglePreProcessRequestMsg(msg);
+  handleSinglePreProcessRequestMsg(msg, "", 1);
 }
 
 void PreProcessor::handleSinglePreProcessReplyMsg(PreProcessReplyMsgSharedPtr preProcessReplyMsg,
@@ -960,7 +960,7 @@ void PreProcessor::onMessage<PreProcessReplyMsg>(PreProcessReplyMsg *message) {
   LOG_DEBUG(logger(),
             "Received PreProcessReplyMsg"
                 << KVLOG(msg->reqSeqNum(), msg->senderId(), msg->clientId(), msg->reqOffsetInBatch(), replyStatus));
-  handleSinglePreProcessReplyMsg(msg);
+  handleSinglePreProcessReplyMsg(msg, "");
 }
 
 bool PreProcessor::checkPreProcessReplyPrerequisites(
@@ -1660,7 +1660,7 @@ void PreProcessor::handlePreProcessedReqPrimaryRetry(NodeIdType clientId,
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.handlePreProcessedReqPrimaryRetry);
   if (handlePreProcessedReqByPrimaryAndGetConsensusResult(clientId, reqOffsetInBatch, resultBufLen, preProcessResult) ==
       COMPLETE)
-    finalizePreProcessing(clientId, reqOffsetInBatch);
+    finalizePreProcessing(clientId, reqOffsetInBatch, batchCid);
   else
     cancelPreProcessing(clientId, batchCid, reqOffsetInBatch);
 }
@@ -1676,7 +1676,7 @@ void PreProcessor::handleReqPreProcessedByPrimary(const PreProcessRequestMsgShar
       handlePreProcessedReqByPrimaryAndGetConsensusResult(clientId, reqOffsetInBatch, resultBufLen, preProcessResult);
   if (result != NONE)
     handlePreProcessReplyMsg(
-        preProcessReqMsg->getCid(), result, clientId, reqOffsetInBatch, preProcessReqMsg->reqSeqNum());
+        preProcessReqMsg->getCid(), result, clientId, reqOffsetInBatch, preProcessReqMsg->reqSeqNum(), batchCid);
 }
 
 void PreProcessor::releaseReqAndSendReplyMsg(PreProcessReplyMsgSharedPtr replyMsg) {
