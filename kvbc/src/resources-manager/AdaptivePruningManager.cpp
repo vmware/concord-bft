@@ -53,6 +53,7 @@ void AdaptivePruningManager::notifyReplicas(const PruneInfo &pruneInfo) {
   postExecUtilizationMetric.Get().Set(pruneInfo.postExecUtilization);
   pruningAvgTimeMicroMetric.Get().Set(pruneInfo.pruningAvgTimeMicro);
   pruningUtilizationMetric.Get().Set(pruneInfo.pruningUtilization);
+  metricComponent.UpdateAggregator();
 
   LOG_DEBUG(ADPTV_PRUNING,
             "Sending PruneTicksChangeRequest { interval between ticks seconds = "
@@ -98,7 +99,7 @@ void AdaptivePruningManager::threadFunction() {
   while (isRunning.load()) {
     {
       std::unique_lock<std::mutex> lk(conditionLock);
-      conditionVar.wait(lk, [this]() { return mode.load() == ADAPTIVE && amIPrimary.load(); });
+      conditionVar.wait(lk, [this]() { return !isRunning.load() || (mode.load() == ADAPTIVE && amIPrimary.load()); });
     }
     if (isRunning.load()) {
       concord::performance::PruneInfo info;
