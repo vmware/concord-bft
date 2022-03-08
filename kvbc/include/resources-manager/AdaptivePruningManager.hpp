@@ -77,8 +77,8 @@ class AdaptivePruningManager {
   std::mutex conditionLock;
   concord::kvbc::IReader &ro_storage_;
   concord::messages::PruneSwitchModeRequest latestConfiguration_{0, PruningMode::LEGACY, {}};
-  uint32_t current_pruning_pace_;
-  uint64_t current_batch_size_;
+  uint32_t current_pruning_pace_{};
+  uint64_t current_batch_size_{};
   concordMetrics::Component metricComponent;
   concordMetrics::Component::Handle<concordMetrics::AtomicGauge> blocksPerSecondMetric, batchSizeMetric,
       transactionsPerSecondMetric, postExecUtilizationMetric, pruningAvgTimeMicroMetric, pruningUtilizationMetric;

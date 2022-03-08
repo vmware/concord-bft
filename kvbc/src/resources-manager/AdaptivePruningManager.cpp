@@ -54,10 +54,10 @@ void AdaptivePruningManager::notifyReplicas(const PruneInfo &pruneInfo) {
   pruningAvgTimeMicroMetric.Get().Set(pruneInfo.pruningAvgTimeMicro);
   pruningUtilizationMetric.Get().Set(pruneInfo.pruningUtilization);
 
-  LOG_DEBUG(ADPTV_PRUNING,
-            "Sending PruneTicksChangeRequest { interval between ticks seconds = "
-                << pruneRequest.interval_between_ticks_seconds
-                << ", blocks per tick = " << pruneRequest.batch_blocks_num << " }");
+  LOG_INFO(ADPTV_PRUNING,
+           "Sending PruneTicksChangeRequest { interval between ticks seconds = "
+               << pruneRequest.interval_between_ticks_seconds << ", blocks per tick = " << pruneRequest.batch_blocks_num
+               << " }");
 
   rreq.command = pruneRequest;
   rreq.sender = bftEngine::ReplicaConfig::instance().replicaId;
