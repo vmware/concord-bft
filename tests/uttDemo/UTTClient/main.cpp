@@ -60,11 +60,11 @@ uint64_t nextSeqNum() {
   return nextSeqNum++;
 }
 
-std::vector<uint8_t> StrToBytes(const std::string &str) { return std::vector<uint8_t>(str.begin(), str.end()); }
+std::vector<uint8_t> StrToBytes(const std::string& str) { return std::vector<uint8_t>(str.begin(), str.end()); }
 
-std::string BytesToStr(const std::vector<uint8_t> &bytes) { return std::string{bytes.begin(), bytes.end()}; }
+std::string BytesToStr(const std::vector<uint8_t>& bytes) { return std::string{bytes.begin(), bytes.end()}; }
 
-ClientParams setupClientParams(int argc, char **argv) {
+ClientParams setupClientParams(int argc, char** argv) {
   ClientParams clientParams;
   clientParams.clientId = UINT16_MAX;
   clientParams.numOfFaulty = UINT16_MAX;
@@ -121,7 +121,7 @@ ClientParams setupClientParams(int argc, char **argv) {
 
 auto logger = logging::getLogger("uttdemo.client");
 
-ICommunication *setupCommunicationParams(ClientParams &cp) {
+ICommunication* setupCommunicationParams(ClientParams& cp) {
   TestCommConfig testCommConfig(logger);
   uint16_t numOfReplicas = cp.get_numOfReplicas();
 #ifdef USE_COMM_PLAIN_TCP
@@ -138,7 +138,7 @@ ICommunication *setupCommunicationParams(ClientParams &cp) {
   return CommFactory::create(conf);
 }
 
-void SimpleSKVBCDemo(bft::client::Client &client) {
+void SimpleSKVBCTest(bft::client::Client& client) {
   std::vector<Account> accounts;
   accounts.emplace_back("Account_1");
   accounts.emplace_back("Account_2");
@@ -167,7 +167,7 @@ void SimpleSKVBCDemo(bft::client::Client &client) {
     SKVBCReply reply;
     deserialize(replyBytes.matched_data, reply);
 
-    const auto &writeReply = std::get<SKVBCWriteReply>(reply.reply);  // throws if unexpected variant
+    const auto& writeReply = std::get<SKVBCWriteReply>(reply.reply);  // throws if unexpected variant
     std::cout << "Got SKVBCWriteReply, success=" << writeReply.success << " latest_block=" << writeReply.latest_block
               << '\n';
 
@@ -183,7 +183,7 @@ void SimpleSKVBCDemo(bft::client::Client &client) {
     SKVBCReadRequest readReq;
     readReq.read_version = 1;
     // The expected values by the execution engine in the kv pair are strings
-    for (const auto &account : accounts) readReq.keys.emplace_back(StrToBytes(account.getId()));
+    for (const auto& account : accounts) readReq.keys.emplace_back(StrToBytes(account.getId()));
 
     SKVBCRequest req;
     req.request = std::move(readReq);
@@ -201,10 +201,10 @@ void SimpleSKVBCDemo(bft::client::Client &client) {
     SKVBCReply reply;
     deserialize(replyBytes.matched_data, reply);
 
-    const auto &readReply = std::get<SKVBCReadReply>(reply.reply);  // throws if unexpected variant
+    const auto& readReply = std::get<SKVBCReadReply>(reply.reply);  // throws if unexpected variant
     std::cout << "Got SKVBCReadReply with reads:\n";
 
-    for (const auto &kvp : readReply.reads) {
+    for (const auto& kvp : readReply.reads) {
       auto accountId = BytesToStr(kvp.first);
       auto publicBalanceStr = BytesToStr(kvp.second);
       int publicBalance = std::atoi(publicBalanceStr.c_str());
@@ -213,7 +213,7 @@ void SimpleSKVBCDemo(bft::client::Client &client) {
 
       // Assert we got the same balance values that we wrote
       auto it = std::find_if(
-          accounts.begin(), accounts.end(), [&](const Account &account) { return account.getId() == accountId; });
+          accounts.begin(), accounts.end(), [&](const Account& account) { return account.getId() == accountId; });
 
       ConcordAssert(it != accounts.end());
       ConcordAssert(it->getBalancePublic() == publicBalance);
@@ -221,7 +221,86 @@ void SimpleSKVBCDemo(bft::client::Client &client) {
   }
 }
 
-int main(int argc, char **argv) {
+struct TxPublicDeposit {
+  TxPublicDeposit(std::string accId, int amount) : amount_{amount}, toAccountId_{std::move(accId)} {}
+
+  int amount_ = 0;
+  std::string toAccountId_;
+};
+std::ostream& operator<<(std::ostream& os, const TxPublicDeposit& tx) {
+  os << "deposit " << tx.toAccountId_ << ' ' << tx.amount_;
+  return os;
+}
+
+struct TxPublicWithdraw {
+  TxPublicWithdraw(std::string accId, int amount) : amount_{amount}, toAccountId_{std::move(accId)} {}
+
+  int amount_ = 0;
+  std::string toAccountId_;
+};
+std::ostream& operator<<(std::ostream& os, const TxPublicWithdraw& tx) {
+  os << "withdraw " << tx.toAccountId_ << ' ' << tx.amount_;
+  return os;
+}
+
+struct TxPublicTransfer {
+  TxPublicTransfer(std::string fromAccId, std::string toAccId, int amount)
+      : amount_{amount}, fromAccountId_{std::move(fromAccId)}, toAccountId_{std::move(toAccId)} {}
+
+  int amount_ = 0;
+  std::string fromAccountId_;
+  std::string toAccountId_;
+};
+std::ostream& operator<<(std::ostream& os, const TxPublicTransfer& tx) {
+  os << "transfer " << tx.fromAccountId_ << ' ' << tx.toAccountId_ << ' ' << tx.amount_;
+  return os;
+}
+
+struct TxUttTransfer {
+  std::string data_;  // some opaque data
+};
+
+using Tx = std::variant<TxPublicDeposit, TxPublicWithdraw, TxPublicTransfer, TxUttTransfer>;
+
+std::ostream& operator<<(std::ostream& os, const Tx& tx) {
+  std::visit([&os](const auto& tx) { os << tx; }, tx);
+  return os;
+}
+
+std::optional<Tx> parseTx(const std::string& str) {
+  std::vector<std::string> tokens;
+  std::string token;
+  std::stringstream ss(str);
+  while (std::getline(ss, token, ' ')) tokens.emplace_back(std::move(token));
+
+  if (tokens.size() == 3) {
+    if (tokens[0] == "deposit")
+      return TxPublicDeposit(std::move(tokens[1]), std::atoi(tokens[2].c_str()));
+    else if (tokens[0] == "withdraw")
+      return TxPublicWithdraw(std::move(tokens[1]), std::atoi(tokens[2].c_str()));
+  } else if (token.size() == 4) {
+    if (tokens[0] == "transfer")
+      return TxPublicTransfer(std::move(tokens[1]), std::move(tokens[2]), std::atoi(tokens[3].c_str()));
+  }
+
+  return std::nullopt;
+}
+
+struct Block {
+  int id_ = 0;
+  std::map<std::string, Tx> tx_;
+  std::set<std::string> nullifiers_;
+};
+
+std::ostream& operator<<(std::ostream& os, const Block& b) {
+  os << "Block " << b.id_ << "\n";
+  os << "---------------------------\n";
+  for (const auto& kvp : b.tx_) os << kvp.first << " : " << kvp.second << '\n';
+  // To-Do: print nullifiers?
+  return os;
+}
+
+int main(int argc, char** argv) {
   try {
     logging::initLogger("logging.properties");
     ClientParams clientParams = setupClientParams(argc, argv);
@@ -242,27 +321,28 @@ int main(int argc, char **argv) {
     Client client(comm, clientConfig);
 
     while (true) {
-      std::cout << "\nEnter command (type 'help' for commands, 'end' to exit):\n";
+      std::cout << "\nEnter command (type 'h' for commands, 'q' to exit):\n";
       std::string cmd;
-      std::cin >> cmd;
-
+      std::getline(std::cin, cmd);
       try {
-        if (cmd == "end") {
+        if (std::cin.eof() || cmd == "q") {
           std::cout << "Finished!\n";
           client.stop();
           return 0;
-        } else if (cmd == "help") {
+        } else if (cmd == "h") {
           std::cout << "list of commands is empty (NYI)\n";
-        } else if (cmd == "demo") {
-          SimpleSKVBCDemo(client);
+        } else if (cmd == "test") {
+          SimpleSKVBCTest(client);
+        } else if (auto tx = parseTx(cmd)) {
+          std::cout << "Successfully parsed transaction: " << *tx << '\n';
         } else {
           std::cout << "Unknown command '" << cmd << "'\n";
         }
-      } catch (const bft::client::TimeoutException &e) {
+      } catch (const bft::client::TimeoutException& e) {
         std::cout << "Request timeout: " << e.what() << '\n';
       }
     }
-  } catch (const std::exception &e) {
+  } catch (const std::exception& e) {
     std::cout << "Exception: " << e.what() << '\n';
   }
 }
