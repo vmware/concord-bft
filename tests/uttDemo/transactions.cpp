@@ -1,0 +1,57 @@
+// Concord
+//
+// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
+//
+// This product is licensed to you under the Apache 2.0 license (the "License").
+// You may not use this product except in compliance with the Apache 2.0
+// License.
+//
+// This product may include a number of subcomponents with separate copyright
+// notices and license terms. Your use of these subcomponents is subject to the
+// terms and conditions of the subcomponent's license, as noted in the LICENSE
+// file.
+
+#include "transactions.hpp"
+
+#include <iostream>
+#include <vector>
+#include <sstream>
+
+std::ostream& operator<<(std::ostream& os, const TxPublicDeposit& tx) {
+  os << "deposit " << tx.toAccountId_ << ' ' << tx.amount_;
+  return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const TxPublicWithdraw& tx) {
+  os << "withdraw " << tx.toAccountId_ << ' ' << tx.amount_;
+  return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const TxPublicTransfer& tx) {
+  os << "transfer " << tx.fromAccountId_ << ' ' << tx.toAccountId_ << ' ' << tx.amount_;
+  return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const Tx& tx) {
+  std::visit([&os](const auto& tx) { os << tx; }, tx);
+  return os;
+}
+
+std::optional<Tx> parseTx(const std::string& str) {
+  std::vector<std::string> tokens;
+  std::string token;
+  std::stringstream ss(str);
+  while (std::getline(ss, token, ' ')) tokens.emplace_back(std::move(token));
+
+  if (tokens.size() == 3) {
+    if (tokens[0] == "deposit")
+      return TxPublicDeposit(std::move(tokens[1]), std::atoi(tokens[2].c_str()));
+    else if (tokens[0] == "withdraw")
+      return TxPublicWithdraw(std::move(tokens[1]), std::atoi(tokens[2].c_str()));
+  } else if (token.size() == 4) {
+    if (tokens[0] == "transfer")
+      return TxPublicTransfer(std::move(tokens[1]), std::move(tokens[2]), std::atoi(tokens[3].c_str()));
+  }
+
+  return std::nullopt;
+}
