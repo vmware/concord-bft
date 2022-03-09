@@ -108,8 +108,10 @@ void AdaptivePruningManager::threadFunction() {
         info = resourceManager->getPruneInfo();
       }
       notifyReplicas(info);
+
       std::unique_lock<std::mutex> lk(conditionLock);
-      conditionVar.wait_for(lk, interval);
+      auto now = std::chrono::system_clock::now();
+      conditionVar.wait_until(lk, now + interval, [this]() { return !isRunning.load(); });
     }
   }
 }
@@ -125,8 +127,7 @@ void AdaptivePruningManager::start() {
 }
 
 void AdaptivePruningManager::stop() {
-  if (isRunning.load()) {
-    isRunning = false;
+  if (isRunning.exchange(false)) {
     conditionVar.notify_one();
     workThread.join();
   }
