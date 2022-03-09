@@ -82,8 +82,12 @@ class ReconfigurationHandler : public BftReconfigurationHandler {
               concord::messages::ReconfigurationResponse &) override;
 
  private:
-  void handleWedgeCommands(
-      bool bft_support, bool remove_metadata, bool restart, bool unwedge, bool blockNewConnections);
+  void handleWedgeCommands(bool bft_support,
+                           bool remove_metadata,
+                           bool restart,
+                           bool unwedge,
+                           bool blockNewConnections,
+                           bool createDbCheckpoint);
   void addCreateDbSnapshotCbOnWedge(bool bft_support);
 };
 

@@ -131,6 +131,9 @@ class DbCheckpointManager {
     if (ReplicaConfig::instance().dbCheckpointFeatureEnabled)
       createDbCheckpointAsync(seqNum, std::nullopt, std::nullopt);
   }
+  void addOnDbCheckpointCreatedCb(std::function<void(SeqNum)> cb) {
+    if (cb) onDbCheckpointCreated_.push_back(cb);
+  }
   inline auto getLastDbCheckpointSeqNum() const { return lastCheckpointSeqNum_; }
 
  private:
@@ -171,7 +174,7 @@ class DbCheckpointManager {
   InternalBftClient* client_{nullptr};
   std::atomic<bool> stopped_ = false;
   DbCheckpointMetadata dbCheckptMetadata_;
-  std::map<CheckpointId, std::future<void> > dbCreateCheckPtFuture_;
+  std::map<CheckpointId, std::future<void>> dbCreateCheckPtFuture_;
   std::future<void> cleanUpFuture_;
   std::shared_ptr<concord::storage::IDBClient> dbClient_;
   std::shared_ptr<bftEngine::impl::PersistentStorage> ps_;
@@ -189,6 +192,7 @@ class DbCheckpointManager {
   std::chrono::seconds lastCheckpointCreationTime_{duration_cast<Seconds>(SystemClock::now().time_since_epoch())};
   std::function<void(SeqNum)> onStableSeqNumCb_;
   std::function<SeqNum()> getLastStableSeqNumCb_;
+  std::vector<std::function<void(SeqNum)>> onDbCheckpointCreated_;
   std::string dbCheckPointDirPath_;
   concordMetrics::Component metrics_;
   concordMetrics::GaugeHandle maxDbCheckpointCreationTimeMsec_;
