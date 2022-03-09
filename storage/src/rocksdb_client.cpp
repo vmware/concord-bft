@@ -14,15 +14,8 @@
 #include <rocksdb/db.h>
 #include <rocksdb/options.h>
 #include <stdexcept>
-#if __has_include(<filesystem>)
-#include <filesystem>
-namespace fs = std::filesystem;
-#elif __has_include(<experimental/filesystem>)
-#include <experimental/filesystem>
-namespace fs = std::experimental::filesystem;
-#else
-#error "Missing filesystem support"
-#endif
+#include "util/filesystem.hpp"
+
 #ifdef USE_ROCKSDB
 
 #include <rocksdb/client.h>

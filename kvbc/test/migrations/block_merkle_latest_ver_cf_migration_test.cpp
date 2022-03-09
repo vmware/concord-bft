@@ -22,7 +22,7 @@
 #include "sha_hash.hpp"
 #include "storage/test/storage_test_common.h"
 
-#include <boost/filesystem.hpp>
+#include "util/filesystem.hpp"
 
 #include <iostream>
 #include <map>
@@ -200,7 +200,7 @@ class block_merkle_latest_ver_cf_migration_test : public Test {
 
     createKvbc();
 
-    ASSERT_FALSE(boost::filesystem::exists(rocksDbPath(export_path_id_)));
+    ASSERT_FALSE(fs::exists(rocksDbPath(export_path_id_)));
     ASSERT_FALSE(db_->hasColumnFamily(BlockMerkleLatestVerCfMigration::temporaryColumnFamily()));
     const auto state = db_->get(BlockMerkleLatestVerCfMigration::migrationKey());
     ASSERT_TRUE(state.has_value());

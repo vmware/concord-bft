@@ -1,6 +1,6 @@
 #include "migrations/block_merkle_latest_ver_cf_migration.h"
 
-#include <boost/filesystem.hpp>
+#include "util/filesystem.hpp"
 #include <boost/program_options.hpp>
 #include <boost/program_options/errors.hpp>
 #include <boost/program_options/value_semantic.hpp>
@@ -14,7 +14,6 @@
 namespace {
 
 namespace po = boost::program_options;
-namespace fs = boost::filesystem;
 
 std::pair<po::options_description, po::variables_map> parseArgs(int argc, char* argv[]) {
   auto desc = po::options_description(

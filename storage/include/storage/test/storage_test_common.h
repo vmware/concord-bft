@@ -20,6 +20,7 @@
 #include "rocksdb/native_client.h"
 #include "sliver.hpp"
 #include "storage/db_interface.h"
+#include "util/filesystem.hpp"
 
 #include <unistd.h>
 
@@ -28,16 +29,6 @@
 #include <sstream>
 #include <string>
 #include <thread>
-
-#if __has_include(<filesystem>)
-#include <filesystem>
-namespace fs = std::filesystem;
-#elif __has_include(<experimental/filesystem>)
-#include <experimental/filesystem>
-namespace fs = std::experimental::filesystem;
-#else
-#error "Missing filesystem support"
-#endif
 
 inline constexpr auto defaultDbId = std::size_t{0};
 

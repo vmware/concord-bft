@@ -37,6 +37,8 @@ if(BUILD_COMM_TCP_TLS)
     target_link_libraries(bftcommunication_shared PUBLIC secretsmanager_shared)
 endif()
 
+target_link_libraries(bftcommunication PRIVATE stdc++fs)
+target_link_libraries(bftcommunication_shared PRIVATE stdc++fs)
 set(Boost_USE_STATIC_LIBS OFF) # find all kind of libs
 set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF)

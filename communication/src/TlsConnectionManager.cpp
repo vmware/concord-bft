@@ -10,7 +10,6 @@
 // subcomponent's license, as noted in the LICENSE file.
 
 #include <asio/bind_executor.hpp>
-#include <boost/filesystem.hpp>
 #include <cstdint>
 #include <future>
 #include <string>
