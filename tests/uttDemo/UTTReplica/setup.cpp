@@ -25,7 +25,6 @@
 #include "setup.hpp"
 #include "communication/CommFactory.hpp"
 #include "config/test_comm_config.hpp"
-#include "commonKVBTests.hpp"
 #include "memorydb/client.h"
 #include "string.hpp"
 #include "config_file_parser.hpp"
@@ -41,6 +40,8 @@
 #ifdef USE_S3_OBJECT_STORE
 #include "s3/config_parser.hpp"
 #endif
+
+const std::string DB_FILE_PREFIX = "./simpleKVBTests_DB_";
 
 namespace fs = std::experimental::filesystem;
 
@@ -229,15 +230,15 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
         }
         case 'h': {
           // enable rocksdb checkpoint with some defaults
-          replicaConfig.dbCheckpointFeatureEnabled = false;
-          replicaConfig.dbCheckPointWindowSize = 150;
-          replicaConfig.dbSnapshotIntervalSeconds = std::chrono::seconds{0};
-          replicaConfig.dbCheckpointMonitorIntervalSeconds = std::chrono::seconds{1};
-          replicaConfig.maxNumberOfDbCheckpoints = concord::util::to<std::uint32_t>(std::string(optarg));
-          if (replicaConfig.maxNumberOfDbCheckpoints) replicaConfig.dbCheckpointFeatureEnabled = true;
-          std::stringstream dbSnapshotPath;
-          dbSnapshotPath << BasicRandomTests::DB_FILE_PREFIX << "snapshot_" << replicaConfig.replicaId;
-          replicaConfig.dbCheckpointDirPath = dbSnapshotPath.str();
+          // replicaConfig.dbCheckpointFeatureEnabled = false;
+          // replicaConfig.dbCheckPointWindowSize = 150;
+          // replicaConfig.dbSnapshotIntervalSeconds = std::chrono::seconds{0};
+          // replicaConfig.dbCheckpointMonitorIntervalSeconds = std::chrono::seconds{1};
+          // replicaConfig.maxNumberOfDbCheckpoints = concord::util::to<std::uint32_t>(std::string(optarg));
+          // if (replicaConfig.maxNumberOfDbCheckpoints) replicaConfig.dbCheckpointFeatureEnabled = true;
+          // std::stringstream dbSnapshotPath;
+          // dbSnapshotPath << BasicRandomTests::DB_FILE_PREFIX << "snapshot_" << replicaConfig.replicaId;
+          // replicaConfig.dbCheckpointDirPath = dbSnapshotPath.str();
           break;
         }
         case 'j': {
@@ -317,7 +318,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
 std::unique_ptr<IStorageFactory> TestSetup::GetStorageFactory() {
   // TODO handle persistence mode
   std::stringstream dbPath;
-  dbPath << BasicRandomTests::DB_FILE_PREFIX << GetReplicaConfig().replicaId;
+  dbPath << DB_FILE_PREFIX << GetReplicaConfig().replicaId;
 
   // #ifdef USE_S3_OBJECT_STORE
   //   if (GetReplicaConfig().isReadOnly) {

@@ -3,6 +3,8 @@ project(utt_client VERSION 0.1.0.0 LANGUAGES CXX)
 
 set(client_sources
     main.cpp
+    ../app_state.cpp
+    ../transactions.cpp
     ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp
 )
 
