@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <stdint.h>
 #include "TimeUtils.hpp"
+#include <atomic>
 
 namespace bftEngine {
 namespace impl {
@@ -44,7 +45,7 @@ class DebugStatistics {
     Time lastCycleTime;
 
     size_t receivedMessages;
-    size_t sendMessages;
+    std::atomic<size_t> sendMessages;
     size_t completedReadOnlyRequests;
     size_t completedReadWriteRequests;
     size_t numberOfReceivedSTMessages;
