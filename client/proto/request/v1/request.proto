@@ -6,6 +6,7 @@ syntax = "proto3";
 package vmware.concord.client.request.v1;
 
 import "google/protobuf/duration.proto";
+import "google/protobuf/any.proto";
 
 // Specifies Java package name, using the standard prefix "com."
 option java_package = "com.vmware.concord.client.request.v1";
@@ -34,7 +35,10 @@ service RequestService {
 
 message Request {
   // Required application request which gets evaluated by the execution engine.
-  bytes request = 1;
+  oneof application_request {
+    bytes raw_request = 1;
+    google.protobuf.Any typed_request = 6;
+  }
 
   // Required timeout which defines the maximum amount of time the caller is
   // willing to wait for the request to be processed by a quorum of replicas.
@@ -65,5 +69,8 @@ message Request {
 
 message Response {
   // Application data returned by the execution engine.
-  bytes response = 1;
+  oneof application_response {
+    bytes raw_response = 1;
+    google.protobuf.Any typed_response = 6;
+  } 
 }
