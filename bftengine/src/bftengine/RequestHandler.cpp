@@ -19,6 +19,7 @@
 #include "DbCheckpointManager.hpp"
 #include "SimpleClient.hpp"
 #include "SharedTypes.hpp"
+#include "ControlStateManager.hpp"
 #include <optional>
 #include <sstream>
 
@@ -46,6 +47,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
         req.outActualReplySize = 0;
       }
       req.outExecutionStatus = static_cast<uint32_t>(OperationResult::SUCCESS);
+      continue;
     } else if (req.flags & MsgFlag::RECONFIG_FLAG) {
       ReconfigurationRequest rreq;
       deserialize(std::vector<std::uint8_t>(req.request, req.request + req.requestSize), rreq);
@@ -90,8 +92,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
       }
       // Stop further processing of this request
       req.outExecutionStatus = static_cast<uint32_t>(OperationResult::SUCCESS);
-      // Don't continue to process requests after pruning (in case we run in async pruning mode)
-      if (std::holds_alternative<concord::messages::PruneRequest>(rreq.command)) return;
+      continue;
     } else if (req.flags & TICK_FLAG) {
       // Make sure the reply always contains one dummy 0 byte. Needed as empty replies are not supported at that stage.
       // Also, set replica specific information size to 0.
@@ -114,6 +115,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
         LOG_WARN(GL, "Received a Tick, but the cron table registry is not initialized");
         req.outExecutionStatus = static_cast<uint32_t>(OperationResult::INTERNAL_ERROR);
       }
+      continue;
     } else if (req.flags & MsgFlag::DB_CHECKPOINT_FLAG) {
       concord::messages::db_checkpoint_msg::CreateDbCheckpoint createDbChkPtMsg;
       concord::messages::db_checkpoint_msg::deserialize(
@@ -139,6 +141,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
       req.outReply[0] = '1';
       req.outActualReplySize = 1;
       LOG_INFO(GL, "onCreateDbCheckpointMsg - " << KVLOG(createDbChkPtMsg.seqNum));
+      continue;
     }
 
     if (req.flags & READ_ONLY_FLAG) {
@@ -163,7 +166,14 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
       req.outExecutionStatus = static_cast<uint32_t>(OperationResult::SUCCESS);
       req.outReply[0] = '1';
       req.outActualReplySize = 1;
+      continue;
     }
+    if (bftEngine::ControlStateManager::instance().getPruningProcessStatus()) {
+      req.outActualReplySize = 0;
+    }
+  }
+  if (bftEngine::ControlStateManager::instance().getPruningProcessStatus()) {
+    return;
   }
   if (userRequestsHandler_) {
     // Do not measure pre-exec and read requests.
