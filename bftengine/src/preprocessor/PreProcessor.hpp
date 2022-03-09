@@ -294,7 +294,6 @@ class PreProcessor {
       SeqNum reqSeqNum, NodeIdType senderId, NodeIdType clientId, const std::string &batchCid, const std::string &cid);
   void releaseReqAndSendReplyMsg(PreProcessReplyMsgSharedPtr replyMsg);
   bool handlePossiblyExpiredRequest(const RequestStateSharedPtr &reqStateEntry);
-  bool allClientRequestsReleased(uint16_t clientId, const std::string &batchCid);
 
   static logging::Logger &logger() {
     static logging::Logger logger_ = logging::getLogger("concord.preprocessor");
@@ -320,6 +319,7 @@ class PreProcessor {
   bftEngine::IRequestsHandler &requestsHandler_;
   const InternalReplicaApi &myReplica_;
   const ReplicaId myReplicaId_;
+  const uint32_t maxExternalMsgSize_;
   const uint32_t maxPreExecResultSize_;
   const uint16_t numOfReplicas_;
   const uint16_t numOfClientProxies_;
@@ -360,6 +360,7 @@ class PreProcessor {
   std::shared_ptr<concord::diagnostics::Recorder> launchAsyncPreProcessJobRecorder_;
   std::shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
   bool batchedPreProcessEnabled_;
+  bool memoryPoolEnabled_;
 };
 
 //**************** Class AsyncPreProcessJob ****************//

@@ -281,11 +281,12 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       requestsHandler_(requestsHandler),
       myReplica_(myReplica),
       myReplicaId_(myReplica.getReplicaConfig().replicaId),
-      maxPreExecResultSize_(myReplica.getReplicaConfig().maxExternalMessageSize - sizeof(uint64_t)),
+      maxExternalMsgSize_(myReplica.getReplicaConfig().maxExternalMessageSize),
+      maxPreExecResultSize_(maxExternalMsgSize_ - sizeof(uint64_t)),
       numOfReplicas_(myReplica.getReplicaConfig().numReplicas + myReplica.getReplicaConfig().numRoReplicas),
       numOfClientProxies_(myReplica.getReplicaConfig().numOfClientProxies),
       clientBatchingEnabled_(myReplica.getReplicaConfig().clientBatchingEnabled),
-      memoryPool_(myReplica.getReplicaConfig().maxExternalMessageSize, timers),
+      memoryPool_(maxExternalMsgSize_, timers),
       metricsComponent_{concordMetrics::Component("preProcessor", std::make_shared<concordMetrics::Aggregator>())},
       metricsLastDumpTime_(0),
       metricsDumpIntervalInSec_{myReplica_.getReplicaConfig().metricsDumpIntervalSeconds},
@@ -309,7 +310,8 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       totalPreExecDurationRecorder_{histograms_.totalPreExecutionDuration},
       launchAsyncPreProcessJobRecorder_{histograms_.launchAsyncPreProcessJob},
       pm_{pm},
-      batchedPreProcessEnabled_(myReplica_.getReplicaConfig().batchedPreProcessEnabled) {
+      batchedPreProcessEnabled_(myReplica_.getReplicaConfig().batchedPreProcessEnabled),
+      memoryPoolEnabled_(myReplica_.getReplicaConfig().enablePreProcessorMemoryPool) {
   clientMaxBatchSize_ = clientBatchingEnabled_ ? myReplica.getReplicaConfig().clientBatchingMaxMsgsNbr : 1,
   registerMsgHandlers();
   metricsComponent_.Register();
@@ -319,8 +321,10 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
     // Placeholders for all clients including batches
     preProcessResultBuffers_.emplace_back(make_shared<SafeResultBuffer>());
   }
-  // Initially, allocate a memory for all batches of one client (clientMaxBatchSize_)
-  memoryPool_.allocatePool(clientMaxBatchSize_, numOfReqEntries);
+  if (memoryPoolEnabled_) {
+    // Initially, allocate a memory for all batches of one client (clientMaxBatchSize_)
+    memoryPool_.allocatePool(clientMaxBatchSize_, numOfReqEntries);
+  }
   const uint16_t firstClientId = numOfReplicas_ + numOfClientProxies_;
   for (uint16_t i = 0; i < numOfExternalClients; i++) {
     // Placeholders for all client batches
@@ -361,6 +365,8 @@ PreProcessor::~PreProcessor() {
   cancelTimers();
   threadPool_.stop();
   if (msgLoopThread_.joinable()) msgLoopThread_.join();
+  if (!memoryPoolEnabled_)
+    for (const auto &result : preProcessResultBuffers_) delete[] result->buffer;
 }
 
 void PreProcessor::addTimers() {
@@ -1198,7 +1204,6 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffset
       // controlled by the replica while all PreProcessReply messages get released here.
       auto preProcessResult = static_cast<uint32_t>(reqProcessingStatePtr->getAgreedPreProcessResult());
 
-      // Changing preProcessResult to UNKNOWN for post-execution to verify the replies in apollo tests.
       if (preProcessResult == static_cast<uint32_t>(OperationResult::SUCCESS)) {
         preProcessResult = static_cast<uint32_t>(OperationResult::UNKNOWN);
       }
@@ -1377,11 +1382,11 @@ void PreProcessor::releaseClientPreProcessRequest(const RequestStateSharedPtr &r
       }
       givenReq.reset();
     }
-    if (batchedPreProcessEnabled_) ongoingReqBatches_[clientId]->increaseNumOfCompletedReqs();
+    if (batchedPreProcessEnabled_ && !batchCid.empty()) ongoingReqBatches_[clientId]->increaseNumOfCompletedReqs();
     if (!myReplica_.isCurrentPrimary()) {
       preProcessorMetrics_.preProcInFlyRequestsNum--;
     }
-    releasePreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch);
+    if (memoryPoolEnabled_) releasePreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch);
   }
 }
 
@@ -1420,8 +1425,11 @@ bool PreProcessor::registerRequestOnPrimaryReplica(const string &batchCid,
   const auto senderId = clientReqMsg->senderId();
   const auto requestTimeoutMilli = clientReqMsg->requestTimeoutMilli();
 
-  ongoingReqBatches_[clientId]->registerBatch(batchCid, batchSize);
-  const auto blockId = ongoingReqBatches_[clientId]->getBlockId();
+  uint64_t blockId = 0;
+  if (batchedPreProcessEnabled_ && !batchCid.empty()) {
+    ongoingReqBatches_[clientId]->registerBatch(batchCid, batchSize);
+    blockId = ongoingReqBatches_[clientId]->getBlockId();
+  }
 
   preProcessRequestMsg =
       make_shared<PreProcessRequestMsg>(REQ_TYPE_PRE_PROCESS,
@@ -1514,8 +1522,14 @@ const char *PreProcessor::getPreProcessResultBuffer(uint16_t clientId, ReqId req
   const auto bufferOffset = getBufferOffset(clientId, reqSeqNum, reqOffsetInBatch);
   std::unique_lock lock(preProcessResultBuffers_[bufferOffset]->mutex);
   if (!preProcessResultBuffers_[bufferOffset]->buffer) {
-    preProcessResultBuffers_[bufferOffset]->buffer = memoryPool_.getChunk();
-    LOG_TRACE(logger(), "Allocate memory from the pool" << KVLOG(clientId, reqSeqNum, reqOffsetInBatch, bufferOffset));
+    if (memoryPoolEnabled_) {
+      preProcessResultBuffers_[bufferOffset]->buffer = memoryPool_.getChunk();
+      LOG_TRACE(logger(),
+                "Allocate memory from the pool" << KVLOG(clientId, reqSeqNum, reqOffsetInBatch, bufferOffset));
+    } else {
+      preProcessResultBuffers_[bufferOffset]->buffer = new char[maxExternalMsgSize_];
+      LOG_INFO(logger(), "Allocate raw memory" << KVLOG(clientId, reqSeqNum, reqOffsetInBatch, bufferOffset));
+    }
   }
   return preProcessResultBuffers_[bufferOffset]->buffer;
 }

@@ -27,7 +27,8 @@ RawMemoryPool::~RawMemoryPool() {
   unique_lock<mutex> lock(waitForAvailChunkLock_);
   this_thread::sleep_for(std::chrono::milliseconds(WAIT_TIMEOUT_MILLI * 2));
   char* chunk = nullptr;
-  while (pool_->pop(chunk)) delete[] chunk;
+  if (pool_)
+    while (pool_->pop(chunk)) delete[] chunk;
 }
 
 void RawMemoryPool::allocatePool(int32_t initialChunksNum, int32_t maxChunksNum) {
@@ -43,7 +44,7 @@ void RawMemoryPool::allocatePool(int32_t initialChunksNum, int32_t maxChunksNum)
   for (int32_t i = 0; i < initialChunksNum_; ++i) {
     char* chunk = new char[chunkSize_];
     pool_->push(chunk);
-    LOG_INFO(logger(), "Initial chunk allocation" << KVLOG((void*)chunk));
+    LOG_DEBUG(logger(), "Initial chunk allocation" << KVLOG((void*)chunk));
     metrics_.increaseAvailableChunksNum();
     metrics_.increaseAllocatedChunksNum();
   }
