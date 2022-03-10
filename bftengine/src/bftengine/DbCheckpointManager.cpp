@@ -76,6 +76,9 @@ Status DbCheckpointManager::createDbCheckpoint(const CheckpointId& checkPointId,
     while (dbCheckptMetadata_.dbCheckPoints_.size() > maxNumOfCheckpoints_) {
       removeOldestDbCheckpoint();
     }
+    for (auto& cb : onDbCheckpointCreated_) {
+      if (cb) cb(seqNum);
+    }
   }
   updateMetrics();
   return Status::OK();
