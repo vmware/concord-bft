@@ -67,8 +67,11 @@ void RequestServiceCallData::populateResult(grpc::Status status) {
 void RequestServiceCallData::sendToConcordClient() {
   bft::client::Msg msg;
   if (request_.has_typed_request()) {
-    std::string str = request_.typed_request().SerializeAsString();
-    msg = bft::client::Msg(str.begin(), str.end());
+    google::protobuf::Any app_request = request_.typed_request();
+    size_t request_size = app_request.ByteSizeLong();
+    std::string request(request_size, '\0');
+    app_request.SerializeToArray(request.data(), request_size);
+    msg = bft::client::Msg(request.begin(), request.end());
   } else {
     msg = bft::client::Msg(request_.raw_request().begin(), request_.raw_request().end());
   }
@@ -127,10 +130,9 @@ void RequestServiceCallData::sendToConcordClient() {
     std::string data(reply.matched_data.begin(), reply.matched_data.end());
 
     // Check if the application response is of Any Type then set it to Any response.
-    google::protobuf::Any* anyResponse = this->response_.mutable_typed_response();
-    if (anyResponse->ParseFromString(data) == false) {
+    google::protobuf::Any* app_response = this->response_.mutable_typed_response();
+    if (app_response->ParseFromArray(data.c_str(), data.size()) == false) {
       this->response_.set_raw_response(std::move(data));
-      this->response_.release_typed_response();
     }
     this->populateResult(grpc::Status::OK);
   };
