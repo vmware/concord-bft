@@ -32,8 +32,8 @@
 #include "Metrics.hpp"
 #include "InternalBFTClient.hpp"
 #include "storage/db_interface.h"
-#include <boost/filesystem.hpp>
-namespace _fs = boost::filesystem;
+#include "util/filesystem.hpp"
+namespace _fs = fs;
 namespace bftEngine::impl {
 using std::chrono::duration_cast;
 using Status = concordUtils::Status;

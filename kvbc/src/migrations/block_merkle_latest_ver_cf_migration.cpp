@@ -24,7 +24,7 @@
 #include <stdexcept>
 #include <vector>
 
-#include <boost/filesystem.hpp>
+#include "util/filesystem.hpp"
 #include <rocksdb/options.h>
 
 namespace concord::kvbc::migrations {
@@ -62,7 +62,7 @@ BlockMerkleLatestVerCfMigration::BlockMerkleLatestVerCfMigration(const std::stri
   db_ = NativeClient::newClient(db_path, read_only, NativeClient::DefaultOptions{});
 }
 
-void BlockMerkleLatestVerCfMigration::removeExportDir() { boost::filesystem::remove_all(export_path_); }
+void BlockMerkleLatestVerCfMigration::removeExportDir() { fs::remove_all(export_path_); }
 
 void BlockMerkleLatestVerCfMigration::checkpointDB() {
   Checkpoint* checkpoint{nullptr};

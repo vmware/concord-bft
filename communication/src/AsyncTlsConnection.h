@@ -18,7 +18,7 @@
 
 #include <asio.hpp>
 #include <asio/ssl.hpp>
-#include <boost/filesystem.hpp>
+#include "util/filesystem.hpp"
 
 #include "communication/CommDefs.hpp"
 #include "Logger.hpp"
@@ -176,7 +176,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
   // Return true along with the actual node id if verification succeeds, (false, 0) if not.
   std::pair<bool, NodeNum> checkCertificate(X509* received_cert, std::optional<NodeNum> expected_peer_id);
 
-  const std::string decryptPrivateKey(const boost::filesystem::path& path);
+  const std::string decryptPrivateKey(const fs::path& path);
 
   logging::Logger logger_;
   asio::io_context& io_context_;

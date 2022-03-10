@@ -11,6 +11,8 @@
 // LICENSE file.
 
 #include <asio/bind_executor.hpp>
+#include <boost/system/system_error.hpp>
+#include <fstream>
 #include <regex>
 
 #include <arpa/inet.h>
@@ -280,7 +282,6 @@ void AsyncTlsConnection::initClientSSLContext(NodeNum destination) {
   auto self = std::weak_ptr(shared_from_this());
   ssl_context_.set_verify_mode(asio::ssl::verify_peer);
 
-  namespace fs = boost::filesystem;
   fs::path path;
   try {
     path = fs::path(config_.certificatesRootPath_) / fs::path(std::to_string(config_.selfId_)) / "client";
@@ -340,7 +341,6 @@ void AsyncTlsConnection::initServerSSLContext() {
     ConcordAssert(false);
   }
 
-  namespace fs = boost::filesystem;
   fs::path path;
   try {
     path = fs::path(config_.certificatesRootPath_) / fs::path(std::to_string(config_.selfId_)) / fs::path("server");
@@ -458,8 +458,7 @@ std::pair<bool, NodeNum> AsyncTlsConnection::checkCertificate(X509* received_cer
 
 using namespace concord::secretsmanager;
 
-const std::string AsyncTlsConnection::decryptPrivateKey(const boost::filesystem::path& path) {
-  namespace fs = boost::filesystem;
+const std::string AsyncTlsConnection::decryptPrivateKey(const fs::path& path) {
   std::string pkpath;
 
   std::unique_ptr<ISecretsManagerImpl> secrets_manager;
