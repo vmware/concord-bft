@@ -13,6 +13,7 @@ import os.path
 import random
 import unittest
 from os import environ
+from util.test_base import ApolloTest
 from util import bft_network_traffic_control as ntc
 import trio
 
@@ -40,7 +41,7 @@ def start_replica_cmd(builddir, replica_id):
             ]
 
 
-class SkvbcStateTransferTest():
+class SkvbcStateTransferTest(ApolloTest):
 
     __test__ = False  # so that PyTest ignores this test scenario
 
@@ -88,7 +89,7 @@ class SkvbcStateTransferTest():
 
         await skvbc.start_replicas_and_write_with_multiple_clients(
             stale_nodes={stale_node},
-            write_run_duration=30,
+            write_run_duration=60,
             persistency_enabled=False
         )
         bft_network.start_replica(stale_node)
