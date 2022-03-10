@@ -29,6 +29,7 @@ AdaptivePruningManager::AdaptivePruningManager(
       pruningUtilizationMetric(metricComponent.RegisterAtomicGauge("percantageOfTimeUtilizedByPruning", 0)) {
   (void)ro_storage_;
   resourceManager->setPeriod(bftEngine::ReplicaConfig::instance().adaptivePruningIntervalPeriod);
+  metricComponent.Register();
 }
 
 AdaptivePruningManager::~AdaptivePruningManager() { stop(); }
