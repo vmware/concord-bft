@@ -61,7 +61,8 @@ module DistributedSystem {
       && c.WF()
       && |hosts| == |c.hosts|
       && (forall id | c.clusterConfig.IsHonestReplica(id) :: hosts[id].Replica? && hosts[id].replicaVariables.WF(c.hosts[id].replicaConstants))
-      && (forall id | c.clusterConfig.IsClient(id) :: hosts[id].Client? && hosts[id].clientVariables.WF(c.hosts[id].clientConstants))
+      && (forall id | c.clusterConfig.IsClient(id) :: hosts[id].Client? && hosts[id].clientVariables.WF(c.hosts[id].clientConstants)
+      && (forall id | c.clusterConfig.IsFaultyReplica(id) :: hosts[id].FaultyReplica?))
     }
   }
 
@@ -98,6 +99,7 @@ module DistributedSystem {
       && v.WF(c)
       && v'.WF(c)
       && c.clusterConfig.IsFaultyReplica(step.id)
+      && assert v.hosts[step.id].FaultyReplica?; true
       && FaultyReplica.Next(c.hosts[step.id].faultyReplicaConstants, v.hosts[step.id].faultyReplicaVariables, v'.hosts[step.id].faultyReplicaVariables, step.msgOps)
   }
 
