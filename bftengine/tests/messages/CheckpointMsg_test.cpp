@@ -14,7 +14,7 @@
 #include <memory>
 #include "gtest/gtest.h"
 #include "Digest.hpp"
-#include "DigestType.h"
+#include "DigestType.hpp"
 #include "messages/CheckpointMsg.hpp"
 #include "bftengine/ClientMsgs.hpp"
 #include "bftengine/ClientMsgs.hpp"

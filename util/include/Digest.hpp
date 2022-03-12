@@ -14,7 +14,7 @@
 #include <memory.h>
 #include <stdint.h>
 #include <string>
-#include "DigestType.h"
+#include "DigestType.hpp"
 
 namespace bftEngine {
 namespace impl {

@@ -7,7 +7,6 @@ add_subdirectory("cmf")
 set(corebft_source_files
     src/bftengine/PrimitiveTypes.cpp
     src/bftengine/DebugStatistics.cpp
-    src/bftengine/Digest.cpp
     src/bftengine/SeqNumInfo.cpp
     src/bftengine/ReadOnlyReplica.cpp
     src/bftengine/ReplicaBase.cpp
