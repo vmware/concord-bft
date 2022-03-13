@@ -322,8 +322,20 @@ unique_ptr<MessageBase> RequestProcessingState::buildClientRequestMsg(bool empty
 
 const std::set<PreProcessResultSignature> &RequestProcessingState::getPreProcessResultSignatures() {
   const auto &r = preProcessingResultHashes_.find(primaryPreProcessResultHash_);
-  ConcordAssert(r != preProcessingResultHashes_.end());
-  return r->second;
+  if (r != preProcessingResultHashes_.end()) return r->second;
+  LOG_FATAL(logger(),
+            "Primary replica pre-processing has not been completed" << KVLOG(batchCid_,
+                                                                             reqSeqNum_,
+                                                                             clientId_,
+                                                                             cid_,
+                                                                             reqOffsetInBatch_,
+                                                                             preProcessingResultHashes_.size(),
+                                                                             preprocessingRightNow_,
+                                                                             retrying_,
+                                                                             (int)agreedPreProcessResult_,
+                                                                             (int)primaryPreProcessResult_,
+                                                                             numOfReceivedReplies_));
+  ConcordAssert(false);
 }
 
 }  // namespace preprocessor
