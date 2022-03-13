@@ -87,11 +87,42 @@ void NativeClient::put(const std::string &cFamily, const KeySpan &key, const Val
   detail::throwOnError("put() failed"sv, std::move(s));
 }
 
+template <typename KeySpan, typename ValueSpan, typename TimestampSpan>
+void NativeClient::put(const std::string &cFamily,
+                       const KeySpan &key,
+                       const TimestampSpan &ts,
+                       const ValueSpan &value) {
+  auto options = ::rocksdb::WriteOptions{};
+  auto slTs = ::rocksdb::Slice(ts);
+  options.timestamp = &slTs;
+  auto s =
+      client_->dbInstance_->Put(options, columnFamilyHandle(cFamily), detail::toSlice(key), detail::toSlice(value));
+  detail::throwOnError("put() failed"sv, std::move(s));
+}
+
 template <typename KeySpan>
 std::optional<std::string> NativeClient::get(const std::string &cFamily, const KeySpan &key) const {
   auto value = std::string{};
   auto s =
       client_->dbInstance_->Get(::rocksdb::ReadOptions{}, columnFamilyHandle(cFamily), detail::toSlice(key), &value);
+  if (s.IsNotFound()) {
+    return std::nullopt;
+  }
+  detail::throwOnError("get() failed"sv, std::move(s));
+  return value;
+}
+
+template <typename KeySpan, typename TimestampSpan>
+std::optional<std::string> NativeClient::get(const std::string &cFamily,
+                                             const KeySpan &key,
+                                             const TimestampSpan &inTs,
+                                             std::string *timestamp) const {
+  auto value = std::string{};
+  auto ro = ::rocksdb::ReadOptions{};
+  auto slTs = detail::toSlice(inTs);
+  ro.timestamp = &slTs;
+
+  auto s = client_->dbInstance_->Get(ro, columnFamilyHandle(cFamily), detail::toSlice(key), &value, timestamp);
   if (s.IsNotFound()) {
     return std::nullopt;
   }
@@ -114,6 +145,15 @@ std::optional<::rocksdb::PinnableSlice> NativeClient::getSlice(const std::string
 template <typename KeySpan>
 void NativeClient::del(const std::string &cFamily, const KeySpan &key) {
   auto s = client_->dbInstance_->Delete(::rocksdb::WriteOptions{}, columnFamilyHandle(cFamily), detail::toSlice(key));
+  detail::throwOnError("del() failed"sv, std::move(s));
+}
+
+template <typename KeySpan, typename TimestampSpan>
+void NativeClient::del(const std::string &cFamily, const KeySpan &key, const TimestampSpan &ts) {
+  auto options = ::rocksdb::WriteOptions{};
+  auto slTs = ::rocksdb::Slice(ts);
+  options.timestamp = &slTs;
+  auto s = client_->dbInstance_->Delete(options, columnFamilyHandle(cFamily), detail::toSlice(key));
   detail::throwOnError("del() failed"sv, std::move(s));
 }
 

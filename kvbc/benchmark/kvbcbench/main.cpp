@@ -233,8 +233,8 @@ std::shared_ptr<rocksdb::Statistics> completeRocksdbConfiguration(
 
   // Use the same block cache and table options for all column familes for now.
   for (auto& d : cf_descs) {
-    auto* cf_table_options =
-        reinterpret_cast<::rocksdb::BlockBasedTableOptions*>(d.options.table_factory->GetOptions());
+    auto* cf_table_options = reinterpret_cast<::rocksdb::BlockBasedTableOptions*>(
+        d.options.table_factory->GetOptions<::rocksdb::BlockBasedTableOptions>());
     cf_table_options->block_cache = table_options.block_cache;
     cf_table_options->filter_policy.reset(::rocksdb::NewBloomFilterPolicy(10, false));
   }
