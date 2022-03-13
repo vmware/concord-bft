@@ -19,6 +19,8 @@
 #include "rocksdb/native_client.h"
 #include "sliver.hpp"
 #include "storage/test/storage_test_common.h"
+#include "rocksdb/time_stamp_comparator.h"
+#include "endianness.hpp"
 
 #include <string_view>
 #include <utility>
@@ -453,7 +455,7 @@ TEST_F(native_rocksdb_test, batch_del_invalid_range_in_default_family) {
   db->put(key2, value2);
   auto batch = db->getBatch();
   batch.delRange(key3, key1);
-  db->write(std::move(batch));
+  EXPECT_THROW(db->write(std::move(batch)), concord::storage::rocksdb::RocksDBException);
   const auto dbValue1 = db->get(key1);
   ASSERT_TRUE(dbValue1.has_value());
   ASSERT_EQ(*dbValue1, value1);
@@ -469,7 +471,7 @@ TEST_F(native_rocksdb_test, batch_del_invalid_range_in_a_family) {
   db->put(cf, key2, value2);
   auto batch = db->getBatch();
   batch.delRange(cf, key3, key1);
-  db->write(std::move(batch));
+  EXPECT_THROW(db->write(std::move(batch)), concord::storage::rocksdb::RocksDBException);
   const auto dbValue1 = db->get(cf, key1);
   ASSERT_TRUE(dbValue1.has_value());
   ASSERT_EQ(*dbValue1, value1);
@@ -1085,6 +1087,395 @@ TEST_F(native_rocksdb_test, restore_db_from_snapshot) {
   // verifying there is no checkpoint is created
   checkPoints = db->getListOfCreatedCheckpointsNative();
   ASSERT_EQ(checkPoints.size(), 0);
+}
+
+//////TIMESTAMP SUPPORT/////////
+TEST_F(native_rocksdb_test, put_and_get_with_timestamp_basic) {
+  const auto cf = "cf"s;
+  auto cf_options = ::rocksdb::ColumnFamilyOptions{};
+  cf_options.comparator = concord::storage::rocksdb::getLexicographic64TsComparator();
+  db->createColumnFamily(cf, cf_options);
+
+  uint64_t timestamp = 420;
+  auto tsStr = concordUtils::toBigEndianStringBuffer(timestamp);
+  std::string key = "time";
+  std::string value = "val";
+  db->put(cf, key, tsStr, value);
+
+  std::string outTs;
+  auto val = db->get(cf, key, tsStr, &outTs);
+  ASSERT_TRUE(val.has_value());
+  ASSERT_EQ(*val, value);
+  ASSERT_EQ(outTs, tsStr);
+  auto ioutTs = concordUtils::fromBigEndianBuffer<uint64_t>(outTs.data());
+  ASSERT_EQ(timestamp, ioutTs);
+}
+
+TEST_F(native_rocksdb_test, put_and_get_with_timestamp_adv) {
+  const auto cf = "cf"s;
+  auto cf_options = ::rocksdb::ColumnFamilyOptions{};
+  cf_options.comparator = concord::storage::rocksdb::getLexicographic64TsComparator();
+  db->createColumnFamily(cf, cf_options);
+
+  uint64_t timestamp = 420;
+  auto tsStr = concordUtils::toBigEndianStringBuffer(timestamp);
+  std::string key = "time";
+  std::string value = "val";
+  db->put(cf, key, tsStr, value);
+
+  // Try to get with lower timestamp
+  std::string outTs;
+  uint64_t lowerTimestamp = 419;
+  auto lowtsStr = concordUtils::toBigEndianStringBuffer(lowerTimestamp);
+  auto val = db->get(cf, key, lowtsStr, &outTs);
+  ASSERT_FALSE(val.has_value());
+
+  // Get with higer
+  uint64_t highrTimestamp = 425;
+  auto highsStr = concordUtils::toBigEndianStringBuffer(highrTimestamp);
+  val = db->get(cf, key, highsStr, &outTs);
+  ASSERT_TRUE(val.has_value());
+  ASSERT_EQ(*val, value);
+  // Should return 420
+  ASSERT_EQ(outTs, tsStr);
+  auto ioutTs = concordUtils::fromBigEndianBuffer<uint64_t>(outTs.data());
+  ASSERT_EQ(timestamp, ioutTs);
+}
+
+TEST_F(native_rocksdb_test, put_and_get_multiple_timestamps) {
+  const auto cf = "cf"s;
+  auto cf_options = ::rocksdb::ColumnFamilyOptions{};
+  cf_options.comparator = concord::storage::rocksdb::getLexicographic64TsComparator();
+  db->createColumnFamily(cf, cf_options);
+
+  uint64_t timestamp = 420;
+  auto tsStr = concordUtils::toBigEndianStringBuffer(timestamp);
+  std::string key = "time";
+  std::string value = "val";
+  db->put(cf, key, tsStr, value);
+
+  uint64_t timestamp2 = 430;
+  auto tsStr2 = concordUtils::toBigEndianStringBuffer(timestamp2);
+  std::string value2 = "val2";
+  db->put(cf, key, tsStr2, value2);
+
+  // Try to get with lower timestamp
+  std::string outTs;
+  uint64_t lowerTimestamp = 419;
+  auto lowtsStr = concordUtils::toBigEndianStringBuffer(lowerTimestamp);
+  auto val = db->get(cf, key, lowtsStr, &outTs);
+  ASSERT_FALSE(val.has_value());
+
+  uint64_t firstTs = 420;
+  auto ftsStr = concordUtils::toBigEndianStringBuffer(firstTs);
+  val = db->get(cf, key, ftsStr, &outTs);
+  ASSERT_TRUE(val.has_value());
+  ASSERT_EQ(*val, value);
+  // Should return 420
+  ASSERT_EQ(outTs, tsStr);
+  auto ioutTs = concordUtils::fromBigEndianBuffer<uint64_t>(outTs.data());
+  ASSERT_EQ(timestamp, ioutTs);
+
+  // in between shouold return 420
+  uint64_t midTs = 424;
+  auto mtsStr = concordUtils::toBigEndianStringBuffer(midTs);
+  val = db->get(cf, key, mtsStr, &outTs);
+  ASSERT_TRUE(val.has_value());
+  ASSERT_EQ(*val, value);
+  // Should return 420
+  ASSERT_EQ(outTs, tsStr);
+  ioutTs = concordUtils::fromBigEndianBuffer<uint64_t>(outTs.data());
+  ASSERT_EQ(timestamp, ioutTs);
+
+  // second return 430
+  uint64_t hTs = 430;
+  auto htsStr = concordUtils::toBigEndianStringBuffer(hTs);
+  val = db->get(cf, key, htsStr, &outTs);
+  ASSERT_TRUE(val.has_value());
+  ASSERT_EQ(*val, value2);
+  ASSERT_EQ(outTs, tsStr2);
+  ioutTs = concordUtils::fromBigEndianBuffer<uint64_t>(outTs.data());
+  ASSERT_EQ(timestamp2, ioutTs);
+
+  // higher return 430
+  uint64_t hTs2 = 43000;
+  auto htsStr2 = concordUtils::toBigEndianStringBuffer(hTs2);
+  val = db->get(cf, key, htsStr2, &outTs);
+  ASSERT_TRUE(val.has_value());
+  ASSERT_EQ(*val, value2);
+  ASSERT_EQ(outTs, tsStr2);
+  ioutTs = concordUtils::fromBigEndianBuffer<uint64_t>(outTs.data());
+  ASSERT_EQ(timestamp2, ioutTs);
+}
+
+TEST_F(native_rocksdb_test, delete_with_timestamp) {
+  const auto cf = "cf"s;
+  auto cf_options = ::rocksdb::ColumnFamilyOptions{};
+  cf_options.comparator = concord::storage::rocksdb::getLexicographic64TsComparator();
+  db->createColumnFamily(cf, cf_options);
+
+  uint64_t timestamp = 420;
+  auto tsStr = concordUtils::toBigEndianStringBuffer(timestamp);
+  std::string key = "time";
+  std::string value = "val";
+  db->put(cf, key, tsStr, value);
+
+  // try to delete with lower timestamp
+  uint64_t lowerTimestamp = 400;
+  auto lowerTsStr = concordUtils::toBigEndianStringBuffer(lowerTimestamp);
+  db->del(cf, key, lowerTsStr);
+
+  // get the value of 420
+  {
+    std::string outTs;
+    auto val = db->get(cf, key, tsStr, &outTs);
+    ASSERT_TRUE(val.has_value());
+    ASSERT_EQ(*val, value);
+    ASSERT_EQ(outTs, tsStr);
+    auto ioutTs = concordUtils::fromBigEndianBuffer<uint64_t>(outTs.data());
+    ASSERT_EQ(timestamp, ioutTs);
+  }
+
+  // delete with higher ts
+  uint64_t higherTimestamp = 500;
+  auto higherTsStr = concordUtils::toBigEndianStringBuffer(higherTimestamp);
+  db->del(cf, key, higherTsStr);
+
+  // get the value at 500
+  {
+    std::string outTs;
+    auto val = db->get(cf, key, higherTsStr, &outTs);
+    ASSERT_FALSE(val.has_value());
+  }
+
+  // get the value of 420
+  {
+    std::string outTs;
+    auto val = db->get(cf, key, tsStr, &outTs);
+    ASSERT_TRUE(val.has_value());
+    ASSERT_EQ(*val, value);
+    ASSERT_EQ(outTs, tsStr);
+    auto ioutTs = concordUtils::fromBigEndianBuffer<uint64_t>(outTs.data());
+    ASSERT_EQ(timestamp, ioutTs);
+  }
+
+  // try to delete with ts
+  db->del(cf, key, tsStr);
+
+  // get the value of 420
+  {
+    std::string outTs;
+    auto val = db->get(cf, key, tsStr, &outTs);
+    ASSERT_FALSE(val.has_value());
+  }
+}
+
+TEST_F(native_rocksdb_test, put_in_batch_with_timestamps) {
+  const auto cf1 = "cf1"s;
+  auto cf_options = ::rocksdb::ColumnFamilyOptions{};
+  cf_options.comparator = concord::storage::rocksdb::getLexicographic64TsComparator();
+  db->createColumnFamily(cf1, cf_options);
+  auto batch = db->getBatch();
+
+  uint64_t timestamp = 420;
+  auto tsStr = concordUtils::toBigEndianStringBuffer(timestamp);
+  std::string key = "time";
+  std::string value = "val";
+
+  std::string key2 = "time2";
+  std::string value2 = "val2";
+
+  batch.put(cf1, key, tsStr, value);
+  batch.put(cf1, key2, tsStr, value2);
+  db->write(std::move(batch));
+
+  // try to read with lower timestamp
+  uint64_t lowerTimestamp = 400;
+  auto lowerTsStr = concordUtils::toBigEndianStringBuffer(lowerTimestamp);
+
+  {
+    std::string outTs;
+    auto val = db->get(cf1, key, lowerTsStr, &outTs);
+    ASSERT_FALSE(val.has_value());
+    val = db->get(cf1, key2, lowerTsStr, &outTs);
+    ASSERT_FALSE(val.has_value());
+  }
+
+  {
+    // try to read with higher timestamp
+    uint64_t higherTimestamp = 500;
+    auto highTsStr = concordUtils::toBigEndianStringBuffer(higherTimestamp);
+    std::string outTs;
+    auto val = db->get(cf1, key, highTsStr, &outTs);
+    ASSERT_TRUE(val.has_value());
+    ASSERT_EQ(*val, value);
+    ASSERT_EQ(outTs, tsStr);
+    auto ioutTs = concordUtils::fromBigEndianBuffer<uint64_t>(outTs.data());
+    ASSERT_EQ(timestamp, ioutTs);
+  }
+}
+
+TEST_F(native_rocksdb_test, 2cf_one_with_timestamp) {
+  const auto cf1 = "cf1"s;
+  auto cf_options = ::rocksdb::ColumnFamilyOptions{};
+  cf_options.comparator = concord::storage::rocksdb::getLexicographic64TsComparator();
+  db->createColumnFamily(cf1, cf_options);
+  const auto cf2 = "cf2"s;
+  db->createColumnFamily(cf2);
+  auto batch = db->getBatch();
+
+  uint64_t timestamp = 420;
+  auto tsStr = concordUtils::toBigEndianStringBuffer(timestamp);
+  std::string key = "time";
+  std::string value = "val";
+
+  std::string key2 = "time2";
+  std::string value2 = "val2";
+
+  batch.put(cf1, key, tsStr, value);
+  batch.put(cf2, key2, value2);
+  db->write(std::move(batch));
+
+  {
+    // read with timestamp
+    std::string outTs;
+    auto val = db->get(cf1, key, tsStr, &outTs);
+    ASSERT_TRUE(val.has_value());
+    ASSERT_EQ(*val, value);
+    ASSERT_EQ(outTs, tsStr);
+    auto ioutTs = concordUtils::fromBigEndianBuffer<uint64_t>(outTs.data());
+    ASSERT_EQ(timestamp, ioutTs);
+  }
+  {
+    // read with without timestamp
+    auto val = db->get(cf2, key2);
+    ASSERT_TRUE(val.has_value());
+    ASSERT_EQ(*val, value2);
+  }
+}
+
+TEST_F(native_rocksdb_test, write_batch_with_Delete) {
+  const auto cf1 = "cf1"s;
+  auto cf_options = ::rocksdb::ColumnFamilyOptions{};
+  cf_options.comparator = concord::storage::rocksdb::getLexicographic64TsComparator();
+  db->createColumnFamily(cf1, cf_options);
+  auto batch = db->getBatch();
+
+  uint64_t timestamp = 420;
+  auto tsStr = concordUtils::toBigEndianStringBuffer(timestamp);
+  std::string key = "time";
+  std::string value = "val";
+
+  std::string key2 = "time2";
+  std::string value2 = "val2";
+
+  batch.put(cf1, key, tsStr, value);
+  batch.put(cf1, key2, tsStr, value2);
+  db->write(std::move(batch));
+
+  {
+    // read with timestamp
+    std::string outTs;
+    auto val = db->get(cf1, key, tsStr, &outTs);
+    ASSERT_TRUE(val.has_value());
+    ASSERT_EQ(*val, value);
+    ASSERT_EQ(outTs, tsStr);
+    auto ioutTs = concordUtils::fromBigEndianBuffer<uint64_t>(outTs.data());
+    ASSERT_EQ(timestamp, ioutTs);
+  }
+
+  std::string value3 = "val3";
+  std::string value4 = "val4";
+
+  uint64_t timestamp2 = 422;
+  auto tsStr2 = concordUtils::toBigEndianStringBuffer(timestamp2);
+  batch.put(cf1, key, tsStr2, value3);
+  batch.put(cf1, key2, tsStr2, value4);
+  batch.del(cf1, key, tsStr);
+  db->write(std::move(batch));
+
+  //// key #1
+  {
+    // read with timestamp deleted value of ts 420
+    std::string outTs;
+    auto val = db->get(cf1, key, tsStr, &outTs);
+    ASSERT_FALSE(val.has_value());
+  }
+
+  {
+    // read with timestamp 421
+    std::string outTs;
+    auto val = db->get(cf1, key, tsStr2, &outTs);
+    ASSERT_TRUE(val.has_value());
+    ASSERT_EQ(*val, value3);
+    ASSERT_EQ(outTs, tsStr2);
+    auto ioutTs = concordUtils::fromBigEndianBuffer<uint64_t>(outTs.data());
+    ASSERT_EQ(timestamp2, ioutTs);
+  }
+
+  //// key #2
+
+  {
+    // read with timestamp 420
+    std::string outTs;
+    auto val = db->get(cf1, key2, tsStr, &outTs);
+    ASSERT_TRUE(val.has_value());
+    ASSERT_EQ(*val, value2);
+    ASSERT_EQ(outTs, tsStr);
+    auto ioutTs = concordUtils::fromBigEndianBuffer<uint64_t>(outTs.data());
+    ASSERT_EQ(timestamp, ioutTs);
+  }
+
+  {
+    // read with timestamp 421
+    std::string outTs;
+    auto val = db->get(cf1, key2, tsStr2, &outTs);
+    ASSERT_TRUE(val.has_value());
+    ASSERT_EQ(*val, value4);
+    ASSERT_EQ(outTs, tsStr2);
+    auto ioutTs = concordUtils::fromBigEndianBuffer<uint64_t>(outTs.data());
+    ASSERT_EQ(timestamp2, ioutTs);
+  }
+}
+
+TEST_F(native_rocksdb_test, lexicographic_timestamp_comparator) {
+  auto comparator = concord::storage::rocksdb::getLexicographic64TsComparator();
+
+  // First is less than second
+  {
+    uint64_t timestamp = 420;
+    auto ts1 = concordUtils::toBigEndianStringBuffer(timestamp);
+    uint64_t timestamp2 = 421;
+    auto ts2 = concordUtils::toBigEndianStringBuffer(timestamp2);
+    auto slTs1 = detail::toSlice(ts1);
+    auto slTs2 = detail::toSlice(ts2);
+    auto comp = comparator->CompareTimestamp(slTs1, slTs2);
+    ASSERT_EQ(comp, -1);
+  }
+
+  // First is larger than second
+  {
+    uint64_t timestamp = 422;
+    auto ts1 = concordUtils::toBigEndianStringBuffer(timestamp);
+    uint64_t timestamp2 = 421;
+    auto ts2 = concordUtils::toBigEndianStringBuffer(timestamp2);
+    auto slTs1 = detail::toSlice(ts1);
+    auto slTs2 = detail::toSlice(ts2);
+    auto comp = comparator->CompareTimestamp(slTs1, slTs2);
+    ASSERT_EQ(comp, 1);
+  }
+
+  // equal
+  {
+    uint64_t timestamp = 420;
+    auto ts1 = concordUtils::toBigEndianStringBuffer(timestamp);
+    uint64_t timestamp2 = 420;
+    auto ts2 = concordUtils::toBigEndianStringBuffer(timestamp2);
+    auto slTs1 = detail::toSlice(ts1);
+    auto slTs2 = detail::toSlice(ts2);
+    auto comp = comparator->CompareTimestamp(slTs1, slTs2);
+    ASSERT_EQ(comp, 0);
+  }
 }
 
 }  // namespace

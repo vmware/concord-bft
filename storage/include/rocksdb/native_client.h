@@ -79,9 +79,18 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
   // Column family single key read-write interface.
   template <typename KeySpan, typename ValueSpan>
   void put(const std::string &cFamily, const KeySpan &key, const ValueSpan &value);
+  template <typename KeySpan, typename ValueSpan, typename TimestampSpan>
+  void put(const std::string &cFamily, const KeySpan &key, const TimestampSpan &ts, const ValueSpan &value);
   // Returns nullopt if the key is not found.
   template <typename KeySpan>
   std::optional<std::string> get(const std::string &cFamily, const KeySpan &key) const;
+  // For Column families that use timestamps
+  template <typename KeySpan, typename TimestampSpan>
+  std::optional<std::string> get(const std::string &cFamily,
+                                 const KeySpan &key,
+                                 const TimestampSpan &inTs,
+                                 std::string *timestamp) const;
+
   // Returns nullopt if the key is not found.
   template <typename KeySpan>
   std::optional<::rocksdb::PinnableSlice> getSlice(const std::string &cFamily, const KeySpan &key) const;
@@ -89,9 +98,13 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
   template <typename KeySpan>
   void del(const std::string &cFamily, const KeySpan &key);
 
+  template <typename KeySpan, typename TimestampSpan>
+  void del(const std::string &cFamily, const KeySpan &key, const TimestampSpan &ts);
+
   // Single key read-write interface for the default column family.
   template <typename KeySpan, typename ValueSpan>
   void put(const KeySpan &key, const ValueSpan &value);
+
   // Returns nullopt if the key is not found.
   template <typename KeySpan>
   std::optional<std::string> get(const KeySpan &key) const;
