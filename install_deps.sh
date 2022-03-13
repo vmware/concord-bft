@@ -41,7 +41,9 @@ apt-get update && apt-get ${APT_GET_FLAGS} install \
     sudo \
     vim \
     iproute2 \
-    wget
+    wget \
+    bison \
+    flex
 
 update-alternatives --install /usr/bin/clang clang /usr/lib/llvm-9/bin/clang 100
 update-alternatives --install /usr/bin/clang++ clang++ /usr/lib/llvm-9/bin/clang++ 100
@@ -185,16 +187,16 @@ git clone https://github.com/relic-toolkit/relic && \
 
 cd ${HOME}
 wget ${WGET_FLAGS} \
-    https://github.com/facebook/rocksdb/archive/v6.8.1.tar.gz && \
-    tar -xzf v6.8.1.tar.gz && \
-    rm v6.8.1.tar.gz && \
-    cd rocksdb-6.8.1 && \
+    https://github.com/facebook/rocksdb/archive/v6.29.3.tar.gz && \
+    tar -xzf v6.29.3.tar.gz && \
+    rm v6.29.3.tar.gz && \
+    cd rocksdb-6.29.3 && \
     EXTRA_CXXFLAGS="-fno-omit-frame-pointer -g " \
     EXTRA_CFLAGS="-fno-omit-frame-pointer -g " \
     PORTABLE=1 make -j$(nproc) USE_RTTI=1 shared_lib && \
     PORTABLE=1 make install-shared && \
     cd ${HOME} && \
-    rm -r rocksdb-6.8.1
+    rm -r rocksdb-6.29.3
 
 cd ${HOME}
 git clone https://github.com/emil-e/rapidcheck.git && \
@@ -335,15 +337,15 @@ git clone -b v0.9.7 --depth 1 https://github.com/yhirose/cpp-httplib && \
 
 # Thrift is the protocol used by Jaeger to export metrics
 cd $HOME
-wget ${WGET_FLAGS} https://archive.apache.org/dist/thrift/0.11.0/thrift-0.11.0.tar.gz && \
-    tar xzf thrift-0.11.0.tar.gz && \
+git clone -b 0.11.0 --depth 1 https://github.com/apache/thrift.git thrift-0.11.0 && \
     cd thrift-0.11.0 && \
+    ./bootstrap.sh && \
     ./configure CXXFLAGS='-g -O2' \
       --without-python --enable-static --disable-shared \
       --disable-tests --disable-tutorial --disable-coverage && \
     make -j$(nproc) install && \
     cd ${HOME} && \
-    rm -r thrift-0.11.0 thrift-0.11.0.tar.gz
+    rm -r thrift-0.11.0
 
 # TODO: Upgrade to opentelemetry-cpp
 # Tracing via Jaeger and Thrift protocol

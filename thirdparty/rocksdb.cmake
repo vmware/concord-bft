@@ -3,7 +3,7 @@
 ExternalProject_Add(rocksdb
                     PREFIX rocksdb
                     GIT_REPOSITORY "https://github.com/facebook/rocksdb.git"
-                    GIT_TAG "v6.8.1"
+                    GIT_TAG "v6.29.3"
                     GIT_PROGRESS TRUE
                     LOG_DOWNLOAD 1
                     LOG_BUILD 1

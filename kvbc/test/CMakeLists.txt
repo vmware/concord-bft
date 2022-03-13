@@ -220,6 +220,32 @@ if (BUILD_ROCKSDB_STORAGE)
         kvbc
         stdc++fs
     )
+
+    add_executable(v4_blockchain_unit_test
+        v4blockchain/v4_blockchain_test.cpp )
+    add_test(v4_blockchain_unit_test v4_blockchain_unit_test)
+    target_link_libraries(v4_blockchain_unit_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
+
+    add_executable(v4_blocks_unit_test
+        v4blockchain/blocks_test.cpp )
+    add_test(v4_blocks_unit_test v4_blocks_unit_test)
+    target_link_libraries(v4_blocks_unit_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
+
+    
     add_executable(pruning_test pruning_test.cpp)
     add_test(pruning_test pruning_test)
     target_link_libraries(pruning_test
