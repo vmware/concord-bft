@@ -78,9 +78,9 @@ class RequestsBatch {
   void startBatch(const std::string &cid, uint32_t batchSize);
   void addReply(PreProcessReplyMsgSharedPtr replyMsg);
   void updateBatchSize(uint32_t batchSize);
-  bool isBatchRegistered() const { return batchRegistered_; }
-  bool isBatchInProcess() const { return batchInProcess_; }
-  void increaseNumOfCompletedReqs() { numOfCompletedReqs_++; }
+  bool isBatchRegistered() const;
+  bool isBatchInProcess() const;
+  void increaseNumOfCompletedReqs();
   RequestStateSharedPtr &getRequestState(uint16_t reqOffsetInBatch);
   const std::string getCid() const;
   void cancelBatchAndReleaseRequests(const std::string &batchCid, PreProcessingResult status);
@@ -88,7 +88,7 @@ class RequestsBatch {
   void finalizeBatchIfCompleted();
   void handlePossiblyExpiredRequests();
   void sendCancelBatchedPreProcessingMsgToNonPrimaries(const ClientMsgsList &clientMsgs, NodeIdType destId);
-  uint64_t getBlockId() const { return cidToBlockid_.second; }
+  uint64_t getBlockId() const;
 
  private:
   void setBatchParameters(const std::string &cid, uint32_t batchSize);
@@ -98,11 +98,11 @@ class RequestsBatch {
   PreProcessor &preProcessor_;
   const uint16_t clientId_;
   std::string cid_;
-  std::pair<std::string, uint64_t> cidToBlockid_;
-  std::atomic_uint32_t batchSize_ = 0;
-  std::atomic_bool batchRegistered_ = false;
-  std::atomic_bool batchInProcess_ = false;
-  std::atomic_uint32_t numOfCompletedReqs_ = 0;
+  std::pair<std::string, uint64_t> cidToBlockId_;
+  uint32_t batchSize_ = 0;
+  bool batchRegistered_ = false;
+  bool batchInProcess_ = false;
+  uint32_t numOfCompletedReqs_ = 0;
   // Pre-allocated map: request offset in batch -> request state
   std::map<uint16_t, RequestStateSharedPtr> requestsMap_;
   mutable std::mutex batchMutex_;
