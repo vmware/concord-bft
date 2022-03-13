@@ -30,22 +30,25 @@ namespace bftEngine::impl {
 ClientsManager::ClientsManager(std::shared_ptr<PersistentStorage> ps,
                                const std::set<NodeIdType>& proxyClients,
                                const std::set<NodeIdType>& externalClients,
+                               const std::set<NodeIdType>& clientServices,
                                const std::set<NodeIdType>& internalClients,
                                concordMetrics::Component& metrics)
-    : ClientsManager{proxyClients, externalClients, internalClients, metrics} {
-  rsiManager_.reset(new RsiDataManager(proxyClients.size() + externalClients.size() + internalClients.size() +
-                                           ReplicaConfig::instance().numOfClientServices,
-                                       maxNumOfReqsPerClient_,
-                                       ps));
+    : ClientsManager{proxyClients, externalClients, clientServices, internalClients, metrics} {
+  rsiManager_.reset(
+      new RsiDataManager(proxyClients.size() + externalClients.size() + internalClients.size() + clientServices.size(),
+                         maxNumOfReqsPerClient_,
+                         ps));
 }
 ClientsManager::ClientsManager(const std::set<NodeIdType>& proxyClients,
                                const std::set<NodeIdType>& externalClients,
+                               const std::set<NodeIdType>& clientServices,
                                const std::set<NodeIdType>& internalClients,
                                concordMetrics::Component& metrics)
     : myId_(ReplicaConfig::instance().replicaId),
       scratchPage_(sizeOfReservedPage(), 0),
       proxyClients_{proxyClients},
       externalClients_{externalClients},
+      clientServices_{clientServices},
       internalClients_{internalClients},
       maxReplySize_(ReplicaConfig::instance().getmaxReplyMessageSize()),
       maxNumOfReqsPerClient_(
@@ -59,6 +62,7 @@ ClientsManager::ClientsManager(const std::set<NodeIdType>& proxyClients,
   }
   clientIds_.insert(proxyClients_.begin(), proxyClients_.end());
   clientIds_.insert(externalClients_.begin(), externalClients_.end());
+  clientIds_.insert(clientServices_.begin(), clientServices_.end());
   clientIds_.insert(internalClients_.begin(), internalClients_.end());
   ConcordAssert(clientIds_.size() >= 1);
   uint32_t rpage = 0;
