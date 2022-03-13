@@ -26,13 +26,14 @@ typedef log4cplus::Logger Logger;
 std::string get(const std::string& key);
 
 }  // namespace logging
+#define LOG_FUNC(s) __func__ << "|" << s
 
-#define LOG_TRACE(l, s) LOG4CPLUS_TRACE(l, s)
-#define LOG_DEBUG(l, s) LOG4CPLUS_DEBUG(l, s)
-#define LOG_INFO(l, s) LOG4CPLUS_INFO(l, s)
-#define LOG_WARN(l, s) LOG4CPLUS_WARN(l, s)
-#define LOG_ERROR(l, s) LOG4CPLUS_ERROR(l, s)
-#define LOG_FATAL(l, s) LOG4CPLUS_FATAL(l, s)
+#define LOG_TRACE(l, s) LOG4CPLUS_TRACE(l, LOG_FUNC(s))
+#define LOG_DEBUG(l, s) LOG4CPLUS_DEBUG(l, LOG_FUNC(s))
+#define LOG_INFO(l, s) LOG4CPLUS_INFO(l, LOG_FUNC(s))
+#define LOG_WARN(l, s) LOG4CPLUS_WARN(l, LOG_FUNC(s))
+#define LOG_ERROR(l, s) LOG4CPLUS_ERROR(l, LOG_FUNC(s))
+#define LOG_FATAL(l, s) LOG4CPLUS_FATAL(l, LOG_FUNC(s))
 
 #define MDC_PUT(k, v) log4cplus::getMDC().put(k, v)
 #define MDC_REMOVE(k) log4cplus::getMDC().remove(k)
