@@ -32,6 +32,8 @@ class NativeWriteBatch {
 
   template <typename KeySpan, typename ValueSpan>
   void put(const std::string &cFamily, const KeySpan &key, const ValueSpan &value);
+  template <typename KeySpan, typename ValueSpan, typename TimeStamp>
+  void put(const std::string &cFamily, const KeySpan &key, const TimeStamp &ts, const ValueSpan &value);
   template <typename KeySpan, typename ValueSpan>
   void put(const KeySpan &key, const ValueSpan &value);
 
@@ -46,6 +48,8 @@ class NativeWriteBatch {
   void del(const std::string &cFamily, const KeySpan &key);
   template <typename KeySpan>
   void del(const KeySpan &key);
+  template <typename KeySpan, typename TimeStamp>
+  void del(const std::string &cFamily, const KeySpan &key, const TimeStamp &ts);
 
   // Remove the DB entries in the range [beginKey, endKey).
   template <typename BeginSpan, typename EndSpan>

@@ -43,7 +43,12 @@ if (BUILD_ROCKSDB_STORAGE)
                                 src/categorization/blocks.cpp
                                 src/categorization/blockchain.cpp
                                 src/categorization/block_merkle_category.cpp
-                                src/migrations/block_merkle_latest_ver_cf_migration.cpp)
+                                src/migrations/block_merkle_latest_ver_cf_migration.cpp
+                                
+                                src/v4blockchain/v4_blockchain.cpp
+                                src/v4blockchain/detail/latest_keys.cpp
+                                src/v4blockchain/detail/st_chain.cpp
+                                src/v4blockchain/detail/blockchain.cpp)
 
 endif (BUILD_ROCKSDB_STORAGE)
 target_link_libraries(kvbc PUBLIC corebft util)
