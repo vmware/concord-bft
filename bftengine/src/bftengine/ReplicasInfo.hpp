@@ -40,13 +40,14 @@ class ReplicasInfo {
   bool isIdOfInternalClient(PrincipalId id) const {
     return _idsOfInternalClients.find(id) != _idsOfInternalClients.end();
   }
-
+  bool isIdOfClientService(NodeIdType id) { return _idsOfClientServices.find(id) != _idsOfClientServices.end(); }
   bool isValidPrincipalId(PrincipalId id) const { return id <= _maxValidPrincipalId; }
   const std::set<ReplicaId>& idsOfPeerReplicas() const { return _idsOfPeerReplicas; }
   const std::set<ReplicaId>& idsOfPeerROReplicas() const { return _idsOfPeerROReplicas; }
   const std::set<PrincipalId>& idsOfClientProxies() const { return _idsOfClientProxies; }
   const std::set<PrincipalId>& idsOfExternalClients() const { return _idsOfExternalClients; }
   const std::set<PrincipalId>& idsOfInternalClients() const { return _idsOfInternalClients; }
+  const std::set<PrincipalId>& idsOfIClientServices() const { return _idsOfClientServices; }
 
   ReplicaId primaryOfView(ViewNum view) const { return (view % _numberOfReplicas); }
 
