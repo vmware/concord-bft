@@ -36,16 +36,12 @@ COMM_TYPE_UDP = "udp"
 
 
 class BFTConfig:
-    n: int
-    f: int
-    c: int
-    clients: int = 10
 
     def __init__(self, n: int, f: int = 1, c: int = 0, clients=10):
-        self.n = n
-        self.f = f
-        self.c = c
-        self.clients = clients
+        self.n : int = n
+        self.f : int = f
+        self.c : int = c
+        self.clients : int = clients
         assert self.n == 3 * self.f + 2 * self.c + 1, \
             f"Invariant breached. Expected: n = 3f + 2c + 1"
 

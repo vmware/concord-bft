@@ -89,7 +89,8 @@ BFT_CLIENT_TYPE = bft_client.TcpTlsClient if os.environ.get('BUILD_COMM_TCP_TLS'
 RESERVED_CLIENTS_QUOTA = 2
 NUM_PARTICIPANTS = 5
 
-def interesting_configs(config_filter=lambda n, f, c: c == 0) -> Sequence[BFTConfig]:
+def interesting_configs(config_filter=None) -> Sequence[BFTConfig]:
+    config_filter = config_filter or (lambda n, f, c: c == 0)
     bft_configs = [BFTConfig(n=6, f=1, c=1),
                    BFTConfig(n=7, f=2, c=0),
                    #BFTConfig(n=4, f=1, c=0),
