@@ -26,6 +26,7 @@ from ecdsa import SECP256k1
 import hashlib
 from Crypto.PublicKey import RSA
 from util.bft import REQ_TIMEOUT_MILLI
+from util import eliot_logging as log
 
 class Operator:
     def __init__(self, config, client, priv_key_dir):
@@ -299,8 +300,9 @@ class Operator:
         return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
 
     async def restart(self, data, bft=True, restart=True):
-        reconf_msg = self._construct_reconfiguration_restart_command(bft, restart, data)
-        return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
+        with log.start_action(action_type="restart", bft=bft, restart=restart):
+            reconf_msg = self._construct_reconfiguration_restart_command(bft, restart, data)
+            return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
 
     async def add_remove_status(self):
         reconf_msg = self._construct_reconfiguration_addRemoveStatus_command()
