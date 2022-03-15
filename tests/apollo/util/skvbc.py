@@ -307,8 +307,8 @@ class SimpleKVBCProtocol:
             # the full window)
             await self.bft_network.wait_for_replicas_to_checkpoint(initial_nodes, expected_checkpoint_num)
             
-            if expected_checkpoint_num == None:
-                expected_checkpoint_num= await self.bft_network.wait_for_checkpoint(
+            if expected_checkpoint_num is None:
+                expected_checkpoint_num = await self.bft_network.wait_for_checkpoint(
                 replica_id=random.choice(initial_nodes))
 
             if verify_checkpoint_persistency:
