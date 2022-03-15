@@ -12,7 +12,6 @@
 #include <iostream>
 #include <vector>
 #include <cstring>
-#include <iostream>
 #include <memory>
 #include "gtest/gtest.h"
 #include "messages/PartialCommitProofMsg.hpp"

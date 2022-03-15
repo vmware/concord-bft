@@ -198,7 +198,7 @@ void InMemoryDataStore::deleteAllPendingPages() {
 
 void InMemoryDataStore::associatePendingResPageWithCheckpoint(uint32_t inPageId,
                                                               uint64_t inCheckpoint,
-                                                              const STDigest& inPageDigest) {
+                                                              const Digest& inPageDigest) {
   LOG_DEBUG(logger(), "pageId: " << inPageId << " checkpoint: " << inCheckpoint);
   // find in pendingPages
   auto pendingPos = pendingPages.find(inPageId);
@@ -220,7 +220,7 @@ void InMemoryDataStore::associatePendingResPageWithCheckpoint(uint32_t inPageId,
 
 void InMemoryDataStore::setResPage(uint32_t inPageId,
                                    uint64_t inCheckpoint,
-                                   const STDigest& inPageDigest,
+                                   const Digest& inPageDigest,
                                    const char* inPage) {
   LOG_DEBUG(logger(), "pageId: " << inPageId << " checkpoint: " << inCheckpoint);
   // create key, and make sure that we don't already have this element
@@ -241,7 +241,7 @@ void InMemoryDataStore::setResPage(uint32_t inPageId,
 bool InMemoryDataStore::getResPage(uint32_t inPageId,
                                    uint64_t inCheckpoint,
                                    uint64_t* outActualCheckpoint,
-                                   STDigest* outPageDigest,
+                                   Digest* outPageDigest,
                                    char* outPage,
                                    uint32_t copylength) {
   ConcordAssert(copylength <= sizeOfReservedPage_);

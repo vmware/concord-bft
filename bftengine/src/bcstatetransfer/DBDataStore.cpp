@@ -3,7 +3,6 @@
 #include "storage/db_interface.h"
 #include "Serializable.h"
 
-using bftEngine::bcst::BLOCK_DIGEST_SIZE;
 using concord::serialize::Serializable;
 
 namespace bftEngine {
@@ -148,14 +147,14 @@ void DBDataStore::setReplicas(const std::set<std::uint16_t> replicas) {
 void DBDataStore::serializeCheckpoint(std::ostream& os, const CheckpointDesc& desc) const {
   Serializable::serialize(os, desc.checkpointNum);
   Serializable::serialize(os, desc.lastBlock);
-  Serializable::serialize(os, desc.digestOfLastBlock.get(), BLOCK_DIGEST_SIZE);
-  Serializable::serialize(os, desc.digestOfResPagesDescriptor.get(), BLOCK_DIGEST_SIZE);
+  Serializable::serialize(os, desc.digestOfLastBlock.get(), DIGEST_SIZE);
+  Serializable::serialize(os, desc.digestOfResPagesDescriptor.get(), DIGEST_SIZE);
 }
 void DBDataStore::deserializeCheckpoint(std::istream& is, CheckpointDesc& desc) const {
   Serializable::deserialize(is, desc.checkpointNum);
   Serializable::deserialize(is, desc.lastBlock);
-  Serializable::deserialize(is, desc.digestOfLastBlock.getForUpdate(), BLOCK_DIGEST_SIZE);
-  Serializable::deserialize(is, desc.digestOfResPagesDescriptor.getForUpdate(), BLOCK_DIGEST_SIZE);
+  Serializable::deserialize(is, desc.digestOfLastBlock.getForUpdate(), DIGEST_SIZE);
+  Serializable::deserialize(is, desc.digestOfResPagesDescriptor.getForUpdate(), DIGEST_SIZE);
 }
 void DBDataStore::setCheckpointDesc(uint64_t checkpoint, const CheckpointDesc& desc) {
   LOG_DEBUG(logger(), toString(desc));
@@ -223,24 +222,21 @@ void DBDataStore::deleteCheckpointBeingFetched() {
 /**
  * ResPage serialized form: [pageId][checkpoint][PageDigest][PageSize][Page]
  */
-void DBDataStore::serializeResPage(std::ostream& os,
-                                   uint32_t inPageId,
-                                   uint64_t inCheckpoint,
-                                   const STDigest& inPageDigest,
-                                   const char* inPage) const {
+void DBDataStore::serializeResPage(
+    std::ostream& os, uint32_t inPageId, uint64_t inCheckpoint, const Digest& inPageDigest, const char* inPage) const {
   Serializable::serialize(os, inPageId);
   Serializable::serialize(os, inCheckpoint);
-  Serializable::serialize(os, inPageDigest.get(), BLOCK_DIGEST_SIZE);
+  Serializable::serialize(os, inPageDigest.get(), DIGEST_SIZE);
   Serializable::serialize(os, inmem_->getSizeOfReservedPage());
   Serializable::serialize(os, inPage, inmem_->getSizeOfReservedPage());
 }
 void DBDataStore::deserializeResPage(
-    std::istream& is, uint32_t& outPageId, uint64_t& outCheckpoint, STDigest& outPageDigest, char*& outPage) const {
+    std::istream& is, uint32_t& outPageId, uint64_t& outCheckpoint, Digest& outPageDigest, char*& outPage) const {
   Serializable::deserialize(is, outPageId);
   Serializable::deserialize(is, outCheckpoint);
-  char dgst[BLOCK_DIGEST_SIZE];
-  Serializable::deserialize(is, dgst, BLOCK_DIGEST_SIZE);
-  outPageDigest = STDigest(dgst);
+  char dgst[DIGEST_SIZE] = {'\0'};
+  Serializable::deserialize(is, dgst, DIGEST_SIZE);
+  outPageDigest = Digest(dgst);
   std::uint32_t sizeOfReseredPage;
   Serializable::deserialize(is, sizeOfReseredPage);
   ConcordAssert(sizeOfReseredPage == inmem_->getSizeOfReservedPage());
@@ -260,7 +256,7 @@ void DBDataStore::loadResPages() {
         std::string(reinterpret_cast<const char*>(keyValue.second.data()), keyValue.second.length()));
     uint32_t pageid;
     uint64_t checkpoint;
-    STDigest digest;
+    Digest digest;
     char* page = new char[inmem_->getSizeOfReservedPage()];
     deserializeResPage(iss, pageid, checkpoint, digest, page);
     inmem_->setResPage(pageid, checkpoint, digest, page);
@@ -270,7 +266,7 @@ void DBDataStore::loadResPages() {
   LOG_DEBUG(logger(), inmem_->getPagesForLog());
 }
 void DBDataStore::setResPageTxn(
-    uint32_t inPageId, uint64_t inCheckpoint, const STDigest& inPageDigest, const char* inPage, ITransaction* txn) {
+    uint32_t inPageId, uint64_t inCheckpoint, const Digest& inPageDigest, const char* inPage, ITransaction* txn) {
   std::ostringstream oss;
   serializeResPage(oss, inPageId, inCheckpoint, inPageDigest, inPage);
   Sliver dynamic_key = dynamicResPageKey(inPageId, inCheckpoint);
@@ -278,10 +274,7 @@ void DBDataStore::setResPageTxn(
   LOG_DEBUG(logger(), KVLOG(inPageId, inCheckpoint, inPageDigest.toString(), txn->getId(), dynamic_key));
 }
 
-void DBDataStore::setResPage(uint32_t inPageId,
-                             uint64_t inCheckpoint,
-                             const STDigest& inPageDigest,
-                             const char* inPage) {
+void DBDataStore::setResPage(uint32_t inPageId, uint64_t inCheckpoint, const Digest& inPageDigest, const char* inPage) {
   if (txn_)
     setResPageTxn(inPageId, inCheckpoint, inPageDigest, inPage, txn_);
   else {
@@ -326,7 +319,7 @@ void DBDataStore::setPendingResPage(uint32_t inPageId, const char* inPage, uint3
 
 void DBDataStore::associatePendingResPageWithCheckpoint(uint32_t inPageId,
                                                         uint64_t inCheckpoint,
-                                                        const STDigest& inPageDigest) {
+                                                        const Digest& inPageDigest) {
   if (txn_)
     associatePendingResPageWithCheckpointTxn(inPageId, inCheckpoint, inPageDigest, txn_);
   else {
@@ -339,7 +332,7 @@ void DBDataStore::associatePendingResPageWithCheckpoint(uint32_t inPageId,
 
 void DBDataStore::associatePendingResPageWithCheckpointTxn(uint32_t inPageId,
                                                            uint64_t inCheckpoint,
-                                                           const STDigest& inPageDigest,
+                                                           const Digest& inPageDigest,
                                                            ITransaction* txn) {
   LOG_DEBUG(logger(),
             "page: " << inPageId << " chkp: " << inCheckpoint << " digest: " << inPageDigest.toString()

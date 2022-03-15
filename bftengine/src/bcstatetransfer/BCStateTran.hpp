@@ -30,7 +30,7 @@
 #include "DataStore.hpp"
 #include "MsgsCertificate.hpp"
 #include "Messages.hpp"
-#include "STDigest.hpp"
+#include "Digest.hpp"
 #include "Metrics.hpp"
 #include "SourceSelector.hpp"
 #include "callback_registry.hpp"
@@ -311,7 +311,7 @@ class BCStateTran : public IStateTransfer {
 
   uint64_t nextRequiredBlock_ = 0;
   uint64_t nextCommittedBlockId_ = 0;
-  STDigest digestOfNextRequiredBlock;
+  Digest digestOfNextRequiredBlock;
   bool posponedSendFetchBlocksMsg_;
 
   struct compareItemDataMsg {
@@ -336,9 +336,9 @@ class BCStateTran : public IStateTransfer {
                         uint32_t& outBlockSize,
                         bool isVBLock);
 
-  bool checkBlock(uint64_t blockNum, const STDigest& expectedBlockDigest, char* block, uint32_t blockSize) const;
+  bool checkBlock(uint64_t blockNum, const Digest& expectedBlockDigest, char* block, uint32_t blockSize) const;
 
-  bool checkVirtualBlockOfResPages(const STDigest& expectedDigestOfResPagesDescriptor,
+  bool checkVirtualBlockOfResPages(const Digest& expectedDigestOfResPagesDescriptor,
                                    char* vblock,
                                    uint32_t vblockSize) const;
 
@@ -353,9 +353,9 @@ class BCStateTran : public IStateTransfer {
   // Helper methods
   ///////////////////////////////////////////////////////////////////////////
 
-  DataStore::CheckpointDesc createCheckpointDesc(uint64_t checkpointNumber, const STDigest& digestOfResPagesDescriptor);
+  DataStore::CheckpointDesc createCheckpointDesc(uint64_t checkpointNumber, const Digest& digestOfResPagesDescriptor);
 
-  STDigest checkpointReservedPages(uint64_t checkpointNumber, DataStoreTransaction* txn);
+  Digest checkpointReservedPages(uint64_t checkpointNumber, DataStoreTransaction* txn);
 
   void deleteOldCheckpoints(uint64_t checkpointNumber, DataStoreTransaction* txn);
   void srcInitialize();
@@ -378,23 +378,21 @@ class BCStateTran : public IStateTransfer {
   ///////////////////////////////////////////////////////////////////////////
 
   static void computeDigestOfPage(
-      const uint32_t pageId, const uint64_t checkpointNumber, const char* page, uint32_t pageSize, STDigest& outDigest);
+      const uint32_t pageId, const uint64_t checkpointNumber, const char* page, uint32_t pageSize, Digest& outDigest);
 
-  static void computeDigestOfPagesDescriptor(const DataStore::ResPagesDescriptor* pagesDesc, STDigest& outDigest);
+  static void computeDigestOfPagesDescriptor(const DataStore::ResPagesDescriptor* pagesDesc, Digest& outDigest);
 
   static void computeDigestOfBlock(const uint64_t blockNum,
                                    const char* block,
                                    const uint32_t blockSize,
-                                   STDigest* outDigest);
+                                   Digest* outDigest);
 
-  static std::array<std::uint8_t, BLOCK_DIGEST_SIZE> computeDigestOfBlock(const uint64_t blockNum,
-                                                                          const char* block,
-                                                                          const uint32_t blockSize);
+  static BlockDigest computeDigestOfBlock(const uint64_t blockNum, const char* block, const uint32_t blockSize);
 
   // A wrapper function to get a block from the IAppState and compute its digest.
   //
   // SIDE EFFECT: This function mutates buffer_ and resets it to 0 after the fact.
-  STDigest getBlockAndComputeDigest(uint64_t currBlock);
+  Digest getBlockAndComputeDigest(uint64_t currBlock);
 
  protected:
   ///////////////////////////////////////////////////////////////////////////
@@ -550,7 +548,7 @@ class BCStateTran : public IStateTransfer {
   struct ElementOfVirtualBlock {
     uint32_t pageId;
     uint64_t checkpointNumber;
-    STDigest pageDigest;
+    Digest pageDigest;
     char page[1];  // the actual size is sizeOfReservedPage_ bytes
   };
 #pragma pack(pop)

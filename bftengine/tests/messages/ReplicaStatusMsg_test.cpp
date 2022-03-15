@@ -12,7 +12,6 @@
 #include <iostream>
 #include <vector>
 #include <cstring>
-#include <iostream>
 #include <memory>
 #include "gtest/gtest.h"
 #include "messages/ReplicaStatusMsg.hpp"
@@ -27,6 +26,8 @@
 
 using namespace bftEngine;
 using namespace bftEngine::impl;
+using concord::util::digest::Digest;
+
 bftEngine::test::ReservedPagesMock<EpochManager> res_pages_mock_;
 TEST(ReplicaStatusMsg, viewActiveNoLists) {
   ReplicasInfo replicaInfo(createReplicaConfig(), false, false);

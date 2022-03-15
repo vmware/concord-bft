@@ -31,6 +31,7 @@
 #include "memorydb/client.h"
 #include "storage/direct_kv_key_manipulator.h"
 #include "Logger.hpp"
+#include "Digest.hpp"
 
 #ifdef USE_ROCKSDB
 #include "rocksdb/client.h"
@@ -329,7 +330,7 @@ class BcStTest : public ::testing::Test {
         }
         GenerateReservedPages(i);
         DataStore::ResPagesDescriptor* resPagesDesc = mockedDatastore_->getResPagesDescriptor(i);
-        STDigest digestOfResPagesDescriptor;
+        Digest digestOfResPagesDescriptor;
         BCStateTran::computeDigestOfPagesDescriptor(resPagesDesc, digestOfResPagesDescriptor);
 
         reply->digestOfResPagesDescriptor = digestOfResPagesDescriptor;
@@ -489,7 +490,7 @@ class BcStTest : public ::testing::Test {
       std::unique_ptr<char[]> buffer(new char[config_.sizeOfReservedPage]);
       for (uint32_t pageId{0}; pageId < maxNumberOfUpdatedReservedPages; ++pageId) {
         ConcordAssertLT(idx, maxNumberOfUpdatedReservedPages);
-        STDigest pageDigest;
+        Digest pageDigest;
         fillRandomBytes(buffer.get(), config_.sizeOfReservedPage);
         BCStateTran::computeDigestOfPage(
             pageId, checkpointNumber, buffer.get(), config_.sizeOfReservedPage, pageDigest);

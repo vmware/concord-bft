@@ -14,6 +14,9 @@
 #include "Digest.hpp"
 #include "Logger.hpp"
 
+using concord::util::digest::Digest;
+using concord::util::digest::DigestUtil;
+
 namespace bftEngine {
 namespace impl {
 void NullStateTransfer::init(uint64_t maxNumOfRequiredStoredCheckpoints,

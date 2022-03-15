@@ -13,7 +13,6 @@
 
 #include <optional>
 #include "kv_types.hpp"
-#include "bcstatetransfer/STDigest.hpp"
 #include "Logger.hpp"
 #include "s3/client.hpp"
 #include "bftengine/PersistentStorage.hpp"
@@ -32,7 +31,6 @@ namespace concord::storage::s3 {
 using namespace concord::storage;
 using concordUtils::Sliver;
 using bftEngine::impl::DescriptorOfLastStableCheckpoint;
-using bftEngine::bcst::impl::STDigest;
 using concord::kvbc::BlockId;
 
 /** Class for checking blockchain integrity
@@ -64,13 +62,13 @@ class IntegrityChecker {
    *  @return BlockId of latest checkpoint descriptor
    *  @return Digest of block in a latest checkpoint descriptor
    */
-  std::pair<BlockId, STDigest> getLatestsCheckpointDescriptor() const;
+  std::pair<BlockId, Digest> getLatestsCheckpointDescriptor() const;
 
   /** Get first checkpoint descriptor after a given block
    *  @return BlockId of checkpoint descriptor
    *  @return Digest of block in a  checkpoint descriptor
    */
-  std::pair<BlockId, STDigest> getCheckpointDescriptor(const BlockId& block_id) const;
+  std::pair<BlockId, Digest> getCheckpointDescriptor(const BlockId& block_id) const;
 
   /** Get checkpoint descriptor for given checkpoint descriptor key */
   DescriptorOfLastStableCheckpoint getCheckpointDescriptor(const Sliver& key) const;
@@ -84,7 +82,7 @@ class IntegrityChecker {
    *  4. Deserialize block, retrieve parent digest.
    *  @return parent digest
    */
-  STDigest checkBlock(const BlockId& block_id, const STDigest& expected_digest) const;
+  Digest checkBlock(const BlockId& block_id, const Digest& expected_digest) const;
 
   /** Get block for block id
    * @return deserialized RawBlock
@@ -95,7 +93,7 @@ class IntegrityChecker {
    * @return deserialized RawBlock
    */
 
-  concord::kvbc::categorization::RawBlock getBlock(const BlockId&, const STDigest& expected_digest) const;
+  concord::kvbc::categorization::RawBlock getBlock(const BlockId&, const Digest& expected_digest) const;
 
   /** Print block content */
   void printBlockContent(const BlockId&, const concord::kvbc::categorization::RawBlock&) const;

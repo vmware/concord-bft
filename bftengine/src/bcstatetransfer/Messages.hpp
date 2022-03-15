@@ -15,7 +15,6 @@
 
 #include <stdint.h>
 
-#include "STDigest.hpp"
 #include "IStateTransfer.hpp"
 #include "Logger.hpp"
 
@@ -61,8 +60,8 @@ struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
 
   uint64_t checkpointNum;
   uint64_t lastBlock;
-  STDigest digestOfLastBlock;
-  STDigest digestOfResPagesDescriptor;
+  Digest digestOfLastBlock;
+  Digest digestOfResPagesDescriptor;
   uint64_t requestMsgSeqNum;
 
   static bool equivalent(const CheckpointSummaryMsg* a, const CheckpointSummaryMsg* b) {

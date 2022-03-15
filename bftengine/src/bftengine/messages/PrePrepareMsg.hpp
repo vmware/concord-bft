@@ -19,6 +19,8 @@
 #include "MessageBase.hpp"
 #include "ReplicaConfig.hpp"
 
+using concord::util::digest::Digest;
+
 namespace bftEngine {
 namespace impl {
 class RequestsIterator;

@@ -23,6 +23,7 @@
 #include "bcstatetransfer/BCStateTran.hpp"
 #include "KeyfileIOUtils.hpp"
 #include "direct_kv_storage_factory.h"
+#include "Digest.hpp"
 
 namespace concord::storage::s3 {
 
@@ -33,9 +34,7 @@ std::string hex2string(const std::string& s) {
   return result;
 }
 using concordUtils::Status;
-using bftEngine::bcst::BLOCK_DIGEST_SIZE;
 using bftEngine::bcst::impl::BCStateTran;
-using concord::kvbc::BlockDigest;
 using concord::kvbc::v1DirectKeyValue::S3StorageFactory;
 
 IntegrityChecker::IntegrityChecker(int argc, char** argv) { setupParams(argc, argv); }
@@ -111,7 +110,7 @@ void IntegrityChecker::setupParams(int argc, char** argv) {
   }
 }
 
-std::pair<BlockId, STDigest> IntegrityChecker::getLatestsCheckpointDescriptor() const {
+std::pair<BlockId, Digest> IntegrityChecker::getLatestsCheckpointDescriptor() const {
   BlockId lastBlock = dbset_.dbAdapter->getLatestBlockId();
   LOG_INFO(logger_, "Last block: " << lastBlock);
   auto it =
@@ -126,7 +125,7 @@ std::pair<BlockId, STDigest> IntegrityChecker::getLatestsCheckpointDescriptor() 
   LOG_INFO(logger_, "Latest checkpoint descriptor: " << key.toString() << " for block: " << block);
   delete it;
   auto desc = getCheckpointDescriptor(key);
-  STDigest digest(desc.checkpointMsgs[0]->digestOfState().content());
+  Digest digest(desc.checkpointMsgs[0]->digestOfState().content());
   return std::make_pair(block, digest);
 }
 
@@ -149,7 +148,7 @@ DescriptorOfLastStableCheckpoint IntegrityChecker::getCheckpointDescriptor(const
   return desc;
 }
 
-std::pair<BlockId, STDigest> IntegrityChecker::getCheckpointDescriptor(const BlockId& block_id) const {
+std::pair<BlockId, Digest> IntegrityChecker::getCheckpointDescriptor(const BlockId& block_id) const {
   auto it =
       dynamic_cast<s3::Client*>(dbset_.metadataDBClient.get())->getIterator<s3::Client::SortByModifiedDescIterator>();
   std::string checkpoints_prefix("concord/metadata/checkpoints/");
@@ -170,7 +169,7 @@ std::pair<BlockId, STDigest> IntegrityChecker::getCheckpointDescriptor(const Blo
   }
   delete it;
   auto desc = getCheckpointDescriptor(first_good_block_descriptor_key);
-  STDigest digest(desc.checkpointMsgs[0]->digestOfState().content());
+  Digest digest(desc.checkpointMsgs[0]->digestOfState().content());
   return std::make_pair(first_good_block_descriptor, digest);
 }
 
@@ -200,12 +199,12 @@ void IntegrityChecker::validateCheckpointDescriptor(const DescriptorOfLastStable
                            std::to_string(desc.checkpointMsgs[0]->state()));
 }
 
-STDigest IntegrityChecker::checkBlock(const BlockId& block_id, const STDigest& expected_digest) const {
+Digest IntegrityChecker::checkBlock(const BlockId& block_id, const Digest& expected_digest) const {
   const auto rawBlock = getBlock(block_id, expected_digest);
-  STDigest parentBlockDigest;
-  static_assert(rawBlock.data.parent_digest.size() == BLOCK_DIGEST_SIZE);
-  static_assert(sizeof(Digest) == BLOCK_DIGEST_SIZE);
-  memcpy(const_cast<char*>(parentBlockDigest.get()), rawBlock.data.parent_digest.data(), BLOCK_DIGEST_SIZE);
+  Digest parentBlockDigest;
+  static_assert(rawBlock.data.parent_digest.size() == DIGEST_SIZE);
+  static_assert(sizeof(Digest) == DIGEST_SIZE);
+  memcpy(const_cast<char*>(parentBlockDigest.get()), rawBlock.data.parent_digest.data(), DIGEST_SIZE);
   LOG_DEBUG(logger_, "parent block digest: " << parentBlockDigest.toString());
   return parentBlockDigest;
 }
@@ -217,10 +216,10 @@ concord::kvbc::categorization::RawBlock IntegrityChecker::getBlock(const BlockId
 }
 
 concord::kvbc::categorization::RawBlock IntegrityChecker::getBlock(const BlockId& block_id,
-                                                                   const STDigest& expected_digest) const {
+                                                                   const Digest& expected_digest) const {
   // get and parse the block
   auto rawBlockSer = dbset_.dbAdapter->getRawBlock(block_id);
-  STDigest calcDigest;
+  Digest calcDigest;
   BCStateTran::computeDigestOfBlock(
       block_id, reinterpret_cast<const char*>(rawBlockSer.data()), rawBlockSer.size(), &calcDigest);
   if (expected_digest == calcDigest) {

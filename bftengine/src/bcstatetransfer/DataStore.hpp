@@ -18,11 +18,12 @@
 #include <set>
 #include "assertUtils.hpp"
 #include "storage/db_interface.h"
-#include "STDigest.hpp"
+#include "Digest.hpp"
 #include "Logger.hpp"
 
 using std::set;
 using concord::storage::ITransaction;
+using concord::util::digest::Digest;
 
 namespace bftEngine {
 namespace bcst {
@@ -73,8 +74,8 @@ class DataStore : public std::enable_shared_from_this<DataStore> {
   struct CheckpointDesc {
     uint64_t checkpointNum = 0;
     uint64_t lastBlock = 0;
-    STDigest digestOfLastBlock;
-    STDigest digestOfResPagesDescriptor;
+    Digest digestOfLastBlock;
+    Digest digestOfResPagesDescriptor;
   };
 
   virtual void setCheckpointDesc(uint64_t checkpoint, const CheckpointDesc& desc) = 0;
@@ -95,12 +96,9 @@ class DataStore : public std::enable_shared_from_this<DataStore> {
 
   virtual void associatePendingResPageWithCheckpoint(uint32_t inPageId,
                                                      uint64_t inCheckpoint,
-                                                     const STDigest& inPageDigest) = 0;
+                                                     const Digest& inPageDigest) = 0;
 
-  virtual void setResPage(uint32_t inPageId,
-                          uint64_t inCheckpoint,
-                          const STDigest& inPageDigest,
-                          const char* inPage) = 0;
+  virtual void setResPage(uint32_t inPageId, uint64_t inCheckpoint, const Digest& inPageDigest, const char* inPage) = 0;
   virtual bool getResPage(uint32_t inPageId, uint64_t inCheckpoint, uint64_t* outActualCheckpoint) {
     return getResPage(inPageId, inCheckpoint, outActualCheckpoint, nullptr, nullptr, 0);
   }
@@ -111,7 +109,7 @@ class DataStore : public std::enable_shared_from_this<DataStore> {
   virtual bool getResPage(uint32_t inPageId,
                           uint64_t inCheckpoint,
                           uint64_t* outActualCheckpoint,
-                          STDigest* outPageDigest,
+                          Digest* outPageDigest,
                           char* outPage,
                           uint32_t copylength) = 0;
 
@@ -120,7 +118,7 @@ class DataStore : public std::enable_shared_from_this<DataStore> {
   struct SingleResPageDesc {
     uint32_t pageId;
     uint64_t relevantCheckpoint;
-    STDigest pageDigest;
+    Digest pageDigest;
   };
 
   struct ResPagesDescriptor {
@@ -211,7 +209,7 @@ class DataStoreTransaction : public DataStore, public ITransaction {
   }
   void associatePendingResPageWithCheckpoint(uint32_t inPageId,
                                              uint64_t inCheckpoint,
-                                             const STDigest& inPageDigest) override {
+                                             const Digest& inPageDigest) override {
     ds_->associatePendingResPageWithCheckpoint(inPageId, inCheckpoint, inPageDigest);
   }
   void setCheckpointDesc(uint64_t checkpoint, const CheckpointDesc& desc) override {
@@ -221,7 +219,7 @@ class DataStoreTransaction : public DataStore, public ITransaction {
   void setPendingResPage(uint32_t inPageId, const char* inPage, uint32_t pageLen) override {
     ds_->setPendingResPage(inPageId, inPage, pageLen);
   }
-  void setResPage(uint32_t inPageId, uint64_t inCheckpoint, const STDigest& inPageDigest, const char* inPage) override {
+  void setResPage(uint32_t inPageId, uint64_t inCheckpoint, const Digest& inPageDigest, const char* inPage) override {
     ds_->setResPage(inPageId, inCheckpoint, inPageDigest, inPage);
   }
   bool initialized() override { return ds_->initialized(); }
@@ -250,7 +248,7 @@ class DataStoreTransaction : public DataStore, public ITransaction {
   bool getResPage(uint32_t inPageId,
                   uint64_t inCheckpoint,
                   uint64_t* outActualCheckpoint,
-                  STDigest* outPageDigest,
+                  Digest* outPageDigest,
                   char* outPage,
                   uint32_t copylength) override {
     return ds_->getResPage(inPageId, inCheckpoint, outActualCheckpoint, outPageDigest, outPage, copylength);

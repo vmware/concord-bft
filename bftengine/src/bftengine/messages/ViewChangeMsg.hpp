@@ -18,6 +18,8 @@
 #include "ReplicaConfig.hpp"
 #include "ReplicaAsksToLeaveViewMsg.hpp"
 
+using concord::util::digest::Digest;
+
 namespace bftEngine {
 namespace impl {
 

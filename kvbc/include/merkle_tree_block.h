@@ -2,13 +2,15 @@
 
 #pragma once
 
-#include "block_digest.h"
 #include "kv_types.hpp"
 #include "sparse_merkle/base_types.h"
+#include "Digest.hpp"
 
 #include <cstdint>
 #include <iterator>
 #include <unordered_map>
+
+using concord::util::digest::BlockDigest;
 
 namespace concord::kvbc::v2MerkleTree::block::detail {
 
@@ -47,12 +49,12 @@ inline bool operator==(const KeyData &lhs, const KeyData &rhs) { return lhs.dele
 
 using Keys = std::unordered_map<Key, const KeyData>;
 
-// Represents a block node. The parentDigest pointer must point to a buffer that is at least BLOCK_DIGEST_SIZE bytes
+// Represents a block node. The parentDigest pointer must point to a buffer that is at least DIGEST_SIZE bytes
 // long.
 struct Node {
   using BlockIdType = BlockId;
 
-  static constexpr auto PARENT_DIGEST_SIZE = BLOCK_DIGEST_SIZE;
+  static constexpr auto PARENT_DIGEST_SIZE = DIGEST_SIZE;
 
   static constexpr auto STATE_HASH_SIZE = sparse_merkle::Hash::SIZE_IN_BYTES;
 
@@ -77,7 +79,7 @@ struct Node {
 
   void setParentDigest(const void *pParentDigest) {
     const auto parentDigestPtr = static_cast<const std::uint8_t *>(pParentDigest);
-    std::copy(parentDigestPtr, parentDigestPtr + BLOCK_DIGEST_SIZE, std::begin(parentDigest));
+    std::copy(parentDigestPtr, parentDigestPtr + DIGEST_SIZE, std::begin(parentDigest));
   }
 
   BlockIdType blockId{0};

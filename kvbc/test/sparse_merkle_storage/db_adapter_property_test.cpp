@@ -24,7 +24,6 @@
 #include <utility>
 #include <vector>
 
-using ::concord::kvbc::BlockDigest;
 using ::concord::kvbc::BlockId;
 using ::concord::kvbc::Key;
 using ::concord::kvbc::NotFoundException;

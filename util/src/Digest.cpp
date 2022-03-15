@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -10,6 +10,7 @@
 // file.
 
 #include "Digest.hpp"
+#include "hex_tools.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -38,8 +39,7 @@ using namespace std;
 #define DigestType SHA512
 #endif
 
-namespace bftEngine {
-namespace impl {
+namespace concord::util::digest {
 
 size_t DigestUtil::digestLength() { return DigestType::DIGESTSIZE; }
 
@@ -96,12 +96,7 @@ DigestUtil::Context::~Context() {
 
 Digest::Digest(char* buf, size_t len) { DigestUtil::compute(buf, len, (char*)d, sizeof(Digest)); }
 
-std::string Digest::toString() const {
-  std::ostringstream oss;
-  for (size_t i = 0; i < DigestType::DIGESTSIZE; ++i)
-    oss << std::setfill('0') << std::setw(2) << std::hex << std::uppercase << (0xff & (unsigned int)d[i]);
-  return oss.str();
-}
+std::string Digest::toString() const { return concordUtils::bufferToHex(d, DIGEST_SIZE, false); }
 
 void Digest::print() { printf("digest=[%s]", toString().c_str()); }
 
@@ -109,5 +104,4 @@ void Digest::digestOfDigest(const Digest& inDigest, Digest& outDigest) {
   DigestUtil::compute(inDigest.d, sizeof(Digest), outDigest.d, sizeof(Digest));
 }
 
-}  // namespace impl
-}  // namespace bftEngine
+}  // namespace concord::util::digest

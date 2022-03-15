@@ -19,6 +19,8 @@
 #include "RequestThreadPool.hpp"
 #include "EpochManager.hpp"
 
+using concord::util::digest::DigestUtil;
+
 namespace bftEngine {
 namespace impl {
 

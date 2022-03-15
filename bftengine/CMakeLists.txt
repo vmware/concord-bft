@@ -37,7 +37,6 @@ set(corebft_source_files
     src/bftengine/ReplicaStatusHandlers.cpp
     src/bcstatetransfer/BCStateTran.cpp
     src/bcstatetransfer/InMemoryDataStore.cpp
-    src/bcstatetransfer/STDigest.cpp
     src/bcstatetransfer/DBDataStore.cpp
     src/bcstatetransfer/SourceSelector.cpp
     src/bcstatetransfer/AsyncStateTransferCRE.cpp
