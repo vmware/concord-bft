@@ -281,9 +281,11 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
     handoff_.reset(new concord::util::Handoff(config_.myReplicaId));
     messageHandler_ = std::bind(&BCStateTran::handoffMsg, this, _1, _2, _3);
     timerHandler_ = std::bind(&BCStateTran::handoffTimer, this);
+    startCollectingStateHandler_ = std::bind(&BCStateTran::handoffStartCollectingState, this);
   } else {
     messageHandler_ = std::bind(&BCStateTran::handleStateTransferMessageImp, this, _1, _2, _3, _4);
     timerHandler_ = std::bind(&BCStateTran::onTimerImp, this);
+    startCollectingStateHandler_ = std::bind(&BCStateTran::onStartCollectingStateImp, this);
   }
   // Make sure that the internal IReplicaForStateTransfer callback is always added, alongside any user-supplied
   // callbacks.
@@ -677,12 +679,18 @@ void BCStateTran::startCollectingStats() {
   time_in_handoff_queue_rec_.clear();
 }
 
-void BCStateTran::startCollectingState() {
-  LOG_INFO(logger_, "State Transfer cycle started (#" << ++cycleCounter_ << ")");
+void BCStateTran::onStartCollectingStateImp() {
   ConcordAssert(running_);
-  ConcordAssert(!isFetching());
+  if (isFetching()) {
+    LOG_WARN(logger_, "Already in State Transfer, ignore call...");
+    return;
+  }
+  LOG_INFO(logger_, "State Transfer cycle started (#" << ++cycleCounter_ << ")");
+
   auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-  if (!ioContexts_.empty() | sourceFlag_) finalizeSource(sourceFlag_);
+  if (!ioContexts_.empty() || sourceFlag_) {
+    finalizeSource(sourceFlag_);
+  }
   registrar.perf.snapshot("state_transfer");
   registrar.perf.snapshot("state_transfer_dest");
   metrics_.start_collecting_state_++;
@@ -2736,6 +2744,7 @@ void BCStateTran::processData(bool lastInBatch) {
 
       cycleEndSummary();
       sourceSelector_.reset();
+      clearIoContexts();
       g.txn()->setIsFetchingState(false);
       ConcordAssertEQ(getFetchingState(), FetchingState::NotFetching);
       on_fetching_state_change_cb_registry_.invokeAll(cp.checkpointNum);
