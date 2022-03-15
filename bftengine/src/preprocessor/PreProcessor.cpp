@@ -933,7 +933,6 @@ void PreProcessor::onMessage<PreProcessRequestMsg>(PreProcessRequestMsg *message
   const string reqType = msg->reqType() == REQ_TYPE_PRE_PROCESS ? "REQ_TYPE_PRE_PROCESS" : "REQ_TYPE_CANCEL";
   LOG_DEBUG(logger(),
             "Received PreProcessRequestMsg" << KVLOG(
-
                 reqType, msg->reqSeqNum(), msg->getCid(), msg->senderId(), msg->clientId(), msg->reqOffsetInBatch()));
   handleSinglePreProcessRequestMsg(msg, "", 1);
 }
@@ -1164,19 +1163,6 @@ void PreProcessor::handlePreProcessReplyMsg(const string &cid,
     case CANCEL:  // Pre-processing consensus not reached
       cancelPreProcessing(clientId, batchCid, reqOffsetInBatch);
       break;
-    case RETRY_PRIMARY: {
-      // Primary replica generated pre-processing result hash different that one passed consensus
-      LOG_INFO(logger(), "Retry primary replica pre-processing for" << KVLOG(reqSeqNum, clientId));
-      PreProcessRequestMsgSharedPtr preProcessRequestMsg;
-      {
-        const auto &reqEntry = ongoingReqBatches_[clientId]->getRequestState(reqOffsetInBatch);
-        lock_guard<mutex> lock(reqEntry->mutex);
-        if (reqEntry->reqProcessingStatePtr)
-          preProcessRequestMsg = reqEntry->reqProcessingStatePtr->getPreProcessRequest();
-      }
-      if (preProcessRequestMsg) launchAsyncReqPreProcessingJob(preProcessRequestMsg, batchCid, true, true);
-      break;
-    }
     case CANCELLED_BY_PRIMARY:
       LOG_WARN(logger(),
                "Received reply message with status CANCELLED_BY_PRIMARY" << KVLOG(reqSeqNum, clientId, batchCid));
