@@ -17,6 +17,7 @@ import unittest
 
 import trio
 
+from util.consts import EVALUATION_PERIOD_SEQUENCES
 from util.test_base import ApolloTest
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, ConsensusPathType
 from util.skvbc_history_tracker import verify_linearizability
@@ -52,9 +53,6 @@ def start_replica_cmd(builddir, replica_id):
 
 class SkvbcCommitPathTest(ApolloTest):
     __test__ = False  # so that PyTest ignores this test scenario
-    # This is constant is shared between the c++ (EvaluationPeriod = 64) and the python code
-    # TODO: Share properly via a configuration file
-    EVALUATION_PERIOD_SEQUENCES = 64
     # There is no need to rotate keys as it is unrelated to path transition and takes time
     ROTATE_KEYS = False
 
@@ -110,7 +108,7 @@ class SkvbcCommitPathTest(ApolloTest):
         """
         # Need less than EVALUATION_PERIOD_SEQUENCES messages so that the commit path will not be set to
         # FAST_WITH_THRESHOLD when c>0
-        op_count = int(self.EVALUATION_PERIOD_SEQUENCES * 0.1)
+        op_count = int(EVALUATION_PERIOD_SEQUENCES * 0.1)
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
 
@@ -142,7 +140,7 @@ class SkvbcCommitPathTest(ApolloTest):
         fast_ops = 5
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
-        ops_for_transition = int(self.EVALUATION_PERIOD_SEQUENCES * 1.1)
+        ops_for_transition = int(EVALUATION_PERIOD_SEQUENCES * 1.1)
 
         # Initially all replicas are running on the fast path
         await bft_network.wait_for_consensus_path(path_type=ConsensusPathType.OPTIMISTIC_FAST,
@@ -206,7 +204,7 @@ class SkvbcCommitPathTest(ApolloTest):
 
         await bft_network.wait_for_consensus_path(
             path_type=ConsensusPathType.OPTIMISTIC_FAST,
-            run_ops=lambda: skvbc.send_n_kvs_sequentially(self.EVALUATION_PERIOD_SEQUENCES),
+            run_ops=lambda: skvbc.send_n_kvs_sequentially(EVALUATION_PERIOD_SEQUENCES),
             threshold=5)
 
     @with_trio
@@ -262,5 +260,5 @@ class SkvbcCommitPathTest(ApolloTest):
         # View change recovers
         await bft_network.wait_for_consensus_path(
             path_type=ConsensusPathType.OPTIMISTIC_FAST,
-            run_ops=lambda: skvbc.send_n_kvs_sequentially(int(1.1 * self.EVALUATION_PERIOD_SEQUENCES)),
+            run_ops=lambda: skvbc.send_n_kvs_sequentially(int(1.1 * EVALUATION_PERIOD_SEQUENCES)),
             threshold=num_ops)
