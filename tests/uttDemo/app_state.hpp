@@ -39,8 +39,11 @@ class Account {
 };
 
 struct Block {
+  Block() : id_(0) {}
+  Block(int id, Tx tx) : id_(id), tx_(std::move(tx)) {}
+
   int id_ = 0;
-  std::map<std::string, Tx> tx_;
+  std::optional<Tx> tx_;
   std::set<std::string> nullifiers_;
 };
 std::ostream& operator<<(std::ostream& os, const Block& b);
@@ -48,13 +51,16 @@ std::ostream& operator<<(std::ostream& os, const Block& b);
 struct AppState {
   AppState();
 
+  const std::map<std::string, Account> GetAccounts() const;
+  const std::vector<Block>& GetBlocks() const;
+
   const Account* getAccountById(const std::string& id) const;
   Account* getAccountById(const std::string& id);
 
   void validateTx(const Tx& tx) const;  // throws std::domain_error
-  void executeNextTx(const Tx& tx);
-  void printLedger(std::optional<int> from = 1, std::optional<int> to = std::nullopt) const;
+  int executeNextTx(const Tx& tx);      // return latest block id
 
+ private:
   std::map<std::string, Account> accounts_;
   std::vector<Block> blocks_;
 };
