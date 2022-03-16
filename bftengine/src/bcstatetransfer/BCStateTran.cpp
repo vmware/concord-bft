@@ -282,10 +282,12 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
     messageHandler_ = std::bind(&BCStateTran::handoffMsg, this, _1, _2, _3);
     timerHandler_ = std::bind(&BCStateTran::handoffTimer, this);
     startCollectingStateHandler_ = std::bind(&BCStateTran::handoffStartCollectingState, this);
+    createCheckpointOfCurrentStateHandler_ = std::bind(&BCStateTran::handoffCreateCheckpointOfCurrentState, this, _1);
   } else {
     messageHandler_ = std::bind(&BCStateTran::handleStateTransferMessageImp, this, _1, _2, _3, _4);
     timerHandler_ = std::bind(&BCStateTran::onTimerImp, this);
     startCollectingStateHandler_ = std::bind(&BCStateTran::onStartCollectingStateImp, this);
+    createCheckpointOfCurrentStateHandler_ = std::bind(&BCStateTran::createCheckpointOfCurrentStateImp, this, _1);
   }
   // Make sure that the internal IReplicaForStateTransfer callback is always added, alongside any user-supplied
   // callbacks.
@@ -533,7 +535,7 @@ void BCStateTran::deleteOldCheckpoints(uint64_t checkpointNumber, DataStoreTrans
                  lastStoredCheckpoint));
 }
 
-void BCStateTran::createCheckpointOfCurrentState(uint64_t checkpointNumber) {
+void BCStateTran::createCheckpointOfCurrentStateImp(uint64_t checkpointNumber) {
   auto lastStoredCheckpointNumber = psd_->getLastStoredCheckpoint();
   LOG_INFO(logger_, KVLOG(checkpointNumber, lastStoredCheckpointNumber));
 

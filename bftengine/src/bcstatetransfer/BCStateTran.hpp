@@ -85,7 +85,10 @@ class BCStateTran : public IStateTransfer {
   void stopRunning() override;
   bool isRunning() const override;
 
-  void createCheckpointOfCurrentState(uint64_t checkpointNumber) override;
+  // Attention: when running in separate thread - this call blocks until it is executed by ST main thread
+  void createCheckpointOfCurrentState(uint64_t checkpointNumber) override {
+    createCheckpointOfCurrentStateHandler_(checkpointNumber);
+  }
 
   void markCheckpointAsStable(uint64_t checkpointNumber) override;
 
@@ -159,6 +162,13 @@ class BCStateTran : public IStateTransfer {
   std::function<void()> startCollectingStateHandler_;
   void onStartCollectingStateImp();
   void handoffStartCollectingState() { handoff_->push(std::bind(&BCStateTran::onStartCollectingStateImp, this), true); }
+
+  // handle create checkpoint of current state
+  std::function<void(uint64_t)> createCheckpointOfCurrentStateHandler_;
+  void createCheckpointOfCurrentStateImp(uint64_t checkpointNumber);
+  void handoffCreateCheckpointOfCurrentState(uint64_t checkpointNumber) {
+    handoff_->push(std::bind(&BCStateTran::createCheckpointOfCurrentStateImp, this, checkpointNumber), true);
+  }
 
   ///////////////////////////////////////////////////////////////////////////
   // Constants
