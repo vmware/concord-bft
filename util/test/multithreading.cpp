@@ -105,10 +105,17 @@ class HandoffFixture : public testing::Test {
 
 TEST_F(HandoffFixture, Basic) {
   auto g = std::bind([this](int i) { this->result += i; }, _1);
-  auto f = std::bind(&concord::util::Handoff::push, handoff_, _1);
-  for (int i = 1; i <= 100; ++i) f(std::bind(g, i));
+  auto f = std::bind(&concord::util::Handoff::push, handoff_, _1, _2);
+
+  // run 10000 unblocked, and then 10000  blocked
+  for (size_t i{}; i < 2; ++i) {
+    for (size_t j = 1; j <= 10000; ++j) {
+      f(std::bind(g, j), static_cast<bool>(i));
+    }
+  }
   delete handoff_;
-  EXPECT_EQ(result, 5050);
+  // Sum of 2 arithmetic progression series
+  EXPECT_EQ(result, 10000 * (1 + 10000));
 }
 
 }  // namespace mt
