@@ -17,6 +17,10 @@
 #include <string>
 #include <variant>
 #include <optional>
+#include <vector>
+
+std::vector<uint8_t> StrToBytes(const std::string& str);
+std::string BytesToStr(const std::vector<uint8_t>& bytes);
 
 struct TxPublicDeposit {
   TxPublicDeposit(std::string accId, int amount) : amount_{amount}, toAccountId_{std::move(accId)} {}

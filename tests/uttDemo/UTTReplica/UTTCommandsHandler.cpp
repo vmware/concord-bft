@@ -26,10 +26,71 @@
 #include "utt_messages.cmf.hpp"
 
 using namespace bftEngine;
+using namespace utt::messages;
 
-void UTTCommandsHandler::execute(UTTCommandsHandler::ExecutionRequestsQueue &requests,
+void UTTCommandsHandler::execute(UTTCommandsHandler::ExecutionRequestsQueue& requests,
                                  std::optional<bftEngine::Timestamp> timestamp,
-                                 const std::string &batchCid,
-                                 concordUtils::SpanWrapper &parent_span) {
-  LOG_INFO(logger_, "UTTCommandsHandler: TODO execute");
+                                 const std::string& batchCid,
+                                 concordUtils::SpanWrapper& parent_span) {
+  for (auto& it : requests) {
+    const auto* request = it.request;
+    const auto requestSize = it.requestSize;
+    const auto maxReplySize = it.maxReplySize;
+    auto outReply = it.outReply;
+    auto& outReplySize = it.outActualReplySize;
+
+    UTTRequest deserialized_request;
+    try {
+      static_assert(sizeof(*request) == sizeof(uint8_t),
+                    "Byte pointer type used by bftEngine::IRequestsHandler::ExecutionRequest is incompatible with byte "
+                    "pointer type used by CMF.");
+      const uint8_t* request_buffer_as_uint8 = reinterpret_cast<const uint8_t*>(request);
+      deserialize(request_buffer_as_uint8, request_buffer_as_uint8 + requestSize, deserialized_request);
+
+      if (std::holds_alternative<TxRequest>(deserialized_request.request)) {
+        const auto& txRequest = std::get<TxRequest>(deserialized_request.request);
+        auto cmd = BytesToStr(txRequest.tx);
+        LOG_INFO(logger_, "Received TxRequest with command: " << cmd);
+        if (auto tx = parseTx(cmd)) {
+          state_.validateTx(*tx);
+          int latest_block = state_.executeNextTx(*tx);
+
+          UTTReply reply;
+          reply.reply = TxReply();
+          auto& txReply = std::get<TxReply>(reply.reply);
+
+          txReply.success = true;
+          txReply.latest_block = latest_block;
+
+          vector<uint8_t> serialized_reply;
+          serialize(serialized_reply, reply);
+          if (maxReplySize < serialized_reply.size()) {
+            LOG_ERROR(
+                logger_,
+                "replySize is too big: replySize=" << serialized_reply.size() << ", maxReplySize=" << maxReplySize);
+            it.outExecutionStatus = static_cast<uint32_t>(OperationResult::EXEC_DATA_TOO_LARGE);
+          }
+          copy(serialized_reply.begin(), serialized_reply.end(), outReply);
+          outReplySize = serialized_reply.size();
+
+          LOG_INFO(logger_, "UTTRquest message handled");
+          it.outExecutionStatus = static_cast<uint32_t>(OperationResult::SUCCESS);
+        } else {
+          throw std::runtime_error("Failed to parse TxRequest!");
+        }
+      } else {
+        throw std::runtime_error("Unhandled UTTRquest type!");
+      }
+    } catch (const std::domain_error& e) {
+      LOG_ERROR(logger_, "Failed to execute transaction: " << e.what());
+      strcpy(outReply, "Failed to execute transaction");
+      outReplySize = strlen(outReply);
+      it.outExecutionStatus = static_cast<uint32_t>(OperationResult::INVALID_REQUEST);
+    } catch (const std::runtime_error& e) {
+      LOG_WARN(logger_, "Invalid UTTRequest: " << e.what());
+      strcpy(outReply, "Invalid UTTRequest");
+      outReplySize = strlen(outReply);
+      it.outExecutionStatus = static_cast<uint32_t>(OperationResult::INVALID_REQUEST);
+    }
+  }
 }

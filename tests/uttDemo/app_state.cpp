@@ -31,8 +31,7 @@ int Account::withdrawPublic(int val) {
 std::ostream& operator<<(std::ostream& os, const Block& b) {
   os << "Block " << b.id_ << "\n";
   os << "---------------------------\n";
-  for (const auto& kvp : b.tx_) os << kvp.first << " : " << kvp.second << '\n';
-  // To-Do: print nullifiers?
+  b.tx_ ? os << *b.tx_ : os << "(No transactions)";
   return os;
 }
 
@@ -42,6 +41,10 @@ AppState::AppState() {
   accounts_.emplace("C", Account("C"));
   blocks_.emplace_back();  // Genesis block
 }
+
+const std::map<std::string, Account> AppState::GetAccounts() const { return accounts_; }
+
+const std::vector<Block>& AppState::GetBlocks() const { return blocks_; }
 
 const Account* AppState::getAccountById(const std::string& id) const {
   auto it = accounts_.find(id);
@@ -88,7 +91,7 @@ void AppState::validateTx(const Tx& tx) const {
   std::visit(Visitor{*this}, tx);
 }
 
-void AppState::executeNextTx(const Tx& tx) {
+int AppState::executeNextTx(const Tx& tx) {
   struct Visitor {
     AppState& state_;
 
@@ -117,16 +120,8 @@ void AppState::executeNextTx(const Tx& tx) {
   };
 
   std::visit(Visitor{*this}, tx);
-}
 
-void AppState::printLedger(std::optional<int> from, std::optional<int> to) const {
-  int first = from ? *from : 0;
-  int last = to ? *to + 1 : blocks_.size();
-
-  first = std::clamp<int>(first, 0, blocks_.size());
-  last = std::clamp<int>(last, 0, blocks_.size());
-
-  if (first > last) std::swap(first, last);
-
-  for (int i = first; i < last; ++i) std::cout << blocks_[i] << '\n';
+  int next_block_id = blocks_.size() + 1;
+  blocks_.emplace_back(next_block_id, tx);
+  return next_block_id;
 }

@@ -17,6 +17,9 @@
 #include <vector>
 #include <sstream>
 
+std::vector<uint8_t> StrToBytes(const std::string& str) { return std::vector<uint8_t>(str.begin(), str.end()); }
+std::string BytesToStr(const std::vector<uint8_t>& bytes) { return std::string{bytes.begin(), bytes.end()}; }
+
 std::ostream& operator<<(std::ostream& os, const TxPublicDeposit& tx) {
   os << "deposit " << tx.toAccountId_ << ' ' << tx.amount_;
   return os;

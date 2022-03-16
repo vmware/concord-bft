@@ -33,10 +33,6 @@ uint64_t nextSeqNum() {
   return nextSeqNum++;
 }
 
-std::vector<uint8_t> StrToBytes(const std::string& str) { return std::vector<uint8_t>(str.begin(), str.end()); }
-
-std::string BytesToStr(const std::vector<uint8_t>& bytes) { return std::string{bytes.begin(), bytes.end()}; }
-
 ClientParams setupClientParams(int argc, char** argv) {
   ClientParams clientParams;
   clientParams.clientId = UINT16_MAX;
@@ -145,7 +141,7 @@ int main(int argc, char** argv) {
         } else if (cmd == "h") {
           std::cout << "list of commands is empty (NYI)\n";
         } else if (cmd == "balance") {
-          for (const auto& kvp : state.accounts_) {
+          for (const auto& kvp : state.GetAccounts()) {
             const auto& acc = kvp.second;
             std::cout << acc.getId() << " : " << acc.getBalancePublic() << '\n';
           }
@@ -155,12 +151,38 @@ int main(int argc, char** argv) {
           // ToDo: send last block request
 
           // ToDo: fetch missing blocks
-          state.printLedger();
+          for (const auto& block : state.GetBlocks()) {
+            std::cout << block << '\n';
+          }
         } else if (auto tx = parseTx(cmd)) {
           state.validateTx(*tx);
-          // ToDo: send client request
-          state.executeNextTx(*tx);
-          std::cout << "Ok\n";
+
+          // Send transaction request
+          TxRequest txReq;
+          txReq.tx = StrToBytes(cmd);
+
+          UTTRequest req;
+          req.request = std::move(txReq);
+
+          // Ensure we only wait for F+1 replies (ByzantineSafeQuorum)
+          WriteConfig writeConf{RequestConfig{false, nextSeqNum()}, ByzantineSafeQuorum{}};
+
+          Msg reqBytes;
+          serialize(reqBytes, req);
+          auto replyBytes = client.send(writeConf, std::move(reqBytes));  // Sync send
+
+          UTTReply reply;
+          deserialize(replyBytes.matched_data, reply);
+
+          const auto& txReply = std::get<TxReply>(reply.reply);  // throws if unexpected variant
+          std::cout << "Got TxReply, success=" << txReply.success << " latest_block=" << txReply.latest_block << '\n';
+
+          if (txReply.success) {
+            state.executeNextTx(*tx);
+            std::cout << "Ok.\n";
+          } else {
+            std::cout << "Failed to execute transaction!\n";
+          }
         } else {
           std::cout << "Unknown command '" << cmd << "'\n";
         }
