@@ -1,0 +1,41 @@
+# Definition of client-server interface for the UTT Demo test application.
+
+Msg TxRequest 3 {
+    bytes tx
+}
+
+Msg TxReply 4 {
+    bool success
+    uint64 latest_block
+}
+
+Msg GetLastBlockRequest 5 {
+}
+
+Msg GetLastBlockReply 6 {
+    uint64 latest_block
+}
+
+Msg GetBlockDataRequest 7 {
+    uint64 block_id
+}
+
+Msg GetBlockDataReply 8 {
+    uint64 block_id
+}
+
+Msg UTTRequest 1 {
+    oneof {
+        TxRequest
+        GetLastBlockRequest
+        GetBlockDataRequest
+    } request
+}
+
+Msg UTTReply 2 {
+    oneof {
+        TxReply
+        GetLastBlockReply
+        GetBlockDataReply
+    } reply
+}

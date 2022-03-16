@@ -18,14 +18,14 @@
 #include "communication/CommFactory.hpp"
 #include "bftclient/config.h"
 #include "bftclient/bft_client.h"
-#include "skvbc_messages.cmf.hpp"
+#include "utt_messages.cmf.hpp"
 
 #include "app_state.hpp"
 
 using namespace bftEngine;
 using namespace bft::communication;
 using std::string;
-using namespace skvbc::messages;
+using namespace utt::messages;
 using namespace bft::client;
 
 uint64_t nextSeqNum() {
@@ -36,79 +36,6 @@ uint64_t nextSeqNum() {
 std::vector<uint8_t> StrToBytes(const std::string& str) { return std::vector<uint8_t>(str.begin(), str.end()); }
 
 std::string BytesToStr(const std::vector<uint8_t>& bytes) { return std::string{bytes.begin(), bytes.end()}; }
-
-void SimpleSKVBCTest(bft::client::Client& client) {
-  std::vector<std::pair<std::string, std::string>> state;
-  state.emplace_back("test-key-1", "test-value-1");
-  state.emplace_back("test-key-2", "test-value-2");
-  state.emplace_back("test-key-3", "test-value-3");
-
-  // Write test key-value pairs
-  {
-    SKVBCWriteRequest writeReq;
-    // The expected values by the execution engine in the kv pair are strings
-    for (int i = 0; i < (int)state.size(); ++i)
-      writeReq.writeset.emplace_back(StrToBytes(state[i].first), StrToBytes(state[i].second));
-
-    SKVBCRequest req;
-    req.request = std::move(writeReq);
-
-    // Ensure we only wait for F+1 replies (ByzantineSafeQuorum)
-    WriteConfig writeConf{RequestConfig{false, nextSeqNum()}, ByzantineSafeQuorum{}};
-
-    Msg reqBytes;
-    serialize(reqBytes, req);
-    auto replyBytes = client.send(writeConf, std::move(reqBytes));  // Sync send
-
-    SKVBCReply reply;
-    deserialize(replyBytes.matched_data, reply);
-
-    const auto& writeReply = std::get<SKVBCWriteReply>(reply.reply);  // throws if unexpected variant
-    std::cout << "Got SKVBCWriteReply, success=" << writeReply.success << " latest_block=" << writeReply.latest_block
-              << '\n';
-
-    if (!writeReply.success) throw std::runtime_error("Failed to write values to the BC!\n");
-  }
-
-  // Read back the account balances
-  {
-    SKVBCReadRequest readReq;
-    readReq.read_version = 1;
-    // The expected values by the execution engine in the kv pair are strings
-    for (const auto& kvp : state) readReq.keys.emplace_back(StrToBytes(kvp.first));
-
-    SKVBCRequest req;
-    req.request = std::move(readReq);
-
-    // Ensure we wait for 2F+1 replies
-    ReadConfig readConf{RequestConfig{false, nextSeqNum()}, LinearizableQuorum{}};
-
-    Msg reqBytes;
-    serialize(reqBytes, req);
-    auto replyBytes = client.send(readConf, std::move(reqBytes));  // Sync send
-
-    SKVBCReply reply;
-    deserialize(replyBytes.matched_data, reply);
-
-    const auto& readReply = std::get<SKVBCReadReply>(reply.reply);  // throws if unexpected variant
-    std::cout << "Got SKVBCReadReply with reads:\n";
-
-    for (const auto& kvp : readReply.reads) {
-      auto key = BytesToStr(kvp.first);
-      auto value = BytesToStr(kvp.second);
-
-      std::cout << '\t' << key << " : " << value << '\n';
-
-      // Assert we got the same values that we wrote
-      auto it = std::find_if(state.begin(), state.end(), [&key](const std::pair<std::string, std::string>& kvp) {
-        return kvp.first == key;
-      });
-
-      ConcordAssert(it != state.end());
-      ConcordAssert(it->second == value);
-    }
-  }
-}
 
 ClientParams setupClientParams(int argc, char** argv) {
   ClientParams clientParams;
@@ -217,8 +144,6 @@ int main(int argc, char** argv) {
           return 0;
         } else if (cmd == "h") {
           std::cout << "list of commands is empty (NYI)\n";
-        } else if (cmd == "test") {
-          SimpleSKVBCTest(client);
         } else if (cmd == "ledger") {
           // ToDo: check for new blocks
 

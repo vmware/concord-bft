@@ -1,3 +1,4 @@
+add_subdirectory(cmf)
 add_subdirectory(UTTClient)
 add_subdirectory(UTTReplica)
 
