@@ -2,8 +2,10 @@ cmake_minimum_required (VERSION 3.2)
 project(utt_replica VERSION 0.1.0.0 LANGUAGES CXX)
 
 add_executable(utt_replica main.cpp
-		 internalCommandsHandler.cpp
+		 UTTCommandsHandler.cpp
 		 setup.cpp
+		 ../app_state.cpp
+		 ../transactions.cpp
 		 ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp)
 
 if(${USE_COMM_PLAIN_TCP})
