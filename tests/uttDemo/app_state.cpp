@@ -37,15 +37,87 @@ std::ostream& operator<<(std::ostream& os, const Block& b) {
 }
 
 AppState::AppState() {
-  accounts_.emplace_back("A");
-  accounts_.emplace_back("B");
-  accounts_.emplace_back("C");
+  accounts_.emplace("A", Account("A"));
+  accounts_.emplace("B", Account("B"));
+  accounts_.emplace("C", Account("C"));
   blocks_.emplace_back();  // Genesis block
 }
 
-bool AppState::validateTx(const Tx& tx) const { return true; }
+const Account* AppState::getAccountById(const std::string& id) const {
+  auto it = accounts_.find(id);
+  return it != accounts_.end() ? &(it->second) : nullptr;
+}
 
-void AppState::executeTx(const Tx& tx) {}
+Account* AppState::getAccountById(const std::string& id) {
+  auto it = accounts_.find(id);
+  return it != accounts_.end() ? &(it->second) : nullptr;
+}
+
+void AppState::validateTx(const Tx& tx) const {
+  struct Visitor {
+    const AppState& state_;
+
+    Visitor(const AppState& state) : state_(state) {}
+
+    void operator()(const TxPublicDeposit& tx) const {
+      if (tx.amount_ <= 0) throw std::domain_error("Deposit amount must be positive!");
+      auto acc = state_.getAccountById(tx.toAccountId_);
+      if (!acc) throw std::domain_error("Unknown account for public deposit!");
+    }
+
+    void operator()(const TxPublicWithdraw& tx) const {
+      if (tx.amount_ <= 0) throw std::domain_error("Deposit amount must be positive!");
+      auto acc = state_.getAccountById(tx.toAccountId_);
+      if (!acc) throw std::domain_error("Unknown account for public withdraw!");
+      if (tx.amount_ > acc->getBalancePublic()) throw std::domain_error("Account has insufficient public balance!");
+    }
+
+    void operator()(const TxPublicTransfer& tx) const {
+      if (tx.amount_ <= 0) throw std::domain_error("Deposit amount must be positive!");
+      auto sender = state_.getAccountById(tx.fromAccountId_);
+      if (!sender) throw std::domain_error("Unknown sender account for public transfer!");
+      auto receiver = state_.getAccountById(tx.toAccountId_);
+      if (!receiver) throw std::domain_error("Unknown receiver account for public transfer!");
+      if (tx.amount_ > sender->getBalancePublic()) throw std::domain_error("Sender has insufficient public balance!");
+    }
+
+    void operator()(const TxUttTransfer& tx) const { /*TODO*/
+    }
+  };
+
+  std::visit(Visitor{*this}, tx);
+}
+
+void AppState::executeNextTx(const Tx& tx) {
+  struct Visitor {
+    AppState& state_;
+
+    Visitor(AppState& state) : state_{state} {}
+
+    void operator()(const TxPublicDeposit& tx) {
+      auto acc = state_.getAccountById(tx.toAccountId_);
+      if (acc) acc->depositPublic(tx.amount_);
+    }
+
+    void operator()(const TxPublicWithdraw& tx) {
+      auto acc = state_.getAccountById(tx.toAccountId_);
+      if (acc) acc->withdrawPublic(tx.amount_);
+    }
+
+    void operator()(const TxPublicTransfer& tx) {
+      auto sender = state_.getAccountById(tx.fromAccountId_);
+      auto receiver = state_.getAccountById(tx.toAccountId_);
+      if (sender) sender->withdrawPublic(tx.amount_);
+      if (receiver) receiver->depositPublic(tx.amount_);
+    }
+
+    void operator()(const TxUttTransfer& tx) {
+      // To-Do
+    }
+  };
+
+  std::visit(Visitor{*this}, tx);
+}
 
 void AppState::printLedger(std::optional<int> from, std::optional<int> to) const {
   int first = from ? *from : 0;

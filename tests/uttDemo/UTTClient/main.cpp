@@ -144,6 +144,11 @@ int main(int argc, char** argv) {
           return 0;
         } else if (cmd == "h") {
           std::cout << "list of commands is empty (NYI)\n";
+        } else if (cmd == "balance") {
+          for (const auto& kvp : state.accounts_) {
+            const auto& acc = kvp.second;
+            std::cout << acc.getId() << " : " << acc.getBalancePublic() << '\n';
+          }
         } else if (cmd == "ledger") {
           // ToDo: check for new blocks
 
@@ -152,18 +157,17 @@ int main(int argc, char** argv) {
           // ToDo: fetch missing blocks
           state.printLedger();
         } else if (auto tx = parseTx(cmd)) {
-          std::cout << "Successfully parsed transaction: " << *tx << '\n';
-          std::cout << "Transaction is valid: " << state.validateTx(*tx) << '\n';
-
+          state.validateTx(*tx);
           // ToDo: send client request
-
-          // ToDo: execute transaction
-
+          state.executeNextTx(*tx);
+          std::cout << "Ok\n";
         } else {
           std::cout << "Unknown command '" << cmd << "'\n";
         }
       } catch (const bft::client::TimeoutException& e) {
         std::cout << "Request timeout: " << e.what() << '\n';
+      } catch (const std::domain_error& e) {
+        std::cout << "Validation error: " << e.what() << '\n';
       }
     }
   } catch (const std::exception& e) {

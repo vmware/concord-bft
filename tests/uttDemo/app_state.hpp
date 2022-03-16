@@ -18,6 +18,7 @@
 #include <set>
 #include <string>
 #include <optional>
+#include <exception>
 
 #include "transactions.hpp"
 
@@ -47,10 +48,13 @@ std::ostream& operator<<(std::ostream& os, const Block& b);
 struct AppState {
   AppState();
 
-  bool validateTx(const Tx& tx) const;
-  void executeTx(const Tx& tx);
+  const Account* getAccountById(const std::string& id) const;
+  Account* getAccountById(const std::string& id);
+
+  void validateTx(const Tx& tx) const;  // throws std::domain_error
+  void executeNextTx(const Tx& tx);
   void printLedger(std::optional<int> from = 1, std::optional<int> to = std::nullopt) const;
 
-  std::vector<Account> accounts_;
+  std::map<std::string, Account> accounts_;
   std::vector<Block> blocks_;
 };

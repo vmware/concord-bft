@@ -48,7 +48,7 @@ std::optional<Tx> parseTx(const std::string& str) {
       return TxPublicDeposit(std::move(tokens[1]), std::atoi(tokens[2].c_str()));
     else if (tokens[0] == "withdraw")
       return TxPublicWithdraw(std::move(tokens[1]), std::atoi(tokens[2].c_str()));
-  } else if (token.size() == 4) {
+  } else if (tokens.size() == 4) {
     if (tokens[0] == "transfer")
       return TxPublicTransfer(std::move(tokens[1]), std::move(tokens[2]), std::atoi(tokens[3].c_str()));
   }
