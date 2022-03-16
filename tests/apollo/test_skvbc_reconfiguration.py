@@ -13,10 +13,12 @@ import os.path
 import unittest
 import time
 from shutil import copy2
+from typing import Set, Optional, Callable
+
 import trio
 import difflib
 
-from util.test_base import ApolloTest
+from util.test_base import ApolloTest, parameterize
 from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, TestConfig
 from util import operator
@@ -29,6 +31,7 @@ from util import bft_network_partitioning as net
 sys.path.append(os.path.abspath("../../util/pyclient"))
 
 import bft_client
+from bft_config import BFTConfig
 
 def start_replica_cmd_with_object_store(builddir, replica_id, config):
     """
@@ -664,7 +667,7 @@ class SkvbcReconfigurationTest(ApolloTest):
 
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd_with_key_exchange, 
-                      bft_configs=[{'n': 4, 'f': 1, 'c': 0, 'num_clients': 10}],
+                      bft_configs=[BFTConfig(n=4, f=1, c=0)],
                       rotate_keys=True, publish_master_keys=True)
     async def test_key_exchange_with_file_backup(self, bft_network):
         """
@@ -1259,50 +1262,62 @@ class SkvbcReconfigurationTest(ApolloTest):
         rep = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
         assert rep.success is False
 
+    async def send_restart_with_params(self, bft_network: 'BftTestNetwork', bft: bool, restart: bool,
+                                       faulty_replica_ids: Optional[Set[int]] = None,
+                                       post_restart: Optional[Callable] = None,
+                                       pre_restart_epoch_id: int = 0,
+                                       kv_count: int = 10):
+        """
+        Send a restart command and verify that replicas have stopped and removed their metadata in two cases
+        @param bft_network:
+        @param bft: flag for restart command
+        @param restart: flag for restart command
+        @param faulty_replica_ids:
+        @param post_restart: A coroutine which is called after the restart operation is received by the network
+        @param pre_restart_epoch_id: The epoch id before the restart operation
+        @param kv_count: kvs to send for liveness checks
+        """
+
+        if faulty_replica_ids is None:
+            faulty_replica_ids = set()
+
+        live_replicas = bft_network.all_replicas(without=faulty_replica_ids)
+        bft_network.start_replicas(live_replicas)
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        await self.validate_epoch_number(bft_network, pre_restart_epoch_id, live_replicas)
+        await skvbc.send_n_kvs_sequentially(kv_count)
+        op = operator.Operator(bft_network.config, bft_network.random_client(), bft_network.builddir)
+        await op.restart(f"test_restart", bft=bft, restart=restart)
+        if post_restart:
+            await post_restart(skvbc)
+        await self.validate_epoch_number(bft_network, pre_restart_epoch_id + 1, live_replicas)
+        await skvbc.send_n_kvs_sequentially(kv_count)
+
+    @with_trio
+    @parameterize(bft=[True, False])
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
+    async def test_restart_no_restart_flag(self, bft_network, bft):
+        async def post_restart(skvbc):
+            await self.validate_stop_on_wedge_point(skvbc.bft_network, skvbc, fullWedge=True)
+            bft_network.stop_all_replicas()
+            bft_network.start_all_replicas()
+
+        await self.send_restart_with_params(bft_network, bft=bft, restart=False, post_restart=post_restart)
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
-    async def test_restart_command(self, bft_network):
-        """
-             Send a restart command and verify that replicas have stopped and removed their metadata in two cases
-             1. Where all replicas are alive
-             2. When we have up to f failures
-        """
-        # 1. Test without bft and without restart
-        bft_network.start_all_replicas()
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-        for i in range(320):
-            await skvbc.send_write_kv_set()
-        client = bft_network.random_client()
-        op = operator.Operator(bft_network.config, client,  bft_network.builddir)
-        await op.restart("hello", bft=False, restart=False)
-        await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=True)
-        bft_network.stop_all_replicas()
-        bft_network.start_all_replicas()
-        await self.validate_epoch_number(bft_network, 1, bft_network.all_replicas())
+    async def test_restart_no_bft_with_restart_flag(self, bft_network):
+        await self.send_restart_with_params(bft_network, bft=False, restart=True)
 
-        # 2. Test without bft and with restart
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-        for i in range(320):
-            await skvbc.send_write_kv_set()
-        client = bft_network.random_client()
-        op = operator.Operator(bft_network.config, client,  bft_network.builddir)
-        await op.restart("hello1", bft=False, restart=True)
-        await self.validate_epoch_number(bft_network, 2, bft_network.all_replicas())
-
-        # 3. Test with bft and restart
-        crashed_replicas = {5, 6} # For simplicity, we crash the last two replicas
-        live_replicas = bft_network.all_replicas(without=crashed_replicas)
-        bft_network.stop_replicas(crashed_replicas)
-        for i in range(320):
-            await skvbc.send_write_kv_set()
-
-        await op.restart("hello2", bft=True, restart=True)
-        await self.validate_epoch_number(bft_network, 3, live_replicas)
-
-        # make sure the system is alive
-        for i in range(100):
-            await skvbc.send_write_kv_set()
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
+    async def test_restart_with_bft_with_restart_flag(self, bft_network):
+        bft_config = bft_network.config
+        assert bft_config.f >= 2, f"Insufficient fault tolerance factory {bft_config.f}"
+        replica_count = bft_config.n
+        # For simplicity, we crash the last two replicas
+        crashed_replicas = set(range(replica_count - 2, replica_count))
+        await self.send_restart_with_params(bft_network, bft=True, restart=True, faulty_replica_ids=crashed_replicas)
 
     @with_trio
     @with_bft_network(start_replica_cmd_with_key_exchange, selected_configs=lambda n, f, c: n == 7, rotate_keys=True, publish_master_keys=True)
@@ -1441,7 +1456,7 @@ class SkvbcReconfigurationTest(ApolloTest):
         await self.validate_epoch_number(bft_network, 1, bft_network.all_replicas())
 
     @with_trio
-    @with_bft_network(start_replica_cmd, bft_configs=[{'n': 4, 'f': 1, 'c': 0, 'num_clients': 10}], publish_master_keys=True)
+    @with_bft_network(start_replica_cmd, bft_configs=[BFTConfig(n=4, f=1, c=0)], publish_master_keys=True)
     async def test_add_nodes(self, bft_network):
         """
              Sends a addRemove command and checks that new configuration is written to blockchain.
@@ -1486,7 +1501,7 @@ class SkvbcReconfigurationTest(ApolloTest):
             self.assertGreater(nb_fast_path, 0)
     
     @with_trio
-    @with_bft_network(start_replica_cmd, bft_configs=[{'n': 4, 'f': 1, 'c': 0, 'num_clients': 10}], publish_master_keys=True)
+    @with_bft_network(start_replica_cmd, bft_configs=[BFTConfig(n=4, f=1, c=0)], publish_master_keys=True)
     async def test_add_nodes_with_failures(self, bft_network):
         """
              Sends a addRemove command and checks that new configuration is written to blockchain.

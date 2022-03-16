@@ -14,6 +14,7 @@ import random
 import unittest
 from os import environ
 
+from util.consts import STATE_TRANSFER_WINDOW
 from util.test_base import ApolloTest
 from util import bft_network_traffic_control as ntc
 import trio
@@ -45,8 +46,6 @@ def start_replica_cmd(builddir, replica_id):
 class SkvbcStateTransferTest(ApolloTest):
 
     __test__ = False  # so that PyTest ignores this test scenario
-    # Matches kWorkWindowSize in SysConsts.hpp (TODO: share via a configuration)
-    STATE_TRANSFER_WINDOW = 300
 
     @with_trio
     @with_bft_network(start_replica_cmd, rotate_keys=True)
@@ -92,7 +91,7 @@ class SkvbcStateTransferTest(ApolloTest):
         bft_network.start_replicas(working_replicas)
 
         # Need to send more than self.STATE_TRANSFER_WINDOW due to batching
-        await skvbc.run_concurrent_ops(int(self.STATE_TRANSFER_WINDOW * 1.5), write_weight=1)
+        await skvbc.run_concurrent_ops(int(STATE_TRANSFER_WINDOW * 1.5), write_weight=1)
         await skvbc.network_wait_for_checkpoint(working_replicas,
                                                 expected_checkpoint_num=lambda checkpoint_num: checkpoint_num >= 2)
 
