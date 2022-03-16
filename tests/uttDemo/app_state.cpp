@@ -37,9 +37,9 @@ std::ostream& operator<<(std::ostream& os, const Block& b) {
 }
 
 AppState::AppState() {
-  accounts_.emplace_back("A1");
-  accounts_.emplace_back("A2");
-  accounts_.emplace_back("A3");
+  accounts_.emplace_back("A");
+  accounts_.emplace_back("B");
+  accounts_.emplace_back("C");
   blocks_.emplace_back();  // Genesis block
 }
 
