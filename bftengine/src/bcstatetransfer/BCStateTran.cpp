@@ -123,7 +123,9 @@ set<uint16_t> BCStateTran::generateSetOfReplicas(const int16_t numberOfReplicas)
 
 size_t BCStateTran::BlockIOContext::sizeOfBlockData = 0;
 BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataStore *ds)
-    : incomingEventsQ_{std::make_unique<concord::util::Handoff>(config.myReplicaId)},
+    : incomingEventsQ_{std::make_unique<concord::util::Handoff>(config.myReplicaId, "IncomingEventsQ")},
+      postProcessingQ_{std::make_unique<concord::util::Handoff>(config.myReplicaId, "postProcessingQ")},
+      maxPostprocessedBlockId_{0},
       as_{stateApi},
       psd_{ds},
       config_{config},
@@ -255,7 +257,6 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
   ConcordAssert(replicas_.count(config_.myReplicaId) == 1 || config.isReadOnly);
   ConcordAssertGE(config_.maxNumOfReservedPages, 2);
   ConcordAssertLT(finalizePutblockTimeoutMilli_, config_.refreshTimerMs);
-  ConcordAssertGT(config_.fetchRangeSize, 1);
 
   // Register metrics component with the default aggregator.
   metrics_component_.Register();
@@ -380,10 +381,8 @@ void BCStateTran::stopRunning() {
   LOG_INFO(logger_, "Stopping");
   ConcordAssert(running_);
   ConcordAssertNE(replicaForStateTransfer_, nullptr);
-  if (incomingEventsQ_) incomingEventsQ_->stop();
-  if (nextBlockIdToCommit_ > 0) {
-    finalizePutblockAsync(PutBlockWaitPolicy::WAIT_ALL_JOBS);
-  }
+  incomingEventsQ_->stop();
+  postProcessingQ_->stop();
 
   // TODO(GG): cancel timer
 
@@ -2509,6 +2508,21 @@ bool BCStateTran::isRvbBlockId(uint64_t blockId) const { return ((blockId % conf
 
 bool BCStateTran::isLastFetchedBlockIdInCycle(uint64_t blockId) const {
   return (blockId == fetchState_.minBlockId) && (psd_->getLastRequiredBlock() == fetchState_.maxBlockId);
+}
+
+void BCStateTran::postProcessNextBatch(uint64_t upperBoundBlockId) {
+  if (upperBoundBlockId == 0) {
+    // Usually to mark end of cycle - we expect block to be nullptr
+    maxPostprocessedBlockId_ = 0;
+    return;
+  }
+  ConcordAssertGT(upperBoundBlockId, maxPostprocessedBlockId_);
+  as_->postProcessUntilBlockId(upperBoundBlockId);
+  LOG_DEBUG(logger_,
+            "Done post-processing blocks ["
+                << maxPostprocessedBlockId_ + 1 << "," << upperBoundBlockId << "]"
+                << KVLOG(upperBoundBlockId, maxPostprocessedBlockId_, postProcessingQ_->size()));
+  maxPostprocessedBlockId_ = upperBoundBlockId;
 }
 
 }
