@@ -123,7 +123,8 @@ set<uint16_t> BCStateTran::generateSetOfReplicas(const int16_t numberOfReplicas)
 
 size_t BCStateTran::BlockIOContext::sizeOfBlockData = 0;
 BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataStore *ds)
-    : as_{stateApi},
+    : incomingEventsQ_{std::make_unique<concord::util::Handoff>(config.myReplicaId)},
+      as_{stateApi},
       psd_{ds},
       config_{config},
       replicas_{generateSetOfReplicas(config_.numReplicas)},
@@ -245,7 +246,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
       sourceFlag_(false),
       src_send_batch_duration_rec_(histograms_.src_send_batch_duration),
       dst_time_between_sendFetchBlocksMsg_rec_(histograms_.dst_time_between_sendFetchBlocksMsg),
-      time_in_handoff_queue_rec_(histograms_.time_in_handoff_queue) {
+      time_in_incoming_events_queue_rec_(histograms_.time_in_incoming_events_queue) {
   // Validate input parameters and some of the configuration
   ConcordAssertNE(stateApi, nullptr);
   ConcordAssertGE(replicas_.size(), 3U * config_.fVal + 1U);
@@ -377,7 +378,7 @@ void BCStateTran::stopRunning() {
   LOG_INFO(logger_, "Stopping");
   ConcordAssert(running_);
   ConcordAssertNE(replicaForStateTransfer_, nullptr);
-  if (handoff_) handoff_->stop();
+  if (incomingEventsQ_) incomingEventsQ_->stop();
   if (nextBlockIdToCommit_ > 0) {
     finalizePutblockAsync(PutBlockWaitPolicy::WAIT_ALL_JOBS);
   }
@@ -662,7 +663,7 @@ void BCStateTran::startCollectingStats() {
 
   src_send_batch_duration_rec_.clear();
   dst_time_between_sendFetchBlocksMsg_rec_.clear();
-  time_in_handoff_queue_rec_.clear();
+  time_in_incoming_events_queue_rec_.clear();
 }
 
 void BCStateTran::startCollectingState() {
@@ -690,9 +691,13 @@ void BCStateTran::startCollectingState() {
 // this function can be executed in context of another thread.
 void BCStateTran::onTimerImp() {
   oneShotTimerFlag_ = true;
-  if (!running_) return;
-  time_in_handoff_queue_rec_.end();
-  if (config_.runInSeparateThread) histograms_.handoff_queue_size->record(handoff_->size());
+  if (!running_) {
+    return;
+  }
+  if (config_.runInSeparateThread) {
+    time_in_incoming_events_queue_rec_.end();
+    histograms_.incoming_events_queue_size->record(incomingEventsQ_->size());
+  }
   TimeRecorder scoped_timer(*histograms_.on_timer);
 
   metrics_.on_timer_++;
@@ -731,7 +736,7 @@ void BCStateTran::onTimerImp() {
   } else if (fs == FetchingState::GettingMissingBlocks || fs == FetchingState::GettingMissingResPages) {
     processData();
   }
-  time_in_handoff_queue_rec_.start();
+  time_in_incoming_events_queue_rec_.start();
 }
 
 std::string BCStateTran::getStatus() {
@@ -794,9 +799,13 @@ void BCStateTran::handleStateTransferMessageImp(char *msg,
                                                 uint32_t msgLen,
                                                 uint16_t senderId,
                                                 LocalTimePoint msgArrivalTime) {
-  if (!running_) return;
-  time_in_handoff_queue_rec_.end();
-  if (config_.runInSeparateThread) histograms_.handoff_queue_size->record(handoff_->size());
+  if (!running_) {
+    return;
+  }
+  if (config_.runInSeparateThread) {
+    time_in_incoming_events_queue_rec_.end();
+    histograms_.incoming_events_queue_size->record(incomingEventsQ_->size());
+  }
   bool invalidSender = (senderId >= (config_.numReplicas + config_.numRoReplicas));
   bool sentFromSelf = senderId == config_.myReplicaId;
   bool msgSizeTooSmall = msgLen < sizeof(BCStateTranBaseMsg);
@@ -804,7 +813,7 @@ void BCStateTran::handleStateTransferMessageImp(char *msg,
     metrics_.received_illegal_msg_++;
     LOG_WARN(logger_, "Illegal message: " << KVLOG(msgLen, senderId, msgSizeTooSmall, sentFromSelf, invalidSender));
     replicaForStateTransfer_->freeStateTransferMsg(msg);
-    time_in_handoff_queue_rec_.start();
+    time_in_incoming_events_queue_rec_.start();
     return;
   }
 
@@ -853,7 +862,7 @@ void BCStateTran::handleStateTransferMessageImp(char *msg,
   }
 
   if (!noDelete) replicaForStateTransfer_->freeStateTransferMsg(msg);
-  time_in_handoff_queue_rec_.start();
+  time_in_incoming_events_queue_rec_.start();
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -1919,12 +1928,14 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
 
   tie(std::ignore, added) = pendingItemDataMsgs.insert(const_cast<ItemDataMsg *>(m));
   // Set fetchingTimeStamp_ while ignoring added flag - source is responsive
-  // Apply correction according to the time message has arrived to handoff queue
+  // Apply correction according to the time message has arrived to incoming events queue
   auto fetchingTimeStamp = getMonotonicTimeMilli();
   if (msgArrivalTime != UNDEFINED_LOCAL_TIME_POINT) {
-    auto timeInHandoffMilli = duration_cast<milliseconds>(steady_clock::now() - msgArrivalTime).count();
-    LOG_TRACE(logger_, KVLOG(fetchingTimeStamp, timeInHandoffMilli, (fetchingTimeStamp - timeInHandoffMilli)));
-    fetchingTimeStamp -= timeInHandoffMilli;
+    auto timeInIncomingEventsQueueMilli = duration_cast<milliseconds>(steady_clock::now() - msgArrivalTime).count();
+    LOG_TRACE(
+        logger_,
+        KVLOG(fetchingTimeStamp, timeInIncomingEventsQueueMilli, (fetchingTimeStamp - timeInIncomingEventsQueueMilli)));
+    fetchingTimeStamp -= timeInIncomingEventsQueueMilli;
   }
   sourceSelector_.setFetchingTimeStamp(fetchingTimeStamp, false);
 
@@ -3109,13 +3120,9 @@ inline std::string BCStateTran::getSequenceNumber(uint16_t replicaId,
 }
 
 // TBD Filtering to drop too frequent messages
-void BCStateTran::handoffConsensusMessage(shared_ptr<ConsensusMsg> &msg) {
-  if (handoff_) {
-    // bind understands only shared_ptr natively
-    handoff_->push(std::bind(&BCStateTran::peekConsensusMessage, this, std::move(msg)));
-  } else {
-    peekConsensusMessage(msg);
-  }
+void BCStateTran::handoffConsensusMessage(const shared_ptr<ConsensusMsg> &msg) {
+  // bind understands only shared_ptr natively
+  incomingEventsQ_->push(std::bind(&BCStateTran::peekConsensusMessage, this, msg));
 }
 
 void BCStateTran::peekConsensusMessage(shared_ptr<ConsensusMsg> &msg) {
