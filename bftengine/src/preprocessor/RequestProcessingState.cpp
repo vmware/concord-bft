@@ -283,7 +283,7 @@ PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult()
                    << KVLOG(static_cast<uint32_t>(agreedPreProcessResult_)) << ", we are done");
       return COMPLETE;
     }
-    if (primaryPreProcessResultLen_ != 0 && !retrying_) {
+    if (primaryPreProcessResultLen_ != 0) {
       // A known scenario that can cause a mismatch, is due to rejection of the block id sent by the primary.
       // In this case the difference should be only the last 64 bits that encodes the `0` as the rejection value.
       if (primaryPreProcessResult_ == OperationResult::SUCCESS) {
@@ -294,8 +294,7 @@ PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult()
         }
       }
       reportNonEqualHashes(itOfChosenHash->first.data(), itOfChosenHash->first.size());
-      retrying_ = true;
-      return RETRY_PRIMARY;
+      return CANCEL;
     }
     LOG_INFO(logger(), "Primary replica did not complete pre-processing yet, continue waiting" << KVLOG(reqSeqNum_));
     return CONTINUE;
@@ -322,8 +321,19 @@ unique_ptr<MessageBase> RequestProcessingState::buildClientRequestMsg(bool empty
 
 const std::set<PreProcessResultSignature> &RequestProcessingState::getPreProcessResultSignatures() {
   const auto &r = preProcessingResultHashes_.find(primaryPreProcessResultHash_);
-  ConcordAssert(r != preProcessingResultHashes_.end());
-  return r->second;
+  if (r != preProcessingResultHashes_.end()) return r->second;
+  LOG_FATAL(logger(),
+            "Primary replica pre-processing has not been completed" << KVLOG(batchCid_,
+                                                                             reqSeqNum_,
+                                                                             clientId_,
+                                                                             cid_,
+                                                                             reqOffsetInBatch_,
+                                                                             preProcessingResultHashes_.size(),
+                                                                             preprocessingRightNow_,
+                                                                             (int)agreedPreProcessResult_,
+                                                                             (int)primaryPreProcessResult_,
+                                                                             numOfReceivedReplies_));
+  ConcordAssert(false);
 }
 
 }  // namespace preprocessor

@@ -45,18 +45,33 @@ void RequestsBatch::addReply(PreProcessReplyMsgSharedPtr replyMsg) {
   repliesList_.push_back(replyMsg);
 }
 
+bool RequestsBatch::isBatchRegistered() const {
+  const std::lock_guard<std::mutex> lock(batchMutex_);
+  return batchRegistered_;
+}
+
+bool RequestsBatch::isBatchInProcess() const {
+  const std::lock_guard<std::mutex> lock(batchMutex_);
+  return batchInProcess_;
+}
+
+uint64_t RequestsBatch::getBlockId() const {
+  const std::lock_guard<std::mutex> lock(batchMutex_);
+  return cidToBlockId_.second;
+}
+
 // Should be called under batchMutex_
 void RequestsBatch::setBatchParameters(const std::string &cid, uint32_t batchSize) {
   cid_ = cid;
   batchSize_ = batchSize;
-  // We want to preserve blockid between retries, therefore cidToBlockid_ is not being part of the reset,
+  // We want to preserve block-id between retries, therefore cidToBlockId_ is not being part of the reset,
   // And is being set only if cid is new.
-  if (cidToBlockid_.first != cid_) {
+  if (cidToBlockId_.first != cid_) {
     LOG_DEBUG(preProcessor_.logger(),
-              "resetting batch block id, old cid: " << cidToBlockid_.first << " to: " << cid_ << ", old block id: "
-                                                    << cidToBlockid_.second << " to: " << GlobalData::current_block_id);
-    cidToBlockid_.first = cid_;
-    cidToBlockid_.second = GlobalData::current_block_id;
+              "resetting batch block id, old cid: " << cidToBlockId_.first << " to: " << cid_ << ", old block id: "
+                                                    << cidToBlockId_.second << " to: " << GlobalData::current_block_id);
+    cidToBlockId_.first = cid_;
+    cidToBlockId_.second = GlobalData::current_block_id;
   }
 }
 
@@ -119,7 +134,7 @@ void RequestsBatch::handlePossiblyExpiredRequests() {
     const std::lock_guard<std::mutex> lock(batchMutex_);
     if (batchSize_ && reqsExpired && (numOfCompletedReqs_ >= batchSize_)) {
       cid = cid_;
-      batchSize = batchSize_.load();
+      batchSize = batchSize_;
       resetBatchParams();
       batchCancelled = true;
     }
@@ -142,7 +157,7 @@ void RequestsBatch::cancelBatchAndReleaseRequests(const string &batchCid, PrePro
       if (status == CANCEL) preProcessor_.preProcessorMetrics_.preProcConsensusNotReached++;
       if (reqEntry.second) preProcessor_.releaseClientPreProcessRequestSafe(clientId_, reqEntry.second, status);
     }
-    batchSize = batchSize_.load();
+    batchSize = batchSize_;
     resetBatchParams();
   }
   LOG_INFO(preProcessor_.logger(), "The batch has been cancelled" << KVLOG(clientId_, batchCid, batchSize));
@@ -158,10 +173,14 @@ void RequestsBatch::releaseReqsAndSendBatchedReplyIfCompleted() {
   PreProcessBatchReplyMsgSharedPtr batchReplyMsg;
   {
     const lock_guard<mutex> lock(batchMutex_);
-    if (repliesList_.size() != batchSize_) return;
+    if (repliesList_.size() != batchSize_) {
+      LOG_DEBUG(preProcessor_.logger(),
+                "Not all replies collected" << KVLOG(senderId, clientId_, cid, repliesList_.size(), batchSize_));
+      return;
+    }
 
     cid = cid_;
-    batchSize = batchSize_.load();
+    batchSize = batchSize_;
     // The last batch request has pre-processed => send batched reply message
     for (auto const &replyMsg : repliesList_) {
       replyMsgsSize += replyMsg->size();
@@ -184,7 +203,7 @@ void RequestsBatch::finalizeBatchIfCompleted() {
   {
     const lock_guard<mutex> lock(batchMutex_);
     cid = cid_;
-    batchSize = batchSize_.load();
+    batchSize = batchSize_;
     if (numOfCompletedReqs_ != batchSize_) return;
     resetBatchParams();
   }
@@ -1199,19 +1218,6 @@ void PreProcessor::handlePreProcessReplyMsg(const string &cid,
     case CANCEL:  // Pre-processing consensus not reached
       cancelPreProcessing(clientId, batchCid, reqOffsetInBatch);
       break;
-    case RETRY_PRIMARY: {
-      // Primary replica generated pre-processing result hash different that one passed consensus
-      LOG_INFO(logger(), "Retry primary replica pre-processing for" << KVLOG(reqSeqNum, clientId));
-      PreProcessRequestMsgSharedPtr preProcessRequestMsg;
-      {
-        const auto &reqEntry = ongoingReqBatches_[clientId]->getRequestState(reqOffsetInBatch);
-        lock_guard<mutex> lock(reqEntry->mutex);
-        if (reqEntry->reqProcessingStatePtr)
-          preProcessRequestMsg = reqEntry->reqProcessingStatePtr->getPreProcessRequest();
-      }
-      if (preProcessRequestMsg) launchAsyncReqPreProcessingJob(preProcessRequestMsg, batchCid, true, true);
-      break;
-    }
     case CANCELLED_BY_PRIMARY:
       LOG_WARN(logger(),
                "Received reply message with status CANCELLED_BY_PRIMARY" << KVLOG(reqSeqNum, clientId, batchCid));
