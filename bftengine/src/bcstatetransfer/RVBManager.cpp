@@ -40,7 +40,10 @@ RVBManager::RVBManager(const Config& config, const IAppState* state_api, const s
       ds_{ds},
       prune_report_in_progess_{false},
       in_mem_rvt_{new RangeValidationTree(logger_, config_.RVT_K, config_.fetchRangeSize)},
-      rvb_data_source_(RvbDataInitialSource::NIL) {
+      rvb_data_source_(RvbDataInitialSource::NIL),
+      metrics_component_{
+          concordMetrics::Component("state_transfer_rvb_manager", std::make_shared<concordMetrics::Aggregator>())},
+      metrics_{metrics_component_.RegisterCounter("report_during_checkpointing_errors_")} {
   LOG_TRACE(logger_, "");
   last_checkpoint_desc_.makeZero();
 }
@@ -124,7 +127,10 @@ void RVBManager::pruneRvbDataDuringCheckpoint(const CheckpointDesc& new_checkpoi
   // Remember that there is a mutex to block multiple threads from accessing pruned_blocks_digests_ at the same
   // time and thread might stop after passing the next block, so there can't be any race condition here.
   if (prune_report_in_progess_) {
-    LOG_WARN(logger_, "Unexpected pruning during checkpointing:" << KVLOG(prune_report_in_progess_));
+    metrics_.report_during_checkpointing_errors_++;
+    LOG_WARN(logger_,
+             "Unexpected pruning during checkpointing:" << KVLOG(
+                 prune_report_in_progess_, metrics_.report_during_checkpointing_errors_.Get().Get()));
     // we continue
   }
   std::lock_guard<std::mutex> guard(pruned_blocks_digests_mutex_);

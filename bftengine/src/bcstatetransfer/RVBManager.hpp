@@ -22,6 +22,7 @@
 #include <memory>
 
 #include "DataStore.hpp"
+#include "Metrics.hpp"
 
 using BlockId = std::uint64_t;
 
@@ -142,6 +143,9 @@ class RVBManager {
   // Returns the source in which the RVB data was loaded, since last boot. This is useful for debugging.
   RvbDataInitialSource getRvbDataSource() const { return rvb_data_source_; }
 
+  void updateMetricToAggregator() { metrics_component_.UpdateAggregator(); }
+  concordMetrics::Component& getMetricComponent() { return metrics_component_; }
+
  protected:
   // logging
   logging::Logger logger_;
@@ -169,6 +173,12 @@ class RVBManager {
   };
   std::unique_ptr<RangeValidationTree, rvt_deleter> in_mem_rvt_;
   RvbDataInitialSource rvb_data_source_;
+
+  concordMetrics::Component metrics_component_;
+  struct Metrics {
+    concordMetrics::CounterHandle report_during_checkpointing_errors_;
+  };
+  mutable Metrics metrics_;
 
  protected:
   const STDigest getBlockAndComputeDigest(uint64_t block_id) const;

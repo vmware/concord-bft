@@ -875,6 +875,7 @@ void BCStateTran::onTimerImp() {
   // Send all metrics to the aggregator
   metrics_component_.UpdateAggregator();
   sourceSelector_.updateMetricToAggregator();
+  rvbm_->updateMetricToAggregator();
 
   // Dump metrics to log
   FetchingState fs = getFetchingState();
@@ -883,6 +884,7 @@ void BCStateTran::onTimerImp() {
     last_metrics_dump_time_ = currTimeForDumping;
     LOG_DEBUG(logger_, "--BCStateTransfer metrics dump--" + metrics_component_.ToJson());
     LOG_DEBUG(logger_, "--SourceSelector metrics dump--" + sourceSelector_.getMetricComponent().ToJson());
+    LOG_DEBUG(logger_, "--RVBManager metrics dump--" + rvbm_->getMetricComponent().ToJson());
   }
 
   // take a snapshot and log after time passed is approx x2 of fetchRetransmissionTimeoutMs
@@ -946,8 +948,9 @@ std::string BCStateTran::getStatus() {
     bj.addNestedJson("collectingDetails", logsForCollectingStatus());
   }
 
-  bj.addNestedJson("generalStateTransferMetrics", metrics_component_.ToJson());
-  bj.addNestedJson("generalSourceSelectorMetrics", sourceSelector_.getMetricComponent().ToJson());
+  bj.addNestedJson("StateTransferMetrics", metrics_component_.ToJson());
+  bj.addNestedJson("SourceSelectorMetrics", sourceSelector_.getMetricComponent().ToJson());
+  bj.addNestedJson("RVBManagerMetrics", rvbm_->getMetricComponent().ToJson());
 
   bj.endJson();
   return bj.getJson();
