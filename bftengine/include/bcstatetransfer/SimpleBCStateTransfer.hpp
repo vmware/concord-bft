@@ -162,7 +162,7 @@ struct Config {
   uint32_t maxNumOfReservedPages = 0;
   uint32_t sizeOfReservedPage = 0;  // bytes
   uint32_t gettingMissingBlocksSummaryWindowSize = 0;
-  uint16_t minPrePrepareMsgsForPrimaryAwarness = 0;
+  uint16_t minPrePrepareMsgsForPrimaryAwareness = 0;
   uint32_t fetchRangeSize = 0;
   uint32_t RVT_K = 0;
 
@@ -199,7 +199,7 @@ inline std::ostream &operator<<(std::ostream &os, const Config &c) {
               c.maxNumOfReservedPages,
               c.sizeOfReservedPage,
               c.gettingMissingBlocksSummaryWindowSize,
-              c.minPrePrepareMsgsForPrimaryAwarness,
+              c.minPrePrepareMsgsForPrimaryAwareness,
               c.fetchRangeSize);
   os << ",";
   os << KVLOG(c.RVT_K,

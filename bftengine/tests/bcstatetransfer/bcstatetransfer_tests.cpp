@@ -124,7 +124,7 @@ Config targetConfig() {
       2048,               // maxNumOfReservedPages
       4096,               // sizeOfReservedPage
       600,                // gettingMissingBlocksSummaryWindowSize
-      10,                 // minPrePrepareMsgsForPrimaryAwarness
+      10,                 // minPrePrepareMsgsForPrimaryAwareness
       24,                 // fetchRangeSize
       6,                  // RVT_K
       300,                // refreshTimerMs
@@ -1475,7 +1475,7 @@ TEST_P(BcStTestParamFixture2, dstSourceSelectorPrimaryAwareness) {
       std::unique_ptr<MessageBase> msg;
       // Generate prePrepare messages to trigger source selector to change the source to avoid primary.
       ASSERT_NFF(msg = dataGen_->generatePrePrepareMsg(ss.currentReplica()));
-      for (uint16_t i = 1; i <= targetConfig_.minPrePrepareMsgsForPrimaryAwarness; i++) {
+      for (uint16_t i = 1; i <= targetConfig_.minPrePrepareMsgsForPrimaryAwareness; i++) {
         auto cmsg = make_shared<ConsensusMsg>(msg->type(), msg->senderId());
         stateTransfer_->peekConsensusMessage(cmsg);
       }
@@ -1595,7 +1595,7 @@ TEST_F(BcStTest, dstSendPrePrepareMsgsDuringStateTransfer) {
       std::unique_ptr<MessageBase> msg;
       // Generate prePrepare messages to trigger source selector to change the source to avoid primary.
       ASSERT_NFF(msg = dataGen_->generatePrePrepareMsg(ss.currentReplica()));
-      for (uint16_t i = 1; i <= targetConfig_.minPrePrepareMsgsForPrimaryAwarness; i++) {
+      for (uint16_t i = 1; i <= targetConfig_.minPrePrepareMsgsForPrimaryAwareness; i++) {
         auto cmsg = make_shared<ConsensusMsg>(msg->type(), msg->senderId());
         stateTransfer_->peekConsensusMessage(cmsg);
       }
@@ -1628,7 +1628,7 @@ TEST_F(BcStTest, dstPreprepareFromMultipleSourcesDuringStateTransfer) {
       std::unique_ptr<MessageBase> msg;
       // Generate enough prePrepare messages but from more than one source so that source does not get changed
       ASSERT_NFF(msg = dataGen_->generatePrePrepareMsg(ss.currentReplica()));
-      for (uint16_t i = 1; i <= targetConfig_.minPrePrepareMsgsForPrimaryAwarness - 1; i++) {
+      for (uint16_t i = 1; i <= targetConfig_.minPrePrepareMsgsForPrimaryAwareness - 1; i++) {
         auto cmsg = make_shared<ConsensusMsg>(msg->type(), msg->senderId());
         stateTransfer_->peekConsensusMessage(cmsg);
       }
