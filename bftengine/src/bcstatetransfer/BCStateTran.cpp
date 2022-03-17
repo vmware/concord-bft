@@ -257,7 +257,8 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
                 ctx->future.get();
               } catch (...) {
                 // ignore and continue, this job is irrelevant
-                LOG_WARN(logger_, "Exception on irrelevant job, ignoring..");
+                LOG_WARN(logger_, "Exception:" << KVLOG(ctx->blockId, ctx->actualBlockSize));
+                throw;
               }
             }
           },
@@ -835,6 +836,7 @@ void BCStateTran::startCollectingStateInternal() {
     g.txn()->deleteCheckpointBeingFetched();
     g.txn()->setFirstRequiredBlock(0);
     g.txn()->setLastRequiredBlock(0);
+    g.txn()->setIsFetchingState(false);
   }
 
   // print cycle summary
@@ -1899,7 +1901,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
 
     // if we've already sent enough chunks
     if (numOfSentChunks >= config_.maxNumberOfChunksInBatch) {
-      LOG_INFO(logger_, "Batch end - sent enough chunks: " << KVLOG(numOfSentChunks));
+      LOG_INFO(logger_, "Batch end - sent enough chunks: " << KVLOG(numOfSentChunks, m->minBlockId, m->maxBlockId));
       if (nextChunk == numOfChunksInNextBlock) {
         finalizeContext();
       }
@@ -1911,7 +1913,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
       finalizeContext();
 
       if ((nextBlockId - 1) < m->minBlockId) {
-        LOG_INFO(logger_, "Batch end - sent all relevant blocks: " << KVLOG(m->minBlockId));
+        LOG_INFO(logger_, "Batch end - sent all relevant blocks: " << KVLOG(m->minBlockId, m->maxBlockId));
         break;
       } else {
         // no more chunks in the block, continue to next block
@@ -2892,7 +2894,7 @@ void BCStateTran::postProcessNextBatch(uint64_t upperBoundBlockId) {
 
 void BCStateTran::stReset(DataStoreTransaction *txn, bool resetRvbm, bool resetStoredCp, bool resetDataStore) {
   LOG_INFO(logger_, "");
-  if (!ioContexts_.empty() | sourceFlag_) {
+  if (!ioContexts_.empty() || sourceFlag_) {
     finalizeSource(sourceFlag_);
   }
   if (commitState_.nextBlockId > 0) {
