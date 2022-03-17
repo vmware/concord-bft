@@ -141,7 +141,11 @@ class BCStateTran : public IStateTransfer {
     return cre_;
   }
 
-  void handoffConsensusMessage(const shared_ptr<ConsensusMsg>& msg) override;
+  void handoffConsensusMessage(const shared_ptr<ConsensusMsg>& msg) override {
+    // TBD Filtering to drop too frequent messages
+    // bind understands only shared_ptr natively
+    incomingEventsQ_->push(std::bind(&BCStateTran::peekConsensusMessage, this, std::move(msg)));
+  }
   void peekConsensusMessage(shared_ptr<ConsensusMsg>& msg);
 
  protected:
