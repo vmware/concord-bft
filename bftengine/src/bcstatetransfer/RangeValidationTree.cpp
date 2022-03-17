@@ -31,9 +31,9 @@ using NodeInfo = RangeValidationTree::NodeInfo;
 using RVTNodePtr = RangeValidationTree::RVTNodePtr;
 
 // uncomment to add debug prints
-//#define DO_DEBUG
+#define DO_DEBUG
 #ifdef DO_DEBUG
-#define DEBUG_PRINT(x, y) LOG_INFO(x, y)
+#define DEBUG_PRINT(x, y) LOG_DEBUG(x, y)
 #define logInfoVal(x) logInfoVal(x)
 #else
 #define DEBUG_PRINT(x, y)
@@ -973,6 +973,7 @@ void RangeValidationTree::updateOpenRvtNodeArrays(ArrUpdateType update_type, con
 }
 
 void RangeValidationTree::clear() noexcept {
+  LOG_TRACE(logger_, "");
   // clear() reduced size to 0 and crashed while setting new root using operator []
   for (uint8_t level = 0; level < NodeInfo::kMaxLevels; level++) {
     rightmost_rvt_node_[level] = nullptr;
@@ -1001,7 +1002,7 @@ void RangeValidationTree::addNode(const RVBId rvb_id, const char* data, size_t d
   if (min_rvb_index_ == 0) {
     min_rvb_index_ = rvb_index;
   }
-  LOG_TRACE(logger_, KVLOG(rvb_id, max_rvb_index_));
+  LOG_TRACE(logger_, KVLOG(min_rvb_index_, max_rvb_index_, rvb_id));
 }
 
 void RangeValidationTree::removeNode(const RVBId rvb_id, const char* data, size_t data_size) {
@@ -1025,7 +1026,7 @@ void RangeValidationTree::removeNode(const RVBId rvb_id, const char* data, size_
   } else {
     ++min_rvb_index_;
   }
-  LOG_TRACE(logger_, KVLOG(rvb_id, min_rvb_index_));
+  LOG_TRACE(logger_, KVLOG(min_rvb_index_, max_rvb_index_, rvb_id));
 }
 
 std::ostringstream RangeValidationTree::getSerializedRvbData() const {
@@ -1097,8 +1098,8 @@ bool RangeValidationTree::setSerializedRvbData(std::istringstream& is) {
       if (node->minChildId() < min_rvb_index) {
         min_rvb_index = node->minChildId();
       }
-      if ((node->minChildId() + node->numChildren() - 1) > max_rvb_index) {
-        max_rvb_index = (node->minChildId() + node->numChildren() - 1);
+      if (node->maxChildId() > max_rvb_index) {
+        max_rvb_index = node->maxChildId();
       }
     }
   }
@@ -1216,13 +1217,14 @@ std::vector<RVBId> RangeValidationTree::getRvbIds(RVBGroupId rvb_group_id) const
 // RVT_K = 1024 * 256 = single RVGGroupId represents 256K blocks
 // received only 128K blocks from network
 std::string RangeValidationTree::getDirectParentValueStr(RVBId rvb_id) const {
+  LOG_TRACE(logger_, KVLOG(rvb_id));
   std::string val;
+
   if (!isValidRvbId(rvb_id)) {
     return val;
   }
-  LOG_TRACE(logger_, KVLOG(rvb_id));
+
   RVBIndex rvb_index = rvbIdToIndex(rvb_id);
-  ;
   RVBIndex parent_rvb_index;
   if (rvb_index <= RVT_K) {
     parent_rvb_index = 1;
