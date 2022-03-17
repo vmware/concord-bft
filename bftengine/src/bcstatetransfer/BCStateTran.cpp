@@ -709,10 +709,12 @@ std::string BCStateTran::convertUInt64ToReadableStr(uint64_t num, std::string &&
   return (str + trailer);
 }
 
+// TODO - move to "TimeUtils.hpp", after converting to a template function
 std::string BCStateTran::convertMillisecToReadableStr(uint64_t ms) const {
   if (ms == 0) {
     return "NA";
   }
+  string legend;
   std::ostringstream oss;
 
   // fixed point notation and 2 digits precision
@@ -736,24 +738,30 @@ std::string BCStateTran::convertMillisecToReadableStr(uint64_t ms) const {
 
   std::string str;
   if (days) {
-    str += std::to_string(days) + " day + ";
+    str += std::to_string(days) + ":";
+    legend += "D:";
   }
-  if (hr) {
-    str += std::to_string(hr) + " hour + ";
+  if (hr || !legend.empty()) {
+    str += std::to_string(hr) + ":";
+    legend += "HH:";
   }
-  if (min) {
-    str += std::to_string(min) + " min  + ";
+  if (min || !legend.empty()) {
+    str += std::to_string(min) + ":";
+    legend += "MM:";
   }
-  if (sec) {
-    str += std::to_string(sec) + " sec + ";
+  if (sec || !legend.empty()) {
+    str += std::to_string(sec) + ".";
+    legend += "SS.";
   }
-  if (mls) {
-    str += std::to_string(mls) + " ms";
+  if (mls || !legend.empty()) {
+    str += std::to_string(mls);
+    legend += "ms";
   }
   if (str.empty()) {
     str = "NA";
+    legend = "";
   }
-  return str;
+  return str + " " + legend;
 }
 
 void BCStateTran::startCollectingStats() {
