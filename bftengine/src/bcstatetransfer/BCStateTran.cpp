@@ -257,9 +257,14 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
       metrics_component_{
           concordMetrics::Component("bc_state_transfer", std::make_shared<concordMetrics::Aggregator>())},
       metrics_{createRegisterMetrics()},
-      blocksFetched_(config_.gettingMissingBlocksSummaryWindowSize),
-      bytesFetched_(config_.gettingMissingBlocksSummaryWindowSize),
-      blocksPostProcessed_(blocksPostProcessedReportWindow),
+      blocksFetched_(config_.gettingMissingBlocksSummaryWindowSize, "blocksFetched_"),
+      bytesFetched_(config_.gettingMissingBlocksSummaryWindowSize, "bytesFetched_"),
+      blocksPostProcessed_(blocksPostProcessedReportWindow, "blocksPostProcessed_"),
+      cycleDT_{"cycleDT_"},
+      postProcessingDT_{"postProcessingDT_"},
+      gettingCheckpointSummariesDT_{"gettingCheckpointSummariesDT_"},
+      gettingMissingBlocksDT_{"gettingMissingBlocksDT_"},
+      gettingMissingResPagesDT_{"gettingMissingResPagesDT_"},
       lastFetchingState_(FetchingState::NotFetching),
       sourceFlag_(false),
       src_send_batch_duration_rec_(histograms_.src_send_batch_duration),
@@ -781,11 +786,11 @@ void BCStateTran::startCollectingStats() {
   totalBlocksLeftToCollectInCycle_ = 0;
 
   // reset duration trackers
-  gettingMissingBlocksDT_.reset();
-  postProcessingDT_.reset();
-  gettingCheckpointSummariesDT_.reset();
-  gettingMissingResPagesDT_.reset();
-  cycleDT_.reset();
+  gettingMissingBlocksDT_.stop(true);
+  postProcessingDT_.stop(true);
+  gettingCheckpointSummariesDT_.stop(true);
+  gettingMissingResPagesDT_.stop(true);
+  cycleDT_.stop(true);
 
   // reset metrics
   metrics_.overall_blocks_collected_.Get().Set(0ull);
@@ -1255,22 +1260,20 @@ void BCStateTran::onFetchingStateChange(FetchingState newFetchingState) {
     case FetchingState::NotFetching:
       break;
     case FetchingState::GettingCheckpointSummaries:
-      gettingCheckpointSummariesDT_.pause();
+      gettingCheckpointSummariesDT_.stop();
       break;
     case FetchingState::GettingMissingBlocks:
       break;
     case FetchingState::GettingMissingResPages:
-      gettingMissingResPagesDT_.pause();
+      gettingMissingResPagesDT_.stop();
       break;
   }
   switch (newFetchingState) {
     case FetchingState::NotFetching:
-      cycleDT_.reset();
+      cycleDT_.stop(true);
       break;
     case FetchingState::GettingCheckpointSummaries:
-      if (cycleDT_.totalDuration() == 0) {
-        cycleDT_.start();
-      }
+      cycleDT_.start();
       gettingCheckpointSummariesDT_.start();
       break;
     case FetchingState::GettingMissingBlocks:
@@ -1282,19 +1285,8 @@ void BCStateTran::onFetchingStateChange(FetchingState newFetchingState) {
       LOG_INFO(logger_, KVLOG(fetchState_, commitState_));
 
       gettingMissingBlocksDT_.start();
-      if (blocksFetched_.isStarted()) {
-        blocksFetched_.resume();
-        bytesFetched_.resume();
-        if (postProcessingQ_) {
-          blocksPostProcessed_.resume();
-        }
-      } else {
-        blocksFetched_.start();
-        bytesFetched_.start();
-        if (postProcessingQ_) {
-          blocksPostProcessed_.start();
-        }
-      }
+      blocksFetched_.start();
+      bytesFetched_.start();
       break;
     case FetchingState::GettingMissingResPages:
       gettingMissingResPagesDT_.start();
@@ -1763,7 +1755,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
                                             m->rvbGroupId,
                                             preFetchBlockId));
   ++sourceBatchCounter_;
-  DurationTracker<std::chrono::microseconds> timeWaitedForCtx;  // TODO(GL) - remove when unneeded
+  DurationTracker<std::chrono::microseconds> timeWaitedForCtx("timeWaitedForCtx");  // TODO(GL) - remove when unneeded
   bool getNextBlock = (nextChunk == 1);
   char *buffer = nullptr;
   uint32_t sizeOfNextBlock = 0;
@@ -1842,8 +1834,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
     // Performance can be improved by performing this operation earlier.
     if (rvbGroupDigestsExpectedSize > 0) {
       // Serialize RVB digests
-      DurationTracker<std::chrono::milliseconds> serialize_digests_dt;
-      serialize_digests_dt.start();
+      DurationTracker<std::chrono::milliseconds> serialize_digests_dt("serialize_digests_dt", true);
       size_t rvbGroupDigestsActualSize =
           rvbm_->getSerializedDigestsOfRvbGroup(m->rvbGroupId, outMsg->data, rvbGroupDigestsExpectedSize, false);
       if ((rvbGroupDigestsActualSize == 0) || (rvbGroupDigestsExpectedSize != rvbGroupDigestsActualSize)) {
@@ -2739,7 +2730,6 @@ bool BCStateTran::finalizePutblockAsync(PutBlockWaitPolicy waitPolicy, DataStore
     LOG_DEBUG(logger_, "Block Committed (written to ST blockchain):" << KVLOG(ctx->blockId));
 
     // Report block as collected only after it is also committed
-    // TODO - if log level above INFO (error only - skip this the next line)
     reportCollectingStatus(ctx->actualBlockSize, isLastFetchedBlockIdInCycle(ctx->blockId));
 
     ioPool_.free(ctx);
@@ -3135,9 +3125,9 @@ void BCStateTran::processData(bool lastInBatch, uint32_t rvbDigestsSize) {
           // At this stage we haven't yet committed the last block in cycle so we expect the next assert:
           ConcordAssertEQ(fetchState_, commitState_);
           ConcordAssert(ioContexts_.empty());
-          blocksFetched_.pause();
-          bytesFetched_.pause();
-          gettingMissingBlocksDT_.pause();
+          blocksFetched_.stop();
+          bytesFetched_.stop();
+          gettingMissingBlocksDT_.stop();
 
           // TODO - Due to planned near-future changes, this code is written with simplicity considirations:
           // Wait on an infinite loop for the post-processing thread to finish. This was the similar behavior util now
@@ -3151,8 +3141,6 @@ void BCStateTran::processData(bool lastInBatch, uint32_t rvbDigestsSize) {
               std::this_thread::sleep_for(std::chrono::milliseconds(1000));
               ConcordAssertLE(maxPostprocessedBlockId_, postProcessingUpperBoundBlockId_);
             }
-            postProcessingDT_.pause();
-            blocksPostProcessed_.pause();
           }
 
           // Write the last block and post-process last range in a cycle in ST main thread context.
@@ -3162,6 +3150,8 @@ void BCStateTran::processData(bool lastInBatch, uint32_t rvbDigestsSize) {
           LOG_INFO(logger_,
                    "Done putting, committing and post-processing blocks [" << fetchState_.minBlockId << ","
                                                                            << fetchState_.maxBlockId << "]");
+          postProcessingDT_.stop();
+          blocksPostProcessed_.stop();
           onGettingMissingBlocksEnd(g.txn());
 
           // Log histograms for destination when GettingMissingBlocks is done
@@ -3316,9 +3306,9 @@ void BCStateTran::cycleEndSummary() {
   blocksCollectedResults = blocksFetched_.getOverallResults();
   bytesCollectedResults = bytesFetched_.getOverallResults();
   blocksPostProcessedResults = blocksPostProcessed_.getOverallResults();
-  blocksFetched_.end();
-  bytesFetched_.end();
-  blocksPostProcessed_.end();
+  blocksFetched_.stop(true);
+  bytesFetched_.stop(true);
+  blocksPostProcessed_.stop(true);
 
   std::copy(sources_.begin(), sources_.end() - 1, std::ostream_iterator<uint16_t>(sources_str, ","));
   sources_str << sources_.back();
