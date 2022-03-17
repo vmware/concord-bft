@@ -67,26 +67,28 @@ void RVBManager::init(bool fetching) {
   // Get pruned blocks digests
   pruned_blocks_digests_ = ds_->getPrunedBlocksDigests();
 
-  // Try to get RVT from persistent storage. Even if the tree exist we need to check if it
-  // match current configuration
-  if ((desc.checkpointNum > 0) && (!desc.rvbData.empty())) {
-    // There is RVB data in this checkpoint - try to load it
-    std::istringstream rvb_data(std::string(reinterpret_cast<const char*>(desc.rvbData.data()), desc.rvbData.size()));
-    loaded_from_data_store = in_mem_rvt_->setSerializedRvbData(rvb_data);
-    if (!loaded_from_data_store) {
-      LOG_ERROR(logger_, "Failed to load RVB data from stored checkpoint" << KVLOG(desc.checkpointNum));
-    } else {
-      rvb_data_source_ = RvbDataInitialSource::FROM_STORAGE_CP;
-      LOG_INFO(logger_, "Success setting new RVB data from storage!");
-    }
+  if (config_.enableStoreRvbDataDuringCheckpointing) {
+    // Try to get RVT from persistent storage. Even if the tree exist we need to check if it
+    // match current configuration
+    if ((desc.checkpointNum > 0) && (!desc.rvbData.empty())) {
+      // There is RVB data in this checkpoint - try to load it
+      std::istringstream rvb_data(std::string(reinterpret_cast<const char*>(desc.rvbData.data()), desc.rvbData.size()));
+      loaded_from_data_store = in_mem_rvt_->setSerializedRvbData(rvb_data);
+      if (!loaded_from_data_store) {
+        LOG_ERROR(logger_, "Failed to load RVB data from stored checkpoint" << KVLOG(desc.checkpointNum));
+      } else {
+        rvb_data_source_ = RvbDataInitialSource::FROM_STORAGE_CP;
 
-    if (!in_mem_rvt_->validate()) {
-      // in some cases, if not fetching, we might try to look for other checkpoints but this is fatal enough to
-      // reconstruct from storage
-      LOG_ERROR(logger_, "Failed to validate loaded RVB data from stored checkpoint" << KVLOG(desc.checkpointNum));
-      loaded_from_data_store = false;
-      in_mem_rvt_->clear();
-      rvb_data_source_ = RvbDataInitialSource::NIL;
+        if (!in_mem_rvt_->validate()) {
+          // in some cases, if not fetching, we might try to look for other checkpoints but this is fatal enough to
+          // reconstruct from storage
+          LOG_ERROR(logger_, "Failed to validate loaded RVB data from stored checkpoint" << KVLOG(desc.checkpointNum));
+          loaded_from_data_store = false;
+          in_mem_rvt_->clear();
+          rvb_data_source_ = RvbDataInitialSource::NIL;
+        }
+        LOG_INFO(logger_, "Success setting and validating new RVB data from storage!");
+      }
     }
   }
 
@@ -99,6 +101,7 @@ void RVBManager::init(bool fetching) {
         as_->getGenesisBlockNum(), desc.maxBlockId, std::optional<STDigest>(desc.digestOfMaxBlockId));
     if (!in_mem_rvt_->validate()) {
       LOG_FATAL(logger_, "Failed to validate reconstructed RVB data from storage" << KVLOG(desc.checkpointNum));
+      ConcordAssert(false);
     }
     rvb_data_source_ = RvbDataInitialSource::FROM_STORAGE_RECONSTRUCTION;
     auto total_duration = reconstruct_dt.totalDuration(true);
@@ -223,13 +226,18 @@ void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_de
 
   // Fill checkpoint and print tree
   if (!in_mem_rvt_->empty()) {
-    in_mem_rvt_->validate();
-    auto rvb_data = in_mem_rvt_->getSerializedRvbData();
+    ConcordAssert(in_mem_rvt_->validate());
 
     // TODO - convert straight into a vector, using stream iterator
-    const std::string s = rvb_data.str();
-    ConcordAssert(!s.empty());
-    std::copy(s.c_str(), s.c_str() + s.length(), back_inserter(new_checkpoint_desc.rvbData));
+    if (config_.enableStoreRvbDataDuringCheckpointing) {
+      // keep serialied RVB data in new checkpoint descriptor
+      auto rvb_data = in_mem_rvt_->getSerializedRvbData();
+      const std::string s = rvb_data.str();
+      ConcordAssert(!s.empty());
+      std::copy(s.c_str(), s.c_str() + s.length(), back_inserter(new_checkpoint_desc.rvbData));
+    } else {
+      new_checkpoint_desc.rvbData.clear();
+    }
     in_mem_rvt_->printToLog(LogPrintVerbosity::DETAILED);
   }
   last_checkpoint_desc_ = new_checkpoint_desc;
