@@ -120,6 +120,10 @@ TEST_P(RVTHashTestParamFixture, basicSumAndModOps) {
   auto b = values_.leaf2;
   auto c = values_.parent;
 
+  if (c == 0) {
+    // random value 0 - return
+    return;
+  }
   Integer mod_res = (a + b) % c;
   Integer div_res = (a + b) / c;
   ASSERT_EQ(c * div_res + mod_res, a + b);
