@@ -328,15 +328,10 @@ size_t RVBManager::getSerializedDigestsOfRvbGroup(int64_t rvb_group_id,
                                                   char* buff,
                                                   size_t buff_max_size,
                                                   bool size_only) const {
-  LOG_TRACE(logger_, KVLOG(rvb_group_id, buff_max_size));
+  LOG_TRACE(logger_, KVLOG(rvb_group_id, buff_max_size, size_only));
   ConcordAssertOR((size_only && !buff && buff_max_size == 0), (!size_only && buff && buff_max_size > 0));
   std::vector<RVBId> rvb_ids = in_mem_rvt_->getRvbIds(rvb_group_id);
-  size_t total_size = rvb_ids.size() * sizeof(RvbDigestInfo);
   RvbDigestInfoPtr cur = size_only ? nullptr : reinterpret_cast<RvbDigestInfoPtr>(buff);
-
-  if (!size_only) {
-    ConcordAssertLE(total_size, buff_max_size);
-  }
 
   // 1) Source is working based on "best-effort" - send what I have. Reject if I have not even a single block in the
   // requested RVB group. In the case of
