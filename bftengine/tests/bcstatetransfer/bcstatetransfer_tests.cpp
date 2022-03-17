@@ -724,23 +724,23 @@ void BcStTestDelegator::validateEqualRVTs(const RangeValidationTree& rvtA, const
   ASSERT_EQ(rvtA.totalLevels(), rvtB.totalLevels());
   ASSERT_EQ(rvtA.getMinRvbId(), rvtB.getMinRvbId());
   ASSERT_EQ(rvtA.getMaxRvbId(), rvtB.getMaxRvbId());
-  ASSERT_EQ(rvtA.rightmostRVTNode_.size(), rvtB.rightmostRVTNode_.size());
-  ASSERT_EQ(rvtA.leftmostRVTNode_.size(), rvtB.leftmostRVTNode_.size());
-  ASSERT_EQ(rvtA.leftmostRVTNode_.size(), RangeValidationTree::NodeInfo::kMaxLevels);
-  ASSERT_EQ(rvtA.rightmostRVTNode_.size(), RangeValidationTree::NodeInfo::kMaxLevels);
+  ASSERT_EQ(rvtA.rightmost_rvt_node_.size(), rvtB.rightmost_rvt_node_.size());
+  ASSERT_EQ(rvtA.leftmost_rvt_node_.size(), rvtB.leftmost_rvt_node_.size());
+  ASSERT_EQ(rvtA.leftmost_rvt_node_.size(), RangeValidationTree::NodeInfo::kMaxLevels);
+  ASSERT_EQ(rvtA.rightmost_rvt_node_.size(), RangeValidationTree::NodeInfo::kMaxLevels);
 
-  const auto& rmA = rvtA.rightmostRVTNode_;
-  const auto& rmB = rvtB.rightmostRVTNode_;
-  const auto& lmA = rvtA.leftmostRVTNode_;
-  const auto& lmB = rvtB.leftmostRVTNode_;
+  const auto& rmA = rvtA.rightmost_rvt_node_;
+  const auto& rmB = rvtB.rightmost_rvt_node_;
+  const auto& lmA = rvtA.leftmost_rvt_node_;
+  const auto& lmB = rvtB.leftmost_rvt_node_;
   for (size_t i{}; i < RangeValidationTree::NodeInfo::kMaxLevels; ++i) {
     if (rmA[i]) {
-      ASSERT_EQ(rmA[i]->info_.id, rmB[i]->info_.id);
+      ASSERT_EQ(rmA[i]->info_.id(), rmB[i]->info_.id());
     } else {
       ASSERT_EQ(rmA[i], rmB[i]);
     }
     if (lmA[i]) {
-      ASSERT_EQ(lmA[i]->info_.id, lmB[i]->info_.id);
+      ASSERT_EQ(lmA[i]->info_.id(), lmB[i]->info_.id());
     } else {
       ASSERT_EQ(lmA[i], lmB[i]);
     }
@@ -748,10 +748,9 @@ void BcStTestDelegator::validateEqualRVTs(const RangeValidationTree& rvtA, const
   ASSERT_EQ(rvtA.max_rvb_index_, rvtB.max_rvb_index_);
   ASSERT_EQ(rvtA.min_rvb_index_, rvtB.min_rvb_index_);
   if (rvtA.root_ && (rvtA.root_ == rvtB.root_)) {
-    ASSERT_EQ(rvtA.root_->n_child, rvtB.root_->n_child);
-    ASSERT_EQ(rvtA.root_->min_child_id, rvtB.root_->min_child_id);
-    ASSERT_EQ(rvtA.root_->max_child_id, rvtB.root_->max_child_id);
-    ASSERT_EQ(rvtA.root_->parent_id, rvtB.root_->parent_id);
+    ASSERT_EQ(rvtA.root_->numChildren(), rvtB.root_->numChildren());
+    ASSERT_EQ(rvtA.root_->parent_id_, rvtB.root_->parent_id_);
+    ASSERT_EQ(rvtA.root_->insertion_counter_, rvtB.root_->insertion_counter_);
   }
 }
 
@@ -1879,8 +1878,8 @@ TEST_P(BcStTestParamFixture3, bkpValidateCheckpointingWithConsensusCommitsAndPru
     ASSERT_TRUE(!helper_rvt.getRootCurrentValueStr().empty());
 
     // leave for debug
-    // helper_rvt.printToLog(false);
-    // rvt->printToLog(false);
+    // helper_rvt.printToLog(LogPrintVerbosity::DETAILED);
+    // rvt->printToLog(LogPrintVerbosity::DETAILED);
 
     // when only pruning, tree must shrink over time
     // when only adding tree must grow over time
