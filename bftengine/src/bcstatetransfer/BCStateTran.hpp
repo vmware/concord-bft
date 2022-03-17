@@ -103,7 +103,7 @@ class BCStateTran : public IStateTransfer {
                                        const char* block,
                                        const uint32_t blockSize,
                                        char* outDigest);
-  void startCollectingState() override;
+  void startCollectingState() override { startCollectingStateHandler_(); }
 
   bool isCollectingState() const override;
 
@@ -157,6 +157,9 @@ class BCStateTran : public IStateTransfer {
   // enter a new cycle internally
   void startCollectingStateInternal();
 
+  // Bind events handlers according to runInSeparateThread configuration
+  void bindEventsHandlers();
+
   // handling incoming State Transfer messages from other context
   std::function<void(char*, uint32_t, uint16_t, LocalTimePoint)> incomingStateTransferMsgHandler_;
   void handleStateTransferMessageImp(char* msg,
@@ -184,6 +187,13 @@ class BCStateTran : public IStateTransfer {
   std::function<void()> timeoutHandler_;
   void onTimerImp();
   void handleTimeout() { incomingEventsQ_->push(std::bind(&BCStateTran::onTimerImp, this)); }
+
+  // handle start request (start State Transfer)
+  std::function<void()> startCollectingStateHandler_;
+  void onStartCollectingStateImp();
+  void handoffStartCollectingState() {
+    incomingEventsQ_->push(std::bind(&BCStateTran::onStartCollectingStateImp, this));
+  }
 
   ///////////////////////////////////////////////////////////////////////////
   // Constants

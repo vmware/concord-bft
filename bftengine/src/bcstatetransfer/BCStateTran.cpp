@@ -199,6 +199,20 @@ BCStateTran::Metrics BCStateTran::createRegisterMetrics() {
       metrics_component_.RegisterStatus("current_rvb_data_state", "")};
 }
 
+void BCStateTran::bindEventsHandlers() {
+  if (config_.runInSeparateThread) {
+    incomingEventsQ_ = std::make_unique<concord::util::Handoff>(config_.myReplicaId, "incomingEventsQ");
+    incomingStateTransferMsgHandler_ = std::bind(&BCStateTran::handleIncomingStateTransferMessage, this, _1, _2, _3);
+    timeoutHandler_ = std::bind(&BCStateTran::handleTimeout, this);
+    startCollectingStateHandler_ = std::bind(&BCStateTran::handoffStartCollectingState, this);
+  } else {
+    incomingEventsQ_.reset(nullptr);  // make it explicit
+    incomingStateTransferMsgHandler_ = std::bind(&BCStateTran::handleStateTransferMessageImp, this, _1, _2, _3, _4);
+    timeoutHandler_ = std::bind(&BCStateTran::onTimerImp, this);
+    startCollectingStateHandler_ = std::bind(&BCStateTran::onStartCollectingStateImp, this);
+  }
+}
+
 void BCStateTran::rvbm_deleter::operator()(RVBManager *ptr) const { delete ptr; }  // used for pimpl
 size_t BCStateTran::BlockIOContext::sizeOfBlockData = 0;
 BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataStore *ds)
@@ -282,15 +296,8 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
 
   LOG_INFO(logger_, "Creating BCStateTran object: " << config_);
 
-  if (config_.runInSeparateThread) {
-    incomingEventsQ_ = std::make_unique<concord::util::Handoff>(config.myReplicaId, "incomingEventsQ");
-    incomingStateTransferMsgHandler_ = std::bind(&BCStateTran::handleIncomingStateTransferMessage, this, _1, _2, _3);
-    timeoutHandler_ = std::bind(&BCStateTran::handleTimeout, this);
-  } else {
-    incomingEventsQ_.reset(nullptr);  // make it explicit
-    incomingStateTransferMsgHandler_ = std::bind(&BCStateTran::handleStateTransferMessageImp, this, _1, _2, _3, _4);
-    timeoutHandler_ = std::bind(&BCStateTran::onTimerImp, this);
-  }
+  // Bind events handlers according to runInSeparateThread configuration
+  bindEventsHandlers();
 
   // Make sure that the internal IReplicaForStateTransfer callback is always added, alongside any user-supplied
   // callbacks.
@@ -835,17 +842,15 @@ void BCStateTran::startCollectingStateInternal() {
   startCollectingState();
 }
 
-void BCStateTran::startCollectingState() {
+void BCStateTran::onStartCollectingStateImp() {
+  ConcordAssert(running_);
+  if (isFetching()) {
+    LOG_WARN(logger_, "Already in State Transfer, ignore call...");
+    return;
+  }
   LOG_INFO(
       logger_,
       std::boolalpha << "State Transfer cycle started (#" << ++cycleCounter_ << ")," << KVLOG(internalCycleCounter_));
-  ConcordAssert(running_);
-
-  // TODO - The next 4 lines do not belong here (CRE) - move outside
-  LOG_INFO(logger_, "Starts async reconfiguration engine");
-  if (!config_.isReadOnly && cre_) {
-    cre_->resume();
-  }
 
   {  // txn scope
     DataStoreTransaction::Guard g(psd_->beginTransaction());
@@ -853,7 +858,13 @@ void BCStateTran::startCollectingState() {
     g.txn()->deleteAllPendingPages();
     g.txn()->setIsFetchingState(true);
   }
-  ConcordAssert(running_);
+
+  // TODO - The next 4 lines do not belong here (CRE) - move outside
+  LOG_INFO(logger_, "Starts async reconfiguration engine");
+  if (!config_.isReadOnly && cre_) {
+    cre_->resume();
+  }
+
   startCollectingStats();
   ConcordAssertEQ(getFetchingState(), FetchingState::GettingCheckpointSummaries);
   sendAskForCheckpointSummariesMsg();
