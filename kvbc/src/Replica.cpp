@@ -851,7 +851,10 @@ bool Replica::getPrevDigestFromBlock(BlockId blockId, StateTransferDigest *outPr
   }
   ConcordAssert(blockId > 0);
   const auto parent_digest = m_kvBlockchain->parentDigest(blockId);
-  ConcordAssert(parent_digest.has_value());
+  if (!parent_digest.has_value()) {
+    LOG_WARN(logger, "parent digest not found," << KVLOG(blockId));
+    return false;
+  }
   static_assert(parent_digest->size() == BLOCK_DIGEST_SIZE);
   static_assert(sizeof(StateTransferDigest) == BLOCK_DIGEST_SIZE);
   std::memcpy(outPrevBlockDigest, parent_digest->data(), BLOCK_DIGEST_SIZE);

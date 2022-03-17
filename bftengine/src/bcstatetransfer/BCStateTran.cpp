@@ -3436,7 +3436,8 @@ void BCStateTran::checkReachableBlocks(uint64_t genesisBlockNum, uint64_t lastRe
       ConcordAssert(!currDigest.isZero());
       STDigest prevFromNextBlockDigest;
       prevFromNextBlockDigest.makeZero();
-      as_->getPrevDigestFromBlock(currBlock + 1, reinterpret_cast<StateTransferDigest *>(&prevFromNextBlockDigest));
+      ConcordAssert(as_->getPrevDigestFromBlock(currBlock + 1,
+                                                reinterpret_cast<StateTransferDigest *>(&prevFromNextBlockDigest)));
       ConcordAssertEQ(currDigest, prevFromNextBlockDigest);
     }
   }
@@ -3496,7 +3497,8 @@ void BCStateTran::checkBlocksBeingFetchedNow(bool checkAllBlocks,
 
         STDigest prevFromNextBlockDigest;
         prevFromNextBlockDigest.makeZero();
-        as_->getPrevDigestFromBlock(currBlock + 1, reinterpret_cast<StateTransferDigest *>(&prevFromNextBlockDigest));
+        ConcordAssert(as_->getPrevDigestFromBlock(currBlock + 1,
+                                                  reinterpret_cast<StateTransferDigest *>(&prevFromNextBlockDigest)));
         ConcordAssertEQ(currDigest, prevFromNextBlockDigest);
       }
     }

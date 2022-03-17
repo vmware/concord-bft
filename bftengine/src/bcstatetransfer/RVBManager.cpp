@@ -355,8 +355,11 @@ size_t RVBManager::getSerializedDigestsOfRvbGroup(int64_t rvb_group_id,
     if (as_->hasBlock(rvb_id + 1)) {
       // have the next block - much faster to get only the digest
       if (!size_only) {
-        ConcordAssert(as_->getPrevDigestFromBlock(rvb_id + 1,
-                                                  reinterpret_cast<StateTransferDigest*>(cur->digest.getForUpdate())));
+        if (!as_->getPrevDigestFromBlock(rvb_id + 1,
+                                         reinterpret_cast<StateTransferDigest*>(cur->digest.getForUpdate()))) {
+          LOG_FATAL(logger_, "Digest not found:" << KVLOG(rvb_id, last_added_block_id, num_elements, rvb_group_id));
+          ConcordAssert(false);
+        }
         cur->block_id = rvb_id;
       }
     } else if (as_->hasBlock(rvb_id)) {
@@ -654,8 +657,13 @@ uint64_t RVBManager::addRvbDataOnBlockRange(uint64_t min_block_id,
     // process
     if (current_rvb_id > max_rvb_id_in_rvt) {
       STDigest digest;
-      ConcordAssert(as_->getPrevDigestFromBlock(current_rvb_id + 1,
-                                                reinterpret_cast<StateTransferDigest*>(digest.getForUpdate())));
+      if (!as_->getPrevDigestFromBlock(current_rvb_id + 1,
+                                       reinterpret_cast<StateTransferDigest*>(digest.getForUpdate()))) {
+        LOG_FATAL(logger_,
+                  "Digest not found:" << KVLOG(
+                      min_block_id, max_block_id, current_rvb_id, max_rvb_id_in_rvt, num_rvbs_added));
+        ConcordAssert(false);
+      }
       LOG_DEBUG(logger_,
                 "Add digest for block " << current_rvb_id << " "
                                         << " Digest: " << digest.toString());
@@ -721,8 +729,17 @@ void RVBManager::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBloc
   int32_t num_digests_added{0};
   while (current_rvb_id <= lastAgreedPrunableBlockId) {
     STDigest digest;
-    ConcordAssert(
-        as_->getPrevDigestFromBlock(current_rvb_id + 1, reinterpret_cast<StateTransferDigest*>(digest.getForUpdate())));
+    if (!as_->getPrevDigestFromBlock(current_rvb_id + 1,
+                                     reinterpret_cast<StateTransferDigest*>(digest.getForUpdate()))) {
+      LOG_FATAL(logger_,
+                "Digest not found:" << KVLOG(lastAgreedPrunableBlockId,
+                                             initial_size,
+                                             start_rvb_id,
+                                             current_rvb_id,
+                                             num_digests_added,
+                                             pruned_blocks_digests_.size()));
+      ConcordAssert(false);
+    }
     pruned_blocks_digests_.push_back(std::make_pair(current_rvb_id, std::move(digest)));
     current_rvb_id += config_.fetchRangeSize;
     ++num_digests_added;
