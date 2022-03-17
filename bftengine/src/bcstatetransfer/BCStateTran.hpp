@@ -483,6 +483,11 @@ class BCStateTran : public IStateTransfer {
 
   bool finalizePutblockAsync(PutBlockWaitPolicy waitPolicy);
   //////////////////////////////////////////////////////////////////////////
+ public:
+  // Calls into RVB manager on an external thread context. Reports of the last agreed prunable block. Relevant only for
+  // replica in consensus.
+  void reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBlockId) override;
+  //////////////////////////////////////////////////////////////////////////
   // Metrics
   ///////////////////////////////////////////////////////////////////////////
  public:
