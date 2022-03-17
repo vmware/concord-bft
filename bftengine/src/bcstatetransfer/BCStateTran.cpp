@@ -3301,7 +3301,7 @@ void BCStateTran::cycleEndSummary() {
   std::ostringstream sources_str;
   const auto &sources_ = sourceSelector_.getActualSources();
 
-  if (gettingMissingBlocksDT_.totalDuration() == 0) {
+  if ((gettingMissingBlocksDT_.totalDuration() == 0) || (cycleDT_.totalDuration() == 0)) {
     // we print full summary only if we were collecting blocks
     LOG_INFO(logger_, "State Transfer cycle ended (#" << cycleCounter_ << ")," << KVLOG(internalCycleCounter_));
     return;
