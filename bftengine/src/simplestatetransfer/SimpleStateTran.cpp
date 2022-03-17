@@ -328,7 +328,8 @@ SimpleStateTran::SimpleStateTran(
       4096,                                 // sizeOfReservedPage
       600,                                  // gettingMissingBlocksSummaryWindowSize
       10,                                   // minPrePrepareMsgsForPrimaryAwarness
-      1024,                                 // fetchRangeSize
+      256,                                  // fetchRangeSize
+      1024,                                 // RVT_K
       300,                                  // refreshTimerMs
       2500,                                 // checkpointSummariesRetransmissionTimeoutMs
       60000,                                // maxAcceptableMsgDelayMs
@@ -339,7 +340,8 @@ SimpleStateTran::SimpleStateTran(
       true,                                 // runInSeparateThread
       true,                                 // enableReservedPages
       true,                                 // enableSourceBlocksPreFetch
-      true                                  // enableSourceSelectorPrimaryAwareness
+      true,                                 // enableSourceSelectorPrimaryAwareness
+      true                                  // enableStoreRvbDataDuringCheckpointing
   };
 
   auto comparator = concord::storage::memorydb::KeyComparator();
