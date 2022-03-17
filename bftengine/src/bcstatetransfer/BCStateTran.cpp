@@ -2833,7 +2833,7 @@ bool BCStateTran::isMaxFetchedBlockIdInCycle(uint64_t blockId) const {
 }
 
 void BCStateTran::postProcessNextBatch(uint64_t upperBoundBlockId) {
-  static constexpr uint64_t postProcessReportTrigger = 3;  // once in 3 rounds
+  static constexpr uint64_t postProcessReportTrigger = 3;  // once in 3 iterations
   static uint64_t iteration{};
 
   if (upperBoundBlockId == maxPostprocessedBlockId_) {
@@ -2847,17 +2847,23 @@ void BCStateTran::postProcessNextBatch(uint64_t upperBoundBlockId) {
   as_->postProcessUntilBlockId(upperBoundBlockId);
   ++iteration;
   uint64_t totalBlocksProcessed = upperBoundBlockId - maxPostprocessedBlockId_;
-  blocksPostProcessed_.report(totalBlocksProcessed, (iteration == postProcessReportTrigger));
-
-  std::ostringstream oss;
-  oss << "Done post-processing " << totalBlocksProcessed << " blocks, range=[" << (maxPostprocessedBlockId_ + 1) << ","
-      << upperBoundBlockId << "]" << KVLOG(upperBoundBlockId, maxPostprocessedBlockId_, postProcessingQ_->size());
-  if (iteration == postProcessReportTrigger) {
-    auto overallResults = blocksFetched_.getOverallResults();
-    oss << " ,Throughput: " << convertUInt64ToReadableStr(overallResults.throughput_, "Block/sec");
+  bool reportToLog = (iteration % postProcessReportTrigger) == 0;
+  blocksPostProcessed_.report(totalBlocksProcessed, reportToLog);
+  if (reportToLog) {
+    std::ostringstream oss;
+    oss << "Done post-processing " << totalBlocksProcessed << " blocks, range=[" << (maxPostprocessedBlockId_ + 1)
+        << "," << upperBoundBlockId << "]"
+        << KVLOG(upperBoundBlockId, maxPostprocessedBlockId_, postProcessingQ_->size());
+    auto overallResults = blocksPostProcessed_.getOverallResults();
+    auto blocksLeftToPostProcess = maxBlockIdToCollectInCycle_ - maxPostprocessedBlockId_;
+    uint64_t timeToCompleteMs =
+        (overallResults.throughput_ > 0) ? (blocksLeftToPostProcess * 1000) / overallResults.throughput_ : 0;
+    oss << " ,Throughput: " << convertUInt64ToReadableStr(overallResults.throughput_, "Block/sec")
+        << " ,Estimated time to reach max cycle block ID " << maxBlockIdToCollectInCycle_ << ": "
+        << convertMillisecToReadableStr(timeToCompleteMs);
     LOG_INFO(logger_, oss.str());
   } else {
-    LOG_DEBUG(logger_, oss.str());
+    LOG_DEBUG(logger_, "Done postProcessUntilBlockId" << KVLOG(upperBoundBlockId));
   }
   maxPostprocessedBlockId_ = upperBoundBlockId;
 }
