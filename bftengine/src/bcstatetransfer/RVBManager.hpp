@@ -156,10 +156,11 @@ class RVBManager {
   std::map<BlockId, STDigest> stored_rvb_digests_;
   std::vector<RVBGroupId> stored_rvb_digests_group_ids_;
 
-  // RVB data update during checkpointing - pruning
+  // RVB data update during checkpointing / pruning
   std::vector<std::pair<BlockId, STDigest>> pruned_blocks_digests_;
   std::mutex pruned_blocks_digests_mutex_;
   CheckpointDesc last_checkpoint_desc_;
+  std::atomic_bool prune_report_in_progess_;
 
   // Actual RVB data
   // RangeValidationTree is an incomplete type, define a deleter for the unique ptr
