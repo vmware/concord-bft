@@ -709,8 +709,11 @@ std::string BCStateTran::convertUInt64ToReadableStr(uint64_t num, std::string &&
     addTrailingSpace = true;
   }
   auto str = oss.str();
-  while (str[str.size() - 1] == '0' || str[str.size() - 1] == '.')  // remove trailing zeroes
+  // remove trailing zeroes and possible dot
+  str.erase(str.find_last_not_of('0') + 1, std::string::npos);
+  if (str.back() == '.') {
     str.resize(str.size() - 1);
+  }
   if (str.empty()) {
     str = "NA";
   }
