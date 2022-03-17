@@ -893,13 +893,13 @@ bool KeyValueBlockchain::hasBlock(BlockId block_id) const {
   return block_chain_.hasBlock(block_id);
 }
 
-void KeyValueBlockchain::linkUntilBlockId(BlockId from_block_id, BlockId until_block_id) {
+size_t KeyValueBlockchain::linkUntilBlockId(BlockId from_block_id, BlockId until_block_id) {
   static constexpr uint64_t report_thresh{1000};
   static uint64_t report_counter{};
   const auto last_block_id = state_transfer_block_chain_.getLastBlockId();
 
   if (last_block_id == 0) {
-    return;
+    return 0;
   }
 
   concord::util::DurationTracker<std::chrono::milliseconds> link_duration("link_duration", true);
@@ -907,7 +907,7 @@ void KeyValueBlockchain::linkUntilBlockId(BlockId from_block_id, BlockId until_b
     auto raw_block = state_transfer_block_chain_.getRawBlock(i);
     if (!raw_block) {
       // we didn't find the next block
-      return;
+      return i - from_block_id;
     }
 
     // First prune and then link the block to the chain. Rationale is that this will preserve the same order of block
@@ -929,6 +929,7 @@ void KeyValueBlockchain::linkUntilBlockId(BlockId from_block_id, BlockId until_b
                                                     estimated_time_left_sec));
     }
   }
+  return until_block_id - from_block_id + 1;
 }
 
 // tries to remove blocks form the state transfer chain to the blockchain

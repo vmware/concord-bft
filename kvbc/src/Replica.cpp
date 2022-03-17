@@ -717,10 +717,10 @@ uint64_t Replica::getLastBlockNum() const {
   return m_kvBlockchain->getLastReachableBlockId();
 }
 
-void Replica::postProcessUntilBlockId(uint64_t max_block_id) {
+size_t Replica::postProcessUntilBlockId(uint64_t max_block_id) {
   if (replicaConfig_.isReadOnly) {
     // read only replica do not post process
-    return;
+    return 0;
   }
   const BlockId last_reachable_block = m_kvBlockchain->getLastReachableBlockId();
   BlockId last_st_block_id = 0;
@@ -731,7 +731,7 @@ void Replica::postProcessUntilBlockId(uint64_t max_block_id) {
     LOG_INFO(CAT_BLOCK_LOG,
              "Consensus blockchain is fully linked, no proc-processing is required!"
                  << KVLOG(max_block_id, last_reachable_block));
-    return;
+    return 0;
   }
   if ((max_block_id < last_reachable_block) || (max_block_id > last_st_block_id)) {
     auto msg = std::stringstream{};
@@ -740,7 +740,7 @@ void Replica::postProcessUntilBlockId(uint64_t max_block_id) {
   }
 
   try {
-    m_kvBlockchain->linkUntilBlockId(last_reachable_block + 1, max_block_id);
+    return m_kvBlockchain->linkUntilBlockId(last_reachable_block + 1, max_block_id);
   } catch (const std::exception &e) {
     LOG_FATAL(
         CAT_BLOCK_LOG,

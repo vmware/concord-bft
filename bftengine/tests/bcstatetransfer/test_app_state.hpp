@@ -178,9 +178,9 @@ class TestAppState : public IAppState {
   uint64_t getGenesisBlockNum() const override { return concord::kvbc::INITIAL_GENESIS_BLOCK_ID; }
   uint64_t getLastBlockNum() const override { return last_block_; };
 
-  void postProcessUntilBlockId(uint64_t maxBlockId) override {
+  size_t postProcessUntilBlockId(uint64_t maxBlockId) override {
     sleepForRandomtime(1, 2);
-    return;
+    return 0;
   }
 
  private:

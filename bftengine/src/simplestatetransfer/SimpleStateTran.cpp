@@ -143,7 +143,7 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
     uint64_t getLastReachableBlockNum() const override;
     uint64_t getGenesisBlockNum() const override;
     uint64_t getLastBlockNum() const override;
-    void postProcessUntilBlockId(uint64_t maxBlockId) override;
+    size_t postProcessUntilBlockId(uint64_t maxBlockId) override;
   };
 
   ///////////////////////////////////////////////////////////////////////////
@@ -688,7 +688,7 @@ uint64_t SimpleStateTran::DummyBDState::getGenesisBlockNum() const { return 0; }
 
 uint64_t SimpleStateTran::DummyBDState::getLastBlockNum() const { return 0; }
 
-void SimpleStateTran::DummyBDState::postProcessUntilBlockId(uint64_t blockId) { return; }
+size_t SimpleStateTran::DummyBDState::postProcessUntilBlockId(uint64_t blockId) { return 0; }
 
 }  // namespace impl
 }  // namespace SimpleInMemoryStateTransfer
