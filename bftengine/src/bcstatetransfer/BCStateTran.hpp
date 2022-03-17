@@ -58,8 +58,9 @@ using concord::util::DurationTracker;
 namespace bftEngine::bcst::impl {
 
 class BCStateTran : public IStateTransfer {
-  // This class is used strictly for testing
+  // The next friend declerations are used strictly for testing
   friend class BcStTest;
+  friend class MockedSources;
 
  public:
   //////////////////////////////////////////////////////////////////////////////
