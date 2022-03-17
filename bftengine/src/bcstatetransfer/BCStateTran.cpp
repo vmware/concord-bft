@@ -1484,7 +1484,8 @@ bool BCStateTran::onMessage(const AskForCheckpointSummariesMsg *m, uint32_t msgL
                                                        msg->maxBlockId,
                                                        msg->digestOfMaxBlockId,
                                                        msg->digestOfResPagesDescriptor,
-                                                       msg->requestMsgSeqNum));
+                                                       msg->requestMsgSeqNum,
+                                                       msg->sizeofRvbData()));
 
     replicaForStateTransfer_->sendStateTransferMessage(reinterpret_cast<char *>(msg.get()), msg->size(), replicaId);
 
@@ -1560,9 +1561,9 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
   }
 
   LOG_INFO(logger_, "Has enough CheckpointSummaryMsg messages");
-  CheckpointSummaryMsg *checkSummary = cert->bestCorrectMsg();
+  CheckpointSummaryMsg *cpSummaryMsg = cert->bestCorrectMsg();
 
-  ConcordAssertNE(checkSummary, nullptr);
+  ConcordAssertNE(cpSummaryMsg, nullptr);
   ConcordAssert(sourceSelector_.isReset());
   ConcordAssertEQ(fetchState_.nextBlockId, 0);
   ConcordAssert(digestOfNextRequiredBlock_.isZero());
@@ -1571,27 +1572,24 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
   ConcordAssert(ioPool_.full());
   ConcordAssertEQ(totalSizeOfPendingItemDataMsgs, 0);
 
-  // Set (overwrite) the RVB data
-  if (m->sizeofRvbData() > 0) {
-    if (!rvbm_->setRvbData(checkSummary->data,
-                           checkSummary->sizeofRvbData(),
-                           as_->getLastReachableBlockNum() + 1,
-                           checkSummary->maxBlockId)) {
-      LOG_ERROR(logger_, "Failed to set the new RVT data!");
-      // enter new cycle
-      startCollectingStateInternal();
-      return true;
-    }
-  } else {
-    LOG_WARN(logger_, "Empty RVB data in checkpoint!, setting an empty tree!");
-    rvbm_->reset(RVBManager::RvbDataInitialSource::FROM_NETWORK);
+  // Set (overwrite) the RVB data. We set it even if the RVB data is empty, to make sure that an empty tree
+  // is acceptable
+  auto sizeofRvbData = cpSummaryMsg->sizeofRvbData();
+  if (!rvbm_->setRvbData((sizeofRvbData > 0) ? cpSummaryMsg->data : nullptr,
+                         sizeofRvbData,
+                         as_->getLastReachableBlockNum() + 1,
+                         cpSummaryMsg->maxBlockId)) {
+    LOG_ERROR(logger_, "Failed to set new RVT data! restart cycle...");
+    // enter new cycle
+    startCollectingStateInternal();
+    return true;
   }
   metrics_.current_rvb_data_state_.Get().Set(rvbm_->getStateOfRvbData());
 
   // set the preferred replicas
   for (uint16_t r : replicas_) {  // TODO(GG): can be improved
     CheckpointSummaryMsg *t = cert->getMsgFromReplica(r);
-    if (t != nullptr && CheckpointSummaryMsg::equivalent(t, checkSummary)) {
+    if (t != nullptr && CheckpointSummaryMsg::equivalent(t, cpSummaryMsg)) {
       sourceSelector_.addPreferredReplica(r);
       ConcordAssertLT(r, config_.numReplicas);
     }
@@ -1600,12 +1598,12 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
 
   // set new checkpoint
   DataStore::CheckpointDesc newCheckpoint;
-  newCheckpoint.checkpointNum = checkSummary->checkpointNum;
-  newCheckpoint.maxBlockId = checkSummary->maxBlockId;
-  newCheckpoint.digestOfMaxBlockId = checkSummary->digestOfMaxBlockId;
-  newCheckpoint.digestOfResPagesDescriptor = checkSummary->digestOfResPagesDescriptor;
+  newCheckpoint.checkpointNum = cpSummaryMsg->checkpointNum;
+  newCheckpoint.maxBlockId = cpSummaryMsg->maxBlockId;
+  newCheckpoint.digestOfMaxBlockId = cpSummaryMsg->digestOfMaxBlockId;
+  newCheckpoint.digestOfResPagesDescriptor = cpSummaryMsg->digestOfResPagesDescriptor;
   newCheckpoint.rvbData.insert(
-      newCheckpoint.rvbData.begin(), checkSummary->data, checkSummary->data + checkSummary->sizeofRvbData());
+      newCheckpoint.rvbData.begin(), cpSummaryMsg->data, cpSummaryMsg->data + cpSummaryMsg->sizeofRvbData());
 
   auto fetchingState = stateName(getFetchingState());
   {  // txn scope

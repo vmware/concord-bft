@@ -274,18 +274,23 @@ std::ostringstream RVBManager::getRvbData() const { return in_mem_rvt_->getSeria
 
 bool RVBManager::setRvbData(char* data, size_t data_size, BlockId min_block_id_span, BlockId max_block_id_span) {
   LOG_TRACE(logger_, "");
+  ConcordAssertOR(data && (data_size > 0), !data && (data_size == 0));
   std::istringstream rvb_data(std::string(data, data_size));
 
-  if (!in_mem_rvt_->setSerializedRvbData(rvb_data)) {
-    in_mem_rvt_->clear();
-    LOG_ERROR(logger_, "Failed setting RVB data! (setSerializedRvbData failed!)");
-    return false;
-  }
+  if (data) {
+    if (!in_mem_rvt_->setSerializedRvbData(rvb_data)) {
+      in_mem_rvt_->clear();
+      LOG_ERROR(logger_, "Failed setting RVB data! (setSerializedRvbData failed!)");
+      return false;
+    }
 
-  if (!in_mem_rvt_->validate()) {
-    LOG_ERROR(logger_, "Failed to validate RVB serialized data");
-    in_mem_rvt_->clear();
-    return false;
+    if (!in_mem_rvt_->validate()) {
+      LOG_ERROR(logger_, "Failed to validate RVB serialized data");
+      in_mem_rvt_->clear();
+      return false;
+    }
+  } else {
+    reset(RVBManager::RvbDataInitialSource::FROM_NETWORK);
   }
 
   // Validate that tree spans at least the needed collecting range
@@ -294,15 +299,17 @@ bool RVBManager::setRvbData(char* data, size_t data_size, BlockId min_block_id_s
   RVBId min_required_rvb_id = nextRvbBlockId(min_block_id_span);
   RVBId max_required_rvb_id = prevRvbBlockId(max_block_id_span);
 
-  if ((min_required_rvb_id < min_rvb_in_rvt) || (max_rvb_in_rvt > max_required_rvb_id)) {
+  if (((min_required_rvb_id <= max_required_rvb_id) && !data) ||  // At least one RVB is needed, but data is empty
+      ((min_required_rvb_id < min_rvb_in_rvt) || (max_rvb_in_rvt > max_required_rvb_id))) {  // not in required span
     LOG_ERROR(logger_,
-              "Tree is valid but cannot be used, it doesn't span the required collection range!"
-                  << KVLOG(min_block_id_span,
-                           max_block_id_span,
-                           min_rvb_in_rvt,
-                           max_rvb_in_rvt,
-                           min_required_rvb_id,
-                           max_required_rvb_id));
+              std::boolalpha << "Tree doesn't span the required collection range!"
+                             << KVLOG(min_block_id_span,
+                                      max_block_id_span,
+                                      min_rvb_in_rvt,
+                                      max_rvb_in_rvt,
+                                      min_required_rvb_id,
+                                      max_required_rvb_id,
+                                      (bool)(data == nullptr)));
     in_mem_rvt_->clear();
     return false;
   }
@@ -310,6 +317,10 @@ bool RVBManager::setRvbData(char* data, size_t data_size, BlockId min_block_id_s
   LOG_INFO(logger_, "Success setting new RVB data from network!");
   in_mem_rvt_->printToLog(LogPrintVerbosity::DETAILED, "setRvbData");
   rvb_data_source_ = RvbDataInitialSource::FROM_NETWORK;
+  if (!data) {
+    LOG_WARN(logger_, "Empty RVB data in checkpoint!");
+  }
+
   return true;
 }
 
