@@ -337,6 +337,7 @@ SimpleStateTran::SimpleStateTran(
       2000,                                 // fetchRetransmissionTimeoutMs
       2,                                    // maxFetchRetransmissions
       5,                                    // metricsDumpIntervalSec
+      5000,                                 // maxTimeSinceLastExecutionInMainWindowMs
       true,                                 // runInSeparateThread
       true,                                 // enableReservedPages
       true,                                 // enableSourceBlocksPreFetch

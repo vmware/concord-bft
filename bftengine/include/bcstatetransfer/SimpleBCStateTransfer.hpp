@@ -174,6 +174,7 @@ struct Config {
   uint32_t fetchRetransmissionTimeoutMs = 0;
   uint32_t maxFetchRetransmissions = 0;
   uint32_t metricsDumpIntervalSec = 0;
+  uint32_t maxTimeSinceLastExecutionInMainWindowMs = 0;
 
   // misc
   bool runInSeparateThread = false;
@@ -209,6 +210,7 @@ inline std::ostream &operator<<(std::ostream &os, const Config &c) {
               c.fetchRetransmissionTimeoutMs,
               c.maxFetchRetransmissions,
               c.metricsDumpIntervalSec,
+              c.maxTimeSinceLastExecutionInMainWindowMs,
               c.runInSeparateThread,
               c.enableReservedPages,
               c.enableSourceBlocksPreFetch,
