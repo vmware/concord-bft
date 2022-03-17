@@ -916,9 +916,14 @@ size_t KeyValueBlockchain::linkUntilBlockId(BlockId from_block_id, BlockId until
     writeSTLinkTransaction(i, *raw_block);
     if ((++report_counter % report_thresh) == 0) {
       auto elapsed_time_ms = link_duration.totalDuration();
-      uint64_t blocks_linked_per_sec = (((i - from_block_id + 1) * 1000) / (elapsed_time_ms));
-      uint64_t blocks_left_to_link = until_block_id - i;
-      uint64_t estimated_time_left_sec = blocks_left_to_link / blocks_linked_per_sec;
+      uint64_t blocks_linked_per_sec{};
+      uint64_t blocks_left_to_link{};
+      uint64_t estimated_time_left_sec{};
+      if (elapsed_time_ms > 0) {
+        blocks_linked_per_sec = (((i - from_block_id + 1) * 1000) / (elapsed_time_ms));
+        blocks_left_to_link = until_block_id - i;
+        estimated_time_left_sec = blocks_left_to_link / blocks_linked_per_sec;
+      }
       LOG_INFO(CAT_BLOCK_LOG,
                "Last block ID connected: " << i << ","
                                            << KVLOG(from_block_id,
