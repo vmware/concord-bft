@@ -172,8 +172,9 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
                 LOG_DEBUG(logger_, "Waiting for previous thread to finish job on context " << KVLOG(ctx->blockId));
                 ctx->future.get();
               } catch (...) {
-                // ignore and continue, this job is irrlevant
-                LOG_WARN(logger_, "Exception on irrelevant job, ignoring..");
+                // ignore and continue, this job is irrelevant
+                LOG_WARN(logger_, "Exception:" << KVLOG(ctx->blockId, ctx->actualBlockSize));
+                throw;
               }
             }
           },
