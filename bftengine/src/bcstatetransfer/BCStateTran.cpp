@@ -2058,8 +2058,9 @@ bool BCStateTran::onMessage(const RejectFetchingMsg *m, uint32_t msgLen, uint16_
   } else if (fs == FetchingState::GettingMissingBlocks) {
     LOG_DEBUG(logger_, "Adding all peer replicas to preferredReplicas_ (because preferredReplicas_.size()==0)");
 
-    // in this case, we will try to use all other replicas
+    // in this case, we will try to use all other replicas (remove current replica)
     SetAllReplicasAsPreferred();
+    sourceSelector_.removeCurrentReplica();
     processData();
   } else if (fs == FetchingState::GettingMissingResPages) {
     // enter new cycle
