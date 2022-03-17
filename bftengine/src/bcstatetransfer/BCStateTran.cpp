@@ -405,7 +405,7 @@ void BCStateTran::stopRunning() {
   sourceSelector_.reset();
   nextRequiredBlock_ = 0;
   metrics_.next_required_block_.Get().Set(0);
-  digestOfNextRequiredBlock.makeZero();
+  digestOfNextRequiredBlock_.makeZero();
 
   for (auto i : pendingItemDataMsgs) {
     replicaForStateTransfer_->freeStateTransferMsg(reinterpret_cast<char *>(i));
@@ -1322,7 +1322,7 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
   ConcordAssertNE(checkSummary, nullptr);
   ConcordAssert(sourceSelector_.isReset());
   ConcordAssertEQ(nextRequiredBlock_, 0);
-  ConcordAssert(digestOfNextRequiredBlock.isZero());
+  ConcordAssert(digestOfNextRequiredBlock_.isZero());
   ConcordAssert(pendingItemDataMsgs.empty());
   ConcordAssert(ioContexts_.empty());
   ConcordAssert(ioPool_.full());
@@ -2268,7 +2268,7 @@ void BCStateTran::EnterGettingCheckpointSummariesState() {
   finalizePutblockAsync(false, PutBlockWaitPolicy::WAIT_ALL_JOBS);
   nextRequiredBlock_ = 0;
   nextCommittedBlockId_ = 0;
-  digestOfNextRequiredBlock.makeZero();
+  digestOfNextRequiredBlock_.makeZero();
   clearAllPendingItemsData();
 
   psd_->deleteCheckpointBeingFetched();
@@ -2487,9 +2487,10 @@ void BCStateTran::processData(bool lastInBatch) {
     ConcordAssertOR(
         (fetchingState == FetchingState::GettingMissingBlocks) && (nextCommittedBlockId_ >= nextRequiredBlock_),
         (fetchingState == FetchingState::GettingMissingResPages) && (nextRequiredBlock_ == ID_OF_VBLOCK_RES_PAGES));
-    ConcordAssert(!digestOfNextRequiredBlock.isZero());
+    // TODO - uncomment later
+    // ConcordAssert(!digestOfNextRequiredBlock_.isZero());
 
-    LOG_DEBUG(logger_, KVLOG(nextRequiredBlock_, digestOfNextRequiredBlock, nextCommittedBlockId_));
+    LOG_DEBUG(logger_, KVLOG(nextRequiredBlock_, digestOfNextRequiredBlock_, nextCommittedBlockId_));
 
     //////////////////////////////////////////////////////////////////////////
     // Process and check the available chunks
@@ -2520,7 +2521,7 @@ void BCStateTran::processData(bool lastInBatch) {
       if (!config_.enableReservedPages)
         newBlockIsValid = true;
       else
-        newBlockIsValid = checkVirtualBlockOfResPages(digestOfNextRequiredBlock, buffer_.get(), actualBlockSize);
+        newBlockIsValid = checkVirtualBlockOfResPages(digestOfNextRequiredBlock_, buffer_.get(), actualBlockSize);
 
       badDataFromCurrentSourceReplica = !newBlockIsValid;
     } else {
@@ -2603,7 +2604,7 @@ void BCStateTran::processData(bool lastInBatch) {
         clearAllPendingItemsData();
         nextRequiredBlock_ = 0;
         nextCommittedBlockId_ = 0;
-        digestOfNextRequiredBlock.makeZero();
+        digestOfNextRequiredBlock_.makeZero();
 
         ConcordAssertEQ(getFetchingState(), FetchingState::GettingMissingResPages);
 
