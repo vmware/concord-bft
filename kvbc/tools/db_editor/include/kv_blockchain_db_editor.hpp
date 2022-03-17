@@ -816,8 +816,8 @@ struct GetSTMetadata {
   std::string toJson(const bftEngine::bcst::impl::DataStore::CheckpointDesc &chckpDesc,
                      const bftEngine::bcst::impl::DataStore::ResPagesDescriptor *rpDesc) const {
     std::ostringstream oss;
-    oss << "{\"checkpointNum\": " << chckpDesc.checkpointNum << ", \"lastBlock\": " << chckpDesc.lastBlock
-        << ", \"digestOfLastBlock\": \"" << chckpDesc.digestOfLastBlock.toString()
+    oss << "{\"checkpointNum\": " << chckpDesc.checkpointNum << ", \"maxBlockId\": " << chckpDesc.maxBlockId
+        << ", \"digestOfMaxBlockId\": \"" << chckpDesc.digestOfMaxBlockId.toString()
         << "\", \"digestOfResPagesDescriptor\": \"" << chckpDesc.digestOfResPagesDescriptor.toString() << "\"";
     if (rpDesc) {
       oss << ", \"reserved_pages\": [";
