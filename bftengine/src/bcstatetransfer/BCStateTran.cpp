@@ -763,9 +763,10 @@ std::string BCStateTran::getStatus() {
   }
 
   bj.addNestedJson("generalStateTransferMetrics", metrics_component_.ToJson());
+  bj.addNestedJson("generalSourceSelectorMetrics",  sourceSelector_.getMetricComponent().ToJson());
 
   bj.endJson();
-
+metrics_component_.ToJson());
   return bj.getJson();
 }
 
@@ -1334,7 +1335,6 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
     }
   }
 
-  sourceSelector_.updatePreferredReplicasMetric();
   ConcordAssertGE(sourceSelector_.numberOfPreferredReplicas(), config_.fVal + 1);
 
   // set new checkpoint
@@ -2663,9 +2663,6 @@ void BCStateTran::processData(bool lastInBatch) {
 
       // Metrics set at the end of the block to prevent transaction abort from
       // leaving inconsistencies.
-
-      sourceSelector_.updatePreferredReplicasMetric("");
-      sourceSelector_.updateCurrentReplicaMetric();
       metrics_.last_stored_checkpoint_.Get().Set(cp.checkpointNum);
       metrics_.checkpoint_being_fetched_.Get().Set(0);
 
