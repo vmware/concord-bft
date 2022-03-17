@@ -71,6 +71,12 @@ class DataStore : public std::enable_shared_from_this<DataStore> {
   //////////////////////////////////////////////////////////////////////////
 
   struct CheckpointDesc {
+    void makeZero() {
+      checkpointNum = 0;
+      maxBlockId = 0;
+      digestOfMaxBlockId.makeZero();
+      digestOfResPagesDescriptor.makeZero();
+    }
     uint64_t checkpointNum = 0;
     uint64_t maxBlockId = 0;
     STDigest digestOfMaxBlockId;
