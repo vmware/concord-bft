@@ -175,6 +175,7 @@ struct Config {
   bool runInSeparateThread = false;
   bool enableReservedPages = true;
   bool enableSourceBlocksPreFetch = true;
+  bool enableSourceSelectorPrimaryAwareness = true;
 };
 
 inline std::ostream &operator<<(std::ostream &os, const Config &c) {
@@ -204,7 +205,8 @@ inline std::ostream &operator<<(std::ostream &os, const Config &c) {
               c.metricsDumpIntervalSec,
               c.runInSeparateThread,
               c.enableReservedPages,
-              c.enableSourceBlocksPreFetch);
+              c.enableSourceBlocksPreFetch,
+              c.enableSourceSelectorPrimaryAwareness);
   return os;
 }
 // creates an instance of the state transfer module.

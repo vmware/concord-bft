@@ -96,7 +96,8 @@ Config targetConfig() {
       5,                  // metricsDumpIntervalSec
       false,              // runInSeparateThread
       true,               // enableReservedPages
-      true                // enableSourceBlocksPreFetch
+      true,               // enableSourceBlocksPreFetch
+      true                // enableSourceSelectorPrimaryAwareness
   };
 }
 
