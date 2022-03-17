@@ -206,7 +206,9 @@ size_t BCStateTran::BlockIOContext::sizeOfBlockData = 0;
 BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataStore *ds)
     : logger_(ST_SRC_LOG),
       incomingEventsQ_{std::make_unique<concord::util::Handoff>(config.myReplicaId, "incomingEventsQ")},
-      postProcessingQ_{std::make_unique<concord::util::Handoff>(config.myReplicaId, "postProcessingQ")},
+      postProcessingQ_{config.isReadOnly
+                           ? nullptr
+                           : std::make_unique<concord::util::Handoff>(config.myReplicaId, "postProcessingQ")},
       maxPostprocessedBlockId_{0},
       as_{stateApi},
       psd_{ds},
@@ -410,7 +412,9 @@ void BCStateTran::stopRunning() {
   ConcordAssert(running_);
   ConcordAssertNE(replicaForStateTransfer_, nullptr);
   incomingEventsQ_->stop();
-  postProcessingQ_->stop();
+  if (postProcessingQ_) {
+    postProcessingQ_->stop();
+  }
   stReset();
   running_ = false;
   replicaForStateTransfer_ = nullptr;
@@ -1242,11 +1246,11 @@ void BCStateTran::onFetchingStateChange(FetchingState newFetchingState) {
       if (blocksFetched_.isStarted()) {
         blocksFetched_.resume();
         bytesFetched_.resume();
-        blocksPostProcessed_.resume();
+        if (postProcessingQ_) blocksPostProcessed_.resume();
       } else {
         blocksFetched_.start();
         bytesFetched_.start();
-        blocksPostProcessed_.start();
+        if (postProcessingQ_) blocksPostProcessed_.start();
       }
       break;
     case FetchingState::GettingMissingResPages:
@@ -2702,15 +2706,17 @@ bool BCStateTran::finalizePutblockAsync(PutBlockWaitPolicy waitPolicy) {
     ioPool_.free(ctx);
     ioContexts_.pop_front();
     if (commitState_.nextBlockId == commitState_.minBlockId) {
-      // Completed batch commit to blockchain ST - now, lets post-process these blocks
-      if (commitState_.minBlockId == minBlockIdToCollectInCycle_) {
-        // we measure the total time to commit to chain, assuming that post-processing thread always has what to do
-        // if this incorrect, it will include "idle" durations
-        postProcessingDT_.start();
-        blocksPostProcessed_.start();
+      if (postProcessingQ_) {
+        // Completed batch commit to blockchain ST - now, lets post-process these blocks
+        if (commitState_.minBlockId == minBlockIdToCollectInCycle_) {
+          // we measure the total time to commit to chain, assuming that post-processing thread always has what to do
+          // if this incorrect, it will include "idle" durations
+          postProcessingDT_.start();
+          blocksPostProcessed_.start();
+        }
+        postProcessingQ_->push(std::bind(&BCStateTran::postProcessNextBatch, this, commitState_.maxBlockId));
+        postProcessingUpperBoundBlockId_ = commitState_.maxBlockId;
       }
-      postProcessingQ_->push(std::bind(&BCStateTran::postProcessNextBatch, this, commitState_.maxBlockId));
-      postProcessingUpperBoundBlockId_ = commitState_.maxBlockId;
       firstRequiredBlockId = commitState_.maxBlockId + 1;
       auto oldCommitState_ = commitState_;
       commitState_.minBlockId = commitState_.maxBlockId + 1;
@@ -3068,13 +3074,13 @@ void BCStateTran::processData(bool lastInBatch, uint32_t rvbDigestsSize) {
           // - ST main thread used to post-process here until all blocks are taken our from ST temporary blockchain
           // and moved to consensus blockchain.
           // Comment: Collecting reserved pages is very fast - no reason to do it later.
-          LOG_INFO(logger_, "Waiting for post processor thread to finish all jobs in queue...");
-          while (!postProcessingQ_->empty() || (postProcessingUpperBoundBlockId_ != maxPostprocessedBlockId_)) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-            ConcordAssertLE(maxPostprocessedBlockId_, postProcessingUpperBoundBlockId_);
-          }
-          postProcessingDT_.pause();
-          if (blocksPostProcessed_.isStarted()) {
+          if (postProcessingQ_) {
+            LOG_INFO(logger_, "Waiting for post processor thread to finish all jobs in queue...");
+            while (!postProcessingQ_->empty() || (postProcessingUpperBoundBlockId_ != maxPostprocessedBlockId_)) {
+              std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+              ConcordAssertLE(maxPostprocessedBlockId_, postProcessingUpperBoundBlockId_);
+            }
+            postProcessingDT_.pause();
             blocksPostProcessed_.pause();
           }
 

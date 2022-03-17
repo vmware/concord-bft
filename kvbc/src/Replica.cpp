@@ -735,7 +735,7 @@ uint64_t Replica::getLastBlockNum() const {
 
 void Replica::postProcessUntilBlockId(uint64_t max_block_id) {
   if (replicaConfig_.isReadOnly) {
-    m_bcDbAdapter->linkUntilBlockId(max_block_id);
+    // read only replica do not post process
     return;
   }
   const BlockId last_reachable_block = m_kvBlockchain->getLastReachableBlockId();

@@ -137,8 +137,8 @@ class DBAdapter : public IDbAdapter {
   // Typically called by the application when adding a new block.
   BlockId addBlock(const SetOfKeyValuePairs &updates) override;
 
-  // Set the lastReachable block. not multi-threaded safe.
-  void linkUntilBlockId(BlockId until_block_id) override;
+  // Direct adapter links during State Transfer in AddRawBlock only, since no post-processing is needed.
+  void linkUntilBlockId(BlockId until_block_id) override { return; }
 
   // Adds a block from its raw representation and a block ID. Includes:
   // - adding the key/value pairs in separate keys
