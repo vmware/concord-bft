@@ -137,9 +137,7 @@ class RangeValidationTree {
 
  public:
   struct NodeVal {
-    static NodeVal_t kNodeValueMax_;
     static NodeVal_t kNodeValueModulo_;
-    static NodeVal_t calcMaxValue(size_t val_size);
     static NodeVal_t calcModulo(size_t val_size);
 
     NodeVal(const std::shared_ptr<char[]>&& val, size_t size);
@@ -154,7 +152,6 @@ class RangeValidationTree {
     bool operator!=(const NodeVal& other);
     bool operator==(const NodeVal& other);
 
-    const NodeVal_t& getMaxVal() const { return kNodeValueMax_; }
     const NodeVal_t& getVal() const { return val_; }
     std::string toString() const noexcept;
     std::string getDecoded() const noexcept;
