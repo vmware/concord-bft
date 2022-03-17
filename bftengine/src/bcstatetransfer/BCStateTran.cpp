@@ -259,7 +259,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
       metrics_{createRegisterMetrics()},
       blocksFetched_(config_.gettingMissingBlocksSummaryWindowSize),
       bytesFetched_(config_.gettingMissingBlocksSummaryWindowSize),
-      blocksPostProcessed_(0),
+      blocksPostProcessed_(blocksPostProcessedReportWindow),
       lastFetchingState_(FetchingState::NotFetching),
       sourceFlag_(false),
       src_send_batch_duration_rec_(histograms_.src_send_batch_duration),
@@ -1281,11 +1281,15 @@ void BCStateTran::onFetchingStateChange(FetchingState newFetchingState) {
       if (blocksFetched_.isStarted()) {
         blocksFetched_.resume();
         bytesFetched_.resume();
-        if (postProcessingQ_) blocksPostProcessed_.resume();
+        if (postProcessingQ_) {
+          blocksPostProcessed_.resume();
+        }
       } else {
         blocksFetched_.start();
         bytesFetched_.start();
-        if (postProcessingQ_) blocksPostProcessed_.start();
+        if (postProcessingQ_) {
+          blocksPostProcessed_.start();
+        }
       }
       break;
     case FetchingState::GettingMissingResPages:
@@ -2213,16 +2217,16 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
   bool added = false;
 
   tie(std::ignore, added) = pendingItemDataMsgs.insert(const_cast<ItemDataMsg *>(m));
-  // Set fetchingTimeStamp_ while ignoring added flag - source is responsive
-  // Apply correction according to the time message has arrived to incoming events queue
+  // Log the time for this message to wait on incoming events queue
   auto fetchingTimeStamp = getMonotonicTimeMilli();
   if (msgArrivalTime != UNDEFINED_LOCAL_TIME_POINT) {
     auto timeInIncomingEventsQueueMilli = duration_cast<milliseconds>(steady_clock::now() - msgArrivalTime).count();
     LOG_TRACE(
         logger_,
         KVLOG(fetchingTimeStamp, timeInIncomingEventsQueueMilli, (fetchingTimeStamp - timeInIncomingEventsQueueMilli)));
-    fetchingTimeStamp -= timeInIncomingEventsQueueMilli;
+    histograms_.dst_time_ItemData_msg_in_incoming_events_queue->record(timeInIncomingEventsQueueMilli);
   }
+  // Set fetchingTimeStamp_ while ignoring added flag - source is responsive
   sourceSelector_.setFetchingTimeStamp(fetchingTimeStamp, false);
 
   if (added) {
@@ -2836,7 +2840,6 @@ bool BCStateTran::isMaxFetchedBlockIdInCycle(uint64_t blockId) const {
 }
 
 void BCStateTran::postProcessNextBatch(uint64_t upperBoundBlockId) {
-  static constexpr uint64_t postProcessReportTrigger = 3;  // once in 3 iterations
   static uint64_t iteration{};
 
   if (upperBoundBlockId == maxPostprocessedBlockId_) {
@@ -2850,7 +2853,7 @@ void BCStateTran::postProcessNextBatch(uint64_t upperBoundBlockId) {
   as_->postProcessUntilBlockId(upperBoundBlockId);
   ++iteration;
   uint64_t totalBlocksProcessed = upperBoundBlockId - maxPostprocessedBlockId_;
-  bool reportToLog = (iteration % postProcessReportTrigger) == 0;
+  bool reportToLog = (iteration % blocksPostProcessedReportWindow) == 0;
   blocksPostProcessed_.report(totalBlocksProcessed, reportToLog);
   if (reportToLog) {
     std::ostringstream oss;
@@ -2858,10 +2861,13 @@ void BCStateTran::postProcessNextBatch(uint64_t upperBoundBlockId) {
         << "," << upperBoundBlockId << "]"
         << KVLOG(upperBoundBlockId, maxPostprocessedBlockId_, postProcessingQ_->size());
     auto overallResults = blocksPostProcessed_.getOverallResults();
+    auto prevWinResults = blocksPostProcessed_.getPrevWinResults();
     auto blocksLeftToPostProcess = maxBlockIdToCollectInCycle_ - maxPostprocessedBlockId_;
     uint64_t timeToCompleteMs =
         (overallResults.throughput_ > 0) ? (blocksLeftToPostProcess * 1000) / overallResults.throughput_ : 0;
-    oss << " ,Throughput: " << convertUInt64ToReadableStr(overallResults.throughput_, "Block/sec")
+    oss << " ,Throughput (overall): " << convertUInt64ToReadableStr(overallResults.throughput_, "Block/sec")
+        << " ,Throughput (last " << blocksPostProcessedReportWindow
+        << " iterations): " << convertUInt64ToReadableStr(prevWinResults.throughput_, "Block/sec")
         << " ,Estimated time to reach max cycle block ID " << maxBlockIdToCollectInCycle_ << ": "
         << convertMillisecToReadableStr(timeToCompleteMs);
     LOG_INFO(logger_, oss.str());
@@ -2947,7 +2953,7 @@ void BCStateTran::processData(bool lastInBatch, uint32_t rvbDigestsSize) {
     const auto srcReplacementMode =
         sourceSelector_.shouldReplaceSource(currTime, badDataFromCurrentSourceReplica, lastInBatch);
     bool newSourceReplica = (srcReplacementMode != SourceReplacementMode::DO_NOT);
-    if (srcReplacementMode != SourceReplacementMode::DO_NOT) {
+    if (newSourceReplica) {
       if ((fs == FetchingState::GettingMissingResPages) && sourceSelector_.noPreferredReplicas()) {
         // enter a new cycle
         startCollectingStateInternal();
