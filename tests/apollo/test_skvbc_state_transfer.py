@@ -21,7 +21,7 @@ import trio
 
 from util.test_base import ApolloTest
 from util import skvbc as kvbc
-from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, skip_for_tls
+from util.bft import skip_for_tls, with_trio, with_bft_network, KEY_FILE_PREFIX
 from util import eliot_logging as log
 from util import operator
 from util.test_base import ApolloTest
@@ -113,6 +113,7 @@ class SkvbcStateTransferTest(ApolloTest):
         await bft_network.force_quorum_including_replica(stale_node)
         await skvbc.assert_successful_put_get()
 
+    # This test should never run with TLS/TCP, only UDP
     @skip_for_tls
     @with_trio
     @with_bft_network(start_replica_cmd,
