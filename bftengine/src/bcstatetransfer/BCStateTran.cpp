@@ -145,6 +145,8 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
                       config_.maxFetchRetransmissions,
                       config_.minPrePrepareMsgsForPrimaryAwarness,
                       ST_SRC_LOG},
+      fetchState_{0},
+      commitState_{0},
       postponedSendFetchBlocksMsg_(false),
       ioPool_(
           config_.maxNumberOfChunksInBatch,
@@ -178,8 +180,8 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
                metrics_component_.RegisterGauge("number_of_reserved_pages", 0),
                metrics_component_.RegisterGauge("size_of_reserved_page", config_.sizeOfReservedPage),
                metrics_component_.RegisterGauge("last_msg_seq_num", lastMsgSeqNum_),
-               metrics_component_.RegisterGauge("next_required_block_", nextRequiredBlock_),
-               metrics_component_.RegisterGauge("next_block_id_to_commit", nextBlockIdToCommit_),
+               metrics_component_.RegisterGauge("next_required_block_", fetchState_.nextBlockId),
+               metrics_component_.RegisterGauge("next_block_id_to_commit", commitState_.nextBlockId),
                metrics_component_.RegisterGauge("num_pending_item_data_msgs_", pendingItemDataMsgs.size()),
                metrics_component_.RegisterGauge("total_size_of_pending_item_data_msgs", totalSizeOfPendingItemDataMsgs),
                metrics_component_.RegisterAtomicGauge("last_block_", 0),
@@ -394,7 +396,6 @@ void BCStateTran::stopRunning() {
   lastMilliOfUniqueFetchID_ = 0;
   lastCountOfUniqueFetchID_ = 0;
   lastMsgSeqNum_ = 0;
-  lastSentMsg_ = std::monostate();
   lastMsgSeqNumOfReplicas_.clear();
 
   for (auto i : cacheOfVirtualBlockForResPages) std::free(i.second);
@@ -645,7 +646,6 @@ void BCStateTran::zeroReservedPage(uint32_t reservedPageId) {
 void BCStateTran::startCollectingStats() {
   firstCollectedBlockId_ = {};
   lastCollectedBlockId_ = {};
-  lastSentMsg_ = std::monostate();
   gettingMissingBlocksDT_.reset();
   commitToChainDT_.reset();
   gettingCheckpointSummariesDT_.reset();
@@ -768,7 +768,7 @@ std::string BCStateTran::getStatus() {
     bj.startNested("fetchingStateDetails");
     bj.addKv("currentSource", current_source);
     bj.addKv("preferredReplicas", preferred_replicas);
-    bj.addKv("nextRequiredBlock", nextRequiredBlock_);
+    bj.addKv("nextRequiredBlock",  fetchState_.nextBlockId);
     bj.addKv("totalSizeOfPendingItemDataMsgs", totalSizeOfPendingItemDataMsgs);
     bj.endNested();
 
@@ -1163,7 +1163,6 @@ void BCStateTran::sendAskForCheckpointSummariesMsg() {
   LOG_DEBUG(logger_, KVLOG(lastMsgSeqNum_, msg.minRelevantCheckpointNum));
 
   sendToAllOtherReplicas(reinterpret_cast<char *>(&msg), sizeof(AskForCheckpointSummariesMsg));
-  lastSentMsg_.emplace<AskForCheckpointSummariesMsg>(msg);
 }
 
 void BCStateTran::trySendFetchBlocksMsg(uint64_t minBlockId,
@@ -1205,7 +1204,6 @@ void BCStateTran::trySendFetchBlocksMsg(uint64_t minBlockId,
   dst_time_between_sendFetchBlocksMsg_rec_.end();  // not an issue, if it was never started, this operation does nothing
   dst_time_between_sendFetchBlocksMsg_rec_.start();
   postponedSendFetchBlocksMsg_ = false;
-  lastSentMsg_.emplace<FetchBlocksMsg>(msg);
 }
 
 void BCStateTran::sendFetchResPagesMsg(int16_t lastKnownChunkInLastRequiredBlock) {
@@ -1234,7 +1232,6 @@ void BCStateTran::sendFetchResPagesMsg(int16_t lastKnownChunkInLastRequiredBlock
   replicaForStateTransfer_->sendStateTransferMessage(
       reinterpret_cast<char *>(&msg), sizeof(FetchResPagesMsg), sourceSelector_.currentReplica());
   metrics_.sent_fetch_res_pages_msg_++;
-  lastSentMsg_.emplace<FetchResPagesMsg>(msg);
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -1374,7 +1371,7 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
 
   ConcordAssertNE(checkSummary, nullptr);
   ConcordAssert(sourceSelector_.isReset());
-  ConcordAssertEQ(nextRequiredBlock_, 0);
+  ConcordAssertEQ(fetchState_.nextBlockId, 0);
   ConcordAssert(digestOfNextRequiredBlock_.isZero());
   ConcordAssert(pendingItemDataMsgs.empty());
   ConcordAssert(ioContexts_.empty());
@@ -1410,7 +1407,6 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
     // clean
     clearInfoAboutGettingCheckpointSummary();
     lastMsgSeqNum_ = 0;
-    lastSentMsg_ = std::monostate();
     metrics_.last_msg_seq_num_.Get().Set(0);
 
     // check if we need to fetch blocks, or reserved pages
@@ -1909,14 +1905,14 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
 
   auto fetchingState = fs;
   if (fs == FetchingState::GettingMissingBlocks) {
-    if (!std::holds_alternative<FetchBlocksMsg>(lastSentMsg_)) {
-      LOG_WARN(logger_, "Msg is irrelevant: expecting type FetchBlocksMsg" << lastSentMsg_.index());
-      metrics_.irrelevant_item_data_msg_++;
-      return false;
-    }
-    const auto &lastMsg = std::get<FetchBlocksMsg>(lastSentMsg_);
-    if ((sourceSelector_.currentReplica() != replicaId) || (m->requestMsgSeqNum != lastMsgSeqNum_) ||
-        (lastMsg.minBlockId > m->blockNumber) || (lastMsg.maxBlockId < m->blockNumber) ||
+    // Reasons for dropping a message as "irrelevant" for this state:
+    // 1) Not the source we choose
+    // 2) Block ID is out of expected range [fetchState_.minBlockId, fetchState_.nextBlockId]
+    // 3) Not enough memory to put block
+    // We do not drop on different requestMsgSeqNum - the block arrives from the expected source and might have been
+    // delayed due to retransmissions, but it should still be valid block with an expected ID. No reason to drop.
+    if ((sourceSelector_.currentReplica() != replicaId) || (fetchState_.minBlockId > m->blockNumber) ||
+        (fetchState_.nextBlockId < m->blockNumber) ||
         (m->dataSize + totalSizeOfPendingItemDataMsgs > config_.maxPendingDataFromSourceReplica)) {
       LOG_WARN(logger_,
                "Msg is irrelevant: " << KVLOG(replicaId,
@@ -1925,8 +1921,7 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
                                               m->requestMsgSeqNum,
                                               lastMsgSeqNum_,
                                               m->blockNumber,
-                                              lastMsg.maxBlockId,
-                                              lastMsg.minBlockId,
+                                              fetchState_,
                                               config_.maxNumberOfChunksInBatch,
                                               m->dataSize,
                                               totalSizeOfPendingItemDataMsgs,
@@ -1938,11 +1933,6 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
     ConcordAssertEQ(psd_->getFirstRequiredBlock(), 0);
     ConcordAssertEQ(psd_->getLastRequiredBlock(), 0);
 
-    if (!std::holds_alternative<FetchResPagesMsg>(lastSentMsg_)) {
-      LOG_WARN(logger_, "Msg is irrelevant: expecting type FetchBlocksMsg" << lastSentMsg_.index());
-      metrics_.irrelevant_item_data_msg_++;
-      return false;
-    }
     if ((sourceSelector_.currentReplica() != replicaId) || (m->requestMsgSeqNum != lastMsgSeqNum_) ||
         (m->blockNumber != ID_OF_VBLOCK_RES_PAGES) ||
         (m->dataSize + totalSizeOfPendingItemDataMsgs > config_.maxPendingDataFromSourceReplica)) {
@@ -2252,7 +2242,7 @@ bool BCStateTran::checkBlock(uint64_t blockId, char *block, uint32_t blockSize) 
     // Validate RVB group once (1st RVB in group), and compare later RVBs digests to received onces
     // extract digestOfNextRequiredBlock_ from RVB group
   }
-  if (isMinBlockIdInCurrentRange(blockId)) {
+  if (fetchState_.isMinBlockId(blockId)) {
     // Extract digest from this block and compare to RVB block with ID (blockId-1) which was fetched in previous range
   }
   if (isLastFetchedBlockIdInCycle(blockId)) {
@@ -2337,8 +2327,8 @@ void BCStateTran::EnterGettingCheckpointSummariesState() {
   sourceSelector_.reset();
 
   finalizePutblockAsync(PutBlockWaitPolicy::WAIT_ALL_JOBS);
-  nextRequiredBlock_ = 0;
-  nextBlockIdToCommit_ = 0;
+  fetchState_.reset();
+  commitState_.reset();
   digestOfNextRequiredBlock_.makeZero();
   clearAllPendingItemsData();
 
@@ -2382,8 +2372,8 @@ std::string BCStateTran::logsForCollectingStatus(const uint64_t firstRequiredBlo
 
   bj.startNested("overallStats");
   bj.addKv("collectRange", std::to_string(firstRequiredBlock) + ", " + std::to_string(firstCollectedBlockId_.value()));
-  bj.addKv("lastCollectedBlock", nextRequiredBlock_);
-  bj.addKv("blocksLeft", (nextRequiredBlock_ - firstRequiredBlock));
+  bj.addKv("lastCollectedBlock", fetchState_.nextBlockI);
+  bj.addKv("blocksLeft", (fetchState_.nextBlockId - firstRequiredBlock));
   bj.addKv("cycle", cycleCounter_);
   bj.addKv("elapsedTime", std::to_string(blocks_overall_r.elapsed_time_ms_) + " ms");
   bj.addKv("collected",
@@ -2502,21 +2492,22 @@ uint64_t BCStateTran::computeNextRequiredBlock() {
   return std::min(maxBlockIdInRange, psd_->getLastRequiredBlock());
 }
 
-bool BCStateTran::isMinBlockIdInCurrentRange(uint64_t blockId) const {
-  const auto &lastFetchBlocksMsg = std::get<FetchBlocksMsg>(lastSentMsg_);
-  return (blockId == lastFetchBlocksMsg.minBlockId);
+bool BCStateTran::isMinBlockIdInFetchRange(uint64_t blockId) const {
+  ConcordAssertGT(blockId, 0);
+  return ((blockId % config_.fetchRangeSize) == 1);
 }
 
-bool BCStateTran::isMaxBlockIdInCurrentRange(uint64_t blockId) const {
-  const auto &lastFetchBlocksMsg = std::get<FetchBlocksMsg>(lastSentMsg_);
-  return (blockId == lastFetchBlocksMsg.maxBlockId);
+bool BCStateTran::isMaxBlockIdInFetchRange(uint64_t blockId) const {
+  ConcordAssertGT(blockId, 0);
+  return ((blockId % config_.fetchRangeSize) == 0);
 }
 
 bool BCStateTran::isRvbBlockId(uint64_t blockId) const { return ((blockId % config_.fetchRangeSize) == 0); }
 
 bool BCStateTran::isLastFetchedBlockIdInCycle(uint64_t blockId) const {
-  const auto &lastFetchBlocksMsg = std::get<FetchBlocksMsg>(lastSentMsg_);
-  return (blockId == lastFetchBlocksMsg.minBlockId) && (psd_->getLastRequiredBlock() == lastFetchBlocksMsg.maxBlockId);
+  return (blockId == fetchState_.minBlockId) && (psd_->getLastRequiredBlock() == fetchState_.maxBlockId);
+}
+
 }
 
 void BCStateTran::processData(bool lastInBatch) {

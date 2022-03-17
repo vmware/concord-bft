@@ -211,10 +211,6 @@ class BCStateTran : public IStateTransfer {
   // used to computed my last msg sequence number
   uint64_t lastMilliOfUniqueFetchID_ = 0;
   uint32_t lastCountOfUniqueFetchID_ = 0;
-
-  // my last sent message (relevant for source only)
-  // do not change order!
-  std::variant<std::monostate, AskForCheckpointSummariesMsg, FetchBlocksMsg, FetchResPagesMsg> lastSentMsg_;
   uint64_t lastMsgSeqNum_ = 0;
 
   // msg sequence number from other replicas
@@ -342,12 +338,16 @@ class BCStateTran : public IStateTransfer {
     inline bool isMaxBlockId(uint64_t blockId) const { return blockId == maxBlockId; };
   };
   friend std::ostream& operator<<(std::ostream&, const BCStateTran::BlocksBatchDesc&);
+
+  BlocksBatchDesc fetchState_;
+  BlocksBatchDesc commitState_;
+
   DataStore::CheckpointDesc targetCheckpointDesc_;
   STDigest digestOfNextRequiredBlock_;
   bool postponedSendFetchBlocksMsg_;
 
-  inline bool isMinBlockIdInCurrentRange(uint64_t blockId) const;
-  inline bool isMaxBlockIdInCurrentRange(uint64_t blockId) const;
+  inline bool isMinBlockIdInFetchRange(uint64_t blockId) const;
+  inline bool isMaxBlockIdInFetchRange(uint64_t blockId) const;
   inline bool isLastFetchedBlockIdInCycle(uint64_t blockId) const;
   inline bool isRvbBlockId(uint64_t blockId) const;
 
