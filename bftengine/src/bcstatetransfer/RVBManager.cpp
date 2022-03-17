@@ -240,7 +240,7 @@ void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_de
       }
     }
   }
-  ConcordAssertGE(add_range_min_block_id, in_mem_rvt_->getMaxRvbId());
+  add_range_min_block_id = std::max(add_range_min_block_id, in_mem_rvt_->getMaxRvbId());
   addRvbDataOnBlockRange(
       add_range_min_block_id, new_checkpoint_desc.maxBlockId, new_checkpoint_desc.digestOfMaxBlockId);
 
