@@ -939,18 +939,17 @@ std::string BCStateTran::getStatus() {
     bj.startNested("fetchingStateDetails");
     bj.addKv("currentSource", current_source);
     bj.addKv("preferredReplicas", preferred_replicas);
-    bj.addKv("nextRequiredBlock",  fetchState_.nextBlockId);
+    bj.addKv("nextRequiredBlock", fetchState_.nextBlockId);
     bj.addKv("totalSizeOfPendingItemDataMsgs", totalSizeOfPendingItemDataMsgs);
     bj.endNested();
 
-    bj.addNestedJson("collectingDetails", logsForCollectingStatus(psd_->getFirstRequiredBlock()));
+    bj.addNestedJson("collectingDetails", logsForCollectingStatus());
   }
 
   bj.addNestedJson("generalStateTransferMetrics", metrics_component_.ToJson());
-  bj.addNestedJson("generalSourceSelectorMetrics",  sourceSelector_.getMetricComponent().ToJson());
+  bj.addNestedJson("generalSourceSelectorMetrics", sourceSelector_.getMetricComponent().ToJson());
 
   bj.endJson();
-metrics_component_.ToJson());
   return bj.getJson();
 }
 
@@ -2624,8 +2623,8 @@ void BCStateTran::reportCollectingStatus(const uint32_t actualBlockSize, bool to
 }
 
 std::string BCStateTran::logsForCollectingStatus() {
-  auto blocks_overall_r = blocksFetched.getOverallResults();
-  auto bytes_overall_r = blocksFetched.getOverallResults();
+  auto blocks_overall_r = blocksFetched_.getOverallResults();
+  auto bytes_overall_r = blocksFetched_.getOverallResults();
   concordUtils::BuildJson bj;
 
   bj.startJson();
@@ -2642,10 +2641,12 @@ std::string BCStateTran::logsForCollectingStatus() {
   bj.addKv("post-processing upper bound block id", std::to_string(postProcessingUpperBoundBlockId_));
   bj.addKv("post-processed max block id", std::to_string(maxPostprocessedBlockId_));
   bj.addKv("RVB digests validated", std::to_string(metrics_.overall_rvb_digests_validated_.Get().Get()));
-  bj.addKv("collected", convertUInt64ToReadableStr(blocks_overall_r.num_processed_items_, "Blocks") +
-           convertUInt64ToReadableStr(bytes_overall_r.num_processed_items_, ", B"));
-  bj.addKv("throughput", convertUInt64ToReadableStr(blocks_overall_r.throughput_, "Blocks/s") +
-           convertUInt64ToReadableStr(bytes_overall_r.throughput_, ", B/s"));
+  bj.addKv("collected",
+           convertUInt64ToReadableStr(blocks_overall_r.num_processed_items_, "Blocks") +
+               convertUInt64ToReadableStr(bytes_overall_r.num_processed_items_, ", B"));
+  bj.addKv("throughput",
+           convertUInt64ToReadableStr(blocks_overall_r.throughput_, "Blocks/s") +
+               convertUInt64ToReadableStr(bytes_overall_r.throughput_, ", B/s"));
 
   if (config_.gettingMissingBlocksSummaryWindowSize > 0) {
     auto blocks_win_r = blocksFetched_.getPrevWinResults();
@@ -2653,12 +2654,14 @@ std::string BCStateTran::logsForCollectingStatus() {
     auto prev_win_index = blocksFetched_.getPrevWinIndex();
 
     bj.startNested("lastWindow");
-    bj.addKv("index", prev_win_index));
+    bj.addKv("index", prev_win_index);
     bj.addKv("elapsedTime", convertMillisecToReadableStr(blocks_win_r.elapsed_time_ms_));
-    bj.addKv("collected", convertUInt64ToReadableStr(blocks_win_r.num_processed_items_, "Blocks") + " / " +
-             convertUInt64ToReadableStr(bytes_win_r.num_processed_items_, "B "));
-    bj.addKv("throughput", convertUInt64ToReadableStr(blocks_win_r.throughput_, "Block/s ") + " / " +
-             convertUInt64ToReadableStr(bytes_win_r.throughput_, "B/s "));
+    bj.addKv("collected",
+             convertUInt64ToReadableStr(blocks_win_r.num_processed_items_, "Blocks") + " / " +
+                 convertUInt64ToReadableStr(bytes_win_r.num_processed_items_, "B "));
+    bj.addKv("throughput",
+             convertUInt64ToReadableStr(blocks_win_r.throughput_, "Block/s ") + " / " +
+                 convertUInt64ToReadableStr(bytes_win_r.throughput_, "B/s "));
     bj.endNested();
   }
 
