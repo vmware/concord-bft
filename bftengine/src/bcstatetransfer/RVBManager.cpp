@@ -724,6 +724,10 @@ void RVBManager::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBloc
   int32_t num_digests_added{0};
   while (current_rvb_id <= lastAgreedPrunableBlockId) {
     STDigest digest;
+    if (!pruned_blocks_digests_.empty() && (current_rvb_id <= pruned_blocks_digests_.back().first)) {
+      current_rvb_id += config_.fetchRangeSize;
+      continue;
+    }
     if (!as_->getPrevDigestFromBlock(current_rvb_id + 1,
                                      reinterpret_cast<StateTransferDigest*>(digest.getForUpdate()))) {
       LOG_FATAL(logger_,
@@ -750,6 +754,12 @@ void RVBManager::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBloc
                                         lastAgreedPrunableBlockId,
                                         pruned_blocks_digests_.size(),
                                         total_duration));
+  } else {
+    LOG_INFO(logger_,
+             "pruned block digests was not updated:" << KVLOG(initial_size,
+                                                              pruned_blocks_digests_.size(),
+                                                              pruned_blocks_digests_.front().first,
+                                                              pruned_blocks_digests_.back().first));
   }
   prune_report_in_progess_ = false;
 }
