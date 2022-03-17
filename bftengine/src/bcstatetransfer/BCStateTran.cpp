@@ -720,18 +720,28 @@ std::string BCStateTran::convertMillisecToReadableStr(uint64_t ms) const {
   if (ms == 0) {
     return "NA";
   }
-  string legend;
-  std::ostringstream oss;
-
-  // fixed point notation and 2 digits precision
-  oss << std::fixed;
-  oss << std::setprecision(2);
+  bool shouldPad = false;
+  std::string str, legend;
+  auto updateReadbleStrAndLegend =
+      [&](uint64_t input, std::string &&addToLegend, size_t expectedSize, std::string &&sep = ":") {
+        std::string strInput = std::to_string(input);
+        ConcordAssertGE(expectedSize, strInput.size());
+        if (shouldPad) {
+          auto padSize = expectedSize - strInput.size();
+          for (size_t i{}; i < padSize; ++i) {
+            strInput.insert(0, "0");
+          }
+        }
+        str += strInput + sep;
+        legend += addToLegend + sep;
+        shouldPad = true;
+      };
 
   uint64_t n = ms;
-  const uint64_t ms_per_sec = 1000;
-  const uint64_t sec_per_min = 60;
-  const uint64_t min_per_hr = 60;
-  const uint64_t hr_per_day = 24;
+  constexpr uint64_t ms_per_sec = 1000;
+  constexpr uint64_t sec_per_min = 60;
+  constexpr uint64_t min_per_hr = 60;
+  constexpr uint64_t hr_per_day = 24;
   auto mls = n % ms_per_sec;
   n /= ms_per_sec;
   auto sec = n % sec_per_min;
@@ -742,26 +752,20 @@ std::string BCStateTran::convertMillisecToReadableStr(uint64_t ms) const {
   n /= hr_per_day;
   auto days = n;
 
-  std::string str;
   if (days) {
-    str += std::to_string(days) + ":";
-    legend += "D:";
+    updateReadbleStrAndLegend(days, "DD", 2);
   }
   if (hr || !legend.empty()) {
-    str += std::to_string(hr) + ":";
-    legend += "HH:";
+    updateReadbleStrAndLegend(hr, "HH", 2);
   }
   if (min || !legend.empty()) {
-    str += std::to_string(min) + ":";
-    legend += "MM:";
+    updateReadbleStrAndLegend(min, "MM", 2);
   }
   if (sec || !legend.empty()) {
-    str += std::to_string(sec) + ".";
-    legend += "SS.";
+    updateReadbleStrAndLegend(sec, "SS", 2, ".");
   }
   if (mls || !legend.empty()) {
-    str += std::to_string(mls);
-    legend += "ms";
+    updateReadbleStrAndLegend(mls, "ms", 3, "");
   }
   if (str.empty()) {
     str = "NA";
