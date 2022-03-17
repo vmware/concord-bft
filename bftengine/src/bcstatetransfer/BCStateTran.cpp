@@ -686,6 +686,9 @@ std::string BCStateTran::convertUInt64ToReadableStr(uint64_t num, std::string &&
   auto str = oss.str();
   while (str[str.size() - 1] == '0' || str[str.size() - 1] == '.')  // remove trailing zeroes
     str.resize(str.size() - 1);
+  if (str.empty()) {
+    str = "NA";
+  }
   if (addTrailingSpace) {
     str += " ";
   }
@@ -730,6 +733,9 @@ std::string BCStateTran::convertMillisecToReadableStr(uint64_t ms) const {
   if (mls) {
     str += std::to_string(mls) + " ms";
   }
+  if (str.empty()) {
+    str = "NA";
+  }
   return str;
 }
 
@@ -745,7 +751,6 @@ void BCStateTran::startCollectingStats() {
   gettingCheckpointSummariesDT_.reset();
   gettingMissingResPagesDT_.reset();
   cycleDT_.reset();
-  postProcessingDT_.reset();
 
   // reset metrics
   metrics_.overall_blocks_collected_.Get().Set(0ull);
@@ -1138,7 +1143,7 @@ bool BCStateTran::checkValidityAndSaveMsgSeqNum(uint16_t replicaId, uint64_t msg
 //////////////////////////////////////////////////////////////////////////////
 
 inline std::ostream &operator<<(std::ostream &os, const BCStateTran::BlocksBatchDesc &b) {
-  os << KVLOG(b.minBlockId, b.maxBlockId, b.nextBlockId, b.upperBoundBlockId);
+  os << b.toString();
   return os;
 }
 
@@ -2030,9 +2035,9 @@ bool BCStateTran::onMessage(const RejectFetchingMsg *m, uint32_t msgLen, uint16_
 
   FetchingState fs = getFetchingState();
   if (fs != FetchingState::GettingMissingBlocks && fs != FetchingState::GettingMissingResPages) {
-    LOG_FATAL(logger_,
+    LOG_ERROR(logger_,
               "Expected Fetching State GettingMissingBlocks or GettingMissingResPages. Got: " << stateName(fs));
-    ConcordAssert(false);
+    return false;
   }
 
   // if msg is invalid
@@ -2082,9 +2087,9 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
 
   FetchingState fs = getFetchingState();
   if ((fs != FetchingState::GettingMissingBlocks) && (fs != FetchingState::GettingMissingResPages)) {
-    LOG_FATAL(logger_,
+    LOG_ERROR(logger_,
               "Expected Fetching State GettingMissingBlocks or GettingMissingResPages. Got: " << stateName(fs));
-    ConcordAssert(false);
+    return false;
   }
 
   if (!sourceSelector_.isValidSourceId(replicaId)) {
@@ -2591,23 +2596,23 @@ std::string BCStateTran::logsForCollectingStatus() {
   concordUtils::BuildJson bj;
 
   bj.startJson();
-
   bj.startNested("overallStats");
-  bj.addKv("collectRange", std::to_string(minBlockIdToCollectInCycle) + ", " + std::to_string(maxBlockIdToCollectInCycle));
+
+  bj.addKv("cycle", cycleCounter_);
+  bj.addKv("Cycle elapsedTime", convertMillisecToReadableStr(cycleDT_.totalDuration(false)));
+  bj.addKv("GettingMissingBlocks elapsedTime", convertMillisecToReadableStr(blocks_overall_r.elapsed_time_ms_));
+  bj.addKv("collectRange",
+           std::to_string(minBlockIdToCollectInCycle_) + ", " + std::to_string(maxBlockIdToCollectInCycle_));
   bj.addKv("lastCollectedBlock", fetchState_.nextBlockId);
   bj.addKv("blocksLeft", totalBlocksLeftToCollectInCycle_);
   bj.addKv("fetchState", fetchState_.toString());
   bj.addKv("post-processing upper bound block id", std::to_string(postProcessingUpperBoundBlockId_));
   bj.addKv("post-processed max block id", std::to_string(maxPostprocessedBlockId_));
-  bj.addKv("RVB digests validated", std::to_string(metrics_.overall_rvb_digests_validated_.Get().Get());
-  bj.addKv("cycle", cycleCounter_);
-  bj.addKv("elapsedTime",  convertMillisecToReadableStr(blocks_overall_r.elapsed_time_ms_));
-  bj.addKv("collected",
-           convertUInt64ToReadableStr(blocks_overall_r.num_processed_items_, "Block") + " & " +
-                                convertUInt64ToReadableStr(bytes_overall_r.num_processed_items_, "B")));
-  bj.addKv("throughput",
-           convertUInt64ToReadableStr(blocks_overall_r.throughput_, "Block/s ") +
-               convertUInt64ToReadableStr(bytes_overall_r.throughput_, "B/s")));
+  bj.addKv("RVB digests validated", std::to_string(metrics_.overall_rvb_digests_validated_.Get().Get()));
+  bj.addKv("collected", convertUInt64ToReadableStr(blocks_overall_r.num_processed_items_, "Blocks") +
+           convertUInt64ToReadableStr(bytes_overall_r.num_processed_items_, ", B")));
+  bj.addKv("throughput", convertUInt64ToReadableStr(blocks_overall_r.throughput_, "Blocks/s") +
+           convertUInt64ToReadableStr(bytes_overall_r.throughput_, ", B/s")));
   bj.endNested();
 
   if (config_.gettingMissingBlocksSummaryWindowSize > 0) {
@@ -2616,28 +2621,24 @@ std::string BCStateTran::logsForCollectingStatus() {
     auto prev_win_index = blocksFetched_.getPrevWinIndex();
 
     bj.startNested("lastWindow");
-    bj.addKv("index", prev_win_index);
-    bj.addKv("elapsedTime",  convertMillisecToReadableStr(blocks_win_r.elapsed_time_ms_));
-    bj.addKv("collected",
-             convertUInt64ToReadableStr(blocks_win_r.num_processed_items_, "Block") + " & " +
-                 convertUInt64ToReadableStr(bytes_win_r.num_processed_items_, "B "));
-    bj.addKv("throughput",
-             convertUInt64ToReadableStr(blocks_win_r.throughput_, "Block/s ") + " & " +
-                 convertUInt64ToReadableStr(bytes_win_r.throughput_, "B/s "));
+    bj.addKv("index", prev_win_index));
+    bj.addKv("elapsedTime", convertMillisecToReadableStr(blocks_win_r.elapsed_time_ms_));
+    bj.addKv("collected", convertUInt64ToReadableStr(blocks_win_r.num_processed_items_, "Blocks") + " / " +
+             convertUInt64ToReadableStr(bytes_win_r.num_processed_items_, "B "));
+    bj.addKv("throughput", convertUInt64ToReadableStr(blocks_win_r.throughput_, "Block/s ") + " / " +
+             convertUInt64ToReadableStr(bytes_win_r.throughput_, "B/s "));
     bj.endNested();
   }
 
   bj.startNested("checkpointInfo");
-
   bj.addKv("lastStored checkpoint", psd_->getLastStoredCheckpoint());
 
   bj.startNested("beingFetched");
-  bj.addKv("target checkpointNum,  targetCheckpointDesc_.checkpointNum));
-  bj.addKv("maxBlockId",  targetCheckpointDesc_.maxBlockId));
+  bj.addKv("target checkpointNum", targetCheckpointDesc_.checkpointNum);
+  bj.addKv("maxBlockId", targetCheckpointDesc_.maxBlockId);
   bj.endNested();
 
   bj.endNested();
-
   bj.endJson();
 
   return bj.getJson();
@@ -2815,6 +2816,7 @@ void BCStateTran::postProcessNextBatch(uint64_t upperBoundBlockId) {
   }
 
   ConcordAssertGT(upperBoundBlockId, maxPostprocessedBlockId_);
+  LOG_TRACE(logger_, "Before postProcessUntilBlockId" << KVLOG(upperBoundBlockId));
   as_->postProcessUntilBlockId(upperBoundBlockId);
   ++iteration;
   uint64_t totalBlocksProcessed = upperBoundBlockId - maxPostprocessedBlockId_;
@@ -2920,6 +2922,7 @@ void BCStateTran::processData(bool lastInBatch, uint32_t rvbDigestsSize) {
       LOG_FATAL(logger_,
                 "Invalid fetch/commit state:" << KVLOG(
                     stateName(fetchingState), fetchState_, commitState_, digestOfNextRequiredBlock_));
+      ConcordAssert(false);
     }
     LOG_DEBUG(
         logger_,
@@ -3116,7 +3119,7 @@ void BCStateTran::processData(bool lastInBatch, uint32_t rvbDigestsSize) {
             LOG_INFO(logger_, registrar.perf.toString(registrar.perf.get("state_transfer")));
             LOG_INFO(logger_, registrar.perf.toString(registrar.perf.get("state_transfer_dest")));
           } else {
-            LOG_INFO(logger_, "skip logging snapshots, cycle is very short (not enough statistics)" << duration);
+            LOG_INFO(logger_, "skip logging snapshots, cycle is very short (not enough statistics)" << KVLOG(duration));
           }
 
           sendFetchResPagesMsg(0);
@@ -3255,7 +3258,7 @@ void BCStateTran::cycleEndSummary() {
   auto cycleDuration = cycleDT_.totalDuration(true);
   auto gettingCheckpointSummariesDuration = gettingCheckpointSummariesDT_.totalDuration(true);
   auto gettingMissingBlocksDuration = gettingMissingBlocksDT_.totalDuration(true);
-  auto commitToChainDuration = postProcessingDT_.totalDuration(true);
+  auto postProcessingDuration = postProcessingDT_.totalDuration(true);
   auto gettingMissingResPagesDuration = gettingMissingResPagesDT_.totalDuration(true);
   LOG_INFO(
       logger_,
@@ -3264,22 +3267,27 @@ void BCStateTran::cycleEndSummary() {
           << " ,Total Duration: " << convertMillisecToReadableStr(cycleDuration)
           << " ,Time to get checkpoint summaries: " << convertMillisecToReadableStr(gettingCheckpointSummariesDuration)
           << " ,Time to fetch missing blocks: " << convertMillisecToReadableStr(gettingMissingBlocksDuration)
-          << " ,Time to commit to chain: " << convertMillisecToReadableStr(commitToChainDuration)
+          << " ,Time to post-process blocks: " << convertMillisecToReadableStr(postProcessingDuration)
           << " ,Time to get reserved pages (vblock): " << convertMillisecToReadableStr(gettingMissingResPagesDuration)
-          << " ,Collected blocks range [" << std::to_string(minBlockIdToCollectInCycle_)
+          << " ,Collected " << convertUInt64ToReadableStr(blocksCollectedResults.num_processed_items_, "Blocks")
+          << " / " << convertUInt64ToReadableStr(bytesCollectedResults.num_processed_items_, "B")
+          << " ,Collected Blocks Range=[" << std::to_string(minBlockIdToCollectInCycle_) << ", "
           << std::to_string(maxBlockIdToCollectInCycle_) << "]"
-          << " ,Collected " << convertUInt64ToReadableStr(blocksCollectedResults.num_processed_items_, "Block")
-          << " and " << convertUInt64ToReadableStr(bytesCollectedResults.num_processed_items_, "B")
-          << " ,#RVB digests validated: " << std::to_string(metrics_.overall_rvb_digests_validated_.Get().Get())
-          << " ,Throughput {GettingMissingBlocks}: "
-          << convertUInt64ToReadableStr(blocksCollectedResults.throughput_, "Block/sec") << " and "
+          << " ,#RVB digests validated: "
+          << std::to_string(metrics_.overall_rvb_digests_validated_.Get().Get())
+          // GettingMissingBlocks Throughput
+          << " ,GettingMissingBlocks Throughput: "
+          << convertUInt64ToReadableStr(blocksCollectedResults.throughput_, "Blocks/sec") << " / "
           << convertUInt64ToReadableStr(bytesCollectedResults.throughput_, "B/sec")
-          << " ,Throughput {Post-Processing}: "
-          << convertUInt64ToReadableStr(blocksPostProcessedResults.throughput_, "Block/sec") << " ,Throughput {cycle}: "
+          // Post-Processing Throughput
+          << " ,Post-Processing Throughput: "
+          << convertUInt64ToReadableStr(blocksPostProcessedResults.throughput_, "Blocks/sec")
+          // cycle Throughput
+          << " ,Cycle Throughput: "
           << convertUInt64ToReadableStr(
                  static_cast<uint64_t>((1000 * blocksCollectedResults.num_processed_items_) / cycleDuration),
-                 "Block/sec")
-          << "and "
+                 "Blocks/sec")
+          << " / "
           << convertUInt64ToReadableStr(
                  static_cast<uint64_t>((1000 * bytesCollectedResults.num_processed_items_) / cycleDuration), "B/sec")
           << ", #" << sources_.size() << " sources (first to last): [" << sources_str.str() << "]");
@@ -3304,6 +3312,7 @@ void BCStateTran::checkConsistency(bool checkAllBlocks, bool duringInit) {
   if (checkAllBlocks) {
     checkReachableBlocks(genesisBlockNum, lastReachableBlockNum);
   }
+
   checkUnreachableBlocks(lastReachableBlockNum, lastBlockNum, duringInit);
   checkBlocksBeingFetchedNow(checkAllBlocks, lastReachableBlockNum, lastBlockNum);
   checkStoredCheckpoints(firstStoredCheckpoint, lastStoredCheckpoint);
@@ -3374,7 +3383,9 @@ void BCStateTran::checkUnreachableBlocks(uint64_t lastReachableBlockNum, uint64_
     LOG_INFO(logger_, std::boolalpha << KVLOG(lastReachableBlockNum, lastBlockNum, duringInit));
     ConcordAssertEQ(getFetchingState(), FetchingState::GettingMissingBlocks);
     uint64_t x = lastBlockNum - 1;
-    while (as_->hasBlock(x)) x--;
+    while (as_->hasBlock(x)) {
+      x--;
+    }
 
     // we should have a hole
     ConcordAssertGT(x, lastReachableBlockNum);
@@ -3576,8 +3587,10 @@ void BCStateTran::peekConsensusMessage(shared_ptr<ConsensusMsg> &msg) {
         sourceSelector_.updateCurrentPrimary(msg->sender_id_);
       }
       break;
-    default:
+    default: {
       LOG_FATAL(logger_, "Unexpected message type" << KVLOG(msg_type));
+      ConcordAssert(false);
+    }
   }
   time_in_incoming_events_queue_rec_.start();
 }
