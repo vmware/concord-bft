@@ -561,9 +561,9 @@ Replica::Replica(ICommunication *comm,
   }
 #endif
 
-  if (stConfig.gettingMissingBlocksSummaryWindowSize > 0 and stConfig.gettingMissingBlocksSummaryWindowSize < 100) {
-    LOG_WARN(logger, "Overriding incorrect ST throughput measurement window size configuration to 100");
-    stConfig.gettingMissingBlocksSummaryWindowSize = 100;
+  if ((stConfig.gettingMissingBlocksSummaryWindowSize > 0) and (stConfig.gettingMissingBlocksSummaryWindowSize < 50)) {
+    LOG_WARN(logger, "Overriding incorrect ST throughput measurement window size configuration to 50");
+    stConfig.gettingMissingBlocksSummaryWindowSize = 50;
   }
 
   if (!replicaConfig.isReadOnly) {
