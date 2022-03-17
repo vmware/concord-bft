@@ -318,14 +318,6 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
     ConcordAssert(!running_);
     ConcordAssertEQ(replicaForStateTransfer_, nullptr);
     ConcordAssertEQ(sizeOfReservedPage, config_.sizeOfReservedPage);
-    // TODO - support any configuration, although config_.fetchRangeSize * config_.RVT_K <=
-    // config_.maxNumberOfChunksInBatch is probably only for testing
-    ConcordAssertGT(config_.fetchRangeSize * config_.RVT_K, config_.maxNumberOfChunksInBatch);
-    // TODO Supporting fetchRangeSize > maxNumberOfChunksInBatch make things more complicated. We will have to
-    // delete blocks from temporary blockchain in case that RVB validation failed since some batches will be without any
-    // single validation until reaching the next RVB. For now, it is reasonable to have this restriction. To be improved
-    // later.
-    ConcordAssertLE(config_.fetchRangeSize, config_.maxNumberOfChunksInBatch);
 
     maxNumOfStoredCheckpoints_ = maxNumOfRequiredStoredCheckpoints;
     numberOfReservedPages_ = numberOfRequiredReservedPages;
@@ -389,14 +381,24 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
 
 void BCStateTran::startRunning(IReplicaForStateTransfer *r) {
   LOG_INFO(logger_, "Starting");
-  if (!config_.isReadOnly && cre_) cre_->halt();
-  if (cre_) cre_->start();
-  ConcordAssertNE(r, nullptr);
   FetchingState fs = getFetchingState();
-  if (!config_.isReadOnly && fs != FetchingState::NotFetching) {
-    LOG_INFO(logger_, "State Transfer cycle continues, starts async reconfiguration engine");
-    if (cre_) cre_->resume();
+
+  // TODO - The next lines up to comment 'XXX' do not belong here (CRE) - move outside
+  if (!config_.isReadOnly && cre_) {
+    cre_->halt();
   }
+  if (cre_) {
+    cre_->start();
+  }
+  ConcordAssertNE(r, nullptr);
+  if ((!config_.isReadOnly) && (fs != FetchingState::NotFetching)) {
+    LOG_INFO(logger_, "State Transfer cycle continues, starts async reconfiguration engine");
+    if (cre_) {
+      cre_->resume();
+    }
+  }
+  /// XXX - end of section to be moved out
+
   running_ = true;
   replicaForStateTransfer_ = r;
   replicaForStateTransfer_->changeStateTransferTimerPeriod(config_.refreshTimerMs);
@@ -409,7 +411,7 @@ void BCStateTran::stopRunning() {
   ConcordAssertNE(replicaForStateTransfer_, nullptr);
   incomingEventsQ_->stop();
   postProcessingQ_->stop();
-  cycleReset();
+  stReset();
   running_ = false;
   replicaForStateTransfer_ = nullptr;
 }
@@ -750,6 +752,7 @@ void BCStateTran::startCollectingStats() {
   metrics_.prev_win_blocks_throughput_.Get().Set(0ull);
   metrics_.prev_win_bytes_collected_.Get().Set(0ull);
   metrics_.prev_win_bytes_throughput_.Get().Set(0ull);
+  metrics_.next_required_block_.Get().Set(0);
 
   // reset recorders
   src_send_batch_duration_rec_.clear();
@@ -763,21 +766,44 @@ void BCStateTran::startCollectingStats() {
   metrics_.start_collecting_state_++;
 }
 
+void BCStateTran::startCollectingStateInternal() {
+  LOG_DEBUG(logger_, KVLOG(internalCycleCounter_));
+  ConcordAssert(sourceSelector_.noPreferredReplicas());
+  ++internalCycleCounter_;
+
+  {  // txn scope
+    DataStoreTransaction::Guard g(psd_->beginTransaction());
+    g.txn()->deleteCheckpointBeingFetched();
+    g.txn()->setFirstRequiredBlock(0);
+    g.txn()->setLastRequiredBlock(0);
+  }
+
+  // print cycle summary
+  cycleEndSummary();
+  startCollectingState();
+}
+
 void BCStateTran::startCollectingState() {
-  LOG_INFO(logger_, "State Transfer cycle started (#" << ++cycleCounter_ << ")");
+  LOG_INFO(
+      logger_,
+      std::boolalpha << "State Transfer cycle started (#" << ++cycleCounter_ << ")," << KVLOG(internalCycleCounter_));
   ConcordAssert(running_);
-  cycleReset();
 
-  startCollectingStats();
+  // TODO - The next 4 lines do not belong here (CRE) - move outside
+  LOG_INFO(logger_, "Starts async reconfiguration engine");
+  if (!config_.isReadOnly && cre_) {
+    cre_->resume();
+  }
 
-  verifyEmptyInfoAboutGettingCheckpointSummary();
   {  // txn scope
     DataStoreTransaction::Guard g(psd_->beginTransaction());
     g.txn()->deleteAllPendingPages();
     g.txn()->setIsFetchingState(true);
   }
-  LOG_INFO(logger_, "Starts async reconfiguration engine");
-  if (!config_.isReadOnly && cre_) cre_->resume();
+  ConcordAssert(running_);
+  stReset();
+  startCollectingStats();
+  ConcordAssertEQ(getFetchingState(), FetchingState::GettingCheckpointSummaries);
   sendAskForCheckpointSummariesMsg();
 }
 
@@ -883,6 +909,8 @@ void BCStateTran::addOnTransferringCompleteCallback(std::function<void(uint64_t)
   }
   on_transferring_complete_cb_registry_.at(uint64_t(priority)).add(std::move(callback));
 }
+// TODO - This next line should be integrated as a callback into on_transferring_complete_cb_registry_.
+// on_fetching_state_change_cb_registry_ should be removed
 void BCStateTran::addOnFetchingStateChangeCallback(std::function<void(uint64_t)> cb) {
   if (cb) on_fetching_state_change_cb_registry_.add(std::move(cb));
 }
@@ -1506,8 +1534,8 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
                            as_->getLastReachableBlockNum() + 1,
                            checkSummary->maxBlockId)) {
       LOG_ERROR(logger_, "Failed to set the new RVT data!");
-      rvbm_->reset();
-      EnterGettingCheckpointSummariesState();
+      // enter new cycle
+      startCollectingStateInternal();
       return true;
     }
   } else {
@@ -2002,7 +2030,6 @@ bool BCStateTran::onMessage(const RejectFetchingMsg *m, uint32_t msgLen, uint16_
               "Expected Fetching State GettingMissingBlocks or GettingMissingResPages. Got: " << stateName(fs));
     ConcordAssert(false);
   }
-  ConcordAssert(sourceSelector_.hasPreferredReplicas());
 
   // if msg is invalid
   if (msgLen < sizeof(RejectFetchingMsg)) {
@@ -2020,10 +2047,11 @@ bool BCStateTran::onMessage(const RejectFetchingMsg *m, uint32_t msgLen, uint16_
     return false;
   }
 
-  ConcordAssert(sourceSelector_.isPreferredSourceId(replicaId));
-  LOG_WARN(logger_, "Removing replica from preferred replicas: " << KVLOG(replicaId));
-  sourceSelector_.removeCurrentReplica();
-  clearAllPendingItemsData();
+  if (sourceSelector_.isPreferredSourceId(replicaId)) {
+    LOG_WARN(logger_, "Removing replica from preferred replicas: " << KVLOG(replicaId));
+    sourceSelector_.removeCurrentReplica();
+    clearAllPendingItemsData();
+  }
 
   if (sourceSelector_.hasPreferredReplicas()) {
     processData();
@@ -2034,8 +2062,8 @@ bool BCStateTran::onMessage(const RejectFetchingMsg *m, uint32_t msgLen, uint16_
     SetAllReplicasAsPreferred();
     processData();
   } else if (fs == FetchingState::GettingMissingResPages) {
-    // TODO - add cycle summary to log
-    EnterGettingCheckpointSummariesState();
+    // enter new cycle
+    startCollectingStateInternal();
   } else {
     ConcordAssert(false);
   }
@@ -2528,29 +2556,6 @@ set<uint16_t> BCStateTran::allOtherReplicas() {
 
 void BCStateTran::SetAllReplicasAsPreferred() { sourceSelector_.setAllReplicasAsPreferred(); }
 
-// TODO - Consider call cycleReset() here instead of all the above + see how to use
-// startCollectingState and remove this function completely. Also, in case of this
-// we enter a new cycle, we do not handle statistics well - we need to print a cycle summary up to the
-// point we've reached, even if we did not completed the original cycle (need to adapt cycleEndSummary to print 
-// accordingly)
-void BCStateTran::EnterGettingCheckpointSummariesState() {
-  LOG_DEBUG(logger_, "");
-  ConcordAssert(sourceSelector_.noPreferredReplicas());
-  sourceSelector_.reset();
-
-  finalizePutblockAsync(PutBlockWaitPolicy::WAIT_ALL_JOBS);
-  fetchState_.reset();
-  commitState_.reset();
-  startCollectingStats();
-  digestOfNextRequiredBlock_.makeZero();
-  clearAllPendingItemsData();
-  clearInfoAboutGettingCheckpointSummary();
-  psd_->deleteCheckpointBeingFetched();
-  ConcordAssertEQ(getFetchingState(), FetchingState::GettingCheckpointSummaries);
-  verifyEmptyInfoAboutGettingCheckpointSummary();
-  sendAskForCheckpointSummariesMsg();
-}
-
 void BCStateTran::reportCollectingStatus(const uint32_t actualBlockSize, bool toLog) {
   metrics_.overall_blocks_collected_++;
   metrics_.overall_bytes_collected_.Get().Set(metrics_.overall_bytes_collected_.Get().Get() + actualBlockSize);
@@ -2823,7 +2828,7 @@ void BCStateTran::postProcessNextBatch(uint64_t upperBoundBlockId) {
   maxPostprocessedBlockId_ = upperBoundBlockId;
 }
 
-void BCStateTran::cycleReset() {
+void BCStateTran::stReset() {
   LOG_INFO(logger_, "");
   if (!ioContexts_.empty() | sourceFlag_) {
     finalizeSource(sourceFlag_);
@@ -2859,8 +2864,8 @@ void BCStateTran::cycleReset() {
   numOfSummariesFromOtherReplicas.clear();
   clearIoContexts();
   ConcordAssert(ioPool_.full());
-  // TODO - should we have a clear function which reset non-absolute metrics between cycles?
-  metrics_.next_required_block_.Get().Set(0);
+
+  verifyEmptyInfoAboutGettingCheckpointSummary();
 }
 
 void BCStateTran::processData(bool lastInBatch, uint32_t rvbDigestsSize) {
@@ -2885,8 +2890,8 @@ void BCStateTran::processData(bool lastInBatch, uint32_t rvbDigestsSize) {
     bool newSourceReplica = (srcReplacementMode != SourceReplacementMode::DO_NOT);
     if (srcReplacementMode != SourceReplacementMode::DO_NOT) {
       if ((fs == FetchingState::GettingMissingResPages) && sourceSelector_.noPreferredReplicas()) {
-        // TODO - add cycle summary to log
-        EnterGettingCheckpointSummariesState();
+        // enter a new cycle
+        startCollectingStateInternal();
         return;
       }
       sourceSelector_.updateSource(currTime);
@@ -3146,6 +3151,8 @@ void BCStateTran::processData(bool lastInBatch, uint32_t rvbDigestsSize) {
         metrics_.checkpoint_being_fetched_.Get().Set(0);
 
         checkConsistency(config_.pedanticChecks);
+
+        // TODO - The next lines up to comment 'YYY' do not belong here (CRE) - move outside
         if (!config_.isReadOnly && cre_) {
           // At this point, we, if are not going to have another blocks in state transfer. So, we can safely stop CRE.
           // if there is a reconfiguration state change that prevents us from starting another state transfer (i.e.
@@ -3172,6 +3179,7 @@ void BCStateTran::processData(bool lastInBatch, uint32_t rvbDigestsSize) {
             }
           }  // while (!succ) {
         }    // if (!config_.isReadOnly && cre_) {
+        /// YYY - end of section to be moved out
 
         // Report Completion
         LOG_INFO(logger_,
@@ -3181,9 +3189,12 @@ void BCStateTran::processData(bool lastInBatch, uint32_t rvbDigestsSize) {
           kv.second.invokeAll(cp.checkpointNum);
         }
         cycleEndSummary();
-        cycleReset();
+        stReset();
         g.txn()->setIsFetchingState(false);
         ConcordAssertEQ(getFetchingState(), FetchingState::NotFetching);
+
+        // TODO - This next line should be integrated as a callback into on_transferring_complete_cb_registry_.
+        // on_fetching_state_change_cb_registry_ should be removed
         on_fetching_state_change_cb_registry_.invokeAll(cp.checkpointNum);
         break;
       }  // isGettingBlocks == false
@@ -3219,7 +3230,7 @@ void BCStateTran::cycleEndSummary() {
 
   if (gettingMissingBlocksDT_.totalDuration() == 0) {
     // we print full summary only if we were collecting blocks
-    LOG_INFO(logger_, "State Transfer cycle ended (#" << cycleCounter_);
+    LOG_INFO(logger_, "State Transfer cycle ended (#" << cycleCounter_ << ")," << KVLOG(internalCycleCounter_));
     return;
   }
 
@@ -3240,7 +3251,8 @@ void BCStateTran::cycleEndSummary() {
   LOG_INFO(
       logger_,
       "State Transfer cycle ended (#"
-          << cycleCounter_ << "), Total Duration: " << convertMillisecToReadableStr(cycleDuration)
+          << cycleCounter_ << ")," << KVLOG(internalCycleCounter_)
+          << " ,Total Duration: " << convertMillisecToReadableStr(cycleDuration)
           << " ,Time to get checkpoint summaries: " << convertMillisecToReadableStr(gettingCheckpointSummariesDuration)
           << " ,Time to fetch missing blocks: " << convertMillisecToReadableStr(gettingMissingBlocksDuration)
           << " ,Time to commit to chain: " << convertMillisecToReadableStr(commitToChainDuration)
@@ -3311,6 +3323,14 @@ void BCStateTran::checkConfig() {
   ConcordAssertEQ(config_.fVal, psd_->getFVal());
   ConcordAssertEQ(maxNumOfStoredCheckpoints_, psd_->getMaxNumOfStoredCheckpoints());
   ConcordAssertEQ(numberOfReservedPages_, psd_->getNumberOfReservedPages());
+  // TODO - support any configuration, although config_.fetchRangeSize * config_.RVT_K <=
+  // config_.maxNumberOfChunksInBatch is probably only for testing
+  ConcordAssertGT(config_.fetchRangeSize * config_.RVT_K, config_.maxNumberOfChunksInBatch);
+  // TODO Supporting fetchRangeSize > maxNumberOfChunksInBatch make things more complicated. We will have to
+  // delete blocks from temporary blockchain in case that RVB validation failed since some batches will be without any
+  // single validation until reaching the next RVB. For now, it is reasonable to have this restriction. To be improved
+  // later.
+  ConcordAssertLE(config_.fetchRangeSize, config_.maxNumberOfChunksInBatch);
 }
 
 void BCStateTran::checkFirstAndLastCheckpoint(uint64_t firstStoredCheckpoint, uint64_t lastStoredCheckpoint) {
