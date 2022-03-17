@@ -133,6 +133,7 @@ class BCStateTran : public IStateTransfer {
   uint64_t postProcessingUpperBoundBlockId_;
   std::atomic<uint64_t> maxPostprocessedBlockId_;
   void postProcessNextBatch(uint64_t upperBoundBlockId);
+  void triggerPostProcessing();
 
   std::string getStatus() override;
 
@@ -369,7 +370,7 @@ class BCStateTran : public IStateTransfer {
   set<ItemDataMsg*, compareItemDataMsg> pendingItemDataMsgs;
   uint32_t totalSizeOfPendingItemDataMsgs = 0;
 
-  void stReset();
+  void stReset(bool hardReset);
   void clearAllPendingItemsData();
   void clearPendingItemsData(uint64_t fromBlock, uint64_t untilBlock);
   bool getNextFullBlock(uint64_t requiredBlock,
@@ -586,6 +587,7 @@ class BCStateTran : public IStateTransfer {
     CounterHandle overall_rvb_digest_groups_validated_;
     CounterHandle overall_rvb_digests_validation_failed_;
     CounterHandle overall_rvb_digest_groups_validation_failed_;
+    StatusHandle current_rvb_data_state_;
   };
   mutable Metrics metrics_;
   Metrics createRegisterMetrics();
@@ -637,6 +639,7 @@ class BCStateTran : public IStateTransfer {
   uint64_t minBlockIdToCollectInCycle_;
   uint64_t maxBlockIdToCollectInCycle_;
   uint64_t totalBlocksLeftToCollectInCycle_;
+  mutable uint64_t totalRvbsValidatedInCycle_;
 
   DurationTracker<std::chrono::milliseconds> cycleDT_;
   DurationTracker<std::chrono::milliseconds> postProcessingDT_;
