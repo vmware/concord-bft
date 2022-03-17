@@ -2779,7 +2779,7 @@ BCStateTran::BlocksBatchDesc BCStateTran::computeNextBatchToFetch(uint64_t minRe
   uint64_t maxRequiredBlockId = minRequiredBlockId + config_.maxNumberOfChunksInBatch - 1;
   if (!isRvbBlockId(maxRequiredBlockId)) {
     uint64_t deltaToNearestRVB = maxRequiredBlockId % config_.fetchRangeSize;
-    if ((maxRequiredBlockId >= deltaToNearestRVB) && (maxRequiredBlockId - deltaToNearestRVB > minRequiredBlockId))
+    if ((maxRequiredBlockId >= deltaToNearestRVB) && (maxRequiredBlockId - deltaToNearestRVB >= minRequiredBlockId))
       maxRequiredBlockId = maxRequiredBlockId - deltaToNearestRVB;
   }
   auto lastRequiredBlock = psd_->getLastRequiredBlock();
