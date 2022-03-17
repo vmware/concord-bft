@@ -263,6 +263,7 @@ class SkvbcPersistenceTest(ApolloTest):
                log.log_message(message_type=f'Stopping replica {stale_node}')
                bft_network.stop_replica(stale_node)
 
+    @unittest.skip("Unstable test - BC-19210")
     @with_trio
     @with_bft_network(start_replica_cmd,
                       selected_configs=lambda n, f, c: f >= 2)
