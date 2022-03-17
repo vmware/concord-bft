@@ -60,37 +60,37 @@ struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
   }
 
   uint64_t checkpointNum;
-  uint64_t lastBlock;
-  STDigest digestOfLastBlock;
+  uint64_t maxBlockId;
+  STDigest digestOfMaxBlockId;
   STDigest digestOfResPagesDescriptor;
   uint64_t requestMsgSeqNum;
 
   static bool equivalent(const CheckpointSummaryMsg* a, const CheckpointSummaryMsg* b) {
     static_assert((sizeof(CheckpointSummaryMsg) - sizeof(requestMsgSeqNum) == 82),
                   "Should newly added field be compared below?");
-    return ((a->lastBlock == b->lastBlock) and (a->checkpointNum == b->checkpointNum) and
-            (a->digestOfLastBlock == b->digestOfLastBlock) and
+    return ((a->maxBlockId == b->maxBlockId) and (a->checkpointNum == b->checkpointNum) and
+            (a->digestOfMaxBlockId == b->digestOfMaxBlockId) and
             (a->digestOfResPagesDescriptor == b->digestOfResPagesDescriptor));
   }
 
   static bool equivalent(const CheckpointSummaryMsg* a, uint16_t a_id, const CheckpointSummaryMsg* b, uint16_t b_id) {
     static_assert((sizeof(CheckpointSummaryMsg) - sizeof(requestMsgSeqNum) == 82),
                   "Should newly added field be compared below?");
-    if ((a->lastBlock != b->lastBlock) || (a->checkpointNum != b->checkpointNum) ||
-        (a->digestOfLastBlock != b->digestOfLastBlock) ||
+    if ((a->maxBlockId != b->maxBlockId) || (a->checkpointNum != b->checkpointNum) ||
+        (a->digestOfMaxBlockId != b->digestOfMaxBlockId) ||
         (a->digestOfResPagesDescriptor != b->digestOfResPagesDescriptor)) {
       auto logger = logging::getLogger("state-transfer");
       LOG_WARN(logger,
                "Mismatched Checkpoints for checkpointNum="
                    << a->checkpointNum << std::endl
 
-                   << "    Replica=" << a_id << " lastBlock=" << a->lastBlock
-                   << " digestOfLastBlock=" << a->digestOfLastBlock.toString()
+                   << "    Replica=" << a_id << " maxBlockId=" << a->maxBlockId
+                   << " digestOfMaxBlockId=" << a->digestOfMaxBlockId.toString()
                    << " digestOfResPagesDescriptor=" << a->digestOfResPagesDescriptor.toString()
                    << " requestMsgSeqNum=" << a->requestMsgSeqNum << std::endl
 
-                   << "    Replica=" << b_id << " lastBlock=" << b->lastBlock
-                   << " digestOfLastBlock=" << b->digestOfLastBlock.toString()
+                   << "    Replica=" << b_id << " maxBlockId=" << b->maxBlockId
+                   << " digestOfMaxBlockId=" << b->digestOfMaxBlockId.toString()
                    << " digestOfResPagesDescriptor=" << b->digestOfResPagesDescriptor.toString()
                    << " requestMsgSeqNum=" << b->requestMsgSeqNum << std::endl);
       return false;
@@ -112,8 +112,8 @@ struct FetchBlocksMsg : public BCStateTranBaseMsg {
   }
 
   uint64_t msgSeqNum;
-  uint64_t firstRequiredBlock;
-  uint64_t lastRequiredBlock;
+  uint64_t minBlockId;
+  uint64_t maxBlockId;
   uint16_t lastKnownChunkInLastRequiredBlock;
 };
 
