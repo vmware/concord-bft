@@ -127,7 +127,7 @@ class RangeValidationTree {
 
   // Log tree only if total elements are less than 10K. In case of failure can assert.
   // SUMMARY - prints basic structure and node ids only
-  void printToLog(LogPrintVerbosity verbosity) const noexcept;  // change to 3 levels
+  void printToLog(LogPrintVerbosity verbosity, std::string&& user_label = "") const noexcept;  // change to 3 levels
 
   // Validate structure and values inside tree. In case of failure can assert.
   bool validate() const noexcept;
@@ -225,7 +225,7 @@ class RangeValidationTree {
     static inline uint64_t nextRvbIndex(uint64_t rvb_index, uint8_t level);
     // caller should not call with 1st rvb_index
     static inline uint64_t prevRvbIndex(uint64_t rvb_index, uint8_t level);
-  };
+  };  // NodeInfo
 
   // Each node, even 0 level nodes, holds a current value and an initial value.
   //

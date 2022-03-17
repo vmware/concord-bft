@@ -194,7 +194,9 @@ class RVBManager {
   inline RVBId nextRvbBlockId(BlockId block_id) const;
 
   // returns the previous RVB ID to block_id. If block_id is an RVB ID, returns block_id.
+  // If there is no previous RVB ID, 0 is returned
   RVBId prevRvbBlockId(BlockId block_id) const { return config_.fetchRangeSize * (block_id / config_.fetchRangeSize); }
+
   void pruneRvbDataDuringCheckpoint(const CheckpointDesc& new_checkpoint_desc);
   // Returns 0 if no such ID
   RVBGroupId getNextRequiredRvbGroupid(RVBId from_rvb_id, RVBId to_rvb_id) const;

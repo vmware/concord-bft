@@ -113,7 +113,7 @@ void RVBManager::init(bool fetching) {
 
   LOG_INFO(logger_, std::boolalpha << KVLOG(pruned_blocks_digests_.size(), desc.checkpointNum, loaded_from_data_store));
   if (print_rvt && (debug_prints_log_level.find(getLogLevel()) != debug_prints_log_level.end())) {
-    in_mem_rvt_->printToLog(LogPrintVerbosity::DETAILED);
+    in_mem_rvt_->printToLog(LogPrintVerbosity::DETAILED, "init");
   }
 }
 
@@ -184,7 +184,9 @@ void RVBManager::pruneRvbDataDuringCheckpoint(const CheckpointDesc& new_checkpoi
     auto digest = pruned_blocks_digests_[i].second;
     if ((rvb_id <= new_checkpoint_desc.maxBlockId) && (rvb_id == in_mem_rvt_->getMinRvbId())) {
       LOG_TRACE(logger_, "Remove digest for block " << rvb_id << " ,Digest: " << digest.toString());
-      if (!from_block_id) from_block_id = rvb_id;
+      if (!from_block_id) {
+        from_block_id = rvb_id;
+      }
       to_block_id = rvb_id;
       in_mem_rvt_->removeLeftNode(rvb_id, digest.get(), BLOCK_DIGEST_SIZE);
     } else if (rvb_id > new_checkpoint_desc.maxBlockId) {
@@ -193,7 +195,8 @@ void RVBManager::pruneRvbDataDuringCheckpoint(const CheckpointDesc& new_checkpoi
   }
   if (from_block_id > 0) {
     LOG_INFO(logger_,
-             "Removed " << i << " digests from in_mem_rvt_, from/to block IDs:" << KVLOG(from_block_id, to_block_id));
+             "Updated RVT (remove): Removed "
+                 << i << " digests from in_mem_rvt_, from/to block IDs:" << KVLOG(from_block_id, to_block_id));
   }
   if (!pruned_blocks_digests_.empty() && (debug_prints_log_level.find(getLogLevel()) != debug_prints_log_level.end())) {
     ostringstream oss;
@@ -260,7 +263,9 @@ void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_de
     } else {
       new_checkpoint_desc.rvbData.clear();
     }
-    in_mem_rvt_->printToLog(LogPrintVerbosity::DETAILED);
+    std::string label{"updateRvbDataDuringCheckpoint"};
+    label += std::to_string(new_checkpoint_desc.checkpointNum);
+    in_mem_rvt_->printToLog(LogPrintVerbosity::DETAILED, label.c_str());
   }
   last_checkpoint_desc_ = new_checkpoint_desc;
 }
@@ -303,7 +308,7 @@ bool RVBManager::setRvbData(char* data, size_t data_size, BlockId min_block_id_s
   }
 
   LOG_INFO(logger_, "Success setting new RVB data from network!");
-  in_mem_rvt_->printToLog(LogPrintVerbosity::DETAILED);
+  in_mem_rvt_->printToLog(LogPrintVerbosity::DETAILED, "setRvbData");
   rvb_data_source_ = RvbDataInitialSource::FROM_NETWORK;
   return true;
 }
@@ -625,7 +630,7 @@ uint64_t RVBManager::addRvbDataOnBlockRange(uint64_t min_block_id,
                                             const std::optional<STDigest>& digest_of_max_block_id) {
   LOG_TRACE(logger_, KVLOG(min_block_id, max_block_id));
   ConcordAssertLE(min_block_id, max_block_id);
-  uint64_t rvb_nodes_added{};
+  uint64_t num_rvbs_added{};
 
   if (max_block_id == 0) {
     LOG_WARN(logger_, KVLOG(max_block_id));
@@ -644,7 +649,7 @@ uint64_t RVBManager::addRvbDataOnBlockRange(uint64_t min_block_id,
                 "Add digest for block " << current_rvb_id << " "
                                         << " Digest: " << digest.toString());
       in_mem_rvt_->addRightNode(current_rvb_id, digest.getForUpdate(), BLOCK_DIGEST_SIZE);
-      ++rvb_nodes_added;
+      ++num_rvbs_added;
     }
     current_rvb_id += config_.fetchRangeSize;
   }
@@ -655,21 +660,21 @@ uint64_t RVBManager::addRvbDataOnBlockRange(uint64_t min_block_id,
                 "Add digest for block " << current_rvb_id << " "
                                         << " ,Digest: " << digest.toString());
       in_mem_rvt_->addRightNode(current_rvb_id, digest.get(), BLOCK_DIGEST_SIZE);
-      ++rvb_nodes_added;
+      ++num_rvbs_added;
     } else {
       auto digest = getBlockAndComputeDigest(max_block_id);
       LOG_DEBUG(logger_,
                 "Add digest for block " << current_rvb_id << " "
                                         << " ,Digest: " << digest.toString());
       in_mem_rvt_->addRightNode(current_rvb_id, digest.get(), BLOCK_DIGEST_SIZE);
-      ++rvb_nodes_added;
+      ++num_rvbs_added;
     }
   }
-  if (rvb_nodes_added > 0) {
+  if (num_rvbs_added > 0) {
     LOG_INFO(logger_,
-             "Updated RVT (add):" << KVLOG(min_block_id, max_block_id, rvb_nodes_added, as_->getLastBlockNum()));
+             "Updated RVT (add):" << KVLOG(min_block_id, max_block_id, num_rvbs_added, as_->getLastBlockNum()));
   }
-  return rvb_nodes_added;
+  return num_rvbs_added;
 }
 
 RVBId RVBManager::nextRvbBlockId(BlockId block_id) const {

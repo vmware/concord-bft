@@ -32,7 +32,7 @@ using NodeInfo = RangeValidationTree::NodeInfo;
 using RVTNodePtr = RangeValidationTree::RVTNodePtr;
 
 // uncomment to add debug prints
-// #define DO_DEBUG
+#define DO_DEBUG
 #ifdef DO_DEBUG
 #define DEBUG_PRINT(x, y) LOG_DEBUG(x, y)
 #define logInfoVal(x) logInfoVal(x)
@@ -520,7 +520,7 @@ bool RangeValidationTree::validateTreeValues() const noexcept {
 
 bool RangeValidationTree::validate() const noexcept { return validateTreeStructure() && validateTreeValues(); }
 
-void RangeValidationTree::printToLog(LogPrintVerbosity verbosity) const noexcept {
+void RangeValidationTree::printToLog(LogPrintVerbosity verbosity, string&& user_label) const noexcept {
   if (!root_ or totalNodes() == 0) {
     LOG_INFO(logger_, "Empty RVT");
     return;
@@ -530,11 +530,14 @@ void RangeValidationTree::printToLog(LogPrintVerbosity verbosity) const noexcept
     return;
   }
   std::ostringstream oss;
-  oss << " #Levels=" << root_->info_.level() << " ,#Nodes=" << totalNodes() << " ,min_rvb_index_=" << min_rvb_index_
-      << " ,max_rvb_index_=" << max_rvb_index_ << " ,RVT_K=" << RVT_K << " ,FRS=" << fetch_range_size_
-      << " ,value_size=" << value_size_;
+  if (!user_label.empty()) {
+    oss << "Label=" << user_label << ", ";
+  }
+  oss << "#Levels=" << root_->info_.level() << ", #Nodes=" << totalNodes() << ", min_rvb_index_=" << min_rvb_index_
+      << ", max_rvb_index_=" << max_rvb_index_ << ", RVT_K=" << RVT_K << ", FRS=" << fetch_range_size_
+      << ", value_size=" << value_size_;
 
-  oss << " Structure:";
+  oss << " ,Structure:";
   queue<RVTNodePtr> q;
   q.push(root_);
   while (q.size()) {
@@ -543,10 +546,11 @@ void RangeValidationTree::printToLog(LogPrintVerbosity verbosity) const noexcept
     oss << node->info_.toString() << " ";
 
     if (verbosity == LogPrintVerbosity::DETAILED) {
-      oss << " level=" << node->info_.level() << " rvb_index=" << node->info_.rvb_index()
-          << " insertion_counter_=" << node->insertion_counter_ << " current_value_=" << node->current_value_.toString()
-          << " min_cid=" << NodeInfo(node->minChildId()).toString()
-          << " max_cid=" << NodeInfo(node->maxChildId()).toString();
+      oss << ", level=" << node->info_.level() << ", rvb_index=" << node->info_.rvb_index()
+          << ", insertion_counter_=" << node->insertion_counter_
+          << ", current_value_=" << node->current_value_.toString()
+          << ", min_cid=" << NodeInfo(node->minChildId()).toString()
+          << ", max_cid=" << NodeInfo(node->maxChildId()).toString();
 
       // Keep for debugging
       // ConcordAssert(node->hasChilds());
@@ -1067,17 +1071,17 @@ bool RangeValidationTree::setSerializedRvbData(std::istringstream& is) {
 
   if ((data.magic_num != magic_num_) || (data.version_num != version_num_) || (data.RVT_K != RVT_K) ||
       (data.fetch_range_size != fetch_range_size_) || (data.value_size != value_size_)) {
-    LOG_ERROR(logger_,
-              "Failed to deserialize metadata" << KVLOG(data.magic_num,
-                                                        magic_num_,
-                                                        data.version_num,
-                                                        version_num_,
-                                                        data.RVT_K,
-                                                        RVT_K,
-                                                        data.fetch_range_size,
-                                                        fetch_range_size_,
-                                                        data.value_size,
-                                                        value_size_));
+    LOG_WARN(logger_,
+             "Failed to deserialize metadata" << KVLOG(data.magic_num,
+                                                       magic_num_,
+                                                       data.version_num,
+                                                       version_num_,
+                                                       data.RVT_K,
+                                                       RVT_K,
+                                                       data.fetch_range_size,
+                                                       fetch_range_size_,
+                                                       data.value_size,
+                                                       value_size_));
     clear();
     return false;
   }
