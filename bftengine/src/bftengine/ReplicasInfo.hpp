@@ -105,8 +105,8 @@ class ReplicasInfo {
   const std::set<ReplicaId> _idsOfPeerROReplicas;
   const std::set<PrincipalId> _idsOfClientProxies;
   const std::set<PrincipalId> _idsOfExternalClients;
-  const std::set<PrincipalId> _idsOfInternalClients;
   const std::set<PrincipalId> _idsOfClientServices;
+  const std::set<PrincipalId> _idsOfInternalClients;
 };
 }  // namespace impl
 }  // namespace bftEngine
