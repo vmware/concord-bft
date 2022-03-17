@@ -6,14 +6,14 @@ Msg TxRequest 3 {
 
 Msg TxReply 4 {
     bool success
-    uint64 latest_block
+    uint64 last_block_id
 }
 
 Msg GetLastBlockRequest 5 {
 }
 
 Msg GetLastBlockReply 6 {
-    uint64 latest_block
+    uint64 last_block_id
 }
 
 Msg GetBlockDataRequest 7 {
@@ -22,6 +22,7 @@ Msg GetBlockDataRequest 7 {
 
 Msg GetBlockDataReply 8 {
     uint64 block_id
+    bytes tx
 }
 
 Msg UTTRequest 1 {

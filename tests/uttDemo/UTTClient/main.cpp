@@ -107,6 +107,59 @@ ICommunication* setupCommunicationParams(ClientParams& cp) {
   return CommFactory::create(conf);
 }
 
+// Sync state by fetching missing blocks and executing them
+void syncState(AppState& state, Client& client) {
+  std::cout << "Sync state...\n";
+
+  // Request last block id
+  {
+    UTTRequest req;
+    req.request = GetLastBlockRequest();
+    ReadConfig readConf{RequestConfig{false, nextSeqNum()}, LinearizableQuorum{}};
+
+    Msg reqBytes;
+    serialize(reqBytes, req);
+    auto replyBytes = client.send(readConf, std::move(reqBytes));  // Sync send
+
+    UTTReply reply;
+    deserialize(replyBytes.matched_data, reply);
+
+    const auto& lastBlockReply = std::get<GetLastBlockReply>(reply.reply);  // throws if unexpected variant
+    std::cout << "Got GetLastBlockReply, last_block_id=" << lastBlockReply.last_block_id << '\n';
+
+    state.setLastKnownBlockId(lastBlockReply.last_block_id);
+  }
+
+  // Sync missing blocks
+  auto missingBlockId = state.sync();
+  while (missingBlockId) {
+    // Request missing block
+    GetBlockDataRequest blockDataReq;
+    blockDataReq.block_id = *missingBlockId;
+
+    UTTRequest req;
+    req.request = std::move(blockDataReq);
+    ReadConfig readConf{RequestConfig{false, nextSeqNum()}, LinearizableQuorum{}};
+
+    Msg reqBytes;
+    serialize(reqBytes, req);
+    auto replyBytes = client.send(readConf, std::move(reqBytes));  // Sync send
+
+    UTTReply reply;
+    deserialize(replyBytes.matched_data, reply);
+
+    const auto& blockDataReply = std::get<GetBlockDataReply>(reply.reply);  // throws if unexpected variant
+    std::cout << "Got GetBlockDataReply, block_id=" << blockDataReply.block_id << '\n';
+
+    if (blockDataReply.id != *missingBlockId) throw std::runtime_error("Received missing block id differs!");
+    auto tx = parseTx(BytesToStr(blockDataReply.tx));
+    if (!tx) throw std::runtime_error("Failed to parse tx from missing block!");
+
+    state.appendBlock(Block{std::move(*tx)});
+    missingBlockId = state.sync();
+  }
+}
+
 int main(int argc, char** argv) {
   try {
     logging::initLogger("logging.properties");
@@ -126,7 +179,6 @@ int main(int argc, char** argv) {
     clientConfig.id = ClientId{clientParams.clientId};
 
     Client client(comm, clientConfig);
-
     AppState state;
 
     while (true) {
@@ -141,16 +193,13 @@ int main(int argc, char** argv) {
         } else if (cmd == "h") {
           std::cout << "list of commands is empty (NYI)\n";
         } else if (cmd == "balance") {
+          syncState(state, client);
           for (const auto& kvp : state.GetAccounts()) {
             const auto& acc = kvp.second;
             std::cout << acc.getId() << " : " << acc.getBalancePublic() << '\n';
           }
         } else if (cmd == "ledger") {
-          // ToDo: check for new blocks
-
-          // ToDo: send last block request
-
-          // ToDo: fetch missing blocks
+          syncState(state, client);
           for (const auto& block : state.GetBlocks()) {
             std::cout << block << '\n';
           }
@@ -175,10 +224,10 @@ int main(int argc, char** argv) {
           deserialize(replyBytes.matched_data, reply);
 
           const auto& txReply = std::get<TxReply>(reply.reply);  // throws if unexpected variant
-          std::cout << "Got TxReply, success=" << txReply.success << " latest_block=" << txReply.latest_block << '\n';
+          std::cout << "Got TxReply, success=" << txReply.success << " last_block_id=" << txReply.last_block_id << '\n';
 
           if (txReply.success) {
-            state.executeNextTx(*tx);
+            state.setLastKnownBlockId(txReply.last_block_id);
             std::cout << "Ok.\n";
           } else {
             std::cout << "Failed to execute transaction!\n";

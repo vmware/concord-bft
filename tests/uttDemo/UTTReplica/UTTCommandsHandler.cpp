@@ -53,14 +53,15 @@ void UTTCommandsHandler::execute(UTTCommandsHandler::ExecutionRequestsQueue& req
         LOG_INFO(logger_, "Received TxRequest with command: " << cmd);
         if (auto tx = parseTx(cmd)) {
           state_.validateTx(*tx);
-          int latest_block = state_.executeNextTx(*tx);
 
           UTTReply reply;
           reply.reply = TxReply();
           auto& txReply = std::get<TxReply>(reply.reply);
 
           txReply.success = true;
-          txReply.latest_block = latest_block;
+          txReply.last_block_id = state_.appendBlock(Block{std::move(*tx)});
+
+          state_.sync();
 
           vector<uint8_t> serialized_reply;
           serialize(serialized_reply, reply);
@@ -73,11 +74,64 @@ void UTTCommandsHandler::execute(UTTCommandsHandler::ExecutionRequestsQueue& req
           copy(serialized_reply.begin(), serialized_reply.end(), outReply);
           outReplySize = serialized_reply.size();
 
-          LOG_INFO(logger_, "UTTRquest message handled");
+          LOG_INFO(logger_, "TxRequest message handled");
           it.outExecutionStatus = static_cast<uint32_t>(OperationResult::SUCCESS);
         } else {
           throw std::runtime_error("Failed to parse TxRequest!");
         }
+
+      } else if (std::holds_alternative<GetLastBlockRequest>(deserialized_request.request)) {
+        LOG_INFO(logger_, "Received GetLastBlockRequest");
+
+        UTTReply reply;
+        reply.reply = GetLastBlockReply();
+        auto& lastBlockReply = std::get<GetLastBlockReply>(reply.reply);
+        lastBlockReply.last_block_id = state_.getLastKnowBlockId();
+
+        vector<uint8_t> serialized_reply;
+        serialize(serialized_reply, reply);
+        if (maxReplySize < serialized_reply.size()) {
+          LOG_ERROR(logger_,
+                    "replySize is too big: replySize=" << serialized_reply.size() << ", maxReplySize=" << maxReplySize);
+          it.outExecutionStatus = static_cast<uint32_t>(OperationResult::EXEC_DATA_TOO_LARGE);
+        }
+        copy(serialized_reply.begin(), serialized_reply.end(), outReply);
+        outReplySize = serialized_reply.size();
+
+        LOG_INFO(logger_, "GetLastBlockRequest message handled");
+        it.outExecutionStatus = static_cast<uint32_t>(OperationResult::SUCCESS);
+
+      } else if (std::holds_alternative<GetBlockDataRequest>(deserialized_request.request)) {
+        const auto& blockDataReq = std::get<GetBlockDataRequest>(deserialized_request.request);
+        LOG_INFO(logger_, "Received GetBlockDataRequest for block_id=" << blockDataReq.block_id);
+
+        UTTReply reply;
+        reply.reply = GetBlockDataReply();
+        auto& blockDataReply = std::get<GetBlockDataReply>(reply.reply);
+
+        const auto* block = state_.getBlockById(blockDataReq.block_id);
+        if (block) {
+          blockDataReply.block_id = block->id_;
+          if (block->tx_) {
+            std::stringstream ss;
+            ss << *block->tx_;
+            blockDataReply.tx = StrToBytes(ss.str());
+          }
+        }
+
+        vector<uint8_t> serialized_reply;
+        serialize(serialized_reply, reply);
+        if (maxReplySize < serialized_reply.size()) {
+          LOG_ERROR(logger_,
+                    "replySize is too big: replySize=" << serialized_reply.size() << ", maxReplySize=" << maxReplySize);
+          it.outExecutionStatus = static_cast<uint32_t>(OperationResult::EXEC_DATA_TOO_LARGE);
+        }
+        copy(serialized_reply.begin(), serialized_reply.end(), outReply);
+        outReplySize = serialized_reply.size();
+
+        LOG_INFO(logger_, "GetBlockDataRequest message handled");
+        it.outExecutionStatus = static_cast<uint32_t>(OperationResult::SUCCESS);
+
       } else {
         throw std::runtime_error("Unhandled UTTRquest type!");
       }

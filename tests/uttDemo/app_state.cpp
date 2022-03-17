@@ -29,9 +29,8 @@ int Account::withdrawPublic(int val) {
 }
 
 std::ostream& operator<<(std::ostream& os, const Block& b) {
-  os << "Block " << b.id_ << "\n";
-  os << "---------------------------\n";
-  b.tx_ ? os << *b.tx_ : os << "(No transactions)";
+  os << b.id_ << " | ";
+  b.tx_ ? os << *b.tx_ : os << "(Empty)";
   return os;
 }
 
@@ -40,6 +39,32 @@ AppState::AppState() {
   accounts_.emplace("B", Account("B"));
   accounts_.emplace("C", Account("C"));
   blocks_.emplace_back();  // Genesis block
+}
+
+void AppState::setLastKnownBlockId(BlockId id) { lastKnownBlockId_ = std::max<int>(lastKnownBlockId_, id); }
+
+BlockId AppState::getLastKnowBlockId() const { return lastKnownBlockId_; }
+
+const Block* AppState::getBlockById(BlockId id) const {
+  if (id >= blocks_.size()) return nullptr;
+  return &blocks_[id];
+}
+
+std::optional<BlockId> AppState::sync() {
+  for (int i = lastExecutedBlockId_ + 1; i < (int)blocks_.size(); ++i)
+    if (blocks_[i].tx_) executeTx(*blocks_[i].tx_);
+
+  lastExecutedBlockId_ = blocks_.size() - 1;
+
+  return lastExecutedBlockId_ < lastKnownBlockId_ ? std::optional<int>(lastExecutedBlockId_ + 1) : std::nullopt;
+}
+
+BlockId AppState::appendBlock(Block&& bl) {
+  BlockId nextBlockId = blocks_.size();
+  bl.id_ = nextBlockId;
+  blocks_.emplace_back(std::move(bl));
+  lastKnownBlockId_ = std::max<int>(lastKnownBlockId_, nextBlockId);
+  return nextBlockId;
 }
 
 const std::map<std::string, Account> AppState::GetAccounts() const { return accounts_; }
@@ -91,7 +116,7 @@ void AppState::validateTx(const Tx& tx) const {
   std::visit(Visitor{*this}, tx);
 }
 
-int AppState::executeNextTx(const Tx& tx) {
+void AppState::executeTx(const Tx& tx) {
   struct Visitor {
     AppState& state_;
 
@@ -120,8 +145,4 @@ int AppState::executeNextTx(const Tx& tx) {
   };
 
   std::visit(Visitor{*this}, tx);
-
-  int next_block_id = blocks_.size() + 1;
-  blocks_.emplace_back(next_block_id, tx);
-  return next_block_id;
 }

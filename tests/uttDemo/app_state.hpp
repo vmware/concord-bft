@@ -38,18 +38,27 @@ class Account {
   // To-Do: add optional UTT wallet
 };
 
+using BlockId = std::uint64_t;
+
 struct Block {
   Block() : id_(0) {}
-  Block(int id, Tx tx) : id_(id), tx_(std::move(tx)) {}
+  Block(Tx tx) : id_(0), tx_(std::move(tx)) {}
+  Block(BlockId id, Tx tx) : id_(id), tx_(std::move(tx)) {}
 
-  int id_ = 0;
+  BlockId id_ = 0;
   std::optional<Tx> tx_;
-  std::set<std::string> nullifiers_;
 };
 std::ostream& operator<<(std::ostream& os, const Block& b);
 
 struct AppState {
   AppState();
+
+  void setLastKnownBlockId(BlockId id);
+  BlockId getLastKnowBlockId() const;
+  const Block* getBlockById(BlockId id) const;
+
+  std::optional<BlockId> sync();    // Returns missing block id if unknown blocks exist
+  BlockId appendBlock(Block&& bl);  // Return the id of the appended block
 
   const std::map<std::string, Account> GetAccounts() const;
   const std::vector<Block>& GetBlocks() const;
@@ -58,9 +67,11 @@ struct AppState {
   Account* getAccountById(const std::string& id);
 
   void validateTx(const Tx& tx) const;  // throws std::domain_error
-  int executeNextTx(const Tx& tx);      // return latest block id
+  void executeTx(const Tx& tx);
 
  private:
   std::map<std::string, Account> accounts_;
   std::vector<Block> blocks_;
+  BlockId lastExecutedBlockId_ = 0;
+  BlockId lastKnownBlockId_ = 0;
 };
