@@ -338,10 +338,10 @@ class RangeValidationTree {
   void addValueToInternalNodes(const RVTNodePtr& bottom_node, const NodeVal& value);
   void removeAndUpdateInternalNodes(const RVTNodePtr& rvt_node, const NodeVal& value);
   void setNewRoot(const RVTNodePtr& new_root);
-  RVTNodePtr openForInsertion(uint64_t level) const;
-  RVTNodePtr openForRemoval(uint64_t level) const;
-  uint64_t rvbIdToIndex(RVBId rvb_id) const;  // rvb_id must be valid
-  uint64_t rvbIndexToId(RVBId rvb_id) const;  // rvb_id must be valid
+  inline RVTNodePtr openForInsertion(uint64_t level) const;
+  inline RVTNodePtr openForRemoval(uint64_t level) const;
+  inline uint64_t rvbIdToIndex(RVBId rvb_id) const;  // rvb_id must be valid
+  inline uint64_t rvbIndexToId(RVBId rvb_id) const;  // rvb_id must be valid
 
   enum class ArrUpdateType { ADD_NODE_TO_RIGHT, CHECK_REMOVE_NODE };
   void updateOpenRvtNodeArrays(ArrUpdateType update_type, const RVTNodePtr& node);

@@ -913,7 +913,7 @@ void RangeValidationTree::setNewRoot(const RVTNodePtr& new_root) {
   updateOpenRvtNodeArrays(ArrUpdateType::ADD_NODE_TO_RIGHT, new_root);
 }
 
-inline RVTNodePtr RangeValidationTree::openForInsertion(uint64_t level) const {
+RVTNodePtr RangeValidationTree::openForInsertion(uint64_t level) const {
   if (!rightmost_rvt_node_[level]) {
     return nullptr;
   }
@@ -921,14 +921,14 @@ inline RVTNodePtr RangeValidationTree::openForInsertion(uint64_t level) const {
   return rnode->openForInsertion() ? rnode : nullptr;
 }
 
-inline RVTNodePtr RangeValidationTree::openForRemoval(uint64_t level) const { return leftmost_rvt_node_[level]; }
+RVTNodePtr RangeValidationTree::openForRemoval(uint64_t level) const { return leftmost_rvt_node_[level]; }
 
-inline uint64_t RangeValidationTree::rvbIdToIndex(RVBId rvb_id) const {
+uint64_t RangeValidationTree::rvbIdToIndex(RVBId rvb_id) const {
   ConcordAssert(isValidRvbId(rvb_id));
   return rvb_id / fetch_range_size_;
 }
 
-inline uint64_t RangeValidationTree::rvbIndexToId(uint64_t rvb_index) const { return rvb_index * fetch_range_size_; }
+uint64_t RangeValidationTree::rvbIndexToId(uint64_t rvb_index) const { return rvb_index * fetch_range_size_; }
 
 void RangeValidationTree::updateOpenRvtNodeArrays(ArrUpdateType update_type, const RVTNodePtr& node) {
   auto lvl = node->info_.level();
