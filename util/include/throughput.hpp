@@ -46,6 +46,10 @@ class DurationTracker {
     total_duration_ = 0;
     running_ = false;
   }
+  void restart() {
+    start_time_ = std::chrono::steady_clock::now();
+    running_ = true;
+  }
   uint64_t totalDuration(bool doReset = false) {
     uint64_t ret = total_duration_;
     if (running_) {
@@ -128,7 +132,7 @@ class Throughput {
  protected:
   struct Stats {
     DurationTracker<std::chrono::milliseconds> total_duration_;
-    Results results_;
+    Results results_{};
 
     void restart();
     void reset();
