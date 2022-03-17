@@ -186,7 +186,7 @@ void RVBManager::pruneRvbDataDuringCheckpoint(const CheckpointDesc& new_checkpoi
       LOG_TRACE(logger_, "Remove digest for block " << rvb_id << " ,Digest: " << digest.toString());
       if (!from_block_id) from_block_id = rvb_id;
       to_block_id = rvb_id;
-      in_mem_rvt_->removeNode(rvb_id, digest.get(), BLOCK_DIGEST_SIZE);
+      in_mem_rvt_->removeLeftNode(rvb_id, digest.get(), BLOCK_DIGEST_SIZE);
     } else if (rvb_id > new_checkpoint_desc.maxBlockId) {
       break;
     }
@@ -470,7 +470,7 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
   // Lets validate them against the in memory tree. We assume that no pruning was done, so we have all the RVBs
   RangeValidationTree digests_rvt(logger_, config_.RVT_K, config_.fetchRangeSize);
   for (auto& p : digests) {
-    digests_rvt.addNode(p.first, p.second.get(), BLOCK_DIGEST_SIZE);
+    digests_rvt.addRightNode(p.first, p.second.get(), BLOCK_DIGEST_SIZE);
   }
   const std::string digests_rvt_root_val = digests_rvt.getRootCurrentValueStr();
   const std::string rvt_parent_val = in_mem_rvt_->getDirectParentValueStr(digests.begin()->first);
@@ -643,7 +643,7 @@ uint64_t RVBManager::addRvbDataOnBlockRange(uint64_t min_block_id,
       LOG_DEBUG(logger_,
                 "Add digest for block " << current_rvb_id << " "
                                         << " Digest: " << digest.toString());
-      in_mem_rvt_->addNode(current_rvb_id, digest.getForUpdate(), BLOCK_DIGEST_SIZE);
+      in_mem_rvt_->addRightNode(current_rvb_id, digest.getForUpdate(), BLOCK_DIGEST_SIZE);
       ++rvb_nodes_added;
     }
     current_rvb_id += config_.fetchRangeSize;
@@ -654,14 +654,14 @@ uint64_t RVBManager::addRvbDataOnBlockRange(uint64_t min_block_id,
       LOG_DEBUG(logger_,
                 "Add digest for block " << current_rvb_id << " "
                                         << " ,Digest: " << digest.toString());
-      in_mem_rvt_->addNode(current_rvb_id, digest.get(), BLOCK_DIGEST_SIZE);
+      in_mem_rvt_->addRightNode(current_rvb_id, digest.get(), BLOCK_DIGEST_SIZE);
       ++rvb_nodes_added;
     } else {
       auto digest = getBlockAndComputeDigest(max_block_id);
       LOG_DEBUG(logger_,
                 "Add digest for block " << current_rvb_id << " "
                                         << " ,Digest: " << digest.toString());
-      in_mem_rvt_->addNode(current_rvb_id, digest.get(), BLOCK_DIGEST_SIZE);
+      in_mem_rvt_->addRightNode(current_rvb_id, digest.get(), BLOCK_DIGEST_SIZE);
       ++rvb_nodes_added;
     }
   }

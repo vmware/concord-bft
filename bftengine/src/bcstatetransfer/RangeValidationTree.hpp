@@ -42,6 +42,10 @@ using RVBIndex = uint64_t;
 // checkpointing where as existing nodes would be deleted when pruning on old blocks begins.
 // Comment: this data structure is easy to be used to validate any type of data, not only block digests.
 //
+// Insertion and removal of nodes:
+// * Insertion: nodes are inserted to the right, with the next expected RVB ID by calling addRightNode.
+// * Removal: nodes are removed from the left, with the next expected RVB ID by calling removeLeftnode.
+//
 // Terms used throughout code -
 // 1. RVT_K = Maximum number of children any node can have
 // 2. Fetch range = Not all blocks will be validated. Only max block from given fetch range will be validated.
@@ -74,13 +78,18 @@ class RangeValidationTree {
   RangeValidationTree(const RangeValidationTree&) = delete;
   RangeValidationTree& operator=(RangeValidationTree&) = delete;
 
-  // All API deals with only range validation block (RVB) ids.
-  // In case tree structure found inconsistent internally, it may assert.
-  void addNode(const RVBId id, const char* data, size_t data_size);
-  void removeNode(const RVBId id, const char* data, size_t data_size);
+  // Add a node to the right of the tree. Expected id: (getMaxRvbId() + 1) * fetch_range_size
+  // If RVB is invalid, we terminate (internal bug).
+  void addRightNode(const RVBId id, const char* data, size_t data_size);
+
+  // Remove a node from the left of the tree. Expected id: (getMinRvbId() - 1) * fetch_range_size
+  // If RVB is invalid, we terminate (internal bug).
+  void removeLeftNode(const RVBId id, const char* data, size_t data_size);
+
   // Return complete tree along with metadata in serialized format
   // In case of failure can assert
   std::ostringstream getSerializedRvbData() const;
+
   // Initialize metadata & build tree by deserializing input stream
   // If function fails, tree reset to null and returns false.
   // In case of failure can assert
@@ -95,22 +104,31 @@ class RangeValidationTree {
 
   // Returns all actual childs in ascending order. In case of failure, returns empty vector.
   std::vector<RVBId> getRvbIds(RVBGroupId id) const;
+
   // Returns value of direct parent of RVB. In case of failure, returns empty string with size zero.
   std::string getDirectParentValueStr(RVBId rvb_id) const;
 
   // Return the min RVB ID in the tree. Return 0 if tree is empty.
   RVBId getMinRvbId() const;
+
   // Return the max RVB ID in the tree. Return 0 if tree is empty.
   RVBId getMaxRvbId() const;
+
+  // Returns true if tree is empty.
   bool empty() const { return (id_to_node_.size() == 0) ? true : false; }
+
+  // Returns current state of the tree. In practice: a hexadecimal format string represting the root current value.
   const std::string getRootCurrentValueStr() const { return root_ ? root_->current_value_.toString() : ""; }
-  // Clear all data structures
+
+  // Clear the tree
   void clear() noexcept;
 
   enum class LogPrintVerbosity { DETAILED, SUMMARY };
+
   // Log tree only if total elements are less than 10K. In case of failure can assert.
   // SUMMARY - prints basic structure and node ids only
   void printToLog(LogPrintVerbosity verbosity) const noexcept;  // change to 3 levels
+
   // Validate structure and values inside tree. In case of failure can assert.
   bool validate() const noexcept;
 

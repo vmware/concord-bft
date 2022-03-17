@@ -117,8 +117,8 @@ class BcStTestDelegator {
   std::vector<RVBId> getRvbIds(RVBGroupId id) const { return rvt_->getRvbIds(id); }
   void printToLog() const { return rvt_->printToLog(LogPrintVerbosity::SUMMARY); }
 
-  void addNode(const RVBId start_id, const RVBId end_id);
-  void removeNode(const RVBId start_id, const RVBId end_id);
+  void addRightNode(const RVBId start_id, const RVBId end_id);
+  void removeLeftNode(const RVBId start_id, const RVBId end_id);
 
  protected:
   std::unique_ptr<RangeValidationTree> rvt_;
@@ -126,18 +126,18 @@ class BcStTestDelegator {
   const logging::Logger logger_;
 };
 
-void BcStTestDelegator::addNode(const RVBId start_id, const RVBId end_id) {
+void BcStTestDelegator::addRightNode(const RVBId start_id, const RVBId end_id) {
   for (auto i = start_id; i <= end_id; i = i + config_.fetch_range_size_) {
     const auto str = std::to_string(i);
-    ASSERT_NFF(rvt_->addNode(i, str.data(), str.size()));
+    ASSERT_NFF(rvt_->addRightNode(i, str.data(), str.size()));
     ASSERT_NFF(validate());
   }
 }
 
-void BcStTestDelegator::removeNode(const RVBId start_id, const RVBId end_id) {
+void BcStTestDelegator::removeLeftNode(const RVBId start_id, const RVBId end_id) {
   for (auto i = start_id; i <= end_id; i = i + config_.fetch_range_size_) {
     const auto str = std::to_string(i);
-    ASSERT_NFF(rvt_->removeNode(i, str.data(), str.size()));
+    ASSERT_NFF(rvt_->removeLeftNode(i, str.data(), str.size()));
     ASSERT_NFF(validate());
   }
 }
@@ -243,7 +243,7 @@ TEST_F(RVTTest, StartIntheMiddleInsertionsOnly) {
   for (const auto& start_rvb_id : start_rvb_ids) {
     RVBId i = 0;
     RVBId j = 1000;
-    ASSERT_NFF(rvt_delegator_->addNode(start_rvb_id + i * fetch_range_size, start_rvb_id + j * fetch_range_size));
+    ASSERT_NFF(rvt_delegator_->addRightNode(start_rvb_id + i * fetch_range_size, start_rvb_id + j * fetch_range_size));
     ASSERT_NFF(rvt_delegator_->clear());
   }
 }
@@ -251,7 +251,7 @@ TEST_F(RVTTest, StartIntheMiddleInsertionsOnly) {
 TEST_F(RVTTest, constructSingleNodeHavingFirstChild) {
   auto config = getRandomConfig();
   init(config);
-  ASSERT_NFF(rvt_delegator_->addNode(config.fetch_range_size_, config.fetch_range_size_));
+  ASSERT_NFF(rvt_delegator_->addRightNode(config.fetch_range_size_, config.fetch_range_size_));
   ASSERT_EQ(rvt_delegator_->empty(), false);
   ASSERT_EQ(rvt_delegator_->totalLevels(), 1);
   ASSERT_EQ(rvt_delegator_->totalNodes(), 1);
@@ -264,10 +264,10 @@ TEST_F(RVTTest, constructTreesWithSingleMiddleNode) {
   init(config);
   for (size_t i = 100; i < 1000; ++i) {
     for (size_t j{i}; j < (i + RVT_K * 2 + 1); ++j) {
-      rvt_delegator_->addNode(j * fetch_range_size, j * fetch_range_size);
+      rvt_delegator_->addRightNode(j * fetch_range_size, j * fetch_range_size);
     }
     for (size_t j{i}; j < (i + RVT_K * 2 + 1); ++j) {
-      rvt_delegator_->removeNode(j * fetch_range_size, j * fetch_range_size);
+      rvt_delegator_->removeLeftNode(j * fetch_range_size, j * fetch_range_size);
       rvt_delegator_->empty();
     }
   }
@@ -277,7 +277,7 @@ TEST_F(RVTTest, constructSingleNodeWithOnlyLastChild) {
   auto config = getRandomConfig();
   init(config);
   auto fetch_range_size = config.fetch_range_size_;
-  ASSERT_NFF(rvt_delegator_->addNode(fetch_range_size * config.RVT_K, fetch_range_size * config.RVT_K));
+  ASSERT_NFF(rvt_delegator_->addRightNode(fetch_range_size * config.RVT_K, fetch_range_size * config.RVT_K));
   ASSERT_EQ(rvt_delegator_->totalLevels(), 1);
   ASSERT_EQ(rvt_delegator_->totalNodes(), 1);
 }
@@ -285,8 +285,8 @@ TEST_F(RVTTest, constructSingleNodeWithOnlyLastChild) {
 TEST_F(RVTTest, treeHavingOnlyTwoNodes) {
   auto config = getRandomConfig();
   init(config);
-  ASSERT_NFF(rvt_delegator_->addNode(config.fetch_range_size_,
-                                     (config.fetch_range_size_ * config.RVT_K) + config.fetch_range_size_));
+  ASSERT_NFF(rvt_delegator_->addRightNode(config.fetch_range_size_,
+                                          (config.fetch_range_size_ * config.RVT_K) + config.fetch_range_size_));
   ConcordAssertEQ(rvt_delegator_->totalLevels(), 2);
   ConcordAssertEQ(rvt_delegator_->totalNodes(), 3);
 }
@@ -294,10 +294,10 @@ TEST_F(RVTTest, treeHavingOnlyTwoNodes) {
 TEST_F(RVTTest, constructAndRemoveSingleNode) {
   auto config = getRandomConfig();
   init(config);
-  ASSERT_NFF(rvt_delegator_->addNode(config.fetch_range_size_,
-                                     (config.fetch_range_size_ * config.RVT_K) + config.fetch_range_size_));
-  ASSERT_NFF(rvt_delegator_->removeNode(config.fetch_range_size_,
-                                        (config.fetch_range_size_ * config.RVT_K) + config.fetch_range_size_));
+  ASSERT_NFF(rvt_delegator_->addRightNode(config.fetch_range_size_,
+                                          (config.fetch_range_size_ * config.RVT_K) + config.fetch_range_size_));
+  ASSERT_NFF(rvt_delegator_->removeLeftNode(config.fetch_range_size_,
+                                            (config.fetch_range_size_ * config.RVT_K) + config.fetch_range_size_));
   ASSERT_EQ(rvt_delegator_->totalNodes(), 0);
   ASSERT_EQ(rvt_delegator_->empty(), true);
 }
@@ -312,7 +312,7 @@ TEST_P(RVTTestserializeDeserializeTreeFixture, serializeDeserializeTree) {
   auto config = RVTConfig(RVT_K, fetch_range_size, 32);
   init(config);
   std::cout << KVLOG(random_num_of_nodes_to_add) << std::endl;
-  ASSERT_NFF(rvt_delegator_->addNode(fetch_range_size, fetch_range_size * random_num_of_nodes_to_add));
+  ASSERT_NFF(rvt_delegator_->addRightNode(fetch_range_size, fetch_range_size * random_num_of_nodes_to_add));
 
   // TODO - move this into ctor on product in RVTNode
   auto root_hash = rvt_delegator_->getRootCurrentValueStr();
@@ -346,7 +346,7 @@ TEST_P(RVTTestTreeLevelsByFormulaFixture, validateTreeLevelsByFormula) {
   init(config);
 
   cout << "creating n_nodes:" << n_nodes << std::endl;
-  ASSERT_NFF(rvt_delegator_->addNode(fetch_range_size, fetch_range_size * n_nodes));
+  ASSERT_NFF(rvt_delegator_->addRightNode(fetch_range_size, fetch_range_size * n_nodes));
 
   // Old formula
   // auto min_rvb = 1;
@@ -373,7 +373,7 @@ TEST_F(RVTTest, validate_RvbIds_GroupIds_DirectParentVal_APIs) {
   auto config = RVTConfig(RVT_K, fetch_range_size, 32);
   init(config);
   // TODO genesis block to have 0 digest?
-  ASSERT_NFF(rvt_delegator_->addNode(fetch_range_size, fetch_range_size * RVT_K * 2 + fetch_range_size));
+  ASSERT_NFF(rvt_delegator_->addRightNode(fetch_range_size, fetch_range_size * RVT_K * 2 + fetch_range_size));
 
   // Both blocks fall under same parent rvb-group-id
   std::vector<RVBGroupId> rvb_group_ids;
@@ -424,8 +424,8 @@ TEST_P(RVTTestconstructTreeStartingSomewhereMiddleFixture, constructTreeStarting
   auto addRemoveNodes = [&](RVBId start_rvb_id, RVBId end_rvb_id) {
     ASSERT_EQ(rvt_delegator_->getMaxRvbId(), 0);
     ASSERT_EQ(rvt_delegator_->getMinRvbId(), 0);
-    ASSERT_NFF(rvt_delegator_->addNode(start_rvb_id, end_rvb_id));
-    ASSERT_NFF(rvt_delegator_->removeNode(start_rvb_id, end_rvb_id));
+    ASSERT_NFF(rvt_delegator_->addRightNode(start_rvb_id, end_rvb_id));
+    ASSERT_NFF(rvt_delegator_->removeLeftNode(start_rvb_id, end_rvb_id));
     ASSERT_TRUE(rvt_delegator_->empty());
     rvt_delegator_->clear();
   };
@@ -463,14 +463,14 @@ TEST_P(RVTTestaddRemoveNodesRandomlyInTreeFixture, addRemoveNodesRandomlyInTree)
   init(config);
   // add, remove nodes randomly.
   for (uint32_t i = fetch_range_size; i <= n_nodes; i = i + fetch_range_size) {
-    ASSERT_NFF(rvt_delegator_->addNode(rvt_delegator_->getMaxRvbId() + fetch_range_size,
-                                       rvt_delegator_->getMaxRvbId() + fetch_range_size));
+    ASSERT_NFF(rvt_delegator_->addRightNode(rvt_delegator_->getMaxRvbId() + fetch_range_size,
+                                            rvt_delegator_->getMaxRvbId() + fetch_range_size));
     auto num = DataGenerator::randomNum(1, 2);
     // TODO Use ASSERT_NFF in below code block
     ((num % 2) || rvt_delegator_->empty())
-        ? rvt_delegator_->addNode(rvt_delegator_->getMaxRvbId() + fetch_range_size,
-                                  rvt_delegator_->getMaxRvbId() + fetch_range_size)
-        : rvt_delegator_->removeNode(rvt_delegator_->getMinRvbId(), rvt_delegator_->getMinRvbId());
+        ? rvt_delegator_->addRightNode(rvt_delegator_->getMaxRvbId() + fetch_range_size,
+                                       rvt_delegator_->getMaxRvbId() + fetch_range_size)
+        : rvt_delegator_->removeLeftNode(rvt_delegator_->getMinRvbId(), rvt_delegator_->getMinRvbId());
   }
 }
 INSTANTIATE_TEST_CASE_P(
@@ -501,14 +501,14 @@ TEST_P(RVTTestFixture, addRemoveWithRootValidation) {
   ASSERT_EQ(add_nodes_itertion_size.size(), remove_nodes_itertion_size.size());
   for (size_t i{}; i < add_nodes_itertion_size.size(); ++i) {
     for (; add_i < add_nodes_itertion_size[i]; ++add_i) {
-      ASSERT_NFF(rvt_delegator_->addNode(add_i * fetch_range_size, add_i * fetch_range_size));
+      ASSERT_NFF(rvt_delegator_->addRightNode(add_i * fetch_range_size, add_i * fetch_range_size));
       ++test_progress;
       if (test_progress % 100000 == 0) {
         std::cout << "Iteration # " << test_progress << std::endl;
       }
     }
     for (; rem_i < remove_nodes_itertion_size[i]; ++rem_i) {
-      ASSERT_NFF(rvt_delegator_->removeNode(rem_i * fetch_range_size, rem_i * fetch_range_size));
+      ASSERT_NFF(rvt_delegator_->removeLeftNode(rem_i * fetch_range_size, rem_i * fetch_range_size));
       ++test_progress;
       if (test_progress % 100000 == 0) {
         std::cout << "Iteration # " << test_progress << std::endl;

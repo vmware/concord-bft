@@ -984,7 +984,7 @@ void RangeValidationTree::clear() noexcept {
 
 /////////////////////////////////// start of API //////////////////////////////////////////////
 
-void RangeValidationTree::addNode(const RVBId rvb_id, const char* data, size_t data_size) {
+void RangeValidationTree::addRightNode(const RVBId rvb_id, const char* data, size_t data_size) {
   if (!isValidRvbId(rvb_id)) {
     LOG_FATAL(logger_, "invalid input data" << KVLOG(rvb_id, data_size, fetch_range_size_));
   }
@@ -1001,7 +1001,7 @@ void RangeValidationTree::addNode(const RVBId rvb_id, const char* data, size_t d
   LOG_TRACE(logger_, KVLOG(min_rvb_index_, max_rvb_index_, rvb_id));
 }
 
-void RangeValidationTree::removeNode(const RVBId rvb_id, const char* data, size_t data_size) {
+void RangeValidationTree::removeLeftNode(const RVBId rvb_id, const char* data, size_t data_size) {
   ConcordAssert(root_ != nullptr);
   if (!isValidRvbId(rvb_id)) {
     LOG_FATAL(logger_, "invalid input data" << KVLOG(rvb_id, data_size, fetch_range_size_));
