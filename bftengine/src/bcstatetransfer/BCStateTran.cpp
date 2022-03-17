@@ -203,7 +203,6 @@ void BCStateTran::rvbm_deleter::operator()(RVBManager *ptr) const { delete ptr; 
 size_t BCStateTran::BlockIOContext::sizeOfBlockData = 0;
 BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataStore *ds)
     : logger_(ST_SRC_LOG),
-      incomingEventsQ_{std::make_unique<concord::util::Handoff>(config.myReplicaId, "incomingEventsQ")},
       postProcessingQ_{config.isReadOnly
                            ? nullptr
                            : std::make_unique<concord::util::Handoff>(config.myReplicaId, "postProcessingQ")},
@@ -279,13 +278,15 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
   LOG_INFO(logger_, "Creating BCStateTran object: " << config_);
 
   if (config_.runInSeparateThread) {
-    handoff_.reset(new concord::util::Handoff(config_.myReplicaId));
-    messageHandler_ = std::bind(&BCStateTran::handoffMsg, this, _1, _2, _3);
-    timerHandler_ = std::bind(&BCStateTran::handoffTimer, this);
+    incomingEventsQ_ = std::make_unique<concord::util::Handoff>(config.myReplicaId, "incomingEventsQ");
+    incomingStateTransferMsgHandler_ = std::bind(&BCStateTran::handleIncomingStateTransferMessage, this, _1, _2, _3);
+    timeoutHandler_ = std::bind(&BCStateTran::handleTimeout, this);
   } else {
-    messageHandler_ = std::bind(&BCStateTran::handleStateTransferMessageImp, this, _1, _2, _3, _4);
-    timerHandler_ = std::bind(&BCStateTran::onTimerImp, this);
+    incomingEventsQ_.reset(nullptr);  // make it explicit
+    incomingStateTransferMsgHandler_ = std::bind(&BCStateTran::handleStateTransferMessageImp, this, _1, _2, _3, _4);
+    timeoutHandler_ = std::bind(&BCStateTran::onTimerImp, this);
   }
+
   // Make sure that the internal IReplicaForStateTransfer callback is always added, alongside any user-supplied
   // callbacks.
   addOnTransferringCompleteCallback(
@@ -425,7 +426,9 @@ void BCStateTran::stopRunning() {
   LOG_INFO(logger_, "Stopping");
   ConcordAssert(running_);
   ConcordAssertNE(replicaForStateTransfer_, nullptr);
-  incomingEventsQ_->stop();
+  if (incomingEventsQ_) {
+    incomingEventsQ_->stop();
+  }
   if (postProcessingQ_) {
     postProcessingQ_->stop();
   }
@@ -850,7 +853,7 @@ void BCStateTran::onTimerImp() {
   if (!running_) {
     return;
   }
-  if (config_.runInSeparateThread) {
+  if (incomingEventsQ_) {
     time_in_incoming_events_queue_rec_.end();
     histograms_.incoming_events_queue_size->record(incomingEventsQ_->size());
   }
@@ -960,7 +963,7 @@ void BCStateTran::handleStateTransferMessageImp(char *msg,
   if (!running_) {
     return;
   }
-  if (config_.runInSeparateThread) {
+  if (incomingEventsQ_) {
     time_in_incoming_events_queue_rec_.end();
     histograms_.incoming_events_queue_size->record(incomingEventsQ_->size());
   }
@@ -3629,9 +3632,11 @@ inline std::string BCStateTran::getSequenceNumber(uint16_t replicaId,
          std::to_string(chunkNum);
 }
 
-void BCStateTran::peekConsensusMessage(shared_ptr<ConsensusMsg> &msg) {
-  histograms_.incoming_events_queue_size->record(incomingEventsQ_->size());
-  time_in_incoming_events_queue_rec_.end();
+void BCStateTran::peekConsensusMessage(const shared_ptr<ConsensusMsg> &msg) {
+  if (incomingEventsQ_) {
+    histograms_.incoming_events_queue_size->record(incomingEventsQ_->size());
+    time_in_incoming_events_queue_rec_.end();
+  }
   auto msg_type = msg->type_;
   LOG_TRACE(logger_, KVLOG(msg_type, msg->sender_id_));
 

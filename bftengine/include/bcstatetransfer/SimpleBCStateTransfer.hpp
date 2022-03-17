@@ -177,7 +177,7 @@ struct Config {
   uint32_t maxTimeSinceLastExecutionInMainWindowMs = 0;
 
   // misc
-  bool runInSeparateThread = false;
+  bool runInSeparateThread = true;
   bool enableReservedPages = true;
   bool enableSourceBlocksPreFetch = true;
   bool enableSourceSelectorPrimaryAwareness = true;

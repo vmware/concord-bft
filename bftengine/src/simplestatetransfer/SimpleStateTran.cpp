@@ -101,7 +101,7 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
   std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> getReconfigurationEngine() override {
     return nullptr;
   }
-  virtual void handoffConsensusMessage(const shared_ptr<ConsensusMsg>& msg) override{};
+  virtual void handleIncomingConsensusMessage(const shared_ptr<ConsensusMsg>& msg) override{};
   void reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBlockId) override{};
 
  protected:
