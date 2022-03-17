@@ -79,13 +79,12 @@ KeyValueBlockchain::KeyValueBlockchain(const std::shared_ptr<concord::storage::r
   // interrupted, getLatestBlockId() should be equal to getLastReachableBlockId() on the next startup. Another example
   // is getValue() that returns keys from the blockchain only and ignores keys in the temporary state
   // transfer chain.
-  LOG_INFO(CAT_BLOCK_LOG, "Ensure maximal link of partial/whole ST temporary chain, this might take some time...");
+  LOG_INFO(CAT_BLOCK_LOG, "Try to link ST temporary chain, this might take some time...");
   auto old_last_reachable_block_id = getLastReachableBlockId();
   linkSTChainFrom(old_last_reachable_block_id + 1);
   auto new_last_reachable_block_id = getLastReachableBlockId();
   LOG_INFO(CAT_BLOCK_LOG,
-           "Done linking partial/whole ST temporary chain:" << KVLOG(old_last_reachable_block_id,
-                                                                     new_last_reachable_block_id));
+           "Done linking ST temporary chain:" << KVLOG(old_last_reachable_block_id, new_last_reachable_block_id));
   delete_metrics_comp_.Register();
   add_metrics_comp_.Register();
 
