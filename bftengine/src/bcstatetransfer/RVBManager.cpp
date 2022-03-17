@@ -106,7 +106,7 @@ void RVBManager::init(bool fetching) {
 
 // Remove (Prune) blocks from RVT, and from pruned_blocks_digests_ data structure
 void RVBManager::pruneRvbDataDuringCheckpoint(const CheckpointDesc& new_checkpoint_desc) {
-  LOG_TRACE(logger_, "");
+  LOG_TRACE(logger_, KVLOG(pruned_blocks_digests_.size()));
   std::lock_guard<std::mutex> guard(pruned_blocks_digests_mutex_);
   size_t i{};
 
@@ -129,9 +129,11 @@ void RVBManager::pruneRvbDataDuringCheckpoint(const CheckpointDesc& new_checkpoi
       }
     }
     if (i > 0) {
+      auto min_block_id = pruned_blocks_digests_[0].first;
+      auto max_block_id = pruned_blocks_digests_[i - 1].first;
       LOG_DEBUG(logger_,
                 "Remove " << i << " digests from pruned_blocks_digests_, from/to block IDs:"
-                          << KVLOG(pruned_blocks_digests_[0].first, pruned_blocks_digests_[i].first));
+                          << KVLOG(min_block_id, max_block_id));
       pruned_blocks_digests_.erase(pruned_blocks_digests_.begin(), pruned_blocks_digests_.begin() + i);
       ds_->setPrunedBlocksDigests(pruned_blocks_digests_);
     }
@@ -157,10 +159,9 @@ void RVBManager::pruneRvbDataDuringCheckpoint(const CheckpointDesc& new_checkpoi
       break;
     }
   }
-  if (i > 0) {
-    LOG_INFO(
-        logger_,
-        "Removed " << (i - 1) << " digests from in_mem_rvt_, from/to block IDs:" << KVLOG(from_block_id, to_block_id));
+  if (from_block_id > 0) {
+    LOG_INFO(logger_,
+             "Removed " << i << " digests from in_mem_rvt_, from/to block IDs:" << KVLOG(from_block_id, to_block_id));
   }
   if (!pruned_blocks_digests_.empty() && (debug_prints_log_level.find(getLogLevel()) != debug_prints_log_level.end())) {
     ostringstream oss;
@@ -215,6 +216,7 @@ void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_de
 
   // Fill checkpoint and print tree
   if (!in_mem_rvt_->empty()) {
+    in_mem_rvt_->validate();
     auto rvb_data = in_mem_rvt_->getSerializedRvbData();
 
     // TODO - convert straight into a vector, using stream iterator
@@ -228,7 +230,7 @@ void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_de
 
 std::ostringstream RVBManager::getRvbData() const { return in_mem_rvt_->getSerializedRvbData(); }
 
-bool RVBManager::setRvbData(char* data, size_t data_size) {
+bool RVBManager::setRvbData(char* data, size_t data_size, BlockId min_block_id_span, BlockId max_block_id_span) {
   LOG_TRACE(logger_, "");
   std::istringstream rvb_data(std::string(data, data_size));
 
@@ -244,6 +246,27 @@ bool RVBManager::setRvbData(char* data, size_t data_size) {
     return false;
   }
 
+  // Validate that tree spans at least the needed collecting range
+  RVBId min_rvb_in_rvt = in_mem_rvt_->getMinRvbId();
+  RVBId max_rvb_in_rvt = in_mem_rvt_->getMaxRvbId();
+  RVBId min_required_rvb_id = nextRvbBlockId(min_block_id_span);
+  RVBId max_required_rvb_id = prevRvbBlockId(max_block_id_span);
+
+  if ((min_required_rvb_id < min_rvb_in_rvt) || (max_rvb_in_rvt > max_required_rvb_id)) {
+    LOG_ERROR(logger_,
+              "Tree is valid but cannot be used, it doesn't span the required collection range!"
+                  << KVLOG(min_block_id_span,
+                           max_block_id_span,
+                           min_rvb_in_rvt,
+                           max_rvb_in_rvt,
+                           min_required_rvb_id,
+                           max_required_rvb_id));
+    in_mem_rvt_->clear();
+    return false;
+  }
+
+  LOG_INFO(logger_, "New RVB Data set!");
+  in_mem_rvt_->printToLog(LogPrintVerbosity::DETAILED);
   rvb_data_source_ = RvbDataInitialSource::FROM_NETWORK;
   return true;
 }
@@ -605,7 +628,7 @@ void RVBManager::addRvbDataOnBlockRange(uint64_t min_block_id,
   }
 }
 
-BlockId RVBManager::nextRvbBlockId(BlockId block_id) const {
+RVBId RVBManager::nextRvbBlockId(BlockId block_id) const {
   uint64_t next_rvb_id = config_.fetchRangeSize * (block_id / config_.fetchRangeSize);
   if (next_rvb_id < block_id) {
     next_rvb_id += config_.fetchRangeSize;
