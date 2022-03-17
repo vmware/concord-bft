@@ -77,6 +77,7 @@ void RVBManager::init(bool fetching) {
       LOG_ERROR(logger_, "Failed to load RVB data from stored checkpoint" << KVLOG(desc.checkpointNum));
     } else {
       rvb_data_source_ = RvbDataInitialSource::FROM_STORAGE_CP;
+      LOG_INFO(logger_, "Success setting new RVB data from storage!");
     }
 
     if (!in_mem_rvt_->validate()) {
@@ -271,7 +272,7 @@ bool RVBManager::setRvbData(char* data, size_t data_size, BlockId min_block_id_s
     return false;
   }
 
-  LOG_INFO(logger_, "New RVB Data set!");
+  LOG_INFO(logger_, "Success setting new RVB data from network!");
   in_mem_rvt_->printToLog(LogPrintVerbosity::DETAILED);
   rvb_data_source_ = RvbDataInitialSource::FROM_NETWORK;
   return true;
@@ -573,7 +574,7 @@ void RVBManager::computeDigestOfBlock(const uint64_t block_id,
   c.writeDigest(out_digest);
 }
 
-// TODO - BCStateTran hhasave a similar function + computeDigestOfBlock.
+// TODO - BCStateTran has a similar function + computeDigestOfBlock.
 // Move common functions into BCStateTranCommon.hpp/cpp
 const STDigest RVBManager::getBlockAndComputeDigest(uint64_t block_id) const {
   LOG_TRACE(logger_, KVLOG(block_id));
