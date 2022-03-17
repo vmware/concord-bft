@@ -1267,7 +1267,7 @@ class SkvbcReconfigurationTest(ApolloTest):
         rep = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
         assert rep.success is False
 
-
+    @unittest.skip("Unstable test - Disabled only on origin/v0.14.x, probably fixed on master")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_restart_command(self, bft_network):
