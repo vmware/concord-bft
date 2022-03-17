@@ -12,6 +12,7 @@
 #include "RequestProcessingState.hpp"
 #include "sparse_merkle/base_types.h"
 #include "SigManager.hpp"
+#include "TimeUtils.hpp"
 #include "messages/PreProcessResultHashCreator.hpp"
 
 namespace preprocessor {
@@ -24,11 +25,6 @@ using namespace concord::kvbc::sparse_merkle;
 
 uint16_t RequestProcessingState::numOfRequiredEqualReplies_ = 0;
 PreProcessorRecorder *RequestProcessingState::preProcessorHistograms_ = nullptr;
-
-uint64_t RequestProcessingState::getMonotonicTimeMilli() {
-  steady_clock::time_point curTimePoint = steady_clock::now();
-  return duration_cast<milliseconds>(curTimePoint.time_since_epoch()).count();
-}
 
 void RequestProcessingState::init(uint16_t numOfRequiredReplies, PreProcessorRecorder *histograms) {
   LOG_INFO(logger(), "RequestProcessingstate init:" << KVLOG(numOfRequiredReplies));
