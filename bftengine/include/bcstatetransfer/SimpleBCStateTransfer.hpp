@@ -185,18 +185,18 @@ inline std::ostream &operator<<(std::ostream &os, const Config &c) {
               c.maxPendingDataFromSourceReplica,
               c.maxNumOfReservedPages,
               c.sizeOfReservedPage,
+              c.gettingMissingBlocksSummaryWindowSize,
               c.refreshTimerMs,
-              c.checkpointSummariesRetransmissionTimeoutMs,
-              c.maxAcceptableMsgDelayMs);
+              c.checkpointSummariesRetransmissionTimeoutMs);
   os << ",";
-  os << KVLOG(c.sourceReplicaReplacementTimeoutMs,
+  os << KVLOG(c.maxAcceptableMsgDelayMs,
+              c.sourceReplicaReplacementTimeoutMs,
               c.fetchRetransmissionTimeoutMs,
               c.maxFetchRetransmissions,
               c.metricsDumpIntervalSec,
               c.runInSeparateThread,
               c.enableReservedPages,
-              c.enableSourceBlocksPreFetch,
-              c.gettingMissingBlocksSummaryWindowSize);
+              c.enableSourceBlocksPreFetch);
   return os;
 }
 // creates an instance of the state transfer module.
