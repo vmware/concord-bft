@@ -175,23 +175,29 @@ TEST_F(RVTTest, cryptoPPIntegerAdditionSubtraction) {
   auto a = data_generator_->values_.a;
   auto b = data_generator_->values_.b;
   auto c = a + b;
-  ASSERT_EQ(a + b, c);
+  ASSERT_EQ(c, b + a);
   ASSERT_EQ(c - b, a);
+  ASSERT_EQ(c - a, b);
 }
 
-// Validate cumulative, associdate properties on Integer data type
-TEST_F(RVTTest, cryptoPPIntegerCumulativeAssociativeProperty) {
+// Validate commutative, associative, distributive properties on Integer data type
+TEST_F(RVTTest, cryptoPPIntegerCommutativeAssociativeDistributiveProperties) {
   init(getRandomConfig());
   auto a = data_generator_->values_.a;
   auto b = data_generator_->values_.b;
   auto c = data_generator_->values_.c;
+
+  // commutative law
   ASSERT_EQ(a + b + c, c + a + b);
-  ASSERT_EQ(a + (b + c), (c + a) + b);
-  if ((a == (-b)) || (c == b) || (b == 0)) {
-    return;
-  }
-  ASSERT_NE(a - b, b - a);
-  ASSERT_NE(a + (b + c), (c + a) - b);
+  ASSERT_EQ(a * b * c, c * a * b);
+
+  // associative law
+  ASSERT_EQ((a + b) + c, a + (b + c));
+  ASSERT_EQ((a * b) * c, a * (b * c));
+
+  // distributive law
+  ASSERT_EQ((a + b) * c, a * c + b * c);
+  ASSERT_EQ(a * (b + c), a * b + a * c);
 }
 
 TEST_F(RVTTest, cryptoPPIntegerModOps) {
