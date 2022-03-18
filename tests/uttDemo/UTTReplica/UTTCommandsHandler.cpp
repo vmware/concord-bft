@@ -12,18 +12,6 @@
 // file.
 
 #include "UTTCommandsHandler.hpp"
-#include "assertUtils.hpp"
-#include "sliver.hpp"
-#include "kv_types.hpp"
-#include "block_metadata.hpp"
-#include "sha_hash.hpp"
-#include <unistd.h>
-#include <algorithm>
-#include <variant>
-#include "ReplicaConfig.hpp"
-#include "kvbc_key_types.hpp"
-
-#include "utt_messages.cmf.hpp"
 
 using namespace bftEngine;
 using namespace utt::messages;
@@ -32,121 +20,88 @@ void UTTCommandsHandler::execute(UTTCommandsHandler::ExecutionRequestsQueue& req
                                  std::optional<bftEngine::Timestamp> timestamp,
                                  const std::string& batchCid,
                                  concordUtils::SpanWrapper& parent_span) {
-  for (auto& it : requests) {
-    const auto* request = it.request;
-    const auto requestSize = it.requestSize;
-    const auto maxReplySize = it.maxReplySize;
-    auto outReply = it.outReply;
-    auto& outReplySize = it.outActualReplySize;
-
-    LOG_INFO(logger_, "UTTCommandsHandler execute");
-
-    UTTRequest deserialized_request;
+  LOG_INFO(logger_, "UTTCommandsHandler execute");
+  for (auto& req : requests) {
+    UTTRequest uttRequest;
     try {
-      static_assert(sizeof(*request) == sizeof(uint8_t),
-                    "Byte pointer type used by bftEngine::IRequestsHandler::ExecutionRequest is incompatible with byte "
-                    "pointer type used by CMF.");
-      const uint8_t* request_buffer_as_uint8 = reinterpret_cast<const uint8_t*>(request);
-      deserialize(request_buffer_as_uint8, request_buffer_as_uint8 + requestSize, deserialized_request);
+      auto uttRequestBytes = (const uint8_t*)req.request;
+      deserialize(uttRequestBytes, uttRequestBytes + req.requestSize, uttRequest);
 
-      if (std::holds_alternative<TxRequest>(deserialized_request.request)) {
-        const auto& txRequest = std::get<TxRequest>(deserialized_request.request);
-        auto cmd = BytesToStr(txRequest.tx);
-        LOG_INFO(logger_, "Received TxRequest with command: " << cmd);
-        if (auto tx = parseTx(cmd)) {
-          state_.validateTx(*tx);
+      UTTReply reply;
+      const auto* reqVariant = &uttRequest.request;
 
-          UTTReply reply;
-          reply.reply = TxReply();
-          auto& txReply = std::get<TxReply>(reply.reply);
-
-          txReply.success = true;
-          txReply.last_block_id = state_.appendBlock(Block{std::move(*tx)});
-
-          state_.sync();
-
-          vector<uint8_t> serialized_reply;
-          serialize(serialized_reply, reply);
-          if (maxReplySize < serialized_reply.size()) {
-            LOG_ERROR(
-                logger_,
-                "replySize is too big: replySize=" << serialized_reply.size() << ", maxReplySize=" << maxReplySize);
-            it.outExecutionStatus = static_cast<uint32_t>(OperationResult::EXEC_DATA_TOO_LARGE);
-          }
-          copy(serialized_reply.begin(), serialized_reply.end(), outReply);
-          outReplySize = serialized_reply.size();
-
-          LOG_INFO(logger_, "TxRequest message handled");
-          it.outExecutionStatus = static_cast<uint32_t>(OperationResult::SUCCESS);
-        } else {
-          throw std::runtime_error("Failed to parse TxRequest!");
-        }
-
-      } else if (std::holds_alternative<GetLastBlockRequest>(deserialized_request.request)) {
-        LOG_INFO(logger_, "Received GetLastBlockRequest");
-
-        UTTReply reply;
-        reply.reply = GetLastBlockReply();
-        auto& lastBlockReply = std::get<GetLastBlockReply>(reply.reply);
-        lastBlockReply.last_block_id = state_.getLastKnowBlockId();
-
-        vector<uint8_t> serialized_reply;
-        serialize(serialized_reply, reply);
-        if (maxReplySize < serialized_reply.size()) {
-          LOG_ERROR(logger_,
-                    "replySize is too big: replySize=" << serialized_reply.size() << ", maxReplySize=" << maxReplySize);
-          it.outExecutionStatus = static_cast<uint32_t>(OperationResult::EXEC_DATA_TOO_LARGE);
-        }
-        copy(serialized_reply.begin(), serialized_reply.end(), outReply);
-        outReplySize = serialized_reply.size();
-
-        LOG_INFO(logger_, "GetLastBlockRequest message handled");
-        it.outExecutionStatus = static_cast<uint32_t>(OperationResult::SUCCESS);
-
-      } else if (std::holds_alternative<GetBlockDataRequest>(deserialized_request.request)) {
-        const auto& blockDataReq = std::get<GetBlockDataRequest>(deserialized_request.request);
-        LOG_INFO(logger_, "Received GetBlockDataRequest for block_id=" << blockDataReq.block_id);
-
-        UTTReply reply;
-        reply.reply = GetBlockDataReply();
-        auto& blockDataReply = std::get<GetBlockDataReply>(reply.reply);
-
-        const auto* block = state_.getBlockById(blockDataReq.block_id);
-        if (block) {
-          blockDataReply.block_id = block->id_;
-          if (block->tx_) {
-            std::stringstream ss;
-            ss << *block->tx_;
-            blockDataReply.tx = StrToBytes(ss.str());
-          }
-        }
-
-        vector<uint8_t> serialized_reply;
-        serialize(serialized_reply, reply);
-        if (maxReplySize < serialized_reply.size()) {
-          LOG_ERROR(logger_,
-                    "replySize is too big: replySize=" << serialized_reply.size() << ", maxReplySize=" << maxReplySize);
-          it.outExecutionStatus = static_cast<uint32_t>(OperationResult::EXEC_DATA_TOO_LARGE);
-        }
-        copy(serialized_reply.begin(), serialized_reply.end(), outReply);
-        outReplySize = serialized_reply.size();
-
-        LOG_INFO(logger_, "GetBlockDataRequest message handled");
-        it.outExecutionStatus = static_cast<uint32_t>(OperationResult::SUCCESS);
-
+      if (const auto* txRequest = std::get_if<TxRequest>(reqVariant)) {
+        reply.reply = handleRequest(*txRequest);
+      } else if (const auto* lastBlockRequest = std::get_if<GetLastBlockRequest>(reqVariant)) {
+        reply.reply = handleRequest(*lastBlockRequest);
+      } else if (const auto* blockDataReq = std::get_if<GetBlockDataRequest>(reqVariant)) {
+        reply.reply = handleRequest(*blockDataReq);
       } else {
         throw std::runtime_error("Unhandled UTTRquest type!");
       }
-    } catch (const std::domain_error& e) {
-      LOG_ERROR(logger_, "Failed to execute transaction: " << e.what());
-      strcpy(outReply, "Failed to execute transaction");
-      outReplySize = strlen(outReply);
-      it.outExecutionStatus = static_cast<uint32_t>(OperationResult::INVALID_REQUEST);
-    } catch (const std::runtime_error& e) {
-      LOG_WARN(logger_, "Invalid UTTRequest: " << e.what());
-      strcpy(outReply, "Invalid UTTRequest");
-      outReplySize = strlen(outReply);
-      it.outExecutionStatus = static_cast<uint32_t>(OperationResult::INVALID_REQUEST);
+
+      // Serialize reply
+      vector<uint8_t> replyBuffer;
+      serialize(replyBuffer, reply);
+      if (req.maxReplySize < replyBuffer.size()) {
+        LOG_ERROR(logger_,
+                  "replySize is too big: replySize=" << replyBuffer.size() << ", maxReplySize=" << req.maxReplySize);
+        req.outExecutionStatus = static_cast<uint32_t>(OperationResult::EXEC_DATA_TOO_LARGE);
+      } else {
+        copy(replyBuffer.begin(), replyBuffer.end(), req.outReply);
+        req.outActualReplySize = replyBuffer.size();
+
+        LOG_INFO(logger_, "UTTRequest successfully executed");
+        req.outExecutionStatus = static_cast<uint32_t>(OperationResult::SUCCESS);
+      }
+    } catch (const std::exception& e) {
+      LOG_ERROR(logger_, "Failed to execute UTTRequest: " << e.what());
+      strcpy(req.outReply, "Failed to execute UTTRequest");
+      req.outActualReplySize = strlen(req.outReply);
+      req.outExecutionStatus = static_cast<uint32_t>(OperationResult::INVALID_REQUEST);
     }
   }
+}
+
+TxReply UTTCommandsHandler::handleRequest(const TxRequest& req) {
+  auto cmd = BytesToStr(req.tx);
+  LOG_INFO(logger_, "Executing TxRequest with command: " << cmd);
+  auto tx = parseTx(cmd);
+  if (!tx) throw std::runtime_error("Failed to parse tx!");
+
+  state_.validateTx(*tx);
+  auto lastBlockId = state_.appendBlock(Block{std::move(*tx)});
+  state_.sync();
+
+  TxReply reply;
+  reply.success = true;
+  reply.last_block_id = lastBlockId;
+  return reply;
+}
+
+GetLastBlockReply UTTCommandsHandler::handleRequest(const GetLastBlockRequest&) {
+  LOG_INFO(logger_, "Executing GetLastBlockRequest");
+
+  GetLastBlockReply reply;
+  reply.last_block_id = state_.getLastKnowBlockId();
+
+  return reply;
+}
+
+GetBlockDataReply UTTCommandsHandler::handleRequest(const GetBlockDataRequest& req) {
+  LOG_INFO(logger_, "Executing GetBlockDataRequest for block_id=" << req.block_id);
+
+  GetBlockDataReply reply;
+
+  const auto* block = state_.getBlockById(req.block_id);
+  if (block) {
+    reply.block_id = block->id_;
+    if (block->tx_) {
+      std::stringstream ss;
+      ss << *block->tx_;
+      reply.tx = StrToBytes(ss.str());
+    }
+  }
+
+  return reply;
 }
