@@ -67,12 +67,7 @@ bool operator!=(const ClientRequest& lhs, const ClientRequest& rhs) {
   return !(lhs == rhs);
 }
 
-struct NewViewMsg {};
-bool operator==(const NewViewMsg& lhs, const NewViewMsg& rhs) {
-  return true; // TODO: implement New View msg
-}
-
-using Message = variant<PrePrepare, Prepare, Commit, ClientRequest>;
+using Message = variant<PrePrepare, Prepare, Commit, ClientRequest/*, ViewChangeMsg*/>;
 
 struct NetworkMessage {
   HostId sender;
@@ -123,16 +118,50 @@ struct PreparedCertificate {
   }
   bool empty() { return votes.empty(); }
 };
+bool operator==(const PreparedCertificate& lhs, const PreparedCertificate& rhs) {
+  return lhs.votes == rhs.votes;
+}
 
 struct ViewChangeMsg {
   ViewNum newView;
   map<SequenceID, PreparedCertificate> certificates;
 };
 bool operator==(const ViewChangeMsg& lhs, const ViewChangeMsg& rhs) {
-  return lhs.newView == rhs.newView && lhs.certificates.size() == rhs.certificates.size();//TODO: add comparison for certificate's elements.
+  return lhs.newView == rhs.newView && lhs.certificates == rhs.certificates;
 }
 bool operator!=(const ViewChangeMsg& lhs, const ViewChangeMsg& rhs) {
-  return !(lhs == rhs);//TODO: add comparison for certificate's elements.
+  return !(lhs == rhs);
+}
+
+struct ViewChangeMsgsSelectedByPrimary {
+  set<NetworkMessage> msgs;
+  bool valid(ViewNum view, nat quorumSize) {
+    return msgs.size() > 0
+           && [this, view]() {
+             bool result = true; 
+             for(const auto& v : msgs) {
+              //  const auto pval = std::get_if<ViewChangeMsg>(&v.payload);
+              //  if(pval || pval->newView == view) {
+              //    result = false;
+              //    break;
+              //  }
+             }
+             return result;
+           }()
+           && [this, quorumSize]() {
+             set<HostId> quorumOfSenders;
+             for(auto& v : msgs) {
+               quorumOfSenders.insert(v.sender);
+             }
+             return quorumOfSenders.size() == quorumSize;
+           }()
+           && msgs.size() == quorumSize;
+  }
+};
+
+struct NewViewMsg {};
+bool operator==(const NewViewMsg& lhs, const NewViewMsg& rhs) {
+  return true; // TODO: implement New View msg
 }
 
 }  // namespace Messages
