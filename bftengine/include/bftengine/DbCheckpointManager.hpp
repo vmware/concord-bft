@@ -135,6 +135,7 @@ class DbCheckpointManager {
     if (cb) onDbCheckpointCreated_.push_back(cb);
   }
   inline auto getLastDbCheckpointSeqNum() const { return lastCheckpointSeqNum_; }
+  std::string getDiskUsageInfo();
 
  private:
   logging::Logger getLogger() {

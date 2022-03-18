@@ -260,6 +260,7 @@ bool ReconfigurationHandler::handle(const concord::messages::GetDbCheckpointInfo
                "GetDbCheckpointInfoStatus checkpoint id's are "
                    << KVLOG(kv.second.lastBlockId_, kv.second.lastDbCheckpointSeqNum_));
     }
+    response.additional_info = DbCheckpointManager::instance().getDiskUsageInfo();
     rres.response = std::move(response);
     return true;
   } else {
