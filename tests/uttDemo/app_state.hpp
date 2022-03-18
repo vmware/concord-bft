@@ -54,11 +54,12 @@ struct AppState {
   AppState();
 
   void setLastKnownBlockId(BlockId id);
-  BlockId getLastKnowBlockId() const;
+  BlockId getLastKnownBlockId() const;
   const Block* getBlockById(BlockId id) const;
 
-  std::optional<BlockId> sync();    // Returns missing block id if unknown blocks exist
-  BlockId appendBlock(Block&& bl);  // Return the id of the appended block
+  bool canExecuteTx(const Tx& tx, std::string& err) const;
+  void appendBlock(Block&& bl);            // Returns the id of the appended block
+  std::optional<BlockId> executeBlocks();  // Returns the next missing block id if unknown blocks exist
 
   const std::map<std::string, Account> GetAccounts() const;
   const std::vector<Block>& GetBlocks() const;
@@ -66,10 +67,9 @@ struct AppState {
   const Account* getAccountById(const std::string& id) const;
   Account* getAccountById(const std::string& id);
 
-  void validateTx(const Tx& tx) const;  // throws std::domain_error
+ private:
   void executeTx(const Tx& tx);
 
- private:
   std::map<std::string, Account> accounts_;
   std::vector<Block> blocks_;
   BlockId lastExecutedBlockId_ = 0;

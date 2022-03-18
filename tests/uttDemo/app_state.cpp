@@ -43,28 +43,27 @@ AppState::AppState() {
 
 void AppState::setLastKnownBlockId(BlockId id) { lastKnownBlockId_ = std::max<int>(lastKnownBlockId_, id); }
 
-BlockId AppState::getLastKnowBlockId() const { return lastKnownBlockId_; }
+BlockId AppState::getLastKnownBlockId() const { return lastKnownBlockId_; }
 
 const Block* AppState::getBlockById(BlockId id) const {
   if (id >= blocks_.size()) return nullptr;
   return &blocks_[id];
 }
 
-std::optional<BlockId> AppState::sync() {
+void AppState::appendBlock(Block&& bl) {
+  const BlockId nextBlockId = blocks_.size();
+  bl.id_ = nextBlockId;
+  blocks_.emplace_back(std::move(bl));
+  lastKnownBlockId_ = std::max<int>(lastKnownBlockId_, nextBlockId);
+}
+
+std::optional<BlockId> AppState::executeBlocks() {
   for (int i = lastExecutedBlockId_ + 1; i < (int)blocks_.size(); ++i)
     if (blocks_[i].tx_) executeTx(*blocks_[i].tx_);
 
   lastExecutedBlockId_ = blocks_.size() - 1;
 
   return lastExecutedBlockId_ < lastKnownBlockId_ ? std::optional<int>(lastExecutedBlockId_ + 1) : std::nullopt;
-}
-
-BlockId AppState::appendBlock(Block&& bl) {
-  BlockId nextBlockId = blocks_.size();
-  bl.id_ = nextBlockId;
-  blocks_.emplace_back(std::move(bl));
-  lastKnownBlockId_ = std::max<int>(lastKnownBlockId_, nextBlockId);
-  return nextBlockId;
 }
 
 const std::map<std::string, Account> AppState::GetAccounts() const { return accounts_; }
@@ -81,27 +80,26 @@ Account* AppState::getAccountById(const std::string& id) {
   return it != accounts_.end() ? &(it->second) : nullptr;
 }
 
-void AppState::validateTx(const Tx& tx) const {
+bool AppState::canExecuteTx(const Tx& tx, std::string& err) const {
   struct Visitor {
     const AppState& state_;
-
     Visitor(const AppState& state) : state_(state) {}
 
     void operator()(const TxPublicDeposit& tx) const {
-      if (tx.amount_ <= 0) throw std::domain_error("Deposit amount must be positive!");
+      if (tx.amount_ <= 0) throw std::domain_error("Public deposit amount must be positive!");
       auto acc = state_.getAccountById(tx.toAccountId_);
       if (!acc) throw std::domain_error("Unknown account for public deposit!");
     }
 
     void operator()(const TxPublicWithdraw& tx) const {
-      if (tx.amount_ <= 0) throw std::domain_error("Deposit amount must be positive!");
+      if (tx.amount_ <= 0) throw std::domain_error("Public withdraw amount must be positive!");
       auto acc = state_.getAccountById(tx.toAccountId_);
       if (!acc) throw std::domain_error("Unknown account for public withdraw!");
       if (tx.amount_ > acc->getBalancePublic()) throw std::domain_error("Account has insufficient public balance!");
     }
 
     void operator()(const TxPublicTransfer& tx) const {
-      if (tx.amount_ <= 0) throw std::domain_error("Deposit amount must be positive!");
+      if (tx.amount_ <= 0) throw std::domain_error("Public transfer amount must be positive!");
       auto sender = state_.getAccountById(tx.fromAccountId_);
       if (!sender) throw std::domain_error("Unknown sender account for public transfer!");
       auto receiver = state_.getAccountById(tx.toAccountId_);
@@ -113,7 +111,13 @@ void AppState::validateTx(const Tx& tx) const {
     }
   };
 
-  std::visit(Visitor{*this}, tx);
+  try {
+    std::visit(Visitor{*this}, tx);
+  } catch (const std::domain_error& e) {
+    err = e.what();
+    return false;
+  }
+  return true;
 }
 
 void AppState::executeTx(const Tx& tx) {

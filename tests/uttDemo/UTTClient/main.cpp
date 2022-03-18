@@ -180,7 +180,7 @@ void syncState(AppState& state, Client& client) {
   state.setLastKnownBlockId(lastBlockReply.last_block_id);
 
   // Sync missing blocks
-  auto missingBlockId = state.sync();
+  auto missingBlockId = state.executeBlocks();
   while (missingBlockId) {
     // Request missing block
     auto blockDataReply = sendGetBlockDataRequest(client, *missingBlockId);
@@ -191,7 +191,7 @@ void syncState(AppState& state, Client& client) {
     if (!tx) throw std::runtime_error("Failed to parse tx from missing block!");
 
     state.appendBlock(Block{std::move(*tx)});
-    missingBlockId = state.sync();
+    missingBlockId = state.executeBlocks();
   }
 }
 
@@ -239,14 +239,12 @@ int main(int argc, char** argv) {
             std::cout << block << '\n';
           }
         } else if (auto tx = parseTx(cmd)) {
-          state.validateTx(*tx);
           auto reply = sendTxRequest(client, *tx);
-
           if (reply.success) {
             state.setLastKnownBlockId(reply.last_block_id);
             std::cout << "Ok.\n";
           } else {
-            std::cout << "Transaction failed!\n";
+            std::cout << "Transaction failed: " << reply.err << '\n';
           }
         } else {
           std::cout << "Unknown command '" << cmd << "'\n";
