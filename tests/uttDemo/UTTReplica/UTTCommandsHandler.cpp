@@ -63,19 +63,27 @@ void UTTCommandsHandler::execute(UTTCommandsHandler::ExecutionRequestsQueue& req
   }
 }
 
-TxReply UTTCommandsHandler::handleRequest(const TxRequest& req) {
-  auto cmd = BytesToStr(req.tx);
+TxReply UTTCommandsHandler::handleRequest(const TxRequest& txRequest) {
+  auto cmd = BytesToStr(txRequest.tx);
   LOG_INFO(logger_, "Executing TxRequest with command: " << cmd);
   auto tx = parseTx(cmd);
   if (!tx) throw std::runtime_error("Failed to parse tx!");
 
-  state_.validateTx(*tx);
-  auto lastBlockId = state_.appendBlock(Block{std::move(*tx)});
-  state_.sync();
-
   TxReply reply;
-  reply.success = true;
-  reply.last_block_id = lastBlockId;
+  std::string err;
+
+  if (state_.canExecuteTx(*tx, err)) {
+    state_.appendBlock(Block{std::move(*tx)});
+    state_.executeBlocks();
+    reply.success = true;
+  } else {
+    LOG_WARN(logger_, "Failed to execute TxRequest: " << err);
+    reply.err = std::move(err);
+    reply.success = false;
+  }
+
+  reply.last_block_id = state_.getLastKnownBlockId();
+
   return reply;
 }
 
@@ -83,7 +91,7 @@ GetLastBlockReply UTTCommandsHandler::handleRequest(const GetLastBlockRequest&) 
   LOG_INFO(logger_, "Executing GetLastBlockRequest");
 
   GetLastBlockReply reply;
-  reply.last_block_id = state_.getLastKnowBlockId();
+  reply.last_block_id = state_.getLastKnownBlockId();
 
   return reply;
 }

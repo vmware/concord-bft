@@ -7,6 +7,7 @@ Msg TxRequest 3 {
 Msg TxReply 4 {
     bool success
     uint64 last_block_id
+    string err
 }
 
 Msg GetLastBlockRequest 5 {
