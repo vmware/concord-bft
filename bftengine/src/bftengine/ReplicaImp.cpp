@@ -165,7 +165,13 @@ void ReplicaImp::registerMsgHandlers() {
 template <typename T>
 void ReplicaImp::messageHandler(MessageBase *msg) {
   T *trueTypeObj = new T(msg);
+  validateMessage(trueTypeObj);
+  if (isCollectingState()) {
+    // Extract only required information and handover to ST thread
+    peekConsensusMessage<T>(msg);
+  }
   delete msg;
+
   if (bftEngine::ControlStateManager::instance().getPruningProcessStatus()) {
     if constexpr (!std::is_same_v<T, ClientRequestMsg>) {
       LOG_INFO(GL, "Received protocol message while pruning, ignoring the message");
@@ -4690,8 +4696,12 @@ ReplicaImp::ReplicaImp(bool firstTime,
   bft::communication::StateControl::instance().setGetPeerPubKeyMethod(
       [&](uint32_t id) { return sigManager_->getPublicKeyOfVerifier(id); });
 
-  clientsManager = std::make_shared<ClientsManager>(
-      ps, repsInfo->idsOfClientProxies(), repsInfo->idsOfExternalClients(), repsInfo->idsOfInternalClients(), metrics_);
+  clientsManager = std::make_shared<ClientsManager>(ps,
+                                                    repsInfo->idsOfClientProxies(),
+                                                    repsInfo->idsOfExternalClients(),
+                                                    repsInfo->idsOfIClientServices(),
+                                                    repsInfo->idsOfInternalClients(),
+                                                    metrics_);
   internalBFTClient_.reset(
       new InternalBFTClient(*(repsInfo->idsOfInternalClients()).cbegin() + config_.getreplicaId(), msgsCommunicator_));
 

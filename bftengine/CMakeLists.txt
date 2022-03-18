@@ -36,10 +36,12 @@ set(corebft_source_files
     src/bftengine/RequestsBatchingLogic.cpp
     src/bftengine/ReplicaStatusHandlers.cpp
     src/bcstatetransfer/BCStateTran.cpp
+    src/bcstatetransfer/RVBManager.cpp
     src/bcstatetransfer/InMemoryDataStore.cpp
     src/bcstatetransfer/DBDataStore.cpp
     src/bcstatetransfer/SourceSelector.cpp
     src/bcstatetransfer/AsyncStateTransferCRE.cpp
+    src/bcstatetransfer/RangeValidationTree.cpp
     src/simplestatetransfer/SimpleStateTran.cpp
     src/bftengine/messages/PrePrepareMsg.cpp
     src/bftengine/messages/CheckpointMsg.cpp

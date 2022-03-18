@@ -816,8 +816,8 @@ struct GetSTMetadata {
   std::string toJson(const bftEngine::bcst::impl::DataStore::CheckpointDesc &chckpDesc,
                      const bftEngine::bcst::impl::DataStore::ResPagesDescriptor *rpDesc) const {
     std::ostringstream oss;
-    oss << "{\"checkpointNum\": " << chckpDesc.checkpointNum << ", \"lastBlock\": " << chckpDesc.lastBlock
-        << ", \"digestOfLastBlock\": \"" << chckpDesc.digestOfLastBlock.toString()
+    oss << "{\"checkpointNum\": " << chckpDesc.checkpointNum << ", \"maxBlockId\": " << chckpDesc.maxBlockId
+        << ", \"digestOfMaxBlockId\": \"" << chckpDesc.digestOfMaxBlockId.toString()
         << "\", \"digestOfResPagesDescriptor\": \"" << chckpDesc.digestOfResPagesDescriptor.toString() << "\"";
     if (rpDesc) {
       oss << ", \"reserved_pages\": [";
@@ -1096,24 +1096,25 @@ struct VerifyDbCheckpoint {
               const CheckpointDesc &desc,
               bool verifySignature,
               const std::map<ReplicaId, std::unique_ptr<IVerifier>> &verifiers) const {
-    auto is_digest_valid = (!desc.digestOfLastBlock.isZero() && (msg.digestOfState() == desc.digestOfLastBlock) &&
-                            (msg.state() == desc.lastBlock));
-    auto is_check_point_signature_valild{true};
+    auto is_digest_valid = (!desc.digestOfMaxBlockId.isZero() && (msg.digestOfState() == desc.digestOfMaxBlockId) &&
+                            (msg.state() == desc.maxBlockId));
+    auto is_check_point_signature_valid{true};
     if (verifySignature) {
-      is_check_point_signature_valild = false;
+      is_check_point_signature_valid = false;
       if (auto it = verifiers.find(msg.idOfGeneratedReplica()); it != verifiers.end()) {
         auto verifier = (it->second).get();
         if (verifier) {
-          is_check_point_signature_valild = verifySig(msg.body(),
-                                                      msg.getHeaderLen(),
-                                                      msg.body() + msg.getHeaderLen() + msg.spanContextSize(),
-                                                      msg.size() - msg.getHeaderLen() - msg.spanContextSize(),
-                                                      verifier);
+          is_check_point_signature_valid = verifySig(msg.body(),
+                                                     msg.getHeaderLen(),
+                                                     msg.body() + msg.getHeaderLen() + msg.spanContextSize(),
+                                                     msg.size() - msg.getHeaderLen() - msg.spanContextSize(),
+                                                     verifier);
         }
       }
     }
-    return is_digest_valid && is_check_point_signature_valild;
+    return is_digest_valid && is_check_point_signature_valid;
   }
+
   BlockDigest getBlockDigest(const KeyValueBlockchain &adapter, const uint64_t &blockId) const {
     using bftEngine::bcst::computeBlockDigest;
     const auto rawBlock = adapter.getRawBlock(blockId);
@@ -1187,11 +1188,11 @@ struct VerifyDbCheckpoint {
     CheckpointDesc checkPtDesc;
     if (ds->hasCheckpointDesc(chckp)) {
       checkPtDesc = ds->getCheckpointDesc(chckp);
-      result["LastStoredCheckpointBlockId"] = std::to_string(checkPtDesc.lastBlock);
-      auto computedDigest = getBlockDigest(adapter, checkPtDesc.lastBlock);
+      result["LastStoredCheckpointBlockId"] = std::to_string(checkPtDesc.maxBlockId);
+      auto computedDigest = getBlockDigest(adapter, checkPtDesc.maxBlockId);
       result["calculatedBlockHash"] = concordUtils::bufferToHex(computedDigest.data(), computedDigest.size());
-      if (computedDigest.size() != sizeof(checkPtDesc.digestOfLastBlock) ||
-          (std::memcmp(computedDigest.data(), checkPtDesc.digestOfLastBlock.get(), computedDigest.size()))) {
+      if (computedDigest.size() != sizeof(checkPtDesc.digestOfMaxBlockId) ||
+          (std::memcmp(computedDigest.data(), checkPtDesc.digestOfMaxBlockId.get(), computedDigest.size()))) {
         result["lastBlockVerification"] = "Fail";
         return concordUtils::toJson(result);
       }
@@ -1223,10 +1224,11 @@ struct VerifyDbCheckpoint {
     result["ValidCheckpointMsgsCount"] = std::to_string(numOfValidCheckPtMsgs);
     if (numOfBlocksToVerify) {
       const auto &gensisBlockId = adapter.getGenesisBlockId();
-      numOfBlocksToVerify = std::min(numOfBlocksToVerify, (checkPtDesc.lastBlock - gensisBlockId));
+      numOfBlocksToVerify = std::min(numOfBlocksToVerify, (checkPtDesc.maxBlockId - gensisBlockId));
       result["BlockChainVerificationStatus"] =
-          verifyBlockChain(adapter, (checkPtDesc.lastBlock - numOfBlocksToVerify - 1), checkPtDesc.lastBlock) ? "Ok"
-                                                                                                              : "Fail";
+          verifyBlockChain(adapter, (checkPtDesc.maxBlockId - numOfBlocksToVerify - 1), checkPtDesc.maxBlockId)
+              ? "Ok"
+              : "Fail";
     }
     result["NumOfBlocksVerifiedFromLastStableCheckPtBlock"] = std::to_string(numOfBlocksToVerify);
     return concordUtils::toJson(result);
@@ -1334,5 +1336,4 @@ inline int run(const CommandLineArguments &cmd_line_args, std::ostream &out, std
   }
   return EXIT_SUCCESS;
 }
-
 }  // namespace concord::kvbc::tools::db_editor

@@ -28,23 +28,27 @@ namespace impl {
 //  [numReplicas+numRoReplicas, numReplicas+numRoReplicas+numOfClientProxies-1] inclusive
 //
 // External clients address range:
-//  [numReplicas+numRoReplicas+numOfClientProxies-1,
+//  [numReplicas+numRoReplicas+numOfClientProxies,
 //  numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients-1] inclusive
 //
-// Internal clients address range:
-//  [numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients-1,
-//  numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients+numOfInternalClients-1] inclusive
-//
 // Client services address range:
-//  [numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients+numOfInternalClients-1,
-//  numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients+numOfInternalClients+numOfClientServices-1]
+//  [numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients,
+//  numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients+numOfClientServices-1] inclusive
+//
+//  Operator-id:
+//  numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients+numOfClientServices
+//
+// Internal clients address range:
+//  [numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients+numOfClientServices+1,
+//  numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients+numOfClientServices+numOfInternalClients]
 //  inclusive
 //
 // Example:
-//  numReplicas = 7, numRoReplicas = 1, numOfClientProxies=14, numOfExternalClients=100, numOfInternalClients=7,
-//  numOfClientServices=2 address range in this order: [0,6], [7,7], [8,21] , [22,121], [122,128], [129,130] - total 130
-//  participants
+//  numReplicas=7, numRoReplicas=1, numOfClientProxies=7, numOfExternalClients=100, numOfClientServices=2,
+//  operator=1, numOfInternalClients=7,
+//  address range in this order: [0,6], [7,7], [8,14], [15,114], [115,116], [117], [118-124] - total 125 participants
 //
+
 ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
                            bool dynamicCollectorForPartialProofs,
                            bool dynamicCollectorForExecutionProofs)
@@ -113,7 +117,19 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
           LOG_INFO(GL,
                    "Principal ids in _idsOfExternalClients: " << start << " to "
                                                               << end - 1 - ((uint16_t)config.operatorEnabled_));
-        if (config.operatorEnabled_) LOG_INFO(GL, "Operator id: " << end + config.numOfClientServices - 1);
+        return ret;
+      }()},
+
+      _idsOfClientServices{[&config]() {
+        std::set<ReplicaId> ret;
+        auto start = config.numReplicas + config.numRoReplicas + config.numOfClientProxies +
+                     config.numOfExternalClients - ((uint16_t)config.operatorEnabled_);
+        auto end = start + config.numOfClientServices;
+        for (auto i = start; i < end; ++i) {
+          ret.insert(i);
+        }
+        if (start != end) LOG_INFO(GL, "Principal ids in _idsOfClientServices: " << start << " to " << end - 1);
+        if (config.operatorEnabled_) LOG_INFO(GL, "Operator id: " << end);
         return ret;
       }()},
 
@@ -126,18 +142,6 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
           ret.insert(i);
         }
         if (start != end) LOG_INFO(GL, "Principal ids in _idsOfInternalClients: " << start << " to " << end - 1);
-        return ret;
-      }()},
-
-      _idsOfClientServices{[&config]() {
-        std::set<ReplicaId> ret;
-        auto start = config.numReplicas + config.numRoReplicas + config.numOfClientProxies +
-                     config.numOfExternalClients - ((uint16_t)config.operatorEnabled_);
-        auto end = start + config.numOfClientServices;
-        for (auto i = start; i < end; ++i) {
-          ret.insert(i);
-        }
-        if (start != end) LOG_INFO(GL, "Principal ids in _idsOfClientServices: " << start << " to " << end);
         return ret;
       }()} {
   ConcordAssert(_numberOfReplicas == (3 * _fVal + 2 * _cVal + 1));

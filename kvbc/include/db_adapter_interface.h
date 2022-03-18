@@ -27,6 +27,9 @@ class IDbAdapter {
   // Returns the added block ID.
   virtual BlockId addBlock(const SetOfKeyValuePairs& updates) = 0;
 
+  // Try to link the blockchain until the given block ID.
+  virtual void linkUntilBlockId(BlockId until_block_id) = 0;
+
   // Adds a block from its raw representation and a block ID.
   // Typically called by state transfer when a block is received and needs to be added.
   virtual void addRawBlock(const RawBlock& rawBlock, const BlockId& blockId, bool lastBlock) = 0;

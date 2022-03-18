@@ -21,8 +21,6 @@
 #include "Metrics.hpp"
 #include "Logger.hpp"
 
-#define getMonotonicTime std::chrono::steady_clock::now
-
 using namespace std;
 using concordMetrics::GaugeHandle;
 using concordMetrics::AtomicGaugeHandle;

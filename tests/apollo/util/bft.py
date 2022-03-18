@@ -26,7 +26,7 @@ from datetime import datetime
 from functools import partial
 import inspect
 import time
-from typing import Coroutine
+from typing import Coroutine, Sequence
 
 import trio
 
@@ -42,6 +42,8 @@ from util import bft_metrics, eliot_logging as log
 from util.eliot_logging import log_call
 from util import skvbc as kvbc
 from util.bft_test_exceptions import AlreadyRunningError, AlreadyStoppedError, KeyExchangeError, CreError
+from bft_config import BFTConfig
+
 DB_FILE_PREFIX = "simpleKVBTests_DB_"
 DB_SNAPSHOT_PREFIX = DB_FILE_PREFIX + "snapshot_"
 
@@ -85,31 +87,19 @@ BFT_CLIENT_TYPE = bft_client.TcpTlsClient if os.environ.get('BUILD_COMM_TCP_TLS'
 # If you need more clients, increase with caution.
 # Reserved clients (RESERVED_CLIENTS_QUOTA) are not part of NUM_CLIENTS
 RESERVED_CLIENTS_QUOTA = 2
-BFT_CONFIGS_NUM_CLIENTS = 10
 NUM_PARTICIPANTS = 5
 
-@log_call(action_type="Test_Configs", include_args=[])
-def interesting_configs(selected=None):
-    if selected is None:
-        selected=lambda n, f, c: c == 0
-
-    bft_configs = [{'n': 6, 'f': 1, 'c': 1, 'num_clients': BFT_CONFIGS_NUM_CLIENTS},
-                   {'n': 7, 'f': 2, 'c': 0, 'num_clients': BFT_CONFIGS_NUM_CLIENTS},
-                   # {'n': 4, 'f': 1, 'c': 0, 'num_clients': BFT_CONFIGS_NUM_CLIENTS},
-                   # {'n': 9, 'f': 2, 'c': 1, 'num_clients': BFT_CONFIGS_NUM_CLIENTS}
-                   # {'n': 12, 'f': 3, 'c': 1, 'num_clients': BFT_CONFIGS_NUM_CLIENTS}
+def interesting_configs(config_filter=None) -> Sequence[BFTConfig]:
+    config_filter = config_filter or (lambda n, f, c: c == 0)
+    bft_configs = [BFTConfig(n=6, f=1, c=1),
+                   BFTConfig(n=7, f=2, c=0),
+                   #BFTConfig(n=4, f=1, c=0),
+                   #BFTConfig(n=9, f=2, c=1),
+                   #BFTConfig(n=12, f=3, c=1),
                    ]
 
-    selected_bft_configs = \
-        [conf for conf in bft_configs
-         if selected(conf['n'], conf['f'], conf['c'])]
-
+    selected_bft_configs = list(filter(lambda config: config_filter(config.n, config.f, config.c), bft_configs))
     assert len(selected_bft_configs) > 0, "No eligible BFT configs"
-
-    for config in selected_bft_configs:
-        assert config['n'] == 3 * config['f'] + 2 * config['c'] + 1, \
-            "Invariant breached. Expected: n = 3f + 2c + 1"
-
     return selected_bft_configs
 
 def with_trio(async_fn):
@@ -178,6 +168,7 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
     def decorator(async_fn):
         @wraps(async_fn)
         async def wrapper(*args, **kwargs):
+            test_instance = args[0]
             if "bft_network" in kwargs:
                 bft_network = kwargs.pop("bft_network")
                 bft_network.is_existing = True
@@ -185,35 +176,36 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
                     await async_fn(*args, **kwargs, bft_network=bft_network)
             else:
                 configs = bft_configs if bft_configs is not None else interesting_configs(selected_configs)
+                log.log_message(message_type="Selected Configs",
+                                configs=[f'{config}_clients={config.clients}' for config in configs])
                 for bft_config in configs:
-
-                    config = TestConfig(n=bft_config['n'],
-                                        f=bft_config['f'],
-                                        c=bft_config['c'],
-                                        num_clients=bft_config['num_clients'] \
+                    test_name = f'{async_fn.__name__}_{bft_config}'
+                    config = TestConfig(n=bft_config.n,
+                                        f=bft_config.f,
+                                        c=bft_config.c,
+                                        num_clients=bft_config.clients \
                                             if num_clients is None \
                                             else num_clients,
                                         key_file_prefix=KEY_FILE_PREFIX,
                                         start_replica_cmd=start_replica_cmd,
                                         stop_replica_cmd=None,
                                         num_ro_replicas=num_ro_replicas)
-                    async with trio.open_nursery() as background_nursery:
-                        @retry_test(retries)
-                        async def test_with_bft_network():
-                            with BftTestNetwork.new(config, background_nursery, with_cre=with_cre) as bft_network:
-                                bft_network.current_test = async_fn.__name__ + "_n=" + str(bft_config['n']) \
-                                                                             + "_f=" + str(bft_config['f']) \
-                                                                             + "_c=" + str(bft_config['c'])
-                                with log.start_task(
-                                        action_type=f"{bft_network.current_test}_num_clients={config.num_clients}",
-                                        seed=args[0].test_seed, max_retries=retries):
-                                    random.seed(args[0].test_seed)
-                                    if rotate_keys:
-                                        await bft_network.check_initital_key_exchange(
-                                            check_master_key_publication=publish_master_keys)
-                                    bft_network.test_start_time = time.time()
-                                    await async_fn(*args, **kwargs, bft_network=bft_network)
-                        await test_with_bft_network()
+                    with test_instance.subTest(config=f'{bft_config}'):
+                        async with trio.open_nursery() as background_nursery:
+                            @retry_test(retries)
+                            async def test_with_bft_network():
+                                with BftTestNetwork.new(config, background_nursery, with_cre=with_cre) as bft_network:
+                                    bft_network.current_test = test_name
+                                    with log.start_task(
+                                            action_type=f"{bft_network.current_test}_num_clients={config.num_clients}",
+                                            seed=args[0].test_seed, max_retries=retries):
+                                        random.seed(args[0].test_seed)
+                                        if rotate_keys:
+                                            await bft_network.check_initital_key_exchange(
+                                                check_master_key_publication=publish_master_keys)
+                                        bft_network.test_start_time = time.time()
+                                        await async_fn(*args, **kwargs, bft_network=bft_network)
+                            await test_with_bft_network()
         return wrapper
 
     return decorator
@@ -295,7 +287,7 @@ class BftTestNetwork:
         self.with_cre = False
         self.cre_pid = None
         self.cre_fds = None
-        self.cre_id = self.config.n + self.config.num_ro_replicas + BFT_CONFIGS_NUM_CLIENTS + RESERVED_CLIENTS_QUOTA
+        self.cre_id = self.config.n + self.config.num_ro_replicas + self.config.num_clients + RESERVED_CLIENTS_QUOTA
         # Setup transaction signing parameters
         self.setup_txn_signing()
         self._generate_operator_keys()
@@ -1125,7 +1117,7 @@ class BftTestNetwork:
     async def source_replica(self, replica_id):
         """Return whether the current replica has a source replica already set"""
         with log.start_action(action_type="source_replica", replica=replica_id):
-            key = ['bc_state_transfer', 'Gauges', 'current_source_replica']
+            key = ['state_transfer_source_selector', 'Gauges', 'current_source_replica']
             source_replica_id = await self.metrics.get(replica_id, *key)
             return source_replica_id
 
@@ -1175,9 +1167,9 @@ class BftTestNetwork:
                         pass # metrics not yet available, continue looping
                     await trio.sleep(0.1)
 
-    async def wait_for_state_transfer_to_stop(self, up_to_date_node, stale_node, stop_on_stable_seq_num=False):
-        with log.start_action(action_type="wait_for_state_transfer_to_stop", up_to_date_node=up_to_date_node, stale_node=stale_node, stop_on_stable_seq_num=stop_on_stable_seq_num):
-            with trio.fail_after(30): # seconds
+    async def wait_for_state_transfer_to_stop(self, up_to_date_node, stale_node, stop_on_stable_seq_num=False, seconds_until_timeout=45 if os.getenv('BUILD_COMM_TCP_TLS') == "OFF" else 30):
+        with log.start_action(action_type="wait_for_state_transfer_to_stop", up_to_date_node=up_to_date_node, stale_node=stale_node, stop_on_stable_seq_num=stop_on_stable_seq_num, seconds_until_timeout=seconds_until_timeout):
+            with trio.fail_after(seconds_until_timeout):
                 # Get the lastExecutedSeqNumber from a started node
                 if stop_on_stable_seq_num:
                     key = ['replica', 'Gauges', 'lastStableSeqNum']
@@ -1255,6 +1247,46 @@ class BftTestNetwork:
                                 if n >= expected_seq_num:
                                     action.add_success_fields(n=n, expected_seq_num=expected_seq_num)
                                     return
+
+    async def wait_for_replicas_rvt_root_values_to_be_in_sync(self, replica_ids, timeout=30):
+        """
+        Wait for the root values of the Range validation trees of all replicas to be in sync within `timeout` seconds.
+
+        Wait for each replica in `replicas_ids` to return the current value of the root of its Range validation tree.
+        When all of the values are collected, compare them to check if they are all the same.
+        If there are discrepancies, sleep for 1 second and try retrieving the values again.
+        """
+        with log.start_action(action_type="wait_for_replicas_rvt_root_values", replica_ids=replica_ids, timeout=timeout):
+            root_values = [None] * len(replica_ids)
+            
+            with trio.fail_after(timeout): # seconds
+                while True:
+                    async with trio.open_nursery() as nursery:
+                        for replica_id in replica_ids:
+                            nursery.start_soon(self.wait_for_rvt_root_value, replica_id, root_values, timeout)
+                    
+                    print(root_values)
+                    # At this point all replicas' root values are collected
+                    if root_values.count(root_values[0]) == len(root_values) and len(root_values[0]) > 0:
+                        break
+                    else:
+                        await trio.sleep(1)
+
+    async def wait_for_rvt_root_value(self, replica_id, root_values, timeout=30):
+        """
+        Wait for a single replica to return the current value of the root of its Range validation tree.
+        Check every .5 seconds and fail after `timeout` seconds.
+        """
+        with log.start_action(action_type="wait_for_rvt_root_value", replica=replica_id, timeout=timeout) as action:            
+            async def rvt_root_value_to_be_returned():
+                key = ['bc_state_transfer', 'Statuses', 'current_rvb_data_state']
+                rvb_data_state = await self.retrieve_metric(replica_id, *key)
+                if (rvb_data_state is not None):
+                    action.log(f"Replica {replica_id}'s current rvb_data_state is: \"{rvb_data_state}\".")                   
+                    root_values[replica_id] = rvb_data_state
+                    return rvb_data_state
+        
+        return await self.wait_for(rvt_root_value_to_be_returned, timeout, .5)        
 
     async def wait_for_replicas_to_checkpoint(self, replica_ids, expected_checkpoint_num=None):
         """

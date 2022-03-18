@@ -252,21 +252,21 @@ TEST(ClientsManager, reservedPagesPerClient) {
 
 TEST(ClientsManager, constructor) {
   resetMockReservedPages();
-  unique_ptr<ClientsManager> cm(new ClientsManager({1, 4, 50, 7}, {3, 2, 60}, {5, 11, 55}, metrics));
+  unique_ptr<ClientsManager> cm(new ClientsManager({1, 4, 50, 7}, {3, 2, 60}, {}, {5, 11, 55}, metrics));
   for (auto id : {5, 11, 55}) ASSERT_EQ(true, cm->isInternal(id));
   for (auto id : {1, 4, 50, 3, 2, 60}) ASSERT_EQ(false, cm->isInternal(id));
 
-  ASSERT_NO_THROW(cm.reset(new ClientsManager({1}, {}, {}, metrics)))
+  ASSERT_NO_THROW(cm.reset(new ClientsManager({1}, {}, {}, {}, metrics)))
       << "ClientsManager's constructor failed when given only a single proxy client.";
   EXPECT_TRUE(cm->isValidClient(1) && !(cm->isInternal(1)))
       << "ClientsManager constructed with only a single proxy client did not correctly recognize that client's ID and "
          "type.";
-  ASSERT_NO_THROW(cm.reset(new ClientsManager({}, {1}, {}, metrics)))
+  ASSERT_NO_THROW(cm.reset(new ClientsManager({}, {1}, {}, {}, metrics)))
       << "ClientsManager's constructor failed when given only a single external client.";
   EXPECT_TRUE(cm->isValidClient(1) && !(cm->isInternal(1)))
       << "ClientsManager constructed with only a single external client did not correctly recognize that client's ID "
          "and type.";
-  ASSERT_NO_THROW(cm.reset(new ClientsManager({}, {}, {1}, metrics)))
+  ASSERT_NO_THROW(cm.reset(new ClientsManager({}, {}, {}, {1}, metrics)))
       << "ClientsManager's constructor failed when given only a single internal client.";
   EXPECT_TRUE(cm->isValidClient(1) && cm->isInternal(1))
       << "ClientsManager constructed with only a single internal client did not correctly recognize that client's ID "
@@ -275,7 +275,7 @@ TEST(ClientsManager, constructor) {
   const set<NodeIdType> proxy_clients{1, 3, 5, 7};
   const set<NodeIdType> external_clients{2, 3, 6, 7};
   const set<NodeIdType> internal_clients{4, 5, 6, 7};
-  ASSERT_NO_THROW(cm.reset(new ClientsManager(proxy_clients, external_clients, internal_clients, metrics)))
+  ASSERT_NO_THROW(cm.reset(new ClientsManager(proxy_clients, external_clients, {}, internal_clients, metrics)))
       << "ClientsManager's constructor failed when given sets of clients including some clients classified as multiple "
          "types.";
   for (NodeIdType i = 1; i <= 7; ++i) {
@@ -290,7 +290,7 @@ TEST(ClientsManager, constructor) {
 
 TEST(ClientsManager, numberOfRequiredReservedPagesSucceeds) {
   resetMockReservedPages();
-  unique_ptr<ClientsManager> cm(new ClientsManager({1, 2, 3}, {4}, {5, 6}, metrics));
+  unique_ptr<ClientsManager> cm(new ClientsManager({1, 2, 3}, {4}, {}, {5, 6}, metrics));
 
   // Note we do not actually check the values retruned by numberOfRequiredReservedPages (other than expecting them to be
   // above 0), as exactly what value this function returns is considered an implementation detail of ClientsManager
@@ -298,7 +298,7 @@ TEST(ClientsManager, numberOfRequiredReservedPagesSucceeds) {
   EXPECT_GT(cm->numberOfRequiredReservedPages(), 0)
       << "ClientsManager::numberOfRequiredReservedPages failed to return an integer greater than 0.";
 
-  cm.reset(new ClientsManager({1}, {}, {}, metrics));
+  cm.reset(new ClientsManager({1}, {}, {}, {}, metrics));
   EXPECT_GT(cm->numberOfRequiredReservedPages(), 0) << "ClientsManager::numberOfRequiredReservedPages failed to return "
                                                        "an integer greater than 0 for a single-client ClientsManager.";
 }
@@ -319,7 +319,7 @@ TEST(ClientsManager, loadInfoFromReservedPagesLoadsCorrectInfo) {
 
   resetMockReservedPages();
   unique_ptr<ClientsManager> cm(
-      new ClientsManager(proxy_client_ids, external_client_ids, internal_client_ids, metrics));
+      new ClientsManager(proxy_client_ids, external_client_ids, {}, internal_client_ids, metrics));
   for (const auto& keys : client_keys) {
     cm->setClientPublicKey(keys.first, keys.second.second, kKeyFormatForTesting);
   }
@@ -330,7 +330,7 @@ TEST(ClientsManager, loadInfoFromReservedPagesLoadsCorrectInfo) {
   }
 
   clearClientPublicKeysLoadedToKEM();
-  cm.reset(new ClientsManager(proxy_client_ids, external_client_ids, internal_client_ids, metrics));
+  cm.reset(new ClientsManager(proxy_client_ids, external_client_ids, {}, internal_client_ids, metrics));
   EXPECT_NO_THROW(cm->loadInfoFromReservedPages()) << "ClientsManager::loadInfoFromReservedPages failed.";
   for (const auto& id : client_ids) {
     if (client_keys.count(id) > 0) {
@@ -355,13 +355,13 @@ TEST(ClientsManager, loadInfoFromReservedPagesLoadsCorrectInfo) {
   }
 
   resetMockReservedPages();
-  cm.reset(new ClientsManager(proxy_client_ids, external_client_ids, internal_client_ids, metrics));
+  cm.reset(new ClientsManager(proxy_client_ids, external_client_ids, {}, internal_client_ids, metrics));
   for (const auto& keys : client_keys) {
     cm->setClientPublicKey(keys.first, keys.second.second, kKeyFormatForTesting);
   }
 
   clearClientPublicKeysLoadedToKEM();
-  cm.reset(new ClientsManager(proxy_client_ids, external_client_ids, internal_client_ids, metrics));
+  cm.reset(new ClientsManager(proxy_client_ids, external_client_ids, {}, internal_client_ids, metrics));
   EXPECT_NO_THROW(cm->loadInfoFromReservedPages()) << "ClientsManager::loadInfoFromReservedPages failed when the "
                                                       "reserved pages contained only client public key information.";
   for (const auto& id : client_ids) {
@@ -381,7 +381,7 @@ TEST(ClientsManager, loadInfoFromReservedPagesLoadsCorrectInfo) {
   }
 
   resetMockReservedPages();
-  cm.reset(new ClientsManager(proxy_client_ids, external_client_ids, internal_client_ids, metrics));
+  cm.reset(new ClientsManager(proxy_client_ids, external_client_ids, {}, internal_client_ids, metrics));
   for (const auto& reply : client_replies) {
     string reply_msg = reply.second.second;
     cm->allocateNewReplyMsgAndWriteToStorage(
@@ -389,7 +389,7 @@ TEST(ClientsManager, loadInfoFromReservedPagesLoadsCorrectInfo) {
   }
 
   clearClientPublicKeysLoadedToKEM();
-  cm.reset(new ClientsManager(proxy_client_ids, external_client_ids, internal_client_ids, metrics));
+  cm.reset(new ClientsManager(proxy_client_ids, external_client_ids, {}, internal_client_ids, metrics));
   EXPECT_NO_THROW(cm->loadInfoFromReservedPages())
       << "ClientsManager::loadInfoFromReservedPages failed when the reserved pages contained only client reply "
          "information and no client public key information.";
@@ -413,7 +413,7 @@ TEST(ClientsManager, loadInfoFromReservedPagesLoadsCorrectInfo) {
 TEST(ClientsManager, loadInfoFromReservedPagesHandlesNoInfoAvailable) {
   resetMockReservedPages();
   clearClientPublicKeysLoadedToKEM();
-  unique_ptr<ClientsManager> cm(new ClientsManager({1, 2, 3}, {4}, {5, 6}, metrics));
+  unique_ptr<ClientsManager> cm(new ClientsManager({1, 2, 3}, {4}, {}, {5, 6}, metrics));
   EXPECT_NO_THROW(cm->loadInfoFromReservedPages())
       << "ClientsManager::loadInfoFromReservedPages failed when there is no info available in the reserved pages.";
   for (NodeIdType i = 1; i <= 6; ++i) {
@@ -433,12 +433,12 @@ TEST(ClientsManager, loadInfoFromReservedPagesHandlesSingleClientClientsManager)
   string reply_message = "reply 1 to client 2";
 
   resetMockReservedPages();
-  unique_ptr<ClientsManager> cm(new ClientsManager({2}, {}, {}, metrics));
+  unique_ptr<ClientsManager> cm(new ClientsManager({2}, {}, {}, {}, metrics));
   cm->setClientPublicKey(2, client_key_pair.second, kKeyFormatForTesting);
   cm->allocateNewReplyMsgAndWriteToStorage(2, 1, 0, reply_message.data(), reply_message.length(), kRSILengthForTesting);
 
   clearClientPublicKeysLoadedToKEM();
-  cm.reset(new ClientsManager({2}, {}, {}, metrics));
+  cm.reset(new ClientsManager({2}, {}, {}, {}, metrics));
   EXPECT_NO_THROW(cm->loadInfoFromReservedPages())
       << "ClientsManager::loadInfoFromReservedPages failed when loading info for a single-client ClientsManager.";
   EXPECT_TRUE(verifyClientPublicKeyLoadedToKEM(2, client_key_pair))
@@ -472,7 +472,7 @@ TEST(ClientsManager, loadInfoFromReservedPagesCorrectlyDeletesOldReplies) {
 
   resetMockReservedPages();
   unique_ptr<ClientsManager> cm(
-      new ClientsManager(proxy_client_ids, external_client_ids, internal_client_ids, metrics));
+      new ClientsManager(proxy_client_ids, external_client_ids, {}, internal_client_ids, metrics));
   for (const auto& reply : client_replies) {
     string reply_msg = reply.second.second;
     cm->allocateNewReplyMsgAndWriteToStorage(
@@ -482,7 +482,7 @@ TEST(ClientsManager, loadInfoFromReservedPagesCorrectlyDeletesOldReplies) {
 
   ReplicaConfig::instance().setclientBatchingEnabled(false);
   resetMockReservedPages();
-  cm.reset(new ClientsManager(proxy_client_ids, external_client_ids, internal_client_ids, metrics));
+  cm.reset(new ClientsManager(proxy_client_ids, external_client_ids, {}, internal_client_ids, metrics));
   for (const auto& replies : older_client_replies) {
     ReqId seq_num = replies.second[0].first;
     string reply_msg = replies.second[0].second;
@@ -503,7 +503,7 @@ TEST(ClientsManager, loadInfoFromReservedPagesCorrectlyDeletesOldReplies) {
   ReplicaConfig::instance().setclientBatchingEnabled(true);
   ReplicaConfig::instance().setclientBatchingMaxMsgsNbr(client_batch_size);
   resetMockReservedPages();
-  cm.reset(new ClientsManager(proxy_client_ids, external_client_ids, internal_client_ids, metrics));
+  cm.reset(new ClientsManager(proxy_client_ids, external_client_ids, {}, internal_client_ids, metrics));
   for (const auto& replies : older_client_replies) {
     NodeIdType client_id = replies.first;
     for (const auto& reply : replies.second) {
@@ -532,7 +532,7 @@ TEST(ClientsManager, loadInfoFromReservedPagesCorrectlyDeletesOldReplies) {
   ReplicaConfig::instance().setclientBatchingEnabled(true);
   ReplicaConfig::instance().setclientBatchingMaxMsgsNbr(client_batch_size);
   resetMockReservedPages();
-  cm.reset(new ClientsManager(proxy_client_ids, external_client_ids, internal_client_ids, metrics));
+  cm.reset(new ClientsManager(proxy_client_ids, external_client_ids, {}, internal_client_ids, metrics));
   for (const auto& replies : older_client_replies) {
     ReqId seq_num = replies.second[0].first;
     string reply_msg = replies.second[0].second;
@@ -556,12 +556,12 @@ TEST(ClientsManager, loadInfoFromReservedPagesCorrectlyDeletesOldRequests) {
   ReplicaConfig::instance().setclientBatchingEnabled(true);
   ReplicaConfig::instance().setclientBatchingMaxMsgsNbr(5);
   resetMockReservedPages();
-  unique_ptr<ClientsManager> cm(new ClientsManager({1}, {2, 3}, {4, 5}, metrics));
+  unique_ptr<ClientsManager> cm(new ClientsManager({1}, {2, 3}, {}, {4, 5}, metrics));
 
   string reply_message = "reply 6 to client 3";
   cm->allocateNewReplyMsgAndWriteToStorage(3, 6, 0, reply_message.data(), reply_message.length(), kRSILengthForTesting);
 
-  cm.reset(new ClientsManager({1}, {2, 3}, {4, 5}, metrics));
+  cm.reset(new ClientsManager({1}, {2, 3}, {}, {4, 5}, metrics));
   for (ReqId i = 5; i <= 7; ++i) {
     cm->addPendingRequest(3, i, "Correlation ID");
   }
@@ -590,7 +590,7 @@ TEST(ClientsManager, loadInfoFromReservedPagesCorrectlyHandles0BatchSize) {
   ReplicaConfig::instance().setclientBatchingEnabled(true);
   ReplicaConfig::instance().setclientBatchingMaxMsgsNbr(0);
   resetMockReservedPages();
-  unique_ptr<ClientsManager> cm(new ClientsManager({}, {1, 2, 3}, {4}, metrics));
+  unique_ptr<ClientsManager> cm(new ClientsManager({}, {1, 2, 3}, {}, {4}, metrics));
   cm->allocateNewReplyMsgAndWriteToStorage(
       2, 2, 0, reply_2_message.data(), reply_2_message.length(), kRSILengthForTesting);
   auto res_pages_with_new_reply = getMockReservedPages();
@@ -605,7 +605,7 @@ TEST(ClientsManager, loadInfoFromReservedPagesCorrectlyHandles0BatchSize) {
   // delete any reply records for clients for which there are no reply records in the reserved pages.
 
   resetMockReservedPages();
-  cm.reset(new ClientsManager({}, {1, 2, 3}, {4}, metrics));
+  cm.reset(new ClientsManager({}, {1, 2, 3}, {}, {4}, metrics));
   cm->allocateNewReplyMsgAndWriteToStorage(
       2, 1, 0, reply_1_message.data(), reply_1_message.length(), kRSILengthForTesting);
   cm->allocateNewReplyMsgAndWriteToStorage(
@@ -628,7 +628,7 @@ TEST(ClientsManager, loadInfoFromReservedPagesCorrectlyHandles0BatchSize) {
 TEST(ClientsManager, hasReply) {
   resetMockReservedPages();
   string reply_message = "reply 9 to client 5";
-  unique_ptr<ClientsManager> cm(new ClientsManager({1, 2}, {3, 4}, {5, 6}, metrics));
+  unique_ptr<ClientsManager> cm(new ClientsManager({1, 2}, {3, 4}, {}, {5, 6}, metrics));
   cm->allocateNewReplyMsgAndWriteToStorage(5, 9, 0, reply_message.data(), reply_message.length(), kRSILengthForTesting);
 
   EXPECT_TRUE(cm->hasReply(5, 9))
@@ -649,7 +649,7 @@ TEST(ClientsManager, isValidClient) {
   set<NodeIdType> internal_client_ids{7, 14, 21};
   NodeIdType max_id_to_check = 27;
   unique_ptr<ClientsManager> cm(
-      new ClientsManager(proxy_client_ids, external_client_ids, internal_client_ids, metrics));
+      new ClientsManager(proxy_client_ids, external_client_ids, {}, internal_client_ids, metrics));
   for (const auto& id : proxy_client_ids) {
     EXPECT_TRUE(cm->isValidClient(id)) << "ClientsManager::isValidClient returned false for a valid proxy client ID.";
   }
@@ -671,7 +671,7 @@ TEST(ClientsManager, isValidClient) {
   external_client_ids = {4, 5, 6, 7, 12, 13, 14, 15};
   internal_client_ids = {8, 9, 10, 11, 12, 13, 14, 15};
   max_id_to_check = 24;
-  cm.reset(new ClientsManager(proxy_client_ids, external_client_ids, internal_client_ids, metrics));
+  cm.reset(new ClientsManager(proxy_client_ids, external_client_ids, {}, internal_client_ids, metrics));
   for (NodeIdType i = 0; i <= max_id_to_check; ++i) {
     if ((proxy_client_ids.count(i) > 0) || (external_client_ids.count(i) > 0) || (internal_client_ids.count(i) > 0)) {
       EXPECT_TRUE(cm->isValidClient(i))
@@ -689,7 +689,7 @@ TEST(ClientsManager, allocateNewReplyMsgAndWriteToStorageWorksCorrectlyInTheGene
   resetMockReservedPages();
   const string kExpectedMessageBody = "This is an arbitrary reply message.";
   string message_body = kExpectedMessageBody;
-  unique_ptr<ClientsManager> cm(new ClientsManager({}, {1, 2, 4}, {5, 7}, metrics));
+  unique_ptr<ClientsManager> cm(new ClientsManager({}, {1, 2, 4}, {}, {5, 7}, metrics));
 
   unique_ptr<ClientReplyMsg> message = cm->allocateNewReplyMsgAndWriteToStorage(
       4, 3, 8, message_body.data(), message_body.length(), kRSILengthForTesting);
@@ -711,7 +711,7 @@ TEST(ClientsManager, allocateNewReplyMsgAndWriteToStorageWorksCorrectlyInTheGene
       << "ClientsManager::allocateNewReplyMsgAndWriteToStorage unexpectedly changed the original reply body in the "
          "buffer it it was passed as input.";
 
-  cm.reset(new ClientsManager({}, {1, 2, 4}, {5, 7}, metrics));
+  cm.reset(new ClientsManager({}, {1, 2, 4}, {}, {5, 7}, metrics));
   cm->loadInfoFromReservedPages();
   EXPECT_TRUE(cm->hasReply(4, 3)) << "ClientsManager::allocateNewReplyMsgAndWriteToStorage failed to write a correct "
                                      "reply record to the reserved pages.";
@@ -743,7 +743,7 @@ TEST(ClientsManager, allocateNewReplyMsgAndWriteToStorageWorksCorrectlyInTheGene
          "buffer it was passed as input for a newer replacement for an existing message client ID/sequence number "
          "combination.";
 
-  cm.reset(new ClientsManager({}, {1, 2, 4}, {5, 7}, metrics));
+  cm.reset(new ClientsManager({}, {1, 2, 4}, {}, {5, 7}, metrics));
   cm->loadInfoFromReservedPages();
   message = cm->allocateReplyFromSavedOne(4, 3, 9);
   ASSERT_TRUE(message) << "ClientsManager::allocateNewReplyMsgAndWriteToStorage failed to correctly write the message "
@@ -764,7 +764,7 @@ TEST(ClientsManager, allocateNewReplyMsgAndWriteToStorageCorrectlyDeletesOldRepl
   string reply_1_to_10_message = "reply 1 to client 10";
 
   ReplicaConfig::instance().setclientBatchingEnabled(false);
-  unique_ptr<ClientsManager> cm(new ClientsManager({2, 7}, {1, 3, 5}, {10, 11}, metrics));
+  unique_ptr<ClientsManager> cm(new ClientsManager({2, 7}, {1, 3, 5}, {}, {10, 11}, metrics));
   cm->allocateNewReplyMsgAndWriteToStorage(
       5, 1, 0, reply_1_to_5_message.data(), reply_1_to_5_message.length(), kRSILengthForTesting);
   cm->allocateNewReplyMsgAndWriteToStorage(
@@ -782,7 +782,7 @@ TEST(ClientsManager, allocateNewReplyMsgAndWriteToStorageCorrectlyDeletesOldRepl
 
   ReplicaConfig::instance().setclientBatchingEnabled(true);
   ReplicaConfig::instance().setclientBatchingMaxMsgsNbr(2);
-  cm.reset(new ClientsManager({2, 7}, {1, 3, 5}, {10, 11}, metrics));
+  cm.reset(new ClientsManager({2, 7}, {1, 3, 5}, {}, {10, 11}, metrics));
   cm->allocateNewReplyMsgAndWriteToStorage(
       5, 1, 0, reply_1_to_5_message.data(), reply_1_to_5_message.length(), kRSILengthForTesting);
   cm->allocateNewReplyMsgAndWriteToStorage(
@@ -814,7 +814,7 @@ TEST(ClientsManager, allocateNewReplyMsgAndWriteToStorageHandlesApplicableCorner
   resetMockReservedPages();
   string empty_reply = "";
 
-  unique_ptr<ClientsManager> cm(new ClientsManager({}, {1, 2, 3}, {4}, metrics));
+  unique_ptr<ClientsManager> cm(new ClientsManager({}, {1, 2, 3}, {}, {4}, metrics));
   unique_ptr<ClientReplyMsg> message =
       cm->allocateNewReplyMsgAndWriteToStorage(1, 0, 0, empty_reply.data(), empty_reply.length(), kRSILengthForTesting);
   ASSERT_TRUE(message) << "ClientsManager::allocateNewReplyMsgAndWriteToStorage returned a null pointer when "
@@ -830,10 +830,10 @@ TEST(ClientsManager, allocateReplyFromSavedOneWorksCorrectlyInTheGeneralCase) {
   const string kExpectedMessageBody = "reply 3 to client 1";
   string reply = kExpectedMessageBody;
 
-  unique_ptr<ClientsManager> cm(new ClientsManager({8}, {1, 2}, {4}, metrics));
+  unique_ptr<ClientsManager> cm(new ClientsManager({8}, {1, 2}, {}, {4}, metrics));
   cm->allocateNewReplyMsgAndWriteToStorage(1, 3, 9, reply.data(), reply.length(), kRSILengthForTesting);
 
-  cm.reset(new ClientsManager({8}, {1, 2}, {4}, metrics));
+  cm.reset(new ClientsManager({8}, {1, 2}, {}, {4}, metrics));
   unique_ptr<ClientReplyMsg> message = cm->allocateReplyFromSavedOne(1, 3, 12);
   ASSERT_TRUE(message) << "ClientsManager::allocateReplyFromSavedOne returned a null pointer when the requested reply "
                           "message should have been available in the reserved pages.";
@@ -856,10 +856,10 @@ TEST(ClientsManager, allocateReplyFromSavedOneCorrectlyHandlesCasesWithClientBat
   const string kExpectedMessageBody = "reply 3 to client 1";
   string reply = kExpectedMessageBody;
 
-  unique_ptr<ClientsManager> cm(new ClientsManager({8}, {1, 2}, {4}, metrics));
+  unique_ptr<ClientsManager> cm(new ClientsManager({8}, {1, 2}, {}, {4}, metrics));
   cm->allocateNewReplyMsgAndWriteToStorage(1, 3, 9, reply.data(), reply.length(), kRSILengthForTesting);
 
-  cm.reset(new ClientsManager({8}, {1, 2}, {4}, metrics));
+  cm.reset(new ClientsManager({8}, {1, 2}, {}, {4}, metrics));
   unique_ptr<ClientReplyMsg> message = cm->allocateReplyFromSavedOne(1, 3, 12);
   ASSERT_TRUE(message)
       << "ClientsManager::allocateReplyFromSavedOne returned a null pointer when the requested reply message should "
@@ -881,7 +881,7 @@ TEST(ClientsManager, allocateReplyFromSavedOneCorrectlyHandlesCasesWithClientBat
 TEST(ClientsManager, isClientRequestInProcess) {
   resetMockReservedPages();
 
-  unique_ptr<ClientsManager> cm(new ClientsManager({1, 6}, {2, 8, 14}, {3, 10}, metrics));
+  unique_ptr<ClientsManager> cm(new ClientsManager({1, 6}, {2, 8, 14}, {}, {3, 10}, metrics));
   set<NodeIdType> all_client_ids{1, 6, 2, 8, 14, 3, 10};
   set<pair<NodeIdType, ReqId>> requests_in_process{{6, 3}, {6, 6}, {2, 1}, {2, 2}, {14, 8}, {3, 3}, {3, 4}, {3, 5}};
   ReqId max_req_id_to_check = 10;
@@ -917,7 +917,7 @@ TEST(ClientsManager, canBecomePending) {
 
   ReplicaConfig::instance().setclientBatchingEnabled(true);
   ReplicaConfig::instance().setclientBatchingMaxMsgsNbr(2);
-  unique_ptr<ClientsManager> cm(new ClientsManager({}, {2, 3, 5, 7}, {1}, metrics));
+  unique_ptr<ClientsManager> cm(new ClientsManager({}, {2, 3, 5, 7}, {}, {1}, metrics));
   cm->addPendingRequest(3, 2, "correlation ID");
   EXPECT_TRUE(cm->canBecomePending(3, 3))
       << "ClientsManager::canBecomePending returned false for a client ID/request sequence number combination it was "
@@ -952,7 +952,7 @@ TEST(ClientsManager, canBecomePending) {
          "the ClientsManager should have had an existing reply record.";
 
   ReplicaConfig::instance().setclientBatchingEnabled(false);
-  cm.reset(new ClientsManager({}, {2, 3, 5, 7}, {1}, metrics));
+  cm.reset(new ClientsManager({}, {2, 3, 5, 7}, {}, {1}, metrics));
   cm->addPendingRequest(3, 2, "correlation ID");
   EXPECT_FALSE(cm->canBecomePending(3, 3))
       << "ClientsManager::canBecomePending returned true for a client ID for which the ClientsManager should have "
@@ -962,7 +962,7 @@ TEST(ClientsManager, canBecomePending) {
 TEST(ClientsManager, isPending) {
   resetMockReservedPages();
 
-  unique_ptr<ClientsManager> cm(new ClientsManager({6, 8}, {10, 11, 12}, {2, 4}, metrics));
+  unique_ptr<ClientsManager> cm(new ClientsManager({6, 8}, {10, 11, 12}, {}, {2, 4}, metrics));
   cm->addPendingRequest(2, 5, "correlation ID");
   EXPECT_TRUE(cm->isPending(2, 5))
       << "ClientsManager::isPending returned false for a request that should have been pending.";
@@ -986,7 +986,7 @@ TEST(ClientsManager, addPendingRequest) {
 
   string expected_cid = "expected correlation ID";
   string observed_cid;
-  unique_ptr<ClientsManager> cm(new ClientsManager({1, 2, 3, 4}, {}, {}, metrics));
+  unique_ptr<ClientsManager> cm(new ClientsManager({1, 2, 3, 4}, {}, {}, {}, metrics));
   cm->addPendingRequest(3, 1, expected_cid);
   EXPECT_TRUE(cm->isClientRequestInProcess(3, 1))
       << "ClientsManager::addPendingRequest failed to add a request record to the ClientsManager.";
@@ -1019,7 +1019,7 @@ TEST(ClientsManager, addPendingRequest) {
 TEST(ClientsManager, markRequestAsCommitted) {
   resetMockReservedPages();
 
-  unique_ptr<ClientsManager> cm(new ClientsManager({8}, {4, 5}, {9}, metrics));
+  unique_ptr<ClientsManager> cm(new ClientsManager({8}, {4, 5}, {}, {9}, metrics));
   cm->addPendingRequest(5, 4, "correlation ID");
   cm->markRequestAsCommitted(5, 4);
   EXPECT_TRUE(cm->isClientRequestInProcess(5, 4))
@@ -1048,7 +1048,7 @@ TEST(ClientsManager, removeRequestsOutOfBatchBounds) {
                 "global system constant maxNumOfRequestsInBatch (which influences removeRequestsOutOfBatchBounds's "
                 "behavior), but that assumption has not been met.");
 
-  unique_ptr<ClientsManager> cm(new ClientsManager({8, 12}, {4, 5, 7}, {10, 11}, metrics));
+  unique_ptr<ClientsManager> cm(new ClientsManager({8, 12}, {4, 5, 7}, {}, {10, 11}, metrics));
   for (uint32_t i = 1; i < maxNumOfRequestsInBatch; ++i) {
     cm->addPendingRequest(8, i, "correlation ID");
   }
@@ -1092,7 +1092,7 @@ TEST(ClientsManager, removeRequestsOutOfBatchBounds) {
 TEST(ClientsManager, removePendingForExecutionRequest) {
   resetMockReservedPages();
 
-  unique_ptr<ClientsManager> cm(new ClientsManager({3, 5}, {2, 4, 6}, {}, metrics));
+  unique_ptr<ClientsManager> cm(new ClientsManager({3, 5}, {2, 4, 6}, {}, {}, metrics));
   cm->addPendingRequest(4, 3, "correlation ID");
   cm->addPendingRequest(4, 6, "correlation ID");
   cm->addPendingRequest(5, 3, "correlation ID");
@@ -1119,7 +1119,7 @@ TEST(ClientsManager, removePendingForExecutionRequest) {
 TEST(ClientsManager, clearAllPendingRequests) {
   resetMockReservedPages();
 
-  unique_ptr<ClientsManager> cm(new ClientsManager({}, {1, 3, 4, 6}, {8, 9}, metrics));
+  unique_ptr<ClientsManager> cm(new ClientsManager({}, {1, 3, 4, 6}, {}, {8, 9}, metrics));
   set<pair<NodeIdType, ReqId>> requests{{1, 9}, {1, 12}, {1, 14}, {4, 4}, {4, 8}, {6, 5}, {8, 1}, {8, 2}, {9, 3}};
   for (const auto& request : requests) {
     cm->addPendingRequest(request.first, request.second, "correlation ID");
@@ -1138,7 +1138,7 @@ TEST(ClientsManager, clearAllPendingRequests) {
 TEST(ClientsManager, infoOfEarliestPendingRequest) {
   resetMockReservedPages();
 
-  unique_ptr<ClientsManager> cm(new ClientsManager({7}, {6, 8, 12}, {9}, metrics));
+  unique_ptr<ClientsManager> cm(new ClientsManager({7}, {6, 8, 12}, {}, {9}, metrics));
   cm->addPendingRequest(12, 2, "earliest correlation ID");
   cm->addPendingRequest(12, 3, "middle correlation ID");
   cm->addPendingRequest(9, 5, "latest correlation ID");
@@ -1161,7 +1161,7 @@ TEST(ClientsManager, infoOfEarliestPendingRequest) {
       << "ClientManager::infoOfEarliestPendingRequest returned time values for requests which do not appear to be "
          "monotonically increasing with respect to the order the requests were added.";
 
-  cm.reset(new ClientsManager({7}, {6, 8, 12}, {9}, metrics));
+  cm.reset(new ClientsManager({7}, {6, 8, 12}, {}, {9}, metrics));
   Time time_given_no_request_records = cm->infoOfEarliestPendingRequest(observed_cid);
   EXPECT_EQ(time_given_no_request_records, MaxTime) << "ClientsManager::infoOfEarliestPendingRequest returned a time "
                                                        "other than MaxTime in the absence of any request records.";
@@ -1184,7 +1184,7 @@ TEST(ClientsManager, infoOfEarliestPendingRequest) {
 TEST(ClientsManager, logAllPendingRequestsExceedingThreshold) {
   resetMockReservedPages();
 
-  unique_ptr<ClientsManager> cm(new ClientsManager({7}, {6, 8, 12}, {9}, metrics));
+  unique_ptr<ClientsManager> cm(new ClientsManager({7}, {6, 8, 12}, {}, {9}, metrics));
   int64_t threshold = 50;
   cm->addPendingRequest(6, 2, "correlation ID");
   cm->addPendingRequest(6, 3, "correlation ID");
@@ -1251,7 +1251,7 @@ TEST(ClientsManager, deleteOldestReply) {
   string reply_6 = "repy 6";
   string reply_8 = "repy 8";
 
-  unique_ptr<ClientsManager> cm(new ClientsManager({5, 8}, {6, 7, 9}, {11}, metrics));
+  unique_ptr<ClientsManager> cm(new ClientsManager({5, 8}, {6, 7, 9}, {}, {11}, metrics));
   cm->allocateNewReplyMsgAndWriteToStorage(8, 6, 0, reply_6.data(), reply_6.size(), kRSILengthForTesting);
   sleep_for(brief_delay);
   cm->allocateNewReplyMsgAndWriteToStorage(8, 8, 0, reply_8.data(), reply_8.size(), kRSILengthForTesting);
@@ -1271,7 +1271,7 @@ TEST(ClientsManager, deleteOldestReply) {
 TEST(ClientsManager, isInternal) {
   resetMockReservedPages();
 
-  unique_ptr<ClientsManager> cm(new ClientsManager({1, 7}, {6, 13, 14}, {2, 4, 9, 12}, metrics));
+  unique_ptr<ClientsManager> cm(new ClientsManager({1, 7}, {6, 13, 14}, {}, {2, 4, 9, 12}, metrics));
   set<NodeIdType> internal_clients{2, 4, 9, 12};
   set<NodeIdType> non_internal_clients{1, 7, 6, 13, 14};
   set<NodeIdType> invalid_client_ids{3, 5, 8, 10, 11, 15};
@@ -1288,7 +1288,7 @@ TEST(ClientsManager, isInternal) {
         << "ClientsManager::isInternal incorrectly identified an invalid client ID as an internal client.";
   }
 
-  cm.reset(new ClientsManager({2, 4, 6, 8}, {1, 4, 5, 8}, {1, 2, 3, 8}, metrics));
+  cm.reset(new ClientsManager({2, 4, 6, 8}, {1, 4, 5, 8}, {}, {1, 2, 3, 8}, metrics));
   internal_clients = {1, 2, 3, 8};
   for (NodeIdType i = 0; i <= 10; ++i) {
     if (internal_clients.count(i) > 0) {
@@ -1310,11 +1310,11 @@ TEST(ClientsManager, setClientPublicKey) {
   pair<string, string> client_7_key =
       Crypto::instance().generateRsaKeyPair(kRSASigLengthForTesting, kKeyFormatForTesting);
 
-  unique_ptr<ClientsManager> cm(new ClientsManager({}, {4, 5, 7}, {}, metrics));
+  unique_ptr<ClientsManager> cm(new ClientsManager({}, {4, 5, 7}, {}, {}, metrics));
   cm->setClientPublicKey(7, client_7_key.second, kKeyFormatForTesting);
 
   clearClientPublicKeysLoadedToKEM();
-  cm.reset(new ClientsManager({}, {4, 5, 7}, {}, metrics));
+  cm.reset(new ClientsManager({}, {4, 5, 7}, {}, {}, metrics));
   cm->loadInfoFromReservedPages();
 
   EXPECT_TRUE(verifyClientPublicKeyLoadedToKEM(7, client_7_key))

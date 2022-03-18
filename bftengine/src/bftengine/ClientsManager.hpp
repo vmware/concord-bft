@@ -52,11 +52,13 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
   //   - The global logger CL_MNGR is destroyed.
   ClientsManager(const std::set<NodeIdType>& proxyClients,
                  const std::set<NodeIdType>& externalClients,
+                 const std::set<NodeIdType>& clientServices,
                  const std::set<NodeIdType>& internalClients,
                  concordMetrics::Component& metrics);
   ClientsManager(std::shared_ptr<PersistentStorage> ps,
                  const std::set<NodeIdType>& proxyClients,
                  const std::set<NodeIdType>& externalClients,
+                 const std::set<NodeIdType>& clientServices,
                  const std::set<NodeIdType>& internalClients,
                  concordMetrics::Component& metrics);
 
@@ -224,6 +226,7 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
 
   std::set<NodeIdType> proxyClients_;
   std::set<NodeIdType> externalClients_;
+  std::set<NodeIdType> clientServices_;
   std::set<NodeIdType> internalClients_;
   std::set<NodeIdType> clientIds_;
   std::map<NodeIdType, uint32_t> clientIdsToReservedPages_;

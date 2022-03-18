@@ -27,16 +27,7 @@ namespace preprocessor {
 
 // This class collects and stores data relevant to the processing of one specific client request by all replicas.
 
-typedef enum {
-  NONE,
-  CONTINUE,
-  COMPLETE,
-  CANCEL,
-  EXPIRED,
-  FAILED,
-  CANCELLED_BY_PRIMARY,
-  RETRY_PRIMARY
-} PreProcessingResult;
+typedef enum { NONE, CONTINUE, COMPLETE, CANCEL, EXPIRED, FAILED, CANCELLED_BY_PRIMARY } PreProcessingResult;
 
 using ReplicaIdsList = std::vector<ReplicaId>;
 
@@ -103,7 +94,6 @@ class RequestProcessingState {
  private:
   static concord::util::SHA3_256::Digest convertToArray(
       const uint8_t resultsHash[concord::util::SHA3_256::SIZE_IN_BYTES]);
-  static uint64_t getMonotonicTimeMilli();
   static logging::Logger& logger() {
     static logging::Logger logger_ = logging::getLogger("concord.preprocessor");
     return logger_;
@@ -151,7 +141,6 @@ class RequestProcessingState {
   // Maps result hash to a list of replica signatures sent for this hash. This also implicitly gives the number of
   // replicas returning a specific hash.
   std::map<concord::util::SHA3_256::Digest, std::set<PreProcessResultSignature>> preProcessingResultHashes_;
-  bool retrying_ = false;
   bool preprocessingRightNow_ = false;
   uint64_t reqRetryId_ = 0;
 };

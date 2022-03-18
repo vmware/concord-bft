@@ -209,8 +209,7 @@ class SkvbcPersistenceTest(ApolloTest):
         skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
 
         client, known_key, known_val = \
-            await skvbc.prime_for_state_transfer(stale_nodes={stale_node})
-
+            await skvbc.prime_for_state_transfer(stale_nodes={stale_node}, checkpoints_num=10)
         # Start the empty replica, wait for it to start fetching, then stop
         # it.
         bft_network.start_replica(stale_node)
@@ -264,8 +263,7 @@ class SkvbcPersistenceTest(ApolloTest):
                log.log_message(message_type=f'Stopping replica {stale_node}')
                bft_network.stop_replica(stale_node)
 
-    @skip_for_tls
-    @unittest.skip("Fails because of BC-7264")
+    @unittest.skip("Unstable test - BC-19210")
     @with_trio
     @with_bft_network(start_replica_cmd,
                       selected_configs=lambda n, f, c: f >= 2)
@@ -293,7 +291,7 @@ class SkvbcPersistenceTest(ApolloTest):
 
         client, known_key, known_val = \
             await skvbc.prime_for_state_transfer(stale_nodes={stale_node},
-                                                           num_of_checkpoints_to_add=4)
+                                                           checkpoints_num=4)
 
         # exclude the primary and the stale node
         unstable_replicas = bft_network.all_replicas(without={0, stale_node})
@@ -353,7 +351,6 @@ class SkvbcPersistenceTest(ApolloTest):
             log.log_message(message_type="State transfer completed before we had a chance "
                   "to stop the source replica.")
 
-    @skip_for_tls
     @with_trio
     @with_bft_network(start_replica_cmd,
                       selected_configs=lambda n, f, c: f >= 2)

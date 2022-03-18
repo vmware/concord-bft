@@ -127,6 +127,12 @@ class KeyValueBlockchain {
   // Get a map from category ID -> type for all known categories in the blockchain.
   const std::map<std::string, CATEGORY_TYPE>& blockchainCategories() const { return category_types_; }
 
+  // from_block_id is given as a hint, as supposed to be the next block after the last reachable block.
+  // until_block_id is the maximum block ID to be linked. If there are blocks with a block ID larger than
+  // until_block_id, they can be linked on future calls.
+  // returns the number of blocks connected
+  size_t linkUntilBlockId(BlockId from_block_id, BlockId until_block_id);
+
   std::shared_ptr<concord::storage::rocksdb::NativeClient> db() { return native_client_; }
   std::shared_ptr<const concord::storage::rocksdb::NativeClient> db() const { return native_client_; }
 

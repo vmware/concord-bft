@@ -53,6 +53,9 @@ class NullStateTransfer : public IStateTransfer {
   std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> getReconfigurationEngine() override {
     return nullptr;
   }
+
+  virtual void handleIncomingConsensusMessage(const shared_ptr<ConsensusMsg>& msg) override{};
+  void reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBlockId) override{};
   virtual ~NullStateTransfer();
 
  protected:

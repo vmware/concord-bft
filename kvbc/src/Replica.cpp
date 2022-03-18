@@ -401,6 +401,14 @@ BlockId Replica::deleteBlocksUntil(BlockId until) {
     throw std::invalid_argument{"Invalid 'until' value passed to deleteBlocksUntil()"};
   }
 
+  // Inform State Transfer about pruning. We must do it in this thread context for persistency considerations, and in
+  // this layer to lower the chance for bugs (there are multiple callers to this function), in which pruning is not
+  // notified to ST. In that case, ST state will be corrupted.
+  if (m_stateTransfer && m_stateTransfer->isRunning()) {
+    // We assume until > 0, see check above
+    m_stateTransfer->reportLastAgreedPrunableBlockId(until - 1);
+  }
+
   const auto lastReachableBlock = m_kvBlockchain->getLastReachableBlockId();
   const auto lastDeletedBlock = std::min(lastReachableBlock, until - 1);
   const auto start = std::chrono::steady_clock::now();
@@ -524,16 +532,22 @@ Replica::Replica(ICommunication *comm,
     replicaConfig_.getmaxNumOfReservedPages(),
     replicaConfig_.getsizeOfReservedPage(),
     replicaConfig_.get<uint32_t>("concord.bft.st.gettingMissingBlocksSummaryWindowSize", 600),
+    replicaConfig_.get<uint16_t>("concord.bft.st.minPrePrepareMsgsForPrimaryAwareness", 10),
+    replicaConfig_.get<uint32_t>("concord.bft.st.fetchRangeSize", 256),
+    replicaConfig_.get<uint32_t>("concord.bft.st.RVT_K", 1024),
     replicaConfig_.get<uint32_t>("concord.bft.st.refreshTimerMs", 300),
     replicaConfig_.get<uint32_t>("concord.bft.st.checkpointSummariesRetransmissionTimeoutMs", 2500),
-    replicaConfig_.get<uint32_t>("concord.bft.st.maxAcceptableMsgDelayMs", 60000),
+    replicaConfig_.get<uint32_t>("concord.bft.st.maxAcceptableMsgDelayMs", 10000),
     replicaConfig_.get<uint32_t>("concord.bft.st.sourceReplicaReplacementTimeoutMs", 0),
     replicaConfig_.get<uint32_t>("concord.bft.st.fetchRetransmissionTimeoutMs", 2000),
     replicaConfig_.get<uint32_t>("concord.bft.st.maxFetchRetransmissions", 2),
     replicaConfig_.get<uint32_t>("concord.bft.st.metricsDumpIntervalSec", 5),
+    replicaConfig_.get<uint32_t>("concord.bft.st.maxTimeSinceLastExecutionInMainWindowMs", 5000),
     replicaConfig_.get("concord.bft.st.runInSeparateThread", !replicaConfig_.isReadOnly),
     replicaConfig_.get("concord.bft.st.enableReservedPages", true),
-    replicaConfig_.get("concord.bft.st.enableSourceBlocksPreFetch", true)
+    replicaConfig_.get("concord.bft.st.enableSourceBlocksPreFetch", true),
+    replicaConfig_.get("concord.bft.st.enableSourceSelectorPrimaryAwareness", true),
+    replicaConfig_.get("concord.bft.st.enableStoreRvbDataDuringCheckpointing", true)
   };
   if (replicaConfig_.isReadOnly) stConfig.runInSeparateThread = false;
 
@@ -543,12 +557,13 @@ Replica::Replica(ICommunication *comm,
     LOG_WARN(logger, "overriding incorrect chunking configuration for UDP");
     stConfig.maxChunkSize = 2048;
     stConfig.maxNumberOfChunksInBatch = 32;
+    stConfig.fetchRangeSize = 32;
   }
 #endif
 
-  if (stConfig.gettingMissingBlocksSummaryWindowSize > 0 and stConfig.gettingMissingBlocksSummaryWindowSize < 100) {
-    LOG_WARN(logger, "Overriding incorrect ST throughput measurement window size configuration to 100");
-    stConfig.gettingMissingBlocksSummaryWindowSize = 100;
+  if ((stConfig.gettingMissingBlocksSummaryWindowSize > 0) and (stConfig.gettingMissingBlocksSummaryWindowSize < 50)) {
+    LOG_WARN(logger, "Overriding incorrect ST throughput measurement window size configuration to 50");
+    stConfig.gettingMissingBlocksSummaryWindowSize = 50;
   }
 
   if (!replicaConfig.isReadOnly) {
@@ -676,25 +691,8 @@ bool Replica::putBlockToObjectStore(const uint64_t blockId,
                                     const uint32_t blockSize,
                                     bool lastBlock) {
   Sliver block = Sliver::copy(blockData, blockSize);
-
-  if (m_bcDbAdapter->hasBlock(blockId)) {
-    // if we already have a block with the same ID
-    RawBlock existingBlock = m_bcDbAdapter->getRawBlock(blockId);
-    if (existingBlock.length() != block.length() || memcmp(existingBlock.data(), block.data(), block.length()) != 0) {
-      // the replica is corrupted !
-      LOG_ERROR(logger,
-                "found block " << blockId << ", size in db is " << existingBlock.length() << ", inserted is "
-                               << block.length() << ", data in db " << existingBlock << ", data inserted " << block);
-      LOG_ERROR(logger,
-                "Block size test " << (existingBlock.length() != block.length()) << ", block data test "
-                                   << (memcmp(existingBlock.data(), block.data(), block.length())));
-
-      m_bcDbAdapter->deleteBlock(blockId);
-      throw std::runtime_error(__PRETTY_FUNCTION__ + std::string("data corrupted blockId: ") + std::to_string(blockId));
-    }
-  } else {
-    m_bcDbAdapter->addRawBlock(block, blockId, lastBlock);
-  }
+  // We do not need to check if block exist, just overwrite it
+  m_bcDbAdapter->addRawBlock(block, blockId, lastBlock);
 
   return true;
 }
@@ -719,13 +717,48 @@ uint64_t Replica::getLastBlockNum() const {
   return m_kvBlockchain->getLastReachableBlockId();
 }
 
+size_t Replica::postProcessUntilBlockId(uint64_t max_block_id) {
+  if (replicaConfig_.isReadOnly) {
+    // read only replica do not post process
+    return 0;
+  }
+  const BlockId last_reachable_block = m_kvBlockchain->getLastReachableBlockId();
+  BlockId last_st_block_id = 0;
+  if (auto last_st_block_id_opt = m_kvBlockchain->getLastStatetransferBlockId()) {
+    last_st_block_id = last_st_block_id_opt.value();
+  }
+  if ((max_block_id == last_reachable_block) && (last_st_block_id == 0)) {
+    LOG_INFO(CAT_BLOCK_LOG,
+             "Consensus blockchain is fully linked, no proc-processing is required!"
+                 << KVLOG(max_block_id, last_reachable_block));
+    return 0;
+  }
+  if ((max_block_id < last_reachable_block) || (max_block_id > last_st_block_id)) {
+    auto msg = std::stringstream{};
+    msg << "Cannot post-process:" << KVLOG(max_block_id, last_reachable_block, last_st_block_id) << std::endl;
+    throw std::invalid_argument{msg.str()};
+  }
+
+  try {
+    return m_kvBlockchain->linkUntilBlockId(last_reachable_block + 1, max_block_id);
+  } catch (const std::exception &e) {
+    LOG_FATAL(
+        CAT_BLOCK_LOG,
+        "Aborting due to failure to link," << KVLOG(last_reachable_block, max_block_id) << ", reason: " << e.what());
+    std::terminate();
+  } catch (...) {
+    LOG_FATAL(CAT_BLOCK_LOG, "Aborting due to failure to link," << KVLOG(last_reachable_block, max_block_id));
+    std::terminate();
+  }
+}
+
 RawBlock Replica::getBlockInternal(BlockId blockId) const { return m_bcDbAdapter->getRawBlock(blockId); }
 
 /*
  * This method assumes that *outBlock is big enough to hold block content
  * The caller is the owner of the memory
  */
-bool Replica::getBlock(uint64_t blockId, char *outBlock, uint32_t outBlockMaxSize, uint32_t *outBlockActualSize) {
+bool Replica::getBlock(uint64_t blockId, char *outBlock, uint32_t outBlockMaxSize, uint32_t *outBlockActualSize) const {
   if (replicaConfig_.isReadOnly) {
     return getBlockFromObjectStore(blockId, outBlock, outBlockMaxSize, outBlockActualSize);
   }
@@ -789,7 +822,7 @@ std::future<bool> Replica::getBlockAsync(uint64_t blockId,
 bool Replica::getBlockFromObjectStore(uint64_t blockId,
                                       char *outBlock,
                                       uint32_t outblockMaxSize,
-                                      uint32_t *outBlockSize) {
+                                      uint32_t *outBlockSize) const {
   try {
     RawBlock block = getBlockInternal(blockId);
     if (block.length() > outblockMaxSize) {
@@ -812,13 +845,17 @@ bool Replica::hasBlock(BlockId blockId) const {
   return m_kvBlockchain->hasBlock(blockId);
 }
 
-bool Replica::getPrevDigestFromBlock(BlockId blockId, StateTransferDigest *outPrevBlockDigest) {
+bool Replica::getPrevDigestFromBlock(BlockId blockId, StateTransferDigest *outPrevBlockDigest) const {
   if (replicaConfig_.isReadOnly) {
     return getPrevDigestFromObjectStoreBlock(blockId, outPrevBlockDigest);
   }
   ConcordAssert(blockId > 0);
   const auto parent_digest = m_kvBlockchain->parentDigest(blockId);
-  ConcordAssert(parent_digest.has_value());
+
+  if (!parent_digest.has_value()) {
+    LOG_WARN(logger, "parent digest not found," << KVLOG(blockId));
+    return false;
+  }
   static_assert(parent_digest->size() == DIGEST_SIZE);
   static_assert(sizeof(StateTransferDigest) == DIGEST_SIZE);
   std::memcpy(outPrevBlockDigest, parent_digest->data(), DIGEST_SIZE);
@@ -827,7 +864,7 @@ bool Replica::getPrevDigestFromBlock(BlockId blockId, StateTransferDigest *outPr
 
 void Replica::getPrevDigestFromBlock(const char *blockData,
                                      const uint32_t blockSize,
-                                     StateTransferDigest *outPrevBlockDigest) {
+                                     StateTransferDigest *outPrevBlockDigest) const {
   ConcordAssertGT(blockSize, 0);
   auto view = std::string_view{blockData, blockSize};
   const auto rawBlock = categorization::RawBlock::deserialize(view);
@@ -838,7 +875,7 @@ void Replica::getPrevDigestFromBlock(const char *blockData,
 }
 
 bool Replica::getPrevDigestFromObjectStoreBlock(uint64_t blockId,
-                                                bftEngine::bcst::StateTransferDigest *outPrevBlockDigest) {
+                                                bftEngine::bcst::StateTransferDigest *outPrevBlockDigest) const {
   ConcordAssert(blockId > 0);
   try {
     const auto rawBlockSer = m_bcDbAdapter->getRawBlock(blockId);
@@ -853,11 +890,13 @@ bool Replica::getPrevDigestFromObjectStoreBlock(uint64_t blockId,
     throw;
   }
 }
+
 void Replica::registerStBasedReconfigurationHandler(
     std::shared_ptr<concord::client::reconfiguration::IStateHandler> handler) {
   // api for higher level application to register the handler
   if (handler && creEngine_) creEngine_->registerHandler(handler);
 }
+
 BlockId Replica::getLastKnownReconfigCmdBlockNum() const {
   std::string blockRawData;
   if (replicaConfig_.isReadOnly) {
@@ -879,12 +918,14 @@ BlockId Replica::getLastKnownReconfigCmdBlockNum() const {
   }
   return 0;
 }
+
 void Replica::setLastKnownReconfigCmdBlock(const std::vector<uint8_t> &blockData) {
   if (replicaConfig_.isReadOnly) {
     std::string page(blockData.begin(), blockData.end());
     m_bcDbAdapter->setLastKnownReconfigurationCmdBlock(page);
   }
 }
+
 void Replica::startRoReplicaCreEngine() {
   concord::client::reconfiguration::Config cre_config;
   BlockId id = getLastKnownReconfigCmdBlockNum();

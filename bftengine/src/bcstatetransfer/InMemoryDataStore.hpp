@@ -70,6 +70,12 @@ class InMemoryDataStore : public DataStore {
   uint64_t getFirstStoredCheckpoint() override;
 
   //////////////////////////////////////////////////////////////////////////
+  // Range Validation Blocks
+  //////////////////////////////////////////////////////////////////////////
+  void setPrunedBlocksDigests(const std::vector<std::pair<BlockId, Digest>>& prunedBlocksDigests) override;
+  std::vector<std::pair<BlockId, Digest>> getPrunedBlocksDigests() override;
+
+  //////////////////////////////////////////////////////////////////////////
   // Checkpoints
   //////////////////////////////////////////////////////////////////////////
 
@@ -160,6 +166,7 @@ class InMemoryDataStore : public DataStore {
   uint64_t lastStoredCheckpoint = UINT64_MAX;
   uint64_t firstStoredCheckpoint = UINT64_MAX;
 
+  std::vector<std::pair<BlockId, Digest>> prunedBlocksDigests;
   map<uint64_t, CheckpointDesc> descMap;
 
   std::atomic_bool fetching{false};
