@@ -23,7 +23,6 @@
 #include "bcstatetransfer/BCStateTran.hpp"
 #include "KeyfileIOUtils.hpp"
 #include "direct_kv_storage_factory.h"
-#include "Digest.hpp"
 
 namespace concord::storage::s3 {
 

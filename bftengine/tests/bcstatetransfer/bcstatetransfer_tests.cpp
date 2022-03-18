@@ -30,8 +30,6 @@
 #include "direct_kv_db_adapter.h"
 #include "memorydb/client.h"
 #include "storage/direct_kv_key_manipulator.h"
-#include "Logger.hpp"
-#include "Digest.hpp"
 
 #ifdef USE_ROCKSDB
 #include "rocksdb/client.h"

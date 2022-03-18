@@ -21,7 +21,6 @@
 #include <cryptopp/pem.h>
 #pragma GCC diagnostic pop
 
-#include "DigestType.hpp"
 #include "assertUtils.hpp"
 #include <cryptopp/cryptlib.h>
 #include <cryptopp/ida.h>

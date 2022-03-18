@@ -22,7 +22,6 @@
 #include "Metrics.hpp"
 #include "kvstream.h"
 #include "Digest.hpp"
-#include "DigestType.hpp"
 
 using concord::util::digest::Digest;
 using concord::util::digest::BlockDigest;

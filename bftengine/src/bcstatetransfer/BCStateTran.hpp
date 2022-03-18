@@ -30,7 +30,6 @@
 #include "DataStore.hpp"
 #include "MsgsCertificate.hpp"
 #include "Messages.hpp"
-#include "Digest.hpp"
 #include "Metrics.hpp"
 #include "SourceSelector.hpp"
 #include "callback_registry.hpp"
