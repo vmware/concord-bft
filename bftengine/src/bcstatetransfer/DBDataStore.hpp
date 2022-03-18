@@ -18,7 +18,6 @@
 #include <memory>
 
 #include "string.hpp"
-#include "STDigest.hpp"
 #include "Logger.hpp"
 #include "InMemoryDataStore.hpp"
 #include "storage/key_manipulator_interface.h"
@@ -65,7 +64,7 @@ class DBDataStore : public DataStore {
   void setNumberOfReservedPages(uint32_t) override;
   void setLastStoredCheckpoint(uint64_t) override;
   void setFirstStoredCheckpoint(uint64_t) override;
-  void setPrunedBlocksDigests(const std::vector<std::pair<BlockId, STDigest>>& prunedBlocksDigests) override;
+  void setPrunedBlocksDigests(const std::vector<std::pair<BlockId, Digest>>& prunedBlocksDigests) override;
   void setIsFetchingState(bool) override;
   void setFirstRequiredBlock(uint64_t) override;
   void setLastRequiredBlock(uint64_t) override;
@@ -75,10 +74,10 @@ class DBDataStore : public DataStore {
   void deleteDescOfSmallerCheckpoints(uint64_t) override;
   void deleteCoveredResPageInSmallerCheckpoints(uint64_t) override;
   void setCheckpointBeingFetched(const CheckpointDesc&) override;
-  void setResPage(uint32_t, uint64_t, const STDigest&, const char*) override;
+  void setResPage(uint32_t, uint64_t, const Digest&, const char*) override;
   void setPendingResPage(uint32_t, const char*, uint32_t) override;
   void setCheckpointDesc(uint64_t, const CheckpointDesc&) override;
-  void associatePendingResPageWithCheckpoint(uint32_t, uint64_t, const STDigest&) override;
+  void associatePendingResPageWithCheckpoint(uint32_t, uint64_t, const Digest&) override;
 
   void free(ResPagesDescriptor* desc) override { inmem_->free(desc); }
   bool initialized() override { return inmem_->initialized(); }
@@ -94,9 +93,7 @@ class DBDataStore : public DataStore {
   uint64_t getLastStoredCheckpoint() override { return inmem_->getLastStoredCheckpoint(); }
   uint64_t getFirstStoredCheckpoint() override { return inmem_->getFirstStoredCheckpoint(); }
   uint64_t getFirstRequiredBlock() override { return inmem_->getFirstRequiredBlock(); }
-  std::vector<std::pair<BlockId, STDigest>> getPrunedBlocksDigests() override {
-    return inmem_->getPrunedBlocksDigests();
-  }
+  std::vector<std::pair<BlockId, Digest>> getPrunedBlocksDigests() override { return inmem_->getPrunedBlocksDigests(); }
   uint64_t getLastRequiredBlock() override { return inmem_->getLastRequiredBlock(); }
   CheckpointDesc getCheckpointDesc(uint64_t checkpoint) override;
   CheckpointDesc getCheckpointBeingFetched() override { return inmem_->getCheckpointBeingFetched(); }
@@ -113,7 +110,7 @@ class DBDataStore : public DataStore {
   bool getResPage(uint32_t inPageId,
                   uint64_t inCheckpoint,
                   uint64_t* outActualCheckpoint,
-                  STDigest* outPageDigest,
+                  Digest* outPageDigest,
                   char* outPage,
                   uint32_t copylength) override {
     return inmem_->getResPage(inPageId, inCheckpoint, outActualCheckpoint, outPageDigest, outPage, copylength);
@@ -153,18 +150,18 @@ class DBDataStore : public DataStore {
   void serializeCheckpoint(std::ostream& os, const CheckpointDesc& desc) const;
   void deserializeCheckpoint(std::istream& is, CheckpointDesc& desc) const;
 
-  void serializeResPage(std::ostream&, uint32_t, uint64_t, const STDigest&, const char*) const;
-  void deserializeResPage(std::istream&, uint32_t&, uint64_t&, STDigest&, char*&) const;
+  void serializeResPage(std::ostream&, uint32_t, uint64_t, const Digest&, const char*) const;
+  void deserializeResPage(std::istream&, uint32_t&, uint64_t&, Digest&, char*&) const;
 
   void deserializePendingPage(std::istream&, char*&, uint32_t&) const;
 
-  void serializePrunedBlocksDigests(std::ostream& os, const std::vector<std::pair<BlockId, STDigest>>& digests) const;
-  void deserializePrunedBlocksDigests(std::istream& is, std::vector<std::pair<BlockId, STDigest>>& outDigests) const;
+  void serializePrunedBlocksDigests(std::ostream& os, const std::vector<std::pair<BlockId, Digest>>& digests) const;
+  void deserializePrunedBlocksDigests(std::istream& is, std::vector<std::pair<BlockId, Digest>>& outDigests) const;
   /**
    * add to existing transaction
    */
-  void setResPageTxn(uint32_t, uint64_t, const STDigest&, const char*, ITransaction*);
-  void associatePendingResPageWithCheckpointTxn(uint32_t, uint64_t, const STDigest&, ITransaction*);
+  void setResPageTxn(uint32_t, uint64_t, const Digest&, const char*, ITransaction*);
+  void associatePendingResPageWithCheckpointTxn(uint32_t, uint64_t, const Digest&, ITransaction*);
   void deleteAllPendingPagesTxn(ITransaction*);
   void deleteCoveredResPageInSmallerCheckpointsTxn(uint64_t, ITransaction*);
   void deleteDescOfSmallerCheckpointsTxn(uint64_t, ITransaction*);

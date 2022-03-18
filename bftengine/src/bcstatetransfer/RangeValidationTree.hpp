@@ -24,7 +24,7 @@
 
 #include <cryptopp/integer.h>
 
-#include "STDigest.hpp"
+#include "Digest.hpp"
 #include "Serializable.h"
 #include "Logger.hpp"
 
@@ -157,7 +157,7 @@ class RangeValidationTree {
     std::string getDecoded() const noexcept;
     size_t getSize() const { return val_.MinEncodedSize(); }
 
-    static constexpr size_t kDigestContextOutputSize = BLOCK_DIGEST_SIZE;
+    static constexpr size_t kDigestContextOutputSize = DIGEST_SIZE;
     static constexpr std::array<char, kDigestContextOutputSize> initialValueZeroData{};
 
     NodeVal_t val_;

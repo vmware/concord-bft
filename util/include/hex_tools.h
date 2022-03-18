@@ -11,7 +11,7 @@
 
 namespace concordUtils {
 
-std::ostream &hexPrint(std::ostream &s, const char *data, size_t size);
+std::ostream &hexPrint(std::ostream &s, const char *data, size_t size, bool withPrefix = true);
 
 struct HexPrintBuffer {
   const char *bytes;
@@ -28,7 +28,7 @@ inline std::ostream &operator<<(std::ostream &s, const HexPrintBuffer p) {
 Sliver hexToSliver(const std::string &hex);
 
 // Converts a buffer into a hex string.
-std::string bufferToHex(const char *data, size_t size);
+std::string bufferToHex(const char *data, const size_t size, bool withPrefix = true);
 std::string bufferToHex(const std::uint8_t *data, size_t size);
 
 // Converts a sliver into a hex string.

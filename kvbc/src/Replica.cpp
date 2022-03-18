@@ -851,13 +851,14 @@ bool Replica::getPrevDigestFromBlock(BlockId blockId, StateTransferDigest *outPr
   }
   ConcordAssert(blockId > 0);
   const auto parent_digest = m_kvBlockchain->parentDigest(blockId);
+
   if (!parent_digest.has_value()) {
     LOG_WARN(logger, "parent digest not found," << KVLOG(blockId));
     return false;
   }
-  static_assert(parent_digest->size() == BLOCK_DIGEST_SIZE);
-  static_assert(sizeof(StateTransferDigest) == BLOCK_DIGEST_SIZE);
-  std::memcpy(outPrevBlockDigest, parent_digest->data(), BLOCK_DIGEST_SIZE);
+  static_assert(parent_digest->size() == DIGEST_SIZE);
+  static_assert(sizeof(StateTransferDigest) == DIGEST_SIZE);
+  std::memcpy(outPrevBlockDigest, parent_digest->data(), DIGEST_SIZE);
   return true;
 }
 
@@ -868,9 +869,9 @@ void Replica::getPrevDigestFromBlock(const char *blockData,
   auto view = std::string_view{blockData, blockSize};
   const auto rawBlock = categorization::RawBlock::deserialize(view);
 
-  static_assert(rawBlock.data.parent_digest.size() == BLOCK_DIGEST_SIZE);
-  static_assert(sizeof(StateTransferDigest) == BLOCK_DIGEST_SIZE);
-  std::memcpy(outPrevBlockDigest, rawBlock.data.parent_digest.data(), BLOCK_DIGEST_SIZE);
+  static_assert(rawBlock.data.parent_digest.size() == DIGEST_SIZE);
+  static_assert(sizeof(StateTransferDigest) == DIGEST_SIZE);
+  std::memcpy(outPrevBlockDigest, rawBlock.data.parent_digest.data(), DIGEST_SIZE);
 }
 
 bool Replica::getPrevDigestFromObjectStoreBlock(uint64_t blockId,
@@ -880,9 +881,9 @@ bool Replica::getPrevDigestFromObjectStoreBlock(uint64_t blockId,
     const auto rawBlockSer = m_bcDbAdapter->getRawBlock(blockId);
     const auto rawBlock = categorization::RawBlock::deserialize(rawBlockSer);
     ConcordAssert(outPrevBlockDigest != nullptr);
-    static_assert(rawBlock.data.parent_digest.size() == BLOCK_DIGEST_SIZE);
-    static_assert(sizeof(StateTransferDigest) == BLOCK_DIGEST_SIZE);
-    memcpy(outPrevBlockDigest, rawBlock.data.parent_digest.data(), BLOCK_DIGEST_SIZE);
+    static_assert(rawBlock.data.parent_digest.size() == DIGEST_SIZE);
+    static_assert(sizeof(StateTransferDigest) == DIGEST_SIZE);
+    memcpy(outPrevBlockDigest, rawBlock.data.parent_digest.data(), DIGEST_SIZE);
     return true;
   } catch (const NotFoundException &e) {
     LOG_FATAL(logger, "Block not found for parent digest, ID: " << blockId << " " << e.what());

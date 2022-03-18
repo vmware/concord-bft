@@ -23,6 +23,7 @@
 #include "RVBManager.hpp"
 #include "throughput.hpp"
 
+using concord::util::digest::DigestUtil;
 using namespace std;
 using namespace concord::util;
 
@@ -101,7 +102,7 @@ void RVBManager::init(bool fetching) {
     LOG_WARN(logger_, "Reconstructing RVB data" << KVLOG(loaded_from_data_store, desc.maxBlockId));
     DurationTracker<std::chrono::milliseconds> reconstruct_dt("reconstruct_dt", true);
     auto num_rvbs_added = addRvbDataOnBlockRange(
-        as_->getGenesisBlockNum(), desc.maxBlockId, std::optional<STDigest>(desc.digestOfMaxBlockId));
+        as_->getGenesisBlockNum(), desc.maxBlockId, std::optional<Digest>(desc.digestOfMaxBlockId));
     if (!in_mem_rvt_->validate()) {
       LOG_FATAL(logger_, "Failed to validate reconstructed RVB data from storage" << KVLOG(desc.checkpointNum));
       ConcordAssert(false);
@@ -188,7 +189,7 @@ void RVBManager::pruneRvbDataDuringCheckpoint(const CheckpointDesc& new_checkpoi
         from_block_id = rvb_id;
       }
       to_block_id = rvb_id;
-      in_mem_rvt_->removeLeftNode(rvb_id, digest.get(), BLOCK_DIGEST_SIZE);
+      in_mem_rvt_->removeLeftNode(rvb_id, digest.get(), DIGEST_SIZE);
     } else if (rvb_id > new_checkpoint_desc.maxBlockId) {
       break;
     }
@@ -381,9 +382,9 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
   LOG_TRACE(logger_, KVLOG(data_size));
   ConcordAssertNE(data, nullptr);
   RvbDigestInfoPtr cur = reinterpret_cast<RvbDigestInfoPtr>(data);
-  std::map<BlockId, STDigest> digests;
+  std::map<BlockId, Digest> digests;
   BlockId block_id;
-  STDigest digest;
+  Digest digest;
   size_t num_digests_in_data;
   std::vector<RVBGroupId> rvb_group_ids;
   static constexpr char error_prefix[] = "Invalid digests of RVB group:";
@@ -469,10 +470,10 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
   RVBGroupId rvb_group_id_added = rvb_group_ids[0];
   auto rvb_ids = in_mem_rvt_->getRvbIds(rvb_group_id_added);
   std::vector<RVBId> keys;
-  std::transform(digests.begin(),
-                 digests.end(),
-                 std::back_inserter(keys),
-                 [](const std::map<BlockId, STDigest>::value_type& pair) { return pair.first; });
+  std::transform(
+      digests.begin(), digests.end(), std::back_inserter(keys), [](const std::map<BlockId, Digest>::value_type& pair) {
+        return pair.first;
+      });
   if (keys != rvb_ids) {
     std::string keys_str = vecToStr(keys);
     std::string rvb_ids_str = vecToStr(rvb_ids);
@@ -484,7 +485,7 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
   // Lets validate them against the in memory tree. We assume that no pruning was done, so we have all the RVBs
   RangeValidationTree digests_rvt(logger_, config_.RVT_K, config_.fetchRangeSize);
   for (auto& p : digests) {
-    digests_rvt.addRightNode(p.first, p.second.get(), BLOCK_DIGEST_SIZE);
+    digests_rvt.addRightNode(p.first, p.second.get(), DIGEST_SIZE);
   }
   const std::string digests_rvt_root_val = digests_rvt.getRootCurrentValueStr();
   const std::string rvt_parent_val = in_mem_rvt_->getDirectParentValueStr(digests.begin()->first);
@@ -527,14 +528,14 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
   return true;
 }
 
-std::optional<std::reference_wrapper<const STDigest>> RVBManager::getDigestFromStoredRvb(BlockId block_id) const {
+std::optional<std::reference_wrapper<const Digest>> RVBManager::getDigestFromStoredRvb(BlockId block_id) const {
   LOG_TRACE(logger_, KVLOG(block_id));
   const auto iter = stored_rvb_digests_.find(block_id);
   if (iter == stored_rvb_digests_.end()) {
     LOG_ERROR(logger_, KVLOG(block_id) << " not found in stored_rvb_digests_");
     return std::nullopt;
   }
-  return std::optional<std::reference_wrapper<const STDigest>>(iter->second);
+  return std::optional<std::reference_wrapper<const Digest>>(iter->second);
 }
 
 RVBGroupId RVBManager::getFetchBlocksRvbGroupId(BlockId from_block_id, BlockId to_block_id) const {
@@ -616,7 +617,7 @@ void RVBManager::computeDigestOfBlock(const uint64_t block_id,
                                       char* out_digest) const {
   ConcordAssertGT(block_id, 0);
   ConcordAssertGT(block_size, 0);
-  DigestContext c;
+  DigestUtil::Context c;
   c.update(reinterpret_cast<const char*>(&block_id), sizeof(block_id));
   c.update(block, block_size);
   c.writeDigest(out_digest);
@@ -624,10 +625,10 @@ void RVBManager::computeDigestOfBlock(const uint64_t block_id,
 
 // TODO - BCStateTran has a similar function + computeDigestOfBlock.
 // Move common functions into BCStateTranCommon.hpp/cpp
-const STDigest RVBManager::getBlockAndComputeDigest(uint64_t block_id) const {
+const Digest RVBManager::getBlockAndComputeDigest(uint64_t block_id) const {
   LOG_TRACE(logger_, KVLOG(block_id));
   static std::unique_ptr<char[]> buffer(new char[config_.maxBlockSize]);
-  STDigest digest;
+  Digest digest;
   uint32_t block_size{0};
   as_->getBlock(block_id, buffer.get(), config_.maxBlockSize, &block_size);
   computeDigestOfBlock(block_id, buffer.get(), block_size, digest.getForUpdate());
@@ -636,7 +637,7 @@ const STDigest RVBManager::getBlockAndComputeDigest(uint64_t block_id) const {
 
 uint64_t RVBManager::addRvbDataOnBlockRange(uint64_t min_block_id,
                                             uint64_t max_block_id,
-                                            const std::optional<STDigest>& digest_of_max_block_id) {
+                                            const std::optional<Digest>& digest_of_max_block_id) {
   LOG_TRACE(logger_, KVLOG(min_block_id, max_block_id));
   ConcordAssertLE(min_block_id, max_block_id);
   uint64_t num_rvbs_added{};
@@ -651,7 +652,7 @@ uint64_t RVBManager::addRvbDataOnBlockRange(uint64_t min_block_id,
     // TODO - As a 2nd phase - should use the thread pool to fetch a batch of digests or move to a background
     // process
     if (current_rvb_id > max_rvb_id_in_rvt) {
-      STDigest digest;
+      Digest digest;
       if (!as_->getPrevDigestFromBlock(current_rvb_id + 1,
                                        reinterpret_cast<StateTransferDigest*>(digest.getForUpdate()))) {
         LOG_FATAL(logger_,
@@ -662,7 +663,7 @@ uint64_t RVBManager::addRvbDataOnBlockRange(uint64_t min_block_id,
       LOG_DEBUG(logger_,
                 "Add digest for block " << current_rvb_id << " "
                                         << " Digest: " << digest.toString());
-      in_mem_rvt_->addRightNode(current_rvb_id, digest.getForUpdate(), BLOCK_DIGEST_SIZE);
+      in_mem_rvt_->addRightNode(current_rvb_id, digest.getForUpdate(), DIGEST_SIZE);
       ++num_rvbs_added;
     }
     current_rvb_id += config_.fetchRangeSize;
@@ -673,14 +674,14 @@ uint64_t RVBManager::addRvbDataOnBlockRange(uint64_t min_block_id,
       LOG_DEBUG(logger_,
                 "Add digest for block " << current_rvb_id << " "
                                         << " ,Digest: " << digest.toString());
-      in_mem_rvt_->addRightNode(current_rvb_id, digest.get(), BLOCK_DIGEST_SIZE);
+      in_mem_rvt_->addRightNode(current_rvb_id, digest.get(), DIGEST_SIZE);
       ++num_rvbs_added;
     } else {
       auto digest = getBlockAndComputeDigest(max_block_id);
       LOG_DEBUG(logger_,
                 "Add digest for block " << current_rvb_id << " "
                                         << " ,Digest: " << digest.toString());
-      in_mem_rvt_->addRightNode(current_rvb_id, digest.get(), BLOCK_DIGEST_SIZE);
+      in_mem_rvt_->addRightNode(current_rvb_id, digest.get(), DIGEST_SIZE);
       ++num_rvbs_added;
     }
   }
@@ -723,7 +724,7 @@ void RVBManager::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBloc
   uint64_t current_rvb_id = start_rvb_id;
   int32_t num_digests_added{0};
   while (current_rvb_id <= lastAgreedPrunableBlockId) {
-    STDigest digest;
+    Digest digest;
     if (!pruned_blocks_digests_.empty() && (current_rvb_id <= pruned_blocks_digests_.back().first)) {
       current_rvb_id += config_.fetchRangeSize;
       continue;

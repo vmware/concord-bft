@@ -23,6 +23,7 @@
 
 #include "DataStore.hpp"
 #include "Metrics.hpp"
+#include "SimpleBCStateTransfer.hpp"
 
 using BlockId = std::uint64_t;
 
@@ -108,7 +109,7 @@ class RVBManager {
 
   // Called during ST GettingMissingBlocks by destination, to get an RVB digest from stored_rvb_digests_.
   // If RVB digest not found - a null optional is returned.
-  std::optional<std::reference_wrapper<const STDigest>> getDigestFromStoredRvb(BlockId block_id) const;
+  std::optional<std::reference_wrapper<const Digest>> getDigestFromStoredRvb(BlockId block_id) const;
 
   // Returns the next required RVB group ID if needed. Called during  FetchBlocksMsg by destination.
   // If no RVBGroupId is required, 0 is returned.
@@ -157,11 +158,11 @@ class RVBManager {
   const std::shared_ptr<DataStore>& ds_;
 
   // RVB data (during ST as destination)
-  std::map<BlockId, STDigest> stored_rvb_digests_;
+  std::map<BlockId, Digest> stored_rvb_digests_;
   std::vector<RVBGroupId> stored_rvb_digests_group_ids_;
 
   // RVB data update during checkpointing / pruning
-  std::vector<std::pair<BlockId, STDigest>> pruned_blocks_digests_;
+  std::vector<std::pair<BlockId, Digest>> pruned_blocks_digests_;
   std::mutex pruned_blocks_digests_mutex_;
   CheckpointDesc last_checkpoint_desc_;
   std::atomic_bool prune_report_in_progess_;
@@ -181,7 +182,7 @@ class RVBManager {
   mutable Metrics metrics_;
 
  protected:
-  const STDigest getBlockAndComputeDigest(uint64_t block_id) const;
+  const Digest getBlockAndComputeDigest(uint64_t block_id) const;
   void computeDigestOfBlock(const uint64_t block_id,
                             const char* block,
                             const uint32_t block_size,
@@ -189,7 +190,7 @@ class RVBManager {
   // Returns # of RVBs added
   uint64_t addRvbDataOnBlockRange(uint64_t min_block_id,
                                   uint64_t max_block_id,
-                                  const std::optional<STDigest>& digest_of_max_block_id);
+                                  const std::optional<Digest>& digest_of_max_block_id);
   // returns the next RVB ID after block_id. If block_id is an RVB ID, returns block_id.
   inline RVBId nextRvbBlockId(BlockId block_id) const;
 
@@ -205,7 +206,7 @@ class RVBManager {
 #pragma pack(push, 1)
   struct RvbDigestInfo {
     BlockId block_id;
-    STDigest digest;
+    Digest digest;
   };
 #pragma pack(pop)
   using RvbDigestInfoPtr = RvbDigestInfo*;

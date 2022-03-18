@@ -15,11 +15,13 @@
 
 #include "storage/test/storage_test_common.h"
 
-#include "block_digest.h"
 #include "kv_types.hpp"
 #include "sparse_merkle/base_types.h"
+#include "SimpleBCStateTransfer.hpp"
 
-inline ::concord::kvbc::BlockDigest blockDigest(concord::kvbc::BlockId blockId, const concordUtils::Sliver &block) {
+using concord::util::digest::BlockDigest;
+
+inline BlockDigest blockDigest(concord::kvbc::BlockId blockId, const concordUtils::Sliver &block) {
   return ::bftEngine::bcst::computeBlockDigest(blockId, block.data(), block.length());
 }
 

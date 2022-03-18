@@ -7,7 +7,6 @@ add_subdirectory("cmf")
 set(corebft_source_files
     src/bftengine/PrimitiveTypes.cpp
     src/bftengine/DebugStatistics.cpp
-    src/bftengine/Digest.cpp
     src/bftengine/SeqNumInfo.cpp
     src/bftengine/ReadOnlyReplica.cpp
     src/bftengine/ReplicaBase.cpp
@@ -39,7 +38,6 @@ set(corebft_source_files
     src/bcstatetransfer/BCStateTran.cpp
     src/bcstatetransfer/RVBManager.cpp
     src/bcstatetransfer/InMemoryDataStore.cpp
-    src/bcstatetransfer/STDigest.cpp
     src/bcstatetransfer/DBDataStore.cpp
     src/bcstatetransfer/SourceSelector.cpp
     src/bcstatetransfer/AsyncStateTransferCRE.cpp

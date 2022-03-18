@@ -15,6 +15,8 @@
 #include "Digest.hpp"
 #include "ReplicaConfig.hpp"
 
+using concord::util::digest::Digest;
+
 namespace bftEngine::impl {
 
 class CheckpointMsg : public MessageBase {

@@ -1021,8 +1021,6 @@ struct GetColumnFamilyStats {
 
 struct VerifyDbCheckpoint {
   using CheckPointMsgStatus = std::vector<std::pair<const CheckpointMsg &, bool>>;
-  using STDigest = bftEngine::bcst::impl::STDigest;
-  using BlockDigest = std::array<std::uint8_t, BLOCK_DIGEST_SIZE>;
   using CheckpointDesc = bftEngine::bcst::impl::DataStore::CheckpointDesc;
   using BlockHashData = std::tuple<uint64_t, BlockDigest, BlockDigest>;  //<blockId, parentHash, blockHash>
   using IVerifier = concord::util::crypto::IVerifier;
@@ -1055,9 +1053,7 @@ struct VerifyDbCheckpoint {
     os << "  }";
     return os.str();
   }
-  bool isSame(const Digest &d, const STDigest &st) const {
-    return !st.isZero() && (sizeof(d) == sizeof(st)) && !std::memcmp(d.content(), st.get(), sizeof(st));
-  }
+
   std::map<ReplicaId, std::unique_ptr<IVerifier>> getVerifiers(std::set<ReplicaId> replicas,
                                                                const KeyValueBlockchain &adapter) const {
     auto category_id = concord::kvbc::categorization::kConcordReconfigurationCategoryId;
@@ -1095,27 +1091,30 @@ struct VerifyDbCheckpoint {
     }
     return false;
   }
+
   bool verify(const CheckpointMsg &msg,
               const CheckpointDesc &desc,
               bool verifySignature,
               const std::map<ReplicaId, std::unique_ptr<IVerifier>> &verifiers) const {
-    auto is_digest_valid = (isSame(msg.digestOfState(), desc.digestOfMaxBlockId) && (msg.state() == desc.maxBlockId));
-    auto is_check_point_signature_valild{true};
+    auto is_digest_valid = (!desc.digestOfMaxBlockId.isZero() && (msg.digestOfState() == desc.digestOfMaxBlockId) &&
+                            (msg.state() == desc.maxBlockId));
+    auto is_check_point_signature_valid{true};
     if (verifySignature) {
-      is_check_point_signature_valild = false;
+      is_check_point_signature_valid = false;
       if (auto it = verifiers.find(msg.idOfGeneratedReplica()); it != verifiers.end()) {
         auto verifier = (it->second).get();
         if (verifier) {
-          is_check_point_signature_valild = verifySig(msg.body(),
-                                                      msg.getHeaderLen(),
-                                                      msg.body() + msg.getHeaderLen() + msg.spanContextSize(),
-                                                      msg.size() - msg.getHeaderLen() - msg.spanContextSize(),
-                                                      verifier);
+          is_check_point_signature_valid = verifySig(msg.body(),
+                                                     msg.getHeaderLen(),
+                                                     msg.body() + msg.getHeaderLen() + msg.spanContextSize(),
+                                                     msg.size() - msg.getHeaderLen() - msg.spanContextSize(),
+                                                     verifier);
         }
       }
     }
-    return is_digest_valid && is_check_point_signature_valild;
+    return is_digest_valid && is_check_point_signature_valid;
   }
+
   BlockDigest getBlockDigest(const KeyValueBlockchain &adapter, const uint64_t &blockId) const {
     using bftEngine::bcst::computeBlockDigest;
     const auto rawBlock = adapter.getRawBlock(blockId);
@@ -1337,5 +1336,4 @@ inline int run(const CommandLineArguments &cmd_line_args, std::ostream &out, std
   }
   return EXIT_SUCCESS;
 }
-
 }  // namespace concord::kvbc::tools::db_editor

@@ -11,9 +11,6 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include <random>
-#include <tuple>
-
 #include "ShufflePrePrepareMsgStrategy.hpp"
 #include "StrategyUtils.hpp"
 
@@ -23,6 +20,7 @@
 
 #include "Digest.hpp"
 
+using concord::util::digest::DigestUtil;
 namespace concord::kvbc::strategy {
 
 using bftEngine::impl::MessageBase;

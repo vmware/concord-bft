@@ -18,7 +18,6 @@
 #include <functional>
 
 #include "DataStore.hpp"
-#include "STDigest.hpp"
 #include "Logger.hpp"
 #include "kvstream.h"
 
@@ -73,8 +72,8 @@ class InMemoryDataStore : public DataStore {
   //////////////////////////////////////////////////////////////////////////
   // Range Validation Blocks
   //////////////////////////////////////////////////////////////////////////
-  void setPrunedBlocksDigests(const std::vector<std::pair<BlockId, STDigest>>& prunedBlocksDigests) override;
-  std::vector<std::pair<BlockId, STDigest>> getPrunedBlocksDigests() override;
+  void setPrunedBlocksDigests(const std::vector<std::pair<BlockId, Digest>>& prunedBlocksDigests) override;
+  std::vector<std::pair<BlockId, Digest>> getPrunedBlocksDigests() override;
 
   //////////////////////////////////////////////////////////////////////////
   // Checkpoints
@@ -116,14 +115,14 @@ class InMemoryDataStore : public DataStore {
 
   void associatePendingResPageWithCheckpoint(uint32_t inPageId,
                                              uint64_t inCheckpoint,
-                                             const STDigest& inPageDigest) override;
+                                             const Digest& inPageDigest) override;
 
-  void setResPage(uint32_t inPageId, uint64_t inCheckpoint, const STDigest& inPageDigest, const char* inPage) override;
+  void setResPage(uint32_t inPageId, uint64_t inCheckpoint, const Digest& inPageDigest, const char* inPage) override;
 
   bool getResPage(uint32_t inPageId,
                   uint64_t inCheckpoint,
                   uint64_t* outActualCheckpoint,
-                  STDigest* outPageDigest,
+                  Digest* outPageDigest,
                   char* outPage,
                   uint32_t copylength) override;
 
@@ -167,7 +166,7 @@ class InMemoryDataStore : public DataStore {
   uint64_t lastStoredCheckpoint = UINT64_MAX;
   uint64_t firstStoredCheckpoint = UINT64_MAX;
 
-  std::vector<std::pair<BlockId, STDigest>> prunedBlocksDigests;
+  std::vector<std::pair<BlockId, Digest>> prunedBlocksDigests;
   map<uint64_t, CheckpointDesc> descMap;
 
   std::atomic_bool fetching{false};
@@ -193,7 +192,7 @@ class InMemoryDataStore : public DataStore {
   };
 
   struct ResPageVal {
-    STDigest pageDigest;
+    Digest pageDigest;
     char* page;
   };
 

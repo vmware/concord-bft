@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -14,16 +14,20 @@
 #include <memory.h>
 #include <stdint.h>
 #include <string>
-#include "DigestType.h"
+#include <array>
+#include "DigestType.hpp"
 
-namespace bftEngine {
-namespace impl {
+namespace concord::util::digest {
+
+using BlockDigest = std::array<std::uint8_t, DIGEST_SIZE>;
 
 class Digest {
  public:
   Digest() { memset(d, 0, DIGEST_SIZE); }
 
   Digest(unsigned char initVal) { memset(d, initVal, DIGEST_SIZE); }
+
+  Digest(const char* other) { memcpy(d, other, DIGEST_SIZE); }
 
   Digest(char* buf, size_t len);
 
@@ -86,6 +90,10 @@ class Digest {
 
   static void digestOfDigest(const Digest& inDigest, Digest& outDigest);
 
+  const char* const get() const { return d; }
+
+  char* getForUpdate() { return d; }
+
  protected:
   char d[DIGEST_SIZE];  // DIGEST_SIZE should be >= 8 bytes
 };
@@ -114,6 +122,4 @@ class DigestUtil {
     void* internalState;
   };
 };
-
-}  // namespace impl
-}  // namespace bftEngine
+}  // namespace concord::util::digest

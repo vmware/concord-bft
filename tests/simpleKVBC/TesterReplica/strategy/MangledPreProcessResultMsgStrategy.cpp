@@ -23,6 +23,7 @@ using bftEngine::impl::MessageBase;
 using bftEngine::impl::PrePrepareMsg;
 using bftEngine::ClientRequestMsgHeader;
 using preprocessor::PreProcessResultMsg;
+using concord::util::digest::DigestUtil;
 
 std::string concord::kvbc::strategy::MangledPreProcessResultMsgStrategy::getStrategyName() {
   return CLASSNAME(MangledPreProcessResultMsgStrategy);

@@ -16,7 +16,6 @@
 #include <stdint.h>
 #include <limits>
 
-#include "STDigest.hpp"
 #include "IStateTransfer.hpp"
 #include "Logger.hpp"
 #include "hex_tools.h"
@@ -87,8 +86,8 @@ struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
 
   uint64_t checkpointNum;
   uint64_t maxBlockId;
-  STDigest digestOfMaxBlockId;
-  STDigest digestOfResPagesDescriptor;
+  Digest digestOfMaxBlockId;
+  Digest digestOfResPagesDescriptor;
   uint64_t requestMsgSeqNum;
 
  private:

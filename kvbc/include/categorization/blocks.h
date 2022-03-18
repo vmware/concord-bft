@@ -15,7 +15,6 @@
 
 #include "updates.h"
 #include <utility>
-#include <block_digest.h>
 #include "details.h"
 #include "merkle_tree_serialization.h"
 #include "merkle_tree_key_manipulator.h"

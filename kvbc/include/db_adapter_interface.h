@@ -4,9 +4,11 @@
 
 #pragma once
 
-#include "block_digest.h"
 #include "kv_types.hpp"
 #include <utility>
+#include "Digest.hpp"
+
+using concord::util::digest::BlockDigest;
 
 namespace concord::storage {
 class IDBClient;

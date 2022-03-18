@@ -28,6 +28,8 @@
 
 using namespace bftEngine;
 using namespace bftEngine::impl;
+using concord::util::digest::DigestUtil;
+
 bftEngine::test::ReservedPagesMock<EpochManager> res_pages_mock_;
 
 ClientRequestMsg create_client_request() {

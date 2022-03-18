@@ -13,7 +13,8 @@ set(util_source_files
     src/throughput.cpp
     src/crypto_utils.cpp
     src/RawMemoryPool.cpp
-    src/config_file_parser.cpp)
+    src/config_file_parser.cpp
+    src/Digest.cpp)
 
 
 add_library(util        STATIC ${util_source_files})
@@ -72,7 +73,9 @@ set(util_header_files
     include/sliver.hpp
     include/status.hpp
     include/string.hpp
-    include/openssl_crypto.hpp)
+    include/openssl_crypto.hpp
+    include/Digest.hpp
+    include/DigestType.hpp)
 install(FILES ${util_header_files} DESTINATION include/util)
 
 set_property(DIRECTORY .. APPEND PROPERTY INCLUDE_DIRECTORIES

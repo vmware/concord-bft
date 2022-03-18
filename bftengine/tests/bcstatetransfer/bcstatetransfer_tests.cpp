@@ -367,7 +367,7 @@ class BcStTestDelegator {
   void deleteOldCheckpoints(uint64_t checkpointNumber, DataStoreTransaction* txn) {
     stateTransfer_->deleteOldCheckpoints(checkpointNumber, txn);
   }
-  std::vector<std::pair<BlockId, STDigest>> getPrunedBlocksDigests() {
+  std::vector<std::pair<BlockId, Digest>> getPrunedBlocksDigests() {
     return stateTransfer_->rvbm_->pruned_blocks_digests_;
   }
   void fillHeaderOfVirtualBlock(std::unique_ptr<char[]>& rawVBlock,
@@ -377,7 +377,7 @@ class BcStTestDelegator {
                                  char* position,
                                  uint32_t pageId,
                                  uint64_t checkpointNumber,
-                                 const STDigest& pageDigest,
+                                 const Digest& pageDigest,
                                  uint32_t sizeOfReservedPage);
   uint32_t getSizeOfVirtualBlock(char* virtualBlock, uint32_t pageSize) {
     return stateTransfer_->getSizeOfVirtualBlock(virtualBlock, pageSize);
@@ -642,7 +642,7 @@ void DataGenerator::generateCheckpointDescriptors(const TestAppState& appState,
 
     ASSERT_NFF(generateReservedPages(datastore, i));
     DataStore::ResPagesDescriptor* resPagesDesc = datastore->getResPagesDescriptor(i);
-    STDigest digestOfResPagesDescriptor;
+    Digest digestOfResPagesDescriptor;
     BCStateTran::computeDigestOfPagesDescriptor(resPagesDesc, digestOfResPagesDescriptor);
 
     desc.digestOfResPagesDescriptor = digestOfResPagesDescriptor;
@@ -659,7 +659,7 @@ void DataGenerator::generateReservedPages(DataStore* datastore, uint64_t checkpo
   std::unique_ptr<char[]> buffer(new char[targetConfig_.sizeOfReservedPage]);
   for (uint32_t pageId{0}; pageId < testConfig_.maxNumberOfUpdatedReservedPages; ++pageId) {
     ConcordAssertLT(idx, testConfig_.maxNumberOfUpdatedReservedPages);
-    STDigest pageDigest;
+    Digest pageDigest;
     fillRandomBytes(buffer.get(), targetConfig_.sizeOfReservedPage);
     BCStateTran::computeDigestOfPage(
         pageId, checkpointNumber, buffer.get(), targetConfig_.sizeOfReservedPage, pageDigest);
@@ -691,7 +691,7 @@ void BcStTestDelegator::fillElementOfVirtualBlock(DataStore* datastore,
                                                   char* position,
                                                   uint32_t pageId,
                                                   uint64_t checkpointNumber,
-                                                  const STDigest& pageDigest,
+                                                  const Digest& pageDigest,
                                                   uint32_t sizeOfReservedPage) {
   BCStateTran::ElementOfVirtualBlock* currElement = reinterpret_cast<BCStateTran::ElementOfVirtualBlock*>(position);
   currElement->pageId = pageId;

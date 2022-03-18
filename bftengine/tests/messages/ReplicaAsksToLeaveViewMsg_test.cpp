@@ -11,9 +11,8 @@
 
 #include "gtest/gtest.h"
 
-#include <tuple>
 #include "helper.hpp"
-#include "DigestType.h"
+#include "DigestType.hpp"
 #include "ViewsManager.hpp"
 #include "ReplicasInfo.hpp"
 #include "SigManager.hpp"

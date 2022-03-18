@@ -2,21 +2,19 @@
 
 #include "hex_tools.h"
 
-#include <cstdint>
 #include <iomanip>
-#include <ios>
-#include <ostream>
-#include <sstream>
-#include <stdexcept>
 #include <vector>
 
 namespace concordUtils {
 
 // Print <size> bytes from <data> to <s> as their 0x<hex> representation.
-std::ostream &hexPrint(std::ostream &s, const char *data, size_t size) {
+std::ostream &hexPrint(std::ostream &s, const char *data, size_t size, bool withPrefix) {
   // Store current state of ostream flags
   std::ios::fmtflags f(s.flags());
-  s << "0x";
+
+  if (withPrefix) {
+    s << "0x";
+  }
   for (size_t i = 0; i < size; i++) {
     // Convert from signed char to std::uint8_t and then to an unsigned non-char type so that it prints as an integer.
     const auto u = static_cast<std::uint8_t>(data[i]);
@@ -53,9 +51,9 @@ Sliver hexToSliver(const std::string &hex) {
   return result;
 }
 
-std::string bufferToHex(const char *data, size_t size) {
+std::string bufferToHex(const char *data, const size_t size, bool withPrefix) {
   auto ss = std::stringstream{};
-  hexPrint(ss, data, size);
+  hexPrint(ss, data, size, withPrefix);
   return ss.str();
 }
 

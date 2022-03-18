@@ -20,7 +20,6 @@ using concordUtils::Sliver;
 using concord::kvbc::KeysVector;
 using concord::kvbc::KeyValuePair;
 using concord::kvbc::SetOfKeyValuePairs;
-using concord::kvbc::BlockDigest;
 using concord::kvbc::BlockId;
 // using concord::storage::rocksdb::Client;
 // using concord::storage::rocksdb::KeyComparator;

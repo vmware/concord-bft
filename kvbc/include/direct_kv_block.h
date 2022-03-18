@@ -13,13 +13,15 @@
 
 #pragma once
 
-#include "block_digest.h"
 #include "kv_types.hpp"
 #include "sliver.hpp"
+#include "Digest.hpp"
 
 #include <cstddef>
 #include <cstdint>
 #include <utility>
+
+using concord::util::digest::BlockDigest;
 
 namespace concord {
 namespace kvbc {
@@ -27,14 +29,14 @@ namespace v1DirectKeyValue {
 namespace block {
 namespace detail {
 // Creates a block with the user data appended at the end of the returned Sliver. The passed parentDigest buffer must be
-// of size BLOCK_DIGEST_SIZE bytes.
+// of size DIGEST_SIZE bytes.
 concordUtils::Sliver create(const concord::kvbc::SetOfKeyValuePairs &updates,
                             concord::kvbc::SetOfKeyValuePairs &outUpdatesInNewBlock,
                             const BlockDigest &parentDigest,
                             const void *userData,
                             std::size_t userDataSize);
 
-// Creates a block. The passed parentDigest buffer must be of size BLOCK_DIGEST_SIZE bytes.
+// Creates a block. The passed parentDigest buffer must be of size DIGEST_SIZE bytes.
 concordUtils::Sliver create(const concord::kvbc::SetOfKeyValuePairs &updates,
                             concord::kvbc::SetOfKeyValuePairs &outUpdatesInNewBlock,
                             const BlockDigest &parentDigest);
@@ -42,7 +44,7 @@ concordUtils::Sliver create(const concord::kvbc::SetOfKeyValuePairs &updates,
 // Returns the block data in the form of a set of key/value pairs.
 concord::kvbc::SetOfKeyValuePairs getData(const concordUtils::Sliver &block);
 
-// Returns the parent digest of size BLOCK_DIGEST_SIZE bytes.
+// Returns the parent digest of size DIGEST_SIZE bytes.
 BlockDigest getParentDigest(const concordUtils::Sliver &block);
 
 // Returns the passed user data when creating the block. Will be empty if no user data has been passed.
@@ -51,7 +53,7 @@ concordUtils::Sliver getUserData(const concordUtils::Sliver &block);
 struct Header {
   std::uint32_t numberOfElements;
   std::uint32_t parentDigestLength;
-  std::uint8_t parentDigest[BLOCK_DIGEST_SIZE];
+  std::uint8_t parentDigest[DIGEST_SIZE];
 };
 
 // Entry structures are coming immediately after the header.

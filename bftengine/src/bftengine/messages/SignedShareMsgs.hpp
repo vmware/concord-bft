@@ -15,6 +15,8 @@
 #include "MessageBase.hpp"
 #include <memory>
 
+using concord::util::digest::Digest;
+
 class IThresholdSigner;
 
 namespace bftEngine {
