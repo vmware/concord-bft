@@ -377,4 +377,25 @@ BlockId DbCheckpointManager::getLastReachableBlock() const {
   if (getLastBlockIdCb_) return getLastBlockIdCb_();
   return 0;
 }
+std::string DbCheckpointManager::getDiskUsageInfo() {
+  std::ostringstream ss;
+  _fs::path dbPath(dbClient_->getPath());
+  const auto& dbCurrentSize = directorySize(dbPath, false, false);
+  try {
+    const _fs::space_info diskSpace = _fs::space(dbPath);
+    const double lowDiskThresholdFactor =
+        stod(bftEngine::ReplicaConfig::instance().getdbCheckpointDiskSpaceThreshold());
+    bool isSpaceBelowThreshold =
+        (static_cast<double>(diskSpace.available) < (static_cast<double>(dbCurrentSize) * lowDiskThresholdFactor));
+    if (isSpaceBelowThreshold) {
+      ss << "Available disk space is less than threshold, free:" << HumanReadable{diskSpace.available}
+         << " rocksDbSize:" << HumanReadable{dbCurrentSize}
+         << " thresholdFactor:" << std::to_string(lowDiskThresholdFactor);
+    }
+  } catch (std::exception& e) {
+    ss << "Failed to get the available db size on disk: " << e.what();
+    LOG_ERROR(getLogger(), ss.str());
+  }
+  return ss.str();
+}
 }  // namespace bftEngine::impl
