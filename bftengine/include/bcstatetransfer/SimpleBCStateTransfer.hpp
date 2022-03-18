@@ -76,13 +76,16 @@ class IAppState {
   // If block blockId exists, then its content is returned via the arguments
   // outBlock and outBlockActualSize. Returns true IFF block blockId exists.
   // If outBlockMaxSize is too small, an exception is thrown
-  virtual bool getBlock(uint64_t blockId, char *outBlock, uint32_t outBlockMaxSize, uint32_t *outBlockActualSize) = 0;
+  virtual bool getBlock(uint64_t blockId,
+                        char *outBlock,
+                        uint32_t outBlockMaxSize,
+                        uint32_t *outBlockActualSize) const = 0;
 
   // Get a block (asynchronously)
   // An asynchronous version for the above getBlock.
   // For a given blockId, a job is invoked asynchronously, to get the block from storage and fill outBlock and
-  // outBlockActualSize. After job is created, this call returns immidiately with a future<bool>, while job is executed
-  // by a seperate worker thread. Before accesing buffer and size, user must call the returned future.get() to make sure
+  // outBlockActualSize. After job is created, this call returns immediately with a future<bool>, while job is executed
+  // by a separate worker thread. Before accesing buffer and size, user must call the returned future.get() to make sure
   // that job has been done. User should 1st check the future value: if true - block exist and outBlock,
   // outBlockActualSize are valid if false - block does not exist, all output should be ignored. If outBlockMaxSize is
   // too small, an exception is thrown.
@@ -93,12 +96,12 @@ class IAppState {
 
   // If block blockId exists, then the digest of block blockId-1 is returned via
   // the argument outPrevBlockDigest. Returns true IFF block blockId exists.
-  virtual bool getPrevDigestFromBlock(uint64_t blockId, StateTransferDigest *outPrevBlockDigest) = 0;
+  virtual bool getPrevDigestFromBlock(uint64_t blockId, StateTransferDigest *outPrevBlockDigest) const = 0;
 
   // Extracts a digest out of in-memory block (raw block).
   virtual void getPrevDigestFromBlock(const char *blockData,
                                       const uint32_t blockSize,
-                                      StateTransferDigest *outPrevBlockDigest) = 0;
+                                      StateTransferDigest *outPrevBlockDigest) const = 0;
 
   // Add a block
   // blockId   - the block number
@@ -112,15 +115,15 @@ class IAppState {
   // Add a block (asynchronously)
   // An asynchronous version for the above putBlock.
   // For a given blockId, a job is invoked asynchronously, to put the block into storage.
-  // After job is created, this call returns immidiately with a future<bool>, while job is executed by a
-  // seperate worker thread. Before accesing buffer and size, user must call the returned future.get() to make sure that
+  // After job is created, this call returns immediately with a future<bool>, while job is executed by a
+  // separate worker thread. Before accesing buffer and size, user must call the returned future.get() to make sure that
   // job has been done.
   // All exceptions in putBlock are caught within this call implementation.
   // Returns true if operation succeeded.
   virtual std::future<bool> putBlockAsync(uint64_t blockId,
                                           const char *block,
                                           const uint32_t blockSize,
-                                          bool lastBlock = true) = 0;
+                                          bool lastBlock) = 0;
 
   // returns the maximal block number n such that all blocks 1 <= i <= n exist.
   // if block 1 does not exist, returns 0.
@@ -131,6 +134,11 @@ class IAppState {
   // returns the maximum block number that is currently stored in
   // the application/storage layer.
   virtual uint64_t getLastBlockNum() const = 0;
+
+  // Perform post-processing operations on all blocks until (and include) maxBlockId
+  // If those operations have already been done, function should do nothing and return
+  // return number of blocks that were actually post-processed
+  virtual size_t postProcessUntilBlockId(uint64_t maxBlockId) = 0;
 
   // When the state is updated by the application, getLastReachableBlockNum()
   // and getLastBlockNum() should always return the same block number.
@@ -154,7 +162,10 @@ struct Config {
   uint32_t maxPendingDataFromSourceReplica = 0;  // Maximal internal buffer size for all ST data, bytes
   uint32_t maxNumOfReservedPages = 0;
   uint32_t sizeOfReservedPage = 0;  // bytes
-  uint32_t gettingMissingBlocksSummaryWindowSize = 600;
+  uint32_t gettingMissingBlocksSummaryWindowSize = 0;
+  uint16_t minPrePrepareMsgsForPrimaryAwareness = 0;
+  uint32_t fetchRangeSize = 0;
+  uint32_t RVT_K = 0;
 
   // timeouts
   uint32_t refreshTimerMs = 0;
@@ -164,11 +175,14 @@ struct Config {
   uint32_t fetchRetransmissionTimeoutMs = 0;
   uint32_t maxFetchRetransmissions = 0;
   uint32_t metricsDumpIntervalSec = 0;
+  uint32_t maxTimeSinceLastExecutionInMainWindowMs = 0;
 
   // misc
-  bool runInSeparateThread = false;
+  bool runInSeparateThread = true;
   bool enableReservedPages = true;
   bool enableSourceBlocksPreFetch = true;
+  bool enableSourceSelectorPrimaryAwareness = true;
+  bool enableStoreRvbDataDuringCheckpointing = true;
 };
 
 inline std::ostream &operator<<(std::ostream &os, const Config &c) {
@@ -185,18 +199,24 @@ inline std::ostream &operator<<(std::ostream &os, const Config &c) {
               c.maxPendingDataFromSourceReplica,
               c.maxNumOfReservedPages,
               c.sizeOfReservedPage,
+              c.gettingMissingBlocksSummaryWindowSize,
+              c.minPrePrepareMsgsForPrimaryAwareness,
+              c.fetchRangeSize);
+  os << ",";
+  os << KVLOG(c.RVT_K,
               c.refreshTimerMs,
               c.checkpointSummariesRetransmissionTimeoutMs,
-              c.maxAcceptableMsgDelayMs);
-  os << ",";
-  os << KVLOG(c.sourceReplicaReplacementTimeoutMs,
+              c.maxAcceptableMsgDelayMs,
+              c.sourceReplicaReplacementTimeoutMs,
               c.fetchRetransmissionTimeoutMs,
               c.maxFetchRetransmissions,
               c.metricsDumpIntervalSec,
+              c.maxTimeSinceLastExecutionInMainWindowMs,
               c.runInSeparateThread,
               c.enableReservedPages,
               c.enableSourceBlocksPreFetch,
-              c.gettingMissingBlocksSummaryWindowSize);
+              c.enableSourceSelectorPrimaryAwareness,
+              c.enableStoreRvbDataDuringCheckpointing);
   return os;
 }
 // creates an instance of the state transfer module.

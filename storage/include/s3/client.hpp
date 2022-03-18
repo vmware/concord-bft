@@ -336,7 +336,6 @@ class Client : public concord::storage::IDBClient {
       return Status::NotFound("Status: " + rd.errorMessage);
     }
     LOG_ERROR(logger_, msg << " status: " << rd.status << " error: " << rd.errorMessage);
-
     return Status::GeneralError("Status: " + rd.errorMessage);
   }
 

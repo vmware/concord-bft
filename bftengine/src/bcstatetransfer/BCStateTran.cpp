@@ -12,15 +12,13 @@
 // file.
 
 #include <algorithm>
-#include <chrono>
 #include <exception>
 #include <list>
-#include <set>
-#include <string>
 #include <sstream>
 #include <functional>
 #include <utility>
 #include <iterator>
+#include <iomanip>
 
 #include "assertUtils.hpp"
 #include "hex_tools.h"
@@ -35,13 +33,9 @@
 #include "memorydb/client.h"
 #include "client/reconfiguration/client_reconfiguration_engine.hpp"
 #include "client/reconfiguration/poll_based_state_client.hpp"
+#include "RVBManager.hpp"
 
 using std::tie;
-using std::chrono::steady_clock;
-using std::chrono::duration_cast;
-using std::chrono::milliseconds;
-using std::chrono::time_point;
-using std::chrono::system_clock;
 using namespace std::placeholders;
 using namespace concord::diagnostics;
 using namespace concord::util;
@@ -92,17 +86,6 @@ IStateTransfer *create(const Config &config,
 namespace impl {
 
 //////////////////////////////////////////////////////////////////////////////
-// Time
-//////////////////////////////////////////////////////////////////////////////
-
-uint64_t BCStateTran::getMonotonicTimeMilli() {
-  steady_clock::time_point curTimePoint = steady_clock::now();
-  auto timeSinceEpoch = curTimePoint.time_since_epoch();
-  uint64_t milli = duration_cast<milliseconds>(timeSinceEpoch).count();
-  return milli;
-}
-
-//////////////////////////////////////////////////////////////////////////////
 // Ctor & Dtor
 //////////////////////////////////////////////////////////////////////////////
 
@@ -137,9 +120,109 @@ set<uint16_t> BCStateTran::generateSetOfReplicas(const int16_t numberOfReplicas)
   return retVal;
 }
 
+BCStateTran::Metrics BCStateTran::createRegisterMetrics() {
+  // We must make sure that we actually initialize all these metrics in the
+  // same order as defined in the header file.
+  return BCStateTran::Metrics{
+      metrics_component_.RegisterStatus("fetching_state", stateName(FetchingState::NotFetching)),
+      metrics_component_.RegisterGauge("checkpoint_being_fetched", 0),
+      metrics_component_.RegisterGauge("last_stored_checkpoint", 0),
+      metrics_component_.RegisterGauge("number_of_reserved_pages", 0),
+      metrics_component_.RegisterGauge("size_of_reserved_page", config_.sizeOfReservedPage),
+      metrics_component_.RegisterGauge("last_msg_seq_num", lastMsgSeqNum_),
+      metrics_component_.RegisterGauge("next_required_block_", fetchState_.nextBlockId),
+      metrics_component_.RegisterGauge("next_block_id_to_commit", commitState_.nextBlockId),
+      metrics_component_.RegisterGauge("num_pending_item_data_msgs_", pendingItemDataMsgs.size()),
+      metrics_component_.RegisterGauge("total_size_of_pending_item_data_msgs", totalSizeOfPendingItemDataMsgs),
+      metrics_component_.RegisterAtomicGauge("last_block_", 0),
+      metrics_component_.RegisterGauge("last_reachable_block", 0),
+
+      metrics_component_.RegisterCounter("sent_ask_for_checkpoint_summaries_msg"),
+      metrics_component_.RegisterCounter("sent_checkpoint_summary_msg"),
+      metrics_component_.RegisterCounter("sent_fetch_blocks_msg"),
+      metrics_component_.RegisterCounter("sent_fetch_res_pages_msg"),
+      metrics_component_.RegisterCounter("sent_reject_fetch_msg"),
+      metrics_component_.RegisterCounter("sent_item_data_msg"),
+
+      metrics_component_.RegisterCounter("received_ask_for_checkpoint_summaries_msg"),
+      metrics_component_.RegisterCounter("received_checkpoint_summary_msg"),
+      metrics_component_.RegisterCounter("received_fetch_blocks_msg"),
+      metrics_component_.RegisterCounter("received_fetch_res_pages_msg"),
+      metrics_component_.RegisterCounter("received_reject_fetching_msg"),
+      metrics_component_.RegisterCounter("received_item_data_msg"),
+      metrics_component_.RegisterCounter("received_illegal_msg_"),
+
+      metrics_component_.RegisterCounter("invalid_ask_for_checkpoint_summaries_msg"),
+      metrics_component_.RegisterCounter("irrelevant_ask_for_checkpoint_summaries_msg"),
+      metrics_component_.RegisterCounter("invalid_checkpoint_summary_msg"),
+      metrics_component_.RegisterCounter("irrelevant_checkpoint_summary_msg"),
+      metrics_component_.RegisterCounter("invalid_fetch_blocks_msg"),
+      metrics_component_.RegisterCounter("irrelevant_fetch_blocks_msg"),
+      metrics_component_.RegisterCounter("invalid_fetch_res_pages_msg"),
+      metrics_component_.RegisterCounter("irrelevant_fetch_res_pages_msg"),
+      metrics_component_.RegisterCounter("invalid_reject_fetching_msg"),
+      metrics_component_.RegisterCounter("irrelevant_reject_fetching_msg"),
+      metrics_component_.RegisterCounter("invalid_item_data_msg"),
+      metrics_component_.RegisterCounter("irrelevant_item_data_msg"),
+
+      metrics_component_.RegisterAtomicCounter("create_checkpoint"),
+      metrics_component_.RegisterCounter("mark_checkpoint_as_stable"),
+      metrics_component_.RegisterAtomicCounter("load_reserved_page"),
+      metrics_component_.RegisterAtomicCounter("load_reserved_page_from_pending"),
+      metrics_component_.RegisterAtomicCounter("load_reserved_page_from_checkpoint"),
+      metrics_component_.RegisterAtomicCounter("save_reserved_page"),
+      metrics_component_.RegisterCounter("zero_reserved_page"),
+      metrics_component_.RegisterCounter("start_collecting_state"),
+      metrics_component_.RegisterCounter("on_timer"),
+      metrics_component_.RegisterCounter("one_shot_timer"),
+      metrics_component_.RegisterCounter("on_transferring_complete"),
+      metrics_component_.RegisterCounter("handle_AskForCheckpointSummaries_msg"),
+      metrics_component_.RegisterCounter("dst_handle_CheckpointsSummary_msg"),
+      metrics_component_.RegisterCounter("src_handle_FetchBlocks_msg"),
+      metrics_component_.RegisterCounter("src_handle_FetchResPages_msg"),
+      metrics_component_.RegisterCounter("dst_handle_RejectFetching_msg"),
+      metrics_component_.RegisterCounter("dst_handle_ItemData_msg"),
+
+      metrics_component_.RegisterGauge("overall_blocks_collected", 0),
+      metrics_component_.RegisterGauge("overall_blocks_throughput", 0),
+      metrics_component_.RegisterGauge("overall_bytes_collected", 0),
+      metrics_component_.RegisterGauge("overall_bytes_throughput", 0),
+      metrics_component_.RegisterGauge("prev_win_blocks_collected", 0),
+      metrics_component_.RegisterGauge("prev_win_blocks_throughput", 0),
+      metrics_component_.RegisterGauge("prev_win_bytes_collected", 0),
+      metrics_component_.RegisterGauge("prev_win_bytes_throughput", 0),
+
+      metrics_component_.RegisterCounter("overall_rvb_digests_validated"),
+      metrics_component_.RegisterCounter("overall_rvb_digest_groups_validated"),
+      metrics_component_.RegisterCounter("overall_rvb_digests_failed_validation"),
+      metrics_component_.RegisterCounter("overall_rvb_digest_groups_failed_validation"),
+      metrics_component_.RegisterStatus("current_rvb_data_state", "")};
+}
+
+void BCStateTran::bindEventsHandlers() {
+  if (config_.runInSeparateThread) {
+    incomingEventsQ_ = std::make_unique<concord::util::Handoff>(config_.myReplicaId, "incomingEventsQ");
+    incomingStateTransferMsgHandler_ = std::bind(&BCStateTran::handleIncomingStateTransferMessage, this, _1, _2, _3);
+    timeoutHandler_ = std::bind(&BCStateTran::handleTimeout, this);
+    startCollectingStateHandler_ = std::bind(&BCStateTran::handoffStartCollectingState, this);
+  } else {
+    incomingEventsQ_.reset(nullptr);  // make it explicit
+    incomingStateTransferMsgHandler_ = std::bind(&BCStateTran::handleStateTransferMessageImp, this, _1, _2, _3, _4);
+    timeoutHandler_ = std::bind(&BCStateTran::onTimerImp, this);
+    startCollectingStateHandler_ = std::bind(&BCStateTran::onStartCollectingStateImp, this);
+  }
+}
+
+void BCStateTran::rvbm_deleter::operator()(RVBManager *ptr) const { delete ptr; }  // used for pimpl
 size_t BCStateTran::BlockIOContext::sizeOfBlockData = 0;
 BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataStore *ds)
-    : as_{stateApi},
+    : logger_(ST_SRC_LOG),
+      postProcessingQ_{config.isReadOnly
+                           ? nullptr
+                           : std::make_unique<concord::util::Handoff>(config.myReplicaId, "postProcessingQ")},
+      postProcessingUpperBoundBlockId_(0),
+      maxPostprocessedBlockId_{0},
+      as_{stateApi},
       psd_{ds},
       config_{config},
       replicas_{generateSetOfReplicas(config_.numReplicas)},
@@ -151,15 +234,19 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
           calcMaxNumOfChunksInBlock(maxItemSize_, config_.maxBlockSize, config_.maxChunkSize, true)},
       maxNumOfStoredCheckpoints_{0},
       numberOfReservedPages_{0},
-      cycleCounter_(0),
+      cycleCounter_{0},
+      internalCycleCounter_{0},
       buffer_(new char[maxItemSize_]),
       randomGen_{randomDevice_()},
       sourceSelector_{allOtherReplicas(),
                       config_.fetchRetransmissionTimeoutMs,
                       config_.sourceReplicaReplacementTimeoutMs,
                       config_.maxFetchRetransmissions,
+                      config_.minPrePrepareMsgsForPrimaryAwareness,
                       ST_SRC_LOG},
-      posponedSendFetchBlocksMsg_(false),
+      fetchState_{0},
+      commitState_{0},
+      postponedSendFetchBlocksMsg_(false),
       ioPool_(
           config_.maxNumberOfChunksInBatch,
           nullptr,                                     // alloc callback
@@ -169,8 +256,9 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
                 LOG_DEBUG(logger_, "Waiting for previous thread to finish job on context " << KVLOG(ctx->blockId));
                 ctx->future.get();
               } catch (...) {
-                // ignore and continue, this job is irrlevant
-                LOG_WARN(logger_, "Exception on irrelevant job, ignoring..");
+                // ignore and continue, this job is irrelevant
+                LOG_WARN(logger_, "Exception:" << KVLOG(ctx->blockId, ctx->actualBlockSize));
+                throw;
               }
             }
           },
@@ -178,91 +266,26 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
             BCStateTran::BlockIOContext::sizeOfBlockData = config_.maxBlockSize;
           }),
       oneShotTimerFlag_(true),
+      rvbm_{new RVBManager(config_, as_, psd_)},
       last_metrics_dump_time_(0),
       metrics_dump_interval_in_sec_{std::chrono::seconds(config_.metricsDumpIntervalSec)},
       metrics_component_{
           concordMetrics::Component("bc_state_transfer", std::make_shared<concordMetrics::Aggregator>())},
-
-      // We must make sure that we actually initialize all these metrics in the
-      // same order as defined in the header file.
-      metrics_{metrics_component_.RegisterStatus("fetching_state", stateName(FetchingState::NotFetching)),
-               metrics_component_.RegisterStatus("preferred_replicas", ""),
-
-               metrics_component_.RegisterGauge("current_source_replica", NO_REPLICA),
-               metrics_component_.RegisterGauge("checkpoint_being_fetched", 0),
-               metrics_component_.RegisterGauge("last_stored_checkpoint", 0),
-               metrics_component_.RegisterGauge("number_of_reserved_pages", 0),
-               metrics_component_.RegisterGauge("size_of_reserved_page", config_.sizeOfReservedPage),
-               metrics_component_.RegisterGauge("last_msg_seq_num", lastMsgSeqNum_),
-               metrics_component_.RegisterGauge("next_required_block_", nextRequiredBlock_),
-               metrics_component_.RegisterGauge("next_commited_block_id_", nextCommittedBlockId_),
-               metrics_component_.RegisterGauge("num_pending_item_data_msgs_", pendingItemDataMsgs.size()),
-               metrics_component_.RegisterGauge("total_size_of_pending_item_data_msgs", totalSizeOfPendingItemDataMsgs),
-               metrics_component_.RegisterAtomicGauge("last_block_", 0),
-               metrics_component_.RegisterGauge("last_reachable_block", 0),
-
-               metrics_component_.RegisterCounter("sent_ask_for_checkpoint_summaries_msg"),
-               metrics_component_.RegisterCounter("sent_checkpoint_summary_msg"),
-               metrics_component_.RegisterCounter("sent_fetch_blocks_msg"),
-               metrics_component_.RegisterCounter("sent_fetch_res_pages_msg"),
-               metrics_component_.RegisterCounter("sent_reject_fetch_msg"),
-               metrics_component_.RegisterCounter("sent_item_data_msg"),
-
-               metrics_component_.RegisterCounter("received_ask_for_checkpoint_summaries_msg"),
-               metrics_component_.RegisterCounter("received_checkpoint_summary_msg"),
-               metrics_component_.RegisterCounter("received_fetch_blocks_msg"),
-               metrics_component_.RegisterCounter("received_fetch_res_pages_msg"),
-               metrics_component_.RegisterCounter("received_reject_fetching_msg"),
-               metrics_component_.RegisterCounter("received_item_data_msg"),
-               metrics_component_.RegisterCounter("received_illegal_msg_"),
-
-               metrics_component_.RegisterCounter("invalid_ask_for_checkpoint_summaries_msg"),
-               metrics_component_.RegisterCounter("irrelevant_ask_for_checkpoint_summaries_msg"),
-               metrics_component_.RegisterCounter("invalid_checkpoint_summary_msg"),
-               metrics_component_.RegisterCounter("irrelevant_checkpoint_summary_msg"),
-               metrics_component_.RegisterCounter("invalid_fetch_blocks_msg"),
-               metrics_component_.RegisterCounter("irrelevant_fetch_blocks_msg"),
-               metrics_component_.RegisterCounter("invalid_fetch_res_pages_msg"),
-               metrics_component_.RegisterCounter("irrelevant_fetch_res_pages_msg"),
-               metrics_component_.RegisterCounter("invalid_reject_fetching_msg"),
-               metrics_component_.RegisterCounter("irrelevant_reject_fetching_msg"),
-               metrics_component_.RegisterCounter("invalid_item_data_msg"),
-               metrics_component_.RegisterCounter("irrelevant_item_data_msg"),
-
-               metrics_component_.RegisterAtomicCounter("create_checkpoint"),
-               metrics_component_.RegisterCounter("mark_checkpoint_as_stable"),
-               metrics_component_.RegisterAtomicCounter("load_reserved_page"),
-               metrics_component_.RegisterAtomicCounter("load_reserved_page_from_pending"),
-               metrics_component_.RegisterAtomicCounter("load_reserved_page_from_checkpoint"),
-               metrics_component_.RegisterAtomicCounter("save_reserved_page"),
-               metrics_component_.RegisterCounter("zero_reserved_page"),
-               metrics_component_.RegisterCounter("start_collecting_state"),
-               metrics_component_.RegisterCounter("on_timer"),
-               metrics_component_.RegisterCounter("one_shot_timer"),
-               metrics_component_.RegisterCounter("on_transferring_complete"),
-               metrics_component_.RegisterCounter("handle_AskForCheckpointSummaries_msg"),
-               metrics_component_.RegisterCounter("dst_handle_CheckpointsSummary_msg"),
-               metrics_component_.RegisterCounter("src_handle_FetchBlocks_msg"),
-               metrics_component_.RegisterCounter("src_handle_FetchResPages_msg"),
-               metrics_component_.RegisterCounter("dst_handle_RejectFetching_msg"),
-               metrics_component_.RegisterCounter("dst_handle_ItemData_msg"),
-
-               metrics_component_.RegisterGauge("overall_blocks_collected", 0),
-               metrics_component_.RegisterGauge("overall_blocks_throughput", 0),
-               metrics_component_.RegisterGauge("overall_bytes_collected", 0),
-               metrics_component_.RegisterGauge("overall_bytes_throughput", 0),
-               metrics_component_.RegisterGauge("prev_win_blocks_collected", 0),
-               metrics_component_.RegisterGauge("prev_win_blocks_throughput", 0),
-               metrics_component_.RegisterGauge("prev_win_bytes_collected", 0),
-               metrics_component_.RegisterGauge("prev_win_bytes_throughput", 0)},
-      blocks_collected_(config_.gettingMissingBlocksSummaryWindowSize),
-      bytes_collected_(config_.gettingMissingBlocksSummaryWindowSize),
+      metrics_{createRegisterMetrics()},
+      blocksFetched_(config_.gettingMissingBlocksSummaryWindowSize, "blocksFetched_"),
+      bytesFetched_(config_.gettingMissingBlocksSummaryWindowSize, "bytesFetched_"),
+      blocksPostProcessed_(blocksPostProcessedReportWindow, "blocksPostProcessed_"),
+      cycleDT_{"cycleDT_"},
+      postProcessingDT_{"postProcessingDT_"},
+      gettingCheckpointSummariesDT_{"gettingCheckpointSummariesDT_"},
+      gettingMissingBlocksDT_{"gettingMissingBlocksDT_"},
+      gettingMissingResPagesDT_{"gettingMissingResPagesDT_"},
       lastFetchingState_(FetchingState::NotFetching),
-      logger_(ST_SRC_LOG),
       sourceFlag_(false),
       src_send_batch_duration_rec_(histograms_.src_send_batch_duration),
       dst_time_between_sendFetchBlocksMsg_rec_(histograms_.dst_time_between_sendFetchBlocksMsg),
-      time_in_handoff_queue_rec_(histograms_.time_in_handoff_queue) {
+      time_in_incoming_events_queue_rec_(histograms_.time_in_incoming_events_queue) {
+  // Validate input parameters and some of the configuration
   ConcordAssertNE(stateApi, nullptr);
   ConcordAssertGE(replicas_.size(), 3U * config_.fVal + 1U);
   ConcordAssert(replicas_.count(config_.myReplicaId) == 1 || config.isReadOnly);
@@ -274,19 +297,15 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
 
   LOG_INFO(logger_, "Creating BCStateTran object: " << config_);
 
-  if (config_.runInSeparateThread) {
-    handoff_.reset(new concord::util::Handoff(config_.myReplicaId));
-    messageHandler_ = std::bind(&BCStateTran::handoffMsg, this, _1, _2, _3);
-    timerHandler_ = std::bind(&BCStateTran::handoffTimer, this);
-  } else {
-    messageHandler_ = std::bind(&BCStateTran::handleStateTransferMessageImp, this, _1, _2, _3, _4);
-    timerHandler_ = std::bind(&BCStateTran::onTimerImp, this);
-  }
+  // Bind events handlers according to runInSeparateThread configuration
+  bindEventsHandlers();
+
   // Make sure that the internal IReplicaForStateTransfer callback is always added, alongside any user-supplied
   // callbacks.
   addOnTransferringCompleteCallback(
       [this](uint64_t checkpoint_num) { replicaForStateTransfer_->onTransferringComplete(checkpoint_num); });
 }
+
 BCStateTran::~BCStateTran() {
   ConcordAssert(!running_);
   ConcordAssert(cacheOfVirtualBlockForResPages.empty());
@@ -325,38 +344,56 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
              "Init BCStateTran object:" << KVLOG(
                  maxNumOfStoredCheckpoints_, numberOfReservedPages_, config_.sizeOfReservedPage));
 
+    FetchingState fs{FetchingState::NotFetching};
     if (psd_->initialized()) {
       LOG_INFO(logger_, "Loading existing data from storage");
 
       checkConsistency(config_.pedanticChecks, true);
 
-      FetchingState fs = getFetchingState();
+      rvbm_->init(psd_->getIsFetchingState());
+      metrics_.current_rvb_data_state_.Get().Set(rvbm_->getStateOfRvbData());
+
+      fs = getFetchingState();
       LOG_INFO(logger_, "Starting state is " << stateName(fs));
 
       if (fs != FetchingState::NotFetching) {
         LOG_INFO(logger_, "State Transfer cycle continues");
         startCollectingStats();
-        if (fs == FetchingState::GettingMissingBlocks || fs == FetchingState::GettingMissingResPages)
+        if ((fs == FetchingState::GettingMissingBlocks) || (fs == FetchingState::GettingMissingResPages)) {
           SetAllReplicasAsPreferred();
+        }
+
+        if (fs == FetchingState::GettingMissingBlocks) {
+          auto lastReachableBlockNum = as_->getLastReachableBlockNum();
+          auto lastRequiredBlock = psd_->getLastRequiredBlock();
+          ConcordAssertLE(lastReachableBlockNum, lastRequiredBlock);
+          if (lastReachableBlockNum == lastRequiredBlock) {
+            DataStoreTransaction::Guard g(psd_->beginTransaction());
+            onGettingMissingBlocksEnd(g.txn());
+          } else {  // lastReachableBlockNum < lastRequiredBlock -> continue GettingMissingBlocks
+            triggerPostProcessing();
+            minBlockIdToCollectInCycle_ = lastReachableBlockNum + 1;
+            maxBlockIdToCollectInCycle_ = lastRequiredBlock;
+            ConcordAssertGE(maxBlockIdToCollectInCycle_, minBlockIdToCollectInCycle_);
+            totalBlocksLeftToCollectInCycle_ = maxBlockIdToCollectInCycle_ - minBlockIdToCollectInCycle_ + 1;
+          }
+        }
       }
       loadMetrics();
     } else {
       LOG_INFO(logger_, "Initializing a new object");
-
+      {
+        DataStoreTransaction::Guard g(psd_->beginTransaction());
+        stReset(g.txn(), true, true, true);
+      }
       ConcordAssertGE(maxNumOfRequiredStoredCheckpoints, 2);
       ConcordAssertLE(maxNumOfRequiredStoredCheckpoints, kMaxNumOfStoredCheckpoints);
       ConcordAssertGE(numberOfRequiredReservedPages, 2);
       ConcordAssertLE(numberOfRequiredReservedPages, config_.maxNumOfReservedPages);
 
-      DataStoreTransaction::Guard g(psd_->beginTransaction());
-      g.txn()->setLastStoredCheckpoint(0);
-      g.txn()->setFirstStoredCheckpoint(0);
-      g.txn()->setIsFetchingState(false);
-      g.txn()->setFirstRequiredBlock(0);
-      g.txn()->setLastRequiredBlock(0);
-      g.txn()->setAsInitialized();
-
       ConcordAssertEQ(getFetchingState(), FetchingState::NotFetching);
+      rvbm_->init(false);
+      metrics_.current_rvb_data_state_.Get().Set(rvbm_->getStateOfRvbData());
     }
     {
       DataStoreTransaction::Guard g(psd_->beginTransaction());
@@ -374,62 +411,45 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
 
 void BCStateTran::startRunning(IReplicaForStateTransfer *r) {
   LOG_INFO(logger_, "Starting");
-  if (!config_.isReadOnly && cre_) cre_->halt();
-  if (cre_) cre_->start();
-  ConcordAssertNE(r, nullptr);
   FetchingState fs = getFetchingState();
-  if (!config_.isReadOnly && fs != FetchingState::NotFetching) {
-    LOG_INFO(logger_, "State Transfer cycle continues, starts async reconfiguration engine");
-    if (cre_) cre_->resume();
+
+  // TODO - The next lines up to comment 'XXX' do not belong here (CRE) - move outside
+  if (!config_.isReadOnly && cre_) {
+    cre_->halt();
   }
+  if (cre_) {
+    cre_->start();
+  }
+  ConcordAssertNE(r, nullptr);
+  if ((!config_.isReadOnly) && (fs != FetchingState::NotFetching)) {
+    LOG_INFO(logger_, "State Transfer cycle continues, starts async reconfiguration engine");
+    if (cre_) {
+      cre_->resume();
+    }
+  }
+  /// XXX - end of section to be moved out
+
   running_ = true;
   replicaForStateTransfer_ = r;
   replicaForStateTransfer_->changeStateTransferTimerPeriod(config_.refreshTimerMs);
 }
 
+// timer is cancelled in the calling context, see ReplicaForStateTransfer::stop
 void BCStateTran::stopRunning() {
   LOG_INFO(logger_, "Stopping");
   ConcordAssert(running_);
   ConcordAssertNE(replicaForStateTransfer_, nullptr);
-  if (handoff_) handoff_->stop();
-  if (nextCommittedBlockId_ > 0) finalizePutblockAsync(false, PutBlockWaitPolicy::WAIT_ALL_JOBS);
-
-  // TODO(GG): cancel timer
-
-  // reset and free data
-
-  maxNumOfStoredCheckpoints_ = 0;
-  numberOfReservedPages_ = 0;
-  running_ = false;
-
-  lastMilliOfUniqueFetchID_ = 0;
-  lastCountOfUniqueFetchID_ = 0;
-  lastMsgSeqNum_ = 0;
-  lastMsgSeqNumOfReplicas_.clear();
-
-  for (auto i : cacheOfVirtualBlockForResPages) std::free(i.second);
-
-  cacheOfVirtualBlockForResPages.clear();
-
-  lastTimeSentAskForCheckpointSummariesMsg = 0;
-  retransmissionNumberOfAskForCheckpointSummariesMsg = 0;
-
-  for (auto i : summariesCerts) replicaForStateTransfer_->freeStateTransferMsg(reinterpret_cast<char *>(i.second));
-
-  summariesCerts.clear();
-  numOfSummariesFromOtherReplicas.clear();
-  sourceSelector_.reset();
-  nextRequiredBlock_ = 0;
-  metrics_.next_required_block_.Get().Set(0);
-  digestOfNextRequiredBlock.makeZero();
-
-  for (auto i : pendingItemDataMsgs) {
-    replicaForStateTransfer_->freeStateTransferMsg(reinterpret_cast<char *>(i));
+  if (incomingEventsQ_) {
+    incomingEventsQ_->stop();
   }
-  pendingItemDataMsgs.clear();
-  clearIoContexts();
-  ConcordAssert(ioPool_.full());
-  totalSizeOfPendingItemDataMsgs = 0;
+  if (postProcessingQ_) {
+    postProcessingQ_->stop();
+  }
+  {
+    DataStoreTransaction::Guard g(psd_->beginTransaction());
+    stReset(g.txn(), true, false, false);
+  }
+  running_ = false;
   replicaForStateTransfer_ = nullptr;
 }
 
@@ -441,27 +461,35 @@ bool BCStateTran::isRunning() const { return running_; }
 // data.
 DataStore::CheckpointDesc BCStateTran::createCheckpointDesc(uint64_t checkpointNumber,
                                                             const STDigest &digestOfResPagesDescriptor) {
-  uint64_t lastBlock = as_->getLastReachableBlockNum();
-  ConcordAssertEQ(lastBlock, as_->getLastBlockNum());
-  metrics_.last_block_.Get().Set(lastBlock);
+  LOG_TRACE(logger_, KVLOG(checkpointNumber, digestOfResPagesDescriptor));
+  uint64_t maxBlockId = as_->getLastReachableBlockNum();
+  ConcordAssertEQ(maxBlockId, as_->getLastBlockNum());
+  metrics_.last_block_.Get().Set(maxBlockId);
 
-  STDigest digestOfLastBlock;
+  STDigest digestOfMaxBlockId;
 
-  if (lastBlock > 0) {
-    digestOfLastBlock = getBlockAndComputeDigest(lastBlock);
+  if (maxBlockId > 0) {
+    digestOfMaxBlockId = getBlockAndComputeDigest(maxBlockId);
   } else {
     // if we don't have blocks, then we use zero digest
-    digestOfLastBlock.makeZero();
+    digestOfMaxBlockId.makeZero();
   }
 
   DataStore::CheckpointDesc checkDesc;
   checkDesc.checkpointNum = checkpointNumber;
-  checkDesc.lastBlock = lastBlock;
-  checkDesc.digestOfLastBlock = digestOfLastBlock;
+  checkDesc.maxBlockId = maxBlockId;
+  checkDesc.digestOfMaxBlockId = digestOfMaxBlockId;
   checkDesc.digestOfResPagesDescriptor = digestOfResPagesDescriptor;
+  rvbm_->updateRvbDataDuringCheckpoint(checkDesc);
+  metrics_.current_rvb_data_state_.Get().Set(rvbm_->getStateOfRvbData());
 
   LOG_INFO(logger_,
-           "CheckpointDesc: " << KVLOG(checkpointNumber, lastBlock, digestOfLastBlock, digestOfResPagesDescriptor));
+           "CheckpointDesc: " << KVLOG(checkpointNumber,
+                                       maxBlockId,
+                                       digestOfMaxBlockId,
+                                       digestOfResPagesDescriptor,
+                                       checkDesc.rvbData.size(),
+                                       rvbm_->getStateOfRvbData()));
 
   return checkDesc;
 }
@@ -514,7 +542,9 @@ void BCStateTran::deleteOldCheckpoints(uint64_t checkpointNumber, DataStoreTrans
     txn->deleteCoveredResPageInSmallerCheckpoints(minRelevantCheckpoint);
   }
 
-  if (minRelevantCheckpoint > oldFirstStoredCheckpoint) txn->setFirstStoredCheckpoint(minRelevantCheckpoint);
+  if (minRelevantCheckpoint > oldFirstStoredCheckpoint) {
+    txn->setFirstStoredCheckpoint(minRelevantCheckpoint);
+  }
 
   txn->setLastStoredCheckpoint(checkpointNumber);
 
@@ -547,6 +577,7 @@ void BCStateTran::createCheckpointOfCurrentState(uint64_t checkpointNumber) {
     deleteOldCheckpoints(checkpointNumber, g.txn());
     metrics_.last_stored_checkpoint_.Get().Set(psd_->getLastStoredCheckpoint());
   }
+  LOG_INFO(logger_, "Done creating (and persisting) checkpoint of current state!" << KVLOG(checkpointNumber));
 }
 
 void BCStateTran::markCheckpointAsStable(uint64_t checkpointNumber) {
@@ -579,10 +610,11 @@ void BCStateTran::getDigestOfCheckpoint(uint64_t checkpointNumber,
   ConcordAssert(psd_->hasCheckpointDesc(checkpointNumber));
 
   DataStore::CheckpointDesc desc = psd_->getCheckpointDesc(checkpointNumber);
-  LOG_INFO(logger_, KVLOG(desc.checkpointNum, desc.lastBlock, desc.digestOfLastBlock, desc.digestOfResPagesDescriptor));
+  LOG_INFO(logger_,
+           KVLOG(desc.checkpointNum, desc.maxBlockId, desc.digestOfMaxBlockId, desc.digestOfResPagesDescriptor));
 
   uint16_t s = std::min((uint16_t)sizeof(STDigest), sizeOfDigestBuffer);
-  memcpy(outStateDigest, desc.digestOfLastBlock.get(), s);
+  memcpy(outStateDigest, desc.digestOfMaxBlockId.get(), s);
   if (s < sizeOfDigestBuffer) {
     memset(outStateDigest + s, 0, sizeOfDigestBuffer - s);
   }
@@ -590,7 +622,7 @@ void BCStateTran::getDigestOfCheckpoint(uint64_t checkpointNumber,
   if (s < sizeOfDigestBuffer) {
     memset(outOtherDigest + s, 0, sizeOfDigestBuffer - s);
   }
-  outBlockId = desc.lastBlock;
+  outBlockId = desc.maxBlockId;
 }
 
 bool BCStateTran::isCollectingState() const { return isFetching(); }
@@ -622,6 +654,7 @@ bool BCStateTran::loadReservedPage(uint32_t reservedPageId, uint32_t copyLength,
   }
   return true;
 }
+
 // TODO(TK) check if this function can have its own transaction(bftimpl)
 void BCStateTran::saveReservedPage(uint32_t reservedPageId, uint32_t copyLength, const char *inReservedPage) {
   try {
@@ -639,6 +672,7 @@ void BCStateTran::saveReservedPage(uint32_t reservedPageId, uint32_t copyLength,
     throw;
   }
 }
+
 // TODO(TK) check if this function can have its own transaction(bftimpl)
 void BCStateTran::zeroReservedPage(uint32_t reservedPageId) {
   LOG_DEBUG(logger_, reservedPageId);
@@ -651,15 +685,125 @@ void BCStateTran::zeroReservedPage(uint32_t reservedPageId) {
   psd_->setPendingResPage(reservedPageId, buffer.get(), config_.sizeOfReservedPage);
 }
 
-void BCStateTran::startCollectingStats() {
-  firstCollectedBlockId_ = {};
-  lastCollectedBlockId_ = {};
-  gettingMissingBlocksDT_.reset();
-  commitToChainDT_.reset();
-  gettingCheckpointSummariesDT_.reset();
-  gettingMissingResPagesDT_.reset();
-  cycleDT_.reset();
+std::string BCStateTran::convertUInt64ToReadableStr(uint64_t num, std::string &&trailer) const {
+  std::ostringstream oss;
+  bool addTrailingSpace = false;
 
+  // fixed point notation and 2 digits precision
+  oss << std::fixed;
+  oss << std::setprecision(2);
+
+  double dnum = static_cast<double>(num);
+  if (num < (1 << 10)) {  // raw
+    oss << dnum;
+    addTrailingSpace = true;
+  } else if (num < (1ULL << 20)) {  // Kilo
+    oss << (dnum / (1 << 10));
+    oss << " K";
+  } else if (num < (1ULL << 30)) {  // Mega
+    oss << (dnum / (1 << 20));
+    oss << " M";
+  } else if (num < (1ULL << 40)) {  // Giga
+    oss << (dnum / (1ULL << 30));
+    oss << " G";
+  } else if (num < (1ULL << 50)) {  // Tera
+    oss << (dnum / (1ULL << 40));
+    oss << " T";
+  } else if (num < (1ULL << 60)) {  // Peta
+    oss << (dnum / (1ULL << 50));
+    oss << " P";
+  } else {
+    oss << dnum;  // very large numbers are not expected, return raw
+    addTrailingSpace = true;
+  }
+  auto str = oss.str();
+  // remove trailing zeroes and possible dot
+  str.erase(str.find_last_not_of('0') + 1, std::string::npos);
+  if (str.back() == '.') {
+    str.resize(str.size() - 1);
+  }
+  if (str.empty()) {
+    str = "NA";
+  }
+  if (addTrailingSpace) {
+    str += " ";
+  }
+  return (str + trailer);
+}
+
+// TODO - move to "TimeUtils.hpp", after converting to a template function
+std::string BCStateTran::convertMillisecToReadableStr(uint64_t ms) const {
+  if (ms == 0) {
+    return "NA";
+  }
+  bool shouldPad = false;
+  std::string str, legend;
+  auto updateReadbleStrAndLegend =
+      [&](uint64_t input, std::string &&addToLegend, size_t expectedSize, std::string &&sep = ":") {
+        std::string strInput = std::to_string(input);
+        ConcordAssertGE(expectedSize, strInput.size());
+        if (shouldPad) {
+          auto padSize = expectedSize - strInput.size();
+          for (size_t i{}; i < padSize; ++i) {
+            strInput.insert(0, "0");
+          }
+        }
+        str += strInput + sep;
+        legend += addToLegend + sep;
+        shouldPad = true;
+      };
+
+  uint64_t n = ms;
+  constexpr uint64_t ms_per_sec = 1000;
+  constexpr uint64_t sec_per_min = 60;
+  constexpr uint64_t min_per_hr = 60;
+  constexpr uint64_t hr_per_day = 24;
+  auto mls = n % ms_per_sec;
+  n /= ms_per_sec;
+  auto sec = n % sec_per_min;
+  n /= sec_per_min;
+  auto min = n % min_per_hr;
+  n /= min_per_hr;
+  auto hr = n % hr_per_day;
+  n /= hr_per_day;
+  auto days = n;
+
+  if (days) {
+    updateReadbleStrAndLegend(days, "DD", 2);
+  }
+  if (hr || !legend.empty()) {
+    updateReadbleStrAndLegend(hr, "HH", 2);
+  }
+  if (min || !legend.empty()) {
+    updateReadbleStrAndLegend(min, "MM", 2);
+  }
+  if (sec || !legend.empty()) {
+    updateReadbleStrAndLegend(sec, "SS", 2, ".");
+  }
+  if (mls || !legend.empty()) {
+    updateReadbleStrAndLegend(mls, "ms", 3, "");
+  }
+  if (str.empty()) {
+    str = "NA";
+    legend = "";
+  }
+  return str + " " + legend;
+}
+
+void BCStateTran::startCollectingStats() {
+  // reset natives
+  maxBlockIdToCollectInCycle_ = 0;
+  minBlockIdToCollectInCycle_ = 0;
+  totalBlocksLeftToCollectInCycle_ = 0;
+
+  // reset duration trackers
+  gettingMissingBlocksDT_.stop(true);
+  postProcessingDT_.stop(true);
+  gettingCheckpointSummariesDT_.stop(true);
+  gettingMissingResPagesDT_.stop(true);
+  cycleDT_.stop(true);
+
+  // reset metrics
   metrics_.overall_blocks_collected_.Get().Set(0ull);
   metrics_.overall_blocks_throughput_.Get().Set(0ull);
   metrics_.overall_bytes_collected_.Get().Set(0ull);
@@ -668,45 +812,83 @@ void BCStateTran::startCollectingStats() {
   metrics_.prev_win_blocks_throughput_.Get().Set(0ull);
   metrics_.prev_win_bytes_collected_.Get().Set(0ull);
   metrics_.prev_win_bytes_throughput_.Get().Set(0ull);
+  metrics_.next_required_block_.Get().Set(0);
 
+  // reset recorders
   src_send_batch_duration_rec_.clear();
   dst_time_between_sendFetchBlocksMsg_rec_.clear();
-  time_in_handoff_queue_rec_.clear();
-}
+  time_in_incoming_events_queue_rec_.clear();
 
-void BCStateTran::startCollectingState() {
-  LOG_INFO(logger_, "State Transfer cycle started (#" << ++cycleCounter_ << ")");
-  ConcordAssert(running_);
-  ConcordAssert(!isFetching());
+  // snapshot and increment cycle counter
   auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-  if (!ioContexts_.empty() | sourceFlag_) finalizeSource(sourceFlag_);
   registrar.perf.snapshot("state_transfer");
   registrar.perf.snapshot("state_transfer_dest");
   metrics_.start_collecting_state_++;
-  startCollectingStats();
+}
 
-  verifyEmptyInfoAboutGettingCheckpointSummary();
+void BCStateTran::startCollectingStateInternal() {
+  LOG_DEBUG(logger_, KVLOG(internalCycleCounter_));
+  ConcordAssert(sourceSelector_.noPreferredReplicas());
+  ++internalCycleCounter_;
+
   {  // txn scope
     DataStoreTransaction::Guard g(psd_->beginTransaction());
+    g.txn()->deleteCheckpointBeingFetched();
+    g.txn()->setFirstRequiredBlock(0);
+    g.txn()->setLastRequiredBlock(0);
+    g.txn()->setIsFetchingState(false);
+  }
+
+  // print cycle summary
+  cycleEndSummary();
+  startCollectingState();
+}
+
+void BCStateTran::onStartCollectingStateImp() {
+  ConcordAssert(running_);
+  if (isFetching()) {
+    LOG_WARN(logger_, "Already in State Transfer, ignore call...");
+    return;
+  }
+  LOG_INFO(
+      logger_,
+      std::boolalpha << "State Transfer cycle started (#" << ++cycleCounter_ << ")," << KVLOG(internalCycleCounter_));
+
+  {  // txn scope
+    DataStoreTransaction::Guard g(psd_->beginTransaction());
+    stReset(g.txn(), true, false, false);
     g.txn()->deleteAllPendingPages();
     g.txn()->setIsFetchingState(true);
   }
+
+  // TODO - The next 4 lines do not belong here (CRE) - move outside
   LOG_INFO(logger_, "Starts async reconfiguration engine");
-  if (!config_.isReadOnly && cre_) cre_->resume();
+  if (!config_.isReadOnly && cre_) {
+    cre_->resume();
+  }
+
+  startCollectingStats();
+  ConcordAssertEQ(getFetchingState(), FetchingState::GettingCheckpointSummaries);
   sendAskForCheckpointSummariesMsg();
 }
 
 // this function can be executed in context of another thread.
 void BCStateTran::onTimerImp() {
   oneShotTimerFlag_ = true;
-  if (!running_) return;
-  time_in_handoff_queue_rec_.end();
-  if (config_.runInSeparateThread) histograms_.handoff_queue_size->record(handoff_->size());
+  if (!running_) {
+    return;
+  }
+  if (incomingEventsQ_) {
+    time_in_incoming_events_queue_rec_.end();
+    histograms_.incoming_events_queue_size->record(incomingEventsQ_->size());
+  }
   TimeRecorder scoped_timer(*histograms_.on_timer);
 
   metrics_.on_timer_++;
   // Send all metrics to the aggregator
   metrics_component_.UpdateAggregator();
+  sourceSelector_.updateMetricToAggregator();
+  rvbm_->updateMetricToAggregator();
 
   // Dump metrics to log
   FetchingState fs = getFetchingState();
@@ -714,6 +896,8 @@ void BCStateTran::onTimerImp() {
   if (currTimeForDumping - last_metrics_dump_time_ >= metrics_dump_interval_in_sec_) {
     last_metrics_dump_time_ = currTimeForDumping;
     LOG_DEBUG(logger_, "--BCStateTransfer metrics dump--" + metrics_component_.ToJson());
+    LOG_DEBUG(logger_, "--SourceSelector metrics dump--" + sourceSelector_.getMetricComponent().ToJson());
+    LOG_DEBUG(logger_, "--RVBManager metrics dump--" + rvbm_->getMetricComponent().ToJson());
   }
 
   // take a snapshot and log after time passed is approx x2 of fetchRetransmissionTimeoutMs
@@ -738,7 +922,7 @@ void BCStateTran::onTimerImp() {
   } else if (fs == FetchingState::GettingMissingBlocks || fs == FetchingState::GettingMissingResPages) {
     processData();
   }
-  time_in_handoff_queue_rec_.start();
+  time_in_incoming_events_queue_rec_.start();
 }
 
 std::string BCStateTran::getStatus() {
@@ -770,17 +954,18 @@ std::string BCStateTran::getStatus() {
     bj.startNested("fetchingStateDetails");
     bj.addKv("currentSource", current_source);
     bj.addKv("preferredReplicas", preferred_replicas);
-    bj.addKv("nextRequiredBlock", nextRequiredBlock_);
+    bj.addKv("nextRequiredBlock", fetchState_.nextBlockId);
     bj.addKv("totalSizeOfPendingItemDataMsgs", totalSizeOfPendingItemDataMsgs);
     bj.endNested();
 
-    bj.addNestedJson("collectingDetails", logsForCollectingStatus(psd_->getFirstRequiredBlock()));
+    bj.addNestedJson("collectingDetails", logsForCollectingStatus());
   }
 
-  bj.addNestedJson("generalStateTransferMetrics", metrics_component_.ToJson());
+  bj.addNestedJson("StateTransferMetrics", metrics_component_.ToJson());
+  bj.addNestedJson("SourceSelectorMetrics", sourceSelector_.getMetricComponent().ToJson());
+  bj.addNestedJson("RVBManagerMetrics", rvbm_->getMetricComponent().ToJson());
 
   bj.endJson();
-
   return bj.getJson();
 }
 
@@ -791,6 +976,8 @@ void BCStateTran::addOnTransferringCompleteCallback(std::function<void(uint64_t)
   }
   on_transferring_complete_cb_registry_.at(uint64_t(priority)).add(std::move(callback));
 }
+// TODO - This next line should be integrated as a callback into on_transferring_complete_cb_registry_.
+// on_fetching_state_change_cb_registry_ should be removed
 void BCStateTran::addOnFetchingStateChangeCallback(std::function<void(uint64_t)> cb) {
   if (cb) on_fetching_state_change_cb_registry_.add(std::move(cb));
 }
@@ -800,9 +987,13 @@ void BCStateTran::handleStateTransferMessageImp(char *msg,
                                                 uint32_t msgLen,
                                                 uint16_t senderId,
                                                 LocalTimePoint msgArrivalTime) {
-  if (!running_) return;
-  time_in_handoff_queue_rec_.end();
-  if (config_.runInSeparateThread) histograms_.handoff_queue_size->record(handoff_->size());
+  if (!running_) {
+    return;
+  }
+  if (incomingEventsQ_) {
+    time_in_incoming_events_queue_rec_.end();
+    histograms_.incoming_events_queue_size->record(incomingEventsQ_->size());
+  }
   bool invalidSender = (senderId >= (config_.numReplicas + config_.numRoReplicas));
   bool sentFromSelf = senderId == config_.myReplicaId;
   bool msgSizeTooSmall = msgLen < sizeof(BCStateTranBaseMsg);
@@ -810,7 +1001,7 @@ void BCStateTran::handleStateTransferMessageImp(char *msg,
     metrics_.received_illegal_msg_++;
     LOG_WARN(logger_, "Illegal message: " << KVLOG(msgLen, senderId, msgSizeTooSmall, sentFromSelf, invalidSender));
     replicaForStateTransfer_->freeStateTransferMsg(msg);
-    time_in_handoff_queue_rec_.start();
+    time_in_incoming_events_queue_rec_.start();
     return;
   }
 
@@ -859,7 +1050,7 @@ void BCStateTran::handleStateTransferMessageImp(char *msg,
   }
 
   if (!noDelete) replicaForStateTransfer_->freeStateTransferMsg(msg);
-  time_in_handoff_queue_rec_.start();
+  time_in_incoming_events_queue_rec_.start();
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -1006,6 +1197,54 @@ bool BCStateTran::checkValidityAndSaveMsgSeqNum(uint16_t replicaId, uint64_t msg
 }
 
 //////////////////////////////////////////////////////////////////////////////
+// BCStateTran::BlocksBatchDesc
+//////////////////////////////////////////////////////////////////////////////
+
+inline std::ostream &operator<<(std::ostream &os, const BCStateTran::BlocksBatchDesc &b) {
+  os << b.toString();
+  return os;
+}
+
+inline std::string BCStateTran::BlocksBatchDesc::toString() const {
+  std::string str;
+  str += KVLOG(minBlockId, maxBlockId, nextBlockId, upperBoundBlockId);
+  return str;
+}
+
+inline void BCStateTran::BlocksBatchDesc::reset() {
+  minBlockId = 0;
+  maxBlockId = 0;
+  nextBlockId = 0;
+  upperBoundBlockId = 0;
+}
+
+// BlocksBatchDesc A is 'behind' (aka <) BlocksBatchDesc B if:
+// If A.minBlockId == B.minBlockId: then if A.nextBlockId > B.nextBlockId -> A < B
+// If A.minBlockId != B.minBlockId: then if A.minBlockId < B.minBlockId -> A < B
+// This is due to the way ST collects blocks, from newer to older inside ranges, and from older to newer ranges.
+inline bool BCStateTran::BlocksBatchDesc::operator<(const BCStateTran::BlocksBatchDesc &rhs) const {
+  if (minBlockId != rhs.minBlockId) {
+    return (minBlockId < rhs.minBlockId);
+  }
+  // minBlockId == rhs.minBlockId
+  return nextBlockId > rhs.nextBlockId;
+}
+
+inline bool BCStateTran::BlocksBatchDesc::operator==(const BCStateTran::BlocksBatchDesc &rhs) const {
+  return (minBlockId == rhs.minBlockId) && (maxBlockId == rhs.maxBlockId) && (nextBlockId == rhs.nextBlockId) &&
+         (upperBoundBlockId == rhs.upperBoundBlockId);
+}
+
+inline bool BCStateTran::BlocksBatchDesc::isValid() const {
+  bool valid = ((minBlockId != 0) && (minBlockId <= maxBlockId) && (minBlockId <= nextBlockId) &&
+                (nextBlockId <= maxBlockId) && (maxBlockId <= upperBoundBlockId));
+  if (!valid) {
+    LOG_ERROR(ST_DST_LOG, *this);
+  }
+  return valid;
+}
+
+//////////////////////////////////////////////////////////////////////////////
 // State
 //////////////////////////////////////////////////////////////////////////////
 
@@ -1025,7 +1264,7 @@ string BCStateTran::stateName(FetchingState fs) {
   }
 }
 
-std::ostream &operator<<(std::ostream &os, const BCStateTran::FetchingState fs) {
+inline std::ostream &operator<<(std::ostream &os, const BCStateTran::FetchingState fs) {
   os << BCStateTran::stateName(fs);
   return os;
 }
@@ -1037,41 +1276,48 @@ void BCStateTran::onFetchingStateChange(FetchingState newFetchingState) {
            "FetchingState changed from " << stateName(lastFetchingState_) << " to " << stateName(newFetchingState));
   switch (lastFetchingState_) {
     case FetchingState::NotFetching:
-      cycleDT_.start();
       break;
     case FetchingState::GettingCheckpointSummaries:
-      gettingCheckpointSummariesDT_.pause();
+      gettingCheckpointSummariesDT_.stop();
       break;
     case FetchingState::GettingMissingBlocks:
-      gettingMissingBlocksDT_.pause();
       break;
     case FetchingState::GettingMissingResPages:
-      gettingMissingResPagesDT_.pause();
+      gettingMissingResPagesDT_.stop();
       break;
   }
   switch (newFetchingState) {
     case FetchingState::NotFetching:
-      cycleDT_.pause();
+      cycleDT_.stop(true);
       break;
     case FetchingState::GettingCheckpointSummaries:
+      cycleDT_.start();
       gettingCheckpointSummariesDT_.start();
       break;
     case FetchingState::GettingMissingBlocks:
+      targetCheckpointDesc_ = psd_->getCheckpointBeingFetched();
+      // Determine the next required block
+      ConcordAssert(digestOfNextRequiredBlock_.isZero());
+      fetchState_ = computeNextBatchToFetch(psd_->getFirstRequiredBlock());
+      commitState_ = fetchState_;
+      LOG_INFO(logger_, KVLOG(fetchState_, commitState_));
+
       gettingMissingBlocksDT_.start();
-      if (blocks_collected_.isStarted()) {
-        blocks_collected_.resume();
-        bytes_collected_.resume();
-      } else {
-        blocks_collected_.start();
-        bytes_collected_.start();
-      }
+      blocksFetched_.start();
+      bytesFetched_.start();
       break;
     case FetchingState::GettingMissingResPages:
       gettingMissingResPagesDT_.start();
+
+      targetCheckpointDesc_ = psd_->getCheckpointBeingFetched();
+      fetchState_.nextBlockId = ID_OF_VBLOCK_RES_PAGES;
+      digestOfNextRequiredBlock_ = targetCheckpointDesc_.digestOfResPagesDescriptor;
       break;
   }
-  lastFetchingState_ = newFetchingState;
+
   logger_ = (newFetchingState == FetchingState::NotFetching) ? ST_SRC_LOG : ST_DST_LOG;
+  metrics_.fetching_state_.Get().Set(stateName(newFetchingState));
+  lastFetchingState_ = newFetchingState;
 }
 
 BCStateTran::FetchingState BCStateTran::getFetchingState() {
@@ -1120,15 +1366,12 @@ void BCStateTran::sendAskForCheckpointSummariesMsg() {
   msg.msgSeqNum = lastMsgSeqNum_;
   msg.minRelevantCheckpointNum = psd_->getLastStoredCheckpoint() + 1;
 
-  LOG_DEBUG(logger_, KVLOG(lastMsgSeqNum_, msg.minRelevantCheckpointNum));
+  LOG_INFO(logger_, KVLOG(lastMsgSeqNum_, msg.minRelevantCheckpointNum));
 
   sendToAllOtherReplicas(reinterpret_cast<char *>(&msg), sizeof(AskForCheckpointSummariesMsg));
 }
 
-void BCStateTran::trySendFetchBlocksMsg(uint64_t firstRequiredBlock,
-                                        uint64_t lastRequiredBlock,
-                                        int16_t lastKnownChunkInLastRequiredBlock,
-                                        string &&reason) {
+void BCStateTran::trySendFetchBlocksMsg(int16_t lastKnownChunkInLastRequiredBlock, string &&reason) {
   ConcordAssertEQ(getFetchingState(), FetchingState::GettingMissingBlocks);
   ConcordAssert(sourceSelector_.hasSource());
 
@@ -1136,7 +1379,7 @@ void BCStateTran::trySendFetchBlocksMsg(uint64_t firstRequiredBlock,
   // from source.We need to wait.
   if (ioPool_.empty()) {
     LOG_WARN(logger_, "Postpone sending FetchBlocksMsg while ioPool_ is empty!");
-    posponedSendFetchBlocksMsg_ = true;
+    postponedSendFetchBlocksMsg_ = true;
     return;
   }
 
@@ -1145,25 +1388,27 @@ void BCStateTran::trySendFetchBlocksMsg(uint64_t firstRequiredBlock,
   metrics_.last_msg_seq_num_.Get().Set(lastMsgSeqNum_);
 
   msg.msgSeqNum = lastMsgSeqNum_;
-  msg.firstRequiredBlock = firstRequiredBlock;
-  msg.lastRequiredBlock = lastRequiredBlock;
+  msg.minBlockId = fetchState_.minBlockId;
+  msg.maxBlockId = fetchState_.maxBlockId;
   msg.lastKnownChunkInLastRequiredBlock = lastKnownChunkInLastRequiredBlock;
+  msg.rvbGroupId = rvbm_->getFetchBlocksRvbGroupId(msg.minBlockId, msg.maxBlockId);
 
-  LOG_DEBUG(logger_,
-            "Sending FetchBlocksMsg:" << reason
-                                      << KVLOG(sourceSelector_.currentReplica(),
-                                               msg.msgSeqNum,
-                                               msg.firstRequiredBlock,
-                                               msg.lastRequiredBlock,
-                                               msg.lastKnownChunkInLastRequiredBlock));
+  LOG_INFO(logger_,
+           "Sending FetchBlocksMsg:" << reason
+                                     << KVLOG(sourceSelector_.currentReplica(),
+                                              msg.msgSeqNum,
+                                              msg.minBlockId,
+                                              msg.maxBlockId,
+                                              msg.lastKnownChunkInLastRequiredBlock,
+                                              msg.rvbGroupId));
 
   replicaForStateTransfer_->sendStateTransferMessage(
       reinterpret_cast<char *>(&msg), sizeof(FetchBlocksMsg), sourceSelector_.currentReplica());
   sourceSelector_.setFetchingTimeStamp(getMonotonicTimeMilli(), true);
   metrics_.sent_fetch_blocks_msg_++;
-  dst_time_between_sendFetchBlocksMsg_rec_.end();  // not an issue, if it was never started, this operation does nothing
+  dst_time_between_sendFetchBlocksMsg_rec_.end();  // if it was never started, this operation does nothing
   dst_time_between_sendFetchBlocksMsg_rec_.start();
-  posponedSendFetchBlocksMsg_ = false;
+  postponedSendFetchBlocksMsg_ = false;
 }
 
 void BCStateTran::sendFetchResPagesMsg(int16_t lastKnownChunkInLastRequiredBlock) {
@@ -1171,9 +1416,6 @@ void BCStateTran::sendFetchResPagesMsg(int16_t lastKnownChunkInLastRequiredBlock
   ConcordAssert(sourceSelector_.hasSource());
   ConcordAssert(psd_->hasCheckpointBeingFetched());
 
-  metrics_.sent_fetch_res_pages_msg_++;
-
-  DataStore::CheckpointDesc cp = psd_->getCheckpointBeingFetched();
   uint64_t lastStoredCheckpoint = psd_->getLastStoredCheckpoint();
   lastMsgSeqNum_ = uniqueMsgSeqNum();
   metrics_.last_msg_seq_num_.Get().Set(lastMsgSeqNum_);
@@ -1181,19 +1423,20 @@ void BCStateTran::sendFetchResPagesMsg(int16_t lastKnownChunkInLastRequiredBlock
   FetchResPagesMsg msg;
   msg.msgSeqNum = lastMsgSeqNum_;
   msg.lastCheckpointKnownToRequester = lastStoredCheckpoint;
-  msg.requiredCheckpointNum = cp.checkpointNum;
+  msg.requiredCheckpointNum = targetCheckpointDesc_.checkpointNum;
   msg.lastKnownChunk = lastKnownChunkInLastRequiredBlock;
 
-  LOG_DEBUG(logger_,
-            KVLOG(sourceSelector_.currentReplica(),
-                  msg.msgSeqNum,
-                  msg.lastCheckpointKnownToRequester,
-                  msg.requiredCheckpointNum,
-                  msg.lastKnownChunk));
+  LOG_INFO(logger_,
+           KVLOG(sourceSelector_.currentReplica(),
+                 msg.msgSeqNum,
+                 msg.lastCheckpointKnownToRequester,
+                 msg.requiredCheckpointNum,
+                 msg.lastKnownChunk));
 
   sourceSelector_.setFetchingTimeStamp(getMonotonicTimeMilli(), true);
   replicaForStateTransfer_->sendStateTransferMessage(
       reinterpret_cast<char *>(&msg), sizeof(FetchResPagesMsg), sourceSelector_.currentReplica());
+  metrics_.sent_fetch_res_pages_msg_++;
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -1202,7 +1445,7 @@ void BCStateTran::sendFetchResPagesMsg(int16_t lastKnownChunkInLastRequiredBlock
 
 bool BCStateTran::onMessage(const AskForCheckpointSummariesMsg *m, uint32_t msgLen, uint16_t replicaId) {
   SCOPED_MDC_SEQ_NUM(getSequenceNumber(replicaId, m->msgSeqNum));
-  LOG_DEBUG(logger_, KVLOG(replicaId, m->msgSeqNum));
+  LOG_INFO(logger_, KVLOG(replicaId, m->msgSeqNum));
 
   metrics_.received_ask_for_checkpoint_summaries_msg_++;
 
@@ -1237,25 +1480,27 @@ bool BCStateTran::onMessage(const AskForCheckpointSummariesMsg *m, uint32_t msgL
   for (uint64_t i = toCheckpoint; i >= fromCheckpoint; i--) {
     if (!psd_->hasCheckpointDesc(i)) continue;
 
-    DataStore::CheckpointDesc c = psd_->getCheckpointDesc(i);
-    CheckpointSummaryMsg checkpointSummary;
+    DataStore::CheckpointDesc cpDesc = psd_->getCheckpointDesc(i);
+    std::unique_ptr<CheckpointSummaryMsg> msg =
+        std::unique_ptr<CheckpointSummaryMsg>(CheckpointSummaryMsg::create(cpDesc.rvbData.size()));
 
-    checkpointSummary.checkpointNum = i;
-    checkpointSummary.lastBlock = c.lastBlock;
-    checkpointSummary.digestOfLastBlock = c.digestOfLastBlock;
-    checkpointSummary.digestOfResPagesDescriptor = c.digestOfResPagesDescriptor;
-    checkpointSummary.requestMsgSeqNum = m->msgSeqNum;
+    msg->checkpointNum = i;
+    msg->maxBlockId = cpDesc.maxBlockId;
+    msg->digestOfMaxBlockId = cpDesc.digestOfMaxBlockId;
+    msg->digestOfResPagesDescriptor = cpDesc.digestOfResPagesDescriptor;
+    msg->requestMsgSeqNum = m->msgSeqNum;
+    std::copy(cpDesc.rvbData.begin(), cpDesc.rvbData.end(), msg->data);
 
     LOG_INFO(logger_,
              "Sending CheckpointSummaryMsg: " << KVLOG(toReplicaId,
-                                                       checkpointSummary.checkpointNum,
-                                                       checkpointSummary.lastBlock,
-                                                       checkpointSummary.digestOfLastBlock,
-                                                       checkpointSummary.digestOfResPagesDescriptor,
-                                                       checkpointSummary.requestMsgSeqNum));
+                                                       msg->checkpointNum,
+                                                       msg->maxBlockId,
+                                                       msg->digestOfMaxBlockId,
+                                                       msg->digestOfResPagesDescriptor,
+                                                       msg->requestMsgSeqNum,
+                                                       msg->sizeofRvbData()));
 
-    replicaForStateTransfer_->sendStateTransferMessage(
-        reinterpret_cast<char *>(&checkpointSummary), sizeof(CheckpointSummaryMsg), replicaId);
+    replicaForStateTransfer_->sendStateTransferMessage(reinterpret_cast<char *>(msg.get()), msg->size(), replicaId);
 
     metrics_.sent_checkpoint_summary_msg_++;
     sent = true;
@@ -1269,8 +1514,9 @@ bool BCStateTran::onMessage(const AskForCheckpointSummariesMsg *m, uint32_t msgL
 
 bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint16_t replicaId) {
   SCOPED_MDC_SEQ_NUM(getSequenceNumber(config_.myReplicaId, uniqueMsgSeqNum()));
-  LOG_DEBUG(logger_, KVLOG(replicaId, m->checkpointNum, m->lastBlock, m->requestMsgSeqNum));
+  LOG_INFO(logger_, KVLOG(replicaId, m->checkpointNum, m->maxBlockId, m->requestMsgSeqNum, m->sizeofRvbData()));
 
+  metrics_.received_checkpoint_summary_msg_++;
   FetchingState fs = getFetchingState();
   if (fs != FetchingState::GettingCheckpointSummaries) {
     auto fetchingState = stateName(getFetchingState());
@@ -1278,10 +1524,9 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
     metrics_.irrelevant_checkpoint_summary_msg_++;
     return false;
   }
-  metrics_.received_checkpoint_summary_msg_++;
 
   // if msg is invalid
-  if (msgLen < sizeof(CheckpointSummaryMsg) || m->checkpointNum == 0 || m->digestOfResPagesDescriptor.isZero() ||
+  if (msgLen != m->size() || m->checkpointNum == 0 || m->digestOfResPagesDescriptor.isZero() ||
       m->requestMsgSeqNum == 0) {
     LOG_WARN(logger_,
              "Msg is invalid: " << KVLOG(
@@ -1324,42 +1569,54 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
   if (used) numOfSummariesFromOtherReplicas[replicaId] = numOfMsgsFromSender + 1;
 
   if (!cert->isComplete()) {
-    LOG_DEBUG(logger_, "Does not have enough CheckpointSummaryMsg messages");
+    LOG_INFO(logger_, "Does not have enough CheckpointSummaryMsg messages");
     return true;
   }
 
-  LOG_DEBUG(logger_, "Has enough CheckpointSummaryMsg messages");
-  CheckpointSummaryMsg *checkSummary = cert->bestCorrectMsg();
+  LOG_INFO(logger_, "Has enough CheckpointSummaryMsg messages");
+  CheckpointSummaryMsg *cpSummaryMsg = cert->bestCorrectMsg();
 
-  ConcordAssertNE(checkSummary, nullptr);
+  ConcordAssertNE(cpSummaryMsg, nullptr);
   ConcordAssert(sourceSelector_.isReset());
-  ConcordAssertEQ(nextRequiredBlock_, 0);
-  ConcordAssert(digestOfNextRequiredBlock.isZero());
+  ConcordAssertEQ(fetchState_.nextBlockId, 0);
+  ConcordAssert(digestOfNextRequiredBlock_.isZero());
   ConcordAssert(pendingItemDataMsgs.empty());
   ConcordAssert(ioContexts_.empty());
   ConcordAssert(ioPool_.full());
   ConcordAssertEQ(totalSizeOfPendingItemDataMsgs, 0);
 
+  // Set (overwrite) the RVB data. We set it even if the RVB data is empty, to make sure that an empty tree
+  // is acceptable
+  auto sizeofRvbData = cpSummaryMsg->sizeofRvbData();
+  if (!rvbm_->setRvbData((sizeofRvbData > 0) ? cpSummaryMsg->data : nullptr,
+                         sizeofRvbData,
+                         as_->getLastReachableBlockNum() + 1,
+                         cpSummaryMsg->maxBlockId)) {
+    LOG_ERROR(logger_, "Failed to set new RVT data! restart cycle...");
+    // enter new cycle
+    startCollectingStateInternal();
+    return true;
+  }
+  metrics_.current_rvb_data_state_.Get().Set(rvbm_->getStateOfRvbData());
+
   // set the preferred replicas
   for (uint16_t r : replicas_) {  // TODO(GG): can be improved
     CheckpointSummaryMsg *t = cert->getMsgFromReplica(r);
-    if (t != nullptr && CheckpointSummaryMsg::equivalent(t, checkSummary)) {
+    if (t != nullptr && CheckpointSummaryMsg::equivalent(t, cpSummaryMsg)) {
       sourceSelector_.addPreferredReplica(r);
       ConcordAssertLT(r, config_.numReplicas);
     }
   }
-
-  metrics_.preferred_replicas_.Get().Set(sourceSelector_.preferredReplicasToString());
-
   ConcordAssertGE(sourceSelector_.numberOfPreferredReplicas(), config_.fVal + 1);
 
   // set new checkpoint
   DataStore::CheckpointDesc newCheckpoint;
-
-  newCheckpoint.checkpointNum = checkSummary->checkpointNum;
-  newCheckpoint.lastBlock = checkSummary->lastBlock;
-  newCheckpoint.digestOfLastBlock = checkSummary->digestOfLastBlock;
-  newCheckpoint.digestOfResPagesDescriptor = checkSummary->digestOfResPagesDescriptor;
+  newCheckpoint.checkpointNum = cpSummaryMsg->checkpointNum;
+  newCheckpoint.maxBlockId = cpSummaryMsg->maxBlockId;
+  newCheckpoint.digestOfMaxBlockId = cpSummaryMsg->digestOfMaxBlockId;
+  newCheckpoint.digestOfResPagesDescriptor = cpSummaryMsg->digestOfResPagesDescriptor;
+  newCheckpoint.rvbData.insert(
+      newCheckpoint.rvbData.begin(), cpSummaryMsg->data, cpSummaryMsg->data + cpSummaryMsg->sizeofRvbData());
 
   auto fetchingState = stateName(getFetchingState());
   {  // txn scope
@@ -1379,26 +1636,27 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
 
     LOG_INFO(logger_,
              "Start fetching checkpoint: " << KVLOG(newCheckpoint.checkpointNum,
-                                                    newCheckpoint.lastBlock,
-                                                    newCheckpoint.digestOfLastBlock,
-                                                    newCheckpoint.digestOfResPagesDescriptor,
+                                                    newCheckpoint.maxBlockId,
+                                                    newCheckpoint.digestOfMaxBlockId,
                                                     lastReachableBlockNum,
                                                     fetchingState));
 
-    if (newCheckpoint.lastBlock > lastReachableBlockNum) {
+    if (newCheckpoint.maxBlockId > lastReachableBlockNum) {
       // fetch blocks
       g.txn()->setFirstRequiredBlock(lastReachableBlockNum + 1);
-      g.txn()->setLastRequiredBlock(newCheckpoint.lastBlock);
+      g.txn()->setLastRequiredBlock(newCheckpoint.maxBlockId);
+      minBlockIdToCollectInCycle_ = lastReachableBlockNum + 1;
+      maxBlockIdToCollectInCycle_ = newCheckpoint.maxBlockId;
+      ConcordAssertGE(maxBlockIdToCollectInCycle_, minBlockIdToCollectInCycle_);
+      totalBlocksLeftToCollectInCycle_ = maxBlockIdToCollectInCycle_ - minBlockIdToCollectInCycle_ + 1;
     } else {
       // fetch reserved pages (vblock)
-      ConcordAssertEQ(newCheckpoint.lastBlock, lastReachableBlockNum);
+      ConcordAssertEQ(newCheckpoint.maxBlockId, lastReachableBlockNum);
       ConcordAssertEQ(g.txn()->getFirstRequiredBlock(), 0);
       ConcordAssertEQ(g.txn()->getLastRequiredBlock(), 0);
     }
   }
-  metrics_.last_block_.Get().Set(newCheckpoint.lastBlock);
-  fetchingState = stateName(getFetchingState());
-  metrics_.fetching_state_.Get().Set(fetchingState);
+  metrics_.last_block_.Get().Set(newCheckpoint.maxBlockId);
 
   processData();
   return true;
@@ -1429,17 +1687,12 @@ void BCStateTran::srcInitialize() {
 
 bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t replicaId) {
   SCOPED_MDC_SEQ_NUM(getSequenceNumber(replicaId, m->msgSeqNum));
-  LOG_DEBUG(
-      logger_,
-      KVLOG(
-          replicaId, m->msgSeqNum, m->firstRequiredBlock, m->lastRequiredBlock, m->lastKnownChunkInLastRequiredBlock));
+  LOG_INFO(logger_, KVLOG(replicaId, m->msgSeqNum, m->minBlockId, m->maxBlockId, m->lastKnownChunkInLastRequiredBlock));
   metrics_.received_fetch_blocks_msg_++;
 
   // if msg is invalid
-  if (msgLen < sizeof(FetchBlocksMsg) || m->msgSeqNum == 0 || m->firstRequiredBlock == 0 ||
-      m->lastRequiredBlock < m->firstRequiredBlock) {
-    LOG_WARN(logger_,
-             "Msg is invalid: " << KVLOG(replicaId, m->msgSeqNum, m->firstRequiredBlock, m->lastRequiredBlock));
+  if (msgLen < sizeof(FetchBlocksMsg) || m->msgSeqNum == 0 || m->minBlockId == 0 || m->maxBlockId < m->minBlockId) {
+    LOG_WARN(logger_, "Msg is invalid: " << KVLOG(replicaId, m->msgSeqNum, m->minBlockId, m->maxBlockId));
     metrics_.invalid_fetch_blocks_msg_++;
     return false;
   }
@@ -1462,17 +1715,19 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
     metrics_.sent_reject_fetch_msg_++;
     LOG_WARN(logger_,
              "Rejecting msg. Sending RejectFetchingMsg to replica: " << KVLOG(
-                 replicaId, outMsg.requestMsgSeqNum, fetchingState, m->lastRequiredBlock, lastReachableBlockNum));
+                 replicaId, outMsg.requestMsgSeqNum, fetchingState, m->maxBlockId, lastReachableBlockNum));
     replicaForStateTransfer_->sendStateTransferMessage(
         reinterpret_cast<char *>(&outMsg), sizeof(RejectFetchingMsg), replicaId);
   };
 
-  if (fetchingState != FetchingState::NotFetching || m->lastRequiredBlock > lastReachableBlockNum) {
+  if ((fetchingState != FetchingState::NotFetching) || (m->maxBlockId > lastReachableBlockNum)) {
     rejectFetchingMsg();
     return false;
   }
 
-  if (!sourceFlag_) srcInitialize();
+  if (!sourceFlag_) {
+    srcInitialize();
+  }
   sourceSnapshotCounter_ = 0;
 
   // start recording time to send a whole batch, and its size
@@ -1482,7 +1737,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
   src_send_batch_duration_rec_.start();
 
   // compute information about next block and chunk
-  uint64_t nextBlockId = m->lastRequiredBlock;
+  uint64_t nextBlockId = m->maxBlockId;
   uint16_t nextChunk = m->lastKnownChunkInLastRequiredBlock + 1;
   uint16_t numOfSentChunks = 0;
 
@@ -1499,7 +1754,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
       clearIoContexts();
     }
 
-    getBlocksConcurrentAsync(nextBlockId, m->firstRequiredBlock, config_.maxNumberOfChunksInBatch);
+    getBlocksConcurrentAsync(nextBlockId, m->minBlockId, config_.maxNumberOfChunksInBatch);
   }
 
   // Fetch blocks and send all chunks for the batch. Also, while looping start to pre-fetch next batch
@@ -1508,23 +1763,33 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
   uint64_t preFetchBlockId = 0;
   if (config_.enableSourceBlocksPreFetch && (nextBlockId > config_.maxNumberOfChunksInBatch))
     preFetchBlockId = nextBlockId - config_.maxNumberOfChunksInBatch;
-  LOG_DEBUG(logger_,
-            "Start sending batch: " << KVLOG(m->msgSeqNum,
-                                             m->firstRequiredBlock,
-                                             m->lastRequiredBlock,
-                                             m->lastKnownChunkInLastRequiredBlock,
-                                             preFetchBlockId));
+  LOG_INFO(logger_,
+           "Start sending batch: " << KVLOG(m->msgSeqNum,
+                                            m->minBlockId,
+                                            m->maxBlockId,
+                                            m->lastKnownChunkInLastRequiredBlock,
+                                            m->rvbGroupId,
+                                            preFetchBlockId));
   ++sourceBatchCounter_;
-  DurationTracker<std::chrono::microseconds> waitFutureDuration;  // TODO(GL) - remove when unneeded
+  DurationTracker<std::chrono::microseconds> timeWaitedForCtx("timeWaitedForCtx");  // TODO(GL) - remove when unneeded
   bool getNextBlock = (nextChunk == 1);
   char *buffer = nullptr;
   uint32_t sizeOfNextBlock = 0;
+  // Source is asking all digests for RVBGroup rvbGroupId. Piggyback this data on the 1st message sent.
+  size_t rvbGroupDigestsExpectedSize =
+      (m->rvbGroupId != 0) ? rvbm_->getSerializedDigestsOfRvbGroup(m->rvbGroupId, nullptr, 0, true) : 0;
+  if ((rvbGroupDigestsExpectedSize == 0) && (m->rvbGroupId != 0)) {
+    // Destination RVB Group request cannot be fullfiled, reject
+    LOG_WARN(logger_, "RVB Group request cannot be fullfiled, rejecting request:" << KVLOG(m->rvbGroupId));
+    rejectFetchingMsg();
+    return false;
+  }
   do {
     auto &ctx = ioContexts_.front();
     if (getNextBlock) {
       // wait for worker to finish getting next block
       ConcordAssert(ctx->future.valid());
-      waitFutureDuration.start();
+      timeWaitedForCtx.start();
       try {
         if (!ctx->future.get()) {
           LOG_ERROR(logger_, "Block not found in storage, abort batch:" << KVLOG(ctx->blockId));
@@ -1537,12 +1802,10 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
       }
       ConcordAssertGT(ctx->actualBlockSize, 0);
       ConcordAssertEQ(ctx->blockId, nextBlockId);
-      LOG_DEBUG(logger_,
-                "Start sending next block: " << KVLOG(
-                    sourceBatchCounter_, nextBlockId, ctx->actualBlockSize, waitFutureDuration.totalDuration(true)));
-      waitFutureDuration.reset();
-
-      // some statistics
+      const auto totalDuration = timeWaitedForCtx.totalDuration(true);
+      LOG_DEBUG(
+          logger_,
+          "Start sending next block: " << KVLOG(sourceBatchCounter_, nextBlockId, ctx->actualBlockSize, totalDuration));
       histograms_.src_get_block_size_bytes->record(ctx->actualBlockSize);
       getNextBlock = false;
     }
@@ -1560,6 +1823,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
     if ((numOfSentChunks == 0) && (nextChunk > numOfChunksInNextBlock)) {
       LOG_WARN(logger_,
                "Msg is invalid: illegal chunk number: " << KVLOG(replicaId, nextChunk, numOfChunksInNextBlock));
+      rejectFetchingMsg();
       return false;
     }
 
@@ -1571,16 +1835,42 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
     ConcordAssertGT(chunkSize, 0);
 
     char *pRawChunk = buffer + (nextChunk - 1) * config_.maxChunkSize;
-    ItemDataMsg *outMsg = ItemDataMsg::alloc(chunkSize);  // TODO(GG): improve
+    ItemDataMsg *outMsg = ItemDataMsg::alloc(chunkSize + rvbGroupDigestsExpectedSize);  // TODO(GG): improve
 
     outMsg->requestMsgSeqNum = m->msgSeqNum;
     outMsg->blockNumber = nextBlockId;
     outMsg->totalNumberOfChunksInBlock = numOfChunksInNextBlock;
     outMsg->chunkNumber = nextChunk;
-    outMsg->dataSize = chunkSize;
+    outMsg->dataSize = chunkSize + rvbGroupDigestsExpectedSize;
+
     outMsg->lastInBatch =
-        ((numOfSentChunks + 1) >= config_.maxNumberOfChunksInBatch) || ((nextBlockId - 1) < m->firstRequiredBlock);
-    memcpy(outMsg->data, pRawChunk, chunkSize);
+        ((numOfSentChunks + 1) >= config_.maxNumberOfChunksInBatch) || ((nextBlockId - 1) < m->minBlockId);
+    // TODO - this is a rare request, coming once in many blocks (configurable).
+    // For now, we fetch from storage and serialize at the last moment.
+    // Performance can be improved by performing this operation earlier.
+    if (rvbGroupDigestsExpectedSize > 0) {
+      // Serialize RVB digests
+      DurationTracker<std::chrono::milliseconds> serialize_digests_dt("serialize_digests_dt", true);
+      size_t rvbGroupDigestsActualSize =
+          rvbm_->getSerializedDigestsOfRvbGroup(m->rvbGroupId, outMsg->data, rvbGroupDigestsExpectedSize, false);
+      if ((rvbGroupDigestsActualSize == 0) || (rvbGroupDigestsExpectedSize != rvbGroupDigestsActualSize)) {
+        LOG_WARN(logger_,
+                 "Rejecting message - not holding all requested digests (or some other error)"
+                     << KVLOG(rvbGroupDigestsExpectedSize, rvbGroupDigestsActualSize));
+        ItemDataMsg::free(outMsg);
+        rejectFetchingMsg();
+        return false;
+      }
+      auto total_duration = serialize_digests_dt.totalDuration(true);
+      LOG_INFO(logger_, "Done getting serialized digests," << KVLOG(total_duration) << " ms");
+      ConcordAssertLE(rvbGroupDigestsActualSize, rvbGroupDigestsExpectedSize);
+      outMsg->rvbDigestsSize = rvbGroupDigestsActualSize;
+      memcpy(outMsg->data + rvbGroupDigestsActualSize, pRawChunk, chunkSize);
+      rvbGroupDigestsExpectedSize = 0;  // send only once
+    } else {
+      memcpy(outMsg->data, pRawChunk, chunkSize);
+      outMsg->rvbDigestsSize = 0;
+    }
 
     LOG_DEBUG(logger_,
               "Sending ItemDataMsg: " << std::boolalpha
@@ -1590,6 +1880,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
                                                outMsg->totalNumberOfChunksInBlock,
                                                outMsg->chunkNumber,
                                                outMsg->dataSize,
+                                               outMsg->rvbDigestsSize,
                                                (bool)outMsg->lastInBatch));
 
     metrics_.sent_item_data_msg_++;
@@ -1603,14 +1894,14 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
 
       // We are done using this context. We can now use it to prefetch future batch block.
       if (preFetchBlockId > 0) {
-        getBlocksConcurrentAsync(preFetchBlockId, m->firstRequiredBlock, 1);
+        getBlocksConcurrentAsync(preFetchBlockId, m->minBlockId, 1);
         --preFetchBlockId;
       }
     };
 
     // if we've already sent enough chunks
     if (numOfSentChunks >= config_.maxNumberOfChunksInBatch) {
-      LOG_INFO(logger_, "Batch end - sent enough chunks: " << KVLOG(numOfSentChunks));
+      LOG_INFO(logger_, "Batch end - sent enough chunks: " << KVLOG(numOfSentChunks, m->minBlockId, m->maxBlockId));
       if (nextChunk == numOfChunksInNextBlock) {
         finalizeContext();
       }
@@ -1621,8 +1912,8 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
     } else {
       finalizeContext();
 
-      if ((nextBlockId - 1) < m->firstRequiredBlock) {
-        LOG_INFO(logger_, "Batch end - sent all relevant blocks: " << KVLOG(m->firstRequiredBlock));
+      if ((nextBlockId - 1) < m->minBlockId) {
+        LOG_INFO(logger_, "Batch end - sent all relevant blocks: " << KVLOG(m->minBlockId, m->maxBlockId));
         break;
       } else {
         // no more chunks in the block, continue to next block
@@ -1634,7 +1925,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
   } while (true);
 
   histograms_.src_send_batch_size_bytes->record(batchSizeBytes);
-  histograms_.src_send_batch_size_chunks->record(batchSizeChunks);
+  histograms_.src_send_batch_num_of_chunks->record(batchSizeChunks);
   src_send_batch_duration_rec_.end();
 
   return false;
@@ -1642,7 +1933,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
 
 bool BCStateTran::onMessage(const FetchResPagesMsg *m, uint32_t msgLen, uint16_t replicaId) {
   SCOPED_MDC_SEQ_NUM(getSequenceNumber(replicaId, m->msgSeqNum));
-  LOG_DEBUG(
+  LOG_INFO(
       logger_,
       KVLOG(replicaId, m->msgSeqNum, m->lastCheckpointKnownToRequester, m->requiredCheckpointNum, m->lastKnownChunk));
   metrics_.received_fetch_res_pages_msg_++;
@@ -1664,7 +1955,7 @@ bool BCStateTran::onMessage(const FetchResPagesMsg *m, uint32_t msgLen, uint16_t
   FetchingState fetchingState = getFetchingState();
 
   // if msg should be rejected
-  if (fetchingState != FetchingState::NotFetching || !psd_->hasCheckpointDesc(m->requiredCheckpointNum)) {
+  if ((fetchingState != FetchingState::NotFetching) || (!psd_->hasCheckpointDesc(m->requiredCheckpointNum))) {
     RejectFetchingMsg outMsg;
     outMsg.requestMsgSeqNum = m->msgSeqNum;
 
@@ -1789,11 +2080,10 @@ bool BCStateTran::onMessage(const RejectFetchingMsg *m, uint32_t msgLen, uint16_
 
   FetchingState fs = getFetchingState();
   if (fs != FetchingState::GettingMissingBlocks && fs != FetchingState::GettingMissingResPages) {
-    LOG_FATAL(logger_,
+    LOG_ERROR(logger_,
               "Expected Fetching State GettingMissingBlocks or GettingMissingResPages. Got: " << stateName(fs));
-    ConcordAssert(false);
+    return false;
   }
-  ConcordAssert(sourceSelector_.hasPreferredReplicas());
 
   // if msg is invalid
   if (msgLen < sizeof(RejectFetchingMsg)) {
@@ -1811,23 +2101,24 @@ bool BCStateTran::onMessage(const RejectFetchingMsg *m, uint32_t msgLen, uint16_
     return false;
   }
 
-  ConcordAssert(sourceSelector_.isPreferred(replicaId));
-  LOG_WARN(logger_, "Removing replica from preferred replicas: " << KVLOG(replicaId));
-  sourceSelector_.removeCurrentReplica();
-  metrics_.current_source_replica_.Get().Set(NO_REPLICA);
-  metrics_.preferred_replicas_.Get().Set(sourceSelector_.preferredReplicasToString());
-  clearAllPendingItemsData();
+  if (sourceSelector_.isPreferredSourceId(replicaId)) {
+    LOG_WARN(logger_, "Removing replica from preferred replicas: " << KVLOG(replicaId));
+    sourceSelector_.removeCurrentReplica();
+    clearAllPendingItemsData();
+  }
 
   if (sourceSelector_.hasPreferredReplicas()) {
     processData();
   } else if (fs == FetchingState::GettingMissingBlocks) {
     LOG_DEBUG(logger_, "Adding all peer replicas to preferredReplicas_ (because preferredReplicas_.size()==0)");
 
-    // in this case, we will try to use all other replicas
+    // in this case, we will try to use all other replicas (remove current replica)
     SetAllReplicasAsPreferred();
+    sourceSelector_.removeCurrentReplica();
     processData();
   } else if (fs == FetchingState::GettingMissingResPages) {
-    EnterGettingCheckpointSummariesState();
+    // enter new cycle
+    startCollectingStateInternal();
   } else {
     ConcordAssert(false);
   }
@@ -1837,26 +2128,37 @@ bool BCStateTran::onMessage(const RejectFetchingMsg *m, uint32_t msgLen, uint16_
 // Retrieve either a chunk of a block or a reserved page when fetching
 bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t replicaId, LocalTimePoint msgArrivalTime) {
   SCOPED_MDC_SEQ_NUM(getSequenceNumber(config_.myReplicaId, lastMsgSeqNum_, m->chunkNumber, m->blockNumber));
-  LOG_DEBUG(logger_, KVLOG(replicaId, m->requestMsgSeqNum, m->blockNumber));
   metrics_.received_item_data_msg_++;
 
   FetchingState fs = getFetchingState();
-  if (fs != FetchingState::GettingMissingBlocks && fs != FetchingState::GettingMissingResPages) {
-    LOG_FATAL(logger_,
+  if ((fs != FetchingState::GettingMissingBlocks) && (fs != FetchingState::GettingMissingResPages)) {
+    LOG_ERROR(logger_,
               "Expected Fetching State GettingMissingBlocks or GettingMissingResPages. Got: " << stateName(fs));
-    ConcordAssert(false);
+    return false;
+  }
+
+  if (!sourceSelector_.isValidSourceId(replicaId)) {
+    LOG_ERROR(logger_, "Msg received from invalid source " << replicaId);
+    return false;
   }
 
   const auto MaxNumOfChunksInBlock =
       (fs == FetchingState::GettingMissingBlocks) ? maxNumOfChunksInAppBlock_ : maxNumOfChunksInVBlock_;
 
   LOG_DEBUG(logger_,
-            std::boolalpha << KVLOG(
-                m->blockNumber, m->totalNumberOfChunksInBlock, m->chunkNumber, m->dataSize, (bool)m->lastInBatch));
+            std::boolalpha << KVLOG(replicaId,
+                                    m->requestMsgSeqNum,
+                                    m->blockNumber,
+                                    m->totalNumberOfChunksInBlock,
+                                    m->chunkNumber,
+                                    m->dataSize,
+                                    (bool)m->lastInBatch,
+                                    m->rvbDigestsSize));
 
   // if msg is invalid
-  if (msgLen < m->size() || m->requestMsgSeqNum == 0 || m->blockNumber == 0 || m->totalNumberOfChunksInBlock == 0 ||
-      m->totalNumberOfChunksInBlock > MaxNumOfChunksInBlock || m->chunkNumber == 0 || m->dataSize == 0) {
+  if ((msgLen != m->size()) || (m->requestMsgSeqNum == 0) || (m->blockNumber == 0) ||
+      (m->totalNumberOfChunksInBlock == 0) || (m->totalNumberOfChunksInBlock > MaxNumOfChunksInBlock) ||
+      (m->chunkNumber == 0) || (m->dataSize == 0) || (m->rvbDigestsSize >= m->dataSize)) {
     LOG_WARN(logger_,
              "Msg is invalid: " << KVLOG(replicaId,
                                          msgLen,
@@ -1866,20 +2168,22 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
                                          m->totalNumberOfChunksInBlock,
                                          MaxNumOfChunksInBlock,
                                          m->chunkNumber,
+                                         m->rvbDigestsSize,
                                          m->dataSize));
     metrics_.invalid_item_data_msg_++;
     return false;
   }
 
-  const uint64_t firstRequiredBlock = psd_->getFirstRequiredBlock();
-  const uint64_t lastRequiredBlock = psd_->getLastRequiredBlock();
-
   auto fetchingState = fs;
   if (fs == FetchingState::GettingMissingBlocks) {
-    // if msg is not relevant
-    if ((sourceSelector_.currentReplica() != replicaId) || (m->requestMsgSeqNum != lastMsgSeqNum_) ||
-        (m->blockNumber > lastRequiredBlock) || (m->blockNumber < firstRequiredBlock) ||
-        (m->blockNumber + config_.maxNumberOfChunksInBatch + 1 < lastRequiredBlock) ||
+    // Reasons for dropping a message as "irrelevant" for this state:
+    // 1) Not the source we chose
+    // 2) Block ID is out of expected range [fetchState_.minBlockId, fetchState_.nextBlockId]
+    // 3) Not enough memory to put block
+    // We do not drop on different requestMsgSeqNum - the block arrives from the expected source and might have been
+    // delayed due to retransmissions, but it should still be valid block with an expected ID. No reason to drop.
+    if ((sourceSelector_.currentReplica() != replicaId) || (fetchState_.minBlockId > m->blockNumber) ||
+        (fetchState_.nextBlockId < m->blockNumber) ||
         (m->dataSize + totalSizeOfPendingItemDataMsgs > config_.maxPendingDataFromSourceReplica)) {
       LOG_WARN(logger_,
                "Msg is irrelevant: " << KVLOG(replicaId,
@@ -1888,9 +2192,9 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
                                               m->requestMsgSeqNum,
                                               lastMsgSeqNum_,
                                               m->blockNumber,
-                                              firstRequiredBlock,
-                                              lastRequiredBlock,
+                                              fetchState_,
                                               config_.maxNumberOfChunksInBatch,
+                                              m->rvbDigestsSize,
                                               m->dataSize,
                                               totalSizeOfPendingItemDataMsgs,
                                               config_.maxPendingDataFromSourceReplica));
@@ -1898,13 +2202,13 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
       return false;
     }
   } else {
-    ConcordAssertEQ(firstRequiredBlock, 0);
-    ConcordAssertEQ(lastRequiredBlock, 0);
+    ConcordAssertEQ(psd_->getFirstRequiredBlock(), 0);
+    ConcordAssertEQ(psd_->getLastRequiredBlock(), 0);
 
-    // if msg is not relevant
     if ((sourceSelector_.currentReplica() != replicaId) || (m->requestMsgSeqNum != lastMsgSeqNum_) ||
         (m->blockNumber != ID_OF_VBLOCK_RES_PAGES) ||
-        (m->dataSize + totalSizeOfPendingItemDataMsgs > config_.maxPendingDataFromSourceReplica)) {
+        (m->dataSize + totalSizeOfPendingItemDataMsgs > config_.maxPendingDataFromSourceReplica) ||
+        (m->rvbDigestsSize > 0)) {
       LOG_WARN(logger_,
                "Msg is irrelevant: " << KVLOG(replicaId,
                                               fetchingState,
@@ -1912,6 +2216,7 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
                                               m->requestMsgSeqNum,
                                               lastMsgSeqNum_,
                                               (m->blockNumber == ID_OF_VBLOCK_RES_PAGES),
+                                              m->rvbDigestsSize,
                                               m->dataSize,
                                               totalSizeOfPendingItemDataMsgs,
                                               config_.maxPendingDataFromSourceReplica));
@@ -1920,21 +2225,19 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
     }
   }
 
-  ConcordAssert(sourceSelector_.isPreferred(replicaId));
-
   bool added = false;
 
   tie(std::ignore, added) = pendingItemDataMsgs.insert(const_cast<ItemDataMsg *>(m));
-  // set fetchingTimeStamp_ while ignoring added flag - source is responsive
-  // Apply correction according to the time message has arrivedto handoff queue
+  // Log the time for this message to wait on incoming events queue
   auto fetchingTimeStamp = getMonotonicTimeMilli();
   if (msgArrivalTime != UNDEFINED_LOCAL_TIME_POINT) {
-    auto timeInHandoffMilli =
-        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - msgArrivalTime)
-            .count();
-    LOG_TRACE(logger_, KVLOG(fetchingTimeStamp, timeInHandoffMilli, (fetchingTimeStamp - timeInHandoffMilli)));
-    fetchingTimeStamp -= timeInHandoffMilli;
+    auto timeInIncomingEventsQueueMilli = duration_cast<milliseconds>(steady_clock::now() - msgArrivalTime).count();
+    LOG_TRACE(
+        logger_,
+        KVLOG(fetchingTimeStamp, timeInIncomingEventsQueueMilli, (fetchingTimeStamp - timeInIncomingEventsQueueMilli)));
+    histograms_.dst_time_ItemData_msg_in_incoming_events_queue->record(timeInIncomingEventsQueueMilli);
   }
+  // Set fetchingTimeStamp_ while ignoring added flag - source is responsive
   sourceSelector_.setFetchingTimeStamp(fetchingTimeStamp, false);
 
   if (added) {
@@ -1943,7 +2246,7 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
     metrics_.num_pending_item_data_msgs_.Get().Set(pendingItemDataMsgs.size());
     totalSizeOfPendingItemDataMsgs += m->dataSize;
     metrics_.total_size_of_pending_item_data_msgs_.Get().Set(totalSizeOfPendingItemDataMsgs);
-    processData(m->lastInBatch);
+    processData(m->lastInBatch, m->rvbDigestsSize);
     return true;
   } else {
     LOG_INFO(
@@ -2096,18 +2399,21 @@ void BCStateTran::clearAllPendingItemsData() {
   metrics_.total_size_of_pending_item_data_msgs_.Get().Set(0);
 }
 
-void BCStateTran::clearPendingItemsData(uint64_t untilBlock) {
-  LOG_DEBUG(logger_, KVLOG(untilBlock));
-
-  if (untilBlock == 0) return;
+void BCStateTran::clearPendingItemsData(uint64_t fromBlock, uint64_t untilBlock) {
+  LOG_DEBUG(logger_, KVLOG(fromBlock, untilBlock));
+  ConcordAssertLE(fromBlock, untilBlock);
+  if (fromBlock == 0) return;
 
   auto it = pendingItemDataMsgs.begin();
-  while (it != pendingItemDataMsgs.end() && (*it)->blockNumber >= untilBlock) {
+  while (it != pendingItemDataMsgs.end()) {
     ConcordAssertGE(totalSizeOfPendingItemDataMsgs, (*it)->dataSize);
 
-    totalSizeOfPendingItemDataMsgs -= (*it)->dataSize;
-    replicaForStateTransfer_->freeStateTransferMsg(reinterpret_cast<char *>(*it));
-    it = pendingItemDataMsgs.erase(it);
+    if (((*it)->blockNumber >= fromBlock) && ((*it)->blockNumber <= untilBlock)) {
+      totalSizeOfPendingItemDataMsgs -= (*it)->dataSize;
+      replicaForStateTransfer_->freeStateTransferMsg(reinterpret_cast<char *>(*it));
+      it = pendingItemDataMsgs.erase(it);
+    }
+    ++it;
   }
   metrics_.num_pending_item_data_msgs_.Get().Set(pendingItemDataMsgs.size());
   metrics_.total_size_of_pending_item_data_msgs_.Get().Set(totalSizeOfPendingItemDataMsgs);
@@ -2122,7 +2428,6 @@ bool BCStateTran::getNextFullBlock(uint64_t requiredBlock,
   ConcordAssertGE(requiredBlock, 1);
 
   const uint32_t maxSize = (isVBLock ? maxVBlockSize_ : config_.maxBlockSize);
-  clearPendingItemsData(requiredBlock + 1);
 
   outBadDataDetected = false;
   outLastChunkInRequiredBlock = 0;
@@ -2141,14 +2446,16 @@ bool BCStateTran::getNextFullBlock(uint64_t requiredBlock,
     ConcordAssertGT(msg->totalNumberOfChunksInBlock, 0);
     ConcordAssertGE(msg->chunkNumber, 1);
     if (totalNumberOfChunks == 0) totalNumberOfChunks = msg->totalNumberOfChunksInBlock;
-    blockSize += msg->dataSize;
+    blockSize += (msg->dataSize - msg->rvbDigestsSize);
     if (totalNumberOfChunks != msg->totalNumberOfChunksInBlock || msg->chunkNumber > totalNumberOfChunks ||
         blockSize > maxSize) {
       badData = true;
       break;
     }
 
-    if (maxAvailableChunk + 1 < msg->chunkNumber) break;  // we have a hole
+    if (maxAvailableChunk + 1 < msg->chunkNumber) {
+      break;  // we have a hole
+    }
     ConcordAssertEQ(maxAvailableChunk + 1, msg->chunkNumber);
     maxAvailableChunk = msg->chunkNumber;
     ConcordAssertLE(maxAvailableChunk, totalNumberOfChunks);
@@ -2157,7 +2464,7 @@ bool BCStateTran::getNextFullBlock(uint64_t requiredBlock,
       break;
     }
     ++it;
-  }
+  }  // while
 
   if (badData) {
     ConcordAssert(!fullBlock);
@@ -2185,7 +2492,7 @@ bool BCStateTran::getNextFullBlock(uint64_t requiredBlock,
     ConcordAssertGE(msg->chunkNumber, 1);
     ConcordAssertEQ(msg->totalNumberOfChunksInBlock, totalNumberOfChunks);
     ConcordAssertEQ(currentChunk + 1, msg->chunkNumber);
-    ConcordAssertLE(currentPos + msg->dataSize, maxSize);
+    ConcordAssertLE(currentPos + msg->dataSize - msg->rvbDigestsSize, maxSize);
 
     memcpy(outBlock + currentPos, msg->data, msg->dataSize);
     currentChunk = msg->chunkNumber;
@@ -2200,22 +2507,45 @@ bool BCStateTran::getNextFullBlock(uint64_t requiredBlock,
       outBlockSize = currentPos;
       return true;
     }
-  }
+  }  // while (true)
 }
 
-bool BCStateTran::checkBlock(uint64_t blockNum,
-                             const STDigest &expectedBlockDigest,
-                             char *block,
-                             uint32_t blockSize) const {
-  STDigest blockDigest;
-  computeDigestOfBlock(blockNum, block, blockSize, &blockDigest);
-
-  if (blockDigest != expectedBlockDigest) {
-    LOG_WARN(logger_, "Incorrect digest: " << KVLOG(blockNum, blockDigest, expectedBlockDigest));
-    return false;
-  } else {
+bool BCStateTran::checkBlock(uint64_t blockId, char *block, uint32_t blockSize) const {
+  STDigest computedBlockDigest;
+  {
+    histograms_.compute_block_digest_size->record(blockSize);
+    TimeRecorder scoped_timer(*histograms_.compute_block_digest_duration);
+    this->computeDigestOfBlock(blockId, block, blockSize, &computedBlockDigest);
+  }
+  if (isRvbBlockId(blockId)) {
+    auto rvbDigest = rvbm_->getDigestFromStoredRvb(blockId);
+    std::string rvbDigestStr = !rvbDigest ? "" : rvbDigest.value().get().toString();
+    if (!rvbDigest || (rvbDigest.value().get() != computedBlockDigest)) {
+      metrics_.overall_rvb_digests_validation_failed_++;
+      LOG_ERROR(logger_, "Digest validation failed (RVB):" << KVLOG(blockId, rvbDigestStr, computedBlockDigest));
+      return false;
+    }
+    LOG_INFO(logger_, "Digest validation success (RVB):" << KVLOG(blockId, rvbDigestStr, computedBlockDigest));
+    metrics_.overall_rvb_digests_validated_++;
+    ++totalRvbsValidatedInCycle_;
     return true;
   }
+  if (isMaxFetchedBlockIdInCycle(blockId)) {
+    if (targetCheckpointDesc_.digestOfMaxBlockId != computedBlockDigest) {
+      LOG_ERROR(logger_,
+                "Digest validation failed (max ID in cycle):" << KVLOG(
+                    blockId, targetCheckpointDesc_.digestOfMaxBlockId, computedBlockDigest));
+      return false;
+    }
+    return true;
+  }
+  ConcordAssert(!digestOfNextRequiredBlock_.isZero());
+  if (computedBlockDigest != digestOfNextRequiredBlock_) {
+    LOG_WARN(logger_,
+             "Digest validation failed (regular):" << KVLOG(blockId, computedBlockDigest, digestOfNextRequiredBlock_));
+    return false;
+  }
+  return true;
 }
 
 bool BCStateTran::checkVirtualBlockOfResPages(const STDigest &expectedDigestOfResPagesDescriptor,
@@ -2280,41 +2610,19 @@ set<uint16_t> BCStateTran::allOtherReplicas() {
   return others;
 }
 
-void BCStateTran::SetAllReplicasAsPreferred() {
-  sourceSelector_.setAllReplicasAsPreferred();
-  metrics_.preferred_replicas_.Get().Set(sourceSelector_.preferredReplicasToString());
-}
+void BCStateTran::SetAllReplicasAsPreferred() { sourceSelector_.setAllReplicasAsPreferred(); }
 
-void BCStateTran::EnterGettingCheckpointSummariesState() {
-  LOG_DEBUG(logger_, "");
-  ConcordAssert(sourceSelector_.noPreferredReplicas());
-  sourceSelector_.reset();
-  metrics_.current_source_replica_.Get().Set(sourceSelector_.currentReplica());
-
-  finalizePutblockAsync(false, PutBlockWaitPolicy::WAIT_ALL_JOBS);
-  nextRequiredBlock_ = 0;
-  nextCommittedBlockId_ = 0;
-  digestOfNextRequiredBlock.makeZero();
-  clearAllPendingItemsData();
-
-  psd_->deleteCheckpointBeingFetched();
-  ConcordAssertEQ(getFetchingState(), FetchingState::GettingCheckpointSummaries);
-  verifyEmptyInfoAboutGettingCheckpointSummary();
-  sendAskForCheckpointSummariesMsg();
-}
-
-void BCStateTran::reportCollectingStatus(const uint64_t firstRequiredBlock,
-                                         const uint32_t actualBlockSize,
-                                         bool toLog) {
+void BCStateTran::reportCollectingStatus(const uint32_t actualBlockSize, bool toLog) {
   metrics_.overall_blocks_collected_++;
   metrics_.overall_bytes_collected_.Get().Set(metrics_.overall_bytes_collected_.Get().Get() + actualBlockSize);
+  --totalBlocksLeftToCollectInCycle_;
 
-  bytes_collected_.report(actualBlockSize, toLog);
-  if (blocks_collected_.report(1, toLog)) {
-    auto overall_block_results = blocks_collected_.getOverallResults();
-    auto overall_bytes_results = bytes_collected_.getOverallResults();
-    auto prev_win_block_results = blocks_collected_.getPrevWinResults();
-    auto prev_win_bytes_results = bytes_collected_.getPrevWinResults();
+  bytesFetched_.report(actualBlockSize, toLog);
+  if (blocksFetched_.report(1, toLog)) {
+    auto overall_block_results = blocksFetched_.getOverallResults();
+    auto overall_bytes_results = bytesFetched_.getOverallResults();
+    auto prev_win_block_results = blocksFetched_.getPrevWinResults();
+    auto prev_win_bytes_results = bytesFetched_.getPrevWinResults();
 
     metrics_.overall_blocks_throughput_.Get().Set(overall_block_results.throughput_);
     metrics_.overall_bytes_throughput_.Get().Set(overall_bytes_results.throughput_);
@@ -2324,59 +2632,62 @@ void BCStateTran::reportCollectingStatus(const uint64_t firstRequiredBlock,
     metrics_.prev_win_bytes_collected_.Get().Set(prev_win_bytes_results.num_processed_items_);
     metrics_.prev_win_bytes_throughput_.Get().Set(prev_win_bytes_results.throughput_);
 
-    LOG_INFO(logger_, logsForCollectingStatus(firstRequiredBlock));
+    LOG_INFO(logger_, logsForCollectingStatus());
   }
 }
 
-std::string BCStateTran::logsForCollectingStatus(const uint64_t firstRequiredBlock) {
-  const DataStore::CheckpointDesc fetched_cp = psd_->getCheckpointBeingFetched();
-  auto blocks_overall_r = blocks_collected_.getOverallResults();
-  auto bytes_overall_r = bytes_collected_.getOverallResults();
+std::string BCStateTran::logsForCollectingStatus() {
+  auto blocks_overall_r = blocksFetched_.getOverallResults();
+  auto bytes_overall_r = blocksFetched_.getOverallResults();
   concordUtils::BuildJson bj;
 
   bj.startJson();
-
   bj.startNested("overallStats");
-  bj.addKv("collectRange", std::to_string(firstRequiredBlock) + ", " + std::to_string(firstCollectedBlockId_.value()));
-  bj.addKv("lastCollectedBlock", nextRequiredBlock_);
-  bj.addKv("blocksLeft", (nextRequiredBlock_ - firstRequiredBlock));
+
   bj.addKv("cycle", cycleCounter_);
-  bj.addKv("elapsedTime", std::to_string(blocks_overall_r.elapsed_time_ms_) + " ms");
+  bj.addKv("Cycle elapsedTime", convertMillisecToReadableStr(cycleDT_.totalDuration(false)));
+  bj.addKv("GettingMissingBlocks elapsedTime", convertMillisecToReadableStr(blocks_overall_r.elapsed_time_ms_));
+  bj.addKv("collectRange",
+           std::to_string(minBlockIdToCollectInCycle_) + ", " + std::to_string(maxBlockIdToCollectInCycle_));
+  bj.addKv("lastCollectedBlock", fetchState_.nextBlockId);
+  bj.addKv("blocksLeft", totalBlocksLeftToCollectInCycle_);
+  bj.addKv("fetchState", fetchState_.toString());
+  bj.addKv("post-processing upper bound block id", std::to_string(postProcessingUpperBoundBlockId_));
+  bj.addKv("post-processed max block id", std::to_string(maxPostprocessedBlockId_));
+  bj.addKv("RVB digests validated", std::to_string(metrics_.overall_rvb_digests_validated_.Get().Get()));
   bj.addKv("collected",
-           std::to_string(blocks_overall_r.num_processed_items_) + " blk & " +
-               std::to_string(bytes_overall_r.num_processed_items_) + " B");
+           convertUInt64ToReadableStr(blocks_overall_r.num_processed_items_, "Blocks") +
+               convertUInt64ToReadableStr(bytes_overall_r.num_processed_items_, ", B"));
   bj.addKv("throughput",
-           std::to_string(blocks_overall_r.throughput_) + " blk/s & " + std::to_string(bytes_overall_r.throughput_) +
-               " B/s");
-  bj.endNested();
+           convertUInt64ToReadableStr(blocks_overall_r.throughput_, "Blocks/s") +
+               convertUInt64ToReadableStr(bytes_overall_r.throughput_, ", B/s"));
 
   if (config_.gettingMissingBlocksSummaryWindowSize > 0) {
-    auto blocks_win_r = blocks_collected_.getPrevWinResults();
-    auto bytes_win_r = bytes_collected_.getPrevWinResults();
-    auto prev_win_index = blocks_collected_.getPrevWinIndex();
+    auto blocks_win_r = blocksFetched_.getPrevWinResults();
+    auto bytes_win_r = bytesFetched_.getPrevWinResults();
+    auto prev_win_index = blocksFetched_.getPrevWinIndex();
 
     bj.startNested("lastWindow");
     bj.addKv("index", prev_win_index);
-    bj.addKv("elapsedTime", std::to_string(blocks_win_r.elapsed_time_ms_) + " ms");
+    bj.addKv("elapsedTime", convertMillisecToReadableStr(blocks_win_r.elapsed_time_ms_));
     bj.addKv("collected",
-             std::to_string(blocks_win_r.num_processed_items_) + " blk & " +
-                 std::to_string(bytes_win_r.num_processed_items_) + " B");
+             convertUInt64ToReadableStr(blocks_win_r.num_processed_items_, "Blocks") + " / " +
+                 convertUInt64ToReadableStr(bytes_win_r.num_processed_items_, "B "));
     bj.addKv("throughput",
-             std::to_string(blocks_win_r.throughput_) + " blk/s & " + std::to_string(bytes_win_r.throughput_) + " B/s");
+             convertUInt64ToReadableStr(blocks_win_r.throughput_, "Block/s ") + " / " +
+                 convertUInt64ToReadableStr(bytes_win_r.throughput_, "B/s "));
     bj.endNested();
   }
 
   bj.startNested("checkpointInfo");
-
-  bj.addKv("lastStored", psd_->getLastStoredCheckpoint());
+  bj.addKv("lastStored checkpoint", psd_->getLastStoredCheckpoint());
 
   bj.startNested("beingFetched");
-  bj.addKv("checkpointNum", fetched_cp.checkpointNum);
-  bj.addKv("lastBlock", fetched_cp.lastBlock);
+  bj.addKv("target checkpointNum", targetCheckpointDesc_.checkpointNum);
+  bj.addKv("maxBlockId", targetCheckpointDesc_.maxBlockId);
   bj.endNested();
 
   bj.endNested();
-
   bj.endJson();
 
   return bj.getJson();
@@ -2395,24 +2706,26 @@ void BCStateTran::finalizeSource(bool logSrcHistograms) {
   clearIoContexts();
 }
 
-bool BCStateTran::finalizePutblockAsync(bool lastBlock, PutBlockWaitPolicy waitPolicy) {
+bool BCStateTran::finalizePutblockAsync(PutBlockWaitPolicy waitPolicy, DataStoreTransaction *txn) {
+  // WAIT_SINGLE_JOB: We have a block ready in buffer_, but no free context. let's wait for one job to finish.
+  // NO_WAIT: Opportunistic: finalize all jobs that are done, don't wait for the ongoing ones.
+  // WAIT_ALL_JOBS: wait for all jobs to finish (blocking call).
   // Comment on committing asynchronously:
-  // In the very rare case of a core dump or temination, we will just fetch the committed blocks again.
-  // Putting an existing block is completely valid operation as long as the block we put before core dump and the block
-  // we put now are identical.
+  // In the very rare case of a core dump or termination, we will just fetch the committed blocks again.
+  // Putting an existing block is completely valid operation as long as the block we put before core dump and the
+  // block we put now are identical.
   bool doneProcesssing = true;
 
   if (ioContexts_.empty()) {
     return doneProcesssing;
   }
-  ConcordAssertGT(nextCommittedBlockId_, 0);
-  auto initialNextCommittedBlockId_ = nextCommittedBlockId_;
+  ConcordAssertGT(commitState_.nextBlockId, 0);
 
-  DataStoreTransaction::Guard g(psd_->beginTransaction());
+  uint64_t firstRequiredBlockId = std::numeric_limits<uint64_t>::max();
   while (!ioContexts_.empty()) {
     auto &ctx = ioContexts_.front();
     ConcordAssert(ctx->future.valid());
-    if ((waitPolicy == PutBlockWaitPolicy::NO_WAIT) && !lastBlock &&
+    if ((waitPolicy == PutBlockWaitPolicy::NO_WAIT) &&
         (ctx->future.wait_for(std::chrono::nanoseconds(0)) != std::future_status::ready)) {
       doneProcesssing = false;
       // to reduce the number of one shot timer invocations by more than 90%, we do an approximation and use
@@ -2425,7 +2738,8 @@ bool BCStateTran::finalizePutblockAsync(bool lastBlock, PutBlockWaitPolicy waitP
       }
       break;
     }
-    ConcordAssertEQ(ctx->blockId, nextCommittedBlockId_);
+    // currently, fetch must wait to commit before moving into the next batch, so the next assert must always be true
+    ConcordAssertEQ(ctx->blockId, commitState_.nextBlockId);
     try {
       ConcordAssertEQ(ctx->future.get(), true);
     } catch (const std::exception &e) {
@@ -2433,324 +2747,548 @@ bool BCStateTran::finalizePutblockAsync(bool lastBlock, PutBlockWaitPolicy waitP
       ConcordAssert(false);
     }
 
-    LOG_TRACE(logger_, "Finalized putBlockAsync:" << KVLOG(ctx->blockId, nextCommittedBlockId_));
+    LOG_DEBUG(logger_, "Block Committed (written to ST blockchain):" << KVLOG(ctx->blockId));
+
+    // Report block as collected only after it is also committed
+    reportCollectingStatus(ctx->actualBlockSize, isLastFetchedBlockIdInCycle(ctx->blockId));
+
     ioPool_.free(ctx);
-    ioContexts_.pop_front();  // free memory
-    ConcordAssertGT(nextCommittedBlockId_, 0);
-    --nextCommittedBlockId_;
-    if (waitPolicy == PutBlockWaitPolicy::WAIT_SINGLE_JOB) waitPolicy = PutBlockWaitPolicy::NO_WAIT;
+    ioContexts_.pop_front();
+    if (commitState_.nextBlockId == commitState_.minBlockId) {
+      if (postProcessingQ_) {
+        // Completed batch commit to blockchain ST - now, lets post-process these blocks
+        if (commitState_.minBlockId == minBlockIdToCollectInCycle_) {
+          // we measure the total time to commit to chain, assuming that post-processing thread always has what to do
+          // if this incorrect, it will include "idle" durations
+          postProcessingDT_.start();
+          blocksPostProcessed_.start();
+        }
+        postProcessingQ_->push(std::bind(&BCStateTran::postProcessNextBatch, this, commitState_.maxBlockId));
+        postProcessingUpperBoundBlockId_ = commitState_.maxBlockId;
+      }
+      firstRequiredBlockId = commitState_.maxBlockId + 1;
+      auto oldCommitState_ = commitState_;
+      ConcordAssertLE(firstRequiredBlockId, psd_->getLastRequiredBlock());
+      LOG_INFO(logger_,
+               "Done committing blocks [" << oldCommitState_.minBlockId << "," << oldCommitState_.maxBlockId
+                                          << "], new commitState_:" << commitState_
+                                          << KVLOG(firstRequiredBlockId, postProcessingUpperBoundBlockId_));
+      ConcordAssert(ioContexts_.empty());
+      break;
+    } else {
+      --commitState_.nextBlockId;
+      LOG_TRACE(logger_, KVLOG(commitState_));
+    }
+    if (waitPolicy == PutBlockWaitPolicy::WAIT_SINGLE_JOB) {
+      waitPolicy = PutBlockWaitPolicy::NO_WAIT;
+    }
+  }  // while
+
+  if (firstRequiredBlockId != std::numeric_limits<uint64_t>::max()) {
+    txn->setFirstRequiredBlock(firstRequiredBlockId);
   }
-  if (initialNextCommittedBlockId_ != nextCommittedBlockId_) g.txn()->setLastRequiredBlock(nextCommittedBlockId_);
   return doneProcesssing;
 }
 
-void BCStateTran::processData(bool lastInBatch) {
+// Compute the next batch reqired, taking into accont: minRequiredBlockId
+// and configuration parameters fetchRangeSize and maxNumberOfChunksInBatch
+BCStateTran::BlocksBatchDesc BCStateTran::computeNextBatchToFetch(uint64_t minRequiredBlockId) {
+  uint64_t maxRequiredBlockId = minRequiredBlockId + config_.maxNumberOfChunksInBatch - 1;
+  if (!isRvbBlockId(maxRequiredBlockId)) {
+    uint64_t deltaToNearestRVB = maxRequiredBlockId % config_.fetchRangeSize;
+    if ((maxRequiredBlockId >= deltaToNearestRVB) && (maxRequiredBlockId - deltaToNearestRVB >= minRequiredBlockId))
+      maxRequiredBlockId = maxRequiredBlockId - deltaToNearestRVB;
+  }
+  auto lastRequiredBlock = psd_->getLastRequiredBlock();
+  maxRequiredBlockId = std::min(maxRequiredBlockId, lastRequiredBlock);
+
+  // Check with RVB manager that we are not between borders of RVB groups. This is rare, but we want to avoid the case
+  // where we will need to ask for multiple digest groups. This make code more complicated.
+  BlockId rvbmUpperBound = rvbm_->getRvbGroupMaxBlockIdOfNonStoredRvbGroup(minRequiredBlockId, maxRequiredBlockId);
+  maxRequiredBlockId = std::min(maxRequiredBlockId, rvbmUpperBound);
+  BlocksBatchDesc fetchBatch;
+  fetchBatch.maxBlockId = maxRequiredBlockId;
+  fetchBatch.nextBlockId = maxRequiredBlockId;
+  fetchBatch.upperBoundBlockId = maxRequiredBlockId;
+  fetchBatch.minBlockId = minRequiredBlockId;
+  digestOfNextRequiredBlock_.makeZero();
+  ConcordAssert(fetchBatch.isValid());
+  ConcordAssertLT(fetchState_.nextBlockId, config_.maxNumberOfChunksInBatch + fetchBatch.minBlockId);
+  LOG_INFO(logger_, KVLOG(minRequiredBlockId, maxRequiredBlockId, rvbmUpperBound, fetchBatch, lastRequiredBlock));
+  return fetchBatch;
+}
+
+bool BCStateTran::isMinBlockIdInFetchRange(uint64_t blockId) const {
+  ConcordAssertGT(blockId, 0);
+  return ((blockId % config_.fetchRangeSize) == 1);
+}
+
+bool BCStateTran::isMaxBlockIdInFetchRange(uint64_t blockId) const {
+  ConcordAssertGT(blockId, 0);
+  return ((blockId % config_.fetchRangeSize) == 0);
+}
+
+bool BCStateTran::isRvbBlockId(uint64_t blockId) const {
+  ConcordAssertGT(blockId, 0);
+  return ((blockId % config_.fetchRangeSize) == 0);
+}
+
+uint64_t BCStateTran::prevRvbBlockId(uint64_t block_id) const {
+  return config_.fetchRangeSize * (block_id / config_.fetchRangeSize);
+}
+
+uint64_t BCStateTran::nextRvbBlockId(uint64_t block_id) const {
+  uint64_t next_rvb_id = config_.fetchRangeSize * (block_id / config_.fetchRangeSize);
+  if (next_rvb_id < block_id) {
+    next_rvb_id += config_.fetchRangeSize;
+  }
+  return next_rvb_id;
+}
+
+bool BCStateTran::isLastFetchedBlockIdInCycle(uint64_t blockId) const {
+  return (blockId == fetchState_.minBlockId) && (psd_->getLastRequiredBlock() == fetchState_.maxBlockId);
+}
+
+bool BCStateTran::isMaxFetchedBlockIdInCycle(uint64_t blockId) const {
+  return (blockId == fetchState_.maxBlockId) && (psd_->getLastRequiredBlock() == fetchState_.maxBlockId);
+}
+
+void BCStateTran::postProcessNextBatch(uint64_t upperBoundBlockId) {
+  static uint64_t iteration{};
+
+  if (upperBoundBlockId == maxPostprocessedBlockId_) {
+    // This can happen due to trigger mechanism, ignore
+    LOG_INFO(logger_, "Ignore request:" << KVLOG(upperBoundBlockId, maxPostprocessedBlockId_));
+    return;
+  }
+
+  ConcordAssertGT(upperBoundBlockId, maxPostprocessedBlockId_);
+  LOG_DEBUG(logger_, "Before postProcessUntilBlockId" << KVLOG(upperBoundBlockId));
+  auto totalBlocksProcessed = as_->postProcessUntilBlockId(upperBoundBlockId);
+  ++iteration;
+  bool reportToLog = (iteration % blocksPostProcessedReportWindow) == 0;
+  if (totalBlocksProcessed) {
+    blocksPostProcessed_.report(totalBlocksProcessed, reportToLog);
+  }
+  if (reportToLog) {
+    std::ostringstream oss;
+    oss << "Done post-processing (iteration #" << iteration << ") " << totalBlocksProcessed << " blocks, range=["
+        << (maxPostprocessedBlockId_ + 1) << "," << upperBoundBlockId << "]"
+        << KVLOG(upperBoundBlockId, maxPostprocessedBlockId_, postProcessingQ_->size());
+    auto overallResults = blocksPostProcessed_.getOverallResults();
+    auto prevWinResults = blocksPostProcessed_.getPrevWinResults();
+    auto blocksLeftToPostProcess = maxBlockIdToCollectInCycle_ - maxPostprocessedBlockId_;
+    uint64_t timeToCompleteMs =
+        (overallResults.throughput_ > 0) ? (blocksLeftToPostProcess * 1000) / overallResults.throughput_ : 0;
+    oss << " ,Throughput (overall): " << convertUInt64ToReadableStr(overallResults.throughput_, "Block/sec")
+        << " ,Throughput (last " << blocksPostProcessedReportWindow
+        << " iterations): " << convertUInt64ToReadableStr(prevWinResults.throughput_, "Block/sec")
+        << " ,Estimated time to reach max cycle block ID " << maxBlockIdToCollectInCycle_ << ": "
+        << convertMillisecToReadableStr(timeToCompleteMs);
+    LOG_INFO(logger_, oss.str());
+  } else {
+    LOG_DEBUG(logger_, "Done postProcessUntilBlockId" << KVLOG(upperBoundBlockId));
+  }
+  maxPostprocessedBlockId_ = upperBoundBlockId;
+}
+
+void BCStateTran::stReset(DataStoreTransaction *txn, bool resetRvbm, bool resetStoredCp, bool resetDataStore) {
+  LOG_INFO(logger_, "");
+  if (!ioContexts_.empty() || sourceFlag_) {
+    finalizeSource(sourceFlag_);
+  }
+  if (commitState_.nextBlockId > 0) {
+    finalizePutblockAsync(PutBlockWaitPolicy::WAIT_ALL_JOBS, txn);
+  }
+  digestOfNextRequiredBlock_.makeZero();
+  clearAllPendingItemsData();
+  clearInfoAboutGettingCheckpointSummary();
+  fetchState_.reset();
+  commitState_.reset();
+  sourceSelector_.reset();
+  targetCheckpointDesc_.makeZero();
+  postponedSendFetchBlocksMsg_ = false;
+  postProcessingUpperBoundBlockId_ = 0;
+  maxPostprocessedBlockId_ = 0;
+  lastMilliOfUniqueFetchID_ = 0;
+  lastCountOfUniqueFetchID_ = 0;
+  totalRvbsValidatedInCycle_ = 0;
+  lastMsgSeqNum_ = 0;
+  lastMsgSeqNumOfReplicas_.clear();
+  for (auto i : cacheOfVirtualBlockForResPages) {
+    std::free(i.second);
+  }
+  cacheOfVirtualBlockForResPages.clear();
+  lastTimeSentAskForCheckpointSummariesMsg = 0;
+  retransmissionNumberOfAskForCheckpointSummariesMsg = 0;
+  for (auto i : summariesCerts) {
+    replicaForStateTransfer_->freeStateTransferMsg(reinterpret_cast<char *>(i.second));
+  }
+  summariesCerts.clear();
+  numOfSummariesFromOtherReplicas.clear();
+  clearIoContexts();
+  ConcordAssert(ioPool_.full());
+  verifyEmptyInfoAboutGettingCheckpointSummary();
+
+  if (resetStoredCp) {
+    ConcordAssert(txn != nullptr);
+    txn->setLastStoredCheckpoint(0);
+    txn->setFirstStoredCheckpoint(0);
+  }
+  if (resetDataStore) {
+    ConcordAssert(txn != nullptr);
+    txn->setIsFetchingState(false);
+    txn->setFirstRequiredBlock(0);
+    txn->setLastRequiredBlock(0);
+    txn->setAsInitialized();
+    ConcordAssertEQ(getFetchingState(), FetchingState::NotFetching);
+  }
+  if (resetRvbm) {
+    rvbm_->reset();
+  }
+}
+
+void BCStateTran::processData(bool lastInBatch, uint32_t rvbDigestsSize) {
   const FetchingState fs = getFetchingState();
   const auto fetchingState = fs;
   LOG_DEBUG(logger_, KVLOG(fetchingState));
+  const bool isGettingBlocks = (fs == FetchingState::GettingMissingBlocks);
+  const uint64_t currTime = getMonotonicTimeMilli();
+  bool badDataFromCurrentSourceReplica = false;
 
   ConcordAssertOR(fs == FetchingState::GettingMissingBlocks, fs == FetchingState::GettingMissingResPages);
   ConcordAssert(sourceSelector_.hasPreferredReplicas());
   ConcordAssertLE(totalSizeOfPendingItemDataMsgs, config_.maxPendingDataFromSourceReplica);
-
-  const bool isGettingBlocks = (fs == FetchingState::GettingMissingBlocks);
-
-  ConcordAssertOR(!isGettingBlocks, psd_->getLastRequiredBlock() != 0);
-  ConcordAssertOR(isGettingBlocks, psd_->getLastRequiredBlock() == 0);
-
-  const uint64_t currTime = getMonotonicTimeMilli();
-  bool badDataFromCurrentSourceReplica = false;
-
+  ConcordAssertOR(isGettingBlocks && (psd_->getLastRequiredBlock() != 0),
+                  !isGettingBlocks && (psd_->getLastRequiredBlock() == 0));
   while (true) {
-    bool newSourceReplica = sourceSelector_.shouldReplaceSource(currTime, badDataFromCurrentSourceReplica);
-
+    //////////////////////////////////////////////////////////////////////////
+    // Select a source replica (if need to)
+    /////////////////////////////////////////////////////////////////////////
+    const auto srcReplacementMode =
+        sourceSelector_.shouldReplaceSource(currTime, badDataFromCurrentSourceReplica, lastInBatch);
+    bool newSourceReplica = (srcReplacementMode != SourceReplacementMode::DO_NOT);
     if (newSourceReplica) {
-      //////////////////////////////////////////////////////////////////////////
-      // Select a source replica
-      //////////////////////////////////////////////////////////////////////////
-      sourceSelector_.removeCurrentReplica();
-      if (fs == FetchingState::GettingMissingResPages && sourceSelector_.noPreferredReplicas()) {
-        EnterGettingCheckpointSummariesState();
+      if ((fs == FetchingState::GettingMissingResPages) && sourceSelector_.noPreferredReplicas()) {
+        // enter a new cycle
+        startCollectingStateInternal();
         return;
       }
       sourceSelector_.updateSource(currTime);
-      auto currentSource = sourceSelector_.currentReplica();
-      LOG_DEBUG(logger_, "Selected new source replica: " << currentSource);
-      metrics_.current_source_replica_.Get().Set(currentSource);
-      metrics_.preferred_replicas_.Get().Set(sourceSelector_.preferredReplicasToString());
       badDataFromCurrentSourceReplica = false;
-      clearAllPendingItemsData();
+      if (srcReplacementMode == SourceReplacementMode::IMMEDIATE) {
+        clearAllPendingItemsData();
+      }
     }
 
     // We have a valid source replica at this point
     ConcordAssert(sourceSelector_.hasSource());
     ConcordAssertEQ(badDataFromCurrentSourceReplica, false);
-
-    if (nextRequiredBlock_ == 0) {
-      //////////////////////////////////////////////////////////////////////////
-      // Determine the next required block
-      //////////////////////////////////////////////////////////////////////////
-      ConcordAssert(digestOfNextRequiredBlock.isZero());
-
-      DataStore::CheckpointDesc cp = psd_->getCheckpointBeingFetched();
-      if (!isGettingBlocks) {
-        nextRequiredBlock_ = ID_OF_VBLOCK_RES_PAGES;
-        digestOfNextRequiredBlock = cp.digestOfResPagesDescriptor;
-      } else {
-        nextRequiredBlock_ = psd_->getLastRequiredBlock();
-        nextCommittedBlockId_ = nextRequiredBlock_;
-
-        // if this is the last block in this checkpoint
-        if (cp.lastBlock == nextRequiredBlock_) {
-          digestOfNextRequiredBlock = cp.digestOfLastBlock;
-        } else {
-          // we should already have block number nextRequiredBlock_+1
-          ConcordAssert(as_->hasBlock(nextRequiredBlock_ + 1));
-          as_->getPrevDigestFromBlock(nextRequiredBlock_ + 1,
-                                      reinterpret_cast<StateTransferDigest *>(&digestOfNextRequiredBlock));
-        }
-        if (!firstCollectedBlockId_) firstCollectedBlockId_ = nextRequiredBlock_;
-      }
+    bool onGettingMissingBlocks =
+        (fetchingState == FetchingState::GettingMissingBlocks) && (commitState_.isValid()) && (fetchState_.isValid()) &&
+        (commitState_ <= fetchState_) &&
+        ((fetchState_.nextBlockId == fetchState_.maxBlockId) || !digestOfNextRequiredBlock_.isZero());
+    bool onGettingMissingResPages = (fetchingState == FetchingState::GettingMissingResPages) &&
+                                    (fetchState_.nextBlockId == ID_OF_VBLOCK_RES_PAGES) &&
+                                    !digestOfNextRequiredBlock_.isZero();
+    if (!onGettingMissingBlocks && !onGettingMissingResPages) {
+      LOG_FATAL(logger_,
+                "Invalid fetch/commit state:" << KVLOG(
+                    stateName(fetchingState), fetchState_, commitState_, digestOfNextRequiredBlock_));
+      ConcordAssert(false);
     }
-
-    ConcordAssertNE(nextRequiredBlock_, 0);
-    ConcordAssertOR(
-        (fetchingState == FetchingState::GettingMissingBlocks) && (nextCommittedBlockId_ >= nextRequiredBlock_),
-        (fetchingState == FetchingState::GettingMissingResPages) && (nextRequiredBlock_ == ID_OF_VBLOCK_RES_PAGES));
-    ConcordAssert(!digestOfNextRequiredBlock.isZero());
-
-    LOG_DEBUG(logger_, KVLOG(nextRequiredBlock_, digestOfNextRequiredBlock, nextCommittedBlockId_));
+    LOG_DEBUG(
+        logger_,
+        "fetchState_:" << fetchState_ << " commitState_:" << commitState_
+                       << KVLOG(
+                              maxPostprocessedBlockId_, postProcessingUpperBoundBlockId_, digestOfNextRequiredBlock_));
 
     //////////////////////////////////////////////////////////////////////////
     // Process and check the available chunks
     //////////////////////////////////////////////////////////////////////////
     int16_t lastChunkInRequiredBlock = 0;
-    uint32_t actualBlockSize = 0;
+    uint32_t actualBuffersize = 0;
 
     // TODO (GL) - for now (for simplicity) to support chunking, we call with buffer_ as an input. Later on we copy
     // buffer_ into BlockIOContext::blockData when the block is full.
     // We can save this copy by calling with BlockIOContext::blockData.
-    // But this is more complex. In general, copying memory shouldn't impact perfroamnce much (micro-seconds)
+    // But this is more complex. In general, copying memory shouldn't impact performance much (micro-seconds)
     // so we are OK with it now.
-    const bool newBlock = getNextFullBlock(nextRequiredBlock_,
+    const bool newBlock = getNextFullBlock(fetchState_.nextBlockId,
                                            badDataFromCurrentSourceReplica,
                                            lastChunkInRequiredBlock,
                                            buffer_.get(),
-                                           actualBlockSize,
+                                           actualBuffersize,
                                            !isGettingBlocks);
     bool newBlockIsValid = false;
-
+    char *blockData = buffer_.get() + rvbDigestsSize;
+    size_t blockDataSize = actualBuffersize - rvbDigestsSize;
+    char *rvbDigests = (rvbDigestsSize > 0) ? buffer_.get() : nullptr;
     if (newBlock && isGettingBlocks) {
       TimeRecorder scoped_timer(*histograms_.dst_digest_calc_duration);
       ConcordAssert(!badDataFromCurrentSourceReplica);
-      newBlockIsValid = checkBlock(nextRequiredBlock_, digestOfNextRequiredBlock, buffer_.get(), actualBlockSize);
-      badDataFromCurrentSourceReplica = !newBlockIsValid;
+
+      if (rvbDigestsSize > 0) {
+        LOG_INFO(logger_, "Setting RVB digests into RVB manager:" << KVLOG(rvbDigestsSize));
+        if (!rvbm_->setSerializedDigestsOfRvbGroup(rvbDigests,
+                                                   rvbDigestsSize,
+                                                   fetchState_.minBlockId,
+                                                   fetchState_.maxBlockId,
+                                                   targetCheckpointDesc_.maxBlockId)) {
+          metrics_.overall_rvb_digest_groups_validation_failed_++;
+          LOG_ERROR(logger_, "Setting RVB digests into RVB manager failed!");
+          badDataFromCurrentSourceReplica = true;
+        } else {
+          metrics_.overall_rvb_digest_groups_validated_++;
+        }
+      }
+
+      if (!badDataFromCurrentSourceReplica) {
+        newBlockIsValid = checkBlock(fetchState_.nextBlockId, blockData, blockDataSize);
+        badDataFromCurrentSourceReplica = !newBlockIsValid;
+      }
     } else if (newBlock && !isGettingBlocks) {
       ConcordAssert(!badDataFromCurrentSourceReplica);
       if (!config_.enableReservedPages)
         newBlockIsValid = true;
       else
-        newBlockIsValid = checkVirtualBlockOfResPages(digestOfNextRequiredBlock, buffer_.get(), actualBlockSize);
+        newBlockIsValid = checkVirtualBlockOfResPages(digestOfNextRequiredBlock_, buffer_.get(), actualBuffersize);
 
       badDataFromCurrentSourceReplica = !newBlockIsValid;
     } else {
-      ConcordAssertAND(!newBlock, actualBlockSize == 0);
+      ConcordAssertAND(!newBlock, actualBuffersize == 0);
     }
 
     LOG_DEBUG(logger_,
-              std::boolalpha << KVLOG(
-                  newBlock, newBlockIsValid, actualBlockSize, badDataFromCurrentSourceReplica, lastInBatch));
+              std::boolalpha << KVLOG(newBlock,
+                                      newBlockIsValid,
+                                      actualBuffersize,
+                                      blockDataSize,
+                                      rvbDigestsSize,
+                                      badDataFromCurrentSourceReplica,
+                                      lastInBatch));
 
-    const uint64_t firstRequiredBlock = psd_->getFirstRequiredBlock();
-    bool lastBlock = isGettingBlocks && (firstRequiredBlock >= nextRequiredBlock_);
-    if (!lastCollectedBlockId_) lastCollectedBlockId_ = firstRequiredBlock;
-    if (newBlockIsValid && isGettingBlocks) {
-      //////////////////////////////////////////////////////////////////////////
-      // if we have a new block
-      //////////////////////////////////////////////////////////////////////////
-      sourceSelector_.setSourceSelectionTime(currTime);
-      sourceSelector_.onReceivedValidBlockFromSource();
-
-      ConcordAssertAND(lastChunkInRequiredBlock >= 1, actualBlockSize > 0);
-
-      // Report collecting status for every block collected. Log entry is created every fixed window
-      // gettingMissingBlocksSummaryWindowSize. If lastBlock is true: summarize the whole cycle without including
-      // "commit to chain duration" and vblock. In that case last window might be less than the fixed
-      // gettingMissingBlocksSummaryWindowSize.
-      reportCollectingStatus(firstRequiredBlock, actualBlockSize, lastBlock);
-
-      // Put the block. We distinguishe between last block non-last block
-      std::stringstream ss;
-      ss << "Before putBlock id " << nextRequiredBlock_ << ":" << std::boolalpha << KVLOG(lastBlock, actualBlockSize);
-      if (!lastBlock) {
-        //////////////////////////////////////////////////////////////////////////
-        // Not the last block
-        //////////////////////////////////////////////////////////////////////////
-        LOG_DEBUG(logger_, ss.str());
-        if (ioPool_.empty()) {
-          // We have a block ready in buffer_, but no free context. let's wait for one job to finish.
-          finalizePutblockAsync(lastBlock, PutBlockWaitPolicy::WAIT_SINGLE_JOB);
-        }
-        auto ctx = ioPool_.alloc();
-        ctx->blockId = nextRequiredBlock_;
-        ctx->actualBlockSize = actualBlockSize;
-        // TODO - this can probably be optimized - see TODO above getNextFullBlock
-        memcpy(ctx->blockData.get(), buffer_.get(), actualBlockSize);
-        ctx->future = as_->putBlockAsync(nextRequiredBlock_, ctx->blockData.get(), ctx->actualBlockSize, false);
-        ioContexts_.push_back(std::move(ctx));
-        histograms_.dst_num_pending_blocks_to_commit->record(ioContexts_.size());
-        finalizePutblockAsync(lastBlock, PutBlockWaitPolicy::NO_WAIT);
-
-        as_->getPrevDigestFromBlock(
-            buffer_.get(), actualBlockSize, reinterpret_cast<StateTransferDigest *>(&digestOfNextRequiredBlock));
-        ConcordAssertGT(nextRequiredBlock_, 0);
-        --nextRequiredBlock_;
-        LOG_TRACE(logger_, KVLOG(nextRequiredBlock_));
-        if (lastInBatch || posponedSendFetchBlocksMsg_ || newSourceReplica) {
-          trySendFetchBlocksMsg(firstRequiredBlock,
-                                nextRequiredBlock_,
-                                0,
-                                KVLOG(lastInBatch, posponedSendFetchBlocksMsg_, newSourceReplica));
-          break;
-        }
-      } else {
-        //////////////////////////////////////////////////////////////////////////
-        // This is the last block we need
-        //////////////////////////////////////////////////////////////////////////
-        LOG_INFO(logger_, ss.str());
-        commitToChainDT_.start();
-        blocks_collected_.pause();
-        bytes_collected_.pause();
-        finalizePutblockAsync(lastBlock, PutBlockWaitPolicy::WAIT_ALL_JOBS);
-
+    if (newBlockIsValid) {
+      if (isGettingBlocks) {
         DataStoreTransaction::Guard g(psd_->beginTransaction());
-        ConcordAssertEQ(nextCommittedBlockId_, nextRequiredBlock_);
-        ConcordAssert(ioContexts_.empty());
-        ConcordAssert(as_->putBlock(nextRequiredBlock_, buffer_.get(), actualBlockSize, lastBlock));
+        //////////////////////////////////////////////////////////////////////////
+        // if we have a new block
+        //////////////////////////////////////////////////////////////////////////
+        ConcordAssertAND(lastChunkInRequiredBlock >= 1, actualBuffersize > 0);
 
-        commitToChainDT_.pause();
-        g.txn()->setFirstRequiredBlock(0);
-        g.txn()->setLastRequiredBlock(0);
-        clearAllPendingItemsData();
-        nextRequiredBlock_ = 0;
-        nextCommittedBlockId_ = 0;
-        digestOfNextRequiredBlock.makeZero();
+        sourceSelector_.onReceivedValidBlockFromSource();
+        bool lastFetchedBlockIdInCycle = isLastFetchedBlockIdInCycle(fetchState_.nextBlockId);
+        bool minBlockIdInCurrentBatch = fetchState_.isMinBlockId(fetchState_.nextBlockId);
 
-        ConcordAssertEQ(getFetchingState(), FetchingState::GettingMissingResPages);
+        // WAIT_SINGLE_JOB: We have a block ready in buffer_, but no free context. let's wait for one job to finish.
+        // NO_WAIT: Opportunistic - finalize all jobs that are done, don't wait for the onging ones
+        finalizePutblockAsync(ioPool_.empty() ? PutBlockWaitPolicy::WAIT_SINGLE_JOB : PutBlockWaitPolicy::NO_WAIT,
+                              g.txn());
 
-        // Log histograms for destination when GettingMissingBlocks is done
-        // Do it for a cycle that lasted more than 10 seconds
-        auto duration = cycleDT_.pause();
-        if (duration > 10000) {
-          auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-          registrar.perf.snapshot("state_transfer");
-          registrar.perf.snapshot("state_transfer_dest");
-          LOG_INFO(logger_, registrar.perf.toString(registrar.perf.get("state_transfer")));
-          LOG_INFO(logger_, registrar.perf.toString(registrar.perf.get("state_transfer_dest")));
-        } else
-          LOG_INFO(logger_, "skip logging snapshots, cycle is very short (not enough statistics)" << KVLOG(duration));
-        cycleDT_.start();
-        sendFetchResPagesMsg(0);
-        break;
-      }
-    } else if (newBlockIsValid && !isGettingBlocks) {
-      //////////////////////////////////////////////////////////////////////////
-      // if we have a new vblock
-      //////////////////////////////////////////////////////////////////////////
-      DataStoreTransaction::Guard g(psd_->beginTransaction());
-      sourceSelector_.setSourceSelectionTime(currTime);
-      sourceSelector_.onReceivedValidBlockFromSource();
+        // Put the block. We distinguishe between last block in cycle, minimal block ID in fetch range (last one), and
+        // a 'regular' block
+        std::stringstream ss;
+        ss << "Before putBlock id " << fetchState_.nextBlockId << ":" << std::boolalpha
+           << KVLOG(lastFetchedBlockIdInCycle, minBlockIdInCurrentBatch, actualBuffersize);
+        if (!lastFetchedBlockIdInCycle) {
+          //////////////////////////////////////////////////////////////////////////
+          // Not the last block to collect in cycle
+          //////////////////////////////////////////////////////////////////////////
+          LOG_DEBUG(logger_, ss.str());
+          auto ctx = ioPool_.alloc();
+          ctx->blockId = fetchState_.nextBlockId;
+          ctx->actualBlockSize = blockDataSize;
+          // TODO - this can probably be optimized - see TODO above getNextFullBlock
+          memcpy(ctx->blockData.get(), blockData, blockDataSize);
+          clearPendingItemsData(fetchState_.nextBlockId, fetchState_.nextBlockId);
+          ctx->future = as_->putBlockAsync(fetchState_.nextBlockId, ctx->blockData.get(), ctx->actualBlockSize, false);
+          ioContexts_.push_back(std::move(ctx));
+          histograms_.dst_num_pending_blocks_to_commit->record(ioContexts_.size());
+          as_->getPrevDigestFromBlock(
+              blockData, blockDataSize, reinterpret_cast<StateTransferDigest *>(&digestOfNextRequiredBlock_));
+          if (minBlockIdInCurrentBatch) {
+            //////////////////////////////////////////////////////////////////////////
+            // Last block Collected in batch!
+            //////////////////////////////////////////////////////////////////////////
+            uint64_t nextBatcheMinBlockId = fetchState_.maxBlockId + 1;
+            ConcordAssertLE(nextBatcheMinBlockId, g.txn()->getLastRequiredBlock());
+            auto oldFetchState_ = fetchState_;
 
-      if (config_.enableReservedPages) {
-        // set the updated pages
-        uint32_t numOfUpdates = getNumberOfElements(buffer_.get());
-        LOG_DEBUG(logger_, "numOfUpdates in vblock: " << numOfUpdates);
-        for (uint32_t i = 0; i < numOfUpdates; i++) {
-          ElementOfVirtualBlock *e = getVirtualElement(i, config_.sizeOfReservedPage, buffer_.get());
-          g.txn()->setResPage(e->pageId, e->checkpointNumber, e->pageDigest, e->page);
-          LOG_DEBUG(logger_, "Update page " << e->pageId);
-        }
-      }
-      ConcordAssert(g.txn()->hasCheckpointBeingFetched());
-
-      DataStore::CheckpointDesc cp = g.txn()->getCheckpointBeingFetched();
-
-      // set stored data
-      ConcordAssertEQ(g.txn()->getFirstRequiredBlock(), 0);
-      ConcordAssertEQ(g.txn()->getLastRequiredBlock(), 0);
-      ConcordAssertGT(cp.checkpointNum, g.txn()->getLastStoredCheckpoint());
-      ConcordAssert(ioContexts_.empty());
-
-      g.txn()->setCheckpointDesc(cp.checkpointNum, cp);
-      g.txn()->deleteCheckpointBeingFetched();
-      deleteOldCheckpoints(cp.checkpointNum, g.txn());
-      metrics_.preferred_replicas_.Get().Set("");
-      metrics_.current_source_replica_.Get().Set(NO_REPLICA);
-      nextRequiredBlock_ = 0;
-      digestOfNextRequiredBlock.makeZero();
-      clearAllPendingItemsData();
-
-      // Metrics set at the end of the block to prevent transaction abort from
-      // leaving inconsistencies.
-      metrics_.preferred_replicas_.Get().Set("");
-      metrics_.current_source_replica_.Get().Set(sourceSelector_.currentReplica());
-      metrics_.last_stored_checkpoint_.Get().Set(cp.checkpointNum);
-      metrics_.checkpoint_being_fetched_.Get().Set(0);
-
-      checkConsistency(config_.pedanticChecks);
-      if (!config_.isReadOnly && cre_) {
-        // At this point, we, if are not going to have another blocks in state transfer. So, we can safely stop CRE.
-        // if there is a reconfiguration state change that prevents us from starting another state transfer (i.e.
-        // scaling) then CRE probably won't work as well.
-        // 1. First, make sure we handled the most recent available updates.
-        concord::client::reconfiguration::PollBasedStateClient *pbc =
-            (concord::client::reconfiguration::PollBasedStateClient *)(cre_->getStateClient());
-        bool succ = false;
-        while (!succ) {
-          auto latestHandledUpdate = cre_->getLatestKnownUpdateBlock();
-          auto latestReconfUpdates = pbc->getStateUpdate(succ);
-          if (!succ) {
-            LOG_ERROR(logger_, "unable to get the latest reconfiguration updates");
+            // Currently, for simplicity - wait for temproary commit to end.
+            // TODO - it should be possible to push fetchState_ into a new data structure and replace it with
+            // commitState upperBound  work on in the next batch
+            finalizePutblockAsync(PutBlockWaitPolicy::WAIT_ALL_JOBS, g.txn());
+            fetchState_ = computeNextBatchToFetch(nextBatcheMinBlockId);
+            commitState_ = fetchState_;
+            LOG_TRACE(logger_, KVLOG(fetchState_, nextBatcheMinBlockId));
+            ConcordAssert(commitState_.isValid());
+            LOG_INFO(logger_,
+                     "Done putting (async) blocks [" << oldFetchState_.minBlockId << "," << oldFetchState_.maxBlockId
+                                                     << "]," << KVLOG(fetchState_));
+          } else {
+            --fetchState_.nextBlockId;
           }
-          for (const auto &update : latestReconfUpdates) {
-            if (update.blockid > latestHandledUpdate) {
-              succ = false;
-              break;
+          if (lastInBatch || postponedSendFetchBlocksMsg_ || newSourceReplica) {
+            trySendFetchBlocksMsg(0, KVLOG(lastInBatch, postponedSendFetchBlocksMsg_, newSourceReplica));
+            break;
+          }
+        } else {  // lastFetchedBlockIdInCycle == true
+          //////////////////////////////////////////////////////////////////////////
+          // Last block to collect in cycle
+          //////////////////////////////////////////////////////////////////////////
+          // 1) Finalizes all blocks with WAIT_ALL_JOBS and block
+          // 2) Waits for post-processing thread to finish
+          // 3) Put the last block and performs the last post-processing in ST main thread context
+
+          // Wait for all jobs to finish
+          finalizePutblockAsync(PutBlockWaitPolicy::WAIT_ALL_JOBS, g.txn());
+
+          // At this stage we haven't yet committed the last block in cycle so we expect the next assert:
+          ConcordAssertEQ(fetchState_, commitState_);
+          ConcordAssert(ioContexts_.empty());
+          blocksFetched_.stop();
+          bytesFetched_.stop();
+          gettingMissingBlocksDT_.stop();
+
+          // TODO - Due to planned near-future changes, this code is written with simplicity considirations:
+          // Wait on an infinite loop for the post-processing thread to finish. This was the similar behavior util now
+          // - ST main thread used to post-process here until all blocks are taken our from ST temporary blockchain
+          // and moved to consensus blockchain.
+          // Comment: Collecting reserved pages is very fast - no reason to do it later.
+          if (postProcessingQ_) {
+            triggerPostProcessing();
+            LOG_INFO(logger_, "Waiting for post processor thread to finish all jobs in queue...");
+            while (!postProcessingQ_->empty() || (postProcessingUpperBoundBlockId_ != maxPostprocessedBlockId_)) {
+              std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+              ConcordAssertLE(maxPostprocessedBlockId_, postProcessingUpperBoundBlockId_);
             }
           }
-        }
-        LOG_INFO(logger_, "halting cre");
-        // 2. Now we can safely halt cre. We know for sure that there are no update in the state transffered blocks that
-        // haven't been handled yet
-        cre_->halt();
-      }
-      // Completion
-      LOG_INFO(logger_, "Invoking onTransferringComplete callbacks for checkpoint number: " << KVLOG(cp.checkpointNum));
-      metrics_.on_transferring_complete_++;
-      for (const auto &kv : on_transferring_complete_cb_registry_) {
-        kv.second.invokeAll(cp.checkpointNum);
-      }
 
-      cycleEndSummary();
-      sourceSelector_.reset();
-      g.txn()->setIsFetchingState(false);
-      ConcordAssertEQ(getFetchingState(), FetchingState::NotFetching);
-      on_fetching_state_change_cb_registry_.invokeAll(cp.checkpointNum);
-      break;
-    } else if (!badDataFromCurrentSourceReplica) {
+          // Write the last block and post-process last range in a cycle in ST main thread context.
+          // After this put all blocks are in place, there is no need to update the RVB data since it reflects the
+          // exact content of the storage after this last put.
+          ConcordAssert(as_->putBlock(fetchState_.nextBlockId, blockData, blockDataSize, true));
+          LOG_INFO(logger_,
+                   "Done putting, committing and post-processing blocks [" << fetchState_.minBlockId << ","
+                                                                           << fetchState_.maxBlockId << "]");
+          postProcessingDT_.stop();
+          blocksPostProcessed_.stop();
+          onGettingMissingBlocksEnd(g.txn());
+
+          // Log histograms for destination when GettingMissingBlocks is done
+          // Do it for a cycle that lasted more than 10 seconds
+          auto duration = cycleDT_.totalDuration(false);
+          if (duration > 10'000) {
+            auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+            registrar.perf.snapshot("state_transfer");
+            registrar.perf.snapshot("state_transfer_dest");
+            LOG_INFO(logger_, registrar.perf.toString(registrar.perf.get("state_transfer")));
+            LOG_INFO(logger_, registrar.perf.toString(registrar.perf.get("state_transfer_dest")));
+          } else {
+            LOG_INFO(logger_, "skip logging snapshots, cycle is very short (not enough statistics)" << KVLOG(duration));
+          }
+
+          sendFetchResPagesMsg(0);
+          break;
+        }
+      } else {  // isGettingBlocks == false
+        //////////////////////////////////////////////////////////////////////////
+        // if we have a new vblock
+        //////////////////////////////////////////////////////////////////////////
+        DataStoreTransaction::Guard g(psd_->beginTransaction());
+        sourceSelector_.onReceivedValidBlockFromSource();
+
+        if (config_.enableReservedPages) {
+          // set the updated pages
+          uint32_t numOfUpdates = getNumberOfElements(buffer_.get());
+          LOG_DEBUG(logger_, "numOfUpdates in vblock: " << numOfUpdates);
+          for (uint32_t i = 0; i < numOfUpdates; i++) {
+            ElementOfVirtualBlock *e = getVirtualElement(i, config_.sizeOfReservedPage, buffer_.get());
+            g.txn()->setResPage(e->pageId, e->checkpointNumber, e->pageDigest, e->page);
+            LOG_DEBUG(logger_, "Update page " << e->pageId);
+          }
+        }
+        ConcordAssert(g.txn()->hasCheckpointBeingFetched());
+
+        DataStore::CheckpointDesc cp = g.txn()->getCheckpointBeingFetched();
+
+        // set stored data
+        ConcordAssertEQ(g.txn()->getFirstRequiredBlock(), 0);
+        ConcordAssertEQ(g.txn()->getLastRequiredBlock(), 0);
+        ConcordAssertGT(cp.checkpointNum, g.txn()->getLastStoredCheckpoint());
+        ConcordAssert(ioContexts_.empty());
+
+        g.txn()->setCheckpointDesc(cp.checkpointNum, cp);
+        g.txn()->deleteCheckpointBeingFetched();
+        deleteOldCheckpoints(cp.checkpointNum, g.txn());
+        LOG_INFO(logger_, "Done fetching reserved pages!");
+
+        // Metrics set at the end of the block to prevent transaction abort from
+        // leaving inconsistencies.
+        metrics_.last_stored_checkpoint_.Get().Set(cp.checkpointNum);
+        metrics_.checkpoint_being_fetched_.Get().Set(0);
+
+        checkConsistency(config_.pedanticChecks);
+
+        // TODO - The next lines up to comment 'YYY' do not belong here (CRE) - move outside
+        if (!config_.isReadOnly && cre_) {
+          // At this point, we, if are not going to have another blocks in state transfer. So, we can safely stop CRE.
+          // if there is a reconfiguration state change that prevents us from starting another state transfer (i.e.
+          // scaling) then CRE probably won't work as well.
+          // 1. First, make sure we handled the most recent available updates.
+          concord::client::reconfiguration::PollBasedStateClient *pbc =
+              (concord::client::reconfiguration::PollBasedStateClient *)(cre_->getStateClient());
+          bool succ = false;
+          while (!succ) {
+            auto latestHandledUpdate = cre_->getLatestKnownUpdateBlock();
+            auto latestReconfUpdates = pbc->getStateUpdate(succ);
+            if (!succ) {
+              LOG_ERROR(logger_, "unable to get the latest reconfiguration updates");
+            }
+            for (const auto &update : latestReconfUpdates) {
+              if (update.blockid > latestHandledUpdate) {
+                succ = false;
+                break;
+              }  // else if (!isGettingBlocks)
+              LOG_INFO(logger_, "halting cre");
+              // 2. Now we can safely halt cre. We know for sure that there are no update in the state transffered
+              // blocks that haven't been handled yet
+              cre_->halt();
+            }
+          }  // while (!succ) {
+        }    // if (!config_.isReadOnly && cre_) {
+        /// YYY - end of section to be moved out
+
+        // Report Completion
+        LOG_INFO(logger_,
+                 "Invoking onTransferringComplete callbacks for checkpoint number: " << KVLOG(cp.checkpointNum));
+        metrics_.on_transferring_complete_++;
+        for (const auto &kv : on_transferring_complete_cb_registry_) {
+          kv.second.invokeAll(cp.checkpointNum);
+        }
+        cycleEndSummary();
+        stReset(g.txn());
+        g.txn()->setIsFetchingState(false);
+        ConcordAssertEQ(getFetchingState(), FetchingState::NotFetching);
+
+        // TODO - This next line should be integrated as a callback into on_transferring_complete_cb_registry_.
+        // on_fetching_state_change_cb_registry_ should be removed
+        on_fetching_state_change_cb_registry_.invokeAll(cp.checkpointNum);
+        break;
+      }  // isGettingBlocks == false
+    }    // if (newBlockIsValid) {
+    else if (!badDataFromCurrentSourceReplica) {
       //////////////////////////////////////////////////////////////////////////
       // if we don't have new full block/vblock (but we did not detect a problem)
       //////////////////////////////////////////////////////////////////////////
-      if (isGettingBlocks) finalizePutblockAsync(lastBlock, PutBlockWaitPolicy::NO_WAIT);
       bool retransmissionTimeoutExpired = sourceSelector_.retransmissionTimeoutExpired(currTime);
-      if (newSourceReplica || retransmissionTimeoutExpired || posponedSendFetchBlocksMsg_ || lastInBatch) {
+      if (newSourceReplica || retransmissionTimeoutExpired || postponedSendFetchBlocksMsg_ || lastInBatch) {
         if (isGettingBlocks) {
-          ConcordAssertEQ(psd_->getLastRequiredBlock(), nextCommittedBlockId_);
+          DataStoreTransaction::Guard g(psd_->beginTransaction());
+          finalizePutblockAsync(PutBlockWaitPolicy::NO_WAIT, g.txn());
           trySendFetchBlocksMsg(
-              psd_->getFirstRequiredBlock(),
-              nextRequiredBlock_,
               lastChunkInRequiredBlock,
-              KVLOG(newSourceReplica, retransmissionTimeoutExpired, posponedSendFetchBlocksMsg_, lastInBatch));
+              KVLOG(newSourceReplica, retransmissionTimeoutExpired, postponedSendFetchBlocksMsg_, lastInBatch));
         } else {
           LOG_INFO(logger_,
                    "Sending FetchResPagesMsg: " << KVLOG(newSourceReplica, retransmissionTimeoutExpired, lastInBatch));
@@ -2762,47 +3300,75 @@ void BCStateTran::processData(bool lastInBatch) {
   }  //  while
 }  // processData
 
+void BCStateTran::onGettingMissingBlocksEnd(DataStoreTransaction *txn) {
+  LOG_INFO(logger_, "Done collecting blocks!");
+  fetchState_.reset();
+  commitState_.reset();
+  clearAllPendingItemsData();
+  digestOfNextRequiredBlock_ = targetCheckpointDesc_.digestOfResPagesDescriptor;
+  txn->setFirstRequiredBlock(0);
+  txn->setLastRequiredBlock(0);
+  ConcordAssertEQ(getFetchingState(), FetchingState::GettingMissingResPages);
+}
+
+// TODO - print correct data in case we are entering a new cycle internally
+// up to the point we have reached
 void BCStateTran::cycleEndSummary() {
-  Throughput::Results blocksCollectedResults;
-  Throughput::Results bytesCollectedResults;
+  Throughput::Results blocksCollectedResults, bytesCollectedResults, blocksPostProcessedResults;
   std::ostringstream sources_str;
-  std::string firstCollectedBlockIdstr;
   const auto &sources_ = sourceSelector_.getActualSources();
 
-  if (gettingMissingBlocksDT_.totalDuration() == 0) {
+  if ((gettingMissingBlocksDT_.totalDuration() == 0) || (cycleDT_.totalDuration() == 0)) {
     // we print full summary only if we were collecting blocks
-    LOG_INFO(logger_, "State Transfer cycle ended (#" << cycleCounter_);
+    LOG_INFO(logger_, "State Transfer cycle ended (#" << cycleCounter_ << ")," << KVLOG(internalCycleCounter_));
     return;
   }
 
-  blocksCollectedResults = blocks_collected_.getOverallResults();
-  bytesCollectedResults = bytes_collected_.getOverallResults();
-  blocks_collected_.end();
-  bytes_collected_.end();
+  blocksCollectedResults = blocksFetched_.getOverallResults();
+  bytesCollectedResults = bytesFetched_.getOverallResults();
+  blocksPostProcessedResults = blocksPostProcessed_.getOverallResults();
+  blocksFetched_.stop(true);
+  bytesFetched_.stop(true);
+  blocksPostProcessed_.stop(true);
+
   std::copy(sources_.begin(), sources_.end() - 1, std::ostream_iterator<uint16_t>(sources_str, ","));
   sources_str << sources_.back();
   auto cycleDuration = cycleDT_.totalDuration(true);
   auto gettingCheckpointSummariesDuration = gettingCheckpointSummariesDT_.totalDuration(true);
   auto gettingMissingBlocksDuration = gettingMissingBlocksDT_.totalDuration(true);
-  auto commitToChainDuration = commitToChainDT_.totalDuration(true);
+  auto postProcessingDuration = postProcessingDT_.totalDuration(true);
   auto gettingMissingResPagesDuration = gettingMissingResPagesDT_.totalDuration(true);
-  LOG_INFO(logger_,
-           "State Transfer cycle ended (#"
-               << cycleCounter_ << "), Total Duration: " << cycleDuration << "ms, "
-               << "Time to get checkpoint summaries: " << gettingCheckpointSummariesDuration << "ms, "
-               << "Time to fetch missing blocks: " << gettingMissingBlocksDuration << "ms, "
-               << "Time to commit to chain: " << commitToChainDuration << "ms, "
-               << "Time to get reserved pages (vblock): " << gettingMissingResPagesDuration << "ms, "
-               << "Collected blocks range [" << std::to_string(lastCollectedBlockId_.value()) << ", "
-               << std::to_string(firstCollectedBlockId_.value()) << "], Collected "
-               << std::to_string(blocksCollectedResults.num_processed_items_) + " blocks and " +
-                      std::to_string(bytesCollectedResults.num_processed_items_) + " bytes,"
-               << " Throughput {GettingMissingBlocks}: " << blocksCollectedResults.throughput_ << " blocks/sec and "
-               << bytesCollectedResults.throughput_ << " bytes/sec, Throughput {cycle}: "
-               << static_cast<uint64_t>((1000 * blocksCollectedResults.num_processed_items_) / cycleDuration)
-               << " blocks/sec and "
-               << static_cast<uint64_t>((1000 * bytesCollectedResults.num_processed_items_) / cycleDuration)
-               << " bytes/sec, #" << sources_.size() << " sources (first to last): [" << sources_str.str() << "]");
+  LOG_INFO(
+      logger_,
+      "State Transfer cycle ended (#"
+          << cycleCounter_ << ")," << KVLOG(internalCycleCounter_)
+          << " ,Total Duration: " << convertMillisecToReadableStr(cycleDuration)
+          << " ,Time to get checkpoint summaries: " << convertMillisecToReadableStr(gettingCheckpointSummariesDuration)
+          << " ,Time to fetch missing blocks: " << convertMillisecToReadableStr(gettingMissingBlocksDuration)
+          << " ,Time to post-process blocks: " << convertMillisecToReadableStr(postProcessingDuration)
+          << " ,Time to get reserved pages (vblock): " << convertMillisecToReadableStr(gettingMissingResPagesDuration)
+          << " ,Collected " << convertUInt64ToReadableStr(blocksCollectedResults.num_processed_items_, "Blocks")
+          << " / " << convertUInt64ToReadableStr(bytesCollectedResults.num_processed_items_, "B")
+          << " ,Collected Blocks Range=[" << std::to_string(minBlockIdToCollectInCycle_) << ", "
+          << std::to_string(maxBlockIdToCollectInCycle_) << "]"
+          << " ,#RVB digests validated: "
+          << std::to_string(totalRvbsValidatedInCycle_)
+          // GettingMissingBlocks Throughput
+          << " ,GettingMissingBlocks Throughput: "
+          << convertUInt64ToReadableStr(blocksCollectedResults.throughput_, "Blocks/sec") << " / "
+          << convertUInt64ToReadableStr(bytesCollectedResults.throughput_, "B/sec")
+          // Post-Processing Throughput
+          << " ,Post-Processing Throughput: "
+          << convertUInt64ToReadableStr(blocksPostProcessedResults.throughput_, "Blocks/sec")
+          // cycle Throughput
+          << " ,Cycle Throughput: "
+          << convertUInt64ToReadableStr(
+                 static_cast<uint64_t>((1000 * blocksCollectedResults.num_processed_items_) / cycleDuration),
+                 "Blocks/sec")
+          << " / "
+          << convertUInt64ToReadableStr(
+                 static_cast<uint64_t>((1000 * bytesCollectedResults.num_processed_items_) / cycleDuration), "B/sec")
+          << ", #" << sources_.size() << " sources (first to last): [" << sources_str.str() << "]");
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -2824,6 +3390,7 @@ void BCStateTran::checkConsistency(bool checkAllBlocks, bool duringInit) {
   if (checkAllBlocks) {
     checkReachableBlocks(genesisBlockNum, lastReachableBlockNum);
   }
+
   checkUnreachableBlocks(lastReachableBlockNum, lastBlockNum, duringInit);
   checkBlocksBeingFetchedNow(checkAllBlocks, lastReachableBlockNum, lastBlockNum);
   checkStoredCheckpoints(firstStoredCheckpoint, lastStoredCheckpoint);
@@ -2842,6 +3409,8 @@ void BCStateTran::checkConsistency(bool checkAllBlocks, bool duringInit) {
   } else {
     ConcordAssertEQ(psd_->numOfAllPendingResPage(), 0);
   }
+
+  ConcordAssert(rvbm_->validate());
 }
 
 void BCStateTran::checkConfig() {
@@ -2850,6 +3419,14 @@ void BCStateTran::checkConfig() {
   ConcordAssertEQ(config_.fVal, psd_->getFVal());
   ConcordAssertEQ(maxNumOfStoredCheckpoints_, psd_->getMaxNumOfStoredCheckpoints());
   ConcordAssertEQ(numberOfReservedPages_, psd_->getNumberOfReservedPages());
+  // TODO - support any configuration, although config_.fetchRangeSize * config_.RVT_K <=
+  // config_.maxNumberOfChunksInBatch is probably only for testing
+  ConcordAssertGT(config_.fetchRangeSize * config_.RVT_K, config_.maxNumberOfChunksInBatch);
+  // TODO Supporting fetchRangeSize > maxNumberOfChunksInBatch make things more complicated. We will have to
+  // delete blocks from temporary blockchain in case that RVB validation failed since some batches will be without any
+  // single validation until reaching the next RVB. For now, it is reasonable to have this restriction. To be improved
+  // later.
+  ConcordAssertLE(config_.fetchRangeSize, config_.maxNumberOfChunksInBatch);
 }
 
 void BCStateTran::checkFirstAndLastCheckpoint(uint64_t firstStoredCheckpoint, uint64_t lastStoredCheckpoint) {
@@ -2872,7 +3449,8 @@ void BCStateTran::checkReachableBlocks(uint64_t genesisBlockNum, uint64_t lastRe
       ConcordAssert(!currDigest.isZero());
       STDigest prevFromNextBlockDigest;
       prevFromNextBlockDigest.makeZero();
-      as_->getPrevDigestFromBlock(currBlock + 1, reinterpret_cast<StateTransferDigest *>(&prevFromNextBlockDigest));
+      ConcordAssert(as_->getPrevDigestFromBlock(currBlock + 1,
+                                                reinterpret_cast<StateTransferDigest *>(&prevFromNextBlockDigest)));
       ConcordAssertEQ(currDigest, prevFromNextBlockDigest);
     }
   }
@@ -2884,19 +3462,20 @@ void BCStateTran::checkUnreachableBlocks(uint64_t lastReachableBlockNum, uint64_
     LOG_INFO(logger_, std::boolalpha << KVLOG(lastReachableBlockNum, lastBlockNum, duringInit));
     ConcordAssertEQ(getFetchingState(), FetchingState::GettingMissingBlocks);
     uint64_t x = lastBlockNum - 1;
-    while (as_->hasBlock(x)) x--;
+    while (as_->hasBlock(x)) {
+      x--;
+    }
 
     // we should have a hole
     ConcordAssertGT(x, lastReachableBlockNum);
 
     // During init:
-    // We might see more than a single hole due to the fact that putBlock is done concurrently, and block N might have
-    // been written while block M was not (due to a possibly abrupt shotdown/termination),
-    // for any pair of blocks in the range [lastReachableBlockNum + 1, x] where ID(N) < ID(M).
-    // Actions:
-    // 1) In the extream scenario, we expect a single non-existing block (tjis is x) and then up to
-    // ioPool_.maxElements()-1 already-written blocks. 2) From block X = x - ioPool_.maxElements() - 1 ,if X >
-    // lastReachableBlockNum, all blocks should not exist.
+    // We might see more than a single hole due to the fact that putBlock is done concurrently, and block N might
+    // have been written while block M was not (due to a possibly abrupt shotdown/termination), for any pair of
+    // blocks in the range [lastReachableBlockNum + 1, x] where ID(N) < ID(M). Actions: 1) In the extream scenario,
+    // we expect a single non-existing block (this is x) and then up to ioPool_.maxElements()-1 already-written
+    // blocks. 2) From block X = x - ioPool_.maxElements() - 1 ,if X > lastReachableBlockNum, all blocks should not
+    // exist.
     //
     // Not during init: we must have a single hole
     uint64_t maxAlreadyWrittenBlocks = ioPool_.maxElements() - 1;
@@ -2931,7 +3510,8 @@ void BCStateTran::checkBlocksBeingFetchedNow(bool checkAllBlocks,
 
         STDigest prevFromNextBlockDigest;
         prevFromNextBlockDigest.makeZero();
-        as_->getPrevDigestFromBlock(currBlock + 1, reinterpret_cast<StateTransferDigest *>(&prevFromNextBlockDigest));
+        ConcordAssert(as_->getPrevDigestFromBlock(currBlock + 1,
+                                                  reinterpret_cast<StateTransferDigest *>(&prevFromNextBlockDigest)));
         ConcordAssertEQ(currDigest, prevFromNextBlockDigest);
       }
     }
@@ -2948,25 +3528,25 @@ void BCStateTran::checkStoredCheckpoints(uint64_t firstStoredCheckpoint, uint64_
 
       DataStore::CheckpointDesc desc = psd_->getCheckpointDesc(chkp);
       ConcordAssertEQ(desc.checkpointNum, chkp);
-      ConcordAssertLE(desc.lastBlock, as_->getLastReachableBlockNum());
-      ConcordAssertGE(desc.lastBlock, prevLastBlockNum);
-      prevLastBlockNum = desc.lastBlock;
+      ConcordAssertLE(desc.maxBlockId, as_->getLastReachableBlockNum());
+      ConcordAssertGE(desc.maxBlockId, prevLastBlockNum);
+      prevLastBlockNum = desc.maxBlockId;
 
-      if (desc.lastBlock != 0 && desc.lastBlock >= as_->getGenesisBlockNum()) {
-        auto computedBlockDigest = getBlockAndComputeDigest(desc.lastBlock);
+      if (desc.maxBlockId != 0 && desc.maxBlockId >= as_->getGenesisBlockNum()) {
+        auto computedBlockDigest = getBlockAndComputeDigest(desc.maxBlockId);
         // Extra debugging needed here for BC-2821
-        if (computedBlockDigest != desc.digestOfLastBlock) {
+        if (computedBlockDigest != desc.digestOfMaxBlockId) {
           uint32_t blockSize = 0;
-          as_->getBlock(desc.lastBlock, buffer_.get(), config_.maxBlockSize, &blockSize);
+          as_->getBlock(desc.maxBlockId, buffer_.get(), config_.maxBlockSize, &blockSize);
           concordUtils::HexPrintBuffer blockData{buffer_.get(), blockSize};
           LOG_FATAL(logger_,
                     "Invalid stored checkpoint: " << KVLOG(desc.checkpointNum,
                                                            blockSize,
-                                                           desc.lastBlock,
+                                                           desc.maxBlockId,
                                                            computedBlockDigest,
-                                                           desc.digestOfLastBlock,
+                                                           desc.digestOfMaxBlockId,
                                                            blockData));
-          ConcordAssertEQ(computedBlockDigest, desc.digestOfLastBlock);
+          ConcordAssertEQ(computedBlockDigest, desc.digestOfMaxBlockId);
         }
       }
       if (config_.enableReservedPages) {
@@ -3035,12 +3615,6 @@ void BCStateTran::computeDigestOfBlock(const uint64_t blockNum,
                                        const char *block,
                                        const uint32_t blockSize,
                                        STDigest *outDigest) {
-  /*
-  // for debug (the digest will be the block number)
-  memset(outDigest, 0, sizeof(STDigest));
-  uint64_t* p = (uint64_t*)outDigest;
-  *p = blockNum;
-  */
   computeDigestOfBlockImpl(blockNum, block, blockSize, reinterpret_cast<char *>(outDigest));
 }
 
@@ -3060,11 +3634,16 @@ STDigest BCStateTran::getBlockAndComputeDigest(uint64_t currBlock) {
   impl::STDigest currDigest;
   uint32_t blockSize = 0;
   as_->getBlock(currBlock, buffer.get(), config_.maxBlockSize, &blockSize);
-  computeDigestOfBlock(currBlock, buffer.get(), blockSize, &currDigest);
+  {
+    histograms_.compute_block_digest_size->record(blockSize);
+    TimeRecorder scoped_timer(*histograms_.compute_block_digest_duration);
+    computeDigestOfBlock(currBlock, buffer.get(), blockSize, &currDigest);
+  }
   return currDigest;
 }
 
 void BCStateTran::SetAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
+  sourceSelector_.setAggregator(aggregator);
   metrics_component_.SetAggregator(aggregator);
 }
 
@@ -3074,6 +3653,54 @@ inline std::string BCStateTran::getSequenceNumber(uint16_t replicaId,
                                                   uint64_t chunkNum) {
   return std::to_string(replicaId) + "-" + std::to_string(seqNum) + "-" + std::to_string(blockNum) + "-" +
          std::to_string(chunkNum);
+}
+
+void BCStateTran::peekConsensusMessage(const shared_ptr<ConsensusMsg> &msg) {
+  if (incomingEventsQ_) {
+    histograms_.incoming_events_queue_size->record(incomingEventsQ_->size());
+    time_in_incoming_events_queue_rec_.end();
+  }
+  auto msg_type = msg->type_;
+  LOG_TRACE(logger_, KVLOG(msg_type, msg->sender_id_));
+
+  switch (msg_type) {
+    case MsgCode::PrePrepare:
+      if (config_.enableSourceSelectorPrimaryAwareness) {
+        sourceSelector_.updateCurrentPrimary(msg->sender_id_);
+      }
+      break;
+    default: {
+      LOG_FATAL(logger_, "Unexpected message type" << KVLOG(msg_type));
+      ConcordAssert(false);
+    }
+  }
+  time_in_incoming_events_queue_rec_.start();
+}
+
+void BCStateTran::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBlockId) {
+  if (isFetching()) {
+    // This is another thread context
+    // Worst scenario - moving from not fetching -> fetching (time of check/ time of use)
+    // The other case cannot happen.
+    // In the worst case redundant blocks will be saved and persisted and removed later.
+    LOG_WARN(logger_, "Report about pruned blocks while fetching!");
+    return;
+  }
+  rvbm_->reportLastAgreedPrunableBlockId(lastAgreedPrunableBlockId);
+}
+
+void BCStateTran::triggerPostProcessing() {
+  if (maxPostprocessedBlockId_ != 0) {
+    return;
+  }
+  uint64_t lastReachableBlockId = as_->getLastReachableBlockNum();
+  uint64_t firstRequiredBlockId = psd_->getFirstRequiredBlock();
+  LOG_INFO(logger_, KVLOG(firstRequiredBlockId, lastReachableBlockId));
+  if ((firstRequiredBlockId > 1) && ((firstRequiredBlockId - 1) > (lastReachableBlockId + 1))) {
+    postProcessingDT_.start();
+    blocksPostProcessed_.start();
+    postProcessingQ_->push(std::bind(&BCStateTran::postProcessNextBatch, this, firstRequiredBlockId - 1));
+  }
 }
 
 }  // namespace impl

@@ -413,11 +413,11 @@ void DBAdapter::addRawBlock(const RawBlock &block, const BlockId &blockId, bool 
     concordUtils::Sliver slivBlockId = concordUtils::Sliver::copy(strBlockId.data(), strBlockId.length());
     parsedBlock = concord::kvbc::categorization::RawBlock::deserialize(block);
     for (auto &[key, value] : parsedBlock.data.updates.kv) {
-      LOG_DEBUG(logger_, "key: " << key);
+      LOG_DEBUG(logger_, KVLOG(key, blockId));
       std::visit(
           [this, &keys, slivBlockId](auto &&arg) {
             for (auto &[k, v] : arg.kv) {
-              LOG_DEBUG(logger_, "k: " << k);
+              LOG_DEBUG(logger_, KVLOG(k));
               concordUtils::Sliver sKey = Sliver::copy(k.data(), k.length());
               keys[sKey] = slivBlockId;
               (void)v;
@@ -427,19 +427,31 @@ void DBAdapter::addRawBlock(const RawBlock &block, const BlockId &blockId, bool 
     }
   }
 
-  if (Status s = addBlockAndUpdateMultiKey(keys, blockId, block); !s.isOK())
+  if (Status s = addBlockAndUpdateMultiKey(keys, blockId, block); !s.isOK()) {
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": failed: blockId: ") + std::to_string(blockId) +
                              std::string(" reason: ") + s.toString());
+  }
 
   // when ST runs, blocks arrive in batches in reverse order. we need to keep
-  // track on the "Gap" and to close it. Only when it is closed, the last
-  // reachable block becomes the same as the last block
-
+  // track on the "Gap" and close it. There might be temporary multiple gaps due to the way blocks are committed.
+  // As long as we keep track of LatestBlockId and LastReachableBlockId, we will be able to survive any crash.
+  // When all gaps are closed, the last reachable block becomes the same as the last block.
   {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (blockId > getLatestBlockId()) setLatestBlock(blockId);
+    auto latestBlockId = getLatestBlockId();
+    if (blockId > latestBlockId) {
+      setLatestBlock(blockId);
+      latestBlockId = blockId;
+    }
+    auto i = blockId;
+    if (i == (getLastReachableBlockId() + 1)) {
+      do {
+        setLastReachableBlockNum(i);
+        ++i;
+      } while ((i <= latestBlockId) && hasBlock(i));
+      LOG_TRACE(logger_, "Connected blocks [" << blockId << " -> " << i << "]");
+    }
   }
-  if ((lastBlock) and (blockId == getLastReachableBlockId() + 1)) setLastReachableBlockNum(getLatestBlockId());
 }
 
 Status DBAdapter::addBlockAndUpdateMultiKey(const SetOfKeyValuePairs &kvMap,

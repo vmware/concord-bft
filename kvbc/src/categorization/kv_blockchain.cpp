@@ -24,6 +24,7 @@
 #include "storage/merkle_tree_key_manipulator.h"
 #include "categorization/details.h"
 #include "ReplicaConfig.hpp"
+#include "throughput.hpp"
 
 #include <algorithm>
 #include <iterator>
@@ -78,7 +79,12 @@ KeyValueBlockchain::KeyValueBlockchain(const std::shared_ptr<concord::storage::r
   // interrupted, getLatestBlockId() should be equal to getLastReachableBlockId() on the next startup. Another example
   // is getValue() that returns keys from the blockchain only and ignores keys in the temporary state
   // transfer chain.
-  linkSTChainFrom(getLastReachableBlockId() + 1);
+  LOG_INFO(CAT_BLOCK_LOG, "Try to link ST temporary chain, this might take some time...");
+  auto old_last_reachable_block_id = getLastReachableBlockId();
+  linkSTChainFrom(old_last_reachable_block_id + 1);
+  auto new_last_reachable_block_id = getLastReachableBlockId();
+  LOG_INFO(CAT_BLOCK_LOG,
+           "Done linking ST temporary chain:" << KVLOG(old_last_reachable_block_id, new_last_reachable_block_id));
   delete_metrics_comp_.Register();
   add_metrics_comp_.Register();
 
@@ -887,6 +893,50 @@ bool KeyValueBlockchain::hasBlock(BlockId block_id) const {
   return block_chain_.hasBlock(block_id);
 }
 
+size_t KeyValueBlockchain::linkUntilBlockId(BlockId from_block_id, BlockId until_block_id) {
+  static constexpr uint64_t report_thresh{1000};
+  static uint64_t report_counter{};
+  const auto last_block_id = state_transfer_block_chain_.getLastBlockId();
+
+  if (last_block_id == 0) {
+    return 0;
+  }
+
+  concord::util::DurationTracker<std::chrono::milliseconds> link_duration("link_duration", true);
+  for (auto i = from_block_id; i <= until_block_id; ++i) {
+    auto raw_block = state_transfer_block_chain_.getRawBlock(i);
+    if (!raw_block) {
+      // we didn't find the next block
+      return i - from_block_id;
+    }
+
+    // First prune and then link the block to the chain. Rationale is that this will preserve the same order of block
+    // deletes relative to block adds on source and destination replicas.
+    pruneOnSTLink(*raw_block);
+    writeSTLinkTransaction(i, *raw_block);
+    if ((++report_counter % report_thresh) == 0) {
+      auto elapsed_time_ms = link_duration.totalDuration();
+      uint64_t blocks_linked_per_sec{};
+      uint64_t blocks_left_to_link{};
+      uint64_t estimated_time_left_sec{};
+      if (elapsed_time_ms > 0) {
+        blocks_linked_per_sec = (((i - from_block_id + 1) * 1000) / (elapsed_time_ms));
+        blocks_left_to_link = until_block_id - i;
+        estimated_time_left_sec = blocks_left_to_link / blocks_linked_per_sec;
+      }
+      LOG_INFO(CAT_BLOCK_LOG,
+               "Last block ID connected: " << i << ","
+                                           << KVLOG(from_block_id,
+                                                    until_block_id,
+                                                    elapsed_time_ms,
+                                                    blocks_linked_per_sec,
+                                                    blocks_left_to_link,
+                                                    estimated_time_left_sec));
+    }
+  }
+  return until_block_id - from_block_id + 1;
+}
+
 // tries to remove blocks form the state transfer chain to the blockchain
 void KeyValueBlockchain::linkSTChainFrom(BlockId block_id) {
   const auto last_block_id = state_transfer_block_chain_.getLastBlockId();
@@ -902,6 +952,7 @@ void KeyValueBlockchain::linkSTChainFrom(BlockId block_id) {
     pruneOnSTLink(*raw_block);
     writeSTLinkTransaction(i, *raw_block);
   }
+
   // Linking has fully completed and we should not have any more ST temporary blocks left. Therefore, make sure we don't
   // have any value for the latest ST temporary block ID cache.
   state_transfer_block_chain_.resetChain();

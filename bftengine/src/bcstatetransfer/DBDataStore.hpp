@@ -65,6 +65,7 @@ class DBDataStore : public DataStore {
   void setNumberOfReservedPages(uint32_t) override;
   void setLastStoredCheckpoint(uint64_t) override;
   void setFirstStoredCheckpoint(uint64_t) override;
+  void setPrunedBlocksDigests(const std::vector<std::pair<BlockId, STDigest>>& prunedBlocksDigests) override;
   void setIsFetchingState(bool) override;
   void setFirstRequiredBlock(uint64_t) override;
   void setLastRequiredBlock(uint64_t) override;
@@ -93,6 +94,9 @@ class DBDataStore : public DataStore {
   uint64_t getLastStoredCheckpoint() override { return inmem_->getLastStoredCheckpoint(); }
   uint64_t getFirstStoredCheckpoint() override { return inmem_->getFirstStoredCheckpoint(); }
   uint64_t getFirstRequiredBlock() override { return inmem_->getFirstRequiredBlock(); }
+  std::vector<std::pair<BlockId, STDigest>> getPrunedBlocksDigests() override {
+    return inmem_->getPrunedBlocksDigests();
+  }
   uint64_t getLastRequiredBlock() override { return inmem_->getLastRequiredBlock(); }
   CheckpointDesc getCheckpointDesc(uint64_t checkpoint) override;
   CheckpointDesc getCheckpointBeingFetched() override { return inmem_->getCheckpointBeingFetched(); }
@@ -116,6 +120,8 @@ class DBDataStore : public DataStore {
   }
   void setEraseDataStoreFlag() override { putInt(EraseDataOnStartup, true); }
 
+  void memoryStateToLog();
+
  private:
   void clearDataStoreData();
 
@@ -136,6 +142,7 @@ class DBDataStore : public DataStore {
     Replicas,
     CheckpointBeingFetched,
     EraseDataOnStartup,
+    PrunedBlocksDigests,
   };
 
   void load(bool loadResPages);
@@ -151,6 +158,8 @@ class DBDataStore : public DataStore {
 
   void deserializePendingPage(std::istream&, char*&, uint32_t&) const;
 
+  void serializePrunedBlocksDigests(std::ostream& os, const std::vector<std::pair<BlockId, STDigest>>& digests) const;
+  void deserializePrunedBlocksDigests(std::istream& is, std::vector<std::pair<BlockId, STDigest>>& outDigests) const;
   /**
    * add to existing transaction
    */

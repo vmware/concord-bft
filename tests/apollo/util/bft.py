@@ -1117,7 +1117,7 @@ class BftTestNetwork:
     async def source_replica(self, replica_id):
         """Return whether the current replica has a source replica already set"""
         with log.start_action(action_type="source_replica", replica=replica_id):
-            key = ['bc_state_transfer', 'Gauges', 'current_source_replica']
+            key = ['state_transfer_source_selector', 'Gauges', 'current_source_replica']
             source_replica_id = await self.metrics.get(replica_id, *key)
             return source_replica_id
 
@@ -1167,9 +1167,9 @@ class BftTestNetwork:
                         pass # metrics not yet available, continue looping
                     await trio.sleep(0.1)
 
-    async def wait_for_state_transfer_to_stop(self, up_to_date_node, stale_node, stop_on_stable_seq_num=False):
-        with log.start_action(action_type="wait_for_state_transfer_to_stop", up_to_date_node=up_to_date_node, stale_node=stale_node, stop_on_stable_seq_num=stop_on_stable_seq_num):
-            with trio.fail_after(30): # seconds
+    async def wait_for_state_transfer_to_stop(self, up_to_date_node, stale_node, stop_on_stable_seq_num=False, seconds_until_timeout=45 if os.getenv('BUILD_COMM_TCP_TLS') == "OFF" else 30):
+        with log.start_action(action_type="wait_for_state_transfer_to_stop", up_to_date_node=up_to_date_node, stale_node=stale_node, stop_on_stable_seq_num=stop_on_stable_seq_num, seconds_until_timeout=seconds_until_timeout):
+            with trio.fail_after(seconds_until_timeout):
                 # Get the lastExecutedSeqNumber from a started node
                 if stop_on_stable_seq_num:
                     key = ['replica', 'Gauges', 'lastStableSeqNum']
@@ -1247,6 +1247,46 @@ class BftTestNetwork:
                                 if n >= expected_seq_num:
                                     action.add_success_fields(n=n, expected_seq_num=expected_seq_num)
                                     return
+
+    async def wait_for_replicas_rvt_root_values_to_be_in_sync(self, replica_ids, timeout=30):
+        """
+        Wait for the root values of the Range validation trees of all replicas to be in sync within `timeout` seconds.
+
+        Wait for each replica in `replicas_ids` to return the current value of the root of its Range validation tree.
+        When all of the values are collected, compare them to check if they are all the same.
+        If there are discrepancies, sleep for 1 second and try retrieving the values again.
+        """
+        with log.start_action(action_type="wait_for_replicas_rvt_root_values", replica_ids=replica_ids, timeout=timeout):
+            root_values = [None] * len(replica_ids)
+            
+            with trio.fail_after(timeout): # seconds
+                while True:
+                    async with trio.open_nursery() as nursery:
+                        for replica_id in replica_ids:
+                            nursery.start_soon(self.wait_for_rvt_root_value, replica_id, root_values, timeout)
+                    
+                    print(root_values)
+                    # At this point all replicas' root values are collected
+                    if root_values.count(root_values[0]) == len(root_values) and len(root_values[0]) > 0:
+                        break
+                    else:
+                        await trio.sleep(1)
+
+    async def wait_for_rvt_root_value(self, replica_id, root_values, timeout=30):
+        """
+        Wait for a single replica to return the current value of the root of its Range validation tree.
+        Check every .5 seconds and fail after `timeout` seconds.
+        """
+        with log.start_action(action_type="wait_for_rvt_root_value", replica=replica_id, timeout=timeout) as action:            
+            async def rvt_root_value_to_be_returned():
+                key = ['bc_state_transfer', 'Statuses', 'current_rvb_data_state']
+                rvb_data_state = await self.retrieve_metric(replica_id, *key)
+                if (rvb_data_state is not None):
+                    action.log(f"Replica {replica_id}'s current rvb_data_state is: \"{rvb_data_state}\".")                   
+                    root_values[replica_id] = rvb_data_state
+                    return rvb_data_state
+        
+        return await self.wait_for(rvt_root_value_to_be_returned, timeout, .5)        
 
     async def wait_for_replicas_to_checkpoint(self, replica_ids, expected_checkpoint_num=None):
         """

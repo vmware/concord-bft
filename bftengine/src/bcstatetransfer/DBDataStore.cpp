@@ -12,9 +12,10 @@ namespace impl {
 
 std::ostream& operator<<(std::ostream& os, const DataStore::CheckpointDesc& desc) {
   os << "CheckpointDesc "
-     << " checkpointNum: " << desc.checkpointNum << " lastBlock: " << desc.lastBlock
-     << " digestOfLastBlock: " << desc.digestOfLastBlock.toString()
-     << " digestOfResPagesDescriptor:" << desc.digestOfResPagesDescriptor.toString();
+     << " checkpointNum: " << desc.checkpointNum << " lastBlock: " << desc.maxBlockId
+     << " digestOfLastBlock: " << desc.digestOfMaxBlockId.toString()
+     << " digestOfResPagesDescriptor:" << desc.digestOfResPagesDescriptor.toString()
+     << " rvbData size:" << desc.rvbData.size();
   return os;
 }
 
@@ -25,6 +26,37 @@ std::string toString(const DataStore::CheckpointDesc& desc) {
 }
 
 /** ******************************************************************************************************************/
+void DBDataStore::memoryStateToLog() {
+  std::ostringstream oss;
+
+  const auto replicas = inmem_->getReplicas();
+  const auto numbersOfPendingResPages = inmem_->getNumbersOfPendingResPages();
+  oss << "Replicas(): ";
+  std::copy(replicas.begin(), replicas.end(), std::ostream_iterator<int>(oss, " "));
+  oss << " ,MyReplicaId: " << inmem_->getMyReplicaId();
+  oss << " ,FVal: " << inmem_->getFVal();
+  oss << " ,MaxNumOfStoredCheckpoints: " << inmem_->getMaxNumOfStoredCheckpoints();
+  oss << " ,NumberOfReservedPages: " << inmem_->getNumberOfReservedPages();
+  oss << " ,LastStoredCheckpoint: " << inmem_->getLastStoredCheckpoint();
+  oss << " ,FirstStoredCheckpoint: " << inmem_->getFirstStoredCheckpoint();
+  oss << " ,NumbersOfPendingResPages: ";
+  std::copy(numbersOfPendingResPages.begin(), numbersOfPendingResPages.end(), std::ostream_iterator<int>(oss, " "));
+  oss << std::boolalpha << " IsFetchingState: " << inmem_->getIsFetchingState();
+  if (inmem_->hasCheckpointBeingFetched()) {
+    oss << " ,CheckpointBeingFetched: " << inmem_->getCheckpointBeingFetched();
+  }
+  oss << " ,FirstRequiredBlock: " << inmem_->getFirstRequiredBlock();
+  oss << " ,LastRequiredBlock: " << inmem_->getLastRequiredBlock();
+  auto prunedDigests = inmem_->getPrunedBlocksDigests();
+  if (!prunedDigests.empty()) {
+    oss << " ,PrunedBlocksDigests (size=" << prunedDigests.size() << ")";
+    for (const auto& p : prunedDigests) {
+      oss << "[" << p.first << "," << p.second.toString() << " ] ";
+    }
+  }
+  LOG_INFO(logger(), "Current In Memory State:" << oss.str());
+}
+
 void DBDataStore::load(bool loadResPages_) {
   LOG_DEBUG(logger(), "");
   if (!get<bool>(Initialized)) {
@@ -63,17 +95,14 @@ void DBDataStore::load(bool loadResPages_) {
     loadPendingPages();
   }
 
-  LOG_DEBUG(logger(), "MyReplicaId: " << inmem_->getMyReplicaId());
-  LOG_DEBUG(logger(), "MaxNumOfStoredCheckpoints: " << inmem_->getMaxNumOfStoredCheckpoints());
-  LOG_DEBUG(logger(), "NumberOfReservedPages: " << inmem_->getNumberOfReservedPages());
-  LOG_DEBUG(logger(), "LastStoredCheckpoint: " << inmem_->getLastStoredCheckpoint());
-  LOG_DEBUG(logger(), "FirstStoredCheckpoint: " << inmem_->getFirstStoredCheckpoint());
-  LOG_DEBUG(logger(), "IsFetchingState: " << inmem_->getIsFetchingState());
-  LOG_DEBUG(logger(), "fVal: " << inmem_->getFVal());
-  LOG_DEBUG(logger(), "FirstRequiredBlock: " << inmem_->getFirstRequiredBlock());
-  LOG_DEBUG(logger(), "LastRequiredBlock:" << inmem_->getLastRequiredBlock());
-  // LOG_DEBUG(logger(), "Replicas" << inmem_->getReplicas());
-  LOG_DEBUG(logger(), "CheckpointBeingFetched: " << inmem_->getMyReplicaId());
+  Sliver pbd;
+  if (get(PrunedBlocksDigests, pbd)) {
+    std::istringstream iss(std::string(reinterpret_cast<const char*>(pbd.data()), pbd.length()));
+    std::vector<std::pair<BlockId, STDigest>> digests;
+    deserializePrunedBlocksDigests(iss, digests);
+    inmem_->setPrunedBlocksDigests(digests);
+  }
+  memoryStateToLog();
 
   if (get<bool>(EraseDataOnStartup)) {
     try {
@@ -147,15 +176,17 @@ void DBDataStore::setReplicas(const std::set<std::uint16_t> replicas) {
  */
 void DBDataStore::serializeCheckpoint(std::ostream& os, const CheckpointDesc& desc) const {
   Serializable::serialize(os, desc.checkpointNum);
-  Serializable::serialize(os, desc.lastBlock);
-  Serializable::serialize(os, desc.digestOfLastBlock.get(), BLOCK_DIGEST_SIZE);
+  Serializable::serialize(os, desc.maxBlockId);
+  Serializable::serialize(os, desc.digestOfMaxBlockId.get(), BLOCK_DIGEST_SIZE);
   Serializable::serialize(os, desc.digestOfResPagesDescriptor.get(), BLOCK_DIGEST_SIZE);
+  Serializable::serialize(os, desc.rvbData);
 }
 void DBDataStore::deserializeCheckpoint(std::istream& is, CheckpointDesc& desc) const {
   Serializable::deserialize(is, desc.checkpointNum);
-  Serializable::deserialize(is, desc.lastBlock);
-  Serializable::deserialize(is, desc.digestOfLastBlock.getForUpdate(), BLOCK_DIGEST_SIZE);
+  Serializable::deserialize(is, desc.maxBlockId);
+  Serializable::deserialize(is, desc.digestOfMaxBlockId.getForUpdate(), BLOCK_DIGEST_SIZE);
   Serializable::deserialize(is, desc.digestOfResPagesDescriptor.getForUpdate(), BLOCK_DIGEST_SIZE);
+  Serializable::deserialize(is, desc.rvbData);
 }
 void DBDataStore::setCheckpointDesc(uint64_t checkpoint, const CheckpointDesc& desc) {
   LOG_DEBUG(logger(), toString(desc));
@@ -424,12 +455,46 @@ void DBDataStore::clearDataStoreData() {
   del(Replicas);
   del(CheckpointBeingFetched);
   del(EraseDataOnStartup);
+  del(PrunedBlocksDigests);
   deleteAllPendingPages();
   deleteCheckpointBeingFetched();
   deleteAllResPages();
   deleteAllDesc();
 
   inmem_.reset(new InMemoryDataStore(inmem_->getSizeOfReservedPage()));
+}
+
+/** ******************************************************************************************************************
+ *  Range Validation Blocks
+ */
+
+void DBDataStore::serializePrunedBlocksDigests(std::ostream& os,
+                                               const std::vector<std::pair<BlockId, STDigest>>& digests) const {
+  Serializable::serialize(os, digests.size());
+  for (size_t i{0}; i < digests.size(); ++i) {
+    Serializable::serialize(os, digests[i].first);
+    Serializable::serialize(os, digests[i].second.get(), BLOCK_DIGEST_SIZE);
+  }
+}
+void DBDataStore::deserializePrunedBlocksDigests(std::istream& is,
+                                                 std::vector<std::pair<BlockId, STDigest>>& outDigests) const {
+  size_t size{};
+  Serializable::deserialize(is, size);
+  for (size_t i{0}; i < size; ++i) {
+    std::pair<BlockId, STDigest> p;
+    BlockId blockId;
+    STDigest digest;
+    Serializable::deserialize(is, blockId);
+    Serializable::deserialize(is, digest.getForUpdate(), BLOCK_DIGEST_SIZE);
+    outDigests.emplace_back(std::make_pair(blockId, digest));
+  }
+}
+
+void DBDataStore::setPrunedBlocksDigests(const std::vector<std::pair<BlockId, STDigest>>& digests) {
+  std::ostringstream oss;
+  serializePrunedBlocksDigests(oss, digests);
+  put(PrunedBlocksDigests, oss.str());
+  inmem_->setPrunedBlocksDigests(digests);
 }
 
 /** ******************************************************************************************************************/
