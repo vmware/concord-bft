@@ -107,51 +107,86 @@ ICommunication* setupCommunicationParams(ClientParams& cp) {
   return CommFactory::create(conf);
 }
 
+TxReply sendTxRequest(Client& client, const Tx& tx) {
+  // Send transaction request
+  TxRequest txReq;
+  std::stringstream ss;
+  ss << tx;
+  txReq.tx = StrToBytes(ss.str());
+
+  UTTRequest req;
+  req.request = std::move(txReq);
+
+  // Ensure we only wait for F+1 replies (ByzantineSafeQuorum)
+  WriteConfig writeConf{RequestConfig{false, nextSeqNum()}, ByzantineSafeQuorum{}};
+
+  Msg reqBytes;
+  serialize(reqBytes, req);
+  auto replyBytes = client.send(writeConf, std::move(reqBytes));  // Sync send
+
+  UTTReply reply;
+  deserialize(replyBytes.matched_data, reply);
+
+  const auto& txReply = std::get<TxReply>(reply.reply);  // throws if unexpected variant
+  std::cout << "Got TxReply, success=" << txReply.success << " last_block_id=" << txReply.last_block_id << '\n';
+
+  return txReply;
+}
+
+GetLastBlockReply sendGetLastBlockRequest(Client& client) {
+  UTTRequest req;
+  req.request = GetLastBlockRequest();
+  ReadConfig readConf{RequestConfig{false, nextSeqNum()}, LinearizableQuorum{}};
+
+  Msg reqBytes;
+  serialize(reqBytes, req);
+  auto replyBytes = client.send(readConf, std::move(reqBytes));  // Sync send
+
+  UTTReply reply;
+  deserialize(replyBytes.matched_data, reply);
+
+  const auto& lastBlockReply = std::get<GetLastBlockReply>(reply.reply);  // throws if unexpected variant
+  std::cout << "Got GetLastBlockReply, last_block_id=" << lastBlockReply.last_block_id << '\n';
+
+  return lastBlockReply;
+}
+
+GetBlockDataReply sendGetBlockDataRequest(Client& client, BlockId blockId) {
+  GetBlockDataRequest blockDataReq;
+  blockDataReq.block_id = blockId;
+
+  UTTRequest req;
+  req.request = std::move(blockDataReq);
+  ReadConfig readConf{RequestConfig{false, nextSeqNum()}, LinearizableQuorum{}};
+
+  Msg reqBytes;
+  serialize(reqBytes, req);
+  auto replyBytes = client.send(readConf, std::move(reqBytes));  // Sync send
+
+  UTTReply reply;
+  deserialize(replyBytes.matched_data, reply);
+
+  const auto& blockDataReply = std::get<GetBlockDataReply>(reply.reply);  // throws if unexpected variant
+  std::cout << "Got GetBlockDataReply, block_id=" << blockDataReply.block_id << '\n';
+
+  return blockDataReply;
+}
+
 // Sync state by fetching missing blocks and executing them
 void syncState(AppState& state, Client& client) {
   std::cout << "Sync state...\n";
 
-  // Request last block id
-  {
-    UTTRequest req;
-    req.request = GetLastBlockRequest();
-    ReadConfig readConf{RequestConfig{false, nextSeqNum()}, LinearizableQuorum{}};
-
-    Msg reqBytes;
-    serialize(reqBytes, req);
-    auto replyBytes = client.send(readConf, std::move(reqBytes));  // Sync send
-
-    UTTReply reply;
-    deserialize(replyBytes.matched_data, reply);
-
-    const auto& lastBlockReply = std::get<GetLastBlockReply>(reply.reply);  // throws if unexpected variant
-    std::cout << "Got GetLastBlockReply, last_block_id=" << lastBlockReply.last_block_id << '\n';
-
-    state.setLastKnownBlockId(lastBlockReply.last_block_id);
-  }
+  auto lastBlockReply = sendGetLastBlockRequest(client);
+  state.setLastKnownBlockId(lastBlockReply.last_block_id);
 
   // Sync missing blocks
   auto missingBlockId = state.sync();
   while (missingBlockId) {
     // Request missing block
-    GetBlockDataRequest blockDataReq;
-    blockDataReq.block_id = *missingBlockId;
+    auto blockDataReply = sendGetBlockDataRequest(client, *missingBlockId);
 
-    UTTRequest req;
-    req.request = std::move(blockDataReq);
-    ReadConfig readConf{RequestConfig{false, nextSeqNum()}, LinearizableQuorum{}};
+    if (blockDataReply.block_id != *missingBlockId) throw std::runtime_error("Received missing block id differs!");
 
-    Msg reqBytes;
-    serialize(reqBytes, req);
-    auto replyBytes = client.send(readConf, std::move(reqBytes));  // Sync send
-
-    UTTReply reply;
-    deserialize(replyBytes.matched_data, reply);
-
-    const auto& blockDataReply = std::get<GetBlockDataReply>(reply.reply);  // throws if unexpected variant
-    std::cout << "Got GetBlockDataReply, block_id=" << blockDataReply.block_id << '\n';
-
-    if (blockDataReply.id != *missingBlockId) throw std::runtime_error("Received missing block id differs!");
     auto tx = parseTx(BytesToStr(blockDataReply.tx));
     if (!tx) throw std::runtime_error("Failed to parse tx from missing block!");
 
@@ -205,32 +240,13 @@ int main(int argc, char** argv) {
           }
         } else if (auto tx = parseTx(cmd)) {
           state.validateTx(*tx);
+          auto reply = sendTxRequest(client, *tx);
 
-          // Send transaction request
-          TxRequest txReq;
-          txReq.tx = StrToBytes(cmd);
-
-          UTTRequest req;
-          req.request = std::move(txReq);
-
-          // Ensure we only wait for F+1 replies (ByzantineSafeQuorum)
-          WriteConfig writeConf{RequestConfig{false, nextSeqNum()}, ByzantineSafeQuorum{}};
-
-          Msg reqBytes;
-          serialize(reqBytes, req);
-          auto replyBytes = client.send(writeConf, std::move(reqBytes));  // Sync send
-
-          UTTReply reply;
-          deserialize(replyBytes.matched_data, reply);
-
-          const auto& txReply = std::get<TxReply>(reply.reply);  // throws if unexpected variant
-          std::cout << "Got TxReply, success=" << txReply.success << " last_block_id=" << txReply.last_block_id << '\n';
-
-          if (txReply.success) {
-            state.setLastKnownBlockId(txReply.last_block_id);
+          if (reply.success) {
+            state.setLastKnownBlockId(reply.last_block_id);
             std::cout << "Ok.\n";
           } else {
-            std::cout << "Failed to execute transaction!\n";
+            std::cout << "Transaction failed!\n";
           }
         } else {
           std::cout << "Unknown command '" << cmd << "'\n";

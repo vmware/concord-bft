@@ -39,6 +39,8 @@ void UTTCommandsHandler::execute(UTTCommandsHandler::ExecutionRequestsQueue& req
     auto outReply = it.outReply;
     auto& outReplySize = it.outActualReplySize;
 
+    LOG_INFO(logger_, "UTTCommandsHandler execute");
+
     UTTRequest deserialized_request;
     try {
       static_assert(sizeof(*request) == sizeof(uint8_t),
