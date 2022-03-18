@@ -32,6 +32,17 @@ class ClientService {
 
   void start(const std::string& addr, unsigned num_async_threads, uint64_t max_receive_msg_size);
 
+  // Blocks waiting for all work to complete
+  // Assumes that the caller has started the clientservice prior to this call
+  void wait();
+
+  // This method does the following -
+  // 1. Shuts down the clientservice gRPC server without a deadline and with forced cancellation
+  // 2. Shuts down all the completion queues associated with the server, and drains them using repeated next() calls
+  // 3. Waits for async gRPC server threads to return
+  // The above order is important. Reference: https://grpc.github.io/grpc/cpp/classgrpc_1_1_server_interface.html
+  void shutdown();
+
   const std::string kRequestService{"vmware.concord.client.request.v1.RequestService"};
   const std::string kEventService{"vmware.concord.client.event.v1.EventService"};
   const std::string kStateSnapshotService{"vmware.concord.client.statesnapshot.v1.StateSnapshotService"};
@@ -52,6 +63,7 @@ class ClientService {
 
   std::vector<std::unique_ptr<grpc::ServerCompletionQueue>> cqs_;
   std::vector<std::thread> server_threads_;
+  std::unique_ptr<grpc::Server> clientservice_server_;
 };
 
 }  // namespace concord::client::clientservice
