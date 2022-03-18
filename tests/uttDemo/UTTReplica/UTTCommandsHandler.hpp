@@ -14,16 +14,11 @@
 #pragma once
 
 #include "Logger.hpp"
-#include "sliver.hpp"
-#include "db_interfaces.h"
 #include "block_metadata.hpp"
 #include "KVBCInterfaces.h"
-#include <memory>
-#include "ControlStateManager.hpp"
-#include <chrono>
-#include <thread>
 #include "SharedTypes.hpp"
 
+#include "utt_messages.cmf.hpp"
 #include "app_state.hpp"
 
 static const std::string VERSIONED_KV_CAT_ID{concord::kvbc::categorization::kExecutionPrivateCategory};
@@ -46,6 +41,10 @@ class UTTCommandsHandler : public concord::kvbc::ICommandsHandler {
   void setPerformanceManager(std::shared_ptr<concord::performance::PerformanceManager> perfManager) override {}
 
  private:
+  utt::messages::TxReply handleRequest(const utt::messages::TxRequest &req);
+  utt::messages::GetLastBlockReply handleRequest(const utt::messages::GetLastBlockRequest &req);
+  utt::messages::GetBlockDataReply handleRequest(const utt::messages::GetBlockDataRequest &req);
+
   logging::Logger &logger_;
   AppState state_;
 };

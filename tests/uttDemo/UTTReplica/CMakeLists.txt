@@ -1,6 +1,3 @@
-cmake_minimum_required (VERSION 3.2)
-project(utt_replica VERSION 0.1.0.0 LANGUAGES CXX)
-
 add_executable(utt_replica main.cpp
 		 UTTCommandsHandler.cpp
 		 setup.cpp
