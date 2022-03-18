@@ -264,6 +264,7 @@ Msg GetDbCheckpointInfoRequest 59 {
 
 Msg GetDbCheckpointInfoStatusResponse 62 {
     list DbCheckpointInfo db_checkpoint_info
+    string additional_info
 }
 
 Msg CreateDbCheckpointCommand 63 {
