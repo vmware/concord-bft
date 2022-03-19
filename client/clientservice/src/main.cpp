@@ -15,6 +15,7 @@
 #include <vector>
 #include <chrono>
 #include <boost/program_options.hpp>
+#include <boost/asio/signal_set.hpp>
 #include <yaml-cpp/yaml.h>
 
 #include "client/clientservice/client_service.hpp"
@@ -36,6 +37,7 @@ using concord::client::concordclient::ConcordClientConfig;
 namespace po = boost::program_options;
 
 const static int kLogConfigRefreshIntervalInMs = 60 * 1000;
+static std::unique_ptr<ClientService> clientservice = nullptr;
 
 const static char* getLog4CplusConfigLocation() {
   auto log_location = std::getenv("LOG4CPLUS_CONFIGURATION");
@@ -113,10 +115,25 @@ void initJaeger(const std::string& addr, const std::string& id) {
   opentracing::Tracer::InitGlobal(std::static_pointer_cast<opentracing::Tracer>(tracer));
 }
 
+static void signalHandler(const boost::system::error_code& error, int signum) {
+  auto logger = logging::getLogger("concord.client.clientservice.main");
+  try {
+    if (error) {
+      LOG_ERROR(logger, error.message());
+      return;
+    }
+    LOG_INFO(logger, "Signal received (" << signum << ")");
+    clientservice->shutdown();
+  } catch (std::exception& e) {
+    LOG_ERROR(logger, "Exception in signal handler: " << e.what());
+  }
+}
+
 int main(int argc, char** argv) {
   LOG_CONFIGURE_AND_WATCH(getLog4CplusConfigLocation(), kLogConfigRefreshIntervalInMs);
   auto logger = logging::getLogger("concord.client.clientservice.main");
   po::variables_map opts;
+  int result = 0;
   try {
     opts = parseCmdLine(argc, argv);
   } catch (const boost::bad_lexical_cast& e) {
@@ -160,11 +177,29 @@ int main(int argc, char** argv) {
   }
 
   auto concord_client = std::make_unique<ConcordClient>(config, metrics_collector->getAggregator());
-  ClientService service(std::move(concord_client));
+  clientservice = std::make_unique<ClientService>(std::move(concord_client));
 
-  auto server_addr = opts["host"].as<std::string>() + ":" + std::to_string(opts["port"].as<unsigned>());
-  LOG_INFO(logger, "Starting clientservice at " << server_addr);
-  service.start(server_addr, opts["num-async-threads"].as<unsigned>(), opts["max-receive-msg-size"].as<uint64_t>());
+  try {
+    auto server_addr = opts["host"].as<std::string>() + ":" + std::to_string(opts["port"].as<unsigned>());
+    LOG_INFO(logger, "Starting clientservice at " << server_addr);
+    clientservice->start(
+        server_addr, opts["num-async-threads"].as<unsigned>(), opts["max-receive-msg-size"].as<uint64_t>());
 
-  return 0;
+    boost::asio::io_service io_service;
+    boost::asio::signal_set signals(io_service, SIGINT, SIGTERM);
+    signals.async_wait(signalHandler);
+    std::thread sigHandlerThread([&] { io_service.run(); });
+
+    clientservice->wait();
+
+    LOG_INFO(logger, "Clientservice halting");
+    sigHandlerThread.join();
+  } catch (std::exception& ex) {
+    LOG_FATAL(logger, ex.what());
+    result = -1;
+    return result;
+  }
+  LOG_INFO(logger, "Shutting down");
+
+  return result;
 }
