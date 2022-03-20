@@ -143,6 +143,13 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
         }
         if (start != end) LOG_INFO(GL, "Principal ids in _idsOfInternalClients: " << start << " to " << end - 1);
         return ret;
+      }()},
+      _idsOfOperators{[&config]() {
+        std::set<ReplicaId> ret;
+        if (config.operatorEnabled_)
+          ret.insert(config.numReplicas + config.numRoReplicas + config.numOfClientProxies +
+                     config.numOfExternalClients - 1);
+        return ret;
       }()} {
   ConcordAssert(_numberOfReplicas == (3 * _fVal + 2 * _cVal + 1));
 }
