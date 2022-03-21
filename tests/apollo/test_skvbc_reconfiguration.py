@@ -42,11 +42,11 @@ def start_replica_cmd_with_object_store(builddir, replica_id, config):
     """
     ret = start_replica_cmd_prefix(builddir, replica_id, config)
     if os.environ.get('TIME_SERVICE_ENABLED', default="FALSE").lower() == "true" :
-        batch_size = "2"
         time_service_enabled = "1"
     else :
-        batch_size = "1"
         time_service_enabled = "0"
+    
+    batch_size = "1"
     ret.extend(["-f", time_service_enabled, "-b", "2", "-q", batch_size, "-o", builddir + "/operator_pub.pem"])
     return ret
 
@@ -59,11 +59,11 @@ def start_replica_cmd_with_object_store_and_ke(builddir, replica_id, config):
     """
     ret = start_replica_cmd_prefix(builddir, replica_id, config)
     if os.environ.get('TIME_SERVICE_ENABLED', default="FALSE").lower() == "true" :
-        batch_size = "2"
         time_service_enabled = "1"
     else :
-        batch_size = "1"
         time_service_enabled = "0"
+        
+    batch_size = "1"
     ret.extend(["-f", time_service_enabled, "-b", "2", "-q", batch_size, "-e", str(True), "-o", builddir + "/operator_pub.pem", "--publish-master-key-on-startup"])
     return ret
 
@@ -78,11 +78,11 @@ def start_replica_cmd(builddir, replica_id):
     viewChangeTimeoutMilli = "10000"
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
     if os.environ.get('TIME_SERVICE_ENABLED', default="FALSE").lower() == "true" :
-        batch_size = "2"
         time_service_enabled = "1"
     else :
-        batch_size = "1"
         time_service_enabled = "0"
+        
+    batch_size = "1"
     return [path,
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
@@ -107,11 +107,11 @@ def start_replica_cmd_with_key_exchange(builddir, replica_id):
     viewChangeTimeoutMilli = "10000"
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
     if os.environ.get('TIME_SERVICE_ENABLED', default="FALSE").lower() == "true" :
-        batch_size = "2"
         time_service_enabled = "1"
     else :
-        batch_size = "1"
         time_service_enabled = "0"
+    
+    batch_size = "1"
     return [path,
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),

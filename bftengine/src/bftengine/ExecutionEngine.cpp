@@ -109,19 +109,11 @@ Bitmap ExecutionEngine::filterRequests(const PrePrepareMsg& ppMsg) {
   size_t reqIdx = 0;
   RequestsIterator reqIter(&ppMsg);
   char* requestBody = nullptr;
-
-  bool seenTimeService = false;
   while (reqIter.getAndGoToNext(requestBody)) {
     ClientRequestMsg req(reinterpret_cast<ClientRequestMsgHeader*>(requestBody));
     SCOPED_MDC_CID(req.getCid());
     NodeIdType clientId = req.clientProxyId();
 
-    if (config_.timeServiceEnabled && req.flags() & MsgFlag::TIME_SERVICE_FLAG) {
-      ConcordAssert(!seenTimeService && "Multiple Time Service messages in PrePrepare");
-      seenTimeService = true;
-      reqIdx++;
-      continue;
-    }
     const bool validClient = clients_manager_->isValidClient(clientId) ||
                              ((req.flags() & RECONFIG_FLAG) && reps_info_->isIdOfReplica(clientId));
     if (!validClient) {
@@ -152,20 +144,16 @@ std::deque<IRequestsHandler::ExecutionRequest> ExecutionEngine::collectRequests(
   RequestsIterator reqIter(&ppMsg);
   size_t reqIdx = 0;
   char* requestBody = nullptr;
+
+  auto sn = ppMsg.seqNumber();
+  if ((config_.timeServiceEnabled) && (ppMsg.getTime() > 0)) {
+    timestamps.emplace(sn, Timestamp());
+    timestamps[sn].time_since_epoch = ConsensusTime(ppMsg.getTime());
+  }
   while (reqIter.getAndGoToNext(requestBody)) {
     size_t tmp = reqIdx;
     reqIdx++;
     ClientRequestMsg req(reinterpret_cast<ClientRequestMsgHeader*>(requestBody));
-
-    auto sn = ppMsg.seqNumber();
-    if (config_.timeServiceEnabled) {
-      if (req.flags() & MsgFlag::TIME_SERVICE_FLAG) {
-        timestamps.emplace(sn, Timestamp());
-        timestamps[sn].time_since_epoch =
-            concord::util::deserialize<ConsensusTime>(req.requestBuf(), req.requestBuf() + req.requestLength());
-        continue;
-      }
-    }
     if (!requestSet.get(tmp) || req.requestLength() == 0) {
       continue;
     }
