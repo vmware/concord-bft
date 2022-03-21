@@ -134,8 +134,8 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
       _idsOfOperators{[&config]() {
         std::set<ReplicaId> ret;
         if (config.operatorEnabled_) {
-          auto operator_id =
-              config.numReplicas + config.numRoReplicas + config.numOfClientProxies + config.numOfExternalClients - 1;
+          auto operator_id = config.numReplicas + config.numRoReplicas + config.numOfClientProxies +
+                             config.numOfExternalClients + config.numOfClientServices - 1;
           ret.insert(operator_id);
           LOG_INFO(GL, "Operator id: " << operator_id);
         }
