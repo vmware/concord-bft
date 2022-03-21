@@ -635,7 +635,7 @@ std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMsgBatchByOverallSiz
 std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) {
   ConcordAssertGT(requiredRequestsNum, 0);
 
-  if (requestsQueueOfPrimary.size()) {
+  if (requestsQueueOfPrimary.size() < requiredRequestsNum) {
     LOG_DEBUG(GL,
               "Not enough messages in the primary replica queue to fill a batch"
                   << KVLOG(requestsQueueOfPrimary.size(), requiredRequestsNum));
@@ -693,16 +693,6 @@ PrePrepareMsg *ReplicaImp::createPrePrepareMessage() {
     controller->onSendingPrePrepare((primaryLastUsedSeqNum + 1), firstPath);
   }
 
-  if (config_.timeServiceEnabled) {
-    // If time-service is enabled, the first client request will be time request
-    auto pp = new PrePrepareMsg(config_.getreplicaId(),
-                                getCurrentView(),
-                                (primaryLastUsedSeqNum + 1),
-                                firstPath,
-                                requestsQueueOfPrimary.front()->spanContext<ClientRequestMsg>(),
-                                primaryCombinedReqSize);
-    return pp;
-  }
   return new PrePrepareMsg(config_.getreplicaId(),
                            getCurrentView(),
                            (primaryLastUsedSeqNum + 1),
