@@ -30,7 +30,7 @@ from typing import Coroutine, Sequence
 
 import trio
 
-from util.test_base import retry_test
+from util.test_base import repeat_test
 
 sys.path.append(os.path.abspath("../../util/pyclient"))
 
@@ -153,7 +153,8 @@ def with_constant_load(async_fn):
 
 def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None, num_ro_replicas=0,
                      rotate_keys=False, bft_configs=None, with_cre=False, publish_master_keys=False,
-                     retries=1):
+                     num_repeats=int(os.getenv("NUM_REPEATS", 1)),
+                     break_on_first_failure=bool(os.getenv('BREAK_ON_FAILURE') == 'TRUE'), break_on_first_success=False):
     """
     Runs the decorated async function for all selected BFT configs
     start_replica_cmd is a callback which is used to start a replica. It should have the following
@@ -165,6 +166,8 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
     third parameter named 'config' (the exact name is important!).
     If you don't need this configuration - use two parameters callback with any names you want.
     """
+    assert not (break_on_first_failure and break_on_first_success), \
+        "both flags break_on_first_failure and break_on_first_success cannot be enabled at the same time!"
     def decorator(async_fn):
         @wraps(async_fn)
         async def wrapper(*args, **kwargs):
@@ -192,13 +195,13 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
                                         num_ro_replicas=num_ro_replicas)
                     with test_instance.subTest(config=f'{bft_config}'):
                         async with trio.open_nursery() as background_nursery:
-                            @retry_test(retries)
+                            @repeat_test(num_repeats, break_on_first_failure, break_on_first_success)
                             async def test_with_bft_network():
                                 with BftTestNetwork.new(config, background_nursery, with_cre=with_cre) as bft_network:
                                     bft_network.current_test = test_name
                                     with log.start_task(
                                             action_type=f"{bft_network.current_test}_num_clients={config.num_clients}",
-                                            seed=args[0].test_seed, max_retries=retries):
+                                            seed=args[0].test_seed, max_repeats=num_repeats):
                                         random.seed(args[0].test_seed)
                                         if rotate_keys:
                                             await bft_network.check_initital_key_exchange(
@@ -207,7 +210,6 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
                                         await async_fn(*args, **kwargs, bft_network=bft_network)
                             await test_with_bft_network()
         return wrapper
-
     return decorator
 
 MAX_MSG_SIZE = 64*1024 # 64k

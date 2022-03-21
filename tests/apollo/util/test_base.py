@@ -51,22 +51,31 @@ def parameterize(**parameterize_kwargs):
 
     return decorator
 
-def retry_test(max_retries: int):
+def repeat_test(max_repeats: int, break_on_first_failure: bool, break_on_first_success: bool):
     """
-    Runs a test multiple times until a run succeeds
-    """
+    Runs a test  max_repeats times when both break_on_first_failure and break_on_first_success et to False.
+    Only one of break_on_first_failure or break_on_first_success can be True (both can be False).
 
+    break_on_first_success is True: run test up to max_repeats times and breaks after the 1st successful test.
+    break_on_first_failure is True: run test up to max_repeats times and breaks after the 1st failing test.
+    """
+    assert not (break_on_first_failure and break_on_first_success), \
+        "both flags break_on_first_failure and break_on_first_success cannot be enabled at the same time!"
     def decorator(async_fn):
         @wraps(async_fn)
         async def wrapper(*args, **kwargs):
-            for i in range(1, max_retries + 1):
+            for i in range(1, max_repeats + 1):
                 try:
+                    if (max_repeats > 1):
+                        print(f"Running iteration {i}/{max_repeats}, (break_on_first_failure={break_on_first_failure},"
+                              f" break_on_first_success={break_on_first_success})")
                     await async_fn(*args, **kwargs)
-                    break
+                    if break_on_first_success:
+                        break
                 except Exception as e:
-                    log.log_message(message_type='Test attempt failed', run=i, max_retries=max_retries)
-                    if i == max_retries:
+                    log.log_message(message_type='Test attempt failed', run=i, max_repeats=max_repeats,
+                                    break_on_first_failure=break_on_first_failure)
+                    if i == max_repeats or break_on_first_failure:
                         raise e
-
         return wrapper
     return decorator

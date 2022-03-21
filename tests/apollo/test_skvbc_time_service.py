@@ -301,9 +301,11 @@ class SkvbcTimeServiceTest(ApolloTest):
         await bft_network.wait_for_fast_path_to_be_prevalent(
         run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
 
+    # Unstable test: num_repeat currently > 1, remove after solving BC-19244
     @with_trio
     @with_bft_network(start_replica_cmd,
-            selected_configs=lambda n, f, c: c == 0 and n >= 6, rotate_keys=True, retries=4)
+            selected_configs=lambda n, f, c: c == 0 and n >= 6, rotate_keys=True, num_repeats=4,
+            break_on_first_success=True)
     async def test_delay_with_soft_limit_reached_counter(self, bft_network):
         """
         1. Start all replicas except a non-primary

@@ -131,7 +131,7 @@ IF_CONTAINER_RUNS=$(shell docker container inspect -f '{{.State.Running}}' ${CON
 .PHONY: help
 help: ## The Makefile helps to build Concord-BFT in a docker container
 	@cat $(MAKEFILE_LIST) | grep -E '^[a-zA-Z_-]+:.*?## .*$$' | \
-		awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+		awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%s:\033[0m \n%s\n", $$1, $$2}'
 
 .PHONY: pull
 pull: ## Pull image from remote
@@ -175,14 +175,6 @@ list-targets: gen_cmake ## Prints the list of available targets
 		"cd ${CONCORD_BFT_BUILD_DIR} && \
 		make help"
 
-.PHONY: test-range
-test-range: ## Run all tests in the range [START,END], inclusive: `make test-range START=<#start_test> END=<#end_test>`. To get test numbers, use list-tests.
-	docker run ${BASIC_RUN_PARAMS} \
-			${CONCORD_BFT_CONTAINER_SHELL} -c \
-			"mkdir -p ${CONCORD_BFT_CORE_DIR} && \
-			cd ${CONCORD_BFT_BUILD_DIR} && \
-			ctest ${CONCORD_BFT_ADDITIONAL_CTEST_RUN_PARAMS} -I ${START},${END}"
-
 .PHONY: format
 format: gen_cmake ## Format Concord-BFT source with clang-format
 	docker run ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
@@ -213,6 +205,23 @@ tidy-check: gen_cmake ## Run clang-tidy
 			 \nFor detail information about the checks, please refer to https://clang.llvm.org/extra/clang-tidy/checks/list.html" \
 			 ; exit 1)
 
+.PHONY: list-tests
+list-tests: gen_cmake ## List all tests. This one is helpful to choose which test to run when calling `make single-test TEST_NAME=<test name>`
+	docker run  ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
+		${CONCORD_BFT_CONTAINER_SHELL} -c \
+		"cd ${CONCORD_BFT_BUILD_DIR} && \
+		ctest -N"
+
+# Test targets
+NUM_REPEATS?=1
+ifneq (${NUM_REPEATS},)
+	NUM_REPEATS__:=${NUM_REPEATS}
+endif
+BREAK_ON_FAILURE__:=FALSE
+ifneq (${BREAK_ON_FAILURE},)
+	BREAK_ON_FAILURE__:=${BREAK_ON_FAILURE}
+endif
+
 .PHONY: test
 test: ## Run all tests
 	docker run ${BASIC_RUN_PARAMS} \
@@ -221,26 +230,69 @@ test: ## Run all tests
 		cd ${CONCORD_BFT_BUILD_DIR} && \
 		ctest ${CONCORD_BFT_ADDITIONAL_CTEST_RUN_PARAMS} --timeout ${CONCORD_BFT_CTEST_TIMEOUT} --output-on-failure"
 
-.PHONY: list-tests
-list-tests: gen_cmake ## List all tests. This one is helpful to choose which test to run when calling `make single-test TEST_NAME=<test name>`
-	docker run  ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
-		${CONCORD_BFT_CONTAINER_SHELL} -c \
-		"cd ${CONCORD_BFT_BUILD_DIR} && \
-		ctest -N"
+.PHONY: test-range
+test-range: ## Run all tests in the range [START,END], inclusive: `make test-range START=<#start_test> END=<#end_test>`. To get test numbers, use list-tests.
+	docker run ${BASIC_RUN_PARAMS} \
+			${CONCORD_BFT_CONTAINER_SHELL} -c \
+			"mkdir -p ${CONCORD_BFT_CORE_DIR} && \
+			cd ${CONCORD_BFT_BUILD_DIR} && \
+			ctest ${CONCORD_BFT_ADDITIONAL_CTEST_RUN_PARAMS} -I ${START},${END}"
 
-.PHONY: single-test
-single-test: ## Run a single test `make single-test TEST_NAME=<test name>`
+.PHONY: test-single-suite
+test-single-suite: ## Run a single test `make test-single-suite TEST_NAME=<test name>`
 	docker run ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"mkdir -p ${CONCORD_BFT_CORE_DIR} && \
 		cd ${CONCORD_BFT_BUILD_DIR} && \
 		ctest ${CONCORD_BFT_ADDITIONAL_CTEST_RUN_PARAMS} -V -R ${TEST_NAME} --timeout ${CONCORD_BFT_CTEST_TIMEOUT} --output-on-failure"
 
+.PHONY: test-single-apollo-case
+test-single-apollo-case: ## Run a single Apollo test case: `make test-single-apollo-case TEST_FILE_NAME=<test file name> TEST_CASE_NAME=<test case name> NUM_REPEATS=<number of repeats,default=1,optional> BREAK_ON_FAILURE=<TRUE|FALSE,optional>`. Test suite file name should come without *.py. Test case is expected without a class name, and must be unique. Example: `make test-single-apollo-case BREAK_ON_FAILURE NUM_REPEATS=100 TEST_FILE_NAME=test_skvbc_reconfiguration TEST_CASE_NAME=test_tls_exchange_client_replica_with_st`
+	@if [ -z ${TEST_FILE_NAME} ]; then echo "Error: TEST_FILE_NAME is mandatory"; exit 1; fi
+	@if [ -z ${TEST_CASE_NAME} ]; then echo "Error: TEST_CASE_NAME is mandatory"; exit 1; fi
+	$(eval PREFIX := $(shell docker run ${BASIC_RUN_PARAMS} \
+		${CONCORD_BFT_CONTAINER_SHELL} -c \
+		"mkdir -p ${CONCORD_BFT_CORE_DIR} && \
+		cd ${CONCORD_BFT_BUILD_DIR} && \
+		ctest -VV -N | grep -m 1 '${TEST_FILE_NAME}' | grep -o 'env.*' | sed 's/\unittest.*/unittest/'"))
+	$(eval POSTFIX := $(shell docker run ${BASIC_RUN_PARAMS} \
+		${CONCORD_BFT_CONTAINER_SHELL} -c \
+		"python3 scripts/apollo_list_tests.py \
+		${CONCORD_BFT_TARGET_SOURCE_PATH}/tests/apollo/ f | grep ${TEST_FILE_NAME} | grep -w ${TEST_CASE_NAME}"))
+	@if [ -z "${PREFIX}" ] || [ -z "${POSTFIX}" ]; then \
+		echo "Error: Failed to start test, check if TEST_FILE_NAME=${TEST_FILE_NAME}" \
+			"or TEST_CASE_NAME=${TEST_CASE_NAME} exist."; exit 1;\
+	fi
+	@docker run ${BASIC_RUN_PARAMS} \
+		${CONCORD_BFT_CONTAINER_SHELL} -c "cd tests/apollo/; \
+		BREAK_ON_FAILURE=${BREAK_ON_FAILURE__} NUM_REPEATS=${NUM_REPEATS__} $(PREFIX) $(POSTFIX)"
+
+.PHONY: test-single-gtest-case
+test-single-gtest-case: ## Run a single GoogleTest test case: `make test-single-gtest-case TEST_NAME=<test suite name> TEST_CASE_FILTER=<test case name> NUM_REPEATS=<number of repeats,default=1,optional> BREAK_ON_FAILURE=<TRUE|FALSE,optional>`. Call `make lists-tests` to get test suite name. The test case STRING is a filter used with --gtest_filter=*<STRING>*. Example: `make test-single-gtest-case BREAK_ON_FAILURE=TRUE NUM_REPEATS=10 TEST_NAME=bcstatetransfer_tests TEST_CASE_FILTER=srcHandleAskForCheckpointSummariesMsg`
+	@if [ -z ${TEST_NAME} ]; then echo "Error: TEST_NAME is mandatory"; exit 1; fi
+	@if [ -z ${TEST_CASE_FILTER} ]; then echo "Error: TEST_CASE_FILTER is mandatory"; exit 1; fi
+	$(eval PREFIX := $(shell docker run ${BASIC_RUN_PARAMS} \
+			${CONCORD_BFT_CONTAINER_SHELL} -c "cd ${CONCORD_BFT_BUILD_DIR} && find . -iname ${TEST_NAME}"))
+	@if [ '${BREAK_ON_FAILURE__}' = 'TRUE' ]; then break_on_failure_opt="--gtest_throw_on_failure"; fi; \
+	docker run ${BASIC_RUN_PARAMS} \
+		${CONCORD_BFT_CONTAINER_SHELL} -c "${CONCORD_BFT_BUILD_DIR}/${PREFIX} \
+		--gtest_filter=*${TEST_CASE_FILTER}* --gtest_repeat=${NUM_REPEATS__} $${break_on_failure_opt}";
+
 .PHONY: clean
 clean: ## Clean Concord-BFT build directory
 	docker run ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"rm -rf ${CONCORD_BFT_BUILD_DIR}"
+
+.PHONY: clean-all
+clean-all: ## Clean Concord-BFT build directory and any other untracked/ignored files.For a 'dry run' use DRY_RUN=TRUE, for an interactive run use INTER=TRUE.
+	docker run ${BASIC_RUN_PARAMS} \
+		${CONCORD_BFT_CONTAINER_SHELL} -c \
+		"rm -rf ${CONCORD_BFT_BUILD_DIR}"
+		@if [ "${DRY_RUN}" = "TRUE" ] && [ "${INTER}" = "TRUE" ]; then git clean -dxfni; fi
+		@if [ "${DRY_RUN}" != "TRUE" ] && [ "${INTER}" != "TRUE" ]; then git clean -dxf; fi
+		@if [ "${DRY_RUN}" = "TRUE" ] && [ "${INTER}" != "TRUE" ]; then git clean -dxfn; fi
+		@if [ "${DRY_RUN}" != "TRUE" ] && [ "${INTER}" = "TRUE" ]; then git clean -dxfi; fi
 
 .PHONY: codecoverage
 codecoverage: ## Generate Code Coverage report for Apollo tests
