@@ -129,7 +129,6 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
           ret.insert(i);
         }
         if (start != end) LOG_INFO(GL, "Principal ids in _idsOfClientServices: " << start << " to " << end - 1);
-        if (config.operatorEnabled_) LOG_INFO(GL, "Operator id: " << end);
         return ret;
       }()},
       _idsOfOperators{[&config]() {
