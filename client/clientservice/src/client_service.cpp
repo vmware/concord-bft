@@ -33,7 +33,8 @@ void ClientService::start(const std::string& addr, unsigned num_async_threads, u
     cqs_.emplace_back(builder.AddCompletionQueue());
   }
 
-  auto clientservice_server = std::unique_ptr<grpc::Server>(builder.BuildAndStart());
+  clientservice_server_ = std::unique_ptr<grpc::Server>(builder.BuildAndStart());
+  // clientservice_server_ now points to a running gRPC server which is ready to process calls
 
   // From the "C++ Performance Notes" in the gRPC documentation:
   // "Right now, the best performance trade-off is having numcpu's threads and one completion queue per thread."
@@ -41,23 +42,35 @@ void ClientService::start(const std::string& addr, unsigned num_async_threads, u
     server_threads_.emplace_back(std::thread([this, i] { this->handleRpcs(i); }));
   }
 
-  auto health = clientservice_server->GetHealthCheckService();
+  auto health = clientservice_server_->GetHealthCheckService();
   health->SetServingStatus(kRequestService, true);
   health->SetServingStatus(kEventService, true);
+}
 
-  clientservice_server->Wait();
+void ClientService::wait() {
+  ConcordAssertNE(clientservice_server_, nullptr);
+  clientservice_server_->Wait();
+}
 
-  LOG_INFO(logger_, "Shutting down and emptying completion queues");
-  std::for_each(cqs_.begin(), cqs_.end(), [](auto& cq) { cq->Shutdown(); });
-  for (auto& cq : cqs_) {
-    void* tag;
-    bool ok;
-    while (cq->Next(&tag, &ok))
-      ;
+void ClientService::shutdown() {
+  if (clientservice_server_) {
+    LOG_INFO(logger_, "Shutting down clientservice");
+    clientservice_server_->Shutdown();
+
+    LOG_INFO(logger_, "Shutting down and emptying completion queues");
+    std::for_each(cqs_.begin(), cqs_.end(), [](auto& cq) { cq->Shutdown(); });
+    for (auto& cq : cqs_) {
+      void* tag;
+      bool ok;
+      while (cq->Next(&tag, &ok))
+        ;
+    }
+
+    LOG_INFO(logger_, "Waiting for async gRPC threads to return");
+    std::for_each(server_threads_.begin(), server_threads_.end(), [](auto& t) { t.join(); });
+  } else {
+    LOG_INFO(logger_, "Clientservice is not running.");
   }
-
-  LOG_INFO(logger_, "Waiting for async gRPC threads to return");
-  std::for_each(server_threads_.begin(), server_threads_.end(), [](auto& t) { t.join(); });
 }
 
 void ClientService::handleRpcs(unsigned thread_idx) {
