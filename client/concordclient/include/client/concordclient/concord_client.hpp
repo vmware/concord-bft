@@ -97,6 +97,8 @@ struct TransportConfig {
 };
 
 struct SubscribeConfig {
+  // Subscription host ID
+  std::string clientservice_host_uuid;
   // Subscription ID
   std::string id;
   // If set to false then all certificates related to subscription will be ignored

@@ -176,6 +176,24 @@ void configureSubscription(concord::client::concordclient::ConcordClientConfig& 
 
     config.subscribe_config.pem_private_key = decryptPrivateKey(config.transport.secret_data, tls_path);
 
+    if (config.transport.enable_multiplex_channel) {
+      std::string clientservice_host_uuid = getClientserviceHostUuidFromClientCert(client_cert_path);
+      // The client cert must have the clientservice ID in the O field, because the TRS obtains
+      // the clientservice_host_uuid from the certificate of the connecting client.
+      if (clientservice_host_uuid.empty()) {
+        LOG_FATAL(logger, "Failed to construct concord client.");
+        throw std::runtime_error("The O field in client certificate is empty. It must contain the clientservice ID.");
+      }
+
+      if (clientservice_host_uuid.compare(config.subscribe_config.clientservice_host_uuid) != 0) {
+        LOG_FATAL(logger, "Failed to construct concord client.");
+        throw std::runtime_error("The clientservice ID in the O field of the client certificate (" +
+                                 clientservice_host_uuid +
+                                 ") does not match the client ID in the environment variable (" +
+                                 config.subscribe_config.clientservice_host_uuid + ").");
+      }
+    }
+
     std::string cert_client_id = getClientIdFromClientCert(client_cert_path);
     // The client cert must have the client ID in the OU field, because the TRS obtains
     // the client_id from the certificate of the connecting client.
@@ -256,9 +274,9 @@ void readCert(const std::string& input_filename, std::string& out_data) {
   }
 }
 
-std::string getClientIdFromClientCert(const std::string& client_cert_path) {
+std::string getSubjectFromClientCert(const std::string& client_cert_path) {
   std::array<char, 128> buffer;
-  std::string client_id;
+  std::string subject;
 
   // check if client cert can be opened
   std::ifstream input_file(client_cert_path.c_str(), std::ios::in);
@@ -276,15 +294,36 @@ std::string getClientIdFromClientCert(const std::string& client_cert_path) {
   }
   if (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
     // parse the OU field i.e., the client id from the subject field
-    client_id = parseClientIdFromSubject(buffer.data());
+    subject = buffer.data();
   }
+  return subject;
+}
+
+std::string getClientIdFromClientCert(const std::string& client_cert_path) {
+  std::string subject;
+  std::string client_id;
+
+  subject = getSubjectFromClientCert(client_cert_path);
+  std::string delim = "OU = ";
+  client_id = parseSubject(subject, delim);
+
   return client_id;
+}
+
+std::string getClientserviceHostUuidFromClientCert(const std::string& client_cert_path) {
+  std::string subject;
+  std::string clientservice_host_uuid;
+
+  subject = getSubjectFromClientCert(client_cert_path);
+  std::string delim = "O = ";
+  clientservice_host_uuid = parseSubject(subject, delim);
+
+  return clientservice_host_uuid;
 }
 
 // Parses the value of the OU field i.e., the client id from the subject
 // string
-std::string parseClientIdFromSubject(const std::string& subject_str) {
-  std::string delim = "OU = ";
+std::string parseSubject(const std::string& subject_str, const std::string& delim) {
   size_t start = subject_str.find(delim) + delim.length();
   size_t end = subject_str.find(',', start);
   std::string raw_str = subject_str.substr(start, end - start);

@@ -39,11 +39,17 @@ const std::string decryptPrivateKey(const std::optional<secretsmanager::SecretDa
 // This method reads certificates from file
 void readCert(const std::string& input_filename, std::string& out_data);
 
+// This method gets the subject from the client certificate
+std::string getSubjectFromClientCert(const std::string& client_cert_path);
+
 // This method gets the client_id from the OU field in the client certificate
 std::string getClientIdFromClientCert(const std::string& client_cert_path);
 
 // This method is used by getClientIdFromClientCert to get the client_id from
 // the subject in the client certificate
-std::string parseClientIdFromSubject(const std::string& subject_str);
+std::string parseSubject(const std::string& subject_str, const std::string& delim);
+
+// This method gets the clientservice_host_uuid from the O field in the client certificate
+std::string getClientserviceHostUuidFromClientCert(const std::string& client_cert_path);
 
 }  // namespace concord::client::clientservice
