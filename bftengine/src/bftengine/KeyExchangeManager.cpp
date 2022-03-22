@@ -293,12 +293,7 @@ void KeyExchangeManager::onClientPublicKeyExchange(const std::string& key,
                                                    NodeIdType clientId) {
   LOG_INFO(KEY_EX_LOG, "key: " << key << " fmt: " << (uint16_t)fmt << " client: " << clientId);
   // persist a new key
-  try {
-    clientPublicKeyStore_->setClientPublicKey(clientId, key, fmt);
-  } catch (const std::exception& e) {
-    LOG_WARN(KEY_EX_LOG, e.what());
-    return;
-  }
+  clientPublicKeyStore_->setClientPublicKey(clientId, key, fmt);
   // load a new key
   loadClientPublicKey(key, fmt, clientId, true);
 }
@@ -308,7 +303,12 @@ void KeyExchangeManager::loadClientPublicKey(const std::string& key,
                                              NodeIdType clientId,
                                              bool saveToReservedPages) {
   LOG_INFO(KEY_EX_LOG, "key: " << key << " fmt: " << (uint16_t)fmt << " client: " << clientId);
-  SigManager::instance()->setClientPublicKey(key, clientId, fmt);
+  try {
+    SigManager::instance()->setClientPublicKey(key, clientId, fmt);
+  } catch (const std::exception& e) {
+    LOG_WARN(KEY_EX_LOG, e.what());
+    return;
+  }
   if (saveToReservedPages) saveClientsPublicKeys(SigManager::instance()->getClientsPublicKeys());
 }
 
