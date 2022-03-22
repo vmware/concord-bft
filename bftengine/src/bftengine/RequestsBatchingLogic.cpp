@@ -122,25 +122,39 @@ std::pair<PrePrepareMsg *, bool> RequestsBatchingLogic::batchRequests() {
           replica_.getPrimaryLastUsedSeqNum(), requestsInQueue, replica_.getLastExecutedSeqNum());
       break;
     case BATCH_BY_REQ_NUM: {
-      lock_guard<mutex> lock(batchProcessingLock_);
-      prePrepareMsgWithResult = replica_.buildPrePrepareMsgBatchByRequestsNum(maxNumOfRequestsInBatch_);
-      if (prePrepareMsgWithResult.second) timers_.reset(batchFlushTimer_, milliseconds(batchFlushPeriodMs_));
+      bool resetTimer = false;
+      {
+        lock_guard<mutex> lock(batchProcessingLock_);
+        prePrepareMsgWithResult = replica_.buildPrePrepareMsgBatchByRequestsNum(maxNumOfRequestsInBatch_);
+        resetTimer = prePrepareMsgWithResult.second;
+      }
+      if (resetTimer) timers_.reset(batchFlushTimer_, milliseconds(batchFlushPeriodMs_));
     } break;
     case BATCH_BY_REQ_SIZE: {
-      lock_guard<mutex> lock(batchProcessingLock_);
-      prePrepareMsgWithResult = replica_.buildPrePrepareMsgBatchByOverallSize(maxBatchSizeInBytes_);
-      if (prePrepareMsgWithResult.second) timers_.reset(batchFlushTimer_, milliseconds(batchFlushPeriodMs_));
+      bool resetTimer = false;
+      {
+        lock_guard<mutex> lock(batchProcessingLock_);
+        prePrepareMsgWithResult = replica_.buildPrePrepareMsgBatchByOverallSize(maxBatchSizeInBytes_);
+        resetTimer = prePrepareMsgWithResult.second;
+      }
+      if (resetTimer) timers_.reset(batchFlushTimer_, milliseconds(batchFlushPeriodMs_));
     } break;
     case BATCH_ADAPTIVE: {
-      lock_guard<mutex> lock(batchProcessingLock_);
-      prePrepareMsgWithResult = replica_.buildPrePrepareMsgBatchByRequestsNum(maxNumOfRequestsInBatch_);
-      if (prePrepareMsgWithResult.second) {
+      bool resetTimer = false;
+      {
+        lock_guard<mutex> lock(batchProcessingLock_);
+        prePrepareMsgWithResult = replica_.buildPrePrepareMsgBatchByRequestsNum(maxNumOfRequestsInBatch_);
+        resetTimer = prePrepareMsgWithResult.second;
+        if (resetTimer) {
+          auto period =
+              std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_timer_)
+                  .count();
+          closedOnLogic_ += 1;
+          if (period > batchFlushPeriodMs_ * 20) adjustPreprepareSize();
+        }
+      }
+      if (resetTimer) {
         timers_.reset(batchFlushTimer_, milliseconds(batchFlushPeriodMs_));
-        auto period =
-            std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_timer_)
-                .count();
-        closedOnLogic_ += 1;
-        if (period > batchFlushPeriodMs_ * 20) adjustPreprepareSize();
       }
     } break;
   }
