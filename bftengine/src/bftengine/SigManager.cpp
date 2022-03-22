@@ -253,8 +253,10 @@ void SigManager::setClientPublicKey(const std::string& key, PrincipalId id, conc
       std::unique_lock lock(mutex_);
       verifiers_.insert_or_assign(id, std::make_shared<concord::util::crypto::RSAVerifier>(key.c_str(), format));
     } catch (const std::exception& e) {
-      LOG_ERROR(KEY_EX_LOG, "failed to add a key for client: " << id << " reason: " << e.what());
-      throw;
+      std::string error_msg =
+          "failed to add a key for client: " + std::to_string(id) + " reason: " + std::string(e.what());
+      LOG_ERROR(KEY_EX_LOG, error_msg);
+      throw std::runtime_error(error_msg);
     }
     clientsPublicKeys_.ids_to_keys[id] = concord::messages::keys_and_signatures::PublicKey{key, (uint8_t)format};
   } else {
