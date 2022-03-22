@@ -42,6 +42,7 @@ PruneInfo IntervalMappingResourceManager::getPruneInfo() {
   if (duration == 0 || (++period_) % periodicInterval_ == 0) {
     LOG_DEBUG(ADPTV_PRUNING, "Resetting measurements");
     period_ = 0;
+    lastTPS_ = 0;
     replicaResources_.reset();
     return PruneInfo{};
   }
@@ -58,13 +59,24 @@ PruneInfo IntervalMappingResourceManager::getPruneInfo() {
 
   PruneInfo ret;
   if (it != intervalMapping_.end()) {
-    ret.blocksPerSecond = static_cast<long double>(it->second);
+    // 0.9 reflects maximum allowed 10% drop in perfomance. 60 magic number of percentage
+    double adjust = 1;
+    if (lastTPS_ * 0.9 > tps && pruningUtilization > 60) {
+      adjust = (100 - pruningUtilization) / 100.0;
+      LOG_WARN(ADPTV_PRUNING, "Pruning consumes too much resources at the cost of TPS. Adjusting by " << adjust);
+
+      // 20 magic number of percentage where it can be assumed that tps fall is not caused by pruning
+    } else if (pruningUtilization < 20 || lastTPS_ < tps) {
+      lastTPS_ = tps;
+    }
+    ret.blocksPerSecond = static_cast<long double>(it->second) * adjust;
     ret.batchSize = 1;
     ret.postExecUtilization = postExecUtilization;
     ret.pruningUtilization = pruningUtilization;
     ret.pruningAvgTimeMicro = pruningAvgTimeMicro;
     ret.transactionsPerSecond = tps;
   }
+
   LOG_INFO(ADPTV_PRUNING,
            "calculated [" << tps << "] transactions per second, mapped to pruning [" << ret.blocksPerSecond
                           << "] blocks per second, post execution utilization is [" << postExecUtilization

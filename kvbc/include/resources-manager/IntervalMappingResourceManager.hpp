@@ -50,5 +50,6 @@ class IntervalMappingResourceManager : public IResourceManager {
   std::uint64_t lastInvocationTime_{0};
   std::uint64_t period_{0};
   std::uint64_t periodicInterval_{20};  // config
+  std::uint64_t lastTPS_{0};
 };
 }  // namespace concord::performance
