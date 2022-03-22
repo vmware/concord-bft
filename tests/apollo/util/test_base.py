@@ -16,6 +16,7 @@ import unittest
 import util.eliot_logging as log
 from functools import wraps
 import itertools
+import traceback
 
 
 class ApolloTest(unittest.TestCase):
@@ -77,5 +78,8 @@ def repeat_test(max_repeats: int, break_on_first_failure: bool, break_on_first_s
                                     break_on_first_failure=break_on_first_failure)
                     if i == max_repeats or break_on_first_failure:
                         raise e
+                    else:
+                        # we still want to see the traceback, even when we continue to next iteration
+                        print(traceback.format_exc())
         return wrapper
     return decorator
