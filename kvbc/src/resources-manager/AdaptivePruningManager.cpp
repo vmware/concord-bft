@@ -44,7 +44,7 @@ void AdaptivePruningManager::notifyReplicas(const PruneInfo &pruneInfo) {
   pruneRequest.sender_id = bftEngine::ReplicaConfig::instance().replicaId;
   pruneRequest.interval_between_ticks_seconds = bftEngine::ReplicaConfig::instance().numReplicas;
 
-  pruneRequest.batch_blocks_num = pruneInfo.blocksPerSecond / bftEngine::ReplicaConfig::instance().numReplicas;
+  pruneRequest.batch_blocks_num = pruneInfo.blocksPerSecond;
 
   // Is this going to register all send values or just update current
   blocksPerSecondMetric.Get().Set(pruneInfo.blocksPerSecond);

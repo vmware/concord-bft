@@ -28,8 +28,10 @@ const std::vector<std::pair<uint64_t, uint64_t>> IntervalMappingResourceManager:
     {20, 35}, {100, 21}, {300, 14}, {500, 7}};
 
 IntervalMappingResourceManager::IntervalMappingResourceManager(
-    ISystemResourceEntity &replicaResources, std::vector<std::pair<uint64_t, uint64_t>> &&intervalMapping)
-    : replicaResources_(replicaResources), intervalMapping_(std::move(intervalMapping)) {
+    ISystemResourceEntity &replicaResources,
+    std::vector<std::pair<uint64_t, uint64_t>> &&intervalMapping,
+    const IntervalMappingResourceManagerConfiguration &configuration)
+    : replicaResources_(replicaResources), intervalMapping_(std::move(intervalMapping)), configuration(configuration) {
   std::ostringstream intervals;
   for (const auto &[rate, blocks] : intervalMapping_) {
     intervals << "{" << rate << "," << blocks << "},";
@@ -59,14 +61,16 @@ PruneInfo IntervalMappingResourceManager::getPruneInfo() {
 
   PruneInfo ret;
   if (it != intervalMapping_.end()) {
-    // 0.9 reflects maximum allowed 10% drop in perfomance. 60 magic number of percentage
+    // 0.9 reflects maximum allowed 10% drop in perfomance.
     double adjust = 1;
-    if (lastTPS_ * 0.9 > tps && pruningUtilization > 60) {
+    if (lastTPS_ * 0.9 > tps && pruningUtilization > configuration.limitMaximumPruningTimeUtilizationPercentage) {
       adjust = (100 - pruningUtilization) / 100.0;
       LOG_WARN(ADPTV_PRUNING, "Pruning consumes too much resources at the cost of TPS. Adjusting by " << adjust);
 
-      // 20 magic number of percentage where it can be assumed that tps fall is not caused by pruning
-    } else if (pruningUtilization < 20 || lastTPS_ < tps) {
+      // pruningTimeUlizationTPSInterferenceLimit of percentage where it can be assumed that tps fall is not caused by
+      // pruning
+    } else if (pruningUtilization < configuration.pruningTimeUlizationTPSInterferenceLimitPercentage ||
+               lastTPS_ < tps) {
       lastTPS_ = tps;
     }
     ret.blocksPerSecond = static_cast<long double>(it->second) * adjust;
