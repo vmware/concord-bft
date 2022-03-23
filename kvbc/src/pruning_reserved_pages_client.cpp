@@ -46,9 +46,8 @@ ReservedPagesClient::ReservedPagesClient() {
   }
 
   if (client_.loadReservedPage(kLatestBatchBlockIdToPageId, in.size(), data(in))) {
-    auto batch = Batch{};
-    deserialize(in, batch);
-    latest_batch_block_id_to_ = batch.latest_batch_block_id_to;
+    batch_.emplace();
+    deserialize(in, *batch_);
   }
 }
 
@@ -81,11 +80,11 @@ void ReservedPagesClient::updateExistingAgreement(std::uint64_t batch_blocks_num
                                 latest_agreement_->last_agreed_prunable_block_id));
 }
 
-void ReservedPagesClient::saveLatestBatch(BlockId to) {
+void ReservedPagesClient::saveLatestBatch(Batch batch) {
   auto out = std::vector<std::uint8_t>{};
-  serialize(out, Batch{to});
+  serialize(out, batch);
   client_.saveReservedPage(kLatestBatchBlockIdToPageId, out.size(), cdata(out));
-  latest_batch_block_id_to_ = to;
+  batch_ = batch;
 }
 
 }  // namespace concord::kvbc::pruning
