@@ -40,13 +40,9 @@ void RequestsBatch::init() {
   }
 }
 
-void RequestsBatch::addReply(PreProcessReplyMsgSharedPtr replyMsg) {
+bool RequestsBatch::isBatchRegistered(string &cid) const {
   const std::lock_guard<std::mutex> lock(batchMutex_);
-  repliesList_.push_back(replyMsg);
-}
-
-bool RequestsBatch::isBatchRegistered() const {
-  const std::lock_guard<std::mutex> lock(batchMutex_);
+  cid = cid_;
   return batchRegistered_;
 }
 
@@ -164,7 +160,7 @@ void RequestsBatch::cancelBatchAndReleaseRequests(const string &batchCid, PrePro
 }
 
 // On non-primary replicas
-void RequestsBatch::releaseReqsAndSendBatchedReplyIfCompleted() {
+void RequestsBatch::releaseReqsAndSendBatchedReplyIfCompleted(PreProcessReplyMsgSharedPtr replyMsg) {
   uint32_t replyMsgsSize = 0;
   const auto senderId = preProcessor_.myReplicaId_;
   const auto primaryId = preProcessor_.myReplica_.currentPrimary();
@@ -173,12 +169,16 @@ void RequestsBatch::releaseReqsAndSendBatchedReplyIfCompleted() {
   PreProcessBatchReplyMsgSharedPtr batchReplyMsg;
   {
     const lock_guard<mutex> lock(batchMutex_);
+    if (!batchInProcess_) {
+      LOG_DEBUG(preProcessor_.logger(), "The batch is not in process; ignore");
+      return;
+    }
+    repliesList_.push_back(replyMsg);
     if (repliesList_.size() != batchSize_) {
       LOG_DEBUG(preProcessor_.logger(),
                 "Not all replies collected" << KVLOG(senderId, clientId_, cid, repliesList_.size(), batchSize_));
       return;
     }
-
     cid = cid_;
     batchSize = batchSize_;
     // The last batch request has pre-processed => send batched reply message
@@ -762,8 +762,8 @@ void PreProcessor::onMessage<ClientBatchRequestMsg>(ClientBatchRequestMsg *msg) 
   }
   ClientMsgsList &clientMsgs = clientBatchMsg->getClientPreProcessRequestMsgs();
   const auto &batchEntry = ongoingReqBatches_[clientId];
-  if (batchedPreProcessEnabled_ && batchEntry->isBatchRegistered()) {
-    const auto &ongoingBatchCid = batchEntry->getCid();
+  string ongoingBatchCid;
+  if (batchedPreProcessEnabled_ && batchEntry->isBatchRegistered(ongoingBatchCid)) {
     if (batchCid != ongoingBatchCid) {
       LOG_INFO(logger(),
                "Different ClientBatchRequestMsg for this client is in process; ignoring"
@@ -1801,8 +1801,7 @@ void PreProcessor::handleReqPreProcessedByNonPrimary(uint16_t clientId,
                                                   myReplica_.getCurrentView());
   const auto &batchEntry = ongoingReqBatches_[clientId];
   if (batchedPreProcessEnabled_ && batchEntry->isBatchInProcess()) {
-    batchEntry->addReply(replyMsg);
-    batchEntry->releaseReqsAndSendBatchedReplyIfCompleted();
+    batchEntry->releaseReqsAndSendBatchedReplyIfCompleted(replyMsg);
   } else {
     releaseReqAndSendReplyMsg(replyMsg);
   }
