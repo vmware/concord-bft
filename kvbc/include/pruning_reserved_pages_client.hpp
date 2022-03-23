@@ -85,14 +85,18 @@ class ReservedPagesClient {
   void updateExistingAgreement(std::uint64_t batch_blocks_num);
 
   // Saves the `to` block ID of the latest batch. A batch is a range [genesis, to].
-  void saveLatestBatch(BlockId to);
+  void saveLatestBatch(Batch batch);
 
  public:
   // Returns the latest agreement or std::nullopt if no agreement has been reached yet.
   std::optional<Agreement> latestAgreement() const { return latest_agreement_; }
 
   // Returns the `to` block ID of the latest batch or std::nullopt if no batch pruning has started yet.
-  std::optional<BlockId> latestBatchBlockIdTo() const { return latest_batch_block_id_to_; }
+  std::optional<BlockId> latestBatchBlockIdTo() const {
+    return batch_ ? std::optional<BlockId>{batch_->latest_batch_block_id_to} : std::nullopt;
+  }
+
+  std::optional<Batch> recoverInfo() const { return batch_; }
 
  private:
   static constexpr std::uint32_t kLatestAgreementPageId{0};
@@ -100,7 +104,7 @@ class ReservedPagesClient {
 
  private:
   std::optional<Agreement> latest_agreement_;
-  std::optional<BlockId> latest_batch_block_id_to_;
+  std::optional<Batch> batch_;
   ClientType client_;
 };
 
