@@ -10,6 +10,7 @@ list(APPEND UTT_DEMO_INCLUDES ${libutt_SOURCE_DIR}/libutt/include)
 list(APPEND UTT_DEMO_LINKS utt)
 
 add_subdirectory(cmf)
+add_subdirectory(tools)
 add_subdirectory(UTTClient)
 add_subdirectory(UTTReplica)
 

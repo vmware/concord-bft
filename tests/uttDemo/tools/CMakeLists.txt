@@ -1,13 +1,5 @@
+add_executable(gen_utt_cfg GenerateUTTConfig.cpp)
 
-set(gen_utt_config_sources
-  GenerateUTTConfig.cpp
-)
+target_include_directories(gen_utt_cfg PUBLIC ${UTT_DEMO_INCLUDES})
 
-add_executable(GenerateUTTConfig ${gen_utt_config_sources})
-
-target_include_directories(GenerateUTTConfig
-	PUBLIC
-		${UTT_DEMO_INCLUDES}
-)
-
-target_link_libraries(GenerateUTTConfig PUBLIC ${UTT_DEMO_LINKS})
+target_link_libraries(gen_utt_cfg PUBLIC ${UTT_DEMO_LINKS})
