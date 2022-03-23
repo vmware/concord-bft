@@ -13,70 +13,78 @@
 
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include <vector>
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
-#include <cryptopp/dll.h>
-#pragma GCC diagnostic pop
+#include <string.hpp>
 
-#include "threshsign/ThresholdSignaturesTypes.h"
-#include "KeyfileIOUtils.hpp"
+#include <utt/Params.h>
+#include <utt/RandSigDKG.h>
+#include <utt/RegAuth.h>
+#include <utt/Wallet.h>
+#include <utt/Coin.h>
+
+#include <utt/NtlLib.h>
+
+using namespace libutt;
+
+using Fr = typename libff::default_ec_pp::Fp_type;
+
+////////////////////////////////////////////////////////////////////////
+struct UTTClientConfig {
+  UTTClientConfig(uint16_t clientId) : clientId_{clientId} {}
+
+  uint16_t clientId_;
+  Wallet wallet_;
+};
+std::ostream& operator<<(std::ostream& os, const UTTClientConfig& cfg) {
+  os << cfg.wallet_;
+  return os;
+}
+std::istream& operator>>(std::istream& is, UTTClientConfig& cfg) {
+  is >> cfg.wallet_;
+  return is;
+}
+
+////////////////////////////////////////////////////////////////////////
+struct UTTReplicaConfig {
+  UTTReplicaConfig(uint16_t replicaId, const Params& p) : replicaId_{replicaId}, p_{p} {}
+
+  uint16_t replicaId_;
+  const Params& p_;
+  RegAuthPK rpk_;
+  RandSigShareSK bskShare_;
+};
+std::ostream& operator<<(std::ostream& os, const UTTReplicaConfig& cfg) {
+  os << cfg.p_;
+  os << cfg.rpk_;
+  os << cfg.bskShare_;
+  return os;
+}
 
 // Helper functions and static state to this executable's main function.
+// static bool containsHelpOption(int argc, char** argv) {
+//   for (int i = 1; i < argc; ++i) {
+//     if (std::string(argv[i]) == "--help") {
+//       return true;
+//     }
+//   }
+//   return false;
+// }
 
-static bool containsHelpOption(int argc, char** argv) {
-  for (int i = 1; i < argc; ++i) {
-    if (std::string(argv[i]) == "--help") {
-      return true;
-    }
-  }
-  return false;
-}
+// template <typename T>
+// T parse(const std::string& str, const std::string& name) {
+//   try {
+//     return concord::util::to<T>(str);
+//   } catch (std::exception& e) {
+//     std::ostringstream oss;
+//     oss << "Exception: " << e.what() << " Invalid value  for " << name << ": " << str << " expected range ["
+//         << std::numeric_limits<T>::min() << ", " << std::numeric_limits<T>::max() << "]";
 
-static CryptoPP::RandomPool sGlobalRandGen;
-const unsigned int rsaKeyLength = 2048;
+//     throw std::runtime_error(oss.str());
+//   }
+// }
 
-static std::pair<std::string, std::string> generateRsaKey() {
-  // Uses CryptoPP implementation of RSA key generation.
-
-  std::pair<std::string, std::string> keyPair;
-
-  CryptoPP::RSAES<CryptoPP::OAEP<CryptoPP::SHA256>>::Decryptor priv(sGlobalRandGen, rsaKeyLength);
-  CryptoPP::HexEncoder privEncoder(new CryptoPP::StringSink(keyPair.first));
-  priv.AccessMaterial().Save(privEncoder);
-  privEncoder.MessageEnd();
-
-  CryptoPP::RSAES<CryptoPP::OAEP<CryptoPP::SHA256>>::Encryptor pub(priv);
-  CryptoPP::HexEncoder pubEncoder(new CryptoPP::StringSink(keyPair.second));
-  pub.AccessMaterial().Save(pubEncoder);
-  pubEncoder.MessageEnd();
-
-  return keyPair;
-}
-
-/**
- * Main function for the GenerateConcordKeys executable. Pseudorandomly
- * generates a new set of keys for a Concord deployment with given F and C
- * values and writes them to an output file. The output is formatted using
- * constructs from a subset of YAML to make it both human and machine readable.
- * The output includes an RSA key pair for each of the replicas for general
- * communication and non-threshold cryptographic purposes and the complete key
- * set for the four threshold cryptosystems used by Concord. All
- * per-replica keys are given in lists in which the order corresponds to the
- * replicas' order.
- *
- * @param argc The number of command line arguments to this main function,
- *             including the command this executable was launched with.
- * @param argv Command line arguments to this function, with the first being the
- *             command this executable was launched with as is conventional. A
- *             description of expected and supported command line parameters is
- *             available by runnign the utility with the "--help" option.
- *
- * @return 0; currently this utility will output an error message to the command
- *         line if it exits unsuccessfully due to invalid command-line
- *         parameters, but it will not return an exit code indicating an error.
- */
 int main(int argc, char** argv) {
   try {
     std::string usageMessage =
@@ -98,117 +106,142 @@ int main(int argc, char** argv) {
         "  --opptimistic_commit_cryptosys SYSTEM_TYPE PARAMETER\n"
         "Currently, the following cryptosystem types are supported (and take the following as parameters):\n";
 
-    std::vector<std::pair<std::string, std::string>> cryptosystemTypes;
-    Cryptosystem::getAvailableCryptosystemTypes(cryptosystemTypes);
-    for (size_t i = 0; i < cryptosystemTypes.size(); ++i) {
-      usageMessage += "  " + cryptosystemTypes[i].first + " (" + cryptosystemTypes[i].second + ")\n";
-    }
-
-    usageMessage +=
-        "If any of these cryptosystem selections are not made"
-        " explictly, a default will\nbe selected.\n\nSpecial options:\n  --help :"
-        " display this usage message and exit.\n";
-
     // Display the usage message and exit if no arguments were given, or if --help
     // was given anywhere.
-    if ((argc <= 1) || (containsHelpOption(argc, argv))) {
-      std::cout << usageMessage;
-      return 0;
-    }
-    bftEngine::ReplicaConfig& config = bftEngine::ReplicaConfig::instance();
-    uint16_t n = 0;
-    uint16_t ro = 0;
-    std::string outputPrefix;
+    // if ((argc <= 1) || (containsHelpOption(argc, argv))) {
+    //   std::cout << usageMessage;
+    //   return 0;
+    // }
 
-    std::string slowType = MULTISIG_BLS_SCHEME;
-    std::string slowParam = "BN-P254";
-    std::string commitType = MULTISIG_BLS_SCHEME;
-    std::string commitParam = "BN-P254";
-    std::string optType = MULTISIG_BLS_SCHEME;
-    std::string optParam = "BN-P254";
+    uint16_t n = 4;
+    uint16_t f = 1;
+    std::string clientOutputPrefix = "utt_client_";
+    std::string replicaOutputPrefix = "utt_replica_";
 
-    for (int i = 1; i < argc; ++i) {
-      std::string option(argv[i]);
-      if (option == "-f") {
-        if (i >= argc - 1) throw std::runtime_error("Expected an argument to -f");
-        config.fVal = parse<std::uint16_t>(argv[i++ + 1], "-f");
-      } else if (option == "-n") {
-        if (i >= argc - 1) throw std::runtime_error("Expected an argument to -n");
-        // Note we do not enforce a minimum value for n here; since we require
-        // n > 3f and f > 0, lower bounds for n will be handled when we
-        // enforce the n > 3f constraint below.
-        n = parse<std::uint16_t>(argv[i++ + 1], "-n");
-      } else if (option == "-r") {
-        if (i >= argc - 1) throw std::runtime_error("Expected an argument to -r");
-        ro = parse<std::uint16_t>(argv[i++ + 1], "-r");
-      } else if (option == "-o") {
-        if (i >= argc - 1) throw std::runtime_error("Expected an argument to -o");
-        outputPrefix = argv[i++ + 1];
-      } else if (option == "--slow_commit_cryptosys") {
-        if (i >= argc - 2) throw std::runtime_error("Expected 2 arguments to --slow_commit_cryptosys");
-        slowType = argv[i++ + 1];
-        slowParam = argv[i++ + 2];
-      } else if (option == "--commit_cryptosys") {
-        if (i >= argc - 2) throw std::runtime_error("Expected 2 arguments to --execution_cryptosys");
-        commitType = argv[i++ + 1];
-        commitParam = argv[i++ + 2];
-      } else if (option == "--optimistic_commit_cryptosys") {
-        if (i >= argc - 2) throw std::runtime_error("Expected 2 arguments to --execution_cryptosys");
-        optType = argv[i++ + 1];
-        optParam = argv[i++ + 2];
-      } else {
-        throw std::runtime_error("Unrecognized command line argument: " + option);
-      }
-    }
+    // for (int i = 1; i < argc; ++i) {
+    //   std::string option(argv[i]);
+    //   if (option == "-f") {
+    //     if (i >= argc - 1) throw std::runtime_error("Expected an argument to -f");
+    //     f = parse<std::uint16_t>(argv[i++ + 1], "-f");
+    //   } else if (option == "-n") {
+    //     if (i >= argc - 1) throw std::runtime_error("Expected an argument to -n");
+    //     // Note we do not enforce a minimum value for n here; since we require
+    //     // n > 3f and f > 0, lower bounds for n will be handled when we
+    //     // enforce the n > 3f constraint below.
+    //     n = parse<std::uint16_t>(argv[i++ + 1], "-n");
+    //   } else if (option == "-r") {
+    //     if (i >= argc - 1) throw std::runtime_error("Expected an argument to -r");
+    //     ro = parse<std::uint16_t>(argv[i++ + 1], "-r");
+    //   } else if (option == "-o") {
+    //     if (i >= argc - 1) throw std::runtime_error("Expected an argument to -o");
+    //     outputPrefix = argv[i++ + 1];
+    //   } else {
+    //     throw std::runtime_error("Unrecognized command line argument: " + option);
+    //   }
+    // }
 
     // Check that required parameters were actually given.
-    if (config.fVal == 0) throw std::runtime_error("No value given for required -f parameter");
+    if (f == 0) throw std::runtime_error("No value given for required -f parameter");
     if (n == 0) throw std::runtime_error("No value given for required -n parameter");
-    if (outputPrefix.empty()) throw std::runtime_error("No value given for required -o parameter");
+    // if (outputPrefix.empty()) throw std::runtime_error("No value given for required -o parameter");
 
     // Verify constraints between F and N and compute C.
 
     // Note we check that N >= 3F + 1 using uint32_ts even though F and N are
     // uint16_ts just in case 3F + 1 overflows a uint16_t.
-    uint32_t minN = 3 * (uint32_t)config.fVal + 1;
+    uint32_t minN = 3 * (uint32_t)f + 1;
     if ((uint32_t)n < minN)
       throw std::runtime_error(
           "Due to the design of Byzantine fault tolerance, number of"
           " replicas (-n) must be greater than or equal to (3 * F + 1), where F"
           " is the maximum number of faulty\nreplicas (-f)");
 
-    // We require N - 3F - 1 to be even so C can be an integer.
-    if (((n - (3 * config.fVal) - 1) % 2) != 0)
-      throw std::runtime_error(
-          "For technical reasons stemming from our current"
-          " implementation of Byzantine\nfault tolerant consensus, we currently"
-          " require that (N - 3F - 1) be even, where\nN is the total number of"
-          " replicas (-n) and F is the maximum number of faulty\nreplicas (-f)");
+    // Initialize library
+    {
+      unsigned char* randSeed = nullptr;  // TODO: initialize entropy source
+      int size = 0;                       // TODO: initialize entropy source
 
-    config.cVal = (n - (3 * config.fVal) - 1) / 2;
+      // Apparently, libff logs some extra info when computing pairings
+      libff::inhibit_profiling_info = true;
 
-    std::vector<std::pair<std::string, std::string>> rsaKeys;
-    for (uint16_t i = 0; i < n + ro; ++i) {
-      rsaKeys.push_back(generateRsaKey());
-      config.publicKeysOfReplicas.insert(std::pair<uint16_t, std::string>(i, rsaKeys[i].second));
+      // AB: We _info disables printing of information and _counters prevents tracking of profiling information. If we
+      // are using the code in parallel, disable both the logs.
+      libff::inhibit_profiling_counters = true;
+
+      // Initializes the default EC curve, so as to avoid "surprises"
+      libff::default_ec_pp::init_public_params();
+
+      // Initializes the NTL finite field
+      NTL::ZZ p = NTL::conv<ZZ>("21888242871839275222246405745257275088548364400416034343698204186575808495617");
+      NTL::ZZ_p::init(p);
+
+      NTL::SetSeed(randSeed, size);
+
+      RangeProof::Params::initializeOmegas();
     }
 
-    // We want to generate public key for n-out-of-n case
-    Cryptosystem cryptoSys(MULTISIG_BLS_SCHEME, "BN-P254", n, n);
-    cryptoSys.generateNewPseudorandomKeys();
-    // Output the generated keys.
-    for (uint16_t i = 0; i < n; ++i) {
-      config.replicaId = i;
-      config.replicaPrivateKey = rsaKeys[i].first;
-      outputReplicaKeyfile(n, ro, config, outputPrefix + std::to_string(i), &cryptoSys);
+    int thresh = f + 1;
+    int numClients = 3;
+
+    RandSigDKG dkg = RandSigDKG(thresh, n, Params::NumMessages);
+    const auto& bsk = dkg.getSK();
+    auto bskShares = dkg.getAllShareSKs();
+
+    Params p = Params::random(dkg.getCK());                             // All replicas
+    RegAuthSK rsk = RegAuthSK::random(p.getRegCK(), p.getIbeParams());  // eventually not needed
+
+    std::vector<size_t> normalCoinValues = {1000};
+    size_t budgetCoinValue = 1000;
+
+    // Create client configs with a wallet and pre-minted coins
+    for (int i = 0; i < numClients; ++i) {
+      auto clientCfg = UTTClientConfig(n + i);
+      clientCfg.wallet_.p = p;                                                         // The Params
+      clientCfg.wallet_.ask = rsk.registerRandomUser("user" + std::to_string(n + i));  // The User Secret Key
+      clientCfg.wallet_.bpk = bsk.toPK();                                              // The Bank Public Key
+      clientCfg.wallet_.rpk = rsk.toPK();                                              // The Registry Public Key
+
+      // Pre-mint normal coins
+      for (size_t val : normalCoinValues) {
+        auto sn = Fr::random_element();
+        auto val_fr = Fr(static_cast<long>(val));
+        Coin c(p.getCoinCK(), p.null, sn, val_fr, Coin::NormalType(), Coin::DoesNotExpire(), clientCfg.wallet_.ask);
+
+        // sign *full* coin commitment using bank's SK
+        c.sig = bsk.sign(c.augmentComm());
+
+        clientCfg.wallet_.coins.emplace_back(std::move(c));
+      }
+
+      // Pre-mint budget coin
+      if (budgetCoinValue > 0) {
+        auto sn = Fr::random_element();
+        auto val_fr = Fr(static_cast<long>(budgetCoinValue));
+        Coin c(
+            p.getCoinCK(), p.null, sn, val_fr, Coin::BudgetType(), Coin::SomeExpirationDate(), clientCfg.wallet_.ask);
+
+        // sign *full* coin commitment using bank's SK
+        c.sig = bsk.sign(c.augmentComm());
+
+        clientCfg.wallet_.budgetCoin = std::move(c);
+      }
+
+      std::ofstream ofs(clientOutputPrefix + std::to_string(n + i));
+      ofs << clientCfg;
     }
 
-    for (uint16_t i = n; i < n + ro; ++i) {
-      config.isReadOnly = true;
-      config.replicaId = i;
-      config.replicaPrivateKey = rsaKeys[i].first;
-      outputReplicaKeyfile(n, ro, config, outputPrefix + std::to_string(i));
+    // Create replica configs
+    for (int i = 0; i < n; ++i) {
+      auto replicaCfg = UTTReplicaConfig(i, p);  // The Params
+      replicaCfg.rpk_ = rsk.toPK();              // The Registry Public Key
+      replicaCfg.bskShare_ = bskShares[i];       // The Bank Secret Key Share
+
+      std::ofstream ofs(replicaOutputPrefix + std::to_string(i));
+      ofs << replicaCfg;
     }
+
+    // Check deserialization
+
   } catch (std::exception& e) {
     std::cerr << "Exception: " << e.what() << std::endl;
     return 1;
