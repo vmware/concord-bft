@@ -57,8 +57,13 @@ void PreProcessBatchReplyMsg::validate(const ReplicasInfo& repInfo) const {
   }
 
   const auto numOfMessagesInBatch = msgBody()->numOfMessagesInBatch;
-  if (!numOfMessagesInBatch || (numOfMessagesInBatch > MAX_BATCH_SIZE)) {
-    LOG_WARN(logger(), "Too many messages in batch" << KVLOG(numOfMessagesInBatch));
+  if (!numOfMessagesInBatch) {
+    LOG_WARN(logger(), "Number of messages in the batch is zero" << KVLOG(msgBody()->senderId, getCid()));
+    throw std::runtime_error(__PRETTY_FUNCTION__);
+  }
+
+  if (numOfMessagesInBatch > MAX_BATCH_SIZE) {
+    LOG_WARN(logger(), "Too many messages in the batch" << KVLOG(numOfMessagesInBatch, msgBody()->senderId, getCid()));
     throw std::runtime_error(__PRETTY_FUNCTION__);
   }
 }
