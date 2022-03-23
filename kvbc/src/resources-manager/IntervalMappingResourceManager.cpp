@@ -62,9 +62,9 @@ PruneInfo IntervalMappingResourceManager::getPruneInfo() {
   PruneInfo ret;
   if (it != intervalMapping_.end()) {
     // 0.9 reflects maximum allowed 10% drop in perfomance.
-    double adjust = 1;
+    long double adjust = 1;
     if (lastTPS_ * 0.9 > tps && pruningUtilization > configuration.limitMaximumPruningTimeUtilizationPercentage) {
-      adjust = (100 - pruningUtilization) / 100.0;
+      adjust = (100 - (long double)pruningUtilization) / 100.0;
       LOG_WARN(ADPTV_PRUNING, "Pruning consumes too much resources at the cost of TPS. Adjusting by " << adjust);
 
       // pruningTimeUlizationTPSInterferenceLimit of percentage where it can be assumed that tps fall is not caused by
