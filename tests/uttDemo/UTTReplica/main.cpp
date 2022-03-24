@@ -136,7 +136,14 @@ void run_replica(int argc, char** argv) {
 
   if (!setup->GetReplicaConfig().isReadOnly) replica->setReplicaStateSync(new ReplicaStateSyncImp(blockMetadata));
 
-  auto cmdHandler = std::make_shared<UTTCommandsHandler>(logger);
+  auto cmdHandler =
+      std::make_shared<UTTCommandsHandler>(replica.get(),
+                                           replica.get(),
+                                           blockMetadata,
+                                           logger,
+                                           setup->AddAllKeysAsPublic(),
+                                           replica->kvBlockchain() ? &replica->kvBlockchain().value() : nullptr);
+
   replica->set_command_handler(cmdHandler);
   replica->setStateSnapshotValueConverter(categorization::KeyValueBlockchain::kNoopConverter);
   replica->start();
