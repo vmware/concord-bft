@@ -122,7 +122,7 @@ class SkvbcCommitPathTest(ApolloTest):
                                                   threshold=op_count)
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n >= 6 and c > 0, rotate_keys=ROTATE_KEYS)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: c > 0, rotate_keys=ROTATE_KEYS)
     @verify_linearizability()
     async def test_fast_to_fast_with_threshold_path(self, bft_network: 'BftTestNetwork', tracker: 'SkvbcTracker'):
         """
@@ -147,6 +147,7 @@ class SkvbcCommitPathTest(ApolloTest):
                                                   run_ops=lambda: skvbc.send_n_kvs_sequentially(fast_ops),
                                                   threshold=fast_ops)
 
+        assert bft_network.config.c > 0, "Configuration expected to have collector replicas"
         crash_targets = random.sample(bft_network.all_replicas(without={primary_num}), bft_network.config.c)
         bft_network.stop_replicas(crash_targets)
 

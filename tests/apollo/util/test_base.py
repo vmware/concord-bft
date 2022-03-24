@@ -12,11 +12,11 @@
 
 import os
 import random
+import traceback
 import unittest
 import util.eliot_logging as log
 from functools import wraps
 import itertools
-import traceback
 
 
 class ApolloTest(unittest.TestCase):
@@ -60,26 +60,28 @@ def repeat_test(max_repeats: int, break_on_first_failure: bool, break_on_first_s
     break_on_first_success is True: run test up to max_repeats times and breaks after the 1st successful test.
     break_on_first_failure is True: run test up to max_repeats times and breaks after the 1st failing test.
     """
-    assert not (break_on_first_failure and break_on_first_success), \
-        "both flags break_on_first_failure and break_on_first_success cannot be enabled at the same time!"
+    assert not(break_on_first_failure and break_on_first_success), \
+        "Cannot break on first failure and on first success at the same time"
     def decorator(async_fn):
         @wraps(async_fn)
         async def wrapper(*args, **kwargs):
             for i in range(1, max_repeats + 1):
                 try:
-                    if (max_repeats > 1):
+                    if max_repeats > 1:
                         print(f"Running iteration {i}/{max_repeats}, (break_on_first_failure={break_on_first_failure},"
                               f" break_on_first_success={break_on_first_success})")
                     await async_fn(*args, **kwargs)
                     if break_on_first_success:
                         break
                 except Exception as e:
+                    is_last = (i == max_repeats) or break_on_first_failure
                     log.log_message(message_type='Test attempt failed', run=i, max_repeats=max_repeats,
-                                    break_on_first_failure=break_on_first_failure)
-                    if i == max_repeats or break_on_first_failure:
+                                    is_last=is_last,
+                                    )
+                    if is_last:
                         raise e
                     else:
-                        # we still want to see the traceback, even when we continue to next iteration
                         print(traceback.format_exc())
+
         return wrapper
     return decorator
