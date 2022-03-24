@@ -121,7 +121,7 @@ class RequestProcessingState {
   const std::string batchCid_;
   const uint16_t clientId_;
   const uint16_t reqOffsetInBatch_;
-  const std::string cid_;
+  const std::string reqCid_;
   const ReqId reqSeqNum_;
   const uint64_t entryTime_;
   const std::string clientRequestSignature_;
