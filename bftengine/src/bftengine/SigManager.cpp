@@ -248,8 +248,7 @@ uint16_t SigManager::getMySigLength() const { return (uint16_t)mySigner_->signat
 
 void SigManager::setClientPublicKey(const std::string& key, PrincipalId id, concord::util::crypto::KeyFormat format) {
   LOG_INFO(KEY_EX_LOG, "client: " << id << " key: " << key << " format: " << (uint16_t)format);
-  if ((replicasInfo_.isIdOfExternalClient(id) || replicasInfo_.isIdOfClientService(id)) &&
-      !replicasInfo_.isIdOfOperator(id)) {
+  if (replicasInfo_.isIdOfExternalClient(id) || replicasInfo_.isIdOfClientService(id)) {
     try {
       std::unique_lock lock(mutex_);
       verifiers_.insert_or_assign(id, std::make_shared<concord::util::crypto::RSAVerifier>(key.c_str(), format));
