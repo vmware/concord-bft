@@ -46,6 +46,18 @@ def start_replica_cmd(builddir, replica_id):
             "-v", viewChangeTimeoutMilli 
             ]
 
+def start_replica_cmd_with_slowdown(builddir, replica_id):
+    statusTimerMilli = "500"
+    viewChangeTimeoutMilli = "10000"
+
+    path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
+    return [path,
+            "-k", KEY_FILE_PREFIX,
+            "-i", str(replica_id),
+            "-s", statusTimerMilli,
+            "-v", viewChangeTimeoutMilli,
+            "--delay-state-transfer-messages-millisec", '10'
+            ]
 
 class SkvbcPersistenceTest(ApolloTest):
 
@@ -189,7 +201,7 @@ class SkvbcPersistenceTest(ApolloTest):
         await skvbc.read_your_writes()
 
     @with_trio
-    @with_bft_network(start_replica_cmd)
+    @with_bft_network(start_replica_cmd=start_replica_cmd_with_slowdown)
     @verify_linearizability()
     async def test_st_when_fetcher_crashes(self, bft_network, tracker):
         """
