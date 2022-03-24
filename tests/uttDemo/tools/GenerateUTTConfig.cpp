@@ -15,6 +15,7 @@
 #include <iostream>
 #include <sstream>
 #include <vector>
+#include <string>
 
 #include <string.hpp>
 
@@ -31,27 +32,57 @@ using namespace libutt;
 using Fr = typename libff::default_ec_pp::Fp_type;
 
 ////////////////////////////////////////////////////////////////////////
-struct UTTClientConfig {
-  UTTClientConfig(uint16_t clientId) : clientId_{clientId} {}
+std::string JoinStr(const std::vector<std::string>& v, char delim = ' ') {
+  if (v.empty()) return std::string{};
+  if (v.size() == 1) return v[0];
+  std::stringstream ss;
+  for (size_t i = 0; i < v.size() - 1; ++i) ss << v[i] << delim;
+  ss << v.back();
+  return ss.str();
+}
 
-  uint16_t clientId_;
+////////////////////////////////////////////////////////////////////////
+std::vector<std::string> SplitStr(const std::string& s, char delim = ' ') {
+  if (s.empty()) return std::vector<std::string>{};
+  std::string token;
+  std::vector<std::string> result;
+  std::stringstream ss(s);
+  while (std::getline(ss, token, delim)) result.emplace_back(std::move(token));
+  return result;
+}
+
+////////////////////////////////////////////////////////////////////////
+struct UTTClientConfig {
+  bool operator==(const UTTClientConfig& other) const { return pids_ == other.pids_ && wallet_ == other.wallet_; }
+  bool operator!=(const UTTClientConfig& other) const { return !(*this == other); }
+
+  std::vector<std::string> pids_;
   Wallet wallet_;
 };
 std::ostream& operator<<(std::ostream& os, const UTTClientConfig& cfg) {
+  os << JoinStr(cfg.pids_, ',') << '\n';
   os << cfg.wallet_;
   return os;
 }
 std::istream& operator>>(std::istream& is, UTTClientConfig& cfg) {
+  std::string pids;
+  std::getline(is, pids);
+  if (pids.empty()) throw std::runtime_error("Trying to deserialize UTTClientConfig with no pids!");
+  cfg.pids_ = SplitStr(pids, ',');
+
   is >> cfg.wallet_;
+
   return is;
 }
 
 ////////////////////////////////////////////////////////////////////////
 struct UTTReplicaConfig {
-  UTTReplicaConfig(uint16_t replicaId, const Params& p) : replicaId_{replicaId}, p_{p} {}
+  bool operator==(const UTTReplicaConfig& other) const {
+    return p_ == other.p_ && rpk_ == other.rpk_ && bskShare_ == other.bskShare_;
+  }
+  bool operator!=(const UTTReplicaConfig& other) const { return !(*this == other); }
 
-  uint16_t replicaId_;
-  const Params& p_;
+  Params p_;
   RegAuthPK rpk_;
   RandSigShareSK bskShare_;
 };
@@ -60,6 +91,12 @@ std::ostream& operator<<(std::ostream& os, const UTTReplicaConfig& cfg) {
   os << cfg.rpk_;
   os << cfg.bskShare_;
   return os;
+}
+std::istream& operator>>(std::istream& is, UTTReplicaConfig& cfg) {
+  is >> cfg.p_;
+  is >> cfg.rpk_;
+  is >> cfg.bskShare_;
+  return is;
 }
 
 // Helper functions and static state to this executable's main function.
@@ -190,16 +227,25 @@ int main(int argc, char** argv) {
     Params p = Params::random(dkg.getCK());                             // All replicas
     RegAuthSK rsk = RegAuthSK::random(p.getRegCK(), p.getIbeParams());  // eventually not needed
 
-    std::vector<size_t> normalCoinValues = {1000};
+    std::vector<size_t> normalCoinValues = {1, 1, 1, 1, 1};
     size_t budgetCoinValue = 1000;
+
+    // Keep configs to check deserialization later
+    std::vector<UTTClientConfig> clientConfigs;
+    std::vector<UTTReplicaConfig> replicaConfigs;
+    std::vector<std::string> pids;
+
+    // Create client pids
+    for (int i = 0; i < numClients; ++i) pids.emplace_back("user_" + std::to_string(i + 1));
 
     // Create client configs with a wallet and pre-minted coins
     for (int i = 0; i < numClients; ++i) {
-      auto clientCfg = UTTClientConfig(n + i);
-      clientCfg.wallet_.p = p;                                                         // The Params
-      clientCfg.wallet_.ask = rsk.registerRandomUser("user" + std::to_string(n + i));  // The User Secret Key
-      clientCfg.wallet_.bpk = bsk.toPK();                                              // The Bank Public Key
-      clientCfg.wallet_.rpk = rsk.toPK();                                              // The Registry Public Key
+      UTTClientConfig clientCfg;
+      clientCfg.pids_ = pids;                                   // Pids
+      clientCfg.wallet_.p = p;                                  // The Params
+      clientCfg.wallet_.ask = rsk.registerRandomUser(pids[i]);  // The User Secret Key
+      clientCfg.wallet_.bpk = bsk.toPK();                       // The Bank Public Key
+      clientCfg.wallet_.rpk = rsk.toPK();                       // The Registry Public Key
 
       // Pre-mint normal coins
       for (size_t val : normalCoinValues) {
@@ -228,19 +274,51 @@ int main(int argc, char** argv) {
 
       std::ofstream ofs(clientOutputPrefix + std::to_string(n + i));
       ofs << clientCfg;
+
+      clientConfigs.emplace_back(std::move(clientCfg));
     }
 
     // Create replica configs
     for (int i = 0; i < n; ++i) {
-      auto replicaCfg = UTTReplicaConfig(i, p);  // The Params
-      replicaCfg.rpk_ = rsk.toPK();              // The Registry Public Key
-      replicaCfg.bskShare_ = bskShares[i];       // The Bank Secret Key Share
+      UTTReplicaConfig replicaCfg;
+      replicaCfg.p_ = p;                    // The Params
+      replicaCfg.rpk_ = rsk.toPK();         // The Registry Public Key
+      replicaCfg.bskShare_ = bskShares[i];  // The Bank Secret Key Share
 
       std::ofstream ofs(replicaOutputPrefix + std::to_string(i));
       ofs << replicaCfg;
+
+      replicaConfigs.emplace_back(std::move(replicaCfg));
     }
 
     // Check deserialization
+    for (int i = 0; i < numClients; ++i) {
+      const auto fileName = clientOutputPrefix + std::to_string(n + i);
+      std::ifstream ifs(fileName);
+      if (!ifs.is_open()) throw std::runtime_error("Could not open file " + fileName);
+
+      UTTClientConfig cfg;
+      ifs >> cfg;
+
+      if (cfg != clientConfigs[i]) throw std::runtime_error("Client config deserialization mismatch: " + fileName);
+
+      std::cout << "Successfully deserialized " << fileName << '\n';
+      std::cout << "num coins: " << cfg.wallet_.coins.size() << '\n';
+      std::cout << "pids: " << JoinStr(cfg.pids_) << '\n';
+    }
+
+    for (int i = 0; i < n; ++i) {
+      const auto fileName = replicaOutputPrefix + std::to_string(i);
+      std::ifstream ifs(fileName);
+      if (!ifs.is_open()) throw std::runtime_error("Could not open file " + fileName);
+
+      UTTReplicaConfig cfg;
+      ifs >> cfg;
+
+      if (cfg != replicaConfigs[i]) throw std::runtime_error("Replica config deserialization mismatch: " + fileName);
+
+      std::cout << "Successfully deserialized " << fileName << '\n';
+    }
 
   } catch (std::exception& e) {
     std::cerr << "Exception: " << e.what() << std::endl;
