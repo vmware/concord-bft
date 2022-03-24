@@ -112,7 +112,7 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
         for (auto i = start; i < (end - ((uint16_t)config.operatorEnabled_)); ++i) {
           ret.insert(i);
         }
-        if (config.operatorEnabled_) ret.insert(end + config.numOfClientServices - 1);
+        ret.insert(end + config.numOfClientServices - 1);
         if (start != end)
           LOG_INFO(GL,
                    "Principal ids in _idsOfExternalClients: " << start << " to "
@@ -129,18 +129,10 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
           ret.insert(i);
         }
         if (start != end) LOG_INFO(GL, "Principal ids in _idsOfClientServices: " << start << " to " << end - 1);
+        if (config.operatorEnabled_) LOG_INFO(GL, "Operator id: " << end);
         return ret;
       }()},
-      _idsOfOperators{[&config]() {
-        std::set<ReplicaId> ret;
-        if (config.operatorEnabled_) {
-          auto operator_id =
-              config.numReplicas + config.numRoReplicas + config.numOfClientProxies + config.numOfExternalClients - 1;
-          ret.insert(operator_id);
-          LOG_INFO(GL, "Operator id: " << operator_id);
-        }
-        return ret;
-      }()},
+
       _idsOfInternalClients{[&config]() {
         std::set<ReplicaId> ret;
         auto start = config.numReplicas + config.numRoReplicas + config.numOfClientProxies +
