@@ -13,13 +13,43 @@
 
 #include "UTTCommandsHandler.hpp"
 
+#include "kvbc_key_types.hpp"
+
 using namespace bftEngine;
 using namespace utt::messages;
+
+using concord::kvbc::BlockId;
+namespace kvbc_cat = concord::kvbc::categorization;
+
+using Hasher = concord::util::SHA3_256;
+using Hash = Hasher::Digest;
+
+template <typename Span>
+static Hash hash(const Span& span) {
+  return Hasher{}.digest(span.data(), span.size());
+}
+
+static const std::string& keyHashToCategory(const Hash& keyHash) {
+  // If the most significant bit of a key's hash is set, use the VersionedKeyValueCategory. Otherwise, use the
+  // BlockMerkleCategory.
+  if (keyHash[0] & 0x80) {
+    return VERSIONED_KV_CAT_ID;
+  }
+  return BLOCK_MERKLE_CAT_ID;
+}
+
+static const std::string& keyToCategory(const std::string& key) { return keyHashToCategory(hash(key)); }
 
 void UTTCommandsHandler::execute(UTTCommandsHandler::ExecutionRequestsQueue& requests,
                                  std::optional<bftEngine::Timestamp> timestamp,
                                  const std::string& batchCid,
                                  concordUtils::SpanWrapper& parent_span) {
+  // Print state before execution
+  std::stringstream ss;
+  for (const auto& block : state_.GetBlocks()) ss << block << " ";
+  ss << '\n';
+  LOG_INFO(logger_, "[BC lastBlock=" << storage_->getLastBlockId() << "] AppState: " << ss.str());
+
   LOG_INFO(logger_, "UTTCommandsHandler execute");
   for (auto& req : requests) {
     UTTRequest uttRequest;
@@ -73,6 +103,12 @@ TxReply UTTCommandsHandler::handleRequest(const TxRequest& txRequest) {
   std::string err;
 
   if (state_.canExecuteTx(*tx, err)) {
+    // Add a real block to storage
+    kvbc_cat::VersionedUpdates verUpdates;
+    kvbc_cat::BlockMerkleUpdates merkleUpdates;
+    add("tx", std::move(cmd), verUpdates, merkleUpdates);
+    addBlock(verUpdates, merkleUpdates);
+
     state_.appendBlock(Block{std::move(*tx)});
     state_.executeBlocks();
     reply.success = true;
@@ -112,4 +148,56 @@ GetBlockDataReply UTTCommandsHandler::handleRequest(const GetBlockDataRequest& r
   }
 
   return reply;
+}
+
+void UTTCommandsHandler::add(std::string&& key,
+                             std::string&& value,
+                             kvbc_cat::VersionedUpdates& verUpdates,
+                             kvbc_cat::BlockMerkleUpdates& merkleUpdates) const {
+  // Add all key-values in the block merkle category as public ones.
+  if (addAllKeysAsPublic_) {
+    merkleUpdates.addUpdate(std::move(key), std::move(value));
+  } else {
+    const auto& cat = keyToCategory(key);
+    if (cat == VERSIONED_KV_CAT_ID) {
+      verUpdates.addUpdate(std::move(key), std::move(value));
+      return;
+    }
+    merkleUpdates.addUpdate(std::move(key), std::move(value));
+  }
+}
+
+void UTTCommandsHandler::addBlock(kvbc_cat::VersionedUpdates& verUpdates, kvbc_cat::BlockMerkleUpdates& merkleUpdates) {
+  BlockId currBlock = storage_->getLastBlockId();
+  kvbc_cat::Updates updates;
+
+  // Add all key-values in the block merkle category as public ones.
+  if (addAllKeysAsPublic_) {
+    ConcordAssertNE(kvbc_, nullptr);
+    auto public_state = kvbc_->getPublicStateKeys();
+    if (!public_state) {
+      public_state = kvbc_cat::PublicStateKeys{};
+    }
+    for (const auto& [k, _] : merkleUpdates.getData().kv) {
+      (void)_;
+      // We don't allow duplicates.
+      auto it = std::lower_bound(public_state->keys.cbegin(), public_state->keys.cend(), k);
+      if (it != public_state->keys.cend() && *it == k) {
+        continue;
+      }
+      // We always persist public state keys in sorted order.
+      public_state->keys.push_back(k);
+      std::sort(public_state->keys.begin(), public_state->keys.end());
+    }
+    const auto public_state_ser = kvbc_cat::detail::serialize(*public_state);
+    auto public_state_updates = kvbc_cat::VersionedUpdates{};
+    public_state_updates.addUpdate(std::string{concord::kvbc::keyTypes::state_public_key_set},
+                                   std::string{public_state_ser.cbegin(), public_state_ser.cend()});
+    updates.add(kvbc_cat::kConcordInternalCategoryId, std::move(public_state_updates));
+  }
+
+  updates.add(VERSIONED_KV_CAT_ID, std::move(verUpdates));
+  updates.add(BLOCK_MERKLE_CAT_ID, std::move(merkleUpdates));
+  const auto newBlockId = blockAdder_->add(std::move(updates));
+  ConcordAssert(newBlockId == currBlock + 1);
 }

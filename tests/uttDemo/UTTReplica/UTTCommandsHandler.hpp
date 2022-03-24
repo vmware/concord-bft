@@ -17,6 +17,7 @@
 #include "block_metadata.hpp"
 #include "KVBCInterfaces.h"
 #include "SharedTypes.hpp"
+#include "categorization/kv_blockchain.h"
 
 #include "utt_messages.cmf.hpp"
 #include "app_state.hpp"
@@ -26,7 +27,25 @@ static const std::string BLOCK_MERKLE_CAT_ID{concord::kvbc::categorization::kExe
 
 class UTTCommandsHandler : public concord::kvbc::ICommandsHandler {
  public:
-  UTTCommandsHandler(logging::Logger &logger) : logger_(logger) {}
+  UTTCommandsHandler(concord::kvbc::IReader *storage,
+                     concord::kvbc::IBlockAdder *blocksAdder,
+                     concord::kvbc::IBlockMetadata *blockMetadata,
+                     logging::Logger &logger,
+                     bool addAllKeysAsPublic = false,
+                     concord::kvbc::categorization::KeyValueBlockchain *kvbc = nullptr)
+      : storage_(storage),
+        blockAdder_(blocksAdder),
+        blockMetadata_(blockMetadata),
+        logger_(logger),
+        addAllKeysAsPublic_{addAllKeysAsPublic},
+        kvbc_{kvbc} {
+    if (addAllKeysAsPublic_) {
+      ConcordAssertNE(kvbc_, nullptr);
+    }
+    (void)storage_;
+    (void)blockAdder_;
+    (void)blockMetadata_;
+  }
 
   void execute(ExecutionRequestsQueue &requests,
                std::optional<bftEngine::Timestamp> timestamp,
@@ -45,6 +64,24 @@ class UTTCommandsHandler : public concord::kvbc::ICommandsHandler {
   utt::messages::GetLastBlockReply handleRequest(const utt::messages::GetLastBlockRequest &req);
   utt::messages::GetBlockDataReply handleRequest(const utt::messages::GetBlockDataRequest &req);
 
-  logging::Logger &logger_;
+  void add(std::string &&key,
+           std::string &&value,
+           concord::kvbc::categorization::VersionedUpdates &verUpdates,
+           concord::kvbc::categorization::BlockMerkleUpdates &merkleUpdates) const;
+
+  void addBlock(concord::kvbc::categorization::VersionedUpdates &verUpdates,
+                concord::kvbc::categorization::BlockMerkleUpdates &merkleUpdates);
+
   AppState state_;
+
+  concord::kvbc::IReader *storage_;
+  concord::kvbc::IBlockAdder *blockAdder_;
+  concord::kvbc::IBlockMetadata *blockMetadata_;
+  logging::Logger &logger_;
+  // size_t readsCounter_ = 0;
+  // size_t writesCounter_ = 0;
+  // size_t getLastBlockCounter_ = 0;
+  std::shared_ptr<concord::performance::PerformanceManager> perfManager_;
+  bool addAllKeysAsPublic_{false};  // Add all key-values in the block merkle category as public ones.
+  concord::kvbc::categorization::KeyValueBlockchain *kvbc_{nullptr};
 };
