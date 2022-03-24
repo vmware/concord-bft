@@ -479,11 +479,10 @@ bool PreProcessor::checkClientMsgCorrectness(uint64_t reqSeqNum,
     return false;
   }
   const bool &invalidClient = !myReplica_.isValidClient(clientId);
-  const bool &sentFromReplicaToNonPrimary = myReplica_.isIdOfReplica(senderId) && !myReplica_.isCurrentPrimary();
-  if (invalidClient || sentFromReplicaToNonPrimary) {
+  if (invalidClient) {
     LOG_WARN(logger(),
              "Ignore ClientPreProcessRequestMsg as invalid"
-                 << KVLOG(reqSeqNum, senderId, clientId, invalidClient, sentFromReplicaToNonPrimary, batchCid));
+                 << KVLOG(reqSeqNum, senderId, clientId, invalidClient, batchCid));
     return false;
   }
   if (!myReplica_.currentViewIsActive()) {
