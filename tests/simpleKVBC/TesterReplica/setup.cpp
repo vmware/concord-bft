@@ -14,6 +14,7 @@
 #include <thread>
 #include <sys/param.h>
 #include <string>
+#include <sstream>
 #include <cstring>
 #include <getopt.h>
 #include <unistd.h>
@@ -36,8 +37,10 @@
 #include <boost/algorithm/string.hpp>
 #include <experimental/filesystem>
 
+#include "strategy/StrategyUtils.hpp"
 #include "strategy/ByzantineStrategy.hpp"
 #include "strategy/ShufflePrePrepareMsgStrategy.hpp"
+#include "strategy/DelayStateTransferMsgStrategy.hpp"
 #include "strategy/MangledPreProcessResultMsgStrategy.hpp"
 #include "WrapCommunication.hpp"
 #include "secrets_manager_enc.h"
@@ -61,6 +64,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
   try {
     // used to get info from parsing the key file
     bftEngine::ReplicaConfig& replicaConfig = bftEngine::ReplicaConfig::instance();
+    logging::Logger logger = logging::getLogger("skvbctest.replica");
     replicaConfig.numOfClientProxies = 0;
     replicaConfig.numOfExternalClients = 30;
     replicaConfig.concurrencyLevel = 3;
@@ -94,8 +98,15 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     std::string byzantineStrategies;
     bool is_separate_communication_mode = false;
     int addAllKeysAsPublic = 0;
+    int stateTransferMsgDelayMs = 0;
 
+    // do not change order of the next options, as some might use an option index!
     static struct option longOptions[] = {
+        // long format only options should be put here. They all should use val=2 and handled in a single place in
+        // the while loop
+        {"delay-state-transfer-messages-millisec", required_argument, 0, 2},
+
+        // long/short format options
         {"replica-id", required_argument, 0, 'i'},
         {"key-file-prefix", required_argument, 0, 'k'},
         {"network-config-file", required_argument, 0, 'n'},
@@ -121,8 +132,9 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
         {"replica-byzantine-strategies", optional_argument, 0, 'g'},
         {"pre-exec-result-auth", no_argument, 0, 'x'},
         {"time_service", optional_argument, 0, 'f'},
-        {"pre-exec-result-auth", no_argument, 0, 'x'},
         {"enable-db-checkpoint", required_argument, 0, 'h'},
+
+        // direct options - assign directly ro a non-null flag
         {"publish-master-key-on-startup", no_argument, (int*)&replicaConfig.publishReplicasMasterKeyOnStartup, 1},
         {"add-all-keys-as-public", no_argument, &addAllKeysAsPublic, 1},
         {0, 0, 0, 0}};
@@ -132,6 +144,31 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     while ((o = getopt_long(
                 argc, argv, "i:k:n:s:v:a:3:l:e:w:c:b:m:q:z:y:udp:t:o:r:g:xf:h:j:", longOptions, &optionIndex)) != -1) {
       switch (o) {
+        // long-options-only first
+        case 2:
+          switch (optionIndex) {
+            case 0: {
+              std::string str{optarg};
+              std::string::const_iterator it = str.begin();
+              while (it != str.end() && std::isdigit(*it)) {
+                ++it;
+              }
+              if (str.empty() || it != str.end()) {
+                std::ostringstream ss;
+                ss << "invalid argument for --delay-state-transfer-messages-millisec <" << str << ">";
+                throw std::runtime_error{ss.str()};
+              }
+              stateTransferMsgDelayMs = stoi(str);
+              byzantineStrategies = concord::kvbc::strategy::DelayStateTransferMsgStrategy(logger, 0).getStrategyName();
+            } break;
+            default: {
+              std::ostringstream ss;
+              ss << "invalid option:" << KVLOG(o, optionIndex);
+              throw std::runtime_error{ss.str()};
+            } break;
+          };
+          break;
+
         case 'i': {
           replicaConfig.replicaId = concord::util::to<std::uint16_t>(std::string(optarg));
         } break;
@@ -254,6 +291,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
           replicaConfig.dbCheckPointWindowSize = concord::util::to<std::uint32_t>(std::string(optarg));
           break;
         }
+
         case '?': {
           throw std::runtime_error("invalid arguments");
         } break;
@@ -272,8 +310,6 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     } else if (principalsMapping.empty() != txnSigningKeysPath.empty()) {
       throw std::runtime_error("Params principals-mapping and txn-signing-key-path must be set simultaneously.");
     }
-
-    logging::Logger logger = logging::getLogger("skvbctest.replica");
 
     TestCommConfig testCommConfig(logger);
     testCommConfig.GetReplicaConfig(replicaConfig.replicaId, keysFilePrefix, &replicaConfig);
@@ -305,7 +341,8 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
       // Initialise all the strategies here at once.
       const std::vector<std::shared_ptr<concord::kvbc::strategy::IByzantineStrategy>> allStrategies = {
           std::make_shared<concord::kvbc::strategy::ShufflePrePrepareMsgStrategy>(logger),
-          std::make_shared<concord::kvbc::strategy::MangledPreProcessResultMsgStrategy>(logger)};
+          std::make_shared<concord::kvbc::strategy::MangledPreProcessResultMsgStrategy>(logger),
+          std::make_shared<concord::kvbc::strategy::DelayStateTransferMsgStrategy>(logger, stateTransferMsgDelayMs)};
       WrapCommunication::addStrategies(byzantineStrategies, ',', allStrategies);
 
       std::unique_ptr<bft::communication::ICommunication> wrappedComm =
