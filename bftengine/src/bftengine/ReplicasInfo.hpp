@@ -37,7 +37,6 @@ class ReplicasInfo {
   bool isIdOfExternalClient(PrincipalId id) const {
     return _idsOfExternalClients.find(id) != _idsOfExternalClients.end();
   }
-  bool isIdOfOperator(PrincipalId id) const { return _idsOfOperators.find(id) != _idsOfOperators.end(); }
   bool isIdOfInternalClient(PrincipalId id) const {
     return _idsOfInternalClients.find(id) != _idsOfInternalClients.end();
   }
@@ -107,7 +106,6 @@ class ReplicasInfo {
   const std::set<PrincipalId> _idsOfClientProxies;
   const std::set<PrincipalId> _idsOfExternalClients;
   const std::set<PrincipalId> _idsOfClientServices;
-  const std::set<PrincipalId> _idsOfOperators;
   const std::set<PrincipalId> _idsOfInternalClients;
 };
 }  // namespace impl
