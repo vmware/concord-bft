@@ -315,7 +315,7 @@ void Replica::createReplicaAndSyncState() {
       m_metadataStorage,
       pm_,
       secretsManager_,
-      std::bind(&AdaptivePruningManager::setPrimay, &AdaptivePruningManager_, std::placeholders::_1));
+      std::bind(&AdaptivePruningManager::setPrimary, &AdaptivePruningManager_, std::placeholders::_1));
   requestHandler->setPersistentStorage(m_replicaPtr->persistentStorage());
   AdaptivePruningManager_.initBFTClient(m_replicaPtr->internalClient());
 
