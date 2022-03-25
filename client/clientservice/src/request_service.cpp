@@ -65,6 +65,7 @@ void RequestServiceCallData::populateResult(grpc::Status status) {
 }
 
 void RequestServiceCallData::sendToConcordClient() {
+  bool is_any_request_type = false;
   bft::client::Msg msg;
   if (request_.has_typed_request()) {
     google::protobuf::Any app_request = request_.typed_request();
@@ -72,9 +73,11 @@ void RequestServiceCallData::sendToConcordClient() {
     std::string request(request_size, '\0');
     app_request.SerializeToArray(request.data(), request_size);
     msg = bft::client::Msg(request.begin(), request.end());
+    is_any_request_type = true;
   } else {
     msg = bft::client::Msg(request_.raw_request().begin(), request_.raw_request().end());
   }
+
   auto seconds = std::chrono::seconds{request_.timeout().seconds()};
   auto nanos = std::chrono::nanoseconds{request_.timeout().nanos()};
   auto timeout = std::chrono::duration_cast<std::chrono::milliseconds>(seconds + nanos);
@@ -84,7 +87,7 @@ void RequestServiceCallData::sendToConcordClient() {
   req_config.timeout = timeout;
   req_config.correlation_id = request_.correlation_id();
 
-  auto callback = [this, req_config](concord::client::concordclient::SendResult&& send_result) {
+  auto callback = [this, req_config, is_any_request_type](concord::client::concordclient::SendResult&& send_result) {
     grpc::Status status;
     auto logger = logging::getLogger("concord.client.clientservice.request.callback");
     if (not std::holds_alternative<bft::client::Reply>(send_result)) {
@@ -130,10 +133,17 @@ void RequestServiceCallData::sendToConcordClient() {
     std::string data(reply.matched_data.begin(), reply.matched_data.end());
 
     // Check if the application response is of Any Type then set it to Any response.
-    google::protobuf::Any* app_response = this->response_.mutable_typed_response();
-    if (app_response->ParseFromArray(data.c_str(), data.size()) == false) {
+    if (is_any_request_type) {
+      google::protobuf::Any* app_response = this->response_.mutable_typed_response();
+      if (!app_response->ParseFromArray(data.c_str(), data.size())) {
+        status = grpc::Status(grpc::StatusCode::INTERNAL, "Internal error in parsing typed response");
+        this->populateResult(status);
+        return;
+      }
+    } else {
       this->response_.set_raw_response(std::move(data));
     }
+
     this->populateResult(grpc::Status::OK);
   };
 
