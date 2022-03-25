@@ -238,6 +238,16 @@ int main(int argc, char** argv) {
           for (const auto& block : state.GetBlocks()) {
             std::cout << block << '\n';
           }
+        } else if (cmd == "checkpoint") {
+          for (int i = 0; i < 150; ++i) {
+            auto reply = sendTxRequest(client, TxPublicDeposit("A", 1));
+            if (reply.success) {
+              state.setLastKnownBlockId(reply.last_block_id);
+            } else {
+              std::cout << "Checkpoint transaction " << (i + 1) << " failed: " << reply.err << '\n';
+              break;
+            }
+          }
         } else if (auto tx = parseTx(cmd)) {
           auto reply = sendTxRequest(client, *tx);
           if (reply.success) {

@@ -237,7 +237,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
           // replicaConfig.maxNumberOfDbCheckpoints = concord::util::to<std::uint32_t>(std::string(optarg));
           // if (replicaConfig.maxNumberOfDbCheckpoints) replicaConfig.dbCheckpointFeatureEnabled = true;
           // std::stringstream dbSnapshotPath;
-          // dbSnapshotPath << BasicRandomTests::DB_FILE_PREFIX << "snapshot_" << replicaConfig.replicaId;
+          // dbSnapshotPath << DB_FILE_PREFIX << "snapshot_" << replicaConfig.replicaId;
           // replicaConfig.dbCheckpointDirPath = dbSnapshotPath.str();
           break;
         }
