@@ -131,7 +131,7 @@ void RequestServiceCallData::sendToConcordClient() {
 
     // Check if the application response is of Any Type then set it to Any response.
     google::protobuf::Any* app_response = this->response_.mutable_typed_response();
-    if (app_response->ParseFromArray(data.c_str(), data.size()) == false) {
+    if (app_response->ParseFromArray(data.c_str(), data.size()) == true) {
       this->response_.set_raw_response(std::move(data));
     }
     this->populateResult(grpc::Status::OK);
