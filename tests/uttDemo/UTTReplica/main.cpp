@@ -20,8 +20,8 @@
 #include "secrets_manager_plain.h"
 #include "bftengine/ControlStateManager.hpp"
 #include "messages/ReplicaRestartReadyMsg.hpp"
-#include "bftengine/ReconfigurationCmd.hpp"
-#include "client/reconfiguration/cre_interfaces.hpp"
+//#include "bftengine/ReconfigurationCmd.hpp"
+//#include "client/reconfiguration/cre_interfaces.hpp"
 #include "assertUtils.hpp"
 #include "Metrics.hpp"
 #include <csignal>
@@ -39,75 +39,6 @@ std::shared_ptr<concord::kvbc::Replica> replica;
 
 std::atomic_bool timeToExit = false;
 
-class STAddRemoveHandlerTest : public concord::client::reconfiguration::IStateHandler {
-  bool validate(const concord::client::reconfiguration::State& s) const override {
-    bftEngine::ReconfigurationCmd::ReconfigurationCmdData::cmdBlock cmdData;
-    std::istringstream inStream;
-    std::string page(s.data.begin(), s.data.end());
-    inStream.str(page);
-    concord::serialize::Serializable::deserialize(inStream, cmdData);
-    concord::messages::ReconfigurationRequest rreq;
-    concord::messages::deserialize(cmdData.data_, rreq);
-    LOG_INFO(GL, "STAddRemoveHandlerTest::validate");
-    return std::holds_alternative<concord::messages::AddRemoveWithWedgeCommand>(rreq.command);
-  }
-  bool execute(const concord::client::reconfiguration::State& s,
-               concord::client::reconfiguration::WriteState& outState) override {
-    bftEngine::ReconfigurationCmd::ReconfigurationCmdData::cmdBlock cmdData;
-    std::istringstream inStream;
-    std::string page(s.data.begin(), s.data.end());
-    inStream.str(page);
-    concord::serialize::Serializable::deserialize(inStream, cmdData);
-    concord::messages::ReconfigurationRequest rreq;
-    concord::messages::deserialize(cmdData.data_, rreq);
-    concord::messages::AddRemoveWithWedgeCommand cmd =
-        std::get<concord::messages::AddRemoveWithWedgeCommand>(rreq.command);
-    LOG_INFO(GL,
-             "AddRemove command for RO replica:" << KVLOG(
-                 cmdData.blockId_, cmdData.wedgePoint_, cmdData.epochNum_, cmd.config_descriptor));
-    outState.data = s.data;
-    outState.callBack = []() { LOG_INFO(GL, "AddRemove command execute Successful"); };
-    return true;
-  }
-};
-
-void cronSetup(TestSetup& setup, const Replica& replica) {
-  if (!setup.GetCronEntryNumberOfExecutes()) {
-    return;
-  }
-  const auto numberOfExecutes = *setup.GetCronEntryNumberOfExecutes();
-
-  using namespace concord::cron;
-  const auto cronTableRegistry = replica.cronTableRegistry();
-  const auto ticksGenerator = replica.ticksGenerator();
-
-  auto& cronTable = cronTableRegistry->operator[](TestSetup::kCronTableComponentId);
-
-  // Make sure these are available for rules and actions that are called in the main replica thread.
-  static auto metricsComponent =
-      std::make_shared<concordMetrics::Component>("cron_test", setup.GetMetricsServer().GetAggregator());
-  static auto numberOfExecutesHandle = metricsComponent->RegisterGauge("cron_entry_number_of_executes", 0);
-  static auto tickComponentIdHandle = metricsComponent->RegisterStatus("cron_ticks_component_id", "");
-  static auto currentNumberOfExecutes = 0u;
-
-  // Register the component.
-  metricsComponent->Register();
-
-  // Add a cron entry
-  constexpr auto entryPos = 0;
-  const auto rule = [numberOfExecutes](const Tick&) { return (currentNumberOfExecutes < numberOfExecutes); };
-  const auto action = [](const Tick& tick) {
-    ++currentNumberOfExecutes;
-    numberOfExecutesHandle++;
-    tickComponentIdHandle.Get().Set(std::to_string(tick.component_id));
-    metricsComponent->UpdateAggregator();
-  };
-  cronTable.addEntry({entryPos, rule, action});
-
-  // Start the ticks generator.
-  ticksGenerator->start(TestSetup::kCronTableComponentId, TestSetup::kTickGeneratorPeriod);
-}
-
 void run_replica(int argc, char** argv) {
   const auto setup = TestSetup::ParseArgs(argc, argv);
   logging::initLogger(setup->getLogPropertiesFile());
@@ -122,7 +53,7 @@ void run_replica(int argc, char** argv) {
                                       setup->GetPerformanceManager(),
                                       std::map<std::string, categorization::CATEGORY_TYPE>{
                                           {VERSIONED_KV_CAT_ID, categorization::CATEGORY_TYPE::versioned_kv},
-                                          {BLOCK_MERKLE_CAT_ID, categorization::CATEGORY_TYPE::block_merkle}},
+                                          /*{BLOCK_MERKLE_CAT_ID, categorization::CATEGORY_TYPE::block_merkle}*/},
                                       setup->GetSecretManager());
   bftEngine::ControlStateManager::instance().addOnRestartProofCallBack(
       [argv, &setup]() {
@@ -136,22 +67,17 @@ void run_replica(int argc, char** argv) {
 
   if (!setup->GetReplicaConfig().isReadOnly) replica->setReplicaStateSync(new ReplicaStateSyncImp(blockMetadata));
 
-  auto cmdHandler =
-      std::make_shared<UTTCommandsHandler>(replica.get(),
-                                           replica.get(),
-                                           blockMetadata,
-                                           logger,
-                                           setup->AddAllKeysAsPublic(),
-                                           replica->kvBlockchain() ? &replica->kvBlockchain().value() : nullptr);
+  auto cmdHandler = std::make_shared<UTTCommandsHandler>(
+      replica.get(), replica.get(), blockMetadata, logger, &(*replica->kvBlockchain()));
 
   replica->set_command_handler(cmdHandler);
   replica->setStateSnapshotValueConverter(categorization::KeyValueBlockchain::kNoopConverter);
   replica->start();
-  if (setup->GetReplicaConfig().isReadOnly)
-    replica->registerStBasedReconfigurationHandler(std::make_shared<STAddRemoveHandlerTest>());
+  // if (setup->GetReplicaConfig().isReadOnly)
+  //   replica->registerStBasedReconfigurationHandler(std::make_shared<STAddRemoveHandlerTest>());
 
   // Setup a test cron table, if requested in configuration.
-  cronSetup(*setup, *replica);
+  // cronSetup(*setup, *replica);
 
   // Start metrics server after creation of the replica so that we ensure
   // registration of metrics from the replica with the aggregator and don't
