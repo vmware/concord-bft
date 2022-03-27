@@ -267,6 +267,11 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
 
   CONFIG_PARAM(enableEventGroups, bool, false, "A flag to specify whether event groups are enabled or not.");
 
+  CONFIG_PARAM(enablePreProcessorMemoryPool,
+               bool,
+               false,
+               "A flag to specify whether to use a memory pool in PreProcessor or not");
+
   // Parameter to enable/disable waiting for transaction data to be persisted.
   // Not predefined configuration parameters
   // Example of usage:
@@ -388,6 +393,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, config_params_);
     serialize(outStream, enableMultiplexChannel);
     serialize(outStream, enableEventGroups);
+    serialize(outStream, enablePreProcessorMemoryPool);
   }
   void deserializeDataMembers(std::istream& inStream) {
     deserialize(inStream, isReadOnly);
@@ -484,6 +490,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, config_params_);
     deserialize(inStream, enableMultiplexChannel);
     deserialize(inStream, enableEventGroups);
+    deserialize(inStream, enablePreProcessorMemoryPool);
   }
 
  private:
@@ -573,7 +580,8 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.dbCheckpointDiskSpaceThreshold,
               rc.enableMultiplexChannel,
               rc.enableEventGroups,
-              rc.operatorEnabled_);
+              rc.operatorEnabled_,
+              rc.enablePreProcessorMemoryPool);
   os << ", ";
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
   return os;
