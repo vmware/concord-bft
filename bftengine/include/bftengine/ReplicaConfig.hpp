@@ -269,7 +269,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
 
   CONFIG_PARAM(enablePreProcessorMemoryPool,
                bool,
-               false,
+               true,
                "A flag to specify whether to use a memory pool in PreProcessor or not");
 
   // Parameter to enable/disable waiting for transaction data to be persisted.
