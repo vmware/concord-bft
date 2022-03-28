@@ -18,6 +18,7 @@
 #include "communication/CommFactory.hpp"
 #include "bftclient/config.h"
 #include "bftclient/bft_client.h"
+#include "bftclient/seq_num_generator.h"
 #include "utt_messages.cmf.hpp"
 
 #include "app_state.hpp"
@@ -29,8 +30,8 @@ using namespace utt::messages;
 using namespace bft::client;
 
 uint64_t nextSeqNum() {
-  static uint64_t nextSeqNum = 1;
-  return nextSeqNum++;
+  static SeqNumberGenerator gen{ClientId{0}};  // ClientId used just for logging
+  return gen.unique();
 }
 
 ClientParams setupClientParams(int argc, char** argv) {
