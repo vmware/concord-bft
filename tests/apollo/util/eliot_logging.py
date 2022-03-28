@@ -1,14 +1,23 @@
+from functools import lru_cache
 from eliot import start_action, start_task, to_file, add_destinations, log_call, log_message
 from datetime import datetime
 import os
 import sys
+import traceback
+
+from eliot import register_exception_extractor
+register_exception_extractor(Exception, lambda e: {"traceback": traceback.format_exc()})
+
+@lru_cache(maxsize=None)
+def logdir_timestamp():
+    return datetime.now().strftime("%y-%m-%d_%H:%M:%S")
 
 
 def set_file_destination():
     test_name = os.environ.get('TEST_NAME')
 
     if not test_name:
-        now = datetime.now().strftime("%y-%m-%d_%H:%M:%S")
+        now = logdir_timestamp()
         test_name = f"apollo_run_{now}"
 
     logs_dir = '../../build/tests/apollo/logs/'

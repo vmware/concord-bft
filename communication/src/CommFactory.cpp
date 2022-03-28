@@ -23,20 +23,15 @@ logging::Logger CommFactory::_logger = logging::getLogger("communication.factory
 
 ICommunication *CommFactory::create(const BaseCommConfig &config) {
   ICommunication *res = nullptr;
+
   switch (config.commType_) {
     case CommType::PlainUdp:
-      LOG_INFO(_logger,
-               "Using PlainUDP: "
-                   << "Host=" << config.listenHost_ << ", Port=" << config.listenPort_);
       res = PlainUDPCommunication::create(dynamic_cast<const PlainUdpConfig &>(config));
       break;
     case CommType::SimpleAuthUdp:
       break;
     case CommType::PlainTcp:
 #ifdef USE_COMM_PLAIN_TCP
-      LOG_INFO(_logger,
-               "Using PlainTCP: "
-                   << "Host=" << config.listenHost_ << ", Port=" << config.listenPort_);
       res = PlainTCPCommunication::create(dynamic_cast<const PlainTcpConfig &>(config));
 #endif
       break;
@@ -44,23 +39,20 @@ ICommunication *CommFactory::create(const BaseCommConfig &config) {
       break;
     case CommType::TlsTcp:
 #ifdef USE_COMM_TLS_TCP
-      LOG_INFO(_logger,
-               "Using TlsTCP: "
-                   << "Host=" << config.listenHost_ << ", Port=" << config.listenPort_);
       res = TlsTCPCommunication::create(dynamic_cast<const TlsTcpConfig &>(config));
       break;
 #endif
       break;
     case CommType::TlsMultiplex:
 #ifdef USE_COMM_TLS_TCP
-      LOG_INFO(_logger,
-               "Using TlsMultiplex: "
-                   << "Host=" << config.listenHost_ << ", Port=" << config.listenPort_);
       res = TlsMultiplexCommunication::create(dynamic_cast<const TlsMultiplexConfig &>(config));
 #endif
       break;
   }
 
+  LOG_INFO(_logger,
+           "Replica communication protocol= " << commTypeToName.at(config.commType_) << ", Host=" << config.listenHost_
+                                              << ", Port=" << config.listenPort_);
   return res;
 }
 

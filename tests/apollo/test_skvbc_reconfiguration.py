@@ -745,7 +745,6 @@ class SkvbcReconfigurationTest(ApolloTest):
                             raise KeyExchangeError
                         else:
                             assert sent_key_exchange_counter >= sent_key_exchange_counter_before + 1
-                            assert self_key_exchange_counter >= self_key_exchange_counter_before + 1
                             #assert public_key_exchange_for_peer_counter ==  public_key_exchange_for_peer_counter_before + 1
                             break
 
@@ -762,7 +761,7 @@ class SkvbcReconfigurationTest(ApolloTest):
          """
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-        client = bft_network.random_client()
+        client = min(bft_network.get_all_clients(), key=lambda client: client.client_id)
         # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
 
         checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
