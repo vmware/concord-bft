@@ -28,7 +28,10 @@ void UTTCommandsHandler::execute(UTTCommandsHandler::ExecutionRequestsQueue& req
   syncAppState();
 
   for (auto& req : requests) {
-    LOG_INFO(logger_, "UTTCommandsHandler execute req RECONFIG_FLAG=" << (req.flags & bftEngine::RECONFIG_FLAG));
+    if (req.outExecutionStatus != static_cast<uint32_t>(OperationResult::UNKNOWN))
+      continue;  // Request already executed (internal)
+
+    LOG_INFO(logger_, "UTTCommandsHandler execute");
 
     UTTRequest uttRequest;
     try {
