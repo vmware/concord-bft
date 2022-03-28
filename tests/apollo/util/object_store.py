@@ -20,12 +20,6 @@ from util import eliot_logging as log
 from functools import wraps
 from util.bft import KEY_FILE_PREFIX
 
-def with_object_store(async_fn):
-    @wraps(async_fn)
-    async def wrapper(*args, **kwargs):
-        await async_fn(*args, **kwargs, object_store=ObjectStore())
-    return wrapper
-
 MINIO_DATA_DIR="/tmp/concord_bft_minio_datadir"
 def start_replica_cmd_prefix(builddir, replica_id, config):
     """
