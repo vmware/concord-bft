@@ -47,7 +47,7 @@ class ConfigFileParser {
       throw std::runtime_error("failed to parse " + parser_.getConfigFileName() + ": " + key + " is not set.");
   }
 
-  logging::Logger logger_ = logging::getLogger("concord.tests.config.s3");
+  logging::Logger logger_ = logging::getLogger("concord.storage.s3");
   util::ConfigFileParser parser_;
 };
 }  // namespace concord::storage::s3
