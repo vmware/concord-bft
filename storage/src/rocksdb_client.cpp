@@ -474,7 +474,7 @@ Status Client::put(const Sliver &_key, const Sliver &_value) {
   LOG_TRACE(logger(), "Rocksdb Put " << _key << " : " << _value);
 
   if (!s.ok()) {
-    LOG_ERROR(logger(), "Failed to put key " << _key << ", value " << _value);
+    LOG_ERROR(logger(), "Failed to put key " << _key << ", value " << _value << ", Error: " << s.ToString());
     return Status::GeneralError("Failed to put key");
   }
   return Status::OK();
@@ -496,7 +496,7 @@ Status Client::del(const Sliver &_key) {
   LOG_TRACE(logger(), "Rocksdb delete " << _key);
 
   if (!s.ok()) {
-    LOG_ERROR(logger(), "Failed to delete key " << _key);
+    LOG_ERROR(logger(), "Failed to delete key " << _key << ", Error: " << s.ToString());
     return Status::GeneralError("Failed to delete key");
   }
   return Status::OK();
@@ -526,9 +526,9 @@ Status Client::launchBatchJob(::rocksdb::WriteBatch &batch, bool sync) {
   wOptions.sync = sync;
   ::rocksdb::Status status = dbInstance_->Write(wOptions, &batch);
   if (!status.ok()) {
-    LOG_ERROR(
-        logger(),
-        "Execution of batch job failed; batch data size=" << batch.GetDataSize() << " num updates=" << batch.Count());
+    LOG_ERROR(logger(),
+              "Execution of batch job failed; batch data size=" << batch.GetDataSize() << " num updates="
+                                                                << batch.Count() << " Error:" << status.ToString());
     return Status::GeneralError("Execution of batch job failed");
   }
   LOG_DEBUG(
@@ -605,7 +605,8 @@ Status Client::createCheckpoint(const uint64_t &checkPointId) {
       LOG_INFO(logger(), "created rocks db checkpoint: " << KVLOG(checkPointId));
       return Status::OK();
     }
-    LOG_ERROR(logger(), "RocksDB checkpoint creation failed for " << KVLOG(checkPointId, chkptDirPath.string()));
+    LOG_ERROR(logger(),
+              "RocksDB checkpoint creation failed for " << KVLOG(checkPointId, chkptDirPath.string(), s.ToString()));
     if (fs::exists(chkptDirPath)) fs::remove_all(chkptDirPath);
     return Status::GeneralError("checkpoint creation failed");
   } catch (std::exception &e) {
