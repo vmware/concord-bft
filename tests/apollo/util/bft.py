@@ -26,6 +26,7 @@ from datetime import datetime
 from functools import partial
 import inspect
 import time
+from pathlib import Path
 from typing import Coroutine, Sequence, Callable
 
 import trio
@@ -424,8 +425,9 @@ class BftTestNetwork:
                                               str(self.principals_to_participant_map[self.cre_id]),
                                               "transaction_signing_priv.pem"),
                            "-o", "1000"]
+                digest = self.binary_digest(cre_exe) if Path(cre_exe).exists() else 'Unknown'
                 with log.start_action(action_type="start_reconfiguration_client_process", binary=cre_exe,
-                                      binary_digest=self.binary_digest(cre_exe)):
+                                      binary_digest=digest):
                     self.cre_pid = subprocess.Popen(
                         cre_cmd,
                         stdout=stdout_file,
@@ -792,8 +794,10 @@ class BftTestNetwork:
         is_external = self.is_existing and self.config.stop_replica_cmd is not None
         start_cmd = self.start_replica_cmd(replica_id)
         replica_binary_path = start_cmd[0]
+        digest = self.binary_digest(replica_binary_path) if Path(replica_binary_path).exists() else 'Unknown'
+
         with log.start_action(action_type="start_replica_process", replica=replica_id, is_external=is_external,
-                              binary_path=replica_binary_path, binary_digest=self.binary_digest(replica_binary_path)):
+                              binary_path=replica_binary_path, binary_digest=digest):
             if is_external:
                 self.procs[replica_id] = subprocess.run(
                     start_cmd,
