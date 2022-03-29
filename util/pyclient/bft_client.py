@@ -206,7 +206,8 @@ class BftClient(ABC):
                     data, read_only, m_of_n_quorum, include_ro=include_ro, no_retries=no_retries)
                 return next(iter(self.replies.values())).get_common_data_with_result() if replies else None
         except trio.TooSlowError:
-            raise trio.TooSlowError(f"client_id: {self.client_id}, seq_num: {seq_num}")
+            print("TooSlowError thrown from client_id", self.client_id, "for seq_num", seq_num)
+            raise trio.TooSlowError
         finally:
             pass
 
@@ -253,7 +254,8 @@ class BftClient(ABC):
                 return await self._send_receive_loop(data, False, m_of_n_quorum,
                     batch_size * self.config.retry_timeout_milli / 1000, no_retries=no_retries)
         except trio.TooSlowError:
-            raise trio.TooSlowError(f"client_id {self.client_id}, for batch msg {cid} {batch_seq_nums}")
+            print(f"TooSlowError thrown from client_id {self.client_id}, for batch msg {cid} {batch_seq_nums}")
+            raise trio.TooSlowError
         finally:
             pass
 

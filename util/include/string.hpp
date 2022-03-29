@@ -16,8 +16,6 @@
 #include <string>
 #include <algorithm>
 #include <type_traits>
-#include <iterator>
-#include <sstream>
 
 namespace concord {
 namespace util {
@@ -94,14 +92,6 @@ constexpr auto toChar(E e) {
   static_assert(std::is_enum_v<E>);
   static_assert(sizeof(E) <= sizeof(char));
   return static_cast<char>(e);
-}
-
-template <typename Container>
-std::string toString(const Container& container, const char* const separator = "") {
-  std::ostringstream out;
-  using ElementType = typename Container::value_type;
-  std::copy(container.begin(), container.end(), std::ostream_iterator<ElementType>(out, separator));
-  return out.str();
 }
 
 }  // namespace util

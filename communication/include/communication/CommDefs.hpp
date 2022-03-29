@@ -46,14 +46,6 @@ static constexpr size_t MSG_HEADER_SIZE = sizeof(Header);
 typedef std::unordered_map<NodeNum, NodeInfo> NodeMap;
 
 enum CommType { PlainUdp, SimpleAuthUdp, PlainTcp, SimpleAuthTcp, TlsTcp, TlsMultiplex };
-const static std::unordered_map<CommType, const char *> commTypeToName = {
-    {PlainUdp, "PlainUdp"},
-    {SimpleAuthUdp, "SimpleAuthUdp"},
-    {PlainTcp, "PlainTcp"},
-    {SimpleAuthTcp, "SimpleAuthTcp"},
-    {TlsTcp, "TlsTcp"},
-    {TlsMultiplex, "TlsMultiplex"},
-};
 
 class BaseCommConfig {
  public:

@@ -28,9 +28,6 @@ from Crypto.PublicKey import RSA
 from util.bft import REQ_TIMEOUT_MILLI
 from util import eliot_logging as log
 
-import util.eliot_logging as log
-
-
 class Operator:
     def __init__(self, config, client, priv_key_dir):
         self.config = config
@@ -116,7 +113,7 @@ class Operator:
         command.version = version
         command.bft_support = bft
         return self._construct_basic_reconfiguration_request(command)
-
+    
     def _construct_reconfiguration_addRemoveWithWedge_command(self, new_config, token, bft=True, restart=True):
         addRemove_command = cmf_msgs.AddRemoveWithWedgeCommand()
         addRemove_command.config_descriptor = new_config
@@ -175,12 +172,12 @@ class Operator:
         client_restart_status = cmf_msgs.ClientsRestartStatus()
         client_restart_status.sender_id = 1000
         return self._construct_basic_reconfiguration_request(client_restart_status)
-
+    
     def _construct_reconfiguration_get_dbcheckpoint_info_request(self):
         cpinfo_command = cmf_msgs.GetDbCheckpointInfoRequest()
         cpinfo_command.sender_id = 1000
         return self._construct_basic_reconfiguration_request(cpinfo_command)
-
+    
     def _construct_reconfiguration_create_dbcheckpoint_command(self):
         cp_command = cmf_msgs.CreateDbCheckpointCommand()
         cp_command.sender_id = 1000
@@ -197,22 +194,20 @@ class Operator:
         req.snapshot_id = snapshot_id
         req.participant_id = 'apollo_test_participant_id'
         req.keys = keys
-        return self._construct_basic_reconfiguration_request(req)
+        return self._construct_basic_reconfiguration_request(req)        
 
     def _construct_reconfiguration_state_snapshot_req(self):
         req = cmf_msgs.StateSnapshotRequest()
         req.checkpoint_kv_count = 0
         req.participant_id = 'apollo_test_participant_id'
         return self._construct_basic_reconfiguration_request(req)
-
+    
     def get_rsi_replies(self):
         return self.client.get_rsi_replies()
-
+    
     async def wedge(self):
-        seq_num = self.client.req_seq_num.next()
-        with log.start_action(action_type="wedge", client=self.client.client_id, seq_num=seq_num):
-            reconf_msg = self._construct_reconfiguration_wedge_command()
-            return await self.client.write(reconf_msg.serialize(), reconfiguration=True, seq_num=seq_num)
+        reconf_msg = self._construct_reconfiguration_wedge_command()
+        return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
 
     async def wedge_status(self, quorum=None, fullWedge=True):
         if quorum is None:

@@ -185,6 +185,8 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
   // to the given clientId. Behavior is undefined if clientId does not belong to a valid client.
   void deleteOldestReply(NodeIdType clientId);
 
+  bool isInternal(NodeIdType clientId) const { return internalClients_.find(clientId) != internalClients_.end(); }
+
   // Sets/updates a client public key and persist it to the reserved pages. Behavior is undefined in the following
   // cases:
   //   - The given NodeIdType parameter is not the ID of a valid client.
@@ -193,8 +195,6 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
 
   // General
   static uint32_t reservedPagesPerClient(const uint32_t& sizeOfReservedPage, const uint32_t& maxReplySize);
-
-  bool isInternal(NodeIdType clientId) const;
 
  protected:
   uint32_t getReplyFirstPageId(NodeIdType clientId) const { return getKeyPageId(clientId) + 1; }
