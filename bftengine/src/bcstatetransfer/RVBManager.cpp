@@ -98,14 +98,18 @@ void RVBManager::init(bool fetching) {
   }
 
   if (!loaded_from_data_store && (desc.maxBlockId > 0)) {
+    uint64_t num_rvbs_added{};
     // If desc data is valid, try to reconstruct by reading digests from storage (no persistency data was found)
-    LOG_WARN(logger_, "Reconstructing RVB data" << KVLOG(loaded_from_data_store, desc.maxBlockId));
     DurationTracker<std::chrono::milliseconds> reconstruct_dt("reconstruct_dt", true);
-    auto num_rvbs_added = addRvbDataOnBlockRange(
-        as_->getGenesisBlockNum(), desc.maxBlockId, std::optional<Digest>(desc.digestOfMaxBlockId));
-    if (!in_mem_rvt_->validate()) {
-      LOG_FATAL(logger_, "Failed to validate reconstructed RVB data from storage" << KVLOG(desc.checkpointNum));
-      ConcordAssert(false);
+    auto genesis_block_id = as_->getGenesisBlockNum();
+    LOG_INFO(logger_, "Reconstructing RVB data" << KVLOG(loaded_from_data_store, desc.maxBlockId, genesis_block_id));
+    if (genesis_block_id <= desc.maxBlockId) {
+      num_rvbs_added =
+          addRvbDataOnBlockRange(genesis_block_id, desc.maxBlockId, std::optional<Digest>(desc.digestOfMaxBlockId));
+      if (!in_mem_rvt_->validate()) {
+        LOG_FATAL(logger_, "Failed to validate reconstructed RVB data from storage" << KVLOG(desc.checkpointNum));
+        ConcordAssert(false);
+      }
     }
     rvb_data_source_ = RvbDataInitialSource::FROM_STORAGE_RECONSTRUCTION;
     auto total_duration = reconstruct_dt.totalDuration(true);
@@ -225,6 +229,7 @@ void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_de
   //
   //    Add blocks to RVT
   //
+  auto max_rvb_id = in_mem_rvt_->getMaxRvbId();
   if (last_checkpoint_desc_.checkpointNum != 0) {
     add_range_min_block_id = std::min(new_checkpoint_desc.maxBlockId, last_checkpoint_desc_.maxBlockId + 1);
   } else {
@@ -237,11 +242,11 @@ void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_de
       if (in_mem_rvt_->empty()) {
         add_range_min_block_id = as_->getGenesisBlockNum();
       } else {
-        add_range_min_block_id = in_mem_rvt_->getMaxRvbId() + config_.fetchRangeSize;
+        add_range_min_block_id = max_rvb_id + config_.fetchRangeSize;
       }
     }
   }
-  add_range_min_block_id = std::max(add_range_min_block_id, in_mem_rvt_->getMaxRvbId());
+  add_range_min_block_id = (max_rvb_id == 0) ? add_range_min_block_id : max_rvb_id;
   addRvbDataOnBlockRange(
       add_range_min_block_id, new_checkpoint_desc.maxBlockId, new_checkpoint_desc.digestOfMaxBlockId);
 
@@ -648,7 +653,7 @@ uint64_t RVBManager::addRvbDataOnBlockRange(uint64_t min_block_id,
   }
   uint64_t current_rvb_id = nextRvbBlockId(min_block_id);
   RVBId max_rvb_id_in_rvt = in_mem_rvt_->getMaxRvbId();
-  while (current_rvb_id < max_block_id) {
+  while (current_rvb_id < max_block_id) {  // we handle case of current_rvb_id == max_block_id later
     // TODO - As a 2nd phase - should use the thread pool to fetch a batch of digests or move to a background
     // process
     if (current_rvb_id > max_rvb_id_in_rvt) {
