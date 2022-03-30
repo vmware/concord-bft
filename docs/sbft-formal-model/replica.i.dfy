@@ -508,9 +508,9 @@ module Replica {
   predicate NextStep(c:Constants, v:Variables, v':Variables, msgOps:Network.MessageOps<Message>, step: Step) {
     match step
        case SendPrePrepareStep() => SendPrePrepare(c, v, v', msgOps)
-       case RecvPrePrepareStep => RecvPrePrepare(c, v, v', msgOps)
+       case RecvPrePrepareStep() => RecvPrePrepare(c, v, v', msgOps)
        case SendPrepareStep(seqID) => SendPrepare(c, v, v', msgOps, seqID)
-       case RecvPrepareStep => RecvPrepare(c, v, v', msgOps)
+       case RecvPrepareStep() => RecvPrepare(c, v, v', msgOps)
        case SendCommitStep(seqID) => SendCommit(c, v, v', msgOps, seqID)
        case RecvCommitStep() => RecvCommit(c, v, v', msgOps)
        case DoCommitStep(seqID) => DoCommit(c, v, v', msgOps, seqID)
