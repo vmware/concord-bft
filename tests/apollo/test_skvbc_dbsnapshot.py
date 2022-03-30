@@ -26,7 +26,7 @@ from util.skvbc import SimpleKVBCProtocol
 from util.skvbc_history_tracker import verify_linearizability
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, DB_FILE_PREFIX, DB_SNAPSHOT_PREFIX
 from util import bft_metrics, eliot_logging as log
-from util.object_store import ObjectStore, start_replica_cmd_prefix, with_object_store
+from util.object_store import ObjectStore, start_replica_cmd_prefix
 from util import operator
 import concord_msgs as cmf_msgs
 import sys

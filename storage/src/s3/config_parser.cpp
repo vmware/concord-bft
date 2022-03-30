@@ -30,13 +30,9 @@ concord::storage::s3::StoreConfig ConfigFileParser::parse() {
   config.protocol = get_value<string>("s3-protocol");
   config.url = get_value<string>("s3-url");
   config.secretKey = get_value<string>("s3-secret-key");
-  // TesterReplica is used for Apollo tests. Each test is executed against new blockchain, so we need brand new
-  // bucket for the RO replica. To achieve this we use a hack - set the prefix to a unique value so each RO replica
-  // writes in the same bucket but in different directory.
-  // So if s3-path-prefix is NOT SET it is initialized to a unique value based on current time.
-  config.pathPrefix = get_optional_value<string>(
-      "s3-path-prefix", std::to_string(std::chrono::high_resolution_clock::now().time_since_epoch().count()));
+  config.pathPrefix = get_optional_value<string>("s3-path-prefix", "");
   config.operationTimeout = get_optional_value<std::uint32_t>("s3-operation-timeout", 60000);
+  LOG_INFO(logger_, config);
   return config;
 }
 }  // namespace concord::storage::s3

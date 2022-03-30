@@ -20,7 +20,7 @@ from util.test_base import ApolloTest
 from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, TestConfig
 from util import operator
-from util.object_store import ObjectStore, start_replica_cmd_prefix, with_object_store
+from util.object_store import ObjectStore, start_replica_cmd_prefix
 import sys
 from util import eliot_logging as log
 import concord_msgs as cmf_msgs
