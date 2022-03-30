@@ -4829,8 +4829,9 @@ void ReplicaImp::addTimers() {
         auto currentTime = getMonotonicTime();
         for (const auto &[sn, msg] : requestsOfNonPrimary) {
           auto timeout = duration_cast<milliseconds>(currentTime - std::get<0>(msg)).count();
-          if (timeout > (5 * config_.clientRequestRetransmissionTimerMilli)) {
-            LOG_INFO(GL, "retransmmiting client request in non primary due to timeout" << KVLOG(sn, timeout));
+          if (timeout > (3 * config_.clientRequestRetransmissionTimerMilli)) {
+            LOG_INFO(GL, "retransmitting client request in non primary due to timeout" << KVLOG(sn, timeout));
+            requestsOfNonPrimary[sn].first = getMonotonicTime();
             send(std::get<1>(msg), currentPrimary());
           }
         }
