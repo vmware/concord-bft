@@ -28,10 +28,8 @@ const std::vector<std::pair<uint64_t, uint64_t>> IntervalMappingResourceManager:
     {20, 35}, {100, 21}, {300, 14}, {500, 7}};
 
 IntervalMappingResourceManager::IntervalMappingResourceManager(
-    ISystemResourceEntity &replicaResources,
-    std::vector<std::pair<uint64_t, uint64_t>> &&intervalMapping,
-    const IntervalMappingResourceManagerConfiguration &configuration)
-    : replicaResources_(replicaResources), intervalMapping_(std::move(intervalMapping)), configuration(configuration) {
+    ISystemResourceEntity &replicaResources, std::vector<std::pair<uint64_t, uint64_t>> &&intervalMapping)
+    : replicaResources_(replicaResources), intervalMapping_(std::move(intervalMapping)) {
   std::ostringstream intervals;
   for (const auto &[rate, blocks] : intervalMapping_) {
     intervals << "{" << rate << "," << blocks << "},";
@@ -44,7 +42,6 @@ PruneInfo IntervalMappingResourceManager::getPruneInfo() {
   if (duration == 0 || (++period_) % periodicInterval_ == 0) {
     LOG_DEBUG(ADPTV_PRUNING, "Resetting measurements");
     period_ = 0;
-    lastTPS_ = 0;
     replicaResources_.reset();
     return PruneInfo{};
   }
@@ -61,26 +58,13 @@ PruneInfo IntervalMappingResourceManager::getPruneInfo() {
 
   PruneInfo ret;
   if (it != intervalMapping_.end()) {
-    // 0.9 reflects maximum allowed 10% drop in perfomance.
-    long double adjust = 1;
-    if (lastTPS_ * 0.9 > tps && pruningUtilization > configuration.limitMaximumPruningTimeUtilizationPercentage) {
-      adjust = (100 - (long double)pruningUtilization) / 100.0;
-      LOG_WARN(ADPTV_PRUNING, "Pruning consumes too much resources at the cost of TPS. Adjusting by " << adjust);
-
-      // pruningTimeUlizationTPSInterferenceLimit of percentage where it can be assumed that tps fall is not caused by
-      // pruning
-    } else if (pruningUtilization < configuration.pruningTimeUlizationTPSInterferenceLimitPercentage ||
-               lastTPS_ < tps) {
-      lastTPS_ = tps;
-    }
-    ret.blocksPerSecond = static_cast<long double>(it->second) * adjust;
+    ret.blocksPerSecond = static_cast<long double>(it->second);
     ret.batchSize = 1;
     ret.postExecUtilization = postExecUtilization;
     ret.pruningUtilization = pruningUtilization;
     ret.pruningAvgTimeMicro = pruningAvgTimeMicro;
     ret.transactionsPerSecond = tps;
   }
-
   LOG_INFO(ADPTV_PRUNING,
            "calculated [" << tps << "] transactions per second, mapped to pruning [" << ret.blocksPerSecond
                           << "] blocks per second, post execution utilization is [" << postExecUtilization

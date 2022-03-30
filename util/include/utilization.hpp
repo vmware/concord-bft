@@ -36,23 +36,9 @@ class utilization {
     utilization_.push_back(std::move(dur));
   }
 
-  // Convenience method for adding marker measurements.
-  // i.e. start and end
-  void addMarker() {
-    durtionMicro dur;
-    dur.start =
-        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())
-            .count();
-    dur.end = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())
-                  .count();
-    addDuration(std::move(dur));
-    marker_ = true;
-  }
-
   // Calculate the total time and then subtracts the intervals between the operations.
   std::uint64_t getUtilization() const {
-    uint64_t init_measurement = marker_ ? 1 : 0;
-    if (utilization_.size() == init_measurement) return 0;
+    if (utilization_.size() == 0) return 0;
     const auto total_time = utilization_.back().end - utilization_.front().start;
     auto busy_time = total_time;
     for (auto it = utilization_.cbegin(); (it + 1) < utilization_.cend(); it++) {
@@ -68,7 +54,6 @@ class utilization {
 
  private:
   std::vector<durtionMicro> utilization_;
-  bool marker_{false};
 };
 
 }  // namespace concordUtil

@@ -32,7 +32,7 @@ class AdaptivePruningManager {
   }
   PruningMode getCurrentMode() { return mode.load(); }
 
-  void setPrimary(bool isPrimary) {
+  void setPrimay(bool isPrimary) {
     LOG_INFO(ADPTV_PRUNING, "am I the new primary? " << isPrimary);
     if (isPrimary) {
       amIPrimary = true;
