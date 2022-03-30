@@ -19,11 +19,6 @@
 #include <vector>
 #include <algorithm>
 
-struct IntervalMappingResourceManagerConfiguration {
-  uint16_t limitMaximumPruningTimeUtilizationPercentage{60};
-  uint16_t pruningTimeUlizationTPSInterferenceLimitPercentage{20};
-};
-
 namespace concord::performance {
 class IntervalMappingResourceManager : public IResourceManager {
  public:
@@ -37,23 +32,17 @@ class IntervalMappingResourceManager : public IResourceManager {
   virtual PruneInfo getPruneInfo() override;
 
   static std::unique_ptr<IntervalMappingResourceManager> createIntervalMappingResourceManager(
-      ISystemResourceEntity &replicaResources,
-      std::vector<std::pair<uint64_t, uint64_t>> &&intervalMapping,
-      const IntervalMappingResourceManagerConfiguration &configuration =
-          IntervalMappingResourceManagerConfiguration{}) {
-    sort(intervalMapping.begin(), intervalMapping.end());
+      ISystemResourceEntity &replicaResources, std::vector<std::pair<uint64_t, uint64_t>> &&intervalMapping) {
     intervalMapping.push_back(std::make_pair(UINT64_MAX, 0));
     return std::unique_ptr<IntervalMappingResourceManager>(
-        new IntervalMappingResourceManager(replicaResources, std::move(intervalMapping), configuration));
+        new IntervalMappingResourceManager(replicaResources, std::move(intervalMapping)));
   }
+
+  IntervalMappingResourceManager(ISystemResourceEntity &replicaResources,
+                                 std::vector<std::pair<uint64_t, uint64_t>> &&intervalMapping);
 
   std::uint64_t getDurationFromLastCallSec();
   virtual void setPeriod(std::uint64_t interval) override { periodicInterval_ = interval; }
-
- protected:
-  IntervalMappingResourceManager(ISystemResourceEntity &replicaResources,
-                                 std::vector<std::pair<uint64_t, uint64_t>> &&intervalMapping,
-                                 const IntervalMappingResourceManagerConfiguration &configuration);
 
  private:
   ISystemResourceEntity &replicaResources_;
@@ -61,7 +50,5 @@ class IntervalMappingResourceManager : public IResourceManager {
   std::uint64_t lastInvocationTime_{0};
   std::uint64_t period_{0};
   std::uint64_t periodicInterval_{20};  // config
-  std::uint64_t lastTPS_{0};
-  IntervalMappingResourceManagerConfiguration configuration;
 };
 }  // namespace concord::performance
