@@ -37,7 +37,7 @@ RequestProcessingState::RequestProcessingState(ReplicaId myReplicaId,
                                                const string &batchCid,
                                                uint16_t clientId,
                                                uint16_t reqOffsetInBatch,
-                                               const string &cid,
+                                               const string &reqCid,
                                                ReqId reqSeqNum,
                                                ClientPreProcessReqMsgUniquePtr clientReqMsg,
                                                PreProcessRequestMsgSharedPtr preProcessRequestMsg,
@@ -48,21 +48,20 @@ RequestProcessingState::RequestProcessingState(ReplicaId myReplicaId,
       batchCid_(batchCid),
       clientId_(clientId),
       reqOffsetInBatch_(reqOffsetInBatch),
-      cid_(cid),
+      reqCid_(reqCid),
       reqSeqNum_(reqSeqNum),
       entryTime_(getMonotonicTimeMilli()),
       clientRequestSignature_(signature ? signature : "", signature ? signatureLen : 0),
       clientPreProcessReqMsg_(move(clientReqMsg)),
       preProcessRequestMsg_(preProcessRequestMsg) {
-  SCOPED_MDC_CID(cid);
-  LOG_DEBUG(logger(), "Created RequestProcessingState with" << KVLOG(reqSeqNum, clientId, numOfReplicas_));
+  LOG_DEBUG(logger(), "Created RequestProcessingState with" << KVLOG(clientId, reqSeqNum, reqCid, numOfReplicas_));
 }
 
 void RequestProcessingState::setPreProcessRequest(PreProcessRequestMsgSharedPtr preProcessReqMsg) {
   if (preProcessRequestMsg_ != nullptr) {
-    SCOPED_MDC_CID(preProcessReqMsg->getCid());
     const auto reqSeqNum = preProcessRequestMsg_->reqSeqNum();
-    LOG_ERROR(logger(), "preProcessRequestMsg_ is already set;" << KVLOG(reqSeqNum, clientId_));
+    const auto &reqCid = preProcessRequestMsg_->getCid();
+    LOG_ERROR(logger(), "preProcessRequestMsg_ is already set;" << KVLOG(clientId_, reqSeqNum, reqCid));
     return;
   }
   preProcessRequestMsg_ = preProcessReqMsg;
@@ -128,13 +127,12 @@ void RequestProcessingState::releaseResources() {
 void RequestProcessingState::detectNonDeterministicPreProcessing(const SHA3_256::Digest &newHash,
                                                                  NodeIdType newSenderId,
                                                                  uint64_t reqRetryId) const {
-  SCOPED_MDC_CID(cid_);
   for (auto &hashArray : preProcessingResultHashes_)
     if ((newHash != hashArray.first) && reqRetryId_ && (reqRetryId_ == reqRetryId)) {
       // Compare only between matching request/reply retry ids
       LOG_INFO(logger(),
                "Received pre-processing result hash is different from calculated by other replica"
-                   << KVLOG(reqSeqNum_, clientId_, newSenderId));
+                   << KVLOG(clientId_, batchCid_, reqSeqNum_, reqCid_, newSenderId));
     }
 }
 
@@ -145,7 +143,6 @@ void RequestProcessingState::detectNonDeterministicPreProcessing(const uint8_t *
 }
 
 void RequestProcessingState::handlePreProcessReplyMsg(const PreProcessReplyMsgSharedPtr &preProcessReplyMsg) {
-  SCOPED_MDC_CID(cid_);
   const auto &senderId = preProcessReplyMsg->senderId();
   if (preProcessReplyMsg->status() != STATUS_REJECT) {
     const auto &newHashArray = convertToArray(preProcessReplyMsg->resultsHash());
@@ -156,13 +153,16 @@ void RequestProcessingState::handlePreProcessReplyMsg(const PreProcessReplyMsgSh
                       preProcessReplyMsg->senderId(),
                       preProcessReplyMsg->preProcessResult())
              .second) {
-      LOG_INFO(logger(), "Signature was already accepted for this sender " << KVLOG(senderId, reqSeqNum_, clientId_));
+      LOG_INFO(logger(),
+               "Signature was already accepted for this sender"
+                   << KVLOG(senderId, clientId_, batchCid_, reqSeqNum_, reqCid_));
       return;
     }
     numOfReceivedReplies_++;
     detectNonDeterministicPreProcessing(newHashArray, senderId, preProcessReplyMsg->reqRetryId());
   } else {
-    LOG_DEBUG(logger(), "Register rejected PreProcessReplyMsg" << KVLOG(senderId, reqSeqNum_, clientId_));
+    LOG_DEBUG(logger(),
+              "Register rejected PreProcessReplyMsg" << KVLOG(senderId, clientId_, batchCid_, reqSeqNum_, reqCid_));
     rejectedReplicaIds_.push_back(preProcessReplyMsg->senderId());
   }
 }
@@ -188,7 +188,6 @@ auto RequestProcessingState::calculateMaxNbrOfEqualHashes(uint16_t &maxNumOfEqua
 bool RequestProcessingState::isReqTimedOut() const {
   if (!clientPreProcessReqMsg_) return false;
 
-  SCOPED_MDC_CID(cid_);
   LOG_DEBUG(logger(), KVLOG(preprocessingRightNow_));
   if (!preprocessingRightNow_) {
     // Check request timeout once an asynchronous pre-execution completed (to not abort the execution thread)
@@ -196,7 +195,7 @@ bool RequestProcessingState::isReqTimedOut() const {
     if (reqProcessingTime > clientPreProcessReqMsg_->requestTimeoutMilli()) {
       LOG_WARN(logger(),
                "Request timeout of " << clientPreProcessReqMsg_->requestTimeoutMilli() << " ms expired for"
-                                     << KVLOG(reqSeqNum_, clientId_, reqProcessingTime));
+                                     << KVLOG(clientId_, batchCid_, reqSeqNum_, reqCid_, reqProcessingTime));
       return true;
     }
   }
@@ -214,7 +213,9 @@ std::pair<std::string, concord::util::SHA3_256::Digest> RequestProcessingState::
   auto modifiedHash = PreProcessResultHashCreator::create(
       modifiedResult.data(), modifiedResult.size(), OperationResult::SUCCESS, clientId_, reqSeqNum_);
   if (other == modifiedHash) {
-    LOG_INFO(logger(), "Primary hash is different from quorum due to mismatch in block id" << KVLOG(reqSeqNum_));
+    LOG_INFO(
+        logger(),
+        "Primary hash is different from quorum due to mismatch in block id" << KVLOG(batchCid_, reqSeqNum_, reqCid_));
     return {modifiedResult, modifiedHash};
   }
   return {"", concord::util::SHA3_256::Digest{}};
@@ -246,16 +247,15 @@ void RequestProcessingState::reportNonEqualHashes(const unsigned char *chosenDat
   LOG_WARN(logger(),
            "Primary replica pre-processing result hash: "
                << primaryHash << " is different from one passed the consensus: " << hashPassedConsensus
-               << KVLOG(reqSeqNum_) << "; retry pre-processing on primary replica");
+               << KVLOG(batchCid_, reqSeqNum_, reqCid_) << "; retry pre-processing on primary replica");
 }
 
 // The primary replica logic
 PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult() {
-  SCOPED_MDC_CID(cid_);
   if (numOfReceivedReplies_ < numOfRequiredEqualReplies_) {
     LOG_INFO(logger(),
              "Not enough replies received, continue waiting"
-                 << KVLOG(reqSeqNum_, numOfReceivedReplies_, numOfRequiredEqualReplies_));
+                 << KVLOG(batchCid_, reqSeqNum_, reqCid_, numOfReceivedReplies_, numOfRequiredEqualReplies_));
     return CONTINUE;
   }
   uint16_t maxNumOfEqualHashes = 0;
@@ -292,22 +292,24 @@ PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult()
       reportNonEqualHashes(itOfChosenHash->first.data(), itOfChosenHash->first.size());
       return CANCEL;
     }
-    LOG_INFO(logger(), "Primary replica did not complete pre-processing yet, continue waiting" << KVLOG(reqSeqNum_));
+    LOG_INFO(logger(),
+             "Primary replica did not complete pre-processing yet, continue waiting"
+                 << KVLOG(batchCid_, reqSeqNum_, reqCid_));
     return CONTINUE;
   } else
-    LOG_INFO(
-        logger(),
-        "Not enough equal hashes collected yet" << KVLOG(reqSeqNum_, maxNumOfEqualHashes, numOfRequiredEqualReplies_));
+    LOG_INFO(logger(),
+             "Not enough equal hashes collected yet"
+                 << KVLOG(batchCid_, reqSeqNum_, reqCid_, maxNumOfEqualHashes, numOfRequiredEqualReplies_));
 
   if (numOfReceivedReplies_ == numOfReplicas_) {
     // Replies from all replicas received, but not enough equal hashes collected => pre-execution consensus not
     // reached => cancel request.
-    LOG_WARN(logger(), "Not enough equal hashes collected, cancel request" << KVLOG(reqSeqNum_));
+    LOG_WARN(logger(), "Not enough equal hashes collected, cancel request" << KVLOG(batchCid_, reqSeqNum_, reqCid_));
     return CANCEL;
   }
   LOG_INFO(logger(),
-           "Continue waiting for replies to arrive"
-               << KVLOG(reqSeqNum_, numOfReceivedReplies_, maxNumOfEqualHashes, numOfRequiredEqualReplies_));
+           "Continue waiting for replies to arrive" << KVLOG(
+               batchCid_, reqSeqNum_, reqCid_, numOfReceivedReplies_, maxNumOfEqualHashes, numOfRequiredEqualReplies_));
   return CONTINUE;
 }
 
@@ -319,10 +321,10 @@ const std::set<PreProcessResultSignature> &RequestProcessingState::getPreProcess
   const auto &r = preProcessingResultHashes_.find(primaryPreProcessResultHash_);
   if (r != preProcessingResultHashes_.end()) return r->second;
   LOG_FATAL(logger(),
-            "Primary replica pre-processing has not been completed" << KVLOG(batchCid_,
+            "Primary replica pre-processing has not been completed" << KVLOG(clientId_,
+                                                                             batchCid_,
                                                                              reqSeqNum_,
-                                                                             clientId_,
-                                                                             cid_,
+                                                                             reqCid_,
                                                                              reqOffsetInBatch_,
                                                                              preProcessingResultHashes_.size(),
                                                                              preprocessingRightNow_,

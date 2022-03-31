@@ -29,7 +29,7 @@ class PreProcessReplyMsg : public MessageBase {
                      uint64_t reqRetryId,
                      const char* preProcessResultBuf,
                      uint32_t preProcessResultBufLen,
-                     const std::string& cid,
+                     const std::string& reqCid,
                      ReplyStatus status,
                      bftEngine::OperationResult preProcessResult,
                      ViewNum viewNum);
@@ -41,7 +41,7 @@ class PreProcessReplyMsg : public MessageBase {
                      uint64_t reqRetryId,
                      const uint8_t* resultsHash,
                      const char* signature,
-                     const std::string& cid,
+                     const std::string& reqCid,
                      ReplyStatus status,
                      bftEngine::OperationResult preProcessResult,
                      ViewNum viewNum);
@@ -101,9 +101,10 @@ class PreProcessReplyMsg : public MessageBase {
                  ReplyStatus status,
                  bftEngine::OperationResult preProcessResult,
                  ViewNum viewNum);
-  void setupMsgBody(const char* preProcessResultBuf, uint32_t preProcessResultBufLen, const std::string& cid);
-  void setupMsgBody(const uint8_t* resultsHash, const char* signature, const std::string& cid);
+  void setupMsgBody(const char* preProcessResultBuf, uint32_t preProcessResultBufLen, const std::string& reqCid);
+  void setupMsgBody(const uint8_t* resultsHash, const char* signature, const std::string& reqCid);
   void setLeftMsgParams(const std::string& cid, uint16_t sigSize);
+
   Header* msgBody() const { return ((Header*)msgBody_); }
 
  private:
