@@ -90,9 +90,9 @@ void ReplicaResourceEntity::start() { is_stopped = false; }
 void ReplicaResourceEntity::reset() {
   mutex_.lock();
   pruning_utilization.restart();
-  pruning_utilization.addDuration();
+  pruning_utilization.addMarker();
   post_exec_utilization.restart();
-  post_exec_utilization.addDuration();
+  post_exec_utilization.addMarker();
   pruned_blocks = 0;
   pruning_accumulated_time = 0;
   num_of_consensus = 0;
