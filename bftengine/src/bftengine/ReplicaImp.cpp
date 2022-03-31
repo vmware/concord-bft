@@ -165,10 +165,11 @@ void ReplicaImp::registerMsgHandlers() {
 template <typename T>
 void ReplicaImp::messageHandler(MessageBase *msg) {
   T *trueTypeObj = new T(msg);
-  validateMessage(trueTypeObj);
   if (isCollectingState()) {
     // Extract only required information and handover to ST thread
-    peekConsensusMessage<T>(msg);
+    if (validateMessage(trueTypeObj)) {
+      peekConsensusMessage<T>(msg);
+    }
   }
   delete msg;
 
@@ -638,9 +639,8 @@ std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMsgBatchByOverallSiz
 // So, the second value of the pair provides the real indication of success of failure.
 std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) {
   ConcordAssertGT(requiredRequestsNum, 0);
-  // DD: To make sure that time service does not affect sending messages
-  uint32_t timeServiceBatchSizeAdjustment = config_.timeServiceEnabled ? 1 : 0;
-  if (requestsQueueOfPrimary.size() < requiredRequestsNum - timeServiceBatchSizeAdjustment) {
+
+  if (requestsQueueOfPrimary.size() < requiredRequestsNum) {
     LOG_DEBUG(GL,
               "Not enough messages in the primary replica queue to fill a batch"
                   << KVLOG(requestsQueueOfPrimary.size(), requiredRequestsNum));
@@ -698,19 +698,6 @@ PrePrepareMsg *ReplicaImp::createPrePrepareMessage() {
     controller->onSendingPrePrepare((primaryLastUsedSeqNum + 1), firstPath);
   }
 
-  if (config_.timeServiceEnabled) {
-    // If time-service is enabled, the first client request will be time request
-    auto timeServiceMsg = time_service_manager_->createClientRequestMsg();
-    auto pp = new PrePrepareMsg(config_.getreplicaId(),
-                                getCurrentView(),
-                                (primaryLastUsedSeqNum + 1),
-                                firstPath,
-                                requestsQueueOfPrimary.front()->spanContext<ClientRequestMsg>(),
-                                primaryCombinedReqSize + timeServiceMsg->size());
-    // add time-Service request as first message in pre-prepare message
-    pp->addRequest(timeServiceMsg->body(), timeServiceMsg->size());
-    return pp;
-  }
   return new PrePrepareMsg(config_.getreplicaId(),
                            getCurrentView(),
                            (primaryLastUsedSeqNum + 1),
@@ -881,6 +868,10 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp) {
 void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isCreatedEarlier) {
   if (!isCurrentPrimary()) return;
   TimeRecorder scoped_timer(*histograms_.startConsensusProcess);
+  if (getReplicaConfig().timeServiceEnabled) {
+    pp->setTime(time_service_manager_->getClockTimePoint());
+  }
+
   auto firstPath = pp->firstPath();
   if (config_.getdebugStatisticsEnabled()) {
     DebugStatistics::onSendPrePrepareMessage(pp->numberOfRequests(), requestsQueueOfPrimary.size());
@@ -1100,14 +1091,15 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
     const bool slowStarted = (msg->firstPath() == CommitPath::SLOW || seqNumInfo.slowPathStarted());
 
     bool time_is_ok = true;
-    if (config_.timeServiceEnabled && msg->numberOfRequests() > 0) {
-      if (!time_service_manager_->hasTimeRequest(*msg)) {
-        LOG_WARN(CNSUS, "PrePrepare will be ignored");
+    if (config_.timeServiceEnabled) {
+      auto ppmTime = msg->getTime();
+      if (ppmTime <= 0) {
+        LOG_WARN(CNSUS, "No timePoint in the prePrepare, PrePrepare will be ignored" << KVLOG(ppmTime));
         delete msg;
         return;
       }
       if (msgSeqNum > maxSeqNumTransferredFromPrevViews /* not transferred from the previous view*/) {
-        time_is_ok = time_service_manager_->isPrimarysTimeWithinBounds(*msg);
+        time_is_ok = time_service_manager_->isPrimarysTimeWithinBounds(ppmTime);
       }
     }
     // For MDC it doesn't matter which type of fast path
@@ -1121,7 +1113,6 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
       char *requestBody = nullptr;
       while (reqIter.getAndGoToNext(requestBody)) {
         ClientRequestMsg req(reinterpret_cast<ClientRequestMsgHeader *>(requestBody));
-        if (config_.timeServiceEnabled && req.flags() & MsgFlag::TIME_SERVICE_FLAG) continue;
         if (!clientsManager->isValidClient(req.clientProxyId())) continue;
         clientsManager->removeRequestsOutOfBatchBounds(req.clientProxyId(), req.requestSeqNum());
         if (clientsManager->canBecomePending(req.clientProxyId(), req.requestSeqNum()))
@@ -5107,7 +5098,6 @@ void ReplicaImp::tryToRemovePendingRequestsForSeqNum(SeqNum seqNum) {
   char *requestBody = nullptr;
   while (reqIter.getAndGoToNext(requestBody)) {
     ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
-    if (config_.timeServiceEnabled && req.flags() & MsgFlag::TIME_SERVICE_FLAG) continue;
     if (!clientsManager->isValidClient(req.clientProxyId())) continue;
     auto clientId = req.clientProxyId();
     LOG_DEBUG(GL, "removing pending requests for client" << KVLOG(clientId));
