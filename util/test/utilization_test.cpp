@@ -44,6 +44,42 @@ TEST(Utilization, partial_util) {
   ASSERT_EQ(result, 60);
 }
 
+TEST(Utilization, do_no_add) {
+  utilization util;
+  // Start smaller than end
+  util.addDuration({120, 80});
+  auto result = util.getUtilization();
+  ASSERT_EQ(result, 0);
+}
+
+TEST(Utilization, do_no_add_with_marker) {
+  utilization util;
+  util.addMarker();
+  // Start smaller than end
+  util.addDuration({120, 80});
+  auto result = util.getUtilization();
+  ASSERT_EQ(result, 0);
+}
+
+TEST(Utilization, overlapping) {
+  utilization util;
+  // Start smaller than end
+  util.addDuration({100, 200});
+  util.addDuration({150, 300});
+  auto result = util.getUtilization();
+  ASSERT_EQ(result, 100);
+}
+
+TEST(Utilization, overlapping_and_gap) {
+  utilization util;
+  // Start smaller than end
+  util.addDuration({100, 200});
+  util.addDuration({150, 300});
+  util.addDuration({350, 390});
+  auto result = util.getUtilization();
+  ASSERT_EQ(result, 82);
+}
+
 TEST(Utilization, partial_util2) {
   utilization util;
   util.addDuration({80, 120});

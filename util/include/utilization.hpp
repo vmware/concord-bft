@@ -28,32 +28,47 @@ class utilization {
   };
 
   void addDuration(durtionMicro&& dur) {
-    ConcordAssertGE(dur.end, dur.start);
-    if (dur.end == dur.start) return;
-    if (utilization_.size() > 0) {
-      ConcordAssertGE(dur.start, utilization_.back().end);
-    }
+    if (dur.end <= dur.start) return;
     utilization_.push_back(std::move(dur));
+  }
+
+  // Convenience method for adding marker measurements.
+  // i.e. start and end
+  void addMarker() {
+    durtionMicro dur;
+    dur.start =
+        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())
+            .count();
+    dur.end = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())
+                  .count();
+    addDuration(std::move(dur));
+    marker_ = true;
   }
 
   // Calculate the total time and then subtracts the intervals between the operations.
   std::uint64_t getUtilization() const {
-    if (utilization_.size() == 0) return 0;
+    uint64_t init_measurement = marker_ ? 1 : 0;
+    if (utilization_.size() <= init_measurement) return 0;
     const auto total_time = utilization_.back().end - utilization_.front().start;
     auto busy_time = total_time;
     for (auto it = utilization_.cbegin(); (it + 1) < utilization_.cend(); it++) {
+      if ((it + 1)->start <= it->end) continue;
       auto dead_interval = (it + 1)->start - it->end;
-      ConcordAssertGE(busy_time, dead_interval);
+      if (dead_interval >= busy_time) return 0;
       busy_time -= dead_interval;
     }
 
     return (busy_time * 100) / total_time;
   }
 
-  void restart() { utilization_.clear(); }
+  void restart() {
+    utilization_.clear();
+    marker_ = false;
+  }
 
  private:
   std::vector<durtionMicro> utilization_;
+  bool marker_{false};
 };
 
 }  // namespace concordUtil
