@@ -43,7 +43,8 @@ class utilization {
     // dur.start =
     //     std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())
     //         .count();
-    // dur.end = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())
+    // dur.end =
+    // std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())
     //               .count();
     // addDuration(std::move(dur));
     // marker_ = true;
