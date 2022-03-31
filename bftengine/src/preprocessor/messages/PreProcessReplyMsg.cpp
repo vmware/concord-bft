@@ -21,7 +21,7 @@ using namespace concord::util;
 using namespace bftEngine;
 using namespace bftEngine::impl;
 
-// maxReplyMsgSize_ = sizeof(Header) + sizeof(signature) + cid.size(), i.e 58 + 256 + up to 710 bytes of cid
+// maxReplyMsgSize_ = sizeof(Header) + sizeof(signature) + reqCid.size(), i.e 58 + 256 + up to 710 bytes of reqCid
 uint16_t PreProcessReplyMsg::maxReplyMsgSize_ = 1024;
 
 PreProcessReplyMsg::PreProcessReplyMsg(NodeIdType senderId,
@@ -31,12 +31,12 @@ PreProcessReplyMsg::PreProcessReplyMsg(NodeIdType senderId,
                                        uint64_t reqRetryId,
                                        const char* preProcessResultBuf,
                                        uint32_t preProcessResultBufLen,
-                                       const std::string& cid,
+                                       const std::string& reqCid,
                                        ReplyStatus status,
                                        OperationResult preProcessResult)
     : MessageBase(senderId, MsgCode::PreProcessReply, 0, maxReplyMsgSize_) {
   setParams(senderId, clientId, reqOffsetInBatch, reqSeqNum, reqRetryId, status, preProcessResult);
-  setupMsgBody(preProcessResultBuf, preProcessResultBufLen, cid);
+  setupMsgBody(preProcessResultBuf, preProcessResultBufLen, reqCid);
 }
 
 // Used by PreProcessBatchReplyMsg while retrieving PreProcessReplyMsgs from the batch
@@ -47,12 +47,12 @@ PreProcessReplyMsg::PreProcessReplyMsg(NodeIdType senderId,
                                        uint64_t reqRetryId,
                                        const uint8_t* resultsHash,
                                        const char* signature,
-                                       const std::string& cid,
+                                       const std::string& reqCid,
                                        ReplyStatus status,
                                        OperationResult preProcessResult)
     : MessageBase(senderId, MsgCode::PreProcessReply, 0, maxReplyMsgSize_) {
   setParams(senderId, clientId, reqOffsetInBatch, reqSeqNum, reqRetryId, status, preProcessResult);
-  setupMsgBody(resultsHash, signature, cid);
+  setupMsgBody(resultsHash, signature, reqCid);
 }
 
 void PreProcessReplyMsg::validate(const ReplicasInfo& repInfo) const {
@@ -112,23 +112,30 @@ void PreProcessReplyMsg::setParams(NodeIdType senderId,
   msgBody()->reqRetryId = reqRetryId;
   msgBody()->status = status;
   msgBody()->preProcessResult = preProcessResult;
-  LOG_DEBUG(logger(),
-            KVLOG(senderId, clientId, reqSeqNum, reqRetryId, status, static_cast<uint32_t>(preProcessResult)));
 }
 
-void PreProcessReplyMsg::setLeftMsgParams(const string& cid, uint16_t sigSize) {
+void PreProcessReplyMsg::setLeftMsgParams(const string& reqCid, uint16_t sigSize) {
   const uint16_t headerSize = sizeof(Header);
-  msgBody()->cidLength = cid.size();
-  memcpy(body() + headerSize + sigSize, cid.c_str(), cid.size());
+  msgBody()->cidLength = reqCid.size();
+  memcpy(body() + headerSize + sigSize, reqCid.c_str(), reqCid.size());
   msgBody()->replyLength = sigSize;
   msgSize_ = headerSize + sigSize + msgBody()->cidLength;
-  SCOPED_MDC_CID(cid);
-  LOG_DEBUG(logger(), KVLOG(msgBody()->senderId, msgBody()->clientId, msgBody()->reqSeqNum, sigSize, cid, msgSize_));
+  LOG_DEBUG(logger(),
+            KVLOG(msgBody()->senderId,
+                  msgBody()->clientId,
+                  msgBody()->reqSeqNum,
+                  reqCid,
+                  msgBody()->reqOffsetInBatch,
+                  msgBody()->reqRetryId,
+                  msgBody()->status,
+                  static_cast<uint32_t>(msgBody()->preProcessResult),
+                  sigSize,
+                  msgSize_));
 }
 
 void PreProcessReplyMsg::setupMsgBody(const char* preProcessResultBuf,
                                       uint32_t preProcessResultBufLen,
-                                      const string& cid) {
+                                      const string& reqCid) {
   uint16_t sigSize = 0;
   auto sigManager = SigManager::instance();
   sigSize = sigManager->getMySigLength();
@@ -143,15 +150,15 @@ void PreProcessReplyMsg::setupMsgBody(const char* preProcessResultBuf,
     concord::diagnostics::TimeRecorder scoped_timer(*preProcessorHistograms_->signPreProcessReplyHash);
     sigManager->sign((char*)hash.data(), SHA3_256::SIZE_IN_BYTES, body() + sizeof(Header), sigSize);
   }
-  setLeftMsgParams(cid, sigSize);
+  setLeftMsgParams(reqCid, sigSize);
 }
 
 // Used by PreProcessBatchReplyMsg while retrieving PreProcessReplyMsgs from the batch
-void PreProcessReplyMsg::setupMsgBody(const uint8_t* resultsHash, const char* signature, const string& cid) {
+void PreProcessReplyMsg::setupMsgBody(const uint8_t* resultsHash, const char* signature, const string& reqCid) {
   memcpy(msgBody()->resultsHash, resultsHash, SHA3_256::SIZE_IN_BYTES);
   const uint16_t sigLen = SigManager::instance()->getMySigLength();
   memcpy(body() + sizeof(Header), signature, sigLen);
-  setLeftMsgParams(cid, sigLen);
+  setLeftMsgParams(reqCid, sigLen);
 }
 
 std::string PreProcessReplyMsg::getCid() const {
