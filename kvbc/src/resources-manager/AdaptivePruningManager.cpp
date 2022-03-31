@@ -130,7 +130,10 @@ void AdaptivePruningManager::start() {
 void AdaptivePruningManager::stop() {
   if (isRunning.exchange(false)) {
     conditionVar.notify_one();
-    workThread.join();
+    try {
+      workThread.join();
+    } catch (std::system_error) {
+    }
   }
 }
 
