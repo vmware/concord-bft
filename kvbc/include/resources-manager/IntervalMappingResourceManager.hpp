@@ -41,7 +41,7 @@ class IntervalMappingResourceManager : public IResourceManager {
       std::vector<std::pair<uint64_t, uint64_t>> &&intervalMapping,
       const IntervalMappingResourceManagerConfiguration &configuration =
           IntervalMappingResourceManagerConfiguration{}) {
-    // sort(intervalMapping.begin(), intervalMapping.end());
+    sort(intervalMapping.begin(), intervalMapping.end());
     intervalMapping.push_back(std::make_pair(UINT64_MAX, 0));
     return std::unique_ptr<IntervalMappingResourceManager>(
         new IntervalMappingResourceManager(replicaResources, std::move(intervalMapping), configuration));
