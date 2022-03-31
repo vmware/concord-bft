@@ -55,24 +55,29 @@ node:
         replica_host: concord1
         replica_port: 3501
         event_port: 50051
+        replica_host_uuid: concord1
   - replica:
       - principal_id: 1
         replica_host: concord2
         replica_port: 3501
         event_port: 50051
+        replica_host_uuid: concord2
   - replica:
       - principal_id: 2
         replica_host: concord3
         replica_port: 3501
         event_port: 50051
+        replica_host_uuid: concord3
   - replica:
       - principal_id: 3
         replica_host: concord4
         replica_port: 3501
         event_port: 50051
+        replica_host_uuid: concord4
 participant_nodes:
   - participant_node:
       - participant_node_host: 0.0.0.0
+        clientservice_host_uuid: clientservice1
         principal_id: 55
         external_clients:
           - client:
