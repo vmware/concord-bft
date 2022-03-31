@@ -132,7 +132,7 @@ void AdaptivePruningManager::stop() {
     conditionVar.notify_one();
     try {
       workThread.join();
-    } catch (std::system_error) {
+    } catch (std::system_error &e) {
     }
   }
 }
