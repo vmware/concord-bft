@@ -365,7 +365,7 @@ module Proof {
 
   lemma CountHonestReplicas(c: Constants)
     requires c.WF()
-    ensures |HonestReplicas(c)| == c.clusterConfig.AgreementQuorum()
+    ensures |HonestReplicas(c)| >= c.clusterConfig.AgreementQuorum()
   {
     var count := 0;
     var f := c.clusterConfig.F();
