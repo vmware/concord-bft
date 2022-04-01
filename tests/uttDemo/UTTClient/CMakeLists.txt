@@ -15,10 +15,14 @@ if(${USE_COMM_TLS_TCP})
     target_compile_definitions(utt_client PUBLIC USE_COMM_TLS_TCP)
 endif()
 
-target_link_libraries(utt_client PUBLIC kvbc corebft threshsign util test_config_lib utt_messages_cmf)
+target_include_directories(utt_client
+	PUBLIC
+		..
+		../..
+		${libkvbc_SOURCE_DIR}/include
+		${UTT_DEMO_INCLUDES}
+)
 
-target_include_directories(utt_client PUBLIC ..)
-target_include_directories(utt_client PUBLIC ../..)
-target_include_directories(utt_client PUBLIC ${libkvbc_SOURCE_DIR}/include)
+target_link_libraries(utt_client PUBLIC kvbc corebft threshsign util test_config_lib utt_messages_cmf ${UTT_DEMO_LINKS})
 
 
