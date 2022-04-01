@@ -17,6 +17,6 @@ std::vector<size_t> random_subset(size_t k, size_t n);
  *
  * On failure, returns 0, 0;
  */
-void printMemUsage(const char * headerMessage = nullptr);
+void printMemUsage(const char* headerMessage = nullptr);
 
 void getMemUsage(size_t& vm_usage, size_t& resident_set);

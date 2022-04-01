@@ -14,46 +14,48 @@ using namespace std;
 using namespace libutt;
 
 int main(int argc, char *argv[]) {
-    (void)argc;
-    (void)argv;
-    libutt::initialize(nullptr, 0);
-    
-    if(argc < 2) {
-        cout << "Usage: " << argv[0] << " <n>" << endl;
-        cout << endl;
-        cout << "Measures the time for a size-<n> multipairing." << endl;
-        return 1;
-    }
+  (void)argc;
+  (void)argv;
+  libutt::initialize(nullptr, 0);
 
-    size_t numPairings = static_cast<size_t>(std::stoi(argv[1]));
+  if (argc < 2) {
+    cout << "Usage: " << argv[0] << " <n>" << endl;
+    cout << endl;
+    cout << "Measures the time for a size-<n> multipairing." << endl;
+    return 1;
+  }
 
-    std::vector<G1> a(numPairings);
-    std::vector<G2> b(numPairings);
+  size_t numPairings = static_cast<size_t>(std::stoi(argv[1]));
 
-    for(size_t i = 0; i < numPairings; i++) {
-        a[i] = G1::random_element();
-        b[i] = G2::random_element();
-    }
+  std::vector<G1> a(numPairings);
+  std::vector<G2> b(numPairings);
 
-    loginfo << "Benchmarking size-" << numPairings << " (+1) multipairings" << endl;
+  for (size_t i = 0; i < numPairings; i++) {
+    a[i] = G1::random_element();
+    b[i] = G2::random_element();
+  }
 
-    AveragingTimer t1("naive");
-    t1.startLap();
-    GT r1 = MultiPairingNaive(a, b);
-    t1.endLap();
-    testAssertNotEqual(r1, GT::one());
-    
-    loginfo << "Naive pairings average time / pairing: " << static_cast<size_t>(t1.totalLapTime()) / numPairings << " mus" << endl;
+  loginfo << "Benchmarking size-" << numPairings << " (+1) multipairings" << endl;
 
-    AveragingTimer t2("multi");
-    t2.startLap();
-    GT r2 = MultiPairing(a, b);
-    t2.endLap();
-    testAssertEqual(r1, r2);
+  AveragingTimer t1("naive");
+  t1.startLap();
+  GT r1 = MultiPairingNaive(a, b);
+  t1.endLap();
+  testAssertNotEqual(r1, GT::one());
 
-    loginfo << "Multipairing average time / pairing: " << static_cast<size_t>(t2.totalLapTime()) / numPairings << " mus" << endl;
+  loginfo << "Naive pairings average time / pairing: " << static_cast<size_t>(t1.totalLapTime()) / numPairings << " mus"
+          << endl;
 
-    loginfo << "All tests succeeded!" << endl;
+  AveragingTimer t2("multi");
+  t2.startLap();
+  GT r2 = MultiPairing(a, b);
+  t2.endLap();
+  testAssertEqual(r1, r2);
 
-    return 0;
+  loginfo << "Multipairing average time / pairing: " << static_cast<size_t>(t2.totalLapTime()) / numPairings << " mus"
+          << endl;
+
+  loginfo << "All tests succeeded!" << endl;
+
+  return 0;
 }

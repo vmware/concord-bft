@@ -7,25 +7,25 @@
 
 namespace libutt {
 
-    class CoinSecrets;
-    class RandSig;
+class CoinSecrets;
+class RandSig;
 
-    /**
-     * A coin inside a wallet that the owning user can spend.
-     */
-    class Coin {
-    public:
-        CoinSecrets cs; // coin secrets: owner, serial number and value
-        Comm cc;        // coin commitment to above coin secrets
-        RandSig sig;    // signature on coin commitment from bank
+/**
+ * A coin inside a wallet that the owning user can spend.
+ */
+class Coin {
+ public:
+  CoinSecrets cs;  // coin secrets: owner, serial number and value
+  Comm cc;         // coin commitment to above coin secrets
+  RandSig sig;     // signature on coin commitment from bank
 
-        //
-        // NOTE(Alin): Precomputation optimizations!
-        //
-        Nullifier null; // nullifier for this coin, pre-computed for convenience
+  //
+  // NOTE(Alin): Precomputation optimizations!
+  //
+  Nullifier null;  // nullifier for this coin, pre-computed for convenience
 
-        Comm vcm;     // value commitment for this coin, pre-computed for convenience
-        Fr z;         // value commitment randomness
-    };
+  Comm vcm;  // value commitment for this coin, pre-computed for convenience
+  Fr z;      // value commitment randomness
+};
 
-}
+}  // namespace libutt

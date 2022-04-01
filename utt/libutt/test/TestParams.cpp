@@ -9,30 +9,30 @@ using namespace std;
 using namespace libutt;
 
 int main(int argc, char *argv[]) {
-    libutt::initialize(nullptr, 0);
-    //srand(static_cast<unsigned int>(time(NULL)));
-    (void)argc;
-    (void)argv;
+  libutt::initialize(nullptr, 0);
+  // srand(static_cast<unsigned int>(time(NULL)));
+  (void)argc;
+  (void)argv;
 
-    Params p = Params::random();
-    Params otherp = Params::random();
-    Params samep = p;
+  Params p = Params::random();
+  Params otherp = Params::random();
+  Params samep = p;
 
-    testAssertNotEqual(p, otherp);
-    testAssertEqual(p, samep);
+  testAssertNotEqual(p, otherp);
+  testAssertEqual(p, samep);
 
-    // Test (de)serialization
-    stringstream ss;
+  // Test (de)serialization
+  stringstream ss;
 
-    ss << p;
-    Params diffp(ss);
-    testAssertEqual(p, diffp);
+  ss << p;
+  Params diffp(ss);
+  testAssertEqual(p, diffp);
 
-    ss << p;
-    otherp = Params(ss);
-    testAssertEqual(p, otherp);
+  ss << p;
+  otherp = Params(ss);
+  testAssertEqual(p, otherp);
 
-    loginfo << "All is well." << endl;
+  loginfo << "All is well." << endl;
 
-    return 0;
+  return 0;
 }
