@@ -48,9 +48,11 @@ void RsiDataManager::setRsiForClient(uint32_t client_id, uint64_t req_sn, const 
   clientsIndex_[client_id]++;
   uint32_t storageIndex = client_id * max_client_batch_size_ + (nextClientIndex % max_client_batch_size_);
   RsiItem rsi_item(nextClientIndex, req_sn, data);
-  ps_->beginWriteTran();
-  ps_->setReplicaSpecificInfo(storageIndex, rsi_item.serialize());
-  ps_->endWriteTran();
+  if (ps_) {
+    ps_->beginWriteTran();
+    ps_->setReplicaSpecificInfo(storageIndex, rsi_item.serialize());
+    ps_->endWriteTran();
+  }
   if (rsiCache_[client_id].size() >= max_client_batch_size_) {
     rsiCache_[client_id].pop_front();
   }
@@ -62,7 +64,8 @@ void RsiDataManager::init() {
     clientsIndex_[clientId] = 0;
     std::vector<RsiItem> clientRsiData;
     for (uint32_t offset = 0; offset < max_client_batch_size_; offset++) {
-      std::vector<uint8_t> data = ps_->getReplicaSpecificInfo(clientId * max_client_batch_size_ + offset);
+      std::vector<uint8_t> data;
+      if (ps_) data = ps_->getReplicaSpecificInfo(clientId * max_client_batch_size_ + offset);
       if (data.empty()) continue;
       auto rsi_item = RsiItem::deserialize(data);
       if (rsi_item.data().empty()) continue;
