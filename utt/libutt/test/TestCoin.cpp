@@ -21,35 +21,35 @@ using namespace std;
 using namespace libutt;
 
 void testRandomCoinSecret() {
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<size_t> udi(1, 1024);
+  std::random_device rd;
+  std::mt19937 gen(rd());
+  std::uniform_int_distribution<size_t> udi(1, 1024);
 
-    // Create a new random object
-    Coin c = Coin::random(udi(gen), Coin::NormalType());    // randomly generated coin
+  // Create a new random object
+  Coin c = Coin::random(udi(gen), Coin::NormalType());  // randomly generated coin
 
-    std::cout << "Random coin value: " << c.val << endl;
+  std::cout << "Random coin value: " << c.val << endl;
 
-    // Test serialization
-    std::stringstream ss;
+  // Test serialization
+  std::stringstream ss;
 
-    ss << c;
-    Coin samec(ss);
-    testAssertEqual(c, samec);
+  ss << c;
+  Coin samec(ss);
+  testAssertEqual(c, samec);
 
-    Coin otherc = Coin::random(udi(gen), Coin::NormalType());    // randomly generated coin
-    testAssertNotEqual(c, otherc);
+  Coin otherc = Coin::random(udi(gen), Coin::NormalType());  // randomly generated coin
+  testAssertNotEqual(c, otherc);
 }
 
 int main(int argc, char *argv[]) {
-    libutt::initialize(nullptr, 0);
-    //srand(static_cast<unsigned int>(time(NULL)));
-    (void)argc;
-    (void)argv;
+  libutt::initialize(nullptr, 0);
+  // srand(static_cast<unsigned int>(time(NULL)));
+  (void)argc;
+  (void)argv;
 
-    testRandomCoinSecret();
+  testRandomCoinSecret();
 
-    loginfo << "All is well." << endl;
+  loginfo << "All is well." << endl;
 
-    return 0;
+  return 0;
 }

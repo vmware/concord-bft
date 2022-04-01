@@ -6,32 +6,31 @@
 using namespace std;
 using namespace libutt;
 
-int main(int argc, char *argv[])
-{
-    libutt::initialize(nullptr, 0);
-    
-    if(argc < 3) {
-        cout << "Usage: " << argv[0] << " <trapdoor-file> <q>" << endl;
-        cout << endl;
-        cout << "Generates 's' and writes it and 'q' to <trapdoor-file>" << endl;
-        return 1;
-    }
+int main(int argc, char *argv[]) {
+  libutt::initialize(nullptr, 0);
 
-    string outFile(argv[1]);
-    size_t q = static_cast<size_t>(std::stoi(argv[2]));
+  if (argc < 3) {
+    cout << "Usage: " << argv[0] << " <trapdoor-file> <q>" << endl;
+    cout << endl;
+    cout << "Generates 's' and writes it and 'q' to <trapdoor-file>" << endl;
+    return 1;
+  }
 
-    ofstream fout(outFile);
+  string outFile(argv[1]);
+  size_t q = static_cast<size_t>(std::stoi(argv[2]));
 
-    if(fout.fail()) {
-        std::cout << "ERROR: Could not open file: " << outFile << endl;
-        throw std::runtime_error("Could not open trapdoor output file");
-    }
+  ofstream fout(outFile);
 
-    Fr s = Fr::random_element();
-    fout << s << endl;
-    fout << q << endl;
+  if (fout.fail()) {
+    std::cout << "ERROR: Could not open file: " << outFile << endl;
+    throw std::runtime_error("Could not open trapdoor output file");
+  }
 
-    loginfo << "All done!" << endl;
+  Fr s = Fr::random_element();
+  fout << s << endl;
+  fout << q << endl;
 
-    return 0;
+  loginfo << "All done!" << endl;
+
+  return 0;
 }

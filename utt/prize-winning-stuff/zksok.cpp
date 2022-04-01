@@ -1,38 +1,37 @@
 
-    public:
-        ZKSoK signatureOfKnowledge(unsigned char * message, size_t len); 
-    
-    /**
-     * A zero-knowledge signature of knowledge of the secrets in a CoinSecrets object.
-     * This signature is computed over the hash of all TXN outputs.
-     */
-    class ZKSoK {
-    public:
-        Fr e;
-        Fr s;
+public:
+ZKSoK signatureOfKnowledge(unsigned char* message, size_t len);
 
-    public:
-        /**
-         * Verifies this signature against the coin commitment and the revealed EPK
-         */
-        bool verify(const EPK& epk, const CoinComm& cc, const unsigned char * message, size_t len) const;
-    };
+/**
+ * A zero-knowledge signature of knowledge of the secrets in a CoinSecrets object.
+ * This signature is computed over the hash of all TXN outputs.
+ */
+class ZKSoK {
+ public:
+  Fr e;
+  Fr s;
 
-    ZKSoK CoinSecrets::signatureOfKnowledge(unsigned char * message, size_t len) {
-        (void)message;
-        (void)len;
-        // TODO: hash message, then incorporate into Schnorr hash as extra input
+ public:
+  /**
+   * Verifies this signature against the coin commitment and the revealed EPK
+   */
+  bool verify(const EPK& epk, const CoinComm& cc, const unsigned char* message, size_t len) const;
+};
 
-        throw libxutils::NotImplementedException();
-    }
+ZKSoK CoinSecrets::signatureOfKnowledge(unsigned char* message, size_t len) {
+  (void)message;
+  (void)len;
+  // TODO: hash message, then incorporate into Schnorr hash as extra input
 
-    bool ZKSoK::verify(const EPK& epk, const CoinComm& cc, const unsigned char * message, size_t len) const {
-        (void)epk;
-        (void)cc;
-        (void)message;
-        (void)len;
-        // TODO: hash message, then incorporate into Schnorr verification as extra input
+  throw libxutils::NotImplementedException();
+}
 
-        return false;
-    }
+bool ZKSoK::verify(const EPK& epk, const CoinComm& cc, const unsigned char* message, size_t len) const {
+  (void)epk;
+  (void)cc;
+  (void)message;
+  (void)len;
+  // TODO: hash message, then incorporate into Schnorr verification as extra input
 
+  return false;
+}
