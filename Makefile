@@ -1,7 +1,7 @@
 #CONCORD_BFT_DOCKER_REPO?=concordbft/
-CONCORD_BFT_DOCKER_IMAGE?=concord-bft
-CONCORD_BFT_DOCKER_IMAGE_VERSION?=utt
-CONCORD_BFT_DOCKER_CONTAINER?=concord-bft
+CONCORD_BFT_DOCKER_IMAGE?=concord-bft-utt
+CONCORD_BFT_DOCKER_IMAGE_VERSION?=0.39
+CONCORD_BFT_DOCKER_CONTAINER?=concord-bft-utt
 
 CONCORD_BFT_DOCKERFILE?=Dockerfile
 CONCORD_BFT_BUILD_DIR?=build
@@ -261,10 +261,10 @@ build-docker-image: ## Build the image. Note: without caching
 
 .PHONY: build-docker-image-utt
 build-docker-image-utt: ## Build the image. Note: without caching
-	docker build --rm --no-cache=true -t ${CONCORD_BFT_DOCKER_IMAGE}:utt \
+	docker build --rm --no-cache=true -t ${CONCORD_BFT_DOCKER_IMAGE}:0.39 \
 		-f ./Dockerfile.utt .
 	@echo
-	@echo "Build finished. Docker image name: \"${CONCORD_BFT_DOCKER_IMAGE}:utt\"."
+	@echo "Build finished. Docker image name: \"${CONCORD_BFT_DOCKER_IMAGE}:0.39\"."
 	@echo "Before you push it to Docker Hub, please tag it(CONCORD_BFT_DOCKER_IMAGE_VERSION + 1)."
 	@echo "If you want the image to be the default, please update the following variables:"
 	@echo "${CURDIR}/Makefile: CONCORD_BFT_DOCKER_IMAGE_VERSION"
