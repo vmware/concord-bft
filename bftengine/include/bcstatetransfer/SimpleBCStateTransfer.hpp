@@ -21,7 +21,7 @@
 #include "bftengine/IStateTransfer.hpp"
 #include "Metrics.hpp"
 #include "kvstream.h"
-#include "Digest.hpp"
+#include "digest.hpp"
 
 using concord::util::digest::Digest;
 using concord::util::digest::BlockDigest;

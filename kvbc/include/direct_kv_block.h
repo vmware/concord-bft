@@ -15,7 +15,7 @@
 
 #include "kv_types.hpp"
 #include "sliver.hpp"
-#include "Digest.hpp"
+#include "digest.hpp"
 
 #include <cstddef>
 #include <cstdint>

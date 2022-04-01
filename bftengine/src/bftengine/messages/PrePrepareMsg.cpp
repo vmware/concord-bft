@@ -19,7 +19,7 @@
 #include "RequestThreadPool.hpp"
 #include "EpochManager.hpp"
 
-using concord::util::digest::DigestUtil;
+using concord::util::digest::DigestGenerator;
 
 namespace bftEngine {
 namespace impl {
@@ -58,7 +58,8 @@ void PrePrepareMsg::calculateDigestOfRequests(Digest& digest) const {
       } else {
         tasks.push_back(threadPool.async(
             [&sigOrDigestOfRequest, &digestBuffer, local_id](auto* request, auto requestLength) {
-              DigestUtil::compute(
+              DigestGenerator digestGenerator;
+              digestGenerator.compute(
                   request, requestLength, digestBuffer.get() + local_id * sizeof(Digest), sizeof(Digest));
               sigOrDigestOfRequest[local_id].first = digestBuffer.get() + local_id * sizeof(Digest);
               sigOrDigestOfRequest[local_id].second = sizeof(Digest);
@@ -78,7 +79,8 @@ void PrePrepareMsg::calculateDigestOfRequests(Digest& digest) const {
     }
 
     // compute and set digest
-    DigestUtil::compute(sigOrDig.c_str(), sigOrDig.size(), (char*)&digest, sizeof(Digest));
+    DigestGenerator digestGenerator;
+    digestGenerator.compute(sigOrDig.c_str(), sigOrDig.size(), (char*)&digest, sizeof(Digest));
   } catch (std::out_of_range& ex) {
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": digest threadpool"));
   }
