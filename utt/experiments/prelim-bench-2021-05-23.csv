@@ -1,0 +1,6 @@
+build,num_samples,create-2to2-txn-hum,verify-2to2-txn-hum,process-2to2-txn-hum,is-mine-2to2-txn-hum,make-mine-2to2-txn-hum,create-2to2-txn,verify-2to2-txn,process-2to2-txn,is-mine-2to2-txn,make-mine-2to2-txn,machine,description,date
+release,10,24.81 ms,8.97 ms,751.00 mus,312.00 mus,1.92 ms,24813,8966,751,312,1920,vrg-macbook,may24pres,2021-05-23 19:25:53
+release,10,23.17 ms,8.54 ms,854.00 mus,333.00 mus,1.89 ms,23171,8537,854,333,1886,vrg-macbook,may24pres,2021-05-23 19:26:22
+release,100,23.94 ms,8.94 ms,792.00 mus,299.00 mus,1.80 ms,23943,8939,792,299,1800,vrg-macbook,may24pres,2021-05-23 19:26:31
+release,200,23.66 ms,8.79 ms,792.00 mus,307.00 mus,1.82 ms,23661,8791,792,307,1818,vrg-macbook,may24pres,2021-05-23 19:26:53
+release,1000,23.93 ms,9.02 ms,795.00 mus,316.00 mus,1.84 ms,23935,9023,795,316,1842,vrg-macbook,may24pres,2021-05-23 19:27:55
