@@ -234,6 +234,14 @@ class SubUpdateBuffer {
     return eg_queue_.front().event_group_id;
   }
 
+  // The caller needs to make sure that the queue is not empty when calling
+  SubEventGroupUpdate oldestEventGroup() {
+    std::unique_lock<std::mutex> lock(eg_mutex_);
+    // Undefined behavior if the queue is empty
+    ConcordAssertGT(eg_queue_.read_available(), 0);
+    return eg_queue_.front();
+  }
+
   bool Empty() {
     std::unique_lock<std::mutex> lock(mutex_);
     return !queue_.read_available();
