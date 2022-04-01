@@ -59,9 +59,9 @@ endif()
 #
 
 # This creates the <Package>Config.cmake file and installs it
-install(TARGETS utt EXPORT uttConfig 
-   ARCHIVE DESTINATION lib)
-install(EXPORT uttConfig DESTINATION lib/cmake/utt)
+# install(TARGETS utt EXPORT uttConfig 
+#    ARCHIVE DESTINATION lib)
+# install(EXPORT uttConfig DESTINATION lib/cmake/utt)
 
 # This installs the static or (/and?) dynamic library
 install(TARGETS utt 
