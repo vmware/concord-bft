@@ -18,7 +18,7 @@
 #include <set>
 #include "assertUtils.hpp"
 #include "storage/db_interface.h"
-#include "Digest.hpp"
+#include "digest.hpp"
 #include "Logger.hpp"
 
 using std::set;

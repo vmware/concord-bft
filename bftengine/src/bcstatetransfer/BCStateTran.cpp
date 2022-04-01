@@ -23,7 +23,7 @@
 #include "assertUtils.hpp"
 #include "hex_tools.h"
 #include "BCStateTran.hpp"
-#include "Digest.hpp"
+#include "digest.hpp"
 #include "InMemoryDataStore.hpp"
 #include "json_output.hpp"
 #include "ReservedPagesClient.hpp"
@@ -39,7 +39,7 @@ using std::tie;
 using namespace std::placeholders;
 using namespace concord::diagnostics;
 using namespace concord::util;
-using concord::util::digest::DigestUtil;
+using concord::util::digest::DigestGenerator;
 
 // uncomment to add debug prints
 // #define BCSTATETRAN_DO_DEBUG
@@ -3854,19 +3854,22 @@ void BCStateTran::checkStoredCheckpoints(uint64_t firstStoredCheckpoint, uint64_
 // Compute digests
 ///////////////////////////////////////////////////////////////////////////
 
+
 void BCStateTran::computeDigestOfPage(
     const uint32_t pageId, const uint64_t checkpointNumber, const char *page, uint32_t pageSize, Digest &outDigest) {
-  DigestUtil::Context c;
-  c.update(reinterpret_cast<const char *>(&pageId), sizeof(pageId));
-  c.update(reinterpret_cast<const char *>(&checkpointNumber), sizeof(checkpointNumber));
-  if (checkpointNumber > 0) c.update(page, pageSize);
-  c.writeDigest(outDigest.getForUpdate());
+  DigestGenerator digestGenerator;
+  digestGenerator.update(reinterpret_cast<const char *>(&pageId), sizeof(pageId));
+  digestGenerator.update(reinterpret_cast<const char *>(&checkpointNumber), sizeof(checkpointNumber));
+  if (checkpointNumber > 0) {
+    digestGenerator.update(page, pageSize);
+  }
+  digestGenerator.writeDigest(reinterpret_cast<char *>(&outDigest));
 }
 
 void BCStateTran::computeDigestOfPagesDescriptor(const DataStore::ResPagesDescriptor *pagesDesc, Digest &outDigest) {
-  DigestUtil::Context c;
-  c.update(reinterpret_cast<const char *>(pagesDesc), pagesDesc->size());
-  c.writeDigest(outDigest.getForUpdate());
+  DigestGenerator digestGenerator;
+  digestGenerator.update(reinterpret_cast<const char *>(pagesDesc), pagesDesc->size());
+  digestGenerator.writeDigest(reinterpret_cast<char *>(&outDigest));
 }
 
 void BCStateTran::computeDigestOfBlockImpl(const uint64_t blockNum,
@@ -3875,10 +3878,10 @@ void BCStateTran::computeDigestOfBlockImpl(const uint64_t blockNum,
                                            char *outDigest) {
   ConcordAssertGT(blockNum, 0);
   ConcordAssertGT(blockSize, 0);
-  DigestUtil::Context c;
-  c.update(reinterpret_cast<const char *>(&blockNum), sizeof(blockNum));
-  c.update(block, blockSize);
-  c.writeDigest(outDigest);
+  DigestGenerator digestGenerator;
+  digestGenerator.update(reinterpret_cast<const char *>(&blockNum), sizeof(blockNum));
+  digestGenerator.update(block, blockSize);
+  digestGenerator.writeDigest(outDigest);
 }
 
 void BCStateTran::computeDigestOfBlock(const uint64_t blockNum,

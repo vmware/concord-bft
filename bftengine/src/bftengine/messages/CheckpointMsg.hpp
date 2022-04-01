@@ -12,7 +12,7 @@
 #pragma once
 
 #include "MessageBase.hpp"
-#include "Digest.hpp"
+#include "digest.hpp"
 #include "ReplicaConfig.hpp"
 #include "Metrics.hpp"
 

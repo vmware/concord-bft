@@ -12,7 +12,7 @@
 #include "gtest/gtest.h"
 
 #include "helper.hpp"
-#include "DigestType.hpp"
+#include "digest_type.hpp"
 #include "ViewsManager.hpp"
 #include "ReplicasInfo.hpp"
 #include "SigManager.hpp"

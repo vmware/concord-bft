@@ -24,7 +24,7 @@
 
 #include <cryptopp/integer.h>
 
-#include "Digest.hpp"
+#include "digest.hpp"
 #include "Serializable.h"
 #include "Logger.hpp"
 #include "Metrics.hpp"

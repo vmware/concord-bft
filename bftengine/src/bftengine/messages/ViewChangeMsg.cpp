@@ -19,7 +19,7 @@
 #include "SigManager.hpp"
 #include "EpochManager.hpp"
 
-using concord::util::digest::DigestUtil;
+using concord::util::digest::DigestGenerator;
 
 namespace bftEngine {
 namespace impl {
@@ -51,7 +51,8 @@ void ViewChangeMsg::setNewViewNumber(ViewNum newView) {
 void ViewChangeMsg::getMsgDigest(Digest& outDigest) const {
   auto bodySize = getBodySize();
   bodySize += b()->sizeOfAllComplaints;
-  DigestUtil::compute(body(), bodySize, (char*)outDigest.content(), sizeof(Digest));
+  DigestGenerator digestGenerator;
+  digestGenerator.compute(body(), bodySize, (char*)outDigest.content(), sizeof(Digest));
 }
 
 uint32_t ViewChangeMsg::getBodySize() const {

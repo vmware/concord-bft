@@ -15,7 +15,7 @@
 #include "RVBManager.hpp"
 #include "throughput.hpp"
 
-using concord::util::digest::DigestUtil;
+using concord::util::digest::DigestGenerator;
 using namespace std;
 using namespace concord::util;
 
@@ -648,10 +648,10 @@ void RVBManager::computeDigestOfBlock(const uint64_t block_id,
                                       char* out_digest) const {
   ConcordAssertGT(block_id, 0);
   ConcordAssertGT(block_size, 0);
-  DigestUtil::Context c;
-  c.update(reinterpret_cast<const char*>(&block_id), sizeof(block_id));
-  c.update(block, block_size);
-  c.writeDigest(out_digest);
+  DigestGenerator digest_generator;
+  digest_generator.update(reinterpret_cast<const char*>(&block_id), sizeof(block_id));
+  digest_generator.update(block, block_size);
+  digest_generator.writeDigest(out_digest);
 }
 
 // TODO - BCStateTran has a similar function + computeDigestOfBlock.

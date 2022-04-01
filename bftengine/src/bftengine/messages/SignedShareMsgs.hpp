@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include "Digest.hpp"
+#include "digest.hpp"
 #include "MessageBase.hpp"
 #include <memory>
 

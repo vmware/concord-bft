@@ -18,9 +18,9 @@
 #include "messages/PrePrepareMsg.hpp"
 #include "messages/ClientRequestMsg.hpp"
 
-#include "Digest.hpp"
+#include "digest.hpp"
 
-using concord::util::digest::DigestUtil;
+using concord::util::digest::DigestGenerator;
 namespace concord::kvbc::strategy {
 
 using bftEngine::impl::MessageBase;
@@ -72,7 +72,8 @@ bool ShufflePrePrepareMsgStrategy::changeMessage(std::shared_ptr<MessageBase>& m
         }
       } else {
         Digest d;
-        DigestUtil::compute(req.body(), req.size(), reinterpret_cast<char*>(&d), sizeof(Digest));
+        DigestGenerator digestGenerator;
+        digestGenerator.compute(req.body(), req.size(), reinterpret_cast<char*>(&d), sizeof(Digest));
         if (idx == swapIdx) {
           sigOrDigestOfRequest[idx + 1].append(d.content(), sizeof(Digest));
         } else if (idx == (swapIdx + 1)) {
@@ -96,7 +97,8 @@ bool ShufflePrePrepareMsgStrategy::changeMessage(std::shared_ptr<MessageBase>& m
     }
 
     Digest d;
-    DigestUtil::compute(sigOrDig.c_str(), sigOrDig.size(), reinterpret_cast<char*>(&d), sizeof(Digest));
+    DigestGenerator digestGenerator;
+    digestGenerator.compute(sigOrDig.c_str(), sigOrDig.size(), reinterpret_cast<char*>(&d), sizeof(Digest));
     nmsg.digestOfRequests() = d;
     LOG_INFO(logger_,
              "Finally the PrePrepare Message with correlation id : "

@@ -9,11 +9,7 @@
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "Digest.hpp"
-#include "hex_tools.h"
-
 #include <string.h>
-#include <stdio.h>
 #include <iomanip>
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
@@ -26,8 +22,7 @@
 #include <cryptopp/ida.h>
 #include <cryptopp/eccrypto.h>
 
-using namespace CryptoPP;
-using namespace std;
+#include "DigestImpl.ipp"
 
 #if defined MD5_DIGEST
 #include <cryptopp/md5.h>
@@ -37,6 +32,8 @@ using namespace std;
 #elif defined SHA512_DIGEST
 #define DigestType SHA512
 #endif
+
+using namespace CryptoPP;
 
 namespace concord::util::digest {
 
@@ -92,15 +89,4 @@ DigestUtil::Context::~Context() {
     internalState = NULL;
   }
 }
-
-Digest::Digest(char* buf, size_t len) { DigestUtil::compute(buf, len, (char*)d, sizeof(Digest)); }
-
-std::string Digest::toString() const { return concordUtils::bufferToHex(d, DIGEST_SIZE, false); }
-
-void Digest::print() { printf("digest=[%s]", toString().c_str()); }
-
-void Digest::digestOfDigest(const Digest& inDigest, Digest& outDigest) {
-  DigestUtil::compute(inDigest.d, sizeof(Digest), outDigest.d, sizeof(Digest));
-}
-
 }  // namespace concord::util::digest

@@ -11,11 +11,11 @@
 
 #include "NullStateTransfer.hpp"
 #include "assertUtils.hpp"
-#include "Digest.hpp"
+#include "digest.hpp"
 #include "Logger.hpp"
 
 using concord::util::digest::Digest;
-using concord::util::digest::DigestUtil;
+using concord::util::digest::DigestGenerator;
 
 namespace bftEngine {
 namespace impl {
@@ -63,7 +63,8 @@ void NullStateTransfer::getDigestOfCheckpoint(uint64_t checkpointNumber,
   LOG_WARN(GL, "State digest is only based on sequence number (because state transfer module has not been loaded)");
 
   Digest d;
-  DigestUtil::compute((char*)&checkpointNumber, sizeof(checkpointNumber), (char*)&d, sizeof(d));
+  DigestGenerator digestGenerator;
+  digestGenerator.compute((char*)&checkpointNumber, sizeof(checkpointNumber), (char*)&d, sizeof(d));
 
   memset(outStateDigest, 0, sizeOfDigestBuffer);
   memset(outResPagesDigest, 0, sizeOfDigestBuffer);

@@ -6,7 +6,7 @@
 
 #include "kv_types.hpp"
 #include <utility>
-#include "Digest.hpp"
+#include "digest.hpp"
 
 using concord::util::digest::BlockDigest;
 

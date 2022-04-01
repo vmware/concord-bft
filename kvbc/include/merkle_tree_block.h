@@ -4,7 +4,7 @@
 
 #include "kv_types.hpp"
 #include "sparse_merkle/base_types.h"
-#include "Digest.hpp"
+#include "digest.hpp"
 
 #include <cstdint>
 #include <iterator>
