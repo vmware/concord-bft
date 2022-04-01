@@ -1,6 +1,14 @@
 cmake_minimum_required (VERSION 3.2)
 project(utt_demo VERSION 0.1.0.0 LANGUAGES CXX)
 
+add_definitions(
+  -DCURVE_BN128
+  -DBN_SUPPORT_SNARK=1
+)
+
+list(APPEND UTT_DEMO_INCLUDES ${libutt_SOURCE_DIR}/libutt/include)
+list(APPEND UTT_DEMO_LINKS utt)
+
 add_subdirectory(cmf)
 add_subdirectory(UTTClient)
 add_subdirectory(UTTReplica)

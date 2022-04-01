@@ -17,12 +17,17 @@ if(BUILD_ROCKSDB_STORAGE)
 	target_compile_definitions(utt_replica PUBLIC "USE_ROCKSDB=1")
 endif()
 
-target_link_libraries(utt_replica PUBLIC kvbc corebft threshsign util test_config_lib stdc++fs utt_messages_cmf)
+target_include_directories(utt_replica
+	PUBLIC
+		..
+		../..
+		${libkvbc_SOURCE_DIR}/include
+		${UTT_DEMO_INCLUDES}
+	PRIVATE
+		${bftengine_SOURCE_DIR}/src/preprocessor
+)
 
-target_include_directories(utt_replica PUBLIC ..)
-target_include_directories(utt_replica PUBLIC ../..)
-target_include_directories(utt_replica PUBLIC ${libkvbc_SOURCE_DIR}/include)
-target_include_directories(utt_replica PRIVATE ${bftengine_SOURCE_DIR}/src/preprocessor)
+target_link_libraries(utt_replica PUBLIC kvbc corebft threshsign util test_config_lib stdc++fs utt_messages_cmf ${UTT_DEMO_LINKS})
 
 
 
