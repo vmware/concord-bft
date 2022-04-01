@@ -12,9 +12,12 @@
 #include "ReplicasInfo.hpp"
 #include "ReplicaConfig.hpp"
 #include "assertUtils.hpp"
+#include <boost/iterator/counting_iterator.hpp>
 
 namespace bftEngine {
 namespace impl {
+
+using boost::counting_iterator;
 
 // We assume that the range of ids is as follows:
 //
@@ -46,7 +49,7 @@ namespace impl {
 // Example:
 //  numReplicas=7, numRoReplicas=1, numOfClientProxies=7, numOfExternalClients=100, numOfClientServices=2,
 //  operator=1, numOfInternalClients=7,
-//  address range in this order: [0,6], [7,7], [8,14], [15,114], [115,116], [117], [118-124] - total 125 participants
+//  address range in this order: [0,6], [7,7], [8,14], [15,114], [115,116], [117] - total 118 participants
 //
 
 ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
@@ -133,17 +136,7 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
         return ret;
       }()},
 
-      _idsOfInternalClients{[&config]() {
-        std::set<ReplicaId> ret;
-        auto start = config.numReplicas + config.numRoReplicas + config.numOfClientProxies +
-                     config.numOfExternalClients + config.numOfClientServices;
-        auto end = start + config.numReplicas;
-        for (auto i = start; i < end; ++i) {
-          ret.insert(i);
-        }
-        if (start != end) LOG_INFO(GL, "Principal ids in _idsOfInternalClients: " << start << " to " << end - 1);
-        return ret;
-      }()} {
+      _idsOfInternalClients{counting_iterator<ReplicaId>(0), counting_iterator<ReplicaId>(config.numReplicas)} {
   ConcordAssert(_numberOfReplicas == (3 * _fVal + 2 * _cVal + 1));
 }
 

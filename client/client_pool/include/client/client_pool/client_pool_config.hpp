@@ -71,6 +71,7 @@ typedef struct ConcordClientPoolConfig {
   std::deque<ParticipantNode> participant_nodes;
   secretsmanager::SecretData secret_data;
   std::string path_to_replicas_master_key = std::string();
+  uint32_t external_requests_queue_size;
 } ConcordClientPoolConfig;
 
 class ClientPoolConfig {
