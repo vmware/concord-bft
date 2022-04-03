@@ -13,6 +13,7 @@ include "replica.i.dfy"
 include "client.i.dfy"
 include "cluster_config.s.dfy"
 include "messages.dfy"
+include "faulty_replica.i.dfy"
 
 // Before we get here, caller must define a type Message that we'll
 // use to instantiate network.s.dfy.
@@ -22,11 +23,17 @@ module DistributedSystem {
   import opened Messages
   import ClusterConfig
   import Replica
+  import FaultyReplica
   import Client
   import Network
 
-  datatype HostConstants = Replica(replicaConstants:Replica.Constants) | Client(clientConstants:Client.Constants)
-  datatype HostVariables = Replica(replicaVariables:Replica.Variables) | Client(clientVariables:Client.Variables)
+  datatype HostConstants = | Replica(replicaConstants:Replica.Constants)
+                           | FaultyReplica(faultyReplicaConstants:FaultyReplica.Constants)
+                           | Client(clientConstants:Client.Constants)
+
+  datatype HostVariables = | Replica(replicaVariables:Replica.Variables)
+                           | FaultyReplica(faultyReplicaVariables:FaultyReplica.Variables)
+                           | Client(clientVariables:Client.Variables)
 
   datatype Constants = Constants(
     hosts:seq<HostConstants>,
@@ -37,8 +44,12 @@ module DistributedSystem {
       && clusterConfig.WF()
       && clusterConfig.ClusterSize() == NumHosts()
       && |hosts| == NumHosts()
-      && (forall id | clusterConfig.IsReplica(id) :: hosts[id] == HostConstants.Replica(Replica.Constants(id, clusterConfig)))
-      && (forall id | clusterConfig.IsClient(id) :: hosts[id] == HostConstants.Client(Client.Constants(id, clusterConfig)))
+      && (forall id | clusterConfig.IsHonestReplica(id) :: && hosts[id] == HostConstants.Replica(Replica.Constants(id, clusterConfig))
+                                                           && hosts[id].replicaConstants.Configure(id, clusterConfig))
+      && (forall id | clusterConfig.IsFaultyReplica(id) :: && hosts[id] == HostConstants.FaultyReplica(FaultyReplica.Constants(id, clusterConfig))
+                                                           && hosts[id].faultyReplicaConstants.Configure(id, clusterConfig))
+      && (forall id | clusterConfig.IsClient(id) :: && hosts[id] == HostConstants.Client(Client.Constants(id, clusterConfig))
+                                                    && hosts[id].clientConstants.Configure(id, clusterConfig))
     }
   }
 
@@ -49,24 +60,25 @@ module DistributedSystem {
     predicate WF(c: Constants) {
       && c.WF()
       && |hosts| == |c.hosts|
-      && (forall id | c.clusterConfig.IsReplica(id) :: hosts[id].Replica? && hosts[id].replicaVariables.WF(c.hosts[id].replicaConstants))
+      && (forall id | c.clusterConfig.IsHonestReplica(id) :: hosts[id].Replica? && hosts[id].replicaVariables.WF(c.hosts[id].replicaConstants))
       && (forall id | c.clusterConfig.IsClient(id) :: hosts[id].Client? && hosts[id].clientVariables.WF(c.hosts[id].clientConstants))
+      && (forall id | c.clusterConfig.IsFaultyReplica(id) :: hosts[id].FaultyReplica?)
     }
   }
 
   predicate IsCommitted(c:Constants, v:Variables, view:nat, seqID:SequenceID) {
     && v.WF(c)
-    && var ReplicasCommitted := set replicaID | && 0 <= replicaID < c.clusterConfig.N()
+    && var ReplicasCommitted := set replicaID | && c.clusterConfig.F() <= replicaID < c.clusterConfig.N()
                                                 && Replica.QuorumOfPrepares(c.hosts[replicaID].replicaConstants,
                                                                             v.hosts[replicaID].replicaVariables,
                                                                             seqID);
     //TODO: Implement check for hasPrePrepare
-    && |ReplicasCommitted| >= c.clusterConfig.ByzantineSafeQuorum()
+    && |ReplicasCommitted| >= c.clusterConfig.AgreementQuorum()
   }
 
   predicate Init(c:Constants, v:Variables) {
     && v.WF(c)
-    && (forall id | && c.clusterConfig.IsReplica(id) 
+    && (forall id | && c.clusterConfig.IsHonestReplica(id) 
                     :: Replica.Init(c.hosts[id].replicaConstants, v.hosts[id].replicaVariables))
     && (forall id | && c.clusterConfig.IsClient(id)
                     :: Client.Init(c.hosts[id].clientConstants, v.hosts[id].clientVariables))
@@ -79,8 +91,16 @@ module DistributedSystem {
   predicate ReplicaStep(c:Constants, v:Variables, v':Variables, step: Step) {
       && v.WF(c)
       && v'.WF(c)
-      && c.clusterConfig.IsReplica(step.id)
+      && c.clusterConfig.IsHonestReplica(step.id)
       && Replica.Next(c.hosts[step.id].replicaConstants, v.hosts[step.id].replicaVariables, v'.hosts[step.id].replicaVariables, step.msgOps)
+  }
+
+  predicate FaultyReplicaStep(c:Constants, v:Variables, v':Variables, step: Step) {
+      && v.WF(c)
+      && v'.WF(c)
+      && c.clusterConfig.IsFaultyReplica(step.id)
+      && assert v.hosts[step.id].FaultyReplica?; true
+      && FaultyReplica.Next(c.hosts[step.id].faultyReplicaConstants, v.hosts[step.id].faultyReplicaVariables, v'.hosts[step.id].faultyReplicaVariables, step.msgOps)
   }
 
   predicate ClientStep(c:Constants, v:Variables, v':Variables, step: Step) {

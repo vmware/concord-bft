@@ -32,7 +32,7 @@ module Proof {
   predicate IsHonestReplica(c:Constants, hostId:HostId) 
   {
     && c.WF()
-    && c.clusterConfig.IsReplica(hostId)
+    && c.clusterConfig.IsHonestReplica(hostId)
   }
 
   // Here's a predicate that will be very useful in constructing invariant conjuncts.
@@ -220,7 +220,7 @@ module Proof {
 
   predicate AllReplicasLiteInv (c: Constants, v:Variables) {
     && v.WF(c)
-    && (forall replicaIdx | 0 <= replicaIdx < |c.hosts| && c.clusterConfig.IsReplica(replicaIdx)
+    && (forall replicaIdx | 0 <= replicaIdx < |c.hosts| && c.clusterConfig.IsHonestReplica(replicaIdx)
                             :: Replica.LiteInv(c.hosts[replicaIdx].replicaConstants, v.hosts[replicaIdx].replicaVariables))
   }
 
@@ -338,7 +338,6 @@ module Proof {
         < |senders1| + |senders2| - |senders1*senders2|;
         == |senders1 + senders2|; 
         <= {
-          assert senders1 + senders2 <= getAllReplicas(c);
           Library.SubsetCardinality(senders1 + senders2, getAllReplicas(c));
         }
         n;
@@ -347,12 +346,42 @@ module Proof {
     }
     assert f + 1 <= |commonSenders|;
 
-    var honestReplicas := set sender | 0 <= sender < n && IsHonestReplica(c, sender);
-    var commonHonest := commonSenders * honestReplicas;
-    assert 1 <= |commonHonest|;
+    var commonHonest := commonSenders * HonestReplicas(c);
+    CountHonestReplicas(c);
+    if(|commonHonest| == 0) {
+      Library.SubsetCardinality(commonSenders + HonestReplicas(c), getAllReplicas(c));
+      assert false; //Proof by contradiction
+    }
 
     var result :| result in commonHonest;
     common := result;
+  }
+
+  function HonestReplicas(c: Constants) : (honest:set<HostId>) 
+    requires c.WF()
+  {
+    set sender | 0 <= sender < c.clusterConfig.N() && IsHonestReplica(c, sender)
+  }
+
+  lemma CountHonestReplicas(c: Constants)
+    requires c.WF()
+    ensures |HonestReplicas(c)| >= c.clusterConfig.AgreementQuorum()
+  {
+    var count := 0;
+    var f := c.clusterConfig.F();
+    var n := c.clusterConfig.N();
+    while(count < n)
+      invariant count <= n
+      invariant |set sender | 0 <= sender < count && IsHonestReplica(c, sender)| == if count < f then 0
+                                                                                      else count - f
+      {
+        var oldSet := set sender | 0 <= sender < count && IsHonestReplica(c, sender);
+        var newSet := set sender | 0 <= sender < count + 1 && IsHonestReplica(c, sender);
+        if(count >= f) {
+          assert newSet == oldSet + {count};
+        }
+        count := count + 1;
+      }
   }
 
   lemma ProofCommitMsgsFromHonestSendersAgree(c: Constants, v:Variables, v':Variables, step:Step)
