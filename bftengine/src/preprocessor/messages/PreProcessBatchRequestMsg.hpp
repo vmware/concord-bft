@@ -24,7 +24,7 @@ class PreProcessBatchRequestMsg : public MessageBase {
                             NodeIdType clientId,
                             NodeIdType senderId,
                             const PreProcessReqMsgsList& batch,
-                            const std::string& cid,
+                            const std::string& reqCid,
                             uint32_t requestsSize,
                             ViewNum viewNum);
 

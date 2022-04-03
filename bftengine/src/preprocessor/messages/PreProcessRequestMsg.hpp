@@ -30,7 +30,7 @@ class PreProcessRequestMsg : public MessageBase {
                        uint64_t reqRetryId,
                        uint32_t reqLength,
                        const char* request,
-                       const std::string& cid,
+                       const std::string& reqCid,
                        const char* requestSignature,
                        uint16_t requestSignatureLength,
                        uint64_t blockid,

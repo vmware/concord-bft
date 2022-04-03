@@ -25,7 +25,7 @@ PreProcessRequestMsg::PreProcessRequestMsg(RequestType reqType,
                                            uint64_t reqRetryId,
                                            uint32_t reqLength,
                                            const char* request,
-                                           const std::string& cid,
+                                           const std::string& reqCid,
                                            const char* requestSignature,
                                            uint16_t requestSignatureLength,
                                            uint64_t blockId,
@@ -35,14 +35,14 @@ PreProcessRequestMsg::PreProcessRequestMsg(RequestType reqType,
     : MessageBase(senderId,
                   MsgCode::PreProcessRequest,
                   span_context.data().size(),
-                  sizeof(Header) + reqLength + cid.size() + requestSignatureLength) {
+                  sizeof(Header) + reqLength + reqCid.size() + requestSignatureLength) {
   ConcordAssert((requestSignatureLength > 0) == (nullptr != requestSignature));
   setParams(reqType,
             senderId,
             clientId,
             reqOffsetInBatch,
             reqSeqNum,
-            cid.size(),
+            reqCid.size(),
             span_context.data().size(),
             reqRetryId,
             reqLength,
@@ -55,22 +55,22 @@ PreProcessRequestMsg::PreProcessRequestMsg(RequestType reqType,
   position += span_context.data().size();
   memcpy(position, request, reqLength);
   position += reqLength;
-  memcpy(position, cid.c_str(), cid.size());
-  uint64_t msgLength = sizeof(Header) + span_context.data().size() + reqLength + cid.size();
+  memcpy(position, reqCid.c_str(), reqCid.size());
+  uint64_t msgLength = sizeof(Header) + span_context.data().size() + reqLength + reqCid.size();
   if (requestSignatureLength) {
-    position += cid.size();
+    position += reqCid.size();
     memcpy(position, requestSignature, requestSignatureLength);
     msgLength += requestSignatureLength;
   }
-  SCOPED_MDC_CID(cid);
   LOG_DEBUG(logger(),
             KVLOG(reqType,
                   senderId,
                   clientId,
                   reqSeqNum,
+                  reqCid,
+                  reqOffsetInBatch,
                   reqRetryId,
                   reqLength,
-                  cid.size(),
                   span_context.data().size(),
                   requestSignatureLength,
                   msgLength,
