@@ -16,6 +16,7 @@
 namespace concord::kvbc::v4blockchain::detail {
 
 void Block::addUpdates(const concord::kvbc::categorization::Updates& category_updates) {
+  ConcordAssert(isValid_);
   static thread_local std::vector<uint8_t> updates_buffer;
   buffer_.resize(HEADER_SIZE + updates_buffer.size());
   concord::kvbc::categorization::serialize(updates_buffer, category_updates.categoryUpdates());
@@ -24,6 +25,7 @@ void Block::addUpdates(const concord::kvbc::categorization::Updates& category_up
 }
 
 categorization::Updates Block::getUpdates() const {
+  ConcordAssert(isValid_);
   ConcordAssert(buffer_.size() > HEADER_SIZE);
   concord::kvbc::categorization::CategoryInput category_updates;
   const uint8_t* start = buffer_.data() + HEADER_SIZE;

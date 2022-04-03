@@ -1090,6 +1090,12 @@ TEST_F(native_rocksdb_test, restore_db_from_snapshot) {
 }
 
 //////TIMESTAMP SUPPORT/////////
+
+template <typename... Sliceable>
+auto getSliceArray(const Sliceable &... sls) {
+  return std::array<::rocksdb::Slice, sizeof...(sls)>{sls...};
+}
+
 TEST_F(native_rocksdb_test, put_and_get_with_timestamp_basic) {
   const auto cf = "cf"s;
   auto cf_options = ::rocksdb::ColumnFamilyOptions{};
@@ -1281,12 +1287,16 @@ TEST_F(native_rocksdb_test, put_in_batch_with_timestamps) {
   auto tsStr = concordUtils::toBigEndianStringBuffer(timestamp);
   std::string key = "time";
   std::string value = "val";
+  auto key1_ts = getSliceArray(key, tsStr);
+  auto sl_val = getSliceArray(value);
 
   std::string key2 = "time2";
   std::string value2 = "val2";
+  auto key2_ts = getSliceArray(key2, tsStr);
+  auto sl_val2 = getSliceArray(value2);
 
-  batch.put(cf1, key, tsStr, value);
-  batch.put(cf1, key2, tsStr, value2);
+  batch.put(cf1, key1_ts, sl_val);
+  batch.put(cf1, key2_ts, sl_val2);
   db->write(std::move(batch));
 
   // try to read with lower timestamp
@@ -1332,7 +1342,7 @@ TEST_F(native_rocksdb_test, 2cf_one_with_timestamp) {
   std::string key2 = "time2";
   std::string value2 = "val2";
 
-  batch.put(cf1, key, tsStr, value);
+  batch.put(cf1, getSliceArray(key, tsStr), getSliceArray(value));
   batch.put(cf2, key2, value2);
   db->write(std::move(batch));
 
@@ -1354,12 +1364,57 @@ TEST_F(native_rocksdb_test, 2cf_one_with_timestamp) {
   }
 }
 
+TEST_F(native_rocksdb_test, multi_part_write) {
+  const auto cf1 = "cf1"s;
+  auto cf_options = ::rocksdb::ColumnFamilyOptions{};
+  cf_options.comparator = concord::storage::rocksdb::getLexicographic64TsComparator();
+  db->createColumnFamily(cf1, cf_options);
+
+  auto batch = db->getBatch();
+  uint64_t timestamp = 420;
+  auto tsStr = concordUtils::toBigEndianStringBuffer(timestamp);
+  std::string key = "time";
+  std::string value = "val";
+
+  std::string prefix = ".";
+  std::string key2 = "time2";
+  std::string value2 = "val2";
+
+  std::string key_with_prefix = prefix + key2;
+
+  batch.put(cf1, getSliceArray(key, tsStr), getSliceArray(value));
+  batch.put(cf1, getSliceArray(prefix, key2, tsStr), getSliceArray(value2));
+  db->write(std::move(batch));
+
+  {
+    std::string outTs;
+    auto val = db->get(cf1, key, tsStr, &outTs);
+    ASSERT_TRUE(val.has_value());
+    ASSERT_EQ(*val, value);
+    ASSERT_EQ(outTs, tsStr);
+    auto ioutTs = concordUtils::fromBigEndianBuffer<uint64_t>(outTs.data());
+    ASSERT_EQ(timestamp, ioutTs);
+
+    auto val2 = db->get(cf1, key_with_prefix, tsStr, &outTs);
+    ASSERT_TRUE(val2.has_value());
+    ASSERT_EQ(*val2, value2);
+    ASSERT_EQ(outTs, tsStr);
+    ioutTs = concordUtils::fromBigEndianBuffer<uint64_t>(outTs.data());
+    ASSERT_EQ(timestamp, ioutTs);
+
+    // Without the prefix
+    val2 = db->get(cf1, key2, tsStr, &outTs);
+    ASSERT_FALSE(val2.has_value());
+    val2 = db->get(cf1, prefix, tsStr, &outTs);
+    ASSERT_FALSE(val2.has_value());
+  }
+}
+
 TEST_F(native_rocksdb_test, write_batch_with_Delete) {
   const auto cf1 = "cf1"s;
   auto cf_options = ::rocksdb::ColumnFamilyOptions{};
   cf_options.comparator = concord::storage::rocksdb::getLexicographic64TsComparator();
   db->createColumnFamily(cf1, cf_options);
-  auto batch = db->getBatch();
 
   uint64_t timestamp = 420;
   auto tsStr = concordUtils::toBigEndianStringBuffer(timestamp);
@@ -1369,9 +1424,12 @@ TEST_F(native_rocksdb_test, write_batch_with_Delete) {
   std::string key2 = "time2";
   std::string value2 = "val2";
 
-  batch.put(cf1, key, tsStr, value);
-  batch.put(cf1, key2, tsStr, value2);
-  db->write(std::move(batch));
+  {
+    auto batch = db->getBatch();
+    batch.put(cf1, getSliceArray(key, tsStr), getSliceArray(value));
+    batch.put(cf1, getSliceArray(key2, tsStr), getSliceArray(value2));
+    db->write(std::move(batch));
+  }
 
   {
     // read with timestamp
@@ -1389,28 +1447,39 @@ TEST_F(native_rocksdb_test, write_batch_with_Delete) {
 
   uint64_t timestamp2 = 422;
   auto tsStr2 = concordUtils::toBigEndianStringBuffer(timestamp2);
-  batch.put(cf1, key, tsStr2, value3);
-  batch.put(cf1, key2, tsStr2, value4);
-  batch.del(cf1, key, tsStr);
-  db->write(std::move(batch));
+  {
+    auto batch = db->getBatch();
+    batch.put(cf1, getSliceArray(key2, tsStr2), getSliceArray(value4));
+    batch.del(cf1, getSliceArray(key, tsStr2));
+    db->write(std::move(batch));
+  }
 
   //// key #1
   {
-    // read with timestamp deleted value of ts 420
+    // read with higher timestamp deleted value at 422
+    uint64_t higer_timestamp = 423;
+    auto higher_ts_str = concordUtils::toBigEndianStringBuffer(higer_timestamp);
     std::string outTs;
-    auto val = db->get(cf1, key, tsStr, &outTs);
+    auto val = db->get(cf1, key, higher_ts_str, &outTs);
     ASSERT_FALSE(val.has_value());
   }
 
   {
-    // read with timestamp 421
+    // read with deletion timestamp deleted value at 422
     std::string outTs;
     auto val = db->get(cf1, key, tsStr2, &outTs);
+    ASSERT_FALSE(val.has_value());
+  }
+
+  {
+    // read with timestamp 420
+    std::string outTs;
+    auto val = db->get(cf1, key, tsStr, &outTs);
     ASSERT_TRUE(val.has_value());
-    ASSERT_EQ(*val, value3);
-    ASSERT_EQ(outTs, tsStr2);
+    ASSERT_EQ(*val, value);
+    ASSERT_EQ(outTs, tsStr);
     auto ioutTs = concordUtils::fromBigEndianBuffer<uint64_t>(outTs.data());
-    ASSERT_EQ(timestamp2, ioutTs);
+    ASSERT_EQ(timestamp, ioutTs);
   }
 
   //// key #2
@@ -1432,6 +1501,84 @@ TEST_F(native_rocksdb_test, write_batch_with_Delete) {
     auto val = db->get(cf1, key2, tsStr2, &outTs);
     ASSERT_TRUE(val.has_value());
     ASSERT_EQ(*val, value4);
+    ASSERT_EQ(outTs, tsStr2);
+    auto ioutTs = concordUtils::fromBigEndianBuffer<uint64_t>(outTs.data());
+    ASSERT_EQ(timestamp2, ioutTs);
+  }
+}
+
+TEST_F(native_rocksdb_test, write_delete_update) {
+  const auto cf1 = "cf1"s;
+  auto cf_options = ::rocksdb::ColumnFamilyOptions{};
+  cf_options.comparator = concord::storage::rocksdb::getLexicographic64TsComparator();
+  db->createColumnFamily(cf1, cf_options);
+
+  uint64_t timestamp = 420;
+  auto tsStr = concordUtils::toBigEndianStringBuffer(timestamp);
+  std::string key = "time";
+  std::string value = "val";
+
+  {
+    auto batch = db->getBatch();
+    batch.put(cf1, getSliceArray(key, tsStr), getSliceArray(value));
+    db->write(std::move(batch));
+  }
+
+  {
+    // read with timestamp
+    std::string outTs;
+    auto val = db->get(cf1, key, tsStr, &outTs);
+    ASSERT_TRUE(val.has_value());
+    ASSERT_EQ(*val, value);
+    ASSERT_EQ(outTs, tsStr);
+    auto ioutTs = concordUtils::fromBigEndianBuffer<uint64_t>(outTs.data());
+    ASSERT_EQ(timestamp, ioutTs);
+  }
+  // UPdate
+  uint64_t timestamp2 = 422;
+  auto tsStr2 = concordUtils::toBigEndianStringBuffer(timestamp2);
+  std::string value2 = "val2";
+  {
+    auto batch = db->getBatch();
+    batch.put(cf1, getSliceArray(key, tsStr2), getSliceArray(value2));
+    db->write(std::move(batch));
+  }
+  {
+    // read with timestamp
+    std::string outTs;
+    auto val = db->get(cf1, key, tsStr2, &outTs);
+    ASSERT_TRUE(val.has_value());
+    ASSERT_EQ(*val, value2);
+    ASSERT_EQ(outTs, tsStr2);
+    auto ioutTs = concordUtils::fromBigEndianBuffer<uint64_t>(outTs.data());
+    ASSERT_EQ(timestamp2, ioutTs);
+  }
+
+  // Delete with timestamp2
+  {
+    auto batch = db->getBatch();
+    batch.del(cf1, getSliceArray(key, tsStr2));
+    db->write(std::move(batch));
+  }
+
+  {
+    // read with deletion timestamp deleted value at 422
+    std::string outTs;
+    auto val = db->get(cf1, key, tsStr2, &outTs);
+    ASSERT_FALSE(val.has_value());
+  }
+  // update again
+  {
+    auto batch = db->getBatch();
+    batch.put(cf1, getSliceArray(key, tsStr2), getSliceArray(value2));
+    db->write(std::move(batch));
+  }
+  {
+    // read with timestamp
+    std::string outTs;
+    auto val = db->get(cf1, key, tsStr2, &outTs);
+    ASSERT_TRUE(val.has_value());
+    ASSERT_EQ(*val, value2);
     ASSERT_EQ(outTs, tsStr2);
     auto ioutTs = concordUtils::fromBigEndianBuffer<uint64_t>(outTs.data());
     ASSERT_EQ(timestamp2, ioutTs);
@@ -1475,6 +1622,168 @@ TEST_F(native_rocksdb_test, lexicographic_timestamp_comparator) {
     auto slTs2 = detail::toSlice(ts2);
     auto comp = comparator->CompareTimestamp(slTs1, slTs2);
     ASSERT_EQ(comp, 0);
+  }
+}
+
+TEST_F(native_rocksdb_test, remove_history_on_compaction) {
+  const auto cf1 = "cf1"s;
+  auto cf_options = ::rocksdb::ColumnFamilyOptions{};
+  cf_options.comparator = concord::storage::rocksdb::getLexicographic64TsComparator();
+  db->createColumnFamily(cf1, cf_options);
+  std::string key = "time";
+  std::string key2 = "time100";
+  std::string value1 = "val1";
+  std::string value2 = "val2";
+  uint64_t timestamp1 = 420;
+  uint64_t timestamp2 = 450;
+
+  {
+    auto tsStr = concordUtils::toBigEndianStringBuffer(timestamp1);
+    auto batch = db->getBatch();
+    batch.put(cf1, getSliceArray(key, tsStr), getSliceArray(value1));
+    db->write(std::move(batch));
+  }
+  // update
+  {
+    auto tsStr = concordUtils::toBigEndianStringBuffer(timestamp2);
+    auto batch = db->getBatch();
+    batch.put(cf1, getSliceArray(key, tsStr), getSliceArray(value2));
+    db->write(std::move(batch));
+  }
+
+  {
+    // read with timestamp 420
+    auto tsStr = concordUtils::toBigEndianStringBuffer(timestamp1);
+    std::string outTs;
+    auto val = db->get(cf1, key, tsStr, &outTs);
+    ASSERT_TRUE(val.has_value());
+    ASSERT_EQ(*val, value1);
+    ASSERT_EQ(outTs, tsStr);
+    auto ioutTs = concordUtils::fromBigEndianBuffer<uint64_t>(outTs.data());
+    ASSERT_EQ(timestamp1, ioutTs);
+  }
+
+  {
+    // read with timestamp 450
+    auto tsStr = concordUtils::toBigEndianStringBuffer(timestamp2);
+    std::string outTs;
+    auto val = db->get(cf1, key, tsStr, &outTs);
+    ASSERT_TRUE(val.has_value());
+    ASSERT_EQ(*val, value2);
+    ASSERT_EQ(outTs, tsStr);
+    auto ioutTs = concordUtils::fromBigEndianBuffer<uint64_t>(outTs.data());
+    ASSERT_EQ(timestamp2, ioutTs);
+  }
+
+  // set low time stamp to 451
+  uint64_t threshold1 = 451;
+  auto threshold1_str = concordUtils::toBigEndianStringBuffer(threshold1);
+  auto &raw_db = db->rawDB();
+  // raw_db.IncreaseFullHistoryTsLow(db->columnFamilyHandle(cf1), threshold1_str);
+  ::rocksdb::Slice begin(key);
+  ::rocksdb::Slice end(key2);
+  ::rocksdb::Slice ts_low(threshold1_str);
+  ::rocksdb::CompactRangeOptions options;
+  options.full_history_ts_low = &ts_low;
+  auto s = raw_db.CompactRange(options, db->columnFamilyHandle(cf1), nullptr, nullptr);
+  auto status = s.ToString();
+  ASSERT_EQ(status, "OK");
+
+  {
+    // read with timestamp 420
+    auto tsStr = concordUtils::toBigEndianStringBuffer(timestamp1);
+    std::string outTs;
+    auto val = db->get(cf1, key, tsStr, &outTs);
+    ASSERT_FALSE(val.has_value());
+  }
+
+  {
+    // read with timestamp 450 -- latest
+    auto tsStr = concordUtils::toBigEndianStringBuffer(timestamp2);
+    std::string outTs;
+    auto val = db->get(cf1, key, tsStr, &outTs);
+    ASSERT_TRUE(val.has_value());
+    ASSERT_EQ(*val, value2);
+    ASSERT_EQ(outTs, tsStr);
+    auto ioutTs = concordUtils::fromBigEndianBuffer<uint64_t>(outTs.data());
+    ASSERT_EQ(timestamp2, ioutTs);
+  }
+}
+
+TEST_F(native_rocksdb_test, remove_history_on_compaction_with_delete) {
+  const auto cf1 = "cf1"s;
+  auto cf_options = ::rocksdb::ColumnFamilyOptions{};
+  cf_options.comparator = concord::storage::rocksdb::getLexicographic64TsComparator();
+  db->createColumnFamily(cf1, cf_options);
+  std::string key = "time";
+  std::string key2 = "time100";
+  std::string value1 = "val1";
+  std::string value2 = "val2";
+  uint64_t timestamp1 = 420;
+  uint64_t timestamp2 = 450;
+
+  {
+    auto tsStr = concordUtils::toBigEndianStringBuffer(timestamp1);
+    auto batch = db->getBatch();
+    batch.put(cf1, getSliceArray(key, tsStr), getSliceArray(value1));
+    db->write(std::move(batch));
+  }
+  // delete
+  {
+    auto tsStr = concordUtils::toBigEndianStringBuffer(timestamp2);
+    auto batch = db->getBatch();
+    batch.del(cf1, getSliceArray(key, tsStr));
+    db->write(std::move(batch));
+  }
+
+  {
+    // read with timestamp 420
+    auto tsStr = concordUtils::toBigEndianStringBuffer(timestamp1);
+    std::string outTs;
+    auto val = db->get(cf1, key, tsStr, &outTs);
+    ASSERT_TRUE(val.has_value());
+    ASSERT_EQ(*val, value1);
+    ASSERT_EQ(outTs, tsStr);
+    auto ioutTs = concordUtils::fromBigEndianBuffer<uint64_t>(outTs.data());
+    ASSERT_EQ(timestamp1, ioutTs);
+  }
+
+  {
+    // read with timestamp 450
+    auto tsStr = concordUtils::toBigEndianStringBuffer(timestamp2);
+    std::string outTs;
+    auto val = db->get(cf1, key, tsStr, &outTs);
+    ASSERT_FALSE(val.has_value());
+  }
+
+  // set low time stamp to 451
+  uint64_t threshold1 = 451;
+  auto threshold1_str = concordUtils::toBigEndianStringBuffer(threshold1);
+  auto &raw_db = db->rawDB();
+  // raw_db.IncreaseFullHistoryTsLow(db->columnFamilyHandle(cf1), threshold1_str);
+  ::rocksdb::Slice begin(key);
+  ::rocksdb::Slice end(key2);
+  ::rocksdb::Slice ts_low(threshold1_str);
+  ::rocksdb::CompactRangeOptions options;
+  options.full_history_ts_low = &ts_low;
+  auto s = raw_db.CompactRange(options, db->columnFamilyHandle(cf1), nullptr, nullptr);
+  auto status = s.ToString();
+  ASSERT_EQ(status, "OK");
+
+  {
+    // read with timestamp 420
+    auto tsStr = concordUtils::toBigEndianStringBuffer(timestamp1);
+    std::string outTs;
+    auto val = db->get(cf1, key, tsStr, &outTs);
+    ASSERT_FALSE(val.has_value());
+  }
+
+  {
+    // read with timestamp 450 -- latest
+    auto tsStr = concordUtils::toBigEndianStringBuffer(timestamp2);
+    std::string outTs;
+    auto val = db->get(cf1, key, tsStr, &outTs);
+    ASSERT_FALSE(val.has_value());
   }
 }
 

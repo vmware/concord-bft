@@ -19,7 +19,7 @@ namespace concord::kvbc::v4blockchain::detail {
 
 StChain::StChain(const std::shared_ptr<concord::storage::rocksdb::NativeClient>& native_client)
     : native_client_{native_client} {
-  if (v4blockchain::detail::createColumnFamilyIfNotExisting(v4blockchain::detail::ST_CHAIN_CF, *native_client_.get())) {
+  if (native_client_->createColumnFamilyIfNotExisting(v4blockchain::detail::ST_CHAIN_CF)) {
     LOG_INFO(V4_BLOCK_LOG,
              "Created [" << v4blockchain::detail::ST_CHAIN_CF << "] column family for the state transfer blockchain");
   }
