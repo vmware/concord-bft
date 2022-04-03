@@ -221,10 +221,10 @@ if (BUILD_ROCKSDB_STORAGE)
         stdc++fs
     )
 
-    add_executable(v4_blockchain_unit_test
+    add_executable(v4_blockchain_handler_unit_test
         v4blockchain/v4_blockchain_test.cpp )
-    add_test(v4_blockchain_unit_test v4_blockchain_unit_test)
-    target_link_libraries(v4_blockchain_unit_test PUBLIC
+    add_test(v4_blockchain_handler_unit_test v4_blockchain_handler_unit_test)
+    target_link_libraries(v4_blockchain_handler_unit_test PUBLIC
         GTest::Main
         GTest::GTest
         util
@@ -237,6 +237,42 @@ if (BUILD_ROCKSDB_STORAGE)
         v4blockchain/blocks_test.cpp )
     add_test(v4_blocks_unit_test v4_blocks_unit_test)
     target_link_libraries(v4_blocks_unit_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
+
+    add_executable(v4_categories_unit_test
+        v4blockchain/categories_test.cpp )
+    add_test(v4_categories_unit_test v4_categories_unit_test)
+    target_link_libraries(v4_categories_unit_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
+
+    add_executable(v4_latest_keys_unit_test
+        v4blockchain/v4_latest_keys_test.cpp )
+    add_test(v4_latest_keys_unit_test v4_latest_keys_unit_test)
+    target_link_libraries(v4_latest_keys_unit_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
+
+    add_executable(v4_blockchain_unit_test
+        v4blockchain/blockchain_test.cpp )
+    add_test(v4_blockchain_unit_test v4_blockchain_unit_test)
+    target_link_libraries(v4_blockchain_unit_test PUBLIC
         GTest::Main
         GTest::GTest
         util

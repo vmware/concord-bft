@@ -46,6 +46,7 @@ class BlockMetadata : public IBlockMetadata {
   }
   virtual uint64_t getLastBlockSequenceNum() const override;
   virtual std::string serialize(uint64_t sequence_num) const override;
+  static uint64_t getSequenceNum(const std::string& data);
 };
 
 }  // namespace kvbc

@@ -69,12 +69,4 @@ T fromBigEndianBuffer(const void *buf) {
   return netToHost(v);
 }
 
-inline bool isLittleEndian() {
-  if (htonl(47) == 47) {
-    return false;
-  } else {
-    return true;
-  }
-}
-
 }  // namespace concordUtils

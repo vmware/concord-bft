@@ -761,7 +761,6 @@ void KeyValueBlockchain::deleteLastReachableBlock(BlockId block_id,
 }
 
 // Updates per category
-
 void KeyValueBlockchain::insertCategoryMapping(const std::string& cat_id, const CATEGORY_TYPE type) {
   // check if we know this category type already
   ConcordAssertEQ(category_types_.count(cat_id), 0);

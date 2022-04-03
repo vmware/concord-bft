@@ -1,0 +1,355 @@
+// Concord
+//
+// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+//
+// This product is licensed to you under the Apache 2.0 license (the
+// "License").  You may not use this product except in compliance with the
+// Apache 2.0 License.
+//
+// This product may include a number of subcomponents with separate copyright
+// notices and license terms. Your use of these subcomponents is subject to the
+// terms and conditions of the subcomponent's license, as noted in the LICENSE
+// file.
+
+#include "gtest/gtest.h"
+#include "gmock/gmock.h"
+#include "v4blockchain/detail/blockchain.h"
+#include "storage/test/storage_test_common.h"
+#include "v4blockchain/detail/column_families.h"
+
+using concord::storage::rocksdb::NativeClient;
+using namespace concord::kvbc;
+using namespace ::testing;
+
+namespace {
+
+class v4_blockchain : public Test {
+ protected:
+  void SetUp() override {
+    destroyDb();
+    db = TestRocksDb::createNative();
+  }
+
+  void TearDown() override { destroyDb(); }
+
+  void destroyDb() {
+    db.reset();
+    ASSERT_EQ(0, db.use_count());
+    cleanup();
+  }
+
+ protected:
+  std::shared_ptr<NativeClient> db;
+};
+
+TEST_F(v4_blockchain, creation) {
+  concord::util::digest::BlockDigest empty_digest;
+  for (auto& d : empty_digest) {
+    d = 0;
+  }
+
+  auto wb = db->getBatch();
+
+  auto blockchain = v4blockchain::detail::Blockchain{db};
+  {
+    auto block = blockchain.getBlockData(420);
+    ASSERT_FALSE(block.has_value());
+  }
+
+  auto versioned_cat = std::string("versioned");
+  auto key = std::string("key");
+  auto val = std::string("val");
+  auto updates = categorization::Updates{};
+  auto ver_updates = categorization::VersionedUpdates{};
+  ver_updates.addUpdate("key", "val");
+  updates.add(versioned_cat, std::move(ver_updates));
+
+  auto id = blockchain.addBlock(updates, wb);
+  ASSERT_EQ(id, 1);
+  ASSERT_EQ(blockchain.from_storage, 1);
+  db->write(std::move(wb));
+
+  auto blockstr = blockchain.getBlockData(id);
+  ASSERT_TRUE(blockstr.has_value());
+
+  auto block = v4blockchain::detail::Block(*blockstr);
+  const auto& emdig = block.parentDigest();
+  ASSERT_EQ(emdig, empty_digest);
+
+  const auto& v = block.getVersion();
+  ASSERT_EQ(v, v4blockchain::detail::Block::BLOCK_VERSION);
+
+  auto reconstruct_updates = block.getUpdates();
+  auto input = reconstruct_updates.categoryUpdates();
+  ASSERT_EQ(input.kv.count(versioned_cat), 1);
+  auto reconstruct_ver_updates = std::get<categorization::VersionedInput>(input.kv[versioned_cat]);
+  ASSERT_EQ(reconstruct_ver_updates.kv[key].data, val);
+  ASSERT_EQ(reconstruct_ver_updates.kv[key].stale_on_update, false);
+}
+
+TEST_F(v4_blockchain, calculate_empty_digest) {
+  concord::util::digest::BlockDigest empty_digest;
+  for (auto& d : empty_digest) {
+    d = 0;
+  }
+
+  auto wb = db->getBatch();
+
+  auto blockchain = v4blockchain::detail::Blockchain{db};
+
+  {
+    const auto& dig = blockchain.calculateBlockDigest(0);
+    ASSERT_EQ(dig, empty_digest);
+  }
+}
+
+TEST_F(v4_blockchain, basic_chain) {
+  concord::util::digest::BlockDigest empty_digest;
+  for (auto& d : empty_digest) {
+    d = 0;
+  }
+
+  auto blockchain = v4blockchain::detail::Blockchain{db};
+  // First block
+  {
+    auto wb = db->getBatch();
+    auto versioned_cat = std::string("versioned");
+    auto key = std::string("key");
+    auto val = std::string("val");
+    auto updates = categorization::Updates{};
+    auto ver_updates = categorization::VersionedUpdates{};
+    ver_updates.addUpdate("key", "val");
+    updates.add(versioned_cat, std::move(ver_updates));
+
+    auto id = blockchain.addBlock(updates, wb);
+    ASSERT_EQ(id, 1);
+    ASSERT_EQ(blockchain.from_storage, 1);
+    db->write(std::move(wb));
+    blockchain.setLastReachable(id);
+
+    // Validate block from storage
+    auto blockstr = blockchain.getBlockData(id);
+    ASSERT_TRUE(blockstr.has_value());
+    auto block = v4blockchain::detail::Block(*blockstr);
+    const auto& emdig = block.parentDigest();
+    ASSERT_EQ(emdig, empty_digest);
+    const auto& v = block.getVersion();
+    ASSERT_EQ(v, v4blockchain::detail::Block::BLOCK_VERSION);
+    auto reconstruct_updates = block.getUpdates();
+    auto input = reconstruct_updates.categoryUpdates();
+    ASSERT_EQ(input.kv.count(versioned_cat), 1);
+    auto reconstruct_ver_updates = std::get<categorization::VersionedInput>(input.kv[versioned_cat]);
+    ASSERT_EQ(reconstruct_ver_updates.kv[key].data, val);
+    ASSERT_EQ(reconstruct_ver_updates.kv[key].stale_on_update, false);
+  }
+
+  // Second
+  {
+    auto wb = db->getBatch();
+    auto imm_cat = std::string("immuatables");
+    auto immkey = std::string("immkey");
+    auto immval = std::string("immval");
+    auto updates = categorization::Updates{};
+    auto imm_updates = categorization::ImmutableUpdates{};
+    imm_updates.addUpdate("immkey", categorization::ImmutableUpdates::ImmutableValue{"immval", {"1", "2", "33"}});
+    updates.add(imm_cat, std::move(imm_updates));
+
+    auto id = blockchain.addBlock(updates, wb);
+    ASSERT_EQ(id, 2);
+    ASSERT_EQ(blockchain.from_storage, 1);
+    ASSERT_EQ(blockchain.from_future, 1);
+    db->write(std::move(wb));
+    blockchain.setLastReachable(id);
+
+    // Get block from storage
+    auto blockstr = blockchain.getBlockData(id);
+    ASSERT_TRUE(blockstr.has_value());
+    auto block = v4blockchain::detail::Block(*blockstr);
+    const auto& dig = block.parentDigest();
+
+    // compare again digest of parent from storage
+    auto parent_blockstr = blockchain.getBlockData(id - 1);
+    ASSERT_TRUE(parent_blockstr.has_value());
+    auto parent_digest =
+        v4blockchain::detail::Block::calculateDigest(id - 1, parent_blockstr->c_str(), parent_blockstr->size());
+    ASSERT_EQ(dig, parent_digest);
+
+    // Validate block from storage
+    auto reconstruct_updates = block.getUpdates();
+    auto input = reconstruct_updates.categoryUpdates();
+    ASSERT_EQ(input.kv.count(imm_cat), 1);
+    auto reconstruct_imm_updates = std::get<categorization::ImmutableInput>(input.kv[imm_cat]);
+    ASSERT_EQ(reconstruct_imm_updates.kv[immkey].data, immval);
+    std::vector<std::string> v = {"1", "2", "33"};
+    ASSERT_EQ(reconstruct_imm_updates.kv[immkey].tags, v);
+  }
+}
+
+TEST_F(v4_blockchain, adv_chain) {
+  concord::util::digest::BlockDigest empty_digest;
+  for (auto& d : empty_digest) {
+    d = 0;
+  }
+
+  {
+    auto blockchain = v4blockchain::detail::Blockchain{db};
+    // First block
+    {
+      auto wb = db->getBatch();
+      auto versioned_cat = std::string("versioned");
+      auto key = std::string("key");
+      auto val = std::string("val");
+      auto updates = categorization::Updates{};
+      auto ver_updates = categorization::VersionedUpdates{};
+      ver_updates.addUpdate("key", "val");
+      updates.add(versioned_cat, std::move(ver_updates));
+
+      auto id = blockchain.addBlock(updates, wb);
+      ASSERT_EQ(id, 1);
+      db->write(std::move(wb));
+      blockchain.setLastReachable(id);
+
+      // Validate block from storage
+      auto blockstr = blockchain.getBlockData(id);
+      ASSERT_TRUE(blockstr.has_value());
+      auto block = v4blockchain::detail::Block(*blockstr);
+      const auto& emdig = block.parentDigest();
+      ASSERT_EQ(emdig, empty_digest);
+      const auto& v = block.getVersion();
+      ASSERT_EQ(v, v4blockchain::detail::Block::BLOCK_VERSION);
+      auto reconstruct_updates = block.getUpdates();
+      auto input = reconstruct_updates.categoryUpdates();
+      ASSERT_EQ(input.kv.count(versioned_cat), 1);
+      auto reconstruct_ver_updates = std::get<categorization::VersionedInput>(input.kv[versioned_cat]);
+      ASSERT_EQ(reconstruct_ver_updates.kv[key].data, val);
+      ASSERT_EQ(reconstruct_ver_updates.kv[key].stale_on_update, false);
+    }
+
+    // Second
+    {
+      auto wb = db->getBatch();
+      auto imm_cat = std::string("immuatables");
+      auto immkey = std::string("immkey");
+      auto immval = std::string("immval");
+      auto updates = categorization::Updates{};
+      auto imm_updates = categorization::ImmutableUpdates{};
+      imm_updates.addUpdate("immkey", categorization::ImmutableUpdates::ImmutableValue{"immval", {"1", "2", "33"}});
+      updates.add(imm_cat, std::move(imm_updates));
+
+      auto id = blockchain.addBlock(updates, wb);
+      ASSERT_EQ(id, 2);
+      ASSERT_EQ(blockchain.from_storage, 1);
+      ASSERT_EQ(blockchain.from_future, 1);
+      db->write(std::move(wb));
+      blockchain.setLastReachable(id);
+
+      // Get block from storage
+      auto blockstr = blockchain.getBlockData(id);
+      ASSERT_TRUE(blockstr.has_value());
+      auto block = v4blockchain::detail::Block(*blockstr);
+      const auto& dig = block.parentDigest();
+
+      // compare again digest of parent from storage
+      auto parent_blockstr = blockchain.getBlockData(id - 1);
+      ASSERT_TRUE(parent_blockstr.has_value());
+      auto parent_digest =
+          v4blockchain::detail::Block::calculateDigest(id - 1, parent_blockstr->c_str(), parent_blockstr->size());
+      ASSERT_EQ(dig, parent_digest);
+
+      // Validate block from storage
+      auto reconstruct_updates = block.getUpdates();
+      auto input = reconstruct_updates.categoryUpdates();
+      ASSERT_EQ(input.kv.count(imm_cat), 1);
+      auto reconstruct_imm_updates = std::get<categorization::ImmutableInput>(input.kv[imm_cat]);
+      ASSERT_EQ(reconstruct_imm_updates.kv[immkey].data, immval);
+      std::vector<std::string> v = {"1", "2", "33"};
+      ASSERT_EQ(reconstruct_imm_updates.kv[immkey].tags, v);
+    }
+  }
+
+  // load blockchain from storage
+  {
+    auto blockchain = v4blockchain::detail::Blockchain{db};
+    ASSERT_EQ(blockchain.getLastReachable(), 2);
+    auto wb = db->getBatch();
+
+    auto imm_cat = std::string("immuatables");
+    auto immkey = std::string("immkey");
+    auto immval = std::string("immval");
+    auto updates = categorization::Updates{};
+    auto imm_updates = categorization::ImmutableUpdates{};
+    imm_updates.addUpdate("immkey", categorization::ImmutableUpdates::ImmutableValue{"immval", {"1", "2", "33"}});
+    updates.add(imm_cat, std::move(imm_updates));
+
+    auto id = blockchain.addBlock(updates, wb);
+    ASSERT_EQ(id, 3);
+    ASSERT_EQ(blockchain.from_storage, 1);
+    ASSERT_EQ(blockchain.from_future, 0);
+    db->write(std::move(wb));
+    blockchain.setLastReachable(id);
+  }
+
+  // load blockchain from storage
+  {
+    auto blockchain = v4blockchain::detail::Blockchain{db};
+    ASSERT_EQ(blockchain.getLastReachable(), 3);
+
+    {
+      auto wb = db->getBatch();
+
+      auto imm_cat = std::string("immuatables");
+      auto immkey = std::string("immkey");
+      auto immval = std::string("immval");
+      auto updates = categorization::Updates{};
+      auto imm_updates = categorization::ImmutableUpdates{};
+      imm_updates.addUpdate("immkey", categorization::ImmutableUpdates::ImmutableValue{"immval", {"1", "2", "33"}});
+      updates.add(imm_cat, std::move(imm_updates));
+
+      auto id = blockchain.addBlock(updates, wb);
+      ASSERT_EQ(id, 4);
+      ASSERT_EQ(blockchain.from_storage, 1);
+      ASSERT_EQ(blockchain.from_future, 0);
+      db->write(std::move(wb));
+      blockchain.setLastReachable(id);
+    }
+    {
+      auto wb = db->getBatch();
+
+      auto imm_cat = std::string("immuatables");
+      auto immkey = std::string("immkey");
+      auto immval = std::string("immval");
+      auto updates = categorization::Updates{};
+      auto imm_updates = categorization::ImmutableUpdates{};
+      imm_updates.addUpdate("immkey", categorization::ImmutableUpdates::ImmutableValue{"immval", {"1", "2", "33"}});
+      updates.add(imm_cat, std::move(imm_updates));
+
+      auto id = blockchain.addBlock(updates, wb);
+      ASSERT_EQ(id, 5);
+      ASSERT_EQ(blockchain.from_storage, 1);
+      ASSERT_EQ(blockchain.from_future, 1);
+
+      db->write(std::move(wb));
+      blockchain.setLastReachable(id);
+
+      // Get block from storage
+      auto blockstr = blockchain.getBlockData(5);
+      ASSERT_TRUE(blockstr.has_value());
+      auto block = v4blockchain::detail::Block(*blockstr);
+      const auto& dig = block.parentDigest();
+
+      // compare against digest of parent from storage
+      auto parent_blockstr = blockchain.getBlockData(5 - 1);
+      ASSERT_TRUE(parent_blockstr.has_value());
+      auto parent_digest =
+          v4blockchain::detail::Block::calculateDigest(id - 1, parent_blockstr->c_str(), parent_blockstr->size());
+      ASSERT_EQ(dig, parent_digest);
+    }
+  }
+}
+
+}  // end namespace
+
+int main(int argc, char** argv) {
+  InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}

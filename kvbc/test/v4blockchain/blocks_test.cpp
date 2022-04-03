@@ -21,7 +21,6 @@
 #include <random>
 #include "storage/test/storage_test_common.h"
 
-using concord::storage::rocksdb::NativeClient;
 using namespace concord::kvbc;
 using namespace ::testing;
 
@@ -157,6 +156,84 @@ TEST(v4_block, add_updates) {
       std::vector<std::string> v = {"1", "2", "33"};
       ASSERT_EQ(reconstruct_imm_updates.kv[key].tags, v);
     }
+  }
+}
+
+TEST(v4_block, calculate_digest) {
+  // New blocks should have empty digest
+  concord::util::digest::BlockDigest empty_digest;
+  for (auto& d : empty_digest) {
+    d = 0;
+  }
+  // Genesis block
+  concord::util::digest::BlockDigest genesis_digest;
+  {
+    v4blockchain::detail::Block block;
+    auto imm_cat = std::string("immuatables");
+    auto immkey = std::string("immkey");
+    auto immval = std::string("immval");
+    auto updates = categorization::Updates{};
+    auto imm_updates = categorization::ImmutableUpdates{};
+    imm_updates.addUpdate("immkey", categorization::ImmutableUpdates::ImmutableValue{"immval", {"1", "2", "33"}});
+    updates.add(imm_cat, std::move(imm_updates));
+
+    auto versioned_cat = std::string("versioned");
+    auto verkey = std::string("verkey");
+    auto verval = std::string("verval");
+    auto ver_updates = categorization::VersionedUpdates{};
+    ver_updates.addUpdate("verkey", "verval");
+    updates.add(versioned_cat, std::move(ver_updates));
+
+    block.addUpdates(updates);
+
+    auto reconstruct_updates = block.getUpdates();
+    auto input = reconstruct_updates.categoryUpdates();
+    ASSERT_EQ(input.kv.count(versioned_cat), 1);
+    ASSERT_EQ(input.kv.count(imm_cat), 1);
+    auto reconstruct_imm_updates = std::get<categorization::ImmutableInput>(input.kv[imm_cat]);
+    ASSERT_EQ(reconstruct_imm_updates.kv[immkey].data, immval);
+    std::vector<std::string> v = {"1", "2", "33"};
+    ASSERT_EQ(reconstruct_imm_updates.kv[immkey].tags, v);
+
+    auto reconstruct_ver_updates = std::get<categorization::VersionedInput>(input.kv[versioned_cat]);
+    ASSERT_EQ(reconstruct_ver_updates.kv[verkey].data, verval);
+    ASSERT_EQ(reconstruct_ver_updates.kv[verkey].stale_on_update, false);
+
+    const auto& dig = block.parentDigest();
+    ASSERT_EQ(dig, empty_digest);
+
+    genesis_digest = block.calculateDigest(1);
+  }
+
+  {
+    auto size = uint64_t{100};
+    auto block = v4blockchain::detail::Block{size};
+    const auto& emdig = block.parentDigest();
+    ASSERT_EQ(emdig, empty_digest);
+
+    auto merkle_cat = std::string("merkle_cat");
+    auto merkey = std::string("merkey");
+    auto merval = std::string("merval");
+    auto updates = categorization::Updates{};
+    auto merkle_updates = categorization::BlockMerkleUpdates{};
+
+    merkle_updates.addUpdate("merkey", "merval");
+    merkle_updates.addDelete("merdel");
+
+    block.addDigest(genesis_digest);
+    updates.add(merkle_cat, std::move(merkle_updates));
+    block.addUpdates(updates);
+
+    auto reconstruct_updates = block.getUpdates();
+    auto input = reconstruct_updates.categoryUpdates();
+    auto reconstruct_mer_updates = std::get<categorization::BlockMerkleInput>(input.kv[merkle_cat]);
+    ASSERT_EQ(reconstruct_mer_updates.kv[merkey], merval);
+    ASSERT_EQ(reconstruct_mer_updates.deletes[0], "merdel");
+    ASSERT_EQ(reconstruct_mer_updates.deletes.size(), 1);
+
+    const auto& dig = block.parentDigest();
+    ASSERT_EQ(dig, genesis_digest);
+    ASSERT_NE(dig, empty_digest);
   }
 }
 
