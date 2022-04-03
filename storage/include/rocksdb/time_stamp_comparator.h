@@ -9,7 +9,14 @@ namespace concord {
 namespace storage {
 namespace rocksdb {
 
-const ::rocksdb::Comparator* getComparatorWithU64Ts();
+/*
+Returns a Comparator to compare user defined timestamp for using with
+RocksDB timestamp API.
+This comparator is used with uint64_t encoded as big endian string using
+concordUtils::toBigEndianStringBuffer
+
+it compares the byte order of two such strings.
+*/
 const ::rocksdb::Comparator* getLexicographic64TsComparator();
 
 }  // namespace rocksdb

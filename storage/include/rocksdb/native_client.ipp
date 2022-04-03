@@ -282,6 +282,20 @@ inline void NativeClient::createColumnFamilyWithImport(const std::string &cFamil
   client_->cf_handles_[cFamily] = std::move(handleUniquePtr);
 }
 
+inline bool NativeClient::createColumnFamilyIfNotExisting(const std::string &cf,
+                                                          const ::rocksdb::Comparator *comparator) {
+  if (!hasColumnFamily(cf)) {
+    auto cf_options = ::rocksdb::ColumnFamilyOptions{};
+    if (comparator) {
+      cf_options.comparator = comparator;
+    }
+    createColumnFamily(cf, cf_options);
+    return true;
+  }
+  return false;
+}
+// Re
+
 inline ::rocksdb::ColumnFamilyOptions NativeClient::columnFamilyOptions(const std::string &cFamily) const {
   auto family = columnFamilyHandle(cFamily);
   auto descriptor = ::rocksdb::ColumnFamilyDescriptor{};
