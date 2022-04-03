@@ -1696,20 +1696,20 @@ std::string ReplicaImp::getReplicaState() const {
 }
 
 void ReplicaImp::onInternalMsg(GetStatus &status) const {
-  static const std::unordered_map<const char *, std::string> status_to_output{
+  const std::unordered_map<std::string, std::function<std::string()>> status_to_output{
       // TODO: change this key name (coordinate with deployment)
-      {"replica", getReplicaLastStableSeqNum()},
-      {"replica-state", getReplicaState()},
-      {"state-transfer", stateTransfer->getStatus()},
-      {"key-exchange", KeyExchangeManager::instance().getStatus()},
-      {"pre-execution", replStatusHandlers_.preExecutionStatus(getAggregator())},
+      {"replica", [this]() { return getReplicaLastStableSeqNum(); }},
+      {"replica-state", [this]() { return getReplicaState(); }},
+      {"state-transfer", [this]() { return stateTransfer->getStatus(); }},
+      {"key-exchange", []() { return KeyExchangeManager::instance().getStatus(); }},
+      {"pre-execution", [this]() { return replStatusHandlers_.preExecutionStatus(getAggregator()); }},
   };
   // We must always return something to unblock the future.
-  static const std::string invalid_key_output = "** - Invalid Key - **";
+  const std::string invalid_key_output = "** - Invalid Key - **";
 
-  auto *status_key = status.key.c_str();
-  auto &output = status_to_output.find(status_key) != status_to_output.end() ? status_to_output.at(status_key)
-                                                                             : invalid_key_output;
+  const auto &status_key = status.key;
+  const auto &output = status_to_output.find(status_key) != status_to_output.end() ? status_to_output.at(status_key)()
+                                                                                   : invalid_key_output;
   return status.output.set_value(output);
 }
 

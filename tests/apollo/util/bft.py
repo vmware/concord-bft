@@ -753,8 +753,9 @@ class BftTestNetwork:
         """
         stdout_file = None
         stderr_file = None
+        keep_logs = os.environ.get('KEEP_APOLLO_LOGS', "").lower() in ["true", "on"]
 
-        if os.environ.get('KEEP_APOLLO_LOGS', "").lower() in ["true", "on"]:
+        if keep_logs:
             test_name = os.environ.get('TEST_NAME')
 
             if not test_name:
@@ -810,7 +811,8 @@ class BftTestNetwork:
                     stderr=stderr_file,
                     close_fds=True)
 
-                self.verify_matching_replica_client_communication(replica_test_log_path)
+                if keep_logs:
+                    self.verify_matching_replica_client_communication(replica_test_log_path)
 
         replica_for_perf = os.environ.get('PERF_REPLICA', "")
         if self.test_start_time and replica_for_perf and int(replica_for_perf) == replica_id:
@@ -821,30 +823,36 @@ class BftTestNetwork:
             self.perf_proc = subprocess.Popen(perf_cmd, close_fds=True)
 
     @staticmethod
-    def verify_matching_replica_client_communication(replica_test_log_path: str, timeout_seconds: float = 5.):
+    def verify_matching_replica_client_communication(replica_test_log_path: str, timeout_seconds: float = 5.,
+                                                     sleep_seconds=.1):
         """
         Parses the communication protocol of a replica from its log
         and matches it to the python client communication protocol
         @param replica_test_log_path: The path to the replica log
         @param timeout_seconds: The timeout for waiting for the log message to be written
+        @param sleep_seconds: The time to sleep between subsequent file reads
         """
-        log_header_bytes = 1024
-        chunk_bytes = 128
+        max_read_bytes = 4096
+        chunk_bytes = 1024
         communication_str = 'Replica communication protocol='
         replica_to_client_communication = {
             'TlsTcp': bft_client.TcpTlsClient,
             'PlainUdp': bft_client.UdpClient
         }
 
-        try:
-            log_data = ""
-            with trio.fail_after(timeout_seconds):
-                with open(replica_test_log_path, 'r') as replica_log:
-                    while len(log_data) < log_header_bytes:
-                        log_data += replica_log.read(chunk_bytes)
-        except:
-            assert communication_str in log_data, \
-                f"Communication str not in {log_header_bytes + chunk_bytes} first bytes of the log"
+        log_data = ""
+        with open(replica_test_log_path, 'r') as replica_log:
+            time_elapsed = 0
+            while communication_str not in log_data and \
+                    time_elapsed < timeout_seconds and \
+                    len(log_data) < max_read_bytes:
+                log_data += replica_log.read(chunk_bytes)
+                time.sleep(sleep_seconds)
+                time_elapsed += sleep_seconds
+
+        assert communication_str in log_data, \
+            f"Communication str not in {max_read_bytes + chunk_bytes} first bytes of the log, " \
+            f"time elapsed: {time_elapsed}, read bytes: {len(log_data)}"
 
         actual_replica_communication = \
             log_data[log_data.find(communication_str) + len(communication_str):].strip().split(",")[0]

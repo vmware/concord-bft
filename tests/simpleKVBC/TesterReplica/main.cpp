@@ -24,6 +24,7 @@
 #include "client/reconfiguration/cre_interfaces.hpp"
 #include "assertUtils.hpp"
 #include "Metrics.hpp"
+#include "diagnostics_server.h"
 #include <csignal>
 
 #ifdef USE_ROCKSDB
@@ -146,8 +147,19 @@ void run_replica(int argc, char** argv) {
   replica->set_command_handler(cmdHandler);
   replica->setStateSnapshotValueConverter(categorization::KeyValueBlockchain::kNoopConverter);
   replica->start();
-  if (setup->GetReplicaConfig().isReadOnly)
+
+  auto& replicaConfig = setup->GetReplicaConfig();
+  if (replicaConfig.isReadOnly)
     replica->registerStBasedReconfigurationHandler(std::make_shared<STAddRemoveHandlerTest>());
+
+  std::unique_ptr<concord::diagnostics::Server> diagnostics_server(nullptr);
+
+  if (replicaConfig.diagnosticsServerPort > 0) {
+    // Start the diagnostics server
+    diagnostics_server = std::make_unique<concord::diagnostics::Server>();
+    diagnostics_server->start(
+        concord::diagnostics::RegistrarSingleton::getInstance(), INADDR_ANY, replicaConfig.diagnosticsServerPort);
+  }
 
   // Setup a test cron table, if requested in configuration.
   cronSetup(*setup, *replica);
