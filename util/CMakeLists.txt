@@ -14,7 +14,6 @@ set(util_source_files
     src/crypto_utils.cpp
     src/RawMemoryPool.cpp
     src/config_file_parser.cpp
-    src/Digest.cpp
     src/DigestImpl.cpp)
 
 add_library(util        STATIC ${util_source_files})
@@ -76,7 +75,7 @@ set(util_header_files
     include/openssl_crypto.hpp
     include/Digest.hpp
     include/DigestType.hpp
-    include/DigestImpl.hpp)
+    include/DigestImpl.ipp)
 install(FILES ${util_header_files} DESTINATION include/util)
 
 set_property(DIRECTORY .. APPEND PROPERTY INCLUDE_DIRECTORIES
