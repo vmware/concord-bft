@@ -20,15 +20,18 @@ uint64_t BlockMetadata::getLastBlockSequenceNum() const {
                                         IBlockMetadata::kBlockMetadataKeyStr);
   auto sequenceNum = uint64_t{0};
   if (value) {
-    const auto& data = std::get<categorization::VersionedValue>(*value).data;
-    ConcordAssertEQ(data.size(), sizeof(uint64_t));
-    sequenceNum = concordUtils::fromBigEndianBuffer<uint64_t>(data.data());
+    return getSequenceNum(std::get<categorization::VersionedValue>(*value).data);
   } else {
     LOG_WARN(logger_, "Unable to get last block sequence number");
   }
 
   LOG_INFO(logger_, "last block sequenceNum = " << sequenceNum);
   return sequenceNum;
+}
+
+uint64_t BlockMetadata::getSequenceNum(const std::string& data) {
+  ConcordAssertEQ(data.size(), sizeof(uint64_t));
+  return concordUtils::fromBigEndianBuffer<uint64_t>(data.data());
 }
 
 }  // namespace kvbc

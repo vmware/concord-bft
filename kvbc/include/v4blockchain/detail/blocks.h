@@ -21,6 +21,7 @@
 #include "categorized_kvbc_msgs.cmf.hpp"
 #include "assertUtils.hpp"
 #include "categorization/updates.h"
+#include "v4blockchain/detail/detail.h"
 
 namespace concord::kvbc::v4blockchain::detail {
 /*
@@ -34,9 +35,8 @@ It is stored as is in DB and is a passable unit for the use of state-transfer.
 */
 class Block {
  public:
-  using version = std::array<char, 2>;
-  static constexpr version BLOCK_VERSION = {0xf, 0x1};
-  static constexpr uint64_t HEADER_SIZE = sizeof(version) + sizeof(concord::util::digest::BlockDigest);
+  static constexpr block_version BLOCK_VERSION = block_version::V1;
+  static constexpr uint64_t HEADER_SIZE = sizeof(version_type) + sizeof(concord::util::digest::BlockDigest);
   // Pre-reserve buffer size
   Block(uint64_t reserve_size) : buffer_(HEADER_SIZE, 0) {
     buffer_.reserve(reserve_size);
@@ -44,43 +44,68 @@ class Block {
   }
   Block() : Block(HEADER_SIZE) {}
 
+  Block(const std::string& buffer) : buffer_(buffer.size()) {
+    std::copy(buffer.cbegin(), buffer.cend(), buffer_.begin());
+  }
+
   Block(const Block&) = default;
   Block(Block&&) = default;
   Block& operator=(const Block&) & = default;
   Block& operator=(Block&&) & = default;
 
-  const version& getVersion() const {
-    ConcordAssert(buffer_.size() >= sizeof(version));
-    return *reinterpret_cast<const version*>(buffer_.data());
+  const block_version& getVersion() const {
+    ConcordAssert(isValid_);
+    ConcordAssert(buffer_.size() >= sizeof(version_type));
+    return *reinterpret_cast<const block_version*>(buffer_.data());
   }
 
   const concord::util::digest::BlockDigest& parentDigest() const {
+    ConcordAssert(isValid_);
     ConcordAssert(buffer_.size() >= HEADER_SIZE);
-    return *reinterpret_cast<const concord::util::digest::BlockDigest*>(buffer_.data() + sizeof(version));
+    return *reinterpret_cast<const concord::util::digest::BlockDigest*>(buffer_.data() + sizeof(version_type));
   }
 
   void addDigest(const concord::util::digest::BlockDigest& digest) {
+    ConcordAssert(isValid_);
     ConcordAssert(buffer_.size() >= HEADER_SIZE);
-    std::copy(digest.cbegin(), digest.cend(), buffer_.data() + sizeof(BLOCK_VERSION));
+    std::copy(digest.cbegin(), digest.cend(), buffer_.data() + sizeof(version_type));
   }
 
   concord::util::digest::BlockDigest calculateDigest(concord::kvbc::BlockId id) const {
-    return bftEngine::bcst::computeBlockDigest(id, reinterpret_cast<const char*>(buffer_.data()), buffer_.size());
+    ConcordAssert(isValid_);
+    return calculateDigest(id, reinterpret_cast<const char*>(buffer_.data()), buffer_.size());
   }
 
   void addUpdates(const concord::kvbc::categorization::Updates& category_updates);
 
   concord::kvbc::categorization::Updates getUpdates() const;
 
-  const std::vector<uint8_t>& getBuffer() const { return buffer_; }
+  const std::vector<uint8_t>& getBuffer() const {
+    ConcordAssert(isValid_);
+    return buffer_;
+  }
+
+  std::vector<uint8_t>&& moveBuffer() {
+    ConcordAssert(isValid_);
+    isValid_ = false;
+    return std::move(buffer_);
+  }
+
+  static concord::util::digest::BlockDigest calculateDigest(concord::kvbc::BlockId id,
+                                                            const char* buffer,
+                                                            uint64_t size) {
+    return bftEngine::bcst::computeBlockDigest(id, buffer, size);
+  }
 
  private:
   void addVersion() {
-    ConcordAssert(buffer_.size() >= sizeof(version));
-    std::copy(BLOCK_VERSION.cbegin(), BLOCK_VERSION.cend(), buffer_.data());
+    ConcordAssert(isValid_);
+    ConcordAssert(buffer_.size() >= sizeof(block_version));
+    *((block_version*)buffer_.data()) = BLOCK_VERSION;
   }
 
   std::vector<uint8_t> buffer_;
+  bool isValid_{true};
 };
 
 }  // namespace concord::kvbc::v4blockchain::detail

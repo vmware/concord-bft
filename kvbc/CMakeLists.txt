@@ -47,6 +47,7 @@ if (BUILD_ROCKSDB_STORAGE)
                                 
                                 src/v4blockchain/v4_blockchain.cpp
                                 src/v4blockchain/detail/latest_keys.cpp
+                                src/v4blockchain/detail/categories.cpp
                                 src/v4blockchain/detail/blocks.cpp
                                 src/v4blockchain/detail/st_chain.cpp
                                 src/v4blockchain/detail/blockchain.cpp)

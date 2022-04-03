@@ -80,6 +80,7 @@ class SkvbcS3IntegrityCheckTest(ApolloTest):
         self._start_integrity_check(bft_network, keys_config, s3_config)
 
     @with_trio
+    @unittest.skip("unstable scenario")
     @with_bft_network(start_replica_cmd=start_replica_cmd_prefix, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7)
     async def test_integrity_check_validate_all_with_missing_block(self, bft_network):
         """
