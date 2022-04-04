@@ -33,7 +33,7 @@ class DbEditorTests : public DbEditorTestsBase {
                         std::optional<BlockId> mismatch_at = std::nullopt,
                         bool override_keys = false) override {
     auto db = TestRocksDb::create(db_id);
-    auto adapter = KeyValueBlockchain{
+    auto adapter = concord::kvbc::categorization::KeyValueBlockchain{
         concord::storage::rocksdb::NativeClient::fromIDBClient(db),
         true,
         std::map<std::string, CATEGORY_TYPE>{
@@ -105,7 +105,7 @@ class DbEditorTests : public DbEditorTestsBase {
 
   void DeleteBlocksUntil(std::size_t db_id, BlockId until_block_id) override {
     auto db = TestRocksDb::createNative(db_id);
-    auto adapter = KeyValueBlockchain{db, true};
+    auto adapter = concord::kvbc::categorization::KeyValueBlockchain{db, true};
 
     for (auto i = 1ull; i < until_block_id; ++i) {
       adapter.deleteBlock(i);
