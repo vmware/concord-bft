@@ -12,6 +12,7 @@
 // file.
 
 #include <iostream>
+#include <fstream>
 
 #include "config/test_comm_config.hpp"
 #include "config/test_parameters.hpp"
@@ -106,6 +107,21 @@ ICommunication* setupCommunicationParams(ClientParams& cp) {
 #endif
 
   return CommFactory::create(conf);
+}
+
+void initAccounts(AppState& state) {
+  AppState::initUTTLibrary();
+
+  if (!state.GetAccounts().empty()) throw std::runtime_error("Accounts already exist");
+  for (int i = 1; i <= 3; ++i) {
+    const std::string fileName = "utt_client_" + std::to_string(i);
+    std::ifstream ifs(fileName);
+    if (!ifs.is_open()) throw std::runtime_error("Missing config: " + fileName);
+
+    libutt::Wallet wallet;
+    ifs >> wallet;
+    state.addAccount(Account{std::move(wallet)});
+  }
 }
 
 TxReply sendTxRequest(Client& client, const Tx& tx) {
@@ -216,6 +232,7 @@ int main(int argc, char** argv) {
 
     Client client(comm, clientConfig);
     AppState state;
+    initAccounts(state);
 
     while (true) {
       std::cout << "\nEnter command (type 'h' for commands, 'q' to exit):\n";
@@ -232,7 +249,8 @@ int main(int argc, char** argv) {
           syncState(state, client);
           for (const auto& kvp : state.GetAccounts()) {
             const auto& acc = kvp.second;
-            std::cout << acc.getId() << " : " << acc.getBalancePublic() << '\n';
+            std::cout << acc.getId() << " : public " << acc.getPublicBalance();
+            std::cout << " utt " << acc.getUttBalance();
           }
         } else if (cmd == "ledger") {
           syncState(state, client);

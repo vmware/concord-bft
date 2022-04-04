@@ -25,7 +25,7 @@
 #include <utt/Wallet.h>
 #include <utt/Coin.h>
 
-#include <utt/NtlLib.h>
+#include "app_state.hpp"
 
 using namespace libutt;
 
@@ -194,28 +194,7 @@ int main(int argc, char** argv) {
           " is the maximum number of faulty\nreplicas (-f)");
 
     // Initialize library
-    {
-      unsigned char* randSeed = nullptr;  // TODO: initialize entropy source
-      int size = 0;                       // TODO: initialize entropy source
-
-      // Apparently, libff logs some extra info when computing pairings
-      libff::inhibit_profiling_info = true;
-
-      // AB: We _info disables printing of information and _counters prevents tracking of profiling information. If we
-      // are using the code in parallel, disable both the logs.
-      libff::inhibit_profiling_counters = true;
-
-      // Initializes the default EC curve, so as to avoid "surprises"
-      libff::default_ec_pp::init_public_params();
-
-      // Initializes the NTL finite field
-      NTL::ZZ p = NTL::conv<ZZ>("21888242871839275222246405745257275088548364400416034343698204186575808495617");
-      NTL::ZZ_p::init(p);
-
-      NTL::SetSeed(randSeed, size);
-
-      RangeProof::Params::initializeOmegas();
-    }
+    AppState::initUTTLibrary();
 
     int thresh = f + 1;
     int numClients = 3;
@@ -227,7 +206,7 @@ int main(int argc, char** argv) {
     Params p = Params::random(dkg.getCK());                             // All replicas
     RegAuthSK rsk = RegAuthSK::random(p.getRegCK(), p.getIbeParams());  // eventually not needed
 
-    std::vector<size_t> normalCoinValues = {1, 1, 1, 1, 1};
+    std::vector<size_t> normalCoinValues = {100, 100};
     size_t budgetCoinValue = 1000;
 
     // Keep configs to check deserialization later
@@ -272,7 +251,7 @@ int main(int argc, char** argv) {
         clientCfg.wallet_.budgetCoin = std::move(c);
       }
 
-      std::ofstream ofs(clientOutputPrefix + std::to_string(n + i));
+      std::ofstream ofs(clientOutputPrefix + std::to_string(i + 1));
       ofs << clientCfg;
 
       clientConfigs.emplace_back(std::move(clientCfg));
@@ -293,7 +272,7 @@ int main(int argc, char** argv) {
 
     // Check deserialization
     for (int i = 0; i < numClients; ++i) {
-      const auto fileName = clientOutputPrefix + std::to_string(n + i);
+      const auto fileName = clientOutputPrefix + std::to_string(i + 1);
       std::ifstream ifs(fileName);
       if (!ifs.is_open()) throw std::runtime_error("Could not open file " + fileName);
 

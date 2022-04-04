@@ -30,6 +30,7 @@ using namespace std;
 #include "app/RelicMain.h"
 
 using namespace BLS::Relic;
+using namespace threshsign;
 
 int RelicAppMain(const Library& lib, const std::vector<std::string>& args) {
   (void)args;

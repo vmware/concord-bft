@@ -22,20 +22,28 @@
 
 #include "transactions.hpp"
 
+#include <utt/RegAuth.h>
+#include <utt/Params.h>
+#include <utt/Wallet.h>
+
 class Account {
  public:
-  Account(std::string id) : id_(std::move(id)) {}
+  Account(std::string id, int pubBalance = 0) : id_(std::move(id)), publicBalance_{pubBalance} {}
+  Account(libutt::Wallet&& w, int pubBalance = 0) : publicBalance_{pubBalance}, wallet_{std::move(w)} {}
 
-  const std::string getId() const { return id_; }
-  int getBalancePublic() const { return publicBalance_; }
+  const std::string& getId() const;
 
-  void depositPublic(int val);
-  int withdrawPublic(int val);
+  int getPublicBalance() const { return publicBalance_; }
+  void publicDeposit(int val);
+  int publicWithdraw(int val);
+
+  int getUttBalance() const;
+  int getUttBudget() const;
 
  private:
   std::string id_;
   int publicBalance_ = 0;
-  // To-Do: add optional UTT wallet
+  std::optional<libutt::Wallet> wallet_;  // UTT Wallets are instantiated only for endpoint clients
 };
 
 using BlockId = std::uint64_t;
@@ -51,6 +59,8 @@ struct Block {
 std::ostream& operator<<(std::ostream& os, const Block& b);
 
 struct AppState {
+  static void initUTTLibrary();
+
   AppState();
 
   void setLastKnownBlockId(BlockId id);
@@ -61,7 +71,9 @@ struct AppState {
   void appendBlock(Block&& bl);            // Returns the id of the appended block
   std::optional<BlockId> executeBlocks();  // Returns the next missing block id if unknown blocks exist
 
-  const std::map<std::string, Account> GetAccounts() const;
+  void addAccount(Account&& acc);
+
+  const std::map<std::string, Account>& GetAccounts() const;
   const std::vector<Block>& GetBlocks() const;
 
   const Account* getAccountById(const std::string& id) const;
