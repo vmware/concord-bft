@@ -191,6 +191,11 @@ void ExecutionEngine::addPostExecCallBack(
 }
 void ExecutionEngine::execute(std::deque<IRequestsHandler::ExecutionRequest>& accumulatedRequests,
                               Timestamp& timestamp) {
+  if (bftEngine::ControlStateManager::instance().getPruningProcessStatus()) {
+    // This can be happen only if we run in a async execution mode and then the execution thread will sleep until
+    // pruning is done. In the case of sync execution, we will never get to this point.
+    bftEngine::ControlStateManager::instance().sleepUntilPruningIsDone();
+  }
   const std::string cid = accumulatedRequests.back().cid;
   const auto sn = accumulatedRequests.front().executionSequenceNum;
   concordUtils::SpanWrapper span_wrapper{};
