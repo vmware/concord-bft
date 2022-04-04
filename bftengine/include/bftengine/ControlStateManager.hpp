@@ -20,6 +20,7 @@
 #include "Serializable.h"
 #include "SysConsts.hpp"
 #include "callback_registry.hpp"
+#include "assertUtils.hpp"
 
 namespace bftEngine {
 class ControlStateManager {
@@ -36,6 +37,7 @@ class ControlStateManager {
   void unwedge() { wedged = false; }
   void markRemoveMetadata(bool include_st = true) { removeMetadataCbRegistry_.invokeAll(include_st); }
   void setPruningProcess(bool onPruningProcess) {
+    ConcordAssert(!(onPruningProcess_ && onPruningProcess));
     onPruningProcess ? pruningLock_.lock() : pruningLock_.unlock();
     onPruningProcess_ = onPruningProcess;
   }
