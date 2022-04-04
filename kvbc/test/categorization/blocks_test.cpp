@@ -20,7 +20,6 @@
 #include "categorization/updates.h"
 #include "categorization/kv_blockchain.h"
 #include "categorization/db_categories.h"
-#include <iostream>
 #include <string>
 #include <utility>
 #include <vector>

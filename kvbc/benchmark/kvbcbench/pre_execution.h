@@ -18,7 +18,7 @@
 
 #include "assertUtils.hpp"
 #include "categorization/block_merkle_category.h"
-#include "categorization/kv_blockchain.h"
+#include "kvbc_adapter/replica_adapter.hpp"
 #include "input.h"
 
 namespace concord::kvbc::bench {
@@ -46,7 +46,7 @@ class PreExecutionSimulator {
   PreExecutionSimulator(const PreExecConfig& config,
                         const ReadKeys& merkle_read_keys,
                         const ReadKeys& versioned_read_keys,
-                        categorization::KeyValueBlockchain& kvbc)
+                        adapter::ReplicaBlockchain& kvbc)
       : config_(config), merkle_read_keys_(merkle_read_keys), versioned_read_keys_(versioned_read_keys), kvbc_(kvbc) {}
 
   void start() {
@@ -106,7 +106,7 @@ class PreExecutionSimulator {
   const ReadKeys& merkle_read_keys_;
   const ReadKeys& versioned_read_keys_;
 
-  categorization::KeyValueBlockchain& kvbc_;
+  adapter::ReplicaBlockchain& kvbc_;
 };
 
 }  // namespace concord::kvbc::bench

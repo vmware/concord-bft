@@ -690,7 +690,6 @@ struct CompareTo {
       throw std::invalid_argument{"Missing PATH-TO-OTHER-DB argument"};
     }
 
-    const auto read_only = true;
     const auto other_adapter = getAdapter(args.values.front(), read_only);
 
     const auto main_genesis = main_adapter.getGenesisBlockId();

@@ -16,7 +16,7 @@ using namespace concord::performance;
 
 // IntervalMappingResourceManager::IntervalMappingResourceManager(ISystemResourceEntity &replicaResources,
 //                                  std::vector<std::pair<uint64_t, uint64_t>> &&intervalMapping)
-//       : replicaResources_(replicaResources), intervalMapping_(std::move(intervalMapping)) {
+//       : replica_resources_(replicaResources), intervalMapping_(std::move(intervalMapping)) {
 //         std::ostringstream intervals;
 //         for(const auto& p:intervalMapping_){
 //           intervals << "{" << p.first << "," << p.second << "},";

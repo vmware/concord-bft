@@ -72,15 +72,15 @@ class STAddRemoveHandlerTest : public concord::client::reconfiguration::IStateHa
   }
 };
 
-void cronSetup(TestSetup& setup, const Replica& replica) {
+void cronSetup(TestSetup& setup, const Replica& main_replica) {
   if (!setup.GetCronEntryNumberOfExecutes()) {
     return;
   }
   const auto numberOfExecutes = *setup.GetCronEntryNumberOfExecutes();
 
   using namespace concord::cron;
-  const auto cronTableRegistry = replica.cronTableRegistry();
-  const auto ticksGenerator = replica.ticksGenerator();
+  const auto cronTableRegistry = main_replica.cronTableRegistry();
+  const auto ticksGenerator = main_replica.ticksGenerator();
 
   auto& cronTable = cronTableRegistry->operator[](TestSetup::kCronTableComponentId);
 
@@ -145,7 +145,7 @@ void run_replica(int argc, char** argv) {
                                                 setup->AddAllKeysAsPublic(),
                                                 replica->kvBlockchain() ? &replica->kvBlockchain().value() : nullptr);
   replica->set_command_handler(cmdHandler);
-  replica->setStateSnapshotValueConverter(categorization::KeyValueBlockchain::kNoopConverter);
+  replica->setStateSnapshotValueConverter([](std::string&& v) -> std::string { return std::move(v); });
   replica->start();
 
   auto& replicaConfig = setup->GetReplicaConfig();

@@ -2,36 +2,29 @@
 //
 // KV Blockchain replica implementation.
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include "Replica.h"
 #include <inttypes.h>
-#include <algorithm>
-#include <cassert>
-#include <chrono>
-#include <cstdlib>
 #include <exception>
 #include <string_view>
 #include <utility>
 #include "assertUtils.hpp"
 #include "endianness.hpp"
+#include "json_output.hpp"
 #include "communication/CommDefs.hpp"
 #include "kv_types.hpp"
-#include "hex_tools.h"
 #include "replica_state_sync.h"
 #include "sliver.hpp"
 #include "metadata_block_id.h"
 #include "bftengine/DbMetadataStorage.hpp"
 #include "rocksdb/native_client.h"
+#include "categorization/blocks.h"
 #include "pruning_handler.hpp"
 #include "IRequestHandler.hpp"
 #include "RequestHandler.h"
 #include "reconfiguration_kvbc_handler.hpp"
 #include "st_reconfiguraion_sm.hpp"
 #include "bftengine/ControlHandler.hpp"
-#include "throughput.hpp"
 #include "bftengine/EpochManager.hpp"
 #include "bftengine/ReconfigurationCmd.hpp"
 #include "client/reconfiguration/st_based_reconfiguration_client.hpp"
@@ -128,7 +121,7 @@ class KvbcRequestHandler : public bftEngine::RequestHandler {
   static std::shared_ptr<KvbcRequestHandler> create(
       const std::shared_ptr<IRequestsHandler> &user_req_handler,
       const std::shared_ptr<concord::cron::CronTableRegistry> &cron_table_registry,
-      categorization::KeyValueBlockchain &blockchain,
+      adapter::ReplicaBlockchain &blockchain,
       std::shared_ptr<concordMetrics::Aggregator> aggregator_,
       ISystemResourceEntity &resourceEntity) {
     return std::shared_ptr<KvbcRequestHandler>{
@@ -154,7 +147,7 @@ class KvbcRequestHandler : public bftEngine::RequestHandler {
  private:
   KvbcRequestHandler(const std::shared_ptr<IRequestsHandler> &user_req_handler,
                      const std::shared_ptr<concord::cron::CronTableRegistry> &cron_table_registry,
-                     categorization::KeyValueBlockchain &blockchain,
+                     adapter::ReplicaBlockchain &blockchain,
                      std::shared_ptr<concordMetrics::Aggregator> aggregator_,
                      ISystemResourceEntity &resourceEntity)
       : bftEngine::RequestHandler(resourceEntity, aggregator_), blockchain_{blockchain} {
@@ -169,7 +162,7 @@ class KvbcRequestHandler : public bftEngine::RequestHandler {
 
  private:
   std::shared_ptr<bftEngine::impl::PersistentStorage> persistent_storage_;
-  categorization::KeyValueBlockchain &blockchain_;
+  adapter::ReplicaBlockchain &blockchain_;
 };
 void Replica::registerReconfigurationHandlers(std::shared_ptr<bftEngine::IRequestsHandler> requestHandler) {
   requestHandler->setReconfigurationHandler(std::make_shared<kvbc::reconfiguration::ReconfigurationHandler>(
@@ -308,7 +301,7 @@ void Replica::saveReconfigurationCmdToResPages(const std::string &key) {
 }
 
 void Replica::createReplicaAndSyncState() {
-  ConcordAssert(m_kvBlockchain.has_value());
+  ConcordAssertNE(m_kvBlockchain, nullptr);
   auto requestHandler =
       KvbcRequestHandler::create(m_cmdHandler, cronTableRegistry_, *m_kvBlockchain, aggregator_, replicaResources_);
   registerReconfigurationHandlers(requestHandler);
@@ -361,8 +354,8 @@ void Replica::createReplicaAndSyncState() {
         auto db = storage::rocksdb::NativeClient::newClient(
             path, read_only, storage::rocksdb::NativeClient::DefaultOptions{});
         const auto link_st_chain = false;
-        auto kvbc = categorization::KeyValueBlockchain{db, link_st_chain};
-        kvbc.trimBlocksFromSnapshot(block_id_at_checkpoint);
+        auto kvbc = adapter::ReplicaBlockchain{db, link_st_chain};
+        kvbc.trimBlocksFromCheckpoint(block_id_at_checkpoint);
         kvbc.computeAndPersistPublicStateHash(block_id_at_checkpoint, value_converter);
       });
 }
@@ -386,26 +379,12 @@ BlockId Replica::addBlockToIdleReplica(categorization::Updates &&updates) {
     throw std::logic_error{"addBlockToIdleReplica() called on a non-idle replica"};
   }
 
-  return m_kvBlockchain->addBlock(std::move(updates));
+  return m_kvBlockchain->add(std::move(updates));
 }
 
-void Replica::deleteGenesisBlock() {
-  const auto genesisBlock = m_kvBlockchain->getGenesisBlockId();
-  if (genesisBlock == 0) {
-    throw std::logic_error{"Cannot delete the genesis block from an empty blockchain"};
-  }
-  m_kvBlockchain->deleteBlock(genesisBlock);
-}
+void Replica::deleteGenesisBlock() { return m_kvBlockchain->deleteGenesisBlock(); }
 
 BlockId Replica::deleteBlocksUntil(BlockId until) {
-  ISystemResourceEntity::scopedDurMeasurment mes(replicaResources_, ISystemResourceEntity::type::pruning_utilization);
-  const auto genesisBlock = m_kvBlockchain->getGenesisBlockId();
-  if (genesisBlock == 0) {
-    throw std::logic_error{"Cannot delete a block range from an empty blockchain"};
-  } else if (until <= genesisBlock) {
-    throw std::invalid_argument{"Invalid 'until' value passed to deleteBlocksUntil()"};
-  }
-
   // Inform State Transfer about pruning. We must do it in this thread context for persistency considerations, and in
   // this layer to lower the chance for bugs (there are multiple callers to this function), in which pruning is not
   // notified to ST. In that case, ST state will be corrupted.
@@ -413,24 +392,15 @@ BlockId Replica::deleteBlocksUntil(BlockId until) {
     // We assume until > 0, see check above
     m_stateTransfer->reportLastAgreedPrunableBlockId(until - 1);
   }
-
-  const auto lastReachableBlock = m_kvBlockchain->getLastReachableBlockId();
-  const auto lastDeletedBlock = std::min(lastReachableBlock, until - 1);
-  const auto start = std::chrono::steady_clock::now();
-  for (auto i = genesisBlock; i <= lastDeletedBlock; ++i) {
-    ISystemResourceEntity::scopedDurMeasurment mes(replicaResources_,
-                                                   ISystemResourceEntity::type::pruning_avg_time_micro);
-    ConcordAssert(m_kvBlockchain->deleteBlock(i));
-  }
-  auto jobDuration =
-      std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
-  histograms_.delete_batch_blocks_duration->recordAtomic(jobDuration);
-  return lastDeletedBlock;
+  ISystemResourceEntity::scopedDurMeasurment mes(replicaResources_, ISystemResourceEntity::type::pruning_utilization);
+  return m_kvBlockchain->deleteBlocksUntil(until);
 }
+
+void Replica::deleteLastReachableBlock() { return m_kvBlockchain->deleteLastReachableBlock(); }
 
 BlockId Replica::add(categorization::Updates &&updates) {
   replicaResources_.addMeasurement({ISystemResourceEntity::type::add_blocks_accumulated, 1, 0, 0});
-  return m_kvBlockchain->addBlock(std::move(updates));
+  return m_kvBlockchain->add(std::move(updates));
 }
 
 std::optional<categorization::Value> Replica::get(const std::string &category_id,
@@ -480,7 +450,7 @@ BlockId Replica::getLastBlockId() const {
   if (replicaConfig_.isReadOnly) {
     return m_bcDbAdapter->getLastReachableBlockId();
   }
-  return m_kvBlockchain->getLastReachableBlockId();
+  return m_kvBlockchain->getLastBlockId();
 }
 
 void Replica::set_command_handler(std::shared_ptr<ICommandsHandler> handler) { m_cmdHandler = handler; }
@@ -502,8 +472,8 @@ Replica::Replica(ICommunication *comm,
       aggregator_(aggregator),
       pm_{pm},
       secretsManager_{secretsManager},
-      blocksIOWorkersPool_((replicaConfig.numWorkerThreadsForBlockIO > 0) ? replicaConfig.numWorkerThreadsForBlockIO
-                                                                          : std::thread::hardware_concurrency()),
+      blocks_io_workers_pool((replicaConfig.numWorkerThreadsForBlockIO > 0) ? replicaConfig.numWorkerThreadsForBlockIO
+                                                                            : std::thread::hardware_concurrency()),
       AdaptivePruningManager_{
           concord::performance::IntervalMappingResourceManager::createIntervalMappingResourceManager(
               replicaResources_,
@@ -593,17 +563,35 @@ Replica::Replica(ICommunication *comm,
         throw std::invalid_argument{msg};
       }
     }
-    m_kvBlockchain.emplace(
-        storage::rocksdb::NativeClient::fromIDBClient(m_dbSet.dataDBClient), linkStChain, kvbc_categories);
-    m_kvBlockchain->setAggregator(aggregator);
-
+    op_kvBlockchain.emplace(storage::rocksdb::NativeClient::fromIDBClient(m_dbSet.dataDBClient),
+                            linkStChain,
+                            kvbc_categories,
+                            concord::kvbc::adapter::aux::AdapterAuxTypes(this->aggregator_, this->replicaResources_));
+    m_kvBlockchain = &(op_kvBlockchain.value());
+    LOG_INFO(logger, "ARC06: Replica::REPLICA" << KVLOG(this, m_kvBlockchain));
     auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-    concord::diagnostics::StatusHandler handler(
-        "pruning", "Pruning Status", [this]() { return m_kvBlockchain->getPruningStatus(); });
+    concord::diagnostics::StatusHandler handler("pruning", "Pruning Status", [this]() {
+      std::ostringstream oss;
+      std::unordered_map<std::string, std::string> result;
+      result.insert(
+          concordUtils::toPair("versionedNumOfDeletedKeys",
+                               aggregator_->GetCounter("kv_blockchain_deletes", "numOfVersionedKeysDeleted").Get()));
+      result.insert(
+          concordUtils::toPair("immutableNumOfDeletedKeys",
+                               aggregator_->GetCounter("kv_blockchain_deletes", "numOfImmutableKeysDeleted").Get()));
+      result.insert(concordUtils::toPair(
+          "merkleNumOfDeletedKeys", aggregator_->GetCounter("kv_blockchain_deletes", "numOfMerkleKeysDeleted").Get()));
+      result.insert(concordUtils::toPair("getGenesisBlockId()", getGenesisBlockId()));
+      result.insert(concordUtils::toPair("getLastReachableBlockId()", getLastBlockId()));
+      result.insert(concordUtils::toPair("isPruningInProgress",
+                                         bftEngine::ControlStateManager::instance().getPruningProcessStatus()));
+      oss << concordUtils::kContainerToJson(result);
+      return oss.str();
+    });
     registrar.status.registerHandler(handler);
   }
-  m_dbSet.dataDBClient->setAggregator(aggregator);
-  m_dbSet.metadataDBClient->setAggregator(aggregator);
+  m_dbSet.dataDBClient->setAggregator(aggregator_);
+  m_dbSet.metadataDBClient->setAggregator(aggregator_);
   auto stKeyManipulator = std::shared_ptr<storage::ISTKeyManipulator>{storageFactory->newSTKeyManipulator()};
   m_stateTransfer = bftEngine::bcst::create(stConfig, this, m_metadataDBClient, stKeyManipulator, aggregator_);
   if (!replicaConfig.isReadOnly) {
@@ -627,6 +615,9 @@ Replica::~Replica() {
     }
   }
   if (creEngine_) creEngine_->stop();
+  if (m_kvBlockchain) {
+    m_kvBlockchain = nullptr;
+  }
 }
 
 /*
@@ -637,26 +628,7 @@ bool Replica::putBlock(const uint64_t blockId, const char *blockData, const uint
   if (replicaConfig_.isReadOnly) {
     return putBlockToObjectStore(blockId, blockData, blockSize, lastBlock);
   }
-
-  auto view = std::string_view{blockData, blockSize};
-  const auto rawBlock = categorization::RawBlock::deserialize(view);
-  if (m_kvBlockchain->hasBlock(blockId)) {
-    const auto existingRawBlock = m_kvBlockchain->getRawBlock(blockId);
-    if (rawBlock != existingRawBlock) {
-      LOG_ERROR(logger,
-                "found existing (and different) block ID[" << blockId << "] when receiving from state transfer");
-
-      // TODO consider assert?
-      m_kvBlockchain->deleteBlock(blockId);
-      throw std::runtime_error(
-          __PRETTY_FUNCTION__ +
-          std::string("found existing (and different) block when receiving state transfer, block ID: ") +
-          std::to_string(blockId));
-    }
-  } else {
-    m_kvBlockchain->addRawBlock(rawBlock, blockId, lastBlock);
-  }
-  return true;
+  return m_kvBlockchain->putBlock(blockId, blockData, blockSize, lastBlock);
 }
 
 std::future<bool> Replica::putBlockAsync(uint64_t blockId,
@@ -666,7 +638,7 @@ std::future<bool> Replica::putBlockAsync(uint64_t blockId,
   static uint64_t callCounter = 0;
   static constexpr size_t snapshotThresh = 1000;
 
-  auto future = blocksIOWorkersPool_.async(
+  auto future = blocks_io_workers_pool.async(
       [this](uint64_t blockId, const char *block, const uint32_t blockSize, bool lastBlock) {
         auto start = std::chrono::steady_clock::now();
         bool result = false;
@@ -708,7 +680,7 @@ uint64_t Replica::getLastReachableBlockNum() const {
   if (replicaConfig_.isReadOnly) {
     return m_bcDbAdapter->getLastReachableBlockId();
   }
-  return m_kvBlockchain->getLastReachableBlockId();
+  return m_kvBlockchain->getLastReachableBlockNum();
 }
 
 uint64_t Replica::getGenesisBlockNum() const { return getGenesisBlockId(); }
@@ -717,11 +689,7 @@ uint64_t Replica::getLastBlockNum() const {
   if (replicaConfig_.isReadOnly) {
     return m_bcDbAdapter->getLatestBlockId();
   }
-  const auto last = m_kvBlockchain->getLastStatetransferBlockId();
-  if (last) {
-    return *last;
-  }
-  return m_kvBlockchain->getLastReachableBlockId();
+  return m_kvBlockchain->getLastBlockNum();
 }
 
 size_t Replica::postProcessUntilBlockId(uint64_t max_block_id) {
@@ -729,34 +697,7 @@ size_t Replica::postProcessUntilBlockId(uint64_t max_block_id) {
     // read only replica do not post process
     return 0;
   }
-  const BlockId last_reachable_block = m_kvBlockchain->getLastReachableBlockId();
-  BlockId last_st_block_id = 0;
-  if (auto last_st_block_id_opt = m_kvBlockchain->getLastStatetransferBlockId()) {
-    last_st_block_id = last_st_block_id_opt.value();
-  }
-  if ((max_block_id == last_reachable_block) && (last_st_block_id == 0)) {
-    LOG_INFO(CAT_BLOCK_LOG,
-             "Consensus blockchain is fully linked, no proc-processing is required!"
-                 << KVLOG(max_block_id, last_reachable_block));
-    return 0;
-  }
-  if ((max_block_id < last_reachable_block) || (max_block_id > last_st_block_id)) {
-    auto msg = std::stringstream{};
-    msg << "Cannot post-process:" << KVLOG(max_block_id, last_reachable_block, last_st_block_id) << std::endl;
-    throw std::invalid_argument{msg.str()};
-  }
-
-  try {
-    return m_kvBlockchain->linkUntilBlockId(last_reachable_block + 1, max_block_id);
-  } catch (const std::exception &e) {
-    LOG_FATAL(
-        CAT_BLOCK_LOG,
-        "Aborting due to failure to link," << KVLOG(last_reachable_block, max_block_id) << ", reason: " << e.what());
-    std::terminate();
-  } catch (...) {
-    LOG_FATAL(CAT_BLOCK_LOG, "Aborting due to failure to link," << KVLOG(last_reachable_block, max_block_id));
-    std::terminate();
-  }
+  return m_kvBlockchain->postProcessUntilBlockId(max_block_id);
 }
 
 RawBlock Replica::getBlockInternal(BlockId blockId) const { return m_bcDbAdapter->getRawBlock(blockId); }
@@ -769,19 +710,7 @@ bool Replica::getBlock(uint64_t blockId, char *outBlock, uint32_t outBlockMaxSiz
   if (replicaConfig_.isReadOnly) {
     return getBlockFromObjectStore(blockId, outBlock, outBlockMaxSize, outBlockActualSize);
   }
-  const auto rawBlock = m_kvBlockchain->getRawBlock(blockId);
-  if (!rawBlock) {
-    throw NotFoundException{"Raw block not found: " + std::to_string(blockId)};
-  }
-  const auto &ser = categorization::RawBlock::serialize(*rawBlock);
-  if (ser.size() > outBlockMaxSize) {
-    LOG_ERROR(logger, KVLOG(ser.size(), outBlockMaxSize));
-    throw std::runtime_error("not enough space to copy block!");
-  }
-  *outBlockActualSize = ser.size();
-  LOG_DEBUG(logger, KVLOG(blockId, *outBlockActualSize));
-  std::memcpy(outBlock, ser.data(), *outBlockActualSize);
-  return true;
+  return m_kvBlockchain->getBlock(blockId, outBlock, outBlockMaxSize, outBlockActualSize);
 }
 
 std::future<bool> Replica::getBlockAsync(uint64_t blockId,
@@ -790,8 +719,7 @@ std::future<bool> Replica::getBlockAsync(uint64_t blockId,
                                          uint32_t *outBlockActualSize) {
   static uint64_t callCounter = 0;
   static constexpr size_t snapshotThresh = 1000;
-
-  auto future = blocksIOWorkersPool_.async(
+  auto future = blocks_io_workers_pool.async(
       [this](uint64_t blockId, char *outBlock, uint32_t outBlockMaxSize, uint32_t *outBlockActualSize) {
         bool result = false;
         auto start = std::chrono::steady_clock::now();
@@ -856,29 +784,16 @@ bool Replica::getPrevDigestFromBlock(BlockId blockId, StateTransferDigest *outPr
   if (replicaConfig_.isReadOnly) {
     return getPrevDigestFromObjectStoreBlock(blockId, outPrevBlockDigest);
   }
-  ConcordAssert(blockId > 0);
-  const auto parent_digest = m_kvBlockchain->parentDigest(blockId);
-
-  if (!parent_digest.has_value()) {
-    LOG_WARN(logger, "parent digest not found," << KVLOG(blockId));
-    return false;
-  }
-  static_assert(parent_digest->size() == DIGEST_SIZE);
-  static_assert(sizeof(StateTransferDigest) == DIGEST_SIZE);
-  std::memcpy(outPrevBlockDigest, parent_digest->data(), DIGEST_SIZE);
-  return true;
+  return m_kvBlockchain->getPrevDigestFromBlock(blockId, outPrevBlockDigest);
 }
 
 void Replica::getPrevDigestFromBlock(const char *blockData,
                                      const uint32_t blockSize,
                                      StateTransferDigest *outPrevBlockDigest) const {
-  ConcordAssertGT(blockSize, 0);
-  auto view = std::string_view{blockData, blockSize};
-  const auto rawBlock = categorization::RawBlock::deserialize(view);
-
-  static_assert(rawBlock.data.parent_digest.size() == DIGEST_SIZE);
-  static_assert(sizeof(StateTransferDigest) == DIGEST_SIZE);
-  std::memcpy(outPrevBlockDigest, rawBlock.data.parent_digest.data(), DIGEST_SIZE);
+  if (replicaConfig_.isReadOnly) {
+    return getPrevDigestFromObjectStoreBlock(blockData, blockSize, outPrevBlockDigest);
+  }
+  return m_kvBlockchain->getPrevDigestFromBlock(blockData, blockSize, outPrevBlockDigest);
 }
 
 bool Replica::getPrevDigestFromObjectStoreBlock(uint64_t blockId,
@@ -896,6 +811,18 @@ bool Replica::getPrevDigestFromObjectStoreBlock(uint64_t blockId,
     LOG_FATAL(logger, "Block not found for parent digest, ID: " << blockId << " " << e.what());
     throw;
   }
+}
+
+void Replica::getPrevDigestFromObjectStoreBlock(const char *blockData,
+                                                const uint32_t blockSize,
+                                                StateTransferDigest *outPrevBlockDigest) const {
+  ConcordAssertGT(blockSize, 0);
+  auto view = std::string_view{blockData, blockSize};
+  const auto rawBlock = categorization::RawBlock::deserialize(view);
+
+  static_assert(rawBlock.data.parent_digest.size() == DIGEST_SIZE);
+  static_assert(sizeof(StateTransferDigest) == DIGEST_SIZE);
+  std::memcpy(outPrevBlockDigest, rawBlock.data.parent_digest.data(), DIGEST_SIZE);
 }
 
 void Replica::registerStBasedReconfigurationHandler(
