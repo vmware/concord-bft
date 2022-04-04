@@ -21,6 +21,7 @@
 #include <functional>
 #include <utility>
 #include <iterator>
+#include <algorithm>
 
 #include "assertUtils.hpp"
 #include "hex_tools.h"
@@ -1421,10 +1422,13 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
 
 uint16_t BCStateTran::getBlocksConcurrentAsync(uint64_t nextBlockId, uint64_t firstRequiredBlock, uint16_t numBlocks) {
   ConcordAssertGE(config_.maxNumberOfChunksInBatch, numBlocks);
-  auto j{0};
+  uint16_t j{};
 
   LOG_DEBUG(logger_, KVLOG(nextBlockId, firstRequiredBlock, numBlocks, ioPool_.numFreeElements()));
   for (uint64_t i{nextBlockId}; (i >= firstRequiredBlock) && (j < numBlocks) && !ioPool_.empty(); --i, ++j) {
+    if (!ioContexts_.empty()) {
+      ConcordAssertEQ(i + 1, ioContexts_.back()->blockId);
+    }
     auto ctx = ioPool_.alloc();
     ctx->blockId = i;
     ctx->future = as_->getBlockAsync(ctx->blockId, ctx->blockData.get(), config_.maxBlockSize, &ctx->actualBlockSize);
@@ -1501,28 +1505,41 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
   uint16_t nextChunk = m->lastKnownChunkInLastRequiredBlock + 1;
   uint16_t numOfSentChunks = 0;
 
-  if (!config_.enableSourceBlocksPreFetch || ioContexts_.empty() || (ioContexts_.front()->blockId != nextBlockId) ||
-      !ioContexts_.front()->future.valid()) {
+  if (uint64_t numBlocksInCurrentBatch = std::min(static_cast<uint64_t>(config_.maxNumberOfChunksInBatch),
+                                                  static_cast<uint64_t>(nextBlockId - m->firstRequiredBlock + 1));
+      !config_.enableSourceBlocksPreFetch || ioContexts_.empty() || (ioContexts_.front()->blockId != nextBlockId) ||
+      (numBlocksInCurrentBatch > ioContexts_.size()) || !ioContexts_.front()->future.valid()) {
     if (ioContexts_.empty()) {
       LOG_INFO(logger_,
-               "Call getBlocksConcurrentAsync: source blocks prefetch disabled (first batch or retransmission):"
+               "Call getBlocksConcurrentAsync(1): source blocks prefetch disabled (first batch or retransmission):"
                    << KVLOG(config_.enableSourceBlocksPreFetch));
-    } else {
+      getBlocksConcurrentAsync(nextBlockId, m->firstRequiredBlock, numBlocksInCurrentBatch);
+    } else if (ioContexts_.front()->blockId != nextBlockId) {
       LOG_INFO(logger_,
-               "Call getBlocksConcurrentAsync: source blocks prefetch disabled (first batch or retransmission):"
+               "Call getBlocksConcurrentAsync(2): source blocks prefetch disabled (first batch or retransmission):"
                    << KVLOG(config_.enableSourceBlocksPreFetch, ioContexts_.front()->blockId, nextBlockId));
       clearIoContexts();
+      getBlocksConcurrentAsync(nextBlockId, m->firstRequiredBlock, numBlocksInCurrentBatch);
+    } else if ((numBlocksInCurrentBatch > ioContexts_.size())) {
+      LOG_INFO(logger_,
+               "Call getBlocksConcurrentAsync(3): source blocks prefetch disabled (first batch or retransmission):"
+                   << KVLOG(config_.enableSourceBlocksPreFetch,
+                            ioContexts_.front()->blockId,
+                            nextBlockId,
+                            numBlocksInCurrentBatch,
+                            ioContexts_.size(),
+                            m->firstRequiredBlock));
+      getBlocksConcurrentAsync(
+          nextBlockId - ioContexts_.size(), m->firstRequiredBlock, numBlocksInCurrentBatch - ioContexts_.size());
     }
-
-    getBlocksConcurrentAsync(nextBlockId, m->firstRequiredBlock, config_.maxNumberOfChunksInBatch);
   }
 
   // Fetch blocks and send all chunks for the batch. Also, while looping start to pre-fetch next batch
   // We pre-fetch only if feature enabled, and we are not in the last batch
   // Setting preFetchBlockId to 0 disable pre-fetching on all later code.
-  uint64_t preFetchBlockId = 0;
-  if (config_.enableSourceBlocksPreFetch && (nextBlockId > config_.maxNumberOfChunksInBatch))
-    preFetchBlockId = nextBlockId - config_.maxNumberOfChunksInBatch;
+  uint64_t preFetchBlockId = (config_.enableSourceBlocksPreFetch && (nextBlockId > config_.maxNumberOfChunksInBatch))
+                                 ? (nextBlockId - config_.maxNumberOfChunksInBatch)
+                                 : 0;
   LOG_DEBUG(logger_,
             "Start sending batch: " << KVLOG(m->msgSeqNum,
                                              m->firstRequiredBlock,
