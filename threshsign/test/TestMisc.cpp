@@ -25,6 +25,7 @@
 #include "app/Main.h"
 
 using namespace std;
+using namespace threshsign;
 
 void testUtils();
 

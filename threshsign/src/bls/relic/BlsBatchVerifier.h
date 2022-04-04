@@ -70,7 +70,7 @@ class AlmostCompleteBinaryTree {
    */
   AlmostCompleteBinaryTree(int maxLeaves)
       : maxLeaves(maxLeaves),
-        maxLeavesRounded(Utils::nearestPowerOfTwo(maxLeaves)),
+        maxLeavesRounded(threshsign::Utils::nearestPowerOfTwo(maxLeaves)),
         maxNumNodes(2 * maxLeavesRounded - 1),
         firstLeafIndex(maxLeavesRounded - 1),
         numLeaves(0),
@@ -151,7 +151,7 @@ class AlmostCompleteBinaryTree {
     if (node == 0)
       return 1;
     else
-      return Utils::numBits(node + 1);
+      return threshsign::Utils::numBits(node + 1);
   }
 
   /**
@@ -163,7 +163,7 @@ class AlmostCompleteBinaryTree {
     // NOTE: This works even if the root is not at index 0
     int level = getLevel(node);
 
-    return Utils::pow2(maxTreeHeight - level);
+    return threshsign::Utils::pow2(maxTreeHeight - level);
   }
 
   /**
@@ -174,7 +174,7 @@ class AlmostCompleteBinaryTree {
   int getRoot() const {
     assertLessThanOrEqual(numLeaves, maxLeaves);
     // MAYDO: Can determine tree height as we add leaves in appendLeaf()
-    int treeHeight = getLevel(Utils::nearestPowerOfTwo(numLeaves) - 1);
+    int treeHeight = getLevel(threshsign::Utils::nearestPowerOfTwo(numLeaves) - 1);
 
     assertLessThanOrEqual(treeHeight, maxTreeHeight);
 

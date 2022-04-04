@@ -1,5 +1,15 @@
-add_executable(gen_utt_cfg GenerateUTTConfig.cpp)
+set(gen_utt_cfg_src
+    GenerateUTTConfig.cpp
+    ../app_state.cpp
+    ../transactions.cpp
+)
 
-target_include_directories(gen_utt_cfg PUBLIC ${UTT_DEMO_INCLUDES})
+add_executable(gen_utt_cfg ${gen_utt_cfg_src})
+
+target_include_directories(gen_utt_cfg
+    PUBLIC
+        ..
+        ${UTT_DEMO_INCLUDES}
+)
 
 target_link_libraries(gen_utt_cfg PUBLIC ${UTT_DEMO_LINKS})
