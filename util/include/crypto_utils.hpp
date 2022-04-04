@@ -32,10 +32,7 @@ class CertificateUtils {
                                             const std::string& pub_key,
                                             const std::string& signing_key);
   static bool verifyCertificate(X509* cert, const std::string& pub_key);
-  static bool verifyCertificate(X509* cert_to_verify,
-                                const std::string& cert_root_directory,
-                                uint32_t& remote_peer_id,
-                                std::string& conn_type);
+  static bool verifyCertificate(X509* cert_to_verify, const std::string& cert_root_directory, uint32_t& remote_peer_id);
 };
 class IVerifier {
  public:

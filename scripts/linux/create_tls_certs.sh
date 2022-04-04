@@ -36,28 +36,17 @@ i=$start_node_id
 last_node_id=$((i + $1 - 1))
 while [ $i -le $last_node_id ]; do
    echo "processing replica $i/$last_node_id"
-   clientDir=$dir/$i/client
-   serverDir=$dir/$i/server
+   certDir=$dir/$i
 
-   mkdir -p $clientDir
-   mkdir -p $serverDir
+   mkdir -p $certDir
 
-   openssl ecparam -name secp384r1 -genkey -noout -out $serverDir/pk.pem
-   openssl ecparam -name secp384r1 -genkey -noout -out $clientDir/pk.pem
+   openssl ecparam -name secp384r1 -genkey -noout -out $certDir/pk.pem
 
-   openssl req -new -key $serverDir/pk.pem -nodes -days 365 -x509 \
-        -subj "/C=NA/ST=NA/L=NA/O=NA/OU=${i}/CN=node${i}ser" -out $serverDir/server.cert
+   openssl req -new -key $certDir/pk.pem -nodes -days 365 -x509 \
+        -subj "/C=NA/ST=NA/L=NA/O=concord${i}/OU=${i}/CN=node${i}" -out $certDir/tls.cert
 
-   openssl req -new -key $clientDir/pk.pem -nodes -days 365 -x509 \
-        -subj "/C=NA/ST=NA/L=NA/O=NA/OU=${i}/CN=node${i}cli" -out $clientDir/client.cert
-
-   openssl enc -base64 -aes-256-cbc -e -in  $serverDir/pk.pem -K ${KEY} -iv ${IV}  \
-         -p -out $serverDir/pk.pem.enc 2>/dev/null
-   openssl enc -base64 -aes-256-cbc -e -in $clientDir/pk.pem -K ${KEY} -iv ${IV}  \
-         -p -out $clientDir/pk.pem.enc 2>/dev/null
-
-   # rm $serverDir/pk.pem
-   # rm $clientDir/pk.pem
+   openssl enc -base64 -aes-256-cbc -e -in $certDir/pk.pem -K ${KEY} -iv ${IV}  \
+         -p -out $certDir/pk.pem.enc 2>/dev/null
 
    (( i=i+1 ))
 done

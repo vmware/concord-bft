@@ -275,8 +275,7 @@ Crypto::~Crypto() = default;
 
 bool CertificateUtils::verifyCertificate(X509* cert_to_verify,
                                          const std::string& cert_root_directory,
-                                         uint32_t& remote_peer_id,
-                                         std::string& conn_type) {
+                                         uint32_t& remote_peer_id) {
   // First get the source ID
   static constexpr size_t SIZE = 512;
   std::string subject(SIZE, 0);
@@ -286,6 +285,7 @@ bool CertificateUtils::verifyCertificate(X509* cert_to_verify,
   std::regex r("OU=\\d*", std::regex_constants::icase);
   std::smatch sm;
   regex_search(subject, sm, r);
+
   if (sm.length() <= peerIdPrefixLength) {
     LOG_ERROR(GL, "OU not found or empty: " << subject);
     return false;
@@ -308,19 +308,13 @@ bool CertificateUtils::verifyCertificate(X509* cert_to_verify,
     return false;
   }
   remote_peer_id = remotePeerId;
-  std::string CN;
-  CN.resize(SIZE);
-  X509_NAME_get_text_by_NID(X509_get_subject_name(cert_to_verify), NID_commonName, CN.data(), SIZE);
-  std::string cert_type = "server";
-  if (CN.find("cli") != std::string::npos) cert_type = "client";
-  conn_type = cert_type;
 
   // Get the local stored certificate for this peer
-  std::string local_cert_path =
-      cert_root_directory + "/" + std::to_string(remotePeerId) + "/" + cert_type + "/" + cert_type + ".cert";
+  std::string local_cert_path = cert_root_directory + "/" + std::to_string(remotePeerId) + "/" + "tls.cert";
   auto deleter = [](FILE* fp) {
     if (fp) fclose(fp);
   };
+
   std::unique_ptr<FILE, decltype(deleter)> fp(fopen(local_cert_path.c_str(), "r"), deleter);
   if (!fp) {
     LOG_ERROR(GL, "Certificate file not found, path: " << local_cert_path);

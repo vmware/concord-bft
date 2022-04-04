@@ -436,7 +436,7 @@ class TcpTlsClient(BftClient):
     """
     # In create_tls_certs.sh - openssl command line utility uses CN(certificate name) in the subj field.
     # This is the host name (domain name) to be verified.
-    CERT_DOMAIN_FORMAT="node%dser"
+    CERT_DOMAIN_FORMAT="node%d"
     # Taken from TlsTCPCommunication.cpp (we prefer hard-code and not to parse the file)
     MSG_LEN_SIZE = 4
     ENDPOINT_SIZE = 8
@@ -457,19 +457,15 @@ class TcpTlsClient(BftClient):
 
     def _get_private_key_path(self, replica_id, *, is_client):
         """
-        Private key is under <certificate root path>/replica_id/<node type>/pk.pem,
-        where node type is "server" or "client".
+        Private key is under <certificate root path>/replica_id/pk.pem
         """
-        cert_type = "client" if is_client else "server"
-        return os.path.join(self.config.certs_path, str(replica_id), cert_type, "pk.pem")
+        return os.path.join(self.config.certs_path, str(replica_id), "pk.pem")
 
     def _get_cert_path(self, replica_id, *, is_client):
         """
-        Certificate is under <certificate root path>/replica_id/<node type>/cert.pem,
-        where node type is "server" or "client".
+        Certificate is under <certificate root path>/replica_id/tls.cert
         """
-        cert_type = "client" if is_client else "server"
-        return os.path.join(self.config.certs_path, str(replica_id), cert_type, cert_type + ".cert")
+        return os.path.join(self.config.certs_path, str(replica_id),"tls.cert")
 
     async def _close_ssl_stream(self, dest_addr):
         """ Delete and close SSL stream from self.ssl_streams """
