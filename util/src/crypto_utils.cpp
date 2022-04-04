@@ -276,7 +276,8 @@ Crypto::~Crypto() = default;
 bool CertificateUtils::verifyCertificate(X509* cert_to_verify,
                                          const std::string& cert_root_directory,
                                          uint32_t& remote_peer_id,
-                                         std::string& conn_type) {
+                                         std::string& conn_type,
+                                         bool use_unified_certs) {
   // First get the source ID
   static constexpr size_t SIZE = 512;
   std::string subject(SIZE, 0);
@@ -317,7 +318,9 @@ bool CertificateUtils::verifyCertificate(X509* cert_to_verify,
 
   // Get the local stored certificate for this peer
   std::string local_cert_path =
-      cert_root_directory + "/" + std::to_string(remotePeerId) + "/" + cert_type + "/" + cert_type + ".cert";
+      (use_unified_certs)
+          ? cert_root_directory + "/" + std::to_string(remotePeerId) + "/" + "node.cert"
+          : cert_root_directory + "/" + std::to_string(remotePeerId) + "/" + cert_type + "/" + cert_type + ".cert";
   auto deleter = [](FILE* fp) {
     if (fp) fclose(fp);
   };

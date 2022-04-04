@@ -25,6 +25,7 @@
 #include "TlsConnectionManager.h"
 #include "TlsDiagnostics.h"
 #include "TlsWriteQueue.h"
+#include "ReplicaConfig.hpp"
 
 namespace bft::communication::tls {
 
@@ -34,6 +35,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
  public:
   static constexpr std::chrono::seconds READ_TIMEOUT = std::chrono::seconds(10);
   static constexpr std::chrono::seconds WRITE_TIMEOUT = READ_TIMEOUT;
+  static bool useUnifiedCertificates_;
 
   // We require a factory function because we can't call shared_from_this() in the constructor.
   //
@@ -48,6 +50,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
                                                     TlsStatus& status,
                                                     Recorders& histograms) {
     auto conn = std::make_shared<AsyncTlsConnection>(io_context, receiver, conn_mgr, config, status, histograms);
+    useUnifiedCertificates_ = bftEngine::ReplicaConfig::instance().useUnifiedCertificates;
     conn->initServerSSLContext();
     conn->createSSLSocket(std::move(socket));
     return conn;
@@ -63,6 +66,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
                                                     Recorders& histograms) {
     auto conn =
         std::make_shared<AsyncTlsConnection>(io_context, receiver, conn_mgr, destination, config, status, histograms);
+    useUnifiedCertificates_ = bftEngine::ReplicaConfig::instance().useUnifiedCertificates;
     conn->initClientSSLContext(destination);
     conn->createSSLSocket(std::move(socket));
     return conn;

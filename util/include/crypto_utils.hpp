@@ -35,7 +35,8 @@ class CertificateUtils {
   static bool verifyCertificate(X509* cert_to_verify,
                                 const std::string& cert_root_directory,
                                 uint32_t& remote_peer_id,
-                                std::string& conn_type);
+                                std::string& conn_type,
+                                bool use_unified_certs);
 };
 class IVerifier {
  public:

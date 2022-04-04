@@ -255,6 +255,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
 
   CONFIG_PARAM(enableMultiplexChannel, bool, false, "whether multiplex communication channel is enabled")
 
+  CONFIG_PARAM(useUnifiedCertificates, bool, false, "A flag to use unified Certificates");
+
   CONFIG_PARAM(adaptivePruningIntervalDuration,
                std::chrono::milliseconds,
                std::chrono::milliseconds{20000},
@@ -401,6 +403,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, enableEventGroups);
     serialize(outStream, enablePreProcessorMemoryPool);
     serialize(outStream, diagnosticsServerPort);
+    serialize(outStream, useUnifiedCertificates);
   }
   void deserializeDataMembers(std::istream& inStream) {
     deserialize(inStream, isReadOnly);
@@ -499,6 +502,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, enableEventGroups);
     deserialize(inStream, enablePreProcessorMemoryPool);
     deserialize(inStream, diagnosticsServerPort);
+    deserialize(inStream, useUnifiedCertificates);
   }
 
  private:
@@ -590,7 +594,8 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.enableEventGroups,
               rc.operatorEnabled_,
               rc.enablePreProcessorMemoryPool,
-              rc.diagnosticsServerPort);
+              rc.diagnosticsServerPort,
+              rc.useUnifiedCertificates);
   os << ", ";
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
   return os;
