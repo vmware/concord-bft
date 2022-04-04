@@ -279,6 +279,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                0,
                "Port to be used to communicate with the diagnostic server using"
                "the concord-ctl script");
+  CONFIG_PARAM(kvBlockchainVersion, std::uint32_t, 1u, "Default version of KV blockchain for this replica");
 
   // Parameter to enable/disable waiting for transaction data to be persisted.
   // Not predefined configuration parameters
@@ -404,6 +405,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, enablePreProcessorMemoryPool);
     serialize(outStream, diagnosticsServerPort);
     serialize(outStream, useUnifiedCertificates);
+    serialize(outStream, kvBlockchainVersion);
   }
   void deserializeDataMembers(std::istream& inStream) {
     deserialize(inStream, isReadOnly);
@@ -503,6 +505,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, enablePreProcessorMemoryPool);
     deserialize(inStream, diagnosticsServerPort);
     deserialize(inStream, useUnifiedCertificates);
+    deserialize(inStream, kvBlockchainVersion);
   }
 
  private:
@@ -595,7 +598,8 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.operatorEnabled_,
               rc.enablePreProcessorMemoryPool,
               rc.diagnosticsServerPort,
-              rc.useUnifiedCertificates);
+              rc.useUnifiedCertificates,
+              rc.kvBlockchainVersion);
   os << ", ";
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
   return os;

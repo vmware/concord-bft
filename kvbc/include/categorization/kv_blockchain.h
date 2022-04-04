@@ -14,6 +14,7 @@
 #pragma once
 
 #include "updates.h"
+#include "blockchain_misc.hpp"
 #include "rocksdb/native_client.h"
 #include "blocks.h"
 #include "blockchain.h"
@@ -38,14 +39,6 @@ namespace concord::kvbc::categorization {
 
 class KeyValueBlockchain {
   using VersionedRawBlock = std::pair<BlockId, std::optional<categorization::RawBlockData>>;
-
- public:
-  // Key or value converter interface.
-  // Allows users to convert keys or values to any format that is appropriate.
-  using Converter = std::function<std::string(std::string&&)>;
-
-  // The noop converter returns the input string as is, without modifying it.
-  static const Converter kNoopConverter;
 
  public:
   // Creates a key-value blockchain.
@@ -152,7 +145,9 @@ class KeyValueBlockchain {
   //
   // This method is supposed to be called on DB snapshots only and not on the actual blockchain.
   // Precondition: The current KeyValueBlockchain instance points to a DB snapshot.
-  void computeAndPersistPublicStateHash(BlockId checkpoint_block_id, const Converter& value_converter = kNoopConverter);
+  void computeAndPersistPublicStateHash(
+      BlockId checkpoint_block_id,
+      const Converter& value_converter = [](std::string&& v) -> std::string { return std::move(v); });
 
   // Returns the public state keys as of the current point in the blockchain's history.
   // Returns std::nullopt if no public keys have been persisted.
@@ -318,12 +313,10 @@ class KeyValueBlockchain {
     const VersionedRawBlock& getLastRawBlock(KeyValueBlockchain& kvbc) { return kvbc.last_raw_block_; }
   };  // namespace concord::kvbc::categorization
 
-  std::string getPruningStatus();
-
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
     aggregator_ = aggregator;
     delete_metrics_comp_.SetAggregator(aggregator_);
-    add_metrics_comp_.SetAggregator(aggregator);
+    add_metrics_comp_.SetAggregator(aggregator_);
   }
   friend struct KeyValueBlockchain_tester;
 

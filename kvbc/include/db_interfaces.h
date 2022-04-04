@@ -96,6 +96,10 @@ class IBlocksDeleter {
   // Throws on errors or if until <= genesis .
   virtual BlockId deleteBlocksUntil(BlockId until) = 0;
 
+  // This method should get the last block ID in the system and deletes it.
+  // The last block id is the latest block id.
+  virtual void deleteLastReachableBlock() = 0;
+
   virtual ~IBlocksDeleter() = default;
 };
 
