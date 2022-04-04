@@ -46,14 +46,14 @@ class Timer {
       return;
     }
     client_ = client;
-    start_timer_ = std::chrono::steady_clock::now();
-    std::chrono::milliseconds timeout(timeout_.count());
-    timer_.expires_from_now(timeout);
     auto handler = [this](const asio::error_code& error) {
       if (error != asio::error::operation_aborted) {
         on_timeout_(std::move(client_));
       }
     };
+
+    start_timer_ = std::chrono::steady_clock::now();
+    timer_.expires_at(start_timer_ + timeout_);
     timer_.async_wait(handler);
   }
 
