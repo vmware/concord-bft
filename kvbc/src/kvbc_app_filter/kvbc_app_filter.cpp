@@ -539,8 +539,7 @@ void KvbAppFilter::readEventGroups(EventGroupId external_eg_id_start,
     }
     ext_eg_id += 1;
   }
-  setNextExternalEgIdToRead(++ext_eg_id);
-  setLastGlobalEgIdReadForClient(global_eg_id);
+  setLastEgIdsRead(ext_eg_id, global_eg_id);
 }
 
 void KvbAppFilter::readEventGroupRange(EventGroupId external_eg_id_start,
@@ -599,8 +598,7 @@ string KvbAppFilter::readEventGroupHash(EventGroupId external_eg_id) {
     throw KvbReadError(msg.str());
   }
   KvbFilteredEventGroupUpdate filtered_update{external_eg_id, filterEventsInEventGroup(result.global_id, event_group)};
-  setLastGlobalEgIdReadForClient(result.global_id);
-  setNextExternalEgIdToRead(++external_eg_id);
+  setLastEgIdsRead(external_eg_id, result.global_id);
   return hashEventGroupUpdate(filtered_update);
 }
 
@@ -690,13 +688,11 @@ kvbc::categorization::EventGroup KvbAppFilter::getEventGroup(kvbc::EventGroupId 
   return event_group_out;
 }
 
-void KvbAppFilter::setNextExternalEgIdToRead(uint64_t ext_eg_id) { next_ext_eg_id_to_read_ = ext_eg_id; }
+void KvbAppFilter::setLastEgIdsRead(uint64_t last_ext_eg_id_read, uint64_t last_global_eg_id_read) {
+  last_ext_and_global_eg_id_read_ = std::make_pair(last_ext_eg_id_read, last_global_eg_id_read);
+}
 
-uint64_t KvbAppFilter::getNextExternalEgIdToRead() const { return next_ext_eg_id_to_read_; }
-
-void KvbAppFilter::setLastGlobalEgIdReadForClient(uint64_t global_eg_id) { last_global_eg_id_read_ = global_eg_id; }
-
-uint64_t KvbAppFilter::getLastGlobalEgIdReadForClient() const { return last_global_eg_id_read_; }
+std::pair<uint64_t, uint64_t> KvbAppFilter::getLastEgIdsRead() { return last_ext_and_global_eg_id_read_; }
 
 }  // namespace kvbc
 }  // namespace concord
