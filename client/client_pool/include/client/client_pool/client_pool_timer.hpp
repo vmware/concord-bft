@@ -42,7 +42,6 @@ class Timer {
     if (timeout_.count() == 0) {
       return;
     }
-    stop_ = true;
     io_context_.stop();
     timer_thread_future_.wait();
   }
@@ -75,20 +74,14 @@ class Timer {
 
  private:
   void work() {
-    while (!stop_) {
-      if (io_context_.stopped()) {
-        io_context_.reset();
-      }
-      LOG_INFO(logger_, "Going to run io_service_ for client " << client_);
-      io_context_.run();
-    }
+    // Add a work guard so that io_context_.run() keeps running even if there is no work item
+    asio::executor_work_guard<asio::io_context::executor_type> work_guard(io_context_.get_executor());
+    io_context_.run();
   }
 
   ClientT client_;
 
   std::future<void> timer_thread_future_;
-
-  std::atomic<bool> stop_ = false;
 
   const std::chrono::milliseconds timeout_;
   std::function<void(ClientT&&)> on_timeout_;
