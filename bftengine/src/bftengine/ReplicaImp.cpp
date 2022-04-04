@@ -673,7 +673,7 @@ bool ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
       time_to_collect_batch_ = MinTime;
     }
   } else {
-    auto builtReq = buildPrePrepareMessage();
+    auto builtReq = buildPrePrepareMessageByRequestsNum(config_.maxNumOfRequestsInBatch);  // hanan
     isSent = builtReq.second;
     if (isSent) {
       pp = builtReq.first;
@@ -835,7 +835,7 @@ std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMessageByRequestsNum
   }
 
   uint32_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
-  ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
+  ClientRequestMsg *nextRequest = !requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr;  // hanan
   while (nextRequest != nullptr && prePrepareMsg->numberOfRequests() < requiredRequestsNum)
     nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg, maxSpaceForReqs);
 
@@ -2446,6 +2446,7 @@ void ReplicaImp::startExecution() {
     if (isCurrentPrimary()) {
       metric_consensus_duration_.finishMeasurement(seqNumber);
       metric_post_exe_duration_.addStartTimeStamp(seqNumber);
+      metric_consensus_end_to_core_exe_duration_->addStartTimeStamp(seqNumber);
     }
   }
   if (pps.empty()) return;
@@ -4207,7 +4208,9 @@ void ReplicaImp::initExecutionEngines() {
   ExecutionEngine::ExecutionMetrics metrics{histograms_.numRequestsInPrePrepareMsg,
                                             histograms_.executeRequestsInPrePrepareMsg,
                                             histograms_.executeRequestsAndSendResponses,
-                                            histograms_.executeWriteRequest};
+                                            histograms_.executeWriteRequest,
+                                            metric_consensus_end_to_core_exe_duration_,
+                                            metric_core_exe_func_duration_};
   skip_execution_engine_ = std::make_unique<SkipAndSendExecutionEngine>(
       bftRequestsHandler_, clientsManager, repsInfo, ps_, time_service_manager_);
   skip_execution_engine_->setMetrics(metrics);
@@ -4628,9 +4631,13 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_total_preexec_requests_executed_{metrics_.RegisterCounter("totalPreExecRequestsExecuted")},
       metric_received_restart_ready_{metrics_.RegisterCounter("receivedRestartReadyMsg", 0)},
       metric_received_restart_proof_{metrics_.RegisterCounter("receivedRestartProofMsg", 0)},
-      metric_consensus_duration_{metrics_, "consensusDuration", 1000, true},
-      metric_post_exe_duration_{metrics_, "postExeDuration", 1000, true},
-      metric_primary_batching_duration_{metrics_, "primaryBatchingDuration", 10000, true},
+      metric_consensus_duration_{metrics_, "consensusDuration", 1000, 100, true},
+      metric_post_exe_duration_{metrics_, "postExeDuration", 1000, 100, true},
+      metric_core_exe_func_duration_{
+          std::make_shared<PerfMetric<uint64_t>>(metrics_, "postExeCoreFuncDuration", 1000, 100, true)},
+      metric_consensus_end_to_core_exe_duration_{
+          std::make_shared<PerfMetric<uint64_t>>(metrics_, "consensusEndToExeStartDuration", 1000, 100, true)},
+      metric_primary_batching_duration_{metrics_, "primaryBatchingDuration", 10000, 1000, true},
       consensus_times_(histograms_.consensus),
       checkpoint_times_(histograms_.checkpointFromCreationToStable),
       time_in_active_view_(histograms_.timeInActiveView),
@@ -4907,7 +4914,9 @@ void ReplicaImp::recoverRequests() {
     recover_exec_engine->setMetrics(ExecutionEngine::ExecutionMetrics{histograms_.numRequestsInPrePrepareMsg,
                                                                       histograms_.executeRequestsInPrePrepareMsg,
                                                                       histograms_.executeRequestsAndSendResponses,
-                                                                      histograms_.executeWriteRequest});
+                                                                      histograms_.executeWriteRequest,
+                                                                      metric_consensus_end_to_core_exe_duration_,
+                                                                      metric_core_exe_func_duration_});
     LOG_INFO(GL, "Recovering execution of requests");
     if (config_.timeServiceEnabled) {
       time_service_manager_->recoverTime(recoveredTime);

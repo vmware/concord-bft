@@ -230,7 +230,12 @@ SeqNum ExecutionEngine::addExecutions(const vector<PrePrepareMsg*>& ppMsgs) {
                     IRequestsHandler::ExecutionRequestsQueue requests_for_execution_,
                     Timestamp timestamp) {
       SCOPED_MDC_SEQ_NUM(std::to_string(ppMsg_->seqNumber()));
-      if (!requests_for_execution_.empty()) execute(requests_for_execution_, timestamp);
+      metrics_.metric_consensus_end_to_core_exe_duration_->finishMeasurement(ppMsg_->seqNumber());
+      if (!requests_for_execution_.empty()) {
+        metrics_.metric_core_exe_func_duration_->addStartTimeStamp(ppMsg_->seqNumber());
+        execute(requests_for_execution_, timestamp);
+        metrics_.metric_core_exe_func_duration_->finishMeasurement(ppMsg_->seqNumber());
+      }
       post_exec_handlers_.invokeAll(ppMsg_, requests_for_execution_);
     };
     in_execution++;

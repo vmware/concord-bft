@@ -19,6 +19,7 @@
 #include "Metrics.hpp"
 #include "thread_pool.hpp"
 #include "TimeServiceManager.hpp"
+#include "PerfMetrics.hpp"
 
 #include <iterator>
 
@@ -85,6 +86,8 @@ class ExecutionEngine {
     std::shared_ptr<concord::diagnostics::Recorder> executeRequestsInPrePrepareMsg;
     std::shared_ptr<concord::diagnostics::Recorder> executeRequestsAndSendResponses;
     std::shared_ptr<concord::diagnostics::Recorder> executeWriteRequest;
+    std::shared_ptr<PerfMetric<uint64_t>> metric_consensus_end_to_core_exe_duration_;
+    std::shared_ptr<PerfMetric<uint64_t>> metric_core_exe_func_duration_;
   };
   void setMetrics(const ExecutionMetrics& execution_metrics) { metrics_ = execution_metrics; }
 
