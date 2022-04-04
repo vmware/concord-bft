@@ -1909,8 +1909,8 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
   auto fetchingState = fs;
   if (fs == FetchingState::GettingMissingBlocks) {
     // if msg is not relevant
-    if ((sourceSelector_.currentReplica() != replicaId) || (m->requestMsgSeqNum != lastMsgSeqNum_) ||
-        (m->blockNumber > lastRequiredBlock) || (m->blockNumber < firstRequiredBlock) ||
+    if ((sourceSelector_.currentReplica() != replicaId) || (m->blockNumber > lastRequiredBlock) ||
+        (m->blockNumber < firstRequiredBlock) ||
         (m->blockNumber + config_.maxNumberOfChunksInBatch + 1 < lastRequiredBlock) ||
         (m->dataSize + totalSizeOfPendingItemDataMsgs > config_.maxPendingDataFromSourceReplica)) {
       LOG_WARN(logger_,
@@ -1958,14 +1958,13 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
 
   tie(std::ignore, added) = pendingItemDataMsgs.insert(const_cast<ItemDataMsg *>(m));
   // set fetchingTimeStamp_ while ignoring added flag - source is responsive
-  // Apply correction according to the time message has arrivedto handoff queue
+  // Log time spent in handoff queue
   auto fetchingTimeStamp = getMonotonicTimeMilli();
   if (msgArrivalTime != UNDEFINED_LOCAL_TIME_POINT) {
     auto timeInHandoffMilli =
         std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - msgArrivalTime)
             .count();
-    LOG_TRACE(logger_, KVLOG(fetchingTimeStamp, timeInHandoffMilli, (fetchingTimeStamp - timeInHandoffMilli)));
-    fetchingTimeStamp -= timeInHandoffMilli;
+    LOG_TRACE(logger_, KVLOG(fetchingTimeStamp, timeInHandoffMilli));
   }
   sourceSelector_.setFetchingTimeStamp(fetchingTimeStamp, false);
 
