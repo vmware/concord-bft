@@ -42,7 +42,7 @@ class Timer {
   }
 
   void start(const ClientT& client) {
-    if (timeout_.count() == 0) {
+    if (timeout_.count() == 0 || not timer_thread_future_.valid() || io_context_.stopped()) {
       return;
     }
     client_ = client;
