@@ -78,7 +78,7 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
     if (IsGoodForBatching(flags, client_batching_enabled_)) {
       if (0 == client->PendingRequestsCount()) {
         LOG_TRACE(logger_, "Set batching timer" << KVLOG(client_id));
-        batch_timer_->set(client);
+        batch_timer_->start(client);
       }
 
       if (flags & ClientMsgFlag::RECONFIG_FLAG_REQ) {
@@ -439,7 +439,7 @@ void ConcordClientPool::OnBatchingTimeout(std::shared_ptr<concord::external_clie
 }
 
 ConcordClientPool::~ConcordClientPool() {
-  batch_timer_->stop();
+  batch_timer_->stopTimerThread();
   jobs_thread_pool_.stop(true);
   std::unique_lock<std::mutex> clients_lock(clients_queue_lock_);
   for (auto &client : clients_) {
