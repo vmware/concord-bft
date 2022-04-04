@@ -130,4 +130,8 @@ inline std::string categoryStringType(CATEGORY_TYPE t) {
   }
 }
 
+// Key or value converter interface.
+// Allows users to convert keys or values to any format that is appropriate.
+using Converter = std::function<std::string(std::string &&)>;
+
 }  // namespace concord::kvbc::categorization

@@ -15,7 +15,7 @@
 #include "gmock/gmock.h"
 
 #include "categorization/db_categories.h"
-#include "categorization/kv_blockchain.h"
+#include "kvbc_adapter/kv_blockchain_adapter.hpp"
 #include "kvbc_key_types.hpp"
 #include "storage/test/storage_test_common.h"
 #include "thin-replica-server/replica_state_snapshot_service_impl.hpp"
@@ -38,6 +38,7 @@ using namespace concord::kvbc;
 using namespace concord::kvbc::categorization;
 using namespace concord::thin_replica;
 using bftEngine::impl::DbCheckpointManager;
+using concord::kvbc::adapter::KeyValueBlockchain;
 using concord::storage::rocksdb::NativeClient;
 using grpc::Channel;
 using grpc::ClientContext;

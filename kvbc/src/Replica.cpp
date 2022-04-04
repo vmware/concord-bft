@@ -127,7 +127,7 @@ class KvbcRequestHandler : public bftEngine::RequestHandler {
   static std::shared_ptr<KvbcRequestHandler> create(
       const std::shared_ptr<IRequestsHandler> &user_req_handler,
       const std::shared_ptr<concord::cron::CronTableRegistry> &cron_table_registry,
-      categorization::KeyValueBlockchain &blockchain,
+      adapter::KeyValueBlockchain &blockchain,
       std::shared_ptr<concordMetrics::Aggregator> aggregator_,
       ISystemResourceEntity &resourceEntity) {
     return std::shared_ptr<KvbcRequestHandler>{
@@ -149,7 +149,7 @@ class KvbcRequestHandler : public bftEngine::RequestHandler {
  private:
   KvbcRequestHandler(const std::shared_ptr<IRequestsHandler> &user_req_handler,
                      const std::shared_ptr<concord::cron::CronTableRegistry> &cron_table_registry,
-                     categorization::KeyValueBlockchain &blockchain,
+                     adapter::KeyValueBlockchain &blockchain,
                      std::shared_ptr<concordMetrics::Aggregator> aggregator_,
                      ISystemResourceEntity &resourceEntity)
       : bftEngine::RequestHandler(resourceEntity, aggregator_), blockchain_{blockchain} {
@@ -164,7 +164,7 @@ class KvbcRequestHandler : public bftEngine::RequestHandler {
 
  private:
   std::shared_ptr<bftEngine::impl::PersistentStorage> persistent_storage_;
-  categorization::KeyValueBlockchain &blockchain_;
+  adapter::KeyValueBlockchain &blockchain_;
 };
 void Replica::registerReconfigurationHandlers(std::shared_ptr<bftEngine::IRequestsHandler> requestHandler) {
   requestHandler->setReconfigurationHandler(std::make_shared<kvbc::reconfiguration::ReconfigurationHandler>(

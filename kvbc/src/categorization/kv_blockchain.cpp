@@ -40,10 +40,6 @@ void nullopts(std::vector<std::optional<T>>& vec, std::size_t count) {
   vec.resize(count, std::nullopt);
 }
 
-const KeyValueBlockchain::Converter KeyValueBlockchain::kNoopConverter = [](std::string&& v) -> std::string {
-  return std::move(v);
-};
-
 KeyValueBlockchain::Recorders KeyValueBlockchain::histograms_;
 
 KeyValueBlockchain::KeyValueBlockchain(const std::shared_ptr<concord::storage::rocksdb::NativeClient>& native_client,
@@ -188,7 +184,7 @@ BlockId KeyValueBlockchain::addBlock(Updates&& updates) {
   // Use new client batch and column families
   auto write_batch = native_client_->getBatch();
   addGenesisBlockKey(updates);
-  auto block_id = addBlock(std::move(updates.category_updates_), write_batch);
+  auto block_id = addBlock(updates.categoryUpdates(), write_batch);
   native_client_->write(std::move(write_batch));
   block_chain_.setAddedBlockId(block_id);
   return block_id;

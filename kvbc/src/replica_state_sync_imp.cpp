@@ -6,7 +6,19 @@
 // "License").  You may not use this product except in compliance with the
 // Apache 2.0 License.
 //
+// This product may include a // Concord
+//
+// Copyright (c) 2019-2021 VMware, Inc. All Rights Reserved.
+//
+// This product is licensed to you under the Apache 2.0 license (the
+// "License").  You may not use this product except in compliance with the
+// Apache 2.0 License.
+//
 // This product may include a number of subcomponents with separate copyright
+// notices and license terms. Your use of these subcomponents is subject to the
+// terms and conditions of the subcomponent's license, as noted in the LICENSE
+// file.
+// number of subcomponents with separate copyright
 // notices and license terms. Your use of these subcomponents is subject to the
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
@@ -14,7 +26,6 @@
 
 #include "assertUtils.hpp"
 #include "replica_state_sync_imp.hpp"
-#include "bftengine/DbMetadataStorage.hpp"
 #include "block_metadata.hpp"
 #include "kvstream.h"
 #include "metadata_block_id.h"
@@ -28,7 +39,7 @@ namespace concord::kvbc {
 ReplicaStateSyncImp::ReplicaStateSyncImp(IBlockMetadata* blockMetadata) : blockMetadata_(blockMetadata) {}
 
 uint64_t ReplicaStateSyncImp::execute(logging::Logger& logger,
-                                      categorization::KeyValueBlockchain& blockchain,
+                                      adapter::KeyValueBlockchain& blockchain,
                                       const std::shared_ptr<bftEngine::impl::PersistentStorage>& metadata,
                                       uint64_t lastExecutedSeqNum,
                                       uint32_t maxNumOfBlocksToDelete) {
@@ -58,7 +69,7 @@ uint64_t ReplicaStateSyncImp::execute(logging::Logger& logger,
 }
 
 uint64_t ReplicaStateSyncImp::executeBasedOnBftSeqNum(logging::Logger& logger,
-                                                      categorization::KeyValueBlockchain& blockchain,
+                                                      adapter::KeyValueBlockchain& blockchain,
                                                       uint64_t lastExecutedSeqNum,
                                                       uint32_t maxNumOfBlocksToDelete) {
   if (!lastExecutedSeqNum) {
@@ -98,7 +109,7 @@ uint64_t ReplicaStateSyncImp::executeBasedOnBftSeqNum(logging::Logger& logger,
 }
 
 uint64_t ReplicaStateSyncImp::executeBasedOnBlockId(logging::Logger& logger,
-                                                    categorization::KeyValueBlockchain& blockchain,
+                                                    adapter::KeyValueBlockchain& blockchain,
                                                     const std::shared_ptr<bftEngine::impl::PersistentStorage>& metadata,
                                                     uint32_t maxNumOfBlocksToDelete) {
   if (0 == maxNumOfBlocksToDelete) {

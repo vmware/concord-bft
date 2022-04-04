@@ -21,9 +21,10 @@
 #include "kvbc_app_filter/kvbc_key_types.h"
 #include "concord.cmf.hpp"
 #include "secrets_manager_plain.h"
-#include "communication/StateControl.hpp"
 #include "rocksdb/native_client.h"
-#include "categorization/categorized_reader.h"
+#include "kvbc_adapter/idempotent_reader.h"
+#include "kvbc_adapter/state_snapshot_adapter.hpp"
+#include "kvbc_adapter/kv_blockchain_adapter.hpp"
 #include "categorization/db_categories.h"
 #include "categorization/details.h"
 #include "categorized_kvbc_msgs.cmf.hpp"
@@ -36,10 +37,10 @@ namespace concord::kvbc::reconfiguration {
 using bftEngine::impl::DbCheckpointManager;
 using bftEngine::impl::SigManager;
 using concord::kvbc::KvbAppFilter;
-using concord::kvbc::categorization::CategorizedReader;
-using concord::kvbc::categorization::KeyValueBlockchain;
+using concord::kvbc::adapter::IdempotentReader;
 using concord::messages::SnapshotResponseStatus;
 using concord::storage::rocksdb::NativeClient;
+using concord::kvbc::statesnapshot::KVBCStateSnapshot;
 
 kvbc::BlockId ReconfigurationBlockTools::persistReconfigurationBlock(
     const std::vector<uint8_t>& data,
@@ -196,8 +197,9 @@ bool StateSnapshotReconfigurationHandler::handle(const concord::messages::StateS
         read_only,
         NativeClient::DefaultOptions{});
     const auto link_st_chain = false;
-    const auto kvbc = std::make_shared<const KeyValueBlockchain>(db, link_st_chain);
-    const auto reader = CategorizedReader{kvbc};
+    const auto kvbc_state_snapshot = std::make_shared<const KVBCStateSnapshot>(db);
+    const auto idempotent_kvbc = std::make_shared<const adapter::KeyValueBlockchain>(db, link_st_chain);
+    const auto reader = IdempotentReader{idempotent_kvbc};
     const auto filter = KvbAppFilter{&reader, ""};
     if (bftEngine::ReplicaConfig::instance().enableEventGroups) {
       // TODO: We currently only support new participants and, therefore, the event group ID will always be the last
@@ -208,7 +210,7 @@ bool StateSnapshotReconfigurationHandler::handle(const concord::messages::StateS
       resp.data->blockchain_height = reader.getLastBlockId();
       resp.data->blockchain_height_type = messages::BlockchainHeightType::BlockId;
     }
-    const auto public_state = kvbc->getPublicStateKeys();
+    const auto public_state = kvbc_state_snapshot->getPublicStateKeys();
     if (!public_state) {
       resp.data->key_value_count_estimate = 0;
     } else {
@@ -295,7 +297,7 @@ bool StateSnapshotReconfigurationHandler::handle(const concord::messages::Signed
       const auto read_only = true;
       try {
         auto db = NativeClient::newClient(snapshot_path, read_only, NativeClient::DefaultOptions{});
-        const auto ser_hash = db->get(KeyValueBlockchain::publicStateHashKey());
+        const auto ser_hash = db->get(adapter::KeyValueBlockchain::publicStateHashKey());
         if (!ser_hash) {
           LOG_ERROR(getLogger(),
                     "SignedPublicStateHashRequest: missing public state hash for snapshot ID = "
@@ -361,8 +363,9 @@ bool StateSnapshotReconfigurationHandler::handle(const concord::messages::StateS
       try {
         auto db = NativeClient::newClient(snapshot_path, read_only, NativeClient::DefaultOptions{});
         const auto link_st_chain = false;
-        const auto kvbc = KeyValueBlockchain{db, link_st_chain};
-        const auto public_state = kvbc.getPublicStateKeys();
+        const auto kvbc = adapter::KeyValueBlockchain{db, link_st_chain};
+        const auto kvbc_state_snapshot = KVBCStateSnapshot{db};
+        const auto public_state = kvbc_state_snapshot.getPublicStateKeys();
         auto values = std::vector<std::optional<categorization::Value>>{};
         kvbc.multiGetLatest(categorization::kExecutionProvableCategory, req.keys, values);
         ConcordAssertEQ(req.keys.size(), values.size());
@@ -1234,9 +1237,9 @@ bool InternalPostKvReconfigurationHandler::handle(const concord::messages::Clien
   if (!bftEngine::ReplicaConfig::instance().saveClinetKeyFile) return true;
   // Now that keys have exchanged, lets persist the new key in the file system
   uint32_t group_id = 0;
-  for (const auto& [id, cgr] : bftEngine::ReplicaConfig::instance().clientGroups) {
+  for (const auto& [gid, cgr] : bftEngine::ReplicaConfig::instance().clientGroups) {
     if (std::find(cgr.begin(), cgr.end(), sender_id) != cgr.end()) {
-      group_id = id;
+      group_id = gid;
       break;
     }
   }

@@ -15,18 +15,18 @@
 
 #include "assertUtils.hpp"
 #include "db_interfaces.h"
-#include "kv_blockchain.h"
+#include "kv_blockchain_adapter.hpp"
 
 #include <memory>
 
-namespace concord::kvbc::categorization {
+namespace concord::kvbc::adapter {
 
 // A utility that adapts a KeyValueBlockchain instance to an IReader.
-class CategorizedReader : public IReader {
+class IdempotentReader : public IReader {
  public:
-  // Constructs a CategorizedReader from a non-null KeyValueBlockchain pointer.
+  // Constructs a IdempotentReader from a non-null KeyValueBlockchain pointer.
   // Precondition: kvbc != nullptr
-  CategorizedReader(const std::shared_ptr<const KeyValueBlockchain> &kvbc) : kvbc_{kvbc} {
+  IdempotentReader(const std::shared_ptr<const KeyValueBlockchain> &kvbc) : kvbc_{kvbc} {
     ConcordAssertNE(kvbc, nullptr);
   }
 
@@ -78,4 +78,4 @@ class CategorizedReader : public IReader {
   const std::shared_ptr<const KeyValueBlockchain> kvbc_;
 };
 
-}  // namespace concord::kvbc::categorization
+}  // namespace concord::kvbc::adapter

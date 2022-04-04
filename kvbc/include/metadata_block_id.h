@@ -13,7 +13,7 @@
 #pragma once
 
 #include "assertUtils.hpp"
-#include "categorization/kv_blockchain.h"
+#include "kvbc_adapter/kv_blockchain_adapter.hpp"
 #include "endianness.hpp"
 #include "kv_types.hpp"
 #include "PersistentStorage.hpp"
@@ -25,7 +25,7 @@ namespace concord::kvbc {
 
 // Persist the last KVBC block ID in big-endian in metadata's user data field.
 template <bool in_transaction>
-void persistLastBlockIdInMetadata(const categorization::KeyValueBlockchain &blockchain,
+void persistLastBlockIdInMetadata(const adapter::KeyValueBlockchain &blockchain,
                                   const std::shared_ptr<bftEngine::impl::PersistentStorage> &metadata) {
   const auto user_data = concordUtils::toBigEndianArrayBuffer(blockchain.getLastReachableBlockId());
   if constexpr (in_transaction) {

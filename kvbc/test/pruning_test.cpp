@@ -14,7 +14,7 @@
 #include <bftengine/ControlStateManager.hpp>
 #include <bftengine/ControlStateManager.hpp>
 #include "NullStateTransfer.hpp"
-#include "categorization/kv_blockchain.h"
+#include "kvbc_adapter/kv_blockchain_adapter.hpp"
 #include "categorization/updates.h"
 #include "db_interfaces.h"
 #include "endianness.hpp"
@@ -37,6 +37,7 @@ using concord::kvbc::BlockId;
 using namespace concord::kvbc;
 using namespace concord::kvbc::categorization;
 using namespace concord::kvbc::pruning;
+
 namespace {
 const NodeIdType replica_0 = 0;
 const NodeIdType replica_1 = 1;
@@ -444,7 +445,7 @@ class TestStorage : public IReader, public IBlockAdder, public IBlocksDeleter {
   void setGenesisBlockId(BlockId bid) { mockGenesisBlockId = bid; }
 
  private:
-  KeyValueBlockchain bc_;
+  concord::kvbc::adapter::KeyValueBlockchain bc_;
   std::optional<BlockId> mockGenesisBlockId = {};
 };
 

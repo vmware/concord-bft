@@ -34,6 +34,9 @@ add_library(kvbc  src/ClientImp.cpp
     src/resources-manager/ReplicaResources.cpp
     src/resources-manager/AdaptivePruningManager.cpp
     src/resources-manager/IntervalMappingResourceManager.cpp
+
+    src/kvbc_adapter/state_snapshot_adapter.cpp
+    src/kvbc_adapter/kv_blockchain_adapter.cpp
 )
 
 if (BUILD_ROCKSDB_STORAGE)

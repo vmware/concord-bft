@@ -11,7 +11,7 @@
 
 #include "st_reconfiguraion_sm.hpp"
 #include "OpenTracing.hpp"
-#include "categorization/kv_blockchain.h"
+#include "kvbc_adapter/kv_blockchain_adapter.hpp"
 #include "categorization/db_categories.h"
 #include "communication/ICommunication.hpp"
 #include "communication/CommFactory.hpp"
@@ -167,11 +167,9 @@ class Replica : public IReplica,
     return nullptr;
   }
 
-  std::optional<categorization::KeyValueBlockchain> &kvBlockchain() { return m_kvBlockchain; }
+  std::optional<adapter::KeyValueBlockchain> &kvBlockchain() { return m_kvBlockchain; }
 
-  void setStateSnapshotValueConverter(const categorization::KeyValueBlockchain::Converter &c) {
-    m_stateSnapshotValueConverter = c;
-  }
+  void setStateSnapshotValueConverter(const categorization::Converter &c) { m_stateSnapshotValueConverter = c; }
 
   void setLastApplicationTransactionTimeCallback(const LastApplicationTransactionTimeCallback &cb) {
     m_lastAppTxnCallback = cb;
@@ -228,8 +226,8 @@ class Replica : public IReplica,
 
   concord::kvbc::IStorageFactory::DatabaseSet m_dbSet;
   // The categorization KeyValueBlockchain is used for a normal read-write replica.
-  std::optional<categorization::KeyValueBlockchain> m_kvBlockchain;
-  categorization::KeyValueBlockchain::Converter m_stateSnapshotValueConverter{concord::kvbc::valueFromKvbcProto};
+  std::optional<adapter::KeyValueBlockchain> m_kvBlockchain;
+  categorization::Converter m_stateSnapshotValueConverter{concord::kvbc::valueFromKvbcProto};
   kvbc::LastApplicationTransactionTimeCallback m_lastAppTxnCallback{newestPublicEventGroupRecordTime};
   // The IdbAdapter instance is used for a read-only replica.
   std::unique_ptr<IDbAdapter> m_bcDbAdapter;

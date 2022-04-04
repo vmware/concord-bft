@@ -26,7 +26,8 @@
 #include "skvbc_messages.cmf.hpp"
 #include "SharedTypes.hpp"
 #include "categorization/db_categories.h"
-#include "categorization/kv_blockchain.h"
+#include "kvbc_adapter/kv_blockchain_adapter.hpp"
+#include "kvbc_adapter/state_snapshot_adapter.hpp"
 
 static const std::string VERSIONED_KV_CAT_ID{concord::kvbc::categorization::kExecutionPrivateCategory};
 static const std::string BLOCK_MERKLE_CAT_ID{concord::kvbc::categorization::kExecutionProvableCategory};
@@ -38,7 +39,7 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
                           concord::kvbc::IBlockMetadata *blockMetadata,
                           logging::Logger &logger,
                           bool addAllKeysAsPublic = false,
-                          concord::kvbc::categorization::KeyValueBlockchain *kvbc = nullptr)
+                          concord::kvbc::adapter::KeyValueBlockchain *kvbc = nullptr)
       : m_storage(storage),
         m_blockAdder(blocksAdder),
         m_blockMetadata(blockMetadata),
@@ -47,6 +48,9 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
         m_kvbc{kvbc} {
     if (m_addAllKeysAsPublic) {
       ConcordAssertNE(m_kvbc, nullptr);
+    }
+    if (m_kvbc != nullptr) {
+      m_kvbc_state_snapshot = std::make_unique<concord::kvbc::statesnapshot::KVBCStateSnapshot>(m_kvbc->db());
     }
   }
 
@@ -136,5 +140,6 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
   size_t m_getLastBlockCounter = 0;
   std::shared_ptr<concord::performance::PerformanceManager> perfManager_;
   bool m_addAllKeysAsPublic{false};  // Add all key-values in the block merkle category as public ones.
-  concord::kvbc::categorization::KeyValueBlockchain *m_kvbc{nullptr};
+  concord::kvbc::adapter::KeyValueBlockchain *m_kvbc{nullptr};
+  std::unique_ptr<concord::kvbc::statesnapshot::KVBCStateSnapshot> m_kvbc_state_snapshot;
 };

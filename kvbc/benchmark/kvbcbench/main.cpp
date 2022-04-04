@@ -17,7 +17,6 @@
 #include <cstddef>
 #include <iostream>
 #include <memory>
-#include <random>
 
 #include <boost/program_options.hpp>
 #include <boost/program_options/errors.hpp>
@@ -27,14 +26,13 @@
 #include <rocksdb/statistics.h>
 #include <rocksdb/table.h>
 #include <rocksdb/filter_policy.h>
-#include <rocksdb/iostats_context.h>
 #include <rocksdb/perf_context.h>
 
 #include "categorization/base_types.h"
 #include "categorization/column_families.h"
 #include "categorization/updates.h"
 #include "categorized_kvbc_msgs.cmf.hpp"
-#include "categorization/kv_blockchain.h"
+#include "kvbc_adapter/kv_blockchain_adapter.hpp"
 #include "performance_handler.h"
 #include "rocksdb/native_client.h"
 #include "diagnostics.h"
@@ -261,7 +259,7 @@ PreExecConfig preExecConfig(const po::variables_map& config,
 
 void addBlocks(const po::variables_map& config,
                std::shared_ptr<storage::rocksdb::NativeClient>& db,
-               categorization::KeyValueBlockchain& kvbc,
+               adapter::KeyValueBlockchain& kvbc,
                InputData& input,
                std::shared_ptr<diagnostics::Recorder>& add_block_recorder,
                std::shared_ptr<diagnostics::Recorder>& conflict_detection_recorder) {
@@ -361,13 +359,13 @@ int main(int argc, char** argv) {
     };
     auto opts = storage::rocksdb::NativeClient::UserOptions{"kvbcbench_rocksdb_opts.ini", completeInit};
     auto db = storage::rocksdb::NativeClient::newClient(config["rocksdb-path"].as<std::string>(), false, opts);
-    auto kvbc = kvbc::categorization::KeyValueBlockchain(
-        db,
-        false,
-        std::map<std::string, kvbc::categorization::CATEGORY_TYPE>{
-            {kCategoryMerkle, kvbc::categorization::CATEGORY_TYPE::block_merkle},
-            {kCategoryImmutable, kvbc::categorization::CATEGORY_TYPE::immutable},
-            {kCategoryVersioned, kvbc::categorization::CATEGORY_TYPE::versioned_kv}});
+    auto kvbc =
+        kvbc::adapter::KeyValueBlockchain(db,
+                                          false,
+                                          std::map<std::string, kvbc::categorization::CATEGORY_TYPE>{
+                                              {kCategoryMerkle, kvbc::categorization::CATEGORY_TYPE::block_merkle},
+                                              {kCategoryImmutable, kvbc::categorization::CATEGORY_TYPE::immutable},
+                                              {kCategoryVersioned, kvbc::categorization::CATEGORY_TYPE::versioned_kv}});
 
     auto pre_exec_config = preExecConfig(config, input.block_merkle_read_keys.size(), input.ver_read_keys.size());
     auto pre_exec_sim = PreExecutionSimulator(pre_exec_config, input.block_merkle_read_keys, input.ver_read_keys, kvbc);

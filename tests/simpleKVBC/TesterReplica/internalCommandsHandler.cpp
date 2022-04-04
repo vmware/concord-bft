@@ -347,7 +347,7 @@ void InternalCommandsHandler::addBlock(VersionedUpdates &verUpdates, BlockMerkle
   // Add all key-values in the block merkle category as public ones.
   if (m_addAllKeysAsPublic) {
     ConcordAssertNE(m_kvbc, nullptr);
-    auto public_state = m_kvbc->getPublicStateKeys();
+    auto public_state = m_kvbc_state_snapshot->getPublicStateKeys();
     if (!public_state) {
       public_state = PublicStateKeys{};
     }

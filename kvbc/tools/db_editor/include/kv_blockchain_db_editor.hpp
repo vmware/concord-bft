@@ -18,7 +18,7 @@
 
 #include "kvbc_key_types.hpp"
 #include "db_editor_common.hpp"
-#include "categorization/kv_blockchain.h"
+#include "kvbc_adapter/kv_blockchain_adapter.hpp"
 #include "execution_data.cmf.hpp"
 #include "keys_and_signatures.cmf.hpp"
 #include "concord.cmf.hpp"
@@ -42,7 +42,7 @@
 #pragma GCC diagnostic pop
 
 namespace concord::kvbc::tools::db_editor {
-
+using concord::kvbc::adapter::KeyValueBlockchain;
 using namespace categorization;
 
 inline const auto kToolName = "kv_blockchain_db_editor"s;
@@ -678,7 +678,6 @@ struct CompareTo {
       throw std::invalid_argument{"Missing PATH-TO-OTHER-DB argument"};
     }
 
-    const auto read_only = true;
     const auto other_adapter = getAdapter(args.values.front(), read_only);
 
     const auto main_genesis = main_adapter.getGenesisBlockId();

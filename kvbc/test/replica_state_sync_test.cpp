@@ -15,7 +15,7 @@
 #include "DbMetadataStorage.hpp"
 #include "Logger.hpp"
 #include "block_metadata.hpp"
-#include "categorization/kv_blockchain.h"
+#include "kvbc_adapter/kv_blockchain_adapter.hpp"
 #include "db_interfaces.h"
 #include "metadata_block_id.h"
 #include "PersistentStorageImp.hpp"
@@ -39,7 +39,7 @@ using concord::kvbc::IReader;
 using concord::kvbc::categorization::kConcordInternalCategoryId;
 using concord::kvbc::ReplicaStateSyncImp;
 using concord::kvbc::categorization::CATEGORY_TYPE;
-using concord::kvbc::categorization::KeyValueBlockchain;
+using concord::kvbc::adapter::KeyValueBlockchain;
 using concord::kvbc::categorization::TaggedVersion;
 using concord::kvbc::categorization::Updates;
 using concord::kvbc::categorization::Value;

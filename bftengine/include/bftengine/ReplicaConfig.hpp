@@ -272,6 +272,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                true,
                "A flag to specify whether to use a memory pool in PreProcessor or not");
 
+  CONFIG_PARAM(kvBlockchainVersion, std::uint32_t, 1u, "Default version of KV blockchain for this replica");
+
   // Parameter to enable/disable waiting for transaction data to be persisted.
   // Not predefined configuration parameters
   // Example of usage:
@@ -394,6 +396,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, enableMultiplexChannel);
     serialize(outStream, enableEventGroups);
     serialize(outStream, enablePreProcessorMemoryPool);
+    serialize(outStream, kvBlockchainVersion);
   }
   void deserializeDataMembers(std::istream& inStream) {
     deserialize(inStream, isReadOnly);
@@ -491,6 +494,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, enableMultiplexChannel);
     deserialize(inStream, enableEventGroups);
     deserialize(inStream, enablePreProcessorMemoryPool);
+    deserialize(inStream, kvBlockchainVersion);
   }
 
  private:
@@ -581,7 +585,8 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.enableMultiplexChannel,
               rc.enableEventGroups,
               rc.operatorEnabled_,
-              rc.enablePreProcessorMemoryPool);
+              rc.enablePreProcessorMemoryPool,
+              rc.kvBlockchainVersion);
   os << ", ";
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
   return os;
