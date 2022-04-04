@@ -74,7 +74,7 @@ class categorized_kvbc : public Test {
   // h3 = hash(h2 || hash("c") || "vc") = c6314bdd9c82183d2e4e5cb8869826e1a3ace6a86a7b62ebe5ac77b732d3c792
   // h4 = hash(h3 || hash("d") || "vd") = fd4c5ea03da18deaf10365fdf001c216055aaaa796b0a98e4db7c756a426ae81
   void assertPublicStateHash() {
-    const auto state_hash_val = db->get(KeyValueBlockchain::publicStateHashKey());
+    const auto state_hash_val = db->get(concord::kvbc::bcutil::BlockChainUtils::publicStateHashKey());
     ASSERT_TRUE(state_hash_val.has_value());
     auto state_hash = StateHash{};
     detail::deserialize(*state_hash_val, state_hash);
@@ -2456,7 +2456,7 @@ TEST_F(categorized_kvbc, compute_and_persist_hash_with_no_public_state) {
                                            {kConcordInternalCategoryId, CATEGORY_TYPE::versioned_kv}}};
   ASSERT_EQ(kvbc.addBlock(Updates{}), 1);
   kvbc.computeAndPersistPublicStateHash(1);
-  const auto state_hash_val = db->get(KeyValueBlockchain::publicStateHashKey());
+  const auto state_hash_val = db->get(concord::kvbc::bcutil::BlockChainUtils::publicStateHashKey());
   ASSERT_TRUE(state_hash_val.has_value());
   auto state_hash = StateHash{};
   detail::deserialize(*state_hash_val, state_hash);

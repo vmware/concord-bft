@@ -16,11 +16,12 @@
 #include "replica_state_snapshot.grpc.pb.h"
 
 #include "bftengine/DbCheckpointManager.hpp"
-#include "categorization/kv_blockchain.h"
 #include "kvbc_app_filter/value_from_kvbc_proto.h"
+#include "blockchain_misc.hpp"
 
 #include <optional>
 #include <string>
+#include <memory>
 
 namespace concord::thin_replica {
 
@@ -38,9 +39,7 @@ class ReplicaStateSnapshotServiceImpl
       ::grpc::ServerWriter< ::vmware::concord::replicastatesnapshot::StreamSnapshotResponse>* writer) override;
 
   // Allows users to convert state values to any format that is appropriate.
-  void setStateValueConverter(const kvbc::categorization::KeyValueBlockchain::Converter& c) {
-    state_value_converter_ = c;
-  }
+  void setStateValueConverter(const concord::kvbc::Converter& c) { state_value_converter_ = c; }
 
   // Following methods are used for testing only. Please do not use in production.
   void overrideCheckpointPathForTest(const std::string& path) { overriden_path_for_test_ = path; }
@@ -55,7 +54,7 @@ class ReplicaStateSnapshotServiceImpl
   bool throw_exception_for_test_{false};
   // Allows users to convert state values to any format that is appropriate.
   // The default converter extracts the value from the ValueWithTrids protobuf type.
-  kvbc::categorization::KeyValueBlockchain::Converter state_value_converter_{kvbc::valueFromKvbcProto};
+  concord::kvbc::Converter state_value_converter_{kvbc::valueFromKvbcProto};
 };
 
 }  // namespace concord::thin_replica
