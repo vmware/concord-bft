@@ -24,9 +24,13 @@ using BlockDigest = std::array<std::uint8_t, DIGEST_SIZE>;
 
 #if defined USE_CRYPTOPP_HASH
 using Digest = DigestHolder<CryptoppDigestCreator>;
-#elif defined USE_OPENSSL_SHA_256
+#endif
+
+#if defined USE_OPENSSL_SHA_256
 using Digest = DigestHolder<OpenSSLDigestCreator<SHA2_256> >;
-#elif defined USE_OPENSSL_SHA3_256
+#endif
+
+#if defined USE_OPENSSL_SHA3_256
 using Digest = DigestHolder<OpenSSLDigestCreator<SHA3_256> >;
 #endif
 
