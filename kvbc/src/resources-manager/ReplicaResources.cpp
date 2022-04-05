@@ -46,7 +46,7 @@ void ReplicaResourceEntity::addMeasurement(const ISystemResourceEntity::measurem
   mutex_.unlock();
 }
 
-uint64_t ReplicaResourceEntity::getMeasurement(const ISystemResourceEntity::type type) {
+uint64_t ReplicaResourceEntity::getMeasurement(const ISystemResourceEntity::type type) const {
   mutex_.lock();
   uint64_t ret = 0;
   switch (type) {
@@ -56,12 +56,10 @@ uint64_t ReplicaResourceEntity::getMeasurement(const ISystemResourceEntity::type
       break;
     // Pruning utilization
     case ISystemResourceEntity::type::pruning_utilization:
-      pruning_utilization.addDuration();
       ret = pruning_utilization.getUtilization();
       break;
     // Poset-exec utilization
     case ISystemResourceEntity::type::post_execution_utilization:
-      post_exec_utilization.addDuration();
       ret = post_exec_utilization.getUtilization();
       break;
     // Poset-exec avg

@@ -15,7 +15,7 @@ class ReplicaResourceEntity : public concord::performance::ISystemResourceEntity
   virtual void addMeasurement(const concord::performance::ISystemResourceEntity::measurement& m);
 
   //////////The reading thread, must use stop before calling and start on finish////
-  virtual uint64_t getMeasurement(const ISystemResourceEntity::type type);
+  virtual uint64_t getMeasurement(const ISystemResourceEntity::type type) const;
   virtual void reset();
   /////////////////////////////////////////////////////////////////////////////////
 
