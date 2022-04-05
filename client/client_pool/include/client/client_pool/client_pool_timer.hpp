@@ -22,13 +22,18 @@
 #include <boost/date_time/posix_time/posix_time_duration.hpp>
 #include <boost/system/error_code.hpp>
 
+#include "Logger.hpp"
+
 namespace concord_client_pool {
 template <typename ClientT>
 class Timer {
  public:
   using Clock = std::chrono::high_resolution_clock;
   Timer(std::chrono::milliseconds timeout, std::function<void(ClientT&&)> on_timeout)
-      : timeout_{timeout}, on_timeout_{on_timeout}, timer_(io_service_) {
+      : timeout_{timeout},
+        on_timeout_{on_timeout},
+        timer_(io_service_),
+        logger_{logging::getLogger("concord.client.client_pool.timer")} {
     if (timeout_.count() > 0) {
       timer_thread_future_ = std::async(std::launch::async, &Timer::WorkerThread, this);
     }
@@ -58,6 +63,7 @@ class Timer {
         on_timeout_(std::move(client_));
       }
     };
+    LOG_INFO(logger_, "Timer set for client " << client_);
     timer_.async_wait(handler);
   }
 
@@ -66,6 +72,7 @@ class Timer {
       return timeout_;
     }
     timer_.cancel();
+    LOG_INFO(logger_, "Timer canceled for client " << client_);
     return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_timer_);
   }
 
@@ -75,6 +82,7 @@ class Timer {
       if (io_service_.stopped()) {
         io_service_.reset();
       }
+      LOG_INFO(logger_, "Going to run io_service_ for client " << client_);
       io_service_.run();
     }
   }
@@ -92,5 +100,6 @@ class Timer {
   boost::asio::io_service io_service_;
   boost::asio::deadline_timer timer_;
   std::chrono::steady_clock::time_point start_timer_;
+  logging::Logger logger_;
 };
 }  // namespace concord_client_pool

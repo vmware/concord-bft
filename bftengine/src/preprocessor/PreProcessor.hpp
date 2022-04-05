@@ -75,13 +75,12 @@ class RequestsBatch {
  public:
   RequestsBatch(PreProcessor &preProcessor, uint16_t clientId) : preProcessor_(preProcessor), clientId_(clientId) {}
   void init();
-  void registerBatch(const std::string &batchCid, uint32_t batchSize);
-  void startBatch(const std::string &batchCid, uint32_t batchSize);
-  void updateBatchSize(uint32_t batchSize);
+  void registerBatch(NodeIdType senderId, const std::string &batchCid, uint32_t batchSize);
+  void startBatch(NodeIdType senderId, const std::string &batchCid, uint32_t batchSize);
   bool isBatchRegistered(std::string &batchCid) const;
   bool isBatchInProcess() const;
   bool isBatchInProcess(std::string &batchCid) const;
-  void increaseNumOfCompletedReqs() { numOfCompletedReqs_++; }
+  void increaseNumOfCompletedReqs(uint32_t count) { numOfCompletedReqs_ += count; }
   RequestStateSharedPtr &getRequestState(uint16_t reqOffsetInBatch);
   const std::string getBatchCid() const;
   void cancelBatchAndReleaseRequests(const std::string &batchCid, PreProcessingResult status);
@@ -234,7 +233,8 @@ class PreProcessor {
                                       bool isPrimary,
                                       bool isRetry,
                                       TimeRecorder &&totalPreExecDurationRecorder = TimeRecorder());
-  bftEngine::OperationResult launchReqPreProcessing(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
+  bftEngine::OperationResult launchReqPreProcessing(const std::string &batchCid,
+                                                    const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                                     uint32_t &resultLen);
   void handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                  const std::string &batchCid,
@@ -281,7 +281,7 @@ class PreProcessor {
                                         PreProcessRequestMsgSharedPtr &preProcessRequestMsg,
                                         const std::string &batchCid,
                                         uint32_t batchSize);
-  void handleSinglePreProcessRequestMsg(PreProcessRequestMsgSharedPtr preProcessReqMsg,
+  bool handleSinglePreProcessRequestMsg(PreProcessRequestMsgSharedPtr preProcessReqMsg,
                                         const std::string &batchCid,
                                         uint32_t batchSize);
   void handleSinglePreProcessReplyMsg(PreProcessReplyMsgSharedPtr preProcessReplyMsg, const std::string &batchCid);
