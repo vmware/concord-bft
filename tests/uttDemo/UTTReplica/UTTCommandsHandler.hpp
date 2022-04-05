@@ -21,6 +21,7 @@
 
 #include "utt_messages.cmf.hpp"
 #include "app_state.hpp"
+#include "utt_config.hpp"
 
 static const std::string VERSIONED_KV_CAT_ID{concord::kvbc::categorization::kExecutionPrivateCategory};
 
@@ -34,6 +35,7 @@ class UTTCommandsHandler : public concord::kvbc::ICommandsHandler {
       : storage_(storage), blockAdder_(blocksAdder), blockMetadata_(blockMetadata), logger_(logger), kvbc_{kvbc} {
     ConcordAssertNE(kvbc_, nullptr);
     (void)blockMetadata_;
+    initAppState();
   }
 
   void execute(ExecutionRequestsQueue &requests,
@@ -55,9 +57,11 @@ class UTTCommandsHandler : public concord::kvbc::ICommandsHandler {
 
   std::string getLatest(const std::string &key) const;
 
+  void initAppState();
   void syncAppState();
 
   AppState state_;
+  UTTReplicaConfig config_;
 
   concord::kvbc::IReader *storage_;
   concord::kvbc::IBlockAdder *blockAdder_;

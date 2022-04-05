@@ -13,7 +13,10 @@
 
 #include "UTTCommandsHandler.hpp"
 
+#include <fstream>
+
 #include "kvbc_key_types.hpp"
+#include "ReplicaConfig.hpp"
 
 using namespace bftEngine;
 using namespace utt::messages;
@@ -144,6 +147,25 @@ std::string UTTCommandsHandler::getLatest(const std::string& key) const {
     return std::string();
   }
   return std::visit([](const auto& v) { return v.data; }, *v);
+}
+
+void UTTCommandsHandler::initAppState() {
+  AppState::initUTTLibrary();
+
+  const auto replicaId = ReplicaConfig::instance().getreplicaId();
+  const auto fileName = "utt_replica_" + std::to_string(replicaId);
+  std::ifstream ifs(fileName);
+  if (!ifs.is_open()) throw std::runtime_error("Failed to open " + fileName);
+
+  ifs >> config_;
+
+  LOG_INFO(logger_, "Loaded config '" << fileName);
+
+  // ToDo: Init public balances with some value in the config
+  for (const auto& pid : config_.pids_) {
+    state_.addAccount(Account{pid});
+  }
+  if (state_.GetAccounts().empty()) throw std::runtime_error("No accounts loaded!");
 }
 
 void UTTCommandsHandler::syncAppState() {

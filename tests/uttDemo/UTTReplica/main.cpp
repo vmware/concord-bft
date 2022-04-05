@@ -73,11 +73,6 @@ void run_replica(int argc, char** argv) {
   replica->set_command_handler(cmdHandler);
   replica->setStateSnapshotValueConverter(categorization::KeyValueBlockchain::kNoopConverter);
   replica->start();
-  // if (setup->GetReplicaConfig().isReadOnly)
-  //   replica->registerStBasedReconfigurationHandler(std::make_shared<STAddRemoveHandlerTest>());
-
-  // Setup a test cron table, if requested in configuration.
-  // cronSetup(*setup, *replica);
 
   // Start metrics server after creation of the replica so that we ensure
   // registration of metrics from the replica with the aggregator and don't

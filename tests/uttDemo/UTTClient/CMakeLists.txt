@@ -2,6 +2,7 @@ set(client_sources
     main.cpp
     ../app_state.cpp
     ../transactions.cpp
+	../utt_config.cpp
     ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp
 )
 
