@@ -546,6 +546,7 @@ class TestStateMachine {
   }
 
   void on_finished_dropping_event_groups() {
+    auto logger = logging::getLogger("thin_replica_server_test");
     std::scoped_lock sl(mtx_);
     auto eg_id = current_event_group_to_send_ + storage_.total_egs_for_other_clients + 1;
     auto live_update = generateEventGroupMap(eg_id, eg_id, current_eg_type);
@@ -555,6 +556,7 @@ class TestStateMachine {
       EventGroupId eg_id(concordUtils::fromBigEndianBuffer<uint64_t>(key.data()));
       concord::thin_replica::SubEventGroupUpdate update{eg_id, val};
       live_buffer_->PushEventGroup(update);
+      LOG_INFO(logger, " Pushed to live update queue eg: " << eg_id);
     }
   }
 
@@ -1085,8 +1087,12 @@ TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdatesWithGap) {
   });
   auto status = out_stream.wait_for(1s);
   state_machine.set_expected_last_event_group_to_send(14u);
+  auto gap_updates =
+      generateEventGroupMap(kLastEventGroupId + 6, kLastEventGroupId + 6, EventGroupType::PrivateEventGroupsOnly);
   auto more_live_updates =
-      generateEventGroupMap(kLastEventGroupId + 6, kLastEventGroupId + 8, EventGroupType::PrivateEventGroupsOnly);
+      generateEventGroupMap(kLastEventGroupId + 7, kLastEventGroupId + 8, EventGroupType::PrivateEventGroupsOnly);
+  storage.addEventGroups(gap_updates);
+  storage.updateEventGroupStorageMaps(gap_updates);
   storage.addEventGroups(more_live_updates);
   storage.updateEventGroupStorageMaps(more_live_updates);
   state_machine.toggle_more_event_groups_to_add(false);
@@ -1132,17 +1138,21 @@ TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdatesWithGapTwoClie
   });
   auto status = out_stream.wait_for(1s);
   state_machine.set_expected_last_event_group_to_send(19u);
+  auto gap_updates = generateEventGroupMap(
+      kLastEventGroupId + 6, kLastEventGroupId + 6, EventGroupType::PrivateEventGroupsOnly, kClientId1);
   auto more_live_updates = generateEventGroupMap(
-      kLastEventGroupId + 6, kLastEventGroupId + 7, EventGroupType::PrivateEventGroupsOnly, kClientId2);
+      kLastEventGroupId + 7, kLastEventGroupId + 8, EventGroupType::PrivateEventGroupsOnly, kClientId2);
   auto live_updates_cl1 = generateEventGroupMap(
-      kLastEventGroupId + 8, kLastEventGroupId + 9, EventGroupType::PrivateEventGroupsOnly, kClientId1);
+      kLastEventGroupId + 9, kLastEventGroupId + 10, EventGroupType::PrivateEventGroupsOnly, kClientId1);
   auto live_updates_cl2 = generateEventGroupMap(
-      kLastEventGroupId + 10, kLastEventGroupId + 12, EventGroupType::PrivateEventGroupsOnly, kClientId2);
+      kLastEventGroupId + 11, kLastEventGroupId + 12, EventGroupType::PrivateEventGroupsOnly, kClientId2);
   auto live_updates_cl1_last = generateEventGroupMap(
       kLastEventGroupId + 13, kLastEventGroupId + 13, EventGroupType::PrivateEventGroupsOnly, kClientId1);
   more_live_updates.insert(live_updates_cl1.begin(), live_updates_cl1.end());
   more_live_updates.insert(live_updates_cl2.begin(), live_updates_cl2.end());
   more_live_updates.insert(live_updates_cl1_last.begin(), live_updates_cl1_last.end());
+  storage.addEventGroups(gap_updates);
+  storage.updateEventGroupStorageMaps(gap_updates);
   storage.addEventGroups(more_live_updates);
   storage.updateEventGroupStorageMaps(more_live_updates);
   state_machine.toggle_more_event_groups_to_add(false);
@@ -1154,7 +1164,7 @@ TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdatesWithGapTwoClie
   if (status != std::future_status::ready) {
     out_stream.wait();
   }
-  auto total_event_groups = kLastEventGroupId + 3;
+  auto total_event_groups = kLastEventGroupId + 4;
   EXPECT_EQ(out_stream.get().error_code(), grpc::StatusCode::OK);
   EXPECT_EQ(state_machine.numEventGroupsReceived(), total_event_groups);
 }
@@ -1184,8 +1194,12 @@ TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdatesWithGap) {
   });
   auto status = out_stream.wait_for(1s);
   state_machine.set_expected_last_event_group_to_send(14u);
+  auto gap_updates =
+      generateEventGroupMap(kLastEventGroupId + 6, kLastEventGroupId + 6, EventGroupType::PublicEventGroupsOnly);
   auto more_live_updates =
-      generateEventGroupMap(kLastEventGroupId + 6, kLastEventGroupId + 8, EventGroupType::PublicEventGroupsOnly);
+      generateEventGroupMap(kLastEventGroupId + 7, kLastEventGroupId + 8, EventGroupType::PublicEventGroupsOnly);
+  storage.addEventGroups(gap_updates);
+  storage.updateEventGroupStorageMaps(gap_updates);
   storage.addEventGroups(more_live_updates);
   storage.updateEventGroupStorageMaps(more_live_updates);
   state_machine.toggle_more_event_groups_to_add(false);
@@ -1231,17 +1245,21 @@ TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdatesWithGapTwoClien
   });
   auto status = out_stream.wait_for(1s);
   state_machine.set_expected_last_event_group_to_send(19u);
+  auto gap_updates =
+      generateEventGroupMap(kLastEventGroupId + 6, kLastEventGroupId + 6, EventGroupType::PublicEventGroupsOnly);
   auto more_live_updates = generateEventGroupMap(
-      kLastEventGroupId + 6, kLastEventGroupId + 7, EventGroupType::PrivateEventGroupsOnly, kClientId2);
+      kLastEventGroupId + 7, kLastEventGroupId + 8, EventGroupType::PrivateEventGroupsOnly, kClientId2);
   auto live_updates_pub =
-      generateEventGroupMap(kLastEventGroupId + 8, kLastEventGroupId + 9, EventGroupType::PublicEventGroupsOnly);
+      generateEventGroupMap(kLastEventGroupId + 9, kLastEventGroupId + 10, EventGroupType::PublicEventGroupsOnly);
   auto live_updates_cl2 = generateEventGroupMap(
-      kLastEventGroupId + 10, kLastEventGroupId + 12, EventGroupType::PrivateEventGroupsOnly, kClientId2);
+      kLastEventGroupId + 11, kLastEventGroupId + 12, EventGroupType::PrivateEventGroupsOnly, kClientId2);
   auto live_updates_pub_last =
       generateEventGroupMap(kLastEventGroupId + 13, kLastEventGroupId + 13, EventGroupType::PublicEventGroupsOnly);
   more_live_updates.insert(live_updates_pub.begin(), live_updates_pub.end());
   more_live_updates.insert(live_updates_cl2.begin(), live_updates_cl2.end());
   more_live_updates.insert(live_updates_pub_last.begin(), live_updates_pub_last.end());
+  storage.addEventGroups(gap_updates);
+  storage.updateEventGroupStorageMaps(gap_updates);
   storage.addEventGroups(more_live_updates);
   storage.updateEventGroupStorageMaps(more_live_updates);
   state_machine.toggle_more_event_groups_to_add(false);
@@ -1253,7 +1271,7 @@ TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdatesWithGapTwoClien
   if (status != std::future_status::ready) {
     out_stream.wait();
   }
-  auto total_event_groups = kLastEventGroupId + 3;
+  auto total_event_groups = kLastEventGroupId + 4;
   EXPECT_EQ(out_stream.get().error_code(), grpc::StatusCode::OK);
   EXPECT_EQ(state_machine.numEventGroupsReceived(), total_event_groups);
 }
@@ -1283,8 +1301,12 @@ TEST(thin_replica_server_test, SubscribeToPublicAndPrivateEventGroupUpdatesWithG
   });
   auto status = out_stream.wait_for(1s);
   state_machine.set_expected_last_event_group_to_send(14u);
+  auto gap_updates =
+      generateEventGroupMap(kLastEventGroupId + 6, kLastEventGroupId + 6, EventGroupType::PublicAndPrivateEventGroups);
   auto more_live_updates =
-      generateEventGroupMap(kLastEventGroupId + 6, kLastEventGroupId + 8, EventGroupType::PublicAndPrivateEventGroups);
+      generateEventGroupMap(kLastEventGroupId + 7, kLastEventGroupId + 8, EventGroupType::PublicAndPrivateEventGroups);
+  storage.addEventGroups(gap_updates);
+  storage.updateEventGroupStorageMaps(gap_updates);
   storage.addEventGroups(more_live_updates);
   storage.updateEventGroupStorageMaps(more_live_updates);
   state_machine.toggle_more_event_groups_to_add(false);
@@ -1331,17 +1353,21 @@ TEST(thin_replica_server_test, SubscribeToPublicAndPrivateEventGroupUpdatesWithG
   });
   auto status = out_stream.wait_for(1s);
   state_machine.set_expected_last_event_group_to_send(19u);
+  auto gap_updates = generateEventGroupMap(
+      kLastEventGroupId + 6, kLastEventGroupId + 6, EventGroupType::PublicAndPrivateEventGroups, kClientId1);
   auto more_live_updates = generateEventGroupMap(
-      kLastEventGroupId + 6, kLastEventGroupId + 7, EventGroupType::PrivateEventGroupsOnly, kClientId2);
+      kLastEventGroupId + 7, kLastEventGroupId + 8, EventGroupType::PrivateEventGroupsOnly, kClientId2);
   auto live_updates_cl1 = generateEventGroupMap(
-      kLastEventGroupId + 8, kLastEventGroupId + 9, EventGroupType::PublicAndPrivateEventGroups, kClientId1);
+      kLastEventGroupId + 9, kLastEventGroupId + 10, EventGroupType::PublicAndPrivateEventGroups, kClientId1);
   auto live_updates_cl2 = generateEventGroupMap(
-      kLastEventGroupId + 10, kLastEventGroupId + 12, EventGroupType::PrivateEventGroupsOnly, kClientId2);
+      kLastEventGroupId + 11, kLastEventGroupId + 12, EventGroupType::PrivateEventGroupsOnly, kClientId2);
   auto live_updates_cl1_last = generateEventGroupMap(
       kLastEventGroupId + 13, kLastEventGroupId + 13, EventGroupType::PublicAndPrivateEventGroups, kClientId1);
   more_live_updates.insert(live_updates_cl1.begin(), live_updates_cl1.end());
   more_live_updates.insert(live_updates_cl2.begin(), live_updates_cl2.end());
   more_live_updates.insert(live_updates_cl1_last.begin(), live_updates_cl1_last.end());
+  storage.addEventGroups(gap_updates);
+  storage.updateEventGroupStorageMaps(gap_updates);
   storage.addEventGroups(more_live_updates);
   storage.updateEventGroupStorageMaps(more_live_updates);
   state_machine.toggle_more_event_groups_to_add(false);
@@ -1353,7 +1379,7 @@ TEST(thin_replica_server_test, SubscribeToPublicAndPrivateEventGroupUpdatesWithG
   if (status != std::future_status::ready) {
     out_stream.wait();
   }
-  auto total_event_groups = kLastEventGroupId + 3;
+  auto total_event_groups = kLastEventGroupId + 4;
   EXPECT_EQ(out_stream.get().error_code(), grpc::StatusCode::OK);
   EXPECT_EQ(state_machine.numEventGroupsReceived(), total_event_groups);
 }
@@ -1406,10 +1432,14 @@ TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdatesWithGapFromThe
   });
   auto status = out_stream.wait_for(1s);
   state_machine.set_expected_last_event_group_to_send(11u);
+  auto gap_updates =
+      generateEventGroupMap(kLastEventGroupId + 1, kLastEventGroupId + 2, EventGroupType::PrivateEventGroupsOnly);
   auto more_storage_updates =
-      generateEventGroupMap(kLastEventGroupId + 1, kLastEventGroupId + 5, EventGroupType::PrivateEventGroupsOnly);
+      generateEventGroupMap(kLastEventGroupId + 2, kLastEventGroupId + 5, EventGroupType::PrivateEventGroupsOnly);
   EventGroupMap more_live_updates;
   more_live_updates.insert(std::next(more_storage_updates.begin()), more_storage_updates.end());
+  storage.addEventGroups(gap_updates);
+  storage.updateEventGroupStorageMaps(gap_updates);
   storage.addEventGroups(more_storage_updates);
   storage.updateEventGroupStorageMaps(more_storage_updates);
   state_machine.toggle_more_event_groups_to_add(false);
@@ -1450,10 +1480,14 @@ TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdatesWithGapFromTheM
   });
   auto status = out_stream.wait_for(1s);
   state_machine.set_expected_last_event_group_to_send(11u);
+  auto gap_updates =
+      generateEventGroupMap(kLastEventGroupId + 1, kLastEventGroupId + 2, EventGroupType::PublicEventGroupsOnly);
   auto more_storage_updates =
-      generateEventGroupMap(kLastEventGroupId + 1, kLastEventGroupId + 5, EventGroupType::PublicEventGroupsOnly);
+      generateEventGroupMap(kLastEventGroupId + 2, kLastEventGroupId + 5, EventGroupType::PublicEventGroupsOnly);
   EventGroupMap more_live_updates;
   more_live_updates.insert(std::next(more_storage_updates.begin()), more_storage_updates.end());
+  storage.addEventGroups(gap_updates);
+  storage.updateEventGroupStorageMaps(gap_updates);
   storage.addEventGroups(more_storage_updates);
   storage.updateEventGroupStorageMaps(more_storage_updates);
   state_machine.toggle_more_event_groups_to_add(false);
@@ -1494,10 +1528,14 @@ TEST(thin_replica_server_test, SubscribeToPublicAndPrivateEventGroupUpdatesWithG
   });
   auto status = out_stream.wait_for(1s);
   state_machine.set_expected_last_event_group_to_send(11u);
+  auto gap_updates =
+      generateEventGroupMap(kLastEventGroupId + 1, kLastEventGroupId + 2, EventGroupType::PublicAndPrivateEventGroups);
   auto more_storage_updates =
-      generateEventGroupMap(kLastEventGroupId + 1, kLastEventGroupId + 5, EventGroupType::PublicAndPrivateEventGroups);
+      generateEventGroupMap(kLastEventGroupId + 2, kLastEventGroupId + 5, EventGroupType::PublicAndPrivateEventGroups);
   EventGroupMap more_live_updates;
   more_live_updates.insert(std::next(more_storage_updates.begin()), more_storage_updates.end());
+  storage.addEventGroups(gap_updates);
+  storage.updateEventGroupStorageMaps(gap_updates);
   storage.addEventGroups(more_storage_updates);
   storage.updateEventGroupStorageMaps(more_storage_updates);
   state_machine.toggle_more_event_groups_to_add(false);
@@ -1866,8 +1904,12 @@ TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdateHashesWithGap) 
     return replica.SubscribeToUpdates<TestServerContext, TestServerWriter<Hash>, Hash>(&context, &request, &stream);
   });
   auto status = out_stream.wait_for(1s);
+  auto gap_updates =
+      generateEventGroupMap(kLastEventGroupId + 6, kLastEventGroupId + 6, EventGroupType::PrivateEventGroupsOnly);
   auto more_live_updates =
-      generateEventGroupMap(kLastEventGroupId + 6, kLastEventGroupId + 8, EventGroupType::PrivateEventGroupsOnly);
+      generateEventGroupMap(kLastEventGroupId + 7, kLastEventGroupId + 8, EventGroupType::PrivateEventGroupsOnly);
+  storage.addEventGroups(gap_updates);
+  storage.updateEventGroupStorageMaps(gap_updates);
   storage.addEventGroups(more_live_updates);
   storage.updateEventGroupStorageMaps(more_live_updates);
   state_machine.toggle_more_event_groups_to_add(false);
@@ -1913,17 +1955,21 @@ TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdateHashesWithGapTw
     return replica.SubscribeToUpdates<TestServerContext, TestServerWriter<Hash>, Hash>(&context, &request, &stream);
   });
   auto status = out_stream.wait_for(1s);
+  auto gap_updates = generateEventGroupMap(
+      kLastEventGroupId + 6, kLastEventGroupId + 6, EventGroupType::PublicAndPrivateEventGroups, kClientId1);
   auto more_live_updates = generateEventGroupMap(
-      kLastEventGroupId + 6, kLastEventGroupId + 7, EventGroupType::PrivateEventGroupsOnly, kClientId2);
+      kLastEventGroupId + 7, kLastEventGroupId + 8, EventGroupType::PrivateEventGroupsOnly, kClientId2);
   auto live_updates_cl1 = generateEventGroupMap(
-      kLastEventGroupId + 8, kLastEventGroupId + 9, EventGroupType::PrivateEventGroupsOnly, kClientId1);
+      kLastEventGroupId + 9, kLastEventGroupId + 10, EventGroupType::PrivateEventGroupsOnly, kClientId1);
   auto live_updates_cl2 = generateEventGroupMap(
-      kLastEventGroupId + 10, kLastEventGroupId + 12, EventGroupType::PrivateEventGroupsOnly, kClientId2);
+      kLastEventGroupId + 11, kLastEventGroupId + 12, EventGroupType::PrivateEventGroupsOnly, kClientId2);
   auto live_updates_cl1_last = generateEventGroupMap(
       kLastEventGroupId + 13, kLastEventGroupId + 13, EventGroupType::PrivateEventGroupsOnly, kClientId1);
   more_live_updates.insert(live_updates_cl1.begin(), live_updates_cl1.end());
   more_live_updates.insert(live_updates_cl2.begin(), live_updates_cl2.end());
   more_live_updates.insert(live_updates_cl1_last.begin(), live_updates_cl1_last.end());
+  storage.addEventGroups(gap_updates);
+  storage.updateEventGroupStorageMaps(gap_updates);
   storage.addEventGroups(more_live_updates);
   storage.updateEventGroupStorageMaps(more_live_updates);
   state_machine.toggle_more_event_groups_to_add(false);
@@ -1936,7 +1982,7 @@ TEST(thin_replica_server_test, SubscribeToPrivateEventGroupUpdateHashesWithGapTw
   if (status != std::future_status::ready) {
     out_stream.wait();
   }
-  auto total_event_groups = kLastEventGroupId + 3;
+  auto total_event_groups = kLastEventGroupId + 4;
   EXPECT_EQ(out_stream.get().error_code(), grpc::StatusCode::OK);
   EXPECT_EQ(state_machine.numEventGroupsReceived(), total_event_groups);
 }
@@ -1965,8 +2011,12 @@ TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdateHashesWithGap) {
     return replica.SubscribeToUpdates<TestServerContext, TestServerWriter<Hash>, Hash>(&context, &request, &stream);
   });
   auto status = out_stream.wait_for(1s);
+  auto gap_updates =
+      generateEventGroupMap(kLastEventGroupId + 6, kLastEventGroupId + 6, EventGroupType::PublicEventGroupsOnly);
   auto more_live_updates =
-      generateEventGroupMap(kLastEventGroupId + 6, kLastEventGroupId + 8, EventGroupType::PublicEventGroupsOnly);
+      generateEventGroupMap(kLastEventGroupId + 7, kLastEventGroupId + 8, EventGroupType::PublicEventGroupsOnly);
+  storage.addEventGroups(gap_updates);
+  storage.updateEventGroupStorageMaps(gap_updates);
   storage.addEventGroups(more_live_updates);
   storage.updateEventGroupStorageMaps(more_live_updates);
   state_machine.toggle_more_event_groups_to_add(false);
@@ -2012,17 +2062,21 @@ TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdateHashesWithGapTwo
     return replica.SubscribeToUpdates<TestServerContext, TestServerWriter<Hash>, Hash>(&context, &request, &stream);
   });
   auto status = out_stream.wait_for(1s);
+  auto gap_updates =
+      generateEventGroupMap(kLastEventGroupId + 6, kLastEventGroupId + 6, EventGroupType::PublicEventGroupsOnly);
   auto more_live_updates = generateEventGroupMap(
-      kLastEventGroupId + 6, kLastEventGroupId + 7, EventGroupType::PrivateEventGroupsOnly, kClientId2);
+      kLastEventGroupId + 7, kLastEventGroupId + 8, EventGroupType::PrivateEventGroupsOnly, kClientId2);
   auto live_updates_pub =
-      generateEventGroupMap(kLastEventGroupId + 8, kLastEventGroupId + 9, EventGroupType::PublicEventGroupsOnly);
+      generateEventGroupMap(kLastEventGroupId + 9, kLastEventGroupId + 10, EventGroupType::PublicEventGroupsOnly);
   auto live_updates_cl2 = generateEventGroupMap(
-      kLastEventGroupId + 10, kLastEventGroupId + 12, EventGroupType::PrivateEventGroupsOnly, kClientId2);
+      kLastEventGroupId + 11, kLastEventGroupId + 12, EventGroupType::PrivateEventGroupsOnly, kClientId2);
   auto live_updates_pub_last =
       generateEventGroupMap(kLastEventGroupId + 13, kLastEventGroupId + 13, EventGroupType::PublicEventGroupsOnly);
   more_live_updates.insert(live_updates_pub.begin(), live_updates_pub.end());
   more_live_updates.insert(live_updates_cl2.begin(), live_updates_cl2.end());
   more_live_updates.insert(live_updates_pub_last.begin(), live_updates_pub_last.end());
+  storage.addEventGroups(gap_updates);
+  storage.updateEventGroupStorageMaps(gap_updates);
   storage.addEventGroups(more_live_updates);
   storage.updateEventGroupStorageMaps(more_live_updates);
   state_machine.toggle_more_event_groups_to_add(false);
@@ -2035,7 +2089,7 @@ TEST(thin_replica_server_test, SubscribeToPublicEventGroupUpdateHashesWithGapTwo
   if (status != std::future_status::ready) {
     out_stream.wait();
   }
-  auto total_event_groups = kLastEventGroupId + 3;
+  auto total_event_groups = kLastEventGroupId + 4;
   EXPECT_EQ(out_stream.get().error_code(), grpc::StatusCode::OK);
   EXPECT_EQ(state_machine.numEventGroupsReceived(), total_event_groups);
 }
@@ -2064,8 +2118,12 @@ TEST(thin_replica_server_test, SubscribeToPublicAndPrivateEventGroupUpdateHashes
     return replica.SubscribeToUpdates<TestServerContext, TestServerWriter<Hash>, Hash>(&context, &request, &stream);
   });
   auto status = out_stream.wait_for(1s);
+  auto gap_updates =
+      generateEventGroupMap(kLastEventGroupId + 6, kLastEventGroupId + 6, EventGroupType::PublicAndPrivateEventGroups);
   auto more_live_updates =
-      generateEventGroupMap(kLastEventGroupId + 6, kLastEventGroupId + 8, EventGroupType::PublicAndPrivateEventGroups);
+      generateEventGroupMap(kLastEventGroupId + 7, kLastEventGroupId + 8, EventGroupType::PublicAndPrivateEventGroups);
+  storage.addEventGroups(gap_updates);
+  storage.updateEventGroupStorageMaps(gap_updates);
   storage.addEventGroups(more_live_updates);
   storage.updateEventGroupStorageMaps(more_live_updates);
   state_machine.toggle_more_event_groups_to_add(false);
@@ -2112,17 +2170,21 @@ TEST(thin_replica_server_test, SubscribeToPublicAndPrivateEventGroupUpdateHashes
     return replica.SubscribeToUpdates<TestServerContext, TestServerWriter<Hash>, Hash>(&context, &request, &stream);
   });
   auto status = out_stream.wait_for(1s);
+  auto gap_updates = generateEventGroupMap(
+      kLastEventGroupId + 6, kLastEventGroupId + 6, EventGroupType::PublicAndPrivateEventGroups, kClientId1);
   auto more_live_updates = generateEventGroupMap(
-      kLastEventGroupId + 6, kLastEventGroupId + 7, EventGroupType::PrivateEventGroupsOnly, kClientId2);
+      kLastEventGroupId + 7, kLastEventGroupId + 8, EventGroupType::PrivateEventGroupsOnly, kClientId2);
   auto live_updates_cl1 = generateEventGroupMap(
-      kLastEventGroupId + 8, kLastEventGroupId + 9, EventGroupType::PublicAndPrivateEventGroups, kClientId1);
+      kLastEventGroupId + 9, kLastEventGroupId + 10, EventGroupType::PublicAndPrivateEventGroups, kClientId1);
   auto live_updates_cl2 = generateEventGroupMap(
-      kLastEventGroupId + 10, kLastEventGroupId + 12, EventGroupType::PrivateEventGroupsOnly, kClientId2);
+      kLastEventGroupId + 11, kLastEventGroupId + 12, EventGroupType::PrivateEventGroupsOnly, kClientId2);
   auto live_updates_cl1_last = generateEventGroupMap(
       kLastEventGroupId + 13, kLastEventGroupId + 13, EventGroupType::PublicAndPrivateEventGroups, kClientId1);
   more_live_updates.insert(live_updates_cl1.begin(), live_updates_cl1.end());
   more_live_updates.insert(live_updates_cl2.begin(), live_updates_cl2.end());
   more_live_updates.insert(live_updates_cl1_last.begin(), live_updates_cl1_last.end());
+  storage.addEventGroups(gap_updates);
+  storage.updateEventGroupStorageMaps(gap_updates);
   storage.addEventGroups(more_live_updates);
   storage.updateEventGroupStorageMaps(more_live_updates);
   state_machine.toggle_more_event_groups_to_add(false);
@@ -2135,7 +2197,7 @@ TEST(thin_replica_server_test, SubscribeToPublicAndPrivateEventGroupUpdateHashes
   if (status != std::future_status::ready) {
     out_stream.wait();
   }
-  auto total_event_groups = kLastEventGroupId + 3;
+  auto total_event_groups = kLastEventGroupId + 4;
   EXPECT_EQ(out_stream.get().error_code(), grpc::StatusCode::OK);
   EXPECT_EQ(state_machine.numEventGroupsReceived(), total_event_groups);
 }

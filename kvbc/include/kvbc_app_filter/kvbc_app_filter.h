@@ -203,13 +203,10 @@ class KvbAppFilter {
   // Optional because during start-up there might be no block/event group written yet.
   std::optional<BlockId> getOldestEventGroupBlockId();
 
-  void setNextExternalEgIdToRead(uint64_t ext_eg_id);
+  void setLastEgIdsRead(uint64_t last_ext_eg_id_read, uint64_t last_global_eg_id_read);
 
-  uint64_t getNextExternalEgIdToRead() const;
-
-  void setLastGlobalEgIdReadForClient(uint64_t global_eg_id);
-
-  uint64_t getLastGlobalEgIdReadForClient() const;
+  // Return the pair {last_ext_eg_id_read, last_global_eg_id_read}
+  std::pair<uint64_t, uint64_t> getLastEgIdsRead();
 
  public:
   static inline const std::string kGlobalEgIdKeyOldest{"_global_eg_id_oldest"};
@@ -227,10 +224,7 @@ class KvbAppFilter {
   const concord::kvbc::IReader *rostorage_{nullptr};
   const std::string client_id_;
 
-  // next external event group ID to be read
-  uint64_t next_ext_eg_id_to_read_{0};
-  // last global event group ID read
-  uint64_t last_global_eg_id_read_{0};
+  std::pair<uint64_t, uint64_t> last_ext_and_global_eg_id_read_{0, 0};
 };
 
 }  // namespace kvbc
