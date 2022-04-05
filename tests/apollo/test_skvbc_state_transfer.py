@@ -84,6 +84,7 @@ class SkvbcStateTransferTest(ApolloTest):
         await bft_network.force_quorum_including_replica(stale_node)
         await skvbc.assert_successful_put_get()
 
+    @unittest.skip("Disable until BC-19686 gets resolved.")
     @with_trio
     @with_bft_network(start_replica_cmd, rotate_keys=True)
     async def test_state_transfer_with_multiple_clients(self, bft_network,exchange_keys=True):
