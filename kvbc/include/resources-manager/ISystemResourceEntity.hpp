@@ -65,7 +65,7 @@ class ISystemResourceEntity {
   // resource being overburden with operations.
   virtual int64_t getAvailableResources() const = 0;
   // Measurements of handled operations. Can be transaction, prune blocks, etc.
-  virtual uint64_t getMeasurement(const type) = 0;
+  virtual uint64_t getMeasurement(const type) const = 0;
   // Name of the resource for metrics purposes.
   virtual const std::string getResourceName() const = 0;
   // Restarts the measurement calculation.
