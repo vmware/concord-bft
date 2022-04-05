@@ -114,11 +114,15 @@ void RequestServiceCallData::sendToConcordClient() {
           break;
         case (static_cast<uint32_t>(bftEngine::OperationResult::CONFLICT_DETECTED)):
           LOG_INFO(logger, "Request failed with CONFLICT_DETECTED error for cid=" << req_config.correlation_id);
-          status = grpc::Status(grpc::StatusCode::ABORTED, "Aborted");
+          status = grpc::Status(grpc::StatusCode::ABORTED, "Aborted due to conflict detected");
           break;
         case (static_cast<uint32_t>(bftEngine::OperationResult::OVERLOADED)):
           LOG_INFO(logger, "Request failed with OVERLOADED error for cid=" << req_config.correlation_id);
           status = grpc::Status(grpc::StatusCode::RESOURCE_EXHAUSTED, "All clients occupied");
+          break;
+        case (static_cast<uint32_t>(bftEngine::OperationResult::OUT_OF_TIME_BOUND_ERROR)):
+          LOG_INFO(logger, "Request failed with OUT_OF_TIME_BOUND_ERROR error for cid=" << req_config.correlation_id);
+          status = grpc::Status(grpc::StatusCode::ABORTED, "Aborted due to out of time bound error");
           break;
         default:
           LOG_INFO(logger, "Request failed with INTERNAL error for cid=" << req_config.correlation_id);

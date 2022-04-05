@@ -112,6 +112,10 @@ static void getResponseSetStatus(concord::client::concordclient::SendResult&& se
         LOG_INFO(logger, "Request failed with OVERLOADED error for cid=" << correlation_id);
         return_status = grpc::Status(grpc::StatusCode::UNAVAILABLE, "All clients occupied");
         break;
+      case (static_cast<uint32_t>(bftEngine::OperationResult::OUT_OF_TIME_BOUND_ERROR)):
+        LOG_INFO(logger, "Request failed with OUT_OF_TIME_BOUND_ERROR error for cid=" << correlation_id);
+        return_status = grpc::Status(grpc::StatusCode::UNAVAILABLE, "Aborted");
+        break;
       case (static_cast<uint32_t>(bftEngine::OperationResult::UNKNOWN)):
         LOG_INFO(logger, "Request failed with UNKNOWN error for cid=" << correlation_id);
         return_status = grpc::Status(grpc::StatusCode::UNKNOWN, "Failure due to unknown reason");
