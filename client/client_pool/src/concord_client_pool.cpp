@@ -506,9 +506,9 @@ void ConcordClientPool::processReplies(ClientPtr &client,
   ClientPoolMetrics_.average_req_dur_gauge.Get().Set((uint64_t)average_req_dur_.avg());
   if (average_req_dur_.numOfElements() == 1000) average_req_dur_.reset();  // reset the average every 1000 samples
   ClientPoolMetrics_.executed_requests_counter++;
+  metricsComponent_.UpdateAggregator();
   {
     std::unique_lock<std::mutex> lock(clients_queue_lock_);
-    metricsComponent_.UpdateAggregator();
     auto finish = std::chrono::steady_clock::now();
     for (const auto &reply : replies.second) {
       auto before_send = client->getAndDeleteCidBeforeSendTime(reply.cid);
