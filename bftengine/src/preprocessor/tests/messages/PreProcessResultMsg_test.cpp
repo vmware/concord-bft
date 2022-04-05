@@ -62,6 +62,7 @@ struct MsgParams {
   const std::string correlationId = "correlationId";
   const char rawSpanContext[14] = {"span_\0context"};  // make clang-tidy happy
   const std::string spanContext{rawSpanContext};
+  const std::string participantId = "participantId";
 };
 
 std::pair<std::string, std::vector<char>> getProcessResultSigBuff(const std::unique_ptr<SigManager>& sigManager,
@@ -143,6 +144,7 @@ class PreProcessResultMsgTestFixture : public testing::Test {
                                                  p.requestTimeoutMilli,
                                                  p.correlationId,
                                                  concordUtils::SpanContext{p.spanContext},
+                                                 p.participantId,
                                                  resultSigsBuf.second.data(),
                                                  resultSigsBuf.second.size(),
                                                  resultSigsBuf.first);
@@ -180,6 +182,7 @@ class PreProcessResultMsgTxSigningOffTestFixture : public testing::Test {
                                                  p.requestTimeoutMilli,
                                                  p.correlationId,
                                                  concordUtils::SpanContext{p.spanContext},
+                                                 p.participantId,
                                                  nullptr,
                                                  0,
                                                  resultSigsBuf.first);

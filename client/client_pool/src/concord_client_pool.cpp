@@ -44,6 +44,7 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
                                             uint64_t seq_num,
                                             std::string correlation_id,
                                             const std::string &span_context,
+                                            const std::string &participant_id,
                                             const bftEngine::RequestCallBack &callback) {
   if (callback && timeout_ms.count() == 0) {
     callback(bftEngine::SendResult{static_cast<uint32_t>(OperationResult::INVALID_REQUEST)});
@@ -92,6 +93,7 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
                                 seq_num,
                                 correlation_id,
                                 span_context,
+                                participant_id,
                                 callback);
 
       if (correlation_id.find('-') != std::string::npos) {
@@ -140,6 +142,7 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
                           seq_num,
                           correlation_id,
                           span_context,
+                          participant_id,
                           callback);
         LOG_DEBUG(logger_, "Request Acknowledged (single)" << KVLOG(client_id, correlation_id, seq_num, flags));
         return SubmitResult::Acknowledged;
@@ -182,6 +185,7 @@ void ConcordClientPool::assignJobToClient(const ClientPtr &client,
                                           uint64_t seq_num,
                                           const std::string &correlation_id,
                                           const std::string &span_context,
+                                          const std::string &participant_id,
                                           const bftEngine::RequestCallBack &callback) {
   LOG_INFO(logger_,
            "client_id=" << client->getClientId() << " starts handling reqSeqNum=" << seq_num
@@ -199,6 +203,7 @@ void ConcordClientPool::assignJobToClient(const ClientPtr &client,
                                              correlation_id,
                                              seq_num,
                                              span_context,
+                                             participant_id,
                                              callback);
   ClientPoolMetrics_.requests_counter++;
   ClientPoolMetrics_.clients_gauge.Get().Set(clients_.size());
@@ -224,6 +229,7 @@ SubmitResult ConcordClientPool::SendRequest(const bft::client::WriteConfig &conf
                      config.request.sequence_number,
                      config.request.correlation_id,
                      config.request.span_context,
+                     config.request.participant_id,
                      callback);
 }
 
@@ -245,6 +251,7 @@ SubmitResult ConcordClientPool::SendRequest(const bft::client::ReadConfig &confi
                      config.request.sequence_number,
                      config.request.correlation_id,
                      config.request.span_context,
+                     config.request.participant_id,
                      callback);
 }
 
@@ -460,6 +467,7 @@ void SingleRequestProcessingJob::execute() {
     read_config_.request.sequence_number = seq_num_;
     read_config_.request.correlation_id = correlation_id_;
     read_config_.request.span_context = span_context_;
+    read_config_.request.participant_id = participant_id_;
     if (max_reply_size_ > 0) {
       read_config_.request.max_reply_size = max_reply_size_;
     }
@@ -470,6 +478,7 @@ void SingleRequestProcessingJob::execute() {
     write_config_.request.sequence_number = seq_num_;
     write_config_.request.correlation_id = correlation_id_;
     write_config_.request.span_context = span_context_;
+    write_config_.request.participant_id = participant_id_;
     if (max_reply_size_ > 0) {
       write_config_.request.max_reply_size = max_reply_size_;
     }

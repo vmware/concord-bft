@@ -33,6 +33,7 @@ TEST_F(ClientPreprocessRequestMsgTestFixture, create_and_compare) {
   const uint64_t requestTimeoutMilli = 0;
   const std::string correlationId = "correlationId";
   const char rawSpanContext[] = {"span_\0context"};
+  const std::string participantId = "participantId";
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   ClientPreProcessRequestMsg msg(senderId,
                                  reqSeqNum,
@@ -40,6 +41,7 @@ TEST_F(ClientPreprocessRequestMsgTestFixture, create_and_compare) {
                                  request,
                                  requestTimeoutMilli,
                                  correlationId,
+                                 participantId,
                                  concordUtils::SpanContext{spanContext});
 
   EXPECT_EQ(msg.clientProxyId(), senderId);
@@ -63,6 +65,7 @@ TEST_F(ClientPreprocessRequestMsgTestFixture, construct_from_msg_base_and_compar
   const uint64_t requestTimeoutMilli = 0;
   const std::string correlationId = "correlationId";
   const char rawSpanContext[] = {"span_\0context"};
+  const std::string participantId = "participantId";
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   ClientPreProcessRequestMsg msg(senderId,
                                  reqSeqNum,
@@ -70,6 +73,7 @@ TEST_F(ClientPreprocessRequestMsgTestFixture, construct_from_msg_base_and_compar
                                  request,
                                  requestTimeoutMilli,
                                  correlationId,
+                                 participantId,
                                  concordUtils::SpanContext{spanContext});
 
   MessageBase* original_base = &msg;
@@ -99,12 +103,14 @@ TEST_F(ClientPreprocessRequestMsgTestFixture, check_after_convert_to_regular_cli
   const std::string correlationId = "correlationId";
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
+  const std::string participantId = "participantId";
   ClientPreProcessRequestMsg msg(senderId,
                                  reqSeqNum,
                                  sizeof(request),
                                  request,
                                  requestTimeoutMilli,
                                  correlationId,
+                                 participantId,
                                  concordUtils::SpanContext{spanContext});
 
   auto base_client_request = msg.convertToClientRequestMsg();

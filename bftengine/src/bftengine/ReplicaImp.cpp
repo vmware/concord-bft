@@ -4949,6 +4949,7 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
                                                                               reply.maxReplyLength(),
                                                                               reply.replyBuf(),
                                                                               request->requestSeqNum(),
+                                                                              "",
                                                                               request->result()});
   {
     TimeRecorder scoped_timer(*histograms_.executeReadOnlyRequest);

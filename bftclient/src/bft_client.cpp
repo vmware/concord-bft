@@ -85,7 +85,8 @@ Msg Client::createClientMsg(const RequestConfig& config, Msg&& request, bool rea
     flags |= RECONFIG_FLAG;
   }
   auto header_size = sizeof(ClientRequestMsgHeader);
-  auto msg_size = header_size + request.size() + config.correlation_id.size() + config.span_context.size();
+  auto msg_size = header_size + request.size() + config.correlation_id.size() + config.span_context.size() +
+                  config.participant_id.size();
   if (transaction_signer_) {
     expected_sig_len = transaction_signer_->signatureLength();
     msg_size += expected_sig_len;
@@ -100,6 +101,7 @@ Msg Client::createClientMsg(const RequestConfig& config, Msg&& request, bool rea
   header->requestLength = request.size();
   header->timeoutMilli = config.timeout.count();
   header->cidLength = config.correlation_id.size();
+  header->participantidLength = config.participant_id.size();
   header->result = 1;  // UNKNOWN
   header->reqSignatureLength = 0;
   header->extraDataLength = 0;
@@ -116,11 +118,16 @@ Msg Client::createClientMsg(const RequestConfig& config, Msg&& request, bool rea
 
   // Copy the correlation ID
   std::memcpy(position, config.correlation_id.data(), config.correlation_id.size());
+  position += config.correlation_id.size();
+
+  // Copy the participant ID
+  if (config.participant_id.size() > 0)
+    std::memcpy(position, config.participant_id.data(), config.participant_id.size());
 
   if (transaction_signer_) {
     // Sign the request data, add the signature at the end of the request
     size_t actualSigSize = 0;
-    position += config.correlation_id.size();
+    if (config.participant_id.size() > 0) position += config.participant_id.size();
     {
       std::string sig;
       std::string data(request.begin(), request.end());

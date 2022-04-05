@@ -81,6 +81,7 @@ struct RequestConfig {
   std::string span_context = "";
   bool key_exchange = false;
   bool reconfiguration = false;
+  std::string participant_id = "";
 };
 
 // The configuration for a single write request.

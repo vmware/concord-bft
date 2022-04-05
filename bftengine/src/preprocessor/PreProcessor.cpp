@@ -244,6 +244,7 @@ void RequestsBatch::sendCancelBatchedPreProcessingMsgToNonPrimaries(const Client
                                           0,
                                           0,
                                           preProcessor_.myReplica_.getCurrentView(),
+                                          clientMsg->getParticipantid(),
                                           clientMsg->spanContext<ClientPreProcessReqMsgUniquePtr::element_type>());
     reqsBatch.push_back(preProcessReqMsg);
     overallPreProcessReqMsgsSize += preProcessReqMsg->size();
@@ -574,6 +575,7 @@ void PreProcessor::cancelPreProcessingOnNonPrimary(const ClientPreProcessReqMsgU
                                         0,
                                         0,
                                         myReplica_.getCurrentView(),
+                                        clientReqMsg->getParticipantid(),
                                         clientReqMsg->spanContext<ClientPreProcessReqMsgUniquePtr::element_type>());
   LOG_DEBUG(
       logger(),
@@ -623,6 +625,7 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
   LOG_DEBUG(logger(),
             "Received ClientPreProcessRequestMsg" << KVLOG(reqSeqNum, reqCid, clientId, senderId, reqTimeoutMilli));
   if (!checkClientMsgCorrectness(reqSeqNum, reqCid, clientMsg->isReadOnly(), clientId, senderId, "")) return;
+
   PreProcessRequestMsgSharedPtr preProcessRequestMsg;
   handleSingleClientRequestMessage(move(clientMsg), senderId, false, 0, preProcessRequestMsg, "", 1);
 }
@@ -1317,6 +1320,7 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffset
       const auto reqSeqNum = reqProcessingStatePtr->getReqSeqNum();
       auto &preProcessReqMsg = reqProcessingStatePtr->getPreProcessRequest();
       const auto &span_context = preProcessReqMsg->spanContext<PreProcessRequestMsgSharedPtr::element_type>();
+      const auto &participantid = preProcessReqMsg->getParticipantid();
       // Copy of the message body is unavoidable here, as we need to create a new message type which lifetime is
       // controlled by the replica while all PreProcessReply messages get released here.
       auto preProcessResult = static_cast<uint32_t>(reqProcessingStatePtr->getAgreedPreProcessResult());
@@ -1335,6 +1339,7 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffset
                                                          reqProcessingStatePtr->getReqTimeoutMilli(),
                                                          reqCid,
                                                          span_context,
+                                                         participantid,
                                                          reqProcessingStatePtr->getReqSignature(),
                                                          reqProcessingStatePtr->getReqSignatureLength(),
                                                          sigsBuf);
@@ -1351,6 +1356,7 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffset
                                                       reqCid,
                                                       preProcessResult,
                                                       span_context,
+                                                      participantid,
                                                       reqProcessingStatePtr->getReqSignature(),
                                                       reqProcessingStatePtr->getReqSignatureLength());
         LOG_DEBUG(logger(),
@@ -1384,6 +1390,7 @@ bool PreProcessor::registerRequest(const string &batchCid,
   NodeIdType senderId = 0;
   SeqNum reqSeqNum = 0;
   string reqCid;
+  string participantid;
   uint32_t requestSignatureLength = 0;
   char *requestSignature = nullptr;
 
@@ -1393,6 +1400,7 @@ bool PreProcessor::registerRequest(const string &batchCid,
     senderId = clientReqMsg->senderId();
     reqSeqNum = clientReqMsg->requestSeqNum();
     reqCid = clientReqMsg->getCid();
+    participantid = clientReqMsg->getParticipantid();
     clientReqMsgSpecified = true;
     requestSignatureLength = clientReqMsg->requestSignatureLength();
     requestSignature = clientReqMsg->requestSignature();
@@ -1401,6 +1409,7 @@ bool PreProcessor::registerRequest(const string &batchCid,
     senderId = preProcessRequestMsg->senderId();
     reqSeqNum = preProcessRequestMsg->reqSeqNum();
     reqCid = preProcessRequestMsg->getCid();
+    participantid = preProcessRequestMsg->getParticipantid();
     requestSignatureLength = preProcessRequestMsg->requestSignatureLength();
     requestSignature = preProcessRequestMsg->requestSignature();
   }
@@ -1572,6 +1581,7 @@ bool PreProcessor::registerRequestOnPrimaryReplica(const string &batchCid,
                                         clientReqMsg->requestSignatureLength(),
                                         blockId,
                                         myReplica_.getCurrentView(),
+                                        clientReqMsg->getParticipantid(),
                                         clientReqMsg->spanContext<ClientPreProcessReqMsgUniquePtr::element_type>(),
                                         clientReqMsg->result());
   const auto registerSucceeded =
@@ -1713,6 +1723,7 @@ OperationResult PreProcessor::launchReqPreProcessing(const string &batchCid,
                                                      uint32_t &resultLen) {
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.launchReqPreProcessing);
   const string &reqCid = preProcessReqMsg->getCid();
+  const string &participantid = preProcessReqMsg->getParticipantid();
   uint16_t clientId = preProcessReqMsg->clientId();
   uint16_t reqOffsetInBatch = preProcessReqMsg->reqOffsetInBatch();
   ReqId reqSeqNum = preProcessReqMsg->reqSeqNum();
@@ -1742,6 +1753,7 @@ OperationResult PreProcessor::launchReqPreProcessing(const string &batchCid,
       maxPreExecResultSize_,
       preProcessResultBuffer,
       reqSeqNum,
+      participantid,
       preProcessReqMsg->result()};
   requestsHandler_.preExecute(request, std::nullopt, reqCid, span);
   auto preProcessResult = static_cast<OperationResult>(request.outExecutionStatus);

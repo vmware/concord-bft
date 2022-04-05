@@ -47,6 +47,7 @@ const uint16_t reqWaitTimeoutMilli = 50;
 const ReqId reqSeqNum = 123456789;
 const uint16_t clientId = 12;
 string cid = "abcd";
+string participantid = "client1";
 const concordUtils::SpanContext span;
 const NodeIdType replica_0 = 0;
 const NodeIdType replica_1 = 1;
@@ -660,7 +661,8 @@ TEST(requestPreprocessingState_test, validatePreProcessBatchRequestMsg) {
                                                               nullptr,
                                                               0,
                                                               GlobalData::current_block_id,
-                                                              viewNum);
+                                                              viewNum,
+                                                              participantid);
     batch.push_back(preProcessReqMsg);
     overallReqSize += preProcessReqMsg->size();
   }
@@ -738,7 +740,8 @@ TEST(requestPreprocessingState_test, requestTimedOut) {
   PreProcessor preProcessor(msgsCommunicator, msgsStorage, msgHandlersRegPtr, requestsHandler, replica, timers, sdm);
 
   auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientPreProcessRequest);
-  auto* clientReqMsg = new ClientPreProcessRequestMsg(clientId, reqSeqNum, bufLen, buf, reqTimeoutMilli, cid);
+  auto* clientReqMsg =
+      new ClientPreProcessRequestMsg(clientId, reqSeqNum, bufLen, buf, reqTimeoutMilli, cid, participantid);
   msgHandlerCallback(clientReqMsg);
   usleep(waitForExecTimerMillisec * 1000);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 0), reqSeqNum);
@@ -759,7 +762,8 @@ TEST(requestPreprocessingState_test, primaryCrashDetected) {
   PreProcessor preProcessor(msgsCommunicator, msgsStorage, msgHandlersRegPtr, requestsHandler, replica, timers, sdm);
 
   auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientPreProcessRequest);
-  auto* clientReqMsg = new ClientPreProcessRequestMsg(clientId, reqSeqNum, bufLen, buf, reqTimeoutMilli, cid);
+  auto* clientReqMsg =
+      new ClientPreProcessRequestMsg(clientId, reqSeqNum, bufLen, buf, reqTimeoutMilli, cid, participantid);
   msgHandlerCallback(clientReqMsg);
   usleep(waitForExecTimerMillisec * 1000);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 0), reqSeqNum);
@@ -783,7 +787,8 @@ TEST(requestPreprocessingState_test, primaryCrashNotDetected) {
   PreProcessor preProcessor(msgsCommunicator, msgsStorage, msgHandlersRegPtr, requestsHandler, replica, timers, sdm);
 
   auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientPreProcessRequest);
-  auto* clientReqMsg = new ClientPreProcessRequestMsg(clientId, reqSeqNum, bufLen, buf, reqTimeoutMilli, cid);
+  auto* clientReqMsg =
+      new ClientPreProcessRequestMsg(clientId, reqSeqNum, bufLen, buf, reqTimeoutMilli, cid, participantid);
   msgHandlerCallback(clientReqMsg);
   usleep(waitForExecTimerMillisec * 1000);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 0), reqSeqNum);
@@ -801,6 +806,7 @@ TEST(requestPreprocessingState_test, primaryCrashNotDetected) {
                                                     0,
                                                     GlobalData::current_block_id,
                                                     replica.getCurrentView(),
+                                                    participantid,
                                                     span);
   msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::PreProcessRequest);
   msgHandlerCallback(preProcessReqMsg);
@@ -915,7 +921,8 @@ TEST(requestPreprocessingState_test, handlePreProcessBatchRequestMsg) {
                                                               nullptr,
                                                               0,
                                                               0,
-                                                              replica.getCurrentView());
+                                                              replica.getCurrentView(),
+                                                              participantid);
     batch.push_back(preProcessReqMsg);
     overallReqSize += preProcessReqMsg->size();
   }
@@ -943,11 +950,35 @@ TEST(requestPreprocessingState_test, rejectMsgWithInvalidView) {
   ViewNum currentView = replica.getCurrentView();
   NodeIdType senderId = 2;
 
-  auto requestMsgValidView = make_shared<PreProcessRequestMsg>(
-      REQ_TYPE_PRE_PROCESS, senderId, clientId, 0, reqSeqNum, reqRetryId, bufLen, buf, cid, nullptr, 0, 0, currentView);
+  auto requestMsgValidView = make_shared<PreProcessRequestMsg>(REQ_TYPE_PRE_PROCESS,
+                                                               senderId,
+                                                               clientId,
+                                                               0,
+                                                               reqSeqNum,
+                                                               reqRetryId,
+                                                               bufLen,
+                                                               buf,
+                                                               cid,
+                                                               nullptr,
+                                                               0,
+                                                               0,
+                                                               currentView,
+                                                               participantid);
 
-  auto requestMsgInvalidView = make_shared<PreProcessRequestMsg>(
-      REQ_TYPE_PRE_PROCESS, senderId, clientId, 0, reqSeqNum, reqRetryId, bufLen, buf, cid, nullptr, 0, 0, oldViewNum);
+  auto requestMsgInvalidView = make_shared<PreProcessRequestMsg>(REQ_TYPE_PRE_PROCESS,
+                                                                 senderId,
+                                                                 clientId,
+                                                                 0,
+                                                                 reqSeqNum,
+                                                                 reqRetryId,
+                                                                 bufLen,
+                                                                 buf,
+                                                                 cid,
+                                                                 nullptr,
+                                                                 0,
+                                                                 0,
+                                                                 oldViewNum,
+                                                                 participantid);
 
   ConcordAssert(preProcessor.validateRequestMsgCorrectness(requestMsgValidView));
   ConcordAssert(!preProcessor.validateRequestMsgCorrectness(requestMsgInvalidView));
@@ -994,7 +1025,8 @@ TEST(requestPreprocessingState_test, rejectMsgWithInvalidView) {
                                                               nullptr,
                                                               0,
                                                               0,
-                                                              currentView);
+                                                              currentView,
+                                                              participantid);
     reqBatch.push_back(preProcessReqMsg);
     overallReqSize += preProcessReqMsg->size();
   }

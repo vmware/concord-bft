@@ -27,6 +27,7 @@ class ClientPreProcessRequestMsg : public ClientRequestMsg {
                              const char* request,
                              uint64_t reqTimeoutMilli,
                              const std::string& cid,
+                             const std::string& participant_id,
                              const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{},
                              const char* requestSignature = nullptr,
                              uint32_t requestSignatureLen = 0);

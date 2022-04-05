@@ -233,6 +233,7 @@ void ReadOnlyReplica::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_s
                                                                               reply.maxReplyLength(),
                                                                               reply.replyBuf(),
                                                                               request.requestSeqNum(),
+                                                                              "",
                                                                               request.result()});
 
   // DD: Do we need to take care of Time Service here?

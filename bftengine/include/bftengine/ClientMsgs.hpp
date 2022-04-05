@@ -40,6 +40,7 @@ struct ClientRequestMsgHeader {
   uint32_t requestLength = 0;
   uint64_t timeoutMilli = 0;
   uint32_t cidLength = 0;
+  uint32_t participantidLength = 0;
   uint16_t reqSignatureLength = 0;
   uint32_t extraDataLength = 0;
 

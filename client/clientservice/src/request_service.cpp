@@ -86,7 +86,7 @@ void RequestServiceCallData::sendToConcordClient() {
   req_config.pre_execute = request_.pre_execute();
   req_config.timeout = timeout;
   req_config.correlation_id = request_.correlation_id();
-
+  req_config.participant_id = client_->getSubscriptionId();
   auto callback = [this, req_config, is_any_request_type](concord::client::concordclient::SendResult&& send_result) {
     grpc::Status status;
     auto logger = logging::getLogger("concord.client.clientservice.request.callback");

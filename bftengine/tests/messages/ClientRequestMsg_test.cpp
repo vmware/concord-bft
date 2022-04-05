@@ -47,6 +47,7 @@ TEST_F(ClientRequestMsgTestFixture, create_and_compare) {
   const char request[] = {"request body"};
   const uint64_t requestTimeoutMilli = 0;
   const std::string correlationId = "correlationId";
+  const std::string participantId = "participantId";
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   ClientRequestMsg msg(senderId,
@@ -57,7 +58,8 @@ TEST_F(ClientRequestMsgTestFixture, create_and_compare) {
                        requestTimeoutMilli,
                        correlationId,
                        0,
-                       concordUtils::SpanContext{spanContext});
+                       concordUtils::SpanContext{spanContext},
+                       participantId);
 
   EXPECT_EQ(msg.clientProxyId(), senderId);
   EXPECT_EQ(msg.flags(), flags);
@@ -78,6 +80,7 @@ TEST_F(ClientRequestMsgTestFixture, create_and_compare_with_empty_span) {
   const char request[] = {"request body"};
   const uint64_t requestTimeoutMilli = 0;
   const std::string correlationId = "correlationId";
+  const std::string participantId = "participantId";
   const char rawSpanContext[] = {""};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   ClientRequestMsg msg(senderId,
@@ -88,7 +91,8 @@ TEST_F(ClientRequestMsgTestFixture, create_and_compare_with_empty_span) {
                        requestTimeoutMilli,
                        correlationId,
                        0,
-                       concordUtils::SpanContext{spanContext});
+                       concordUtils::SpanContext{spanContext},
+                       participantId);
 
   EXPECT_EQ(msg.clientProxyId(), senderId);
   EXPECT_EQ(msg.flags(), flags);
@@ -97,6 +101,7 @@ TEST_F(ClientRequestMsgTestFixture, create_and_compare_with_empty_span) {
   EXPECT_NE(msg.requestBuf(), request);
   EXPECT_TRUE(std::memcmp(msg.requestBuf(), request, sizeof(request)) == 0u);
   EXPECT_EQ(msg.getCid(), correlationId);
+  EXPECT_EQ(msg.getParticipantid(), participantId);
   EXPECT_EQ(msg.spanContext<ClientRequestMsg>().data(), spanContext);
   EXPECT_NO_THROW(msg.validate(replicaInfo));
 }
@@ -109,6 +114,7 @@ TEST_F(ClientRequestMsgTestFixture, create_and_compare_with_empty_cid) {
   const uint64_t requestTimeoutMilli = 0;
   const std::string correlationId = "";
   const char rawSpanContext[] = {""};
+  const std::string participantId = "";
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   ClientRequestMsg msg(senderId,
                        flags,
@@ -118,7 +124,8 @@ TEST_F(ClientRequestMsgTestFixture, create_and_compare_with_empty_cid) {
                        requestTimeoutMilli,
                        correlationId,
                        0,
-                       concordUtils::SpanContext{spanContext});
+                       concordUtils::SpanContext{spanContext},
+                       participantId);
 
   EXPECT_EQ(msg.clientProxyId(), senderId);
   EXPECT_EQ(msg.flags(), flags);
@@ -127,6 +134,7 @@ TEST_F(ClientRequestMsgTestFixture, create_and_compare_with_empty_cid) {
   EXPECT_NE(msg.requestBuf(), request);
   EXPECT_TRUE(std::memcmp(msg.requestBuf(), request, sizeof(request)) == 0u);
   EXPECT_EQ(msg.getCid(), correlationId);
+  EXPECT_EQ(msg.getParticipantid(), participantId);
   EXPECT_EQ(msg.spanContext<ClientRequestMsg>().data(), spanContext);
   EXPECT_EQ(msg.requestTimeoutMilli(), requestTimeoutMilli);
   EXPECT_NO_THROW(msg.validate(replicaInfo));
@@ -139,6 +147,7 @@ TEST_F(ClientRequestMsgTestFixture, create_from_buffer) {
   const char request[] = {"request body"};
   const uint64_t requestTimeoutMilli = 0;
   const std::string correlationId = "correlationId";
+  const std::string participantId = "participantId";
   const char rawSpanContext[] = {""};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   ClientRequestMsg originalMsg(senderId,
@@ -149,7 +158,8 @@ TEST_F(ClientRequestMsgTestFixture, create_from_buffer) {
                                requestTimeoutMilli,
                                correlationId,
                                0,
-                               concordUtils::SpanContext{spanContext});
+                               concordUtils::SpanContext{spanContext},
+                               participantId);
 
   ClientRequestMsg copy_msg((ClientRequestMsgHeader*)originalMsg.body());
 
@@ -160,6 +170,7 @@ TEST_F(ClientRequestMsgTestFixture, create_from_buffer) {
   EXPECT_EQ(originalMsg.requestBuf(), copy_msg.requestBuf());
   EXPECT_TRUE(std::memcmp(originalMsg.requestBuf(), copy_msg.requestBuf(), sizeof(request)) == 0u);
   EXPECT_EQ(originalMsg.getCid(), copy_msg.getCid());
+  EXPECT_EQ(originalMsg.getParticipantid(), copy_msg.getParticipantid());
   EXPECT_EQ(originalMsg.spanContext<ClientRequestMsg>().data(), copy_msg.spanContext<ClientRequestMsg>().data());
   EXPECT_EQ(originalMsg.requestTimeoutMilli(), requestTimeoutMilli);
   EXPECT_NO_THROW(originalMsg.validate(replicaInfo));
@@ -173,6 +184,7 @@ TEST_F(ClientRequestMsgTestFixture, test_with_timestamp) {
   auto request = concord::util::serialize(millis.count());
   const uint64_t requestTimeoutMilli = 0;
   const std::string correlationId = "correlationId";
+  const std::string participantId = "participantId";
   const char rawSpanContext[] = {""};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   ClientRequestMsg originalMsg(senderId,
@@ -183,7 +195,8 @@ TEST_F(ClientRequestMsgTestFixture, test_with_timestamp) {
                                requestTimeoutMilli,
                                correlationId,
                                0,
-                               concordUtils::SpanContext{spanContext});
+                               concordUtils::SpanContext{spanContext},
+                               participantId);
 
   ClientRequestMsg copy_msg((ClientRequestMsgHeader*)originalMsg.body());
 
@@ -194,6 +207,7 @@ TEST_F(ClientRequestMsgTestFixture, test_with_timestamp) {
   EXPECT_EQ(originalMsg.requestBuf(), copy_msg.requestBuf());
   EXPECT_TRUE(std::memcmp(originalMsg.requestBuf(), copy_msg.requestBuf(), request.size()) == 0u);
   EXPECT_EQ(originalMsg.getCid(), copy_msg.getCid());
+  EXPECT_EQ(originalMsg.getParticipantid(), copy_msg.getParticipantid());
   EXPECT_EQ(originalMsg.spanContext<ClientRequestMsg>().data(), copy_msg.spanContext<ClientRequestMsg>().data());
   EXPECT_EQ(originalMsg.requestTimeoutMilli(), requestTimeoutMilli);
 
@@ -211,6 +225,7 @@ TEST_F(ClientRequestMsgTestFixture, base_methods) {
   const uint64_t requestTimeoutMilli = 0;
   const std::string correlationId = "correlationId";
   const char rawSpanContext[] = {"span_\0context"};
+  const std::string participantId = "participantId";
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   ClientRequestMsg msg(senderId,
                        flags,
@@ -220,7 +235,8 @@ TEST_F(ClientRequestMsgTestFixture, base_methods) {
                        requestTimeoutMilli,
                        correlationId,
                        0,
-                       concordUtils::SpanContext{spanContext});
+                       concordUtils::SpanContext{spanContext},
+                       participantId);
   EXPECT_NO_THROW(msg.validate(replicaInfo));
   testMessageBaseMethods(msg, MsgCode::ClientRequest, senderId, spanContext);
 }
@@ -236,6 +252,7 @@ TEST_F(ClientRequestMsgTestFixture, extra_buffer) {
                          uint64_t reqTimeoutMilli,
                          const std::string& cid,
                          const concordUtils::SpanContext& spanContext,
+                         const std::string& participantId,
                          const char* requestSignature,
                          uint32_t requestSignatureLen,
                          const uint32_t extraBufSize)
@@ -248,6 +265,7 @@ TEST_F(ClientRequestMsgTestFixture, extra_buffer) {
                            cid,
                            0,
                            spanContext,
+                           participantId,
                            requestSignature,
                            requestSignatureLen,
                            extraBufSize) {}
@@ -261,6 +279,7 @@ TEST_F(ClientRequestMsgTestFixture, extra_buffer) {
   const char request[] = {"request body"};
   const uint64_t requestTimeoutMilli = 0;
   const std::string correlationId = "correlationId";
+  const std::string participantId = "participantId";
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   const size_t extraBufSize = 1024;
@@ -272,13 +291,15 @@ TEST_F(ClientRequestMsgTestFixture, extra_buffer) {
                            requestTimeoutMilli,
                            correlationId,
                            concordUtils::SpanContext{spanContext},
+                           participantId,
                            nullptr,
                            0,
                            extraBufSize);
   EXPECT_NO_THROW(msg.validate(replicaInfo));
   testMessageBaseMethods<ClientRequestMsg>(msg, MsgCode::ClientRequest, senderId, spanContext);
 
-  size_t mainMsgSize = sizeof(ClientRequestMsgHeader) + sizeof(request) + correlationId.size() + spanContext.size();
+  size_t mainMsgSize = sizeof(ClientRequestMsgHeader) + sizeof(request) + correlationId.size() + spanContext.size() +
+                       participantId.size();
   ASSERT_EQ(msg.size(), mainMsgSize + extraBufSize);
   ASSERT_EQ(msg.getExtraBufPtr().first, msg.body() + mainMsgSize);
 }
@@ -294,6 +315,7 @@ TEST_F(ClientRequestMsgTestFixture, validate_size) {
                          uint64_t reqTimeoutMilli,
                          const std::string& cid,
                          const concordUtils::SpanContext& spanContext,
+                         const std::string& participantId,
                          const char* requestSignature,
                          uint32_t requestSignatureLen,
                          const uint32_t extraBufSize)
@@ -306,6 +328,7 @@ TEST_F(ClientRequestMsgTestFixture, validate_size) {
                            cid,
                            0,
                            spanContext,
+                           participantId,
                            requestSignature,
                            requestSignatureLen,
                            extraBufSize) {}
@@ -319,6 +342,7 @@ TEST_F(ClientRequestMsgTestFixture, validate_size) {
   const char request[] = {"request body"};
   const uint64_t requestTimeoutMilli = 0;
   const std::string correlationId = "correlationId";
+  const std::string participantId = "participantId";
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   const size_t extraBufSize = 1024;
@@ -330,6 +354,7 @@ TEST_F(ClientRequestMsgTestFixture, validate_size) {
                            requestTimeoutMilli,
                            correlationId,
                            concordUtils::SpanContext{spanContext},
+                           participantId,
                            nullptr,
                            0,
                            extraBufSize);

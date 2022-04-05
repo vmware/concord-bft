@@ -119,6 +119,7 @@ class ConcordClientPool {
                            uint64_t seq_num,
                            std::string correlation_id = {},
                            const std::string& span_context = std::string(),
+                           const std::string& participant_id = std::string(),
                            const bftEngine::RequestCallBack& callback = {});
 
   // This method is responsible to get write requests with the new client
@@ -149,6 +150,7 @@ class ConcordClientPool {
                          uint64_t seq_num,
                          const std::string& correlation_id,
                          const std::string& span_context,
+                         const std::string& participant_id,
                          const bftEngine::RequestCallBack& callback);
 
   PoolStatus HealthStatus();
@@ -237,6 +239,7 @@ class SingleRequestProcessingJob : public BatchRequestProcessingJob {
                              std::string correlation_id,
                              uint64_t seq_num,
                              std::string span_context,
+                             std::string participant_id,
                              const bftEngine::RequestCallBack& callback)
       : BatchRequestProcessingJob(clients, std::move(client)),
         request_(std::move(request)),
@@ -245,6 +248,7 @@ class SingleRequestProcessingJob : public BatchRequestProcessingJob {
         max_reply_size_{max_reply_size},
         correlation_id_{std::move(correlation_id)},
         span_context_{std::move(span_context)},
+        participant_id_{std::move(participant_id)},
         seq_num_{seq_num},
         callback_{callback} {};
 
@@ -257,6 +261,7 @@ class SingleRequestProcessingJob : public BatchRequestProcessingJob {
   uint32_t max_reply_size_;
   const std::string correlation_id_;
   std::string span_context_;
+  std::string participant_id_;
   uint64_t seq_num_;
   bft::client::WriteConfig write_config_;
   bft::client::ReadConfig read_config_;

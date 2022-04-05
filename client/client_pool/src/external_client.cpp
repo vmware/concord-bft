@@ -131,6 +131,7 @@ void ConcordClient::AddPendingRequest(std::vector<uint8_t>&& request,
                                       uint64_t seq_num,
                                       const std::string& correlation_id,
                                       const std::string& span_context,
+                                      const std::string& participant_id,
                                       RequestCallBack callback) {
   bftEngine::ClientRequest pending_request;
   pending_request.lengthOfRequest = request.size();
@@ -140,6 +141,7 @@ void ConcordClient::AddPendingRequest(std::vector<uint8_t>&& request,
   pending_request.reqSeqNum = seq_num;
   pending_request.cid = correlation_id;
   pending_request.span_context = span_context;
+  pending_request.participant_id = participant_id;
   pending_requests_.push_back(std::move(pending_request));
 
   bftEngine::ClientReply pending_reply;
@@ -176,6 +178,7 @@ std::pair<int32_t, ConcordClient::PendingReplies> ConcordClient::SendPendingRequ
     single_config.request.correlation_id = req.cid;
     seq_num_to_cid.insert(std::make_pair(req.reqSeqNum, req.cid));
     single_config.request.span_context = req.span_context;
+    single_config.request.participant_id = req.participant_id;
     single_config.request.reconfiguration = req.flags & bftEngine::RECONFIG_FLAG_REQ;
     single_config.request.pre_execute = req.flags & bftEngine::PRE_PROCESS_REQ;
     request_queue.push_back(bft::client::WriteRequest{single_config, std::move(req.request)});

@@ -53,7 +53,8 @@ class SimpleClientImp : public SimpleClient, public IReceiver {
                               char* replyBuffer,
                               uint32_t& actualReplyLength,
                               const std::string& cid,
-                              const std::string& spanContext) override;
+                              const std::string& spanContext,
+                              const std::string& participantid) override;
 
   OperationResult sendBatch(const deque<ClientRequest>& clientRequests,
                             deque<ClientReply>& clientReplies,
@@ -312,7 +313,8 @@ OperationResult SimpleClientImp::sendRequest(uint8_t flags,
                                              char* replyBuffer,
                                              uint32_t& actualReplyLength,
                                              const std::string& cid,
-                                             const std::string& spanContext) {
+                                             const std::string& spanContext,
+                                             const std::string& participantid) {
   bool isReadOnly = flags & READ_ONLY_REQ;
   bool isPreProcessRequired = flags & PRE_PROCESS_REQ;
   const std::string msgCid = cid.empty() ? std::to_string(reqSeqNum) + "-" + std::to_string(clientId_) : cid;
@@ -342,9 +344,11 @@ OperationResult SimpleClientImp::sendRequest(uint8_t flags,
   ClientRequestMsg* reqMsg;
   concordUtils::SpanContext ctx{spanContext};
   if (isPreProcessRequired)
-    reqMsg = new ClientPreProcessRequestMsg(clientId_, reqSeqNum, lenOfRequest, request, reqTimeoutMilli, msgCid, ctx);
+    reqMsg = new ClientPreProcessRequestMsg(
+        clientId_, reqSeqNum, lenOfRequest, request, reqTimeoutMilli, msgCid, participantid, ctx);
   else
-    reqMsg = new ClientRequestMsg(clientId_, flags, reqSeqNum, lenOfRequest, request, reqTimeoutMilli, msgCid, 1, ctx);
+    reqMsg = new ClientRequestMsg(
+        clientId_, flags, reqSeqNum, lenOfRequest, request, reqTimeoutMilli, msgCid, 1, ctx, participantid);
   {
     std::unique_lock<std::mutex> mlock(lock_);
     pendingRequests_.push_back(reqMsg);
@@ -445,6 +449,7 @@ OperationResult SimpleClientImp::preparePendingRequestsFromBatch(const deque<Cli
                     maxRetransmissionTimeout,
                     req.span_context.empty()));
     concordUtils::SpanContext ctx{req.span_context};
+
     reqMsg = new ClientRequestMsg(clientId_,
                                   req.flags,
                                   req.reqSeqNum,
@@ -453,7 +458,8 @@ OperationResult SimpleClientImp::preparePendingRequestsFromBatch(const deque<Cli
                                   req.timeoutMilli,
                                   cid,
                                   0,
-                                  ctx);
+                                  ctx,
+                                  req.participant_id);
     {
       unique_lock<std::mutex> mlock(lock_);
       pendingRequests_.push_back(reqMsg);

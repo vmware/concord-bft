@@ -63,6 +63,7 @@ struct ClientRequest {
   uint64_t timeoutMilli = 0;
   std::string cid;
   std::string span_context;
+  std::string participant_id;
 };
 
 struct ClientReply {
@@ -114,7 +115,8 @@ class SimpleClient {
                                                  char* replyBuffer,
                                                  uint32_t& actualReplyLength,
                                                  const std::string& cid = "",
-                                                 const std::string& spanContext = "") = 0;
+                                                 const std::string& spanContext = "",
+                                                 const std::string& participantid = "") = 0;
 
   // To be used only for write requests
   virtual bftEngine::OperationResult sendBatch(const std::deque<ClientRequest>& clientRequests,

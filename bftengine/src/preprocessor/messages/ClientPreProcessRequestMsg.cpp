@@ -23,6 +23,7 @@ ClientPreProcessRequestMsg::ClientPreProcessRequestMsg(NodeIdType sender,
                                                        const char* request,
                                                        uint64_t reqTimeoutMilli,
                                                        const std::string& cid,
+                                                       const std::string& participant_id,
                                                        const concordUtils::SpanContext& spanContext,
                                                        const char* requestSignature,
                                                        uint32_t requestSignatureLen)
@@ -35,6 +36,7 @@ ClientPreProcessRequestMsg::ClientPreProcessRequestMsg(NodeIdType sender,
                        cid,
                        1,
                        spanContext,
+                       participant_id,
                        requestSignature,
                        requestSignatureLen) {
   msgBody_->msgType = MsgCode::ClientPreProcessRequest;
@@ -51,6 +53,7 @@ unique_ptr<MessageBase> ClientPreProcessRequestMsg::convertToClientRequestMsg(bo
                                                                            getCid(),
                                                                            result(),
                                                                            spanContext<ClientRequestMsg>(),
+                                                                           getParticipantid(),
                                                                            emptyReq ? nullptr : requestSignature(),
                                                                            emptyReq ? 0 : requestSignatureLength());
   return clientRequestMsg;

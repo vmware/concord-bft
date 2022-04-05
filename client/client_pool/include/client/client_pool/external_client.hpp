@@ -60,6 +60,7 @@ class ConcordClient {
                          uint64_t seq_num,
                          const std::string& correlation_id = {},
                          const std::string& span_context = {},
+                         const std::string& participant_id = {},
                          bftEngine::RequestCallBack callback = {});
 
   size_t PendingRequestsCount() const { return pending_requests_.size(); }
