@@ -22,6 +22,7 @@
 
 #include "XAssert.h"
 
+namespace threshsign {
 class Utils {
  public:
   template <class T, class E>
@@ -135,3 +136,5 @@ class Utils {
   static std::string bin2hex(const void* data, int dataLen);
   static void hex2bin(const std::string& hexStr, unsigned char* bin, int binCapacity);
 };
+
+}  // namespace threshsign

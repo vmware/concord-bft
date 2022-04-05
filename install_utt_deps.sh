@@ -59,7 +59,7 @@ echo "Installing libxassert..."
     sudo cmake --build . --target install
 
     cd ${HOME}
-    rm -r libxassert/
+    rm -rf libxassert/
 )
 
 # install libxutils
@@ -77,7 +77,7 @@ echo "Installing libxutils..."
     sudo cmake --build . --target install
 
     cd ${HOME}
-    rm -r libxutils/
+    rm -rf libxutils/
 )
 
 BINARY_OUTPUT=OFF
@@ -107,7 +107,7 @@ MULTICORE=OFF
     sudo cp lib/libzm.a "$LIB_DIR"
 
     cd ${HOME}
-    rm -r ate-pairing/
+    rm -rf ate-pairing/
 )
 
 # echo "Installing libff..."
@@ -137,7 +137,7 @@ MULTICORE=OFF
     sudo make install
 
     cd ${HOME}
-    rm -r libff/
+    rm -rf libff/
 )
 
 # echo "Installing libfqfft (header-only library)..."
@@ -153,7 +153,7 @@ MULTICORE=OFF
     sudo rm "$INCL_DIR/CMakeLists.txt"
 
     cd ${HOME}
-    rm -r libfqfft/
+    rm -rf libfqfft/
 )
 
 # After installing all libraries, let's make sure that they will be found at compile time

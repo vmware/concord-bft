@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -12,6 +12,7 @@
 // file.
 
 #include <iostream>
+#include <fstream>
 
 #include "config/test_comm_config.hpp"
 #include "config/test_parameters.hpp"
@@ -22,6 +23,7 @@
 #include "utt_messages.cmf.hpp"
 
 #include "app_state.hpp"
+#include "utt_config.hpp"
 
 using namespace bftEngine;
 using namespace bft::communication;
@@ -106,6 +108,24 @@ ICommunication* setupCommunicationParams(ClientParams& cp) {
 #endif
 
   return CommFactory::create(conf);
+}
+
+void initAccounts(AppState& state) {
+  AppState::initUTTLibrary();
+
+  if (!state.GetAccounts().empty()) throw std::runtime_error("Accounts already exist");
+  for (int i = 1; i <= 3; ++i) {
+    const std::string fileName = "utt_client_" + std::to_string(i);
+    std::ifstream ifs(fileName);
+    if (!ifs.is_open()) throw std::runtime_error("Missing config: " + fileName);
+
+    UTTClientConfig cfg;
+    ifs >> cfg;
+
+    std::cout << "Successfully loaded UTT wallet '" << cfg.wallet_.getUserPid() << "'\n";
+
+    state.addAccount(Account{std::move(cfg.wallet_)});
+  }
 }
 
 TxReply sendTxRequest(Client& client, const Tx& tx) {
@@ -197,25 +217,28 @@ void syncState(AppState& state, Client& client) {
 }
 
 int main(int argc, char** argv) {
+  logging::initLogger("logging.properties");
+  ClientParams clientParams = setupClientParams(argc, argv);
+
+  if (clientParams.clientId == UINT16_MAX || clientParams.numOfFaulty == UINT16_MAX ||
+      clientParams.numOfSlow == UINT16_MAX || clientParams.numOfOperations == UINT32_MAX) {
+    std::cout << "Wrong usage! Required parameters: " << argv[0] << " -f F -c C -p NUM_OPS -i ID";
+    exit(-1);
+  }
+
+  SharedCommPtr comm = SharedCommPtr(setupCommunicationParams(clientParams));
+
+  ClientConfig clientConfig;
+  clientConfig.f_val = clientParams.numOfFaulty;
+  for (uint16_t i = 0; i < clientParams.numOfReplicas; ++i) clientConfig.all_replicas.emplace(ReplicaId{i});
+  clientConfig.id = ClientId{clientParams.clientId};
+
+  Client client(comm, clientConfig);
+
+  AppState state;
+
   try {
-    logging::initLogger("logging.properties");
-    ClientParams clientParams = setupClientParams(argc, argv);
-
-    if (clientParams.clientId == UINT16_MAX || clientParams.numOfFaulty == UINT16_MAX ||
-        clientParams.numOfSlow == UINT16_MAX || clientParams.numOfOperations == UINT32_MAX) {
-      std::cout << "Wrong usage! Required parameters: " << argv[0] << " -f F -c C -p NUM_OPS -i ID";
-      exit(-1);
-    }
-
-    SharedCommPtr comm = SharedCommPtr(setupCommunicationParams(clientParams));
-
-    ClientConfig clientConfig;
-    clientConfig.f_val = clientParams.numOfFaulty;
-    for (uint16_t i = 0; i < clientParams.numOfReplicas; ++i) clientConfig.all_replicas.emplace(ReplicaId{i});
-    clientConfig.id = ClientId{clientParams.clientId};
-
-    Client client(comm, clientConfig);
-    AppState state;
+    initAccounts(state);
 
     while (true) {
       std::cout << "\nEnter command (type 'h' for commands, 'q' to exit):\n";
@@ -227,12 +250,18 @@ int main(int argc, char** argv) {
           client.stop();
           return 0;
         } else if (cmd == "h") {
-          std::cout << "list of commands is empty (NYI)\n";
+          std::cout << "\nCommands:\n";
+          std::cout << "balance\t\t\t\t-- print all account's public and utt balances\n";
+          std::cout << "ledger\t\t\t\t-- print the transactions that happened on the blockchain\n";
+          std::cout << "deposit [account] [amount]\t-- public money deposit to account\n";
+          std::cout << "withdraw [account] [amount]\t-- public money withdraw from account\n";
+          std::cout << "transfer [from] [to] [amount]\t-- public money transfer\n";
         } else if (cmd == "balance") {
           syncState(state, client);
           for (const auto& kvp : state.GetAccounts()) {
             const auto& acc = kvp.second;
-            std::cout << acc.getId() << " : " << acc.getBalancePublic() << '\n';
+            std::cout << acc.getId() << " | public: " << acc.getPublicBalance();
+            std::cout << " utt: " << acc.getUttBalance() << '\n';
           }
         } else if (cmd == "ledger") {
           syncState(state, client);
@@ -241,7 +270,7 @@ int main(int argc, char** argv) {
           }
         } else if (cmd == "checkpoint") {
           for (int i = 0; i < 150; ++i) {
-            auto reply = sendTxRequest(client, TxPublicDeposit("A", 1));
+            auto reply = sendTxRequest(client, TxPublicDeposit("user_1", 1));
             if (reply.success) {
               state.setLastKnownBlockId(reply.last_block_id);
             } else {
@@ -267,6 +296,7 @@ int main(int argc, char** argv) {
       }
     }
   } catch (const std::exception& e) {
+    client.stop();
     std::cout << "Exception: " << e.what() << '\n';
   }
 }
