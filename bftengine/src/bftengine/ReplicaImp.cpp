@@ -673,7 +673,7 @@ bool ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
       time_to_collect_batch_ = MinTime;
     }
   } else {
-    auto builtReq = buildPrePrepareMessageByRequestsNum(config_.maxNumOfRequestsInBatch);  // hanan
+    auto builtReq = buildPrePrepareMessageByRequestsNum(config_.maxNumOfRequestsInBatch);
     isSent = builtReq.second;
     if (isSent) {
       pp = builtReq.first;
@@ -807,10 +807,16 @@ std::pair<PrePrepareMsg *, bool> ReplicaImp::finishAddingRequestsToPrePrepareMsg
 // The preprepare message can be nullptr if the finalisation is happening in a separate thread.
 // So the second value of the pair provides the real indication of success of failure.
 std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMessage() {
+  // sending 0 to buildPrePrepareMessageByRequestsNum means no limit on Requests
+  return buildPrePrepareMessageByRequestsNum(0);
+}
+
+// The preprepare message can be nullptr if the finalisation is happening in a separate thread.
+// So the second value of the pair provides the real indication of success of failure.
+std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMessageByRequestsNum(uint32_t requiredRequestsNum) {
   TimeRecorder scoped_timer(*histograms_.buildPrePrepareMessage);
   PrePrepareMsg *prePrepareMsg = createPrePrepareMessage();
   if (!prePrepareMsg) return std::make_pair(nullptr, false);
-
   if (!getReplicaConfig().prePrepareFinalizeAsyncEnabled) {
     SCOPED_MDC("pp_msg_cid", prePrepareMsg->getCid());
   }
@@ -818,27 +824,13 @@ std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMessage() {
   uint32_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
   {
     TimeRecorder scoped_timer1(*histograms_.addAllRequestsToPrePrepare);
-    ClientRequestMsg *nextRequest = (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
-    while (nextRequest != nullptr)
+    ClientRequestMsg *nextRequest = !requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr;
+
+    // when requiredRequestsNum is 0 it means no required req number so don't affect the req loop
+    bool required_req_num_cond = requiredRequestsNum ? (prePrepareMsg->numberOfRequests() < requiredRequestsNum) : true;
+    while (nextRequest != nullptr && required_req_num_cond)
       nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg, maxSpaceForReqs);
   }
-  return finishAddingRequestsToPrePrepareMsg(prePrepareMsg, maxSpaceForReqs, 0, 0);
-}
-
-// The preprepare message can be nullptr if the finalisation is happening in a separate thread.
-// So the second value of the pair provides the real indication of success of failure.
-std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMessageByRequestsNum(uint32_t requiredRequestsNum) {
-  PrePrepareMsg *prePrepareMsg = createPrePrepareMessage();
-  if (!prePrepareMsg) return std::make_pair(nullptr, false);
-  if (!getReplicaConfig().prePrepareFinalizeAsyncEnabled) {
-    SCOPED_MDC("pp_msg_cid", prePrepareMsg->getCid());
-  }
-
-  uint32_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
-  ClientRequestMsg *nextRequest = !requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr;  // hanan
-  while (nextRequest != nullptr && prePrepareMsg->numberOfRequests() < requiredRequestsNum)
-    nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg, maxSpaceForReqs);
-
   return finishAddingRequestsToPrePrepareMsg(prePrepareMsg, maxSpaceForReqs, 0, requiredRequestsNum);
 }
 
