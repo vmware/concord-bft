@@ -22,6 +22,8 @@
 #include "Logger.hpp"
 
 namespace concord_client_pool {
+
+// Note oddity: ClientT has to implement `operator<<`
 template <typename ClientT>
 class Timer {
  public:
@@ -48,6 +50,7 @@ class Timer {
 
   void start(const ClientT& client) {
     if (timeout_.count() == 0 || not timer_thread_future_.valid() || io_context_.stopped()) {
+      LOG_WARN(logger_, "Timer cannot start for client " << client_);
       return;
     }
     client_ = client;
@@ -68,7 +71,7 @@ class Timer {
       return timeout_;
     }
     timer_.cancel();
-    LOG_DEBUG(logger_, "Timer canceled for client " << client_);
+    LOG_DEBUG(logger_, "Timer cancelled for client " << client_);
     return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_timer_);
   }
 

@@ -21,7 +21,7 @@ using concord_client_pool::Timer;
 
 using namespace std::chrono_literals;
 
-struct TestClient {};
+using TestClient = std::shared_ptr<void>;
 
 TEST(client_pool_timer, work_items) {
   uint16_t num_times_called = 0;
