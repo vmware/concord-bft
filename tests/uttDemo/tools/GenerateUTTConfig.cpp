@@ -26,78 +26,12 @@
 #include <utt/Coin.h>
 
 #include "app_state.hpp"
+#include "utt_config.hpp"
 
 using namespace libutt;
+using namespace utt_config;
 
 using Fr = typename libff::default_ec_pp::Fp_type;
-
-////////////////////////////////////////////////////////////////////////
-std::string JoinStr(const std::vector<std::string>& v, char delim = ' ') {
-  if (v.empty()) return std::string{};
-  if (v.size() == 1) return v[0];
-  std::stringstream ss;
-  for (size_t i = 0; i < v.size() - 1; ++i) ss << v[i] << delim;
-  ss << v.back();
-  return ss.str();
-}
-
-////////////////////////////////////////////////////////////////////////
-std::vector<std::string> SplitStr(const std::string& s, char delim = ' ') {
-  if (s.empty()) return std::vector<std::string>{};
-  std::string token;
-  std::vector<std::string> result;
-  std::stringstream ss(s);
-  while (std::getline(ss, token, delim)) result.emplace_back(std::move(token));
-  return result;
-}
-
-////////////////////////////////////////////////////////////////////////
-struct UTTClientConfig {
-  bool operator==(const UTTClientConfig& other) const { return pids_ == other.pids_ && wallet_ == other.wallet_; }
-  bool operator!=(const UTTClientConfig& other) const { return !(*this == other); }
-
-  std::vector<std::string> pids_;
-  Wallet wallet_;
-};
-std::ostream& operator<<(std::ostream& os, const UTTClientConfig& cfg) {
-  os << JoinStr(cfg.pids_, ',') << '\n';
-  os << cfg.wallet_;
-  return os;
-}
-std::istream& operator>>(std::istream& is, UTTClientConfig& cfg) {
-  std::string pids;
-  std::getline(is, pids);
-  if (pids.empty()) throw std::runtime_error("Trying to deserialize UTTClientConfig with no pids!");
-  cfg.pids_ = SplitStr(pids, ',');
-
-  is >> cfg.wallet_;
-
-  return is;
-}
-
-////////////////////////////////////////////////////////////////////////
-struct UTTReplicaConfig {
-  bool operator==(const UTTReplicaConfig& other) const {
-    return p_ == other.p_ && rpk_ == other.rpk_ && bskShare_ == other.bskShare_;
-  }
-  bool operator!=(const UTTReplicaConfig& other) const { return !(*this == other); }
-
-  Params p_;
-  RegAuthPK rpk_;
-  RandSigShareSK bskShare_;
-};
-std::ostream& operator<<(std::ostream& os, const UTTReplicaConfig& cfg) {
-  os << cfg.p_;
-  os << cfg.rpk_;
-  os << cfg.bskShare_;
-  return os;
-}
-std::istream& operator>>(std::istream& is, UTTReplicaConfig& cfg) {
-  is >> cfg.p_;
-  is >> cfg.rpk_;
-  is >> cfg.bskShare_;
-  return is;
-}
 
 // Helper functions and static state to this executable's main function.
 // static bool containsHelpOption(int argc, char** argv) {
@@ -260,6 +194,7 @@ int main(int argc, char** argv) {
     // Create replica configs
     for (int i = 0; i < n; ++i) {
       UTTReplicaConfig replicaCfg;
+      replicaCfg.pids_ = pids;              // Pids
       replicaCfg.p_ = p;                    // The Params
       replicaCfg.rpk_ = rsk.toPK();         // The Registry Public Key
       replicaCfg.bskShare_ = bskShares[i];  // The Bank Secret Key Share

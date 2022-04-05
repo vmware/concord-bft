@@ -11,6 +11,14 @@ transactions available:
  fully anonymous to the bank (not knowing who or how much transferred to whom) and can be
  accountable (only a limited amount of money can be transferred anonymously in a given time period).
 
+ ## Installing docker
+ 
+ All build dependencies are provided in a pre-build docker image. This is the recommended way to
+ build concord-bft and the utt demo.
+
+ * Install docker 'sudo apt install docker.io'
+ * [configure docker as non-root user](https://docs.docker.com/engine/install/linux-postinstall/#manage-docker-as-a-non-root-user). This allows you to run the make commands below without sudo.
+
 ## Building the demo
 
 To build the demo there are two options:
