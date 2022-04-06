@@ -60,6 +60,9 @@ jobs:
                               -DUSE_OPENTRACING=ON \
                               -DOMIT_TEST_OUTPUT=OFF\
                               -DKEEP_APOLLO_LOGS=TRUE\
+                              -DUSE_CRYPTOPP_HASH=TRUE\
+                              -DUSE_OPENSSL_SHA_256=FALSE\
+                              -DUSE_OPENSSL_SHA3_256=FALSE\
                               -DUSE_FAKE_CLOCK_IN_TIME_SERVICE=TRUE\" "\
               && script -q -e -c "make test"
         - name: Prepare artifacts
