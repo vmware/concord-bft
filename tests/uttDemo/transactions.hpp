@@ -49,6 +49,8 @@ struct TxPublicTransfer {
 std::ostream& operator<<(std::ostream& os, const TxPublicTransfer& tx);
 
 struct TxUttTransfer {
+  TxUttTransfer(std::string data) : data_{std::move(data)} {}
+
   std::string data_;  // some opaque data
 };
 
@@ -56,4 +58,4 @@ using Tx = std::variant<TxPublicDeposit, TxPublicWithdraw, TxPublicTransfer, TxU
 
 std::ostream& operator<<(std::ostream& os, const Tx& tx);
 
-std::optional<Tx> parseTx(const std::string& str);
+std::optional<Tx> parsePublicTx(const std::string& str);

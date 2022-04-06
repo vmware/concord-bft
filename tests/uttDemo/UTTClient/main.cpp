@@ -129,14 +129,19 @@ void initAccounts(AppState& state) {
 }
 
 TxReply sendTxRequest(Client& client, const Tx& tx) {
-  // Send transaction request
-  TxRequest txReq;
-  std::stringstream ss;
-  ss << tx;
-  txReq.tx = StrToBytes(ss.str());
-
   UTTRequest req;
-  req.request = std::move(txReq);
+
+  if (const auto* uttTransfer = std::get_if<TxUttTransfer>(&tx)) {
+    UttTx uttTx;
+    uttTx.tx = uttTransfer->data_;
+    req.request = std::move(uttTx);
+  } else {
+    std::stringstream ss;
+    ss << tx;
+    PublicTx publicTx;
+    publicTx.tx = ss.str();
+    req.request = std::move(publicTx);
+  }
 
   // Ensure we only wait for F+1 replies (ByzantineSafeQuorum)
   WriteConfig writeConf{RequestConfig{false, nextSeqNum()}, ByzantineSafeQuorum{}};
@@ -208,8 +213,16 @@ void syncState(AppState& state, Client& client) {
 
     if (blockDataReply.block_id != *missingBlockId) throw std::runtime_error("Received missing block id differs!");
 
-    auto tx = parseTx(BytesToStr(blockDataReply.tx));
-    if (!tx) throw std::runtime_error("Failed to parse tx from missing block!");
+    std::optional<Tx> tx;
+    if (const auto* uttTx = std::get_if<UttTx>(&blockDataReply.tx)) {
+      tx = TxUttTransfer(uttTx->tx);
+    } else if (const auto* publicTx = std::get_if<PublicTx>(&blockDataReply.tx)) {
+      tx = parsePublicTx(publicTx->tx);
+      if (!tx) throw std::runtime_error("Failed to parse public tx from missing block!");
+    } else {
+      throw std::runtime_error("Unhandled tx type in GetBlockDataReply! blockId=" +
+                               std::to_string(blockDataReply.block_id));
+    }
 
     state.appendBlock(Block{std::move(*tx)});
     missingBlockId = state.executeBlocks();
@@ -278,7 +291,7 @@ int main(int argc, char** argv) {
               break;
             }
           }
-        } else if (auto tx = parseTx(cmd)) {
+        } else if (auto tx = parsePublicTx(cmd)) {
           auto reply = sendTxRequest(client, *tx);
           if (reply.success) {
             state.setLastKnownBlockId(reply.last_block_id);
