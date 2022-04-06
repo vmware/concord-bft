@@ -13,6 +13,7 @@
 #include "migrations/block_merkle_latest_ver_cf_migration.h"
 
 #include "assertUtils.hpp"
+#include "thread_pool.hpp"
 #include "categorization/blockchain.h"
 #include "categorization/column_families.h"
 #include "categorization/db_categories.h"
@@ -39,6 +40,7 @@ using kvbc::categorization::detail::BLOCK_MERKLE_LATEST_KEY_VERSION_CF;
 using kvbc::categorization::detail::hash;
 using kvbc::categorization::Hash;
 using util::toChar;
+using util::ThreadPool;
 
 using ::rocksdb::Checkpoint;
 using ::rocksdb::ColumnFamilyDescriptor;
@@ -56,8 +58,11 @@ const auto kTempCf = BLOCK_MERKLE_LATEST_KEY_VERSION_CF + "_temp";
 const std::string& BlockMerkleLatestVerCfMigration::temporaryColumnFamily() { return kTempCf; }
 
 BlockMerkleLatestVerCfMigration::BlockMerkleLatestVerCfMigration(const std::string& db_path,
-                                                                 const std::string& export_path)
-    : db_path_{db_path}, export_path_{export_path} {
+                                                                 const std::string& export_path,
+                                                                 const size_t iteration_batch_size)
+    : db_path_{db_path},
+      export_path_{export_path},
+      iteration_batch_size_((iteration_batch_size <= 0) ? 1 : iteration_batch_size) {
   const auto read_only = false;
   db_ = NativeClient::newClient(db_path, read_only, NativeClient::DefaultOptions{});
 }
@@ -106,42 +111,55 @@ void BlockMerkleLatestVerCfMigration::clearExistingLatestVerCf() {
 
 void BlockMerkleLatestVerCfMigration::iterateAndMigrate() {
   auto blockchain = Blockchain{db_};
-  auto key_hashes = std::vector<Hash>{};
-  auto values = std::vector<::rocksdb::PinnableSlice>{};
-  auto statuses = std::vector<::rocksdb::Status>{};
-  for (auto block_id = INITIAL_GENESIS_BLOCK_ID; block_id <= blockchain.getLastReachableBlockId(); ++block_id) {
-    const auto block = blockchain.getBlock(block_id);
-    if (!block.has_value()) {
-      throw std::runtime_error{"Failed to load block ID = " + std::to_string(block_id)};
-    }
-    auto it = block->data.categories_updates_info.find(kExecutionProvableCategory);
-    if (it != block->data.categories_updates_info.cend()) {
-      const auto block_merkle_output = std::get_if<BlockMerkleOutput>(&it->second);
-      ConcordAssertNE(block_merkle_output, nullptr);
-      key_hashes.clear();
-      for (const auto& [key, _] : block_merkle_output->keys) {
-        (void)_;
-        key_hashes.push_back(hash(key));
-      }
-      values.clear();
-      statuses.clear();
-      auto batch = NativeWriteBatch{db_};
-      auto key_it = block_merkle_output->keys.cbegin();
-      db_->multiGet(kTempCf, key_hashes, values, statuses);
-      ConcordAssertEQ(key_hashes.size(), values.size());
-      ConcordAssertEQ(key_hashes.size(), statuses.size());
-      for (auto i = 0ull; i < values.size(); ++i) {
-        const auto& value = values[i];
-        const auto& status = statuses[i];
-        if (status.ok()) {
-          batch.put(BLOCK_MERKLE_LATEST_KEY_VERSION_CF, key_it->first, value);
-        } else {
-          // We expect that no pruning has occurred. Therefore, the latest version of the key cannot be missing.
-          throw std::runtime_error{"multiGet() failed, reason: " + status.ToString()};
+  ThreadPool tp(iteration_batch_size_);
+  for (auto block_id = INITIAL_GENESIS_BLOCK_ID; block_id <= blockchain.getLastReachableBlockId();
+       block_id += iteration_batch_size_) {
+    std::vector<std::future<void>> tasks;
+    std::vector<NativeWriteBatch> batches(iteration_batch_size_, NativeWriteBatch(db_));
+    size_t read_offset = 0;
+    for (auto batched_block_id = block_id; (batched_block_id < (block_id + iteration_batch_size_)) &&
+                                           (batched_block_id <= blockchain.getLastReachableBlockId());
+         ++batched_block_id) {
+      tasks.push_back(tp.async([&batches, read_offset, &blockchain, batched_block_id, this]() -> void {
+        const auto block = blockchain.getBlock(batched_block_id);
+        if (!block.has_value()) {
+          throw std::runtime_error{"Failed to load block ID = " + std::to_string(batched_block_id)};
         }
-        ++key_it;
-      }
-      db_->write(std::move(batch));
+        std::vector<Hash> key_hashes;
+        std::vector<::rocksdb::PinnableSlice> values;
+        std::vector<::rocksdb::Status> statuses;
+        auto it = block->data.categories_updates_info.find(kExecutionProvableCategory);
+        if (it != block->data.categories_updates_info.cend()) {
+          const auto block_merkle_output = std::get_if<BlockMerkleOutput>(&it->second);
+          ConcordAssertNE(block_merkle_output, nullptr);
+          for (const auto& [key, _] : block_merkle_output->keys) {
+            (void)_;
+            key_hashes.push_back(hash(key));
+          }
+          auto key_it = block_merkle_output->keys.cbegin();
+          db_->multiGet(kTempCf, key_hashes, values, statuses);
+          ConcordAssertEQ(key_hashes.size(), values.size());
+          ConcordAssertEQ(key_hashes.size(), statuses.size());
+          for (auto i = 0ull; i < values.size(); ++i) {
+            const auto& value = values[i];
+            const auto& status = statuses[i];
+            if (status.ok()) {
+              (batches[read_offset]).put(BLOCK_MERKLE_LATEST_KEY_VERSION_CF, key_it->first, value);
+            } else {
+              // We expect that no pruning has occurred. Therefore, the latest version of the key cannot be missing.
+              throw std::runtime_error{"multiGet() failed, reason: " + status.ToString()};
+            }
+            ++key_it;
+          }
+        }
+      }));
+      read_offset++;
+    }
+    read_offset = 0;
+    for (const auto& t : tasks) {
+      t.wait();
+      db_->write(std::move(batches[read_offset]));
+      read_offset++;
     }
   }
   db_->put(kMigrationKey, kStateMigrated);
