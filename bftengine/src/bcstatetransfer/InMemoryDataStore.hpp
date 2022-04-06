@@ -210,7 +210,7 @@ class InMemoryDataStore : public DataStore {
   const map<uint64_t, CheckpointDesc>& getDescMap() const { return descMap; }
   const map<ResPageKey, ResPageVal>& getPagesMap() const { return pages; }
   const map<uint32_t, char*>& getPendingPagesMap() const { return pendingPages; }
-
+  std::mutex reservedPagesLock_;
   void setInitialized(bool init) { wasInit_ = init; }
   logging::Logger& logger() {
     static logging::Logger logger_ = logging::getLogger("concord.bft.st.inmem");

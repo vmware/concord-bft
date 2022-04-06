@@ -156,7 +156,7 @@ uint64_t InMemoryDataStore::getLastRequiredBlock() { return lastRequiredBlock; }
 void InMemoryDataStore::setPendingResPage(uint32_t inPageId, const char* inPage, uint32_t inPageLen) {
   LOG_DEBUG(logger(), inPageId);
   ConcordAssert(inPageLen <= sizeOfReservedPage_);
-
+  auto lock = std::unique_lock(reservedPagesLock_);
   auto pos = pendingPages.find(inPageId);
 
   char* page = nullptr;
@@ -173,11 +173,14 @@ void InMemoryDataStore::setPendingResPage(uint32_t inPageId, const char* inPage,
   if (inPageLen < sizeOfReservedPage_) memset(page + inPageLen, 0, (sizeOfReservedPage_ - inPageLen));
 }
 
-bool InMemoryDataStore::hasPendingResPage(uint32_t inPageId) { return (pendingPages.count(inPageId) > 0); }
+bool InMemoryDataStore::hasPendingResPage(uint32_t inPageId) {
+  auto lock = std::unique_lock(reservedPagesLock_);
+  return (pendingPages.count(inPageId) > 0);
+}
 
 void InMemoryDataStore::getPendingResPage(uint32_t inPageId, char* outPage, uint32_t pageLen) {
   ConcordAssert(pageLen <= sizeOfReservedPage_);
-
+  auto lock = std::unique_lock(reservedPagesLock_);
   auto pos = pendingPages.find(inPageId);
 
   ConcordAssert(pos != pendingPages.end());
@@ -185,17 +188,21 @@ void InMemoryDataStore::getPendingResPage(uint32_t inPageId, char* outPage, uint
   memcpy(outPage, pos->second, pageLen);
 }
 
-uint32_t InMemoryDataStore::numOfAllPendingResPage() { return (uint32_t)(pendingPages.size()); }
+uint32_t InMemoryDataStore::numOfAllPendingResPage() {
+  auto lock = std::unique_lock(reservedPagesLock_);
+  return (uint32_t)(pendingPages.size());
+}
 
 set<uint32_t> InMemoryDataStore::getNumbersOfPendingResPages() {
   set<uint32_t> retSet;
-
+  auto lock = std::unique_lock(reservedPagesLock_);
   for (auto p : pendingPages) retSet.insert(p.first);
 
   return retSet;
 }
 
 void InMemoryDataStore::deleteAllPendingPages() {
+  auto lock = std::unique_lock(reservedPagesLock_);
   for (auto p : pendingPages) std::free(p.second);
 
   pendingPages.clear();
@@ -204,6 +211,7 @@ void InMemoryDataStore::deleteAllPendingPages() {
 void InMemoryDataStore::associatePendingResPageWithCheckpoint(uint32_t inPageId,
                                                               uint64_t inCheckpoint,
                                                               const Digest& inPageDigest) {
+  auto lock = std::unique_lock(reservedPagesLock_);
   LOG_DEBUG(logger(), "pageId: " << inPageId << " checkpoint: " << inCheckpoint);
   // find in pendingPages
   auto pendingPos = pendingPages.find(inPageId);
@@ -227,6 +235,7 @@ void InMemoryDataStore::setResPage(uint32_t inPageId,
                                    uint64_t inCheckpoint,
                                    const Digest& inPageDigest,
                                    const char* inPage) {
+  auto lock = std::unique_lock(reservedPagesLock_);
   LOG_DEBUG(logger(), "pageId: " << inPageId << " checkpoint: " << inCheckpoint);
   // create key, and make sure that we don't already have this element
   ResPageKey key = {inPageId, inCheckpoint};
@@ -249,6 +258,7 @@ bool InMemoryDataStore::getResPage(uint32_t inPageId,
                                    Digest* outPageDigest,
                                    char* outPage,
                                    uint32_t copylength) {
+  auto lock = std::unique_lock(reservedPagesLock_);
   ConcordAssert(copylength <= sizeOfReservedPage_);
 
   ConcordAssert(inCheckpoint <= lastStoredCheckpoint);
@@ -277,6 +287,7 @@ bool InMemoryDataStore::getResPage(uint32_t inPageId,
 }
 
 void InMemoryDataStore::deleteCoveredResPageInSmallerCheckpoints(uint64_t inMinRelevantCheckpoint) {
+  auto lock = std::unique_lock(reservedPagesLock_);
   if (inMinRelevantCheckpoint <= 1) return;  //  nothing to delete
 
   auto iter = pages.begin();
@@ -306,6 +317,7 @@ void InMemoryDataStore::deleteCoveredResPageInSmallerCheckpoints(uint64_t inMinR
 }
 
 DataStore::ResPagesDescriptor* InMemoryDataStore::getResPagesDescriptor(uint64_t inCheckpoint) {
+  auto lock = std::unique_lock(reservedPagesLock_);
   size_t reqSize = DataStore::ResPagesDescriptor::size(numberOfReservedPages_);
 
   void* p = std::malloc(reqSize);
@@ -336,6 +348,7 @@ DataStore::ResPagesDescriptor* InMemoryDataStore::getResPagesDescriptor(uint64_t
 }
 
 void InMemoryDataStore::free(ResPagesDescriptor* desc) {
+  auto lock = std::unique_lock(reservedPagesLock_);
   ConcordAssert(desc->numOfPages == numberOfReservedPages_);
   void* p = desc;
   std::free(p);
