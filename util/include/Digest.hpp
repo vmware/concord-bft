@@ -12,9 +12,6 @@
 #pragma once
 
 #include <memory.h>
-#include <stdint.h>
-#include <string>
-#include <array>
 #include "DigestType.hpp"
 #include "DigestImpl.ipp"
 
@@ -24,6 +21,7 @@ using BlockDigest = std::array<std::uint8_t, DIGEST_SIZE>;
 
 #if defined USE_CRYPTOPP_HASH
 using Digest = DigestHolder<CryptoppDigestCreator>;
+using DigestUtil = DigestHelper<CryptoppDigestCreator>;
 #elif defined USE_OPENSSL_SHA_256
 using Digest = DigestHolder<OpenSSLDigestCreator<SHA2_256> >;
 #elif defined USE_OPENSSL_SHA3_256
