@@ -11,7 +11,10 @@
 
 #include "client/clientservice/client_service.hpp"
 
+#include <chrono>
 #include <grpcpp/grpcpp.h>
+
+using namespace std::literals::chrono_literals;
 
 namespace concord::client::clientservice {
 
@@ -55,7 +58,7 @@ void ClientService::wait() {
 void ClientService::shutdown() {
   if (clientservice_server_) {
     LOG_INFO(logger_, "Shutting down clientservice");
-    clientservice_server_->Shutdown();
+    clientservice_server_->Shutdown(std::chrono::system_clock::now() + 1s);
 
     LOG_INFO(logger_, "Shutting down and emptying completion queues");
     std::for_each(cqs_.begin(), cqs_.end(), [](auto& cq) { cq->Shutdown(); });
