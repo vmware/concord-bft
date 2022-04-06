@@ -22,31 +22,73 @@
 
 namespace concord::util::digest {
 
-class DigestUtil {
- public:
-  static size_t digestLength();
-  static bool compute(const char* input, size_t inputLength, char* outBufferForDigest, size_t lengthOfBufferForDigest);
-
-  class Context {
-   public:
-    Context();
-    void update(const char* data, size_t len);
-    void writeDigest(char* outDigest);  // write digest to outDigest, and invalidate the Context object
-    ~Context();
-
-   private:
-    void* internalState;
-  };
-};
-
 class DigestCreator {
  public:
   virtual ~DigestCreator() = default;
 
   virtual void init() = 0;
-  virtual void compute() = 0;
-  virtual void update() = 0;
-  virtual void final() = 0;
+  virtual bool compute(const char* input,
+                       size_t inputLength,
+                       char* outBufferForDigest,
+                       size_t lengthOfBufferForDigest) = 0;
+  virtual void update(const char* data, size_t len) = 0;
+  virtual void finish(char* outDigest) = 0;
+};
+
+template <typename CREATOR, typename = std::enable_if_t<std::is_base_of_v<DigestCreator, CREATOR>>>
+class DigestHelper {
+ public:
+  static size_t digestLength() { return DIGEST_SIZE; }
+  static bool compute(const char* input, size_t inputLength, char* outBufferForDigest, size_t lengthOfBufferForDigest) {
+    CREATOR c;
+    return c.compute(input, inputLength, outBufferForDigest, lengthOfBufferForDigest);
+  }
+
+  class Context {
+    CREATOR c;
+
+   public:
+    Context() { c.init(); }
+    void update(const char* data, size_t len) { c.update(data, len); }
+    void writeDigest(char* outDigest) { c.finish(outDigest); }
+    ~Context() { c.destroy(); }
+  };
+};
+
+// Implements digest creator using Crypto++ library.
+class CryptoppDigestCreator : public DigestCreator {
+ public:
+  void init() override;
+  bool compute(const char* input,
+               size_t inputLength,
+               char* outBufferForDigest,
+               size_t lengthOfBufferForDigest) override;
+  void update(const char* data, size_t len) override;
+  void finish(char* outDigest) override;
+  void destroy();
+  virtual ~CryptoppDigestCreator();
+
+ private:
+  void* internalState;
+};
+
+// Implements digest creator using OpenSSL library.
+template <typename SHACTX,
+          typename = std::enable_if_t<std::is_same_v<SHACTX, concord::util::SHA2_256> ||
+                                      std::is_same_v<SHACTX, concord::util::SHA3_256>>>
+class OpenSSLDigestCreator : public DigestCreator {
+ public:
+  virtual ~OpenSSLDigestCreator() = default;
+  void init() override {}
+  bool compute(const char* input,
+               size_t inputLength,
+               char* outBufferForDigest,
+               size_t lengthOfBufferForDigest) override {}
+  void update(const char* data, size_t len) override {}
+  void finish(char* outDigest) override {}
+
+ private:
+  SHACTX hash_ctx_;
 };
 
 template <typename CREATOR, typename = std::enable_if_t<std::is_base_of_v<DigestCreator, CREATOR>>>
@@ -55,7 +97,10 @@ class DigestHolder {
   DigestHolder() { std::memset(d, 0, DIGEST_SIZE); }
   DigestHolder(unsigned char initVal) { std::memset(d, initVal, DIGEST_SIZE); }
   DigestHolder(const char* other) { std::memcpy(d, other, DIGEST_SIZE); }
-  DigestHolder(char* buf, size_t len) { DigestUtil::compute(buf, len, (char*)d, DIGEST_SIZE); }
+  DigestHolder(char* buf, size_t len) {
+    CREATOR c;
+    c.compute(buf, len, (char*)d, DIGEST_SIZE);
+  }
   DigestHolder(const DigestHolder& other) { std::memcpy(d, other.d, DIGEST_SIZE); }
 
   char* content() const { return (char*)d; }  // Can be replaced by getForUpdate().
@@ -97,7 +142,8 @@ class DigestHolder {
   }
 
   static void digestOfDigest(const DigestHolder& inDigest, DigestHolder& outDigest) {
-    DigestUtil::compute(inDigest.d, sizeof(DigestHolder), outDigest.d, sizeof(DigestHolder));
+    CREATOR c;
+    c.compute(inDigest.d, sizeof(DigestHolder), outDigest.d, sizeof(DigestHolder));
   }
 
   static void calcCombination(const DigestHolder& inDigest, int64_t inDataA, int64_t inDataB, DigestHolder& outDigest) {
@@ -114,31 +160,5 @@ class DigestHolder {
 
  private:
   char d[DIGEST_SIZE];  // DIGEST_SIZE should be >= 8 bytes;  // Stores digest.
-};
-
-// Implements digest using Crypto++ library.
-class CryptoppDigestCreator : public DigestCreator {
- public:
-  void init() override {}
-  void compute() override {}
-  void update() override {}
-  void final() override {}
-  virtual ~CryptoppDigestCreator() = default;
-};
-
-// Implements digest using OpenSSL library.
-template <typename SHACTX,
-          typename = std::enable_if_t<std::is_same_v<SHACTX, concord::util::SHA2_256> ||
-                                      std::is_same_v<SHACTX, concord::util::SHA3_256>>>
-class OpenSSLDigestCreator : public DigestCreator {
- public:
-  virtual ~OpenSSLDigestCreator() = default;
-  void init() override {}
-  void compute() override {}
-  void update() override {}
-  void final() override {}
-
- private:
-  SHACTX hash_ctx_;
 };
 }  // namespace concord::util::digest
