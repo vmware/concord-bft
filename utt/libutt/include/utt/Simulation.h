@@ -14,7 +14,7 @@
 
 using namespace libutt;
 
-namespace Simulation {
+namespace libutt::Simulation {
 struct Context {
   size_t n_ = 0;
   size_t thresh_ = 0;
@@ -104,4 +104,4 @@ void doCoinSplit(const Context& ctx,
 void doCoinMerge(
     const Context& ctx, Wallet& w, size_t c1, size_t c2, std::set<std::string>& nullset, std::vector<Wallet>& wallets);
 
-}  // namespace Simulation
+}  // namespace libutt::Simulation

@@ -34,6 +34,9 @@ int Account::publicWithdraw(int val) {
   return val;
 }
 
+libutt::Wallet* Account::getWallet() { return wallet_ ? &(*wallet_) : nullptr; }
+const libutt::Wallet* Account::getWallet() const { return wallet_ ? &(*wallet_) : nullptr; }
+
 int Account::getUttBalance() const {
   if (!wallet_) throw std::runtime_error("UTT Wallet is unavalable!");
   int balance = 0;
