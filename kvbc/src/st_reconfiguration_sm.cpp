@@ -166,6 +166,9 @@ bool StReconfigurationHandler::handle(const concord::messages::PruneSwitchModeRe
                             false);
     apm_.switchMode(concord::performance::PruningMode::ADAPTIVE);
   }
+  for (auto &rec : orig_reconf_handlers_) {
+    rec->switchPruningSM(command.mode);
+  }
   return true;
 }
 bool StReconfigurationHandler::handle(const concord::messages::InstallCommand &cmd,
