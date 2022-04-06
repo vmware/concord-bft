@@ -128,10 +128,15 @@ Account* AppState::getAccountById(const std::string& id) {
   return it != accounts_.end() ? &(it->second) : nullptr;
 }
 
-bool AppState::canExecuteTx(const Tx& tx, std::string& err) const {
+const std::set<std::string>& AppState::getNullset() const {
+  return nullset_;
+}
+
+bool AppState::canExecuteTx(const Tx& tx, std::string& err, const IUTTConfig& cfg) const {
   struct Visitor {
     const AppState& state_;
-    Visitor(const AppState& state) : state_(state) {}
+    const IUTTConfig& uttCfg_;
+    Visitor(const AppState& state , const IUTTConfig& cfg) : state_{state}, uttCfg_{cfg} {}
 
     void operator()(const TxPublicDeposit& tx) const {
       if (tx.amount_ <= 0) throw std::domain_error("Public deposit amount must be positive!");
@@ -155,12 +160,21 @@ bool AppState::canExecuteTx(const Tx& tx, std::string& err) const {
       if (tx.amount_ > sender->getPublicBalance()) throw std::domain_error("Sender has insufficient public balance!");
     }
 
-    void operator()(const TxUttTransfer& tx) const { /*TODO*/
+    void operator()(const TxUttTransfer& tx) const {
+      // [TODO--UTT] Validate takes the bank public key, but that's used for quickPay validation
+      // which we aren't using in the demo
+      if (!tx.uttTx_.validate(uttCfg_.getParams(), uttCfg_.getBankPK(), uttCfg_.getRegAuthPK())) throw std::domain_error("Invalid utt transfer tx!");
+      
+      // [TODO--UTT] Does a copy of nullifiers
+      const auto& nullset = state_.getNullset();
+      for (const auto& n : tx.uttTx_.getNullifiers()) {
+        if (nullset.count(n) > 0) throw std::domain_error("Input coin already spent!");
+      }
     }
   };
 
   try {
-    std::visit(Visitor{*this}, tx);
+    std::visit(Visitor{*this, cfg}, tx);
   } catch (const std::domain_error& e) {
     err = e.what();
     return false;

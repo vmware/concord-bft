@@ -26,6 +26,7 @@ add_library(utt
     ZKPoK.cpp
     Simulation.cpp
     Client.cpp
+    Replica.cpp
 )
 
 target_include_directories(utt PUBLIC

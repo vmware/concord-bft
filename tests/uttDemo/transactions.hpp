@@ -19,6 +19,8 @@
 #include <optional>
 #include <vector>
 
+#include <utt/Tx.h>
+
 std::vector<uint8_t> StrToBytes(const std::string& str);
 std::string BytesToStr(const std::vector<uint8_t>& bytes);
 
@@ -49,10 +51,10 @@ struct TxPublicTransfer {
 std::ostream& operator<<(std::ostream& os, const TxPublicTransfer& tx);
 
 struct TxUttTransfer {
-  TxUttTransfer(std::string data) : data_{std::move(data)} {}
-
-  std::string data_;  // some opaque data
+  TxUttTransfer(libutt::Tx&& uttTx) : uttTx_{std::move(uttTx)} {}
+  libutt::Tx uttTx_;
 };
+std::ostream& operator<<(std::ostream& os, const TxUttTransfer& tx);
 
 using Tx = std::variant<TxPublicDeposit, TxPublicWithdraw, TxPublicTransfer, TxUttTransfer>;
 

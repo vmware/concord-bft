@@ -197,6 +197,7 @@ int main(int argc, char** argv) {
       replicaCfg.pids_ = pids;              // Pids
       replicaCfg.p_ = p;                    // The Params
       replicaCfg.rpk_ = rsk.toPK();         // The Registry Public Key
+      replicaCfg.bpk_ = bsk.toPK();         // The Bank Public Key
       replicaCfg.bskShare_ = bskShares[i];  // The Bank Secret Key Share
 
       std::ofstream ofs(replicaOutputPrefix + std::to_string(i));
