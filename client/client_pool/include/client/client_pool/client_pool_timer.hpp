@@ -15,12 +15,9 @@
 
 #include <chrono>
 #include <future>
-#include <stdexcept>
 
-#include <boost/asio/deadline_timer.hpp>
-#include <boost/asio/io_service.hpp>
-#include <boost/date_time/posix_time/posix_time_duration.hpp>
-#include <boost/system/error_code.hpp>
+#include <asio/steady_timer.hpp>
+#include <asio/io_context.hpp>
 
 namespace concord_client_pool {
 template <typename ClientT>
@@ -28,36 +25,35 @@ class Timer {
  public:
   using Clock = std::chrono::high_resolution_clock;
   Timer(std::chrono::milliseconds timeout, std::function<void(ClientT&&)> on_timeout)
-      : timeout_{timeout}, on_timeout_{on_timeout}, timer_(io_service_) {
+      : timeout_{timeout}, on_timeout_{on_timeout}, timer_(io_context_) {
     if (timeout_.count() > 0) {
-      timer_thread_future_ = std::async(std::launch::async, &Timer::WorkerThread, this);
+      timer_thread_future_ = std::async(std::launch::async, &Timer::work, this);
     }
   }
 
-  ~Timer() { stop(); }
+  ~Timer() { stopTimerThread(); }
 
-  void stop() {
+  void stopTimerThread() {
     if (timeout_.count() == 0) {
       return;
     }
-    stop_ = true;
-    io_service_.stop();
+    io_context_.stop();
     timer_thread_future_.wait();
   }
 
-  void set(const ClientT& client) {
-    if (timeout_.count() == 0) {
+  void start(const ClientT& client) {
+    if (timeout_.count() == 0 || not timer_thread_future_.valid() || io_context_.stopped()) {
       return;
     }
     client_ = client;
-    start_timer_ = std::chrono::steady_clock::now();
-    boost::posix_time::milliseconds timeout(timeout_.count());
-    timer_.expires_from_now(timeout);
-    auto handler = [this](const boost::system::error_code& error) {
-      if (error != boost::asio::error::operation_aborted) {
+    auto handler = [this](const asio::error_code& error) {
+      if (error != asio::error::operation_aborted) {
         on_timeout_(std::move(client_));
       }
     };
+
+    start_timer_ = std::chrono::steady_clock::now();
+    timer_.expires_at(start_timer_ + timeout_);
     timer_.async_wait(handler);
   }
 
@@ -70,27 +66,20 @@ class Timer {
   }
 
  private:
-  void WorkerThread() {
-    while (!stop_) {
-      if (io_service_.stopped()) {
-        io_service_.reset();
-      }
-      io_service_.run();
-    }
+  void work() {
+    // Add a work guard so that io_context_.run() keeps running even if there is no work item
+    asio::executor_work_guard<asio::io_context::executor_type> work_guard(io_context_.get_executor());
+    io_context_.run();
   }
 
   ClientT client_;
 
   std::future<void> timer_thread_future_;
 
-  std::atomic<bool> stop_ = false;
-  std::atomic<bool> is_cancelled_ = false;
-
   const std::chrono::milliseconds timeout_;
   std::function<void(ClientT&&)> on_timeout_;
-  std::chrono::time_point<Clock> until_;
-  boost::asio::io_service io_service_;
-  boost::asio::deadline_timer timer_;
+  asio::io_context io_context_;
+  asio::steady_timer timer_;
   std::chrono::steady_clock::time_point start_timer_;
 };
 }  // namespace concord_client_pool
