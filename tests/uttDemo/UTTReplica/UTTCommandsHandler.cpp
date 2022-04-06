@@ -18,6 +18,8 @@
 #include "kvbc_key_types.hpp"
 #include "ReplicaConfig.hpp"
 
+#include <utt/Replica.h>
+
 using namespace bftEngine;
 using namespace utt::messages;
 
@@ -88,7 +90,7 @@ TxReply UTTCommandsHandler::handleRequest(const PublicTx& publicTx) {
   TxReply reply;
   std::string err;
 
-  if (state_.canExecuteTx(*tx, err)) {
+  if (state_.canExecuteTx(*tx, err, config_)) {
     // Add a real block to the kv blockchain
     {
       BlockId nextExpectedBlockId = storage_->getLastBlockId() + 1;
@@ -119,9 +121,43 @@ TxReply UTTCommandsHandler::handleRequest(const PublicTx& publicTx) {
 utt::messages::TxReply UTTCommandsHandler::handleRequest(const utt::messages::UttTx& req) {
   LOG_INFO(logger_, "Executing UttTx!");
 
+  std::stringstream ss(req.tx);
+  Tx tx = TxUttTransfer(libutt::Tx(ss));
+
+  const auto* uttTransfer = std::get_if<TxUttTransfer>(&tx);
+  ConcordAssert(uttTransfer != nullptr);
+
   TxReply reply;
-  reply.success = false;
-  reply.err = "NYI";
+  std::string err;
+
+  if (state_.canExecuteTx(tx, err, config_)) {
+
+     // Compute signature shares the output coins
+    auto signShares = libutt::Replica::signShareOutputCoins(uttTransfer->uttTx_, config_.bskShare_);
+
+    // Add a real block to the kv blockchain
+    {
+      BlockId nextExpectedBlockId = storage_->getLastBlockId() + 1;
+
+      // Copy the utt tx into the block
+      auto txCopy = req.tx;
+
+      kvbc_cat::VersionedUpdates verUpdates;
+      verUpdates.addUpdate("tx" + std::to_string(nextExpectedBlockId), std::move(txCopy));
+
+      kvbc_cat::Updates updates;
+      updates.add(VERSIONED_KV_CAT_ID, std::move(verUpdates));
+      const auto newBlockId = blockAdder_->add(std::move(updates));
+      ConcordAssert(newBlockId == nextExpectedBlockId);
+    }
+
+    state_.appendBlock(Block{std::move(tx)});
+    state_.executeBlocks();
+    reply.success = true;
+  } else {
+    reply.success = false;
+    reply.err = err;
+  }
 
   return reply;
 }

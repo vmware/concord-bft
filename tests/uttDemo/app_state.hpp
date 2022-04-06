@@ -21,6 +21,7 @@
 #include <exception>
 
 #include "transactions.hpp"
+#include "utt_config.hpp"
 
 #include <utt/RegAuth.h>
 #include <utt/Params.h>
@@ -69,7 +70,7 @@ struct AppState {
   BlockId getLastKnownBlockId() const;
   const Block* getBlockById(BlockId id) const;
 
-  bool canExecuteTx(const Tx& tx, std::string& err) const;
+  bool canExecuteTx(const Tx& tx, std::string& err, const IUTTConfig& uttConfig) const;
   void appendBlock(Block&& bl);            // Returns the id of the appended block
   std::optional<BlockId> executeBlocks();  // Returns the next missing block id if unknown blocks exist
 
@@ -80,6 +81,8 @@ struct AppState {
 
   const Account* getAccountById(const std::string& id) const;
   Account* getAccountById(const std::string& id);
+
+  const std::set<std::string>& getNullset() const;
 
  private:
   void executeTx(const Tx& tx);

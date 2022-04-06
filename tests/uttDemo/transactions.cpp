@@ -35,6 +35,10 @@ std::ostream& operator<<(std::ostream& os, const TxPublicTransfer& tx) {
   return os;
 }
 
+std::ostream& operator<<(std::ostream& os, const TxUttTransfer& tx) {
+  os << tx.uttTx_;
+}
+
 std::ostream& operator<<(std::ostream& os, const Tx& tx) {
   std::visit([&os](const auto& tx) { os << tx; }, tx);
   return os;
