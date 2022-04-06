@@ -25,6 +25,7 @@ add_library(utt
     Wallet.cpp
     ZKPoK.cpp
     Simulation.cpp
+    Client.cpp
 )
 
 target_include_directories(utt PUBLIC

@@ -25,6 +25,8 @@
 #include "app_state.hpp"
 #include "utt_config.hpp"
 
+#include <utt/Client.h>
+
 using namespace bftEngine;
 using namespace bft::communication;
 using std::string;
@@ -229,6 +231,44 @@ void syncState(AppState& state, Client& client) {
   }
 }
 
+struct UttPayment {
+  UttPayment(Account& from, const Account& to, size_t payment) : from_(from), to_(to), payment_(payment) {}
+
+  Account& from_;
+  const Account& to_;
+  size_t payment_;
+};
+
+std::optional<UttPayment> createUttPayment(const std::string& cmd, AppState& state) {
+  std::vector<std::string> tokens;
+  std::string token;
+  std::stringstream ss(cmd);
+  while (std::getline(ss, token, ' ')) tokens.emplace_back(std::move(token));
+
+  if (tokens.size() == 4 && tokens[0] == "utt") {
+    const auto& from = tokens[1];
+    const auto& to = tokens[2];
+    int payment = std::atoi(tokens[3].c_str());
+    if (payment <= 0) throw std::domain_error("utt payment amount must be positive!");
+
+    // ToDo: This logic will be modified once we have a separate payment process and an account process.
+    // The utt transaction will be made from the point of view of the account and it will only know
+    // that the receiving pid exists (is previously registered by the registry authority)
+    auto* fromAccount = state.getAccountById(from);
+    if (!fromAccount) throw std::domain_error("utt sender account not found!");
+    const auto* toAccount = state.getAccountById(to);
+    if (!toAccount) throw std::domain_error("utt receiver account not found!");
+
+    if (fromAccount->getUttBalance() < payment) throw std::domain_error("insufficient balance for utt payment!");
+    if (fromAccount->getUttBudget() < payment)
+      throw std::domain_error("insufficient anonymous budget for utt payment!");
+
+    return UttPayment(*fromAccount, *toAccount, payment);
+  }
+
+  return std::nullopt;
+}
+
 int main(int argc, char** argv) {
   logging::initLogger("logging.properties");
   ClientParams clientParams = setupClientParams(argc, argv);
@@ -269,6 +309,7 @@ int main(int argc, char** argv) {
           std::cout << "deposit [account] [amount]\t-- public money deposit to account\n";
           std::cout << "withdraw [account] [amount]\t-- public money withdraw from account\n";
           std::cout << "transfer [from] [to] [amount]\t-- public money transfer\n";
+          std::cout << "utt [from] [to] [amount]\t-- anonymous money transfer\n";
         } else if (cmd == "balance") {
           syncState(state, client);
           for (const auto& kvp : state.GetAccounts()) {
@@ -291,6 +332,29 @@ int main(int argc, char** argv) {
               break;
             }
           }
+        } else if (auto uttPayment = createUttPayment(cmd, state)) {
+          std::cout << "Starting a UTT payment from " << uttPayment->from_.getId();
+          std::cout << " to " << uttPayment->to_.getId() << " for " << uttPayment->payment_;
+          std::cout << " ...\n";
+
+          // ToDo: check if this is a coin merge and repeat
+          auto wallet = uttPayment->from_.getWallet();
+          ConcordAssert(wallet != nullptr);
+
+          auto uttTx = libutt::Client::createTxForPayment(*wallet, uttPayment->to_.getId(), uttPayment->payment_);
+          std::stringstream ss;
+          ss << uttTx;
+
+          Tx tx = TxUttTransfer(ss.str());
+
+          auto reply = sendTxRequest(client, tx);
+          if (reply.success) {
+            state.setLastKnownBlockId(reply.last_block_id);
+            std::cout << "Ok.\n";
+          } else {
+            std::cout << "Transaction failed: " << reply.err << '\n';
+          }
+
         } else if (auto tx = parsePublicTx(cmd)) {
           auto reply = sendTxRequest(client, *tx);
           if (reply.success) {

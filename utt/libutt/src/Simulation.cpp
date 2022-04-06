@@ -1,5 +1,5 @@
 
-#include "utt/Simulation.h"
+#include <utt/Simulation.h>
 
 #include <utt/Configuration.h>
 
@@ -23,7 +23,7 @@
 
 using Fr = typename libff::default_ec_pp::Fp_type;
 
-namespace Simulation {
+namespace libutt::Simulation {
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 void assertSerialization(Wallet& inOutWallet) {
@@ -739,4 +739,4 @@ void doCoinMerge(
   logdbg << '\n';
 }
 
-}  // namespace Simulation
+}  // namespace libutt::Simulation

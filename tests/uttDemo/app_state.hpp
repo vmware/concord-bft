@@ -37,6 +37,8 @@ class Account {
   void publicDeposit(int val);
   int publicWithdraw(int val);
 
+  libutt::Wallet* getWallet();
+  const libutt::Wallet* getWallet() const;
   int getUttBalance() const;
   int getUttBudget() const;
 
