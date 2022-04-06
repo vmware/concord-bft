@@ -44,8 +44,10 @@ void UTTCommandsHandler::execute(UTTCommandsHandler::ExecutionRequestsQueue& req
       UTTReply reply;
       const auto* reqVariant = &uttRequest.request;
 
-      if (const auto* txRequest = std::get_if<TxRequest>(reqVariant)) {
-        reply.reply = handleRequest(*txRequest);
+      if (const auto* publicTx = std::get_if<PublicTx>(reqVariant)) {
+        reply.reply = handleRequest(*publicTx);
+      } else if (const auto* uttTx = std::get_if<UttTx>(reqVariant)) {
+        reply.reply = handleRequest(*uttTx);
       } else if (const auto* lastBlockRequest = std::get_if<GetLastBlockRequest>(reqVariant)) {
         reply.reply = handleRequest(*lastBlockRequest);
       } else if (const auto* blockDataReq = std::get_if<GetBlockDataRequest>(reqVariant)) {
@@ -77,10 +79,10 @@ void UTTCommandsHandler::execute(UTTCommandsHandler::ExecutionRequestsQueue& req
   }
 }
 
-TxReply UTTCommandsHandler::handleRequest(const TxRequest& txRequest) {
-  auto cmd = BytesToStr(txRequest.tx);
+TxReply UTTCommandsHandler::handleRequest(const PublicTx& publicTx) {
+  auto cmd = publicTx.tx;
   LOG_INFO(logger_, "Executing TxRequest with command: " << cmd);
-  auto tx = parseTx(cmd);
+  auto tx = parsePublicTx(cmd);
   if (!tx) throw std::runtime_error("Failed to parse tx!");
 
   TxReply reply;
@@ -114,6 +116,16 @@ TxReply UTTCommandsHandler::handleRequest(const TxRequest& txRequest) {
   return reply;
 }
 
+utt::messages::TxReply UTTCommandsHandler::handleRequest(const utt::messages::UttTx& req) {
+  LOG_INFO(logger_, "Executing UttTx!");
+
+  TxReply reply;
+  reply.success = false;
+  reply.err = "NYI";
+
+  return reply;
+}
+
 GetLastBlockReply UTTCommandsHandler::handleRequest(const GetLastBlockRequest&) {
   LOG_INFO(logger_, "Executing GetLastBlockRequest");
 
@@ -134,7 +146,17 @@ GetBlockDataReply UTTCommandsHandler::handleRequest(const GetBlockDataRequest& r
     if (block->tx_) {
       std::stringstream ss;
       ss << *block->tx_;
-      reply.tx = StrToBytes(ss.str());
+
+      if (std::holds_alternative<TxUttTransfer>(*block->tx_)) {
+        // To-Do: Need to compute and send signatures on the output coins in each utt tx
+        UttTx uttTx;
+        uttTx.tx = ss.str();
+        reply.tx = std::move(uttTx);
+      } else {
+        PublicTx publicTx;
+        publicTx.tx = ss.str();
+        reply.tx = std::move(publicTx);
+      }
     }
   }
 
@@ -182,8 +204,8 @@ void UTTCommandsHandler::syncAppState() {
 
     LOG_WARN(logger_, "UTT AppState fetching missing block " << *missingBlockId << " tx: " << v);
 
-    auto tx = parseTx(v);
-    if (!tx) throw std::runtime_error("Failed to parse tx!");
+    auto tx = parsePublicTx(v);
+    if (!tx) throw std::runtime_error("Failed to parse public tx!");
 
     state_.appendBlock(Block{std::move(*tx)});
 

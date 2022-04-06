@@ -84,6 +84,7 @@ struct AppState {
 
   std::map<std::string, Account> accounts_;
   std::vector<Block> blocks_;
+  std::set<std::string> nullset_;
   BlockId lastExecutedBlockId_ = 0;
   BlockId lastKnownBlockId_ = 0;
 };

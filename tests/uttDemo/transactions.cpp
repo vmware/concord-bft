@@ -40,7 +40,7 @@ std::ostream& operator<<(std::ostream& os, const Tx& tx) {
   return os;
 }
 
-std::optional<Tx> parseTx(const std::string& str) {
+std::optional<Tx> parsePublicTx(const std::string& str) {
   std::vector<std::string> tokens;
   std::string token;
   std::stringstream ss(str);

@@ -51,7 +51,8 @@ class UTTCommandsHandler : public concord::kvbc::ICommandsHandler {
   void setPerformanceManager(std::shared_ptr<concord::performance::PerformanceManager> perfManager) override {}
 
  private:
-  utt::messages::TxReply handleRequest(const utt::messages::TxRequest &req);
+  utt::messages::TxReply handleRequest(const utt::messages::PublicTx &req);
+  utt::messages::TxReply handleRequest(const utt::messages::UttTx &req);
   utt::messages::GetLastBlockReply handleRequest(const utt::messages::GetLastBlockRequest &req);
   utt::messages::GetBlockDataReply handleRequest(const utt::messages::GetBlockDataRequest &req);
 
