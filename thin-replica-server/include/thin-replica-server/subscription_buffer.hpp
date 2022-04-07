@@ -314,7 +314,7 @@ class SubBufferList {
   virtual void removeBuffer(std::shared_ptr<SubUpdateBuffer> elem) {
     std::lock_guard<std::mutex> lock(mutex_);
     // If the assert fires then there is a logic error somewhere
-    ConcordAssert(subscriber_.erase(elem) == 1);
+    ConcordAssertEQ(subscriber_.erase(elem), 1);
   }
 
   // Populate updates to all subscribers

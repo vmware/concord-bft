@@ -59,7 +59,7 @@ std::unique_ptr<T> BasicThreadSafeQueue<T>::pop() {
   if (release_consumers_) {
     return std::unique_ptr<T>(nullptr);
   }
-  ConcordAssert(queue_data_.size() > 0);
+  ConcordAssertGT(queue_data_.size(), 0);
   std::unique_ptr<T> ret = move(queue_data_.front());
   queue_data_.pop_front();
   return ret;
@@ -83,7 +83,7 @@ std::unique_ptr<T> BasicThreadSafeQueue<T>::popTill(std::chrono::milliseconds ti
   if (release_consumers_) {
     return std::unique_ptr<T>(nullptr);
   }
-  ConcordAssert(queue_data_.size() > 0);
+  ConcordAssertGT(queue_data_.size(), 0);
   std::unique_ptr<T> ret = move(queue_data_.front());
   queue_data_.pop_front();
   return ret;
