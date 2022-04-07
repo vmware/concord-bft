@@ -170,7 +170,8 @@ class SimpleTestReplica {
                                          metaDataStorage,
                                          std::make_shared<concord::performance::PerformanceManager>(),
                                          nullptr /*SecretsManagerEnc*/,
-                                         nullptr);  // call back
+                                         [](bool) {});  // call back
+    replica->SetAggregator(std::make_shared<concordMetrics::Aggregator>());
   }
 
   ~SimpleTestReplica() {
