@@ -25,6 +25,10 @@ std::pair<po::options_description, po::variables_map> parseArgs(int argc, char* 
   desc.add_options()
     ("help", "Show help.")
 
+    ("parallel-block-reads",
+     po::value<std::int64_t>()->default_value(40),
+     "This will be the number of blocks read parallely in a single batch.")
+
     ("rocksdb-path",
       po::value<std::string>(),
       "The path to the RocksDB data directory.")
@@ -50,6 +54,9 @@ int run(int argc, char* argv[]) {
     return EXIT_SUCCESS;
   }
 
+  const size_t block_read_batch_size =
+      (config["parallel-block-reads"].as<std::int64_t>() < 1) ? 40 : config["parallel-block-reads"].as<std::int64_t>();
+
   if (config["rocksdb-path"].empty()) {
     std::cerr << desc << std::endl;
     return EXIT_FAILURE;
@@ -72,7 +79,7 @@ int run(int argc, char* argv[]) {
     return EXIT_FAILURE;
   }
 
-  auto migration = BlockMerkleLatestVerCfMigration{rocksdb_path, temp_export_path};
+  auto migration = BlockMerkleLatestVerCfMigration{rocksdb_path, temp_export_path, block_read_batch_size};
   const auto status = migration.execute();
   switch (status) {
     case BlockMerkleLatestVerCfMigration::ExecutionStatus::kExecuted:

@@ -51,8 +51,8 @@ class block_merkle_latest_ver_cf_migration_test : public Test {
   void TearDown() override { cleanupTestData(); }
 
  protected:
-  auto createMigration() {
-    return BlockMerkleLatestVerCfMigration{rocksDbPath(db_path_id_), rocksDbPath(export_path_id_)};
+  auto createMigration(size_t batch_size) {
+    return BlockMerkleLatestVerCfMigration{rocksDbPath(db_path_id_), rocksDbPath(export_path_id_), batch_size};
   }
 
   void createKvbc() {
@@ -191,9 +191,9 @@ class block_merkle_latest_ver_cf_migration_test : public Test {
     return migration.db()->get(BlockMerkleLatestVerCfMigration::migrationKey());
   }
 
-  void executeAndVerifyMigration() {
+  void executeAndVerifyMigration(size_t batch_size) {
     {
-      auto migration = createMigration();
+      auto migration = createMigration(batch_size);
       const auto status = migration.execute();
       ASSERT_EQ(BlockMerkleLatestVerCfMigration::ExecutionStatus::kExecuted, status);
     }
@@ -275,22 +275,29 @@ class block_merkle_latest_ver_cf_migration_test : public Test {
 
 TEST_F(block_merkle_latest_ver_cf_migration_test, successful_migration) {
   downgrade();
-  executeAndVerifyMigration();
+  executeAndVerifyMigration(1);
+}
+
+TEST_F(block_merkle_latest_ver_cf_migration_test, successful_migration_with_different_batch_size) {
+  for (size_t batch_size = 0; batch_size <= 50; batch_size++) {
+    downgrade();
+    executeAndVerifyMigration(batch_size);
+  }
 }
 
 TEST_F(block_merkle_latest_ver_cf_migration_test, not_needed) {
   closeDb();
   // We try to migrate after adding blocks only, before downgrading the DB.
-  auto migration = createMigration();
+  auto migration = createMigration(2);
   const auto status = migration.execute();
   ASSERT_EQ(BlockMerkleLatestVerCfMigration::ExecutionStatus::kNotNeededOrAlreadyExecuted, status);
 }
 
 TEST_F(block_merkle_latest_ver_cf_migration_test, already_executed) {
   downgrade();
-  executeAndVerifyMigration();
+  executeAndVerifyMigration(2);
   closeDb();
-  auto migration = createMigration();
+  auto migration = createMigration(3);
   const auto status = migration.execute();
   ASSERT_EQ(BlockMerkleLatestVerCfMigration::ExecutionStatus::kNotNeededOrAlreadyExecuted, status);
 }
@@ -298,32 +305,32 @@ TEST_F(block_merkle_latest_ver_cf_migration_test, already_executed) {
 TEST_F(block_merkle_latest_ver_cf_migration_test, stop_before_checkpoint_db) {
   downgrade();
   {
-    auto migration = createMigration();
+    auto migration = createMigration(4);
     migration.removeExportDir();
     migration.dropTempLatestVerCf();
     const auto current_state = currentState(migration);
     ASSERT_FALSE(current_state.has_value());
   }
-  executeAndVerifyMigration();
+  executeAndVerifyMigration(3);
 }
 
 TEST_F(block_merkle_latest_ver_cf_migration_test, stop_after_checkpoint_db) {
   downgrade();
   {
-    auto migration = createMigration();
+    auto migration = createMigration(5);
     migration.removeExportDir();
     migration.dropTempLatestVerCf();
     migration.checkpointDB();
     const auto current_state = currentState(migration);
     ASSERT_FALSE(current_state.has_value());
   }
-  executeAndVerifyMigration();
+  executeAndVerifyMigration(4);
 }
 
 TEST_F(block_merkle_latest_ver_cf_migration_test, stop_after_imported_temp_latest_ver_cf) {
   downgrade();
   {
-    auto migration = createMigration();
+    auto migration = createMigration(6);
     migration.removeExportDir();
     migration.dropTempLatestVerCf();
     migration.checkpointDB();
@@ -333,13 +340,13 @@ TEST_F(block_merkle_latest_ver_cf_migration_test, stop_after_imported_temp_lates
     ASSERT_TRUE(current_state.has_value());
     ASSERT_EQ(BlockMerkleLatestVerCfMigration::kStateImportedTempCf, *current_state);
   }
-  executeAndVerifyMigration();
+  executeAndVerifyMigration(5);
 }
 
 TEST_F(block_merkle_latest_ver_cf_migration_test, stop_after_clear_existing_latest_ver_cf) {
   downgrade();
   {
-    auto migration = createMigration();
+    auto migration = createMigration(7);
     migration.removeExportDir();
     migration.dropTempLatestVerCf();
     migration.checkpointDB();
@@ -350,14 +357,14 @@ TEST_F(block_merkle_latest_ver_cf_migration_test, stop_after_clear_existing_late
     ASSERT_TRUE(current_state.has_value());
     ASSERT_EQ(BlockMerkleLatestVerCfMigration::kStateImportedTempCf, *current_state);
   }
-  executeAndVerifyMigration();
+  executeAndVerifyMigration(6);
 }
 
 TEST_F(block_merkle_latest_ver_cf_migration_test, simulate_stop_in_the_middle_of_iterate_and_migrate) {
   downgrade();
   auto dummy_key = std::string{};
   {
-    auto migration = createMigration();
+    auto migration = createMigration(8);
     migration.removeExportDir();
     migration.dropTempLatestVerCf();
     migration.checkpointDB();
@@ -375,7 +382,7 @@ TEST_F(block_merkle_latest_ver_cf_migration_test, simulate_stop_in_the_middle_of
     dummy_key = iter.key();
     migration.db()->put(BLOCK_MERKLE_LATEST_KEY_VERSION_CF, dummy_key, iter.value());
   }
-  executeAndVerifyMigration();
+  executeAndVerifyMigration(7);
   const auto dummy_key_val = db_->get(BLOCK_MERKLE_LATEST_KEY_VERSION_CF, dummy_key);
   ASSERT_FALSE(dummy_key_val.has_value());
 }
@@ -383,7 +390,7 @@ TEST_F(block_merkle_latest_ver_cf_migration_test, simulate_stop_in_the_middle_of
 TEST_F(block_merkle_latest_ver_cf_migration_test, stop_after_iterate_and_migrate_latest_ver_cf) {
   downgrade();
   {
-    auto migration = createMigration();
+    auto migration = createMigration(9);
     migration.removeExportDir();
     migration.dropTempLatestVerCf();
     migration.checkpointDB();
@@ -395,13 +402,13 @@ TEST_F(block_merkle_latest_ver_cf_migration_test, stop_after_iterate_and_migrate
     ASSERT_TRUE(current_state.has_value());
     ASSERT_EQ(BlockMerkleLatestVerCfMigration::kStateMigrated, *current_state);
   }
-  executeAndVerifyMigration();
+  executeAndVerifyMigration(8);
 }
 
 TEST_F(block_merkle_latest_ver_cf_migration_test, stop_after_commit_complete) {
   downgrade();
   {
-    auto migration = createMigration();
+    auto migration = createMigration(10);
     migration.removeExportDir();
     migration.dropTempLatestVerCf();
     migration.checkpointDB();
@@ -415,7 +422,7 @@ TEST_F(block_merkle_latest_ver_cf_migration_test, stop_after_commit_complete) {
     ASSERT_TRUE(current_state.has_value());
     ASSERT_EQ(BlockMerkleLatestVerCfMigration::kStateMigrated, *current_state);
   }
-  executeAndVerifyMigration();
+  executeAndVerifyMigration(9);
 }
 
 }  // namespace
