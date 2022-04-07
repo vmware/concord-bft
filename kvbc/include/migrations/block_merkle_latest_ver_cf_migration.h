@@ -30,7 +30,9 @@ namespace concord::kvbc::migrations {
 class BlockMerkleLatestVerCfMigration {
  public:
   // Note: `export_path` must be on the same filesystem as `db_path`.
-  BlockMerkleLatestVerCfMigration(const std::string& db_path, const std::string& export_path);
+  BlockMerkleLatestVerCfMigration(const std::string& db_path,
+                                  const std::string& export_path,
+                                  const size_t iteration_batch_size);
 
  public:
   static const std::string& temporaryColumnFamily();
@@ -69,6 +71,7 @@ class BlockMerkleLatestVerCfMigration {
  private:
   const std::string db_path_;
   const std::string export_path_;
+  const size_t iteration_batch_size_;
   std::shared_ptr<storage::rocksdb::NativeClient> db_;
   std::unique_ptr<::rocksdb::Checkpoint> checkpoint_;
   std::unique_ptr<::rocksdb::ExportImportFilesMetaData> export_metadata_;
