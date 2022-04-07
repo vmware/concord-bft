@@ -13,6 +13,9 @@
 
 #pragma once
 
+#include <string>
+#include <map>
+
 #include "Logger.hpp"
 #include "block_metadata.hpp"
 #include "KVBCInterfaces.h"
@@ -54,7 +57,8 @@ class UTTCommandsHandler : public concord::kvbc::ICommandsHandler {
   utt::messages::TxReply handleRequest(const utt::messages::PublicTx &req);
   utt::messages::TxReply handleRequest(const utt::messages::UttTx &req);
   utt::messages::GetLastBlockReply handleRequest(const utt::messages::GetLastBlockRequest &req);
-  utt::messages::GetBlockDataReply handleRequest(const utt::messages::GetBlockDataRequest &req);
+  utt::messages::GetBlockDataReply handleRequest(const utt::messages::GetBlockDataRequest &req,
+                                                 std::vector<uint8_t> &outRsi);
 
   std::string getLatest(const std::string &key) const;
 
@@ -63,6 +67,7 @@ class UTTCommandsHandler : public concord::kvbc::ICommandsHandler {
 
   AppState state_;
   UTTReplicaConfig config_;
+  std::map<size_t, std::vector<libutt::RandSigShare>> sigShares_;
 
   concord::kvbc::IReader *storage_;
   concord::kvbc::IBlockAdder *blockAdder_;

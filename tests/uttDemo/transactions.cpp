@@ -37,6 +37,7 @@ std::ostream& operator<<(std::ostream& os, const TxPublicTransfer& tx) {
 
 std::ostream& operator<<(std::ostream& os, const TxUttTransfer& tx) {
   os << tx.uttTx_;
+  return os;
 }
 
 std::ostream& operator<<(std::ostream& os, const Tx& tx) {

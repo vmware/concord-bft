@@ -1,6 +1,6 @@
 #pragma once
 
-#include <utt/RandSig.h>>
+#include <utt/RandSig.h>
 #include <utt/Params.h>
 #include <utt/Tx.h>
 

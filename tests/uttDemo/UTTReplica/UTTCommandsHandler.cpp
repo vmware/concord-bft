@@ -46,6 +46,9 @@ void UTTCommandsHandler::execute(UTTCommandsHandler::ExecutionRequestsQueue& req
       UTTReply reply;
       const auto* reqVariant = &uttRequest.request;
 
+      vector<uint8_t>
+          rsi;  // Replica specific info is used to provide signature shares of output coins from this replica
+
       if (const auto* publicTx = std::get_if<PublicTx>(reqVariant)) {
         reply.reply = handleRequest(*publicTx);
       } else if (const auto* uttTx = std::get_if<UttTx>(reqVariant)) {
@@ -53,23 +56,31 @@ void UTTCommandsHandler::execute(UTTCommandsHandler::ExecutionRequestsQueue& req
       } else if (const auto* lastBlockRequest = std::get_if<GetLastBlockRequest>(reqVariant)) {
         reply.reply = handleRequest(*lastBlockRequest);
       } else if (const auto* blockDataReq = std::get_if<GetBlockDataRequest>(reqVariant)) {
-        reply.reply = handleRequest(*blockDataReq);
+        reply.reply = handleRequest(*blockDataReq, rsi);
       } else {
         throw std::runtime_error("Unhandled UTTRquest type!");
       }
 
-      // Serialize reply
+      // Serialize reply and rsi (if not empty)
       vector<uint8_t> replyBuffer;
       serialize(replyBuffer, reply);
-      if (req.maxReplySize < replyBuffer.size()) {
+
+      size_t totalReplySize = replyBuffer.size() + rsi.size();
+
+      if (req.maxReplySize < totalReplySize) {
         LOG_ERROR(logger_,
-                  "replySize is too big: replySize=" << replyBuffer.size() << ", maxReplySize=" << req.maxReplySize);
+                  "replySize is too big: total=" << totalReplySize << " max=" << req.maxReplySize
+                                                 << " reply=" << replyBuffer.size() << " rsi=" << rsi.size());
         req.outExecutionStatus = static_cast<uint32_t>(OperationResult::EXEC_DATA_TOO_LARGE);
       } else {
         copy(replyBuffer.begin(), replyBuffer.end(), req.outReply);
-        req.outActualReplySize = replyBuffer.size();
+        copy(rsi.begin(), rsi.end(), req.outReply + replyBuffer.size());
 
-        LOG_INFO(logger_, "UTTRequest successfully executed");
+        req.outActualReplySize = totalReplySize;
+        req.outReplicaSpecificInfoSize = rsi.size();
+
+        LOG_INFO(logger_,
+                 "UTTRequest successfully executed. totalReplySize=" << totalReplySize << " max=" << req.maxReplySize);
         req.outExecutionStatus = static_cast<uint32_t>(OperationResult::SUCCESS);
       }
     } catch (const std::exception& e) {
@@ -131,9 +142,7 @@ utt::messages::TxReply UTTCommandsHandler::handleRequest(const utt::messages::Ut
   std::string err;
 
   if (state_.canExecuteTx(tx, err, config_)) {
-
-     // Compute signature shares the output coins
-    auto signShares = libutt::Replica::signShareOutputCoins(uttTransfer->uttTx_, config_.bskShare_);
+    // Note: signature shares are computed lazily when the block data is requested
 
     // Add a real block to the kv blockchain
     {
@@ -171,7 +180,7 @@ GetLastBlockReply UTTCommandsHandler::handleRequest(const GetLastBlockRequest&) 
   return reply;
 }
 
-GetBlockDataReply UTTCommandsHandler::handleRequest(const GetBlockDataRequest& req) {
+GetBlockDataReply UTTCommandsHandler::handleRequest(const GetBlockDataRequest& req, std::vector<uint8_t>& outRsi) {
   LOG_INFO(logger_, "Executing GetBlockDataRequest for block_id=" << req.block_id);
 
   GetBlockDataReply reply;
@@ -183,11 +192,25 @@ GetBlockDataReply UTTCommandsHandler::handleRequest(const GetBlockDataRequest& r
       std::stringstream ss;
       ss << *block->tx_;
 
-      if (std::holds_alternative<TxUttTransfer>(*block->tx_)) {
-        // To-Do: Need to compute and send signatures on the output coins in each utt tx
+      if (const auto* uttTransfer = std::get_if<TxUttTransfer>(&(*block->tx_))) {
         UttTx uttTx;
         uttTx.tx = ss.str();
         reply.tx = std::move(uttTx);
+
+        // Compute signature shares lazily when the block is requested
+        // Precondition: monotonically increasing blocks
+        if (sigShares_[req.block_id].empty()) {
+          sigShares_[req.block_id] = libutt::Replica::signShareOutputCoins(uttTransfer->uttTx_, config_.bskShare_);
+        }
+
+        // Add sig shares to replica specific info
+        // [TODO--UTT] Add this conversion to the sigShares_ cache directly
+        std::stringstream ss;
+        for (const auto& sigShare : sigShares_[req.block_id]) {
+          ss << sigShare;
+        }
+        outRsi = StrToBytes(ss.str());
+
       } else {
         PublicTx publicTx;
         publicTx.tx = ss.str();
