@@ -35,15 +35,13 @@ class DigestCreator {
 class CryptoppDigestCreator : public DigestCreator {
  public:
   CryptoppDigestCreator();
-  virtual ~CryptoppDigestCreator();
-
   static size_t digestLength();
   static bool compute(const char* input, size_t inputLength, char* outBufferForDigest, size_t lengthOfBufferForDigest);
-
   void init() override {}
   void update(const char* data, size_t len) override;
   void finish(char* outDigest) override {}
   void writeDigest(char* outDigest);
+  virtual ~CryptoppDigestCreator();
 
  private:
   void* internalState;

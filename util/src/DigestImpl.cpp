@@ -72,7 +72,6 @@ bool CryptoppDigestCreator::compute(const char* input,
 }
 
 void CryptoppDigestCreator::update(const char* data, size_t len) {
-  // void CryptoppDigestCreator::Context::update(const char* data, size_t len) {
   ConcordAssert(nullptr != internalState);
 
   DigestType* p = (DigestType*)internalState;
@@ -80,14 +79,14 @@ void CryptoppDigestCreator::update(const char* data, size_t len) {
 }
 
 void CryptoppDigestCreator::writeDigest(char* outDigest) {
-  // void CryptoppDigestCreator::Context::writeDigest(char* outDigest) {
   ConcordAssert(nullptr != internalState);
 
   DigestType* p = (DigestType*)internalState;
-  SecByteBlock digest(digestLength());
+  SecByteBlock digest(DigestUtil::digestLength());
   p->Final(digest);
+
   const CryptoPP::byte* h = digest;
-  memcpy(outDigest, h, digestLength());
+  memcpy(outDigest, h, DigestUtil::digestLength());
 
   delete p;
   internalState = nullptr;
