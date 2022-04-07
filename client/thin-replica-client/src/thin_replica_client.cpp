@@ -133,14 +133,14 @@ bool ThinReplicaClient::readUpdateHashFromStream(size_t server_index,
     servers_pruned++;
     return false;
   }
-  ConcordAssert(read_result == GrpcConnection::Result::kSuccess);
+  ConcordAssertEQ(read_result, GrpcConnection::Result::kSuccess);
 
   uint64_t hash_id;
   string hash_string;
   if (hash.has_event_group()) {
     hash_id = hash.event_group().event_group_id();
-    ConcordAssert(latest_verified_event_group_id_ <
-                  std::numeric_limits<decltype(latest_verified_event_group_id_)>::max());
+    ConcordAssertLT(latest_verified_event_group_id_,
+                    std::numeric_limits<decltype(latest_verified_event_group_id_)>::max());
     if (hash_id < latest_verified_event_group_id_) {
       LOG_WARN(logger_,
                "Hash stream " << server_index << " gave an update with decreasing event group number: " << hash_id);
@@ -176,7 +176,7 @@ bool ThinReplicaClient::readUpdateHashFromStream(size_t server_index,
   }
 
   LOG_DEBUG(logger_, "Record hash for update " << hash_id);
-  ConcordAssert(hash_string.length() <= kThinReplicaHashLength);
+  ConcordAssertLE(hash_string.length(), kThinReplicaHashLength);
   hash_string.resize(kThinReplicaHashLength, '\0');
 
   recordCollectedHash(server_index,
@@ -226,7 +226,7 @@ std::pair<GrpcConnection::Result, ThinReplicaClient::SpanPtr> ThinReplicaClient:
     metrics_.read_failures_per_update++;
     return {read_result, nullptr};
   }
-  ConcordAssert(read_result == GrpcConnection::Result::kSuccess);
+  ConcordAssertEQ(read_result, GrpcConnection::Result::kSuccess);
 
   uint64_t id;  // block id or event group id
   SpanPtr span;
@@ -234,8 +234,8 @@ std::pair<GrpcConnection::Result, ThinReplicaClient::SpanPtr> ThinReplicaClient:
     id = update_in.event_group().id();
     span = TraceContexts::CreateChildSpanFromBinary(update_in.event_group().trace_context(), "trc_read_event_group");
     cid.reset(new LogCid({}));  // Event groups don't include a correlation id
-    ConcordAssert(latest_verified_event_group_id_ <
-                  std::numeric_limits<decltype(latest_verified_event_group_id_)>::max());
+    ConcordAssertLT(latest_verified_event_group_id_,
+                    std::numeric_limits<decltype(latest_verified_event_group_id_)>::max());
     id = update_in.event_group().id();
     if (id < latest_verified_event_group_id_) {
       LOG_WARN(logger_, "Data stream " << data_conn_index_ << " gave an update with decreasing event group id: " << id);
@@ -269,7 +269,7 @@ std::pair<GrpcConnection::Result, ThinReplicaClient::SpanPtr> ThinReplicaClient:
 }
 
 GrpcConnection::Result ThinReplicaClient::startHashStreamWith(size_t server_index) {
-  ConcordAssert(server_index != data_conn_index_);
+  ConcordAssertNE(server_index, data_conn_index_);
   config_->trs_conns[server_index]->cancelHashStream();
 
   SubscriptionRequest request;
@@ -402,7 +402,7 @@ bool ThinReplicaClient::rotateDataStreamAndVerify(Data& update_in,
   }
 
   for (const auto server_index : agreeing_subset_members[most_agreed_block]) {
-    ConcordAssert(server_index < config_->trs_conns.size());
+    ConcordAssertLT(server_index, config_->trs_conns.size());
     if (stop_subscription_thread_) {
       return false;
     }
@@ -424,8 +424,8 @@ bool ThinReplicaClient::rotateDataStreamAndVerify(Data& update_in,
       metrics_.read_failures_per_update++;
       continue;
     }
-    ConcordAssert(open_stream_result == GrpcConnection::Result::kSuccess &&
-                  read_result == GrpcConnection::Result::kSuccess);
+    ConcordAssertEQ(open_stream_result, GrpcConnection::Result::kSuccess);
+    ConcordAssertEQ(read_result, GrpcConnection::Result::kSuccess);
 
     string correlation_id;
     uint64_t update_id;  // Block id or event group id
@@ -495,7 +495,7 @@ void ThinReplicaClient::logDataStreamResetResult(const GrpcConnection::Result& r
 }
 
 void ThinReplicaClient::receiveUpdates() {
-  ConcordAssert(config_->trs_conns.size() > 0);
+  ConcordAssertGT(config_->trs_conns.size(), 0);
 
   if (stop_subscription_thread_) {
     LOG_WARN(logger_, "Need to stop receiving updates");
@@ -756,7 +756,7 @@ ThinReplicaClient::~ThinReplicaClient() {
 }
 
 void ThinReplicaClient::Subscribe() {
-  ConcordAssert(config_->trs_conns.size() > 0);
+  ConcordAssertGT(config_->trs_conns.size(), 0);
   // XXX: The following implementation does not achieve Subscribe's specified
   //      interface and behavior (see the comments with Subscribe's declaration
   //      in the Thin Replica Client Library header file for documentation of
@@ -810,7 +810,7 @@ void ThinReplicaClient::Subscribe() {
                    << data_server_index << ").");
       received_state_invalid = true;
     }
-    ConcordAssert(stream_open_result == GrpcConnection::Result::kSuccess || received_state_invalid);
+    ConcordAssertOR(stream_open_result == GrpcConnection::Result::kSuccess, received_state_invalid);
 
     Data response;
     GrpcConnection::Result read_result = GrpcConnection::Result::kUnknown;
@@ -867,7 +867,7 @@ void ThinReplicaClient::Subscribe() {
                    << data_server_index << ").");
       received_state_invalid = true;
     }
-    ConcordAssert(stream_close_result == GrpcConnection::Result::kSuccess || received_state_invalid);
+    ConcordAssertOR(stream_close_result == GrpcConnection::Result::kSuccess, received_state_invalid);
 
     LOG_DEBUG(logger_, "Got initial state from " << data_server_index);
 
@@ -909,7 +909,7 @@ void ThinReplicaClient::Subscribe() {
                            << " gave error response to ReadStateHash (requested Block ID: " << block_id << ").");
         continue;
       }
-      ConcordAssert(read_hash_result == GrpcConnection::Result::kSuccess);
+      ConcordAssertEQ(read_hash_result, GrpcConnection::Result::kSuccess);
       if (hash_response.events().block_id() != block_id) {
         LOG_WARN(logger_,
                  "Server " << hash_server_index - 1
@@ -1036,7 +1036,7 @@ void ThinReplicaClient::Unsubscribe() {
   }
 
   size_t server_to_send_unsubscription_to = 0;
-  ConcordAssert(config_->trs_conns.size() > server_to_send_unsubscription_to);
+  ConcordAssertGT(config_->trs_conns.size(), server_to_send_unsubscription_to);
   ConcordAssertNE(config_->trs_conns[server_to_send_unsubscription_to], nullptr);
 }
 
@@ -1055,7 +1055,7 @@ void ThinReplicaClient::AcknowledgeBlockID(uint64_t block_id) {
   AckMessage.set_block_id(block_id);
 
   size_t server_to_acknowledge_to = 0;
-  ConcordAssert(config_->trs_conns.size() > server_to_acknowledge_to);
+  ConcordAssertGT(config_->trs_conns.size(), server_to_acknowledge_to);
   ConcordAssertNE(config_->trs_conns[server_to_acknowledge_to], nullptr);
 }
 
