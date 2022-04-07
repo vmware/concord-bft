@@ -27,46 +27,23 @@ class DigestCreator {
   virtual ~DigestCreator() = default;
 
   virtual void init() = 0;
-  virtual bool compute(const char* input,
-                       size_t inputLength,
-                       char* outBufferForDigest,
-                       size_t lengthOfBufferForDigest) = 0;
   virtual void update(const char* data, size_t len) = 0;
   virtual void finish(char* outDigest) = 0;
-};
-
-template <typename CREATOR, typename = std::enable_if_t<std::is_base_of_v<DigestCreator, CREATOR>>>
-class DigestHelper {
- public:
-  static size_t digestLength() { return DIGEST_SIZE; }
-  static bool compute(const char* input, size_t inputLength, char* outBufferForDigest, size_t lengthOfBufferForDigest) {
-    CREATOR c;
-    return c.compute(input, inputLength, outBufferForDigest, lengthOfBufferForDigest);
-  }
-
-  class Context {
-    CREATOR c;
-
-   public:
-    Context() { c.init(); }
-    void update(const char* data, size_t len) { c.update(data, len); }
-    void writeDigest(char* outDigest) { c.finish(outDigest); }
-    ~Context() { c.destroy(); }
-  };
 };
 
 // Implements digest creator using Crypto++ library.
 class CryptoppDigestCreator : public DigestCreator {
  public:
-  void init() override;
-  bool compute(const char* input,
-               size_t inputLength,
-               char* outBufferForDigest,
-               size_t lengthOfBufferForDigest) override;
-  void update(const char* data, size_t len) override;
-  void finish(char* outDigest) override;
-  void destroy();
+  CryptoppDigestCreator();
   virtual ~CryptoppDigestCreator();
+
+  static size_t digestLength();
+  static bool compute(const char* input, size_t inputLength, char* outBufferForDigest, size_t lengthOfBufferForDigest);
+
+  void init() override {}
+  void update(const char* data, size_t len) override;
+  void finish(char* outDigest) override {}
+  void writeDigest(char* outDigest);
 
  private:
   void* internalState;
@@ -80,10 +57,8 @@ class OpenSSLDigestCreator : public DigestCreator {
  public:
   virtual ~OpenSSLDigestCreator() = default;
   void init() override {}
-  bool compute(const char* input,
-               size_t inputLength,
-               char* outBufferForDigest,
-               size_t lengthOfBufferForDigest) override {}
+  static bool compute(const char* input, size_t inputLength, char* outBufferForDigest, size_t lengthOfBufferForDigest) {
+  }
   void update(const char* data, size_t len) override {}
   void finish(char* outDigest) override {}
 
@@ -97,10 +72,7 @@ class DigestHolder {
   DigestHolder() { std::memset(d, 0, DIGEST_SIZE); }
   DigestHolder(unsigned char initVal) { std::memset(d, initVal, DIGEST_SIZE); }
   DigestHolder(const char* other) { std::memcpy(d, other, DIGEST_SIZE); }
-  DigestHolder(char* buf, size_t len) {
-    CREATOR c;
-    c.compute(buf, len, (char*)d, DIGEST_SIZE);
-  }
+  DigestHolder(char* buf, size_t len) { CREATOR::compute(buf, len, (char*)d, DIGEST_SIZE); }
   DigestHolder(const DigestHolder& other) { std::memcpy(d, other.d, DIGEST_SIZE); }
 
   char* content() const { return (char*)d; }  // Can be replaced by getForUpdate().
@@ -142,8 +114,7 @@ class DigestHolder {
   }
 
   static void digestOfDigest(const DigestHolder& inDigest, DigestHolder& outDigest) {
-    CREATOR c;
-    c.compute(inDigest.d, sizeof(DigestHolder), outDigest.d, sizeof(DigestHolder));
+    CREATOR::compute(inDigest.d, sizeof(DigestHolder), outDigest.d, sizeof(DigestHolder));
   }
 
   static void calcCombination(const DigestHolder& inDigest, int64_t inDataA, int64_t inDataB, DigestHolder& outDigest) {

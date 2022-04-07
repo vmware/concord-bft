@@ -148,7 +148,7 @@ uint64_t NodeInfo::prevRvbIndex(uint64_t rvb_index, uint8_t level) {
 // This requires us to write our own DigestContext
 const shared_ptr<char[]> RVBNode::computeNodeInitialValue(NodeInfo& node_info, const char* data, size_t data_size) {
   ConcordAssertGT(node_info.id(), 0);
-  DigestUtil::Context c;
+  DigestUtil c;
 
   c.update(reinterpret_cast<const char*>(&node_info.id_data_), sizeof(node_info.id_data_));
   c.update(data, data_size);

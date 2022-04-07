@@ -21,11 +21,13 @@ using BlockDigest = std::array<std::uint8_t, DIGEST_SIZE>;
 
 #if defined USE_CRYPTOPP_HASH
 using Digest = DigestHolder<CryptoppDigestCreator>;
-using DigestUtil = DigestHelper<CryptoppDigestCreator>;
+using DigestUtil = CryptoppDigestCreator;
 #elif defined USE_OPENSSL_SHA_256
 using Digest = DigestHolder<OpenSSLDigestCreator<SHA2_256> >;
+using DigestUtil = OpenSSLDigestCreator<SHA2_256>
 #elif defined USE_OPENSSL_SHA3_256
 using Digest = DigestHolder<OpenSSLDigestCreator<SHA3_256> >;
+using DigestUtil = OpenSSLDigestCreator<SHA3_256>
 #endif
 
 static_assert(DIGEST_SIZE >= sizeof(uint64_t), "Digest size should be >= sizeof(uint64_t)");

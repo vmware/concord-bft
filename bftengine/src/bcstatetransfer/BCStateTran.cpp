@@ -3586,7 +3586,7 @@ void BCStateTran::checkStoredCheckpoints(uint64_t firstStoredCheckpoint, uint64_
 
 void BCStateTran::computeDigestOfPage(
     const uint32_t pageId, const uint64_t checkpointNumber, const char *page, uint32_t pageSize, Digest &outDigest) {
-  DigestUtil::Context c;
+  DigestUtil c;
   c.update(reinterpret_cast<const char *>(&pageId), sizeof(pageId));
   c.update(reinterpret_cast<const char *>(&checkpointNumber), sizeof(checkpointNumber));
   if (checkpointNumber > 0) c.update(page, pageSize);
@@ -3594,7 +3594,7 @@ void BCStateTran::computeDigestOfPage(
 }
 
 void BCStateTran::computeDigestOfPagesDescriptor(const DataStore::ResPagesDescriptor *pagesDesc, Digest &outDigest) {
-  DigestUtil::Context c;
+  DigestUtil c;
   c.update(reinterpret_cast<const char *>(pagesDesc), pagesDesc->size());
   c.writeDigest(reinterpret_cast<char *>(&outDigest));
 }
@@ -3605,7 +3605,7 @@ void BCStateTran::computeDigestOfBlockImpl(const uint64_t blockNum,
                                            char *outDigest) {
   ConcordAssertGT(blockNum, 0);
   ConcordAssertGT(blockSize, 0);
-  DigestUtil::Context c;
+  DigestUtil c;
   c.update(reinterpret_cast<const char *>(&blockNum), sizeof(blockNum));
   c.update(block, blockSize);
   c.writeDigest(outDigest);
