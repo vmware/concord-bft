@@ -204,8 +204,9 @@ GetBlockDataReply UTTCommandsHandler::handleRequest(const GetBlockDataRequest& r
         }
 
         // Add sig shares to replica specific info
-        // [TODO--UTT] Add this conversion to the sigShares_ cache directly
+        // [TODO-UTT] Add this conversion to the sigShares_ cache directly
         std::stringstream ss;
+        ss << uttTransfer->uttTx_.outs.size() << '\n';
         for (const auto& sigShare : sigShares_[req.block_id]) {
           ss << sigShare;
         }
@@ -242,7 +243,7 @@ void UTTCommandsHandler::initAppState() {
 
   LOG_INFO(logger_, "Loaded config '" << fileName);
 
-  // ToDo: Init public balances with some value in the config
+  // [TODO-UTT]: Init public balances with some value in the config
   for (const auto& pid : config_.pids_) {
     state_.addAccount(Account{pid});
   }
@@ -263,6 +264,7 @@ void UTTCommandsHandler::syncAppState() {
 
     LOG_WARN(logger_, "UTT AppState fetching missing block " << *missingBlockId << " tx: " << v);
 
+    // [TODO-UTT] Distinguish between utt and public transactions
     auto tx = parsePublicTx(v);
     if (!tx) throw std::runtime_error("Failed to parse public tx!");
 

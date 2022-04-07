@@ -77,15 +77,19 @@ struct AppState {
   void addAccount(Account&& acc);
 
   const std::map<std::string, Account>& GetAccounts() const;
+  std::map<std::string, Account>& GetAccounts();
+
   const std::vector<Block>& GetBlocks() const;
 
   const Account* getAccountById(const std::string& id) const;
   Account* getAccountById(const std::string& id);
 
-  const std::set<std::string>& getNullset() const;
+  void addNullifier(std::string nullifier);
+  bool hasNullifier(const std::string& nullifier) const;
 
  private:
   void executeTx(const Tx& tx);
+  void pruneSpentCoins(libutt::Wallet& w);
 
   std::map<std::string, Account> accounts_;
   std::vector<Block> blocks_;
