@@ -134,8 +134,10 @@ TxReply sendTxRequest(Client& client, const Tx& tx) {
   UTTRequest req;
 
   if (const auto* uttTransfer = std::get_if<TxUttTransfer>(&tx)) {
+    std::stringstream ss;
+    ss << uttTransfer->uttTx_;
     UttTx uttTx;
-    uttTx.tx = uttTransfer->data_;
+    uttTx.tx = ss.str();
     req.request = std::move(uttTx);
   } else {
     std::stringstream ss;
@@ -217,7 +219,8 @@ void syncState(AppState& state, Client& client) {
 
     std::optional<Tx> tx;
     if (const auto* uttTx = std::get_if<UttTx>(&blockDataReply.tx)) {
-      tx = TxUttTransfer(uttTx->tx);
+      std::stringstream ss(uttTx->tx);
+      tx = TxUttTransfer(libutt::Tx(ss));
     } else if (const auto* publicTx = std::get_if<PublicTx>(&blockDataReply.tx)) {
       tx = parsePublicTx(publicTx->tx);
       if (!tx) throw std::runtime_error("Failed to parse public tx from missing block!");
@@ -342,10 +345,8 @@ int main(int argc, char** argv) {
           ConcordAssert(wallet != nullptr);
 
           auto uttTx = libutt::Client::createTxForPayment(*wallet, uttPayment->to_.getId(), uttPayment->payment_);
-          std::stringstream ss;
-          ss << uttTx;
 
-          Tx tx = TxUttTransfer(ss.str());
+          Tx tx = TxUttTransfer(std::move(uttTx));
 
           auto reply = sendTxRequest(client, tx);
           if (reply.success) {

@@ -36,7 +36,6 @@ struct IUTTConfig {
 
 ////////////////////////////////////////////////////////////////////////
 struct UTTClientConfig : IUTTConfig {
-
   const libutt::Params& getParams() const override { return wallet_.p; }
   const libutt::RegAuthPK& getRegAuthPK() const override { return wallet_.rpk; }
   const libutt::RandSigPK& getBankPK() const override { return wallet_.bpk; }
@@ -52,7 +51,6 @@ std::istream& operator>>(std::istream& is, UTTClientConfig& cfg);
 
 ////////////////////////////////////////////////////////////////////////
 struct UTTReplicaConfig : IUTTConfig {
-
   const libutt::Params& getParams() const override { return p_; }
   const libutt::RegAuthPK& getRegAuthPK() const override { return rpk_; }
   const libutt::RandSigPK& getBankPK() const override { return bpk_; }
