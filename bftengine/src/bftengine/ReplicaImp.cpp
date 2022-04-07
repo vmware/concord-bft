@@ -2425,7 +2425,7 @@ void ReplicaImp::onMessage<AskForCheckpointMsg>(AskForCheckpointMsg *msg) {
 }
 
 void ReplicaImp::startExecution() {
-  if (isCollectingState() || bftEngine::ControlStateManager::instance().isWedged() ||
+  if (!currentViewIsActive() || isCollectingState() || bftEngine::ControlStateManager::instance().isWedged() ||
       bftEngine::ControlStateManager::instance().getPruningProcessStatus()) {
     return;
   }
@@ -3985,6 +3985,7 @@ void ReplicaImp::finalizePPExecution(PrePrepareMsg *ppMsg) {
     DescriptorOfLastExecution execDesc{ppMsg->seqNumber(), Bitmap{}, ticks};
     ps_->setDescriptorOfLastExecution(execDesc);
     ps_->setLastExecutedSeqNum(currExecutedSeqNum);
+    bftRequestsHandler_->onFinishExecutingReadWriteRequests();
   }
 
   lastExecutedSeqNum = currExecutedSeqNum;
@@ -4190,11 +4191,6 @@ void ReplicaImp::sendWedgeCommandIfNeeded() {
 
 void ReplicaImp::postBftExecutionActions(PrePrepareMsg *ppMsg,
                                          IRequestsHandler::ExecutionRequestsQueue &requests_for_execution) {
-  if (requests_for_execution.size() > 0) {
-    ps_->beginWriteTran();
-    bftRequestsHandler_->onFinishExecutingReadWriteRequests();
-    ps_->endWriteTran();
-  }
   updateExecutedPathMetrics(mainLog->get(ppMsg->seqNumber()).slowPathStarted(), ppMsg->numberOfRequests());
   finalizePPExecution(ppMsg);
   sendWedgeCommandIfNeeded();

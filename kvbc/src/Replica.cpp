@@ -329,7 +329,10 @@ void Replica::createReplicaAndSyncState() {
   LOG_INFO(logger, KVLOG(lastExecutedSeqNum));
   if (!replicaConfig_.isReadOnly && !m_stateTransfer->isCollectingState()) {
     try {
-      const auto maxNumOfBlocksToDelete = replicaConfig_.maxNumOfRequestsInBatch;
+      auto maxNumOfBlocksToDelete = replicaConfig_.maxNumOfRequestsInBatch;
+      // In case we enable separation, it means that we can batch at most checkpointWindowSize requests for execution,
+      // and they all can not completed before the crash
+      if (replicaConfig_.enablePostExecutionSeparation) maxNumOfBlocksToDelete *= checkpointWindowSize;
       const auto removedBlocksNum = replicaStateSync_->execute(
           logger, *m_kvBlockchain, m_replicaPtr->persistentStorage(), lastExecutedSeqNum, maxNumOfBlocksToDelete);
       LOG_INFO(logger,

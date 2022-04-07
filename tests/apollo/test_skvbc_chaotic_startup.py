@@ -495,7 +495,8 @@ class SkvbcChaoticStartupTest(ApolloTest):
         log.log_message(message_type=f"STATUS: Starting F={f} replicas.")
         bft_network.start_replicas(replicas=early_replicas)
         log.log_message(message_type="STATUS: Wait for early replicas to initiate View Change.")
-        await self._wait_for_less_than_f_plus_one_replicas_to_initiate_viewchange(early_replicas, bft_network)
+        for r in early_replicas:
+            await self._wait_for_sending_askToLeaveViewMsg(r, bft_network, lambda x: x > 0)
         log.log_message(message_type="STATUS: Early replicas initiated View Change.")
 
         late_replicas = bft_network.all_replicas(without=early_replicas)
@@ -511,38 +512,30 @@ class SkvbcChaoticStartupTest(ApolloTest):
 
         self.assertTrue(initial_view == view)
 
-        await self._wait_for_replicas_to_generate_checkpoint(bft_network, skvbc, initial_primary, late_replicas)
+        await self._wait_for_replicas_to_generate_checkpoint(bft_network, skvbc, initial_primary, late_replicas, checkpoint_num=5)
 
         # Verify replicas that have initiated View Change catch up on state
-        await bft_network.wait_for_state_transfer_to_start()
+        # await bft_network.wait_for_state_transfer_to_start()
         for r in early_replicas:
             await bft_network.wait_for_state_transfer_to_stop(initial_primary,
                                                               r,
                                                               stop_on_stable_seq_num=True)
         log.log_message(message_type="STATUS: Early replicas that have initiated View Change catch up on state.")
 
-        # Stop one of the later started replicas, but not the initial Primary
-        # in order to verify that View Change will happen due to inability to
-        # reach quorums in the slow path. Also don't stop next primary, because
-        # in this test we check a single view change.
-        replica_to_stop = random.choice(bft_network.all_replicas(without=early_replicas | {initial_primary,
-                                                                                           expected_next_primary}))
-        log.log_message(message_type=f'STATUS: Stopping one of the later replicas with ID={replica_to_stop}')
-        bft_network.stop_replica(replica_to_stop)
-
+        # The realy replicas contiue working once the other replicas joined in. Make sure no VC has happened
         # Wait for View Change to happen.
         view = await bft_network.wait_for_view(
-            replica_id=expected_next_primary,
-            expected=lambda v: v == expected_next_primary,
+            replica_id=initial_primary,
+            expected=lambda v: v == initial_primary,
             err_msg="Make sure we are in the next view "
         )
 
-        self.assertTrue(expected_next_view == view)
-        await self._wait_for_processing_window_after_view_change(expected_next_primary, bft_network)
+        self.assertTrue(initial_primary == view)
+        await self._wait_for_processing_window_after_view_change(initial_primary, bft_network)
 
-        await self._verify_replicas_are_in_view(view, bft_network.all_replicas(without={replica_to_stop}), bft_network)
+        await self._verify_replicas_are_in_view(view, bft_network.all_replicas(), bft_network)
 
-        await self._wait_for_replicas_to_generate_checkpoint(bft_network, skvbc, expected_next_primary, bft_network.all_replicas(without={replica_to_stop}))
+        await self._wait_for_replicas_to_generate_checkpoint(bft_network, skvbc, initial_primary , bft_network.all_replicas())
 
     @unittest.skip("edge scenario - not part of CI")
     @with_trio
@@ -578,7 +571,8 @@ class SkvbcChaoticStartupTest(ApolloTest):
         log.log_message(message_type=early_replicas)
         log.log_message(message_type=f"STATUS: Starting F={f - 1} replicas.")
         bft_network.start_replicas(replicas=early_replicas)
-        await self._wait_for_less_than_f_plus_one_replicas_to_initiate_viewchange(early_replicas, bft_network)
+        for r in early_replicas:
+            await self._wait_for_sending_askToLeaveViewMsg(r, bft_network, lambda x: x > 0)
         log.log_message(message_type="STATUS: Early replicas started and initiated View Change.")
 
 
@@ -593,10 +587,10 @@ class SkvbcChaoticStartupTest(ApolloTest):
         )
         self.assertTrue(initial_view == view)
 
-        await self._wait_for_replicas_to_generate_checkpoint(bft_network, skvbc, initial_primary, late_replicas)
+        await self._wait_for_replicas_to_generate_checkpoint(bft_network, skvbc, initial_primary, late_replicas, checkpoint_num=5)
 
         # Verify replicas that have initiated View Change catch up on state
-        await bft_network.wait_for_state_transfer_to_start()
+        # await bft_network.wait_for_state_transfer_to_start()
         for r in early_replicas:
             await bft_network.wait_for_state_transfer_to_stop(initial_primary,
                                                                   r,
@@ -690,6 +684,13 @@ class SkvbcChaoticStartupTest(ApolloTest):
         checkpoint_after = await bft_network.wait_for_checkpoint(replica_id=replica_to_read_from)
         # Verify the system is able to make progress
         self.assertTrue(checkpoint_after > checkpoint_before)
+
+    async def _wait_for_sending_askToLeaveViewMsg(self, replica, bft_network, condition):
+        with trio.fail_after(60):
+            while True:
+                num_of_messages = await bft_network.get_metric(replica, bft_network, "Gauges",  "sentReplicaAsksToLeaveViewMsg", "replica")
+                if condition(num_of_messages):
+                    return num_of_messages
 
     async def _wait_for_less_than_f_plus_one_replicas_to_initiate_viewchange(self, replicas, bft_network):
         num_of_replicas = len(replicas)
