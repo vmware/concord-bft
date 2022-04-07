@@ -93,7 +93,7 @@ void PreProcessRequestMsg::validate(const ReplicasInfo& repInfo) const {
   auto* requestSignature = this->requestSignature();
   auto* sigManager = SigManager::instance();
   auto expectedMsgSize = (sizeof(Header) + header->spanContextSize + header->requestLength + header->cidLength +
-                          header->participantidLength + header->reqSignatureLength);
+                          header->participantIdLength + header->reqSignatureLength);
   if (size() != expectedMsgSize) throw std::runtime_error(__PRETTY_FUNCTION__);
 
   if (type() != MsgCode::PreProcessRequest) {
@@ -134,7 +134,7 @@ void PreProcessRequestMsg::setParams(RequestType reqType,
                                      uint64_t blockId,
                                      uint32_t result,
                                      ViewNum viewNum,
-                                     uint32_t participantidLength) {
+                                     uint32_t participantIdLength) {
   auto* header = msgBody();
   header->reqType = reqType;
   header->senderId = senderId;
@@ -149,17 +149,17 @@ void PreProcessRequestMsg::setParams(RequestType reqType,
   header->primaryBlockId = blockId;
   header->result = result;
   header->viewNum = viewNum;
-  header->participantidLength = participantidLength;
+  header->participantIdLength = participantIdLength;
 }
 
 std::string PreProcessRequestMsg::getCid() const {
   return std::string(body() + sizeof(Header) + msgBody()->spanContextSize + msgBody()->requestLength,
                      msgBody()->cidLength);
 }
-std::string PreProcessRequestMsg::getParticipantid() const {
+std::string PreProcessRequestMsg::getParticipantId() const {
   return std::string(
       body() + sizeof(Header) + msgBody()->spanContextSize + msgBody()->requestLength + msgBody()->cidLength,
-      msgBody()->participantidLength);
+      msgBody()->participantIdLength);
 }
 
 }  // namespace preprocessor

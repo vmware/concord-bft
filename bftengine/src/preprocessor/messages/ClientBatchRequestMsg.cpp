@@ -92,7 +92,7 @@ bool ClientBatchRequestMsg::checkElements() const {
       return false;
     }
     dataPosition += sizeof(ClientRequestMsgHeader) + singleMsgHeader.spanContextSize + singleMsgHeader.requestLength +
-                    singleMsgHeader.cidLength + singleMsgHeader.participantidLength +
+                    singleMsgHeader.cidLength + singleMsgHeader.participantIdLength +
                     singleMsgHeader.reqSignatureLength;
   }
   return true;
@@ -111,27 +111,27 @@ ClientMsgsList& ClientBatchRequestMsg::getClientPreProcessRequestMsgs() {
     const char* spanDataPosition = dataPosition + sizeof(ClientRequestMsgHeader);
     const char* requestDataPosition = spanDataPosition + singleMsgHeader.spanContextSize;
     const char* cidPosition = requestDataPosition + singleMsgHeader.requestLength;
-    const char* participantidPosition = cidPosition + singleMsgHeader.cidLength;
+    const char* participantIdPosition = cidPosition + singleMsgHeader.cidLength;
     const char* requestSignaturePosition =
         (isClientTransactionSigningEnabled && (singleMsgHeader.reqSignatureLength > 0))
-            ? (participantidPosition + singleMsgHeader.participantidLength)
+            ? (participantIdPosition + singleMsgHeader.participantIdLength)
             : nullptr;
     const concordUtils::SpanContext spanContext(string(spanDataPosition, singleMsgHeader.spanContextSize));
     auto const cid = string(cidPosition, singleMsgHeader.cidLength);
-    auto const participantid = string(participantidPosition, singleMsgHeader.participantidLength);
+    auto const participantId = string(participantIdPosition, singleMsgHeader.participantIdLength);
     auto msg = make_unique<preprocessor::ClientPreProcessRequestMsg>(singleMsgHeader.idOfClientProxy,
                                                                      singleMsgHeader.reqSeqNum,
                                                                      singleMsgHeader.requestLength,
                                                                      requestDataPosition,
                                                                      singleMsgHeader.timeoutMilli,
                                                                      cid,
-                                                                     participantid,
+                                                                     participantId,
                                                                      spanContext,
                                                                      requestSignaturePosition,
                                                                      singleMsgHeader.reqSignatureLength);
     clientMsgsList_.push_back(move(msg));
     dataPosition += sizeof(ClientRequestMsgHeader) + singleMsgHeader.spanContextSize + singleMsgHeader.requestLength +
-                    singleMsgHeader.cidLength + singleMsgHeader.participantidLength +
+                    singleMsgHeader.cidLength + singleMsgHeader.participantIdLength +
                     singleMsgHeader.reqSignatureLength;
   }
   LOG_DEBUG(logger(), KVLOG(batchCid, msgBody()->clientId, clientMsgsList_.size(), numOfMessagesInBatch));

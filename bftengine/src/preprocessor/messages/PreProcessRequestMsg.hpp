@@ -53,12 +53,12 @@ class PreProcessRequestMsg : public MessageBase {
   const uint32_t requestSignatureLength() const { return msgBody()->reqSignatureLength; }
   const ViewNum viewNum() const { return msgBody()->viewNum; }
   std::string getCid() const;
-  std::string getParticipantid() const;
+  std::string getParticipantId() const;
   inline char* requestSignature() const {
     auto* header = msgBody();
     if (header->reqSignatureLength > 0)
       return body() + sizeof(Header) + spanContextSize() + header->requestLength + header->cidLength +
-             header->participantidLength;
+             header->participantIdLength;
     return nullptr;
   }
   const uint32_t result() const { return msgBody()->result; }
@@ -80,7 +80,7 @@ class PreProcessRequestMsg : public MessageBase {
     uint64_t primaryBlockId;
     uint32_t result;
     ViewNum viewNum;
-    uint32_t participantidLength;
+    uint32_t participantIdLength;
   };
 #pragma pack(pop)
 
@@ -106,7 +106,7 @@ class PreProcessRequestMsg : public MessageBase {
                  uint64_t blockId,
                  uint32_t result,
                  ViewNum viewNum,
-                 uint32_t participantidLength);
+                 uint32_t participantIdLength);
   Header* msgBody() const { return ((Header*)msgBody_); }
 };
 

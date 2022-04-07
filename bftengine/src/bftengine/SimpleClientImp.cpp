@@ -54,7 +54,7 @@ class SimpleClientImp : public SimpleClient, public IReceiver {
                               uint32_t& actualReplyLength,
                               const std::string& cid,
                               const std::string& spanContext,
-                              const std::string& participantid) override;
+                              const std::string& participantId) override;
 
   OperationResult sendBatch(const deque<ClientRequest>& clientRequests,
                             deque<ClientReply>& clientReplies,
@@ -314,7 +314,7 @@ OperationResult SimpleClientImp::sendRequest(uint8_t flags,
                                              uint32_t& actualReplyLength,
                                              const std::string& cid,
                                              const std::string& spanContext,
-                                             const std::string& participantid) {
+                                             const std::string& participantId) {
   bool isReadOnly = flags & READ_ONLY_REQ;
   bool isPreProcessRequired = flags & PRE_PROCESS_REQ;
   const std::string msgCid = cid.empty() ? std::to_string(reqSeqNum) + "-" + std::to_string(clientId_) : cid;
@@ -345,10 +345,10 @@ OperationResult SimpleClientImp::sendRequest(uint8_t flags,
   concordUtils::SpanContext ctx{spanContext};
   if (isPreProcessRequired)
     reqMsg = new ClientPreProcessRequestMsg(
-        clientId_, reqSeqNum, lenOfRequest, request, reqTimeoutMilli, msgCid, participantid, ctx);
+        clientId_, reqSeqNum, lenOfRequest, request, reqTimeoutMilli, msgCid, participantId, ctx);
   else
     reqMsg = new ClientRequestMsg(
-        clientId_, flags, reqSeqNum, lenOfRequest, request, reqTimeoutMilli, msgCid, 1, ctx, participantid);
+        clientId_, flags, reqSeqNum, lenOfRequest, request, reqTimeoutMilli, msgCid, 1, ctx, participantId);
   {
     std::unique_lock<std::mutex> mlock(lock_);
     pendingRequests_.push_back(reqMsg);

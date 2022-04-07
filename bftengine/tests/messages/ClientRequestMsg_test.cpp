@@ -101,7 +101,7 @@ TEST_F(ClientRequestMsgTestFixture, create_and_compare_with_empty_span) {
   EXPECT_NE(msg.requestBuf(), request);
   EXPECT_TRUE(std::memcmp(msg.requestBuf(), request, sizeof(request)) == 0u);
   EXPECT_EQ(msg.getCid(), correlationId);
-  EXPECT_EQ(msg.getParticipantid(), participantId);
+  EXPECT_EQ(msg.getParticipantId(), participantId);
   EXPECT_EQ(msg.spanContext<ClientRequestMsg>().data(), spanContext);
   EXPECT_NO_THROW(msg.validate(replicaInfo));
 }
@@ -134,7 +134,7 @@ TEST_F(ClientRequestMsgTestFixture, create_and_compare_with_empty_cid) {
   EXPECT_NE(msg.requestBuf(), request);
   EXPECT_TRUE(std::memcmp(msg.requestBuf(), request, sizeof(request)) == 0u);
   EXPECT_EQ(msg.getCid(), correlationId);
-  EXPECT_EQ(msg.getParticipantid(), participantId);
+  EXPECT_EQ(msg.getParticipantId(), participantId);
   EXPECT_EQ(msg.spanContext<ClientRequestMsg>().data(), spanContext);
   EXPECT_EQ(msg.requestTimeoutMilli(), requestTimeoutMilli);
   EXPECT_NO_THROW(msg.validate(replicaInfo));
@@ -170,7 +170,7 @@ TEST_F(ClientRequestMsgTestFixture, create_from_buffer) {
   EXPECT_EQ(originalMsg.requestBuf(), copy_msg.requestBuf());
   EXPECT_TRUE(std::memcmp(originalMsg.requestBuf(), copy_msg.requestBuf(), sizeof(request)) == 0u);
   EXPECT_EQ(originalMsg.getCid(), copy_msg.getCid());
-  EXPECT_EQ(originalMsg.getParticipantid(), copy_msg.getParticipantid());
+  EXPECT_EQ(originalMsg.getParticipantId(), copy_msg.getParticipantId());
   EXPECT_EQ(originalMsg.spanContext<ClientRequestMsg>().data(), copy_msg.spanContext<ClientRequestMsg>().data());
   EXPECT_EQ(originalMsg.requestTimeoutMilli(), requestTimeoutMilli);
   EXPECT_NO_THROW(originalMsg.validate(replicaInfo));
@@ -207,7 +207,7 @@ TEST_F(ClientRequestMsgTestFixture, test_with_timestamp) {
   EXPECT_EQ(originalMsg.requestBuf(), copy_msg.requestBuf());
   EXPECT_TRUE(std::memcmp(originalMsg.requestBuf(), copy_msg.requestBuf(), request.size()) == 0u);
   EXPECT_EQ(originalMsg.getCid(), copy_msg.getCid());
-  EXPECT_EQ(originalMsg.getParticipantid(), copy_msg.getParticipantid());
+  EXPECT_EQ(originalMsg.getParticipantId(), copy_msg.getParticipantId());
   EXPECT_EQ(originalMsg.spanContext<ClientRequestMsg>().data(), copy_msg.spanContext<ClientRequestMsg>().data());
   EXPECT_EQ(originalMsg.requestTimeoutMilli(), requestTimeoutMilli);
 

@@ -25,7 +25,7 @@ static uint16_t getSender(const ClientRequestMsgHeader* r) { return r->idOfClien
 
 static int32_t compRequestMsgSize(const ClientRequestMsgHeader* r) {
   return (sizeof(ClientRequestMsgHeader) + r->spanContextSize + r->requestLength + r->cidLength +
-          r->participantidLength + r->reqSignatureLength + r->extraDataLength);
+          r->participantIdLength + r->reqSignatureLength + r->extraDataLength);
 }
 
 uint32_t getRequestSizeTemp(const char* request)  // TODO(GG): change - TBD
@@ -44,14 +44,14 @@ ClientRequestMsg::ClientRequestMsg(NodeIdType sender,
                                    const std::string& cid,
                                    uint32_t result,
                                    const concordUtils::SpanContext& spanContext,
-                                   const std::string& participantid,
+                                   const std::string& participantId,
                                    const char* requestSignature,
                                    uint32_t requestSignatureLen,
                                    const uint32_t extraBufSize)
     : MessageBase(sender,
                   MsgCode::ClientRequest,
                   spanContext.data().size(),
-                  sizeof(ClientRequestMsgHeader) + requestLength + cid.size() + participantid.size() +
+                  sizeof(ClientRequestMsgHeader) + requestLength + cid.size() + participantId.size() +
                       requestSignatureLen + extraBufSize) {
   // logical XOR - if requestSignatureLen is zero requestSignature must be null and vise versa
   ConcordAssert((requestSignature == nullptr) == (requestSignatureLen == 0));
@@ -63,7 +63,7 @@ ClientRequestMsg::ClientRequestMsg(NodeIdType sender,
             reqTimeoutMilli,
             result,
             cid,
-            participantid,
+            participantId,
             requestSignatureLen,
             extraBufSize);
 
@@ -83,15 +83,15 @@ ClientRequestMsg::ClientRequestMsg(NodeIdType sender,
   position += cid.size();
 
   // set participant ID
-  int participantidLen = participantid.size();
-  if (participantidLen > 0) {
-    memcpy(position, participantid.data(), participantidLen);
+  int participantIdLen = participantId.size();
+  if (participantIdLen > 0) {
+    memcpy(position, participantId.data(), participantIdLen);
   }
 
   // set signature
   if (requestSignature) {
-    if (participantidLen > 0) {
-      position += participantidLen;
+    if (participantIdLen > 0) {
+      position += participantIdLen;
     }
     memcpy(position, requestSignature, requestSignatureLen);
   }
@@ -200,7 +200,7 @@ void ClientRequestMsg::validateImp(const ReplicasInfo& repInfo) const {
     throw std::runtime_error(msg.str());
   }
   auto expectedMsgSize = sizeof(ClientRequestMsgHeader) + header->requestLength + header->cidLength +
-                         spanContextSize() + header->participantidLength + expectedSigLen + header->extraDataLength;
+                         spanContextSize() + header->participantIdLength + expectedSigLen + header->extraDataLength;
 
   if ((msgSize < minMsgSize) || (msgSize != expectedMsgSize)) {
     msg << "Invalid msgSize:"
@@ -212,7 +212,7 @@ void ClientRequestMsg::validateImp(const ReplicasInfo& repInfo) const {
                  header->cidLength,
                  expectedSigLen,
                  spanContextSize(),
-                 header->participantidLength,
+                 header->participantIdLength,
                  header->extraDataLength);
     LOG_ERROR(CNSUS, msg.str());
     throw std::runtime_error(msg.str());
@@ -230,7 +230,7 @@ void ClientRequestMsg::validateImp(const ReplicasInfo& repInfo) const {
                    header->requestLength,
                    header->reqSignatureLength,
                    getCid(),
-                   getParticipantid(),
+                   getParticipantId(),
                    this->senderId());
       throw std::runtime_error(msg.str());
     }
@@ -256,7 +256,7 @@ void ClientRequestMsg::setParams(NodeIdType sender,
   header->flags = flags;
   header->result = result;
   header->cidLength = cid.size();
-  header->participantidLength = participant_id.size();
+  header->participantIdLength = participant_id.size();
   header->reqSignatureLength = requestSignatureLen;
   header->extraDataLength = extraBufSize;
 }
@@ -266,11 +266,11 @@ std::string ClientRequestMsg::getCid() const {
                      msgBody()->cidLength);
 }
 
-std::string ClientRequestMsg::getParticipantid() const {
-  if (msgBody()->participantidLength > 0) {
+std::string ClientRequestMsg::getParticipantId() const {
+  if (msgBody()->participantIdLength > 0) {
     return std::string(
         body() + sizeof(ClientRequestMsgHeader) + msgBody()->requestLength + spanContextSize() + msgBody()->cidLength,
-        msgBody()->participantidLength);
+        msgBody()->participantIdLength);
   } else
     return "";
 }
@@ -279,7 +279,7 @@ char* ClientRequestMsg::requestSignature() const {
   const auto* header = msgBody();
   if (header->reqSignatureLength > 0) {
     return body() + sizeof(ClientRequestMsgHeader) + spanContextSize() + header->requestLength + header->cidLength +
-           header->participantidLength;
+           header->participantIdLength;
   }
   return nullptr;
 }

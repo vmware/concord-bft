@@ -73,7 +73,7 @@ class ClientRequestMsg : public MessageBase {
 
   std::string getCid() const;
 
-  std::string getParticipantid() const;
+  std::string getParticipantId() const;
 
   void validate(const ReplicasInfo& repInfo) const override { validateImp(repInfo); }
 

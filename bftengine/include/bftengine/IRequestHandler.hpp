@@ -47,7 +47,7 @@ class IRequestsHandler {
     uint32_t maxReplySize = 0;
     char *outReply = nullptr;
     uint64_t requestSequenceNum = executionSequenceNum;
-    std::string participantid;
+    std::string participantId;
     uint32_t outExecutionStatus = 1;  // UNKNOWN
     uint32_t outActualReplySize = 0;
     uint32_t outReplicaSpecificInfoSize = 0;

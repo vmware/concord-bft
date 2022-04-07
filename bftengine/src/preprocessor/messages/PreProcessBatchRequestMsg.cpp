@@ -85,7 +85,7 @@ bool PreProcessBatchRequestMsg::checkElements() const {
       return false;
     }
     dataPosition += sizeof(PreProcessRequestMsg::Header) + singleMsgHeader.spanContextSize +
-                    singleMsgHeader.requestLength + singleMsgHeader.cidLength + singleMsgHeader.participantidLength +
+                    singleMsgHeader.requestLength + singleMsgHeader.cidLength + singleMsgHeader.participantIdLength +
                     singleMsgHeader.reqSignatureLength;
   }
   return true;
@@ -121,14 +121,14 @@ PreProcessReqMsgsList& PreProcessBatchRequestMsg::getPreProcessRequestMsgs() {
     const char* spanDataPosition = dataPosition + sizeof(PreProcessRequestMsg::Header);
     const char* requestDataPosition = spanDataPosition + singleMsgHeader.spanContextSize;
     const char* cidPosition = requestDataPosition + singleMsgHeader.requestLength;
-    const char* participantidPosition = cidPosition + singleMsgHeader.cidLength;
+    const char* participantIdPosition = cidPosition + singleMsgHeader.cidLength;
 
     const char* requestSignaturePosition = (singleMsgHeader.reqSignatureLength > 0)
-                                               ? (participantidPosition + singleMsgHeader.participantidLength)
+                                               ? (participantIdPosition + singleMsgHeader.participantIdLength)
                                                : nullptr;
     const concordUtils::SpanContext spanContext(string(spanDataPosition, singleMsgHeader.spanContextSize));
     const string cid(cidPosition, singleMsgHeader.cidLength);
-    const string participantid(participantidPosition, singleMsgHeader.participantidLength);
+    const string participantId(participantIdPosition, singleMsgHeader.participantIdLength);
     auto preProcessReqMsg = make_unique<preprocessor::PreProcessRequestMsg>(singleMsgHeader.reqType,
                                                                             senderId,
                                                                             clientId,
@@ -142,11 +142,11 @@ PreProcessReqMsgsList& PreProcessBatchRequestMsg::getPreProcessRequestMsgs() {
                                                                             singleMsgHeader.reqSignatureLength,
                                                                             singleMsgHeader.primaryBlockId,
                                                                             singleMsgHeader.viewNum,
-                                                                            participantid,
+                                                                            participantId,
                                                                             spanContext);
     preProcessReqMsgsList_.push_back(move(preProcessReqMsg));
     dataPosition += sizeof(PreProcessRequestMsg::Header) + singleMsgHeader.spanContextSize +
-                    singleMsgHeader.requestLength + singleMsgHeader.cidLength + singleMsgHeader.participantidLength +
+                    singleMsgHeader.requestLength + singleMsgHeader.cidLength + singleMsgHeader.participantIdLength +
                     singleMsgHeader.reqSignatureLength;
   }
   LOG_DEBUG(logger(), KVLOG(batchCid, clientId, senderId, preProcessReqMsgsList_.size(), numOfMessagesInBatch));

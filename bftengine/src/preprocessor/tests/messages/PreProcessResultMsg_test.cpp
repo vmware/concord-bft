@@ -144,7 +144,6 @@ class PreProcessResultMsgTestFixture : public testing::Test {
                                                  p.requestTimeoutMilli,
                                                  p.correlationId,
                                                  concordUtils::SpanContext{p.spanContext},
-                                                 p.participantId,
                                                  resultSigsBuf.second.data(),
                                                  resultSigsBuf.second.size(),
                                                  resultSigsBuf.first);
@@ -182,7 +181,6 @@ class PreProcessResultMsgTxSigningOffTestFixture : public testing::Test {
                                                  p.requestTimeoutMilli,
                                                  p.correlationId,
                                                  concordUtils::SpanContext{p.spanContext},
-                                                 p.participantId,
                                                  nullptr,
                                                  0,
                                                  resultSigsBuf.first);

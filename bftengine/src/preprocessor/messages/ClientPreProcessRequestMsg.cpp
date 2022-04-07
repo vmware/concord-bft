@@ -53,7 +53,7 @@ unique_ptr<MessageBase> ClientPreProcessRequestMsg::convertToClientRequestMsg(bo
                                                                            getCid(),
                                                                            result(),
                                                                            spanContext<ClientRequestMsg>(),
-                                                                           getParticipantid(),
+                                                                           getParticipantId(),
                                                                            emptyReq ? nullptr : requestSignature(),
                                                                            emptyReq ? 0 : requestSignatureLength());
   return clientRequestMsg;

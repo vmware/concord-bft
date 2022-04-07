@@ -116,7 +116,7 @@ class SimpleClient {
                                                  uint32_t& actualReplyLength,
                                                  const std::string& cid = "",
                                                  const std::string& spanContext = "",
-                                                 const std::string& participantid = "") = 0;
+                                                 const std::string& participantId = "") = 0;
 
   // To be used only for write requests
   virtual bftEngine::OperationResult sendBatch(const std::deque<ClientRequest>& clientRequests,

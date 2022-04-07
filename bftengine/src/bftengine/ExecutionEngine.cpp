@@ -170,7 +170,7 @@ std::deque<IRequestsHandler::ExecutionRequest> ExecutionEngine::collectRequests(
         static_cast<uint32_t>(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
         (char*)std::malloc(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
         req.requestSeqNum(),
-        req.getParticipantid(),
+        req.getParticipantId(),
         req.result()};
     // Decode the pre-execution block-id for the conflict detection optimization,
     // and pass it to the post-execution.
