@@ -53,7 +53,12 @@ int Account::getUttBudget() const {
 
 std::ostream& operator<<(std::ostream& os, const Block& b) {
   os << b.id_ << " | ";
-  b.tx_ ? os << *b.tx_ : os << "(Empty)";
+  if (!b.tx_)
+    os << "(Empty)";
+  else if (std::holds_alternative<TxUttTransfer>(*b.tx_))
+    os << "(UTT Transaction)";
+  else
+    os << *b.tx_;  // Public Tx
   return os;
 }
 
