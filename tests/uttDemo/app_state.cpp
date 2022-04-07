@@ -23,6 +23,8 @@
 #include <utt/NtlLib.h>
 #include <utt/RangeProof.h>
 
+#include <utt/Client.h>
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 const std::string& Account::getId() const { return wallet_ ? wallet_->getUserPid() : id_; }
 
@@ -115,6 +117,7 @@ std::optional<BlockId> AppState::executeBlocks() {
 }
 
 const std::map<std::string, Account>& AppState::GetAccounts() const { return accounts_; }
+std::map<std::string, Account>& AppState::GetAccounts() { return accounts_; }
 
 const std::vector<Block>& AppState::GetBlocks() const { return blocks_; }
 
@@ -128,7 +131,9 @@ Account* AppState::getAccountById(const std::string& id) {
   return it != accounts_.end() ? &(it->second) : nullptr;
 }
 
-const std::set<std::string>& AppState::getNullset() const { return nullset_; }
+void AppState::addNullifier(std::string nullifier) { nullset_.emplace(std::move(nullifier)); }
+
+bool AppState::hasNullifier(const std::string& nullifier) const { return nullset_.count(nullifier) > 0; }
 
 bool AppState::canExecuteTx(const Tx& tx, std::string& err, const IUTTConfig& cfg) const {
   struct Visitor {
@@ -159,15 +164,14 @@ bool AppState::canExecuteTx(const Tx& tx, std::string& err, const IUTTConfig& cf
     }
 
     void operator()(const TxUttTransfer& tx) const {
-      // [TODO--UTT] Validate takes the bank public key, but that's used for quickPay validation
+      // [TODO-UTT] Validate takes the bank public key, but that's used for quickPay validation
       // which we aren't using in the demo
       if (!tx.uttTx_.validate(uttCfg_.getParams(), uttCfg_.getBankPK(), uttCfg_.getRegAuthPK()))
         throw std::domain_error("Invalid utt transfer tx!");
 
-      // [TODO--UTT] Does a copy of nullifiers
-      const auto& nullset = state_.getNullset();
+      // [TODO-UTT] Does a copy of nullifiers
       for (const auto& n : tx.uttTx_.getNullifiers()) {
-        if (nullset.count(n) > 0) throw std::domain_error("Input coin already spent!");
+        if (state_.hasNullifier(n)) throw std::domain_error("Input coin already spent!");
       }
     }
   };
@@ -205,9 +209,48 @@ void AppState::executeTx(const Tx& tx) {
     }
 
     void operator()(const TxUttTransfer& tx) {
-      // To-Do
+      // Add nullifiers
+      const auto& txNullifiers = tx.uttTx_.getNullifiers();
+      for (const auto& n : txNullifiers) {
+        state_.addNullifier(n);
+      }
+
+      // [TODO-UTT] Remove client code from the common app state
+      // Try to claim any output coins
+      for (auto& kvp : state_.GetAccounts()) {
+        auto* wallet = kvp.second.getWallet();
+        if (!wallet) continue;
+
+        state_.pruneSpentCoins(*wallet);
+
+        // Add any new coins
+        const size_t n = 4;
+        if (!tx.sigShares_) throw std::runtime_error("Missing sigShares in utt tx!");
+        const auto& sigShares = *tx.sigShares_;
+
+        size_t numTxo = tx.uttTx_.outs.size();
+        if (numTxo != sigShares.sigShares_.size())
+          throw std::runtime_error("Number of output coins differs from provided sig shares!");
+
+        for (size_t i = 0; i < numTxo; ++i) {
+          libutt::Client::tryClaimCoin(*wallet, tx.uttTx_, i, sigShares.sigShares_[i], sigShares.signerIds_, n);
+        }
+      }
     }
   };
 
   std::visit(Visitor{*this}, tx);
+}
+
+void AppState::pruneSpentCoins(libutt::Wallet& w) {
+  // Mark spent coins and delete them all at once since they're kept in a vector
+  // [TODO-UTT] Check if this approach works at all (the nullifier from the tx can be correlated with the original coin)
+  for (auto& c : w.coins) {
+    if (hasNullifier(c.null.toUniqueString())) {
+      c.val = 0;
+    }
+  }
+
+  w.coins.erase(std::remove_if(w.coins.begin(), w.coins.end(), [](const libutt::Coin& c) { return c.val == 0; }),
+                w.coins.end());
 }

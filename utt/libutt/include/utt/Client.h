@@ -20,4 +20,11 @@ Tx createTxForPayment(const Wallet& w,
                       size_t payment,
                       const CoinStrategy& strategy = k_CoinStrategyPreferExactChange);
 
+void tryClaimCoin(Wallet& w,
+                  const Tx& tx,
+                  size_t txoIdx,
+                  const std::vector<RandSigShare>& sigShares,
+                  const std::vector<size_t>& signerIds,
+                  size_t n);
+
 }  // namespace libutt::Client

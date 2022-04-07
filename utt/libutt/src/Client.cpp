@@ -176,4 +176,93 @@ Tx createTxForPayment(const Wallet& w, const std::string& pid, size_t payment, c
   return strategy(w, pid, payment);
 }
 
+void tryClaimCoin(Wallet& w,
+                  const Tx& tx,
+                  size_t txoIdx,
+                  const std::vector<RandSigShare>& sigShares,
+                  const std::vector<size_t>& signerIds,
+                  size_t n) {
+  auto& txo = tx.outs.at(txoIdx);
+
+  Fr val;  // coin value
+  Fr d;    // vcm_2 value commitment randomness
+  Fr t;    // identity commitment randomness
+
+  // decrypt the ciphertext
+  bool forMe;
+  AutoBuf<unsigned char> ptxt;
+  std::tie(forMe, ptxt) = w.ask.e.decrypt(txo.ctxt);
+
+  if (!forMe) {
+    logtrace << "TXO #" << txoIdx << " is NOT for pid '" << w.ask.pid << "'!" << endl;
+    return;
+  } else {
+    logtrace << "TXO #" << txoIdx << " is for pid '" << w.ask.pid << "'!" << endl;
+  }
+
+  // parse the plaintext as (value, vcm_2 randomness, icm randomness)
+  auto vdt = bytesToFrs(ptxt);
+  assertEqual(vdt.size(), 3);
+  val = vdt[0];
+  d = vdt[1];
+  t = vdt[2];
+
+  logtrace << "val: " << val << endl;
+  logtrace << "d: " << d << endl;
+  logtrace << "t: " << t << endl;
+
+  // prepare to aggregate & unblind signature and store into Coin object
+
+  // assemble randomness vector for unblinding the coin sig
+  Fr r_pid = t, r_sn = Fr::zero(), r_val = d, r_type = Fr::zero(), r_expdate = Fr::zero();
+
+  std::vector<Fr> r = {r_pid, r_sn, r_val, r_type, r_expdate};
+
+  // aggregate & unblind the signature
+  testAssertFalse(sigShares.empty());
+  testAssertFalse(signerIds.empty());
+  testAssertEqual(sigShares.size(), signerIds.size());
+
+  RandSig sig = RandSigShare::aggregate(n, sigShares, signerIds, w.p.getCoinCK(), r);
+
+#ifndef NDEBUG
+  {
+    auto sn = tx.getSN(txoIdx);
+    logtrace << "sn: " << sn << endl;
+    Comm ccm = Comm::create(w.p.getCoinCK(),
+                            {
+                                w.ask.getPidHash(),
+                                sn,
+                                val,
+                                txo.coin_type,
+                                txo.exp_date,
+                                Fr::zero()  // the recovered signature will be on a commitment w/ randomness 0
+                            },
+                            true);
+
+    assertTrue(sig.verify(ccm, w.bpk));
+  }
+#endif
+
+  // TODO(Perf): small optimization here would re-use vcm_1 (g_3^v g^z) instead of recommitting
+  // ...but then we'd need to encrypt z too
+  //
+  // the signature from above is on commitment with r=0, but the Coin constructor
+  // will re-randomize the ccm and also compute coin commitment, value commitment, nullifier
+  Coin c(w.p.getCoinCK(), w.p.null, tx.getSN(txoIdx), val, txo.coin_type, txo.exp_date, w.ask);
+
+  // re-randomize the coin signature
+  Fr u_delta = Fr::random_element();
+  c.sig = sig;
+  c.sig.rerandomize(c.r, u_delta);
+
+  assertTrue(c.hasValidSig(w.bpk));
+  assertNotEqual(c.r, Fr::zero());  // should output a re-randomized coin always
+
+  // We need to reset the budget coin before we can add a new one that reflects the payment
+  if (c.isBudget()) w.budgetCoin.reset();
+
+  w.addCoin(c);  // Adds either a normal or budget coin
+}
+
 }  // namespace libutt::Client

@@ -19,10 +19,16 @@
 #include <optional>
 #include <vector>
 
+#include <utt/RandSig.h>
 #include <utt/Tx.h>
 
 std::vector<uint8_t> StrToBytes(const std::string& str);
 std::string BytesToStr(const std::vector<uint8_t>& bytes);
+
+struct ReplicaSigShares {
+  std::vector<size_t> signerIds_;
+  std::vector<std::vector<libutt::RandSigShare>> sigShares_;  // Signiture shares for each output coin
+};
 
 struct TxPublicDeposit {
   TxPublicDeposit(std::string accId, int amount) : amount_{amount}, toAccountId_{std::move(accId)} {}
@@ -51,8 +57,11 @@ struct TxPublicTransfer {
 std::ostream& operator<<(std::ostream& os, const TxPublicTransfer& tx);
 
 struct TxUttTransfer {
-  TxUttTransfer(libutt::Tx&& uttTx) : uttTx_{std::move(uttTx)} {}
+  TxUttTransfer(libutt::Tx&& uttTx, std::optional<ReplicaSigShares> sigShares = std::nullopt)
+      : uttTx_{std::move(uttTx)}, sigShares_{std::move(sigShares)} {}
   libutt::Tx uttTx_;
+  // [TODO-UTT] Added here for convenience, could be moved somewhere else
+  std::optional<ReplicaSigShares> sigShares_;  // This is obtained by the client from the get block reply
 };
 std::ostream& operator<<(std::ostream& os, const TxUttTransfer& tx);
 
