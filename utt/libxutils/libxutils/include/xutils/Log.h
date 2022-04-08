@@ -12,11 +12,12 @@
 #include <cerrno>
 #include <sys/types.h>
 #ifndef _WIN32
-# include <unistd.h>
-# include <sys/syscall.h>
+#include <unistd.h>
+#include <sys/syscall.h>
 #endif
 
-// TODO: Things like this don't work: std::copy(verifKeys.begin(), verifKeys.end(), std::ostream_iterator(loginfo, "\n"));
+// TODO: Things like this don't work: std::copy(verifKeys.begin(), verifKeys.end(), std::ostream_iterator(loginfo,
+// "\n"));
 
 /**************
  * FUNCTIONS  *
@@ -40,30 +41,35 @@ int64_t getpid();
 /**************
  * LOG MACROS *
  **************/
-# define LOG_PREFIX timeToString() << " " << std::setw(5) << getpid() << " " << std::setw(5) << getCurrentThreadId() << " " << std::setw(5)
+#define LOG_PREFIX                                                                                        \
+  timeToString() << " " << std::setw(5) << getpid() << " " << std::setw(5) << getCurrentThreadId() << " " \
+                 << std::setw(5)
 
-# define LOG_SUFFIX " " << std::setw(20) << __FUNCTION__ << ":" << std::setw(4) << __LINE__ << " | "
+#define LOG_SUFFIX " " << std::setw(20) << __FUNCTION__ << ":" << std::setw(4) << __LINE__ << " | "
 
-# define loginfo std::clog  << LOG_PREFIX << "INFO" << LOG_SUFFIX
-# define logwarn std::clog  << LOG_PREFIX << "WARN" << LOG_SUFFIX
-# define logerror std::cerr << LOG_PREFIX << "ERROR" << LOG_SUFFIX
-# define logperf std::clog << LOG_PREFIX << "PERF" << LOG_SUFFIX
-# define logerrno logErrNo()
+#define loginfo std::clog << LOG_PREFIX << "INFO" << LOG_SUFFIX
+#define logwarn std::clog << LOG_PREFIX << "WARN" << LOG_SUFFIX
+#define logerror std::cerr << LOG_PREFIX << "ERROR" << LOG_SUFFIX
+#define logperf std::clog << LOG_PREFIX << "PERF" << LOG_SUFFIX
+#define logerrno logErrNo()
 
-# ifndef NDEBUG
-#  define logdbg std::clog << LOG_PREFIX << "DEBUG" << LOG_SUFFIX
-# else
-#  define logdbg if(false) coredumpOstream()
-# endif
+#ifndef NDEBUG
+#define logdbg std::clog << LOG_PREFIX << "DEBUG" << LOG_SUFFIX
+#else
+#define logdbg \
+  if (false) coredumpOstream()
+#endif
 
-# ifdef TRACE
-#  define logtrace std::clog << LOG_PREFIX << "TRACE" << LOG_SUFFIX
-# else
-#  define logtrace if(false) coredumpOstream()
-# endif
+#ifdef TRACE
+#define logtrace std::clog << LOG_PREFIX << "TRACE" << LOG_SUFFIX
+#else
+#define logtrace \
+  if (false) coredumpOstream()
+#endif
 
-# ifdef LOG_ALLOC
-# define logalloc std::clog << LOG_PREFIX << "ALLOC" << LOG_SUFFIX
-# else
-#  define logalloc if(false) coredumpOstream()
-# endif
+#ifdef LOG_ALLOC
+#define logalloc std::clog << LOG_PREFIX << "ALLOC" << LOG_SUFFIX
+#else
+#define logalloc \
+  if (false) coredumpOstream()
+#endif
