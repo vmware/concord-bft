@@ -11,6 +11,8 @@ target_link_libraries(concord_client_pool PUBLIC
         bftclient
         bftclient_new
         corebft
+        concordclient-event-api
+        concordclient-health
       	)
 
 install (TARGETS concord_client_pool DESTINATION lib${LIB_SUFFIX})

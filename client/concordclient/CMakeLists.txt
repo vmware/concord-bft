@@ -1,3 +1,7 @@
+# header-only library target
+add_library(concordclient-health INTERFACE)
+target_include_directories(concordclient-health INTERFACE include)
+
 add_library(concordclient "src/concord_client.cpp")
 target_include_directories(concordclient PUBLIC include)
 # TODO: Mark libraries as PRIVATE once the interface is selfcontained

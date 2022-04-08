@@ -54,6 +54,8 @@ using std::unordered_set;
 using std::vector;
 using std::chrono::steady_clock;
 
+using namespace concord::client::concordclient;
+
 namespace client::thin_replica_client {
 
 const string LogCid::cid_key_ = "cid";
@@ -778,6 +780,7 @@ void ThinReplicaClient::Subscribe() {
     }
     subscription_thread_.reset();
   }
+  has_subscriber_ = true;
   is_event_group_request_ = false;
 
   bool has_verified_state = false;
@@ -1035,6 +1038,8 @@ void ThinReplicaClient::Unsubscribe() {
     subscription_thread_.reset();
   }
 
+  has_subscriber_ = false;
+
   size_t server_to_send_unsubscription_to = 0;
   ConcordAssertGT(config_->trs_conns.size(), server_to_send_unsubscription_to);
   ConcordAssertNE(config_->trs_conns[server_to_send_unsubscription_to], nullptr);
@@ -1061,12 +1066,25 @@ void ThinReplicaClient::AcknowledgeBlockID(uint64_t block_id) {
 
 // Wrapper for receiveUpdates to forward exceptions
 void ThinReplicaClient::receiveUpdatesWrapper() {
+  has_subscriber_ = true;
+  is_serving_ = true;
   try {
     receiveUpdates();
   } catch (...) {
     // Set exception and quit receiveUpdates
     config_->update_queue->setException(std::current_exception());
     stop_subscription_thread_ = true;
+    has_subscriber_ = false;
+    is_serving_ = false;
+  }
+}
+
+ClientHealth ThinReplicaClient::getClientHealth() {
+  // If there's no subscriber, we assume that the ThinRepliaClient is healthy.
+  if (!has_subscriber_ || is_serving_) {
+    return ClientHealth::Healthy;
+  } else {
+    return ClientHealth::Unhealthy;
   }
 }
 

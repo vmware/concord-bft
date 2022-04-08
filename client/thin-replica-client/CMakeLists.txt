@@ -29,6 +29,7 @@ target_link_libraries(thin_replica_client_lib
   thin-replica-proto
   replica-state-snapshot-proto
   concordclient-event-api
+  concordclient-health
 )
 
 # Unit tests

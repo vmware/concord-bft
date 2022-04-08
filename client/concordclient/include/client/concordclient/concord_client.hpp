@@ -26,6 +26,7 @@
 #include "bftclient/bft_client.h"
 #include "client/thin-replica-client/thin_replica_client.hpp"
 #include "client/client_pool/concord_client_pool.hpp"
+#include "client/concordclient/client_health.hpp"
 #include "client/concordclient/event_update.hpp"
 #include "client/concordclient/snapshot_update.hpp"
 #include "client/concordclient/concord_client_exceptions.hpp"
@@ -176,6 +177,9 @@ class ConcordClient {
 
   // Get subscription id.
   std::string getSubscriptionId() const { return config_.subscribe_config.id; }
+
+  // Health of ConcordClient.
+  ClientHealth getClientHealth();
 
  private:
   config_pool::ConcordClientPoolConfig createClientPoolStruct(const ConcordClientConfig& config);

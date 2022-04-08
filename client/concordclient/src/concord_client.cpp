@@ -214,4 +214,30 @@ void ConcordClient::getSnapshot(const StateSnapshotRequest& request, std::shared
   rss_->readSnapshotStream(rss_request, remote_queue);
 }
 
+// ConcordClient is healthy if ThinReplicaClient, ReplicaStateSnapshotClient and
+// ConcordClientPool are all healthy.
+ClientHealth ConcordClient::getClientHealth() {
+  ClientHealth trc_health = trc_->getClientHealth();
+  ClientHealth rss_health;
+  if (!rss_) {
+    rss_health = ClientHealth::Healthy;
+  } else {
+    rss_health = rss_->getClientHealth();
+  }
+  ClientHealth client_pool_health = client_pool_->getClientHealth();
+
+  LOG_DEBUG(logger_, "trc_health: " << trc_health);
+  LOG_DEBUG(logger_, "rss_health: " << rss_health);
+  LOG_DEBUG(logger_, "client_pool_health: " << client_pool_health);
+
+  if (trc_health == ClientHealth::Healthy && rss_health == ClientHealth::Healthy &&
+      client_pool_health == ClientHealth::Healthy) {
+    LOG_DEBUG(logger_, "ConcordClient::getClientHealth(): Healthy");
+    return ClientHealth::Healthy;
+  } else {
+    LOG_DEBUG(logger_, "ConcordClient::getClientHealth(): Unhealthy");
+    return ClientHealth::Unhealthy;
+  }
+}
+
 }  // namespace concord::client::concordclient

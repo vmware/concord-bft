@@ -28,6 +28,7 @@
 #include "Metrics.hpp"
 
 #include "Logger.hpp"
+#include "client/concordclient/client_health.hpp"
 #include "client/concordclient/snapshot_update.hpp"
 #include "client/thin-replica-client/grpc_connection.hpp"
 
@@ -59,9 +60,12 @@ class ReplicaStateSnapshotClient {
       : logger_(logging::getLogger("concord.client.replica_stream_snapshot")),
         config_(std::move(config)),
         threadpool_(config_->concurrency_level),
-        count_of_concurrent_request_{0} {}
+        count_of_concurrent_request_{0},
+        is_serving_{false} {}
   void readSnapshotStream(const SnapshotRequest& request,
                           std::shared_ptr<concord::client::concordclient::SnapshotQueue> remote_queue);
+
+  concord::client::concordclient::ClientHealth getClientHealth();
 
  private:
   // Thread function to start subscription_thread_ with snapshot.
@@ -78,5 +82,6 @@ class ReplicaStateSnapshotClient {
   std::unique_ptr<ReplicaStateSnapshotClientConfig> config_;
   concord::util::ThreadPool threadpool_;
   std::atomic_uint32_t count_of_concurrent_request_;
+  bool is_serving_;
 };
 }  // namespace client::replica_state_snapshot_client

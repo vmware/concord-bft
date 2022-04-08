@@ -50,6 +50,7 @@
 #include "Logger.hpp"
 #include "client/concordclient/event_update.hpp"
 #include "client/concordclient/concord_client_exceptions.hpp"
+#include "client/concordclient/client_health.hpp"
 
 namespace client::thin_replica_client {
 
@@ -197,6 +198,12 @@ class ThinReplicaClient final {
   std::unique_ptr<std::thread> subscription_thread_;
   std::atomic_bool stop_subscription_thread_;
 
+  // Is the thinRepliaClient able to server requests?
+  bool is_serving_;
+
+  // Is there a subscriber?
+  bool has_subscriber_;
+
   // Thread function to start subscription_thread_ with.
   void receiveUpdates();
 
@@ -312,7 +319,9 @@ class ThinReplicaClient final {
         latest_verified_event_group_id_(0),
         is_subscription_successful_(false),
         subscription_thread_(),
-        stop_subscription_thread_(false) {
+        stop_subscription_thread_(false),
+        is_serving_(false),
+        has_subscriber_(false) {
     metrics_.setAggregator(aggregator);
     if (config_->trs_conns.size() < (3 * (size_t)config_->max_faulty + 1)) {
       size_t num_servers = config_->trs_conns.size();
@@ -435,6 +444,8 @@ class ThinReplicaClient final {
 
   // Register the callback to update external metrics
   void setMetricsCallback(const std::function<void(const ThinReplicaClientMetrics&)>& exposeAndSetMetrics);
+
+  concord::client::concordclient::ClientHealth getClientHealth();
 };
 
 }  // namespace client::thin_replica_client

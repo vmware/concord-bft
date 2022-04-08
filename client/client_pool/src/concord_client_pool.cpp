@@ -24,13 +24,18 @@
 #include "OpenTracing.hpp"
 #include "concord.cmf.hpp"
 
+#include "client/concordclient/client_health.hpp"
+
 namespace concord::concord_client_pool {
 
 using bftEngine::ClientMsgFlag;
 using namespace bftEngine;
 using namespace bft::communication;
+using namespace concord::client::concordclient;
 
 static inline const std::string kEmptySpanContext = std::string("");
+static inline const uint kNumRequestsPerOverloadCount = 128;
+static inline const uint kMinRequestsToMeasure = 50;
 
 static auto IsGoodForBatching(ClientMsgFlag flags, bool client_batching_enabled) {
   return flags & ClientMsgFlag::PRE_PROCESS_REQ && client_batching_enabled;
@@ -45,8 +50,28 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
                                             std::string correlation_id,
                                             const std::string &span_context,
                                             const bftEngine::RequestCallBack &callback) {
+  request_counter_for_overloaded_++;
+  if (request_counter_for_overloaded_ >= kNumRequestsPerOverloadCount) {
+    // We've hit the number of requests we look at to see if we get overloaded too many times.
+    if (request_counter_for_overloaded_ >= kMinRequestsToMeasure &&
+        overloaded_counter_ > (request_counter_for_overloaded_ / 4)) {
+      // More than 25% of a non-trivial number of requests resulted in overloaded errors;
+      // we're sick.
+      unhealthy_due_to_overload_ = true;
+      // TODO(scramer) log here.
+    }
+
+    // TODO(scramer) log here.
+
+    // We've reached the end of our measurement window; start over.
+    overloaded_counter_ = 0;
+    request_counter_for_overloaded_ = 0;
+  }
+
+
   if (callback && timeout_ms.count() == 0) {
     callback(bftEngine::SendResult{static_cast<uint32_t>(OperationResult::INVALID_REQUEST)});
+    overloaded_counter_++;
     return SubmitResult::Overloaded;
   }
   std::unique_lock<std::mutex> lock(clients_queue_lock_);
@@ -156,6 +181,7 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
     if (serving_candidates == 0 && !clients_.empty()) {
       callback(bftEngine::SendResult{static_cast<uint32_t>(OperationResult::NOT_READY)});
     } else {
+      overloaded_counter_++;
       callback(bftEngine::SendResult{static_cast<uint32_t>(OperationResult::OVERLOADED)});
     }
   }
@@ -550,6 +576,16 @@ PoolStatus ConcordClientPool::HealthStatus() {
   }
   LOG_DEBUG(logger_, "None of clients is serving - the pool is not ready");
   return PoolStatus::NotServing;
+}
+
+// For ConcordClientPool, client health is the same as HealthStatus(),
+// but the return type is different and it is called in a different context.
+ClientHealth ConcordClientPool::getClientHealth() {
+  if (HealthStatus() == PoolStatus::Serving) {
+    return ClientHealth::Healthy;
+  } else {
+    return ClientHealth::Unhealthy;
+  }
 }
 
 bool ConcordClientPool::clusterHasKeys(ClientPtr &cl) {

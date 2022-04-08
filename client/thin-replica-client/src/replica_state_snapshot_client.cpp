@@ -11,6 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
+#include "client/concordclient/client_health.hpp"
 #include "client/concordclient/concord_client_exceptions.hpp"
 #include "client/thin-replica-client/replica_state_snapshot_client.hpp"
 
@@ -26,9 +27,12 @@ using concord::client::concordclient::SnapshotQueue;
 using vmware::concord::replicastatesnapshot::StreamSnapshotRequest;
 using vmware::concord::replicastatesnapshot::StreamSnapshotResponse;
 
+using namespace concord::client::concordclient;
+
 namespace client::replica_state_snapshot_client {
 void ReplicaStateSnapshotClient::readSnapshotStream(const SnapshotRequest& request,
                                                     std::shared_ptr<SnapshotQueue> remote_queue) {
+  is_serving_ = false;
   if (count_of_concurrent_request_.load() > config_->concurrency_level) {
     remote_queue->setException(std::make_exception_ptr(RequestOverload()));
     return;
@@ -36,11 +40,13 @@ void ReplicaStateSnapshotClient::readSnapshotStream(const SnapshotRequest& reque
   ++count_of_concurrent_request_;
 
   threadpool_.async([this, remote_queue, request]() {
+    is_serving_ = true;
     try {
       this->receiveSnapshot(request, remote_queue);
     } catch (...) {
       // Set exception and quit receiveUpdates
       remote_queue->setException(std::current_exception());
+      is_serving_ = false;
     }
     --(this->count_of_concurrent_request_);
   });
@@ -126,6 +132,15 @@ void ReplicaStateSnapshotClient::pushFinalStateToRemoteQueue(const GrpcConnectio
     case GrpcConnection::Result::kSuccess:  // fall through
     default:
       break;
+  }
+}
+
+// XXX TODO(scramer): I'm not sure this logic is correct.
+ClientHealth ReplicaStateSnapshotClient::getClientHealth() {
+  if (is_serving_) {
+    return ClientHealth::Healthy;
+  } else {
+    return ClientHealth::Unhealthy;
   }
 }
 

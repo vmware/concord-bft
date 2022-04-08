@@ -15,6 +15,7 @@
 #include <thread>
 
 #include "client/clientservice/event_service.hpp"
+#include "client/concordclient/client_health.hpp"
 #include "client/concordclient/concord_client.hpp"
 
 using grpc::Status;
@@ -62,8 +63,14 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
   std::shared_ptr<cc::EventUpdateQueue> update_queue = std::make_shared<cc::BasicEventUpdateQueue>();
   client_->subscribe(request, update_queue, span);
 
-  // TODO: Return UNAVAILABLE as documented in event.proto if ConcordClient is unhealthy
   auto status = grpc::Status::OK;
+
+  if (client_->getClientHealth() == cc::ClientHealth::Unhealthy) {
+    status = grpc::Status(grpc::StatusCode::UNAVAILABLE, "Unavailable");
+    client_->unsubscribe();
+    return status;
+  }
+
   while (!context->IsCancelled()) {
     SubscribeResponse response;
     std::unique_ptr<EventVariant> update;
