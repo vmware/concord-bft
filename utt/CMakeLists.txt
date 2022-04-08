@@ -173,3 +173,5 @@ enable_testing()
 
 # Subdirectories
 add_subdirectory(libutt)
+add_subdirectory(libxassert)
+add_subdirectory(libxutils)

@@ -30,9 +30,9 @@ add_subdirectory(test)
 # (See https://cmake.org/cmake/help/git-master/manual/cmake-packages.7.html#creating-packages)
 
 # This creates the <Package>Config.cmake file and installs it
-install(TARGETS xutils EXPORT xutilsConfig 
-   ARCHIVE DESTINATION lib)
-install(EXPORT xutilsConfig DESTINATION lib/cmake/xutils)
+# install(TARGETS xutils EXPORT xutilsConfig 
+#    ARCHIVE DESTINATION lib)
+# install(EXPORT xutilsConfig DESTINATION lib/cmake/xutils)
 
 # This installs the static or (/and?) dynamic library
 install(TARGETS xutils 
