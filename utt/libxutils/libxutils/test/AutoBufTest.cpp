@@ -10,6 +10,7 @@
 #include <xassert/XAssert.h>
 
 using namespace std;
+using namespace libutt;
 
 void testUtils();
 void testRandomSubsets();

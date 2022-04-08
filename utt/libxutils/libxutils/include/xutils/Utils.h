@@ -124,8 +124,8 @@ class Utils {
   static T log2ceil(T n) {
     if (n <= 0) throw std::logic_error("Cannot compute log2ceil(x) when x <= 0");
 
-    int power = 1;
-    int log2 = 0;
+    T power = 1;
+    T log2 = 0;
     while (power < n) {
       power *= 2;
       log2++;

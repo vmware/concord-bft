@@ -17,6 +17,7 @@ using libutt::Fr;
 using libutt::G1;
 using libutt::random_group_elems;
 using libutt::random_field_elems;
+using namespace libutt;
 
 void benchAllRootsOfUnity(size_t n, size_t r) {
   if (n < 3) {
