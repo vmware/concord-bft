@@ -25,9 +25,9 @@ add_subdirectory(test)
 # (See https://cmake.org/cmake/help/git-master/manual/cmake-packages.7.html#creating-packages)
 
 # This creates the <Package>Config.cmake file and installs it
-install(TARGETS xassert EXPORT xassertConfig 
-   ARCHIVE DESTINATION lib)
-install(EXPORT xassertConfig DESTINATION lib/cmake/xassert)
+# install(TARGETS xassert EXPORT xassertConfig 
+#    ARCHIVE DESTINATION lib)
+# install(EXPORT xassertConfig DESTINATION lib/cmake/xassert)
 
 # This installs the static or (/and?) dynamic library
 install(TARGETS xassert 

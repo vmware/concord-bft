@@ -45,40 +45,40 @@ cd ../..
 rm -rf ntl.tar.gz ntl-11.5.1
 
 # install libxassert
-echo "Installing libxassert..."
-(
-    cd ${HOME}
-    git clone https://github.com/alinush/libxassert.git libxassert
-    cd libxassert/
-    git checkout d5f04e0b0df0b84a1256fee7ed0eceba387077dc
+# echo "Installing libxassert..."
+# (
+#     cd ${HOME}
+#     git clone https://github.com/alinush/libxassert.git libxassert
+#     cd libxassert/
+#     git checkout d5f04e0b0df0b84a1256fee7ed0eceba387077dc
 
-    mkdir -p build/
-    cd build/
-    cmake -DCMAKE_BUILD_TYPE=Release ..
-    cmake --build .
-    sudo cmake --build . --target install
+#     mkdir -p build/
+#     cd build/
+#     cmake -DCMAKE_BUILD_TYPE=Release ..
+#     cmake --build .
+#     sudo cmake --build . --target install
 
-    cd ${HOME}
-    rm -rf libxassert/
-)
+#     cd ${HOME}
+#     rm -rf libxassert/
+# )
 
 # install libxutils
-echo "Installing libxutils..."
-(
-    cd ${HOME}
-    git clone https://github.com/alinush/libxutils.git libxutils
-    cd libxutils/
-    git checkout 7b7c985fedf5dc7001c704bf50ffc4975105f093
+# echo "Installing libxutils..."
+# (
+#     cd ${HOME}
+#     git clone https://github.com/alinush/libxutils.git libxutils
+#     cd libxutils/
+#     git checkout 7b7c985fedf5dc7001c704bf50ffc4975105f093
 
-    mkdir -p build/
-    cd build/
-    cmake -DCMAKE_BUILD_TYPE=Release ..
-    cmake --build .
-    sudo cmake --build . --target install
+#     mkdir -p build/
+#     cd build/
+#     cmake -DCMAKE_BUILD_TYPE=Release ..
+#     cmake --build .
+#     sudo cmake --build . --target install
 
-    cd ${HOME}
-    rm -rf libxutils/
-)
+#     cd ${HOME}
+#     rm -rf libxutils/
+# )
 
 BINARY_OUTPUT=OFF
 NO_PT_COMPRESSION=ON
