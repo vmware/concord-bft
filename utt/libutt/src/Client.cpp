@@ -57,7 +57,7 @@ Tx createTx_2t1(const Wallet& w, size_t coinIdx1, size_t coinIdx2, const std::st
   recip.emplace_back(pid, totalValue);
 
   logdbg << "Sending $" << totalValue.as_ulong() << " payment\n";
-  logdbg << "Using {$" << inputCoins[0].getValue() << ", " << inputCoins[1].getValue() << "} coins and $"
+  logdbg << "Using {$" << inputCoins[0].getValue() << ", $" << inputCoins[1].getValue() << "} coins and $"
          << budgetCoin.getValue() << " bcoin\n";
 
   return Tx(w.p, w.ask, inputCoins, budgetCoin, recip, w.bpk, w.rpk);
@@ -80,7 +80,7 @@ Tx createTx_2t2(const Wallet& w, size_t coinIdx1, size_t coinIdx2, size_t paymen
   recip.emplace_back(w.ask.getPid(), value2);
 
   logdbg << "Sending $" << value1.as_ulong() << " payment\n";
-  logdbg << "Using {$" << inputCoins[0].getValue() << ", " << inputCoins[1].getValue() << "} coins and $"
+  logdbg << "Using {$" << inputCoins[0].getValue() << ", $" << inputCoins[1].getValue() << "} coins and $"
          << budgetCoin.getValue() << " bcoin\n";
   logdbg << "Change is $" << value2.as_ulong() << '\n';
 
@@ -99,7 +99,7 @@ Tx createTx_Self2t1(const Wallet& w, size_t coinIdx1, size_t coinIdx2) {
   recip.emplace_back(w.ask.getPid(), totalValue);
 
   logdbg << "Merged coin is $" << totalValue.as_ulong() << '\n';
-  logdbg << "Using {$" << inputCoins[0].getValue() << ", " << inputCoins[1].getValue() << "} coins\n";
+  logdbg << "Using {$" << inputCoins[0].getValue() << ", $" << inputCoins[1].getValue() << "} coins\n";
 
   return Tx(w.p, w.ask, inputCoins, std::nullopt, recip, w.bpk, w.rpk);
 }
@@ -303,6 +303,9 @@ void tryClaimCoin(Wallet& w,
 
   assertTrue(c.hasValidSig(w.bpk));
   assertNotEqual(c.r, Fr::zero());  // should output a re-randomized coin always
+
+  logdbg << "User '" << w.getUserPid() << "' claims " << ((c.isBudget()) ? "budget" : "normal") << " coin $"
+         << c.getValue() << '\n';
 
   // We need to reset the budget coin before we can add a new one that reflects the payment
   if (c.isBudget()) w.budgetCoin.reset();
