@@ -202,12 +202,15 @@ GetBlockDataReply sendGetBlockDataRequest(Client& client, BlockId blockId, Repli
   // Deserialize sign shares
   // [TODO-UTT]: Need to collect F+1 (out of 2F+1) shares that combine to a valid RandSig
   // Here, we assume naively that all replicas are honest
+  // [TODO-UTT] At most two coins -- this should be better resized depending on the number of output coins
+  outSigShares.sigShares_.resize(2);
   for (const auto& kvp : replyBytes.rsi) {
     outSigShares.signerIds_.emplace_back(kvp.first.val);  // ReplicaId
 
     std::stringstream ss(BytesToStr(kvp.second));
     size_t size = 0;  // The size reflects the number of output coins
     ss >> size;
+    ConcordAssert(size <= 2);
     // Add this replica share to the list for i-th coin (the order is defined by signerIds)
     for (size_t i = 0; i < size; ++i) {
       outSigShares.sigShares_[i].emplace_back(libutt::RandSigShare(ss));
@@ -334,7 +337,7 @@ int main(int argc, char** argv) {
           for (const auto& kvp : state.GetAccounts()) {
             const auto& acc = kvp.second;
             std::cout << acc.getId() << " | public: " << acc.getPublicBalance();
-            std::cout << " utt: " << acc.getUttBalance() << '\n';
+            std::cout << " utt: " << acc.getUttBalance() << " / " << acc.getUttBudget() << '\n';
           }
         } else if (cmd == "ledger") {
           syncState(state, client);
