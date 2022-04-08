@@ -17,7 +17,7 @@
 
 #include <xassert/XAssert.h>
 
-namespace XAssert {
+namespace libutt::XAssert {
 
 bool coredump() {
   XASSERT_OSTREAM << "Segfaulting so that you can get a coredump and check the backtrace..." << std::endl;
@@ -71,4 +71,4 @@ class XAssertInitializer {
  * aren't evaluated when compiled in non-debug mode.
  */
 XAssertInitializer XAssertInitializer::xassertInit;
-}  // namespace XAssert
+}  // namespace libutt::XAssert

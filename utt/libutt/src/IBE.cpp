@@ -13,6 +13,8 @@
 #include <xutils/Log.h>
 #include <xutils/Utils.h>
 
+using namespace libutt;
+
 std::ostream& operator<<(std::ostream& out, const libutt::IBE::Params& p) {
   out << p.g1;
   return out;

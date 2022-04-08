@@ -16,6 +16,8 @@
 #include <sys/syscall.h>
 #endif
 
+namespace libutt {
+
 // TODO: Things like this don't work: std::copy(verifKeys.begin(), verifKeys.end(), std::ostream_iterator(loginfo,
 // "\n"));
 
@@ -73,3 +75,5 @@ int64_t getpid();
 #define logalloc \
   if (false) coredumpOstream()
 #endif
+
+}  // namespace libutt

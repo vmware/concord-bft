@@ -260,7 +260,7 @@ std::size_t hash_value(const libutt::Fr& f) {
   // freefunc(s, size);
 
   mpz_export(NULL, &size, 1, 1, 1, 0, rop);
-  AutoBuf<unsigned char> buf(static_cast<long>(size));
+  libutt::AutoBuf<unsigned char> buf(static_cast<long>(size));
 
   mpz_export(buf, &size, 1, 1, 1, 0, rop);
   auto h = boost::hash_range<unsigned char*>(buf, buf + buf.size());

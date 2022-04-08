@@ -13,6 +13,8 @@
 #include <xutils/Log.h>
 //#include <xutils/Utils.h>
 
+namespace libutt {
+
 template <class T>
 class AutoBuf {
  private:
@@ -90,3 +92,5 @@ class AutoBuf {
 
 typedef AutoBuf<char> AutoCharBuf;
 typedef AutoBuf<unsigned char> AutoByteBuf;
+
+}  // namespace libutt

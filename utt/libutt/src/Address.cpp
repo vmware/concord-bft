@@ -8,6 +8,8 @@
 
 #include <xutils/NotImplementedException.h>
 
+using namespace libutt;
+
 std::ostream& operator<<(std::ostream& out, const libutt::AddrSK& ask) {
   out << ask.pid << endl;
   out << ask.pid_hash << endl;

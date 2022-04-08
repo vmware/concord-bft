@@ -14,7 +14,7 @@
 // TODO: prefix macros!
 // TODO: test* family of asserts that are always enabled
 
-namespace XAssert {
+namespace libutt::XAssert {
 
 /**
  * Dereferences a null pointer and causes the program to coredump so that
@@ -31,7 +31,7 @@ bool IsPowerOfTwo(T x) {
  * Makes sure asserts are enabled or segfaults.
  */
 // void assertAssertsEnabled();
-}  // namespace XAssert
+}  // namespace libutt::XAssert
 
 #ifndef XASSERT_OSTREAM
 // This is the std::ostream object where assert error messages go to

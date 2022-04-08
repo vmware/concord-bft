@@ -18,7 +18,7 @@
 #endif
 #endif
 
-namespace libxutils {
+namespace libutt::libxutils {
 
 class NotImplementedException : public std::runtime_error {
  public:
@@ -31,4 +31,4 @@ class NotImplementedException : public std::runtime_error {
  public:
 };
 
-}  // namespace libxutils
+}  // namespace libutt::libxutils
