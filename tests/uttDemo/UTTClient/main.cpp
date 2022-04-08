@@ -206,11 +206,15 @@ GetBlockDataReply sendGetBlockDataRequest(Client& client, BlockId blockId, Repli
   // Here, we assume naively that all replicas are honest
 
   for (const auto& kvp : replyBytes.rsi) {
+    if (outSigShares.signerIds_.size() == 2) break;  // Pick first F+1 signers
+
     outSigShares.signerIds_.emplace_back(kvp.first.val);  // ReplicaId
 
     std::stringstream ss(BytesToStr(kvp.second));
     size_t size = 0;  // The size reflects the number of output coins
     ss >> size;
+    ss.ignore(1, '\n');  // skip newline
+
     ConcordAssert(size <= 3);
     // Add this replica share to the list for i-th coin (the order is defined by signerIds)
     for (size_t i = 0; i < size; ++i) {
@@ -220,6 +224,10 @@ GetBlockDataReply sendGetBlockDataRequest(Client& client, BlockId blockId, Repli
       outSigShares.sigShares_[i].emplace_back(libutt::RandSigShare(ss));
     }
   }
+
+  ConcordAssert(outSigShares.signerIds_.size() == 2);
+  for (size_t i = 0; i < outSigShares.sigShares_.size(); ++i)  // Check for each coin we have F+1 signers
+    ConcordAssert(outSigShares.signerIds_.size() == outSigShares.sigShares_[i].size());
 
   return blockDataReply;
 }

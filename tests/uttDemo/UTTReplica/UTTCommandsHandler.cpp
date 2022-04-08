@@ -203,8 +203,10 @@ GetBlockDataReply UTTCommandsHandler::handleRequest(const GetBlockDataRequest& r
 
         // Compute signature shares lazily when the block is requested
         // Precondition: monotonically increasing blocks
-        if (sigShares_[req.block_id].empty()) {
-          sigShares_[req.block_id] = libutt::Replica::signShareOutputCoins(uttTransfer->uttTx_, config_.bskShare_);
+        auto& sigSharesForBlock = sigShares_[req.block_id];
+
+        if (sigSharesForBlock.empty()) {
+          sigSharesForBlock = libutt::Replica::signShareOutputCoins(uttTransfer->uttTx_, config_.bskShare_);
 
           LOG_INFO(
               logger_,
@@ -214,8 +216,8 @@ GetBlockDataReply UTTCommandsHandler::handleRequest(const GetBlockDataRequest& r
         // Add sig shares to replica specific info
         // [TODO-UTT] Add this conversion to the sigShares_ cache directly
         std::stringstream ssRsi;
-        ssRsi << uttTransfer->uttTx_.outs.size() << '\n';
-        for (const auto& sigShare : sigShares_[req.block_id]) {
+        ssRsi << sigSharesForBlock.size() << '\n';
+        for (const auto& sigShare : sigSharesForBlock) {
           ssRsi << sigShare;
         }
         outRsi = StrToBytes(ssRsi.str());
