@@ -24,7 +24,6 @@
 
 using namespace std;
 using namespace BLS::Relic;
-using namespace threshsign;
 
 void testIth() {
   LOG_INFO(THRESHSIGN_LOG, "Testing ith() and skip()...");

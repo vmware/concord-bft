@@ -31,7 +31,6 @@ using namespace std;
 #include "app/RelicMain.h"
 
 using namespace BLS::Relic;
-using namespace threshsign;
 
 void batchVerifyHelper(BlsBatchVerifier& ver,
                        int numBadShares,

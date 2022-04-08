@@ -34,7 +34,6 @@
 
 using namespace std;
 using namespace BLS::Relic;
-using namespace threshsign;
 
 /**
  * Converts a sequence of +/- i's into a subset of signers.

@@ -32,7 +32,6 @@ using namespace std;
 #include "threshsign/bls/relic/Library.h"
 
 using namespace BLS::Relic;
-using namespace threshsign;
 
 /**
  * RELIC has some bugs in gt_size_bin(): it gets stuck in an infinte loop if given a zero or one gt_t.

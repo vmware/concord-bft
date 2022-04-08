@@ -9,7 +9,6 @@
 #include "XAssert.h"
 
 using std::endl;
-using namespace threshsign;
 
 template <class VerificationKey, class NumType, typename SigShareParserFunc>
 int ThresholdAccumulatorBase<VerificationKey, NumType, SigShareParserFunc>::add(const char* sigShare, int len) {

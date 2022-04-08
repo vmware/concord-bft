@@ -32,7 +32,6 @@ using namespace std;
 #include "app/RelicMain.h"
 
 using namespace BLS::Relic;
-using namespace threshsign;
 
 template <class GT>
 void testAddMult();

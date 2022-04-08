@@ -32,7 +32,6 @@ extern "C" {
 
 using namespace BLS::Relic;
 using std::endl;
-using namespace threshsign;
 
 class ThresholdBlsRelicBenchmark : public IThresholdSchemeBenchmark {
  private:

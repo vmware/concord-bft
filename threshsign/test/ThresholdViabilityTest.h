@@ -155,9 +155,9 @@ class ThresholdViabilityTest {
 
     // LOG_DEBUG(THRESHSIGN_LOG, "Verifying signature(" << Utils::bin2hex(msg) << "): " << Utils::bin2hex(sig, sigLen));
     if (false == verifier()->verify(reinterpret_cast<const char*>(msg), msgLen, sig, sigLen)) {
-      LOG_ERROR(THRESHSIGN_LOG,
-                reqSigners << " out of " << numSigners << " signature " << threshsign::Utils::bin2hex(sig, sigLen)
-                           << " did not verify");
+      LOG_ERROR(
+          THRESHSIGN_LOG,
+          reqSigners << " out of " << numSigners << " signature " << Utils::bin2hex(sig, sigLen) << " did not verify");
       throw std::logic_error("Signature did not verify");
     }
   }
