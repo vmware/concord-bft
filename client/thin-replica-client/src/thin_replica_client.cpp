@@ -431,7 +431,7 @@ bool ThinReplicaClient::rotateDataStreamAndVerify(Data& update_in,
     uint64_t update_id;  // Block id or event group id
     if (update_in.has_event_group()) {
       update_id = update_in.event_group().id();
-      correlation_id = to_string(update_id);
+      correlation_id = {};  // Event groups don't include a correlation id
     } else {
       ConcordAssert(update_in.has_events());
       update_id = update_in.events().block_id();
