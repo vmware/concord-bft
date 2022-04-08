@@ -144,6 +144,8 @@ utt::messages::TxReply UTTCommandsHandler::handleRequest(const utt::messages::Ut
   if (state_.canExecuteTx(tx, err, config_)) {
     // Note: signature shares are computed lazily when the block data is requested
 
+    LOG_INFO(logger_, "Executing UTT Tx " << uttTransfer->uttTx_.getHashHex());
+
     // Add a real block to the kv blockchain
     {
       BlockId nextExpectedBlockId = storage_->getLastBlockId() + 1;
@@ -167,6 +169,8 @@ utt::messages::TxReply UTTCommandsHandler::handleRequest(const utt::messages::Ut
     reply.success = false;
     reply.err = err;
   }
+
+  reply.last_block_id = state_.getLastKnownBlockId();
 
   return reply;
 }
@@ -201,16 +205,20 @@ GetBlockDataReply UTTCommandsHandler::handleRequest(const GetBlockDataRequest& r
         // Precondition: monotonically increasing blocks
         if (sigShares_[req.block_id].empty()) {
           sigShares_[req.block_id] = libutt::Replica::signShareOutputCoins(uttTransfer->uttTx_, config_.bskShare_);
+
+          LOG_INFO(
+              logger_,
+              "Computed utt sign shares for block_id=" << req.block_id << " tx: " << uttTransfer->uttTx_.getHashHex());
         }
 
         // Add sig shares to replica specific info
         // [TODO-UTT] Add this conversion to the sigShares_ cache directly
-        std::stringstream ss;
-        ss << uttTransfer->uttTx_.outs.size() << '\n';
+        std::stringstream ssRsi;
+        ssRsi << uttTransfer->uttTx_.outs.size() << '\n';
         for (const auto& sigShare : sigShares_[req.block_id]) {
-          ss << sigShare;
+          ssRsi << sigShare;
         }
-        outRsi = StrToBytes(ss.str());
+        outRsi = StrToBytes(ssRsi.str());
 
       } else {
         PublicTx publicTx;

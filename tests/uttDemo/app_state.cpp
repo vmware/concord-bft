@@ -55,8 +55,8 @@ std::ostream& operator<<(std::ostream& os, const Block& b) {
   os << b.id_ << " | ";
   if (!b.tx_)
     os << "(Empty)";
-  else if (std::holds_alternative<TxUttTransfer>(*b.tx_))
-    os << "(UTT Transaction)";
+  else if (const auto* uttTransfer = std::get_if<TxUttTransfer>(&(*b.tx_)))
+    os << "UTT Tx: " << uttTransfer->uttTx_.getHashHex();
   else
     os << *b.tx_;  // Public Tx
   return os;
@@ -252,6 +252,7 @@ void AppState::pruneSpentCoins(libutt::Wallet& w) {
   // [TODO-UTT] Check if this approach works at all (the nullifier from the tx can be correlated with the original coin)
   for (auto& c : w.coins) {
     if (hasNullifier(c.null.toUniqueString())) {
+      std::cout << "User '" << w.getUserPid() << "' removes spent normal coin $" << c.getValue() << '\n';
       c.val = 0;
     }
   }

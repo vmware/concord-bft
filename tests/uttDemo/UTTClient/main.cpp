@@ -134,6 +134,8 @@ TxReply sendTxRequest(Client& client, const Tx& tx) {
   UTTRequest req;
 
   if (const auto* uttTransfer = std::get_if<TxUttTransfer>(&tx)) {
+    std::cout << "Sending UTT Tx " << uttTransfer->uttTx_.getHashHex() << '\n';
+
     std::stringstream ss;
     ss << uttTransfer->uttTx_;
     UttTx uttTx;
@@ -202,17 +204,19 @@ GetBlockDataReply sendGetBlockDataRequest(Client& client, BlockId blockId, Repli
   // Deserialize sign shares
   // [TODO-UTT]: Need to collect F+1 (out of 2F+1) shares that combine to a valid RandSig
   // Here, we assume naively that all replicas are honest
-  // [TODO-UTT] At most two coins -- this should be better resized depending on the number of output coins
-  outSigShares.sigShares_.resize(2);
+
   for (const auto& kvp : replyBytes.rsi) {
     outSigShares.signerIds_.emplace_back(kvp.first.val);  // ReplicaId
 
     std::stringstream ss(BytesToStr(kvp.second));
     size_t size = 0;  // The size reflects the number of output coins
     ss >> size;
-    ConcordAssert(size <= 2);
+    ConcordAssert(size <= 3);
     // Add this replica share to the list for i-th coin (the order is defined by signerIds)
     for (size_t i = 0; i < size; ++i) {
+      if (outSigShares.sigShares_.size() == i)  // Resize to accommodate up to 3 coins
+        outSigShares.sigShares_.emplace_back();
+
       outSigShares.sigShares_[i].emplace_back(libutt::RandSigShare(ss));
     }
   }
@@ -221,7 +225,7 @@ GetBlockDataReply sendGetBlockDataRequest(Client& client, BlockId blockId, Repli
 }
 
 // Sync state by fetching missing blocks and executing them
-void syncState(AppState& state, Client& client) {
+void syncState(AppState& state, Client& client, std::map<uint64_t, libutt::Tx>& sentUttTx) {
   std::cout << "Sync state...\n";
 
   auto lastBlockReply = sendGetLastBlockRequest(client);
@@ -239,7 +243,11 @@ void syncState(AppState& state, Client& client) {
     std::optional<Tx> tx;
     if (const auto* uttTx = std::get_if<UttTx>(&blockDataReply.tx)) {
       std::stringstream ss(uttTx->tx);
-      tx = TxUttTransfer(libutt::Tx(ss), std::move(sigShares));
+      auto uttTxFromReply = libutt::Tx(ss);
+      std::cout << "Received UTT Tx " << uttTxFromReply.getHashHex() << " for block " << blockDataReply.block_id
+                << '\n';
+      ConcordAssert(sentUttTx[blockDataReply.block_id] == uttTxFromReply);  // Assuming a single client for testing
+      tx = TxUttTransfer(std::move(uttTxFromReply), std::move(sigShares));
     } else if (const auto* publicTx = std::get_if<PublicTx>(&blockDataReply.tx)) {
       tx = parsePublicTx(publicTx->tx);
       if (!tx) throw std::runtime_error("Failed to parse public tx from missing block!");
@@ -312,6 +320,8 @@ int main(int argc, char** argv) {
 
   AppState state;
 
+  std::map<uint64_t, libutt::Tx> sentUttTx;
+
   try {
     initAccounts(state);
 
@@ -333,14 +343,14 @@ int main(int argc, char** argv) {
           std::cout << "transfer [from] [to] [amount]\t-- public money transfer\n";
           std::cout << "utt [from] [to] [amount]\t-- anonymous money transfer\n";
         } else if (cmd == "balance") {
-          syncState(state, client);
+          syncState(state, client, sentUttTx);
           for (const auto& kvp : state.GetAccounts()) {
             const auto& acc = kvp.second;
             std::cout << acc.getId() << " | public: " << acc.getPublicBalance();
             std::cout << " utt: " << acc.getUttBalance() << " / " << acc.getUttBudget() << '\n';
           }
         } else if (cmd == "ledger") {
-          syncState(state, client);
+          syncState(state, client, sentUttTx);
           for (const auto& block : state.GetBlocks()) {
             std::cout << block << '\n';
           }
@@ -356,8 +366,7 @@ int main(int argc, char** argv) {
           }
         } else if (auto uttPayment = createUttPayment(cmd, state)) {
           std::cout << "Starting a UTT payment from " << uttPayment->from_.getId();
-          std::cout << " to " << uttPayment->to_.getId() << " for " << uttPayment->payment_;
-          std::cout << " ...\n";
+          std::cout << " to " << uttPayment->to_.getId() << " for " << uttPayment->payment_ << '\n';
 
           // [TODO-UTT] check if this is a coin merge and repeat
           auto wallet = uttPayment->from_.getWallet();
@@ -365,10 +374,13 @@ int main(int argc, char** argv) {
 
           auto uttTx = libutt::Client::createTxForPayment(*wallet, uttPayment->to_.getId(), uttPayment->payment_);
 
-          Tx tx = TxUttTransfer(std::move(uttTx));
+          auto uttTxToSend = uttTx;  // copy the tx so we can check we get the same tx from the replicas
+          Tx tx = TxUttTransfer(std::move(uttTxToSend));
 
           auto reply = sendTxRequest(client, tx);
           if (reply.success) {
+            const auto blockId = reply.last_block_id;
+            sentUttTx.emplace(blockId, std::move(uttTx));
             state.setLastKnownBlockId(reply.last_block_id);
             std::cout << "Ok.\n";
           } else {
@@ -376,7 +388,7 @@ int main(int argc, char** argv) {
           }
 
           // We need to sync the state so we obtain any merged coins
-          syncState(state, client);
+          syncState(state, client, sentUttTx);
 
         } else if (auto tx = parsePublicTx(cmd)) {
           auto reply = sendTxRequest(client, *tx);
