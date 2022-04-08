@@ -16,7 +16,6 @@
 #include "Utils.h"
 
 using std::endl;
-using namespace threshsign;
 
 IThresholdSchemeBenchmark::IThresholdSchemeBenchmark(const IPublicParameters& p, int k, int n, int msgSize)
     : params(p),
