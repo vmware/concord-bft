@@ -5,56 +5,101 @@ namespace libutt::Client {
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 Tx createTx_1t1(const Wallet& w, size_t coinIdx, const std::string& pid) {
+  logdbg << "Creating a 1t1 tx from '" << w.ask.getPid() << "' to '" << pid << "'\n";
+
   std::vector<Coin> inputCoins = std::vector<Coin>{w.coins.at(coinIdx)};
-  auto budgetCoin = *w.budgetCoin;
+  auto budgetCoin = *w.budgetCoin;  // copy
+
+  Fr payment = inputCoins[0].val;
 
   std::vector<std::tuple<std::string, Fr>> recip;
-  recip.emplace_back(pid, inputCoins[0].getValue());
+  recip.emplace_back(pid, payment);
+
+  logdbg << "Sending $" << payment.as_ulong() << " payment\n";
+  logdbg << "Using $" << inputCoins[0].getValue() << " coin and $" << budgetCoin.getValue() << " bcoin\n";
 
   return Tx(w.p, w.ask, inputCoins, budgetCoin, recip, w.bpk, w.rpk);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 Tx createTx_1t2(const Wallet& w, size_t coinIdx, size_t payment, const std::string& pid) {
+  logdbg << "Creating a 1t2 tx from '" << w.ask.getPid() << "' to '" << pid << "'\n";
+
   std::vector<Coin> inputCoins = std::vector<Coin>{w.coins.at(coinIdx)};
-  auto budgetCoin = *w.budgetCoin;
+  auto budgetCoin = *w.budgetCoin;  // copy
+
+  Fr value1;
+  value1.set_ulong(payment);
+
+  Fr value2 = inputCoins[0].val - value1;
 
   std::vector<std::tuple<std::string, Fr>> recip;
-  recip.emplace_back(pid, payment);
-  recip.emplace_back(w.ask.getPid(), inputCoins[0].getValue() - payment);
+  recip.emplace_back(pid, value1);
+  recip.emplace_back(w.ask.getPid(), value2);
+
+  logdbg << "Sending $" << value1.as_ulong() << " payment\n";
+  logdbg << "Using $" << inputCoins[0].getValue() << " coin and $" << budgetCoin.getValue() << " bcoin\n";
+  logdbg << "Change is $" << value2.as_ulong() << '\n';
 
   return Tx(w.p, w.ask, inputCoins, budgetCoin, recip, w.bpk, w.rpk);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 Tx createTx_2t1(const Wallet& w, size_t coinIdx1, size_t coinIdx2, const std::string& pid) {
+  logdbg << "Creating a 2t1 tx from '" << w.ask.getPid() << "' to '" << pid << "'\n";
+
   std::vector<Coin> inputCoins = std::vector<Coin>{w.coins.at(coinIdx1), w.coins.at(coinIdx2)};
-  auto budgetCoin = *w.budgetCoin;
+  auto budgetCoin = *w.budgetCoin;  // copy
+
+  Fr totalValue = inputCoins[0].val + inputCoins[1].val;
 
   std::vector<std::tuple<std::string, Fr>> recip;
-  recip.emplace_back(pid, inputCoins[0].getValue() + inputCoins[1].getValue());
+  recip.emplace_back(pid, totalValue);
+
+  logdbg << "Sending $" << totalValue.as_ulong() << " payment\n";
+  logdbg << "Using {$" << inputCoins[0].getValue() << ", " << inputCoins[1].getValue() << "} coins and $"
+         << budgetCoin.getValue() << " bcoin\n";
 
   return Tx(w.p, w.ask, inputCoins, budgetCoin, recip, w.bpk, w.rpk);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 Tx createTx_2t2(const Wallet& w, size_t coinIdx1, size_t coinIdx2, size_t payment, const std::string& pid) {
+  logdbg << "Creating a 2t2 tx from '" << w.ask.getPid() << "' to '" << pid << "'\n";
+
   std::vector<Coin> inputCoins = std::vector<Coin>{w.coins.at(coinIdx1), w.coins.at(coinIdx2)};
-  auto budgetCoin = *w.budgetCoin;
+  auto budgetCoin = *w.budgetCoin;  // copy
+
+  Fr value1;
+  value1.set_ulong(payment);
+
+  Fr value2 = (inputCoins[0].val + inputCoins[1].val) - value1;
 
   std::vector<std::tuple<std::string, Fr>> recip;
-  recip.emplace_back(pid, payment);
-  recip.emplace_back(w.ask.getPid(), (inputCoins[0].getValue() + inputCoins[1].getValue()) - payment);
+  recip.emplace_back(pid, value1);
+  recip.emplace_back(w.ask.getPid(), value2);
+
+  logdbg << "Sending $" << value1.as_ulong() << " payment\n";
+  logdbg << "Using {$" << inputCoins[0].getValue() << ", " << inputCoins[1].getValue() << "} coins and $"
+         << budgetCoin.getValue() << " bcoin\n";
+  logdbg << "Change is $" << value2.as_ulong() << '\n';
 
   return Tx(w.p, w.ask, inputCoins, budgetCoin, recip, w.bpk, w.rpk);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 Tx createTx_Self2t1(const Wallet& w, size_t coinIdx1, size_t coinIdx2) {
+  logdbg << "Creating a self 2t1 tx for '" << w.ask.getPid() << "'\n";
+
   std::vector<Coin> inputCoins = std::vector<Coin>{w.coins.at(coinIdx1), w.coins.at(coinIdx2)};
 
+  Fr totalValue = inputCoins[0].val + inputCoins[1].val;
+
   std::vector<std::tuple<std::string, Fr>> recip;
-  recip.emplace_back(w.ask.getPid(), inputCoins[0].getValue() + inputCoins[1].getValue());
+  recip.emplace_back(w.ask.getPid(), totalValue);
+
+  logdbg << "Merged coin is $" << totalValue.as_ulong() << '\n';
+  logdbg << "Using {$" << inputCoins[0].getValue() << ", " << inputCoins[1].getValue() << "} coins\n";
 
   return Tx(w.p, w.ask, inputCoins, std::nullopt, recip, w.bpk, w.rpk);
 }
