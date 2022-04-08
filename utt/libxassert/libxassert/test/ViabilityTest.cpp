@@ -4,6 +4,8 @@
 #include <memory>
 #include <vector>
 
+using namespace libutt;
+
 int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
