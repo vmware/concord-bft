@@ -20,6 +20,8 @@
 
 using std::endl;
 
+namespace libutt {
+
 std::vector<size_t> random_subset(size_t k, size_t n) {
   std::vector<size_t> x(n);
   Utils::randomSubset(x, static_cast<int>(n), static_cast<int>(k));
@@ -87,3 +89,5 @@ void getMemUsage(size_t& vm_usage, size_t& resident_set) {
   }
 #endif
 }
+
+}  // namespace libutt

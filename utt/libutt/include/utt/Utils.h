@@ -3,6 +3,8 @@
 #include <vector>
 #include <ostream>
 
+namespace libutt {
+
 /**
  * Returns k unique random numbers in the range [0, n-1] as a vector
  */
@@ -20,3 +22,5 @@ std::vector<size_t> random_subset(size_t k, size_t n);
 void printMemUsage(const char* headerMessage = nullptr);
 
 void getMemUsage(size_t& vm_usage, size_t& resident_set);
+
+}  // namespace libutt

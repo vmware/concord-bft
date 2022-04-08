@@ -24,6 +24,8 @@
 
 // TODO: namespace into libxutils
 
+namespace libutt {
+
 class Utils {
  public:
   /**
@@ -297,3 +299,5 @@ class Utils {
   static std::string bin2hex(const void* data, size_t dataLen);
   static void hex2bin(const std::string& hexStr, unsigned char* bin, size_t binCapacity);
 };
+
+}  // namespace libutt

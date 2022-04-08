@@ -19,6 +19,8 @@
 
 using std::endl;
 
+namespace libutt {
+
 bool Utils::fileExists(const std::string& file) {
   std::ifstream fin(file);
   return fin.good();
@@ -90,3 +92,5 @@ void Utils::hex2bin(const char* hexBuf, size_t hexBufLen, unsigned char* bin, si
     hexBuf += 2;
   }
 }
+
+}  // namespace libutt

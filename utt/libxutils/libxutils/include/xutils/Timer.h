@@ -17,6 +17,8 @@
 
 using std::chrono::microseconds;
 
+namespace libutt {
+
 /**
  * To be used as:
  * 	{
@@ -206,3 +208,5 @@ class AveragingTimer {
     return total.count() / static_cast<microseconds::rep>(iters);
   }
 };
+
+}  // namespace libutt

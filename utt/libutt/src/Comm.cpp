@@ -4,6 +4,8 @@
 
 #include <utt/Serialization.h>  // WARNING: Include this last (see header file for details; thanks, C++)
 
+using namespace libutt;
+
 // WARNING: Define (de)serialization stream operators in the *global* namespace
 std::ostream& operator<<(std::ostream& out, const libutt::CommKey& ck) {
   assertTrue(!ck.hasG2() || ck.g.size() == ck.g_tilde.size());
