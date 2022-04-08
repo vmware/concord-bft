@@ -417,10 +417,14 @@ class TestServerContext {
 template <typename DataT>
 class TestStateMachine {
  public:
-  TestStateMachine(FakeStorage& storage, const BlockMap& live_update_blocks, uint64_t start_block_id)
+  TestStateMachine(FakeStorage& storage,
+                   const BlockMap& live_update_blocks,
+                   uint64_t start_block_id,
+                   bool more_blocks_to_add = false)
       : storage_(storage),
         live_update_blocks_(std::cbegin(live_update_blocks), std::cend(live_update_blocks)),
-        current_block_to_send_(start_block_id) {
+        current_block_to_send_(start_block_id),
+        more_blocks_to_add_(more_blocks_to_add) {
     last_block_to_send_ = storage_.getLastBlockId();
     if (live_update_blocks_.size()) {
       last_block_to_send_ += live_update_blocks_.size() - 1;
@@ -462,6 +466,7 @@ class TestStateMachine {
 
   void set_expected_last_block_to_send(BlockId block_id) { last_block_to_send_ = block_id; }
   void set_expected_last_event_group_to_send(EventGroupId eg_id) { last_event_group_to_send_ = eg_id; }
+  void toggle_more_blocks_to_add(bool val) { more_blocks_to_add_ = val; }
   void toggle_more_event_groups_to_add(bool val) { more_event_groups_to_add_ = val; }
 
   void on_live_update_buffer_added(std::shared_ptr<SubUpdateBuffer> buffer) {
@@ -491,7 +496,7 @@ class TestStateMachine {
       }
 
       if (not is_event_group_sm && live_buffer_) {
-        if (current_block_to_send_ == last_block_to_send_ - 1) {
+        if ((current_block_to_send_ == last_block_to_send_ - 1) && not more_blocks_to_add_) {
           on_finished_dropping_blocks();
         } else if (live_buffer_->Full() || live_buffer_->oldestBlockId() > (storage_.getLastBlockId() + 1)) {
           // There is a gap that is supposed to be filled with blocks from the
@@ -579,6 +584,7 @@ class TestStateMachine {
   size_t last_event_group_to_send_{0};
   bool return_false_on_last_block_{true};
   bool return_false_on_last_event_group_{true};
+  bool more_blocks_to_add_{false};
   bool more_event_groups_to_add_{false};
   std::mutex mtx_;
 };
@@ -645,8 +651,47 @@ TEST(thin_replica_server_test, SubscribeToNextBlockNotInStorage) {
   FakeStorage storage{generate_kvp(1, kLastBlockId)};
   storage.genesis_block_id = 1;
   EXPECT_EQ(storage.getLastBlockId(), kLastBlockId);
-  auto live_update_blocks = generate_kvp(0, 0);
-  EXPECT_EQ(live_update_blocks.size(), 0);
+  auto live_update_blocks = generate_kvp(5, 5);
+  TestStateMachine<Data> state_machine{storage, live_update_blocks, 6, true};
+  TestSubBufferList<Data> buffer{state_machine};
+  TestServerWriter<Data> stream{state_machine};
+
+  bool is_insecure_trs = true;
+  std::string tls_trs_cert_path;
+  std::unordered_set<std::string> client_id_set;
+  uint16_t update_metrics_aggregator_thresh = 100;
+
+  auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
+      is_insecure_trs, tls_trs_cert_path, &storage, buffer, client_id_set, update_metrics_aggregator_thresh);
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
+  TestServerContext context;
+  SubscriptionRequest request;
+  request.mutable_events()->set_block_id(6u);
+
+  auto out_stream = std::async(std::launch::async, [&] {
+    return replica.SubscribeToUpdates<TestServerContext, TestServerWriter<Data>, Data>(&context, &request, &stream);
+  });
+  auto status = out_stream.wait_for(1s);
+  // add block ID `end + 1` i.e., 6th block to storage and live update queue
+  auto more_live_updates = generate_kvp(kLastBlockId + 1, kLastBlockId + 1);
+  storage.addBlocks(more_live_updates);
+  state_machine.toggle_more_blocks_to_add(false);
+  for (const auto& [key, val] : more_live_updates) {
+    concord::thin_replica::SubUpdate update{key, "cid", val};
+    buffer.updateSubBuffers(update);
+  }
+  state_machine.set_expected_last_block_to_send(7u);
+  if (status != std::future_status::ready) {
+    out_stream.wait();
+  }
+  EXPECT_EQ(out_stream.get().error_code(), grpc::StatusCode::OK);
+}
+
+TEST(thin_replica_server_test, SubscribeToNextBlockNotInStorageTimeout) {
+  FakeStorage storage{generate_kvp(1, kLastBlockId)};
+  storage.genesis_block_id = 1;
+  EXPECT_EQ(storage.getLastBlockId(), kLastBlockId);
+  auto live_update_blocks = generate_kvp(5, 5);
   TestStateMachine<Data> state_machine{storage, live_update_blocks, 6};
   TestSubBufferList<Data> buffer{state_machine};
   TestServerWriter<Data> stream{state_machine};
