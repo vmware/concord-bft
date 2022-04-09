@@ -48,7 +48,7 @@ void ReplicaStateSnapshotClient::readSnapshotStream(const SnapshotRequest& reque
 
 void ReplicaStateSnapshotClient::receiveSnapshot(const SnapshotRequest& request,
                                                  std::shared_ptr<SnapshotQueue> remote_queue) {
-  ConcordAssert(config_->rss_conns.size() > 0);
+  ConcordAssertGT(config_->rss_conns.size(), 0);
   uint16_t replica_id = 0;
   GrpcConnection::Result result = GrpcConnection::Result::kUnknown;
   std::string last_read_key("");

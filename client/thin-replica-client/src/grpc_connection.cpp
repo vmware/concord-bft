@@ -141,7 +141,7 @@ GrpcConnection::Result GrpcConnection::openDataStream(const SubscriptionRequest&
     return Result::kTimeout;
   }
 
-  ConcordAssert(status == future_status::ready);
+  ConcordAssertEQ(status, future_status::ready);
   data_stream_ = stream.get();
   if (data_stream_) return Result::kSuccess;
 
@@ -179,7 +179,7 @@ GrpcConnection::Result GrpcConnection::readData(Data* data) {
     return Result::kTimeout;
   }
 
-  ConcordAssert(status == future_status::ready);
+  ConcordAssertEQ(status, future_status::ready);
   if (result.get()) return Result::kSuccess;
 
   auto grpc_status = data_stream_->Finish();
@@ -215,7 +215,7 @@ GrpcConnection::Result GrpcConnection::openStateStream(const ReadStateRequest& r
     return Result::kTimeout;
   }
 
-  ConcordAssert(status == future_status::ready);
+  ConcordAssertEQ(status, future_status::ready);
   state_stream_ = stream.get();
   if (!state_stream_) {
     state_context_.reset();
@@ -253,7 +253,7 @@ GrpcConnection::Result GrpcConnection::closeStateStream() {
     return Result::kTimeout;
   }
 
-  ConcordAssert(status == future_status::ready);
+  ConcordAssertEQ(status, future_status::ready);
   state_context_.reset();
   state_stream_.reset();
   Status finish_reported_status = result.get();
@@ -284,7 +284,7 @@ GrpcConnection::Result GrpcConnection::readState(Data* data) {
     return Result::kTimeout;
   }
 
-  ConcordAssert(status == future_status::ready);
+  ConcordAssertEQ(status, future_status::ready);
   return result.get() ? Result::kSuccess : Result::kFailure;
 }
 
@@ -305,7 +305,7 @@ GrpcConnection::Result GrpcConnection::readStateHash(const ReadStateHashRequest&
     return Result::kTimeout;
   }
 
-  ConcordAssert(status == future_status::ready);
+  ConcordAssertEQ(status, future_status::ready);
   Status call_grpc_status = result.get();
   if (!call_grpc_status.ok()) {
     LOG_WARN(logger_,
@@ -347,7 +347,7 @@ GrpcConnection::Result GrpcConnection::openHashStream(SubscriptionRequest& reque
     return Result::kTimeout;
   }
 
-  ConcordAssert(status == future_status::ready);
+  ConcordAssertEQ(status, future_status::ready);
   hash_stream_ = stream.get();
   if (hash_stream_) return Result::kSuccess;
 
@@ -385,7 +385,7 @@ GrpcConnection::Result GrpcConnection::readHash(Hash* hash) {
     return Result::kTimeout;
   }
 
-  ConcordAssert(status == future_status::ready);
+  ConcordAssertEQ(status, future_status::ready);
   if (result.get()) return Result::kSuccess;
 
   auto grpc_status = hash_stream_->Finish();
@@ -425,7 +425,7 @@ GrpcConnection::Result GrpcConnection::openStateSnapshotStream(
     return Result::kTimeout;
   }
 
-  ConcordAssert(status == future_status::ready);
+  ConcordAssertEQ(status, future_status::ready);
   snapshot_stream = stream.get();
   if (snapshot_stream) {
     WriteLock write_lock(rss_streams_mutex_);
@@ -517,7 +517,7 @@ GrpcConnection::Result GrpcConnection::readStateSnapshot(
     return Result::kTimeout;
   }
 
-  ConcordAssert(status == future_status::ready);
+  ConcordAssertEQ(status, future_status::ready);
   if (result.get()) {
     return Result::kSuccess;
   }

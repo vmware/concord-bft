@@ -341,11 +341,26 @@ class ThinReplicaImpl {
       ConcordAssert(request->has_events());
       auto last_block_id = (config_->rostorage)->getLastBlockId();
       if (request->events().block_id() == last_block_id + 1) {
-        while (not live_updates->waitUntilNonEmpty(kWaitForUpdateTimeout)) {
+        // `last_block_id + 1` is an acceptable requested block ID (not flagged with OUT_OF_RANGE exception),
+        // even though it can not have been written to storage at the time of the request.
+        // To ensure TRS doesn't try to read a non-existent block ID from storage, it must wait on the
+        // live update queue until a block with ID greater than or equal to last_block_id + 1 gets added.
+        // Note that, before a block gets pushed to the live update queue, it must be written to storage.
+        bool is_update_available = false;
+        while (not is_update_available) {
           if (context->IsCancelled()) {
             LOG_DEBUG(logger_, "StreamCancelled while waiting for the next live update.");
             CLEANUP_SUBSCRIPTION();
             return grpc::Status::CANCELLED;
+          }
+          is_update_available = live_updates->waitUntilNonEmpty(kWaitForUpdateTimeout);
+          if (is_update_available && live_updates->oldestBlockId() < last_block_id + 1) {
+            SubUpdate update;
+            live_updates->Pop(update);
+            LOG_DEBUG(logger_,
+                      "Dropping block ID: " << update.block_id << " from live_updates, requested block ID: "
+                                            << request->events().block_id());
+            is_update_available = false;
           }
         }
       }
@@ -857,7 +872,7 @@ class ThinReplicaImpl {
       throw UpdatePruned(msg.str());
     }
     kvbc::BlockId end = (config_->rostorage)->getLastBlockId();
-    ConcordAssert(start <= end);
+    ConcordAssertLE(start, end);
 
     // Let's not wait for a live update yet due to there might be lots of
     // history we have to catch up with first
@@ -900,7 +915,7 @@ class ThinReplicaImpl {
     // Overlap:
     // If we read updates from KVB that were added to the live updates already
     // then we just need to drop the overlap and return
-    ConcordAssert(live_updates->oldestBlockId() <= end);
+    ConcordAssertLE(live_updates->oldestBlockId(), end);
     SubUpdate update;
     do {
       live_updates->Pop(update);
@@ -933,8 +948,8 @@ class ThinReplicaImpl {
       msg << "No event group exists in KVB yet for client: " << getClientId(context);
       LOG_ERROR(logger_, msg.str());
     }
-    ConcordAssert(first_eg_id <= end);
-    ConcordAssert(start <= end);
+    ConcordAssertLE(first_eg_id, end);
+    ConcordAssertLE(start, end);
 
     // Let's not wait for a live update yet as there might be lots of
     // history we have to catch up with first

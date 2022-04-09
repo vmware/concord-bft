@@ -433,7 +433,7 @@ FindGlobalEgIdResult KvbAppFilter::findGlobalEventGroupId(uint64_t external_even
     return {global_eg_id, true, current_pvt_eg_id - 1, pub_eg_id};
   }
 
-  ConcordAssert(external_event_group_id > current_ext_eg_id);
+  ConcordAssertGT(external_event_group_id, current_ext_eg_id);
   if (current_pvt_eg_id == private_end) {
     auto num_pub_egs = current_ext_eg_id - current_pvt_eg_id;
     auto pub_eg_id = num_pub_egs + (external_event_group_id - current_ext_eg_id);
