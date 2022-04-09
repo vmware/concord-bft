@@ -133,23 +133,19 @@ void initAccounts(AppState& state) {
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 TxReply sendTxRequest(Client& client, const Tx& tx) {
-  UTTRequest req;
-
-  if (const auto* uttTransfer = std::get_if<TxUttTransfer>(&tx)) {
-    std::cout << "Sending UTT Tx " << uttTransfer->uttTx_.getHashHex() << '\n';
-
-    std::stringstream ss;
-    ss << uttTransfer->uttTx_;
-    UttTx uttTx;
-    uttTx.tx = ss.str();
-    req.request = std::move(uttTx);
-  } else {
-    std::stringstream ss;
-    ss << tx;
-    PublicTx publicTx;
-    publicTx.tx = ss.str();
-    req.request = std::move(publicTx);
+  // [TODO-UTT] Debug output
+  if (const auto* txUtt = std::get_if<TxUtt>(&tx)) {
+    std::cout << "Sending UTT Tx " << txUtt->utt_.getHashHex() << '\n';
   }
+
+  std::stringstream ss;
+  ss << tx;
+
+  TxRequest txRequest;
+  txRequest.tx = ss.str();
+
+  UTTRequest req;
+  req.request = std::move(txRequest);
 
   // Ensure we only wait for F+1 replies (ByzantineSafeQuorum)
   WriteConfig writeConf{RequestConfig{false, nextSeqNum()}, ByzantineSafeQuorum{}};
@@ -250,22 +246,19 @@ void syncState(AppState& state, Client& client) {
     // Request missing block
     ReplicaSigShares sigShares;
     auto blockDataReply = sendGetBlockDataRequest(client, *missingBlockId, sigShares);
+    const auto replyBlockId = blockDataReply.block_id;
 
-    if (blockDataReply.block_id != *missingBlockId) throw std::runtime_error("Received missing block id differs!");
+    if (replyBlockId != *missingBlockId) throw std::runtime_error("Requested missing block id differs from reply!");
 
-    std::optional<Tx> tx;
-    if (const auto* uttTx = std::get_if<UttTx>(&blockDataReply.tx)) {
-      std::stringstream ss(uttTx->tx);
-      auto uttTxFromReply = libutt::Tx(ss);
-      std::cout << "Received UTT Tx " << uttTxFromReply.getHashHex() << " for block " << blockDataReply.block_id
-                << '\n';
-      tx = TxUttTransfer(std::move(uttTxFromReply), std::move(sigShares));
-    } else if (const auto* publicTx = std::get_if<PublicTx>(&blockDataReply.tx)) {
-      tx = parsePublicTx(publicTx->tx);
-      if (!tx) throw std::runtime_error("Failed to parse public tx from missing block!");
-    } else {
-      throw std::runtime_error("Unhandled tx type in GetBlockDataReply! blockId=" +
-                               std::to_string(blockDataReply.block_id));
+    auto tx = parseTx(blockDataReply.tx);
+    if (!tx) throw std::runtime_error("Failed to parse tx for block " + std::to_string(replyBlockId));
+
+    if (auto* txUtt = std::get_if<TxUtt>(&(*tx))) {
+      // [TODO-UTT] Debug output
+      std::cout << "Received UTT Tx " << txUtt->utt_.getHashHex() << " for block " << replyBlockId << '\n';
+
+      // Add sig shares
+      txUtt->sigShares_ = std::move(sigShares);
     }
 
     state.appendBlock(Block{std::move(*tx)});
@@ -370,7 +363,7 @@ void runUttPayment(const UttPayment& payment, AppState& state, Client& client) {
     // We assume that any valid utt payment terminates with a paying transaction.
     const bool isPayment = uttTx.isBudgeted();
 
-    Tx tx = TxUttTransfer(std::move(uttTx));
+    Tx tx = TxUtt(std::move(uttTx));
 
     auto reply = sendTxRequest(client, tx);
     if (reply.success) {
@@ -456,7 +449,7 @@ int main(int argc, char** argv) {
           dbgForceCheckpoint(state, client);
         } else if (auto uttPayment = createUttPayment(cmd, state)) {
           runUttPayment(*uttPayment, state, client);
-        } else if (auto tx = parsePublicTx(cmd)) {
+        } else if (auto tx = parseTx(cmd)) {
           sendPublicTx(*tx, state, client);
         } else {
           std::cout << "Unknown command '" << cmd << "'\n";

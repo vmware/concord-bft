@@ -35,8 +35,9 @@ std::ostream& operator<<(std::ostream& os, const TxPublicTransfer& tx) {
   return os;
 }
 
-std::ostream& operator<<(std::ostream& os, const TxUttTransfer& tx) {
-  os << tx.uttTx_;
+std::ostream& operator<<(std::ostream& os, const TxUtt& tx) {
+  os << "utt ";  // Notice the space after utt (this is expected by the parser)
+  os << tx.utt_;
   return os;
 }
 
@@ -45,20 +46,29 @@ std::ostream& operator<<(std::ostream& os, const Tx& tx) {
   return os;
 }
 
-std::optional<Tx> parsePublicTx(const std::string& str) {
-  std::vector<std::string> tokens;
-  std::string token;
+std::optional<Tx> parseTx(const std::string& str) {
   std::stringstream ss(str);
-  while (std::getline(ss, token, ' ')) tokens.emplace_back(std::move(token));
+  std::string token;
 
-  if (tokens.size() == 3) {
-    if (tokens[0] == "deposit")
-      return TxPublicDeposit(std::move(tokens[1]), std::atoi(tokens[2].c_str()));
-    else if (tokens[0] == "withdraw")
-      return TxPublicWithdraw(std::move(tokens[1]), std::atoi(tokens[2].c_str()));
-  } else if (tokens.size() == 4) {
-    if (tokens[0] == "transfer")
-      return TxPublicTransfer(std::move(tokens[1]), std::move(tokens[2]), std::atoi(tokens[3].c_str()));
+  std::getline(ss, token, ' ');  // getline extracts the delimiter
+  if (token == "utt") {
+    return TxUtt(libutt::Tx(ss));
+  } else {
+    // Keep parsing for public tx
+    std::vector<std::string> tokens;
+    tokens.emplace_back(std::move(token));
+
+    while (std::getline(ss, token, ' ')) tokens.emplace_back(std::move(token));
+
+    if (tokens.size() == 3) {
+      if (tokens[0] == "deposit")
+        return TxPublicDeposit(std::move(tokens[1]), std::atoi(tokens[2].c_str()));
+      else if (tokens[0] == "withdraw")
+        return TxPublicWithdraw(std::move(tokens[1]), std::atoi(tokens[2].c_str()));
+    } else if (tokens.size() == 4) {
+      if (tokens[0] == "transfer")
+        return TxPublicTransfer(std::move(tokens[1]), std::move(tokens[2]), std::atoi(tokens[3].c_str()));
+    }
   }
 
   return std::nullopt;
