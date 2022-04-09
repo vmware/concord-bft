@@ -54,8 +54,7 @@ class UTTCommandsHandler : public concord::kvbc::ICommandsHandler {
   void setPerformanceManager(std::shared_ptr<concord::performance::PerformanceManager> perfManager) override {}
 
  private:
-  utt::messages::TxReply handleRequest(const utt::messages::PublicTx &req);
-  utt::messages::TxReply handleRequest(const utt::messages::UttTx &req);
+  utt::messages::TxReply handleRequest(const utt::messages::TxRequest &req);
   utt::messages::GetLastBlockReply handleRequest(const utt::messages::GetLastBlockRequest &req);
   utt::messages::GetBlockDataReply handleRequest(const utt::messages::GetBlockDataRequest &req,
                                                  std::vector<uint8_t> &outRsi);
@@ -67,7 +66,10 @@ class UTTCommandsHandler : public concord::kvbc::ICommandsHandler {
 
   AppState state_;
   UTTReplicaConfig config_;
-  std::map<size_t, std::vector<libutt::RandSigShare>> sigShares_;
+
+  // A cached Resplica Specific Info msg based on
+  // the computed utt sig shares for some block
+  std::map<size_t, std::vector<uint8_t>> sigSharesRsiCache_;
 
   concord::kvbc::IReader *storage_;
   concord::kvbc::IBlockAdder *blockAdder_;

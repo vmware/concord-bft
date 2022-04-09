@@ -46,13 +46,11 @@ void UTTCommandsHandler::execute(UTTCommandsHandler::ExecutionRequestsQueue& req
       UTTReply reply;
       const auto* reqVariant = &uttRequest.request;
 
-      vector<uint8_t>
-          rsi;  // Replica specific info is used to provide signature shares of output coins from this replica
+      // Replica specific info is used to provide signature shares of output coins
+      vector<uint8_t> rsi;
 
-      if (const auto* publicTx = std::get_if<PublicTx>(reqVariant)) {
-        reply.reply = handleRequest(*publicTx);
-      } else if (const auto* uttTx = std::get_if<UttTx>(reqVariant)) {
-        reply.reply = handleRequest(*uttTx);
+      if (const auto* txRequest = std::get_if<TxRequest>(reqVariant)) {
+        reply.reply = handleRequest(*txRequest);
       } else if (const auto* lastBlockRequest = std::get_if<GetLastBlockRequest>(reqVariant)) {
         reply.reply = handleRequest(*lastBlockRequest);
       } else if (const auto* blockDataReq = std::get_if<GetBlockDataRequest>(reqVariant)) {
@@ -92,11 +90,18 @@ void UTTCommandsHandler::execute(UTTCommandsHandler::ExecutionRequestsQueue& req
   }
 }
 
-TxReply UTTCommandsHandler::handleRequest(const PublicTx& publicTx) {
-  auto cmd = publicTx.tx;
-  LOG_INFO(logger_, "Executing TxRequest with command: " << cmd);
-  auto tx = parsePublicTx(cmd);
+TxReply UTTCommandsHandler::handleRequest(const TxRequest& txRequest) {
+  // auto cmd = publicTx.tx;
+  // LOG_INFO(logger_, "Executing TxRequest with command: " << cmd);
+
+  auto tx = parseTx(txRequest.tx);
   if (!tx) throw std::runtime_error("Failed to parse tx!");
+
+  if (const auto* txUtt = std::get_if<TxUtt>(&(*tx))) {
+    LOG_INFO(logger_, "Handling UTT Tx: " << txUtt->utt_.getHashHex());
+  } else {
+    LOG_INFO(logger_, "Handling Public Tx: " << txRequest.tx);
+  }
 
   TxReply reply;
   std::string err;
@@ -107,67 +112,27 @@ TxReply UTTCommandsHandler::handleRequest(const PublicTx& publicTx) {
       BlockId nextExpectedBlockId = storage_->getLastBlockId() + 1;
 
       kvbc_cat::VersionedUpdates verUpdates;
-      verUpdates.addUpdate("tx" + std::to_string(nextExpectedBlockId), std::move(cmd));
+
+      auto copyTx = txRequest.tx;
+      verUpdates.addUpdate("tx" + std::to_string(nextExpectedBlockId), std::move(copyTx));
 
       kvbc_cat::Updates updates;
       updates.add(VERSIONED_KV_CAT_ID, std::move(verUpdates));
       const auto newBlockId = blockAdder_->add(std::move(updates));
       ConcordAssert(newBlockId == nextExpectedBlockId);
     }
+
+    // Execute the added block
+    // Note that for utt txs the signatures are computed lazily
+    // and cached when the block data is requested
 
     state_.appendBlock(Block{std::move(*tx)});
     state_.executeBlocks();
     reply.success = true;
   } else {
-    LOG_WARN(logger_, "Failed to execute TxRequest: " << err);
+    LOG_WARN(logger_, "Failed to execute Tx request: " << err);
     reply.err = std::move(err);
     reply.success = false;
-  }
-
-  reply.last_block_id = state_.getLastKnownBlockId();
-
-  return reply;
-}
-
-utt::messages::TxReply UTTCommandsHandler::handleRequest(const utt::messages::UttTx& req) {
-  LOG_INFO(logger_, "Executing UttTx!");
-
-  std::stringstream ss(req.tx);
-  Tx tx = TxUttTransfer(libutt::Tx(ss));
-
-  const auto* uttTransfer = std::get_if<TxUttTransfer>(&tx);
-  ConcordAssert(uttTransfer != nullptr);
-
-  TxReply reply;
-  std::string err;
-
-  if (state_.canExecuteTx(tx, err, config_)) {
-    // Note: signature shares are computed lazily when the block data is requested
-
-    LOG_INFO(logger_, "Executing UTT Tx " << uttTransfer->uttTx_.getHashHex());
-
-    // Add a real block to the kv blockchain
-    {
-      BlockId nextExpectedBlockId = storage_->getLastBlockId() + 1;
-
-      // Copy the utt tx into the block
-      auto txCopy = req.tx;
-
-      kvbc_cat::VersionedUpdates verUpdates;
-      verUpdates.addUpdate("tx" + std::to_string(nextExpectedBlockId), std::move(txCopy));
-
-      kvbc_cat::Updates updates;
-      updates.add(VERSIONED_KV_CAT_ID, std::move(verUpdates));
-      const auto newBlockId = blockAdder_->add(std::move(updates));
-      ConcordAssert(newBlockId == nextExpectedBlockId);
-    }
-
-    state_.appendBlock(Block{std::move(tx)});
-    state_.executeBlocks();
-    reply.success = true;
-  } else {
-    reply.success = false;
-    reply.err = err;
   }
 
   reply.last_block_id = state_.getLastKnownBlockId();
@@ -187,46 +152,41 @@ GetLastBlockReply UTTCommandsHandler::handleRequest(const GetLastBlockRequest&) 
 GetBlockDataReply UTTCommandsHandler::handleRequest(const GetBlockDataRequest& req, std::vector<uint8_t>& outRsi) {
   LOG_INFO(logger_, "Executing GetBlockDataRequest for block_id=" << req.block_id);
 
-  GetBlockDataReply reply;
-
   const auto* block = state_.getBlockById(req.block_id);
-  if (block) {
-    reply.block_id = block->id_;
-    if (block->tx_) {
-      std::stringstream ss;
-      ss << *block->tx_;
+  if (!block) {
+    LOG_WARN(logger_, "Request block " << req.block_id << " does not exist!");
+    return GetBlockDataReply{};
+  }
 
-      if (const auto* uttTransfer = std::get_if<TxUttTransfer>(&(*block->tx_))) {
-        UttTx uttTx;
-        uttTx.tx = ss.str();
-        reply.tx = std::move(uttTx);
+  GetBlockDataReply reply;
+  reply.block_id = block->id_;
 
-        // Compute signature shares lazily when the block is requested
-        // Precondition: monotonically increasing blocks
-        auto& sigSharesForBlock = sigShares_[req.block_id];
+  if (block->tx_) {
+    std::stringstream ss;
+    ss << *block->tx_;
+    reply.tx = ss.str();
 
-        if (sigSharesForBlock.empty()) {
-          sigSharesForBlock = libutt::Replica::signShareOutputCoins(uttTransfer->uttTx_, config_.bskShare_);
+    if (const auto* txUtt = std::get_if<TxUtt>(&(*block->tx_))) {
+      // Compute signature shares lazily when the block is requested
+      // Precondition: monotonically increasing blocks
+      auto& sigShareRsiForBlock = sigSharesRsiCache_[req.block_id];
 
-          LOG_INFO(
-              logger_,
-              "Computed utt sign shares for block_id=" << req.block_id << " tx: " << uttTransfer->uttTx_.getHashHex());
-        }
+      if (sigShareRsiForBlock.empty()) {
+        auto sigShares = libutt::Replica::signShareOutputCoins(txUtt->utt_, config_.bskShare_);
+        ConcordAssert(!sigShares.empty());
 
-        // Add sig shares to replica specific info
-        // [TODO-UTT] Add this conversion to the sigShares_ cache directly
+        LOG_INFO(logger_, "Computed utt sign shares for block " << req.block_id << " tx: " << txUtt->utt_.getHashHex());
+
+        // Cache the rsi reply
         std::stringstream ssRsi;
-        ssRsi << sigSharesForBlock.size() << '\n';
-        for (const auto& sigShare : sigSharesForBlock) {
+        ssRsi << sigShares.size() << '\n';
+        for (const auto& sigShare : sigShares) {
           ssRsi << sigShare;
         }
-        outRsi = StrToBytes(ssRsi.str());
-
-      } else {
-        PublicTx publicTx;
-        publicTx.tx = ss.str();
-        reply.tx = std::move(publicTx);
+        sigShareRsiForBlock = StrToBytes(ssRsi.str());
       }
+
+      outRsi = sigShareRsiForBlock;  // Copy
     }
   }
 
@@ -272,11 +232,16 @@ void UTTCommandsHandler::syncAppState() {
     const auto key = "tx" + std::to_string(*missingBlockId);
     const auto v = getLatest(key);
 
-    LOG_WARN(logger_, "UTT AppState fetching missing block " << *missingBlockId << " tx: " << v);
+    LOG_INFO(logger_, "Fetching tx for missing block " << *missingBlockId);
 
-    // [TODO-UTT] Distinguish between utt and public transactions
-    auto tx = parsePublicTx(v);
-    if (!tx) throw std::runtime_error("Failed to parse public tx!");
+    auto tx = parseTx(v);
+    if (!tx) throw std::runtime_error("Failed to parse tx!");
+
+    if (const auto* txUtt = std::get_if<TxUtt>(&(*tx))) {
+      LOG_INFO(logger_, "Executing utt tx: " << txUtt->utt_.getHashHex());
+    } else {
+      LOG_INFO(logger_, "Executing public tx: " << v);
+    }
 
     state_.appendBlock(Block{std::move(*tx)});
 

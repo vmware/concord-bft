@@ -56,17 +56,17 @@ struct TxPublicTransfer {
 };
 std::ostream& operator<<(std::ostream& os, const TxPublicTransfer& tx);
 
-struct TxUttTransfer {
-  TxUttTransfer(libutt::Tx&& uttTx, std::optional<ReplicaSigShares> sigShares = std::nullopt)
-      : uttTx_{std::move(uttTx)}, sigShares_{std::move(sigShares)} {}
-  libutt::Tx uttTx_;
-  // [TODO-UTT] Added here for convenience, could be moved somewhere else
-  std::optional<ReplicaSigShares> sigShares_;  // This is obtained by the client from the get block reply
+struct TxUtt {
+  TxUtt(libutt::Tx&& utt) : utt_{std::move(utt)} {}
+  libutt::Tx utt_;
+  // [TODO-UTT] Added here for convenience for the client to fill in before execution
+  // could be moved somewhere else
+  std::optional<ReplicaSigShares> sigShares_;
 };
-std::ostream& operator<<(std::ostream& os, const TxUttTransfer& tx);
+std::ostream& operator<<(std::ostream& os, const TxUtt& tx);
 
-using Tx = std::variant<TxPublicDeposit, TxPublicWithdraw, TxPublicTransfer, TxUttTransfer>;
+using Tx = std::variant<TxPublicDeposit, TxPublicWithdraw, TxPublicTransfer, TxUtt>;
 
 std::ostream& operator<<(std::ostream& os, const Tx& tx);
 
-std::optional<Tx> parsePublicTx(const std::string& str);
+std::optional<Tx> parseTx(const std::string& str);

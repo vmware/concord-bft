@@ -55,8 +55,8 @@ std::ostream& operator<<(std::ostream& os, const Block& b) {
   os << b.id_ << " | ";
   if (!b.tx_)
     os << "(Empty)";
-  else if (const auto* uttTransfer = std::get_if<TxUttTransfer>(&(*b.tx_)))
-    os << "UTT Tx: " << uttTransfer->uttTx_.getHashHex();
+  else if (const auto* txUtt = std::get_if<TxUtt>(&(*b.tx_)))
+    os << "UTT Tx: " << txUtt->utt_.getHashHex();
   else
     os << *b.tx_;  // Public Tx
   return os;
@@ -168,14 +168,14 @@ bool AppState::canExecuteTx(const Tx& tx, std::string& err, const IUTTConfig& cf
       if (tx.amount_ > sender->getPublicBalance()) throw std::domain_error("Sender has insufficient public balance!");
     }
 
-    void operator()(const TxUttTransfer& tx) const {
+    void operator()(const TxUtt& tx) const {
       // [TODO-UTT] Validate takes the bank public key, but that's used for quickPay validation
       // which we aren't using in the demo
-      if (!tx.uttTx_.validate(uttCfg_.getParams(), uttCfg_.getBankPK(), uttCfg_.getRegAuthPK()))
+      if (!tx.utt_.validate(uttCfg_.getParams(), uttCfg_.getBankPK(), uttCfg_.getRegAuthPK()))
         throw std::domain_error("Invalid utt transfer tx!");
 
       // [TODO-UTT] Does a copy of nullifiers
-      for (const auto& n : tx.uttTx_.getNullifiers()) {
+      for (const auto& n : tx.utt_.getNullifiers()) {
         if (state_.hasNullifier(n)) throw std::domain_error("Input coin already spent!");
       }
     }
@@ -213,9 +213,9 @@ void AppState::executeTx(const Tx& tx) {
       if (receiver) receiver->publicDeposit(tx.amount_);
     }
 
-    void operator()(const TxUttTransfer& tx) {
+    void operator()(const TxUtt& tx) {
       // Add nullifiers
-      const auto& txNullifiers = tx.uttTx_.getNullifiers();
+      const auto& txNullifiers = tx.utt_.getNullifiers();
       for (const auto& n : txNullifiers) {
         state_.addNullifier(n);
       }
@@ -233,12 +233,12 @@ void AppState::executeTx(const Tx& tx) {
         if (!tx.sigShares_) throw std::runtime_error("Missing sigShares in utt tx!");
         const auto& sigShares = *tx.sigShares_;
 
-        size_t numTxo = tx.uttTx_.outs.size();
+        size_t numTxo = tx.utt_.outs.size();
         if (numTxo != sigShares.sigShares_.size())
           throw std::runtime_error("Number of output coins differs from provided sig shares!");
 
         for (size_t i = 0; i < numTxo; ++i) {
-          libutt::Client::tryClaimCoin(*wallet, tx.uttTx_, i, sigShares.sigShares_[i], sigShares.signerIds_, n);
+          libutt::Client::tryClaimCoin(*wallet, tx.utt_, i, sigShares.sigShares_[i], sigShares.signerIds_, n);
         }
       }
     }
@@ -249,7 +249,6 @@ void AppState::executeTx(const Tx& tx) {
 
 void AppState::pruneSpentCoins(libutt::Wallet& w) {
   // Mark spent coins and delete them all at once since they're kept in a vector
-  // [TODO-UTT] Check if this approach works at all (the nullifier from the tx can be correlated with the original coin)
   for (auto& c : w.coins) {
     if (hasNullifier(c.null.toUniqueString())) {
       std::cout << "User '" << w.getUserPid() << "' removes spent normal coin $" << c.getValue() << '\n';
