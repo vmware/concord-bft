@@ -39,16 +39,16 @@ int Account::publicWithdraw(int val) {
 libutt::Wallet* Account::getWallet() { return wallet_ ? &(*wallet_) : nullptr; }
 const libutt::Wallet* Account::getWallet() const { return wallet_ ? &(*wallet_) : nullptr; }
 
-int Account::getUttBalance() const {
+size_t Account::getUttBalance() const {
   if (!wallet_) throw std::runtime_error("UTT Wallet is unavalable!");
-  int balance = 0;
-  for (const auto& c : wallet_->coins) balance += static_cast<int>(c.getValue());
+  size_t balance = 0;
+  for (const auto& c : wallet_->coins) balance += c.getValue();
   return balance;
 }
 
-int Account::getUttBudget() const {
+size_t Account::getUttBudget() const {
   if (!wallet_) throw std::runtime_error("UTT Wallet is unavalable!");
-  return wallet_->budgetCoin ? static_cast<int>(wallet_->budgetCoin->getValue()) : 0;
+  return wallet_->budgetCoin ? wallet_->budgetCoin->getValue() : 0;
 }
 
 std::ostream& operator<<(std::ostream& os, const Block& b) {

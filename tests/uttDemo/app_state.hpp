@@ -40,8 +40,8 @@ class Account {
 
   libutt::Wallet* getWallet();
   const libutt::Wallet* getWallet() const;
-  int getUttBalance() const;
-  int getUttBudget() const;
+  size_t getUttBalance() const;
+  size_t getUttBudget() const;
 
  private:
   std::string id_;
