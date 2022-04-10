@@ -20,7 +20,6 @@ def run(host, port, remaining_args, print_output=True):
         result = data.decode()
         if print_output:
             print(result)
-        s.close()
         return result
 
 
