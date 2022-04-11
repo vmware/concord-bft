@@ -19,7 +19,6 @@
 #include "Logger.hpp"
 
 using std::endl;
-using namespace threshsign;
 
 namespace BLS {
 namespace Relic {

@@ -25,6 +25,8 @@
 #include "app_state.hpp"
 #include "utt_config.hpp"
 
+#include <utt/Client.h>
+
 using namespace bftEngine;
 using namespace bft::communication;
 using std::string;
@@ -110,6 +112,7 @@ ICommunication* setupCommunicationParams(ClientParams& cp) {
   return CommFactory::create(conf);
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 void initAccounts(AppState& state) {
   AppState::initUTTLibrary();
 
@@ -128,15 +131,21 @@ void initAccounts(AppState& state) {
   }
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 TxReply sendTxRequest(Client& client, const Tx& tx) {
-  // Send transaction request
-  TxRequest txReq;
+  // [TODO-UTT] Debug output
+  if (const auto* txUtt = std::get_if<TxUtt>(&tx)) {
+    std::cout << "Sending UTT Tx " << txUtt->utt_.getHashHex() << '\n';
+  }
+
   std::stringstream ss;
   ss << tx;
-  txReq.tx = StrToBytes(ss.str());
+
+  TxRequest txRequest;
+  txRequest.tx = ss.str();
 
   UTTRequest req;
-  req.request = std::move(txReq);
+  req.request = std::move(txRequest);
 
   // Ensure we only wait for F+1 replies (ByzantineSafeQuorum)
   WriteConfig writeConf{RequestConfig{false, nextSeqNum()}, ByzantineSafeQuorum{}};
@@ -154,6 +163,7 @@ TxReply sendTxRequest(Client& client, const Tx& tx) {
   return txReply;
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 GetLastBlockReply sendGetLastBlockRequest(Client& client) {
   UTTRequest req;
   req.request = GetLastBlockRequest();
@@ -172,7 +182,8 @@ GetLastBlockReply sendGetLastBlockRequest(Client& client) {
   return lastBlockReply;
 }
 
-GetBlockDataReply sendGetBlockDataRequest(Client& client, BlockId blockId) {
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+GetBlockDataReply sendGetBlockDataRequest(Client& client, BlockId blockId, ReplicaSigShares& outSigShares) {
   GetBlockDataRequest blockDataReq;
   blockDataReq.block_id = blockId;
 
@@ -188,11 +199,45 @@ GetBlockDataReply sendGetBlockDataRequest(Client& client, BlockId blockId) {
   deserialize(replyBytes.matched_data, reply);
 
   const auto& blockDataReply = std::get<GetBlockDataReply>(reply.reply);  // throws if unexpected variant
-  std::cout << "Got GetBlockDataReply, block_id=" << blockDataReply.block_id << '\n';
+  std::cout << "Got GetBlockDataReply, success=" << blockDataReply.success << " block_id=" << blockDataReply.block_id
+            << '\n';
+
+  if (!blockDataReply.success) {
+    return blockDataReply;
+  }
+
+  // Deserialize sign shares
+  // [TODO-UTT]: Need to collect F+1 (out of 2F+1) shares that combine to a valid RandSig
+  // Here, we assume naively that all replicas are honest
+
+  for (const auto& kvp : replyBytes.rsi) {
+    if (outSigShares.signerIds_.size() == 2) break;  // Pick first F+1 signers
+
+    outSigShares.signerIds_.emplace_back(kvp.first.val);  // ReplicaId
+
+    std::stringstream ss(BytesToStr(kvp.second));
+    size_t size = 0;  // The size reflects the number of output coins
+    ss >> size;
+    ss.ignore(1, '\n');  // skip newline
+
+    ConcordAssert(size <= 3);
+    // Add this replica share to the list for i-th coin (the order is defined by signerIds)
+    for (size_t i = 0; i < size; ++i) {
+      if (outSigShares.sigShares_.size() == i)  // Resize to accommodate up to 3 coins
+        outSigShares.sigShares_.emplace_back();
+
+      outSigShares.sigShares_[i].emplace_back(libutt::RandSigShare(ss));
+    }
+  }
+
+  ConcordAssert(outSigShares.signerIds_.size() == 2);
+  for (size_t i = 0; i < outSigShares.sigShares_.size(); ++i)  // Check for each coin we have F+1 signers
+    ConcordAssert(outSigShares.signerIds_.size() == outSigShares.sigShares_[i].size());
 
   return blockDataReply;
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 // Sync state by fetching missing blocks and executing them
 void syncState(AppState& state, Client& client) {
   std::cout << "Sync state...\n";
@@ -204,18 +249,171 @@ void syncState(AppState& state, Client& client) {
   auto missingBlockId = state.executeBlocks();
   while (missingBlockId) {
     // Request missing block
-    auto blockDataReply = sendGetBlockDataRequest(client, *missingBlockId);
+    ReplicaSigShares sigShares;
+    auto blockDataReply = sendGetBlockDataRequest(client, *missingBlockId, sigShares);
+    const auto replyBlockId = blockDataReply.block_id;
 
-    if (blockDataReply.block_id != *missingBlockId) throw std::runtime_error("Received missing block id differs!");
+    if (!blockDataReply.success) throw std::runtime_error("Requested block does not exist!");
 
-    auto tx = parseTx(BytesToStr(blockDataReply.tx));
-    if (!tx) throw std::runtime_error("Failed to parse tx from missing block!");
+    if (replyBlockId != *missingBlockId) throw std::runtime_error("Requested missing block id differs from reply!");
+
+    auto tx = parseTx(blockDataReply.tx);
+    if (!tx) throw std::runtime_error("Failed to parse tx for block " + std::to_string(replyBlockId));
+
+    if (auto* txUtt = std::get_if<TxUtt>(&(*tx))) {
+      // [TODO-UTT] Debug output
+      std::cout << "Received UTT Tx " << txUtt->utt_.getHashHex() << " for block " << replyBlockId << '\n';
+
+      // Add sig shares
+      txUtt->sigShares_ = std::move(sigShares);
+    }
 
     state.appendBlock(Block{std::move(*tx)});
     missingBlockId = state.executeBlocks();
   }
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+struct UttPayment {
+  UttPayment(Account& from, const Account& to, size_t amount) : from_(from), to_(to), amount_(amount) {}
+
+  Account& from_;
+  const Account& to_;
+  size_t amount_;
+};
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+std::optional<UttPayment> createUttPayment(const std::string& cmd, AppState& state) {
+  std::vector<std::string> tokens;
+  std::string token;
+  std::stringstream ss(cmd);
+  while (std::getline(ss, token, ' ')) tokens.emplace_back(std::move(token));
+
+  if (tokens.size() == 4 && tokens[0] == "utt") {
+    const auto& from = tokens[1];
+    const auto& to = tokens[2];
+    int payment = std::atoi(tokens[3].c_str());
+    if (payment <= 0) throw std::domain_error("utt payment amount must be positive!");
+
+    // [TODO-UTT] This logic will be modified once we have a separate payment process and an account process.
+    // The utt transaction will be made from the point of view of the account and it will only know
+    // that the receiving pid exists (is previously registered by the registry authority)
+    auto* fromAccount = state.getAccountById(from);
+    if (!fromAccount) throw std::domain_error("utt sender account not found!");
+    const auto* toAccount = state.getAccountById(to);
+    if (!toAccount) throw std::domain_error("utt receiver account not found!");
+
+    return UttPayment(*fromAccount, *toAccount, payment);
+  }
+
+  return std::nullopt;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void printHelp() {
+  std::cout << "\nCommands:\n";
+  std::cout << "balance\t\t\t\t-- print all account's public and utt balances\n";
+  std::cout << "ledger\t\t\t\t-- print the transactions that happened on the blockchain\n";
+  std::cout << "deposit [account] [amount]\t-- public money deposit to account\n";
+  std::cout << "withdraw [account] [amount]\t-- public money withdraw from account\n";
+  std::cout << "transfer [from] [to] [amount]\t-- public money transfer\n";
+  std::cout << "utt [from] [to] [amount]\t-- anonymous money transfer\n";
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void checkBalance(AppState& state, Client& client) {
+  syncState(state, client);
+  std::cout << '\n';
+  for (const auto& kvp : state.GetAccounts()) {
+    const auto& acc = kvp.second;
+    std::cout << acc.getId() << " | public: " << acc.getPublicBalance();
+    std::cout << " utt: " << acc.getUttBalance() << " / " << acc.getUttBudget() << '\n';
+  }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void checkLedger(AppState& state, Client& client) {
+  syncState(state, client);
+  std::cout << '\n';
+  for (const auto& block : state.GetBlocks()) {
+    std::cout << block << '\n';
+  }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void runUttPayment(const UttPayment& payment, AppState& state, Client& client) {
+  std::cout << "Running a UTT payment from " << payment.from_.getId();
+  std::cout << " to " << payment.to_.getId() << " for " << payment.amount_ << '\n';
+
+  // Precondition: a valid UTT payment
+  auto wallet = payment.from_.getWallet();
+  ConcordAssert(wallet != nullptr);
+
+  while (true) {
+    // We do a sync before each attempt to do a utt payment since only the client
+    // knows if it has the right coins to do it.
+    // This also handles the case where we do repeated splits or merges to arrive at a final payment
+    // and need to obtain the resulting coins before we proceed.
+    syncState(state, client);
+
+    // Check that we can still do the payment and this holds:
+    // payment <= balance && payment <= budget
+    if (payment.from_.getUttBalance() < payment.amount_)
+      throw std::domain_error("Insufficient balance for utt payment!");
+    if (payment.from_.getUttBudget() < payment.amount_)
+      throw std::domain_error("Insufficient anonymous budget for utt payment!");
+
+    auto uttTx = libutt::Client::createTxForPayment(*wallet, payment.to_.getId(), payment.amount_);
+
+    // We assume that any tx with a budget coin must be an actual payment
+    // and not a coin split or merge.
+    // We assume that any valid utt payment terminates with a paying transaction.
+    const bool isPayment = uttTx.isBudgeted();
+
+    Tx tx = TxUtt(std::move(uttTx));
+
+    auto reply = sendTxRequest(client, tx);
+    if (reply.success) {
+      state.setLastKnownBlockId(reply.last_block_id);
+      std::cout << "Ok.\n";
+    } else {
+      std::cout << "Transaction failed: " << reply.err << '\n';
+      break;  // Stop payment if we encounter an error
+    }
+
+    if (isPayment) {
+      std::cout << "Payment completed.\n";
+      break;  // Done
+    }
+  }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void sendPublicTx(const Tx& tx, AppState& state, Client& client) {
+  auto reply = sendTxRequest(client, tx);
+  if (reply.success) {
+    state.setLastKnownBlockId(reply.last_block_id);
+    std::cout << "Ok.\n";
+  } else {
+    std::cout << "Transaction failed: " << reply.err << '\n';
+  }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void dbgForceCheckpoint(AppState& state, Client& client) {
+  // [TODO-UTT] Pick the user and the number of txs
+  for (int i = 0; i < 150; ++i) {
+    auto reply = sendTxRequest(client, TxPublicDeposit("user_1", 1));
+    if (reply.success) {
+      state.setLastKnownBlockId(reply.last_block_id);
+    } else {
+      std::cout << "Checkpoint transaction " << (i + 1) << " failed: " << reply.err << '\n';
+      break;
+    }
+  }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 int main(int argc, char** argv) {
   logging::initLogger("logging.properties");
   ClientParams clientParams = setupClientParams(argc, argv);
@@ -250,42 +448,17 @@ int main(int argc, char** argv) {
           client.stop();
           return 0;
         } else if (cmd == "h") {
-          std::cout << "\nCommands:\n";
-          std::cout << "balance\t\t\t\t-- print all account's public and utt balances\n";
-          std::cout << "ledger\t\t\t\t-- print the transactions that happened on the blockchain\n";
-          std::cout << "deposit [account] [amount]\t-- public money deposit to account\n";
-          std::cout << "withdraw [account] [amount]\t-- public money withdraw from account\n";
-          std::cout << "transfer [from] [to] [amount]\t-- public money transfer\n";
+          printHelp();
         } else if (cmd == "balance") {
-          syncState(state, client);
-          for (const auto& kvp : state.GetAccounts()) {
-            const auto& acc = kvp.second;
-            std::cout << acc.getId() << " | public: " << acc.getPublicBalance();
-            std::cout << " utt: " << acc.getUttBalance() << '\n';
-          }
+          checkBalance(state, client);
         } else if (cmd == "ledger") {
-          syncState(state, client);
-          for (const auto& block : state.GetBlocks()) {
-            std::cout << block << '\n';
-          }
+          checkLedger(state, client);
         } else if (cmd == "checkpoint") {
-          for (int i = 0; i < 150; ++i) {
-            auto reply = sendTxRequest(client, TxPublicDeposit("user_1", 1));
-            if (reply.success) {
-              state.setLastKnownBlockId(reply.last_block_id);
-            } else {
-              std::cout << "Checkpoint transaction " << (i + 1) << " failed: " << reply.err << '\n';
-              break;
-            }
-          }
+          dbgForceCheckpoint(state, client);
+        } else if (auto uttPayment = createUttPayment(cmd, state)) {
+          runUttPayment(*uttPayment, state, client);
         } else if (auto tx = parseTx(cmd)) {
-          auto reply = sendTxRequest(client, *tx);
-          if (reply.success) {
-            state.setLastKnownBlockId(reply.last_block_id);
-            std::cout << "Ok.\n";
-          } else {
-            std::cout << "Transaction failed: " << reply.err << '\n';
-          }
+          sendPublicTx(*tx, state, client);
         } else {
           std::cout << "Unknown command '" << cmd << "'\n";
         }

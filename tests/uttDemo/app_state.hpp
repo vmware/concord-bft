@@ -21,6 +21,7 @@
 #include <exception>
 
 #include "transactions.hpp"
+#include "utt_config.hpp"
 
 #include <utt/RegAuth.h>
 #include <utt/Params.h>
@@ -37,8 +38,10 @@ class Account {
   void publicDeposit(int val);
   int publicWithdraw(int val);
 
-  int getUttBalance() const;
-  int getUttBudget() const;
+  libutt::Wallet* getWallet();
+  const libutt::Wallet* getWallet() const;
+  size_t getUttBalance() const;
+  size_t getUttBudget() const;
 
  private:
   std::string id_;
@@ -67,23 +70,30 @@ struct AppState {
   BlockId getLastKnownBlockId() const;
   const Block* getBlockById(BlockId id) const;
 
-  bool canExecuteTx(const Tx& tx, std::string& err) const;
+  bool canExecuteTx(const Tx& tx, std::string& err, const IUTTConfig& uttConfig) const;
   void appendBlock(Block&& bl);            // Returns the id of the appended block
   std::optional<BlockId> executeBlocks();  // Returns the next missing block id if unknown blocks exist
 
   void addAccount(Account&& acc);
 
   const std::map<std::string, Account>& GetAccounts() const;
+  std::map<std::string, Account>& GetAccounts();
+
   const std::vector<Block>& GetBlocks() const;
 
   const Account* getAccountById(const std::string& id) const;
   Account* getAccountById(const std::string& id);
 
+  void addNullifier(std::string nullifier);
+  bool hasNullifier(const std::string& nullifier) const;
+
  private:
   void executeTx(const Tx& tx);
+  void pruneSpentCoins(libutt::Wallet& w);
 
   std::map<std::string, Account> accounts_;
   std::vector<Block> blocks_;
+  std::set<std::string> nullset_;
   BlockId lastExecutedBlockId_ = 0;
   BlockId lastKnownBlockId_ = 0;
 };

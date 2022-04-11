@@ -23,6 +23,8 @@
 #include <utt/NtlLib.h>
 #include <utt/RangeProof.h>
 
+#include <utt/Client.h>
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 const std::string& Account::getId() const { return wallet_ ? wallet_->getUserPid() : id_; }
 
@@ -34,21 +36,29 @@ int Account::publicWithdraw(int val) {
   return val;
 }
 
-int Account::getUttBalance() const {
+libutt::Wallet* Account::getWallet() { return wallet_ ? &(*wallet_) : nullptr; }
+const libutt::Wallet* Account::getWallet() const { return wallet_ ? &(*wallet_) : nullptr; }
+
+size_t Account::getUttBalance() const {
   if (!wallet_) throw std::runtime_error("UTT Wallet is unavalable!");
-  int balance = 0;
-  for (const auto& c : wallet_->coins) balance += static_cast<int>(c.getValue());
+  size_t balance = 0;
+  for (const auto& c : wallet_->coins) balance += c.getValue();
   return balance;
 }
 
-int Account::getUttBudget() const {
+size_t Account::getUttBudget() const {
   if (!wallet_) throw std::runtime_error("UTT Wallet is unavalable!");
-  return wallet_->budgetCoin ? static_cast<int>(wallet_->budgetCoin->getValue()) : 0;
+  return wallet_->budgetCoin ? wallet_->budgetCoin->getValue() : 0;
 }
 
 std::ostream& operator<<(std::ostream& os, const Block& b) {
   os << b.id_ << " | ";
-  b.tx_ ? os << *b.tx_ : os << "(Empty)";
+  if (!b.tx_)
+    os << "(Empty)";
+  else if (const auto* txUtt = std::get_if<TxUtt>(&(*b.tx_)))
+    os << "UTT Tx: " << txUtt->utt_.getHashHex();
+  else
+    os << *b.tx_;  // Public Tx
   return os;
 }
 
@@ -112,6 +122,7 @@ std::optional<BlockId> AppState::executeBlocks() {
 }
 
 const std::map<std::string, Account>& AppState::GetAccounts() const { return accounts_; }
+std::map<std::string, Account>& AppState::GetAccounts() { return accounts_; }
 
 const std::vector<Block>& AppState::GetBlocks() const { return blocks_; }
 
@@ -125,10 +136,15 @@ Account* AppState::getAccountById(const std::string& id) {
   return it != accounts_.end() ? &(it->second) : nullptr;
 }
 
-bool AppState::canExecuteTx(const Tx& tx, std::string& err) const {
+void AppState::addNullifier(std::string nullifier) { nullset_.emplace(std::move(nullifier)); }
+
+bool AppState::hasNullifier(const std::string& nullifier) const { return nullset_.count(nullifier) > 0; }
+
+bool AppState::canExecuteTx(const Tx& tx, std::string& err, const IUTTConfig& cfg) const {
   struct Visitor {
     const AppState& state_;
-    Visitor(const AppState& state) : state_(state) {}
+    const IUTTConfig& uttCfg_;
+    Visitor(const AppState& state, const IUTTConfig& cfg) : state_{state}, uttCfg_{cfg} {}
 
     void operator()(const TxPublicDeposit& tx) const {
       if (tx.amount_ <= 0) throw std::domain_error("Public deposit amount must be positive!");
@@ -152,12 +168,21 @@ bool AppState::canExecuteTx(const Tx& tx, std::string& err) const {
       if (tx.amount_ > sender->getPublicBalance()) throw std::domain_error("Sender has insufficient public balance!");
     }
 
-    void operator()(const TxUttTransfer& tx) const { /*TODO*/
+    void operator()(const TxUtt& tx) const {
+      // [TODO-UTT] Validate takes the bank public key, but that's used for quickPay validation
+      // which we aren't using in the demo
+      if (!tx.utt_.validate(uttCfg_.getParams(), uttCfg_.getBankPK(), uttCfg_.getRegAuthPK()))
+        throw std::domain_error("Invalid utt transfer tx!");
+
+      // [TODO-UTT] Does a copy of nullifiers
+      for (const auto& n : tx.utt_.getNullifiers()) {
+        if (state_.hasNullifier(n)) throw std::domain_error("Input coin already spent!");
+      }
     }
   };
 
   try {
-    std::visit(Visitor{*this}, tx);
+    std::visit(Visitor{*this, cfg}, tx);
   } catch (const std::domain_error& e) {
     err = e.what();
     return false;
@@ -188,10 +213,49 @@ void AppState::executeTx(const Tx& tx) {
       if (receiver) receiver->publicDeposit(tx.amount_);
     }
 
-    void operator()(const TxUttTransfer& tx) {
-      // To-Do
+    void operator()(const TxUtt& tx) {
+      // Add nullifiers
+      const auto& txNullifiers = tx.utt_.getNullifiers();
+      for (const auto& n : txNullifiers) {
+        state_.addNullifier(n);
+      }
+
+      // [TODO-UTT] Remove client code from the common app state
+      // Each wallet attempts to remove spent coins and/or add new coins
+      for (auto& kvp : state_.GetAccounts()) {
+        auto* wallet = kvp.second.getWallet();
+        if (!wallet) continue;
+
+        state_.pruneSpentCoins(*wallet);
+
+        // Add any new coins
+        const size_t n = 4;  // [TODO-UTT] Get from config
+        if (!tx.sigShares_) throw std::runtime_error("Missing sigShares in utt tx!");
+        const auto& sigShares = *tx.sigShares_;
+
+        size_t numTxo = tx.utt_.outs.size();
+        if (numTxo != sigShares.sigShares_.size())
+          throw std::runtime_error("Number of output coins differs from provided sig shares!");
+
+        for (size_t i = 0; i < numTxo; ++i) {
+          libutt::Client::tryClaimCoin(*wallet, tx.utt_, i, sigShares.sigShares_[i], sigShares.signerIds_, n);
+        }
+      }
     }
   };
 
   std::visit(Visitor{*this}, tx);
+}
+
+void AppState::pruneSpentCoins(libutt::Wallet& w) {
+  // Mark spent coins and delete them all at once since they're kept in a vector
+  for (auto& c : w.coins) {
+    if (hasNullifier(c.null.toUniqueString())) {
+      std::cout << "User '" << w.getUserPid() << "' removes spent normal coin $" << c.getValue() << '\n';
+      c.val = 0;
+    }
+  }
+
+  w.coins.erase(std::remove_if(w.coins.begin(), w.coins.end(), [](const libutt::Coin& c) { return c.val == 0; }),
+                w.coins.end());
 }

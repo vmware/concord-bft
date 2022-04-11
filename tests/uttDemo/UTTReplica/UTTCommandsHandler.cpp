@@ -18,6 +18,8 @@
 #include "kvbc_key_types.hpp"
 #include "ReplicaConfig.hpp"
 
+#include <utt/Replica.h>
+
 using namespace bftEngine;
 using namespace utt::messages;
 
@@ -44,28 +46,39 @@ void UTTCommandsHandler::execute(UTTCommandsHandler::ExecutionRequestsQueue& req
       UTTReply reply;
       const auto* reqVariant = &uttRequest.request;
 
+      // Replica specific info is used to provide signature shares of output coins
+      vector<uint8_t> rsi;
+
       if (const auto* txRequest = std::get_if<TxRequest>(reqVariant)) {
         reply.reply = handleRequest(*txRequest);
       } else if (const auto* lastBlockRequest = std::get_if<GetLastBlockRequest>(reqVariant)) {
         reply.reply = handleRequest(*lastBlockRequest);
       } else if (const auto* blockDataReq = std::get_if<GetBlockDataRequest>(reqVariant)) {
-        reply.reply = handleRequest(*blockDataReq);
+        reply.reply = handleRequest(*blockDataReq, rsi);
       } else {
         throw std::runtime_error("Unhandled UTTRquest type!");
       }
 
-      // Serialize reply
+      // Serialize reply and rsi (if not empty)
       vector<uint8_t> replyBuffer;
       serialize(replyBuffer, reply);
-      if (req.maxReplySize < replyBuffer.size()) {
+
+      size_t totalReplySize = replyBuffer.size() + rsi.size();
+
+      if (req.maxReplySize < totalReplySize) {
         LOG_ERROR(logger_,
-                  "replySize is too big: replySize=" << replyBuffer.size() << ", maxReplySize=" << req.maxReplySize);
+                  "replySize is too big: total=" << totalReplySize << " max=" << req.maxReplySize
+                                                 << " reply=" << replyBuffer.size() << " rsi=" << rsi.size());
         req.outExecutionStatus = static_cast<uint32_t>(OperationResult::EXEC_DATA_TOO_LARGE);
       } else {
         copy(replyBuffer.begin(), replyBuffer.end(), req.outReply);
-        req.outActualReplySize = replyBuffer.size();
+        copy(rsi.begin(), rsi.end(), req.outReply + replyBuffer.size());
 
-        LOG_INFO(logger_, "UTTRequest successfully executed");
+        req.outActualReplySize = totalReplySize;
+        req.outReplicaSpecificInfoSize = rsi.size();
+
+        LOG_INFO(logger_,
+                 "UTTRequest successfully executed. totalReplySize=" << totalReplySize << " max=" << req.maxReplySize);
         req.outExecutionStatus = static_cast<uint32_t>(OperationResult::SUCCESS);
       }
     } catch (const std::exception& e) {
@@ -78,21 +91,27 @@ void UTTCommandsHandler::execute(UTTCommandsHandler::ExecutionRequestsQueue& req
 }
 
 TxReply UTTCommandsHandler::handleRequest(const TxRequest& txRequest) {
-  auto cmd = BytesToStr(txRequest.tx);
-  LOG_INFO(logger_, "Executing TxRequest with command: " << cmd);
-  auto tx = parseTx(cmd);
+  auto tx = parseTx(txRequest.tx);
   if (!tx) throw std::runtime_error("Failed to parse tx!");
+
+  if (const auto* txUtt = std::get_if<TxUtt>(&(*tx))) {
+    LOG_INFO(logger_, "Handling UTT Tx: " << txUtt->utt_.getHashHex());
+  } else {
+    LOG_INFO(logger_, "Handling Public Tx: " << txRequest.tx);
+  }
 
   TxReply reply;
   std::string err;
 
-  if (state_.canExecuteTx(*tx, err)) {
+  if (state_.canExecuteTx(*tx, err, config_)) {
     // Add a real block to the kv blockchain
     {
       BlockId nextExpectedBlockId = storage_->getLastBlockId() + 1;
 
       kvbc_cat::VersionedUpdates verUpdates;
-      verUpdates.addUpdate("tx" + std::to_string(nextExpectedBlockId), std::move(cmd));
+
+      auto copyTx = txRequest.tx;
+      verUpdates.addUpdate("tx" + std::to_string(nextExpectedBlockId), std::move(copyTx));
 
       kvbc_cat::Updates updates;
       updates.add(VERSIONED_KV_CAT_ID, std::move(verUpdates));
@@ -100,11 +119,15 @@ TxReply UTTCommandsHandler::handleRequest(const TxRequest& txRequest) {
       ConcordAssert(newBlockId == nextExpectedBlockId);
     }
 
+    // Execute the added block
+    // Note that for utt txs the signatures are computed lazily
+    // and cached when the block data is requested
+
     state_.appendBlock(Block{std::move(*tx)});
     state_.executeBlocks();
     reply.success = true;
   } else {
-    LOG_WARN(logger_, "Failed to execute TxRequest: " << err);
+    LOG_WARN(logger_, "Failed to execute Tx request: " << err);
     reply.err = std::move(err);
     reply.success = false;
   }
@@ -123,18 +146,47 @@ GetLastBlockReply UTTCommandsHandler::handleRequest(const GetLastBlockRequest&) 
   return reply;
 }
 
-GetBlockDataReply UTTCommandsHandler::handleRequest(const GetBlockDataRequest& req) {
+GetBlockDataReply UTTCommandsHandler::handleRequest(const GetBlockDataRequest& req, std::vector<uint8_t>& outRsi) {
   LOG_INFO(logger_, "Executing GetBlockDataRequest for block_id=" << req.block_id);
 
   GetBlockDataReply reply;
 
   const auto* block = state_.getBlockById(req.block_id);
-  if (block) {
-    reply.block_id = block->id_;
-    if (block->tx_) {
-      std::stringstream ss;
-      ss << *block->tx_;
-      reply.tx = StrToBytes(ss.str());
+  if (!block) {
+    LOG_WARN(logger_, "Request block " << req.block_id << " does not exist!");
+    reply.success = false;
+    return reply;
+  }
+
+  reply.success = true;
+  reply.block_id = block->id_;
+
+  if (block->tx_) {
+    std::stringstream ss;
+    ss << *block->tx_;
+    reply.tx = ss.str();
+
+    if (const auto* txUtt = std::get_if<TxUtt>(&(*block->tx_))) {
+      // Compute signature shares lazily when the block is requested
+      // Precondition: monotonically increasing blocks
+      auto& sigShareRsiForBlock = sigSharesRsiCache_[req.block_id];
+
+      if (sigShareRsiForBlock.empty()) {
+        auto sigShares = libutt::Replica::signShareOutputCoins(txUtt->utt_, config_.bskShare_);
+        ConcordAssert(!sigShares.empty());
+
+        LOG_INFO(logger_, "Computed utt sign shares for block " << req.block_id << " tx: " << txUtt->utt_.getHashHex());
+
+        // Cache the rsi reply
+        std::stringstream ssRsi;
+        ssRsi << sigShares.size() << '\n';
+        for (const auto& sigShare : sigShares) {
+          ssRsi << sigShare;
+        }
+        sigShareRsiForBlock = StrToBytes(ssRsi.str());
+      }
+
+      outRsi = sigShareRsiForBlock;  // Copy
     }
   }
 
@@ -161,7 +213,7 @@ void UTTCommandsHandler::initAppState() {
 
   LOG_INFO(logger_, "Loaded config '" << fileName);
 
-  // ToDo: Init public balances with some value in the config
+  // [TODO-UTT]: Init public balances with some value in the config
   for (const auto& pid : config_.pids_) {
     state_.addAccount(Account{pid});
   }
@@ -180,10 +232,16 @@ void UTTCommandsHandler::syncAppState() {
     const auto key = "tx" + std::to_string(*missingBlockId);
     const auto v = getLatest(key);
 
-    LOG_WARN(logger_, "UTT AppState fetching missing block " << *missingBlockId << " tx: " << v);
+    LOG_INFO(logger_, "Fetching tx for missing block " << *missingBlockId);
 
     auto tx = parseTx(v);
     if (!tx) throw std::runtime_error("Failed to parse tx!");
+
+    if (const auto* txUtt = std::get_if<TxUtt>(&(*tx))) {
+      LOG_INFO(logger_, "Executing utt tx: " << txUtt->utt_.getHashHex());
+    } else {
+      LOG_INFO(logger_, "Executing public tx: " << v);
+    }
 
     state_.appendBlock(Block{std::move(*tx)});
 

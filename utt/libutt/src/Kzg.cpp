@@ -6,6 +6,8 @@
 
 #include <libfqfft/polynomial_arithmetic/basic_operations.hpp>
 
+using namespace libutt;
+
 std::ostream& operator<<(std::ostream& out, const libutt::KZG::Params& kpp) {
   out << kpp.s << endl;
   out << kpp.q << endl;

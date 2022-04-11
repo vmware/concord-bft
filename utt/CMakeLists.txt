@@ -52,24 +52,25 @@ endif()
 include_directories(SYSTEM "/usr/local/include")
 link_directories("/usr/local/lib")
 
-set(utt_packages
-    xassert
-    xutils
-)
+# Note: xassert and xutils are part of utt source code
+# set(utt_packages
+#     xassert
+#     xutils
+# )
 
 #
 # Dependencies
 #
 # TODO: Find ate-pairing, libff, libfqfft too or issue error with pointer to install script
-foreach(package ${utt_packages})
-    find_package(${package} QUIET)
+# foreach(package ${utt_packages})
+#     find_package(${package} QUIET)
 
-    if(${package}_FOUND)
-        message("${package} library is installed!")
-    else()
-        message("${package} library not installed locally, please download from https//github.com/alinush/lib${package}")
-    endif()
-endforeach()
+#     if(${package}_FOUND)
+#         message("${package} library is installed!")
+#     else()
+#         message("${package} library not installed locally, please download from https//github.com/alinush/lib${package}")
+#     endif()
+# endforeach()
 
 #
 # C++ options
@@ -173,3 +174,5 @@ enable_testing()
 
 # Subdirectories
 add_subdirectory(libutt)
+add_subdirectory(libxassert)
+add_subdirectory(libxutils)

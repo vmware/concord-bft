@@ -11,6 +11,7 @@
 #include <xassert/XAssert.h>
 
 using namespace std;
+using namespace libutt;
 
 using libutt::Fr;
 using libutt::G1;

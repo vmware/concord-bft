@@ -72,6 +72,7 @@ std::ostream& operator<<(std::ostream& os, const UTTReplicaConfig& cfg) {
   os << JoinStr(cfg.pids_, ',') << '\n';
   os << cfg.p_;
   os << cfg.rpk_;
+  os << cfg.bpk_;
   os << cfg.bskShare_;
   return os;
 }
@@ -84,6 +85,7 @@ std::istream& operator>>(std::istream& is, UTTReplicaConfig& cfg) {
 
   is >> cfg.p_;
   is >> cfg.rpk_;
+  is >> cfg.bpk_;
   is >> cfg.bskShare_;
   return is;
 }

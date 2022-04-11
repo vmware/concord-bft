@@ -25,8 +25,6 @@
 
 using std::endl;
 
-namespace threshsign {
-
 bool Utils::fileExists(const std::string& file) {
   std::ifstream fin(file);
   return fin.good();
@@ -99,5 +97,3 @@ void Utils::hex2bin(const char* hexBuf, int hexBufLen, unsigned char* bin, int b
     hexBuf += 2;
   }
 }
-
-}  // namespace threshsign

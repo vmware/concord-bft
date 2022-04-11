@@ -1,7 +1,7 @@
 # Definition of client-server interface for the UTT Demo test application.
 
 Msg TxRequest 3 {
-    bytes tx
+    string tx
 }
 
 Msg TxReply 4 {
@@ -22,8 +22,9 @@ Msg GetBlockDataRequest 7 {
 }
 
 Msg GetBlockDataReply 8 {
+    bool success
     uint64 block_id
-    bytes tx
+    string tx
 }
 
 Msg UTTRequest 1 {
