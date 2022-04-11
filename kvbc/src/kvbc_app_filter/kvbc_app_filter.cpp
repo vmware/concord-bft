@@ -650,6 +650,15 @@ std::optional<kvbc::categorization::ImmutableInput> KvbAppFilter::getBlockEvents
     LOG_ERROR(logger_, "Couldn't get block updates");
     return {};
   }
+  // get cid
+  const auto &internal_map =
+      std::get<kvbc::categorization::VersionedInput>(
+          updates.value().categoryUpdates(concord::kvbc::categorization::kConcordInternalCategoryId)->get())
+          .kv;
+  auto it = internal_map.find(cid_key_);
+  if (it != internal_map.end()) {
+    cid = it->second.data;
+  }
   // Not all blocks have events.
   auto immutable = updates.value().categoryUpdates(concord::kvbc::categorization::kExecutionEventsCategory);
   if (!immutable) {

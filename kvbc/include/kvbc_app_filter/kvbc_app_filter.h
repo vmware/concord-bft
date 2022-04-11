@@ -32,6 +32,7 @@
 #include "kv_types.hpp"
 #include "event_group_msgs.cmf.hpp"
 #include "endianness.hpp"
+#include "kvbc_key_types.h"
 
 namespace concord {
 namespace kvbc {
@@ -223,6 +224,7 @@ class KvbAppFilter {
   logging::Logger logger_;
   const concord::kvbc::IReader *rostorage_{nullptr};
   const std::string client_id_;
+  const std::string cid_key_{kKvbKeyCorrelationId};
 
   std::pair<uint64_t, uint64_t> last_ext_and_global_eg_id_read_{0, 0};
 };

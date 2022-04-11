@@ -178,6 +178,11 @@ class FakeStorage : public concord::kvbc::IReader {
         immutable.addUpdate(std::move(key), std::move(value));
       }
       updates.add(concord::kvbc::categorization::kExecutionEventsCategory, std::move(immutable));
+      // add cid
+      std::string batch_cid = "temp_batch_cid" + std::to_string(block_id);
+      concord::kvbc::categorization::VersionedUpdates internal;
+      internal.addUpdate(std::string(cid_key_), std::move(batch_cid));
+      updates.add(concord::kvbc::categorization::kConcordInternalCategoryId, std::move(internal));
       return {updates};
     }
     // The actual storage implementation (ReplicaImpl.cpp) expects us to
@@ -255,6 +260,7 @@ class FakeStorage : public concord::kvbc::IReader {
   BlockId blockId_{0};
   BlockId first_event_group_block_id_{0};
   uint64_t latest_global_eg_id_{0};
+  const std::string cid_key_{concord::kvbc::kKvbKeyCorrelationId};
 };
 
 // Helper function to test cases involving computation of expected hash
