@@ -137,6 +137,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
         // direct options - assign directly ro a non-null flag
         {"publish-master-key-on-startup", no_argument, (int*)&replicaConfig.publishReplicasMasterKeyOnStartup, 1},
         {"add-all-keys-as-public", no_argument, &addAllKeysAsPublic, 1},
+        {"diagnostics-port", required_argument, 0, 2},
         {0, 0, 0, 0}};
     int o = 0;
     int optionIndex = 0;
@@ -160,6 +161,16 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
               }
               stateTransferMsgDelayMs = stoi(str);
               byzantineStrategies = concord::kvbc::strategy::DelayStateTransferMsgStrategy(logger, 0).getStrategyName();
+            } break;
+            case 29: {
+              std::string arg{optarg};
+              try {
+                replicaConfig.diagnosticsServerPort = arg.empty() ? 0 : std::stoi(arg);
+              } catch (std::exception&) {
+                throw std::runtime_error{
+                    "Invalid value for argument --diagnostics-port, argument should be"
+                    "a valid available port number"};
+              }
             } break;
             default: {
               std::ostringstream ss;

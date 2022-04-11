@@ -12,8 +12,10 @@
 
 import os.path
 import random
+import sys
 import time
 import unittest
+from pathlib import Path
 
 import trio
 
@@ -25,8 +27,10 @@ from util import skvbc as kvbc
 from util import eliot_logging as log
 from typing import TYPE_CHECKING
 
+
 if TYPE_CHECKING:
     from util.skvbc import SimpleKVBCProtocol
+    sys.path.append(os.path.abspath("../../util/pyclient"))
     from util.pyclient.bft_client import BftClient
     from util.bft import BftTestNetwork
     from util.skvbc_history_tracker import SkvbcTracker
