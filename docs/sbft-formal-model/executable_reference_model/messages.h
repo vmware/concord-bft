@@ -81,7 +81,10 @@ struct ViewChangeMsgsSelectedByPrimary {
   bool valid(ViewNum view, nat quorumSize);
 };
 
-struct NewViewMsg {};
+struct NewViewMsg {
+  ViewNum newView;
+  ViewChangeMsgsSelectedByPrimary vcMsgs;
+};
 bool operator==(const NewViewMsg& lhs, const NewViewMsg& rhs);
 
 }  // namespace Messages
