@@ -14,6 +14,9 @@
 
 #include "client/clientservice/request_service.hpp"
 #include "client/concordclient/concord_client.hpp"
+#include "concord_client_request.pb.h"
+
+using namespace vmware::concord::client::concord_client_request::v1;
 
 namespace concord::client::clientservice {
 
@@ -68,10 +71,12 @@ void RequestServiceCallData::sendToConcordClient() {
   bool is_any_request_type = false;
   bft::client::Msg msg;
   if (request_.has_typed_request()) {
-    google::protobuf::Any app_request = request_.typed_request();
-    size_t request_size = app_request.ByteSizeLong();
+    ConcordClientRequest concord_request;
+    concord_request.set_client_service_id(client_->getSubscriptionId());
+    concord_request.mutable_application_request()->CopyFrom(request_.typed_request());
+    size_t request_size = concord_request.ByteSizeLong();
     std::string request(request_size, '\0');
-    app_request.SerializeToArray(request.data(), request_size);
+    concord_request.SerializeToArray(request.data(), request_size);
     msg = bft::client::Msg(request.begin(), request.end());
     is_any_request_type = true;
   } else {
@@ -134,12 +139,13 @@ void RequestServiceCallData::sendToConcordClient() {
 
     // Check if the application response is of Any Type then set it to Any response.
     if (is_any_request_type) {
-      google::protobuf::Any* app_response = this->response_.mutable_typed_response();
-      if (!app_response->ParseFromArray(data.c_str(), data.size())) {
+      ConcordClientResponse concord_response;
+      if (!concord_response.ParseFromArray(data.c_str(), data.size())) {
         status = grpc::Status(grpc::StatusCode::INTERNAL, "Internal error in parsing typed response");
         this->populateResult(status);
         return;
       }
+      this->response_.mutable_typed_response()->CopyFrom(concord_response.application_response());
     } else {
       this->response_.set_raw_response(std::move(data));
     }
