@@ -19,6 +19,7 @@
 #include "bftengine/IKeyExchanger.hpp"
 #include "PersistentStorage.hpp"
 #include "ReplicaSpecificInfoManager.hpp"
+#include <mutex>
 #include <map>
 #include <set>
 #include <unordered_map>
@@ -218,9 +219,45 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
     bool committed = false;
   };
 
+  class RequestsInfo {
+   public:
+    void emplaceSafe(NodeIdType clientId, ReqId reqSeqNum, const std::string& cid);
+    bool removeRequestsOutOfBatchBoundsSafe(NodeIdType clientId, ReqId reqSequenceNum);
+    bool findSafe(ReqId reqSeqNum) const;
+    void clearSafe();
+    void removeOldPendingReqsSafe(NodeIdType clientId, ReqId reqSeqNum);
+    void removePendingForExecutionRequestSafe(NodeIdType clientId, ReqId reqSeqNum);
+
+    size_t size() const { return requestsMap_.size(); }
+    bool find(ReqId reqSeqNum) const;
+    bool isPending(ReqId reqSeqNum) const;
+    void markRequestAsCommitted(NodeIdType clientId, ReqId reqSeqNum);
+    void infoOfEarliestPendingRequest(Time& earliestTime, RequestInfo& earliestPendingReqInfo) const;
+    void logAllPendingRequestsExceedingThreshold(const int64_t threshold,
+                                                 const Time& currTime,
+                                                 int& numExceeding) const;
+
+   public:
+    mutable std::mutex requestsMapMutex_;
+    std::map<ReqId, RequestInfo> requestsMap_;
+  };
+
+  class RepliesInfo {
+   public:
+    void deleteOldestReplyIfNeededSafe(NodeIdType clientId, uint16_t maxNumOfReqsPerClient);
+    bool insertOrAssignSafe(ReqId reqSeqNum, Time time);
+    bool findSafe(ReqId reqSeqNum) const;
+
+    bool find(ReqId reqSeqNum) const;
+
+   public:
+    mutable std::mutex repliesMapMutex_;
+    std::map<ReqId, Time> repliesMap_;
+  };
+
   struct ClientInfo {
-    std::map<ReqId, RequestInfo> requestsInfo;
-    std::map<ReqId, Time> repliesInfo;  // replyId to replyTime
+    std::shared_ptr<RequestsInfo> requestsInfo;
+    std::shared_ptr<RepliesInfo> repliesInfo;
     std::pair<std::string, concord::util::crypto::KeyFormat> pubKey;
   };
 
@@ -237,7 +274,7 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
   concordMetrics::CounterHandle metric_reply_inconsistency_detected_;
   concordMetrics::CounterHandle metric_removed_due_to_out_of_boundaries_;
   std::unique_ptr<RsiDataManager> rsiManager_;
-};
+};  // namespace impl
 
 }  // namespace impl
 }  // namespace bftEngine

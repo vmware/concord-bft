@@ -133,6 +133,7 @@ void RequestsBatch::handlePossiblyExpiredRequests() {
   bool batchCancelled = false;
   string batchCid;
   atomic_uint32_t batchSize = 0;
+  auto numOfCompletedReqs = numOfCompletedReqs_.load();
   {
     const std::lock_guard<std::mutex> lock(batchMutex_);
     if (batchSize_ && reqsExpired && (numOfCompletedReqs_ >= batchSize_)) {
@@ -144,7 +145,8 @@ void RequestsBatch::handlePossiblyExpiredRequests() {
   }
   if (batchCancelled)
     LOG_INFO(preProcessor_.logger(),
-             "The batch has been cancelled as expired" << KVLOG(clientId_, batchCid, reqsExpired, batchSize));
+             "The batch has been cancelled as expired"
+                 << KVLOG(clientId_, batchCid, reqsExpired, numOfCompletedReqs, batchSize));
 }
 
 void RequestsBatch::cancelBatchAndReleaseRequests(const string &batchCidToCancel, PreProcessingResult status) {
