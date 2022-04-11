@@ -28,6 +28,19 @@ void NativeWriteBatch::put(const std::string &cFamily, const KeySpan &key, const
   detail::throwOnError("batch put failed"sv, std::move(s));
 }
 
+template <typename KeySpan, typename ValueSpan, typename TimeStamp>
+void NativeWriteBatch::put(const std::string &cFamily,
+                           const KeySpan &key,
+                           const TimeStamp &ts,
+                           const ValueSpan &value) {
+  std::array<::rocksdb::Slice, 2> keyWithTs{{key, ts}};
+  auto slval = detail::toSlice(value);
+  auto s = batch_.Put(client_->columnFamilyHandle(cFamily),
+                      ::rocksdb::SliceParts(keyWithTs.data(), 2),
+                      ::rocksdb::SliceParts(&slval, 1));
+  detail::throwOnError("batch put failed"sv, std::move(s));
+}
+
 template <typename KeySpan, typename ValueSpan>
 void NativeWriteBatch::put(const KeySpan &key, const ValueSpan &value) {
   put(NativeClient::defaultColumnFamily(), key, value);
@@ -58,6 +71,13 @@ void NativeWriteBatch::del(const std::string &cFamily, const KeySpan &key) {
 template <>
 inline void NativeWriteBatch::del<::rocksdb::Slice>(const std::string &cFamily, const ::rocksdb::Slice &key) {
   auto s = batch_.Delete(client_->columnFamilyHandle(cFamily), key);
+  detail::throwOnError("batch del failed"sv, std::move(s));
+}
+
+template <typename KeySpan, typename TimeStamp>
+void NativeWriteBatch::del(const std::string &cFamily, const KeySpan &key, const TimeStamp &ts) {
+  std::array<::rocksdb::Slice, 2> keyWithTs{{key, ts}};
+  auto s = batch_.Delete(client_->columnFamilyHandle(cFamily), ::rocksdb::SliceParts(keyWithTs.data(), 2));
   detail::throwOnError("batch del failed"sv, std::move(s));
 }
 
