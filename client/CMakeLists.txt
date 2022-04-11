@@ -1,5 +1,6 @@
 project("Concord Client")
 
+add_subdirectory("bftclient")
 add_subdirectory("reconfiguration")
 add_subdirectory("client_pool")
 
