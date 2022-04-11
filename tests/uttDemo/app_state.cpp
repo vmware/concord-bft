@@ -221,7 +221,7 @@ void AppState::executeTx(const Tx& tx) {
       }
 
       // [TODO-UTT] Remove client code from the common app state
-      // Try to claim any output coins
+      // Each wallet attempts to remove spent coins and/or add new coins
       for (auto& kvp : state_.GetAccounts()) {
         auto* wallet = kvp.second.getWallet();
         if (!wallet) continue;
@@ -229,7 +229,7 @@ void AppState::executeTx(const Tx& tx) {
         state_.pruneSpentCoins(*wallet);
 
         // Add any new coins
-        const size_t n = 4;
+        const size_t n = 4;  // [TODO-UTT] Get from config
         if (!tx.sigShares_) throw std::runtime_error("Missing sigShares in utt tx!");
         const auto& sigShares = *tx.sigShares_;
 

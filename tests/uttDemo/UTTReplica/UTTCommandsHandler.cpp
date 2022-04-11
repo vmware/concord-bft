@@ -91,9 +91,6 @@ void UTTCommandsHandler::execute(UTTCommandsHandler::ExecutionRequestsQueue& req
 }
 
 TxReply UTTCommandsHandler::handleRequest(const TxRequest& txRequest) {
-  // auto cmd = publicTx.tx;
-  // LOG_INFO(logger_, "Executing TxRequest with command: " << cmd);
-
   auto tx = parseTx(txRequest.tx);
   if (!tx) throw std::runtime_error("Failed to parse tx!");
 
@@ -152,13 +149,16 @@ GetLastBlockReply UTTCommandsHandler::handleRequest(const GetLastBlockRequest&) 
 GetBlockDataReply UTTCommandsHandler::handleRequest(const GetBlockDataRequest& req, std::vector<uint8_t>& outRsi) {
   LOG_INFO(logger_, "Executing GetBlockDataRequest for block_id=" << req.block_id);
 
+  GetBlockDataReply reply;
+
   const auto* block = state_.getBlockById(req.block_id);
   if (!block) {
     LOG_WARN(logger_, "Request block " << req.block_id << " does not exist!");
-    return GetBlockDataReply{};
+    reply.success = false;
+    return reply;
   }
 
-  GetBlockDataReply reply;
+  reply.success = true;
   reply.block_id = block->id_;
 
   if (block->tx_) {

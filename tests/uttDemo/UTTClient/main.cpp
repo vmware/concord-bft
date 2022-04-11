@@ -199,7 +199,12 @@ GetBlockDataReply sendGetBlockDataRequest(Client& client, BlockId blockId, Repli
   deserialize(replyBytes.matched_data, reply);
 
   const auto& blockDataReply = std::get<GetBlockDataReply>(reply.reply);  // throws if unexpected variant
-  std::cout << "Got GetBlockDataReply, block_id=" << blockDataReply.block_id << '\n';
+  std::cout << "Got GetBlockDataReply, success=" << blockDataReply.success << " block_id=" << blockDataReply.block_id
+            << '\n';
+
+  if (!blockDataReply.success) {
+    return blockDataReply;
+  }
 
   // Deserialize sign shares
   // [TODO-UTT]: Need to collect F+1 (out of 2F+1) shares that combine to a valid RandSig
@@ -247,6 +252,8 @@ void syncState(AppState& state, Client& client) {
     ReplicaSigShares sigShares;
     auto blockDataReply = sendGetBlockDataRequest(client, *missingBlockId, sigShares);
     const auto replyBlockId = blockDataReply.block_id;
+
+    if (!blockDataReply.success) throw std::runtime_error("Requested block does not exist!");
 
     if (replyBlockId != *missingBlockId) throw std::runtime_error("Requested missing block id differs from reply!");
 
@@ -371,6 +378,7 @@ void runUttPayment(const UttPayment& payment, AppState& state, Client& client) {
       std::cout << "Ok.\n";
     } else {
       std::cout << "Transaction failed: " << reply.err << '\n';
+      break;  // Stop payment if we encounter an error
     }
 
     if (isPayment) {

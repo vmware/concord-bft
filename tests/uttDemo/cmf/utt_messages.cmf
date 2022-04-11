@@ -22,6 +22,7 @@ Msg GetBlockDataRequest 7 {
 }
 
 Msg GetBlockDataReply 8 {
+    bool success
     uint64 block_id
     string tx
 }
