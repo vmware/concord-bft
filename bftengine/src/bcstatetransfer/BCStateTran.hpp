@@ -667,7 +667,8 @@ class BCStateTran : public IStateTransfer {
                                         src_get_block_size_bytes,
                                         src_send_batch_duration,
                                         src_send_batch_size_bytes,
-                                        src_send_batch_size_chunks});
+                                        src_send_batch_size_chunks,
+                                        src_next_block_wait_duration});
     }
     ~Recorders() {
       auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
@@ -700,6 +701,8 @@ class BCStateTran : public IStateTransfer {
         src_send_batch_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
     DEFINE_SHARED_RECORDER(src_send_batch_size_bytes, 1, MAX_BATCH_SIZE_BYTES, 3, concord::diagnostics::Unit::BYTES);
     DEFINE_SHARED_RECORDER(src_send_batch_size_chunks, 1, MAX_BATCH_SIZE_BLOCKS, 3, concord::diagnostics::Unit::COUNT);
+    DEFINE_SHARED_RECORDER(
+        src_next_block_wait_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
   };
   Recorders histograms_;
 

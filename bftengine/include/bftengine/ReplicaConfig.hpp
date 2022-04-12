@@ -72,7 +72,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                "1 <= concurrencyLevel <= 30");
   CONFIG_PARAM(numWorkerThreadsForBlockIO,
                uint16_t,
-               0,
+               8,
                "Number of workers threads to be used for blocks IO"
                "operations. When set to 0, std::thread::hardware_concurrency() is set by default");
   CONFIG_PARAM(viewChangeProtocolEnabled, bool, false, "whether the view change protocol enabled");
