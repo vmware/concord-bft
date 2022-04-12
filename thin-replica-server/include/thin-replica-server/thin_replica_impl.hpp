@@ -513,7 +513,6 @@ class ThinReplicaImpl {
         filtered_eg_update.value().event_group_id = next_ext_eg_id;
 
         if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Data>()) {
-          //  auto correlation_id = filtered_update.correlation_id; (TODO (Shruti) - Get correlation ID)
           sendEventGroupData(stream, filtered_eg_update.value(), sub_eg_update.parent_span);
         } else if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Hash>()) {
           sendEventGroupHash(stream,
@@ -1027,7 +1026,6 @@ class ThinReplicaImpl {
         kvb_filter->setLastEgIdsRead(ext_eg_id++, next_global_eg_id_to_read++);
 
         if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Data>()) {
-          //  auto correlation_id = filtered_update.correlation_id; (TODO (Shruti) - Get correlation ID)
           sendEventGroupData(stream, filtered_eg_update.value());
         } else if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Hash>()) {
           sendEventGroupHash(stream,

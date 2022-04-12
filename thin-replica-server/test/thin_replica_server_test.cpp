@@ -22,6 +22,7 @@
 #include "concord_kvbc.pb.h"
 
 #include "kv_types.hpp"
+#include "kvbc_app_filter/kvbc_key_types.h"
 #include "thin-replica-server/subscription_buffer.hpp"
 #include "thin-replica-server/thin_replica_impl.hpp"
 
@@ -268,6 +269,11 @@ class FakeStorage : public concord::kvbc::IReader {
         immutable.addUpdate(std::move(key), std::move(value));
       }
       updates.add(concord::kvbc::categorization::kExecutionEventsCategory, std::move(immutable));
+      // add cid
+      std::string batch_cid = "temp_batch_cid" + std::to_string(block_id);
+      concord::kvbc::categorization::VersionedUpdates internal;
+      internal.addUpdate(std::string(cid_key_), std::move(batch_cid));
+      updates.add(concord::kvbc::categorization::kConcordInternalCategoryId, std::move(internal));
       return {updates};
     }
     // The actual storage implementation (ReplicaImpl.cpp) expects us to
@@ -367,6 +373,7 @@ class FakeStorage : public concord::kvbc::IReader {
   std::map<std::string, std::string> latest_table;
   // given trid#<event_group_id> as key, the map returns the global_event_group_id
   std::map<std::string, std::string> tag_table;
+  const std::string cid_key_{concord::kvbc::kKvbKeyCorrelationId};
 };
 
 class TestServerContext {
