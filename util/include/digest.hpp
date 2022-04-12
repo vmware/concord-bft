@@ -11,7 +11,6 @@
 
 #pragma once
 
-#include <memory.h>
 #include "digest_type.hpp"
 #include "digest_holder.hpp"
 #include "cryptopp_digest_creator.hpp"

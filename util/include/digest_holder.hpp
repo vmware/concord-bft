@@ -71,12 +71,12 @@ class DigestHolder {
     return *this;
   }
 
-  static void digestOfDigest(const DigestHolder& inDigest, DigestHolder& outDigest) {
+  void digestOfDigest(const DigestHolder& inDigest, DigestHolder& outDigest) {
     CREATOR digestCreator;
     digestCreator.compute(inDigest.d, sizeof(DigestHolder), outDigest.d, sizeof(DigestHolder));
   }
 
-  static void calcCombination(const DigestHolder& inDigest, int64_t inDataA, int64_t inDataB, DigestHolder& outDigest) {
+  void calcCombination(const DigestHolder& inDigest, int64_t inDataA, int64_t inDataB, DigestHolder& outDigest) {
     const size_t X = ((DIGEST_SIZE / sizeof(uint64_t)) / 2);
 
     std::memcpy(outDigest.d, inDigest.d, DIGEST_SIZE);

@@ -102,8 +102,8 @@ bool SeqNumInfo::addMsg(PrePrepareMsg* m, bool directAdd, bool isTimeCorrect) {
   isTimeCorrect_ = isTimeCorrect;
 
   // set expected
-  Digest tmpDigest;
-  Digest::calcCombination(m->digestOfRequests(), m->viewNumber(), m->seqNumber(), tmpDigest);
+  Digest tmpDigest, digestHelper;
+  digestHelper.calcCombination(m->digestOfRequests(), m->viewNumber(), m->seqNumber(), tmpDigest);
   if (!directAdd)
     prepareSigCollector->setExpected(m->seqNumber(), m->viewNumber(), tmpDigest);
   else
@@ -128,8 +128,8 @@ bool SeqNumInfo::addSelfMsg(PrePrepareMsg* m, bool directAdd) {
   primary = true;
 
   // set expected
-  Digest tmpDigest;
-  Digest::calcCombination(m->digestOfRequests(), m->viewNumber(), m->seqNumber(), tmpDigest);
+  Digest tmpDigest, digestHelper;
+  digestHelper.calcCombination(m->digestOfRequests(), m->viewNumber(), m->seqNumber(), tmpDigest);
   if (!directAdd)
     prepareSigCollector->setExpected(m->seqNumber(), m->viewNumber(), tmpDigest);
   else
@@ -194,8 +194,8 @@ bool SeqNumInfo::addSelfCommitPartialMsgAndDigest(CommitPartialMsg* m, Digest& c
   ConcordAssert(replica->getReplicasInfo().myId() == m->senderId());
   ConcordAssert(!forcedCompleted);
 
-  Digest tmpDigest;
-  Digest::calcCombination(commitDigest, m->viewNumber(), m->seqNumber(), tmpDigest);
+  Digest tmpDigest, digestHelper;
+  digestHelper.calcCombination(commitDigest, m->viewNumber(), m->seqNumber(), tmpDigest);
   bool r;
   if (!directAdd) {
     commitMsgsCollector->setExpected(m->seqNumber(), m->viewNumber(), tmpDigest);
