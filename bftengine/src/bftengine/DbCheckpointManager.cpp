@@ -158,7 +158,7 @@ uint64_t DbCheckpointManager::directorySize(const _fs::path& directory, const bo
       }
     }
   } catch (std::exception& e) {
-    LOG_ERROR(getLogger(), "Failed to find size of the checkpoint dir: " << e.what());
+    LOG_WARN(getLogger(), "Failed to find size of the checkpoint dir: " << e.what());
   }
   return size;
 }
