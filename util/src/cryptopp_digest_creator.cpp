@@ -33,7 +33,7 @@ CryptoppDigestCreator::CryptoppDigestCreator() {
   internalState_ = p;
 }
 
-size_t CryptoppDigestCreator::digestLength() { return DigestType::DIGESTSIZE; }
+size_t CryptoppDigestCreator::digestLength() const { return DigestType::DIGESTSIZE; }
 
 bool CryptoppDigestCreator::compute(const char* input,
                                     size_t inputLength,
@@ -46,7 +46,6 @@ bool CryptoppDigestCreator::compute(const char* input,
   if (lengthOfBufferForDigest < size) {
     return false;
   }
-
   SecByteBlock digest(size);
 
   dig.Update((CryptoPP::byte*)input, inputLength);

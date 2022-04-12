@@ -47,8 +47,8 @@ SignedShareBase* SignedShareBase::create(int16_t type,
   m->b()->epochNum = EpochManager::instance().getSelfEpochNumber();
   m->b()->thresSigLength = (uint16_t)sigLen;
 
-  Digest tmpDigest;
-  Digest::calcCombination(digest, v, s, tmpDigest);
+  Digest tmpDigest, digestHelper;
+  digestHelper.calcCombination(digest, v, s, tmpDigest);
 
   auto position = m->body() + sizeof(Header);
   std::memcpy(position, spanContext.data().data(), spanContext.data().size());

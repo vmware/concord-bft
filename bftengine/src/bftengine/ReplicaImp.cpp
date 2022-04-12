@@ -1355,8 +1355,8 @@ void ReplicaImp::sendPartialProof(SeqNumInfo &seqNumInfo) {
       else
         commitSigner = CryptoManager::instance().thresholdSignerForOptimisticCommit(seqNum);
 
-      Digest tmpDigest;
-      Digest::calcCombination(ppDigest, getCurrentView(), seqNum, tmpDigest);
+      Digest tmpDigest, digestHelper;
+      digestHelper.calcCombination(ppDigest, getCurrentView(), seqNum, tmpDigest);
 
       const auto &span_context = pp->spanContext<std::remove_pointer<decltype(pp)>::type>();
       part = new PartialCommitProofMsg(
@@ -4173,8 +4173,8 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
         else
           commitSigner = CryptoManager::instance().thresholdSignerForOptimisticCommit(seqNum);
 
-        Digest tmpDigest;
-        Digest::calcCombination(ppDigest, getCurrentView(), seqNum, tmpDigest);
+        Digest tmpDigest, digestHelper;
+        digestHelper.calcCombination(ppDigest, getCurrentView(), seqNum, tmpDigest);
 
         PartialCommitProofMsg *p = new PartialCommitProofMsg(
             config_.getreplicaId(), getCurrentView(), seqNum, pathInPrePrepare, tmpDigest, commitSigner);
