@@ -22,7 +22,9 @@
 #include "communication/ICommunication.hpp"
 #include "PerformanceManager.hpp"
 #include "SharedTypes.hpp"
-#include "../../../bftclient/include/bftclient/base_types.h"
+
+// TODO: Use proper cmake targets instead of relative paths
+#include "../../../client/bftclient/include/bftclient/base_types.h"
 
 namespace bftEngine {
 struct SimpleClientParams {
