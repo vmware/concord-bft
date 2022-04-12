@@ -27,8 +27,11 @@ template <typename SHACTX,
                                       std::is_same_v<SHACTX, concord::util::SHA3_256>>>
 class OpenSSLDigestCreator : public DigestCreator {
  public:
-  OpenSSLDigestCreator() {}
-  virtual ~OpenSSLDigestCreator() {}
+  OpenSSLDigestCreator() = default;
+
+  // Do not allow copying.
+  OpenSSLDigestCreator(const OpenSSLDigestCreator&) = delete;
+  OpenSSLDigestCreator& operator=(const OpenSSLDigestCreator&) = delete;
 
   void init() {
     if (!initialized_) {
@@ -37,7 +40,7 @@ class OpenSSLDigestCreator : public DigestCreator {
     }
   }
 
-  void update(const char* data, size_t len) {
+  void updateDigest(const char* data, const size_t len) {
     ConcordAssert(nullptr != data);
 
     init();
@@ -47,20 +50,24 @@ class OpenSSLDigestCreator : public DigestCreator {
   void writeDigest(char* outDigest) {
     ConcordAssert(nullptr != outDigest);
 
-    auto digest = hash_ctx_.finish();
+    initialized_ = false;
+    const auto digest = hash_ctx_.finish();
     memcpy(outDigest, std::string(digest.begin(), digest.end()).c_str(), hash_ctx_.SIZE_IN_BYTES);
   }
 
   size_t digestLength() const { return hash_ctx_.SIZE_IN_BYTES; }
 
-  bool compute(const char* input, size_t inputLength, char* outBufferForDigest, size_t lengthOfBufferForDigest) {
+  bool computeDigest(const char* input,
+                     const size_t inputLength,
+                     char* outBufferForDigest,
+                     const size_t lengthOfBufferForDigest) {
     ConcordAssert(nullptr != input);
     ConcordAssert(nullptr != outBufferForDigest);
 
     if (lengthOfBufferForDigest < hash_ctx_.SIZE_IN_BYTES) {
       return false;
     }
-    auto digest = hash_ctx_.digest(input, inputLength);
+    const auto digest = hash_ctx_.digest(input, inputLength);
     memcpy(outBufferForDigest, std::string(digest.begin(), digest.end()).c_str(), hash_ctx_.SIZE_IN_BYTES);
 
     return true;

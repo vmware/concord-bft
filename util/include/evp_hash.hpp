@@ -14,16 +14,14 @@
 #pragma once
 
 #include <array>
-#include <utility>
 #include <iomanip>
 
 #include <openssl/evp.h>
 
+#include "hex_tools.h"
 #include "assertUtils.hpp"
 
-namespace concord {
-namespace util {
-namespace detail {
+namespace concord::util::detail {
 
 // A simple wrapper class around OpenSSL versions > 1.1.1 that implements EVP hash functions.
 template <const EVP_MD* (*EVPMethod)(), size_t DIGEST_SIZE_IN_BYTES>
@@ -35,7 +33,7 @@ class EVPHash {
   EVPHash() noexcept : ctx_(EVP_MD_CTX_new()) { ConcordAssert(ctx_ != nullptr); }
 
   ~EVPHash() noexcept {
-    if (ctx_) {
+    if (nullptr != ctx_) {
       EVP_MD_CTX_destroy(ctx_);
     }
   }
@@ -71,7 +69,7 @@ class EVPHash {
     ConcordAssert(EVP_DigestUpdate(ctx_, buf, size) == 1);
 
     Digest digest;
-    unsigned int _digest_len;
+    unsigned int _digest_len{0};
     ConcordAssert(EVP_DigestFinal_ex(ctx_, digest.data(), &_digest_len) == 1);
     ConcordAssert(_digest_len == SIZE_IN_BYTES);
     return digest;
@@ -95,24 +93,19 @@ class EVPHash {
 
   Digest finish() noexcept {
     Digest digest;
-    unsigned int _digest_len;
+    unsigned int _digest_len{0};
     ConcordAssert(EVP_DigestFinal_ex(ctx_, digest.data(), &_digest_len) == 1);
     ConcordAssert(_digest_len == SIZE_IN_BYTES);
     updating_ = false;
     return digest;
   }
-  static std::string toHexString(const Digest& digest) {
-    std::ostringstream oss;
-    for (size_t i = 0; i < SIZE_IN_BYTES; ++i)
-      oss << std::setfill('0') << std::setw(2) << std::hex << std::uppercase << (0xff & (unsigned int)digest[i]);
-    return oss.str();
+
+  std::string toHexString(const Digest& digest) {
+    return concordUtils::bufferToHex(std::string(digest.begin(), digest.end()).c_str(), SIZE_IN_BYTES, false);
   }
 
  private:
-  EVP_MD_CTX* ctx_;
-  bool updating_ = false;
+  EVP_MD_CTX* ctx_{nullptr};
+  bool updating_{false};
 };
-
-}  // namespace detail
-}  // namespace util
-}  // namespace concord
+}  // namespace concord::util::detail

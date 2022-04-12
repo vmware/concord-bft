@@ -79,7 +79,7 @@ Key S3KeyGenerator::blockKey(const BlockId &blockId) const {
 
 Key S3KeyGenerator::dataKey(const Key &key, const BlockId &blockId) const {
   auto digest = concord::util::SHA3_256().digest(key.data(), key.length());
-  auto digest_str = concord::util::SHA3_256::toHexString(digest);
+  auto digest_str = concord::util::SHA3_256().toHexString(digest);
   LOG_DEBUG(logger(), prefix_ + std::string("keys/") + digest_str);
   return prefix_ + std::string("keys/") + digest_str;
 }
