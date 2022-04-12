@@ -9,6 +9,9 @@ tags
 compile_commands.json
 *__pycache__
 MakefileCustom
+utt-demo-run/bin/*
+utt-demo-run/logs/*
+utt-demo-run/rocksdb/*
 
 # VIM swap.
 # Copied from https://github.com/github/gitignore/blob/master/Global/Vim.gitignore

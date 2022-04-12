@@ -1,0 +1,8 @@
+# Network configuration for running the demo with docker-compose
+replicas_config:
+ - 127.0.0.1:3710
+ - 127.0.0.1:3712
+ - 127.0.0.1:3714
+ - 127.0.0.1:3716
+
+clients_config: 127.0.0.1:3718

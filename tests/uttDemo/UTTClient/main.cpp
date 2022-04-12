@@ -118,7 +118,7 @@ void initAccounts(AppState& state) {
 
   if (!state.GetAccounts().empty()) throw std::runtime_error("Accounts already exist");
   for (int i = 1; i <= 3; ++i) {
-    const std::string fileName = "utt_client_" + std::to_string(i);
+    const std::string fileName = "config/utt_client_" + std::to_string(i);
     std::ifstream ifs(fileName);
     if (!ifs.is_open()) throw std::runtime_error("Missing config: " + fileName);
 
@@ -415,12 +415,11 @@ void dbgForceCheckpoint(AppState& state, Client& client) {
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 int main(int argc, char** argv) {
-  logging::initLogger("logging.properties");
+  logging::initLogger("config/logging.properties");
   ClientParams clientParams = setupClientParams(argc, argv);
 
-  if (clientParams.clientId == UINT16_MAX || clientParams.numOfFaulty == UINT16_MAX ||
-      clientParams.numOfSlow == UINT16_MAX || clientParams.numOfOperations == UINT32_MAX) {
-    std::cout << "Wrong usage! Required parameters: " << argv[0] << " -f F -c C -p NUM_OPS -i ID";
+  if (clientParams.clientId == UINT16_MAX || clientParams.numOfFaulty == UINT16_MAX) {
+    std::cout << "Wrong usage! Required parameters: " << argv[0] << " -f <numFaulty> -i <id>";
     exit(-1);
   }
 

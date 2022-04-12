@@ -1,3 +1,3 @@
 #!/bin/bash
-rm -rf concord.log* core.* simpleKVBTests_DB_*
+rm -rf logs/* core.* rocksdb/*
 
