@@ -81,12 +81,56 @@ class TimeServiceManager {
     return last_timestamp;
   }
 
-  [[nodiscard]] ConsensusTickRep getTimePoint() {
-    return std::chrono::duration_cast<ConsensusTime>(ClockT::now().time_since_epoch()).count();
+  // Returns a client request message with timestamp (current system clock time)
+  [[nodiscard]] std::unique_ptr<impl::ClientRequestMsg> createClientRequestMsg() const {
+    const auto& config = ReplicaConfig::instance();
+    const auto now = std::chrono::duration_cast<ConsensusTime>(ClockT::now().time_since_epoch());
+    const auto& serialized = concord::util::serialize(now);
+    return std::make_unique<impl::ClientRequestMsg>(config.replicaId,
+                                                    MsgFlag::TIME_SERVICE_FLAG,
+                                                    0U,
+                                                    serialized.size(),
+                                                    serialized.data(),
+                                                    std::numeric_limits<uint64_t>::max(),
+                                                    "TIME_SERVICE");
   }
 
-  [[nodiscard]] bool isPrimarysTimeWithinBounds(ConsensusTickRep timePoint) const {
-    const ConsensusTime t(timePoint);
+  [[nodiscard]] bool hasTimeRequest(const impl::PrePrepareMsg& msg) const {
+    if (msg.numberOfRequests() < 2) {
+      LOG_WARN(TS_MNGR, "PrePrepare with Time Service on, cannot have less than 2 messages");
+      ill_formed_preprepare_++;
+      metrics_component_.UpdateAggregator();
+      return false;
+    }
+    auto it = impl::RequestsIterator(&msg);
+    char* requestBody = nullptr;
+    ConcordAssertEQ(it.getCurrent(requestBody), true);
+
+    ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
+    if (req.flags() != MsgFlag::TIME_SERVICE_FLAG) {
+      LOG_WARN(GL, "Time Service is on but first CR in PrePrepare is not TS request");
+      ill_formed_preprepare_++;
+      metrics_component_.UpdateAggregator();
+      return false;
+    }
+    return true;
+  }
+
+  [[nodiscard]] bool isPrimarysTimeWithinBounds(const impl::PrePrepareMsg& msg) const {
+    ConcordAssertGE(msg.numberOfRequests(), 1);
+
+    auto it = impl::RequestsIterator(&msg);
+    char* requestBody = nullptr;
+    ConcordAssertEQ(it.getCurrent(requestBody), true);
+
+    ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
+    return isPrimarysTimeWithinBounds(req);
+  }
+
+  [[nodiscard]] bool isPrimarysTimeWithinBounds(impl::ClientRequestMsg& msg) const {
+    ConcordAssert((msg.flags() & MsgFlag::TIME_SERVICE_FLAG) != 0 &&
+                  "TimeServiceManager supports only messages with TIME_SERVICE_FLAG");
+    const auto t = concord::util::deserialize<ConsensusTime>(msg.requestBuf(), msg.requestBuf() + msg.requestLength());
     const auto now = std::chrono::duration_cast<ConsensusTime>(ClockT::now().time_since_epoch());
 
     const auto& config = ReplicaConfig::instance();

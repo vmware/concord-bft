@@ -38,7 +38,6 @@ class PrePrepareMsg : public MessageBase {
     EpochNum epochNum;
     uint16_t flags;
     uint64_t batchCidLength;
-    int64_t time;
     Digest digestOfRequests;
 
     uint16_t numberOfRequests;
@@ -51,7 +50,7 @@ class PrePrepareMsg : public MessageBase {
     // 10 = SLOW) bits 4-15: zero
   };
 #pragma pack(pop)
-  static_assert(sizeof(Header) == (6 + 8 + 8 + 8 + 2 + 8 + DIGEST_SIZE + 2 + 4 + 8), "Header is 86B");
+  static_assert(sizeof(Header) == (6 + 8 + 8 + 8 + 2 + DIGEST_SIZE + 2 + 4 + 8), "Header is 78B");
 
   static const size_t prePrepareHeaderPrefix =
       sizeof(Header) - sizeof(Header::numberOfRequests) - sizeof(Header::endLocationOfLastRequest);
@@ -99,8 +98,7 @@ class PrePrepareMsg : public MessageBase {
 
   SeqNum seqNumber() const { return b()->seqNum; }
   void setSeqNumber(SeqNum s) { b()->seqNum = s; }
-  int64_t getTime() const { return b()->time; }
-  void setTime(int64_t time) { b()->time = time; }
+
   std::string getCid() const;
   void setCid(SeqNum s);
 
