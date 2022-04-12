@@ -45,6 +45,9 @@ class EVPHash {
   };
 
   EVPHash& operator=(EVPHash&& other) noexcept {
+    if (nullptr != ctx_) {  // Prevent memory leak.
+      EVP_MD_CTX_destroy(ctx_);
+    }
     *this = EVPHash{std::move(other)};
     return *this;
   }
