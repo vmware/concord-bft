@@ -28,7 +28,6 @@ void SeqNumData::reset() {
   commitFullMsg_ = nullptr;
   slowStarted_ = false;
   forceCompleted_ = false;
-  requestsMap_.zeroAll();
 }
 
 size_t SeqNumData::serializeMsg(char *&buf, MessageBase *msg) { return MessageBase::serializeMsg(buf, msg); }
@@ -47,15 +46,6 @@ size_t SeqNumData::serializeForceCompleted(char *&buf) const { return serializeO
 
 size_t SeqNumData::serializeSlowStarted(char *&buf) const { return serializeOneByte(buf, slowStarted_); }
 
-size_t SeqNumData::serializesIsExecuted(char *&buf) const { return serializeOneByte(buf, isExecuted_); }
-size_t SeqNumData::serializeRequestsMap(char *&buf) const {
-  const std::size_t data_size = requestsMap_.sizeNeededInBuffer();
-  uint32_t actual_data = 0;
-  requestsMap_.writeToBuffer(buf, data_size, &actual_data);
-  ConcordAssert(actual_data == data_size);
-  return actual_data;
-}
-
 size_t SeqNumData::serializeOneByte(char *&buf, const uint8_t &oneByte) {
   const size_t oneByteSize = sizeof(oneByte);
   memcpy(buf, &oneByte, oneByteSize);
@@ -67,8 +57,7 @@ void SeqNumData::serialize(char *buf, uint32_t bufLen, size_t &actualSize) const
   actualSize = 0;
   ConcordAssert(bufLen >= maxSize());
   actualSize = serializePrePrepareMsg(buf) + serializeFullCommitProofMsg(buf) + serializePrepareFullMsg(buf) +
-               serializeCommitFullMsg(buf) + serializeForceCompleted(buf) + serializeSlowStarted(buf) +
-               serializeRequestsMap(buf) + serializesIsExecuted(buf);
+               serializeCommitFullMsg(buf) + serializeForceCompleted(buf) + serializeSlowStarted(buf);
 }
 
 MessageBase *SeqNumData::deserializeMsg(char *&buf, uint32_t bufLen, size_t &actualMsgSize) {
@@ -94,24 +83,14 @@ SeqNumData SeqNumData::deserialize(char *buf, uint32_t bufLen, uint32_t &actualS
 
   const bool forceCompleted = deserializeOneByte(buf);
   const bool slowStarted = deserializeOneByte(buf);
-  uint32_t bitMapSize = 0;
-  auto number_of_reqeusts = MAX_NUM_OF_REQUESTS;
-  if (prePrepareMsg) {
-    number_of_reqeusts = ((PrePrepareMsg *)prePrepareMsg)->numberOfRequests();
-  }
-  Bitmap requestsMap = Bitmap(buf, Bitmap::maxSizeNeededToStoreInBuffer(number_of_reqeusts), &bitMapSize);
-  buf += bitMapSize;
-  const bool isExecuted = deserializeOneByte(buf);
-  actualSize = msgSize1 + msgSize2 + msgSize3 + msgSize4 + sizeof(slowStarted) + sizeof(forceCompleted) + bitMapSize +
-               sizeof(isExecuted_);
+
+  actualSize = msgSize1 + msgSize2 + msgSize3 + msgSize4 + sizeof(slowStarted) + sizeof(forceCompleted);
   return SeqNumData{(PrePrepareMsg *)prePrepareMsg,
                     (FullCommitProofMsg *)fullCommitProofMsg,
                     (PrepareFullMsg *)prepareFullMsg,
                     (CommitFullMsg *)commitFullMsg,
                     forceCompleted,
-                    slowStarted,
-                    requestsMap,
-                    isExecuted};
+                    slowStarted};
 }
 
 bool SeqNumData::compareMessages(MessageBase *msg, MessageBase *otherMsg) {
@@ -131,8 +110,7 @@ bool SeqNumData::equals(const SeqNumData &other) const {
 uint32_t SeqNumData::maxSize() {
   return SeqNumData::maxMessageSize<PrePrepareMsg>() + SeqNumData::maxMessageSize<FullCommitProofMsg>() +
          SeqNumData::maxMessageSize<PrepareFullMsg>() + SeqNumData::maxMessageSize<CommitFullMsg>() +
-         sizeof(slowStarted_) + sizeof(forceCompleted_) + Bitmap::maxSizeNeededToStoreInBuffer(MAX_NUM_OF_REQUESTS) +
-         sizeof(isExecuted_);  // TODO: configurable ?
+         sizeof(slowStarted_) + sizeof(forceCompleted_);
 }
 
 /*****************************************************************************/

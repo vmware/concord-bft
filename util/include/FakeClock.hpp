@@ -29,7 +29,7 @@ class FakeClock {
 
   static std::chrono::system_clock::time_point now() {
     // read the file for this replica id and return time based on the command present in file
-    auto& config = bftEngine::ReplicaConfig::instance();
+    auto& config = ReplicaConfig::instance();
     std::string path = "/tmp/fake_clock_" + std::to_string(config.replicaId) + ".config";
     std::fstream file_reader(path, std::ios_base::in);
     if (!file_reader.good()) {

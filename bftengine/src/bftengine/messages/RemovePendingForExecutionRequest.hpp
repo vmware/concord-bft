@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -16,11 +16,10 @@
 
 namespace bftEngine::impl {
 
-struct FinishPrePrepareExecutionInternalMsg {
-  PrePrepareMsg* prePrepareMsg = nullptr;
-  IRequestsHandler::ExecutionRequestsQueue* pAccumulatedRequests = nullptr;
-  FinishPrePrepareExecutionInternalMsg(PrePrepareMsg* pp, IRequestsHandler::ExecutionRequestsQueue* q)
-      : prePrepareMsg{pp}, pAccumulatedRequests{q} {}
+struct RemovePendingForExecutionRequest {
+  uint16_t clientProxyId;
+  ReqId requestSeqNum;
+  RemovePendingForExecutionRequest(uint16_t cpid, ReqId rsn) : clientProxyId{cpid}, requestSeqNum{rsn} {}
 };
 
 }  // namespace bftEngine::impl

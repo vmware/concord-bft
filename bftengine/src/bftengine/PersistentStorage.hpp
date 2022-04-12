@@ -18,7 +18,6 @@
 #include "ViewsManager.hpp"
 #include "ReplicaConfig.hpp"
 #include "PersistentStorageDescriptors.hpp"
-#include "Bitmap.hpp"
 
 #include <cstdint>
 #include <optional>
@@ -107,8 +106,7 @@ class PersistentStorage {
   virtual void setForceCompletedInSeqNumWindow(SeqNum seqNum, bool forceCompleted) = 0;
   virtual void setPrepareFullMsgInSeqNumWindow(SeqNum seqNum, PrepareFullMsg *msg) = 0;
   virtual void setCommitFullMsgInSeqNumWindow(SeqNum seqNum, CommitFullMsg *msg) = 0;
-  virtual void setRequestsMapInSeqNumWindow(SeqNum seqNum, const Bitmap &requestsMap) = 0;
-  virtual void setIsExecutedInSeqNumWindow(SeqNum seqNum, bool isExecuted) = 0;
+
   virtual void setCheckpointMsgInCheckWindow(SeqNum seqNum, CheckpointMsg *msg) = 0;
   virtual void setCompletedMarkInCheckWindow(SeqNum seqNum, bool mark) = 0;
 

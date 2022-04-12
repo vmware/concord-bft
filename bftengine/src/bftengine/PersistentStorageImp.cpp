@@ -473,22 +473,6 @@ void PersistentStorageImp::setMsgInSeqNumWindow(SeqNum seqNum,
   metadataStorage_->writeInBatch(convertedIndex, buf.get(), actualSize);
 }
 
-void PersistentStorageImp::setRequestsMapInSeqNumWindow(SeqNum seqNum, const Bitmap &reqeustMap) {
-  const SeqNum convertedIndex = BEGINNING_OF_SEQ_NUM_WINDOW + BIT_MAP + convertSeqNumWindowIndex(seqNum);
-  uint32_t data_size = 0;
-  UniquePtrToChar buf(new char[reqeustMap.sizeNeededInBuffer()]);
-  char *movablePtr = buf.get();
-  reqeustMap.writeToBuffer(movablePtr, reqeustMap.sizeNeededInBuffer(), &data_size);
-  ConcordAssertNE(data_size, 0);
-  ConcordAssertLT(convertedIndex, BEGINNING_OF_CHECK_WINDOW);
-  LOG_DEBUG(GL, "PersistentStorageImp::setRequestsMapInSeqNumWindow convertedIndex=" << convertedIndex);
-  metadataStorage_->writeInBatch(convertedIndex, buf.get(), data_size);
-}
-
-void PersistentStorageImp::setIsExecutedInSeqNumWindow(SeqNum seqNum, bool isExecuted) {
-  setOneByteInSeqNumWindow(seqNum, IS_EXECUTED, isExecuted);
-}
-
 void PersistentStorageImp::setPrePrepareMsgInSeqNumWindow(SeqNum seqNum, PrePrepareMsg *msg) {
   setMsgInSeqNumWindow(seqNum, PRE_PREPARE_MSG, (MessageBase *)msg, SeqNumData::maxMessageSize<PrePrepareMsg>());
 }
@@ -981,6 +965,8 @@ void PersistentStorageImp::verifyDescriptorOfLastExecution(const DescriptorOfLas
   ConcordAssert(setIsAllowed());
   ConcordAssertOR(!hasDescriptorOfLastExecution(), (descriptorOfLastExecution_.executedSeqNum < desc.executedSeqNum));
   ConcordAssertEQ(lastExecutedSeqNum_ + 1, desc.executedSeqNum);
+  ConcordAssertGE(desc.validRequests.numOfBits(), 1);
+  ConcordAssertLE(desc.validRequests.numOfBits(), maxNumOfRequestsInBatch);
 }
 
 // Helper function for getting different kinds of sequence numbers.
