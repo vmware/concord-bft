@@ -27,7 +27,7 @@ module Proof {
   import Replica
   import opened DistributedSystem
   import opened SafetySpec
-  import Library
+  import opened Library
 
   predicate IsHonestReplica(c:Constants, hostId:HostId) 
   {
@@ -434,24 +434,24 @@ module Proof {
     ProofCommitMsgsFromHonestSendersAgree(c, v, v', step);
   }
 
-  lemma QuorumOfPreparesInNetworkMonotonic(c: Constants, v:Variables, v':Variables, step:Step, h_step:Replica.Step)
-    requires NextStep(c, v, v', step)
-    requires c.clusterConfig.IsReplica(step.id)
-    requires var h_c := c.hosts[step.id].replicaConstants;
-             var h_v := v.hosts[step.id].replicaVariables;
-             var h_v' := v'.hosts[step.id].replicaVariables;
-             Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step)
-    ensures (forall view, seqID, clientOp | QuorumOfPreparesInNetwork(c, v, view, seqID, clientOp)
-                                        :: QuorumOfPreparesInNetwork(c, v', view, seqID, clientOp))
-  {
-    forall view, seqID, clientOp | QuorumOfPreparesInNetwork(c, v, view, seqID, clientOp)
-                                  ensures QuorumOfPreparesInNetwork(c, v', view, seqID, clientOp)
-    {
-      var senders := Messages.sendersOf(sentPreparesForSeqID(c, v, view, seqID, clientOp));
-      var senders' := Messages.sendersOf(sentPreparesForSeqID(c, v', view, seqID, clientOp));
-      Library.SubsetCardinality(senders, senders');
-    }
-  }
+  // lemma QuorumOfPreparesInNetworkMonotonic(c: Constants, v:Variables, v':Variables, step:Step, h_step:Replica.Step)
+  //   requires NextStep(c, v, v', step)
+  //   requires c.clusterConfig.IsReplica(step.id)
+  //   requires var h_c := c.hosts[step.id].replicaConstants;
+  //            var h_v := v.hosts[step.id].replicaVariables;
+  //            var h_v' := v'.hosts[step.id].replicaVariables;
+  //            Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step)
+  //   ensures (forall view, seqID, clientOp | QuorumOfPreparesInNetwork(c, v, view, seqID, clientOp)
+  //                                       :: QuorumOfPreparesInNetwork(c, v', view, seqID, clientOp))
+  // {
+  //   forall view, seqID, clientOp | QuorumOfPreparesInNetwork(c, v, view, seqID, clientOp)
+  //                                 ensures QuorumOfPreparesInNetwork(c, v', view, seqID, clientOp)
+  //   {
+  //     var senders := Messages.sendersOf(sentPreparesForSeqID(c, v, view, seqID, clientOp));
+  //     var senders' := Messages.sendersOf(sentPreparesForSeqID(c, v', view, seqID, clientOp));
+  //     Library.SubsetCardinality(senders, senders');
+  //   }
+  // }
 
   lemma ProofEveryCommitMsgIsSupportedByAQuorumOfPrepares(c: Constants, v:Variables, v':Variables, step:Step)
     requires Inv(c, v)
@@ -675,7 +675,7 @@ module Proof {
   {
     var step :| NextStep(c, v, v', step);
 
-    if (c.clusterConfig.IsReplica(step.id))
+    if (c.clusterConfig.IsHonestReplica(step.id))
     {
       var h_c := c.hosts[step.id].replicaConstants;
       var h_v := v.hosts[step.id].replicaVariables;
@@ -688,13 +688,13 @@ module Proof {
         case SendPrePrepareStep() => {
           SendPrePrepareStepPreservesInv(c, v, v', step, h_step);
         }
-        case RecvPrePrepareStep => {
+        case RecvPrePrepareStep() => {
           RecvPrePrepareStepPreservesInv(c, v, v', step, h_step);
         }
         case SendPrepareStep(seqID) => {
           SendPrepareStepPreservesInv(c, v, v', step, h_step);
         }
-        case RecvPrepareStep => { 
+        case RecvPrepareStep() => { 
           RecvPrepareStepPreservesInv(c, v, v', step, h_step);
         }
         case SendCommitStep(seqID) => {
@@ -717,10 +717,39 @@ module Proof {
         case SendClientOperationStep() => {
           SendClientOperationPreservesInv(c, v, v', step, h_step);
         }
-
+    } else if(c.clusterConfig.IsFaultyReplica(step.id)) {
+      InvNextFaulty(c, v, v', step);
     } else {
       assert false; // Should not be possible
     }
+  }
+
+  lemma InvNextFaulty(c: Constants, v:Variables, v':Variables, step: Step)
+    //requires Inv(c, v)
+    requires v.WF(c)
+    requires c.clusterConfig.IsFaultyReplica(step.id)
+    requires HonestReplicasLockOnCommitForGivenView(c, v)
+    requires NextStep(c, v, v', step)
+    ensures HonestReplicasLockOnCommitForGivenView(c, v')
+  {
+    reveal_HonestReplicasLockOnCommitForGivenView();
+    forall msg1, msg2 | 
+        && msg1 in v'.network.sentMsgs 
+        && msg2 in v'.network.sentMsgs 
+        && msg1.payload.Commit?
+        && msg2.payload.Commit?
+        && msg1.payload.view == msg2.payload.view
+        && msg1.payload.seqID == msg2.payload.seqID
+        && msg1.sender == msg2.sender
+        && IsHonestReplica(c, msg1.sender)
+        ensures msg1 == msg2
+        {
+          if msg1 !in v.network.sentMsgs {
+            assert step.msgOps.send == Some(msg1);
+          }
+          assert msg1 in v.network.sentMsgs;
+          assert msg2 in v.network.sentMsgs; 
+        }
   }
 
   lemma InvariantInductive(c: Constants, v:Variables, v':Variables)
