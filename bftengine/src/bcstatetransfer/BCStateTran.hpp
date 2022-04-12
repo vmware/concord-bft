@@ -464,7 +464,9 @@ class BCStateTran : public IStateTransfer {
     static size_t sizeOfBlockData;
     BlockIOContext() {
       ConcordAssert(sizeOfBlockData != 0);
-      blockData.reset(new char[sizeOfBlockData]);
+      auto buff = new char[sizeOfBlockData];
+      memset(buff, 0, sizeOfBlockData);
+      blockData.reset(buff);
     }
     uint64_t blockId = 0;
     uint32_t actualBlockSize = 0;
