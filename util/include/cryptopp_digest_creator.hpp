@@ -38,10 +38,10 @@ class CryptoppDigestCreator : public DigestCreator {
   void update(const char* data, size_t len) override;
   void writeDigest(char* outDigest) override;
   size_t digestLength() const override;
-  bool compute(const char* input,
-               size_t inputLength,
-               char* outBufferForDigest,
-               size_t lengthOfBufferForDigest) override;
+  bool computeDigest(const char* input,
+                     const size_t inputLength,
+                     char* outBufferForDigest,
+                     const size_t lengthOfBufferForDigest) override;
 
  private:
   void* internalState_;

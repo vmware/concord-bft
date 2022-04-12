@@ -139,7 +139,7 @@ TEST_F(PrePrepareMsgTestFixture, finalize_and_validate) {
     msg.addRequest(crm->body(), crm->size());
     Digest d;
     DigestGenerator digestGenerator;
-    digestGenerator.compute(crm->body(), crm->size(), (char*)&d, sizeof(Digest));
+    digestGenerator.computeDigest(crm->body(), crm->size(), (char*)&d, sizeof(Digest));
     dv.push_back({d.content(), sizeof(Digest)});
   }
   EXPECT_NO_THROW(msg.finishAddingRequests());  // create the digest
@@ -151,7 +151,7 @@ TEST_F(PrePrepareMsgTestFixture, finalize_and_validate) {
   }
   Digest d;
   DigestGenerator digestGenerator;
-  digestGenerator.compute(dod.c_str(), dod.size(), (char*)&d, sizeof(Digest));
+  digestGenerator.computeDigest(dod.c_str(), dod.size(), (char*)&d, sizeof(Digest));
   EXPECT_EQ(d, msg.digestOfRequests());
   EXPECT_NO_THROW(msg.validate(replicaInfo));  // validate the same digest
 }

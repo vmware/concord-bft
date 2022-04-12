@@ -29,7 +29,7 @@ class DigestHolder {
   DigestHolder(const char* other) { std::memcpy(d, other, DIGEST_SIZE); }
   DigestHolder(char* buf, size_t len) {
     CREATOR digestCreator;
-    digestCreator.compute(buf, len, (char*)d, DIGEST_SIZE);
+    digestCreator.computeDigest(buf, len, (char*)d, DIGEST_SIZE);
   }
   DigestHolder(const DigestHolder& other) { std::memcpy(d, other.d, DIGEST_SIZE); }
 
@@ -73,7 +73,7 @@ class DigestHolder {
 
   void digestOfDigest(const DigestHolder& inDigest, DigestHolder& outDigest) {
     CREATOR digestCreator;
-    digestCreator.compute(inDigest.d, sizeof(DigestHolder), outDigest.d, sizeof(DigestHolder));
+    digestCreator.computeDigest(inDigest.d, sizeof(DigestHolder), outDigest.d, sizeof(DigestHolder));
   }
 
   void calcCombination(const DigestHolder& inDigest, int64_t inDataA, int64_t inDataB, DigestHolder& outDigest) {
