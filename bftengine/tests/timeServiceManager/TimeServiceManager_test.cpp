@@ -66,7 +66,7 @@ TEST(TimeServiceManager, TimeWithinLimits) {
 
   auto aggregator = std::make_shared<concordMetrics::Aggregator>();
   auto manager = TimeServiceManager<FakeClock>{aggregator};
-  const auto time = manager.getTimePoint();
+  const auto time = manager.getClockTimePoint();
 
   EXPECT_TRUE(manager.isPrimarysTimeWithinBounds(time));
   EXPECT_EQ(aggregator->GetCounter("time_service", "hard_limit_reached_counter").Get(), 0);
@@ -88,7 +88,7 @@ TEST(TimeServiceManager, TimeOutOfHardLimits) {
 
   auto aggregator = std::make_shared<concordMetrics::Aggregator>();
   auto manager = TimeServiceManager<FakeClock>{aggregator};
-  const auto time = manager.getTimePoint();
+  const auto time = manager.getClockTimePoint();
 
   FakeClock::current_time = now + config.timeServiceHardLimitMillis + std::chrono::milliseconds{1};
   EXPECT_FALSE(manager.isPrimarysTimeWithinBounds(time));
@@ -114,7 +114,7 @@ TEST(TimeServiceManager, TimeOnTheEdgeOfHardLimits) {
 
   auto aggregator = std::make_shared<concordMetrics::Aggregator>();
   auto manager = TimeServiceManager<FakeClock>{aggregator};
-  const auto time = manager.getTimePoint();
+  const auto time = manager.getClockTimePoint();
 
   FakeClock::current_time = now + config.timeServiceHardLimitMillis;
   EXPECT_TRUE(manager.isPrimarysTimeWithinBounds(time));
@@ -141,7 +141,7 @@ TEST(TimeServiceManager, TimeOutOfSoftLimits) {
 
   auto aggregator = std::make_shared<concordMetrics::Aggregator>();
   auto manager = TimeServiceManager<FakeClock>{aggregator};
-  const auto time = manager.getTimePoint();
+  const auto time = manager.getClockTimePoint();
 
   FakeClock::current_time = now + config.timeServiceSoftLimitMillis + std::chrono::milliseconds{1};
   EXPECT_TRUE(manager.isPrimarysTimeWithinBounds(time));
@@ -168,7 +168,7 @@ TEST(TimeServiceManager, TimeOnTheEdgeOfSoftLimits) {
 
   auto aggregator = std::make_shared<concordMetrics::Aggregator>();
   auto manager = TimeServiceManager<FakeClock>{aggregator};
-  const auto time = manager.getTimePoint();
+  const auto time = manager.getClockTimePoint();
 
   FakeClock::current_time = now + config.timeServiceSoftLimitMillis;
   EXPECT_TRUE(manager.isPrimarysTimeWithinBounds(time));
