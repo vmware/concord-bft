@@ -81,7 +81,7 @@ class TimeServiceManager {
     return last_timestamp;
   }
 
-  [[nodiscard]] ConsensusTickRep getClockTimePoint() {
+  [[nodiscard]] ConsensusTickRep getTimePoint() {
     return std::chrono::duration_cast<ConsensusTime>(ClockT::now().time_since_epoch()).count();
   }
 

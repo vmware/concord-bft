@@ -170,7 +170,6 @@ PrePrepareMsg::PrePrepareMsg(ReplicaId sender,
   b()->seqNum = s;
   b()->epochNum = EpochManager::instance().getSelfEpochNumber();
   b()->viewNum = v;
-  b()->time = 0;
 
   char* position = body() + sizeof(Header);
   memcpy(position, spanContext.data().data(), b()->header.spanContextSize);

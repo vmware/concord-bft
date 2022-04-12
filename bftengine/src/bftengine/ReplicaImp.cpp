@@ -165,11 +165,10 @@ void ReplicaImp::registerMsgHandlers() {
 template <typename T>
 void ReplicaImp::messageHandler(MessageBase *msg) {
   T *trueTypeObj = new T(msg);
+  validateMessage(trueTypeObj);
   if (isCollectingState()) {
     // Extract only required information and handover to ST thread
-    if (validateMessage(trueTypeObj)) {
-      peekConsensusMessage<T>(msg);
-    }
+    peekConsensusMessage<T>(msg);
   }
   delete msg;
 
@@ -640,7 +639,7 @@ std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMsgBatchByOverallSiz
 std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) {
   ConcordAssertGT(requiredRequestsNum, 0);
 
-  if (requestsQueueOfPrimary.size() < requiredRequestsNum) {
+  if (requestsQueueOfPrimary.size()) {
     LOG_DEBUG(GL,
               "Not enough messages in the primary replica queue to fill a batch"
                   << KVLOG(requestsQueueOfPrimary.size(), requiredRequestsNum));
@@ -698,6 +697,16 @@ PrePrepareMsg *ReplicaImp::createPrePrepareMessage() {
     controller->onSendingPrePrepare((primaryLastUsedSeqNum + 1), firstPath);
   }
 
+  if (config_.timeServiceEnabled) {
+    // If time-service is enabled, the first client request will be time request
+    auto pp = new PrePrepareMsg(config_.getreplicaId(),
+                                getCurrentView(),
+                                (primaryLastUsedSeqNum + 1),
+                                firstPath,
+                                requestsQueueOfPrimary.front()->spanContext<ClientRequestMsg>(),
+                                primaryCombinedReqSize);
+    return pp;
+  }
   return new PrePrepareMsg(config_.getreplicaId(),
                            getCurrentView(),
                            (primaryLastUsedSeqNum + 1),
@@ -868,10 +877,7 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp) {
 void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isCreatedEarlier) {
   if (!isCurrentPrimary()) return;
   TimeRecorder scoped_timer(*histograms_.startConsensusProcess);
-  if (getReplicaConfig().timeServiceEnabled) {
-    pp->setTime(time_service_manager_->getClockTimePoint());
-  }
-
+  pp->setTime(time_service_manager_->getTimePoint());
   auto firstPath = pp->firstPath();
   if (config_.getdebugStatisticsEnabled()) {
     DebugStatistics::onSendPrePrepareMessage(pp->numberOfRequests(), requestsQueueOfPrimary.size());
@@ -1092,14 +1098,13 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
 
     bool time_is_ok = true;
     if (config_.timeServiceEnabled) {
-      auto ppmTime = msg->getTime();
-      if (ppmTime <= 0) {
-        LOG_WARN(CNSUS, "No timePoint in the prePrepare, PrePrepare will be ignored" << KVLOG(ppmTime));
+      if (msg->getTime() == 0) {
+        LOG_WARN(CNSUS, "No timePoint in the prePrepare, PrePrepare will be ignored");
         delete msg;
         return;
       }
       if (msgSeqNum > maxSeqNumTransferredFromPrevViews /* not transferred from the previous view*/) {
-        time_is_ok = time_service_manager_->isPrimarysTimeWithinBounds(ppmTime);
+        time_is_ok = time_service_manager_->isPrimarysTimeWithinBounds(msg->getTime());
       }
     }
     // For MDC it doesn't matter which type of fast path

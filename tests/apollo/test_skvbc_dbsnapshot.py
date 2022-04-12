@@ -52,10 +52,11 @@ def start_replica_cmd(builddir, replica_id):
     path = os.path.join(builddir, "tests", "simpleKVBC",
                         "TesterReplica", "skvbc_replica")
     if os.environ.get('TIME_SERVICE_ENABLED', default="FALSE").lower() == "true":
+        batch_size = "2"
         time_service_enabled = "1"
     else:
+        batch_size = "1"
         time_service_enabled = "0"
-    batch_size = "1"
     return [path,
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
@@ -83,11 +84,11 @@ def start_replica_cmd_with_high_db_window_size(builddir, replica_id):
     path = os.path.join(builddir, "tests", "simpleKVBC",
                         "TesterReplica", "skvbc_replica")
     if os.environ.get('TIME_SERVICE_ENABLED', default="FALSE").lower() == "true":
+        batch_size = "2"
         time_service_enabled = "1"
     else:
+        batch_size = "1"
         time_service_enabled = "0"
-
-    batch_size = "1"
     return [path,
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
@@ -115,11 +116,11 @@ def start_replica_cmd_db_snapshot_disabled(builddir, replica_id):
     path = os.path.join(builddir, "tests", "simpleKVBC",
                         "TesterReplica", "skvbc_replica")
     if os.environ.get('TIME_SERVICE_ENABLED', default="FALSE").lower() == "true":
+        batch_size = "2"
         time_service_enabled = "1"
     else:
+        batch_size = "1"
         time_service_enabled = "0"
-
-    batch_size = "1"
     return [path,
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
@@ -146,11 +147,11 @@ def start_replica_cmd_with_operator_and_public_keys(builddir, replica_id):
     path = os.path.join(builddir, "tests", "simpleKVBC",
                         "TesterReplica", "skvbc_replica")
     if os.environ.get('TIME_SERVICE_ENABLED', default="FALSE").lower() == "true":
+        batch_size = "2"
         time_service_enabled = "1"
     else:
+        batch_size = "1"
         time_service_enabled = "0"
-
-    batch_size = "1"
     return [path,
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
