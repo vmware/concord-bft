@@ -20,7 +20,7 @@
 #elif defined SHA256_DIGEST
 #define DigestType CryptoPP::SHA256
 #elif defined SHA512_DIGEST
-#define DigestType SHA512
+#define DigestType CryptoPP::SHA512
 #endif
 
 namespace concord::util::digest {
@@ -31,14 +31,13 @@ class CryptoppDigestCreator : public DigestCreator {
   CryptoppDigestCreator();
   virtual ~CryptoppDigestCreator();
 
-  void init() override {}
-  void update(const char* data, size_t len) override;
+  void updateDigest(const char* data, const size_t len) override;
   void writeDigest(char* outDigest) override;
   size_t digestLength() const override;
-  bool compute(const char* input,
-               size_t inputLength,
-               char* outBufferForDigest,
-               size_t lengthOfBufferForDigest) override;
+  bool computeDigest(const char* input,
+                     const size_t inputLength,
+                     char* outBufferForDigest,
+                     const size_t lengthOfBufferForDigest) override;
 
  private:
   void* internalState_;
