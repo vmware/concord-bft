@@ -53,7 +53,7 @@ add_subdirectory("proto")
 target_sources(kvbc PRIVATE src/kvbc_app_filter/kvbc_app_filter.cpp)
 target_link_libraries(kvbc PUBLIC concord_block_update concord-kvbc-proto)
 
-target_include_directories(kvbc PUBLIC include util)
+target_include_directories(kvbc PUBLIC ${PROJECT_SOURCE_DIR} include util)
 
 if(NOT BUILD_THIRDPARTY)
     find_package(OpenSSL REQUIRED)

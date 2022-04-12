@@ -146,7 +146,7 @@ class SkvbcS3IntegrityCheckTest(ApolloTest):
 
                 s3_config_path = os.path.join(bft_network.builddir, s3_config_file)
                 integrity_check_fds = (stdout_file, stderr_file)
-                integrity_check_exe = os.path.join(bft_network.builddir, "storage", "s3_integrity_check")
+                integrity_check_exe = os.path.join(bft_network.builddir, "kvbc", "tools", "db_integrity_check", "s3_integrity_check")
                 integrity_check_cmd = [integrity_check_exe,
                                        "-k", keys_file,
                                        "-3", s3_config_path]

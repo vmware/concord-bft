@@ -1,2 +1,3 @@
 add_subdirectory(db_editor)
 add_subdirectory(migrations)
+add_subdirectory(db_integrity_check)
