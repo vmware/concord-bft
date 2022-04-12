@@ -41,7 +41,7 @@
 #include "s3/config_parser.hpp"
 #endif
 
-const std::string DB_FILE_PREFIX = "./simpleKVBTests_DB_";
+const std::string DB_FILE_PREFIX = "./rocksdb/uttDemo_DB_";
 
 namespace fs = std::experimental::filesystem;
 
@@ -79,7 +79,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     std::string commConfigFile;
     std::string s3ConfigFile;
     std::string certRootPath = "certs";
-    std::string logPropsFile = "logging.properties";
+    std::string logPropsFile = "config/logging.properties";
     std::string principalsMapping;
     std::string txnSigningKeysPath;
     std::optional<std::uint32_t> cronEntryNumberOfExecutes;

@@ -205,7 +205,7 @@ void UTTCommandsHandler::initAppState() {
   AppState::initUTTLibrary();
 
   const auto replicaId = ReplicaConfig::instance().getreplicaId();
-  const auto fileName = "utt_replica_" + std::to_string(replicaId);
+  const auto fileName = "config/utt_replica_" + std::to_string(replicaId);
   std::ifstream ifs(fileName);
   if (!ifs.is_open()) throw std::runtime_error("Failed to open " + fileName);
 

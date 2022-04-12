@@ -1,0 +1,78 @@
+version: '3'
+services:
+  replica1:
+    image: "utt-demo-replica:latest"
+    command: -i 0
+    volumes:
+      - ./utt-demo-run/logs:/concord/logs
+      - ./tests/uttDemo/scripts/config:/concord/config:ro
+      - ./utt-demo-run/rocksdb:/concord/rocksdb
+    expose:
+      - 3710/tcp
+      - 3710/udp
+    networks:
+      utt-demo-net:
+        ipv4_address: 172.18.0.2
+
+  replica2:
+    image: "utt-demo-replica:latest"
+    command: -i 1
+    volumes:
+      - ./utt-demo-run/logs:/concord/logs
+      - ./tests/uttDemo/scripts/config:/concord/config:ro
+      - ./utt-demo-run/rocksdb:/concord/rocksdb
+    expose:
+      - 3710/tcp
+      - 3710/udp
+    networks:
+      utt-demo-net:
+        ipv4_address: 172.18.0.3
+
+  replica3:
+    image: "utt-demo-replica:latest"
+    command: -i 2
+    expose:
+      - 3710/tcp
+      - 3710/udp
+    volumes:
+      - ./utt-demo-run/logs:/concord/logs
+      - ./tests/uttDemo/scripts/config:/concord/config:ro
+      - ./utt-demo-run/rocksdb:/concord/rocksdb
+    networks:
+      utt-demo-net:
+        ipv4_address: 172.18.0.4
+
+  replica4:
+    image: "utt-demo-replica:latest"
+    command: -i 3
+    expose:
+      - 3710/tcp
+      - 3710/udp
+    volumes:
+      - ./utt-demo-run/logs:/concord/logs
+      - ./tests/uttDemo/scripts/config:/concord/config:ro
+      - ./utt-demo-run/rocksdb:/concord/rocksdb
+    networks:
+      utt-demo-net:
+        ipv4_address: 172.18.0.5
+
+  client1:
+    image: "utt-demo-client:latest"
+    command: -i 4
+    expose:
+      - 3710/tcp
+      - 3710/udp
+    volumes:
+      - ./utt-demo-run/logs:/concord/logs
+      - ./tests/uttDemo/scripts/config:/concord/config:ro
+      - ./utt-demo-run/rocksdb:/concord/rocksdb
+    networks:
+      utt-demo-net:
+        ipv4_address: 172.18.0.6
+
+networks:
+  utt-demo-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.18.0.0/16
