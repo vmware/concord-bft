@@ -71,7 +71,4 @@ Dafny program verifier finished with 10 verified, 0 errors
 
 # Acknowledgements and references
 
-This project builds on top of the concepts and framework described in
-https://github.com/GLaDOS-Michigan/summer-school-2021<br>
-
 Special thanks to [@jonhnet|https://github.com/jonhnet] for his help and support along the way.
