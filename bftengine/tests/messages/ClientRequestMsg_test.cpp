@@ -167,7 +167,7 @@ TEST_F(ClientRequestMsgTestFixture, create_from_buffer) {
 
 TEST_F(ClientRequestMsgTestFixture, test_with_timestamp) {
   NodeIdType senderId = 1u;
-  uint64_t flags = MsgFlag::TIME_SERVICE_FLAG;
+  uint64_t flags = MsgFlag::EMPTY_FLAGS;
   uint64_t reqSeqNum = 100u;
   auto millis = std::chrono::system_clock::now().time_since_epoch();
   auto request = concord::util::serialize(millis.count());

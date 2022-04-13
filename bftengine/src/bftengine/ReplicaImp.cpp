@@ -4763,7 +4763,7 @@ void ReplicaImp::startPrePrepareMsgExecution(PrePrepareMsg *ppMsg,
 
   if (numOfRequests > 0) {
     // TODO(GG): should be verified in the validation of the PrePrepare . Consdier to remove this assert
-    ConcordAssert(!config_.timeServiceEnabled || time_service_manager_->hasTimeRequest(*ppMsg));
+    ConcordAssert(!config_.timeServiceEnabled || ppMsg->getTime() > 0);
 
     histograms_.numRequestsInPrePrepareMsg->record(numOfRequests);
     Bitmap requestSet(numOfRequests);
@@ -4796,13 +4796,6 @@ void ReplicaImp::startPrePrepareMsgExecution(PrePrepareMsg *ppMsg,
       // count numOfSpecialReqs
       while (reqIter.getAndGoToNext(requestBody)) {
         ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
-        if (config_.timeServiceEnabled && (req.flags() & MsgFlag::TIME_SERVICE_FLAG) && reqIdx == 0) {
-          numOfSpecialReqs++;
-          reqIdx++;
-          continue;
-        }
-        // TODO(GG): should be verified in the validation of the PrePrepare . Consider to remove this assert
-        ConcordAssert(!(req.flags() & MsgFlag::TIME_SERVICE_FLAG));
         if ((req.flags() & MsgFlag::KEY_EXCHANGE_FLAG) || (req.flags() & MsgFlag::RECONFIG_FLAG)) {
           numOfSpecialReqs++;
           reqIdx++;
@@ -4840,15 +4833,6 @@ void ReplicaImp::markSpecialRequests(RequestsIterator &reqIter,
     ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
     //        SCOPED_MDC_CID(req.getCid());
     NodeIdType clientId = req.clientProxyId();
-
-    if (config_.timeServiceEnabled && (req.flags() & MsgFlag::TIME_SERVICE_FLAG) && reqIdx == 0) {
-      numOfSpecialReqs++;
-      reqIdx++;
-      continue;
-    }
-
-    // TODO(GG): should be verified in the validation of the PrePrepare . Consdier to remove this assert
-    ConcordAssert(!(req.flags() & MsgFlag::TIME_SERVICE_FLAG));
     if ((req.flags() & MsgFlag::KEY_EXCHANGE_FLAG) || (req.flags() & MsgFlag::RECONFIG_FLAG) ||
         (req.flags() & MsgFlag::CLIENTS_PUB_KEYS_FLAG)) {
       numOfSpecialReqs++;
@@ -4934,25 +4918,20 @@ void ReplicaImp::executeSpecialRequests(PrePrepareMsg *ppMsg,
   size_t reqIdx = 0;
   RequestsIterator reqIter(ppMsg);
   char *requestBody = nullptr;
+  if (config_.timeServiceEnabled) {
+    ConcordAssert(ppMsg->getTime() > 0);  // TODO(GG): should be verified when receiving the PrePrepare message
 
+    outTimestamp.time_since_epoch = ConsensusTime(ppMsg->getTime());
+    outTimestamp.time_since_epoch = time_service_manager_->compareAndUpdate(outTimestamp.time_since_epoch);
+
+    LOG_DEBUG(GL, "Timestamp to be provided to the execution: " << outTimestamp.time_since_epoch.count() << "ms");
+  }
   while (reqIter.getAndGoToNext(requestBody) && numOfSpecialReqs > 0) {
     ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
 
-    if (config_.timeServiceEnabled && reqIdx == 0) {
-      ConcordAssertEQ(
-          req.flags(),
-          MsgFlag::TIME_SERVICE_FLAG);  // TODO(GG): should be verified when receiving the PrePrepare message
-
-      outTimestamp.time_since_epoch =
-          concord::util::deserialize<ConsensusTime>(req.requestBuf(), req.requestBuf() + req.requestLength());
-
-      outTimestamp.time_since_epoch = time_service_manager_->compareAndUpdate(outTimestamp.time_since_epoch);
-
-      LOG_DEBUG(GL, "Timestamp to be provided to the execution: " << outTimestamp.time_since_epoch.count() << "ms");
-      numOfSpecialReqs--;
-    } else if ((req.flags() & MsgFlag::KEY_EXCHANGE_FLAG) || (req.flags() & MsgFlag::RECONFIG_FLAG) ||
-               (req.flags() & MsgFlag::CLIENTS_PUB_KEYS_FLAG))  // TODO(GG): check how exactly the following will work
-                                                                // when we try to recover
+    if ((req.flags() & MsgFlag::KEY_EXCHANGE_FLAG) || (req.flags() & MsgFlag::RECONFIG_FLAG) ||
+        (req.flags() & MsgFlag::CLIENTS_PUB_KEYS_FLAG))  // TODO(GG): check how exactly the following will work
+                                                         // when we try to recover
     {
       NodeIdType clientId = req.clientProxyId();
 
@@ -5370,7 +5349,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
   if (numOfRequests > 0) {
     if (config_.timeServiceEnabled) {
       // First request should be a time request, if time-service is enabled
-      ConcordAssert(time_service_manager_->hasTimeRequest(*ppMsg));
+      ConcordAssert(ppMsg->getTime() > 0);
     }
 
     histograms_.numRequestsInPrePrepareMsg->record(numOfRequests);
@@ -5379,7 +5358,6 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
     RequestsIterator reqIter(ppMsg);
     char *requestBody = nullptr;
 
-    bool seenTimeService = false;
     //////////////////////////////////////////////////////////////////////
     // Phase 1:
     // a. Find the requests that should be executed
@@ -5390,13 +5368,6 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
         ClientRequestMsg req(reinterpret_cast<ClientRequestMsgHeader *>(requestBody));
         SCOPED_MDC_CID(req.getCid());
         NodeIdType clientId = req.clientProxyId();
-
-        if (config_.timeServiceEnabled && req.flags() & MsgFlag::TIME_SERVICE_FLAG) {
-          ConcordAssert(!seenTimeService && "Multiple Time Service messages in PrePrepare");
-          seenTimeService = true;
-          reqIdx++;
-          continue;
-        }
         const bool validNoop = ((clientId == currentPrimary()) && (req.requestLength() == 0));
         if (validNoop) {
           ++numValidNoOps;
@@ -5560,19 +5531,15 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
   RequestsIterator reqIter(ppMsg);
   char *requestBody = nullptr;
   auto timestamp = config_.timeServiceEnabled ? std::make_optional<Timestamp>() : std::nullopt;
+  if (config_.timeServiceEnabled) {
+    timestamp->time_since_epoch = ConsensusTime(ppMsg->getTime());
+    timestamp->time_since_epoch = time_service_manager_->compareAndUpdate(timestamp->time_since_epoch);
+    LOG_DEBUG(GL, "Timestamp to be provided to the execution: " << timestamp->time_since_epoch.count() << "ms");
+  }
   while (reqIter.getAndGoToNext(requestBody)) {
     size_t tmp = reqIdx;
     reqIdx++;
     ClientRequestMsg req(reinterpret_cast<ClientRequestMsgHeader *>(requestBody));
-    if (config_.timeServiceEnabled) {
-      if (req.flags() & MsgFlag::TIME_SERVICE_FLAG) {
-        timestamp->time_since_epoch =
-            concord::util::deserialize<ConsensusTime>(req.requestBuf(), req.requestBuf() + req.requestLength());
-        timestamp->time_since_epoch = time_service_manager_->compareAndUpdate(timestamp->time_since_epoch);
-        LOG_DEBUG(GL, "Timestamp to be provided to the execution: " << timestamp->time_since_epoch.count() << "ms");
-        continue;
-      }
-    }
     if (!requestSet.get(tmp) || req.requestLength() == 0) {
       clientsManager->removePendingForExecutionRequest(req.clientProxyId(), req.requestSeqNum());
       continue;
