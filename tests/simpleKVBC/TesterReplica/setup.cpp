@@ -90,7 +90,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     std::string keysFilePrefix;
     std::string commConfigFile;
     std::string s3ConfigFile;
-    std::string certRootPath = "certs";
+    std::string certRootPath = (replicaConfig.useUnifiedCertificates) ? "tls_certs" : "certs";
     std::string logPropsFile = "logging.properties";
     std::string principalsMapping;
     std::string txnSigningKeysPath;

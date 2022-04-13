@@ -22,11 +22,13 @@ add_library(bftcommunication ${bftcommunication_src})
 add_library(bftcommunication_shared SHARED ${bftcommunication_src})
 set_property(TARGET bftcommunication_shared PROPERTY POSITION_INDEPENDENT_CODE ON)
 
+target_include_directories(bftcommunication PUBLIC ../bftengine/include/bftengine)
 target_include_directories(bftcommunication PUBLIC include)
 target_include_directories(bftcommunication PUBLIC ${util}/include)
 target_include_directories(bftcommunication PUBLIC ../secretsmanager/include)
 target_link_libraries(bftcommunication PUBLIC util)
 
+target_include_directories(bftcommunication_shared PUBLIC ../bftengine/include/bftengine)
 target_include_directories(bftcommunication_shared PUBLIC include)
 target_include_directories(bftcommunication_shared PUBLIC ${util}/include)
 target_include_directories(bftcommunication_shared PUBLIC ../secretsmanager/include)

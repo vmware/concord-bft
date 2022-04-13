@@ -27,7 +27,10 @@
 #include "crypto_utils.hpp"
 #include "communication/StateControl.hpp"
 #include "hex_tools.h"
+
 namespace bft::communication::tls {
+
+bool AsyncTlsConnection::useUnifiedCertificates_ = false;
 
 void AsyncTlsConnection::startReading() {
   auto self = shared_from_this();
@@ -283,8 +286,10 @@ void AsyncTlsConnection::initClientSSLContext(NodeNum destination) {
   ssl_context_.set_verify_mode(asio::ssl::verify_peer);
 
   fs::path path;
+  fs::path cert_path;
   try {
-    path = fs::path(config_.certificatesRootPath_) / fs::path(std::to_string(config_.selfId_)) / "client";
+    path = fs::path(config_.certificatesRootPath_) / fs::path(std::to_string(config_.selfId_));
+    if (!useUnifiedCertificates_) path = path / fs::path("client");
   } catch (std::exception& e) {
     LOG_FATAL(logger_, "Failed to construct filesystem path: " << e.what());
     ConcordAssert(false);
@@ -303,7 +308,9 @@ void AsyncTlsConnection::initClientSSLContext(NodeNum destination) {
   }
 
   try {
-    ssl_context_.use_certificate_chain_file((path / "client.cert").string());
+    cert_path =
+        (useUnifiedCertificates_) ? path / fs::path("node.cert").string() : path / fs::path("client.cert").string();
+    ssl_context_.use_certificate_chain_file(cert_path);
     const std::string pk = decryptPrivateKey(path);
     ssl_context_.use_private_key(asio::const_buffer(pk.c_str(), pk.size()), asio::ssl::context::pem);
   } catch (const boost::system::system_error& e) {
@@ -342,15 +349,19 @@ void AsyncTlsConnection::initServerSSLContext() {
   }
 
   fs::path path;
+  fs::path cert_path;
   try {
-    path = fs::path(config_.certificatesRootPath_) / fs::path(std::to_string(config_.selfId_)) / fs::path("server");
+    path = fs::path(config_.certificatesRootPath_) / fs::path(std::to_string(config_.selfId_));
+    if (!useUnifiedCertificates_) path = path / fs::path("server");
   } catch (std::exception& e) {
     LOG_FATAL(logger_, "Failed to construct filesystem path: " << e.what());
     ConcordAssert(false);
   }
 
   try {
-    ssl_context_.use_certificate_chain_file((path / fs::path("server.cert")).string());
+    cert_path =
+        (useUnifiedCertificates_) ? path / fs::path("node.cert").string() : path / fs::path("server.cert").string();
+    ssl_context_.use_certificate_chain_file(cert_path);
     const std::string pk = decryptPrivateKey(path);
     ssl_context_.use_private_key(asio::const_buffer(pk.c_str(), pk.size()), asio::ssl::context::pem);
   } catch (const boost::system::system_error& e) {
@@ -419,7 +430,7 @@ std::pair<bool, NodeNum> AsyncTlsConnection::checkCertificate(X509* received_cer
   std::string conn_type;
   // (1) First, try to verify the certificate against the latest saved certificate
   bool res = concord::util::crypto::CertificateUtils::verifyCertificate(
-      received_cert, config_.certificatesRootPath_, peerId, conn_type);
+      received_cert, config_.certificatesRootPath_, peerId, conn_type, useUnifiedCertificates_);
   if (expected_peer_id.has_value() && peerId != expected_peer_id.value()) return std::make_pair(false, peerId);
   if (res) return std::make_pair(res, peerId);
   LOG_INFO(logger_,
@@ -443,7 +454,9 @@ std::pair<bool, NodeNum> AsyncTlsConnection::checkCertificate(X509* received_cer
     return std::make_pair(false, peerId);
   }
   std::string local_cert_path =
-      config_.certificatesRootPath_ + "/" + std::to_string(peerId) + "/" + conn_type + "/" + conn_type + ".cert";
+      (useUnifiedCertificates_)
+          ? config_.certificatesRootPath_ + "/" + std::to_string(peerId) + "/" + "node.cert"
+          : config_.certificatesRootPath_ + "/" + std::to_string(peerId) + "/" + conn_type + "/" + conn_type + ".cert";
   std::string certStr;
   int certLen = BIO_pending(outbio);
   certStr.resize(certLen);
