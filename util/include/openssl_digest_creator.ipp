@@ -17,7 +17,6 @@
 #include <memory>
 
 #include "digest_creator.hpp"
-#include "digest.hpp"
 #include "sha_hash.hpp"
 
 namespace concord::util::digest {
