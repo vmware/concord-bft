@@ -26,12 +26,6 @@
 
 namespace concord::storage::s3 {
 
-std::string hex2string(const std::string& s) {
-  std::string result;
-  result.reserve(s.length() / 2);
-  for (size_t i = 0; i < s.length(); i += 2) result.push_back(std::stoi(s.substr(i, 2).c_str(), NULL, 16));
-  return result;
-}
 using concordUtils::Status;
 using bftEngine::bcst::impl::BCStateTran;
 using concord::kvbc::v1DirectKeyValue::S3StorageFactory;
@@ -85,7 +79,7 @@ void IntegrityChecker::setupParams(int argc, char** argv) {
       } break;
       case 'v': {
         params_.validate_key_present = true;
-        params_.key_to_validate = hex2string(std::string(optarg));  // tmp we pass hex key instead of original
+        params_.key_to_validate = std::string(optarg);
       } break;
       case 'a': {
         params_.validate_all_present = true;

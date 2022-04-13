@@ -64,6 +64,10 @@ if (BUILD_ROCKSDB_STORAGE)
         add_test(NAME skvbc_ro_replica_tests COMMAND sh -c
                 "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_ro_replica_tests python3 -m unittest test_skvbc_ro_replica ${TEST_OUTPUT}"
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+        add_test(NAME skvbc_s3_integrity_check_tests COMMAND sh -c
+                "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_s3_integrity_check_tests python3 -m unittest test_skvbc_s3_integrity_check ${TEST_OUTPUT}"
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
     endif()
 endif()
 

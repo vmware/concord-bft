@@ -18,7 +18,9 @@ int main(int argc, char** argv) {
     logging::initLogger("logging.properties");
     concord::storage::s3::IntegrityChecker checker(argc, argv);
     checker.check();
+    exit(0);
   } catch (const std::exception& e) {
     LOG_ERROR(GL, e.what());
+    exit(1);
   }
 }
