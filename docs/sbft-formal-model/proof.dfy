@@ -719,13 +719,13 @@ module Proof {
         }
     } else if(c.clusterConfig.IsFaultyReplica(step.id)) {
       InvNextFaulty(c, v, v', step);
+      CommitMsgStability(c, v, v', step);
     } else {
       assert false; // Should not be possible
     }
   }
 
   lemma InvNextFaulty(c: Constants, v:Variables, v':Variables, step: Step)
-    //requires Inv(c, v)
     requires v.WF(c)
     requires c.clusterConfig.IsFaultyReplica(step.id)
     requires HonestReplicasLockOnCommitForGivenView(c, v)
@@ -733,23 +733,7 @@ module Proof {
     ensures HonestReplicasLockOnCommitForGivenView(c, v')
   {
     reveal_HonestReplicasLockOnCommitForGivenView();
-    forall msg1, msg2 | 
-        && msg1 in v'.network.sentMsgs 
-        && msg2 in v'.network.sentMsgs 
-        && msg1.payload.Commit?
-        && msg2.payload.Commit?
-        && msg1.payload.view == msg2.payload.view
-        && msg1.payload.seqID == msg2.payload.seqID
-        && msg1.sender == msg2.sender
-        && IsHonestReplica(c, msg1.sender)
-        ensures msg1 == msg2
-        {
-          if msg1 !in v.network.sentMsgs {
-            assert step.msgOps.send == Some(msg1);
-          }
-          assert msg1 in v.network.sentMsgs;
-          assert msg2 in v.network.sentMsgs; 
-        }
+    assert forall msg | msg in v'.network.sentMsgs && IsHonestReplica(c, msg.sender) :: msg in v.network.sentMsgs;
   }
 
   lemma InvariantInductive(c: Constants, v:Variables, v':Variables)
