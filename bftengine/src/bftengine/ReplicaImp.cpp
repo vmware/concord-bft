@@ -461,7 +461,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
     return;
   }
 
-  if (isCurrentPrimary() && isSeqNumToStopAt(primaryLastUsedSeqNum + 1)) {
+  if ((isCurrentPrimary() && isSeqNumToStopAt(primaryLastUsedSeqNum + 1)) || isSeqNumToStopAt(lastCollectedSn)) {
     LOG_INFO(CNSUS,
              "Ignoring ClientRequest because system is stopped at checkpoint pending control state operation (upgrade, "
              "etc...)");
@@ -590,17 +590,17 @@ bool ReplicaImp::checkSendPrePrepareMsgPrerequisites() {
     return false;
   }
 
-  if (primaryLastUsedSeqNum + numOfTransientPreprepareMsgs_ + 1 > lastExecutedSeqNum + config_.getconcurrencyLevel()) {
+  if (primaryLastUsedSeqNum + numOfTransientPreprepareMsgs_ + 1 > lastCollectedSn + config_.getconcurrencyLevel()) {
     LOG_INFO(GL,
              "Will not send PrePrepare since next sequence number ["
                  << primaryLastUsedSeqNum + numOfTransientPreprepareMsgs_ + 1 << "] exceeds concurrency threshold ["
-                 << lastExecutedSeqNum + config_.getconcurrencyLevel() << "]");
+                 << lastCollectedSn + config_.getconcurrencyLevel() << "]");
     return false;
   }
-  metric_concurrency_level_.Get().Set(primaryLastUsedSeqNum + numOfTransientPreprepareMsgs_ + 1 - lastExecutedSeqNum);
-  ConcordAssertGE(primaryLastUsedSeqNum, lastExecutedSeqNum);
+  metric_concurrency_level_.Get().Set(primaryLastUsedSeqNum + numOfTransientPreprepareMsgs_ + 1 - lastCollectedSn);
+  ConcordAssertGE(primaryLastUsedSeqNum, lastCollectedSn);
   // Because maxConcurrentAgreementsByPrimary <  MaxConcurrentFastPaths
-  ConcordAssertLE((primaryLastUsedSeqNum + 1), lastExecutedSeqNum + MaxConcurrentFastPaths);
+  ConcordAssertLE((primaryLastUsedSeqNum + 1), lastCollectedSn + MaxConcurrentFastPaths);
 
   if (requestsQueueOfPrimary.empty()) LOG_DEBUG(GL, "requestsQueueOfPrimary is empty");
 
@@ -1148,7 +1148,7 @@ void ReplicaImp::tryToStartSlowPaths() {
     return;  // TODO(GG): consider to stop the related timer when this method is not needed (to avoid useless
   // invocations)
 
-  const SeqNum minSeqNum = lastExecutedSeqNum + 1;
+  const SeqNum minSeqNum = lastCollectedSn + 1;
   SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
 
   if (minSeqNum > lastStableSeqNum + kWorkWindowSize) {
@@ -1228,7 +1228,7 @@ void ReplicaImp::tryToAskForMissingInfo() {
   const int16_t searchWindow = 32;  // TODO(GG): TBD - read from configuration
 
   if (!recentViewChange) {
-    minSeqNum = lastExecutedSeqNum + 1;
+    minSeqNum = lastCollectedSn + 1;
     maxSeqNum = std::min(minSeqNum + searchWindow - 1, lastStableSeqNum + kWorkWindowSize);
   } else {
     minSeqNum = lastStableSeqNum + 1;
@@ -1449,7 +1449,7 @@ void ReplicaImp::onMessage<PartialCommitProofMsg>(PartialCommitProofMsg *msg) {
   if (relevantMsgForActiveView(msg)) {
     sendAckIfNeeded(msg, msgSender, msgSeqNum);
 
-    if (msgSeqNum > lastExecutedSeqNum) {
+    if (msgSeqNum > lastCollectedSn) {
       SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
 
       if (seqNumInfo.addFastPathPartialCommitMsg(msg)) {
@@ -2325,7 +2325,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   bool askForStateTransfer = false;
 
   if (msgIsStable &&
-      ((msgEpochNum == getSelfEpochNumber() && msgSeqNum > lastExecutedSeqNum) || msgEpochNum > getSelfEpochNumber())) {
+      ((msgEpochNum == getSelfEpochNumber() && msgSeqNum > lastCollectedSn) || msgEpochNum > getSelfEpochNumber())) {
     auto pos = tableOfStableCheckpoints.find(msgGenReplicaId);
     if (pos == tableOfStableCheckpoints.end() || pos->second->seqNumber() <= msgSeqNum ||
         msgEpochNum >= pos->second->epochNumber()) {
@@ -4301,6 +4301,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
   lastStableSeqNum = ld.lastStableSeqNum;
   metric_last_stable_seq_num_.Get().Set(lastStableSeqNum);
   lastExecutedSeqNum = ld.lastExecutedSeqNum;
+  lastCollectedSn = lastExecutedSeqNum;
   metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
   strictLowerBoundOfSeqNums = ld.strictLowerBoundOfSeqNums;
   maxSeqNumTransferredFromPrevViews = ld.maxSeqNumTransferredFromPrevViews;
