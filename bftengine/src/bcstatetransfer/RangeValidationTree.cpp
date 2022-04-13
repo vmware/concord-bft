@@ -153,8 +153,8 @@ const shared_ptr<char[]> RVBNode::computeNodeInitialValue(NodeInfo& node_info, c
   ConcordAssertGT(node_info.id(), 0);
   DigestGenerator digest_generator;
 
-  digest_generator.updateDigest(reinterpret_cast<const char*>(&node_info.id_data_), sizeof(node_info.id_data_));
-  digest_generator.updateDigest(data, data_size);
+  digest_generator.update(reinterpret_cast<const char*>(&node_info.id_data_), sizeof(node_info.id_data_));
+  digest_generator.update(data, data_size);
   // TODO - Use default_delete in case memleak is reported by ASAN
   static std::shared_ptr<char[]> out_digest_buff(new char[NodeVal::kDigestContextOutputSize]);
   digest_generator.writeDigest(out_digest_buff.get());

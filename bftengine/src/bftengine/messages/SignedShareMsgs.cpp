@@ -48,8 +48,7 @@ SignedShareBase* SignedShareBase::create(int16_t type,
   m->b()->thresSigLength = (uint16_t)sigLen;
 
   Digest tmpDigest;
-  Digest digestHelper;
-  digestHelper.calcCombination(digest, v, s, tmpDigest);
+  digest.calcCombination(v, s, tmpDigest);
 
   auto position = m->body() + sizeof(Header);
   std::memcpy(position, spanContext.data().data(), spanContext.data().size());

@@ -35,10 +35,10 @@ CryptoppDigestCreator::CryptoppDigestCreator() {
 
 size_t CryptoppDigestCreator::digestLength() const { return DigestType::DIGESTSIZE; }
 
-bool CryptoppDigestCreator::computeDigest(const char* input,
-                                          const size_t inputLength,
-                                          char* outBufferForDigest,
-                                          const size_t lengthOfBufferForDigest) {
+bool CryptoppDigestCreator::compute(const char* input,
+                                    size_t inputLength,
+                                    char* outBufferForDigest,
+                                    size_t lengthOfBufferForDigest) {
   DigestType dig;
 
   const size_t size = dig.DigestSize();
@@ -57,7 +57,7 @@ bool CryptoppDigestCreator::computeDigest(const char* input,
   return true;
 }
 
-void CryptoppDigestCreator::updateDigest(const char* data, const size_t len) {
+void CryptoppDigestCreator::update(const char* data, size_t len) {
   ConcordAssert(nullptr != internalState_);
 
   DigestType* p = (DigestType*)internalState_;

@@ -1355,13 +1355,8 @@ void ReplicaImp::sendPartialProof(SeqNumInfo &seqNumInfo) {
       else
         commitSigner = CryptoManager::instance().thresholdSignerForOptimisticCommit(seqNum);
 
-<<<<<<< HEAD
       Digest tmpDigest;
-      Digest digestHelper;
-=======
-      Digest tmpDigest, digestHelper;
->>>>>>> Digest generation using OpenSSL library (SHA2_256 & SHA3_256 algos).
-      digestHelper.calcCombination(ppDigest, getCurrentView(), seqNum, tmpDigest);
+      ppDigest.calcCombination(getCurrentView(), seqNum, tmpDigest);
 
       const auto &span_context = pp->spanContext<std::remove_pointer<decltype(pp)>::type>();
       part = new PartialCommitProofMsg(
@@ -1434,8 +1429,8 @@ void ReplicaImp::sendCommitPartial(const SeqNum s) {
 
   LOG_INFO(CNSUS, "Sending CommitPartialMsg, sequence number:" << pp->seqNumber());
 
-  Digest digest, digestHelper;
-  digestHelper.digestOfDigest(pp->digestOfRequests(), digest);
+  Digest digest;
+  pp->digestOfRequests().digestOfDigest(digest);
 
   auto prepareFullMsg = seqNumInfo.getValidPrepareFullMsg();
 
@@ -4178,13 +4173,8 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
         else
           commitSigner = CryptoManager::instance().thresholdSignerForOptimisticCommit(seqNum);
 
-<<<<<<< HEAD
         Digest tmpDigest;
-        Digest digestHelper;
-=======
-        Digest tmpDigest, digestHelper;
->>>>>>> Digest generation using OpenSSL library (SHA2_256 & SHA3_256 algos).
-        digestHelper.calcCombination(ppDigest, getCurrentView(), seqNum, tmpDigest);
+        ppDigest.calcCombination(getCurrentView(), seqNum, tmpDigest);
 
         PartialCommitProofMsg *p = new PartialCommitProofMsg(
             config_.getreplicaId(), getCurrentView(), seqNum, pathInPrePrepare, tmpDigest, commitSigner);
@@ -4213,8 +4203,8 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
           throw;
         }
 
-        Digest digest, digestHelper;
-        digestHelper.digestOfDigest(e.getPrePrepareMsg()->digestOfRequests(), digest);
+        Digest digest;
+        e.getPrePrepareMsg()->digestOfRequests().digestOfDigest(digest);
         CommitPartialMsg *c = CommitPartialMsg::create(getCurrentView(),
                                                        s,
                                                        config_.getreplicaId(),
