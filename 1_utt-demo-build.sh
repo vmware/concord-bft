@@ -1,6 +1,6 @@
 #!/bin/bash
 make format
-make TARGET="utt_replica utt_client copy_utt_demo_scripts gen_utt_cfg"
+make TARGET="utt_replica utt_client payment_service copy_utt_demo_scripts gen_utt_cfg"
 
 mkdir -p utt-demo-run/bin
 mkdir -p utt-demo-run/logs

@@ -13,6 +13,7 @@ add_subdirectory(cmf)
 add_subdirectory(tools)
 add_subdirectory(UTTClient)
 add_subdirectory(UTTReplica)
+add_subdirectory(PaymentService)
 
 add_custom_target(copy_utt_demo_scripts ALL COMMENT "Copying utt demo scripts")
 
