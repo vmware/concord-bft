@@ -96,7 +96,7 @@ class ReplicaBase {
   static const uint16_t ALL_OTHER_REPLICAS = UINT16_MAX;
 
   const ReplicaConfig& config_;
-  std::shared_ptr<ReplicasInfo> repsInfo;
+  ReplicasInfo* repsInfo = nullptr;
   std::shared_ptr<MsgsCommunicator> msgsCommunicator_;
   std::shared_ptr<MsgHandlersRegistrator> msgHandlers_;
   std::shared_ptr<IRequestsHandler> bftRequestsHandler_;

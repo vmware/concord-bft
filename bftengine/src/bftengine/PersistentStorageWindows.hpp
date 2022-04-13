@@ -19,7 +19,6 @@
 #include "messages/SignedShareMsgs.hpp"
 #include "messages/FullCommitProofMsg.hpp"
 #include "messages/CheckpointMsg.hpp"
-#include "Bitmap.hpp"
 #include <memory>
 
 namespace bftEngine {
@@ -33,14 +32,11 @@ enum SeqNumDataParameters {
   COMMIT_FULL_MSG = 4,
   FORCE_COMPLETED = 5,
   SLOW_STARTED = 6,
-  BIT_MAP = 7,
-  IS_EXECUTED = 8,
-  SEQ_NUM_LAST_PARAM = IS_EXECUTED
+  SEQ_NUM_LAST_PARAM = SLOW_STARTED
 };
 
 class SeqNumData {
   static constexpr size_t EMPTY_MESSAGE_FLAG_SIZE = sizeof(bool);
-  static constexpr uint32_t MAX_NUM_OF_REQUESTS = 4096;
 
  public:
   SeqNumData(PrePrepareMsg *prePrepare,
@@ -48,17 +44,13 @@ class SeqNumData {
              PrepareFullMsg *prepareFull,
              CommitFullMsg *commitFull,
              bool forceComplete,
-             bool slowStart,
-             const Bitmap &requestsMap,
-             bool isExecuted)
+             bool slowStart)
       : prePrepareMsg_(prePrepare),
         fullCommitProofMsg_(fullCommitProof),
         prepareFullMsg_(prepareFull),
         commitFullMsg_(commitFull),
         forceCompleted_(forceComplete),
-        slowStarted_(slowStart),
-        requestsMap_(requestsMap),
-        isExecuted_(isExecuted) {}
+        slowStarted_(slowStart) {}
 
   SeqNumData() = default;
 
@@ -71,8 +63,6 @@ class SeqNumData {
   size_t serializeCommitFullMsg(char *&buf) const;
   size_t serializeForceCompleted(char *&buf) const;
   size_t serializeSlowStarted(char *&buf) const;
-  size_t serializeRequestsMap(char *&buf) const;
-  size_t serializesIsExecuted(char *&buf) const;
   void serialize(char *buf, uint32_t bufLen, size_t &actualSize) const;
 
   bool isPrePrepareMsgSet() const { return (prePrepareMsg_ != nullptr); }
@@ -86,8 +76,6 @@ class SeqNumData {
   CommitFullMsg *getCommitFullMsg() const { return commitFullMsg_; }
   bool getSlowStarted() const { return slowStarted_; }
   bool getForceCompleted() const { return forceCompleted_; }
-  Bitmap getRequestsMap() const { return requestsMap_; }
-  bool getIsExecuted() const { return isExecuted_; }
 
   void setPrePrepareMsg(MessageBase *msg) { prePrepareMsg_ = (PrePrepareMsg *)msg; }
   void setFullCommitProofMsg(MessageBase *msg) { fullCommitProofMsg_ = (FullCommitProofMsg *)msg; }
@@ -95,8 +83,7 @@ class SeqNumData {
   void setCommitFullMsg(MessageBase *msg) { commitFullMsg_ = (CommitFullMsg *)msg; }
   void setSlowStarted(const bool &slowStarted) { slowStarted_ = slowStarted; }
   void setForceCompleted(const bool &forceCompleted) { forceCompleted_ = forceCompleted; }
-  void setRequestsMap(const Bitmap &requestsMap) { requestsMap_ = requestsMap; }
-  void setIsExecuted(bool isExecuted) { isExecuted_ = isExecuted; }
+
   static size_t serializeMsg(char *&buf, MessageBase *msg);
   static size_t serializeOneByte(char *&buf, const uint8_t &oneByte);
 
@@ -120,8 +107,6 @@ class SeqNumData {
   CommitFullMsg *commitFullMsg_ = nullptr;
   bool forceCompleted_ = false;
   bool slowStarted_ = false;
-  Bitmap requestsMap_ = Bitmap();
-  bool isExecuted_ = false;
 };
 
 enum CheckDataParameters {

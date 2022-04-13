@@ -47,8 +47,7 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
                   metrics_.RegisterGauge("lastExecutedSeqNum", lastExecutedSeqNum)},
       metadataStorage_{metadataStorage} {
   LOG_INFO(GL, "Initialising ReadOnly Replica");
-  repsInfo =
-      std::make_shared<ReplicasInfo>(config, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
+  repsInfo = new ReplicasInfo(config, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
   msgHandlers_->registerMsgHandler(
       MsgCode::Checkpoint, std::bind(&ReadOnlyReplica::messageHandler<CheckpointMsg>, this, std::placeholders::_1));
   msgHandlers_->registerMsgHandler(
