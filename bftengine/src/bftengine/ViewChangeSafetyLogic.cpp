@@ -277,8 +277,8 @@ bool ViewChangeSafetyLogic::computeRestrictionsForSeqNum(SeqNum s,
 
   for (SlowElem slow : slowPathCertificates) {
     ConcordAssert(s == slow.seqNum());
-    Digest d, digestHelper;
-    digestHelper.calcCombination(slow.prePrepreDigest(), slow.certificateView(), slow.seqNum(), d);
+    Digest d;
+    slow.prePrepreDigest().calcCombination(slow.certificateView(), slow.seqNum(), d);
 
     bool valid = CryptoManager::instance().thresholdVerifierForSlowPathCommit(s)->verify(
         d.content(), DIGEST_SIZE, slow.certificateSig(), slow.certificateSigLength());

@@ -45,9 +45,6 @@ class EVPHash {
   };
 
   EVPHash& operator=(EVPHash&& other) noexcept {
-    if (nullptr != ctx_) {  // Prevent memory leak.
-      EVP_MD_CTX_destroy(ctx_);
-    }
     *this = EVPHash{std::move(other)};
     return *this;
   }
@@ -101,7 +98,10 @@ class EVPHash {
   }
 
   std::string toHexString(const Digest& digest) {
-    return concordUtils::bufferToHex(std::string(digest.begin(), digest.end()).c_str(), SIZE_IN_BYTES, false);
+    std::ostringstream oss;
+    for (size_t i = 0; i < SIZE_IN_BYTES; ++i)
+      oss << std::setfill('0') << std::setw(2) << std::hex << std::uppercase << (0xff & (unsigned int)digest[i]);
+    return oss.str();
   }
 
  private:

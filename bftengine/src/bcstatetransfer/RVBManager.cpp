@@ -649,8 +649,8 @@ void RVBManager::computeDigestOfBlock(const uint64_t block_id,
   ConcordAssertGT(block_id, 0);
   ConcordAssertGT(block_size, 0);
   DigestGenerator digest_generator;
-  digest_generator.updateDigest(reinterpret_cast<const char*>(&block_id), sizeof(block_id));
-  digest_generator.updateDigest(block, block_size);
+  digest_generator.update(reinterpret_cast<const char*>(&block_id), sizeof(block_id));
+  digest_generator.update(block, block_size);
   digest_generator.writeDigest(out_digest);
 }
 

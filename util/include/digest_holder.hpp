@@ -14,7 +14,7 @@
 #include <memory>
 #include <cstring>
 
-#include "digest.hpp"
+#include "digest_type.hpp"
 #include "digest_creator.hpp"
 #include "hex_tools.h"
 
@@ -29,9 +29,16 @@ class DigestHolder {
   DigestHolder(const char* other) { std::memcpy(d, other, DIGEST_SIZE); }
   DigestHolder(char* buf, size_t len) {
     CREATOR digestCreator;
-    digestCreator.computeDigest(buf, len, (char*)d, DIGEST_SIZE);
+    digestCreator.compute(buf, len, (char*)d, DIGEST_SIZE);
   }
   DigestHolder(const DigestHolder& other) { std::memcpy(d, other.d, DIGEST_SIZE); }
+  DigestHolder& operator=(const DigestHolder& other) {
+    if (this == &other) {
+      return *this;
+    }
+    std::memcpy(d, other.d, DIGEST_SIZE);
+    return *this;
+  }
 
   char* content() const { return (char*)d; }
   void makeZero() { std::memset(d, 0, DIGEST_SIZE); }
@@ -63,23 +70,15 @@ class DigestHolder {
     return (r != 0);
   }
 
-  DigestHolder& operator=(const DigestHolder& other) {
-    if (this == &other) {
-      return *this;
-    }
-    std::memcpy(d, other.d, DIGEST_SIZE);
-    return *this;
-  }
-
-  void digestOfDigest(const DigestHolder& inDigest, DigestHolder& outDigest) {
+  void digestOfDigest(DigestHolder& outDigest) {
     CREATOR digestCreator;
-    digestCreator.computeDigest(inDigest.d, sizeof(DigestHolder), outDigest.d, sizeof(DigestHolder));
+    digestCreator.compute(d, sizeof(DigestHolder), outDigest.d, sizeof(DigestHolder));
   }
 
-  void calcCombination(const DigestHolder& inDigest, int64_t inDataA, int64_t inDataB, DigestHolder& outDigest) {
+  void calcCombination(int64_t inDataA, int64_t inDataB, DigestHolder& outDigest) {
     const size_t X = ((DIGEST_SIZE / sizeof(uint64_t)) / 2);
 
-    std::memcpy(outDigest.d, inDigest.d, DIGEST_SIZE);
+    std::memcpy(outDigest.d, d, DIGEST_SIZE);
 
     uint64_t* ptr = (uint64_t*)outDigest.d;
     size_t locationA = ptr[0] % X;
