@@ -12,6 +12,9 @@
 // file.
 
 #include <optional>
+#include <boost/program_options.hpp>
+
+#include "util/filesystem.hpp"
 #include "kv_types.hpp"
 #include "Logger.hpp"
 #include "s3/client.hpp"
@@ -26,8 +29,8 @@ namespace concord::kvbc {
 class IStorageFactory;
 }
 
-namespace concord::storage::s3 {
-
+namespace concord::kvbc::tools {
+namespace po = boost::program_options;
 using namespace concord::storage;
 using concordUtils::Sliver;
 using bftEngine::impl::DescriptorOfLastStableCheckpoint;
@@ -38,15 +41,15 @@ using concord::kvbc::BlockId;
  */
 class IntegrityChecker {
  public:
-  IntegrityChecker(int argc, char** argv);
+  IntegrityChecker();
+
+  /** Parse CLI params */
+  void parseCLIArgs(int argc, char** argv);
 
   /** Check integrity with respect to provided options */
-  void check() const {
-    if (params_.validate_all_present.has_value())
-      validateAll();
-    else if (params_.validate_key_present.has_value())
-      validateKey(params_.key_to_validate);
-  }
+  void check() const;
+
+  po::options_description& getOptions() { return cli_mandatory_options_; }
 
  protected:
   /** Validate the whole blockchain */
@@ -54,9 +57,6 @@ class IntegrityChecker {
 
   /** Validate key and get its value */
   void validateKey(const std::string& key) const;
-
-  /** Parse CLI params */
-  void setupParams(int argc, char** argv);
 
   /** Get latest checkpoint descriptor.
    *  @return BlockId of latest checkpoint descriptor
@@ -98,24 +98,18 @@ class IntegrityChecker {
   /** Print block content */
   void printBlockContent(const BlockId&, const concord::kvbc::categorization::RawBlock&) const;
 
+  void initKeysConfig(const fs::path&);
+  void initS3Config(const fs::path&);
+
  protected:
-  struct Params {
-    bool keys_file_present = false;
-    bool s3_config_present = false;
-    std::optional<bool> validate_all_present;
-    std::optional<bool> validate_key_present;
-
-    std::string key_to_validate;
-    bftEngine::impl::ReplicasInfo* repsInfo = nullptr;
-
-    bool complete() const {
-      return keys_file_present and s3_config_present and
-             (validate_all_present.has_value() or validate_key_present.has_value());
-    }
-  } params_;
-
+  bftEngine::impl::ReplicasInfo* repsInfo_ = nullptr;
   concord::kvbc::IStorageFactory::DatabaseSet dbset_;
-  logging::Logger logger_ = logging::getLogger("concord.storage.s3.integrity");
+  std::string checkpoints_prefix_;
+  logging::Logger logger_ = logging::getLogger("concord.kvbc.tools.integrity");
+  po::variables_map var_map_;
+  po::options_description cli_options_{("\nIntegrity check options")};
+  po::options_description cli_mandatory_options_{"\nIntegrity check mandatory options"};
+  po::options_description cli_actions_{"\nIntegrity check options"};
 };
 
-}  // namespace concord::storage::s3
+}  // namespace concord::kvbc::tools

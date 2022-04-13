@@ -9,13 +9,6 @@ if (USE_S3_OBJECT_STORE)
 find_library(LIBS3 s3)
 target_sources(concordbft_storage PRIVATE src/s3/client.cpp src/s3/config_parser.cpp)
 target_link_libraries(concordbft_storage PRIVATE ${LIBS3})
-
-add_executable(s3_integrity_check src/s3/integrity_checker_main.cpp
-                                  src/s3/integrity_checker.cpp
-                                  ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp)
-set_property(TARGET s3_integrity_check PROPERTY CXX_STANDARD 17)
-target_link_libraries(s3_integrity_check PUBLIC concordbft_storage corebft kvbc threshsign util stdc++fs)
-target_include_directories(s3_integrity_check PUBLIC ${concord_bft_tools_SOURCE_DIR})
 endif(USE_S3_OBJECT_STORE)
 
 if (BUILD_ROCKSDB_STORAGE)

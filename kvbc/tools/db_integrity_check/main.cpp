@@ -11,12 +11,13 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "s3/integrity_checker.hpp"
+#include "integrity_checker.hpp"
 
 int main(int argc, char** argv) {
   try {
     logging::initLogger("logging.properties");
-    concord::storage::s3::IntegrityChecker checker(argc, argv);
+    concord::kvbc::tools::IntegrityChecker checker;
+    checker.parseCLIArgs(argc, argv);
     checker.check();
     exit(0);
   } catch (const std::exception& e) {
