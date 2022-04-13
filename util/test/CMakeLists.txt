@@ -86,3 +86,11 @@ target_link_libraries(synchronized_value_test GTest::Main util)
 add_executable(utilization_test utilization_test.cpp)
 add_test(utilization_test utilization_test)
 target_link_libraries(utilization_test GTest::Main util)
+
+add_executable(cryptopp_digest_creator_test cryptopp_digest_creator_test.cpp)
+add_test(cryptopp_digest_creator_test cryptopp_digest_creator_test)
+target_link_libraries(cryptopp_digest_creator_test GTest::Main util)
+
+add_executable(openssl_digest_creator_test openssl_digest_creator_test.cpp)
+add_test(openssl_digest_creator_test openssl_digest_creator_test)
+target_link_libraries(openssl_digest_creator_test GTest::Main util)

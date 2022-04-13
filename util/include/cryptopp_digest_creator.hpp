@@ -31,6 +31,10 @@ class CryptoppDigestCreator : public DigestCreator {
   CryptoppDigestCreator();
   virtual ~CryptoppDigestCreator();
 
+  // Do not allow copying.
+  CryptoppDigestCreator(const CryptoppDigestCreator&) = delete;
+  CryptoppDigestCreator& operator=(const CryptoppDigestCreator&) = delete;
+
   void update(const char* data, size_t len) override;
   void writeDigest(char* outDigest) override;
   size_t digestLength() const override;
