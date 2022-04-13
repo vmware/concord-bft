@@ -21,12 +21,12 @@ class DigestCreator {
  public:
   virtual ~DigestCreator() = default;
 
-  virtual void updateDigest(const char* data, const size_t len) = 0;
+  virtual void update(const char* data, size_t len) = 0;
   virtual void writeDigest(char* outDigest) = 0;
   virtual size_t digestLength() const = 0;
-  virtual bool computeDigest(const char* input,
-                             const size_t inputLength,
-                             char* outBufferForDigest,
-                             const size_t lengthOfBufferForDigest) = 0;
+  virtual bool compute(const char* input,
+                       size_t inputLength,
+                       char* outBufferForDigest,
+                       size_t lengthOfBufferForDigest) = 0;
 };
 }  // namespace concord::util::digest

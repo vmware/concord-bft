@@ -59,7 +59,7 @@ void PrePrepareMsg::calculateDigestOfRequests(Digest& digest) const {
         tasks.push_back(threadPool.async(
             [&sigOrDigestOfRequest, &digestBuffer, local_id](auto* request, auto requestLength) {
               DigestGenerator digestGenerator;
-              digestGenerator.computeDigest(
+              digestGenerator.compute(
                   request, requestLength, digestBuffer.get() + local_id * sizeof(Digest), sizeof(Digest));
               sigOrDigestOfRequest[local_id].first = digestBuffer.get() + local_id * sizeof(Digest);
               sigOrDigestOfRequest[local_id].second = sizeof(Digest);
@@ -80,7 +80,7 @@ void PrePrepareMsg::calculateDigestOfRequests(Digest& digest) const {
 
     // compute and set digest
     DigestGenerator digestGenerator;
-    digestGenerator.computeDigest(sigOrDig.c_str(), sigOrDig.size(), (char*)&digest, sizeof(Digest));
+    digestGenerator.compute(sigOrDig.c_str(), sigOrDig.size(), (char*)&digest, sizeof(Digest));
   } catch (std::out_of_range& ex) {
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": digest threadpool"));
   }

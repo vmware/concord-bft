@@ -31,13 +31,13 @@ class CryptoppDigestCreator : public DigestCreator {
   CryptoppDigestCreator();
   virtual ~CryptoppDigestCreator();
 
-  void updateDigest(const char* data, const size_t len) override;
+  void update(const char* data, size_t len) override;
   void writeDigest(char* outDigest) override;
   size_t digestLength() const override;
-  bool computeDigest(const char* input,
-                     const size_t inputLength,
-                     char* outBufferForDigest,
-                     const size_t lengthOfBufferForDigest) override;
+  bool compute(const char* input,
+               size_t inputLength,
+               char* outBufferForDigest,
+               size_t lengthOfBufferForDigest) override;
 
  private:
   void* internalState_;

@@ -57,7 +57,7 @@ bool concord::kvbc::strategy::MangledPreProcessResultMsgStrategy::changeMessage(
     } else {
       Digest d;
       DigestGenerator digestGenerator;
-      digestGenerator.computeDigest(req.body(), req.size(), reinterpret_cast<char*>(&d), sizeof(Digest));
+      digestGenerator.compute(req.body(), req.size(), reinterpret_cast<char*>(&d), sizeof(Digest));
       sigOrDigestOfRequest[idx].append(d.content(), sizeof(Digest));
     }
     idx++;
@@ -71,7 +71,7 @@ bool concord::kvbc::strategy::MangledPreProcessResultMsgStrategy::changeMessage(
 
     Digest d;
     DigestGenerator digestGenerator;
-    digestGenerator.computeDigest(sigOrDig.c_str(), sigOrDig.size(), reinterpret_cast<char*>(&d), sizeof(Digest));
+    digestGenerator.compute(sigOrDig.c_str(), sigOrDig.size(), reinterpret_cast<char*>(&d), sizeof(Digest));
     nmsg.digestOfRequests() = d;
     LOG_INFO(logger_,
              "Finally the PrePrepare Message with correlation id : "

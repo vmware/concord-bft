@@ -40,7 +40,7 @@ class OpenSSLDigestCreator : public DigestCreator {
     }
   }
 
-  void updateDigest(const char* data, const size_t len) {
+  void update(const char* data, size_t len) {
     ConcordAssert(nullptr != data);
 
     init();
@@ -57,10 +57,7 @@ class OpenSSLDigestCreator : public DigestCreator {
 
   size_t digestLength() const { return hash_ctx_.SIZE_IN_BYTES; }
 
-  bool computeDigest(const char* input,
-                     const size_t inputLength,
-                     char* outBufferForDigest,
-                     const size_t lengthOfBufferForDigest) {
+  bool compute(const char* input, size_t inputLength, char* outBufferForDigest, size_t lengthOfBufferForDigest) {
     ConcordAssert(nullptr != input);
     ConcordAssert(nullptr != outBufferForDigest);
 

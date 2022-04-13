@@ -47,7 +47,8 @@ SignedShareBase* SignedShareBase::create(int16_t type,
   m->b()->epochNum = EpochManager::instance().getSelfEpochNumber();
   m->b()->thresSigLength = (uint16_t)sigLen;
 
-  Digest tmpDigest, digestHelper;
+  Digest tmpDigest;
+  Digest digestHelper;
   digestHelper.calcCombination(digest, v, s, tmpDigest);
 
   auto position = m->body() + sizeof(Header);

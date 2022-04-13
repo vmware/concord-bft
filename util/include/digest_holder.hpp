@@ -29,11 +29,11 @@ class DigestHolder {
   DigestHolder(const char* other) { std::memcpy(d, other, DIGEST_SIZE); }
   DigestHolder(char* buf, size_t len) {
     CREATOR digestCreator;
-    digestCreator.computeDigest(buf, len, (char*)d, DIGEST_SIZE);
+    digestCreator.compute(buf, len, (char*)d, DIGEST_SIZE);
   }
   DigestHolder(const DigestHolder& other) { std::memcpy(d, other.d, DIGEST_SIZE); }
 
-  char* content() const { return (char*)d; }  // @TODO: Can be replaced by getForUpdate().
+  char* content() const { return (char*)d; }
   void makeZero() { std::memset(d, 0, DIGEST_SIZE); }
   std::string toString() const { return concordUtils::bufferToHex(d, DIGEST_SIZE, false); }
   void print() { printf("digest=[%s]", toString().c_str()); }
@@ -73,7 +73,7 @@ class DigestHolder {
 
   void digestOfDigest(const DigestHolder& inDigest, DigestHolder& outDigest) {
     CREATOR digestCreator;
-    digestCreator.computeDigest(inDigest.d, sizeof(DigestHolder), outDigest.d, sizeof(DigestHolder));
+    digestCreator.compute(inDigest.d, sizeof(DigestHolder), outDigest.d, sizeof(DigestHolder));
   }
 
   void calcCombination(const DigestHolder& inDigest, int64_t inDataA, int64_t inDataB, DigestHolder& outDigest) {
