@@ -73,7 +73,7 @@ bool ShufflePrePrepareMsgStrategy::changeMessage(std::shared_ptr<MessageBase>& m
       } else {
         Digest d;
         DigestGenerator digestGenerator;
-        digestGenerator.computeDigest(req.body(), req.size(), reinterpret_cast<char*>(&d), sizeof(Digest));
+        digestGenerator.compute(req.body(), req.size(), reinterpret_cast<char*>(&d), sizeof(Digest));
         if (idx == swapIdx) {
           sigOrDigestOfRequest[idx + 1].append(d.content(), sizeof(Digest));
         } else if (idx == (swapIdx + 1)) {
@@ -98,7 +98,7 @@ bool ShufflePrePrepareMsgStrategy::changeMessage(std::shared_ptr<MessageBase>& m
 
     Digest d;
     DigestGenerator digestGenerator;
-    digestGenerator.computeDigest(sigOrDig.c_str(), sigOrDig.size(), reinterpret_cast<char*>(&d), sizeof(Digest));
+    digestGenerator.compute(sigOrDig.c_str(), sigOrDig.size(), reinterpret_cast<char*>(&d), sizeof(Digest));
     nmsg.digestOfRequests() = d;
     LOG_INFO(logger_,
              "Finally the PrePrepare Message with correlation id : "

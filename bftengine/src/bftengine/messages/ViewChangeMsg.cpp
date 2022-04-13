@@ -52,7 +52,7 @@ void ViewChangeMsg::getMsgDigest(Digest& outDigest) const {
   auto bodySize = getBodySize();
   bodySize += b()->sizeOfAllComplaints;
   DigestGenerator digestGenerator;
-  digestGenerator.computeDigest(body(), bodySize, (char*)outDigest.content(), sizeof(Digest));
+  digestGenerator.compute(body(), bodySize, (char*)outDigest.content(), sizeof(Digest));
 }
 
 uint32_t ViewChangeMsg::getBodySize() const {
