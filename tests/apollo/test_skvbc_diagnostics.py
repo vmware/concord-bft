@@ -21,8 +21,21 @@ from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 from util import skvbc as kvbc
 from typing import TYPE_CHECKING, Sequence
 
-sys.path.append(str(Path(__file__).absolute().parent.parent.parent / "diagnostics"))
-import concord_ctl_logic as concord_ctl
+diagnostics_dir = Path(__file__).absolute().parent.parent.parent / "diagnostics"
+imported_concord_ctl_module_name = 'concord_ctl'
+
+# The following code allows importing a module file which has dashes in its name
+# and which does not have a .py ending
+
+import importlib
+import importlib.util
+
+importlib.machinery.SOURCE_SUFFIXES.append('')
+spec = importlib.util.spec_from_file_location(imported_concord_ctl_module_name, diagnostics_dir / 'concord-ctl')
+concord_ctl = importlib.util.module_from_spec(spec)
+sys.modules[imported_concord_ctl_module_name] = concord_ctl
+spec.loader.exec_module(concord_ctl)
+
 
 if TYPE_CHECKING:
     from util.bft import BftTestNetwork
