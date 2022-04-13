@@ -13,6 +13,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <thread>
 
 #include "config/test_comm_config.hpp"
 #include "config/test_parameters.hpp"
@@ -90,6 +91,7 @@ ClientParams setupClientParams(int argc, char** argv) {
 
 auto logger = logging::getLogger("uttdemo.payment-service");
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 ICommunication* setupCommunicationParams(ClientParams& cp) {
   TestCommConfig testCommConfig(logger);
   uint16_t numOfReplicas = cp.get_numOfReplicas();
@@ -105,6 +107,26 @@ ICommunication* setupCommunicationParams(ClientParams& cp) {
 #endif
 
   return CommFactory::create(conf);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+std::unique_ptr<ICommunication> setupCommunicationForPaymetService() {
+  // [TODO-UTT] Support for other communcation modes like TCP/TLS (if needed)
+
+  // PaymentService 1
+  std::string listenAddr = "127.0.0.1";
+  uint64_t listenPort = 3720;
+  int32_t msgMaxSize = 128 * 1024;  // 128 kB -- Same as TestCommConfig
+  NodeNum selfId = 0;               // The payment service is always node 0 from the point of view of the wallets
+
+  std::unordered_map<NodeNum, NodeInfo> walletNodes;
+  walletNodes.emplace(1, NodeInfo{"127.0.0.1", 3722, false});  // Wallet 1
+  walletNodes.emplace(2, NodeInfo{"127.0.0.1", 3724, false});  // Wallet 2
+  walletNodes.emplace(3, NodeInfo{"127.0.0.1", 3726, false});  // Wallet 3
+
+  PlainUdpConfig conf(listenAddr, listenPort, msgMaxSize, walletNodes, selfId);
+
+  return std::unique_ptr<ICommunication>(CommFactory::create(conf));
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -133,6 +155,30 @@ bft::client::Reply sendUTTRequest(Client& client, const UTTRequest& msg) {
   throw std::runtime_error("Unhandled UTTRequest type!");
 }
 
+class PaymentService : public IReceiver {
+ public:
+  PaymentService(logging::Logger& logger) : logger_{logger} {}
+
+  // Invoked when a new message is received
+  // Notice that the memory pointed by message may be freed immediately
+  // after the execution of this method.
+  void onNewMessage(NodeNum sourceNode, const char* const message, size_t messageLength, NodeNum endpointNum) override {
+    // This is called from the listening thread of the communication
+    LOG_INFO(logger_, "onNewMessage from: " << sourceNode << " msgLen: " << messageLength);
+  }
+
+  // Invoked when the known status of a connection is changed.
+  // For each NodeNum, this method will never be concurrently
+  // executed by two different threads.
+  void onConnectionStatusChanged(NodeNum node, ConnectionStatus newStatus) override {
+    // Not applicable to UDP
+    LOG_INFO(logger_, "onConnectionStatusChanged from: " << node << " newStatus: " << (int)newStatus);
+  }
+
+ private:
+  logging::Logger& logger_;
+};
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 int main(int argc, char** argv) {
   logging::initLogger("config/logging.properties");
@@ -153,15 +199,39 @@ int main(int argc, char** argv) {
     exit(-1);
   }
 
-  SharedCommPtr comm = SharedCommPtr(setupCommunicationParams(clientParams));
+  SharedCommPtr bftClientComm = SharedCommPtr(setupCommunicationParams(clientParams));
 
   ClientConfig clientConfig;
   clientConfig.f_val = clientParams.numOfFaulty;
   for (uint16_t i = 0; i < clientParams.numOfReplicas; ++i) clientConfig.all_replicas.emplace(ReplicaId{i});
   clientConfig.id = ClientId{clientParams.clientId};
 
-  Client client(comm, clientConfig);
+  Client client(bftClientComm, clientConfig);
 
-  // [TODO-UTT] Listen on known port for messages
-  // and pass to the appropriate bft client depending on the account id
+  // [TODO-UTT] Pass the payment service id
+  auto comm = setupCommunicationForPaymetService();
+  if (comm) {
+    PaymentService paymentService(logger);
+
+    comm->setReceiver(NodeNum{0}, &paymentService);
+
+    comm->start();
+
+    LOG_INFO(logger, "PaymentService is running...");
+
+    // [TODO-UTT] Some way to break out of the loop
+    // Maybe we will wait for a terminate signal since a payment service
+    // is always listening for client messages
+    while (true) {
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+
+  } else {
+    LOG_FATAL(logger, "Failed to create communcation for payment service!");
+    return 1;
+  }
+
+  comm->stop();
+
+  return 0;
 }
