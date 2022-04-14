@@ -175,6 +175,9 @@ class SimpleTestReplica {
   }
 
   ~SimpleTestReplica() {
+  }
+
+  ~SimpleTestReplica() {
     // TODO(DD): Reset manually because apparently the order matters - fixit
     replica.reset();
     if (comm) {
