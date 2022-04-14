@@ -13,7 +13,9 @@
 
 #include <iostream>
 #include <fstream>
-#include <thread>
+#include <memory>
+#include <mutex>
+#include <condition_variable>
 
 #include "config/test_comm_config.hpp"
 #include "config/test_parameters.hpp"
@@ -110,24 +112,99 @@ ICommunication* setupCommunicationParams(ClientParams& cp) {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-std::unique_ptr<ICommunication> setupCommunicationForPaymetService() {
-  // [TODO-UTT] Support for other communcation modes like TCP/TLS (if needed)
+struct WalletRequest {
+  UTTRequest req_;
+  NodeNum sender_ = 0;
+};
 
-  // PaymentService 1
-  std::string listenAddr = "127.0.0.1";
-  uint64_t listenPort = 3720;
-  int32_t msgMaxSize = 128 * 1024;  // 128 kB -- Same as TestCommConfig
-  NodeNum selfId = 0;               // The payment service is always node 0 from the point of view of the wallets
+class PaymentServiceCommunicator : public IReceiver {
+ public:
+  PaymentServiceCommunicator(logging::Logger& logger, uint16_t paymentServiceId) : logger_{logger} {
+    // [TODO-UTT] Support for other communcation modes like TCP/TLS (if needed)
 
-  std::unordered_map<NodeNum, NodeInfo> walletNodes;
-  walletNodes.emplace(1, NodeInfo{"127.0.0.1", 3722, false});  // Wallet 1
-  walletNodes.emplace(2, NodeInfo{"127.0.0.1", 3724, false});  // Wallet 2
-  walletNodes.emplace(3, NodeInfo{"127.0.0.1", 3726, false});  // Wallet 3
+    // Mapping from account id to bft client id in payment services
+    // PaymentService 1 | {1, 2, 3} -> {4, 5, 6}
+    // PaymentService 2 | {4, 5, 6} -> {7, 8, 9}
+    // PaymentService 3 | {7, 8, 9} -> {10, 11, 12}
 
-  PlainUdpConfig conf(listenAddr, listenPort, msgMaxSize, walletNodes, selfId);
+    // PaymentService 1
+    std::string listenAddr = "127.0.0.1";
+    uint64_t listenPort = 3720;
+    int32_t msgMaxSize = 128 * 1024;  // 128 kB -- Same as TestCommConfig
+    NodeNum selfId = 0;               // The payment service is always node 0 from the point of view of the wallets
 
-  return std::unique_ptr<ICommunication>(CommFactory::create(conf));
-}
+    std::unordered_map<NodeNum, NodeInfo> walletNodes;
+    walletNodes.emplace(1, NodeInfo{"127.0.0.1", 3722, false});  // Wallet 1
+    walletNodes.emplace(2, NodeInfo{"127.0.0.1", 3724, false});  // Wallet 2
+    walletNodes.emplace(3, NodeInfo{"127.0.0.1", 3726, false});  // Wallet 3
+
+    PlainUdpConfig conf(listenAddr, listenPort, msgMaxSize, walletNodes, selfId);
+
+    comm_.reset(CommFactory::create(conf));
+    if (!comm_) throw std::runtime_error("Failed to create PaymentService communication!");
+
+    comm_->setReceiver(selfId, this);
+    comm_->start();
+  }
+
+  ~PaymentServiceCommunicator() { comm_->stop(); }
+
+  // Invoked when a new message is received
+  // Notice that the memory pointed by message may be freed immediately
+  // after the execution of this method.
+  void onNewMessage(NodeNum sourceNode, const char* const message, size_t messageLength, NodeNum endpointNum) override {
+    // This is called from the listening thread of the communication
+    LOG_INFO(logger_, "onNewMessage from: " << sourceNode << " msgLen: " << messageLength);
+
+    // Create wallet request
+    WalletRequest req;
+    req.sender_ = sourceNode;
+
+    // [TODO-UTT] Deserialize message
+
+    // Push the request on the queue
+    // Note that wallets wait for replies before sending new requests
+    // so the queue cannot be overwhelmed under normal operation
+    {
+      std::lock_guard lg{mut_};
+      requests_.emplace(std::move(req));
+    }
+    condVar_.notify_one();  // Notify getRequest
+  }
+
+  // Invoked when the known status of a connection is changed.
+  // For each NodeNum, this method will never be concurrently
+  // executed by two different threads.
+  void onConnectionStatusChanged(NodeNum node, ConnectionStatus newStatus) override {
+    // Not applicable to UDP
+    LOG_INFO(logger_, "onConnectionStatusChanged from: " << node << " newStatus: " << (int)newStatus);
+  }
+
+  std::optional<WalletRequest> getRequest() {
+    std::optional<WalletRequest> req;
+
+    // Get or wait for the next request
+    {
+      std::unique_lock<std::mutex> lk{mut_};
+
+      condVar_.wait(lk, [&]() { return !requests_.empty(); });
+
+      req = std::move(requests_.front());
+      requests_.pop();
+    }
+
+    return req;
+  }
+
+  void sendReply(NodeNum receiver, std::vector<uint8_t>&& reply) { comm_->send(receiver, std::move(reply)); }
+
+ private:
+  logging::Logger& logger_;
+  std::unique_ptr<ICommunication> comm_;
+  std::queue<WalletRequest> requests_;
+  std::mutex mut_;
+  std::condition_variable condVar_;
+};
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 bft::client::Reply sendUTTRequest(Client& client, const UTTRequest& msg) {
@@ -155,42 +232,9 @@ bft::client::Reply sendUTTRequest(Client& client, const UTTRequest& msg) {
   throw std::runtime_error("Unhandled UTTRequest type!");
 }
 
-class PaymentService : public IReceiver {
- public:
-  PaymentService(logging::Logger& logger) : logger_{logger} {}
-
-  // Invoked when a new message is received
-  // Notice that the memory pointed by message may be freed immediately
-  // after the execution of this method.
-  void onNewMessage(NodeNum sourceNode, const char* const message, size_t messageLength, NodeNum endpointNum) override {
-    // This is called from the listening thread of the communication
-    LOG_INFO(logger_, "onNewMessage from: " << sourceNode << " msgLen: " << messageLength);
-  }
-
-  // Invoked when the known status of a connection is changed.
-  // For each NodeNum, this method will never be concurrently
-  // executed by two different threads.
-  void onConnectionStatusChanged(NodeNum node, ConnectionStatus newStatus) override {
-    // Not applicable to UDP
-    LOG_INFO(logger_, "onConnectionStatusChanged from: " << node << " newStatus: " << (int)newStatus);
-  }
-
- private:
-  logging::Logger& logger_;
-};
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 int main(int argc, char** argv) {
   logging::initLogger("config/logging.properties");
-
-  // [TODO-UTT] Need to create 3 separate bft clients with ids depending on the id
-  // of the payment service.
-  // |replicas| + (payment_service_id - 1) * 3 + i
-
-  // Mapping from account id to bft client id in payment services
-  // PaymentService 1 | {1, 2, 3} -> {4, 5, 6}
-  // PaymentService 2 | {4, 5, 6} -> {7, 8, 9}
-  // PaymentService 3 | {7, 8, 9} -> {10, 11, 12}
 
   ClientParams clientParams = setupClientParams(argc, argv);
 
@@ -200,38 +244,48 @@ int main(int argc, char** argv) {
   }
 
   SharedCommPtr bftClientComm = SharedCommPtr(setupCommunicationParams(clientParams));
-
-  ClientConfig clientConfig;
-  clientConfig.f_val = clientParams.numOfFaulty;
-  for (uint16_t i = 0; i < clientParams.numOfReplicas; ++i) clientConfig.all_replicas.emplace(ReplicaId{i});
-  clientConfig.id = ClientId{clientParams.clientId};
-
-  Client client(bftClientComm, clientConfig);
-
-  // [TODO-UTT] Pass the payment service id
-  auto comm = setupCommunicationForPaymetService();
-  if (comm) {
-    PaymentService paymentService(logger);
-
-    comm->setReceiver(NodeNum{0}, &paymentService);
-
-    comm->start();
-
-    LOG_INFO(logger, "PaymentService is running...");
-
-    // [TODO-UTT] Some way to break out of the loop
-    // Maybe we will wait for a terminate signal since a payment service
-    // is always listening for client messages
-    while (true) {
-      std::this_thread::sleep_for(std::chrono::seconds(1));
-    }
-
-  } else {
-    LOG_FATAL(logger, "Failed to create communcation for payment service!");
-    return 1;
+  if (!bftClientComm) {
+    std::cout << "Failed to create bft client communication!";
+    exit(-1);
   }
 
-  comm->stop();
+  try {
+    // [TODO-UTT] pass the payment service id
 
-  return 0;
+    // Create the payment service communicator
+    // - receives requests from wallets
+    // - forwards the requests to the bft client
+    // - sends the bft reply back to the wallet
+    PaymentServiceCommunicator comm(logger, 1);
+
+    // Create a bft client
+    ClientConfig clientConfig;
+    clientConfig.f_val = clientParams.numOfFaulty;
+    for (uint16_t i = 0; i < clientParams.numOfReplicas; ++i) clientConfig.all_replicas.emplace(ReplicaId{i});
+    clientConfig.id = ClientId{clientParams.clientId};
+
+    Client client(bftClientComm, clientConfig);
+
+    // Process wallet requests synchronously
+    while (auto req = comm.getRequest()) {
+      ConcordAssert(req->sender_ != 0);
+
+      auto reply = sendUTTRequest(client, req->req_);
+
+      // Move to a cmf message and serialize
+      BftReply bftReply;
+      bftReply.result = reply.result;
+      bftReply.matched_data = std::move(reply.matched_data);
+      for (auto& kvp : reply.rsi) bftReply.rsi.emplace(kvp.first.val, std::move(kvp.second));
+
+      std::vector<uint8_t> replyBytes;
+      serialize(replyBytes, bftReply);
+
+      comm.sendReply(req->sender_, std::move(replyBytes));
+    }
+
+  } catch (std::exception& e) {
+    std::cout << "Exception: " << e.what() << '\n';
+    exit(-1);
+  }
 }

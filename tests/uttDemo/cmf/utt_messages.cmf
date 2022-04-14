@@ -27,6 +27,12 @@ Msg GetBlockDataReply 8 {
     string tx
 }
 
+Msg BftReply 9 {
+    uint32 result
+    bytes matched_data
+    map uint16 bytes rsi
+}
+
 Msg UTTRequest 1 {
     oneof {
         TxRequest

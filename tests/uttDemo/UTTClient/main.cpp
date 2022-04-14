@@ -13,11 +13,13 @@
 
 #include <iostream>
 #include <fstream>
+#include <memory>
+#include <mutex>
+#include <condition_variable>
 
 #include "config/test_comm_config.hpp"
 #include "config/test_parameters.hpp"
 #include "communication/CommFactory.hpp"
-#include "bftclient/bft_client.h"
 #include "utt_messages.cmf.hpp"
 
 #include "app_state.hpp"
@@ -65,6 +67,24 @@ class WalletCommunicator : public IReceiver {
   void onNewMessage(NodeNum sourceNode, const char* const message, size_t messageLength, NodeNum endpointNum) override {
     // This is called from the listening thread of the communication
     LOG_INFO(logger_, "onNewMessage from: " << sourceNode << " msgLen: " << messageLength);
+
+    // [TODO-UTT] Guard against mismatched number of replies compared to requests
+
+    // Deserialize the reply
+    auto reply = std::make_unique<BftReply>();
+    auto begin = reinterpret_cast<const uint8_t*>(message);
+    auto end = begin + messageLength;
+    deserialize(begin, end, *reply);
+
+    {
+      std::lock_guard<std::mutex> lk{mut_};
+      // The comm should always be ready to deliver the reply from the last request.
+      // There should never be a message received other than an expected reply.
+      ConcordAssert(reply_ == nullptr);
+      reply_ = std::move(reply);
+    }
+
+    condVar_.notify_one();  // Notify sendSync
   }
 
   // Invoked when the known status of a connection is changed.
@@ -75,18 +95,30 @@ class WalletCommunicator : public IReceiver {
     LOG_INFO(logger_, "onConnectionStatusChanged from: " << node << " newStatus: " << (int)newStatus);
   }
 
-  bft::client::Reply sendSync(std::vector<uint8_t>&& msg) {
+  std::unique_ptr<BftReply> sendSync(std::vector<uint8_t>&& msg) {
     int err = comm_->send(NodeNum(0), std::move(msg));
     if (err) throw std::runtime_error("Error sending message: " + std::to_string(err));
 
-    // [TODO-UTT] Await response
+    std::unique_ptr<BftReply> reply;
 
-    return bft::client::Reply{};
+    // Wait for the reply or timeout
+    {
+      std::unique_lock<std::mutex> lk{mut_};
+
+      condVar_.wait_for(lk, std::chrono::seconds(5), [&]() { return reply_ != nullptr; });
+
+      auto reply = std::move(reply_);
+    }
+
+    return reply;
   }
 
  private:
   logging::Logger& logger_;
   std::unique_ptr<ICommunication> comm_;
+  std::unique_ptr<BftReply> reply_;
+  std::mutex mut_;
+  std::condition_variable condVar_;
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -192,9 +224,10 @@ TxReply sendTxRequest(WalletCommunicator& comm, const Tx& tx) {
   serialize(reqBytes, req);
 
   auto replyBytes = comm.sendSync(std::move(reqBytes));
+  ConcordAssert(replyBytes != nullptr);
 
   UTTReply reply;
-  deserialize(replyBytes.matched_data, reply);
+  deserialize(replyBytes->matched_data, reply);
 
   const auto& txReply = std::get<TxReply>(reply.reply);  // throws if unexpected variant
   std::cout << "Got TxReply, success=" << txReply.success << " last_block_id=" << txReply.last_block_id << '\n';
@@ -211,9 +244,10 @@ GetLastBlockReply sendGetLastBlockRequest(WalletCommunicator& comm) {
   serialize(reqBytes, req);
 
   auto replyBytes = comm.sendSync(std::move(reqBytes));
+  ConcordAssert(replyBytes != nullptr);
 
   UTTReply reply;
-  deserialize(replyBytes.matched_data, reply);
+  deserialize(replyBytes->matched_data, reply);
 
   const auto& lastBlockReply = std::get<GetLastBlockReply>(reply.reply);  // throws if unexpected variant
   std::cout << "Got GetLastBlockReply, last_block_id=" << lastBlockReply.last_block_id << '\n';
@@ -233,9 +267,10 @@ GetBlockDataReply sendGetBlockDataRequest(WalletCommunicator& comm, BlockId bloc
   serialize(reqBytes, req);
 
   auto replyBytes = comm.sendSync(std::move(reqBytes));
+  ConcordAssert(replyBytes != nullptr);
 
   UTTReply reply;
-  deserialize(replyBytes.matched_data, reply);
+  deserialize(replyBytes->matched_data, reply);
 
   const auto& blockDataReply = std::get<GetBlockDataReply>(reply.reply);  // throws if unexpected variant
   std::cout << "Got GetBlockDataReply, success=" << blockDataReply.success << " block_id=" << blockDataReply.block_id
@@ -249,10 +284,10 @@ GetBlockDataReply sendGetBlockDataRequest(WalletCommunicator& comm, BlockId bloc
   // [TODO-UTT]: Need to collect F+1 (out of 2F+1) shares that combine to a valid RandSig
   // Here, we assume naively that all replicas are honest
 
-  for (const auto& kvp : replyBytes.rsi) {
+  for (const auto& kvp : replyBytes->rsi) {
     if (outSigShares.signerIds_.size() == 2) break;  // Pick first F+1 signers
 
-    outSigShares.signerIds_.emplace_back(kvp.first.val);  // ReplicaId
+    outSigShares.signerIds_.emplace_back(kvp.first);  // ReplicaId
 
     std::stringstream ss(BytesToStr(kvp.second));
     size_t size = 0;  // The size reflects the number of output coins
@@ -502,5 +537,6 @@ int main(int argc, char** argv) {
     }
   } catch (const std::exception& e) {
     std::cout << "Exception: " << e.what() << '\n';
+    exit(-1);
   }
 }
