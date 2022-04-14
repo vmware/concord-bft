@@ -58,8 +58,7 @@ std::optional<kvbc::categorization::EventGroup> KvbAppFilter::getNewestPublicEve
     // No public event group ID.
     return std::nullopt;
   }
-  const auto [global_eg_id, _] = getValueFromTagTable(kPublicEgId + kTagTableKeySeparator +
-                                                      concordUtils::toBigEndianStringBuffer(newest_pub_eg_id));
+  const auto [global_eg_id, _] = getValueFromTagTable(kPublicEgId, newest_pub_eg_id);
   (void)_;
   return getEventGroup(global_eg_id);
 }
@@ -309,7 +308,8 @@ uint64_t KvbAppFilter::getValueFromLatestTable(const std::string &key) const {
   return concordUtils::fromBigEndianBuffer<uint64_t>(val->data.data());
 }
 
-TagTableValue KvbAppFilter::getValueFromTagTable(const std::string &key) const {
+TagTableValue KvbAppFilter::getValueFromTagTable(const std::string &tag, uint64_t pvt_eg_id) const {
+  auto key = tag + kTagTableKeySeparator + concordUtils::toBigEndianStringBuffer(pvt_eg_id);
   const auto opt = rostorage_->getLatest(concord::kvbc::categorization::kExecutionEventGroupTagCategory, key);
   if (not opt) {
     std::stringstream msg;
@@ -374,18 +374,14 @@ FindGlobalEgIdResult KvbAppFilter::findGlobalEventGroupId(uint64_t external_even
   if (not private_start) {
     // requested external event group id == public event group id
     uint64_t global_id;
-    std::tie(global_id, std::ignore) = getValueFromTagTable(
-        kPublicEgId + kTagTableKeySeparator + concordUtils::toBigEndianStringBuffer(external_event_group_id));
+    std::tie(global_id, std::ignore) = getValueFromTagTable(kPublicEgId, external_event_group_id);
     return {global_id, true, private_end, external_event_group_id};
   } else if (not public_start) {
     // requested external event group id == private event group id
     uint64_t global_id;
-    std::tie(global_id, std::ignore) = getValueFromTagTable(
-        client_id_ + kTagTableKeySeparator + concordUtils::toBigEndianStringBuffer(external_event_group_id));
+    std::tie(global_id, std::ignore) = getValueFromTagTable(client_id_, external_event_group_id);
     return {global_id, false, external_event_group_id, public_end};
   }
-
-  std::string prefix = client_id_ + kTagTableKeySeparator;
 
   // Binary search in private event groups
   uint64_t window_size;
@@ -399,8 +395,7 @@ FindGlobalEgIdResult KvbAppFilter::findGlobalEventGroupId(uint64_t external_even
   while (window_start <= window_end) {
     window_size = window_end - window_start + 1;
     current_pvt_eg_id = window_start + (window_size / 2);
-    std::tie(current_global_eg_id, current_ext_eg_id) =
-        getValueFromTagTable(prefix + concordUtils::toBigEndianStringBuffer(current_pvt_eg_id));
+    std::tie(current_global_eg_id, current_ext_eg_id) = getValueFromTagTable(client_id_, current_pvt_eg_id);
 
     // Either we found it or read the last possible entry in the window
     if (current_ext_eg_id == external_event_group_id || window_size == 1) break;
@@ -422,14 +417,12 @@ FindGlobalEgIdResult KvbAppFilter::findGlobalEventGroupId(uint64_t external_even
 
   if (external_event_group_id < current_ext_eg_id) {
     if (current_pvt_eg_id == private_start) {
-      std::tie(global_eg_id, std::ignore) = getValueFromTagTable(
-          kPublicEgId + kTagTableKeySeparator + concordUtils::toBigEndianStringBuffer(external_event_group_id));
+      std::tie(global_eg_id, std::ignore) = getValueFromTagTable(kPublicEgId, external_event_group_id);
       return {global_eg_id, true, current_pvt_eg_id - 1, external_event_group_id};
     }
     auto num_pub_egs = current_ext_eg_id - current_pvt_eg_id;
     auto pub_eg_id = num_pub_egs - (current_ext_eg_id - external_event_group_id - 1);
-    std::tie(global_eg_id, std::ignore) =
-        getValueFromTagTable(kPublicEgId + kTagTableKeySeparator + concordUtils::toBigEndianStringBuffer(pub_eg_id));
+    std::tie(global_eg_id, std::ignore) = getValueFromTagTable(kPublicEgId, pub_eg_id);
     return {global_eg_id, true, current_pvt_eg_id - 1, pub_eg_id};
   }
 
@@ -437,14 +430,12 @@ FindGlobalEgIdResult KvbAppFilter::findGlobalEventGroupId(uint64_t external_even
   if (current_pvt_eg_id == private_end) {
     auto num_pub_egs = current_ext_eg_id - current_pvt_eg_id;
     auto pub_eg_id = num_pub_egs + (external_event_group_id - current_ext_eg_id);
-    std::tie(global_eg_id, std::ignore) =
-        getValueFromTagTable(kPublicEgId + kTagTableKeySeparator + concordUtils::toBigEndianStringBuffer(pub_eg_id));
+    std::tie(global_eg_id, std::ignore) = getValueFromTagTable(kPublicEgId, pub_eg_id);
     return {global_eg_id, true, current_pvt_eg_id, pub_eg_id};
   }
   auto num_pub_egs = current_ext_eg_id - current_pvt_eg_id;
   auto pub_eg_id = num_pub_egs + (external_event_group_id - current_ext_eg_id);
-  std::tie(global_eg_id, std::ignore) =
-      getValueFromTagTable(kPublicEgId + kTagTableKeySeparator + concordUtils::toBigEndianStringBuffer(pub_eg_id));
+  std::tie(global_eg_id, std::ignore) = getValueFromTagTable(kPublicEgId, pub_eg_id);
   return {global_eg_id, true, current_pvt_eg_id, pub_eg_id};
 }
 
@@ -472,23 +463,21 @@ void KvbAppFilter::readEventGroups(EventGroupId external_eg_id_start,
   uint64_t ext_eg_id = external_eg_id_start;
 
   uint64_t next_pvt_eg_id = private_eg_id + 1;
-  auto next_pvt_key = client_id_ + kTagTableKeySeparator + concordUtils::toBigEndianStringBuffer(next_pvt_eg_id);
   uint64_t next_pub_eg_id = public_eg_id + 1;
-  auto next_pub_key = kPublicEgId + kTagTableKeySeparator + concordUtils::toBigEndianStringBuffer(next_pub_eg_id);
 
   // The next public or private event group might not exist or got pruned
   // In this case, set to max so that the comparison will be lost later
   uint64_t pvt_external_id;
   uint64_t pvt_global_id;
   try {
-    std::tie(pvt_global_id, pvt_external_id) = getValueFromTagTable(next_pvt_key);
+    std::tie(pvt_global_id, pvt_external_id) = getValueFromTagTable(client_id_, next_pvt_eg_id);
   } catch (const std::exception &e) {
     pvt_global_id = std::numeric_limits<uint64_t>::max();
   }
 
   uint64_t pub_global_id;
   try {
-    std::tie(pub_global_id, std::ignore) = getValueFromTagTable(next_pub_key);
+    std::tie(pub_global_id, std::ignore) = getValueFromTagTable(kPublicEgId, next_pub_eg_id);
   } catch (const std::exception &e) {
     pub_global_id = std::numeric_limits<uint64_t>::max();
   }
@@ -512,13 +501,13 @@ void KvbAppFilter::readEventGroups(EventGroupId external_eg_id_start,
       if (next_pub_eg_id > newest_public_eg_id) {
         pub_global_id = std::numeric_limits<uint64_t>::max();
       } else {
-        std::tie(pub_global_id, std::ignore) = getValueFromTagTable(next_pub_key);
+        std::tie(pub_global_id, std::ignore) = getValueFromTagTable(kPublicEgId, next_pub_eg_id);
       }
     } else {
       if (next_pvt_eg_id > newest_private_eg_id) {
         pvt_global_id = std::numeric_limits<uint64_t>::max();
       } else {
-        std::tie(pvt_global_id, pvt_external_id) = getValueFromTagTable(next_pvt_key);
+        std::tie(pvt_global_id, pvt_external_id) = getValueFromTagTable(client_id_, next_pvt_eg_id);
       }
     }
 
@@ -531,11 +520,11 @@ void KvbAppFilter::readEventGroups(EventGroupId external_eg_id_start,
       global_eg_id = pvt_global_id;
       is_previous_public = false;
       ConcordAssertEQ(ext_eg_id + 1, pvt_external_id);
-      next_pvt_key = client_id_ + kTagTableKeySeparator + concordUtils::toBigEndianStringBuffer(++next_pvt_eg_id);
+      next_pvt_eg_id++;
     } else {
       global_eg_id = pub_global_id;
       is_previous_public = true;
-      next_pub_key = kPublicEgId + kTagTableKeySeparator + concordUtils::toBigEndianStringBuffer(++next_pub_eg_id);
+      next_pub_eg_id++;
     }
     ext_eg_id += 1;
   }
