@@ -464,8 +464,7 @@ void KvbAppFilter::readEventGroups(EventGroupId external_eg_id_start,
   }
 
   if (external_eg_id_start < oldest_external_eg_id || external_eg_id_start > newest_external_eg_id) {
-    // TODO: Change exception to (id, begin, end)
-    throw InvalidEventGroupRange(external_eg_id_start, oldest_external_eg_id);
+    throw InvalidEventGroupRange(external_eg_id_start, oldest_external_eg_id, newest_external_eg_id);
   }
 
   auto [global_eg_id, is_previous_public, private_eg_id, public_eg_id] = findGlobalEventGroupId(external_eg_id_start);
@@ -585,8 +584,7 @@ string KvbAppFilter::readEventGroupHash(EventGroupId external_eg_id) {
     throw InvalidEventGroupId(external_eg_id);
   }
   if (external_eg_id < oldest_external_eg_id || external_eg_id > newest_external_eg_id) {
-    // TODO: Change exception to (id, begin, end)
-    throw InvalidEventGroupRange(external_eg_id, oldest_external_eg_id);
+    throw InvalidEventGroupRange(external_eg_id, oldest_external_eg_id, newest_external_eg_id);
   }
 
   auto result = findGlobalEventGroupId(external_eg_id);
