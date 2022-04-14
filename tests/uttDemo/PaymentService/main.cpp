@@ -156,11 +156,13 @@ class PaymentServiceCommunicator : public IReceiver {
     // This is called from the listening thread of the communication
     LOG_INFO(logger_, "onNewMessage from: " << sourceNode << " msgLen: " << messageLength);
 
-    // Create wallet request
+    // Deserialize the received UTTRquest from a wallet
     WalletRequest req;
     req.sender_ = sourceNode;
 
-    // [TODO-UTT] Deserialize message
+    auto begin = reinterpret_cast<const uint8_t*>(message);
+    auto end = begin + messageLength;
+    deserialize(begin, end, req.req_);
 
     // Push the request on the queue
     // Note that wallets wait for replies before sending new requests
@@ -236,6 +238,7 @@ bft::client::Reply sendUTTRequest(Client& client, const UTTRequest& msg) {
 int main(int argc, char** argv) {
   logging::initLogger("config/logging.properties");
 
+  // [TODO-UTT] Use a new structure for the input args instead of ClientParams
   ClientParams clientParams = setupClientParams(argc, argv);
 
   if (clientParams.clientId == UINT16_MAX || clientParams.numOfFaulty == UINT16_MAX) {
@@ -243,28 +246,39 @@ int main(int argc, char** argv) {
     exit(-1);
   }
 
+  // [TODO-UTT] Use a separate variable for the payment processor id
+  // instead of clientParams.clientId
+  uint16_t paymentProcessorId = clientParams.clientId;  // in {1, 2, 3}
+
+  // Calculate the id of the actual bft client based on the payment processor id
+  clientParams.clientId = clientParams.numOfReplicas + (paymentProcessorId - 1);  // in {4, 5, 6}
+
+  // Create the bft client communication
   SharedCommPtr bftClientComm = SharedCommPtr(setupCommunicationParams(clientParams));
   if (!bftClientComm) {
     std::cout << "Failed to create bft client communication!";
     exit(-1);
   }
 
+  // Create the bft client
+  ClientConfig clientConfig;
+  clientConfig.f_val = clientParams.numOfFaulty;
+  for (uint16_t i = 0; i < clientParams.numOfReplicas; ++i) clientConfig.all_replicas.emplace(ReplicaId{i});
+  clientConfig.id = ClientId{clientParams.clientId};
+
+  Client client(bftClientComm, clientConfig);
+
   try {
     // [TODO-UTT] pass the payment service id
 
     // Create the payment service communicator
-    // - receives requests from wallets
+    // - receives requests from walletsreplicasreplicas
     // - forwards the requests to the bft client
     // - sends the bft reply back to the wallet
+
+    LOG_INFO(logger, "Starting PaymentService " << paymentProcessorId);
+
     PaymentServiceCommunicator comm(logger, 1);
-
-    // Create a bft client
-    ClientConfig clientConfig;
-    clientConfig.f_val = clientParams.numOfFaulty;
-    for (uint16_t i = 0; i < clientParams.numOfReplicas; ++i) clientConfig.all_replicas.emplace(ReplicaId{i});
-    clientConfig.id = ClientId{clientParams.clientId};
-
-    Client client(bftClientComm, clientConfig);
 
     // Process wallet requests synchronously
     while (auto req = comm.getRequest()) {
