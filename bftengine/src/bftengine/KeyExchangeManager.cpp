@@ -145,10 +145,13 @@ void KeyExchangeManager::loadPublicKeys() {
 void KeyExchangeManager::exchangeTlsKeys(const std::string& type, const SeqNum& bft_sn) {
   auto keys = concord::util::crypto::Crypto::instance().generateECDSAKeyPair(
       concord::util::crypto::KeyFormat::PemFormat, concord::util::crypto::CurveType::secp384r1);
+  bool use_unified_certs = bftEngine::ReplicaConfig::instance().useUnifiedCertificates;
   std::string root_path =
-      bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" + std::to_string(repID_) + "/" + type;
+      (use_unified_certs)
+          ? bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" + std::to_string(repID_)
+          : bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" + std::to_string(repID_) + "/" + type;
 
-  std::string cert_path = root_path + "/" + type + ".cert";
+  std::string cert_path = (use_unified_certs) ? root_path + "/node.cert" : root_path + "/" + type + ".cert";
   std::string prev_key_pem = concord::util::crypto::Crypto::instance()
                                  .RsaHexToPem(std::make_pair(SigManager::instance()->getSelfPrivKey(), ""))
                                  .first;

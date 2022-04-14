@@ -567,8 +567,11 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientKeyExchangeSt
   for (const auto& gr : bftEngine::ReplicaConfig::instance().clientGroups) {
     for (auto cid : gr.second) {
       if (command.tls) {
-        std::string client_cert_path = bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" +
-                                       std::to_string(cid) + "/client/client.cert";
+        std::string client_cert_path =
+            (bftEngine::ReplicaConfig::instance().useUnifiedCertificates)
+                ? bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" + std::to_string(cid) + "/node.cert"
+                : bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" + std::to_string(cid) +
+                      "/client/client.cert";
         auto cert = psm.decryptFile(client_cert_path).value_or("invalid client id");
         stats.clients_data.push_back(std::make_pair(cid, cert));
         continue;
