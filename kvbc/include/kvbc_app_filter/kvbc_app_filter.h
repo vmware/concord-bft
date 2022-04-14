@@ -103,9 +103,12 @@ class InvalidEventGroupId : public std::exception {
 
 class InvalidEventGroupRange : public std::exception {
  public:
-  InvalidEventGroupRange(const concord::kvbc::EventGroupId begin, const concord::kvbc::EventGroupId end)
+  InvalidEventGroupRange(const concord::kvbc::EventGroupId lookup,
+                         const concord::kvbc::EventGroupId begin,
+                         const concord::kvbc::EventGroupId end)
       : msg_("Invalid event group range") {
-    msg_ += " [" + std::to_string(begin) + ", " + std::to_string(end) + "]";
+    msg_ += "Looking for " + std::to_string(lookup);
+    msg_ += " in [" + std::to_string(begin) + ", " + std::to_string(end) + "]";
   }
   const char *what() const noexcept override { return msg_.c_str(); }
 
@@ -182,7 +185,7 @@ class KvbAppFilter {
 
   uint64_t newestExternalEventGroupId() const;
 
-  // Given a tag-specific public (external) event group id, return the corresponding global event group id
+  // Given an external event group id, return the corresponding global event group id
   // Precondition: We expect that the requested external event group id exists in storage
   FindGlobalEgIdResult findGlobalEventGroupId(uint64_t external_event_group_id) const;
 
