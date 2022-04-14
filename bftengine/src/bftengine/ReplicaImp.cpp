@@ -4895,6 +4895,14 @@ void ReplicaImp::executeAllPrePreparedRequests(bool allowParallelExecution,
   //////////////////////////////////////////////////////////////////////
 
   Timestamp time;
+  if (config_.timeServiceEnabled) {
+    ConcordAssert(ppMsg->getTime() > 0);  // TODO(GG): should be verified when receiving the PrePrepare message
+
+    time.time_since_epoch = ConsensusTime(ppMsg->getTime());
+    time.time_since_epoch = time_service_manager_->compareAndUpdate(time.time_since_epoch);
+
+    LOG_DEBUG(GL, "Timestamp to be provided to the execution: " << time.time_since_epoch.count() << "ms");
+  }
 
   if (numOfSpecialReqs > 0) executeSpecialRequests(ppMsg, numOfSpecialReqs, recoverFromErrorInRequestsExecution, time);
 
@@ -4918,14 +4926,6 @@ void ReplicaImp::executeSpecialRequests(PrePrepareMsg *ppMsg,
   size_t reqIdx = 0;
   RequestsIterator reqIter(ppMsg);
   char *requestBody = nullptr;
-  if (config_.timeServiceEnabled) {
-    ConcordAssert(ppMsg->getTime() > 0);  // TODO(GG): should be verified when receiving the PrePrepare message
-
-    outTimestamp.time_since_epoch = ConsensusTime(ppMsg->getTime());
-    outTimestamp.time_since_epoch = time_service_manager_->compareAndUpdate(outTimestamp.time_since_epoch);
-
-    LOG_DEBUG(GL, "Timestamp to be provided to the execution: " << outTimestamp.time_since_epoch.count() << "ms");
-  }
   while (reqIter.getAndGoToNext(requestBody) && numOfSpecialReqs > 0) {
     ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
 
@@ -5532,6 +5532,7 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
   char *requestBody = nullptr;
   auto timestamp = config_.timeServiceEnabled ? std::make_optional<Timestamp>() : std::nullopt;
   if (config_.timeServiceEnabled) {
+    ConcordAssert(ppMsg->getTime() > 0);
     timestamp->time_since_epoch = ConsensusTime(ppMsg->getTime());
     timestamp->time_since_epoch = time_service_manager_->compareAndUpdate(timestamp->time_since_epoch);
     LOG_DEBUG(GL, "Timestamp to be provided to the execution: " << timestamp->time_since_epoch.count() << "ms");
