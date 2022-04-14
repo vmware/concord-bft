@@ -8,3 +8,4 @@ mkdir -p utt-demo-run/rocksdb
 
 cp build/tests/uttDemo/UTTClient/utt_client utt-demo-run/bin
 cp build/tests/uttDemo/UTTReplica/utt_replica utt-demo-run/bin
+cp build/tests/uttDemo/PaymentService/payment_service utt-demo-run/bin

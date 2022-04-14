@@ -107,7 +107,7 @@ class WalletCommunicator : public IReceiver {
 
       condVar_.wait_for(lk, std::chrono::seconds(5), [&]() { return reply_ != nullptr; });
 
-      auto reply = std::move(reply_);
+      reply = std::move(reply_);
     }
 
     return reply;
@@ -187,7 +187,7 @@ ClientParams setupClientParams(int argc, char** argv) {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void initWallet(AppState& state, uint16_t walletId) {
+std::string initWallet(AppState& state, uint16_t walletId) {
   AppState::initUTTLibrary();
 
   if (!state.GetAccounts().empty()) throw std::runtime_error("Wallet already exists!");
@@ -199,9 +199,13 @@ void initWallet(AppState& state, uint16_t walletId) {
   UTTClientConfig cfg;
   ifs >> cfg;
 
+  auto pid = cfg.wallet_.getUserPid();
+
   std::cout << "Successfully loaded UTT wallet '" << cfg.wallet_.getUserPid() << "'\n";
 
   state.addAccount(Account{std::move(cfg.wallet_)});
+
+  return pid;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -492,7 +496,7 @@ int main(int argc, char** argv) {
   AppState state;
 
   try {
-    initWallet(state, clientParams.clientId);
+    auto pid = initWallet(state, clientParams.clientId);
 
     WalletCommunicator comm(logger, clientParams.clientId);
 
@@ -504,7 +508,7 @@ int main(int argc, char** argv) {
 
     while (true) {
       std::cout << "\nEnter command (type 'h' for commands, 'q' to exit):\n";
-      std::cout << "Wallet " << clientParams.clientId << " > ";
+      std::cout << pid << " > ";
       std::string cmd;
       std::getline(std::cin, cmd);
       try {

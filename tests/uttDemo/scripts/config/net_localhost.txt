@@ -6,3 +6,15 @@ replicas_config:
  - 127.0.0.1:3716
 
 clients_config: 127.0.0.1:3718
+
+# payment_service 1
+# 127.0.0.1:3720
+
+# wallet 1
+# 127.0.0.1:3722
+
+# wallet 2
+# 127.0.0.1:3724
+
+# wallet 3
+# 127.0.0.1:3726
