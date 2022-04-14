@@ -306,8 +306,8 @@ class ThinReplicaImpl {
     // Note that TRS considers last_known + 1 update request as valid, even if the requested
     // update doesn't exist in storage yet.
     if (is_event_group_transition) {
-      // For an event group transition we need to check if the first/oldest tag-specific event group is available. If
-      // not then we wait because it is similar to waiting for X+1 whereby X is 0.
+      // For an event group transition we need to check if the first/oldest external event group is available.
+      // If not then we wait because it is similar to waiting for X+1 whereby X is 0.
       auto oldest_eg_id = kvb_filter->oldestExternalEventGroupId();
       while (not oldest_eg_id) {
         auto has_update = live_updates->waitForEventGroupUntilNonEmpty(kWaitForUpdateTimeout);

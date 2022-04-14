@@ -182,7 +182,7 @@ class KvbAppFilter {
 
   uint64_t newestExternalEventGroupId() const;
 
-  // Given a tag-specific public (external) event group id, return the corresponding global event group id
+  // Given an external event group id, return the corresponding global event group id
   // Precondition: We expect that the requested external event group id exists in storage
   FindGlobalEgIdResult findGlobalEventGroupId(uint64_t external_event_group_id) const;
 
