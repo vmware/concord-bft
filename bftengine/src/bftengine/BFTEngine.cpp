@@ -264,7 +264,6 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
                                                  *dynamic_cast<InternalReplicaApi *>(replicaInternal->replica_.get()),
                                                  timers,
                                                  pm);
-  replicaInternal->SetAggregator(std::make_shared<concordMetrics::Aggregator>());
   return replicaInternal;
 }
 
