@@ -35,8 +35,10 @@ namespace concord::client::concordclient {
 
 ConcordClient::ConcordClient(const ConcordClientConfig& config, std::shared_ptr<concordMetrics::Aggregator> aggregator)
     : logger_(logging::getLogger("concord.client.concordclient")), config_(config), metrics_(aggregator) {
+  health_check_enabled_ = config.health_check_enabled;
   ConcordClientPoolConfig client_pool_config = createClientPoolStruct(config);
   client_pool_ = std::make_unique<concord::concord_client_pool::ConcordClientPool>(client_pool_config, metrics_);
+  client_pool_->setHealthCheckEnabled(health_check_enabled_);
   while (client_pool_->HealthStatus() == concord::concord_client_pool::PoolStatus::NotServing) {
     LOG_INFO(logger_, "Waiting for client pool to connect");
     std::this_thread::sleep_for(std::chrono::seconds(2));
@@ -174,6 +176,7 @@ void ConcordClient::subscribe(const SubscribeRequest& sub_req,
   auto trc_config = std::make_unique<ThinReplicaClientConfig>(
       config_.subscribe_config.id, queue, config_.topology.f_val, grpc_connections_);
   trc_ = std::make_unique<ThinReplicaClient>(std::move(trc_config), metrics_);
+  trc_->setHealthCheckEnabled(health_check_enabled_);
 
   if (std::holds_alternative<EventGroupRequest>(sub_req.request)) {
     ::client::thin_replica_client::SubscribeRequest trc_request;
@@ -204,6 +207,7 @@ void ConcordClient::getSnapshot(const StateSnapshotRequest& request, std::shared
     auto rss_config = std::make_unique<ReplicaStateSnapshotClientConfig>(grpc_connections_,
                                                                          config_.state_snapshot_config.num_threads);
     rss_ = std::make_unique<ReplicaStateSnapshotClient>(std::move(rss_config));
+    rss_->setHealthCheckEnabled(health_check_enabled_);
   }
 
   ::client::replica_state_snapshot_client::SnapshotRequest rss_request;
@@ -217,14 +221,30 @@ void ConcordClient::getSnapshot(const StateSnapshotRequest& request, std::shared
 // ConcordClient is healthy if ThinReplicaClient, ReplicaStateSnapshotClient and
 // ConcordClientPool are all healthy.
 ClientHealth ConcordClient::getClientHealth() {
+  if (!health_check_enabled_) {
+    return ClientHealth::Healthy;
+  }
+
   ClientHealth trc_health = trc_->getClientHealth();
+  if (!trc_->isServing()) {
+    trc_health = ClientHealth::Unhealthy;
+  }
+
   ClientHealth rss_health;
   if (!rss_) {
     rss_health = ClientHealth::Healthy;
   } else {
     rss_health = rss_->getClientHealth();
+    if (!rss_->isServing()) {
+      rss_health = ClientHealth::Unhealthy;
+    }
   }
+
   ClientHealth client_pool_health = client_pool_->getClientHealth();
+  auto client_pool_serving = client_pool_->HealthStatus();
+  if (client_pool_serving == concord::concord_client_pool::PoolStatus::NotServing) {
+    client_pool_health = ClientHealth::Unhealthy;
+  }
 
   LOG_DEBUG(logger_, "trc_health: " << trc_health);
   LOG_DEBUG(logger_, "rss_health: " << rss_health);
@@ -238,6 +258,18 @@ ClientHealth ConcordClient::getClientHealth() {
     LOG_DEBUG(logger_, "ConcordClient::getClientHealth(): Unhealthy");
     return ClientHealth::Unhealthy;
   }
+}
+
+void ConcordClient::setClientHealth(ClientHealth health) {
+  if (!health_check_enabled_) {
+    return;
+  }
+  LOG_DEBUG(logger_, "ConcordClient::setClientHealth(" << health << ")");
+  trc_->setClientHealth(health);
+  if (rss_) {
+    rss_->setClientHealth(health);
+  }
+  client_pool_->setClientHealth(health);
 }
 
 }  // namespace concord::client::concordclient

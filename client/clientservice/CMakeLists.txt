@@ -11,6 +11,7 @@ target_include_directories(clientservice-lib PUBLIC include)
 target_link_libraries(clientservice-lib PUBLIC
   clientservice-proto
   concordclient
+  concordclient-health
   gRPC::grpc++
   gRPC::grpc++_reflection
   logging

@@ -66,7 +66,8 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
   auto status = grpc::Status::OK;
 
   if (client_->getClientHealth() == cc::ClientHealth::Unhealthy) {
-    status = grpc::Status(grpc::StatusCode::UNAVAILABLE, "Unavailable");
+    // TODO(scramer): is this the right error code to return?
+    status = grpc::Status(grpc::StatusCode::INTERNAL, "Internal error");
     client_->unsubscribe();
     return status;
   }

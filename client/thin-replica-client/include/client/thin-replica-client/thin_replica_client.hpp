@@ -204,6 +204,16 @@ class ThinReplicaClient final {
   // Is there a subscriber?
   bool has_subscriber_;
 
+  bool health_check_enabled_;
+  // number of read requests received while periodically seeing if we're healthy
+  std::atomic_uint read_counter_for_health_ = 0;
+  // number of read requests with errors in current request count period.
+  std::atomic_uint read_error_counter_for_health_ = 0;
+  bool unhealthy_ = false;
+
+  void updateReadErrorCounter();
+  void updateReadCounter();
+
   // Thread function to start subscription_thread_ with.
   void receiveUpdates();
 
@@ -321,7 +331,8 @@ class ThinReplicaClient final {
         subscription_thread_(),
         stop_subscription_thread_(false),
         is_serving_(false),
-        has_subscriber_(false) {
+        has_subscriber_(false),
+        health_check_enabled_(false) {
     metrics_.setAggregator(aggregator);
     if (config_->trs_conns.size() < (3 * (size_t)config_->max_faulty + 1)) {
       size_t num_servers = config_->trs_conns.size();
@@ -445,7 +456,10 @@ class ThinReplicaClient final {
   // Register the callback to update external metrics
   void setMetricsCallback(const std::function<void(const ThinReplicaClientMetrics&)>& exposeAndSetMetrics);
 
+  bool isServing() { return is_serving_; }
+  void setHealthCheckEnabled(bool is_enabled);
   concord::client::concordclient::ClientHealth getClientHealth();
+  void setClientHealth(concord::client::concordclient::ClientHealth health);
 };
 
 }  // namespace client::thin_replica_client

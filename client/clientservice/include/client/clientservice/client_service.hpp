@@ -18,6 +18,7 @@
 #include "request_service.hpp"
 #include "state_snapshot_service.hpp"
 #include "Logger.hpp"
+#include "client/concordclient/client_health.hpp"
 #include "client/concordclient/concord_client.hpp"
 
 namespace concord::client::clientservice {
@@ -50,6 +51,8 @@ class ClientService {
  private:
   // Handler for asynchronous services
   void handleRpcs(unsigned thread_idx);
+
+  void setAllServingStatus(bool status);
 
   logging::Logger logger_;
   std::shared_ptr<concord::client::concordclient::ConcordClient> client_;

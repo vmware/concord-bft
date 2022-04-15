@@ -30,11 +30,16 @@ using vmware::concord::replicastatesnapshot::StreamSnapshotResponse;
 using namespace concord::client::concordclient;
 
 namespace client::replica_state_snapshot_client {
+
+static inline const uint kNumOpsPerHealthCheck = 128;
+
 void ReplicaStateSnapshotClient::readSnapshotStream(const SnapshotRequest& request,
                                                     std::shared_ptr<SnapshotQueue> remote_queue) {
   is_serving_ = false;
+  updateOpCounter();
   if (count_of_concurrent_request_.load() > config_->concurrency_level) {
     remote_queue->setException(std::make_exception_ptr(RequestOverload()));
+    updateOpErrorCounter();
     return;
   }
   ++count_of_concurrent_request_;
@@ -47,6 +52,7 @@ void ReplicaStateSnapshotClient::readSnapshotStream(const SnapshotRequest& reque
       // Set exception and quit receiveUpdates
       remote_queue->setException(std::current_exception());
       is_serving_ = false;
+      updateOpErrorCounter();
     }
     --(this->count_of_concurrent_request_);
   });
@@ -70,10 +76,12 @@ void ReplicaStateSnapshotClient::receiveSnapshot(const SnapshotRequest& request,
       stream_snapshot_request.set_last_received_key(last_read_key);
     }
 
+    updateOpCounter();
     result = conn->openStateSnapshotStream(stream_snapshot_request, request_id);
     if (result != GrpcConnection::Result::kSuccess) {
       LOG_INFO(logger_, "Not able to open connection with replica id" << replica_id);
       replica_id++;
+      updateOpErrorCounter();
       continue;
     }
     bool is_reading = true;
@@ -89,6 +97,7 @@ void ReplicaStateSnapshotClient::receiveSnapshot(const SnapshotRequest& request,
         pushDatumToRemoteQueue(stream_snapshot_response, remote_queue, last_read_key);
       } else {
         is_reading = false;
+        updateOpErrorCounter();
         conn->cancelStateSnapshotStream(request_id);
       }
     }
@@ -135,12 +144,60 @@ void ReplicaStateSnapshotClient::pushFinalStateToRemoteQueue(const GrpcConnectio
   }
 }
 
-// XXX TODO(scramer): I'm not sure this logic is correct.
+void ReplicaStateSnapshotClient::updateOpErrorCounter() {
+  if (!health_check_enabled_) {
+    return;
+  }
+  op_error_counter_++;
+  if (op_counter_ < kNumOpsPerHealthCheck) {
+    return;
+  }
+
+  if (op_error_counter_ > (op_counter_ / 4)) {
+    // More than 25% of the operations in the checking interval resulted in health errors;
+    // we're sick.
+    unhealthy_ = true;
+    LOG_ERROR(logger_, "Too many read errors: " << op_error_counter_ << " reads out of " << op_counter_ << "reads");
+  }
+
+  LOG_DEBUG(logger_, "reads: " << op_counter_ << " read errors " << op_error_counter_);
+
+  // We've reached the end of our measurement window; start over.
+  op_error_counter_ = 0;
+  op_counter_ = 0;
+}
+
+// TODO(scramer): is this trivial method necessary?
+void ReplicaStateSnapshotClient::updateOpCounter() {
+  if (!health_check_enabled_) {
+    return;
+  }
+  op_error_counter_++;
+}
+
+void ReplicaStateSnapshotClient::setHealthCheckEnabled(bool is_enabled) { health_check_enabled_ = is_enabled; }
+
 ClientHealth ReplicaStateSnapshotClient::getClientHealth() {
-  if (is_serving_) {
+  if (!health_check_enabled_) {
     return ClientHealth::Healthy;
-  } else {
+  }
+  if (unhealthy_) {
     return ClientHealth::Unhealthy;
+  } else {
+    return ClientHealth::Healthy;
+  }
+}
+
+void ReplicaStateSnapshotClient::setClientHealth(ClientHealth health) {
+  if (!health_check_enabled_) {
+    return;
+  }
+  if (health == ClientHealth::Healthy) {
+    unhealthy_ = false;
+    op_error_counter_ = 0;
+    op_counter_ = 0;
+  } else {
+    unhealthy_ = true;
   }
 }
 

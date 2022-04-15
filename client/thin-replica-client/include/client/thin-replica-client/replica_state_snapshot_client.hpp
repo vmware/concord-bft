@@ -61,11 +61,15 @@ class ReplicaStateSnapshotClient {
         config_(std::move(config)),
         threadpool_(config_->concurrency_level),
         count_of_concurrent_request_{0},
-        is_serving_{false} {}
+        is_serving_{false},
+        health_check_enabled_{false} {}
   void readSnapshotStream(const SnapshotRequest& request,
                           std::shared_ptr<concord::client::concordclient::SnapshotQueue> remote_queue);
 
+  bool isServing() { return is_serving_; }
+  void setHealthCheckEnabled(bool is_enabled);
   concord::client::concordclient::ClientHealth getClientHealth();
+  void setClientHealth(concord::client::concordclient::ClientHealth health);
 
  private:
   // Thread function to start subscription_thread_ with snapshot.
@@ -78,10 +82,20 @@ class ReplicaStateSnapshotClient {
                               std::shared_ptr<concord::client::concordclient::SnapshotQueue> remote_queue,
                               std::string& last_key);
 
+  void updateOpCounter();
+  void updateOpErrorCounter();
+
   logging::Logger logger_;
   std::unique_ptr<ReplicaStateSnapshotClientConfig> config_;
   concord::util::ThreadPool threadpool_;
   std::atomic_uint32_t count_of_concurrent_request_;
   bool is_serving_;
+
+  bool health_check_enabled_;
+  // operations we perform for checking for health
+  std::atomic_uint op_counter_ = 0;
+  // number of operations with errors in current operation count period.
+  std::atomic_uint op_error_counter_ = 0;
+  std::atomic_bool unhealthy_ = false;
 };
 }  // namespace client::replica_state_snapshot_client

@@ -127,6 +127,7 @@ struct ConcordClientConfig {
   // Configuration for subscribe requests
   SubscribeConfig subscribe_config;
   StateSnapshotConfig state_snapshot_config;
+  bool health_check_enabled;
 };
 
 struct StateSnapshotRequest {
@@ -180,6 +181,7 @@ class ConcordClient {
 
   // Health of ConcordClient.
   ClientHealth getClientHealth();
+  void setClientHealth(ClientHealth health);
 
  private:
   config_pool::ConcordClientPoolConfig createClientPoolStruct(const ConcordClientConfig& config);
@@ -192,6 +194,7 @@ class ConcordClient {
 
   // TODO: Allow multiple subscriptions
   std::atomic_bool active_subscription_{false};
+  bool health_check_enabled_ = false;
 
   std::vector<std::shared_ptr<::client::concordclient::GrpcConnection>> grpc_connections_;
   std::unique_ptr<::client::thin_replica_client::ThinReplicaClient> trc_;

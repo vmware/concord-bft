@@ -45,9 +45,7 @@ void ClientService::start(const std::string& addr, unsigned num_async_threads, u
     server_threads_.emplace_back(std::thread([this, i] { this->handleRpcs(i); }));
   }
 
-  auto health = clientservice_server_->GetHealthCheckService();
-  health->SetServingStatus(kRequestService, true);
-  health->SetServingStatus(kEventService, true);
+  setAllServingStatus(true);
 }
 
 void ClientService::wait() {
@@ -74,6 +72,9 @@ void ClientService::shutdown() {
   } else {
     LOG_INFO(logger_, "Clientservice is not running.");
   }
+
+  // Since we're no longer running, we're no longer serving.
+  setAllServingStatus(false);
 }
 
 void ClientService::handleRpcs(unsigned thread_idx) {
@@ -101,8 +102,21 @@ void ClientService::handleRpcs(unsigned thread_idx) {
     if (not ok) {
       continue;
     }
+
+    if (client_->getClientHealth() == concordclient::ClientHealth::Unhealthy) {
+      // Since we're not healthy, we're no longer serving.
+      setAllServingStatus(false);
+    }
+
     static_cast<requestservice::RequestServiceCallData*>(tag)->proceed();
   }
+}
+
+void ClientService::setAllServingStatus(bool status) {
+  auto health = clientservice_server_->GetHealthCheckService();
+  health->SetServingStatus(kRequestService, status);
+  health->SetServingStatus(kEventService, status);
+  health->SetServingStatus(kStateSnapshotService, status);
 }
 
 }  // namespace concord::client::clientservice
