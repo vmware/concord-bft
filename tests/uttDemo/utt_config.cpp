@@ -41,12 +41,13 @@ using namespace utt_config;
 
 ////////////////////////////////////////////////////////////////////////
 bool UTTClientConfig::operator==(const UTTClientConfig& other) const {
-  return pids_ == other.pids_ && wallet_ == other.wallet_;
+  return pids_ == other.pids_ && initPublicBalance_ == other.initPublicBalance_ && wallet_ == other.wallet_;
 }
 bool UTTClientConfig::operator!=(const UTTClientConfig& other) const { return !(*this == other); }
 
 std::ostream& operator<<(std::ostream& os, const UTTClientConfig& cfg) {
   os << JoinStr(cfg.pids_, ',') << '\n';
+  os << cfg.initPublicBalance_ << '\n';
   os << cfg.wallet_;
   return os;
 }
@@ -57,6 +58,9 @@ std::istream& operator>>(std::istream& is, UTTClientConfig& cfg) {
   if (pids.empty()) throw std::runtime_error("Trying to deserialize UTTClientConfig with no pids!");
   cfg.pids_ = SplitStr(pids, ',');
 
+  is >> cfg.initPublicBalance_;
+  is.ignore(1, '\n');
+
   is >> cfg.wallet_;
 
   return is;
@@ -64,12 +68,14 @@ std::istream& operator>>(std::istream& is, UTTClientConfig& cfg) {
 
 ////////////////////////////////////////////////////////////////////////
 bool UTTReplicaConfig::operator==(const UTTReplicaConfig& other) const {
-  return p_ == other.p_ && rpk_ == other.rpk_ && bskShare_ == other.bskShare_;
+  return pids_ == other.pids_ && initPublicBalance_ == other.initPublicBalance_ && p_ == other.p_ &&
+         rpk_ == other.rpk_ && bpk_ == other.bpk_ && bskShare_ == other.bskShare_;
 }
 bool UTTReplicaConfig::operator!=(const UTTReplicaConfig& other) const { return !(*this == other); }
 
 std::ostream& operator<<(std::ostream& os, const UTTReplicaConfig& cfg) {
   os << JoinStr(cfg.pids_, ',') << '\n';
+  os << cfg.initPublicBalance_ << '\n';
   os << cfg.p_;
   os << cfg.rpk_;
   os << cfg.bpk_;
@@ -82,6 +88,9 @@ std::istream& operator>>(std::istream& is, UTTReplicaConfig& cfg) {
   std::getline(is, pids);
   if (pids.empty()) throw std::runtime_error("Trying to deserialize UTTReplicaConfig with no pids!");
   cfg.pids_ = SplitStr(pids, ',');
+
+  is >> cfg.initPublicBalance_;
+  is.ignore(1, '\n');
 
   is >> cfg.p_;
   is >> cfg.rpk_;

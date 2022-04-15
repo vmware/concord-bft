@@ -14,3 +14,7 @@ echo "Running replica 4..."
 
 echo "Running payment_service 1..."
 ../PaymentService/payment_service -n config/net_localhost.txt -f 1 -i 1 >& /dev/null &
+echo "Running payment_service 2..."
+../PaymentService/payment_service -n config/net_localhost.txt -f 1 -i 2 >& /dev/null &
+echo "Running payment_service 3..."
+../PaymentService/payment_service -n config/net_localhost.txt -f 1 -i 3 >& /dev/null &

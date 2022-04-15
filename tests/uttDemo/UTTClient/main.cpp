@@ -177,7 +177,7 @@ struct ClientApp : public AppState {
   ClientApp(uint16_t walletId) {
     if (walletId == 0) throw std::runtime_error("wallet id must be a positive value!");
 
-    const std::string fileName = "config/utt_client_" + std::to_string(walletId);
+    const std::string fileName = "config/utt_wallet_" + std::to_string(walletId);
     std::ifstream ifs(fileName);
     if (!ifs.is_open()) throw std::runtime_error("Missing config: " + fileName);
 
@@ -195,7 +195,7 @@ struct ClientApp : public AppState {
 
     std::cout << "Successfully loaded UTT wallet with pid '" << myPid_ << "'\n";
 
-    addAccount(Account{std::move(cfg.wallet_)});
+    addAccount(Account{std::move(cfg.wallet_), cfg.initPublicBalance_});
   }
 
   const Account& getMyAccount() const { return *getAccountById(myPid_); }
