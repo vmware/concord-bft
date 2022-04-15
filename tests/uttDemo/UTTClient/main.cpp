@@ -38,15 +38,24 @@ auto logger = logging::getLogger("uttdemo.wallet");
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 class WalletCommunicator : public IReceiver {
  public:
-  WalletCommunicator(logging::Logger& logger, uint16_t walletId) : logger_{logger} {
+  WalletCommunicator(logging::Logger& logger, uint16_t walletId) : logger_{logger}, walletId_{walletId} {
     // [TODO-UTT] Support for other communcation modes like TCP/TLS (if needed)
 
-    // [TODO-UTT] Configure depending on the wallet id
+    // Map wallet id to payment service id:
+    // {1, 2, 3} -> 1
+    // {4, 5, 6} -> 2
+    // {7, 8, 9} -> 3
+
+    // [TODO-UTT] Fetch the corresponding network config for the paymentServiceId
+    paymentServiceId_ = (walletId_ - 1) * 3 + 1;
+
     std::string listenAddr = "127.0.0.1";
     uint64_t listenPort = 3722;
     int32_t msgMaxSize = 128 * 1024;  // 128 kB -- Same as TestCommConfig
 
-    // Each wallet connects only to the payment service node (always node 0)
+    // Each wallet connects only to the payment service node
+    // The actual node id for the payment service is always 0 from the point of view
+    // of the wallet.
     std::unordered_map<NodeNum, NodeInfo> nodes;
     nodes.emplace(0, NodeInfo{"127.0.0.1", 3720, false});
 
@@ -113,8 +122,12 @@ class WalletCommunicator : public IReceiver {
     return reply;
   }
 
+  uint16_t getPaymentServiceId() const { return paymentServiceId_; }
+
  private:
   logging::Logger& logger_;
+  uint16_t walletId_;
+  uint16_t paymentServiceId_;
   std::unique_ptr<ICommunication> comm_;
   std::unique_ptr<BftReply> reply_;
   std::mutex mut_;
@@ -122,11 +135,48 @@ class WalletCommunicator : public IReceiver {
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-struct UttPayment {
-  UttPayment(Account& from, const Account& to, size_t amount) : from_(from), to_(to), amount_(amount) {}
+struct ClientApp : public AppState {
+  ClientApp(uint16_t walletId) {
+    if (walletId == 0) throw std::runtime_error("wallet id must be a positive value!");
 
-  Account& from_;
-  const Account& to_;
+    const std::string fileName = "config/utt_client_" + std::to_string(walletId);
+    std::ifstream ifs(fileName);
+    if (!ifs.is_open()) throw std::runtime_error("Missing config: " + fileName);
+
+    UTTClientConfig cfg;
+    ifs >> cfg;
+
+    myPid_ = cfg.wallet_.getUserPid();
+    if (myPid_.empty()) throw std::runtime_error("Empty wallet pid!");
+
+    for (auto& pid : cfg.pids_) {
+      if (pid == myPid_) continue;
+      otherPids_.emplace(std::move(pid));
+    }
+    if (otherPids_.empty()) throw std::runtime_error("Other pids are empty!");
+
+    std::cout << "Successfully loaded UTT wallet with pid '" << myPid_ << "'\n";
+
+    addAccount(Account{std::move(cfg.wallet_)});
+  }
+
+  const Account& getMyAccount() const { return *getAccountById(myPid_); }
+  Account& getMyAccount() { return *getAccountById(myPid_); }
+
+  template <typename T>
+  std::string fmtCurrency(T val) {
+    return "$" + std::to_string(val);
+  }
+
+  std::string myPid_;
+  std::set<std::string> otherPids_;
+};
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+struct UttPayment {
+  UttPayment(std::string receiver, size_t amount) : receiver_(std::move(receiver)), amount_(amount) {}
+
+  std::string receiver_;
   size_t amount_;
 };
 
@@ -184,28 +234,6 @@ ClientParams setupClientParams(int argc, char** argv) {
     }
   }
   return clientParams;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-std::string initWallet(AppState& state, uint16_t walletId) {
-  AppState::initUTTLibrary();
-
-  if (!state.GetAccounts().empty()) throw std::runtime_error("Wallet already exists!");
-
-  const std::string fileName = "config/utt_client_" + std::to_string(walletId);
-  std::ifstream ifs(fileName);
-  if (!ifs.is_open()) throw std::runtime_error("Missing config: " + fileName);
-
-  UTTClientConfig cfg;
-  ifs >> cfg;
-
-  auto pid = cfg.wallet_.getUserPid();
-
-  std::cout << "Successfully loaded UTT wallet '" << cfg.wallet_.getUserPid() << "'\n";
-
-  state.addAccount(Account{std::move(cfg.wallet_)});
-
-  return pid;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -317,14 +345,14 @@ GetBlockDataReply sendGetBlockDataRequest(WalletCommunicator& comm, BlockId bloc
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 // Sync state by fetching missing blocks and executing them
-void syncState(AppState& state, WalletCommunicator& comm) {
+void syncState(ClientApp& app, WalletCommunicator& comm) {
   std::cout << "Sync state...\n";
 
   auto lastBlockReply = sendGetLastBlockRequest(comm);
-  state.setLastKnownBlockId(lastBlockReply.last_block_id);
+  app.setLastKnownBlockId(lastBlockReply.last_block_id);
 
   // Sync missing blocks
-  auto missingBlockId = state.executeBlocks();
+  auto missingBlockId = app.executeBlocks();
   while (missingBlockId) {
     // Request missing block
     ReplicaSigShares sigShares;
@@ -346,33 +374,49 @@ void syncState(AppState& state, WalletCommunicator& comm) {
       txUtt->sigShares_ = std::move(sigShares);
     }
 
-    state.appendBlock(Block{std::move(*tx)});
-    missingBlockId = state.executeBlocks();
+    app.appendBlock(Block{std::move(*tx)});
+    missingBlockId = app.executeBlocks();
   }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-std::optional<UttPayment> createUttPayment(const std::string& cmd, AppState& state) {
+std::optional<UttPayment> createUttPayment(const std::string& cmd, const ClientApp& app) {
   std::vector<std::string> tokens;
   std::string token;
   std::stringstream ss(cmd);
   while (std::getline(ss, token, ' ')) tokens.emplace_back(std::move(token));
 
-  if (tokens.size() == 4 && tokens[0] == "utt") {
-    const auto& from = tokens[1];
-    const auto& to = tokens[2];
-    int payment = std::atoi(tokens[3].c_str());
+  if (tokens.size() == 3 && tokens[0] == "utt") {
+    const auto& receiver = tokens[1];
+    if (receiver == app.myPid_) throw std::domain_error("utt explicit self payments are not supported!");
+
+    if (app.otherPids_.count(receiver) == 0) throw std::domain_error("utt payment receiver is unknown!");
+
+    int payment = std::atoi(tokens[2].c_str());
     if (payment <= 0) throw std::domain_error("utt payment amount must be positive!");
 
-    // [TODO-UTT] This logic will be modified once we have a separate payment process and an account process.
-    // The utt transaction will be made from the point of view of the account and it will only know
-    // that the receiving pid exists (is previously registered by the registry authority)
-    auto* fromAccount = state.getAccountById(from);
-    if (!fromAccount) throw std::domain_error("utt sender account not found!");
-    const auto* toAccount = state.getAccountById(to);
-    if (!toAccount) throw std::domain_error("utt receiver account not found!");
+    return UttPayment(receiver, payment);
+  }
 
-    return UttPayment(*fromAccount, *toAccount, payment);
+  return std::nullopt;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+std::optional<Tx> createPublicTx(const std::string& cmd, const ClientApp& app) {
+  std::stringstream ss(cmd);
+  std::string token;
+  std::vector<std::string> tokens;
+
+  while (std::getline(ss, token, ' ')) tokens.emplace_back(std::move(token));
+
+  if (tokens.size() == 2) {
+    if (tokens[0] == "deposit")
+      return TxPublicDeposit(app.myPid_, std::atoi(tokens[1].c_str()));
+    else if (tokens[0] == "withdraw")
+      return TxPublicWithdraw(app.myPid_, std::atoi(tokens[1].c_str()));
+  } else if (tokens.size() == 3) {
+    if (tokens[0] == "transfer")
+      return TxPublicTransfer(app.myPid_, std::move(tokens[1]), std::atoi(tokens[2].c_str()));
   }
 
   return std::nullopt;
@@ -381,58 +425,58 @@ std::optional<UttPayment> createUttPayment(const std::string& cmd, AppState& sta
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void printHelp() {
   std::cout << "\nCommands:\n";
-  std::cout << "balance\t\t\t\t-- print all account's public and utt balances\n";
-  std::cout << "ledger\t\t\t\t-- print the transactions that happened on the blockchain\n";
-  std::cout << "deposit [account] [amount]\t-- public money deposit to account\n";
-  std::cout << "withdraw [account] [amount]\t-- public money withdraw from account\n";
-  std::cout << "transfer [from] [to] [amount]\t-- public money transfer\n";
-  std::cout << "utt [from] [to] [amount]\t-- anonymous money transfer\n";
+  std::cout << "balance\t\t\t-- print account's public and utt balances\n";
+  std::cout << "ledger\t\t\t-- print all transactions that happened\n";
+  // std::cout << "deposit [amount]\t-- public money deposit to account\n";
+  // std::cout << "withdraw [amount]\t-- public money withdraw from account\n";
+  std::cout << "transfer [to] [amount]\t-- public money transfer\n";
+  std::cout << "utt [to] [amount]\t-- anonymous money transfer\n";
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void checkBalance(AppState& state, WalletCommunicator& comm) {
-  syncState(state, comm);
+void checkBalance(ClientApp& app, WalletCommunicator& comm) {
+  syncState(app, comm);
   std::cout << '\n';
-  for (const auto& kvp : state.GetAccounts()) {
-    const auto& acc = kvp.second;
-    std::cout << acc.getId() << " | public: " << acc.getPublicBalance();
-    std::cout << " utt: " << acc.getUttBalance() << " / " << acc.getUttBudget() << '\n';
-  }
+
+  const auto& myAccount = app.getMyAccount();
+  std::cout << "Balance:\n";
+  std::cout << "  Public: " << app.fmtCurrency(myAccount.getPublicBalance()) << '\n';
+  std::cout << "  Anonymous: " << app.fmtCurrency(myAccount.getUttBalance()) << '\n';
+  std::cout << "  Remaining anonymous budget: " << app.fmtCurrency(myAccount.getUttBudget()) << '\n';
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void checkLedger(AppState& state, WalletCommunicator& comm) {
-  syncState(state, comm);
+void checkLedger(ClientApp& app, WalletCommunicator& comm) {
+  syncState(app, comm);
   std::cout << '\n';
-  for (const auto& block : state.GetBlocks()) {
+  for (const auto& block : app.GetBlocks()) {
     std::cout << block << '\n';
   }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void runUttPayment(const UttPayment& payment, AppState& state, WalletCommunicator& comm) {
-  std::cout << "Running a UTT payment from " << payment.from_.getId();
-  std::cout << " to " << payment.to_.getId() << " for " << payment.amount_ << '\n';
-
-  // Precondition: a valid UTT payment
-  auto wallet = payment.from_.getWallet();
-  ConcordAssert(wallet != nullptr);
+void runUttPayment(const UttPayment& payment, ClientApp& app, WalletCommunicator& comm) {
+  std::cout << "Running a UTT payment to '" << payment.receiver_;
+  std::cout << "' for " << app.fmtCurrency(payment.amount_) << '\n';
 
   while (true) {
     // We do a sync before each attempt to do a utt payment since only the client
     // knows if it has the right coins to do it.
     // This also handles the case where we do repeated splits or merges to arrive at a final payment
     // and need to obtain the resulting coins before we proceed.
-    syncState(state, comm);
+    syncState(app, comm);
+
+    const auto& myAccount = app.getMyAccount();
+    const auto* myWallet = myAccount.getWallet();
+    ConcordAssert(myWallet != nullptr);
 
     // Check that we can still do the payment and this holds:
     // payment <= balance && payment <= budget
-    if (payment.from_.getUttBalance() < payment.amount_)
-      throw std::domain_error("Insufficient balance for utt payment!");
-    if (payment.from_.getUttBudget() < payment.amount_)
+    if (myAccount.getUttBalance() < payment.amount_) throw std::domain_error("Insufficient balance for utt payment!");
+    if (myAccount.getUttBudget() < payment.amount_)
       throw std::domain_error("Insufficient anonymous budget for utt payment!");
 
-    auto uttTx = libutt::Client::createTxForPayment(*wallet, payment.to_.getId(), payment.amount_);
+    auto uttTx = libutt::Client::createTxForPayment(*myWallet, payment.receiver_, payment.amount_);
 
     // We assume that any tx with a budget coin must be an actual payment
     // and not a coin split or merge.
@@ -443,7 +487,7 @@ void runUttPayment(const UttPayment& payment, AppState& state, WalletCommunicato
 
     auto reply = sendTxRequest(comm, tx);
     if (reply.success) {
-      state.setLastKnownBlockId(reply.last_block_id);
+      app.setLastKnownBlockId(reply.last_block_id);
       std::cout << "Ok.\n";
     } else {
       std::cout << "Transaction failed: " << reply.err << '\n';
@@ -458,23 +502,23 @@ void runUttPayment(const UttPayment& payment, AppState& state, WalletCommunicato
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void sendPublicTx(const Tx& tx, AppState& state, WalletCommunicator& comm) {
+void sendPublicTx(const Tx& tx, ClientApp& app, WalletCommunicator& comm) {
   auto reply = sendTxRequest(comm, tx);
   if (reply.success) {
-    state.setLastKnownBlockId(reply.last_block_id);
+    app.setLastKnownBlockId(reply.last_block_id);
     std::cout << "Ok.\n";
+    checkBalance(app, comm);
   } else {
     std::cout << "Transaction failed: " << reply.err << '\n';
   }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void dbgForceCheckpoint(AppState& state, WalletCommunicator& comm) {
-  // [TODO-UTT] Pick the user and the number of txs
+void dbgForceCheckpoint(ClientApp& app, WalletCommunicator& comm) {
   for (int i = 0; i < 150; ++i) {
-    auto reply = sendTxRequest(comm, TxPublicDeposit("user_1", 1));
+    auto reply = sendTxRequest(comm, TxPublicDeposit(app.myPid_, 1));
     if (reply.success) {
-      state.setLastKnownBlockId(reply.last_block_id);
+      app.setLastKnownBlockId(reply.last_block_id);
     } else {
       std::cout << "Checkpoint transaction " << (i + 1) << " failed: " << reply.err << '\n';
       break;
@@ -493,22 +537,18 @@ int main(int argc, char** argv) {
     exit(-1);
   }
 
-  AppState state;
-
   try {
-    auto pid = initWallet(state, clientParams.clientId);
+    AppState::initUTTLibrary();
+
+    ClientApp state(clientParams.clientId);
 
     WalletCommunicator comm(logger, clientParams.clientId);
 
-    // Map wallet id to payment service id:
-    // {1, 2, 3} -> 1
-    // {4, 5, 6} -> 2
-    // {7, 8, 9} -> 3
-    std::cout << "Using Payment Service #" << (clientParams.clientId - 1) / 3 + 1;
+    std::cout << "Using Payment Service #" << comm.getPaymentServiceId();
 
     while (true) {
       std::cout << "\nEnter command (type 'h' for commands, 'q' to exit):\n";
-      std::cout << pid << " > ";
+      std::cout << state.myPid_ << "> ";
       std::string cmd;
       std::getline(std::cin, cmd);
       try {
@@ -526,9 +566,8 @@ int main(int argc, char** argv) {
         } else if (auto uttPayment = createUttPayment(cmd, state)) {
           runUttPayment(*uttPayment, state, comm);
           checkBalance(state, comm);
-        } else if (auto tx = parseTx(cmd)) {
+        } else if (auto tx = createPublicTx(cmd, state)) {
           sendPublicTx(*tx, state, comm);
-          checkBalance(state, comm);
         } else {
           std::cout << "Unknown command '" << cmd << "'\n";
         }
