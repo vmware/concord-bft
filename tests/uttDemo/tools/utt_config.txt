@@ -1,0 +1,46 @@
+# Configure UTT
+
+# Wallet config file prefix (Required)
+wallet_config_prefix:
+ - utt_wallet_
+
+# Replica config file prefix (Required)
+replica_config_prefix:
+ - utt_replica_
+
+# Number of replicas (Required)
+num_replicas:
+ - 4
+
+# Number of faulty replicas (Required)
+num_faulty:
+ - 1
+
+# Unit for displaying the currency values (Optional)
+currency_unit:
+ - $
+
+# Configure initial public balance for each account (Optional)
+public_balance:
+ - 1000
+
+# List of initial utt coins for each wallet (Optional)
+utt_coins:
+ - 100
+ - 100
+
+# Initial utt anonymous budget (Required)
+utt_budget:
+ - 1000
+
+# List of wallet pids (Required)
+wallet_pids:
+ - user-1
+ - user-2
+ - user-3
+ - user-4
+ - user-5
+ - user-6
+ - user-7
+ - user-8
+ - user-9

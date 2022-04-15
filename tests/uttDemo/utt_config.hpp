@@ -44,6 +44,7 @@ struct UTTClientConfig : IUTTConfig {
   bool operator!=(const UTTClientConfig& other) const;
 
   std::vector<std::string> pids_;
+  int initPublicBalance_ = 0;
   libutt::Wallet wallet_;
 };
 std::ostream& operator<<(std::ostream& os, const UTTClientConfig& cfg);
@@ -59,6 +60,7 @@ struct UTTReplicaConfig : IUTTConfig {
   bool operator!=(const UTTReplicaConfig& other) const;
 
   std::vector<std::string> pids_;
+  int initPublicBalance_ = 0;
   libutt::Params p_;
   libutt::RegAuthPK rpk_;
   libutt::RandSigPK bpk_;

@@ -213,9 +213,8 @@ void UTTCommandsHandler::initAppState() {
 
   LOG_INFO(logger_, "Loaded config '" << fileName);
 
-  // [TODO-UTT]: Init public balances with some value in the config
   for (const auto& pid : config_.pids_) {
-    state_.addAccount(Account{pid});
+    state_.addAccount(Account{pid, config_.initPublicBalance_});
   }
   if (state_.GetAccounts().empty()) throw std::runtime_error("No accounts loaded!");
 }
