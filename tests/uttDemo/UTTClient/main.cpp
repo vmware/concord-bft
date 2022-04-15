@@ -17,6 +17,7 @@
 #include <mutex>
 #include <condition_variable>
 
+#include <config_file_parser.hpp>
 #include "config/test_comm_config.hpp"
 #include "config/test_parameters.hpp"
 #include "communication/CommFactory.hpp"
@@ -38,28 +39,65 @@ auto logger = logging::getLogger("uttdemo.wallet");
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 class WalletCommunicator : public IReceiver {
  public:
-  WalletCommunicator(logging::Logger& logger, uint16_t walletId) : logger_{logger}, walletId_{walletId} {
+  WalletCommunicator(logging::Logger& logger, uint16_t walletId, const std::string& cfgFileName)
+      : logger_{logger}, walletId_{walletId} {
     // [TODO-UTT] Support for other communcation modes like TCP/TLS (if needed)
+    if (cfgFileName.empty()) throw std::runtime_error("Network config filename empty!");
+
+    concord::util::ConfigFileParser cfgFileParser(logger_, cfgFileName);
+    if (!cfgFileParser.Parse()) throw std::runtime_error("Failed to parse configuration file: " + cfgFileName);
+
+    // Load wallet network address
+    auto walletAddr = cfgFileParser.GetNthValue("wallets_config", walletId);
+    if (walletAddr.empty()) throw std::runtime_error("No wallet address for id " + std::to_string(walletId));
+
+    std::string listenHost;
+    uint16_t listenPort = 0;
+    {
+      std::stringstream ss(std::move(walletAddr));
+      std::getline(ss, listenHost, ':');
+      ss >> listenPort;
+
+      if (listenHost.empty()) throw std::runtime_error("Empty wallet address!");
+      if (listenPort == 0) throw std::runtime_error("Invalid wallet port!");
+    }
+
+    std::cout << "Wallet listening addr: " << listenHost << " : " << listenPort << "\n";
 
     // Map wallet id to payment service id:
     // {1, 2, 3} -> 1
     // {4, 5, 6} -> 2
     // {7, 8, 9} -> 3
+    paymentServiceId_ = (walletId_ - 1) / 3 + 1;
 
-    // [TODO-UTT] Fetch the corresponding network config for the paymentServiceId
-    paymentServiceId_ = (walletId_ - 1) * 3 + 1;
+    // Load the corresponding payment service network address
+    auto paymentServiceAddr = cfgFileParser.GetNthValue("payment_services_config", paymentServiceId_);
+    if (paymentServiceAddr.empty())
+      throw std::runtime_error("No payment service address for id " + std::to_string(paymentServiceId_));
 
-    std::string listenAddr = "127.0.0.1";
-    uint64_t listenPort = 3722;
-    int32_t msgMaxSize = 128 * 1024;  // 128 kB -- Same as TestCommConfig
+    std::string paymentServiceHost;
+    uint16_t paymentServicePort = 0;
+    {
+      std::stringstream ss(std::move(paymentServiceAddr));
+      std::getline(ss, paymentServiceHost, ':');
+      ss >> paymentServicePort;
+
+      if (paymentServiceHost.empty()) throw std::runtime_error("Empty payment service host!");
+      if (paymentServicePort == 0) throw std::runtime_error("Invalid payment service port!");
+    }
+
+    std::cout << "Using PaymentService #" << paymentServiceId_;
+    std::cout << " addr: " << paymentServiceHost << " : " << paymentServicePort << "\n";
 
     // Each wallet connects only to the payment service node
     // The actual node id for the payment service is always 0 from the point of view
     // of the wallet.
     std::unordered_map<NodeNum, NodeInfo> nodes;
-    nodes.emplace(0, NodeInfo{"127.0.0.1", 3720, false});
+    nodes.emplace(0, NodeInfo{paymentServiceHost, paymentServicePort, false});
 
-    PlainUdpConfig conf(listenAddr, listenPort, msgMaxSize, nodes, walletId);
+    const int32_t msgMaxSize = 128 * 1024;  // 128 kB -- Same as TestCommConfig
+
+    PlainUdpConfig conf(listenHost, listenPort, msgMaxSize, nodes, walletId);
 
     comm_.reset(CommFactory::create(conf));
     if (!comm_) throw std::runtime_error("Failed to create communication for wallet!");
@@ -542,9 +580,9 @@ int main(int argc, char** argv) {
 
     ClientApp state(clientParams.clientId);
 
-    WalletCommunicator comm(logger, clientParams.clientId);
+    WalletCommunicator comm(logger, clientParams.clientId, clientParams.configFileName);
 
-    std::cout << "Using Payment Service #" << comm.getPaymentServiceId();
+    std::cout << "Wallet initialization done.\n";
 
     while (true) {
       std::cout << "\nEnter command (type 'h' for commands, 'q' to exit):\n";

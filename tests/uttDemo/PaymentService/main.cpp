@@ -17,6 +17,7 @@
 #include <mutex>
 #include <condition_variable>
 
+#include <config_file_parser.hpp>
 #include "config/test_comm_config.hpp"
 #include "config/test_parameters.hpp"
 #include "communication/CommFactory.hpp"
@@ -119,26 +120,64 @@ struct WalletRequest {
 
 class PaymentServiceCommunicator : public IReceiver {
  public:
-  PaymentServiceCommunicator(logging::Logger& logger, uint16_t paymentServiceId) : logger_{logger} {
+  PaymentServiceCommunicator(logging::Logger& logger, uint16_t paymentServiceId, const std::string& cfgFileName)
+      : logger_{logger} {
     // [TODO-UTT] Support for other communcation modes like TCP/TLS (if needed)
 
-    // Mapping from account id to bft client id in payment services
-    // PaymentService 1 | {1, 2, 3} -> {4, 5, 6}
-    // PaymentService 2 | {4, 5, 6} -> {7, 8, 9}
-    // PaymentService 3 | {7, 8, 9} -> {10, 11, 12}
+    if (cfgFileName.empty()) throw std::runtime_error("Network config filename empty!");
 
-    // PaymentService 1
-    std::string listenAddr = "127.0.0.1";
-    uint64_t listenPort = 3720;
+    concord::util::ConfigFileParser cfgFileParser(logger_, cfgFileName);
+    if (!cfgFileParser.Parse()) throw std::runtime_error("Failed to parse configuration file: " + cfgFileName);
+
+    // Load payment service listen address
+    auto paymentServiceAddr = cfgFileParser.GetNthValue("payment_services_config", paymentServiceId);
+    if (paymentServiceAddr.empty())
+      throw std::runtime_error("No payment service address for id " + std::to_string(paymentServiceId));
+
+    std::string listenHost;
+    uint16_t listenPort = 0;
+    {
+      std::stringstream ss(std::move(paymentServiceAddr));
+      std::getline(ss, listenHost, ':');
+      ss >> listenPort;
+
+      if (listenHost.empty()) throw std::runtime_error("Empty wallet address!");
+      if (listenPort == 0) throw std::runtime_error("Invalid wallet port!");
+    }
+
+    LOG_INFO(logger_, "PaymentService listening addr: " << listenHost << " : " << listenPort);
+
+    // Load wallet network addresses
+    // Map from payment service id to wallet ids
+    // 1 -> {1, 2, 3}
+    // 2 -> {4, 5, 6}
+    // 3 -> {7, 8, 9}
+    std::unordered_map<NodeNum, NodeInfo> nodes;
+    for (int i = 0; i < 3; ++i) {
+      const NodeNum walletId = (paymentServiceId - 1) * 3 + i + 1;
+      auto walletAddr = cfgFileParser.GetNthValue("wallets_config", walletId);
+      if (walletAddr.empty()) throw std::runtime_error("No wallet address for id " + std::to_string(walletId));
+
+      std::string walletHost;
+      uint16_t walletPort = 0;
+      {
+        std::stringstream ss(std::move(walletAddr));
+        std::getline(ss, walletHost, ':');
+        ss >> walletPort;
+
+        if (walletHost.empty()) throw std::runtime_error("Empty wallet address!");
+        if (walletPort == 0) throw std::runtime_error("Invalid wallet port!");
+      }
+
+      LOG_INFO(logger_, "Serving Wallet with id " << walletId << " at addr: " << walletHost << " : " << walletPort);
+
+      nodes.emplace(walletId, NodeInfo{walletHost, walletPort, false});
+    }
+
     int32_t msgMaxSize = 128 * 1024;  // 128 kB -- Same as TestCommConfig
-    NodeNum selfId = 0;               // The payment service is always node 0 from the point of view of the wallets
+    NodeNum selfId = 0;               // The payment service is always node 0 with respect to the wallets
 
-    std::unordered_map<NodeNum, NodeInfo> walletNodes;
-    walletNodes.emplace(1, NodeInfo{"127.0.0.1", 3722, false});  // Wallet 1
-    walletNodes.emplace(2, NodeInfo{"127.0.0.1", 3724, false});  // Wallet 2
-    walletNodes.emplace(3, NodeInfo{"127.0.0.1", 3726, false});  // Wallet 3
-
-    PlainUdpConfig conf(listenAddr, listenPort, msgMaxSize, walletNodes, selfId);
+    PlainUdpConfig conf(listenHost, listenPort, msgMaxSize, nodes, selfId);
 
     comm_.reset(CommFactory::create(conf));
     if (!comm_) throw std::runtime_error("Failed to create PaymentService communication!");
@@ -256,7 +295,7 @@ int main(int argc, char** argv) {
   // Create the bft client communication
   SharedCommPtr bftClientComm = SharedCommPtr(setupCommunicationParams(clientParams));
   if (!bftClientComm) {
-    std::cout << "Failed to create bft client communication!";
+    LOG_FATAL(logger, "Failed to create bft client communication!");
     exit(-1);
   }
 
@@ -278,7 +317,7 @@ int main(int argc, char** argv) {
 
     LOG_INFO(logger, "Starting PaymentService " << paymentProcessorId);
 
-    PaymentServiceCommunicator comm(logger, 1);
+    PaymentServiceCommunicator comm(logger, paymentProcessorId, clientParams.configFileName);
 
     // Process wallet requests synchronously
     while (auto req = comm.getRequest()) {
@@ -299,7 +338,7 @@ int main(int argc, char** argv) {
     }
 
   } catch (std::exception& e) {
-    std::cout << "Exception: " << e.what() << '\n';
+    LOG_FATAL(logger, "Exception: " << e.what());
     exit(-1);
   }
 }
