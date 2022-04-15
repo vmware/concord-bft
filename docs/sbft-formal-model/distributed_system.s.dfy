@@ -113,7 +113,7 @@ module DistributedSystem {
   predicate NextStep(c:Constants, v:Variables, v':Variables, step: Step) {
     && v.WF(c)
     && v'.WF(c)
-    && (ReplicaStep(c,v,v',step) || ClientStep(c,v,v',step))
+    && (ReplicaStep(c, v, v', step) || ClientStep(c, v, v', step) || FaultyReplicaStep(c, v, v', step))
     && (forall other | ValidHostId(other) && other != step.id :: v'.hosts[other] == v.hosts[other])
     && Network.Next(c.network, v.network, v'.network, step.msgOps, step.id)
   }
