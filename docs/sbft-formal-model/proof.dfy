@@ -434,24 +434,32 @@ module Proof {
     ProofCommitMsgsFromHonestSendersAgree(c, v, v', step);
   }
 
-  // lemma QuorumOfPreparesInNetworkMonotonic(c: Constants, v:Variables, v':Variables, step:Step, h_step:Replica.Step)
-  //   requires NextStep(c, v, v', step)
-  //   requires c.clusterConfig.IsReplica(step.id)
-  //   requires var h_c := c.hosts[step.id].replicaConstants;
-  //            var h_v := v.hosts[step.id].replicaVariables;
-  //            var h_v' := v'.hosts[step.id].replicaVariables;
-  //            Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step)
-  //   ensures (forall view, seqID, clientOp | QuorumOfPreparesInNetwork(c, v, view, seqID, clientOp)
-  //                                       :: QuorumOfPreparesInNetwork(c, v', view, seqID, clientOp))
-  // {
-  //   forall view, seqID, clientOp | QuorumOfPreparesInNetwork(c, v, view, seqID, clientOp)
-  //                                 ensures QuorumOfPreparesInNetwork(c, v', view, seqID, clientOp)
-  //   {
-  //     var senders := Messages.sendersOf(sentPreparesForSeqID(c, v, view, seqID, clientOp));
-  //     var senders' := Messages.sendersOf(sentPreparesForSeqID(c, v', view, seqID, clientOp));
-  //     Library.SubsetCardinality(senders, senders');
-  //   }
-  // }
+  lemma QuorumOfPreparesInNetworkMonotonic(c: Constants, v:Variables, v':Variables, step:Step)
+    requires NextStep(c, v, v', step)
+    requires (c.clusterConfig.IsHonestReplica(step.id)
+              && var h_c := c.hosts[step.id].replicaConstants;
+                 var h_v := v.hosts[step.id].replicaVariables;
+                 var h_v' := v'.hosts[step.id].replicaVariables;
+                 var h_step :| Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step);
+                 Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step))
+              || 
+              (c.clusterConfig.IsFaultyReplica(step.id)
+               && var h_c := c.hosts[step.id].faultyReplicaConstants;
+                  var h_v := v.hosts[step.id].faultyReplicaVariables;
+                  var h_v' := v'.hosts[step.id].faultyReplicaVariables;
+                  var h_step :| FaultyReplica.NextStep(h_c, h_v, h_v', step.msgOps, h_step);
+                  FaultyReplica.NextStep(h_c, h_v, h_v', step.msgOps, h_step))
+    ensures (forall view, seqID, clientOp | QuorumOfPreparesInNetwork(c, v, view, seqID, clientOp)
+                                        :: QuorumOfPreparesInNetwork(c, v', view, seqID, clientOp))
+  {
+    forall view, seqID, clientOp | QuorumOfPreparesInNetwork(c, v, view, seqID, clientOp)
+                                  ensures QuorumOfPreparesInNetwork(c, v', view, seqID, clientOp)
+    {
+      var senders := Messages.sendersOf(sentPreparesForSeqID(c, v, view, seqID, clientOp));
+      var senders' := Messages.sendersOf(sentPreparesForSeqID(c, v', view, seqID, clientOp));
+      Library.SubsetCardinality(senders, senders');
+    }
+  }
 
   lemma ProofEveryCommitMsgIsSupportedByAQuorumOfPrepares(c: Constants, v:Variables, v':Variables, step:Step)
     requires Inv(c, v)
