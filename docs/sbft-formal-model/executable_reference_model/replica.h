@@ -78,9 +78,39 @@ struct WorkingWindow {
   }
 };
 
+struct ViewChangeMsgs {
+  set<NetworkMessage> msgs;
+  bool WF(Constants c) {
+    bool result = true;
+    for(const auto& msg : msgs) {
+      if(!std::get_if<ViewChangeMsg>(&msg.payload) || !c.clusterConfig.IsReplica(msg.sender)) {
+        result = false;
+        break;
+      }
+    }
+    return result;
+  }
+};
+
+struct NewViewMsgs {
+  set<NetworkMessage> msgs;
+  bool WF(Constants c) {
+    bool result = true;
+    for(const auto& msg : msgs) {
+      if(!std::get_if<NewViewMsg>(&msg.payload) || !c.clusterConfig.IsReplica(msg.sender)) {
+        result = false;
+        break;
+      }
+    }
+    return result;
+  }
+};
+
 struct Variables {
   ViewNum view;
   WorkingWindow workingWindow;
+  ViewChangeMsgs ViewChangeMsgsRecvd;
+  NewViewMsgs newViewMsgsRecvd;
   bool WF(Constants c) {
     return c.WF() && workingWindow.WF(c);
   }

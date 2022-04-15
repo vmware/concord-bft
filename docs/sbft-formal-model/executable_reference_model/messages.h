@@ -64,7 +64,20 @@ struct ViewChangeMsg {
   map<SequenceID, PreparedCertificate> certificates;
 };
 
-class Message : public variant<PrePrepare, Prepare, Commit, ClientRequest, ViewChangeMsg> {};
+struct ViewChangeMsgsSelectedByPrimary {
+  set<NetworkMessage> msgs;
+  bool valid(ViewNum view, nat quorumSize);
+};
+bool operator==(const ViewChangeMsgsSelectedByPrimary& lhs, const ViewChangeMsgsSelectedByPrimary& rhs);
+
+struct NewViewMsg {
+  ViewNum newView;
+  ViewChangeMsgsSelectedByPrimary vcMsgs;
+};
+bool operator==(const NewViewMsg& lhs, const NewViewMsg& rhs);
+bool operator!=(const NewViewMsg& lhs, const NewViewMsg& rhs);
+
+class Message : public variant<PrePrepare, Prepare, Commit, ClientRequest, ViewChangeMsg, NewViewMsg> {};
 
 struct NetworkMessage {
   HostId sender;
@@ -76,15 +89,5 @@ bool operator!=(const NetworkMessage& lhs, const NetworkMessage& rhs);
 bool operator==(const ViewChangeMsg& lhs, const ViewChangeMsg& rhs);
 bool operator!=(const ViewChangeMsg& lhs, const ViewChangeMsg& rhs);
 
-struct ViewChangeMsgsSelectedByPrimary {
-  set<NetworkMessage> msgs;
-  bool valid(ViewNum view, nat quorumSize);
-};
-
-struct NewViewMsg {
-  ViewNum newView;
-  ViewChangeMsgsSelectedByPrimary vcMsgs;
-};
-bool operator==(const NewViewMsg& lhs, const NewViewMsg& rhs);
 
 }  // namespace Messages

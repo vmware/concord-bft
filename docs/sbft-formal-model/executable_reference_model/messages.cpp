@@ -122,7 +122,15 @@ bool operator!=(const ViewChangeMsg& lhs, const ViewChangeMsg& rhs) {
 }
 
 bool operator==(const NewViewMsg& lhs, const NewViewMsg& rhs) {
-  return true; // TODO: implement New View msg
+  return lhs.newView == rhs.newView && lhs.vcMsgs == rhs.vcMsgs;
+}
+
+bool operator!=(const NewViewMsg& lhs, const NewViewMsg& rhs) {
+  return !(lhs == rhs);
+}
+
+bool operator==(const ViewChangeMsgsSelectedByPrimary& lhs, const ViewChangeMsgsSelectedByPrimary& rhs) {
+  return lhs.msgs == rhs.msgs;
 }
 
 }
