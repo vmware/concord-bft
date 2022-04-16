@@ -85,6 +85,13 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
   // not make sense (too high) - this will prevent some potential attacks)
   bool hasReply(NodeIdType clientId, ReqId reqSeqNum) const;
 
+  // Returns the last consecutive reply sequence number (requests within a client batch are executed concurrently).
+  // Allows exactly once execution of honest client requests by rejecting
+  // requests with sequence number less than the last consecutive reply.
+  // Requires that at most batch size requests per client are accepted by the system at once.
+  // Returns the zero-th client sequence number if the client does not exist.
+  ReqId lastInOrderReplyId(NodeIdType clientId) const;
+
   bool isValidClient(NodeIdType clientId) const { return clientIds_.find(clientId) != clientIds_.end(); }
 
   // First, if this ClientsManager has a number of reply records for the given clientId equalling or exceeding the
