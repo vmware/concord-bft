@@ -1,3 +1,3 @@
 #!/bin/bash
 docker-compose up --no-start
-docker-compose run client1
+docker-compose run wallet-$1

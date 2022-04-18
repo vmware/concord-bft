@@ -1,78 +1,226 @@
 version: '3'
 services:
-  replica1:
-    image: "utt-demo-replica:latest"
+  replica-1:
+    image: "${UTT_DEMO_REPLICA_IMAGE}:${UTT_DEMO_REPLICA_IMAGE_TAG}"
     command: -i 0
     volumes:
-      - ./utt-demo-run/logs:/concord/logs
-      - ./tests/uttDemo/scripts/config:/concord/config:ro
-      - ./utt-demo-run/rocksdb:/concord/rocksdb
+      - ${UTT_DEMO_VOLUME_LOG}
+      - ${UTT_DEMO_VOLUME_CONFIG}
+      - ${UTT_DEMO_VOLUME_ROCKSDB}
     expose:
-      - 3710/tcp
-      - 3710/udp
+      - ${UTT_DEMO_BFT_PORT}/udp
+      - ${UTT_DEMO_BFT_PORT}/tcp
     networks:
       utt-demo-net:
-        ipv4_address: 172.18.0.2
+        ipv4_address: ${UTT_DEMO_REPLICA_1_IP}
 
-  replica2:
-    image: "utt-demo-replica:latest"
+  replica-2:
+    image: "${UTT_DEMO_REPLICA_IMAGE}:${UTT_DEMO_REPLICA_IMAGE_TAG}"
     command: -i 1
     volumes:
-      - ./utt-demo-run/logs:/concord/logs
-      - ./tests/uttDemo/scripts/config:/concord/config:ro
-      - ./utt-demo-run/rocksdb:/concord/rocksdb
+      - ${UTT_DEMO_VOLUME_LOG}
+      - ${UTT_DEMO_VOLUME_CONFIG}
+      - ${UTT_DEMO_VOLUME_ROCKSDB}
     expose:
-      - 3710/tcp
-      - 3710/udp
+      - ${UTT_DEMO_BFT_PORT}/udp
+      - ${UTT_DEMO_BFT_PORT}/tcp
     networks:
       utt-demo-net:
-        ipv4_address: 172.18.0.3
+        ipv4_address: ${UTT_DEMO_REPLICA_2_IP}
 
-  replica3:
-    image: "utt-demo-replica:latest"
+  replica-3:
+    image: "${UTT_DEMO_REPLICA_IMAGE}:${UTT_DEMO_REPLICA_IMAGE_TAG}"
     command: -i 2
     expose:
-      - 3710/tcp
-      - 3710/udp
+      - ${UTT_DEMO_BFT_PORT}/udp
+      - ${UTT_DEMO_BFT_PORT}/tcp
     volumes:
-      - ./utt-demo-run/logs:/concord/logs
-      - ./tests/uttDemo/scripts/config:/concord/config:ro
-      - ./utt-demo-run/rocksdb:/concord/rocksdb
+      - ${UTT_DEMO_VOLUME_LOG}
+      - ${UTT_DEMO_VOLUME_CONFIG}
+      - ${UTT_DEMO_VOLUME_ROCKSDB}
     networks:
       utt-demo-net:
-        ipv4_address: 172.18.0.4
+        ipv4_address: ${UTT_DEMO_REPLICA_3_IP}
 
-  replica4:
-    image: "utt-demo-replica:latest"
+  replica-4:
+    image: "${UTT_DEMO_REPLICA_IMAGE}:${UTT_DEMO_REPLICA_IMAGE_TAG}"
     command: -i 3
     expose:
-      - 3710/tcp
-      - 3710/udp
+      - ${UTT_DEMO_BFT_PORT}/udp
+      - ${UTT_DEMO_BFT_PORT}/tcp
     volumes:
-      - ./utt-demo-run/logs:/concord/logs
-      - ./tests/uttDemo/scripts/config:/concord/config:ro
-      - ./utt-demo-run/rocksdb:/concord/rocksdb
+      - ${UTT_DEMO_VOLUME_LOG}
+      - ${UTT_DEMO_VOLUME_CONFIG}
+      - ${UTT_DEMO_VOLUME_ROCKSDB}
     networks:
       utt-demo-net:
-        ipv4_address: 172.18.0.5
+        ipv4_address: ${UTT_DEMO_REPLICA_4_IP}
 
-  client1:
-    image: "utt-demo-client:latest"
+  payment-service-1:
+    image: "${UTT_DEMO_PAYMENT_SERVICE_IMAGE}:${UTT_DEMO_PAYMENT_SERVICE_IMAGE_TAG}"
+    command: -i 1
+    expose:
+      - ${UTT_DEMO_BFT_PORT}/udp
+      - ${UTT_DEMO_BFT_PORT}/tcp
+      - ${UTT_DEMO_PUBLIC_API_PORT}/udp
+      - ${UTT_DEMO_PUBLIC_API_PORT}/tcp
+    volumes:
+      - ${UTT_DEMO_VOLUME_LOG}
+      - ${UTT_DEMO_VOLUME_CONFIG}
+    networks:
+      utt-demo-net:
+        ipv4_address: ${UTT_DEMO_PAYMENT_SERVICE_1_IP}
+
+  payment-service-2:
+    image: "${UTT_DEMO_PAYMENT_SERVICE_IMAGE}:${UTT_DEMO_PAYMENT_SERVICE_IMAGE_TAG}"
+    command: -i 2
+    expose:
+      - ${UTT_DEMO_BFT_PORT}/udp
+      - ${UTT_DEMO_BFT_PORT}/tcp
+      - ${UTT_DEMO_PUBLIC_API_PORT}/udp
+      - ${UTT_DEMO_PUBLIC_API_PORT}/tcp
+    volumes:
+      - ${UTT_DEMO_VOLUME_LOG}
+      - ${UTT_DEMO_VOLUME_CONFIG}
+    networks:
+      utt-demo-net:
+        ipv4_address: ${UTT_DEMO_PAYMENT_SERVICE_2_IP}
+
+  payment-service-3:
+    image: "${UTT_DEMO_PAYMENT_SERVICE_IMAGE}:${UTT_DEMO_PAYMENT_SERVICE_IMAGE_TAG}"
+    command: -i 3
+    expose:
+      - ${UTT_DEMO_BFT_PORT}/udp
+      - ${UTT_DEMO_BFT_PORT}/tcp
+      - ${UTT_DEMO_PUBLIC_API_PORT}/udp
+      - ${UTT_DEMO_PUBLIC_API_PORT}/tcp
+    volumes:
+      - ${UTT_DEMO_VOLUME_LOG}
+      - ${UTT_DEMO_VOLUME_CONFIG}
+    networks:
+      utt-demo-net:
+        ipv4_address: ${UTT_DEMO_PAYMENT_SERVICE_3_IP}
+
+  wallet-1:
+    image: "${UTT_DEMO_WALLET_IMAGE}:${UTT_DEMO_WALLET_IMAGE_TAG}"
+    command: -i 1
+    expose:
+      - ${UTT_DEMO_PUBLIC_API_PORT}/udp
+      - ${UTT_DEMO_PUBLIC_API_PORT}/tcp
+    volumes:
+      - ${UTT_DEMO_VOLUME_LOG}
+      - ${UTT_DEMO_VOLUME_CONFIG}
+    networks:
+      utt-demo-net:
+        ipv4_address: ${UTT_DEMO_WALLET_1_IP}
+
+  wallet-2:
+    image: "${UTT_DEMO_WALLET_IMAGE}:${UTT_DEMO_WALLET_IMAGE_TAG}"
+    command: -i 2
+    expose:
+      - ${UTT_DEMO_PUBLIC_API_PORT}/udp
+      - ${UTT_DEMO_PUBLIC_API_PORT}/tcp
+    volumes:
+      - ${UTT_DEMO_VOLUME_LOG}
+      - ${UTT_DEMO_VOLUME_CONFIG}
+    networks:
+      utt-demo-net:
+        ipv4_address: ${UTT_DEMO_WALLET_2_IP}
+
+  wallet-3:
+    image: "${UTT_DEMO_WALLET_IMAGE}:${UTT_DEMO_WALLET_IMAGE_TAG}"
+    command: -i 3
+    expose:
+      - ${UTT_DEMO_PUBLIC_API_PORT}/udp
+      - ${UTT_DEMO_PUBLIC_API_PORT}/tcp
+    volumes:
+      - ${UTT_DEMO_VOLUME_LOG}
+      - ${UTT_DEMO_VOLUME_CONFIG}
+    networks:
+      utt-demo-net:
+        ipv4_address: ${UTT_DEMO_WALLET_3_IP}
+
+  wallet-4:
+    image: "${UTT_DEMO_WALLET_IMAGE}:${UTT_DEMO_WALLET_IMAGE_TAG}"
     command: -i 4
     expose:
-      - 3710/tcp
-      - 3710/udp
+      - ${UTT_DEMO_PUBLIC_API_PORT}/udp
+      - ${UTT_DEMO_PUBLIC_API_PORT}/tcp
     volumes:
-      - ./utt-demo-run/logs:/concord/logs
-      - ./tests/uttDemo/scripts/config:/concord/config:ro
-      - ./utt-demo-run/rocksdb:/concord/rocksdb
+      - ${UTT_DEMO_VOLUME_LOG}
+      - ${UTT_DEMO_VOLUME_CONFIG}
     networks:
       utt-demo-net:
-        ipv4_address: 172.18.0.6
+        ipv4_address: ${UTT_DEMO_WALLET_4_IP}
+
+  wallet-5:
+    image: "${UTT_DEMO_WALLET_IMAGE}:${UTT_DEMO_WALLET_IMAGE_TAG}"
+    command: -i 5
+    expose:
+      - ${UTT_DEMO_PUBLIC_API_PORT}/udp
+      - ${UTT_DEMO_PUBLIC_API_PORT}/tcp
+    volumes:
+      - ${UTT_DEMO_VOLUME_LOG}
+      - ${UTT_DEMO_VOLUME_CONFIG}
+    networks:
+      utt-demo-net:
+        ipv4_address: ${UTT_DEMO_WALLET_5_IP}
+
+  wallet-6:
+    image: "${UTT_DEMO_WALLET_IMAGE}:${UTT_DEMO_WALLET_IMAGE_TAG}"
+    command: -i 6
+    expose:
+      - ${UTT_DEMO_PUBLIC_API_PORT}/udp
+      - ${UTT_DEMO_PUBLIC_API_PORT}/tcp
+    volumes:
+      - ${UTT_DEMO_VOLUME_LOG}
+      - ${UTT_DEMO_VOLUME_CONFIG}
+    networks:
+      utt-demo-net:
+        ipv4_address: ${UTT_DEMO_WALLET_6_IP}
+
+  wallet-7:
+    image: "${UTT_DEMO_WALLET_IMAGE}:${UTT_DEMO_WALLET_IMAGE_TAG}"
+    command: -i 7
+    expose:
+      - ${UTT_DEMO_PUBLIC_API_PORT}/udp
+      - ${UTT_DEMO_PUBLIC_API_PORT}/tcp
+    volumes:
+      - ${UTT_DEMO_VOLUME_LOG}
+      - ${UTT_DEMO_VOLUME_CONFIG}
+    networks:
+      utt-demo-net:
+        ipv4_address: ${UTT_DEMO_WALLET_7_IP}
+
+  wallet-8:
+    image: "${UTT_DEMO_WALLET_IMAGE}:${UTT_DEMO_WALLET_IMAGE_TAG}"
+    command: -i 8
+    expose:
+      - ${UTT_DEMO_PUBLIC_API_PORT}/udp
+      - ${UTT_DEMO_PUBLIC_API_PORT}/tcp
+    volumes:
+      - ${UTT_DEMO_VOLUME_LOG}
+      - ${UTT_DEMO_VOLUME_CONFIG}
+    networks:
+      utt-demo-net:
+        ipv4_address: ${UTT_DEMO_WALLET_8_IP}
+
+  wallet-9:
+    image: "${UTT_DEMO_WALLET_IMAGE}:${UTT_DEMO_WALLET_IMAGE_TAG}"
+    command: -i 9
+    expose:
+      - ${UTT_DEMO_PUBLIC_API_PORT}/udp
+      - ${UTT_DEMO_PUBLIC_API_PORT}/tcp
+    volumes:
+      - ${UTT_DEMO_VOLUME_LOG}
+      - ${UTT_DEMO_VOLUME_CONFIG}
+    networks:
+      utt-demo-net:
+        ipv4_address: ${UTT_DEMO_WALLET_9_IP}
 
 networks:
   utt-demo-net:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.18.0.0/16
+        - subnet: ${UTT_DEMO_SUBNET}
