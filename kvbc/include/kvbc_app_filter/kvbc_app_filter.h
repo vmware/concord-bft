@@ -179,7 +179,7 @@ class KvbAppFilter {
 
   uint64_t getValueFromLatestTable(const std::string &key) const;
 
-  TagTableValue getValueFromTagTable(const std::string &key) const;
+  TagTableValue getValueFromTagTable(const std::string &tag, uint64_t pvt_eg_id) const;
 
   uint64_t oldestExternalEventGroupId() const;
 
