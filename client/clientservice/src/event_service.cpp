@@ -12,7 +12,6 @@
 #include <chrono>
 #include <iostream>
 #include <opentracing/tracer.h>
-#include <thread>
 
 #include "client/clientservice/event_service.hpp"
 #include "client/concordclient/concord_client.hpp"
@@ -68,7 +67,9 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
     SubscribeResponse response;
     std::unique_ptr<EventVariant> update;
     try {
-      update = update_queue->tryPop();
+      // We need to check if the client cancelled the subscription.
+      // Therefore, we cannot block via pop().
+      update = update_queue->popTill(10ms);
     } catch (const UpdateNotFound& e) {
       status = grpc::Status(grpc::StatusCode::NOT_FOUND, e.what());
       break;
@@ -87,9 +88,6 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
     }
 
     if (not update) {
-      // We need to check if the client cancelled the subscription.
-      // Therefore, we cannot block via pop(). Can we do bettern than sleep?
-      std::this_thread::sleep_for(10ms);
       continue;
     }
 
