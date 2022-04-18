@@ -12,6 +12,7 @@
 #include "client/clientservice/configuration.hpp"
 
 #include <chrono>
+#include <fstream>
 #include <string>
 #include <sstream>
 
