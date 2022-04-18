@@ -9,7 +9,7 @@ WORKDIR /concord/
 COPY ./utt-demo-run/bin/utt_client ./
 
 # Volumes
-VOLUME [ "/concord/logs", "/concord/config", "/concord/rocksdb" ]
+VOLUME [ "/concord/logs", "/concord/config" ]
 
 # Start the client (the client id is passed by docker-compose)
-ENTRYPOINT [ "./utt_client", "-f", "1", "-n", "config/net_docker.txt" ]
+ENTRYPOINT [ "./utt_client", "-n", "config/net_docker.txt" ]

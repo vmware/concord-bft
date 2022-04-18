@@ -1,4 +1,4 @@
-# Network configuration for running the demo with docker-compose
+# Network configuration for running the demo on a single machine
 replicas_config:
  - 127.0.0.1:3710
  - 127.0.0.1:3711

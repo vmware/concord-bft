@@ -1,8 +1,30 @@
 # Network configuration for running the demo with docker-compose
 replicas_config:
- - 172.18.0.2:3710
- - 172.18.0.3:3710
- - 172.18.0.4:3710
- - 172.18.0.5:3710
+ - 172.25.0.10:3710
+ - 172.25.0.11:3710
+ - 172.25.0.12:3710
+ - 172.25.0.13:3710
 
-clients_config: 172.18.0.6:3710
+# One bft client per payment service (3 payment services)
+clients_config: 
+ - 172.25.0.20:3710
+ - 172.25.0.21:3710
+ - 172.25.0.22:3710
+
+# These are the addresses of payment services reachable by wallets
+payment_services_config:
+ - 172.25.0.20:3712
+ - 172.25.0.21:3712
+ - 172.25.0.22:3712
+
+# Wallet addresses reachable by payment services (3 wallets per payment service, 9 total)
+wallets_config:
+ - 172.25.0.30:3712
+ - 172.25.0.31:3712
+ - 172.25.0.32:3712
+ - 172.25.0.33:3712
+ - 172.25.0.34:3712
+ - 172.25.0.35:3712
+ - 172.25.0.36:3712
+ - 172.25.0.37:3712
+ - 172.25.0.38:3712
