@@ -1,7 +1,7 @@
 add_executable(utt_replica main.cpp
 		 UTTCommandsHandler.cpp
 		 setup.cpp
-		 ../app_state.cpp
+		 ../utt_blockchain_app.cpp
 		 ../transactions.cpp
 		 ../utt_config.cpp
 		 ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp)
