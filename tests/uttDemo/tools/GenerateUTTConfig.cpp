@@ -26,7 +26,7 @@
 #include <utt/Coin.h>
 
 #include <config_file_parser.hpp>
-#include "app_state.hpp"
+#include "utt_blockchain_app.hpp"
 #include "utt_config.hpp"
 
 using namespace libutt;
@@ -134,7 +134,7 @@ int main(int argc, char** argv) {
           " is the maximum number of faulty replicas");
 
     // Initialize library
-    AppState::initUTTLibrary();
+    UTTBlockchainApp::initUTTLibrary();
 
     int thresh = numFaulty + 1;
     RandSigDKG dkg = RandSigDKG(thresh, numReplicas, Params::NumMessages);

@@ -23,8 +23,8 @@
 #include "categorization/kv_blockchain.h"
 
 #include "utt_messages.cmf.hpp"
-#include "app_state.hpp"
-#include "utt_config.hpp"
+
+class UTTReplicaApp;
 
 static const std::string VERSIONED_KV_CAT_ID{concord::kvbc::categorization::kExecutionPrivateCategory};
 
@@ -32,14 +32,10 @@ class UTTCommandsHandler : public concord::kvbc::ICommandsHandler {
  public:
   UTTCommandsHandler(concord::kvbc::IReader *storage,
                      concord::kvbc::IBlockAdder *blocksAdder,
-                     concord::kvbc::IBlockMetadata *blockMetadata,
                      logging::Logger &logger,
-                     concord::kvbc::categorization::KeyValueBlockchain *kvbc)
-      : storage_(storage), blockAdder_(blocksAdder), blockMetadata_(blockMetadata), logger_(logger), kvbc_{kvbc} {
-    ConcordAssertNE(kvbc_, nullptr);
-    (void)blockMetadata_;
-    initAppState();
-  }
+                     concord::kvbc::categorization::KeyValueBlockchain *kvbc);
+
+  ~UTTCommandsHandler();
 
   void execute(ExecutionRequestsQueue &requests,
                std::optional<bftEngine::Timestamp> timestamp,
@@ -61,19 +57,12 @@ class UTTCommandsHandler : public concord::kvbc::ICommandsHandler {
 
   std::string getLatest(const std::string &key) const;
 
-  void initAppState();
   void syncAppState();
 
-  AppState state_;
-  UTTReplicaConfig config_;
-
-  // A cached Resplica Specific Info msg based on
-  // the computed utt sig shares for some block
-  std::map<size_t, std::vector<uint8_t>> sigSharesRsiCache_;
+  std::unique_ptr<UTTReplicaApp> app_;
 
   concord::kvbc::IReader *storage_;
   concord::kvbc::IBlockAdder *blockAdder_;
-  concord::kvbc::IBlockMetadata *blockMetadata_;
   logging::Logger &logger_;
   std::shared_ptr<concord::performance::PerformanceManager> perfManager_;
   concord::kvbc::categorization::KeyValueBlockchain *kvbc_{nullptr};

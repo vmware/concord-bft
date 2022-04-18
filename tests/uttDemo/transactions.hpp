@@ -59,9 +59,7 @@ std::ostream& operator<<(std::ostream& os, const TxPublicTransfer& tx);
 struct TxUtt {
   TxUtt(libutt::Tx&& utt) : utt_{std::move(utt)} {}
   libutt::Tx utt_;
-  // [TODO-UTT] Added here for convenience for the client to fill in before execution
-  // could be moved somewhere else
-  std::optional<ReplicaSigShares> sigShares_;
+  std::optional<ReplicaSigShares> sigShares_;  // Computed when the tx is delivered to a client
 };
 std::ostream& operator<<(std::ostream& os, const TxUtt& tx);
 

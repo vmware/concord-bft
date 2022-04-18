@@ -1,6 +1,6 @@
 set(gen_utt_cfg_src
     GenerateUTTConfig.cpp
-    ../app_state.cpp
+    ../utt_blockchain_app.cpp
     ../transactions.cpp
     ../utt_config.cpp
 )

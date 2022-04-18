@@ -30,7 +30,6 @@
 class Account {
  public:
   Account(std::string id, int pubBalance = 0) : id_(std::move(id)), publicBalance_{pubBalance} {}
-  Account(libutt::Wallet&& w, int pubBalance = 0) : publicBalance_{pubBalance}, wallet_{std::move(w)} {}
 
   const std::string& getId() const;
 
@@ -38,15 +37,9 @@ class Account {
   void publicDeposit(int val);
   int publicWithdraw(int val);
 
-  libutt::Wallet* getWallet();
-  const libutt::Wallet* getWallet() const;
-  size_t getUttBalance() const;
-  size_t getUttBudget() const;
-
  private:
   std::string id_;
   int publicBalance_ = 0;
-  std::optional<libutt::Wallet> wallet_;  // UTT Wallets are instantiated only for endpoint clients
 };
 
 using BlockId = std::uint64_t;
@@ -61,16 +54,17 @@ struct Block {
 };
 std::ostream& operator<<(std::ostream& os, const Block& b);
 
-struct AppState {
+class UTTBlockchainApp {
+ public:
   static void initUTTLibrary();
 
-  AppState();
+  UTTBlockchainApp();
+  virtual ~UTTBlockchainApp() = default;
 
   void setLastKnownBlockId(BlockId id);
   BlockId getLastKnownBlockId() const;
   const Block* getBlockById(BlockId id) const;
 
-  bool canExecuteTx(const Tx& tx, std::string& err, const IUTTConfig& uttConfig) const;
   void appendBlock(Block&& bl);            // Returns the id of the appended block
   std::optional<BlockId> executeBlocks();  // Returns the next missing block id if unknown blocks exist
 
@@ -87,9 +81,8 @@ struct AppState {
   void addNullifier(std::string nullifier);
   bool hasNullifier(const std::string& nullifier) const;
 
- private:
-  void executeTx(const Tx& tx);
-  void pruneSpentCoins(libutt::Wallet& w);
+ protected:
+  virtual void executeTx(const Tx& tx);
 
   std::map<std::string, Account> accounts_;
   std::vector<Block> blocks_;
