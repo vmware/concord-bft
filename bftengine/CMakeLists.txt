@@ -85,6 +85,7 @@ find_package(Threads REQUIRED)
 #
 add_library(corebft STATIC ${corebft_source_files})
 add_library(bftclient STATIC src/bftengine/SimpleClientImp)
+add_library(bftclient_shared SHARED src/bftengine/SimpleClientImp)
 add_library(bftheaders INTERFACE)
 target_include_directories(bftheaders INTERFACE include)
 
@@ -124,6 +125,15 @@ target_include_directories(bftclient PUBLIC ${perf_include})
 target_include_directories(bftclient PUBLIC ${kvbc_include})
 target_link_libraries(bftclient PUBLIC bftcommunication diagnostics)
 
+target_include_directories(bftclient_shared PUBLIC include/bftengine)
+target_include_directories(bftclient_shared PUBLIC src/bftengine)
+target_include_directories(bftclient_shared PUBLIC src/preprocessor)
+target_include_directories(bftclient_shared PUBLIC ${perf_include})
+target_include_directories(bftclient_shared PUBLIC ${kvbc_include})
+
+target_link_libraries(bftclient_shared PUBLIC bftcommunication_shared diagnostics)
+install (TARGETS bftclient_shared DESTINATION lib${LIB_SUFFIX})
+
 install(DIRECTORY include/bftengine DESTINATION include)
 
 if(USE_FAKE_CLOCK_IN_TIME_SERVICE)
@@ -133,4 +143,5 @@ endif()
 if(BUILD_SLOWDOWN)
     target_compile_definitions(bftclient PUBLIC USE_SLOWDOWN)
     target_compile_definitions(corebft PUBLIC USE_SLOWDOWN)
+    target_compile_definitions(bftclient_shared PUBLIC USE_SLOWDOWN)
 endif()
