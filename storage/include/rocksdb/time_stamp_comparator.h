@@ -17,8 +17,10 @@ concordUtils::toBigEndianStringBuffer
 
 it compares the byte order of two such strings.
 */
+static constexpr size_t TIME_STAMP_SIZE = sizeof(std::uint64_t);
 const ::rocksdb::Comparator* getLexicographic64TsComparator();
-
+::rocksdb::Slice ExtractTimestampFromUserKey(const ::rocksdb::Slice& user_key, size_t ts_sz);
+::rocksdb::Slice StripTimestampFromUserKey(const ::rocksdb::Slice& user_key, size_t ts_sz);
 }  // namespace rocksdb
 }  // namespace storage
 }  // namespace concord

@@ -29,7 +29,7 @@ KeyValueBlockchain::KeyValueBlockchain(
     : native_client_{native_client},
       block_chain_{native_client_},
       state_transfer_chain_{native_client_},
-      latest_keys_{native_client_, category_types} {}
+      latest_keys_{native_client_, category_types, [&]() { return block_chain_.getGenesisBlockId(); }} {}
 
 /*
   1 - check if we can perform GC on latest CF
@@ -56,15 +56,44 @@ BlockId KeyValueBlockchain::add(categorization::Updates&& updates) {
     latest_keys_.addBlockKeys(updates, block_id, write_batch);
   }
   native_client_->write(std::move(write_batch));
-  block_chain_.setLastReachable(block_id);
+  block_chain_.setBlockId(block_id);
   if (sequence_number > 0) setLastBlockSequenceNumber(sequence_number);
   return block_id;
 }
 
+BlockId KeyValueBlockchain::deleteBlocksUntil(BlockId until) {
+  auto scoped = v4blockchain::detail::ScopedDuration{"deleteBlocksUntil"};
+  return block_chain_.deleteBlocksUntil(until);
+}
+
+void KeyValueBlockchain::deleteGenesisBlock() {
+  auto scoped = v4blockchain::detail::ScopedDuration{"deleteGenesisBlock"};
+  block_chain_.deleteGenesisBlock();
+}
+
+void KeyValueBlockchain::deleteLastReachableBlock() {
+  // validate conditions
+  auto last_reachable_id = block_chain_.getLastReachable();
+  auto genesis_id = block_chain_.getGenesisBlockId();
+  ConcordAssertLT(genesis_id, last_reachable_id);
+  // get block updates
+  auto write_batch = native_client_->getBatch();
+  auto updates = block_chain_.getBlockUpdates(last_reachable_id);
+  ConcordAssert(updates.has_value());
+  // revert from latest keys
+  latest_keys_.revertLastBlockKeys(*updates, last_reachable_id, write_batch);
+  // delete from blockchain
+  block_chain_.deleteLastReachableBlock(write_batch);
+  // atomically commit changes
+  native_client_->write(std::move(write_batch));
+  block_chain_.setBlockId(--last_reachable_id);
+  LOG_INFO(V4_BLOCK_LOG, "Deleted last reachable, new value is " << last_reachable_id);
+}
+
 /*
   If the bft sequence number for this updates is bigger than the last, it means that the last sequence number
-  was commited, and it's safe to mark the version of the last block that corresponds to that sequence number as safe for
-  rocksdb garbage collection.
+  was commited, and it's safe to mark the version of the last block that corresponds to that sequence number as safe
+  for rocksdb garbage collection.
   https://github.com/facebook/rocksdb/wiki/User-defined-Timestamp-(Experimental)#compaction-and-garbage-collection-gc
   - if last_block_sn_ is nullopt we're probably on first start.
   - we don't want to trim when checkpoint is in process.
