@@ -69,6 +69,7 @@ Config TestConfig() {
       2000,               // fetchRetransmissionTimeoutMs
       2,                  // maxFetchRetransmissions
       5,                  // metricsDumpIntervalSec
+      2050,               // sourceSessionExpiryDurationMs
       false,              // runInSeparateThread
       true,               // enableReservedPages
       true                // enableSourceBlocksPreFetch
