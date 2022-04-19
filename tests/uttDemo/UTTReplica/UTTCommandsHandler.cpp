@@ -96,7 +96,7 @@ class UTTReplicaApp : public UTTBlockchainApp {
     return true;
   }
 
-  const std::vector<uint8_t>& GetSigShareRsiForBlock(const libutt::Tx& tx, uint64_t blockId) {
+  const std::vector<uint8_t>& GetSigShareRsiForBlock(const libutt::Tx& tx, uint64_t blockId) const {
     // Compute signature shares lazily when the block is requested
     // Precondition: monotonically increasing blocks
     auto& result = sigSharesRsiCache_[blockId];
