@@ -24,6 +24,7 @@
 #include "endianness.hpp"
 #include "kv_types.hpp"
 #include "thread_pool.hpp"
+#include "v4blockchain/detail/column_families.h"
 
 namespace concord::kvbc::v4blockchain::detail {
 /*
@@ -40,19 +41,28 @@ class Blockchain {
 
   // creates the blockchain column family if it does not exists and loads the last and genesis block ids.
   Blockchain(const std::shared_ptr<concord::storage::rocksdb::NativeClient>& native_client);
+  ///////////////////ADD////////////////////////////////////////
   // construct a new block from the input updates and links it to the previous block by storing the last block digest.
   BlockId addBlock(const concord::kvbc::categorization::Updates&, storage::rocksdb::NativeWriteBatch&);
-
+  //////////////////DELETE//////////////////////////////////////
+  // Delete up to until not including until if until is within last reachable block,
+  // else delete up to last reachable block and not including last reachable block.
+  // Do nothing of last reachable block is same as the genesis block.
+  BlockId deleteBlocksUntil(BlockId until);
+  void deleteGenesisBlock();
+  void deleteLastReachableBlock(storage::rocksdb::NativeWriteBatch&);
+  ///////////////////////////////////////////////////////////////
   // Loads from storage the last and first block ids respectivly.
   std::optional<BlockId> loadLastReachableBlockId();
   std::optional<BlockId> loadGenesisBlockId();
-
   void setLastReachable(BlockId id) { last_reachable_block_id_ = id; }
+  void setBlockId(BlockId id);
   BlockId getLastReachable() const { return last_reachable_block_id_; }
   BlockId getGenesisBlockId() const { return genesis_block_id_; }
 
   // Returns the buffer that represents the block
   std::optional<std::string> getBlockData(concord::kvbc::BlockId id) const;
+  std::optional<categorization::Updates> getBlockUpdates(BlockId id) const;
 
   concord::util::digest::BlockDigest calculateBlockDigest(concord::kvbc::BlockId id) const;
 
@@ -68,6 +78,11 @@ class Blockchain {
   // stats for tests
   uint64_t from_future{};
   uint64_t from_storage{};
+
+ private:
+  void deleteBlock(BlockId id, storage::rocksdb::NativeWriteBatch& wb) {
+    wb.del(v4blockchain::detail::BLOCKS_CF, generateKey(id));
+  }
 
  private:
   std::atomic<BlockId> last_reachable_block_id_{INVALID_BLOCK_ID};

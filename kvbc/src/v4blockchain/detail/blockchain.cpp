@@ -12,8 +12,8 @@
 // file.
 
 #include "v4blockchain/detail/blockchain.h"
-#include "v4blockchain/detail/column_families.h"
 #include "Logger.hpp"
+#include <algorithm>
 
 namespace concord::kvbc::v4blockchain::detail {
 
@@ -64,6 +64,43 @@ BlockId Blockchain::addBlock(const concord::kvbc::categorization::Updates& categ
   return id;
 }
 
+// Delete up to until not including until,
+// returns the last block id that was deleted.
+BlockId Blockchain::deleteBlocksUntil(BlockId until) {
+  ConcordAssertGT(genesis_block_id_, INVALID_BLOCK_ID);
+  ConcordAssertLT(genesis_block_id_, until);
+  // We have a single block on the chain
+  if (last_reachable_block_id_ == genesis_block_id_) return genesis_block_id_ - 1;
+  // We don't want to erase all the blockchain
+  const auto last_deleted_block = std::min(last_reachable_block_id_.load() - 1, until - 1);
+  auto write_batch = native_client_->getBatch();
+  for (uint64_t i = genesis_block_id_; i <= last_deleted_block; ++i) {
+    deleteBlock(i, write_batch);
+  }
+  native_client_->write(std::move(write_batch));
+  auto blocks_deleted = (last_deleted_block - genesis_block_id_) + 1;
+  genesis_block_id_ = last_deleted_block + 1;
+
+  LOG_INFO(V4_BLOCK_LOG, "Deleted " << blocks_deleted << " blocks, new genesis is " << genesis_block_id_);
+  return last_deleted_block;
+}
+
+void Blockchain::deleteGenesisBlock() {
+  ConcordAssertGT(genesis_block_id_, INVALID_BLOCK_ID);
+  ConcordAssertLT(genesis_block_id_, last_reachable_block_id_);
+  auto write_batch = native_client_->getBatch();
+  deleteBlock(genesis_block_id_, write_batch);
+  native_client_->write(std::move(write_batch));
+  ++genesis_block_id_;
+  LOG_INFO(V4_BLOCK_LOG, "Deleted genesis, new genesis is " << genesis_block_id_);
+}
+
+void Blockchain::deleteLastReachableBlock(storage::rocksdb::NativeWriteBatch& write_batch) {
+  ConcordAssertGT(last_reachable_block_id_, INVALID_BLOCK_ID);
+  ConcordAssertLT(genesis_block_id_, last_reachable_block_id_);
+  deleteBlock(last_reachable_block_id_, write_batch);
+}
+
 concord::util::digest::BlockDigest Blockchain::calculateBlockDigest(concord::kvbc::BlockId id) const {
   if (id < concord::kvbc::INITIAL_GENESIS_BLOCK_ID) {
     concord::util::digest::BlockDigest empty_digest;
@@ -78,6 +115,13 @@ concord::util::digest::BlockDigest Blockchain::calculateBlockDigest(concord::kvb
 std::optional<std::string> Blockchain::getBlockData(concord::kvbc::BlockId id) const {
   auto blockKey = generateKey(id);
   return native_client_->get(v4blockchain::detail::BLOCKS_CF, blockKey);
+}
+
+std::optional<categorization::Updates> Blockchain::getBlockUpdates(BlockId id) const {
+  auto block_buffer = getBlockData(id);
+  if (!block_buffer) return std::nullopt;
+  auto block = v4blockchain::detail::Block(*block_buffer);
+  return block.getUpdates();
 }
 
 // get the closest key to MAX_BLOCK_ID
@@ -98,6 +142,11 @@ std::optional<BlockId> Blockchain::loadGenesisBlockId() {
     return std::optional<BlockId>{};
   }
   return concordUtils::fromBigEndianBuffer<BlockId>(itr.keyView().data());
+}
+
+void Blockchain::setBlockId(BlockId id) {
+  setLastReachable(id);
+  if (genesis_block_id_ == INVALID_BLOCK_ID) genesis_block_id_ = id;
 }
 
 }  // namespace concord::kvbc::v4blockchain::detail

@@ -57,7 +57,7 @@ class v4_kvbc : public Test {
 };
 
 TEST_F(v4_kvbc, creation) {
-  v4blockchain::detail::LatestKeys latest_keys{db, categories};
+  v4blockchain::detail::LatestKeys latest_keys{db, categories, []() { return 1; }};
 
   ASSERT_TRUE(db->hasColumnFamily(v4blockchain::detail::LATEST_KEYS_CF));
   for (const auto& [k, v] : categories) {
@@ -67,7 +67,7 @@ TEST_F(v4_kvbc, creation) {
 }
 
 TEST_F(v4_kvbc, add_merkle_keys) {
-  v4blockchain::detail::LatestKeys latest_keys{db, categories};
+  v4blockchain::detail::LatestKeys latest_keys{db, categories, []() { return 1; }};
   std::string no_flags = {0};
   {
     uint64_t timestamp = 40;
@@ -207,7 +207,7 @@ TEST_F(v4_kvbc, add_merkle_keys) {
 }
 
 TEST_F(v4_kvbc, add_version_keys) {
-  v4blockchain::detail::LatestKeys latest_keys{db, categories};
+  v4blockchain::detail::LatestKeys latest_keys{db, categories, []() { return 1; }};
   std::string no_flags = {0};
   std::string stale_on_update_flag = {1};
 
@@ -270,7 +270,7 @@ TEST_F(v4_kvbc, add_version_keys) {
 }
 
 TEST_F(v4_kvbc, add_version_keys_adv) {
-  v4blockchain::detail::LatestKeys latest_keys{db, categories};
+  v4blockchain::detail::LatestKeys latest_keys{db, categories, []() { return 1; }};
   std::string no_flags = {0};
   std::string stale_on_update_flag = {1};
 
@@ -469,7 +469,7 @@ TEST_F(v4_kvbc, add_version_keys_adv) {
 }
 
 TEST_F(v4_kvbc, add_immutable_keys) {
-  v4blockchain::detail::LatestKeys latest_keys{db, categories};
+  v4blockchain::detail::LatestKeys latest_keys{db, categories, []() { return 1; }};
   std::string no_flags = {0};
 
   uint64_t block_id1 = 1;
@@ -517,7 +517,7 @@ TEST_F(v4_kvbc, add_immutable_keys) {
 }
 
 TEST_F(v4_kvbc, add_immutable_keys_adv) {
-  v4blockchain::detail::LatestKeys latest_keys{db, categories};
+  v4blockchain::detail::LatestKeys latest_keys{db, categories, []() { return 1; }};
   std::string no_flags = {0};
 
   uint64_t block_id1 = 1;
@@ -619,6 +619,147 @@ TEST_F(v4_kvbc, add_immutable_keys_adv) {
     ASSERT_EQ(block_id1, iout_ts);
     out_ts.clear();
     serialized_value.clear();
+  }
+}
+
+TEST_F(v4_kvbc, detect_stale_on_update) {
+  v4blockchain::detail::LatestKeys latest_keys{db, categories, []() { return 1; }};
+  uint64_t block_id1 = 1;
+  auto block_id1_str = v4blockchain::detail::Blockchain::generateKey(block_id1);
+  std::string key1 = "ver_key1";
+  std::string key2 = "ver_key2";
+  std::string val1 = "ver_val1";
+  std::string val2 = "ver_val2";
+  auto ver_val1 = categorization::ValueWithFlags{"ver_val1", false};
+  auto ver_val2 = categorization::ValueWithFlags{"ver_val2", true};
+
+  // Block 1
+  {
+    categorization::Updates updates;
+    categorization::VersionedUpdates ver_updates;
+    ver_updates.calculateRootHash(false);
+    ver_updates.addUpdate("ver_key1", "ver_val1");
+    ver_updates.addUpdate("ver_key2", categorization::VersionedUpdates::Value{"ver_val2", true});
+    updates.add("versioned", std::move(ver_updates));
+
+    auto wb = db->getBatch();
+    latest_keys.addBlockKeys(updates, block_id1, wb);
+    db->write(std::move(wb));
+  }
+
+  std::string out_ts;
+
+  //////////KEY1//////////////////////////////
+  // get key1 updated value of this timestamp
+  {
+    auto val = db->get(v4blockchain::detail::LATEST_KEYS_CF,
+                       latest_keys.getCategoryPrefix("versioned") + key1,
+                       block_id1_str,
+                       &out_ts);
+    ASSERT_TRUE(val.has_value());
+    ASSERT_FALSE(v4blockchain::detail::LatestKeys::isStaleOnUpdate(*val));
+  }
+
+  //////////KEY2//////////////////////////////
+  {
+    auto val = db->get(v4blockchain::detail::LATEST_KEYS_CF,
+                       latest_keys.getCategoryPrefix("versioned") + key2,
+                       block_id1_str,
+                       &out_ts);
+    ASSERT_TRUE(val.has_value());
+    ASSERT_TRUE(v4blockchain::detail::LatestKeys::isStaleOnUpdate(*val));
+  }
+}
+
+TEST_F(v4_kvbc, compaction_filter) {
+  v4blockchain::detail::LatestKeys latest_keys{db, categories, []() { return 100; }};
+  std::string no_flags = {0};
+  std::string stale_on_update_flag = {1};
+
+  uint64_t block_id1 = 1;
+  uint64_t block_id100 = 100;
+  auto block_id1_str = v4blockchain::detail::Blockchain::generateKey(block_id1);
+  auto block_id100_str = v4blockchain::detail::Blockchain::generateKey(block_id100);
+  std::string key1 = "ver_key1";
+  std::string key2 = "ver_key2";
+  std::string key3 = "ver_key3";
+  std::string val1 = "ver_val1";
+  std::string val2 = "ver_val2";
+  auto ver_val1 = categorization::ValueWithFlags{"ver_val1", false};
+  auto ver_val2 = categorization::ValueWithFlags{"ver_val2", true};
+
+  // Block 1
+  {
+    categorization::Updates updates;
+    categorization::VersionedUpdates ver_updates;
+    ver_updates.calculateRootHash(false);
+    ver_updates.addUpdate("ver_key1", "ver_val1");
+    ver_updates.addUpdate("ver_key2", categorization::VersionedUpdates::Value{"ver_val2", true});
+    updates.add("versioned", std::move(ver_updates));
+
+    auto wb = db->getBatch();
+    latest_keys.addBlockKeys(updates, block_id1, wb);
+    db->write(std::move(wb));
+  }
+
+  // Block 100
+  {
+    categorization::Updates updates;
+    categorization::VersionedUpdates ver_updates;
+    ver_updates.calculateRootHash(false);
+    ver_updates.addUpdate("ver_key3", categorization::VersionedUpdates::Value{"ver_val3", true});
+    updates.add("versioned", std::move(ver_updates));
+
+    auto wb = db->getBatch();
+    latest_keys.addBlockKeys(updates, block_id100, wb);
+    db->write(std::move(wb));
+  }
+
+  std::string out_ts;
+
+  //////////KEY1//////////////////////////////
+  // get key1 updated value of this timestamp
+  {
+    auto val = db->get(v4blockchain::detail::LATEST_KEYS_CF,
+                       latest_keys.getCategoryPrefix("versioned") + key1,
+                       block_id1_str,
+                       &out_ts);
+    ASSERT_TRUE(val.has_value());
+    auto st_key = latest_keys.getCategoryPrefix("versioned") + key1 + block_id1_str;
+    ASSERT_FALSE(v4blockchain::detail::LatestKeys::isStaleOnUpdate(*val));
+    // Not stale on update
+    bool changed;
+    ASSERT_FALSE(latest_keys.getCompFilter()->Filter(0, st_key, *val, &out_ts, &changed));
+  }
+
+  //////////KEY2//////////////////////////////
+  {
+    auto val = db->get(v4blockchain::detail::LATEST_KEYS_CF,
+                       latest_keys.getCategoryPrefix("versioned") + key2,
+                       block_id1_str,
+                       &out_ts);
+    ASSERT_TRUE(val.has_value());
+    ASSERT_TRUE(v4blockchain::detail::LatestKeys::isStaleOnUpdate(*val));
+
+    auto st_key = latest_keys.getCategoryPrefix("versioned") + key2 + block_id1_str;
+    // stale on update lower than genesis
+    bool changed;
+    ASSERT_TRUE(latest_keys.getCompFilter()->Filter(0, st_key, *val, &out_ts, &changed));
+  }
+
+  //////////KEY3//////////////////////////////
+  {
+    auto val = db->get(v4blockchain::detail::LATEST_KEYS_CF,
+                       latest_keys.getCategoryPrefix("versioned") + key3,
+                       block_id100_str,
+                       &out_ts);
+    ASSERT_TRUE(val.has_value());
+    ASSERT_TRUE(v4blockchain::detail::LatestKeys::isStaleOnUpdate(*val));
+
+    auto st_key = latest_keys.getCategoryPrefix("versioned") + key3 + block_id100_str;
+    // stale on update equal to genesis
+    bool changed;
+    ASSERT_FALSE(latest_keys.getCompFilter()->Filter(0, st_key, *val, &out_ts, &changed));
   }
 }
 
