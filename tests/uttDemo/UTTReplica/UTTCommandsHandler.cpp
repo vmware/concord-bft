@@ -20,12 +20,132 @@
 
 #include <utt/Replica.h>
 
+#include "utt_blockchain_app.hpp"
+#include "utt_config.hpp"
+
 using namespace bftEngine;
 using namespace utt::messages;
 
 using concord::kvbc::BlockId;
 namespace kvbc_cat = concord::kvbc::categorization;
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+class UTTReplicaApp : public UTTBlockchainApp {
+ public:
+  UTTReplicaApp(logging::Logger& logger, uint16_t replicaId) : logger_{logger} {
+    const auto fileName = "config/utt_replica_" + std::to_string(replicaId);
+    std::ifstream ifs(fileName);
+    if (!ifs.is_open()) throw std::runtime_error("Failed to open " + fileName);
+
+    ifs >> config_;
+
+    LOG_INFO(logger_, "Loaded config '" << fileName);
+
+    for (const auto& pid : config_.pids_) {
+      addAccount(Account{pid, config_.initPublicBalance_});
+    }
+    if (GetAccounts().empty()) throw std::runtime_error("No accounts loaded!");
+  }
+
+  bool canExecuteTx(const Tx& tx, std::string& err) const {
+    struct Visitor {
+      const UTTReplicaApp& app_;
+      Visitor(const UTTReplicaApp& app) : app_{app} {}
+
+      void operator()(const TxPublicDeposit& tx) const {
+        if (tx.amount_ <= 0) throw std::domain_error("Public deposit amount must be positive!");
+        auto acc = app_.getAccountById(tx.toAccountId_);
+        if (!acc) throw std::domain_error("Unknown account for public deposit!");
+      }
+
+      void operator()(const TxPublicWithdraw& tx) const {
+        if (tx.amount_ <= 0) throw std::domain_error("Public withdraw amount must be positive!");
+        auto acc = app_.getAccountById(tx.toAccountId_);
+        if (!acc) throw std::domain_error("Unknown account for public withdraw!");
+        if (tx.amount_ > acc->getPublicBalance()) throw std::domain_error("Account has insufficient public balance!");
+      }
+
+      void operator()(const TxPublicTransfer& tx) const {
+        if (tx.amount_ <= 0) throw std::domain_error("Public transfer amount must be positive!");
+        auto sender = app_.getAccountById(tx.fromAccountId_);
+        if (!sender) throw std::domain_error("Unknown sender account for public transfer!");
+        auto receiver = app_.getAccountById(tx.toAccountId_);
+        if (!receiver) throw std::domain_error("Unknown receiver account for public transfer!");
+        if (tx.amount_ > sender->getPublicBalance()) throw std::domain_error("Sender has insufficient public balance!");
+      }
+
+      void operator()(const TxUtt& tx) const {
+        // [TODO-UTT] Validate takes the bank public key, but that's used for quickPay validation
+        // which we aren't using in the demo
+        if (!tx.utt_.validate(app_.config_.p_, app_.config_.bpk_, app_.config_.rpk_))
+          throw std::domain_error("Invalid utt transfer tx!");
+
+        // [TODO-UTT] Does a copy of nullifiers
+        for (const auto& n : tx.utt_.getNullifiers()) {
+          if (app_.hasNullifier(n)) throw std::domain_error("Input coin already spent!");
+        }
+      }
+    };
+
+    try {
+      std::visit(Visitor{*this}, tx);
+    } catch (const std::domain_error& e) {
+      err = e.what();
+      return false;
+    }
+    return true;
+  }
+
+  const std::vector<uint8_t>& GetSigShareRsiForBlock(const libutt::Tx& tx, uint64_t blockId) const {
+    // Compute signature shares lazily when the block is requested
+    // Precondition: monotonically increasing blocks
+    auto& result = sigSharesRsiCache_[blockId];
+
+    if (result.empty()) {
+      auto sigShares = libutt::Replica::signShareOutputCoins(tx, config_.bskShare_);
+      ConcordAssert(!sigShares.empty());
+
+      LOG_INFO(logger_, "Computed utt sign shares for block " << blockId << " tx: " << tx.getHashHex());
+
+      // Cache the rsi reply
+      std::stringstream ssRsi;
+      ssRsi << sigShares.size() << '\n';
+      for (const auto& sigShare : sigShares) {
+        ssRsi << sigShare;
+      }
+      result = StrToBytes(ssRsi.str());
+    }
+
+    return result;
+  }
+
+ private:
+  logging::Logger& logger_;
+  UTTReplicaConfig config_;
+
+  // A cached Resplica Specific Info msg based on
+  // the computed utt sig shares for some block
+  mutable std::map<size_t, std::vector<uint8_t>> sigSharesRsiCache_;
+};
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+UTTCommandsHandler::UTTCommandsHandler(concord::kvbc::IReader* storage,
+                                       concord::kvbc::IBlockAdder* blocksAdder,
+                                       logging::Logger& logger,
+                                       concord::kvbc::categorization::KeyValueBlockchain* kvbc)
+    : storage_(storage), blockAdder_(blocksAdder), logger_(logger), kvbc_{kvbc} {
+  ConcordAssertNE(kvbc_, nullptr);
+
+  UTTBlockchainApp::initUTTLibrary();
+
+  const auto replicaId = ReplicaConfig::instance().getreplicaId();
+  app_ = std::make_unique<UTTReplicaApp>(logger, replicaId);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+UTTCommandsHandler::~UTTCommandsHandler() = default;
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 void UTTCommandsHandler::execute(UTTCommandsHandler::ExecutionRequestsQueue& requests,
                                  std::optional<bftEngine::Timestamp> timestamp,
                                  const std::string& batchCid,
@@ -90,6 +210,7 @@ void UTTCommandsHandler::execute(UTTCommandsHandler::ExecutionRequestsQueue& req
   }
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 TxReply UTTCommandsHandler::handleRequest(const TxRequest& txRequest) {
   auto tx = parseTx(txRequest.tx);
   if (!tx) throw std::runtime_error("Failed to parse tx!");
@@ -103,7 +224,7 @@ TxReply UTTCommandsHandler::handleRequest(const TxRequest& txRequest) {
   TxReply reply;
   std::string err;
 
-  if (state_.canExecuteTx(*tx, err, config_)) {
+  if (app_->canExecuteTx(*tx, err)) {
     // Add a real block to the kv blockchain
     {
       BlockId nextExpectedBlockId = storage_->getLastBlockId() + 1;
@@ -123,8 +244,8 @@ TxReply UTTCommandsHandler::handleRequest(const TxRequest& txRequest) {
     // Note that for utt txs the signatures are computed lazily
     // and cached when the block data is requested
 
-    state_.appendBlock(Block{std::move(*tx)});
-    state_.executeBlocks();
+    app_->appendBlock(Block{std::move(*tx)});
+    app_->executeBlocks();
     reply.success = true;
   } else {
     LOG_WARN(logger_, "Failed to execute Tx request: " << err);
@@ -132,26 +253,28 @@ TxReply UTTCommandsHandler::handleRequest(const TxRequest& txRequest) {
     reply.success = false;
   }
 
-  reply.last_block_id = state_.getLastKnownBlockId();
+  reply.last_block_id = app_->getLastKnownBlockId();
 
   return reply;
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 GetLastBlockReply UTTCommandsHandler::handleRequest(const GetLastBlockRequest&) {
   LOG_INFO(logger_, "Executing GetLastBlockRequest");
 
   GetLastBlockReply reply;
-  reply.last_block_id = state_.getLastKnownBlockId();
+  reply.last_block_id = app_->getLastKnownBlockId();
 
   return reply;
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 GetBlockDataReply UTTCommandsHandler::handleRequest(const GetBlockDataRequest& req, std::vector<uint8_t>& outRsi) {
   LOG_INFO(logger_, "Executing GetBlockDataRequest for block_id=" << req.block_id);
 
   GetBlockDataReply reply;
 
-  const auto* block = state_.getBlockById(req.block_id);
+  const auto* block = app_->getBlockById(req.block_id);
   if (!block) {
     LOG_WARN(logger_, "Request block " << req.block_id << " does not exist!");
     reply.success = false;
@@ -167,32 +290,14 @@ GetBlockDataReply UTTCommandsHandler::handleRequest(const GetBlockDataRequest& r
     reply.tx = ss.str();
 
     if (const auto* txUtt = std::get_if<TxUtt>(&(*block->tx_))) {
-      // Compute signature shares lazily when the block is requested
-      // Precondition: monotonically increasing blocks
-      auto& sigShareRsiForBlock = sigSharesRsiCache_[req.block_id];
-
-      if (sigShareRsiForBlock.empty()) {
-        auto sigShares = libutt::Replica::signShareOutputCoins(txUtt->utt_, config_.bskShare_);
-        ConcordAssert(!sigShares.empty());
-
-        LOG_INFO(logger_, "Computed utt sign shares for block " << req.block_id << " tx: " << txUtt->utt_.getHashHex());
-
-        // Cache the rsi reply
-        std::stringstream ssRsi;
-        ssRsi << sigShares.size() << '\n';
-        for (const auto& sigShare : sigShares) {
-          ssRsi << sigShare;
-        }
-        sigShareRsiForBlock = StrToBytes(ssRsi.str());
-      }
-
-      outRsi = sigShareRsiForBlock;  // Copy
+      outRsi = app_->GetSigShareRsiForBlock(txUtt->utt_, req.block_id);
     }
   }
 
   return reply;
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 std::string UTTCommandsHandler::getLatest(const std::string& key) const {
   const auto v = storage_->getLatest(VERSIONED_KV_CAT_ID, key);
   if (!v) {
@@ -201,33 +306,15 @@ std::string UTTCommandsHandler::getLatest(const std::string& key) const {
   return std::visit([](const auto& v) { return v.data; }, *v);
 }
 
-void UTTCommandsHandler::initAppState() {
-  AppState::initUTTLibrary();
-
-  const auto replicaId = ReplicaConfig::instance().getreplicaId();
-  const auto fileName = "utt_replica_" + std::to_string(replicaId);
-  std::ifstream ifs(fileName);
-  if (!ifs.is_open()) throw std::runtime_error("Failed to open " + fileName);
-
-  ifs >> config_;
-
-  LOG_INFO(logger_, "Loaded config '" << fileName);
-
-  // [TODO-UTT]: Init public balances with some value in the config
-  for (const auto& pid : config_.pids_) {
-    state_.addAccount(Account{pid});
-  }
-  if (state_.GetAccounts().empty()) throw std::runtime_error("No accounts loaded!");
-}
-
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 void UTTCommandsHandler::syncAppState() {
   const auto lastBlockId = storage_->getLastBlockId();
 
-  ConcordAssert(lastBlockId >= state_.getLastKnownBlockId());
+  ConcordAssert(lastBlockId >= app_->getLastKnownBlockId());
 
-  state_.setLastKnownBlockId(lastBlockId);
+  app_->setLastKnownBlockId(lastBlockId);
 
-  auto missingBlockId = state_.executeBlocks();
+  auto missingBlockId = app_->executeBlocks();
   while (missingBlockId) {
     const auto key = "tx" + std::to_string(*missingBlockId);
     const auto v = getLatest(key);
@@ -243,8 +330,8 @@ void UTTCommandsHandler::syncAppState() {
       LOG_INFO(logger_, "Executing public tx: " << v);
     }
 
-    state_.appendBlock(Block{std::move(*tx)});
+    app_->appendBlock(Block{std::move(*tx)});
 
-    missingBlockId = state_.executeBlocks();
+    missingBlockId = app_->executeBlocks();
   }
 }

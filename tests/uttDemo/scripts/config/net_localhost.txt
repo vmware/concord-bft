@@ -1,0 +1,30 @@
+# Network configuration for running the demo on a single machine
+replicas_config:
+ - 127.0.0.1:3710
+ - 127.0.0.1:3711
+ - 127.0.0.1:3712
+ - 127.0.0.1:3713
+
+# One bft client per payment service (3 payment services)
+clients_config: 
+ - 127.0.0.1:3720
+ - 127.0.0.1:3721
+ - 127.0.0.1:3722
+
+# These are the addresses of payment services reachable by wallets
+payment_services_config:
+ - 127.0.0.1:3730
+ - 127.0.0.1:3731
+ - 127.0.0.1:3732
+
+# Wallet addresses reachable by payment services (3 wallets per payment service, 9 total)
+wallets_config:
+ - 127.0.0.1:3740
+ - 127.0.0.1:3741
+ - 127.0.0.1:3742
+ - 127.0.0.1:3743
+ - 127.0.0.1:3744
+ - 127.0.0.1:3745
+ - 127.0.0.1:3746
+ - 127.0.0.1:3747
+ - 127.0.0.1:3748

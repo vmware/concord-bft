@@ -56,14 +56,15 @@ bool ConfigFileParser::Parse() {
       continue;
 
     if (tmp[0] == value_delimiter_) {  // of the form '- value'
-      value = tmp.substr(tmp[1]);
-      concord::util::ltrim_inplace(tmp);
+      value = tmp.substr(1);
+      concord::util::ltrim_inplace(value);
       if (!key.empty())
         parameters_map_.insert(pair<string, string>(key, value));
       else {
         LOG_FATAL(logger_, "not found key for value " << value);
         return false;
       }
+      continue;
     }
     size_t keyDelimiterPos = tmp.find_first_of(key_delimiter_);
     if (keyDelimiterPos != string::npos) {
@@ -100,6 +101,15 @@ vector<string> ConfigFileParser::GetValues(const string& key) {
     }
   }
   return values;
+}
+
+std::string ConfigFileParser::GetNthValue(const string& key, size_t nth) {
+  if (nth < 1) return std::string{};
+  if (nth > parameters_map_.count(key)) return std::string{};
+  auto it = parameters_map_.lower_bound(key);
+  std::advance(it, nth - 1);
+  LOG_DEBUG(logger_, "GetNthValue() for key: " << key << " nth: " << nth << " value: " << it->second);
+  return it->second;
 }
 
 std::vector<std::string> ConfigFileParser::SplitValue(const std::string& value_to_split, const char* delimiter) {

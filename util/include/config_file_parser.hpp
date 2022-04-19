@@ -40,6 +40,9 @@ class ConfigFileParser {
   // Returns a range of values that match specified key.
   std::vector<std::string> GetValues(const std::string& key);
 
+  // Returns the nth value (counting from 1) for key (or empty string if it does not exist)
+  std::string GetNthValue(const std::string& key, size_t nth);
+
   std::vector<std::string> SplitValue(const std::string& value_to_split, const char* delimiter);
 
   void printAll();

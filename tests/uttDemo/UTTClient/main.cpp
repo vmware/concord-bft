@@ -13,16 +13,18 @@
 
 #include <iostream>
 #include <fstream>
+#include <memory>
+#include <mutex>
+#include <condition_variable>
 
+#include <SharedTypes.hpp>
+#include <config_file_parser.hpp>
 #include "config/test_comm_config.hpp"
 #include "config/test_parameters.hpp"
 #include "communication/CommFactory.hpp"
-#include "bftclient/config.h"
-#include "bftclient/bft_client.h"
-#include "bftclient/seq_num_generator.h"
 #include "utt_messages.cmf.hpp"
 
-#include "app_state.hpp"
+#include "utt_blockchain_app.hpp"
 #include "utt_config.hpp"
 
 #include <utt/Client.h>
@@ -31,108 +33,299 @@ using namespace bftEngine;
 using namespace bft::communication;
 using std::string;
 using namespace utt::messages;
-using namespace bft::client;
 
-uint64_t nextSeqNum() {
-  static SeqNumberGenerator gen{ClientId{0}};  // ClientId used just for logging
-  return gen.unique();
-}
-
-ClientParams setupClientParams(int argc, char** argv) {
-  ClientParams clientParams;
-  clientParams.clientId = UINT16_MAX;
-  clientParams.numOfFaulty = UINT16_MAX;
-  clientParams.numOfSlow = UINT16_MAX;
-  clientParams.numOfOperations = UINT16_MAX;
-  char argTempBuffer[PATH_MAX + 10];
-  int o = 0;
-  while ((o = getopt(argc, argv, "i:f:c:p:n:")) != EOF) {
-    switch (o) {
-      case 'i': {
-        strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
-        argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
-        string idStr = argTempBuffer;
-        int tempId = std::stoi(idStr);
-        if (tempId >= 0 && tempId < UINT16_MAX) clientParams.clientId = (uint16_t)tempId;
-      } break;
-
-      case 'f': {
-        strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
-        argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
-        string fStr = argTempBuffer;
-        int tempfVal = std::stoi(fStr);
-        if (tempfVal >= 1 && tempfVal < UINT16_MAX) clientParams.numOfFaulty = (uint16_t)tempfVal;
-      } break;
-
-      case 'c': {
-        strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
-        argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
-        string cStr = argTempBuffer;
-        int tempcVal = std::stoi(cStr);
-        if (tempcVal >= 0 && tempcVal < UINT16_MAX) clientParams.numOfSlow = (uint16_t)tempcVal;
-      } break;
-
-      case 'p': {
-        strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
-        argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
-        string numOfOpsStr = argTempBuffer;
-        uint32_t tempPVal = std::stoul(numOfOpsStr);
-        if (tempPVal >= 1 && tempPVal < UINT32_MAX) clientParams.numOfOperations = tempPVal;
-      } break;
-
-      case 'n': {
-        strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
-        argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
-        clientParams.configFileName = argTempBuffer;
-      } break;
-
-      default:
-        break;
-    }
-  }
-  return clientParams;
-}
-
-auto logger = logging::getLogger("uttdemo.client");
-
-ICommunication* setupCommunicationParams(ClientParams& cp) {
-  TestCommConfig testCommConfig(logger);
-  uint16_t numOfReplicas = cp.get_numOfReplicas();
-#ifdef USE_COMM_PLAIN_TCP
-  PlainTcpConfig conf =
-      testCommConfig.GetTCPConfig(false, cp.clientId, cp.numOfClients, numOfReplicas, cp.configFileName);
-#elif USE_COMM_TLS_TCP
-  TlsTcpConfig conf =
-      testCommConfig.GetTlsTCPConfig(false, cp.clientId, cp.numOfClients, numOfReplicas, cp.configFileName);
-#else
-  PlainUdpConfig conf =
-      testCommConfig.GetUDPConfig(false, cp.clientId, cp.numOfClients, numOfReplicas, cp.configFileName);
-#endif
-
-  return CommFactory::create(conf);
-}
+using ReplicaSpecificInfo = std::map<uint16_t, std::vector<uint8_t>>;  // [ReplicaId : bytes]
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void initAccounts(AppState& state) {
-  AppState::initUTTLibrary();
+struct PaymentServiceTimeoutException : std::runtime_error {
+  PaymentServiceTimeoutException() : std::runtime_error{"PaymentServiceTimeout"} {}
+};
 
-  if (!state.GetAccounts().empty()) throw std::runtime_error("Accounts already exist");
-  for (int i = 1; i <= 3; ++i) {
-    const std::string fileName = "utt_client_" + std::to_string(i);
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+struct BftServiceTimeoutException : std::runtime_error {
+  BftServiceTimeoutException() : std::runtime_error{"BftServiceTimeout"} {}
+};
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+auto logger = logging::getLogger("uttdemo.wallet");
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+class WalletCommunicator : public IReceiver {
+ public:
+  WalletCommunicator(logging::Logger& logger, uint16_t walletId, const std::string& cfgFileName)
+      : logger_{logger}, walletId_{walletId} {
+    // [TODO-UTT] Support for other communcation modes like TCP/TLS (if needed)
+    if (cfgFileName.empty()) throw std::runtime_error("Network config filename empty!");
+
+    concord::util::ConfigFileParser cfgFileParser(logger_, cfgFileName);
+    if (!cfgFileParser.Parse()) throw std::runtime_error("Failed to parse configuration file: " + cfgFileName);
+
+    // Load wallet network address
+    auto walletAddr = cfgFileParser.GetNthValue("wallets_config", walletId);
+    if (walletAddr.empty()) throw std::runtime_error("No wallet address for id " + std::to_string(walletId));
+
+    std::string listenHost;
+    uint16_t listenPort = 0;
+    {
+      std::stringstream ss(std::move(walletAddr));
+      std::getline(ss, listenHost, ':');
+      ss >> listenPort;
+
+      if (listenHost.empty()) throw std::runtime_error("Empty wallet address!");
+      if (listenPort == 0) throw std::runtime_error("Invalid wallet port!");
+    }
+
+    std::cout << "Wallet listening addr: " << listenHost << " : " << listenPort << "\n";
+
+    // Map wallet id to payment service id:
+    // {1, 2, 3} -> 1
+    // {4, 5, 6} -> 2
+    // {7, 8, 9} -> 3
+    paymentServiceId_ = (walletId_ - 1) / 3 + 1;
+
+    // Load the corresponding payment service network address
+    auto paymentServiceAddr = cfgFileParser.GetNthValue("payment_services_config", paymentServiceId_);
+    if (paymentServiceAddr.empty())
+      throw std::runtime_error("No payment service address for id " + std::to_string(paymentServiceId_));
+
+    std::string paymentServiceHost;
+    uint16_t paymentServicePort = 0;
+    {
+      std::stringstream ss(std::move(paymentServiceAddr));
+      std::getline(ss, paymentServiceHost, ':');
+      ss >> paymentServicePort;
+
+      if (paymentServiceHost.empty()) throw std::runtime_error("Empty payment service host!");
+      if (paymentServicePort == 0) throw std::runtime_error("Invalid payment service port!");
+    }
+
+    std::cout << "Using PaymentService #" << paymentServiceId_;
+    std::cout << " addr: " << paymentServiceHost << " : " << paymentServicePort << "\n";
+
+    // Each wallet connects only to the payment service node
+    // The actual node id for the payment service is always 0 from the point of view
+    // of the wallet.
+    std::unordered_map<NodeNum, NodeInfo> nodes;
+    nodes.emplace(0, NodeInfo{paymentServiceHost, paymentServicePort, false});
+
+    const int32_t msgMaxSize = 128 * 1024;  // 128 kB -- Same as TestCommConfig
+
+    PlainUdpConfig conf(listenHost, listenPort, msgMaxSize, nodes, walletId);
+
+    comm_.reset(CommFactory::create(conf));
+    if (!comm_) throw std::runtime_error("Failed to create communication for wallet!");
+
+    comm_->setReceiver(NodeNum(walletId), this);
+    comm_->start();
+  }
+
+  ~WalletCommunicator() { comm_->stop(); }
+
+  // Invoked when a new message is received
+  // Notice that the memory pointed by message may be freed immediately
+  // after the execution of this method.
+  void onNewMessage(NodeNum sourceNode, const char* const message, size_t messageLength, NodeNum endpointNum) override {
+    // This is called from the listening thread of the communication
+    LOG_INFO(logger_, "onNewMessage from: " << sourceNode << " msgLen: " << messageLength);
+
+    // [TODO-UTT] Guard against mismatched number of replies compared to requests
+
+    // Deserialize the reply
+    auto reply = std::make_unique<BftReply>();
+    auto begin = reinterpret_cast<const uint8_t*>(message);
+    auto end = begin + messageLength;
+    deserialize(begin, end, *reply);
+
+    {
+      std::lock_guard<std::mutex> lk{mut_};
+      // The comm should always be ready to deliver the reply from the last request.
+      // There should never be a message received other than an expected reply.
+      ConcordAssert(reply_ == nullptr);
+      reply_ = std::move(reply);
+    }
+
+    condVar_.notify_one();  // Notify sendSync
+  }
+
+  // Invoked when the known status of a connection is changed.
+  // For each NodeNum, this method will never be concurrently
+  // executed by two different threads.
+  void onConnectionStatusChanged(NodeNum node, ConnectionStatus newStatus) override {
+    // Not applicable to UDP
+    LOG_INFO(logger_, "onConnectionStatusChanged from: " << node << " newStatus: " << (int)newStatus);
+  }
+
+  std::unique_ptr<BftReply> sendSync(std::vector<uint8_t>&& msg) {
+    int err = comm_->send(NodeNum(0), std::move(msg));
+    if (err) throw std::runtime_error("Error sending message: " + std::to_string(err));
+
+    std::unique_ptr<BftReply> reply;
+
+    // Wait for the reply or timeout
+    {
+      std::unique_lock<std::mutex> lk{mut_};
+
+      // Returns false if the predicate still evaluates false when the wait time expires
+      if (condVar_.wait_for(lk, std::chrono::seconds(7), [&]() { return reply_ != nullptr; })) {
+        if (reply_->result == static_cast<uint32_t>(OperationResult::TIMEOUT)) {
+          throw BftServiceTimeoutException{};
+        }
+
+        reply = std::move(reply_);
+      } else {
+        throw PaymentServiceTimeoutException{};
+      }
+    }
+
+    return reply;
+  }
+
+  uint16_t getPaymentServiceId() const { return paymentServiceId_; }
+
+ private:
+  logging::Logger& logger_;
+  uint16_t walletId_;
+  uint16_t paymentServiceId_;
+  std::unique_ptr<ICommunication> comm_;
+  std::unique_ptr<BftReply> reply_;
+  std::mutex mut_;
+  std::condition_variable condVar_;
+};
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+struct ClientAppParams {
+  uint16_t clientId_ = 0;
+  std::string configFileName_;
+};
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+class UTTClientApp : public UTTBlockchainApp {
+ public:
+  UTTClientApp(uint16_t walletId) {
+    if (walletId == 0) throw std::runtime_error("wallet id must be a positive value!");
+
+    const std::string fileName = "config/utt_wallet_" + std::to_string(walletId);
     std::ifstream ifs(fileName);
     if (!ifs.is_open()) throw std::runtime_error("Missing config: " + fileName);
 
     UTTClientConfig cfg;
     ifs >> cfg;
 
-    std::cout << "Successfully loaded UTT wallet '" << cfg.wallet_.getUserPid() << "'\n";
+    myPid_ = cfg.wallet_.getUserPid();
+    if (myPid_.empty()) throw std::runtime_error("Empty wallet pid!");
 
-    state.addAccount(Account{std::move(cfg.wallet_)});
+    for (auto& pid : cfg.pids_) {
+      if (pid == myPid_) continue;
+      otherPids_.emplace(std::move(pid));
+    }
+    if (otherPids_.empty()) throw std::runtime_error("Other pids are empty!");
+
+    std::cout << "Successfully loaded UTT wallet with pid '" << myPid_ << "'\n";
+
+    addAccount(Account{myPid_, cfg.initPublicBalance_});
+    wallet_ = std::move(cfg.wallet_);
   }
+
+  const Account& getMyAccount() const { return *getAccountById(myPid_); }
+  Account& getMyAccount() { return *getAccountById(myPid_); }
+
+  size_t getUttBalance() const {
+    size_t balance = 0;
+    for (const auto& c : wallet_.coins) balance += c.getValue();
+    return balance;
+  }
+
+  size_t getUttBudget() const { return wallet_.budgetCoin ? wallet_.budgetCoin->getValue() : 0; }
+
+  template <typename T>
+  std::string fmtCurrency(T val) {
+    return "$" + std::to_string(val);
+  }
+
+  std::string myPid_;
+  std::set<std::string> otherPids_;
+  libutt::Wallet wallet_;
+
+ private:
+  void executeTx(const Tx& tx) override {
+    UTTBlockchainApp::executeTx(tx);  // Common logic for tx execution
+
+    // Client removes spent coins and attempts to claim output coins
+    if (const auto* txUtt = std::get_if<TxUtt>(&tx)) {
+      pruneSpentCoins();
+      tryClaimCoins(*txUtt);
+    }
+  }
+
+  void pruneSpentCoins() {
+    // Mark spent coins and delete them all at once since they're kept in a vector
+    for (auto& c : wallet_.coins) {
+      if (hasNullifier(c.null.toUniqueString())) {
+        std::cout << "User '" << wallet_.getUserPid() << "' removes spent normal coin $" << c.getValue() << '\n';
+        c.val = 0;
+      }
+    }
+
+    wallet_.coins.erase(
+        std::remove_if(wallet_.coins.begin(), wallet_.coins.end(), [](const libutt::Coin& c) { return c.val == 0; }),
+        wallet_.coins.end());
+  }
+
+  void tryClaimCoins(const TxUtt& tx) {
+    // Add any new coins
+    const size_t n = 4;  // [TODO-UTT] Get from config
+    if (!tx.sigShares_) throw std::runtime_error("Missing sigShares in utt tx!");
+    const auto& sigShares = *tx.sigShares_;
+
+    size_t numTxo = tx.utt_.outs.size();
+    if (numTxo != sigShares.sigShares_.size())
+      throw std::runtime_error("Number of output coins differs from provided sig shares!");
+
+    for (size_t i = 0; i < numTxo; ++i) {
+      libutt::Client::tryClaimCoin(wallet_, tx.utt_, i, sigShares.sigShares_[i], sigShares.signerIds_, n);
+    }
+  }
+};
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+struct UttPayment {
+  UttPayment(std::string receiver, size_t amount) : receiver_(std::move(receiver)), amount_(amount) {}
+
+  std::string receiver_;
+  size_t amount_;
+};
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+ClientAppParams setupParams(int argc, char** argv) {
+  ClientAppParams params;
+
+  char argTempBuffer[PATH_MAX + 10];
+  int o = 0;
+  while ((o = getopt(argc, argv, "i:n:")) != EOF) {
+    switch (o) {
+      case 'i': {
+        strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
+        argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
+        string idStr = argTempBuffer;
+        int tempId = std::stoi(idStr);
+        if (tempId >= 0 && tempId < UINT16_MAX) params.clientId_ = (uint16_t)tempId;
+      } break;
+
+      case 'n': {
+        strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
+        argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
+        params.configFileName_ = argTempBuffer;
+      } break;
+
+      default:
+        break;
+    }
+  }
+  return params;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-TxReply sendTxRequest(Client& client, const Tx& tx) {
+TxReply sendTxRequest(WalletCommunicator& comm, const Tx& tx) {
   // [TODO-UTT] Debug output
   if (const auto* txUtt = std::get_if<TxUtt>(&tx)) {
     std::cout << "Sending UTT Tx " << txUtt->utt_.getHashHex() << '\n';
@@ -147,110 +340,119 @@ TxReply sendTxRequest(Client& client, const Tx& tx) {
   UTTRequest req;
   req.request = std::move(txRequest);
 
-  // Ensure we only wait for F+1 replies (ByzantineSafeQuorum)
-  WriteConfig writeConf{RequestConfig{false, nextSeqNum()}, ByzantineSafeQuorum{}};
-
-  Msg reqBytes;
+  std::vector<uint8_t> reqBytes;
   serialize(reqBytes, req);
-  auto replyBytes = client.send(writeConf, std::move(reqBytes));  // Sync send
+
+  auto bftReply = comm.sendSync(std::move(reqBytes));
+  ConcordAssert(bftReply != nullptr);
 
   UTTReply reply;
-  deserialize(replyBytes.matched_data, reply);
+  deserialize(bftReply->matched_data, reply);
 
-  const auto& txReply = std::get<TxReply>(reply.reply);  // throws if unexpected variant
+  auto txReply = std::get<TxReply>(std::move(reply.reply));  // throws if unexpected variant
   std::cout << "Got TxReply, success=" << txReply.success << " last_block_id=" << txReply.last_block_id << '\n';
 
   return txReply;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-GetLastBlockReply sendGetLastBlockRequest(Client& client) {
+GetLastBlockReply sendGetLastBlockRequest(WalletCommunicator& comm) {
   UTTRequest req;
   req.request = GetLastBlockRequest();
-  ReadConfig readConf{RequestConfig{false, nextSeqNum()}, LinearizableQuorum{}};
 
-  Msg reqBytes;
+  std::vector<uint8_t> reqBytes;
   serialize(reqBytes, req);
-  auto replyBytes = client.send(readConf, std::move(reqBytes));  // Sync send
+
+  auto bftReply = comm.sendSync(std::move(reqBytes));
+  ConcordAssert(bftReply != nullptr);
 
   UTTReply reply;
-  deserialize(replyBytes.matched_data, reply);
+  deserialize(bftReply->matched_data, reply);
 
-  const auto& lastBlockReply = std::get<GetLastBlockReply>(reply.reply);  // throws if unexpected variant
+  auto lastBlockReply = std::get<GetLastBlockReply>(std::move(reply.reply));  // throws if unexpected variant
   std::cout << "Got GetLastBlockReply, last_block_id=" << lastBlockReply.last_block_id << '\n';
 
   return lastBlockReply;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-GetBlockDataReply sendGetBlockDataRequest(Client& client, BlockId blockId, ReplicaSigShares& outSigShares) {
+std::pair<GetBlockDataReply, ReplicaSpecificInfo> sendGetBlockDataRequest(WalletCommunicator& comm, BlockId blockId) {
   GetBlockDataRequest blockDataReq;
   blockDataReq.block_id = blockId;
 
   UTTRequest req;
   req.request = std::move(blockDataReq);
-  ReadConfig readConf{RequestConfig{false, nextSeqNum()}, LinearizableQuorum{}};
 
-  Msg reqBytes;
+  std::vector<uint8_t> reqBytes;
   serialize(reqBytes, req);
-  auto replyBytes = client.send(readConf, std::move(reqBytes));  // Sync send
+
+  auto bftReply = comm.sendSync(std::move(reqBytes));
+  ConcordAssert(bftReply != nullptr);
 
   UTTReply reply;
-  deserialize(replyBytes.matched_data, reply);
+  deserialize(bftReply->matched_data, reply);
 
-  const auto& blockDataReply = std::get<GetBlockDataReply>(reply.reply);  // throws if unexpected variant
-  std::cout << "Got GetBlockDataReply, success=" << blockDataReply.success << " block_id=" << blockDataReply.block_id
+  // Extract the GetBlockDataReply and replica specific info
+  std::pair<GetBlockDataReply, ReplicaSpecificInfo> result;
+  result.first = std::get<GetBlockDataReply>(std::move(reply.reply));  // throws if unexpected variant
+  result.second = std::move(bftReply->rsi);
+
+  std::cout << "Got GetBlockDataReply, success=" << result.first.success << " block_id=" << result.first.block_id
             << '\n';
 
-  if (!blockDataReply.success) {
-    return blockDataReply;
-  }
+  return result;
+}
 
-  // Deserialize sign shares
-  // [TODO-UTT]: Need to collect F+1 (out of 2F+1) shares that combine to a valid RandSig
-  // Here, we assume naively that all replicas are honest
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+ReplicaSigShares DeserializeSigShares(const TxUtt& tx, ReplicaSpecificInfo&& rsi) {
+  const size_t numOutCoins = tx.utt_.outs.size();
 
-  for (const auto& kvp : replyBytes.rsi) {
-    if (outSigShares.signerIds_.size() == 2) break;  // Pick first F+1 signers
+  ReplicaSigShares result;
 
-    outSigShares.signerIds_.emplace_back(kvp.first.val);  // ReplicaId
+  // Pick first F+1 signers - we assume no malicious replicas
+  const size_t thresh = 2;  // [TODO-UTT] Get from config
+
+  for (const auto& kvp : rsi) {
+    if (result.signerIds_.size() == thresh) break;
+
+    result.signerIds_.emplace_back(kvp.first);  // ReplicaId
 
     std::stringstream ss(BytesToStr(kvp.second));
     size_t size = 0;  // The size reflects the number of output coins
     ss >> size;
     ss.ignore(1, '\n');  // skip newline
 
-    ConcordAssert(size <= 3);
+    ConcordAssert(size == numOutCoins);  // Make sure the rsi contains the same number of coins as the tx
+    result.sigShares_.resize(size);
+
     // Add this replica share to the list for i-th coin (the order is defined by signerIds)
     for (size_t i = 0; i < size; ++i) {
-      if (outSigShares.sigShares_.size() == i)  // Resize to accommodate up to 3 coins
-        outSigShares.sigShares_.emplace_back();
-
-      outSigShares.sigShares_[i].emplace_back(libutt::RandSigShare(ss));
+      result.sigShares_[i].emplace_back(libutt::RandSigShare(ss));
     }
   }
 
-  ConcordAssert(outSigShares.signerIds_.size() == 2);
-  for (size_t i = 0; i < outSigShares.sigShares_.size(); ++i)  // Check for each coin we have F+1 signers
-    ConcordAssert(outSigShares.signerIds_.size() == outSigShares.sigShares_[i].size());
+  // Sanity checks
+  ConcordAssert(result.signerIds_.size() == thresh);
+  for (size_t i = 0; i < result.sigShares_.size(); ++i)
+    ConcordAssert(result.signerIds_.size() == result.sigShares_[i].size());
 
-  return blockDataReply;
+  return result;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 // Sync state by fetching missing blocks and executing them
-void syncState(AppState& state, Client& client) {
+void syncState(UTTClientApp& app, WalletCommunicator& comm) {
   std::cout << "Sync state...\n";
 
-  auto lastBlockReply = sendGetLastBlockRequest(client);
-  state.setLastKnownBlockId(lastBlockReply.last_block_id);
+  auto lastBlockReply = sendGetLastBlockRequest(comm);
+  app.setLastKnownBlockId(lastBlockReply.last_block_id);
 
   // Sync missing blocks
-  auto missingBlockId = state.executeBlocks();
+  auto missingBlockId = app.executeBlocks();
   while (missingBlockId) {
     // Request missing block
-    ReplicaSigShares sigShares;
-    auto blockDataReply = sendGetBlockDataRequest(client, *missingBlockId, sigShares);
+    auto result = sendGetBlockDataRequest(comm, *missingBlockId);
+    const auto& blockDataReply = result.first;
     const auto replyBlockId = blockDataReply.block_id;
 
     if (!blockDataReply.success) throw std::runtime_error("Requested block does not exist!");
@@ -264,46 +466,56 @@ void syncState(AppState& state, Client& client) {
       // [TODO-UTT] Debug output
       std::cout << "Received UTT Tx " << txUtt->utt_.getHashHex() << " for block " << replyBlockId << '\n';
 
+      // Deserialize sig shares from replica specific info
+      ReplicaSigShares sigShares = DeserializeSigShares(*txUtt, std::move(result.second));
+
       // Add sig shares
       txUtt->sigShares_ = std::move(sigShares);
     }
 
-    state.appendBlock(Block{std::move(*tx)});
-    missingBlockId = state.executeBlocks();
+    app.appendBlock(Block{std::move(*tx)});
+    missingBlockId = app.executeBlocks();
   }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-struct UttPayment {
-  UttPayment(Account& from, const Account& to, size_t amount) : from_(from), to_(to), amount_(amount) {}
-
-  Account& from_;
-  const Account& to_;
-  size_t amount_;
-};
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-std::optional<UttPayment> createUttPayment(const std::string& cmd, AppState& state) {
+std::optional<UttPayment> createUttPayment(const std::string& cmd, const UTTClientApp& app) {
   std::vector<std::string> tokens;
   std::string token;
   std::stringstream ss(cmd);
   while (std::getline(ss, token, ' ')) tokens.emplace_back(std::move(token));
 
-  if (tokens.size() == 4 && tokens[0] == "utt") {
-    const auto& from = tokens[1];
-    const auto& to = tokens[2];
-    int payment = std::atoi(tokens[3].c_str());
+  if (tokens.size() == 3 && tokens[0] == "utt") {
+    const auto& receiver = tokens[1];
+    if (receiver == app.myPid_) throw std::domain_error("utt explicit self payments are not supported!");
+
+    if (app.otherPids_.count(receiver) == 0) throw std::domain_error("utt payment receiver is unknown!");
+
+    int payment = std::atoi(tokens[2].c_str());
     if (payment <= 0) throw std::domain_error("utt payment amount must be positive!");
 
-    // [TODO-UTT] This logic will be modified once we have a separate payment process and an account process.
-    // The utt transaction will be made from the point of view of the account and it will only know
-    // that the receiving pid exists (is previously registered by the registry authority)
-    auto* fromAccount = state.getAccountById(from);
-    if (!fromAccount) throw std::domain_error("utt sender account not found!");
-    const auto* toAccount = state.getAccountById(to);
-    if (!toAccount) throw std::domain_error("utt receiver account not found!");
+    return UttPayment(receiver, payment);
+  }
 
-    return UttPayment(*fromAccount, *toAccount, payment);
+  return std::nullopt;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+std::optional<Tx> createPublicTx(const std::string& cmd, const UTTClientApp& app) {
+  std::stringstream ss(cmd);
+  std::string token;
+  std::vector<std::string> tokens;
+
+  while (std::getline(ss, token, ' ')) tokens.emplace_back(std::move(token));
+
+  if (tokens.size() == 2) {
+    if (tokens[0] == "deposit")
+      return TxPublicDeposit(app.myPid_, std::atoi(tokens[1].c_str()));
+    else if (tokens[0] == "withdraw")
+      return TxPublicWithdraw(app.myPid_, std::atoi(tokens[1].c_str()));
+  } else if (tokens.size() == 3) {
+    if (tokens[0] == "transfer")
+      return TxPublicTransfer(app.myPid_, std::move(tokens[1]), std::atoi(tokens[2].c_str()));
   }
 
   return std::nullopt;
@@ -312,58 +524,53 @@ std::optional<UttPayment> createUttPayment(const std::string& cmd, AppState& sta
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void printHelp() {
   std::cout << "\nCommands:\n";
-  std::cout << "balance\t\t\t\t-- print all account's public and utt balances\n";
-  std::cout << "ledger\t\t\t\t-- print the transactions that happened on the blockchain\n";
-  std::cout << "deposit [account] [amount]\t-- public money deposit to account\n";
-  std::cout << "withdraw [account] [amount]\t-- public money withdraw from account\n";
-  std::cout << "transfer [from] [to] [amount]\t-- public money transfer\n";
-  std::cout << "utt [from] [to] [amount]\t-- anonymous money transfer\n";
+  std::cout << "balance\t\t\t-- print account's public and utt balances\n";
+  std::cout << "ledger\t\t\t-- print all transactions that happened\n";
+  // std::cout << "deposit [amount]\t-- public money deposit to account\n";
+  // std::cout << "withdraw [amount]\t-- public money withdraw from account\n";
+  std::cout << "transfer [to] [amount]\t-- public money transfer\n";
+  std::cout << "utt [to] [amount]\t-- anonymous money transfer\n";
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void checkBalance(AppState& state, Client& client) {
-  syncState(state, client);
+void checkBalance(UTTClientApp& app, WalletCommunicator& comm) {
+  syncState(app, comm);
   std::cout << '\n';
-  for (const auto& kvp : state.GetAccounts()) {
-    const auto& acc = kvp.second;
-    std::cout << acc.getId() << " | public: " << acc.getPublicBalance();
-    std::cout << " utt: " << acc.getUttBalance() << " / " << acc.getUttBudget() << '\n';
-  }
+
+  const auto& myAccount = app.getMyAccount();
+  std::cout << "Balance:\n";
+  std::cout << "  Public: " << app.fmtCurrency(myAccount.getPublicBalance()) << '\n';
+  std::cout << "  Anonymous: " << app.fmtCurrency(app.getUttBalance()) << '\n';
+  std::cout << "  Remaining anonymous budget: " << app.fmtCurrency(app.getUttBudget()) << '\n';
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void checkLedger(AppState& state, Client& client) {
-  syncState(state, client);
+void checkLedger(UTTClientApp& app, WalletCommunicator& comm) {
+  syncState(app, comm);
   std::cout << '\n';
-  for (const auto& block : state.GetBlocks()) {
+  for (const auto& block : app.GetBlocks()) {
     std::cout << block << '\n';
   }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void runUttPayment(const UttPayment& payment, AppState& state, Client& client) {
-  std::cout << "Running a UTT payment from " << payment.from_.getId();
-  std::cout << " to " << payment.to_.getId() << " for " << payment.amount_ << '\n';
-
-  // Precondition: a valid UTT payment
-  auto wallet = payment.from_.getWallet();
-  ConcordAssert(wallet != nullptr);
+void runUttPayment(const UttPayment& payment, UTTClientApp& app, WalletCommunicator& comm) {
+  std::cout << "Running a UTT payment to '" << payment.receiver_;
+  std::cout << "' for " << app.fmtCurrency(payment.amount_) << '\n';
 
   while (true) {
     // We do a sync before each attempt to do a utt payment since only the client
     // knows if it has the right coins to do it.
     // This also handles the case where we do repeated splits or merges to arrive at a final payment
     // and need to obtain the resulting coins before we proceed.
-    syncState(state, client);
+    syncState(app, comm);
 
     // Check that we can still do the payment and this holds:
     // payment <= balance && payment <= budget
-    if (payment.from_.getUttBalance() < payment.amount_)
-      throw std::domain_error("Insufficient balance for utt payment!");
-    if (payment.from_.getUttBudget() < payment.amount_)
-      throw std::domain_error("Insufficient anonymous budget for utt payment!");
+    if (app.getUttBalance() < payment.amount_) throw std::domain_error("Insufficient balance for utt payment!");
+    if (app.getUttBudget() < payment.amount_) throw std::domain_error("Insufficient anonymous budget for utt payment!");
 
-    auto uttTx = libutt::Client::createTxForPayment(*wallet, payment.to_.getId(), payment.amount_);
+    auto uttTx = libutt::Client::createTxForPayment(app.wallet_, payment.receiver_, payment.amount_);
 
     // We assume that any tx with a budget coin must be an actual payment
     // and not a coin split or merge.
@@ -372,9 +579,9 @@ void runUttPayment(const UttPayment& payment, AppState& state, Client& client) {
 
     Tx tx = TxUtt(std::move(uttTx));
 
-    auto reply = sendTxRequest(client, tx);
+    auto reply = sendTxRequest(comm, tx);
     if (reply.success) {
-      state.setLastKnownBlockId(reply.last_block_id);
+      app.setLastKnownBlockId(reply.last_block_id);
       std::cout << "Ok.\n";
     } else {
       std::cout << "Transaction failed: " << reply.err << '\n';
@@ -389,23 +596,23 @@ void runUttPayment(const UttPayment& payment, AppState& state, Client& client) {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void sendPublicTx(const Tx& tx, AppState& state, Client& client) {
-  auto reply = sendTxRequest(client, tx);
+void sendPublicTx(const Tx& tx, UTTClientApp& app, WalletCommunicator& comm) {
+  auto reply = sendTxRequest(comm, tx);
   if (reply.success) {
-    state.setLastKnownBlockId(reply.last_block_id);
+    app.setLastKnownBlockId(reply.last_block_id);
     std::cout << "Ok.\n";
+    checkBalance(app, comm);
   } else {
     std::cout << "Transaction failed: " << reply.err << '\n';
   }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void dbgForceCheckpoint(AppState& state, Client& client) {
-  // [TODO-UTT] Pick the user and the number of txs
+void dbgForceCheckpoint(UTTClientApp& app, WalletCommunicator& comm) {
   for (int i = 0; i < 150; ++i) {
-    auto reply = sendTxRequest(client, TxPublicDeposit("user_1", 1));
+    auto reply = sendTxRequest(comm, TxPublicDeposit(app.myPid_, 1));
     if (reply.success) {
-      state.setLastKnownBlockId(reply.last_block_id);
+      app.setLastKnownBlockId(reply.last_block_id);
     } else {
       std::cout << "Checkpoint transaction " << (i + 1) << " failed: " << reply.err << '\n';
       break;
@@ -415,61 +622,59 @@ void dbgForceCheckpoint(AppState& state, Client& client) {
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 int main(int argc, char** argv) {
-  logging::initLogger("logging.properties");
-  ClientParams clientParams = setupClientParams(argc, argv);
+  logging::initLogger("config/logging.properties");
 
-  if (clientParams.clientId == UINT16_MAX || clientParams.numOfFaulty == UINT16_MAX ||
-      clientParams.numOfSlow == UINT16_MAX || clientParams.numOfOperations == UINT32_MAX) {
-    std::cout << "Wrong usage! Required parameters: " << argv[0] << " -f F -c C -p NUM_OPS -i ID";
+  ClientAppParams params = setupParams(argc, argv);
+
+  if (params.clientId_ == 0 || params.configFileName_.empty()) {
+    std::cout << "Wrong usage! Required parameters: " << argv[0] << "-n <config_file_name> -i <id>";
     exit(-1);
   }
 
-  SharedCommPtr comm = SharedCommPtr(setupCommunicationParams(clientParams));
-
-  ClientConfig clientConfig;
-  clientConfig.f_val = clientParams.numOfFaulty;
-  for (uint16_t i = 0; i < clientParams.numOfReplicas; ++i) clientConfig.all_replicas.emplace(ReplicaId{i});
-  clientConfig.id = ClientId{clientParams.clientId};
-
-  Client client(comm, clientConfig);
-
-  AppState state;
-
   try {
-    initAccounts(state);
+    UTTBlockchainApp::initUTTLibrary();
+
+    UTTClientApp state(params.clientId_);
+
+    WalletCommunicator comm(logger, params.clientId_, params.configFileName_);
+
+    std::cout << "Wallet initialization done.\n";
 
     while (true) {
       std::cout << "\nEnter command (type 'h' for commands, 'q' to exit):\n";
+      std::cout << state.myPid_ << "> ";
       std::string cmd;
       std::getline(std::cin, cmd);
       try {
         if (std::cin.eof() || cmd == "q") {
-          std::cout << "Quit!\n";
-          client.stop();
+          std::cout << "Quitting...\n";
           return 0;
         } else if (cmd == "h") {
           printHelp();
         } else if (cmd == "balance") {
-          checkBalance(state, client);
+          checkBalance(state, comm);
         } else if (cmd == "ledger") {
-          checkLedger(state, client);
+          checkLedger(state, comm);
         } else if (cmd == "checkpoint") {
-          dbgForceCheckpoint(state, client);
+          dbgForceCheckpoint(state, comm);
         } else if (auto uttPayment = createUttPayment(cmd, state)) {
-          runUttPayment(*uttPayment, state, client);
-        } else if (auto tx = parseTx(cmd)) {
-          sendPublicTx(*tx, state, client);
-        } else {
+          runUttPayment(*uttPayment, state, comm);
+          checkBalance(state, comm);
+        } else if (auto tx = createPublicTx(cmd, state)) {
+          sendPublicTx(*tx, state, comm);
+        } else if (!cmd.empty()) {
           std::cout << "Unknown command '" << cmd << "'\n";
         }
-      } catch (const bft::client::TimeoutException& e) {
-        std::cout << "Request timeout: " << e.what() << '\n';
+      } catch (const BftServiceTimeoutException& e) {
+        std::cout << "Concord-BFT service did not respond.\n";
+      } catch (const PaymentServiceTimeoutException& e) {
+        std::cout << "PaymentService did not respond.\n";
       } catch (const std::domain_error& e) {
         std::cout << "Validation error: " << e.what() << '\n';
       }
     }
   } catch (const std::exception& e) {
-    client.stop();
     std::cout << "Exception: " << e.what() << '\n';
+    exit(-1);
   }
 }

@@ -27,38 +27,24 @@ std::vector<std::string> SplitStr(const std::string& s, char delim = ' ');
 }  // namespace utt_config
 
 ////////////////////////////////////////////////////////////////////////
-struct IUTTConfig {
-  virtual ~IUTTConfig() = default;
-  virtual const libutt::Params& getParams() const = 0;
-  virtual const libutt::RegAuthPK& getRegAuthPK() const = 0;
-  virtual const libutt::RandSigPK& getBankPK() const = 0;
-};
-
-////////////////////////////////////////////////////////////////////////
-struct UTTClientConfig : IUTTConfig {
-  const libutt::Params& getParams() const override { return wallet_.p; }
-  const libutt::RegAuthPK& getRegAuthPK() const override { return wallet_.rpk; }
-  const libutt::RandSigPK& getBankPK() const override { return wallet_.bpk; }
-
+struct UTTClientConfig {
   bool operator==(const UTTClientConfig& other) const;
   bool operator!=(const UTTClientConfig& other) const;
 
   std::vector<std::string> pids_;
+  int initPublicBalance_ = 0;
   libutt::Wallet wallet_;
 };
 std::ostream& operator<<(std::ostream& os, const UTTClientConfig& cfg);
 std::istream& operator>>(std::istream& is, UTTClientConfig& cfg);
 
 ////////////////////////////////////////////////////////////////////////
-struct UTTReplicaConfig : IUTTConfig {
-  const libutt::Params& getParams() const override { return p_; }
-  const libutt::RegAuthPK& getRegAuthPK() const override { return rpk_; }
-  const libutt::RandSigPK& getBankPK() const override { return bpk_; }
-
+struct UTTReplicaConfig {
   bool operator==(const UTTReplicaConfig& other) const;
   bool operator!=(const UTTReplicaConfig& other) const;
 
   std::vector<std::string> pids_;
+  int initPublicBalance_ = 0;
   libutt::Params p_;
   libutt::RegAuthPK rpk_;
   libutt::RandSigPK bpk_;

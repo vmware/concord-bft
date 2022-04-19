@@ -25,7 +25,8 @@
 #include <utt/Wallet.h>
 #include <utt/Coin.h>
 
-#include "app_state.hpp"
+#include <config_file_parser.hpp>
+#include "utt_blockchain_app.hpp"
 #include "utt_config.hpp"
 
 using namespace libutt;
@@ -33,132 +34,129 @@ using namespace utt_config;
 
 using Fr = typename libff::default_ec_pp::Fp_type;
 
-// Helper functions and static state to this executable's main function.
-// static bool containsHelpOption(int argc, char** argv) {
-//   for (int i = 1; i < argc; ++i) {
-//     if (std::string(argv[i]) == "--help") {
-//       return true;
-//     }
-//   }
-//   return false;
-// }
-
-// template <typename T>
-// T parse(const std::string& str, const std::string& name) {
-//   try {
-//     return concord::util::to<T>(str);
-//   } catch (std::exception& e) {
-//     std::ostringstream oss;
-//     oss << "Exception: " << e.what() << " Invalid value  for " << name << ": " << str << " expected range ["
-//         << std::numeric_limits<T>::min() << ", " << std::numeric_limits<T>::max() << "]";
-
-//     throw std::runtime_error(oss.str());
-//   }
-// }
-
 int main(int argc, char** argv) {
   try {
-    std::string usageMessage =
-        "Usage:\n"
-        "GenerateConcordKeys:\n"
-        "  -n Number of regular replicas\n"
-        "  -f Number of faulty replicas to tolerate\n"
-        "  -r Number of read-only replicas\n"
-        "  -o Output file prefix\n"
-        "   --help - this help \n\n"
-        "The generated keys will be output to a number of files, one per replica.\n"
-        "The files will each be named OUTPUT_FILE_PREFIX<i>, where <i> is a sequential ID\n"
-        "for the replica to which the file corresponds in the range [0,TOTAL_NUMBER_OF_REPLICAS].\n"
-        "Each regular replica file contains all public keys for the cluster, private keys for itself.\n"
-        "Each read-only replica contains only RSA public keys for the cluster.\n"
-        "Optionally, for regular replica, types of cryptosystems to use can be chosen:\n"
-        "  --slow_commit_cryptosys SYSTEM_TYPE PARAMETER\n"
-        "  --commit_cryptosys SYSTEM_TYPE PARAMETER\n"
-        "  --opptimistic_commit_cryptosys SYSTEM_TYPE PARAMETER\n"
-        "Currently, the following cryptosystem types are supported (and take the following as parameters):\n";
+    if (argc != 2) {
+      std::cout << "Usage: provide a utt configuration file!\n";
+      exit(-1);
+    }
 
-    // Display the usage message and exit if no arguments were given, or if --help
-    // was given anywhere.
-    // if ((argc <= 1) || (containsHelpOption(argc, argv))) {
-    //   std::cout << usageMessage;
-    //   return 0;
-    // }
+    logging::initLogger("config/logging.properties");
+    auto logger = logging::getLogger("uttdemo.gen-utt-cfg");
 
-    uint16_t n = 4;
-    uint16_t f = 1;
-    std::string clientOutputPrefix = "utt_client_";
-    std::string replicaOutputPrefix = "utt_replica_";
+    std::string cfgFileName = argv[1];
+    concord::util::ConfigFileParser cfgFileParser(logger, cfgFileName);
+    if (!cfgFileParser.Parse()) throw std::runtime_error("Failed to parse configuration file: " + cfgFileName);
 
-    // for (int i = 1; i < argc; ++i) {
-    //   std::string option(argv[i]);
-    //   if (option == "-f") {
-    //     if (i >= argc - 1) throw std::runtime_error("Expected an argument to -f");
-    //     f = parse<std::uint16_t>(argv[i++ + 1], "-f");
-    //   } else if (option == "-n") {
-    //     if (i >= argc - 1) throw std::runtime_error("Expected an argument to -n");
-    //     // Note we do not enforce a minimum value for n here; since we require
-    //     // n > 3f and f > 0, lower bounds for n will be handled when we
-    //     // enforce the n > 3f constraint below.
-    //     n = parse<std::uint16_t>(argv[i++ + 1], "-n");
-    //   } else if (option == "-r") {
-    //     if (i >= argc - 1) throw std::runtime_error("Expected an argument to -r");
-    //     ro = parse<std::uint16_t>(argv[i++ + 1], "-r");
-    //   } else if (option == "-o") {
-    //     if (i >= argc - 1) throw std::runtime_error("Expected an argument to -o");
-    //     outputPrefix = argv[i++ + 1];
-    //   } else {
-    //     throw std::runtime_error("Unrecognized command line argument: " + option);
-    //   }
-    // }
+    // Config values
+    std::string walletConfigPrefix;
+    std::string replicaConfigPrefix;
+    int numReplicas = 0;
+    int numFaulty = 0;
+    std::string currencyUnit;
+    int publicBalance = 0;
+    std::vector<size_t> normalCoinValues;
+    size_t budgetCoinValue = 0;
+    std::vector<std::string> walletPids;
 
-    // Check that required parameters were actually given.
-    if (f == 0) throw std::runtime_error("No value given for required -f parameter");
-    if (n == 0) throw std::runtime_error("No value given for required -n parameter");
-    // if (outputPrefix.empty()) throw std::runtime_error("No value given for required -o parameter");
+    {  // Wallet config file prefix (Required)
+      if (cfgFileParser.Count("wallet_config_prefix") != 1)
+        throw std::runtime_error("Must provide single wallet config prefix value!");
+      walletConfigPrefix = cfgFileParser.GetNthValue("wallet_config_prefix", 1);
+      if (walletConfigPrefix.empty()) throw std::runtime_error("Wallet config prefix is empty!");
+    }
 
-    // Verify constraints between F and N and compute C.
+    {  // Replica config file prefix (Required)
+      if (cfgFileParser.Count("replica_config_prefix") != 1)
+        throw std::runtime_error("Must provide single replica config prefix value!");
+      replicaConfigPrefix = cfgFileParser.GetNthValue("replica_config_prefix", 1);
+      if (walletConfigPrefix.empty()) throw std::runtime_error("Replica config prefix is empty!");
+    }
 
-    // Note we check that N >= 3F + 1 using uint32_ts even though F and N are
-    // uint16_ts just in case 3F + 1 overflows a uint16_t.
-    uint32_t minN = 3 * (uint32_t)f + 1;
-    if ((uint32_t)n < minN)
+    {  // Number of replicas (Required)
+      if (cfgFileParser.Count("num_replicas") != 1) throw std::runtime_error("Must provide number of replicas!");
+      auto str = cfgFileParser.GetNthValue("num_replicas", 1);
+      numReplicas = std::atoi(str.c_str());
+      if (numReplicas < 4) throw std::runtime_error("Number of replicas cannot be less than 4!");
+    }
+
+    {  // Number of faulty replicas (Required)
+      if (cfgFileParser.Count("num_faulty") != 1) throw std::runtime_error("Must provide number of faulty replicas!");
+      auto str = cfgFileParser.GetNthValue("num_faulty", 1);
+      numFaulty = std::atoi(str.c_str());
+      if (numFaulty < 1) throw std::runtime_error("Number of faulty replicas cannot be less than 1!");
+    }
+
+    {  // Unit for displaying the currency values (Optional)
+      currencyUnit = cfgFileParser.GetNthValue("currency_unit", 1);
+      if (currencyUnit.empty()) currencyUnit = "$";  // Use Default
+    }
+
+    {  // Configure initial public balance for each account (Optional)
+      auto str = cfgFileParser.GetNthValue("public_balance", 1);
+      if (!str.empty()) {
+        publicBalance = std::atoi(str.c_str());
+        if (publicBalance < 0) throw std::runtime_error("Public balance cannot be negative!");
+      }
+    }
+
+    {  // List of initial utt coins for each wallet (Optional)
+      auto strValues = cfgFileParser.GetValues("utt_coins");
+      for (const auto& str : strValues) {
+        int value = atoi(str.c_str());
+        if (value <= 0) throw std::runtime_error("UTT coin value must be positive!");
+        normalCoinValues.emplace_back(static_cast<size_t>(value));
+      }
+    }
+
+    {  // Initial utt anonymous budget (Required)
+      if (cfgFileParser.Count("utt_budget") != 1) throw std::runtime_error("Must provide utt budget value!");
+      auto str = cfgFileParser.GetNthValue("utt_budget", 1);
+      int value = std::atoi(str.c_str());
+      if (value <= 0) throw std::runtime_error{"UTT budget must be positive!"};
+      budgetCoinValue = static_cast<size_t>(value);
+    }
+
+    {  // List of wallet pids (Required)
+      walletPids = cfgFileParser.GetValues("wallet_pids");
+      if (walletPids.empty()) throw std::runtime_error("Must provide wallet pids!");
+
+      std::vector<std::string> checkUnique{walletPids};
+      std::unique(checkUnique.begin(), checkUnique.end());
+      if (walletPids.size() != checkUnique.size()) throw std::runtime_error("Must provide unique pids!");
+    }
+
+    int minN = 3 * numFaulty + 1;
+    if (numReplicas < minN)
       throw std::runtime_error(
           "Due to the design of Byzantine fault tolerance, number of"
-          " replicas (-n) must be greater than or equal to (3 * F + 1), where F"
-          " is the maximum number of faulty\nreplicas (-f)");
+          " replicas must be greater than or equal to (3 * F + 1), where F"
+          " is the maximum number of faulty replicas");
 
     // Initialize library
-    AppState::initUTTLibrary();
+    UTTBlockchainApp::initUTTLibrary();
 
-    int thresh = f + 1;
-    int numClients = 3;
-
-    RandSigDKG dkg = RandSigDKG(thresh, n, Params::NumMessages);
+    int thresh = numFaulty + 1;
+    RandSigDKG dkg = RandSigDKG(thresh, numReplicas, Params::NumMessages);
     const auto& bsk = dkg.getSK();
     auto bskShares = dkg.getAllShareSKs();
 
     Params p = Params::random(dkg.getCK());                             // All replicas
     RegAuthSK rsk = RegAuthSK::random(p.getRegCK(), p.getIbeParams());  // eventually not needed
 
-    std::vector<size_t> normalCoinValues = {100, 100};
-    size_t budgetCoinValue = 1000;
-
     // Keep configs to check deserialization later
     std::vector<UTTClientConfig> clientConfigs;
     std::vector<UTTReplicaConfig> replicaConfigs;
-    std::vector<std::string> pids;
-
-    // Create client pids
-    for (int i = 0; i < numClients; ++i) pids.emplace_back("user_" + std::to_string(i + 1));
 
     // Create client configs with a wallet and pre-minted coins
-    for (int i = 0; i < numClients; ++i) {
+    for (int i = 0; i < (int)walletPids.size(); ++i) {
       UTTClientConfig clientCfg;
-      clientCfg.pids_ = pids;                                   // Pids
-      clientCfg.wallet_.p = p;                                  // The Params
-      clientCfg.wallet_.ask = rsk.registerRandomUser(pids[i]);  // The User Secret Key
-      clientCfg.wallet_.bpk = bsk.toPK();                       // The Bank Public Key
-      clientCfg.wallet_.rpk = rsk.toPK();                       // The Registry Public Key
+      clientCfg.pids_ = walletPids;                                   // Pids
+      clientCfg.initPublicBalance_ = publicBalance;                   // Initial public balance
+      clientCfg.wallet_.p = p;                                        // The Params
+      clientCfg.wallet_.ask = rsk.registerRandomUser(walletPids[i]);  // The User Secret Key
+      clientCfg.wallet_.bpk = bsk.toPK();                             // The Bank Public Key
+      clientCfg.wallet_.rpk = rsk.toPK();                             // The Registry Public Key
 
       // Pre-mint normal coins
       for (size_t val : normalCoinValues) {
@@ -185,30 +183,31 @@ int main(int argc, char** argv) {
         clientCfg.wallet_.budgetCoin = std::move(c);
       }
 
-      std::ofstream ofs(clientOutputPrefix + std::to_string(i + 1));
+      std::ofstream ofs(walletConfigPrefix + std::to_string(i + 1));
       ofs << clientCfg;
 
       clientConfigs.emplace_back(std::move(clientCfg));
     }
 
     // Create replica configs
-    for (int i = 0; i < n; ++i) {
+    for (int i = 0; i < numReplicas; ++i) {
       UTTReplicaConfig replicaCfg;
-      replicaCfg.pids_ = pids;              // Pids
-      replicaCfg.p_ = p;                    // The Params
-      replicaCfg.rpk_ = rsk.toPK();         // The Registry Public Key
-      replicaCfg.bpk_ = bsk.toPK();         // The Bank Public Key
-      replicaCfg.bskShare_ = bskShares[i];  // The Bank Secret Key Share
+      replicaCfg.pids_ = walletPids;                  // Pids
+      replicaCfg.initPublicBalance_ = publicBalance;  // Initial public balance
+      replicaCfg.p_ = p;                              // The Params
+      replicaCfg.rpk_ = rsk.toPK();                   // The Registry Public Key
+      replicaCfg.bpk_ = bsk.toPK();                   // The Bank Public Key
+      replicaCfg.bskShare_ = bskShares[i];            // The Bank Secret Key Share
 
-      std::ofstream ofs(replicaOutputPrefix + std::to_string(i));
+      std::ofstream ofs(replicaConfigPrefix + std::to_string(i));
       ofs << replicaCfg;
 
       replicaConfigs.emplace_back(std::move(replicaCfg));
     }
 
     // Check deserialization
-    for (int i = 0; i < numClients; ++i) {
-      const auto fileName = clientOutputPrefix + std::to_string(i + 1);
+    for (int i = 0; i < (int)walletPids.size(); ++i) {
+      const auto fileName = walletConfigPrefix + std::to_string(i + 1);
       std::ifstream ifs(fileName);
       if (!ifs.is_open()) throw std::runtime_error("Could not open file " + fileName);
 
@@ -217,13 +216,11 @@ int main(int argc, char** argv) {
 
       if (cfg != clientConfigs[i]) throw std::runtime_error("Client config deserialization mismatch: " + fileName);
 
-      std::cout << "Successfully deserialized " << fileName << '\n';
-      std::cout << "num coins: " << cfg.wallet_.coins.size() << '\n';
-      std::cout << "pids: " << JoinStr(cfg.pids_) << '\n';
+      std::cout << "Verified serialization of " << fileName << '\n';
     }
 
-    for (int i = 0; i < n; ++i) {
-      const auto fileName = replicaOutputPrefix + std::to_string(i);
+    for (int i = 0; i < numReplicas; ++i) {
+      const auto fileName = replicaConfigPrefix + std::to_string(i);
       std::ifstream ifs(fileName);
       if (!ifs.is_open()) throw std::runtime_error("Could not open file " + fileName);
 
@@ -232,12 +229,12 @@ int main(int argc, char** argv) {
 
       if (cfg != replicaConfigs[i]) throw std::runtime_error("Replica config deserialization mismatch: " + fileName);
 
-      std::cout << "Successfully deserialized " << fileName << '\n';
+      std::cout << "Verified serialization of " << fileName << '\n';
     }
 
   } catch (std::exception& e) {
     std::cerr << "Exception: " << e.what() << std::endl;
-    return 1;
+    exit(-1);
   }
   return 0;
 }
