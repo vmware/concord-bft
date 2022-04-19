@@ -244,14 +244,14 @@ void RequestProcessingState::modifyPrimaryResult(
 
 void RequestProcessingState::reportNonEqualHashes(const unsigned char *chosenData, uint32_t chosenSize) const {
   // Primary replica calculated hash is different from a hash that passed pre-execution consensus => we don't have
-  // correct pre-processed results. Let's launch a pre-processing retry.
+  // correct pre-processed results.
   const auto &primaryHash =
       Hash(SHA3_256().digest(primaryPreProcessResultHash_.data(), primaryPreProcessResultHash_.size())).toString();
   const auto &hashPassedConsensus = Hash(SHA3_256().digest(chosenData, chosenSize)).toString();
   LOG_WARN(logger(),
            "Primary replica pre-processing result hash: "
                << primaryHash << " is different from one passed the consensus: " << hashPassedConsensus
-               << KVLOG(batchCid_, reqSeqNum_, reqCid_) << "; retry pre-processing on primary replica");
+               << KVLOG(batchCid_, reqSeqNum_, reqCid_));
 }
 
 // The primary replica logic
@@ -260,6 +260,12 @@ PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult()
     LOG_INFO(logger(),
              "Not enough replies received, continue waiting"
                  << KVLOG(batchCid_, reqSeqNum_, reqCid_, numOfReceivedReplies_, numOfRequiredEqualReplies_));
+    return CONTINUE;
+  }
+  if (primaryPreProcessResultLen_ == 0) {
+    LOG_INFO(logger(),
+             "Primary replica did not complete pre-processing yet, continue waiting"
+                 << KVLOG(batchCid_, reqSeqNum_, reqCid_));
     return CONTINUE;
   }
   uint16_t maxNumOfEqualHashes = 0;
@@ -283,23 +289,17 @@ PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult()
                    << KVLOG(static_cast<uint32_t>(agreedPreProcessResult_)) << ", we are done");
       return COMPLETE;
     }
-    if (primaryPreProcessResultLen_ != 0) {
-      // A known scenario that can cause a mismatch, is due to rejection of the block id sent by the primary.
-      // In this case the difference should be only the last 64 bits that encodes the `0` as the rejection value.
-      if (primaryPreProcessResult_ == OperationResult::SUCCESS) {
-        const auto modifiedResult = detectFailureDueToBlockID(itOfChosenHash->first, 0);
-        if (modifiedResult.first.size() > 0) {
-          modifyPrimaryResult(modifiedResult);
-          return COMPLETE;
-        }
+    // A known scenario that can cause a mismatch, is due to rejection of the block id sent by the primary.
+    // In this case the difference should be only the last 64 bits that encodes the `0` as the rejection value.
+    if (primaryPreProcessResult_ == OperationResult::SUCCESS) {
+      const auto modifiedResult = detectFailureDueToBlockID(itOfChosenHash->first, 0);
+      if (modifiedResult.first.size() > 0) {
+        modifyPrimaryResult(modifiedResult);
+        return COMPLETE;
       }
       reportNonEqualHashes(itOfChosenHash->first.data(), itOfChosenHash->first.size());
       return CANCEL;
     }
-    LOG_INFO(logger(),
-             "Primary replica did not complete pre-processing yet, continue waiting"
-                 << KVLOG(batchCid_, reqSeqNum_, reqCid_));
-    return CONTINUE;
   } else
     LOG_INFO(logger(),
              "Not enough equal hashes collected yet"
