@@ -125,7 +125,7 @@ TEST_F(v4_blockchain, basic_chain) {
     ASSERT_EQ(id, 1);
     ASSERT_EQ(blockchain.from_storage, 1);
     db->write(std::move(wb));
-    blockchain.setLastReachable(id);
+    blockchain.setBlockId(id);
 
     // Validate block from storage
     auto blockstr = blockchain.getBlockData(id);
@@ -159,7 +159,7 @@ TEST_F(v4_blockchain, basic_chain) {
     ASSERT_EQ(blockchain.from_storage, 1);
     ASSERT_EQ(blockchain.from_future, 1);
     db->write(std::move(wb));
-    blockchain.setLastReachable(id);
+    blockchain.setBlockId(id);
 
     // Get block from storage
     auto blockstr = blockchain.getBlockData(id);
@@ -207,7 +207,7 @@ TEST_F(v4_blockchain, adv_chain) {
       auto id = blockchain.addBlock(updates, wb);
       ASSERT_EQ(id, 1);
       db->write(std::move(wb));
-      blockchain.setLastReachable(id);
+      blockchain.setBlockId(id);
 
       // Validate block from storage
       auto blockstr = blockchain.getBlockData(id);
@@ -241,7 +241,7 @@ TEST_F(v4_blockchain, adv_chain) {
       ASSERT_EQ(blockchain.from_storage, 1);
       ASSERT_EQ(blockchain.from_future, 1);
       db->write(std::move(wb));
-      blockchain.setLastReachable(id);
+      blockchain.setBlockId(id);
 
       // Get block from storage
       auto blockstr = blockchain.getBlockData(id);
@@ -286,7 +286,7 @@ TEST_F(v4_blockchain, adv_chain) {
     ASSERT_EQ(blockchain.from_storage, 1);
     ASSERT_EQ(blockchain.from_future, 0);
     db->write(std::move(wb));
-    blockchain.setLastReachable(id);
+    blockchain.setBlockId(id);
   }
 
   // load blockchain from storage
@@ -310,7 +310,7 @@ TEST_F(v4_blockchain, adv_chain) {
       ASSERT_EQ(blockchain.from_storage, 1);
       ASSERT_EQ(blockchain.from_future, 0);
       db->write(std::move(wb));
-      blockchain.setLastReachable(id);
+      blockchain.setBlockId(id);
     }
     {
       auto wb = db->getBatch();
@@ -329,7 +329,7 @@ TEST_F(v4_blockchain, adv_chain) {
       ASSERT_EQ(blockchain.from_future, 1);
 
       db->write(std::move(wb));
-      blockchain.setLastReachable(id);
+      blockchain.setBlockId(id);
 
       // Get block from storage
       auto blockstr = blockchain.getBlockData(5);
@@ -344,6 +344,195 @@ TEST_F(v4_blockchain, adv_chain) {
           v4blockchain::detail::Block::calculateDigest(id - 1, parent_blockstr->c_str(), parent_blockstr->size());
       ASSERT_EQ(dig, parent_digest);
     }
+  }
+}
+
+TEST_F(v4_blockchain, delete_until) {
+  auto blockchain = v4blockchain::detail::Blockchain{db};
+  // Can't delete from empty blockchain
+  ASSERT_DEATH(blockchain.deleteBlocksUntil(1), "");
+  // block 1
+  {
+    auto wb = db->getBatch();
+    auto versioned_cat = std::string("versioned");
+    auto key = std::string("key");
+    auto val = std::string("val");
+    auto updates = categorization::Updates{};
+    auto ver_updates = categorization::VersionedUpdates{};
+    ver_updates.addUpdate("key", "val");
+    updates.add(versioned_cat, std::move(ver_updates));
+
+    auto id = blockchain.addBlock(updates, wb);
+    ASSERT_EQ(id, 1);
+    db->write(std::move(wb));
+    blockchain.setBlockId(id);
+  }
+
+  // 2
+  {
+    auto wb = db->getBatch();
+    auto imm_cat = std::string("immuatables");
+    auto immkey = std::string("immkey");
+    auto immval = std::string("immval");
+    auto updates = categorization::Updates{};
+    auto imm_updates = categorization::ImmutableUpdates{};
+    imm_updates.addUpdate("immkey", categorization::ImmutableUpdates::ImmutableValue{"immval", {"1", "2", "33"}});
+    updates.add(imm_cat, std::move(imm_updates));
+
+    auto id = blockchain.addBlock(updates, wb);
+    ASSERT_EQ(id, 2);
+    db->write(std::move(wb));
+    blockchain.setBlockId(id);
+  }
+
+  // 3
+  {
+    auto wb = db->getBatch();
+    auto imm_cat = std::string("immuatables");
+    auto immkey = std::string("immkey");
+    auto immval = std::string("immval");
+    auto updates = categorization::Updates{};
+    auto imm_updates = categorization::ImmutableUpdates{};
+    imm_updates.addUpdate("immkey", categorization::ImmutableUpdates::ImmutableValue{"immval", {"1", "2", "33"}});
+    updates.add(imm_cat, std::move(imm_updates));
+
+    auto id = blockchain.addBlock(updates, wb);
+    ASSERT_EQ(id, 3);
+    db->write(std::move(wb));
+    blockchain.setBlockId(id);
+  }
+
+  // 4
+  {
+    auto wb = db->getBatch();
+    auto imm_cat = std::string("immuatables");
+    auto immkey = std::string("immkey");
+    auto immval = std::string("immval");
+    auto updates = categorization::Updates{};
+    auto imm_updates = categorization::ImmutableUpdates{};
+    imm_updates.addUpdate("immkey", categorization::ImmutableUpdates::ImmutableValue{"immval", {"1", "2", "33"}});
+    updates.add(imm_cat, std::move(imm_updates));
+
+    auto id = blockchain.addBlock(updates, wb);
+    ASSERT_EQ(id, 4);
+    db->write(std::move(wb));
+    blockchain.setBlockId(id);
+  }
+
+  {
+    uint64_t until = 3;
+    auto id = blockchain.deleteBlocksUntil(until);
+    ASSERT_EQ(id, until - 1);
+    ASSERT_EQ(until, blockchain.getGenesisBlockId());
+    auto block_2 = blockchain.getBlockData(2);
+    ASSERT_FALSE(block_2.has_value());
+    auto block_until = blockchain.getBlockData(until);
+    ASSERT_TRUE(block_until.has_value());
+  }
+
+  {
+    uint64_t until = 100;
+    auto id = blockchain.deleteBlocksUntil(until);
+    ASSERT_EQ(id, 3);
+    ASSERT_EQ(blockchain.getLastReachable(), blockchain.getGenesisBlockId());
+    auto block_3 = blockchain.getBlockData(3);
+    ASSERT_FALSE(block_3.has_value());
+    auto block_until = blockchain.getBlockData(4);
+    ASSERT_TRUE(block_until.has_value());
+  }
+
+  {
+    auto blockchain = v4blockchain::detail::Blockchain{db};
+    ASSERT_EQ(blockchain.getLastReachable(), blockchain.getGenesisBlockId());
+    ASSERT_EQ(blockchain.getLastReachable(), 4);
+    auto id = blockchain.deleteBlocksUntil(5);
+    // single block on the chain, no actuall deletion
+    ASSERT_EQ(id, 3);
+    // until is less than the genesis
+    ASSERT_DEATH(blockchain.deleteBlocksUntil(1), "");
+  }
+}
+
+TEST_F(v4_blockchain, delete_genesis) {
+  auto blockchain = v4blockchain::detail::Blockchain{db};
+  // Can't delete from empty blockchain
+  ASSERT_DEATH(blockchain.deleteGenesisBlock(), "");
+  // block 1
+  {
+    auto wb = db->getBatch();
+    auto versioned_cat = std::string("versioned");
+    auto key = std::string("key");
+    auto val = std::string("val");
+    auto updates = categorization::Updates{};
+    auto ver_updates = categorization::VersionedUpdates{};
+    ver_updates.addUpdate("key", "val");
+    updates.add(versioned_cat, std::move(ver_updates));
+
+    auto id = blockchain.addBlock(updates, wb);
+    ASSERT_EQ(id, 1);
+    db->write(std::move(wb));
+    blockchain.setBlockId(id);
+  }
+  // Can't delete single block
+  ASSERT_DEATH(blockchain.deleteGenesisBlock(), "");
+
+  // 2
+  {
+    auto wb = db->getBatch();
+    auto imm_cat = std::string("immuatables");
+    auto immkey = std::string("immkey");
+    auto immval = std::string("immval");
+    auto updates = categorization::Updates{};
+    auto imm_updates = categorization::ImmutableUpdates{};
+    imm_updates.addUpdate("immkey", categorization::ImmutableUpdates::ImmutableValue{"immval", {"1", "2", "33"}});
+    updates.add(imm_cat, std::move(imm_updates));
+
+    auto id = blockchain.addBlock(updates, wb);
+    ASSERT_EQ(id, 2);
+    db->write(std::move(wb));
+    blockchain.setBlockId(id);
+  }
+
+  blockchain.deleteGenesisBlock();
+  ASSERT_EQ(blockchain.getGenesisBlockId(), 2);
+  // Can't delete single block
+  ASSERT_DEATH(blockchain.deleteGenesisBlock(), "");
+
+  {
+    auto blockchain = v4blockchain::detail::Blockchain{db};
+    ASSERT_EQ(blockchain.getGenesisBlockId(), 2);
+    ASSERT_DEATH(blockchain.deleteGenesisBlock(), "");
+  }
+}
+
+TEST_F(v4_blockchain, block_updates) {
+  auto blockchain = v4blockchain::detail::Blockchain{db};
+  // First block
+  {
+    auto wb = db->getBatch();
+    auto versioned_cat = std::string("versioned");
+    auto key = std::string("key");
+    auto val = std::string("val");
+    auto updates = categorization::Updates{};
+    auto ver_updates = categorization::VersionedUpdates{};
+    ver_updates.addUpdate("key", "val");
+    updates.add(versioned_cat, std::move(ver_updates));
+
+    auto id = blockchain.addBlock(updates, wb);
+    ASSERT_EQ(id, 1);
+    ASSERT_EQ(blockchain.from_storage, 1);
+    db->write(std::move(wb));
+    blockchain.setBlockId(id);
+
+    // Validate updates from storage
+    auto blockstr3 = blockchain.getBlockData(3);
+    ASSERT_FALSE(blockstr3.has_value());
+    auto updates3 = blockchain.getBlockUpdates(3);
+    ASSERT_FALSE(updates3.has_value());
+
+    auto updates1 = blockchain.getBlockUpdates(id);
+    ASSERT_TRUE(updates1.has_value());
+    ASSERT_EQ(updates1->categoryUpdates(), updates.categoryUpdates());
   }
 }
 

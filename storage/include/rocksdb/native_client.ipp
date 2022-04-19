@@ -283,11 +283,15 @@ inline void NativeClient::createColumnFamilyWithImport(const std::string &cFamil
 }
 
 inline bool NativeClient::createColumnFamilyIfNotExisting(const std::string &cf,
-                                                          const ::rocksdb::Comparator *comparator) {
+                                                          const ::rocksdb::Comparator *comparator,
+                                                          const ::rocksdb::CompactionFilter *filter) {
   if (!hasColumnFamily(cf)) {
     auto cf_options = ::rocksdb::ColumnFamilyOptions{};
     if (comparator) {
       cf_options.comparator = comparator;
+    }
+    if (filter) {
+      cf_options.compaction_filter = filter;
     }
     createColumnFamily(cf, cf_options);
     return true;
