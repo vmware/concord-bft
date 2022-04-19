@@ -173,7 +173,9 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
                                     const ::rocksdb::ExportImportFilesMetaData &metadata,
                                     const ::rocksdb::ColumnFamilyOptions &cfOpts = ::rocksdb::ColumnFamilyOptions{});
 
-  bool createColumnFamilyIfNotExisting(const std::string &cf, const ::rocksdb::Comparator *comparator = nullptr);
+  bool createColumnFamilyIfNotExisting(const std::string &cf,
+                                       const ::rocksdb::Comparator *comparator = nullptr,
+                                       const ::rocksdb::CompactionFilter *filter = nullptr);
   // Return the column family options for an existing column family in this client.
   ::rocksdb::ColumnFamilyOptions columnFamilyOptions(const std::string &cFamily) const;
   // Drops a column family and its data. It is not an error if the column family doesn't exist or if the client is not

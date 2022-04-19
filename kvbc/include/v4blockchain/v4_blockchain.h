@@ -35,6 +35,10 @@ class KeyValueBlockchain {
 
   /////////////////////// Add Block ///////////////////////
   BlockId add(categorization::Updates&&);
+  ////////////////////// DELETE //////////////////////////
+  BlockId deleteBlocksUntil(BlockId until);
+  void deleteGenesisBlock();
+  void deleteLastReachableBlock();
 
   //////////////////Garbage collection for Keys that use TimeStamp API///////////////////////////
   // Using the RocksDB timestamp API, means that older user versions are not being deleted
