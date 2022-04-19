@@ -17,7 +17,7 @@ module Messages {
   import opened HostIdentifiers
   import Network
 
-  type SequenceID = nat
+  type SequenceID = k:nat | 0 < k witness 1
   type ViewNum = nat
 
   datatype ClientOperation = ClientOperation(sender:HostId, timestamp:nat)

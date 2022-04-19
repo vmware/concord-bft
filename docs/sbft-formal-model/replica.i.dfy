@@ -96,11 +96,15 @@ module Replica {
     }
   }
 
+  //TODO: function to get all the seqIDs in the Working Window.
+
   datatype Variables = Variables(
     view:ViewNum,
     workingWindow:WorkingWindow,
     viewChangeMsgsRecvd:ViewChangeMsgs,
-    newViewMsgsRecvd:NewViewMsgs
+    newViewMsgsRecvd:NewViewMsgs,
+    countExecutedSeqIDs:SequenceID,
+    lastStableCheckpoint:SequenceID
   ) {
     predicate WF(c:Constants)
     {
@@ -332,6 +336,22 @@ module Replica {
                                                                           Some(msg.payload.operationWrapper)]))
   }
 
+  predicate ContiguousCommits(c:Constants, v:Variables, targetSeqID:SequenceID)
+  {
+    && v.WF(c)
+    && (forall seqID | seqID <= targetSeqID
+                     :: v.workingWindow.committedClientOperations[seqID].Some?)
+  }
+
+  predicate Execute(c:Constants, v:Variables, v':Variables, msgOps:Network.MessageOps<Message>, seqID:SequenceID)
+  {
+    && v.WF(c)
+    && msgOps.NoSendRecv()
+    && v.countExecutedSeqIDs < seqID
+    && ContiguousCommits(c, v, seqID)
+    && v' == v.(countExecutedSeqIDs := seqID)
+  }
+
   predicate QuorumOfPrepares(c:Constants, v:Variables, seqID:SequenceID)
   {
     && v.WF(c)
@@ -495,7 +515,7 @@ module Replica {
     | SendCommitStep(seqID:SequenceID)
     | RecvCommitStep()
     | DoCommitStep(seqID:SequenceID)
-    //| Execute(seqID:SequenceID)
+    | ExecuteStep(seqID:SequenceID)
     //| SendReplyToClient(seqID:SequenceID)
     // TODO: uncomment those steps when we start working on the proof
     // | LeaveViewStep(newView:ViewNum)
@@ -514,6 +534,7 @@ module Replica {
        case SendCommitStep(seqID) => SendCommit(c, v, v', msgOps, seqID)
        case RecvCommitStep() => RecvCommit(c, v, v', msgOps)
        case DoCommitStep(seqID) => DoCommit(c, v, v', msgOps, seqID)
+       case ExecuteStep(seqID) => Execute(c, v, v', msgOps, seqID)
        // TODO: uncomment those steps when we start working on the proof
        // case LeaveViewStep(newView) => LeaveView(c, v, v', msgOps, newView)
        // case SendViewChangeMsgStep() => SendViewChangeMsg(c, v, v', msgOps)
