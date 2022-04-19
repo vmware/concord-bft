@@ -17,6 +17,7 @@
 #include <mutex>
 #include <condition_variable>
 
+#include <SharedTypes.hpp>
 #include <config_file_parser.hpp>
 #include "config/test_comm_config.hpp"
 #include "config/test_parameters.hpp"
@@ -38,6 +39,11 @@ using ReplicaSpecificInfo = std::map<uint16_t, std::vector<uint8_t>>;  // [Repli
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 struct PaymentServiceTimeoutException : std::runtime_error {
   PaymentServiceTimeoutException() : std::runtime_error{"PaymentServiceTimeout"} {}
+};
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+struct BftServiceTimeoutException : std::runtime_error {
+  BftServiceTimeoutException() : std::runtime_error{"BftServiceTimeout"} {}
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -160,7 +166,11 @@ class WalletCommunicator : public IReceiver {
       std::unique_lock<std::mutex> lk{mut_};
 
       // Returns false if the predicate still evaluates false when the wait time expires
-      if (condVar_.wait_for(lk, std::chrono::seconds(5), [&]() { return reply_ != nullptr; })) {
+      if (condVar_.wait_for(lk, std::chrono::seconds(7), [&]() { return reply_ != nullptr; })) {
+        if (reply_->result == static_cast<uint32_t>(OperationResult::TIMEOUT)) {
+          throw BftServiceTimeoutException{};
+        }
+
         reply = std::move(reply_);
       } else {
         throw PaymentServiceTimeoutException{};
@@ -655,6 +665,8 @@ int main(int argc, char** argv) {
         } else if (!cmd.empty()) {
           std::cout << "Unknown command '" << cmd << "'\n";
         }
+      } catch (const BftServiceTimeoutException& e) {
+        std::cout << "Concord-BFT service did not respond.\n";
       } catch (const PaymentServiceTimeoutException& e) {
         std::cout << "PaymentService did not respond.\n";
       } catch (const std::domain_error& e) {
