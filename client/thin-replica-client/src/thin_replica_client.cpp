@@ -741,8 +741,8 @@ void ThinReplicaClient::pushUpdateToUpdateQueue(std::unique_ptr<EventVariant> up
 
   // update metrics
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-  metrics_.update_dur_ms.Get().Set((uint64_t)(duration.count()));
+  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+  metrics_.update_dur_ms.Get().Set(duration.count());
 
   if (is_event_group) {
     metrics_.last_verified_event_group_id.Get().Set(latest_verified_event_group_id_);
