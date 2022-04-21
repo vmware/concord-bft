@@ -63,6 +63,8 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
 
   // TODO: Return UNAVAILABLE as documented in event.proto if ConcordClient is unhealthy
   auto status = grpc::Status::OK;
+  uint64_t num_writes = 0;
+  std::chrono::steady_clock::time_point start_writes_per_second = std::chrono::steady_clock::now();
   while (!context->IsCancelled()) {
     SubscribeResponse response;
     std::unique_ptr<EventVariant> update;
@@ -90,6 +92,7 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
     if (not update) {
       continue;
     }
+    std::chrono::steady_clock::time_point start_overall = std::chrono::steady_clock::now(), end_overall;
 
     if (std::holds_alternative<cc::EventGroup>(*update)) {
       auto& event_group_in = std::get<cc::EventGroup>(*update);
@@ -103,8 +106,13 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
                                                     event_group_in.trace_context.end()};
 
       *response.mutable_event_group() = proto_event_group;
+      std::chrono::steady_clock::time_point write_start = std::chrono::steady_clock::now();
       stream->Write(response);
-
+      num_writes++;
+      // update write duration metric
+      end_overall = std::chrono::steady_clock::now();
+      auto duration_write = std::chrono::duration_cast<std::chrono::microseconds>(end_overall - write_start);
+      metrics_.write_dur.Get().Set(duration_write.count());
     } else if (std::holds_alternative<cc::Update>(*update)) {
       auto& legacy_event_in = std::get<cc::Update>(*update);
       Events proto_events;
@@ -119,11 +127,28 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
       // TODO: Set trace context
 
       *response.mutable_events() = proto_events;
+      std::chrono::steady_clock::time_point write_start = std::chrono::steady_clock::now();
       stream->Write(response);
-
+      num_writes++;
+      // update write duration metric
+      end_overall = std::chrono::steady_clock::now();
+      auto duration_write = std::chrono::duration_cast<std::chrono::milliseconds>(end_overall - write_start);
+      metrics_.write_dur.Get().Set(duration_write.count());
     } else {
       LOG_ERROR(logger_, "Got unexpected update type from TRC. This should never happen!");
     }
+    // update overall duration metric
+    auto update_duration_overall = std::chrono::duration_cast<std::chrono::microseconds>(end_overall - start_overall);
+    metrics_.update_processing_dur.Get().Set(update_duration_overall.count());
+
+    // update writes/sec metric
+    auto duration_overall = std::chrono::duration_cast<std::chrono::seconds>(end_overall - start_writes_per_second);
+    if (duration_overall >= std::chrono::seconds(1)) {
+      metrics_.num_writes_per_second.Get().Set(num_writes / duration_overall.count());
+      num_writes = 0;
+      start_writes_per_second = std::chrono::steady_clock::now();
+    }
+    metrics_.updateAggregator();
   }
 
   client_->unsubscribe();

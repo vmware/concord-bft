@@ -18,10 +18,42 @@
 
 namespace concord::client::clientservice {
 
+// EventService metrics
+struct EventServiceMetrics {
+  EventServiceMetrics()
+      : metrics_component_{"EventService", std::make_shared<concordMetrics::Aggregator>()},
+        num_writes_per_second{metrics_component_.RegisterGauge("num_writes_per_second", 0)},
+        update_processing_dur{metrics_component_.RegisterGauge("update_processing_dur", 0)},
+        write_dur{metrics_component_.RegisterGauge("write_dur", 0)} {
+    metrics_component_.Register();
+  }
+
+  void setAggregator(const std::shared_ptr<concordMetrics::Aggregator>& aggregator) {
+    metrics_component_.SetAggregator(aggregator);
+  }
+
+  void updateAggregator() { metrics_component_.UpdateAggregator(); }
+
+ private:
+  concordMetrics::Component metrics_component_;
+
+ public:
+  // number of updates written to the gRPC stream per second
+  concordMetrics::GaugeHandle num_writes_per_second;
+  // time taken to process an update (time between when requested is received by the event service until it is written
+  // to the stream)
+  concordMetrics::GaugeHandle update_processing_dur;
+  // time taken to write an update to the gRPC stream
+  concordMetrics::GaugeHandle write_dur;
+};
+
 class EventServiceImpl final : public vmware::concord::client::event::v1::EventService::Service {
  public:
-  EventServiceImpl(std::shared_ptr<concord::client::concordclient::ConcordClient> client)
-      : logger_(logging::getLogger("concord.client.clientservice.event")), client_(client){};
+  EventServiceImpl(std::shared_ptr<concord::client::concordclient::ConcordClient> client,
+                   std::shared_ptr<concordMetrics::Aggregator> aggregator)
+      : logger_(logging::getLogger("concord.client.clientservice.event")), client_(client), metrics_() {
+    metrics_.setAggregator(aggregator);
+  };
   grpc::Status Subscribe(grpc::ServerContext* context,
                          const vmware::concord::client::event::v1::SubscribeRequest* request,
                          grpc::ServerWriter<vmware::concord::client::event::v1::SubscribeResponse>* stream) override;
@@ -29,6 +61,7 @@ class EventServiceImpl final : public vmware::concord::client::event::v1::EventS
  private:
   logging::Logger logger_;
   std::shared_ptr<concord::client::concordclient::ConcordClient> client_;
+  EventServiceMetrics metrics_;
 };
 
 }  // namespace concord::client::clientservice

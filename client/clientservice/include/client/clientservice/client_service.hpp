@@ -24,10 +24,11 @@ namespace concord::client::clientservice {
 
 class ClientService {
  public:
-  ClientService(std::unique_ptr<concord::client::concordclient::ConcordClient> client)
+  ClientService(std::unique_ptr<concord::client::concordclient::ConcordClient> client,
+                std::shared_ptr<concordMetrics::Aggregator> aggregator)
       : logger_(logging::getLogger("concord.client.clientservice")),
         client_(std::move(client)),
-        event_service_(std::make_unique<EventServiceImpl>(client_)),
+        event_service_(std::make_unique<EventServiceImpl>(client_, aggregator)),
         state_snapshot_service_(std::make_unique<StateSnapshotServiceImpl>(client_)){};
 
   void start(const std::string& addr, unsigned num_async_threads, uint64_t max_receive_msg_size);
