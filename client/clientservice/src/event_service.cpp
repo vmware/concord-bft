@@ -95,8 +95,8 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
       auto& event_group_in = std::get<cc::EventGroup>(*update);
       EventGroup proto_event_group;
       proto_event_group.set_id(event_group_in.id);
-      for (const auto& event : event_group_in.events) {
-        *proto_event_group.add_events() = std::string(event.begin(), event.end());
+      for (auto& event : event_group_in.events) {
+        proto_event_group.add_events(std::move(event));
       }
       *proto_event_group.mutable_record_time() = event_group_in.record_time;
       *proto_event_group.mutable_trace_context() = {event_group_in.trace_context.begin(),
