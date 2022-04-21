@@ -501,6 +501,10 @@ void ThinReplicaClient::receiveUpdates() {
     LOG_WARN(logger_, "Need to stop receiving updates");
     return;
   }
+  // start time for metrics updates_received_per_second and updates_processed_per_second
+  std::chrono::steady_clock::time_point start_time = std::chrono::steady_clock::now();
+  uint64_t num_updates_rcvd = 0;
+  uint64_t num_updates_processed = 0;
 
   // Set initial data stream
   logDataStreamResetResult(resetDataStreamTo(0), 0);
@@ -552,6 +556,7 @@ void ThinReplicaClient::receiveUpdates() {
 
     if (has_data) {
       update_id = update_in.has_event_group() ? update_in.event_group().id() : update_in.events().block_id();
+      num_updates_rcvd++;
     }
     LOG_DEBUG(logger_,
               "Find hash agreement amongst all servers for update " << (has_data ? to_string(update_id) : "n/a"));
@@ -693,6 +698,19 @@ void ThinReplicaClient::receiveUpdates() {
 
     // Push update to update queue for consumption before receiving next update
     pushUpdateToUpdateQueue(std::move(update), start, update_in.has_event_group());
+    num_updates_processed++;
+    std::chrono::steady_clock::time_point end_time = std::chrono::steady_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time);
+    if (duration >= std::chrono::seconds(1)) {
+      metrics_.updates_received_per_second.Get().Set(num_updates_rcvd / duration.count());
+      metrics_.updates_processed_per_second.Get().Set(num_updates_processed / duration.count());
+      num_updates_rcvd = 0;
+      num_updates_processed = 0;
+      start_time = std::chrono::steady_clock::now();
+    }
+
+    // Reset read timeout, failure and ignored metrics before the next update
+    resetMetricsBeforeNextUpdate();
 
     // Cleanup before the next update
 
@@ -731,9 +749,6 @@ void ThinReplicaClient::pushUpdateToUpdateQueue(std::unique_ptr<EventVariant> up
   } else {
     metrics_.last_verified_block_id.Get().Set(latest_verified_block_id_);
   }
-
-  // Reset read timeout, failure and ignored metrics before the next update
-  resetMetricsBeforeNextUpdate();
 }
 
 void ThinReplicaClient::resetMetricsBeforeNextUpdate() {
