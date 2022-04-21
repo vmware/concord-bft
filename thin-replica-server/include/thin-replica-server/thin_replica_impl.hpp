@@ -367,6 +367,8 @@ class ThinReplicaImpl {
     }
 
     if (request->has_events() && !is_event_group_transition) {
+      // Requested block ID must always be greater than 0
+      ConcordAssertGT(start_block_id, 0);
       try {
         syncAndSend<ServerContextT, ServerWriterT, DataT>(context, start_block_id, live_updates, stream, kvb_filter);
       } catch (concord::kvbc::NoLegacyEvents& error) {
@@ -460,6 +462,8 @@ class ThinReplicaImpl {
       event_group_id = request->event_groups().event_group_id();
     }
 
+    // Requested event group ID must always be greater than 0
+    ConcordAssertGT(event_group_id, 0);
     try {
       syncAndSendEventGroups<ServerContextT, ServerWriterT, DataT>(
           context, event_group_id, live_updates, stream, kvb_filter, metrics);
