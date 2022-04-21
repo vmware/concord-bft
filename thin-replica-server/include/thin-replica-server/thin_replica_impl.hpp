@@ -593,9 +593,20 @@ class ThinReplicaImpl {
       // Determine oldest event group available (pruning)
       auto first_eg_id = kvb_filter->oldestExternalEventGroupId();
       auto last_eg_id = kvb_filter->newestExternalEventGroupId();
-      if (request->event_groups().event_group_id() < first_eg_id || (last_eg_id && !first_eg_id)) {
+      // When handling requests after pruning, TRS must take into account the following two scenarios:
+      // 1. New event groups have been added for the participant
+      // 2. No new event group has been added for the participant
+      // For e.g., assume 1-10 event groups have been pruned (event group IDs here are external event group IDs)
+      // In scenario 1, assume one more event group has been added. Hence, first_eg_id is now 11, any request for eg
+      // ID < 11 is invalid due to pruning.
+      // In scenario 2, first_eg_id is set to 0 after pruning and has not yet updated
+      // as there are no new event groups for the participant. we must therefore check against last_eg_id (10) to
+      // identify whether the requested eg ID has been pruned. i.e., any requested eg ID <= 10 is invalid due to pruning
+      // iff first_eg_id == 0.
+      if (request->event_groups().event_group_id() < first_eg_id ||
+          (!first_eg_id && request->event_groups().event_group_id() <= last_eg_id)) {
         msg << "Event group ID " << request->event_groups().event_group_id() << " has been pruned."
-            << " First event_group_id is " << first_eg_id;
+            << " First event_group_id is " << first_eg_id << " and last event_group_id is " << last_eg_id;
         LOG_WARN(logger_, msg.str());
         return true;
       }
