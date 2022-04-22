@@ -38,7 +38,7 @@ service EventService {
 
 // Events come in two formats - Events (old API) and EventGroups (new API).
 // An EventsRequest will result in a stream of EventGroups or a stream of Events which turns into a stream of EventGroups.
-// If the block requested by EventsRequest contains EventGroups only then the stream will start at EventGroup id 1.
+// If the block requested by EventsRequest contains EventGroups only then the stream will start at the first EventGroup.
 // An EventGroupsRequest will result in a stream of EventGroups.
 // If you don't know about Events then use EventGroupsRequest.
 message SubscribeRequest {
