@@ -27,8 +27,13 @@
 #include "Digest.hpp"
 #include "Serializable.h"
 #include "Logger.hpp"
+#include "Metrics.hpp"
 
 namespace bftEngine::bcst::impl {
+
+using concordMetrics::GaugeHandle;
+using concordMetrics::Aggregator;
+using concordMetrics::CounterHandle;
 
 using RVBGroupId = uint64_t;
 using RVBId = uint64_t;
@@ -134,6 +139,10 @@ class RangeValidationTree {
 
   size_t totalNodes() const { return id_to_node_.size(); }
   size_t totalLevels() const { return root_ ? root_->info_.level() : 0; }
+
+  // Metrics
+  void updateMetricToAggregator() { metrics_component_.UpdateAggregator(); }
+  concordMetrics::Component& getMetricComponent() { return metrics_component_; }
 
  public:
   struct NodeVal {
@@ -365,6 +374,19 @@ class RangeValidationTree {
   static constexpr uint64_t magic_num_{0x1122334455667788};
   static constexpr uint8_t kDefaultRVBLeafLevel = 0;
   static constexpr uint8_t kDefaultRVTLeafLevel = 1;
+
+ protected:
+  concordMetrics::Component metrics_component_;
+  struct Metrics {
+    GaugeHandle rvt_size_in_bytes_;
+    GaugeHandle total_rvt_nodes_;
+    GaugeHandle total_rvt_levels_;
+    GaugeHandle rvt_min_rvb_id_;
+    GaugeHandle rvt_max_rvb_id_;
+    GaugeHandle serialized_rvt_size_;
+    CounterHandle rvt_validation_failures_;
+  };
+  mutable Metrics metrics_;
 };
 
 using LogPrintVerbosity = RangeValidationTree::LogPrintVerbosity;
