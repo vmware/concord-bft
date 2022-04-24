@@ -130,6 +130,7 @@ void parseConfigFile(ConcordClientConfig& config, const YAML::Node& yaml) {
     comm_type = concord::client::concordclient::TransportConfig::TlsTcp;
     readYamlField(yaml, "tls_certificates_folder_path", config.transport.tls_cert_root_path);
     readYamlField(yaml, "tls_cipher_suite_list", config.transport.tls_cipher_suite);
+    readYamlField(yaml, "use_unified_certificates", config.transport.use_unified_certs);
   } else if (comm == "udp") {
     comm_type = concord::client::concordclient::TransportConfig::PlainUdp;
   } else {
@@ -170,7 +171,8 @@ void configureSubscription(concord::client::concordclient::ConcordClientConfig& 
 
   if (config.subscribe_config.use_tls) {
     LOG_INFO(logger, "TLS for thin replica client is enabled, certificate path: " << tls_path);
-    const std::string client_cert_path = tls_path + "/client.cert";
+    const std::string client_cert_path =
+        (config.transport.use_unified_certs) ? tls_path + "/node.cert" : tls_path + "/client.cert";
 
     readCert(client_cert_path, config.subscribe_config.pem_cert_chain);
 
@@ -206,11 +208,21 @@ void configureTransport(concord::client::concordclient::ConcordClientConfig& con
                         bool is_insecure,
                         const std::string& tls_path) {
   if (not is_insecure) {
-    const std::string server_cert_path = tls_path + "/server.cert";
-    // read server TLS certs for this TRC instance
-    // server_cert_path specifies the path to a composite cert file i.e., a
-    // concatentation of the certificates of all known servers
-    readCert(server_cert_path, config.transport.event_pem_certs);
+    std::string server_cert_path;
+    if (config.transport.use_unified_certs) {
+      for (size_t i = 0; i < config.topology.replicas.size(); ++i) {
+        server_cert_path = tls_path + std::to_string(i) + "/node.cert";
+        std::string out_certs = "";
+        readCert(server_cert_path, out_certs);
+        config.transport.event_pem_certs += out_certs;
+      }
+    } else {
+      server_cert_path = tls_path + "/server.cert";
+      // read server TLS certs for this TRC instance
+      // server_cert_path specifies the path to a composite cert file i.e., a
+      // concatenation of the certificates of all known servers
+      readCert(server_cert_path, config.transport.event_pem_certs);
+    }
   }
 }
 

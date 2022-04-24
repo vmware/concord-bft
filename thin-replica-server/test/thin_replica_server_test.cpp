@@ -2552,6 +2552,28 @@ TEST(thin_replica_server_test, GetClientIdFromCertSubjectField) {
   EXPECT_EQ(client_id, parsed_client_id);
 }
 
+TEST(thin_replica_server_test, GetClientIdFromCertsSubjectField) {
+  FakeStorage storage{generate_kvp(0, 0)};
+  auto live_update_blocks = generate_kvp(0, 0);
+  TestStateMachine<Data> state_machine{storage, live_update_blocks, 1};
+  TestSubBufferList<Data> buffer{state_machine};
+
+  bool is_insecure_trs = true;
+  std::string tls_trs_cert_path;
+  std::unordered_set<std::string> client_id_set;
+  uint16_t update_metrics_aggregator_thresh = 100;
+
+  auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
+      is_insecure_trs, tls_trs_cert_path, &storage, buffer, client_id_set, update_metrics_aggregator_thresh);
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
+  std::string subject_str =
+      "subject=C = NA, ST = NA, L = NA, O = host_uuid11, OU = 11, CN = "
+      "node11";
+  std::string client_id = "11";
+  std::string parsed_client_id = replica.parseClientIdFromSubject(subject_str);
+  EXPECT_EQ(client_id, parsed_client_id);
+}
+
 TEST(thin_replica_server_test, GetClientIdSetFromRootCert) {
   FakeStorage storage{generate_kvp(0, 0)};
   auto live_update_blocks = generate_kvp(0, 0);
@@ -2578,6 +2600,30 @@ TEST(thin_replica_server_test, GetClientIdSetFromRootCert) {
   }
 }
 
+TEST(thin_replica_server_test, GetClientIdSetFromRootCerts) {
+  FakeStorage storage{generate_kvp(0, 0)};
+  auto live_update_blocks = generate_kvp(0, 0);
+  TestStateMachine<Data> state_machine{storage, live_update_blocks, 1};
+  TestSubBufferList<Data> buffer{state_machine};
+  auto logger = logging::getLogger("thin_replica_server_test");
+  bool is_insecure_trs = true;
+  std::string tls_trs_cert_path;
+  std::string root_cert_path = "resources/tls_certs";
+  std::unordered_set<std::string> parsed_client_id_set;
+  std::unordered_set<std::string> client_id_set({"11", "12", "trutil"});
+  uint16_t update_metrics_aggregator_thresh = 100;
+
+  concord::thin_replica::ThinReplicaImpl::getClientIdSetFromRootCert(logger, root_cert_path, parsed_client_id_set);
+  auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
+      is_insecure_trs, tls_trs_cert_path, &storage, buffer, parsed_client_id_set, update_metrics_aggregator_thresh);
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
+  EXPECT_GT(parsed_client_id_set.size(), 0);
+  for (auto& client_id : client_id_set) {
+    auto parsed_client_id_it = parsed_client_id_set.find(client_id);
+    EXPECT_NE(parsed_client_id_it, parsed_client_id_set.end());
+    EXPECT_EQ(*parsed_client_id_it, client_id);
+  }
+}
 TEST(thin_replica_server_test, getClientIdFromClientCert) {
   FakeStorage storage{generate_kvp(0, 0)};
   auto live_update_blocks = generate_kvp(0, 0);

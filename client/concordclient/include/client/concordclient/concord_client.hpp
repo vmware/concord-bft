@@ -91,6 +91,7 @@ struct TransportConfig {
   // TLS settings ignored if comm_type is not TlsTcp
   std::string tls_cert_root_path;
   std::string tls_cipher_suite;
+  bool use_unified_certs;
   std::optional<concord::secretsmanager::SecretData> secret_data;
   // Buffer with the servers' PEM encoded certificates for the event port
   std::string event_pem_certs;
