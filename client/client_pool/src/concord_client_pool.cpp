@@ -275,7 +275,7 @@ ConcordClientPool::ConcordClientPool(config_pool::ConcordClientPoolConfig &confi
   concord::external_client::ConcordClient::setDelayFlagForTest(delay_behavior);
   try {
     metricsComponent_.SetAggregator(aggregator);
-    CreatePool(config);
+    CreatePool(config, aggregator);
   } catch (std::invalid_argument &e) {
     LOG_ERROR(logger_, "Communication protocol=" << config.comm_to_use << " is not supported");
     throw InternalErrorException();
@@ -304,7 +304,7 @@ ConcordClientPool::ConcordClientPool(config_pool::ConcordClientPoolConfig &confi
       logger_(logging::getLogger("com.vmware.external_client_pool")) {
   try {
     metricsComponent_.SetAggregator(aggregator);
-    CreatePool(config);
+    CreatePool(config, aggregator);
   } catch (std::invalid_argument &e) {
     LOG_ERROR(logger_, "Communication protocol=" << config.comm_to_use << " is not supported");
     throw InternalErrorException();
@@ -343,7 +343,8 @@ void ConcordClientPool::setUpClientParams(SimpleClientParams &client_params,
                                                       client_params.clientPeriodicResetThresh));
 }
 
-void ConcordClientPool::CreatePool(concord::config_pool::ConcordClientPoolConfig &config) {
+void ConcordClientPool::CreatePool(concord::config_pool::ConcordClientPoolConfig &config,
+                                   std::shared_ptr<concordMetrics::Aggregator> aggregator) {
   auto num_clients = config.clients_per_participant_node - (int)config.with_cre;
   auto f_val = config.f_val;
   auto c_val = config.c_val;
@@ -404,7 +405,7 @@ void ConcordClientPool::CreatePool(concord::config_pool::ConcordClientPoolConfig
   external_client::ConcordClient::setStatics(
       required_num_of_replicas, num_replicas, max_buf_size, batch_size_, config, clientParams, tlsMultiplexConfig);
   for (int i = 0; i < num_clients; i++) {
-    clients_.push_back(std::make_shared<external_client::ConcordClient>(i));
+    clients_.push_back(std::make_shared<external_client::ConcordClient>(i, aggregator));
     ClientPoolMetrics_.clients_gauge++;
   }
   jobs_thread_pool_.start(num_clients);
