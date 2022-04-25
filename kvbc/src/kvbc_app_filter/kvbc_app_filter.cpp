@@ -343,8 +343,11 @@ uint64_t KvbAppFilter::oldestExternalEventGroupId() const {
   uint64_t public_oldest = getValueFromLatestTable(kPublicEgIdKeyOldest);
   uint64_t private_oldest = getValueFromLatestTable(client_id_ + "_oldest");
   if (!public_oldest && !private_oldest) return 0;
-  if (!public_oldest) return private_oldest;
-  if (!private_oldest) return public_oldest;
+
+  // If public or private was fully pruned then we have to account for those event groups as well
+  if (!public_oldest) return private_oldest + getValueFromLatestTable(kPublicEgIdKeyNewest);
+  if (!private_oldest) return public_oldest + getValueFromLatestTable(client_id_ + "_newest");
+
   // Adding public and private results in an external event group id including two query-able event groups
   // (the oldest private and the oldest public).
   // However, we are only interested in the oldest external and not the second oldest. Hence, we have to subtract 1.
