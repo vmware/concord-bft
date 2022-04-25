@@ -28,11 +28,11 @@ namespace bftEngine::impl {
 /*************************** Class ClientsManager::RequestsInfo ***************************/
 
 void ClientsManager::RequestsInfo::emplaceSafe(NodeIdType clientId, ReqId reqSeqNum, const std::string& cid) {
-  const lock_guard<mutex> lock(requestsMapMutex_);
   if (requestsMap_.find(reqSeqNum) != requestsMap_.end()) {
     LOG_WARN(CL_MNGR, "The request already exists - skip adding" << KVLOG(clientId, reqSeqNum));
     return;
   }
+  const lock_guard<mutex> lock(requestsMapMutex_);
   requestsMap_.emplace(reqSeqNum, RequestInfo{getMonotonicTime(), cid});
   LOG_DEBUG(CL_MNGR, "Added request" << KVLOG(clientId, reqSeqNum, requestsMap_.size()));
 }
@@ -44,8 +44,9 @@ bool ClientsManager::RequestsInfo::findSafe(ReqId reqSeqNum) {
 
 bool ClientsManager::RequestsInfo::removeRequestsOutOfBatchBoundsSafe(NodeIdType clientId, ReqId reqSequenceNum) {
   ReqId maxReqId{0};
-  const lock_guard<mutex> lock(requestsMapMutex_);
   if (requestsMap_.find(reqSequenceNum) != requestsMap_.end()) return false;
+
+  const lock_guard<mutex> lock(requestsMapMutex_);
   for (const auto& reqInfo : requestsMap_)
     if (reqInfo.first > maxReqId) maxReqId = reqInfo.first;
 
@@ -79,7 +80,7 @@ void ClientsManager::RequestsInfo::removePendingForExecutionRequestSafe(NodeIdTy
 }
 
 void ClientsManager::RequestsInfo::clearSafe() {
-  const std::lock_guard<std::mutex> lock(requestsMapMutex_);
+  const lock_guard<mutex> lock(requestsMapMutex_);
   requestsMap_.clear();
 }
 
@@ -134,7 +135,6 @@ void ClientsManager::RequestsInfo::logAllPendingRequestsExceedingThreshold(const
 void ClientsManager::RepliesInfo::deleteOldestReplyIfNeededSafe(NodeIdType clientId, uint16_t maxNumOfReqsPerClient) {
   Time earliestTime = MaxTime;
   ReqId earliestReplyId = 0;
-  const lock_guard<mutex> lock(repliesMapMutex_);
   if (repliesMap_.size() < maxNumOfReqsPerClient) return;
   if (repliesMap_.size() > maxNumOfReqsPerClient)
     LOG_FATAL(CL_MNGR,
@@ -146,6 +146,7 @@ void ClientsManager::RepliesInfo::deleteOldestReplyIfNeededSafe(NodeIdType clien
       earliestTime = reply.second;
     }
   }
+  const lock_guard<mutex> lock(repliesMapMutex_);
   if (earliestReplyId) {
     repliesMap_.erase(earliestReplyId);
   } else if (!repliesMap_.empty()) {
