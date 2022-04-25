@@ -22,7 +22,7 @@ namespace concord::client::clientservice {
 struct EventServiceMetrics {
   EventServiceMetrics()
       : metrics_component_{"EventService", std::make_shared<concordMetrics::Aggregator>()},
-        num_writes_per_second{metrics_component_.RegisterGauge("num_writes_per_second", 0)},
+        total_num_writes{metrics_component_.RegisterCounter("total_num_writes", 0)},
         update_processing_dur{metrics_component_.RegisterGauge("update_processing_dur", 0)},
         write_dur{metrics_component_.RegisterGauge("write_dur", 0)} {
     metrics_component_.Register();
@@ -38,10 +38,10 @@ struct EventServiceMetrics {
   concordMetrics::Component metrics_component_;
 
  public:
-  // number of updates written to the gRPC stream per second
-  concordMetrics::GaugeHandle num_writes_per_second;
-  // time taken to process an update (time between when requested is received by the event service until it is written
-  // to the stream)
+  // total number of updates written to the gRPC stream
+  concordMetrics::CounterHandle total_num_writes;
+  // time taken to process an update (time between when an update is received by the event service from the update queue
+  // until it is written to the stream)
   concordMetrics::GaugeHandle update_processing_dur;
   // time taken to write an update to the gRPC stream
   concordMetrics::GaugeHandle write_dur;
