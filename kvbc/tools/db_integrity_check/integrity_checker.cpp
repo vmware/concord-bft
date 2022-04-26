@@ -69,8 +69,8 @@ void IntegrityChecker::parseCLIArgs(int argc, char** argv) {
 void IntegrityChecker::initKeysConfig(const fs::path& keys_file) {
   LOG_DEBUG(logger_, keys_file);
   auto& config = bftEngine::ReplicaConfig::instance();
-  auto sys = inputReplicaKeyfileMultisig(keys_file, config);
-  (void)sys;  // currently for ro replica cryptosys is null
+  inputReplicasPublicConfig(keys_file, config);
+  config.replicaId = config.numReplicas;  // "my" replica id shouldn't match one of the regular replicas
   repsInfo_ = new ReplicasInfo(config, true, false);
 
   bftEngine::impl::SigManager::init(config.replicaId,
@@ -223,7 +223,7 @@ concord::kvbc::categorization::RawBlock IntegrityChecker::getBlock(const BlockId
   return kvbc::categorization::RawBlock::deserialize(rawBlockSer);
 }
 
-Digest IntegrityChecker::computeBlockDigest(const BlockId& block_id, const std::string_view& block) const {
+Digest IntegrityChecker::computeBlockDigest(const BlockId& block_id, const std::string_view block) const {
   Digest calcDigest;
   BCStateTran::computeDigestOfBlock(block_id, block.data(), block.size(), &calcDigest);
 

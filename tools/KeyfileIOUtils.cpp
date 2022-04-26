@@ -64,6 +64,31 @@ static void validateRSAPrivateKey(const std::string& key) {
   if (!std::regex_match(key, std::regex("[0-9A-Fa-f]+"))) throw std::runtime_error("Invalid RSA private key: " + key);
 }
 
+void inputReplicasPublicConfig(const std::string& filename, bftEngine::ReplicaConfig& config) {
+  using namespace concord::util;
+
+  std::ifstream input(filename);
+  if (!input.is_open()) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": can't open ") + filename);
+
+  config.numReplicas = yaml::readValue<std::uint16_t>(input, "num_replicas");
+  config.fVal = yaml::readValue<std::uint16_t>(input, "f_val");
+  config.cVal = yaml::readValue<std::uint16_t>(input, "c_val");
+
+  // Note we validate the number of replicas using 32-bit integers in case
+  // (3 * f + 2 * c + 1) overflows a 16-bit integer.
+  uint32_t predictedNumReplicas = 3 * (uint32_t)config.fVal + 2 * (uint32_t)config.cVal + 1;
+  if (predictedNumReplicas != (uint32_t)config.numReplicas)
+    throw std::runtime_error("num_replicas must be equal to (3 * f_val + 2 * c_val + 1)");
+
+  std::vector<std::string> rsaPublicKeys = yaml::readCollection<std::string>(input, "rsa_public_keys");
+
+  config.publicKeysOfReplicas.clear();
+  for (size_t i = 0; i < config.numReplicas; ++i) {
+    validateRSAPublicKey(rsaPublicKeys[i]);
+    config.publicKeysOfReplicas.insert(std::pair<uint16_t, std::string>(i, rsaPublicKeys[i]));
+  }
+}
+
 Cryptosystem* inputReplicaKeyfileMultisig(const std::string& filename, bftEngine::ReplicaConfig& config) {
   using namespace concord::util;
 

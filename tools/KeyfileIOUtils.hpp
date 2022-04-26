@@ -67,6 +67,12 @@ void outputReplicaKeyfile(uint16_t numReplicas,
  */
 Cryptosystem* inputReplicaKeyfileMultisig(const std::string& inputFilename, bftEngine::ReplicaConfig& config);
 
+/**
+ * Read public keys configuration only.
+ * Used by integrity/restore tools.
+ */
+void inputReplicasPublicConfig(const std::string& filename, bftEngine::ReplicaConfig& config);
+
 template <typename T>
 T parse(const std::string& str, const std::string& name) {
   try {
