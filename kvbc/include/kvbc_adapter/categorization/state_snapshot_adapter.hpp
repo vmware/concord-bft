@@ -27,7 +27,7 @@
 using concord::storage::rocksdb::NativeClient;
 using concord::kvbc::IKVBCStateSnapshot;
 
-namespace concord::kvbc::adapter::statesnapshot {
+namespace concord::kvbc::adapter::categorization::statesnapshot {
 class KVBCStateSnapshot : public IKVBCStateSnapshot, public IDBCheckpoint {
  public:
   explicit KVBCStateSnapshot(std::shared_ptr<concord::kvbc::categorization::KeyValueBlockchain>& kvbc);
@@ -63,4 +63,4 @@ class KVBCStateSnapshot : public IKVBCStateSnapshot, public IDBCheckpoint {
  private:
   concord::kvbc::categorization::KeyValueBlockchain* kvbc_{nullptr};
 };
-}  // end of namespace concord::kvbc::adapter::statesnapshot
+}  // end of namespace concord::kvbc::adapter::categorization::statesnapshot

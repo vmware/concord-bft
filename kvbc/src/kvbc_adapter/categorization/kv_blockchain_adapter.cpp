@@ -11,14 +11,14 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "kvbc_adapter/kv_blockchain_adapter.hpp"
+#include "kvbc_adapter/categorization/kv_blockchain_adapter.hpp"
 #include "assertUtils.hpp"
 
-namespace concord::kvbc::adapter {
+namespace concord::kvbc::adapter::categorization {
 
 KeyValueBlockchain::KeyValueBlockchain(std::shared_ptr<concord::kvbc::categorization::KeyValueBlockchain> &kvbc)
     : kvbc_{kvbc.get()} {
   ConcordAssertNE(kvbc_, nullptr);
 }
 
-}  // namespace concord::kvbc::adapter
+}  // namespace concord::kvbc::adapter::categorization

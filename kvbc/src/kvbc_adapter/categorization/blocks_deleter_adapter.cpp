@@ -11,14 +11,13 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "kvbc_adapter/blocks_deleter_adapter.hpp"
+#include "kvbc_adapter/categorization/blocks_deleter_adapter.hpp"
 #include "assertUtils.hpp"
-#include "IntervalMappingResourceManager.hpp"
 #include "ReplicaResources.h"
 
 using concord::performance::ISystemResourceEntity;
 
-namespace concord::kvbc::adapter {
+namespace concord::kvbc::adapter::categorization {
 
 BlocksDeleterAdapter::BlocksDeleterAdapter(std::shared_ptr<concord::kvbc::categorization::KeyValueBlockchain> &kvbc,
                                            const std::optional<aux::AdapterAuxTypes> &aux_types)
@@ -65,4 +64,4 @@ BlockId BlocksDeleterAdapter::deleteBlocksUntil(BlockId until) {
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-}  // namespace concord::kvbc::adapter
+}  // namespace concord::kvbc::adapter::categorization

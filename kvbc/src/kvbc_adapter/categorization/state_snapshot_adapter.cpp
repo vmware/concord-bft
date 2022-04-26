@@ -12,13 +12,13 @@
 // file.
 
 #include "assertUtils.hpp"
-#include "kvbc_adapter/state_snapshot_adapter.hpp"
+#include "kvbc_adapter/categorization/state_snapshot_adapter.hpp"
 
-namespace concord::kvbc::adapter::statesnapshot {
+namespace concord::kvbc::adapter::categorization::statesnapshot {
 
 KVBCStateSnapshot::KVBCStateSnapshot(std::shared_ptr<concord::kvbc::categorization::KeyValueBlockchain>& kvbc)
     : kvbc_(kvbc.get()) {
   ConcordAssertNE(kvbc_, nullptr);
 }
 
-}  // End of namespace concord::kvbc::adapter::statesnapshot
+}  // End of namespace  concord::kvbc::adapter::categorization::statesnapshot
