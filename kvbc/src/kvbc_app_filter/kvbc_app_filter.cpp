@@ -314,7 +314,7 @@ TagTableValue KvbAppFilter::getValueFromTagTable(const std::string &tag, uint64_
   if (not opt) {
     std::stringstream msg;
     msg << "Failed to get event group id from tag table for key " << key;
-    LOG_ERROR(logger_, msg.str());
+    LOG_WARN(logger_, msg.str());
     throw std::runtime_error(msg.str());
   }
   const auto val = std::get_if<concord::kvbc::categorization::ImmutableValue>(&(opt.value()));
