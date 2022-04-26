@@ -30,23 +30,6 @@ class ConfigFileParser {
   StoreConfig parse();
 
  protected:
-  template <typename T>
-  T get_optional_value(const std::string& key, const T& defaultValue) {
-    std::vector<std::string> v = parser_.GetValues(key);
-    if (v.size())
-      return concord::util::to<T>(v[0]);
-    else
-      return defaultValue;
-  }
-  template <typename T>
-  T get_value(const std::string& key) {
-    std::vector<std::string> v = parser_.GetValues(key);
-    if (v.size())
-      return concord::util::to<T>(v[0]);
-    else
-      throw std::runtime_error("failed to parse " + parser_.getConfigFileName() + ": " + key + " is not set.");
-  }
-
   logging::Logger logger_ = logging::getLogger("concord.storage.s3");
   util::ConfigFileParser parser_;
 };

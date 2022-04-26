@@ -22,16 +22,16 @@ using std::string;
 namespace concord::storage::s3 {
 
 concord::storage::s3::StoreConfig ConfigFileParser::parse() {
-  if (!parser_.Parse()) throw std::runtime_error("failed to parse" + parser_.getConfigFileName());
+  parser_.parse();
 
   concord::storage::s3::StoreConfig config;
-  config.bucketName = get_value<string>("s3-bucket-name");
-  config.accessKey = get_value<string>("s3-access-key");
-  config.protocol = get_value<string>("s3-protocol");
-  config.url = get_value<string>("s3-url");
-  config.secretKey = get_value<string>("s3-secret-key");
-  config.pathPrefix = get_optional_value<string>("s3-path-prefix", "");
-  config.operationTimeout = get_optional_value<std::uint32_t>("s3-operation-timeout", 60000);
+  config.bucketName = parser_.get_value<string>("s3-bucket-name");
+  config.accessKey = parser_.get_value<string>("s3-access-key");
+  config.protocol = parser_.get_value<string>("s3-protocol");
+  config.url = parser_.get_value<string>("s3-url");
+  config.secretKey = parser_.get_value<string>("s3-secret-key");
+  config.pathPrefix = parser_.get_optional_value<string>("s3-path-prefix", "");
+  config.operationTimeout = parser_.get_optional_value<std::uint32_t>("s3-operation-timeout", 60000);
   LOG_INFO(logger_, config);
   return config;
 }

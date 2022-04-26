@@ -9,7 +9,7 @@ using std::cin;
 using std::string;
 using std::vector;
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   cout << "Enter configuration file name with a full/relative path,"
        << " or 'd' for a default:\n";
 
@@ -32,17 +32,22 @@ int main(int argc, char **argv) {
   if (given_config_file != use_default_config_file) config_file = given_config_file;
   logging::Logger logger = logging::getLogger("simpletest.test");
   concord::util::ConfigFileParser parser(logger, config_file);
-  if (!parser.Parse()) return 1;
 
+  try {
+    parser.parse();
+  } catch (const std::exception& e) {
+    cout << e.what() << "\n";
+    return 1;
+  }
   cout << "\n";
-  size_t replicas_num = parser.Count("replicas_config");
-  vector<string> replicas = parser.GetValues("replicas_config");
+  size_t replicas_num = parser.count("replicas_config");
+  auto replicas = parser.get_values<std::string>("replicas_config");
 
-  size_t clients_num = parser.Count("clients_config");
-  vector<string> clients = parser.GetValues("clients_config");
+  size_t clients_num = parser.count("clients_config");
+  auto clients = parser.get_values<std::string>("clients_config");
   parser.printAll();
 
-  vector<std::string> split_values_vector = parser.SplitValue(values_to_split, values_to_split_delimiter.c_str());
+  vector<std::string> split_values_vector = parser.splitValue(values_to_split, values_to_split_delimiter.c_str());
 
   if (config_file == default_config_file) {
     ConcordAssert(replicas_num == expected_replicas_num);
