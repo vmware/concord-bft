@@ -29,12 +29,12 @@
 #include "db_interfaces.h"
 #include "categorization/kv_blockchain.h"
 #include "ReplicaResources.h"
-#include "replica_adapter_auxilliary_types.hpp"
+#include "kvbc_adapter/replica_adapter_auxilliary_types.hpp"
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
 
 using concord::storage::rocksdb::NativeClient;
 
-namespace concord::kvbc::adapter {
+namespace concord::kvbc::adapter::categorization {
 
 class AppStateAdapter : public bftEngine::bcst::IAppState {
  public:
@@ -84,4 +84,4 @@ class AppStateAdapter : public bftEngine::bcst::IAppState {
   concord::kvbc::categorization::KeyValueBlockchain *kvbc_{nullptr};
   logging::Logger logger_;
 };
-}  // namespace concord::kvbc::adapter
+}  // namespace concord::kvbc::adapter::categorization
