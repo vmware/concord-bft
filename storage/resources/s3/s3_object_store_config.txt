@@ -1,9 +1,0 @@
-# S3 Object Store Configuration
-
-s3-bucket-name: blockchain
-s3-access-key: concordbft
-s3-protocol: HTTP
-s3-url: 127.0.0.1:9000
-s3-secret-key: concordbft
-# may be empty
-s3-path-prefix: concord

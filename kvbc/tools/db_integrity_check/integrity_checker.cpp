@@ -31,7 +31,9 @@ using kvbc::v1DirectKeyValue::S3StorageFactory;
 IntegrityChecker::IntegrityChecker() {
   // clang-format off
   cli_actions_.add_options()("validate-key,v", po::value<std::string>(), "key to validate")
-                            ("validate-all,a", "validate the whole blockchain");
+                            ("validate-range,r", po::value<std::uint64_t>(),
+                                               "validate the blockchain range from tail to block_id")
+                            ("validate-all,a", "validate a whole blockchain");
 
   cli_mandatory_options_.add_options()
       ("keys-file,k",
@@ -83,9 +85,10 @@ void IntegrityChecker::initKeysConfig(const fs::path& keys_file) {
 void IntegrityChecker::check() const {
   if (var_map_.count("validate-key")) {
     validateKey(var_map_["validate-key"].as<std::string>());
-  }
-  if (var_map_.count("validate-all")) {
+  } else if (var_map_.count("validate-all")) {
     validateAll();
+  } else if (var_map_.count("validate-range")) {
+    validateRange(var_map_["validate-range"].as<std::uint64_t>());
   } else {
     LOG_ERROR(logger_, "one of the following actions should be provided: " << cli_actions_);
     std::exit(1);
@@ -95,16 +98,16 @@ void IntegrityChecker::initS3Config(const fs::path& s3_file) {
   const std::string checkpoints_suffix("metadata/checkpoints/");
   auto s3_config = storage::s3::ConfigFileParser(s3_file).parse();
   LOG_DEBUG(logger_, "s3 configuration: " << s3_config);
-  dbset_ = std::make_unique<S3StorageFactory>(std::string("not used"), s3_config)->newDatabaseSet();
+  s3_dbset_ = std::make_unique<S3StorageFactory>(std::string("not used"), s3_config)->newDatabaseSet();
   checkpoints_prefix_ =
       s3_config.pathPrefix.empty() ? checkpoints_suffix : s3_config.pathPrefix + "/" + checkpoints_suffix;
 }
 
 std::pair<BlockId, Digest> IntegrityChecker::getLatestsCheckpointDescriptor() const {
-  BlockId lastBlock = dbset_.dbAdapter->getLatestBlockId();
+  BlockId lastBlock = s3_dbset_.dbAdapter->getLatestBlockId();
   LOG_INFO(logger_, "Last block: " << lastBlock);
-  auto it =
-      dynamic_cast<s3::Client*>(dbset_.metadataDBClient.get())->getIterator<s3::Client::SortByModifiedDescIterator>();
+  auto it = dynamic_cast<s3::Client*>(s3_dbset_.metadataDBClient.get())
+                ->getIterator<s3::Client::SortByModifiedDescIterator>();
   auto [key, val] = it->seekAtLeast(Sliver::copy(checkpoints_prefix_.data(), checkpoints_prefix_.length()));
   (void)val;
   if (it->isEnd()) throw std::runtime_error("no checkpoints information in S3 storage");
@@ -121,7 +124,7 @@ std::pair<BlockId, Digest> IntegrityChecker::getLatestsCheckpointDescriptor() co
 DescriptorOfLastStableCheckpoint IntegrityChecker::getCheckpointDescriptor(const Sliver& key) const {
   LOG_DEBUG(logger_, "key: " << key.toString());
   Sliver checkpoint_descriptor;
-  if (Status s = dbset_.metadataDBClient->get(key, checkpoint_descriptor); !s.isOK()) {
+  if (Status s = s3_dbset_.metadataDBClient->get(key, checkpoint_descriptor); !s.isOK()) {
     LOG_FATAL(logger_,
               "failed to get checkpoint descriptor for key: " << key.toString() << " status: " << s.toString());
     std::exit(1);
@@ -138,8 +141,8 @@ DescriptorOfLastStableCheckpoint IntegrityChecker::getCheckpointDescriptor(const
 }
 
 std::pair<BlockId, Digest> IntegrityChecker::getCheckpointDescriptor(const BlockId& block_id) const {
-  auto it =
-      dynamic_cast<s3::Client*>(dbset_.metadataDBClient.get())->getIterator<s3::Client::SortByModifiedDescIterator>();
+  auto it = dynamic_cast<s3::Client*>(s3_dbset_.metadataDBClient.get())
+                ->getIterator<s3::Client::SortByModifiedDescIterator>();
   auto key_val = it->seekAtLeast(Sliver::copy(checkpoints_prefix_.data(), checkpoints_prefix_.length()));
   if (it->isEnd()) throw std::runtime_error("no checkpoints information in S3 storage");
 
@@ -156,6 +159,9 @@ std::pair<BlockId, Digest> IntegrityChecker::getCheckpointDescriptor(const Block
     key_val = it->next();
   }
   delete it;
+  if (first_good_block_descriptor < block_id)
+    throw std::runtime_error("no checkpoints information for block " + std::to_string(block_id));
+
   auto desc = getCheckpointDescriptor(first_good_block_descriptor_key);
   Digest digest(desc.checkpointMsgs[0]->digestOfState().content());
   return std::make_pair(first_good_block_descriptor, digest);
@@ -196,20 +202,18 @@ Digest IntegrityChecker::checkBlock(const BlockId& block_id, const Digest& expec
   LOG_DEBUG(logger_, "parent block digest: " << parentBlockDigest.toString());
   return parentBlockDigest;
 }
-
-concord::kvbc::categorization::RawBlock IntegrityChecker::getBlock(const BlockId& block_id) const {
+std::pair<Digest, concord::kvbc::categorization::RawBlock> IntegrityChecker::getBlock(const BlockId& block_id) const {
   // get and parse the block
-  auto rawBlockSer = dbset_.dbAdapter->getRawBlock(block_id);
-  return concord::kvbc::categorization::RawBlock::deserialize(rawBlockSer);
+  auto rawBlockSer = s3_dbset_.dbAdapter->getRawBlock(block_id);
+  return std::make_pair(computeBlockDigest(block_id, rawBlockSer.string_view()),
+                        concord::kvbc::categorization::RawBlock::deserialize(rawBlockSer));
 }
 
 concord::kvbc::categorization::RawBlock IntegrityChecker::getBlock(const BlockId& block_id,
                                                                    const Digest& expected_digest) const {
   // get and parse the block
-  auto rawBlockSer = dbset_.dbAdapter->getRawBlock(block_id);
-  Digest calcDigest;
-  BCStateTran::computeDigestOfBlock(
-      block_id, reinterpret_cast<const char*>(rawBlockSer.data()), rawBlockSer.size(), &calcDigest);
+  auto rawBlockSer = s3_dbset_.dbAdapter->getRawBlock(block_id);
+  auto calcDigest = computeBlockDigest(block_id, rawBlockSer.string_view());
   if (expected_digest == calcDigest) {
     LOG_INFO(logger_, "block: " << block_id << " digest match: " << expected_digest.toString());
   } else
@@ -219,15 +223,22 @@ concord::kvbc::categorization::RawBlock IntegrityChecker::getBlock(const BlockId
   return kvbc::categorization::RawBlock::deserialize(rawBlockSer);
 }
 
-void IntegrityChecker::validateAll() const {
+Digest IntegrityChecker::computeBlockDigest(const BlockId& block_id, const std::string_view& block) const {
+  Digest calcDigest;
+  BCStateTran::computeDigestOfBlock(block_id, block.data(), block.size(), &calcDigest);
+
+  return calcDigest;
+}
+
+void IntegrityChecker::validateRange(BlockId until_block) const {
   auto [block_id, digest] = getLatestsCheckpointDescriptor();
-  for (auto block = block_id; block > 0; --block) digest = checkBlock(block, digest);
+  for (auto block = block_id; block > until_block; --block) digest = checkBlock(block, digest);
 }
 
 void IntegrityChecker::validateKey(const std::string& key) const {
   // Retrieve the latest block number for specified key
   Sliver sKey = Sliver::copy(key.data(), key.length());
-  auto [containing_block, _] = dbset_.dbAdapter->getValue(sKey, 0);
+  auto [containing_block, _] = s3_dbset_.dbAdapter->getValue(sKey, 0);
   (void)_;
   auto containing_block_id = util::to<BlockId>(containing_block.data());
   LOG_INFO(logger_, "containing_block_id: " << containing_block_id);
@@ -236,7 +247,8 @@ void IntegrityChecker::validateKey(const std::string& key) const {
   for (auto block = block_id; block >= containing_block_id; --block) digest = checkBlock(block, digest);
 
   // retrieve block and get value
-  auto raw_block = getBlock(containing_block_id);
+  auto [block_digest, raw_block] = getBlock(containing_block_id);
+  (void)block_digest;
   for (auto& [category, value] : raw_block.data.updates.kv) {
     auto cat = category;
     std::visit(
@@ -264,7 +276,6 @@ void IntegrityChecker::validateKey(const std::string& key) const {
         },
         value);
   }
-  // printBlockContent(containing_block_id, rawBlock);
 }
 
 void IntegrityChecker::printBlockContent(const BlockId& block_id,
