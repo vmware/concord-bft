@@ -84,8 +84,11 @@ class RequestsBatch {
   RequestStateSharedPtr &getRequestState(uint16_t reqOffsetInBatch);
   const std::string getBatchCid() const;
   void cancelBatchAndReleaseRequests(const std::string &batchCid, PreProcessingResult status);
+  void cancelRequestAndBatchIfCompleted(const std::string &reqBatchCid,
+                                        uint16_t reqOffsetInBatch,
+                                        PreProcessingResult status);
   void releaseReqsAndSendBatchedReplyIfCompleted(PreProcessReplyMsgSharedPtr replyMsg);
-  void finalizeBatchIfCompleted();
+  void finalizeBatchIfCompletedSafe();
   void handlePossiblyExpiredRequests();
   void sendCancelBatchedPreProcessingMsgToNonPrimaries(const ClientMsgsList &clientMsgs, NodeIdType destId);
   uint64_t getBlockId() const;
@@ -93,6 +96,7 @@ class RequestsBatch {
  private:
   void setBatchParameters(const std::string &batchCid, uint32_t batchSize);
   void resetBatchParams();
+  void finalizeBatchIfCompleted();
 
  private:
   PreProcessor &preProcessor_;
