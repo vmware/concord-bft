@@ -343,8 +343,11 @@ uint64_t KvbAppFilter::oldestExternalEventGroupId() const {
   uint64_t public_oldest = getValueFromLatestTable(kPublicEgIdKeyOldest);
   uint64_t private_oldest = getValueFromLatestTable(client_id_ + "_oldest");
   if (!public_oldest && !private_oldest) return 0;
-  if (!public_oldest) return private_oldest;
-  if (!private_oldest) return public_oldest;
+
+  // If public or private was fully pruned then we have to account for those event groups as well
+  if (!public_oldest) return private_oldest + getValueFromLatestTable(kPublicEgIdKeyNewest);
+  if (!private_oldest) return public_oldest + getValueFromLatestTable(client_id_ + "_newest");
+
   // Adding public and private results in an external event group id including two query-able event groups
   // (the oldest private and the oldest public).
   // However, we are only interested in the oldest external and not the second oldest. Hence, we have to subtract 1.
@@ -371,12 +374,12 @@ FindGlobalEgIdResult KvbAppFilter::findGlobalEventGroupId(uint64_t external_even
   uint64_t private_start = getValueFromLatestTable(client_id_ + "_oldest");
   uint64_t private_end = getValueFromLatestTable(client_id_ + "_newest");
 
-  if (not private_start) {
+  if (not private_start and not private_end) {
     // requested external event group id == public event group id
     uint64_t global_id;
     std::tie(global_id, std::ignore) = getValueFromTagTable(kPublicEgId, external_event_group_id);
     return {global_id, true, private_end, external_event_group_id};
-  } else if (not public_start) {
+  } else if (not public_start and not public_end) {
     // requested external event group id == private event group id
     uint64_t global_id;
     std::tie(global_id, std::ignore) = getValueFromTagTable(client_id_, external_event_group_id);
@@ -392,7 +395,7 @@ FindGlobalEgIdResult KvbAppFilter::findGlobalEventGroupId(uint64_t external_even
   // client_id_ <separator> current_pvt_eg_id => current_global_eg_id <separator> current_ext_eg_id
   auto [current_pvt_eg_id, current_global_eg_id, current_ext_eg_id] = std::make_tuple(0ull, 0ull, 0ull);
 
-  while (window_start <= window_end) {
+  while (window_start && window_start <= window_end) {
     window_size = window_end - window_start + 1;
     current_pvt_eg_id = window_start + (window_size / 2);
     std::tie(current_global_eg_id, current_ext_eg_id) = getValueFromTagTable(client_id_, current_pvt_eg_id);
@@ -415,11 +418,14 @@ FindGlobalEgIdResult KvbAppFilter::findGlobalEventGroupId(uint64_t external_even
   // At this point, we exhausted all private entries => it has to be a public event group
   uint64_t global_eg_id;
 
+  // If all private event groups were pruned then we need to adjust current_* to point to the last private event group
+  if (private_start == 0) {
+    ConcordAssertNE(private_end, 0);
+    current_pvt_eg_id = private_end;
+    current_ext_eg_id = private_end + public_start - 1;
+  }
+
   if (external_event_group_id < current_ext_eg_id) {
-    if (current_pvt_eg_id == private_start) {
-      std::tie(global_eg_id, std::ignore) = getValueFromTagTable(kPublicEgId, external_event_group_id);
-      return {global_eg_id, true, current_pvt_eg_id - 1, external_event_group_id};
-    }
     auto num_pub_egs = current_ext_eg_id - current_pvt_eg_id;
     auto pub_eg_id = num_pub_egs - (current_ext_eg_id - external_event_group_id - 1);
     std::tie(global_eg_id, std::ignore) = getValueFromTagTable(kPublicEgId, pub_eg_id);
@@ -427,12 +433,6 @@ FindGlobalEgIdResult KvbAppFilter::findGlobalEventGroupId(uint64_t external_even
   }
 
   ConcordAssertGT(external_event_group_id, current_ext_eg_id);
-  if (current_pvt_eg_id == private_end) {
-    auto num_pub_egs = current_ext_eg_id - current_pvt_eg_id;
-    auto pub_eg_id = num_pub_egs + (external_event_group_id - current_ext_eg_id);
-    std::tie(global_eg_id, std::ignore) = getValueFromTagTable(kPublicEgId, pub_eg_id);
-    return {global_eg_id, true, current_pvt_eg_id, pub_eg_id};
-  }
   auto num_pub_egs = current_ext_eg_id - current_pvt_eg_id;
   auto pub_eg_id = num_pub_egs + (external_event_group_id - current_ext_eg_id);
   std::tie(global_eg_id, std::ignore) = getValueFromTagTable(kPublicEgId, pub_eg_id);
