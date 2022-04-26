@@ -28,11 +28,11 @@
 #include "db_interfaces.h"
 #include "categorization/kv_blockchain.h"
 #include "ReplicaResources.h"
-#include "replica_adapter_auxilliary_types.hpp"
+#include "kvbc_adapter/replica_adapter_auxilliary_types.hpp"
 
 using concord::storage::rocksdb::NativeClient;
 
-namespace concord::kvbc::adapter {
+namespace concord::kvbc::adapter::categorization {
 
 class KeyValueBlockchain : public IReader, public IBlockAdder {
  public:
@@ -41,42 +41,43 @@ class KeyValueBlockchain : public IReader, public IBlockAdder {
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // IReader
-  std::optional<categorization::Value> get(const std::string &category_id,
-                                           const std::string &key,
-                                           BlockId block_id) const override final {
+  std::optional<concord::kvbc::categorization::Value> get(const std::string &category_id,
+                                                          const std::string &key,
+                                                          BlockId block_id) const override final {
     return kvbc_->get(category_id, key, block_id);
   }
 
-  std::optional<categorization::Value> getLatest(const std::string &category_id,
-                                                 const std::string &key) const override final {
+  std::optional<concord::kvbc::categorization::Value> getLatest(const std::string &category_id,
+                                                                const std::string &key) const override final {
     return kvbc_->getLatest(category_id, key);
   }
 
   void multiGet(const std::string &category_id,
                 const std::vector<std::string> &keys,
                 const std::vector<BlockId> &versions,
-                std::vector<std::optional<categorization::Value>> &values) const override final {
+                std::vector<std::optional<concord::kvbc::categorization::Value>> &values) const override final {
     return kvbc_->multiGet(category_id, keys, versions, values);
   }
 
   void multiGetLatest(const std::string &category_id,
                       const std::vector<std::string> &keys,
-                      std::vector<std::optional<categorization::Value>> &values) const override final {
+                      std::vector<std::optional<concord::kvbc::categorization::Value>> &values) const override final {
     return kvbc_->multiGetLatest(category_id, keys, values);
   }
 
-  std::optional<categorization::TaggedVersion> getLatestVersion(const std::string &category_id,
-                                                                const std::string &key) const override final {
+  std::optional<concord::kvbc::categorization::TaggedVersion> getLatestVersion(
+      const std::string &category_id, const std::string &key) const override final {
     return kvbc_->getLatestVersion(category_id, key);
   }
 
-  void multiGetLatestVersion(const std::string &category_id,
-                             const std::vector<std::string> &keys,
-                             std::vector<std::optional<categorization::TaggedVersion>> &versions) const override final {
+  void multiGetLatestVersion(
+      const std::string &category_id,
+      const std::vector<std::string> &keys,
+      std::vector<std::optional<concord::kvbc::categorization::TaggedVersion>> &versions) const override final {
     return kvbc_->multiGetLatestVersion(category_id, keys, versions);
   }
 
-  std::optional<categorization::Updates> getBlockUpdates(BlockId block_id) const override final {
+  std::optional<concord::kvbc::categorization::Updates> getBlockUpdates(BlockId block_id) const override final {
     return kvbc_->getBlockUpdates(block_id);
   }
 
@@ -89,11 +90,13 @@ class KeyValueBlockchain : public IReader, public IBlockAdder {
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // IBlockAdder
-  BlockId add(categorization::Updates &&updates) override final { return kvbc_->addBlock(std::move(updates)); }
+  BlockId add(concord::kvbc::categorization::Updates &&updates) override final {
+    return kvbc_->addBlock(std::move(updates));
+  }
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
  private:
   concord::kvbc::categorization::KeyValueBlockchain *kvbc_{nullptr};
 };
 
-}  // namespace concord::kvbc::adapter
+}  // namespace concord::kvbc::adapter::categorization

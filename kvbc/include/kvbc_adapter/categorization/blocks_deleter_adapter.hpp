@@ -29,11 +29,11 @@
 #include "db_interfaces.h"
 #include "categorization/kv_blockchain.h"
 #include "ReplicaResources.h"
-#include "replica_adapter_auxilliary_types.hpp"
+#include "kvbc_adapter/replica_adapter_auxilliary_types.hpp"
 
 using concord::storage::rocksdb::NativeClient;
 
-namespace concord::kvbc::adapter {
+namespace concord::kvbc::adapter::categorization {
 
 class BlocksDeleterAdapter : public IBlocksDeleter {
  public:
@@ -71,4 +71,4 @@ class BlocksDeleterAdapter : public IBlocksDeleter {
   Recorders histograms_;
 };
 
-}  // namespace concord::kvbc::adapter
+}  // namespace concord::kvbc::adapter::categorization
