@@ -114,7 +114,7 @@ static void getResponseSetStatus(concord::client::concordclient::SendResult&& se
         break;
       case (static_cast<uint32_t>(bftEngine::OperationResult::EXEC_ENGINE_REJECT_ERROR)):
         LOG_INFO(logger, "Request failed with EXEC_ENGINE_REJECT_ERROR error for cid=" << correlation_id);
-        return_status = grpc::Status(grpc::StatusCode::UNAVAILABLE, "Aborted");
+        return_status = grpc::Status(grpc::StatusCode::UNKNOWN, "Aborted");
         break;
       case (static_cast<uint32_t>(bftEngine::OperationResult::UNKNOWN)):
         LOG_INFO(logger, "Request failed with UNKNOWN error for cid=" << correlation_id);
