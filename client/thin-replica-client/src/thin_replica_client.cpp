@@ -693,6 +693,10 @@ void ThinReplicaClient::receiveUpdates() {
 
     // Push update to update queue for consumption before receiving next update
     pushUpdateToUpdateQueue(std::move(update), start, update_in.has_event_group());
+    metrics_.num_updates_processed++;
+
+    // Reset read timeout, failure and ignored metrics before the next update
+    resetMetricsBeforeNextUpdate();
 
     // Cleanup before the next update
 
@@ -723,17 +727,14 @@ void ThinReplicaClient::pushUpdateToUpdateQueue(std::unique_ptr<EventVariant> up
 
   // update metrics
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-  metrics_.update_dur_ms.Get().Set((uint64_t)(duration.count()));
+  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+  metrics_.update_dur_us.Get().Set(duration.count());
 
   if (is_event_group) {
     metrics_.last_verified_event_group_id.Get().Set(latest_verified_event_group_id_);
   } else {
     metrics_.last_verified_block_id.Get().Set(latest_verified_block_id_);
   }
-
-  // Reset read timeout, failure and ignored metrics before the next update
-  resetMetricsBeforeNextUpdate();
 }
 
 void ThinReplicaClient::resetMetricsBeforeNextUpdate() {

@@ -131,7 +131,8 @@ struct ThinReplicaClientMetrics {
         current_queue_size{metrics_component_.RegisterGauge("current_queue_size", 0)},
         last_verified_block_id{metrics_component_.RegisterGauge("last_verified_block_id", 0)},
         last_verified_event_group_id{metrics_component_.RegisterGauge("last_verified_event_group_id", 0)},
-        update_dur_ms{metrics_component_.RegisterGauge("update_dur_ms", 0)} {
+        update_dur_us{metrics_component_.RegisterGauge("update_dur_us", 0)},
+        num_updates_processed{metrics_component_.RegisterCounter("num_updates_processed", 0)} {
     metrics_component_.Register();
   }
 
@@ -160,10 +161,12 @@ struct ThinReplicaClientMetrics {
   // last_verified_*_id - block or event group ID of the latest update verified by TRC
   concordMetrics::GaugeHandle last_verified_block_id;
   concordMetrics::GaugeHandle last_verified_event_group_id;
-  // update_dur_ms - duration of time (ms) between when an update is received by
+  // update_dur_us - duration of time (microseconds) between when an update is received by
   // the TRC, to when it is pushed to the update queue for consumption by the
   // application using TRC
-  concordMetrics::GaugeHandle update_dur_ms;
+  concordMetrics::GaugeHandle update_dur_us;
+  // number of updates pushed by TRC to the update queue per second
+  concordMetrics::CounterHandle num_updates_processed;
 };
 
 struct SubscribeRequest {
