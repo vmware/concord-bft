@@ -11,10 +11,10 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "kvbc_adapter/app_state_adapter.hpp"
+#include "kvbc_adapter/categorization/app_state_adapter.hpp"
 #include "assertUtils.hpp"
 
-namespace concord::kvbc::adapter {
+namespace concord::kvbc::adapter::categorization {
 
 AppStateAdapter::AppStateAdapter(std::shared_ptr<concord::kvbc::categorization::KeyValueBlockchain> &kvbc)
     : kvbc_{kvbc.get()}, logger_(logging::getLogger("skvbc.replica.appstateadapter")) {
@@ -31,7 +31,7 @@ bool AppStateAdapter::getBlock(uint64_t blockId,
   if (!rawBlock) {
     throw NotFoundException{"Raw block not found: " + std::to_string(blockId)};
   }
-  const auto &ser = categorization::RawBlock::serialize(*rawBlock);
+  const auto &ser = concord::kvbc::categorization::RawBlock::serialize(*rawBlock);
   if (ser.size() > outBlockMaxSize) {
     LOG_ERROR(logger_, KVLOG(ser.size(), outBlockMaxSize));
     throw std::runtime_error("not enough space to copy block!");
@@ -59,7 +59,7 @@ void AppStateAdapter::getPrevDigestFromBlock(const char *blockData,
                                              bftEngine::bcst::StateTransferDigest *outPrevBlockDigest) const {
   ConcordAssertGT(blockSize, 0);
   auto view = std::string_view{blockData, blockSize};
-  const auto rawBlock = categorization::RawBlock::deserialize(view);
+  const auto rawBlock = concord::kvbc::categorization::RawBlock::deserialize(view);
 
   static_assert(rawBlock.data.parent_digest.size() == DIGEST_SIZE);
   static_assert(sizeof(bftEngine::bcst::StateTransferDigest) == DIGEST_SIZE);
@@ -70,7 +70,7 @@ bool AppStateAdapter::putBlock(const uint64_t blockId,
                                const uint32_t blockSize,
                                bool lastBlock) {
   auto view = std::string_view{blockData, blockSize};
-  const auto rawBlock = categorization::RawBlock::deserialize(view);
+  const auto rawBlock = concord::kvbc::categorization::RawBlock::deserialize(view);
   if (kvbc_->hasBlock(blockId)) {
     const auto existingRawBlock = kvbc_->getRawBlock(blockId);
     if (rawBlock != existingRawBlock) {
@@ -130,4 +130,4 @@ size_t AppStateAdapter::postProcessUntilBlockId(uint64_t max_block_id) {
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-}  // End of namespace concord::kvbc::adapter
+}  // End of namespace concord::kvbc::adapter::categorization
