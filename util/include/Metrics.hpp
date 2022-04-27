@@ -262,6 +262,9 @@ class Component {
                               const std::unordered_map<std::string, std::string>& tag_map);
   Handle<Status> RegisterStatus(const std::string& name, const std::string& val);
   Handle<Counter> RegisterCounter(const std::string& name, const uint64_t val);
+  Handle<Counter> RegisterCounter(const std::string& name,
+                                  const uint64_t val,
+                                  const std::unordered_map<std::string, std::string>& tag_map);
   Handle<Counter> RegisterCounter(const std::string& name) { return RegisterCounter(name, 0); }
   Handle<AtomicCounter> RegisterAtomicCounter(const std::string& name, const uint64_t val);
   Handle<AtomicCounter> RegisterAtomicCounter(const std::string& name) { return RegisterAtomicCounter(name, 0); }
