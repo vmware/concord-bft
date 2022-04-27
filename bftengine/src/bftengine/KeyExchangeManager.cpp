@@ -137,7 +137,9 @@ void KeyExchangeManager::loadPublicKeys() {
   // after State Transfer public keys for all replicas are expected to exist
   auto num_loaded = publicKeys_.loadAllReplicasKeyStoresFromReservedPages();
   uint32_t liveQuorumSize = ReplicaConfig::instance().waitForFullCommOnStartup ? clusterSize_ : quorumSize_;
-  if (ReplicaConfig::instance().getkeyExchangeOnStart()) ConcordAssert(num_loaded >= liveQuorumSize);
+  if (ReplicaConfig::instance().getkeyExchangeOnStart()) {
+    ConcordAssertGE(num_loaded, liveQuorumSize);
+  }
   LOG_INFO(KEY_EX_LOG, "building crypto system after state transfer");
   notifyRegistry();
 }

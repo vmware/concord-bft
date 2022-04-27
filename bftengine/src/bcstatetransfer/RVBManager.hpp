@@ -85,7 +85,7 @@ class RVBManager {
   // Get a serialized RVB data. Used by ST source (during checkpoint summaries)
   std::ostringstream getRvbData() const;
 
-  // Get a serialized RVB data. Used by ST destination (during checkpoint summaries)
+  // Set a serialized RVB data. Used by ST destination (during checkpoint summaries)
   // min_block_id_span, max_block_id_span are used to validate that the tree indeed span the whole collecting range
   bool setRvbData(char* data, size_t data_size, BlockId min_block_id_span, BlockId max_block_id_span);
 

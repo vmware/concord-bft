@@ -41,6 +41,15 @@ using namespace concord::diagnostics;
 using namespace concord::util;
 using concord::util::digest::DigestUtil;
 
+// uncomment to add debug prints
+// #define BCSTATETRAN_DO_DEBUG
+#undef DEBUG_PRINT
+#ifdef BCSTATETRAN_DO_DEBUG
+#define DEBUG_PRINT(x, y) LOG_INFO(x, y)
+#else
+#define DEBUG_PRINT(x, y)
+#endif
+
 namespace bftEngine {
 namespace bcst {
 
@@ -883,6 +892,8 @@ void BCStateTran::onTimerImp() {
   thread_local auto lastMetricsDumpTimeMilli{currentTimeMilli};
   TimeRecorder scoped_timer(*histograms_.on_timer);
   metrics_.on_timer_++;
+  auto tickNumber = metrics_.on_timer_.Get().Get();
+  LOG_DEBUG(logger_, KVLOG(tickNumber));
   if (incomingEventsQ_) {
     time_in_incoming_events_queue_rec_.end();
     histograms_.incoming_events_queue_size->record(incomingEventsQ_->size());
@@ -1067,7 +1078,9 @@ void BCStateTran::handleStateTransferMessageImp(char *msg,
       break;
   }
 
-  if (!noDelete) replicaForStateTransfer_->freeStateTransferMsg(msg);
+  if (!noDelete) {
+    replicaForStateTransfer_->freeStateTransferMsg(msg);
+  }
   time_in_incoming_events_queue_rec_.start();
 }
 
@@ -1656,13 +1669,14 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
     // check if we need to fetch blocks, or reserved pages
     const uint64_t lastReachableBlockNum = as_->getLastReachableBlockNum();
     metrics_.last_reachable_block_.Get().Set(lastReachableBlockNum);
-
+    auto numBlocksToCollect = newCheckpoint.maxBlockId - lastReachableBlockNum;
     LOG_INFO(logger_,
              "Start fetching checkpoint: " << KVLOG(newCheckpoint.checkpointNum,
                                                     newCheckpoint.maxBlockId,
                                                     newCheckpoint.digestOfMaxBlockId,
                                                     lastReachableBlockNum,
-                                                    fetchingState));
+                                                    fetchingState,
+                                                    numBlocksToCollect));
 
     if (newCheckpoint.maxBlockId > lastReachableBlockNum) {
       // fetch blocks
