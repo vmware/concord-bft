@@ -74,7 +74,8 @@ class OperationResult(IntEnum):
     EXEC_DATA_EMPTY = 6
     CONFLICT_DETECTED = 7
     OVERLOADED = 8
-    INTERNAL_ERROR = 9
+    EXEC_ENGINE_REJECT_ERROR = 9
+    INTERNAL_ERROR = 10
 
 def pack_request(client_id, req_seq_num, read_only, timeout_milli, cid, msg, op_result = 0, pre_process=False,
                  reconfiguration=False, span_context=b'', signature=b''):

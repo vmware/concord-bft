@@ -28,7 +28,7 @@ service RequestService {
   // INVALID_ARGUMENT: if a required field is not set.
   // RESOURCE_EXHAUSTED: if Concord Client is overloaded. The caller should retry with a backoff.
   // UNAVAILABLE: if Concord Client is currently unable to process any requests. The caller should retry with a backoff.
-  // ABORTED: if Concord has a contention between concurrently running requests. The caller should retry.
+  // ABORTED: if Concord has a contention between concurrently running requests or if execution engine has rejected requests. The caller should retry.
   // INTERNAL: if Concord Client cannot progress independent of the request.
   rpc Send(Request) returns (Response);
 }
@@ -74,3 +74,19 @@ message Response {
     google.protobuf.Any typed_response = 6;
   } 
 }
+
+//Error messages corresponding to the error returned by request service. 
+enum ConcordErrorMessage {
+  CONCORD_ERROR_UNSPECIFIED = 0;
+  CONCORD_ERROR_INVALID_REQUEST = 1;            // Invalid request if required field is not set.
+  CONCORD_ERROR_NOT_READY = 2;                  // Concord is unavailable.
+  CONCORD_ERROR_TIMEOUT = 3;                    // Request couldn't be processed before the given timeout expired.
+  CONCORD_ERROR_EXEC_DATA_TOO_LARGE= 4;         // Execution data is too large.
+  CONCORD_ERROR_EXEC_DATA_EMPTY = 5;            // Execution data is empty.
+  CONCORD_ERROR_CONFLICT_DETECTED = 6;          // Concord has a contention between concurrently running requests.
+  CONCORD_ERROR_OVERLOADED = 7;                 // Clients are occupied. 
+  CONCORD_ERROR_EXECUTION_ENGINE_REJECTED = 8;  // Execution Engine rejected request.
+  CONCORD_ERROR_INTERNAL = 9;                   // Internal error.
+}
+
+
