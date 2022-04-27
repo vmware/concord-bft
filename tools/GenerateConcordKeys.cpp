@@ -118,6 +118,7 @@ int main(int argc, char** argv) {
     bftEngine::ReplicaConfig& config = bftEngine::ReplicaConfig::instance();
     uint16_t n = 0;
     uint16_t ro = 0;
+    uint16_t f = -1;
     std::string outputPrefix;
 
     std::string slowType = MULTISIG_BLS_SCHEME;
@@ -131,7 +132,7 @@ int main(int argc, char** argv) {
       std::string option(argv[i]);
       if (option == "-f") {
         if (i >= argc - 1) throw std::runtime_error("Expected an argument to -f");
-        config.fVal = parse<std::uint16_t>(argv[i++ + 1], "-f");
+        f = parse<std::uint16_t>(argv[i++ + 1], "-f");
       } else if (option == "-n") {
         if (i >= argc - 1) throw std::runtime_error("Expected an argument to -n");
         // Note we do not enforce a minimum value for n here; since we require
@@ -162,7 +163,8 @@ int main(int argc, char** argv) {
     }
 
     // Check that required parameters were actually given.
-    if (config.fVal == 0) throw std::runtime_error("No value given for required -f parameter");
+    if (f < 0) throw std::runtime_error("-f parameter cannot have negative value");
+    config.fVal = f;
     if (n == 0) throw std::runtime_error("No value given for required -n parameter");
     if (outputPrefix.empty()) throw std::runtime_error("No value given for required -o parameter");
 

@@ -182,7 +182,6 @@ class CollectorOfThresholdSignatures {
   void initExpected(SeqNum seqNumber, ViewNum view, Digest& digest) {
     ConcordAssert(seqNumber != 0);
     ConcordAssert(expectedSeqNumber == 0);
-    ConcordAssert(!processingSignaturesInTheBackground);
 
     expectedSeqNumber = seqNumber;
     expectedView = view;
@@ -193,7 +192,6 @@ class CollectorOfThresholdSignatures {
   bool initMsgWithPartialSignature(PART* partialSigMsg, ReplicaId repId) {
     ConcordAssert(partialSigMsg != nullptr);
 
-    ConcordAssert(!processingSignaturesInTheBackground);
     ConcordAssert(expectedSeqNumber != 0);
     ConcordAssert(combinedValidSignatureMsg == nullptr);
     ConcordAssert(candidateCombinedSignatureMsg == nullptr);
@@ -218,7 +216,6 @@ class CollectorOfThresholdSignatures {
 
   // init the FULL message directly (without sending to a background thread)
   bool initMsgWithCombinedSignature(FULL* combinedSigMsg) {
-    ConcordAssert(!processingSignaturesInTheBackground);
     ConcordAssert(expectedSeqNumber != 0);
     ConcordAssert(combinedValidSignatureMsg == nullptr);
     ConcordAssert(candidateCombinedSignatureMsg == nullptr);

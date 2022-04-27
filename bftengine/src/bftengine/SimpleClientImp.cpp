@@ -222,7 +222,7 @@ SimpleClientImp::SimpleClientImp(ICommunication* communication,
       clientSendsRequestToAllReplicasPeriodThresh_{p.clientSendsRequestToAllReplicasPeriodThresh},
       clientPeriodicResetThresh_{p.clientPeriodicResetThresh},
       pm_{pm} {
-  ConcordAssert(fVal_ >= 1);
+  ConcordAssert(fVal_ >= 0);
 
   timeOfLastTransmission_ = MinTime;
   numberOfTransmissions_ = 0;

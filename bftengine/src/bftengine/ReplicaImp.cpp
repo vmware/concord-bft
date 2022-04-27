@@ -2177,6 +2177,12 @@ void ReplicaImp::onFastPathCommitCombinedSigSucceeded(SeqNum seqNumber,
 
   SeqNumInfo &seqNumInfo = mainLog->get(seqNumber);
 
+  FullCommitProofMsg *fcp = seqNumInfo.getFastPathFullCommitProofMsg();
+  if (fcp != nullptr) {
+    LOG_WARN(CNSUS, "FullCommitProofMsg is already exist (valid only if n == 1)");
+    return;
+  }
+
   seqNumInfo.onCompletionOfCommitSignaturesProcessing(
       seqNumber, view, cPath, combinedSig, combinedSigLen, span_context);
 
@@ -2184,7 +2190,7 @@ void ReplicaImp::onFastPathCommitCombinedSigSucceeded(SeqNum seqNumber,
   seqNumInfo.forceComplete();  // TODO(GG): remove forceComplete() (we know that  seqNumInfo is committed because
   // of the  FullCommitProofMsg message)
 
-  FullCommitProofMsg *fcp = seqNumInfo.getFastPathFullCommitProofMsg();
+  fcp = seqNumInfo.getFastPathFullCommitProofMsg();
   ConcordAssert(fcp != nullptr);
 
   if (ps_) {
