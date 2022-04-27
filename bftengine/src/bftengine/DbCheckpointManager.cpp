@@ -148,7 +148,7 @@ uint64_t DbCheckpointManager::directorySize(const _fs::path& directory, const bo
   uint64_t size{0};
   try {
     if (_fs::exists(directory)) {
-      for (const auto& entry : _fs::recursive_directory_iterator(directory)) {
+      for (const auto& entry : _fs::directory_iterator(directory)) {
         if (_fs::is_regular_file(entry) && !_fs::is_symlink(entry)) {
           if (_fs::hard_link_count(entry) > 1 && excludeHardLinks) continue;
           size += _fs::file_size(entry);
@@ -348,7 +348,8 @@ void DbCheckpointManager::updateMetrics() {
   if (const auto it = dbCheckptMetadata_.dbCheckPoints_.crbegin(); it != dbCheckptMetadata_.dbCheckPoints_.crend()) {
     _fs::path path(checkpointDir);
     _fs::path chkptIdPath = path / std::to_string(it->first);
-    auto lastDbCheckpointSize = directorySize(chkptIdPath, false, true);
+    // db checkpoint directory does not have any sub-directory
+    auto lastDbCheckpointSize = directorySize(chkptIdPath, false, false);
     lastDbCheckpointSizeInMb_.Get().Set(lastDbCheckpointSize / (1024 * 1024));
     metrics_.UpdateAggregator();
     LOG_INFO(getLogger(), "rocksdb check point id:" << it->first << ", size: " << HumanReadable{lastDbCheckpointSize});
