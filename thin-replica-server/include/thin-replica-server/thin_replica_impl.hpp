@@ -275,18 +275,18 @@ class ThinReplicaImpl {
     }
 
     // TRS metrics
-    ThinReplicaServerMetrics metrics_(stream_type, getClientId(context));
-    metrics_.setAggregator(aggregator_);
+    ThinReplicaServerMetrics metrics(stream_type, getClientId(context));
+    metrics.setAggregator(aggregator_);
     uint16_t update_aggregator_counter = 0;
-    metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
+    metrics.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
 
-#define CLEANUP_SUBSCRIPTION()                                                \
-  {                                                                           \
-    config_->subscriber_list.removeBuffer(live_updates);                      \
-    live_updates->removeAllUpdates();                                         \
-    live_updates->removeAllEventGroupUpdates();                               \
-    metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size()); \
-    metrics_.updateAggregator();                                              \
+#define CLEANUP_SUBSCRIPTION()                                               \
+  {                                                                          \
+    config_->subscriber_list.removeBuffer(live_updates);                     \
+    live_updates->removeAllUpdates();                                        \
+    live_updates->removeAllEventGroupUpdates();                              \
+    metrics.subscriber_list_size.Get().Set(config_->subscriber_list.Size()); \
+    metrics.updateAggregator();                                              \
   }
 
     // If legacy event request then mark whether we need to transition into event groups
@@ -394,7 +394,7 @@ class ThinReplicaImpl {
       SubUpdate update;
       try {
         while (!context->IsCancelled() && !is_event_group_transition) {
-          metrics_.queue_size.Get().Set(live_updates->Size());
+          metrics.queue_size.Get().Set(live_updates->Size());
           bool is_update_available = false;
           is_update_available = live_updates->TryPop(update, kWaitForUpdateTimeout);
           if (not is_update_available) {
@@ -424,9 +424,9 @@ class ThinReplicaImpl {
             LOG_DEBUG(logger_, "Live updates send hash");
             sendHash(stream, update.block_id, kvb_filter->hashUpdate(filtered_update));
           }
-          metrics_.last_sent_block_id.Get().Set(update.block_id);
+          metrics.last_sent_block_id.Get().Set(update.block_id);
           if (++update_aggregator_counter == config_->update_metrics_aggregator_thresh) {
-            metrics_.updateAggregator();
+            metrics.updateAggregator();
             update_aggregator_counter = 0;
           }
         }
@@ -462,7 +462,7 @@ class ThinReplicaImpl {
 
     try {
       syncAndSendEventGroups<ServerContextT, ServerWriterT, DataT>(
-          context, event_group_id, live_updates, stream, kvb_filter);
+          context, event_group_id, live_updates, stream, kvb_filter, metrics);
     } catch (StreamCancelled& error) {
       LOG_WARN(logger_, "StreamCancelled in syncAndSendEventGroups: " << error.what());
       CLEANUP_SUBSCRIPTION();
@@ -487,7 +487,7 @@ class ThinReplicaImpl {
     SubEventGroupUpdate sub_eg_update;
     try {
       while (not context->IsCancelled()) {
-        metrics_.queue_size.Get().Set(live_updates->SizeEventGroupQueue());
+        metrics.queue_size.Get().Set(live_updates->SizeEventGroupQueue());
         bool is_update_available = false;
         is_update_available = live_updates->TryPopEventGroup(sub_eg_update, kWaitForUpdateTimeout);
         if (not is_update_available) {
@@ -506,6 +506,7 @@ class ThinReplicaImpl {
         // Once in syncAndSendEventGroups() and once here. Do this only once.
         auto filtered_eg_update = kvb_filter->filterEventGroupUpdate(eg_update);
         if (!filtered_eg_update) {
+          metrics.num_skipped_event_groups++;
           continue;
         }
         // Overwrite event group ID in the filtered update to external event group ID
@@ -522,9 +523,9 @@ class ThinReplicaImpl {
 
         kvb_filter->setLastEgIdsRead(next_ext_eg_id, sub_eg_update.event_group_id);
 
-        metrics_.last_sent_event_group_id.Get().Set(filtered_eg_update.value().event_group_id);
+        metrics.last_sent_event_group_id.Get().Set(filtered_eg_update.value().event_group_id);
         if (++update_aggregator_counter == config_->update_metrics_aggregator_thresh) {
-          metrics_.updateAggregator();
+          metrics.updateAggregator();
           update_aggregator_counter = 0;
         }
       }
@@ -934,7 +935,8 @@ class ThinReplicaImpl {
                               kvbc::EventGroupId start,
                               std::shared_ptr<SubUpdateBuffer>& live_updates,
                               ServerWriterT* stream,
-                              std::shared_ptr<kvbc::KvbAppFilter>& kvb_filter) {
+                              std::shared_ptr<kvbc::KvbAppFilter>& kvb_filter,
+                              ThinReplicaServerMetrics& metrics) {
     auto start_ext_storage_eg_id = kvb_filter->oldestExternalEventGroupId();
     auto end_ext_storage_eg_id = kvb_filter->newestExternalEventGroupId();
     if (start < start_ext_storage_eg_id || (end_ext_storage_eg_id && !start_ext_storage_eg_id)) {
@@ -959,7 +961,6 @@ class ThinReplicaImpl {
         logger_, context, stream, start, end_ext_storage_eg_id, kvb_filter);
 
     bool is_update_available = false;
-    int num_updates_filtered_out = 0;
     auto next_global_eg_id_to_read = kvb_filter->getLastEgIdsRead().second + 1;
     while (not is_update_available) {
       is_update_available = live_updates->waitForEventGroupUntilNonEmpty(kWaitForUpdateTimeout);
@@ -989,9 +990,9 @@ class ThinReplicaImpl {
           SubEventGroupUpdate sub_eg_update;
           live_updates->PopEventGroup(sub_eg_update);
           LOG_DEBUG(logger_, "Sync dropping upon filtering " << sub_eg_update.event_group_id);
-          num_updates_filtered_out++;
           is_update_available = false;
           next_global_eg_id_to_read += 1;
+          metrics.num_skipped_event_groups++;
           continue;
         }
         // The next event group in the live update queue has events for this client.
@@ -1015,6 +1016,7 @@ class ThinReplicaImpl {
         auto filtered_eg_update = kvb_filter->filterEventGroupUpdate(eg_update_from_storage);
         if (!filtered_eg_update) {
           next_global_eg_id_to_read++;
+          metrics.num_skipped_event_groups++;
           continue;
         }
         // Overwrite event group ID in the filtered update to external event group ID:
