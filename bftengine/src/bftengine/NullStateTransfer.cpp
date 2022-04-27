@@ -53,8 +53,6 @@ bool NullStateTransfer::isRunning() const { return running; }
 
 void NullStateTransfer::createCheckpointOfCurrentState(uint64_t checkpointNumber) {}
 
-void NullStateTransfer::markCheckpointAsStable(uint64_t checkpointNumber) {}
-
 void NullStateTransfer::getDigestOfCheckpoint(uint64_t checkpointNumber,
                                               uint16_t sizeOfDigestBuffer,
                                               uint64_t& outBlockId,
