@@ -66,6 +66,15 @@ Component::Handle<Counter> Component::RegisterCounter(const string& name, const 
   return Component::Handle<Counter>(values_.counters_, values_.counters_.size() - 1, metricsEnabled_);
 }
 
+Component::Handle<Counter> Component::RegisterCounter(const string& name,
+                                                      const uint64_t val,
+                                                      const std::unordered_map<std::string, std::string>& tag_map) {
+  names_.counter_names_.emplace_back(name);
+  tags_.counter_tags_.emplace_back(tag_map);
+  values_.counters_.emplace_back(Counter(val));
+  return Component::Handle<Counter>(values_.counters_, values_.counters_.size() - 1, metricsEnabled_);
+}
+
 Component::Handle<AtomicCounter> Component::RegisterAtomicCounter(const std::string& name, const uint64_t val) {
   names_.atomic_counter_names_.emplace_back(name);
   values_.atomic_counters_.emplace_back(AtomicCounter(val));
@@ -99,7 +108,11 @@ std::list<Metric> Component::CollectCounters() {
   if (!metricsEnabled_) return list<Metric>();
   std::list<Metric> ret;
   for (size_t i = 0; i < names_.counter_names_.size(); i++) {
-    ret.emplace_back(Metric{name_, names_.counter_names_[i], values_.counters_[i]});
+    if (tags_.counter_tags_.size() > i) {
+      ret.emplace_back(Metric{name_, names_.counter_names_[i], values_.counters_[i], tags_.counter_tags_[i]});
+    } else {
+      ret.emplace_back(Metric{name_, names_.counter_names_[i], values_.counters_[i]});
+    }
   }
   for (std::size_t i = 0; i < names_.atomic_counter_names_.size(); i++) {
     ret.emplace_back(Metric{name_, names_.atomic_counter_names_[i], Counter(values_.atomic_counters_[i].Get())});

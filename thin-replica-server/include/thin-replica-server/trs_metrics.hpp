@@ -27,7 +27,9 @@ struct ThinReplicaServerMetrics {
         last_sent_block_id{metrics_component_.RegisterGauge(
             "last_sent_block_id", 0, {{"stream_type", stream_type}, {"client_id", client_id}})},
         last_sent_event_group_id{metrics_component_.RegisterGauge(
-            "last_sent_event_group_id", 0, {{"stream_type", stream_type}, {"client_id", client_id}})} {
+            "last_sent_event_group_id", 0, {{"stream_type", stream_type}, {"client_id", client_id}})},
+        num_skipped_event_groups{metrics_component_.RegisterCounter(
+            "num_skipped_event_groups", 0, {{"stream_type", stream_type}, {"client_id", client_id}})} {
     metrics_component_.Register();
   }
 
@@ -49,6 +51,8 @@ struct ThinReplicaServerMetrics {
   concordMetrics::GaugeHandle last_sent_block_id;
   // last sent event group id
   concordMetrics::GaugeHandle last_sent_event_group_id;
+  // number of event groups skipped after filtering
+  concordMetrics::CounterHandle num_skipped_event_groups;
 };
 }  // namespace thin_replica
 }  // namespace concord
