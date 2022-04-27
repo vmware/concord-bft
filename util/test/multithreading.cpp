@@ -19,6 +19,8 @@
 #include <thread>
 #include <chrono>
 #include <array>
+#include <future>
+
 using namespace concord;
 namespace test {
 namespace mt {
@@ -94,21 +96,135 @@ using namespace std::placeholders;
 class HandoffFixture : public testing::Test {
  protected:
   // Sets up the test fixture.
-  virtual void SetUp() {
-    ASSERT_GT(std::thread::hardware_concurrency(), 1);
-    handoff_ = new concord::util::Handoff(0);
-  }
+  virtual void SetUp() { ASSERT_GT(std::thread::hardware_concurrency(), 1); }
 
-  concord::util::Handoff* handoff_;
-  std::atomic_int result = 0;
+  HandoffFixture() : handoff_(0){};
+  concord::util::Handoff handoff_;
+
+  std::string str_result;
+  std::atomic_int result{};
+  int num_calls{};
 };
 
 TEST_F(HandoffFixture, Basic) {
-  auto g = std::bind([this](int i) { this->result += i; }, _1);
-  auto f = std::bind(&concord::util::Handoff::push, handoff_, _1);
-  for (int i = 1; i <= 100; ++i) f(std::bind(g, i));
-  delete handoff_;
-  EXPECT_EQ(result, 5050);
+  using namespace std::chrono_literals;
+  static constexpr size_t count_iterations{10000};
+  auto g = std::bind(
+      [this](int i) {
+        result += i;
+        ++num_calls;
+      },
+      _1);
+  auto f = std::bind(&concord::util::Handoff::push, &handoff_, _1, _2);
+
+  // run count_iterations unblocked, and then count_iterations blocked
+  num_calls = 0;
+  for (size_t i{}; i < 2; ++i) {
+    for (size_t j = 1; j <= count_iterations; ++j) {
+      f(std::bind(g, j), static_cast<bool>(i));
+    }
+  }
+
+  // let consumer thread finish processing
+  std::this_thread::sleep_for(2000ms);
+  ASSERT_TRUE(handoff_.empty());
+  ASSERT_EQ(handoff_.size(), 0);
+  ASSERT_EQ(num_calls, 2 * count_iterations);
+  ASSERT_EQ(result, count_iterations * (1 + count_iterations));  // Sum of 2 arithmetic progression series
+
+  // push async call to sleep 1 seconds on consumer thread, then push 100 additional async calls.
+  // Since consumer thread will be still sleeping on the initial call - all 100 async calls are pending. Now, push
+  // count_iterations blocking calls. We expect them to get executed 1st.
+  // sync calls are represented by numeric characters '1' and '2' (rotating).
+  // async calls are represented by the letter 'a';
+  std::srand(std::time(nullptr));
+  num_calls = 0;
+  auto s = std::bind(
+      [this](char c) {
+        this->str_result += c;
+        ++num_calls;
+      },
+      _1);
+
+  // put consumer thread to sleep
+  f(std::bind([]() { std::this_thread::sleep_for(2000ms); }), false);
+
+  // push count_iterations async calls
+  for (size_t j = 1; j <= count_iterations; ++j) {
+    f(std::bind(s, ((j % 2) != 0) ? '1' : '2'), false);
+  }
+
+  // now push count_iterations sync calls
+  std::vector<std::future<void>> v;
+  for (size_t j = 1; j <= count_iterations; ++j) {
+    v.emplace_back(std::async(std::launch::async, f, std::bind(s, 'a'), true));
+  }
+
+  for (const auto& e : v) {
+    e.wait();
+  }
+
+  // let consumer finish process all blocked calls
+  std::this_thread::sleep_for(2000ms);
+
+  // now check that str_result has the pattern of ababab....121212: all calls are ordered, sync calls before  async
+  ASSERT_EQ(handoff_.size(), 0);
+  ASSERT_TRUE(handoff_.empty());
+  ASSERT_EQ(num_calls, 2 * count_iterations);
+  ASSERT_EQ(str_result.size(), count_iterations * 2);
+
+  for (size_t j{0}, i{0}; j < str_result.size(); ++j, ++i) {
+    if (j < count_iterations) {
+      ASSERT_EQ(str_result[j], 'a');
+    } else {
+      if (j == count_iterations) {
+        i = 0;
+      }
+      if ((i % 2) == 0) {
+        ASSERT_EQ(str_result[j], '1');
+      } else {
+        ASSERT_EQ(str_result[j], '2');
+      }
+    }
+  }
+
+  // Now, check that when we define a function with an out value, we get the required return value
+  // 1) multiply 2 values and get the result into result
+  // 2) append a string "_hello" into msg="123"
+  auto multiply = std::bind(
+      [this](size_t n, size_t m, size_t* result) {
+        *result = m * n;
+        ++num_calls;
+      },
+      _1,
+      _2,
+      _3);
+
+  auto appendStr = std::bind(
+      [this](std::string& str, std::string&& str_append) {
+        str.append(str_append);
+        ++num_calls;
+      },
+      _1,
+      _2);
+
+  // do the same thing once blocked, and once non-blocked
+  for (size_t i{}; i < 2; ++i) {
+    num_calls = 0;
+    size_t result{};
+    std::string msg{"123"};
+    f(std::bind(multiply, 6, 8, &result), (i == 0));
+    f(std::bind(appendStr, std::ref(msg), "_hello"), (i == 0));
+    if (i != 0) {
+      // async call, wait for short time
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    ASSERT_EQ(handoff_.size(), 0) << KVLOG(i);
+    ASSERT_TRUE(handoff_.empty()) << KVLOG(i);
+    ASSERT_EQ(num_calls, 2) << KVLOG(i);
+    ASSERT_EQ(result, 6 * 8) << KVLOG(i);
+    ASSERT_EQ(msg, "123_hello") << KVLOG(i);
+  }
 }
 
 }  // namespace mt
