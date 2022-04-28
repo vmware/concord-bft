@@ -55,21 +55,21 @@ int64_t getpid();
 #define logperf std::clog << LOG_PREFIX << "PERF" << LOG_SUFFIX
 #define logerrno logErrNo()
 
-#ifndef NDEBUG
+#ifdef UTT_LOG_DEBUG
 #define logdbg std::clog << LOG_PREFIX << "DEBUG" << LOG_SUFFIX
 #else
 #define logdbg \
   if (false) coredumpOstream()
 #endif
 
-#ifdef TRACE
+#ifdef UTT_LOG_TRACE
 #define logtrace std::clog << LOG_PREFIX << "TRACE" << LOG_SUFFIX
 #else
 #define logtrace \
   if (false) coredumpOstream()
 #endif
 
-#ifdef LOG_ALLOC
+#ifdef UTT_LOG_ALLOC
 #define logalloc std::clog << LOG_PREFIX << "ALLOC" << LOG_SUFFIX
 #else
 #define logalloc \

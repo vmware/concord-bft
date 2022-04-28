@@ -128,10 +128,10 @@ endif()
 string(APPEND CMAKE_CXX_FLAGS 
     " ${CXX_FLAGS}")
 string(APPEND CMAKE_CXX_FLAGS_DEBUG 
-    " ${CXX_FLAGS_DEBUG}")
+    " ${CXX_FLAGS_DEBUG} -DUTT_LOG_DEBUG")
 # When building with 'cmake -DCMAKE_BUILD_TYPE=Trace'
 string(APPEND CMAKE_CXX_FLAGS_TRACE 
-    " ${CXX_FLAGS_DEBUG} -DTRACE")
+    " ${CXX_FLAGS_DEBUG} -DUTT_LOG_TRACE")
 
 # using Clang
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")

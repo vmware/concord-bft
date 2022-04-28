@@ -4,7 +4,7 @@
 namespace libutt::Client {
 
 //////////////////////////////////////////////////////////////////////////////////////////////
-Tx createTx_1t1(const Wallet& w, size_t coinIdx, const std::string& pid) {
+Tx createTx_1t1(const Wallet& w, size_t coinIdx, const std::string& pid, CreateTxEvent& outEvent) {
   logdbg << "Creating a 1t1 tx from '" << w.ask.getPid() << "' to '" << pid << "'\n";
 
   std::vector<Coin> inputCoins = std::vector<Coin>{w.coins.at(coinIdx)};
@@ -18,11 +18,16 @@ Tx createTx_1t1(const Wallet& w, size_t coinIdx, const std::string& pid) {
   logdbg << "Sending $" << payment.as_ulong() << " payment\n";
   logdbg << "Using $" << inputCoins[0].getValue() << " coin and $" << budgetCoin.getValue() << " bcoin\n";
 
+  outEvent.txType_ = "1-to-1 transfer";
+  outEvent.paymentCoinValue_ = payment.as_ulong();
+  outEvent.budgetCoinValue_ = budgetCoin.getValue();
+  outEvent.inputCoinValues_.emplace_back(inputCoins[0].getValue());
+
   return Tx(w.p, w.ask, inputCoins, budgetCoin, recip, w.bpk, w.rpk);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
-Tx createTx_1t2(const Wallet& w, size_t coinIdx, size_t payment, const std::string& pid) {
+Tx createTx_1t2(const Wallet& w, size_t coinIdx, size_t payment, const std::string& pid, CreateTxEvent& outEvent) {
   logdbg << "Creating a 1t2 tx from '" << w.ask.getPid() << "' to '" << pid << "'\n";
 
   std::vector<Coin> inputCoins = std::vector<Coin>{w.coins.at(coinIdx)};
@@ -41,11 +46,17 @@ Tx createTx_1t2(const Wallet& w, size_t coinIdx, size_t payment, const std::stri
   logdbg << "Using $" << inputCoins[0].getValue() << " coin and $" << budgetCoin.getValue() << " bcoin\n";
   logdbg << "Change is $" << value2.as_ulong() << '\n';
 
+  outEvent.txType_ = "1-to-2 transfer";
+  outEvent.paymentCoinValue_ = value1.as_ulong();
+  outEvent.budgetCoinValue_ = budgetCoin.getValue();
+  outEvent.inputCoinValues_.emplace_back(inputCoins[0].getValue());
+  outEvent.changeCoinValue_ = value2.as_ulong();
+
   return Tx(w.p, w.ask, inputCoins, budgetCoin, recip, w.bpk, w.rpk);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
-Tx createTx_2t1(const Wallet& w, size_t coinIdx1, size_t coinIdx2, const std::string& pid) {
+Tx createTx_2t1(const Wallet& w, size_t coinIdx1, size_t coinIdx2, const std::string& pid, CreateTxEvent& outEvent) {
   logdbg << "Creating a 2t1 tx from '" << w.ask.getPid() << "' to '" << pid << "'\n";
 
   std::vector<Coin> inputCoins = std::vector<Coin>{w.coins.at(coinIdx1), w.coins.at(coinIdx2)};
@@ -60,11 +71,22 @@ Tx createTx_2t1(const Wallet& w, size_t coinIdx1, size_t coinIdx2, const std::st
   logdbg << "Using {$" << inputCoins[0].getValue() << ", $" << inputCoins[1].getValue() << "} coins and $"
          << budgetCoin.getValue() << " bcoin\n";
 
+  outEvent.txType_ = "2-to-1 transfer";
+  outEvent.paymentCoinValue_ = totalValue.as_ulong();
+  outEvent.budgetCoinValue_ = budgetCoin.getValue();
+  outEvent.inputCoinValues_.emplace_back(inputCoins[0].getValue());
+  outEvent.inputCoinValues_.emplace_back(inputCoins[1].getValue());
+
   return Tx(w.p, w.ask, inputCoins, budgetCoin, recip, w.bpk, w.rpk);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
-Tx createTx_2t2(const Wallet& w, size_t coinIdx1, size_t coinIdx2, size_t payment, const std::string& pid) {
+Tx createTx_2t2(const Wallet& w,
+                size_t coinIdx1,
+                size_t coinIdx2,
+                size_t payment,
+                const std::string& pid,
+                CreateTxEvent& outEvent) {
   logdbg << "Creating a 2t2 tx from '" << w.ask.getPid() << "' to '" << pid << "'\n";
 
   std::vector<Coin> inputCoins = std::vector<Coin>{w.coins.at(coinIdx1), w.coins.at(coinIdx2)};
@@ -84,11 +106,18 @@ Tx createTx_2t2(const Wallet& w, size_t coinIdx1, size_t coinIdx2, size_t paymen
          << budgetCoin.getValue() << " bcoin\n";
   logdbg << "Change is $" << value2.as_ulong() << '\n';
 
+  outEvent.txType_ = "2-to-2 transfer";
+  outEvent.paymentCoinValue_ = value1.as_ulong();
+  outEvent.budgetCoinValue_ = budgetCoin.getValue();
+  outEvent.inputCoinValues_.emplace_back(inputCoins[0].getValue());
+  outEvent.inputCoinValues_.emplace_back(inputCoins[1].getValue());
+  outEvent.changeCoinValue_ = value2.as_ulong();
+
   return Tx(w.p, w.ask, inputCoins, budgetCoin, recip, w.bpk, w.rpk);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
-Tx createTx_Self2t1(const Wallet& w, size_t coinIdx1, size_t coinIdx2) {
+Tx createTx_Self2t1(const Wallet& w, size_t coinIdx1, size_t coinIdx2, CreateTxEvent& outEvent) {
   logdbg << "Creating a self 2t1 tx for '" << w.ask.getPid() << "'\n";
 
   std::vector<Coin> inputCoins = std::vector<Coin>{w.coins.at(coinIdx1), w.coins.at(coinIdx2)};
@@ -100,6 +129,11 @@ Tx createTx_Self2t1(const Wallet& w, size_t coinIdx1, size_t coinIdx2) {
 
   logdbg << "Merged coin is $" << totalValue.as_ulong() << '\n';
   logdbg << "Using {$" << inputCoins[0].getValue() << ", $" << inputCoins[1].getValue() << "} coins\n";
+
+  outEvent.txType_ = "coin-merge";
+  outEvent.paymentCoinValue_ = totalValue.as_ulong();
+  outEvent.inputCoinValues_.emplace_back(inputCoins[0].getValue());
+  outEvent.inputCoinValues_.emplace_back(inputCoins[1].getValue());
 
   return Tx(w.p, w.ask, inputCoins, std::nullopt, recip, w.bpk, w.rpk);
 }
@@ -115,13 +149,14 @@ size_t calcBalance(const Wallet& w) {
 size_t calcBudget(const Wallet& w) { return w.budgetCoin ? w.budgetCoin->getValue() : 0; }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
-CoinStrategy k_CoinStrategyPreferExactChange = [](const Wallet& w, const std::string& pid, size_t payment) -> Tx {
+CoinStrategy k_CoinStrategyPreferExactChange =
+    [](const Wallet& w, const std::string& pid, size_t payment, CreateTxEvent& outEvent) -> Tx {
   // Precondition: 0 < payment <= budget <= balance
 
   // Variant 1: Prefer exact payments (using sorted coins)
   //
-  // (1) look for a single coin where value >= k, an exact coin will be prefered
-  // (2) look for two coins with total value >= k, an exact sum will be prefered
+  // (1) look for a single coin where value >= k, an exact coin will be preferred
+  // (2) look for two coins with total value >= k, an exact sum will be preferred
   // (3) no two coins sum up to k, do a merge on the largest two coins
 
   // Example 1 (1 coin match):
@@ -166,9 +201,9 @@ CoinStrategy k_CoinStrategyPreferExactChange = [](const Wallet& w, const std::st
   if (lb != aux.end()) {
     // We can pay with one coin
     if (lb->first > payment) {
-      return createTx_1t2(w, lb->second, payment, pid);
+      return createTx_1t2(w, lb->second, payment, pid, outEvent);
     } else {
-      return createTx_1t1(w, lb->second, pid);
+      return createTx_1t1(w, lb->second, pid, outEvent);
     }
   } else {  // Try to pay with two coins
     // We know that our balance is enough and no coin is >= payment (because lower_bound == end)
@@ -194,20 +229,21 @@ CoinStrategy k_CoinStrategyPreferExactChange = [](const Wallet& w, const std::st
     }
 
     if (exactMatch) {
-      return createTx_2t1(w, exactMatch->first, exactMatch->second, pid);
+      return createTx_2t1(w, exactMatch->first, exactMatch->second, pid, outEvent);
     } else if (match) {
-      return createTx_2t2(w, match->first, match->second, payment, pid);
+      return createTx_2t2(w, match->first, match->second, payment, pid, outEvent);
     }
   }
 
   // At this point no one or two coins are sufficient to do the payment
   // We merge the top two coins
   const auto lastIdx = aux.size() - 1;
-  return createTx_Self2t1(w, aux[lastIdx - 1].second, aux[lastIdx].second);
+  return createTx_Self2t1(w, aux[lastIdx - 1].second, aux[lastIdx].second, outEvent);
 };
 
 //////////////////////////////////////////////////////////////////////////////////////////////
-Tx createTxForPayment(const Wallet& w, const std::string& pid, size_t payment, const CoinStrategy& strategy) {
+Tx createTxForPayment(
+    const Wallet& w, const std::string& pid, size_t payment, CreateTxEvent& outEvent, const CoinStrategy& strategy) {
   if (!strategy) throw std::runtime_error("Coin strategy not provided!");
   if (w.coins.empty()) throw std::runtime_error("Wallet has no coins!");
   if (pid.empty()) throw std::runtime_error("Empty pid!");
@@ -218,15 +254,17 @@ Tx createTxForPayment(const Wallet& w, const std::string& pid, size_t payment, c
   const size_t budget = calcBudget(w);
   if (budget < payment) throw std::runtime_error("Wallet has insufficient anonymous budget!");
 
-  return strategy(w, pid, payment);
+  return strategy(w, pid, payment, outEvent);
 }
 
+//////////////////////////////////////////////////////////////////////////////////////////////
 void tryClaimCoin(Wallet& w,
                   const Tx& tx,
                   size_t txoIdx,
                   const std::vector<RandSigShare>& sigShares,
                   const std::vector<size_t>& signerIds,
-                  size_t n) {
+                  size_t n,
+                  std::optional<ClaimEvent>& outEvent) {
   auto& txo = tx.outs.at(txoIdx);
 
   Fr val;  // coin value
@@ -307,8 +345,7 @@ void tryClaimCoin(Wallet& w,
   logdbg << "User '" << w.getUserPid() << "' claims " << ((c.isBudget()) ? "budget" : "normal") << " coin $"
          << c.getValue() << '\n';
 
-  // We need to reset the budget coin before we can add a new one that reflects the payment
-  if (c.isBudget()) w.budgetCoin.reset();
+  outEvent = ClaimEvent{c.isBudget(), c.getValue()};
 
   w.addCoin(c);  // Adds either a normal or budget coin
 }
