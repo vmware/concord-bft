@@ -629,7 +629,8 @@ class SkvbcViewChangeTest(ApolloTest):
         await skvbc.run_concurrent_ops(10)
 
         initial_primary = await bft_network.get_current_primary()
-        await bft_network.wait_for_replicas_to_reach_view(bft_network.all_replicas(), 1)
+        expected_view = 0
+        await bft_network.wait_for_replicas_to_reach_view(bft_network.all_replicas(), expected_view)
 
         to_stop = random.sample(
             bft_network.all_replicas(without={initial_primary}), bft_network.config.f + 1)
@@ -659,8 +660,10 @@ class SkvbcViewChangeTest(ApolloTest):
 
         [bft_network.start_replica(i) for i in to_stop]
 
+        expected_view = expected_view + 1
+
         # wait for replicas to go to higher view (View 1 in this case)
-        await bft_network.wait_for_replicas_to_reach_view(bft_network.all_replicas(), 2)
+        await bft_network.wait_for_replicas_to_reach_view(bft_network.all_replicas(), expected_view)
 
         # stop replicas
         [bft_network.stop_replica(i) for i in bft_network.all_replicas()]
@@ -764,3 +767,16 @@ class SkvbcViewChangeTest(ApolloTest):
                     break
                 else:
                     await trio.sleep(.5)
+
+    async def _get_gauge(self, replica_id, bft_network, gauge):
+        with trio.fail_after(seconds=30):
+            while True:
+                with trio.move_on_after(seconds=1):
+                    try:
+                        key = ['replica', 'Gauges', gauge]
+                        value = await bft_network.metrics.get(replica_id, *key)
+                    except KeyError:
+                        # metrics not yet available, continue looping
+                        log.log_message(message_type=f"KeyError! '{gauge}' not yet available.")
+                    else:
+                        return value
