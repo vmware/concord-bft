@@ -51,6 +51,8 @@ class Blockchain {
   BlockId deleteBlocksUntil(BlockId until);
   void deleteGenesisBlock();
   void deleteLastReachableBlock(storage::rocksdb::NativeWriteBatch&);
+  ///////////////////State Transfer/////////////////////////////////
+  bool hasBlock(BlockId) const;
   ///////////////////////////////////////////////////////////////
   // Loads from storage the last and first block ids respectivly.
   std::optional<BlockId> loadLastReachableBlockId();
@@ -64,6 +66,7 @@ class Blockchain {
   std::optional<std::string> getBlockData(concord::kvbc::BlockId id) const;
   std::optional<categorization::Updates> getBlockUpdates(BlockId id) const;
 
+  concord::util::digest::BlockDigest getBlockParentDigest(concord::kvbc::BlockId id) const;
   concord::util::digest::BlockDigest calculateBlockDigest(concord::kvbc::BlockId id) const;
 
   // Generates a key (big endian string representation) from the block id.

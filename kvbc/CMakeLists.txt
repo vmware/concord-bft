@@ -42,6 +42,7 @@ add_library(kvbc  src/ClientImp.cpp
     src/kvbc_adapter/categorization/blocks_deleter_adapter.cpp
 
     src/kvbc_adapter/v4blockchain/blocks_deleter_adapter.cpp
+    src/kvbc_adapter/v4blockchain/app_state_adapter.cpp
 
     src/kvbc_adapter/replica_adapter.cpp
 )
