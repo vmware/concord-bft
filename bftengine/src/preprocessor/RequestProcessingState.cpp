@@ -27,7 +27,7 @@ uint16_t RequestProcessingState::numOfRequiredEqualReplies_ = 0;
 PreProcessorRecorder *RequestProcessingState::preProcessorHistograms_ = nullptr;
 
 void RequestProcessingState::init(uint16_t numOfRequiredReplies, PreProcessorRecorder *histograms) {
-  LOG_INFO(logger(), "RequestProcessingstate init:" << KVLOG(numOfRequiredReplies));
+  LOG_INFO(logger(), "RequestProcessingState init:" << KVLOG(numOfRequiredReplies));
   numOfRequiredEqualReplies_ = numOfRequiredReplies;
   preProcessorHistograms_ = histograms;
 }
@@ -89,7 +89,6 @@ void RequestProcessingState::updatePreProcessResultData(OperationResult preProce
 void RequestProcessingState::handlePrimaryPreProcessed(const char *preProcessResultData,
                                                        uint32_t preProcessResultLen,
                                                        OperationResult preProcessResult) {
-  preprocessingRightNow_ = false;
   primaryPreProcessResult_ = preProcessResult;
   if (preProcessResult != OperationResult::UNKNOWN) {
     primaryPreProcessResultData_ = preProcessResultData;
