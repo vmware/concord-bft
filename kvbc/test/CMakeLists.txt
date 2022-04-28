@@ -245,6 +245,18 @@ if (BUILD_ROCKSDB_STORAGE)
         stdc++fs
     )
 
+    add_executable(v4_st_chain_unit_test
+        v4blockchain/st_chain_test.cpp )
+    add_test(v4_st_chain_unit_test v4_st_chain_unit_test)
+    target_link_libraries(v4_st_chain_unit_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
+
     add_executable(v4_categories_unit_test
         v4blockchain/categories_test.cpp )
     add_test(v4_categories_unit_test v4_categories_unit_test)
@@ -273,6 +285,18 @@ if (BUILD_ROCKSDB_STORAGE)
         v4blockchain/blockchain_test.cpp )
     add_test(v4_blockchain_unit_test v4_blockchain_unit_test)
     target_link_libraries(v4_blockchain_unit_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
+
+    add_executable(app_state_adapter_test
+    kvbc_adapter/v4blockchain/app_state_adapter_test.cpp )
+    add_test(app_state_adapter_test app_state_adapter_test)
+    target_link_libraries(app_state_adapter_test PUBLIC
         GTest::Main
         GTest::GTest
         util

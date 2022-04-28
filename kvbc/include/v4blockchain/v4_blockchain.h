@@ -35,10 +35,38 @@ class KeyValueBlockchain {
 
   /////////////////////// Add Block ///////////////////////
   BlockId add(categorization::Updates&&);
+  BlockId add(const categorization::Updates&, storage::rocksdb::NativeWriteBatch&);
   ////////////////////// DELETE //////////////////////////
   BlockId deleteBlocksUntil(BlockId until);
   void deleteGenesisBlock();
   void deleteLastReachableBlock();
+  ///////////////////// State Transfer////////////////////
+  // Returns true if a block exists in the blockchain or state-transfer chain
+  bool hasBlock(BlockId) const;
+  // if the block exists, returns the content of the block i.e. raw block
+  // the block origin can be the blockchain or the state-transfer chain
+  std::optional<std::string> getBlockData(const BlockId&) const;
+  // Insert the block buffer to the ST chain, if last block is true, it links the ST chain
+  // To the blockchain.
+  void addBlockToSTChain(const BlockId&, const char* block, const uint32_t blockSize, bool lastBlock);
+  // Adds a range of blocks from the ST chain to the blockchain,
+  // The rangs starts from the blockchain last_reachable +1
+  size_t linkUntilBlockId(BlockId until_block_id);
+  // Adds consecutive blocks from the ST chain to the blockchain until ST chain is empty or a gap is found.
+  void linkSTChain();
+  // Atomic delete block from the ST chain and add to the blockchain.
+  void writeSTLinkTransaction(const BlockId, const categorization::Updates&);
+  // Each block contains the genesis block at the time of that block insertion.
+  // On State-transfer, we read this key and prune up to this block.
+  void pruneOnSTLink(const categorization::Updates&);
+  // Gets the digest from block, the digest represents the digest of the previous block i.e. parent digest
+  concord::util::digest::BlockDigest parentDigest(BlockId block_id) const;
+  std::optional<BlockId> getLastStatetransferBlockId() const;
+
+  ///////////////////// READER///////////////////////////////////////////////////
+ public:
+  BlockId getLastReachableBlockId() const { return block_chain_.getLastReachable(); }
+  BlockId getGenesisBlockId() const { return block_chain_.getGenesisBlockId(); }
 
   //////////////////Garbage collection for Keys that use TimeStamp API///////////////////////////
   // Using the RocksDB timestamp API, means that older user versions are not being deleted
@@ -61,6 +89,7 @@ class KeyValueBlockchain {
   void addGenesisBlockKey(categorization::Updates& updates) const;
 
   const v4blockchain::detail::Blockchain& getBlockchain() const { return block_chain_; };
+  const v4blockchain::detail::StChain& getStChain() const { return state_transfer_chain_; };
   const v4blockchain::detail::LatestKeys& getLatestKeys() const { return latest_keys_; };
 
  private:

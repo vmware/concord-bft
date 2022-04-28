@@ -24,6 +24,7 @@
 #include "v4blockchain/detail/column_families.h"
 #include "categorization/db_categories.h"
 #include "block_metadata.hpp"
+#include "kvbc_key_types.hpp"
 
 using concord::storage::rocksdb::NativeClient;
 using namespace concord::kvbc;
@@ -712,6 +713,303 @@ TEST_F(v4_kvbc, delete_last_reachable) {
     ASSERT_FALSE(val.has_value());
   }
   ASSERT_EQ(blockchain.getBlockchain().getLastReachable(), 2);
+}
+
+/////////////////STATE TRANSFER//////////////////////
+TEST_F(v4_kvbc, has_blocks) {
+  v4blockchain::KeyValueBlockchain blockchain{
+      db,
+      true,
+      std::map<std::string, categorization::CATEGORY_TYPE>{
+          {"merkle", categorization::CATEGORY_TYPE::block_merkle},
+          {"versioned", categorization::CATEGORY_TYPE::versioned_kv},
+          {"versioned_2", categorization::CATEGORY_TYPE::versioned_kv},
+          {"immutable", categorization::CATEGORY_TYPE::immutable},
+          {categorization::kConcordInternalCategoryId, categorization::CATEGORY_TYPE::versioned_kv}}};
+
+  // Add block1
+  {
+    categorization::Updates updates;
+    categorization::BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key1", "merkle_value1");
+    merkle_updates.addUpdate("merkle_key2", "merkle_value2");
+    updates.add("merkle", std::move(merkle_updates));
+
+    categorization::VersionedUpdates ver_updates;
+    ver_updates.calculateRootHash(true);
+    ver_updates.addUpdate("ver_key1", "ver_val1");
+    ver_updates.addUpdate("ver_key2", categorization::VersionedUpdates::Value{"ver_val2", true});
+    updates.add("versioned", std::move(ver_updates));
+    ASSERT_EQ(blockchain.add(std::move(updates)), (BlockId)1);
+  }
+
+  ASSERT_TRUE(blockchain.hasBlock(1));
+  ASSERT_TRUE(blockchain.getBlockData(1).has_value());
+  ASSERT_FALSE(blockchain.hasBlock(2));
+  ASSERT_FALSE(blockchain.getBlockData(2).has_value());
+
+  // add block the the ST chain
+  auto block = std::string("block");
+  blockchain.addBlockToSTChain(2, block.c_str(), block.size(), false);
+  ASSERT_TRUE(blockchain.hasBlock(2));
+  auto st_block = blockchain.getBlockData(2);
+  ASSERT_TRUE(st_block.has_value());
+  ASSERT_EQ(*st_block, block);
+}
+
+TEST_F(v4_kvbc, add_blocks_to_st_chain) {
+  v4blockchain::KeyValueBlockchain blockchain{
+      db,
+      true,
+      std::map<std::string, categorization::CATEGORY_TYPE>{
+          {"merkle", categorization::CATEGORY_TYPE::block_merkle},
+          {"versioned", categorization::CATEGORY_TYPE::versioned_kv},
+          {"versioned_2", categorization::CATEGORY_TYPE::versioned_kv},
+          {"immutable", categorization::CATEGORY_TYPE::immutable},
+          {categorization::kConcordInternalCategoryId, categorization::CATEGORY_TYPE::versioned_kv}}};
+
+  std::string block_data;
+  // Add block1
+  {
+    categorization::Updates updates;
+    categorization::BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key1", "merkle_value1");
+    merkle_updates.addUpdate("merkle_key2", "merkle_value2");
+    updates.add("merkle", std::move(merkle_updates));
+
+    categorization::VersionedUpdates ver_updates;
+    ver_updates.calculateRootHash(true);
+    ver_updates.addUpdate("ver_key1", "ver_val1");
+    ver_updates.addUpdate("ver_key2", categorization::VersionedUpdates::Value{"ver_val2", true});
+    updates.add("versioned", std::move(ver_updates));
+    ASSERT_EQ(blockchain.add(std::move(updates)), (BlockId)1);
+  }
+
+  // Add st block with id 3 i.e. block 2 is missing.
+  block_data = *(blockchain.getBlockData(1));
+  blockchain.addBlockToSTChain(3, block_data.c_str(), block_data.size(), false);
+  blockchain.addBlockToSTChain(5, block_data.c_str(), block_data.size(), false);
+  ASSERT_FALSE(blockchain.hasBlock(2));
+  ASSERT_TRUE(blockchain.hasBlock(3));
+  ASSERT_EQ(blockchain.getLastReachableBlockId(), 1);
+  blockchain.linkSTChain();
+  ASSERT_EQ(blockchain.getLastReachableBlockId(), 1);
+  // now add block 2 and link will add until block 3
+  blockchain.addBlockToSTChain(2, block_data.c_str(), block_data.size(), false);
+  blockchain.linkSTChain();
+  ASSERT_EQ(blockchain.getLastReachableBlockId(), 3);
+  auto block3 = blockchain.getBlockchain().getBlockData(3);
+  ASSERT_TRUE(block3.has_value());
+}
+
+TEST_F(v4_kvbc, add_altot_of_blocks_to_st_chain) {
+  v4blockchain::KeyValueBlockchain blockchain{
+      db,
+      true,
+      std::map<std::string, categorization::CATEGORY_TYPE>{
+          {"merkle", categorization::CATEGORY_TYPE::block_merkle},
+          {"versioned", categorization::CATEGORY_TYPE::versioned_kv},
+          {"versioned_2", categorization::CATEGORY_TYPE::versioned_kv},
+          {"immutable", categorization::CATEGORY_TYPE::immutable},
+          {categorization::kConcordInternalCategoryId, categorization::CATEGORY_TYPE::versioned_kv}}};
+
+  std::string block_data;
+  // Add blocks
+  for (BlockId i = 1; i < 100; ++i) {
+    categorization::Updates updates;
+    categorization::BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key1", "merkle_value1");
+    merkle_updates.addUpdate("merkle_key2", "merkle_value2");
+    updates.add("merkle", std::move(merkle_updates));
+
+    categorization::VersionedUpdates ver_updates;
+    ver_updates.calculateRootHash(true);
+    ver_updates.addUpdate("ver_key1", "ver_val1");
+    ver_updates.addUpdate("ver_key2", categorization::VersionedUpdates::Value{"ver_val2", true});
+    updates.add("versioned", std::move(ver_updates));
+    ASSERT_EQ(blockchain.add(std::move(updates)), i);
+  }
+  ASSERT_EQ(blockchain.getLastReachableBlockId(), 99);
+
+  // Add st block with id 3 i.e. block 2 is missing.
+  block_data = *(blockchain.getBlockData(1));
+
+  // try to add with block id less than the last reachable
+  ASSERT_THROW(blockchain.addBlockToSTChain(3, block_data.c_str(), block_data.size(), false), std::invalid_argument);
+  for (BlockId i = 100; i < 1000; ++i) {
+    blockchain.addBlockToSTChain(i, block_data.c_str(), block_data.size(), false);
+  }
+
+  ASSERT_TRUE(blockchain.hasBlock(999));
+  ASSERT_EQ(blockchain.getLastReachableBlockId(), 99);
+  ASSERT_EQ(blockchain.getStChain().getLastBlockId(), 999);
+  blockchain.addBlockToSTChain(1000, block_data.c_str(), block_data.size(), true);
+  ASSERT_EQ(blockchain.getStChain().getLastBlockId(), 0);
+  ASSERT_EQ(blockchain.getLastReachableBlockId(), 1000);
+}
+
+TEST_F(v4_kvbc, st_link_until) {
+  v4blockchain::KeyValueBlockchain blockchain{
+      db,
+      true,
+      std::map<std::string, categorization::CATEGORY_TYPE>{
+          {"merkle", categorization::CATEGORY_TYPE::block_merkle},
+          {"versioned", categorization::CATEGORY_TYPE::versioned_kv},
+          {"versioned_2", categorization::CATEGORY_TYPE::versioned_kv},
+          {"immutable", categorization::CATEGORY_TYPE::immutable},
+          {categorization::kConcordInternalCategoryId, categorization::CATEGORY_TYPE::versioned_kv}}};
+
+  std::string block_data;
+  // Add blocks
+  for (BlockId i = 1; i < 10; ++i) {
+    categorization::Updates updates;
+    categorization::BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key1", "merkle_value1");
+    merkle_updates.addUpdate("merkle_key2", "merkle_value2");
+    updates.add("merkle", std::move(merkle_updates));
+
+    categorization::VersionedUpdates ver_updates;
+    ver_updates.calculateRootHash(true);
+    ver_updates.addUpdate("ver_key1", "ver_val1");
+    ver_updates.addUpdate("ver_key2", categorization::VersionedUpdates::Value{"ver_val2", true});
+    updates.add("versioned", std::move(ver_updates));
+    ASSERT_EQ(blockchain.add(std::move(updates)), i);
+  }
+  ASSERT_EQ(blockchain.getLastReachableBlockId(), 9);
+
+  // Add st block with id 3 i.e. block 2 is missing.
+  block_data = *(blockchain.getBlockData(1));
+
+  for (BlockId i = 10; i < 20; ++i) {
+    blockchain.addBlockToSTChain(i, block_data.c_str(), block_data.size(), false);
+  }
+
+  ASSERT_FALSE(blockchain.hasBlock(999));
+  ASSERT_TRUE(blockchain.hasBlock(15));
+  ASSERT_EQ(blockchain.getStChain().getLastBlockId(), 19);
+
+  // we can add until block 19
+  ASSERT_EQ(blockchain.linkUntilBlockId(30), 10);
+  // Chain should be reset
+  ASSERT_EQ(blockchain.getStChain().getLastBlockId(), 0);
+  ASSERT_EQ(blockchain.getLastReachableBlockId(), 19);
+
+  for (BlockId i = 20; i < 200; ++i) {
+    blockchain.addBlockToSTChain(i, block_data.c_str(), block_data.size(), false);
+  }
+  ASSERT_TRUE(blockchain.hasBlock(199));
+  ASSERT_EQ(blockchain.getStChain().getLastBlockId(), 199);
+  // Add partial range
+  ASSERT_EQ(blockchain.linkUntilBlockId(30), 11);
+  ASSERT_EQ(blockchain.linkUntilBlockId(100), 70);
+  ASSERT_EQ(blockchain.linkUntilBlockId(199), 99);
+  // St chain should be empty
+  ASSERT_EQ(blockchain.getStChain().getLastBlockId(), 0);
+  ASSERT_EQ(blockchain.getLastReachableBlockId(), 199);
+}
+
+TEST_F(v4_kvbc, parent_digest) {
+  v4blockchain::KeyValueBlockchain blockchain{
+      db,
+      true,
+      std::map<std::string, categorization::CATEGORY_TYPE>{
+          {"merkle", categorization::CATEGORY_TYPE::block_merkle},
+          {"versioned", categorization::CATEGORY_TYPE::versioned_kv},
+          {"versioned_2", categorization::CATEGORY_TYPE::versioned_kv},
+          {"immutable", categorization::CATEGORY_TYPE::immutable},
+          {categorization::kConcordInternalCategoryId, categorization::CATEGORY_TYPE::versioned_kv}}};
+
+  std::string block_data;
+  concord::util::digest::BlockDigest empty_digest;
+  for (auto& d : empty_digest) {
+    d = 0;
+  }
+  // block1
+  {
+    categorization::Updates updates;
+    categorization::BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key1", "merkle_value1");
+    merkle_updates.addUpdate("merkle_key2", "merkle_value2");
+    updates.add("merkle", std::move(merkle_updates));
+    ASSERT_EQ(blockchain.add(std::move(updates)), 1);
+    ASSERT_EQ(blockchain.parentDigest(0), empty_digest);
+    // also geneis has empty parent digest
+    ASSERT_EQ(blockchain.parentDigest(1), empty_digest);
+  }
+
+  // block2
+  {
+    categorization::Updates updates;
+    categorization::VersionedUpdates ver_updates;
+    ver_updates.calculateRootHash(true);
+    ver_updates.addUpdate("ver_key1", "ver_val1");
+    ver_updates.addUpdate("ver_key2", categorization::VersionedUpdates::Value{"ver_val2", true});
+    updates.add("versioned", std::move(ver_updates));
+    ASSERT_EQ(blockchain.add(std::move(updates)), 2);
+    auto block_data = blockchain.getBlockData(1);
+    ASSERT_TRUE(block_data.has_value());
+    auto digest = v4blockchain::detail::Block::calculateDigest(1, block_data->c_str(), block_data->size());
+    ASSERT_EQ(blockchain.parentDigest(2), digest);
+
+    auto block_data2 = blockchain.getBlockData(2);
+    blockchain.addBlockToSTChain(8, block_data2->c_str(), block_data2->size(), false);
+    ASSERT_DEATH(blockchain.parentDigest(3), "");
+    ASSERT_EQ(blockchain.parentDigest(8), digest);
+  }
+}
+
+TEST_F(v4_kvbc, prun_on_st) {
+  v4blockchain::KeyValueBlockchain blockchain{
+      db,
+      true,
+      std::map<std::string, categorization::CATEGORY_TYPE>{
+          {"merkle", categorization::CATEGORY_TYPE::block_merkle},
+          {"versioned", categorization::CATEGORY_TYPE::versioned_kv},
+          {"versioned_2", categorization::CATEGORY_TYPE::versioned_kv},
+          {"immutable", categorization::CATEGORY_TYPE::immutable},
+          {categorization::kConcordInternalCategoryId, categorization::CATEGORY_TYPE::versioned_kv}}};
+
+  // Add blocks
+  BlockId until = 100;
+  for (BlockId i = 1; i <= until; ++i) {
+    categorization::Updates updates;
+    categorization::BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key1", "merkle_value1");
+    merkle_updates.addUpdate("merkle_key2", "merkle_value2");
+    updates.add("merkle", std::move(merkle_updates));
+
+    categorization::VersionedUpdates ver_updates;
+    ver_updates.calculateRootHash(true);
+    ver_updates.addUpdate("ver_key1", "ver_val1");
+    ver_updates.addUpdate("ver_key2", categorization::VersionedUpdates::Value{"ver_val2", true});
+    updates.add("versioned", std::move(ver_updates));
+    // Add genesis for pruning
+    if (i % 20 == 0) {
+      const auto stale_on_update = true;
+      updates.addCategoryIfNotExisting<categorization::VersionedInput>(categorization::kConcordInternalCategoryId);
+      updates.appendKeyValue<categorization::VersionedUpdates>(
+          categorization::kConcordInternalCategoryId,
+          std::string{concord::kvbc::keyTypes::genesis_block_key},
+          categorization::VersionedUpdates::ValueType{concordUtils::toBigEndianStringBuffer(i - 10), stale_on_update});
+    }
+    ASSERT_EQ(blockchain.add(std::move(updates)), i);
+    auto block_data = *(blockchain.getBlockData(i));
+    blockchain.addBlockToSTChain(until + i, block_data.c_str(), block_data.size(), false);
+  }
+  ASSERT_EQ(blockchain.getLastReachableBlockId(), 100);
+  ASSERT_EQ(blockchain.getStChain().getLastBlockId(), 200);
+
+  // range with the an update that contains genesis = 10;
+  ASSERT_EQ(blockchain.linkUntilBlockId(130), 30);
+  ASSERT_EQ(blockchain.getLastReachableBlockId(), 130);
+  ASSERT_EQ(blockchain.getGenesisBlockId(), 10);
+  ASSERT_EQ(blockchain.linkUntilBlockId(160), 30);
+  ASSERT_EQ(blockchain.getLastReachableBlockId(), 160);
+  ASSERT_EQ(blockchain.getGenesisBlockId(), 50);
+  blockchain.linkSTChain();
+  ASSERT_EQ(blockchain.getStChain().getLastBlockId(), 0);
+  ASSERT_EQ(blockchain.getLastReachableBlockId(), 200);
+  ASSERT_EQ(blockchain.getGenesisBlockId(), 90);
 }
 
 }  // end namespace
