@@ -15,14 +15,35 @@
 
 #include <memory>
 #include "rocksdb/native_client.h"
+#include "kv_types.hpp"
+#include "v4blockchain/detail/blocks.h"
+#include "v4blockchain/detail/blockchain.h"
 
 namespace concord::kvbc::v4blockchain::detail {
 
 class StChain {
  public:
   StChain(const std::shared_ptr<concord::storage::rocksdb::NativeClient>&);
+  ////// Blocks operations/////////////////////////////////
+  bool hasBlock(kvbc::BlockId) const;
+  void addBlock(const kvbc::BlockId, const char* block, const uint32_t blockSize);
+  void deleteBlock(const kvbc::BlockId id, storage::rocksdb::NativeWriteBatch& wb);
+  std::optional<v4blockchain::detail::Block> getBlock(kvbc::BlockId) const;
+  // Returns the buffer that represents the block
+  std::optional<std::string> getBlockData(concord::kvbc::BlockId) const;
+  concord::util::digest::BlockDigest getBlockParentDigest(concord::kvbc::BlockId id) const;
+  ///////// ST last block ID
+  void resetChain() { last_block_id_ = 0; }
+  void updateLastIdAfterDeletion(const kvbc::BlockId);
+  // reads the last block id from storage.
+  void loadLastBlockId();
+  kvbc::BlockId getLastBlockId() const { return last_block_id_; }
+  // If last block id was deleted, laod from storage the new last.
+  void updateLastIdIfBigger(const kvbc::BlockId);
 
  private:
+  // if last_block_id_ is 0 it means no ST chain
+  std::atomic<kvbc::BlockId> last_block_id_;
   std::shared_ptr<concord::storage::rocksdb::NativeClient> native_client_;
 };
 

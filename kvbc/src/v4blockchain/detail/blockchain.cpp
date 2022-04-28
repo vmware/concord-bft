@@ -115,6 +115,12 @@ concord::util::digest::BlockDigest Blockchain::calculateBlockDigest(concord::kvb
   return v4blockchain::detail::Block::calculateDigest(id, block_str->c_str(), block_str->size());
 }
 
+concord::util::digest::BlockDigest Blockchain::getBlockParentDigest(concord::kvbc::BlockId id) const {
+  auto block_str = getBlockData(id);
+  ConcordAssert(block_str.has_value());
+  return v4blockchain::detail::Block{*block_str}.parentDigest();
+}
+
 std::optional<std::string> Blockchain::getBlockData(concord::kvbc::BlockId id) const {
   auto blockKey = generateKey(id);
   return native_client_->get(v4blockchain::detail::BLOCKS_CF, blockKey);
@@ -150,6 +156,11 @@ std::optional<BlockId> Blockchain::loadGenesisBlockId() {
 void Blockchain::setBlockId(BlockId id) {
   setLastReachable(id);
   if (genesis_block_id_ == INVALID_BLOCK_ID) genesis_block_id_ = id;
+}
+
+bool Blockchain::hasBlock(BlockId block_id) const {
+  if (block_id > last_reachable_block_id_) return false;
+  return native_client_->getSlice(v4blockchain::detail::BLOCKS_CF, generateKey(block_id)).has_value();
 }
 
 }  // namespace concord::kvbc::v4blockchain::detail
