@@ -2179,7 +2179,9 @@ void ReplicaImp::onFastPathCommitCombinedSigSucceeded(SeqNum seqNumber,
 
   FullCommitProofMsg *fcp = seqNumInfo.getFastPathFullCommitProofMsg();
   if (fcp != nullptr) {
-    LOG_WARN(CNSUS, "FullCommitProofMsg is already exist (valid only if n == 1)");
+    if (config_.numReplicas != 1) {
+      LOG_FATAL(GL, "FullCommitProofMsg is already exist (valid only if n == 1)");
+    }
     return;
   }
 
