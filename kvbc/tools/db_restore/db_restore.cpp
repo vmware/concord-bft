@@ -53,17 +53,18 @@ void DBRestore::initRocksDB(const fs::path& rocksdb_path) {
   LOG_DEBUG(logger_, rocksdb_path);
   rocksdb_dataset_ = std::make_unique<v2MerkleTree::RocksDBStorageFactory>(rocksdb_path)->newDatabaseSet();
   const auto linkStChain = true;
-  auto kvbc_categories = std::map<std::string, categorization::CATEGORY_TYPE>{
-      {categorization::kExecutionProvableCategory, categorization::CATEGORY_TYPE::block_merkle},
-      {categorization::kExecutionPrivateCategory, categorization::CATEGORY_TYPE::versioned_kv},
-      {categorization::kExecutionEventsCategory, categorization::CATEGORY_TYPE::immutable},
-      {categorization::kRequestsRecord, categorization::CATEGORY_TYPE::immutable},
-      {categorization::kExecutionEventGroupDataCategory, categorization::CATEGORY_TYPE::immutable},
-      {categorization::kExecutionEventGroupTagCategory, categorization::CATEGORY_TYPE::immutable},
+  // clang-format off
+  auto kvbc_categories = std::map<std::string,             categorization::CATEGORY_TYPE>{
+      {categorization::kExecutionProvableCategory,         categorization::CATEGORY_TYPE::block_merkle},
+      {categorization::kExecutionPrivateCategory,          categorization::CATEGORY_TYPE::versioned_kv},
+      {categorization::kExecutionEventsCategory,           categorization::CATEGORY_TYPE::immutable},
+      {categorization::kRequestsRecord,                    categorization::CATEGORY_TYPE::immutable},
+      {categorization::kExecutionEventGroupDataCategory,   categorization::CATEGORY_TYPE::immutable},
+      {categorization::kExecutionEventGroupTagCategory,    categorization::CATEGORY_TYPE::immutable},
       {categorization::kExecutionEventGroupLatestCategory, categorization::CATEGORY_TYPE::versioned_kv},
-      {categorization::kConcordInternalCategoryId, categorization::CATEGORY_TYPE::versioned_kv},
-      {categorization::kConcordReconfigurationCategoryId, categorization::CATEGORY_TYPE::versioned_kv}};
-
+      {categorization::kConcordInternalCategoryId,         categorization::CATEGORY_TYPE::versioned_kv},
+      {categorization::kConcordReconfigurationCategoryId,  categorization::CATEGORY_TYPE::versioned_kv}};
+  // clang-format on
   kv_blockchain_ = std::make_unique<categorization::KeyValueBlockchain>(
       storage::rocksdb::NativeClient::fromIDBClient(rocksdb_dataset_.dataDBClient), linkStChain, kvbc_categories);
 }

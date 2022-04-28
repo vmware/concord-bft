@@ -102,7 +102,7 @@ class IntegrityChecker {
   /** Calculate block digest
    * @return block digest
    */
-  Digest computeBlockDigest(const BlockId&, const std::string_view& block) const;
+  Digest computeBlockDigest(const BlockId&, const std::string_view block) const;
 
   /** Print block content */
   void printBlockContent(const BlockId&, const concord::kvbc::categorization::RawBlock&) const;

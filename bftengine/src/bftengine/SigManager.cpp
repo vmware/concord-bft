@@ -134,7 +134,8 @@ SigManager::SigManager(PrincipalId myId,
   size_t numPublickeys = publickeys.size();
 
   ConcordAssert(publicKeysMapping.size() >= numPublickeys);
-  mySigner_.reset(new concord::util::crypto::RSASigner(mySigPrivateKey.first.c_str(), mySigPrivateKey.second));
+  if (!mySigPrivateKey.first.empty())
+    mySigner_.reset(new concord::util::crypto::RSASigner(mySigPrivateKey.first.c_str(), mySigPrivateKey.second));
   for (const auto& p : publicKeysMapping) {
     ConcordAssert(verifiers_.count(p.first) == 0);
     ConcordAssert(p.second < numPublickeys);

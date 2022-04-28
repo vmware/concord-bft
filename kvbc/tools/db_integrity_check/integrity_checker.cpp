@@ -69,12 +69,27 @@ void IntegrityChecker::parseCLIArgs(int argc, char** argv) {
 void IntegrityChecker::initKeysConfig(const fs::path& keys_file) {
   LOG_DEBUG(logger_, keys_file);
   auto& config = bftEngine::ReplicaConfig::instance();
-  auto sys = inputReplicaKeyfileMultisig(keys_file, config);
-  (void)sys;  // currently for ro replica cryptosys is null
+  concord::util::ConfigFileParser parser(logger_, keys_file.c_str());
+  parser.parse();
+
+  config.numReplicas = parser.get_value<std::uint16_t>("num_replicas");
+  config.fVal = parser.get_value<std::uint16_t>("f_val");
+  config.cVal = parser.get_value<std::uint16_t>("c_val");
+  config.publicKeysOfReplicas.clear();
+  auto rsaPublicKeys = parser.get_values<std::string>("rsa_public_keys");
+
+  if (rsaPublicKeys.size() < config.numReplicas)
+    throw std::runtime_error("number of replicas and number of replicas don't match: " + keys_file.string());
+
+  for (size_t i = 0; i < config.numReplicas; ++i)
+    config.publicKeysOfReplicas.insert(std::pair<uint16_t, std::string>(i, rsaPublicKeys[i]));
+
+  config.replicaId = config.numReplicas;  // "my" replica id shouldn't match one of the regular replicas
+
   repsInfo_ = new ReplicasInfo(config, true, false);
 
   bftEngine::impl::SigManager::init(config.replicaId,
-                                    config.replicaPrivateKey,
+                                    "", /*private key*/
                                     config.publicKeysOfReplicas,
                                     util::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                     nullptr /*publicKeysOfClients*/,
@@ -223,7 +238,7 @@ concord::kvbc::categorization::RawBlock IntegrityChecker::getBlock(const BlockId
   return kvbc::categorization::RawBlock::deserialize(rawBlockSer);
 }
 
-Digest IntegrityChecker::computeBlockDigest(const BlockId& block_id, const std::string_view& block) const {
+Digest IntegrityChecker::computeBlockDigest(const BlockId& block_id, const std::string_view block) const {
   Digest calcDigest;
   BCStateTran::computeDigestOfBlock(block_id, block.data(), block.size(), &calcDigest);
 

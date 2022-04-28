@@ -11,7 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 //
-// This file provides functionality for configuration file parsing.
+// This file provides functionality for YAML configuration file parsing.
 
 #pragma once
 
@@ -19,6 +19,7 @@
 #include <map>
 #include <vector>
 #include "string.hpp"
+#include "util/filesystem.hpp"
 
 namespace concord::util {
 
@@ -27,24 +28,57 @@ class ConfigFileParser {
   typedef ParamsMultiMap::iterator ParamsMultiMapIt;
 
  public:
-  ConfigFileParser(logging::Logger& logger, std::string file_name)
-      : file_name_(std::move(file_name)), logger_(logger) {}
+  friend class ParseError;
+  class ParseError : public std::runtime_error {
+   public:
+    ParseError(const ConfigFileParser& parser, std::uint16_t line, const std::string& what)
+        : std::runtime_error("parse error: " + parser.file_.string() + std::string(": ") + std::to_string(line) +
+                             std::string(" reason: ") + what) {}
+  };
+
+  ConfigFileParser(logging::Logger& logger, fs::path file) : file_(file), logger_(logger) {}
   virtual ~ConfigFileParser() = default;
 
-  // Returns 0 if passed successfully and 1 otherwise.
-  bool Parse();
+  void parse();
 
   // Returns the number of elements matching specific key.
-  size_t Count(const std::string& key);
+  size_t count(const std::string& key);
 
   // Returns a range of values that match specified key.
-  std::vector<std::string> GetValues(const std::string& key);
+  template <typename T>
+  std::vector<T> get_values(const std::string& key) {
+    std::vector<T> values;
+    std::pair<ParamsMultiMapIt, ParamsMultiMapIt> range = parameters_map_.equal_range(key);
+    LOG_TRACE(logger_, "key: " << key);
+    if (range.first != parameters_map_.end()) {
+      for (auto it = range.first; it != range.second; ++it) {
+        values.push_back(to<T>(it->second));
+        LOG_TRACE(logger_, "value: " << it->second);
+      }
+    }
+    return values;
+  }
 
-  std::vector<std::string> SplitValue(const std::string& value_to_split, const char* delimiter);
+  std::vector<std::string> splitValue(const std::string& value_to_split, const char* delimiter);
 
   void printAll();
 
-  const std::string getConfigFileName() const { return file_name_; }
+  template <typename T>
+  T get_optional_value(const std::string& key, const T& defaultValue) {
+    std::vector<T> v = get_values<T>(key);
+    if (v.size())
+      return v[0];
+    else
+      return defaultValue;
+  }
+  template <typename T>
+  T get_value(const std::string& key) {
+    std::vector<T> v = get_values<T>(key);
+    if (v.size())
+      return v[0];
+    else
+      throw std::runtime_error("failed to get value for key :" + key);
+  }
 
  protected:
   static const char key_delimiter_ = ':';
@@ -52,7 +86,7 @@ class ConfigFileParser {
   static const char comment_delimiter_ = '#';
   static const char end_of_line_ = '\n';
 
-  std::string file_name_;
+  fs::path file_;
   ParamsMultiMap parameters_map_;
   logging::Logger& logger_;
 };

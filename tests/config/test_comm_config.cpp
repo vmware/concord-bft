@@ -69,12 +69,14 @@ std::unordered_map<NodeNum, NodeInfo> TestCommConfig::SetUpConfiguredNodes(bool 
                                                                            uint16_t& num_of_clients,
                                                                            uint16_t& num_of_replicas) {
   concord::util::ConfigFileParser config_file_parser(logger_, config_file_name);
-  if (!config_file_parser.Parse()) {
-    LOG_FATAL(logger_, "Failed to parse configuration file: " << config_file_name);
+  try {
+    config_file_parser.parse();
+  } catch (const std::exception& e) {
+    LOG_FATAL(logger_, e.what());
     exit(-1);
   }
-  num_of_clients = static_cast<uint16_t>(config_file_parser.Count(CLIENTS_CONFIG));
-  num_of_replicas = static_cast<uint16_t>(config_file_parser.Count(REPLICAS_CONFIG));
+  num_of_clients = static_cast<uint16_t>(config_file_parser.count(CLIENTS_CONFIG));
+  num_of_replicas = static_cast<uint16_t>(config_file_parser.count(REPLICAS_CONFIG));
   if ((is_replica && (node_id + 1 > num_of_replicas)) ||
       (!is_replica && (node_id + 1 > num_of_clients + num_of_replicas))) {
     LOG_FATAL(logger_,
@@ -82,8 +84,8 @@ std::unordered_map<NodeNum, NodeInfo> TestCommConfig::SetUpConfiguredNodes(bool 
                   << "numOfClients=" << num_of_clients << ", numOfReplicas=" << num_of_replicas);
     exit(-1);
   }
-  vector<string> replicas = config_file_parser.GetValues(REPLICAS_CONFIG);
-  vector<string> clients = config_file_parser.GetValues(CLIENTS_CONFIG);
+  auto replicas = config_file_parser.get_values<std::string>(REPLICAS_CONFIG);
+  auto clients = config_file_parser.get_values<std::string>(CLIENTS_CONFIG);
   std::unordered_map<NodeNum, NodeInfo> nodes;
   int k = 0;
   for (int i = 0; i < (num_of_replicas + num_of_clients); i++) {
@@ -93,7 +95,7 @@ std::unordered_map<NodeNum, NodeInfo> TestCommConfig::SetUpConfiguredNodes(bool 
       current_vector = clients;
       k = 0;
     }
-    vector<string> ip_port_pair = config_file_parser.SplitValue(current_vector[k++], ip_port_delimiter_);
+    vector<string> ip_port_pair = config_file_parser.splitValue(current_vector[k++], ip_port_delimiter_);
     LOG_INFO(logger_,
              "setUpConfiguredNodes() node_id: " << node_id << ", k: " << k - 1
                                                 << ", port:" << (uint16_t)(std::stoi(ip_port_pair[1])));
