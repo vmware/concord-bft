@@ -255,6 +255,8 @@ class BCStateTran : public IStateTransfer {
  public:
   enum class FetchingState { NotFetching, GettingCheckpointSummaries, GettingMissingBlocks, GettingMissingResPages };
   static string stateName(FetchingState fs);
+  static bool isActiveDest(FetchingState fs);
+
   // TODO - should be renamed to evaluateFetchingState
   FetchingState getFetchingState();
   bool isFetching() const;
@@ -414,11 +416,8 @@ class BCStateTran : public IStateTransfer {
   ///////////////////////////////////////////////////////////////////////////
 
   DataStore::CheckpointDesc createCheckpointDesc(uint64_t checkpointNumber, const Digest& digestOfResPagesDescriptor);
-
   Digest checkpointReservedPages(uint64_t checkpointNumber, DataStoreTransaction* txn);
-
   void deleteOldCheckpoints(uint64_t checkpointNumber, DataStoreTransaction* txn);
-  void srcInitialize();
 
   ///////////////////////////////////////////////////////////////////////////
   // Consistency
@@ -521,7 +520,6 @@ class BCStateTran : public IStateTransfer {
 
  private:
   void loadMetrics();
-  std::chrono::seconds last_metrics_dump_time_;
   std::chrono::seconds metrics_dump_interval_in_sec_;
   concordMetrics::Component metrics_component_;
   struct Metrics {
@@ -667,9 +665,6 @@ class BCStateTran : public IStateTransfer {
 
   void onFetchingStateChange(FetchingState newFetchingState);
 
-  // When true: log historgrams, zero source flag and counter, and then unconditionally clear the iOcontexts
-  void finalizeSource(bool logSrcHistograms);
-
   // used to print periodic summary of recent checkpoints, and collected date while in state GettingMissingBlocks
   std::string logsForCollectingStatus();
   void reportCollectingStatus(const uint32_t actualBlockSize, bool toLog = false);
@@ -677,11 +672,38 @@ class BCStateTran : public IStateTransfer {
   std::string convertUInt64ToReadableStr(uint64_t num, std::string&& trailer = "") const;
   std::string convertMillisecToReadableStr(uint64_t ms) const;
 
-  // These 2 variables are used to snapshot source historgrams for GettingMissingBlocks state
-  bool sourceFlag_;
-  uint8_t sourceSnapshotCounter_;
-  uint64_t sourceBatchCounter_ = 0;
+  ///////////////////////////////////////////////////////////////////////////
+  // Source session management
+  ///////////////////////////////////////////////////////////////////////////
 
+  // Currently, source supports a single session at any given time
+  struct SourceSession {
+   public:
+    SourceSession(logging::Logger& logger, uint64_t sourceSessionExpiryDurationMs)
+        : logger_(logger), expiryDurationMs_{sourceSessionExpiryDurationMs} {}
+    SourceSession() = delete;
+    void close();
+    // returns a pair of booleans:
+    // First bool: true if session was already openned by replicaId, or if a new one was opened
+    // Second bool: true if another session was closed. Relevant only if the first value is true.
+    // It might be that session was already open, or opened during the call.
+    std::pair<bool, bool> tryOpen(uint16_t replicaId);
+    // returns true if session exist
+    bool isOpen() const { return startTime_ != 0; }
+    uint16_t ownerDestReplicaId() const { return replicaId_; };
+    uint64_t activeDuration() const { return getMonotonicTimeMilli() - startTime_; }
+    bool expired() const { return activeDuration() > expiryDurationMs_; }
+
+    uint64_t batchCounter_;  // TODO - convert to a metrics
+   protected:
+    void open(uint16_t replicaId);
+
+    logging::Logger& logger_;
+    const uint64_t expiryDurationMs_;
+    uint16_t replicaId_;
+    uint64_t startTime_;
+  };
+  SourceSession sourceSession_;
   ///////////////////////////////////////////////////////////////////////////
   // Latency Historgrams (snapshots)
   ///////////////////////////////////////////////////////////////////////////
