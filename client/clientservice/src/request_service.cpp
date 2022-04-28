@@ -22,6 +22,48 @@ namespace concord::client::clientservice {
 
 namespace requestservice {
 
+struct GrpcMetadataCarrierForReading : opentracing::TextMapReader {
+  GrpcMetadataCarrierForReading(const std::multimap<grpc::string_ref, grpc::string_ref>& client_metadata)
+      : client_metadata_(client_metadata) {}
+
+  using F = std::function<opentracing::expected<void>(opentracing::string_view, opentracing::string_view)>;
+
+  opentracing::expected<void> ForeachKey(F f) const override {
+    // Iterate through all key-value pairs, the tracer will use the relevant keys
+    // to extract a span context.
+    for (auto& key_value : client_metadata_) {
+      auto was_successful = f(FromStringRef(key_value.first), FromStringRef(key_value.second));
+      if (!was_successful) {
+        // If the callback returns and unexpected value, bail out of the loop.
+        return was_successful;
+      }
+    }
+    // Indicate successful iteration.
+    return {};
+  }
+
+  opentracing::expected<opentracing::string_view> LookupKey(opentracing::string_view key) const override {
+    auto find_it = client_metadata_.find(grpc::string_ref(key));
+    if (find_it != client_metadata_.end()) {
+      return opentracing::make_unexpected(opentracing::key_not_found_error);
+    }
+    return opentracing::string_view{FromStringRef(find_it->second)};
+  }
+
+ private:
+  static std::string FromStringRef(const grpc::string_ref& string_ref) {
+    return std::string(string_ref.data(), string_ref.size());
+  }
+
+  const std::multimap<grpc::string_ref, grpc::string_ref>& client_metadata_;
+};
+
+std::unique_ptr<opentracing::SpanContext> ExtractSpanFromMetadata(const opentracing::Tracer& tracer,
+                                                                  const grpc::ServerContext& context) {
+  GrpcMetadataCarrierForReading metadata_carrier(context.client_metadata());
+  return *tracer.Extract(metadata_carrier);
+}
+
 void RequestServiceCallData::proceed() {
   if (state_ == FINISH) {
     delete this;
@@ -173,10 +215,13 @@ void RequestServiceCallData::sendToConcordClient() {
     this->populateResult(grpc::Status::OK);
   };
 
+  auto tracer = opentracing::Tracer::Global();
+  auto parent_span = concord::client::clientservice::requestservice::ExtractSpanFromMetadata(*tracer, ctx_);
+
   if (request_.read_only()) {
     bft::client::ReadConfig config;
     config.request = req_config;
-    auto span = opentracing::Tracer::Global()->StartSpan("send_ro", {});
+    auto span = opentracing::Tracer::Global()->StartSpan("send_ro", {opentracing::ChildOf(parent_span.get())});
     std::ostringstream carrier;
     opentracing::Tracer::Global()->Inject(span->context(), carrier);
     config.request.span_context = carrier.str();
@@ -184,7 +229,7 @@ void RequestServiceCallData::sendToConcordClient() {
   } else {
     bft::client::WriteConfig config;
     config.request = req_config;
-    auto span = opentracing::Tracer::Global()->StartSpan("send", {});
+    auto span = opentracing::Tracer::Global()->StartSpan("send", {opentracing::ChildOf(parent_span.get())});
     std::ostringstream carrier;
     opentracing::Tracer::Global()->Inject(span->context(), carrier);
     config.request.span_context = carrier.str();
