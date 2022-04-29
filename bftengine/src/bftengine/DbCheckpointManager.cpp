@@ -399,4 +399,20 @@ std::string DbCheckpointManager::getDiskUsageInfo() {
   }
   return ss.str();
 }
+std::map<uint64_t, uint64_t> DbCheckpointManager::getDbSize() {
+  auto find_db_size = [&](const std::string& path) -> uint64_t {
+    _fs::path dbPath(path);
+    return directorySize(dbPath, false, false);
+  };
+  auto dbSizeMap = std::map<uint64_t, uint64_t>{};
+  dbSizeMap[0] = find_db_size(dbClient_->getPath());
+  {
+    std::scoped_lock lock(lock_);
+    for (const auto& [db_chkpt_id, _] : dbCheckptMetadata_.dbCheckPoints_) {
+      (void)_;
+      dbSizeMap[db_chkpt_id] = find_db_size(dbClient_->getPathForCheckpoint(db_chkpt_id));
+    }
+  }
+  return dbSizeMap;
+}
 }  // namespace bftEngine::impl

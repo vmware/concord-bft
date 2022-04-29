@@ -183,6 +183,7 @@ class SkvbcDbSnapshotTest(ApolloTest):
             last_blockId = await bft_network.last_db_checkpoint_block_id(replica_id)
             self.assertEqual(last_blockId, DB_CHECKPOINT_WIN_SIZE)
             self.verify_snapshot_is_available(bft_network, replica_id, last_blockId)
+        await self.verify_db_size_on_disk(bft_network)
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
@@ -995,3 +996,28 @@ class SkvbcDbSnapshotTest(ApolloTest):
 
             with open("reset_md_out.log", 'w+') as stdout_file, open("reset_md_err.log", 'w+') as stderr_file:
                 subprocess.run(reset_md_cmd, stdout=stdout_file, stderr=stderr_file)
+    
+    async def verify_db_size_on_disk(self, bft_network):
+        client = bft_network.random_client()
+        op = operator.Operator(bft_network.config, client, bft_network.builddir)
+        resp = await op.get_db_size()
+        rep = cmf_msgs.ReconfigurationResponse.deserialize(resp)[0]
+        assert rep.success is True
+        rsi_rep = client.get_rsi_replies()
+        for r in rsi_rep.values():
+            res = cmf_msgs.ReconfigurationResponse.deserialize(r)
+            replica_id = res[0].response.replica_id
+            assert len(res[0].response.mapCheckpointIdDbSize) > 0
+            for checkPtId,db_size in res[0].response.mapCheckpointIdDbSize:
+                db_dir = os.path.join(
+                    bft_network.testdir, DB_FILE_PREFIX + str(replica_id))
+                if checkPtId != 0 :
+                    db_dir = os.path.join(
+                        bft_network.testdir, DB_SNAPSHOT_PREFIX + str(replica_id) + "/" + str(checkPtId))
+                size = 0
+                for element in os.scandir(db_dir):
+                    if element.is_file():
+                        size += os.path.getsize(element)
+                assert size == db_size      
+
+

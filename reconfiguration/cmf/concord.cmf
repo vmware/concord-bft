@@ -429,6 +429,18 @@ Msg PruneStopRequest 77 {
     uint64 sender_id
 }
 
+Msg DbSizeReadRequest 79 {
+    #this is used only for apollo-test
+    uint64 sender_id
+}
+
+Msg DbSizeReadRequestResponse 80 {
+    #this is used only for apollo-test
+    uint64 replica_id
+    # checkpoint id = 0 is used for rocksdb size
+    list kvpair uint64 uint64 mapCheckpointIdDbSize
+}
+
 Msg ReconfigurationRequest 1 {
   uint64 sender
   bytes signature
@@ -471,6 +483,7 @@ Msg ReconfigurationRequest 1 {
     StateSnapshotRequest
     SignedPublicStateHashRequest
     StateSnapshotReadAsOfRequest
+    DbSizeReadRequest
   } command
   bytes additional_data
 }
@@ -497,6 +510,7 @@ Msg ReconfigurationResponse 2 {
     StateSnapshotResponse
     SignedPublicStateHashResponse
     StateSnapshotReadAsOfResponse
+    DbSizeReadRequestResponse
   } response
   bytes additional_data
 }
