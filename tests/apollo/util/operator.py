@@ -199,6 +199,11 @@ class Operator:
         req.participant_id = 'apollo_test_participant_id'
         return self._construct_basic_reconfiguration_request(req)
 
+    def _construct_db_size_req(self):
+        req = cmf_msgs.DbSizeReadRequest()
+        req.sender_id = 1000
+        return self._construct_basic_reconfiguration_request(req)
+
     def get_rsi_replies(self):
         return self.client.get_rsi_replies()
 
@@ -340,3 +345,10 @@ class Operator:
         req = self._construct_reconfiguration_state_snapshot_read_as_of_req(snapshot_id, keys)
         return await self.client.read(req.serialize(), m_of_n_quorum=bft_client.MofNQuorum.All(self.client.config,
                                         [r for r in range(self.config.n)]), reconfiguration=True)
+                              
+    async def get_db_size(self):
+        quorum = bft_client.MofNQuorum.All(self.client.config, [r for r in range(self.config.n)])
+        msg = self._construct_db_size_req()
+        return await self.client.read(msg.serialize(), m_of_n_quorum=quorum, reconfiguration=True)
+        
+        

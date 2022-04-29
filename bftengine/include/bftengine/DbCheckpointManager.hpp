@@ -136,6 +136,10 @@ class DbCheckpointManager {
   }
   inline auto getLastDbCheckpointSeqNum() const { return lastCheckpointSeqNum_; }
   std::string getDiskUsageInfo();
+  // return a map of pair<checkpoint_id, size_on_disk>
+  // checkpoint_id = 0 indicates rocksdb size
+  // only used for apollo test
+  std::map<uint64_t, uint64_t> getDbSize();
 
  private:
   logging::Logger getLogger() {
