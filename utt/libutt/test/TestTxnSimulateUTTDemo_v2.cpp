@@ -71,7 +71,7 @@ int main(int argc, char* argv[]) {
     const size_t maxPayment = std::min<size_t>(balance, budget);
 
     if (maxPayment == 0) {
-      loginfo << "No payment possible. [balance=" << balance << "] [budget=" << budget << "] Skipping.";
+      loginfo << "No payment possible. [balance=" << balance << "] [budget=" << budget << "] Skipping.\n";
       continue;
     }
 
@@ -81,63 +81,68 @@ int main(int argc, char* argv[]) {
 
     // Precondition: 0 < payment <= budget <= balance
 
-    Client::CreateTxEvent createTxEvent;
-    auto clientTx = Client::createTxForPayment(w1, w2.getUserPid(), payment, createTxEvent);
-
-    for (const size_t value : createTxEvent.inputNormalCoinValues_)
-      loginfo << "'" << w1.ask.pid << "' removing $" << value << " coin" << endl;
-
-    for (const auto& [pid, value] : createTxEvent.recipients_) {
-      if (pid != w1.ask.pid) loginfo << "'" << w1.ask.pid << "' sends $" << value << " to '" << pid << "'" << endl;
-    }
-
-    // Replicas receive, validate and sign the proposed transaction
-    std::vector<std::vector<RandSigShare>> replicaSignShares;
-    {
-      // Simulate client sending a valid transaction to replicas
-      auto replicaTx = Simulation::sendValidTxOnNetwork(ctx, clientTx);
-
-      // Mark input coins as spent
-      Simulation::addNullifiers(replicaTx, nullset);
-
-      // Each replica signs the output coins with its SK share
-      for (auto& bskShare : ctx.bskShares_) {
-        replicaSignShares.emplace_back(Replica::signShareOutputCoins(replicaTx, bskShare));
-      }
-    }
-
-    // Prune spent coins
-    for (auto& w : wallets) {
-      auto result = Client::pruneSpentCoins(w, nullset);
-    }
-
-    // Claim output coins
-    for (size_t txoIdx = 0; txoIdx < clientTx.outs.size(); txoIdx++) {
-      // Sample a subset of sigshares to aggregate
-      std::vector<RandSigShare> sigShareSubset;
-      std::vector<size_t> signerIdSubset = random_subset(ctx.thresh_, ctx.n_);
-      for (auto id : signerIdSubset) {
-        sigShareSubset.push_back(replicaSignShares.at(id).at(txoIdx));
+    while (true) {
+      Client::CreateTxEvent createTxEvent;
+      auto clientTx = Client::createTxForPayment(w1, w2.getUserPid(), payment, createTxEvent);
+      loginfo << "Create " << createTxEvent.txType_ << " tx\n";
+      for (const auto& [pid, value] : createTxEvent.recipients_) {
+        if (pid != w1.ask.pid) loginfo << "'" << w1.ask.pid << "' sends $" << value << " to '" << pid << "'" << endl;
       }
 
-      // Ensure only one of the wallets identifies this output as theirs and claims it
-      logtrace << "Trying to claim output #" << txoIdx << " on each wallet" << endl;
-      bool claimed = false;
-      for (size_t j = 0; j < wallets.size(); j++) {
-        std::optional<Client::ClaimEvent> claimEvent;
-        Client::tryClaimCoin(wallets.at(j), clientTx, txoIdx, sigShareSubset, signerIdSubset, ctx.n_, claimEvent);
+      // Replicas receive, validate and sign the proposed transaction
+      std::vector<std::vector<RandSigShare>> replicaSignShares;
+      {
+        // Simulate client sending a valid transaction to replicas
+        auto replicaTx = Simulation::sendValidTxOnNetwork(ctx, clientTx);
 
-        if (claimEvent) {
-          assertFalse(claimed);
-          loginfo << "Adding a $" << claimEvent->value_ << " '" << (claimEvent->isBudgetCoin_ ? "budget" : "normal")
-                  << "' coin to wallet #" << j + 1 << " for '" << wallets[j].ask.pid << "'" << endl;
+        // Mark input coins as spent
+        Simulation::addNullifiers(replicaTx, nullset);
 
-          claimed = true;
+        // Each replica signs the output coins with its SK share
+        for (auto& bskShare : ctx.bskShares_) {
+          replicaSignShares.emplace_back(Replica::signShareOutputCoins(replicaTx, bskShare));
         }
       }
-      assertTrue(claimed);
-    }
 
+      // Prune spent coins
+      for (auto& w : wallets) {
+        const auto result = Client::pruneSpentCoins(w, nullset);
+        for (const size_t value : result.spentCoins_)
+          loginfo << "'" << w.ask.pid << "' removing $" << value << " normal coin" << endl;
+        if (result.spentBudgetCoin_)
+          loginfo << "'" << w.ask.pid << "' removing $" << *result.spentBudgetCoin_ << " budget coin" << endl;
+      }
+
+      // Claim output coins
+      for (size_t txoIdx = 0; txoIdx < clientTx.outs.size(); txoIdx++) {
+        // Sample a subset of sigshares to aggregate
+        std::vector<RandSigShare> sigShareSubset;
+        std::vector<size_t> signerIdSubset = random_subset(ctx.thresh_, ctx.n_);
+        for (auto id : signerIdSubset) {
+          sigShareSubset.push_back(replicaSignShares.at(id).at(txoIdx));
+        }
+
+        // Ensure only one of the wallets identifies this output as theirs and claims it
+        logtrace << "Trying to claim output #" << txoIdx << " on each wallet" << endl;
+        bool claimed = false;
+        for (size_t j = 0; j < wallets.size(); j++) {
+          std::optional<Client::ClaimEvent> claimEvent;
+          Client::tryClaimCoin(wallets.at(j), clientTx, txoIdx, sigShareSubset, signerIdSubset, ctx.n_, claimEvent);
+
+          if (claimEvent) {
+            assertFalse(claimed);
+            loginfo << "Adding a $" << claimEvent->value_ << " '" << (claimEvent->isBudgetCoin_ ? "budget" : "normal")
+                    << "' coin to wallet #" << j + 1 << " for '" << wallets[j].ask.pid << "'" << endl;
+
+            claimed = true;
+          }
+        }
+        assertTrue(claimed);
+      }
+
+      const bool isPayment = clientTx.isBudgeted();
+      if (isPayment) break;  // Done
+    }
   }  // end for all cycles
 
   // Check total value in the system

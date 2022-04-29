@@ -254,7 +254,7 @@ int main(int argc, char* argv[]) {
     const size_t maxPayment = std::min<size_t>(balance, budget);
 
     if (maxPayment == 0) {
-      loginfo << "No payment possible. [balance=" << balance << "] [budget=" << budget << "] Skipping.";
+      loginfo << "No payment possible. [balance=" << balance << "] [budget=" << budget << "] Skipping.\n";
       continue;
     }
 
