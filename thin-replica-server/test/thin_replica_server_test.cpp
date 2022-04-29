@@ -676,7 +676,7 @@ void addMoreEventGroups(const EventGroupId start,
                         FakeStorage& storage,
                         TestStateMachine<T>& state_machine,
                         TestSubBufferList<T>& buffer,
-                        const std::string trid = kClientId1) {
+                        const std::string& trid = kClientId1) {
   auto more_live_updates = generateEventGroupMap(start, end, type, trid);
   storage.addEventGroups(more_live_updates);
   storage.updateEventGroupStorageMaps(more_live_updates);
