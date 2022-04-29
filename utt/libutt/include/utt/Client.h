@@ -14,10 +14,9 @@ size_t calcBudget(const Wallet& w);
 
 struct CreateTxEvent {
   std::string txType_ = "undefined";
-  std::vector<size_t> inputCoinValues_;
-  size_t paymentCoinValue_ = 0;
-  std::optional<size_t> changeCoinValue_;
-  std::optional<size_t> budgetCoinValue_;
+  std::vector<size_t> inputNormalCoinValues_;
+  std::optional<size_t> inputBudgetCoinValue_;
+  std::map<std::string, size_t> recipients_;  // [pid : coinValue]
 };
 
 struct ClaimEvent {
