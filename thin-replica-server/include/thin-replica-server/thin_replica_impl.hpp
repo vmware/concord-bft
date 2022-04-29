@@ -367,6 +367,10 @@ class ThinReplicaImpl {
     }
 
     if (request->has_events() && !is_event_group_transition) {
+      // Requested block ID received by the TRS must always be greater than zero.
+      // Currently TRS expects TRC to take care of requests with block ID zero
+      // TODO: Replace the assert with INVALID_ARGUMENT error thrown when block ID zero is requested
+      ConcordAssertGT(start_block_id, 0);
       try {
         syncAndSend<ServerContextT, ServerWriterT, DataT>(context, start_block_id, live_updates, stream, kvb_filter);
       } catch (concord::kvbc::NoLegacyEvents& error) {
@@ -460,6 +464,8 @@ class ThinReplicaImpl {
       event_group_id = request->event_groups().event_group_id();
     }
 
+    // Requested event group ID must always be greater than 0
+    ConcordAssertGT(event_group_id, 0);
     try {
       syncAndSendEventGroups<ServerContextT, ServerWriterT, DataT>(
           context, event_group_id, live_updates, stream, kvb_filter, metrics);
@@ -589,9 +595,20 @@ class ThinReplicaImpl {
       // Determine oldest event group available (pruning)
       auto first_eg_id = kvb_filter->oldestExternalEventGroupId();
       auto last_eg_id = kvb_filter->newestExternalEventGroupId();
-      if (request->event_groups().event_group_id() < first_eg_id || (last_eg_id && !first_eg_id)) {
+      // When handling requests after pruning, TRS must take into account the following two scenarios:
+      // 1. New event groups have been added for the participant
+      // 2. No new event group has been added for the participant
+      // For e.g., assume 1-10 event groups have been pruned (event group IDs here are external event group IDs)
+      // In scenario 1, assume one more event group has been added. Hence, first_eg_id is now 11, any request for eg
+      // ID < 11 is invalid due to pruning.
+      // In scenario 2, first_eg_id is set to 0 after pruning and has not yet updated
+      // as there are no new event groups for the participant. we must therefore check against last_eg_id (10) to
+      // identify whether the requested eg ID has been pruned. i.e., any requested eg ID <= 10 is invalid due to pruning
+      // iff first_eg_id == 0.
+      if (request->event_groups().event_group_id() < first_eg_id ||
+          (!first_eg_id && request->event_groups().event_group_id() <= last_eg_id)) {
         msg << "Event group ID " << request->event_groups().event_group_id() << " has been pruned."
-            << " First event_group_id is " << first_eg_id;
+            << " First event_group_id is " << first_eg_id << " and last event_group_id is " << last_eg_id;
         LOG_WARN(logger_, msg.str());
         return true;
       }
