@@ -260,25 +260,14 @@ class UTTClientApp : public UTTBlockchainApp {
   }
 
   void pruneSpentCoins() {
-    // Mark spent coins and delete them all at once since they're kept in a vector
-    for (auto& c : wallet_.coins) {
-      if (hasNullifier(c.null.toUniqueString())) {
-        std::cout << " - \'" << wallet_.getUserPid() << "' removes spent " << fmtCurrency(c.getValue())
-                  << " normal coin.\n";
-        c.val = 0;
-      }
-    }
+    auto result = libutt::Client::pruneSpentCoins(wallet_, nullset_);
 
-    wallet_.coins.erase(
-        std::remove_if(wallet_.coins.begin(), wallet_.coins.end(), [](const libutt::Coin& c) { return c.val == 0; }),
-        wallet_.coins.end());
+    for (const size_t value : result.spentCoins_)
+      std::cout << " - \'" << wallet_.getUserPid() << "' removes spent " << fmtCurrency(value) << " normal coin.\n";
 
-    if (wallet_.budgetCoin && hasNullifier(wallet_.budgetCoin->null.toUniqueString())) {
-      std::cout << " - \'" << wallet_.getUserPid() << "' removes spent " << fmtCurrency(wallet_.budgetCoin->getValue())
+    if (result.spentBudgetCoin_)
+      std::cout << " - \'" << wallet_.getUserPid() << "' removes spent " << fmtCurrency(*result.spentBudgetCoin_)
                 << " budget coin.\n";
-
-      wallet_.budgetCoin.reset();
-    }
   }
 
   void tryClaimCoins(const TxUtt& tx) {

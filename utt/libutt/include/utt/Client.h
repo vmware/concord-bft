@@ -24,6 +24,11 @@ struct ClaimEvent {
   size_t value_;
 };
 
+struct PruneCoinsResult {
+  std::vector<size_t> spentCoins_;
+  std::optional<size_t> spentBudgetCoin_;
+};
+
 using CoinStrategy = std::function<Tx(const Wallet&, const std::string&, size_t, CreateTxEvent&)>;
 extern CoinStrategy k_CoinStrategyPreferExactChange;
 
@@ -32,6 +37,8 @@ Tx createTxForPayment(const Wallet& w,
                       size_t payment,
                       CreateTxEvent& outEvent,
                       const CoinStrategy& strategy = k_CoinStrategyPreferExactChange);
+
+PruneCoinsResult pruneSpentCoins(Wallet& w, const std::set<std::string>& nullset);
 
 void tryClaimCoin(Wallet& w,
                   const Tx& tx,

@@ -37,7 +37,7 @@ Wallet createWallet(const Context& ctx,
                     size_t budgetCoinVal);
 
 void assertSerialization(Wallet& inOutWallet);
-Tx assertSerialization(const Context& ctx, const Tx&& inTx);
+Tx sendValidTxOnNetwork(const Context& ctx, const Tx& inTx);
 
 void addNullifiers(const Tx& tx, std::set<std::string>& nullset);
 

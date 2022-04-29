@@ -258,6 +258,28 @@ Tx createTxForPayment(
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
+PruneCoinsResult pruneSpentCoins(Wallet& w, const std::set<std::string>& nullset) {
+  PruneCoinsResult result;
+
+  for (auto& c : w.coins) {
+    if (nullset.count(c.null.toUniqueString()) > 0) {
+      result.spentCoins_.emplace_back(c.getValue());
+      c.val = 0;
+    }
+  }
+
+  w.coins.erase(std::remove_if(w.coins.begin(), w.coins.end(), [](const libutt::Coin& c) { return c.val == 0; }),
+                w.coins.end());
+
+  if (w.budgetCoin && nullset.count(w.budgetCoin->null.toUniqueString()) > 0) {
+    result.spentBudgetCoin_ = w.budgetCoin->getValue();
+    w.budgetCoin.reset();
+  }
+
+  return result;
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////
 void tryClaimCoin(Wallet& w,
                   const Tx& tx,
                   size_t txoIdx,
