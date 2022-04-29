@@ -367,7 +367,9 @@ class ThinReplicaImpl {
     }
 
     if (request->has_events() && !is_event_group_transition) {
-      // Requested block ID must always be greater than 0
+      // Requested block ID received by the TRS must always be greater than zero.
+      // Currently TRS expects TRC to take care of requests with block ID zero
+      // TODO: Replace the assert with INVALID_ARGUMENT error thrown when block ID zero is requested
       ConcordAssertGT(start_block_id, 0);
       try {
         syncAndSend<ServerContextT, ServerWriterT, DataT>(context, start_block_id, live_updates, stream, kvb_filter);
