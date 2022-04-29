@@ -19,9 +19,9 @@ Tx createTx_1t1(const Wallet& w, size_t coinIdx, const std::string& pid, CreateT
   logdbg << "Using $" << inputCoins[0].getValue() << " coin and $" << budgetCoin.getValue() << " bcoin\n";
 
   outEvent.txType_ = "1-to-1 transfer";
-  outEvent.paymentCoinValue_ = payment.as_ulong();
-  outEvent.budgetCoinValue_ = budgetCoin.getValue();
-  outEvent.inputCoinValues_.emplace_back(inputCoins[0].getValue());
+  outEvent.inputNormalCoinValues_.emplace_back(inputCoins[0].getValue());
+  outEvent.inputBudgetCoinValue_ = budgetCoin.getValue();
+  outEvent.recipients_.emplace(pid, payment.as_ulong());
 
   return Tx(w.p, w.ask, inputCoins, budgetCoin, recip, w.bpk, w.rpk);
 }
@@ -47,10 +47,10 @@ Tx createTx_1t2(const Wallet& w, size_t coinIdx, size_t payment, const std::stri
   logdbg << "Change is $" << value2.as_ulong() << '\n';
 
   outEvent.txType_ = "1-to-2 transfer";
-  outEvent.paymentCoinValue_ = value1.as_ulong();
-  outEvent.budgetCoinValue_ = budgetCoin.getValue();
-  outEvent.inputCoinValues_.emplace_back(inputCoins[0].getValue());
-  outEvent.changeCoinValue_ = value2.as_ulong();
+  outEvent.inputNormalCoinValues_.emplace_back(inputCoins[0].getValue());
+  outEvent.inputBudgetCoinValue_ = budgetCoin.getValue();
+  outEvent.recipients_.emplace(pid, value1.as_ulong());
+  outEvent.recipients_.emplace(w.getUserPid(), value2.as_ulong());
 
   return Tx(w.p, w.ask, inputCoins, budgetCoin, recip, w.bpk, w.rpk);
 }
@@ -72,10 +72,10 @@ Tx createTx_2t1(const Wallet& w, size_t coinIdx1, size_t coinIdx2, const std::st
          << budgetCoin.getValue() << " bcoin\n";
 
   outEvent.txType_ = "2-to-1 transfer";
-  outEvent.paymentCoinValue_ = totalValue.as_ulong();
-  outEvent.budgetCoinValue_ = budgetCoin.getValue();
-  outEvent.inputCoinValues_.emplace_back(inputCoins[0].getValue());
-  outEvent.inputCoinValues_.emplace_back(inputCoins[1].getValue());
+  outEvent.inputNormalCoinValues_.emplace_back(inputCoins[0].getValue());
+  outEvent.inputNormalCoinValues_.emplace_back(inputCoins[1].getValue());
+  outEvent.inputBudgetCoinValue_ = budgetCoin.getValue();
+  outEvent.recipients_.emplace(pid, totalValue.as_ulong());
 
   return Tx(w.p, w.ask, inputCoins, budgetCoin, recip, w.bpk, w.rpk);
 }
@@ -107,11 +107,11 @@ Tx createTx_2t2(const Wallet& w,
   logdbg << "Change is $" << value2.as_ulong() << '\n';
 
   outEvent.txType_ = "2-to-2 transfer";
-  outEvent.paymentCoinValue_ = value1.as_ulong();
-  outEvent.budgetCoinValue_ = budgetCoin.getValue();
-  outEvent.inputCoinValues_.emplace_back(inputCoins[0].getValue());
-  outEvent.inputCoinValues_.emplace_back(inputCoins[1].getValue());
-  outEvent.changeCoinValue_ = value2.as_ulong();
+  outEvent.inputNormalCoinValues_.emplace_back(inputCoins[0].getValue());
+  outEvent.inputNormalCoinValues_.emplace_back(inputCoins[1].getValue());
+  outEvent.inputBudgetCoinValue_ = budgetCoin.getValue();
+  outEvent.recipients_.emplace(pid, value1.as_ulong());
+  outEvent.recipients_.emplace(w.getUserPid(), value2.as_ulong());
 
   return Tx(w.p, w.ask, inputCoins, budgetCoin, recip, w.bpk, w.rpk);
 }
@@ -131,9 +131,9 @@ Tx createTx_Self2t1(const Wallet& w, size_t coinIdx1, size_t coinIdx2, CreateTxE
   logdbg << "Using {$" << inputCoins[0].getValue() << ", $" << inputCoins[1].getValue() << "} coins\n";
 
   outEvent.txType_ = "coin-merge";
-  outEvent.paymentCoinValue_ = totalValue.as_ulong();
-  outEvent.inputCoinValues_.emplace_back(inputCoins[0].getValue());
-  outEvent.inputCoinValues_.emplace_back(inputCoins[1].getValue());
+  outEvent.inputNormalCoinValues_.emplace_back(inputCoins[0].getValue());
+  outEvent.inputNormalCoinValues_.emplace_back(inputCoins[1].getValue());
+  outEvent.recipients_.emplace(w.getUserPid(), totalValue.as_ulong());
 
   return Tx(w.p, w.ask, inputCoins, std::nullopt, recip, w.bpk, w.rpk);
 }
