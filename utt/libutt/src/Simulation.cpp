@@ -39,7 +39,7 @@ void assertSerialization(Wallet& inOutWallet) {
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
-Tx assertSerialization(const Context& ctx, const Tx& inTx) {
+Tx sendValidTxOnNetwork(const Context& ctx, const Tx& inTx) {
   auto oldHash = inTx.getHashHex();
   std::stringstream ss;
   ss << inTx;
@@ -55,7 +55,7 @@ Tx assertSerialization(const Context& ctx, const Tx& inTx) {
     testAssertFail("TXN should have verified");
   }
 
-  logdbg << "Validated TXN!" << endl;
+  loginfo << "Validated TXN!" << endl;
   return outTx;
 }
 
@@ -80,7 +80,7 @@ Coin createNormalCoin(const Context& ctx, size_t val, AddrSK& ask) {
   auto val_fr = Fr(static_cast<long>(val));
   std::string typeStr = Coin::typeToString(type);
 
-  // logdbg << "Minting '" << typeStr << "' coin of value " << val << " for " << ask.pid << endl;
+  // loginfo << "Minting '" << typeStr << "' coin of value " << val << " for " << ask.pid << endl;
   Coin c(ctx.p_.getCoinCK(), ctx.p_.null, sn, val_fr, type, exp_date, ask);
 
   // sign *full* coin commitment using bank's SK
@@ -98,7 +98,7 @@ Coin createBudgetCoin(const Context& ctx, size_t val, AddrSK& ask) {
   auto val_fr = Fr(static_cast<long>(val));
   std::string typeStr = Coin::typeToString(type);
 
-  // logdbg << "Minting '" << typeStr << "' coin of value " << val << " for " << ask.pid << endl;
+  // loginfo << "Minting '" << typeStr << "' coin of value " << val << " for " << ask.pid << endl;
   Coin c(ctx.p_.getCoinCK(), ctx.p_.null, sn, val_fr, type, exp_date, ask);
 
   // sign *full* coin commitment using bank's SK
@@ -258,8 +258,8 @@ void signAndClaimOutputCoins(const Context& ctx, Tx& tx, std::vector<Wallet>& w)
 
       if (coin.has_value()) {
         foundIdx = j;
-        logdbg << "Adding a $" << coin->val << " '" << coin->getType() << "' coin to wallet #" << j + 1 << " for '"
-               << w[j].ask.pid << "'" << endl;
+        loginfo << "Adding a $" << coin->val << " '" << coin->getType() << "' coin to wallet #" << j + 1 << " for '"
+                << w[j].ask.pid << "'" << endl;
         w[j].addCoin(*coin);  // add the coin back to the wallet
         break;
       }
@@ -457,7 +457,7 @@ void doPayment_2t2(const Context& ctx,
                    size_t amount,
                    std::set<std::string>& nullset,
                    std::vector<Wallet>& wallets) {
-  logdbg << "Payment 2-to-2 (Payment of two coins with change)" << endl;
+  loginfo << "Payment 2-to-2 (Payment of two coins with change)" << endl;
 
   testAssertGreaterThanOrEqual(w1.coins.size(), 2);
   testAssertNotEqual(c1, c2);
@@ -467,8 +467,8 @@ void doPayment_2t2(const Context& ctx,
   c.push_back(w1.coins.at(c1));
   c.push_back(w1.coins.at(c2));
 
-  logdbg << "'" << w1.ask.pid << "' removing $" << w1.coins.at(c1).getValue() << " coin" << endl;
-  logdbg << "'" << w1.ask.pid << "' removing $" << w1.coins.at(c2).getValue() << " coin" << endl;
+  loginfo << "'" << w1.ask.pid << "' removing $" << w1.coins.at(c1).getValue() << " coin" << endl;
+  loginfo << "'" << w1.ask.pid << "' removing $" << w1.coins.at(c2).getValue() << " coin" << endl;
 
   w1.coins.at(c1).val = 0;
   w1.coins.at(c2).val = 0;
@@ -482,8 +482,8 @@ void doPayment_2t2(const Context& ctx,
   Fr val2 = totalVal - val1;
   testAssertEqual(val1 + val2, totalVal);
 
-  logdbg << "'" << w1.ask.pid << "' sends $" << val1 << " to '" << w2.ask.pid << "'" << endl;
-  logdbg << "'" << w1.ask.pid << "' gets $" << val2 << " change" << endl;
+  loginfo << "'" << w1.ask.pid << "' sends $" << val1 << " to '" << w2.ask.pid << "'" << endl;
+  loginfo << "'" << w1.ask.pid << "' gets $" << val2 << " change" << endl;
 
   // the recipients and their amounts received
   std::vector<std::tuple<std::string, Fr>> recip;
@@ -498,15 +498,15 @@ void doPayment_2t2(const Context& ctx,
 
   Tx tx_temp = Tx(ctx.p_, w1.ask, c, b, recip, ctx.bpk_, ctx.rpk_);
 
-  logdbg << "Created TXN!" << endl;
+  loginfo << "Created TXN!" << endl;
 
-  Tx tx = assertSerialization(ctx, tx_temp);
+  Tx tx = sendValidTxOnNetwork(ctx, tx_temp);
 
   addNullifiers(tx, nullset);
 
   signAndClaimOutputCoins(ctx, tx, wallets);
 
-  logdbg << '\n';
+  loginfo << '\n';
 }
 
 void doPayment_2t1(const Context& ctx,
@@ -516,7 +516,7 @@ void doPayment_2t1(const Context& ctx,
                    size_t c2,
                    std::set<std::string>& nullset,
                    std::vector<Wallet>& wallets) {
-  logdbg << "Payment 2-to-1 (Exact payment of two coins)" << endl;
+  loginfo << "Payment 2-to-1 (Exact payment of two coins)" << endl;
 
   testAssertGreaterThanOrEqual(w1.coins.size(), 2);
   testAssertNotEqual(c1, c2);
@@ -526,8 +526,8 @@ void doPayment_2t1(const Context& ctx,
   c.push_back(w1.coins.at(c1));
   c.push_back(w1.coins.at(c2));
 
-  logdbg << "'" << w1.ask.pid << "' removing $" << w1.coins.at(c1).getValue() << " coin" << endl;
-  logdbg << "'" << w1.ask.pid << "' removing $" << w1.coins.at(c2).getValue() << " coin" << endl;
+  loginfo << "'" << w1.ask.pid << "' removing $" << w1.coins.at(c1).getValue() << " coin" << endl;
+  loginfo << "'" << w1.ask.pid << "' removing $" << w1.coins.at(c2).getValue() << " coin" << endl;
 
   w1.coins.at(c1).val = 0;
   w1.coins.at(c2).val = 0;
@@ -537,7 +537,7 @@ void doPayment_2t1(const Context& ctx,
   // Send both coins with no change
   Fr totalVal = c.at(0).val + c.at(1).val;
 
-  logdbg << "'" << w1.ask.pid << "' sends $" << totalVal << " to '" << w2.ask.pid << "'" << endl;
+  loginfo << "'" << w1.ask.pid << "' sends $" << totalVal << " to '" << w2.ask.pid << "'" << endl;
 
   // the recipients and their amounts received
   std::vector<std::tuple<std::string, Fr>> recip;
@@ -551,15 +551,15 @@ void doPayment_2t1(const Context& ctx,
 
   Tx tx_temp = Tx(ctx.p_, w1.ask, c, b, recip, ctx.bpk_, ctx.rpk_);
 
-  logdbg << "Created TXN!" << endl;
+  loginfo << "Created TXN!" << endl;
 
-  Tx tx = assertSerialization(ctx, tx_temp);
+  Tx tx = sendValidTxOnNetwork(ctx, tx_temp);
 
   addNullifiers(tx, nullset);
 
   signAndClaimOutputCoins(ctx, tx, wallets);
 
-  logdbg << '\n';
+  loginfo << '\n';
 }
 
 void doPayment_1t2(const Context& ctx,
@@ -569,13 +569,13 @@ void doPayment_1t2(const Context& ctx,
                    size_t amount,
                    std::set<std::string>& nullset,
                    std::vector<Wallet>& wallets) {
-  logdbg << "Payment 1-to-2 (Payment of one coin with change)" << endl;
+  loginfo << "Payment 1-to-2 (Payment of one coin with change)" << endl;
 
   testAssertGreaterThanOrEqual(w1.coins.size(), 1);
 
   std::vector<Coin> c;
   c.push_back(w1.coins.at(c1));
-  logdbg << "'" << w1.ask.pid << "' removing $" << w1.coins.at(c1).getValue() << " coin" << endl;
+  loginfo << "'" << w1.ask.pid << "' removing $" << w1.coins.at(c1).getValue() << " coin" << endl;
   w1.coins.erase(w1.coins.begin() + (int)c1);
 
   Fr totalVal = c.at(0).val;
@@ -585,8 +585,8 @@ void doPayment_1t2(const Context& ctx,
   Fr val2 = totalVal - val1;
   testAssertEqual(val1 + val2, totalVal);
 
-  logdbg << "'" << w1.ask.pid << "' sends $" << val1 << " to '" << w2.ask.pid << "'" << endl;
-  logdbg << "'" << w1.ask.pid << "' gets $" << val2 << " change" << endl;
+  loginfo << "'" << w1.ask.pid << "' sends $" << val1 << " to '" << w2.ask.pid << "'" << endl;
+  loginfo << "'" << w1.ask.pid << "' gets $" << val2 << " change" << endl;
 
   // the recipients and their amounts received
   std::vector<std::tuple<std::string, Fr>> recip;
@@ -601,15 +601,15 @@ void doPayment_1t2(const Context& ctx,
 
   Tx tx_temp = Tx(ctx.p_, w1.ask, c, b, recip, ctx.bpk_, ctx.rpk_);
 
-  logdbg << "Created TXN!" << endl;
+  loginfo << "Created TXN!" << endl;
 
-  Tx tx = assertSerialization(ctx, tx_temp);
+  Tx tx = sendValidTxOnNetwork(ctx, tx_temp);
 
   addNullifiers(tx, nullset);
 
   signAndClaimOutputCoins(ctx, tx, wallets);
 
-  logdbg << '\n';
+  loginfo << '\n';
 }
 
 void doPayment_1t1(const Context& ctx,
@@ -618,17 +618,17 @@ void doPayment_1t1(const Context& ctx,
                    size_t c1,
                    std::set<std::string>& nullset,
                    std::vector<Wallet>& wallets) {
-  logdbg << "Payment 1-to-1 (Exact payment of one coin)" << endl;
+  loginfo << "Payment 1-to-1 (Exact payment of one coin)" << endl;
 
   std::vector<Coin> c;
   c.push_back(w1.coins.at(c1));  // remove one coin from the wallet
 
-  logdbg << "'" << w1.ask.pid << "' removing $" << w1.coins.at(c1).getValue() << " coin" << endl;
+  loginfo << "'" << w1.ask.pid << "' removing $" << w1.coins.at(c1).getValue() << " coin" << endl;
   w1.coins.erase(w1.coins.begin() + (int)c1);
 
   // Send a single coin with no change
   Fr totalVal = c.at(0).val;
-  logdbg << "'" << w1.ask.pid << "' sends $" << totalVal << " to '" << w2.ask.pid << "'" << endl;
+  loginfo << "'" << w1.ask.pid << "' sends $" << totalVal << " to '" << w2.ask.pid << "'" << endl;
 
   // the recipients and their amounts received
   std::vector<std::tuple<std::string, Fr>> recip;
@@ -642,15 +642,15 @@ void doPayment_1t1(const Context& ctx,
 
   Tx tx_temp = Tx(ctx.p_, w1.ask, c, b, recip, ctx.bpk_, ctx.rpk_);
 
-  logdbg << "Created TXN!" << endl;
+  loginfo << "Created TXN!" << endl;
 
-  Tx tx = assertSerialization(ctx, tx_temp);
+  Tx tx = sendValidTxOnNetwork(ctx, tx_temp);
 
   addNullifiers(tx, nullset);
 
   signAndClaimOutputCoins(ctx, tx, wallets);
 
-  logdbg << '\n';
+  loginfo << '\n';
 }
 
 void doCoinSplit(const Context& ctx,
@@ -659,7 +659,7 @@ void doCoinSplit(const Context& ctx,
                  size_t amount,
                  std::set<std::string>& nullset,
                  std::vector<Wallet>& wallets) {
-  logdbg << "Self 1-to-2 (Coin split)" << endl;
+  loginfo << "Self 1-to-2 (Coin split)" << endl;
 
   testAssertGreaterThanOrEqual(w.coins.size(), 1);
 
@@ -675,7 +675,7 @@ void doCoinSplit(const Context& ctx,
   Fr val2 = totalVal - val1;
   testAssertEqual(val1 + val2, totalVal);
 
-  logdbg << "'" << w.ask.pid << "' splits $" << totalVal << " into $" << val1 << " and $" << val2 << endl;
+  loginfo << "'" << w.ask.pid << "' splits $" << totalVal << " into $" << val1 << " and $" << val2 << endl;
 
   // the recipients and their amounts received
   std::vector<std::tuple<std::string, Fr>> recip;
@@ -684,20 +684,20 @@ void doCoinSplit(const Context& ctx,
 
   Tx tx_temp = Tx(ctx.p_, w.ask, c, std::nullopt /*no budget*/, recip, ctx.bpk_, ctx.rpk_);
 
-  logdbg << "Created TXN!" << endl;
+  loginfo << "Created TXN!" << endl;
 
-  Tx tx = assertSerialization(ctx, tx_temp);
+  Tx tx = sendValidTxOnNetwork(ctx, tx_temp);
 
   addNullifiers(tx, nullset);
 
   signAndClaimOutputCoins(ctx, tx, wallets);
 
-  logdbg << '\n';
+  loginfo << '\n';
 }
 
 void doCoinMerge(
     const Context& ctx, Wallet& w, size_t c1, size_t c2, std::set<std::string>& nullset, std::vector<Wallet>& wallets) {
-  logdbg << "Self 2-to-1 (Coin merge)" << endl;
+  loginfo << "Self 2-to-1 (Coin merge)" << endl;
 
   testAssertGreaterThanOrEqual(w.coins.size(), 2);
   testAssertNotEqual(c1, c2);
@@ -707,8 +707,8 @@ void doCoinMerge(
   c.push_back(w.coins.at(c1));
   c.push_back(w.coins.at(c2));
 
-  logdbg << "'" << w.ask.pid << "' removing $" << w.coins.at(c1).getValue() << " coin" << endl;
-  logdbg << "'" << w.ask.pid << "' removing $" << w.coins.at(c2).getValue() << " coin" << endl;
+  loginfo << "'" << w.ask.pid << "' removing $" << w.coins.at(c1).getValue() << " coin" << endl;
+  loginfo << "'" << w.ask.pid << "' removing $" << w.coins.at(c2).getValue() << " coin" << endl;
 
   w.coins.at(c1).val = 0;
   w.coins.at(c2).val = 0;
@@ -720,7 +720,7 @@ void doCoinMerge(
   Fr val2 = c.at(1).val;
   Fr totalVal = val1 + val2;
 
-  logdbg << "'" << w.ask.pid << "' merges $" << totalVal << " from $" << val1 << " and $" << val2 << endl;
+  loginfo << "'" << w.ask.pid << "' merges $" << totalVal << " from $" << val1 << " and $" << val2 << endl;
 
   // the recipients and their amounts received
   std::vector<std::tuple<std::string, Fr>> recip;
@@ -728,15 +728,15 @@ void doCoinMerge(
 
   Tx tx_temp = Tx(ctx.p_, w.ask, c, std::nullopt /*no budget*/, recip, ctx.bpk_, ctx.rpk_);
 
-  logdbg << "Created TXN!" << endl;
+  loginfo << "Created TXN!" << endl;
 
-  Tx tx = assertSerialization(ctx, tx_temp);
+  Tx tx = sendValidTxOnNetwork(ctx, tx_temp);
 
   addNullifiers(tx, nullset);
 
   signAndClaimOutputCoins(ctx, tx, wallets);
 
-  logdbg << '\n';
+  loginfo << '\n';
 }
 
 }  // namespace libutt::Simulation

@@ -15,6 +15,7 @@ set(utt_test_sources
     #TestTxnFlat.cpp
     TestTxnSimulateAll.cpp
     TestTxnSimulateUTTDemo.cpp
+    TestTxnSimulateUTTDemo_v2.cpp
     #TestXGCD.cpp
 )
 
