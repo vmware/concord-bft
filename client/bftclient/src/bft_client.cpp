@@ -24,7 +24,7 @@ using namespace bftEngine::impl;
 
 namespace bft::client {
 
-Client::Client(SharedCommPtr comm, const ClientConfig& config)
+Client::Client(SharedCommPtr comm, const ClientConfig& config, std::shared_ptr<concordMetrics::Aggregator> aggregator)
     : communication_(std::move(comm)),
       config_(config),
       quorum_converter_(config_.all_replicas, config.ro_replicas, config.f_val, config_.c_val),
@@ -38,6 +38,7 @@ Client::Client(SharedCommPtr comm, const ClientConfig& config)
                                config_.retry_timeout_config.max_decreasing_factor),
       metrics_(config.id),
       histograms_(std::unique_ptr<Recorders>(new Recorders(config.id))) {
+  setAggregator(aggregator);
   // secrets_manager_config can be set only if transaction_signing_private_key_file_path is set
   if (config.secrets_manager_config) ConcordAssert(config.transaction_signing_private_key_file_path != std::nullopt);
   if (config.transaction_signing_private_key_file_path) {
