@@ -345,6 +345,93 @@ TEST_F(v4_blockchain, adv_chain) {
       ASSERT_EQ(dig, parent_digest);
     }
   }
+
+  // load blockchain from storage and check all keys in multiget
+  {
+    auto blockchain = v4blockchain::detail::Blockchain{db};
+    std::vector<BlockId> block_ids{1, 2, 3, 4, 5};
+    std::unordered_map<BlockId, std::optional<std::string>> values;
+    ASSERT_NO_THROW(blockchain.multiGetBlockData(block_ids, values));
+    ASSERT_EQ(block_ids.size(), values.size());
+    for (const auto& bid : block_ids) {
+      const auto valit = values.find(bid);
+      ASSERT_NE(valit, values.cend());
+      ASSERT_TRUE((valit->second).has_value());
+    }
+    std::unordered_map<BlockId, std::optional<categorization::Updates>> updates;
+    ASSERT_NO_THROW(blockchain.multiGetBlockUpdates(block_ids, updates));
+    ASSERT_EQ(block_ids.size(), updates.size());
+    for (const auto& bid : block_ids) {
+      const auto valit = updates.find(bid);
+      ASSERT_NE(valit, updates.cend());
+      ASSERT_TRUE((valit->second).has_value());
+    }
+  }
+
+  // load blockchain from storage and check all keys in multiget for duplicates
+  {
+    auto blockchain = v4blockchain::detail::Blockchain{db};
+    std::vector<BlockId> block_ids{1, 2, 3, 3, 4, 5};
+    std::unordered_map<BlockId, std::optional<std::string>> values;
+    ASSERT_THROW(blockchain.multiGetBlockData(block_ids, values), std::logic_error);
+    std::unordered_map<BlockId, std::optional<categorization::Updates>> updates;
+    blockchain.multiGetBlockUpdates(block_ids, updates);
+    ASSERT_GT(block_ids.size(), updates.size());
+    for (const auto& bid : block_ids) {
+      const auto valit = updates.find(bid);
+      ASSERT_NE(valit, updates.cend());
+      ASSERT_TRUE((valit->second).has_value());
+    }
+  }
+
+  // load blockchain from storage and check all keys in multiget for unknown values
+  {
+    auto blockchain = v4blockchain::detail::Blockchain{db};
+    std::vector<BlockId> block_ids{1, 2, 3, 4, 5, 6, 7, 8};
+    std::unordered_map<BlockId, std::optional<std::string>> values;
+    ASSERT_NO_THROW(blockchain.multiGetBlockData(block_ids, values));
+    ASSERT_EQ(block_ids.size(), values.size());
+    for (const auto& bid : block_ids) {
+      const auto valit = values.find(bid);
+      ASSERT_NE(valit, values.cend());
+      if (bid > blockchain.getLastReachable()) {
+        ASSERT_FALSE((valit->second).has_value());
+      } else {
+        ASSERT_TRUE((valit->second).has_value());
+      }
+    }
+    std::unordered_map<BlockId, std::optional<categorization::Updates>> updates;
+    ASSERT_NO_THROW(blockchain.multiGetBlockUpdates(block_ids, updates));
+    ASSERT_EQ(block_ids.size(), updates.size());
+    for (const auto& bid : block_ids) {
+      const auto valit = updates.find(bid);
+      ASSERT_NE(valit, updates.cend());
+      if (bid > blockchain.getLastReachable()) {
+        ASSERT_FALSE((valit->second).has_value());
+      } else {
+        ASSERT_TRUE((valit->second).has_value());
+      }
+    }
+  }
+  // load blockchain from storage and check all keys in multiget for duplicate unknown values
+  {
+    auto blockchain = v4blockchain::detail::Blockchain{db};
+    std::vector<BlockId> block_ids{1, 2, 3, 4, 5, 6, 6, 7, 8};
+    std::unordered_map<BlockId, std::optional<std::string>> values;
+    ASSERT_THROW(blockchain.multiGetBlockData(block_ids, values), std::logic_error);
+    std::unordered_map<BlockId, std::optional<categorization::Updates>> updates;
+    blockchain.multiGetBlockUpdates(block_ids, updates);
+    ASSERT_GT(block_ids.size(), updates.size());
+    for (const auto& bid : block_ids) {
+      const auto valit = updates.find(bid);
+      ASSERT_NE(valit, updates.cend());
+      if (bid > blockchain.getLastReachable()) {
+        ASSERT_FALSE((valit->second).has_value());
+      } else {
+        ASSERT_TRUE((valit->second).has_value());
+      }
+    }
+  }
 }
 
 TEST_F(v4_blockchain, delete_until) {
@@ -442,14 +529,14 @@ TEST_F(v4_blockchain, delete_until) {
   }
 
   {
-    auto blockchain = v4blockchain::detail::Blockchain{db};
-    ASSERT_EQ(blockchain.getLastReachable(), blockchain.getGenesisBlockId());
-    ASSERT_EQ(blockchain.getLastReachable(), 4);
-    auto id = blockchain.deleteBlocksUntil(5);
+    auto blockchain_local = v4blockchain::detail::Blockchain{db};
+    ASSERT_EQ(blockchain_local.getLastReachable(), blockchain_local.getGenesisBlockId());
+    ASSERT_EQ(blockchain_local.getLastReachable(), 4);
+    auto id = blockchain_local.deleteBlocksUntil(5);
     // single block on the chain, no actuall deletion
     ASSERT_EQ(id, 3);
     // until is less than the genesis
-    ASSERT_DEATH(blockchain.deleteBlocksUntil(1), "");
+    ASSERT_DEATH(blockchain_local.deleteBlocksUntil(1), "");
   }
 }
 
@@ -499,9 +586,9 @@ TEST_F(v4_blockchain, delete_genesis) {
   ASSERT_DEATH(blockchain.deleteGenesisBlock(), "");
 
   {
-    auto blockchain = v4blockchain::detail::Blockchain{db};
-    ASSERT_EQ(blockchain.getGenesisBlockId(), 2);
-    ASSERT_DEATH(blockchain.deleteGenesisBlock(), "");
+    auto blockchain_local = v4blockchain::detail::Blockchain{db};
+    ASSERT_EQ(blockchain_local.getGenesisBlockId(), 2);
+    ASSERT_DEATH(blockchain_local.deleteGenesisBlock(), "");
   }
 }
 

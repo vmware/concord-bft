@@ -133,6 +133,52 @@ std::optional<categorization::Updates> Blockchain::getBlockUpdates(BlockId id) c
   return block.getUpdates();
 }
 
+void Blockchain::multiGetBlockData(const std::vector<BlockId>& block_ids,
+                                   std::unordered_map<BlockId, std::optional<std::string>>& values) const {
+  values.clear();
+  std::vector<std::string> block_keys(block_ids.size());
+  std::transform(block_ids.cbegin(), block_ids.cend(), block_keys.begin(), [](BlockId bid) {
+    return Blockchain::generateKey(bid);
+  });
+  std::vector<::rocksdb::PinnableSlice> slices(block_ids.size());
+  std::vector<::rocksdb::Status> statuses(block_ids.size());
+  native_client_->multiGet(v4blockchain::detail::BLOCKS_CF, block_keys, slices, statuses);
+  for (auto i = 0ull; i < slices.size(); ++i) {
+    const auto& status = statuses[i];
+    const auto& slice = slices[i];
+    const auto& block_id = block_ids[i];
+    if (status.ok()) {
+      if (!values.try_emplace(block_id, slice.ToString()).second) {
+        throw std::logic_error{std::string("Duplicate block ids should not be sent: ") + block_keys[i]};
+      }
+    } else if (status.IsNotFound()) {
+      if (!values.try_emplace(block_id, std::nullopt).second) {
+        throw std::logic_error{std::string("Duplicate block ids should not be sent: ") + block_keys[i]};
+      }
+    } else {
+      // Should never happen.
+      throw std::runtime_error{"BLOCK_CF multiGet() failure: " + status.ToString()};
+    }
+  }
+}
+
+void Blockchain::multiGetBlockUpdates(
+    std::vector<BlockId> block_ids, std::unordered_map<BlockId, std::optional<categorization::Updates>>& values) const {
+  auto uqid = std::unique(block_ids.begin(), block_ids.end());
+  block_ids.resize(std::distance(block_ids.begin(), uqid));
+  std::unordered_map<BlockId, std::optional<std::string>> updates;
+  multiGetBlockData(block_ids, updates);
+  ConcordAssertEQ(block_ids.size(), updates.size());
+  for (const auto& block_buffer : updates) {
+    if (block_buffer.second) {
+      auto block = v4blockchain::detail::Block(*(block_buffer.second));
+      values.emplace(block_buffer.first, block.getUpdates());
+    } else {
+      values.emplace(block_buffer.first, std::nullopt);
+    }
+  }
+}
+
 // get the closest key to MAX_BLOCK_ID
 std::optional<BlockId> Blockchain::loadLastReachableBlockId() {
   auto itr = native_client_->getIterator(v4blockchain::detail::BLOCKS_CF);

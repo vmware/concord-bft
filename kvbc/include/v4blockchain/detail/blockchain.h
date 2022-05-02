@@ -14,6 +14,8 @@
 #pragma once
 
 // #include "blocks.h"
+#include <unordered_set>
+#include <unordered_map>
 #include <atomic>
 #include <limits>
 #include "rocksdb/native_client.h"
@@ -67,6 +69,24 @@ class Blockchain {
   std::optional<categorization::Updates> getBlockUpdates(BlockId id) const;
 
   concord::util::digest::BlockDigest getBlockParentDigest(concord::kvbc::BlockId id) const;
+
+  // Returns the actual values from blockchain DB for each of the block ids.
+  // This function expects unique blocks in block_ids.
+  // values is a result argument which will contain all the values for each block
+  // Order of blocks in block_ids is different from the order of blocks in the values
+  // block_ids.size() >= values.size() after the execution of this function.
+  void multiGetBlockData(const std::vector<BlockId>& block_ids,
+                         std::unordered_map<BlockId, std::optional<std::string>>& values) const;
+
+  // Returns the actual values from blockchain DB in the form of update operations
+  // for each of the block ids.
+  // This block id in block_ids can be non-unique.
+  // values is a result argument which will contain all the values for each block
+  // Order of blocks in block_ids is different from the order of blocks in the values
+  // block_ids.size() >= values.size() after the execution of this function.
+  void multiGetBlockUpdates(std::vector<BlockId> block_ids,
+                            std::unordered_map<BlockId, std::optional<categorization::Updates>>& values) const;
+
   concord::util::digest::BlockDigest calculateBlockDigest(concord::kvbc::BlockId id) const;
 
   // Generates a key (big endian string representation) from the block id.

@@ -11,6 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
+#include "endianness.hpp"
 #include "v4blockchain/detail/latest_keys.h"
 #include "v4blockchain/detail/column_families.h"
 #include "Logger.hpp"
@@ -222,6 +223,75 @@ void LatestKeys::trimHistoryUntil(BlockId block_id) {
   if (!status.ok()) {
     LOG_ERROR(V4_BLOCK_LOG, "Failed trimming history due to " << status.ToString());
     throw std::runtime_error(status.ToString());
+  }
+}
+
+std::optional<categorization::Value> LatestKeys::getValue(BlockId latest_block_id,
+                                                          const std::string& category_id,
+                                                          const std::string& latest_version,
+                                                          const std::string& key) const {
+  std::string get_key;
+  std::string out_ts;
+  const auto& prefix = category_mapping_.categoryPrefix(category_id);
+  get_key.append(prefix);
+  get_key.append(key);
+  auto opt_val = native_client_->get(v4blockchain::detail::LATEST_KEYS_CF, get_key, latest_version, &out_ts);
+  if (!opt_val) {
+    return std::nullopt;
+  }
+  auto actual_version = concordUtils::fromBigEndianBuffer<BlockId>(out_ts.data());
+  const size_t total_val_size = opt_val->size();
+
+  switch (category_mapping_.categoryType(category_id)) {
+    case concord::kvbc::categorization::CATEGORY_TYPE::block_merkle:
+      return categorization::MerkleValue{{actual_version, opt_val->substr(0, total_val_size - FLAGS_SIZE)}};
+    case concord::kvbc::categorization::CATEGORY_TYPE::immutable: {
+      return categorization::ImmutableValue{{actual_version, opt_val->substr(0, total_val_size - FLAGS_SIZE)}};
+    }
+    case concord::kvbc::categorization::CATEGORY_TYPE::versioned_kv: {
+      return categorization::VersionedValue{{actual_version, opt_val->substr(0, total_val_size - FLAGS_SIZE)}};
+    }
+    default:
+      ConcordAssert(false);
+  }
+}
+
+void LatestKeys::multiGetValue(BlockId latest_block_id,
+                               const std::string& category_id,
+                               const std::string& latest_version,
+                               const std::vector<std::string>& keys,
+                               std::vector<std::optional<categorization::Value>>& values) const {
+  values.clear();
+  values.reserve(keys.size());
+  for (const auto& key : keys) {
+    values.push_back(getValue(latest_block_id, category_id, latest_version, key));
+  }
+}
+
+std::optional<categorization::TaggedVersion> LatestKeys::getLatestVersion(const std::string& category_id,
+                                                                          const std::string& latest_version,
+                                                                          const std::string& key) const {
+  std::string get_key;
+  std::string out_ts;
+  const auto& prefix = category_mapping_.categoryPrefix(category_id);
+  get_key.append(prefix);
+  get_key.append(key);
+  auto opt_val = native_client_->get(v4blockchain::detail::LATEST_KEYS_CF, get_key, latest_version, &out_ts);
+  if (!opt_val) {
+    return std::nullopt;
+  }
+  BlockId version = concordUtils::fromBigEndianBuffer<BlockId>(out_ts.data());
+  return categorization::TaggedVersion{false, version};
+}
+
+void LatestKeys::multiGetLatestVersion(const std::string& category_id,
+                                       const std::string& latest_version,
+                                       const std::vector<std::string>& keys,
+                                       std::vector<std::optional<categorization::TaggedVersion>>& versions) const {
+  versions.clear();
+  versions.reserve(keys.size());
+  for (const auto& key : keys) {
+    versions.push_back(getLatestVersion(category_id, latest_version, key));
   }
 }
 

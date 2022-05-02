@@ -18,6 +18,7 @@
 #include "kvbc_adapter/categorization/state_snapshot_adapter.hpp"
 #include "kvbc_adapter/v4blockchain/blocks_deleter_adapter.hpp"
 #include "kvbc_adapter/v4blockchain/blocks_adder_adapter.hpp"
+#include "kvbc_adapter/v4blockchain/blocks_reader_adapter.hpp"
 
 namespace concord::kvbc::adapter {
 ReplicaBlockchain::~ReplicaBlockchain() {
@@ -63,6 +64,7 @@ ReplicaBlockchain::ReplicaBlockchain(
     v4_kvbc_ =
         std::make_shared<concord::kvbc::v4blockchain::KeyValueBlockchain>(native_client, link_st_chain, category_types);
     up_deleter_ = std::make_unique<concord::kvbc::adapter::v4blockchain::BlocksDeleterAdapter>(v4_kvbc_, aux_types);
+    up_reader_ = std::make_unique<concord::kvbc::adapter::v4blockchain::BlocksReaderAdapter>(v4_kvbc_);
     up_adder_ = std::make_unique<concord::kvbc::adapter::v4blockchain::BlocksAdderAdapter>(v4_kvbc_);
   }
 
