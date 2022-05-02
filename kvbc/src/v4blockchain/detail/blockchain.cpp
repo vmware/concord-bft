@@ -70,7 +70,10 @@ BlockId Blockchain::deleteBlocksUntil(BlockId until) {
   ConcordAssertGT(genesis_block_id_, INVALID_BLOCK_ID);
   ConcordAssertLT(genesis_block_id_, until);
   // We have a single block on the chain
-  if (last_reachable_block_id_ == genesis_block_id_) return genesis_block_id_ - 1;
+  if (last_reachable_block_id_ == genesis_block_id_) {
+    LOG_WARN(V4_BLOCK_LOG, "Deleting the last block in the blockchain is not supported " << last_reachable_block_id_);
+    return genesis_block_id_ - 1;
+  }
   // We don't want to erase all the blockchain
   const auto last_deleted_block = std::min(last_reachable_block_id_.load() - 1, until - 1);
   auto write_batch = native_client_->getBatch();
