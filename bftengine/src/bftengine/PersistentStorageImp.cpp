@@ -15,6 +15,7 @@
 #include "bftengine/EpochManager.hpp"
 #include "bftengine/DbCheckpointMetadata.hpp"
 #include "bftengine/ReplicaSpecificInfoManager.hpp"
+#include "bftengine/ReplicaConfig.hpp"
 #include <list>
 #include <sstream>
 #include <stdexcept>
@@ -33,7 +34,18 @@ PersistentStorageImp::PersistentStorageImp(
       cVal_(cVal),
       numPrinciples_(numOfPrinciples + numReplicas),  // numReplicas is for the internal clients
       maxClientBatchSize_(maxClientBatchSize),
-      version_(METADATA_PARAMS_VERSION) {
+      version_(METADATA_PARAMS_VERSION),
+      buffers_{UniquePtrToChar(new char[DescriptorOfLastExitFromView::simpleParamsSize()]),
+               UniquePtrToChar(new char[DescriptorOfLastExitFromView::maxElementSize()]),
+               UniquePtrToChar(new char[DescriptorOfLastExitFromView::maxComplaintSize()]),
+               UniquePtrToChar(new char[DescriptorOfLastNewView::simpleParamsSize()]),
+               UniquePtrToChar(new char[DescriptorOfLastNewView::maxElementSize()]),
+               UniquePtrToChar(new char[DescriptorOfLastExecution::maxSize()]),
+               UniquePtrToChar(new char[DescriptorOfLastStableCheckpoint::maxSize(numReplicas_)]),
+               UniquePtrToChar(new char[CheckData::maxSize()]),
+               UniquePtrToChar(new char[bftEngine::ReplicaConfig::instance().maxExternalMessageSize]),
+               UniquePtrToChar(new char[CheckData::maxSize()]),
+               UniquePtrToChar(new char[SeqNumWindow::maxElementSize()])} {
   DescriptorOfLastNewView::setViewChangeMsgsNum(fVal, cVal);
 }
 
@@ -214,7 +226,7 @@ void PersistentStorageImp::setLastViewThatTransferredSeqNumbersFullyExecuted(Vie
 
 void PersistentStorageImp::saveDescriptorOfLastExitFromView(const DescriptorOfLastExitFromView &newDesc) {
   const size_t simpleParamsSize = DescriptorOfLastExitFromView::simpleParamsSize();
-  UniquePtrToChar simpleParamsBuf(new char[simpleParamsSize]);
+  UniquePtrToChar &simpleParamsBuf = buffers_.lefv_simple_element_buf;
   memset(simpleParamsBuf.get(), 0, simpleParamsSize);
   size_t actualSize = 0;
   newDesc.serializeSimpleParams(simpleParamsBuf.get(), simpleParamsSize, actualSize);
@@ -223,7 +235,7 @@ void PersistentStorageImp::saveDescriptorOfLastExitFromView(const DescriptorOfLa
   size_t actualElementSize = 0;
   uint32_t elementsNum = newDesc.elements.size();
   uint32_t maxElementSize = DescriptorOfLastExitFromView::maxElementSize();
-  UniquePtrToChar elementBuf(new char[maxElementSize]);
+  UniquePtrToChar &elementBuf = buffers_.lefv_element_buf;
   for (size_t i = 0; i < elementsNum; ++i) {
     newDesc.serializeElement(i, elementBuf.get(), maxElementSize, actualElementSize);
     ConcordAssertNE(actualElementSize, 0);
@@ -235,7 +247,7 @@ void PersistentStorageImp::saveDescriptorOfLastExitFromView(const DescriptorOfLa
   size_t actualComplaintSize = 0;
   uint32_t complaintsNum = newDesc.complaints.size();
   uint32_t maxComplaintSize = DescriptorOfLastExitFromView::maxComplaintSize();
-  UniquePtrToChar complaintBuf(new char[maxComplaintSize]);
+  UniquePtrToChar &complaintBuf = buffers_.lefv_complaint_buf;
   for (size_t i = 0; i < complaintsNum; ++i) {
     newDesc.serializeComplaint(i, complaintBuf.get(), maxComplaintSize, actualComplaintSize);
     ConcordAssertNE(actualComplaintSize, 0);
@@ -265,7 +277,7 @@ void PersistentStorageImp::initDescriptorOfLastExitFromView() {
 
 void PersistentStorageImp::saveDescriptorOfLastNewView(const DescriptorOfLastNewView &newDesc) {
   const size_t simpleParamsSize = DescriptorOfLastNewView::simpleParamsSize();
-  UniquePtrToChar simpleParamsBuf(new char[simpleParamsSize]);
+  UniquePtrToChar &simpleParamsBuf = buffers_.lnv_simple_element_buf;
   size_t actualSize = 0;
   newDesc.serializeSimpleParams(simpleParamsBuf.get(), simpleParamsSize, actualSize);
   metadataStorage_->writeInBatch(LAST_NEW_VIEW_DESC, simpleParamsBuf.get(), actualSize);
@@ -273,7 +285,7 @@ void PersistentStorageImp::saveDescriptorOfLastNewView(const DescriptorOfLastNew
   size_t actualElementSize = 0;
   uint32_t numOfMessages = DescriptorOfLastNewView::getViewChangeMsgsNum();
   uint32_t maxElementSize = DescriptorOfLastNewView::maxElementSize();
-  UniquePtrToChar elementBuf(new char[maxElementSize]);
+  UniquePtrToChar &elementBuf = buffers_.lnv_element_buf;
   for (uint32_t i = 0; i < numOfMessages; ++i) {
     newDesc.serializeElement(i, elementBuf.get(), maxElementSize, actualElementSize);
     ConcordAssertNE(actualElementSize, 0);
@@ -301,7 +313,7 @@ void PersistentStorageImp::initDescriptorOfLastNewView() {
 
 void PersistentStorageImp::saveDescriptorOfLastExecution(const DescriptorOfLastExecution &newDesc) {
   const size_t bufLen = DescriptorOfLastExecution::maxSize();
-  UniquePtrToChar descBuf(new char[bufLen]);
+  UniquePtrToChar &descBuf = buffers_.dole_buf;
   char *descBufPtr = descBuf.get();
   size_t actualSize = 0;
   newDesc.serialize(descBufPtr, bufLen, actualSize);
@@ -317,7 +329,7 @@ void PersistentStorageImp::setDescriptorOfLastExecution(const DescriptorOfLastEx
 void PersistentStorageImp::setDescriptorOfLastStableCheckpoint(
     const DescriptorOfLastStableCheckpoint &stableCheckDesc) {
   const size_t bufLen = DescriptorOfLastStableCheckpoint::maxSize(numReplicas_);
-  UniquePtrToChar descBuf(new char[bufLen]);
+  UniquePtrToChar &descBuf = buffers_.dolscp_buf;
   char *descBufPtr = descBuf.get();
   size_t actualSize = 0;
   stableCheckDesc.serialize(descBufPtr, bufLen, actualSize);
@@ -352,7 +364,7 @@ void PersistentStorageImp::saveDefaultsInSeqNumWindow() {
 }
 
 void PersistentStorageImp::setSeqNumDataElement(SeqNum index, const SeqNumData &seqNumData) const {
-  UniquePtrToChar buf(new char[SeqNumData::maxSize()]);
+  UniquePtrToChar &buf = buffers_.sne_buf;
   SeqNum shift = index * numOfSeqNumWinParameters;
   char *movablePtr = buf.get();
   size_t actualSize = seqNumData.serializePrePrepareMsg(movablePtr);
@@ -402,7 +414,7 @@ void PersistentStorageImp::saveDefaultsInCheckWindow() {
 }
 
 void PersistentStorageImp::setCheckDataElement(SeqNum index, const CheckData &checkData) const {
-  UniquePtrToChar buf(new char[CheckData::maxSize()]);
+  UniquePtrToChar &buf = buffers_.cde_buf;
   char *movablePtr = buf.get();
   SeqNum shift = index * numOfCheckWinParameters;
   size_t actualSize = checkData.serializeCheckpointMsg(movablePtr);
@@ -463,7 +475,7 @@ void PersistentStorageImp::setMsgInSeqNumWindow(SeqNum seqNum,
                                                 SeqNum parameterId,
                                                 MessageBase *msg,
                                                 size_t msgSize) const {
-  UniquePtrToChar buf(new char[msgSize]);
+  UniquePtrToChar &buf = buffers_.msg_element_buf;
   char *movablePtr = buf.get();
   const size_t actualSize = SeqNumData::serializeMsg(movablePtr, msg);
   ConcordAssertNE(actualSize, 0);
@@ -515,8 +527,7 @@ void PersistentStorageImp::setCompletedMarkInCheckWindow(SeqNum seqNum, bool com
 }
 
 void PersistentStorageImp::setCheckpointMsgInCheckWindow(SeqNum seqNum, CheckpointMsg *msg) {
-  size_t bufLen = CheckData::maxCheckpointMsgSize();
-  UniquePtrToChar buf(new char[bufLen]);
+  UniquePtrToChar &buf = buffers_.cpd_buf;
   char *movablePtr = buf.get();
   size_t actualSize = CheckData::serializeCheckpointMsg(movablePtr, (CheckpointMsg *)msg);
   ConcordAssertNE(actualSize, 0);
@@ -619,14 +630,14 @@ DescriptorOfLastExitFromView PersistentStorageImp::getAndAllocateDescriptorOfLas
   uint32_t sizeInDb = 0;
 
   // Read first simple params.
-  UniquePtrToChar simpleParamsBuf(new char[simpleParamsSize]);
+  UniquePtrToChar &simpleParamsBuf = buffers_.lefv_simple_element_buf;
   metadataStorage_->read(LAST_EXIT_FROM_VIEW_DESC, simpleParamsSize, simpleParamsBuf.get(), sizeInDb);
   ConcordAssertEQ(sizeInDb, simpleParamsSize);
   uint32_t actualSize = 0;
   dbDesc.deserializeSimpleParams(simpleParamsBuf.get(), simpleParamsSize, actualSize);
 
   const size_t maxElementSize = DescriptorOfLastExitFromView::maxElementSize();
-  UniquePtrToChar elementBuf(new char[maxElementSize]);
+  UniquePtrToChar &elementBuf = buffers_.lefv_element_buf;
   uint32_t actualElementSize = 0;
   uint32_t elementsNum = dbDesc.elements.size();
   for (uint32_t i = 0; i < elementsNum; ++i) {
@@ -638,7 +649,7 @@ DescriptorOfLastExitFromView PersistentStorageImp::getAndAllocateDescriptorOfLas
   }
 
   const size_t maxComplaintSize = DescriptorOfLastExitFromView::maxComplaintSize();
-  UniquePtrToChar complaintBuf(new char[maxComplaintSize]);
+  UniquePtrToChar &complaintBuf = buffers_.lefv_complaint_buf;
   uint32_t actualComplaintSize = 0;
   uint32_t complaintsNum = dbDesc.complaints.size();
   for (uint32_t i = 0; i < complaintsNum; ++i) {
@@ -658,12 +669,12 @@ DescriptorOfLastNewView PersistentStorageImp::getAndAllocateDescriptorOfLastNewV
   uint32_t actualSize = 0;
 
   // Read first simple params.
-  UniquePtrToChar simpleParamsBuf(new char[simpleParamsSize]);
+  UniquePtrToChar &simpleParamsBuf = buffers_.lnv_simple_element_buf;
   metadataStorage_->read(LAST_NEW_VIEW_DESC, simpleParamsSize, simpleParamsBuf.get(), actualSize);
   dbDesc.deserializeSimpleParams(simpleParamsBuf.get(), simpleParamsSize, actualSize);
 
   size_t maxElementSize = DescriptorOfLastNewView::maxElementSize();
-  UniquePtrToChar elementBuf(new char[maxElementSize]);
+  UniquePtrToChar &elementBuf = buffers_.lnv_element_buf;
   size_t actualElementSize = 0;
   uint32_t viewChangeMsgsNum = DescriptorOfLastNewView::getViewChangeMsgsNum();
   for (uint32_t i = 0; i < viewChangeMsgsNum; ++i) {
@@ -679,7 +690,7 @@ DescriptorOfLastExecution PersistentStorageImp::getDescriptorOfLastExecution() {
   const size_t maxSize = DescriptorOfLastExecution::maxSize();
   uint32_t actualSize = 0;
 
-  UniquePtrToChar buf(new char[maxSize]);
+  UniquePtrToChar &buf = buffers_.dole_buf;
   metadataStorage_->read(LAST_EXEC_DESC, maxSize, buf.get(), actualSize);
   dbDesc.deserialize(buf.get(), maxSize, actualSize);
   ConcordAssertNE(actualSize, 0);
@@ -696,7 +707,7 @@ DescriptorOfLastStableCheckpoint PersistentStorageImp::getDescriptorOfLastStable
   uint32_t dbDescSize = DescriptorOfLastStableCheckpoint::maxSize(numReplicas_);
   uint32_t sizeInDb = 0;
 
-  UniquePtrToChar simpleParamsBuf(new char[dbDescSize]);
+  UniquePtrToChar &simpleParamsBuf = buffers_.dolscp_buf;
   metadataStorage_->read(LAST_STABLE_CHECKPOINT_DESC, dbDescSize, simpleParamsBuf.get(), sizeInDb);
 
   size_t actualSize = 0;
@@ -732,7 +743,7 @@ bool PersistentStorageImp::hasDescriptorOfLastExecution() { return hasDescriptor
 void PersistentStorageImp::readSeqNumDataElementFromDisk(SeqNum index, const SharedPtrSeqNumWindow &seqNumWindow) {
   uint32_t actualElementSize = 0;
   uint32_t actualParameterSize = 0;
-  UniquePtrToChar buf(new char[SeqNumWindow::maxElementSize()]);
+  UniquePtrToChar &buf = buffers_.snw_buf;
   SeqNum shift = index * numOfSeqNumWinParameters;
   char *movablePtr = buf.get();
   for (auto i = 0; i < numOfSeqNumWinParameters; ++i) {
@@ -749,7 +760,7 @@ void PersistentStorageImp::readSeqNumDataElementFromDisk(SeqNum index, const Sha
 void PersistentStorageImp::readCheckDataElementFromDisk(SeqNum index, const SharedPtrCheckWindow &checkWindow) {
   uint32_t actualElementSize = 0;
   uint32_t actualParameterSize = 0;
-  UniquePtrToChar buf(new char[CheckData::maxSize()]);
+  UniquePtrToChar &buf = buffers_.cde_buf;
   char *movablePtr = buf.get();
   const SeqNum shift = index * numOfCheckWinParameters;
   for (auto i = 0; i < numOfCheckWinParameters; ++i) {
@@ -782,7 +793,7 @@ uint8_t PersistentStorageImp::readOneByteFromDisk(SeqNum index, SeqNum parameter
 }
 
 MessageBase *PersistentStorageImp::readMsgFromDisk(SeqNum seqNum, SeqNum parameterId, size_t msgSize) const {
-  UniquePtrToChar buf(new char[msgSize]);
+  UniquePtrToChar &buf = buffers_.msg_element_buf;
   uint32_t actualMsgSize = 0;
   const SeqNum convertedIndex = BEGINNING_OF_SEQ_NUM_WINDOW + parameterId + convertSeqNumWindowIndex(seqNum);
   ConcordAssertLT(convertedIndex, BEGINNING_OF_CHECK_WINDOW);
@@ -829,7 +840,7 @@ uint8_t PersistentStorageImp::readCompletedMarkFromDisk(SeqNum index) const {
 
 CheckpointMsg *PersistentStorageImp::readCheckpointMsgFromDisk(SeqNum index) const {
   const size_t bufLen = CheckData::maxSize();
-  UniquePtrToChar buf(new char[bufLen]);
+  UniquePtrToChar &buf = buffers_.cpd_buf;
   uint32_t actualMsgSize = 0;
   const SeqNum convertedIndex = BEGINNING_OF_CHECK_WINDOW + CHECKPOINT_MSG + convertCheckWindowIndex(index);
   ConcordAssertLT(convertedIndex, WIN_PARAMETERS_NUM);

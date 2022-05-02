@@ -288,6 +288,23 @@ class PersistentStorageImp : public PersistentStorage {
   SeqNum strictLowerBoundOfSeqNums_ = 0;
   ViewNum lastViewTransferredSeqNum_ = 0;
   SeqNum lastStableSeqNum_ = 0;
+
+  struct Buffers {
+    concord::serialize::UniquePtrToChar lefv_simple_element_buf;
+    concord::serialize::UniquePtrToChar lefv_element_buf;
+    concord::serialize::UniquePtrToChar lefv_complaint_buf;
+    concord::serialize::UniquePtrToChar lnv_simple_element_buf;
+    concord::serialize::UniquePtrToChar lnv_element_buf;
+    concord::serialize::UniquePtrToChar dole_buf;
+    concord::serialize::UniquePtrToChar dolscp_buf;
+    concord::serialize::UniquePtrToChar sne_buf;
+    concord::serialize::UniquePtrToChar cde_buf;
+    concord::serialize::UniquePtrToChar msg_element_buf;
+    concord::serialize::UniquePtrToChar cpd_buf;
+    concord::serialize::UniquePtrToChar snw_buf;
+  };
+
+  mutable Buffers buffers_;
 };
 
 }  // namespace impl
