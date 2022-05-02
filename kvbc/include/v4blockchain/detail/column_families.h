@@ -23,18 +23,4 @@ inline const auto ST_CHAIN_CF = std::string{"v4_st_chain"};
 inline const auto LATEST_KEYS_CF = std::string{"v4_latest_keys"};
 inline const auto CATEGORIES_CF = std::string{"v4_categories"};
 
-inline bool createColumnFamilyIfNotExisting(const std::string &cf,
-                                            storage::rocksdb::NativeClient &db,
-                                            const ::rocksdb::Comparator *comparator = nullptr) {
-  if (!db.hasColumnFamily(cf)) {
-    auto cf_options = ::rocksdb::ColumnFamilyOptions{};
-    if (comparator) {
-      cf_options.comparator = comparator;
-    }
-    db.createColumnFamily(cf, cf_options);
-    return true;
-  }
-  return false;
-}
-
 }  // namespace concord::kvbc::v4blockchain::detail
