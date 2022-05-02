@@ -30,6 +30,7 @@
 #include "ISystemResourceEntity.hpp"
 #include "replica_adapter_auxilliary_types.hpp"
 #include "categorization/kv_blockchain.h"
+#include "v4blockchain/v4_blockchain.h"
 
 using concord::storage::rocksdb::NativeClient;
 
@@ -215,5 +216,6 @@ class ReplicaBlockchain : public IBlocksDeleter,
 
   //////////////Blockchain Abstractions //////////////////
   std::shared_ptr<concord::kvbc::categorization::KeyValueBlockchain> kvbc_{nullptr};
+  std::shared_ptr<concord::kvbc::v4blockchain::KeyValueBlockchain> v4_kvbc_{nullptr};
 };
 }  // namespace concord::kvbc::adapter
