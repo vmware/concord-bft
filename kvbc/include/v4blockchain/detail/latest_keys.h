@@ -115,6 +115,29 @@ class LatestKeys {
 
   ::rocksdb::CompactionFilter* getCompFilter() { return &comp_filter_; }
 
+  // get the value and return deserialized value if needed.
+  std::optional<categorization::Value> getValue(BlockId latest_block_id,
+                                                const std::string& category_id,
+                                                const std::string& latest_version,
+                                                const std::string& key) const;
+
+  // return multiple values, supposed to be more efficient.
+  void multiGetValue(BlockId latest_block_id,
+                     const std::string& category_id,
+                     const std::string& latest_version,
+                     const std::vector<std::string>& keys,
+                     std::vector<std::optional<categorization::Value>>& values) const;
+
+  // returns the latest block id nearest to the last block id or latest version.
+  std::optional<categorization::TaggedVersion> getLatestVersion(const std::string& category_id,
+                                                                const std::string& latest_version,
+                                                                const std::string& key) const;
+  // returns multiple latest block ids which which are nearest to the last block id or latest version.
+  void multiGetLatestVersion(const std::string& category_id,
+                             const std::string& latest_version,
+                             const std::vector<std::string>& keys,
+                             std::vector<std::optional<categorization::TaggedVersion>>& versions) const;
+
  private:
   // This filter is used to delete stale on update keys if their version is smaller than the genesis block
   // It's being called by RocksDB on compaction

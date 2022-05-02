@@ -18,7 +18,10 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <set>
 #include <random>
+#include <functional>
+#include <limits>
 #include "storage/test/storage_test_common.h"
 #include "endianness.hpp"
 #include "v4blockchain/detail/column_families.h"
@@ -45,6 +48,107 @@ class v4_kvbc : public Test {
     db.reset();
     ASSERT_EQ(0, db.use_count());
     cleanup();
+  }
+  void create_blocks(uint64_t num_blocks,
+                     uint32_t& num_merkle_each,
+                     uint32_t& num_versioned_each,
+                     uint32_t& num_immutable_each) {
+    std::map<std::string, categorization::CATEGORY_TYPE> cat_map{
+        {"merkle", categorization::CATEGORY_TYPE::block_merkle},
+        {"versioned", categorization::CATEGORY_TYPE::versioned_kv},
+        {"immutable", categorization::CATEGORY_TYPE::immutable}};
+    v4blockchain::KeyValueBlockchain blockchain{db, true, cat_map};
+    std::mt19937 rgen;
+    std::uniform_int_distribution<uint32_t> dist(10, 100);
+    num_merkle_each = dist(rgen);
+    num_versioned_each = dist(rgen);
+    num_immutable_each = dist(rgen);
+    // Keys are:
+    // <category_name>_key_<blockId>_<key_id>
+    // Values are:
+    // <category_name>_value_<blockId>_<key_id>
+    for (uint64_t blk = 1; blk <= num_blocks; ++blk) {
+      categorization::Updates updates;
+
+      categorization::BlockMerkleUpdates merkle_updates;
+      for (uint32_t kid = 1; kid <= num_merkle_each; ++kid) {
+        std::string key = "merkle_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+        std::string val = "merkle_value_" + std::to_string(blk) + "_" + std::to_string(kid);
+        merkle_updates.addUpdate(std::move(key), std::move(val));
+      }
+      updates.add("merkle", std::move(merkle_updates));
+
+      categorization::VersionedUpdates ver_updates;
+      ver_updates.calculateRootHash(false);
+      for (uint32_t kid = 1; kid <= num_versioned_each; ++kid) {
+        std::string key = "versioned_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+        std::string val = "versioned_value_" + std::to_string(blk) + "_" + std::to_string(kid);
+        ver_updates.addUpdate(std::move(key), std::move(val));
+      }
+      updates.add("versioned", std::move(ver_updates));
+
+      categorization::ImmutableUpdates immutable_updates;
+      for (uint32_t kid = 1; kid <= num_immutable_each; ++kid) {
+        std::string key = "immutable_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+        std::string val = "immutable_value_" + std::to_string(blk) + "_" + std::to_string(kid);
+        immutable_updates.addUpdate(std::move(key), {std::move(val), {std::to_string(blk), std::to_string(kid)}});
+      }
+      updates.add("immutable", std::move(immutable_updates));
+      ASSERT_EQ(blockchain.add(std::move(updates)), (BlockId)blk);
+    }
+  }
+
+  void add_deletes_to_blocks(
+      uint64_t& tot_num_blocks,
+      uint32_t num_merkle_each,
+      uint32_t num_versioned_each,
+      uint32_t num_immutable_each,
+      std::function<bool(const std::string&, uint64_t, uint32_t, uint32_t)> const& key_deletion_filter) {
+    std::map<std::string, categorization::CATEGORY_TYPE> cat_map{
+        {"merkle", categorization::CATEGORY_TYPE::block_merkle},
+        {"versioned", categorization::CATEGORY_TYPE::versioned_kv},
+        {"immutable", categorization::CATEGORY_TYPE::immutable}};
+    v4blockchain::KeyValueBlockchain blockchain{db, true, cat_map};
+    // Keys are:
+    // <category_name>_key_<blockId>_<key_id>
+    // Values are:
+    // <category_name>_value_<blockId>_<key_id>
+    uint64_t new_tot_num_blocks = tot_num_blocks;
+    for (uint64_t blk = 1; blk <= tot_num_blocks; ++blk) {
+      categorization::Updates updates;
+
+      categorization::BlockMerkleUpdates merkle_updates;
+      bool is_delete_added = false;
+      for (uint32_t kid = 1; kid <= num_merkle_each; ++kid) {
+        std::string key = "merkle_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+        if (key_deletion_filter(key, blk, kid, num_merkle_each)) {
+          merkle_updates.addDelete(std::move(key));
+          is_delete_added = true;
+        }
+      }
+      if (is_delete_added) {
+        updates.add("merkle", std::move(merkle_updates));
+      }
+      is_delete_added = false;
+
+      categorization::VersionedUpdates ver_updates;
+      ver_updates.calculateRootHash(false);
+      for (uint32_t kid = 1; kid <= num_versioned_each; ++kid) {
+        std::string key = "versioned_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+        if (key_deletion_filter(key, blk, kid, num_versioned_each)) {
+          ver_updates.addDelete(std::move(key));
+          is_delete_added = true;
+        }
+      }
+      if (is_delete_added) {
+        updates.add("versioned", std::move(ver_updates));
+      }
+      if (!updates.empty()) {
+        ASSERT_EQ(blockchain.add(std::move(updates)), (BlockId)(new_tot_num_blocks + 1));
+        new_tot_num_blocks++;
+      }
+    }
+    tot_num_blocks = new_tot_num_blocks;
   }
 
  protected:
@@ -1010,6 +1114,774 @@ TEST_F(v4_kvbc, prun_on_st) {
   ASSERT_EQ(blockchain.getStChain().getLastBlockId(), 0);
   ASSERT_EQ(blockchain.getLastReachableBlockId(), 200);
   ASSERT_EQ(blockchain.getGenesisBlockId(), 90);
+}
+
+TEST_F(v4_kvbc, all_gets) {
+  uint64_t max_block = 100;
+  uint32_t num_merkle_each = 0;
+  uint32_t num_versioned_each = 0;
+  uint32_t num_immutable_each = 0;
+  create_blocks(max_block, num_merkle_each, num_versioned_each, num_immutable_each);
+
+  std::map<std::string, categorization::CATEGORY_TYPE> cat_map{
+      {"merkle", categorization::CATEGORY_TYPE::block_merkle},
+      {"versioned", categorization::CATEGORY_TYPE::versioned_kv},
+      {"immutable", categorization::CATEGORY_TYPE::immutable}};
+  v4blockchain::KeyValueBlockchain blockchain{db, true, cat_map};
+  ASSERT_EQ(blockchain.getGenesisBlockId(), 1);
+  ASSERT_EQ(blockchain.getLastReachableBlockId(), max_block);
+
+  std::vector<std::string> merkle_keys;
+  std::vector<BlockId> merkle_versions;
+  std::vector<std::string> versioned_keys;
+  std::vector<BlockId> versioned_versions;
+  std::vector<std::string> immutable_keys;
+  std::vector<BlockId> immutable_versions;
+
+  ///////Checking the get///////////////////////
+  for (uint64_t blk = 1; blk <= max_block; ++blk) {
+    for (uint32_t kid = 1; kid <= num_merkle_each; ++kid) {
+      std::string key = "merkle_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+      std::string val_str = "merkle_value_" + std::to_string(blk) + "_" + std::to_string(kid);
+      merkle_keys.push_back(key);
+      merkle_versions.push_back(blk);
+      auto val = blockchain.get("merkle", key, blk);
+      ASSERT_TRUE(val.has_value());
+      auto merkle_val = std::get<categorization::MerkleValue>(*val);
+      ASSERT_EQ(merkle_val.block_id, blk);
+      ASSERT_EQ(merkle_val.data, val_str);
+    }
+
+    for (uint32_t kid = 1; kid <= num_versioned_each; ++kid) {
+      std::string key = "versioned_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+      std::string val_str = "versioned_value_" + std::to_string(blk) + "_" + std::to_string(kid);
+      versioned_keys.push_back(key);
+      versioned_versions.push_back(blk);
+      auto val = blockchain.get("versioned", key, blk);
+      ASSERT_TRUE(val.has_value());
+      auto ver_val = std::get<categorization::VersionedValue>(*val);
+      ASSERT_EQ(ver_val.block_id, blk);
+      ASSERT_EQ(ver_val.data, val_str);
+    }
+    for (uint32_t kid = 1; kid <= num_immutable_each; ++kid) {
+      std::string key = "immutable_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+      std::string val_str = "immutable_value_" + std::to_string(blk) + "_" + std::to_string(kid);
+      immutable_keys.push_back(key);
+      immutable_versions.push_back(blk);
+      auto val = blockchain.get("immutable", key, blk);
+      ASSERT_TRUE(val.has_value());
+      auto immutable_val = std::get<categorization::ImmutableValue>(*val);
+      ASSERT_EQ(immutable_val.block_id, blk);
+      ASSERT_EQ(immutable_val.data, val_str);
+    }
+  }
+
+  ///////Checking the multiGet///////////////////////
+  std::vector<std::optional<categorization::Value> > values;
+  blockchain.multiGet("merkle", merkle_keys, merkle_versions, values);
+  size_t key_start = std::string("merkle_key_").size();
+  size_t val_start = std::string("merkle_value_").size();
+  for (size_t i = 0; i < merkle_keys.size(); ++i) {
+    ASSERT_TRUE(values[i].has_value());
+    auto merkle_val = std::get<categorization::MerkleValue>(*(values[i]));
+    ASSERT_EQ(merkle_keys[i].substr(key_start), (merkle_val.data).substr(val_start));
+  }
+
+  blockchain.multiGet("versioned", versioned_keys, versioned_versions, values);
+  key_start = std::string("versioned_key_").size();
+  val_start = std::string("versioned_value_").size();
+  for (size_t i = 0; i < versioned_keys.size(); ++i) {
+    ASSERT_TRUE(values[i].has_value());
+    auto versioned_val = std::get<categorization::VersionedValue>(*(values[i]));
+    ASSERT_EQ(versioned_keys[i].substr(key_start), (versioned_val.data).substr(val_start));
+  }
+
+  blockchain.multiGet("immutable", immutable_keys, immutable_versions, values);
+  key_start = std::string("immutable_key_").size();
+  val_start = std::string("immutable_value_").size();
+  for (size_t i = 0; i < immutable_keys.size(); ++i) {
+    ASSERT_TRUE(values[i].has_value());
+    auto immutable_val = std::get<categorization::ImmutableValue>(*(values[i]));
+    ASSERT_EQ(immutable_keys[i].substr(key_start), (immutable_val.data).substr(val_start));
+  }
+
+  merkle_keys.clear();
+  merkle_versions.clear();
+  versioned_keys.clear();
+  versioned_versions.clear();
+  immutable_keys.clear();
+  immutable_versions.clear();
+
+  std::set<std::string> deleted_keys;
+  uint64_t new_max_block = max_block;
+  add_deletes_to_blocks(
+      new_max_block,
+      num_merkle_each,
+      num_versioned_each,
+      num_immutable_each,
+      [&deleted_keys](const std::string& key, uint64_t blkid, uint32_t kid, uint32_t kid_max) -> bool {
+        std::mt19937 rgen;
+        std::uniform_int_distribution<uint32_t> dist(2, std::numeric_limits<uint32_t>::max());
+        if (((blkid + kid) * dist(rgen)) % 2 == 0) {
+          deleted_keys.insert(key);
+          return true;
+        }
+        return false;
+      });
+  ASSERT_EQ(blockchain.getGenesisBlockId(), 1);
+  ASSERT_EQ(blockchain.getLastReachableBlockId(), new_max_block);
+  // Checking again
+  for (uint64_t blk = 1; blk <= max_block; ++blk) {
+    for (uint32_t kid = 1; kid <= num_merkle_each; ++kid) {
+      std::string key = "merkle_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+      std::string val_str = "merkle_value_" + std::to_string(blk) + "_" + std::to_string(kid);
+      merkle_keys.push_back(key);
+      merkle_versions.push_back(blk);
+      auto val = blockchain.get("merkle", key, blk);
+      ASSERT_TRUE(val.has_value());
+      auto merkle_val = std::get<categorization::MerkleValue>(*val);
+      ASSERT_EQ(merkle_val.block_id, blk);
+      ASSERT_EQ(merkle_val.data, val_str);
+    }
+
+    for (uint32_t kid = 1; kid <= num_versioned_each; ++kid) {
+      std::string key = "versioned_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+      std::string val_str = "versioned_value_" + std::to_string(blk) + "_" + std::to_string(kid);
+      versioned_keys.push_back(key);
+      versioned_versions.push_back(blk);
+      auto val = blockchain.get("versioned", key, blk);
+      ASSERT_TRUE(val.has_value());
+      auto ver_val = std::get<categorization::VersionedValue>(*val);
+      ASSERT_EQ(ver_val.block_id, blk);
+      ASSERT_EQ(ver_val.data, val_str);
+    }
+    for (uint32_t kid = 1; kid <= num_immutable_each; ++kid) {
+      std::string key = "immutable_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+      std::string val_str = "immutable_value_" + std::to_string(blk) + "_" + std::to_string(kid);
+      immutable_keys.push_back(key);
+      immutable_versions.push_back(blk);
+      auto val = blockchain.get("immutable", key, blk);
+      ASSERT_TRUE(val.has_value());
+      auto immutable_val = std::get<categorization::ImmutableValue>(*val);
+      ASSERT_EQ(immutable_val.block_id, blk);
+      ASSERT_EQ(immutable_val.data, val_str);
+    }
+  }
+
+  ///////Checking the multiGet///////////////////////
+  blockchain.multiGet("merkle", merkle_keys, merkle_versions, values);
+  key_start = std::string("merkle_key_").size();
+  val_start = std::string("merkle_value_").size();
+  for (size_t i = 0; i < merkle_keys.size(); ++i) {
+    ASSERT_TRUE(values[i].has_value());
+    auto merkle_val = std::get<categorization::MerkleValue>(*(values[i]));
+    ASSERT_EQ(merkle_keys[i].substr(key_start), (merkle_val.data).substr(val_start));
+  }
+
+  blockchain.multiGet("versioned", versioned_keys, versioned_versions, values);
+  key_start = std::string("versioned_key_").size();
+  val_start = std::string("versioned_value_").size();
+  for (size_t i = 0; i < versioned_keys.size(); ++i) {
+    ASSERT_TRUE(values[i].has_value());
+    auto versioned_val = std::get<categorization::VersionedValue>(*(values[i]));
+    ASSERT_EQ(versioned_keys[i].substr(key_start), (versioned_val.data).substr(val_start));
+  }
+
+  blockchain.multiGet("immutable", immutable_keys, immutable_versions, values);
+  key_start = std::string("immutable_key_").size();
+  val_start = std::string("immutable_value_").size();
+  for (size_t i = 0; i < immutable_keys.size(); ++i) {
+    ASSERT_TRUE(values[i].has_value());
+    auto immutable_val = std::get<categorization::ImmutableValue>(*(values[i]));
+    ASSERT_EQ(immutable_keys[i].substr(key_start), (immutable_val.data).substr(val_start));
+  }
+
+  merkle_keys.clear();
+  merkle_versions.clear();
+  versioned_keys.clear();
+  versioned_versions.clear();
+  immutable_keys.clear();
+  immutable_versions.clear();
+  // Checking again
+  for (uint64_t blk = max_block + 1; blk <= new_max_block; ++blk) {
+    for (uint32_t kid = 1; kid <= num_merkle_each; ++kid) {
+      std::string key = "merkle_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+      std::string val_str = "merkle_value_" + std::to_string(blk) + "_" + std::to_string(kid);
+      merkle_keys.push_back(key);
+      merkle_versions.push_back(blk);
+      auto val = blockchain.get("merkle", key, blk);
+      if (deleted_keys.count(key)) {
+        ASSERT_FALSE(val.has_value());
+      } else {
+        ASSERT_TRUE(val.has_value());
+        auto merkle_val = std::get<categorization::MerkleValue>(*val);
+        ASSERT_EQ(merkle_val.block_id, blk);
+        ASSERT_EQ(merkle_val.data, val_str);
+      }
+    }
+
+    // This range includes the deletes.
+    for (uint32_t kid = 1; kid <= num_versioned_each; ++kid) {
+      std::string key = "versioned_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+      std::string val_str = "versioned_value_" + std::to_string(blk) + "_" + std::to_string(kid);
+      versioned_keys.push_back(key);
+      versioned_versions.push_back(blk);
+      auto val = blockchain.get("versioned", key, blk);
+      if (deleted_keys.count(key)) {
+        ASSERT_FALSE(val.has_value());
+      } else {
+        ASSERT_TRUE(val.has_value());
+        auto ver_val = std::get<categorization::VersionedValue>(*val);
+        ASSERT_EQ(ver_val.block_id, blk);
+        ASSERT_EQ(ver_val.data, val_str);
+      }
+    }
+    for (uint32_t kid = 1; kid <= num_immutable_each; ++kid) {
+      std::string key = "immutable_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+      std::string val_str = "immutable_value_" + std::to_string(blk) + "_" + std::to_string(kid);
+      immutable_keys.push_back(key);
+      immutable_versions.push_back(blk);
+      auto val = blockchain.get("immutable", key, blk);
+      if (deleted_keys.count(key)) {
+        ASSERT_FALSE(val.has_value());
+      } else {
+        ASSERT_TRUE(val.has_value());
+        auto immutable_val = std::get<categorization::ImmutableValue>(*val);
+        ASSERT_EQ(immutable_val.block_id, blk);
+        ASSERT_EQ(immutable_val.data, val_str);
+      }
+    }
+  }
+
+  ///////Checking the multiGet///////////////////////
+  blockchain.multiGet("merkle", merkle_keys, merkle_versions, values);
+  key_start = std::string("merkle_key_").size();
+  val_start = std::string("merkle_value_").size();
+  for (size_t i = 0; i < merkle_keys.size(); ++i) {
+    if (deleted_keys.count(merkle_keys[i])) {
+      ASSERT_FALSE(values[i].has_value());
+    } else {
+      ASSERT_TRUE(values[i].has_value());
+      auto merkle_val = std::get<categorization::MerkleValue>(*(values[i]));
+      ASSERT_EQ(merkle_keys[i].substr(key_start), (merkle_val.data).substr(val_start));
+    }
+  }
+
+  blockchain.multiGet("versioned", versioned_keys, versioned_versions, values);
+  key_start = std::string("versioned_key_").size();
+  val_start = std::string("versioned_value_").size();
+  for (size_t i = 0; i < versioned_keys.size(); ++i) {
+    if (deleted_keys.count(versioned_keys[i])) {
+      ASSERT_FALSE(values[i].has_value());
+    } else {
+      ASSERT_TRUE(values[i].has_value());
+      auto versioned_val = std::get<categorization::VersionedValue>(*(values[i]));
+      ASSERT_EQ(versioned_keys[i].substr(key_start), (versioned_val.data).substr(val_start));
+    }
+  }
+
+  blockchain.multiGet("immutable", immutable_keys, immutable_versions, values);
+  key_start = std::string("immutable_key_").size();
+  val_start = std::string("immutable_value_").size();
+  for (size_t i = 0; i < immutable_keys.size(); ++i) {
+    if (deleted_keys.count(immutable_keys[i])) {
+      ASSERT_FALSE(values[i].has_value());
+    } else {
+      ASSERT_TRUE(values[i].has_value());
+      auto immutable_val = std::get<categorization::ImmutableValue>(*(values[i]));
+      ASSERT_EQ(immutable_keys[i].substr(key_start), (immutable_val.data).substr(val_start));
+    }
+  }
+}
+
+TEST_F(v4_kvbc, all_get_latest) {
+  uint64_t max_block = 100;
+  uint32_t num_merkle_each = 0;
+  uint32_t num_versioned_each = 0;
+  uint32_t num_immutable_each = 0;
+  create_blocks(max_block, num_merkle_each, num_versioned_each, num_immutable_each);
+
+  std::map<std::string, categorization::CATEGORY_TYPE> cat_map{
+      {"merkle", categorization::CATEGORY_TYPE::block_merkle},
+      {"versioned", categorization::CATEGORY_TYPE::versioned_kv},
+      {"immutable", categorization::CATEGORY_TYPE::immutable}};
+  v4blockchain::KeyValueBlockchain blockchain{db, true, cat_map};
+  ASSERT_EQ(blockchain.getGenesisBlockId(), 1);
+  ASSERT_EQ(blockchain.getLastReachableBlockId(), max_block);
+
+  std::vector<std::string> merkle_keys;
+  std::vector<std::string> versioned_keys;
+  std::vector<std::string> immutable_keys;
+
+  ///////Checking the get///////////////////////
+  for (uint64_t blk = 1; blk <= max_block; ++blk) {
+    for (uint32_t kid = 1; kid <= num_merkle_each; ++kid) {
+      std::string key = "merkle_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+      std::string val_str = "merkle_value_" + std::to_string(blk) + "_" + std::to_string(kid);
+      merkle_keys.push_back(key);
+      auto val = blockchain.getLatest("merkle", key);
+      ASSERT_TRUE(val.has_value());
+      auto merkle_val = std::get<categorization::MerkleValue>(*val);
+      ASSERT_EQ(merkle_val.block_id, blk);
+      ASSERT_EQ(merkle_val.data, val_str);
+    }
+
+    for (uint32_t kid = 1; kid <= num_versioned_each; ++kid) {
+      std::string key = "versioned_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+      std::string val_str = "versioned_value_" + std::to_string(blk) + "_" + std::to_string(kid);
+      versioned_keys.push_back(key);
+      auto val = blockchain.getLatest("versioned", key);
+      ASSERT_TRUE(val.has_value());
+      auto ver_val = std::get<categorization::VersionedValue>(*val);
+      ASSERT_EQ(ver_val.block_id, blk);
+      ASSERT_EQ(ver_val.data, val_str);
+    }
+    for (uint32_t kid = 1; kid <= num_immutable_each; ++kid) {
+      std::string key = "immutable_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+      std::string val_str = "immutable_value_" + std::to_string(blk) + "_" + std::to_string(kid);
+      immutable_keys.push_back(key);
+      auto val = blockchain.getLatest("immutable", key);
+      ASSERT_TRUE(val.has_value());
+      auto immutable_val = std::get<categorization::ImmutableValue>(*val);
+      ASSERT_EQ(immutable_val.block_id, blk);
+      ASSERT_EQ(immutable_val.data, val_str);
+    }
+  }
+
+  ///////Checking the multiGet///////////////////////
+  std::vector<std::optional<categorization::Value> > values;
+  blockchain.multiGetLatest("merkle", merkle_keys, values);
+  size_t key_start = std::string("merkle_key_").size();
+  size_t val_start = std::string("merkle_value_").size();
+  for (size_t i = 0; i < merkle_keys.size(); ++i) {
+    ASSERT_TRUE(values[i].has_value());
+    auto merkle_val = std::get<categorization::MerkleValue>(*(values[i]));
+    ASSERT_EQ(merkle_keys[i].substr(key_start), (merkle_val.data).substr(val_start));
+  }
+
+  blockchain.multiGetLatest("versioned", versioned_keys, values);
+  key_start = std::string("versioned_key_").size();
+  val_start = std::string("versioned_value_").size();
+  for (size_t i = 0; i < versioned_keys.size(); ++i) {
+    ASSERT_TRUE(values[i].has_value());
+    auto versioned_val = std::get<categorization::VersionedValue>(*(values[i]));
+    ASSERT_EQ(versioned_keys[i].substr(key_start), (versioned_val.data).substr(val_start));
+  }
+
+  blockchain.multiGetLatest("immutable", immutable_keys, values);
+  key_start = std::string("immutable_key_").size();
+  val_start = std::string("immutable_value_").size();
+  for (size_t i = 0; i < immutable_keys.size(); ++i) {
+    ASSERT_TRUE(values[i].has_value());
+    auto immutable_val = std::get<categorization::ImmutableValue>(*(values[i]));
+    ASSERT_EQ(immutable_keys[i].substr(key_start), (immutable_val.data).substr(val_start));
+  }
+
+  merkle_keys.clear();
+  versioned_keys.clear();
+  immutable_keys.clear();
+
+  std::set<std::string> deleted_keys;
+  uint64_t new_max_block = max_block;
+  add_deletes_to_blocks(
+      new_max_block,
+      num_merkle_each,
+      num_versioned_each,
+      num_immutable_each,
+      [&deleted_keys](const std::string& key, uint64_t blkid, uint32_t kid, uint32_t kid_max) -> bool {
+        std::mt19937 rgen;
+        std::uniform_int_distribution<uint32_t> dist(2, std::numeric_limits<uint32_t>::max());
+        if (((blkid + kid) * dist(rgen)) % 2 == 0) {
+          deleted_keys.insert(key);
+          return true;
+        }
+        return false;
+      });
+  ASSERT_EQ(blockchain.getGenesisBlockId(), 1);
+  ASSERT_EQ(blockchain.getLastReachableBlockId(), new_max_block);
+  // Checking again
+  for (uint64_t blk = max_block + 1; blk <= new_max_block; ++blk) {
+    for (uint32_t kid = 1; kid <= num_merkle_each; ++kid) {
+      std::string key = "merkle_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+      std::string val_str = "merkle_value_" + std::to_string(blk) + "_" + std::to_string(kid);
+      merkle_keys.push_back(key);
+      auto val = blockchain.getLatest("merkle", key);
+      if (deleted_keys.count(key)) {
+        ASSERT_FALSE(val.has_value());
+      } else {
+        ASSERT_TRUE(val.has_value());
+        auto merkle_val = std::get<categorization::MerkleValue>(*val);
+        ASSERT_EQ(merkle_val.block_id, blk);
+        ASSERT_EQ(merkle_val.data, val_str);
+      }
+    }
+
+    for (uint32_t kid = 1; kid <= num_versioned_each; ++kid) {
+      std::string key = "versioned_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+      std::string val_str = "versioned_value_" + std::to_string(blk) + "_" + std::to_string(kid);
+      versioned_keys.push_back(key);
+      auto val = blockchain.getLatest("versioned", key);
+      if (deleted_keys.count(key)) {
+        ASSERT_FALSE(val.has_value());
+      } else {
+        ASSERT_TRUE(val.has_value());
+        auto ver_val = std::get<categorization::VersionedValue>(*val);
+        ASSERT_EQ(ver_val.block_id, blk);
+        ASSERT_EQ(ver_val.data, val_str);
+      }
+    }
+    for (uint32_t kid = 1; kid <= num_immutable_each; ++kid) {
+      std::string key = "immutable_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+      std::string val_str = "immutable_value_" + std::to_string(blk) + "_" + std::to_string(kid);
+      immutable_keys.push_back(key);
+      auto val = blockchain.getLatest("immutable", key);
+      if (deleted_keys.count(key)) {
+        ASSERT_FALSE(val.has_value());
+      } else {
+        ASSERT_TRUE(val.has_value());
+        auto immutable_val = std::get<categorization::ImmutableValue>(*val);
+        ASSERT_EQ(immutable_val.block_id, blk);
+        ASSERT_EQ(immutable_val.data, val_str);
+      }
+    }
+  }
+
+  ///////Checking the multiGet///////////////////////
+  blockchain.multiGetLatest("merkle", merkle_keys, values);
+  key_start = std::string("merkle_key_").size();
+  val_start = std::string("merkle_value_").size();
+  for (size_t i = 0; i < merkle_keys.size(); ++i) {
+    if (deleted_keys.count(merkle_keys[i])) {
+      ASSERT_FALSE(values[i].has_value());
+    } else {
+      ASSERT_TRUE(values[i].has_value());
+      auto merkle_val = std::get<categorization::MerkleValue>(*(values[i]));
+      ASSERT_EQ(merkle_keys[i].substr(key_start), (merkle_val.data).substr(val_start));
+    }
+  }
+
+  blockchain.multiGetLatest("versioned", versioned_keys, values);
+  key_start = std::string("versioned_key_").size();
+  val_start = std::string("versioned_value_").size();
+  for (size_t i = 0; i < versioned_keys.size(); ++i) {
+    if (deleted_keys.count(versioned_keys[i])) {
+      ASSERT_FALSE(values[i].has_value());
+    } else {
+      ASSERT_TRUE(values[i].has_value());
+      auto versioned_val = std::get<categorization::VersionedValue>(*(values[i]));
+      ASSERT_EQ(versioned_keys[i].substr(key_start), (versioned_val.data).substr(val_start));
+    }
+  }
+
+  blockchain.multiGetLatest("immutable", immutable_keys, values);
+  key_start = std::string("immutable_key_").size();
+  val_start = std::string("immutable_value_").size();
+  for (size_t i = 0; i < immutable_keys.size(); ++i) {
+    if (deleted_keys.count(immutable_keys[i])) {
+      ASSERT_FALSE(values[i].has_value());
+    } else {
+      ASSERT_TRUE(values[i].has_value());
+      auto immutable_val = std::get<categorization::ImmutableValue>(*(values[i]));
+      ASSERT_EQ(immutable_keys[i].substr(key_start), (immutable_val.data).substr(val_start));
+    }
+  }
+}
+
+TEST_F(v4_kvbc, get_block_updates_test) {
+  uint64_t max_block = 100;
+  uint32_t num_merkle_each = 0;
+  uint32_t num_versioned_each = 0;
+  uint32_t num_immutable_each = 0;
+  create_blocks(max_block, num_merkle_each, num_versioned_each, num_immutable_each);
+
+  std::map<std::string, categorization::CATEGORY_TYPE> cat_map{
+      {"merkle", categorization::CATEGORY_TYPE::block_merkle},
+      {"versioned", categorization::CATEGORY_TYPE::versioned_kv},
+      {"immutable", categorization::CATEGORY_TYPE::immutable}};
+  v4blockchain::KeyValueBlockchain blockchain{db, true, cat_map};
+  for (uint64_t blk = 1; blk <= max_block; ++blk) {
+    auto updates = blockchain.getBlockUpdates(blk);
+    ASSERT_TRUE(updates.has_value());
+    auto merkle_cat_inputs = updates->categoryUpdates("merkle");
+    ASSERT_TRUE(merkle_cat_inputs.has_value());
+    ASSERT_EQ(std::get<categorization::BlockMerkleInput>(merkle_cat_inputs->get()).kv.size(), num_merkle_each);
+    auto versioned_cat_inputs = updates->categoryUpdates("versioned");
+    ASSERT_TRUE(versioned_cat_inputs.has_value());
+    ASSERT_EQ(std::get<categorization::VersionedInput>(versioned_cat_inputs->get()).kv.size(), num_versioned_each);
+    auto immutable_cat_inputs = updates->categoryUpdates("immutable");
+    ASSERT_TRUE(immutable_cat_inputs.has_value());
+    ASSERT_EQ(std::get<categorization::ImmutableInput>(immutable_cat_inputs->get()).kv.size(), num_immutable_each);
+  }
+  for (uint64_t blk = max_block + 1; blk <= max_block + 10; ++blk) {
+    auto updates = blockchain.getBlockUpdates(blk);
+    ASSERT_FALSE(updates.has_value());
+  }
+  uint64_t new_max_block = max_block;
+  add_deletes_to_blocks(new_max_block,
+                        num_merkle_each,
+                        num_versioned_each,
+                        num_immutable_each,
+                        [](const std::string& key, uint64_t blkid, uint32_t kid, uint32_t kid_max) -> bool {
+                          std::mt19937 rgen;
+                          std::uniform_int_distribution<uint32_t> dist(2, std::numeric_limits<uint32_t>::max());
+                          if (((blkid + kid) * dist(rgen)) % 2 == 0) {
+                            return true;
+                          }
+                          return false;
+                        });
+  for (uint64_t blk = 1; blk <= max_block; ++blk) {
+    auto updates = blockchain.getBlockUpdates(blk);
+    ASSERT_TRUE(updates.has_value());
+    auto merkle_cat_inputs = updates->categoryUpdates("merkle");
+    ASSERT_TRUE(merkle_cat_inputs.has_value());
+    ASSERT_EQ(std::get<categorization::BlockMerkleInput>(merkle_cat_inputs->get()).kv.size(), num_merkle_each);
+    auto versioned_cat_inputs = updates->categoryUpdates("versioned");
+    ASSERT_TRUE(versioned_cat_inputs.has_value());
+    ASSERT_EQ(std::get<categorization::VersionedInput>(versioned_cat_inputs->get()).kv.size(), num_versioned_each);
+    auto immutable_cat_inputs = updates->categoryUpdates("immutable");
+    ASSERT_TRUE(immutable_cat_inputs.has_value());
+    ASSERT_EQ(std::get<categorization::ImmutableInput>(immutable_cat_inputs->get()).kv.size(), num_immutable_each);
+  }
+  for (uint64_t blk = max_block + 1; blk <= new_max_block; ++blk) {
+    auto updates = blockchain.getBlockUpdates(blk);
+    ASSERT_TRUE(updates.has_value());
+    auto merkle_cat_inputs = updates->categoryUpdates("merkle");
+    ASSERT_TRUE(merkle_cat_inputs.has_value());
+    ASSERT_LT(std::get<categorization::BlockMerkleInput>(merkle_cat_inputs->get()).kv.size(), num_merkle_each);
+    auto versioned_cat_inputs = updates->categoryUpdates("versioned");
+    ASSERT_TRUE(versioned_cat_inputs.has_value());
+    ASSERT_LT(std::get<categorization::VersionedInput>(versioned_cat_inputs->get()).kv.size(), num_versioned_each);
+    auto immutable_cat_inputs = updates->categoryUpdates("immutable");
+    ASSERT_TRUE(immutable_cat_inputs.has_value());
+    ASSERT_EQ(std::get<categorization::ImmutableInput>(immutable_cat_inputs->get()).kv.size(), num_immutable_each);
+  }
+  for (uint64_t blk = new_max_block + 1; blk <= new_max_block + 10; ++blk) {
+    auto updates = blockchain.getBlockUpdates(blk);
+    ASSERT_FALSE(updates.has_value());
+  }
+}
+
+TEST_F(v4_kvbc, all_get_latest_versions) {
+  uint64_t max_block = 100;
+  uint32_t num_merkle_each = 0;
+  uint32_t num_versioned_each = 0;
+  uint32_t num_immutable_each = 0;
+  create_blocks(max_block, num_merkle_each, num_versioned_each, num_immutable_each);
+
+  std::map<std::string, categorization::CATEGORY_TYPE> cat_map{
+      {"merkle", categorization::CATEGORY_TYPE::block_merkle},
+      {"versioned", categorization::CATEGORY_TYPE::versioned_kv},
+      {"immutable", categorization::CATEGORY_TYPE::immutable}};
+  v4blockchain::KeyValueBlockchain blockchain{db, true, cat_map};
+  ASSERT_EQ(blockchain.getGenesisBlockId(), 1);
+  ASSERT_EQ(blockchain.getLastReachableBlockId(), max_block);
+
+  std::vector<std::string> merkle_keys;
+  std::vector<BlockId> merkle_versions;
+  std::vector<std::string> versioned_keys;
+  std::vector<BlockId> versioned_versions;
+  std::vector<std::string> immutable_keys;
+  std::vector<BlockId> immutable_versions;
+
+  ///////Checking the get///////////////////////
+  for (uint64_t blk = 1; blk <= max_block; ++blk) {
+    for (uint32_t kid = 1; kid <= num_merkle_each; ++kid) {
+      std::string key = "merkle_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+      merkle_keys.push_back(key);
+      merkle_versions.push_back(blk);
+      auto latest_version = blockchain.getLatestVersion("merkle", key);
+      ASSERT_TRUE(latest_version.has_value());
+      ASSERT_EQ(latest_version->version, blk);
+    }
+
+    for (uint32_t kid = 1; kid <= num_versioned_each; ++kid) {
+      std::string key = "versioned_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+      versioned_keys.push_back(key);
+      versioned_versions.push_back(blk);
+      auto latest_version = blockchain.getLatestVersion("versioned", key);
+      ASSERT_TRUE(latest_version.has_value());
+      ASSERT_EQ(latest_version->version, blk);
+    }
+    for (uint32_t kid = 1; kid <= num_immutable_each; ++kid) {
+      std::string key = "immutable_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+      immutable_keys.push_back(key);
+      immutable_versions.push_back(blk);
+      auto latest_version = blockchain.getLatestVersion("immutable", key);
+      ASSERT_TRUE(latest_version.has_value());
+      ASSERT_EQ(latest_version->version, blk);
+    }
+  }
+
+  ///////Checking the multiGetLatestVersion///////////////////////
+  std::vector<std::optional<categorization::TaggedVersion> > latest_versions;
+  blockchain.multiGetLatestVersion("merkle", merkle_keys, latest_versions);
+  for (size_t i = 0; i < merkle_keys.size(); ++i) {
+    ASSERT_TRUE(latest_versions[i].has_value());
+    ASSERT_EQ(merkle_versions[i], (latest_versions[i])->version);
+  }
+
+  blockchain.multiGetLatestVersion("versioned", versioned_keys, latest_versions);
+  for (size_t i = 0; i < versioned_keys.size(); ++i) {
+    ASSERT_TRUE(latest_versions[i].has_value());
+    ASSERT_EQ(versioned_versions[i], (latest_versions[i])->version);
+  }
+
+  blockchain.multiGetLatestVersion("immutable", immutable_keys, latest_versions);
+  for (size_t i = 0; i < immutable_keys.size(); ++i) {
+    ASSERT_TRUE(latest_versions[i].has_value());
+    ASSERT_EQ(immutable_versions[i], (latest_versions[i])->version);
+  }
+
+  merkle_keys.clear();
+  merkle_versions.clear();
+  versioned_keys.clear();
+  versioned_versions.clear();
+  immutable_keys.clear();
+  immutable_versions.clear();
+
+  std::set<std::string> deleted_keys;
+  uint64_t new_max_block = max_block;
+  add_deletes_to_blocks(
+      new_max_block,
+      num_merkle_each,
+      num_versioned_each,
+      num_immutable_each,
+      [&deleted_keys](const std::string& key, uint64_t blkid, uint32_t kid, uint32_t kid_max) -> bool {
+        std::mt19937 rgen;
+        std::uniform_int_distribution<uint32_t> dist(2, std::numeric_limits<uint32_t>::max());
+        if (((blkid + kid) * dist(rgen)) % 2 == 0) {
+          deleted_keys.insert(key);
+          return true;
+        }
+        return false;
+      });
+  ASSERT_EQ(blockchain.getGenesisBlockId(), 1);
+  ASSERT_EQ(blockchain.getLastReachableBlockId(), new_max_block);
+  // Checking again
+  for (uint64_t blk = 1; blk <= max_block; ++blk) {
+    for (uint32_t kid = 1; kid <= num_merkle_each; ++kid) {
+      std::string key = "merkle_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+      merkle_keys.push_back(key);
+      merkle_versions.push_back(blk);
+      auto latest_version = blockchain.getLatestVersion("merkle", key);
+      ASSERT_TRUE(latest_version.has_value());
+      ASSERT_EQ(latest_version->version, blk);
+    }
+
+    for (uint32_t kid = 1; kid <= num_versioned_each; ++kid) {
+      std::string key = "versioned_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+      versioned_keys.push_back(key);
+      versioned_versions.push_back(blk);
+      auto latest_version = blockchain.getLatestVersion("versioned", key);
+      ASSERT_TRUE(latest_version.has_value());
+      ASSERT_EQ(latest_version->version, blk);
+    }
+    for (uint32_t kid = 1; kid <= num_immutable_each; ++kid) {
+      std::string key = "immutable_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+      immutable_keys.push_back(key);
+      immutable_versions.push_back(blk);
+      auto latest_version = blockchain.getLatestVersion("immutable", key);
+      ASSERT_TRUE(latest_version.has_value());
+      ASSERT_EQ(latest_version->version, blk);
+    }
+  }
+
+  ///////Checking the multiGetLatestVersion again after deletion///////////////////////
+  blockchain.multiGetLatestVersion("merkle", merkle_keys, latest_versions);
+  for (size_t i = 0; i < merkle_keys.size(); ++i) {
+    ASSERT_TRUE(latest_versions[i].has_value());
+    ASSERT_EQ(merkle_versions[i], (latest_versions[i])->version);
+  }
+
+  blockchain.multiGetLatestVersion("versioned", versioned_keys, latest_versions);
+  for (size_t i = 0; i < versioned_keys.size(); ++i) {
+    ASSERT_TRUE(latest_versions[i].has_value());
+    ASSERT_EQ(versioned_versions[i], (latest_versions[i])->version);
+  }
+
+  blockchain.multiGetLatestVersion("immutable", immutable_keys, latest_versions);
+  for (size_t i = 0; i < immutable_keys.size(); ++i) {
+    ASSERT_TRUE(latest_versions[i].has_value());
+    ASSERT_EQ(immutable_versions[i], (latest_versions[i])->version);
+  }
+
+  merkle_keys.clear();
+  merkle_versions.clear();
+  versioned_keys.clear();
+  versioned_versions.clear();
+  immutable_keys.clear();
+  immutable_versions.clear();
+  // Checking again
+  for (uint64_t blk = max_block + 1; blk <= new_max_block; ++blk) {
+    for (uint32_t kid = 1; kid <= num_merkle_each; ++kid) {
+      std::string key = "merkle_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+      merkle_keys.push_back(key);
+      merkle_versions.push_back(blk);
+      auto latest_version = blockchain.getLatestVersion("merkle", key);
+      if (deleted_keys.count(key)) {
+        ASSERT_FALSE(latest_version.has_value());
+      } else {
+        ASSERT_TRUE(latest_version.has_value());
+        ASSERT_EQ(latest_version->version, blk);
+      }
+    }
+
+    for (uint32_t kid = 1; kid <= num_versioned_each; ++kid) {
+      std::string key = "versioned_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+      versioned_keys.push_back(key);
+      versioned_versions.push_back(blk);
+      auto latest_version = blockchain.getLatestVersion("versioned", key);
+      if (deleted_keys.count(key)) {
+        ASSERT_FALSE(latest_version.has_value());
+      } else {
+        ASSERT_TRUE(latest_version.has_value());
+        ASSERT_EQ(latest_version->version, blk);
+      }
+    }
+    for (uint32_t kid = 1; kid <= num_immutable_each; ++kid) {
+      std::string key = "immutable_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+      immutable_keys.push_back(key);
+      immutable_versions.push_back(blk);
+      auto latest_version = blockchain.getLatestVersion("immutable", key);
+      if (deleted_keys.count(key)) {
+        ASSERT_FALSE(latest_version.has_value());
+      } else {
+        ASSERT_TRUE(latest_version.has_value());
+        ASSERT_EQ(latest_version->version, blk);
+      }
+    }
+  }
+
+  ///////Checking the multiGet///////////////////////
+  blockchain.multiGetLatestVersion("merkle", merkle_keys, latest_versions);
+  for (size_t i = 0; i < merkle_keys.size(); ++i) {
+    if (deleted_keys.count(merkle_keys[i])) {
+      ASSERT_FALSE(latest_versions[i].has_value());
+    } else {
+      ASSERT_TRUE(latest_versions[i].has_value());
+      ASSERT_EQ(merkle_versions[i], (latest_versions[i])->version);
+    }
+  }
+
+  blockchain.multiGetLatestVersion("versioned", versioned_keys, latest_versions);
+  for (size_t i = 0; i < versioned_keys.size(); ++i) {
+    if (deleted_keys.count(versioned_keys[i])) {
+      ASSERT_FALSE(latest_versions[i].has_value());
+    } else {
+      ASSERT_TRUE(latest_versions[i].has_value());
+      ASSERT_EQ(versioned_versions[i], (latest_versions[i])->version);
+    }
+  }
+
+  blockchain.multiGetLatestVersion("immutable", immutable_keys, latest_versions);
+  for (size_t i = 0; i < immutable_keys.size(); ++i) {
+    if (deleted_keys.count(immutable_keys[i])) {
+      ASSERT_FALSE(latest_versions[i].has_value());
+    } else {
+      ASSERT_TRUE(latest_versions[i].has_value());
+      ASSERT_EQ(immutable_versions[i], (latest_versions[i])->version);
+    }
+  }
 }
 
 }  // end namespace

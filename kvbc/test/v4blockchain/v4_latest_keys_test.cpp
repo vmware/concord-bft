@@ -50,6 +50,54 @@ class v4_kvbc : public Test {
     ASSERT_EQ(0, db.use_count());
     cleanup();
   }
+  void testGetValueAndVersion(const v4blockchain::detail::LatestKeys& latest_keys,
+                              BlockId latest_block_id,
+                              const std::string& category_id,
+                              const std::string& key,
+                              bool val_is_null_opt,
+                              bool ver_is_null_opt,
+                              std::vector<std::string>& keys,
+                              std::vector<bool>& val_is_null_opts,
+                              std::vector<bool>& ver_is_null_opts) {
+    auto latest_version = concord::kvbc::v4blockchain::detail::Blockchain::generateKey(latest_block_id);
+    keys.push_back(key);
+    val_is_null_opts.push_back(val_is_null_opt);
+    ver_is_null_opts.push_back(ver_is_null_opt);
+    auto value = latest_keys.getValue(latest_block_id, category_id, latest_version, key);
+    ASSERT_EQ(value.has_value(), !val_is_null_opt);
+
+    auto version = latest_keys.getLatestVersion(category_id, latest_version, key);
+    ASSERT_EQ(version.has_value(), !ver_is_null_opt);
+    if (!ver_is_null_opt) {
+      ASSERT_FALSE(version->deleted);
+      ASSERT_LE(version->version, latest_block_id);
+    }
+  }
+
+  void testMultiGetValueAndVersion(const v4blockchain::detail::LatestKeys& latest_keys,
+                                   BlockId latest_block_id,
+                                   const std::string& category_id,
+                                   const std::vector<std::string>& keys,
+                                   const std::vector<bool>& val_is_null_opts,
+                                   const std::vector<bool>& ver_is_null_opts) {
+    auto latest_version = concord::kvbc::v4blockchain::detail::Blockchain::generateKey(latest_block_id);
+    std::vector<std::optional<categorization::Value>> values;
+    latest_keys.multiGetValue(latest_block_id, category_id, latest_version, keys, values);
+    ASSERT_EQ(keys.size(), values.size());
+    for (size_t i = 0; i < keys.size(); ++i) {
+      ASSERT_EQ((values[i]).has_value(), !val_is_null_opts[i]);
+    }
+    std::vector<std::optional<categorization::TaggedVersion>> versions;
+    latest_keys.multiGetLatestVersion(category_id, latest_version, keys, versions);
+    ASSERT_EQ(keys.size(), versions.size());
+    for (size_t i = 0; i < keys.size(); ++i) {
+      ASSERT_EQ((versions[i]).has_value(), !ver_is_null_opts[i]);
+      if (!ver_is_null_opts[i]) {
+        ASSERT_FALSE((versions[i])->deleted);
+        ASSERT_LE((versions[i]->version), latest_block_id);
+      }
+    }
+  }
 
  protected:
   std::map<std::string, categorization::CATEGORY_TYPE> categories;
@@ -68,6 +116,10 @@ TEST_F(v4_kvbc, creation) {
 
 TEST_F(v4_kvbc, add_merkle_keys) {
   v4blockchain::detail::LatestKeys latest_keys{db, categories, []() { return 1; }};
+  std::vector<std::string> keys;
+  std::vector<bool> val_is_null_opts;
+  std::vector<bool> ver_is_null_opts;
+
   std::string no_flags = {0};
   {
     uint64_t timestamp = 40;
@@ -85,6 +137,10 @@ TEST_F(v4_kvbc, add_merkle_keys) {
     auto wb = db->getBatch();
     latest_keys.addBlockKeys(updates, timestamp, wb);
     db->write(std::move(wb));
+    testGetValueAndVersion(
+        latest_keys, timestamp, "merkle", key1, false, false, keys, val_is_null_opts, ver_is_null_opts);
+    testGetValueAndVersion(
+        latest_keys, timestamp, "merkle", key2, false, false, keys, val_is_null_opts, ver_is_null_opts);
 
     std::string out_ts;
     // without category prefix
@@ -133,6 +189,13 @@ TEST_F(v4_kvbc, add_merkle_keys) {
     auto wb = db->getBatch();
     latest_keys.addBlockKeys(updates, timestamp, wb);
     db->write(std::move(wb));
+    testGetValueAndVersion(
+        latest_keys, timestamp, "merkle", key1, false, false, keys, val_is_null_opts, ver_is_null_opts);
+    testGetValueAndVersion(
+        latest_keys, timestamp, "merkle", key2, true, true, keys, val_is_null_opts, ver_is_null_opts);
+    testGetValueAndVersion(latest_keys, 40, "merkle", key2, false, false, keys, val_is_null_opts, ver_is_null_opts);
+    testGetValueAndVersion(
+        latest_keys, timestamp, "merkle", key3, false, false, keys, val_is_null_opts, ver_is_null_opts);
 
     std::string out_ts;
     //////////KEY1//////////////////////////////
@@ -204,13 +267,35 @@ TEST_F(v4_kvbc, add_merkle_keys) {
     iout_ts = concordUtils::fromBigEndianBuffer<uint64_t>(out_ts.data());
     ASSERT_EQ(prev_timestamp, iout_ts);
   }
+
+  for (size_t i = 0; i < keys.size(); ++i) {
+    if (keys[i] == "merkle_key2") {
+      val_is_null_opts[i] = true;
+      ver_is_null_opts[i] = true;
+    }
+  }
+  testMultiGetValueAndVersion(latest_keys, 400, "merkle", keys, val_is_null_opts, ver_is_null_opts);
+
+  for (size_t i = 0; i < keys.size(); ++i) {
+    if (keys[i] == "merkle_key2") {  // since Key2 was added at 40
+      val_is_null_opts[i] = false;
+      ver_is_null_opts[i] = false;
+    }
+    if (keys[i] == "merkle_key3") {  // since Key3 was not there at 40
+      val_is_null_opts[i] = true;
+      ver_is_null_opts[i] = true;
+    }
+  }
+  testMultiGetValueAndVersion(latest_keys, 40, "merkle", keys, val_is_null_opts, ver_is_null_opts);
 }
 
 TEST_F(v4_kvbc, add_version_keys) {
   v4blockchain::detail::LatestKeys latest_keys{db, categories, []() { return 1; }};
   std::string no_flags = {0};
   std::string stale_on_update_flag = {1};
-
+  std::vector<std::string> keys;
+  std::vector<bool> val_is_null_opts;
+  std::vector<bool> ver_is_null_opts;
   uint64_t block_id1 = 1;
   auto block_id1_str = v4blockchain::detail::Blockchain::generateKey(block_id1);
   std::string key1 = "ver_key1";
@@ -232,6 +317,10 @@ TEST_F(v4_kvbc, add_version_keys) {
     auto wb = db->getBatch();
     latest_keys.addBlockKeys(updates, block_id1, wb);
     db->write(std::move(wb));
+    testGetValueAndVersion(
+        latest_keys, block_id1, "versioned", key1, false, false, keys, val_is_null_opts, ver_is_null_opts);
+    testGetValueAndVersion(
+        latest_keys, block_id1, "versioned", key2, false, false, keys, val_is_null_opts, ver_is_null_opts);
   }
 
   std::string out_ts;
@@ -260,12 +349,16 @@ TEST_F(v4_kvbc, add_version_keys) {
   ASSERT_EQ(out_ts, block_id1_str);
   iout_ts = concordUtils::fromBigEndianBuffer<uint64_t>(out_ts.data());
   ASSERT_EQ(block_id1, iout_ts);
+  testMultiGetValueAndVersion(latest_keys, block_id1, "versioned", keys, val_is_null_opts, ver_is_null_opts);
 }
 
 TEST_F(v4_kvbc, add_version_keys_adv) {
   v4blockchain::detail::LatestKeys latest_keys{db, categories, []() { return 1; }};
   std::string no_flags = {0};
   std::string stale_on_update_flag = {1};
+  std::vector<std::string> keys;
+  std::vector<bool> val_is_null_opts;
+  std::vector<bool> ver_is_null_opts;
 
   uint64_t block_id1 = 1;
   uint64_t block_id10 = 10;
@@ -301,6 +394,10 @@ TEST_F(v4_kvbc, add_version_keys_adv) {
     auto wb = db->getBatch();
     latest_keys.addBlockKeys(updates, block_id1, wb);
     db->write(std::move(wb));
+    testGetValueAndVersion(
+        latest_keys, block_id1, "versioned", key1, false, false, keys, val_is_null_opts, ver_is_null_opts);
+    testGetValueAndVersion(
+        latest_keys, block_id1, "versioned", key2, false, false, keys, val_is_null_opts, ver_is_null_opts);
   }
 
   // Block 2
@@ -315,6 +412,12 @@ TEST_F(v4_kvbc, add_version_keys_adv) {
     auto wb = db->getBatch();
     latest_keys.addBlockKeys(updates, block_id112, wb);
     db->write(std::move(wb));
+    testGetValueAndVersion(
+        latest_keys, block_id112, "versioned", key1, false, false, keys, val_is_null_opts, ver_is_null_opts);
+    testGetValueAndVersion(
+        latest_keys, block_id112, "versioned", key2, true, true, keys, val_is_null_opts, ver_is_null_opts);
+    testGetValueAndVersion(
+        latest_keys, block_id1, "versioned", key2, false, false, keys, val_is_null_opts, ver_is_null_opts);
   }
 
   // Block 3
@@ -329,6 +432,12 @@ TEST_F(v4_kvbc, add_version_keys_adv) {
     auto wb = db->getBatch();
     latest_keys.addBlockKeys(updates, block_id180, wb);
     db->write(std::move(wb));
+    testGetValueAndVersion(
+        latest_keys, block_id180, "versioned", key1, true, true, keys, val_is_null_opts, ver_is_null_opts);
+    testGetValueAndVersion(
+        latest_keys, block_id112, "versioned", key1, false, false, keys, val_is_null_opts, ver_is_null_opts);
+    testGetValueAndVersion(
+        latest_keys, block_id180, "versioned", key2, false, false, keys, val_is_null_opts, ver_is_null_opts);
   }
 
   std::string out_ts;
@@ -337,6 +446,8 @@ TEST_F(v4_kvbc, add_version_keys_adv) {
 
   // get key1  value of this timestamp
   {
+    testGetValueAndVersion(
+        latest_keys, block_id1, "versioned", key1, false, false, keys, val_is_null_opts, ver_is_null_opts);
     auto val = db->get(v4blockchain::detail::LATEST_KEYS_CF,
                        latest_keys.getCategoryPrefix("versioned") + key1,
                        block_id1_str,
@@ -350,6 +461,8 @@ TEST_F(v4_kvbc, add_version_keys_adv) {
   }
   // get key1 value of  higer timestamp
   {
+    testGetValueAndVersion(
+        latest_keys, block_id10, "versioned", key1, false, false, keys, val_is_null_opts, ver_is_null_opts);
     auto val = db->get(v4blockchain::detail::LATEST_KEYS_CF,
                        latest_keys.getCategoryPrefix("versioned") + key1,
                        block_id10_str,
@@ -364,6 +477,8 @@ TEST_F(v4_kvbc, add_version_keys_adv) {
   }
   // get key1 updated value
   {
+    testGetValueAndVersion(
+        latest_keys, block_id112, "versioned", key1, false, false, keys, val_is_null_opts, ver_is_null_opts);
     auto val = db->get(v4blockchain::detail::LATEST_KEYS_CF,
                        latest_keys.getCategoryPrefix("versioned") + key1,
                        block_id112_str,
@@ -379,6 +494,8 @@ TEST_F(v4_kvbc, add_version_keys_adv) {
 
   ///////////KEY2/////////////////
   {
+    testGetValueAndVersion(
+        latest_keys, block_id1, "versioned", key2, false, false, keys, val_is_null_opts, ver_is_null_opts);
     auto val = db->get(v4blockchain::detail::LATEST_KEYS_CF,
                        latest_keys.getCategoryPrefix("versioned") + key2,
                        block_id1_str,
@@ -393,6 +510,8 @@ TEST_F(v4_kvbc, add_version_keys_adv) {
   }
   // get key2 value of  higer timestamp
   {
+    testGetValueAndVersion(
+        latest_keys, block_id10, "versioned", key2, false, false, keys, val_is_null_opts, ver_is_null_opts);
     auto val = db->get(v4blockchain::detail::LATEST_KEYS_CF,
                        latest_keys.getCategoryPrefix("versioned") + key2,
                        block_id10_str,
@@ -405,8 +524,10 @@ TEST_F(v4_kvbc, add_version_keys_adv) {
     ASSERT_EQ(block_id1, iout_ts);
     out_ts.clear();
   }
-  // get key1 deleted value
+  // get key2 deleted value
   {
+    testGetValueAndVersion(
+        latest_keys, block_id112, "versioned", key2, true, true, keys, val_is_null_opts, ver_is_null_opts);
     auto val = db->get(v4blockchain::detail::LATEST_KEYS_CF,
                        latest_keys.getCategoryPrefix("versioned") + key2,
                        block_id112_str,
@@ -416,6 +537,8 @@ TEST_F(v4_kvbc, add_version_keys_adv) {
 
   // get key2 updates value
   {
+    testGetValueAndVersion(
+        latest_keys, block_id180, "versioned", key2, false, false, keys, val_is_null_opts, ver_is_null_opts);
     auto val = db->get(v4blockchain::detail::LATEST_KEYS_CF,
                        latest_keys.getCategoryPrefix("versioned") + key2,
                        block_id180_str,
@@ -427,13 +550,35 @@ TEST_F(v4_kvbc, add_version_keys_adv) {
     ASSERT_EQ(block_id180, iout_ts);
     out_ts.clear();
   }
+
+  std::vector<uint64_t> blocks{block_id1, block_id10, block_id112, block_id122, block_id180, block_id190};
+  for (const auto blk : blocks) {
+    for (size_t i = 0; i < keys.size(); ++i) {
+      val_is_null_opts[i] = false;
+      ver_is_null_opts[i] = false;
+      if ((blk == block_id112) || (blk == block_id122)) {
+        if (keys[i] == key2) {
+          val_is_null_opts[i] = true;
+          ver_is_null_opts[i] = true;
+        }
+      } else if ((blk == block_id180) || (blk == block_id190)) {
+        if (keys[i] == key1) {
+          val_is_null_opts[i] = true;
+          ver_is_null_opts[i] = true;
+        }
+      }
+    }
+    testMultiGetValueAndVersion(latest_keys, blk, "versioned", keys, val_is_null_opts, ver_is_null_opts);
+  }
 }
 
 TEST_F(v4_kvbc, add_immutable_keys) {
   v4blockchain::detail::LatestKeys latest_keys{db, categories, []() { return 1; }};
   std::string no_flags = {0};
   std::string stale_on_update_flag = {1};
-
+  std::vector<std::string> keys;
+  std::vector<bool> val_is_null_opts;
+  std::vector<bool> ver_is_null_opts;
   uint64_t block_id1 = 1;
   auto block_id1_str = v4blockchain::detail::Blockchain::generateKey(block_id1);
   std::string key1 = "imm_key1";
@@ -456,7 +601,8 @@ TEST_F(v4_kvbc, add_immutable_keys) {
   std::string out_ts;
 
   //////////KEY1//////////////////////////////
-
+  testGetValueAndVersion(
+      latest_keys, block_id1, "immutable", key1, false, false, keys, val_is_null_opts, ver_is_null_opts);
   // without category prefix
   auto val = db->get(v4blockchain::detail::LATEST_KEYS_CF, key1, block_id1_str, &out_ts);
   ASSERT_FALSE(val.has_value());
@@ -470,13 +616,16 @@ TEST_F(v4_kvbc, add_immutable_keys) {
   auto iout_ts = concordUtils::fromBigEndianBuffer<uint64_t>(out_ts.data());
   ASSERT_EQ(block_id1, iout_ts);
   out_ts.clear();
+  testMultiGetValueAndVersion(latest_keys, block_id1, "immutable", keys, val_is_null_opts, ver_is_null_opts);
 }
 
 TEST_F(v4_kvbc, add_immutable_keys_adv) {
   v4blockchain::detail::LatestKeys latest_keys{db, categories, []() { return 1; }};
   std::string no_flags = {0};
   std::string stale_on_update_flag = {1};
-
+  std::vector<std::string> keys;
+  std::vector<bool> val_is_null_opts;
+  std::vector<bool> ver_is_null_opts;
   uint64_t block_id1 = 1;
   auto block_id1_str = v4blockchain::detail::Blockchain::generateKey(block_id1);
   uint64_t block_id10 = 10;
@@ -503,7 +652,8 @@ TEST_F(v4_kvbc, add_immutable_keys_adv) {
   std::string out_ts;
 
   //////////KEY1//////////////////////////////
-
+  testGetValueAndVersion(
+      latest_keys, block_id1, "immutable", key1, false, false, keys, val_is_null_opts, ver_is_null_opts);
   // without category prefix
   {
     auto val = db->get(v4blockchain::detail::LATEST_KEYS_CF, key1, block_id1_str, &out_ts);
@@ -543,6 +693,8 @@ TEST_F(v4_kvbc, add_immutable_keys_adv) {
     auto wb = db->getBatch();
     ASSERT_THROW(latest_keys.addBlockKeys(updates, block_id100, wb), std::runtime_error);
     db->write(std::move(wb));
+    testGetValueAndVersion(
+        latest_keys, block_id100, "immutable", key1, false, false, keys, val_is_null_opts, ver_is_null_opts);
   }
   // Check that original key still exists.
   {
@@ -567,10 +719,16 @@ TEST_F(v4_kvbc, add_immutable_keys_adv) {
     ASSERT_EQ(block_id1, iout_ts);
     out_ts.clear();
   }
+  testMultiGetValueAndVersion(latest_keys, block_id1, "immutable", keys, val_is_null_opts, ver_is_null_opts);
+  testMultiGetValueAndVersion(latest_keys, block_id10, "immutable", keys, val_is_null_opts, ver_is_null_opts);
+  testMultiGetValueAndVersion(latest_keys, block_id100, "immutable", keys, val_is_null_opts, ver_is_null_opts);
 }
 
 TEST_F(v4_kvbc, detect_stale_on_update) {
   v4blockchain::detail::LatestKeys latest_keys{db, categories, []() { return 1; }};
+  std::vector<std::string> keys;
+  std::vector<bool> val_is_null_opts;
+  std::vector<bool> ver_is_null_opts;
   uint64_t block_id1 = 1;
   auto block_id1_str = v4blockchain::detail::Blockchain::generateKey(block_id1);
   std::string key1 = "ver_key1";
@@ -592,6 +750,10 @@ TEST_F(v4_kvbc, detect_stale_on_update) {
     auto wb = db->getBatch();
     latest_keys.addBlockKeys(updates, block_id1, wb);
     db->write(std::move(wb));
+    testGetValueAndVersion(
+        latest_keys, block_id1, "versioned", key1, false, false, keys, val_is_null_opts, ver_is_null_opts);
+    testGetValueAndVersion(
+        latest_keys, block_id1, "versioned", key2, false, false, keys, val_is_null_opts, ver_is_null_opts);
   }
 
   std::string out_ts;
