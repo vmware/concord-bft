@@ -16,6 +16,8 @@
 #include "kvbc_adapter/categorization/kv_blockchain_adapter.hpp"
 #include "kvbc_adapter/categorization/app_state_adapter.hpp"
 #include "kvbc_adapter/categorization/state_snapshot_adapter.hpp"
+#include "kvbc_adapter/v4blockchain/blocks_deleter_adapter.hpp"
+#include "kvbc_adapter/v4blockchain/blocks_adder_adapter.hpp"
 
 namespace concord::kvbc::adapter {
 ReplicaBlockchain::~ReplicaBlockchain() {
@@ -43,6 +45,7 @@ ReplicaBlockchain::ReplicaBlockchain(
     const std::optional<aux::AdapterAuxTypes> &aux_types)
     : logger_(logging::getLogger("skvbc.replica.adapter")) {
   if (bftEngine::ReplicaConfig::instance().kvBlockchainVersion == BLOCKCHAIN_VERSION::CATEGORIZED_BLOCKCHAIN) {
+    LOG_INFO(CAT_BLOCK_LOG, "Instantiating categorized type blockchain");
     kvbc_ = std::make_shared<concord::kvbc::categorization::KeyValueBlockchain>(
         native_client, link_st_chain, category_types);
     if (aux_types.has_value()) {
@@ -56,8 +59,11 @@ ReplicaBlockchain::ReplicaBlockchain(
         std::make_unique<concord::kvbc::adapter::categorization::statesnapshot::KVBCStateSnapshot>(kvbc_);
     up_db_chkpt_ = std::make_unique<concord::kvbc::adapter::categorization::statesnapshot::KVBCStateSnapshot>(kvbc_);
   } else if (bftEngine::ReplicaConfig::instance().kvBlockchainVersion == BLOCKCHAIN_VERSION::NATURAL_BLOCKCHAIN) {
-    // TODO: Not yet implemented
-    ConcordAssert(false);
+    LOG_INFO(V4_BLOCK_LOG, "Instantiating v4 type blockchain");
+    v4_kvbc_ =
+        std::make_shared<concord::kvbc::v4blockchain::KeyValueBlockchain>(native_client, link_st_chain, category_types);
+    up_deleter_ = std::make_unique<concord::kvbc::adapter::v4blockchain::BlocksDeleterAdapter>(v4_kvbc_, aux_types);
+    up_adder_ = std::make_unique<concord::kvbc::adapter::v4blockchain::BlocksAdderAdapter>(v4_kvbc_);
   }
 
   switch_to_rawptr();
