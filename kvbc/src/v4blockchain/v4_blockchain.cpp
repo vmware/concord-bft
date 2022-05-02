@@ -11,6 +11,8 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
+#include <variant>
+
 #include "v4blockchain/v4_blockchain.h"
 #include "v4blockchain/detail/detail.h"
 #include "categorization/base_types.h"
@@ -24,9 +26,9 @@ namespace concord::kvbc::v4blockchain {
 using namespace concord::kvbc;
 
 KeyValueBlockchain::KeyValueBlockchain(
-    const std::shared_ptr<concord::storage::rocksdb::NativeClient>& native_client,
+    const std::shared_ptr<concord::storage::rocksdb::NativeClient> &native_client,
     bool link_st_chain,
-    const std::optional<std::map<std::string, categorization::CATEGORY_TYPE>>& category_types)
+    const std::optional<std::map<std::string, categorization::CATEGORY_TYPE>> &category_types)
     : native_client_{native_client},
       block_chain_{native_client_},
       state_transfer_chain_{native_client_},
@@ -53,7 +55,7 @@ KeyValueBlockchain::KeyValueBlockchain(
   4 - atomic write to storage
   5 - increment last reachable block.
 */
-BlockId KeyValueBlockchain::add(categorization::Updates&& updates) {
+BlockId KeyValueBlockchain::add(categorization::Updates &&updates) {
   auto scoped = v4blockchain::detail::ScopedDuration{"Add block"};
   // Should be performed before we add the block with the current Updates.
   auto sequence_number = markHistoryForGarbageCollectionIfNeeded(updates);
@@ -67,8 +69,8 @@ BlockId KeyValueBlockchain::add(categorization::Updates&& updates) {
   return block_id;
 }
 
-BlockId KeyValueBlockchain::add(const categorization::Updates& updates,
-                                storage::rocksdb::NativeWriteBatch& write_batch) {
+BlockId KeyValueBlockchain::add(const categorization::Updates &updates,
+                                storage::rocksdb::NativeWriteBatch &write_batch) {
   BlockId block_id{};
   {
     auto scoped2 = v4blockchain::detail::ScopedDuration{"Add block to blockchain"};
@@ -120,7 +122,7 @@ void KeyValueBlockchain::deleteLastReachableBlock() {
   - if last_block_sn_ is nullopt we're probably on first start.
   - we don't want to trim when checkpoint is in process.
 */
-uint64_t KeyValueBlockchain::markHistoryForGarbageCollectionIfNeeded(const categorization::Updates& updates) {
+uint64_t KeyValueBlockchain::markHistoryForGarbageCollectionIfNeeded(const categorization::Updates &updates) {
   if (checkpointInProcess_) return 0;
   auto sequence_number = getBlockSequenceNumber(updates);
   // Optional not set yet or same sn
@@ -141,13 +143,13 @@ uint64_t KeyValueBlockchain::markHistoryForGarbageCollectionIfNeeded(const categ
   return sequence_number;
 }
 
-uint64_t KeyValueBlockchain::getBlockSequenceNumber(const categorization::Updates& updates) const {
+uint64_t KeyValueBlockchain::getBlockSequenceNumber(const categorization::Updates &updates) const {
   static std::string key = std::string(1, IBlockMetadata::kBlockMetadataKey);
-  const auto& input = updates.categoryUpdates();
+  const auto &input = updates.categoryUpdates();
   if (input.kv.count(categorization::kConcordInternalCategoryId) == 0) {
     return 0;
   }
-  const auto& ver_input =
+  const auto &ver_input =
       std::get<categorization::VersionedInput>(input.kv.at(categorization::kConcordInternalCategoryId));
   if (ver_input.kv.count(key) == 0) {
     return 0;
@@ -155,7 +157,7 @@ uint64_t KeyValueBlockchain::getBlockSequenceNumber(const categorization::Update
   return BlockMetadata::getSequenceNum(ver_input.kv.at(key).data);
 }
 
-void KeyValueBlockchain::addGenesisBlockKey(categorization::Updates& updates) const {
+void KeyValueBlockchain::addGenesisBlockKey(categorization::Updates &updates) const {
   const auto stale_on_update = true;
   updates.addCategoryIfNotExisting<categorization::VersionedInput>(categorization::kConcordInternalCategoryId);
   updates.appendKeyValue<categorization::VersionedUpdates>(
@@ -174,7 +176,7 @@ bool KeyValueBlockchain::hasBlock(BlockId block_id) const {
   return block_chain_.hasBlock(block_id);
 }
 
-std::optional<std::string> KeyValueBlockchain::getBlockData(const BlockId& block_id) const {
+std::optional<std::string> KeyValueBlockchain::getBlockData(const BlockId &block_id) const {
   const auto last_reachable_block = getLastReachableBlockId();
   // Try to take it from the ST chain
   if (block_id > last_reachable_block) {
@@ -204,9 +206,8 @@ concord::util::digest::BlockDigest KeyValueBlockchain::parentDigest(BlockId bloc
   return block_chain_.getBlockParentDigest(block_id);
 }
 
-//
-void KeyValueBlockchain::addBlockToSTChain(const BlockId& block_id,
-                                           const char* block,
+void KeyValueBlockchain::addBlockToSTChain(const BlockId &block_id,
+                                           const char *block,
                                            const uint32_t block_size,
                                            bool last_block) {
   const auto last_reachable_block = getLastReachableBlockId();
@@ -237,7 +238,7 @@ void KeyValueBlockchain::addBlockToSTChain(const BlockId& block_id,
   if (last_block) {
     try {
       linkSTChain();
-    } catch (const std::exception& e) {
+    } catch (const std::exception &e) {
       LOG_FATAL(V4_BLOCK_LOG,
                 "Aborting due to failure to link chains after block has been added, reason: " << e.what());
       std::terminate();
@@ -266,12 +267,12 @@ void KeyValueBlockchain::linkSTChain() {
   state_transfer_chain_.resetChain();
 }
 
-void KeyValueBlockchain::pruneOnSTLink(const categorization::Updates& updates) {
+void KeyValueBlockchain::pruneOnSTLink(const categorization::Updates &updates) {
   auto cat_it = updates.categoryUpdates().kv.find(categorization::kConcordInternalCategoryId);
   if (cat_it == updates.categoryUpdates().kv.cend()) {
     return;
   }
-  const auto& internal_kvs = std::get<categorization::VersionedInput>(cat_it->second).kv;
+  const auto &internal_kvs = std::get<categorization::VersionedInput>(cat_it->second).kv;
   auto key_it = internal_kvs.find(keyTypes::genesis_block_key);
   if (key_it != internal_kvs.cend()) {
     const auto block_genesis_id = concordUtils::fromBigEndianBuffer<BlockId>(key_it->second.data.data());
@@ -283,7 +284,7 @@ void KeyValueBlockchain::pruneOnSTLink(const categorization::Updates& updates) {
 }
 
 // Atomic delete from state transfer and add to blockchain
-void KeyValueBlockchain::writeSTLinkTransaction(const BlockId block_id, const categorization::Updates& updates) {
+void KeyValueBlockchain::writeSTLinkTransaction(const BlockId block_id, const categorization::Updates &updates) {
   auto sequence_number = markHistoryForGarbageCollectionIfNeeded(updates);
   auto write_batch = native_client_->getBatch();
   state_transfer_chain_.deleteBlock(block_id, write_batch);
@@ -337,6 +338,115 @@ size_t KeyValueBlockchain::linkUntilBlockId(BlockId until_block_id) {
     state_transfer_chain_.resetChain();
   }
   return (last_added - from_block_id) + 1;
+}
+
+std::optional<categorization::Value> KeyValueBlockchain::getValueFromUpdate(
+    BlockId block_id, const std::string &key, const categorization::BlockMerkleInput &category_input) const {
+  const auto valit = category_input.kv.find(key);
+  if (valit == category_input.kv.cend()) {
+    return std::nullopt;
+  }
+  return categorization::MerkleValue{{block_id, valit->second}};
+}
+std::optional<categorization::Value> KeyValueBlockchain::getValueFromUpdate(
+    BlockId block_id, const std::string &key, const categorization::VersionedInput &category_input) const {
+  const auto valit = category_input.kv.find(key);
+  if (valit == category_input.kv.cend()) {
+    return std::nullopt;
+  }
+  return categorization::VersionedValue{{block_id, (valit->second).data}};
+}
+std::optional<categorization::Value> KeyValueBlockchain::getValueFromUpdate(
+    BlockId block_id, const std::string &key, const categorization::ImmutableInput &category_input) const {
+  const auto valit = category_input.kv.find(key);
+  if (valit == category_input.kv.cend()) {
+    return std::nullopt;
+  }
+  return categorization::ImmutableValue{{block_id, (valit->second).data}};
+}
+
+std::optional<categorization::Value> KeyValueBlockchain::get(const std::string &category_id,
+                                                             const std::string &key,
+                                                             BlockId block_id) const {
+  auto updates_in_block = block_chain_.getBlockUpdates(block_id);
+  if (!updates_in_block) {
+    return std::nullopt;
+  }
+  const auto &kv_updates = updates_in_block->categoryUpdates(category_id);
+  if (!kv_updates) {
+    return std::nullopt;
+  }
+  std::optional<categorization::Value> ret;
+  std::visit(
+      [this, block_id, &key, &ret](const auto &specific_cat_updates) {
+        ret = this->getValueFromUpdate(block_id, key, specific_cat_updates);
+      },
+      (*kv_updates).get());
+  return ret;
+}
+
+std::optional<categorization::Value> KeyValueBlockchain::getLatest(const std::string &category_id,
+                                                                   const std::string &key) const {
+  BlockId latest_block_id = block_chain_.getLastReachable();
+  return latest_keys_.getValue(latest_block_id, category_id, detail::Blockchain::generateKey(latest_block_id), key);
+}
+
+void KeyValueBlockchain::multiGet(const std::string &category_id,
+                                  const std::vector<std::string> &keys,
+                                  const std::vector<BlockId> &versions,
+                                  std::vector<std::optional<categorization::Value>> &values) const {
+  ConcordAssertEQ(keys.size(), versions.size());
+  ConcordAssertEQ(keys.size(), versions.size());
+  values.clear();
+  values.reserve(keys.size());
+  std::unordered_map<BlockId, std::optional<categorization::Updates>> unique_block_updates;
+  block_chain_.multiGetBlockUpdates(versions, unique_block_updates);
+  for (size_t i = 0; i < keys.size(); ++i) {
+    const auto block_id = versions[i];
+    const auto &key = keys[i];
+    auto updates_in_block_it = unique_block_updates.find(block_id);
+    bool value_added_is_good = false;
+    if (updates_in_block_it != unique_block_updates.end()) {
+      if (updates_in_block_it->second) {
+        const auto &kv_updates = updates_in_block_it->second->categoryUpdates(category_id);
+        if (kv_updates) {
+          std::optional<categorization::Value> val;
+          std::visit(
+              [this, block_id, &key, &val](const auto &specific_cat_updates) {
+                val = getValueFromUpdate(block_id, key, specific_cat_updates);
+              },
+              (*kv_updates).get());
+          values.push_back(val);
+          value_added_is_good = true;
+        }
+      }
+    }
+    if (!value_added_is_good) {
+      values.push_back(std::nullopt);
+    }
+  }
+}
+
+void KeyValueBlockchain::multiGetLatest(const std::string &category_id,
+                                        const std::vector<std::string> &keys,
+                                        std::vector<std::optional<categorization::Value>> &values) const {
+  BlockId latest_block_id = block_chain_.getLastReachable();
+  return latest_keys_.multiGetValue(
+      latest_block_id, category_id, detail::Blockchain::generateKey(latest_block_id), keys, values);
+}
+
+std::optional<categorization::TaggedVersion> KeyValueBlockchain::getLatestVersion(const std::string &category_id,
+                                                                                  const std::string &key) const {
+  return latest_keys_.getLatestVersion(
+      category_id, detail::Blockchain::generateKey(block_chain_.getLastReachable()), key);
+}
+
+void KeyValueBlockchain::multiGetLatestVersion(
+    const std::string &category_id,
+    const std::vector<std::string> &keys,
+    std::vector<std::optional<categorization::TaggedVersion>> &versions) const {
+  return latest_keys_.multiGetLatestVersion(
+      category_id, detail::Blockchain::generateKey(block_chain_.getLastReachable()), keys, versions);
 }
 
 }  // namespace concord::kvbc::v4blockchain
