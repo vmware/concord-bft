@@ -281,12 +281,10 @@ class UTTClientApp : public UTTBlockchainApp {
       throw std::runtime_error("Number of output coins differs from provided sig shares!");
 
     for (size_t i = 0; i < numTxo; ++i) {
-      std::optional<libutt::Client::ClaimEvent> claimEvent;
-      libutt::Client::tryClaimCoin(wallet_, tx.utt_, i, sigShares.sigShares_[i], sigShares.signerIds_, n, claimEvent);
-
-      if (claimEvent) {
-        std::cout << " + \'" << myPid_ << "' claims " << fmtCurrency(claimEvent->value_)
-                  << (claimEvent->isBudgetCoin_ ? " budget" : " normal") << " coin.\n";
+      auto result = libutt::Client::tryClaimCoin(wallet_, tx.utt_, i, sigShares.sigShares_[i], sigShares.signerIds_, n);
+      if (result) {
+        std::cout << " + \'" << myPid_ << "' claims " << fmtCurrency(result->value_)
+                  << (result->isBudgetCoin_ ? " budget" : " normal") << " coin.\n";
       }
     }
   }
@@ -588,26 +586,25 @@ void runUttPayment(const UttPayment& payment, UTTClientApp& app, WalletCommunica
     if (app.getUttBalance() < payment.amount_) throw std::domain_error("Insufficient balance for utt payment!");
     if (app.getUttBudget() < payment.amount_) throw std::domain_error("Insufficient anonymous budget for utt payment!");
 
-    libutt::Client::CreateTxEvent createTxEvent;
-    auto uttTx = libutt::Client::createTxForPayment(app.wallet_, payment.receiver_, payment.amount_, createTxEvent);
+    auto result = libutt::Client::createTxForPayment(app.wallet_, payment.receiver_, payment.amount_);
 
     // Describe what the utt transaction intends to do.
-    std::cout << "\nCreated UTT tx " << uttTx.getHashHex() << '\n';
-    std::cout << "  Type: " << createTxEvent.txType_ << '\n';
-    for (size_t coinValue : createTxEvent.inputNormalCoinValues_)
+    std::cout << "\nCreated UTT tx " << result.tx.getHashHex() << '\n';
+    std::cout << "  Type: " << result.txType_ << '\n';
+    for (size_t coinValue : result.inputNormalCoinValues_)
       std::cout << "  - '" << app.myPid_ << "' will spend " << app.fmtCurrency(coinValue) << " normal coin.\n";
-    if (createTxEvent.inputBudgetCoinValue_)
-      std::cout << "  - '" << app.myPid_ << "' will spend " << app.fmtCurrency(*createTxEvent.inputBudgetCoinValue_)
+    if (result.inputBudgetCoinValue_)
+      std::cout << "  - '" << app.myPid_ << "' will spend " << app.fmtCurrency(*result.inputBudgetCoinValue_)
                 << " budget coin.\n";
-    for (const auto& [pid, coinValue] : createTxEvent.recipients_)
+    for (const auto& [pid, coinValue] : result.recipients_)
       std::cout << "  + '" << pid << "' will receive " << app.fmtCurrency(coinValue) << " normal coin.\n";
 
     // We assume that any tx with a budget coin must be an actual payment
     // and not a coin split or merge.
     // We assume that any valid utt payment terminates with a paying transaction.
-    const bool isPayment = uttTx.isBudgeted();
+    const bool isPayment = result.tx.isBudgeted();
 
-    Tx tx = TxUtt(std::move(uttTx));
+    Tx tx = TxUtt(std::move(result.tx));
 
     auto reply = sendTxRequest(comm, tx);
     if (reply.success) {
