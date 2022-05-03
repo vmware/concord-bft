@@ -680,7 +680,6 @@ void addMoreEventGroups(const EventGroupId start,
   auto more_live_updates = generateEventGroupMap(start, end, type, trid);
   storage.addEventGroups(more_live_updates);
   storage.updateEventGroupStorageMaps(more_live_updates);
-  state_machine.set_expected_last_event_group_to_send(11u);
   state_machine.toggle_more_event_groups_to_add(false);
   for (const auto& [key, val] : more_live_updates) {
     EventGroupId eg_id(concordUtils::fromBigEndianBuffer<uint64_t>(key.data()));
