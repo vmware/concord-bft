@@ -6,7 +6,7 @@ LABEL Description="UTT Demo Client"
 WORKDIR /concord/
 
 # Copy the replica executable
-COPY ./utt-demo-run/bin/utt_client ./
+COPY ./bin/utt_client ./
 
 # Volumes
 VOLUME [ "/concord/logs", "/concord/config" ]
