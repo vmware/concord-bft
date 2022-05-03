@@ -54,8 +54,8 @@ class BudgetProof {
 
 #ifndef NDEBUG
     logdbg << "Doing budget proof for TXOs: [ ";
-    for (auto txo : forMeTxos) std::cout << txo << ", ";
-    std::cout << "]" << endl;
+    for (auto txo : forMeTxos) logdbg << txo << ", ";
+    logdbg << "]" << endl;
 #endif
 
     std::vector<Fr> x = random_field_elems(3);

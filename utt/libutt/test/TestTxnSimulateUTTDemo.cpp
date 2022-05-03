@@ -15,8 +15,8 @@ void pickCoinsVaraint1(const Simulation::Context& ctx,
 
   // Variant 1: Prefer exact payments (using sorted coins)
   //
-  // (1) look for a single coin where value >= k, an exact coin will be prefered
-  // (2) look for two coins with total value >= k, an exact sum will be prefered
+  // (1) look for a single coin where value >= k, an exact coin will be preferred
+  // (2) look for two coins with total value >= k, an exact sum will be preferred
   // (3) no two coins sum up to k, do a merge on the largest two coins
 
   // Example 1 (1 coin match):
@@ -64,7 +64,7 @@ void pickCoinsVaraint1(const Simulation::Context& ctx,
       ss << "(" << c.first << ", " << c.second << ")";
     }
     ss << "]\n";
-    logdbg << ss.str();
+    loginfo << ss.str();
 
     auto lb = std::lower_bound(aux.begin(), aux.end(), CoinRef{payment, -1}, cmpCoinValue);
     if (lb != aux.end()) {
@@ -135,7 +135,7 @@ void pickCoinsVaraint2(const Simulation::Context& ctx,
       ss << c.getValue() << ',';
     }
     ss << "]\n";
-    logdbg << ss.str();
+    loginfo << ss.str();
 
     // Special case
     if (w1.coins.size() == 1) {
@@ -168,7 +168,7 @@ void pickCoinsVaraint2(const Simulation::Context& ctx,
     aux.pop();
     assertTrue(aux.empty());
 
-    logdbg << "c1=(" << c1.first << ',' << c1.second << ") c2=(" << c2.first << ',' << c2.second << ")\n";
+    loginfo << "c1=(" << c1.first << ',' << c1.second << ") c2=(" << c2.first << ',' << c2.second << ")\n";
 
     if (c1.first + c2.first >= payment) {  // We can do the payment
       if (c1.first == payment) {
@@ -205,7 +205,7 @@ int main(int argc, char* argv[]) {
 
   Simulation::Context ctx = Simulation::createContext(n, thresh);
 
-  logdbg << "Created decentralized UTT system" << endl;
+  loginfo << "Created decentralized UTT system" << endl;
 
   //////////////////////////////////////////////////////////////////////////////////////////////
   // CREATE ACCOUNT WALLETS
@@ -221,9 +221,9 @@ int main(int argc, char* argv[]) {
   for (size_t i = 0; i < numWallets; ++i)
     wallets.emplace_back(Simulation::createWallet(ctx, "user_" + std::to_string(i + 1), normal_coin_values, budget));
 
-  logdbg << "Created random wallets" << endl;
+  loginfo << "Created random wallets" << endl;
 
-  // nullifer list
+  // nullifier list
   std::set<std::string> nullset;
 
   //////////////////////////////////////////////////////////////////////////////////////////////
@@ -235,8 +235,8 @@ int main(int argc, char* argv[]) {
   size_t numCycles = 20;
 
   for (size_t cycle = 0; cycle < numCycles; cycle++) {
-    logdbg << endl << endl;
-    logdbg << "================ Cycle #" << (cycle + 1) << " ================" << endl;
+    loginfo << endl << endl;
+    loginfo << "================ Cycle #" << (cycle + 1) << " ================" << endl;
 
     // Pick two distinct random wallets
     size_t i = static_cast<size_t>(rand()) % wallets.size();
@@ -254,13 +254,13 @@ int main(int argc, char* argv[]) {
     const size_t maxPayment = std::min<size_t>(balance, budget);
 
     if (maxPayment == 0) {
-      logdbg << "No payment possible. [balance=" << balance << "] [budget=" << budget << "] Skipping.";
+      loginfo << "No payment possible. [balance=" << balance << "] [budget=" << budget << "] Skipping.\n";
       continue;
     }
 
     const size_t payment = static_cast<size_t>(rand()) % maxPayment + 1;  // [1 .. maxPayment]
 
-    logdbg << "Target payment $" << payment << " from '" << w1.ask.pid << "' to '" << w2.ask.pid << "'\n";
+    loginfo << "Target payment $" << payment << " from '" << w1.ask.pid << "' to '" << w2.ask.pid << "'\n";
 
     // Precondition: 0 < payment <= budget <= balance
 

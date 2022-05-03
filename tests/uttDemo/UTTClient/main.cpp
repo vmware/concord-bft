@@ -75,7 +75,7 @@ class WalletCommunicator : public IReceiver {
       if (listenPort == 0) throw std::runtime_error("Invalid wallet port!");
     }
 
-    std::cout << "Wallet listening addr: " << listenHost << " : " << listenPort << "\n";
+    LOG_INFO(logger, "Wallet listening addr: " << listenHost << " : " << listenPort);
 
     // Map wallet id to payment service id:
     // {1, 2, 3} -> 1
@@ -100,7 +100,7 @@ class WalletCommunicator : public IReceiver {
     }
 
     std::cout << "Using PaymentService #" << paymentServiceId_;
-    std::cout << " addr: " << paymentServiceHost << " : " << paymentServicePort << "\n";
+    std::cout << " at " << paymentServiceHost << ':' << paymentServicePort << "\n";
 
     // Each wallet connects only to the payment service node
     // The actual node id for the payment service is always 0 from the point of view
@@ -220,7 +220,7 @@ class UTTClientApp : public UTTBlockchainApp {
     }
     if (otherPids_.empty()) throw std::runtime_error("Other pids are empty!");
 
-    std::cout << "Successfully loaded UTT wallet with pid '" << myPid_ << "'\n";
+    LOG_INFO(logger, "Successfully loaded UTT wallet with pid '" << myPid_);
 
     addAccount(Account{myPid_, cfg.initPublicBalance_});
     wallet_ = std::move(cfg.wallet_);
@@ -252,23 +252,22 @@ class UTTClientApp : public UTTBlockchainApp {
 
     // Client removes spent coins and attempts to claim output coins
     if (const auto* txUtt = std::get_if<TxUtt>(&tx)) {
+      std::cout << "Executing UTT tx " << txUtt->utt_.getHashHex() << '\n';
       pruneSpentCoins();
       tryClaimCoins(*txUtt);
+      std::cout << '\n';
     }
   }
 
   void pruneSpentCoins() {
-    // Mark spent coins and delete them all at once since they're kept in a vector
-    for (auto& c : wallet_.coins) {
-      if (hasNullifier(c.null.toUniqueString())) {
-        std::cout << "User '" << wallet_.getUserPid() << "' removes spent normal coin $" << c.getValue() << '\n';
-        c.val = 0;
-      }
-    }
+    auto result = libutt::Client::pruneSpentCoins(wallet_, nullset_);
 
-    wallet_.coins.erase(
-        std::remove_if(wallet_.coins.begin(), wallet_.coins.end(), [](const libutt::Coin& c) { return c.val == 0; }),
-        wallet_.coins.end());
+    for (const size_t value : result.spentCoins_)
+      std::cout << " - \'" << wallet_.getUserPid() << "' removes spent " << fmtCurrency(value) << " normal coin.\n";
+
+    if (result.spentBudgetCoin_)
+      std::cout << " - \'" << wallet_.getUserPid() << "' removes spent " << fmtCurrency(*result.spentBudgetCoin_)
+                << " budget coin.\n";
   }
 
   void tryClaimCoins(const TxUtt& tx) {
@@ -282,7 +281,11 @@ class UTTClientApp : public UTTBlockchainApp {
       throw std::runtime_error("Number of output coins differs from provided sig shares!");
 
     for (size_t i = 0; i < numTxo; ++i) {
-      libutt::Client::tryClaimCoin(wallet_, tx.utt_, i, sigShares.sigShares_[i], sigShares.signerIds_, n);
+      auto result = libutt::Client::tryClaimCoin(wallet_, tx.utt_, i, sigShares.sigShares_[i], sigShares.signerIds_, n);
+      if (result) {
+        std::cout << " + \'" << myPid_ << "' claims " << fmtCurrency(result->value_)
+                  << (result->isBudgetCoin_ ? " budget" : " normal") << " coin.\n";
+      }
     }
   }
 };
@@ -326,9 +329,8 @@ ClientAppParams setupParams(int argc, char** argv) {
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 TxReply sendTxRequest(WalletCommunicator& comm, const Tx& tx) {
-  // [TODO-UTT] Debug output
   if (const auto* txUtt = std::get_if<TxUtt>(&tx)) {
-    std::cout << "Sending UTT Tx " << txUtt->utt_.getHashHex() << '\n';
+    LOG_INFO(logger, "Sending UTT Tx " << txUtt->utt_.getHashHex());
   }
 
   std::stringstream ss;
@@ -350,7 +352,7 @@ TxReply sendTxRequest(WalletCommunicator& comm, const Tx& tx) {
   deserialize(bftReply->matched_data, reply);
 
   auto txReply = std::get<TxReply>(std::move(reply.reply));  // throws if unexpected variant
-  std::cout << "Got TxReply, success=" << txReply.success << " last_block_id=" << txReply.last_block_id << '\n';
+  LOG_INFO(logger, "Got TxReply, success=" << txReply.success << " last_block_id=" << txReply.last_block_id);
 
   return txReply;
 }
@@ -370,7 +372,8 @@ GetLastBlockReply sendGetLastBlockRequest(WalletCommunicator& comm) {
   deserialize(bftReply->matched_data, reply);
 
   auto lastBlockReply = std::get<GetLastBlockReply>(std::move(reply.reply));  // throws if unexpected variant
-  std::cout << "Got GetLastBlockReply, last_block_id=" << lastBlockReply.last_block_id << '\n';
+
+  LOG_INFO(logger, "Got GetLastBlockReply, last_block_id=" << lastBlockReply.last_block_id);
 
   return lastBlockReply;
 }
@@ -397,8 +400,7 @@ std::pair<GetBlockDataReply, ReplicaSpecificInfo> sendGetBlockDataRequest(Wallet
   result.first = std::get<GetBlockDataReply>(std::move(reply.reply));  // throws if unexpected variant
   result.second = std::move(bftReply->rsi);
 
-  std::cout << "Got GetBlockDataReply, success=" << result.first.success << " block_id=" << result.first.block_id
-            << '\n';
+  LOG_INFO(logger, "Got GetBlockDataReply, success=" << result.first.success << " block_id=" << result.first.block_id);
 
   return result;
 }
@@ -440,9 +442,9 @@ ReplicaSigShares DeserializeSigShares(const TxUtt& tx, ReplicaSpecificInfo&& rsi
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-// Sync state by fetching missing blocks and executing them
+// Sync app by fetching missing blocks and executing them
 void syncState(UTTClientApp& app, WalletCommunicator& comm) {
-  std::cout << "Sync state...\n";
+  LOG_INFO(logger, "Sync app.");
 
   auto lastBlockReply = sendGetLastBlockRequest(comm);
   app.setLastKnownBlockId(lastBlockReply.last_block_id);
@@ -463,8 +465,7 @@ void syncState(UTTClientApp& app, WalletCommunicator& comm) {
     if (!tx) throw std::runtime_error("Failed to parse tx for block " + std::to_string(replyBlockId));
 
     if (auto* txUtt = std::get_if<TxUtt>(&(*tx))) {
-      // [TODO-UTT] Debug output
-      std::cout << "Received UTT Tx " << txUtt->utt_.getHashHex() << " for block " << replyBlockId << '\n';
+      LOG_INFO(logger, "Received UTT Tx " << txUtt->utt_.getHashHex() << " for block " << replyBlockId);
 
       // Deserialize sig shares from replica specific info
       ReplicaSigShares sigShares = DeserializeSigShares(*txUtt, std::move(result.second));
@@ -524,24 +525,39 @@ std::optional<Tx> createPublicTx(const std::string& cmd, const UTTClientApp& app
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void printHelp() {
   std::cout << "\nCommands:\n";
-  std::cout << "balance\t\t\t-- print account's public and utt balances\n";
-  std::cout << "ledger\t\t\t-- print all transactions that happened\n";
+  std::cout << "accounts\t\t\t-- print all available account names you can send public or utt funds to.\n";
+  std::cout << "balance\t\t\t\t-- print details about your account.\n";
+  std::cout << "ledger\t\t\t\t-- print all transactions that happened on the Blockchain.\n";
   // std::cout << "deposit [amount]\t-- public money deposit to account\n";
   // std::cout << "withdraw [amount]\t-- public money withdraw from account\n";
-  std::cout << "transfer [to] [amount]\t-- public money transfer\n";
-  std::cout << "utt [to] [amount]\t-- anonymous money transfer\n";
+  std::cout << "transfer [account] [amount]\t-- transfer public money to another account.\n";
+  std::cout << "utt [account] [amount]\t\t-- transfer money anonymously to another account.\n";
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void printAccounts(UTTClientApp& app) {
+  std::cout << "My account: " << app.myPid_ << '\n';
+  for (const auto& pid : app.otherPids_) {
+    std::cout << pid << '\n';
+  }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void checkBalance(UTTClientApp& app, WalletCommunicator& comm) {
   syncState(app, comm);
-  std::cout << '\n';
 
   const auto& myAccount = app.getMyAccount();
-  std::cout << "Balance:\n";
-  std::cout << "  Public: " << app.fmtCurrency(myAccount.getPublicBalance()) << '\n';
-  std::cout << "  Anonymous: " << app.fmtCurrency(app.getUttBalance()) << '\n';
-  std::cout << "  Remaining anonymous budget: " << app.fmtCurrency(app.getUttBudget()) << '\n';
+  std::cout << "Account summary:\n";
+  std::cout << "  Public balance:\t" << app.fmtCurrency(myAccount.getPublicBalance()) << '\n';
+  std::cout << "  UTT wallet balance:\t" << app.fmtCurrency(app.getUttBalance()) << '\n';
+  std::cout << "  UTT wallet coins:\t[";
+  if (!app.wallet_.coins.empty()) {
+    for (int i = 0; i < (int)app.wallet_.coins.size() - 1; ++i)
+      std::cout << app.fmtCurrency(app.wallet_.coins[i].getValue()) << ", ";
+    std::cout << app.fmtCurrency(app.wallet_.coins.back().getValue());
+  }
+  std::cout << "]\n";
+  std::cout << "  Anonymous budget:\t" << app.fmtCurrency(app.getUttBudget()) << '\n';
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -555,7 +571,7 @@ void checkLedger(UTTClientApp& app, WalletCommunicator& comm) {
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void runUttPayment(const UttPayment& payment, UTTClientApp& app, WalletCommunicator& comm) {
-  std::cout << "Running a UTT payment to '" << payment.receiver_;
+  std::cout << "\n>>> Running a UTT payment from '" << app.myPid_ << "' to '" << payment.receiver_;
   std::cout << "' for " << app.fmtCurrency(payment.amount_) << '\n';
 
   while (true) {
@@ -570,14 +586,25 @@ void runUttPayment(const UttPayment& payment, UTTClientApp& app, WalletCommunica
     if (app.getUttBalance() < payment.amount_) throw std::domain_error("Insufficient balance for utt payment!");
     if (app.getUttBudget() < payment.amount_) throw std::domain_error("Insufficient anonymous budget for utt payment!");
 
-    auto uttTx = libutt::Client::createTxForPayment(app.wallet_, payment.receiver_, payment.amount_);
+    auto result = libutt::Client::createTxForPayment(app.wallet_, payment.receiver_, payment.amount_);
+
+    // Describe what the utt transaction intends to do.
+    std::cout << "\nCreated UTT tx " << result.tx.getHashHex() << '\n';
+    std::cout << "  Type: " << result.txType_ << '\n';
+    for (size_t coinValue : result.inputNormalCoinValues_)
+      std::cout << "  - '" << app.myPid_ << "' will spend " << app.fmtCurrency(coinValue) << " normal coin.\n";
+    if (result.inputBudgetCoinValue_)
+      std::cout << "  - '" << app.myPid_ << "' will spend " << app.fmtCurrency(*result.inputBudgetCoinValue_)
+                << " budget coin.\n";
+    for (const auto& [pid, coinValue] : result.recipients_)
+      std::cout << "  + '" << pid << "' will receive " << app.fmtCurrency(coinValue) << " normal coin.\n";
 
     // We assume that any tx with a budget coin must be an actual payment
     // and not a coin split or merge.
     // We assume that any valid utt payment terminates with a paying transaction.
-    const bool isPayment = uttTx.isBudgeted();
+    const bool isPayment = result.tx.isBudgeted();
 
-    Tx tx = TxUtt(std::move(uttTx));
+    Tx tx = TxUtt(std::move(result.tx));
 
     auto reply = sendTxRequest(comm, tx);
     if (reply.success) {
@@ -589,7 +616,7 @@ void runUttPayment(const UttPayment& payment, UTTClientApp& app, WalletCommunica
     }
 
     if (isPayment) {
-      std::cout << "Payment completed.\n";
+      std::cout << "\n>>> Payment completed.\n\n";
       break;  // Done
     }
   }
@@ -634,15 +661,17 @@ int main(int argc, char** argv) {
   try {
     UTTBlockchainApp::initUTTLibrary();
 
-    UTTClientApp state(params.clientId_);
+    UTTClientApp app(params.clientId_);
 
     WalletCommunicator comm(logger, params.clientId_, params.configFileName_);
 
-    std::cout << "Wallet initialization done.\n";
+    std::cout << "Wallet initialization for '" << app.myPid_ << "' done.\n\n";
+
+    checkBalance(app, comm);
 
     while (true) {
       std::cout << "\nEnter command (type 'h' for commands, 'q' to exit):\n";
-      std::cout << state.myPid_ << "> ";
+      std::cout << app.myPid_ << "> ";
       std::string cmd;
       std::getline(std::cin, cmd);
       try {
@@ -651,17 +680,19 @@ int main(int argc, char** argv) {
           return 0;
         } else if (cmd == "h") {
           printHelp();
+        } else if (cmd == "accounts") {
+          printAccounts(app);
         } else if (cmd == "balance") {
-          checkBalance(state, comm);
+          checkBalance(app, comm);
         } else if (cmd == "ledger") {
-          checkLedger(state, comm);
+          checkLedger(app, comm);
         } else if (cmd == "checkpoint") {
-          dbgForceCheckpoint(state, comm);
-        } else if (auto uttPayment = createUttPayment(cmd, state)) {
-          runUttPayment(*uttPayment, state, comm);
-          checkBalance(state, comm);
-        } else if (auto tx = createPublicTx(cmd, state)) {
-          sendPublicTx(*tx, state, comm);
+          dbgForceCheckpoint(app, comm);
+        } else if (auto uttPayment = createUttPayment(cmd, app)) {
+          runUttPayment(*uttPayment, app, comm);
+          checkBalance(app, comm);
+        } else if (auto tx = createPublicTx(cmd, app)) {
+          sendPublicTx(*tx, app, comm);
         } else if (!cmd.empty()) {
           std::cout << "Unknown command '" << cmd << "'\n";
         }
