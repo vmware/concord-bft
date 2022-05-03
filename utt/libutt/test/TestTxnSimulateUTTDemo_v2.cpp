@@ -82,12 +82,13 @@ int main(int argc, char* argv[]) {
     // Precondition: 0 < payment <= budget <= balance
 
     while (true) {
-      Client::CreateTxEvent createTxEvent;
-      auto clientTx = Client::createTxForPayment(w1, w2.getUserPid(), payment, createTxEvent);
-      loginfo << "Create " << createTxEvent.txType_ << " tx\n";
-      for (const auto& [pid, value] : createTxEvent.recipients_) {
+      auto result = Client::createTxForPayment(w1, w2.getUserPid(), payment);
+      loginfo << "Create " << result.txType_ << " tx\n";
+      for (const auto& [pid, value] : result.recipients_) {
         if (pid != w1.ask.pid) loginfo << "'" << w1.ask.pid << "' sends $" << value << " to '" << pid << "'" << endl;
       }
+
+      const auto& clientTx = result.tx;
 
       // Replicas receive, validate and sign the proposed transaction
       std::vector<std::vector<RandSigShare>> replicaSignShares;
@@ -126,12 +127,11 @@ int main(int argc, char* argv[]) {
         logtrace << "Trying to claim output #" << txoIdx << " on each wallet" << endl;
         bool claimed = false;
         for (size_t j = 0; j < wallets.size(); j++) {
-          std::optional<Client::ClaimEvent> claimEvent;
-          Client::tryClaimCoin(wallets.at(j), clientTx, txoIdx, sigShareSubset, signerIdSubset, ctx.n_, claimEvent);
+          auto result = Client::tryClaimCoin(wallets.at(j), clientTx, txoIdx, sigShareSubset, signerIdSubset, ctx.n_);
 
-          if (claimEvent) {
+          if (result) {
             assertFalse(claimed);
-            loginfo << "Adding a $" << claimEvent->value_ << " '" << (claimEvent->isBudgetCoin_ ? "budget" : "normal")
+            loginfo << "Adding a $" << result->value_ << " '" << (result->isBudgetCoin_ ? "budget" : "normal")
                     << "' coin to wallet #" << j + 1 << " for '" << wallets[j].ask.pid << "'" << endl;
 
             claimed = true;
