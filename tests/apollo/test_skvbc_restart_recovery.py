@@ -85,7 +85,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         #
         # log = foo()
 
-        with trio.move_on_after(seconds=30*60):
+        for v in range(300):
             async with trio.open_nursery() as nursery:
                 # Start the sending of client operations in the background.
                 nursery.start_soon(skvbc.send_indefinite_ops)
