@@ -6,7 +6,7 @@ LABEL Description="UTT Demo Payment Service"
 WORKDIR /concord/
 
 # Copy the replica executable
-COPY ./utt-demo-run/bin/payment_service ./
+COPY ./bin/payment_service ./
 
 # Volumes
 VOLUME [ "/concord/logs", "/concord/config" ]
