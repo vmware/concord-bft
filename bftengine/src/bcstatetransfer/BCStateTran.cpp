@@ -1814,8 +1814,6 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
                                             m->rvbGroupId,
                                             preFetchBlockId));
   ++sourceSession_.batchCounter_;
-  DurationTracker<std::chrono::microseconds> waitForBlockDurationDT(
-      "waitForBlockDuration");  // TODO(GL) - remove when unneeded
   bool getNextBlock = (nextChunk == 1);
   char *buffer = nullptr;
   uint32_t sizeOfNextBlock = 0;
@@ -1833,8 +1831,8 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
     if (getNextBlock) {
       // wait for worker to finish getting next block
       ConcordAssert(ctx->future.valid());
-      waitForBlockDurationDT.start();
       try {
+        TimeRecorder scoped_timer(*histograms_.src_next_block_wait_duration);
         if (!ctx->future.get()) {
           auto reason = "Block not found in storage, abort batch:" + KVLOG(ctx->blockId);
           sendRejectFetchingMsg(reason.c_str());
@@ -1846,10 +1844,8 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
       }
       ConcordAssertGT(ctx->actualBlockSize, 0);
       ConcordAssertEQ(ctx->blockId, nextBlockId);
-      const auto waitForBlockDuration = waitForBlockDurationDT.totalDuration(true);
       LOG_DEBUG(logger_,
-                "Start sending next block: " << KVLOG(
-                    sourceSession_.batchCounter_, nextBlockId, ctx->actualBlockSize, waitForBlockDuration));
+                "Start sending next block: " << KVLOG(sourceSession_.batchCounter_, nextBlockId, ctx->actualBlockSize));
       histograms_.src_get_block_size_bytes->record(ctx->actualBlockSize);
       getNextBlock = false;
     }
