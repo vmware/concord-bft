@@ -237,6 +237,62 @@ TEST(v4_block, calculate_digest) {
   }
 }
 
+TEST(v4_block, buffer_size_for_updates) {
+  // New blocks should have empty digest
+  concord::util::digest::BlockDigest empty_digest;
+  for (auto& d : empty_digest) {
+    d = 0;
+  }
+
+  auto block_data = std::string("block");
+
+  v4blockchain::detail::Block block;
+  ASSERT_EQ(block.getBuffer().size(), v4blockchain::detail::Block::HEADER_SIZE);
+  auto imm_cat = std::string("immuatables");
+  auto immkey = std::string("immkey");
+  auto immval = std::string("immval");
+  auto updates = categorization::Updates{};
+  auto imm_updates = categorization::ImmutableUpdates{};
+  imm_updates.addUpdate("immkey", categorization::ImmutableUpdates::ImmutableValue{"immval", {"1", "2", "33"}});
+  updates.add(imm_cat, std::move(imm_updates));
+
+  auto versioned_cat = std::string("versioned");
+  auto verkey = std::string("verkey");
+  auto verval = std::string("verval");
+  auto ver_updates = categorization::VersionedUpdates{};
+  ver_updates.addUpdate("verkey", "verval");
+  updates.add(versioned_cat, std::move(ver_updates));
+
+  block.addUpdates(updates);
+
+  std::vector<uint8_t> updates_buffer;
+  concord::kvbc::categorization::serialize(updates_buffer, updates.categoryUpdates());
+  ASSERT_EQ(block.getBuffer().size(), v4blockchain::detail::Block::HEADER_SIZE + updates_buffer.size());
+
+  const auto& dig = block.parentDigest();
+  ASSERT_EQ(dig, empty_digest);
+
+  auto dig1 = v4blockchain::detail::Block::calculateDigest(1, block_data.c_str(), block_data.size());
+  block.addDigest(dig1);
+  ASSERT_EQ(block.getBuffer().size(), v4blockchain::detail::Block::HEADER_SIZE + updates_buffer.size());
+
+  auto reconstruct_updates = block.getUpdates();
+  auto input = reconstruct_updates.categoryUpdates();
+  ASSERT_EQ(input.kv.count(versioned_cat), 1);
+  ASSERT_EQ(input.kv.count(imm_cat), 1);
+  auto reconstruct_imm_updates = std::get<categorization::ImmutableInput>(input.kv[imm_cat]);
+  ASSERT_EQ(reconstruct_imm_updates.kv[immkey].data, immval);
+  std::vector<std::string> v = {"1", "2", "33"};
+  ASSERT_EQ(reconstruct_imm_updates.kv[immkey].tags, v);
+
+  auto reconstruct_ver_updates = std::get<categorization::VersionedInput>(input.kv[versioned_cat]);
+  ASSERT_EQ(reconstruct_ver_updates.kv[verkey].data, verval);
+  ASSERT_EQ(reconstruct_ver_updates.kv[verkey].stale_on_update, false);
+
+  const auto& dig2 = block.parentDigest();
+  ASSERT_EQ(dig1, dig2);
+}
+
 }  // end namespace
 
 int main(int argc, char** argv) {
