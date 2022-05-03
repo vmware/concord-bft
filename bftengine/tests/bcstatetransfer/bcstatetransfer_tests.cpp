@@ -135,6 +135,8 @@ Config targetConfig() {
       2,                  // maxFetchRetransmissions
       5,                  // metricsDumpIntervalSec
       5000,               // maxTimeSinceLastExecutionInMainWindowMs
+      2050,               // sourceSessionExpiryDurationMs
+      3,                  // sourcePerformanceSnapshotFrequencySec
       false,              // runInSeparateThread
       true,               // enableReservedPages
       true,               // enableSourceBlocksPreFetch

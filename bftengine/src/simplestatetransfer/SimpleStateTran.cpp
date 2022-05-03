@@ -338,6 +338,8 @@ SimpleStateTran::SimpleStateTran(
       2,                                    // maxFetchRetransmissions
       5,                                    // metricsDumpIntervalSec
       5000,                                 // maxTimeSinceLastExecutionInMainWindowMs
+      5000,                                 // sourceSessionExpiryDurationMs
+      300,                                  // sourcePerformanceSnapshotFrequencySec
       true,                                 // runInSeparateThread
       true,                                 // enableReservedPages
       true,                                 // enableSourceBlocksPreFetch
