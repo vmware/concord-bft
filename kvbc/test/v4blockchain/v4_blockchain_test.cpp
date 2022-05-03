@@ -198,6 +198,7 @@ TEST_F(v4_kvbc, add_and_read_blocks) {
           {"immutable", categorization::CATEGORY_TYPE::immutable},
           {categorization::kConcordInternalCategoryId, categorization::CATEGORY_TYPE::versioned_kv}}};
   std::string no_flags = {0};
+  std::string stale_on_update_flag = {1};
   // Add block1 and read
   auto imm_val1 = categorization::ImmutableValueUpdate{"immutable_val20", {"1", "2"}};
   auto ver_val = categorization::ValueWithFlags{"ver_val", true};
@@ -257,16 +258,11 @@ TEST_F(v4_kvbc, add_and_read_blocks) {
                   &out_ts);
     ASSERT_TRUE(val.has_value());
 
-    std::vector<uint8_t> serialized_value;
-    concord::kvbc::categorization::serialize(serialized_value, imm_val1);
-    std::string str_val(serialized_value.begin(), serialized_value.end());
-
-    ASSERT_EQ(*val, str_val + no_flags);
+    ASSERT_EQ(*val, imm_val1.data + stale_on_update_flag);
     ASSERT_EQ(out_ts, block_version_str);
     iout_ts = concordUtils::fromBigEndianBuffer<uint64_t>(out_ts.data());
     ASSERT_EQ(1, iout_ts);
     out_ts.clear();
-    serialized_value.clear();
 
     // Versioned
     val = db->get(v4blockchain::detail::LATEST_KEYS_CF,
@@ -275,15 +271,11 @@ TEST_F(v4_kvbc, add_and_read_blocks) {
                   &out_ts);
     ASSERT_TRUE(val.has_value());
 
-    concord::kvbc::categorization::serialize(serialized_value, ver_val);
-    std::string str_val2(serialized_value.begin(), serialized_value.end());
-
-    ASSERT_EQ(*val, str_val2 + std::string(1, v4blockchain::detail::LatestKeys::STALE_ON_UPDATE[0]));
+    ASSERT_EQ(*val, ver_val.data + std::string(1, v4blockchain::detail::LatestKeys::STALE_ON_UPDATE[0]));
     ASSERT_EQ(out_ts, block_version_str);
     iout_ts = concordUtils::fromBigEndianBuffer<uint64_t>(out_ts.data());
     ASSERT_EQ(1, iout_ts);
     out_ts.clear();
-    serialized_value.clear();
   }
 }
 
@@ -491,11 +483,8 @@ TEST_F(v4_kvbc, delete_last_reachable) {
     ASSERT_FALSE(v4blockchain::detail::LatestKeys::isStaleOnUpdate(*val));
     {
       std::string ver_val_db((*val).begin(), (*val).end() - v4blockchain::detail::LatestKeys::FLAGS_SIZE);
-      concord::kvbc::categorization::ValueWithFlags db_val_wf;
-      auto ptr = ver_val_db.data();
-      const uint8_t* ref = reinterpret_cast<const uint8_t*>(ptr);
-      concord::kvbc::categorization::deserialize(
-          ref, reinterpret_cast<const uint8_t*>(ver_val_db.data() + ver_val_db.size()), db_val_wf);
+      concord::kvbc::categorization::ValueWithFlags db_val_wf = concord::kvbc::categorization::ValueWithFlags{
+          ver_val_db, v4blockchain::detail::LatestKeys::isStaleOnUpdate(*val)};
       auto val_wf = concord::kvbc::categorization::ValueWithFlags{"ver_val1", false};
       ASSERT_EQ(val_wf, db_val_wf);
       ASSERT_EQ(out_ts, block_id1_str);
@@ -512,11 +501,8 @@ TEST_F(v4_kvbc, delete_last_reachable) {
     ASSERT_TRUE(v4blockchain::detail::LatestKeys::isStaleOnUpdate(*val));
 
     std::string ver_val_db((*val).begin(), (*val).end() - v4blockchain::detail::LatestKeys::FLAGS_SIZE);
-    concord::kvbc::categorization::ValueWithFlags db_val_wf;
-    auto ptr = ver_val_db.data();
-    const uint8_t* ref = reinterpret_cast<const uint8_t*>(ptr);
-    concord::kvbc::categorization::deserialize(
-        ref, reinterpret_cast<const uint8_t*>(ver_val_db.data() + ver_val_db.size()), db_val_wf);
+    concord::kvbc::categorization::ValueWithFlags db_val_wf = concord::kvbc::categorization::ValueWithFlags{
+        ver_val_db, v4blockchain::detail::LatestKeys::isStaleOnUpdate(*val)};
     auto val_wf = concord::kvbc::categorization::ValueWithFlags{"ver_val2", true};
     ASSERT_EQ(val_wf, db_val_wf);
     ASSERT_EQ(out_ts, block_id1_str);
@@ -574,11 +560,8 @@ TEST_F(v4_kvbc, delete_last_reachable) {
     ASSERT_TRUE(val.has_value());
     ASSERT_FALSE(v4blockchain::detail::LatestKeys::isStaleOnUpdate(*val));
     std::string ver_val_db((*val).begin(), (*val).end() - v4blockchain::detail::LatestKeys::FLAGS_SIZE);
-    concord::kvbc::categorization::ValueWithFlags db_val_wf;
-    auto ptr = ver_val_db.data();
-    const uint8_t* ref = reinterpret_cast<const uint8_t*>(ptr);
-    concord::kvbc::categorization::deserialize(
-        ref, reinterpret_cast<const uint8_t*>(ver_val_db.data() + ver_val_db.size()), db_val_wf);
+    concord::kvbc::categorization::ValueWithFlags db_val_wf = concord::kvbc::categorization::ValueWithFlags{
+        ver_val_db, v4blockchain::detail::LatestKeys::isStaleOnUpdate(*val)};
     auto val_wf = concord::kvbc::categorization::ValueWithFlags{"ver_value_updated", false};
 
     ASSERT_EQ(val_wf, db_val_wf);
@@ -636,11 +619,8 @@ TEST_F(v4_kvbc, delete_last_reachable) {
     ASSERT_FALSE(v4blockchain::detail::LatestKeys::isStaleOnUpdate(*val));
     {
       std::string ver_val_db((*val).begin(), (*val).end() - v4blockchain::detail::LatestKeys::FLAGS_SIZE);
-      concord::kvbc::categorization::ValueWithFlags db_val_wf;
-      auto ptr = ver_val_db.data();
-      const uint8_t* ref = reinterpret_cast<const uint8_t*>(ptr);
-      concord::kvbc::categorization::deserialize(
-          ref, reinterpret_cast<const uint8_t*>(ver_val_db.data() + ver_val_db.size()), db_val_wf);
+      concord::kvbc::categorization::ValueWithFlags db_val_wf = concord::kvbc::categorization::ValueWithFlags{
+          ver_val_db, v4blockchain::detail::LatestKeys::isStaleOnUpdate(*val)};
       auto val_wf = concord::kvbc::categorization::ValueWithFlags{"ver_val1", false};
       ASSERT_EQ(val_wf, db_val_wf);
       ASSERT_EQ(out_ts, block_id2_str);
@@ -657,11 +637,8 @@ TEST_F(v4_kvbc, delete_last_reachable) {
     ASSERT_TRUE(v4blockchain::detail::LatestKeys::isStaleOnUpdate(*val));
 
     std::string ver_val_db((*val).begin(), (*val).end() - v4blockchain::detail::LatestKeys::FLAGS_SIZE);
-    concord::kvbc::categorization::ValueWithFlags db_val_wf;
-    auto ptr = ver_val_db.data();
-    const uint8_t* ref = reinterpret_cast<const uint8_t*>(ptr);
-    concord::kvbc::categorization::deserialize(
-        ref, reinterpret_cast<const uint8_t*>(ver_val_db.data() + ver_val_db.size()), db_val_wf);
+    concord::kvbc::categorization::ValueWithFlags db_val_wf = concord::kvbc::categorization::ValueWithFlags{
+        ver_val_db, v4blockchain::detail::LatestKeys::isStaleOnUpdate(*val)};
     auto val_wf = concord::kvbc::categorization::ValueWithFlags{"ver_val2", true};
     ASSERT_EQ(val_wf, db_val_wf);
     ASSERT_EQ(out_ts, block_id2_str);
@@ -718,11 +695,8 @@ TEST_F(v4_kvbc, delete_last_reachable) {
     ASSERT_TRUE(val.has_value());
     ASSERT_FALSE(v4blockchain::detail::LatestKeys::isStaleOnUpdate(*val));
     std::string ver_val_db((*val).begin(), (*val).end() - v4blockchain::detail::LatestKeys::FLAGS_SIZE);
-    concord::kvbc::categorization::ValueWithFlags db_val_wf;
-    auto ptr = ver_val_db.data();
-    const uint8_t* ref = reinterpret_cast<const uint8_t*>(ptr);
-    concord::kvbc::categorization::deserialize(
-        ref, reinterpret_cast<const uint8_t*>(ver_val_db.data() + ver_val_db.size()), db_val_wf);
+    concord::kvbc::categorization::ValueWithFlags db_val_wf = concord::kvbc::categorization::ValueWithFlags{
+        ver_val_db, v4blockchain::detail::LatestKeys::isStaleOnUpdate(*val)};
     auto val_wf = concord::kvbc::categorization::ValueWithFlags{"ver_value_updated", false};
 
     ASSERT_EQ(val_wf, db_val_wf);
