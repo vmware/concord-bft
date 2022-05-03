@@ -72,22 +72,17 @@ void LatestKeys::handleCategoryUpdates(const std::string& block_version,
                                        const std::string& category_id,
                                        const categorization::VersionedInput& updates,
                                        concord::storage::rocksdb::NativeWriteBatch& write_batch) {
-  static thread_local std::vector<uint8_t> serialized_value;
   const auto& prefix = category_mapping_.categoryPrefix(category_id);
   // add keys
   Flags flags = {0};
   for (const auto& [k, v] : updates.kv) {
-    serialized_value.clear();
     if (v.stale_on_update) {
       flags = STALE_ON_UPDATE;
     }
     auto sl_flags = concord::storage::rocksdb::detail::toSlice(flags);
-    concord::kvbc::categorization::serialize(serialized_value, v);
-    auto sl_value = concord::storage::rocksdb::detail::toSlice(serialized_value);
 
-    write_batch.put(v4blockchain::detail::LATEST_KEYS_CF,
-                    getSliceArray(prefix, k, block_version),
-                    getSliceArray(sl_value, sl_flags));
+    write_batch.put(
+        v4blockchain::detail::LATEST_KEYS_CF, getSliceArray(prefix, k, block_version), getSliceArray(v.data, sl_flags));
   }
   for (const auto& k : updates.deletes) {
     write_batch.del(v4blockchain::detail::LATEST_KEYS_CF, getSliceArray(prefix, k, block_version));
@@ -98,16 +93,13 @@ void LatestKeys::handleCategoryUpdates(const std::string& block_version,
                                        const std::string& category_id,
                                        const categorization::ImmutableInput& updates,
                                        concord::storage::rocksdb::NativeWriteBatch& write_batch) {
-  static thread_local std::vector<uint8_t> serialized_value;
   static thread_local std::string out_ts;
   static thread_local std::string get_key;
   const auto& prefix = category_mapping_.categoryPrefix(category_id);
   // add keys
-  Flags flags = {0};
-  auto sl_flags = concord::storage::rocksdb::detail::toSlice(flags);
+  auto sl_flags = concord::storage::rocksdb::detail::toSlice(STALE_ON_UPDATE);
   for (const auto& [k, v] : updates.kv) {
     get_key.clear();
-    serialized_value.clear();
     get_key.append(prefix);
     get_key.append(k);
     // check if key exists - immutable does not allow to update
@@ -115,11 +107,8 @@ void LatestKeys::handleCategoryUpdates(const std::string& block_version,
     if (opt_val) {
       throw std::runtime_error("Trying to update immutable key: " + k);
     }
-    concord::kvbc::categorization::serialize(serialized_value, v);
-    auto sl_value = concord::storage::rocksdb::detail::toSlice(serialized_value);
-    write_batch.put(v4blockchain::detail::LATEST_KEYS_CF,
-                    getSliceArray(prefix, k, block_version),
-                    getSliceArray(sl_value, sl_flags));
+    write_batch.put(
+        v4blockchain::detail::LATEST_KEYS_CF, getSliceArray(prefix, k, block_version), getSliceArray(v.data, sl_flags));
   }
 }
 

@@ -247,23 +247,16 @@ TEST_F(v4_kvbc, add_version_keys) {
       v4blockchain::detail::LATEST_KEYS_CF, latest_keys.getCategoryPrefix("versioned") + key1, block_id1_str, &out_ts);
   ASSERT_TRUE(val.has_value());
 
-  std::vector<uint8_t> serialized_value;
-  concord::kvbc::categorization::serialize(serialized_value, ver_val1);
-  std::string str_val(serialized_value.begin(), serialized_value.end());
-
-  ASSERT_EQ(*val, str_val + no_flags);
+  ASSERT_EQ(*val, ver_val1.data + no_flags);
   ASSERT_EQ(out_ts, block_id1_str);
   auto iout_ts = concordUtils::fromBigEndianBuffer<uint64_t>(out_ts.data());
   ASSERT_EQ(block_id1, iout_ts);
   out_ts.clear();
-  serialized_value.clear();
   //////////KEY2//////////////////////////////
   val = db->get(
       v4blockchain::detail::LATEST_KEYS_CF, latest_keys.getCategoryPrefix("versioned") + key2, block_id1_str, &out_ts);
   ASSERT_TRUE(val.has_value());
-  concord::kvbc::categorization::serialize(serialized_value, ver_val2);
-  std::string str_val2(serialized_value.begin(), serialized_value.end());
-  ASSERT_EQ(*val, str_val2 + stale_on_update_flag);
+  ASSERT_EQ(*val, ver_val2.data + stale_on_update_flag);
   ASSERT_EQ(out_ts, block_id1_str);
   iout_ts = concordUtils::fromBigEndianBuffer<uint64_t>(out_ts.data());
   ASSERT_EQ(block_id1, iout_ts);
@@ -349,17 +342,11 @@ TEST_F(v4_kvbc, add_version_keys_adv) {
                        block_id1_str,
                        &out_ts);
     ASSERT_TRUE(val.has_value());
-
-    std::vector<uint8_t> serialized_value;
-    concord::kvbc::categorization::serialize(serialized_value, ver_val1);
-    std::string str_val(serialized_value.begin(), serialized_value.end());
-
-    ASSERT_EQ(*val, str_val + no_flags);
+    ASSERT_EQ(*val, ver_val1.data + no_flags);
     ASSERT_EQ(out_ts, block_id1_str);
     auto iout_ts = concordUtils::fromBigEndianBuffer<uint64_t>(out_ts.data());
     ASSERT_EQ(block_id1, iout_ts);
     out_ts.clear();
-    serialized_value.clear();
   }
   // get key1 value of  higer timestamp
   {
@@ -369,16 +356,11 @@ TEST_F(v4_kvbc, add_version_keys_adv) {
                        &out_ts);
     ASSERT_TRUE(val.has_value());
 
-    std::vector<uint8_t> serialized_value;
-    concord::kvbc::categorization::serialize(serialized_value, ver_val1);
-    std::string str_val(serialized_value.begin(), serialized_value.end());
-
-    ASSERT_EQ(*val, str_val + no_flags);
+    ASSERT_EQ(*val, ver_val1.data + no_flags);
     ASSERT_EQ(out_ts, block_id1_str);
     auto iout_ts = concordUtils::fromBigEndianBuffer<uint64_t>(out_ts.data());
     ASSERT_EQ(block_id1, iout_ts);
     out_ts.clear();
-    serialized_value.clear();
   }
   // get key1 updated value
   {
@@ -388,16 +370,11 @@ TEST_F(v4_kvbc, add_version_keys_adv) {
                        &out_ts);
     ASSERT_TRUE(val.has_value());
 
-    std::vector<uint8_t> serialized_value;
-    concord::kvbc::categorization::serialize(serialized_value, ver_val3);
-    std::string str_val(serialized_value.begin(), serialized_value.end());
-
-    ASSERT_EQ(*val, str_val + no_flags);
+    ASSERT_EQ(*val, ver_val3.data + no_flags);
     ASSERT_EQ(out_ts, block_id112_str);
     auto iout_ts = concordUtils::fromBigEndianBuffer<uint64_t>(out_ts.data());
     ASSERT_EQ(block_id112, iout_ts);
     out_ts.clear();
-    serialized_value.clear();
   }
 
   ///////////KEY2/////////////////
@@ -408,16 +385,11 @@ TEST_F(v4_kvbc, add_version_keys_adv) {
                        &out_ts);
     ASSERT_TRUE(val.has_value());
 
-    std::vector<uint8_t> serialized_value;
-    concord::kvbc::categorization::serialize(serialized_value, ver_val2);
-    std::string str_val(serialized_value.begin(), serialized_value.end());
-
-    ASSERT_EQ(*val, str_val + stale_on_update_flag);
+    ASSERT_EQ(*val, ver_val2.data + stale_on_update_flag);
     ASSERT_EQ(out_ts, block_id1_str);
     auto iout_ts = concordUtils::fromBigEndianBuffer<uint64_t>(out_ts.data());
     ASSERT_EQ(block_id1, iout_ts);
     out_ts.clear();
-    serialized_value.clear();
   }
   // get key2 value of  higer timestamp
   {
@@ -427,16 +399,11 @@ TEST_F(v4_kvbc, add_version_keys_adv) {
                        &out_ts);
     ASSERT_TRUE(val.has_value());
 
-    std::vector<uint8_t> serialized_value;
-    concord::kvbc::categorization::serialize(serialized_value, ver_val2);
-    std::string str_val(serialized_value.begin(), serialized_value.end());
-
-    ASSERT_EQ(*val, str_val + stale_on_update_flag);
+    ASSERT_EQ(*val, ver_val2.data + stale_on_update_flag);
     ASSERT_EQ(out_ts, block_id1_str);
     auto iout_ts = concordUtils::fromBigEndianBuffer<uint64_t>(out_ts.data());
     ASSERT_EQ(block_id1, iout_ts);
     out_ts.clear();
-    serialized_value.clear();
   }
   // get key1 deleted value
   {
@@ -454,23 +421,18 @@ TEST_F(v4_kvbc, add_version_keys_adv) {
                        block_id180_str,
                        &out_ts);
     ASSERT_TRUE(val.has_value());
-
-    std::vector<uint8_t> serialized_value;
-    concord::kvbc::categorization::serialize(serialized_value, ver_val4);
-    std::string str_val(serialized_value.begin(), serialized_value.end());
-
-    ASSERT_EQ(*val, str_val + no_flags);
+    ASSERT_EQ(*val, ver_val4.data + no_flags);
     ASSERT_EQ(out_ts, block_id180_str);
     auto iout_ts = concordUtils::fromBigEndianBuffer<uint64_t>(out_ts.data());
     ASSERT_EQ(block_id180, iout_ts);
     out_ts.clear();
-    serialized_value.clear();
   }
 }
 
 TEST_F(v4_kvbc, add_immutable_keys) {
   v4blockchain::detail::LatestKeys latest_keys{db, categories, []() { return 1; }};
   std::string no_flags = {0};
+  std::string stale_on_update_flag = {1};
 
   uint64_t block_id1 = 1;
   auto block_id1_str = v4blockchain::detail::Blockchain::generateKey(block_id1);
@@ -503,22 +465,17 @@ TEST_F(v4_kvbc, add_immutable_keys) {
   val = db->get(
       v4blockchain::detail::LATEST_KEYS_CF, latest_keys.getCategoryPrefix("immutable") + key1, block_id1_str, &out_ts);
   ASSERT_TRUE(val.has_value());
-
-  std::vector<uint8_t> serialized_value;
-  concord::kvbc::categorization::serialize(serialized_value, imm_val1);
-  std::string str_val(serialized_value.begin(), serialized_value.end());
-
-  ASSERT_EQ(*val, str_val + no_flags);
+  ASSERT_EQ(*val, imm_val1.data + stale_on_update_flag);
   ASSERT_EQ(out_ts, block_id1_str);
   auto iout_ts = concordUtils::fromBigEndianBuffer<uint64_t>(out_ts.data());
   ASSERT_EQ(block_id1, iout_ts);
   out_ts.clear();
-  serialized_value.clear();
 }
 
 TEST_F(v4_kvbc, add_immutable_keys_adv) {
   v4blockchain::detail::LatestKeys latest_keys{db, categories, []() { return 1; }};
   std::string no_flags = {0};
+  std::string stale_on_update_flag = {1};
 
   uint64_t block_id1 = 1;
   auto block_id1_str = v4blockchain::detail::Blockchain::generateKey(block_id1);
@@ -558,12 +515,7 @@ TEST_F(v4_kvbc, add_immutable_keys_adv) {
                   block_id1_str,
                   &out_ts);
     ASSERT_TRUE(val.has_value());
-
-    std::vector<uint8_t> serialized_value;
-    concord::kvbc::categorization::serialize(serialized_value, imm_val1);
-    std::string str_val(serialized_value.begin(), serialized_value.end());
-
-    ASSERT_EQ(*val, str_val + no_flags);
+    ASSERT_EQ(*val, imm_val1.data + stale_on_update_flag);
     ASSERT_EQ(out_ts, block_id1_str);
     auto iout_ts = concordUtils::fromBigEndianBuffer<uint64_t>(out_ts.data());
     ASSERT_EQ(block_id1, iout_ts);
@@ -578,7 +530,6 @@ TEST_F(v4_kvbc, add_immutable_keys_adv) {
     iout_ts = concordUtils::fromBigEndianBuffer<uint64_t>(out_ts.data());
     ASSERT_EQ(block_id1, iout_ts);
     out_ts.clear();
-    serialized_value.clear();
   }
 
   // Block 2
@@ -599,11 +550,8 @@ TEST_F(v4_kvbc, add_immutable_keys_adv) {
                        latest_keys.getCategoryPrefix("immutable") + key1,
                        block_id1_str,
                        &out_ts);
-    std::vector<uint8_t> serialized_value;
-    concord::kvbc::categorization::serialize(serialized_value, imm_val1);
-    std::string str_val(serialized_value.begin(), serialized_value.end());
 
-    ASSERT_EQ(*val, str_val + no_flags);
+    ASSERT_EQ(*val, imm_val1.data + stale_on_update_flag);
     ASSERT_EQ(out_ts, block_id1_str);
     auto iout_ts = concordUtils::fromBigEndianBuffer<uint64_t>(out_ts.data());
     ASSERT_EQ(block_id1, iout_ts);
@@ -618,7 +566,6 @@ TEST_F(v4_kvbc, add_immutable_keys_adv) {
     iout_ts = concordUtils::fromBigEndianBuffer<uint64_t>(out_ts.data());
     ASSERT_EQ(block_id1, iout_ts);
     out_ts.clear();
-    serialized_value.clear();
   }
 }
 

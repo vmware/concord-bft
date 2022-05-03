@@ -18,9 +18,10 @@ namespace concord::kvbc::v4blockchain::detail {
 void Block::addUpdates(const concord::kvbc::categorization::Updates& category_updates) {
   ConcordAssert(isValid_);
   static thread_local std::vector<uint8_t> updates_buffer;
-  buffer_.resize(HEADER_SIZE + updates_buffer.size());
   concord::kvbc::categorization::serialize(updates_buffer, category_updates.categoryUpdates());
-  std::copy(updates_buffer.begin(), updates_buffer.end(), std::back_inserter(buffer_));
+  buffer_.resize(HEADER_SIZE + updates_buffer.size());
+  auto dist = std::distance(buffer_.begin(), buffer_.begin() + HEADER_SIZE);
+  std::copy(updates_buffer.begin(), updates_buffer.end(), buffer_.begin() + dist);
   updates_buffer.clear();
 }
 
