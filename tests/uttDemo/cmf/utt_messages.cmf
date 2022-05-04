@@ -31,6 +31,7 @@ Msg BftReply 9 {
     uint32 result
     bytes matched_data
     map uint16 bytes rsi
+    optional uint16 primary
 }
 
 Msg UTTRequest 1 {

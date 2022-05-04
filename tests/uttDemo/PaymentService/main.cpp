@@ -321,6 +321,8 @@ int main(int argc, char** argv) {
         bftReply.result = reply.result;
         bftReply.matched_data = std::move(reply.matched_data);
         for (auto& kvp : reply.rsi) bftReply.rsi.emplace(kvp.first.val, std::move(kvp.second));
+        const auto primaryReplicaId = client.primary();
+        if (primaryReplicaId) bftReply.primary = primaryReplicaId->val;
 
       } catch (const bft::client::TimeoutException& e) {
         bftReply.result = static_cast<uint32_t>(OperationResult::TIMEOUT);

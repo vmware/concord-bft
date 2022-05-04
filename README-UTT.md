@@ -34,12 +34,12 @@ Use 'make' or 'make help' to view the available commands for running the demo.
 
 To start the demo (runs all necessary services like concord-bft replicas and payment services) use:
   ```
-  make demo-start
+  make start
   ```
 
 After that you can use any wallet with ID from 1 to 9 by running:
   ```
-  make use-wallet-<ID>
+  make wallet-<ID>
   ```
 
 Each wallet uses a different payment service depending on its number ID:
@@ -49,12 +49,12 @@ Each wallet uses a different payment service depending on its number ID:
 
 To reset the demo and start from scratch use:
   ```
-  make demo-reset
+  make reset
   ```
 
 You can stop the demo (this stops all running services) with:
   ```
-  make demo-stop
+  make stop
   ```
 
 You can kill a payment service (1 to 3) or a replica (1 to 4) manually by calling:
