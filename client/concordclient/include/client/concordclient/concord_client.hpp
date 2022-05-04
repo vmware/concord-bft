@@ -122,7 +122,8 @@ struct ConcordClientConfig {
   // BFT client descriptors
   ClientServiceInfo client_service;
   std::vector<BftClientInfo> bft_clients;
-  std::uint16_t num_of_used_bft_clients;
+  std::uint16_t clients_per_participant_node;
+  std::uint16_t active_clients_in_pool;
   // Configuration for subscribe requests
   SubscribeConfig subscribe_config;
   StateSnapshotConfig state_snapshot_config;

@@ -70,7 +70,8 @@ ConcordClientPoolConfig ConcordClient::createClientPoolStruct(const ConcordClien
   }
 
   client_pool_config.participant_nodes.push_back(client_pool_pn);
-  client_pool_config.clients_per_participant_node = config_.num_of_used_bft_clients;
+  client_pool_config.clients_per_participant_node = config_.clients_per_participant_node;
+  client_pool_config.active_clients_in_pool = config_.active_clients_in_pool;
 
   client_pool_config.f_val = config.topology.f_val;
   client_pool_config.c_val = config.topology.c_val;
