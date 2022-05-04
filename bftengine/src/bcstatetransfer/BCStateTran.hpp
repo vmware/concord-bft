@@ -544,10 +544,7 @@ class BCStateTran : public IStateTransfer {
   // Returns number of jobs pushed to queue
   uint16_t getBlocksConcurrentAsync(uint64_t maxBlockId, uint64_t minBlockId, uint16_t numBlocks);
 
-  void clearIoContexts() {
-    for (auto& ctx : ioContexts_) ioPool_.free(ctx);
-    ioContexts_.clear();
-  }
+  void clearIoContexts();
 
   // lastBlock: is true if we put the oldest block (firstRequiredBlock)
   //
@@ -788,7 +785,8 @@ class BCStateTran : public IStateTransfer {
                                         time_in_incoming_events_queue,
                                         incoming_events_queue_size,
                                         compute_block_digest_duration,
-                                        compute_block_digest_size});
+                                        compute_block_digest_size,
+                                        time_to_clear_io_contexts});
       // destination component
       registrar.perf.registerComponent("state_transfer_dest",
                                        {dst_handle_ItemData_msg,
@@ -823,6 +821,8 @@ class BCStateTran : public IStateTransfer {
     DEFINE_SHARED_RECORDER(
         compute_block_digest_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
     DEFINE_SHARED_RECORDER(compute_block_digest_size, 1, MAX_BLOCK_SIZE, 3, concord::diagnostics::Unit::COUNT);
+    DEFINE_SHARED_RECORDER(
+        time_to_clear_io_contexts, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
     // destination
     DEFINE_SHARED_RECORDER(
         dst_handle_ItemData_msg, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);

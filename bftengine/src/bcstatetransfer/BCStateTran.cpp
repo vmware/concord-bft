@@ -1725,6 +1725,16 @@ uint16_t BCStateTran::getBlocksConcurrentAsync(uint64_t maxBlockId, uint64_t min
   return j;
 }
 
+void BCStateTran::clearIoContexts() {
+  TimeRecorder scoped_timer(*histograms_.time_to_clear_io_contexts);
+
+  LOG_TRACE(logger_, KVLOG(ioContexts_.size()));
+  for (auto &ctx : ioContexts_) {
+    ioPool_.free(ctx);
+  }
+  ioContexts_.clear();
+}
+
 bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t replicaId) {
   SCOPED_MDC_SEQ_NUM(getScopedMdcStr(replicaId, m->msgSeqNum));
   LOG_INFO(logger_, KVLOG(replicaId, m->msgSeqNum, m->minBlockId, m->maxBlockId, m->lastKnownChunkInLastRequiredBlock));
