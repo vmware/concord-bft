@@ -178,15 +178,22 @@ class WalletCommunicator : public IReceiver {
       }
     }
 
+    if (reply->primary) lastKnownPrimaryId_ = *reply->primary;
+
     return reply;
   }
 
   uint16_t getPaymentServiceId() const { return paymentServiceId_; }
 
+  std::string getLastKnownPrimary() const {
+    return lastKnownPrimaryId_ ? "replica-" + std::to_string(*lastKnownPrimaryId_ + 1) : "N/A";
+  }
+
  private:
   logging::Logger& logger_;
   uint16_t walletId_;
   uint16_t paymentServiceId_;
+  std::optional<uint16_t> lastKnownPrimaryId_;
   std::unique_ptr<ICommunication> comm_;
   std::unique_ptr<BftReply> reply_;
   std::mutex mut_;
@@ -533,6 +540,10 @@ void printHelp() {
   // std::cout << "withdraw [amount]\t-- public money withdraw from account\n";
   std::cout << "transfer [account] [amount]\t-- transfer public money to another account.\n";
   std::cout << "utt [account] [amount]\t\t-- transfer money anonymously to another account.\n";
+
+  std::cout << "\nDebug:\n";
+  std::cout
+      << "primary\t\t\t\t-- prints the last known primary replica. This value is updated when receiving responses.\n";
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -689,6 +700,8 @@ int main(int argc, char** argv) {
           return 0;
         } else if (cmd == "h") {
           printHelp();
+        } else if (cmd == "primary") {
+          std::cout << "Last known primary: " << comm.getLastKnownPrimary() << '\n';
         } else if (cmd == "accounts") {
           printAccounts(app);
         } else if (cmd == "balance") {

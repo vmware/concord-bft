@@ -40,66 +40,66 @@ build-docker-payment-service: ## Builds only the payment service docker image.
 build-docker-replica: ## Builds only the replica docker image.
 	@docker build -f ../tests/uttDemo/UTTReplica/Dockerfile . -t utt-demo-replica
 
-.PHONY: demo-start
-demo-start: ## Starts the demo by running all required services.
+.PHONY: start
+start: ## Starts the demo by running all required services.
 	@docker-compose up --no-start
 	@docker-compose start replica-1 replica-2 replica-3 replica-4 payment-service-1 payment-service-2 payment-service-3
 	
 	@echo
-	@echo "All services are running. You can now start using a wallet with 'make demo-use-wallet-<1-9>'"
+	@echo "All services are running. You can now start using a wallet with 'make wallet-<1-9>'"
 
-.PHONY: demo-use-wallet
-demo-use-wallet: ## Starts the selected wallet with ID from 1 to 9. Type 'demo-use-wallet-<ID>'. 
+.PHONY: wallet
+wallet: ## Starts the selected wallet with ID from 1 to 9. Type 'wallet-<ID>'. 
 	@docker-compose up --no-start
 	@docker-compose run wallet-${WALLET_ID}
 
-.PHONY: demo-stop
-demo-stop: ## Stops all running demo services
+.PHONY: stop
+stop: ## Stops all running demo services
 	@docker-compose stop
 
 	@echo
-	@echo "All services are stopped. Use 'make demo-start' to resume from where you left."
+	@echo "All services are stopped. Use 'make start' to resume from where you left."
 
-.PHONY: demo-reset
-demo-reset: ## Stops the demo, resets all service containers and deletes the demo state and logs.
+.PHONY: reset
+reset: ## Stops the demo, resets all service containers and deletes the demo state and logs.
 	@docker-compose down
 	@sudo rm -rf ./run/logs/* ./run/rocksdb/*
 	
 	@echo
-	@echo "You have reset the demo. Use 'make demo-start' to begin from scratch."
+	@echo "You have reset the demo. Use 'make start' to begin from scratch."
 
-.PHONY: demo-use-wallet-1
-demo-use-wallet-1: 
-	$(MAKE) demo-use-wallet WALLET_ID=1
+.PHONY: wallet-1
+wallet-1: 
+	$(MAKE) wallet WALLET_ID=1
 
-.PHONY: demo-use-wallet-2
-demo-use-wallet-2: 
-	$(MAKE) demo-use-wallet WALLET_ID=2
+.PHONY: wallet-2
+wallet-2: 
+	$(MAKE) wallet WALLET_ID=2
 
-.PHONY: demo-use-wallet-3
-demo-use-wallet-3: 
-	$(MAKE) demo-use-wallet WALLET_ID=3
+.PHONY: wallet-3
+wallet-3: 
+	$(MAKE) wallet WALLET_ID=3
 
-.PHONY: demo-use-wallet-4
-demo-use-wallet-4: 
-	$(MAKE) demo-use-wallet WALLET_ID=4
+.PHONY: wallet-4
+wallet-4: 
+	$(MAKE) wallet WALLET_ID=4
 
-.PHONY: demo-use-wallet-5
-demo-use-wallet-5: 
-	$(MAKE) demo-use-wallet WALLET_ID=5
+.PHONY: wallet-5
+wallet-5: 
+	$(MAKE) wallet WALLET_ID=5
 
-.PHONY: demo-use-wallet-6
-demo-use-wallet-6: 
-	$(MAKE) demo-use-wallet WALLET_ID=6
+.PHONY: wallet-6
+wallet-6: 
+	$(MAKE) wallet WALLET_ID=6
 
-.PHONY: demo-use-wallet-7
-demo-use-wallet-7: 
-	$(MAKE) demo-use-wallet WALLET_ID=7
+.PHONY: wallet-7
+wallet-7: 
+	$(MAKE) wallet WALLET_ID=7
 
-.PHONY: demo-use-wallet-8
-demo-use-wallet-8: 
-	$(MAKE) demo-use-wallet WALLET_ID=8
+.PHONY: wallet-8
+wallet-8: 
+	$(MAKE) wallet WALLET_ID=8
 
-.PHONY: demo-use-wallet-9
-demo-use-wallet-9: 
-	$(MAKE) demo-use-wallet WALLET_ID=9
+.PHONY: wallet-9
+wallet-9: 
+	$(MAKE) wallet WALLET_ID=9
