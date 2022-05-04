@@ -290,10 +290,11 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
   ConcordAssert(replicas_.count(config_.myReplicaId) == 1 || config.isReadOnly);
   ConcordAssertGE(config_.maxNumOfReservedPages, 2);
   ConcordAssertLT(finalizePutblockTimeoutMilli_, config_.refreshTimerMs);
-  ConcordAssertGT(config_.sourceSessionExpiryDurationMs, config_.fetchRetransmissionTimeoutMs);
-  
+  if (config_.sourceSessionExpiryDurationMs > 0) {
+    ConcordAssertGT(config_.sourceSessionExpiryDurationMs, config_.fetchRetransmissionTimeoutMs);
+  }
+
   LOG_INFO(logger_, "Creating BCStateTran object: " << config_);
-  
 
   // Register metrics component with the default aggregator.
   metrics_component_.Register();
@@ -900,12 +901,6 @@ void BCStateTran::onTimerImpl() {
     LOG_DEBUG(logger_, "--BCStateTransfer metrics dump--" + metrics_component_.ToJson());
     LOG_DEBUG(logger_, "--SourceSelector metrics dump--" + sourceSelector_.getMetricComponent().ToJson());
     LOG_DEBUG(logger_, "--RVBManager metrics dump--" + rvbm_->getMetricComponent().ToJson());
-  }
-
-  // Close expired session
-  if ((sourceSession_.isOpen()) && sourceSession_.expired()) {
-    sourceSession_.close();
-    clearIoContexts();
   }
 
   // Retransmit AskForCheckpointSummariesMsg if needed
@@ -3740,9 +3735,9 @@ void BCStateTran::triggerPostProcessing() {
 }
 
 void BCStateTran::SourceSession::close() {
-  LOG_INFO(logger_,
-           "SourceSession: Session closed:"
-               << std::boolalpha << KVLOG(replicaId_, startTime_, batchCounter_, activeDuration(), expired()));
+  LOG_INFO(
+      logger_,
+      "SourceSession: Session closed:" << std::boolalpha << KVLOG(replicaId_, startTime_, activeDuration(), expired()));
   replicaId_ = UINT16_MAX;
   startTime_ = 0;
   batchCounter_ = 0;
@@ -3765,13 +3760,11 @@ std::pair<bool, bool> BCStateTran::SourceSession::tryOpen(uint16_t replicaId) {
     open(replicaId);
     return std::pair(true, false);
   } else {
-    // session was not open
     if (replicaId_ == replicaId) {
       // Serving session peer: log last  activity time
       // Not checking time to see if msg arrived after expiryDurationMs
       // Retransmission count maintained at destination would look out for new source
-      LOG_TRACE(logger_, "SourceSession: Active session update:" << KVLOG(replicaId, startTime_));
-      startTime_ = now;
+      refresh(now);
       return std::pair(true, false);
     } else {
       // Active session but request comes from a replica which is not current session peer.
@@ -3791,6 +3784,15 @@ std::pair<bool, bool> BCStateTran::SourceSession::tryOpen(uint16_t replicaId) {
     }
   }
   return std::pair(true, false);
+}
+
+void BCStateTran::SourceSession::refresh(uint64_t startTime) {
+  if (0 == startTime) {
+    startTime_ = getMonotonicTimeMilli();
+  } else {
+    startTime_ = startTime;
+  }
+  LOG_TRACE(logger_, "SourceSession: Active session update:" << KVLOG(replicaId_, startTime_, startTime));
 }
 
 }  // namespace impl
