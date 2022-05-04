@@ -168,6 +168,7 @@ class WalletCommunicator : public IReceiver {
       // Returns false if the predicate still evaluates false when the wait time expires
       if (condVar_.wait_for(lk, std::chrono::seconds(7), [&]() { return reply_ != nullptr; })) {
         if (reply_->result == static_cast<uint32_t>(OperationResult::TIMEOUT)) {
+          reply_.reset();
           throw BftServiceTimeoutException{};
         }
 
@@ -667,7 +668,15 @@ int main(int argc, char** argv) {
 
     std::cout << "Wallet initialization for '" << app.myPid_ << "' done.\n\n";
 
-    checkBalance(app, comm);
+    // Initial check of balance
+    try {
+      std::cout << "Checking account...\n";
+      checkBalance(app, comm);
+    } catch (const BftServiceTimeoutException& e) {
+      std::cout << "Concord-BFT service did not respond.\n";
+    } catch (const PaymentServiceTimeoutException& e) {
+      std::cout << "PaymentService did not respond.\n";
+    }
 
     while (true) {
       std::cout << "\nEnter command (type 'h' for commands, 'q' to exit):\n";

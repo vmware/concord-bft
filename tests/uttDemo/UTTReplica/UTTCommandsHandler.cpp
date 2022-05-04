@@ -71,6 +71,7 @@ class UTTReplicaApp : public UTTBlockchainApp {
         if (!sender) throw std::domain_error("Unknown sender account for public transfer!");
         auto receiver = app_.getAccountById(tx.toAccountId_);
         if (!receiver) throw std::domain_error("Unknown receiver account for public transfer!");
+        if (sender == receiver) throw std::domain_error("Cannot transfer public money to itself!");
         if (tx.amount_ > sender->getPublicBalance()) throw std::domain_error("Sender has insufficient public balance!");
       }
 
