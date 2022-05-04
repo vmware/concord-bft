@@ -60,7 +60,8 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     replicaConfig.numOfExternalClients = 30;
     replicaConfig.concurrencyLevel = 3;
     replicaConfig.debugStatisticsEnabled = true;
-    replicaConfig.viewChangeTimerMillisec = 45 * 1000;
+    replicaConfig.viewChangeTimerMillisec = 10 * 1000;
+    replicaConfig.viewChangeProtocolEnabled = true;
     replicaConfig.statusReportTimerMillisec = 10 * 1000;
     replicaConfig.preExecutionFeatureEnabled = true;
     replicaConfig.clientBatchingEnabled = true;

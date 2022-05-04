@@ -9,6 +9,7 @@ tags
 compile_commands.json
 *__pycache__
 MakefileCustom
+utt-demo/run/
 
 # VIM swap.
 # Copied from https://github.com/github/gitignore/blob/master/Global/Vim.gitignore
