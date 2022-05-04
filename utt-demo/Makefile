@@ -46,7 +46,7 @@ demo-start: ## Starts the demo by running all required services.
 	@docker-compose start replica-1 replica-2 replica-3 replica-4 payment-service-1 payment-service-2 payment-service-3
 	
 	@echo
-	@echo "All services are running. You can now start using a wallet with 'demo-use-wallet-<1-9>'"
+	@echo "All services are running. You can now start using a wallet with 'make demo-use-wallet-<1-9>'"
 
 .PHONY: demo-use-wallet
 demo-use-wallet: ## Starts the selected wallet with ID from 1 to 9. Type 'demo-use-wallet-<ID>'. 
@@ -58,7 +58,7 @@ demo-stop: ## Stops all running demo services
 	@docker-compose stop
 
 	@echo
-	@echo "All services are stopped. Use 'demo-start' to resume from where you left."
+	@echo "All services are stopped. Use 'make demo-start' to resume from where you left."
 
 .PHONY: demo-reset
 demo-reset: ## Stops the demo, resets all service containers and deletes the demo state and logs.
@@ -66,7 +66,7 @@ demo-reset: ## Stops the demo, resets all service containers and deletes the dem
 	@sudo rm -rf ./run/logs/* ./run/rocksdb/*
 	
 	@echo
-	@echo "You have reset the demo. Use 'demo-start' to begin from scratch."
+	@echo "You have reset the demo. Use 'make demo-start' to begin from scratch."
 
 .PHONY: demo-use-wallet-1
 demo-use-wallet-1: 
