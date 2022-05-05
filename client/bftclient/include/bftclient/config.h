@@ -22,6 +22,7 @@
 #include "bftclient/base_types.h"
 #include "bftclient/quorums.h"
 #include "secret_data.h"
+#include "SharedTypes.hpp"
 
 using namespace std::chrono_literals;
 
@@ -81,7 +82,8 @@ struct RequestConfig {
   std::string span_context = "";
   bool key_exchange = false;
   bool reconfiguration = false;
-  bool typed_request = false;
+  bftEngine::RequestType request_type = bftEngine::RequestType::RAW_MESSAGE;
+  std::string client_service_id = "";
 };
 
 // The configuration for a single write request.

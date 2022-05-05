@@ -86,8 +86,11 @@ void RequestServiceCallData::sendToConcordClient() {
   req_config.timeout = timeout;
   req_config.correlation_id = request_.correlation_id();
   if (request_.has_typed_request()) {
-    req_config.typed_request = true;
+    req_config.request_type = bftEngine::RequestType::ANY_MESSAGE;
+  } else {
+    req_config.request_type = bftEngine::RequestType::RAW_MESSAGE;
   }
+  req_config.client_service_id = client_->getSubscriptionId();
 
   auto callback = [this, req_config, is_any_request_type](concord::client::concordclient::SendResult&& send_result) {
     grpc::Status status;

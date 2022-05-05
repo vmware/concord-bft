@@ -119,22 +119,20 @@ class ConcordClientPool {
                            uint64_t seq_num,
                            std::string correlation_id = {},
                            const std::string& span_context = std::string(),
-                           bool typed_request = false,
-                           std::string subscriptionId = {},
+                           const bftEngine::RequestType request_type = bftEngine::RequestType::RAW_MESSAGE,
+                           const std::string& subscriptionId = std::string(),
                            const bftEngine::RequestCallBack& callback = {});
 
   // This method is responsible to get write requests with the new client
   // parameters and parse them to the old SimpleClient interface.
   SubmitResult SendRequest(const bft::client::WriteConfig& config,
                            bft::client::Msg&& request,
-                           const std::string& subscriptionId,
                            const bftEngine::RequestCallBack& callback = {});
 
   // This method is responsible to get read requests with the new client
   // parameters and parse them to the old SimpleClient interface.
   SubmitResult SendRequest(const bft::client::ReadConfig& config,
                            bft::client::Msg&& request,
-                           const std::string& subscriptionId,
                            const bftEngine::RequestCallBack& callback = {});
 
   void processReplies(std::shared_ptr<concord::external_client::ConcordClient>& client,
@@ -167,11 +165,6 @@ class ConcordClientPool {
   void CreatePool(concord::config_pool::ConcordClientPoolConfig&, std::shared_ptr<concordMetrics::Aggregator>);
 
   void AddSenderAndSignature(std::vector<uint8_t>& request, const ClientPtr& chosenClient);
-
-  void createConcordClientRequest(std::vector<uint8_t>& request,
-                                  const ClientPtr& chosenClient,
-                                  bool typed_request,
-                                  std::string subscriptionId);
 
   void OnBatchingTimeout(ClientPtr client);
   bool clusterHasKeys(ClientPtr& cl);

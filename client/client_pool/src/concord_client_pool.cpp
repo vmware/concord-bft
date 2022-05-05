@@ -23,7 +23,6 @@
 #include "KeyExchangeMsg.hpp"
 #include "OpenTracing.hpp"
 #include "concord.cmf.hpp"
-#include "concord_client_request.cmf.hpp"
 
 namespace concord::concord_client_pool {
 
@@ -45,8 +44,8 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
                                             uint64_t seq_num,
                                             std::string correlation_id,
                                             const std::string &span_context,
-                                            bool typed_request,
-                                            std::string subscriptionId,
+                                            const bftEngine::RequestType request_type,
+                                            const std::string &subscriptionId,
                                             const bftEngine::RequestCallBack &callback) {
   if (callback && timeout_ms.count() == 0) {
     callback(bftEngine::SendResult{static_cast<uint32_t>(OperationResult::INVALID_REQUEST)});
@@ -59,6 +58,7 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
 
   while (!clients_.empty() && serving_candidates != 0) {
     auto client = clients_.front();
+    external_client::ConcordClient::createConcordClientRequest(request, request_type, subscriptionId);
     client_id = client->getClientId();
     if (is_overloaded_) {
       is_overloaded_ = false;
@@ -86,8 +86,6 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
 
       if (flags & ClientMsgFlag::RECONFIG_FLAG_REQ) {
         AddSenderAndSignature(request, client);
-      } else {
-        createConcordClientRequest(request, client, typed_request, subscriptionId);
       }
       client->AddPendingRequest(std::move(request),
                                 flags,
@@ -212,7 +210,6 @@ void ConcordClientPool::assignJobToClient(const ClientPtr &client,
 
 SubmitResult ConcordClientPool::SendRequest(const bft::client::WriteConfig &config,
                                             bft::client::Msg &&request,
-                                            const std::string &subscriptionId,
                                             const bftEngine::RequestCallBack &callback) {
   LOG_DEBUG(logger_, "Received write request with cid=" << config.request.correlation_id);
   auto request_flag = ClientMsgFlag::EMPTY_FLAGS_REQ;
@@ -230,14 +227,13 @@ SubmitResult ConcordClientPool::SendRequest(const bft::client::WriteConfig &conf
                      config.request.sequence_number,
                      config.request.correlation_id,
                      config.request.span_context,
-                     config.request.typed_request,
-                     subscriptionId,
+                     config.request.request_type,
+                     config.request.client_service_id,
                      callback);
 }
 
 SubmitResult ConcordClientPool::SendRequest(const bft::client::ReadConfig &config,
                                             bft::client::Msg &&request,
-                                            const std::string &subscriptionId,
                                             const bftEngine::RequestCallBack &callback) {
   LOG_INFO(logger_, "Received read request with cid=" << config.request.correlation_id);
   if (callback && config.request.pre_execute) {
@@ -254,8 +250,8 @@ SubmitResult ConcordClientPool::SendRequest(const bft::client::ReadConfig &confi
                      config.request.sequence_number,
                      config.request.correlation_id,
                      config.request.span_context,
-                     config.request.typed_request,
-                     subscriptionId,
+                     config.request.request_type,
+                     config.request.client_service_id,
                      callback);
 }
 
@@ -438,22 +434,6 @@ void ConcordClientPool::AddSenderAndSignature(std::vector<uint8_t> &request, con
   concord::messages::serialize(request, rreq);
 }
 
-void ConcordClientPool::createConcordClientRequest(std::vector<uint8_t> &request,
-                                                   const ClientPtr &chosenClient,
-                                                   bool typed_request,
-                                                   std::string subscriptionId) {
-  concord::client::request::messages::ConcordClientRequest concord_request;
-  concord_request.application_request = static_cast<decltype(concord_request.application_request)>(request);
-  if (typed_request) {
-    concord_request.type = static_cast<decltype(concord_request.type)>("ANY_MESSAGE");
-  } else {
-    concord_request.type = static_cast<decltype(concord_request.type)>("RAW_MESSAGE");
-  }
-  concord_request.client_id = static_cast<decltype(concord_request.client_id)>(subscriptionId);
-  request.clear();
-  concord::client::request::messages::serialize(request, concord_request);
-}
-
 void ConcordClientPool::OnBatchingTimeout(std::shared_ptr<concord::external_client::ConcordClient> client) {
   {
     std::unique_lock<std::mutex> lock(clients_queue_lock_);
@@ -510,12 +490,14 @@ void SingleRequestProcessingJob::execute() {
     res = processing_client_->SendRequest(write_config_, std::move(request_));
   }
   OperationResult operation_result = processing_client_->getRequestExecutionResult();
+  external_client::ConcordClient::createConcordClientResponse(res.matched_data);
   reply_size = res.matched_data.size();
   if (callback_) {
-    if (operation_result == OperationResult::SUCCESS)
+    if (operation_result == OperationResult::SUCCESS) {
       callback_(res);
-    else
+    } else {
       callback_(static_cast<uint32_t>(operation_result));
+    }
   }
   external_client::ConcordClient::PendingReplies replies;
   replies.push_back(ClientReply{static_cast<uint32_t>(request_.size()),
