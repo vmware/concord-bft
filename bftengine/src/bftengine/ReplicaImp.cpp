@@ -5040,7 +5040,7 @@ void ReplicaImp::executeRequests(PrePrepareMsg *ppMsg, Bitmap &requestSet, Times
     LOG_DEBUG(GL,
               "Executing all the requests of preprepare message with cid: " << ppMsg->getCid() << " with accumulation");
     {
-      //      TimeRecorder scoped_timer1(*histograms_.executeWriteRequest);
+      TimeRecorder scoped_timer1(*histograms_.executeWriteRequest);
       const concordUtils::SpanContext &span_context{""};
       auto span = concordUtils::startChildSpanFromContext(span_context, "bft_client_request");
       span.setTag("rid", config_.getreplicaId());
@@ -5063,7 +5063,7 @@ void ReplicaImp::executeRequests(PrePrepareMsg *ppMsg, Bitmap &requestSet, Times
     for (auto &req : *pAccumulatedRequests) {
       singleRequest.push_back(req);
       {
-        //        TimeRecorder scoped_timer1(*histograms_.executeWriteRequest);
+        TimeRecorder scoped_timer1(*histograms_.executeWriteRequest);
         const concordUtils::SpanContext &span_context{""};
         auto span = concordUtils::startChildSpanFromContext(span_context, "bft_client_request");
         span.setTag("rid", config_.getreplicaId());
