@@ -10,6 +10,7 @@ add_library(clientservice-lib ${CLIENTSERVICE_SRC})
 target_include_directories(clientservice-lib PUBLIC include)
 target_link_libraries(clientservice-lib PUBLIC
   clientservice-proto
+  cmf_messages
   concordclient
   gRPC::grpc++
   gRPC::grpc++_reflection

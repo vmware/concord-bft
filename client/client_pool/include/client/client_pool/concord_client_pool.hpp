@@ -26,6 +26,7 @@
 #include "bftclient/quorums.h"
 #include "client_pool_timer.hpp"
 #include "external_client.hpp"
+#include "client/concordclient/send_callback.hpp"
 
 namespace concord {
 namespace external_client {
@@ -119,19 +120,19 @@ class ConcordClientPool {
                            uint64_t seq_num,
                            std::string correlation_id = {},
                            const std::string& span_context = std::string(),
-                           const bftEngine::RequestCallBack& callback = {});
+                           const concord::client::concordclient::SendCallback& callback = {});
 
   // This method is responsible to get write requests with the new client
   // parameters and parse them to the old SimpleClient interface.
   SubmitResult SendRequest(const bft::client::WriteConfig& config,
                            bft::client::Msg&& request,
-                           const bftEngine::RequestCallBack& callback = {});
+                           const concord::client::concordclient::SendCallback& callback = {});
 
   // This method is responsible to get read requests with the new client
   // parameters and parse them to the old SimpleClient interface.
   SubmitResult SendRequest(const bft::client::ReadConfig& config,
                            bft::client::Msg&& request,
-                           const bftEngine::RequestCallBack& callback = {});
+                           const concord::client::concordclient::SendCallback& callback = {});
 
   void processReplies(std::shared_ptr<concord::external_client::ConcordClient>& client,
                       std::pair<int8_t, external_client::ConcordClient::PendingReplies>&& replies);
@@ -149,7 +150,7 @@ class ConcordClientPool {
                          uint64_t seq_num,
                          const std::string& correlation_id,
                          const std::string& span_context,
-                         const bftEngine::RequestCallBack& callback);
+                         const concord::client::concordclient::SendCallback& callback);
 
   PoolStatus HealthStatus();
 
@@ -237,7 +238,7 @@ class SingleRequestProcessingJob : public BatchRequestProcessingJob {
                              std::string correlation_id,
                              uint64_t seq_num,
                              std::string span_context,
-                             const bftEngine::RequestCallBack& callback)
+                             const concord::client::concordclient::SendCallback& callback)
       : BatchRequestProcessingJob(clients, std::move(client)),
         request_(std::move(request)),
         flags_{flags},
@@ -260,7 +261,7 @@ class SingleRequestProcessingJob : public BatchRequestProcessingJob {
   uint64_t seq_num_;
   bft::client::WriteConfig write_config_;
   bft::client::ReadConfig read_config_;
-  const bftEngine::RequestCallBack callback_;
+  const concord::client::concordclient::SendCallback& callback_;
 };
 }  // namespace concord_client_pool
 

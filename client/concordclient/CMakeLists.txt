@@ -1,12 +1,19 @@
-add_library(concordclient "src/concord_client.cpp")
+add_library(concordclient STATIC "src/concord_client.cpp")
 target_include_directories(concordclient PUBLIC include)
-# TODO: Mark libraries as PRIVATE once the interface is selfcontained
-target_link_libraries(concordclient PUBLIC
+target_link_libraries(concordclient
+PUBLIC
+  util
+  bftclient_new
+  concordclient-event-api
+PRIVATE
   thin_replica_client_lib
   concord_client_pool
-  concordclient-event-api
-  util
 )
+
+# Provide type definitions in a separate library
+add_library(concordclient-interface INTERFACE)
+target_include_directories(concordclient-interface INTERFACE include)
+target_link_libraries(concordclient-interface INTERFACE bftclient_new-interface)
 
 find_package(Protobuf REQUIRED)
 add_library(concordclient-event-api INTERFACE)

@@ -51,12 +51,6 @@ enum ClientMsgFlag : uint8_t {
   RECONFIG_READ_ONLY_REQ = 0x21,  // Same as READ_ONLY_REQ | RECONFIG_FLAG_REQ
 };
 
-// Call back for request - at this point we know for sure that a client is handling the request, so we can assure that
-// we will have reply. This callback will be attached to the client reply struct and whenever we get the reply from,
-// the bft client we will activate the callback.
-typedef std::variant<uint32_t, bft::client::Reply> SendResult;
-typedef std::function<void(SendResult&&)> RequestCallBack;
-
 struct ClientRequest {
   uint8_t flags = 0;
   std::vector<uint8_t> request;
@@ -74,7 +68,6 @@ struct ClientReply {
   bftEngine::OperationResult opResult = bftEngine::OperationResult::SUCCESS;
   std::string cid;
   std::string span_context;
-  RequestCallBack cb = {};
 };
 
 class SimpleClient {

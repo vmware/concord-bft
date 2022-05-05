@@ -114,7 +114,7 @@ target_link_libraries(corebft PUBLIC
   db_checkpoint_msg
   cre
   stdc++fs
-  )
+)
 
 
 target_include_directories(bftclient PUBLIC include/bftengine)
@@ -122,7 +122,10 @@ target_include_directories(bftclient PUBLIC src/bftengine)
 target_include_directories(bftclient PUBLIC src/preprocessor)
 target_include_directories(bftclient PUBLIC ${perf_include})
 target_include_directories(bftclient PUBLIC ${kvbc_include})
-target_link_libraries(bftclient PUBLIC bftcommunication diagnostics)
+target_link_libraries(bftclient PUBLIC
+  bftcommunication
+  diagnostics
+)
 
 install(DIRECTORY include/bftengine DESTINATION include)
 

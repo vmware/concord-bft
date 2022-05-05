@@ -24,6 +24,9 @@ using namespace config_pool;
 using namespace bftEngine;
 using namespace bft::communication;
 
+using concord::client::concordclient::SendCallback;
+using concord::client::concordclient::SendResult;
+
 std::shared_ptr<std::vector<char>> ConcordClient::reply_ = std::make_shared<std::vector<char>>(0);
 uint16_t ConcordClient::required_num_of_replicas_ = 0;
 uint16_t ConcordClient::num_of_replicas_ = 0;
@@ -131,7 +134,7 @@ void ConcordClient::AddPendingRequest(std::vector<uint8_t>&& request,
                                       uint64_t seq_num,
                                       const std::string& correlation_id,
                                       const std::string& span_context,
-                                      RequestCallBack callback) {
+                                      SendCallback callback) {
   bftEngine::ClientRequest pending_request;
   pending_request.lengthOfRequest = request.size();
   pending_request.request = std::move(request);
@@ -142,23 +145,23 @@ void ConcordClient::AddPendingRequest(std::vector<uint8_t>&& request,
   pending_request.span_context = span_context;
   pending_requests_.push_back(std::move(pending_request));
 
-  bftEngine::ClientReply pending_reply;
+  ExtClientReply pending;
   if (reply_size) {
-    pending_reply.replyBuffer = reply_buffer;
-    pending_reply.lengthOfReplyBuffer = reply_size;
+    pending.reply.replyBuffer = reply_buffer;
+    pending.reply.lengthOfReplyBuffer = reply_size;
   } else {
-    pending_reply.replyBuffer = reply_->data() + batching_buffer_reply_offset_ * max_reply_size_;
+    pending.reply.replyBuffer = reply_->data() + batching_buffer_reply_offset_ * max_reply_size_;
     LOG_DEBUG(logger_,
               "Given reply size is 0, setting internal buffer with offset="
                   << (batching_buffer_reply_offset_ * max_reply_size_));
     ++batching_buffer_reply_offset_;
-    pending_reply.lengthOfReplyBuffer = max_reply_size_;
+    pending.reply.lengthOfReplyBuffer = max_reply_size_;
   }
-  pending_reply.actualReplyLength = 0UL;
-  pending_reply.cid = correlation_id;
-  pending_reply.span_context = span_context;
-  pending_reply.cb = std::move(callback);
-  pending_replies_.push_back(std::move(pending_reply));
+  pending.reply.actualReplyLength = 0UL;
+  pending.reply.cid = correlation_id;
+  pending.reply.span_context = span_context;
+  pending.callback = std::move(callback);
+  pending_replies_.push_back(std::move(pending));
 }
 
 std::pair<int32_t, ConcordClient::PendingReplies> ConcordClient::SendPendingRequests() {
@@ -196,28 +199,31 @@ std::pair<int32_t, ConcordClient::PendingReplies> ConcordClient::SendPendingRequ
       auto cid = pending_seq_num_to_cid_entry->second;
       cid_response_map_[cid] = std::chrono::steady_clock::now();
       auto data_size = received_reply_entry.second.matched_data.size();
-      for (auto& pending_reply : pending_replies_) {
-        if (pending_reply.cid != cid) continue;
-        auto response = received_reply_entry.second.result ? bftEngine::SendResult{received_reply_entry.second.result}
-                                                           : bftEngine::SendResult{received_reply_entry.second};
-        if (pending_reply.cb) {
-          pending_reply.cb(move(response));
+      for (auto& pending : pending_replies_) {
+        if (pending.reply.cid != cid) continue;
+        // Note: We convert bft::client::Reply.result into a bftEngine::OperationResult
+        // TODO: Can we change the bft::client::Reply.result type?
+        auto response = received_reply_entry.second.result
+                            ? SendResult{OperationResult{received_reply_entry.second.result}}
+                            : SendResult{received_reply_entry.second};
+        if (pending.callback) {
+          pending.callback(move(response));
           LOG_INFO(logger_,
                    "Request processing completed; return response through the callback"
-                       << KVLOG(client_id_, batch_cid, pending_reply.cid, received_reply_entry.second.result));
+                       << KVLOG(client_id_, batch_cid, pending.reply.cid, received_reply_entry.second.result));
         } else {
           // Used for testing only
-          if (data_size > pending_reply.lengthOfReplyBuffer) {
+          if (data_size > pending.reply.lengthOfReplyBuffer) {
             LOG_WARN(logger_,
-                     "Reply is too big" << KVLOG(client_id_, cid, pending_reply.lengthOfReplyBuffer, data_size));
+                     "Reply is too big" << KVLOG(client_id_, cid, pending.reply.lengthOfReplyBuffer, data_size));
             continue;
           }
-          memcpy(pending_reply.replyBuffer, received_reply_entry.second.matched_data.data(), data_size);
-          pending_reply.actualReplyLength = data_size;
-          pending_reply.opResult = static_cast<bftEngine::OperationResult>(received_reply_entry.second.result);
+          memcpy(pending.reply.replyBuffer, received_reply_entry.second.matched_data.data(), data_size);
+          pending.reply.actualReplyLength = data_size;
+          pending.reply.opResult = static_cast<bftEngine::OperationResult>(received_reply_entry.second.result);
           LOG_INFO(logger_,
                    "Request processing completed"
-                       << KVLOG(client_id_, batch_cid, pending_reply.cid, received_reply_entry.second.result));
+                       << KVLOG(client_id_, batch_cid, pending.reply.cid, received_reply_entry.second.result));
         }
       }
     }

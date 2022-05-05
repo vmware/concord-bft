@@ -19,6 +19,7 @@
 #include "Logger.hpp"
 #include "concord.cmf.hpp"
 #include "client/concordclient/concord_client.hpp"
+#include "client/concordclient/send_callback.hpp"
 
 namespace concord::client::clientservice {
 
@@ -52,14 +53,14 @@ class StateSnapshotServiceImpl final
       grpc::Status& return_status) const;
 
   void clearAllPrevDoneCallbacksAndAdd(std::shared_ptr<bool> condition,
-                                       std::shared_ptr<bftEngine::RequestCallBack> callback);
+                                       std::shared_ptr<concord::client::concordclient::SendCallback> callback);
 
   std::chrono::milliseconds setTimeoutFromDeadline(grpc::ServerContext* context);
 
   logging::Logger logger_;
   static const int32_t MAX_TIMEOUT_MS = 600000;  // 10 mins
   std::shared_ptr<concord::client::concordclient::ConcordClient> client_;
-  std::map<std::shared_ptr<bool>, std::shared_ptr<bftEngine::RequestCallBack>> callbacks_for_cleanup_;
+  std::map<std::shared_ptr<bool>, std::shared_ptr<concord::client::concordclient::SendCallback>> callbacks_for_cleanup_;
   std::mutex cleanup_mutex_;
 };
 

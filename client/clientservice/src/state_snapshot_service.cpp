@@ -51,6 +51,7 @@ using concord::client::concordclient::StreamUnavailable;
 using concord::client::concordclient::InternalError;
 using concord::client::concordclient::EndOfStream;
 using concord::client::concordclient::RequestOverload;
+using concord::client::concordclient::SendCallback;
 
 namespace concord::client::clientservice {
 
@@ -83,44 +84,44 @@ static void getResponseSetStatus(concord::client::concordclient::SendResult&& se
                                  const std::string& log_str) {
   auto logger = logging::getLogger(log_str);
   if (!std::holds_alternative<bft::client::Reply>(send_result)) {
-    switch (std::get<uint32_t>(send_result)) {
-      case (static_cast<uint32_t>(bftEngine::OperationResult::INVALID_REQUEST)):
+    switch (std::get<bftEngine::OperationResult>(send_result)) {
+      case (bftEngine::OperationResult::INVALID_REQUEST):
         LOG_INFO(logger, "Request failed with INVALID_ARGUMENT error for cid=" << correlation_id);
         return_status = grpc::Status(grpc::StatusCode::UNKNOWN, "Invalid argument");
         break;
-      case (static_cast<uint32_t>(bftEngine::OperationResult::NOT_READY)):
+      case (bftEngine::OperationResult::NOT_READY):
         LOG_INFO(logger, "Request failed with NOT_READY error for cid=" << correlation_id);
         return_status = grpc::Status(grpc::StatusCode::UNAVAILABLE, "No clients connected to the replicas");
         break;
-      case (static_cast<uint32_t>(bftEngine::OperationResult::TIMEOUT)):
+      case (bftEngine::OperationResult::TIMEOUT):
         LOG_INFO(logger, "Request failed with TIMEOUT error for cid=" << correlation_id);
         return_status = grpc::Status(grpc::StatusCode::UNAVAILABLE, "Timeout");
         break;
-      case (static_cast<uint32_t>(bftEngine::OperationResult::EXEC_DATA_TOO_LARGE)):
+      case (bftEngine::OperationResult::EXEC_DATA_TOO_LARGE):
         LOG_INFO(logger, "Request failed with EXEC_DATA_TOO_LARGE error for cid=" << correlation_id);
         return_status = grpc::Status(grpc::StatusCode::UNKNOWN, "Execution data too large");
         break;
-      case (static_cast<uint32_t>(bftEngine::OperationResult::EXEC_DATA_EMPTY)):
+      case (bftEngine::OperationResult::EXEC_DATA_EMPTY):
         LOG_INFO(logger, "Request failed with EXEC_DATA_EMPTY error for cid=" << correlation_id);
         return_status = grpc::Status(grpc::StatusCode::UNKNOWN, "Execution data is empty");
         break;
-      case (static_cast<uint32_t>(bftEngine::OperationResult::CONFLICT_DETECTED)):
+      case (bftEngine::OperationResult::CONFLICT_DETECTED):
         LOG_INFO(logger, "Request failed with CONFLICT_DETECTED error for cid=" << correlation_id);
         return_status = grpc::Status(grpc::StatusCode::UNAVAILABLE, "Aborted");
         break;
-      case (static_cast<uint32_t>(bftEngine::OperationResult::OVERLOADED)):
+      case (bftEngine::OperationResult::OVERLOADED):
         LOG_INFO(logger, "Request failed with OVERLOADED error for cid=" << correlation_id);
         return_status = grpc::Status(grpc::StatusCode::UNAVAILABLE, "All clients occupied");
         break;
-      case (static_cast<uint32_t>(bftEngine::OperationResult::EXEC_ENGINE_REJECT_ERROR)):
+      case (bftEngine::OperationResult::EXEC_ENGINE_REJECT_ERROR):
         LOG_INFO(logger, "Request failed with EXEC_ENGINE_REJECT_ERROR error for cid=" << correlation_id);
         return_status = grpc::Status(grpc::StatusCode::UNKNOWN, "Aborted");
         break;
-      case (static_cast<uint32_t>(bftEngine::OperationResult::UNKNOWN)):
+      case (bftEngine::OperationResult::UNKNOWN):
         LOG_INFO(logger, "Request failed with UNKNOWN error for cid=" << correlation_id);
         return_status = grpc::Status(grpc::StatusCode::UNKNOWN, "Failure due to unknown reason");
         break;
-      case (static_cast<uint32_t>(bftEngine::OperationResult::INTERNAL_ERROR)):
+      case (bftEngine::OperationResult::INTERNAL_ERROR):
         LOG_INFO(logger, "Request failed with INTERNAL error for cid=" << correlation_id);
         return_status = grpc::Status(grpc::StatusCode::UNKNOWN, "Failure due to some internal error");
         break;
@@ -198,8 +199,8 @@ static void getResponseSetStatus(concord::client::concordclient::SendResult&& se
   }
 }
 
-static std::shared_ptr<bftEngine::RequestCallBack> getCallbackLambda(const bftEngine::RequestCallBack& callback) {
-  return std::make_shared<bftEngine::RequestCallBack>(callback);
+static std::shared_ptr<SendCallback> getCallbackLambda(const SendCallback& callback) {
+  return std::make_shared<SendCallback>(callback);
 }
 
 std::chrono::milliseconds StateSnapshotServiceImpl::setTimeoutFromDeadline(ServerContext* context) {
@@ -563,7 +564,7 @@ Status StateSnapshotServiceImpl::ReadAsOf(ServerContext* context,
 }
 
 void StateSnapshotServiceImpl::clearAllPrevDoneCallbacksAndAdd(std::shared_ptr<bool> condition,
-                                                               std::shared_ptr<bftEngine::RequestCallBack> callback) {
+                                                               std::shared_ptr<SendCallback> callback) {
   std::unique_lock<std::mutex> cleanup_lck(cleanup_mutex_);
   bool got_value = false;
   do {

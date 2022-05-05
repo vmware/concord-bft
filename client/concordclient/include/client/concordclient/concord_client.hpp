@@ -13,7 +13,6 @@
 
 #pragma once
 
-#include <chrono>
 #include <functional>
 #include <opentracing/span.h>
 #include <memory>
@@ -24,25 +23,13 @@
 
 #include "bftclient/base_types.h"
 #include "bftclient/bft_client.h"
-#include "client/thin-replica-client/thin_replica_client.hpp"
-#include "client/client_pool/concord_client_pool.hpp"
 #include "client/concordclient/event_update.hpp"
-#include "client/concordclient/snapshot_update.hpp"
 #include "client/concordclient/concord_client_exceptions.hpp"
+#include "client/concordclient/send_callback.hpp"
+#include "client/concordclient/snapshot_update.hpp"
 #include "Metrics.hpp"
-#include "client/thin-replica-client/replica_state_snapshot_client.hpp"
 
 namespace concord::client::concordclient {
-
-struct SendError {
-  std::string msg;
-  enum ErrorType {
-    ClientsBusy  // All clients are busy and cannot accept new requests
-  };
-  ErrorType type;
-};
-
-typedef std::variant<uint32_t, bft::client::Reply> SendResult;
 
 struct ReplicaInfo {
   bft::client::ReplicaId id;
@@ -151,15 +138,11 @@ struct SubscribeRequest {
 class ConcordClient {
  public:
   ConcordClient(const ConcordClientConfig&, std::shared_ptr<concordMetrics::Aggregator>);
-  ~ConcordClient() { unsubscribe(); }
+  ~ConcordClient();
 
   // Register a callback that gets invoked once the handling BFT client returns.
-  void send(const bft::client::WriteConfig& config,
-            bft::client::Msg&& msg,
-            const std::function<void(SendResult&&)>& callback);
-  void send(const bft::client::ReadConfig& config,
-            bft::client::Msg&& msg,
-            const std::function<void(SendResult&&)>& callback);
+  void send(const bft::client::WriteConfig& config, bft::client::Msg&& msg, const SendCallback& callback);
+  void send(const bft::client::ReadConfig& config, bft::client::Msg&& msg, const SendCallback& callback);
 
   // Subscribe to events which are pushed into the given update queue.
   void subscribe(const SubscribeRequest& request,
@@ -175,24 +158,12 @@ class ConcordClient {
   void getSnapshot(const StateSnapshotRequest& request, std::shared_ptr<SnapshotQueue>& remote_queue);
 
   // Get subscription id.
-  std::string getSubscriptionId() const { return config_.subscribe_config.id; }
+  std::string getSubscriptionId() const;
 
  private:
-  config_pool::ConcordClientPoolConfig createClientPoolStruct(const ConcordClientConfig& config);
-  void createGrpcConnections();
-  void checkAndReConnectGrpcConnections();
-
-  logging::Logger logger_;
-  const ConcordClientConfig& config_;
-  std::shared_ptr<concordMetrics::Aggregator> metrics_;
-
-  // TODO: Allow multiple subscriptions
-  std::atomic_bool active_subscription_{false};
-
-  std::vector<std::shared_ptr<::client::concordclient::GrpcConnection>> grpc_connections_;
-  std::unique_ptr<::client::thin_replica_client::ThinReplicaClient> trc_;
-  std::unique_ptr<::client::replica_state_snapshot_client::ReplicaStateSnapshotClient> rss_;
-  std::unique_ptr<concord::concord_client_pool::ConcordClientPool> client_pool_;
+  // Hide implementation details/dependencies from the public interface
+  class Impl;
+  std::unique_ptr<Impl> impl_;
 };
 
 }  // namespace concord::client::concordclient
