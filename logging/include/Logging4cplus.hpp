@@ -19,6 +19,9 @@
 
 #ifdef USE_LOG4CPP
 
+#undef LOG4CPLUS_MACRO_FUNCTION
+#define LOG4CPLUS_MACRO_FUNCTION() __FUNCTION__
+
 namespace logging {
 
 typedef log4cplus::Logger Logger;
