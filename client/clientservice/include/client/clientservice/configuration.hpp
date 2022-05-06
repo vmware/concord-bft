@@ -40,10 +40,10 @@ const std::string decryptPrivateKey(const std::optional<secretsmanager::SecretDa
 void readCert(const std::string& input_filename, std::string& out_data);
 
 // This method gets the client_id from the OU field in the client certificate
-std::string getClientIdFromClientCert(const std::string& client_cert_path);
+std::string getClientIdFromClientCert(const std::string& client_cert_path, bool use_unified_certs);
 
 // This method is used by getClientIdFromClientCert to get the client_id from
 // the subject in the client certificate
-std::string parseClientIdFromSubject(const std::string& subject_str);
+std::string parseClientIdFromSubject(const std::string& subject_str, const std::string& delimiter);
 
 }  // namespace concord::client::clientservice

@@ -28,6 +28,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <fstream>
 #include "Logger.hpp"
 #include "Metrics.hpp"
 
@@ -39,6 +40,7 @@
 #include "thin_replica.grpc.pb.h"
 #include "subscription_buffer.hpp"
 #include "trs_metrics.hpp"
+#include <util/filesystem.hpp>
 
 using google::protobuf::util::TimeUtil;
 using namespace std::chrono_literals;
@@ -67,6 +69,7 @@ struct ThinReplicaServerConfig {
   std::unordered_set<std::string> client_id_set;
   // the threshold after which metrics aggregator is updated
   const uint16_t update_metrics_aggregator_thresh;
+  const bool use_unified_certs = false;
   // the time duration the TRS waits before printing warning logs when
   // subscription status for live updates is not ok
   std::chrono::seconds no_live_subscription_warn_duration;
@@ -77,6 +80,7 @@ struct ThinReplicaServerConfig {
                           SubBufferList& subscriber_list_,
                           std::unordered_set<std::string>& client_id_set_,
                           const uint16_t update_metrics_aggregator_thresh_ = 100,
+                          bool use_unified_certs_ = false,
                           std::chrono::seconds no_live_subscription_warn_duration_ = kNoLiveSubscriptionWarnDuration)
       : is_insecure_trs(is_insecure_trs_),
         tls_trs_cert_path(tls_trs_cert_path_),
@@ -84,6 +88,7 @@ struct ThinReplicaServerConfig {
         subscriber_list(subscriber_list_),
         client_id_set(client_id_set_),
         update_metrics_aggregator_thresh(update_metrics_aggregator_thresh_),
+        use_unified_certs(use_unified_certs_),
         no_live_subscription_warn_duration(no_live_subscription_warn_duration_) {}
 
  private:
@@ -112,6 +117,9 @@ class ThinReplicaImpl {
   const std::string kCorrelationIdTag = "cid";
   // last timestamp when subscription status for live updates was not ok
   std::optional<std::chrono::steady_clock::time_point> last_failed_subscribe_status_time;
+
+  // Max Subject length in certificates should be 555 bytes with ascii characters
+  static const uint16_t certSubjectLength{555};
 
  public:
   ThinReplicaImpl(std::unique_ptr<ThinReplicaServerConfig> config,
@@ -616,11 +624,10 @@ class ThinReplicaImpl {
     return false;
   }
 
-  // Parses the value of the OU field i.e., the client id from the subject
+  // Parses the value of given delimiter field i.e., the client id from the subject
   // string
-  static std::string parseClientIdFromSubject(const std::string& subject_str) {
-    std::string delim = "OU = ";
-    size_t start = subject_str.find(delim) + delim.length();
+  static std::string parseClientIdFromSubject(const std::string& subject_str, const std::string& delimiter) {
+    size_t start = subject_str.find(delimiter) + delimiter.length();
     size_t end = subject_str.find(',', start);
     std::string raw_str = subject_str.substr(start, end - start);
     size_t fstart = 0;
@@ -673,8 +680,9 @@ class ThinReplicaImpl {
     char* subj = X509_NAME_oneline(X509_get_subject_name(certificate), NULL, 0);
     std::string result(subj);
 
-    // parse the OU field i.e., the client_id from the certificate
-    std::string delim = "OU=";
+    // parse the O field i.e., the client_id from the certificate when use_unified_certs is enabled
+    // else parse OU field
+    std::string delim = (config_->use_unified_certs) ? "O=" : "OU=";
     size_t start = result.find(delim) + delim.length();
     size_t end = result.find('/', start);
     client_id = result.substr(start, end - start);
@@ -686,9 +694,11 @@ class ThinReplicaImpl {
 
   static void getClientIdFromRootCert(logging::Logger logger_,
                                       const std::string& root_cert_path,
-                                      std::unordered_set<std::string>& cert_ou_field_set) {
+                                      std::unordered_set<std::string>& cert_ou_field_set,
+                                      bool use_unified_certs) {
     std::array<char, 128> buffer;
     std::string result;
+    std::string delimiter;
     // Openssl doesn't provide a method to fetch all the x509 certificates
     // directly from a bundled cert, due to the assumption of one certificate
     // per file. But for some reason openssl supports displaying multiple certs
@@ -702,11 +712,51 @@ class ThinReplicaImpl {
       LOG_ERROR(logger_, "Failed to read from root cert - popen() failed, error: " << strerror(errno));
       throw std::runtime_error("Failed to read from root cert - popen() failed!");
     }
+
+    delimiter = (use_unified_certs) ? "O = " : "OU = ";
+
     while (fgets(buffer.data(), buffer.size(), pipe_ptr.get()) != nullptr) {
       result = buffer.data();
-      // parse the OU i.e., the client id from the subject field
-      cert_ou_field_set.insert(parseClientIdFromSubject(result));
+      // parse the client id from the subject field
+      cert_ou_field_set.insert(parseClientIdFromSubject(result, delimiter));
     }
+  }
+
+  static void getClientIdSetFromRootCert(logging::Logger logger_,
+                                         const std::string& root_cert_path,
+                                         std::unordered_set<std::string>& cert_ou_field_set) {
+    for (auto& p : fs::recursive_directory_iterator(root_cert_path)) {
+      if ((p.path().filename().string()).compare("node.cert") == 0) {
+        getClientIdFromRootCert(logger_, p.path().string(), cert_ou_field_set, true);
+      }
+    }
+  }
+
+  static std::string getClientIdFromCertificate(const std::string& client_cert_path, bool use_unified_certs = false) {
+    std::array<char, certSubjectLength> buffer;
+    std::string client_id;
+    std::string delimiter;
+    // check if client cert can be opened
+    std::ifstream input_file(client_cert_path.c_str(), std::ios::in);
+
+    if (!input_file.is_open()) {
+      throw std::runtime_error("Could not open the input file at path (" + client_cert_path + ")");
+    }
+
+    // The cmd string is used to get the subject in the client cert.
+    const std::string cmd =
+        "openssl crl2pkcs7 -nocrl -certfile " + client_cert_path + " | openssl pkcs7 -print_certs -noout | grep .";
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
+    if (!pipe) {
+      throw std::runtime_error("Failed to read subject fields from client cert - popen() failed!");
+    }
+
+    delimiter = (use_unified_certs) ? "O = " : "OU = ";
+    if (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+      // parse the client id from the subject field
+      client_id = parseClientIdFromSubject(buffer.data(), delimiter);
+    }
+    return client_id;
   }
 
  private:
