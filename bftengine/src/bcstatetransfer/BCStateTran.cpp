@@ -913,6 +913,7 @@ void BCStateTran::onTimerImpl() {
     LOG_DEBUG(logger_, "--BCStateTransfer metrics dump--" + metrics_component_.ToJson());
     LOG_DEBUG(logger_, "--SourceSelector metrics dump--" + sourceSelector_.getMetricComponent().ToJson());
     LOG_DEBUG(logger_, "--RVBManager metrics dump--" + rvbm_->getMetricComponent().ToJson());
+    LOG_DEBUG(logger_, "--RVT metrics dump--" + rvbm_->getRvtMetricComponent().ToJson());
   }
 
   // Retransmit AskForCheckpointSummariesMsg if needed
@@ -1006,6 +1007,7 @@ void BCStateTran::getStatusImpl(std::string &statusOut) {
   bj.addNestedJson("StateTransferMetrics", metrics_component_.ToJson());
   bj.addNestedJson("SourceSelectorMetrics", sourceSelector_.getMetricComponent().ToJson());
   bj.addNestedJson("RVBManagerMetrics", rvbm_->getMetricComponent().ToJson());
+  bj.addNestedJson("RVTMetrics", rvbm_->getRvtMetricComponent().ToJson());
 
   bj.endJson();
   statusOut = bj.getJson();
