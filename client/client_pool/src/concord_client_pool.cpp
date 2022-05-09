@@ -345,7 +345,11 @@ void ConcordClientPool::setUpClientParams(SimpleClientParams &client_params,
 
 void ConcordClientPool::CreatePool(concord::config_pool::ConcordClientPoolConfig &config,
                                    std::shared_ptr<concordMetrics::Aggregator> aggregator) {
-  auto num_clients = config.clients_per_participant_node - (int)config.with_cre;
+  const auto creNum = (int)config.with_cre;
+  const auto num_clients =
+      (config.active_clients_in_pool && (config.active_clients_in_pool < config.clients_per_participant_node))
+          ? config.active_clients_in_pool - creNum
+          : config.clients_per_participant_node - creNum;
   auto f_val = config.f_val;
   auto c_val = config.c_val;
   auto max_buf_size = stol(config.concord_bft_communication_buffer_length);

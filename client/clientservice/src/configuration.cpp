@@ -158,7 +158,8 @@ void parseConfigFile(ConcordClientConfig& config, const YAML::Node& yaml) {
     config.bft_clients.push_back(ci);
   }
 
-  config.num_of_used_bft_clients = yaml["clients_per_participant_node"].as<int16_t>();
+  config.clients_per_participant_node = yaml["clients_per_participant_node"].as<int16_t>();
+  readYamlField(yaml, "active_clients_in_pool", config.active_clients_in_pool, false);
 }
 
 void configureSubscription(concord::client::concordclient::ConcordClientConfig& config,
@@ -209,7 +210,7 @@ void configureTransport(concord::client::concordclient::ConcordClientConfig& con
     const std::string server_cert_path = tls_path + "/server.cert";
     // read server TLS certs for this TRC instance
     // server_cert_path specifies the path to a composite cert file i.e., a
-    // concatentation of the certificates of all known servers
+    // concatenation of the certificates of all known servers
     readCert(server_cert_path, config.transport.event_pem_certs);
   }
 }
