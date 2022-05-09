@@ -76,12 +76,12 @@ void ConfigFileParser::parse() {
     throw ParseError(*this, line_no, "unrecognized format: " + line);
   }
   stream.close();
-  LOG_INFO(logger_, "File: " << file_ << " successfully parsed.");
+  LOG_DEBUG(logger_, "File: " << file_ << " successfully parsed.");
 }
 
 size_t ConfigFileParser::count(const string& key) {
   size_t res = parameters_map_.count(key);
-  LOG_INFO(logger_, "count() returns: " << res << " for key: " << key);
+  LOG_TRACE(logger_, "count() returns: " << res << " for key: " << key);
   return res;
 }
 

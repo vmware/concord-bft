@@ -14,12 +14,12 @@ cleanup
 
 ../../../tools/GenerateConcordKeys -f 1 -n 4 -r 1 -o ro_config_
 
-../TesterReplica/skvbc_replica -k ro_config_ -i 0 -h 3 &
+../TesterReplica/skvbc_replica -k ro_config_ -i 0 -h 10 &
 ../TesterReplica/skvbc_replica -k ro_config_ -i 1 &
 ../TesterReplica/skvbc_replica -k ro_config_ -i 2 &
 ../TesterReplica/skvbc_replica -k ro_config_ -i 3 &
 
-../TesterClient/skvbc_client -f 1 -c 0 -p 4000 -i 5 &
+../TesterClient/skvbc_client -f 1 -c 0 -p 20000 -i 5 &
 
 env MINIO_ROOT_USER=concordbft MINIO_ROOT_PASSWORD=concordbft ~/minio server --console-address 127.0.0.1:12345 minio_data_dir &
 

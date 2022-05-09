@@ -11,15 +11,14 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "string.hpp"
 #include "integrity_checker.hpp"
+#include "string.hpp"
 #include "s3/config_parser.hpp"
 #include "bftengine/ReplicaConfig.hpp"
 #include "bftengine/ReplicasInfo.hpp"
 #include "bftengine/SigManager.hpp"
 #include "bftengine/CheckpointInfo.hpp"
 #include "bcstatetransfer/BCStateTran.hpp"
-#include "KeyfileIOUtils.hpp"
 #include "direct_kv_storage_factory.h"
 
 namespace concord::kvbc::tools {
@@ -28,44 +27,6 @@ using concordUtils::Status;
 using bftEngine::bcst::impl::BCStateTran;
 using kvbc::v1DirectKeyValue::S3StorageFactory;
 
-IntegrityChecker::IntegrityChecker() {
-  // clang-format off
-  cli_actions_.add_options()("validate-key,v", po::value<std::string>(), "key to validate")
-                            ("validate-range,r", po::value<std::uint64_t>(),
-                                               "validate the blockchain range from tail to block_id")
-                            ("validate-all,a", "validate a whole blockchain");
-
-  cli_mandatory_options_.add_options()
-      ("keys-file,k",
-      po::value<fs::path>()->required()->notifier(std::bind(std::mem_fn(&IntegrityChecker::initKeysConfig), this, _1)),
-      "crypto keys configuration file path")
-      ("s3-config-file,3",
-      po::value<fs::path>()->required()->notifier(std::bind(std::mem_fn(&IntegrityChecker::initS3Config), this, _1)),
-      "path to s3 configuration file");
-  cli_options_.add_options()("help,h", "produce help message");
-  cli_options_.add(cli_mandatory_options_).add(cli_actions_);
-  // clang-format on
-}
-
-void IntegrityChecker::parseCLIArgs(int argc, char** argv) {
-  auto usage = [this]() { LOG_ERROR(logger_, cli_options_); };
-
-  // parse arguments
-  po::store(po::parse_command_line(argc, argv, cli_options_), var_map_);
-
-  // check arguments
-  try {
-    po::notify(var_map_);
-  } catch (const std::exception& e) {
-    usage();
-    throw;
-  }
-
-  if (var_map_.count("help")) {
-    usage();
-    std::exit(1);
-  }
-}
 void IntegrityChecker::initKeysConfig(const fs::path& keys_file) {
   LOG_DEBUG(logger_, keys_file);
   auto& config = bftEngine::ReplicaConfig::instance();
@@ -97,18 +58,6 @@ void IntegrityChecker::initKeysConfig(const fs::path& keys_file) {
                                     *repsInfo_);
 }
 
-void IntegrityChecker::check() const {
-  if (var_map_.count("validate-key")) {
-    validateKey(var_map_["validate-key"].as<std::string>());
-  } else if (var_map_.count("validate-all")) {
-    validateAll();
-  } else if (var_map_.count("validate-range")) {
-    validateRange(var_map_["validate-range"].as<std::uint64_t>());
-  } else {
-    LOG_ERROR(logger_, "one of the following actions should be provided: " << cli_actions_);
-    std::exit(1);
-  }
-}
 void IntegrityChecker::initS3Config(const fs::path& s3_file) {
   const std::string checkpoints_suffix("metadata/checkpoints/");
   auto s3_config = storage::s3::ConfigFileParser(s3_file).parse();
@@ -245,9 +194,11 @@ Digest IntegrityChecker::computeBlockDigest(const BlockId& block_id, const std::
   return calcDigest;
 }
 
-void IntegrityChecker::validateRange(BlockId until_block) const {
+void IntegrityChecker::validateRange(const BlockId& until_block) const {
   auto [block_id, digest] = getLatestsCheckpointDescriptor();
   for (auto block = block_id; block > until_block; --block) digest = checkBlock(block, digest);
+  LOG_INFO(logger_,
+           "Successfully validated " << (block_id - until_block) << " blocks: " << block_id << " => " << until_block);
 }
 
 void IntegrityChecker::validateKey(const std::string& key) const {
