@@ -33,6 +33,9 @@ class IDBCheckpoint {
   // Precondition3: `block_id_at_checkpoint` <= getLastReachableBlockId()
   virtual void trimBlocksFromCheckpoint(BlockId block_id_at_checkpoint) = 0;
 
+  // Notify storage the start and end of the checkpoint process
+  virtual void checkpointInProcess(bool) = 0;
+
   virtual ~IDBCheckpoint() = default;
 };
 
