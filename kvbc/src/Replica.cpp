@@ -352,7 +352,8 @@ void Replica::createReplicaAndSyncState() {
         auto kvbc = adapter::ReplicaBlockchain{db, link_st_chain};
         kvbc.trimBlocksFromCheckpoint(block_id_at_checkpoint);
         kvbc.computeAndPersistPublicStateHash(block_id_at_checkpoint, value_converter);
-      });
+      },
+      [this](bool flag){checkpointInProcess(flag)});
 }
 
 /**
@@ -446,6 +447,10 @@ BlockId Replica::getLastBlockId() const {
     return m_bcDbAdapter->getLastReachableBlockId();
   }
   return m_kvBlockchain->getLastBlockId();
+}
+
+void Replica::checkpointInProcess(bool flag){
+  m_kvBlockchain->checkpointInProcess(flag);
 }
 
 void Replica::set_command_handler(std::shared_ptr<ICommandsHandler> handler) { m_cmdHandler = handler; }
