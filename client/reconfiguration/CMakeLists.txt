@@ -7,7 +7,9 @@ add_library(cre
         src/default_handlers.cpp
         )
 
-target_include_directories(cre PUBLIC include)
+target_include_directories(cre PUBLIC 
+        include
+        ${bftengine_SOURCE_DIR}/include/bftengine)
 
 target_link_libraries(cre PUBLIC
         corebft

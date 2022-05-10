@@ -13,6 +13,7 @@
 #include "bftclient/StateControl.hpp"
 #include "concord.cmf.hpp"
 #include "crypto_utils.hpp"
+#include "ReplicaConfig.hpp"
 
 #include <variant>
 #include <experimental/filesystem>
@@ -71,8 +72,11 @@ bool ClientTlsKeyExchangeHandler::execute(const State& state, WriteState&) {
   if (master_key.empty()) LOG_FATAL(getLogger(), "unable to read the node master key");
   auto root = fs::path(cert_folder_);
   for (const auto& c : bft_clients_) {
-    fs::path pkey_path = root / std::to_string(c) / "client" / ("pk.pem" + suffix);
-    fs::path cert_path = root / std::to_string(c) / "client" / "client.cert";
+    fs::path root_path = root / std::to_string(c);
+    bool use_unified_certs = bftEngine::ReplicaConfig::instance().useUnifiedCertificates;
+    fs::path pkey_path =
+        (use_unified_certs) ? root_path / ("pk.pem" + suffix) : root_path / "client" / ("pk.pem" + suffix);
+    fs::path cert_path = (use_unified_certs) ? root_path / "node.cert" : root_path / "client" / "client.cert";
 
     auto cert =
         concord::util::crypto::CertificateUtils::generateSelfSignedCert(cert_path, new_cert_keys.second, master_key);

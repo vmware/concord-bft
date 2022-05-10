@@ -48,6 +48,7 @@ tls_cipher_suite_list: ECDHE-ECDSA-AES256-GCM-SHA384
 tls_1_3_cipher_suite_list: TLS_AES_256_GCM_SHA384
 transaction_signing_enabled: true
 enable_multiplex_channel: false
+use_unified_certificates: false
 with_cre: false
 node:
   - replica:
