@@ -122,6 +122,14 @@ class KeyValueBlockchain {
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+  // Trims the DB snapshot such that its last reachable block is equal to `block_id_at_checkpoint`.
+  // This will trim in latest keys and blocks column families
+  // This method is supposed to be called on DB snapshots only and not on the actual blockchain.
+  // Precondition1: The current KeyValueBlockchain instance points to a DB snapshot.
+  // Precondition2: `block_id_at_checkpoint` >= INITIAL_GENESIS_BLOCK_ID
+  // Precondition3: `block_id_at_checkpoint` <= getLastReachableBlockId()
+  void trimBlocksFromSnapshot(BlockId block_id_at_checkpoint);
+
  private:  // Member functons
   std::optional<categorization::Value> getValueFromUpdate(BlockId block_id,
                                                           const std::string &key,

@@ -123,7 +123,7 @@ class DbCheckpointManager {
   void sendInternalCreateDbCheckpointMsg(const SeqNum& seqNum, bool noop);
   BlockId getLastReachableBlock() const;
   SeqNum getLastStableSeqNum() const;
-  void setCheckPoinInProcess(bool) const;
+  void setCheckpointInProcess(bool) const;
   void setOnStableSeqNumCb_(std::function<void(SeqNum)> cb) { onStableSeqNumCb_ = cb; }
   void onStableSeqNum(SeqNum s) {
     if (onStableSeqNumCb_) onStableSeqNumCb_(s);

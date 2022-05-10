@@ -378,7 +378,7 @@ SeqNum DbCheckpointManager::getLastStableSeqNum() const {
   return 0;
 }
 
-void DbCheckpointManager::setCheckpoinInProcess(bool flag) const{
+void DbCheckpointManager::setCheckpointInProcess(bool flag) const {
   if (checkpointInProcessCb_) checkpointInProcessCb_(flag);
 }
 
