@@ -17,7 +17,7 @@
 #include <functional>
 
 namespace concord::kvbc {
-enum BLOCKCHAIN_VERSION { CATEGORIZED_BLOCKCHAIN = 1, NATURAL_BLOCKCHAIN = 4 };
+enum BLOCKCHAIN_VERSION { CATEGORIZED_BLOCKCHAIN = 1, NATURAL_BLOCKCHAIN = 4, INVALID_BLOCKCHAIN_VERSION };
 
 // Key or value converter interface.
 // Allows users to convert keys or values to any format that is appropriate.

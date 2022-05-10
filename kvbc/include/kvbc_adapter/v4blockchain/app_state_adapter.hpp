@@ -19,15 +19,12 @@
 #include "v4blockchain/v4_blockchain.h"
 #include "kvbc_adapter/replica_adapter_auxilliary_types.hpp"
 
-using concord::storage::rocksdb::NativeClient;
-
 namespace concord::kvbc::adapter::v4blockchain {
 
 class AppStateAdapter : public bftEngine::bcst::IAppState {
  public:
   virtual ~AppStateAdapter() { kvbc_ = nullptr; }
-  explicit AppStateAdapter(std::shared_ptr<concord::kvbc::v4blockchain::KeyValueBlockchain> &kvbc,
-                           const std::optional<aux::AdapterAuxTypes> &aux_types = std::nullopt)
+  explicit AppStateAdapter(std::shared_ptr<concord::kvbc::v4blockchain::KeyValueBlockchain> &kvbc)
       : kvbc_{kvbc.get()} {}
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

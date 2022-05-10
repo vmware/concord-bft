@@ -32,8 +32,6 @@
 #include "categorization/kv_blockchain.h"
 #include "v4blockchain/v4_blockchain.h"
 
-using concord::storage::rocksdb::NativeClient;
-
 namespace concord::kvbc::adapter {
 class ReplicaBlockchain : public IBlocksDeleter,
                           public IReader,
@@ -166,9 +164,13 @@ class ReplicaBlockchain : public IBlocksDeleter,
   ////////////////////////////////////IKVBCStateSnapshot////////////////////////////////////////////////////////////////
   void computeAndPersistPublicStateHash(
       BlockId checkpoint_block_id,
-      const Converter &value_converter = [](std::string &&s) -> std::string { return std::move(s); }) override final;
+      const Converter &value_converter = [](std::string &&s) -> std::string { return std::move(s); }) override final {
+    state_snapshot_->computeAndPersistPublicStateHash(checkpoint_block_id, value_converter);
+  }
 
-  std::optional<PublicStateKeys> getPublicStateKeys() const override final ;
+  std::optional<categorization::PublicStateKeys> getPublicStateKeys() const override final {
+    return state_snapshot_->getPublicStateKeys();
+  }
 
   void iteratePublicStateKeyValues(const std::function<void(std::string &&, std::string &&)> &f) const override final {
     state_snapshot_->iteratePublicStateKeyValues(f);
@@ -179,9 +181,6 @@ class ReplicaBlockchain : public IBlocksDeleter,
     return state_snapshot_->iteratePublicStateKeyValues(f, after_key);
   }
 
-  bool iteratePublicStateKeyValuesImpl(const std::function<void(std::string&&, std::string&&)>& f,
-                                                         const std::optional<std::string>& after_key) const;
-
   //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   ////////////////////////////////////IDBCheckpoint/////////////////////////////////////////////////////////////////////
@@ -189,9 +188,7 @@ class ReplicaBlockchain : public IBlocksDeleter,
     return db_chkpt_->trimBlocksFromCheckpoint(block_id_at_checkpoint);
   }
 
-  void checkpointInProcess(bool flag) override final{
-    db_chkpt_->checkpointInProcess(flag);
-  }
+  void checkpointInProcess(bool flag) override final { db_chkpt_->checkpointInProcess(flag); }
   //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
  private:
@@ -220,6 +217,5 @@ class ReplicaBlockchain : public IBlocksDeleter,
   //////////////Blockchain Abstractions //////////////////
   std::shared_ptr<concord::kvbc::categorization::KeyValueBlockchain> kvbc_{nullptr};
   std::shared_ptr<concord::kvbc::v4blockchain::KeyValueBlockchain> v4_kvbc_{nullptr};
-  std::shared_ptr<concord::storage::rocksdb::NativeClient> native_client_;
 };
 }  // namespace concord::kvbc::adapter

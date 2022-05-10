@@ -305,6 +305,18 @@ if (BUILD_ROCKSDB_STORAGE)
         stdc++fs
     )
 
+    add_executable(common_state_snapshot_adapter_test
+            kvbc_adapter/common/state_snapshot_adapter_test.cpp )
+    add_test(common_state_snapshot_adapter_test common_state_snapshot_adapter_test)
+    target_link_libraries(common_state_snapshot_adapter_test PUBLIC
+            GTest::Main
+            GTest::GTest
+            util
+            corebft
+            kvbc
+            stdc++fs
+    )
+
     
     add_executable(pruning_test pruning_test.cpp)
     add_test(pruning_test pruning_test)

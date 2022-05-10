@@ -20,8 +20,6 @@
 #include "categorized_kvbc_msgs.cmf.hpp"
 #include "blockchain_misc.hpp"
 
-using concord::kvbc::categorization::PublicStateKeys;
-
 namespace concord::kvbc {
 
 class IDBCheckpoint {
@@ -55,7 +53,7 @@ class IKVBCStateSnapshot {
 
   // Returns the public state keys as of the current point in the blockchain's history.
   // Returns std::nullopt if no public keys have been persisted.
-  virtual std::optional<PublicStateKeys> getPublicStateKeys() const = 0;
+  virtual std::optional<concord::kvbc::categorization::PublicStateKeys> getPublicStateKeys() const = 0;
 
   // Iterate over all public key values, calling the given function multiple times with two parameters:
   // * key
