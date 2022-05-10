@@ -1884,6 +1884,27 @@ TEST_F(v4_kvbc, all_get_latest_versions) {
   }
 }
 
+TEST_F(v4_kvbc, trim_blocks) {
+  uint64_t max_block = 100;
+  uint32_t num_merkle_each = 0;
+  uint32_t num_versioned_each = 0;
+  uint32_t num_immutable_each = 0;
+  create_blocks(max_block, num_merkle_each, num_versioned_each, num_immutable_each);
+
+  std::map<std::string, categorization::CATEGORY_TYPE> cat_map{
+      {"merkle", categorization::CATEGORY_TYPE::block_merkle},
+      {"versioned", categorization::CATEGORY_TYPE::versioned_kv},
+      {"immutable", categorization::CATEGORY_TYPE::immutable}};
+  v4blockchain::KeyValueBlockchain blockchain{db, true, cat_map};
+  ASSERT_EQ(blockchain.getGenesisBlockId(), 1);
+  ASSERT_EQ(blockchain.getLastReachableBlockId(), max_block);
+  ASSERT_NO_THROW(blockchain.trimBlocksFromSnapshot(max_block / 2));
+  ASSERT_EQ(blockchain.getGenesisBlockId(), 1);
+  ASSERT_EQ(blockchain.getLastReachableBlockId(), max_block / 2);
+  ASSERT_DEATH(blockchain.trimBlocksFromSnapshot(v4blockchain::detail::Blockchain::INVALID_BLOCK_ID), "");
+  ASSERT_DEATH(blockchain.trimBlocksFromSnapshot(max_block + 10), "");
+}
+
 }  // end namespace
 
 int main(int argc, char** argv) {

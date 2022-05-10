@@ -449,4 +449,15 @@ void KeyValueBlockchain::multiGetLatestVersion(
       category_id, detail::Blockchain::generateKey(block_chain_.getLastReachable()), keys, versions);
 }
 
+void KeyValueBlockchain::trimBlocksFromSnapshot(BlockId block_id_at_checkpoint) {
+  ConcordAssertNE(block_id_at_checkpoint, detail::Blockchain::INVALID_BLOCK_ID);
+  ConcordAssertLE(block_id_at_checkpoint, getLastReachableBlockId());
+  while (block_id_at_checkpoint < getLastReachableBlockId()) {
+    LOG_INFO(V4_BLOCK_LOG,
+             "Deleting last reachable block = " << getLastReachableBlockId()
+                                                << ", DB checkpoint = " << native_client_->path());
+    deleteLastReachableBlock();
+  }
+}
+
 }  // namespace concord::kvbc::v4blockchain
