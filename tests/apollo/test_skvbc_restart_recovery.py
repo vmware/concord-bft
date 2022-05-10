@@ -242,3 +242,109 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         """
 
         await self._restarting_replica_during_system_is_in_view_change(bft_network, True)
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f >= 2, rotate_keys=False)
+    async def test_restarting_f_replicas_for_view_change(self, bft_network):
+        """
+        The goal of this test is to restart F replicas including the current Primary multiple times
+        in order to verify that the system is able to recover correctly - agree on a view and process
+        once again client requests on Fast Path.
+        """
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
+        current_primary = 0
+        next_primary = 1
+        view = 0
+
+        # uncomment for live tracking of log messages from the test
+        # class foo:
+        #     def log_message(self, var):
+        #         print(f"{var}")
+        #
+        # log = foo()
+
+        # Perform multiple view changes by restarting F replicas where the Primary is included
+        while view < 100:
+            # Pick F-1 replicas to be restarted excluding the next primary.
+            # We will unconditionally insert the current primary in this
+            # sequence to trigger the view change
+            excluded_replcias = {current_primary, next_primary}
+            replica_to_restart = random.sample(
+                bft_network.all_replicas(without=excluded_replcias), bft_network.config.f-1)
+            replica_to_restart = [current_primary] + replica_to_restart
+            log.log_message(f"Initiating View Change by stopping replicas {replica_to_restart} in view {view}")
+
+            for replica in replica_to_restart:
+                log.log_message(f"Stopping replica {replica} in view {view}")
+                bft_network.stop_replica(replica, True)
+
+            await skvbc.run_concurrent_ops(10)
+
+            wait_period = viewChangeTimeoutSec
+            log.log_message(f"waiting for {wait_period}s")
+            # Wait for replicas to start initiating ReplicaAsksToLeaveView msgs followed by ViewChange msgs.
+            await trio.sleep(seconds=wait_period)
+            # Starting previously stopped replicas.
+            for replica in replica_to_restart:
+                log.log_message(f"Starting replica {replica}")
+                bft_network.start_replica(replica)
+
+            old_view = view
+
+            # Wait for quorum of replicas to move to a higher view
+            with trio.fail_after(seconds=40):
+                while view == old_view:
+                    log.log_message(f"waiting for vc current view={view}")
+                    await skvbc.run_concurrent_ops(1)
+                    with trio.move_on_after(seconds=5):
+                        view = await bft_network.get_current_view()
+                    await trio.sleep(seconds=1)
+
+            # Update the values of the current_primary and next_primary according to the new view the system is in
+            current_primary, next_primary = self._advance_current_next_primary(view, bft_network.config.n)
+
+            log.log_message(f"view is {view}")
+
+            log.log_message("Checking for replicas in state transfer:")
+            # Check for replicas in state transfer and wait for them to catch
+            # up before moving on to checking the system returns on Fast Path
+            await trio.sleep(seconds=1)
+            for r in bft_network.get_live_replicas():
+                fetching = await bft_network.is_fetching(r)
+                if fetching:
+                    log.log_message(f"Replica {r} is fetching, waiting for ST to finish ...")
+                    # assuming Primary has latest state
+                    with trio.fail_after(seconds=100):
+                        key = ['replica', 'Gauges', 'lastStableSeqNum']
+                        primary_last_stable = await bft_network.metrics.get(current_primary, *key)
+                        fetching_last_stable = await bft_network.metrics.get(r, *key)
+                        while primary_last_stable != fetching_last_stable:
+                            primary_last_stable = await bft_network.metrics.get(current_primary, *key)
+                            fetching_last_stable = await bft_network.metrics.get(r, *key)
+                            log.log_message(f"primary_last_stable={primary_last_stable} fetching_last_stable={fetching_last_stable}")
+                            await skvbc.run_concurrent_ops(50)
+                            await trio.sleep(seconds=5)
+
+            # After all replicas have caught up, check if there has been
+            # additional view change while state transfer was completed
+            view_after_st = await bft_network.get_current_view()
+            log.log_message(f"view_after_st={view_after_st}")
+            if view != view_after_st:
+                log.log_message(f"during ST we got a View Change from view {view} to {view_after_st}")
+                view = view_after_st
+                # Update the values of the current_primary and next_primary according to the new view the system is in
+                current_primary, next_primary = self._advance_current_next_primary(view, bft_network.config.n)
+
+            log.log_message("wait for fast path to be prevalent")
+            # Make sure fast path is prevalent before moving to another round ot the test
+            await bft_network.wait_for_fast_path_to_be_prevalent(
+                run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=1)
+            log.log_message("fast path prevailed")
+
+        # Before the test ends we verify the Fast Path is prevalent, no matter
+        # the restarts we performed while the system was in view change.
+        await bft_network.wait_for_fast_path_to_be_prevalent(
+            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
+
