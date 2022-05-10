@@ -37,6 +37,22 @@ using namespace utt::messages;
 using ReplicaSpecificInfo = std::map<uint16_t, std::vector<uint8_t>>;  // [ReplicaId : bytes]
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+namespace {
+const std::string k_CmdQuit = "q";
+const std::string k_CmdHelp = "h";
+// Queries
+const std::string k_CmdAccounts = "accounts";
+const std::string k_CmdBalance = "balance";
+const std::string k_CmdLedger = "ledger";
+// UTT
+const std::string k_CmdUtt = "utt";
+// Debug
+const std::string k_CmdDbgUttDoubleSpend = "utt-double-spend";
+const std::string k_CmdDbgPrimary = "primary";
+const std::string k_CmdDbgCheckpoint = "checkpoint";
+}  // namespace
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 struct PaymentServiceTimeoutException : std::runtime_error {
   PaymentServiceTimeoutException() : std::runtime_error{"PaymentServiceTimeout"} {}
 };
@@ -47,7 +63,7 @@ struct BftServiceTimeoutException : std::runtime_error {
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-auto logger = logging::getLogger("uttdemo.wallet");
+auto logger = logging::getLogger("wallet");
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 class WalletCommunicator : public IReceiver {
@@ -99,8 +115,8 @@ class WalletCommunicator : public IReceiver {
       if (paymentServicePort == 0) throw std::runtime_error("Invalid payment service port!");
     }
 
-    std::cout << "Using PaymentService #" << paymentServiceId_;
-    std::cout << " at " << paymentServiceHost << ':' << paymentServicePort << "\n";
+    LOG_INFO(logger,
+             "Using PaymentService-" << paymentServiceId_ << " at " << paymentServiceHost << ':' << paymentServicePort);
 
     // Each wallet connects only to the payment service node
     // The actual node id for the payment service is always 0 from the point of view
@@ -204,6 +220,7 @@ class WalletCommunicator : public IReceiver {
 struct ClientAppParams {
   uint16_t clientId_ = 0;
   std::string configFileName_;
+  bool summarize_ = false;
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -300,10 +317,12 @@ class UTTClientApp : public UTTBlockchainApp {
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 struct UttPayment {
-  UttPayment(std::string receiver, size_t amount) : receiver_(std::move(receiver)), amount_(amount) {}
+  UttPayment(std::string receiver, size_t amount, bool dbgDoubleSpend = false)
+      : receiver_(std::move(receiver)), amount_(amount), dbgDoubleSpend_(dbgDoubleSpend) {}
 
   std::string receiver_;
   size_t amount_;
+  bool dbgDoubleSpend_;
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -312,7 +331,7 @@ ClientAppParams setupParams(int argc, char** argv) {
 
   char argTempBuffer[PATH_MAX + 10];
   int o = 0;
-  while ((o = getopt(argc, argv, "i:n:")) != EOF) {
+  while ((o = getopt(argc, argv, "i:n:s")) != EOF) {
     switch (o) {
       case 'i': {
         strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
@@ -326,6 +345,10 @@ ClientAppParams setupParams(int argc, char** argv) {
         strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
         argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
         params.configFileName_ = argTempBuffer;
+      } break;
+
+      case 's': {
+        params.summarize_ = true;
       } break;
 
       default:
@@ -494,7 +517,7 @@ std::optional<UttPayment> createUttPayment(const std::string& cmd, const UTTClie
   std::stringstream ss(cmd);
   while (std::getline(ss, token, ' ')) tokens.emplace_back(std::move(token));
 
-  if (tokens.size() == 3 && tokens[0] == "utt") {
+  if (tokens.size() == 3 && (tokens[0] == k_CmdUtt || tokens[0] == k_CmdDbgUttDoubleSpend)) {
     const auto& receiver = tokens[1];
     if (receiver == app.myPid_) throw std::domain_error("utt explicit self payments are not supported!");
 
@@ -503,7 +526,9 @@ std::optional<UttPayment> createUttPayment(const std::string& cmd, const UTTClie
     int payment = std::atoi(tokens[2].c_str());
     if (payment <= 0) throw std::domain_error("utt payment amount must be positive!");
 
-    return UttPayment(receiver, payment);
+    const bool doubleSpend = tokens[0] == k_CmdDbgUttDoubleSpend;
+
+    return UttPayment(receiver, payment, doubleSpend);
   }
 
   return std::nullopt;
@@ -533,17 +558,21 @@ std::optional<Tx> createPublicTx(const std::string& cmd, const UTTClientApp& app
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void printHelp() {
   std::cout << "\nCommands:\n";
-  std::cout << "accounts\t\t\t-- print all available account names you can send public or utt funds to.\n";
-  std::cout << "balance\t\t\t\t-- print details about your account.\n";
-  std::cout << "ledger\t\t\t\t-- print all transactions that happened on the Blockchain.\n";
-  // std::cout << "deposit [amount]\t-- public money deposit to account\n";
-  // std::cout << "withdraw [amount]\t-- public money withdraw from account\n";
+  std::cout << k_CmdAccounts << "\t\t\t-- print all available account names you can send public or utt funds to.\n";
+  std::cout << k_CmdBalance << "\t\t\t\t-- print details about your account.\n";
+  std::cout << k_CmdLedger << "\t\t\t\t-- print all transactions that happened on the Blockchain.\n";
   std::cout << "transfer [account] [amount]\t-- transfer public money to another account.\n";
   std::cout << "utt [account] [amount]\t\t-- transfer money anonymously to another account.\n";
 
+  std::cout << "\nExtra commands:\n";
+  std::cout << "deposit [amount]\t-- deposit public money to current account\n";
+  std::cout << "withdraw [amount]\t-- withdraw public money from current account\n";
+
   std::cout << "\nDebug:\n";
-  std::cout
-      << "primary\t\t\t\t-- prints the last known primary replica. This value is updated when receiving responses.\n";
+  std::cout << k_CmdDbgUttDoubleSpend
+            << "\t\t\t-- each UTT transaction is sent twice. Only the first should succeed.\n";
+  std::cout << k_CmdDbgPrimary
+            << "\t\t\t\t-- prints the last known primary replica. This value is updated when receiving responses.\n";
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -630,6 +659,19 @@ void runUttPayment(const UttPayment& payment, UTTClientApp& app, WalletCommunica
       break;  // Stop payment if we encounter an error
     }
 
+    if (payment.dbgDoubleSpend_) {
+      std::cout << "WARNING: Trying to double-spend by sending again!\n";
+
+      auto reply = sendTxRequest(comm, tx);
+      if (reply.success) {
+        app.setLastKnownBlockId(reply.last_block_id);
+        std::cout << "ERROR!!! This tx should have not succeeded!\n";
+        break;  // Stop payment
+      } else {
+        std::cout << "Transaction failed: " << reply.err << '\n';
+      }
+    }
+
     if (isPayment) {
       std::cout << "\n>>> Payment completed.\n\n";
       break;  // Done
@@ -651,8 +693,12 @@ void sendPublicTx(const Tx& tx, UTTClientApp& app, WalletCommunicator& comm) {
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void dbgForceCheckpoint(UTTClientApp& app, WalletCommunicator& comm) {
-  for (int i = 0; i < 150; ++i) {
-    auto reply = sendTxRequest(comm, TxPublicDeposit(app.myPid_, 1));
+  const int numTx = 150;
+  std::cout << "Running " << numTx << " transactions to cause a checkpoint...\n";
+  const int depositValue = 1;
+  for (int i = 0; i < numTx; ++i) {
+    std::cout << (i + 1) << " : Public deposit " << app.fmtCurrency(depositValue) << " to '" << app.myPid_ << "'\n";
+    auto reply = sendTxRequest(comm, TxPublicDeposit(app.myPid_, depositValue));
     if (reply.success) {
       app.setLastKnownBlockId(reply.last_block_id);
     } else {
@@ -680,7 +726,18 @@ int main(int argc, char** argv) {
 
     WalletCommunicator comm(logger, params.clientId_, params.configFileName_);
 
-    std::cout << "Wallet initialization for '" << app.myPid_ << "' done.\n\n";
+    // Print the following tuple as a summary of the state and quit
+    // MyPid LastKnowBlockId PublicBalance UttBalance UttBudget
+    if (params.summarize_) {
+      syncState(app, comm);
+      const auto& myAccount = app.getMyAccount();
+      std::cout << app.myPid_ << ' ' << app.getLastKnownBlockId() << ' ' << myAccount.getPublicBalance() << ' '
+                << app.getUttBalance() << ' ' << app.getUttBudget() << '\n';
+      return 0;
+    }
+
+    std::cout << "Wallet initialization for '" << app.myPid_ << "' done.\n";
+    std::cout << "Using Payment Service #" << comm.getPaymentServiceId() << "\n\n";
 
     // Initial check of balance
     try {
@@ -698,20 +755,20 @@ int main(int argc, char** argv) {
       std::string cmd;
       std::getline(std::cin, cmd);
       try {
-        if (std::cin.eof() || cmd == "q") {
+        if (std::cin.eof() || cmd == k_CmdQuit) {
           std::cout << "Quitting...\n";
           return 0;
-        } else if (cmd == "h") {
+        } else if (cmd == k_CmdHelp) {
           printHelp();
-        } else if (cmd == "primary") {
+        } else if (cmd == k_CmdDbgPrimary) {
           std::cout << "Last known primary: " << comm.getLastKnownPrimary() << '\n';
-        } else if (cmd == "accounts") {
+        } else if (cmd == k_CmdAccounts) {
           printAccounts(app);
-        } else if (cmd == "balance") {
+        } else if (cmd == k_CmdBalance) {
           checkBalance(app, comm);
-        } else if (cmd == "ledger") {
+        } else if (cmd == k_CmdLedger) {
           checkLedger(app, comm);
-        } else if (cmd == "checkpoint") {
+        } else if (cmd == k_CmdDbgCheckpoint) {
           dbgForceCheckpoint(app, comm);
         } else if (auto uttPayment = createUttPayment(cmd, app)) {
           runUttPayment(*uttPayment, app, comm);
