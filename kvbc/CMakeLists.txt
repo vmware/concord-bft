@@ -36,7 +36,8 @@ add_library(kvbc  src/ClientImp.cpp
     src/resources-manager/IntervalMappingResourceManager.cpp
 
     src/blockchain_misc.cpp
-    src/kvbc_adapter/categorization/state_snapshot_adapter.cpp
+    src/kvbc_adapter/common/state_snapshot_adapter.cpp
+    src/kvbc_adapter/categorization/db_checkpoint_adapter.cpp
     src/kvbc_adapter/categorization/kv_blockchain_adapter.cpp
     src/kvbc_adapter/categorization/app_state_adapter.cpp
     src/kvbc_adapter/categorization/blocks_deleter_adapter.cpp
