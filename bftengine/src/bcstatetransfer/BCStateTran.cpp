@@ -563,6 +563,13 @@ void BCStateTran::createCheckpointOfCurrentState(uint64_t checkpointNumber) {
   ConcordAssert(running_);
   ConcordAssert(!isFetching());
   ConcordAssertGT(checkpointNumber, 0);
+  if (checkpointNumber == lastStoredCheckpointNumber) {
+    // We persist the lastStoredCheckpointNumber in a separate transaction from the actual
+    // update of the lastExecutedSeqNum. Since we have no mechanism to batch the 2 transactions
+    // together we need to handle this rare recovery situation.
+    LOG_WARN(logger_, "checkpointNumber == lastStoredCheckpointNumber" << KVLOG(checkpointNumber));
+    return;
+  }
   ConcordAssertGT(checkpointNumber, lastStoredCheckpointNumber);
 
   metrics_.create_checkpoint_++;
