@@ -40,25 +40,16 @@ namespace concord::client::clientservice {
 
 namespace eventservice {
 
-void EventServiceCallData::proceed() {
-  if (state_ == FINISH) {
-    delete this;
-    return;
-  }
-
+void EventServiceCallData::proceedImpl() {
   try {
     if (state_ == CREATE) {
       state_ = SUBSCRIBE;
-      // Put us (this) on the completion queue if the stream was cancelled
-      ctx_.AsyncNotifyWhenDone(this);
+      // Put us on the completion queue if the stream was cancelled
+      ctx_.AsyncNotifyWhenDone(&done);
       // Request to handle an incoming `Send` RPC -> will put an event on the cq if ready
-      service_->RequestSubscribe(&ctx_, &request_, &stream_, cq_, cq_, this);
+      service_->RequestSubscribe(&ctx_, &request_, &stream_, cq_, cq_, &proceed);
 
     } else if (state_ == SUBSCRIBE) {
-      if (ctx_.IsCancelled()) {
-        populateResult(grpc::Status(grpc::StatusCode::CANCELLED, "CANCELLED"));
-        return;
-      }
       state_ = READ_FROM_QUEUE;
       // We are handling an incoming `Subscribe` right now, let's make sure we handle the next one too
       new eventservice::EventServiceCallData(service_, cq_, client_, aggregator_);
@@ -66,13 +57,9 @@ void EventServiceCallData::proceed() {
       subscribeToConcordClient();
       // The subscription started and the queue will be filled.
       // Now, we need to transition to the next state by putting an event on the completion queue.
-      alarm_.Set(cq_, gpr_now(gpr_clock_type::GPR_CLOCK_REALTIME), this);
+      alarm_.Set(cq_, gpr_now(gpr_clock_type::GPR_CLOCK_REALTIME), &proceed);
 
     } else if (state_ == READ_FROM_QUEUE) {
-      if (ctx_.IsCancelled()) {
-        populateResult(grpc::Status(grpc::StatusCode::CANCELLED, "CANCELLED"));
-        return;
-      }
       // Read from the update queue and write results to stream, note:
       // * Writing will put a signal on the completion queue and we have to wait for it before we continue writing
       // * state_ can change inside readFromQueue based on the update
@@ -81,7 +68,7 @@ void EventServiceCallData::proceed() {
     } else if (state_ == PROCESS_RESULT) {
       state_ = FINISH;
       // Once the stream is done, an event will be put on the cq for cleanup
-      stream_.Finish(return_status_, this);
+      stream_.Finish(return_status_, &done);
     } else {
       // Unreachable - all states are handled above
       ConcordAssert(false);
@@ -90,17 +77,16 @@ void EventServiceCallData::proceed() {
     LOG_ERROR(logger_, "Unexpected exception: " << e.what());
     state_ = FINISH;
     auto status = grpc::Status(grpc::StatusCode::INTERNAL, "Unexpected exception occured");
-    stream_.Finish(status, this);
+    stream_.Finish(status, &done);
   }
 }
 
 void EventServiceCallData::populateResult(grpc::Status status) {
   // Push an event onto the completion queue so that PROCESS_CALLBACK_RESULT is handled
-  client_->unsubscribe();
   state_ = PROCESS_RESULT;
   return_status_ = std::move(status);
   ConcordAssertNE(cq_, nullptr);
-  alarm_.Set(cq_, gpr_now(gpr_clock_type::GPR_CLOCK_REALTIME), this);
+  alarm_.Set(cq_, gpr_now(gpr_clock_type::GPR_CLOCK_REALTIME), &proceed);
 }
 
 void EventServiceCallData::subscribeToConcordClient() {
@@ -129,7 +115,7 @@ void EventServiceCallData::readFromQueueAndWrite() {
   std::unique_ptr<EventVariant> update;
   try {
     // We need to check if the client cancelled the subscription. Therefore, we cannot block via pop().
-    update = queue_->popTill(1ms);
+    update = queue_->popTill(10ms);
   } catch (const UpdateNotFound& e) {
     status = grpc::Status(grpc::StatusCode::NOT_FOUND, e.what());
   } catch (const OutOfRangeSubscriptionRequest& e) {
@@ -143,12 +129,16 @@ void EventServiceCallData::readFromQueueAndWrite() {
   }
 
   if (not status.ok()) {
-    this->populateResult(status);
+    populateResult(status);
     return;
   }
 
   // If there is no update available then let the current gRPC server thread go back to the completion queue
-  if (not update) return;
+  if (not update) {
+    // Register another event that gets triggered immediately to check the queue again
+    alarm_.Set(cq_, gpr_now(gpr_clock_type::GPR_CLOCK_REALTIME), &proceed);
+    return;
+  }
 
   std::chrono::steady_clock::time_point start_processing = std::chrono::steady_clock::now(), end_processing;
 
@@ -166,12 +156,12 @@ void EventServiceCallData::readFromQueueAndWrite() {
 
     *response.mutable_event_group() = proto_event_group;
     std::chrono::steady_clock::time_point start_write = std::chrono::steady_clock::now();
-    this->stream_.Write(response, this);
-    this->metrics_.total_num_writes++;
+    stream_.Write(response, &proceed);
+    metrics_.total_num_writes++;
     // update write duration metric
     end_processing = std::chrono::steady_clock::now();
     auto duration_write = std::chrono::duration_cast<std::chrono::microseconds>(end_processing - start_write);
-    this->metrics_.write_dur.Get().Set(duration_write.count());
+    metrics_.write_dur.Get().Set(duration_write.count());
   } else if (std::holds_alternative<cc::Update>(*update)) {
     auto& legacy_event_in = std::get<cc::Update>(*update);
     Events proto_events;
@@ -187,19 +177,19 @@ void EventServiceCallData::readFromQueueAndWrite() {
 
     *response.mutable_events() = proto_events;
     std::chrono::steady_clock::time_point start_write = std::chrono::steady_clock::now();
-    this->stream_.Write(response, this);
-    this->metrics_.total_num_writes++;
+    stream_.Write(response, &proceed);
+    metrics_.total_num_writes++;
     // update write duration metric
     end_processing = std::chrono::steady_clock::now();
     auto duration_write = std::chrono::duration_cast<std::chrono::microseconds>(end_processing - start_write);
-    this->metrics_.write_dur.Get().Set(duration_write.count());
+    metrics_.write_dur.Get().Set(duration_write.count());
   } else {
     LOG_ERROR(logger_, "Got unexpected update type from TRC. This should never happen!");
     ConcordAssert(false);
   }
   // update processing duration metric
   auto update_processing_dur = std::chrono::duration_cast<std::chrono::microseconds>(end_processing - start_processing);
-  this->metrics_.update_processing_dur.Get().Set(update_processing_dur.count());
+  metrics_.update_processing_dur.Get().Set(update_processing_dur.count());
 
   // update metrics aggregator every second
   auto metrics_aggregator_dur =
@@ -207,6 +197,16 @@ void EventServiceCallData::readFromQueueAndWrite() {
   if (metrics_aggregator_dur >= std::chrono::seconds(1)) {
     metrics_.updateAggregator();
     start_aggregator_timer = std::chrono::steady_clock::now();
+  }
+}
+
+void EventServiceCallData::doneImpl() {
+  // if (ctx_.IsCancelled()) the client decided to stop the stream
+  // if (state_ == FINISH) the server decided to stop the stream
+  bool expect = false;
+  if (delete_me_.compare_exchange_strong(expect, true)) {
+    client_->unsubscribe();
+    delete this;
   }
 }
 

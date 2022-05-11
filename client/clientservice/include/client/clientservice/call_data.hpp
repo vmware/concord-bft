@@ -11,11 +11,13 @@
 
 #pragma once
 
+#include <functional>
+
 namespace concord::client::clientservice {
 
 class CallData {
  public:
-  virtual void proceed() = 0;
+  using Tag_t = std::function<void()>;
 };
 
 }  // namespace concord::client::clientservice

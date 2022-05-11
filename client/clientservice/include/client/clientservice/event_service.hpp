@@ -67,17 +67,24 @@ class EventServiceCallData final : public clientservice::CallData {
         aggregator_(aggregator),
         queue_(std::make_shared<concord::client::concordclient::BasicEventUpdateQueue>()) {
     metrics_.setAggregator(aggregator_);
-    proceed();
+    proceed = [&]() { proceedImpl(); };
+    done = [&]() { doneImpl(); };
+    proceedImpl();
   }
 
   // Walk through the state machine
-  void proceed() override;
+  void proceedImpl();
   // Invoked after subscription stream is done
   void populateResult(grpc::Status);
   // Forward request to concord client
   void subscribeToConcordClient();
   // Read from the queue and write to the gRPC stream
   void readFromQueueAndWrite();
+  // The gRPC server informs us when we should cancel
+  void doneImpl();
+
+  CallData::Tag_t proceed;
+  CallData::Tag_t done;
 
  private:
   logging::Logger logger_;
@@ -100,6 +107,8 @@ class EventServiceCallData final : public clientservice::CallData {
   EventServiceMetrics metrics_;
 
   std::shared_ptr<concord::client::concordclient::EventUpdateQueue> queue_;
+
+  std::atomic<bool> delete_me_{false};
 };
 
 }  // namespace eventservice

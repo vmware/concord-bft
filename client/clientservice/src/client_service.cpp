@@ -104,7 +104,8 @@ void ClientService::handleRpcs(unsigned thread_idx) {
     if (not ok) {
       continue;
     }
-    static_cast<CallData*>(tag)->proceed();
+    auto function_ptr = static_cast<CallData::Tag_t*>(tag);
+    if (*function_ptr) (*function_ptr)();
   }
 }
 

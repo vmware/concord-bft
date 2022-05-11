@@ -22,7 +22,7 @@ namespace concord::client::clientservice {
 
 namespace requestservice {
 
-void RequestServiceCallData::proceed() {
+void RequestServiceCallData::proceedImpl() {
   if (state_ == FINISH) {
     delete this;
     return;
@@ -32,7 +32,7 @@ void RequestServiceCallData::proceed() {
     if (state_ == CREATE) {
       state_ = SEND_TO_CONCORDCLIENT;
       // Request to handle an incoming `Send` RPC -> will put an event on the cq if ready
-      service_->RequestSend(&ctx_, &request_, &responder_, cq_, cq_, this);
+      service_->RequestSend(&ctx_, &request_, &responder_, cq_, cq_, &proceed);
     } else if (state_ == SEND_TO_CONCORDCLIENT) {
       // We are handling an incoming `Send` right now, let's make sure we handle the next one too
       new requestservice::RequestServiceCallData(service_, cq_, client_);
@@ -43,9 +43,9 @@ void RequestServiceCallData::proceed() {
       state_ = FINISH;
       // Once the response is sent, an event will be put on the cq for cleanup
       if (return_status_.ok()) {
-        responder_.Finish(response_, return_status_, this);
+        responder_.Finish(response_, return_status_, &proceed);
       } else {
-        responder_.FinishWithError(return_status_, this);
+        responder_.FinishWithError(return_status_, &proceed);
       }
     } else {
       // Unreachable - all states are handled above
@@ -55,7 +55,7 @@ void RequestServiceCallData::proceed() {
     LOG_ERROR(logger_, "Unexpected exception (cid=" << request_.correlation_id() << "): " << e.what());
     state_ = FINISH;
     auto status = grpc::Status(grpc::StatusCode::INTERNAL, "Unexpected exception occured");
-    responder_.FinishWithError(status, this);
+    responder_.FinishWithError(status, &proceed);
   }
 }
 
@@ -64,7 +64,7 @@ void RequestServiceCallData::populateResult(grpc::Status status) {
   state_ = PROCESS_CALLBACK_RESULT;
   return_status_ = std::move(status);
   ConcordAssertNE(cq_, nullptr);
-  callback_alarm_.Set(cq_, gpr_now(gpr_clock_type::GPR_CLOCK_REALTIME), this);
+  callback_alarm_.Set(cq_, gpr_now(gpr_clock_type::GPR_CLOCK_REALTIME), &proceed);
 }
 
 void RequestServiceCallData::sendToConcordClient() {

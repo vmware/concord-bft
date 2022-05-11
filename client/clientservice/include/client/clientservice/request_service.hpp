@@ -39,15 +39,18 @@ class RequestServiceCallData final : public clientservice::CallData {
         responder_(&ctx_),
         state_(CREATE),
         client_(client) {
-    proceed();
+    proceed = [&]() { proceedImpl(); };
+    proceedImpl();
   }
 
   // Walk through the state machine
-  void proceed() override;
+  void proceedImpl();
   // Callback invoked by concord client after request processing is done
   void populateResult(grpc::Status);
   // Forward request to concord client
   void sendToConcordClient();
+
+  CallData::Tag_t proceed;
 
  private:
   logging::Logger logger_;
