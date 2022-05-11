@@ -16,6 +16,7 @@
 
 #include "Logger.hpp"
 #include "client/concordclient/concord_client.hpp"
+#include "client/clientservice/call_data.hpp"
 
 namespace concord::client::clientservice {
 
@@ -27,7 +28,7 @@ namespace requestservice {
 // SEND_TO_CONCORDCLIENT - forward request to concord client
 // PROCESS_CALLBACK_RESULT - respond to caller
 // FINISH - clean-up
-class RequestServiceCallData {
+class RequestServiceCallData final : public clientservice::CallData {
  public:
   RequestServiceCallData(vmware::concord::client::request::v1::RequestService::AsyncService* service,
                          grpc::ServerCompletionQueue* cq,
@@ -42,7 +43,7 @@ class RequestServiceCallData {
   }
 
   // Walk through the state machine
-  void proceed();
+  void proceed() override;
   // Callback invoked by concord client after request processing is done
   void populateResult(grpc::Status);
   // Forward request to concord client

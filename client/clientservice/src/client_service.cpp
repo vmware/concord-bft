@@ -14,6 +14,8 @@
 #include <chrono>
 #include <grpcpp/grpcpp.h>
 
+#include "client/clientservice/call_data.hpp"
+
 using namespace std::literals::chrono_literals;
 
 namespace concord::client::clientservice {
@@ -101,7 +103,7 @@ void ClientService::handleRpcs(unsigned thread_idx) {
     if (not ok) {
       continue;
     }
-    static_cast<requestservice::RequestServiceCallData*>(tag)->proceed();
+    static_cast<CallData*>(tag)->proceed();
   }
 }
 
