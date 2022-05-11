@@ -50,6 +50,7 @@ const std::string k_CmdUtt = "utt";
 const std::string k_CmdDbgUttDoubleSpend = "utt-double-spend";
 const std::string k_CmdDbgPrimary = "primary";
 const std::string k_CmdDbgCheckpoint = "checkpoint";
+const std::string k_CmdRandom = "random";
 }  // namespace
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -220,7 +221,7 @@ class WalletCommunicator : public IReceiver {
 struct ClientAppParams {
   uint16_t clientId_ = 0;
   std::string configFileName_;
-  bool summarize_ = false;
+  std::string summarizeFileName_;
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -324,6 +325,10 @@ struct UttPayment {
   size_t amount_;
   bool dbgDoubleSpend_;
 };
+std::ostream& operator<<(std::ostream& os, const UttPayment& payment) {
+  os << "utt " << payment.receiver_ << ' ' << payment.amount_;
+  return os;
+}
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 ClientAppParams setupParams(int argc, char** argv) {
@@ -331,7 +336,7 @@ ClientAppParams setupParams(int argc, char** argv) {
 
   char argTempBuffer[PATH_MAX + 10];
   int o = 0;
-  while ((o = getopt(argc, argv, "i:n:s")) != EOF) {
+  while ((o = getopt(argc, argv, "i:n:s:")) != EOF) {
     switch (o) {
       case 'i': {
         strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
@@ -348,7 +353,9 @@ ClientAppParams setupParams(int argc, char** argv) {
       } break;
 
       case 's': {
-        params.summarize_ = true;
+        strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
+        argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
+        params.summarizeFileName_ = argTempBuffer;
       } break;
 
       default:
@@ -511,12 +518,7 @@ void syncState(UTTClientApp& app, WalletCommunicator& comm) {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-std::optional<UttPayment> createUttPayment(const std::string& cmd, const UTTClientApp& app) {
-  std::vector<std::string> tokens;
-  std::string token;
-  std::stringstream ss(cmd);
-  while (std::getline(ss, token, ' ')) tokens.emplace_back(std::move(token));
-
+std::optional<UttPayment> createUttPayment(const std::vector<std::string>& tokens, const UTTClientApp& app) {
   if (tokens.size() == 3 && (tokens[0] == k_CmdUtt || tokens[0] == k_CmdDbgUttDoubleSpend)) {
     const auto& receiver = tokens[1];
     if (receiver == app.myPid_) throw std::domain_error("utt explicit self payments are not supported!");
@@ -535,13 +537,7 @@ std::optional<UttPayment> createUttPayment(const std::string& cmd, const UTTClie
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-std::optional<Tx> createPublicTx(const std::string& cmd, const UTTClientApp& app) {
-  std::stringstream ss(cmd);
-  std::string token;
-  std::vector<std::string> tokens;
-
-  while (std::getline(ss, token, ' ')) tokens.emplace_back(std::move(token));
-
+std::optional<Tx> createPublicTx(const std::vector<std::string>& tokens, const UTTClientApp& app) {
   if (tokens.size() == 2) {
     if (tokens[0] == "deposit")
       return TxPublicDeposit(app.myPid_, std::atoi(tokens[1].c_str()));
@@ -573,6 +569,8 @@ void printHelp() {
             << "\t\t\t-- each UTT transaction is sent twice. Only the first should succeed.\n";
   std::cout << k_CmdDbgPrimary
             << "\t\t\t\t-- prints the last known primary replica. This value is updated when receiving responses.\n";
+  std::cout << k_CmdRandom << " [count]"
+            << "\t\t\t\t-- do [count] random money transfers including public and utt transactions.\n";
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -709,6 +707,52 @@ void dbgForceCheckpoint(UTTClientApp& app, WalletCommunicator& comm) {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+void dbgRandomTransfer(UTTClientApp& app, WalletCommunicator& comm, int count, uint32_t seed) {
+  ConcordAssert(count > 0);
+  const auto& myAccount = app.getMyAccount();
+  const size_t numOtherPids = app.otherPids_.size();
+  ConcordAssert(numOtherPids > 0);
+
+  std::mt19937 gen;
+  gen.seed(seed);
+  std::cout << "random " << count << " with seed " << seed << '\n';
+
+  for (int i = 0; i < count; ++i) {
+    // Pick random wallet to transfer to
+    auto randWalletIt = app.otherPids_.begin();
+    std::advance(randWalletIt, gen() % numOtherPids);
+    ConcordAssert(randWalletIt != app.otherPids_.end());
+
+    const bool isPublic = gen() % 2 == 0;
+    if (isPublic) {
+      // Note that if our balance is 0 we will create and impossible transaction which is OK, it should fail.
+      const int maxBalance = std::max<int>(myAccount.getPublicBalance(), 1);
+      const int amount = 1 + gen() % maxBalance;  // in [1 .. maxBalance]
+      std::vector<std::string> tokens = {"transfer", *randWalletIt, std::to_string(amount)};
+      auto tx = createPublicTx(tokens, app);
+      ConcordAssert(tx.has_value());
+      std::cout << "Random tx " << (i + 1) << ": " << *tx << '\n';
+      sendPublicTx(*tx, app, comm);
+    } else {  // Random Utt transfer
+      // Note that we may create an impossible transaction due to balance or budget
+      // constraints which is OK, it should fail.
+      const int maxBalance = std::max<int>(app.getUttBalance(), 1);
+      const int amount = 1 + gen() % maxBalance;  // in [1 .. maxBalance]
+      std::vector<std::string> tokens = {"utt", *randWalletIt, std::to_string(amount)};
+      auto uttPayment = createUttPayment(tokens, app);
+      ConcordAssert(uttPayment.has_value());
+      std::cout << "Random tx " << (i + 1) << ": " << *uttPayment << '\n';
+      try {
+        runUttPayment(*uttPayment, app, comm);
+      } catch (const std::domain_error& e) {
+        std::cout << "Validation error: " << e.what() << '\n';
+        continue;
+      }
+    }
+  }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 int main(int argc, char** argv) {
   logging::initLogger("config/logging.properties");
 
@@ -727,12 +771,17 @@ int main(int argc, char** argv) {
     WalletCommunicator comm(logger, params.clientId_, params.configFileName_);
 
     // Print the following tuple as a summary of the state and quit
-    // MyPid LastKnowBlockId PublicBalance UttBalance UttBudget
-    if (params.summarize_) {
+    // MyPid,LastKnowBlockId,PublicBalance,UttBalance,UttBudget
+    if (!params.summarizeFileName_.empty()) {
+      std::ofstream ofs(params.summarizeFileName_);
+      if (!ofs.is_open()) throw std::runtime_error("Failed to open file " + params.summarizeFileName_);
+
       syncState(app, comm);
+
       const auto& myAccount = app.getMyAccount();
-      std::cout << app.myPid_ << ' ' << app.getLastKnownBlockId() << ' ' << myAccount.getPublicBalance() << ' '
-                << app.getUttBalance() << ' ' << app.getUttBudget() << '\n';
+      // Format: WalletPid LastKnownBlockId PublicBalance UttBalance UttBudget";
+      ofs << app.myPid_ << ' ' << app.getLastKnownBlockId() << ' ' << myAccount.getPublicBalance() << ' '
+          << app.getUttBalance() << ' ' << app.getUttBudget();
       return 0;
     }
 
@@ -752,30 +801,51 @@ int main(int argc, char** argv) {
     while (true) {
       std::cout << "\nEnter command (type 'h' for commands, 'q' to exit):\n";
       std::cout << app.myPid_ << "> ";
+
       std::string cmd;
       std::getline(std::cin, cmd);
+
+      if (std::cin.eof()) {
+        std::cout << "Quitting...\n";
+        return 0;
+      }
+
+      // Tokenize command
+      std::vector<std::string> tokens;
+      {
+        std::stringstream ss(cmd);
+        std::string t;
+        while (std::getline(ss, t, ' ')) tokens.emplace_back(std::move(t));
+      }
+      if (tokens.empty()) continue;
+
       try {
-        if (std::cin.eof() || cmd == k_CmdQuit) {
+        if (tokens[0] == k_CmdQuit) {
           std::cout << "Quitting...\n";
           return 0;
-        } else if (cmd == k_CmdHelp) {
+        } else if (tokens[0] == k_CmdHelp) {
           printHelp();
-        } else if (cmd == k_CmdDbgPrimary) {
+        } else if (tokens[0] == k_CmdDbgPrimary) {
           std::cout << "Last known primary: " << comm.getLastKnownPrimary() << '\n';
-        } else if (cmd == k_CmdAccounts) {
+        } else if (tokens[0] == k_CmdAccounts) {
           printAccounts(app);
-        } else if (cmd == k_CmdBalance) {
+        } else if (tokens[0] == k_CmdBalance) {
           checkBalance(app, comm);
-        } else if (cmd == k_CmdLedger) {
+        } else if (tokens[0] == k_CmdLedger) {
           checkLedger(app, comm);
-        } else if (cmd == k_CmdDbgCheckpoint) {
+        } else if (tokens[0] == k_CmdDbgCheckpoint) {
           dbgForceCheckpoint(app, comm);
-        } else if (auto uttPayment = createUttPayment(cmd, app)) {
+        } else if (tokens[0] == k_CmdRandom) {
+          if (tokens.size() != 2) throw std::domain_error("random requires one count argument");
+          const int count = std::atoi(tokens[1].c_str());
+          if (count <= 0) throw std::domain_error("random requires a positive count argument");
+          dbgRandomTransfer(app, comm, count, params.clientId_);
+        } else if (auto uttPayment = createUttPayment(tokens, app)) {
           runUttPayment(*uttPayment, app, comm);
           checkBalance(app, comm);
-        } else if (auto tx = createPublicTx(cmd, app)) {
+        } else if (auto tx = createPublicTx(tokens, app)) {
           sendPublicTx(*tx, app, comm);
-        } else if (!cmd.empty()) {
+        } else if (!tokens.empty()) {
           std::cout << "Unknown command '" << cmd << "'\n";
         }
       } catch (const BftServiceTimeoutException& e) {
