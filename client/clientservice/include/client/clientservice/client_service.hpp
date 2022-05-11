@@ -28,7 +28,7 @@ class ClientService {
                 std::shared_ptr<concordMetrics::Aggregator> aggregator)
       : logger_(logging::getLogger("concord.client.clientservice")),
         client_(std::move(client)),
-        event_service_(std::make_unique<EventServiceImpl>(client_, aggregator)),
+        aggregator_(aggregator),
         state_snapshot_service_(std::make_unique<StateSnapshotServiceImpl>(client_)){};
 
   void start(const std::string& addr, unsigned num_async_threads, uint64_t max_receive_msg_size);
@@ -54,12 +54,13 @@ class ClientService {
 
   logging::Logger logger_;
   std::shared_ptr<concord::client::concordclient::ConcordClient> client_;
+  std::shared_ptr<concordMetrics::Aggregator> aggregator_;
 
   // Synchronous services
-  std::unique_ptr<EventServiceImpl> event_service_;
   std::unique_ptr<StateSnapshotServiceImpl> state_snapshot_service_;
 
   // Asynchronous services
+  vmware::concord::client::event::v1::EventService::AsyncService event_service_;
   vmware::concord::client::request::v1::RequestService::AsyncService request_service_;
 
   std::vector<std::unique_ptr<grpc::ServerCompletionQueue>> cqs_;

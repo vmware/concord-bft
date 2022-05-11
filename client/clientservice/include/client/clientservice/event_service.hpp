@@ -9,14 +9,19 @@
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
+#include <grpcpp/alarm.h>
 #include <grpcpp/grpcpp.h>
 #include <event.grpc.pb.h>
 #include <memory>
+#include <thread>
 
 #include "Logger.hpp"
 #include "client/concordclient/concord_client.hpp"
+#include "client/clientservice/call_data.hpp"
 
 namespace concord::client::clientservice {
+
+namespace eventservice {
 
 // EventService metrics
 struct EventServiceMetrics {
@@ -47,21 +52,55 @@ struct EventServiceMetrics {
   concordMetrics::GaugeHandle write_dur;
 };
 
-class EventServiceImpl final : public vmware::concord::client::event::v1::EventService::Service {
+class EventServiceCallData final : public clientservice::CallData {
  public:
-  EventServiceImpl(std::shared_ptr<concord::client::concordclient::ConcordClient> client,
-                   std::shared_ptr<concordMetrics::Aggregator> aggregator)
-      : logger_(logging::getLogger("concord.client.clientservice.event")), client_(client), metrics_() {
-    metrics_.setAggregator(aggregator);
-  };
-  grpc::Status Subscribe(grpc::ServerContext* context,
-                         const vmware::concord::client::event::v1::SubscribeRequest* request,
-                         grpc::ServerWriter<vmware::concord::client::event::v1::SubscribeResponse>* stream) override;
+  EventServiceCallData(vmware::concord::client::event::v1::EventService::AsyncService* service,
+                       grpc::ServerCompletionQueue* cq,
+                       std::shared_ptr<concord::client::concordclient::ConcordClient> client,
+                       std::shared_ptr<concordMetrics::Aggregator> aggregator)
+      : logger_(logging::getLogger("concord.client.clientservice.eventservice")),
+        service_(service),
+        cq_(cq),
+        stream_(&ctx_),
+        state_(CREATE),
+        client_(client),
+        aggregator_(aggregator),
+        queue_(std::make_shared<concord::client::concordclient::BasicEventUpdateQueue>()) {
+    metrics_.setAggregator(aggregator_);
+    proceed();
+  }
+
+  // Walk through the state machine
+  void proceed() override;
+  // Invoked after subscription stream is done
+  void populateResult(grpc::Status);
+  // Forward request to concord client
+  void subscribeToConcordClient();
+  // Read from the queue and write to the gRPC stream
+  void readFromQueueAndWrite();
 
  private:
   logging::Logger logger_;
+
+  vmware::concord::client::event::v1::EventService::AsyncService* service_;
+  grpc::ServerCompletionQueue* cq_;
+  grpc::ServerContext ctx_;
+  grpc::ServerAsyncWriter<vmware::concord::client::event::v1::SubscribeResponse> stream_;
+
+  grpc::Alarm alarm_;
+  grpc::Status return_status_;
+
+  vmware::concord::client::event::v1::SubscribeRequest request_;
+
+  enum RpcState { CREATE, SUBSCRIBE, READ_FROM_QUEUE, PROCESS_RESULT, FINISH };
+  RpcState state_;
+
   std::shared_ptr<concord::client::concordclient::ConcordClient> client_;
+  std::shared_ptr<concordMetrics::Aggregator> aggregator_;
   EventServiceMetrics metrics_;
+
+  std::shared_ptr<concord::client::concordclient::EventUpdateQueue> queue_;
 };
 
+}  // namespace eventservice
 }  // namespace concord::client::clientservice

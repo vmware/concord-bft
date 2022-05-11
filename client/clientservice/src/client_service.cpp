@@ -28,10 +28,10 @@ void ClientService::start(const std::string& addr, unsigned num_async_threads, u
   builder.SetMaxReceiveMessageSize(max_receive_msg_size);
 
   // Register synchronous services
-  builder.RegisterService(event_service_.get());
   builder.RegisterService(state_snapshot_service_.get());
 
   // Register asynchronous services
+  builder.RegisterService(&event_service_);
   builder.RegisterService(&request_service_);
 
   for (unsigned i = 0; i < num_async_threads; ++i) {
@@ -81,6 +81,7 @@ void ClientService::shutdown() {
 void ClientService::handleRpcs(unsigned thread_idx) {
   // Note: Memory is freed in `proceed`
   new requestservice::RequestServiceCallData(&request_service_, cqs_[thread_idx].get(), client_);
+  new eventservice::EventServiceCallData(&event_service_, cqs_[thread_idx].get(), client_, aggregator_);
 
   void* tag;  // uniquely identifies a request.
   bool ok = false;
