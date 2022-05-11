@@ -44,6 +44,8 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
                                             uint64_t seq_num,
                                             std::string correlation_id,
                                             const std::string &span_context,
+                                            const bftEngine::RequestType request_type,
+                                            const std::string &subscriptionId,
                                             const bftEngine::RequestCallBack &callback) {
   if (callback && timeout_ms.count() == 0) {
     callback(bftEngine::SendResult{static_cast<uint32_t>(OperationResult::INVALID_REQUEST)});
@@ -56,6 +58,7 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
 
   while (!clients_.empty() && serving_candidates != 0) {
     auto client = clients_.front();
+    external_client::ConcordClient::createConcordClientRequest(request, request_type, subscriptionId);
     client_id = client->getClientId();
     if (is_overloaded_) {
       is_overloaded_ = false;
@@ -224,6 +227,8 @@ SubmitResult ConcordClientPool::SendRequest(const bft::client::WriteConfig &conf
                      config.request.sequence_number,
                      config.request.correlation_id,
                      config.request.span_context,
+                     config.request.request_type,
+                     config.request.client_service_id,
                      callback);
 }
 
@@ -245,6 +250,8 @@ SubmitResult ConcordClientPool::SendRequest(const bft::client::ReadConfig &confi
                      config.request.sequence_number,
                      config.request.correlation_id,
                      config.request.span_context,
+                     config.request.request_type,
+                     config.request.client_service_id,
                      callback);
 }
 
@@ -487,10 +494,13 @@ void SingleRequestProcessingJob::execute() {
   OperationResult operation_result = processing_client_->getRequestExecutionResult();
   reply_size = res.matched_data.size();
   if (callback_) {
-    if (operation_result == OperationResult::SUCCESS)
+    if (operation_result == OperationResult::SUCCESS) {
+      external_client::ConcordClient::createConcordClientResponse(res.matched_data);
+      reply_size = res.matched_data.size();
       callback_(res);
-    else
+    } else {
       callback_(static_cast<uint32_t>(operation_result));
+    }
   }
   external_client::ConcordClient::PendingReplies replies;
   replies.push_back(ClientReply{static_cast<uint32_t>(request_.size()),

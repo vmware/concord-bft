@@ -184,7 +184,7 @@ std::pair<int32_t, ConcordClient::PendingReplies> ConcordClient::SendPendingRequ
   try {
     LOG_INFO(logger_, "Batch processing started" << KVLOG(client_id_, batch_cid));
     auto received_replies_map = new_client_->sendBatch(request_queue, batch_cid);
-    for (const auto& received_reply_entry : received_replies_map) {
+    for (auto& received_reply_entry : received_replies_map) {
       const auto received_reply_seq_num = received_reply_entry.first;
       const auto& pending_seq_num_to_cid_entry = seq_num_to_cid.find(received_reply_seq_num);
       if (pending_seq_num_to_cid_entry == seq_num_to_cid.end()) {
@@ -195,6 +195,7 @@ std::pair<int32_t, ConcordClient::PendingReplies> ConcordClient::SendPendingRequ
       }
       auto cid = pending_seq_num_to_cid_entry->second;
       cid_response_map_[cid] = std::chrono::steady_clock::now();
+      createConcordClientResponse(received_reply_entry.second.matched_data);
       auto data_size = received_reply_entry.second.matched_data.size();
       for (auto& pending_reply : pending_replies_) {
         if (pending_reply.cid != cid) continue;
@@ -391,6 +392,24 @@ void ConcordClient::setDelayFlagForTest(bool delay) { ConcordClient::delayed_beh
 OperationResult ConcordClient::getRequestExecutionResult() { return clientRequestExecutionResult_; }
 
 std::string ConcordClient::messageSignature(bft::client::Msg& message) { return new_client_->signMessage(message); }
+
+void ConcordClient::createConcordClientRequest(bft::client::Msg& request,
+                                               bftEngine::RequestType typed_request,
+                                               const std::string& subscriptionId) {
+  concord::client::request::messages::ConcordClientRequest concord_request;
+  concord_request.type = static_cast<decltype(concord_request.type)>(typed_request);
+  concord_request.client_id = static_cast<decltype(concord_request.client_id)>(subscriptionId);
+  concord_request.application_request = std::vector<uint8_t>(request.begin(), request.end());
+  request.clear();
+  concord::client::request::messages::serialize(request, concord_request);
+}
+
+void ConcordClient::createConcordClientResponse(bft::client::Msg& response) {
+  concord::client::request::messages::ConcordClientResponse concord_response;
+  concord::client::request::messages::deserialize(response, concord_response);
+  response.clear();
+  response.assign(concord_response.application_response.begin(), concord_response.application_response.end());
+}
 
 void ConcordClient::stopClientComm() { new_client_->stop(); }
 

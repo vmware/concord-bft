@@ -1,0 +1,15 @@
+# ConcordClientRequest is used to send application request along
+# with clientservice specific information to the blockchain network.
+
+Msg ConcordClientRequest 1 {
+  uint32 type
+  string client_id
+  bytes application_request
+}
+
+Msg ConcordClientResponse 2 {
+  # Required application response which is returned by the execution engine.
+  uint32 type
+  bytes application_response
+}
+
