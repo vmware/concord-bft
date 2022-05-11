@@ -2098,7 +2098,7 @@ void ReplicaImp::onCommitCombinedSigSucceeded(SeqNum seqNumber,
 
   auto span = concordUtils::startChildSpanFromContext(
       commitFull->spanContext<std::remove_pointer<decltype(commitFull)>::type>(),
-      "bft_handle_combined_sig_succeeded_message");
+      "bft_handle_commit_combined_sig_succeeded_message");
   updateCommitMetrics(CommitPath::SLOW);
   startExecution(seqNumber, span, askForMissingInfoAboutCommittedItems);
 }
@@ -2146,7 +2146,7 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view,
 
   auto span = concordUtils::startChildSpanFromContext(
       commitFull->spanContext<std::remove_pointer<decltype(commitFull)>::type>(),
-      "bft_handle_verify_combined_sig_message");
+      "bft_handle_commit_verify_combined_sig_result");
   bool askForMissingInfoAboutCommittedItems =
       (seqNumber > lastExecutedSeqNum + config_.getconcurrencyLevel() + activeExecutions_);
   updateCommitMetrics(CommitPath::SLOW);
