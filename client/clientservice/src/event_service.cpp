@@ -140,6 +140,15 @@ void EventServiceCallData::readFromQueueAndWrite() {
     return;
   }
 
+  // If we have another update waiting in the queue and our batch isn't too big then batch this write
+  grpc::WriteOptions write_options{};
+  if (queue_->size() > 0 and num_pending_writes_ < 10) {
+    write_options = grpc::WriteOptions().set_buffer_hint();
+    num_pending_writes_++;
+  } else {
+    num_pending_writes_ = 0;
+  }
+
   std::chrono::steady_clock::time_point start_processing = std::chrono::steady_clock::now(), end_processing;
 
   SubscribeResponse response;
@@ -156,7 +165,7 @@ void EventServiceCallData::readFromQueueAndWrite() {
 
     *response.mutable_event_group() = proto_event_group;
     std::chrono::steady_clock::time_point start_write = std::chrono::steady_clock::now();
-    stream_.Write(response, &proceed);
+    stream_.Write(response, write_options, &proceed);
     metrics_.total_num_writes++;
     // update write duration metric
     end_processing = std::chrono::steady_clock::now();
