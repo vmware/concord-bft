@@ -14,6 +14,9 @@
 
 #include "client/clientservice/request_service.hpp"
 #include "client/concordclient/concord_client.hpp"
+#include "client/thin-replica-client/trace_contexts.hpp"
+
+using namespace client::thin_replica_client;
 
 namespace concord::client::clientservice {
 
@@ -172,10 +175,13 @@ void RequestServiceCallData::sendToConcordClient() {
     this->populateResult(grpc::Status::OK);
   };
 
+  auto tracer = opentracing::Tracer::Global();
+  auto parent_span = TraceContexts::ExtractSpanFromMetadata(*tracer, ctx_);
+
   if (request_.read_only()) {
     bft::client::ReadConfig config;
     config.request = req_config;
-    auto span = opentracing::Tracer::Global()->StartSpan("send_ro", {});
+    auto span = opentracing::Tracer::Global()->StartSpan("send_ro", {opentracing::ChildOf(parent_span.get())});
     std::ostringstream carrier;
     opentracing::Tracer::Global()->Inject(span->context(), carrier);
     config.request.span_context = carrier.str();
@@ -183,7 +189,7 @@ void RequestServiceCallData::sendToConcordClient() {
   } else {
     bft::client::WriteConfig config;
     config.request = req_config;
-    auto span = opentracing::Tracer::Global()->StartSpan("send", {});
+    auto span = opentracing::Tracer::Global()->StartSpan("send", {opentracing::ChildOf(parent_span.get())});
     std::ostringstream carrier;
     opentracing::Tracer::Global()->Inject(span->context(), carrier);
     config.request.span_context = carrier.str();
