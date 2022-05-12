@@ -17,7 +17,6 @@
 
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
 #include "v4blockchain/v4_blockchain.h"
-#include "kvbc_adapter/replica_adapter_auxilliary_types.hpp"
 
 namespace concord::kvbc::adapter::v4blockchain {
 

@@ -14,8 +14,6 @@
 #pragma once
 
 #include <string>
-#include <type_traits>
-#include <functional>
 
 #include "db_interfaces.h"
 #include "categorization/base_types.h"
@@ -23,7 +21,6 @@
 #include "state_snapshot_interface.hpp"
 #include "categorization/kv_blockchain.h"
 #include "rocksdb/native_client.h"
-#include "ReplicaConfig.hpp"
 
 namespace concord::kvbc::adapter::common::statesnapshot {
 class KVBCStateSnapshot : public concord::kvbc::IKVBCStateSnapshot {

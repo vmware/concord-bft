@@ -25,8 +25,7 @@ namespace concord::kvbc::adapter::v4blockchain {
 class BlocksAdderAdapter : public IBlockAdder {
  public:
   virtual ~BlocksAdderAdapter() { kvbc_ = nullptr; }
-  explicit BlocksAdderAdapter(std::shared_ptr<concord::kvbc::v4blockchain::KeyValueBlockchain> &kvbc,
-                              const std::optional<aux::AdapterAuxTypes> &aux_types = std::nullopt)
+  explicit BlocksAdderAdapter(std::shared_ptr<concord::kvbc::v4blockchain::KeyValueBlockchain> &kvbc)
       : kvbc_{kvbc.get()} {}
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

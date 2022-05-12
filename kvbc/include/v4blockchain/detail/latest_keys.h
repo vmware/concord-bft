@@ -116,15 +116,13 @@ class LatestKeys {
   ::rocksdb::CompactionFilter* getCompFilter() { return &comp_filter_; }
 
   // get the value and return deserialized value if needed.
-  std::optional<categorization::Value> getValue(BlockId latest_block_id,
-                                                const std::string& category_id,
-                                                const std::string& latest_version,
+  std::optional<categorization::Value> getValue(const std::string& category_id,
+                                                const std::string& version,
                                                 const std::string& key) const;
 
   // return multiple values, supposed to be more efficient.
-  void multiGetValue(BlockId latest_block_id,
-                     const std::string& category_id,
-                     const std::string& latest_version,
+  void multiGetValue(const std::string& category_id,
+                     const std::string& version,
                      const std::vector<std::string>& keys,
                      std::vector<std::optional<categorization::Value>>& values) const;
 

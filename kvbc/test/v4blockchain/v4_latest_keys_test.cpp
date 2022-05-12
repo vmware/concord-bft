@@ -63,7 +63,7 @@ class v4_kvbc : public Test {
     keys.push_back(key);
     val_is_null_opts.push_back(val_is_null_opt);
     ver_is_null_opts.push_back(ver_is_null_opt);
-    auto value = latest_keys.getValue(latest_block_id, category_id, latest_version, key);
+    auto value = latest_keys.getValue(category_id, latest_version, key);
     ASSERT_EQ(value.has_value(), !val_is_null_opt);
 
     auto version = latest_keys.getLatestVersion(category_id, latest_version, key);
@@ -82,7 +82,7 @@ class v4_kvbc : public Test {
                                    const std::vector<bool>& ver_is_null_opts) {
     auto latest_version = concord::kvbc::v4blockchain::detail::Blockchain::generateKey(latest_block_id);
     std::vector<std::optional<categorization::Value>> values;
-    latest_keys.multiGetValue(latest_block_id, category_id, latest_version, keys, values);
+    latest_keys.multiGetValue(category_id, latest_version, keys, values);
     ASSERT_EQ(keys.size(), values.size());
     for (size_t i = 0; i < keys.size(); ++i) {
       ASSERT_EQ((values[i]).has_value(), !val_is_null_opts[i]);

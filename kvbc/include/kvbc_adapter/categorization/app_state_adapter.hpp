@@ -17,22 +17,14 @@
 #include <vector>
 #include <memory>
 
+#include "assertUtils.hpp"
 #include "Logger.hpp"
-#include "thread_pool.hpp"
 #include "blockchain_misc.hpp"
 #include "kv_types.hpp"
-#include "rocksdb/native_client.h"
 #include "categorization/base_types.h"
-#include "categorization/updates.h"
 #include "categorized_kvbc_msgs.cmf.hpp"
-#include "ReplicaConfig.hpp"
-#include "db_interfaces.h"
 #include "categorization/kv_blockchain.h"
-#include "ReplicaResources.h"
-#include "kvbc_adapter/replica_adapter_auxilliary_types.hpp"
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
-
-using concord::storage::rocksdb::NativeClient;
 
 namespace concord::kvbc::adapter::categorization {
 

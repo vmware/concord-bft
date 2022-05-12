@@ -12,7 +12,6 @@
 // file.
 
 #include "kvbc_adapter/categorization/app_state_adapter.hpp"
-#include "assertUtils.hpp"
 
 namespace concord::kvbc::adapter::categorization {
 
