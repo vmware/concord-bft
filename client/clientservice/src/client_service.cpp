@@ -81,7 +81,8 @@ void ClientService::shutdown() {
 void ClientService::handleRpcs(unsigned thread_idx) {
   // Note: Memory is freed in `proceed`
   new requestservice::RequestServiceCallData(&request_service_, cqs_[thread_idx].get(), client_);
-  new eventservice::EventServiceCallData(&event_service_, cqs_[thread_idx].get(), client_, aggregator_);
+  new eventservice::EventServiceCallData(
+      &event_service_, cqs_[thread_idx].get(), client_, aggregator_, eventservice_max_batch_size_);
 
   void* tag;  // uniquely identifies a request.
   bool ok = false;

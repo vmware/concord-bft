@@ -52,7 +52,7 @@ void EventServiceCallData::proceedImpl() {
     } else if (state_ == SUBSCRIBE) {
       state_ = READ_FROM_QUEUE;
       // We are handling an incoming `Subscribe` right now, let's make sure we handle the next one too
-      new eventservice::EventServiceCallData(service_, cq_, client_, aggregator_);
+      new eventservice::EventServiceCallData(service_, cq_, client_, aggregator_, max_write_batch_size_);
       // Forward request to concord client (non-blocking)
       subscribeToConcordClient();
       // The subscription started and the queue will be filled.
@@ -142,7 +142,7 @@ void EventServiceCallData::readFromQueueAndWrite() {
 
   // If we have another update waiting in the queue and our batch isn't too big then batch this write
   grpc::WriteOptions write_options{};
-  if (queue_->size() > 0 and num_pending_writes_ < 10) {
+  if (queue_->size() > 0 and num_pending_writes_ < max_write_batch_size_) {
     write_options = grpc::WriteOptions().set_buffer_hint();
     num_pending_writes_++;
   } else {

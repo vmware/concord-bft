@@ -60,6 +60,7 @@ po::variables_map parseCmdLine(int argc, char** argv) {
     ("secrets-url", po::value<std::string>(), "URL to decrypt private keys")
     ("jaeger", po::value<std::string>(), "Push trace data to this Jaeger Agent")
     ("max-receive-msg-size", po::value<uint64_t>()->default_value(4194304), "Clientservice max receive message size in bytes")
+    ("es-max-batch-size", po::value<unsigned>()->default_value(10), "Maximum batch size the EventService is going to deliver")
   ;
   // clang-format on
   po::variables_map opts;
@@ -177,7 +178,8 @@ int main(int argc, char** argv) {
   }
 
   auto concord_client = std::make_unique<ConcordClient>(config, metrics_collector->getAggregator());
-  clientservice = std::make_unique<ClientService>(std::move(concord_client), metrics_collector->getAggregator());
+  clientservice = std::make_unique<ClientService>(
+      std::move(concord_client), metrics_collector->getAggregator(), opts["es-max-batch-size"].as<unsigned>());
 
   try {
     auto server_addr = opts["host"].as<std::string>() + ":" + std::to_string(opts["port"].as<unsigned>());

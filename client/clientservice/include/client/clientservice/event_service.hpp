@@ -57,7 +57,8 @@ class EventServiceCallData final : public clientservice::CallData {
   EventServiceCallData(vmware::concord::client::event::v1::EventService::AsyncService* service,
                        grpc::ServerCompletionQueue* cq,
                        std::shared_ptr<concord::client::concordclient::ConcordClient> client,
-                       std::shared_ptr<concordMetrics::Aggregator> aggregator)
+                       std::shared_ptr<concordMetrics::Aggregator> aggregator,
+                       unsigned max_write_batch_size)
       : logger_(logging::getLogger("concord.client.clientservice.eventservice")),
         service_(service),
         cq_(cq),
@@ -65,7 +66,8 @@ class EventServiceCallData final : public clientservice::CallData {
         state_(CREATE),
         client_(client),
         aggregator_(aggregator),
-        queue_(std::make_shared<concord::client::concordclient::BasicEventUpdateQueue>()) {
+        queue_(std::make_shared<concord::client::concordclient::BasicEventUpdateQueue>()),
+        max_write_batch_size_(max_write_batch_size) {
     metrics_.setAggregator(aggregator_);
     proceed = [&]() { proceedImpl(); };
     done = [&]() { doneImpl(); };
@@ -110,6 +112,7 @@ class EventServiceCallData final : public clientservice::CallData {
 
   std::atomic<bool> delete_me_{false};
   std::uint8_t num_pending_writes_{0};
+  unsigned max_write_batch_size_;
 };
 
 }  // namespace eventservice

@@ -25,10 +25,12 @@ namespace concord::client::clientservice {
 class ClientService {
  public:
   ClientService(std::unique_ptr<concord::client::concordclient::ConcordClient> client,
-                std::shared_ptr<concordMetrics::Aggregator> aggregator)
+                std::shared_ptr<concordMetrics::Aggregator> aggregator,
+                unsigned eventservice_max_batch_size)
       : logger_(logging::getLogger("concord.client.clientservice")),
         client_(std::move(client)),
         aggregator_(aggregator),
+        eventservice_max_batch_size_(eventservice_max_batch_size),
         state_snapshot_service_(std::make_unique<StateSnapshotServiceImpl>(client_)){};
 
   void start(const std::string& addr, unsigned num_async_threads, uint64_t max_receive_msg_size);
@@ -55,6 +57,8 @@ class ClientService {
   logging::Logger logger_;
   std::shared_ptr<concord::client::concordclient::ConcordClient> client_;
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;
+
+  unsigned eventservice_max_batch_size_;
 
   // Synchronous services
   std::unique_ptr<StateSnapshotServiceImpl> state_snapshot_service_;
