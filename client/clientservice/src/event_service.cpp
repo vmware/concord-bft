@@ -125,7 +125,6 @@ void EventServiceCallData::subscribeToConcordClient() {
 void EventServiceCallData::readFromQueueAndWrite() {
   // TODO: Return UNAVAILABLE as documented in event.proto if ConcordClient is unhealthy
   auto status = grpc::Status::OK;
-  std::chrono::steady_clock::time_point start_aggregator_timer = std::chrono::steady_clock::now();
 
   std::unique_ptr<EventVariant> update;
   try {
@@ -155,6 +154,8 @@ void EventServiceCallData::readFromQueueAndWrite() {
     return;
   }
 
+  std::chrono::steady_clock::time_point start_processing = std::chrono::steady_clock::now(), end_processing;
+
   // If we have another update waiting in the queue and our batch isn't too big then batch this write
   grpc::WriteOptions write_options{};
   if (queue_->size() > 0 and num_pending_writes_ < max_write_batch_size_) {
@@ -162,9 +163,9 @@ void EventServiceCallData::readFromQueueAndWrite() {
     num_pending_writes_++;
   } else {
     num_pending_writes_ = 0;
+    // Push metrics for every batch
+    metrics_.updateAggregator();
   }
-
-  std::chrono::steady_clock::time_point start_processing = std::chrono::steady_clock::now(), end_processing;
 
   SubscribeResponse response;
   if (std::holds_alternative<cc::EventGroup>(*update)) {
@@ -179,13 +180,19 @@ void EventServiceCallData::readFromQueueAndWrite() {
                                                   event_group_in.trace_context.end()};
 
     *response.mutable_event_group() = proto_event_group;
-    std::chrono::steady_clock::time_point start_write = std::chrono::steady_clock::now();
+    std::chrono::steady_clock::time_point start_write;
+    if (not write_options.get_buffer_hint()) start_write = std::chrono::steady_clock::now();
     stream_.Write(response, write_options, &proceed);
-    metrics_.total_num_writes++;
     // update write duration metric
-    end_processing = std::chrono::steady_clock::now();
-    auto duration_write = std::chrono::duration_cast<std::chrono::microseconds>(end_processing - start_write);
-    metrics_.write_dur.Get().Set(duration_write.count());
+    if (not write_options.get_buffer_hint()) {
+      end_processing = std::chrono::steady_clock::now();
+      auto duration_write = std::chrono::duration_cast<std::chrono::microseconds>(end_processing - start_write);
+      metrics_.write_dur.Get().Set(duration_write.count());
+      metrics_.total_num_writes++;
+      auto update_processing_dur =
+          std::chrono::duration_cast<std::chrono::microseconds>(end_processing - start_processing);
+      metrics_.update_processing_dur.Get().Set(update_processing_dur.count());
+    }
   } else if (std::holds_alternative<cc::Update>(*update)) {
     auto& legacy_event_in = std::get<cc::Update>(*update);
     Events proto_events;
@@ -202,25 +209,17 @@ void EventServiceCallData::readFromQueueAndWrite() {
     *response.mutable_events() = proto_events;
     std::chrono::steady_clock::time_point start_write = std::chrono::steady_clock::now();
     stream_.Write(response, &proceed);
-    metrics_.total_num_writes++;
     // update write duration metric
     end_processing = std::chrono::steady_clock::now();
     auto duration_write = std::chrono::duration_cast<std::chrono::microseconds>(end_processing - start_write);
     metrics_.write_dur.Get().Set(duration_write.count());
+    metrics_.total_num_writes++;
+    auto update_processing_dur =
+        std::chrono::duration_cast<std::chrono::microseconds>(end_processing - start_processing);
+    metrics_.update_processing_dur.Get().Set(update_processing_dur.count());
   } else {
     LOG_ERROR(logger_, "Got unexpected update type from TRC. This should never happen!");
     ConcordAssert(false);
-  }
-  // update processing duration metric
-  auto update_processing_dur = std::chrono::duration_cast<std::chrono::microseconds>(end_processing - start_processing);
-  metrics_.update_processing_dur.Get().Set(update_processing_dur.count());
-
-  // update metrics aggregator every second
-  auto metrics_aggregator_dur =
-      std::chrono::duration_cast<std::chrono::seconds>(end_processing - start_aggregator_timer);
-  if (metrics_aggregator_dur >= std::chrono::seconds(1)) {
-    metrics_.updateAggregator();
-    start_aggregator_timer = std::chrono::steady_clock::now();
   }
 }
 
