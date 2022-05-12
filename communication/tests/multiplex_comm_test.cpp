@@ -66,7 +66,7 @@ void setUpCommunicationOnReplica(NodeNum selfId, shared_ptr<IReceiver> receiver)
     endpointIdToNodeIdMap[i] = clientServiceNum;
   }
   auto configuration = TlsMultiplexConfig(
-      host, port, bufLength, nodes, maxServerId, selfId, certRootPath, cipherSuite, endpointIdToNodeIdMap);
+      host, port, bufLength, nodes, maxServerId, selfId, certRootPath, cipherSuite, false, endpointIdToNodeIdMap);
   ASSERT_TRUE(configuration.amIReplica_);
   int clients = 0;
   int replicas = 0;
@@ -89,7 +89,7 @@ void setUpCommunicationOnClient(NodeNum selfId, shared_ptr<IReceiver> receiver) 
   delete communicatorPtr;
   auto [nodes, endpointIdToNodeIdMap] = createClientNodesConfig();
   auto configuration = TlsMultiplexConfig(
-      host, port, bufLength, nodes, maxServerId, selfId, certRootPath, cipherSuite, endpointIdToNodeIdMap);
+      host, port, bufLength, nodes, maxServerId, selfId, certRootPath, cipherSuite, false, endpointIdToNodeIdMap);
   for (auto const& node : configuration.nodes_) ASSERT_TRUE(node.second.isReplica);
   ASSERT_FALSE(configuration.amIReplica_);
   communicatorPtr = dynamic_cast<TlsMultiplexCommunication*>(CommFactory::create(configuration));
