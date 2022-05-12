@@ -54,11 +54,11 @@ void ConcordClient::setStatics(uint16_t required_num_of_replicas,
   }
 }
 
-ConcordClient::ConcordClient(int client_id)
+ConcordClient::ConcordClient(int client_id, std::shared_ptr<concordMetrics::Aggregator> aggregator)
     : logger_(logging::getLogger("concord.client.client_pool.external_client")),
       clientRequestExecutionResult_(OperationResult::SUCCESS) {
   client_id_ = client_id;
-  CreateClient();
+  CreateClient(aggregator);
 }
 
 ConcordClient::~ConcordClient() noexcept = default;
@@ -340,12 +340,13 @@ void ConcordClient::CreateClientConfig(BaseCommConfig* comm_config, ClientConfig
   }
 }
 
-void ConcordClient::CreateClient() {
+void ConcordClient::CreateClient(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
   ClientConfig client_config;
   auto [comm_config, comm_layer] = CreateCommConfigAndCommChannel();
   CreateClientConfig(comm_config, client_config);
   LOG_DEBUG(logger_, "Creating new bft-client instance" << KVLOG(client_id_));
-  auto new_client = std::unique_ptr<bft::client::Client>{new bft::client::Client(comm_layer, client_config)};
+  auto new_client =
+      std::unique_ptr<bft::client::Client>{new bft::client::Client(comm_layer, client_config, aggregator)};
   new_client_ = std::move(new_client);
   seqGen_ = bftEngine::SeqNumberGeneratorForClientRequests::createSeqNumberGeneratorForClientRequests();
   LOG_INFO(logger_, "Client creation succeeded" << KVLOG(client_id_));

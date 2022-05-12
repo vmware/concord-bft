@@ -72,6 +72,7 @@ struct BftTopology {
 struct ClientServiceInfo {
   bft::client::ClientId id;
   std::string host;
+  std::string host_uuid;
 };
 
 struct BftClientInfo {
@@ -91,6 +92,7 @@ struct TransportConfig {
   // TLS settings ignored if comm_type is not TlsTcp
   std::string tls_cert_root_path;
   std::string tls_cipher_suite;
+  bool use_unified_certs;
   std::optional<concord::secretsmanager::SecretData> secret_data;
   // Buffer with the servers' PEM encoded certificates for the event port
   std::string event_pem_certs;
@@ -122,7 +124,8 @@ struct ConcordClientConfig {
   // BFT client descriptors
   ClientServiceInfo client_service;
   std::vector<BftClientInfo> bft_clients;
-  std::uint16_t num_of_used_bft_clients;
+  std::uint16_t clients_per_participant_node;
+  std::uint16_t active_clients_in_pool;
   // Configuration for subscribe requests
   SubscribeConfig subscribe_config;
   StateSnapshotConfig state_snapshot_config;

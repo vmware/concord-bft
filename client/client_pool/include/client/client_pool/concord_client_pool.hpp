@@ -160,7 +160,7 @@ class ConcordClientPool {
  private:
   void setUpClientParams(bftEngine::SimpleClientParams& client_params,
                          const concord::config_pool::ConcordClientPoolConfig&);
-  void CreatePool(concord::config_pool::ConcordClientPoolConfig&);
+  void CreatePool(concord::config_pool::ConcordClientPoolConfig&, std::shared_ptr<concordMetrics::Aggregator>);
 
   void AddSenderAndSignature(std::vector<uint8_t>& request, const ClientPtr& chosenClient);
 

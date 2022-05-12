@@ -195,6 +195,9 @@ int run(int argc, char* argv[]) {
       return reader.getGenesisBlockId();
     } else {
       auto [global_eg_id, is_previous_public, private_eg_id, public_eg_id] = filter.findGlobalEventGroupId(ext_evg_id);
+      (void)is_previous_public;
+      (void)private_eg_id;
+      (void)public_eg_id;
       const auto opt = reader.getLatest(concord::kvbc::categorization::kExecutionEventGroupDataCategory,
                                         concordUtils::toBigEndianStringBuffer(global_eg_id));
       if (not opt) {

@@ -146,15 +146,16 @@ class SkvbcS3IntegrityCheckTest(ApolloTest):
 
                 s3_config_path = os.path.join(bft_network.builddir, s3_config_file)
                 integrity_check_fds = (stdout_file, stderr_file)
-                integrity_check_exe = os.path.join(bft_network.builddir, "kvbc", "tools", "db_integrity_check", "s3_integrity_check")
+                integrity_check_exe = os.path.join(bft_network.builddir, "kvbc", "tools", "object_store_utility", "object_store_utility")
                 integrity_check_cmd = [integrity_check_exe,
-                                       "-k", keys_file,
-                                       "-3", s3_config_path]
+                                       "--keys-file", keys_file,
+                                       "--s3-config-file", s3_config_path]
+                integrity_check_cmd.append("validate")
                 if key_to_validate is not None:
-                    integrity_check_cmd.append("-v")
+                    integrity_check_cmd.append("--key")
                     integrity_check_cmd.append(key_to_validate)
                 else:
-                    integrity_check_cmd.append("-a")
+                    integrity_check_cmd.append("--all")
                 log.log_message(message_type="starting the subprocess")
                 integrity_check_pid = subprocess.Popen(
                     integrity_check_cmd,

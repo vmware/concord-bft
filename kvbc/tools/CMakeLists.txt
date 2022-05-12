@@ -1,5 +1,4 @@
 add_subdirectory(db_editor)
 add_subdirectory(migrations)
-add_subdirectory(db_integrity_check)
-add_subdirectory(db_restore)
+add_subdirectory(object_store_utility)
 add_subdirectory(state_snapshot_with_acl)

@@ -43,7 +43,7 @@ class ConcordClient {
   // object and a client_id to get the specific values for this client.
   // Construction executes all needed steps to provide a ready-to-use
   // object (including starting internal threads, if needed).
-  ConcordClient(int client_id);
+  ConcordClient(int client_id, std::shared_ptr<concordMetrics::Aggregator> aggregator);
 
   // Destructs the client. This includes stopping any internal threads, if needed.
   ~ConcordClient() noexcept;
@@ -105,7 +105,7 @@ class ConcordClient {
   std::string messageSignature(bft::client::Msg&);
 
  private:
-  void CreateClient();
+  void CreateClient(std::shared_ptr<concordMetrics::Aggregator> aggregator);
 
   bft::communication::BaseCommConfig* CreateCommConfig() const;
 

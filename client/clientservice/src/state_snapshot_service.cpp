@@ -202,19 +202,27 @@ static std::shared_ptr<bftEngine::RequestCallBack> getCallbackLambda(const bftEn
   return std::make_shared<bftEngine::RequestCallBack>(callback);
 }
 
+std::chrono::milliseconds StateSnapshotServiceImpl::setTimeoutFromDeadline(ServerContext* context) {
+  std::chrono::milliseconds timeout = 120s;  // This is default timeout
+  if (context != nullptr) {
+    auto end_time = context->deadline();
+    auto curr_timeout =
+        std::chrono::duration_cast<std::chrono::milliseconds>(end_time - std::chrono::system_clock::now());
+    if ((curr_timeout.count() > 0) && (curr_timeout.count() <= MAX_TIMEOUT_MS)) {
+      timeout = curr_timeout;
+    } else {
+      LOG_WARN(logger_,
+               "Extreme deadline set by client of client service "
+                   << KVLOG(curr_timeout.count(), end_time.time_since_epoch().count()));
+    }
+  }
+  return timeout;
+}
+
 Status StateSnapshotServiceImpl::GetRecentSnapshot(ServerContext* context,
                                                    const GetRecentSnapshotRequest* proto_request,
                                                    GetRecentSnapshotResponse* response) {
-  std::chrono::milliseconds timeout = 5s;  // This is default timeout
-  if (context != nullptr) {
-    auto time_left =
-        gpr_time_to_millis(gpr_time_sub(gpr_now(context->raw_deadline().clock_type), context->raw_deadline()));
-    std::chrono::milliseconds curr_timeout{time_left};
-    if (curr_timeout.count() > 0) {
-      timeout = curr_timeout;
-    }
-  }
-
+  std::chrono::milliseconds timeout = setTimeoutFromDeadline(context);
   LOG_INFO(logger_, "Received a GetRecentSnapshotRequest with timeout : " << timeout.count() << "ms");
 
   auto write_config = std::shared_ptr<WriteConfig>(
@@ -342,15 +350,7 @@ Status StateSnapshotServiceImpl::StreamSnapshot(ServerContext* context,
   }
 
   if (is_end_of_stream && status.ok()) {
-    std::chrono::milliseconds timeout = 5s;  // This is default timeout
-    if (context != nullptr) {
-      auto time_left =
-          gpr_time_to_millis(gpr_time_sub(gpr_now(context->raw_deadline().clock_type), context->raw_deadline()));
-      std::chrono::milliseconds curr_timeout{time_left};
-      if (curr_timeout.count() > 0) {
-        timeout = curr_timeout;
-      }
-    }
+    std::chrono::milliseconds timeout = setTimeoutFromDeadline(context);
     isHashValid(proto_request->snapshot_id(), accumulated_hash, timeout, status);
   }
 
@@ -484,16 +484,7 @@ void StateSnapshotServiceImpl::compareWithRsiAndSetReadAsOfResponse(
 Status StateSnapshotServiceImpl::ReadAsOf(ServerContext* context,
                                           const ReadAsOfRequest* proto_request,
                                           ReadAsOfResponse* response) {
-  std::chrono::milliseconds timeout = 5s;  // This is default timeout
-  if (context != nullptr) {
-    auto time_left =
-        gpr_time_to_millis(gpr_time_sub(gpr_now(context->raw_deadline().clock_type), context->raw_deadline()));
-    std::chrono::milliseconds curr_timeout{time_left};
-    if (curr_timeout.count() > 0) {
-      timeout = curr_timeout;
-    }
-  }
-
+  std::chrono::milliseconds timeout = setTimeoutFromDeadline(context);
   LOG_INFO(logger_, "Received a ReadAsOfRequest with timeout : " << timeout.count() << "ms");
 
   auto read_config = std::shared_ptr<ReadConfig>(
