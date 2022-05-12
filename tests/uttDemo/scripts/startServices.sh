@@ -1,4 +1,5 @@
 #!/bin/bash
+echo ""
 echo "Making sure no previous services are up..."
 killall utt_replica
 killall payment_service
