@@ -147,7 +147,6 @@ int run(int argc, char* argv[]) {
   const auto rocksdb_conf = config["rocksdb-config-file"].as<std::string>();
   const auto client_id = (config["client-id"].empty() ? std::string{} : config["client-id"].as<std::string>());
   const auto ext_ev_group_id = config["ext-event-group-id"].as<std::int64_t>();
-  (void)ext_ev_group_id;
 
   if (point_lookup_batch_size < 1) {
     std::cerr << "point-lookup-batch-size must be greater than or equal to 1" << std::endl;
@@ -168,7 +167,9 @@ int run(int argc, char* argv[]) {
   }
   auto thread_pool = ThreadPool{static_cast<std::uint32_t>(point_lookup_threads)};
 
-  std::cout << "Prining ACS state {key, Hash(val)} with a point lookup batch size = " << point_lookup_batch_size
+  std::cout << "Hash state keys {H(H(k1)|H(v1) | H(k2)|H(v2) .....H(kn|vn))} acl-filtered for client id: " << client_id
+            << ", starting from an offset(event group id) " << ext_ev_group_id
+            << ", with a point lookup batch size = " << point_lookup_batch_size
             << ", point lookup threads = " << point_lookup_threads
             << ", RocksDB block cache size = " << rocksdb_cache_size << " bytes, configuration file = " << rocksdb_conf
             << ", DB path = " << rocksdb_path << std::endl;
@@ -220,8 +221,10 @@ int run(int argc, char* argv[]) {
                                                static_cast<std::uint32_t>(point_lookup_threads)};
 
   auto print_kv_with_acl = [&](const Buffer& buff, const auto& value, const auto& trids, bool is_public) {
+    // In actual application, we would probably stream state keys {k , hash(v) } over grpc
+    // here we are just printing it
     std::ostringstream oss;
-    const auto hash = Hash(SHA3_256().digest(value.data(), value.size()));
+    const auto hash = Hash(SHA2_256().digest(value.data(), value.size()));
     oss << "key: " << bufferToHex(buff.data(), buff.size()) << std::endl;
     oss << "hash(val): " << bufferToHex(hash.data(), hash.size()) << std::endl;
     if (is_public)
@@ -241,7 +244,7 @@ int run(int argc, char* argv[]) {
     std::cout << oss.str();
   };
 
-  auto has_access = [&num_of_pvt_keys, &num_of_public_keys, &client_id](const auto& value, const auto& trids) -> bool {
+  auto has_access = [&num_of_pvt_keys, &num_of_public_keys, &client_id](const auto& trids) -> bool {
     bool allowed = false;
     if (trids.size()) {
       for (const auto& trid : trids) {
@@ -321,11 +324,11 @@ int run(int argc, char* argv[]) {
         auto v = std::unique_ptr<std::string>(proto.release_value());
         value.assign(std::move(*v));
         for (auto& t : proto.trid()) {
-          trids.emplace_back(std::move(t));
+          trids.emplace_back(t);
         }
 
-        if (has_access(*v, trids)) {
-          hash_state_kv(serialized_keys[j], *v);
+        if (has_access(trids)) {
+          hash_state_kv(serialized_keys[j], value);
         }
         // print all state keys - hash(val), trid
         // auto is_public = trids.size() ? false : true;
