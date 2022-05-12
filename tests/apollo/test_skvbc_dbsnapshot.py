@@ -177,12 +177,12 @@ class SkvbcDbSnapshotTest(ApolloTest):
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
         await skvbc.send_n_kvs_sequentially(DB_CHECKPOINT_WIN_SIZE)
-        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), DB_CHECKPOINT_WIN_SIZE)
-        await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(), 1)
+        await bft_network.wait_for_stable_checkpoint(bft_network.all_replicas(), stable_seqnum=DB_CHECKPOINT_WIN_SIZE)
+        await bft_network.wait_for_created_db_snapshots_metric(bft_network.all_replicas(), 1)
         for replica_id in bft_network.all_replicas():
             last_blockId = await bft_network.last_db_checkpoint_block_id(replica_id)
             self.assertEqual(last_blockId, DB_CHECKPOINT_WIN_SIZE)
-            self.verify_snapshot_is_available(bft_network, replica_id, last_blockId)
+            bft_network.verify_db_snapshot_is_available(replica_id, last_blockId)
         await self.verify_db_size_on_disk(bft_network)
 
     @with_trio
@@ -193,13 +193,13 @@ class SkvbcDbSnapshotTest(ApolloTest):
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
         await skvbc.send_n_kvs_sequentially(DB_CHECKPOINT_WIN_SIZE)
-        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), DB_CHECKPOINT_WIN_SIZE)
-        await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(), 1)
+        await bft_network.wait_for_stable_checkpoint(bft_network.all_replicas(), stable_seqnum=DB_CHECKPOINT_WIN_SIZE)
+        await bft_network.wait_for_created_db_snapshots_metric(bft_network.all_replicas(), 1)
         snapshot_id = 0
         for replica_id in bft_network.all_replicas():
             snapshot_id = await bft_network.last_db_checkpoint_block_id(replica_id)
             self.assertEqual(snapshot_id, DB_CHECKPOINT_WIN_SIZE)
-            self.verify_snapshot_is_available(bft_network, replica_id, snapshot_id)
+            bft_network.verify_db_snapshot_is_available(replica_id, snapshot_id)
         fast_paths = {}
         for r in bft_network.all_replicas():
             nb_fast_path = await bft_network.num_of_fast_path_requests(r)
@@ -209,7 +209,7 @@ class SkvbcDbSnapshotTest(ApolloTest):
         await skvbc.send_n_kvs_sequentially(3 * DB_CHECKPOINT_WIN_SIZE)
 
         for r in crashed_replica:
-            self.restore_form_older_snapshot(bft_network, snapshot_id, src_replica=r, dest_replicas=[r])
+            bft_network.restore_form_older_db_snapshot(snapshot_id, src_replica=r, dest_replicas=[r], prefix=TEMP_DB_SNAPSHOT_PREFIX)
         bft_network.start_replicas(crashed_replica)
         await bft_network.wait_for_state_transfer_to_start()
         for r in crashed_replica:
@@ -228,8 +228,8 @@ class SkvbcDbSnapshotTest(ApolloTest):
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
         await skvbc.send_n_kvs_sequentially(2 * DB_CHECKPOINT_WIN_SIZE)
-        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), 2 * DB_CHECKPOINT_WIN_SIZE)
-        await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(), 0)
+        await bft_network.wait_for_stable_checkpoint(bft_network.all_replicas(), stable_seqnum = 2 * DB_CHECKPOINT_WIN_SIZE)
+        await bft_network.wait_for_created_db_snapshots_metric(bft_network.all_replicas(), 0)
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
@@ -251,12 +251,12 @@ class SkvbcDbSnapshotTest(ApolloTest):
         )
         checkpoint_after_1 = await bft_network.wait_for_checkpoint(replica_id=initial_prim)
         self.assertGreaterEqual(checkpoint_before + 1, checkpoint_after_1)
-        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), checkpoint_after_1 * 150)
-        await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(), 1)
+        await bft_network.wait_for_stable_checkpoint(bft_network.all_replicas(), checkpoint_after_1 * 150)
+        await bft_network.wait_for_created_db_snapshots_metric(bft_network.all_replicas(), 1)
         old_snapshot_id = 0
         for r in bft_network.all_replicas():
             old_snapshot_id = await bft_network.last_db_checkpoint_block_id(r)
-            self.verify_snapshot_is_available(bft_network, r, old_snapshot_id)
+            bft_network.verify_db_snapshot_is_available(r, old_snapshot_id)
         await skvbc.fill_and_wait_for_checkpoint(
             initial_nodes=bft_network.all_replicas(),
             num_of_checkpoints_to_add=3,
@@ -265,10 +265,10 @@ class SkvbcDbSnapshotTest(ApolloTest):
         )
         checkpoint_after_2 = await bft_network.wait_for_checkpoint(replica_id=initial_prim)
         self.assertGreaterEqual(checkpoint_after_1 + 3, checkpoint_after_2)
-        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), checkpoint_after_2 * 150)
-        await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(), 4)
+        await bft_network.wait_for_stable_checkpoint(bft_network.all_replicas(), stable_seqnum = checkpoint_after_2 * 150)
+        await bft_network.wait_for_created_db_snapshots_metric(bft_network.all_replicas(), 4)
         for replica_id in bft_network.all_replicas():
-            self.verify_snapshot_is_available(bft_network, replica_id, old_snapshot_id, isPresent=False)
+           bft_network.verify_db_snapshot_is_available(replica_id, old_snapshot_id, isPresent=False)
 
     @with_trio
     @with_bft_network(start_replica_cmd_with_high_db_window_size, selected_configs=lambda n, f, c: n == 7)
@@ -289,8 +289,8 @@ class SkvbcDbSnapshotTest(ApolloTest):
         data = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
         self.assertTrue(data.success)
 
-        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), 300)
-        await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(), 1)
+        await bft_network.wait_for_stable_checkpoint(bft_network.all_replicas(), 300)
+        await bft_network.wait_for_created_db_snapshots_metric(bft_network.all_replicas(), 1)
         rep = await op.get_dbcheckpoint_info_request()
         rsi_rep = client.get_rsi_replies()
         data = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
@@ -303,7 +303,7 @@ class SkvbcDbSnapshotTest(ApolloTest):
                                 300 for dbcheckpoint_info in dbcheckpoint_info_list))
         for replica_id in bft_network.all_replicas():
             last_blockId = await bft_network.last_db_checkpoint_block_id(replica_id)
-            self.verify_snapshot_is_available(bft_network, replica_id, last_blockId)
+            bft_network.verify_db_snapshot_is_available(replica_id, last_blockId)
 
     @unittest.skip("Disable until fixed. Unstable test because of BC-17338")
     @with_trio
@@ -331,8 +331,8 @@ class SkvbcDbSnapshotTest(ApolloTest):
         # these requests are executed in parallel with empty
         # requests to fill the checkpoint window
         await skvbc.send_n_kvs_sequentially(150)
-        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), 300)
-        await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(), 1)
+        await bft_network.wait_for_stable_checkpoint(bft_network.all_replicas(), stable_seqnum=300)
+        await bft_network.wait_for_created_db_snapshots_metric(bft_network.all_replicas(), 1)
         rep = await op.get_dbcheckpoint_info_request()
         data = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
         self.assertTrue(data.success)
@@ -344,7 +344,7 @@ class SkvbcDbSnapshotTest(ApolloTest):
                                 300 for dbcheckpoint_info in dbcheckpoint_info_list))
         for replica_id in bft_network.all_replicas():
             last_blockId = await bft_network.last_db_checkpoint_block_id(replica_id)
-            self.verify_snapshot_is_available(bft_network, replica_id, last_blockId)
+            bft_network.verify_db_snapshot_is_available(replica_id, last_blockId)
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
@@ -359,8 +359,8 @@ class SkvbcDbSnapshotTest(ApolloTest):
         await skvbc.send_n_kvs_sequentially(2 * DB_CHECKPOINT_WIN_SIZE)
 
         # There will be 2 dbcheckpoints created on stable seq num 150 and 300.
-        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), 2 * DB_CHECKPOINT_WIN_SIZE)
-        await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(), 2)
+        await bft_network.wait_for_stable_checkpoint(bft_network.all_replicas(), stable_seqnum = 2 * DB_CHECKPOINT_WIN_SIZE)
+        await bft_network.wait_for_created_db_snapshots_metric(bft_network.all_replicas(), 2)
 
         op = operator.Operator(bft_network.config, client, bft_network.builddir)
         rep = await op.get_dbcheckpoint_info_request(bft=False)
@@ -376,7 +376,7 @@ class SkvbcDbSnapshotTest(ApolloTest):
                                 2 * DB_CHECKPOINT_WIN_SIZE for dbcheckpoint_info in dbcheckpoint_info_list))
         for replica_id in bft_network.all_replicas():
             last_blockId = await bft_network.last_db_checkpoint_block_id(replica_id)
-            self.verify_snapshot_is_available(bft_network, replica_id, last_blockId)
+            bft_network.verify_db_snapshot_is_available(replica_id, last_blockId)
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
@@ -391,8 +391,8 @@ class SkvbcDbSnapshotTest(ApolloTest):
         await skvbc.send_n_kvs_sequentially(2 * DB_CHECKPOINT_WIN_SIZE)
 
         # There will be 2 dbcheckpoints created on stable seq num 150 and 300.
-        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), 2 * DB_CHECKPOINT_WIN_SIZE)
-        await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(), 2)
+        await bft_network.wait_for_stable_checkpoint(bft_network.all_replicas(), stable_seqnum = 2 * DB_CHECKPOINT_WIN_SIZE)
+        await bft_network.wait_for_created_db_snapshots_metric(bft_network.all_replicas(), 2)
 
         op = operator.Operator(bft_network.config, client, bft_network.builddir)
         rep = await op.get_dbcheckpoint_info_request(bft=False)
@@ -408,7 +408,7 @@ class SkvbcDbSnapshotTest(ApolloTest):
                                 2 * DB_CHECKPOINT_WIN_SIZE for dbcheckpoint_info in dbcheckpoint_info_list))
         for replica_id in bft_network.all_replicas():
             last_blockId = await bft_network.last_db_checkpoint_block_id(replica_id)
-            self.verify_snapshot_is_available(bft_network, replica_id, last_blockId)
+            bft_network.verify_db_snapshot_is_available(replica_id, last_blockId)
 
         # Now, crash one of the non-primary replicas
         crashed_replica = 1
@@ -416,8 +416,8 @@ class SkvbcDbSnapshotTest(ApolloTest):
         # Make sure the system is able to make progress
         await skvbc.send_n_kvs_sequentially(DB_CHECKPOINT_WIN_SIZE)
 
-        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(without={crashed_replica}), 450)
-        await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(without={crashed_replica}),
+        await bft_network.wait_for_stable_checkpoint(bft_network.all_replicas(without={crashed_replica}), stable_seqnum=450)
+        await bft_network.wait_for_created_db_snapshots_metric(bft_network.all_replicas(without={crashed_replica}),
                                                      3)
 
         op = operator.Operator(bft_network.config, client, bft_network.builddir)
@@ -436,7 +436,7 @@ class SkvbcDbSnapshotTest(ApolloTest):
                         3 * DB_CHECKPOINT_WIN_SIZE for dbcheckpoint_info in dbcheckpoint_info_list))
         for replica_id in bft_network.all_replicas(without={crashed_replica}):
             last_blockId = await bft_network.last_db_checkpoint_block_id(replica_id)
-            self.verify_snapshot_is_available(bft_network, replica_id, last_blockId)
+            bft_network.verify_db_snapshot_is_available(replica_id, last_blockId)
 
     @with_trio
     @with_bft_network(start_replica_cmd_db_snapshot_disabled, selected_configs=lambda n, f, c: n == 7)
@@ -446,8 +446,8 @@ class SkvbcDbSnapshotTest(ApolloTest):
         client = bft_network.random_client()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
         await skvbc.send_n_kvs_sequentially(2 * DB_CHECKPOINT_WIN_SIZE)
-        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), 2 * DB_CHECKPOINT_WIN_SIZE)
-        await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(), 0)
+        await bft_network.wait_for_stable_checkpoint(bft_network.all_replicas(), stable_seqnum = 2 * DB_CHECKPOINT_WIN_SIZE)
+        await bft_network.wait_for_created_db_snapshots_metric(bft_network.all_replicas(), 0)
 
         op = operator.Operator(bft_network.config, client, bft_network.builddir)
         rep = await op.state_snapshot_req()
@@ -476,15 +476,15 @@ class SkvbcDbSnapshotTest(ApolloTest):
             key = skvbc.unique_random_key()
             value = skvbc.random_value()
             await skvbc.send_kv_set(client, set(), [(key, value)], 0)
-        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), DB_CHECKPOINT_HIGH_WIN_SIZE)
+        await bft_network.wait_for_stable_checkpoint(bft_network.all_replicas(), stable_seqnum=DB_CHECKPOINT_HIGH_WIN_SIZE)
 
         # Expect that a snapshot/checkpoint with an ID of 600 is available. For that, we assume that the snapshot/checkpoint ID
         # is the last block ID at which the snapshot/checkpoint is created.
-        await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(), 1)
+        await bft_network.wait_for_created_db_snapshots_metric(bft_network.all_replicas(), 1)
         for replica_id in bft_network.all_replicas():
             last_block_id = await bft_network.last_db_checkpoint_block_id(replica_id)
             self.assertEqual(last_block_id, DB_CHECKPOINT_HIGH_WIN_SIZE)
-            await self.wait_for_snapshot(bft_network, replica_id, last_block_id)
+            await bft_network.wait_for_db_snapshot(replica_id, last_block_id)
 
         # Send a StateSnapshotRequest and make sure we get the already existing checkpoint/snapshot ID of 600.
         op = operator.Operator(bft_network.config, client, bft_network.builddir)
@@ -521,7 +521,7 @@ class SkvbcDbSnapshotTest(ApolloTest):
 
         # Make sure no snapshots exist.
         for replica_id in bft_network.all_replicas():
-            self.assertFalse(self.snapshot_exists(bft_network, replica_id))
+            self.assertFalse(bft_network.db_snapshot_exists(replica_id))
 
         # Send a StateSnapshotRequest and make sure a new checkpoint/snapshot ID of 100 is created.
         op = operator.Operator(bft_network.config, client, bft_network.builddir)
@@ -539,7 +539,7 @@ class SkvbcDbSnapshotTest(ApolloTest):
         # is the last block ID at which the snapshot/checkpoint is created.
         last_block_id = 100
         for replica_id in bft_network.all_replicas():
-            await self.wait_for_snapshot(bft_network, replica_id, last_block_id)
+            await bft_network.wait_for_db_snapshot(replica_id, last_block_id)
 
     @with_trio
     @with_bft_network(start_replica_cmd_with_high_db_window_size, selected_configs=lambda n, f, c: n == 7)
@@ -564,13 +564,13 @@ class SkvbcDbSnapshotTest(ApolloTest):
         op = operator.Operator(
             bft_network.config, client, bft_network.builddir)
         await op.wedge()
-        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), (checkpoint_before + 2) * 150)
+        await bft_network.wait_for_stable_checkpoint( bft_network.all_replicas(), stable_seqnum = (checkpoint_before + 2) * 150)
         await self.validate_stop_on_wedge_point(bft_network, skvbc=skvbc, fullWedge=True)
         # verify that snapshot is created on wedge point
-        await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(), 1)
+        await bft_network.wait_for_created_db_snapshots_metric(bft_network.all_replicas(), 1)
         for replica_id in bft_network.all_replicas():
             last_block_id = await bft_network.last_db_checkpoint_block_id(replica_id)
-            await self.wait_for_snapshot(bft_network, replica_id, last_block_id)
+            await bft_network.wait_for_db_snapshot(replica_id, last_block_id)
         # verify from operatore get db snapshot status command
         rep = await op.get_dbcheckpoint_info_request(bft=False)
         data = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
@@ -599,11 +599,11 @@ class SkvbcDbSnapshotTest(ApolloTest):
             self.assertEqual(epoch, 1)
         await skvbc.send_n_kvs_sequentially(DB_CHECKPOINT_HIGH_WIN_SIZE)
 
-        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), 900)
-        await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(), 2)
+        await bft_network.wait_for_stable_checkpoint( bft_network.all_replicas(), stable_seqnum=900)
+        await bft_network.wait_for_created_db_snapshots_metric(bft_network.all_replicas(), 2)
         for replica_id in bft_network.all_replicas():
             last_block_id = await bft_network.last_db_checkpoint_block_id(replica_id)
-            await self.wait_for_snapshot(bft_network, replica_id, last_block_id)
+            await bft_network.wait_for_db_snapshot(replica_id, last_block_id)
         # verify from operatore get db snapshot status command
         rep = await op.get_dbcheckpoint_info_request(bft=False)
         data = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
@@ -641,14 +641,14 @@ class SkvbcDbSnapshotTest(ApolloTest):
         await op.add_remove_with_wedge(test_config, bft=False, restart=False)
 
         # verify that snapshot is created on wedge point
-        await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(), 1)
+        await bft_network.wait_for_created_db_snapshots_metric(bft_network.all_replicas(), 1)
         for replica_id in bft_network.all_replicas():
             last_block_id = await bft_network.last_db_checkpoint_block_id(replica_id)
-            await self.wait_for_snapshot(bft_network, replica_id, last_block_id)
+            await bft_network.wait_for_db_snapshot(replica_id, last_block_id)
         bft_network.stop_all_replicas()
         # restore all replicas using snapshot created in replica id=0
-        self.restore_form_older_snapshot(bft_network, last_block_id, src_replica=0,
-                                         dest_replicas=bft_network.all_replicas())
+        bft_network.restore_form_older_db_snapshot(last_block_id, src_replica=0,
+                                         dest_replicas=bft_network.all_replicas(), prefix=TEMP_DB_SNAPSHOT_PREFIX)
         # replicas will clean metadata and start a new blockchain
         bft_network.start_all_replicas()
         await skvbc.send_n_kvs_sequentially(100)
@@ -665,15 +665,15 @@ class SkvbcDbSnapshotTest(ApolloTest):
         client = bft_network.random_client()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
         await skvbc.send_n_kvs_sequentially(DB_CHECKPOINT_HIGH_WIN_SIZE)
-        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), DB_CHECKPOINT_HIGH_WIN_SIZE)
+        await bft_network.wait_for_stable_checkpoint(bft_network.all_replicas(), stable_seqnum=DB_CHECKPOINT_HIGH_WIN_SIZE)
 
         # Expect that a snapshot/checkpoint with an ID of 600 is available. For that, we assume that the snapshot/checkpoint ID
         # is the last block ID at which the snapshot/checkpoint is created.
-        await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(), 1)
+        await bft_network.wait_for_created_db_snapshots_metric(bft_network.all_replicas(), 1)
         for replica_id in bft_network.all_replicas():
             last_block_id = await bft_network.last_db_checkpoint_block_id(replica_id)
             self.assertEqual(last_block_id, DB_CHECKPOINT_HIGH_WIN_SIZE)
-            await self.wait_for_snapshot(bft_network, replica_id, last_block_id)
+            await bft_network.wait_for_db_snapshot(replica_id, last_block_id)
 
         op = operator.Operator(bft_network.config, client, bft_network.builddir)
         ser_resp = await op.signed_public_state_hash_req(DB_CHECKPOINT_HIGH_WIN_SIZE)
@@ -724,15 +724,15 @@ class SkvbcDbSnapshotTest(ApolloTest):
             value = skvbc.random_value()
             kvs.append((key.decode(), value.decode()))
             await skvbc.send_kv_set(client, set(), [(key, value)], 0)
-        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), DB_CHECKPOINT_HIGH_WIN_SIZE)
+        await bft_network.wait_for_stable_checkpoint(bft_network.all_replicas(), stable_seqnum=DB_CHECKPOINT_HIGH_WIN_SIZE)
 
         # Expect that a snapshot/checkpoint with an ID of 600 is available. For that, we assume that the snapshot/checkpoint ID
         # is the last block ID at which the snapshot/checkpoint is created.
-        await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(), 1)
+        await bft_network.wait_for_created_db_snapshots_metric(bft_network.all_replicas(), 1)
         for replica_id in range(len(bft_network.all_replicas())):
             last_block_id = await bft_network.last_db_checkpoint_block_id(replica_id)
             self.assertEqual(last_block_id, DB_CHECKPOINT_HIGH_WIN_SIZE)
-            await self.wait_for_snapshot(bft_network, replica_id, last_block_id)
+            await bft_network.wait_for_db_snapshot(replica_id, last_block_id)
 
         op = operator.Operator(bft_network.config, client, bft_network.builddir)
         # Try to read two of the keys that we wrote. We shouldn't be able to get them, though, because they are not public.
@@ -760,15 +760,15 @@ class SkvbcDbSnapshotTest(ApolloTest):
             value = skvbc.random_value()
             kvs.append((key.decode(), value.decode()))
             await skvbc.send_kv_set(client, set(), [(key, value)], 0)
-        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), DB_CHECKPOINT_HIGH_WIN_SIZE)
+        await bft_network.wait_for_stable_checkpoint(bft_network.all_replicas(), stable_seqnum=DB_CHECKPOINT_HIGH_WIN_SIZE)
 
         # Expect that a snapshot/checkpoint with an ID of 600 is available. For that, we assume that the snapshot/checkpoint ID
         # is the last block ID at which the snapshot/checkpoint is created.
-        await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(), 1)
+        await bft_network.wait_for_created_db_snapshots_metric(bft_network.all_replicas(), 1)
         for replica_id in range(len(bft_network.all_replicas())):
             last_block_id = await bft_network.last_db_checkpoint_block_id(replica_id)
             self.assertEqual(last_block_id, DB_CHECKPOINT_HIGH_WIN_SIZE)
-            await self.wait_for_snapshot(bft_network, replica_id, last_block_id)
+            await bft_network.wait_for_db_snapshot(replica_id, last_block_id)
 
         op = operator.Operator(bft_network.config, client, bft_network.builddir)
         # Read two of the keys that we wrote.
@@ -794,15 +794,15 @@ class SkvbcDbSnapshotTest(ApolloTest):
             key = skvbc.unique_random_key()
             value = skvbc.random_value()
             await skvbc.send_kv_set(client, set(), [(key, value)], 0)
-        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), DB_CHECKPOINT_HIGH_WIN_SIZE)
+        await bft_network.wait_for_stable_checkpoint(bft_network.all_replicas(), stable_seqnum=DB_CHECKPOINT_HIGH_WIN_SIZE)
 
         # Expect that a snapshot/checkpoint with an ID of 600 is available. For that, we assume that the snapshot/checkpoint ID
         # is the last block ID at which the snapshot/checkpoint is created.
-        await self.wait_for_created_snapshots_metric(bft_network, bft_network.all_replicas(), 1)
+        await bft_network.wait_for_created_db_snapshots_metric(bft_network.all_replicas(), 1)
         for replica_id in range(len(bft_network.all_replicas())):
             last_block_id = await bft_network.last_db_checkpoint_block_id(replica_id)
             self.assertEqual(last_block_id, DB_CHECKPOINT_HIGH_WIN_SIZE)
-            await self.wait_for_snapshot(bft_network, replica_id, last_block_id)
+            await bft_network.wait_for_db_snapshot(replica_id, last_block_id)
 
         op = operator.Operator(bft_network.config, client, bft_network.builddir)
         # Read two keys that we haven't written.
@@ -848,13 +848,13 @@ class SkvbcDbSnapshotTest(ApolloTest):
         await skvbc.send_n_kvs_sequentially(DB_CHECKPOINT_WIN_SIZE)  # run till the next checkpoint
 
         src_replica = list(bft_network.random_set_of_replicas(1, without={crashed_replica}))[0]
-        await self.wait_for_stable_checkpoint(bft_network, {src_replica}, 2 * DB_CHECKPOINT_WIN_SIZE)
-        await self.wait_for_created_snapshots_metric(bft_network, {src_replica}, 2)
+        await bft_network.wait_for_stable_checkpoint({src_replica}, stable_seqnum = 2 * DB_CHECKPOINT_WIN_SIZE)
+        await bft_network.wait_for_created_db_snapshots_metric({src_replica}, 2)
         snapshot_id = await bft_network.last_db_checkpoint_block_id(src_replica)
-        self.verify_snapshot_is_available(bft_network, src_replica, snapshot_id)
-        self.restore_form_older_snapshot(bft_network, snapshot_id, src_replica=src_replica,
-                                         dest_replicas=[crashed_replica])
-        self.reset_metadata(bft_network, crashed_replica)
+        bft_network.verify_db_snapshot_is_available(src_replica, snapshot_id)
+        bft_network.restore_form_older_db_snapshot(snapshot_id, src_replica=src_replica,
+                                         dest_replicas=[crashed_replica], prefix=TEMP_DB_SNAPSHOT_PREFIX)
+        bft_network.reset_metadata(crashed_replica)
         await skvbc.send_n_kvs_sequentially(3 * DB_CHECKPOINT_WIN_SIZE)
 
         bft_network.start_replica(crashed_replica)
@@ -866,95 +866,6 @@ class SkvbcDbSnapshotTest(ApolloTest):
         await bft_network.wait_for_consensus_path(path_type=ConsensusPathType.OPTIMISTIC_FAST,
                                                   run_ops=lambda: skvbc.send_n_kvs_sequentially(DB_CHECKPOINT_WIN_SIZE),
                                                   threshold=5)
-
-    def verify_snapshot_is_available(self, bft_network, replica_id, snapshot_id, isPresent=True):
-        with log.start_action(action_type="verify snapshot db files"):
-            snapshot_db_dir = os.path.join(
-                bft_network.testdir, DB_SNAPSHOT_PREFIX + str(replica_id) + "/" + str(snapshot_id))
-            if isPresent == True:
-                self.assertTrue(self.snapshot_exists(bft_network, replica_id, snapshot_id))
-            else:
-                self.assertFalse(os.path.exists(snapshot_db_dir))
-
-    def snapshot_exists(self, bft_network, replica_id, snapshot_id=None):
-        with log.start_action(action_type="snapshot_exists()"):
-            snapshot_db_dir = os.path.join(
-                bft_network.testdir, DB_SNAPSHOT_PREFIX + str(replica_id))
-            if snapshot_id is not None:
-                snapshot_db_dir = os.path.join(snapshot_db_dir, str(snapshot_id))
-            if not os.path.exists(snapshot_db_dir):
-                return False
-
-            # Make sure that checkpoint folder is not empty.
-            size = 0
-            for element in os.scandir(snapshot_db_dir):
-                size += os.path.getsize(element)
-            return (size > 0)
-
-    async def wait_for_snapshot(self, bft_network, replica_id, snapshot_id=None):
-        with trio.fail_after(seconds=30):
-            while True:
-                if self.snapshot_exists(bft_network, replica_id, snapshot_id) == True:
-                    break
-                await trio.sleep(0.5)
-
-    def restore_form_older_snapshot(self, bft_network, snapshot_id, src_replica, dest_replicas):
-        with log.start_action(action_type="restore with older snapshot"):
-            snapshot_db_dir = os.path.join(
-                bft_network.testdir, DB_SNAPSHOT_PREFIX + str(src_replica) + "/" + str(snapshot_id))
-            temp_dir = os.path.join(tempfile.gettempdir(),
-                                    TEMP_DB_SNAPSHOT_PREFIX + str(src_replica) + "/" + str(snapshot_id))
-            ret = shutil.copytree(snapshot_db_dir, temp_dir)
-            for r in dest_replicas:
-                dest_db_dir = os.path.join(
-                    bft_network.testdir, DB_FILE_PREFIX + str(r))
-                if os.path.exists(dest_db_dir):
-                    shutil.rmtree(dest_db_dir)
-                ret = shutil.copytree(temp_dir, dest_db_dir)
-                log.log_message(
-                    message_type=f"copy db files from {snapshot_db_dir} to {dest_db_dir}, result is {ret}")
-            shutil.rmtree(temp_dir)
-
-    def transfer_dbcheckpoint_files(self, bft_network, source_replica, snapshot_id, dest_replicas):
-        with log.start_action(action_type="transfer snapshot db files"):
-            snapshot_db_dir = os.path.join(
-                bft_network.testdir, DB_SNAPSHOT_PREFIX + str(source_replica) + "/" + str(snapshot_id))
-            for r in dest_replicas:
-                dest_db_dir = os.path.join(
-                    bft_network.testdir, DB_FILE_PREFIX + str(r))
-                if os.path.exists(dest_db_dir):
-                    shutil.rmtree(dest_db_dir)
-                ret = shutil.copytree(snapshot_db_dir, dest_db_dir)
-                log.log_message(
-                    message_type=f"copy db files from {snapshot_db_dir} to {dest_db_dir}, result is {ret}")
-
-    async def wait_for_stable_checkpoint(self, bft_network, replicas, stable_seqnum):
-        with trio.fail_after(seconds=30):
-            all_in_checkpoint = False
-            while all_in_checkpoint is False:
-                all_in_checkpoint = True
-                for r in replicas:
-                    lastStable = await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
-                    if lastStable != stable_seqnum:
-                        all_in_checkpoint = False
-                        break
-                await trio.sleep(0.5)
-
-    async def wait_for_created_snapshots_metric(self, bft_network, replicas, expected_num_of_created_snapshots):
-        with trio.fail_after(seconds=30):
-            while True:
-                found_mismatch = False
-                for replica_id in replicas:
-                    num_of_created_snapshots = await bft_network.get_metric(replica_id, bft_network,
-                                                                            "Counters", "numOfDbCheckpointsCreated",
-                                                                            component="rocksdbCheckpoint")
-                    if num_of_created_snapshots != expected_num_of_created_snapshots:
-                        found_mismatch = True
-                        break
-                if found_mismatch:
-                    await trio.sleep(0.5)
-                else:
-                    break
 
     async def validate_stop_on_wedge_point(self, bft_network, skvbc, fullWedge=False):
         with log.start_action(action_type="validate_stop_on_stable_checkpoint") as action:
@@ -981,22 +892,6 @@ class SkvbcDbSnapshotTest(ApolloTest):
                     if stopped_replicas < stop_condition:
                         done = False
 
-    def reset_metadata(self, bft_network, replica_id):
-        with log.start_action(action_type="reset_metadata", replica_id=replica_id) as action:
-            db_editor_path = os.path.join(bft_network.builddir, "kvbc", "tools", "db_editor", "kv_blockchain_db_editor")
-            db_dir = os.path.join(bft_network.testdir, DB_FILE_PREFIX + str(replica_id))
-            reset_md_cmd = [db_editor_path,
-                            db_dir,
-                            "resetMetadata",
-                            str(replica_id),
-                            str(bft_network.config.f),
-                            str(bft_network.config.c),
-                            "37",  # number of principles, defined in setup.cpp
-                            "10"]  # max client batch size, defined in ReplicaConfig.hpp
-
-            with open("reset_md_out.log", 'w+') as stdout_file, open("reset_md_err.log", 'w+') as stderr_file:
-                subprocess.run(reset_md_cmd, stdout=stdout_file, stderr=stderr_file)
-    
     async def verify_db_size_on_disk(self, bft_network):
         client = bft_network.random_client()
         op = operator.Operator(bft_network.config, client, bft_network.builddir)
