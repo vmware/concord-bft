@@ -388,7 +388,7 @@ std::optional<categorization::Value> KeyValueBlockchain::get(const std::string &
 std::optional<categorization::Value> KeyValueBlockchain::getLatest(const std::string &category_id,
                                                                    const std::string &key) const {
   BlockId latest_block_id = block_chain_.getLastReachable();
-  return latest_keys_.getValue(latest_block_id, category_id, detail::Blockchain::generateKey(latest_block_id), key);
+  return latest_keys_.getValue(category_id, detail::Blockchain::generateKey(latest_block_id), key);
 }
 
 void KeyValueBlockchain::multiGet(const std::string &category_id,
@@ -431,8 +431,7 @@ void KeyValueBlockchain::multiGetLatest(const std::string &category_id,
                                         const std::vector<std::string> &keys,
                                         std::vector<std::optional<categorization::Value>> &values) const {
   BlockId latest_block_id = block_chain_.getLastReachable();
-  return latest_keys_.multiGetValue(
-      latest_block_id, category_id, detail::Blockchain::generateKey(latest_block_id), keys, values);
+  return latest_keys_.multiGetValue(category_id, detail::Blockchain::generateKey(latest_block_id), keys, values);
 }
 
 std::optional<categorization::TaggedVersion> KeyValueBlockchain::getLatestVersion(const std::string &category_id,

@@ -226,16 +226,15 @@ void LatestKeys::trimHistoryUntil(BlockId block_id) {
   }
 }
 
-std::optional<categorization::Value> LatestKeys::getValue(BlockId latest_block_id,
-                                                          const std::string& category_id,
-                                                          const std::string& latest_version,
+std::optional<categorization::Value> LatestKeys::getValue(const std::string& category_id,
+                                                          const std::string& version,
                                                           const std::string& key) const {
   std::string get_key;
   std::string out_ts;
   const auto& prefix = category_mapping_.categoryPrefix(category_id);
   get_key.append(prefix);
   get_key.append(key);
-  auto opt_val = native_client_->get(v4blockchain::detail::LATEST_KEYS_CF, get_key, latest_version, &out_ts);
+  auto opt_val = native_client_->get(v4blockchain::detail::LATEST_KEYS_CF, get_key, version, &out_ts);
   if (!opt_val) {
     return std::nullopt;
   }
@@ -256,15 +255,14 @@ std::optional<categorization::Value> LatestKeys::getValue(BlockId latest_block_i
   }
 }
 
-void LatestKeys::multiGetValue(BlockId latest_block_id,
-                               const std::string& category_id,
-                               const std::string& latest_version,
+void LatestKeys::multiGetValue(const std::string& category_id,
+                               const std::string& version,
                                const std::vector<std::string>& keys,
                                std::vector<std::optional<categorization::Value>>& values) const {
   values.clear();
   values.reserve(keys.size());
   for (const auto& key : keys) {
-    values.push_back(getValue(latest_block_id, category_id, latest_version, key));
+    values.push_back(getValue(category_id, version, key));
   }
 }
 
