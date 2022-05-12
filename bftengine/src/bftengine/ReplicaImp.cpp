@@ -2448,6 +2448,7 @@ void ReplicaImp::startExecution(SeqNum seqNumber,
   if (isCurrentPrimary()) {
     metric_consensus_duration_.finishMeasurement(seqNumber);
     metric_post_exe_duration_.addStartTimeStamp(seqNumber);
+    metric_consensus_end_to_core_exe_duration_.addStartTimeStamp(seqNumber);
   }
 
   consensus_times_.end(seqNumber);
@@ -4341,9 +4342,13 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_total_preexec_requests_executed_{metrics_.RegisterCounter("totalPreExecRequestsExecuted")},
       metric_received_restart_ready_{metrics_.RegisterCounter("receivedRestartReadyMsg", 0)},
       metric_received_restart_proof_{metrics_.RegisterCounter("receivedRestartProofMsg", 0)},
-      metric_consensus_duration_{metrics_, "consensusDuration", 1000, true},
-      metric_post_exe_duration_{metrics_, "postExeDuration", 1000, true},
-      metric_primary_batching_duration_{metrics_, "primaryBatchingDuration", 10000, true},
+      metric_consensus_duration_{metrics_, "consensusDuration", 1000, 100, true},
+      metric_post_exe_duration_{metrics_, "postExeDuration", 1000, 100, true},
+      metric_core_exe_func_duration_{metrics_, "postExeCoreFuncDuration", 1000, 100, true},
+      metric_consensus_end_to_core_exe_duration_{metrics_, "consensusEndToExeStartDuration", 1000, 100, true},
+      metric_post_exe_thread_idle_time_{metrics_, "PostExeThreadIdleDuration", 1000, 100, true},
+      metric_post_exe_thread_active_time_{metrics_, "PostExeThreadActiveDuration", 1000, 100, true},
+      metric_primary_batching_duration_{metrics_, "primaryBatchingDuration", 10000, 1000, true},
       consensus_times_(histograms_.consensus),
       checkpoint_times_(histograms_.checkpointFromCreationToStable),
       time_in_active_view_(histograms_.timeInActiveView),
@@ -4817,6 +4822,11 @@ void ReplicaImp::startPrePrepareMsgExecution(PrePrepareMsg *ppMsg,
     // send internal message that will call to finishExecutePrePrepareMsg
     ConcordAssert(activeExecutions_ == 0);
     activeExecutions_ = 1;
+    if (isCurrentPrimary()) {
+      metric_post_exe_thread_active_time_.addStartTimeStamp(0);
+      metric_post_exe_thread_idle_time_.finishMeasurement(0);
+    }
+
     InternalMessage im = FinishPrePrepareExecutionInternalMsg{ppMsg, nullptr};  // TODO(GG): check....
     getIncomingMsgsStorage().pushInternalMsg(std::move(im));
   }
@@ -4908,6 +4918,10 @@ void ReplicaImp::executeAllPrePreparedRequests(bool allowParallelExecution,
 
   ConcordAssert(activeExecutions_ == 0);
   activeExecutions_ = 1;
+  if (isCurrentPrimary()) {
+    metric_post_exe_thread_active_time_.addStartTimeStamp(0);
+    metric_post_exe_thread_idle_time_.finishMeasurement(0);
+  }
   if (shouldRunRequestsInParallel) {
     PostExecJob *j = new PostExecJob(ppMsg, requestSet, time, *this);
     postExecThread_.add(j);
@@ -5032,7 +5046,14 @@ void ReplicaImp::executeRequests(PrePrepareMsg *ppMsg, Bitmap &requestSet, Times
       span.setTag("rid", config_.getreplicaId());
       span.setTag("cid", ppMsg->getCid());
       span.setTag("seq_num", ppMsg->seqNumber());
+      if (isCurrentPrimary()) {
+        metric_consensus_end_to_core_exe_duration_.finishMeasurement(ppMsg->seqNumber());
+        metric_core_exe_func_duration_.addStartTimeStamp(ppMsg->seqNumber());
+      }
       bftRequestsHandler_->execute(*pAccumulatedRequests, time, ppMsg->getCid(), span);
+      if (isCurrentPrimary()) {
+        metric_core_exe_func_duration_.finishMeasurement(ppMsg->seqNumber());
+      }
     }
   } else {
     LOG_INFO(
@@ -5067,6 +5088,10 @@ void ReplicaImp::executeRequests(PrePrepareMsg *ppMsg, Bitmap &requestSet, Times
 void ReplicaImp::finishExecutePrePrepareMsg(PrePrepareMsg *ppMsg,
                                             IRequestsHandler::ExecutionRequestsQueue *pAccumulatedRequests) {
   activeExecutions_ = 0;
+  if (isCurrentPrimary()) {
+    metric_post_exe_thread_idle_time_.addStartTimeStamp(0);
+    metric_post_exe_thread_active_time_.finishMeasurement(0);
+  }
 
   if (pAccumulatedRequests != nullptr) {
     sendResponses(ppMsg, *pAccumulatedRequests);

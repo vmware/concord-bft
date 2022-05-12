@@ -288,6 +288,28 @@ bool ReconfigurationHandler::handle(const concord::messages::CreateDbCheckpointC
   }
 }
 
+bool ReconfigurationHandler::handle(const concord::messages::DbSizeReadRequest&,
+                                    uint64_t,
+                                    uint32_t,
+                                    const std::optional<bftEngine::Timestamp>&,
+                                    concord::messages::ReconfigurationResponse& rres) {
+  if (bftEngine::ReplicaConfig::instance().dbCheckpointFeatureEnabled) {
+    auto result = DbCheckpointManager::instance().getDbSize();
+    concord::messages::DbSizeReadRequestResponse res;
+    for (const auto& [k, v] : result) {
+      res.mapCheckpointIdDbSize.push_back(std::pair<uint64_t, uint64_t>{k, v});
+    }
+    res.replica_id = bftEngine::ReplicaConfig::instance().getreplicaId();
+    rres.response = std::move(res);
+    return true;
+  } else {
+    const auto err = "dbCheckpointFeature is disabled. operator DbSizeReadRequest command failed.";
+    LOG_WARN(getLogger(), err);
+    rres.response = concord::messages::ReconfigurationErrorMsg{err};
+    return false;
+  }
+}
+
 BftReconfigurationHandler::BftReconfigurationHandler() {
   auto operatorPubKeyPath = bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_;
   if (operatorPubKeyPath.empty()) {

@@ -1481,8 +1481,12 @@ bool BCStateTran::onMessage(const AskForCheckpointSummariesMsg *m, uint32_t msgL
     if (!psd_->hasCheckpointDesc(i)) continue;
 
     DataStore::CheckpointDesc cpDesc = psd_->getCheckpointDesc(i);
-    std::unique_ptr<CheckpointSummaryMsg> msg =
-        std::unique_ptr<CheckpointSummaryMsg>(CheckpointSummaryMsg::create(cpDesc.rvbData.size()));
+    auto deleter = [](CheckpointSummaryMsg *msg) {
+      char *bytes = reinterpret_cast<char *>(msg);
+      delete[] bytes;
+    };
+    auto msg = std::unique_ptr<CheckpointSummaryMsg, decltype(deleter)>(
+        CheckpointSummaryMsg::create(cpDesc.rvbData.size()), deleter);
 
     msg->checkpointNum = i;
     msg->maxBlockId = cpDesc.maxBlockId;

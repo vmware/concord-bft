@@ -35,7 +35,9 @@ typedef std::shared_ptr<bft::communication::ICommunication> SharedCommPtr;
 
 class Client {
  public:
-  Client(SharedCommPtr comm, const ClientConfig& config);
+  Client(SharedCommPtr comm,
+         const ClientConfig& config,
+         std::shared_ptr<concordMetrics::Aggregator> aggregator = nullptr);
 
   void setAggregator(const std::shared_ptr<concordMetrics::Aggregator>& aggregator) {
     metrics_.setAggregator(aggregator);

@@ -25,6 +25,7 @@ target_link_libraries(thin_replica_server PUBLIC
 
 # Unit tests
 file(COPY test/resources/trs_trc_tls_certs DESTINATION test/resources)
+file(COPY test/resources/tls_certs DESTINATION test/resources)
 if (BUILD_TESTING)
     add_subdirectory(test)
 endif()

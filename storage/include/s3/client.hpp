@@ -319,9 +319,9 @@ class Client : public concord::storage::IDBClient {
          ++retries) {
       if (retries > 0) {
         delay += retries * initialDelay_;
-        LOG_ERROR(
-            logger_,
-            msg << " status: " << rd.status << " error: " << rd.errorMessage << ", retrying after " << delay << " ms.");
+        LOG_ERROR(logger_,
+                  msg << " status: " << S3_get_status_name(rd.status) << "(" << rd.status
+                      << ") error: " << rd.errorMessage << ", retrying after " << delay << " ms.");
         std::this_thread::sleep_for(std::chrono::milliseconds(delay));
       }
       rd = std::forward<F>(f)(std::forward<Args>(args)...);

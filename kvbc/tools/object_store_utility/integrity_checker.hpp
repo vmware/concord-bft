@@ -10,10 +10,10 @@
 // notices and license terms. Your use of these subcomponents is subject to the
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
+#pragma once
 
 #include <string_view>
 #include <optional>
-#include <boost/program_options.hpp>
 
 #include "util/filesystem.hpp"
 #include "kv_types.hpp"
@@ -31,7 +31,6 @@ class IStorageFactory;
 }
 
 namespace concord::kvbc::tools {
-namespace po = boost::program_options;
 using namespace concord::storage;
 using concordUtils::Sliver;
 using bftEngine::impl::DescriptorOfLastStableCheckpoint;
@@ -42,15 +41,7 @@ using concord::kvbc::BlockId;
  */
 class IntegrityChecker {
  public:
-  IntegrityChecker();
-
-  /** Parse CLI params */
-  void parseCLIArgs(int argc, char** argv);
-
-  /** Check integrity with respect to provided options */
-  void check() const;
-
-  po::options_description& getOptions() { return cli_mandatory_options_; }
+  IntegrityChecker(logging::Logger logger) : logger_(logger) {}
 
   /** Validate the whole blockchain backwards */
   void validateAll() const { validateRange(0); }
@@ -58,7 +49,7 @@ class IntegrityChecker {
   /** Validate a range of blocks backwards from the last available checkpoint descriptor up to until_block,
    *  i.e. tail => until_block
    */
-  void validateRange(BlockId until_block) const;
+  void validateRange(const BlockId& until_block) const;
 
   /** Validate key and get its value */
   void validateKey(const std::string& key) const;
@@ -103,11 +94,8 @@ class IntegrityChecker {
    * @return block digest
    */
   Digest computeBlockDigest(const BlockId&, const std::string_view block) const;
-
   /** Print block content */
   void printBlockContent(const BlockId&, const concord::kvbc::categorization::RawBlock&) const;
-
- protected:
   void initKeysConfig(const fs::path&);
   void initS3Config(const fs::path&);
 
@@ -115,11 +103,7 @@ class IntegrityChecker {
   bftEngine::impl::ReplicasInfo* repsInfo_ = nullptr;
   concord::kvbc::IStorageFactory::DatabaseSet s3_dbset_;
   std::string checkpoints_prefix_;
-  logging::Logger logger_ = logging::getLogger("concord.kvbc.tools.integrity");
-  po::variables_map var_map_;
-  po::options_description cli_options_{("\nIntegrity check options")};
-  po::options_description cli_mandatory_options_{"\nIntegrity check mandatory options"};
-  po::options_description cli_actions_{"\nIntegrity check actions"};
+  logging::Logger logger_;
 };
 
 }  // namespace concord::kvbc::tools

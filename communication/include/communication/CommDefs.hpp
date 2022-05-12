@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <sys/socket.h>
