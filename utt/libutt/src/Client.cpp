@@ -17,6 +17,7 @@ CreateTxResult createTx_1t1(const Wallet& w, size_t coinIdx, const std::string& 
   result.txType_ = "1-to-1 transfer";
   result.inputNormalCoinValues_.emplace_back(inputCoins[0].getValue());
   result.inputBudgetCoinValue_ = budgetCoin.getValue();
+  result.outputBudgetCoinValue_ = budgetCoin.getValue() - payment.as_ulong();
   result.recipients_.emplace(pid, payment.as_ulong());
   result.tx = Tx(w.p, w.ask, inputCoins, budgetCoin, recip, w.bpk, w.rpk);
 
@@ -41,6 +42,7 @@ CreateTxResult createTx_1t2(const Wallet& w, size_t coinIdx, size_t payment, con
   result.txType_ = "1-to-2 transfer";
   result.inputNormalCoinValues_.emplace_back(inputCoins[0].getValue());
   result.inputBudgetCoinValue_ = budgetCoin.getValue();
+  result.outputBudgetCoinValue_ = budgetCoin.getValue() - payment;
   result.recipients_.emplace(pid, value1.as_ulong());
   result.recipients_.emplace(w.getUserPid(), value2.as_ulong());
   result.tx = Tx(w.p, w.ask, inputCoins, budgetCoin, recip, w.bpk, w.rpk);
@@ -63,6 +65,7 @@ CreateTxResult createTx_2t1(const Wallet& w, size_t coinIdx1, size_t coinIdx2, c
   result.inputNormalCoinValues_.emplace_back(inputCoins[0].getValue());
   result.inputNormalCoinValues_.emplace_back(inputCoins[1].getValue());
   result.inputBudgetCoinValue_ = budgetCoin.getValue();
+  result.outputBudgetCoinValue_ = budgetCoin.getValue() - totalValue.as_ulong();
   result.recipients_.emplace(pid, totalValue.as_ulong());
   result.tx = Tx(w.p, w.ask, inputCoins, budgetCoin, recip, w.bpk, w.rpk);
 
@@ -88,6 +91,7 @@ CreateTxResult createTx_2t2(const Wallet& w, size_t coinIdx1, size_t coinIdx2, s
   result.inputNormalCoinValues_.emplace_back(inputCoins[0].getValue());
   result.inputNormalCoinValues_.emplace_back(inputCoins[1].getValue());
   result.inputBudgetCoinValue_ = budgetCoin.getValue();
+  result.outputBudgetCoinValue_ = budgetCoin.getValue() - payment;
   result.recipients_.emplace(pid, value1.as_ulong());
   result.recipients_.emplace(w.getUserPid(), value2.as_ulong());
   result.tx = Tx(w.p, w.ask, inputCoins, budgetCoin, recip, w.bpk, w.rpk);

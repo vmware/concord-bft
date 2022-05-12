@@ -15,9 +15,12 @@ size_t calcBudget(const Wallet& w);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct CreateTxResult {
+  // [TODO-UTT] These values can be generalized into two vectors - input and output,
+  // each listing coin values and coin types.
   std::string txType_ = "undefined";
   std::vector<size_t> inputNormalCoinValues_;
   std::optional<size_t> inputBudgetCoinValue_;
+  std::optional<size_t> outputBudgetCoinValue_;
   std::map<std::string, size_t> recipients_;  // [pid : coinValue]
   Tx tx;
 };

@@ -260,7 +260,7 @@ class UTTClientApp : public UTTBlockchainApp {
 
     // Client removes spent coins and attempts to claim output coins
     if (const auto* txUtt = std::get_if<TxUtt>(&tx)) {
-      std::cout << "Executing UTT tx " << txUtt->utt_.getHashHex() << '\n';
+      std::cout << "Applying UTT tx " << txUtt->utt_.getHashHex() << '\n';
       pruneSpentCoins();
       tryClaimCoins(*txUtt);
       std::cout << '\n';
@@ -610,6 +610,9 @@ void runUttPayment(const UttPayment& payment, UTTClientApp& app, WalletCommunica
                 << " budget coin.\n";
     for (const auto& [pid, coinValue] : result.recipients_)
       std::cout << "  + '" << pid << "' will receive " << app.fmtCurrency(coinValue) << " normal coin.\n";
+    if (result.outputBudgetCoinValue_)
+      std::cout << "  + '" << app.myPid_ << "' will receive " << app.fmtCurrency(*result.outputBudgetCoinValue_)
+                << " budget coin.\n";
 
     // We assume that any tx with a budget coin must be an actual payment
     // and not a coin split or merge.

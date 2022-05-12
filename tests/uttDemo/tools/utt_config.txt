@@ -22,7 +22,7 @@ currency_unit:
 
 # Configure initial public balance for each account (Optional)
 public_balance:
- - 1000
+ - 9000
 
 # List of initial utt coins for each wallet (Optional)
 utt_coins:
