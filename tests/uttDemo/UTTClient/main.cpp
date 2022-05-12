@@ -781,7 +781,7 @@ int main(int argc, char** argv) {
       const auto& myAccount = app.getMyAccount();
       // Format: WalletPid LastKnownBlockId PublicBalance UttBalance UttBudget";
       ofs << app.myPid_ << ' ' << app.getLastKnownBlockId() << ' ' << myAccount.getPublicBalance() << ' '
-          << app.getUttBalance() << ' ' << app.getUttBudget();
+          << app.getUttBalance() << ' ' << app.getUttBudget() << '\n';
       return 0;
     }
 

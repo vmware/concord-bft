@@ -3,7 +3,7 @@
 set +x
 
 if [[ -z $1 ]]; then
-    echo "Usage: specify the automation script file to be used. Scripts are located in the automation folder."
+    echo "Usage: specify the automation commands to be used."
     exit 1
 fi
 
@@ -13,33 +13,66 @@ fi
 # Start replicas and payment services (and keep them running in the background)
 . startServices.sh
 
-# Run each wallet with the automation script
+mkdir -p automation
+
+# Summarize the initial state of each wallet
+echo ""
+echo "Gather the initial state of the system..."
 WALLET_PIDS=()
 for id in {1..9}
 do
-    echo "Running automation with wallet $id"
-    ../UTTClient/utt_client -n config/net_localhost.txt -i $id &> automation/wallet_$id.txt < $1 &
+    ../UTTClient/utt_client -n config/net_localhost.txt -i $id -s automation/init_$id.txt > /dev/null &
     WALLET_PIDS+=" $!"
 done
-
-echo "Waiting wallet pids (${WALLET_PIDS}) to finish automation..."
+echo "Waiting wallet pids (${WALLET_PIDS}) to finish..."
 wait ${WALLET_PIDS}
 echo "Done."
 
-# Generate summary of state for each client
+echo ""
+echo "WalledId | LastBlockId | PublicBalance | UttBalance | UttBudget"
+cat automation/init_*
+
+# Export variables describing the initial state
+NUM_WALLETS=9
+INIT_BLOCK_ID=$(awk 'BEGIN {value=0} {if(NR==1) value=$2; else if(value != $2) value="error: inconsistent initial value"} END {print value}' automation/init_*)
+INIT_PUBLIC_BALANCE=$(awk 'BEGIN {value=0} {if(NR==1) value=$3; else if(value != $3) value="error: inconsistent initial value"} END {print value}' automation/init_*)
+INIT_UTT_BALANCE=$(awk 'BEGIN {value=0} {if(NR==1) value=$4; else if(value != $4) value="error: inconsistent initial value"} END {print value}' automation/init_*)
+INIT_UTT_BUDGET=$(awk 'BEGIN {value=0} {if(NR==1) value=$5; else if(value != $5) value="error: inconsistent initial value"} END {print value}' automation/init_*)
+
+# Run automation on each wallet
+echo ""
+echo "Run automation..."
 WALLET_PIDS=()
 for id in {1..9}
 do
-    echo "Summarize wallet $id"
-    ../UTTClient/utt_client -n config/net_localhost.txt -i $id -s automation/summary_$id.txt > /dev/null &
+    echo -e $1 | ../UTTClient/utt_client -n config/net_localhost.txt -i $id &> automation/run_$id.txt &
     WALLET_PIDS+=" $!"
 done
-
-echo "Waiting wallet pids (${WALLET_PIDS}) to finish summarizing..."
+echo "Waiting wallet pids (${WALLET_PIDS}) to finish..."
 wait ${WALLET_PIDS}
+echo "Done."
 
-echo "Automation with summary done."
+# Summarize the final state of each wallet
+echo ""
+echo "Gather the final state of the system..."
+WALLET_PIDS=()
+for id in {1..9}
+do
+    ../UTTClient/utt_client -n config/net_localhost.txt -i $id -s automation/final_$id.txt > /dev/null &
+    WALLET_PIDS+=" $!"
+done
+echo "Waiting wallet pids (${WALLET_PIDS}) to finish..."
+wait ${WALLET_PIDS}
+echo "Done."
+
+echo ""
+echo "WalledId | LastBlockId | PublicBalance | UttBalance | UttBudget"
+cat automation/final_*
 
 # Stop replicas and payment services
 . stopServices.sh
+
+wait # Wait all services to terminate
+echo ""
+echo "Automation completed."
 
