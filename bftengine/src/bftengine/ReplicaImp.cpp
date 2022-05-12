@@ -2097,7 +2097,8 @@ void ReplicaImp::onCommitCombinedSigSucceeded(SeqNum seqNumber,
       (seqNumber > lastExecutedSeqNum + config_.getconcurrencyLevel() + activeExecutions_);
 
   auto span = concordUtils::startChildSpanFromContext(
-      commitFull->spanContext<std::remove_pointer<decltype(commitFull)>::type>(), "bft_execute_committed_reqs");
+      commitFull->spanContext<std::remove_pointer<decltype(commitFull)>::type>(),
+      "bft_handle_commit_combined_sig_succeeded_message");
   updateCommitMetrics(CommitPath::SLOW);
   startExecution(seqNumber, span, askForMissingInfoAboutCommittedItems);
 }
@@ -2144,7 +2145,8 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view,
   LOG_INFO(CNSUS, "Request committed, proceeding to try to execute" << KVLOG(view));
 
   auto span = concordUtils::startChildSpanFromContext(
-      commitFull->spanContext<std::remove_pointer<decltype(commitFull)>::type>(), "bft_execute_committed_reqs");
+      commitFull->spanContext<std::remove_pointer<decltype(commitFull)>::type>(),
+      "bft_handle_commit_verify_combined_sig_result");
   bool askForMissingInfoAboutCommittedItems =
       (seqNumber > lastExecutedSeqNum + config_.getconcurrencyLevel() + activeExecutions_);
   updateCommitMetrics(CommitPath::SLOW);
@@ -2203,7 +2205,7 @@ void ReplicaImp::onFastPathCommitCombinedSigSucceeded(SeqNum seqNumber,
        lastExecutedSeqNum + config_.getconcurrencyLevel() + activeExecutions_);  // TODO(GG): check/improve this logic
 
   auto span = concordUtils::startChildSpanFromContext(fcp->spanContext<std::remove_pointer<decltype(fcp)>::type>(),
-                                                      "bft_execute_committed_reqs");
+                                                      "bft_handle_fast_path_commit_combined_sig_succeeded");
 
   updateCommitMetrics(cPath);
 
@@ -2268,7 +2270,7 @@ void ReplicaImp::onFastPathCommitVerifyCombinedSigResult(SeqNum seqNumber,
        lastExecutedSeqNum + config_.getconcurrencyLevel() + activeExecutions_);  // TODO(GG): check/improve this logic
 
   auto span = concordUtils::startChildSpanFromContext(fcp->spanContext<std::remove_pointer<decltype(fcp)>::type>(),
-                                                      "bft_execute_committed_reqs");
+                                                      "bft_handle_fast_path_commit_verify_combined_sig_result");
 
   updateCommitMetrics(cPath);
 
@@ -4967,14 +4969,14 @@ void ReplicaImp::executeSpecialRequests(PrePrepareMsg *ppMsg,
     reqIdx++;
   }
 
+  auto span_context = ppMsg->spanContext<std::remove_pointer<decltype(ppMsg)>::type>();
   // TODO(GG): the following code is cumbersome. We can call to execute directly in the above loop
   IRequestsHandler::ExecutionRequestsQueue singleRequest;
   for (IRequestsHandler::ExecutionRequest &req : accumulatedRequests) {
     ConcordAssert(singleRequest.empty());
     singleRequest.push_back(req);
     {
-      const concordUtils::SpanContext &span_context{""};
-      auto span = concordUtils::startChildSpanFromContext(span_context, "bft_client_request");
+      auto span = concordUtils::startChildSpanFromContext(span_context, "bft_client_special_request");
       span.setTag("rid", config_.getreplicaId());
       span.setTag("cid", req.cid);
       span.setTag("seq_num", req.requestSequenceNum);
@@ -5036,12 +5038,12 @@ void ReplicaImp::executeRequests(PrePrepareMsg *ppMsg, Bitmap &requestSet, Times
       setConflictDetectionBlockId(req, pAccumulatedRequests->back());
     }
   }
+  auto span_context = ppMsg->spanContext<std::remove_pointer<decltype(ppMsg)>::type>();
   if (ReplicaConfig::instance().blockAccumulation) {
     LOG_DEBUG(GL,
               "Executing all the requests of preprepare message with cid: " << ppMsg->getCid() << " with accumulation");
     {
       //      TimeRecorder scoped_timer1(*histograms_.executeWriteRequest);
-      const concordUtils::SpanContext &span_context{""};
       auto span = concordUtils::startChildSpanFromContext(span_context, "bft_client_request");
       span.setTag("rid", config_.getreplicaId());
       span.setTag("cid", ppMsg->getCid());
@@ -5064,7 +5066,6 @@ void ReplicaImp::executeRequests(PrePrepareMsg *ppMsg, Bitmap &requestSet, Times
       singleRequest.push_back(req);
       {
         //        TimeRecorder scoped_timer1(*histograms_.executeWriteRequest);
-        const concordUtils::SpanContext &span_context{""};
         auto span = concordUtils::startChildSpanFromContext(span_context, "bft_client_request");
         span.setTag("rid", config_.getreplicaId());
         span.setTag("cid", ppMsg->getCid());
