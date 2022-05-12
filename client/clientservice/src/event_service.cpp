@@ -41,6 +41,11 @@ namespace concord::client::clientservice {
 namespace eventservice {
 
 void EventServiceCallData::proceedImpl() {
+  if (state_ == FINISH) {
+    client_->unsubscribe();
+    delete this;
+    return;
+  }
   try {
     if (state_ == CREATE) {
       state_ = SUBSCRIBE;
@@ -54,12 +59,22 @@ void EventServiceCallData::proceedImpl() {
       // We are handling an incoming `Subscribe` right now, let's make sure we handle the next one too
       new eventservice::EventServiceCallData(service_, cq_, client_, aggregator_, max_write_batch_size_);
       // Forward request to concord client (non-blocking)
-      subscribeToConcordClient();
+      try {
+        subscribeToConcordClient();
+      } catch (const std::exception& e) {
+        LOG_WARN(logger_, "Exception caught while subscribing: " << e.what());
+        state_ = FINISH;
+      }
       // The subscription started and the queue will be filled.
       // Now, we need to transition to the next state by putting an event on the completion queue.
       alarm_.Set(cq_, gpr_now(gpr_clock_type::GPR_CLOCK_REALTIME), &proceed);
 
     } else if (state_ == READ_FROM_QUEUE) {
+      if (done_called_) {
+        state_ = FINISH;
+        alarm_.Set(cq_, gpr_now(gpr_clock_type::GPR_CLOCK_REALTIME), &proceed);
+        return;
+      }
       // Read from the update queue and write results to stream, note:
       // * Writing will put a signal on the completion queue and we have to wait for it before we continue writing
       // * state_ can change inside readFromQueue based on the update
@@ -211,12 +226,7 @@ void EventServiceCallData::readFromQueueAndWrite() {
 
 void EventServiceCallData::doneImpl() {
   // if (ctx_.IsCancelled()) the client decided to stop the stream
-  // if (state_ == FINISH) the server decided to stop the stream
-  bool expect = false;
-  if (delete_me_.compare_exchange_strong(expect, true)) {
-    client_->unsubscribe();
-    delete this;
-  }
+  done_called_ = true;
 }
 
 }  // namespace eventservice

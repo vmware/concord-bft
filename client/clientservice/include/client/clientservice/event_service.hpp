@@ -110,6 +110,7 @@ class EventServiceCallData final : public clientservice::CallData {
 
   std::shared_ptr<concord::client::concordclient::EventUpdateQueue> queue_;
 
+  std::atomic<bool> done_called_{false};
   std::atomic<bool> delete_me_{false};
   std::uint8_t num_pending_writes_{0};
   unsigned max_write_batch_size_;
