@@ -16,8 +16,6 @@
 #include <string>
 #include <type_traits>
 
-#include "categorization/base_types.h"
-#include "categorized_kvbc_msgs.cmf.hpp"
 #include "state_snapshot_interface.hpp"
 #include "v4blockchain/v4_blockchain.h"
 

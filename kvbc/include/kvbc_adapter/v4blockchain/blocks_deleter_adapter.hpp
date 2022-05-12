@@ -22,8 +22,6 @@
 #include "performance_handler.h"
 #include "diagnostics.h"
 
-using concord::storage::rocksdb::NativeClient;
-
 namespace concord::kvbc::adapter::v4blockchain {
 
 class BlocksDeleterAdapter : public IBlocksDeleter {
