@@ -652,21 +652,21 @@ class SkvbcViewChangeTest(ApolloTest):
                 running_replicas.append(i)
 
         for r in running_replicas:
-            view_of_replica = 0
-            while view_of_replica == 0:
-                view_of_replica = await self._get_gauge(r, bft_network, 'view')
+            expected_next_view  = 0
+            while expected_next_view  == 0:
+                expected_next_view  = await self._get_gauge(r, bft_network, 'view')
                 await trio.sleep(seconds=0.1)
-            self.assertEqual(view_of_replica, 2, "Replica failed to reach expected view")
+            self.assertEqual(expected_next_view , 1, "Replica failed to reach expected view")
 
         [bft_network.start_replica(i) for i in to_stop]
 
         expected_view = expected_view + 1
 
+         # write to trigger vc
+        await skvbc.run_concurrent_ops(10)
+
         # wait for replicas to go to higher view (View 1 in this case)
         await bft_network.wait_for_replicas_to_reach_view(bft_network.all_replicas(), expected_view)
-
-        # stop replicas
-        [bft_network.stop_replica(i) for i in bft_network.all_replicas()]
 
     async def _single_vc_with_consecutive_failed_replicas(
             self,
