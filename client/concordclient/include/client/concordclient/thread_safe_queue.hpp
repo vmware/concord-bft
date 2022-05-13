@@ -14,7 +14,7 @@
 #pragma once
 
 #include <condition_variable>
-#include <list>
+#include <deque>
 #include <memory>
 #include <mutex>
 #include <exception>
@@ -93,7 +93,7 @@ class IQueue {
 template <typename T>
 class BasicThreadSafeQueue : public IQueue<T> {
  private:
-  std::list<std::unique_ptr<T>> queue_data_;
+  std::deque<std::unique_ptr<T>> queue_data_;
   std::mutex mutex_;
   std::condition_variable condition_;
   bool release_consumers_;
