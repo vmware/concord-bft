@@ -24,6 +24,8 @@ namespace concord::client::clientservice {
 
 namespace requestservice {
 
+const std::string kClientInstanceId = "client_instance_id";
+
 void RequestServiceCallData::proceed() {
   if (state_ == FINISH) {
     delete this;
@@ -182,6 +184,9 @@ void RequestServiceCallData::sendToConcordClient() {
     bft::client::ReadConfig config;
     config.request = req_config;
     auto span = opentracing::Tracer::Global()->StartSpan("send_ro", {opentracing::ChildOf(parent_span.get())});
+    if (span) {
+      span->SetTag(kClientInstanceId, client_->getSubscriptionId());
+    }
     std::ostringstream carrier;
     opentracing::Tracer::Global()->Inject(span->context(), carrier);
     config.request.span_context = carrier.str();
@@ -190,6 +195,9 @@ void RequestServiceCallData::sendToConcordClient() {
     bft::client::WriteConfig config;
     config.request = req_config;
     auto span = opentracing::Tracer::Global()->StartSpan("send", {opentracing::ChildOf(parent_span.get())});
+    if (span) {
+      span->SetTag(kClientInstanceId, client_->getSubscriptionId());
+    }
     std::ostringstream carrier;
     opentracing::Tracer::Global()->Inject(span->context(), carrier);
     config.request.span_context = carrier.str();
