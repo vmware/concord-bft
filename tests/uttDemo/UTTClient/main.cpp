@@ -569,8 +569,9 @@ void printHelp() {
             << "\t\t\t-- each UTT transaction is sent twice. Only the first should succeed.\n";
   std::cout << k_CmdDbgPrimary
             << "\t\t\t\t-- prints the last known primary replica. This value is updated when receiving responses.\n";
-  std::cout << k_CmdRandom << " [count]"
-            << "\t\t\t\t-- do [count] random money transfers including public and utt transactions.\n";
+  std::cout << k_CmdRandom << " [count] [seed=0]"
+            << "\t\t\t\t-- do [count] random money transfers including public and utt transactions. Optionally provide "
+               "a seed.\n";
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -707,7 +708,7 @@ void dbgForceCheckpoint(UTTClientApp& app, WalletCommunicator& comm) {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void dbgRandomTransfer(UTTClientApp& app, WalletCommunicator& comm, int count, uint32_t seed = 0) {
+void dbgRandomTransfer(UTTClientApp& app, WalletCommunicator& comm, int count, unsigned int seed = 0) {
   ConcordAssert(count > 0);
   const auto& myAccount = app.getMyAccount();
   const size_t numOtherPids = app.otherPids_.size();
@@ -754,6 +755,25 @@ void dbgRandomTransfer(UTTClientApp& app, WalletCommunicator& comm, int count, u
         continue;
       }
     }
+  }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void dbgParseRandomCmd(UTTClientApp& app, WalletCommunicator& comm, const std::vector<std::string>& tokens) {
+  // Precondition: tokens[0] == "random"
+  if (tokens.size() < 2 || tokens.size() > 3)
+    throw std::domain_error("random requires a count and optionally a seed argument");
+
+  const int count = std::atoi(tokens[1].c_str());
+  if (count <= 0) throw std::domain_error("random requires a positive count argument");
+
+  if (tokens.size() == 3) {
+    const long long seed = std::atoll(tokens[2].c_str());
+    if (seed <= 0) throw std::domain_error("random requires a positive seed argument");
+    if (seed > std::numeric_limits<unsigned int>::max()) throw std::domain_error("random seed outside numeric range");
+    dbgRandomTransfer(app, comm, count, static_cast<unsigned int>(seed));
+  } else {
+    dbgRandomTransfer(app, comm, count);
   }
 }
 
@@ -841,10 +861,7 @@ int main(int argc, char** argv) {
         } else if (tokens[0] == k_CmdDbgCheckpoint) {
           dbgForceCheckpoint(app, comm);
         } else if (tokens[0] == k_CmdRandom) {
-          if (tokens.size() != 2) throw std::domain_error("random requires one count argument");
-          const int count = std::atoi(tokens[1].c_str());
-          if (count <= 0) throw std::domain_error("random requires a positive count argument");
-          dbgRandomTransfer(app, comm, count);
+          dbgParseRandomCmd(app, comm, tokens);
         } else if (auto uttPayment = createUttPayment(tokens, app)) {
           runUttPayment(*uttPayment, app, comm);
           checkBalance(app, comm);
