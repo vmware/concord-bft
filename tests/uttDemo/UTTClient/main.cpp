@@ -47,6 +47,7 @@ const std::string k_CmdHelp = "h";
 const std::string k_CmdAccounts = "accounts";
 const std::string k_CmdBalance = "balance";
 const std::string k_CmdLedger = "ledger";
+const std::string k_CmdShowBlock = "show";
 // UTT
 const std::string k_CmdUtt = "utt";
 const std::string k_CmdMint = "mint";
@@ -594,6 +595,8 @@ void printHelp() {
   std::cout << k_CmdAccounts << "\t\t\t-- print all available account names you can send public or utt funds to.\n";
   std::cout << k_CmdBalance << "\t\t\t\t-- print details about your account.\n";
   std::cout << k_CmdLedger << "\t\t\t\t-- print all transactions that happened on the Blockchain.\n";
+  std::cout << k_CmdShowBlock << " [blockId]\t\t\t-- print the contents of a block.\n";
+
   std::cout << "transfer [account] [amount]\t-- transfer public money to another account.\n";
   std::cout << "utt [account] [amount]\t\t-- transfer money anonymously to another account.\n";
   std::cout << k_CmdMint << " [amount]\t\t\t-- exchanges public money for coin(s) usable in utt payments\n";
@@ -751,6 +754,29 @@ void burnCoin(UTTClientApp& app, WalletCommunicator& comm, const std::vector<std
     } else {
       ConcordAssert(false);  // Ambiguous result
     }
+  }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void showBlockById(UTTClientApp& app, uint64_t blockId) {
+  const auto* block = app.getBlockById(blockId);
+  if (!block) {
+    std::cout << "The block is missing - you might need to synchronize your wallet.\n";
+    std::cout << "Type '" << k_CmdLedger << "' to get the latest blocks.\n";
+    return;
+  }
+
+  std::cout << "Block " << block->id_ << " details:\n";
+  if (block->id_ == 0) std::cout << "  Genesis block.\n";
+  if (block->tx_) {
+    if (const auto* txUtt = std::get_if<TxUtt>(&(*block->tx_))) {
+      std::cout << "  UnTracable Transaction (UTT).\n";
+      std::cout << "  <NYI>\n";
+    } else {
+      std::cout << "  Public transaction: " << *block->tx_ << '\n';
+    }
+  } else {
+    std::cout << "  Empty.\n";
   }
 }
 
@@ -1032,6 +1058,11 @@ int main(int argc, char** argv) {
           checkBalance(app, comm);
         } else if (tokens[0] == k_CmdLedger) {
           checkLedger(app, comm);
+        } else if (tokens[0] == k_CmdShowBlock) {
+          if (tokens.size() != 2) throw std::domain_error("show requires a block id argument");
+          const int blockId = std::atoi(tokens[1].c_str());
+          if (blockId < 0) throw std::domain_error("show requires a non-negative block id argument");
+          showBlockById(app, static_cast<uint64_t>(blockId));
         } else if (tokens[0] == k_CmdDbgCheckpoint) {
           dbgForceCheckpoint(app, comm);
         } else if (tokens[0] == k_CmdRandom) {
