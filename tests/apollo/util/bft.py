@@ -12,6 +12,7 @@
 
 # Add the pyclient directory to $PYTHONPATH
 import hashlib
+from logging import setLogRecordFactory
 import sys
 
 import os
@@ -1784,3 +1785,95 @@ class BftTestNetwork:
                     break
                 sha1.update(data)
         return sha1.hexdigest()
+
+    def reset_metadata(self, replica_id):
+        with log.start_action(action_type="reset_metadata", replica_id=replica_id) as action:
+            db_editor_path = os.path.join(self.builddir, "kvbc", "tools", "db_editor", "kv_blockchain_db_editor")
+            db_dir = os.path.join(self.testdir, DB_FILE_PREFIX + str(replica_id))
+            reset_md_cmd = [db_editor_path,
+                            db_dir,
+                            "resetMetadata",
+                            str(replica_id),
+                            str(self.config.f),
+                            str(self.config.c),
+                            "37",  # number of principles, defined in setup.cpp
+                            "10"]  # max client batch size, defined in ReplicaConfig.hpp
+
+            with open("reset_md_out.log", 'w+') as stdout_file, open("reset_md_err.log", 'w+') as stderr_file:
+                subprocess.run(reset_md_cmd, stdout=stdout_file, stderr=stderr_file)
+
+    async def wait_for_stable_checkpoint(self, replicas, stable_seqnum):
+        with trio.fail_after(seconds=30):
+            all_in_checkpoint = False
+            while all_in_checkpoint is False:
+                all_in_checkpoint = True
+                for r in replicas:
+                    lastStable = await self.get_metric(r, self, "Gauges", "lastStableSeqNum")
+                    if lastStable != stable_seqnum:
+                        all_in_checkpoint = False
+                        break
+                await trio.sleep(0.5)
+
+    async def wait_for_created_db_snapshots_metric(self, replicas, expected_num_of_created_snapshots):
+        with trio.fail_after(seconds=30):
+            while True:
+                found_mismatch = False
+                for replica_id in replicas:
+                    num_of_created_snapshots = await self.get_metric(replica_id, self,
+                                                                            "Counters", "numOfDbCheckpointsCreated",
+                                                                            component="rocksdbCheckpoint")
+                    if num_of_created_snapshots != expected_num_of_created_snapshots:
+                        found_mismatch = True
+                        break
+                if found_mismatch:
+                    await trio.sleep(0.5)
+                else:
+                    break
+
+    def db_snapshot_exists(self, replica_id, snapshot_id=None):
+        with log.start_action(action_type="db_snapshot_exists()"):
+            snapshot_db_dir = os.path.join(
+                self.testdir, DB_SNAPSHOT_PREFIX + str(replica_id))
+            if snapshot_id is not None:
+                snapshot_db_dir = os.path.join(snapshot_db_dir, str(snapshot_id))
+            if not os.path.exists(snapshot_db_dir):
+                return False
+
+            # Make sure that checkpoint folder is not empty.
+            size = 0
+            for element in os.scandir(snapshot_db_dir):
+                size += os.path.getsize(element)
+            return (size > 0)
+
+    async def wait_for_db_snapshot(self, replica_id, snapshot_id=None):
+        with trio.fail_after(seconds=30):
+            while True:
+                if self.db_snapshot_exists(replica_id, snapshot_id) == True:
+                    break
+                await trio.sleep(0.5)
+
+    def verify_db_snapshot_is_available(self, replica_id, snapshot_id, isPresent=True):
+        with log.start_action(action_type="verify snapshot db files"):
+            snapshot_db_dir = os.path.join(
+                self.testdir, DB_SNAPSHOT_PREFIX + str(replica_id) + "/" + str(snapshot_id))
+            if isPresent == True:
+                assert self.db_snapshot_exists(replica_id, snapshot_id) == True
+            else:
+                assert os.path.exists(snapshot_db_dir) == False
+
+    def restore_form_older_db_snapshot(self, snapshot_id, src_replica, dest_replicas, prefix):
+        with log.start_action(action_type="restore with older snapshot"):
+            snapshot_db_dir = os.path.join(
+                self.testdir, DB_SNAPSHOT_PREFIX + str(src_replica) + "/" + str(snapshot_id))
+            temp_dir = os.path.join(tempfile.gettempdir(),
+                                    prefix + str(src_replica) + "/" + str(snapshot_id))
+            ret = shutil.copytree(snapshot_db_dir, temp_dir)
+            for r in dest_replicas:
+                dest_db_dir = os.path.join(
+                    self.testdir, DB_FILE_PREFIX + str(r))
+                if os.path.exists(dest_db_dir):
+                    shutil.rmtree(dest_db_dir)
+                ret = shutil.copytree(temp_dir, dest_db_dir)
+                log.log_message(
+                    message_type=f"copy db files from {snapshot_db_dir} to {dest_db_dir}, result is {ret}")
+            shutil.rmtree(temp_dir)
