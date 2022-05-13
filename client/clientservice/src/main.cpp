@@ -60,7 +60,7 @@ po::variables_map parseCmdLine(int argc, char** argv) {
     ("secrets-url", po::value<std::string>(), "URL to decrypt private keys")
     ("jaeger", po::value<std::string>(), "Push trace data to this Jaeger Agent")
     ("max-receive-msg-size", po::value<uint64_t>()->default_value(4194304), "Clientservice max receive message size in bytes")
-    ("es-max-batch-size", po::value<unsigned>()->default_value(10), "Maximum batch size the EventService is going to deliver")
+    ("es-max-batch-size", po::value<unsigned>()->default_value(64), "Maximum batch size the EventService is going to deliver")
   ;
   // clang-format on
   po::variables_map opts;
