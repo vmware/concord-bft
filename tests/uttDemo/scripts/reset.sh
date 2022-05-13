@@ -6,6 +6,6 @@ killall payment_service
 
 echo ""
 echo "Cleaning files..."
-rm -rf logs/* core.* rocksdb/* automation/wallet_* automation/summary_*
+rm -rf logs/* core.* rocksdb/* automation/*
 echo "Done."
 

@@ -1,11 +1,12 @@
 #!/bin/bash
 
 echo ""
-echo "###########################################################"
+echo "###############################################################"
 echo "# This test concurrently runs randomized public and utt"
 echo "# transafers between random wallets. At the end we check"
 echo "# that the total public and utt balance remain the same."
-echo "###########################################################"
+echo "# You can obtain the random seeds from automation/run_ files."
+echo "###############################################################"
 
 # Each wallet executes random transfers and quits
 . runAutomation.sh "random 50\nq"

@@ -707,15 +707,20 @@ void dbgForceCheckpoint(UTTClientApp& app, WalletCommunicator& comm) {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void dbgRandomTransfer(UTTClientApp& app, WalletCommunicator& comm, int count, uint32_t seed) {
+void dbgRandomTransfer(UTTClientApp& app, WalletCommunicator& comm, int count, uint32_t seed = 0) {
   ConcordAssert(count > 0);
   const auto& myAccount = app.getMyAccount();
   const size_t numOtherPids = app.otherPids_.size();
   ConcordAssert(numOtherPids > 0);
 
+  if (seed == 0) {
+    std::random_device rd;
+    seed = rd();
+  }
+
   std::mt19937 gen;
   gen.seed(seed);
-  std::cout << "random " << count << " with seed " << seed << '\n';
+  std::cout << "random " << count << " using seed " << seed << '\n';
 
   for (int i = 0; i < count; ++i) {
     // Pick random wallet to transfer to
@@ -839,7 +844,7 @@ int main(int argc, char** argv) {
           if (tokens.size() != 2) throw std::domain_error("random requires one count argument");
           const int count = std::atoi(tokens[1].c_str());
           if (count <= 0) throw std::domain_error("random requires a positive count argument");
-          dbgRandomTransfer(app, comm, count, params.clientId_);
+          dbgRandomTransfer(app, comm, count);
         } else if (auto uttPayment = createUttPayment(tokens, app)) {
           runUttPayment(*uttPayment, app, comm);
           checkBalance(app, comm);
