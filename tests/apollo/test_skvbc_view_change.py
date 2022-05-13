@@ -317,7 +317,7 @@ class SkvbcViewChangeTest(ApolloTest):
         Note: this scenario requires f >= 2, because at certain moments we have
         two simultaneously crashed replicas (the primary and the non-primary that is
         missing the view change).
-         
+
         """
 
         bft_network.start_all_replicas()
@@ -503,7 +503,7 @@ class SkvbcViewChangeTest(ApolloTest):
         4) Make sure a view change does not happen and the isolated replica
         rejoins the fast path in the existing view
         """
-        
+
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         n = bft_network.config.n
@@ -572,7 +572,7 @@ class SkvbcViewChangeTest(ApolloTest):
 
         replicas_to_start = bft_network.config.n - (bft_network.config.f + 1)
         replicas = random.sample(bft_network.all_replicas(), replicas_to_start)
-        
+
         # start replicas
         [bft_network.start_replica(i) for i in replicas]
         skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
@@ -599,6 +599,74 @@ class SkvbcViewChangeTest(ApolloTest):
 
         await bft_network.wait_for_fast_path_to_be_prevalent(
             run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: c == 0, rotate_keys=True)
+    @verify_linearizability()
+    async def test_recovering_of_replicas_with_failed_quorum_view_change(self, bft_network, tracker):
+        """
+        We need to verify the system correctly handles the case where we have F+1 replicas unavailable (stopped).
+         In this scenario the system will temporarily lose liveness, but we need to verify that once the stopped replicas are up again the system will recover and process client requests again.
+
+        1. Starts all replicas.
+        2. Send Client requests to verify system is working correctly.
+        3. Stop F+1 Replicas excluding the primary.
+        4. Send additional client requests that won’t be processed due to lack of quorum,
+         but will trigger the live replicas to move to a higher view.
+        5. Verify the 2F remaining replicas move to the next view.
+         Note - we cannot use bft_network.wait_for_view since it waits for a quorum (2F+1)
+          of replicas to enter the view and we will only have 2F.
+           We can use something similar to what we have in Get Replica View.
+            There is also the more generic getter that was added later metric getter.
+        6. Start the previously stopped replicas.
+        7. Verify the system recovers and all replicas enter the new view (here we can use bft_network.wait_for_view).
+        """
+
+        # start replicas
+        [bft_network.start_replica(i) for i in bft_network.all_replicas()]
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+        # write to trigger vc
+        await skvbc.run_concurrent_ops(10)
+
+        initial_primary = await bft_network.get_current_primary()
+        expected_view = 0
+        await bft_network.wait_for_replicas_to_reach_view(bft_network.all_replicas(), expected_view)
+
+        to_stop = random.sample(
+            bft_network.all_replicas(without={initial_primary}), bft_network.config.f + 1)
+
+        # stop replicas
+        [bft_network.stop_replica(i) for i in to_stop]
+
+        # write to trigger vc
+        await skvbc.run_concurrent_ops(10)
+
+        running_replicas = []
+        for i in bft_network.all_replicas():
+            is_in_to_stop = False
+            for j in to_stop:
+                if (i == j):
+                    is_in_to_stop = True
+                    break
+            if (not is_in_to_stop):
+                running_replicas.append(i)
+
+        for r in running_replicas:
+            expected_next_view  = 0
+            while expected_next_view  == 0:
+                expected_next_view  = await self._get_gauge(r, bft_network, 'view')
+                await trio.sleep(seconds=0.1)
+            self.assertEqual(expected_next_view , 1, "Replica failed to reach expected view")
+
+        [bft_network.start_replica(i) for i in to_stop]
+
+        expected_view = expected_view + 1
+
+         # write to trigger vc
+        await skvbc.run_concurrent_ops(10)
+
+        # wait for replicas to go to higher view (View 1 in this case)
+        await bft_network.wait_for_replicas_to_reach_view(bft_network.all_replicas(), expected_view)
 
     async def _single_vc_with_consecutive_failed_replicas(
             self,
@@ -699,3 +767,16 @@ class SkvbcViewChangeTest(ApolloTest):
                     break
                 else:
                     await trio.sleep(.5)
+
+    async def _get_gauge(self, replica_id, bft_network, gauge):
+        with trio.fail_after(seconds=30):
+            while True:
+                with trio.move_on_after(seconds=1):
+                    try:
+                        key = ['replica', 'Gauges', gauge]
+                        value = await bft_network.metrics.get(replica_id, *key)
+                    except KeyError:
+                        # metrics not yet available, continue looping
+                        log.log_message(message_type=f"KeyError! '{gauge}' not yet available.")
+                    else:
+                        return value
