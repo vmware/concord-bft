@@ -32,9 +32,7 @@ using namespace bft::communication;
 
 static inline const std::string kEmptySpanContext = std::string("");
 
-static auto IsGoodForBatching(ClientMsgFlag flags, bool client_batching_enabled) {
-  return flags & ClientMsgFlag::PRE_PROCESS_REQ && client_batching_enabled;
-}
+static auto IsGoodForBatching(ClientMsgFlag flags, bool client_batching_enabled) { return client_batching_enabled; }
 
 SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
                                             ClientMsgFlag flags,
