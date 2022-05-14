@@ -365,6 +365,7 @@ void ConcordClientPool::CreatePool(concord::config_pool::ConcordClientPoolConfig
                                     config.clients_per_participant_node,
                                     config.client_batching_enabled,
                                     config.enable_multiplex_channel,
+                                    config.use_unified_certificates,
                                     config.client_batching_max_messages_nbr,
                                     config.encrypted_config_enabled,
                                     config.transaction_signing_enabled,
@@ -400,6 +401,7 @@ void ConcordClientPool::CreatePool(concord::config_pool::ConcordClientPoolConfig
                                                 config.participant_nodes[0].principal_id,
                                                 config.tls_certificates_folder_path,
                                                 config.tls_cipher_suite_list,
+                                                config.use_unified_certificates,
                                                 endpointIdToNodeIdMap,
                                                 nullptr,
                                                 secretData);

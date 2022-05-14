@@ -247,7 +247,6 @@ void configureTransport(concord::client::concordclient::ConcordClientConfig& con
       // concatentation of the certificates of all known servers
       readCert(server_cert_path, config.transport.event_pem_certs);
     }
-    LOG_INFO(logger, "Certificate chain: " << config.transport.event_pem_certs);
   }
 }
 

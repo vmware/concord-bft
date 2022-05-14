@@ -62,6 +62,7 @@ typedef struct ConcordClientPoolConfig {
   std::string file_name;
   bool client_batching_enabled = false;
   bool enable_multiplex_channel = false;
+  bool use_unified_certificates = false;
   size_t client_batching_max_messages_nbr = 20;
   std::uint64_t client_batching_flush_timeout_ms = 100;
   bool encrypted_config_enabled = false;
