@@ -16,21 +16,7 @@
 #include "assertUtils.hpp"
 #include "SimpleClient.hpp"
 #include "commonDefs.h"
-/*
-#include "OpenTracing.hpp"
-#include "communication/CommFactory.hpp"
-#include "Replica.hpp"
-#include "ReplicaConfig.hpp"
-#include "ControlStateManager.hpp"
-#include "SimpleStateTransfer.hpp"
-#include "FileStorage.hpp"
-#include <optional>
-#include <thread>
-#include "commonDefs.h"
-#include "simple_test_replica_behavior.hpp"
-#include "threshsign/IThresholdSigner.h"
-#include "threshsign/IThresholdVerifier.h"
-*/
+
 using namespace bftEngine;
 using namespace bft::communication;
 using namespace std;
