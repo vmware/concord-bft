@@ -171,14 +171,17 @@ class SimpleTestClient {
         char replyBuffer[kReplyBufferLength];
         uint32_t actualReplyLength = 0;
 
-        client->sendRequest(EMPTY_FLAGS_REQ,
-                            rawRequestBuffer,
-                            rawRequestLength,
-                            requestSequenceNumber,
-                            timeout,
-                            kReplyBufferLength,
-                            replyBuffer,
-                            actualReplyLength);
+        OperationResult cres = client->sendRequest(EMPTY_FLAGS_REQ,
+                                                   rawRequestBuffer,
+                                                   rawRequestLength,
+                                                   requestSequenceNumber,
+                                                   timeout,
+                                                   kReplyBufferLength,
+                                                   replyBuffer,
+                                                   actualReplyLength);
+
+        /* Skip this request if the system is not ready yet */
+        if (cres == OperationResult::NOT_READY) continue;
 
         // We can now check the expected value on the next read.
         hasExpectedLastValue = true;
