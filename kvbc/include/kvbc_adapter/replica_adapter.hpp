@@ -31,6 +31,7 @@
 #include "replica_adapter_auxilliary_types.hpp"
 #include "categorization/kv_blockchain.h"
 #include "v4blockchain/v4_blockchain.h"
+#include "v4blockchain/detail/detail.h"
 
 namespace concord::kvbc::adapter {
 class ReplicaBlockchain : public IBlocksDeleter,
@@ -77,6 +78,7 @@ class ReplicaBlockchain : public IBlocksDeleter,
   void multiGetLatest(const std::string &category_id,
                       const std::vector<std::string> &keys,
                       std::vector<std::optional<categorization::Value>> &values) const override final {
+    auto scoped = v4blockchain::detail::ScopedDuration{"multiGetLatest"};
     return reader_->multiGetLatest(category_id, keys, values);
   }
 
@@ -88,6 +90,7 @@ class ReplicaBlockchain : public IBlocksDeleter,
   void multiGetLatestVersion(const std::string &category_id,
                              const std::vector<std::string> &keys,
                              std::vector<std::optional<categorization::TaggedVersion>> &versions) const override final {
+    auto scoped = v4blockchain::detail::ScopedDuration{"multiGetLatestVersion"};
     return reader_->multiGetLatestVersion(category_id, keys, versions);
   }
 
@@ -104,7 +107,10 @@ class ReplicaBlockchain : public IBlocksDeleter,
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // IBlockAdder
-  BlockId add(categorization::Updates &&updates) override final { return adder_->add(std::move(updates)); }
+  BlockId add(categorization::Updates &&updates) override final {
+    auto scoped = v4blockchain::detail::ScopedDuration{"Add block"};
+    return adder_->add(std::move(updates));
+  }
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

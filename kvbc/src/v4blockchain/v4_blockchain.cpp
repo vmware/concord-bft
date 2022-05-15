@@ -25,6 +25,15 @@ namespace concord::kvbc::v4blockchain {
 
 using namespace concord::kvbc;
 
+std::string ToHexad(const std::string &s) {
+  std::ostringstream ret;
+
+  for (std::string::size_type i = 0; i < s.length(); ++i)
+    ret << std::hex << std::setfill('0') << std::setw(2) << std::uppercase << (int)s[i];
+
+  return ret.str();
+}
+
 KeyValueBlockchain::KeyValueBlockchain(
     const std::shared_ptr<concord::storage::rocksdb::NativeClient> &native_client,
     bool link_st_chain,
@@ -56,7 +65,6 @@ KeyValueBlockchain::KeyValueBlockchain(
   5 - increment last reachable block.
 */
 BlockId KeyValueBlockchain::add(categorization::Updates &&updates) {
-  auto scoped = v4blockchain::detail::ScopedDuration{"Add block"};
   // Should be performed before we add the block with the current Updates.
   auto sequence_number = markHistoryForGarbageCollectionIfNeeded(updates);
   auto write_batch = native_client_->getBatch();
@@ -72,14 +80,8 @@ BlockId KeyValueBlockchain::add(categorization::Updates &&updates) {
 BlockId KeyValueBlockchain::add(const categorization::Updates &updates,
                                 storage::rocksdb::NativeWriteBatch &write_batch) {
   BlockId block_id{};
-  {
-    auto scoped2 = v4blockchain::detail::ScopedDuration{"Add block to blockchain"};
-    block_id = block_chain_.addBlock(updates, write_batch);
-  }
-  {
-    auto scoped3 = v4blockchain::detail::ScopedDuration{"Add block to latest"};
-    latest_keys_.addBlockKeys(updates, block_id, write_batch);
-  }
+  { block_id = block_chain_.addBlock(updates, write_batch); }
+  { latest_keys_.addBlockKeys(updates, block_id, write_batch); }
   return block_id;
 }
 
@@ -368,12 +370,23 @@ std::optional<categorization::Value> KeyValueBlockchain::getValueFromUpdate(
 std::optional<categorization::Value> KeyValueBlockchain::get(const std::string &category_id,
                                                              const std::string &key,
                                                              BlockId block_id) const {
+  LOG_DEBUG(V4_BLOCK_LOG,
+            "Reading key " << std::hash<std::string>{}(key) << " block_id " << block_id << " category " << category_id
+                           << " hex key " << ToHexad(key) << " key " << key);
+
   auto updates_in_block = block_chain_.getBlockUpdates(block_id);
   if (!updates_in_block) {
+    LOG_DEBUG(V4_BLOCK_LOG,
+              "Failed getting updates key " << std::hash<std::string>{}(key) << " block_id " << block_id << " category "
+                                            << category_id << " hex key " << ToHexad(key) << " key " << key);
     return std::nullopt;
   }
   const auto &kv_updates = updates_in_block->categoryUpdates(category_id);
   if (!kv_updates) {
+    LOG_DEBUG(V4_BLOCK_LOG,
+              "Failed getting categories updates key " << std::hash<std::string>{}(key) << " block_id " << block_id
+                                                       << " category " << category_id << " hex key " << ToHexad(key)
+                                                       << " key " << key);
     return std::nullopt;
   }
   std::optional<categorization::Value> ret;

@@ -40,6 +40,15 @@ using concord::kvbc::adapter::IdempotentReader;
 using concord::messages::SnapshotResponseStatus;
 using concord::storage::rocksdb::NativeClient;
 
+std::string ToHexad(const std::string& s) {
+  std::ostringstream ret;
+
+  for (std::string::size_type i = 0; i < s.length(); ++i)
+    ret << std::hex << std::setfill('0') << std::setw(2) << std::uppercase << (int)s[i];
+
+  return ret.str();
+}
+
 kvbc::BlockId ReconfigurationBlockTools::persistReconfigurationBlock(
     const std::vector<uint8_t>& data,
     const uint64_t bft_seq_num,
@@ -432,6 +441,10 @@ concord::messages::ClientStateReply KvbcClientReconfigurationHandler::buildRepli
             concord::messages::deserialize(data_buf, cmd);
             creply.response = cmd;
           }
+          auto key = std::string{kvbc::keyTypes::reconfiguration_epoch_key} + command_type + std::to_string(clientid);
+          LOG_INFO(getLogger(),
+                   "Getting epoch, cat  " << concord::kvbc::categorization::kConcordReconfigurationCategoryId << " key "
+                                          << key << " hex " << ToHexad(key) << " from block " << arg.block_id);
           auto epoch_data = ro_storage_.get(
               concord::kvbc::categorization::kConcordReconfigurationCategoryId,
               std::string{kvbc::keyTypes::reconfiguration_epoch_key} + command_type + std::to_string(clientid),

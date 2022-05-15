@@ -17,11 +17,12 @@
 #include "storage/merkle_tree_key_manipulator.h"
 #include "rocksdb/client.h"
 #include "rocksdb/native_client.h"
+#include "v4blockchain/detail/column_families.h"
 
 #include <rocksdb/filter_policy.h>
 #include <rocksdb/statistics.h>
 #include <rocksdb/table.h>
-
+#include "rocksdb/time_stamp_comparator.h"
 #include <vector>
 
 namespace concord::kvbc::v2MerkleTree {
@@ -35,7 +36,7 @@ std::shared_ptr<rocksdb::Statistics> completeRocksDBConfiguration(
   auto table_options = ::rocksdb::BlockBasedTableOptions{};
   table_options.block_cache = ::rocksdb::NewLRUCache(rocksdbBlockCacheBytes);
   table_options.filter_policy.reset(::rocksdb::NewBloomFilterPolicy(10, false));
-  if (rocksdbRowCacheBytes) db_options.row_cache = ::rocksdb::NewLRUCache(rocksdbRowCacheBytes);
+  db_options.row_cache.reset();
   db_options.table_factory.reset(NewBlockBasedTableFactory(table_options));
 
   // Use the same block cache and table options for all column familes for now.
@@ -44,6 +45,9 @@ std::shared_ptr<rocksdb::Statistics> completeRocksDBConfiguration(
         d.options.table_factory->GetOptions<::rocksdb::BlockBasedTableOptions>());
     cf_table_options->block_cache = table_options.block_cache;
     cf_table_options->filter_policy.reset(::rocksdb::NewBloomFilterPolicy(10, false));
+    if (d.name == v4blockchain::detail::LATEST_KEYS_CF) {
+      d.options.comparator = concord::storage::rocksdb::getLexicographic64TsComparator();
+    }
   }
   return db_options.statistics;
 }

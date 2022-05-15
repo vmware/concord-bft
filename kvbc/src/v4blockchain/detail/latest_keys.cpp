@@ -27,6 +27,15 @@ auto getSliceArray(const Sliceable&... sls) {
   return std::array<::rocksdb::Slice, sizeof...(sls)>{sls...};
 }
 
+std::string ToHexad(const std::string& s) {
+  std::ostringstream ret;
+
+  for (std::string::size_type i = 0; i < s.length(); ++i)
+    ret << std::hex << std::setfill('0') << std::setw(2) << std::uppercase << (int)s[i];
+
+  return ret.str();
+}
+
 LatestKeys::LatestKeys(const std::shared_ptr<concord::storage::rocksdb::NativeClient>& native_client,
                        const std::optional<std::map<std::string, categorization::CATEGORY_TYPE>>& categories,
                        std::function<BlockId()>&& f)
@@ -81,6 +90,10 @@ void LatestKeys::handleCategoryUpdates(const std::string& block_version,
       flags = STALE_ON_UPDATE;
     }
     auto sl_flags = concord::storage::rocksdb::detail::toSlice(flags);
+    LOG_DEBUG(V4_BLOCK_LOG,
+              "adding key " << std::hash<std::string>{}(k) << " version "
+                            << concordUtils::fromBigEndianBuffer<uint64_t>(block_version.data()) << " category "
+                            << category_id << " prefix " << prefix << " key hex " << ToHexad(k) << " key " << k);
 
     write_batch.put(
         v4blockchain::detail::LATEST_KEYS_CF, getSliceArray(prefix, k, block_version), getSliceArray(v.data, sl_flags));
@@ -104,10 +117,10 @@ void LatestKeys::handleCategoryUpdates(const std::string& block_version,
     get_key.append(prefix);
     get_key.append(k);
     // check if key exists - immutable does not allow to update
-    auto opt_val = native_client_->get(v4blockchain::detail::LATEST_KEYS_CF, get_key, block_version, &out_ts);
-    if (opt_val) {
-      throw std::runtime_error("Trying to update immutable key: " + k);
-    }
+    // auto opt_val = native_client_->get(v4blockchain::detail::LATEST_KEYS_CF, get_key, block_version, &out_ts);
+    // if (opt_val) {
+    //   throw std::runtime_error("Trying to update immutable key: " + k);
+    // }
     write_batch.put(
         v4blockchain::detail::LATEST_KEYS_CF, getSliceArray(prefix, k, block_version), getSliceArray(v.data, sl_flags));
   }
