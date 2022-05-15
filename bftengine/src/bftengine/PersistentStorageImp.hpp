@@ -289,22 +289,22 @@ class PersistentStorageImp : public PersistentStorage {
   ViewNum lastViewTransferredSeqNum_ = 0;
   SeqNum lastStableSeqNum_ = 0;
 
-  struct Buffers {
-    concord::serialize::UniquePtrToChar lefv_simple_element_buf;
-    concord::serialize::UniquePtrToChar lefv_element_buf;
-    concord::serialize::UniquePtrToChar lefv_complaint_buf;
-    concord::serialize::UniquePtrToChar lnv_simple_element_buf;
-    concord::serialize::UniquePtrToChar lnv_element_buf;
-    concord::serialize::UniquePtrToChar dole_buf;
-    concord::serialize::UniquePtrToChar dolscp_buf;
-    concord::serialize::UniquePtrToChar sne_buf;
-    concord::serialize::UniquePtrToChar cde_buf;
+  struct PreAllocataedMemoryBuffers {
+    concord::serialize::UniquePtrToChar last_exit_from_view_simple_element_buf;
+    concord::serialize::UniquePtrToChar last_exit_fron_view_element_buf;
+    concord::serialize::UniquePtrToChar last_exit_from_view_complaint_buf;
+    concord::serialize::UniquePtrToChar last_new_view_simple_element_buf;
+    concord::serialize::UniquePtrToChar last_new_view_element_buf;
+    concord::serialize::UniquePtrToChar descriptor_of_last_execution_buf;
+    concord::serialize::UniquePtrToChar descriptor_og_last_stable_cp_buf;
+    concord::serialize::UniquePtrToChar seq_num_element_buf;
+    concord::serialize::UniquePtrToChar check_data_element_buf;
     concord::serialize::UniquePtrToChar msg_element_buf;
-    concord::serialize::UniquePtrToChar cpd_buf;
-    concord::serialize::UniquePtrToChar snw_buf;
+    concord::serialize::UniquePtrToChar cp_message_buf;
+    concord::serialize::UniquePtrToChar seq_num_data_buf;
   };
 
-  mutable Buffers buffers_;
+  mutable PreAllocataedMemoryBuffers pre_allocated_mem_buffers_;
 };
 
 }  // namespace impl
