@@ -22,6 +22,7 @@
 #include <random>
 #include <functional>
 #include <limits>
+#include "thread_pool.hpp"
 #include "storage/test/storage_test_common.h"
 #include "endianness.hpp"
 #include "v4blockchain/detail/column_families.h"
@@ -98,6 +99,60 @@ class v4_kvbc : public Test {
     }
   }
 
+  void create_next_block_in_parallel(uint64_t num_new_block,
+                                     uint32_t num_merkle_each,
+                                     uint32_t num_versioned_each,
+                                     uint32_t num_immutable_each,
+                                     v4blockchain::KeyValueBlockchain& blockchain,
+                                     std::vector<std::future<void>>& tasks) {
+    auto last_block = blockchain.getLastReachableBlockId();
+    concord::util::ThreadPool tp;
+
+    // Keys are:
+    // <category_name>_key_<blockId>_<key_id>
+    // Values are:
+    // <category_name>_value_<blockId>_<key_id>
+
+    tasks.push_back(
+        tp.async([last_block, num_new_block, num_merkle_each, num_versioned_each, num_immutable_each, &blockchain]() {
+          for (uint64_t blk = last_block + 1; blk <= num_new_block; ++blk) {
+            categorization::Updates updates;
+
+            categorization::BlockMerkleUpdates merkle_updates;
+            for (uint32_t kid = 1; kid <= num_merkle_each; ++kid) {
+              std::string key = "merkle_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+              std::string val = "merkle_value_" + std::to_string(blk) + "_" + std::to_string(kid);
+              merkle_updates.addUpdate(std::move(key), std::move(val));
+            }
+            updates.add("merkle", std::move(merkle_updates));
+
+            categorization::VersionedUpdates ver_updates;
+            ver_updates.calculateRootHash(false);
+            for (uint32_t kid = 1; kid <= num_versioned_each; ++kid) {
+              std::string key = "versioned_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+              std::string val = "versioned_value_" + std::to_string(blk) + "_" + std::to_string(kid);
+              ver_updates.addUpdate(std::move(key), std::move(val));
+            }
+            updates.add("versioned", std::move(ver_updates));
+
+            categorization::ImmutableUpdates immutable_updates;
+            for (uint32_t kid = 1; kid <= num_immutable_each; ++kid) {
+              std::string key = "immutable_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+              std::string val = "immutable_value_" + std::to_string(blk) + "_" + std::to_string(kid);
+              immutable_updates.addUpdate(std::move(key), {std::move(val), {std::to_string(blk), std::to_string(kid)}});
+            }
+            updates.add("immutable", std::move(immutable_updates));
+            ASSERT_EQ(blockchain.add(std::move(updates)), (BlockId)blk);
+          }
+        }));
+  }
+
+  void wait_for_block_adds(const std::vector<std::future<void>>& tasks) {
+    for (const auto& task : tasks) {
+      task.wait();
+    }
+  }
+
   void add_deletes_to_blocks(
       uint64_t& tot_num_blocks,
       uint32_t num_merkle_each,
@@ -154,6 +209,64 @@ class v4_kvbc : public Test {
  protected:
   std::shared_ptr<NativeClient> db;
 };
+
+TEST_F(v4_kvbc, simulation) {
+  GTEST_SKIP() << "Skipping simulation as its added only for critical debugging purpose";
+  uint64_t max_block = 20;
+  uint64_t num_blocks_to_add_inparallel = 50000;
+  uint32_t num_merkle_each = 0;
+  uint32_t num_versioned_each = 0;
+  uint32_t num_immutable_each = 0;
+  create_blocks(max_block, num_merkle_each, num_versioned_each, num_immutable_each);
+
+  std::map<std::string, categorization::CATEGORY_TYPE> cat_map{
+      {"merkle", categorization::CATEGORY_TYPE::block_merkle},
+      {"versioned", categorization::CATEGORY_TYPE::versioned_kv},
+      {"immutable", categorization::CATEGORY_TYPE::immutable}};
+  v4blockchain::KeyValueBlockchain blockchain{db, true, cat_map};
+  ASSERT_EQ(blockchain.getGenesisBlockId(), 1);
+  ASSERT_EQ(blockchain.getLastReachableBlockId(), max_block);
+  std::vector<std::future<void>> tasks;
+  create_next_block_in_parallel(
+      num_blocks_to_add_inparallel, num_merkle_each, num_versioned_each, num_immutable_each, blockchain, tasks);
+  ASSERT_EQ(blockchain.getGenesisBlockId(), 1);
+  ASSERT_GE(blockchain.getLastReachableBlockId(), max_block);
+
+  ///////Checking the get///////////////////////
+  for (int times = 0; times < 50000; ++times) {
+    for (uint64_t blk = 1; blk <= max_block; ++blk) {
+      for (uint32_t kid = 1; kid <= num_merkle_each; ++kid) {
+        std::string key = "merkle_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+        std::string val_str = "merkle_value_" + std::to_string(blk) + "_" + std::to_string(kid);
+        auto val = blockchain.getLatest("merkle", key);
+        ASSERT_TRUE(val.has_value());
+        auto merkle_val = std::get<categorization::MerkleValue>(*val);
+        ASSERT_EQ(merkle_val.block_id, blk);
+        ASSERT_EQ(merkle_val.data, val_str);
+      }
+
+      for (uint32_t kid = 1; kid <= num_versioned_each; ++kid) {
+        std::string key = "versioned_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+        std::string val_str = "versioned_value_" + std::to_string(blk) + "_" + std::to_string(kid);
+        auto val = blockchain.getLatest("versioned", key);
+        ASSERT_TRUE(val.has_value());
+        auto ver_val = std::get<categorization::VersionedValue>(*val);
+        ASSERT_EQ(ver_val.block_id, blk);
+        ASSERT_EQ(ver_val.data, val_str);
+      }
+      for (uint32_t kid = 1; kid <= num_immutable_each; ++kid) {
+        std::string key = "immutable_key_" + std::to_string(blk) + "_" + std::to_string(kid);
+        std::string val_str = "immutable_value_" + std::to_string(blk) + "_" + std::to_string(kid);
+        auto val = blockchain.getLatest("immutable", key);
+        ASSERT_TRUE(val.has_value());
+        auto immutable_val = std::get<categorization::ImmutableValue>(*val);
+        ASSERT_EQ(immutable_val.block_id, blk);
+        ASSERT_EQ(immutable_val.data, val_str);
+      }
+    }
+  }
+  wait_for_block_adds(tasks);
+}
 
 // Add a block which contains updates per category.
 // Each category handles its updates and returs an output which goes to the block structure.
@@ -1177,7 +1290,7 @@ TEST_F(v4_kvbc, all_gets) {
   }
 
   ///////Checking the multiGet///////////////////////
-  std::vector<std::optional<categorization::Value> > values;
+  std::vector<std::optional<categorization::Value>> values;
   blockchain.multiGet("merkle", merkle_keys, merkle_versions, values);
   size_t key_start = std::string("merkle_key_").size();
   size_t val_start = std::string("merkle_value_").size();
@@ -1449,7 +1562,7 @@ TEST_F(v4_kvbc, all_get_latest) {
   }
 
   ///////Checking the multiGet///////////////////////
-  std::vector<std::optional<categorization::Value> > values;
+  std::vector<std::optional<categorization::Value>> values;
   blockchain.multiGetLatest("merkle", merkle_keys, values);
   size_t key_start = std::string("merkle_key_").size();
   size_t val_start = std::string("merkle_value_").size();
@@ -1713,7 +1826,7 @@ TEST_F(v4_kvbc, all_get_latest_versions) {
   }
 
   ///////Checking the multiGetLatestVersion///////////////////////
-  std::vector<std::optional<categorization::TaggedVersion> > latest_versions;
+  std::vector<std::optional<categorization::TaggedVersion>> latest_versions;
   blockchain.multiGetLatestVersion("merkle", merkle_keys, latest_versions);
   for (size_t i = 0; i < merkle_keys.size(); ++i) {
     ASSERT_TRUE(latest_versions[i].has_value());

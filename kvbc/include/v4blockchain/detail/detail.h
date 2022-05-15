@@ -15,8 +15,7 @@
 #include <chrono>
 
 namespace concord::kvbc::v4blockchain::detail {
-using version_type = uint16_t;
-enum class block_version : version_type { V1 = 0x1 };
+
 struct ScopedDuration {
   ScopedDuration(const char* msg) : msg_(msg) {}
   ~ScopedDuration() {

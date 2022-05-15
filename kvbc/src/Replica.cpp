@@ -13,6 +13,7 @@
 #include "json_output.hpp"
 #include "communication/CommDefs.hpp"
 #include "kv_types.hpp"
+#include "blockchain_misc.hpp"
 #include "replica_state_sync.h"
 #include "sliver.hpp"
 #include "metadata_block_id.h"
@@ -33,6 +34,7 @@
 #include "communication/StateControl.hpp"
 #include "bftengine/DbCheckpointManager.hpp"
 #include "IntervalMappingResourceManager.hpp"
+#include "kvbc_adapter/v4blockchain/blocks_utils.hpp"
 
 using bft::communication::ICommunication;
 using bftEngine::bcst::StateTransferDigest;
@@ -571,7 +573,6 @@ Replica::Replica(ICommunication *comm,
                             kvbc_categories,
                             concord::kvbc::adapter::aux::AdapterAuxTypes(this->aggregator_, this->replicaResources_));
     m_kvBlockchain = &(op_kvBlockchain.value());
-    LOG_INFO(logger, "ARC06: Replica::REPLICA" << KVLOG(this, m_kvBlockchain));
     auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
     concord::diagnostics::StatusHandler handler("pruning", "Pruning Status", [this]() {
       std::ostringstream oss;
@@ -801,31 +802,44 @@ void Replica::getPrevDigestFromBlock(const char *blockData,
 
 bool Replica::getPrevDigestFromObjectStoreBlock(uint64_t blockId,
                                                 bftEngine::bcst::StateTransferDigest *outPrevBlockDigest) const {
-  ConcordAssert(blockId > 0);
+  ConcordAssertGT(blockId, 0);
+  ConcordAssertNE(outPrevBlockDigest, nullptr);
+  static_assert(sizeof(StateTransferDigest) == DIGEST_SIZE);
   try {
     const auto rawBlockSer = m_bcDbAdapter->getRawBlock(blockId);
-    const auto rawBlock = categorization::RawBlock::deserialize(rawBlockSer);
-    ConcordAssert(outPrevBlockDigest != nullptr);
-    static_assert(rawBlock.data.parent_digest.size() == DIGEST_SIZE);
-    static_assert(sizeof(StateTransferDigest) == DIGEST_SIZE);
-    memcpy(outPrevBlockDigest, rawBlock.data.parent_digest.data(), DIGEST_SIZE);
+    if (concord::kvbc::BlockVersion::getBlockVersion(rawBlockSer) == concord::kvbc::block_version::V1) {
+      const auto prev_digest = concord::kvbc::adapter::v4blockchain::utils::V4BlockUtils::getparentDigest(rawBlockSer);
+      static_assert(prev_digest.size() == DIGEST_SIZE);
+      memcpy(outPrevBlockDigest, prev_digest.data(), DIGEST_SIZE);
+    } else {
+      const auto rawBlock = concord::kvbc::categorization::RawBlock::deserialize(rawBlockSer);
+      static_assert(rawBlock.data.parent_digest.size() == DIGEST_SIZE);
+      memcpy(outPrevBlockDigest, rawBlock.data.parent_digest.data(), DIGEST_SIZE);
+    }
     return true;
   } catch (const NotFoundException &e) {
     LOG_FATAL(logger, "Block not found for parent digest, ID: " << blockId << " " << e.what());
     throw;
   }
+  return false;
 }
 
 void Replica::getPrevDigestFromObjectStoreBlock(const char *blockData,
                                                 const uint32_t blockSize,
                                                 StateTransferDigest *outPrevBlockDigest) const {
   ConcordAssertGT(blockSize, 0);
-  auto view = std::string_view{blockData, blockSize};
-  const auto rawBlock = categorization::RawBlock::deserialize(view);
-
-  static_assert(rawBlock.data.parent_digest.size() == DIGEST_SIZE);
+  ConcordAssertNE(outPrevBlockDigest, nullptr);
   static_assert(sizeof(StateTransferDigest) == DIGEST_SIZE);
-  std::memcpy(outPrevBlockDigest, rawBlock.data.parent_digest.data(), DIGEST_SIZE);
+  auto view = std::string_view{blockData, blockSize};
+  if (concord::kvbc::BlockVersion::getBlockVersion(view) == concord::kvbc::block_version::V1) {
+    const auto prev_digest = concord::kvbc::adapter::v4blockchain::utils::V4BlockUtils::getparentDigest(view);
+    static_assert(prev_digest.size() == DIGEST_SIZE);
+    memcpy(outPrevBlockDigest, prev_digest.data(), DIGEST_SIZE);
+  } else {
+    const auto rawBlock = categorization::RawBlock::deserialize(view);
+    static_assert(rawBlock.data.parent_digest.size() == DIGEST_SIZE);
+    std::memcpy(outPrevBlockDigest, rawBlock.data.parent_digest.data(), DIGEST_SIZE);
+  }
 }
 
 void Replica::registerStBasedReconfigurationHandler(

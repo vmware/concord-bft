@@ -13,11 +13,23 @@
 #include "blockchain_misc.hpp"
 #include "storage/merkle_tree_key_manipulator.h"
 
-namespace concord::kvbc::bcutil {
+namespace concord::kvbc {
 
+block_version BlockVersion::getBlockVersion(const concord::kvbc::RawBlock& raw_block_ser) {
+  return getBlockVersion(raw_block_ser.data(), raw_block_ser.size());
+}
+block_version BlockVersion::getBlockVersion(const std::string_view& raw_block_ser) {
+  return getBlockVersion(raw_block_ser.data(), raw_block_ser.size());
+}
+block_version BlockVersion::getBlockVersion(const char* raw_block_ser, size_t len) {
+  ConcordAssertGE(len, BLOCK_VERSION_SIZE);
+  return *(reinterpret_cast<const block_version*>(raw_block_ser));
+}
+
+namespace bcutil {
 static const auto kPublicStateHashKey = concord::storage::v2MerkleTree::detail::serialize(
     concord::storage::v2MerkleTree::detail::EBFTSubtype::PublicStateHashAtDbCheckpoint);
 
 std::string BlockChainUtils::publicStateHashKey() { return kPublicStateHashKey; }
-
-}  // end of namespace concord::kvbc::bcutil
+}  // end of namespace bcutil
+}  // end of namespace concord::kvbc

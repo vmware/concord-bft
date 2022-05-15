@@ -29,6 +29,8 @@
 #include <atomic>
 #include <utility>
 
+#include "rocksdb/time_stamp_comparator.h"
+
 #include "assertUtils.hpp"
 #include "Logger.hpp"
 
@@ -186,11 +188,13 @@ void Client::openRocksDB(bool readOnly,
   if (cf_descs.empty()) {
     // Make sure we always get a handle for the default column family. Use the DB options to configure it.
     cf_descs.push_back(::rocksdb::ColumnFamilyDescriptor{::rocksdb::kDefaultColumnFamilyName, db_options});
-  } else if (comparator_) {
+  } else {
     // Make sure we always set the user-supplied comparator for the default family.
     for (auto &cf_desc : cf_descs) {
-      if (cf_desc.name == ::rocksdb::kDefaultColumnFamilyName) {
+      if (comparator_ && (cf_desc.name == ::rocksdb::kDefaultColumnFamilyName)) {
         cf_desc.options.comparator = comparator_.get();
+      } else if (cf_desc.name == "v4_latest_keys") {
+        cf_desc.options.comparator = concord::storage::rocksdb::getLexicographic64TsComparator();
       }
     }
   }

@@ -87,6 +87,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     replicaConfig.set("concord.bft.st.RVT_K", 12);
     replicaConfig.preExecutionResultAuthEnabled = false;
     replicaConfig.numOfClientServices = 1;
+    replicaConfig.kvBlockchainVersion = 4;
     const auto persistMode = PersistencyMode::RocksDB;
     std::string keysFilePrefix;
     std::string commConfigFile;

@@ -13,13 +13,16 @@
 
 #pragma once
 
+#include <string_view>
+#include <vector>
+
 // #include "blocks.h"
 #include "kv_types.hpp"
 #include "Digest.hpp"
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
-#include <vector>
 #include "categorized_kvbc_msgs.cmf.hpp"
 #include "assertUtils.hpp"
+#include "blockchain_misc.hpp"
 #include "categorization/updates.h"
 #include "v4blockchain/detail/detail.h"
 
@@ -36,7 +39,7 @@ It is stored as is in DB and is a passable unit for the use of state-transfer.
 class Block {
  public:
   static constexpr block_version BLOCK_VERSION = block_version::V1;
-  static constexpr uint64_t HEADER_SIZE = sizeof(version_type) + sizeof(concord::util::digest::BlockDigest);
+  static constexpr uint64_t HEADER_SIZE = BLOCK_VERSION_SIZE + sizeof(concord::util::digest::BlockDigest);
   // Pre-reserve buffer size
   Block(uint64_t reserve_size) : buffer_(HEADER_SIZE, 0) {
     buffer_.reserve(reserve_size);
@@ -45,6 +48,10 @@ class Block {
   Block() : Block(HEADER_SIZE) {}
 
   Block(const std::string& buffer) : buffer_(buffer.size()) {
+    std::copy(buffer.cbegin(), buffer.cend(), buffer_.begin());
+  }
+
+  Block(const std::string_view& buffer) : buffer_(buffer.size()) {
     std::copy(buffer.cbegin(), buffer.cend(), buffer_.begin());
   }
 
