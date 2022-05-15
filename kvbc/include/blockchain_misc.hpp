@@ -16,12 +16,28 @@
 #include <string>
 #include <functional>
 
+#include "kv_types.hpp"
+#include "assertUtils.hpp"
+
 namespace concord::kvbc {
 enum BLOCKCHAIN_VERSION { CATEGORIZED_BLOCKCHAIN = 1, NATURAL_BLOCKCHAIN = 4, INVALID_BLOCKCHAIN_VERSION };
 
+using version_type = uint16_t;
+enum class block_version : version_type { V1 = 0x1 };
+const size_t BLOCK_VERSION_SIZE = sizeof(version_type);
+
+class BlockVersion {
+ public:
+  static block_version getBlockVersion(const concord::kvbc::RawBlock& raw_block_ser);
+  static block_version getBlockVersion(const std::string_view& raw_block_ser);
+
+ private:
+  static block_version getBlockVersion(const char* raw_block_ser, size_t len);
+};
+
 // Key or value converter interface.
 // Allows users to convert keys or values to any format that is appropriate.
-using Converter = std::function<std::string(std::string &&)>;
+using Converter = std::function<std::string(std::string&&)>;
 
 namespace bcutil {
 class BlockChainUtils {

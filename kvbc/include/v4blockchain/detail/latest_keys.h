@@ -103,7 +103,7 @@ class LatestKeys {
   void trimHistoryUntil(BlockId block_id);
 
   static ::rocksdb::Slice getFlagsSlice(const ::rocksdb::Slice& val) {
-    ConcordAssertGT(val.size(), FLAGS_SIZE);
+    ConcordAssertGE(val.size(), FLAGS_SIZE);
     return ::rocksdb::Slice(val.data() + val.size() - FLAGS_SIZE, FLAGS_SIZE);
   }
   // check the key flags posfix for stale on update

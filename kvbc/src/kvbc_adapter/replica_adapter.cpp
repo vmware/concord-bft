@@ -73,6 +73,10 @@ ReplicaBlockchain::ReplicaBlockchain(
     up_state_snapshot_ = std::make_unique<concord::kvbc::adapter::common::statesnapshot::KVBCStateSnapshot>(
         up_reader_.get(), native_client);
     up_db_chkpt_ = std::make_unique<concord::kvbc::adapter::v4blockchain::BlocksDbCheckpointAdapter>(v4_kvbc_);
+  } else {
+    LOG_FATAL(V4_BLOCK_LOG,
+              "Wrong blockchain version set : " << KVLOG(bftEngine::ReplicaConfig::instance().kvBlockchainVersion));
+    ConcordAssert(false);
   }
 
   switch_to_rawptr();
