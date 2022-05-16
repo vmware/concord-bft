@@ -132,6 +132,8 @@ void ConcordClient::createGrpcConnections() {
     auto grpc_conn = std::make_shared<GrpcConnection>(
         addr, config_.subscribe_config.id, /* TODO */ 3, /* TODO */ 3, config_.state_snapshot_config.timeout_in_sec);
 
+    LOG_INFO(logger_,
+             "Create Grpc Connection" << KVLOG(config_.subscribe_config.use_tls, addr, config_.subscribe_config.id));
     // TODO: Adapt TRC API to support PEM buffers
     auto trsc_config = std::make_unique<GrpcConnectionConfig>(config_.subscribe_config.use_tls,
                                                               config_.subscribe_config.pem_private_key,

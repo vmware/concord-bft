@@ -680,6 +680,7 @@ class ThinReplicaImpl {
     char* subj = X509_NAME_oneline(X509_get_subject_name(certificate), NULL, 0);
     std::string result(subj);
 
+    LOG_DEBUG(logger_, "TRS Subject: " << result);
     // parse the O field i.e., the client_id from the certificate when use_unified_certs is enabled
     // else parse OU field
     std::string delim = (config_->use_unified_certs) ? "O=" : "OU=";
