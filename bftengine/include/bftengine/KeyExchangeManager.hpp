@@ -41,7 +41,9 @@ class KeyExchangeManager {
   void registerForNotification(IKeyExchanger* ke) { registryToExchange_.push_back(ke); }
   // Called at the end of state transfer
   void loadPublicKeys();
+  void loadClientPublicKeys();
   // whether initial key exchange has occurred
+
   bool exchanged() const {
     uint32_t liveClusterSize = ReplicaConfig::instance().waitForFullCommOnStartup ? clusterSize_ : quorumSize_;
     bool exchange_self_keys = publicKeys_.keyExists(ReplicaConfig::instance().replicaId);

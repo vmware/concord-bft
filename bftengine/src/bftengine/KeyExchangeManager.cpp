@@ -142,6 +142,11 @@ void KeyExchangeManager::loadPublicKeys() {
   notifyRegistry();
 }
 
+void KeyExchangeManager::loadClientPublicKeys() {
+  // after State Transfer public keys for all clients are expected to exist
+  clientsPublicKeys_.checkAndSetState();
+}
+
 void KeyExchangeManager::exchangeTlsKeys(const std::string& type, const SeqNum& bft_sn) {
   auto keys = concord::util::crypto::Crypto::instance().generateECDSAKeyPair(
       concord::util::crypto::KeyFormat::PemFormat, concord::util::crypto::CurveType::secp384r1);
