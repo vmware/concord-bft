@@ -65,7 +65,8 @@ Status Replica::initInternals() {
   m_currentRepStatus = RepStatus::Starting;
 
   if (replicaConfig_.isReadOnly) {
-    LOG_INFO(logger, "ReadOnly mode");
+    LOG_INFO(logger,
+             "ReadOnly Replica Status:" << KVLOG(getLastBlockNum(), getLastBlockId(), getLastReachableBlockNum()));
     auto requestHandler =
         bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler, cronTableRegistry_, replicaResources_);
     requestHandler->setReconfigurationHandler(std::make_shared<pruning::ReadOnlyReplicaPruningHandler>(*this));
