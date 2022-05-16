@@ -222,9 +222,9 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                false,
                "If true, replicas will publish their master key on startup");
   // Db checkpoint
-  CONFIG_PARAM(dbCheckpointFeatureEnabled, bool, false, "Feature flag for rocksDb checkpoints");
-  CONFIG_PARAM(maxNumberOfDbCheckpoints, uint32_t, 0u, "Max number of db checkpoints to be created");
-  CONFIG_PARAM(dbCheckPointWindowSize, uint32_t, 300u, "Db checkpoint window size in bft sequence number");
+  CONFIG_PARAM(dbCheckpointFeatureEnabled, bool, true, "Feature flag for rocksDb checkpoints");
+  CONFIG_PARAM(maxNumberOfDbCheckpoints, uint32_t, 2u, "Max number of db checkpoints to be created");
+  CONFIG_PARAM(dbCheckPointWindowSize, uint32_t, 30000u, "Db checkpoint window size in bft sequence number");
   CONFIG_PARAM(dbCheckpointDirPath, std::string, "", "Db checkpoint directory path");
   CONFIG_PARAM(dbSnapshotIntervalSeconds,
                std::chrono::seconds,
