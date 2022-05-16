@@ -46,9 +46,9 @@ const std::string k_CmdQuit = "q";
 const std::string k_CmdHelp = "h";
 // Queries
 const std::string k_CmdAccounts = "accounts";
-const std::string k_CmdBalance = "balance";
+// const std::string k_CmdBalance = "balance";
 const std::string k_CmdLedger = "ledger";
-const std::string k_CmdShowBlock = "show";
+const std::string k_CmdShow = "show";
 // UTT
 const std::string k_CmdUtt = "utt";
 const std::string k_CmdMint = "mint";
@@ -476,9 +476,10 @@ std::optional<Tx> createPublicTx(const std::vector<std::string>& tokens, const U
 void printHelp() {
   std::cout << "\nCommands:\n";
   std::cout << k_CmdAccounts << "\t\t\t-- print all available account names you can send public or utt funds to.\n";
-  std::cout << k_CmdBalance << "\t\t\t\t-- print details about your account.\n";
+  std::cout << k_CmdShow << "\t\t\t\t-- print details about your account.\n";
   std::cout << k_CmdLedger << "\t\t\t\t-- print all transactions that happened on the Blockchain.\n";
-  std::cout << k_CmdShowBlock << " [blockId]\t\t\t-- print the contents of a block.\n";
+  std::cout << k_CmdShow
+            << " [selector]\t\t\t-- prints the selected state or the wallet balance if nothings is specified.\n";
 
   std::cout << "transfer [account] [amount]\t-- transfer public money to another account.\n";
   std::cout << "utt [account] [amount]\t\t-- transfer money anonymously to another account.\n";
@@ -499,14 +500,6 @@ void printHelp() {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void printAccounts(UTTClientApp& app) {
-  std::cout << "My account: " << app.getMyPid() << '\n';
-  for (const auto& pid : app.getOtherPids()) {
-    std::cout << pid << '\n';
-  }
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
 void printCreateTxResult(const UTTClientApp& app, const libutt::Client::CreateTxResult& result) {
   // Describe what the utt transaction intends to do.
   std::cout << "\nCreated UTT tx " << result.tx.getHashHex() << '\n';
@@ -521,24 +514,6 @@ void printCreateTxResult(const UTTClientApp& app, const libutt::Client::CreateTx
   if (result.outputBudgetCoinValue_)
     std::cout << "  + '" << app.myPid_ << "' will receive " << app.fmtCurrency(*result.outputBudgetCoinValue_)
               << " budget coin.\n";
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-void checkBalance(UTTClientApp& app, WalletCommunicator& comm) {
-  syncState(app, comm);
-
-  const auto& myAccount = app.getMyAccount();
-  std::cout << "\nAccount summary:\n";
-  std::cout << "  Public balance:\t" << app.fmtCurrency(myAccount.getPublicBalance()) << '\n';
-  std::cout << "  UTT wallet balance:\t" << app.fmtCurrency(app.getUttBalance()) << '\n';
-  std::cout << "  UTT wallet coins:\t[";
-  if (!app.getMyUttWallet().coins.empty()) {
-    for (int i = 0; i < (int)app.getMyUttWallet().coins.size() - 1; ++i)
-      std::cout << app.fmtCurrency(app.getMyUttWallet().coins[i].getValue()) << ", ";
-    std::cout << app.fmtCurrency(app.getMyUttWallet().coins.back().getValue());
-  }
-  std::cout << "]\n";
-  std::cout << "  Anonymous budget:\t" << app.fmtCurrency(app.getUttBudget()) << '\n';
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -781,7 +756,8 @@ void sendPublicTx(const Tx& tx, UTTClientApp& app, WalletCommunicator& comm) {
   if (reply.success) {
     app.setLastKnownBlockId(reply.last_block_id);
     std::cout << "Ok.\n";
-    checkBalance(app, comm);
+    syncState(app, comm);
+    app.printState();
   } else {
     std::cout << "Transaction failed: " << reply.err << '\n';
   }
@@ -953,7 +929,8 @@ int main(int argc, char** argv) {
     // Initial check of balance
     try {
       std::cout << "Checking account...\n";
-      checkBalance(app, comm);
+      syncState(app, comm);
+      app.printState();
     } catch (const BftServiceTimeoutException& e) {
       std::cout << "Concord-BFT service did not respond.\n";
     } catch (const PaymentServiceTimeoutException& e) {
@@ -989,17 +966,16 @@ int main(int argc, char** argv) {
           printHelp();
         } else if (tokens[0] == k_CmdDbgPrimary) {
           std::cout << "Last known primary: " << comm.getLastKnownPrimary() << '\n';
-        } else if (tokens[0] == k_CmdAccounts) {
-          printAccounts(app);
-        } else if (tokens[0] == k_CmdBalance) {
-          checkBalance(app, comm);
         } else if (tokens[0] == k_CmdLedger) {
           checkLedger(app, comm);
-        } else if (tokens[0] == k_CmdShowBlock) {
-          if (tokens.size() != 2) throw std::domain_error("show requires a block id argument");
-          const int blockId = std::atoi(tokens[1].c_str());
-          if (blockId < 0) throw std::domain_error("show requires a non-negative block id argument");
-          showBlockById(app, static_cast<uint64_t>(blockId));
+        } else if (tokens[0] == k_CmdShow) {
+          syncState(app, comm);
+          if (tokens.size() > 2)
+            throw std::domain_error(k_CmdShow + " requires at most one argument - the state selector!");
+          if (tokens.size() == 1)
+            app.printState();
+          else
+            app.printState(tokens[1]);
         } else if (tokens[0] == k_CmdDbgCheckpoint) {
           dbgForceCheckpoint(app, comm);
         } else if (tokens[0] == k_CmdRandom) {
@@ -1010,7 +986,8 @@ int main(int argc, char** argv) {
           burnCoin(app, comm, tokens);
         } else if (auto uttPayment = createUttPayment(tokens, app)) {
           runUttPayment(*uttPayment, app, comm);
-          checkBalance(app, comm);
+          syncState(app, comm);
+          app.printState();
         } else if (auto tx = createPublicTx(tokens, app)) {
           sendPublicTx(*tx, app, comm);
         } else if (!tokens.empty()) {
