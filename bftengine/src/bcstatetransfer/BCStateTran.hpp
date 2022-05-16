@@ -95,7 +95,7 @@ class BCStateTran : public IStateTransfer {
         checkpointNumber, sizeOfDigestBuffer, std::ref(outBlockId), outStateDigest, outFullStateDigest);
   }
   void startCollectingState() override { startCollectingStateHandler_(); }
-  bool isCollectingState() const override { return isCollectingState_; }
+  bool isCollectingState() const override { return psd_->getIsFetchingState(); }
   void onTimer() override { onTimerHandler_(); };
 
   // Handle ST incoming messages
@@ -324,7 +324,6 @@ class BCStateTran : public IStateTransfer {
 
   // TODO - should be renamed to evaluateFetchingState
   FetchingState getFetchingState();
-  std::atomic_bool isCollectingState_ = false;
 
   ///////////////////////////////////////////////////////////////////////////
   // Send messages
