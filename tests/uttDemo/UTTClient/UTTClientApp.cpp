@@ -50,9 +50,6 @@ const std::string& UTTClientApp::getMyPid() const { return myPid_; }
 const Account& UTTClientApp::getMyAccount() const { return *getAccountById(myPid_); }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-Account& UTTClientApp::getMyAccount() { return *getAccountById(myPid_); }
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
 const libutt::Wallet& UTTClientApp::getMyUttWallet() const { return wallet_; }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -110,5 +107,44 @@ void UTTClientApp::tryClaimCoins(const TxUtt& tx) {
       std::cout << " + \'" << myPid_ << "' claims " << fmtCurrency(result->value_)
                 << (result->isBudgetCoin_ ? " budget" : " normal") << " coin.\n";
     }
+  }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void UTTClientApp::printState(const std::string& selector) const {
+  if (selector.empty()) {
+    const auto& myAccount = getMyAccount();
+    std::cout << "Account summary:\n";
+    std::cout << "  Public balance:\t" << fmtCurrency(myAccount.getPublicBalance()) << '\n';
+    std::cout << "  UTT wallet balance:\t" << fmtCurrency(getUttBalance()) << '\n';
+    std::cout << "  UTT wallet coins:\t[";
+    if (!getMyUttWallet().coins.empty()) {
+      for (int i = 0; i < (int)getMyUttWallet().coins.size() - 1; ++i)
+        std::cout << fmtCurrency(getMyUttWallet().coins[i].getValue()) << ", ";
+      std::cout << fmtCurrency(getMyUttWallet().coins.back().getValue());
+    }
+    std::cout << "]\n";
+    std::cout << "  Anonymous budget:\t" << fmtCurrency(getUttBudget()) << '\n';
+    return;
+  }
+
+  // Tokenize and resolve the selector
+  std::vector<std::string> tokens;
+  std::stringstream ss(selector);
+  std::string token;
+  while (getline(ss, token, '/')) tokens.emplace_back(std::move(token));
+
+  if (tokens[0] == "accounts") {
+    printOtherPids();
+  } else {
+    throw std::domain_error("Unexpected token in selector '" + tokens[0] + "'");
+  }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void UTTClientApp::printOtherPids() const {
+  std::cout << "My account: " << getMyPid() << '\n';
+  for (const auto& pid : getOtherPids()) {
+    std::cout << pid << '\n';
   }
 }
