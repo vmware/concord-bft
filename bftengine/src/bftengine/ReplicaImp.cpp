@@ -3350,6 +3350,7 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
   clientsManager->loadInfoFromReservedPages();
 
   KeyExchangeManager::instance().loadPublicKeys();
+  KeyExchangeManager::instance().loadClientPublicKeys();
 
   if (config_.timeServiceEnabled) {
     time_service_manager_->load();
