@@ -13,6 +13,8 @@
 
 #pragma once
 
+#include <sstream>
+
 #include "Logger.hpp"
 #include "utt_blockchain_app.hpp"
 
@@ -48,11 +50,16 @@ class UTTClientApp : public UTTBlockchainApp {
   }
 
  private:
+  static std::string extractToken(std::stringstream& ss);
+
   void executeTx(const Tx& tx) override;
   void pruneSpentCoins();
   void tryClaimCoins(const TxUtt& tx);
 
   void printOtherPids() const;
+  void printLedger(std::stringstream& ss) const;
+  void printBlock(BlockId blockId, std::stringstream& ss) const;
+  void printUttTx(const libutt::Tx& tx, std::stringstream& ss) const;
 
   logging::Logger& logger_;
   std::string myPid_;

@@ -111,6 +111,13 @@ void UTTClientApp::tryClaimCoins(const TxUtt& tx) {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+std::string UTTClientApp::extractToken(std::stringstream& ss) {
+  std::string token;
+  getline(ss, token, '/');
+  return token;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 void UTTClientApp::printState(const std::string& selector) const {
   if (selector.empty()) {
     const auto& myAccount = getMyAccount();
@@ -128,16 +135,14 @@ void UTTClientApp::printState(const std::string& selector) const {
     return;
   }
 
-  // Tokenize and resolve the selector
-  std::vector<std::string> tokens;
   std::stringstream ss(selector);
-  std::string token;
-  while (getline(ss, token, '/')) tokens.emplace_back(std::move(token));
-
-  if (tokens[0] == "accounts") {
+  std::string token = extractToken(ss);
+  if (token == "accounts") {
     printOtherPids();
+  } else if (token == "ledger") {
+    printLedger(ss);
   } else {
-    throw std::domain_error("Unexpected token in selector '" + tokens[0] + "'");
+    throw std::domain_error("Unexpected token in selector '" + token + "'");
   }
 }
 
@@ -146,5 +151,101 @@ void UTTClientApp::printOtherPids() const {
   std::cout << "My account: " << getMyPid() << '\n';
   for (const auto& pid : getOtherPids()) {
     std::cout << pid << '\n';
+  }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void UTTClientApp::printLedger(std::stringstream& ss) const {
+  auto token = extractToken(ss);
+  if (token.empty()) {
+    for (const auto& block : GetBlocks()) {
+      std::cout << block << '\n';
+    }
+  } else {
+    int blockId = std::atoi(token.c_str());
+    if (blockId >= 0) printBlock(static_cast<BlockId>(blockId), ss);
+    // Index from the back, example: -1 references the last block
+    else
+      printBlock(static_cast<BlockId>(blocks_.size() + blockId), ss);
+  }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void UTTClientApp::printBlock(BlockId blockId, std::stringstream& ss) const {
+  const auto* block = getBlockById(blockId);
+  if (!block) {
+    std::cout << "The block does not exist yet.\n";
+    return;
+  }
+
+  std::cout << "Block " << block->id_ << " details:\n";
+  if (block->id_ == 0) std::cout << "  Genesis block.\n";
+  if (block->tx_) {
+    if (const auto* txUtt = std::get_if<TxUtt>(&(*block->tx_))) {
+      printUttTx(txUtt->utt_, ss);
+    } else {
+      std::cout << "  Public transaction: " << *block->tx_ << '\n';
+    }
+  } else {
+    std::cout << "  Empty.\n";
+  }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void UTTClientApp::printUttTx(const libutt::Tx& tx, std::stringstream& ss) const {
+  auto coinTypeToStr = [](const libutt::Fr& type) -> const char* {
+    if (type == libutt::Coin::NormalType()) return "normal";
+    if (type == libutt::Coin::BudgetType()) return "budget";
+    return "INVALID coin type!\n";
+  };
+
+  std::cout << "  ========================== UnTracable Transaction (UTT) ==========================\n";
+  std::cout << "  hash: " << tx.getHashHex() << '\n';
+  std::cout << "  isSplitOwnCoins: " << std::boolalpha << tx.isSplitOwnCoins << std::noboolalpha << "\n";
+  std::cout << "  rcm: " << tx.rcm.toString() << '\n';
+  std::cout << "  regsig: <...>\n";
+  std::cout << "  budgetProof: " << (tx.budget_pi ? "\n" : "<Empty>\n");
+  if (tx.budget_pi) {
+    std::cout << "    forMeTxos: {";
+    for (const auto& txo : tx.budget_pi->forMeTxos) std::cout << txo << ", ";
+    std::cout << "}\n";
+    std::cout << "    alpha: [";
+    for (const auto& fr : tx.budget_pi->alpha) std::cout << fr.as_ulong() << ", ";
+    std::cout << "]\n";
+    std::cout << "    beta: [";
+    for (const auto& fr : tx.budget_pi->alpha) std::cout << fr.as_ulong() << ", ";
+    std::cout << "]\n";
+    std::cout << "    e: " << tx.budget_pi->e.as_ulong() << '\n';
+  }
+
+  std::cout << "  ------------------------------- Input Tx(s) -------------------------------\n";
+  for (size_t i = 0; i < tx.ins.size(); ++i) {
+    const auto& txi = tx.ins[i];
+    std::cout << "  TxIn " << i << ":\n";
+    std::cout << "    coin_type: " << txi.coin_type.as_ulong() << " (" << coinTypeToStr(txi.coin_type) << ")\n";
+    std::cout << "    exp_date: " << txi.exp_date.as_ulong() << '\n';
+    std::cout << "    nullifier: " << txi.null.toUniqueString() << '\n';
+    std::cout << "    vcm: " << txi.vcm.toString() << '\n';
+    std::cout << "    ccm: " << txi.ccm.toString() << '\n';
+    std::cout << "    coinsig: <...>\n";
+    std::cout << "    split proof: <...>\n";
+  }
+
+  std::cout << "  ------------------------------- Output Tx(s) -------------------------------\n";
+  for (size_t i = 0; i < tx.outs.size(); ++i) {
+    const auto& txo = tx.outs[i];
+    std::cout << "  TxOut " << i << ":\n";
+    std::cout << "    coin_type: " << txo.coin_type.as_ulong() << " (" << coinTypeToStr(txo.coin_type) << ")\n";
+    std::cout << "    exp_date: " << txo.exp_date.as_ulong() << '\n';
+    // std::cout << "    H: " << (txo.H ? "..." : "<Empty>") << '\n';
+    std::cout << "    vcm_1: " << txo.vcm_1.toString() << '\n';
+    std::cout << "    range proof: " << (txo.range_pi ? "..." : "<Empty>") << '\n';
+    // std::cout << "    d: " << txo.d.as_ulong() << '\n';
+    std::cout << "    vcm_2: " << txo.vcm_2.toString() << '\n';
+    std::cout << "    vcm_eq_pi: <...>\n";
+    // std::cout << "    t: " << txo.t.as_ulong() << '\n';
+    std::cout << "    icm: " << txo.icm.toString() << '\n';
+    std::cout << "    icm_pok: " << (txo.icm_pok ? "<...>" : "<Empty>") << '\n';
+    std::cout << "    ctxt: <...>\n";
   }
 }

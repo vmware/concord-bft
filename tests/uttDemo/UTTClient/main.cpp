@@ -44,11 +44,6 @@ using ReplicaSpecificInfo = std::map<uint16_t, std::vector<uint8_t>>;  // [Repli
 namespace {
 const std::string k_CmdQuit = "q";
 const std::string k_CmdHelp = "h";
-// Queries
-const std::string k_CmdAccounts = "accounts";
-// const std::string k_CmdBalance = "balance";
-const std::string k_CmdLedger = "ledger";
-const std::string k_CmdShow = "show";
 // UTT
 const std::string k_CmdUtt = "utt";
 const std::string k_CmdMint = "mint";
@@ -475,11 +470,10 @@ std::optional<Tx> createPublicTx(const std::vector<std::string>& tokens, const U
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void printHelp() {
   std::cout << "\nCommands:\n";
-  std::cout << k_CmdAccounts << "\t\t\t-- print all available account names you can send public or utt funds to.\n";
-  std::cout << k_CmdShow << "\t\t\t\t-- print details about your account.\n";
-  std::cout << k_CmdLedger << "\t\t\t\t-- print all transactions that happened on the Blockchain.\n";
-  std::cout << k_CmdShow
-            << " [selector]\t\t\t-- prints the selected state or the wallet balance if nothings is specified.\n";
+  std::cout << "show\t\t\t\t-- print details about your account.\n";
+  std::cout << "show accounts\t\t\t-- print all available account names you can send public or utt funds to.\n";
+  std::cout << "show ledger\t\t\t\t-- print all transactions that happened on the Blockchain.\n";
+  std::cout << "show [selector]\t\t\t-- prints the selected state.\n";
 
   std::cout << "transfer [account] [amount]\t-- transfer public money to another account.\n";
   std::cout << "utt [account] [amount]\t\t-- transfer money anonymously to another account.\n";
@@ -612,83 +606,6 @@ void burnCoin(UTTClientApp& app, WalletCommunicator& comm, const std::vector<std
     } else {
       ConcordAssert(false);  // Ambiguous result
     }
-  }
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-void showBlockById(UTTClientApp& app, uint64_t blockId) {
-  auto coinTypeToStr = [](const libutt::Fr& type) -> const char* {
-    if (type == libutt::Coin::NormalType()) return "normal";
-    if (type == libutt::Coin::BudgetType()) return "budget";
-    return "INVALID coin type!\n";
-  };
-
-  const auto* block = app.getBlockById(blockId);
-  if (!block) {
-    std::cout << "The block is missing - you might need to synchronize your wallet.\n";
-    std::cout << "Type '" << k_CmdLedger << "' to get the latest blocks.\n";
-    return;
-  }
-
-  std::cout << "Block " << block->id_ << " details:\n";
-  if (block->id_ == 0) std::cout << "  Genesis block.\n";
-  if (block->tx_) {
-    if (const auto* txUtt = std::get_if<TxUtt>(&(*block->tx_))) {
-      const auto& utt = txUtt->utt_;
-      std::cout << "  ========================== UnTracable Transaction (UTT) ==========================\n";
-      std::cout << "  hash: " << utt.getHashHex() << '\n';
-      std::cout << "  isSplitOwnCoins: " << std::boolalpha << utt.isSplitOwnCoins << std::noboolalpha << "\n";
-      std::cout << "  rcm: " << utt.rcm.toString() << '\n';
-      std::cout << "  regsig: <...>\n";
-      std::cout << "  budgetProof: " << (utt.budget_pi ? "\n" : "<Empty>\n");
-      if (utt.budget_pi) {
-        std::cout << "    forMeTxos: {";
-        for (const auto& txo : utt.budget_pi->forMeTxos) std::cout << txo << ", ";
-        std::cout << "}\n";
-        std::cout << "    alpha: [";
-        for (const auto& fr : utt.budget_pi->alpha) std::cout << fr.as_ulong() << ", ";
-        std::cout << "]\n";
-        std::cout << "    beta: [";
-        for (const auto& fr : utt.budget_pi->alpha) std::cout << fr.as_ulong() << ", ";
-        std::cout << "]\n";
-        std::cout << "    e: " << utt.budget_pi->e.as_ulong() << '\n';
-      }
-
-      std::cout << "  ------------------------------- Input Tx(s) -------------------------------\n";
-      for (size_t i = 0; i < utt.ins.size(); ++i) {
-        const auto& txi = utt.ins[i];
-        std::cout << "  TxIn " << i << ":\n";
-        std::cout << "    coin_type: " << txi.coin_type.as_ulong() << " (" << coinTypeToStr(txi.coin_type) << ")\n";
-        std::cout << "    exp_date: " << txi.exp_date.as_ulong() << '\n';
-        std::cout << "    nullifier: " << txi.null.toUniqueString() << '\n';
-        std::cout << "    vcm: " << txi.vcm.toString() << '\n';
-        std::cout << "    ccm: " << txi.ccm.toString() << '\n';
-        std::cout << "    coinsig: <...>\n";
-        std::cout << "    split proof: <...>\n";
-      }
-
-      std::cout << "  ------------------------------- Output Tx(s) -------------------------------\n";
-      for (size_t i = 0; i < utt.outs.size(); ++i) {
-        const auto& txo = utt.outs[i];
-        std::cout << "  TxOut " << i << ":\n";
-        std::cout << "    coin_type: " << txo.coin_type.as_ulong() << " (" << coinTypeToStr(txo.coin_type) << ")\n";
-        std::cout << "    exp_date: " << txo.exp_date.as_ulong() << '\n';
-        // std::cout << "    H: " << (txo.H ? "..." : "<Empty>") << '\n';
-        std::cout << "    vcm_1: " << txo.vcm_1.toString() << '\n';
-        std::cout << "    range proof: " << (txo.range_pi ? "..." : "<Empty>") << '\n';
-        // std::cout << "    d: " << txo.d.as_ulong() << '\n';
-        std::cout << "    vcm_2: " << txo.vcm_2.toString() << '\n';
-        std::cout << "    vcm_eq_pi: <...>\n";
-        // std::cout << "    t: " << txo.t.as_ulong() << '\n';
-        std::cout << "    icm: " << txo.icm.toString() << '\n';
-        std::cout << "    icm_pok: " << (txo.icm_pok ? "<...>" : "<Empty>") << '\n';
-        std::cout << "    ctxt: <...>\n";
-      }
-    } else {
-      std::cout << "  Public transaction: " << *block->tx_ << '\n';
-    }
-  } else {
-    std::cout << "  Empty.\n";
   }
 }
 
@@ -966,12 +883,9 @@ int main(int argc, char** argv) {
           printHelp();
         } else if (tokens[0] == k_CmdDbgPrimary) {
           std::cout << "Last known primary: " << comm.getLastKnownPrimary() << '\n';
-        } else if (tokens[0] == k_CmdLedger) {
-          checkLedger(app, comm);
-        } else if (tokens[0] == k_CmdShow) {
+        } else if (tokens[0] == "show") {
           syncState(app, comm);
-          if (tokens.size() > 2)
-            throw std::domain_error(k_CmdShow + " requires at most one argument - the state selector!");
+          if (tokens.size() > 2) throw std::domain_error("show requires at most one argument - the state selector!");
           if (tokens.size() == 1)
             app.printState();
           else
