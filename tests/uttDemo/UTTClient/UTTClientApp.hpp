@@ -57,9 +57,14 @@ class UTTClientApp : public UTTBlockchainApp {
   void tryClaimCoins(const TxUtt& tx);
 
   void printOtherPids() const;
-  void printLedger(std::stringstream& ss) const;
-  void printBlock(BlockId blockId, std::stringstream& ss) const;
-  void printUttTx(const libutt::Tx& tx, std::stringstream& ss) const;
+
+  void printWallet(const libutt::Wallet& wallet, std::string& path, std::stringstream& ss) const;
+  void printCoins(const libutt::Wallet& wallet, std::string& path, std::stringstream& ss) const;
+  void printCoin(const libutt::Coin& coin, std::string& path, std::stringstream& ss) const;
+
+  void printLedger(std::string& path, std::stringstream& ss) const;
+  void printBlock(BlockId blockId, std::string& path, std::stringstream& ss) const;
+  void printUttTx(const libutt::Tx& tx, std::string& path, std::stringstream& ss) const;
 
   logging::Logger& logger_;
   std::string myPid_;
