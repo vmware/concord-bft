@@ -63,7 +63,13 @@ bool AppStateAdapter::putBlock(const uint64_t blockId,
                                bool lastBlock) {
   const auto lastReachable = kvbc_->getLastReachableBlockId();
   if (blockId <= lastReachable) {
-    const auto msg = "Cannot add an existing block ID " + std::to_string(blockId);
+    auto bd = kvbc_->getBlockData(blockId);
+    auto in_bd = std::string(blockData, blockSize);
+    if (bd.has_value() && *bd == in_bd) {
+      LOG_INFO(CAT_BLOCK_LOG, "blockchain already contains block " << blockId);
+      return true;
+    }
+    const auto msg = "blockchain already contains a different block, ID " + std::to_string(blockId);
     throw std::invalid_argument{msg};
   }
 

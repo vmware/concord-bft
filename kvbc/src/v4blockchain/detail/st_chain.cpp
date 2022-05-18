@@ -39,6 +39,7 @@ bool StChain::hasBlock(BlockId block_id) const {
 }
 
 void StChain::addBlock(const BlockId id, const char* block, const uint32_t blockSize) {
+  LOG_DEBUG(CAT_BLOCK_LOG, "Adding ST block " << id);
   auto write_batch = native_client_->getBatch();
   write_batch.put(v4blockchain::detail::ST_CHAIN_CF,
                   v4blockchain::detail::Blockchain::generateKey(id),
