@@ -85,6 +85,7 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
     if (!valid) {
       failures_++;
       rresp.success = false;  // If no handler was able to verify the request, it is an invalid request
+      LOG_WARN(getLogger(), "Failed to verify the reconfiguration request. " << KVLOG(request.sender, sequence_num));
     }
   } catch (const std::exception& e) {
     failures_++;
