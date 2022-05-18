@@ -43,8 +43,10 @@ KeyValueBlockchain::KeyValueBlockchain(
   auto old_last_reachable_block_id = getLastReachableBlockId();
   linkSTChain();
   auto new_last_reachable_block_id = getLastReachableBlockId();
-  LOG_INFO(V4_BLOCK_LOG,
-           "Done linking ST temporary chain:" << KVLOG(old_last_reachable_block_id, new_last_reachable_block_id));
+  if (new_last_reachable_block_id > old_last_reachable_block_id) {
+    LOG_INFO(V4_BLOCK_LOG,
+             "Done linking ST temporary chain:" << KVLOG(old_last_reachable_block_id, new_last_reachable_block_id));
+  }
 }
 
 //////////////////////////// ADDER////////////////////////////////////////////
@@ -233,7 +235,7 @@ void KeyValueBlockchain::addBlockToSTChain(const BlockId &block_id,
     }
     return;
   }
-
+  LOG_DEBUG(V4_BLOCK_LOG, "Adding ST block " << block_id);
   state_transfer_chain_.addBlock(block_id, block, block_size);
   if (last_block) {
     try {
@@ -258,6 +260,7 @@ void KeyValueBlockchain::linkSTChain() {
   for (auto i = block_id; i <= last_block_id; ++i) {
     auto block = state_transfer_chain_.getBlock(i);
     if (!block) {
+      LOG_INFO(V4_BLOCK_LOG, "Block " << i << " wasn't found, started from block " << block_id);
       return;
     }
     auto updates = block->getUpdates();
@@ -265,6 +268,7 @@ void KeyValueBlockchain::linkSTChain() {
   }
   // Linking has fully completed and we should not have any more ST temporary blocks left. Therefore, make sure we don't
   // have any value for the latest ST temporary block ID cache.
+  LOG_INFO(V4_BLOCK_LOG, "Fully Linked ST from " << block_id << " to " << last_block_id);
   state_transfer_chain_.resetChain();
 }
 
@@ -336,14 +340,8 @@ size_t KeyValueBlockchain::linkUntilBlockId(BlockId until_block_id) {
                                                     estimated_time_left_sec));
     }
   }
-  if (last_added == state_transfer_chain_.getLastBlockId()) {
-    LOG_INFO(
-        V4_BLOCK_LOG,
-        "Added all blocks in st chain, from " << from_block_id << " until block " << last_added << " resetting chain");
-    state_transfer_chain_.resetChain();
-  } else {
-    LOG_INFO(V4_BLOCK_LOG, "Added st range from " << from_block_id << " until " << last_added);
-  }
+
+  LOG_INFO(V4_BLOCK_LOG, "Linked st range from " << from_block_id << " until " << last_added);
   return (last_added - from_block_id) + 1;
 }
 
