@@ -341,6 +341,10 @@ size_t RVBManager::getSerializedDigestsOfRvbGroup(int64_t rvb_group_id,
       LOG_ERROR(logger_, KVLOG(last_added_block_id, config_.fetchRangeSize, rvb_id, num_elements, rvb_group_id));
       return 0;
     }
+
+    // Two places where block digests can be found:
+    // 1) In pruned_blocks_digests_
+    // 2) In storage
     if (as_->hasBlock(rvb_id + 1)) {
       // have the next block - much faster to get only the digest
       if (!size_only) {
@@ -356,6 +360,15 @@ size_t RVBManager::getSerializedDigestsOfRvbGroup(int64_t rvb_group_id,
         // compute the digests
         cur->digest = getBlockAndComputeDigest(rvb_id);
         cur->block_id = rvb_id;
+      }
+    } else if (auto digest_iter =
+                   std::find_if(pruned_blocks_digests_.begin(),
+                                pruned_blocks_digests_.end(),
+                                [rvb_id](const std::pair<BlockId, Digest>& p) { return p.first == rvb_id; });
+               digest_iter != pruned_blocks_digests_.end()) {
+      if (!size_only) {
+        cur->digest = digest_iter->second;
+        cur->block_id = digest_iter->first;
       }
     } else {
       continue;
@@ -453,24 +466,29 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
   // 2nd stage: Check that I have the exact digests to validate the RVB group. There are 4 type of RVB groups,
   // Level 0 in tree is represented (not in memory), 'x' represents an RVB node:
   // 1) Full RVB Group:            [xxxxxxxxx]
+  //
   // 2) Partial right RVB Group:   [    xxxxx]    - some left RVB are pruned. This one represents "oldest" blocks in
-  // RVT 3) Partial left RVB Group:    [xxxxx    ]    - some right RVB are not yet added. This one represents
-  // "newest" blocks in RVT 4) Partial RVB Group:         [ xxxxx ]      - some right and left RVBs are not part of
+  // RVT.
+  //
+  // 3) Partial left RVB Group:    [xxxxx    ]    - some right RVB are not yet added. This one represents
+  // "newest" blocks in RVT.
+  //
+  // 4) Partial RVB Group:         [  xxxxx  ]      - some right and left RVBs are not part of
   // the tree. In this case we expect a single root tree!
   //
   // In all cases, we can validate the group only if have validate the EXACT digests - no one less and not a single
   // more!
   RVBGroupId rvb_group_id_added = rvb_group_ids[0];
-  auto rvb_ids = in_mem_rvt_->getRvbIds(rvb_group_id_added);
-  std::vector<RVBId> keys;
-  std::transform(
-      digests.begin(), digests.end(), std::back_inserter(keys), [](const std::map<BlockId, Digest>::value_type& pair) {
-        return pair.first;
-      });
-  if (keys != rvb_ids) {
-    std::string keys_str = vecToStr(keys);
-    std::string rvb_ids_str = vecToStr(rvb_ids);
-    LOG_ERROR(logger_, error_prefix << KVLOG(keys_str, rvb_ids_str));
+  auto rvb_ids_local = in_mem_rvt_->getRvbIds(rvb_group_id_added);
+  std::vector<RVBId> rvb_ids_src;
+  std::transform(digests.begin(),
+                 digests.end(),
+                 std::back_inserter(rvb_ids_src),
+                 [](const std::map<BlockId, Digest>::value_type& pair) { return pair.first; });
+  if (rvb_ids_src != rvb_ids_local) {
+    std::string rvb_ids_src_str = vecToStr(rvb_ids_src);
+    std::string rvb_ids_local_str = vecToStr(rvb_ids_local);
+    LOG_ERROR(logger_, error_prefix << KVLOG(rvb_ids_src_str, rvb_ids_local_str));
     return false;
   }
 
