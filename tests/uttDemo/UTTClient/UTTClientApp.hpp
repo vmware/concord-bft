@@ -56,15 +56,17 @@ class UTTClientApp : public UTTBlockchainApp {
   void pruneSpentCoins();
   void tryClaimCoins(const TxUtt& tx);
 
-  void printOtherPids() const;
+  struct PrintContext;
 
-  void printWallet(const libutt::Wallet& wallet, std::string& path, std::stringstream& ss) const;
-  void printCoins(const libutt::Wallet& wallet, std::string& path, std::stringstream& ss) const;
-  void printCoin(const libutt::Coin& coin, std::string& path, std::stringstream& ss) const;
+  void printOtherPids(const PrintContext& ctx, std::stringstream& ss) const;
 
-  void printLedger(std::string& path, std::stringstream& ss) const;
-  void printBlock(BlockId blockId, std::string& path, std::stringstream& ss) const;
-  void printUttTx(const libutt::Tx& tx, std::string& path, std::stringstream& ss) const;
+  void printWallet(const PrintContext& ctx, std::stringstream& ss) const;
+  void printCoins(const PrintContext& ctx, std::stringstream& ss) const;
+  void printCoin(const PrintContext& ctx, std::stringstream& ss, const libutt::Coin& coin, bool verbose = false) const;
+
+  void printLedger(const PrintContext& ctx, std::stringstream& ss) const;
+  void printBlock(const PrintContext& ctx, std::stringstream& ss, BlockId blockId) const;
+  void printUttTx(const PrintContext& ctx, std::stringstream& ss, const libutt::Tx& tx) const;
 
   logging::Logger& logger_;
   std::string myPid_;
