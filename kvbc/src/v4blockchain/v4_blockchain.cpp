@@ -237,6 +237,7 @@ void KeyValueBlockchain::addBlockToSTChain(const BlockId &block_id,
   state_transfer_chain_.addBlock(block_id, block, block_size);
   if (last_block) {
     try {
+      LOG_INFO(V4_BLOCK_LOG, "ST last block added " << block_id << " linking to blockchain");
       linkSTChain();
     } catch (const std::exception &e) {
       LOG_FATAL(V4_BLOCK_LOG,
@@ -307,7 +308,9 @@ size_t KeyValueBlockchain::linkUntilBlockId(BlockId until_block_id) {
   for (auto i = from_block_id; i <= until_block_id; ++i) {
     auto block = state_transfer_chain_.getBlock(i);
 
-    if (!block) break;
+    if (!block) {
+      break;
+    }
     last_added = i;
     // First prune and then link the block to the chain. Rationale is that this will preserve the same order of block
     // deletes relative to block adds on source and destination replicas.
@@ -334,8 +337,12 @@ size_t KeyValueBlockchain::linkUntilBlockId(BlockId until_block_id) {
     }
   }
   if (last_added == state_transfer_chain_.getLastBlockId()) {
-    LOG_INFO(V4_BLOCK_LOG, "Added all blocks in st chain, until block " << last_added << " resetting chain");
+    LOG_INFO(
+        V4_BLOCK_LOG,
+        "Added all blocks in st chain, from " << from_block_id << " until block " << last_added << " resetting chain");
     state_transfer_chain_.resetChain();
+  } else {
+    LOG_INFO(V4_BLOCK_LOG, "Added st range from " << from_block_id << " until " << last_added);
   }
   return (last_added - from_block_id) + 1;
 }
