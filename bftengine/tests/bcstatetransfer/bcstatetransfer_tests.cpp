@@ -362,6 +362,9 @@ class BcStTestDelegator {
   }
   uint64_t getNextRequiredBlock() { return stateTransfer_->fetchState_.nextBlockId; }
   RVBManager* getRvbManager() { return stateTransfer_->rvbm_.get(); }
+  size_t getSizeOfRvbDigestInfo() const { return sizeof(RVBManager::RvbDigestInfo); }
+  RVBId nextRvbBlockId(BlockId blockId) const { return stateTransfer_->rvbm_->nextRvbBlockId(blockId); }
+  RVBId prevRvbBlockId(BlockId blockId) const { return stateTransfer_->rvbm_->prevRvbBlockId(blockId); }
   RangeValidationTree* getRvt() { return stateTransfer_->rvbm_->in_mem_rvt_.get(); }
   void createCheckpointOfCurrentState(uint64_t checkpointNum) {
     stateTransfer_->createCheckpointOfCurrentState(checkpointNum);
@@ -461,7 +464,12 @@ class FakeDestination : public FakeReplicaBase {
   void sendAskForCheckpointSummariesMsg(uint64_t minRelevantCheckpointNum, uint16_t senderReplicaId = UINT_LEAST16_MAX);
   void sendFetchBlocksMsg(uint64_t firstRequiredBlock,
                           uint64_t lastRequiredBlock,
-                          uint16_t senderReplicaId = UINT_LEAST16_MAX);
+                          // when UINT_LEAST16_MAX , just adding 1 to targetConfig_.myReplicaId
+                          uint16_t senderReplicaId = UINT_LEAST16_MAX,
+                          // when 0, caluclated internally by default logic
+                          uint64_t numexpectedRvbs = 0,
+                          // if non-zero, request RVB digests and validate them
+                          uint64_t rvbGroupId = 0);
   void sendFetchResPagesMsg(uint64_t lastCheckpointKnownToRequester,
                             uint64_t requiredCheckpointNum,
                             uint16_t senderReplicaId = UINT_LEAST16_MAX);
@@ -863,7 +871,9 @@ void FakeDestination::sendAskForCheckpointSummariesMsg(uint64_t minRelevantCheck
 
 void FakeDestination::sendFetchBlocksMsg(uint64_t firstRequiredBlock,
                                          uint64_t lastRequiredBlock,
-                                         uint16_t senderReplicaId) {
+                                         uint16_t senderReplicaId,
+                                         uint64_t numexpectedRvbs,
+                                         uint64_t rvbGroupId) {
   ASSERT_SRC_UNDER_TEST;
   // Remove this line if we would like to make negative tests
   ASSERT_GE(lastRequiredBlock, firstRequiredBlock);
@@ -877,7 +887,11 @@ void FakeDestination::sendFetchBlocksMsg(uint64_t firstRequiredBlock,
   msg->maxBlockId = std::min(lastRequiredBlock, firstRequiredBlock + targetConfig_.maxNumberOfChunksInBatch - 1);
   msg->maxBlockIdInCycle = lastRequiredBlock;
   msg->lastKnownChunkInLastRequiredBlock = 0;  // for now, chunking is not supported
-  senderReplicaId = (senderReplicaId == UINT_LEAST16_MAX) ? targetConfig_.myReplicaId : senderReplicaId;
+  msg->rvbGroupId = rvbGroupId;
+  ASSERT_NE(senderReplicaId, targetConfig_.myReplicaId);
+  senderReplicaId = (senderReplicaId == UINT_LEAST16_MAX)
+                        ? ((targetConfig_.myReplicaId + 1) % targetConfig_.numReplicas)
+                        : senderReplicaId;
   stDelegator_->onMessage(msg, sizeof(*msg), senderReplicaId);
   do {
     const auto [isTriggered, duration] = testedReplicaIf_.popOneShotTimerDurationMilli();
@@ -887,6 +901,26 @@ void FakeDestination::sendFetchBlocksMsg(uint64_t firstRequiredBlock,
     this_thread::sleep_for(chrono::milliseconds(duration));
     peerStateTransfer_->onTimer();
   } while (true);
+
+  if (rvbGroupId > 0) {
+    // A batch is sent, we expect the 1st item data message to include partial left RVB Group. Lets validate it.
+    ASSERT_EQ(testedReplicaIf_.sent_messages_.size(), targetConfig_.maxNumberOfChunksInBatch);
+    const auto& msg = testedReplicaIf_.sent_messages_.front();
+    auto fetchBlocksMsg = reinterpret_cast<ItemDataMsg*>(msg.data_.get());
+    ASSERT_GT(fetchBlocksMsg->rvbDigestsSize, 0);
+    const auto sizeOfRvbDigestInfo = stDelegator_->getSizeOfRvbDigestInfo();
+    ASSERT_EQ(fetchBlocksMsg->rvbDigestsSize % sizeOfRvbDigestInfo, 0);
+    auto startRvbId = stDelegator_->nextRvbBlockId(firstRequiredBlock);
+    if (startRvbId == 0) {
+      startRvbId = targetConfig_.fetchRangeSize;
+    }
+    const auto endRvbId = stDelegator_->prevRvbBlockId(lastRequiredBlock);
+    ASSERT_GT(endRvbId, startRvbId);
+    if (numexpectedRvbs == 0) {
+      numexpectedRvbs = ((endRvbId - startRvbId) / targetConfig_.fetchRangeSize) + 1;
+    }
+    ASSERT_EQ(sizeOfRvbDigestInfo * numexpectedRvbs, fetchBlocksMsg->rvbDigestsSize);
+  }
 }
 
 void FakeDestination::sendFetchResPagesMsg(uint64_t lastCheckpointKnownToRequester,
@@ -1886,226 +1920,6 @@ TEST_F(BcStTest, srcHandleFetchResPagesMsg) {
   ASSERT_NFF(srcAssertItemDataMsgBatchSentWithResPages(1, testState_.maxRepliedCheckpointNum));
 }
 
-/////////////////////////////////////////////////////////
-//
-//       BcStTest Backup Replica (Initialization, Checkpointing)
-//
-/////////////////////////////////////////////////////////
-
-// Check that a backup replica save and load checkpoints, in particular the RVT as part of the CP
-TEST_F(BcStTest, bkpCheckCheckpointsPersistency) {
-  ASSERT_NFF(initialize());
-  ASSERT_NFF(cmnStartRunning());
-  ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, testState_.maxRequiredBlockId));
-  ASSERT_NFF(dataGen_->generateCheckpointDescriptors(appState_,
-                                                     datastore_,
-                                                     testState_.minRepliedCheckpointNum,
-                                                     testState_.maxRepliedCheckpointNum,
-                                                     stDelegator_->getRvbManager()));
-  auto rvt = stDelegator_->getRvt();
-  auto h1 = rvt->getRootCurrentValueStr();
-  ASSERT_NFF(dstRestart(false, FetchingState::NotFetching));
-  rvt = stDelegator_->getRvt();
-  auto h2 = rvt->getRootCurrentValueStr();
-  ASSERT_EQ(h1, h2);
-  testConfig_.productDbDeleteOnEnd = true;
-}
-
-// Check that a backup replica save and load pruned block digests which were not yet added to the RVT
-TEST_F(BcStTest, bkpCheckCheckPruningPersistency) {
-  ASSERT_NFF(initialize());
-  ASSERT_NFF(cmnStartRunning());
-  ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, testState_.maxRequiredBlockId));
-  ASSERT_NFF(dataGen_->generateCheckpointDescriptors(appState_,
-                                                     datastore_,
-                                                     testState_.minRepliedCheckpointNum,
-                                                     testState_.maxRepliedCheckpointNum,
-                                                     stDelegator_->getRvbManager()));
-  uint64_t midBlockId =
-      testState_.maxRequiredBlockId - ((testState_.maxRequiredBlockId - appState_.getGenesisBlockNum() + 1) / 2);
-  ASSERT_GT(midBlockId, appState_.getGenesisBlockNum() + 1);
-  ASSERT_LT(midBlockId, testState_.maxRequiredBlockId);
-  auto rvbm = stDelegator_->getRvbManager();
-  rvbm->reportLastAgreedPrunableBlockId(midBlockId);
-  const auto digestsBefore = stDelegator_->getPrunedBlocksDigests();
-  ASSERT_NFF(dstRestart(false, FetchingState::NotFetching));
-  const auto digestsafter = stDelegator_->getPrunedBlocksDigests();
-  ASSERT_EQ(digestsBefore, digestsafter);
-  testConfig_.productDbDeleteOnEnd = true;
-}
-
-// Check inter-versions compatibility: period to version 1.6 there is no RVT data in checkpoint.
-// We would like to check that replica is able to reconstruct the whole RVT from storage, when no data is found in
-// Checkpoint
-TEST_F(BcStTest, ValidateRvbDataInitialSource) {
-  // do not store RVB data in checkpoints (simulate v1.5)
-  targetConfig_.enableStoreRvbDataDuringCheckpointing = false;
-  ASSERT_NFF(initialize());
-  ASSERT_NFF(cmnStartRunning());
-  auto rvt = stDelegator_->getRvt();
-  auto rvbm = stDelegator_->getRvbManager();
-  std::string root_hash;
-
-  // Node is up with an empty storage: Check that tree is empty and RVB data source is NIL
-  ASSERT_EQ(rvbm->getRvbDataSource(), RVBManager::RvbDataInitialSource::NIL);
-  ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, testState_.maxRequiredBlockId));
-  ASSERT_TRUE(rvt->getRootCurrentValueStr().empty());
-
-  // Create some checkpoints. Since enableStoreRvbDataDuringCheckpointing=false, no RVB data is stored in dataStore
-  // This will trigger the next stage to reconstruct from storage
-  for (size_t i{testState_.minRepliedCheckpointNum}; i <= testState_.maxRepliedCheckpointNum; ++i) {
-    stDelegator_->createCheckpointOfCurrentState(i);
-  }
-
-  // Restart the replica and see that it reconstructed the tree from storage - checkpoints are found but there is no
-  // RVB data inside
-  ASSERT_NFF(dstRestart(false, FetchingState::NotFetching));
-  ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, testState_.maxRequiredBlockId));
-  rvt = stDelegator_->getRvt();
-  rvbm = stDelegator_->getRvbManager();
-  root_hash = rvt->getRootCurrentValueStr();
-  ASSERT_EQ(rvbm->getRvbDataSource(), RVBManager::RvbDataInitialSource::FROM_STORAGE_RECONSTRUCTION);
-  ASSERT_TRUE(!root_hash.empty());
-
-  targetConfig_.enableStoreRvbDataDuringCheckpointing = true;
-  ASSERT_NFF(dstRestart(false, FetchingState::NotFetching));
-
-  // create new checkpoints this time with RVB data. Then restart the replica, expect RvbDataInitialSource ==
-  // FROM_STORAGE_CP
-  testState_.minRequiredBlockId = testState_.maxRequiredBlockId + 1;
-  uint64_t nextCheckpointNum = datastore_->getLastStoredCheckpoint() + 1;
-  testState_.maxRequiredBlockId += testConfig_.checkpointWindowSize;
-  ASSERT_NFF(dataGen_->generateBlocks(appState_, testState_.minRequiredBlockId, testState_.maxRequiredBlockId));
-  stDelegator_->createCheckpointOfCurrentState(nextCheckpointNum);
-  ASSERT_NFF(dstRestart(false, FetchingState::NotFetching));
-  rvt = stDelegator_->getRvt();
-  rvbm = stDelegator_->getRvbManager();
-  root_hash = rvt->getRootCurrentValueStr();
-  ASSERT_EQ(rvbm->getRvbDataSource(), RVBManager::RvbDataInitialSource::FROM_STORAGE_CP);
-  ASSERT_TRUE(!root_hash.empty());
-
-  // Get the serialized data, and set it back, expect RvbDataInitialSource == FROM_NETWORK
-  auto rvbData = rvbm->getRvbData();
-  string s = rvbData.str();
-  rvbm->setRvbData(s.data(), s.size(), testState_.minRequiredBlockId, testState_.maxRequiredBlockId);
-  ASSERT_EQ(rvbm->getRvbDataSource(), RVBManager::RvbDataInitialSource::FROM_NETWORK);
-
-  testConfig_.productDbDeleteOnEnd = true;
-}
-
-class BcStTestParamFixture3 : public BcStTest,
-                              public testing::WithParamInterface<tuple<size_t, size_t, size_t, size_t, bool>> {};
-
-// generate blocks an checkpoint them to simulate consensus "advancing"
-// Then validate the checkpoints and compare the in memory in the one built from the checkpoint data
-TEST_P(BcStTestParamFixture3, bkpValidateCheckpointingWithConsensusCommitsAndPruning) {
-  auto maxBlockIdOnFirstCycle = get<0>(GetParam()) * testConfig_.checkpointWindowSize / 100;
-  auto numBlocksToAdd = get<1>(GetParam()) * testConfig_.checkpointWindowSize / 100;
-  auto numBlocksToPrune = get<2>(GetParam()) * testConfig_.checkpointWindowSize / 100;
-  auto totalCP = get<3>(GetParam());
-  bool resetartBetweenCP = get<4>(GetParam());
-  bool firstIteration = true;
-
-  ASSERT_NFF(initialize());
-  ASSERT_NFF(cmnStartRunning());
-  uint64_t nextCheckpointNum = datastore_->getLastStoredCheckpoint() + 1;
-
-  uint64_t minBlockInCp = appState_.getGenesisBlockNum() + 1;
-  uint64_t maxBlockInCp = maxBlockIdOnFirstCycle;
-  uint64_t lastTotalLevels{}, lastTotalNodes{};
-  uint64_t pruneTillBlockId = (numBlocksToPrune == 0) ? 0 : minBlockInCp + numBlocksToPrune - 1;
-  ASSERT_GT(maxBlockInCp, minBlockInCp);
-  for (size_t i{}; i < totalCP; ++i) {
-    // Add blocks
-    if (firstIteration || (numBlocksToAdd > 0)) {
-      ASSERT_NFF(dataGen_->generateBlocks(appState_, minBlockInCp, maxBlockInCp));
-      firstIteration = false;
-    }
-    // Prune blocks
-    if (pruneTillBlockId > 0) {
-      auto rvbm = stDelegator_->getRvbManager();
-      rvbm->reportLastAgreedPrunableBlockId(pruneTillBlockId);
-    }
-    // create checkpoint
-    if (resetartBetweenCP) {
-      ASSERT_NFF(dstRestart(false, FetchingState::NotFetching));
-    }
-    stDelegator_->createCheckpointOfCurrentState(nextCheckpointNum);
-
-    // Fetch the checkpoint, construct the tree, and check that number of nodes grows as expected
-    ASSERT_TRUE(datastore_->hasCheckpointDesc(nextCheckpointNum));
-    auto desc = datastore_->getCheckpointDesc(nextCheckpointNum);
-    ASSERT_EQ(desc.checkpointNum, nextCheckpointNum);
-    ASSERT_EQ(desc.maxBlockId, maxBlockInCp);
-    ASSERT_TRUE(!desc.rvbData.empty());
-
-    RangeValidationTree helper_rvt(GL, targetConfig_.RVT_K, targetConfig_.fetchRangeSize);
-    auto rvt = stDelegator_->getRvt();
-
-    std::istringstream rvb_data(std::string(reinterpret_cast<const char*>(desc.rvbData.data()), desc.rvbData.size()));
-    ASSERT_TRUE(helper_rvt.setSerializedRvbData(rvb_data));
-    ASSERT_NFF(stDelegator_->validateEqualRVTs(helper_rvt, *rvt));
-    ASSERT_TRUE(!helper_rvt.getRootCurrentValueStr().empty());
-
-    // leave for debug
-    // helper_rvt.printToLog(LogPrintVerbosity::DETAILED);
-    // rvt->printToLog(LogPrintVerbosity::DETAILED);
-
-    // when only pruning, tree must shrink over timestartCollectingStateInternal
-    // when only adding tree must grow over time
-    if (lastTotalNodes > 0) {
-      if ((numBlocksToAdd > 0) && numBlocksToPrune == 0) {
-        ASSERT_LE(lastTotalNodes, rvt->totalNodes());
-      } else if ((numBlocksToAdd == 0) && numBlocksToPrune > 0) {
-        ASSERT_GE(lastTotalNodes, rvt->totalNodes());
-      }
-    }
-    if (lastTotalLevels > 0) {
-      if ((numBlocksToAdd > 0) && numBlocksToPrune == 0) {
-        ASSERT_LE(lastTotalLevels, rvt->totalLevels());
-      } else if ((numBlocksToAdd == 0) && numBlocksToPrune > 0) {
-        ASSERT_GE(lastTotalLevels, rvt->totalLevels());
-      }
-    }
-    lastTotalNodes = rvt->totalNodes();
-    lastTotalLevels = rvt->totalLevels();
-
-    nextCheckpointNum++;
-    if (numBlocksToAdd) {
-      minBlockInCp = maxBlockInCp + 1;
-      maxBlockInCp = minBlockInCp + numBlocksToAdd - 1;
-    }
-    if (numBlocksToPrune > 0) {
-      pruneTillBlockId += numBlocksToPrune - 1;
-    }
-  }
-}
-
-// All 1st 3 elements are % of testConfig_.checkpointWindowSize. They can be > 100% too.
-// 1st element - max block ID to reach while adding blocks on 1st cycle
-// 2nd element - # blocks to add on every next cycle
-// 3rd element - # blocks to prune each cycle
-// 4th element - # of cycles
-// 5th element - resetart between checkpoints?
-using BcStTestParamFixtureInput3 = tuple<size_t, size_t, size_t, size_t, bool>;
-INSTANTIATE_TEST_CASE_P(BcStTest,
-                        BcStTestParamFixture3,
-                        ::testing::Values(
-                            // Add blocks only
-                            BcStTestParamFixtureInput3(100, 100, 0, 100, false),
-                            // Prune blocks only
-                            BcStTestParamFixtureInput3(1000, 0, 100, 9, false),
-                            // Add1 blocks and Prune
-                            BcStTestParamFixtureInput3(100, 100, 50, 100, false),
-                            // Add blocks and Prune II
-                            BcStTestParamFixtureInput3(100, 100, 5, 500, false),
-                            // Add blocks only and restart between checkpointing
-                            BcStTestParamFixtureInput3(100, 100, 0, 100, true),
-                            // Prune blocks only and restart between checkpointing
-                            BcStTestParamFixtureInput3(1000, 0, 100, 9, true),
-                            // Add blocks and Prune and restart between checkpointing
-                            BcStTestParamFixtureInput3(100, 100, 50, 100, true)), );
-
 TEST_F(BcStTest, srcTestSessionManagement) {
   testConfig_.testTarget = TestConfig::TestTarget::SOURCE;
   ASSERT_NFF(initialize());
@@ -2219,13 +2033,297 @@ TEST_F(BcStTest, srcTestCloseSessionOncycleEnd) {
   for (size_t i{0}; i < 2; ++i) {
     ASSERT_NFF(fakeDstReplica_->sendFetchBlocksMsg(testState_.minRequiredBlockId, testState_.maxRequiredBlockId));
     ASSERT_TRUE(stDelegator_->isSrcSessionOpen());
-    ASSERT_EQ(stDelegator_->srcSessionOwnerDestReplicaId(), targetConfig_.myReplicaId);
+    ASSERT_EQ(stDelegator_->srcSessionOwnerDestReplicaId(),
+              ((targetConfig_.myReplicaId + 1) % targetConfig_.numReplicas));
   }
 
   // now send a request for last batch in cycle, 2 blocks only, validate that session is closed after
   ASSERT_NFF(fakeDstReplica_->sendFetchBlocksMsg(testState_.maxRequiredBlockId - 1, testState_.maxRequiredBlockId));
   ASSERT_TRUE(!stDelegator_->isSrcSessionOpen());
 }
+
+// test all scenarios where source is required to send RVB group digests from storage and pruning vector
+TEST_F(BcStTest, srcTestSendRvbGroupDigests) {
+  testConfig_.testTarget = TestConfig::TestTarget::SOURCE;
+  // set RVT_K to 1024, so we can be sure all fetch range is contained in a single RVB group
+  targetConfig_.RVT_K = 1024;
+
+  ASSERT_NFF(initialize());
+  ASSERT_NFF(cmnStartRunning());
+  // Generate the data needed for a tested ST backup replica
+  ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, testState_.maxRequiredBlockId));
+  ASSERT_NFF(dataGen_->generateCheckpointDescriptors(appState_,
+                                                     datastore_,
+                                                     testState_.minRepliedCheckpointNum,
+                                                     testState_.maxRepliedCheckpointNum,
+                                                     stDelegator_->getRvbManager()));
+
+  // Send a FetchBlocksMsg and validate the rvb data (this part is optional)
+  const auto rvbGroupId = stDelegator_->getRvbManager()->getFetchBlocksRvbGroupId(testState_.minRequiredBlockId,
+                                                                                  testState_.maxRequiredBlockId);
+  ASSERT_NFF(fakeDstReplica_->sendFetchBlocksMsg(testState_.minRequiredBlockId,
+                                                 testState_.maxRequiredBlockId,
+                                                 ((targetConfig_.myReplicaId + 1) % targetConfig_.numReplicas),
+                                                 0,
+                                                 rvbGroupId));
+  // clear the outgoing message queue, but 1st copy the RVB digests for later use
+  const auto& msg1 = testedReplicaIf_.sent_messages_.front();
+  auto fetchBlocksMsg1 = reinterpret_cast<ItemDataMsg*>(msg1.data_.get());
+  std::unique_ptr<char[]> buffer1(new char[fetchBlocksMsg1->rvbDigestsSize]);
+  memcpy(buffer1.get(), fetchBlocksMsg1->data, fetchBlocksMsg1->rvbDigestsSize);
+  auto rvbDigestsSize1 = fetchBlocksMsg1->rvbDigestsSize;
+  testedReplicaIf_.sent_messages_.clear();
+
+  // Prune approx half of the blocks and send another request, We expect source to send the missing blocks
+  // from the pruned blocks digests vector. So the batch should start from much newer blocks, but the digests should be
+  // exactly the same since the RVT has not changed.
+  auto rvbm = stDelegator_->getRvbManager();
+  auto maxBlockIdToDelete =
+      testState_.minRequiredBlockId + ((testState_.maxRequiredBlockId - testState_.minRequiredBlockId) / 2);
+  rvbm->reportLastAgreedPrunableBlockId(maxBlockIdToDelete);
+  // we need to actually delete all blocks in storage to simlate pruning
+  ASSERT_NFF(appState_.deleteBlocksUntil(maxBlockIdToDelete + 1));
+  auto startRvbId = stDelegator_->nextRvbBlockId(testState_.minRequiredBlockId);
+  if (startRvbId == 0) {
+    startRvbId = targetConfig_.fetchRangeSize;
+  }
+  const auto endRvbId = stDelegator_->prevRvbBlockId(testState_.maxRequiredBlockId);
+  ASSERT_GT(endRvbId, startRvbId);
+  ASSERT_NFF(fakeDstReplica_->sendFetchBlocksMsg(maxBlockIdToDelete + 1,
+                                                 testState_.maxRequiredBlockId,
+                                                 ((targetConfig_.myReplicaId + 1) % targetConfig_.numReplicas),
+                                                 ((endRvbId - startRvbId) / targetConfig_.fetchRangeSize) + 1,
+                                                 rvbGroupId));
+
+  // compare 2 RVB digests data - they should be equal
+  const auto& msg2 = testedReplicaIf_.sent_messages_.front();
+  auto fetchBlocksMsg2 = reinterpret_cast<ItemDataMsg*>(msg2.data_.get());
+  std::unique_ptr<char[]> buffer2(new char[fetchBlocksMsg2->rvbDigestsSize]);
+  memcpy(buffer2.get(), fetchBlocksMsg2->data, fetchBlocksMsg2->rvbDigestsSize);
+  auto rvbDigestsSize2 = fetchBlocksMsg2->rvbDigestsSize;
+  ASSERT_EQ(rvbDigestsSize2, rvbDigestsSize1);
+  ASSERT_EQ(memcmp(buffer1.get(), buffer2.get(), rvbDigestsSize2), 0);
+}
+
+/////////////////////////////////////////////////////////////////
+//
+//  BcStTest Backup Replica (Initialization, Checkpointing) Tests
+//
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Check that a backup replica save and load checkpoints, in particular the RVT as part of the CP
+TEST_F(BcStTest, bkpCheckCheckpointsPersistency) {
+  ASSERT_NFF(initialize());
+  ASSERT_NFF(cmnStartRunning());
+  ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, testState_.maxRequiredBlockId));
+  ASSERT_NFF(dataGen_->generateCheckpointDescriptors(appState_,
+                                                     datastore_,
+                                                     testState_.minRepliedCheckpointNum,
+                                                     testState_.maxRepliedCheckpointNum,
+                                                     stDelegator_->getRvbManager()));
+  auto rvt = stDelegator_->getRvt();
+  auto h1 = rvt->getRootCurrentValueStr();
+  ASSERT_NFF(dstRestart(false, FetchingState::NotFetching));
+  rvt = stDelegator_->getRvt();
+  auto h2 = rvt->getRootCurrentValueStr();
+  ASSERT_EQ(h1, h2);
+  testConfig_.productDbDeleteOnEnd = true;
+}
+
+// Check that a backup replica save and load pruned block digests which were not yet added to the RVT
+TEST_F(BcStTest, bkpCheckCheckPruningPersistency) {
+  ASSERT_NFF(initialize());
+  ASSERT_NFF(cmnStartRunning());
+  ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, testState_.maxRequiredBlockId));
+  ASSERT_NFF(dataGen_->generateCheckpointDescriptors(appState_,
+                                                     datastore_,
+                                                     testState_.minRepliedCheckpointNum,
+                                                     testState_.maxRepliedCheckpointNum,
+                                                     stDelegator_->getRvbManager()));
+  uint64_t midBlockId =
+      testState_.maxRequiredBlockId - ((testState_.maxRequiredBlockId - appState_.getGenesisBlockNum() + 1) / 2);
+  ASSERT_GT(midBlockId, appState_.getGenesisBlockNum() + 1);
+  ASSERT_LT(midBlockId, testState_.maxRequiredBlockId);
+  auto rvbm = stDelegator_->getRvbManager();
+  rvbm->reportLastAgreedPrunableBlockId(midBlockId);
+  const auto digestsBefore = stDelegator_->getPrunedBlocksDigests();
+  ASSERT_NFF(dstRestart(false, FetchingState::NotFetching));
+  const auto digestsafter = stDelegator_->getPrunedBlocksDigests();
+  ASSERT_EQ(digestsBefore, digestsafter);
+  testConfig_.productDbDeleteOnEnd = true;
+}
+
+// Check inter-versions compatibility: period to version 1.6 there is no RVT data in checkpoint.
+// We would like to check that replica is able to reconstruct the whole RVT from storage, when no data is found in
+// Checkpoint
+TEST_F(BcStTest, bkpValidateRvbDataInitialSource) {
+  // do not store RVB data in checkpoints (simulate v1.5)
+  targetConfig_.enableStoreRvbDataDuringCheckpointing = false;
+  ASSERT_NFF(initialize());
+  ASSERT_NFF(cmnStartRunning());
+  auto rvt = stDelegator_->getRvt();
+  auto rvbm = stDelegator_->getRvbManager();
+  std::string root_hash;
+
+  // Node is up with an empty storage: Check that tree is empty and RVB data source is NIL
+  ASSERT_EQ(rvbm->getRvbDataSource(), RVBManager::RvbDataInitialSource::NIL);
+  ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, testState_.maxRequiredBlockId));
+  ASSERT_TRUE(rvt->getRootCurrentValueStr().empty());
+
+  // Create some checkpoints. Since enableStoreRvbDataDuringCheckpointing=false, no RVB data is stored in dataStore
+  // This will trigger the next stage to reconstruct from storage
+  for (size_t i{testState_.minRepliedCheckpointNum}; i <= testState_.maxRepliedCheckpointNum; ++i) {
+    stDelegator_->createCheckpointOfCurrentState(i);
+  }
+
+  // Restart the replica and see that it reconstructed the tree from storage - checkpoints are found but there is no
+  // RVB data inside
+  ASSERT_NFF(dstRestart(false, FetchingState::NotFetching));
+  ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, testState_.maxRequiredBlockId));
+  rvt = stDelegator_->getRvt();
+  rvbm = stDelegator_->getRvbManager();
+  root_hash = rvt->getRootCurrentValueStr();
+  ASSERT_EQ(rvbm->getRvbDataSource(), RVBManager::RvbDataInitialSource::FROM_STORAGE_RECONSTRUCTION);
+  ASSERT_TRUE(!root_hash.empty());
+
+  targetConfig_.enableStoreRvbDataDuringCheckpointing = true;
+  ASSERT_NFF(dstRestart(false, FetchingState::NotFetching));
+
+  // create new checkpoints this time with RVB data. Then restart the replica, expect RvbDataInitialSource ==
+  // FROM_STORAGE_CP
+  testState_.minRequiredBlockId = testState_.maxRequiredBlockId + 1;
+  uint64_t nextCheckpointNum = datastore_->getLastStoredCheckpoint() + 1;
+  testState_.maxRequiredBlockId += testConfig_.checkpointWindowSize;
+  ASSERT_NFF(dataGen_->generateBlocks(appState_, testState_.minRequiredBlockId, testState_.maxRequiredBlockId));
+  stDelegator_->createCheckpointOfCurrentState(nextCheckpointNum);
+  ASSERT_NFF(dstRestart(false, FetchingState::NotFetching));
+  rvt = stDelegator_->getRvt();
+  rvbm = stDelegator_->getRvbManager();
+  root_hash = rvt->getRootCurrentValueStr();
+  ASSERT_EQ(rvbm->getRvbDataSource(), RVBManager::RvbDataInitialSource::FROM_STORAGE_CP);
+  ASSERT_TRUE(!root_hash.empty());
+
+  // Get the serialized data, and set it back, expect RvbDataInitialSource == FROM_NETWORK
+  auto rvbData = rvbm->getRvbData();
+  string s = rvbData.str();
+  rvbm->setRvbData(s.data(), s.size(), testState_.minRequiredBlockId, testState_.maxRequiredBlockId);
+  ASSERT_EQ(rvbm->getRvbDataSource(), RVBManager::RvbDataInitialSource::FROM_NETWORK);
+
+  testConfig_.productDbDeleteOnEnd = true;
+}
+
+class BcStTestParamFixture3 : public BcStTest,
+                              public testing::WithParamInterface<tuple<size_t, size_t, size_t, size_t, bool>> {};
+
+// generate blocks and checkpoint them to simulate consensus "advancing"
+// Then validate the checkpoints and compare the ones in memory with the one built from the checkpoint data
+TEST_P(BcStTestParamFixture3, bkpValidateCheckpointingWithConsensusCommitsAndPruning) {
+  auto maxBlockIdOnFirstCycle = get<0>(GetParam()) * testConfig_.checkpointWindowSize / 100;
+  auto numBlocksToAdd = get<1>(GetParam()) * testConfig_.checkpointWindowSize / 100;
+  auto numBlocksToPrune = get<2>(GetParam()) * testConfig_.checkpointWindowSize / 100;
+  auto totalCP = get<3>(GetParam());
+  bool resetartBetweenCP = get<4>(GetParam());
+  bool firstIteration = true;
+
+  ASSERT_NFF(initialize());
+  ASSERT_NFF(cmnStartRunning());
+  uint64_t nextCheckpointNum = datastore_->getLastStoredCheckpoint() + 1;
+
+  uint64_t minBlockInCp = appState_.getGenesisBlockNum() + 1;
+  uint64_t maxBlockInCp = maxBlockIdOnFirstCycle;
+  uint64_t lastTotalLevels{}, lastTotalNodes{};
+  uint64_t pruneTillBlockId = (numBlocksToPrune == 0) ? 0 : minBlockInCp + numBlocksToPrune - 1;
+  ASSERT_GT(maxBlockInCp, minBlockInCp);
+  for (size_t i{}; i < totalCP; ++i) {
+    // Add blocks
+    if (firstIteration || (numBlocksToAdd > 0)) {
+      ASSERT_NFF(dataGen_->generateBlocks(appState_, minBlockInCp, maxBlockInCp));
+      firstIteration = false;
+    }
+    // Prune blocks
+    if (pruneTillBlockId > 0) {
+      auto rvbm = stDelegator_->getRvbManager();
+      rvbm->reportLastAgreedPrunableBlockId(pruneTillBlockId);
+    }
+    // create checkpoint
+    if (resetartBetweenCP) {
+      ASSERT_NFF(dstRestart(false, FetchingState::NotFetching));
+    }
+    stDelegator_->createCheckpointOfCurrentState(nextCheckpointNum);
+
+    // Fetch the checkpoint, construct the tree, and check that number of nodes grows as expected
+    ASSERT_TRUE(datastore_->hasCheckpointDesc(nextCheckpointNum));
+    auto desc = datastore_->getCheckpointDesc(nextCheckpointNum);
+    ASSERT_EQ(desc.checkpointNum, nextCheckpointNum);
+    ASSERT_EQ(desc.maxBlockId, maxBlockInCp);
+    ASSERT_TRUE(!desc.rvbData.empty());
+
+    RangeValidationTree helper_rvt(GL, targetConfig_.RVT_K, targetConfig_.fetchRangeSize);
+    auto rvt = stDelegator_->getRvt();
+
+    std::istringstream rvb_data(std::string(reinterpret_cast<const char*>(desc.rvbData.data()), desc.rvbData.size()));
+    ASSERT_TRUE(helper_rvt.setSerializedRvbData(rvb_data));
+    ASSERT_NFF(stDelegator_->validateEqualRVTs(helper_rvt, *rvt));
+    ASSERT_TRUE(!helper_rvt.getRootCurrentValueStr().empty());
+
+    // leave for debug
+    // helper_rvt.printToLog(LogPrintVerbosity::DETAILED);
+    // rvt->printToLog(LogPrintVerbosity::DETAILED);
+
+    // when only pruning, tree must shrink over timestartCollectingStateInternal
+    // when only adding tree must grow over time
+    if (lastTotalNodes > 0) {
+      if ((numBlocksToAdd > 0) && numBlocksToPrune == 0) {
+        ASSERT_LE(lastTotalNodes, rvt->totalNodes());
+      } else if ((numBlocksToAdd == 0) && numBlocksToPrune > 0) {
+        ASSERT_GE(lastTotalNodes, rvt->totalNodes());
+      }
+    }
+    if (lastTotalLevels > 0) {
+      if ((numBlocksToAdd > 0) && numBlocksToPrune == 0) {
+        ASSERT_LE(lastTotalLevels, rvt->totalLevels());
+      } else if ((numBlocksToAdd == 0) && numBlocksToPrune > 0) {
+        ASSERT_GE(lastTotalLevels, rvt->totalLevels());
+      }
+    }
+    lastTotalNodes = rvt->totalNodes();
+    lastTotalLevels = rvt->totalLevels();
+
+    nextCheckpointNum++;
+    if (numBlocksToAdd) {
+      minBlockInCp = maxBlockInCp + 1;
+      maxBlockInCp = minBlockInCp + numBlocksToAdd - 1;
+    }
+    if (numBlocksToPrune > 0) {
+      pruneTillBlockId += numBlocksToPrune - 1;
+    }
+  }
+}
+
+// All 1st 3 elements are % of testConfig_.checkpointWindowSize. They can be > 100% too.
+// 1st element - max block ID to reach while adding blocks on 1st cycle
+// 2nd element - # blocks to add on every next cycle
+// 3rd element - # blocks to prune each cycle
+// 4th element - # of cycles
+// 5th element - resetart between checkpoints?
+using BcStTestParamFixtureInput3 = tuple<size_t, size_t, size_t, size_t, bool>;
+INSTANTIATE_TEST_CASE_P(BcStTest,
+                        BcStTestParamFixture3,
+                        ::testing::Values(
+                            // Add blocks only
+                            BcStTestParamFixtureInput3(100, 100, 0, 100, false),
+                            // Prune blocks only
+                            BcStTestParamFixtureInput3(1000, 0, 100, 9, false),
+                            // Add1 blocks and Prune
+                            BcStTestParamFixtureInput3(100, 100, 50, 100, false),
+                            // Add blocks and Prune II
+                            BcStTestParamFixtureInput3(100, 100, 5, 500, false),
+                            // Add blocks only and restart between checkpointing
+                            BcStTestParamFixtureInput3(100, 100, 0, 100, true),
+                            // Prune blocks only and restart between checkpointing
+                            BcStTestParamFixtureInput3(1000, 0, 100, 9, true),
+                            // Add blocks and Prune and restart between checkpointing
+                            BcStTestParamFixtureInput3(100, 100, 50, 100, true)), );
 
 }  // namespace bftEngine::bcst::impl
 
