@@ -21,7 +21,7 @@
 #include "ControlStateManager.hpp"
 #include "bftengine/ControlHandler.hpp"
 #include "SimpleStateTransfer.hpp"
-#include "simpleAppState.hpp"
+#include "simple_app_state.hpp"
 #include "FileStorage.hpp"
 #include <optional>
 #include <thread>

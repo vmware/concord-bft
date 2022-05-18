@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -68,8 +68,8 @@ class SimpleAppState : public IRequestsHandler {
                const std::string &batchCid,
                concordUtils::SpanWrapper &parent_span) override {
     for (auto &req : requests) {
-      /* Skip below processing for all other requests other client READ and WRITE */
-      if (!(req.flags & READ_ONLY_FLAG) && !(req.flags & EMPTY_FLAGS)) continue;
+      /* Skip below processing for all requests other than client READ and WRITE */
+      if (!(req.flags & READ_ONLY_FLAG) && (req.flags != EMPTY_FLAGS)) continue;
 
       // Not currently used
       req.outReplicaSpecificInfoSize = 0;
