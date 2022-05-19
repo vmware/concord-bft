@@ -311,7 +311,6 @@ bool CertificateUtils::verifyCertificate(X509* cert_to_verify,
     return false;
   }
   remote_peer_id = remotePeerId;
-  LOG_INFO(GL, "Peer: " << remote_peer_id);
   std::string CN;
   CN.resize(SIZE);
   X509_NAME_get_text_by_NID(X509_get_subject_name(cert_to_verify), NID_commonName, CN.data(), SIZE);
