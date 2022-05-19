@@ -51,6 +51,7 @@ class UTTClientApp : public UTTBlockchainApp {
 
  private:
   static std::string extractToken(std::stringstream& ss);
+  static size_t extractValidIdx(size_t size, std::stringstream& ss);
 
   void executeTx(const Tx& tx) override;
   void pruneSpentCoins();
@@ -62,11 +63,13 @@ class UTTClientApp : public UTTBlockchainApp {
 
   void printWallet(const PrintContext& ctx, std::stringstream& ss) const;
   void printCoins(const PrintContext& ctx, std::stringstream& ss) const;
-  void printCoin(const PrintContext& ctx, std::stringstream& ss, const libutt::Coin& coin, bool verbose = false) const;
+  void printCoin(const PrintContext& ctx, std::stringstream& ss, const libutt::Coin& coin, bool preview) const;
 
   void printLedger(const PrintContext& ctx, std::stringstream& ss) const;
   void printBlock(const PrintContext& ctx, std::stringstream& ss, BlockId blockId) const;
   void printUttTx(const PrintContext& ctx, std::stringstream& ss, const libutt::Tx& tx) const;
+  void printTxIn(const PrintContext& ctx, std::stringstream& ss, const libutt::TxIn& txi, bool preview) const;
+  void printTxOut(const PrintContext& ctx, std::stringstream& ss, const libutt::TxOut& txo, bool preview) const;
 
   logging::Logger& logger_;
   std::string myPid_;

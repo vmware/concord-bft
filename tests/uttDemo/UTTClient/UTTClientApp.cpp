@@ -24,31 +24,33 @@
 struct UTTClientApp::PrintContext {
   PrintContext() = default;
   PrintContext(const PrintContext& parent, size_t idx) : PrintContext(parent, std::to_string(idx)) {}
-  PrintContext(const PrintContext& parent, std::string name)
-      : indent_{parent.indent_ + 2}, path_{parent.path_ + "/" + name} {}
+  PrintContext(const PrintContext& parent, std::string name) : indent_{parent.indent_ + 2}, path_{parent.path_} {
+    if (!path_.empty()) path_ += "/";
+    path_ += name;
+  }
 
-  void printCurrentPath() const { std::cout << std::setw(indent_) << '[' << path_ << "]\n"; }
+  void printCurrentPath() const { std::cout << std::setw(indent_ - 2) << '[' << path_ << "]\n"; }
   void printComment(const char* comment) const { std::cout << std::setw(indent_) << "# " << comment << '\n'; }
-  void printKey(const char* key) const { std::cout << std::setw(indent_) << key << ": <...>\n"; }
+  void printKey(const char* key) const { std::cout << std::setw(indent_) << " - " << key << ": <...>\n"; }
 
   template <typename T>
   void printValue(const T& value) const {
-    std::cout << std::setw(indent_) << value << '\n';
+    std::cout << std::setw(indent_) << " - " << value << '\n';
   }
 
   template <typename T>
   void printKeyValue(const char* key, const T& value) const {
-    std::cout << std::setw(indent_) << key << ':' << value << '\n';
+    std::cout << std::setw(indent_) << " - " << key << ": " << value << '\n';
   }
 
-  size_t indent_ = 0;
+  size_t indent_ = 2;
   std::string path_;
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 template <>
 void UTTClientApp::PrintContext::printKeyValue(const char* key, const std::vector<std::string>& v) const {
-  std::cout << std::setw(indent_) << key << ": [";
+  std::cout << std::setw(indent_) << " - " << key << ": [";
   if (!v.empty()) {
     for (int i = 0; i < (int)v.size() - 1; ++i) std::cout << v[i] << ", ";
     std::cout << v.back();
@@ -166,6 +168,16 @@ std::string UTTClientApp::extractToken(std::stringstream& ss) {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+size_t UTTClientApp::extractValidIdx(size_t size, std::stringstream& ss) {
+  if (!size) throw std::domain_error("Indexed object in selector is empty!");
+  std::string token = extractToken(ss);
+  int idxOffset = std::atoi(token.c_str());
+  size_t idx = static_cast<size_t>(idxOffset < 0 ? size + idxOffset : idxOffset);
+  if (idx >= size) throw std::domain_error("Invalid index for object in selector!");
+  return idx;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 void UTTClientApp::printState(const std::string& selector) const {
   PrintContext ctx;
 
@@ -226,15 +238,14 @@ void UTTClientApp::printCoins(const PrintContext& ctx, std::stringstream& ss) co
   if (token.empty()) {
     ctx.printCurrentPath();
     ctx.printComment("Normal Coins");
-    for (size_t i = 0; i < wallet_.coins.size(); ++i) printCoin(PrintContext(ctx, i), ss, wallet_.coins[i]);
+    for (size_t i = 0; i < wallet_.coins.size(); ++i)
+      printCoin(PrintContext(ctx, i), ss, wallet_.coins[i], true /*preview*/);
     ctx.printComment("Budget Coin");
-    if (wallet_.budgetCoin) printCoin(PrintContext(ctx, 0), ss, *wallet_.budgetCoin);
+    if (wallet_.budgetCoin) printCoin(PrintContext(ctx, 0), ss, *wallet_.budgetCoin, true /*preview*/);
 
   } else {
-    int idx = std::atoi(token.c_str());
-    size_t coinIdx = static_cast<size_t>(idx < 0 ? wallet_.coins.size() + idx : idx);
-    if (coinIdx >= wallet_.coins.size()) throw std::domain_error("The coin does not exist!");
-    printCoin(PrintContext(ctx, coinIdx), ss, wallet_.coins.at(coinIdx), true /*verbose*/);
+    auto coinIdx = extractValidIdx(wallet_.coins.size(), ss);
+    printCoin(PrintContext(ctx, coinIdx), ss, wallet_.coins.at(coinIdx), false /*preview*/);
   }
 }
 
@@ -242,19 +253,16 @@ void UTTClientApp::printCoins(const PrintContext& ctx, std::stringstream& ss) co
 void UTTClientApp::printCoin(const PrintContext& ctx,
                              std::stringstream& ss,
                              const libutt::Coin& coin,
-                             bool verbose) const {
-  if (!verbose) {
+                             bool preview) const {
+  if (preview) {
     std::cout << "<type:" << coinTypeToStr(coin.type) << " value:" << coin.getValue() << " ...>\n";
   } else {
     ctx.printComment("Coin commitment key needed for re-randomization\n");
     ctx.printKey("ck");
-
     ctx.printComment("Owner's PID hash");
     ctx.printKeyValue("pid_hash", coin.pid_hash.as_ulong());
-
     ctx.printComment("Serial Number");
     ctx.printKeyValue("sn", coin.sn.as_ulong());
-
     ctx.printComment("Denomination");
     ctx.printKeyValue("val", coin.val.as_ulong());
 
@@ -281,97 +289,112 @@ void UTTClientApp::printCoin(const PrintContext& ctx,
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void UTTClientApp::printLedger(const PrintContext& ctx, std::stringstream& ss) const {
-  // PRINT_PUSH();
-  // PRINT_CURRENT_PATH();
-  // auto token = extractToken(ss);
-  // if (token.empty()) {
-  //   for (const auto& block : GetBlocks()) {
-  //     std::cout << block << '\n';
-  //   }
-  // } else {
-  //   int idx = std::atoi(token.c_str());
-  //   BlockId blockId = static_cast<BlockId>(idx < 0 ? blocks_.size() + idx : idx);
-  //   printBlock(blockId, path, ss);
-  // }
-  // PRINT_POP();
+  auto token = extractToken(ss);
+  if (token.empty()) {
+    for (const auto& block : GetBlocks()) {
+      std::cout << block << '\n';
+    }
+  } else {
+    int idx = std::atoi(token.c_str());
+    BlockId blockId = static_cast<BlockId>(idx < 0 ? blocks_.size() + idx : idx);
+    printBlock(PrintContext(ctx, blockId), ss, blockId);
+  }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void UTTClientApp::printBlock(const PrintContext& ctx, std::stringstream& ss, BlockId blockId) const {
-  // const auto* block = getBlockById(blockId);
-  // if (!block) {
-  //   std::cout << "The block does not exist yet.\n";
-  //   return;
-  // }
+  const auto* block = getBlockById(blockId);
+  if (!block) {
+    std::cout << "The block does not exist yet.\n";
+    return;
+  }
 
-  // PRINT_PUSH();
-  // if (block->id_ == 0) {
-  //   std::cout << "This is the genesis block.\n";
-  // }
-  // if (block->tx_) {
-  //   if (const auto* txUtt = std::get_if<TxUtt>(&(*block->tx_))) {
-  //     printUttTx(txUtt->utt_, path, ss);
-  //   } else {
-  //     std::cout << "# Public transaction\n";
-  //     std::cout << *block->tx_ << '\n';
-  //   }
-  // } else {
-  //   std::cout << "No transaction.\n";
-  // }
-  // PRINT_POP();
+  if (block->id_ == 0) ctx.printComment("Genesis block");
+
+  if (block->tx_) {
+    if (const auto* txUtt = std::get_if<TxUtt>(&(*block->tx_))) {
+      printUttTx(ctx, ss, txUtt->utt_);
+    } else {
+      ctx.printComment("Public transaction");
+      std::cout << *block->tx_ << '\n';
+    }
+  } else {
+    std::cout << "No transaction.\n";
+  }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void UTTClientApp::printUttTx(const PrintContext& ctx, std::stringstream& ss, const libutt::Tx& tx) const {
-  // PRINT_COMMENT("UnTraceable Transaction (UTT)");
-  // std::cout << "hash: " << tx.getHashHex() << '\n';
-  // std::cout << "isSplitOwnCoins: " << std::boolalpha << tx.isSplitOwnCoins << std::noboolalpha << "\n";
-  // std::cout << "rcm: " << tx.rcm.toString() << '\n';
-  // std::cout << "regsig: <...>\n";
-  // std::cout << "budgetProof: " << (tx.budget_pi ? "\n" : "<Empty>\n");
-  // if (tx.budget_pi) {
-  //   std::cout << "    forMeTxos: {";
-  //   for (const auto& txo : tx.budget_pi->forMeTxos) std::cout << txo << ", ";
-  //   std::cout << "}\n";
-  //   std::cout << "    alpha: [";
-  //   for (const auto& fr : tx.budget_pi->alpha) std::cout << fr.as_ulong() << ", ";
-  //   std::cout << "]\n";
-  //   std::cout << "    beta: [";
-  //   for (const auto& fr : tx.budget_pi->alpha) std::cout << fr.as_ulong() << ", ";
-  //   std::cout << "]\n";
-  //   std::cout << "    e: " << tx.budget_pi->e.as_ulong() << '\n';
-  // }
+  auto token = extractToken(ss);
+  if (token.empty()) {
+    ctx.printComment("UnTraceable Transaction");
+    ctx.printKeyValue("hash", tx.getHashHex());
+    ctx.printKeyValue("isSplitOwnCoins", tx.isSplitOwnCoins);
+    ctx.printComment("Commitment to sending user's registration");
+    ctx.printKeyValue("rcm", tx.rcm.toString());
+    ctx.printComment("Signature on the registration commitment 'rcm'");
+    ctx.printKey("regsig");
 
-  // std::cout << "# Input transactions\n";
-  // for (size_t i = 0; i < tx.ins.size(); ++i) {
-  //   const auto& txi = tx.ins[i];
-  //   std::cout << "  /" << i << ":\n";
-  //   std::cout << "    coin_type: " << txi.coin_type.as_ulong() << " (" << coinTypeToStr(txi.coin_type) << ")\n";
-  //   // std::cout << "    exp_date: " << txi.exp_date.as_ulong() << '\n';
-  //   std::cout << "...\n";
-  //   // std::cout << "    nullifier: " << txi.null.toUniqueString() << '\n';
-  //   // std::cout << "    vcm: " << txi.vcm.toString() << '\n';
-  //   // std::cout << "    ccm: " << txi.ccm.toString() << '\n';
-  //   // std::cout << "    coinsig: <...>\n";
-  //   // std::cout << "    split proof: <...>\n";
-  // }
+    ctx.printComment("Proof that (1) output budget coin has same pid as input coins and (2) that");
+    ctx.printComment("this might be a \"self-payment\" TXN, so budget should be saved");
+    ctx.printKey("budget_pi");
 
-  // std::cout << "# Output transactions\n";
-  // for (size_t i = 0; i < tx.outs.size(); ++i) {
-  //   const auto& txo = tx.outs[i];
-  //   std::cout << "  /" << i << ":\n";
-  //   std::cout << "    coin_type: " << txo.coin_type.as_ulong() << " (" << coinTypeToStr(txo.coin_type) << ")\n";
-  //   // std::cout << "    exp_date: " << txo.exp_date.as_ulong() << '\n';
-  //   // std::cout << "    H: " << (txo.H ? "..." : "<Empty>") << '\n';
-  //   // std::cout << "    vcm_1: " << txo.vcm_1.toString() << '\n';
-  //   // std::cout << "    range proof: " << (txo.range_pi ? "..." : "<Empty>") << '\n';
-  //   // std::cout << "    d: " << txo.d.as_ulong() << '\n';
-  //   // std::cout << "    vcm_2: " << txo.vcm_2.toString() << '\n';
-  //   // std::cout << "    vcm_eq_pi: <...>\n";
-  //   // std::cout << "    t: " << txo.t.as_ulong() << '\n';
-  //   // std::cout << "    icm: " << txo.icm.toString() << '\n';
-  //   // std::cout << "    icm_pok: " << (txo.icm_pok ? "<...>" : "<Empty>") << '\n';
-  //   // std::cout << "    ctxt: <...>\n";
-  //   std::cout << "...\n";
-  // }
+    ctx.printComment("Input transactions");
+    auto insCtx = PrintContext(ctx, "ins");
+    for (size_t i = 0; i < tx.ins.size(); ++i) {
+      const auto& txi = tx.ins[i];
+      printTxIn(PrintContext(insCtx, i), ss, txi, true);
+    }
+
+    ctx.printComment("Output transactions");
+    auto outsCtx = PrintContext(ctx, "outs");
+    for (size_t i = 0; i < tx.outs.size(); ++i) {
+      const auto& txo = tx.outs[i];
+      printTxOut(PrintContext(outsCtx, i), ss, txo, true);
+    }
+  } else if (token == "ins") {
+    size_t idx = extractValidIdx(tx.ins.size(), ss);
+    printTxIn(ctx, ss, tx.ins[idx], false);
+  } else if (token == "outs") {
+  } else {
+    THROW_UNEXPECTED_PRINT_TOKEN();
+  }
+}
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void UTTClientApp::printTxIn(const PrintContext& ctx,
+                             std::stringstream& ss,
+                             const libutt::TxIn& txi,
+                             bool preview) const {
+  if (preview) {
+    ctx.printCurrentPath();
+  } else {
+    ctx.printKeyValue("coin_type", coinTypeToStr(txi.coin_type));
+    ctx.printKeyValue("exp_date", txi.exp_date.as_ulong());
+    ctx.printKeyValue("nullifier", txi.null.toUniqueString());
+    // std::cout << "    vcm: " << txi.vcm.toString() << '\n';
+    // std::cout << "    ccm: " << txi.ccm.toString() << '\n';
+    // std::cout << "    coinsig: <...>\n";
+    // std::cout << "    split proof: <...>\n";
+  }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void UTTClientApp::printTxOut(const PrintContext& ctx,
+                              std::stringstream& ss,
+                              const libutt::TxOut& txo,
+                              bool preview) const {
+  ctx.printCurrentPath();
+  ctx.printKeyValue("coin_type", coinTypeToStr(txo.coin_type));
+  ctx.printKeyValue("exp_date", txo.exp_date.as_ulong());
+  // std::cout << "    exp_date: " << txo.exp_date.as_ulong() << '\n';
+  // std::cout << "    H: " << (txo.H ? "..." : "<Empty>") << '\n';
+  // std::cout << "    vcm_1: " << txo.vcm_1.toString() << '\n';
+  // std::cout << "    range proof: " << (txo.range_pi ? "..." : "<Empty>") << '\n';
+  // std::cout << "    d: " << txo.d.as_ulong() << '\n';
+  // std::cout << "    vcm_2: " << txo.vcm_2.toString() << '\n';
+  // std::cout << "    vcm_eq_pi: <...>\n";
+  // std::cout << "    t: " << txo.t.as_ulong() << '\n';
+  // std::cout << "    icm: " << txo.icm.toString() << '\n';
+  // std::cout << "    icm_pok: " << (txo.icm_pok ? "<...>" : "<Empty>") << '\n';
+  // std::cout << "    ctxt: <...>\n";
 }
