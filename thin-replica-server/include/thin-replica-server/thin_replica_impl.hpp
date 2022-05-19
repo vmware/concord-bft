@@ -36,6 +36,7 @@
 #include "kv_types.hpp"
 #include "kvbc_app_filter/kvbc_app_filter.h"
 #include "kvbc_app_filter/kvbc_key_types.h"
+#include "crypto_utils.hpp"
 
 #include "thin_replica.grpc.pb.h"
 #include "subscription_buffer.hpp"
@@ -697,29 +698,10 @@ class ThinReplicaImpl {
                                       const std::string& root_cert_path,
                                       std::unordered_set<std::string>& cert_ou_field_set,
                                       bool use_unified_certs) {
-    std::array<char, 128> buffer;
-    std::string result;
-    std::string delimiter;
-    // Openssl doesn't provide a method to fetch all the x509 certificates
-    // directly from a bundled cert, due to the assumption of one certificate
-    // per file. But for some reason openssl supports displaying multiple certs
-    // from a pkcs7 file. So we generate an intermediate pkcs7 file using
-    // crl2pkcs7 openssl command to get the subject fields of all the certs from
-    // the bundled root cert.
-    std::string cmd =
-        "openssl crl2pkcs7 -nocrl -certfile " + root_cert_path + " | openssl pkcs7 -print_certs -noout | grep .";
-    std::unique_ptr<FILE, decltype(&pclose)> pipe_ptr(popen(cmd.c_str(), "r"), pclose);
-    if (!pipe_ptr) {
-      LOG_ERROR(logger_, "Failed to read from root cert - popen() failed, error: " << strerror(errno));
-      throw std::runtime_error("Failed to read from root cert - popen() failed!");
-    }
-
-    delimiter = (use_unified_certs) ? "O = " : "OU = ";
-
-    while (fgets(buffer.data(), buffer.size(), pipe_ptr.get()) != nullptr) {
-      result = buffer.data();
-      // parse the client id from the subject field
-      cert_ou_field_set.insert(parseClientIdFromSubject(result, delimiter));
+    auto field_name = (use_unified_certs ? "O" : "OU");
+    auto attribute_list = util::crypto::CertificateUtils::getSubjectFieldListByName(root_cert_path, field_name);
+    for (auto& val : attribute_list) {
+      cert_ou_field_set.emplace(std::move(val));
     }
   }
 
@@ -734,30 +716,8 @@ class ThinReplicaImpl {
   }
 
   static std::string getClientIdFromCertificate(const std::string& client_cert_path, bool use_unified_certs = false) {
-    std::array<char, certSubjectLength> buffer;
-    std::string client_id;
-    std::string delimiter;
-    // check if client cert can be opened
-    std::ifstream input_file(client_cert_path.c_str(), std::ios::in);
-
-    if (!input_file.is_open()) {
-      throw std::runtime_error("Could not open the input file at path (" + client_cert_path + ")");
-    }
-
-    // The cmd string is used to get the subject in the client cert.
-    const std::string cmd =
-        "openssl crl2pkcs7 -nocrl -certfile " + client_cert_path + " | openssl pkcs7 -print_certs -noout | grep .";
-    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
-    if (!pipe) {
-      throw std::runtime_error("Failed to read subject fields from client cert - popen() failed!");
-    }
-
-    delimiter = (use_unified_certs) ? "O = " : "OU = ";
-    if (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
-      // parse the client id from the subject field
-      client_id = parseClientIdFromSubject(buffer.data(), delimiter);
-    }
-    return client_id;
+    auto field_name = (use_unified_certs ? "O" : "OU");
+    return util::crypto::CertificateUtils::getSubjectFieldByName(client_cert_path, field_name);
   }
 
  private:

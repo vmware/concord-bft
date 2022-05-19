@@ -15,6 +15,7 @@
 #include <utility>
 #include <string>
 #include <memory>
+#include <vector>
 
 #include <openssl/bio.h>
 #include <openssl/ec.h>
@@ -37,6 +38,11 @@ class CertificateUtils {
                                 uint32_t& remote_peer_id,
                                 std::string& conn_type,
                                 bool use_unified_certs);
+  // valid field_name: "C"/"L"/"ST"/"O"/"OU"/"CN"
+  static std::string getSubjectFieldByName(const std::string& cert_path, const std::string& attribute_name);
+  // This function accepts path to a cert bundle
+  static std::vector<std::string> getSubjectFieldListByName(const std::string& cert_bundle_path,
+                                                            const std::string& attribute_name);
 };
 class IVerifier {
  public:

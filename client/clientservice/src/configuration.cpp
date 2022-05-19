@@ -20,6 +20,7 @@
 #include "secrets_manager_enc.h"
 #include "secrets_manager_plain.h"
 #include "client/clientservice/client_service.hpp"
+#include "crypto_utils.hpp"
 
 using concord::client::concordclient::ConcordClientConfig;
 using concord::client::concordclient::StateSnapshotConfig;
@@ -293,32 +294,8 @@ void readCert(const std::string& input_filename, std::string& out_data) {
 }
 
 std::string getClientIdFromClientCert(const std::string& client_cert_path, bool use_unified_certs) {
-  std::array<char, 128> buffer;
-  std::string client_id;
-  std::string delimiter;
-
-  // check if client cert can be opened
-  std::ifstream input_file(client_cert_path.c_str(), std::ios::in);
-
-  if (!input_file.is_open()) {
-    throw std::runtime_error("Could not open the input file (" + client_cert_path + ") at the concord client.");
-  }
-
-  // The cmd string is used to get the subject in the client cert.
-  std::string cmd =
-      "openssl crl2pkcs7 -nocrl -certfile " + client_cert_path + " | openssl pkcs7 -print_certs -noout | grep .";
-  std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
-  if (!pipe) {
-    throw std::runtime_error("Failed to read subject fields from client cert - popen() failed!");
-  }
-
-  // parse the O field i.e., the client id from the subject field when
-  // unified certificates are used, else parse OU field.
-  delimiter = (use_unified_certs) ? "O = " : "OU = ";
-  if (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
-    client_id = parseClientIdFromSubject(buffer.data(), delimiter);
-  }
-  return client_id;
+  auto field_name = (use_unified_certs ? "O" : "OU");
+  return util::crypto::CertificateUtils::getSubjectFieldByName(client_cert_path, field_name);
 }
 
 // Parses the value of the OU field i.e., the client id from the subject

@@ -77,7 +77,7 @@ target_link_libraries(RawMemoryPool_test GTest::Main util)
 
 add_executable(crypto_utils_test crypto_utils_test.cpp )
 add_test(crypto_utils_test crypto_utils_test)
-target_link_libraries(crypto_utils_test GTest::Main util)
+target_link_libraries(crypto_utils_test stdc++fs GTest::Main util)
 
 add_executable(synchronized_value_test synchronized_value_test.cpp)
 add_test(synchronized_value_test synchronized_value_test)
