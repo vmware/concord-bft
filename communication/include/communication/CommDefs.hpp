@@ -135,13 +135,11 @@ class TlsTcpConfig : public PlainTcpConfig {
                NodeNum selfId,
                const std::string &certRootPath,
                const std::string &cipherSuite,
-               bool useUnifiedCerts,
                UPDATE_CONNECTIVITY_FN statusCallback = nullptr,
                std::optional<concord::secretsmanager::SecretData> decryptionSecretData = std::nullopt)
       : PlainTcpConfig(host, port, bufLength, nodes, maxServerId, selfId, std::move(statusCallback)),
         certificatesRootPath_{certRootPath},
         cipherSuite_{cipherSuite},
-        useUnifiedCertificates_{useUnifiedCerts},
         secretData_{std::move(decryptionSecretData)} {
     commType_ = CommType::TlsTcp;
   }
@@ -149,7 +147,6 @@ class TlsTcpConfig : public PlainTcpConfig {
  public:
   std::string certificatesRootPath_;
   std::string cipherSuite_;
-  bool useUnifiedCertificates_;
   std::optional<concord::secretsmanager::SecretData> secretData_;
 };
 
@@ -163,7 +160,6 @@ class TlsMultiplexConfig : public TlsTcpConfig {
                      NodeNum selfId,
                      const std::string &certRootPath,
                      const std::string &cipherSuite,
-                     bool useUnifiedCerts,
                      std::unordered_map<NodeNum, NodeNum> &endpointIdToNodeIdMap,
                      UPDATE_CONNECTIVITY_FN statusCallback = nullptr,
                      std::optional<concord::secretsmanager::SecretData> secretData = std::nullopt)
@@ -175,7 +171,6 @@ class TlsMultiplexConfig : public TlsTcpConfig {
                      selfId,
                      certRootPath,
                      cipherSuite,
-                     useUnifiedCerts,
                      std::move(statusCallback),
                      secretData),
         endpointIdToNodeIdMap_(endpointIdToNodeIdMap) {
