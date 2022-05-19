@@ -200,7 +200,6 @@ TlsTcpConfig TestCommConfig::GetTlsTCPConfig(bool is_replica,
                       id,
                       cert_root_path,
                       "TLS_AES_256_GCM_SHA384",
-                      false,
                       nullptr,
                       secretData);
   return retVal;
