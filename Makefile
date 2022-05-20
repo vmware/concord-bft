@@ -20,6 +20,7 @@ CONCORD_BFT_CONTAINER_CXX?=clang++
 CONCORD_BFT_CMAKE_BUILD_TYPE?=Release
 CONCORD_BFT_CMAKE_BUILD_TESTING?=TRUE
 CONCORD_BFT_CLANG_TIDY?=${CONCORD_BFT_TARGET_SOURCE_PATH}/tools/run-clang-tidy.py
+CONCORD_BFT_RUN_SIMPLE_TEST?=./build/tests/simpleTest/scripts/testReplicasAndClient.sh
 
 # UDP | TLS | TCP
 CONCORD_BFT_CMAKE_TRANSPORT?=TLS
@@ -231,6 +232,12 @@ test: ## Run all tests
 		"mkdir -p ${CONCORD_BFT_CORE_DIR} && \
 		cd ${CONCORD_BFT_BUILD_DIR} && \
 		ctest ${CONCORD_BFT_ADDITIONAL_CTEST_RUN_PARAMS} --timeout ${CONCORD_BFT_CTEST_TIMEOUT} --output-on-failure"
+
+.PHONY: simple-test
+simple-test: ## Run Simple Test
+	docker run ${BASIC_RUN_PARAMS} \
+	        ${CONCORD_BFT_CONTAINER_SHELL} -c \
+	        "timeout 300 ${CONCORD_BFT_RUN_SIMPLE_TEST}"
 
 .PHONY: test-range
 test-range: ## Run all tests in the range [START,END], inclusive: `make test-range START=<#start_test> END=<#end_test>`. To get test numbers, use list-tests.

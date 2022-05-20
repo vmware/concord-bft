@@ -4,6 +4,12 @@ set -e
 toolsdir=@concord_bft_tools_BINARY_DIR@
 scriptdir=$(cd $(dirname $0); pwd -P)
 
+echo "Starting SimpleTest..."
+echo "Generating SSL certificates for TlsTcp communication..."
+
+rm -rf certs/
+./build/tests/simpleTest/scripts/create_tls_certs.sh 5
+
 echo "Generating new keys..."
 
 rm -f private_replica_*

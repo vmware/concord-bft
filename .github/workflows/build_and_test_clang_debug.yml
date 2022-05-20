@@ -60,6 +60,7 @@ jobs:
                               -DOMIT_TEST_OUTPUT=OFF\
                               -DKEEP_APOLLO_LOGS=TRUE\
                               -DUSE_FAKE_CLOCK_IN_TIME_SERVICE=TRUE\" "\
+              && script -q -e -c "make simple-test" \
               && script -q -e -c "make test"
         - name: Prepare artifacts
           if: failure()

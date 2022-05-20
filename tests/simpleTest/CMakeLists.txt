@@ -1,8 +1,8 @@
 # simple client
 set(simpleTest_client_source_files
-    client.cpp
+    src/client.cpp
     ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp
-    simple_test_client.hpp
+    src/simple_test_client.cpp
 )
 find_package(GTest REQUIRED)
 
@@ -10,6 +10,7 @@ add_executable(simpleTest_client  ${simpleTest_client_source_files} )
 
 target_include_directories(simpleTest_client
                            PRIVATE
+			   include
                            ${CMAKE_SOURCE_DIR}/util/include
                            ../config
                            ${concord_bft_tools_SOURCE_DIR}
@@ -21,10 +22,11 @@ set_target_properties(simpleTest_client PROPERTIES OUTPUT_NAME client)
 
 # simple server
 set(simpleTest_replica_source_files
-    replica.cpp
+    src/replica.cpp
     ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp
-    simple_test_replica.hpp
-    simple_test_replica_behavior.hpp
+    src/simple_test_replica.cpp
+    include/simple_test_replica_behavior.hpp
+    src/simple_app_state.cpp
 )
 
 add_executable(simpleTest_server 
@@ -34,6 +36,7 @@ add_executable(simpleTest_server
 
 target_include_directories(simpleTest_server
                            PRIVATE
+			   include
                            ../config
                            ../simpleTest
                            ${bftengine_SOURCE_DIR}/tests/simpleStorage
@@ -47,7 +50,7 @@ target_link_libraries(simpleTest_server PUBLIC corebft
 set_target_properties(simpleTest_server PROPERTIES OUTPUT_NAME server)
 
 # config test
-add_executable(configTest config_file_parser_test.cpp )
+add_executable(configTest src/config_file_parser_test.cpp )
 target_link_libraries(configTest PUBLIC corebft test_config_lib)
 target_include_directories(configTest
                            PRIVATE
@@ -60,10 +63,14 @@ set_target_properties(configTest PROPERTIES OUTPUT_NAME config)
 
 # persistency test
 add_executable(persistency_test
-        persistency_test.cpp
+        src/persistency_test.cpp
+        src/simple_test_replica.cpp
+	src/simple_test_client.cpp
+        src/simple_app_state.cpp
         ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp)
 
 target_include_directories(persistency_test PUBLIC
+	include
         ${bftengine_SOURCE_DIR}/tests/simpleStorage
         ${bftengine_SOURCE_DIR}/include/communication
         ${concord_bft_tools_SOURCE_DIR}
