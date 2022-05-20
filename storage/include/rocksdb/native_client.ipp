@@ -203,7 +203,10 @@ void NativeClient::multiGet(const std::string &cFamily,
                                  statuses.data());
 }
 
-inline NativeWriteBatch NativeClient::getBatch() const { return NativeWriteBatch{shared_from_this()}; }
+inline NativeWriteBatch NativeClient::getBatch(size_t reserved_bytes) const {
+  return reserved_bytes == 0 ? NativeWriteBatch{shared_from_this()}
+                             : NativeWriteBatch{shared_from_this(), reserved_bytes};
+}
 
 inline NativeIterator NativeClient::getIterator() const {
   return std::unique_ptr<::rocksdb::Iterator>{client_->dbInstance_->NewIterator(::rocksdb::ReadOptions{})};

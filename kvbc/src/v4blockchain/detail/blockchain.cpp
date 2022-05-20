@@ -44,6 +44,12 @@ Note - the increment for the  last_reachable_block_id_ is done after the write b
 */
 BlockId Blockchain::addBlock(const concord::kvbc::categorization::Updates& category_updates,
                              storage::rocksdb::NativeWriteBatch& wb) {
+  v4blockchain::detail::Block block;
+  block.addUpdates(category_updates);
+  return addBlock(block, wb);
+}
+
+BlockId Blockchain::addBlock(v4blockchain::detail::Block& block, storage::rocksdb::NativeWriteBatch& wb) {
   BlockId id = last_reachable_block_id_ + 1;
   // If future from the previous add exist get its value
   concord::util::digest::BlockDigest digest;
@@ -55,8 +61,6 @@ BlockId Blockchain::addBlock(const concord::kvbc::categorization::Updates& categ
     digest = calculateBlockDigest(last_reachable_block_id_);
   }
   auto blockKey = generateKey(id);
-  v4blockchain::detail::Block block;
-  block.addUpdates(category_updates);
   block.addDigest(digest);
   wb.put(v4blockchain::detail::BLOCKS_CF, blockKey, block.getBuffer());
   future_digest_ = thread_pool_.async(

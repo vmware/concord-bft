@@ -29,6 +29,7 @@ class NativeClient;
 class NativeWriteBatch {
  public:
   NativeWriteBatch(const std::shared_ptr<const NativeClient> &) noexcept;
+  NativeWriteBatch(const std::shared_ptr<const NativeClient> &, size_t reserved_bytes) noexcept;
 
   template <typename KeySpan, typename ValueSpan>
   void put(const std::string &cFamily, const KeySpan &key, const ValueSpan &value);

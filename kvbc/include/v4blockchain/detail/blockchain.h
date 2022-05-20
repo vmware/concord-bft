@@ -46,6 +46,7 @@ class Blockchain {
   ///////////////////ADD////////////////////////////////////////
   // construct a new block from the input updates and links it to the previous block by storing the last block digest.
   BlockId addBlock(const concord::kvbc::categorization::Updates&, storage::rocksdb::NativeWriteBatch&);
+  BlockId addBlock(v4blockchain::detail::Block& block, storage::rocksdb::NativeWriteBatch&);
   //////////////////DELETE//////////////////////////////////////
   // Delete up to until not including until if until is within last reachable block,
   // else delete up to last reachable block and not including last reachable block.
