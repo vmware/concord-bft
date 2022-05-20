@@ -22,6 +22,10 @@ namespace concord::storage::rocksdb {
 inline NativeWriteBatch::NativeWriteBatch(const std::shared_ptr<const NativeClient> &client) noexcept
     : client_{client} {}
 
+inline NativeWriteBatch::NativeWriteBatch(const std::shared_ptr<const NativeClient> &client,
+                                          size_t reserved_bytes) noexcept
+    : client_{client}, batch_{reserved_bytes} {}
+
 template <typename KeySpan, typename ValueSpan>
 void NativeWriteBatch::put(const std::string &cFamily, const KeySpan &key, const ValueSpan &value) {
   auto s = batch_.Put(client_->columnFamilyHandle(cFamily), detail::toSlice(key), detail::toSlice(value));

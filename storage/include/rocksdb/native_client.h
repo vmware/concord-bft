@@ -116,7 +116,7 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
   void del(const KeySpan &key);
 
   // Batching interface.
-  NativeWriteBatch getBatch() const;
+  NativeWriteBatch getBatch(size_t reserved_bytes = 0) const;
   void write(NativeWriteBatch &&);
 
   // MultiGet interface

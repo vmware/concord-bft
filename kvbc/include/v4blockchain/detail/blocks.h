@@ -92,6 +92,11 @@ class Block {
     return buffer_;
   }
 
+  size_t size() const {
+    ConcordAssert(isValid_);
+    return buffer_.size();
+  }
+
   std::vector<uint8_t>&& moveBuffer() {
     ConcordAssert(isValid_);
     isValid_ = false;
