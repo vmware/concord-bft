@@ -14,6 +14,7 @@
 #pragma once
 
 #include <sstream>
+#include <queue>
 
 #include "Logger.hpp"
 #include "utt_blockchain_app.hpp"
@@ -42,7 +43,7 @@ class UTTClientApp : public UTTBlockchainApp {
   // 'ledger' - prints the contents of the ledger
   // 'ledger/0' - prints the contents of the first block of the ledger
 
-  void printState(const std::string& selector = "") const;
+  void printState(const std::string& path = "") const;
 
   template <typename T>
   std::string fmtCurrency(T val) const {
@@ -50,8 +51,8 @@ class UTTClientApp : public UTTBlockchainApp {
   }
 
  private:
-  static std::string extractToken(std::stringstream& ss);
-  static size_t extractValidIdx(size_t size, std::stringstream& ss);
+  static std::optional<std::string> extractPathToken(std::stringstream& ss);
+  static size_t getValidIdx(size_t size, const std::string& object, const std::string& tokenIdx);
 
   void executeTx(const Tx& tx) override;
   void pruneSpentCoins();
@@ -59,17 +60,17 @@ class UTTClientApp : public UTTBlockchainApp {
 
   struct PrintContext;
 
-  void printOtherPids(const PrintContext& ctx, std::stringstream& ss) const;
+  void printBalance(PrintContext& ctx) const;
+  void printAccounts(PrintContext& ctx) const;
 
-  void printWallet(const PrintContext& ctx, std::stringstream& ss) const;
-  void printCoins(const PrintContext& ctx, std::stringstream& ss) const;
-  void printCoin(const PrintContext& ctx, std::stringstream& ss, const libutt::Coin& coin, bool preview) const;
+  void printWallet(PrintContext& ctx, std::stringstream& ss) const;
+  void printCoin(PrintContext& ctx, const libutt::Coin& coin) const;
 
-  void printLedger(const PrintContext& ctx, std::stringstream& ss) const;
-  void printBlock(const PrintContext& ctx, std::stringstream& ss, BlockId blockId) const;
-  void printUttTx(const PrintContext& ctx, std::stringstream& ss, const libutt::Tx& tx) const;
-  void printTxIn(const PrintContext& ctx, std::stringstream& ss, const libutt::TxIn& txi, bool preview) const;
-  void printTxOut(const PrintContext& ctx, std::stringstream& ss, const libutt::TxOut& txo, bool preview) const;
+  void printLedger(PrintContext& ctx, std::stringstream& ss) const;
+  void printBlock(PrintContext& ctx, const Block& block, std::stringstream& ss) const;
+  void printUttTx(PrintContext& ctx, const libutt::Tx& tx, std::stringstream& ss) const;
+  void printTxIn(PrintContext& ctx, const libutt::TxIn& txi) const;
+  void printTxOut(PrintContext& ctx, const libutt::TxOut& txo) const;
 
   logging::Logger& logger_;
   std::string myPid_;

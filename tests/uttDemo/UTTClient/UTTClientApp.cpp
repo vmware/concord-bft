@@ -16,45 +16,92 @@
 #include <fstream>
 
 #include <utt/Client.h>
+#include <exception>
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-#define THROW_UNEXPECTED_PRINT_TOKEN() throw std::domain_error("Unexpected token in selector: " + token)
+struct PrintContextError : std::runtime_error {
+  PrintContextError(const std::string& msg) : std::runtime_error(msg) {}
+};
+
+struct UnexpectedPathTokenError : PrintContextError {
+  UnexpectedPathTokenError(const std::string& token) : PrintContextError("Unexpected path token: " + token) {}
+};
+
+struct IndexEmptyObjectError : PrintContextError {
+  IndexEmptyObjectError(const std::string& object) : PrintContextError("Indexed object is empty: " + object) {}
+};
+
+struct IndexOutOfBoundsError : PrintContextError {
+  IndexOutOfBoundsError(const std::string& object) : PrintContextError("Index out of bounds for object: " + object) {}
+};
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 struct UTTClientApp::PrintContext {
-  PrintContext() = default;
-  PrintContext(const PrintContext& parent, size_t idx) : PrintContext(parent, std::to_string(idx)) {}
-  PrintContext(const PrintContext& parent, std::string name) : indent_{parent.indent_ + 2}, path_{parent.path_} {
-    if (!path_.empty()) path_ += "/";
-    path_ += name;
+  static void printList(const std::vector<std::string>& v, const std::string& delim = ", ") {
+    if (!v.empty()) {
+      for (int i = 0; i < (int)v.size() - 1; ++i) std::cout << v[i] << delim;
+      std::cout << v.back();
+    }
   }
 
-  void printCurrentPath() const { std::cout << std::setw(indent_ - 2) << '[' << path_ << "]\n"; }
-  void printComment(const char* comment) const { std::cout << std::setw(indent_) << "# " << comment << '\n'; }
-  void printKey(const char* key) const { std::cout << std::setw(indent_) << " - " << key << ": <...>\n"; }
+  PrintContext() = default;
+
+  PrintContext& push(std::string token, std::string trace = "") {
+    path_.emplace_back(std::move(token));
+    trace_.emplace_back(std::move(trace));
+    return *this;
+  }
+
+  PrintContext& push(size_t idx) {
+    path_.emplace_back(std::to_string(idx));
+    return *this;
+  }
+
+  PrintContext& pop() {
+    path_.pop_back();
+    trace_.pop_back();
+    return *this;
+  }
+
+  size_t getIndent() const { return path_.size() * 2; }
+
+  void printTrace() const {
+    if (path_.size() != trace_.size()) throw std::runtime_error("Inconsistent path and trace sizes!");
+    // Pick the trace element (if non-empty) otherwise use the element in path
+    for (size_t i = 0; i < trace_.size(); ++i) {
+      std::cout << std::setw(i * 2) << (trace_[0].empty() ? path_[0] : trace_[0]) << " ->\n";
+    }
+  }
+
+  void printComment(const char* comment) const { std::cout << std::setw(getIndent()) << "# " << comment << '\n'; }
+
+  void printLink(const std::string& to) const {
+    std::cout << std::setw(getIndent()) << to << ": <...> [";
+    printList(path_, "/");
+    std::cout << '/' << to << "]\n";
+  }
+
+  void printLink(size_t idx) const { printLink(std::to_string(idx)); }
 
   template <typename T>
   void printValue(const T& value) const {
-    std::cout << std::setw(indent_) << " - " << value << '\n';
+    std::cout << std::setw(getIndent()) << " - " << value << '\n';
   }
 
   template <typename T>
   void printKeyValue(const char* key, const T& value) const {
-    std::cout << std::setw(indent_) << " - " << key << ": " << value << '\n';
+    std::cout << std::setw(getIndent()) << " - " << key << ": " << value << '\n';
   }
 
-  size_t indent_ = 2;
-  std::string path_;
+  std::vector<std::string> path_;
+  std::vector<std::string> trace_;
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 template <>
 void UTTClientApp::PrintContext::printKeyValue(const char* key, const std::vector<std::string>& v) const {
-  std::cout << std::setw(indent_) << " - " << key << ": [";
-  if (!v.empty()) {
-    for (int i = 0; i < (int)v.size() - 1; ++i) std::cout << v[i] << ", ";
-    std::cout << v.back();
-  }
+  std::cout << std::setw(getIndent()) << " - " << key << ": [";
+  printList(v);
   std::cout << "]\n";
 }
 
@@ -161,57 +208,72 @@ void UTTClientApp::tryClaimCoins(const TxUtt& tx) {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-std::string UTTClientApp::extractToken(std::stringstream& ss) {
+std::optional<std::string> UTTClientApp::extractPathToken(std::stringstream& ss) {
   std::string token;
   getline(ss, token, '/');
+  if (token.empty()) return std::nullopt;
   return token;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-size_t UTTClientApp::extractValidIdx(size_t size, std::stringstream& ss) {
-  if (!size) throw std::domain_error("Indexed object in selector is empty!");
-  std::string token = extractToken(ss);
-  int idxOffset = std::atoi(token.c_str());
-  size_t idx = static_cast<size_t>(idxOffset < 0 ? size + idxOffset : idxOffset);
-  if (idx >= size) throw std::domain_error("Invalid index for object in selector!");
+size_t UTTClientApp::getValidIdx(size_t size, const std::string& object, const std::string& tokenIdx) {
+  if (!size) throw IndexEmptyObjectError(object);
+  int offset = std::atoi(tokenIdx.c_str());
+  size_t idx = static_cast<size_t>(offset < 0 ? size + offset : offset);
+  if (idx >= size) throw IndexOutOfBoundsError(object);
   return idx;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void UTTClientApp::printState(const std::string& selector) const {
+void UTTClientApp::printState(const std::string& path) const {
   PrintContext ctx;
+  std::stringstream ss(path);
 
-  if (selector.empty()) {
-    const auto& myAccount = getMyAccount();
-    ctx.printComment("Account summary");
-    ctx.printKeyValue("Public balance", fmtCurrency(myAccount.getPublicBalance()));
-    ctx.printKeyValue("UTT wallet balance", fmtCurrency(getUttBalance()));
-
-    std::vector<std::string> coinValues;
-    for (int i = 0; i < (int)getMyUttWallet().coins.size() - 1; ++i)
-      coinValues.emplace_back(fmtCurrency(getMyUttWallet().coins[i].getValue()));
-    ctx.printKeyValue("UTT wallet coins", coinValues);
-
-    ctx.printKeyValue("Anonymous budget", fmtCurrency(getUttBudget()));
-  } else {
-    std::stringstream ss(selector);
-    std::string token = extractToken(ss);
-
-    if (token == "accounts") {
-      printOtherPids(PrintContext(ctx, token), ss);
-    } else if (token == "ledger") {
-      printLedger(PrintContext(ctx, token), ss);
-    } else if (token == "wallet") {
-      printWallet(PrintContext(ctx, token), ss);
+  try {
+    if (auto next = extractPathToken(ss)) {
+      ctx.push(*next);
+      if (next == "accounts")
+        printAccounts(ctx);
+      else if (next == "ledger")
+        printLedger(ctx, ss);
+      else if (next == "wallet")
+        printWallet(ctx, ss);
+      else
+        throw UnexpectedPathTokenError(*next);
     } else {
-      THROW_UNEXPECTED_PRINT_TOKEN();
+      ctx.push("balance");
+      printBalance(ctx);
     }
+  } catch (const PrintContextError& e) {
+    std::cout << e.what() << '\n';
   }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void UTTClientApp::printOtherPids(const PrintContext& ctx, std::stringstream& ss) const {
-  ctx.printComment("Accounts");
+void UTTClientApp::printBalance(PrintContext& ctx) const {
+  ctx.printTrace();
+
+  const auto& myAccount = getMyAccount();
+  ctx.printComment("Account summary");
+  ctx.printKeyValue("Public balance", fmtCurrency(myAccount.getPublicBalance()));
+  ctx.printKeyValue("UTT wallet balance", fmtCurrency(getUttBalance()));
+
+  std::vector<std::string> coinValues;
+  for (int i = 0; i < (int)getMyUttWallet().coins.size() - 1; ++i)
+    coinValues.emplace_back(fmtCurrency(getMyUttWallet().coins[i].getValue()));
+  ctx.printKeyValue("UTT wallet coins", coinValues);
+
+  ctx.printKeyValue("Anonymous budget", fmtCurrency(getUttBudget()));
+
+  ctx.printComment("Links");
+  ctx.printLink("accounts");
+  ctx.printLink("ledger");
+  ctx.printLink("wallet");
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void UTTClientApp::printAccounts(PrintContext& ctx) const {
+  ctx.printTrace();
   ctx.printKeyValue("My account", getMyPid());
   for (const auto& pid : getOtherPids()) {
     ctx.printValue(pid);
@@ -219,104 +281,89 @@ void UTTClientApp::printOtherPids(const PrintContext& ctx, std::stringstream& ss
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void UTTClientApp::printWallet(const PrintContext& ctx, std::stringstream& ss) const {
-  auto token = extractToken(ss);
-  if (token.empty()) {
-    ctx.printComment("UTT Wallet");
-    ctx.printKeyValue("pid", wallet_.getUserPid());
-    printCoins(PrintContext(ctx, "coins"), ss);
-  } else if (token == "coins") {
-    printCoins(PrintContext(ctx, "coins"), ss);
-  } else {
-    THROW_UNEXPECTED_PRINT_TOKEN();
-  }
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-void UTTClientApp::printCoins(const PrintContext& ctx, std::stringstream& ss) const {
-  auto token = extractToken(ss);
-  if (token.empty()) {
-    ctx.printCurrentPath();
-    ctx.printComment("Normal Coins");
-    for (size_t i = 0; i < wallet_.coins.size(); ++i)
-      printCoin(PrintContext(ctx, i), ss, wallet_.coins[i], true /*preview*/);
-    ctx.printComment("Budget Coin");
-    if (wallet_.budgetCoin) printCoin(PrintContext(ctx, 0), ss, *wallet_.budgetCoin, true /*preview*/);
-
-  } else {
-    auto coinIdx = extractValidIdx(wallet_.coins.size(), ss);
-    printCoin(PrintContext(ctx, coinIdx), ss, wallet_.coins.at(coinIdx), false /*preview*/);
-  }
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-void UTTClientApp::printCoin(const PrintContext& ctx,
-                             std::stringstream& ss,
-                             const libutt::Coin& coin,
-                             bool preview) const {
-  if (preview) {
-    std::cout << "<type:" << coinTypeToStr(coin.type) << " value:" << coin.getValue() << " ...>\n";
-  } else {
-    ctx.printComment("Coin commitment key needed for re-randomization\n");
-    ctx.printKey("ck");
-    ctx.printComment("Owner's PID hash");
-    ctx.printKeyValue("pid_hash", coin.pid_hash.as_ulong());
-    ctx.printComment("Serial Number");
-    ctx.printKeyValue("sn", coin.sn.as_ulong());
-    ctx.printComment("Denomination");
-    ctx.printKeyValue("val", coin.val.as_ulong());
-
-    // // TODO: turn CoinType and ExpirationDate into their own class with an toFr() method, or risk getting burned!
-    // Fr type;      // either Coin::NormalType() or Coin::BudgetType()
-    // Fr exp_date;  // expiration date; TODO: Fow now, using 32/64-bit UNIX time, since we never check expiration in
-    // the
-    //               // current prototype
-
-    // Fr r;  // randomness used to commit to the coin
-
-    // RandSig sig;  // signature on coin commitment from bank
-
-    // //
-    // // NOTE: We pre-compute these when we create/claim a coin, to make spending it faster!
-    // //
-    // Fr t;            // randomness for nullifier proof
-    // Nullifier null;  // nullifier for this coin, pre-computed for convenience
-
-    // Comm vcm;  // value commitment for this coin, pre-computed for convenience
-    // Fr z;      // value commitment randomness
-  }
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-void UTTClientApp::printLedger(const PrintContext& ctx, std::stringstream& ss) const {
-  auto token = extractToken(ss);
-  if (token.empty()) {
-    for (const auto& block : GetBlocks()) {
-      std::cout << block << '\n';
+void UTTClientApp::printWallet(PrintContext& ctx, std::stringstream& ss) const {
+  if (auto token = extractPathToken(ss)) {
+    if (token == "coins") {
+      if (auto tokenIdx = extractPathToken(ss)) {
+        auto idx = getValidIdx(wallet_.coins.size(), *token, *tokenIdx);
+        printCoin(ctx, wallet_.coins[idx]);
+      } else {
+        throw PrintContextError("Expected a coin index");
+      }
+    } else {
+      throw UnexpectedPathTokenError(*token);
     }
   } else {
-    int idx = std::atoi(token.c_str());
-    BlockId blockId = static_cast<BlockId>(idx < 0 ? blocks_.size() + idx : idx);
-    printBlock(PrintContext(ctx, blockId), ss, blockId);
+    ctx.printTrace();
+    ctx.printComment("UTT Wallet");
+    ctx.printKeyValue("pid", wallet_.getUserPid());
+
+    ctx.push("coins");
+    ctx.printComment("Normal Coins");
+    if (wallet_.coins.empty()) ctx.printComment("No coins");
+    for (size_t i = 0; i < wallet_.coins.size(); ++i) {
+      ctx.printLink(i);
+    }
+    ctx.pop();
+
+    ctx.printComment("Budget Coin");
+    ctx.printLink("budget");
   }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void UTTClientApp::printBlock(const PrintContext& ctx, std::stringstream& ss, BlockId blockId) const {
-  const auto* block = getBlockById(blockId);
-  if (!block) {
-    std::cout << "The block does not exist yet.\n";
-    return;
+void UTTClientApp::printCoin(PrintContext& ctx, const libutt::Coin& coin) const {
+  ctx.printTrace();
+  ctx.printComment("Coin commitment key needed for re-randomization\n");
+  ctx.printLink("ck");
+  ctx.printComment("Owner's PID hash");
+  ctx.printKeyValue("pid_hash", coin.pid_hash.as_ulong());
+  ctx.printComment("Serial Number");
+  ctx.printKeyValue("sn", coin.sn.as_ulong());
+  ctx.printComment("Denomination");
+  ctx.printKeyValue("val", coin.val.as_ulong());
+
+  // // TODO: turn CoinType and ExpirationDate into their own class with an toFr() method, or risk getting burned!
+  // Fr type;      // either Coin::NormalType() or Coin::BudgetType()
+  // Fr exp_date;  // expiration date; TODO: Fow now, using 32/64-bit UNIX time, since we never check expiration in
+  // the
+  //               // current prototype
+
+  // Fr r;  // randomness used to commit to the coin
+
+  // RandSig sig;  // signature on coin commitment from bank
+
+  // //
+  // // NOTE: We pre-compute these when we create/claim a coin, to make spending it faster!
+  // //
+  // Fr t;            // randomness for nullifier proof
+  // Nullifier null;  // nullifier for this coin, pre-computed for convenience
+
+  // Comm vcm;  // value commitment for this coin, pre-computed for convenience
+  // Fr z;      // value commitment randomness
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void UTTClientApp::printLedger(PrintContext& ctx, std::stringstream& ss) const {
+  if (auto tokenIdx = extractPathToken(ss)) {
+    auto idx = getValidIdx(blocks_.size(), "ledger", *tokenIdx);
+    ctx.push(idx);
+    printBlock(ctx, blocks_[idx], ss);
+  } else {
+    for (const auto& block : GetBlocks()) std::cout << block << '\n';
   }
+}
 
-  if (block->id_ == 0) ctx.printComment("Genesis block");
-
-  if (block->tx_) {
-    if (const auto* txUtt = std::get_if<TxUtt>(&(*block->tx_))) {
-      printUttTx(ctx, ss, txUtt->utt_);
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void UTTClientApp::printBlock(PrintContext& ctx, const Block& block, std::stringstream& ss) const {
+  if (block.id_ == 0) ctx.printComment("Genesis block");
+  if (block.tx_) {
+    if (const auto* txUtt = std::get_if<TxUtt>(&(*block.tx_))) {
+      printUttTx(ctx, txUtt->utt_, ss);
     } else {
+      ctx.printTrace();
       ctx.printComment("Public transaction");
-      std::cout << *block->tx_ << '\n';
+      std::cout << *block.tx_ << '\n';
     }
   } else {
     std::cout << "No transaction.\n";
@@ -324,66 +371,68 @@ void UTTClientApp::printBlock(const PrintContext& ctx, std::stringstream& ss, Bl
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void UTTClientApp::printUttTx(const PrintContext& ctx, std::stringstream& ss, const libutt::Tx& tx) const {
-  auto token = extractToken(ss);
-  if (token.empty()) {
+void UTTClientApp::printUttTx(PrintContext& ctx, const libutt::Tx& tx, std::stringstream& ss) const {
+  if (auto token = extractPathToken(ss)) {
+    if (token == "ins") {
+      if (auto tokenIdx = extractPathToken(ss)) {
+        size_t idx = getValidIdx(tx.ins.size(), *token, *tokenIdx);
+        printTxIn(ctx, tx.ins[idx]);
+      } else {
+        throw PrintContextError("Expected input tx index");
+      }
+    } else if (token == "outs") {
+      if (auto tokenIdx = extractPathToken(ss)) {
+        size_t idx = getValidIdx(tx.ins.size(), *token, *tokenIdx);
+        printTxOut(ctx, tx.outs[idx]);
+      } else {
+        throw PrintContextError("Expected output tx index");
+      }
+    } else
+      throw UnexpectedPathTokenError(*token);
+  } else {
+    ctx.printTrace();
     ctx.printComment("UnTraceable Transaction");
     ctx.printKeyValue("hash", tx.getHashHex());
     ctx.printKeyValue("isSplitOwnCoins", tx.isSplitOwnCoins);
     ctx.printComment("Commitment to sending user's registration");
     ctx.printKeyValue("rcm", tx.rcm.toString());
     ctx.printComment("Signature on the registration commitment 'rcm'");
-    ctx.printKey("regsig");
+    ctx.printLink("regsig");
 
     ctx.printComment("Proof that (1) output budget coin has same pid as input coins and (2) that");
     ctx.printComment("this might be a \"self-payment\" TXN, so budget should be saved");
-    ctx.printKey("budget_pi");
+    ctx.printLink("budget_pi");
 
     ctx.printComment("Input transactions");
-    auto insCtx = PrintContext(ctx, "ins");
+    ctx.push("ins");
     for (size_t i = 0; i < tx.ins.size(); ++i) {
-      const auto& txi = tx.ins[i];
-      printTxIn(PrintContext(insCtx, i), ss, txi, true);
+      ctx.printLink(i);
     }
+    ctx.pop();
 
     ctx.printComment("Output transactions");
-    auto outsCtx = PrintContext(ctx, "outs");
+    ctx.push("outs");
     for (size_t i = 0; i < tx.outs.size(); ++i) {
-      const auto& txo = tx.outs[i];
-      printTxOut(PrintContext(outsCtx, i), ss, txo, true);
+      ctx.printLink(i);
     }
-  } else if (token == "ins") {
-    size_t idx = extractValidIdx(tx.ins.size(), ss);
-    printTxIn(ctx, ss, tx.ins[idx], false);
-  } else if (token == "outs") {
-  } else {
-    THROW_UNEXPECTED_PRINT_TOKEN();
+    ctx.pop();
   }
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void UTTClientApp::printTxIn(const PrintContext& ctx,
-                             std::stringstream& ss,
-                             const libutt::TxIn& txi,
-                             bool preview) const {
-  if (preview) {
-    ctx.printCurrentPath();
-  } else {
-    ctx.printKeyValue("coin_type", coinTypeToStr(txi.coin_type));
-    ctx.printKeyValue("exp_date", txi.exp_date.as_ulong());
-    ctx.printKeyValue("nullifier", txi.null.toUniqueString());
-    // std::cout << "    vcm: " << txi.vcm.toString() << '\n';
-    // std::cout << "    ccm: " << txi.ccm.toString() << '\n';
-    // std::cout << "    coinsig: <...>\n";
-    // std::cout << "    split proof: <...>\n";
-  }
+void UTTClientApp::printTxIn(PrintContext& ctx, const libutt::TxIn& txi) const {
+  ctx.printTrace();
+  ctx.printKeyValue("coin_type", coinTypeToStr(txi.coin_type));
+  ctx.printKeyValue("exp_date", txi.exp_date.as_ulong());
+  ctx.printKeyValue("nullifier", txi.null.toUniqueString());
+  // std::cout << "    vcm: " << txi.vcm.toString() << '\n';
+  // std::cout << "    ccm: " << txi.ccm.toString() << '\n';
+  // std::cout << "    coinsig: <...>\n";
+  // std::cout << "    split proof: <...>\n";
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void UTTClientApp::printTxOut(const PrintContext& ctx,
-                              std::stringstream& ss,
-                              const libutt::TxOut& txo,
-                              bool preview) const {
-  ctx.printCurrentPath();
+void UTTClientApp::printTxOut(PrintContext& ctx, const libutt::TxOut& txo) const {
+  ctx.printTrace();
   ctx.printKeyValue("coin_type", coinTypeToStr(txo.coin_type));
   ctx.printKeyValue("exp_date", txo.exp_date.as_ulong());
   // std::cout << "    exp_date: " << txo.exp_date.as_ulong() << '\n';
