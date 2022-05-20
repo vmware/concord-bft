@@ -61,10 +61,15 @@ BlockId KeyValueBlockchain::add(categorization::Updates &&updates) {
   auto scoped = v4blockchain::detail::ScopedDuration{"Add block"};
   // Should be performed before we add the block with the current Updates.
   auto sequence_number = markHistoryForGarbageCollectionIfNeeded(updates);
-  auto write_batch = native_client_->getBatch();
+  v4blockchain::detail::Block block;
+  block.addUpdates(updates);
+  auto block_size = block.size();
+  auto write_batch = native_client_->getBatch(block_size * 2.5);
   // addGenesisBlockKey(updates);
-  auto block_id = add(updates, write_batch);
-
+  auto block_id = add(updates, block, write_batch);
+  LOG_DEBUG(V4_BLOCK_LOG,
+            "Block size is " << block_size << " reserving batch to be " << 2.5 * block_size
+                             << " size of final block is " << write_batch.size());
   native_client_->write(std::move(write_batch));
   block_chain_.setBlockId(block_id);
   if (sequence_number > 0) setLastBlockSequenceNumber(sequence_number);
@@ -72,11 +77,12 @@ BlockId KeyValueBlockchain::add(categorization::Updates &&updates) {
 }
 
 BlockId KeyValueBlockchain::add(const categorization::Updates &updates,
+                                v4blockchain::detail::Block &block,
                                 storage::rocksdb::NativeWriteBatch &write_batch) {
   BlockId block_id{};
   {
     auto scoped2 = v4blockchain::detail::ScopedDuration{"Add block to blockchain"};
-    block_id = block_chain_.addBlock(updates, write_batch);
+    block_id = block_chain_.addBlock(block, write_batch);
   }
   {
     auto scoped3 = v4blockchain::detail::ScopedDuration{"Add block to latest"};
@@ -291,9 +297,12 @@ void KeyValueBlockchain::pruneOnSTLink(const categorization::Updates &updates) {
 // Atomic delete from state transfer and add to blockchain
 void KeyValueBlockchain::writeSTLinkTransaction(const BlockId block_id, const categorization::Updates &updates) {
   auto sequence_number = markHistoryForGarbageCollectionIfNeeded(updates);
-  auto write_batch = native_client_->getBatch();
+  v4blockchain::detail::Block block;
+  block.addUpdates(updates);
+  auto block_size = block.size();
+  auto write_batch = native_client_->getBatch(block_size * 2.5);
   state_transfer_chain_.deleteBlock(block_id, write_batch);
-  auto new_block_id = add(updates, write_batch);
+  auto new_block_id = add(updates, block, write_batch);
   native_client_->write(std::move(write_batch));
   block_chain_.setBlockId(new_block_id);
   pruneOnSTLink(updates);

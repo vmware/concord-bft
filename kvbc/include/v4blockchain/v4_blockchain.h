@@ -35,7 +35,9 @@ class KeyValueBlockchain {
 
   /////////////////////// Add Block ///////////////////////
   BlockId add(categorization::Updates &&);
-  BlockId add(const categorization::Updates &, storage::rocksdb::NativeWriteBatch &);
+  BlockId add(const categorization::Updates &,
+              v4blockchain::detail::Block &block,
+              storage::rocksdb::NativeWriteBatch &);
   ////////////////////// DELETE //////////////////////////
   BlockId deleteBlocksUntil(BlockId until);
   void deleteGenesisBlock();
