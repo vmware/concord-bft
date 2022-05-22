@@ -180,8 +180,13 @@ BlockId KeyValueBlockchain::addBlock(Updates&& updates) {
   diagnostics::TimeRecorder scoped_timer(*histograms_.addBlock);
   // Use new client batch and column families
   auto write_batch = native_client_->getBatch();
+  std::vector<uint8_t> updates_buffer;
+  concord::kvbc::categorization::serialize(updates_buffer, updates.categoryUpdates());
   addGenesisBlockKey(updates);
   auto block_id = addBlock(updates.categoryUpdates(), write_batch);
+  LOG_DEBUG(V4_BLOCK_LOG,
+            "Block size is " << updates_buffer.size() << " reserving batch to be " << 2.5 * updates_buffer.size()
+                             << " size of final block is " << write_batch.size());
   native_client_->write(std::move(write_batch));
   block_chain_.setAddedBlockId(block_id);
   return block_id;
