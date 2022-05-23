@@ -42,7 +42,7 @@ class PerfMetric {
 
   void addStartTimeStamp(const T& key) {
     if (is_thread_safe_) {
-      std::lock_guard<std::mutex> lock(mutex_);
+      std::lock_guard<std::recursive_mutex> lock(mutex_);
       addStartTimeStampUnSafe(key);
     } else {
       addStartTimeStampUnSafe(key);
@@ -51,7 +51,7 @@ class PerfMetric {
 
   void finishMeasurement(const T& key) {
     if (is_thread_safe_) {
-      std::lock_guard<std::mutex> lock(mutex_);
+      std::lock_guard<std::recursive_mutex> lock(mutex_);
       finishMeasurementUnSafe(key);
     } else {
       finishMeasurementUnSafe(key);
@@ -60,7 +60,7 @@ class PerfMetric {
 
   void deleteSingleEntry(const T& key) {
     if (is_thread_safe_) {
-      std::lock_guard<std::mutex> lock(mutex_);
+      std::lock_guard<std::recursive_mutex> lock(mutex_);
       deleteSingleEntryUnSafe(key);
     } else {
       deleteSingleEntryUnSafe(key);
@@ -71,7 +71,7 @@ class PerfMetric {
   // to prevent entries in the map from never being erased (measurements that started but never finished)
   void resetEntries() {
     if (is_thread_safe_) {
-      std::lock_guard<std::mutex> lock(mutex_);
+      std::lock_guard<std::recursive_mutex> lock(mutex_);
       entries_.clear();
     } else {
       entries_.clear();
@@ -125,7 +125,7 @@ class PerfMetric {
     }
   }
 
-  std::mutex mutex_;
+  std::recursive_mutex mutex_;
   uint64_t num_map_entries_for_reset_;
   int moving_avg_window_size_;
   bool is_thread_safe_;
