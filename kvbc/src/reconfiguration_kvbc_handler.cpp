@@ -41,6 +41,16 @@ using concord::kvbc::adapter::IdempotentReader;
 using concord::messages::SnapshotResponseStatus;
 using concord::storage::rocksdb::NativeClient;
 
+std::optional<categorization::Value> get(const std::string& key, BlockId id, kvbc::IReader& ro_storage) {
+  auto opt_val = ro_storage.getLatest(concord::kvbc::categorization::kConcordReconfigurationCategoryId, key);
+  if (!opt_val || std::get<categorization::VersionedValue>(*opt_val).block_id != id) {
+    LOG_INFO(GL, "Need to call explicit get");
+    return ro_storage.get(concord::kvbc::categorization::kConcordReconfigurationCategoryId, key, id);
+  }
+  LOG_DEBUG(GL, "Get Latest found the correct version");
+  return opt_val;
+}
+
 kvbc::BlockId ReconfigurationBlockTools::persistReconfigurationBlock(
     const std::vector<uint8_t>& data,
     const uint64_t bft_seq_num,
@@ -154,12 +164,12 @@ concord::messages::ClientStateReply KvbcClientReconfigurationHandler::buildClien
               break;
           }
           creply.block_id = arg.block_id;
-          auto epoch_data = ro_storage_.get(
-              concord::kvbc::categorization::kConcordReconfigurationCategoryId,
-              std::string{kvbc::keyTypes::reconfiguration_epoch_key} +
-                  std::string{kvbc::keyTypes::reconfiguration_client_data_prefix, static_cast<char>(command_type)} +
-                  std::to_string(clientid),
-              arg.block_id);
+          auto epoch_data =
+              get(std::string{kvbc::keyTypes::reconfiguration_epoch_key} +
+                      std::string{kvbc::keyTypes::reconfiguration_client_data_prefix, static_cast<char>(command_type)} +
+                      std::to_string(clientid),
+                  arg.block_id,
+                  ro_storage_);
           ConcordAssert(epoch_data.has_value());
           const auto& epoch_str = std::get<categorization::VersionedValue>(*epoch_data).data;
           ConcordAssertEQ(epoch_str.size(), sizeof(uint64_t));
@@ -433,10 +443,10 @@ concord::messages::ClientStateReply KvbcClientReconfigurationHandler::buildRepli
             concord::messages::deserialize(data_buf, cmd);
             creply.response = cmd;
           }
-          auto epoch_data = ro_storage_.get(
-              concord::kvbc::categorization::kConcordReconfigurationCategoryId,
-              std::string{kvbc::keyTypes::reconfiguration_epoch_key} + command_type + std::to_string(clientid),
-              arg.block_id);
+          auto epoch_data =
+              get(std::string{kvbc::keyTypes::reconfiguration_epoch_key} + command_type + std::to_string(clientid),
+                  arg.block_id,
+                  ro_storage_);
           ConcordAssert(epoch_data.has_value());
           const auto& epoch_str = std::get<categorization::VersionedValue>(*epoch_data).data;
           ConcordAssertEQ(epoch_str.size(), sizeof(uint64_t));
@@ -581,17 +591,14 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientKeyExchangeSt
                         std::to_string(cid);
       auto bid = ro_storage_.getLatestVersion(concord::kvbc::categorization::kConcordReconfigurationCategoryId, key);
       if (bid.has_value()) {
-        auto saved_ts = ro_storage_.get(concord::kvbc::categorization::kConcordReconfigurationCategoryId,
-                                        std::string{kvbc::keyTypes::reconfiguration_ts_key},
-                                        bid.value().version);
+        auto saved_ts = get(std::string{kvbc::keyTypes::reconfiguration_ts_key}, bid.value().version, ro_storage_);
         uint64_t numeric_ts{0};
         if (saved_ts.has_value()) {
           auto strval = std::visit([](auto&& arg) { return arg.data; }, *saved_ts);
           numeric_ts = concordUtils::fromBigEndianBuffer<uint64_t>(strval.data());
           stats.timestamps.push_back(std::make_pair(cid, numeric_ts));
         }
-        auto res =
-            ro_storage_.get(concord::kvbc::categorization::kConcordReconfigurationCategoryId, key, bid.value().version);
+        auto res = get(key, bid.value().version, ro_storage_);
         if (res.has_value()) {
           auto strval = std::visit([](auto&& arg) { return arg.data; }, *res);
           concord::messages::ClientExchangePublicKey cmd;
@@ -944,9 +951,7 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientsRestartStatu
                         std::to_string(cid);
       auto bid = ro_storage_.getLatestVersion(concord::kvbc::categorization::kConcordReconfigurationCategoryId, key);
       if (bid.has_value()) {
-        auto saved_ts = ro_storage_.get(concord::kvbc::categorization::kConcordReconfigurationCategoryId,
-                                        std::string{kvbc::keyTypes::reconfiguration_ts_key},
-                                        bid.value().version);
+        auto saved_ts = get(std::string{kvbc::keyTypes::reconfiguration_ts_key}, bid.value().version, ro_storage_);
         uint64_t numeric_ts{0};
         if (saved_ts.has_value()) {
           auto strval = std::visit([](auto&& arg) { return arg.data; }, *saved_ts);

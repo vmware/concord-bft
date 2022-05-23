@@ -151,6 +151,7 @@ class KeyValueBlockchain {
   // flag to mark whether a checkpoint is being taken.
   std::atomic_bool checkpointInProcess_{false};
   std::optional<uint64_t> last_block_sn_;
+  const float updates_to_final_size_ration_{2.5};
 };
 
 }  // namespace concord::kvbc::v4blockchain
