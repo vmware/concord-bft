@@ -18,6 +18,42 @@
 #include <utt/Client.h>
 #include <exception>
 
+#define INDENT(width) std::setw(width) << ' '
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+namespace {
+auto coinTypeToStr = [](const libutt::Fr& type) -> const char* {
+  if (type == libutt::Coin::NormalType()) return "NORMAL";
+  if (type == libutt::Coin::BudgetType()) return "BUDGET";
+  return "INVALID coin type!\n";
+};
+
+std::string preview(const libutt::Coin& coin) {
+  std::stringstream ss;
+  ss << "<";
+  ss << "type: " << coinTypeToStr(coin.type) << ", val:" << coin.val.as_ulong() << ", sn:" << coin.sn.as_ulong();
+  ss << " ...>";
+  return ss.str();
+}
+
+std::string preview(const Block& block) {
+  if (block.tx_) {
+    std::stringstream ss;
+    ss << "<"
+       << "id:" << block.id_ << ", ";
+    if (const auto* txUtt = std::get_if<TxUtt>(&(*block.tx_))) {
+      ss << "UTT Tx: " << txUtt->utt_.getHashHex();
+    } else {
+      ss << *block.tx_;
+    }
+    ss << " ...>";
+    return ss.str();
+  } else {
+    return "<Empty>";
+  }
+}
+}  // namespace
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 struct PrintContextError : std::runtime_error {
   PrintContextError(const std::string& msg) : std::runtime_error(msg) {}
@@ -52,8 +88,9 @@ struct UTTClientApp::PrintContext {
     return *this;
   }
 
-  PrintContext& push(size_t idx) {
+  PrintContext& push(size_t idx, std::string trace = "") {
     path_.emplace_back(std::to_string(idx));
+    trace_.emplace_back(std::move(trace));
     return *this;
   }
 
@@ -69,28 +106,28 @@ struct UTTClientApp::PrintContext {
     if (path_.size() != trace_.size()) throw std::runtime_error("Inconsistent path and trace sizes!");
     // Pick the trace element (if non-empty) otherwise use the element in path
     for (size_t i = 0; i < trace_.size(); ++i) {
-      std::cout << std::setw(i * 2) << (trace_[0].empty() ? path_[0] : trace_[0]) << " ->\n";
+      std::cout << INDENT(i * 2) << "-> " << (trace_[i].empty() ? path_[i] : trace_[i]) << '\n';
     }
   }
 
-  void printComment(const char* comment) const { std::cout << std::setw(getIndent()) << "# " << comment << '\n'; }
+  void printComment(const char* comment) const { std::cout << INDENT(getIndent()) << "# " << comment << '\n'; }
 
-  void printLink(const std::string& to) const {
-    std::cout << std::setw(getIndent()) << to << ": <...> [";
+  void printLink(const std::string& to, const std::string& preview = "<...>") const {
+    std::cout << INDENT(getIndent()) << "- " << to << ": " << preview << " [";
     printList(path_, "/");
     std::cout << '/' << to << "]\n";
   }
 
-  void printLink(size_t idx) const { printLink(std::to_string(idx)); }
+  void printKey(const char* key) const { std::cout << INDENT(getIndent()) << " - " << key << ":\n"; }
 
   template <typename T>
   void printValue(const T& value) const {
-    std::cout << std::setw(getIndent()) << " - " << value << '\n';
+    std::cout << INDENT(getIndent()) << "- " << value << '\n';
   }
 
   template <typename T>
   void printKeyValue(const char* key, const T& value) const {
-    std::cout << std::setw(getIndent()) << " - " << key << ": " << value << '\n';
+    std::cout << INDENT(getIndent()) << "- " << key << ": " << value << '\n';
   }
 
   std::vector<std::string> path_;
@@ -100,18 +137,9 @@ struct UTTClientApp::PrintContext {
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 template <>
 void UTTClientApp::PrintContext::printKeyValue(const char* key, const std::vector<std::string>& v) const {
-  std::cout << std::setw(getIndent()) << " - " << key << ": [";
+  std::cout << INDENT(getIndent()) << " - " << key << ": [";
   printList(v);
   std::cout << "]\n";
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-namespace {
-auto coinTypeToStr = [](const libutt::Fr& type) -> const char* {
-  if (type == libutt::Coin::NormalType()) return "NORMAL";
-  if (type == libutt::Coin::BudgetType()) return "BUDGET";
-  return "INVALID coin type!\n";
-};
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -286,6 +314,7 @@ void UTTClientApp::printWallet(PrintContext& ctx, std::stringstream& ss) const {
     if (token == "coins") {
       if (auto tokenIdx = extractPathToken(ss)) {
         auto idx = getValidIdx(wallet_.coins.size(), *token, *tokenIdx);
+        ctx.push("coins").push(idx);
         printCoin(ctx, wallet_.coins[idx]);
       } else {
         throw PrintContextError("Expected a coin index");
@@ -298,16 +327,20 @@ void UTTClientApp::printWallet(PrintContext& ctx, std::stringstream& ss) const {
     ctx.printComment("UTT Wallet");
     ctx.printKeyValue("pid", wallet_.getUserPid());
 
-    ctx.push("coins");
     ctx.printComment("Normal Coins");
+    ctx.printKey("coins");
+    ctx.push("coins");
     if (wallet_.coins.empty()) ctx.printComment("No coins");
     for (size_t i = 0; i < wallet_.coins.size(); ++i) {
-      ctx.printLink(i);
+      ctx.printLink(std::to_string(i), preview(wallet_.coins[i]));
     }
-    ctx.pop();
+    ctx.pop();  // coins
 
     ctx.printComment("Budget Coin");
-    ctx.printLink("budget");
+    if (wallet_.budgetCoin)
+      ctx.printLink("budgetCoin", preview(*wallet_.budgetCoin));
+    else
+      ctx.printKeyValue("budgetCoin", "<Empty>");
   }
 }
 
@@ -347,10 +380,10 @@ void UTTClientApp::printCoin(PrintContext& ctx, const libutt::Coin& coin) const 
 void UTTClientApp::printLedger(PrintContext& ctx, std::stringstream& ss) const {
   if (auto tokenIdx = extractPathToken(ss)) {
     auto idx = getValidIdx(blocks_.size(), "ledger", *tokenIdx);
-    ctx.push(idx);
+    ctx.push(idx, preview(blocks_[idx]));
     printBlock(ctx, blocks_[idx], ss);
   } else {
-    for (const auto& block : GetBlocks()) std::cout << block << '\n';
+    for (size_t i = 0; i < blocks_.size(); ++i) ctx.printLink(std::to_string(i), preview(blocks_[i]));
   }
 }
 
@@ -376,6 +409,7 @@ void UTTClientApp::printUttTx(PrintContext& ctx, const libutt::Tx& tx, std::stri
     if (token == "ins") {
       if (auto tokenIdx = extractPathToken(ss)) {
         size_t idx = getValidIdx(tx.ins.size(), *token, *tokenIdx);
+        ctx.push("ins").push(idx);
         printTxIn(ctx, tx.ins[idx]);
       } else {
         throw PrintContextError("Expected input tx index");
@@ -383,6 +417,7 @@ void UTTClientApp::printUttTx(PrintContext& ctx, const libutt::Tx& tx, std::stri
     } else if (token == "outs") {
       if (auto tokenIdx = extractPathToken(ss)) {
         size_t idx = getValidIdx(tx.ins.size(), *token, *tokenIdx);
+        ctx.push("outs").push(idx);
         printTxOut(ctx, tx.outs[idx]);
       } else {
         throw PrintContextError("Expected output tx index");
@@ -404,16 +439,18 @@ void UTTClientApp::printUttTx(PrintContext& ctx, const libutt::Tx& tx, std::stri
     ctx.printLink("budget_pi");
 
     ctx.printComment("Input transactions");
+    ctx.printKey("ins");
     ctx.push("ins");
     for (size_t i = 0; i < tx.ins.size(); ++i) {
-      ctx.printLink(i);
+      ctx.printLink(std::to_string(i));
     }
     ctx.pop();
 
     ctx.printComment("Output transactions");
+    ctx.printKey("outs");
     ctx.push("outs");
     for (size_t i = 0; i < tx.outs.size(); ++i) {
-      ctx.printLink(i);
+      ctx.printLink(std::to_string(i));
     }
     ctx.pop();
   }
