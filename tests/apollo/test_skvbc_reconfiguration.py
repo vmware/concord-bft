@@ -1061,7 +1061,6 @@ class SkvbcReconfigurationTest(ApolloTest):
             log.log_message(message_type=f"pruned_block {pruned_block}")
             assert pruned_block <= 97
 
-    @unittest.skip("Unstable test - BC-19253")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_pruning_command_with_failures(self, bft_network):
@@ -1121,7 +1120,26 @@ class SkvbcReconfigurationTest(ApolloTest):
                             num_replies += 1
                     if num_replies == bft_network.config.n:
                         break
+            # Validate the crashed replica has managed to updates its metrics
+            with trio.fail_after(60):
+                while True:
+                    with trio.move_on_after(seconds=.5):
+                        try:
+                            key = ['kv_blockchain_deletes', 'Counters', 'numOfVersionedKeysDeleted']
+                            deletes = await bft_network.metrics.get(crashed_replica, *key)
 
+                            key = ['kv_blockchain_deletes', 'Counters', 'numOfImmutableKeysDeleted']
+                            deletes += await bft_network.metrics.get(crashed_replica, *key)
+
+                            key = ['kv_blockchain_deletes', 'Counters', 'numOfMerkleKeysDeleted']
+                            deletes += await bft_network.metrics.get(crashed_replica, *key)
+                            
+                        except KeyError:
+                            continue
+                        else:
+                            # success!
+                            if deletes >= 0:
+                                break
             # Now, crash the same replica again.
             crashed_replica = 3
             bft_network.stop_replica(crashed_replica)
