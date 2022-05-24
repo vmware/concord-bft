@@ -20,12 +20,15 @@
 #include <exception>
 #include "KeyfileIOUtils.hpp"
 #include "yaml_utils.hpp"
+#include "util/filesystem.hpp"
 
 void outputReplicaKeyfile(uint16_t numReplicas,
                           uint16_t numRoReplicas,
                           bftEngine::ReplicaConfig& config,
                           const std::string& outputFilename,
                           Cryptosystem* commonSys) {
+  std::cout << "Outputting key file: " << fs::absolute(outputFilename) << std::endl;
+
   std::ofstream output(outputFilename);
   if ((3 * config.fVal + 2 * config.cVal + 1) != numReplicas)
     throw std::runtime_error("F, C, and number of replicas do not agree for requested output.");

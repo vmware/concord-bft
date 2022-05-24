@@ -25,7 +25,8 @@ target_link_libraries(GenerateConcordKeys
                       PUBLIC
                       threshsign
                       ${CRYPTOPP_LIBRARIES}
-                      util)
+                      util
+					  stdc++fs)
 
 link_with_relic_library(GenerateConcordKeys)
 

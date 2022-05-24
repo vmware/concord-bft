@@ -22,6 +22,13 @@
 
 #include "XAssert.h"
 
+#ifndef UNUSED
+#define UNUSED(expr) \
+  do {               \
+    (void)(expr);    \
+  } while (0)
+#endif
+
 class Utils {
  public:
   template <class T, class E>
