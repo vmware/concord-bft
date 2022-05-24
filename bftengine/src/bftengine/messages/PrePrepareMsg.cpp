@@ -151,12 +151,13 @@ PrePrepareMsg::PrePrepareMsg(ReplicaId sender,
                              const concordUtils::SpanContext& spanContext,
                              const std::string& batchCid,
                              size_t size)
-    : MessageBase(sender,
-                  MsgCode::PrePrepare,
-                  spanContext.data().size(),
-                  (((size + sizeof(Header) + batchCid.size()) < maxMessageSize<PrePrepareMsg>())
-                       ? (size + sizeof(Header) + batchCid.size())
-                       : maxMessageSize<PrePrepareMsg>() - spanContext.data().size())) {
+    : MessageBase(
+          sender,
+          MsgCode::PrePrepare,
+          spanContext.data().size(),
+          (((size + sizeof(Header) + batchCid.size()) + spanContext.data().size() < maxMessageSize<PrePrepareMsg>())
+               ? (size + sizeof(Header) + batchCid.size())
+               : maxMessageSize<PrePrepareMsg>() - spanContext.data().size())) {
   bool ready = size == 0;  // if null, then message is ready
   if (!ready) {
     b()->digestOfRequests.makeZero();
