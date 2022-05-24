@@ -17,18 +17,18 @@
 
 /**
  * The current implementation sends the share ID (i.e., the signer ID) with the share signature.
- * Here we define its data type so that we can easily support an arbitray number of signers.
+ * Here we define its data type so that we can easily support an arbitrary number of signers.
  *
  * WARNING: Do not set this to an unsigned type! You will run into C/C++ signed vs unsigned problems
  * (see http://soundsoftware.ac.uk/c-pitfall-unsigned)
  */
-typedef int ShareID;
-typedef ShareID NumSharesType;
+using ShareID = int;
+using NumSharesType = ShareID;
 
-#define MAX_NUM_OF_SHARES 2048
-
-#define MULTISIG_BLS_SCHEME "multisig-bls"
-#define THRESHOLD_BLS_SCHEME "threshold-bls"
+constexpr int MAX_NUM_OF_SHARES = 2048;
+constexpr const char* MULTISIG_BLS_SCHEME = "multisig-bls";
+constexpr const char* THRESHOLD_BLS_SCHEME = "threshold-bls";
+constexpr const char* MULTISIG_EDDSA_SCHEME = "multisig-eddsa";
 
 class IThresholdFactory;
 class IThresholdSigner;
@@ -297,13 +297,13 @@ class Cryptosystem {
    * Get a list of supported cryptosystem types and descriptions of what
    * type-specific parameters they require.
    *
-   * @param ret A vector to which to append this functions output, as pairs of
+   * @return    A vector to which to append this functions output, as pairs of
    *            strings. The first string in each pair is the name for a
    *            supported cryptosystem type, and the second string is a
    *            description of what the type-specific subtype parameter
    *            specifies for that cryptosytem type.
    */
-  static void getAvailableCryptosystemTypes(std::vector<std::pair<std::string, std::string>>& ret);
+  static const std::vector<std::pair<std::string, std::string>>& getAvailableCryptosystemTypes();
   /**
    * Output configuration to stream
    */

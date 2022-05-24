@@ -58,7 +58,7 @@ class IThresholdAccumulatorDummy : public IThresholdAccumulator {
   void setExpectedDigest(const unsigned char *msg, int len) override {}
   bool hasShareVerificationEnabled() const override { return true; }
   int getNumValidShares() const override { return 0; }
-  void getFullSignedData(char *outThreshSig, int threshSigLen) override {}
+  size_t getFullSignedData(char *outThreshSig, int threshSigLen) override {}
   std::set<ShareID> getInvalidShareIds() const override { return {}; }
 };
 

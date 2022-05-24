@@ -368,6 +368,7 @@ class CollectorOfThresholdSignatures {
       // TODO(GG): can utilize several threads (discuss with Alin)
 
       const uint16_t bufferSize = (uint16_t)verifier->requiredLengthForSignedData();
+      size_t fullSignedDataLength = bufferSize;
       std::vector<char> bufferForSigComputations(bufferSize);
 
       const auto& span_context_of_last_message =
@@ -377,18 +378,20 @@ class CollectorOfThresholdSignatures {
         std::unique_ptr<IThresholdAccumulator> acc{verifier->newAccumulator(false)};
         for (uint16_t i = 0; i < reqDataItems; i++) acc->add(sigDataItems[i].sigBody, sigDataItems[i].sigLength);
         acc->setExpectedDigest(reinterpret_cast<unsigned char*>(expectedDigest.content()), DIGEST_SIZE);
-        acc->getFullSignedData(bufferForSigComputations.data(), bufferSize);
+        fullSignedDataLength = acc->getFullSignedData(bufferForSigComputations.data(), bufferSize);
       }
 
-      if (!verifier->verify((char*)&expectedDigest, sizeof(Digest), bufferForSigComputations.data(), bufferSize)) {
+      if (!verifier->verify(
+              (char*)&expectedDigest, sizeof(Digest), bufferForSigComputations.data(), fullSignedDataLength)) {
         // if verification failed, use accumulator with share verification enabled.
         // this still can succeed if there're enough valid shares.
         // at least replica with bad   signatures will be identified.
         std::unique_ptr<IThresholdAccumulator> acc{verifier->newAccumulator(true)};
         for (uint16_t i = 0; i < reqDataItems; i++) acc->add(sigDataItems[i].sigBody, sigDataItems[i].sigLength);
         acc->setExpectedDigest(reinterpret_cast<unsigned char*>(expectedDigest.content()), DIGEST_SIZE);
-        acc->getFullSignedData(bufferForSigComputations.data(), bufferSize);
-        if (!verifier->verify((char*)&expectedDigest, sizeof(Digest), bufferForSigComputations.data(), bufferSize)) {
+        fullSignedDataLength = acc->getFullSignedData(bufferForSigComputations.data(), bufferSize);
+        if (!verifier->verify(
+                (char*)&expectedDigest, sizeof(Digest), bufferForSigComputations.data(), fullSignedDataLength)) {
           // if verification failed again
           // signer index starts with 1, therefore shareId-1
           std::set<uint16_t> replicasWithBadSigs;

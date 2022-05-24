@@ -8,7 +8,12 @@ set(common_source_files
     IThresholdVerifier.cpp
     VectorOfShares.cpp
     ThresholdSignaturesTypes.cpp
-)
+    # TODO: create a separate target
+    eddsa/EdDSAMultisigFactory.cpp
+    eddsa/SSLEdDSAPublicKey.cpp
+    eddsa/SSLEdDSAPrivateKey.cpp
+    eddsa/EdDSAMultisigSigner.cpp
+    eddsa/EdDSAMultisigVerifier.cpp)
 
 add_library(common OBJECT ${common_source_files})
 
