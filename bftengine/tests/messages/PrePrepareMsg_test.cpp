@@ -229,6 +229,35 @@ TEST_F(PrePrepareMsgTestFixture, base_methods) {
   testMessageBaseMethods(msg, MsgCode::PrePrepare, senderId, spanContext);
 }
 
+TEST_F(PrePrepareMsgTestFixture, test_prePrepare_size) {
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
+  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
+  ReplicaId senderId = 1u;
+  ViewNum viewNum = 2u;
+  SeqNum seqNum = 3u;
+  CommitPath commitPath = CommitPath::OPTIMISTIC_FAST;
+  // Create random span
+  uint span_size = rand() % 1024;
+  const std::string spanContext = getRandomStringOfLength(span_size);
+  PrePrepareMsg msg(senderId,
+                    viewNum,
+                    seqNum,
+                    commitPath,
+                    concordUtils::SpanContext{spanContext},
+                    config.getmaxExternalMessageSize());
+  std::vector<std::shared_ptr<ClientRequestMsg>> client_request;
+
+  while (true) {
+    client_request.clear();
+    create_random_client_requests(client_request, 1u);
+    if (client_request.front()->size() > msg.remainingSizeForRequests()) break;
+    msg.addRequest(client_request.front()->body(), client_request.front()->size());
+  }
+  msg.finishAddingRequests();
+  EXPECT_NO_THROW(msg.validate(replicaInfo));
+  ASSERT_TRUE(msg.size() <= config.getmaxExternalMessageSize());
+}
+
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
