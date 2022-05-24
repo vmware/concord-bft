@@ -275,7 +275,7 @@ class G1T {
  public:
   int getByteCount() const { return g1_size_bin(n, 1); }
 
-  void toBytes(unsigned char *buf, int size) const;
+  size_t toBytes(unsigned char *buf, int size) const;
   void fromBytes(const unsigned char *buf, int size);
 
   std::string toString() const;

@@ -44,12 +44,12 @@ class BlsThresholdAccumulator : public BlsAccumulatorBase {
 
   // IThresholdAccumulator overloads.
  public:
-  virtual void getFullSignedData(char* outThreshSig, int threshSigLen) {
+  virtual size_t getFullSignedData(char* outThreshSig, int threshSigLen) {
     computeLagrangeCoeff();
     exponentiateLagrangeCoeff();
     aggregateShares();
 
-    sigToBytes(reinterpret_cast<unsigned char*>(outThreshSig), threshSigLen);
+    return sigToBytes(reinterpret_cast<unsigned char*>(outThreshSig), threshSigLen);
   }
 
   virtual bool hasShareVerificationEnabled() const { return shareVerificationEnabled; }

@@ -27,13 +27,13 @@ BlsMultisigAccumulator::BlsMultisigAccumulator(const std::vector<BlsPublicKey>& 
                                                bool withShareVerification)
     : BlsAccumulatorBase(verifKeys, reqSigners, totalSigners, withShareVerification) {}
 
-void BlsMultisigAccumulator::getFullSignedData(char* outThreshSig, int threshSigLen) {
+size_t BlsMultisigAccumulator::getFullSignedData(char* outThreshSig, int threshSigLen) {
   aggregateShares();
 
   return sigToBytes(reinterpret_cast<unsigned char*>(outThreshSig), threshSigLen);
 }
 
-void BlsMultisigAccumulator::sigToBytes(unsigned char* outThreshSig, int threshSigLen) const {
+size_t BlsMultisigAccumulator::sigToBytes(unsigned char* outThreshSig, int threshSigLen) const {
   int sigSize = Library::Get().getG1PointSize();
   int vectorSize = 0;
 
@@ -52,6 +52,8 @@ void BlsMultisigAccumulator::sigToBytes(unsigned char* outThreshSig, int threshS
     // include the signer IDs
     validSharesBits.toBytes(reinterpret_cast<unsigned char*>(outThreshSig + sigSize), vectorSize);
   }
+
+  return static_cast<size_t>(sigSize + vectorSize);
 }
 
 void BlsMultisigAccumulator::aggregateShares() {

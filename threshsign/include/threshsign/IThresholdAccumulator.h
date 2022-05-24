@@ -68,5 +68,5 @@ class IThresholdAccumulator {
    *
    * TODO: rename to getThresholdSignature()
    */
-  virtual void getFullSignedData(char* outThreshSig, int threshSigLen) = 0;
+  virtual size_t getFullSignedData(char* outThreshSig, int threshSigLen) = 0;
 };

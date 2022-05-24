@@ -110,8 +110,9 @@ class BlsAccumulatorBase : public ThresholdAccumulatorBase<BlsPublicKey, G1T, Bl
    *
    * @param   buf buffer to store the threshold signature
    * @param   len capacity of the buffer
+   * @return  The amount of occupied bytes in the buffer
    */
-  virtual void sigToBytes(unsigned char* buf, int len) const { threshSig.toBytes(buf, len); }
+  virtual size_t sigToBytes(unsigned char* buf, int len) const { return threshSig.toBytes(buf, len); }
 
   virtual void aggregateShares() = 0;
 };

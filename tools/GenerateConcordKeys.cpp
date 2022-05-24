@@ -98,8 +98,7 @@ int main(int argc, char** argv) {
         "  --opptimistic_commit_cryptosys SYSTEM_TYPE PARAMETER\n"
         "Currently, the following cryptosystem types are supported (and take the following as parameters):\n";
 
-    std::vector<std::pair<std::string, std::string>> cryptosystemTypes;
-    Cryptosystem::getAvailableCryptosystemTypes(cryptosystemTypes);
+    auto& cryptosystemTypes = Cryptosystem::getAvailableCryptosystemTypes();
     for (size_t i = 0; i < cryptosystemTypes.size(); ++i) {
       usageMessage += "  " + cryptosystemTypes[i].first + " (" + cryptosystemTypes[i].second + ")\n";
     }
@@ -120,12 +119,20 @@ int main(int argc, char** argv) {
     uint16_t ro = 0;
     std::string outputPrefix;
 
-    std::string slowType = MULTISIG_BLS_SCHEME;
+    // TODO(yf): add eddsa here
+    /*std::string slowType = MULTISIG_BLS_SCHEME;
     std::string slowParam = "BN-P254";
     std::string commitType = MULTISIG_BLS_SCHEME;
     std::string commitParam = "BN-P254";
     std::string optType = MULTISIG_BLS_SCHEME;
-    std::string optParam = "BN-P254";
+    std::string optParam = "BN-P254";*/
+
+    std::string slowType = MULTISIG_EDDSA_SCHEME;
+    std::string slowParam = "ED25519";
+    std::string commitType = MULTISIG_EDDSA_SCHEME;
+    std::string commitParam = "ED25519";
+    std::string optType = MULTISIG_EDDSA_SCHEME;
+    std::string optParam = "ED25519";
 
     for (int i = 1; i < argc; ++i) {
       std::string option(argv[i]);
@@ -194,8 +201,9 @@ int main(int argc, char** argv) {
     }
 
     // We want to generate public key for n-out-of-n case
-    Cryptosystem cryptoSys(MULTISIG_BLS_SCHEME, "BN-P254", n, n);
+    Cryptosystem cryptoSys(MULTISIG_EDDSA_SCHEME /*MULTISIG_BLS_SCHEME*/, /*"BN-P254"*/ "ED25519", n, n);
     cryptoSys.generateNewPseudorandomKeys();
+
     // Output the generated keys.
     for (uint16_t i = 0; i < n; ++i) {
       config.replicaId = i;

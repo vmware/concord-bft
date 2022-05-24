@@ -19,6 +19,7 @@
 #include "threshsign/bls/relic/PublicParametersFactory.h"
 #include "yaml_utils.hpp"
 #include "Logger.hpp"
+#include "threshsign/eddsa/EdDSAMultisigFactory.h"
 
 Cryptosystem::Cryptosystem(const std::string& sysType,
                            const std::string& sysSubtype,
@@ -42,11 +43,13 @@ Cryptosystem::Cryptosystem(const std::string& sysType,
 
 // Helper function to generateNewPseudorandomKeys.
 IThresholdFactory* Cryptosystem::createThresholdFactory() {
-  if (type_ == MULTISIG_BLS_SCHEME || forceMultisig_) {
+  if (type_ == MULTISIG_BLS_SCHEME && forceMultisig_) {
     return new BLS::Relic::BlsThresholdFactory(BLS::Relic::PublicParametersFactory::getByCurveType(subtype_.c_str()),
                                                true);
   } else if (type_ == THRESHOLD_BLS_SCHEME) {
     return new BLS::Relic::BlsThresholdFactory(BLS::Relic::PublicParametersFactory::getByCurveType(subtype_.c_str()));
+  } else if (type_ == MULTISIG_EDDSA_SCHEME) {
+    return new EdDSAMultisigFactory();
   } else {
     // This should never occur because Cryptosystem validates its parameters
     // in its constructor.
@@ -59,28 +62,32 @@ IThresholdFactory* Cryptosystem::createThresholdFactory() {
 
 void Cryptosystem::generateNewPseudorandomKeys() {
   std::unique_ptr<IThresholdFactory> factory(createThresholdFactory());
+  std::cout << (uint64_t)factory.get() << std::endl;
   std::vector<IThresholdSigner*> signers;
   IThresholdVerifier* verifier;
 
+  // TODO: change to auto& []
   std::tie(signers, verifier) = factory->newRandomSigners(threshold_, numSigners_);
-  if (forceMultisig_ || type_ == THRESHOLD_BLS_SCHEME) publicKey_ = verifier->getPublicKey().toString();
+  if (type_ == THRESHOLD_BLS_SCHEME) publicKey_ = verifier->getPublicKey().toString();
 
+  // TODO(yf): restore
   verificationKeys_.clear();
-  verificationKeys_.push_back("");  // Account for 1-indexing of signer IDs.
+  verificationKeys_.resize(numSigners_ + 1);
+  verificationKeys_[0] = "";  // Account for 1-indexing of signer IDs.
   for (uint16_t i = 1; i <= numSigners_; ++i) {
-    verificationKeys_.push_back(verifier->getShareVerificationKey(static_cast<ShareID>(i)).toString());
+    verificationKeys_[i] = verifier->getShareVerificationKey(static_cast<ShareID>(i)).toString();
   }
 
   privateKeys_.clear();
-  privateKeys_.push_back("");  // Account for 1-indexing of signer IDs.
+  privateKeys_.resize(numSigners_ + 1);
+  privateKeys_[0] = "";  // Account for 1-indexing of signer IDs.
   for (uint16_t i = 1; i <= numSigners_; ++i) {
-    privateKeys_.push_back(signers[i]->getShareSecretKey().toString());
+    privateKeys_[i] = signers[i]->getShareSecretKey().toString();
   }
 
   for (auto signer : signers) delete signer;
 
   signerID_ = NID;
-
   delete verifier;
 }
 
@@ -221,6 +228,11 @@ static const size_t expectedPublicKeyLength = 130;
 static const size_t expectedVerificationKeyLength = 130;
 
 void Cryptosystem::validatePublicKey(const std::string& key) const {
+  if (type_ == MULTISIG_EDDSA_SCHEME) {
+    // TODO: implement validation
+    return;
+  }
+
   if (forceMultisig_ || type_ == THRESHOLD_BLS_SCHEME)
     if (!((key.length() == expectedPublicKeyLength) && (std::regex_match(key, std::regex("[0-9A-Fa-f]+")))))
       throw std::runtime_error("invalid public key for this cryptosystem (type " + type_ + " and subtype " + subtype_ +
@@ -228,6 +240,11 @@ void Cryptosystem::validatePublicKey(const std::string& key) const {
 }
 
 void Cryptosystem::validateVerificationKey(const std::string& key) const {
+  if (type_ == MULTISIG_EDDSA_SCHEME) {
+    // TODO: implement validation
+    return;
+  }
+
   if (!((key.length() == expectedVerificationKeyLength) && (std::regex_match(key, std::regex("[0-9A-Fa-f]+")))))
     throw std::runtime_error("invalid verification key for this cryptosystem (type " + type_ + " and subtype " +
                              subtype_ + "): " + key);
@@ -236,7 +253,10 @@ void Cryptosystem::validateVerificationKey(const std::string& key) const {
 void Cryptosystem::validatePrivateKey(const std::string& key) const {
   // We currently do not validate the length of the private key's string
   // representation because the length of its serialization varies slightly.
-
+  if (type_ == MULTISIG_EDDSA_SCHEME) {
+    // TODO: implement validation
+    return;
+  }
   if (!std::regex_match(key, std::regex("[0-9A-Fa-f]+")))
     throw std::runtime_error("invalid private key for cryptosystem (type " + type_ + " and subtype " + subtype_ +
                              "): " + key);
@@ -258,6 +278,8 @@ bool Cryptosystem::isValidCryptosystemSelection(const std::string& type, const s
     } catch (std::exception& e) {
       return false;
     }
+  } else if (type == MULTISIG_EDDSA_SCHEME) {
+    return true;
   } else {
     return false;
   }
@@ -279,16 +301,12 @@ bool Cryptosystem::isValidCryptosystemSelection(const std::string& type,
   return isValidCryptosystemSelection(type, subtype);
 }
 
-void Cryptosystem::getAvailableCryptosystemTypes(std::vector<std::pair<std::string, std::string>>& ret) {
-  std::pair<std::string, std::string> p;
-
-  p.first = MULTISIG_BLS_SCHEME;
-  p.second = "an elliptical curve type, for example, BN-P254";
-  ret.push_back(p);
-
-  p.first = THRESHOLD_BLS_SCHEME;
-  p.second = "an elliptical curve type, for example, BN-P254";
-  ret.push_back(p);
+const std::vector<std::pair<std::string, std::string>>& Cryptosystem::getAvailableCryptosystemTypes() {
+  static const std::vector<std::pair<std::string, std::string>> cryptoSystems = {
+      {MULTISIG_BLS_SCHEME, "an elliptical curve type, for example, BN-P254"},
+      {THRESHOLD_BLS_SCHEME, "an elliptical curve type, for example, BN-P254"},
+      {MULTISIG_EDDSA_SCHEME, "EdDSA 25519"}};
+  return cryptoSystems;
 }
 void Cryptosystem::writeConfiguration(std::ostream& output, const std::string& prefix, const uint16_t& replicaId) {
   uint16_t numReplicas = getNumSigners();
