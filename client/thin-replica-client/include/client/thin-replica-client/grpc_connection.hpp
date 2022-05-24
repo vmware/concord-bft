@@ -23,6 +23,7 @@
 #include "assertUtils.hpp"
 #include "thin_replica.grpc.pb.h"
 #include "replica_state_snapshot.grpc.pb.h"
+#include "thread_pool.hpp"
 #include "Logger.hpp"
 
 using namespace std::chrono_literals;
@@ -214,6 +215,11 @@ class GrpcConnection {
   std::shared_mutex channel_mutex_;
   std::unique_ptr<com::vmware::concord::thin_replica::ThinReplica::StubInterface> trc_stub_;
   std::unique_ptr<vmware::concord::replicastatesnapshot::ReplicaStateSnapshotService::StubInterface> rss_stub_;
+
+  // A gRPC connection will either have an active hash-, data stream or no subscription at all. Reads on an active
+  // subscription stream have to be serialized and hence either we use multiple threads and a lock or start a single
+  // thread only.
+  concord::util::ThreadPool subscription_pool_{1};
 
   // TRS connection config
   std::unique_ptr<GrpcConnectionConfig> config_;

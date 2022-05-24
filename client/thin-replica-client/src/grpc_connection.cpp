@@ -123,7 +123,7 @@ GrpcConnection::Result GrpcConnection::openDataStream(const SubscriptionRequest&
   data_context_.reset(new grpc::ClientContext());
   data_context_->AddMetadata("client_id", client_id_);
 
-  auto stream = async(launch::async, [this, &request] {
+  auto stream = subscription_pool_.async([this, &request] {
     ReadLock read_lock(channel_mutex_);
     return trc_stub_->SubscribeToUpdates(data_context_.get(), request);
   });
@@ -169,7 +169,7 @@ GrpcConnection::Result GrpcConnection::readData(Data* data) {
   ConcordAssertNE(data_stream_, nullptr);
   ConcordAssertNE(data_context_, nullptr);
 
-  auto result = async(launch::async, [this, data] { return data_stream_->Read(data); });
+  auto result = subscription_pool_.async([this, data] { return data_stream_->Read(data); });
   auto status = result.wait_for(data_timeout_);
   if (status == future_status::timeout || status == future_status::deferred) {
     data_context_->TryCancel();
@@ -329,7 +329,7 @@ GrpcConnection::Result GrpcConnection::openHashStream(SubscriptionRequest& reque
   hash_context_.reset(new grpc::ClientContext());
   hash_context_->AddMetadata("client_id", client_id_);
 
-  auto stream = async(launch::async, [this, &request] {
+  auto stream = subscription_pool_.async([this, &request] {
     ReadLock read_lock(channel_mutex_);
     return trc_stub_->SubscribeToUpdateHashes(hash_context_.get(), request);
   });
@@ -375,7 +375,7 @@ GrpcConnection::Result GrpcConnection::readHash(Hash* hash) {
   ConcordAssertNE(hash_stream_, nullptr);
   ConcordAssertNE(hash_context_, nullptr);
 
-  auto result = async(launch::async, [this, hash] { return hash_stream_->Read(hash); });
+  auto result = subscription_pool_.async([this, hash] { return hash_stream_->Read(hash); });
   auto status = result.wait_for(hash_timeout_);
   if (status == future_status::timeout || status == future_status::deferred) {
     hash_context_->TryCancel();
