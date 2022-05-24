@@ -42,8 +42,8 @@ class BFTConfig:
         self.f : int = f
         self.c : int = c
         self.clients : int = clients
-        assert self.n == 3 * self.f + 2 * self.c + 1, \
-            f"Invariant breached. Expected: n = 3f + 2c + 1"
+        assert self.n >= 3 * self.f + 2 * self.c + 1, \
+            f"Invariant breached. Expected: n >= 3f + 2c + 1"
 
     def __repr__(self):
         return f'n={self.n}_f={self.f}_c={self.c}'
