@@ -111,9 +111,9 @@ class Logger {
 
 }  // namespace logging
 
-#define LOG_COMMON(logger, level, s)                              \
-  if ((logger).getLogLevel() <= level) {                          \
-    (logger).print(level, __PRETTY_FUNCTION__) << s << std::endl; \
+#define LOG_COMMON(logger, level, s)                                                                              \
+  if ((logger).getLogLevel() <= level) {                                                                          \
+    (logger).print(level, __PRETTY_FUNCTION__) << s << " | [SQ:" << std::to_string(getSeq()) << "]" << std::endl; \
   }
 
 #define LOG_TRACE(l, s) LOG_COMMON(l, logging::LogLevel::trace, s)

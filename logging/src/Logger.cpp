@@ -21,11 +21,15 @@ ScopedMdc::~ScopedMdc() { MDC_REMOVE(key_); }
 
 }  // namespace logging
 
+thread_local uint64_t bft_seq = 0;
+uint64_t getSeq() { return bft_seq++; }
+
 // globally defined loggers
 logging::Logger GL = logging::getLogger("concord.bft");
 logging::Logger CNSUS = logging::getLogger("concord.bft.consensus");
 logging::Logger THRESHSIGN_LOG = logging::getLogger("concord.bft.threshsign");
 logging::Logger BLS_LOG = logging::getLogger("concord.bft.threshsign.bls");
+logging::Logger EDDSA_MULTISIG_LOG = logging::getLogger("threshsign.eddsa");
 logging::Logger KEY_EX_LOG = logging::getLogger("concord.bft.key-exchange");
 logging::Logger CAT_BLOCK_LOG = logging::getLogger("concord.kvbc.categorized-blockchain");
 logging::Logger V4_BLOCK_LOG = logging::getLogger("concord.kvbc.v4-blockchain");

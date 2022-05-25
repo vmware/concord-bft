@@ -19,6 +19,10 @@
 #define MDC_PRIMARY_KEY "pri"
 #define MDC_PATH_KEY "path"
 
+#include <cstdint>
+
+uint64_t getSeq();
+
 #ifndef USE_LOG4CPP
 #include "Logging.hpp"
 #else
@@ -29,6 +33,7 @@ extern logging::Logger GL;
 extern logging::Logger CNSUS;
 extern logging::Logger THRESHSIGN_LOG;
 extern logging::Logger BLS_LOG;
+extern logging::Logger EDDSA_MULTISIG_LOG;
 extern logging::Logger KEY_EX_LOG;
 extern logging::Logger CAT_BLOCK_LOG;
 extern logging::Logger V4_BLOCK_LOG;
