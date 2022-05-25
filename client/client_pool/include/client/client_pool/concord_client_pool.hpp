@@ -120,7 +120,7 @@ class ConcordClientPool {
                            std::string correlation_id = {},
                            const std::string& span_context = std::string(),
                            const bftEngine::RequestType request_type = bftEngine::RequestType::RAW_MESSAGE,
-                           const std::string& subscriptionId = std::string(),
+                           const std::string& client_service_id = std::string(),
                            const bftEngine::RequestCallBack& callback = {});
 
   // This method is responsible to get write requests with the new client

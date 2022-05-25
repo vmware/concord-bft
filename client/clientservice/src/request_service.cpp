@@ -170,8 +170,14 @@ void RequestServiceCallData::sendToConcordClient() {
         this->populateResult(status);
         return;
       }
+      LOG_DEBUG(logger_,
+                "In RequestServiceCallData::sendToConcordClient callback function done parsing application ANY Data "
+                "and updated the response");
     } else {
       this->response_.set_raw_response(std::move(data));
+      LOG_DEBUG(logger_,
+                "In RequestServiceCallData::sendToConcordClient callback function done parsing application RAW Data "
+                "and updated the response");
     }
 
     this->populateResult(grpc::Status::OK);

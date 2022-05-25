@@ -195,7 +195,9 @@ std::pair<int32_t, ConcordClient::PendingReplies> ConcordClient::SendPendingRequ
       }
       auto cid = pending_seq_num_to_cid_entry->second;
       cid_response_map_[cid] = std::chrono::steady_clock::now();
-      createConcordClientResponse(received_reply_entry.second.matched_data);
+      prepareConcordClientResponse(received_reply_entry.second.matched_data);
+      LOG_DEBUG(logger_,
+                "In ConcordClient::SendPendingRequests completed extracting concord client response from cmf packing");
       auto data_size = received_reply_entry.second.matched_data.size();
       for (auto& pending_reply : pending_replies_) {
         if (pending_reply.cid != cid) continue;
@@ -393,20 +395,20 @@ OperationResult ConcordClient::getRequestExecutionResult() { return clientReques
 
 std::string ConcordClient::messageSignature(bft::client::Msg& message) { return new_client_->signMessage(message); }
 
-void ConcordClient::createConcordClientRequest(bft::client::Msg& request,
-                                               bftEngine::RequestType typed_request,
-                                               const std::string& subscriptionId) {
-  concord::client::request::messages::ConcordClientRequest concord_request;
-  concord_request.type = static_cast<decltype(concord_request.type)>(typed_request);
-  concord_request.client_id = static_cast<decltype(concord_request.client_id)>(subscriptionId);
+void ConcordClient::prepareConcordClientRequest(bft::client::Msg& request,
+                                                bftEngine::RequestType request_type,
+                                                const std::string& client_service_id) {
+  concord::client::message::ConcordClientRequest concord_request;
+  concord_request.request_type = static_cast<decltype(concord_request.request_type)>(request_type);
+  concord_request.client_service_id = static_cast<decltype(concord_request.client_service_id)>(client_service_id);
   concord_request.application_request = std::vector<uint8_t>(request.begin(), request.end());
   request.clear();
-  concord::client::request::messages::serialize(request, concord_request);
+  concord::client::message::serialize(request, concord_request);
 }
 
-void ConcordClient::createConcordClientResponse(bft::client::Msg& response) {
-  concord::client::request::messages::ConcordClientResponse concord_response;
-  concord::client::request::messages::deserialize(response, concord_response);
+void ConcordClient::prepareConcordClientResponse(bft::client::Msg& response) {
+  concord::client::message::ConcordClientResponse concord_response;
+  concord::client::message::deserialize(response, concord_response);
   response.clear();
   response.assign(concord_response.application_response.begin(), concord_response.application_response.end());
 }

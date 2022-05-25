@@ -2,8 +2,12 @@
 # with clientservice specific information to the blockchain network.
 
 Msg ConcordClientRequest 1 {
-  uint32 type
-  string client_id
+  # request_type is type of input request, which can be of RAW or ANY request
+  uint32 request_type
+  # Client service ID or thin replica client's subscription ID
+  # used for filtering events for this client.
+  string client_service_id
+  # Required application request which gets evaluated by the execution engine.
   bytes application_request
 }
 

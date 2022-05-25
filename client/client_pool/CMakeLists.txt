@@ -11,7 +11,7 @@ target_link_libraries(concord_client_pool PUBLIC
         bftclient
         bftclient_new
         corebft
-	concord_client_request
+	concord_client_message
       	)
 
 install (TARGETS concord_client_pool DESTINATION lib${LIB_SUFFIX})

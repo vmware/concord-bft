@@ -45,7 +45,7 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
                                             std::string correlation_id,
                                             const std::string &span_context,
                                             const bftEngine::RequestType request_type,
-                                            const std::string &subscriptionId,
+                                            const std::string &client_service_id,
                                             const bftEngine::RequestCallBack &callback) {
   if (callback && timeout_ms.count() == 0) {
     callback(bftEngine::SendResult{static_cast<uint32_t>(OperationResult::INVALID_REQUEST)});
@@ -58,7 +58,8 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
 
   while (!clients_.empty() && serving_candidates != 0) {
     auto client = clients_.front();
-    external_client::ConcordClient::createConcordClientRequest(request, request_type, subscriptionId);
+    client->prepareConcordClientRequest(request, request_type, client_service_id);
+    LOG_DEBUG(logger_, "In ConcordClientPool::SendRequest completed packing concord client request to cmf format");
     client_id = client->getClientId();
     if (is_overloaded_) {
       is_overloaded_ = false;
@@ -494,8 +495,11 @@ void SingleRequestProcessingJob::execute() {
   OperationResult operation_result = processing_client_->getRequestExecutionResult();
   reply_size = res.matched_data.size();
   if (callback_) {
+    logging::Logger logger_(logging::getLogger("com.vmware.SingleRequestProcessingJob"));
     if (operation_result == OperationResult::SUCCESS) {
-      external_client::ConcordClient::createConcordClientResponse(res.matched_data);
+      processing_client_->prepareConcordClientResponse(res.matched_data);
+      LOG_DEBUG(logger_,
+                "In SingleRequestProcessingJob::execute completed extracting concord client response from cmf packing");
       reply_size = res.matched_data.size();
       callback_(res);
     } else {
