@@ -42,6 +42,10 @@ std::ostream& operator<<(std::ostream& os, const Block& b) {
     os << "(Empty)";
   else if (const auto* txUtt = std::get_if<TxUtt>(&(*b.tx_)))
     os << "UTT Tx: " << txUtt->utt_.getHashHex();
+  else if (const auto* txMint = std::get_if<TxMint>(&(*b.tx_)))
+    os << "Mint Tx: " << txMint->op_.getHashHex();
+  else if (const auto* txBurn = std::get_if<TxBurn>(&(*b.tx_)))
+    os << "Burn Tx: " << txBurn->op_.getHashHex();
   else
     os << *b.tx_;  // Public Tx
   return os;
@@ -155,6 +159,20 @@ void UTTBlockchainApp::executeTx(const Tx& tx) {
       for (const auto& n : txNullifiers) {
         state_.addNullifier(n);
       }
+    }
+
+    void operator()(const TxMint& tx) {
+      // Withdraw the minted amount from public money
+      auto acc = state_.getAccountById(tx.pid_);
+      if (acc) acc->publicWithdraw(tx.amount_);
+    }
+
+    void operator()(const TxBurn& tx) {
+      // Add the burned amount to public money
+      auto acc = state_.getAccountById(tx.op_.getOwnerPid());
+      if (acc) acc->publicDeposit(tx.op_.getValue());
+      // Add nullifier
+      state_.addNullifier(tx.op_.getNullifier());
     }
   };
 
