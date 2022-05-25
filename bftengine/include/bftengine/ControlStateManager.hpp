@@ -19,7 +19,7 @@
 #include "Serializable.h"
 #include "SysConsts.hpp"
 #include "callback_registry.hpp"
-
+#include <mutex>
 namespace bftEngine {
 class ControlStateManager {
  public:
@@ -34,8 +34,12 @@ class ControlStateManager {
   void wedge() { wedged = true; }
   void unwedge() { wedged = false; }
   void markRemoveMetadata(bool include_st = true) { removeMetadataCbRegistry_.invokeAll(include_st); }
-  void setPruningProcess(bool onPruningProcess) { onPruningProcess_ = onPruningProcess; }
+  void setPruningProcess(bool onPruningProcess) {
+    onPruningProcess ? pruning_lock_.lock() : pruning_lock_.unlock();
+    onPruningProcess_ = onPruningProcess;
+  }
   bool getPruningProcessStatus() const { return onPruningProcess_; }
+  void waitForPruningIfNeeded() { std::unique_lock lock_(pruning_lock_); }
   bool getRestartBftFlag() const { return restartBftEnabled_; }
   void setRestartBftFlag(bool bft) { restartBftEnabled_ = bft; }
   void setRemoveMetadataFunc(std::function<void(bool)> fn) { removeMetadataCbRegistry_.add(fn); }
@@ -71,5 +75,6 @@ class ControlStateManager {
   std::function<void(uint8_t, const std::string&)> sendRestartReady_;
   // reason for restart is the key
   std::unordered_map<uint8_t, std::map<uint32_t, concord::util::CallbackRegistry<>>> onRestartProofCbRegistry_;
+  std::mutex pruning_lock_;
 };
 }  // namespace bftEngine

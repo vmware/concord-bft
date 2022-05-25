@@ -44,6 +44,7 @@
 #include <ccron/ticks_generator.hpp>
 #include "EpochManager.hpp"
 #include "PerfMetrics.hpp"
+#include "ControlStateManager.hpp"
 
 namespace preprocessor {
 class PreProcessResultMsg;
@@ -647,6 +648,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
     virtual void release() override { delete this; }
 
     virtual void execute() override {
+      bftEngine::ControlStateManager::instance().waitForPruningIfNeeded();
       MDC_PUT(MDC_REPLICA_ID_KEY, std::to_string(parent_.config_.replicaId));
       MDC_PUT(MDC_THREAD_KEY, "post-execution-thread");
       SCOPED_MDC_SEQ_NUM(std::to_string(ppMsg_->seqNumber()));
