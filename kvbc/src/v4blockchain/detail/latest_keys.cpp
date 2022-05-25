@@ -61,10 +61,21 @@ void LatestKeys::handleCategoryUpdates(const std::string& block_version,
   Flags flags = {0};
   auto sl_flags = concord::storage::rocksdb::detail::toSlice(flags);
   for (const auto& [k, v] : updates.kv) {
+    LOG_DEBUG(V4_BLOCK_LOG,
+              "Adding key " << std::hash<std::string>{}(k) << " at version "
+                            << concordUtils::fromBigEndianBuffer<BlockId>(block_version.data()) << " category_id "
+                            << category_id << " prefix " << prefix << " key is hex "
+                            << concordUtils::bufferToHex(k.data(), k.size()) << " key size " << k.size()
+                            << " value size " << v.size() << " raw key " << k);
     write_batch.put(
         v4blockchain::detail::LATEST_KEYS_CF, getSliceArray(prefix, k, block_version), getSliceArray(v, sl_flags));
   }
   for (const auto& k : updates.deletes) {
+    LOG_DEBUG(V4_BLOCK_LOG,
+              "Deleting key " << std::hash<std::string>{}(k) << " at version "
+                              << concordUtils::fromBigEndianBuffer<BlockId>(block_version.data()) << " category_id "
+                              << category_id << " prefix " << prefix << " key is hex "
+                              << concordUtils::bufferToHex(k.data(), k.size()) << " raw key " << k);
     write_batch.del(v4blockchain::detail::LATEST_KEYS_CF, getSliceArray(prefix, k, block_version));
   }
 }
@@ -80,12 +91,23 @@ void LatestKeys::handleCategoryUpdates(const std::string& block_version,
     if (v.stale_on_update) {
       flags = STALE_ON_UPDATE;
     }
+    LOG_DEBUG(V4_BLOCK_LOG,
+              "Adding key " << std::hash<std::string>{}(k) << " at version "
+                            << concordUtils::fromBigEndianBuffer<BlockId>(block_version.data()) << " category_id "
+                            << category_id << " prefix " << prefix << " key is hex "
+                            << concordUtils::bufferToHex(k.data(), k.size()) << " key size " << k.size()
+                            << " value size " << v.data.size() << " raw key " << k);
     auto sl_flags = concord::storage::rocksdb::detail::toSlice(flags);
 
     write_batch.put(
         v4blockchain::detail::LATEST_KEYS_CF, getSliceArray(prefix, k, block_version), getSliceArray(v.data, sl_flags));
   }
   for (const auto& k : updates.deletes) {
+    LOG_DEBUG(V4_BLOCK_LOG,
+              "Deleting key " << std::hash<std::string>{}(k) << " at version "
+                              << concordUtils::fromBigEndianBuffer<BlockId>(block_version.data()) << " category_id "
+                              << category_id << " prefix " << prefix << " key is hex "
+                              << concordUtils::bufferToHex(k.data(), k.size()) << " raw key " << k);
     write_batch.del(v4blockchain::detail::LATEST_KEYS_CF, getSliceArray(prefix, k, block_version));
   }
 }
@@ -103,11 +125,18 @@ void LatestKeys::handleCategoryUpdates(const std::string& block_version,
     get_key.clear();
     get_key.append(prefix);
     get_key.append(k);
+    // E.L - this check does not exist in the categorized storage, therefore commenting it
     // check if key exists - immutable does not allow to update
-    auto opt_val = native_client_->get(v4blockchain::detail::LATEST_KEYS_CF, get_key, block_version, &out_ts);
-    if (opt_val) {
-      throw std::runtime_error("Trying to update immutable key: " + k);
-    }
+    // auto opt_val = native_client_->get(v4blockchain::detail::LATEST_KEYS_CF, get_key, block_version, &out_ts);
+    // if (opt_val) {
+    //   throw std::runtime_error("Trying to update immutable key: " + k);
+    // }
+    LOG_DEBUG(V4_BLOCK_LOG,
+              "Adding key " << std::hash<std::string>{}(k) << " at version "
+                            << concordUtils::fromBigEndianBuffer<BlockId>(block_version.data()) << " category_id "
+                            << category_id << " prefix " << prefix << " key is hex "
+                            << concordUtils::bufferToHex(k.data(), k.size()) << " key size " << k.size()
+                            << " value size " << v.data.size() << " raw key " << k);
     write_batch.put(
         v4blockchain::detail::LATEST_KEYS_CF, getSliceArray(prefix, k, block_version), getSliceArray(v.data, sl_flags));
   }
@@ -236,10 +265,20 @@ std::optional<categorization::Value> LatestKeys::getValue(const std::string& cat
   get_key.append(key);
   auto opt_val = native_client_->get(v4blockchain::detail::LATEST_KEYS_CF, get_key, version, &out_ts);
   if (!opt_val) {
+    LOG_DEBUG(V4_BLOCK_LOG,
+              "Reading key " << std::hash<std::string>{}(key) << " not found, latest version "
+                             << concordUtils::fromBigEndianBuffer<BlockId>(version.data()) << " category_id "
+                             << category_id << " prefix " << prefix << " key is hex "
+                             << concordUtils::bufferToHex(key.data(), key.size()) << " raw key " << key);
     return std::nullopt;
   }
   auto actual_version = concordUtils::fromBigEndianBuffer<BlockId>(out_ts.data());
   const size_t total_val_size = opt_val->size();
+  LOG_DEBUG(V4_BLOCK_LOG,
+            "Reading key " << std::hash<std::string>{}(key) << " latest version "
+                           << concordUtils::fromBigEndianBuffer<BlockId>(version.data()) << " actual version "
+                           << actual_version << " category_id " << category_id << " prefix " << prefix << " key is hex "
+                           << concordUtils::bufferToHex(key.data(), key.size()) << " raw key " << key);
 
   switch (category_mapping_.categoryType(category_id)) {
     case concord::kvbc::categorization::CATEGORY_TYPE::block_merkle:
@@ -276,9 +315,20 @@ std::optional<categorization::TaggedVersion> LatestKeys::getLatestVersion(const 
   get_key.append(key);
   auto opt_val = native_client_->get(v4blockchain::detail::LATEST_KEYS_CF, get_key, latest_version, &out_ts);
   if (!opt_val) {
+    LOG_DEBUG(V4_BLOCK_LOG,
+              "Reading key version " << std::hash<std::string>{}(key) << " not found, latest version "
+                                     << concordUtils::fromBigEndianBuffer<BlockId>(latest_version.data())
+                                     << " category_id " << category_id << " prefix " << prefix << " key is hex "
+                                     << concordUtils::bufferToHex(key.data(), key.size()) << " raw key " << key);
     return std::nullopt;
   }
   BlockId version = concordUtils::fromBigEndianBuffer<BlockId>(out_ts.data());
+  LOG_DEBUG(V4_BLOCK_LOG,
+            "Reading key version " << std::hash<std::string>{}(key) << " latest version "
+                                   << concordUtils::fromBigEndianBuffer<BlockId>(latest_version.data())
+                                   << " actual version " << version << " category_id " << category_id << " prefix "
+                                   << prefix << " key is hex " << concordUtils::bufferToHex(key.data(), key.size())
+                                   << " raw key " << key);
   return categorization::TaggedVersion{false, version};
 }
 

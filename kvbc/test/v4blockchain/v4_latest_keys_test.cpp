@@ -635,6 +635,9 @@ TEST_F(v4_kvbc, add_immutable_keys_adv) {
   std::string key1 = "imm_key1";
   std::string val1 = "imm_val1";
 
+  std::string key2 = "imm_key2";
+  std::string val2 = "imm_val2";
+
   auto imm_val1 = categorization::ImmutableValueUpdate{"imm_val1", {"1", "2"}};
 
   // Block 1
@@ -686,32 +689,31 @@ TEST_F(v4_kvbc, add_immutable_keys_adv) {
   {
     categorization::Updates updates;
     categorization::ImmutableUpdates imm_updates;
-    imm_updates.addUpdate("imm_key1",
-                          categorization::ImmutableUpdates::ImmutableValue{"imm_val1_updated", {"11", "2"}});
+    imm_updates.addUpdate("imm_key2", categorization::ImmutableUpdates::ImmutableValue{"imm_val2", {"11", "2"}});
     updates.add("immutable", std::move(imm_updates));
 
     auto wb = db->getBatch();
-    ASSERT_THROW(latest_keys.addBlockKeys(updates, block_id100, wb), std::runtime_error);
+    ASSERT_NO_THROW(latest_keys.addBlockKeys(updates, block_id100, wb));
     db->write(std::move(wb));
     testGetValueAndVersion(
-        latest_keys, block_id100, "immutable", key1, false, false, keys, val_is_null_opts, ver_is_null_opts);
+        latest_keys, block_id100, "immutable", key2, false, false, keys, val_is_null_opts, ver_is_null_opts);
   }
-  // Check that original key still exists.
   {
     auto val = db->get(v4blockchain::detail::LATEST_KEYS_CF,
-                       latest_keys.getCategoryPrefix("immutable") + key1,
-                       block_id1_str,
+                       latest_keys.getCategoryPrefix("immutable") + key2,
+                       block_id100_str,
                        &out_ts);
 
-    ASSERT_EQ(*val, imm_val1.data + stale_on_update_flag);
-    ASSERT_EQ(out_ts, block_id1_str);
+    ASSERT_EQ(*val, val2.data() + stale_on_update_flag);
+    ASSERT_EQ(out_ts, block_id100_str);
     auto iout_ts = concordUtils::fromBigEndianBuffer<uint64_t>(out_ts.data());
-    ASSERT_EQ(block_id1, iout_ts);
+    ASSERT_EQ(block_id100, iout_ts);
     out_ts.clear();
 
+    // get the orig one with lower ts
     val = db->get(v4blockchain::detail::LATEST_KEYS_CF,
                   latest_keys.getCategoryPrefix("immutable") + key1,
-                  block_id100_str,
+                  block_id1_str,
                   &out_ts);
     ASSERT_TRUE(val.has_value());
     ASSERT_EQ(out_ts, block_id1_str);
@@ -719,8 +721,6 @@ TEST_F(v4_kvbc, add_immutable_keys_adv) {
     ASSERT_EQ(block_id1, iout_ts);
     out_ts.clear();
   }
-  testMultiGetValueAndVersion(latest_keys, block_id1, "immutable", keys, val_is_null_opts, ver_is_null_opts);
-  testMultiGetValueAndVersion(latest_keys, block_id10, "immutable", keys, val_is_null_opts, ver_is_null_opts);
   testMultiGetValueAndVersion(latest_keys, block_id100, "immutable", keys, val_is_null_opts, ver_is_null_opts);
 }
 
