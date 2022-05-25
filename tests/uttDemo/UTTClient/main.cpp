@@ -683,32 +683,60 @@ void mintCoin(UTTClientApp& app, WalletCommunicator& comm, size_t amount) {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void burnCoin(UTTClientApp& app, WalletCommunicator& comm, size_t value) {
-  ConcordAssert(value > 0);
+void burnCoin(UTTClientApp& app, WalletCommunicator& comm, size_t amount) {
+  ConcordAssert(amount > 0);  // Validated by parser
 
-  // ToDo: need to create an exact coin to burn (using merges and splits)
+  while (true) {
+    syncState(app, comm);
+    if (app.wallet_.coins.empty()) throw std::domain_error("No coins to burn!");
+    if (app.getUttBalance() < amount) throw std::domain_error("Insufficient anonymous balance!");
 
-  // Temp for testing: pick the first coin and burn it
-  if (app.wallet_.coins.empty()) throw std::domain_error("No coins to burn!");
+    auto result = libutt::Client::createTxForBurn(app.wallet_, amount);
 
-  libutt::BurnOp burnOp(app.wallet_.p, app.wallet_.ask, app.wallet_.coins[0], app.wallet_.bpk, app.wallet_.rpk);
+    if (result.burnOp_) {
+      std::cout << "Created a burn tx: " << result.burnOp_->getHashHex() << '\n';
+      const size_t burnValue = result.burnOp_->getValue();
+      std::cout << "- '" << result.burnOp_->getOwnerPid() << " will spend a " << app.fmtCurrency(burnValue)
+                << " coin.\n";
+      std::cout << "+ '" << result.burnOp_->getOwnerPid() << " will receive " << app.fmtCurrency(burnValue)
+                << " public money.\n";
 
-  std::cout << "Created a burn tx: " << burnOp.getHashHex() << '\n';
-  const size_t burnValue = app.wallet_.coins[0].getValue();
-  std::cout << "- '" << app.myPid_ << " will spend a " << app.fmtCurrency(burnValue) << " coin.\n";
-  std::cout << "+ '" << app.myPid_ << " will receive " << app.fmtCurrency(burnValue) << " public money.\n";
+      Tx tx = TxBurn(std::move(*result.burnOp_));
 
-  TxBurn txBurn(std::move(burnOp));
+      auto reply = sendTxRequest(comm, tx);
+      if (reply.success) {
+        app.setLastKnownBlockId(reply.last_block_id);
+        std::cout << "Ok.\n";
+        checkBalance(app, comm);
+      } else {
+        std::cout << "Transaction failed: " << reply.err << '\n';
+      }
 
-  Tx tx = Tx(std::move(txBurn));
+      break;  // Done
+    } else if (result.selfTx_) {
+      // [TODO-UTT] Copy pasted from runUttPayment
+      // Describe what the utt transaction intends to do.
+      std::cout << "\nCreated UTT tx " << result.selfTx_->tx.getHashHex() << '\n';
+      std::cout << "  Type: " << result.selfTx_->txType_ << '\n';
+      for (size_t coinValue : result.selfTx_->inputNormalCoinValues_)
+        std::cout << "  - '" << app.myPid_ << "' will spend " << app.fmtCurrency(coinValue) << " normal coin.\n";
+      for (const auto& [pid, coinValue] : result.selfTx_->recipients_)
+        std::cout << "  + '" << pid << "' will receive " << app.fmtCurrency(coinValue) << " normal coin.\n";
 
-  auto reply = sendTxRequest(comm, tx);
-  if (reply.success) {
-    app.setLastKnownBlockId(reply.last_block_id);
-    std::cout << "Ok.\n";
-    checkBalance(app, comm);
-  } else {
-    std::cout << "Transaction failed: " << reply.err << '\n';
+      Tx tx = TxUtt(std::move(result.selfTx_->tx));
+
+      auto reply = sendTxRequest(comm, tx);
+      if (reply.success) {
+        app.setLastKnownBlockId(reply.last_block_id);
+        std::cout << "Ok.\n";
+      } else {
+        std::cout << "Transaction failed: " << reply.err << '\n';
+        break;  // Stop burn if we encounter an error
+      }
+
+    } else {
+      ConcordAssert(false);  // Error - the result should not be ambiguous
+    }
   }
 }
 

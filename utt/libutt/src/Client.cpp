@@ -100,6 +100,31 @@ CreateTxResult createTx_2t2(const Wallet& w, size_t coinIdx1, size_t coinIdx2, s
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
+CreateTxResult createTx_Self2t2(const Wallet& w, size_t coinIdx1, size_t coinIdx2, size_t amount) {
+  std::vector<Coin> inputCoins = std::vector<Coin>{w.coins.at(coinIdx1), w.coins.at(coinIdx2)};
+
+  Fr value1;
+  value1.set_ulong(amount);
+
+  Fr value2 = (inputCoins[0].val + inputCoins[1].val) - value1;
+
+  std::vector<std::tuple<std::string, Fr>> recip;
+  recip.emplace_back(w.ask.getPid(), value1);
+  recip.emplace_back(w.ask.getPid(), value2);
+
+  CreateTxResult result;
+  result.txType_ = "coin-split";
+  result.inputNormalCoinValues_.emplace_back(inputCoins[0].getValue());
+  result.inputNormalCoinValues_.emplace_back(inputCoins[1].getValue());
+  // [TODO-UTT] Fix, change recipients to a vector
+  result.recipients_.emplace(w.getUserPid(), value1.as_ulong());
+  result.recipients_.emplace(w.getUserPid(), value2.as_ulong());
+  result.tx = Tx(w.p, w.ask, inputCoins, std::nullopt, recip, w.bpk, w.rpk);
+
+  return result;
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////
 CreateTxResult createTx_Self2t1(const Wallet& w, size_t coinIdx1, size_t coinIdx2) {
   std::vector<Coin> inputCoins = std::vector<Coin>{w.coins.at(coinIdx1), w.coins.at(coinIdx2)};
 
@@ -113,6 +138,29 @@ CreateTxResult createTx_Self2t1(const Wallet& w, size_t coinIdx1, size_t coinIdx
   result.inputNormalCoinValues_.emplace_back(inputCoins[0].getValue());
   result.inputNormalCoinValues_.emplace_back(inputCoins[1].getValue());
   result.recipients_.emplace(w.getUserPid(), totalValue.as_ulong());
+  result.tx = Tx(w.p, w.ask, inputCoins, std::nullopt, recip, w.bpk, w.rpk);
+
+  return result;
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////
+CreateTxResult createTx_Self1t2(const Wallet& w, size_t coinIdx, size_t splitAmount) {
+  std::vector<Coin> inputCoins = std::vector<Coin>{w.coins.at(coinIdx)};
+
+  Fr value1;
+  value1.set_ulong(splitAmount);
+
+  Fr value2 = inputCoins.at(coinIdx).val - value1;
+
+  std::vector<std::tuple<std::string, Fr>> recip;
+  recip.emplace_back(w.ask.getPid(), value1);
+  recip.emplace_back(w.ask.getPid(), value2);
+
+  CreateTxResult result;
+  result.txType_ = "coin-split";
+  result.inputNormalCoinValues_.emplace_back(inputCoins[0].getValue());
+  result.recipients_.emplace(w.getUserPid(), value1.as_ulong());
+  result.recipients_.emplace(w.getUserPid(), value2.as_ulong());
   result.tx = Tx(w.p, w.ask, inputCoins, std::nullopt, recip, w.bpk, w.rpk);
 
   return result;
@@ -237,6 +285,72 @@ CreateTxResult createTxForPayment(const Wallet& w,
   if (budget < payment) throw std::runtime_error("Wallet has insufficient anonymous budget!");
 
   return strategy(w, pid, payment);
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////
+CreateBurnTxResult createTxForBurn(const Wallet& w, size_t amount) {
+  if (w.coins.empty()) throw std::runtime_error("Wallet has no coins!");
+  if (amount == 0) throw std::runtime_error("Payment must be positive!");
+
+  const size_t balance = calcBalance(w);
+  if (balance < amount) throw std::runtime_error("Wallet has insufficient balance!");
+
+  // [TODO-UTT] This code is similar to k_CoinStrategyPreferExactChange and it only
+  // maps to different txs using the same coins. k_CoinStrategyPreferExactChange
+  // can be made more general and reused.
+
+  using CoinRef = std::pair<size_t, size_t>;  // [coinValue, coinIdx]
+
+  std::vector<CoinRef> aux;
+
+  for (size_t i = 0; i < w.coins.size(); ++i) {
+    aux.emplace_back(w.coins[i].getValue(), i);
+  }
+
+  auto cmpCoinValue = [](const CoinRef& lhs, const CoinRef& rhs) { return lhs.first < rhs.first; };
+  std::sort(aux.begin(), aux.end(), cmpCoinValue);
+
+  auto lb = std::lower_bound(aux.begin(), aux.end(), CoinRef{amount, -1}, cmpCoinValue);
+  if (lb != aux.end()) {
+    if (lb->first > amount) {
+      return createTx_Self1t2(w, lb->second, amount);  // We can split a larger coin
+    } else {
+      return BurnOp(w.p, w.ask, w.coins.at(lb->second), w.bpk, w.rpk);  // We have an exact coin
+    }
+  } else {  // Try to merge or split two coins to get an exact amount
+    // We know that our balance is enough and no coin is >= amount (because lower_bound == end)
+    // Then we may have two coins that satisfy the amount
+    // If we don't have two coins we must merge
+    size_t low = 0;
+    size_t high = aux.size() - 1;
+    std::optional<std::pair<size_t, size_t>> match;
+    std::optional<std::pair<size_t, size_t>> exactMatch;
+
+    while (low < high) {
+      const auto sum = aux[low].first + aux[high].first;
+      if (sum == amount) {
+        exactMatch = std::make_pair(aux[low].second, aux[high].second);
+        break;  // exact found
+      } else if (sum > amount) {
+        // found a pair (but we want to look for an exact match)
+        if (!match) match = std::make_pair(aux[low].second, aux[high].second);
+        --high;
+      } else {
+        ++low;
+      }
+    }
+
+    if (exactMatch) {
+      return createTx_Self2t1(w, exactMatch->first, exactMatch->second);  // Merge to get an exact coin
+    } else if (match) {
+      return createTx_Self2t2(w, match->first, match->second, amount);  // Split two own coins
+    }
+  }
+
+  // At this point no one or two coins are sufficient to get an exact amount
+  // We merge the top two coins
+  const auto lastIdx = aux.size() - 1;
+  return createTx_Self2t1(w, aux[lastIdx - 1].second, aux[lastIdx].second);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////

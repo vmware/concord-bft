@@ -4,6 +4,7 @@
 #include <utt/Params.h>
 #include <utt/Wallet.h>
 #include <utt/Tx.h>
+#include <utt/BurnOp.h>
 
 #include <functional>
 
@@ -32,6 +33,17 @@ CreateTxResult createTxForPayment(const Wallet& w,
                                   const std::string& pid,
                                   size_t payment,
                                   const CoinStrategy& strategy = k_CoinStrategyPreferExactChange);
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+struct CreateBurnTxResult {
+  CreateBurnTxResult(CreateTxResult&& selfTx) : selfTx_{std::move(selfTx)} {}
+  CreateBurnTxResult(BurnOp&& burnOp) : burnOp_{std::move(burnOp)} {}
+
+  std::optional<CreateTxResult> selfTx_;  // Split or merge own coins to get an exact coin to burn
+  std::optional<BurnOp> burnOp_;          // Burn operation on an exact coin
+};
+
+CreateBurnTxResult createTxForBurn(const Wallet& w, size_t amount);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct PruneCoinsResult {
