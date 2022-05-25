@@ -21,6 +21,7 @@
 #include "rocksdb/time_stamp_comparator.h"
 #include <rocksdb/compaction_filter.h>
 #include "endianness.hpp"
+#include "hex_tools.h"
 
 namespace concord::kvbc::v4blockchain::detail {
 

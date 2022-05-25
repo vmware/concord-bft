@@ -382,6 +382,10 @@ std::optional<categorization::Value> KeyValueBlockchain::getValueFromUpdate(
 std::optional<categorization::Value> KeyValueBlockchain::get(const std::string &category_id,
                                                              const std::string &key,
                                                              BlockId block_id) const {
+  LOG_INFO(V4_BLOCK_LOG,
+           "Explicit get on key " << std::hash<std::string>{}(key) << " from version " << block_id << " category_id "
+                                  << category_id << " key is hex " << concordUtils::bufferToHex(key.data(), key.size())
+                                  << " raw key " << key);
   auto updates_in_block = block_chain_.getBlockUpdates(block_id);
   if (!updates_in_block) {
     return std::nullopt;
