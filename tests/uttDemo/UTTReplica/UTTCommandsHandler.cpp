@@ -86,6 +86,29 @@ class UTTReplicaApp : public UTTBlockchainApp {
           if (app_.hasNullifier(n)) throw std::domain_error("Input coin already spent!");
         }
       }
+
+      void operator()(const TxMint& tx) const {
+        if (tx.amount_ <= 0) throw std::domain_error("Mint amount must be positive!");
+        auto acc = app_.getAccountById(tx.pid_);
+        if (!acc) throw std::domain_error("Unknown account in mint tx!");
+        if (tx.amount_ > static_cast<uint32_t>(acc->getPublicBalance()))
+          throw std::domain_error("Account has insufficient public balance!");
+
+        std::string uniqueHash = tx.pid_ + "|" + std::to_string(tx.mintSeqNum_);
+        if (!tx.op_.validate(uniqueHash, tx.amount_, tx.pid_)) throw std::domain_error("Invalid mint operation!");
+
+        // [TODO-UTT] At this point we can check if the uniqueHash used for minting the coin is truly unique
+        // but this will require to keep track of all previously minted coins and their unique hashes
+      }
+
+      void operator()(const TxBurn& tx) const {
+        if (tx.op_.getValue() <= 0) throw std::domain_error("Burn amount must be positive!");
+        auto acc = app_.getAccountById(tx.op_.getOwnerPid());
+        if (!acc) throw std::domain_error("Unknown account for burn tx!");
+
+        if (!tx.op_.validate(app_.config_.p_, app_.config_.bpk_, app_.config_.rpk_))
+          throw std::domain_error("Invalid burn operation!");
+      }
     };
 
     try {
@@ -107,6 +130,29 @@ class UTTReplicaApp : public UTTBlockchainApp {
       ConcordAssert(!sigShares.empty());
 
       LOG_INFO(logger_, "Computed utt sign shares for block " << blockId << " tx: " << tx.getHashHex());
+
+      // Cache the rsi reply
+      std::stringstream ssRsi;
+      ssRsi << sigShares.size() << '\n';
+      for (const auto& sigShare : sigShares) {
+        ssRsi << sigShare;
+      }
+      result = StrToBytes(ssRsi.str());
+    }
+
+    return result;
+  }
+
+  const std::vector<uint8_t>& GetSigShareRsiForBlock(const libutt::MintOp& op, uint64_t blockId) const {
+    // Compute signature shares lazily when the block is requested
+    // Precondition: monotonically increasing blocks
+    auto& result = sigSharesRsiCache_[blockId];
+
+    if (result.empty()) {
+      auto sigShares = std::vector<libutt::RandSigShare>{op.shareSignCoin(config_.bskShare_)};
+      ConcordAssert(!sigShares.empty());
+
+      LOG_INFO(logger_, "Computed mint sign shares for block " << blockId << " tx: " << op.getHashHex());
 
       // Cache the rsi reply
       std::stringstream ssRsi;
@@ -218,6 +264,14 @@ TxReply UTTCommandsHandler::handleRequest(const TxRequest& txRequest) {
 
   if (const auto* txUtt = std::get_if<TxUtt>(&(*tx))) {
     LOG_INFO(logger_, "Handling UTT Tx: " << txUtt->utt_.getHashHex());
+  } else if (const auto* txMint = std::get_if<TxMint>(&(*tx))) {
+    LOG_INFO(logger_,
+             "Handling Mint Tx pid:" << txMint->pid_ << " amount:" << txMint->amount_
+                                     << " op: " << txMint->op_.getHashHex());
+  } else if (const auto* txBurn = std::get_if<TxBurn>(&(*tx))) {
+    LOG_INFO(logger_,
+             "Handling Burn Tx pid: " << txBurn->op_.getOwnerPid() << " amount:" << txBurn->op_.getValue()
+                                      << " op:" << txBurn->op_.getHashHex());
   } else {
     LOG_INFO(logger_, "Handling Public Tx: " << txRequest.tx);
   }
@@ -292,6 +346,8 @@ GetBlockDataReply UTTCommandsHandler::handleRequest(const GetBlockDataRequest& r
 
     if (const auto* txUtt = std::get_if<TxUtt>(&(*block->tx_))) {
       outRsi = app_->GetSigShareRsiForBlock(txUtt->utt_, req.block_id);
+    } else if (const auto* txMint = std::get_if<TxMint>(&(*block->tx_))) {
+      outRsi = app_->GetSigShareRsiForBlock(txMint->op_, req.block_id);
     }
   }
 
