@@ -967,9 +967,10 @@ void KeyValueBlockchain::pruneOnSTLink(const RawBlock& block) {
   auto key_it = internal_kvs.find(keyTypes::genesis_block_key);
   if (key_it != internal_kvs.cend()) {
     const auto block_genesis_id = concordUtils::fromBigEndianBuffer<BlockId>(key_it->second.data.data());
-    while (getGenesisBlockId() >= INITIAL_GENESIS_BLOCK_ID && getGenesisBlockId() < getLastReachableBlockId() &&
-           block_genesis_id > getGenesisBlockId()) {
-      deleteGenesisBlock();
+    if (getGenesisBlockId() >= INITIAL_GENESIS_BLOCK_ID && getGenesisBlockId() < getLastReachableBlockId()) {
+      for (auto i = getGenesisBlockId(); i < block_genesis_id; i++) {
+        ConcordAssert(deleteBlock(i));
+      }
     }
   }
 }
