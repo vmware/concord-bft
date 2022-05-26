@@ -1436,6 +1436,7 @@ void BCStateTran::trySendFetchBlocksMsg(int16_t lastKnownChunkInLastRequiredBloc
   msg.msgSeqNum = lastMsgSeqNum_;
   msg.minBlockId = fetchState_.minBlockId;
   msg.maxBlockId = fetchState_.maxBlockId;
+  msg.maxBlockIdInCycle = psd_->getLastRequiredBlock();
   msg.lastKnownChunkInLastRequiredBlock = lastKnownChunkInLastRequiredBlock;
   msg.rvbGroupId = rvbm_->getFetchBlocksRvbGroupId(msg.minBlockId, msg.maxBlockId);
 
@@ -1445,6 +1446,7 @@ void BCStateTran::trySendFetchBlocksMsg(int16_t lastKnownChunkInLastRequiredBloc
                                               msg.msgSeqNum,
                                               msg.minBlockId,
                                               msg.maxBlockId,
+                                              msg.maxBlockIdInCycle,
                                               msg.lastKnownChunkInLastRequiredBlock,
                                               msg.rvbGroupId));
 
@@ -1712,15 +1714,12 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
   return true;
 }
 
-uint16_t BCStateTran::getBlocksConcurrentAsync(uint64_t nextBlockId, uint64_t firstRequiredBlock, uint16_t numBlocks) {
+uint16_t BCStateTran::getBlocksConcurrentAsync(uint64_t maxBlockId, uint64_t minBlockId, uint16_t numBlocks) {
   ConcordAssertGE(config_.maxNumberOfChunksInBatch, numBlocks);
   size_t j{};
 
-  LOG_DEBUG(logger_, KVLOG(nextBlockId, firstRequiredBlock, numBlocks, ioPool_.numFreeElements()));
-  for (uint64_t i{nextBlockId}; (i >= firstRequiredBlock) && (j < numBlocks) && !ioPool_.empty(); --i, ++j) {
-    if (!ioContexts_.empty()) {
-      ConcordAssertEQ(i + 1, ioContexts_.back()->blockId);
-    }
+  LOG_DEBUG(logger_, KVLOG(maxBlockId, minBlockId, numBlocks, ioPool_.numFreeElements()));
+  for (uint64_t i{maxBlockId}; (i >= minBlockId) && (j < numBlocks) && !ioPool_.empty(); --i, ++j) {
     auto ctx = ioPool_.alloc();
     ctx->blockId = i;
     ctx->future = as_->getBlockAsync(ctx->blockId, ctx->blockData.get(), config_.maxBlockSize, &ctx->actualBlockSize);
@@ -1736,8 +1735,16 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
   metrics_.received_fetch_blocks_msg_++;
 
   // if msg is invalid
-  if (msgLen < sizeof(FetchBlocksMsg) || m->msgSeqNum == 0 || m->minBlockId == 0 || m->maxBlockId < m->minBlockId) {
-    LOG_WARN(logger_, "Msg is invalid: " << KVLOG(replicaId, m->msgSeqNum, m->minBlockId, m->maxBlockId));
+  if (msgLen < sizeof(FetchBlocksMsg) || m->msgSeqNum == 0 || m->minBlockId == 0 || m->maxBlockId < m->minBlockId ||
+      m->maxBlockId > m->maxBlockIdInCycle) {
+    LOG_WARN(logger_,
+             "Msg is invalid: " << KVLOG(msgLen,
+                                         sizeof(FetchBlocksMsg),
+                                         replicaId,
+                                         m->msgSeqNum,
+                                         m->minBlockId,
+                                         m->maxBlockId,
+                                         m->maxBlockIdInCycle));
     metrics_.invalid_fetch_blocks_msg_++;
     return false;
   }
