@@ -1472,6 +1472,7 @@ void BCStateTran::trySendFetchBlocksMsg(int16_t lastKnownChunkInLastRequiredBloc
   msg.maxBlockIdInCycle = psd_->getLastRequiredBlock();
   msg.lastKnownChunkInLastRequiredBlock = lastKnownChunkInLastRequiredBlock;
   msg.rvbGroupId = rvbm_->getFetchBlocksRvbGroupId(msg.minBlockId, msg.maxBlockId);
+  auto totalBlocksRequested = (msg.maxBlockId - msg.minBlockId) + 1;
 
   LOG_INFO(logger_,
            "Sending FetchBlocksMsg:" << reason
@@ -1479,6 +1480,7 @@ void BCStateTran::trySendFetchBlocksMsg(int16_t lastKnownChunkInLastRequiredBloc
                                               msg.msgSeqNum,
                                               msg.minBlockId,
                                               msg.maxBlockId,
+                                              totalBlocksRequested,
                                               msg.maxBlockIdInCycle,
                                               msg.lastKnownChunkInLastRequiredBlock,
                                               msg.rvbGroupId));
@@ -1788,7 +1790,14 @@ void BCStateTran::sendRejectFetchingMsg(const char *reason, uint64_t msgSeqNum, 
 
 bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t replicaId) {
   SCOPED_MDC_SEQ_NUM(getScopedMdcStr(replicaId, m->msgSeqNum));
-  LOG_INFO(logger_, KVLOG(replicaId, m->msgSeqNum, m->minBlockId, m->maxBlockId, m->lastKnownChunkInLastRequiredBlock));
+  LOG_INFO(logger_,
+           KVLOG(replicaId,
+                 m->msgSeqNum,
+                 m->minBlockId,
+                 m->maxBlockId,
+                 m->maxBlockIdInCycle,
+                 m->rvbGroupId,
+                 m->lastKnownChunkInLastRequiredBlock));
   metrics_.received_fetch_blocks_msg_++;
 
   // if msg is invalid
@@ -2064,7 +2073,6 @@ void BCStateTran::continueSendBatch() {
 
       if ((sb.nextBlockId - 1) < m->minBlockId) {
         batchEndReason = "Batch end - sent all relevant blocks:";
-        // LOG_INFO(logger_, "Batch end - sent all relevant blocks: " << KVLOG(m->minBlockId, m->maxBlockId));
         break;
       } else {
         // no more chunks in the block, continue to next block
@@ -3058,7 +3066,7 @@ void BCStateTran::postProcessNextBatch(uint64_t upperBoundBlockId) {
         << convertMillisecToReadableStr(timeToCompleteMs);
     LOG_INFO(logger_, oss.str());
   } else {
-    LOG_DEBUG(logger_, "Done postProcessUntilBlockId" << KVLOG(upperBoundBlockId));
+    LOG_DEBUG(logger_, "Done post-processing (iteration #" << iteration << ") " << KVLOG(upperBoundBlockId));
   }
   maxPostprocessedBlockId_ = upperBoundBlockId;
   time_in_post_processing_events_queue_rec_.start();
