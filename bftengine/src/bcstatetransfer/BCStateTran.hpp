@@ -586,6 +586,7 @@ class BCStateTran : public IStateTransfer {
   struct Metrics {
     StatusHandle fetching_state_;
 
+    GaugeHandle is_fetching_;
     GaugeHandle checkpoint_being_fetched_;
     GaugeHandle last_stored_checkpoint_;
     GaugeHandle number_of_reserved_pages_;
