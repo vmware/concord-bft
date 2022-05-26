@@ -241,7 +241,6 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
       replicaForStateTransfer_{nullptr},
       buffer_(new char[maxItemSize_]),
       randomGen_{randomDevice_()},
-      isCollectingState_{false},
       sourceSelector_{allOtherReplicas(),
                       config_.fetchRetransmissionTimeoutMs,
                       config_.sourceReplicaReplacementTimeoutMs,
@@ -365,8 +364,7 @@ void BCStateTran::initImpl(uint64_t maxNumOfRequiredStoredCheckpoints,
 
       fs = getFetchingState();
       LOG_INFO(logger_, "Starting state is " << stateName(fs));
-      isCollectingState_ = isActiveDestination(fs);
-      if (isCollectingState_) {
+      if (isActiveDestination(fs)) {
         LOG_INFO(logger_, "State Transfer cycle continues");
         startCollectingStats();
         if ((fs == FetchingState::GettingMissingBlocks) || (fs == FetchingState::GettingMissingResPages)) {
@@ -568,7 +566,7 @@ void BCStateTran::createCheckpointOfCurrentStateImpl(uint64_t checkpointNumber) 
   LOG_INFO(logger_, KVLOG(checkpointNumber, lastStoredCheckpointNumber));
 
   ConcordAssert(running_);
-  ConcordAssert(!isCollectingState_);
+  ConcordAssert(!psd_->getIsFetchingState());
   ConcordAssertGT(checkpointNumber, 0);
   ConcordAssertGT(checkpointNumber, lastStoredCheckpointNumber);
 
@@ -648,7 +646,7 @@ void BCStateTran::saveReservedPage(uint32_t reservedPageId, uint32_t copyLength,
   try {
     LOG_DEBUG(logger_, KVLOG(reservedPageId));
 
-    ConcordAssert(!isCollectingState_);
+    ConcordAssert(!psd_->getIsFetchingState());
     ConcordAssertLT(reservedPageId, numberOfReservedPages_);
     ConcordAssertLE(copyLength, config_.sizeOfReservedPage);
 
@@ -665,7 +663,7 @@ void BCStateTran::saveReservedPage(uint32_t reservedPageId, uint32_t copyLength,
 void BCStateTran::zeroReservedPage(uint32_t reservedPageId) {
   LOG_DEBUG(logger_, reservedPageId);
 
-  ConcordAssert(!isCollectingState_);
+  ConcordAssert(!psd_->getIsFetchingState());
   ConcordAssertLT(reservedPageId, numberOfReservedPages_);
 
   metrics_.zero_reserved_page_++;
@@ -823,6 +821,7 @@ void BCStateTran::startCollectingStateInternal() {
   ConcordAssert(sourceSelector_.noPreferredReplicas());
   ++internalCycleCounter_;
 
+  // between cycles, reset collecting state
   {  // txn scope
     DataStoreTransaction::Guard g(psd_->beginTransaction());
     g.txn()->deleteCheckpointBeingFetched();
@@ -830,7 +829,6 @@ void BCStateTran::startCollectingStateInternal() {
     g.txn()->setLastRequiredBlock(0);
     g.txn()->setIsFetchingState(false);
   }
-  isCollectingState_ = false;
 
   // print cycle summary
   cycleEndSummary();
@@ -839,7 +837,7 @@ void BCStateTran::startCollectingStateInternal() {
 
 void BCStateTran::startCollectingStateImpl() {
   ConcordAssert(running_);
-  if (isCollectingState_) {
+  if (psd_->getIsFetchingState()) {
     LOG_WARN(logger_, "Already in State Transfer, ignore call...");
     return;
   }
@@ -853,7 +851,6 @@ void BCStateTran::startCollectingStateImpl() {
     g.txn()->deleteAllPendingPages();
     g.txn()->setIsFetchingState(true);
   }
-  isCollectingState_ = true;
 
   // TODO - The next 4 lines do not belong here (CRE) - move outside
   LOG_INFO(logger_, "Starts async reconfiguration engine");
@@ -955,7 +952,6 @@ void BCStateTran::finalizeCycle() {
   cycleEndSummary();
   stReset(g.txn());
   g.txn()->setIsFetchingState(false);
-  isCollectingState_ = false;
   ConcordAssertEQ(getFetchingState(), FetchingState::NotFetching);
 
   // TODO - This next line should be integrated as a callback into on_transferring_complete_cb_registry_.
@@ -993,7 +989,7 @@ void BCStateTran::getStatusImpl(std::string &statusOut) {
   }
   bj.endNested();
 
-  if (isCollectingState_) {
+  if (psd_->getIsFetchingState()) {
     bj.startNested("fetchingStateDetails");
     bj.addKv("currentSource", current_source);
     bj.addKv("preferredReplicas", preferred_replicas);
@@ -1540,11 +1536,12 @@ bool BCStateTran::onMessage(const AskForCheckpointSummariesMsg *m, uint32_t msgL
 
   // if msg is not relevant
   auto lastStoredCheckpoint = psd_->getLastStoredCheckpoint();
-  if (auto seqNumInvalid = !checkValidityAndSaveMsgSeqNum(replicaId, m->msgSeqNum) || isCollectingState_ ||
+  auto isCollectingState = psd_->getIsFetchingState();
+  if (auto seqNumInvalid = !checkValidityAndSaveMsgSeqNum(replicaId, m->msgSeqNum) || isCollectingState ||
                            (m->minRelevantCheckpointNum > lastStoredCheckpoint)) {
     LOG_WARN(logger_,
              "Msg is irrelevant: " << KVLOG(
-                 isCollectingState_, seqNumInvalid, m->minRelevantCheckpointNum, lastStoredCheckpoint));
+                 isCollectingState, seqNumInvalid, m->minRelevantCheckpointNum, lastStoredCheckpoint));
     metrics_.irrelevant_ask_for_checkpoint_summaries_msg_++;
     return false;
   }
@@ -3117,7 +3114,7 @@ void BCStateTran::stReset(DataStoreTransaction *txn, bool resetRvbm, bool resetS
     txn->setAsInitialized();
     ConcordAssertEQ(getFetchingState(), FetchingState::NotFetching);
   }
-  isCollectingState_ = false;
+
   if (resetRvbm) {
     rvbm_->reset();
   }
@@ -3414,7 +3411,7 @@ void BCStateTran::processData(bool lastInBatch, uint32_t rvbDigestsSize) {
                 << std::boolalpha
                 << KVLOG(on_transferring_complete_ongoing_, targetCheckpointDesc_.checkpointNum, getFetchingState()));
         ConcordAssertEQ(fs, FetchingState::FinalizingCycle);
-        ConcordAssert(isCollectingState_);
+        ConcordAssert(psd_->getIsFetchingState());
         on_transferring_complete_future_ = std::async(std::launch::async, [this]() {
           auto size = on_transferring_complete_cb_registry_.size();
           LOG_INFO(logger_,
@@ -3830,7 +3827,7 @@ void BCStateTran::handleIncomingConsensusMessageImpl(ConsensusMsg msg) {
 
 void BCStateTran::reportLastAgreedPrunableBlockIdImpl(uint64_t lastAgreedPrunableBlockId) {
   ConcordAssert(!config_.isReadOnly);  // not supported for RO replica
-  if (isCollectingState_) {
+  if (psd_->getIsFetchingState()) {
     LOG_ERROR(logger_, "Report about pruned blocks while fetching!");
     return;
   }
