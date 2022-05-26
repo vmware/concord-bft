@@ -141,8 +141,11 @@ class RangeValidationTree {
   size_t totalLevels() const { return root_ ? root_->info_.level() : 0; }
 
   // Metrics
-  void updateMetricToAggregator() { metrics_component_.UpdateAggregator(); }
+  void UpdateAggregator() { metrics_component_.UpdateAggregator(); }
   concordMetrics::Component& getMetricComponent() { return metrics_component_; }
+  void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
+    metrics_component_.SetAggregator(aggregator);
+  }
 
  public:
   struct NodeVal {

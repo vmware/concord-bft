@@ -137,9 +137,10 @@ class RVBManager {
   // Returns the source in which the RVB data was loaded, since last boot. This is useful for debugging.
   RvbDataInitialSource getRvbDataSource() const { return rvb_data_source_; }
 
-  void updateMetricToAggregator();
+  void UpdateAggregator();
   concordMetrics::Component& getMetricComponent() { return metrics_component_; }
   concordMetrics::Component& getRvtMetricComponent();
+  void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator);
 
  protected:
   // logging
