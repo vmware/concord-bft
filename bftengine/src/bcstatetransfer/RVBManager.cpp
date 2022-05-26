@@ -35,12 +35,12 @@ RVBManager::RVBManager(const Config& config, const IAppState* state_api, const s
       rvb_data_source_(RvbDataInitialSource::NIL),
       metrics_component_{
           concordMetrics::Component("state_transfer_rvb_manager", std::make_shared<concordMetrics::Aggregator>())},
-      metrics_{metrics_component_.RegisterCounter("report_during_checkpointing_errors_"),
-               metrics_component_.RegisterCounter("pruning_reports_"),
-               metrics_component_.RegisterCounter("failures_while_setting_serialized_rvt_"),
-               metrics_component_.RegisterGauge("pruning_vector_elements_count_", 0),
-               metrics_component_.RegisterGauge("pruning_vector_size_in_bytes_", 0),
-               metrics_component_.RegisterGauge("stored_rvb_digests_size_in_bytes_", 0)} {
+      metrics_{metrics_component_.RegisterCounter("report_during_checkpointing_errors"),
+               metrics_component_.RegisterCounter("pruning_reports"),
+               metrics_component_.RegisterCounter("failures_while_setting_serialized_rvt"),
+               metrics_component_.RegisterGauge("pruning_vector_elements_count", 0),
+               metrics_component_.RegisterGauge("pruning_vector_size_in_bytes", 0),
+               metrics_component_.RegisterGauge("stored_rvb_digests_size_in_bytes", 0)} {
   LOG_TRACE(logger_, "");
   last_checkpoint_desc_.makeZero();
 }
@@ -781,12 +781,17 @@ std::string RVBManager::getStateOfRvbData() const {
   return val.empty() ? "EMPTY" : val;
 }
 
-void RVBManager::updateMetricToAggregator() {
+void RVBManager::UpdateAggregator() {
   metrics_component_.UpdateAggregator();
-  in_mem_rvt_->updateMetricToAggregator();
+  in_mem_rvt_->UpdateAggregator();
 }
 
 concordMetrics::Component& RVBManager::getRvtMetricComponent() { return in_mem_rvt_->getMetricComponent(); }
+
+void RVBManager::setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
+  metrics_component_.SetAggregator(aggregator);
+  in_mem_rvt_->setAggregator(aggregator);
+}
 
 bool RVBManager::validate() const {
   // TODO - consider a pedantic mode, in which we also validate level 1 (end of ST) as well by fetching all block

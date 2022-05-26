@@ -138,11 +138,11 @@ BCStateTran::Metrics BCStateTran::createRegisterMetrics() {
       metrics_component_.RegisterGauge("number_of_reserved_pages", 0),
       metrics_component_.RegisterGauge("size_of_reserved_page", config_.sizeOfReservedPage),
       metrics_component_.RegisterGauge("last_msg_seq_num", lastMsgSeqNum_),
-      metrics_component_.RegisterGauge("next_required_block_", fetchState_.nextBlockId),
+      metrics_component_.RegisterGauge("next_required_block", fetchState_.nextBlockId),
       metrics_component_.RegisterGauge("next_block_id_to_commit", commitState_.nextBlockId),
-      metrics_component_.RegisterGauge("num_pending_item_data_msgs_", pendingItemDataMsgs.size()),
+      metrics_component_.RegisterGauge("num_pending_item_data_msgs", pendingItemDataMsgs.size()),
       metrics_component_.RegisterGauge("total_size_of_pending_item_data_msgs", totalSizeOfPendingItemDataMsgs),
-      metrics_component_.RegisterAtomicGauge("last_block_", 0),
+      metrics_component_.RegisterAtomicGauge("last_block", 0),
       metrics_component_.RegisterGauge("last_reachable_block", 0),
 
       metrics_component_.RegisterCounter("sent_ask_for_checkpoint_summaries_msg"),
@@ -158,7 +158,7 @@ BCStateTran::Metrics BCStateTran::createRegisterMetrics() {
       metrics_component_.RegisterCounter("received_fetch_res_pages_msg"),
       metrics_component_.RegisterCounter("received_reject_fetching_msg"),
       metrics_component_.RegisterCounter("received_item_data_msg"),
-      metrics_component_.RegisterCounter("received_illegal_msg_"),
+      metrics_component_.RegisterCounter("received_illegal_msg"),
 
       metrics_component_.RegisterCounter("invalid_ask_for_checkpoint_summaries_msg"),
       metrics_component_.RegisterCounter("irrelevant_ask_for_checkpoint_summaries_msg"),
@@ -274,14 +274,14 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
           concordMetrics::Component("bc_state_transfer", std::make_shared<concordMetrics::Aggregator>())},
       metrics_{createRegisterMetrics()},
       on_transferring_complete_ongoing_{false},
-      blocksFetched_(config_.gettingMissingBlocksSummaryWindowSize, "blocksFetched_"),
-      bytesFetched_(config_.gettingMissingBlocksSummaryWindowSize, "bytesFetched_"),
-      blocksPostProcessed_(blocksPostProcessedReportWindow, "blocksPostProcessed_"),
-      cycleDT_{"cycleDT_"},
-      postProcessingDT_{"postProcessingDT_"},
-      gettingCheckpointSummariesDT_{"gettingCheckpointSummariesDT_"},
-      gettingMissingBlocksDT_{"gettingMissingBlocksDT_"},
-      gettingMissingResPagesDT_{"gettingMissingResPagesDT_"},
+      blocksFetched_(config_.gettingMissingBlocksSummaryWindowSize, "blocksFetched"),
+      bytesFetched_(config_.gettingMissingBlocksSummaryWindowSize, "bytesFetched"),
+      blocksPostProcessed_(blocksPostProcessedReportWindow, "blocksPostProcessed"),
+      cycleDT_{"cycleDT"},
+      postProcessingDT_{"postProcessingDT"},
+      gettingCheckpointSummariesDT_{"gettingCheckpointSummariesDT"},
+      gettingMissingBlocksDT_{"gettingMissingBlocksDT"},
+      gettingMissingResPagesDT_{"gettingMissingResPagesDT"},
       lastFetchingState_(FetchingState::NotFetching),
       sourceSession_(logger_, config.sourceSessionExpiryDurationMs),
       src_send_batch_duration_rec_(histograms_.src_send_batch_duration),
@@ -889,8 +889,8 @@ void BCStateTran::onTimerImpl() {
   if ((currentTimeMilli - lastAggregatorUpdateTimeMilli) > config_.refreshTimerMs) {
     LOG_TRACE(logger_, "Updating all aggregators...");
     metrics_component_.UpdateAggregator();
-    sourceSelector_.updateMetricToAggregator();
-    rvbm_->updateMetricToAggregator();
+    sourceSelector_.UpdateAggregator();
+    rvbm_->UpdateAggregator();
     lastAggregatorUpdateTimeMilli = currentTimeMilli;
   }
 
@@ -3794,6 +3794,7 @@ Digest BCStateTran::getBlockAndComputeDigest(uint64_t currBlock) {
 void BCStateTran::setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
   sourceSelector_.setAggregator(aggregator);
   metrics_component_.SetAggregator(aggregator);
+  rvbm_->setAggregator(aggregator);
 }
 
 inline std::string BCStateTran::getScopedMdcStr(uint16_t replicaId,

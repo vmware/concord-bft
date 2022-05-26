@@ -328,13 +328,13 @@ RangeValidationTree::RangeValidationTree(const logging::Logger& logger,
       value_size_(value_size),
       metrics_component_{
           concordMetrics::Component("range_validation_tree", std::make_shared<concordMetrics::Aggregator>())},
-      metrics_{metrics_component_.RegisterGauge("rvt_size_in_bytes_", 0),
+      metrics_{metrics_component_.RegisterGauge("rvt_size_in_bytes", 0),
                metrics_component_.RegisterGauge("total_rvt_nodes", 0),
                metrics_component_.RegisterGauge("total_rvt_levels", 0),
-               metrics_component_.RegisterGauge("rvt_min_rvb_id_", 0),
-               metrics_component_.RegisterGauge("rvt_max_rvb_id_", 0),
-               metrics_component_.RegisterGauge("serialized_rvt_size_", 0),
-               metrics_component_.RegisterCounter("rvt_validation_failures_")} {
+               metrics_component_.RegisterGauge("rvt_min_rvb_id", 0),
+               metrics_component_.RegisterGauge("rvt_max_rvb_id", 0),
+               metrics_component_.RegisterGauge("serialized_rvt_size", 0),
+               metrics_component_.RegisterCounter("rvt_validation_failures")} {
   LOG_INFO(logger_, KVLOG(RVT_K, fetch_range_size_, value_size));
   NodeVal::kNodeValueModulo_ = NodeVal::calcModulo(value_size_);
   ConcordAssert(NodeVal::kNodeValueModulo_ != NodeVal_t(static_cast<signed long>(0)));

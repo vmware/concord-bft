@@ -128,7 +128,7 @@ class SourceSelector {
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
     metrics_component_.SetAggregator(aggregator);
   }
-  void updateMetricToAggregator() { metrics_component_.UpdateAggregator(); }
+  void UpdateAggregator() { metrics_component_.UpdateAggregator(); }
   concordMetrics::Component &getMetricComponent() { return metrics_component_; }
 
  private:
