@@ -116,7 +116,6 @@ CreateTxResult createTx_Self2t2(const Wallet& w, size_t coinIdx1, size_t coinIdx
   result.txType_ = "coin-split";
   result.inputNormalCoinValues_.emplace_back(inputCoins[0].getValue());
   result.inputNormalCoinValues_.emplace_back(inputCoins[1].getValue());
-  // [TODO-UTT] Fix, change recipients to a vector
   result.recipients_.emplace(w.getUserPid(), value1.as_ulong());
   result.recipients_.emplace(w.getUserPid(), value2.as_ulong());
   result.tx = Tx(w.p, w.ask, inputCoins, std::nullopt, recip, w.bpk, w.rpk);
