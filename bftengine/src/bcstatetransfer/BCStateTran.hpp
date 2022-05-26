@@ -540,8 +540,9 @@ class BCStateTran : public IStateTransfer {
   // call for any timeout greater than config_.refreshTimerMs.
   void addOneShotTimer(uint32_t timeoutMilli, std::string&& reason = "");
 
-  // returns number of jobs pushed to queue
-  uint16_t getBlocksConcurrentAsync(uint64_t nextBlockId, uint64_t firstRequiredBlock, uint16_t numBlocks);
+  // Fetch (Async) numBlocks from storage, starting from block maxBlockId, and not crossing minBlockId.
+  // Returns number of jobs pushed to queue
+  uint16_t getBlocksConcurrentAsync(uint64_t maxBlockId, uint64_t minBlockId, uint16_t numBlocks);
 
   void clearIoContexts() {
     for (auto& ctx : ioContexts_) ioPool_.free(ctx);
