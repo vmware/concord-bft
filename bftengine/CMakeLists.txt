@@ -36,6 +36,7 @@ set(corebft_source_files
     src/bftengine/RequestsBatchingLogic.cpp
     src/bftengine/ReplicaStatusHandlers.cpp
     src/bcstatetransfer/BCStateTran.cpp
+    src/bcstatetransfer/BCStateTranInterface.cpp
     src/bcstatetransfer/RVBManager.cpp
     src/bcstatetransfer/InMemoryDataStore.cpp
     src/bcstatetransfer/DBDataStore.cpp
