@@ -268,7 +268,7 @@ class UTTClientApp : public UTTBlockchainApp {
   size_t getUttBudget() const { return wallet_.budgetCoin ? wallet_.budgetCoin->getValue() : 0; }
 
   template <typename T>
-  std::string fmtCurrency(T val) {
+  std::string fmtCurrency(T val) const {
     return "$" + std::to_string(val);
   }
 
@@ -620,6 +620,23 @@ void printAccounts(UTTClientApp& app) {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+void printCreateTxResult(const UTTClientApp& app, const libutt::Client::CreateTxResult& result) {
+  // Describe what the utt transaction intends to do.
+  std::cout << "\nCreated UTT tx " << result.tx.getHashHex() << '\n';
+  std::cout << "  Type: " << result.txType_ << '\n';
+  for (size_t coinValue : result.inputNormalCoinValues_)
+    std::cout << "  - '" << app.myPid_ << "' will spend " << app.fmtCurrency(coinValue) << " normal coin.\n";
+  if (result.inputBudgetCoinValue_)
+    std::cout << "  - '" << app.myPid_ << "' will spend " << app.fmtCurrency(*result.inputBudgetCoinValue_)
+              << " budget coin.\n";
+  for (const auto& [pid, coinValue] : result.recipients_)
+    std::cout << "  + '" << pid << "' will receive " << app.fmtCurrency(coinValue) << " normal coin.\n";
+  if (result.outputBudgetCoinValue_)
+    std::cout << "  + '" << app.myPid_ << "' will receive " << app.fmtCurrency(*result.outputBudgetCoinValue_)
+              << " budget coin.\n";
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 void checkBalance(UTTClientApp& app, WalletCommunicator& comm) {
   syncState(app, comm);
 
@@ -660,22 +677,7 @@ void mintCoin(UTTClientApp& app, WalletCommunicator& comm, size_t amount) {
   std::cout << " - '" << app.myPid_ << "' will spend " << app.fmtCurrency(amount) << " public money.\n";
   std::cout << " + '" << app.myPid_ << "' will receive " << app.fmtCurrency(amount) << " coin.\n";
 
-  TxMint txMint(app.myPid_, mintSeqNum, amount, std::move(mintOp));
-
-  Tx tx = Tx(std::move(txMint));
-
-  {
-    std::stringstream ss;
-    ss << tx;
-    auto parsedTx = parseTx(ss.str());
-    ConcordAssert(parsedTx.has_value());
-    const auto* parsedTxMint = std::get_if<TxMint>(&(*parsedTx));
-    ConcordAssert(parsedTxMint != nullptr);
-    ConcordAssert(parsedTxMint->pid_ == app.myPid_);
-    ConcordAssert(parsedTxMint->mintSeqNum_ == mintSeqNum);
-    ConcordAssert(parsedTxMint->amount_ == amount);
-    ConcordAssert(parsedTxMint->op_ == mintOp)
-  }
+  Tx tx = TxMint(app.myPid_, mintSeqNum, amount, std::move(mintOp));
 
   auto reply = sendTxRequest(comm, tx);
   if (reply.success) {
@@ -722,14 +724,7 @@ void burnCoin(UTTClientApp& app, WalletCommunicator& comm, size_t amount) {
 
       break;  // Done
     } else if (result.selfTx_) {
-      // [TODO-UTT] Copy pasted from runUttPayment
-      // Describes what the utt transaction intends to do.
-      std::cout << "\nCreated UTT tx " << result.selfTx_->tx.getHashHex() << '\n';
-      std::cout << "  Type: " << result.selfTx_->txType_ << '\n';
-      for (size_t coinValue : result.selfTx_->inputNormalCoinValues_)
-        std::cout << "  - '" << app.myPid_ << "' will spend " << app.fmtCurrency(coinValue) << " normal coin.\n";
-      for (const auto& [pid, coinValue] : result.selfTx_->recipients_)
-        std::cout << "  + '" << pid << "' will receive " << app.fmtCurrency(coinValue) << " normal coin.\n";
+      printCreateTxResult(app, *result.selfTx_);
 
       Tx tx = TxUtt(std::move(result.selfTx_->tx));
 
@@ -768,18 +763,7 @@ void runUttPayment(const UttPayment& payment, UTTClientApp& app, WalletCommunica
     auto result = libutt::Client::createTxForPayment(app.wallet_, payment.receiver_, payment.amount_);
 
     // Describe what the utt transaction intends to do.
-    std::cout << "\nCreated UTT tx " << result.tx.getHashHex() << '\n';
-    std::cout << "  Type: " << result.txType_ << '\n';
-    for (size_t coinValue : result.inputNormalCoinValues_)
-      std::cout << "  - '" << app.myPid_ << "' will spend " << app.fmtCurrency(coinValue) << " normal coin.\n";
-    if (result.inputBudgetCoinValue_)
-      std::cout << "  - '" << app.myPid_ << "' will spend " << app.fmtCurrency(*result.inputBudgetCoinValue_)
-                << " budget coin.\n";
-    for (const auto& [pid, coinValue] : result.recipients_)
-      std::cout << "  + '" << pid << "' will receive " << app.fmtCurrency(coinValue) << " normal coin.\n";
-    if (result.outputBudgetCoinValue_)
-      std::cout << "  + '" << app.myPid_ << "' will receive " << app.fmtCurrency(*result.outputBudgetCoinValue_)
-                << " budget coin.\n";
+    printCreateTxResult(app, result);
 
     // We assume that any tx with a budget coin must be an actual payment
     // and not a coin split or merge.
