@@ -176,6 +176,8 @@ struct Config {
   uint32_t maxFetchRetransmissions = 0;
   uint32_t metricsDumpIntervalSec = 0;
   uint32_t maxTimeSinceLastExecutionInMainWindowMs = 0;
+  uint32_t sourceSessionExpiryDurationMs = 0;
+  uint32_t sourcePerformanceSnapshotFrequencySec = 0;
 
   // misc
   bool runInSeparateThread = true;
@@ -212,6 +214,8 @@ inline std::ostream &operator<<(std::ostream &os, const Config &c) {
               c.maxFetchRetransmissions,
               c.metricsDumpIntervalSec,
               c.maxTimeSinceLastExecutionInMainWindowMs,
+              c.sourceSessionExpiryDurationMs,
+              c.sourcePerformanceSnapshotFrequencySec,
               c.runInSeparateThread,
               c.enableReservedPages,
               c.enableSourceBlocksPreFetch,
