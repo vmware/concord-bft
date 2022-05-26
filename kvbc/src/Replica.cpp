@@ -552,7 +552,7 @@ Replica::Replica(ICommunication *comm,
     replicaConfig_.get("concord.bft.st.enableSourceSelectorPrimaryAwareness", true),
     replicaConfig_.get("concord.bft.st.enableStoreRvbDataDuringCheckpointing", true)
   };
-  if (replicaConfig_.isReadOnly) stConfig.runInSeparateThread = false;
+  stConfig.runInSeparateThread = replicaConfig_.isReadOnly ? false : true;
 
 #if !defined USE_COMM_PLAIN_TCP && !defined USE_COMM_TLS_TCP
   // maxChunkSize * maxNumberOfChunksInBatch shouldn't exceed UDP message size which is limited to 64KB
