@@ -23,6 +23,7 @@
 #include "ClientsManager.hpp"
 #include "KeyStore.h"
 #include "bcstatetransfer/AsyncStateTransferCRE.hpp"
+#include "client/reconfiguration/poll_based_state_client.hpp"
 
 namespace bftEngine::impl {
 using namespace std::chrono_literals;
@@ -64,6 +65,37 @@ ReplicaForStateTransfer::ReplicaForStateTransfer(const ReplicaConfig &config,
 void ReplicaForStateTransfer::start() {
   cre_ = bftEngine::bcst::asyncCRE::CreFactory::create(msgsCommunicator_, msgHandlers_);
   stateTransfer->setReconfigurationEngine(cre_);
+  stateTransfer->addOnTransferringCompleteCallback(
+      [this](std::uint64_t) {
+        // TODO - The next lines up to comment 'YYY' do not belong here (CRE) - consider refactor or move outside
+        if (!config_.isReadOnly) {
+          // At this point, we, if are not going to have another blocks in state transfer. So, we can safely stop CRE.
+          // if there is a reconfiguration state change that prevents us from starting another state transfer (i.e.
+          // scaling) then CRE probably won't work as well.
+          // 1. First, make sure we handled the most recent available updates.
+          concord::client::reconfiguration::PollBasedStateClient *pbc =
+              (concord::client::reconfiguration::PollBasedStateClient *)(cre_->getStateClient());
+          bool succ = false;
+          while (!succ) {
+            auto latestHandledUpdate = cre_->getLatestKnownUpdateBlock();
+            auto latestReconfUpdates = pbc->getStateUpdate(succ);
+            if (!succ) {
+              LOG_ERROR(GL, "unable to get the latest reconfiguration updates");
+            }
+            for (const auto &update : latestReconfUpdates) {
+              if (update.blockid > latestHandledUpdate) {
+                succ = false;
+                break;
+              }  // else if (!isGettingBlocks)
+              LOG_INFO(GL, "halting cre");
+              // 2. Now we can safely halt cre. We know for sure that there are no update in the state transffered
+              // blocks that haven't been handled yet
+              cre_->halt();
+            }
+          }  // while (!succ) {
+        }
+      },
+      IStateTransfer::StateTransferCallBacksPriorities::HIGH);
   stateTransfer->startRunning(this);
   ReplicaBase::start();  // msg communicator should be last in the starting chain
 }
