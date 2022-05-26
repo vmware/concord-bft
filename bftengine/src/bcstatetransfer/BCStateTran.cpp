@@ -1822,6 +1822,13 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
     return false;
   }
 
+  uint64_t numBlocksRequested = static_cast<uint64_t>(m->maxBlockId - m->minBlockId + 1);
+  if (numBlocksRequested > config_.maxNumberOfChunksInBatch) {
+    sendRejectFetchingMsg(
+        "Number of blocks requested exceeds config_.maxNumberOfChunksInBatch", m->msgSeqNum, replicaId);
+    return false;
+  }
+
   FetchingState fetchingState = getFetchingState();
   auto lastReachableBlockNum = as_->getLastReachableBlockNum();
 
@@ -2279,6 +2286,7 @@ bool BCStateTran::onMessage(const RejectFetchingMsg *m, uint32_t msgLen, uint16_
     return false;
   }
 
+  LOG_INFO(logger_, "Received RejectFetchingMsg:" << KVLOG(replicaId, m->requestMsgSeqNum));
   if (sourceSelector_.isPreferredSourceId(replicaId)) {
     LOG_WARN(logger_, "Removing replica from preferred replicas: " << KVLOG(replicaId));
     sourceSelector_.removeCurrentReplica();
