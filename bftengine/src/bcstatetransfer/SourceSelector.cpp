@@ -91,6 +91,7 @@ bool SourceSelector::retransmissionTimeoutExpired(uint64_t currTimeMilli) const 
   auto diff = (currTimeMilli - fetchingTimeStamp_);
   if (diff > retransmissionTimeoutMilli_) {
     LOG_DEBUG(logger_, "Retransmit:" << KVLOG(diff, currTimeMilli, fetchingTimeStamp_, retransmissionTimeoutMilli_));
+    metrics_.total_retransmissions_expired_++;
     return true;
   }
   return false;

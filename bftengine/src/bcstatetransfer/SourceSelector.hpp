@@ -67,7 +67,8 @@ class SourceSelector {
                  metrics_component_.RegisterCounter("replacement_due_to_retransmission_timeout"),
                  metrics_component_.RegisterCounter("replacement_due_to_periodic_change"),
                  metrics_component_.RegisterCounter("replacement_due_to_source_same_as_primary"),
-                 metrics_component_.RegisterCounter("total_replacements")} {}
+                 metrics_component_.RegisterCounter("total_replacements"),
+                 metrics_component_.RegisterCounter("total_retransmissions_expired")} {}
 
   bool hasSource() const;
   void removeCurrentReplica();
@@ -173,6 +174,8 @@ class SourceSelector {
     CounterHandle replacement_due_to_periodic_change_;
     CounterHandle replacement_due_to_source_same_as_primary_;
     CounterHandle total_replacements_;
+
+    CounterHandle total_retransmissions_expired_;
   };
   mutable Metrics metrics_;
 };
