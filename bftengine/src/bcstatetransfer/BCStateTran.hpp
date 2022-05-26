@@ -779,7 +779,7 @@ class BCStateTran : public IStateTransfer {
     SourceBatch() : active{false} {}
     std::string toString() const;
     void init(uint64_t batchNumber,
-              uint64_t nextBlockId,
+              uint64_t maxBlockId,
               uint64_t nextChunk,
               uint64_t maxBlockIdInCycle,
               bool getNextBlock,

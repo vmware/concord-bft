@@ -3942,7 +3942,7 @@ std::string BCStateTran::SourceBatch::toString() const {
 }
 
 void BCStateTran::SourceBatch::init(uint64_t batchNumber,
-                                    uint64_t nextBlockId,
+                                    uint64_t maxBlockId,
                                     uint64_t nextChunk,
                                     uint64_t maxBlockIdInCycle,
                                     bool getNextBlock,
@@ -3953,15 +3953,14 @@ void BCStateTran::SourceBatch::init(uint64_t batchNumber,
   numSentBytes = 0;
   numSentChunks = 0;
   active = true;
-  prefetched = true;
   this->batchNumber = batchNumber;
-  this->nextBlockId = nextBlockId;
+  this->nextBlockId = maxBlockId;
   this->nextChunk = nextChunk;
   this->getNextBlock = getNextBlock;
   if (!config.enableSourceBlocksPreFetch) {
     preFetchBlockId = 0;
   } else {
-    preFetchBlockId = std::min(maxBlockIdInCycle, nextBlockId + config.maxNumberOfChunksInBatch);
+    preFetchBlockId = std::min(maxBlockIdInCycle, maxBlockId + config.maxNumberOfChunksInBatch);
   }
   this->rvbGroupDigestsExpectedSize = rvbGroupDigestsExpectedSize;
   this->destRequest = *msg;
