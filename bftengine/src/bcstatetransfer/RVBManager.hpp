@@ -189,7 +189,7 @@ class RVBManager {
                                   uint64_t max_block_id,
                                   const std::optional<Digest>& digest_of_max_block_id);
   // returns the next RVB ID after block_id. If block_id is an RVB ID, returns block_id.
-  inline RVBId nextRvbBlockId(BlockId block_id) const;
+  RVBId nextRvbBlockId(BlockId block_id) const;
 
   // returns the previous RVB ID to block_id. If block_id is an RVB ID, returns block_id.
   // If there is no previous RVB ID, 0 is returned
