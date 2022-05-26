@@ -549,7 +549,7 @@ class BCStateTran : public IStateTransfer {
   // Fetch (Async) numBlocks from storage, starting from block maxBlockId, and not crossing minBlockId.
   // Returns number of jobs pushed to queue
   uint16_t getBlocksConcurrentAsync(uint64_t maxBlockId, uint64_t minBlockId, uint16_t numBlocks);
-
+  void sourcePrepareBatch(uint64_t numBlocksRequested);
   void clearIoContexts();
 
   // lastBlock: is true if we put the oldest block (firstRequiredBlock)
@@ -667,6 +667,10 @@ class BCStateTran : public IStateTransfer {
     CounterHandle src_overall_batches_sent_;
     CounterHandle src_overall_prefetched_batches_sent_;
     CounterHandle src_overall_on_spot_batches_sent_;
+
+    GaugeHandle src_num_io_contexts_dropped_;
+    GaugeHandle src_num_io_contexts_invoked_;
+    CounterHandle src_num_io_contexts_consumed_;
   };
   mutable Metrics metrics_;
   Metrics createRegisterMetrics();
