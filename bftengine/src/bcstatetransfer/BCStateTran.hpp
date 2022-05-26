@@ -799,7 +799,6 @@ class BCStateTran : public IStateTransfer {
     FetchBlocksMsg destRequest;
     uint16_t destReplicaId;
     bool prefetched;  // true if this batch succeed with pre-fetch prediction
-    IReplicaForStateTransfer* replicaForStateTransfer;
   };
 
   SourceBatch sourceBatch_;
