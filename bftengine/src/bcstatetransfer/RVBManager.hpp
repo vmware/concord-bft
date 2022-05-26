@@ -163,9 +163,7 @@ class RVBManager {
 
   // RVB data update during checkpointing / pruning
   std::vector<std::pair<BlockId, Digest>> pruned_blocks_digests_;
-  std::mutex pruned_blocks_digests_mutex_;
   CheckpointDesc last_checkpoint_desc_;
-  std::atomic_bool prune_report_in_progess_;
 
   // Actual RVB data
   // RangeValidationTree is an incomplete type, define a deleter for the unique ptr
@@ -176,9 +174,7 @@ class RVBManager {
   RvbDataInitialSource rvb_data_source_;
 
   concordMetrics::Component metrics_component_;
-  struct Metrics {
-    concordMetrics::CounterHandle report_during_checkpointing_errors_;
-  };
+  struct Metrics {};  // As of now, this is a place holder for metrics to be added
   mutable Metrics metrics_;
 
  protected:

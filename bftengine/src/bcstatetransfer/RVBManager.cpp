@@ -39,12 +39,12 @@ RVBManager::RVBManager(const Config& config, const IAppState* state_api, const s
       config_{config},
       as_{state_api},
       ds_{ds},
-      prune_report_in_progess_{false},
       in_mem_rvt_{new RangeValidationTree(logger_, config_.RVT_K, config_.fetchRangeSize)},
       rvb_data_source_(RvbDataInitialSource::NIL),
       metrics_component_{
           concordMetrics::Component("state_transfer_rvb_manager", std::make_shared<concordMetrics::Aggregator>())},
-      metrics_{metrics_component_.RegisterCounter("report_during_checkpointing_errors_")} {
+      metrics_{}  // As of now, this is a place holder for metrics to be added
+{
   LOG_TRACE(logger_, "");
   last_checkpoint_desc_.makeZero();
 }
@@ -54,7 +54,6 @@ void RVBManager::init(bool fetching) {
   bool loaded_from_data_store = false;
   static constexpr bool print_rvt = true;
   CheckpointDesc desc{0};
-  std::lock_guard<std::mutex> guard(pruned_blocks_digests_mutex_);
 
   if (ds_->hasCheckpointBeingFetched()) {
     ConcordAssert(fetching);
@@ -124,21 +123,6 @@ void RVBManager::init(bool fetching) {
 
 // Remove (Prune) blocks from RVT, and from pruned_blocks_digests_ data structure
 void RVBManager::pruneRvbDataDuringCheckpoint(const CheckpointDesc& new_checkpoint_desc) {
-  // The next if section is implemented a simplified detection mechanism.
-  // We know that in the long term this function is called many times. We would like to be sure that prune reports are
-  // not called at the same time checkpointing is called. The issue that may raise is that the RVT might get temporarily
-  // non-syncretized between replicas. This is not fatal, but a short instability (and the severity depends on number of
-  // non-synchronized groups).
-  // Remember that there is a mutex to block multiple threads from accessing pruned_blocks_digests_ at the same
-  // time and thread might stop after passing the next block, so there can't be any race condition here.
-  if (prune_report_in_progess_) {
-    metrics_.report_during_checkpointing_errors_++;
-    LOG_WARN(logger_,
-             "Unexpected pruning during checkpointing:" << KVLOG(
-                 prune_report_in_progess_, metrics_.report_during_checkpointing_errors_.Get().Get()));
-    // we continue
-  }
-  std::lock_guard<std::mutex> guard(pruned_blocks_digests_mutex_);
   LOG_TRACE(logger_,
             KVLOG(pruned_blocks_digests_.size(),
                   new_checkpoint_desc.checkpointNum,
@@ -706,10 +690,8 @@ RVBId RVBManager::nextRvbBlockId(BlockId block_id) const {
 }
 
 void RVBManager::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBlockId) {
-  std::lock_guard<std::mutex> guard(pruned_blocks_digests_mutex_);
   DurationTracker<std::chrono::milliseconds> store_pruned_digests_dt("store_pruned_digests_dt", true);
-  prune_report_in_progess_ = true;
-  LOG_TRACE(logger_, KVLOG(lastAgreedPrunableBlockId, prune_report_in_progess_));
+  LOG_TRACE(logger_, KVLOG(lastAgreedPrunableBlockId));
   auto initial_size = pruned_blocks_digests_.size();
   RVBId start_rvb_id = in_mem_rvt_->getMinRvbId();
 
@@ -722,7 +704,6 @@ void RVBManager::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBloc
   if (lastAgreedPrunableBlockId < start_rvb_id) {
     LOG_WARN(logger_,
              "Current pruning report has no impact on RVB data:" << KVLOG(lastAgreedPrunableBlockId, start_rvb_id));
-    prune_report_in_progess_ = false;
     return;
   }
 
@@ -767,7 +748,6 @@ void RVBManager::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBloc
                                                               pruned_blocks_digests_.front().first,
                                                               pruned_blocks_digests_.back().first));
   }
-  prune_report_in_progess_ = false;
 }
 
 std::string RVBManager::getStateOfRvbData() const {
@@ -788,7 +768,6 @@ void RVBManager::reset(RvbDataInitialSource inital_source) {
   stored_rvb_digests_group_ids_.clear();
   last_checkpoint_desc_.makeZero();
   rvb_data_source_ = inital_source;
-  prune_report_in_progess_ = false;
   // we do not clear the pruned digests
 }
 
