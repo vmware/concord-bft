@@ -3254,34 +3254,6 @@ void BCStateTran::processData(bool lastInBatch, uint32_t rvbDigestsSize) {
 
         checkConsistency(config_.pedanticChecks);
 
-        // TODO - The next lines up to comment 'YYY' do not belong here (CRE) - move outside
-        if (!config_.isReadOnly && cre_) {
-          // At this point, we, if are not going to have another blocks in state transfer. So, we can safely stop CRE.
-          // if there is a reconfiguration state change that prevents us from starting another state transfer (i.e.
-          // scaling) then CRE probably won't work as well.
-          // 1. First, make sure we handled the most recent available updates.
-          concord::client::reconfiguration::PollBasedStateClient *pbc =
-              (concord::client::reconfiguration::PollBasedStateClient *)(cre_->getStateClient());
-          bool succ = false;
-          while (!succ) {
-            auto latestHandledUpdate = cre_->getLatestKnownUpdateBlock();
-            auto latestReconfUpdates = pbc->getStateUpdate(succ);
-            if (!succ) {
-              LOG_ERROR(logger_, "unable to get the latest reconfiguration updates");
-            }
-            for (const auto &update : latestReconfUpdates) {
-              if (update.blockid > latestHandledUpdate) {
-                succ = false;
-                break;
-              }  // else if (!isGettingBlocks)
-              LOG_INFO(logger_, "halting cre");
-              // 2. Now we can safely halt cre. We know for sure that there are no update in the state transffered
-              // blocks that haven't been handled yet
-              cre_->halt();
-            }
-          }  // while (!succ) {
-        }    // if (!config_.isReadOnly && cre_) {
-        /// YYY - end of section to be moved out
 
         // Report Completion
         LOG_INFO(logger_,
