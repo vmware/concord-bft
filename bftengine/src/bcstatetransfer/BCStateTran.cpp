@@ -2060,7 +2060,7 @@ void BCStateTran::continueSendBatch() {
 
       // We are done using this context. We can now use it to prefetch future batch block.
       if (sb.preFetchBlockId > 0) {
-        getBlocksConcurrentAsync(sb.preFetchBlockId, m->minBlockId, 1);
+        getBlocksConcurrentAsync(sb.preFetchBlockId, m->maxBlockId + 1, 1);
         --sb.preFetchBlockId;
       }
     };
