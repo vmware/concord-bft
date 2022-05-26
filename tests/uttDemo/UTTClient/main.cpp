@@ -275,6 +275,9 @@ class UTTClientApp : public UTTBlockchainApp {
   std::string myPid_;
   std::set<std::string> otherPids_;
   libutt::Wallet wallet_;
+  // [TODO-UTT] Compare these values with the provided config (equality is assumed)
+  uint16_t numReplicas_ = 4;
+  uint16_t sigThresh_ = 2;  // F + 1
 
  private:
   void executeTx(const Tx& tx) override {
@@ -282,19 +285,22 @@ class UTTClientApp : public UTTBlockchainApp {
 
     // Client removes spent coins and attempts to claim output coins
     if (const auto* txUtt = std::get_if<TxUtt>(&tx)) {
-      std::cout << "Applying UTT tx " << txUtt->utt_.getHashHex() << '\n';
+      std::cout << "\nApplying UTT tx: " << txUtt->utt_.getHashHex() << '\n';
       pruneSpentCoins();
       tryClaimCoins(*txUtt);
-      std::cout << '\n';
     }
     // Client claims minted coins
     else if (const auto* txMint = std::get_if<TxMint>(&tx)) {
       if (txMint->pid_ == myPid_) {
         ConcordAssert(txMint->sigShares_.has_value());
         ConcordAssert(txMint->sigShares_->sigShares_.size() == 1);
-        std::cout << "Applying Mint tx " << txMint->op_.getHashHex() << '\n';
-        auto coin = txMint->op_.claimCoin(
-            wallet_.p, wallet_.ask, 4, txMint->sigShares_->sigShares_[0], txMint->sigShares_->signerIds_, wallet_.bpk);
+        std::cout << "\nApplying Mint tx: " << txMint->op_.getHashHex() << '\n';
+        auto coin = txMint->op_.claimCoin(wallet_.p,
+                                          wallet_.ask,
+                                          numReplicas_,
+                                          txMint->sigShares_->sigShares_[0],
+                                          txMint->sigShares_->signerIds_,
+                                          wallet_.bpk);
 
         std::cout << " + '" << myPid_ << "' claims " << fmtCurrency(coin.getValue())
                   << (coin.isBudget() ? " budget" : " normal") << " coin.\n";
@@ -303,7 +309,7 @@ class UTTClientApp : public UTTBlockchainApp {
       // Client removes burned coins
     } else if (const auto* txBurn = std::get_if<TxBurn>(&tx)) {
       if (txBurn->op_.getOwnerPid() == myPid_) {
-        std::cout << "Applying Burn tx " << txBurn->op_.getHashHex() << '\n';
+        std::cout << "\nApplying Burn tx: " << txBurn->op_.getHashHex() << '\n';
         pruneSpentCoins();
       }
     }
@@ -322,7 +328,6 @@ class UTTClientApp : public UTTBlockchainApp {
 
   void tryClaimCoins(const TxUtt& tx) {
     // Add any new coins
-    const size_t n = 4;  // [TODO-UTT] Get from config
     if (!tx.sigShares_) throw std::runtime_error("Missing sigShares in utt tx!");
     const auto& sigShares = *tx.sigShares_;
 
@@ -331,7 +336,8 @@ class UTTClientApp : public UTTBlockchainApp {
       throw std::runtime_error("Number of output coins differs from provided sig shares!");
 
     for (size_t i = 0; i < numTxo; ++i) {
-      auto result = libutt::Client::tryClaimCoin(wallet_, tx.utt_, i, sigShares.sigShares_[i], sigShares.signerIds_, n);
+      auto result = libutt::Client::tryClaimCoin(
+          wallet_, tx.utt_, i, sigShares.sigShares_[i], sigShares.signerIds_, numReplicas_);
       if (result) {
         std::cout << " + '" << myPid_ << "' claims " << fmtCurrency(result->value_)
                   << (result->isBudgetCoin_ ? " budget" : " normal") << " coin.\n";
@@ -468,11 +474,10 @@ std::pair<GetBlockDataReply, ReplicaSpecificInfo> sendGetBlockDataRequest(Wallet
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-ReplicaSigShares DeserializeSigShares(size_t numOutCoins, ReplicaSpecificInfo&& rsi) {
+ReplicaSigShares DeserializeSigShares(size_t numOutCoins, ReplicaSpecificInfo&& rsi, size_t thresh) {
   ReplicaSigShares result;
 
   // Pick first F+1 signers - we assume no malicious replicas
-  const size_t thresh = 2;  // [TODO-UTT] Get from config
 
   for (const auto& kvp : rsi) {
     if (result.signerIds_.size() == thresh) break;
@@ -528,7 +533,8 @@ void syncState(UTTClientApp& app, WalletCommunicator& comm) {
       LOG_INFO(logger, "Received UTT Tx " << txUtt->utt_.getHashHex() << " for block " << replyBlockId);
 
       // Deserialize sig shares from replica specific info
-      ReplicaSigShares sigShares = DeserializeSigShares(txUtt->utt_.outs.size(), std::move(result.second));
+      ReplicaSigShares sigShares =
+          DeserializeSigShares(txUtt->utt_.outs.size(), std::move(result.second), app.sigThresh_);
 
       // Add sig shares
       txUtt->sigShares_ = std::move(sigShares);
@@ -536,7 +542,7 @@ void syncState(UTTClientApp& app, WalletCommunicator& comm) {
       LOG_INFO(logger, "Received Mint Tx " << txMint->op_.getHashHex() << " for block " << replyBlockId);
 
       // Deserialize sig shares from replica specific info
-      ReplicaSigShares sigShares = DeserializeSigShares(1 /*expected coins*/, std::move(result.second));
+      ReplicaSigShares sigShares = DeserializeSigShares(1 /*expected coins*/, std::move(result.second), app.sigThresh_);
 
       // Add sig shares
       txMint->sigShares_ = std::move(sigShares);
@@ -589,20 +595,19 @@ void printHelp() {
   std::cout << k_CmdLedger << "\t\t\t\t-- print all transactions that happened on the Blockchain.\n";
   std::cout << "transfer [account] [amount]\t-- transfer public money to another account.\n";
   std::cout << "utt [account] [amount]\t\t-- transfer money anonymously to another account.\n";
-  std::cout << k_CmdMint << " [amount]\t\t-- exchanges public money for coin(s) usable in utt payments";
-  std::cout << k_CmdBurn << " [amount]\t\t-- exchanges utt coin(s) for public money.";
+  std::cout << k_CmdMint << " [amount]\t\t\t-- exchanges public money for coin(s) usable in utt payments\n";
+  std::cout << k_CmdBurn << " [amount]\t\t\t-- exchanges utt coin(s) for public money.\n";
 
   std::cout << "\nExtra commands:\n";
-  std::cout << "deposit [amount]\t-- deposit public money to current account\n";
-  std::cout << "withdraw [amount]\t-- withdraw public money from current account\n";
+  std::cout << "deposit [amount]\t\t-- deposit public money to current account\n";
+  std::cout << "withdraw [amount]\t\t-- withdraw public money from current account\n";
 
   std::cout << "\nDebug:\n";
-  std::cout << k_CmdDbgUttDoubleSpend
-            << "\t\t\t-- each UTT transaction is sent twice. Only the first should succeed.\n";
+  std::cout << k_CmdDbgUttDoubleSpend << "\t\t-- each UTT transaction is sent twice. Only the first should succeed.\n";
   std::cout << k_CmdDbgPrimary
             << "\t\t\t\t-- prints the last known primary replica. This value is updated when receiving responses.\n";
   std::cout << k_CmdRandom << " [count] [seed=0]"
-            << "\t\t\t\t-- do [count] random money transfers including public and utt transactions. Optionally provide "
+            << "\t\t-- do [count] random money transfers including public and utt transactions. Optionally provide "
                "a seed.\n";
 }
 
@@ -619,7 +624,7 @@ void checkBalance(UTTClientApp& app, WalletCommunicator& comm) {
   syncState(app, comm);
 
   const auto& myAccount = app.getMyAccount();
-  std::cout << "Account summary:\n";
+  std::cout << "\nAccount summary:\n";
   std::cout << "  Public balance:\t" << app.fmtCurrency(myAccount.getPublicBalance()) << '\n';
   std::cout << "  UTT wallet balance:\t" << app.fmtCurrency(app.getUttBalance()) << '\n';
   std::cout << "  UTT wallet coins:\t[";
@@ -651,9 +656,9 @@ void mintCoin(UTTClientApp& app, WalletCommunicator& comm, size_t amount) {
 
   libutt::MintOp mintOp(uniqueTxHash, amount, app.myPid_);
 
-  std::cout << "Created a mint tx: " << mintOp.getHashHex() << '\n';
-  std::cout << "- '" << app.myPid_ << " will spend " << app.fmtCurrency(amount) << " public money.\n";
-  std::cout << "+ '" << app.myPid_ << " will receive a " << app.fmtCurrency(amount) << "coin.\n";
+  std::cout << "\nCreated a Mint tx: " << mintOp.getHashHex() << '\n';
+  std::cout << " - '" << app.myPid_ << "' will spend " << app.fmtCurrency(amount) << " public money.\n";
+  std::cout << " + '" << app.myPid_ << "' will receive " << app.fmtCurrency(amount) << " coin.\n";
 
   TxMint txMint(app.myPid_, mintSeqNum, amount, std::move(mintOp));
 
@@ -686,6 +691,8 @@ void mintCoin(UTTClientApp& app, WalletCommunicator& comm, size_t amount) {
 void burnCoin(UTTClientApp& app, WalletCommunicator& comm, size_t amount) {
   ConcordAssert(amount > 0);  // Validated by parser
 
+  std::cout << ">>> Running a BURN operation for '" << app.myPid_ << " of " << app.fmtCurrency(amount) << '\n';
+
   while (true) {
     syncState(app, comm);
     if (app.wallet_.coins.empty()) throw std::domain_error("No coins to burn!");
@@ -694,11 +701,11 @@ void burnCoin(UTTClientApp& app, WalletCommunicator& comm, size_t amount) {
     auto result = libutt::Client::createTxForBurn(app.wallet_, amount);
 
     if (result.burnOp_) {
-      std::cout << "Created a burn tx: " << result.burnOp_->getHashHex() << '\n';
+      std::cout << "\nCreated a BURN tx: " << result.burnOp_->getHashHex() << '\n';
       const size_t burnValue = result.burnOp_->getValue();
-      std::cout << "- '" << result.burnOp_->getOwnerPid() << " will spend a " << app.fmtCurrency(burnValue)
+      std::cout << " - '" << result.burnOp_->getOwnerPid() << "' will spend a " << app.fmtCurrency(burnValue)
                 << " coin.\n";
-      std::cout << "+ '" << result.burnOp_->getOwnerPid() << " will receive " << app.fmtCurrency(burnValue)
+      std::cout << " + '" << result.burnOp_->getOwnerPid() << "' will receive " << app.fmtCurrency(burnValue)
                 << " public money.\n";
 
       Tx tx = TxBurn(std::move(*result.burnOp_));
@@ -707,6 +714,7 @@ void burnCoin(UTTClientApp& app, WalletCommunicator& comm, size_t amount) {
       if (reply.success) {
         app.setLastKnownBlockId(reply.last_block_id);
         std::cout << "Ok.\n";
+        std::cout << "\n>>> BURN operation completed.\n";
         checkBalance(app, comm);
       } else {
         std::cout << "Transaction failed: " << reply.err << '\n';
@@ -715,7 +723,7 @@ void burnCoin(UTTClientApp& app, WalletCommunicator& comm, size_t amount) {
       break;  // Done
     } else if (result.selfTx_) {
       // [TODO-UTT] Copy pasted from runUttPayment
-      // Describe what the utt transaction intends to do.
+      // Describes what the utt transaction intends to do.
       std::cout << "\nCreated UTT tx " << result.selfTx_->tx.getHashHex() << '\n';
       std::cout << "  Type: " << result.selfTx_->txType_ << '\n';
       for (size_t coinValue : result.selfTx_->inputNormalCoinValues_)
@@ -731,11 +739,11 @@ void burnCoin(UTTClientApp& app, WalletCommunicator& comm, size_t amount) {
         std::cout << "Ok.\n";
       } else {
         std::cout << "Transaction failed: " << reply.err << '\n';
-        break;  // Stop burn if we encounter an error
+        break;  // Stop if we encounter an error
       }
 
     } else {
-      ConcordAssert(false);  // Error - the result should not be ambiguous
+      ConcordAssert(false);  // Ambiguous result
     }
   }
 }
@@ -803,7 +811,7 @@ void runUttPayment(const UttPayment& payment, UTTClientApp& app, WalletCommunica
     }
 
     if (isPayment) {
-      std::cout << "\n>>> Payment completed.\n\n";
+      std::cout << "\n>>> Payment completed.\n";
       break;  // Done
     }
   }

@@ -22,7 +22,7 @@ struct CreateTxResult {
   std::vector<size_t> inputNormalCoinValues_;
   std::optional<size_t> inputBudgetCoinValue_;
   std::optional<size_t> outputBudgetCoinValue_;
-  std::map<std::string, size_t> recipients_;  // [pid : coinValue]
+  std::multimap<std::string, size_t> recipients_;  // [pid : coinValue]
   Tx tx;
 };
 

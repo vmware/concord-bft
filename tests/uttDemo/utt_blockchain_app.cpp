@@ -38,16 +38,17 @@ int Account::publicWithdraw(int val) {
 
 std::ostream& operator<<(std::ostream& os, const Block& b) {
   os << b.id_ << " | ";
-  if (!b.tx_)
+  if (!b.tx_) {
     os << "(Empty)";
-  else if (const auto* txUtt = std::get_if<TxUtt>(&(*b.tx_)))
+  } else if (const auto* txUtt = std::get_if<TxUtt>(&(*b.tx_))) {
     os << "UTT Tx: " << txUtt->utt_.getHashHex();
-  else if (const auto* txMint = std::get_if<TxMint>(&(*b.tx_)))
+  } else if (const auto* txMint = std::get_if<TxMint>(&(*b.tx_))) {
     os << "Mint Tx: " << txMint->op_.getHashHex();
-  else if (const auto* txBurn = std::get_if<TxBurn>(&(*b.tx_)))
+  } else if (const auto* txBurn = std::get_if<TxBurn>(&(*b.tx_))) {
     os << "Burn Tx: " << txBurn->op_.getHashHex();
-  else
+  } else {
     os << *b.tx_;  // Public Tx
+  }
   return os;
 }
 
