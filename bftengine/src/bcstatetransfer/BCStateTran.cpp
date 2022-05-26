@@ -204,7 +204,11 @@ BCStateTran::Metrics BCStateTran::createRegisterMetrics() {
       metrics_component_.RegisterCounter("overall_rvb_digest_groups_validated"),
       metrics_component_.RegisterCounter("overall_rvb_digests_failed_validation"),
       metrics_component_.RegisterCounter("overall_rvb_digest_groups_failed_validation"),
-      metrics_component_.RegisterStatus("current_rvb_data_state", "")};
+      metrics_component_.RegisterStatus("current_rvb_data_state", ""),
+
+      metrics_component_.RegisterCounter("src_overall_batches_sent"),
+      metrics_component_.RegisterCounter("src_overall_prefetched_batches_sent"),
+      metrics_component_.RegisterCounter("src_overall_on_spot_batches_sent")};
 }
 
 void BCStateTran::rvbm_deleter::operator()(RVBManager *ptr) const { delete ptr; }  // used for pimpl
@@ -282,8 +286,12 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
       lastFetchingState_(FetchingState::NotFetching),
       sourceSession_(logger_, config.sourceSessionExpiryDurationMs),
       src_send_batch_duration_rec_(histograms_.src_send_batch_duration),
+      src_send_prefetched_batch_duration_rec_(histograms_.src_send_prefetched_batch_duration),
+      src_send_on_spot_batch_duration_rec_(histograms_.src_send_on_spot_batch_duration),
       dst_time_between_sendFetchBlocksMsg_rec_(histograms_.dst_time_between_sendFetchBlocksMsg),
-      time_in_incoming_events_queue_rec_(histograms_.time_in_incoming_events_queue) {
+      time_in_incoming_events_queue_rec_(histograms_.time_in_incoming_events_queue),
+      time_in_post_processing_events_queue_rec_(histograms_.time_in_post_processing_events_queue),
+      src_next_block_wait_duration_rec_(histograms_.src_next_block_wait_duration) {
   // Validate input parameters and some of the configuration
   ConcordAssertNE(stateApi, nullptr);
   ConcordAssertGE(replicas_.size(), 3U * config_.fVal + 1U);
@@ -803,8 +811,12 @@ void BCStateTran::startCollectingStats() {
 
   // reset recorders
   src_send_batch_duration_rec_.clear();
+  src_send_prefetched_batch_duration_rec_.clear();
+  src_send_on_spot_batch_duration_rec_.clear();
   dst_time_between_sendFetchBlocksMsg_rec_.clear();
   time_in_incoming_events_queue_rec_.clear();
+  time_in_post_processing_events_queue_rec_.clear();
+  src_next_block_wait_duration_rec_.clear();
 
   // snapshot and increment cycle counter
   auto &registrar = RegistrarSingleton::getInstance();
@@ -912,7 +924,9 @@ void BCStateTran::onTimerImpl() {
 
   // Retransmit AskForCheckpointSummariesMsg if needed
   FetchingState fs = getFetchingState();
-  if (fs == FetchingState::GettingCheckpointSummaries) {
+  if (fs == FetchingState::SendingBatch) {
+    continueSendBatch();
+  } else if (fs == FetchingState::GettingCheckpointSummaries) {
     auto currTime = getMonotonicTimeMilli();
     if ((currTime - lastTimeSentAskForCheckpointSummariesMsg) > config_.checkpointSummariesRetransmissionTimeoutMs) {
       LOG_DEBUG(logger_,
@@ -1065,11 +1079,12 @@ void BCStateTran::handleStateTransferMessageImpl(char *msg,
       }
       break;
     case MsgType::FetchBlocks: {
-      TimeRecorder scoped_timer(*histograms_.src_handle_FetchBlocks_msg);
+      TimeRecorder scoped_timer(*histograms_.src_handle_FetchBlocks_msg_duration);
       metrics_.handle_FetchBlocks_msg_++;
       noDelete = onMessage(reinterpret_cast<FetchBlocksMsg *>(msg), msgLen, senderId);
     } break;
     case MsgType::FetchResPages: {
+      TimeRecorder scoped_timer(*histograms_.src_handle_FetchResPages_msg_duration);
       metrics_.handle_FetchResPages_msg_++;
       noDelete = onMessage(reinterpret_cast<FetchResPagesMsg *>(msg), msgLen, senderId);
     } break;
@@ -1303,6 +1318,8 @@ string BCStateTran::stateName(FetchingState fs) {
       return "GettingMissingResPages";
     case FetchingState::FinalizingCycle:
       return "FinalizingCycle";
+    case FetchingState::SendingBatch:
+      return "SendingBatch";
     default:
       ConcordAssert(false);
       return "Error";
@@ -1313,6 +1330,8 @@ bool BCStateTran::isActiveDestination(FetchingState fs) {
   return (fs == FetchingState::GettingMissingBlocks) || (fs == FetchingState::GettingCheckpointSummaries) ||
          (fs == FetchingState::GettingMissingResPages);
 }
+
+bool BCStateTran::isActiveSource(FetchingState fs) { return (fs == FetchingState::SendingBatch); }
 
 std::ostream &operator<<(std::ostream &os, const BCStateTran::FetchingState fs) {
   os << BCStateTran::stateName(fs);
@@ -1335,6 +1354,11 @@ void BCStateTran::onFetchingStateChange(FetchingState newFetchingState) {
       break;
     case FetchingState::FinalizingCycle:
       break;
+    case FetchingState::SendingBatch:
+      break;
+    default:
+      LOG_FATAL(logger_, "Unexpected lastFetchingState_" << KVLOG(lastFetchingState_));
+      ConcordAssert(false);
   }
   switch (newFetchingState) {
     case FetchingState::NotFetching:
@@ -1363,9 +1387,15 @@ void BCStateTran::onFetchingStateChange(FetchingState newFetchingState) {
       break;
     case FetchingState::FinalizingCycle:
       break;
+    case FetchingState::SendingBatch:
+      break;
+    default:
+      LOG_FATAL(logger_, "Unexpected newFetchingState" << KVLOG(newFetchingState));
+      ConcordAssert(false);
   }
 
-  logger_ = (newFetchingState == FetchingState::NotFetching) ? ST_SRC_LOG : ST_DST_LOG;
+  logger_ =
+      (newFetchingState == FetchingState::NotFetching) || isActiveSource(newFetchingState) ? ST_SRC_LOG : ST_DST_LOG;
   metrics_.fetching_state_.Get().Set(stateName(newFetchingState));
   lastFetchingState_ = newFetchingState;
 }
@@ -1373,7 +1403,9 @@ void BCStateTran::onFetchingStateChange(FetchingState newFetchingState) {
 BCStateTran::FetchingState BCStateTran::getFetchingState() {
   BCStateTran::FetchingState fs;
 
-  if (on_transferring_complete_ongoing_) {
+  if (sourceSession_.isOpen() && sourceBatch_.active) {
+    fs = FetchingState::SendingBatch;
+  } else if (on_transferring_complete_ongoing_) {
     fs = FetchingState::FinalizingCycle;
   } else if (!psd_->getIsFetchingState())
     fs = FetchingState::NotFetching;
@@ -1746,6 +1778,19 @@ void BCStateTran::clearIoContexts() {
   ioContexts_.clear();
 }
 
+void BCStateTran::sendRejectFetchingMsg(const char *reason, uint64_t msgSeqNum, uint16_t destReplicaId) {
+  RejectFetchingMsg outMsg;
+
+  if (sourceSession_.isOpen() && (sourceSession_.ownerDestReplicaId() == destReplicaId)) {
+    sourceSession_.close();
+  }
+  outMsg.requestMsgSeqNum = msgSeqNum;
+  metrics_.sent_reject_fetch_msg_++;
+  LOG_WARN(logger_, "Rejecting msg. Sending RejectFetchingMsg to replica: " << KVLOG(reason, destReplicaId, msgSeqNum));
+  replicaForStateTransfer_->sendStateTransferMessage(
+      reinterpret_cast<char *>(&outMsg), sizeof(RejectFetchingMsg), destReplicaId);
+}
+
 bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t replicaId) {
   SCOPED_MDC_SEQ_NUM(getScopedMdcStr(replicaId, m->msgSeqNum));
   LOG_INFO(logger_, KVLOG(replicaId, m->msgSeqNum, m->minBlockId, m->maxBlockId, m->lastKnownChunkInLastRequiredBlock));
@@ -1776,186 +1821,205 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
   FetchingState fetchingState = getFetchingState();
   auto lastReachableBlockNum = as_->getLastReachableBlockNum();
 
-  // if msg should be rejected
-  auto sendRejectFetchingMsg = [&](const char *reason) {
-    RejectFetchingMsg outMsg;
-
-    outMsg.requestMsgSeqNum = m->msgSeqNum;
-    metrics_.sent_reject_fetch_msg_++;
-    LOG_WARN(logger_,
-             "Rejecting msg. Sending RejectFetchingMsg to replica: " << KVLOG(reason,
-                                                                              replicaId,
-                                                                              outMsg.requestMsgSeqNum,
-                                                                              stateName(fetchingState),
-                                                                              m->maxBlockId,
-                                                                              lastReachableBlockNum));
-    replicaForStateTransfer_->sendStateTransferMessage(
-        reinterpret_cast<char *>(&outMsg), sizeof(RejectFetchingMsg), replicaId);
-  };
-
-  if (isActiveDest(fetchingState)) {
-    sendRejectFetchingMsg("In state transfer");
+  // Reject if I'm already in ST (source or destination)
+  if (isActiveDestination(fetchingState)) {
+    sendRejectFetchingMsg("In state transfer", m->msgSeqNum, replicaId);
     return false;
   }
   if (m->maxBlockId > lastReachableBlockNum) {
-    sendRejectFetchingMsg("Required blocks range is not present");
+    sendRejectFetchingMsg("Required blocks range is not present", m->msgSeqNum, replicaId);
     return false;
   }
   auto [sessionOpened, otherReplicaSessionClosed] = sourceSession_.tryOpen(replicaId);
+  (void)otherReplicaSessionClosed;
   if (sessionOpened == false) {
     auto reason = "Active session with ownerDestReplicaId=" + std::to_string(sourceSession_.ownerDestReplicaId());
-    sendRejectFetchingMsg(reason.c_str());
+    sendRejectFetchingMsg(reason.c_str(), m->msgSeqNum, replicaId);
     return false;
   }
-  if (otherReplicaSessionClosed) {
-    clearIoContexts();
-  }
+  // comment: otherReplicaSessionClosed is supposed to mark the need to clear io contexts.
+  // To save time, do it later and not here.
 
-  // start recording time to send a whole batch, and its size
-  uint64_t batchSizeBytes = 0;
-  uint64_t batchSizeChunks = 0;
-  src_send_batch_duration_rec_.clear();
-  src_send_batch_duration_rec_.start();
-
-  // compute information about next block and chunk
-  uint64_t nextBlockId = m->maxBlockId;
-  uint16_t nextChunk = m->lastKnownChunkInLastRequiredBlock + 1;
-  uint16_t numOfSentChunks = 0;
-
-  if (uint64_t numBlocksInCurrentBatch = std::min(static_cast<uint64_t>(config_.maxNumberOfChunksInBatch),
-                                                  static_cast<uint64_t>(nextBlockId - m->minBlockId + 1));
-      !config_.enableSourceBlocksPreFetch || ioContexts_.empty() || (ioContexts_.front()->blockId != nextBlockId) ||
-      (numBlocksInCurrentBatch > ioContexts_.size()) || !ioContexts_.front()->future.valid()) {
-    if (ioContexts_.empty()) {
-      LOG_INFO(logger_,
-               "Call getBlocksConcurrentAsync(1): source blocks prefetch disabled (first batch or retransmission):"
-                   << KVLOG(config_.enableSourceBlocksPreFetch));
-      getBlocksConcurrentAsync(nextBlockId, m->minBlockId, numBlocksInCurrentBatch);
-    } else if (ioContexts_.front()->blockId != nextBlockId) {
-      LOG_INFO(logger_,
-               "Call getBlocksConcurrentAsync(2): source blocks prefetch disabled (first batch or retransmission):"
-                   << KVLOG(config_.enableSourceBlocksPreFetch, ioContexts_.front()->blockId, nextBlockId));
-      clearIoContexts();
-      getBlocksConcurrentAsync(nextBlockId, m->minBlockId, numBlocksInCurrentBatch);
-    } else if ((numBlocksInCurrentBatch > ioContexts_.size())) {
-      LOG_INFO(logger_,
-               "Call getBlocksConcurrentAsync(3): source blocks prefetch disabled (first batch or retransmission):"
-                   << KVLOG(config_.enableSourceBlocksPreFetch,
-                            ioContexts_.front()->blockId,
-                            nextBlockId,
-                            numBlocksInCurrentBatch,
-                            ioContexts_.size(),
-                            m->minBlockId));
-      getBlocksConcurrentAsync(
-          nextBlockId - ioContexts_.size(), m->minBlockId, numBlocksInCurrentBatch - ioContexts_.size());
-    }
-  }
-
-  // Fetch blocks and send all chunks for the batch. Also, while looping start to pre-fetch next batch
-  // We pre-fetch only if feature enabled, and we are not in the last batch
-  // Setting preFetchBlockId to 0 disable pre-fetching on all later code.
-  uint64_t preFetchBlockId = (config_.enableSourceBlocksPreFetch && (nextBlockId > config_.maxNumberOfChunksInBatch))
-                                 ? (nextBlockId - config_.maxNumberOfChunksInBatch)
-                                 : 0;
-  LOG_INFO(logger_,
-           "Start sending batch: " << KVLOG(m->msgSeqNum,
-                                            m->minBlockId,
-                                            m->maxBlockId,
-                                            m->lastKnownChunkInLastRequiredBlock,
-                                            m->rvbGroupId,
-                                            preFetchBlockId));
-  ++sourceSession_.batchCounter_;
-  bool getNextBlock = (nextChunk == 1);
-  char *buffer = nullptr;
-  uint32_t sizeOfNextBlock = 0;
-  // Source is asking all digests for RVBGroup rvbGroupId. Piggyback this data on the 1st message sent.
   size_t rvbGroupDigestsExpectedSize =
       (m->rvbGroupId != 0) ? rvbm_->getSerializedDigestsOfRvbGroup(m->rvbGroupId, nullptr, 0, true) : 0;
   if ((rvbGroupDigestsExpectedSize == 0) && (m->rvbGroupId != 0)) {
     // Destination RVB Group request cannot be fullfiled, reject
     auto reason = "RVB Group request cannot be fullfiled, rejecting request:" + KVLOG(m->rvbGroupId);
-    sendRejectFetchingMsg(reason.c_str());
+    sendRejectFetchingMsg(reason.c_str(), m->msgSeqNum, replicaId);
+    sourceSession_.close();
     return false;
   }
+
+  // start recording time to send a whole batch, and its size
+  src_send_batch_duration_rec_.clear();
+  src_send_batch_duration_rec_.start();
+
+  // Initialize next batch
+  sourceBatch_.init(metrics_.src_overall_batches_sent_.Get().Get(),
+                    m->maxBlockId,
+                    m->lastKnownChunkInLastRequiredBlock + 1,
+                    m->maxBlockIdInCycle,
+                    (m->lastKnownChunkInLastRequiredBlock == 0),
+                    config_,
+                    rvbGroupDigestsExpectedSize,
+                    m,
+                    replicaId);
+  auto &sb = sourceBatch_;
+  ConcordAssertEQ(sourceBatch_.destReplicaId, sourceSession_.ownerDestReplicaId());
+
+  // Fetch blocks and send all chunks for the batch. Also, while looping start to pre-fetch next batch
+  // We pre-fetch only if feature enabled, and we are not in the last batch
+  // Setting preFetchBlockId to 0 disable pre-fetching on all later code.
+  if (uint64_t numBlocksInCurrentBatch = std::min(static_cast<uint64_t>(config_.maxNumberOfChunksInBatch),
+                                                  static_cast<uint64_t>(sb.nextBlockId - m->minBlockId + 1));
+      !config_.enableSourceBlocksPreFetch || ioContexts_.empty() || (ioContexts_.front()->blockId != sb.nextBlockId) ||
+      (numBlocksInCurrentBatch > ioContexts_.size()) || !ioContexts_.front()->future.valid()) {
+    if (ioContexts_.empty()) {
+      LOG_INFO(logger_,
+               "Call getBlocksConcurrentAsync(1): source blocks prefetch disabled (first batch or retransmission):"
+                   << KVLOG(config_.enableSourceBlocksPreFetch));
+      getBlocksConcurrentAsync(sb.nextBlockId, m->minBlockId, numBlocksInCurrentBatch);
+    } else if (ioContexts_.front()->blockId != sb.nextBlockId) {
+      LOG_INFO(logger_,
+               "Call getBlocksConcurrentAsync(2): source blocks prefetch disabled (first batch or retransmission):"
+                   << KVLOG(config_.enableSourceBlocksPreFetch, ioContexts_.front()->blockId, sb.nextBlockId));
+      // TODO - the next call is expansive, consider having it in async mode, or find a way to continue quickly
+      // while clearing and fetching blocks
+      clearIoContexts();
+      getBlocksConcurrentAsync(sb.nextBlockId, m->minBlockId, numBlocksInCurrentBatch);
+    } else if ((numBlocksInCurrentBatch > ioContexts_.size())) {
+      LOG_INFO(logger_,
+               "Call getBlocksConcurrentAsync(3): source blocks prefetch disabled (first batch or retransmission):"
+                   << KVLOG(config_.enableSourceBlocksPreFetch,
+                            ioContexts_.front()->blockId,
+                            sb.nextBlockId,
+                            numBlocksInCurrentBatch,
+                            ioContexts_.size(),
+                            m->minBlockId));
+      getBlocksConcurrentAsync(
+          sb.nextBlockId - ioContexts_.size(), m->minBlockId, numBlocksInCurrentBatch - ioContexts_.size());
+    }
+    sb.prefetched = false;
+    src_send_on_spot_batch_duration_rec_.clear();
+    src_send_on_spot_batch_duration_rec_.start();
+  }
+
+  if (sb.prefetched) {
+    src_send_prefetched_batch_duration_rec_.clear();
+    src_send_prefetched_batch_duration_rec_.start();
+  }
+
+  LOG_INFO(logger_,
+           "Start sending batch:" + sb.toString() << KVLOG(
+               m->msgSeqNum, m->minBlockId, m->maxBlockId, m->lastKnownChunkInLastRequiredBlock, m->rvbGroupId));
+  continueSendBatch();
+  return false;
+}
+
+void BCStateTran::continueSendBatch() {
+  static constexpr uint32_t maxProcessingTimeMilli = 10;
+  static constexpr uint32_t maxWaitingTimeMilli = 1;
+  char *buffer = nullptr;
+  auto &sb = sourceBatch_;
+  std::string batchEndReason;
+  auto *m = &sb.destRequest;
+
+  LOG_TRACE(logger_, "Continue sending batch:" << KVLOG(sb.batchNumber));
+  auto startTime = getMonotonicTimeMilli();
+  sourceSession_.refresh(startTime);
+
   do {
     auto &ctx = ioContexts_.front();
-    if (getNextBlock) {
+    if (sb.getNextBlock) {
       // wait for worker to finish getting next block
       ConcordAssert(ctx->future.valid());
       try {
+        src_next_block_wait_duration_rec_.start();
+        if (ctx->future.wait_for(std::chrono::duration<int64_t, std::milli>(maxWaitingTimeMilli)) !=
+            std::future_status::ready) {
+          // Sending a batch might be a very long operation (more than a sec, depends on configuration)
+          // during that time St main thread must stay responsive, especially on blocking interface calls
+          // Lets go and check the handoff queue
+          addOneShotTimer(0, "Sending Batch - Wait");
+          return;
+        }
         TimeRecorder scoped_timer(*histograms_.src_next_block_wait_duration);
         if (!ctx->future.get()) {
           auto reason = "Block not found in storage, abort batch:" + KVLOG(ctx->blockId);
-          sendRejectFetchingMsg(reason.c_str());
-          return false;
+          sendRejectFetchingMsg(reason.c_str(), m->msgSeqNum, sb.destReplicaId);
+          sourceSession_.close();
+          sourceBatch_.active = false;
+          return;
         }
+        src_next_block_wait_duration_rec_.end();
       } catch (const std::exception &ex) {
         LOG_FATAL(logger_, "exception:" << ex.what());
         ConcordAssert(false);
       }
       ConcordAssertGT(ctx->actualBlockSize, 0);
-      ConcordAssertEQ(ctx->blockId, nextBlockId);
-      LOG_DEBUG(logger_,
-                "Start sending next block: " << KVLOG(sourceSession_.batchCounter_, nextBlockId, ctx->actualBlockSize));
+      ConcordAssertEQ(ctx->blockId, sb.nextBlockId);
+      LOG_DEBUG(logger_, "Start sending next block: " << KVLOG(sb.batchNumber, sb.nextBlockId, ctx->actualBlockSize));
       histograms_.src_get_block_size_bytes->record(ctx->actualBlockSize);
-      getNextBlock = false;
+      sb.getNextBlock = false;
     }
     buffer = ctx->blockData.get();
-    sizeOfNextBlock = ctx->actualBlockSize;
 
     uint32_t sizeOfLastChunk = config_.maxChunkSize;
-    uint32_t numOfChunksInNextBlock = sizeOfNextBlock / config_.maxChunkSize;
-    if ((sizeOfNextBlock % config_.maxChunkSize) != 0) {
-      sizeOfLastChunk = sizeOfNextBlock % config_.maxChunkSize;
+    uint32_t numOfChunksInNextBlock = ctx->actualBlockSize / config_.maxChunkSize;
+    if ((ctx->actualBlockSize % config_.maxChunkSize) != 0) {
+      sizeOfLastChunk = ctx->actualBlockSize % config_.maxChunkSize;
       numOfChunksInNextBlock++;
     }
 
     // if msg is invalid (lastKnownChunkInLastRequiredBlock+1 does not exist)
-    if ((numOfSentChunks == 0) && (nextChunk > numOfChunksInNextBlock)) {
-      auto reason = "Msg is invalid (illegal chunk number):" + KVLOG(replicaId, nextChunk, numOfChunksInNextBlock);
-      sendRejectFetchingMsg(reason.c_str());
-      return false;
+    if ((sb.numSentChunks == 0) && (sb.nextChunk > numOfChunksInNextBlock)) {
+      auto reason =
+          "Msg is invalid (illegal chunk number):" + KVLOG(sb.destReplicaId, sb.nextChunk, numOfChunksInNextBlock);
+      sendRejectFetchingMsg(reason.c_str(), m->msgSeqNum, sb.destReplicaId);
+      sourceSession_.close();
+      sourceBatch_.active = false;
+      return;
     }
 
-    SCOPED_MDC_SEQ_NUM(getScopedMdcStr(replicaId, m->msgSeqNum, nextChunk, nextBlockId));
-    uint32_t chunkSize = (nextChunk < numOfChunksInNextBlock) ? config_.maxChunkSize : sizeOfLastChunk;
-    batchSizeBytes += chunkSize;
-    ++batchSizeChunks;
-
+    SCOPED_MDC_SEQ_NUM(getScopedMdcStr(sb.destReplicaId, m->msgSeqNum, sb.nextChunk, sb.nextBlockId));
+    uint32_t chunkSize = (sb.nextChunk < numOfChunksInNextBlock) ? config_.maxChunkSize : sizeOfLastChunk;
     ConcordAssertGT(chunkSize, 0);
 
-    char *pRawChunk = buffer + (nextChunk - 1) * config_.maxChunkSize;
-    ItemDataMsg *outMsg = ItemDataMsg::alloc(chunkSize + rvbGroupDigestsExpectedSize);  // TODO(GG): improve
+    char *pRawChunk = buffer + (sb.nextChunk - 1) * config_.maxChunkSize;
+    ItemDataMsg *outMsg = ItemDataMsg::alloc(chunkSize + sb.rvbGroupDigestsExpectedSize);  // TODO(GG): improve
 
     outMsg->requestMsgSeqNum = m->msgSeqNum;
-    outMsg->blockNumber = nextBlockId;
+    outMsg->blockNumber = sb.nextBlockId;
     outMsg->totalNumberOfChunksInBlock = numOfChunksInNextBlock;
-    outMsg->chunkNumber = nextChunk;
-    outMsg->dataSize = chunkSize + rvbGroupDigestsExpectedSize;
+    outMsg->chunkNumber = sb.nextChunk;
+    outMsg->dataSize = chunkSize + sb.rvbGroupDigestsExpectedSize;
 
     outMsg->lastInBatch =
-        ((numOfSentChunks + 1) >= config_.maxNumberOfChunksInBatch) || ((nextBlockId - 1) < m->minBlockId);
-    // TODO - this is a rare request, coming once in many blocks (configurable).
+        ((sb.numSentChunks + 1) >= config_.maxNumberOfChunksInBatch) || ((sb.nextBlockId - 1) < m->minBlockId);
+
+    // Source is asking all digests for RVBGroup rvbGroupId. Piggyback this data on the 1st message sent.
     // For now, we fetch from storage and serialize at the last moment.
     // Performance can be improved by performing this operation earlier.
-    if (rvbGroupDigestsExpectedSize > 0) {
+    if (sb.rvbGroupDigestsExpectedSize > 0) {
       // Serialize RVB digests
       DurationTracker<std::chrono::milliseconds> serialize_digests_dt("serialize_digests_dt", true);
       size_t rvbGroupDigestsActualSize =
-          rvbm_->getSerializedDigestsOfRvbGroup(m->rvbGroupId, outMsg->data, rvbGroupDigestsExpectedSize, false);
-      if ((rvbGroupDigestsActualSize == 0) || (rvbGroupDigestsExpectedSize != rvbGroupDigestsActualSize)) {
+          rvbm_->getSerializedDigestsOfRvbGroup(m->rvbGroupId, outMsg->data, sb.rvbGroupDigestsExpectedSize, false);
+      if ((rvbGroupDigestsActualSize == 0) || (sb.rvbGroupDigestsExpectedSize != rvbGroupDigestsActualSize)) {
         auto reason = "Rejecting message - not holding all requested digests (or some other error)" +
-                      KVLOG(rvbGroupDigestsExpectedSize, rvbGroupDigestsActualSize);
+                      KVLOG(sb.rvbGroupDigestsExpectedSize, rvbGroupDigestsActualSize);
         ItemDataMsg::free(outMsg);
-        sendRejectFetchingMsg(reason.c_str());
-        return false;
+        sendRejectFetchingMsg(reason.c_str(), m->msgSeqNum, sb.destReplicaId);
+        sourceSession_.close();
+        sourceBatch_.active = false;
+        return;
       }
       auto total_duration = serialize_digests_dt.totalDuration(true);
       LOG_INFO(logger_, "Done getting serialized digests," << KVLOG(total_duration) << " ms");
-      ConcordAssertLE(rvbGroupDigestsActualSize, rvbGroupDigestsExpectedSize);
+      ConcordAssertLE(rvbGroupDigestsActualSize, sb.rvbGroupDigestsExpectedSize);
       outMsg->rvbDigestsSize = rvbGroupDigestsActualSize;
       memcpy(outMsg->data + rvbGroupDigestsActualSize, pRawChunk, chunkSize);
-      rvbGroupDigestsExpectedSize = 0;  // send only once
+      sb.rvbGroupDigestsExpectedSize = 0;  // send only once
     } else {
       memcpy(outMsg->data, pRawChunk, chunkSize);
       outMsg->rvbDigestsSize = 0;
@@ -1963,7 +2027,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
 
     LOG_DEBUG(logger_,
               "Sending ItemDataMsg: " << std::boolalpha
-                                      << KVLOG(replicaId,
+                                      << KVLOG(sb.destReplicaId,
                                                outMsg->requestMsgSeqNum,
                                                outMsg->blockNumber,
                                                outMsg->totalNumberOfChunksInBlock,
@@ -1973,51 +2037,78 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
                                                (bool)outMsg->lastInBatch));
 
     metrics_.sent_item_data_msg_++;
-    replicaForStateTransfer_->sendStateTransferMessage(reinterpret_cast<char *>(outMsg), outMsg->size(), replicaId);
+    replicaForStateTransfer_->sendStateTransferMessage(
+        reinterpret_cast<char *>(outMsg), outMsg->size(), sb.destReplicaId);
+    ++sb.numSentChunks;
+    sb.numSentBytes += (chunkSize + sb.rvbGroupDigestsExpectedSize);
     ItemDataMsg::free(outMsg);
-    numOfSentChunks++;
 
     auto finalizeContext = [&]() {
       ioPool_.free(ctx);
       ioContexts_.pop_front();
 
       // We are done using this context. We can now use it to prefetch future batch block.
-      if (preFetchBlockId > 0) {
-        getBlocksConcurrentAsync(preFetchBlockId, m->minBlockId, 1);
-        --preFetchBlockId;
+      if (sb.preFetchBlockId > 0) {
+        getBlocksConcurrentAsync(sb.preFetchBlockId, m->minBlockId, 1);
+        --sb.preFetchBlockId;
       }
     };
 
     // if we've already sent enough chunks
-    if (numOfSentChunks >= config_.maxNumberOfChunksInBatch) {
-      LOG_INFO(logger_, "Batch end - sent enough chunks: " << KVLOG(numOfSentChunks, m->minBlockId, m->maxBlockId));
-      if (nextChunk == numOfChunksInNextBlock) {
+    if (sb.numSentChunks >= config_.maxNumberOfChunksInBatch) {
+      batchEndReason = "Batch end - sent enough chunks:";
+      if (sb.nextChunk == numOfChunksInNextBlock) {
         finalizeContext();
       }
       break;
-    } else if (nextChunk < numOfChunksInNextBlock) {
+    } else if (sb.nextChunk < numOfChunksInNextBlock) {
       // we still have chunks in block
-      nextChunk++;
+      ++sb.nextChunk;
     } else {
       finalizeContext();
 
-      if ((nextBlockId - 1) < m->minBlockId) {
-        LOG_INFO(logger_, "Batch end - sent all relevant blocks: " << KVLOG(m->minBlockId, m->maxBlockId));
+      if ((sb.nextBlockId - 1) < m->minBlockId) {
+        batchEndReason = "Batch end - sent all relevant blocks:";
+        // LOG_INFO(logger_, "Batch end - sent all relevant blocks: " << KVLOG(m->minBlockId, m->maxBlockId));
         break;
       } else {
         // no more chunks in the block, continue to next block
-        --nextBlockId;
-        nextChunk = 1;
-        getNextBlock = true;
+        --sb.nextBlockId;
+        sb.nextChunk = 1;
+        sb.getNextBlock = true;
       }
+    }
+
+    // check if time passed
+    auto currentTime = getMonotonicTimeMilli();
+    ConcordAssertGE(currentTime, startTime);
+    if ((currentTime - startTime) >= maxProcessingTimeMilli) {
+      addOneShotTimer(0, "Sending Batch - Wait");
+      return;
     }
   } while (true);
 
-  histograms_.src_send_batch_size_bytes->record(batchSizeBytes);
-  histograms_.src_send_batch_num_of_chunks->record(batchSizeChunks);
+  histograms_.src_send_batch_size_bytes->record(sb.numSentBytes);
+  histograms_.src_send_batch_num_of_chunks->record(sb.numSentChunks);
   src_send_batch_duration_rec_.end();
+  metrics_.src_overall_batches_sent_++;
+  if (sb.prefetched) {
+    src_send_prefetched_batch_duration_rec_.end();
+    metrics_.src_overall_prefetched_batches_sent_++;
+  } else {
+    src_send_on_spot_batch_duration_rec_.end();
+    metrics_.src_overall_on_spot_batches_sent_++;
+  }
 
-  return false;
+  LOG_INFO(logger_, batchEndReason << KVLOG(m->minBlockId, m->maxBlockId, ioContexts_.size()) << sb);
+  sb.active = false;
+
+  if (m->maxBlockId == m->maxBlockIdInCycle) {
+    LOG_INFO(logger_, "Cycle is completed - closing session");
+    sourceSession_.close();
+  }
+
+  return;
 }
 
 bool BCStateTran::onMessage(const FetchResPagesMsg *m, uint32_t msgLen, uint16_t replicaId) {
@@ -2938,6 +3029,7 @@ bool BCStateTran::isMaxFetchedBlockIdInCycle(uint64_t blockId) const {
 }
 
 void BCStateTran::postProcessNextBatch(uint64_t upperBoundBlockId) {
+  time_in_post_processing_events_queue_rec_.end();
   static uint64_t iteration{};
 
   if (upperBoundBlockId == maxPostprocessedBlockId_) {
@@ -2974,6 +3066,7 @@ void BCStateTran::postProcessNextBatch(uint64_t upperBoundBlockId) {
     LOG_DEBUG(logger_, "Done postProcessUntilBlockId" << KVLOG(upperBoundBlockId));
   }
   maxPostprocessedBlockId_ = upperBoundBlockId;
+  time_in_post_processing_events_queue_rec_.start();
 }
 
 void BCStateTran::stReset(DataStoreTransaction *txn, bool resetRvbm, bool resetStoredCp, bool resetDataStore) {
@@ -2981,6 +3074,7 @@ void BCStateTran::stReset(DataStoreTransaction *txn, bool resetRvbm, bool resetS
   if (sourceSession_.isOpen()) {
     sourceSession_.close();
   }
+  sourceBatch_.active = false;
   if (commitState_.nextBlockId > 0) {
     finalizePutblockAsync(PutBlockWaitPolicy::WAIT_ALL_JOBS, txn);
   }
@@ -3768,7 +3862,6 @@ void BCStateTran::SourceSession::close() {
       "SourceSession: Session closed:" << std::boolalpha << KVLOG(replicaId_, startTime_, activeDuration(), expired()));
   replicaId_ = UINT16_MAX;
   startTime_ = 0;
-  batchCounter_ = 0;
 }
 
 void BCStateTran::SourceSession::open(uint16_t replicaId) {
@@ -3821,6 +3914,52 @@ void BCStateTran::SourceSession::refresh(uint64_t startTime) {
     startTime_ = startTime;
   }
   LOG_TRACE(logger_, "SourceSession: Active session update:" << KVLOG(replicaId_, startTime_, startTime));
+}
+
+std::ostream &operator<<(std::ostream &os, const BCStateTran::SourceBatch &batch) {
+  os << batch.toString();
+  return os;
+}
+
+std::string BCStateTran::SourceBatch::toString() const {
+  std::string str;
+  str += KVLOG(active,
+               batchNumber,
+               numSentBytes,
+               numSentChunks,
+               nextBlockId,
+               nextChunk,
+               preFetchBlockId,
+               destReplicaId,
+               prefetched);
+  return str;
+}
+
+void BCStateTran::SourceBatch::init(uint64_t batchNumber,
+                                    uint64_t nextBlockId,
+                                    uint64_t nextChunk,
+                                    uint64_t maxBlockIdInCycle,
+                                    bool getNextBlock,
+                                    const Config &config,
+                                    size_t rvbGroupDigestsExpectedSize,
+                                    const FetchBlocksMsg *msg,
+                                    uint16_t destReplicaId) {
+  numSentBytes = 0;
+  numSentChunks = 0;
+  active = true;
+  prefetched = true;
+  this->batchNumber = batchNumber;
+  this->nextBlockId = nextBlockId;
+  this->nextChunk = nextChunk;
+  this->getNextBlock = getNextBlock;
+  if (!config.enableSourceBlocksPreFetch) {
+    preFetchBlockId = 0;
+  } else {
+    preFetchBlockId = std::min(maxBlockIdInCycle, nextBlockId + config.maxNumberOfChunksInBatch);
+  }
+  this->rvbGroupDigestsExpectedSize = rvbGroupDigestsExpectedSize;
+  this->destRequest = *msg;
+  this->destReplicaId = destReplicaId;
 }
 
 }  // namespace impl

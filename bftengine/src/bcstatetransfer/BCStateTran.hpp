@@ -303,17 +303,24 @@ class BCStateTran : public IStateTransfer {
   ///////////////////////////////////////////////////////////////////////////
  public:
   enum class FetchingState {
+    // Common
     NotFetching,
+
+    // Destination
     GettingCheckpointSummaries,
     GettingMissingBlocks,
     GettingMissingResPages,
-    FinalizingCycle
+    FinalizingCycle,
+
+    // Source
+    SendingBatch,
   };
 
  protected:
   friend std::ostream& operator<<(std::ostream& os, const BCStateTran::FetchingState fs);
   static string stateName(FetchingState fs);
   static inline bool isActiveDestination(FetchingState fs);
+  static inline bool isActiveSource(FetchingState fs);
 
   // TODO - should be renamed to evaluateFetchingState
   FetchingState getFetchingState();
@@ -656,6 +663,10 @@ class BCStateTran : public IStateTransfer {
     CounterHandle overall_rvb_digests_validation_failed_;
     CounterHandle overall_rvb_digest_groups_validation_failed_;
     StatusHandle current_rvb_data_state_;
+
+    CounterHandle src_overall_batches_sent_;
+    CounterHandle src_overall_prefetched_batches_sent_;
+    CounterHandle src_overall_on_spot_batches_sent_;
   };
   mutable Metrics metrics_;
   Metrics createRegisterMetrics();
@@ -732,7 +743,7 @@ class BCStateTran : public IStateTransfer {
   std::string convertMillisecToReadableStr(uint64_t ms) const;
 
   ///////////////////////////////////////////////////////////////////////////
-  // Source session management
+  // Source session/batch management
   ///////////////////////////////////////////////////////////////////////////
 
   // Currently, source supports a single session at any given time
@@ -755,7 +766,6 @@ class BCStateTran : public IStateTransfer {
     // A session can be expired only if it's open, when expiryDurationMs_ - session always expire.
     bool expired() const { return isOpen() && ((expiryDurationMs_ == 0) || (activeDuration() > expiryDurationMs_)); }
 
-    uint64_t batchCounter_;  // TODO - convert to a metrics
    protected:
     void open(uint16_t replicaId);
 
@@ -764,7 +774,41 @@ class BCStateTran : public IStateTransfer {
     uint16_t replicaId_;
     uint64_t startTime_;
   };
+
+  struct SourceBatch {
+    SourceBatch() : active{false} {}
+    std::string toString() const;
+    void init(uint64_t batchNumber,
+              uint64_t nextBlockId,
+              uint64_t nextChunk,
+              uint64_t maxBlockIdInCycle,
+              bool getNextBlock,
+              const Config& config,
+              size_t rvbGroupDigestsExpectedSize,
+              const FetchBlocksMsg* msg,
+              uint16_t destReplicaId);
+
+    bool active;
+    uint64_t batchNumber;
+    uint64_t numSentBytes;
+    uint64_t numSentChunks;
+    uint64_t nextBlockId;
+    uint16_t nextChunk;
+    uint64_t preFetchBlockId;
+    bool getNextBlock;
+    size_t rvbGroupDigestsExpectedSize;
+    FetchBlocksMsg destRequest;
+    uint16_t destReplicaId;
+    bool prefetched;  // true if this batch succeed with pre-fetch prediction
+    IReplicaForStateTransfer* replicaForStateTransfer;
+  };
+
+  SourceBatch sourceBatch_;
   SourceSession sourceSession_;
+
+  friend std::ostream& operator<<(std::ostream& os, const BCStateTran::SourceBatch& batch);
+  void continueSendBatch();
+  void sendRejectFetchingMsg(const char* reason, uint64_t msgSeqNum, uint16_t destReplicaId);
   ///////////////////////////////////////////////////////////////////////////
   // Latency Historgrams (snapshots)
   ///////////////////////////////////////////////////////////////////////////
@@ -793,12 +837,16 @@ class BCStateTran : public IStateTransfer {
                                         dst_time_between_sendFetchBlocksMsg,
                                         dst_num_pending_blocks_to_commit,
                                         dst_digest_calc_duration,
-                                        dst_time_ItemData_msg_in_incoming_events_queue});
+                                        dst_time_ItemData_msg_in_incoming_events_queue,
+                                        time_in_post_processing_events_queue});
       // source component
       registrar.perf.registerComponent("state_transfer_src",
-                                       {src_handle_FetchBlocks_msg,
+                                       {src_handle_FetchBlocks_msg_duration,
+                                        src_handle_FetchResPages_msg_duration,
                                         src_get_block_size_bytes,
                                         src_send_batch_duration,
+                                        src_send_prefetched_batch_duration,
+                                        src_send_on_spot_batch_duration,
                                         src_send_batch_size_bytes,
                                         src_send_batch_num_of_chunks,
                                         src_next_block_wait_duration});
@@ -837,12 +885,20 @@ class BCStateTran : public IStateTransfer {
                            MAX_VALUE_MICROSECONDS,
                            3,
                            concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(
+        time_in_post_processing_events_queue, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
     // source
     DEFINE_SHARED_RECORDER(
-        src_handle_FetchBlocks_msg, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+        src_handle_FetchBlocks_msg_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(
+        src_handle_FetchResPages_msg_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
     DEFINE_SHARED_RECORDER(src_get_block_size_bytes, 1, MAX_BLOCK_SIZE, 3, concord::diagnostics::Unit::BYTES);
     DEFINE_SHARED_RECORDER(
         src_send_batch_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(
+        src_send_prefetched_batch_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(
+        src_send_on_spot_batch_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
     DEFINE_SHARED_RECORDER(src_send_batch_size_bytes, 1, MAX_BATCH_SIZE_BYTES, 3, concord::diagnostics::Unit::BYTES);
     DEFINE_SHARED_RECORDER(
         src_send_batch_num_of_chunks, 1, MAX_BATCH_SIZE_BLOCKS, 3, concord::diagnostics::Unit::COUNT);
@@ -853,8 +909,12 @@ class BCStateTran : public IStateTransfer {
 
   // Async time recorders - wrap the above shared recorders with the same name and prefix _rec_
   AsyncTimeRecorder<false> src_send_batch_duration_rec_;
+  AsyncTimeRecorder<false> src_send_prefetched_batch_duration_rec_;
+  AsyncTimeRecorder<false> src_send_on_spot_batch_duration_rec_;
   AsyncTimeRecorder<false> dst_time_between_sendFetchBlocksMsg_rec_;
   AsyncTimeRecorder<false> time_in_incoming_events_queue_rec_;
+  AsyncTimeRecorder<true> time_in_post_processing_events_queue_rec_;
+  AsyncTimeRecorder<false> src_next_block_wait_duration_rec_;
 
   // TODO - This member do not belong here (CRE) - move outside
   std::shared_ptr<ClientReconfigurationEngine> cre_;
