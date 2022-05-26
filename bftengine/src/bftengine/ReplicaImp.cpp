@@ -2381,6 +2381,17 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
         if (numRelevantAboveWindow >= config_.getfVal() + 1) {
           LOG_INFO(GL, "Number of stable checkpoints above window: " << numRelevantAboveWindow);
           askForStateTransfer = true;
+
+          // For debug
+          std::ostringstream oss;
+          oss << KVLOG(lastStableSeqNum, kWorkWindowSize, lastExecutedSeqNum, config_.getfVal());
+          for (const auto &[replicaId, cp] : tableOfStableCheckpoints) {
+            const auto &seqNo = cp->seqNumber();
+            const auto &epochNum = cp->epochNumber();
+            oss << "[" << KVLOG(replicaId, seqNo, epochNum) << "],";
+          }
+          LOG_INFO(GL, oss.str());
+
         } else if (numRelevant >= config_.getfVal() + 1) {
           static uint32_t maxTimeSinceLastExecutionInMainWindowMs =
               config_.get<uint32_t>("concord.bft.st.maxTimeSinceLastExecutionInMainWindowMs", 5000);
@@ -3333,12 +3344,17 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
   SeqNum newCheckpointSeqNum = newStateCheckpoint * checkpointWindowSize;
   if (newCheckpointSeqNum <= lastExecutedSeqNum) {
     LOG_DEBUG(GL,
-              "Executing onTransferringCompleteImp(newStateCheckpoint) where newStateCheckpoint <= lastExecutedSeqNum");
-    if (ps_) ps_->endWriteTran(config_.getsyncOnUpdateOfMetadata());
+              "Executing onTransferringCompleteImp(newStateCheckpoint) where newStateCheckpoint <= lastExecutedSeqNum:"
+                  << KVLOG(newStateCheckpoint, lastExecutedSeqNum));
+    if (ps_) {
+      ps_->endWriteTran(config_.getsyncOnUpdateOfMetadata());
+    }
     return;
   }
   lastExecutedSeqNum = newCheckpointSeqNum;
-  if (ps_) ps_->setLastExecutedSeqNum(lastExecutedSeqNum);
+  if (ps_) {
+    ps_->setLastExecutedSeqNum(lastExecutedSeqNum);
+  }
   if (config_.getdebugStatisticsEnabled()) {
     DebugStatistics::onLastExecutedSequenceNumberChanged(lastExecutedSeqNum);
   }

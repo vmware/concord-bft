@@ -34,9 +34,11 @@ using NodeInfo = RangeValidationTree::NodeInfo;
 using RVTNodePtr = RangeValidationTree::RVTNodePtr;
 
 // uncomment to add debug prints
-#define DO_DEBUG
-#ifdef DO_DEBUG
-#define DEBUG_PRINT(x, y) LOG_DEBUG(x, y)
+// #define RANGE_VALIDATION_TREE_DO_DEBUG
+
+#ifdef RANGE_VALIDATION_TREE_DO_DEBUG
+#undef DEBUG_PRINT
+#define DEBUG_PRINT(x, y) LOG_INFO(x, y)
 #define logInfoVal(x) logInfoVal(x)
 #else
 #define DEBUG_PRINT(x, y)
@@ -174,7 +176,7 @@ void RangeValidationTree::SerializedRVTNode::staticAssert() noexcept {
   static_assert(std::is_same<decltype(RVTNode::child_ids_), std::deque<uint64_t>>::value);
 }
 
-#ifdef DO_DEBUG
+#ifdef __RVT_DO_DEBUG
 void RVBNode::logInfoVal(const std::string& prefix) {
   ostringstream oss;
   oss << prefix << info_.toString() << " (" << info_.id() << ") " << current_value_.toString();
