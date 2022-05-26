@@ -3328,6 +3328,8 @@ void BCStateTran::processData(bool lastInBatch, uint32_t rvbDigestsSize) {
           // At this stage we haven't yet committed the last block in cycle so we expect the next assert:
           ConcordAssertEQ(fetchState_, commitState_);
           ConcordAssert(ioContexts_.empty());
+          // approximation - we put this block later, but have already collected it. Report already now
+          reportCollectingStatus(blockDataSize, true);
           blocksFetched_.stop();
           bytesFetched_.stop();
           gettingMissingBlocksDT_.stop();
