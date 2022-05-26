@@ -396,6 +396,8 @@ class BcStTestDelegator {
   SourceSelector& getSourceSelector() { return stateTransfer_->sourceSelector_; }
   void clearPreferredReplicas(const std::set<uint16_t>& replicasToKeep = std::set<uint16_t>{});
   void validateEqualRVTs(const RangeValidationTree& rvtA, const RangeValidationTree& rvtB) const;
+  bool isSrcSessionOpen() const { return stateTransfer_->sourceSession_.isOpen(); }
+  uint16_t srcSessionOwnerDestReplicaId() const { return stateTransfer_->sourceSession_.ownerDestReplicaId(); }
 
  private:
   const std::unique_ptr<BCStateTran>& stateTransfer_;
@@ -452,9 +454,13 @@ class FakeDestination : public FakeReplicaBase {
                   std::shared_ptr<BcStTestDelegator>& stAdapter)
       : FakeReplicaBase(targetConfig, testConfig, testState, testedReplicaIf, dataGen, stAdapter) {}
   ~FakeDestination() {}
-  void sendAskForCheckpointSummariesMsg(uint64_t minRelevantCheckpointNum);
-  void sendFetchBlocksMsg(uint64_t firstRequiredBlock, uint64_t lastRequiredBlock);
-  void sendFetchResPagesMsg(uint64_t lastCheckpointKnownToRequester, uint64_t requiredCheckpointNum);
+  void sendAskForCheckpointSummariesMsg(uint64_t minRelevantCheckpointNum, uint16_t senderReplicaId = UINT_LEAST16_MAX);
+  void sendFetchBlocksMsg(uint64_t firstRequiredBlock,
+                          uint64_t lastRequiredBlock,
+                          uint16_t senderReplicaId = UINT_LEAST16_MAX);
+  void sendFetchResPagesMsg(uint64_t lastCheckpointKnownToRequester,
+                            uint64_t requiredCheckpointNum,
+                            uint16_t senderReplicaId = UINT_LEAST16_MAX);
   uint64_t getLastMsgSeqNum() { return lastMsgSeqNum_; }
 
  protected:
@@ -820,16 +826,21 @@ size_t FakeReplicaBase::filterSentMessagesByMessageType(uint16_t type, bool keep
 /////////////////////////////////////////////////////////
 // FakeDestination - definition
 /////////////////////////////////////////////////////////
-void FakeDestination::sendAskForCheckpointSummariesMsg(uint64_t minRelevantCheckpointNum) {
+void FakeDestination::sendAskForCheckpointSummariesMsg(uint64_t minRelevantCheckpointNum, uint16_t senderReplicaId) {
   ASSERT_SRC_UNDER_TEST;
   AskForCheckpointSummariesMsg msg;
   lastMsgSeqNum_ = stDelegator_->uniqueMsgSeqNum();
   msg.msgSeqNum = lastMsgSeqNum_;
   msg.minRelevantCheckpointNum = minRelevantCheckpointNum;
-  stDelegator_->onMessage(&msg, sizeof(msg), (targetConfig_.myReplicaId + 1) % targetConfig_.numReplicas);
+  senderReplicaId = (senderReplicaId == UINT_LEAST16_MAX)
+                        ? ((targetConfig_.myReplicaId + 1) % targetConfig_.numReplicas)
+                        : senderReplicaId;
+  stDelegator_->onMessage(&msg, sizeof(msg), senderReplicaId);
 }
 
-void FakeDestination::sendFetchBlocksMsg(uint64_t firstRequiredBlock, uint64_t lastRequiredBlock) {
+void FakeDestination::sendFetchBlocksMsg(uint64_t firstRequiredBlock,
+                                         uint64_t lastRequiredBlock,
+                                         uint16_t senderReplicaId) {
   ASSERT_SRC_UNDER_TEST;
   // Remove this line if we would like to make negative tests
   ASSERT_GE(lastRequiredBlock, firstRequiredBlock);
@@ -839,10 +850,15 @@ void FakeDestination::sendFetchBlocksMsg(uint64_t firstRequiredBlock, uint64_t l
   msg.minBlockId = firstRequiredBlock;  // change here too
   msg.maxBlockId = lastRequiredBlock;
   msg.lastKnownChunkInLastRequiredBlock = 0;  // for now, chunking is not supported
-  stDelegator_->onMessage(&msg, sizeof(msg), (targetConfig_.myReplicaId + 1) % targetConfig_.numReplicas);
+  senderReplicaId = (senderReplicaId == UINT_LEAST16_MAX)
+                        ? ((targetConfig_.myReplicaId + 1) % targetConfig_.numReplicas)
+                        : senderReplicaId;
+  stDelegator_->onMessage(&msg, sizeof(msg), senderReplicaId);
 }
 
-void FakeDestination::sendFetchResPagesMsg(uint64_t lastCheckpointKnownToRequester, uint64_t requiredCheckpointNum) {
+void FakeDestination::sendFetchResPagesMsg(uint64_t lastCheckpointKnownToRequester,
+                                           uint64_t requiredCheckpointNum,
+                                           uint16_t senderReplicaId) {
   ASSERT_SRC_UNDER_TEST;
   FetchResPagesMsg msg;
   lastMsgSeqNum_ = stDelegator_->uniqueMsgSeqNum();
@@ -850,7 +866,10 @@ void FakeDestination::sendFetchResPagesMsg(uint64_t lastCheckpointKnownToRequest
   msg.lastCheckpointKnownToRequester = lastCheckpointKnownToRequester;
   msg.requiredCheckpointNum = requiredCheckpointNum;
   msg.lastKnownChunk = 0;  // for now, chunking is not supported
-  stDelegator_->onMessage(&msg, sizeof(msg), (targetConfig_.myReplicaId + 1) % targetConfig_.numReplicas);
+  senderReplicaId = (senderReplicaId == UINT_LEAST16_MAX)
+                        ? ((targetConfig_.myReplicaId + 1) % targetConfig_.numReplicas)
+                        : senderReplicaId;
+  stDelegator_->onMessage(&msg, sizeof(msg), senderReplicaId);
 }
 
 /////////////////////////////////////////////////////////
@@ -2034,6 +2053,102 @@ INSTANTIATE_TEST_CASE_P(BcStTest,
                             BcStTestParamFixtureInput3(1000, 0, 100, 9, true),
                             // Add blocks and Prune and restart between checkpointing
                             BcStTestParamFixtureInput3(100, 100, 50, 100, true)), );
+
+TEST_F(BcStTest, srcTestSessionManagement) {
+  testConfig_.testTarget = TestConfig::TestTarget::SOURCE;
+  ASSERT_NFF(initialize());
+  ASSERT_NFF(cmnStartRunning());
+  // Generate the data needed for a tested ST backup replica
+  ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, testState_.maxRequiredBlockId));
+  ASSERT_NFF(dataGen_->generateCheckpointDescriptors(appState_,
+                                                     datastore_,
+                                                     testState_.minRepliedCheckpointNum,
+                                                     testState_.maxRepliedCheckpointNum,
+                                                     stDelegator_->getRvbManager()));
+
+  auto senderReplicaId2 = (targetConfig_.myReplicaId + 2) % targetConfig_.numReplicas;
+  auto senderReplicaId1 = (targetConfig_.myReplicaId + 1) % targetConfig_.numReplicas;
+
+  // for senderReplicaId2 only:
+  ASSERT_NFF(fakeDstReplica_->sendFetchBlocksMsg(
+      testState_.minRequiredBlockId, testState_.maxRequiredBlockId, senderReplicaId2));
+  ASSERT_EQ(testedReplicaIf_.sent_messages_.size(), targetConfig_.maxNumberOfChunksInBatch);
+  testedReplicaIf_.sent_messages_.clear();
+  // Validate that session was really openned for senderReplicaId
+  ASSERT_TRUE(stDelegator_->isSrcSessionOpen());
+  ASSERT_EQ(stDelegator_->srcSessionOwnerDestReplicaId(), senderReplicaId2);
+  // wait some time and see that session is still open
+  this_thread::sleep_for(chrono::milliseconds(targetConfig_.sourceSessionExpiryDurationMs / 2));
+  ASSERT_NFF(stDelegator_->onTimerImp());
+  ASSERT_TRUE(stDelegator_->isSrcSessionOpen());
+  ASSERT_EQ(stDelegator_->srcSessionOwnerDestReplicaId(), senderReplicaId2);
+  // wait some time and see that session is closed
+  this_thread::sleep_for(chrono::milliseconds(targetConfig_.sourceSessionExpiryDurationMs / 2 + 100));
+  ASSERT_NFF(stDelegator_->onTimerImp());
+  ASSERT_TRUE(!stDelegator_->isSrcSessionOpen());
+  // Send another request and validate an open session
+  ASSERT_NFF(fakeDstReplica_->sendFetchBlocksMsg(
+      testState_.minRequiredBlockId, testState_.maxRequiredBlockId, senderReplicaId2));
+  auto timeLeftForSession = targetConfig_.sourceSessionExpiryDurationMs;
+  ASSERT_EQ(testedReplicaIf_.sent_messages_.size(), targetConfig_.maxNumberOfChunksInBatch);
+  testedReplicaIf_.sent_messages_.clear();
+  // Validate that session was really openned for senderReplicaId
+  ASSERT_NFF(stDelegator_->onTimerImp());
+  ASSERT_TRUE(stDelegator_->isSrcSessionOpen());
+  ASSERT_EQ(stDelegator_->srcSessionOwnerDestReplicaId(), senderReplicaId2);
+
+  //
+  // sleep 50 millisec, then send request from senderReplicaId1 and validate rejection x 3 times
+  for (size_t i{}; i < 3; ++i) {
+    this_thread::sleep_for(chrono::milliseconds(50));
+    ASSERT_NFF(stDelegator_->onTimerImp());
+    timeLeftForSession -= 50;
+    ASSERT_NFF(fakeDstReplica_->sendFetchBlocksMsg(
+        testState_.minRequiredBlockId, testState_.maxRequiredBlockId, senderReplicaId1));
+    ASSERT_EQ(testedReplicaIf_.sent_messages_.size(), 1);
+    const auto& msg = testedReplicaIf_.sent_messages_.front();
+    ASSERT_NFF(assertMsgType(msg, MsgType::RejectFetching));
+    testedReplicaIf_.sent_messages_.clear();
+    ASSERT_NFF(stDelegator_->onTimerImp());
+  }
+
+  // Now wait till session expire and send request x3 times from senderReplicaId2, see that we get ItemDataMsg
+  this_thread::sleep_for(chrono::milliseconds(timeLeftForSession + 50));
+  ASSERT_NFF(stDelegator_->onTimerImp());
+  for (size_t i{}; i < 3; ++i) {
+    this_thread::sleep_for(chrono::milliseconds(50));
+    ASSERT_NFF(fakeDstReplica_->sendFetchBlocksMsg(
+        testState_.minRequiredBlockId, testState_.maxRequiredBlockId, senderReplicaId2));
+    ASSERT_EQ(testedReplicaIf_.sent_messages_.size(), targetConfig_.maxNumberOfChunksInBatch);
+    testedReplicaIf_.sent_messages_.clear();
+    // Validate that session was really openned for senderReplicaId2
+    ASSERT_NFF(stDelegator_->onTimerImp());
+    ASSERT_TRUE(stDelegator_->isSrcSessionOpen());
+    ASSERT_EQ(stDelegator_->srcSessionOwnerDestReplicaId(), senderReplicaId2);
+  }
+}
+
+// check that when sourceSessionExpiryDurationMs=0, no destination is rejected by source
+TEST_F(BcStTest, srcTestSessionManagementDisabled) {
+  testConfig_.testTarget = TestConfig::TestTarget::SOURCE;
+  targetConfig_.sourceSessionExpiryDurationMs = 0;
+  ASSERT_NFF(initialize());
+  ASSERT_NFF(cmnStartRunning());
+  // Generate the data needed for a tested ST backup replica
+  ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, testState_.maxRequiredBlockId));
+  ASSERT_NFF(dataGen_->generateCheckpointDescriptors(appState_,
+                                                     datastore_,
+                                                     testState_.minRepliedCheckpointNum,
+                                                     testState_.maxRepliedCheckpointNum,
+                                                     stDelegator_->getRvbManager()));
+
+  // send request from all replicas, non should bne rejected
+  for (size_t i{}; i < targetConfig_.numReplicas; ++i) {
+    if (i == targetConfig_.myReplicaId) continue;
+    ASSERT_NFF(fakeDstReplica_->sendFetchBlocksMsg(testState_.minRequiredBlockId, testState_.maxRequiredBlockId, i));
+    ASSERT_EQ(testedReplicaIf_.sent_messages_.size(), (i + 1) * targetConfig_.maxNumberOfChunksInBatch);
+  }
+}
 
 }  // namespace bftEngine::bcst::impl
 
