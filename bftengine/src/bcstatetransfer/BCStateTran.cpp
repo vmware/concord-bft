@@ -356,8 +356,8 @@ void BCStateTran::initImpl(uint64_t maxNumOfRequiredStoredCheckpoints,
 
       fs = getFetchingState();
       LOG_INFO(logger_, "Starting state is " << stateName(fs));
-      isCollectingState_ = (fs != FetchingState::NotFetching);
-      if (isActiveDest(fs)) {
+      isCollectingState_ = isActiveDestination(fs);
+      if (isCollectingState_) {
         LOG_INFO(logger_, "State Transfer cycle continues");
         startCollectingStats();
         if ((fs == FetchingState::GettingMissingBlocks) || (fs == FetchingState::GettingMissingResPages)) {
@@ -422,7 +422,7 @@ void BCStateTran::startRunningImpl(IReplicaForStateTransfer *r) {
     cre_->start();
   }
   ConcordAssertNE(r, nullptr);
-  if ((!config_.isReadOnly) && (fs != FetchingState::NotFetching)) {
+  if ((!config_.isReadOnly) && (isActiveDestination(fs))) {
     LOG_INFO(logger_, "State Transfer cycle continues, starts async reconfiguration engine");
     if (cre_) {
       cre_->resume();
@@ -559,7 +559,7 @@ void BCStateTran::createCheckpointOfCurrentStateImpl(uint64_t checkpointNumber) 
   LOG_INFO(logger_, KVLOG(checkpointNumber, lastStoredCheckpointNumber));
 
   ConcordAssert(running_);
-  ConcordAssert(!isFetching());
+  ConcordAssert(!isCollectingState_);
   ConcordAssertGT(checkpointNumber, 0);
   if (checkpointNumber == lastStoredCheckpointNumber) {
     // We persist the lastStoredCheckpointNumber in a separate transaction from the actual
@@ -833,7 +833,7 @@ void BCStateTran::startCollectingStateInternal() {
 
 void BCStateTran::startCollectingStateImpl() {
   ConcordAssert(running_);
-  if (isFetching()) {
+  if (isCollectingState_) {
     LOG_WARN(logger_, "Already in State Transfer, ignore call...");
     return;
   }
@@ -990,7 +990,7 @@ void BCStateTran::getStatusImpl(std::string &statusOut) {
   }
   bj.endNested();
 
-  if (isFetching()) {
+  if (isCollectingState_) {
     bj.startNested("fetchingStateDetails");
     bj.addKv("currentSource", current_source);
     bj.addKv("preferredReplicas", preferred_replicas);
@@ -1314,7 +1314,7 @@ string BCStateTran::stateName(FetchingState fs) {
   }
 }
 
-bool BCStateTran::isActiveDest(FetchingState fs) {
+bool BCStateTran::isActiveDestination(FetchingState fs) {
   return (fs == FetchingState::GettingMissingBlocks) || (fs == FetchingState::GettingCheckpointSummaries) ||
          (fs == FetchingState::GettingMissingResPages);
 }
@@ -1323,8 +1323,6 @@ std::ostream &operator<<(std::ostream &os, const BCStateTran::FetchingState fs) 
   os << BCStateTran::stateName(fs);
   return os;
 }
-
-bool BCStateTran::isFetching() const { return (psd_->getIsFetchingState()); }
 
 void BCStateTran::onFetchingStateChange(FetchingState newFetchingState) {
   LOG_INFO(logger_,
@@ -1517,13 +1515,12 @@ bool BCStateTran::onMessage(const AskForCheckpointSummariesMsg *m, uint32_t msgL
   }
 
   // if msg is not relevant
-  bool isFetching = psd_->getIsFetchingState();
   auto lastStoredCheckpoint = psd_->getLastStoredCheckpoint();
-  if (auto seqNumInvalid = !checkValidityAndSaveMsgSeqNum(replicaId, m->msgSeqNum) || isFetching ||
+  if (auto seqNumInvalid = !checkValidityAndSaveMsgSeqNum(replicaId, m->msgSeqNum) || isCollectingState_ ||
                            (m->minRelevantCheckpointNum > lastStoredCheckpoint)) {
-    LOG_WARN(
-        logger_,
-        "Msg is irrelevant: " << KVLOG(isFetching, seqNumInvalid, m->minRelevantCheckpointNum, lastStoredCheckpoint));
+    LOG_WARN(logger_,
+             "Msg is irrelevant: " << KVLOG(
+                 isCollectingState_, seqNumInvalid, m->minRelevantCheckpointNum, lastStoredCheckpoint));
     metrics_.irrelevant_ask_for_checkpoint_summaries_msg_++;
     return false;
   }
@@ -2035,7 +2032,7 @@ bool BCStateTran::onMessage(const FetchResPagesMsg *m, uint32_t msgLen, uint16_t
   FetchingState fetchingState = getFetchingState();
 
   // if msg should be rejected
-  if ((isActiveDest(fetchingState)) || (!psd_->hasCheckpointDesc(m->requiredCheckpointNum))) {
+  if ((isActiveDestination(fetchingState)) || (!psd_->hasCheckpointDesc(m->requiredCheckpointNum))) {
     RejectFetchingMsg outMsg;
     outMsg.requestMsgSeqNum = m->msgSeqNum;
 
@@ -3732,7 +3729,7 @@ void BCStateTran::handleIncomingConsensusMessageImpl(ConsensusMsg msg) {
 
 void BCStateTran::reportLastAgreedPrunableBlockIdImpl(uint64_t lastAgreedPrunableBlockId) {
   ConcordAssert(!config_.isReadOnly);  // not supported for RO replica
-  if (isFetching()) {
+  if (isCollectingState_) {
     LOG_ERROR(logger_, "Report about pruned blocks while fetching!");
     return;
   }

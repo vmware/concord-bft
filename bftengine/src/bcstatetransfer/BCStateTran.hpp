@@ -313,11 +313,10 @@ class BCStateTran : public IStateTransfer {
  protected:
   friend std::ostream& operator<<(std::ostream& os, const BCStateTran::FetchingState fs);
   static string stateName(FetchingState fs);
-  static bool isActiveDest(FetchingState fs);
+  static inline bool isActiveDestination(FetchingState fs);
 
   // TODO - should be renamed to evaluateFetchingState
   FetchingState getFetchingState();
-  bool isFetching() const;
   std::atomic_bool isCollectingState_ = false;
 
   ///////////////////////////////////////////////////////////////////////////
