@@ -59,8 +59,6 @@ class IStateTransfer : public IReservedPages {
 
   virtual void createCheckpointOfCurrentState(uint64_t checkpointNumber) = 0;
 
-  virtual void markCheckpointAsStable(uint64_t checkpointNumber) = 0;
-
   virtual void getDigestOfCheckpoint(uint64_t checkpointNumber,
                                      uint16_t sizeOfDigestBuffer,
                                      uint64_t &outBlockId,
@@ -91,18 +89,17 @@ class IStateTransfer : public IReservedPages {
   // Callbacks must not throw.
   // Multiple callbacks can be added.
   virtual void addOnTransferringCompleteCallback(
-      std::function<void(uint64_t)>,
+      const std::function<void(uint64_t)> &cb,
       StateTransferCallBacksPriorities priority = StateTransferCallBacksPriorities::DEFAULT) = 0;
 
   // Registers a function that is called every time fetching state changes
-  virtual void addOnFetchingStateChangeCallback(std::function<void(uint64_t)>) = 0;
+  virtual void addOnFetchingStateChangeCallback(const std::function<void(uint64_t)> &) = 0;
 
   virtual void setEraseMetadataFlag() = 0;
 
   virtual void setReconfigurationEngine(
       std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine>) = 0;
-  virtual std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> getReconfigurationEngine() = 0;
-  virtual void handleIncomingConsensusMessage(const shared_ptr<ConsensusMsg> &msg) = 0;
+  virtual void handleIncomingConsensusMessage(const ConsensusMsg msg) = 0;
   // Reports State Transfer whenever a prune command is triggered into storage, after a consensus on the last prunable
   // block. lastAgreedPrunableBlockId is the maximal block to be deleted from local storage.
   virtual void reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBlockId) = 0;
