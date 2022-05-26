@@ -753,7 +753,9 @@ class BCStateTran : public IStateTransfer {
     bool isOpen() const { return startTime_ != 0; }
     uint16_t ownerDestReplicaId() const { return replicaId_; };
     uint64_t activeDuration() const { return getMonotonicTimeMilli() - startTime_; }
-    bool expired() const { return activeDuration() > expiryDurationMs_; }
+    void refresh(uint64_t startTime = 0);
+    // A session can be expired only if it's open, when expiryDurationMs_ - session always expire.
+    bool expired() const { return isOpen() && ((expiryDurationMs_ == 0) || (activeDuration() > expiryDurationMs_)); }
 
     uint64_t batchCounter_;  // TODO - convert to a metrics
    protected:
