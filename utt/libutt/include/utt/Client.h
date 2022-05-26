@@ -26,13 +26,7 @@ struct CreateTxResult {
   Tx tx;
 };
 
-using CoinStrategy = std::function<CreateTxResult(const Wallet&, const std::string&, size_t)>;
-extern CoinStrategy k_CoinStrategyPreferExactChange;
-
-CreateTxResult createTxForPayment(const Wallet& w,
-                                  const std::string& pid,
-                                  size_t payment,
-                                  const CoinStrategy& strategy = k_CoinStrategyPreferExactChange);
+CreateTxResult createTxForPayment(const Wallet& w, const std::string& pid, size_t payment);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct CreateBurnTxResult {
