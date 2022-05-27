@@ -8,8 +8,10 @@ echo "# that the total public and utt balance remain the same."
 echo "# You can obtain the random seeds from automation/run_ files."
 echo "###############################################################"
 
+NUM_RANDOM_TX="${1:-50}"
+
 # Each wallet executes random transfers and quits
-. runAutomation.sh "random 50\nq"
+. runAutomation.sh "random ${NUM_RANDOM_TX}\nq"
 
 # Total balances must be conserved
 EXPECTED_TOTAL_BALANCE=$((NUM_WALLETS * (INIT_PUBLIC_BALANCE + INIT_UTT_BALANCE)))
