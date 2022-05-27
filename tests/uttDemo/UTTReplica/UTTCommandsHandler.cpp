@@ -88,10 +88,10 @@ class UTTReplicaApp : public UTTBlockchainApp {
       }
 
       void operator()(const TxMint& tx) const {
-        if (tx.amount_ <= 0) throw std::domain_error("Mint amount must be positive!");
+        if (tx.amount_ == 0) throw std::domain_error("Mint amount must be positive!");
         auto acc = app_.getAccountById(tx.pid_);
         if (!acc) throw std::domain_error("Unknown account in mint tx!");
-        if (tx.amount_ > static_cast<uint32_t>(acc->getPublicBalance()))
+        if (tx.amount_ > static_cast<size_t>(acc->getPublicBalance()))
           throw std::domain_error("Account has insufficient public balance!");
 
         std::string uniqueHash = uniqueMintHash(tx.pid_, tx.mintSeqNum_);
@@ -102,7 +102,7 @@ class UTTReplicaApp : public UTTBlockchainApp {
       }
 
       void operator()(const TxBurn& tx) const {
-        if (tx.op_.getValue() <= 0) throw std::domain_error("Burn amount must be positive!");
+        if (tx.op_.getValue() == 0) throw std::domain_error("Burn amount must be positive!");
         auto acc = app_.getAccountById(tx.op_.getOwnerPid());
         if (!acc) throw std::domain_error("Unknown account for burn tx!");
 

@@ -679,7 +679,7 @@ void mintCoin(UTTClientApp& app, WalletCommunicator& comm, const std::vector<std
   auto uniqueHash = uniqueMintHash(app.myPid_, nextMintSeqNum);
   libutt::MintOp mintOp(uniqueHash, amount, app.myPid_);
 
-  std::cout << "\nCreated a Mint tx: " << mintOp.getHashHex() << " (unique hash: " << uniqueHash << ")\n";
+  std::cout << "\nCreated a Mint tx: " << mintOp.getHashHex() << '\n';
   std::cout << " - '" << app.myPid_ << "' will spend " << app.fmtCurrency(amount) << " public money.\n";
   std::cout << " + '" << app.myPid_ << "' will receive " << app.fmtCurrency(amount) << " coin.\n";
 

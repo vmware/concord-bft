@@ -21,6 +21,18 @@ function printState() {
     echo ""
 }
 
+function waitWallets() {
+    echo "Waiting wallet pids (${WALLET_PIDS}) to finish..."
+    for pid in ${WALLET_PIDS}; do
+        wait $pid
+        if [ $? -ne 0 ]; then
+            echo "Error: wallet with pid ${pid} failed to execute correctly!"
+            exit 1
+        fi
+    done
+    echo "Done."
+}
+
 # Summarize the initial state of each wallet
 echo ""
 echo "Gather the initial state of the system..."
@@ -30,16 +42,7 @@ do
     ../UTTClient/utt_client -n config/net_localhost.txt -i $id -s automation/init_$id.txt > /dev/null &
     WALLET_PIDS+=" $!"
 done
-echo "Waiting wallet pids (${WALLET_PIDS}) to finish..."
-for pid in ${WALLET_PIDS}; do
-    wait $pid
-    if [ $? -ne 0 ]; then
-        echo "Error: wallet with pid ${pid} failed to execute correctly!"
-        exit 1
-    fi
-done
-echo "Done."
-
+waitWallets
 printState "automation/init_*"
 
 # Export variables describing the initial state
@@ -58,15 +61,7 @@ do
     echo -e $1 | ../UTTClient/utt_client -n config/net_localhost.txt -i $id &> automation/run_$id.txt &
     WALLET_PIDS+=" $!"
 done
-echo "Waiting wallet pids (${WALLET_PIDS}) to finish..."
-for pid in ${WALLET_PIDS}; do
-    wait $pid
-    if [ $? -ne 0 ]; then
-        echo "Error: wallet with pid ${pid} failed to execute correctly!"
-        exit 1
-    fi
-done
-echo "Done."
+waitWallets
 
 # Summarize the final state of each wallet
 echo ""
@@ -77,16 +72,7 @@ do
     ../UTTClient/utt_client -n config/net_localhost.txt -i $id -s automation/final_$id.txt > /dev/null &
     WALLET_PIDS+=" $!"
 done
-echo "Waiting wallet pids (${WALLET_PIDS}) to finish..."
-for pid in ${WALLET_PIDS}; do
-    wait $pid
-    if [ $? -ne 0 ]; then
-        echo "Error: wallet with pid ${pid} failed to execute correctly!"
-        exit 1
-    fi
-done
-echo "Done."
-
+waitWallets
 printState "automation/final_*"
 
 # Stop replicas and payment services
