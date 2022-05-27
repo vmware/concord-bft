@@ -1730,6 +1730,31 @@ TEST_F(BcStTest, dstSendPrePrepareMsgsDuringStateTransfer) {
   ASSERT_NFF(dstValidateCycleEnd(10));
 }
 
+TEST_F(BcStTest, dstProcessDataWithNoKnownSources) {
+  ASSERT_NFF(initialize());
+  ASSERT_NFF(dstStartRunningAndCollecting());
+  ASSERT_NFF(fakeSrcReplica_->replyAskForCheckpointSummariesMsg());
+  auto& ss = stDelegator_->getSourceSelector();
+
+  // Scenario:
+  // Retransmission time out reached (or some other bad reason) for f replicas & new source selected.
+  // This newly selected source is apparently last source in preferred list.
+  // Destination sends fetchBlockMsg() to new (also last one) source.
+  // This newly selected source becomes primary & as a result it also gets removed from preferred list.
+  // Assert will hit as destination replica assumes that there is at least one source replica in preferred list
+  // to get (V)block.
+
+  while (ss.numberOfPreferredReplicas() > 1) {
+    ss.updateSource(getMonotonicTimeMilli());
+  }
+  ss.removeCurrentReplica();
+
+  ASSERT_NFF(getMissingblocksStage<void>());
+  ASSERT_NFF(getReservedPagesStage());
+  // validate completion
+  ASSERT_NFF(dstValidateCycleEnd(10));
+}
+
 TEST_F(BcStTest, dstPreprepareFromMultipleSourcesDuringStateTransfer) {
   ASSERT_NFF(initialize());
   std::once_flag once_flag;
