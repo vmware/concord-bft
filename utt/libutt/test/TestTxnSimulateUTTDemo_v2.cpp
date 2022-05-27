@@ -49,7 +49,7 @@ int main(int argc, char* argv[]) {
 
   assertGreaterThanOrEqual(wallets.size(), 2);
 
-  size_t numCycles = 20;
+  size_t numCycles = 100;
 
   for (size_t cycle = 0; cycle < numCycles; cycle++) {
     loginfo << endl << endl;
