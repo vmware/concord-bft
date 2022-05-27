@@ -100,6 +100,30 @@ CreateTxResult createTx_2t2(const Wallet& w, size_t coinIdx1, size_t coinIdx2, s
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
+CreateTxResult createTx_Self2t2(const Wallet& w, size_t coinIdx1, size_t coinIdx2, size_t amount) {
+  std::vector<Coin> inputCoins = std::vector<Coin>{w.coins.at(coinIdx1), w.coins.at(coinIdx2)};
+
+  Fr value1;
+  value1.set_ulong(amount);
+
+  Fr value2 = (inputCoins[0].val + inputCoins[1].val) - value1;
+
+  std::vector<std::tuple<std::string, Fr>> recip;
+  recip.emplace_back(w.ask.getPid(), value1);
+  recip.emplace_back(w.ask.getPid(), value2);
+
+  CreateTxResult result;
+  result.txType_ = "coin-split";
+  result.inputNormalCoinValues_.emplace_back(inputCoins[0].getValue());
+  result.inputNormalCoinValues_.emplace_back(inputCoins[1].getValue());
+  result.recipients_.emplace(w.getUserPid(), value1.as_ulong());
+  result.recipients_.emplace(w.getUserPid(), value2.as_ulong());
+  result.tx = Tx(w.p, w.ask, inputCoins, std::nullopt, recip, w.bpk, w.rpk);
+
+  return result;
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////
 CreateTxResult createTx_Self2t1(const Wallet& w, size_t coinIdx1, size_t coinIdx2) {
   std::vector<Coin> inputCoins = std::vector<Coin>{w.coins.at(coinIdx1), w.coins.at(coinIdx2)};
 
@@ -119,6 +143,29 @@ CreateTxResult createTx_Self2t1(const Wallet& w, size_t coinIdx1, size_t coinIdx
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
+CreateTxResult createTx_Self1t2(const Wallet& w, size_t coinIdx, size_t splitAmount) {
+  std::vector<Coin> inputCoins = std::vector<Coin>{w.coins.at(coinIdx)};
+
+  Fr value1;
+  value1.set_ulong(splitAmount);
+
+  Fr value2 = inputCoins[0].val - value1;
+
+  std::vector<std::tuple<std::string, Fr>> recip;
+  recip.emplace_back(w.ask.getPid(), value1);
+  recip.emplace_back(w.ask.getPid(), value2);
+
+  CreateTxResult result;
+  result.txType_ = "coin-split";
+  result.inputNormalCoinValues_.emplace_back(inputCoins[0].getValue());
+  result.recipients_.emplace(w.getUserPid(), value1.as_ulong());
+  result.recipients_.emplace(w.getUserPid(), value2.as_ulong());
+  result.tx = Tx(w.p, w.ask, inputCoins, std::nullopt, recip, w.bpk, w.rpk);
+
+  return result;
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////
 size_t calcBalance(const Wallet& w) {
   size_t balance = 0;
   for (const auto& c : w.coins) balance += c.getValue();
@@ -129,28 +176,27 @@ size_t calcBalance(const Wallet& w) {
 size_t calcBudget(const Wallet& w) { return w.budgetCoin ? w.budgetCoin->getValue() : 0; }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
-CoinStrategy k_CoinStrategyPreferExactChange =
-    [](const Wallet& w, const std::string& pid, size_t payment) -> CreateTxResult {
+auto k_CoinStrategyPreferExactMatch = [](const std::vector<Coin>& coins, size_t targetAmount) -> std::vector<size_t> {
   // Precondition: 0 < payment <= budget <= balance
 
-  // Variant 1: Prefer exact payments (using sorted coins)
+  // Variant 1: Prefer exactly matching coins (using sorted coins)
   //
   // (1) look for a single coin where value >= k, an exact coin will be preferred
   // (2) look for two coins with total value >= k, an exact sum will be preferred
   // (3) no two coins sum up to k, do a merge on the largest two coins
 
   // Example 1 (1 coin match):
-  // Target Payment: 5
+  // Target Amount: 5
   // Wallet: [2, 3, 4, 4, 7, 8]
   //
   // (1) find lower bound (LB) of 5: [2, 3, 4, 4, 7, 8] --> found a coin >= 5
   //                                              ^
-  // (2) Make a one coin payment with 7
-  // Note: If we prefer to pay with two exact coins (if possible) we can go to example 2
+  // (2) Use a single coin of 7
+  // Note: If we prefer to use two exact coins (if possible) we can go to example 2
   // by considering the subrange [2, 3, 4, 4] and skip step (1) of example 2.
 
   // Example 2 (2 coin matches):
-  // Target Payment: 5
+  // Target Amount: 5
   // Wallet: [2, 3, 4, 4]
   //
   // (1) find lower bound (LB) of 5: [2, 3, 4, 4, end] -- we don't have a single coin candidate
@@ -163,28 +209,24 @@ CoinStrategy k_CoinStrategyPreferExactChange =
   //  Termination: l == h
   //
   // (3) Use exact match
-  // Note: We use exact match over an inexact match and if neither exist we merge the
+  // Note: We use exact match over an inexact match and if neither exists we merge the
   // top two coins and try again.
 
   using CoinRef = std::pair<size_t, size_t>;  // [coinValue, coinIdx]
 
   std::vector<CoinRef> aux;
 
-  for (size_t i = 0; i < w.coins.size(); ++i) {
-    aux.emplace_back(w.coins[i].getValue(), i);
+  for (size_t i = 0; i < coins.size(); ++i) {
+    aux.emplace_back(coins[i].getValue(), i);
   }
 
   auto cmpCoinValue = [](const CoinRef& lhs, const CoinRef& rhs) { return lhs.first < rhs.first; };
   std::sort(aux.begin(), aux.end(), cmpCoinValue);
 
-  auto lb = std::lower_bound(aux.begin(), aux.end(), CoinRef{payment, -1}, cmpCoinValue);
+  auto lb = std::lower_bound(aux.begin(), aux.end(), CoinRef{targetAmount, -1}, cmpCoinValue);
   if (lb != aux.end()) {
-    // We can pay with one coin
-    if (lb->first > payment) {
-      return createTx_1t2(w, lb->second, payment, pid);
-    } else {
-      return createTx_1t1(w, lb->second, pid);
-    }
+    // We can pay with one coin (>= targetAmount)
+    return std::vector<size_t>{lb->second};
   } else {  // Try to pay with two coins
     // We know that our balance is enough and no coin is >= payment (because lower_bound == end)
     // Then we may have two coins that satisfy the payment
@@ -196,10 +238,10 @@ CoinStrategy k_CoinStrategyPreferExactChange =
 
     while (low < high) {
       const auto sum = aux[low].first + aux[high].first;
-      if (sum == payment) {
+      if (sum == targetAmount) {
         exactMatch = std::make_pair(aux[low].second, aux[high].second);
         break;  // exact found
-      } else if (sum > payment) {
+      } else if (sum > targetAmount) {
         // found a pair (but we want to look for an exact match)
         if (!match) match = std::make_pair(aux[low].second, aux[high].second);
         --high;
@@ -208,25 +250,22 @@ CoinStrategy k_CoinStrategyPreferExactChange =
       }
     }
 
+    // Prefer an exact match over an inexact
     if (exactMatch) {
-      return createTx_2t1(w, exactMatch->first, exactMatch->second, pid);
+      return std::vector<size_t>{exactMatch->first, exactMatch->second};
     } else if (match) {
-      return createTx_2t2(w, match->first, match->second, payment, pid);
+      return std::vector<size_t>{match->first, match->second};
     }
   }
 
-  // At this point no one or two coins are sufficient to do the payment
-  // We merge the top two coins
+  // At this point no one or two coins are sufficient for the target amount
+  // so we merge the top two coins
   const auto lastIdx = aux.size() - 1;
-  return createTx_Self2t1(w, aux[lastIdx - 1].second, aux[lastIdx].second);
+  return std::vector<size_t>{aux[lastIdx - 1].second, aux[lastIdx].second};
 };
 
 //////////////////////////////////////////////////////////////////////////////////////////////
-CreateTxResult createTxForPayment(const Wallet& w,
-                                  const std::string& pid,
-                                  size_t payment,
-                                  const CoinStrategy& strategy) {
-  if (!strategy) throw std::runtime_error("Coin strategy not provided!");
+CreateTxResult createTxForPayment(const Wallet& w, const std::string& pid, size_t payment) {
   if (w.coins.empty()) throw std::runtime_error("Wallet has no coins!");
   if (pid.empty()) throw std::runtime_error("Empty pid!");
   if (payment == 0) throw std::runtime_error("Payment must be positive!");
@@ -236,7 +275,47 @@ CreateTxResult createTxForPayment(const Wallet& w,
   const size_t budget = calcBudget(w);
   if (budget < payment) throw std::runtime_error("Wallet has insufficient anonymous budget!");
 
-  return strategy(w, pid, payment);
+  auto coins = k_CoinStrategyPreferExactMatch(w.coins, payment);
+  if (coins.empty()) throw std::runtime_error("Coin strategy didn't pick any coins!");
+
+  if (coins.size() == 1) {
+    const auto value = w.coins.at(coins[0]).getValue();
+    if (value < payment) throw std::runtime_error("Coin strategy picked a single insufficient coin!");
+    if (value == payment) return createTx_1t1(w, coins[0], pid);
+    return createTx_1t2(w, coins[0], payment, pid);  // value > payment
+  } else if (coins.size() == 2) {
+    const auto value = w.coins.at(coins[0]).getValue() + w.coins.at(coins[1]).getValue();
+    if (value < payment) return createTx_Self2t1(w, coins[0], coins[1]);  // Coin merge
+    if (value == payment) return createTx_2t1(w, coins[0], coins[1], pid);
+    return createTx_2t2(w, coins[0], coins[1], payment, pid);  // value > payment
+  } else {
+    throw std::runtime_error("Coin strategy picked more than two coins!");
+  }
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////
+CreateBurnTxResult createTxForBurn(const Wallet& w, size_t amount) {
+  if (w.coins.empty()) throw std::runtime_error("Wallet has no coins!");
+  if (amount == 0) throw std::runtime_error("Payment must be positive!");
+
+  const size_t balance = calcBalance(w);
+  if (balance < amount) throw std::runtime_error("Wallet has insufficient balance!");
+
+  auto coins = k_CoinStrategyPreferExactMatch(w.coins, amount);
+  if (coins.empty()) throw std::runtime_error("Coin strategy didn't pick any coins!");
+
+  if (coins.size() == 1) {
+    const auto value = w.coins.at(coins[0]).getValue();
+    if (value < amount) throw std::runtime_error("Coin strategy picked a single insufficient coin!");
+    if (value == amount) return BurnOp(w.p, w.ask, w.coins.at(coins[0]), w.bpk, w.rpk);
+    return createTx_Self1t2(w, coins[0], amount);  // value > payment
+  } else if (coins.size() == 2) {
+    const auto value = w.coins.at(coins[0]).getValue() + w.coins.at(coins[1]).getValue();
+    if (value <= amount) return createTx_Self2t1(w, coins[0], coins[1]);  // Coin merge
+    return createTx_Self2t2(w, coins[0], coins[1], amount);               // value > payment
+  } else {
+    throw std::runtime_error("Coin strategy picked more than two coins!");
+  }
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////

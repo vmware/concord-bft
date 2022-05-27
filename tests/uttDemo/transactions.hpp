@@ -21,6 +21,8 @@
 
 #include <utt/RandSig.h>
 #include <utt/Tx.h>
+#include <utt/MintOp.h>
+#include <utt/BurnOp.h>
 
 std::vector<uint8_t> StrToBytes(const std::string& str);
 std::string BytesToStr(const std::vector<uint8_t>& bytes);
@@ -63,7 +65,26 @@ struct TxUtt {
 };
 std::ostream& operator<<(std::ostream& os, const TxUtt& tx);
 
-using Tx = std::variant<TxPublicDeposit, TxPublicWithdraw, TxPublicTransfer, TxUtt>;
+std::string uniqueMintHash(const std::string& pid, uint64_t mintSeqNum);
+struct TxMint {
+  TxMint(std::string pid, uint64_t mintSeqNum, size_t amount, libutt::MintOp&& op)
+      : pid_{std::move(pid)}, mintSeqNum_{mintSeqNum}, amount_{amount}, op_{std::move(op)} {}
+  std::string pid_;
+  uint64_t mintSeqNum_;
+  size_t amount_;
+  libutt::MintOp op_;
+  std::optional<ReplicaSigShares> sigShares_;  // Computed when the tx is delivered to a client
+};
+std::ostream& operator<<(std::ostream& os, const TxMint& tx);
+
+struct TxBurn {
+  TxBurn(libutt::BurnOp&& op) : op_{std::move(op)} {}
+  libutt::BurnOp op_;
+  std::optional<ReplicaSigShares> sigShares_;  // Computed when the tx is delivered to a client
+};
+std::ostream& operator<<(std::ostream& os, const TxBurn& tx);
+
+using Tx = std::variant<TxPublicDeposit, TxPublicWithdraw, TxPublicTransfer, TxUtt, TxMint, TxBurn>;
 
 std::ostream& operator<<(std::ostream& os, const Tx& tx);
 

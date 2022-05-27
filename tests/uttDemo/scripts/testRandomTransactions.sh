@@ -8,16 +8,15 @@ echo "# that the total public and utt balance remain the same."
 echo "# You can obtain the random seeds from automation/run_ files."
 echo "###############################################################"
 
+NUM_RANDOM_TX="${1:-50}"
+
 # Each wallet executes random transfers and quits
-. runAutomation.sh "random 50\nq"
+. runAutomation.sh "random ${NUM_RANDOM_TX}\nq"
 
 # Total balances must be conserved
-EXPECTED_TOTAL_PUBLIC_BALANCE=$((NUM_WALLETS * INIT_PUBLIC_BALANCE))
-EXPECTED_TOTAL_UTT_BALANCE=$((NUM_WALLETS * INIT_UTT_BALANCE))
+EXPECTED_TOTAL_BALANCE=$((NUM_WALLETS * (INIT_PUBLIC_BALANCE + INIT_UTT_BALANCE)))
 
-echo "Expected total public balance: ${EXPECTED_TOTAL_PUBLIC_BALANCE}"
-echo "Expected total utt balance: ${EXPECTED_TOTAL_UTT_BALANCE}"
+echo "Expected total balance: ${EXPECTED_TOTAL_BALANCE}"
 
 # Validate
-awk -v x=${EXPECTED_TOTAL_PUBLIC_BALANCE} '{ sum += $3 } END {if(sum != x) print "Error: unexpected total public balance!",sum; else print "Total public balance Ok."}' automation/final_*
-awk -v x=${EXPECTED_TOTAL_UTT_BALANCE} '{ sum += $4 } END {if(sum != x) print "Error: unexpected total UTT balance!",sum; else print "Total UTT balance Ok."}' automation/final_*
+awk -v x=${EXPECTED_TOTAL_BALANCE} '{ sum += $3 + $4 } END {if(sum != x) print "Error: unexpected total balance!",sum; else print "Total public balance Ok."}' automation/final_*

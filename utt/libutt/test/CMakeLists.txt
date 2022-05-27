@@ -16,6 +16,7 @@ set(utt_test_sources
     TestTxnSimulateAll.cpp
     #TestTxnSimulateUTTDemo.cpp
     TestTxnSimulateUTTDemo_v2.cpp
+    TestTxnAdHoc_incMintAndBurn.cpp
     #TestXGCD.cpp
 )
 

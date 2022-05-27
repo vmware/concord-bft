@@ -27,6 +27,8 @@ add_library(utt
     Simulation.cpp
     Client.cpp
     Replica.cpp
+    BurnOp.cpp
+    MintOp.cpp
 )
 
 target_include_directories(utt PUBLIC

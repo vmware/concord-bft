@@ -25,9 +25,9 @@ public_balance:
  - 9000
 
 # List of initial utt coins for each wallet (Optional)
-utt_coins:
- - 100
- - 100
+# utt_coins:
+# - 100
+# - 100
 
 # Initial utt anonymous budget (Required)
 utt_budget:

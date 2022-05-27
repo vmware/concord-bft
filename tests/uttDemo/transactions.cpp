@@ -41,6 +41,26 @@ std::ostream& operator<<(std::ostream& os, const TxUtt& tx) {
   return os;
 }
 
+std::string uniqueMintHash(const std::string& pid, uint64_t mintSeqNum) {
+  if (pid.empty()) throw std::runtime_error("Trying to create unique mint hash with empty pid!");
+  return pid + "|" + std::to_string(mintSeqNum);
+}
+
+std::ostream& operator<<(std::ostream& os, const TxMint& tx) {
+  os << "mint ";  // Notice the space (this is expected by the parser)
+  os << tx.pid_ << ' ';
+  os << tx.mintSeqNum_ << ' ';
+  os << tx.amount_ << ' ';
+  os << tx.op_;
+  return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const TxBurn& tx) {
+  os << "burn ";  // Notice the space (this is expected by the parser)
+  os << tx.op_;
+  return os;
+}
+
 std::ostream& operator<<(std::ostream& os, const Tx& tx) {
   std::visit([&os](const auto& tx) { os << tx; }, tx);
   return os;
@@ -53,6 +73,16 @@ std::optional<Tx> parseTx(const std::string& str) {
   std::getline(ss, token, ' ');  // getline extracts the delimiter
   if (token == "utt") {
     return TxUtt(libutt::Tx(ss));
+  } else if (token == "mint") {
+    // Extract the tokens pid, mintSeqNum, value and pass the rest to deserialize the mint op
+    std::string pid;
+    uint64_t mintSeqNum = 0;
+    size_t amount = 0;
+    ss >> pid >> mintSeqNum >> amount;
+    ss.ignore(1, ' ');
+    return TxMint(std::move(pid), mintSeqNum, amount, libutt::MintOp(ss));
+  } else if (token == "burn") {
+    return TxBurn(libutt::BurnOp(ss));
   } else {
     // Keep parsing for public tx
     std::vector<std::string> tokens;

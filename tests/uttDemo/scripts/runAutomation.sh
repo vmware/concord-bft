@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set +x
-
 if [[ -z $1 ]]; then
     echo "Usage: specify the automation commands to be used."
     exit 1
@@ -15,6 +13,26 @@ fi
 
 mkdir -p automation
 
+function printState() {
+    echo ""
+    printf "%-15s%-15s%-15s%-15s%-15s\n" WalletId LastBlockId PublicBalance UttBalance UttBudget
+    echo "---------------------------------------------------------------------------"
+    awk '{printf "%-15s%-15s%-15s%-15s%-15s\n", $1,$2,$3,$4,$5}' $1
+    echo ""
+}
+
+function waitWallets() {
+    echo "Waiting wallet pids (${WALLET_PIDS}) to finish..."
+    for pid in ${WALLET_PIDS}; do
+        wait $pid
+        if [ $? -ne 0 ]; then
+            echo "Error: wallet with pid ${pid} failed to execute correctly!"
+            exit 1
+        fi
+    done
+    echo "Done."
+}
+
 # Summarize the initial state of each wallet
 echo ""
 echo "Gather the initial state of the system..."
@@ -24,13 +42,8 @@ do
     ../UTTClient/utt_client -n config/net_localhost.txt -i $id -s automation/init_$id.txt > /dev/null &
     WALLET_PIDS+=" $!"
 done
-echo "Waiting wallet pids (${WALLET_PIDS}) to finish..."
-wait ${WALLET_PIDS}
-echo "Done."
-
-echo ""
-echo "WalledId | LastBlockId | PublicBalance | UttBalance | UttBudget"
-cat automation/init_*
+waitWallets
+printState "automation/init_*"
 
 # Export variables describing the initial state
 NUM_WALLETS=9
@@ -48,9 +61,7 @@ do
     echo -e $1 | ../UTTClient/utt_client -n config/net_localhost.txt -i $id &> automation/run_$id.txt &
     WALLET_PIDS+=" $!"
 done
-echo "Waiting wallet pids (${WALLET_PIDS}) to finish..."
-wait ${WALLET_PIDS}
-echo "Done."
+waitWallets
 
 # Summarize the final state of each wallet
 echo ""
@@ -61,13 +72,8 @@ do
     ../UTTClient/utt_client -n config/net_localhost.txt -i $id -s automation/final_$id.txt > /dev/null &
     WALLET_PIDS+=" $!"
 done
-echo "Waiting wallet pids (${WALLET_PIDS}) to finish..."
-wait ${WALLET_PIDS}
-echo "Done."
-
-echo ""
-echo "WalledId | LastBlockId | PublicBalance | UttBalance | UttBudget"
-cat automation/final_*
+waitWallets
+printState "automation/final_*"
 
 # Stop replicas and payment services
 . stopServices.sh
