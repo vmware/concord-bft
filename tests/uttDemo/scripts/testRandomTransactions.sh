@@ -9,7 +9,7 @@ echo "# You can obtain the random seeds from automation/run_ files."
 echo "###############################################################"
 
 # Each wallet executes random transfers and quits
-. runAutomation.sh "random 100\nq"
+. runAutomation.sh "random 50\nq"
 
 # Total balances must be conserved
 EXPECTED_TOTAL_BALANCE=$((NUM_WALLETS * (INIT_PUBLIC_BALANCE + INIT_UTT_BALANCE)))
