@@ -42,6 +42,7 @@ std::ostream& operator<<(std::ostream& os, const TxUtt& tx) {
 }
 
 std::string uniqueMintHash(const std::string& pid, uint64_t mintSeqNum) {
+  if (pid.empty()) throw std::runtime_error("Trying to create unique mint hash with empty pid!");
   return pid + "|" + std::to_string(mintSeqNum);
 }
 
