@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set +x
-
 if [[ -z $1 ]]; then
     echo "Usage: specify the automation commands to be used."
     exit 1
@@ -33,7 +31,13 @@ do
     WALLET_PIDS+=" $!"
 done
 echo "Waiting wallet pids (${WALLET_PIDS}) to finish..."
-wait ${WALLET_PIDS}
+for pid in ${WALLET_PIDS}; do
+    wait $pid
+    if [ $? -ne 0 ]; then
+        echo "Error: wallet with pid ${pid} failed to execute correctly!"
+        exit 1
+    fi
+done
 echo "Done."
 
 printState "automation/init_*"
@@ -55,7 +59,13 @@ do
     WALLET_PIDS+=" $!"
 done
 echo "Waiting wallet pids (${WALLET_PIDS}) to finish..."
-wait ${WALLET_PIDS}
+for pid in ${WALLET_PIDS}; do
+    wait $pid
+    if [ $? -ne 0 ]; then
+        echo "Error: wallet with pid ${pid} failed to execute correctly!"
+        exit 1
+    fi
+done
 echo "Done."
 
 # Summarize the final state of each wallet
@@ -68,7 +78,13 @@ do
     WALLET_PIDS+=" $!"
 done
 echo "Waiting wallet pids (${WALLET_PIDS}) to finish..."
-wait ${WALLET_PIDS}
+for pid in ${WALLET_PIDS}; do
+    wait $pid
+    if [ $? -ne 0 ]; then
+        echo "Error: wallet with pid ${pid} failed to execute correctly!"
+        exit 1
+    fi
+done
 echo "Done."
 
 printState "automation/final_*"
