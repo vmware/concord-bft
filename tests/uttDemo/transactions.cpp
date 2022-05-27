@@ -41,6 +41,10 @@ std::ostream& operator<<(std::ostream& os, const TxUtt& tx) {
   return os;
 }
 
+std::string uniqueMintHash(const std::string& pid, uint64_t mintSeqNum) {
+  return pid + "|" + std::to_string(mintSeqNum);
+}
+
 std::ostream& operator<<(std::ostream& os, const TxMint& tx) {
   os << "mint ";  // Notice the space (this is expected by the parser)
   os << tx.pid_ << ' ';
@@ -71,8 +75,8 @@ std::optional<Tx> parseTx(const std::string& str) {
   } else if (token == "mint") {
     // Extract the tokens pid, mintSeqNum, value and pass the rest to deserialize the mint op
     std::string pid;
-    uint32_t mintSeqNum = 0;
-    uint32_t amount = 0;
+    uint64_t mintSeqNum = 0;
+    size_t amount = 0;
     ss >> pid >> mintSeqNum >> amount;
     ss.ignore(1, ' ');
     return TxMint(std::move(pid), mintSeqNum, amount, libutt::MintOp(ss));

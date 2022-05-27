@@ -94,7 +94,7 @@ class UTTReplicaApp : public UTTBlockchainApp {
         if (tx.amount_ > static_cast<uint32_t>(acc->getPublicBalance()))
           throw std::domain_error("Account has insufficient public balance!");
 
-        std::string uniqueHash = tx.pid_ + "|" + std::to_string(tx.mintSeqNum_);
+        std::string uniqueHash = uniqueMintHash(tx.pid_, tx.mintSeqNum_);
         if (!tx.op_.validate(uniqueHash, tx.amount_, tx.pid_)) throw std::domain_error("Invalid mint operation!");
 
         // [TODO-UTT] At this point we can check if the uniqueHash used for minting the coin is truly unique
