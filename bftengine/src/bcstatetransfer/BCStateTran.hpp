@@ -475,7 +475,7 @@ class BCStateTran : public IStateTransfer {
   void cycleEndSummary();
   void onGettingMissingBlocksEnd(DataStoreTransaction* txn);
   set<uint16_t> allOtherReplicas();
-  void SetAllReplicasAsPreferred();
+  void setAllReplicasAsPreferred();
 
   ///////////////////////////////////////////////////////////////////////////
   // Helper methods

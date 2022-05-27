@@ -374,7 +374,7 @@ void BCStateTran::initImpl(uint64_t maxNumOfRequiredStoredCheckpoints,
         LOG_INFO(logger_, "State Transfer cycle continues");
         startCollectingStats();
         if ((fs == FetchingState::GettingMissingBlocks) || (fs == FetchingState::GettingMissingResPages)) {
-          SetAllReplicasAsPreferred();
+          setAllReplicasAsPreferred();
         }
 
         if (fs == FetchingState::GettingMissingBlocks) {
@@ -2372,7 +2372,7 @@ bool BCStateTran::onMessage(const RejectFetchingMsg *m, uint32_t msgLen, uint16_
     LOG_DEBUG(logger_, "Adding all peer replicas to preferredReplicas_ (because preferredReplicas_.size()==0)");
 
     // in this case, we will try to use all other replicas (remove current replica)
-    SetAllReplicasAsPreferred();
+    setAllReplicasAsPreferred();
     sourceSelector_.removeCurrentReplica();
     processData();
   } else if (fs == FetchingState::GettingMissingResPages) {
@@ -2873,7 +2873,7 @@ set<uint16_t> BCStateTran::allOtherReplicas() {
   return others;
 }
 
-void BCStateTran::SetAllReplicasAsPreferred() { sourceSelector_.setAllReplicasAsPreferred(); }
+void BCStateTran::setAllReplicasAsPreferred() { sourceSelector_.checkAndRefillPreferredReplicas(); }
 
 void BCStateTran::reportCollectingStatus(const uint32_t actualBlockSize, bool toLog) {
   metrics_.overall_blocks_collected_++;
