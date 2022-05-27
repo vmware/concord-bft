@@ -15,6 +15,14 @@ fi
 
 mkdir -p automation
 
+function printState() {
+    echo ""
+    printf "%-15s%-15s%-15s%-15s%-15s\n" WalletId LastBlockId PublicBalance UttBalance UttBudget
+    echo "---------------------------------------------------------------------------"
+    awk '{printf "%-15s%-15s%-15s%-15s%-15s\n", $1,$2,$3,$4,$5}' $1
+    echo ""
+}
+
 # Summarize the initial state of each wallet
 echo ""
 echo "Gather the initial state of the system..."
@@ -28,9 +36,7 @@ echo "Waiting wallet pids (${WALLET_PIDS}) to finish..."
 wait ${WALLET_PIDS}
 echo "Done."
 
-echo ""
-echo "WalledId | LastBlockId | PublicBalance | UttBalance | UttBudget"
-cat automation/init_*
+printState "automation/init_*"
 
 # Export variables describing the initial state
 NUM_WALLETS=9
@@ -65,9 +71,7 @@ echo "Waiting wallet pids (${WALLET_PIDS}) to finish..."
 wait ${WALLET_PIDS}
 echo "Done."
 
-echo ""
-echo "WalledId | LastBlockId | PublicBalance | UttBalance | UttBudget"
-cat automation/final_*
+printState "automation/final_*"
 
 # Stop replicas and payment services
 . stopServices.sh

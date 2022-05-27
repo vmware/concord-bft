@@ -149,7 +149,7 @@ CreateTxResult createTx_Self1t2(const Wallet& w, size_t coinIdx, size_t splitAmo
   Fr value1;
   value1.set_ulong(splitAmount);
 
-  Fr value2 = inputCoins.at(coinIdx).val - value1;
+  Fr value2 = inputCoins[0].val - value1;
 
   std::vector<std::tuple<std::string, Fr>> recip;
   recip.emplace_back(w.ask.getPid(), value1);

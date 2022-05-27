@@ -23,6 +23,7 @@
 #include "config/test_parameters.hpp"
 #include "communication/CommFactory.hpp"
 #include "utt_messages.cmf.hpp"
+#include "bftclient/seq_num_generator.h"
 
 #include "utt_blockchain_app.hpp"
 #include "utt_config.hpp"
@@ -664,20 +665,25 @@ void checkLedger(UTTClientApp& app, WalletCommunicator& comm) {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void mintCoin(UTTClientApp& app, WalletCommunicator& comm, size_t amount) {
-  ConcordAssert(amount > 0);
+void mintCoin(UTTClientApp& app, WalletCommunicator& comm, const std::vector<std::string>& tokens) {
+  // Precondition: token[0] == k_CmdMint
+  if (tokens.size() != 2) throw std::domain_error(k_CmdMint + " requires an amount value!");
+  int value = std::atoi(tokens[1].c_str());
+  if (value <= 0) throw std::domain_error(k_CmdMint + " requires a positive amount value!");
 
-  // ToDo: calculate next mint id (based on the length of the ledger)
-  uint32_t mintSeqNum = app.getLastKnownBlockId() + 1;
-  std::string uniqueTxHash = app.myPid_ + "|" + std::to_string(mintSeqNum);
+  const size_t amount = static_cast<size_t>(value);
 
-  libutt::MintOp mintOp(uniqueTxHash, amount, app.myPid_);
+  static bft::client::SeqNumberGenerator gen{bft::client::ClientId{0}};  // ClientId used just for logging
+  uint64_t nextMintSeqNum = gen.unique();
 
-  std::cout << "\nCreated a Mint tx: " << mintOp.getHashHex() << '\n';
+  auto uniqueHash = uniqueMintHash(app.myPid_, nextMintSeqNum);
+  libutt::MintOp mintOp(uniqueHash, amount, app.myPid_);
+
+  std::cout << "\nCreated a Mint tx: " << mintOp.getHashHex() << " (unique hash: " << uniqueHash << ")\n";
   std::cout << " - '" << app.myPid_ << "' will spend " << app.fmtCurrency(amount) << " public money.\n";
   std::cout << " + '" << app.myPid_ << "' will receive " << app.fmtCurrency(amount) << " coin.\n";
 
-  Tx tx = TxMint(app.myPid_, mintSeqNum, amount, std::move(mintOp));
+  Tx tx = TxMint{app.myPid_, nextMintSeqNum, amount, std::move(mintOp)};
 
   auto reply = sendTxRequest(comm, tx);
   if (reply.success) {
@@ -690,8 +696,13 @@ void mintCoin(UTTClientApp& app, WalletCommunicator& comm, size_t amount) {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void burnCoin(UTTClientApp& app, WalletCommunicator& comm, size_t amount) {
-  ConcordAssert(amount > 0);  // Validated by parser
+void burnCoin(UTTClientApp& app, WalletCommunicator& comm, const std::vector<std::string>& tokens) {
+  // Precondition: tokens[0] == k_CmdBurn
+  if (tokens.size() != 2) throw std::domain_error(k_CmdBurn + " requires an amount value!");
+  int value = std::atoi(tokens[1].c_str());
+  if (value <= 0) throw std::domain_error(k_CmdBurn + " requires a positive amount value!");
+
+  const size_t amount = static_cast<size_t>(value);
 
   std::cout << ">>> Running a BURN operation for '" << app.myPid_ << " of " << app.fmtCurrency(amount) << '\n';
 
@@ -831,7 +842,7 @@ void dbgForceCheckpoint(UTTClientApp& app, WalletCommunicator& comm) {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void dbgRandomTransfer(UTTClientApp& app, WalletCommunicator& comm, int count, unsigned int seed = 0) {
+void dbgRunRandomTxs(UTTClientApp& app, WalletCommunicator& comm, int count, unsigned int seed = 0) {
   ConcordAssert(count > 0);
   const auto& myAccount = app.getMyAccount();
   const size_t numOtherPids = app.otherPids_.size();
@@ -852,30 +863,70 @@ void dbgRandomTransfer(UTTClientApp& app, WalletCommunicator& comm, int count, u
     std::advance(randWalletIt, gen() % numOtherPids);
     ConcordAssert(randWalletIt != app.otherPids_.end());
 
-    const bool isPublic = gen() % 2 == 0;
-    if (isPublic) {
-      // Note that if our balance is 0 we will create and impossible transaction which is OK, it should fail.
-      const int maxBalance = std::max<int>(myAccount.getPublicBalance(), 1);
+    const size_t uttBalance = app.getUttBalance();
+    const size_t publicBalance = myAccount.getPublicBalance();
+
+    // Note that we may create impossible transactions due to balance or budget
+    // constraints which is OK - they should fail.
+
+    auto randomMint = [&]() {
+      const int maxBalance = std::max<int>(publicBalance, 1);
+      const int amount = 1 + gen() % maxBalance;  // in [1 .. maxBalance]
+      std::cout << "Random mint tx " << (i + 1) << ": " << amount << '\n';
+      std::vector<std::string> tokens = {"mint", std::to_string(amount)};
+      mintCoin(app, comm, tokens);
+    };
+
+    auto randomBurn = [&]() {
+      const int maxBalance = std::max<int>(uttBalance, 1);
+      const int amount = 1 + gen() % maxBalance;  // in [1 .. maxBalance]
+      std::cout << "Random burn tx " << (i + 1) << ": " << amount << '\n';
+      std::vector<std::string> tokens = {"burn", std::to_string(amount)};
+      try {
+        burnCoin(app, comm, tokens);
+      } catch (const std::domain_error& e) {
+        std::cout << "Validation error: " << e.what() << '\n';
+      }
+    };
+
+    auto randomPublicTx = [&]() {
+      const int maxBalance = std::max<int>(publicBalance, 1);
       const int amount = 1 + gen() % maxBalance;  // in [1 .. maxBalance]
       std::vector<std::string> tokens = {"transfer", *randWalletIt, std::to_string(amount)};
       auto tx = createPublicTx(tokens, app);
       ConcordAssert(tx.has_value());
-      std::cout << "Random tx " << (i + 1) << ": " << *tx << '\n';
+      std::cout << "Random public tx " << (i + 1) << ": " << *tx << '\n';
       sendPublicTx(*tx, app, comm);
-    } else {  // Random Utt transfer
-      // Note that we may create an impossible transaction due to balance or budget
-      // constraints which is OK, it should fail.
-      const int maxBalance = std::max<int>(app.getUttBalance(), 1);
-      const int amount = 1 + gen() % maxBalance;  // in [1 .. maxBalance]
+    };
+
+    auto randomUttTx = [&]() {
+      const int amount = 1 + gen() % uttBalance;  // in [1 .. balance]
       std::vector<std::string> tokens = {"utt", *randWalletIt, std::to_string(amount)};
       auto uttPayment = createUttPayment(tokens, app);
       ConcordAssert(uttPayment.has_value());
-      std::cout << "Random tx " << (i + 1) << ": " << *uttPayment << '\n';
+      std::cout << "Random utt tx " << (i + 1) << ": " << *uttPayment << '\n';
       try {
         runUttPayment(*uttPayment, app, comm);
       } catch (const std::domain_error& e) {
         std::cout << "Validation error: " << e.what() << '\n';
-        continue;
+      }
+    };
+
+    if (gen() % 3 == 0) {
+      if (publicBalance == 0)
+        randomBurn();
+      else
+        randomPublicTx();
+    } else {
+      if (uttBalance == 0) {
+        randomMint();
+      } else {
+        if (gen() % 2 == 0)
+          randomUttTx();
+        else if (gen() % 2 == 0)
+          randomBurn();
+        else
+          randomMint();
       }
     }
   }
@@ -894,9 +945,9 @@ void dbgParseRandomCmd(UTTClientApp& app, WalletCommunicator& comm, const std::v
     const long long seed = std::atoll(tokens[2].c_str());
     if (seed <= 0) throw std::domain_error("random requires a positive seed argument");
     if (seed > std::numeric_limits<unsigned int>::max()) throw std::domain_error("random seed outside numeric range");
-    dbgRandomTransfer(app, comm, count, static_cast<unsigned int>(seed));
+    dbgRunRandomTxs(app, comm, count, static_cast<unsigned int>(seed));
   } else {
-    dbgRandomTransfer(app, comm, count);
+    dbgRunRandomTxs(app, comm, count);
   }
 }
 
@@ -986,15 +1037,9 @@ int main(int argc, char** argv) {
         } else if (tokens[0] == k_CmdRandom) {
           dbgParseRandomCmd(app, comm, tokens);
         } else if (tokens[0] == k_CmdMint) {
-          if (tokens.size() != 2) throw std::domain_error(k_CmdMint + " requires an amount value!");
-          int amount = std::atoi(tokens[1].c_str());
-          if (amount <= 0) throw std::domain_error(k_CmdMint + " requires a positive amount value!");
-          mintCoin(app, comm, static_cast<size_t>(amount));
+          mintCoin(app, comm, tokens);
         } else if (tokens[0] == k_CmdBurn) {
-          if (tokens.size() != 2) throw std::domain_error(k_CmdBurn + " requires an amount value!");
-          int amount = std::atoi(tokens[1].c_str());
-          if (amount <= 0) throw std::domain_error(k_CmdBurn + " requires a positive amount value!");
-          burnCoin(app, comm, static_cast<size_t>(amount));
+          burnCoin(app, comm, tokens);
         } else if (auto uttPayment = createUttPayment(tokens, app)) {
           runUttPayment(*uttPayment, app, comm);
           checkBalance(app, comm);

@@ -65,12 +65,13 @@ struct TxUtt {
 };
 std::ostream& operator<<(std::ostream& os, const TxUtt& tx);
 
+std::string uniqueMintHash(const std::string& pid, uint64_t mintSeqNum);
 struct TxMint {
-  TxMint(std::string pid, uint32_t mintSeqNum, uint32_t amount, libutt::MintOp&& op)
+  TxMint(std::string pid, uint64_t mintSeqNum, size_t amount, libutt::MintOp&& op)
       : pid_{std::move(pid)}, mintSeqNum_{mintSeqNum}, amount_{amount}, op_{std::move(op)} {}
   std::string pid_;
-  uint32_t mintSeqNum_;
-  uint32_t amount_;
+  uint64_t mintSeqNum_;
+  size_t amount_;
   libutt::MintOp op_;
   std::optional<ReplicaSigShares> sigShares_;  // Computed when the tx is delivered to a client
 };
