@@ -52,8 +52,8 @@ void LatestKeys::addBlockKeys(const concord::kvbc::categorization::Updates& upda
   auto block_key = v4blockchain::detail::Blockchain::generateKey(block_id);
   ConcordAssertEQ(block_key.size(), concord::storage::rocksdb::TIME_STAMP_SIZE);
   for (const auto& [category_id, updates] : updates.categoryUpdates().kv) {
-    std::visit([category_id = category_id, &write_batch, &block_key, this](
-                   const auto& updates) { handleCategoryUpdates(block_key, category_id, updates, write_batch); },
+    std::visit([cat_id = category_id, &write_batch, &block_key, this](
+                   const auto& updates) { handleCategoryUpdates(block_key, cat_id, updates, write_batch); },
                updates);
   }
 }

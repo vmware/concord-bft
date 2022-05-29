@@ -116,15 +116,17 @@ void run_replica(int argc, char** argv) {
   MDC_PUT(MDC_REPLICA_ID_KEY, std::to_string(setup->GetReplicaConfig().replicaId));
   MDC_PUT(MDC_THREAD_KEY, "main");
 
-  replica = std::make_shared<Replica>(setup->GetCommunication(),
-                                      setup->GetReplicaConfig(),
-                                      setup->GetStorageFactory(),
-                                      setup->GetMetricsServer().GetAggregator(),
-                                      setup->GetPerformanceManager(),
-                                      std::map<std::string, categorization::CATEGORY_TYPE>{
-                                          {VERSIONED_KV_CAT_ID, categorization::CATEGORY_TYPE::versioned_kv},
-                                          {BLOCK_MERKLE_CAT_ID, categorization::CATEGORY_TYPE::block_merkle}},
-                                      setup->GetSecretManager());
+  replica = std::make_shared<Replica>(
+      setup->GetCommunication(),
+      setup->GetReplicaConfig(),
+      setup->GetStorageFactory(),
+      setup->GetMetricsServer().GetAggregator(),
+      setup->GetPerformanceManager(),
+      std::map<std::string, categorization::CATEGORY_TYPE>{
+          {VERSIONED_KV_CAT_ID, categorization::CATEGORY_TYPE::versioned_kv},
+          {categorization::kExecutionEventGroupLatestCategory, categorization::CATEGORY_TYPE::versioned_kv},
+          {BLOCK_MERKLE_CAT_ID, categorization::CATEGORY_TYPE::block_merkle}},
+      setup->GetSecretManager());
   bftEngine::ControlStateManager::instance().addOnRestartProofCallBack(
       [argv, &setup]() {
         setup->GetCommunication()->stop();

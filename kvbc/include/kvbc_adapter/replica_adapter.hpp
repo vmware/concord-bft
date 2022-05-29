@@ -31,6 +31,7 @@
 #include "replica_adapter_auxilliary_types.hpp"
 #include "categorization/kv_blockchain.h"
 #include "v4blockchain/v4_blockchain.h"
+#include "storage/db_interface.h"
 
 namespace concord::kvbc::adapter {
 class ReplicaBlockchain : public IBlocksDeleter,
@@ -190,6 +191,20 @@ class ReplicaBlockchain : public IBlocksDeleter,
 
   void checkpointInProcess(bool flag) override final { db_chkpt_->checkpointInProcess(flag); }
   //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  /////////////////////////db editor support//////////////////////////
+  std::map<std::string, concord::kvbc::categorization::CATEGORY_TYPE> blockchainCategories() const {
+    return kvbc_ == nullptr ? v4_kvbc_->getCategories() : kvbc_->blockchainCategories();
+  }
+  concord::kvbc::BLOCKCHAIN_VERSION blockchainVersion() const { return version_; }
+  const concord::kvbc::categorization::KeyValueBlockchain *const getReadOnlyCategorizedBlockchain() {
+    return kvbc_.get();
+  }
+  std::shared_ptr<storage::IDBClient> asIDBClient() const { return native_client_->asIDBClient(); }
+  std::unordered_set<std::string> columnFamilies() const { return native_client_->columnFamilies(); }
+  void getCFProperty(const std::string &cf, const std::string &property, uint64_t *val) const {
+    auto handle = native_client_->columnFamilyHandle(cf);
+    native_client_->rawDB().GetIntProperty(handle, rocksdb::Slice(property.c_str(), property.length()), val);
+  }
 
  private:
   void switch_to_rawptr();
@@ -217,5 +232,9 @@ class ReplicaBlockchain : public IBlocksDeleter,
   //////////////Blockchain Abstractions //////////////////
   std::shared_ptr<concord::kvbc::categorization::KeyValueBlockchain> kvbc_{nullptr};
   std::shared_ptr<concord::kvbc::v4blockchain::KeyValueBlockchain> v4_kvbc_{nullptr};
+
+  //////////////helpers///////////////////////////
+  concord::kvbc::BLOCKCHAIN_VERSION version_;
+  std::shared_ptr<concord::storage::rocksdb::NativeClient> native_client_;
 };
 }  // namespace concord::kvbc::adapter

@@ -33,6 +33,7 @@
 #include "crypto_utils.hpp"
 #include "json_output.hpp"
 #include "bftengine/ReplicaSpecificInfoManager.hpp"
+#include "kvbc_adapter/replica_adapter.hpp"
 
 #include <unordered_map>
 
@@ -46,23 +47,27 @@ namespace concord::kvbc::tools::db_editor {
 using namespace categorization;
 
 inline const auto kToolName = "kv_blockchain_db_editor"s;
-inline KeyValueBlockchain getAdapter(const std::string &path, const bool read_only = false) {
-  auto db = getDBClient(path, read_only);
-
-  // Make sure we don't link the temporary ST chain as we don't want to change the DB in any way.
-  const auto link_temp_st_chain = false;
-  return KeyValueBlockchain{concord::storage::rocksdb::NativeClient::fromIDBClient(db), link_temp_st_chain};
-}
-
-inline BlockId getLatestBlockId(const KeyValueBlockchain &adapter) {
-  auto blockId = adapter.getLastStatetransferBlockId();
-  return blockId ? *blockId : adapter.getLastReachableBlockId();
-}
 
 inline const std::map<CATEGORY_TYPE, std::string> cat_type_str = {
     std::make_pair(CATEGORY_TYPE::block_merkle, "block_merkle"),
     std::make_pair(CATEGORY_TYPE::immutable, "immutable"),
     std::make_pair(CATEGORY_TYPE::versioned_kv, "versioned_kv")};
+
+inline concord::kvbc::adapter::ReplicaBlockchain getAdapter(const std::string &path, const bool read_only = false) {
+  auto db = getDBClient(path, read_only);
+  auto native = concord::storage::rocksdb::NativeClient::fromIDBClient(db);
+  auto opt_val = native->get(kvbc::keyTypes::blockchain_version);
+  // Make sure we don't link the temporary ST chain as we don't want to change the DB in any way.
+  const auto link_temp_st_chain = false;
+  if (opt_val && *opt_val == kvbc::V4Version()) {
+    bftEngine::ReplicaConfig::instance().kvBlockchainVersion = 4;
+  } else {
+    bftEngine::ReplicaConfig::instance().kvBlockchainVersion = 1;
+  }
+
+  return concord::kvbc::adapter::ReplicaBlockchain(concord::storage::rocksdb::NativeClient::fromIDBClient(db),
+                                                   link_temp_st_chain);
+}
 
 inline const std::string getCategoryType(const std::variant<BlockMerkleInput, VersionedInput, ImmutableInput> &c) {
   return std::visit(
@@ -85,7 +90,7 @@ struct GetGenesisBlockID {
     return "getGenesisBlockID\n"
            "  Returns the genesis block ID.";
   }
-  std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &) const {
+  std::string execute(const concord::kvbc::adapter::ReplicaBlockchain &adapter, const CommandArguments &) const {
     return toJson("genesisBlockID", adapter.getGenesisBlockId());
   }
 };
@@ -97,8 +102,8 @@ struct GetLastReachableBlockID {
            "  Returns the last reachable block ID.";
   }
 
-  std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &) const {
-    return toJson("lastReachableBlockID", adapter.getLastReachableBlockId());
+  std::string execute(const concord::kvbc::adapter::ReplicaBlockchain &adapter, const CommandArguments &) const {
+    return toJson("lastReachableBlockID", adapter.getLastBlockId());
   }
 };
 
@@ -109,9 +114,11 @@ struct GetLastStateTransferBlockID {
            " Returns the last state transfer block ID. If there is no state transfer returns n/a.";
   }
 
-  std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &) const {
-    auto blockId = adapter.getLastStatetransferBlockId();
-    return toJson("lastStateTransferBlockID", blockId ? std::to_string(*blockId) : "n/a"s);
+  std::string execute(const concord::kvbc::adapter::ReplicaBlockchain &adapter, const CommandArguments &) const {
+    auto last_blockId = adapter.getLastBlockNum();
+    auto last_reachable = adapter.getLastBlockId();
+    // last_blockId is from the ST chain if it's bigger than the last reachable
+    return toJson("lastStateTransferBlockID", last_blockId > last_reachable ? std::to_string(last_blockId) : "n/a"s);
   }
 };
 
@@ -122,8 +129,8 @@ struct GetLastBlockID {
            " Returns the last block ID. Either reachable or state transfer.";
   }
 
-  std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &) const {
-    return toJson("lastBlockID", getLatestBlockId(adapter));
+  std::string execute(const concord::kvbc::adapter::ReplicaBlockchain &adapter, const CommandArguments &) const {
+    return toJson("lastBlockID", adapter.getLastBlockNum());
   }
 };
 
@@ -134,16 +141,17 @@ struct GetRawBlock {
            "  Returns a serialized raw block (encoded in hex).";
   }
 
-  std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &args) const {
+  std::string execute(const concord::kvbc::adapter::ReplicaBlockchain &adapter, const CommandArguments &args) const {
     if (args.values.empty()) {
       throw std::invalid_argument{"Missing BLOCK-ID argument"};
     }
     const auto &blockId = args.values.front();
-    const auto raw_block = adapter.getRawBlock(toBlockId(blockId));
-    if (!raw_block) {
-      throw NotFoundException{"Couldn't find a block by ID = "s + blockId};
-    }
-    return toJson("rawBlock", concordUtils::vectorToHex(categorization::RawBlock::serialize(*raw_block)));
+    uint32_t size_mb = 30 * 1024 * 1024;  // 30mb
+    uint32_t real_size = 0;
+    auto buffer = std::string(size_mb, 0);
+    adapter.getBlock(toBlockId(blockId), buffer.data(), size_mb, &real_size);
+    return toJson("rawBlock",
+                  concordUtils::bufferToHex(reinterpret_cast<const std::uint8_t *>(buffer.c_str()), real_size));
   }
 };
 
@@ -154,7 +162,7 @@ struct GetRawBlockRange {
            "  Returns a list of serialized raw blocks (encoded in hex) in the [BLOCK-ID-START, BLOCK-ID-END) range.";
   }
 
-  std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &args) const {
+  std::string execute(const concord::kvbc::adapter::ReplicaBlockchain &adapter, const CommandArguments &args) const {
     if (args.values.size() < 2) {
       throw std::invalid_argument{"Missing or invalid block range"};
     }
@@ -163,18 +171,19 @@ struct GetRawBlockRange {
       throw std::invalid_argument{"Invalid BLOCK-ID-END value"};
     }
     const auto first = toBlockId(args.values[0]);
-    const auto last = std::min(end - 1, getLatestBlockId(adapter));
+    const auto last = std::min(end - 1, adapter.getLastBlockNum());
     if (first > last) {
       throw std::invalid_argument{"Invalid block range"};
     }
     auto raw_blocks = std::vector<std::pair<std::string, std::string>>{};
+    uint32_t size_mb = 30 * 1024 * 1024;
+    uint32_t real_size = 0;
+    auto buffer = std::string(size_mb, 0);
     for (auto i = first; i <= last; ++i) {
-      const auto raw_block = adapter.getRawBlock(i);
-      if (!raw_block) {
-        throw NotFoundException{"Couldn't find a block by ID = " + std::to_string(i)};
-      }
-      raw_blocks.emplace_back("rawBlock" + std::to_string(i),
-                              concordUtils::vectorToHex(categorization::RawBlock::serialize(*raw_block)));
+      adapter.getBlock(i, buffer.data(), size_mb, &real_size);
+      raw_blocks.emplace_back(
+          "rawBlock" + std::to_string(i),
+          concordUtils::bufferToHex(reinterpret_cast<const std::uint8_t *>(buffer.c_str()), real_size));
     }
     return toJson(raw_blocks);
   }
@@ -187,23 +196,23 @@ struct GetBlockInfo {
            "  Returns information about the requested block (excluding its key-values).";
   }
 
-  std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &args) const {
+  std::string execute(const concord::kvbc::adapter::ReplicaBlockchain &adapter, const CommandArguments &args) const {
     if (args.values.empty()) {
       throw std::invalid_argument{"Missing BLOCK-ID argument"};
     }
     auto blockId = toBlockId(args.values.front());
-    const auto parent_digest = adapter.parentDigest(blockId);
+    bftEngine::bcst::StateTransferDigest parent_digest;
+    auto has_digest = adapter.getPrevDigestFromBlock(blockId, &parent_digest);
     const auto updates = adapter.getBlockUpdates(blockId);
-    if (!updates) {
+    if (!has_digest) {
       throw NotFoundException{"Couldn't find a block by ID = " + std::to_string(blockId)};
     }
-    ConcordAssert(parent_digest.has_value());
     auto catUpdates = updates->categoryUpdates();
     size_t keyValueTotalCount = 0;
     std::stringstream out;
     out << "{" << std::endl;
-    out << "  \"parentBlockDigest\": \"" << concordUtils::bufferToHex(parent_digest->data(), parent_digest->size())
-        << "\"," << std::endl;
+    out << "  \"parentBlockDigest\": \"" << concordUtils::bufferToHex(parent_digest.content, DIGEST_SIZE) << "\","
+        << std::endl;
     out << "  \"categoriesCount\": \"" << std::to_string(catUpdates.kv.size()) << "\"," << std::endl;
     out << "  \"categories\": {" << std::endl;
 
@@ -253,7 +262,7 @@ struct GetBlockRequests {
            "  Returns the requests that were executed as part of the block.";
   }
 
-  std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &args) const {
+  std::string execute(const concord::kvbc::adapter::ReplicaBlockchain &adapter, const CommandArguments &args) const {
     using namespace CryptoPP;
     if (args.values.empty()) {
       throw std::invalid_argument{"Missing BLOCK-ID argument"};
@@ -302,7 +311,7 @@ struct VerifyBlockRequests {
            "  verifies the requests that were executed as part of the block.";
   }
 
-  std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &args) const {
+  std::string execute(const concord::kvbc::adapter::ReplicaBlockchain &adapter, const CommandArguments &args) const {
     using namespace CryptoPP;
     if (args.values.empty()) {
       throw std::invalid_argument{"Missing BLOCK-ID argument"};
@@ -403,7 +412,7 @@ struct GetBlockKeyValues {
            "  Returns the block's key-values. If a CATEGORY is passed only those keys/values are listed.";
   }
 
-  std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &args) const {
+  std::string execute(const concord::kvbc::adapter::ReplicaBlockchain &adapter, const CommandArguments &args) const {
     if (args.values.empty()) {
       throw std::invalid_argument{"Missing BLOCK-ID argument"};
     }
@@ -447,7 +456,7 @@ struct GetCategories {
            "  Returns all categories. If a BLOCK-VERSION is passed only categories in that block are listed.";
   }
 
-  std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &args) const {
+  std::string execute(const concord::kvbc::adapter::ReplicaBlockchain &adapter, const CommandArguments &args) const {
     std::map<std::string, std::string> out;
 
     if (args.values.size() >= 1) {
@@ -461,6 +470,7 @@ struct GetCategories {
         out[c.first] = getCategoryType(c.second);
       }
     } else {
+      // E.L
       auto categories = adapter.blockchainCategories();
       for (auto const &c : categories) {
         out[c.first] = cat_type_str.at(c.second);
@@ -481,11 +491,11 @@ struct GetEarliestCategoryUpdates {
            "  Note that this method performs linear search which may take time on big blockchains.";
   }
 
-  std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &args) const {
+  std::string execute(const concord::kvbc::adapter::ReplicaBlockchain &adapter, const CommandArguments &args) const {
     if (args.values.empty()) {
       throw NotFoundException{"No Category ID was given"};
     }
-    auto latestBlockID = adapter.getLastReachableBlockId();
+    auto latestBlockID = adapter.getLastBlockId();
     if (args.values.size() >= 2) {
       latestBlockID = toBlockId(args.values[1]);
     }
@@ -534,11 +544,14 @@ struct GetCategoryEarliestStale {
            "  Note that this method does not take into account stale active keys";
   }
 
-  std::string execute(KeyValueBlockchain &adapter, const CommandArguments &args) const {
+  std::string execute(concord::kvbc::adapter::ReplicaBlockchain &adapter, const CommandArguments &args) const {
+    if (adapter.blockchainVersion() == BLOCKCHAIN_VERSION::V4_BLOCKCHAIN) {
+      throw std::invalid_argument{"Operation not valid for v4 blockchain"};
+    }
     if (args.values.empty()) {
       throw NotFoundException{"No Category ID was given"};
     }
-    auto latestBlockID = adapter.getLastReachableBlockId();
+    auto latestBlockID = adapter.getLastBlockId();
     if (args.values.size() >= 2) {
       latestBlockID = toBlockId(args.values[1]);
     }
@@ -547,7 +560,7 @@ struct GetCategoryEarliestStale {
     std::map<std::string, std::vector<std::string>> stale_keys;
     std::string keys_as_string;
     for (auto block = adapter.getGenesisBlockId(); block <= latestBlockID; block++) {
-      stale_keys = adapter.getBlockStaleKeys(block);
+      stale_keys = adapter.getReadOnlyCategorizedBlockchain()->getBlockStaleKeys(block);
       if (stale_keys.count(cat) && !stale_keys[cat].empty()) {
         relevantBlockId = block;
         keys_as_string = getStaleKeysStr(stale_keys[cat]);
@@ -576,8 +589,11 @@ struct GetStaleKeysSummary {
            "Note that this operation is doing a linear search, hence in may take a while to be completed.";
   }
 
-  std::string execute(KeyValueBlockchain &adapter, const CommandArguments &args) const {
-    auto latestBlockID = adapter.getLastReachableBlockId();
+  std::string execute(concord::kvbc::adapter::ReplicaBlockchain &adapter, const CommandArguments &args) const {
+    if (adapter.blockchainVersion() == BLOCKCHAIN_VERSION::V4_BLOCKCHAIN) {
+      throw std::invalid_argument{"Operation not valid for v4 blockchain"};
+    }
+    auto latestBlockID = adapter.getLastBlockId();
     auto firstBlockID = adapter.getGenesisBlockId();
     if (args.values.size() == 2) {
       auto block_version_from = toBlockId(args.values[0]);
@@ -613,8 +629,8 @@ struct GetStaleKeysSummary {
       stale_keys_per_category_type_.emplace(cat_type, 0);
     }
     for (auto block = firstBlockID; block <= latestBlockID; block++) {
-      auto stale_keys = adapter.getBlockStaleKeys(block);
-      auto stale_active_keys = adapter.getStaleActiveKeys(block);
+      auto stale_keys = adapter.getReadOnlyCategorizedBlockchain()->getBlockStaleKeys(block);
+      auto stale_active_keys = adapter.getReadOnlyCategorizedBlockchain()->getStaleActiveKeys(block);
       for (const auto &[cat_id, cat_type] : categories) {
         stale_keys_per_category_type_[cat_type] += stale_keys[cat_id].size();
         stale_active_keys_per_category_type_[cat_type].insert(stale_active_keys[cat_id].begin(),
@@ -645,7 +661,7 @@ struct GetValue {
            "  (if existing). If the key doesn't exist at BLOCK-VERSION, it will not be returned.";
   }
 
-  std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &args) const {
+  std::string execute(const concord::kvbc::adapter::ReplicaBlockchain &adapter, const CommandArguments &args) const {
     if (args.values.size() < 2) {
       throw std::invalid_argument{"Missing CATEGORY and HEX-KEY arguments"};
     }
@@ -685,19 +701,19 @@ struct CompareTo {
            "  databases, no comparison is made.";
   }
 
-  std::string execute(const KeyValueBlockchain &main_adapter, const CommandArguments &args) const {
+  std::string execute(const concord::kvbc::adapter::ReplicaBlockchain &main_adapter,
+                      const CommandArguments &args) const {
     if (args.values.empty()) {
       throw std::invalid_argument{"Missing PATH-TO-OTHER-DB argument"};
     }
-
     const auto other_adapter = getAdapter(args.values.front(), read_only);
 
     const auto main_genesis = main_adapter.getGenesisBlockId();
     const auto other_genesis = other_adapter.getGenesisBlockId();
     const auto compared_range_first_block_id = std::max(main_genesis, other_genesis);
 
-    const auto main_last_reachable = main_adapter.getLastReachableBlockId();
-    const auto other_last_reachable = other_adapter.getLastReachableBlockId();
+    const auto main_last_reachable = main_adapter.getLastBlockId();
+    const auto other_last_reachable = other_adapter.getLastBlockId();
     const auto compared_range_last_block_id = std::min(main_last_reachable, other_last_reachable);
 
     auto result = std::map<std::string, std::string>{
@@ -729,18 +745,26 @@ struct CompareTo {
  private:
   static std::optional<BlockId> firstMismatch(BlockId left,
                                               BlockId right,
-                                              const KeyValueBlockchain &adapter1,
-                                              const KeyValueBlockchain &adapter2) {
+                                              const concord::kvbc::adapter::ReplicaBlockchain &adapter1,
+                                              const concord::kvbc::adapter::ReplicaBlockchain &adapter2) {
     ConcordAssertGT(left, 0);
     ConcordAssertGE(right, left);
     auto mismatch = std::optional<BlockId>{};
     // Exploit the blockchain property - if a block is different, try to search for earlier differences to the left.
     // Otherwise, go right.
+    uint32_t size_mb = 30 * 1024 * 1024;  // 30mb
     while (left <= right) {
       auto current = (right - left) / 2 + left;
-      const auto raw1 = adapter1.getRawBlock(current);
-      const auto raw2 = adapter2.getRawBlock(current);
-      if (raw1 != raw2) {
+      uint32_t real_size1 = 0;
+      auto buffer1 = std::string(size_mb, 0);
+      adapter1.getBlock(current, buffer1.data(), size_mb, &real_size1);
+      buffer1.resize(real_size1);
+      uint32_t real_size2 = 0;
+      auto buffer2 = std::string(size_mb, 0);
+      adapter2.getBlock(current, buffer2.data(), size_mb, &real_size2);
+      buffer2.resize(real_size2);
+
+      if (buffer1 != buffer2) {
         mismatch = current;
         right = current - 1;
       } else {
@@ -758,7 +782,7 @@ struct RemoveMetadata {
            "  Removes metadata and state transfer data from RocksDB.";
   }
 
-  std::string execute(KeyValueBlockchain &adapter, const CommandArguments &) const {
+  std::string execute(concord::kvbc::adapter::ReplicaBlockchain &adapter, const CommandArguments &) const {
     using storage::v2MerkleTree::detail::EDBKeyType;
 
     static_assert(static_cast<uint8_t>(EDBKeyType::BFT) + 1 == static_cast<uint8_t>(EDBKeyType::Key),
@@ -766,8 +790,8 @@ struct RemoveMetadata {
 
     const concordUtils::Sliver begin{std::string{static_cast<char>(EDBKeyType::BFT)}};
     const concordUtils::Sliver end{std::string{static_cast<char>(EDBKeyType::Key)}};
-
-    const auto status = adapter.db()->asIDBClient()->rangeDel(begin, end);
+    // E.L return db client
+    const auto status = adapter.asIDBClient()->rangeDel(begin, end);
     if (!status.isOK()) {
       throw std::runtime_error{"Failed to delete metadata and state transfer data: " + status.toString()};
     }
@@ -809,7 +833,7 @@ struct RemoveMetadata {
     std::string sn_str = concordUtils::toBigEndianStringBuffer(last_executed_sn);
     sn_updates.addUpdate(std::string{kvbc::keyTypes::bft_seq_num_key}, std::move(sn_str));
     updates.add(concord::kvbc::categorization::kConcordInternalCategoryId, std::move(sn_updates));
-    adapter.addBlock(std::move(updates));
+    adapter.add(std::move(updates));
     std::vector<std::pair<std::string, std::string>> out;
     out.push_back({std::string{"result"}, std::string{"true"}});
     out.push_back({std::string{"epoch"}, std::to_string(epoch)});
@@ -845,12 +869,12 @@ struct GetSTMetadata {
     return oss.str();
   }
 
-  std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &) const {
+  std::string execute(concord::kvbc::adapter::ReplicaBlockchain &adapter, const CommandArguments &) const {
     using bftEngine::bcst::impl::DataStore;
     using bftEngine::bcst::impl::DBDataStore;
     using storage::v2MerkleTree::STKeyManipulator;
-    std::unique_ptr<DataStore> ds = std::make_unique<DBDataStore>(
-        adapter.db()->asIDBClient(), 1024 * 4, std::make_shared<STKeyManipulator>(), true);
+    std::unique_ptr<DataStore> ds =
+        std::make_unique<DBDataStore>(adapter.asIDBClient(), 1024 * 4, std::make_shared<STKeyManipulator>(), true);
     std::map<std::string, std::string> result;
     result["Initialized"] = std::to_string(ds->initialized());
     std::ostringstream oss;
@@ -892,7 +916,7 @@ struct ResetMetadata {
            "  Note that if latest 4 parameters is not provided, RSIs won't be removed from the metadata";
   }
 
-  std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &args) const {
+  std::string execute(concord::kvbc::adapter::ReplicaBlockchain &adapter, const CommandArguments &args) const {
     if (args.values.empty()) throw std::invalid_argument{"Missing REPLICA_ID argument"};
     std::uint16_t repId = concord::util::to<std::uint16_t>(args.values.front());
     bool removeRsis = args.values.size() == 5;
@@ -907,8 +931,8 @@ struct ResetMetadata {
     using storage::v2MerkleTree::STKeyManipulator;
     using storage::v2MerkleTree::MetadataKeyManipulator;
     using bftEngine::MetadataStorage;
-    std::unique_ptr<DataStore> ds = std::make_unique<DBDataStore>(
-        adapter.db()->asIDBClient(), 1024 * 4, std::make_shared<STKeyManipulator>(), true);
+    std::unique_ptr<DataStore> ds =
+        std::make_unique<DBDataStore>(adapter.asIDBClient(), 1024 * 4, std::make_shared<STKeyManipulator>(), true);
 
     if (ds->initialized()) {
       DataStoreTransaction::Guard g(ds->beginTransaction());
@@ -924,7 +948,7 @@ struct ResetMetadata {
     // Update BFT metadata
     // Update sender id to the one of a destination replica in the CheckpointMsg for the last stable sequence number
     std::unique_ptr<MetadataStorage> mdtStorage(
-        new DBMetadataStorage(adapter.db()->asIDBClient().get(), std::make_unique<MetadataKeyManipulator>()));
+        new DBMetadataStorage(adapter.asIDBClient().get(), std::make_unique<MetadataKeyManipulator>()));
     // in this case n, f and c have no use
     uint32_t nVal = removeRsis ? 3 * fVal + 2 * cVal + 1 : 4;
     shared_ptr<bftEngine::impl::PersistentStorage> p(new bftEngine::impl::PersistentStorageImp(
@@ -979,8 +1003,8 @@ struct ListColumnFamilies {
     return oss.str();
   }
 
-  std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &args) const {
-    auto result = adapter.db()->columnFamilies();
+  std::string execute(const concord::kvbc::adapter::ReplicaBlockchain &adapter, const CommandArguments &args) const {
+    auto result = adapter.columnFamilies();
     return toJson(result);
   }
 };
@@ -1000,14 +1024,14 @@ struct GetColumnFamilyStats {
     return oss.str();
   }
 
-  std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &args) const {
+  std::string execute(const concord::kvbc::adapter::ReplicaBlockchain &adapter, const CommandArguments &args) const {
     std::unordered_set<std::string> columnFamilies;
     if (args.values.size() > 0) {
       for (const auto &s : args.values) {
         columnFamilies.insert(s);
       }
     } else {
-      columnFamilies = adapter.db()->columnFamilies();
+      columnFamilies = adapter.columnFamilies();
     }
 
     std::ostringstream oss;
@@ -1016,10 +1040,9 @@ struct GetColumnFamilyStats {
 
     for (auto columnFamily : columnFamilies) {
       oss << "\n\t\"" << columnFamily << "\" : {";
-      auto handle = adapter.db()->columnFamilyHandle(columnFamily);
       uint64_t v;
       for (auto property : properties) {
-        adapter.db()->rawDB().GetIntProperty(handle, rocksdb::Slice(property->c_str(), property->length()), &v);
+        adapter.getCFProperty(columnFamily, *property, &v);
         oss << "\n\t\t\"" << *property << "\" : " << v << ",";
       }
 
@@ -1065,8 +1088,8 @@ struct VerifyDbCheckpoint {
     return os.str();
   }
 
-  std::map<ReplicaId, std::unique_ptr<IVerifier>> getVerifiers(std::set<ReplicaId> replicas,
-                                                               const KeyValueBlockchain &adapter) const {
+  std::map<ReplicaId, std::unique_ptr<IVerifier>> getVerifiers(
+      std::set<ReplicaId> replicas, const concord::kvbc::adapter::ReplicaBlockchain &adapter) const {
     auto category_id = concord::kvbc::categorization::kConcordReconfigurationCategoryId;
     auto key_prefix = std::string{kvbc::keyTypes::reconfiguration_rep_main_key};
     std::map<ReplicaId, unique_ptr<IVerifier>> replica_keys;
@@ -1126,22 +1149,22 @@ struct VerifyDbCheckpoint {
     return is_digest_valid && is_check_point_signature_valid;
   }
 
-  BlockDigest getBlockDigest(const KeyValueBlockchain &adapter, const uint64_t &blockId) const {
+  BlockDigest getBlockDigest(const concord::kvbc::adapter::ReplicaBlockchain &adapter, const uint64_t &blockId) const {
     using bftEngine::bcst::computeBlockDigest;
-    const auto rawBlock = adapter.getRawBlock(blockId);
-    if (!rawBlock) {
-      throw NotFoundException{"Couldn't find a block by ID = "s + std::to_string(blockId)};
-    }
-    const auto &rawData = categorization::RawBlock::serialize(*rawBlock);
+    uint32_t size_mb = 30 * 1024 * 1024;  // 30mb
+    uint32_t real_size = 0;
+    auto buffer = std::string(size_mb, 0);
+    adapter.getBlock(blockId, buffer.data(), size_mb, &real_size);
+    buffer.resize(real_size);
 
-    return computeBlockDigest(blockId, reinterpret_cast<const char *>(rawData.data()), rawData.size());
+    return computeBlockDigest(blockId, buffer.c_str(), buffer.size());
   }
 
-  bool verifyBlockChain(const KeyValueBlockchain &adapter,
+  bool verifyBlockChain(const concord::kvbc::adapter::ReplicaBlockchain &adapter,
                         const uint64_t startBlockId,
                         const uint64_t lastBlockId) const {
     using namespace bftEngine::bcst::impl;
-    ConcordAssert(lastBlockId <= adapter.getLastReachableBlockId());
+    ConcordAssert(lastBlockId <= adapter.getLastBlockId());
     auto const &numOfThreads = thread::hardware_concurrency();
     auto blockHashData = std::vector<std::future<BlockHashData>>{};
     blockHashData.reserve(numOfThreads);
@@ -1153,9 +1176,11 @@ struct VerifyDbCheckpoint {
       for (auto i = 0u; i < count; blockId--, i++) {
         blockHashData.push_back(std::async([&, blockId]() -> BlockHashData {
           const auto &blockDigest = getBlockDigest(adapter, blockId);
-          const auto &parentDigest = adapter.parentDigest(blockId);
-          ConcordAssert(parentDigest.has_value());
-          auto parentBlockDigest = static_cast<BlockDigest>(parentDigest.value());
+          bftEngine::bcst::StateTransferDigest parent_digest;
+          auto has_digest = adapter.getPrevDigestFromBlock(blockId, &parent_digest);
+          ConcordAssert(has_digest);
+          BlockDigest parentBlockDigest;
+          std::copy(parent_digest.content, parent_digest.content + DIGEST_SIZE, parentBlockDigest.begin());
           return std::make_tuple(blockId, parentBlockDigest, blockDigest);
         }));
       }
@@ -1171,7 +1196,7 @@ struct VerifyDbCheckpoint {
     return true;
   }
 
-  std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &args) const {
+  std::string execute(const concord::kvbc::adapter::ReplicaBlockchain &adapter, const CommandArguments &args) const {
     std::map<std::string, std::string> result;
     using namespace concord::storage;
     using namespace bftEngine::bcst::impl;
@@ -1188,8 +1213,8 @@ struct VerifyDbCheckpoint {
         verifyCheckpointMsgSignature = (verify_sig == "true");
       }
     }
-    std::unique_ptr<DataStore> ds = std::make_unique<DBDataStore>(
-        adapter.db()->asIDBClient(), 1024 * 4, std::make_shared<STKeyManipulator>(), true);
+    std::unique_ptr<DataStore> ds =
+        std::make_unique<DBDataStore>(adapter.asIDBClient(), 1024 * 4, std::make_shared<STKeyManipulator>(), true);
     result["MyReplicaId"] = std::to_string(ds->getMyReplicaId());
     auto replicas = ds->getReplicas();
     auto verifiers = getVerifiers(replicas, adapter);
@@ -1213,7 +1238,7 @@ struct VerifyDbCheckpoint {
     }
     result["lastBlockVerification"] = "Ok";
     std::unique_ptr<MetadataStorage> mdtStorage(
-        new DBMetadataStorage(adapter.db()->asIDBClient().get(), std::make_unique<MetadataKeyManipulator>()));
+        new DBMetadataStorage(adapter.asIDBClient().get(), std::make_unique<MetadataKeyManipulator>()));
     shared_ptr<bftEngine::impl::PersistentStorage> p(new bftEngine::impl::PersistentStorageImp(4, 1, 0, 0, 0));
     uint16_t numOfObjects = 0;
     auto objectDescriptors = ((PersistentStorageImp *)p.get())->getDefaultMetadataObjectDescriptors(numOfObjects);

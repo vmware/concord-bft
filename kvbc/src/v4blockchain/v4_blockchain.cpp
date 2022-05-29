@@ -20,6 +20,7 @@
 #include "kvbc_key_types.hpp"
 #include "block_metadata.hpp"
 #include "throughput.hpp"
+#include "blockchain_misc.hpp"
 
 namespace concord::kvbc::v4blockchain {
 
@@ -33,7 +34,10 @@ KeyValueBlockchain::KeyValueBlockchain(
       block_chain_{native_client_},
       state_transfer_chain_{native_client_},
       latest_keys_{native_client_, category_types, [&]() { return block_chain_.getGenesisBlockId(); }} {
-  if (!link_st_chain || state_transfer_chain_.getLastBlockId() == 0) return;
+  if (!link_st_chain) return;
+  // Mark version of blockchain
+  native_client_->put(kvbc::keyTypes::blockchain_version, kvbc::V4Version());
+  if (state_transfer_chain_.getLastBlockId() == 0) return;
   // Make sure that if linkSTChainFrom() has been interrupted (e.g. a crash or an abnormal shutdown), all DBAdapter
   // methods will return the correct values. For example, if state transfer had completed and linkSTChainFrom() was
   // interrupted, getLatestBlockId() should be equal to getLastReachableBlockId() on the next startup. Another example
@@ -61,11 +65,11 @@ BlockId KeyValueBlockchain::add(categorization::Updates &&updates) {
   auto scoped = v4blockchain::detail::ScopedDuration{"Add block"};
   // Should be performed before we add the block with the current Updates.
   auto sequence_number = markHistoryForGarbageCollectionIfNeeded(updates);
+  addGenesisBlockKey(updates);
   v4blockchain::detail::Block block;
   block.addUpdates(updates);
   auto block_size = block.size();
   auto write_batch = native_client_->getBatch(block_size * updates_to_final_size_ration_);
-  // addGenesisBlockKey(updates);
   auto block_id = add(updates, block, write_batch);
   LOG_DEBUG(V4_BLOCK_LOG,
             "Block size is " << block_size << " reserving batch to be " << updates_to_final_size_ration_ * block_size
