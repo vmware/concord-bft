@@ -43,6 +43,7 @@ class v4_kvbc : public Test {
         {"merkle", categorization::CATEGORY_TYPE::block_merkle},
         {"versioned", categorization::CATEGORY_TYPE::versioned_kv},
         {"versioned_2", categorization::CATEGORY_TYPE::versioned_kv},
+        {"concord_internal", categorization::CATEGORY_TYPE::versioned_kv},
         {"immutable", categorization::CATEGORY_TYPE::immutable}};
     bc = std::make_shared<v4blockchain::KeyValueBlockchain>(db, true, categories);
   }
@@ -79,16 +80,12 @@ TEST_F(v4_kvbc, put_get_blocks) {
   ver_updates.addUpdate("ver_key1", "ver_val1");
   ver_updates.addUpdate("ver_key2", categorization::VersionedUpdates::Value{"ver_val2", true});
   updates.add("versioned", std::move(ver_updates));
-  auto updates_copy = updates;
+
   ASSERT_EQ(bc->add(std::move(updates)), (BlockId)1);
   ASSERT_TRUE(state_adapter.hasBlock(1));
   ASSERT_EQ(state_adapter.getLastBlockNum(), 1);
 
   ASSERT_TRUE(state_adapter.getBlock(1, buffer, 1000, &out));
-  auto strblock1 = std::string(buffer, out);
-  auto block1 = ::v4blockchain::detail::Block{strblock1};
-  auto getUpdates = block1.getUpdates();
-  ASSERT_EQ(getUpdates, updates_copy);
 
   // Add block to ST chain
   auto block = std::string("block");

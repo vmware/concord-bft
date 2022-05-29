@@ -36,12 +36,19 @@ class Categories {
   Categories() = delete;
 
   // Throws if the category does not exist
-  const std::string& categoryPrefix(const std::string& cat_id) const { return category_to_prefix_.at(cat_id); }
+  const std::string& categoryPrefix(const std::string& cat_id) const {
+    if (category_to_prefix_.count(cat_id) == 0) {
+      throw std::runtime_error("No prefix found for category " + cat_id);
+    }
+    return category_to_prefix_.at(cat_id);
+  }
   concord::kvbc::categorization::CATEGORY_TYPE categoryType(const std::string& cat_id) const {
     return category_types_.at(cat_id);
   }
 
   const std::unordered_map<std::string, std::string>& prefixMap() const { return category_to_prefix_; }
+
+  std::map<std::string, concord::kvbc::categorization::CATEGORY_TYPE> getCategories() const { return category_types_; }
 
  private:
   void loadCategories();
@@ -54,7 +61,7 @@ class Categories {
  private:
   std::shared_ptr<concord::storage::rocksdb::NativeClient> native_client_;
   std::unordered_map<std::string, std::string> category_to_prefix_;
-  std::unordered_map<std::string, concord::kvbc::categorization::CATEGORY_TYPE> category_types_;
+  std::map<std::string, concord::kvbc::categorization::CATEGORY_TYPE> category_types_;
 };
 
 }  // namespace concord::kvbc::v4blockchain::detail

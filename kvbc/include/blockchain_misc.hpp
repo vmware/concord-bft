@@ -20,7 +20,9 @@
 #include "assertUtils.hpp"
 
 namespace concord::kvbc {
-enum BLOCKCHAIN_VERSION { CATEGORIZED_BLOCKCHAIN = 1, NATURAL_BLOCKCHAIN = 4, INVALID_BLOCKCHAIN_VERSION };
+enum BLOCKCHAIN_VERSION { CATEGORIZED_BLOCKCHAIN = 1, V4_BLOCKCHAIN = 4, INVALID_BLOCKCHAIN_VERSION };
+
+inline std::string V4Version() { return "V4_BLOCKCHAIN"; }
 
 using version_type = uint16_t;
 enum class block_version : version_type { V1 = 0x1 };
