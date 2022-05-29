@@ -87,7 +87,7 @@ class common_kvbc : public Test {
       case 1:
         return concord::kvbc::BLOCKCHAIN_VERSION::CATEGORIZED_BLOCKCHAIN;
       case 4:
-        return concord::kvbc::BLOCKCHAIN_VERSION::NATURAL_BLOCKCHAIN;
+        return concord::kvbc::BLOCKCHAIN_VERSION::V4_BLOCKCHAIN;
       default:
         break;
     }
@@ -117,7 +117,7 @@ TEST_F(common_kvbc, compute_and_persist_hash_with_no_public_state) {
           cat_map.emplace(concord::kvbc::categorization::kConcordInternalCategoryId,
                           concord::kvbc::categorization::CATEGORY_TYPE::versioned_kv);
         }
-      case concord::kvbc::BLOCKCHAIN_VERSION::NATURAL_BLOCKCHAIN:
+      case concord::kvbc::BLOCKCHAIN_VERSION::V4_BLOCKCHAIN:
         if (!version_is_set) {
           bftEngine::ReplicaConfig::instance().kvBlockchainVersion = static_cast<uint32_t>(ver);
           version_is_set = true;
@@ -171,7 +171,7 @@ TEST_F(common_kvbc, compute_and_persist_hash_batch_size_equals_key_count) {
           cat_map.emplace(concord::kvbc::categorization::kConcordInternalCategoryId,
                           concord::kvbc::categorization::CATEGORY_TYPE::versioned_kv);
         }
-      case concord::kvbc::BLOCKCHAIN_VERSION::NATURAL_BLOCKCHAIN:
+      case concord::kvbc::BLOCKCHAIN_VERSION::V4_BLOCKCHAIN:
         if (!version_is_set) {
           bftEngine::ReplicaConfig::instance().kvBlockchainVersion = static_cast<uint32_t>(ver);
           version_is_set = true;
@@ -223,7 +223,7 @@ TEST_F(common_kvbc, compute_and_persist_hash_batch_size_bigger_than_key_count_un
           cat_map.emplace(concord::kvbc::categorization::kConcordInternalCategoryId,
                           concord::kvbc::categorization::CATEGORY_TYPE::versioned_kv);
         }
-      case concord::kvbc::BLOCKCHAIN_VERSION::NATURAL_BLOCKCHAIN:
+      case concord::kvbc::BLOCKCHAIN_VERSION::V4_BLOCKCHAIN:
         if (!version_is_set) {
           bftEngine::ReplicaConfig::instance().kvBlockchainVersion = static_cast<uint32_t>(ver);
           version_is_set = true;
@@ -275,7 +275,7 @@ TEST_F(common_kvbc, compute_and_persist_hash_batch_size_bigger_than_key_count_ev
           cat_map.emplace(concord::kvbc::categorization::kConcordInternalCategoryId,
                           concord::kvbc::categorization::CATEGORY_TYPE::versioned_kv);
         }
-      case concord::kvbc::BLOCKCHAIN_VERSION::NATURAL_BLOCKCHAIN:
+      case concord::kvbc::BLOCKCHAIN_VERSION::V4_BLOCKCHAIN:
         if (!version_is_set) {
           bftEngine::ReplicaConfig::instance().kvBlockchainVersion = static_cast<uint32_t>(ver);
           version_is_set = true;
@@ -327,7 +327,7 @@ TEST_F(common_kvbc, compute_and_persist_hash_batch_size_less_than_key_count_unev
           cat_map.emplace(concord::kvbc::categorization::kConcordInternalCategoryId,
                           concord::kvbc::categorization::CATEGORY_TYPE::versioned_kv);
         }
-      case concord::kvbc::BLOCKCHAIN_VERSION::NATURAL_BLOCKCHAIN:
+      case concord::kvbc::BLOCKCHAIN_VERSION::V4_BLOCKCHAIN:
         if (!version_is_set) {
           bftEngine::ReplicaConfig::instance().kvBlockchainVersion = static_cast<uint32_t>(ver);
           version_is_set = true;
@@ -379,7 +379,7 @@ TEST_F(common_kvbc, compute_and_persist_hash_batch_size_less_than_key_count_even
           cat_map.emplace(concord::kvbc::categorization::kConcordInternalCategoryId,
                           concord::kvbc::categorization::CATEGORY_TYPE::versioned_kv);
         }
-      case concord::kvbc::BLOCKCHAIN_VERSION::NATURAL_BLOCKCHAIN:
+      case concord::kvbc::BLOCKCHAIN_VERSION::V4_BLOCKCHAIN:
         if (!version_is_set) {
           bftEngine::ReplicaConfig::instance().kvBlockchainVersion = static_cast<uint32_t>(ver);
           version_is_set = true;
@@ -431,7 +431,7 @@ TEST_F(common_kvbc, iterate_partial_public_state) {
           cat_map.emplace(concord::kvbc::categorization::kConcordInternalCategoryId,
                           concord::kvbc::categorization::CATEGORY_TYPE::versioned_kv);
         }
-      case concord::kvbc::BLOCKCHAIN_VERSION::NATURAL_BLOCKCHAIN:
+      case concord::kvbc::BLOCKCHAIN_VERSION::V4_BLOCKCHAIN:
         if (!version_is_set) {
           bftEngine::ReplicaConfig::instance().kvBlockchainVersion = static_cast<uint32_t>(ver);
           version_is_set = true;
@@ -488,7 +488,7 @@ TEST_F(common_kvbc, iterate_public_state_after_first_key) {
           cat_map.emplace(concord::kvbc::categorization::kConcordInternalCategoryId,
                           concord::kvbc::categorization::CATEGORY_TYPE::versioned_kv);
         }
-      case concord::kvbc::BLOCKCHAIN_VERSION::NATURAL_BLOCKCHAIN:
+      case concord::kvbc::BLOCKCHAIN_VERSION::V4_BLOCKCHAIN:
         if (!version_is_set) {
           bftEngine::ReplicaConfig::instance().kvBlockchainVersion = static_cast<uint32_t>(ver);
           version_is_set = true;
@@ -546,7 +546,7 @@ TEST_F(common_kvbc, iterate_public_state_after_last_key) {
           cat_map.emplace(concord::kvbc::categorization::kConcordInternalCategoryId,
                           concord::kvbc::categorization::CATEGORY_TYPE::versioned_kv);
         }
-      case concord::kvbc::BLOCKCHAIN_VERSION::NATURAL_BLOCKCHAIN:
+      case concord::kvbc::BLOCKCHAIN_VERSION::V4_BLOCKCHAIN:
         if (!version_is_set) {
           bftEngine::ReplicaConfig::instance().kvBlockchainVersion = static_cast<uint32_t>(ver);
           version_is_set = true;
@@ -602,7 +602,7 @@ TEST_F(common_kvbc, iterate_public_state_key_not_found) {
           cat_map.emplace(concord::kvbc::categorization::kConcordInternalCategoryId,
                           concord::kvbc::categorization::CATEGORY_TYPE::versioned_kv);
         }
-      case concord::kvbc::BLOCKCHAIN_VERSION::NATURAL_BLOCKCHAIN:
+      case concord::kvbc::BLOCKCHAIN_VERSION::V4_BLOCKCHAIN:
         if (!version_is_set) {
           bftEngine::ReplicaConfig::instance().kvBlockchainVersion = static_cast<uint32_t>(ver);
           version_is_set = true;

@@ -138,6 +138,10 @@ class LatestKeys {
                              const std::vector<std::string>& keys,
                              std::vector<std::optional<categorization::TaggedVersion>>& versions) const;
 
+  std::map<std::string, concord::kvbc::categorization::CATEGORY_TYPE> getCategories() const {
+    return category_mapping_.getCategories();
+  }
+
  private:
   // This filter is used to delete stale on update keys if their version is smaller than the genesis block
   // It's being called by RocksDB on compaction

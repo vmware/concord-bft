@@ -47,8 +47,9 @@ ReplicaBlockchain::ReplicaBlockchain(
     bool link_st_chain,
     const std::optional<std::map<std::string, concord::kvbc::categorization::CATEGORY_TYPE>> &category_types,
     const std::optional<aux::AdapterAuxTypes> &aux_types)
-    : logger_(logging::getLogger("skvbc.replica.adapter")) {
+    : logger_(logging::getLogger("skvbc.replica.adapter")), native_client_(native_client) {
   if (bftEngine::ReplicaConfig::instance().kvBlockchainVersion == BLOCKCHAIN_VERSION::CATEGORIZED_BLOCKCHAIN) {
+    version_ = BLOCKCHAIN_VERSION::CATEGORIZED_BLOCKCHAIN;
     LOG_INFO(CAT_BLOCK_LOG, "Instantiating categorized type blockchain");
     kvbc_ = std::make_shared<concord::kvbc::categorization::KeyValueBlockchain>(
         native_client, link_st_chain, category_types);
@@ -62,7 +63,8 @@ ReplicaBlockchain::ReplicaBlockchain(
     up_state_snapshot_ = std::make_unique<concord::kvbc::adapter::common::statesnapshot::KVBCStateSnapshot>(
         up_reader_.get(), native_client);
     up_db_chkpt_ = std::make_unique<concord::kvbc::adapter::categorization::DbCheckpointImpl>(kvbc_);
-  } else if (bftEngine::ReplicaConfig::instance().kvBlockchainVersion == BLOCKCHAIN_VERSION::NATURAL_BLOCKCHAIN) {
+  } else if (bftEngine::ReplicaConfig::instance().kvBlockchainVersion == BLOCKCHAIN_VERSION::V4_BLOCKCHAIN) {
+    version_ = BLOCKCHAIN_VERSION::V4_BLOCKCHAIN;
     LOG_INFO(V4_BLOCK_LOG, "Instantiating v4 type blockchain");
     v4_kvbc_ =
         std::make_shared<concord::kvbc::v4blockchain::KeyValueBlockchain>(native_client, link_st_chain, category_types);

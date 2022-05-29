@@ -127,8 +127,7 @@ TEST_F(v4_kvbc, throw_if_not_exist) {
 
     ASSERT_TRUE(db->hasColumnFamily(v4blockchain::detail::CATEGORIES_CF));
 
-    ASSERT_THROW(category_mapping.categoryPrefix("imm3").size(), std::out_of_range);
-    ASSERT_THROW(category_mapping.categoryType("imm3"), std::out_of_range);
+    ASSERT_THROW(category_mapping.categoryPrefix("imm3").size(), std::runtime_error);
   }
 }
 

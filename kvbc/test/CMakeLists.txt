@@ -138,7 +138,8 @@ target_link_libraries(multiIO_test PUBLIC
 )
 
 add_executable(kv_blockchain_db_editor_test sparse_merkle_storage/kv_blockchain_db_editor_test.cpp )
-add_test(kv_blockchain_db_editor_test kv_blockchain_db_editor_test)
+add_test(kv_blockchain_db_editor_test_v4 kv_blockchain_db_editor_test v4)
+add_test(kv_blockchain_db_editor_test_categorized kv_blockchain_db_editor_test categorized)
 
 target_include_directories(kv_blockchain_db_editor_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include/kvbc_app_filter/ 
 																${CMAKE_CURRENT_SOURCE_DIR}/../../bftengine/src)

@@ -122,6 +122,10 @@ class KeyValueBlockchain {
   // Get the last block ID in the system.
   BlockId getLastReachableBlockId() const { return block_chain_.getLastReachable(); }
 
+  std::map<std::string, concord::kvbc::categorization::CATEGORY_TYPE> getCategories() const {
+    return latest_keys_.getCategories();
+  }
+
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   // Trims the DB snapshot such that its last reachable block is equal to `block_id_at_checkpoint`.
