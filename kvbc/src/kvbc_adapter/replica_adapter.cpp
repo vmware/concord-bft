@@ -24,6 +24,7 @@
 #include "kvbc_adapter/v4blockchain/blocks_db_checkpoint_adapter.hpp"
 
 namespace concord::kvbc::adapter {
+
 ReplicaBlockchain::~ReplicaBlockchain() {
   deleter_ = nullptr;
   reader_ = nullptr;
@@ -47,7 +48,17 @@ ReplicaBlockchain::ReplicaBlockchain(
     bool link_st_chain,
     const std::optional<std::map<std::string, concord::kvbc::categorization::CATEGORY_TYPE>> &category_types,
     const std::optional<aux::AdapterAuxTypes> &aux_types)
-    : logger_(logging::getLogger("skvbc.replica.adapter")), native_client_(native_client) {
+    : logger_(logging::getLogger("skvbc.replica.adapter")), native_client_(native_client),
+      metrics_comp_{concordMetrics::Component("kv_blockchain_adds", std::make_shared<concordMetrics::Aggregator>())},
+      add_block_duration{metrics_comp_.RegisterGauge("AddBlockDurationMicro", 0)},
+      multiget_latest_duration{metrics_comp_.RegisterGauge("MultigetLatestDurationMicro", 0)},
+      multiget_version_duration{metrics_comp_.RegisterGauge("MultigetLatestVersionDurationMicro", 0)},
+      get_counter{metrics_comp_.RegisterCounter("GetCounter")},
+      multiget_lat_version_counter{metrics_comp_.RegisterCounter("MultiGetLatestVersionCounter")} {
+  metrics_comp_.Register();
+  if (aux_types.has_value()) {
+    metrics_comp_.SetAggregator(aux_types->aggregator_);
+  }
   if (bftEngine::ReplicaConfig::instance().kvBlockchainVersion == BLOCKCHAIN_VERSION::CATEGORIZED_BLOCKCHAIN) {
     version_ = BLOCKCHAIN_VERSION::CATEGORIZED_BLOCKCHAIN;
     LOG_INFO(CAT_BLOCK_LOG, "Instantiating categorized type blockchain");

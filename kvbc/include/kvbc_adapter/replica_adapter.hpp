@@ -60,6 +60,7 @@ class ReplicaBlockchain : public IBlocksDeleter,
   std::optional<categorization::Value> get(const std::string &category_id,
                                            const std::string &key,
                                            BlockId block_id) const override final {
+    get_counter++;
     return reader_->get(category_id, key, block_id);
   }
 
@@ -78,7 +79,10 @@ class ReplicaBlockchain : public IBlocksDeleter,
   void multiGetLatest(const std::string &category_id,
                       const std::vector<std::string> &keys,
                       std::vector<std::optional<categorization::Value>> &values) const override final {
-    return reader_->multiGetLatest(category_id, keys, values);
+    auto start = std::chrono::steady_clock::now();
+    reader_->multiGetLatest(category_id, keys, values);
+    multiget_latest_duration.Get().Set(
+        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count());
   }
 
   std::optional<categorization::TaggedVersion> getLatestVersion(const std::string &category_id,
@@ -89,7 +93,11 @@ class ReplicaBlockchain : public IBlocksDeleter,
   void multiGetLatestVersion(const std::string &category_id,
                              const std::vector<std::string> &keys,
                              std::vector<std::optional<categorization::TaggedVersion>> &versions) const override final {
-    return reader_->multiGetLatestVersion(category_id, keys, versions);
+    multiget_lat_version_counter++;
+    auto start = std::chrono::steady_clock::now();
+    reader_->multiGetLatestVersion(category_id, keys, versions);
+    multiget_version_duration.Get().Set(
+        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count());
   }
 
   std::optional<categorization::Updates> getBlockUpdates(BlockId block_id) const override final {
@@ -105,7 +113,16 @@ class ReplicaBlockchain : public IBlocksDeleter,
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // IBlockAdder
-  BlockId add(categorization::Updates &&updates) override final { return adder_->add(std::move(updates)); }
+  BlockId add(categorization::Updates &&updates) override final {
+    auto start = std::chrono::steady_clock::now();
+    auto id = adder_->add(std::move(updates));
+    add_block_duration.Get().Set(
+        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count());
+    if (id % 20 == 0) {
+      metrics_comp_.UpdateAggregator();
+    }
+    return id;
+  }
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -236,5 +253,12 @@ class ReplicaBlockchain : public IBlocksDeleter,
   //////////////helpers///////////////////////////
   concord::kvbc::BLOCKCHAIN_VERSION version_;
   std::shared_ptr<concord::storage::rocksdb::NativeClient> native_client_;
+  ////Metrics
+  concordMetrics::Component metrics_comp_;
+  mutable concordMetrics::GaugeHandle add_block_duration;
+  mutable concordMetrics::GaugeHandle multiget_latest_duration;
+  mutable concordMetrics::GaugeHandle multiget_version_duration;
+  mutable concordMetrics::CounterHandle get_counter;
+  mutable concordMetrics::CounterHandle multiget_lat_version_counter;
 };
 }  // namespace concord::kvbc::adapter
