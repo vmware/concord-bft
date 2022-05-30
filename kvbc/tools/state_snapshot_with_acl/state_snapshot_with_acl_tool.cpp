@@ -168,7 +168,6 @@ int run(int argc, char* argv[]) {
   auto thread_pool = ThreadPool{static_cast<std::uint32_t>(point_lookup_threads)};
 
   std::cout << "Hash state keys {H(H(k1)|H(v1) | H(k2)|H(v2) .....H(kn|vn))} acl-filtered for client id: " << client_id
-            << ", starting from an offset(event group id) " << ext_ev_group_id
             << ", with a point lookup batch size = " << point_lookup_batch_size
             << ", point lookup threads = " << point_lookup_threads
             << ", RocksDB block cache size = " << rocksdb_cache_size << " bytes, configuration file = " << rocksdb_conf
@@ -192,8 +191,7 @@ int run(int argc, char* argv[]) {
 
   auto get_block_id_from_ext_ev_gr_id = [&](uint64_t ext_evg_id) -> std::optional<uint64_t> {
     if (ext_evg_id == 0) {
-      // return genesis block id
-      return reader.getGenesisBlockId();
+      return reader.getLastBlockId();
     } else {
       auto [global_eg_id, is_previous_public, private_eg_id, public_eg_id] = filter.findGlobalEventGroupId(ext_evg_id);
       (void)is_previous_public;
@@ -215,7 +213,7 @@ int run(int argc, char* argv[]) {
       return imm_val->block_id;
     }
   };
-  const auto offset = get_block_id_from_ext_ev_gr_id(ext_ev_group_id).value_or(1);
+  const auto offset = get_block_id_from_ext_ev_gr_id(ext_ev_group_id).value_or(reader.getLastBlockId());
 
   auto multi_get_batch = MultiGetBatch<Buffer>{static_cast<std::uint64_t>(point_lookup_batch_size),
                                                static_cast<std::uint32_t>(point_lookup_threads)};
@@ -236,7 +234,7 @@ int run(int argc, char* argv[]) {
   };
   auto print_result = [&]() {
     std::ostringstream oss;
-    oss << "Block id range: [" << offset << " " << reader.getLastBlockId() << "]" << std::endl;
+    oss << "Block id range: [" << reader.getGenesisBlockId() << " " << offset << "]" << std::endl;
     oss << "client_id: " << client_id << std::endl;
     oss << "number of public state keys: " << num_of_public_keys << std::endl;
     oss << "number of private state keys: " << num_of_pvt_keys << std::endl;
@@ -331,8 +329,7 @@ int run(int argc, char* argv[]) {
           hash_state_kv(serialized_keys[j], value);
         }
         // print all state keys - hash(val), trid
-        // auto is_public = trids.size() ? false : true;
-        // print_kv_with_acl(serialized_keys[j], value, trids, is_public);
+        // print_kv_with_acl(serialized_keys[j], value, trids, (trids.size() ? false : true));
         ++key_idx;
       }
     }
@@ -362,7 +359,7 @@ int run(int argc, char* argv[]) {
     if (tagged_version.deleted) {
       continue;
     }
-    if (tagged_version.version < offset) {
+    if (tagged_version.version > offset) {
       continue;
     }
 
@@ -375,8 +372,9 @@ int run(int argc, char* argv[]) {
     }
   }
   (void)print_kv_with_acl;
-  print_result();
   read_batch();
+  print_result();
+
   return EXIT_SUCCESS;
 }
 }  // namespace concord::state_snapshot_tool
