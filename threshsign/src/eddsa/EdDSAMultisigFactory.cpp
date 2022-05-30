@@ -17,7 +17,6 @@
 #include "threshsign/eddsa/SSLEdDSAPublicKey.h"
 #include "threshsign/eddsa/EdDSAMultisigSigner.h"
 #include "threshsign/eddsa/EdDSAMultisigVerifier.h"
-#include "../Utils.h"
 #include <boost/algorithm/hex.hpp>
 #include <iostream>
 
@@ -27,7 +26,7 @@ IThresholdVerifier *EdDSAMultisigFactory::newVerifier(ShareID reqSigners,
                                                       const std::vector<std::string> &verifKeysStr) const {
   UNUSED(reqSigners);
   UNUSED(publicKeyStr);
-  ConcordAssert(verifKeysStr.size() - 1 == (size_t)totalSigners);
+  ConcordAssertEQ(verifKeysStr.size(), static_cast<std::vector<std::string>::size_type>(totalSigners + 1));
   std::vector<SSLEdDSAPublicKey> publicKeys;
   publicKeys.push_back(SSLEdDSAPublicKey(SSLEdDSAPublicKey::EdDSAPublicKeyBytes{}));
   std::transform(verifKeysStr.begin() + 1,

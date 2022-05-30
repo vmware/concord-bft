@@ -119,20 +119,24 @@ int main(int argc, char** argv) {
     uint16_t ro = 0;
     std::string outputPrefix;
 
+#ifdef USE_RELIC
     // TODO(yf): add eddsa here
-    /*std::string slowType = MULTISIG_BLS_SCHEME;
+    std::string slowType = MULTISIG_BLS_SCHEME;
     std::string slowParam = "BN-P254";
     std::string commitType = MULTISIG_BLS_SCHEME;
     std::string commitParam = "BN-P254";
     std::string optType = MULTISIG_BLS_SCHEME;
-    std::string optParam = "BN-P254";*/
+    std::string optParam = "BN-P254";
+#endif
 
+#ifdef USE_EDDSA_OPENSSL
     std::string slowType = MULTISIG_EDDSA_SCHEME;
     std::string slowParam = "ED25519";
     std::string commitType = MULTISIG_EDDSA_SCHEME;
     std::string commitParam = "ED25519";
     std::string optType = MULTISIG_EDDSA_SCHEME;
     std::string optParam = "ED25519";
+#endif
 
     for (int i = 1; i < argc; ++i) {
       std::string option(argv[i]);
@@ -200,8 +204,18 @@ int main(int argc, char** argv) {
       config.publicKeysOfReplicas.insert(std::pair<uint16_t, std::string>(i, rsaKeys[i].second));
     }
 
+#ifdef USE_EDDSA_OPENSSL
+    auto* sysType = MULTISIG_EDDSA_SCHEME;
+    auto* subSysType = "ED25519";
+#endif
+
+#ifdef USE_RELIC
+    auto* sysType = MULTISIG_BLS_SCHEME;
+    auto* subSysType = "BN-P254";
+#endif
+
     // We want to generate public key for n-out-of-n case
-    Cryptosystem cryptoSys(MULTISIG_EDDSA_SCHEME /*MULTISIG_BLS_SCHEME*/, /*"BN-P254"*/ "ED25519", n, n);
+    Cryptosystem cryptoSys(sysType, subSysType, n, n);
     cryptoSys.generateNewPseudorandomKeys();
 
     // Output the generated keys.

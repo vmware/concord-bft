@@ -28,8 +28,6 @@ target_link_libraries(GenerateConcordKeys
                       util
 					  stdc++fs)
 
-link_with_relic_library(GenerateConcordKeys)
-
 set_target_properties(GenerateConcordKeys
                       PROPERTIES
                       RUNTIME_OUTPUT_DIRECTORY
@@ -41,27 +39,24 @@ if (BUILD_TESTING)
 	               KeyfileIOUtils.hpp
 	               KeyfileIOUtils.cpp
 	               )
-	
+
 	target_include_directories(TestGeneratedKeys
-	                           PRIVATE
-	                           ${threshsign_SOURCE_DIR}/src
-	                           ${threshsign_SOURCE_DIR}/lib
-	                           ${threshsign_SOURCE_DIR}/include
-	                           ${bftengine_SOURCE_DIR}/src
-	                           ${bftengine_SOURCE_DIR}/src/bftengine/include_internal
-	                           ${bftengine_SOURCE_DIR}/include)
-	
+			PRIVATE
+			${threshsign_SOURCE_DIR}/src
+			${threshsign_SOURCE_DIR}/lib
+			${threshsign_SOURCE_DIR}/include
+			${bftengine_SOURCE_DIR}/src
+			${bftengine_SOURCE_DIR}/src/bftengine/include_internal
+			${bftengine_SOURCE_DIR}/include)
+
 	target_link_libraries(TestGeneratedKeys
-	                      PUBLIC
-	                      threshsign
-	                      corebft)
-	
-	link_with_relic_library(TestGeneratedKeys)
-	
+			PUBLIC
+			threshsign
+			corebft)
 	set_target_properties(TestGeneratedKeys
-	                      PROPERTIES
-	                      RUNTIME_OUTPUT_DIRECTORY
-	                      .)
+			PROPERTIES
+			RUNTIME_OUTPUT_DIRECTORY
+			.)
 endif()
 
 if (BUILD_ROCKSDB_STORAGE)

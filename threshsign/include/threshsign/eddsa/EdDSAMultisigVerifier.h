@@ -29,7 +29,6 @@ class EdDSASignatureAccumulator : public IThresholdAccumulator {
  private:
   std::unordered_map<uint32_t, SingleEdDSASignature> signatures_;
   std::string msgDigest_;
-  // const EdDSAMultisigVerifier& verifier_;
 };
 
 class EdDSAMultisigVerifier : public IThresholdVerifier {

@@ -15,7 +15,7 @@
 #include <numeric>
 
 int EdDSASignatureAccumulator::add(const char *sigShareWithId, int len) {
-  ConcordAssertEQ(len, sizeof(SingleEdDSASignature));
+  ConcordAssertEQ(len, static_cast<int>(sizeof(SingleEdDSASignature)));
   auto signaturePtr = reinterpret_cast<const SingleEdDSASignature *>(sigShareWithId);
   auto result = signatures_.insert({signaturePtr->id, *signaturePtr});
   if (result.second) {
@@ -49,9 +49,7 @@ bool EdDSASignatureAccumulator::hasShareVerificationEnabled() const { return fal
 int EdDSASignatureAccumulator::getNumValidShares() const { return 0; }
 std::set<ShareID> EdDSASignatureAccumulator::getInvalidShareIds() const { return std::set<ShareID>(); }
 
-EdDSASignatureAccumulator::EdDSASignatureAccumulator(const EdDSAMultisigVerifier &verifier) /*:
-    verifier_(verifier)*/
-{
+EdDSASignatureAccumulator::EdDSASignatureAccumulator(const EdDSAMultisigVerifier &verifier) {
   LOG_INFO(EDDSA_MULTISIG_LOG, "created new accumulator, addr: " << this);
   UNUSED(verifier);
 }
@@ -74,14 +72,17 @@ IThresholdAccumulator *EdDSAMultisigVerifier::newAccumulator(bool withShareVerif
 
 bool EdDSAMultisigVerifier::verify(const char *msg, int msgLen, const char *sig, int sigLen) const {
   LOG_INFO(EDDSA_MULTISIG_LOG, KVLOG(this, publicKeys_.size(), signersCount_, threshold_, sigLen));
-  if (sigLen == 0) {
+  auto msgLenUnsigned = static_cast<size_t>(msgLen);
+  auto sigLenUnsigned = static_cast<unsigned long>(sigLen);
+  ConcordAssert(sigLenUnsigned % sizeof(SingleEdDSASignature) == 0);
+  const auto signatureCountInBuffer = sigLenUnsigned / sizeof(SingleEdDSASignature);
+
+  if (signatureCountInBuffer < threshold_) {
     return false;
   }
-  auto msgLenUnsigned = static_cast<size_t>(msgLen);
-  ConcordAssert(static_cast<unsigned long>(sigLen) % sizeof(SingleEdDSASignature) == 0);
 
   size_t validSignatureCount = 0;
-  for (int i = 0; i < (int)publicKeys_.size(); i++) {
+  for (int i = 0; i < (int)signatureCountInBuffer; i++) {
     auto currentSignature = reinterpret_cast<const SingleEdDSASignature *>(
         &sig[(static_cast<unsigned long>(i)) * sizeof(SingleEdDSASignature)]);
     if (currentSignature->id == 0) {
@@ -92,7 +93,7 @@ bool EdDSAMultisigVerifier::verify(const char *msg, int msgLen, const char *sig,
                                                                    currentSignature->signatureBytes.data(),
                                                                    currentSignature->signatureBytes.size());
     LOG_INFO(EDDSA_MULTISIG_LOG, "Verified id: " << KVLOG(currentSignature->id, result));
-    validSignatureCount++;
+    validSignatureCount += result == true;
   }
 
   bool result = validSignatureCount == threshold_;

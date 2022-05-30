@@ -10,7 +10,6 @@
 // notices and license terms. Your use of these subcomponents is subject to the
 // terms and conditions of the subcomponent's license, as noted in the
 // LICENSE file.
-
 #include <openssl/evp.h>
 #include <random>
 #include "gtest/gtest.h"
@@ -166,7 +165,7 @@ TEST(EdDSAMultisigTest, TestInvalidMultiSignature) {
     signers[i]->signData(
         digest.data(), (int)digest.size(), reinterpret_cast<char*>(&signatures[i]), sizeof(SingleEdDSASignature));
     auto& currentSig = *(SingleEdDSASignature*)&signatures[i];
-    currentSig.signatureBytes[0] = ~currentSig.signatureBytes[0];
+    currentSig.signatureBytes[0] = static_cast<uint8_t>(~currentSig.signatureBytes[0]);
     accumulator->add(reinterpret_cast<const char*>(&signatures[i]), sizeof(SingleEdDSASignature));
   }
   auto multisigBytes = verifier->requiredLengthForSignedData();
