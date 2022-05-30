@@ -15,11 +15,18 @@
 #include "threshsign/ThresholdSignaturesTypes.h"
 #include "threshsign/IThresholdSigner.h"
 #include "threshsign/IThresholdVerifier.h"
-#include "threshsign/bls/relic/BlsThresholdFactory.h"
-#include "threshsign/bls/relic/PublicParametersFactory.h"
+#include "threshsign/IThresholdFactory.h"
 #include "yaml_utils.hpp"
 #include "Logger.hpp"
+
+#ifdef USE_RELIC
+#include "threshsign/bls/relic/BlsThresholdFactory.h"
+#include "threshsign/bls/relic/PublicParametersFactory.h"
+#endif
+
+#ifdef USE_EDDSA_OPENSSL
 #include "threshsign/eddsa/EdDSAMultisigFactory.h"
+#endif
 
 Cryptosystem::Cryptosystem(const std::string& sysType,
                            const std::string& sysSubtype,
@@ -43,43 +50,45 @@ Cryptosystem::Cryptosystem(const std::string& sysType,
 
 // Helper function to generateNewPseudorandomKeys.
 IThresholdFactory* Cryptosystem::createThresholdFactory() {
+#ifdef USE_RELIC
   if (type_ == MULTISIG_BLS_SCHEME && forceMultisig_) {
     return new BLS::Relic::BlsThresholdFactory(BLS::Relic::PublicParametersFactory::getByCurveType(subtype_.c_str()),
                                                true);
-  } else if (type_ == THRESHOLD_BLS_SCHEME) {
-    return new BLS::Relic::BlsThresholdFactory(BLS::Relic::PublicParametersFactory::getByCurveType(subtype_.c_str()));
-  } else if (type_ == MULTISIG_EDDSA_SCHEME) {
-    return new EdDSAMultisigFactory();
-  } else {
-    // This should never occur because Cryptosystem validates its parameters
-    // in its constructor.
-    throw std::runtime_error(
-        "Using cryptosystem of unsupported"
-        " type: " +
-        type_ + ".");
   }
+  if (type_ == THRESHOLD_BLS_SCHEME) {
+    return new BLS::Relic::BlsThresholdFactory(BLS::Relic::PublicParametersFactory::getByCurveType(subtype_.c_str()));
+  }
+#endif
+#ifdef USE_EDDSA_OPENSSL
+  if (type_ == MULTISIG_EDDSA_SCHEME) {
+    return new EdDSAMultisigFactory();
+  }
+#endif
+
+  // This should never occur because Cryptosystem validates its parameters
+  // in its constructor.
+  throw std::runtime_error(
+      "Using cryptosystem of unsupported"
+      " type: " +
+      type_ + ".");
 }
 
 void Cryptosystem::generateNewPseudorandomKeys() {
   std::unique_ptr<IThresholdFactory> factory(createThresholdFactory());
   std::cout << (uint64_t)factory.get() << std::endl;
-  std::vector<IThresholdSigner*> signers;
-  IThresholdVerifier* verifier;
 
-  // TODO: change to auto& []
-  std::tie(signers, verifier) = factory->newRandomSigners(threshold_, numSigners_);
+  auto [signers, verifier] = factory->newRandomSigners(threshold_, numSigners_);
   if (type_ == THRESHOLD_BLS_SCHEME) publicKey_ = verifier->getPublicKey().toString();
 
-  // TODO(yf): restore
   verificationKeys_.clear();
-  verificationKeys_.resize(numSigners_ + 1);
+  verificationKeys_.resize(static_cast<size_t>(numSigners_ + 1));
   verificationKeys_[0] = "";  // Account for 1-indexing of signer IDs.
   for (uint16_t i = 1; i <= numSigners_; ++i) {
     verificationKeys_[i] = verifier->getShareVerificationKey(static_cast<ShareID>(i)).toString();
   }
 
   privateKeys_.clear();
-  privateKeys_.resize(numSigners_ + 1);
+  privateKeys_.resize(static_cast<size_t>(numSigners_ + 1));
   privateKeys_[0] = "";  // Account for 1-indexing of signer IDs.
   for (uint16_t i = 1; i <= numSigners_; ++i) {
     privateKeys_[i] = signers[i]->getShareSecretKey().toString();
@@ -263,6 +272,7 @@ void Cryptosystem::validatePrivateKey(const std::string& key) const {
 }
 
 bool Cryptosystem::isValidCryptosystemSelection(const std::string& type, const std::string& subtype) {
+#ifdef USE_RELIC
   if (type == MULTISIG_BLS_SCHEME) {
     try {
       BLS::Relic::BlsThresholdFactory factory(BLS::Relic::PublicParametersFactory::getByCurveType(subtype.c_str()));
@@ -271,18 +281,23 @@ bool Cryptosystem::isValidCryptosystemSelection(const std::string& type, const s
       LOG_FATAL(THRESHSIGN_LOG, e.what());
       return false;
     }
-  } else if (type == THRESHOLD_BLS_SCHEME) {
+  }
+  if (type == THRESHOLD_BLS_SCHEME) {
     try {
       BLS::Relic::BlsThresholdFactory factory(BLS::Relic::PublicParametersFactory::getByCurveType(subtype.c_str()));
       return true;
     } catch (std::exception& e) {
       return false;
     }
-  } else if (type == MULTISIG_EDDSA_SCHEME) {
-    return true;
-  } else {
-    return false;
   }
+#endif
+#ifdef USE_EDDSA_OPENSSL
+  UNUSED(subtype);
+  if (type == MULTISIG_EDDSA_SCHEME) {
+    return true;
+  }
+#endif
+  return false;
 }
 
 bool Cryptosystem::isValidCryptosystemSelection(const std::string& type,

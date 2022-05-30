@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.2)
+cmake_minimum_required(VERSION 3.2)
 project(threshsign VERSION 0.1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -43,64 +43,57 @@ string(APPEND CMAKE_CXX_FLAGS_TRACE " -DTRACE")
 enable_testing()
 
 # Targets
-add_library(threshsign
-    STATIC
-    $<TARGET_OBJECTS:common>
-    $<TARGET_OBJECTS:bls_relic>
-)
+if(USE_RELIC)
+    if(BUILD_THIRDPARTY)
+        add_dependencies(threshsign relic)
+    else()
+        find_library(RELIC_STATIC_LIBRARY NAMES "librelic_s.a")
+        find_library(GMP_STATIC_LIBRARY NAMES "libgmp.a")
+    endif()
 
-if(BUILD_THIRDPARTY)
-    add_dependencies(threshsign relic)
-else()
-    find_library(RELIC_STATIC_LIBRARY NAMES "librelic_s.a")
-    find_library(GMP_STATIC_LIBRARY NAMES "libgmp.a")
+    # Helper functions
+
+    # Relic is a cryptographic "meta-toolkit" which can be used with different
+    # concrete implementations. The user has to make sure that the latter is
+    # available at compile-/runtime.
+    function(link_with_relic_library targetName)
+        target_link_libraries(${targetName}
+                PRIVATE
+                ${RELIC_STATIC_LIBRARY}
+                ${GMP_STATIC_LIBRARY}
+                )
+    endfunction()
+
+    # Tests and benchmarks that make use of Relic all need the same boilerplate setup
+    function(add_relic_executable appName appSrc appDir)
+        add_executable(${appName} ${appSrc} $<TARGET_OBJECTS:bench> $<TARGET_OBJECTS:bls_relic>)
+        target_include_directories(${appName} PRIVATE
+                ${threshsign_SOURCE_DIR}/src
+                ${threshsign_SOURCE_DIR}/include
+                ${RELIC_INCLUDE_DIRS})
+        target_link_libraries(${appName} PRIVATE mainapp relic_mainapp threshsign)
+        link_with_relic_library(${appName})
+
+        set_target_properties(${appName} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${appDir})
+    endfunction()
 endif()
-
-# Helper functions
-
-# Relic is a cryptographic "meta-toolkit" which can be used with different
-# concrete implementations. The user has to make sure that the latter is
-# available at compile-/runtime.
-function(link_with_relic_library targetName)
-    target_link_libraries(${targetName}
-        PRIVATE
-        ${RELIC_STATIC_LIBRARY}
-        ${GMP_STATIC_LIBRARY}
-    )
-endfunction()
-
-# Tests and benchmarks that make use of Relic all need the same boilerplate setup
-function(add_relic_executable appName appSrc appDir)
-
-    add_executable(${appName} ${appSrc} $<TARGET_OBJECTS:bench> $<TARGET_OBJECTS:bls_relic> $<TARGET_OBJECTS:common> )
-    target_include_directories(${appName} PRIVATE
-        ${threshsign_SOURCE_DIR}/src
-        ${threshsign_SOURCE_DIR}/include
-        ${RELIC_INCLUDE_DIRS})
-    target_link_libraries(${appName} PRIVATE mainapp)
-    target_link_libraries(${appName} PRIVATE relic_mainapp)
-    link_with_relic_library(${appName})
-
-    set_target_properties(${appName} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${appDir})
-endfunction()
 
 function(add_threshsign_executable appName appSrc appDir)
     add_executable(${appName} ${appSrc})
     target_include_directories(${appName} PRIVATE ${threshsign_SOURCE_DIR}/src)
     target_link_libraries(${appName} PRIVATE mainapp)
     target_link_libraries(${appName} PRIVATE threshsign)
-    link_with_relic_library(${appName})
-
+    if(USE_RELIC)
+        link_with_relic_library(${appName})
+    endif()
     set_target_properties(${appName} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${appDir})
 endfunction()
 
-target_include_directories(threshsign PUBLIC include ${RELIC_INCLUDE_DIRS})
-
-target_link_libraries(threshsign PUBLIC Threads::Threads)
-link_with_relic_library(threshsign)
-
 add_subdirectory(src)
-if (BUILD_TESTING)
-	add_subdirectory(bench)
-	add_subdirectory(test)
+
+if(BUILD_TESTING)
+    if(USE_RELIC)
+        add_subdirectory(bench)
+    endif()
+    add_subdirectory(test)
 endif()
