@@ -24,6 +24,9 @@ class UTTClientApp : public UTTBlockchainApp {
  public:
   UTTClientApp(logging::Logger& logger, uint16_t walletId);
 
+  uint16_t getNumReplicas() const { return numReplicas_; }
+  uint16_t getSigThresh() const { return sigThresh_; }
+
   const std::string& getMyPid() const;
   const Account& getMyAccount() const;
 
@@ -76,4 +79,8 @@ class UTTClientApp : public UTTBlockchainApp {
   std::string myPid_;
   std::set<std::string> otherPids_;
   libutt::Wallet wallet_;
+
+  // [TODO-UTT] Check these assumptions when loading a config
+  uint16_t numReplicas_ = 4;
+  uint16_t sigThresh_ = 2;  // F + 1
 };

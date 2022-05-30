@@ -14,9 +14,11 @@
 #include "UTTClientApp.hpp"
 
 #include <fstream>
+#include <exception>
+
+#include <assertUtils.hpp>
 
 #include <utt/Client.h>
-#include <exception>
 
 #define INDENT(width) std::setw(width) << ' '
 
@@ -196,10 +198,31 @@ void UTTClientApp::executeTx(const Tx& tx) {
 
   // Client removes spent coins and attempts to claim output coins
   if (const auto* txUtt = std::get_if<TxUtt>(&tx)) {
-    std::cout << "Applying UTT tx " << txUtt->utt_.getHashHex() << '\n';
+    std::cout << "\nApplying UTT tx " << txUtt->utt_.getHashHex() << '\n';
     pruneSpentCoins();
     tryClaimCoins(*txUtt);
     std::cout << '\n';
+  } else if (const auto* txMint = std::get_if<TxMint>(&tx)) {  // Client claims minted coins
+    if (txMint->pid_ == myPid_) {
+      ConcordAssert(txMint->sigShares_.has_value());
+      ConcordAssert(txMint->sigShares_->sigShares_.size() == 1);
+      std::cout << "\nApplying Mint tx: " << txMint->op_.getHashHex() << '\n';
+      auto coin = txMint->op_.claimCoin(wallet_.p,
+                                        wallet_.ask,
+                                        numReplicas_,
+                                        txMint->sigShares_->sigShares_[0],
+                                        txMint->sigShares_->signerIds_,
+                                        wallet_.bpk);
+
+      std::cout << " + '" << myPid_ << "' claims " << fmtCurrency(coin.getValue())
+                << (coin.isBudget() ? " budget" : " normal") << " coin.\n";
+      wallet_.addCoin(coin);
+    }
+  } else if (const auto* txBurn = std::get_if<TxBurn>(&tx)) {  // Client removes burned coins
+    if (txBurn->op_.getOwnerPid() == myPid_) {
+      std::cout << "\nApplying Burn tx: " << txBurn->op_.getHashHex() << '\n';
+      pruneSpentCoins();
+    }
   }
 }
 
@@ -218,7 +241,6 @@ void UTTClientApp::pruneSpentCoins() {
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void UTTClientApp::tryClaimCoins(const TxUtt& tx) {
   // Add any new coins
-  const size_t n = 4;  // [TODO-UTT] Get from config
   if (!tx.sigShares_) throw std::runtime_error("Missing sigShares in utt tx!");
   const auto& sigShares = *tx.sigShares_;
 
@@ -227,7 +249,8 @@ void UTTClientApp::tryClaimCoins(const TxUtt& tx) {
     throw std::runtime_error("Number of output coins differs from provided sig shares!");
 
   for (size_t i = 0; i < numTxo; ++i) {
-    auto result = libutt::Client::tryClaimCoin(wallet_, tx.utt_, i, sigShares.sigShares_[i], sigShares.signerIds_, n);
+    auto result =
+        libutt::Client::tryClaimCoin(wallet_, tx.utt_, i, sigShares.sigShares_[i], sigShares.signerIds_, numReplicas_);
     if (result) {
       std::cout << " + \'" << myPid_ << "' claims " << fmtCurrency(result->value_)
                 << (result->isBudgetCoin_ ? " budget" : " normal") << " coin.\n";
