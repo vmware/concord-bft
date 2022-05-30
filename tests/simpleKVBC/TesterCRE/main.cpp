@@ -253,6 +253,8 @@ int main(int argc, char** argv) {
       creParams.certFolder,
       enc,
       bft_clients,
+      creParams.bftConfig.id.val,
+      false,
       sm_));
   cre.registerHandler(std::make_shared<concord::client::reconfiguration::handlers::ClientMasterKeyExchangeHandler>(
       creParams.CreConfig.id_,

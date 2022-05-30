@@ -39,9 +39,12 @@ class ClientTlsKeyExchangeHandler : public IStateHandler {
                               const std::string& cert_folder,
                               bool enc,
                               const std::vector<uint32_t>& bft_clients,
+                              uint16_t clientservice_pid,
+                              bool use_unified_certificates,
                               std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm);
   bool validate(const State&) const override;
   bool execute(const State&, WriteState&) override;
+  void exchangeTlsKeys(const std::string& pkey_path, const std::string& cert_path, const uint64_t blockid);
 
  private:
   logging::Logger getLogger() {
@@ -53,6 +56,8 @@ class ClientTlsKeyExchangeHandler : public IStateHandler {
   bool enc_;
   std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm_;
   std::vector<uint32_t> bft_clients_;
+  uint16_t clientservice_pid_;
+  bool use_unified_certificates_;
   uint64_t init_last_tls_update_block_;
   concord::secretsmanager::SecretsManagerPlain psm_;
   std::string version_path_;
