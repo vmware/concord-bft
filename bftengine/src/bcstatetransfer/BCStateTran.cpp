@@ -3939,6 +3939,10 @@ void BCStateTran::triggerPostProcessing() {
 }
 
 void BCStateTran::SourceSession::close() {
+  if (startTime_ == 0) {
+    LOG_WARN(logger_, "Trying to close a closed session!");
+    return;
+  }
   LOG_INFO(
       logger_,
       "SourceSession: Session closed:" << std::boolalpha << KVLOG(replicaId_, startTime_, activeDuration(), expired()));

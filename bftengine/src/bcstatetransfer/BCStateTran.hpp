@@ -754,7 +754,7 @@ class BCStateTran : public IStateTransfer {
   struct SourceSession {
    public:
     SourceSession(logging::Logger& logger, uint64_t sourceSessionExpiryDurationMs)
-        : logger_(logger), expiryDurationMs_{sourceSessionExpiryDurationMs} {}
+        : logger_(logger), expiryDurationMs_{sourceSessionExpiryDurationMs}, startTime_{0} {}
     SourceSession() = delete;
     void close();
     // returns a pair of booleans:
