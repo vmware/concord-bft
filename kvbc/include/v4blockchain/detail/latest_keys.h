@@ -85,7 +85,8 @@ class LatestKeys {
                           concord::storage::rocksdb::NativeWriteBatch& write_batch);
 
   template <typename UPDATES>
-  void revertCategoryKeysImp(const std::string& block_version,
+  void revertCategoryKeysImp(const std::string& cFamily,
+                             const std::string& block_version,
                              const std::string& prev_block_version,
                              const std::string& category_id,
                              const UPDATES& updates,

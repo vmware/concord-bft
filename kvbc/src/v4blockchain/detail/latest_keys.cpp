@@ -37,6 +37,12 @@ LatestKeys::LatestKeys(const std::shared_ptr<concord::storage::rocksdb::NativeCl
     LOG_INFO(V4_BLOCK_LOG,
              "Created [" << v4blockchain::detail::LATEST_KEYS_CF << "] column family for the latest keys");
   }
+  if (native_client_->createColumnFamilyIfNotExisting(v4blockchain::detail::IMMUTABLE_KEYS_CF,
+                                                      concord::storage::rocksdb::getLexicographic64TsComparator(),
+                                                      getCompFilter())) {
+    LOG_INFO(V4_BLOCK_LOG,
+             "Created [" << v4blockchain::detail::IMMUTABLE_KEYS_CF << "] column family for the immutable keys");
+  }
 }
 
 void LatestKeys::addBlockKeys(const concord::kvbc::categorization::Updates& updates,
@@ -137,8 +143,9 @@ void LatestKeys::handleCategoryUpdates(const std::string& block_version,
                             << category_id << " prefix " << prefix << " key is hex "
                             << concordUtils::bufferToHex(k.data(), k.size()) << " key size " << k.size()
                             << " value size " << v.data.size() << " raw key " << k);
-    write_batch.put(
-        v4blockchain::detail::LATEST_KEYS_CF, getSliceArray(prefix, k, block_version), getSliceArray(v.data, sl_flags));
+    write_batch.put(v4blockchain::detail::IMMUTABLE_KEYS_CF,
+                    getSliceArray(prefix, k, block_version),
+                    getSliceArray(v.data, sl_flags));
   }
 }
 
@@ -170,7 +177,8 @@ void LatestKeys::revertCategoryKeys(const std::string& block_version,
                                     const std::string& category_id,
                                     const categorization::BlockMerkleInput& updates,
                                     concord::storage::rocksdb::NativeWriteBatch& write_batch) {
-  revertCategoryKeysImp(block_version, prev_block_version, category_id, updates.kv, write_batch);
+  revertCategoryKeysImp(
+      v4blockchain::detail::LATEST_KEYS_CF, block_version, prev_block_version, category_id, updates.kv, write_batch);
   revertDeletedKeysImp(block_version, prev_block_version, category_id, updates.deletes, write_batch);
 }
 
@@ -179,7 +187,8 @@ void LatestKeys::revertCategoryKeys(const std::string& block_version,
                                     const std::string& category_id,
                                     const categorization::VersionedInput& updates,
                                     concord::storage::rocksdb::NativeWriteBatch& write_batch) {
-  revertCategoryKeysImp(block_version, prev_block_version, category_id, updates.kv, write_batch);
+  revertCategoryKeysImp(
+      v4blockchain::detail::LATEST_KEYS_CF, block_version, prev_block_version, category_id, updates.kv, write_batch);
   revertDeletedKeysImp(block_version, prev_block_version, category_id, updates.deletes, write_batch);
 }
 
@@ -188,11 +197,13 @@ void LatestKeys::revertCategoryKeys(const std::string& block_version,
                                     const std::string& category_id,
                                     const categorization::ImmutableInput& updates,
                                     concord::storage::rocksdb::NativeWriteBatch& write_batch) {
-  revertCategoryKeysImp(block_version, prev_block_version, category_id, updates.kv, write_batch);
+  revertCategoryKeysImp(
+      v4blockchain::detail::IMMUTABLE_KEYS_CF, block_version, prev_block_version, category_id, updates.kv, write_batch);
 }
 
 template <typename UPDATES>
-void LatestKeys::revertCategoryKeysImp(const std::string& block_version,
+void LatestKeys::revertCategoryKeysImp(const std::string& cFamily,
+                                       const std::string& block_version,
                                        const std::string& prev_block_version,
                                        const std::string& category_id,
                                        const UPDATES& updates,
@@ -205,15 +216,14 @@ void LatestKeys::revertCategoryKeysImp(const std::string& block_version,
     get_key.append(prefix);
     get_key.append(k);
     // check if key exists for the previous version
-    auto opt_val = native_client_->get(v4blockchain::detail::LATEST_KEYS_CF, get_key, prev_block_version, &out_ts);
+    auto opt_val = native_client_->get(cFamily, get_key, prev_block_version, &out_ts);
     // if no previous version, delete it.
     if (!opt_val) {
-      write_batch.del(v4blockchain::detail::LATEST_KEYS_CF, getSliceArray(prefix, k, block_version));
+      write_batch.del(cFamily, getSliceArray(prefix, k, block_version));
       continue;
     }
     // add the previous value with the current block as its version.
-    write_batch.put(
-        v4blockchain::detail::LATEST_KEYS_CF, getSliceArray(prefix, k, block_version), getSliceArray(*opt_val));
+    write_batch.put(cFamily, getSliceArray(prefix, k, block_version), getSliceArray(*opt_val));
   }
 }
 
@@ -263,7 +273,14 @@ std::optional<categorization::Value> LatestKeys::getValue(const std::string& cat
   const auto& prefix = category_mapping_.categoryPrefix(category_id);
   get_key.append(prefix);
   get_key.append(key);
-  auto opt_val = native_client_->get(v4blockchain::detail::LATEST_KEYS_CF, get_key, version, &out_ts);
+  auto category_type = category_mapping_.categoryType(category_id);
+  const std::string* column_family_ptr = nullptr;
+  if (category_type == concord::kvbc::categorization::CATEGORY_TYPE::immutable) {
+    column_family_ptr = &(v4blockchain::detail::IMMUTABLE_KEYS_CF);
+  } else {
+    column_family_ptr = &(v4blockchain::detail::LATEST_KEYS_CF);
+  }
+  auto opt_val = native_client_->get(*column_family_ptr, get_key, version, &out_ts);
   if (!opt_val) {
     LOG_DEBUG(V4_BLOCK_LOG,
               "Reading key " << std::hash<std::string>{}(key) << " not found, latest version "
@@ -280,7 +297,7 @@ std::optional<categorization::Value> LatestKeys::getValue(const std::string& cat
                            << actual_version << " category_id " << category_id << " prefix " << prefix << " key is hex "
                            << concordUtils::bufferToHex(key.data(), key.size()) << " raw key " << key);
 
-  switch (category_mapping_.categoryType(category_id)) {
+  switch (category_type) {
     case concord::kvbc::categorization::CATEGORY_TYPE::block_merkle:
       return categorization::MerkleValue{{actual_version, opt_val->substr(0, total_val_size - FLAGS_SIZE)}};
     case concord::kvbc::categorization::CATEGORY_TYPE::immutable: {
@@ -308,12 +325,19 @@ void LatestKeys::multiGetValue(const std::string& category_id,
 std::optional<categorization::TaggedVersion> LatestKeys::getLatestVersion(const std::string& category_id,
                                                                           const std::string& latest_version,
                                                                           const std::string& key) const {
+  auto category_type = category_mapping_.categoryType(category_id);
+  const std::string* column_family_ptr = nullptr;
+  if (category_type == concord::kvbc::categorization::CATEGORY_TYPE::immutable) {
+    column_family_ptr = &(v4blockchain::detail::IMMUTABLE_KEYS_CF);
+  } else {
+    column_family_ptr = &(v4blockchain::detail::LATEST_KEYS_CF);
+  }
   std::string get_key;
   std::string out_ts;
   const auto& prefix = category_mapping_.categoryPrefix(category_id);
   get_key.append(prefix);
   get_key.append(key);
-  auto opt_val = native_client_->get(v4blockchain::detail::LATEST_KEYS_CF, get_key, latest_version, &out_ts);
+  auto opt_val = native_client_->get(*column_family_ptr, get_key, latest_version, &out_ts);
   if (!opt_val) {
     LOG_DEBUG(V4_BLOCK_LOG,
               "Reading key version " << std::hash<std::string>{}(key) << " not found, latest version "

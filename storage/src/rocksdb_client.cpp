@@ -193,7 +193,7 @@ void Client::openRocksDB(bool readOnly,
     for (auto &cf_desc : cf_descs) {
       if (comparator_ && (cf_desc.name == ::rocksdb::kDefaultColumnFamilyName)) {
         cf_desc.options.comparator = comparator_.get();
-      } else if (cf_desc.name == "v4_latest_keys") {
+      } else if ((cf_desc.name == "v4_latest_keys") || (cf_desc.name == "v4_immutable_keys")) {
         cf_desc.options.comparator = concord::storage::rocksdb::getLexicographic64TsComparator();
       }
     }
