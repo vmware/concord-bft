@@ -1122,7 +1122,6 @@ bool RangeValidationTree::setSerializedRvbData(std::istringstream& is) {
   }
 
   // populate id_to_node_ map
-  id_to_node_.reserve(data.total_nodes);
   uint64_t min_rvb_index{std::numeric_limits<uint64_t>::max()}, max_rvb_index{0};
   for (uint64_t i = 0; i < data.total_nodes; i++) {
     auto node = RVTNode::createFromSerialized(is);

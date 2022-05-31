@@ -360,7 +360,7 @@ class RangeValidationTree {
   // level 0 represents RVB node so it would always hold 0x0
   std::array<RVTNodePtr, NodeInfo::kMaxLevels> rightmost_rvt_node_;
   std::array<RVTNodePtr, NodeInfo::kMaxLevels> leftmost_rvt_node_;
-  std::unordered_map<uint64_t, RVTNodePtr> id_to_node_;
+  std::map<uint64_t, RVTNodePtr> id_to_node_;
   RVTNodePtr root_{nullptr};
   uint64_t min_rvb_index_{};  // RVB index is (RVB ID / fetch range size). This is the minimal index in the tree.
   uint64_t max_rvb_index_{};  // RVB index is (RVB ID / fetch range size). This is the maximal index in the tree.
