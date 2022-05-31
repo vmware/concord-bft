@@ -33,7 +33,7 @@ auto coinTypeToStr = [](const libutt::Fr& type) -> const char* {
 std::string preview(const libutt::Coin& coin) {
   std::stringstream ss;
   ss << "<";
-  ss << "type: " << coinTypeToStr(coin.type) << ", val:" << coin.val.as_ulong() << ", sn:" << coin.sn.as_ulong();
+  ss << "type:" << coinTypeToStr(coin.type) << ", val:" << coin.val.as_ulong() << ", sn:" << coin.sn.as_ulong();
   ss << " ...>";
   return ss.str();
 }
@@ -126,6 +126,8 @@ struct UTTClientApp::PrintContext {
   void printValue(const T& value) const {
     std::cout << INDENT(getIndent()) << "- " << value << '\n';
   }
+
+  void printKeyValue(const char* key) const { std::cout << INDENT(getIndent()) << "- " << key << ": <...>\n"; }
 
   template <typename T>
   void printKeyValue(const char* key, const T& value) const {
@@ -292,7 +294,6 @@ void UTTClientApp::printState(const std::string& path) const {
       else
         throw UnexpectedPathTokenError(*next);
     } else {
-      ctx.push("balance");
       printBalance(ctx);
     }
   } catch (const PrintContextError& e) {
@@ -302,24 +303,15 @@ void UTTClientApp::printState(const std::string& path) const {
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void UTTClientApp::printBalance(PrintContext& ctx) const {
-  ctx.printTrace();
-
   const auto& myAccount = getMyAccount();
   ctx.printComment("Account summary");
   ctx.printKeyValue("Public balance", fmtCurrency(myAccount.getPublicBalance()));
   ctx.printKeyValue("UTT wallet balance", fmtCurrency(getUttBalance()));
 
   std::vector<std::string> coinValues;
-  for (int i = 0; i < (int)getMyUttWallet().coins.size() - 1; ++i)
-    coinValues.emplace_back(fmtCurrency(getMyUttWallet().coins[i].getValue()));
+  for (const auto& coin : wallet_.coins) coinValues.emplace_back(fmtCurrency(coin.getValue()));
   ctx.printKeyValue("UTT wallet coins", coinValues);
-
   ctx.printKeyValue("Anonymous budget", fmtCurrency(getUttBudget()));
-
-  ctx.printComment("Links");
-  ctx.printLink("accounts");
-  ctx.printLink("ledger");
-  ctx.printLink("wallet");
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -342,14 +334,27 @@ void UTTClientApp::printWallet(PrintContext& ctx, std::stringstream& ss) const {
       } else {
         throw PrintContextError("Expected a coin index");
       }
+    } else if (token == "p") {
+      ctx.push("p");
+      printParams(ctx, wallet_.p, ss);
+    } else if (token == "ask") {
+      ctx.push("ask");
+      printAddrSK(ctx, wallet_.ask, ss);
     } else {
       throw UnexpectedPathTokenError(*token);
     }
   } else {
     ctx.printTrace();
-    ctx.printComment("UTT Wallet");
-    ctx.printKeyValue("pid", wallet_.getUserPid());
 
+    ctx.printComment("Parameters for UTT");
+    ctx.printLink("p");
+
+    ctx.printComment("Address");
+    ctx.printLink("ask");
+    ctx.printKeyValue("rpk");
+    ctx.printKeyValue("bpk");
+
+    // Coins
     ctx.printComment("Normal Coins");
     ctx.printKey("coins");
     ctx.push("coins");
@@ -357,8 +362,9 @@ void UTTClientApp::printWallet(PrintContext& ctx, std::stringstream& ss) const {
     for (size_t i = 0; i < wallet_.coins.size(); ++i) {
       ctx.printLink(std::to_string(i), preview(wallet_.coins[i]));
     }
-    ctx.pop();  // coins
+    ctx.pop();
 
+    // Budget Coin
     ctx.printComment("Budget Coin");
     if (wallet_.budgetCoin)
       ctx.printLink("budgetCoin", preview(*wallet_.budgetCoin));
@@ -368,16 +374,78 @@ void UTTClientApp::printWallet(PrintContext& ctx, std::stringstream& ss) const {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+void UTTClientApp::printParams(PrintContext& ctx, const libutt::Params& p, std::stringstream& ss) const {
+  if (auto token = extractPathToken(ss)) {
+    throw UnexpectedPathTokenError(*token);  // NYI
+  } else {
+    ctx.printTrace();
+
+    ctx.printComment("Coin commitment key");
+    ctx.printKeyValue("ck_coin");
+
+    ctx.printComment("Registration commitment key");
+    ctx.printKeyValue("ck_reg");
+
+    ctx.printComment("Value commitment key");
+    ctx.printKeyValue("ck_val");
+
+    ctx.printComment("PRF public params");
+    ctx.printKeyValue("null");
+
+    ctx.printComment("IBE public params");
+    ctx.printKeyValue("ibe");
+
+    // // range proof public parameters
+    // RangeProof::Params rpp;
+    ctx.printComment("RangeProof params");
+    ctx.printKeyValue("rpp");
+
+    ctx.printComment("The number of sub-messages that compose a coin, which we commit to via Pedersen:");
+    ctx.printComment("(pid, sn, v, type, expdate) -> 5");
+    ctx.printKeyValue("NumMessages", 5);
+  }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void UTTClientApp::printAddrSK(PrintContext& ctx, const libutt::AddrSK& ask, std::stringstream& ss) const {
+  if (auto token = extractPathToken(ss)) {
+    throw UnexpectedPathTokenError(*token);  // NYI
+  } else {
+    ctx.printTrace();
+
+    ctx.printComment("Public identifier of the user, e.g. alice@wonderland.com");
+    ctx.printKeyValue("pid", ask.pid);
+
+    // the public identifier, as a hash of the pid string into a field element
+    ctx.printComment("The public identifier as hash of the pid string into a field element");
+    ctx.printKeyValue("pid_hash", ask.pid_hash);
+
+    // PRF secret key
+    ctx.printComment("PRF secret key");
+    ctx.printKeyValue("s", ask.s);
+
+    // Encryption secret key, derived from the IBE MSK (used for Diffie-Hellman key exchange + AES)
+    // IBE::EncSK e;
+
+    // Registration commitment to (pid, s), with randomness **0**, but always re-randomized during a TXN
+    // Comm rcm;
+
+    // Registration signature on rcm
+    // RandSig rs;
+  }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 void UTTClientApp::printCoin(PrintContext& ctx, const libutt::Coin& coin) const {
   ctx.printTrace();
   ctx.printComment("Coin commitment key needed for re-randomization\n");
   ctx.printLink("ck");
   ctx.printComment("Owner's PID hash");
-  ctx.printKeyValue("pid_hash", coin.pid_hash.as_ulong());
+  ctx.printKeyValue("pid_hash", coin.pid_hash);
   ctx.printComment("Serial Number");
-  ctx.printKeyValue("sn", coin.sn.as_ulong());
+  ctx.printKeyValue("sn", coin.sn);
   ctx.printComment("Denomination");
-  ctx.printKeyValue("val", coin.val.as_ulong());
+  ctx.printKeyValue("val", coin.val);
 
   // // TODO: turn CoinType and ExpirationDate into their own class with an toFr() method, or risk getting burned!
   // Fr type;      // either Coin::NormalType() or Coin::BudgetType()
