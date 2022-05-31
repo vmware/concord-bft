@@ -284,6 +284,7 @@ TEST_F(v4_kvbc, creation) {
   ASSERT_TRUE(db->hasColumnFamily(v4blockchain::detail::BLOCKS_CF));
   ASSERT_TRUE(db->hasColumnFamily(v4blockchain::detail::ST_CHAIN_CF));
   ASSERT_TRUE(db->hasColumnFamily(v4blockchain::detail::LATEST_KEYS_CF));
+  ASSERT_TRUE(db->hasColumnFamily(v4blockchain::detail::IMMUTABLE_KEYS_CF));
 }
 
 TEST_F(v4_kvbc, add_blocks) {
@@ -466,11 +467,11 @@ TEST_F(v4_kvbc, add_and_read_blocks) {
     // Immutable
     // without category prefix
     out_ts.clear();
-    val = db->get(v4blockchain::detail::LATEST_KEYS_CF, std::string("immutable_key20"), block_version_str, &out_ts);
+    val = db->get(v4blockchain::detail::IMMUTABLE_KEYS_CF, std::string("immutable_key20"), block_version_str, &out_ts);
     ASSERT_FALSE(val.has_value());
 
     // get key1 updated value of this timestamp
-    val = db->get(v4blockchain::detail::LATEST_KEYS_CF,
+    val = db->get(v4blockchain::detail::IMMUTABLE_KEYS_CF,
                   blockchain.getLatestKeys().getCategoryPrefix("immutable") + "immutable_key20",
                   block_version_str,
                   &out_ts);

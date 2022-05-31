@@ -108,6 +108,7 @@ TEST_F(v4_kvbc, creation) {
   v4blockchain::detail::LatestKeys latest_keys{db, categories, []() { return 1; }};
 
   ASSERT_TRUE(db->hasColumnFamily(v4blockchain::detail::LATEST_KEYS_CF));
+  ASSERT_TRUE(db->hasColumnFamily(v4blockchain::detail::IMMUTABLE_KEYS_CF));
   for (const auto& [k, v] : categories) {
     (void)v;
     ASSERT_TRUE(latest_keys.getCategoryPrefix(k).size() > 0);
@@ -604,12 +605,14 @@ TEST_F(v4_kvbc, add_immutable_keys) {
   testGetValueAndVersion(
       latest_keys, block_id1, "immutable", key1, false, false, keys, val_is_null_opts, ver_is_null_opts);
   // without category prefix
-  auto val = db->get(v4blockchain::detail::LATEST_KEYS_CF, key1, block_id1_str, &out_ts);
+  auto val = db->get(v4blockchain::detail::IMMUTABLE_KEYS_CF, key1, block_id1_str, &out_ts);
   ASSERT_FALSE(val.has_value());
 
   // get key1 updated value of this timestamp
-  val = db->get(
-      v4blockchain::detail::LATEST_KEYS_CF, latest_keys.getCategoryPrefix("immutable") + key1, block_id1_str, &out_ts);
+  val = db->get(v4blockchain::detail::IMMUTABLE_KEYS_CF,
+                latest_keys.getCategoryPrefix("immutable") + key1,
+                block_id1_str,
+                &out_ts);
   ASSERT_TRUE(val.has_value());
   ASSERT_EQ(*val, imm_val1.data + stale_on_update_flag);
   ASSERT_EQ(out_ts, block_id1_str);
@@ -659,11 +662,11 @@ TEST_F(v4_kvbc, add_immutable_keys_adv) {
       latest_keys, block_id1, "immutable", key1, false, false, keys, val_is_null_opts, ver_is_null_opts);
   // without category prefix
   {
-    auto val = db->get(v4blockchain::detail::LATEST_KEYS_CF, key1, block_id1_str, &out_ts);
+    auto val = db->get(v4blockchain::detail::IMMUTABLE_KEYS_CF, key1, block_id1_str, &out_ts);
     ASSERT_FALSE(val.has_value());
 
     // get key1 updated value of this timestamp
-    val = db->get(v4blockchain::detail::LATEST_KEYS_CF,
+    val = db->get(v4blockchain::detail::IMMUTABLE_KEYS_CF,
                   latest_keys.getCategoryPrefix("immutable") + key1,
                   block_id1_str,
                   &out_ts);
@@ -674,7 +677,7 @@ TEST_F(v4_kvbc, add_immutable_keys_adv) {
     ASSERT_EQ(block_id1, iout_ts);
     out_ts.clear();
 
-    val = db->get(v4blockchain::detail::LATEST_KEYS_CF,
+    val = db->get(v4blockchain::detail::IMMUTABLE_KEYS_CF,
                   latest_keys.getCategoryPrefix("immutable") + key1,
                   block_id10_str,
                   &out_ts);
@@ -699,7 +702,7 @@ TEST_F(v4_kvbc, add_immutable_keys_adv) {
         latest_keys, block_id100, "immutable", key2, false, false, keys, val_is_null_opts, ver_is_null_opts);
   }
   {
-    auto val = db->get(v4blockchain::detail::LATEST_KEYS_CF,
+    auto val = db->get(v4blockchain::detail::IMMUTABLE_KEYS_CF,
                        latest_keys.getCategoryPrefix("immutable") + key2,
                        block_id100_str,
                        &out_ts);
@@ -711,7 +714,7 @@ TEST_F(v4_kvbc, add_immutable_keys_adv) {
     out_ts.clear();
 
     // get the orig one with lower ts
-    val = db->get(v4blockchain::detail::LATEST_KEYS_CF,
+    val = db->get(v4blockchain::detail::IMMUTABLE_KEYS_CF,
                   latest_keys.getCategoryPrefix("immutable") + key1,
                   block_id1_str,
                   &out_ts);
