@@ -38,14 +38,6 @@ class UTTClientApp : public UTTBlockchainApp {
 
   // Prints the state of the client given a selector that
   // represents a hierarchical path to some part of the state
-  // Examples:
-  // default: prints the account balance
-  // 'wallet' - prints the content of the utt wallet
-  // 'wallet/coins' - prints a list of the wallet coins
-  // 'wallet/coins/0' - prints details about the first coin
-  // 'ledger' - prints the contents of the ledger
-  // 'ledger/0' - prints the contents of the first block of the ledger
-
   void printState(const std::string& path = "") const;
 
   template <typename T>
@@ -67,6 +59,8 @@ class UTTClientApp : public UTTBlockchainApp {
   void printAccounts(PrintContext& ctx) const;
 
   void printWallet(PrintContext& ctx, std::stringstream& ss) const;
+  void printParams(PrintContext& ctx, const libutt::Params& p, std::stringstream& ss) const;
+  void printAddrSK(PrintContext& ctx, const libutt::AddrSK& ask, std::stringstream& ss) const;
   void printCoin(PrintContext& ctx, const libutt::Coin& coin) const;
 
   void printLedger(PrintContext& ctx, std::stringstream& ss) const;
