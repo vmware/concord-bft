@@ -80,6 +80,15 @@ class SimpleTestClient {
     client->setAggregator(aggregator);
     comm->start();
 
+    // hack that copies the behaviour of the protected function of SimpleClient
+    while (true) {
+      auto readyReplicas = 0;
+      this_thread::sleep_for(1s);
+      for (int i = 0; i < cp.numOfReplicas; ++i)
+        readyReplicas += (comm->getCurrentConnectionStatus(i) == ConnectionStatus::Connected);
+      if (readyReplicas >= cp.numOfReplicas - cp.numOfFaulty) break;
+    }
+
     // The state number that the latest write operation returned.
     uint64_t expectedStateNum = 0;
 
