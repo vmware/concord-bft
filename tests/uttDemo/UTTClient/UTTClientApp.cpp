@@ -45,6 +45,10 @@ std::string preview(const Block& block) {
        << "id:" << block.id_ << ", ";
     if (const auto* txUtt = std::get_if<TxUtt>(&(*block.tx_))) {
       ss << "UTT Tx: " << txUtt->utt_.getHashHex();
+    } else if (const auto* txMint = std::get_if<TxMint>(&(*block.tx_))) {
+      ss << "Mint Tx: " << txMint->op_.getHashHex();
+    } else if (const auto* txBurn = std::get_if<TxBurn>(&(*block.tx_))) {
+      ss << "Burn Tx: " << txBurn->op_.getHashHex();
     } else {
       ss << *block.tx_;
     }
@@ -53,6 +57,22 @@ std::string preview(const Block& block) {
   } else {
     return "<Empty>";
   }
+}
+
+std::string preview(const libutt::TxIn& txi) {
+  std::stringstream ss;
+  ss << "<";
+  ss << "type:" << coinTypeToStr(txi.coin_type);
+  ss << " ...>";
+  return ss.str();
+}
+
+std::string preview(const libutt::TxOut& txo) {
+  std::stringstream ss;
+  ss << "<";
+  ss << "type:" << coinTypeToStr(txo.coin_type);
+  ss << " ...>";
+  return ss.str();
 }
 }  // namespace
 
@@ -75,6 +95,10 @@ struct IndexOutOfBoundsError : PrintContextError {
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 struct UTTClientApp::PrintContext {
+  static constexpr const char* const s_PrefixComment = "# ";
+  static constexpr const char* const s_PrefixList = "- ";
+  static constexpr const char* const s_InfixKV = ": ";
+
   static void printList(const std::vector<std::string>& v, const std::string& delim = ", ") {
     if (!v.empty()) {
       for (int i = 0; i < (int)v.size() - 1; ++i) std::cout << v[i] << delim;
@@ -112,26 +136,30 @@ struct UTTClientApp::PrintContext {
     }
   }
 
-  void printComment(const char* comment) const { std::cout << INDENT(getIndent()) << "# " << comment << '\n'; }
+  void printComment(const char* comment) const {
+    std::cout << INDENT(getIndent()) << s_PrefixComment << comment << '\n';
+  }
 
   void printLink(const std::string& to, const std::string& preview = "<...>") const {
-    std::cout << INDENT(getIndent()) << "- " << to << ": " << preview << " [";
+    std::cout << INDENT(getIndent()) << s_PrefixList << to << s_InfixKV << preview << " [";
     printList(path_, "/");
     std::cout << '/' << to << "]\n";
   }
 
-  void printKey(const char* key) const { std::cout << INDENT(getIndent()) << " - " << key << ":\n"; }
+  void printKey(const char* key) const { std::cout << INDENT(getIndent()) << s_PrefixList << key << ":\n"; }
 
   template <typename T>
   void printValue(const T& value) const {
-    std::cout << INDENT(getIndent()) << "- " << value << '\n';
+    std::cout << INDENT(getIndent()) << s_PrefixList << value << '\n';
   }
 
-  void printKeyValue(const char* key) const { std::cout << INDENT(getIndent()) << "- " << key << ": <...>\n"; }
+  void printKeyValue(const char* key) const {
+    std::cout << INDENT(getIndent()) << s_PrefixList << key << s_InfixKV << "<...>\n";
+  }
 
   template <typename T>
   void printKeyValue(const char* key, const T& value) const {
-    std::cout << INDENT(getIndent()) << "- " << key << ": " << value << '\n';
+    std::cout << INDENT(getIndent()) << s_PrefixList << key << s_InfixKV << value << '\n';
   }
 
   std::vector<std::string> path_;
@@ -334,6 +362,10 @@ void UTTClientApp::printWallet(PrintContext& ctx, std::stringstream& ss) const {
       } else {
         throw PrintContextError("Expected a coin index");
       }
+    } else if (token == "budgetCoin") {
+      if (!wallet_.budgetCoin) throw PrintContextError("Expected an existing budget coin!");
+      ctx.push("budgetCoin");
+      printCoin(ctx, *wallet_.budgetCoin);
     } else if (token == "p") {
       ctx.push("p");
       printParams(ctx, wallet_.p, ss);
@@ -416,55 +448,65 @@ void UTTClientApp::printAddrSK(PrintContext& ctx, const libutt::AddrSK& ask, std
     ctx.printComment("Public identifier of the user, e.g. alice@wonderland.com");
     ctx.printKeyValue("pid", ask.pid);
 
-    // the public identifier, as a hash of the pid string into a field element
     ctx.printComment("The public identifier as hash of the pid string into a field element");
     ctx.printKeyValue("pid_hash", ask.pid_hash);
 
-    // PRF secret key
     ctx.printComment("PRF secret key");
     ctx.printKeyValue("s", ask.s);
 
-    // Encryption secret key, derived from the IBE MSK (used for Diffie-Hellman key exchange + AES)
-    // IBE::EncSK e;
+    ctx.printComment("Encryption secret key");
+    ctx.printKey("e");
 
-    // Registration commitment to (pid, s), with randomness **0**, but always re-randomized during a TXN
-    // Comm rcm;
+    ctx.printComment("Registration commitment to (pid, s) with randomness 0 (always re-randomized during a TXN)");
+    ctx.printKey("rcm");
 
-    // Registration signature on rcm
-    // RandSig rs;
+    ctx.printComment("Registration signature on rcm");
+    ctx.printKey("rs");
   }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void UTTClientApp::printCoin(PrintContext& ctx, const libutt::Coin& coin) const {
   ctx.printTrace();
-  ctx.printComment("Coin commitment key needed for re-randomization\n");
+
+  ctx.printComment("Coin commitment key needed for re-randomization");
   ctx.printLink("ck");
+
   ctx.printComment("Owner's PID hash");
   ctx.printKeyValue("pid_hash", coin.pid_hash);
+
   ctx.printComment("Serial Number");
   ctx.printKeyValue("sn", coin.sn);
+
   ctx.printComment("Denomination");
   ctx.printKeyValue("val", coin.val);
 
-  // // TODO: turn CoinType and ExpirationDate into their own class with an toFr() method, or risk getting burned!
-  // Fr type;      // either Coin::NormalType() or Coin::BudgetType()
-  // Fr exp_date;  // expiration date; TODO: Fow now, using 32/64-bit UNIX time, since we never check expiration in
-  // the
-  //               // current prototype
+  ctx.printComment("Coin type");
+  ctx.printKeyValue("type", coin.type);
 
-  // Fr r;  // randomness used to commit to the coin
+  ctx.printComment("Expiration time (UNIX time)");
+  ctx.printKeyValue("exp_date", coin.exp_date);
 
-  // RandSig sig;  // signature on coin commitment from bank
+  ctx.printComment("Randomness used to commit to the coin");
+  ctx.printKeyValue("r", coin.r);
 
-  // //
-  // // NOTE: We pre-compute these when we create/claim a coin, to make spending it faster!
-  // //
-  // Fr t;            // randomness for nullifier proof
-  // Nullifier null;  // nullifier for this coin, pre-computed for convenience
+  ctx.printComment("Signature on coin commitment from the bank");
+  ctx.printLink("sig");
 
-  // Comm vcm;  // value commitment for this coin, pre-computed for convenience
-  // Fr z;      // value commitment randomness
+  ctx.printComment("Randomness for nullifier proof");
+  ctx.printKeyValue("t", coin.t);
+
+  ctx.printComment("Nullifier for this coin, pre-computed for convenience");
+  ctx.printKeyValue("null", coin.null.toUniqueString());
+
+  ctx.printComment("Value commitment for this coin, pre-computed for convenience");
+  ctx.printLink("vcm");
+
+  ctx.printComment("Value commitment randomness");
+  ctx.printKeyValue("z", coin.z);
+
+  ctx.printComment("Partial coin commitment to (pid, sn, val) with randomness r");
+  ctx.printLink("ccm_txn");
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -533,7 +575,7 @@ void UTTClientApp::printUttTx(PrintContext& ctx, const libutt::Tx& tx, std::stri
     ctx.printKey("ins");
     ctx.push("ins");
     for (size_t i = 0; i < tx.ins.size(); ++i) {
-      ctx.printLink(std::to_string(i));
+      ctx.printLink(std::to_string(i), preview(tx.ins[i]));
     }
     ctx.pop();
 
@@ -541,7 +583,7 @@ void UTTClientApp::printUttTx(PrintContext& ctx, const libutt::Tx& tx, std::stri
     ctx.printKey("outs");
     ctx.push("outs");
     for (size_t i = 0; i < tx.outs.size(); ++i) {
-      ctx.printLink(std::to_string(i));
+      ctx.printLink(std::to_string(i), preview(tx.outs[i]));
     }
     ctx.pop();
   }
@@ -552,10 +594,18 @@ void UTTClientApp::printTxIn(PrintContext& ctx, const libutt::TxIn& txi) const {
   ctx.printKeyValue("coin_type", coinTypeToStr(txi.coin_type));
   ctx.printKeyValue("exp_date", txi.exp_date.as_ulong());
   ctx.printKeyValue("nullifier", txi.null.toUniqueString());
-  // std::cout << "    vcm: " << txi.vcm.toString() << '\n';
-  // std::cout << "    ccm: " << txi.ccm.toString() << '\n';
-  // std::cout << "    coinsig: <...>\n";
-  // std::cout << "    split proof: <...>\n";
+
+  ctx.printComment("Commitment to coin's value");
+  ctx.printKeyValue("vcm");
+
+  ctx.printComment("Commitment to coin (except coin type and expiration date)");
+  ctx.printKeyValue("ccm");
+
+  ctx.printComment("Signature on the coin commitment 'ccm'");
+  ctx.printKeyValue("coinsig");
+
+  ctx.printComment("Proof that 'ccm' was correctly split into 'null' and 'vcm'");
+  ctx.printKeyValue("pi");
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
