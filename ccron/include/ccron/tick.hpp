@@ -28,11 +28,14 @@ struct Tick {
   // Time that is the same across replicas after being agreed upon.
   // It is optional as the time service that provides agreement across replicas is itself optional.
   std::optional<std::chrono::milliseconds> ms_since_epoch;
+
+  // a sequnce number, may contain several ticks, this field is used in order to order them.
+  std::uint64_t internal_order{};
 };
 
 inline bool operator==(const Tick& l, const Tick& r) {
   return (l.component_id == r.component_id && l.bft_sequence_num == r.bft_sequence_num &&
-          l.ms_since_epoch == r.ms_since_epoch);
+          l.ms_since_epoch == r.ms_since_epoch && l.internal_order == r.internal_order);
 }
 
 }  // namespace concord::cron

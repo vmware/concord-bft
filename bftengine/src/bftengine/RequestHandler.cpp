@@ -34,6 +34,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
                              std::optional<Timestamp> timestamp,
                              const std::string& batchCid,
                              concordUtils::SpanWrapper& parent_span) {
+  std::uint64_t tickOrder = 0;
   for (auto& req : requests) {
     if (req.flags & KEY_EXCHANGE_FLAG) {
       KeyExchangeMsg ke = KeyExchangeMsg::deserializeMsg(req.request, req.requestSize);
@@ -109,7 +110,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
         auto payload = ClientReqMsgTickPayload{};
         auto req_ptr = reinterpret_cast<const uint8_t*>(req.request);
         deserialize(req_ptr, req_ptr + req.requestSize, payload);
-        const auto tick = Tick{payload.component_id, req.executionSequenceNum};
+        const auto tick = Tick{payload.component_id, req.executionSequenceNum, std::nullopt, tickOrder++};
         (*cron_table_registry_)[payload.component_id].evaluate(tick);
       } else {
         LOG_WARN(GL, "Received a Tick, but the cron table registry is not initialized");

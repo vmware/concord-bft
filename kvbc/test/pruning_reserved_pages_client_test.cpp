@@ -73,12 +73,18 @@ TEST_F(pruning_reserved_pages_client_test, save_agreement) {
 
 TEST_F(pruning_reserved_pages_client_test, save_latest_batch) {
   const auto to = BlockId{42};
-  client_->saveLatestBatch(to);
+  client_->saveLatestBatch({to, 420, 10});
 
   // Verify the batch has been cached properly.
   const auto cached_to = client_->latestBatchBlockIdTo();
   ASSERT_TRUE(cached_to.has_value());
   ASSERT_EQ(*cached_to, to);
+
+  const auto recover = client_->recoverInfo();
+  ASSERT_TRUE(recover.has_value());
+  ASSERT_EQ(recover->latest_batch_block_id_to, to);
+  ASSERT_EQ(recover->bft_sn, 420);
+  ASSERT_EQ(recover->tick_order, 10);
 
   // Create a new client and verify it can load the saved batch.
   client_ = std::make_unique<ReservedPagesClient>();
