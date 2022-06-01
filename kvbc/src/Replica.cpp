@@ -143,7 +143,11 @@ class KvbcRequestHandler : public bftEngine::RequestHandler {
     persistLastBlockIdInMetadata<in_transaction>(blockchain_, persistent_storage_);
   }
 
-  void setPersistentStorage(const std::shared_ptr<bftEngine::impl::PersistentStorage> &persistent_storage) {
+  void setPersistentStorage(const std::shared_ptr<bftEngine::impl::PersistentStorage> &persistent_storage) override {
+    getUserHandler()->setPersistentStorage(persistent_storage);
+    for (auto &rh : reconfig_handler_) {
+      rh->setPersistentStorage(persistent_storage);
+    }
     persistent_storage_ = persistent_storage;
   }
 

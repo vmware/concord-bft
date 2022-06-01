@@ -200,4 +200,11 @@ void RequestHandler::preExecute(IRequestsHandler::ExecutionRequest& req,
                                 concordUtils::SpanWrapper& parent_span) {
   if (userRequestsHandler_) return userRequestsHandler_->preExecute(req, timestamp, batchCid, parent_span);
 }
+
+void RequestHandler::setPersistentStorage(
+    const std::shared_ptr<bftEngine::impl::PersistentStorage>& persistent_storage) {
+  for (auto& rh : reconfig_handler_) {
+    rh->setPersistentStorage(persistent_storage);
+  }
+}
 }  // namespace bftEngine

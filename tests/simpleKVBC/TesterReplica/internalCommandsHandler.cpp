@@ -50,7 +50,7 @@ using Hash = Hasher::Digest;
 const uint64_t LONG_EXEC_CMD_TIME_IN_SEC = 11;
 
 template <typename Span>
-static Hash hash(const Span &span) {
+static Hash createHash(const Span &span) {
   return Hasher{}.digest(span.data(), span.size());
 }
 
@@ -63,7 +63,7 @@ static const std::string &keyHashToCategory(const Hash &keyHash) {
   return BLOCK_MERKLE_CAT_ID;
 }
 
-static const std::string &keyToCategory(const std::string &key) { return keyHashToCategory(hash(key)); }
+static const std::string &keyToCategory(const std::string &key) { return keyHashToCategory(createHash(key)); }
 
 void InternalCommandsHandler::add(std::string &&key,
                                   std::string &&value,
