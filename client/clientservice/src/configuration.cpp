@@ -171,6 +171,7 @@ void configureSubscription(concord::client::concordclient::ConcordClientConfig& 
                            const std::string& tr_id,
                            bool is_insecure,
                            const std::string& tls_path) {
+  config.subscribe_config.id = tr_id;
   config.subscribe_config.use_tls = not is_insecure;
   std::string cert_client_id;
   std::string client_cert_path;
@@ -193,7 +194,6 @@ void configureSubscription(concord::client::concordclient::ConcordClientConfig& 
       LOG_INFO(logger, " Certificates path" << tls_path);
       base_path = tls_path;
       client_cert_path = tls_path + "/client.cert";
-      config.subscribe_config.id = tr_id;
     }
 
     readCert(client_cert_path, config.subscribe_config.pem_cert_chain);
