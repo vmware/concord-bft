@@ -26,6 +26,8 @@ auto getSliceArray(const Sliceable&... sls) {
   return std::array<::rocksdb::Slice, sizeof...(sls)>{sls...};
 }
 
+static size_t TIME_STAMP_SIZE = sizeof(std::uint64_t);
+
 LatestKeys::LatestKeys(const std::shared_ptr<concord::storage::rocksdb::NativeClient>& native_client,
                        const std::optional<std::map<std::string, categorization::CATEGORY_TYPE>>& categories,
                        std::function<BlockId()>&& f)
@@ -471,6 +473,16 @@ void LatestKeys::multiGetLatestVersion(const std::string& category_id,
       throw std::runtime_error{"Revert multiGet() failure: " + status.ToString()};
     }
   }
+}
+
+::rocksdb::Slice ExtractTimestampFromUserKey(const ::rocksdb::Slice& user_key, size_t ts_sz) {
+  ConcordAssert(user_key.size() >= ts_sz);
+  return ::rocksdb::Slice(user_key.data() + user_key.size() - ts_sz, ts_sz);
+}
+
+::rocksdb::Slice StripTimestampFromUserKey(const ::rocksdb::Slice& user_key, size_t ts_sz) {
+  ConcordAssertGE(user_key.size(), ts_sz);
+  return ::rocksdb::Slice(user_key.data(), user_key.size() - ts_sz);
 }
 
 bool LatestKeys::LKCompactionFilter::Filter(int /*level*/,

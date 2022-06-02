@@ -107,4 +107,17 @@ ReplicaBlockchain::ReplicaBlockchain(
   ConcordAssertNE(db_chkpt_, nullptr);
 }
 
+void ReplicaBlockchain::enableCFOptions() {
+  if (version_ == BLOCKCHAIN_VERSION::CATEGORIZED_BLOCKCHAIN) return;
+  auto *handle = native_client_->columnFamilyHandle(concord::kvbc::v4blockchain::detail::LATEST_KEYS_CF);
+  auto s = native_client_->rawDB().SetOptions(handle, {{"disable_auto_compactions", "false"}});
+  if (!s.ok()) throw std::runtime_error("Failed to enable compaction: " + s.ToString());
+  handle = native_client_->columnFamilyHandle(concord::kvbc::v4blockchain::detail::IMMUTABLE_KEYS_CF);
+  s = native_client_->rawDB().SetOptions(handle, {{"disable_auto_compactions", "false"}});
+  if (!s.ok()) throw std::runtime_error("Failed to enable compaction: " + s.ToString());
+  LOG_INFO(V4_BLOCK_LOG,
+           "Compation is enables for " << concord::kvbc::v4blockchain::detail::LATEST_KEYS_CF << " and  "
+                                       << concord::kvbc::v4blockchain::detail::IMMUTABLE_KEYS_CF);
+}
+
 }  // namespace concord::kvbc::adapter
