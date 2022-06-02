@@ -17,7 +17,7 @@
 
 namespace concord::kvbc::strategy {
 
-// This strategy is used to add a delay between all State Transfer nessages sent between replicas
+// This strategy is used to add a delay between all State Transfer messages sent between replicas
 // TODO - in practice, it would have been better to have a generel way to delay one of many/few of
 // many/all messages. But currently, IByzantineStrategy supports only single message code per strategy.
 class DelayStateTransferMsgStrategy : public IByzantineStrategy {

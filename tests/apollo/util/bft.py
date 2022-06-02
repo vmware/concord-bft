@@ -205,7 +205,7 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
                                     seed = args[0].test_seed
                                     with log.start_task(action_type=f"{async_fn.__name__}",
                                                         bft_config=f'{bft_config}_clients={config.num_clients}',
-                                                        seed=seed, repeates=num_repeats,
+                                                        seed=seed, repeats=num_repeats,
                                                         repeat_until='first failure' if break_on_first_failure else
                                                         'first success' if break_on_first_success else
                                                         f'{num_repeats} repetitions'):
@@ -1323,7 +1323,7 @@ class BftTestNetwork:
         """
         Wait for the root values of the Range validation trees of all replicas to be in sync within `timeout` seconds.
 
-        Wait for each replica in `replicas_ids` to return the current value of the root of its Range validation tree.
+        Wait for each replica in `replica_ids` to return the current value of the root of its Range validation tree.
         When all of the values are collected, compare them to check if they are all the same.
         If there are discrepancies, sleep for 1 second and try retrieving the values again.
         """

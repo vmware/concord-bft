@@ -52,6 +52,7 @@ using concord::storage::rocksdb::KeyComparator;
 
 using namespace std;
 using namespace bftEngine::bcst;
+using namespace concord::util;
 
 using std::chrono::milliseconds;
 using random_bytes_engine = std::independent_bits_engine<std::default_random_engine, CHAR_BIT, unsigned char>;
@@ -364,7 +365,7 @@ class BcStTestDelegator {
   uint64_t getNextRequiredBlock() { return stateTransfer_->fetchState_.nextBlockId; }
   RVBManager* getRvbManager() { return stateTransfer_->rvbm_.get(); }
   size_t getSizeOfRvbDigestInfo() const { return sizeof(RVBManager::RvbDigestInfo); }
-  concord::util::SimpleMemoryPool<BCStateTran::BlockIOContext>& getIoPool() const { return stateTransfer_->ioPool_; }
+  SimpleMemoryPool<BCStateTran::BlockIOContext>& getIoPool() const { return stateTransfer_->ioPool_; }
   std::deque<BCStateTran::BlockIOContextPtr>& getIoContexts() const { return stateTransfer_->ioContexts_; }
   void clearIoContexts() { stateTransfer_->clearIoContexts(); }
   RVBId nextRvbBlockId(BlockId blockId) const { return stateTransfer_->rvbm_->nextRvbBlockId(blockId); }
@@ -397,6 +398,7 @@ class BcStTestDelegator {
                                     logging::Logger& logger) {
     return stateTransfer_->checkStructureOfVirtualBlock(virtualBlock, virtualBlockSize, pageSize, logger);
   }
+  const Digest& computeDefaultRvbDataDigest() const { return stateTransfer_->computeDefaultRvbDataDigest(); }
 
   // Source Selector
   void assertSourceSelectorMetricKeyVal(const std::string& key, uint64_t val);
@@ -2563,6 +2565,52 @@ INSTANTIATE_TEST_CASE_P(BcStTest,
                             BcStTestParamFixtureInput3(1000, 0, 100, 9, true),
                             // Add blocks and Prune and restart between checkpointing
                             BcStTestParamFixtureInput3(100, 100, 50, 100, true)), );
+
+// Test correctness of RVB Data conflict detection. RVB data digest is part of the checkpoint and should be compared
+// in addition to comparing Reserved pages digest, and current state digests.
+TEST_F(BcStTest, bkpTestRvbDataConflictDetection) {
+  // do not store RVB data in checkpoints (simulate v1.5)
+  ASSERT_NFF(initialize());
+  ASSERT_NFF(cmnStartRunning());
+  size_t i{testState_.minRepliedCheckpointNum};
+
+  // Node is up with an empty storage: Check that tree is empty and RVB data source is NIL
+  stDelegator_->createCheckpointOfCurrentState(i);
+  ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, testState_.maxRequiredBlockId));
+
+  // Create few checkpoints and check that the checkpoint values in the data store are the same like the ones returned
+  // by getDigestOfCheckpoint
+  for (; i <= testState_.maxRepliedCheckpointNum; ++i) {
+    ASSERT_TRUE(datastore_->hasCheckpointDesc(i));
+
+    DataStore::CheckpointDesc desc = datastore_->getCheckpointDesc(i);
+    digest::Digest stateDigest, reservedPagesDigest, rvbDataDigest;
+    uint64_t outBlockId;
+
+    stateTransfer_->getDigestOfCheckpoint(
+        i, sizeof(Digest), outBlockId, stateDigest.content(), reservedPagesDigest.content(), rvbDataDigest.content());
+    ASSERT_EQ(desc.checkpointNum, i);
+    ASSERT_EQ(desc.maxBlockId, outBlockId);
+    ASSERT_TRUE(!memcmp(desc.digestOfMaxBlockId.content(), stateDigest.content(), sizeof(Digest)));
+    ASSERT_TRUE(!memcmp(desc.digestOfResPagesDescriptor.content(), reservedPagesDigest.content(), sizeof(Digest)));
+
+    if (i == testState_.minRepliedCheckpointNum) {
+      // first checkpoint has a default RVB
+      const auto& defaultRvbDataDigest = stDelegator_->computeDefaultRvbDataDigest();
+      ASSERT_TRUE(!memcmp(defaultRvbDataDigest.content(), rvbDataDigest.content(), sizeof(Digest)));
+    } else {
+      digest::DigestUtil::Context digestCtx;
+      Digest rvbDataDigest;
+      auto rvbDataSize = desc.rvbData.size();
+      digestCtx.update(reinterpret_cast<const char*>(desc.rvbData.data()), rvbDataSize);
+      digestCtx.update(reinterpret_cast<const char*>(&rvbDataSize), sizeof(rvbDataSize));
+      digestCtx.writeDigest(rvbDataDigest.getForUpdate());
+      ASSERT_TRUE(!memcmp(rvbDataDigest.content(), rvbDataDigest.content(), sizeof(Digest)));
+    }
+    // Create the next checkpoint
+    stDelegator_->createCheckpointOfCurrentState(i + 1);
+  }
+}
 
 }  // namespace bftEngine::bcst::impl
 

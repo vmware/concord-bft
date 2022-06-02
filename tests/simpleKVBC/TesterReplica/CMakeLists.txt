@@ -8,7 +8,8 @@ add_executable(skvbc_replica main.cpp
 		 WrapCommunication.cpp
 		 strategy/ShufflePrePrepareMsgStrategy.cpp
 		 strategy/StrategyUtils.cpp
-		 strategy/MangledPreProcessResultMsgStrategy.cpp)
+		 strategy/MangledPreProcessResultMsgStrategy.cpp
+		 strategy/CorruptCheckpointMsgStrategy.cpp)
 
 if(${USE_COMM_PLAIN_TCP})
 	target_compile_definitions(skvbc_replica PUBLIC USE_COMM_PLAIN_TCP)
