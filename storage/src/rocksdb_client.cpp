@@ -15,6 +15,7 @@
 #include <rocksdb/options.h>
 #include <stdexcept>
 #include "util/filesystem.hpp"
+#include "storage/db_column_families.h"
 
 #ifdef USE_ROCKSDB
 
@@ -184,7 +185,7 @@ void Client::openRocksDB(bool readOnly,
     }
     return ret;
   };
-
+  auto repair = false;
   if (cf_descs.empty()) {
     // Make sure we always get a handle for the default column family. Use the DB options to configure it.
     cf_descs.push_back(::rocksdb::ColumnFamilyDescriptor{::rocksdb::kDefaultColumnFamilyName, db_options});
@@ -193,8 +194,9 @@ void Client::openRocksDB(bool readOnly,
     for (auto &cf_desc : cf_descs) {
       if (comparator_ && (cf_desc.name == ::rocksdb::kDefaultColumnFamilyName)) {
         cf_desc.options.comparator = comparator_.get();
-      } else if ((cf_desc.name == "v4_latest_keys") || (cf_desc.name == "v4_immutable_keys")) {
-        cf_desc.options.comparator = concord::storage::rocksdb::getLexicographic64TsComparator();
+      } else if ((cf_desc.name == LATEST_KEYS_CF) || (cf_desc.name == IMMUTABLE_KEYS_CF)) {
+        cf_desc.options.disable_auto_compactions = true;
+        repair = true;
       }
     }
   }
@@ -209,6 +211,12 @@ void Client::openRocksDB(bool readOnly,
     dbInstance_.reset(db);
   } else {
     ::rocksdb::OptimisticTransactionDBOptions txn_options;
+    if (repair) {
+      LOG_INFO(logger(), "Start repairing database after restart");
+      auto s = ::rocksdb::RepairDB(m_dbPath, db_options, cf_descs);
+      if (!s.ok()) throw std::runtime_error("Failed to repar data base: " + s.ToString());
+      LOG_INFO(logger(), "Finished repairing database");
+    }
     s = ::rocksdb::OptimisticTransactionDB::Open(
         db_options, txn_options, m_dbPath, cf_descs, &raw_cf_handles, &txn_db_);
     unique_cf_handles = raw_to_unique_cf_handles(raw_cf_handles);

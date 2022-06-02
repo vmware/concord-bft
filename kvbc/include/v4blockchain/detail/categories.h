@@ -50,6 +50,15 @@ class Categories {
 
   std::map<std::string, concord::kvbc::categorization::CATEGORY_TYPE> getCategories() const { return category_types_; }
 
+  std::string getCategoryFromPrefix(const std::string& p) const {
+    for (const auto& [k, v] : category_to_prefix_) {
+      if (v == p) {
+        return k;
+      }
+    }
+    return "";
+  }
+
  private:
   void loadCategories();
   void initNewBlockchainCategories(

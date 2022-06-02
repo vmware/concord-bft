@@ -37,6 +37,7 @@ KeyValueBlockchain::KeyValueBlockchain(
   if (!link_st_chain) return;
   // Mark version of blockchain
   native_client_->put(kvbc::keyTypes::blockchain_version, kvbc::V4Version());
+  // E.L - if snapshot key is empty deduce first start and take snapshot, nned to flush?
   if (state_transfer_chain_.getLastBlockId() == 0) return;
   // Make sure that if linkSTChainFrom() has been interrupted (e.g. a crash or an abnormal shutdown), all DBAdapter
   // methods will return the correct values. For example, if state transfer had completed and linkSTChainFrom() was
@@ -64,7 +65,7 @@ KeyValueBlockchain::KeyValueBlockchain(
 BlockId KeyValueBlockchain::add(categorization::Updates &&updates) {
   auto scoped = v4blockchain::detail::ScopedDuration{"Add block"};
   // Should be performed before we add the block with the current Updates.
-  auto sequence_number = markHistoryForGarbageCollectionIfNeeded(updates);
+  auto sequence_number = onNewBFTSequenceNumber(updates);
   addGenesisBlockKey(updates);
   v4blockchain::detail::Block block;
   block.addUpdates(updates);
@@ -84,14 +85,8 @@ BlockId KeyValueBlockchain::add(const categorization::Updates &updates,
                                 v4blockchain::detail::Block &block,
                                 storage::rocksdb::NativeWriteBatch &write_batch) {
   BlockId block_id{};
-  {
-    auto scoped2 = v4blockchain::detail::ScopedDuration{"Add block to blockchain"};
-    block_id = block_chain_.addBlock(block, write_batch);
-  }
-  {
-    auto scoped3 = v4blockchain::detail::ScopedDuration{"Add block to latest"};
-    latest_keys_.addBlockKeys(updates, block_id, write_batch);
-  }
+  { block_id = block_chain_.addBlock(block, write_batch); }
+  { latest_keys_.addBlockKeys(updates, block_id, write_batch); }
   return block_id;
 }
 
@@ -117,7 +112,16 @@ void KeyValueBlockchain::deleteLastReachableBlock() {
   auto updates = block_chain_.getBlockUpdates(last_reachable_id);
   ConcordAssert(updates.has_value());
   // revert from latest keys
-  latest_keys_.revertLastBlockKeys(*updates, last_reachable_id, write_batch);
+  /*
+  1 - read snap shot sequence number from storage.
+  2 - create an snapshot object and pass it to revertLastBlockKeys
+  */
+  auto opt_seq_num = native_client_->get(kvbc::keyTypes::v4_snapshot_sequence);
+  ConcordAssert(opt_seq_num.has_value());
+  auto internal_snapshot = concord::storage::rocksdb::SnapshotMgr::getSnapShotFromSeqnum(*opt_seq_num);
+  LOG_INFO(V4_BLOCK_LOG,
+           "Deleting last reachable using snap shot with rocks seq num " << internal_snapshot->GetSequenceNumber());
+  latest_keys_.revertLastBlockKeys(*updates, last_reachable_id, write_batch, internal_snapshot.get());
   // delete from blockchain
   block_chain_.deleteLastReachableBlock(write_batch);
   // atomically commit changes
@@ -134,24 +138,83 @@ void KeyValueBlockchain::deleteLastReachableBlock() {
   - if last_block_sn_ is nullopt we're probably on first start.
   - we don't want to trim when checkpoint is in process.
 */
-uint64_t KeyValueBlockchain::markHistoryForGarbageCollectionIfNeeded(const categorization::Updates &updates) {
-  if (checkpointInProcess_) return 0;
+
+uint64_t KeyValueBlockchain::onNewBFTSequenceNumber(const categorization::Updates &updates) {
+  // if (checkpointInProcess_) return 0;
   auto sequence_number = getBlockSequenceNumber(updates);
-  // Optional not set yet or same sn
-  if (!last_block_sn_ || *last_block_sn_ == sequence_number) return sequence_number;
+  if (sequence_number == 0) {
+    LOG_DEBUG(V4_BLOCK_LOG, "couldn't find BFT sequnce number in updates");
+    return 0;
+  }
+  // same sn
+  if (last_block_sn_ && *last_block_sn_ == sequence_number) return sequence_number;
   // This is abnormal
-  if (sequence_number < *last_block_sn_) {
+  if (last_block_sn_ && sequence_number < *last_block_sn_) {
     LOG_WARN(
         V4_BLOCK_LOG,
         "Sequence number for trim history " << sequence_number << " is lower than previous value " << *last_block_sn_);
     return 0;
   }
-  ++gc_counter;
-  auto block_id = block_chain_.getLastReachable();
-  latest_keys_.trimHistoryUntil(block_id);
-  if (sequence_number % 100 == 0) {
-    LOG_INFO(V4_BLOCK_LOG, "History was marked for trim up to block " << block_id);
+  auto scoped = v4blockchain::detail::ScopedDuration{"onNewBFTSequenceNumber take snap"};
+  // E.L
+  if (!last_block_sn_) {
+    // check if we have snapshot
+    auto opt_seq_num = native_client_->get(kvbc::keyTypes::v4_snapshot_sequence);
+    if (opt_seq_num) {
+      // we have, it means that we are adding blocks after recovery.
+      return sequence_number;
+    }
+    // else - first start, take snapshot.
   }
+  // handle case where it's the first start.
+  /* New BFT sequקnce number:
+  important note : at this place state of latest and blocks is stable, therefore crashing here will not have impact on
+  recovery as deleteLastReachable will not be called.
+
+  normal flow -
+  1 - take db snapshot T it's equals to state sequence_number - 1 - RAII object to release on crash only.
+  2 - read current value from db T', it equals to sequence_number - 2;
+  3 - release T'
+  4 - store T in v4_snapshot_sequence
+
+  crash here and restart/first start -
+  1 - blocks state is synced as last reachable is from the prev sn,so we reach here only when recover execution and
+  adding the first block of the new sn. 2 - if we repeat normal flow I think it should be correct it seems not to be
+  matter if we crashed on each of the steps, the alg will perform correctly as it creates a new correct T and releases
+  the previous even though logically the prev can be equal to the newly taken.
+
+  crash in execution of sn after adding blocks, then deleting on state sync and readding on recovery -
+  do normal flow - is natural here as after reverting the blocks event though in terms of values the databases should be
+  in the same state, in the eyeys of RocksDB the key were updated and their versions is different.
+  */
+
+  /*
+  if we crah prioir storing the seqnum we need to release the snapshot,
+  if we crash after we store we need the snapshot to be alive and not to relase it.
+
+  if crash in the exact call few scenarios are possible:
+  - the seqnum is stored - in this case the snapshot is not released.
+  - the snapshot is not released and not stored - ok since we're on stable seqnum at the time of creation and delete
+  last reachable will not be called, so compaction will be enabled, and we'll reach here again when re-adding the first
+  block of the bft seqnum
+  */
+
+  auto new_snap_shot = concord::storage::rocksdb::SnapshotMgr{&native_client_->rawDB()};
+  auto old_rock_sn = 0;
+  if (snap_shot_) {
+    old_rock_sn = snap_shot_->GetSequenceNumber();
+    new_snap_shot.releaseInputSnapShot(snap_shot_);
+  }
+
+  native_client_->put(kvbc::keyTypes::v4_snapshot_sequence, new_snap_shot.getStorableSeqNumAndPreventRelease());
+  snap_shot_ = new_snap_shot.get();
+  if (sequence_number % 100 == 0) {
+    LOG_INFO(V4_BLOCK_LOG,
+             "New sequence number identified " << sequence_number << " snap shot taken with rocksdb seq num "
+                                               << new_snap_shot.get()->GetSequenceNumber()
+                                               << " released prev snap shot with rocks db sn " << old_rock_sn);
+  }
+
   return sequence_number;
 }
 
@@ -300,7 +363,7 @@ void KeyValueBlockchain::pruneOnSTLink(const categorization::Updates &updates) {
 
 // Atomic delete from state transfer and add to blockchain
 void KeyValueBlockchain::writeSTLinkTransaction(const BlockId block_id, const categorization::Updates &updates) {
-  auto sequence_number = markHistoryForGarbageCollectionIfNeeded(updates);
+  auto sequence_number = onNewBFTSequenceNumber(updates);
   v4blockchain::detail::Block block;
   block.addUpdates(updates);
   auto block_size = block.size();
@@ -409,8 +472,7 @@ std::optional<categorization::Value> KeyValueBlockchain::get(const std::string &
 
 std::optional<categorization::Value> KeyValueBlockchain::getLatest(const std::string &category_id,
                                                                    const std::string &key) const {
-  BlockId latest_block_id = block_chain_.getLastReachable();
-  return latest_keys_.getValue(category_id, detail::Blockchain::generateKey(latest_block_id), key);
+  return latest_keys_.getValue(category_id, key);
 }
 
 void KeyValueBlockchain::multiGet(const std::string &category_id,
@@ -452,22 +514,19 @@ void KeyValueBlockchain::multiGet(const std::string &category_id,
 void KeyValueBlockchain::multiGetLatest(const std::string &category_id,
                                         const std::vector<std::string> &keys,
                                         std::vector<std::optional<categorization::Value>> &values) const {
-  BlockId latest_block_id = block_chain_.getLastReachable();
-  return latest_keys_.multiGetValue(category_id, detail::Blockchain::generateKey(latest_block_id), keys, values);
+  return latest_keys_.multiGetValue(category_id, keys, values);
 }
 
 std::optional<categorization::TaggedVersion> KeyValueBlockchain::getLatestVersion(const std::string &category_id,
                                                                                   const std::string &key) const {
-  return latest_keys_.getLatestVersion(
-      category_id, detail::Blockchain::generateKey(block_chain_.getLastReachable()), key);
+  return latest_keys_.getLatestVersion(category_id, key);
 }
 
 void KeyValueBlockchain::multiGetLatestVersion(
     const std::string &category_id,
     const std::vector<std::string> &keys,
     std::vector<std::optional<categorization::TaggedVersion>> &versions) const {
-  return latest_keys_.multiGetLatestVersion(
-      category_id, detail::Blockchain::generateKey(block_chain_.getLastReachable()), keys, versions);
+  return latest_keys_.multiGetLatestVersion(category_id, keys, versions);
 }
 
 void KeyValueBlockchain::trimBlocksFromSnapshot(BlockId block_id_at_checkpoint) {
