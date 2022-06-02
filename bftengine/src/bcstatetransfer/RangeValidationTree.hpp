@@ -64,7 +64,7 @@ using RVBIndex = uint64_t;
 // 3. Each node in tree is represented having type as NodeInfo.
 // 4. NodeVal is stored in form of CryptoPP::Integer.
 //
-// Implemention notes -
+// Implementation notes -
 // 1. APIs do not throw exception
 // 2. Thread safety is delegated to caller (e.g. RVBManager)
 // 3. Bad inputs values are asserted
