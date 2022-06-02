@@ -21,7 +21,8 @@ CheckpointMsg::CheckpointMsg(ReplicaId genReplica,
                              SeqNum seqNum,
                              std::uint64_t state,
                              const Digest& stateDigest,
-                             const Digest& otherDigest,
+                             const Digest& reservedPagesDigest,
+                             const Digest& rvbDataDigest,
                              bool stateIsStable,
                              const concordUtils::SpanContext& spanContext)
     : MessageBase(genReplica,
@@ -32,7 +33,8 @@ CheckpointMsg::CheckpointMsg(ReplicaId genReplica,
   b()->epochNum = EpochManager::instance().getSelfEpochNumber();
   b()->state = state;
   b()->stateDigest = stateDigest;
-  b()->otherDigest = otherDigest;
+  b()->reservedPagesDigest = reservedPagesDigest;
+  b()->rvbDataDigest = rvbDataDigest;
   b()->flags = 0;
   b()->genReplicaId = genReplica;
   if (stateIsStable) b()->flags |= 0x1;
@@ -52,7 +54,7 @@ void CheckpointMsg::validate(const ReplicasInfo& repInfo) const {
 
   if (size() < sizeof(Header) + spanContextSize() || !repInfo.isIdOfReplica(senderId()) ||
       !repInfo.isIdOfReplica(idOfGeneratedReplica()) || (seqNumber() % checkpointWindowSize != 0) ||
-      (digestOfState().isZero() && otherDigest().isZero())) {
+      (stateDigest().isZero() && reservedPagesDigest().isZero() && rvbDataDigest().isZero())) {
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic validations"));
   }
 
@@ -66,6 +68,39 @@ void CheckpointMsg::validate(const ReplicasInfo& repInfo) const {
           idOfGeneratedReplica(), body(), sizeof(Header), body() + sizeof(Header) + spanContextSize(), sigLen))
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": verifySig"));
   // TODO(GG): consider to protect against messages that are larger than needed (here and in other messages)
+}
+
+bool CheckpointMsg::equivalent(const CheckpointMsg* a, const CheckpointMsg* b) {
+  bool equal = (a->seqNumber() == b->seqNumber()) && (a->stateDigest() == b->stateDigest()) &&
+               (a->reservedPagesDigest() == b->reservedPagesDigest()) && (a->rvbDataDigest() == b->rvbDataDigest()) &&
+               (a->state() == b->state());
+  if (!equal) {
+    auto logger = logging::getLogger("concord.bft");
+    std::ostringstream oss;
+    const auto* ah = a->b();
+    const auto* bh = b->b();
+
+    oss << "Mismatched Checkpoints, cp1:"
+        << KVLOG(ah->seqNum,
+                 ah->epochNum,
+                 ah->state,
+                 ah->stateDigest,
+                 ah->reservedPagesDigest,
+                 ah->rvbDataDigest,
+                 ah->genReplicaId,
+                 ah->flags)
+        << "cp2:"
+        << KVLOG(bh->seqNum,
+                 bh->epochNum,
+                 bh->state,
+                 bh->stateDigest,
+                 bh->reservedPagesDigest,
+                 bh->rvbDataDigest,
+                 bh->genReplicaId,
+                 bh->flags);
+    LOG_WARN(logger, oss.str());
+  }
+  return equal;
 }
 
 }  // namespace impl

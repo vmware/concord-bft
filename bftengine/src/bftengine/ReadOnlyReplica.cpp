@@ -129,8 +129,9 @@ void ReadOnlyReplica::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
                  msg->size(),
                  msg->isStableState(),
                  msg->state(),
-                 msg->digestOfState(),
-                 msg->otherDigest()));
+                 msg->stateDigest(),
+                 msg->reservedPagesDigest(),
+                 msg->rvbDataDigest()));
 
   // Reconfiguration cmd block is synced to RO replica via reserved pages
   EpochNum replicasLastKnownEpochVal = 0;
@@ -164,8 +165,9 @@ void ReadOnlyReplica::persistCheckpointDescriptor(const SeqNum &seqnum, const Ch
              KVLOG(m.second->seqNumber(),
                    m.second->epochNumber(),
                    m.second->state(),
-                   m.second->digestOfState(),
-                   m.second->otherDigest(),
+                   m.second->stateDigest(),
+                   m.second->reservedPagesDigest(),
+                   m.second->rvbDataDigest(),
                    m.second->idOfGeneratedReplica()));
   }
   DescriptorOfLastStableCheckpoint desc(ReplicaConfig::instance().getnumReplicas(), msgs);

@@ -1467,7 +1467,7 @@ void ReplicaImp::onMessage<PartialCommitProofMsg>(PartialCommitProofMsg *msg) {
 template <>
 void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
   pm_->Delay<concord::performance::SlowdownPhase::ConsensusFullCommitMsgProcess>(
-      (char *)msg,
+      reinterpret_cast<char *>(msg),
       msg->sizeNeededForObjAndMsgInLocalBuffer(),
       [&s = getIncomingMsgsStorage()](char *msg, size_t &size) { s.pushExternalMsgRaw(msg, size); });
 
@@ -2288,8 +2288,9 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   const SeqNum msgSeqNum = msg->seqNumber();
   const EpochNum msgEpochNum = msg->epochNumber();
   const CheckpointMsg::State msgState = msg->state();
-  const Digest stateDigest = msg->digestOfState();
-  const Digest otherDigest = msg->otherDigest();
+  const Digest stateDigest = msg->stateDigest();
+  const Digest reservedPagesDigest = msg->reservedPagesDigest();
+  const Digest rvbDataDigest = msg->rvbDataDigest();
   const bool msgIsStable = msg->isStableState();
   SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
   LOG_INFO(GL,
@@ -2301,8 +2302,9 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
                                                               msgIsStable,
                                                               msgState,
                                                               stateDigest,
-                                                              otherDigest));
-  LOG_INFO(GL, "My " << KVLOG(lastStableSeqNum, lastExecutedSeqNum, getSelfEpochNumber()));
+                                                              reservedPagesDigest,
+                                                              rvbDataDigest));
+  LOG_INFO(GL, KVLOG(lastStableSeqNum, lastExecutedSeqNum, getSelfEpochNumber()));
   auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
                                                       "bft_handle_checkpoint_msg");
   (void)span;
@@ -2342,19 +2344,23 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
         msgEpochNum >= pos->second->epochNumber()) {
       // <= to allow repeating checkpoint message since state transfer may not kick in when we are inside active
       // window
-      if (pos != tableOfStableCheckpoints.end()) delete pos->second;
-      CheckpointMsg *x = new CheckpointMsg(msgGenReplicaId, msgSeqNum, msgState, stateDigest, otherDigest, msgIsStable);
-      x->setEpochNumber(msgEpochNum);
-      tableOfStableCheckpoints[msgGenReplicaId] = x;
+      auto stableCheckpointMsg = std::make_shared<CheckpointMsg>(
+          msgGenReplicaId, msgSeqNum, msgState, stateDigest, reservedPagesDigest, rvbDataDigest, msgIsStable);
+      stableCheckpointMsg->setEpochNumber(msgEpochNum);
+      tableOfStableCheckpoints[msgGenReplicaId] = stableCheckpointMsg;
       LOG_INFO(GL,
                "Added stable Checkpoint message to tableOfStableCheckpoints: " << KVLOG(msgSenderId, msgGenReplicaId));
       for (auto &[r, cp] : tableOfStableCheckpoints) {
-        if (cp->seqNumber() == msgSeqNum && cp->otherDigest() != x->otherDigest()) {
+        if (cp->seqNumber() == msgSeqNum && (cp->reservedPagesDigest() != stableCheckpointMsg->reservedPagesDigest() ||
+                                             cp->rvbDataDigest() != stableCheckpointMsg->rvbDataDigest())) {
           metric_indicator_of_non_determinism_++;
           LOG_ERROR(GL,
                     "Detect non determinism, for checkpoint: "
-                        << msgSeqNum << " [replica: " << r << ", digest: " << cp->otherDigest() << "] Vs [replica: "
-                        << msgGenReplicaId << ", sender: " << msgSenderId << ", digest: " << x->otherDigest() << "]");
+                        << msgSeqNum << " [replica: " << r << ", reservedPagesDigest: " << cp->reservedPagesDigest()
+                        << ", rvbDataDigest: " << cp->rvbDataDigest() << "] Vs [replica: " << msgGenReplicaId
+                        << ", sender: " << msgSenderId
+                        << ", reservedPagesDigest: " << stableCheckpointMsg->reservedPagesDigest()
+                        << ", rvbDataDigest: " << stableCheckpointMsg->rvbDataDigest() << "]");
         }
       }
       if ((uint16_t)tableOfStableCheckpoints.size() >= config_.getfVal() + 1) {
@@ -2364,7 +2370,6 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
         while (tableItrator != tableOfStableCheckpoints.end()) {
           if (tableItrator->second->seqNumber() <= lastExecutedSeqNum &&
               tableItrator->second->epochNumber() == getSelfEpochNumber()) {
-            delete tableItrator->second;
             tableItrator = tableOfStableCheckpoints.erase(tableItrator);
           } else {
             numRelevant++;
@@ -3381,13 +3386,16 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
   ConcordAssert(checkpointsLog->insideActiveWindow(newCheckpointSeqNum));
 
   // create and send my checkpoint
-  Digest stateDigest;
-  Digest otherDigest;
+  Digest stateDigest, reservedPagesDigest, rvbDataDigest;
   CheckpointMsg::State state;
-  stateTransfer->getDigestOfCheckpoint(
-      newStateCheckpoint, sizeof(Digest), state, (char *)&stateDigest, (char *)&otherDigest);
-  CheckpointMsg *checkpointMsg =
-      new CheckpointMsg(config_.getreplicaId(), newCheckpointSeqNum, state, stateDigest, otherDigest, false);
+  stateTransfer->getDigestOfCheckpoint(newStateCheckpoint,
+                                       sizeof(Digest),
+                                       state,
+                                       stateDigest.content(),
+                                       reservedPagesDigest.content(),
+                                       rvbDataDigest.content());
+  CheckpointMsg *checkpointMsg = new CheckpointMsg(
+      config_.getreplicaId(), newCheckpointSeqNum, state, stateDigest, reservedPagesDigest, rvbDataDigest, false);
   checkpointMsg->sign();
   auto &checkpointInfo = checkpointsLog->get(newCheckpointSeqNum);
   checkpointInfo.addCheckpointMsg(checkpointMsg, config_.getreplicaId());
@@ -3489,14 +3497,17 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
     CheckpointMsg *checkpointMsg = checkpointInfo.selfCheckpointMsg();
 
     if (checkpointMsg == nullptr) {
-      Digest stateDigest;
-      Digest otherDigest;
+      Digest stateDigest, reservedPagesDigest, rvbDataDigest;
       CheckpointMsg::State state;
       const uint64_t checkpointNum = lastStableSeqNum / checkpointWindowSize;
-      stateTransfer->getDigestOfCheckpoint(
-          checkpointNum, sizeof(Digest), state, (char *)&stateDigest, (char *)&otherDigest);
-      checkpointMsg =
-          new CheckpointMsg(config_.getreplicaId(), lastStableSeqNum, state, stateDigest, otherDigest, true);
+      stateTransfer->getDigestOfCheckpoint(checkpointNum,
+                                           sizeof(Digest),
+                                           state,
+                                           stateDigest.content(),
+                                           reservedPagesDigest.content(),
+                                           rvbDataDigest.content());
+      checkpointMsg = new CheckpointMsg(
+          config_.getreplicaId(), lastStableSeqNum, state, stateDigest, reservedPagesDigest, rvbDataDigest, true);
       checkpointMsg->sign();
       checkpointInfo.addCheckpointMsg(checkpointMsg, config_.getreplicaId());
     } else {
@@ -4273,7 +4284,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       autoPrimaryRotationEnabled{config.autoPrimaryRotationEnabled},
       restarted_{!firstTime},
       MAIN_THREAD_ID{std::this_thread::get_id()},
-      replyBuffer{(char *)std::malloc(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader))},
+      replyBuffer{static_cast<char *>(std::malloc(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)))},
       timeOfLastStateSynch{getMonotonicTime()},    // TODO(GG): TBD
       timeOfLastViewEntrance{getMonotonicTime()},  // TODO(GG): TBD
       timeOfLastAgreedView{getMonotonicTime()},    // TODO(GG): TBD
@@ -4520,9 +4531,6 @@ ReplicaImp::~ReplicaImp() {
   delete repsInfo;
   free(replyBuffer);
 
-  for (auto it = tableOfStableCheckpoints.begin(); it != tableOfStableCheckpoints.end(); it++) {
-    delete it->second;
-  }
   tableOfStableCheckpoints.clear();
 
   if (config_.getdebugStatisticsEnabled()) {
@@ -4975,7 +4983,7 @@ void ReplicaImp::executeSpecialRequests(PrePrepareMsg *ppMsg,
           req.requestBuf(),
           std::string(req.requestSignature(), req.requestSignatureLength()),
           static_cast<uint32_t>(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
-          (char *)std::malloc(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
+          static_cast<char *>(std::malloc(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader))),
           req.requestSeqNum(),
           req.result()});
 
@@ -5028,7 +5036,8 @@ void ReplicaImp::executeRequests(PrePrepareMsg *ppMsg, Bitmap &requestSet, Times
     //    SCOPED_MDC_CID(req.getCid());
     NodeIdType clientId = req.clientProxyId();
 
-    auto replyBuffer = (char *)std::malloc(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader));
+    auto replyBuffer =
+        static_cast<char *>(std::malloc(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)));
     uint32_t replySize = 0;
     if ((req.flags() & HAS_PRE_PROCESSED_FLAG) && (req.result() != static_cast<uint32_t>(OperationResult::UNKNOWN))) {
       replySize = req.requestLength();
@@ -5190,14 +5199,17 @@ void ReplicaImp::finalizeExecution() {
     auto epoch = bftEngine::EpochManager::instance().getSelfEpochNumber();
     bftEngine::EpochManager::instance().setSelfEpochNumber(epoch);
     bftEngine::EpochManager::instance().setGlobalEpochNumber(epoch);
-    Digest checkDigest;
-    Digest otherDigest;
+    Digest stateDigest, reservedPagesDigest, rvbDataDigest;
     CheckpointMsg::State checkState;
     const uint64_t checkpointNum = lastExecutedSeqNum / checkpointWindowSize;
-    stateTransfer->getDigestOfCheckpoint(
-        checkpointNum, sizeof(Digest), checkState, (char *)&checkDigest, (char *)&otherDigest);
-    CheckpointMsg *checkMsg =
-        new CheckpointMsg(config_.getreplicaId(), lastExecutedSeqNum, checkState, checkDigest, otherDigest, false);
+    stateTransfer->getDigestOfCheckpoint(checkpointNum,
+                                         sizeof(Digest),
+                                         checkState,
+                                         stateDigest.content(),
+                                         reservedPagesDigest.content(),
+                                         rvbDataDigest.content());
+    CheckpointMsg *checkMsg = new CheckpointMsg(
+        config_.getreplicaId(), lastExecutedSeqNum, checkState, stateDigest, reservedPagesDigest, rvbDataDigest, false);
     checkMsg->sign();
     auto &checkInfo = checkpointsLog->get(lastExecutedSeqNum);
     checkInfo.addCheckpointMsg(checkMsg, config_.getreplicaId());
@@ -5511,14 +5523,17 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
     auto epoch = bftEngine::EpochManager::instance().getSelfEpochNumber();
     bftEngine::EpochManager::instance().setSelfEpochNumber(epoch);
     bftEngine::EpochManager::instance().setGlobalEpochNumber(epoch);
-    Digest stateDigest;
-    Digest otherDigest;
+    Digest stateDigest, reservedPagesDigest, rvbDataDigest;
     CheckpointMsg::State state;
     const uint64_t checkpointNum = lastExecutedSeqNum / checkpointWindowSize;
-    stateTransfer->getDigestOfCheckpoint(
-        checkpointNum, sizeof(Digest), state, (char *)&stateDigest, (char *)&otherDigest);
-    CheckpointMsg *checkMsg =
-        new CheckpointMsg(config_.getreplicaId(), lastExecutedSeqNum, state, stateDigest, otherDigest, false);
+    stateTransfer->getDigestOfCheckpoint(checkpointNum,
+                                         sizeof(Digest),
+                                         state,
+                                         stateDigest.content(),
+                                         reservedPagesDigest.content(),
+                                         rvbDataDigest.content());
+    CheckpointMsg *checkMsg = new CheckpointMsg(
+        config_.getreplicaId(), lastExecutedSeqNum, state, stateDigest, reservedPagesDigest, rvbDataDigest, false);
     checkMsg->sign();
     auto &checkInfo = checkpointsLog->get(lastExecutedSeqNum);
     checkInfo.addCheckpointMsg(checkMsg, config_.getreplicaId());
@@ -5590,7 +5605,8 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
     SCOPED_MDC_CID(req.getCid());
     NodeIdType clientId = req.clientProxyId();
 
-    auto replyBuffer = (char *)std::malloc(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader));
+    auto replyBuffer =
+        static_cast<char *>(std::malloc(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)));
     uint32_t replySize = 0;
     if ((req.flags() & HAS_PRE_PROCESSED_FLAG) && (req.result() != static_cast<uint32_t>(OperationResult::UNKNOWN))) {
       replySize = req.requestLength();
