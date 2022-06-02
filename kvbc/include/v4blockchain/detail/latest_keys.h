@@ -22,6 +22,7 @@
 #include <rocksdb/compaction_filter.h>
 #include "endianness.hpp"
 #include "hex_tools.h"
+#include "rocksdb/snapshot.h"
 
 namespace concord::kvbc::v4blockchain::detail {
 
@@ -66,43 +67,39 @@ class LatestKeys {
                              concord::storage::rocksdb::NativeWriteBatch&);
 
   // Delete the last added block keys
-  void revertLastBlockKeys(const concord::kvbc::categorization::Updates&, BlockId, storage::rocksdb::NativeWriteBatch&);
+  void revertLastBlockKeys(const concord::kvbc::categorization::Updates&,
+                           BlockId,
+                           storage::rocksdb::NativeWriteBatch&,
+                           ::rocksdb::Snapshot*);
 
-  void revertCategoryKeys(const std::string& block_version,
-                          const std::string& prev_block_version,
-                          const std::string& category_id,
+  void revertCategoryKeys(const std::string& category_id,
                           const categorization::BlockMerkleInput& updates,
-                          concord::storage::rocksdb::NativeWriteBatch& write_batch);
-  void revertCategoryKeys(const std::string& block_version,
-                          const std::string& prev_block_version,
-                          const std::string& category_id,
+                          concord::storage::rocksdb::NativeWriteBatch& write_batch,
+                          ::rocksdb::Snapshot* snpsht);
+  void revertCategoryKeys(const std::string& category_id,
                           const categorization::VersionedInput& updates,
-                          concord::storage::rocksdb::NativeWriteBatch& write_batch);
-  void revertCategoryKeys(const std::string& block_version,
-                          const std::string& prev_block_version,
-                          const std::string& category_id,
+                          concord::storage::rocksdb::NativeWriteBatch& write_batch,
+                          ::rocksdb::Snapshot* snpsht);
+  void revertCategoryKeys(const std::string& category_id,
                           const categorization::ImmutableInput& updates,
-                          concord::storage::rocksdb::NativeWriteBatch& write_batch);
+                          concord::storage::rocksdb::NativeWriteBatch& write_batch,
+                          ::rocksdb::Snapshot* snpsht);
 
   template <typename UPDATES>
   void revertCategoryKeysImp(const std::string& cFamily,
-                             const std::string& block_version,
-                             const std::string& prev_block_version,
                              const std::string& category_id,
                              const UPDATES& updates,
-                             concord::storage::rocksdb::NativeWriteBatch& write_batch);
+                             concord::storage::rocksdb::NativeWriteBatch& write_batch,
+                             ::rocksdb::Snapshot* snpsht);
   template <typename DELETES>
-  void revertDeletedKeysImp(const std::string& block_version,
-                            const std::string& prev_block_version,
-                            const std::string& category_id,
+  void revertDeletedKeysImp(const std::string& category_id,
                             const DELETES& deletes,
-                            concord::storage::rocksdb::NativeWriteBatch& write_batch);
+                            concord::storage::rocksdb::NativeWriteBatch& write_batch,
+                            ::rocksdb::Snapshot* snpsht);
 
   const std::string& getCategoryPrefix(const std::string& category) const {
     return category_mapping_.categoryPrefix(category);
   }
-  // Mark a version that is safe to delete on compaction.
-  void trimHistoryUntil(BlockId block_id);
 
   static ::rocksdb::Slice getFlagsSlice(const ::rocksdb::Slice& val) {
     ConcordAssertGE(val.size(), FLAGS_SIZE);
@@ -118,29 +115,26 @@ class LatestKeys {
   ::rocksdb::CompactionFilter* getCompFilter() { return &comp_filter_; }
 
   // get the value and return deserialized value if needed.
-  std::optional<categorization::Value> getValue(const std::string& category_id,
-                                                const std::string& version,
-                                                const std::string& key) const;
+  std::optional<categorization::Value> getValue(const std::string& category_id, const std::string& key) const;
 
   // return multiple values, supposed to be more efficient.
   void multiGetValue(const std::string& category_id,
-                     const std::string& version,
                      const std::vector<std::string>& keys,
                      std::vector<std::optional<categorization::Value>>& values) const;
 
   // returns the latest block id nearest to the last block id or latest version.
   std::optional<categorization::TaggedVersion> getLatestVersion(const std::string& category_id,
-                                                                const std::string& latest_version,
                                                                 const std::string& key) const;
   // returns multiple latest block ids which which are nearest to the last block id or latest version.
   void multiGetLatestVersion(const std::string& category_id,
-                             const std::string& latest_version,
                              const std::vector<std::string>& keys,
                              std::vector<std::optional<categorization::TaggedVersion>>& versions) const;
 
   std::map<std::string, concord::kvbc::categorization::CATEGORY_TYPE> getCategories() const {
     return category_mapping_.getCategories();
   }
+
+  std::string getCategoryFromPrefix(const std::string& p) const { return category_mapping_.getCategoryFromPrefix(p); }
 
  private:
   // This filter is used to delete stale on update keys if their version is smaller than the genesis block

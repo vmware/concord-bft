@@ -27,19 +27,17 @@ auto getSliceArray(const Sliceable&... sls) {
   return std::array<::rocksdb::Slice, sizeof...(sls)>{sls...};
 }
 
+static size_t TIME_STAMP_SIZE = sizeof(std::uint64_t);
+
 LatestKeys::LatestKeys(const std::shared_ptr<concord::storage::rocksdb::NativeClient>& native_client,
                        const std::optional<std::map<std::string, categorization::CATEGORY_TYPE>>& categories,
                        std::function<BlockId()>&& f)
     : native_client_{native_client}, category_mapping_(native_client, categories), comp_filter_(std::move(f)) {
-  if (native_client_->createColumnFamilyIfNotExisting(v4blockchain::detail::LATEST_KEYS_CF,
-                                                      concord::storage::rocksdb::getLexicographic64TsComparator(),
-                                                      getCompFilter())) {
+  if (native_client_->createColumnFamilyIfNotExisting(v4blockchain::detail::LATEST_KEYS_CF, getCompFilter())) {
     LOG_INFO(V4_BLOCK_LOG,
              "Created [" << v4blockchain::detail::LATEST_KEYS_CF << "] column family for the latest keys");
   }
-  if (native_client_->createColumnFamilyIfNotExisting(v4blockchain::detail::IMMUTABLE_KEYS_CF,
-                                                      concord::storage::rocksdb::getLexicographic64TsComparator(),
-                                                      getCompFilter())) {
+  if (native_client_->createColumnFamilyIfNotExisting(v4blockchain::detail::IMMUTABLE_KEYS_CF, getCompFilter())) {
     LOG_INFO(V4_BLOCK_LOG,
              "Created [" << v4blockchain::detail::IMMUTABLE_KEYS_CF << "] column family for the immutable keys");
   }
@@ -50,7 +48,7 @@ void LatestKeys::addBlockKeys(const concord::kvbc::categorization::Updates& upda
                               storage::rocksdb::NativeWriteBatch& write_batch) {
   LOG_DEBUG(V4_BLOCK_LOG, "Adding keys of block [" << block_id << "] to the latest CF");
   auto block_key = v4blockchain::detail::Blockchain::generateKey(block_id);
-  ConcordAssertEQ(block_key.size(), concord::storage::rocksdb::TIME_STAMP_SIZE);
+  ConcordAssertEQ(block_key.size(), TIME_STAMP_SIZE);
   for (const auto& [category_id, updates] : updates.categoryUpdates().kv) {
     std::visit([cat_id = category_id, &write_batch, &block_key, this](
                    const auto& updates) { handleCategoryUpdates(block_key, cat_id, updates, write_batch); },
@@ -74,7 +72,7 @@ void LatestKeys::handleCategoryUpdates(const std::string& block_version,
                             << concordUtils::bufferToHex(k.data(), k.size()) << " key size " << k.size()
                             << " value size " << v.size() << " raw key " << k);
     write_batch.put(
-        v4blockchain::detail::LATEST_KEYS_CF, getSliceArray(prefix, k, block_version), getSliceArray(v, sl_flags));
+        v4blockchain::detail::LATEST_KEYS_CF, getSliceArray(prefix, k), getSliceArray(v, sl_flags, block_version));
   }
   for (const auto& k : updates.deletes) {
     LOG_DEBUG(V4_BLOCK_LOG,
@@ -82,7 +80,7 @@ void LatestKeys::handleCategoryUpdates(const std::string& block_version,
                               << concordUtils::fromBigEndianBuffer<BlockId>(block_version.data()) << " category_id "
                               << category_id << " prefix " << prefix << " key is hex "
                               << concordUtils::bufferToHex(k.data(), k.size()) << " raw key " << k);
-    write_batch.del(v4blockchain::detail::LATEST_KEYS_CF, getSliceArray(prefix, k, block_version));
+    write_batch.del(v4blockchain::detail::LATEST_KEYS_CF, getSliceArray(prefix, k));
   }
 }
 
@@ -106,7 +104,7 @@ void LatestKeys::handleCategoryUpdates(const std::string& block_version,
     auto sl_flags = concord::storage::rocksdb::detail::toSlice(flags);
 
     write_batch.put(
-        v4blockchain::detail::LATEST_KEYS_CF, getSliceArray(prefix, k, block_version), getSliceArray(v.data, sl_flags));
+        v4blockchain::detail::LATEST_KEYS_CF, getSliceArray(prefix, k), getSliceArray(v.data, sl_flags, block_version));
   }
   for (const auto& k : updates.deletes) {
     LOG_DEBUG(V4_BLOCK_LOG,
@@ -114,7 +112,7 @@ void LatestKeys::handleCategoryUpdates(const std::string& block_version,
                               << concordUtils::fromBigEndianBuffer<BlockId>(block_version.data()) << " category_id "
                               << category_id << " prefix " << prefix << " key is hex "
                               << concordUtils::bufferToHex(k.data(), k.size()) << " raw key " << k);
-    write_batch.del(v4blockchain::detail::LATEST_KEYS_CF, getSliceArray(prefix, k, block_version));
+    write_batch.del(v4blockchain::detail::LATEST_KEYS_CF, getSliceArray(prefix, k));
   }
 }
 
@@ -144,8 +142,8 @@ void LatestKeys::handleCategoryUpdates(const std::string& block_version,
                             << concordUtils::bufferToHex(k.data(), k.size()) << " key size " << k.size()
                             << " value size " << v.data.size() << " raw key " << k);
     write_batch.put(v4blockchain::detail::IMMUTABLE_KEYS_CF,
-                    getSliceArray(prefix, k, block_version),
-                    getSliceArray(v.data, sl_flags));
+                    getSliceArray(prefix, k),
+                    getSliceArray(v.data, sl_flags, block_version));
   }
 }
 
@@ -157,116 +155,102 @@ Iterate over updates, for each key:
 */
 void LatestKeys::revertLastBlockKeys(const concord::kvbc::categorization::Updates& updates,
                                      BlockId block_id,
-                                     storage::rocksdb::NativeWriteBatch& write_batch) {
+                                     storage::rocksdb::NativeWriteBatch& write_batch,
+                                     ::rocksdb::Snapshot* snpsht) {
   ConcordAssertGT(block_id, 0);
   LOG_DEBUG(V4_BLOCK_LOG, "Reverting keys of block [" << block_id << "] ");
-  auto block_key = v4blockchain::detail::Blockchain::generateKey(block_id);
-  auto prev_block_key = v4blockchain::detail::Blockchain::generateKey(block_id - 1);
-  ConcordAssertEQ(block_key.size(), concord::storage::rocksdb::TIME_STAMP_SIZE);
   for (const auto& [category_id, updates] : updates.categoryUpdates().kv) {
-    std::visit(
-        [category_id = category_id, &write_batch, &block_key, &prev_block_key, this](const auto& updates) {
-          revertCategoryKeys(block_key, prev_block_key, category_id, updates, write_batch);
-        },
-        updates);
+    std::visit([category_id = category_id, &write_batch, &snpsht, this](
+                   const auto& updates) { revertCategoryKeys(category_id, updates, write_batch, snpsht); },
+               updates);
   }
 }
 
-void LatestKeys::revertCategoryKeys(const std::string& block_version,
-                                    const std::string& prev_block_version,
-                                    const std::string& category_id,
+void LatestKeys::revertCategoryKeys(const std::string& category_id,
                                     const categorization::BlockMerkleInput& updates,
-                                    concord::storage::rocksdb::NativeWriteBatch& write_batch) {
-  revertCategoryKeysImp(
-      v4blockchain::detail::LATEST_KEYS_CF, block_version, prev_block_version, category_id, updates.kv, write_batch);
-  revertDeletedKeysImp(block_version, prev_block_version, category_id, updates.deletes, write_batch);
+                                    concord::storage::rocksdb::NativeWriteBatch& write_batch,
+                                    ::rocksdb::Snapshot* snpsht) {
+  revertCategoryKeysImp(v4blockchain::detail::LATEST_KEYS_CF, category_id, updates.kv, write_batch, snpsht);
+  revertDeletedKeysImp(category_id, updates.deletes, write_batch, snpsht);
 }
 
-void LatestKeys::revertCategoryKeys(const std::string& block_version,
-                                    const std::string& prev_block_version,
-                                    const std::string& category_id,
+void LatestKeys::revertCategoryKeys(const std::string& category_id,
                                     const categorization::VersionedInput& updates,
-                                    concord::storage::rocksdb::NativeWriteBatch& write_batch) {
-  revertCategoryKeysImp(
-      v4blockchain::detail::LATEST_KEYS_CF, block_version, prev_block_version, category_id, updates.kv, write_batch);
-  revertDeletedKeysImp(block_version, prev_block_version, category_id, updates.deletes, write_batch);
+                                    concord::storage::rocksdb::NativeWriteBatch& write_batch,
+                                    ::rocksdb::Snapshot* snpsht) {
+  revertCategoryKeysImp(v4blockchain::detail::LATEST_KEYS_CF, category_id, updates.kv, write_batch, snpsht);
+  revertDeletedKeysImp(category_id, updates.deletes, write_batch, snpsht);
 }
 
-void LatestKeys::revertCategoryKeys(const std::string& block_version,
-                                    const std::string& prev_block_version,
-                                    const std::string& category_id,
+void LatestKeys::revertCategoryKeys(const std::string& category_id,
                                     const categorization::ImmutableInput& updates,
-                                    concord::storage::rocksdb::NativeWriteBatch& write_batch) {
-  revertCategoryKeysImp(
-      v4blockchain::detail::IMMUTABLE_KEYS_CF, block_version, prev_block_version, category_id, updates.kv, write_batch);
+                                    concord::storage::rocksdb::NativeWriteBatch& write_batch,
+                                    ::rocksdb::Snapshot* snpsht) {
+  revertCategoryKeysImp(v4blockchain::detail::IMMUTABLE_KEYS_CF, category_id, updates.kv, write_batch, snpsht);
 }
 
 template <typename UPDATES>
 void LatestKeys::revertCategoryKeysImp(const std::string& cFamily,
-                                       const std::string& block_version,
-                                       const std::string& prev_block_version,
                                        const std::string& category_id,
                                        const UPDATES& updates,
-                                       concord::storage::rocksdb::NativeWriteBatch& write_batch) {
+                                       concord::storage::rocksdb::NativeWriteBatch& write_batch,
+                                       ::rocksdb::Snapshot* snpsht) {
   std::string get_key;
   std::string out_ts;
   const auto& prefix = category_mapping_.categoryPrefix(category_id);
+  auto sn = snpsht->GetSequenceNumber();
+  ::rocksdb::ReadOptions ro;
+  ro.snapshot = snpsht;
   for (const auto& [k, _] : updates) {
     (void)_;  // unsued
+    get_key.clear();
     get_key.append(prefix);
     get_key.append(k);
     // check if key exists for the previous version
-    auto opt_val = native_client_->get(cFamily, get_key, prev_block_version, &out_ts);
+    // get with snapshot to read previous stable value.
+    auto opt_val = native_client_->get(cFamily, get_key, ro);
     // if no previous version, delete it.
     if (!opt_val) {
-      write_batch.del(cFamily, getSliceArray(prefix, k, block_version));
+      LOG_INFO(V4_BLOCK_LOG, "Couldn't find previous version for key " << get_key << " rocks sn " << sn);
+      write_batch.del(cFamily, getSliceArray(prefix, k));
       continue;
     }
-    // add the previous value with the current block as its version.
-    write_batch.put(cFamily, getSliceArray(prefix, k, block_version), getSliceArray(*opt_val));
+    // add the previous value , already contains currect version as postfix
+    LOG_INFO(V4_BLOCK_LOG, "Found previous version for key " << get_key << " rocks sn " << sn);
+    write_batch.put(cFamily, getSliceArray(prefix, k), getSliceArray(*opt_val));
   }
 }
 
 template <typename DELETES>
-void LatestKeys::revertDeletedKeysImp(const std::string& block_version,
-                                      const std::string& prev_block_version,
-                                      const std::string& category_id,
+void LatestKeys::revertDeletedKeysImp(const std::string& category_id,
                                       const DELETES& deletes,
-                                      concord::storage::rocksdb::NativeWriteBatch& write_batch) {
+                                      concord::storage::rocksdb::NativeWriteBatch& write_batch,
+                                      ::rocksdb::Snapshot* snpsht) {
   static thread_local std::string get_key;
   static thread_local std::string out_ts;
   const auto& prefix = category_mapping_.categoryPrefix(category_id);
+  auto sn = snpsht->GetSequenceNumber();
+  ::rocksdb::ReadOptions ro;
+  ro.snapshot = snpsht;
   for (const auto& k : deletes) {
     get_key.clear();
     get_key.append(prefix);
     get_key.append(k);
     // check if key exists for the previous version
-    auto opt_val = native_client_->get(v4blockchain::detail::LATEST_KEYS_CF, get_key, prev_block_version, &out_ts);
+    auto opt_val = native_client_->get(v4blockchain::detail::LATEST_KEYS_CF, get_key, ro);
     // A key was deleted in the last block, but we can't find the previous version for revert.
     // I think it's not a scenario for assertion or excepion as the input is from external source i.e. execution engine.
     if (!opt_val) {
       LOG_WARN(V4_BLOCK_LOG, "Couldn't find previous version for deleted key " << get_key);
       continue;
     }
-    // add the previous value with the current block as its version.
-    write_batch.put(
-        v4blockchain::detail::LATEST_KEYS_CF, getSliceArray(prefix, k, block_version), getSliceArray(*opt_val));
-  }
-}
-
-void LatestKeys::trimHistoryUntil(BlockId block_id) {
-  auto block_key = v4blockchain::detail::Blockchain::generateKey(block_id);
-  auto& raw_db = native_client_->rawDB();
-  auto status = raw_db.IncreaseFullHistoryTsLow(
-      native_client_->columnFamilyHandle(v4blockchain::detail::LATEST_KEYS_CF), block_key);
-  if (!status.ok()) {
-    LOG_ERROR(V4_BLOCK_LOG, "Failed trimming history due to " << status.ToString());
-    throw std::runtime_error(status.ToString());
+    // add the previous value , already contains currect version as postfix
+    LOG_INFO(V4_BLOCK_LOG, "Found previous version for deleted key " << get_key << " rocks sn " << sn);
+    write_batch.put(v4blockchain::detail::LATEST_KEYS_CF, getSliceArray(prefix, k), getSliceArray(*opt_val));
   }
 }
 
 std::optional<categorization::Value> LatestKeys::getValue(const std::string& category_id,
-                                                          const std::string& version,
                                                           const std::string& key) const {
   std::string get_key;
   std::string out_ts;
@@ -280,31 +264,30 @@ std::optional<categorization::Value> LatestKeys::getValue(const std::string& cat
   } else {
     column_family_ptr = &(v4blockchain::detail::LATEST_KEYS_CF);
   }
-  auto opt_val = native_client_->get(*column_family_ptr, get_key, version, &out_ts);
+  auto opt_val = native_client_->get(*column_family_ptr, get_key);
   if (!opt_val) {
     LOG_DEBUG(V4_BLOCK_LOG,
-              "Reading key " << std::hash<std::string>{}(key) << " not found, latest version "
-                             << concordUtils::fromBigEndianBuffer<BlockId>(version.data()) << " category_id "
-                             << category_id << " prefix " << prefix << " key is hex "
+              "Reading key " << std::hash<std::string>{}(key) << " not found,  category_id " << category_id
+                             << " prefix " << prefix << " key is hex "
                              << concordUtils::bufferToHex(key.data(), key.size()) << " raw key " << key);
     return std::nullopt;
   }
-  auto actual_version = concordUtils::fromBigEndianBuffer<BlockId>(out_ts.data());
+  auto actual_version =
+      concordUtils::fromBigEndianBuffer<BlockId>(opt_val->c_str() + (opt_val->size() - sizeof(BlockId)));
   const size_t total_val_size = opt_val->size();
   LOG_DEBUG(V4_BLOCK_LOG,
-            "Reading key " << std::hash<std::string>{}(key) << " latest version "
-                           << concordUtils::fromBigEndianBuffer<BlockId>(version.data()) << " actual version "
-                           << actual_version << " category_id " << category_id << " prefix " << prefix << " key is hex "
+            "Reading key " << std::hash<std::string>{}(key) << " version " << actual_version << " category_id "
+                           << category_id << " prefix " << prefix << " key is hex "
                            << concordUtils::bufferToHex(key.data(), key.size()) << " raw key " << key);
-
+  auto postfix_size = (FLAGS_SIZE + sizeof(BlockId));
   switch (category_type) {
     case concord::kvbc::categorization::CATEGORY_TYPE::block_merkle:
-      return categorization::MerkleValue{{actual_version, opt_val->substr(0, total_val_size - FLAGS_SIZE)}};
+      return categorization::MerkleValue{{actual_version, opt_val->substr(0, total_val_size - postfix_size)}};
     case concord::kvbc::categorization::CATEGORY_TYPE::immutable: {
-      return categorization::ImmutableValue{{actual_version, opt_val->substr(0, total_val_size - FLAGS_SIZE)}};
+      return categorization::ImmutableValue{{actual_version, opt_val->substr(0, total_val_size - postfix_size)}};
     }
     case concord::kvbc::categorization::CATEGORY_TYPE::versioned_kv: {
-      return categorization::VersionedValue{{actual_version, opt_val->substr(0, total_val_size - FLAGS_SIZE)}};
+      return categorization::VersionedValue{{actual_version, opt_val->substr(0, total_val_size - postfix_size)}};
     }
     default:
       ConcordAssert(false);
@@ -312,18 +295,16 @@ std::optional<categorization::Value> LatestKeys::getValue(const std::string& cat
 }
 
 void LatestKeys::multiGetValue(const std::string& category_id,
-                               const std::string& version,
                                const std::vector<std::string>& keys,
                                std::vector<std::optional<categorization::Value>>& values) const {
   values.clear();
   values.reserve(keys.size());
   for (const auto& key : keys) {
-    values.push_back(getValue(category_id, version, key));
+    values.push_back(getValue(category_id, key));
   }
 }
 
 std::optional<categorization::TaggedVersion> LatestKeys::getLatestVersion(const std::string& category_id,
-                                                                          const std::string& latest_version,
                                                                           const std::string& key) const {
   auto category_type = category_mapping_.categoryType(category_id);
   const std::string* column_family_ptr = nullptr;
@@ -337,34 +318,40 @@ std::optional<categorization::TaggedVersion> LatestKeys::getLatestVersion(const 
   const auto& prefix = category_mapping_.categoryPrefix(category_id);
   get_key.append(prefix);
   get_key.append(key);
-  auto opt_val = native_client_->get(*column_family_ptr, get_key, latest_version, &out_ts);
+  auto opt_val = native_client_->get(*column_family_ptr, get_key);
   if (!opt_val) {
     LOG_DEBUG(V4_BLOCK_LOG,
-              "Reading key version " << std::hash<std::string>{}(key) << " not found, latest version "
-                                     << concordUtils::fromBigEndianBuffer<BlockId>(latest_version.data())
-                                     << " category_id " << category_id << " prefix " << prefix << " key is hex "
+              "Reading key version " << std::hash<std::string>{}(key) << " not found, category_id " << category_id
+                                     << " prefix " << prefix << " key is hex "
                                      << concordUtils::bufferToHex(key.data(), key.size()) << " raw key " << key);
     return std::nullopt;
   }
-  BlockId version = concordUtils::fromBigEndianBuffer<BlockId>(out_ts.data());
+  BlockId version = concordUtils::fromBigEndianBuffer<BlockId>(opt_val->c_str() + (opt_val->size() - sizeof(BlockId)));
   LOG_DEBUG(V4_BLOCK_LOG,
-            "Reading key version " << std::hash<std::string>{}(key) << " latest version "
-                                   << concordUtils::fromBigEndianBuffer<BlockId>(latest_version.data())
-                                   << " actual version " << version << " category_id " << category_id << " prefix "
-                                   << prefix << " key is hex " << concordUtils::bufferToHex(key.data(), key.size())
-                                   << " raw key " << key);
+            "Reading key version " << std::hash<std::string>{}(key) << " version " << version << " category_id "
+                                   << category_id << " prefix " << prefix << " key is hex "
+                                   << concordUtils::bufferToHex(key.data(), key.size()) << " raw key " << key);
   return categorization::TaggedVersion{false, version};
 }
 
 void LatestKeys::multiGetLatestVersion(const std::string& category_id,
-                                       const std::string& latest_version,
                                        const std::vector<std::string>& keys,
                                        std::vector<std::optional<categorization::TaggedVersion>>& versions) const {
   versions.clear();
   versions.reserve(keys.size());
   for (const auto& key : keys) {
-    versions.push_back(getLatestVersion(category_id, latest_version, key));
+    versions.push_back(getLatestVersion(category_id, key));
   }
+}
+
+::rocksdb::Slice ExtractTimestampFromUserKey(const ::rocksdb::Slice& user_key, size_t ts_sz) {
+  ConcordAssert(user_key.size() >= ts_sz);
+  return ::rocksdb::Slice(user_key.data() + user_key.size() - ts_sz, ts_sz);
+}
+
+::rocksdb::Slice StripTimestampFromUserKey(const ::rocksdb::Slice& user_key, size_t ts_sz) {
+  ConcordAssertGE(user_key.size(), ts_sz);
+  return ::rocksdb::Slice(user_key.data(), user_key.size() - ts_sz);
 }
 
 bool LatestKeys::LKCompactionFilter::Filter(int /*level*/,
@@ -373,12 +360,13 @@ bool LatestKeys::LKCompactionFilter::Filter(int /*level*/,
                                             std::string* /*new_value*/,
                                             bool* /*value_changed*/) const {
   if (!LatestKeys::isStaleOnUpdate(val)) return false;
-  auto genesis = genesis_id();
-  auto ts_slice = storage::rocksdb::ExtractTimestampFromUserKey(key, concord::storage::rocksdb::TIME_STAMP_SIZE);
-  auto key_version = concordUtils::fromBigEndianBuffer<uint64_t>(ts_slice.data());
-  if (key_version >= genesis) return false;
-  LOG_INFO(V4_BLOCK_LOG, "Filtering key with version " << key_version << " genesis is " << genesis);
-  return true;
+  // auto genesis = genesis_id();
+  // // E.L change
+  // auto ts_slice = ExtractTimestampFromUserKey(key, TIME_STAMP_SIZE);
+  // auto key_version = concordUtils::fromBigEndianBuffer<uint64_t>(ts_slice.data());
+  // if (key_version >= genesis) return false;
+  // LOG_INFO(V4_BLOCK_LOG, "Filtering key with version " << key_version << " genesis is " << genesis);
+  return false;
 }
 
 }  // namespace concord::kvbc::v4blockchain::detail
