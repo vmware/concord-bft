@@ -207,6 +207,12 @@ void Client::openRocksDB(bool readOnly,
     dbInstance_.reset(db);
   } else {
     ::rocksdb::OptimisticTransactionDBOptions txn_options;
+    if (repair) {
+      LOG_INFO(logger(), "Start repairing database after restart");
+      auto s = ::rocksdb::RepairDB(m_dbPath, db_options, cf_descs);
+      if (!s.ok()) throw std::runtime_error("Failed to repar data base: " + s.ToString());
+      LOG_INFO(logger(), "Finished repairing database");
+    }
     s = ::rocksdb::OptimisticTransactionDB::Open(
         db_options, txn_options, m_dbPath, cf_descs, &raw_cf_handles, &txn_db_);
     unique_cf_handles = raw_to_unique_cf_handles(raw_cf_handles);
