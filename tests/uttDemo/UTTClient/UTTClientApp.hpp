@@ -36,38 +36,15 @@ class UTTClientApp : public UTTBlockchainApp {
   size_t getUttBalance() const;
   size_t getUttBudget() const;
 
-  // Prints the state of the client given a selector that
-  // represents a hierarchical path to some part of the state
-  void printState(const std::string& path = "") const;
-
   template <typename T>
   std::string fmtCurrency(T val) const {
     return "$" + std::to_string(val);
   }
 
  private:
-  static std::optional<std::string> extractPathToken(std::stringstream& ss);
-  static size_t getValidIdx(size_t size, const std::string& object, const std::string& tokenIdx);
-
   void executeTx(const Tx& tx) override;
   void pruneSpentCoins();
   void tryClaimCoins(const TxUtt& tx);
-
-  struct PrintContext;
-
-  void printBalance(PrintContext& ctx) const;
-  void printAccounts(PrintContext& ctx) const;
-
-  void printWallet(PrintContext& ctx, std::stringstream& ss) const;
-  void printParams(PrintContext& ctx, const libutt::Params& p, std::stringstream& ss) const;
-  void printAddrSK(PrintContext& ctx, const libutt::AddrSK& ask, std::stringstream& ss) const;
-  void printCoin(PrintContext& ctx, const libutt::Coin& coin) const;
-
-  void printLedger(PrintContext& ctx, std::stringstream& ss) const;
-  void printBlock(PrintContext& ctx, const Block& block, std::stringstream& ss) const;
-  void printUttTx(PrintContext& ctx, const libutt::Tx& tx, std::stringstream& ss) const;
-  void printTxIn(PrintContext& ctx, const libutt::TxIn& txi) const;
-  void printTxOut(PrintContext& ctx, const libutt::TxOut& txo) const;
 
   logging::Logger& logger_;
   std::string myPid_;
