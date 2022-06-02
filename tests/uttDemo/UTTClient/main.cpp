@@ -33,6 +33,8 @@
 #include <utt/MintOp.h>
 #include <utt/BurnOp.h>
 
+#include "PrintState.hpp"
+
 using namespace bftEngine;
 using namespace bft::communication;
 using std::string;
@@ -545,8 +547,9 @@ void mintCoin(UTTClientApp& app, WalletCommunicator& comm, const std::vector<std
   if (reply.success) {
     app.setLastKnownBlockId(reply.last_block_id);
     std::cout << "Ok.\n";
-    syncState(app, comm);
-    app.printState();
+    //[TODO-UTT] print balance
+    // syncState(app, comm);
+    // app.printState();
   } else {
     std::cout << "Transaction failed: " << reply.err << '\n';
   }
@@ -585,8 +588,9 @@ void burnCoin(UTTClientApp& app, WalletCommunicator& comm, const std::vector<std
         app.setLastKnownBlockId(reply.last_block_id);
         std::cout << "Ok.\n";
         std::cout << "\n>>> BURN operation completed.\n";
-        syncState(app, comm);
-        app.printState();
+        //[TODO-UTT] print balance
+        // syncState(app, comm);
+        // app.printState();
       } else {
         std::cout << "Transaction failed: " << reply.err << '\n';
       }
@@ -676,8 +680,9 @@ void sendPublicTx(const Tx& tx, UTTClientApp& app, WalletCommunicator& comm) {
   if (reply.success) {
     app.setLastKnownBlockId(reply.last_block_id);
     std::cout << "Ok.\n";
-    syncState(app, comm);
-    app.printState();
+    //[TODO-UTT] print balance
+    // syncState(app, comm);
+    // app.printState();
   } else {
     std::cout << "Transaction failed: " << reply.err << '\n';
   }
@@ -849,22 +854,33 @@ int main(int argc, char** argv) {
     // Initial check of balance
     try {
       std::cout << "Checking account...\n";
-      syncState(app, comm);
-      app.printState();
+      //[TODO-UTT] print balance
+      // syncState(app, comm);
+      // app.printState();
     } catch (const BftServiceTimeoutException& e) {
       std::cout << "Concord-BFT service did not respond.\n";
     } catch (const PaymentServiceTimeoutException& e) {
       std::cout << "PaymentService did not respond.\n";
     }
 
+    std::optional<PrintContext> printCtx;
+
     while (true) {
       std::cout << "\nEnter command (type 'h' for commands, 'q' to exit):\n";
-      std::cout << app.getMyPid() << "> ";
+      if (printCtx) {
+        std::cout << app.getMyPid() << "show " << printCtx->getCurrentPath() << "> ";
+      } else {
+        std::cout << app.getMyPid() << "> ";
+      }
 
       std::string cmd;
       std::getline(std::cin, cmd);
 
       if (std::cin.eof()) {
+        if (printCtx) {
+          printCtx = std::nullopt;
+          continue;
+        }
         std::cout << "Quitting...\n";
         return 0;
       }
@@ -879,7 +895,9 @@ int main(int argc, char** argv) {
       if (tokens.empty()) continue;
 
       try {
-        if (tokens[0] == k_CmdQuit) {
+        if (printCtx) {
+          printCtx->handleCommand(app, tokens);
+        } else if (tokens[0] == k_CmdQuit) {
           std::cout << "Quitting...\n";
           return 0;
         } else if (tokens[0] == k_CmdHelp) {
@@ -887,12 +905,10 @@ int main(int argc, char** argv) {
         } else if (tokens[0] == k_CmdDbgPrimary) {
           std::cout << "Last known primary: " << comm.getLastKnownPrimary() << '\n';
         } else if (tokens[0] == "show") {
+          ConcordAssert(!printCtx.has_value());
+          printCtx = PrintContext();
           syncState(app, comm);
-          if (tokens.size() > 2) throw std::domain_error("show requires at most one argument - the state selector!");
-          if (tokens.size() == 1)
-            app.printState();
-          else
-            app.printState(tokens[1]);
+          printCtx->handleCommand(app, tokens);
         } else if (tokens[0] == k_CmdDbgCheckpoint) {
           dbgForceCheckpoint(app, comm);
         } else if (tokens[0] == k_CmdRandom) {
@@ -903,8 +919,9 @@ int main(int argc, char** argv) {
           burnCoin(app, comm, tokens);
         } else if (auto uttPayment = createUttPayment(tokens, app)) {
           runUttPayment(*uttPayment, app, comm);
-          syncState(app, comm);
-          app.printState();
+          //[TODO-UTT] print balance
+          // syncState(app, comm);
+          // app.printState();
         } else if (auto tx = createPublicTx(tokens, app)) {
           sendPublicTx(*tx, app, comm);
         } else if (!tokens.empty()) {
@@ -916,6 +933,8 @@ int main(int argc, char** argv) {
         std::cout << "PaymentService did not respond.\n";
       } catch (const std::domain_error& e) {
         std::cout << "Validation error: " << e.what() << '\n';
+      } catch (const PrintContextError& e) {
+        std::cout << "show: " << e.what() << '\n';
       }
     }
   } catch (const std::exception& e) {
