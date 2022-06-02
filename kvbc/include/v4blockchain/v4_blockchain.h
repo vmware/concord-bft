@@ -71,13 +71,11 @@ class KeyValueBlockchain {
   // If we get a new sequnce number it means that the previous sequence nunber was committed and it's
   // safe to trim up to the last block that was added during that sn.
   // An exception is when db checkpoint is being taken where no trimming is allowed.
-  uint64_t markHistoryForGarbageCollectionIfNeeded(const categorization::Updates &updates);
+  uint64_t onNewBFTSequenceNumber(const categorization::Updates &updates);
   void checkpointInProcess(bool flag) { checkpointInProcess_ = flag; }
   uint64_t getBlockSequenceNumber(const categorization::Updates &updates) const;
   std::optional<uint64_t> getLastBlockSequenceNumber() { return last_block_sn_; }
   void setLastBlockSequenceNumber(uint64_t sn) { last_block_sn_ = sn; }
-  // Stats for testing
-  uint64_t gc_counter{};
 
   // In v4 storage in contrast to the categorized storage, pruning does not impact the state i.e. the digest
   // Of the blocks, in order to restrict deviation in the tail we add the genesis at the time the block is added,
@@ -126,6 +124,8 @@ class KeyValueBlockchain {
     return latest_keys_.getCategories();
   }
 
+  std::string getCategoryFromPrefix(const std::string &p) const { return latest_keys_.getCategoryFromPrefix(p); }
+
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   // Trims the DB snapshot such that its last reachable block is equal to `block_id_at_checkpoint`.
@@ -135,6 +135,9 @@ class KeyValueBlockchain {
   // Precondition2: `block_id_at_checkpoint` >= INITIAL_GENESIS_BLOCK_ID
   // Precondition3: `block_id_at_checkpoint` <= getLastReachableBlockId()
   void trimBlocksFromSnapshot(BlockId block_id_at_checkpoint);
+
+  /////////////////////////////////////////
+  const ::rocksdb::Snapshot *getSnapShot() { return snap_shot_; }
 
  private:  // Member functons
   std::optional<categorization::Value> getValueFromUpdate(BlockId block_id,
@@ -156,6 +159,8 @@ class KeyValueBlockchain {
   std::atomic_bool checkpointInProcess_{false};
   std::optional<uint64_t> last_block_sn_;
   const float updates_to_final_size_ration_{2.5};
+  // Not owner of the object, do not need to delete
+  const ::rocksdb::Snapshot *snap_shot_{nullptr};
 };
 
 }  // namespace concord::kvbc::v4blockchain

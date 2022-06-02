@@ -34,6 +34,7 @@ static const std::string genesis_block_key(1, 0x32);
 static const std::string state_public_key_set(1, 0x33);
 
 static const std::string blockchain_version(1, 0x50);
+static const std::string v4_snapshot_sequence(1, 0x51);
 
 enum PRUNING_COMMAND_TYPES : uint16_t {
   PRUNING_START = 0x0,

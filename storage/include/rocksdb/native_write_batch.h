@@ -30,27 +30,25 @@ class NativeWriteBatch {
  public:
   NativeWriteBatch(const std::shared_ptr<const NativeClient> &) noexcept;
   NativeWriteBatch(const std::shared_ptr<const NativeClient> &, size_t reserved_bytes) noexcept;
-
   template <typename KeySpan, typename ValueSpan>
   void put(const std::string &cFamily, const KeySpan &key, const ValueSpan &value);
   template <typename KeySpan, typename ValueSpan>
   void put(const KeySpan &key, const ValueSpan &value);
 
-  // Multi-key/value put used to eliminate excess copying.
+  // Multi-value put used to eliminate excess copying.
   template <typename KeySpan, size_t N>
   void put(const std::string &cFamily, const KeySpan &key, const std::array<::rocksdb::Slice, N> &value);
-
   template <size_t K, size_t N>
   void put(const std::string &cFamily,
            const std::array<::rocksdb::Slice, K> &key,
            const std::array<::rocksdb::Slice, N> &value);
+
   template <typename KeySpan, size_t N>
   void put(const KeySpan &key, const std::array<::rocksdb::Slice, N> &value);
 
   // Deleting a key that doesn't exist is not an error.
   template <typename KeySpan>
   void del(const std::string &cFamily, const KeySpan &key);
-
   template <typename KeySpan>
   void del(const KeySpan &key);
 

@@ -54,11 +54,13 @@ class ReplicaInternal : public IReplica {
   ReplicaInternal(const std::shared_ptr<concord::cron::TicksGenerator> &ticks_gen = nullptr,
                   const std::shared_ptr<PersistentStorage> &persistent_storage = nullptr,
                   const std::shared_ptr<IInternalBFTClient> &internal_client = nullptr,
-                  const std::function<void(bool)> &viewChangeCallBack = nullptr)
+                  const std::function<void(bool)> &viewChangeCallBack = nullptr,
+                  const std::function<void()> &enableCFOptions = nullptr)
       : ticks_gen_{ticks_gen},
         persistent_storage_{persistent_storage},
         internal_client_{internal_client},
-        viewChangeCallBack_(viewChangeCallBack) {}
+        viewChangeCallBack_(viewChangeCallBack),
+        enableCFOptions_(enableCFOptions) {}
 
   bool isRunning() const override;
 
@@ -86,6 +88,7 @@ class ReplicaInternal : public IReplica {
   std::shared_ptr<PersistentStorage> persistent_storage_;
   std::shared_ptr<IInternalBFTClient> internal_client_;
   std::function<void(bool)> viewChangeCallBack_;
+  std::function<void()> enableCFOptions_;
 };
 
 bool ReplicaInternal::isRunning() const { return replica_->isRunning(); }
@@ -134,7 +137,8 @@ void ReplicaInternal::restartForDebug(uint32_t delayMillis) {
                                   replicaImp->timers(),
                                   pm,
                                   replicaImp->getSecretsManager(),
-                                  viewChangeCallBack_));
+                                  viewChangeCallBack_,
+                                  enableCFOptions_));
 
   } else {
     //  TODO [TK] rep.reset(new ReadOnlyReplicaImp());
@@ -157,7 +161,8 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
                                                  MetadataStorage *metadataStorage,
                                                  std::shared_ptr<concord::performance::PerformanceManager> pm,
                                                  const shared_ptr<concord::secretsmanager::ISecretsManagerImpl> &sm,
-                                                 const std::function<void(bool)> &viewChangeCallBack) {
+                                                 const std::function<void(bool)> &viewChangeCallBack,
+                                                 const std::function<void()> &enableCFOptions) {
   shared_ptr<PersistentStorage> persistentStoragePtr;
   if (replicaConfig.debugPersistentStorageEnabled)
     if (metadataStorage == nullptr)
@@ -231,9 +236,13 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
                                                    timers,
                                                    pm,
                                                    sm,
-                                                   viewChangeCallBack);
-    replicaInternal = std::make_unique<ReplicaInternal>(
-        replicaImp->ticksGenerator(), persistentStoragePtr, replicaImp->internalClient(), viewChangeCallBack);
+                                                   viewChangeCallBack,
+                                                   enableCFOptions);
+    replicaInternal = std::make_unique<ReplicaInternal>(replicaImp->ticksGenerator(),
+                                                        persistentStoragePtr,
+                                                        replicaImp->internalClient(),
+                                                        viewChangeCallBack,
+                                                        enableCFOptions);
     replicaInternal->replica_ = std::move(replicaImp);
   } else {
     ReplicaLoader::ErrorCode loadErrCode;
@@ -252,9 +261,13 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
                                                    timers,
                                                    pm,
                                                    sm,
-                                                   viewChangeCallBack);
-    replicaInternal = std::make_unique<ReplicaInternal>(
-        replicaImp->ticksGenerator(), persistentStoragePtr, replicaImp->internalClient(), viewChangeCallBack);
+                                                   viewChangeCallBack,
+                                                   enableCFOptions);
+    replicaInternal = std::make_unique<ReplicaInternal>(replicaImp->ticksGenerator(),
+                                                        persistentStoragePtr,
+                                                        replicaImp->internalClient(),
+                                                        viewChangeCallBack,
+                                                        enableCFOptions);
     replicaInternal->replica_ = std::move(replicaImp);
   }
   preprocessor::PreProcessor::addNewPreProcessor(msgsCommunicatorPtr,

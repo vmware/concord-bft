@@ -48,7 +48,8 @@ ReplicaBlockchain::ReplicaBlockchain(
     bool link_st_chain,
     const std::optional<std::map<std::string, concord::kvbc::categorization::CATEGORY_TYPE>> &category_types,
     const std::optional<aux::AdapterAuxTypes> &aux_types)
-    : logger_(logging::getLogger("skvbc.replica.adapter")), native_client_(native_client),
+    : logger_(logging::getLogger("skvbc.replica.adapter")),
+      native_client_(native_client),
       metrics_comp_{concordMetrics::Component("kv_blockchain_adds", std::make_shared<concordMetrics::Aggregator>())},
       add_block_duration{metrics_comp_.RegisterGauge("AddBlockDurationMicro", 0)},
       multiget_latest_duration{metrics_comp_.RegisterGauge("MultigetLatestDurationMicro", 0)},
@@ -99,6 +100,19 @@ ReplicaBlockchain::ReplicaBlockchain(
   ConcordAssertNE(app_state_, nullptr);
   ConcordAssertNE(state_snapshot_, nullptr);
   ConcordAssertNE(db_chkpt_, nullptr);
+}
+
+void ReplicaBlockchain::enableCFOptions() {
+  if (version_ == BLOCKCHAIN_VERSION::CATEGORIZED_BLOCKCHAIN) return;
+  auto *handle = native_client_->columnFamilyHandle(concord::kvbc::v4blockchain::detail::LATEST_KEYS_CF);
+  auto s = native_client_->rawDB().SetOptions(handle, {{"disable_auto_compactions", "false"}});
+  if (!s.ok()) throw std::runtime_error("Failed to enable compaction: " + s.ToString());
+  handle = native_client_->columnFamilyHandle(concord::kvbc::v4blockchain::detail::IMMUTABLE_KEYS_CF);
+  s = native_client_->rawDB().SetOptions(handle, {{"disable_auto_compactions", "false"}});
+  if (!s.ok()) throw std::runtime_error("Failed to enable compaction: " + s.ToString());
+  LOG_INFO(V4_BLOCK_LOG,
+           "Compation is enables for " << concord::kvbc::v4blockchain::detail::LATEST_KEYS_CF << " and  "
+                                       << concord::kvbc::v4blockchain::detail::IMMUTABLE_KEYS_CF);
 }
 
 }  // namespace concord::kvbc::adapter
