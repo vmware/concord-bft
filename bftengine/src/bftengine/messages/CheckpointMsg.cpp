@@ -99,9 +99,16 @@ bool CheckpointMsg::equivalent(const CheckpointMsg* a, const CheckpointMsg* b) {
                  bh->genReplicaId,
                  bh->flags);
     LOG_WARN(logger, oss.str());
+    metrics_.number_of_mismatches_++;
+    UpdateAggregator();
   }
   return equal;
 }
+
+concordMetrics::Component CheckpointMsg::metrics_component_{
+    concordMetrics::Component("checkpoint_msg", std::make_shared<concordMetrics::Aggregator>())};
+
+CheckpointMsg::Metrics CheckpointMsg::metrics_{metrics_component_.RegisterCounter("number_of_checkpoint_mismatch")};
 
 }  // namespace impl
 }  // namespace bftEngine

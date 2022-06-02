@@ -4598,6 +4598,7 @@ void ReplicaImp::addTimers() {
 void ReplicaImp::start() {
   LOG_INFO(GL, "Running ReplicaImp");
   sigManager_->SetAggregator(aggregator_);
+  CheckpointMsg::setAggregator(aggregator_);
   KeyExchangeManager::instance().setAggregator(aggregator_);
   ReplicaForStateTransfer::start();
 

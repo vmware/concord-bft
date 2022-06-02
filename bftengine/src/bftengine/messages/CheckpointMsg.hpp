@@ -14,6 +14,7 @@
 #include "MessageBase.hpp"
 #include "Digest.hpp"
 #include "ReplicaConfig.hpp"
+#include "Metrics.hpp"
 
 using concord::util::digest::Digest;
 
@@ -67,7 +68,20 @@ class CheckpointMsg : public MessageBase {
 
   inline size_t getHeaderLen() const { return sizeof(Header); }
 
+  static void UpdateAggregator() { metrics_component_.UpdateAggregator(); }
+  static concordMetrics::Component& getMetricComponent() { return metrics_component_; }
+  static void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
+    metrics_component_.SetAggregator(aggregator);
+  }
+
  protected:
+  // Metrics - we maintain global (static) metrics for any type T
+  static concordMetrics::Component metrics_component_;
+  struct Metrics {
+    concordMetrics::CounterHandle number_of_mismatches_;
+  };
+  static Metrics metrics_;
+
   template <typename MessageT>
   friend size_t sizeOfHeader();
 
