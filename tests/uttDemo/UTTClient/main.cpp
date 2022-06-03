@@ -33,7 +33,7 @@
 #include <utt/MintOp.h>
 #include <utt/BurnOp.h>
 
-#include "PrintState.hpp"
+#include "UTTDataViewer.hpp"
 
 using namespace bftEngine;
 using namespace bft::communication;
@@ -473,10 +473,7 @@ std::optional<Tx> createPublicTx(const std::vector<std::string>& tokens, const U
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void printHelp() {
   std::cout << "\nCommands:\n";
-  std::cout << "show\t\t\t\t-- print details about your account.\n";
-  std::cout << "show accounts\t\t\t-- print all available account names you can send public or utt funds to.\n";
-  std::cout << "show ledger\t\t\t\t-- print all transactions that happened on the Blockchain.\n";
-  std::cout << "show [selector]\t\t\t-- prints the selected state.\n";
+  std::cout << "view\t\t\t\t-- start browsing the application state.\n";
 
   std::cout << "transfer [account] [amount]\t-- transfer public money to another account.\n";
   std::cout << "utt [account] [amount]\t\t-- transfer money anonymously to another account.\n";
@@ -863,12 +860,12 @@ int main(int argc, char** argv) {
       std::cout << "PaymentService did not respond.\n";
     }
 
-    std::optional<PrintContext> printCtx;
+    std::optional<UTTDataViewer> viewer;
 
     while (true) {
       std::cout << "\nEnter command (type 'h' for commands, 'q' to exit):\n";
-      if (printCtx) {
-        std::cout << app.getMyPid() << "show " << printCtx->getCurrentPath() << "> ";
+      if (viewer) {
+        std::cout << app.getMyPid() << "view " << viewer->getCurrentPath() << "> ";
       } else {
         std::cout << app.getMyPid() << "> ";
       }
@@ -877,8 +874,8 @@ int main(int argc, char** argv) {
       std::getline(std::cin, cmd);
 
       if (std::cin.eof()) {
-        if (printCtx) {
-          printCtx = std::nullopt;
+        if (viewer) {
+          viewer = std::nullopt;
           continue;
         }
         std::cout << "Quitting...\n";
@@ -895,8 +892,8 @@ int main(int argc, char** argv) {
       if (tokens.empty()) continue;
 
       try {
-        if (printCtx) {
-          printCtx->handleCommand(app, tokens);
+        if (viewer) {
+          viewer->handleCommand(app, tokens);
         } else if (tokens[0] == k_CmdQuit) {
           std::cout << "Quitting...\n";
           return 0;
@@ -904,11 +901,11 @@ int main(int argc, char** argv) {
           printHelp();
         } else if (tokens[0] == k_CmdDbgPrimary) {
           std::cout << "Last known primary: " << comm.getLastKnownPrimary() << '\n';
-        } else if (tokens[0] == "show") {
-          ConcordAssert(!printCtx.has_value());
-          printCtx = PrintContext();
+        } else if (tokens[0] == "view") {
+          ConcordAssert(!viewer.has_value());
+          viewer = UTTDataViewer();
           syncState(app, comm);
-          printCtx->handleCommand(app, tokens);
+          viewer->handleCommand(app, tokens);
         } else if (tokens[0] == k_CmdDbgCheckpoint) {
           dbgForceCheckpoint(app, comm);
         } else if (tokens[0] == k_CmdRandom) {
@@ -933,8 +930,8 @@ int main(int argc, char** argv) {
         std::cout << "PaymentService did not respond.\n";
       } catch (const std::domain_error& e) {
         std::cout << "Validation error: " << e.what() << '\n';
-      } catch (const PrintContextError& e) {
-        std::cout << "show: " << e.what() << '\n';
+      } catch (const UTTDataViewerError& e) {
+        std::cout << "view: " << e.what() << '\n';
       }
     }
   } catch (const std::exception& e) {

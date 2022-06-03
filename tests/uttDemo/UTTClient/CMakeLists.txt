@@ -1,7 +1,7 @@
 set(client_sources
     main.cpp
 	UTTClientApp.cpp
-	PrintState.cpp
+	UTTDataViewer.cpp
     ../utt_blockchain_app.cpp
     ../transactions.cpp
 	../utt_config.cpp
