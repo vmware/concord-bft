@@ -36,19 +36,20 @@ struct IndexOutOfBoundsError : UTTDataViewerError {
   IndexOutOfBoundsError(const std::string& object) : UTTDataViewerError("Index out of bounds for object: " + object) {}
 };
 
+struct DataView;
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 struct UTTDataViewer {
-  UTTDataViewer() = default;
+  UTTDataViewer(const UTTClientApp& app);
+  ~UTTDataViewer();
+  UTTDataViewer(UTTDataViewer&& other);
+  UTTDataViewer& operator=(UTTDataViewer&& other);
 
-  void handleCommand(const UTTClientApp& app, const std::vector<std::string>& tokens);
+  void handleCommand(const std::string& cmd);
 
-  size_t getIndent() const { return path_.size() * 2; }
-
-  std::string getCurrentPath() const { return path_; }
+  std::string getCurrentPath() const;
 
  private:
-  static std::optional<std::string> extractPathToken(std::stringstream& ss);
-  static size_t getValidIdx(size_t size, const std::string& object, const std::string& tokenIdx);
-
-  std::string path_;
+  std::unique_ptr<DataView> root_;
+  const DataView* current_ = nullptr;
 };

@@ -22,8 +22,6 @@
 
 #include <utt/Client.h>
 
-#define INDENT(width) std::setw(width) << ' '
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 using DataViewPtr = std::unique_ptr<struct DataView>;
 struct DataView {
@@ -32,27 +30,18 @@ struct DataView {
   static constexpr const char* const s_InfixKV = ": ";
 
   const DataView* prev_ = nullptr;
-  int indent_ = 0;
-  std::map<std::string, DataViewPtr> subViews_;
+  std::string key_ = "undefined";
+  mutable std::map<std::string, DataViewPtr> subViews_;
 
-  DataView(const DataView* prev) : prev_{prev} {}
+  DataView(const DataView* prev, std::string key) : prev_{prev}, key_{std::move(key)} {}
   virtual ~DataView() = default;
   DataView(DataView&& other) = default;
   DataView& operator=(DataView&& other) = default;
 
-  const DataView* next(size_t idx) {
-    std::string key = std::to_string(idx);
-    if (subViews_.find(key) == subViews_.end()) {
-      auto subView = makeSubView(idx);
-      if (!subView) throw UTTDataViewerError("Cannot be indexed!");
-      subViews_.emplace(key, std::move(subView));
-    }
-    return subViews_.at(key).get();
-  }
-
-  const DataView* next(const std::string& key) {
+  const DataView* next(const std::string& key) const {
     if (subViews_.find(key) == subViews_.end()) {
       auto subView = makeSubView(key);
+      if (!subView) subView = makeSubView(std::atoi(key.c_str()));
       if (!subView) throw UnexpectedPathTokenError(key);
       subViews_.emplace(key, std::move(subView));
     }
@@ -70,22 +59,24 @@ struct DataView {
     }
   }
 
-  void comment(const char* comment) const { std::cout << INDENT(indent_) << s_PrefixComment << comment << '\n'; }
-
-  void key(const std::string& key) const {
-    std::cout << INDENT(indent_) << s_PrefixList << key << s_InfixKV << "<...>\n";
+  void title(const char* title) const {
+    std::cout << "----------------------\n" << title << "\n----------------------\n";
   }
+
+  void comment(const char* comment) const { std::cout << s_PrefixComment << comment << '\n'; }
+
+  void key(const std::string& key) const { std::cout << s_PrefixList << key << s_InfixKV << "<...>\n"; }
 
   template <typename T>
   void keyValue(const std::string& key, const T& value) const {
-    std::cout << INDENT(indent_) << s_PrefixList << key << s_InfixKV << value << '\n';
+    std::cout << s_PrefixList << key << s_InfixKV << value << '\n';
   }
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 template <>
 void DataView::keyValue(const std::string& key, const std::vector<std::string>& v) const {
-  std::cout << INDENT(indent_) << " - " << key << ": [";
+  std::cout << " - " << key << ": [";
   list(v);
   std::cout << "]\n";
 }
@@ -154,9 +145,12 @@ std::string preview(const libutt::TxOut& txo) {
 struct ParamsView : DataView {
   const libutt::Params& params_;
 
-  ParamsView(const DataView* prev, const libutt::Params& params) : DataView(prev), params_{params} {}
+  ParamsView(const DataView* prev, std::string key, const libutt::Params& params)
+      : DataView(prev, std::move(key)), params_{params} {}
 
   void print() const override {
+    title("UTT Parameters");
+
     comment("Coin commitment key");
     key("ck_coin");
 
@@ -185,9 +179,12 @@ struct ParamsView : DataView {
 struct AddrSKView : DataView {
   const libutt::AddrSK& addrSK_;
 
-  AddrSKView(const DataView* prev, const libutt::AddrSK& addrSK) : DataView(prev), addrSK_{addrSK} {}
+  AddrSKView(const DataView* prev, std::string key, const libutt::AddrSK& addrSK)
+      : DataView(prev, std::move(key)), addrSK_{addrSK} {}
 
   void print() const override {
+    title("Address");
+
     comment("Public identifier of the user, e.g. alice@wonderland.com");
     keyValue("pid", addrSK_.pid);
 
@@ -212,9 +209,12 @@ struct AddrSKView : DataView {
 struct CoinView : DataView {
   const libutt::Coin& coin_;
 
-  CoinView(const DataView* prev, const libutt::Coin& coin) : DataView(prev), coin_{coin} {}
+  CoinView(const DataView* prev, std::string key, const libutt::Coin& coin)
+      : DataView(prev, std::move(key)), coin_{coin} {}
 
   void print() const override {
+    title("UTT Coin");
+
     comment("Coin commitment key needed for re-randomization");
     key("ck");
 
@@ -260,13 +260,14 @@ struct CoinView : DataView {
 struct NormalCoinsView : DataView {
   const std::vector<libutt::Coin>& coins_;
 
-  NormalCoinsView(const DataView* prev, const std::vector<libutt::Coin>& coins) : DataView(prev), coins_{coins} {}
+  NormalCoinsView(const DataView* prev, std::string key, const std::vector<libutt::Coin>& coins)
+      : DataView(prev, std::move(key)), coins_{coins} {}
 
   void print() const override { throw UTTDataViewerError("Expected valid normal coin index!"); }
 
   DataViewPtr makeSubView(size_t idx) const override {
-    if (idx >= coins_.size()) throw IndexOutOfBoundsError("coins");
-    return std::make_unique<CoinView>(this, coins_[idx]);
+    if (idx >= coins_.size()) throw IndexOutOfBoundsError(key_);
+    return std::make_unique<CoinView>(this, std::to_string(idx), coins_[idx]);
   }
 };
 
@@ -274,9 +275,12 @@ struct NormalCoinsView : DataView {
 struct WalletView : DataView {
   const libutt::Wallet& wallet_;
 
-  WalletView(const DataView* prev, const libutt::Wallet& wallet) : DataView(prev), wallet_{wallet} {}
+  WalletView(const DataView* prev, std::string key, const libutt::Wallet& wallet)
+      : DataView(prev, std::move(key)), wallet_{wallet} {}
 
   void print() const override {
+    title("UTT Wallet");
+
     comment("Parameters for UTT");
     key("p");
 
@@ -304,13 +308,13 @@ struct WalletView : DataView {
   }
 
   DataViewPtr makeSubView(const std::string& key) const override {
-    if (key == "coins") return std::make_unique<NormalCoinsView>(this, wallet_.coins);
+    if (key == "coins") return std::make_unique<NormalCoinsView>(this, "coins", wallet_.coins);
     if (key == "budgetCoin") {
       if (!wallet_.budgetCoin) throw UTTDataViewerError("Missing budget coin!");
-      return std::make_unique<CoinView>(this, *wallet_.budgetCoin);
+      return std::make_unique<CoinView>(this, "budgetCoin", *wallet_.budgetCoin);
     }
-    if (key == "p") return std::make_unique<ParamsView>(this, wallet_.p);
-    if (key == "ask") return std::make_unique<AddrSKView>(this, wallet_.ask);
+    if (key == "p") return std::make_unique<ParamsView>(this, "p", wallet_.p);
+    if (key == "ask") return std::make_unique<AddrSKView>(this, "ask", wallet_.ask);
     return nullptr;
   }
 };
@@ -318,9 +322,12 @@ struct WalletView : DataView {
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 struct UttTxInView : DataView {
   const libutt::TxIn& txi_;
-  UttTxInView(const DataView* prev, const libutt::TxIn& txi) : DataView(prev), txi_{txi} {}
+  UttTxInView(const DataView* prev, std::string key, const libutt::TxIn& txi)
+      : DataView(prev, std::move(key)), txi_{txi} {}
 
   void print() const override {
+    title("UTT Tx Input");
+
     keyValue("coin_type", coinTypeToStr(txi_.coin_type));
     keyValue("exp_date", txi_.exp_date.as_ulong());
     keyValue("nullifier", txi_.null.toUniqueString());
@@ -342,9 +349,12 @@ struct UttTxInView : DataView {
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 struct UttTxOutView : DataView {
   const libutt::TxOut& txo_;
-  UttTxOutView(const DataView* prev, const libutt::TxOut& txo) : DataView(prev), txo_{txo} {}
+  UttTxOutView(const DataView* prev, std::string key, const libutt::TxOut& txo)
+      : DataView(prev, std::move(key)), txo_{txo} {}
 
   void print() const override {
+    title("UTT Tx Output");
+
     keyValue("coin_type", coinTypeToStr(txo_.coin_type));
     keyValue("exp_date", txo_.exp_date.as_ulong());
     // std::cout << "    exp_date: " << txo.exp_date.as_ulong() << '\n';
@@ -364,22 +374,24 @@ struct UttTxOutView : DataView {
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 struct UttTxInsView : DataView {
   const std::vector<libutt::TxIn>& ins_;
-  UttTxInsView(const DataView* prev, const std::vector<libutt::TxIn>& ins) : DataView(prev), ins_{ins} {}
+  UttTxInsView(const DataView* prev, std::string key, const std::vector<libutt::TxIn>& ins)
+      : DataView(prev, std::move(key)), ins_{ins} {}
 
   DataViewPtr makeSubView(size_t idx) const override {
     if (idx >= ins_.size()) throw IndexOutOfBoundsError("UTT input transactions");
-    return std::make_unique<UttTxInView>(this, ins_[idx]);
+    return std::make_unique<UttTxInView>(this, std::to_string(idx), ins_[idx]);
   }
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 struct UttTxOutsView : DataView {
   const std::vector<libutt::TxOut>& outs_;
-  UttTxOutsView(const DataView* prev, const std::vector<libutt::TxOut>& outs) : DataView(prev), outs_{outs} {}
+  UttTxOutsView(const DataView* prev, std::string key, const std::vector<libutt::TxOut>& outs)
+      : DataView(prev, std::move(key)), outs_{outs} {}
 
   DataViewPtr makeSubView(size_t idx) const override {
     if (idx >= outs_.size()) throw IndexOutOfBoundsError("UTT output transactions");
-    return std::make_unique<UttTxOutView>(this, outs_[idx]);
+    return std::make_unique<UttTxOutView>(this, std::to_string(idx), outs_[idx]);
   }
 };
 
@@ -387,10 +399,11 @@ struct UttTxOutsView : DataView {
 struct UttTxView : DataView {
   const libutt::Tx& tx_;
 
-  UttTxView(const DataView* prev, const libutt::Tx& tx) : DataView(prev), tx_{tx} {}
+  UttTxView(const DataView* prev, std::string key, const libutt::Tx& tx) : DataView(prev, std::move(key)), tx_{tx} {}
 
   void print() const override {
-    comment("UnTraceable Transaction");
+    title("UnTraceable Transaction");
+
     keyValue("hash", tx_.getHashHex());
     keyValue("isSplitOwnCoins", tx_.isSplitOwnCoins);
     comment("Commitment to sending user's registration");
@@ -420,8 +433,8 @@ struct UttTxView : DataView {
   }
 
   DataViewPtr makeSubView(const std::string& key) const override {
-    if (key == "ins") return std::make_unique<UttTxInsView>(this, tx_.ins);
-    if (key == "outs") return std::make_unique<UttTxOutsView>(this, tx_.outs);
+    if (key == "ins") return std::make_unique<UttTxInsView>(this, "ins", tx_.ins);
+    if (key == "outs") return std::make_unique<UttTxOutsView>(this, "outs", tx_.outs);
     return nullptr;
   }
 };
@@ -430,9 +443,12 @@ struct UttTxView : DataView {
 struct BlockView : DataView {
   const Block& block_;
 
-  BlockView(const DataView* prev, const Block& block) : DataView(prev), block_{block} {}
+  BlockView(const DataView* prev, std::string key, const Block& block)
+      : DataView(prev, std::move(key)), block_{block} {}
 
   void print() const override {
+    title("Block");
+
     if (block_.id_ == 0) comment("Genesis block");
     keyValue("id", block_.id_);
     if (block_.tx_) {
@@ -455,7 +471,7 @@ struct BlockView : DataView {
     if (key == "utt") {
       const auto* txUtt = std::get_if<TxUtt>(&(*block_.tx_));
       if (!txUtt) throw UTTDataViewerError("Expected a utt tx in block!");
-      return std::make_unique<UttTxView>(this, txUtt->utt_);
+      return std::make_unique<UttTxView>(this, "utt", txUtt->utt_);
     }
     return nullptr;
   }
@@ -463,52 +479,88 @@ struct BlockView : DataView {
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 struct LedgerView : DataView {
+  static constexpr const char* const s_key = "ledger";
+
   const std::vector<Block>& blocks_;
 
-  LedgerView(const DataView* prev, const std::vector<Block>& blocks) : DataView(prev), blocks_{blocks} {}
+  LedgerView(const DataView* prev, std::string key, const std::vector<Block>& blocks)
+      : DataView(prev, std::move(key)), blocks_{blocks} {}
 
   void print() const override {
+    title("Ledger");
     for (size_t i = 0; i < blocks_.size(); ++i) keyValue(std::to_string(i), preview(blocks_[i]));
   }
 
   DataViewPtr makeSubView(size_t idx) const override {
     if (idx >= blocks_.size()) throw IndexOutOfBoundsError("Missing block");
-    return std::make_unique<BlockView>(this, blocks_[idx]);
+    return std::make_unique<BlockView>(this, std::to_string(idx), blocks_[idx]);
   }
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void UTTDataViewer::handleCommand(const UTTClientApp& app, const std::vector<std::string>& cmd) {
-  if (cmd.empty()) return;
+struct RootView : DataView {
+  const UTTClientApp& app_;
 
-  // if (cmd[0] == "show") {
-  //   if (cmd.size() != 2) throw UnexpectedPathTokenError("Expected a path argument!");
-  //   path_ = cmd[1];
-  // } else {
-  //   if (cmd.size() != 1) throw UnexpectedPathTokenError("Expected a single token!");
-  //   if (cmd[1] == "..") {
-  //     auto pos = path_.find_last_of('/');
-  //     if (pos == std::string::npos) throw UnexpectedPathTokenError("Cannot go back!");
-  //     path_ = path_.substr(0, pos);
-  //   } else {
-  //     path_ = path_ + "/" + cmd[1];
-  //   }
-  // }
+  RootView(const UTTClientApp& app) : DataView(nullptr, ""), app_{app} {}
+
+  void print() const override {
+    title("UTT Application");
+    key("wallet");
+    key("ledger");
+  }
+
+  DataViewPtr makeSubView(const std::string& key) const override {
+    if (key == "wallet") return std::make_unique<WalletView>(this, "wallet", app_.getMyUttWallet());
+    if (key == "ledger") return std::make_unique<LedgerView>(this, "ledger", app_.getBlocks());
+    return nullptr;
+  }
+};
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+UTTDataViewer::UTTDataViewer(const UTTClientApp& app) : root_{new RootView(app)}, current_{root_.get()} {}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+UTTDataViewer::~UTTDataViewer() = default;
+UTTDataViewer::UTTDataViewer(UTTDataViewer&& other) = default;
+UTTDataViewer& UTTDataViewer::operator=(UTTDataViewer&& other) = default;
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+std::string UTTDataViewer::getCurrentPath() const {
+  if (!current_) throw std::runtime_error("UTTDataViewer: current view is empty!");
+
+  std::vector<std::string> keys;
+  const DataView* view = current_;
+  while (view) {
+    keys.emplace_back(view->key_);
+    view = view->prev_;
+  }
+
+  std::stringstream path;
+  for (int i = keys.size() - 1; i > 0; --i) {
+    path << keys[i] << '/';
+  }
+  path << keys[0];
+  return path.str();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-std::optional<std::string> UTTDataViewer::extractPathToken(std::stringstream& ss) {
-  std::string token;
-  getline(ss, token, '/');
-  if (token.empty()) return std::nullopt;
-  return token;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-size_t UTTDataViewer::getValidIdx(size_t size, const std::string& object, const std::string& tokenIdx) {
-  if (!size) throw IndexEmptyObjectError(object);
-  int offset = std::atoi(tokenIdx.c_str());
-  size_t idx = static_cast<size_t>(offset < 0 ? size + offset : offset);
-  if (idx >= size) throw IndexOutOfBoundsError(object);
-  return idx;
+void UTTDataViewer::handleCommand(const std::string& cmd) {
+  const DataView* newView = current_;
+  if (cmd == "~") {  // Go to the root
+    newView = root_.get();
+  } else if (!cmd.empty()) {  // Interpret a relative path
+    std::stringstream ss(cmd);
+    std::string token;
+    while (getline(ss, token, '/')) {
+      if (token == "..") {
+        if (newView == root_.get()) throw UTTDataViewerError("You cannot go back.");
+        newView = newView->prev_;  // Go back
+      } else if (!token.empty()) {
+        newView = newView->next(token);
+      }
+    }
+  }
+  if (!newView) throw std::runtime_error("UTTDataViewer produced an empty view!");
+  current_ = newView;
+  current_->print();
 }

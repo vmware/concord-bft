@@ -44,7 +44,7 @@ class UTTReplicaApp : public UTTBlockchainApp {
     for (const auto& pid : config_.pids_) {
       addAccount(Account{pid, config_.initPublicBalance_});
     }
-    if (GetAccounts().empty()) throw std::runtime_error("No accounts loaded!");
+    if (getAccounts().empty()) throw std::runtime_error("No accounts loaded!");
   }
 
   bool canExecuteTx(const Tx& tx, std::string& err) const {
