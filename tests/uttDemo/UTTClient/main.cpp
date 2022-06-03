@@ -46,6 +46,11 @@ using ReplicaSpecificInfo = std::map<uint16_t, std::vector<uint8_t>>;  // [Repli
 namespace {
 const std::string k_CmdQuit = "q";
 const std::string k_CmdHelp = "h";
+// Query
+const std::string k_CmdAccounts = "accounts";
+const std::string k_CmdBalance = "balance";
+const std::string k_CmdLedger = "ledger";
+const std::string k_CmdView = "view";
 // UTT
 const std::string k_CmdUtt = "utt";
 const std::string k_CmdMint = "mint";
@@ -494,6 +499,14 @@ void printHelp() {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+void printAccounts(UTTClientApp& app) {
+  std::cout << "My account: " << app.getMyPid() << '\n';
+  for (const auto& pid : app.getOtherPids()) {
+    std::cout << pid << '\n';
+  }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 void printCreateTxResult(const UTTClientApp& app, const libutt::Client::CreateTxResult& result) {
   // Describe what the utt transaction intends to do.
   std::cout << "\nCreated UTT tx " << result.tx.getHashHex() << '\n';
@@ -511,10 +524,28 @@ void printCreateTxResult(const UTTClientApp& app, const libutt::Client::CreateTx
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+void checkBalance(UTTClientApp& app, WalletCommunicator& comm) {
+  syncState(app, comm);
+
+  const auto& myAccount = app.getMyAccount();
+  std::cout << "\nAccount summary:\n";
+  std::cout << "  Public balance:\t" << app.fmtCurrency(myAccount.getPublicBalance()) << '\n';
+  std::cout << "  UTT wallet balance:\t" << app.fmtCurrency(app.getUttBalance()) << '\n';
+  std::cout << "  UTT wallet coins:\t[";
+  if (!app.getMyUttWallet().coins.empty()) {
+    for (int i = 0; i < (int)app.getMyUttWallet().coins.size() - 1; ++i)
+      std::cout << app.fmtCurrency(app.getMyUttWallet().coins[i].getValue()) << ", ";
+    std::cout << app.fmtCurrency(app.getMyUttWallet().coins.back().getValue());
+  }
+  std::cout << "]\n";
+  std::cout << "  Anonymous budget:\t" << app.fmtCurrency(app.getUttBudget()) << '\n';
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 void checkLedger(UTTClientApp& app, WalletCommunicator& comm) {
   syncState(app, comm);
   std::cout << '\n';
-  for (const auto& block : app.GetBlocks()) {
+  for (const auto& block : app.getBlocks()) {
     std::cout << block << '\n';
   }
 }
@@ -544,9 +575,7 @@ void mintCoin(UTTClientApp& app, WalletCommunicator& comm, const std::vector<std
   if (reply.success) {
     app.setLastKnownBlockId(reply.last_block_id);
     std::cout << "Ok.\n";
-    //[TODO-UTT] print balance
-    // syncState(app, comm);
-    // app.printState();
+    checkBalance(app, comm);
   } else {
     std::cout << "Transaction failed: " << reply.err << '\n';
   }
@@ -585,9 +614,7 @@ void burnCoin(UTTClientApp& app, WalletCommunicator& comm, const std::vector<std
         app.setLastKnownBlockId(reply.last_block_id);
         std::cout << "Ok.\n";
         std::cout << "\n>>> BURN operation completed.\n";
-        //[TODO-UTT] print balance
-        // syncState(app, comm);
-        // app.printState();
+        checkBalance(app, comm);
       } else {
         std::cout << "Transaction failed: " << reply.err << '\n';
       }
@@ -677,9 +704,7 @@ void sendPublicTx(const Tx& tx, UTTClientApp& app, WalletCommunicator& comm) {
   if (reply.success) {
     app.setLastKnownBlockId(reply.last_block_id);
     std::cout << "Ok.\n";
-    //[TODO-UTT] print balance
-    // syncState(app, comm);
-    // app.printState();
+    checkBalance(app, comm);
   } else {
     std::cout << "Transaction failed: " << reply.err << '\n';
   }
@@ -851,9 +876,7 @@ int main(int argc, char** argv) {
     // Initial check of balance
     try {
       std::cout << "Checking account...\n";
-      //[TODO-UTT] print balance
-      // syncState(app, comm);
-      // app.printState();
+      checkBalance(app, comm);
     } catch (const BftServiceTimeoutException& e) {
       std::cout << "Concord-BFT service did not respond.\n";
     } catch (const PaymentServiceTimeoutException& e) {
@@ -863,10 +886,11 @@ int main(int argc, char** argv) {
     std::optional<UTTDataViewer> viewer;
 
     while (true) {
-      std::cout << "\nEnter command (type 'h' for commands, 'q' to exit):\n";
       if (viewer) {
-        std::cout << app.getMyPid() << "view " << viewer->getCurrentPath() << "> ";
+        std::cout << "\nYou are navigating the application state (type ':q' to exit):\n";
+        std::cout << app.getMyPid() << ' ' << viewer->getCurrentPath() << " > ";
       } else {
+        std::cout << "\nEnter command (type 'h' for commands, 'q' to exit):\n";
         std::cout << app.getMyPid() << "> ";
       }
 
@@ -874,10 +898,6 @@ int main(int argc, char** argv) {
       std::getline(std::cin, cmd);
 
       if (std::cin.eof()) {
-        if (viewer) {
-          viewer = std::nullopt;
-          continue;
-        }
         std::cout << "Quitting...\n";
         return 0;
       }
@@ -893,7 +913,10 @@ int main(int argc, char** argv) {
 
       try {
         if (viewer) {
-          viewer->handleCommand(app, tokens);
+          if (tokens[0] == ":q")
+            viewer = std::nullopt;  // Reset
+          else
+            viewer->handleCommand(tokens[0]);
         } else if (tokens[0] == k_CmdQuit) {
           std::cout << "Quitting...\n";
           return 0;
@@ -901,11 +924,20 @@ int main(int argc, char** argv) {
           printHelp();
         } else if (tokens[0] == k_CmdDbgPrimary) {
           std::cout << "Last known primary: " << comm.getLastKnownPrimary() << '\n';
-        } else if (tokens[0] == "view") {
-          ConcordAssert(!viewer.has_value());
-          viewer = UTTDataViewer();
+        } else if (tokens[0] == k_CmdAccounts) {
+          printAccounts(app);
+        } else if (tokens[0] == k_CmdBalance) {
+          checkBalance(app, comm);
+        } else if (tokens[0] == k_CmdLedger) {
+          checkLedger(app, comm);
+        } else if (tokens[0] == k_CmdView) {
+          ConcordAssert(viewer == std::nullopt);
+          viewer = UTTDataViewer(app);
           syncState(app, comm);
-          viewer->handleCommand(app, tokens);
+          if (tokens.size() > 1)
+            viewer->handleCommand(tokens[1]);
+          else
+            viewer->handleCommand("");
         } else if (tokens[0] == k_CmdDbgCheckpoint) {
           dbgForceCheckpoint(app, comm);
         } else if (tokens[0] == k_CmdRandom) {
@@ -916,9 +948,7 @@ int main(int argc, char** argv) {
           burnCoin(app, comm, tokens);
         } else if (auto uttPayment = createUttPayment(tokens, app)) {
           runUttPayment(*uttPayment, app, comm);
-          //[TODO-UTT] print balance
-          // syncState(app, comm);
-          // app.printState();
+          checkBalance(app, comm);
         } else if (auto tx = createPublicTx(tokens, app)) {
           sendPublicTx(*tx, app, comm);
         } else if (!tokens.empty()) {

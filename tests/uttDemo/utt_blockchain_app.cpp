@@ -112,10 +112,10 @@ std::optional<BlockId> UTTBlockchainApp::executeBlocks() {
   return lastExecutedBlockId_ < lastKnownBlockId_ ? std::optional<int>(lastExecutedBlockId_ + 1) : std::nullopt;
 }
 
-const std::map<std::string, Account>& UTTBlockchainApp::GetAccounts() const { return accounts_; }
-std::map<std::string, Account>& UTTBlockchainApp::GetAccounts() { return accounts_; }
+const std::map<std::string, Account>& UTTBlockchainApp::getAccounts() const { return accounts_; }
+std::map<std::string, Account>& UTTBlockchainApp::getAccounts() { return accounts_; }
 
-const std::vector<Block>& UTTBlockchainApp::GetBlocks() const { return blocks_; }
+const std::vector<Block>& UTTBlockchainApp::getBlocks() const { return blocks_; }
 
 const Account* UTTBlockchainApp::getAccountById(const std::string& id) const {
   auto it = accounts_.find(id);
