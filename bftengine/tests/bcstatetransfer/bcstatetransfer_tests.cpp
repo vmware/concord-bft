@@ -38,6 +38,7 @@
 #include "storage/direct_kv_key_manipulator.h"
 #include "ReservedPagesMock.hpp"
 #include "EpochManager.hpp"
+#include "Messages.hpp"
 #include "messages/PrePrepareMsg.hpp"
 #include "hex_tools.h"  //leave for debug
 #include "RVBManager.hpp"
@@ -1035,8 +1036,8 @@ void FakeSources::replyFetchBlocksMsg() {
   size_t numOfSentChunks = 0;
 
   // very basic validity check, no simulate corruption
-  if ((fetchBlocksMsg->msgSeqNum == 0) || (fetchBlocksMsg->minBlockId == 0) || (fetchBlocksMsg->maxBlockId == 0)) {
-    RejectFetchingMsg outMsg;
+  if ((fetchBlocksMsg->minBlockId == 0) || (fetchBlocksMsg->maxBlockId == 0)) {
+    RejectFetchingMsg outMsg(RejectFetchingMsg::Reason::BLOCK_NOT_FOUND_IN_STORAGE);
     outMsg.requestMsgSeqNum = fetchBlocksMsg->msgSeqNum;
     stDelegator_->onMessage(&outMsg, sizeof(RejectFetchingMsg), msg.to_);
     testedReplicaIf_.sent_messages_.pop_front();
@@ -1507,7 +1508,7 @@ void BcStTest::getReservedPagesStage(bool skipReply, bool reject, size_t sleepDu
     const auto& msg = testedReplicaIf_.sent_messages_.front();
     ASSERT_NFF(assertMsgType(msg, MsgType::FetchResPages));
     auto fetchResPagesMsg = reinterpret_cast<FetchResPagesMsg*>(msg.data_.get());
-    RejectFetchingMsg outMsg;
+    RejectFetchingMsg outMsg(RejectFetchingMsg::Reason::RES_PAGE_NOT_FOUND);
     outMsg.requestMsgSeqNum = fetchResPagesMsg->msgSeqNum;
     stDelegator_->onMessage(&outMsg, sizeof(RejectFetchingMsg), msg.to_);
     testedReplicaIf_.sent_messages_.pop_front();

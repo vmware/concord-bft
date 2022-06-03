@@ -811,7 +811,10 @@ class BCStateTran : public IStateTransfer {
 
   friend std::ostream& operator<<(std::ostream& os, const BCStateTran::SourceBatch& batch);
   void continueSendBatch();
-  void sendRejectFetchingMsg(const char* reason, uint64_t msgSeqNum, uint16_t destReplicaId);
+  void sendRejectFetchingMsg(const uint16_t rejectionCode,
+                             uint64_t msgSeqNum,
+                             uint16_t destReplicaId,
+                             std::string_view additionalInfo = "");
   ///////////////////////////////////////////////////////////////////////////
   // Latency Historgrams (snapshots)
   ///////////////////////////////////////////////////////////////////////////

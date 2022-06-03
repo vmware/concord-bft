@@ -187,12 +187,37 @@ struct FetchResPagesMsg : public BCStateTranBaseMsg {
 };
 
 struct RejectFetchingMsg : public BCStateTranBaseMsg {
-  RejectFetchingMsg() {
+  class Reason {
+   public:
+    enum : uint16_t {
+      RES_PAGE_NOT_FOUND = 1,
+      IN_STATE_TRANSFER = 2,
+      BLOCK_RANGE_NOT_FOUND = 3,
+      IN_ACTIVE_SESSION = 4,
+      INVALID_NUMBER_OF_BLOCKS_REQUESTED = 5,
+      BLOCK_NOT_FOUND_IN_STORAGE = 6,
+      DIGESTS_FOR_RVBGROUP_NOT_FOUND = 7,
+    };
+  };
+  RejectFetchingMsg() = delete;
+  RejectFetchingMsg(uint16_t rejCode, uint64_t reqMsgSeqNum) {
     memset(this, 0, sizeof(RejectFetchingMsg));
     type = MsgType::RejectFetching;
+    rejectionCode = rejCode;
+    requestMsgSeqNum = reqMsgSeqNum;
   }
 
   uint64_t requestMsgSeqNum;
+  uint16_t rejectionCode;
+
+  static inline std::map<uint16_t, const char*> reasonMessages = {
+      {Reason::RES_PAGE_NOT_FOUND, "Reserved page not found"},
+      {Reason::IN_STATE_TRANSFER, "In state transfer"},
+      {Reason::BLOCK_RANGE_NOT_FOUND, "Block range not found"},
+      {Reason::IN_ACTIVE_SESSION, "In active session"},
+      {Reason::INVALID_NUMBER_OF_BLOCKS_REQUESTED, "Invalid number of blocks requested"},
+      {Reason::BLOCK_NOT_FOUND_IN_STORAGE, "Block not found in storage"},
+      {Reason::DIGESTS_FOR_RVBGROUP_NOT_FOUND, "Digests for RVB group not found"}};
 };
 
 struct ItemDataMsg : public BCStateTranBaseMsg {
