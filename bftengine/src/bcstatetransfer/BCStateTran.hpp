@@ -271,7 +271,6 @@ class BCStateTran : public IStateTransfer {
   uint64_t maxNumOfStoredCheckpoints_;
   std::atomic_uint64_t numberOfReservedPages_;
   uint32_t cycleCounter_;
-  uint32_t internalCycleCounter_;
 
   std::atomic<bool> running_;
   IReplicaForStateTransfer* replicaForStateTransfer_;
@@ -640,6 +639,7 @@ class BCStateTran : public IStateTransfer {
     CounterHandle one_shot_timer_;
 
     CounterHandle on_transferring_complete_;
+    CounterHandle internal_cycle_counter;
 
     CounterHandle handle_AskForCheckpointSummaries_msg_;
     CounterHandle handle_CheckpointsSummary_msg_;

@@ -185,6 +185,7 @@ BCStateTran::Metrics BCStateTran::createRegisterMetrics() {
       metrics_component_.RegisterCounter("on_timer"),
       metrics_component_.RegisterCounter("one_shot_timer"),
       metrics_component_.RegisterCounter("on_transferring_complete"),
+      metrics_component_.RegisterCounter("internal_cycle_counter"),
       metrics_component_.RegisterCounter("handle_AskForCheckpointSummaries_msg"),
       metrics_component_.RegisterCounter("dst_handle_CheckpointsSummary_msg"),
       metrics_component_.RegisterCounter("src_handle_FetchBlocks_msg"),
@@ -241,7 +242,6 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
       maxNumOfStoredCheckpoints_{0},
       numberOfReservedPages_{0},
       cycleCounter_{0},
-      internalCycleCounter_{0},
       running_{false},
       replicaForStateTransfer_{nullptr},
       buffer_(new char[maxItemSize_]),
@@ -835,9 +835,8 @@ void BCStateTran::startCollectingStats() {
 }
 
 void BCStateTran::startCollectingStateInternal() {
-  LOG_DEBUG(logger_, KVLOG(internalCycleCounter_));
+  metrics_.internal_cycle_counter++;
   ConcordAssert(sourceSelector_.noPreferredReplicas());
-  ++internalCycleCounter_;
 
   // between cycles, reset collecting state
   {  // txn scope
@@ -859,9 +858,9 @@ void BCStateTran::startCollectingStateImpl() {
     LOG_WARN(logger_, "Already in State Transfer, ignore call...");
     return;
   }
-  LOG_INFO(
-      logger_,
-      std::boolalpha << "State Transfer cycle started (#" << ++cycleCounter_ << ")," << KVLOG(internalCycleCounter_));
+  ++cycleCounter_;
+  auto internalCycleCounter = metrics_.internal_cycle_counter.Get().Get();
+  LOG_INFO(logger_, "State Transfer cycle started:" << KVLOG(cycleCounter_, internalCycleCounter));
 
   {  // txn scope
     DataStoreTransaction::Guard g(psd_->beginTransaction());
@@ -3579,10 +3578,11 @@ void BCStateTran::cycleEndSummary() {
   Throughput::Results blocksCollectedResults, bytesCollectedResults, blocksPostProcessedResults;
   std::ostringstream sources_str;
   const auto &sources_ = sourceSelector_.getActualSources();
+  auto internalCycleCounter = metrics_.internal_cycle_counter.Get().Get();
 
   if ((gettingMissingBlocksDT_.totalDuration() == 0) || (cycleDT_.totalDuration() == 0)) {
     // we print full summary only if we were collecting blocks
-    LOG_INFO(logger_, "State Transfer cycle ended (#" << cycleCounter_ << ")," << KVLOG(internalCycleCounter_));
+    LOG_INFO(logger_, "State Transfer cycle ended:" << KVLOG(cycleCounter_, internalCycleCounter));
     return;
   }
 
@@ -3603,7 +3603,7 @@ void BCStateTran::cycleEndSummary() {
   LOG_INFO(
       logger_,
       "State Transfer cycle ended (#"
-          << cycleCounter_ << ")," << KVLOG(internalCycleCounter_)
+          << cycleCounter_ << ")," << KVLOG(internalCycleCounter)
           << " ,Total Duration: " << convertMillisecToReadableStr(cycleDuration)
           << " ,Time to get checkpoint summaries: " << convertMillisecToReadableStr(gettingCheckpointSummariesDuration)
           << " ,Time to fetch missing blocks: " << convertMillisecToReadableStr(gettingMissingBlocksDuration)
