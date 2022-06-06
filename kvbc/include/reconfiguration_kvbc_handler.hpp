@@ -25,6 +25,7 @@
 #include "AdaptivePruningManager.hpp"
 #include "IntervalMappingResourceManager.hpp"
 #include "newest_public_event_group_record_time.h"
+#include "bftengine/PersistentStorageImp.hpp"
 #include <functional>
 #include <string>
 #include <utility>
@@ -293,10 +294,14 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
               uint32_t,
               const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
+  void setPersistentStorage(const std::shared_ptr<bftEngine::impl::PersistentStorage>& persistent_storage) override {
+    persistent_storage_ = persistent_storage;
+  }
 
  private:
   concord::performance::AdaptivePruningManager& apm_;
   concord::performance::ISystemResourceEntity& replicaResources_;
+  std::shared_ptr<bftEngine::impl::PersistentStorage> persistent_storage_;
 };
 /**
  * This component is reposnsible for logging internal reconfiguration requests to the blockchain (such as noop

@@ -17,6 +17,7 @@
 #include "kv_types.hpp"
 #include "Replica.hpp"
 #include "bftengine/TimeService.hpp"
+#include "bftengine/PersistentStorageImp.hpp"
 
 namespace concord::reconfiguration {
 enum ReconfigurationHandlerType : unsigned int { PRE, REGULAR, POST };
@@ -318,6 +319,7 @@ class IReconfigurationHandler {
 
   // The verification method is pure virtual as all subclasses has to define how they verify the reconfiguration
   // requests.
+  virtual void setPersistentStorage(const std::shared_ptr<bftEngine::impl::PersistentStorage> &persistent_storage) {}
   virtual bool verifySignature(uint32_t sender_id, const std::string &data, const std::string &signature) const = 0;
   virtual ~IReconfigurationHandler() = default;
 

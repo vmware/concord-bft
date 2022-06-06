@@ -27,6 +27,7 @@
 #include "categorization/db_categories.h"
 #include "categorization/details.h"
 #include "categorized_kvbc_msgs.cmf.hpp"
+#include "metadata_block_id.h"
 #include <chrono>
 #include <algorithm>
 #include <memory>
@@ -1001,7 +1002,8 @@ bool ReconfigurationHandler::handle(const messages::UnwedgeCommand& cmd,
   bool can_unwedge = (valid_sigs >= quorum_size);
   if (can_unwedge) {
     if (!cmd.restart) {
-      persistNewEpochBlock(bft_seq_num);
+      auto bid = persistNewEpochBlock(bft_seq_num);
+      persistLastBlockIdInMetadata<false>(bid, persistent_storage_);
       bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(0);
       bftEngine::ControlStateManager::instance().unwedge();
       bftEngine::IControlHandler::instance()->resetState();

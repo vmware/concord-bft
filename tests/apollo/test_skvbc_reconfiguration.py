@@ -786,7 +786,10 @@ class SkvbcReconfigurationTest(ApolloTest):
         await self.verify_last_executed_seq_num(bft_network, checkpoint_before)
         await self.validate_stop_on_super_stable_checkpoint(bft_network, skvbc)
         await op.unwedge()
-
+        await self.validate_start_on_unwedge(bft_network,skvbc,fullWedge=True)
+        # To make sure that revocery doesn't remove the new epoch block, lets manually restart the replicas
+        bft_network.stop_all_replicas()
+        bft_network.start_all_replicas()
         protocol = kvbc.SimpleKVBCProtocol(bft_network)
 
         key = protocol.random_key()

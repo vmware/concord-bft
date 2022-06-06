@@ -23,6 +23,7 @@
 #include "OpenTracing.hpp"
 #include "TimeService.hpp"
 #include "ISystemResourceEntity.hpp"
+#include "PersistentStorageImp.hpp"
 
 namespace concord::reconfiguration {
 class IReconfigurationHandler;
@@ -79,6 +80,7 @@ class IRequestsHandler {
                                              static_cast<concord::reconfiguration::ReconfigurationHandlerType>(1)) {
     reconfig_handler_.push_back(rh);
   }
+  virtual void setPersistentStorage(const std::shared_ptr<bftEngine::impl::PersistentStorage> &persistent_storage) {}
 
   virtual ~IRequestsHandler() = default;
 

@@ -59,14 +59,16 @@ class RequestHandler : public IRequestsHandler {
   void setReconfigurationHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> rh,
                                  concord::reconfiguration::ReconfigurationHandlerType type =
                                      concord::reconfiguration::ReconfigurationHandlerType::REGULAR) override {
+    IRequestsHandler::setReconfigurationHandler(rh, type);
     reconfig_dispatcher_.addReconfigurationHandler(rh, type);
   }
 
   void setCronTableRegistry(const std::shared_ptr<concord::cron::CronTableRegistry> &reg) {
     cron_table_registry_ = reg;
   }
-
+  void setPersistentStorage(const std::shared_ptr<bftEngine::impl::PersistentStorage> &persistent_storage) override;
   void onFinishExecutingReadWriteRequests() override { userRequestsHandler_->onFinishExecutingReadWriteRequests(); }
+  std::shared_ptr<IRequestsHandler> getUserHandler() { return userRequestsHandler_; }
 
  private:
   std::shared_ptr<IRequestsHandler> userRequestsHandler_;

@@ -35,6 +35,17 @@ void persistLastBlockIdInMetadata(const categorization::KeyValueBlockchain &bloc
   }
 }
 
+template <bool in_transaction>
+void persistLastBlockIdInMetadata(const BlockId bid,
+                                  const std::shared_ptr<bftEngine::impl::PersistentStorage> &metadata) {
+  const auto user_data = concordUtils::toBigEndianArrayBuffer(bid);
+  if constexpr (in_transaction) {
+    metadata->setUserDataInTransaction(user_data.data(), user_data.size());
+  } else {
+    metadata->setUserDataAtomically(user_data.data(), user_data.size());
+  }
+}
+
 inline std::optional<BlockId> getLastBlockIdFromMetadata(
     const std::shared_ptr<bftEngine::impl::PersistentStorage> &metadata) {
   const auto ud = metadata->getUserData();
