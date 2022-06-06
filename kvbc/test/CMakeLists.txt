@@ -220,6 +220,104 @@ if (BUILD_ROCKSDB_STORAGE)
         kvbc
         stdc++fs
     )
+
+    add_executable(v4_blockchain_handler_unit_test
+        v4blockchain/v4_blockchain_test.cpp )
+    add_test(v4_blockchain_handler_unit_test v4_blockchain_handler_unit_test)
+    target_link_libraries(v4_blockchain_handler_unit_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
+
+    add_executable(v4_blocks_unit_test
+        v4blockchain/blocks_test.cpp )
+    add_test(v4_blocks_unit_test v4_blocks_unit_test)
+    target_link_libraries(v4_blocks_unit_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
+
+    add_executable(v4_st_chain_unit_test
+        v4blockchain/st_chain_test.cpp )
+    add_test(v4_st_chain_unit_test v4_st_chain_unit_test)
+    target_link_libraries(v4_st_chain_unit_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
+
+    add_executable(v4_categories_unit_test
+        v4blockchain/categories_test.cpp )
+    add_test(v4_categories_unit_test v4_categories_unit_test)
+    target_link_libraries(v4_categories_unit_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
+
+    add_executable(v4_latest_keys_unit_test
+        v4blockchain/v4_latest_keys_test.cpp )
+    add_test(v4_latest_keys_unit_test v4_latest_keys_unit_test)
+    target_link_libraries(v4_latest_keys_unit_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
+
+    add_executable(v4_blockchain_unit_test
+        v4blockchain/blockchain_test.cpp )
+    add_test(v4_blockchain_unit_test v4_blockchain_unit_test)
+    target_link_libraries(v4_blockchain_unit_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
+
+    add_executable(app_state_adapter_test
+    kvbc_adapter/v4blockchain/app_state_adapter_test.cpp )
+    add_test(app_state_adapter_test app_state_adapter_test)
+    target_link_libraries(app_state_adapter_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
+
+    add_executable(common_state_snapshot_adapter_test
+            kvbc_adapter/common/state_snapshot_adapter_test.cpp )
+    add_test(common_state_snapshot_adapter_test common_state_snapshot_adapter_test)
+    target_link_libraries(common_state_snapshot_adapter_test PUBLIC
+            GTest::Main
+            GTest::GTest
+            util
+            corebft
+            kvbc
+            stdc++fs
+    )
+
+    
     add_executable(pruning_test pruning_test.cpp)
     add_test(pruning_test pruning_test)
     target_link_libraries(pruning_test

@@ -15,7 +15,7 @@
 #include "gmock/gmock.h"
 
 #include "categorization/db_categories.h"
-#include "categorization/kv_blockchain.h"
+#include "kvbc_adapter/replica_adapter.hpp"
 #include "kvbc_key_types.hpp"
 #include "storage/test/storage_test_common.h"
 #include "thin-replica-server/replica_state_snapshot_service_impl.hpp"
@@ -38,6 +38,7 @@ using namespace concord::kvbc;
 using namespace concord::kvbc::categorization;
 using namespace concord::thin_replica;
 using bftEngine::impl::DbCheckpointManager;
+using concord::kvbc::adapter::ReplicaBlockchain;
 using concord::storage::rocksdb::NativeClient;
 using grpc::Channel;
 using grpc::ClientContext;
@@ -53,10 +54,10 @@ using vmware::concord::replicastatesnapshot::StreamSnapshotResponse;
 class replica_state_snapshot_service_test : public Test {
   void SetUp() override {
     destroyDb();
-    service_.setStateValueConverter(KeyValueBlockchain::kNoopConverter);
+    service_.setStateValueConverter([](std::string &&v) -> std::string { return std::move(v); });
     db_ = TestRocksDb::createNative();
     const auto link_st_chain = false;
-    kvbc_ = std::make_unique<KeyValueBlockchain>(
+    kvbc_ = std::make_unique<ReplicaBlockchain>(
         db_,
         link_st_chain,
         std::map<std::string, CATEGORY_TYPE>{{kExecutionProvableCategory, CATEGORY_TYPE::block_merkle},
@@ -100,7 +101,7 @@ class replica_state_snapshot_service_test : public Test {
                         std::string{ser_public_state.cbegin(), ser_public_state.cend()});
     updates.add(kExecutionProvableCategory, std::move(merkle));
     updates.add(kConcordInternalCategoryId, std::move(versioned));
-    ASSERT_EQ(kvbc_->addBlock(std::move(updates)), 1);
+    ASSERT_EQ(kvbc_->add(std::move(updates)), 1);
   }
 
  protected:
@@ -111,7 +112,7 @@ class replica_state_snapshot_service_test : public Test {
   std::unique_ptr<Server> server_;
   std::shared_ptr<Channel> channel_ = grpc::CreateChannel(grpc_uri_, grpc::InsecureChannelCredentials());
   std::unique_ptr<ReplicaStateSnapshotService::Stub> stub_ = ReplicaStateSnapshotService::NewStub(channel_);
-  std::unique_ptr<KeyValueBlockchain> kvbc_;
+  std::unique_ptr<ReplicaBlockchain> kvbc_;
 };
 
 TEST_F(replica_state_snapshot_service_test, non_existent_snapshot_id) {

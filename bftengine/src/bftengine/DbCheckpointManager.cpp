@@ -79,6 +79,7 @@ Status DbCheckpointManager::createDbCheckpoint(const CheckpointId& checkPointId,
     for (auto& cb : onDbCheckpointCreated_) {
       if (cb) cb(seqNum);
     }
+    checkpointInProcessCb_(false);
   }
   updateMetrics();
   return Status::OK();
@@ -167,7 +168,8 @@ void DbCheckpointManager::initializeDbCheckpointManager(std::shared_ptr<concord:
                                                         std::shared_ptr<bftEngine::impl::PersistentStorage> p,
                                                         std::shared_ptr<concordMetrics::Aggregator> aggregator,
                                                         const std::function<BlockId()>& getLastBlockIdCb,
-                                                        const PrepareCheckpointCallback& prepareCheckpointCb) {
+                                                        const PrepareCheckpointCallback& prepareCheckpointCb,
+                                                        const std::function<void(bool)>& checkpointInProcessCb) {
   dbClient_ = dbClient;
   ps_ = p;
   dbCheckPointDirPath_ = ReplicaConfig::instance().getdbCheckpointDirPath();
@@ -176,6 +178,7 @@ void DbCheckpointManager::initializeDbCheckpointManager(std::shared_ptr<concord:
       std::min(ReplicaConfig::instance().maxNumberOfDbCheckpoints, bftEngine::impl::MAX_ALLOWED_CHECKPOINTS);
   metrics_.SetAggregator(aggregator);
   if (getLastBlockIdCb) getLastBlockIdCb_ = getLastBlockIdCb;
+  if (checkpointInProcessCb) checkpointInProcessCb_ = checkpointInProcessCb;
   prepareCheckpointCb_ = prepareCheckpointCb;
   if (ReplicaConfig::instance().dbCheckpointFeatureEnabled) {
     // in case of upgrade, we need to set the lastStableCheckpointSeqNum from persistence
@@ -374,6 +377,11 @@ SeqNum DbCheckpointManager::getLastStableSeqNum() const {
   if (getLastStableSeqNumCb_) return getLastStableSeqNumCb_();
   return 0;
 }
+
+void DbCheckpointManager::setCheckpointInProcess(bool flag) const {
+  if (checkpointInProcessCb_) checkpointInProcessCb_(flag);
+}
+
 BlockId DbCheckpointManager::getLastReachableBlock() const {
   if (getLastBlockIdCb_) return getLastBlockIdCb_();
   return 0;

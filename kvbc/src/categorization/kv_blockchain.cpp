@@ -14,14 +14,12 @@
 #include "categorization/kv_blockchain.h"
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
 #include "bftengine/ControlStateManager.hpp"
-#include "json_output.hpp"
 #include "diagnostics.h"
 #include "performance_handler.h"
 #include "kvbc_key_types.hpp"
 #include "categorization/db_categories.h"
 #include "endianness.hpp"
 #include "migrations/block_merkle_latest_ver_cf_migration.h"
-#include "storage/merkle_tree_key_manipulator.h"
 #include "categorization/details.h"
 #include "ReplicaConfig.hpp"
 #include "throughput.hpp"
@@ -33,16 +31,11 @@
 namespace concord::kvbc::categorization {
 
 using ::bftEngine::bcst::computeBlockDigest;
-using concordUtils::toPair;
 
 template <typename T>
 void nullopts(std::vector<std::optional<T>>& vec, std::size_t count) {
   vec.resize(count, std::nullopt);
 }
-
-const KeyValueBlockchain::Converter KeyValueBlockchain::kNoopConverter = [](std::string&& v) -> std::string {
-  return std::move(v);
-};
 
 KeyValueBlockchain::Recorders KeyValueBlockchain::histograms_;
 
@@ -188,7 +181,7 @@ BlockId KeyValueBlockchain::addBlock(Updates&& updates) {
   // Use new client batch and column families
   auto write_batch = native_client_->getBatch();
   addGenesisBlockKey(updates);
-  auto block_id = addBlock(std::move(updates.category_updates_), write_batch);
+  auto block_id = addBlock(updates.categoryUpdates(), write_batch);
   native_client_->write(std::move(write_batch));
   block_chain_.setAddedBlockId(block_id);
   return block_id;
@@ -400,96 +393,6 @@ void KeyValueBlockchain::trimBlocksFromSnapshot(BlockId block_id_at_checkpoint) 
              "Deleting last reachable block = " << getLastReachableBlockId() << ", DB checkpoint = " << db()->path());
     deleteLastReachableBlock();
   }
-}
-
-static const auto kPublicStateHashKey = concord::storage::v2MerkleTree::detail::serialize(
-    concord::storage::v2MerkleTree::detail::EBFTSubtype::PublicStateHashAtDbCheckpoint);
-
-std::string KeyValueBlockchain::publicStateHashKey() { return kPublicStateHashKey; }
-
-std::optional<PublicStateKeys> KeyValueBlockchain::getPublicStateKeys() const {
-  const auto opt_val = getLatest(kConcordInternalCategoryId, keyTypes::state_public_key_set);
-  if (!opt_val) {
-    return std::nullopt;
-  }
-  auto public_state = PublicStateKeys{};
-  const auto val = std::get_if<VersionedValue>(&opt_val.value());
-  ConcordAssertNE(val, nullptr);
-  detail::deserialize(val->data, public_state);
-  return std::make_optional(std::move(public_state));
-}
-
-void KeyValueBlockchain::iteratePublicStateKeyValues(const std::function<void(std::string&&, std::string&&)>& f) const {
-  const auto ret = iteratePublicStateKeyValuesImpl(f, std::nullopt);
-  ConcordAssert(ret);
-}
-
-bool KeyValueBlockchain::iteratePublicStateKeyValues(const std::function<void(std::string&&, std::string&&)>& f,
-                                                     const std::string& after_key) const {
-  return iteratePublicStateKeyValuesImpl(f, after_key);
-}
-
-bool KeyValueBlockchain::iteratePublicStateKeyValuesImpl(const std::function<void(std::string&&, std::string&&)>& f,
-                                                         const std::optional<std::string>& after_key) const {
-  const auto public_state = getPublicStateKeys();
-  if (!public_state) {
-    return true;
-  }
-
-  auto idx = 0ull;
-  if (after_key) {
-    auto it = std::lower_bound(public_state->keys.cbegin(), public_state->keys.cend(), *after_key);
-    if (it == public_state->keys.cend() || *it != *after_key) {
-      return false;
-    }
-    // Start from the key after `after_key`.
-    idx = std::distance(public_state->keys.cbegin(), it) + 1;
-  }
-
-  const auto batch_size = bftEngine::ReplicaConfig::instance().stateIterationMultiGetBatchSize;
-  auto keys_batch = std::vector<std::string>{};
-  keys_batch.reserve(batch_size);
-  auto opt_values = std::vector<std::optional<Value>>{};
-  opt_values.reserve(batch_size);
-  while (idx < public_state->keys.size()) {
-    keys_batch.clear();
-    opt_values.clear();
-    while (keys_batch.size() < batch_size) {
-      if (idx == public_state->keys.size()) {
-        break;
-      }
-      keys_batch.push_back(public_state->keys[idx]);
-      ++idx;
-    }
-    multiGetLatest(kExecutionProvableCategory, keys_batch, opt_values);
-    ConcordAssertEQ(keys_batch.size(), opt_values.size());
-    for (auto i = 0ull; i < keys_batch.size(); ++i) {
-      auto& opt_value = opt_values[i];
-      ConcordAssert(opt_value.has_value());
-      auto value = std::get_if<MerkleValue>(&opt_value.value());
-      ConcordAssertNE(value, nullptr);
-      f(std::move(keys_batch[i]), std::move(value->data));
-    }
-  }
-  return true;
-}
-
-static const auto kInitialHash = detail::hash(std::string{});
-
-void KeyValueBlockchain::computeAndPersistPublicStateHash(BlockId checkpoint_block_id,
-                                                          const Converter& value_converter) {
-  auto hash = kInitialHash;
-  iteratePublicStateKeyValues([&](std::string&& key, std::string&& value) {
-    value = value_converter(std::move(value));
-    auto hasher = Hasher{};
-    hasher.init();
-    hasher.update(hash.data(), hash.size());
-    const auto key_hash = detail::hash(key);
-    hasher.update(key_hash.data(), key_hash.size());
-    hasher.update(value.data(), value.size());
-    hash = hasher.finish();
-  });
-  native_client_->put(kPublicStateHashKey, detail::serialize(StateHash{checkpoint_block_id, hash}));
 }
 
 /////////////////////// Delete block ///////////////////////
@@ -761,7 +664,6 @@ void KeyValueBlockchain::deleteLastReachableBlock(BlockId block_id,
 }
 
 // Updates per category
-
 void KeyValueBlockchain::insertCategoryMapping(const std::string& cat_id, const CATEGORY_TYPE type) {
   // check if we know this category type already
   ConcordAssertEQ(category_types_.count(cat_id), 0);
@@ -983,24 +885,6 @@ void KeyValueBlockchain::writeSTLinkTransaction(const BlockId block_id, RawBlock
   native_client_->write(std::move(write_batch));
 
   block_chain_.setAddedBlockId(new_block_id);
-}
-
-std::string KeyValueBlockchain::getPruningStatus() {
-  std::ostringstream oss;
-  std::unordered_map<std::string, std::string> result;
-
-  result.insert(toPair("versionedNumOfDeletedKeys",
-                       aggregator_->GetCounter("kv_blockchain_deletes", "numOfVersionedKeysDeleted").Get()));
-  result.insert(toPair("immutableNumOfDeletedKeys",
-                       aggregator_->GetCounter("kv_blockchain_deletes", "numOfImmutableKeysDeleted").Get()));
-  result.insert(toPair("merkleNumOfDeletedKeys",
-                       aggregator_->GetCounter("kv_blockchain_deletes", "numOfMerkleKeysDeleted").Get()));
-  result.insert(toPair("getGenesisBlockId()", getGenesisBlockId()));
-  result.insert(toPair("getLastReachableBlockId()", getLastReachableBlockId()));
-  result.insert(toPair("isPruningInProgress", bftEngine::ControlStateManager::instance().getPruningProcessStatus()));
-
-  oss << concordUtils::kContainerToJson(result);
-  return oss.str();
 }
 
 }  // namespace concord::kvbc::categorization

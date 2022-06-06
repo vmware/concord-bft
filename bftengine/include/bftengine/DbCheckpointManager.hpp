@@ -99,7 +99,8 @@ class DbCheckpointManager {
                                      std::shared_ptr<bftEngine::impl::PersistentStorage> p,
                                      std::shared_ptr<concordMetrics::Aggregator> aggregator,
                                      const std::function<BlockId()>& getLastBlockIdCb,
-                                     const PrepareCheckpointCallback& prepareCheckpointCb);
+                                     const PrepareCheckpointCallback& prepareCheckpointCb,
+                                     const std::function<void(bool)>& checkpointInProcessCb);
   std::map<CheckpointId, DbCheckpointMetadata::DbCheckPointDescriptor> getListOfDbCheckpoints() const {
     return dbCheckptMetadata_.dbCheckPoints_;
   }
@@ -122,6 +123,7 @@ class DbCheckpointManager {
   void sendInternalCreateDbCheckpointMsg(const SeqNum& seqNum, bool noop);
   BlockId getLastReachableBlock() const;
   SeqNum getLastStableSeqNum() const;
+  void setCheckpointInProcess(bool) const;
   void setOnStableSeqNumCb_(std::function<void(SeqNum)> cb) { onStableSeqNumCb_ = cb; }
   void onStableSeqNum(SeqNum s) {
     if (onStableSeqNumCb_) onStableSeqNumCb_(s);
@@ -165,6 +167,7 @@ class DbCheckpointManager {
   void cleanUp();
   std::function<BlockId()> getLastBlockIdCb_;
   PrepareCheckpointCallback prepareCheckpointCb_;
+  std::function<void(bool)> checkpointInProcessCb_;
   // get total size recursively
   uint64_t directorySize(const _fs::path& directory, const bool& excludeHardLinks, bool recursive);
   // get checkpoint metadata
