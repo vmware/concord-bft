@@ -17,6 +17,7 @@ echo ca_certificate=/etc/ssl/certs/ca-certificates.crt > ~/.wgetrc
 apt-get update && apt-get ${APT_GET_FLAGS} install \
     autoconf \
     automake \
+    libtool \
     build-essential \
     ccache \
     clang-9 \
@@ -62,7 +63,6 @@ apt-get ${APT_GET_FLAGS} install \
     libs3-dev \
     libsnappy-dev \
     libssl-dev \
-    libtool \
     libyaml-cpp-dev \
     libz-dev \
     libzstd-dev

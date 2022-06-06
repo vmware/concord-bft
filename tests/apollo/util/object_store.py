@@ -82,6 +82,7 @@ class ObjectStore:
         server_env = os.environ.copy()
         server_env["MINIO_ACCESS_KEY"] = "concordbft"
         server_env["MINIO_SECRET_KEY"] = "concordbft"
+        server_env["CI"] = "on"
 
         minio_server_fname = os.environ.get("CONCORD_BFT_MINIO_BINARY_PATH")
         if minio_server_fname is None:
