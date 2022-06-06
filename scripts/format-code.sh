@@ -7,11 +7,7 @@ if [ -z "$1" ]; then
   return 1
 fi
 
-# Construct the absolute path
-export TMP_CONCORD_DIR="$1"
-ABS_CONCORD_PATH=$(
-  python3 -c 'import os; print(os.path.abspath(os.environ["TMP_CONCORD_DIR"]))')
-unset TMP_CONCORD_DIR
+ABS_CONCORD_PATH=`realpath $1`
 
 # Overly cautious saftey check
 IS_EXPECTED_NAME=$(echo ${ABS_CONCORD_PATH} | grep "${BFT}")

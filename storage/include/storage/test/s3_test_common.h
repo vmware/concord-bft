@@ -50,6 +50,7 @@ class MinioS3Server : public IS3Server {
       auto secret = std::string("MINIO_ROOT_PASSWORD=" + config.secretKey);
       putenv((char *)access.c_str());
       putenv((char *)secret.c_str());
+      putenv((char *)"CI=on");
       int status = execl(binary_path.c_str(), "minio", "server", data_dir.c_str(), NULL);
       // returns only on failure
       LOG_FATAL(GL, "execl failed: " << strerror(errno));
