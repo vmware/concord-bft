@@ -9,14 +9,6 @@
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-// This file contains simple wrapper types around a steady_clock. Its
-// replacement code for prior type wrappers around uint64_t and int64_t that
-// were less safe. It shouldn't be used outside the bftEngine and only exists to
-// allow making the minimal possible changes to allow using std::chrono. It may
-// be removed in the future and to use the std::types directly. However, it's
-// nice to force the use of steady_clock to avoid mistakes in using the wrong
-// clock.
-
 #pragma once
 
 #include <memory>
@@ -37,11 +29,10 @@ using RVBIndex = uint64_t;
 class RangeValidationTree;
 
 /**
- * Range Validation Blocks Manager (RVBM) is part of BCStateTran (State Transfer). It's responsible for managing RVB
- data
- * and provided services as a source/destination which support BFT block validation and block collection in
- * chronological order. Without block validation, while collecting blocks in chronological order (old to new), any
- * Byzantine source replica may cause DOS on State Transfer.
+ * Range Validation Blocks Manager (RVBM) is part of BCStateTran (State Transfer).
+ * It's responsible for managing RVB data and provided services as a source/destination which support BFT block
+ * validation and block collection in chronological order. Without block validation, while collecting blocks in
+ * chronological order (old to new), any Byzantine source replica may cause DOS on State Transfer.
  *
  * RVBM currently holds its main (RVB) data structure as a RangeValidationTree (RVT). It makes sure for the integrity,
  * persistency and update of this data. We can divide its duties and services to BCStateTran (by its public API) into
@@ -50,7 +41,7 @@ class RangeValidationTree;
  * 1) During checkpointing - as a consensus replica:
  *  a) Collects pruned blocks digest and persists them until the next checkpoint.
  *  b) In each checkpoint updates the RVT according to the recent blocks added/removed to/from storage during the last
- * checkpoint.
+ *     checkpoint.
  *
  * 2) During State Transfer - as a source replica/consensus replica:
  *  a) Each replica sends its serialized in-memory RVT for a specifically requested checkpoint to a destination.
@@ -59,10 +50,12 @@ class RangeValidationTree;
  *     which can help validate RVTs level 1 node values which are already found in destination (received during
  *     checkpoint summaries stage).
  *
- .3) During State Transfer - as a destination replica: RVBM holds the target checkpoint RVT
- *   and provides services to validate RVB group and RVB blocks. 4) During initialization: a) Loads pruned blocks
- *   digests and the last checkpoint RVB data. b) If there is no last checkpoint, RVBM reconstructs the RVB data from
- *   storage.
+ * 3) During State Transfer - as a destination replica:
+ *    RVBM holds the target checkpoint RVT and provides services to validate RVB group and RVB blocks.
+ *
+ * 4) During initialization:
+ *    a) Loads pruned blocks digests and the last checkpoint RVB data.
+ *    b) If there is no last checkpoint, RVBM reconstructs the RVB data from storage.
  **/
 
 class RVBManager {
@@ -85,7 +78,7 @@ class RVBManager {
   // Get a serialized RVB data. Used by ST source (during checkpoint summaries)
   std::ostringstream getRvbData() const;
 
-  // Get a serialized RVB data. Used by ST destination (during checkpoint summaries)
+  // Set a serialized RVB data. Used by ST destination (during checkpoint summaries)
   // min_block_id_span, max_block_id_span are used to validate that the tree indeed span the whole collecting range
   bool setRvbData(char* data, size_t data_size, BlockId min_block_id_span, BlockId max_block_id_span);
 
@@ -97,10 +90,10 @@ class RVBManager {
   size_t getSerializedDigestsOfRvbGroup(int64_t rvb_group_id, char* buff, size_t buff_max_size, bool size_only) const;
 
   // Called during ST GettingMissingBlocks by destination, to set RVB group digests.
-  // data,data_size is to provide the serialized data (blocks digests)
-  // min_fetch_block_id,max_fetch_block_id are the current fetch range, and are used for validating the RVB group.
-  // The digeses are stored inside stored_rvb_digests_ after validated. If validation failed thedigests are not set and
-  // false is returned.
+  // data, data_size is to provide the serialized data (blocks digests)
+  // min_fetch_block_id, max_fetch_block_id are the current fetch range, and are used for validating the RVB group.
+  // The digests are stored inside stored_rvb_digests_ after validation. If validation failed the digests are not set
+  // and false is returned.
   bool setSerializedDigestsOfRvbGroup(char* data,
                                       size_t data_size,
                                       BlockId min_fetch_block_id,
@@ -124,10 +117,10 @@ class RVBManager {
   std::string getStateOfRvbData() const;
 
   // Resets the RVBM by clearing all the data structures, except pruned_blocks_digests_
-  // inital_source cna be passed to mark the source (reason) for the reset
+  // inital_source can be passed to mark the source (reason) for the reset
   void reset(RvbDataInitialSource inital_source = RvbDataInitialSource::NIL);
 
-  // Validate integrity of RVBM data. In particular, validated the RVT
+  // Validate integrity of RVBM data. In particular, validate the RVT
   bool validate() const;
 
   // For the range [from_block_id, to_block_id], we 1st perform:
@@ -144,8 +137,10 @@ class RVBManager {
   // Returns the source in which the RVB data was loaded, since last boot. This is useful for debugging.
   RvbDataInitialSource getRvbDataSource() const { return rvb_data_source_; }
 
-  void updateMetricToAggregator() { metrics_component_.UpdateAggregator(); }
+  void UpdateAggregator();
   concordMetrics::Component& getMetricComponent() { return metrics_component_; }
+  concordMetrics::Component& getRvtMetricComponent();
+  void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator);
 
  protected:
   // logging
@@ -163,9 +158,7 @@ class RVBManager {
 
   // RVB data update during checkpointing / pruning
   std::vector<std::pair<BlockId, Digest>> pruned_blocks_digests_;
-  std::mutex pruned_blocks_digests_mutex_;
   CheckpointDesc last_checkpoint_desc_;
-  std::atomic_bool prune_report_in_progess_;
 
   // Actual RVB data
   // RangeValidationTree is an incomplete type, define a deleter for the unique ptr
@@ -178,6 +171,11 @@ class RVBManager {
   concordMetrics::Component metrics_component_;
   struct Metrics {
     concordMetrics::CounterHandle report_during_checkpointing_errors_;
+    concordMetrics::CounterHandle pruning_reports_;
+    concordMetrics::CounterHandle failures_while_setting_serialized_rvt_;
+    concordMetrics::GaugeHandle pruning_vector_elements_count_;
+    concordMetrics::GaugeHandle pruning_vector_size_in_bytes_;
+    concordMetrics::GaugeHandle stored_rvb_digests_size_in_bytes_;
   };
   mutable Metrics metrics_;
 
@@ -192,7 +190,7 @@ class RVBManager {
                                   uint64_t max_block_id,
                                   const std::optional<Digest>& digest_of_max_block_id);
   // returns the next RVB ID after block_id. If block_id is an RVB ID, returns block_id.
-  inline RVBId nextRvbBlockId(BlockId block_id) const;
+  RVBId nextRvbBlockId(BlockId block_id) const;
 
   // returns the previous RVB ID to block_id. If block_id is an RVB ID, returns block_id.
   // If there is no previous RVB ID, 0 is returned

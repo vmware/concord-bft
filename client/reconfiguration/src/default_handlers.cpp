@@ -13,7 +13,7 @@
 #include "bftclient/StateControl.hpp"
 #include "concord.cmf.hpp"
 #include "crypto_utils.hpp"
-#include "ReplicaConfig.hpp"
+#include "kvstream.h"
 
 #include <variant>
 #include <experimental/filesystem>
@@ -60,31 +60,50 @@ bool ClientTlsKeyExchangeHandler::validate(const State& state) const {
   }
   return false;
 }
-bool ClientTlsKeyExchangeHandler::execute(const State& state, WriteState&) {
-  auto cmd = getCmdFromInputState<concord::messages::ClientKeyExchangeCommand>(state);
-  LOG_INFO(getLogger(), "execute tls key exchange request");
+void ClientTlsKeyExchangeHandler::exchangeTlsKeys(const std::string& pkey_path,
+                                                  const std::string& cert_path,
+                                                  const uint64_t blockid) {
   // Generate new key pair
   auto new_cert_keys = concord::util::crypto::Crypto::instance().generateECDSAKeyPair(
       concord::util::crypto::KeyFormat::PemFormat, concord::util::crypto::CurveType::secp384r1);
-  std::string suffix = enc_ ? ".enc" : "";
+
   std::string master_key = sm_->decryptFile(master_key_path_).value_or(std::string());
   if (master_key.empty()) master_key = psm_.decryptFile(master_key_path_).value_or(std::string());
   if (master_key.empty()) LOG_FATAL(getLogger(), "unable to read the node master key");
-  auto root = fs::path(cert_folder_);
-  for (const auto& c : bft_clients_) {
-    fs::path root_path = root / std::to_string(c);
-    bool use_unified_certs = bftEngine::ReplicaConfig::instance().useUnifiedCertificates;
-    fs::path pkey_path =
-        (use_unified_certs) ? root_path / ("pk.pem" + suffix) : root_path / "client" / ("pk.pem" + suffix);
-    fs::path cert_path = (use_unified_certs) ? root_path / "node.cert" : root_path / "client" / "client.cert";
+  auto cert =
+      concord::util::crypto::CertificateUtils::generateSelfSignedCert(cert_path, new_cert_keys.second, master_key);
 
-    auto cert =
-        concord::util::crypto::CertificateUtils::generateSelfSignedCert(cert_path, new_cert_keys.second, master_key);
-    sm_->encryptFile(pkey_path.string(), new_cert_keys.first);
-    psm_.encryptFile(cert_path.string(), cert);
-    psm_.encryptFile(version_path_, std::to_string(state.blockid));
-    init_last_tls_update_block_ = state.blockid;
-    LOG_INFO(getLogger(), "exchanged tls certificate for bft client " << c);
+  sm_->encryptFile(pkey_path, new_cert_keys.first);
+  psm_.encryptFile(cert_path, cert);
+  psm_.encryptFile(version_path_, std::to_string(blockid));
+  init_last_tls_update_block_ = blockid;
+}
+bool ClientTlsKeyExchangeHandler::execute(const State& state, WriteState&) {
+  auto cmd = getCmdFromInputState<concord::messages::ClientKeyExchangeCommand>(state);
+  LOG_INFO(getLogger(), "execute tls key exchange request");
+  std::string suffix = enc_ ? ".enc" : "";
+  auto root = fs::path(cert_folder_);
+  if (use_unified_certificates_) {
+    LOG_INFO(getLogger(), "Using unified certificates");
+    const fs::path root_path = root / std::to_string(clientservice_pid_);
+
+    const fs::path pkey_path = root_path / ("pk.pem" + suffix);
+    const fs::path cert_path = root_path / "node.cert";
+
+    LOG_INFO(getLogger(), KVLOG(pkey_path, cert_path));
+    exchangeTlsKeys(pkey_path.string(), cert_path.string(), state.blockid);
+    LOG_INFO(getLogger(),
+             "exchanged tls certificate for clientservice " << KVLOG(clientservice_pid_, init_last_tls_update_block_));
+  } else {
+    for (const auto& c : bft_clients_) {
+      const fs::path root_path = root / std::to_string(c);
+
+      const fs::path pkey_path = root_path / "client" / ("pk.pem" + suffix);
+      const fs::path cert_path = root_path / "client" / "client.cert";
+
+      exchangeTlsKeys(pkey_path.string(), cert_path.string(), state.blockid);
+      LOG_INFO(getLogger(), "exchanged tls certificate for bft client " << c);
+    }
   }
   LOG_INFO(getLogger(), "done tls exchange");
   LOG_INFO(getLogger(), "restarting the node");
@@ -97,12 +116,21 @@ ClientTlsKeyExchangeHandler::ClientTlsKeyExchangeHandler(
     const std::string& cert_folder,
     bool enc,
     const std::vector<uint32_t>& bft_clients,
+    uint16_t clientservice_pid,
+    bool use_unified_certificates,
     std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm)
-    : master_key_path_{master_key_path}, cert_folder_{cert_folder}, enc_{enc}, sm_{sm}, bft_clients_{bft_clients} {
+    : master_key_path_{master_key_path},
+      cert_folder_{cert_folder},
+      enc_{enc},
+      sm_{sm},
+      bft_clients_{bft_clients},
+      clientservice_pid_{clientservice_pid},
+      use_unified_certificates_{use_unified_certificates} {
   version_path_ = cert_folder + "/version";
   if (!fs::exists(version_path_)) fs::create_directories(version_path_);
   version_path_ += "/exchange.version";
   init_last_tls_update_block_ = std::stol(psm_.decryptFile(version_path_).value_or("0"));
+  LOG_INFO(getLogger(), KVLOG(use_unified_certificates_, clientservice_pid_, init_last_tls_update_block_));
 }
 ClientMasterKeyExchangeHandler::ClientMasterKeyExchangeHandler(
     uint32_t client_id,

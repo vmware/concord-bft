@@ -348,3 +348,86 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         await bft_network.wait_for_fast_path_to_be_prevalent(
             run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
 
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: c == 0, rotate_keys=True)
+    @verify_linearizability()
+    async def test_recovering_of_primary_with_initiated_view_change(self, bft_network, tracker):
+        """
+        The Apollo test, which should be part of the test_skvbc_restart_recovery suite needs to implement the following steps:
+        1) Start all Replicas.
+        2) Stop the expected next Primary.
+        3) Advance the system 5 Checkpoints.
+        4) Stop the current Primary.
+        5) Send Client operations in order to trigger View Change.
+        6) Bring back up all the previously stopped replicas.
+        7) Verify View Change was successful.
+        8) Goto Step 2.
+        """
+
+        # start replicas
+        [bft_network.start_replica(i) for i in bft_network.all_replicas()]
+
+        loop_counter = 0
+        while (loop_counter < 100):
+            loop_counter = loop_counter + 1
+            log.log_message(f"Loop run {loop_counter}")
+            # loop start
+            view = await bft_network.get_current_view()
+
+            primary = await bft_network.get_current_primary()
+            next_primary = (primary + 1) % bft_network.config.n
+            # Stop the expected next Primary.
+            bft_network.stop_replica(next_primary)
+
+            # Advance the system 5 Checkpoints.
+            skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+            await skvbc.fill_and_wait_for_checkpoint(
+                initial_nodes=bft_network.all_replicas(without = {next_primary}),
+                num_of_checkpoints_to_add=5,
+                verify_checkpoint_persistency=False,
+                assert_state_transfer_not_started=False
+            )
+
+            # Stop the current Primary
+            bft_network.stop_replica(primary)
+
+            # Send Client operations in order to trigger View Change.
+            await skvbc.run_concurrent_ops(10)
+
+            #Bring back up all the previously stopped replicas.
+            bft_network.start_replica(primary)
+            bft_network.start_replica(next_primary)
+
+            # Wait for quorum of replicas to move to a higher view
+            with trio.fail_after(seconds=40):
+                old_view = view
+                while view == old_view:
+                    log.log_message(f"waiting for vc current view={view}, old_view={old_view}")
+                    await skvbc.run_concurrent_ops(1)
+                    with trio.move_on_after(seconds=5):
+                        view = await bft_network.get_current_view()
+                    await trio.sleep(seconds=1)
+
+            log.log_message("Checking for replicas in state transfer:")
+            # Check for replicas in state transfer and wait for them to catch
+            # up before moving on to checking the system returns on Fast Path
+            primary = await bft_network.get_current_primary()
+            log.log_message(f"Current primary after start {primary}")
+
+            for r in bft_network.get_live_replicas():
+                fetching = await bft_network.is_fetching(r)
+                if fetching:
+                    log.log_message(f"Replica {r} is fetching, waiting for ST to finish ...")
+                    # assuming Primary has latest state
+                    with trio.fail_after(seconds=200):
+                        key = ['replica', 'Gauges', 'lastStableSeqNum']
+                        primary_last_stable = await bft_network.metrics.get(primary, *key)
+                        fetching_last_stable = await bft_network.metrics.get(r, *key)
+                        while primary_last_stable != fetching_last_stable:
+                            primary_last_stable = await bft_network.metrics.get(primary, *key)
+                            fetching_last_stable = await bft_network.metrics.get(r, *key)
+                            log.log_message(f"primary_last_stable={primary_last_stable} fetching_last_stable={fetching_last_stable}")
+                            await skvbc.run_concurrent_ops(50)
+                            await trio.sleep(seconds=5)
+
+            await bft_network.wait_for_replicas_to_reach_at_least_view(replicas_ids=bft_network.all_replicas(), expected_view=view, timeout=60)

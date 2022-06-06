@@ -39,7 +39,7 @@ class Msg {
 
 class TestReplica : public IReplicaForStateTransfer {
  public:
-  TestReplica() : onTransferringCompleteCalled_(false){};
+  TestReplica() : onTransferringCompleteCalled_(false), oneShotTimerDurationMilli_{0}, oneShotTimerTriggered_{false} {};
   ///////////////////////////////////////////////////////////////////////////
   // IReplicaForStateTransfer methods
   ///////////////////////////////////////////////////////////////////////////
@@ -53,7 +53,17 @@ class TestReplica : public IReplicaForStateTransfer {
 
   void changeStateTransferTimerPeriod(uint32_t timerPeriodMilli) override{};
 
-  concordUtil::Timers::Handle addOneShotTimer(uint32_t timeoutMilli) override { return concordUtil::Timers::Handle(); }
+  std::pair<bool, uint32_t> popOneShotTimerDurationMilli() {
+    std::pair<bool, uint32_t> p{oneShotTimerTriggered_, oneShotTimerDurationMilli_};
+    oneShotTimerTriggered_ = false;
+    oneShotTimerDurationMilli_ = 0;
+    return p;
+  }
+  concordUtil::Timers::Handle addOneShotTimer(uint32_t timeoutMilli) override {
+    oneShotTimerDurationMilli_ = timeoutMilli;
+    oneShotTimerTriggered_ = true;
+    return concordUtil::Timers::Handle();
+  }
   ///////////////////////////////////////////////////////////////////////////
   // Data - All public on purpose, so that it can be accessed by tests
   ///////////////////////////////////////////////////////////////////////////
@@ -61,6 +71,8 @@ class TestReplica : public IReplicaForStateTransfer {
   // All messages sent by the state transfer module
   std::deque<Msg> sent_messages_;
   bool onTransferringCompleteCalled_;
+  uint32_t oneShotTimerDurationMilli_;  // 0 if not triggered
+  bool oneShotTimerTriggered_;
 };
 
 }  // namespace bcst

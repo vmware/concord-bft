@@ -27,8 +27,13 @@
 #include "Digest.hpp"
 #include "Serializable.h"
 #include "Logger.hpp"
+#include "Metrics.hpp"
 
 namespace bftEngine::bcst::impl {
+
+using concordMetrics::GaugeHandle;
+using concordMetrics::Aggregator;
+using concordMetrics::CounterHandle;
 
 using RVBGroupId = uint64_t;
 using RVBId = uint64_t;
@@ -134,6 +139,13 @@ class RangeValidationTree {
 
   size_t totalNodes() const { return id_to_node_.size(); }
   size_t totalLevels() const { return root_ ? root_->info_.level() : 0; }
+
+  // Metrics
+  void UpdateAggregator() { metrics_component_.UpdateAggregator(); }
+  concordMetrics::Component& getMetricComponent() { return metrics_component_; }
+  void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
+    metrics_component_.SetAggregator(aggregator);
+  }
 
  public:
   struct NodeVal {
@@ -348,7 +360,7 @@ class RangeValidationTree {
   // level 0 represents RVB node so it would always hold 0x0
   std::array<RVTNodePtr, NodeInfo::kMaxLevels> rightmost_rvt_node_;
   std::array<RVTNodePtr, NodeInfo::kMaxLevels> leftmost_rvt_node_;
-  std::unordered_map<uint64_t, RVTNodePtr> id_to_node_;
+  std::map<uint64_t, RVTNodePtr> id_to_node_;
   RVTNodePtr root_{nullptr};
   uint64_t min_rvb_index_{};  // RVB index is (RVB ID / fetch range size). This is the minimal index in the tree.
   uint64_t max_rvb_index_{};  // RVB index is (RVB ID / fetch range size). This is the maximal index in the tree.
@@ -365,6 +377,19 @@ class RangeValidationTree {
   static constexpr uint64_t magic_num_{0x1122334455667788};
   static constexpr uint8_t kDefaultRVBLeafLevel = 0;
   static constexpr uint8_t kDefaultRVTLeafLevel = 1;
+
+ protected:
+  concordMetrics::Component metrics_component_;
+  struct Metrics {
+    GaugeHandle rvt_size_in_bytes_;
+    GaugeHandle total_rvt_nodes_;
+    GaugeHandle total_rvt_levels_;
+    GaugeHandle rvt_min_rvb_id_;
+    GaugeHandle rvt_max_rvb_id_;
+    GaugeHandle serialized_rvt_size_;
+    CounterHandle rvt_validation_failures_;
+  };
+  mutable Metrics metrics_;
 };
 
 using LogPrintVerbosity = RangeValidationTree::LogPrintVerbosity;

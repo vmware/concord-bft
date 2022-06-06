@@ -143,7 +143,11 @@ class KvbcRequestHandler : public bftEngine::RequestHandler {
     persistLastBlockIdInMetadata<in_transaction>(blockchain_, persistent_storage_);
   }
 
-  void setPersistentStorage(const std::shared_ptr<bftEngine::impl::PersistentStorage> &persistent_storage) {
+  void setPersistentStorage(const std::shared_ptr<bftEngine::impl::PersistentStorage> &persistent_storage) override {
+    getUserHandler()->setPersistentStorage(persistent_storage);
+    for (auto &rh : reconfig_handler_) {
+      rh->setPersistentStorage(persistent_storage);
+    }
     persistent_storage_ = persistent_storage;
   }
 
@@ -544,13 +548,15 @@ Replica::Replica(ICommunication *comm,
     replicaConfig_.get<uint32_t>("concord.bft.st.maxFetchRetransmissions", 2),
     replicaConfig_.get<uint32_t>("concord.bft.st.metricsDumpIntervalSec", 5),
     replicaConfig_.get<uint32_t>("concord.bft.st.maxTimeSinceLastExecutionInMainWindowMs", 5000),
+    replicaConfig_.get<uint32_t>("concord.bft.st.sourceSessionExpiryDurationMs", 5000),
+    replicaConfig_.get<uint32_t>("concord.bft.st.sourcePerformanceSnapshotFrequencySec", 300),
     replicaConfig_.get("concord.bft.st.runInSeparateThread", !replicaConfig_.isReadOnly),
     replicaConfig_.get("concord.bft.st.enableReservedPages", true),
     replicaConfig_.get("concord.bft.st.enableSourceBlocksPreFetch", true),
     replicaConfig_.get("concord.bft.st.enableSourceSelectorPrimaryAwareness", true),
     replicaConfig_.get("concord.bft.st.enableStoreRvbDataDuringCheckpointing", true)
   };
-  if (replicaConfig_.isReadOnly) stConfig.runInSeparateThread = false;
+  stConfig.runInSeparateThread = replicaConfig_.isReadOnly ? false : true;
 
 #if !defined USE_COMM_PLAIN_TCP && !defined USE_COMM_TLS_TCP
   // maxChunkSize * maxNumberOfChunksInBatch shouldn't exceed UDP message size which is limited to 64KB

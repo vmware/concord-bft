@@ -9,14 +9,6 @@
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-// This file contains simple wrapper types around a steady_clock. Its
-// replacement code for prior type wrappers around uint64_t and int64_t that
-// were less safe. It shouldn't be used outside the bftEngine and only exists to
-// allow making the minimal possible changes to allow using std::chrono. It may
-// be removed in the future and to use the std::types directly. However, it's
-// nice to force the use of steady_clock to avoid mistakes in using the wrong
-// clock.
-
 #include <algorithm>
 
 #include "RangeValidationTree.hpp"
@@ -39,12 +31,16 @@ RVBManager::RVBManager(const Config& config, const IAppState* state_api, const s
       config_{config},
       as_{state_api},
       ds_{ds},
-      prune_report_in_progess_{false},
       in_mem_rvt_{new RangeValidationTree(logger_, config_.RVT_K, config_.fetchRangeSize)},
       rvb_data_source_(RvbDataInitialSource::NIL),
       metrics_component_{
           concordMetrics::Component("state_transfer_rvb_manager", std::make_shared<concordMetrics::Aggregator>())},
-      metrics_{metrics_component_.RegisterCounter("report_during_checkpointing_errors_")} {
+      metrics_{metrics_component_.RegisterCounter("report_during_checkpointing_errors"),
+               metrics_component_.RegisterCounter("pruning_reports"),
+               metrics_component_.RegisterCounter("failures_while_setting_serialized_rvt"),
+               metrics_component_.RegisterGauge("pruning_vector_elements_count", 0),
+               metrics_component_.RegisterGauge("pruning_vector_size_in_bytes", 0),
+               metrics_component_.RegisterGauge("stored_rvb_digests_size_in_bytes", 0)} {
   LOG_TRACE(logger_, "");
   last_checkpoint_desc_.makeZero();
 }
@@ -54,7 +50,6 @@ void RVBManager::init(bool fetching) {
   bool loaded_from_data_store = false;
   static constexpr bool print_rvt = true;
   CheckpointDesc desc{0};
-  std::lock_guard<std::mutex> guard(pruned_blocks_digests_mutex_);
 
   if (ds_->hasCheckpointBeingFetched()) {
     ConcordAssert(fetching);
@@ -70,6 +65,8 @@ void RVBManager::init(bool fetching) {
 
   // Get pruned blocks digests
   pruned_blocks_digests_ = ds_->getPrunedBlocksDigests();
+  metrics_.pruning_vector_elements_count_.Get().Set(pruned_blocks_digests_.size());
+  metrics_.pruning_vector_size_in_bytes_.Get().Set(pruned_blocks_digests_.size() * (sizeof(BlockId) + sizeof(Digest)));
 
   if (config_.enableStoreRvbDataDuringCheckpointing) {
     // Try to get RVT from persistent storage. Even if the tree exist we need to check if it
@@ -80,6 +77,7 @@ void RVBManager::init(bool fetching) {
       loaded_from_data_store = in_mem_rvt_->setSerializedRvbData(rvb_data);
       if (!loaded_from_data_store) {
         LOG_ERROR(logger_, "Failed to load RVB data from stored checkpoint" << KVLOG(desc.checkpointNum));
+        metrics_.failures_while_setting_serialized_rvt_++;
       } else {
         rvb_data_source_ = RvbDataInitialSource::FROM_STORAGE_CP;
 
@@ -124,21 +122,6 @@ void RVBManager::init(bool fetching) {
 
 // Remove (Prune) blocks from RVT, and from pruned_blocks_digests_ data structure
 void RVBManager::pruneRvbDataDuringCheckpoint(const CheckpointDesc& new_checkpoint_desc) {
-  // The next if section is implemented a simplified detection mechanism.
-  // We know that in the long term this function is called many times. We would like to be sure that prune reports are
-  // not called at the same time checkpointing is called. The issue that may raise is that the RVT might get temporarily
-  // non-syncretized between replicas. This is not fatal, but a short instability (and the severity depends on number of
-  // non-synchronized groups).
-  // Remember that there is a mutex to block multiple threads from accessing pruned_blocks_digests_ at the same
-  // time and thread might stop after passing the next block, so there can't be any race condition here.
-  if (prune_report_in_progess_) {
-    metrics_.report_during_checkpointing_errors_++;
-    LOG_WARN(logger_,
-             "Unexpected pruning during checkpointing:" << KVLOG(
-                 prune_report_in_progess_, metrics_.report_during_checkpointing_errors_.Get().Get()));
-    // we continue
-  }
-  std::lock_guard<std::mutex> guard(pruned_blocks_digests_mutex_);
   LOG_TRACE(logger_,
             KVLOG(pruned_blocks_digests_.size(),
                   new_checkpoint_desc.checkpointNum,
@@ -173,6 +156,9 @@ void RVBManager::pruneRvbDataDuringCheckpoint(const CheckpointDesc& new_checkpoi
                           << KVLOG(min_block_id, max_block_id));
       pruned_blocks_digests_.erase(pruned_blocks_digests_.begin(), pruned_blocks_digests_.begin() + i);
       ds_->setPrunedBlocksDigests(pruned_blocks_digests_);
+      metrics_.pruning_vector_elements_count_.Get().Set(pruned_blocks_digests_.size());
+      metrics_.pruning_vector_size_in_bytes_.Get().Set(pruned_blocks_digests_.size() *
+                                                       (sizeof(BlockId) + sizeof(Digest)));
     }
   }
 
@@ -211,6 +197,7 @@ void RVBManager::pruneRvbDataDuringCheckpoint(const CheckpointDesc& new_checkpoi
     }
     LOG_DEBUG(logger_, oss.str());
   }
+
   // We relay on caller to persist new_checkpoint_desc, and leave pruned_blocks_digests_ persisted before erase
   // was done (some redundent digests stay in vector till next checkpointing)
 }
@@ -287,6 +274,7 @@ bool RVBManager::setRvbData(char* data, size_t data_size, BlockId min_block_id_s
     if (!in_mem_rvt_->setSerializedRvbData(rvb_data)) {
       in_mem_rvt_->clear();
       LOG_ERROR(logger_, "Failed setting RVB data! (setSerializedRvbData failed!)");
+      metrics_.failures_while_setting_serialized_rvt_++;
       return false;
     }
 
@@ -353,6 +341,10 @@ size_t RVBManager::getSerializedDigestsOfRvbGroup(int64_t rvb_group_id,
       LOG_ERROR(logger_, KVLOG(last_added_block_id, config_.fetchRangeSize, rvb_id, num_elements, rvb_group_id));
       return 0;
     }
+
+    // Two places where block digests can be found:
+    // 1) In pruned_blocks_digests_
+    // 2) In storage
     if (as_->hasBlock(rvb_id + 1)) {
       // have the next block - much faster to get only the digest
       if (!size_only) {
@@ -368,6 +360,15 @@ size_t RVBManager::getSerializedDigestsOfRvbGroup(int64_t rvb_group_id,
         // compute the digests
         cur->digest = getBlockAndComputeDigest(rvb_id);
         cur->block_id = rvb_id;
+      }
+    } else if (auto digest_iter =
+                   std::find_if(pruned_blocks_digests_.begin(),
+                                pruned_blocks_digests_.end(),
+                                [rvb_id](const std::pair<BlockId, Digest>& p) { return p.first == rvb_id; });
+               digest_iter != pruned_blocks_digests_.end()) {
+      if (!size_only) {
+        cur->digest = digest_iter->second;
+        cur->block_id = digest_iter->first;
       }
     } else {
       continue;
@@ -465,24 +466,29 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
   // 2nd stage: Check that I have the exact digests to validate the RVB group. There are 4 type of RVB groups,
   // Level 0 in tree is represented (not in memory), 'x' represents an RVB node:
   // 1) Full RVB Group:            [xxxxxxxxx]
+  //
   // 2) Partial right RVB Group:   [    xxxxx]    - some left RVB are pruned. This one represents "oldest" blocks in
-  // RVT 3) Partial left RVB Group:    [xxxxx    ]    - some right RVB are not yet added. This one represents
-  // "newest" blocks in RVT 4) Partial RVB Group:         [ xxxxx ]      - some right and left RVBs are not part of
+  // RVT.
+  //
+  // 3) Partial left RVB Group:    [xxxxx    ]    - some right RVB are not yet added. This one represents
+  // "newest" blocks in RVT.
+  //
+  // 4) Partial RVB Group:         [  xxxxx  ]      - some right and left RVBs are not part of
   // the tree. In this case we expect a single root tree!
   //
   // In all cases, we can validate the group only if have validate the EXACT digests - no one less and not a single
   // more!
   RVBGroupId rvb_group_id_added = rvb_group_ids[0];
-  auto rvb_ids = in_mem_rvt_->getRvbIds(rvb_group_id_added);
-  std::vector<RVBId> keys;
-  std::transform(
-      digests.begin(), digests.end(), std::back_inserter(keys), [](const std::map<BlockId, Digest>::value_type& pair) {
-        return pair.first;
-      });
-  if (keys != rvb_ids) {
-    std::string keys_str = vecToStr(keys);
-    std::string rvb_ids_str = vecToStr(rvb_ids);
-    LOG_ERROR(logger_, error_prefix << KVLOG(keys_str, rvb_ids_str));
+  auto rvb_ids_local = in_mem_rvt_->getRvbIds(rvb_group_id_added);
+  std::vector<RVBId> rvb_ids_src;
+  std::transform(digests.begin(),
+                 digests.end(),
+                 std::back_inserter(rvb_ids_src),
+                 [](const std::map<BlockId, Digest>::value_type& pair) { return pair.first; });
+  if (rvb_ids_src != rvb_ids_local) {
+    std::string rvb_ids_src_str = vecToStr(rvb_ids_src);
+    std::string rvb_ids_local_str = vecToStr(rvb_ids_local);
+    LOG_ERROR(logger_, error_prefix << KVLOG(rvb_ids_src_str, rvb_ids_local_str));
     return false;
   }
 
@@ -522,6 +528,7 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
     }
   }
   stored_rvb_digests_.merge(digests);
+  metrics_.stored_rvb_digests_size_in_bytes_.Get().Set(stored_rvb_digests_.size() * (sizeof(BlockId) + sizeof(Digest)));
   LOG_INFO(logger_,
            "Done updating RVB stored digests:" << KVLOG(rvb_group_id_added,
                                                         rvb_group_id_removed,
@@ -706,10 +713,9 @@ RVBId RVBManager::nextRvbBlockId(BlockId block_id) const {
 }
 
 void RVBManager::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBlockId) {
-  std::lock_guard<std::mutex> guard(pruned_blocks_digests_mutex_);
   DurationTracker<std::chrono::milliseconds> store_pruned_digests_dt("store_pruned_digests_dt", true);
-  prune_report_in_progess_ = true;
-  LOG_TRACE(logger_, KVLOG(lastAgreedPrunableBlockId, prune_report_in_progess_));
+  LOG_TRACE(logger_, KVLOG(lastAgreedPrunableBlockId));
+  metrics_.pruning_reports_++;
   auto initial_size = pruned_blocks_digests_.size();
   RVBId start_rvb_id = in_mem_rvt_->getMinRvbId();
 
@@ -722,7 +728,6 @@ void RVBManager::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBloc
   if (lastAgreedPrunableBlockId < start_rvb_id) {
     LOG_WARN(logger_,
              "Current pruning report has no impact on RVB data:" << KVLOG(lastAgreedPrunableBlockId, start_rvb_id));
-    prune_report_in_progess_ = false;
     return;
   }
 
@@ -767,12 +772,25 @@ void RVBManager::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBloc
                                                               pruned_blocks_digests_.front().first,
                                                               pruned_blocks_digests_.back().first));
   }
-  prune_report_in_progess_ = false;
+  metrics_.pruning_vector_elements_count_.Get().Set(pruned_blocks_digests_.size());
+  metrics_.pruning_vector_size_in_bytes_.Get().Set(pruned_blocks_digests_.size() * (sizeof(BlockId) + sizeof(Digest)));
 }
 
 std::string RVBManager::getStateOfRvbData() const {
   auto val = in_mem_rvt_->getRootCurrentValueStr();
   return val.empty() ? "EMPTY" : val;
+}
+
+void RVBManager::UpdateAggregator() {
+  metrics_component_.UpdateAggregator();
+  in_mem_rvt_->UpdateAggregator();
+}
+
+concordMetrics::Component& RVBManager::getRvtMetricComponent() { return in_mem_rvt_->getMetricComponent(); }
+
+void RVBManager::setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
+  metrics_component_.SetAggregator(aggregator);
+  in_mem_rvt_->setAggregator(aggregator);
 }
 
 bool RVBManager::validate() const {
@@ -788,7 +806,6 @@ void RVBManager::reset(RvbDataInitialSource inital_source) {
   stored_rvb_digests_group_ids_.clear();
   last_checkpoint_desc_.makeZero();
   rvb_data_source_ = inital_source;
-  prune_report_in_progess_ = false;
   // we do not clear the pruned digests
 }
 

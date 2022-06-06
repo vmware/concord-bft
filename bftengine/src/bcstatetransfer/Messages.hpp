@@ -169,8 +169,9 @@ struct FetchBlocksMsg : public BCStateTranBaseMsg {
   uint64_t msgSeqNum;
   uint64_t minBlockId;
   uint64_t maxBlockId;
-  uint16_t lastKnownChunkInLastRequiredBlock;
+  uint64_t maxBlockIdInCycle;
   uint64_t rvbGroupId;
+  uint16_t lastKnownChunkInLastRequiredBlock;
 };
 
 struct FetchResPagesMsg : public BCStateTranBaseMsg {

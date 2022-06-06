@@ -178,7 +178,7 @@ void RequestsBatch::releaseReqsAndSendBatchedReplyIfCompleted(PreProcessReplyMsg
   atomic_uint32_t batchSize = 0;
   PreProcessBatchReplyMsgSharedPtr batchReplyMsg;
   {
-    const lock_guard<mutex> lock(batchMutex_);
+    unique_lock<mutex> lock(batchMutex_);
     if (!batchInProcess_) {
       LOG_DEBUG(preProcessor_.logger(), "The batch is not in process; ignore" << KVLOG(clientId_, batchCid_));
       return;
@@ -192,10 +192,12 @@ void RequestsBatch::releaseReqsAndSendBatchedReplyIfCompleted(PreProcessReplyMsg
     batchCid = batchCid_;
     batchSize = batchSize_;
     // The last batch request has pre-processed => send batched reply message
+    lock.unlock();
     for (auto const &replyMsg : repliesList_) {
       replyMsgsSize += replyMsg->size();
       preProcessor_.releaseClientPreProcessRequestSafe(clientId_, replyMsg->reqOffsetInBatch(), COMPLETE);
     }
+    lock.lock();
     batchReplyMsg = make_shared<PreProcessBatchReplyMsg>(
         clientId_, senderId, repliesList_, batchCid_, replyMsgsSize, preProcessor_.myReplica_.getCurrentView());
     resetBatchParams();
@@ -210,7 +212,7 @@ void RequestsBatch::releaseReqsAndSendBatchedReplyIfCompleted(PreProcessReplyMsg
 void RequestsBatch::cancelRequestAndBatchIfCompleted(const string &reqBatchCid,
                                                      uint16_t reqOffsetInBatch,
                                                      PreProcessingResult status) {
-  const lock_guard<mutex> lock(batchMutex_);
+  unique_lock<mutex> lock(batchMutex_);
   if (batchCid_ != reqBatchCid) {
     LOG_INFO(preProcessor_.logger(),
              "The batch has been cancelled/completed earlier; do nothing" << KVLOG(clientId_, reqBatchCid, batchCid_));
@@ -219,7 +221,9 @@ void RequestsBatch::cancelRequestAndBatchIfCompleted(const string &reqBatchCid,
   const auto &reqEntry = requestsMap_[reqOffsetInBatch];
   if (reqEntry) {
     if (status == CANCEL) preProcessor_.preProcessorMetrics_.preProcConsensusNotReached++;
+    lock.unlock();
     preProcessor_.releaseClientPreProcessRequestSafe(clientId_, reqEntry, status);
+    lock.lock();
     finalizeBatchIfCompleted();
   }
 }

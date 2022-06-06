@@ -72,7 +72,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                "1 <= concurrencyLevel <= 30");
   CONFIG_PARAM(numWorkerThreadsForBlockIO,
                uint16_t,
-               0,
+               8,
                "Number of workers threads to be used for blocks IO"
                "operations. When set to 0, std::thread::hardware_concurrency() is set by default");
   CONFIG_PARAM(viewChangeProtocolEnabled, bool, false, "whether the view change protocol enabled");
@@ -222,7 +222,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                false,
                "If true, replicas will publish their master key on startup");
   // Db checkpoint
-  CONFIG_PARAM(dbCheckpointFeatureEnabled, bool, true, "Feature flag for rocksDb checkpoints");
+  CONFIG_PARAM(dbCheckpointFeatureEnabled, bool, false, "Feature flag for rocksDb checkpoints");
   CONFIG_PARAM(maxNumberOfDbCheckpoints, uint32_t, 2u, "Max number of db checkpoints to be created");
   CONFIG_PARAM(dbCheckPointWindowSize, uint32_t, 30000u, "Db checkpoint window size in bft sequence number");
   CONFIG_PARAM(dbCheckpointDirPath, std::string, "", "Db checkpoint directory path");

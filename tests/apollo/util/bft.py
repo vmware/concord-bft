@@ -501,7 +501,7 @@ class BftTestNetwork:
 
     def _generate_operator_keys(self):
         if self.builddir is None:
-            return 
+            return
         with open(self.builddir + "/operator_pub.pem", 'w') as f:
             f.write("-----BEGIN PUBLIC KEY-----\n"
                     "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAENEMHcbJgnnYxfa1zDlIF7lzp/Ioa"
@@ -607,7 +607,7 @@ class BftTestNetwork:
             self.txn_signing_keys_base_path = tempfile.mkdtemp()
             self.principals_mapping, self.principals_to_participant_map = self.create_principals_mapping()
             self.generate_txn_signing_keys(self.txn_signing_keys_base_path)
-            
+
     def generate_txn_signing_keys(self, keys_path):
         """ Generates num_participants number of key pairs """
         script_path = "/concord-bft/scripts/linux/create_concord_clients_transaction_signing_keys.sh"
@@ -616,9 +616,9 @@ class BftTestNetwork:
 
     def create_principals_mapping(self):
         """
-        If client principal ids range from 11-20, for example, this method splits them into groups based on 
+        If client principal ids range from 11-20, for example, this method splits them into groups based on
         NUM_PARTICIPANTS and self.num_participants.
-        Client ids in each group will be space separated, and each group will be semicolon separated. 
+        Client ids in each group will be space separated, and each group will be semicolon separated.
         E.g. "11 12;13 14;15 16;17 18;19 20" for 10 client ids divided into 5 participants.
         If there are reserved clients, they are added at the end of the group in round robin manner.
         Thus, if there are 2 reserved client, with ids 21 and 22, the final string would look like:
@@ -1094,7 +1094,7 @@ class BftTestNetwork:
 
                 if view is not None and expected(view):
                     return view
-                
+
             last_agreed_view = await self.wait_for(the_last_agreed_view, 45, 1)
             action.add_success_fields(last_agreed_view=last_agreed_view)
             return last_agreed_view
@@ -1176,7 +1176,7 @@ class BftTestNetwork:
                 if is_fetching:
                     action.add_success_fields(source_replica_id=source_replica_id)
                     return source_replica_id
-                
+
             return await self.wait_for(replica_to_be_in_fetching_state, 10, .5)
 
     async def is_fetching(self, replica_id):
@@ -1288,7 +1288,7 @@ class BftTestNetwork:
                     last_n = -1
                     while True:
                         with trio.move_on_after(.5): # seconds
-                            metrics = await self.metrics.get_all(stale_node)                           
+                            metrics = await self.metrics.get_all(stale_node)
                             try:
                                 n = self.metrics.get_local(metrics, *key)
                                 # If seq_num is not moving send the new message to advance it
@@ -1329,13 +1329,13 @@ class BftTestNetwork:
         """
         with log.start_action(action_type="wait_for_replicas_rvt_root_values", replica_ids=replica_ids, timeout=timeout):
             root_values = [None] * len(replica_ids)
-            
+
             with trio.fail_after(timeout): # seconds
                 while True:
                     async with trio.open_nursery() as nursery:
                         for replica_id in replica_ids:
                             nursery.start_soon(self.wait_for_rvt_root_value, replica_id, root_values, timeout)
-                    
+
                     print(root_values)
                     # At this point all replicas' root values are collected
                     if root_values.count(root_values[0]) == len(root_values) and len(root_values[0]) > 0:
@@ -1348,16 +1348,16 @@ class BftTestNetwork:
         Wait for a single replica to return the current value of the root of its Range validation tree.
         Check every .5 seconds and fail after `timeout` seconds.
         """
-        with log.start_action(action_type="wait_for_rvt_root_value", replica=replica_id, timeout=timeout) as action:            
+        with log.start_action(action_type="wait_for_rvt_root_value", replica=replica_id, timeout=timeout) as action:
             async def rvt_root_value_to_be_returned():
                 key = ['bc_state_transfer', 'Statuses', 'current_rvb_data_state']
                 rvb_data_state = await self.retrieve_metric(replica_id, *key)
                 if (rvb_data_state is not None):
-                    action.log(f"Replica {replica_id}'s current rvb_data_state is: \"{rvb_data_state}\".")                   
+                    action.log(f"Replica {replica_id}'s current rvb_data_state is: \"{rvb_data_state}\".")
                     root_values[replica_id] = rvb_data_state
                     return rvb_data_state
-        
-        return await self.wait_for(rvt_root_value_to_be_returned, timeout, .5)        
+
+        return await self.wait_for(rvt_root_value_to_be_returned, timeout, .5)
 
     async def wait_for_replicas_to_checkpoint(self, replica_ids, expected_checkpoint_num=None):
         """
@@ -1384,11 +1384,11 @@ class BftTestNetwork:
 
                 last_stored_checkpoint = await self.retrieve_metric(replica_id, *key)
                 action.log(message_type=f'[checkpoint] #{last_stored_checkpoint}, replica=#{replica_id}')
-    
+
                 if last_stored_checkpoint is not None and expected_checkpoint_num(last_stored_checkpoint):
                     action.add_success_fields(last_stored_checkpoint=last_stored_checkpoint)
                     return last_stored_checkpoint
-                
+
         return await self.wait_for(expected_checkpoint_to_be_reached, 30, .5)
 
     async def wait_for_fast_path_to_be_prevalent(self, run_ops, threshold, replica_id=0):
@@ -1486,7 +1486,7 @@ class BftTestNetwork:
 
                 if last_executed_seq_num is not None and last_executed_seq_num >= expected:
                     return last_executed_seq_num
-            
+
             return await self.wait_for(expected_seq_num_to_be_reached, 30, .5)
 
     async def assert_state_transfer_not_started_all_up_nodes(self, up_replica_ids):
@@ -1735,8 +1735,8 @@ class BftTestNetwork:
         """
         with log.start_action(action_type="wait_for_replica_asks_to_leave_view_msg", replica=replica_id,
                               previous_asks_to_leave_view_msg_count=previous_asks_to_leave_view_msg_count) as action:
-        
-            async def the_replica_to_ask_for_view_change(): 
+
+            async def the_replica_to_ask_for_view_change():
                 key = ['replica', 'Gauges', 'sentReplicaAsksToLeaveViewMsg']
                 replica_asks_to_leave_view_msg_count = await self.retrieve_metric(replica_id, *key)
 
@@ -1756,7 +1756,17 @@ class BftTestNetwork:
                 async with trio.open_nursery() as nursery:
                     for replica_id in replicas_ids:
                         nursery.start_soon(self.wait_for_replica_to_reach_view, replica_id, expected_view)
-            
+
+    async def wait_for_replicas_to_reach_at_least_view(self, replicas_ids, expected_view, timeout=30):
+        """
+        Wait for all replicas to reach the expected view.
+        """
+        with log.start_action(action_type="wait_for_replicas_to_reach_view", replicas_ids=replicas_ids, expected_view=expected_view) as action:
+            with trio.fail_after(seconds=timeout):
+                async with trio.open_nursery() as nursery:
+                    for replica_id in replicas_ids:
+                        nursery.start_soon(self.wait_for_replica_to_reach_at_least_view, replica_id, expected_view)
+
     async def wait_for_replica_to_reach_view(self, replica_id, expected_view):
         """
         Wait for a single replica to reach the expected view.
@@ -1771,6 +1781,20 @@ class BftTestNetwork:
                     return replica_view
 
         return await self.wait_for(expected_view_to_be_reached, 30, .5)
+
+    async def wait_for_replica_to_reach_at_least_view(self, replica_id, expected_view):
+        """
+        Wait for a single replica to reach the expected view.
+        """
+        with log.start_action(action_type="wait_for_replica_to_reach_at_least_view", replica=replica_id,
+                              expected_view=expected_view) as action:
+            async def expected_view_to_be_reached():
+                key = ['replica', 'Gauges', 'view']
+                replica_view = await self.retrieve_metric(replica_id, *key)
+
+                if replica_view is not None and replica_view >= expected_view:
+                    return replica_view
+
 
     @staticmethod
     @lru_cache(maxsize=None)

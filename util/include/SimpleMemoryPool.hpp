@@ -70,19 +70,20 @@ class SimpleMemoryPool {
     return ret;
   }
 
+  // Comment: elements can be free in any order
   void free(ElementPtr& element) {
     if (freeQ_.size() == maxNumElements_) {
       throw std::runtime_error("All elements have been already returned!");
     }
-    if (std::find(allocatedQ_.begin(), allocatedQ_.end(), element) == allocatedQ_.end()) {
-      throw std::runtime_error("Trying to free unrocognized element (element was not allocated by this pool)!");
+    auto it = std::find(allocatedQ_.begin(), allocatedQ_.end(), element);
+    if (it == allocatedQ_.end()) {
+      throw std::runtime_error("Trying to free unrecognized element (element was not allocated by this pool)!");
     }
 
-    auto ret = allocatedQ_.front();
-    allocatedQ_.pop_front();
     if (freeCallback_) {
-      freeCallback_(ret);
+      freeCallback_(*it);
     }
+    allocatedQ_.erase(it);
     freeQ_.push_back(std::move(element));
   }
 

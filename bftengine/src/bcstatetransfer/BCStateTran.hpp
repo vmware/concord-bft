@@ -55,6 +55,7 @@ using concord::util::Throughput;
 using concord::diagnostics::Recorder;
 using concord::diagnostics::AsyncTimeRecorder;
 using concord::util::DurationTracker;
+using concord::client::reconfiguration::ClientReconfigurationEngine;
 
 namespace bftEngine::bcst::impl {
 
@@ -70,6 +71,115 @@ class BCStateTran : public IStateTransfer {
   //////////////////////////////////////////////////////////////////////////////
   BCStateTran(const Config& config, IAppState* const stateApi, DataStore* ds = nullptr);
   ~BCStateTran() override;
+
+  ///////////////////////////////////////////////////////////////////////////
+  // IStateTransfer methods
+  ///////////////////////////////////////////////////////////////////////////
+  void init(uint64_t maxNumOfRequiredStoredCheckpoints,
+            uint32_t numberOfRequiredReservedPages,
+            uint32_t sizeOfReservedPage) override {
+    initHandler_(maxNumOfRequiredStoredCheckpoints, numberOfRequiredReservedPages, sizeOfReservedPage);
+  }
+  void startRunning(IReplicaForStateTransfer* r) override { startRunningHandler_(r); }
+  void stopRunning() override;
+  bool isRunning() const override { return running_; }
+  void createCheckpointOfCurrentState(uint64_t checkpointNumber) override {
+    createCheckpointOfCurrentStateHandler_(checkpointNumber);
+  }
+  void getDigestOfCheckpoint(uint64_t checkpointNumber,
+                             uint16_t sizeOfDigestBuffer,
+                             uint64_t& outBlockId,
+                             char* outStateDigest,
+                             char* outFullStateDigest) override {
+    getDigestOfCheckpointHandler_(
+        checkpointNumber, sizeOfDigestBuffer, std::ref(outBlockId), outStateDigest, outFullStateDigest);
+  }
+  void startCollectingState() override { startCollectingStateHandler_(); }
+  bool isCollectingState() const override { return psd_->getIsFetchingState(); }
+  void onTimer() override { onTimerHandler_(); };
+
+  // Handle ST incoming messages
+  using LocalTimePoint = time_point<steady_clock>;
+  static constexpr auto UNDEFINED_LOCAL_TIME_POINT = LocalTimePoint::max();
+  void handleStateTransferMessage(char* msg, uint32_t msgLen, uint16_t senderId) override {
+    handleStateTransferMessageHandler_(msg, msgLen, senderId, steady_clock::now());
+  }
+
+  void handleIncomingConsensusMessage(const ConsensusMsg msg) override { handleIncomingConsensusMessageHandler_(msg); }
+  std::string getStatus() override;
+  void addOnTransferringCompleteCallback(
+      const std::function<void(uint64_t)>& cb,
+      StateTransferCallBacksPriorities priority = StateTransferCallBacksPriorities::DEFAULT) override {
+    addOnTransferringCompleteCallbackHandler_(cb, priority);
+  };
+
+  // TODO - this one should be removed - BC-15921
+  void addOnFetchingStateChangeCallback(const std::function<void(uint64_t)>& cb) override {
+    addOnFetchingStateChangeCallbackHandler_(cb);
+  }
+
+  // Calls into RVB manager on an external thread context. Reports of the last agreed prunable block. Relevant only for
+  // replica in consensus.
+  void reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBlockId) override {
+    reportLastAgreedPrunableBlockIdHandler_(lastAgreedPrunableBlockId);
+  }
+
+  ///////////////////////////////////////////////////////////////////////////
+  // IReservedPages methods
+  ///////////////////////////////////////////////////////////////////////////
+  uint32_t numberOfReservedPages() const override { return static_cast<uint32_t>(numberOfReservedPages_); }
+  uint32_t sizeOfReservedPage() const override { return config_.sizeOfReservedPage; }
+  bool loadReservedPage(uint32_t reservedPageId, uint32_t copyLength, char* outReservedPage) const override;
+  void saveReservedPage(uint32_t reservedPageId, uint32_t copyLength, const char* inReservedPage) override;
+  void zeroReservedPage(uint32_t reservedPageId) override;
+
+  ///////////////////////////////////////////////////////////////////////////
+  // Reconfiguration engine methods
+  ///////////////////////////////////////////////////////////////////////////
+  // TODO - the next function should be removed or refactored into special dedicated class
+  void setEraseMetadataFlag() override { setEraseMetadataFlagHandler_(); }
+  // TODO - the next function should be removed or refactored into special dedicated class
+  void setReconfigurationEngine(std::shared_ptr<ClientReconfigurationEngine> cre) override {
+    setReconfigurationEngineHandler_(cre);
+  }
+
+ protected:
+  ///////////////////////////////////////////////////////////////////////////
+  // IStateTransfer Implementation methods
+  ///////////////////////////////////////////////////////////////////////////
+  void initImpl(uint64_t maxNumOfRequiredStoredCheckpoints,
+                uint32_t numberOfRequiredReservedPages,
+                uint32_t sizeOfReservedPage);
+  void startRunningImpl(IReplicaForStateTransfer* r);
+  void stopRunningImpl();
+  void createCheckpointOfCurrentStateImpl(uint64_t checkpointNumber);
+  void getDigestOfCheckpointImpl(uint64_t checkpointNumber,
+                                 uint16_t sizeOfDigestBuffer,
+                                 uint64_t& outBlockId,
+                                 char* outStateDigest,
+                                 char* outFullStateDigest);
+  void startCollectingStateImpl();
+  void onTimerImpl();
+  void handleStateTransferMessageImpl(char* msg,
+                                      uint32_t msgLen,
+                                      uint16_t senderI,
+                                      LocalTimePoint incomingEventsQPushTime);
+  void handleIncomingConsensusMessageImpl(ConsensusMsg msg);
+  void getStatusImpl(std::string& statusOut);
+  void addOnTransferringCompleteCallbackImpl(const std::function<void(uint64_t)>& cb,
+                                             StateTransferCallBacksPriorities priority);
+  void reportLastAgreedPrunableBlockIdImpl(uint64_t lastAgreedPrunableBlockId);
+  // TODO - this one should be removed - BC-15921
+  void addOnFetchingStateChangeCallbackImpl(const std::function<void(uint64_t)>& cb);
+
+  // Reconfiguration engine functions
+  // TODO - the next function should be removed or refactored into special dedicated class
+  void setEraseMetadataFlagImpl();
+  // TODO - the next function should be removed or refactored into special dedicated class
+  void setReconfigurationEngineImpl(std::shared_ptr<ClientReconfigurationEngine> cre);
+
+  ///////////////////////////////////////////////////////////////////////////
+ public:
   static uint32_t calcMaxItemSize(uint32_t maxBlockSize, uint32_t maxNumberOfPages, uint32_t pageSize);
   static uint32_t calcMaxNumOfChunksInBlock(uint32_t maxItemSize,
                                             uint32_t maxBlockSize,
@@ -77,123 +187,49 @@ class BCStateTran : public IStateTransfer {
                                             bool isVBlock);
   static set<uint16_t> generateSetOfReplicas(const int16_t numberOfReplicas);
 
-  ///////////////////////////////////////////////////////////////////////////
-  // IStateTransfer methods
-  ///////////////////////////////////////////////////////////////////////////
-
-  void init(uint64_t maxNumOfRequiredStoredCheckpoints,
-            uint32_t numberOfRequiredReservedPages,
-            uint32_t sizeOfReservedPage) override;
-  void startRunning(IReplicaForStateTransfer* r) override;
-  void stopRunning() override;
-  bool isRunning() const override;
-
-  void createCheckpointOfCurrentState(uint64_t checkpointNumber) override;
-
-  void markCheckpointAsStable(uint64_t checkpointNumber) override;
-
-  void getDigestOfCheckpoint(uint64_t checkpointNumber,
-                             uint16_t sizeOfDigestBuffer,
-                             uint64_t& outBlockId,
-                             char* outStateDigest,
-                             char* outFullStateDigest) override;
-
   static void computeDigestOfBlockImpl(const uint64_t blockNum,
                                        const char* block,
                                        const uint32_t blockSize,
                                        char* outDigest);
-  void startCollectingState() override { startCollectingStateHandler_(); }
 
-  bool isCollectingState() const override;
+  ///////////////////////////////////////////////////////////////////////////
+  // Interface Handlers
+  ///////////////////////////////////////////////////////////////////////////
+  // A handler calls an Imp function directly or indirectly, as a function of implementation complexity, thread safety
+  // and configuration (e.g runInSeparateThread=true/false).
+  // An indirect call is done via the handoff priority queue incomingEventsQ_: blocked calls take priority over
+  // non-block calls.
 
-  uint32_t numberOfReservedPages() const override;
+  // Some Interface functions are not implemented using handlers, as they are getter function and protects for thread
+  // safety using atomic members.
+ protected:
+  // Initialization function to initialize all handlers according to runtime configuration.
+  void bindInterfaceHandlers();
 
-  uint32_t sizeOfReservedPage() const override;
+  // IStateTransfer handlers
+  std::function<void()> startCollectingStateHandler_;
+  std::function<void(IReplicaForStateTransfer*)> startRunningHandler_;
+  std::function<void()> stopRunningHandler_;
+  std::function<void(uint64_t)> createCheckpointOfCurrentStateHandler_;
+  std::function<void(uint64_t, uint32_t, uint32_t)> initHandler_;
+  std::function<void(char*, uint32_t, uint16_t, LocalTimePoint)> handleStateTransferMessageHandler_;
+  std::function<void(ConsensusMsg msg)> handleIncomingConsensusMessageHandler_;
+  std::function<void()> onTimerHandler_;
+  std::function<void(uint64_t, uint16_t, uint64_t&, char*, char*)> getDigestOfCheckpointHandler_;
+  std::function<void(std::string&)> getStatusHandler_;
+  std::function<void(uint64_t)> reportLastAgreedPrunableBlockIdHandler_;
 
-  bool loadReservedPage(uint32_t reservedPageId, uint32_t copyLength, char* outReservedPage) const override;
-
-  void saveReservedPage(uint32_t reservedPageId, uint32_t copyLength, const char* inReservedPage) override;
-  void zeroReservedPage(uint32_t reservedPageId) override;
+  // CRE handlers
+  // TODO - refactor/move out from ST
+  std::function<void()> setEraseMetadataFlagHandler_;
+  // TODO - refactor/move out from ST
+  std::function<void(std::shared_ptr<ClientReconfigurationEngine>)> setReconfigurationEngineHandler_;
+  // TODO - refactor/move out from ST
+  std::function<void(const std::function<void(uint64_t)>&)> addOnFetchingStateChangeCallbackHandler_;
+  std::function<void(const std::function<void(uint64_t)>&, StateTransferCallBacksPriorities)>
+      addOnTransferringCompleteCallbackHandler_;
 
   logging::Logger& logger_;
-
-  // Incoming Events queue - ST main thread is a consumer of timeouts and messages arriving from an external context
-  void onTimer() override { timeoutHandler_(); };
-
-  using LocalTimePoint = time_point<steady_clock>;
-  static constexpr auto UNDEFINED_LOCAL_TIME_POINT = LocalTimePoint::max();
-  void handleStateTransferMessage(char* msg, uint32_t msgLen, uint16_t senderId) override {
-    incomingStateTransferMsgHandler_(msg, msgLen, senderId, UNDEFINED_LOCAL_TIME_POINT);
-  };
-  std::unique_ptr<concord::util::Handoff> incomingEventsQ_;
-
-  // Post processing Queue - ST main thread is a producer and post processing thread is a consumer
-  std::unique_ptr<concord::util::Handoff> postProcessingQ_;
-  uint64_t postProcessingUpperBoundBlockId_;
-  std::atomic<uint64_t> maxPostprocessedBlockId_;
-  void postProcessNextBatch(uint64_t upperBoundBlockId);
-  void triggerPostProcessing();
-
-  std::string getStatus() override;
-
-  void addOnTransferringCompleteCallback(
-      std::function<void(uint64_t)>,
-      StateTransferCallBacksPriorities priority = StateTransferCallBacksPriorities::DEFAULT) override;
-
-  void addOnFetchingStateChangeCallback(std::function<void(uint64_t)>) override;
-
-  void setEraseMetadataFlag() override { psd_->setEraseDataStoreFlag(); }
-  void setReconfigurationEngine(
-      std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> cre) override {
-    cre_ = cre;
-  }
-
-  std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> getReconfigurationEngine() override {
-    return cre_;
-  }
-
- protected:
-  // enter a new cycle internally
-  void startCollectingStateInternal();
-
-  // Bind events handlers according to runInSeparateThread configuration
-  void bindEventsHandlers();
-
-  // handling incoming State Transfer messages from other context
-  std::function<void(char*, uint32_t, uint16_t, LocalTimePoint)> incomingStateTransferMsgHandler_;
-  void handleStateTransferMessageImp(char* msg,
-                                     uint32_t msgLen,
-                                     uint16_t senderId,
-                                     LocalTimePoint msgArrivalTime = UNDEFINED_LOCAL_TIME_POINT);
-  void handleIncomingStateTransferMessage(char* msg, uint32_t msgLen, uint16_t senderId) {
-    incomingEventsQ_->push(
-        std::bind(&BCStateTran::handleStateTransferMessageImp, this, msg, msgLen, senderId, steady_clock::now()));
-  }
-
-  // handling incoming consensus messages from other context
-  void peekConsensusMessage(const shared_ptr<ConsensusMsg>& msg);
-  void handleIncomingConsensusMessage(const shared_ptr<ConsensusMsg>& msg) override {
-    // TBD Filtering to drop too frequent messages
-    // bind understands only shared_ptr natively
-    if (config_.runInSeparateThread) {
-      incomingEventsQ_->push(std::bind(&BCStateTran::peekConsensusMessage, this, std::move(msg)));
-    } else {
-      peekConsensusMessage(msg);
-    }
-  }
-
-  // handling timeouts from other context
-  std::function<void()> timeoutHandler_;
-  void onTimerImp();
-  void handleTimeout() { incomingEventsQ_->push(std::bind(&BCStateTran::onTimerImp, this)); }
-
-  // handle start request (start State Transfer)
-  std::function<void()> startCollectingStateHandler_;
-  void onStartCollectingStateImp();
-  void handoffStartCollectingState() {
-    incomingEventsQ_->push(std::bind(&BCStateTran::onStartCollectingStateImp, this));
-  }
-
   ///////////////////////////////////////////////////////////////////////////
   // Constants
   ///////////////////////////////////////////////////////////////////////////
@@ -207,6 +243,21 @@ class BCStateTran : public IStateTransfer {
 
   IAppState* const as_;
   std::shared_ptr<DataStore> psd_;
+
+  ///////////////////////////////////////////////////////////////////////////
+  // Event queues and handlers
+  ///////////////////////////////////////////////////////////////////////////
+
+  // Incoming Events queue - ST main thread is a consumer of timeouts and messages arriving from an external context
+  std::unique_ptr<concord::util::Handoff> incomingEventsQ_;
+
+  // Post processing Queue - ST main thread is a producer and post processing thread is a consumer
+  std::unique_ptr<concord::util::Handoff> postProcessingQ_;
+  uint64_t postProcessingUpperBoundBlockId_;
+  std::atomic<uint64_t> maxPostprocessedBlockId_;
+  void postProcessNextBatch(uint64_t upperBoundBlockId);
+  void triggerPostProcessing();
+
   ///////////////////////////////////////////////////////////////////////////
   // Management and general data
   ///////////////////////////////////////////////////////////////////////////
@@ -218,12 +269,12 @@ class BCStateTran : public IStateTransfer {
   const uint32_t maxNumOfChunksInVBlock_;
 
   uint64_t maxNumOfStoredCheckpoints_;
-  uint64_t numberOfReservedPages_;
+  std::atomic_uint64_t numberOfReservedPages_;
   uint32_t cycleCounter_;
   uint32_t internalCycleCounter_;
 
-  std::atomic<bool> running_ = false;
-  IReplicaForStateTransfer* replicaForStateTransfer_ = nullptr;
+  std::atomic<bool> running_;
+  IReplicaForStateTransfer* replicaForStateTransfer_;
 
   std::unique_ptr<char[]> buffer_;  // general use buffer
 
@@ -250,16 +301,29 @@ class BCStateTran : public IStateTransfer {
   ///////////////////////////////////////////////////////////////////////////
   // State
   ///////////////////////////////////////////////////////////////////////////
-
-  // Public for testing and status
  public:
-  enum class FetchingState { NotFetching, GettingCheckpointSummaries, GettingMissingBlocks, GettingMissingResPages };
+  enum class FetchingState {
+    // Common
+    NotFetching,
+
+    // Destination
+    GettingCheckpointSummaries,
+    GettingMissingBlocks,
+    GettingMissingResPages,
+    FinalizingCycle,
+
+    // Source
+    SendingBatch,
+  };
+
+ protected:
+  friend std::ostream& operator<<(std::ostream& os, const BCStateTran::FetchingState fs);
   static string stateName(FetchingState fs);
+  static inline bool isActiveDestination(FetchingState fs);
+  static inline bool isActiveSource(FetchingState fs);
+
   // TODO - should be renamed to evaluateFetchingState
   FetchingState getFetchingState();
-  bool isFetching() const;
-
-  inline std::string getSequenceNumber(uint16_t replicaId, uint64_t seqNum, uint16_t = 0, uint64_t = 0);
 
   ///////////////////////////////////////////////////////////////////////////
   // Send messages
@@ -277,12 +341,13 @@ class BCStateTran : public IStateTransfer {
   // Message handlers
   ///////////////////////////////////////////////////////////////////////////
 
+  inline std::string getScopedMdcStr(uint16_t replicaId, uint64_t seqNum, uint16_t = 0, uint64_t = 0);
   bool onMessage(const AskForCheckpointSummariesMsg* m, uint32_t msgLen, uint16_t replicaId);
   bool onMessage(const CheckpointSummaryMsg* m, uint32_t msgLen, uint16_t replicaId);
   bool onMessage(const FetchBlocksMsg* m, uint32_t msgLen, uint16_t replicaId);
   bool onMessage(const FetchResPagesMsg* m, uint32_t msgLen, uint16_t replicaId);
   bool onMessage(const RejectFetchingMsg* m, uint32_t msgLen, uint16_t replicaId);
-  bool onMessage(const ItemDataMsg* m, uint32_t msgLen, uint16_t replicaId, LocalTimePoint msgArrivalTime);
+  bool onMessage(const ItemDataMsg* m, uint32_t msgLen, uint16_t replicaId, LocalTimePoint incomingEventsQPushTime);
 
   ///////////////////////////////////////////////////////////////////////////
   // cache that holds virtual blocks
@@ -396,6 +461,9 @@ class BCStateTran : public IStateTransfer {
                         uint32_t& outBlockSize,
                         bool isVBLock);
 
+  // enter a new cycle internally
+  void startCollectingStateInternal();
+
   BlocksBatchDesc computeNextBatchToFetch(uint64_t minRequiredBlockId);
   bool checkBlock(uint64_t blockNum, char* block, uint32_t blockSize) const;
 
@@ -414,11 +482,8 @@ class BCStateTran : public IStateTransfer {
   ///////////////////////////////////////////////////////////////////////////
 
   DataStore::CheckpointDesc createCheckpointDesc(uint64_t checkpointNumber, const Digest& digestOfResPagesDescriptor);
-
   Digest checkpointReservedPages(uint64_t checkpointNumber, DataStoreTransaction* txn);
-
   void deleteOldCheckpoints(uint64_t checkpointNumber, DataStoreTransaction* txn);
-  void srcInitialize();
 
   ///////////////////////////////////////////////////////////////////////////
   // Consistency
@@ -449,18 +514,15 @@ class BCStateTran : public IStateTransfer {
 
   static BlockDigest computeDigestOfBlock(const uint64_t blockNum, const char* block, const uint32_t blockSize);
 
+ protected:
   // A wrapper function to get a block from the IAppState and compute its digest.
-  //
-  // SIDE EFFECT: This function mutates buffer_ and resets it to 0 after the fact.
   Digest getBlockAndComputeDigest(uint64_t currBlock);
 
- protected:
   ///////////////////////////////////////////////////////////////////////////
   // Asynchronous Operations - Blocks IO
   ///////////////////////////////////////////////////////////////////////////
 
-  class BlockIOContext {
-   public:
+  struct BlockIOContext {
     static size_t sizeOfBlockData;
     BlockIOContext() {
       ConcordAssert(sizeOfBlockData != 0);
@@ -480,13 +542,15 @@ class BCStateTran : public IStateTransfer {
   // used to control the trigger of oneShotTimer self requests
   bool oneShotTimerFlag_;
 
-  // returns number of jobs pushed to queue
-  uint16_t getBlocksConcurrentAsync(uint64_t nextBlockId, uint64_t firstRequiredBlock, uint16_t numBlocks);
+  // Trigger onTimer in timeoutMilli. Only a single trigger is allowed at any time. In general, we shouldn't use this
+  // call for any timeout greater than config_.refreshTimerMs.
+  void addOneShotTimer(uint32_t timeoutMilli, std::string&& reason = "");
 
-  void clearIoContexts() {
-    for (auto& ctx : ioContexts_) ioPool_.free(ctx);
-    ioContexts_.clear();
-  }
+  // Fetch (Async) numBlocks from storage, starting from block maxBlockId, and not crossing minBlockId.
+  // Returns number of jobs pushed to queue
+  uint16_t getBlocksConcurrentAsync(uint64_t maxBlockId, uint64_t minBlockId, uint16_t numBlocks);
+  void sourcePrepareBatch(uint64_t numBlocksRequested);
+  void clearIoContexts();
 
   // lastBlock: is true if we put the oldest block (firstRequiredBlock)
   //
@@ -509,24 +573,20 @@ class BCStateTran : public IStateTransfer {
   };
   std::unique_ptr<RVBManager, rvbm_deleter> rvbm_;
 
- public:
-  // Calls into RVB manager on an external thread context. Reports of the last agreed prunable block. Relevant only for
-  // replica in consensus.
-  void reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBlockId) override;
   //////////////////////////////////////////////////////////////////////////
   // Metrics
   ///////////////////////////////////////////////////////////////////////////
  public:
-  void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a);
+  void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator);
 
- private:
+ protected:
   void loadMetrics();
-  std::chrono::seconds last_metrics_dump_time_;
   std::chrono::seconds metrics_dump_interval_in_sec_;
   concordMetrics::Component metrics_component_;
   struct Metrics {
     StatusHandle fetching_state_;
 
+    GaugeHandle is_fetching_;
     GaugeHandle checkpoint_being_fetched_;
     GaugeHandle last_stored_checkpoint_;
     GaugeHandle number_of_reserved_pages_;
@@ -603,10 +663,22 @@ class BCStateTran : public IStateTransfer {
     CounterHandle overall_rvb_digests_validation_failed_;
     CounterHandle overall_rvb_digest_groups_validation_failed_;
     StatusHandle current_rvb_data_state_;
+
+    CounterHandle src_overall_batches_sent_;
+    CounterHandle src_overall_prefetched_batches_sent_;
+    CounterHandle src_overall_on_spot_batches_sent_;
+
+    GaugeHandle src_num_io_contexts_dropped_;
+    GaugeHandle src_num_io_contexts_invoked_;
+    CounterHandle src_num_io_contexts_consumed_;
   };
   mutable Metrics metrics_;
   Metrics createRegisterMetrics();
 
+  void finalizeCycle();
+  static constexpr uint32_t onTransferringCompleteTimeoutMilli_ = 10;
+  bool on_transferring_complete_ongoing_;
+  std::future<void> on_transferring_complete_future_;
   std::map<uint64_t, concord::util::CallbackRegistry<uint64_t>> on_transferring_complete_cb_registry_;
   // TODO - on_fetching_state_change_cb_registry_ should be removed
   // All callbacks should be integrated as a callback into on_transferring_complete_cb_registry_.
@@ -667,9 +739,6 @@ class BCStateTran : public IStateTransfer {
 
   void onFetchingStateChange(FetchingState newFetchingState);
 
-  // When true: log historgrams, zero source flag and counter, and then unconditionally clear the iOcontexts
-  void finalizeSource(bool logSrcHistograms);
-
   // used to print periodic summary of recent checkpoints, and collected date while in state GettingMissingBlocks
   std::string logsForCollectingStatus();
   void reportCollectingStatus(const uint32_t actualBlockSize, bool toLog = false);
@@ -677,15 +746,76 @@ class BCStateTran : public IStateTransfer {
   std::string convertUInt64ToReadableStr(uint64_t num, std::string&& trailer = "") const;
   std::string convertMillisecToReadableStr(uint64_t ms) const;
 
-  // These 2 variables are used to snapshot source historgrams for GettingMissingBlocks state
-  bool sourceFlag_;
-  uint8_t sourceSnapshotCounter_;
-  uint64_t sourceBatchCounter_ = 0;
+  ///////////////////////////////////////////////////////////////////////////
+  // Source session/batch management
+  ///////////////////////////////////////////////////////////////////////////
 
+  // Currently, source supports a single session at any given time
+  struct SourceSession {
+   public:
+    SourceSession(logging::Logger& logger, uint64_t sourceSessionExpiryDurationMs)
+        : logger_(logger), expiryDurationMs_{sourceSessionExpiryDurationMs}, startTime_{0} {}
+    SourceSession() = delete;
+    void close();
+    // returns a pair of booleans:
+    // First bool: true if session was already openned by replicaId, or if a new one was opened
+    // Second bool: true if another session was closed. Relevant only if the first value is true.
+    // It might be that session was already open, or opened during the call.
+    std::pair<bool, bool> tryOpen(uint16_t replicaId);
+    // returns true if session exist
+    bool isOpen() const { return startTime_ != 0; }
+    uint16_t ownerDestReplicaId() const { return replicaId_; };
+    uint64_t activeDuration() const { return getMonotonicTimeMilli() - startTime_; }
+    void refresh(uint64_t startTime = 0);
+    // A session can be expired only if it's open, when expiryDurationMs_ - session always expire.
+    bool expired() const { return isOpen() && ((expiryDurationMs_ == 0) || (activeDuration() > expiryDurationMs_)); }
+
+   protected:
+    void open(uint16_t replicaId);
+
+    logging::Logger& logger_;
+    const uint64_t expiryDurationMs_;
+    uint16_t replicaId_;
+    uint64_t startTime_;
+  };
+
+  struct SourceBatch {
+    SourceBatch() : active{false} {}
+    std::string toString() const;
+    void init(uint64_t batchNumber,
+              uint64_t maxBlockId,
+              uint64_t nextChunk,
+              uint64_t maxBlockIdInCycle,
+              bool getNextBlock,
+              const Config& config,
+              size_t rvbGroupDigestsExpectedSize,
+              const FetchBlocksMsg* msg,
+              uint16_t destReplicaId);
+
+    bool active;
+    uint64_t batchNumber;
+    uint64_t numSentBytes;
+    uint64_t numSentChunks;
+    uint64_t nextBlockId;
+    uint16_t nextChunk;
+    uint64_t preFetchBlockId;
+    bool getNextBlock;
+    size_t rvbGroupDigestsExpectedSize;
+    FetchBlocksMsg destRequest;
+    uint16_t destReplicaId;
+    bool prefetched;  // true if this batch succeed with pre-fetch prediction
+  };
+
+  SourceBatch sourceBatch_;
+  SourceSession sourceSession_;
+
+  friend std::ostream& operator<<(std::ostream& os, const BCStateTran::SourceBatch& batch);
+  void continueSendBatch();
+  void sendRejectFetchingMsg(const char* reason, uint64_t msgSeqNum, uint16_t destReplicaId);
   ///////////////////////////////////////////////////////////////////////////
   // Latency Historgrams (snapshots)
   ///////////////////////////////////////////////////////////////////////////
- private:
+ protected:
   struct Recorders {
     static constexpr uint64_t MAX_VALUE_MICROSECONDS = 60ULL * 1000ULL * 1000ULL;          // 60 seconds
     static constexpr uint64_t MAX_BLOCK_SIZE = 100ULL * 1024ULL * 1024ULL;                 // 100MB
@@ -702,21 +832,27 @@ class BCStateTran : public IStateTransfer {
                                         time_in_incoming_events_queue,
                                         incoming_events_queue_size,
                                         compute_block_digest_duration,
-                                        compute_block_digest_size});
+                                        compute_block_digest_size,
+                                        time_to_clear_io_contexts});
       // destination component
       registrar.perf.registerComponent("state_transfer_dest",
                                        {dst_handle_ItemData_msg,
                                         dst_time_between_sendFetchBlocksMsg,
                                         dst_num_pending_blocks_to_commit,
                                         dst_digest_calc_duration,
-                                        dst_time_ItemData_msg_in_incoming_events_queue});
+                                        dst_time_ItemData_msg_in_incoming_events_queue,
+                                        time_in_post_processing_events_queue});
       // source component
       registrar.perf.registerComponent("state_transfer_src",
-                                       {src_handle_FetchBlocks_msg,
+                                       {src_handle_FetchBlocks_msg_duration,
+                                        src_handle_FetchResPages_msg_duration,
                                         src_get_block_size_bytes,
                                         src_send_batch_duration,
+                                        src_send_prefetched_batch_duration,
+                                        src_send_on_spot_batch_duration,
                                         src_send_batch_size_bytes,
-                                        src_send_batch_num_of_chunks});
+                                        src_send_batch_num_of_chunks,
+                                        src_next_block_wait_duration});
     }
     ~Recorders() {
       auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
@@ -736,6 +872,8 @@ class BCStateTran : public IStateTransfer {
     DEFINE_SHARED_RECORDER(
         compute_block_digest_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
     DEFINE_SHARED_RECORDER(compute_block_digest_size, 1, MAX_BLOCK_SIZE, 3, concord::diagnostics::Unit::COUNT);
+    DEFINE_SHARED_RECORDER(
+        time_to_clear_io_contexts, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
     // destination
     DEFINE_SHARED_RECORDER(
         dst_handle_ItemData_msg, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
@@ -750,25 +888,39 @@ class BCStateTran : public IStateTransfer {
                            MAX_VALUE_MICROSECONDS,
                            3,
                            concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(
+        time_in_post_processing_events_queue, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
     // source
     DEFINE_SHARED_RECORDER(
-        src_handle_FetchBlocks_msg, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+        src_handle_FetchBlocks_msg_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(
+        src_handle_FetchResPages_msg_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
     DEFINE_SHARED_RECORDER(src_get_block_size_bytes, 1, MAX_BLOCK_SIZE, 3, concord::diagnostics::Unit::BYTES);
     DEFINE_SHARED_RECORDER(
         src_send_batch_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(
+        src_send_prefetched_batch_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(
+        src_send_on_spot_batch_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
     DEFINE_SHARED_RECORDER(src_send_batch_size_bytes, 1, MAX_BATCH_SIZE_BYTES, 3, concord::diagnostics::Unit::BYTES);
     DEFINE_SHARED_RECORDER(
         src_send_batch_num_of_chunks, 1, MAX_BATCH_SIZE_BLOCKS, 3, concord::diagnostics::Unit::COUNT);
+    DEFINE_SHARED_RECORDER(
+        src_next_block_wait_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
   };
   Recorders histograms_;
 
   // Async time recorders - wrap the above shared recorders with the same name and prefix _rec_
   AsyncTimeRecorder<false> src_send_batch_duration_rec_;
+  AsyncTimeRecorder<false> src_send_prefetched_batch_duration_rec_;
+  AsyncTimeRecorder<false> src_send_on_spot_batch_duration_rec_;
   AsyncTimeRecorder<false> dst_time_between_sendFetchBlocksMsg_rec_;
   AsyncTimeRecorder<false> time_in_incoming_events_queue_rec_;
+  AsyncTimeRecorder<true> time_in_post_processing_events_queue_rec_;
+  AsyncTimeRecorder<false> src_next_block_wait_duration_rec_;
 
   // TODO - This member do not belong here (CRE) - move outside
-  std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> cre_ = nullptr;
+  std::shared_ptr<ClientReconfigurationEngine> cre_;
 };  // class BCStateTran
 
 }  // namespace bftEngine::bcst::impl

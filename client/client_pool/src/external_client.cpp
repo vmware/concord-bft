@@ -204,7 +204,11 @@ std::pair<int32_t, ConcordClient::PendingReplies> ConcordClient::SendPendingRequ
           pending_reply.cb(move(response));
           LOG_INFO(logger_,
                    "Request processing completed; return response through the callback"
-                       << KVLOG(client_id_, batch_cid, pending_reply.cid, received_reply_entry.second.result));
+                       << KVLOG(client_id_,
+                                batch_cid,
+                                received_reply_seq_num,
+                                pending_reply.cid,
+                                received_reply_entry.second.result));
         } else {
           // Used for testing only
           if (data_size > pending_reply.lengthOfReplyBuffer) {
@@ -216,8 +220,11 @@ std::pair<int32_t, ConcordClient::PendingReplies> ConcordClient::SendPendingRequ
           pending_reply.actualReplyLength = data_size;
           pending_reply.opResult = static_cast<bftEngine::OperationResult>(received_reply_entry.second.result);
           LOG_INFO(logger_,
-                   "Request processing completed"
-                       << KVLOG(client_id_, batch_cid, pending_reply.cid, received_reply_entry.second.result));
+                   "Request processing completed" << KVLOG(client_id_,
+                                                           batch_cid,
+                                                           received_reply_seq_num,
+                                                           pending_reply.cid,
+                                                           received_reply_entry.second.result));
         }
       }
     }

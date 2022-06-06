@@ -57,8 +57,6 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
 
   void createCheckpointOfCurrentState(uint64_t checkpointNumber) override;
 
-  void markCheckpointAsStable(uint64_t checkpointNumber) override;
-
   void getDigestOfCheckpoint(uint64_t checkpointNumber,
                              uint16_t sizeOfDigestBuffer,
                              uint64_t& outBlockId,
@@ -83,10 +81,10 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
 
   void handleStateTransferMessage(char* msg, uint32_t msgLen, uint16_t senderId) override;
 
-  void addOnTransferringCompleteCallback(std::function<void(uint64_t)>,
+  void addOnTransferringCompleteCallback(const std::function<void(uint64_t)>& cb,
                                          StateTransferCallBacksPriorities priority) override {}
 
-  void addOnFetchingStateChangeCallback(std::function<void(uint64_t)>) override {}
+  void addOnFetchingStateChangeCallback(const std::function<void(uint64_t)>& cb) override {}
 
   //////////////////////////////////////////////////////////////////////////
   // ISimpleInMemoryStateTransfer methods
@@ -98,10 +96,7 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
   void setReconfigurationEngine(
       std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine>) override {}
 
-  std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> getReconfigurationEngine() override {
-    return nullptr;
-  }
-  virtual void handleIncomingConsensusMessage(const shared_ptr<ConsensusMsg>& msg) override{};
+  virtual void handleIncomingConsensusMessage(const ConsensusMsg msg) override{};
   void reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBlockId) override{};
 
  protected:
@@ -338,6 +333,8 @@ SimpleStateTran::SimpleStateTran(
       2,                                    // maxFetchRetransmissions
       5,                                    // metricsDumpIntervalSec
       5000,                                 // maxTimeSinceLastExecutionInMainWindowMs
+      5000,                                 // sourceSessionExpiryDurationMs
+      300,                                  // sourcePerformanceSnapshotFrequencySec
       true,                                 // runInSeparateThread
       true,                                 // enableReservedPages
       true,                                 // enableSourceBlocksPreFetch
@@ -507,13 +504,6 @@ void SimpleStateTran::createCheckpointOfCurrentState(uint64_t checkpointNumber) 
   memset(tempBuffer_, 0, pageSize_);
 
   internalST_->createCheckpointOfCurrentState(checkpointNumber);
-}
-
-void SimpleStateTran::markCheckpointAsStable(uint64_t checkpointNumber) {
-  ConcordAssert(isInitialized());
-  ConcordAssert(internalST_->isRunning());
-
-  internalST_->markCheckpointAsStable(checkpointNumber);
 }
 
 void SimpleStateTran::getDigestOfCheckpoint(uint64_t checkpointNumber,

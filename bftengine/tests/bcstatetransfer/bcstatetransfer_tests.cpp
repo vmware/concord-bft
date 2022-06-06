@@ -21,6 +21,7 @@
 #include <climits>
 #include <optional>
 #include <cstring>
+#include <algorithm>
 
 // 3rd party includes
 #include "gtest/gtest.h"
@@ -135,6 +136,8 @@ Config targetConfig() {
       2,                  // maxFetchRetransmissions
       5,                  // metricsDumpIntervalSec
       5000,               // maxTimeSinceLastExecutionInMainWindowMs
+      2050,               // sourceSessionExpiryDurationMs
+      3,                  // sourcePerformanceSnapshotFrequencySec
       false,              // runInSeparateThread
       true,               // enableReservedPages
       true,               // enableSourceBlocksPreFetch
@@ -161,7 +164,7 @@ struct TestConfig {
 
   /**
    * Constants
-   * You may decide a constant is configurable by moving it into the 'Configurables' part
+   * You may decide a constant is configurable by moving it into the 'Configurable' part
    * In some cases you might need to write additional code to support the new configuration value
    */
   static constexpr char bcstDbPath[] = "./bcst_db";
@@ -349,7 +352,7 @@ class BcStTestDelegator {
   static constexpr size_t sizeOfHeaderOfVirtualBlock = sizeof(BCStateTran::HeaderOfVirtualBlock);
   static constexpr uint64_t ID_OF_VBLOCK_RES_PAGES = BCStateTran::ID_OF_VBLOCK_RES_PAGES;
 
-  void onTimerImp() { stateTransfer_->onTimerImp(); }
+  void assertBCStateTranMetricKeyVal(const std::string& key, uint64_t val);
   uint64_t uniqueMsgSeqNum() { return stateTransfer_->uniqueMsgSeqNum(); }
   template <typename T>
   bool onMessage(const T* m, uint32_t msgLen, uint16_t replicaId) {
@@ -360,6 +363,12 @@ class BcStTestDelegator {
   }
   uint64_t getNextRequiredBlock() { return stateTransfer_->fetchState_.nextBlockId; }
   RVBManager* getRvbManager() { return stateTransfer_->rvbm_.get(); }
+  size_t getSizeOfRvbDigestInfo() const { return sizeof(RVBManager::RvbDigestInfo); }
+  concord::util::SimpleMemoryPool<BCStateTran::BlockIOContext>& getIoPool() const { return stateTransfer_->ioPool_; }
+  std::deque<BCStateTran::BlockIOContextPtr>& getIoContexts() const { return stateTransfer_->ioContexts_; }
+  void clearIoContexts() { stateTransfer_->clearIoContexts(); }
+  RVBId nextRvbBlockId(BlockId blockId) const { return stateTransfer_->rvbm_->nextRvbBlockId(blockId); }
+  RVBId prevRvbBlockId(BlockId blockId) const { return stateTransfer_->rvbm_->prevRvbBlockId(blockId); }
   RangeValidationTree* getRvt() { return stateTransfer_->rvbm_->in_mem_rvt_.get(); }
   void createCheckpointOfCurrentState(uint64_t checkpointNum) {
     stateTransfer_->createCheckpointOfCurrentState(checkpointNum);
@@ -388,12 +397,15 @@ class BcStTestDelegator {
                                     logging::Logger& logger) {
     return stateTransfer_->checkStructureOfVirtualBlock(virtualBlock, virtualBlockSize, pageSize, logger);
   }
-  void peekConsensusMessage(const shared_ptr<ConsensusMsg>& msg) { stateTransfer_->peekConsensusMessage(msg); }
+
   // Source Selector
   void assertSourceSelectorMetricKeyVal(const std::string& key, uint64_t val);
   SourceSelector& getSourceSelector() { return stateTransfer_->sourceSelector_; }
   void clearPreferredReplicas(const std::set<uint16_t>& replicasToKeep = std::set<uint16_t>{});
   void validateEqualRVTs(const RangeValidationTree& rvtA, const RangeValidationTree& rvtB) const;
+  FetchingState getFetchingState() { return stateTransfer_->getFetchingState(); }
+  bool isSrcSessionOpen() const { return stateTransfer_->sourceSession_.isOpen(); }
+  uint16_t srcSessionOwnerDestReplicaId() const { return stateTransfer_->sourceSession_.ownerDestReplicaId(); }
 
  private:
   const std::unique_ptr<BCStateTran>& stateTransfer_;
@@ -411,7 +423,8 @@ class FakeReplicaBase {
                   const TestState& testState,
                   TestReplica& testedReplicaIf,
                   const std::shared_ptr<DataGenerator>& dataGen,
-                  std::shared_ptr<BcStTestDelegator>& testAtapter);
+                  std::shared_ptr<BcStTestDelegator>& testAdapter,
+                  BCStateTran* peerStateTransfer);
   virtual ~FakeReplicaBase();
   const TestAppState& getAppState() const { return appState_; }
 
@@ -432,6 +445,7 @@ class FakeReplicaBase {
   unique_ptr<RVBManager> rvbm_;
   const std::shared_ptr<DataGenerator> dataGen_;
   const std::shared_ptr<BcStTestDelegator> stDelegator_;
+  BCStateTran* peerStateTransfer_;
 };
 
 /////////////////////////////////////////////////////////
@@ -447,12 +461,27 @@ class FakeDestination : public FakeReplicaBase {
                   const TestState& testState,
                   TestReplica& testedReplicaIf,
                   const std::shared_ptr<DataGenerator>& dataGen,
-                  std::shared_ptr<BcStTestDelegator>& stAdapter)
-      : FakeReplicaBase(targetConfig, testConfig, testState, testedReplicaIf, dataGen, stAdapter) {}
+                  std::shared_ptr<BcStTestDelegator>& stAdapter,
+                  BCStateTran* srcStateTransfer)
+      : FakeReplicaBase(targetConfig, testConfig, testState, testedReplicaIf, dataGen, stAdapter, srcStateTransfer) {}
   ~FakeDestination() {}
-  void sendAskForCheckpointSummariesMsg(uint64_t minRelevantCheckpointNum);
-  void sendFetchBlocksMsg(uint64_t firstRequiredBlock, uint64_t lastRequiredBlock);
-  void sendFetchResPagesMsg(uint64_t lastCheckpointKnownToRequester, uint64_t requiredCheckpointNum);
+  void sendAskForCheckpointSummariesMsg(uint64_t minRelevantCheckpointNum, uint16_t senderReplicaId = UINT_LEAST16_MAX);
+  static constexpr uint16_t kDefaultSenderReplicaId = UINT_LEAST16_MAX;
+  void sendFetchBlocksMsg(uint64_t minBlockId,
+                          uint64_t maxBlockIdInCycle,
+                          // when 0 , (minBlockId + targetConfig_.maxNumberOfChunksInBatch -1) is assigned
+                          uint64_t maxBlockId = 0,
+                          // when 0 , targetConfig_.maxNumberOfChunksInBatch is assigned
+                          size_t numExpectedItemDataMsgsInReply = 0,
+                          // when kDefaultSenderReplicaId , just adding 1 to targetConfig_.myReplicaId
+                          uint16_t senderReplicaId = kDefaultSenderReplicaId,
+                          // when 0, caluclated internally by default logic
+                          uint64_t numexpectedRvbs = 0,
+                          // if non-zero, request RVB digests and validate them
+                          uint64_t rvbGroupId = 0);
+  void sendFetchResPagesMsg(uint64_t lastCheckpointKnownToRequester,
+                            uint64_t requiredCheckpointNum,
+                            uint16_t senderReplicaId = UINT_LEAST16_MAX);
   uint64_t getLastMsgSeqNum() { return lastMsgSeqNum_; }
 
  protected:
@@ -472,7 +501,8 @@ class FakeSources : public FakeReplicaBase {
               const TestState& testState,
               TestReplica& testedReplicaIf,
               const std::shared_ptr<DataGenerator>& dataGen,
-              std::shared_ptr<BcStTestDelegator>& stAdapter);
+              std::shared_ptr<BcStTestDelegator>& stAdapter,
+              BCStateTran* peerStateTransfer);
 
   // Source (fake) Replies
   void replyAskForCheckpointSummariesMsg(bool generateBlocksAndDescriptors = true);
@@ -552,6 +582,7 @@ class BcStTest : public ::testing::Test {
                              bool skipReplyOnce = false,
                              size_t sleepDurationAfterReplyMilli = 20);
   void getReservedPagesStage(bool skipReply = false, bool reject = false, size_t sleepDurationAfterReplyMilli = 0);
+  void dstValidateCycleEnd(size_t timeToSleepAfterreportCompletedMilli);
   void dstRestart(bool productDbDeleteOnEnd, FetchingState expectedState);
 
  public:  // why public? quick workaround to allow binding on derived class
@@ -702,19 +733,40 @@ void BcStTestDelegator::fillElementOfVirtualBlock(DataStore* datastore,
   ASSERT_TRUE(!pageDigest.isZero());
 }
 
+// Not all metrics are here, you may add more as needed
+void BcStTestDelegator::assertBCStateTranMetricKeyVal(const std::string& key, uint64_t val) {
+  auto& stMetrics_ = stateTransfer_->metrics_;
+  if (key == "src_overall_batches_sent") {
+    ASSERT_EQ(stMetrics_.src_overall_batches_sent_.Get().Get(), val);
+  } else if (key == "src_overall_prefetched_batches_sent") {
+    ASSERT_EQ(stMetrics_.src_overall_prefetched_batches_sent_.Get().Get(), val);
+  } else if (key == "src_overall_on_spot_batches_sent") {
+    ASSERT_EQ(stMetrics_.src_overall_on_spot_batches_sent_.Get().Get(), val);
+  } else if (key == "src_num_io_contexts_dropped") {
+    ASSERT_EQ(stMetrics_.src_num_io_contexts_dropped_.Get().Get(), val);
+  } else if (key == "src_num_io_contexts_invoked") {
+    ASSERT_EQ(stMetrics_.src_num_io_contexts_invoked_.Get().Get(), val);
+  } else if (key == "src_num_io_contexts_consumed") {
+    ASSERT_EQ(stMetrics_.src_num_io_contexts_consumed_.Get().Get(), val);
+  } else {
+    FAIL() << "Unexpected key!";
+  }
+}
+
+// Not all metrics are here, you may add more as needed
 void BcStTestDelegator::assertSourceSelectorMetricKeyVal(const std::string& key, uint64_t val) {
   auto& ssMetrics_ = stateTransfer_->sourceSelector_.metrics_;
-  if (key == "total_replacements_") {
+  if (key == "total_replacements") {
     ASSERT_EQ(ssMetrics_.total_replacements_.Get().Get(), val);
-  } else if (key == "replacement_due_to_no_source_") {
+  } else if (key == "replacement_due_to_no_source") {
     ASSERT_EQ(ssMetrics_.replacement_due_to_no_source_.Get().Get(), val);
-  } else if (key == "replacement_due_to_bad_data_") {
+  } else if (key == "replacement_due_to_bad_data") {
     ASSERT_EQ(ssMetrics_.replacement_due_to_bad_data_.Get().Get(), val);
-  } else if (key == "replacement_due_to_retransmission_timeout_") {
+  } else if (key == "replacement_due_to_retransmission_timeout") {
     ASSERT_EQ(ssMetrics_.replacement_due_to_retransmission_timeout_.Get().Get(), val);
-  } else if (key == "replacement_due_to_periodic_change_") {
+  } else if (key == "replacement_due_to_periodic_change") {
     ASSERT_EQ(ssMetrics_.replacement_due_to_periodic_change_.Get().Get(), val);
-  } else if (key == "replacement_due_to_source_same_as_primary_") {
+  } else if (key == "replacement_due_to_source_same_as_primary") {
     ASSERT_EQ(ssMetrics_.replacement_due_to_source_same_as_primary_.Get().Get(), val);
   } else {
     FAIL() << "Unexpected key!";
@@ -769,13 +821,15 @@ FakeReplicaBase::FakeReplicaBase(const Config& targetConfig,
                                  const TestState& testState,
                                  TestReplica& testedReplicaIf,
                                  const std::shared_ptr<DataGenerator>& dataGen,
-                                 std::shared_ptr<BcStTestDelegator>& stAdapter)
+                                 std::shared_ptr<BcStTestDelegator>& stAdapter,
+                                 BCStateTran* peerStateTransfer)
     : targetConfig_(targetConfig),
       testConfig_(testConfig),
       testState_(testState),
       testedReplicaIf_(testedReplicaIf),
       dataGen_(dataGen),
-      stDelegator_(stAdapter) {
+      stDelegator_(stAdapter),
+      peerStateTransfer_(peerStateTransfer) {
   if (testConfig_.fakeDbDeleteOnStart) deleteBcStateTransferDbFolder(testConfig_.fakeBcstDbPath);
   datastore_.reset(createDataStore(testConfig_.fakeBcstDbPath, targetConfig_));
   datastore_->setNumberOfReservedPages(testConfig_.numberOfRequiredReservedPages);
@@ -818,29 +872,87 @@ size_t FakeReplicaBase::filterSentMessagesByMessageType(uint16_t type, bool keep
 /////////////////////////////////////////////////////////
 // FakeDestination - definition
 /////////////////////////////////////////////////////////
-void FakeDestination::sendAskForCheckpointSummariesMsg(uint64_t minRelevantCheckpointNum) {
+void FakeDestination::sendAskForCheckpointSummariesMsg(uint64_t minRelevantCheckpointNum, uint16_t senderReplicaId) {
   ASSERT_SRC_UNDER_TEST;
   AskForCheckpointSummariesMsg msg;
   lastMsgSeqNum_ = stDelegator_->uniqueMsgSeqNum();
   msg.msgSeqNum = lastMsgSeqNum_;
   msg.minRelevantCheckpointNum = minRelevantCheckpointNum;
-  stDelegator_->onMessage(&msg, sizeof(msg), (targetConfig_.myReplicaId + 1) % targetConfig_.numReplicas);
+  senderReplicaId = (senderReplicaId == UINT_LEAST16_MAX)
+                        ? ((targetConfig_.myReplicaId + 1) % targetConfig_.numReplicas)
+                        : senderReplicaId;
+  stDelegator_->onMessage(&msg, sizeof(msg), senderReplicaId);
 }
 
-void FakeDestination::sendFetchBlocksMsg(uint64_t firstRequiredBlock, uint64_t lastRequiredBlock) {
+void FakeDestination::sendFetchBlocksMsg(uint64_t minBlockId,
+                                         uint64_t maxBlockIdInCycle,
+                                         uint64_t maxBlockId,
+                                         size_t numExpectedItemDataMsgsInReply,
+                                         uint16_t senderReplicaId,
+                                         uint64_t numexpectedRvbs,
+                                         uint64_t rvbGroupId) {
   ASSERT_SRC_UNDER_TEST;
+
+  if (maxBlockId == 0) {
+    maxBlockId = minBlockId + targetConfig_.maxNumberOfChunksInBatch - 1;
+  }
+  if (numExpectedItemDataMsgsInReply == 0) {
+    numExpectedItemDataMsgsInReply = targetConfig_.maxNumberOfChunksInBatch;
+  }
   // Remove this line if we would like to make negative tests
-  ASSERT_GE(lastRequiredBlock, firstRequiredBlock);
-  FetchBlocksMsg msg;
+  ASSERT_GE(maxBlockId, minBlockId);
+  ASSERT_GE(maxBlockIdInCycle, maxBlockId);
+  FetchBlocksMsg* msg = new FetchBlocksMsg();
   lastMsgSeqNum_ = stDelegator_->uniqueMsgSeqNum();
-  msg.msgSeqNum = lastMsgSeqNum_;
-  msg.minBlockId = firstRequiredBlock;  // change here too
-  msg.maxBlockId = lastRequiredBlock;
-  msg.lastKnownChunkInLastRequiredBlock = 0;  // for now, chunking is not supported
-  stDelegator_->onMessage(&msg, sizeof(msg), (targetConfig_.myReplicaId + 1) % targetConfig_.numReplicas);
+
+  // Simplify things compare to a real destination - ask for a batch of a size up to maxNumberOfChunksInBatch, without
+  // referring to fetchRangeSize
+  msg->msgSeqNum = lastMsgSeqNum_;
+  msg->minBlockId = minBlockId;
+  msg->maxBlockId = maxBlockId;
+  msg->maxBlockIdInCycle = maxBlockIdInCycle;
+  msg->lastKnownChunkInLastRequiredBlock = 0;  // for now, chunking is not supported
+  msg->rvbGroupId = rvbGroupId;
+  ASSERT_NE(senderReplicaId, targetConfig_.myReplicaId);
+  senderReplicaId = (senderReplicaId == kDefaultSenderReplicaId)
+                        ? ((targetConfig_.myReplicaId + 1) % targetConfig_.numReplicas)
+                        : senderReplicaId;
+  stDelegator_->onMessage(msg, sizeof(*msg), senderReplicaId);
+  do {
+    const auto [isTriggered, duration] = testedReplicaIf_.popOneShotTimerDurationMilli();
+    if (!isTriggered) {
+      break;
+    }
+    this_thread::sleep_for(chrono::milliseconds(duration));
+    peerStateTransfer_->onTimer();
+  } while (true);
+
+  ASSERT_EQ(testedReplicaIf_.sent_messages_.size(), numExpectedItemDataMsgsInReply);
+  if (rvbGroupId > 0) {
+    // As of now, we support a single RVB group within the collection range
+    // A batch is sent, we expect the 1st item data message to include partial left RVB Group. Lets validate it.
+    // TODO: assert for the above supported assumption
+    const auto& msg = testedReplicaIf_.sent_messages_.front();
+    auto fetchBlocksMsg = reinterpret_cast<ItemDataMsg*>(msg.data_.get());
+    ASSERT_GT(fetchBlocksMsg->rvbDigestsSize, 0);
+    const auto sizeOfRvbDigestInfo = stDelegator_->getSizeOfRvbDigestInfo();
+    ASSERT_EQ(fetchBlocksMsg->rvbDigestsSize % sizeOfRvbDigestInfo, 0);
+    auto startRvbId = stDelegator_->nextRvbBlockId(minBlockId);
+    if (startRvbId == 0) {
+      startRvbId = targetConfig_.fetchRangeSize;
+    }
+    const auto endRvbId = stDelegator_->prevRvbBlockId(maxBlockIdInCycle);
+    ASSERT_GE(endRvbId, startRvbId);
+    if (numexpectedRvbs == 0) {
+      numexpectedRvbs = ((endRvbId - startRvbId) / targetConfig_.fetchRangeSize) + 1;
+    }
+    ASSERT_EQ(sizeOfRvbDigestInfo * numexpectedRvbs, fetchBlocksMsg->rvbDigestsSize);
+  }
 }
 
-void FakeDestination::sendFetchResPagesMsg(uint64_t lastCheckpointKnownToRequester, uint64_t requiredCheckpointNum) {
+void FakeDestination::sendFetchResPagesMsg(uint64_t lastCheckpointKnownToRequester,
+                                           uint64_t requiredCheckpointNum,
+                                           uint16_t senderReplicaId) {
   ASSERT_SRC_UNDER_TEST;
   FetchResPagesMsg msg;
   lastMsgSeqNum_ = stDelegator_->uniqueMsgSeqNum();
@@ -848,7 +960,10 @@ void FakeDestination::sendFetchResPagesMsg(uint64_t lastCheckpointKnownToRequest
   msg.lastCheckpointKnownToRequester = lastCheckpointKnownToRequester;
   msg.requiredCheckpointNum = requiredCheckpointNum;
   msg.lastKnownChunk = 0;  // for now, chunking is not supported
-  stDelegator_->onMessage(&msg, sizeof(msg), (targetConfig_.myReplicaId + 1) % targetConfig_.numReplicas);
+  senderReplicaId = (senderReplicaId == UINT_LEAST16_MAX)
+                        ? ((targetConfig_.myReplicaId + 1) % targetConfig_.numReplicas)
+                        : senderReplicaId;
+  stDelegator_->onMessage(&msg, sizeof(msg), senderReplicaId);
 }
 
 /////////////////////////////////////////////////////////
@@ -859,8 +974,9 @@ FakeSources::FakeSources(const Config& targetConfig,
                          const TestState& testState,
                          TestReplica& testedReplicaIf,
                          const std::shared_ptr<DataGenerator>& dataGen,
-                         std::shared_ptr<BcStTestDelegator>& stAdapter)
-    : FakeReplicaBase(targetConfig, testConfig, testState, testedReplicaIf, dataGen, stAdapter) {}
+                         std::shared_ptr<BcStTestDelegator>& stAdapter,
+                         BCStateTran* peerStateTransfer)
+    : FakeReplicaBase(targetConfig, testConfig, testState, testedReplicaIf, dataGen, stAdapter, peerStateTransfer) {}
 
 // TODO - For now we support generating only the initial configuration blocks
 void FakeSources::replyAskForCheckpointSummariesMsg(bool generateBlocksAndDescriptors) {
@@ -1098,11 +1214,11 @@ void BcStTest::initialize() {
   }
   stDelegator_ = make_shared<BcStTestDelegator>(stateTransfer_);
   if (testConfig_.testTarget == TestConfig::TestTarget::DESTINATION)
-    fakeSrcReplica_ =
-        make_unique<FakeSources>(targetConfig_, testConfig_, testState_, testedReplicaIf_, dataGen_, stDelegator_);
+    fakeSrcReplica_ = make_unique<FakeSources>(
+        targetConfig_, testConfig_, testState_, testedReplicaIf_, dataGen_, stDelegator_, stateTransfer_.get());
   else
-    fakeDstReplica_ =
-        make_unique<FakeDestination>(targetConfig_, testConfig_, testState_, testedReplicaIf_, dataGen_, stDelegator_);
+    fakeDstReplica_ = make_unique<FakeDestination>(
+        targetConfig_, testConfig_, testState_, testedReplicaIf_, dataGen_, stDelegator_, stateTransfer_.get());
   initialized_ = true;
 }
 
@@ -1120,7 +1236,7 @@ void BcStTest::cmnStartRunning(FetchingState expectedState) {
   ASSERT_FALSE(stateTransfer_->isRunning());
   stateTransfer_->startRunning(&testedReplicaIf_);
   ASSERT_TRUE(stateTransfer_->isRunning());
-  ASSERT_EQ(expectedState, stateTransfer_->getFetchingState());
+  ASSERT_EQ(expectedState, stDelegator_->getFetchingState());
 }
 
 void BcStTest::dstStartCollecting() {
@@ -1129,7 +1245,7 @@ void BcStTest::dstStartCollecting() {
   ASSERT_TRUE(initialized_);
   ASSERT_TRUE(stateTransfer_->isRunning());
   stateTransfer_->startCollectingState();
-  ASSERT_EQ(FetchingState::GettingCheckpointSummaries, stateTransfer_->getFetchingState());
+  ASSERT_EQ(FetchingState::GettingCheckpointSummaries, stDelegator_->getFetchingState());
   auto minRelevantCheckpoint = datastore_->getLastStoredCheckpoint() + 1;
   dstAssertAskForCheckpointSummariesSent(minRelevantCheckpoint);
 }
@@ -1158,10 +1274,10 @@ void BcStTest::dstAssertFetchBlocksMsgSent() {
   if (uint64_t firstRequiredBlock = datastore_->getFirstRequiredBlock(); firstRequiredBlock == 0) {
     // Get missing blocks is done, make sure St moved to next stage
     ASSERT_EQ(0, datastore_->getLastRequiredBlock());
-    ASSERT_EQ(FetchingState::GettingMissingResPages, stateTransfer_->getFetchingState());
+    ASSERT_EQ(FetchingState::GettingMissingResPages, stDelegator_->getFetchingState());
   } else {
     // We expect more batches
-    ASSERT_EQ(FetchingState::GettingMissingBlocks, stateTransfer_->getFetchingState());
+    ASSERT_EQ(FetchingState::GettingMissingBlocks, stDelegator_->getFetchingState());
     ASSERT_EQ(testState_.maxRequiredBlockId, datastore_->getLastRequiredBlock());
     ASSERT_TRUE(!testedReplicaIf_.sent_messages_.empty());
     ASSERT_NFF(assertMsgType(testedReplicaIf_.sent_messages_.front(), MsgType::FetchBlocks));
@@ -1173,7 +1289,7 @@ void BcStTest::dstAssertFetchBlocksMsgSent() {
 void BcStTest::dstAssertFetchResPagesMsgSent() {
   LOG_TRACE(GL, "");
   ASSERT_DEST_UNDER_TEST;
-  ASSERT_EQ(FetchingState::GettingMissingResPages, stateTransfer_->getFetchingState());
+  ASSERT_EQ(FetchingState::GettingMissingResPages, stDelegator_->getFetchingState());
   auto currentSourceId = stDelegator_->getSourceSelector().currentReplica();
   ASSERT_NE(currentSourceId, NO_REPLICA);
   ASSERT_EQ(datastore_->getFirstRequiredBlock(), datastore_->getLastRequiredBlock());
@@ -1185,7 +1301,7 @@ void BcStTest::dstAssertFetchResPagesMsgSent() {
 void BcStTest::srcAssertCheckpointSummariesSent(uint64_t minRepliedCheckpointNum, uint64_t maxRepliedCheckpointNum) {
   LOG_TRACE(GL, "");
   ASSERT_SRC_UNDER_TEST;
-  ASSERT_EQ(FetchingState::NotFetching, stateTransfer_->getFetchingState());
+  ASSERT_EQ(FetchingState::NotFetching, stDelegator_->getFetchingState());
   ASSERT_EQ(testedReplicaIf_.sent_messages_.size(), maxRepliedCheckpointNum - minRepliedCheckpointNum + 1);
   uint64_t expectedCheckpointNum = maxRepliedCheckpointNum;
   for (const auto& msg : testedReplicaIf_.sent_messages_) {
@@ -1209,13 +1325,10 @@ void BcStTest::srcAssertItemDataMsgBatchSentWithBlocks(uint64_t minExpectedBlock
   LOG_TRACE(GL, "");
   ASSERT_SRC_UNDER_TEST;
   ASSERT_GE(maxExpectedBlockId, minExpectedBlockId);
-  ASSERT_EQ(FetchingState::NotFetching, stateTransfer_->getFetchingState());
+  ASSERT_EQ(FetchingState::NotFetching, stDelegator_->getFetchingState());
   ASSERT_EQ(testedReplicaIf_.sent_messages_.size(), maxExpectedBlockId - minExpectedBlockId + 1);
   uint64_t currentBlockId = maxExpectedBlockId;  // we expect to get blocks in reverse order, chunking not supported
 
-  ASSERT_TRUE(datastore_->hasCheckpointDesc(testState_.maxRepliedCheckpointNum));
-  const DataStore::CheckpointDesc desc = datastore_->getCheckpointDesc(testState_.maxRepliedCheckpointNum);
-  ASSERT_EQ(desc.maxBlockId, maxExpectedBlockId);
   for (const auto& msg : testedReplicaIf_.sent_messages_) {
     const auto* itemDataMsg = reinterpret_cast<ItemDataMsg*>(msg.data_.get());
     ASSERT_EQ(1, itemDataMsg->totalNumberOfChunksInBlock);
@@ -1245,7 +1358,7 @@ void BcStTest::srcAssertItemDataMsgBatchSentWithBlocks(uint64_t minExpectedBlock
 void BcStTest::srcAssertItemDataMsgBatchSentWithResPages(uint32_t expectedChunksSent, uint64_t requiredCheckpointNum) {
   LOG_TRACE(GL, "");
   ASSERT_SRC_UNDER_TEST;
-  ASSERT_EQ(FetchingState::NotFetching, stateTransfer_->getFetchingState());
+  ASSERT_EQ(FetchingState::NotFetching, stDelegator_->getFetchingState());
   ASSERT_EQ(testedReplicaIf_.sent_messages_.size(), expectedChunksSent);
   const auto& msg = testedReplicaIf_.sent_messages_.front();
   ASSERT_NFF(assertMsgType(msg, MsgType::ItemData));
@@ -1344,7 +1457,7 @@ void BcStTest::dstRestart(bool productDbDeleteOnEnd, FetchingState expectedState
                                   testConfig_.numberOfRequiredReservedPages,
                                   targetConfig_.sizeOfReservedPage));
   cmnStartRunning(expectedState);
-  stDelegator_->onTimerImp();
+  stateTransfer_->onTimer();
 }
 
 void BcStTest::dstRestartWithIterations(std::set<size_t>& execOnIterations, FetchingState expectedState) {
@@ -1373,7 +1486,7 @@ void BcStTest::getMissingblocksStage(std::function<R(Args...)> callAtStart,
     }
     // There might be pending jobs for putBlock, we need to wait some time and then finalize them by calling
     this_thread::sleep_for(chrono::milliseconds(sleepDurationAfterReplyMilli));
-    stDelegator_->onTimerImp();
+    stateTransfer_->onTimer();
     ASSERT_NFF(dstAssertFetchBlocksMsgSent());
     if (datastore_->getFirstRequiredBlock() == 0) {
       break;
@@ -1406,8 +1519,15 @@ void BcStTest::getReservedPagesStage(bool skipReply, bool reject, size_t sleepDu
   }
   if (sleepDurationAfterReplyMilli > 0) {
     this_thread::sleep_for(chrono::milliseconds(sleepDurationAfterReplyMilli));
-    stDelegator_->onTimerImp();
+    stateTransfer_->onTimer();
   }
+}
+
+void BcStTest::dstValidateCycleEnd(size_t timeToSleepAfterreportCompletedMilli) {
+  this_thread::sleep_for(chrono::milliseconds(timeToSleepAfterreportCompletedMilli));
+  ASSERT_TRUE(testedReplicaIf_.onTransferringCompleteCalled_);
+  stateTransfer_->onTimer();
+  ASSERT_EQ(FetchingState::NotFetching, stDelegator_->getFetchingState());
 }
 
 /////////////////////////////////////////////////////////
@@ -1431,8 +1551,7 @@ TEST_P(BcStTestParamFixture1, dstFullStateTransfer) {
   ASSERT_NFF(getMissingblocksStage<void>());
   ASSERT_NFF(getReservedPagesStage());
   // now validate completion
-  ASSERT_TRUE(testedReplicaIf_.onTransferringCompleteCalled_);
-  ASSERT_EQ(FetchingState::NotFetching, stateTransfer_->getFetchingState());
+  ASSERT_NFF(dstValidateCycleEnd(10));
   ASSERT_NFF(compareAppStateblocks(testState_.maxRequiredBlockId - testState_.numBlocksToCollect + 1,
                                    testState_.maxRequiredBlockId));
 }
@@ -1476,8 +1595,7 @@ TEST_P(BcStTestParamFixture2, dstSourceSelectorPrimaryAwareness) {
       // Generate prePrepare messages to trigger source selector to change the source to avoid primary.
       ASSERT_NFF(msg = dataGen_->generatePrePrepareMsg(ss.currentReplica()));
       for (uint16_t i = 1; i <= targetConfig_.minPrePrepareMsgsForPrimaryAwareness; i++) {
-        auto cmsg = make_shared<ConsensusMsg>(msg->type(), msg->senderId());
-        stDelegator_->peekConsensusMessage(cmsg);
+        stateTransfer_->handleIncomingConsensusMessage(ConsensusMsg(msg->type(), msg->senderId()));
       }
     });
   };
@@ -1485,17 +1603,16 @@ TEST_P(BcStTestParamFixture2, dstSourceSelectorPrimaryAwareness) {
   const auto& sources = stDelegator_->getSourceSelector().getActualSources();
   ASSERT_EQ(sources.size(), number_of_replacements);
 
-  validateSourceSelectorMetricCounters({{"total_replacements_", number_of_replacements},
-                                        {"replacement_due_to_no_source_", 1},
-                                        {"replacement_due_to_source_same_as_primary_", number_of_replacements - 1},
-                                        {"replacement_due_to_bad_data_", 0},
-                                        {"replacement_due_to_periodic_change_", 0},
-                                        {"replacement_due_to_retransmission_timeout_", 0}});
+  validateSourceSelectorMetricCounters({{"total_replacements", number_of_replacements},
+                                        {"replacement_due_to_no_source", 1},
+                                        {"replacement_due_to_source_same_as_primary", number_of_replacements - 1},
+                                        {"replacement_due_to_bad_data", 0},
+                                        {"replacement_due_to_periodic_change", 0},
+                                        {"replacement_due_to_retransmission_timeout", 0}});
 
   ASSERT_NFF(getReservedPagesStage());
   // validate completion
-  ASSERT_TRUE(testedReplicaIf_.onTransferringCompleteCalled_);
-  ASSERT_EQ(FetchingState::NotFetching, stateTransfer_->getFetchingState());
+  ASSERT_NFF(dstValidateCycleEnd(10));
 }
 
 // 1st element - enable source selector primary awareness
@@ -1544,7 +1661,7 @@ TEST_F(BcStTest, dstValidateRealSourceListReported) {
       ASSERT_EQ(testedReplicaIf_.sent_messages_.front().to_, currentSrc);
       testedReplicaIf_.sent_messages_.clear();
       this_thread::sleep_for(chrono::milliseconds(targetConfig_.fetchRetransmissionTimeoutMs + 10));
-      stDelegator_->onTimerImp();
+      stateTransfer_->onTimer();
     }
   }
   ASSERT_EQ(testedReplicaIf_.sent_messages_.size(), 1);
@@ -1552,8 +1669,7 @@ TEST_F(BcStTest, dstValidateRealSourceListReported) {
   ASSERT_NFF(getMissingblocksStage<void>());
   ASSERT_NFF(getReservedPagesStage());
   // now validate completion
-  ASSERT_TRUE(testedReplicaIf_.onTransferringCompleteCalled_);
-  ASSERT_EQ(FetchingState::NotFetching, stateTransfer_->getFetchingState());
+  ASSERT_NFF(dstValidateCycleEnd(10));
 }
 
 // Validate a recurring source selection, during ongoing state transfer;
@@ -1572,15 +1688,14 @@ TEST_F(BcStTest, dstValidatePeriodicSourceReplacement) {
   ASSERT_NFF(getMissingblocksStage(delay_periodically, increase_batches));
   const auto& actualSources_ = stDelegator_->getSourceSelector().getActualSources();
   ASSERT_GT(actualSources_.size(), 1);
-  validateSourceSelectorMetricCounters({{"total_replacements_", actualSources_.size()},
-                                        {"replacement_due_to_no_source_", 1},
-                                        {"replacement_due_to_source_same_as_primary_", 0},
-                                        {"replacement_due_to_periodic_change_", actualSources_.size() - 1},
-                                        {"replacement_due_to_retransmission_timeout_", 0},
-                                        {"replacement_due_to_bad_data_", 0}});
+  validateSourceSelectorMetricCounters({{"total_replacements", actualSources_.size()},
+                                        {"replacement_due_to_no_source", 1},
+                                        {"replacement_due_to_source_same_as_primary", 0},
+                                        {"replacement_due_to_periodic_change", actualSources_.size() - 1},
+                                        {"replacement_due_to_retransmission_timeout", 0},
+                                        {"replacement_due_to_bad_data", 0}});
   ASSERT_NFF(getReservedPagesStage());
-  ASSERT_TRUE(testedReplicaIf_.onTransferringCompleteCalled_);
-  ASSERT_EQ(FetchingState::NotFetching, stateTransfer_->getFetchingState());
+  ASSERT_NFF(dstValidateCycleEnd(10));
 }
 
 // TBD BC-14432
@@ -1596,8 +1711,7 @@ TEST_F(BcStTest, dstSendPrePrepareMsgsDuringStateTransfer) {
       // Generate prePrepare messages to trigger source selector to change the source to avoid primary.
       ASSERT_NFF(msg = dataGen_->generatePrePrepareMsg(ss.currentReplica()));
       for (uint16_t i = 1; i <= targetConfig_.minPrePrepareMsgsForPrimaryAwareness; i++) {
-        auto cmsg = make_shared<ConsensusMsg>(msg->type(), msg->senderId());
-        stDelegator_->peekConsensusMessage(cmsg);
+        stateTransfer_->handleIncomingConsensusMessage(ConsensusMsg(msg->type(), msg->senderId()));
       }
     });
   };
@@ -1605,16 +1719,15 @@ TEST_F(BcStTest, dstSendPrePrepareMsgsDuringStateTransfer) {
   const auto& sources = stDelegator_->getSourceSelector().getActualSources();
   // TBD metric counters in source selector should be used to validate changed sources to avoid primary
   ASSERT_EQ(sources.size(), 2);
-  validateSourceSelectorMetricCounters({{"total_replacements_", 2},
-                                        {"replacement_due_to_no_source_", 1},
-                                        {"replacement_due_to_source_same_as_primary_", 1},
-                                        {"replacement_due_to_periodic_change_", 0},
-                                        {"replacement_due_to_retransmission_timeout_", 0},
-                                        {"replacement_due_to_bad_data_", 0}});
+  validateSourceSelectorMetricCounters({{"total_replacements", 2},
+                                        {"replacement_due_to_no_source", 1},
+                                        {"replacement_due_to_source_same_as_primary", 1},
+                                        {"replacement_due_to_periodic_change", 0},
+                                        {"replacement_due_to_retransmission_timeout", 0},
+                                        {"replacement_due_to_bad_data", 0}});
   ASSERT_NFF(getReservedPagesStage());
   // validate completion
-  ASSERT_TRUE(testedReplicaIf_.onTransferringCompleteCalled_);
-  ASSERT_EQ(FetchingState::NotFetching, stateTransfer_->getFetchingState());
+  ASSERT_NFF(dstValidateCycleEnd(10));
 }
 
 TEST_F(BcStTest, dstPreprepareFromMultipleSourcesDuringStateTransfer) {
@@ -1629,27 +1742,25 @@ TEST_F(BcStTest, dstPreprepareFromMultipleSourcesDuringStateTransfer) {
       // Generate enough prePrepare messages but from more than one source so that source does not get changed
       ASSERT_NFF(msg = dataGen_->generatePrePrepareMsg(ss.currentReplica()));
       for (uint16_t i = 1; i <= targetConfig_.minPrePrepareMsgsForPrimaryAwareness - 1; i++) {
-        auto cmsg = make_shared<ConsensusMsg>(msg->type(), msg->senderId());
-        stDelegator_->peekConsensusMessage(cmsg);
+        stateTransfer_->handleIncomingConsensusMessage(ConsensusMsg(msg->type(), msg->senderId()));
       }
-      auto cmsg = make_shared<ConsensusMsg>(msg->type(), (msg->senderId() + 1) % targetConfig_.numReplicas);
-      stDelegator_->peekConsensusMessage(cmsg);
+      stateTransfer_->handleIncomingConsensusMessage(
+          ConsensusMsg(msg->type(), (msg->senderId() + 1) % targetConfig_.numReplicas));
     });
   };
   ASSERT_NFF(getMissingblocksStage(EMPTY_FUNC, generate_preprepare_messages));
   const auto& sources = stDelegator_->getSourceSelector().getActualSources();
   // TBD metric counters in source selector should be used to validate changed sources to avoid primary
   ASSERT_EQ(sources.size(), 1);
-  validateSourceSelectorMetricCounters({{"total_replacements_", 1},
-                                        {"replacement_due_to_no_source_", 1},
-                                        {"replacement_due_to_source_same_as_primary_", 0},
-                                        {"replacement_due_to_periodic_change_", 0},
-                                        {"replacement_due_to_retransmission_timeout_", 0},
-                                        {"replacement_due_to_bad_data_", 0}});
+  validateSourceSelectorMetricCounters({{"total_replacements", 1},
+                                        {"replacement_due_to_no_source", 1},
+                                        {"replacement_due_to_source_same_as_primary", 0},
+                                        {"replacement_due_to_periodic_change", 0},
+                                        {"replacement_due_to_retransmission_timeout", 0},
+                                        {"replacement_due_to_bad_data", 0}});
   ASSERT_NFF(getReservedPagesStage());
   // validate completion
-  ASSERT_TRUE(testedReplicaIf_.onTransferringCompleteCalled_);
-  ASSERT_EQ(FetchingState::NotFetching, stateTransfer_->getFetchingState());
+  ASSERT_NFF(dstValidateCycleEnd(10));
 }
 
 // Run a full state transfer with 3 cycles
@@ -1664,8 +1775,7 @@ TEST_F(BcStTest, dstFullStateTransferMultipleCycles) {
     ASSERT_NFF(getMissingblocksStage<void>());
     ASSERT_NFF(getReservedPagesStage());
     // now validate completion
-    ASSERT_TRUE(testedReplicaIf_.onTransferringCompleteCalled_);
-    ASSERT_EQ(FetchingState::NotFetching, stateTransfer_->getFetchingState());
+    ASSERT_NFF(dstValidateCycleEnd(10));
     if (i != nextcycleSizeMultiplier.size())
       testState_.moveToNextCycle(testConfig_,
                                  appState_,
@@ -1688,8 +1798,7 @@ TEST_F(BcStTest, dstFullStateTransferWithRestarts) {
   ASSERT_NFF(getMissingblocksStage<void>(restart_on_specific_iterations, EMPTY_FUNC));
   ASSERT_NFF(getReservedPagesStage());
   // now validate completion
-  ASSERT_TRUE(testedReplicaIf_.onTransferringCompleteCalled_);
-  ASSERT_EQ(FetchingState::NotFetching, stateTransfer_->getFetchingState());
+  ASSERT_NFF(dstValidateCycleEnd(10));
 }
 
 // Since state is getting missing blocks, replica re-set preffered group and continues without the rejecting source
@@ -1717,8 +1826,7 @@ TEST_F(BcStTest, dstSetNewPrefferedReplicasOnFetchBlocksMsgRejection) {
   ASSERT_NFF(getMissingblocksStage(corruptFetchBlocksMsgRequestOnce, EMPTY_FUNC));
   ASSERT_NFF(getReservedPagesStage());
   // now validate completion
-  ASSERT_TRUE(testedReplicaIf_.onTransferringCompleteCalled_);
-  ASSERT_EQ(FetchingState::NotFetching, stateTransfer_->getFetchingState());
+  ASSERT_NFF(dstValidateCycleEnd(10));
   ASSERT_NFF(compareAppStateblocks(testState_.maxRequiredBlockId - testState_.numBlocksToCollect + 1,
                                    testState_.maxRequiredBlockId));
 }
@@ -1736,14 +1844,13 @@ TEST_F(BcStTest, dstEndterInternalCycleOnFetchReservedPagesNotReplied) {
   // remove preferred replicas in destination, to trigger an entry into new cycle
   stDelegator_->clearPreferredReplicas();
   ASSERT_NFF(getReservedPagesStage(true, true, 0));
-  ASSERT_EQ(FetchingState::GettingCheckpointSummaries, stateTransfer_->getFetchingState());
+  ASSERT_EQ(FetchingState::GettingCheckpointSummaries, stDelegator_->getFetchingState());
 
   // 2nd cycle starts, this time nothing 'bad' happens, but cycle is only for getting the reserved pages
   ASSERT_NFF(fakeSrcReplica_->replyAskForCheckpointSummariesMsg(false));
   ASSERT_NFF(getReservedPagesStage());
 
-  ASSERT_TRUE(testedReplicaIf_.onTransferringCompleteCalled_);
-  ASSERT_EQ(FetchingState::NotFetching, stateTransfer_->getFetchingState());
+  ASSERT_NFF(dstValidateCycleEnd(10));
   ASSERT_NFF(compareAppStateblocks(testState_.maxRequiredBlockId - testState_.numBlocksToCollect + 1,
                                    testState_.maxRequiredBlockId));
 }
@@ -1782,11 +1889,38 @@ TEST_F(BcStTest, srcHandleFetchBlocksMsg) {
                                                      testState_.minRepliedCheckpointNum,
                                                      testState_.maxRepliedCheckpointNum,
                                                      stDelegator_->getRvbManager()));
+
+  // Make sure the following metrics are zeroed
+  ASSERT_NFF(stDelegator_->assertBCStateTranMetricKeyVal("src_overall_batches_sent", 0));
+  ASSERT_NFF(stDelegator_->assertBCStateTranMetricKeyVal("src_overall_prefetched_batches_sent", 0));
+  ASSERT_NFF(stDelegator_->assertBCStateTranMetricKeyVal("src_overall_on_spot_batches_sent", 0));
+
+  // Send FetchBlocksMsg and validate the messages in outgoing queue testedReplicaIf_.sent_messages_
+  // Make sure the message signals source also for prefetch a full batch
   ASSERT_NFF(fakeDstReplica_->sendFetchBlocksMsg(testState_.minRequiredBlockId, testState_.maxRequiredBlockId));
-  uint64_t minExpectedBlockId = (testState_.numBlocksToCollect > targetConfig_.maxNumberOfChunksInBatch)
-                                    ? (testState_.maxRequiredBlockId - targetConfig_.maxNumberOfChunksInBatch + 1)
-                                    : testState_.minRequiredBlockId;
-  ASSERT_NFF(srcAssertItemDataMsgBatchSentWithBlocks(minExpectedBlockId, testState_.maxRequiredBlockId));
+  uint64_t maxExpectedBlockId = (testState_.numBlocksToCollect > targetConfig_.maxNumberOfChunksInBatch)
+                                    ? (testState_.minRequiredBlockId + targetConfig_.maxNumberOfChunksInBatch - 1)
+                                    : testState_.maxRequiredBlockId;
+  ASSERT_NFF(srcAssertItemDataMsgBatchSentWithBlocks(testState_.minRequiredBlockId, maxExpectedBlockId));
+
+  // Make sure the following metrics are zeroed
+  ASSERT_NFF(stDelegator_->assertBCStateTranMetricKeyVal("src_overall_batches_sent", 1));
+  ASSERT_NFF(stDelegator_->assertBCStateTranMetricKeyVal("src_overall_prefetched_batches_sent", 0));
+  ASSERT_NFF(stDelegator_->assertBCStateTranMetricKeyVal("src_overall_on_spot_batches_sent", 1));
+
+  // clear the outgoing queue, and send another request, validate that the it was prefetched using metrics
+  testState_.minRequiredBlockId = testState_.minRequiredBlockId + targetConfig_.maxNumberOfChunksInBatch;
+  testedReplicaIf_.sent_messages_.clear();
+  ASSERT_NFF(fakeDstReplica_->sendFetchBlocksMsg(testState_.minRequiredBlockId, testState_.maxRequiredBlockId));
+  maxExpectedBlockId = (testState_.numBlocksToCollect > targetConfig_.maxNumberOfChunksInBatch)
+                           ? (testState_.minRequiredBlockId + targetConfig_.maxNumberOfChunksInBatch - 1)
+                           : testState_.maxRequiredBlockId;
+  ASSERT_NFF(srcAssertItemDataMsgBatchSentWithBlocks(testState_.minRequiredBlockId, maxExpectedBlockId));
+
+  // Make sure the following metrics are zeroed
+  ASSERT_NFF(stDelegator_->assertBCStateTranMetricKeyVal("src_overall_batches_sent", 2));
+  ASSERT_NFF(stDelegator_->assertBCStateTranMetricKeyVal("src_overall_prefetched_batches_sent", 1));
+  ASSERT_NFF(stDelegator_->assertBCStateTranMetricKeyVal("src_overall_on_spot_batches_sent", 1));
 }
 
 TEST_F(BcStTest, srcHandleFetchResPagesMsg) {
@@ -1813,11 +1947,408 @@ TEST_F(BcStTest, srcHandleFetchResPagesMsg) {
   ASSERT_NFF(srcAssertItemDataMsgBatchSentWithResPages(1, testState_.maxRepliedCheckpointNum));
 }
 
-/////////////////////////////////////////////////////////
+TEST_F(BcStTest, srcTestSessionManagement) {
+  testConfig_.testTarget = TestConfig::TestTarget::SOURCE;
+  ASSERT_NFF(initialize());
+  ASSERT_NFF(cmnStartRunning());
+  // Generate the data needed for a tested ST backup replica
+  ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, testState_.maxRequiredBlockId));
+  ASSERT_NFF(dataGen_->generateCheckpointDescriptors(appState_,
+                                                     datastore_,
+                                                     testState_.minRepliedCheckpointNum,
+                                                     testState_.maxRepliedCheckpointNum,
+                                                     stDelegator_->getRvbManager()));
+
+  auto senderReplicaId2 = (targetConfig_.myReplicaId + 2) % targetConfig_.numReplicas;
+  auto senderReplicaId1 = (targetConfig_.myReplicaId + 1) % targetConfig_.numReplicas;
+
+  // for senderReplicaId2 only:
+  ASSERT_NFF(fakeDstReplica_->sendFetchBlocksMsg(
+      testState_.minRequiredBlockId, testState_.maxRequiredBlockId, 0, 0, senderReplicaId2));
+  ASSERT_EQ(testedReplicaIf_.sent_messages_.size(), targetConfig_.maxNumberOfChunksInBatch);
+  testedReplicaIf_.sent_messages_.clear();
+  // Validate that session was really openned for senderReplicaId
+  ASSERT_TRUE(stDelegator_->isSrcSessionOpen());
+  ASSERT_EQ(stDelegator_->srcSessionOwnerDestReplicaId(), senderReplicaId2);
+  // wait some time and see that session is still open
+  this_thread::sleep_for(chrono::milliseconds(targetConfig_.sourceSessionExpiryDurationMs / 2));
+  stateTransfer_->onTimer();
+  ASSERT_TRUE(stDelegator_->isSrcSessionOpen());
+  ASSERT_EQ(stDelegator_->srcSessionOwnerDestReplicaId(), senderReplicaId2);
+  // Send another request and validate an open session for senderReplicaId
+  ASSERT_NFF(fakeDstReplica_->sendFetchBlocksMsg(
+      testState_.minRequiredBlockId, testState_.maxRequiredBlockId, 0, 0, senderReplicaId2));
+  auto timeLeftForSession = targetConfig_.sourceSessionExpiryDurationMs;
+  ASSERT_EQ(testedReplicaIf_.sent_messages_.size(), targetConfig_.maxNumberOfChunksInBatch);
+  testedReplicaIf_.sent_messages_.clear();
+  ASSERT_TRUE(stDelegator_->isSrcSessionOpen());
+  ASSERT_EQ(stDelegator_->srcSessionOwnerDestReplicaId(), senderReplicaId2);
+
+  //
+  // sleep 50 millisec, then send request from senderReplicaId1 and validate rejection x 3 times
+  for (size_t i{}; i < 3; ++i) {
+    this_thread::sleep_for(chrono::milliseconds(50));
+    stateTransfer_->onTimer();
+    timeLeftForSession -= 50;
+    ASSERT_NFF(fakeDstReplica_->sendFetchBlocksMsg(
+        testState_.minRequiredBlockId, testState_.maxRequiredBlockId, 0, 1, senderReplicaId1));
+    ASSERT_EQ(testedReplicaIf_.sent_messages_.size(), 1);
+    const auto& msg = testedReplicaIf_.sent_messages_.front();
+    ASSERT_NFF(assertMsgType(msg, MsgType::RejectFetching));
+    testedReplicaIf_.sent_messages_.clear();
+    stateTransfer_->onTimer();
+  }
+
+  // Now wait till session expire and send request x3 times from senderReplicaId2, see that we get ItemDataMsg
+  this_thread::sleep_for(chrono::milliseconds(timeLeftForSession + 50));
+  stateTransfer_->onTimer();
+  for (size_t i{}; i < 3; ++i) {
+    this_thread::sleep_for(chrono::milliseconds(50));
+    ASSERT_NFF(fakeDstReplica_->sendFetchBlocksMsg(
+        testState_.minRequiredBlockId, testState_.maxRequiredBlockId, 0, 0, senderReplicaId2));
+    ASSERT_EQ(testedReplicaIf_.sent_messages_.size(), targetConfig_.maxNumberOfChunksInBatch);
+    testedReplicaIf_.sent_messages_.clear();
+    // Validate that session was really openned for senderReplicaId2
+    stateTransfer_->onTimer();
+    ASSERT_TRUE(stDelegator_->isSrcSessionOpen());
+    ASSERT_EQ(stDelegator_->srcSessionOwnerDestReplicaId(), senderReplicaId2);
+  }
+}
+
+// check that when sourceSessionExpiryDurationMs=0, no destination is rejected by source
+TEST_F(BcStTest, srcTestSessionManagementDisabled) {
+  testConfig_.testTarget = TestConfig::TestTarget::SOURCE;
+  targetConfig_.sourceSessionExpiryDurationMs = 0;
+  ASSERT_NFF(initialize());
+  ASSERT_NFF(cmnStartRunning());
+  // Generate the data needed for a tested ST backup replica
+  ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, testState_.maxRequiredBlockId));
+  ASSERT_NFF(dataGen_->generateCheckpointDescriptors(appState_,
+                                                     datastore_,
+                                                     testState_.minRepliedCheckpointNum,
+                                                     testState_.maxRepliedCheckpointNum,
+                                                     stDelegator_->getRvbManager()));
+
+  // send request from all replicas, non should be rejected
+  for (size_t i{}, j{}; i < targetConfig_.numReplicas; ++i) {
+    if (i == targetConfig_.myReplicaId) {
+      continue;
+    }
+    ++j;
+    ASSERT_NFF(fakeDstReplica_->sendFetchBlocksMsg(
+        testState_.minRequiredBlockId, testState_.maxRequiredBlockId, 0, j * targetConfig_.maxNumberOfChunksInBatch, i))
+        << KVLOG(testState_.minRequiredBlockId, testState_.maxRequiredBlockId, i, j);
+    testState_.minRequiredBlockId = testState_.minRequiredBlockId + targetConfig_.maxNumberOfChunksInBatch;
+  }
+}
+
+// check that source closes cycle at the end of a cycle
+TEST_F(BcStTest, srcTestCloseSessionOnCycleEnd) {
+  testConfig_.testTarget = TestConfig::TestTarget::SOURCE;
+  targetConfig_.sourceSessionExpiryDurationMs = 0;
+  ASSERT_NFF(initialize());
+  ASSERT_NFF(cmnStartRunning());
+  // Generate the data needed for a tested ST backup replica
+  ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, testState_.maxRequiredBlockId));
+  ASSERT_NFF(dataGen_->generateCheckpointDescriptors(appState_,
+                                                     datastore_,
+                                                     testState_.minRepliedCheckpointNum,
+                                                     testState_.maxRepliedCheckpointNum,
+                                                     stDelegator_->getRvbManager()));
+
+  // send 2 regular requests, check that cycle stays open after each of them
+  ASSERT_TRUE(!stDelegator_->isSrcSessionOpen());
+  for (size_t i{0}; i < 2; ++i) {
+    ASSERT_NFF(fakeDstReplica_->sendFetchBlocksMsg(testState_.minRequiredBlockId,
+                                                   testState_.maxRequiredBlockId,
+                                                   0,
+                                                   (i + 1) * targetConfig_.maxNumberOfChunksInBatch));
+    ASSERT_TRUE(stDelegator_->isSrcSessionOpen());
+    ASSERT_EQ(stDelegator_->srcSessionOwnerDestReplicaId(),
+              ((targetConfig_.myReplicaId + 1) % targetConfig_.numReplicas));
+  }
+
+  // now send a request for last batch in cycle, 2 blocks only, validate that session is closed after
+  testedReplicaIf_.sent_messages_.clear();
+  ASSERT_NFF(fakeDstReplica_->sendFetchBlocksMsg(
+      testState_.maxRequiredBlockId - 1, testState_.maxRequiredBlockId, testState_.maxRequiredBlockId, 2));
+  ASSERT_TRUE(!stDelegator_->isSrcSessionOpen());
+}
+
+// test all scenarios where source is required to send RVB group digests from storage and pruning vector
+TEST_F(BcStTest, srcTestSendRvbGroupDigests) {
+  testConfig_.testTarget = TestConfig::TestTarget::SOURCE;
+  // set RVT_K to 1024, so we can be sure all fetch range is contained in a single RVB group
+  targetConfig_.RVT_K = 1024;
+
+  ASSERT_NFF(initialize());
+  ASSERT_NFF(cmnStartRunning());
+  // Generate the data needed for a tested ST backup replica
+  ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, testState_.maxRequiredBlockId));
+  ASSERT_NFF(dataGen_->generateCheckpointDescriptors(appState_,
+                                                     datastore_,
+                                                     testState_.minRepliedCheckpointNum,
+                                                     testState_.maxRepliedCheckpointNum,
+                                                     stDelegator_->getRvbManager()));
+
+  // Send a FetchBlocksMsg and validate the rvb data (this part is optional)
+  const auto rvbGroupId = stDelegator_->getRvbManager()->getFetchBlocksRvbGroupId(testState_.minRequiredBlockId,
+                                                                                  testState_.maxRequiredBlockId);
+  ASSERT_NFF(fakeDstReplica_->sendFetchBlocksMsg(testState_.minRequiredBlockId,
+                                                 testState_.maxRequiredBlockId,
+                                                 0,
+                                                 0,
+                                                 ((targetConfig_.myReplicaId + 1) % targetConfig_.numReplicas),
+                                                 0,
+                                                 rvbGroupId));
+  // clear the outgoing message queue, but 1st copy the RVB digests for later use
+  const auto& msg1 = testedReplicaIf_.sent_messages_.front();
+  auto fetchBlocksMsg1 = reinterpret_cast<ItemDataMsg*>(msg1.data_.get());
+  std::unique_ptr<char[]> buffer1(new char[fetchBlocksMsg1->rvbDigestsSize]);
+  memcpy(buffer1.get(), fetchBlocksMsg1->data, fetchBlocksMsg1->rvbDigestsSize);
+  auto rvbDigestsSize1 = fetchBlocksMsg1->rvbDigestsSize;
+  testedReplicaIf_.sent_messages_.clear();
+
+  // Prune approx half of the blocks and send another request, We expect source to send the missing blocks
+  // from the pruned blocks digests vector. So the batch should start from much newer blocks, but the digests should be
+  // exactly the same since the RVT has not changed.
+  auto rvbm = stDelegator_->getRvbManager();
+  auto maxBlockIdToDelete =
+      testState_.minRequiredBlockId + ((testState_.maxRequiredBlockId - testState_.minRequiredBlockId) / 2);
+  rvbm->reportLastAgreedPrunableBlockId(maxBlockIdToDelete);
+  // we need to actually delete all blocks in storage to simlate pruning
+  ASSERT_NFF(appState_.deleteBlocksUntil(maxBlockIdToDelete + 1));
+  auto startRvbId = stDelegator_->nextRvbBlockId(testState_.minRequiredBlockId);
+  if (startRvbId == 0) {
+    startRvbId = targetConfig_.fetchRangeSize;
+  }
+  const auto endRvbId = stDelegator_->prevRvbBlockId(testState_.maxRequiredBlockId);
+  ASSERT_GT(endRvbId, startRvbId);
+  ASSERT_NFF(fakeDstReplica_->sendFetchBlocksMsg(maxBlockIdToDelete + 1,
+                                                 testState_.maxRequiredBlockId,
+                                                 0,
+                                                 0,
+                                                 ((targetConfig_.myReplicaId + 1) % targetConfig_.numReplicas),
+                                                 ((endRvbId - startRvbId) / targetConfig_.fetchRangeSize) + 1,
+                                                 rvbGroupId));
+  // compare 2 RVB digests data - they should be equal
+  const auto& msg2 = testedReplicaIf_.sent_messages_.front();
+  auto fetchBlocksMsg2 = reinterpret_cast<ItemDataMsg*>(msg2.data_.get());
+  std::unique_ptr<char[]> buffer2(new char[fetchBlocksMsg2->rvbDigestsSize]);
+  memcpy(buffer2.get(), fetchBlocksMsg2->data, fetchBlocksMsg2->rvbDigestsSize);
+  auto rvbDigestsSize2 = fetchBlocksMsg2->rvbDigestsSize;
+  ASSERT_EQ(rvbDigestsSize2, rvbDigestsSize1);
+  ASSERT_EQ(memcmp(buffer1.get(), buffer2.get(), rvbDigestsSize2), 0);
+}
+
+// test all scenarios where source is required to send RVB group digests from storage and pruning vector
+TEST_F(BcStTest, srcTestSourcePrepareIoContexts) {
+  testConfig_.testTarget = TestConfig::TestTarget::SOURCE;
+  // set maxNumberOfChunksInBatch/fetchRangeSize to 10 so we can easily test and debug this function
+  targetConfig_.maxNumberOfChunksInBatch = 10;
+  targetConfig_.fetchRangeSize = 10;
+
+  ASSERT_NFF(initialize());
+  ASSERT_NFF(cmnStartRunning());
+  // Generate the data needed for a tested ST backup replica
+  ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, testState_.maxRequiredBlockId));
+  ASSERT_NFF(dataGen_->generateCheckpointDescriptors(appState_,
+                                                     datastore_,
+                                                     testState_.minRepliedCheckpointNum,
+                                                     testState_.maxRepliedCheckpointNum,
+                                                     stDelegator_->getRvbManager()));
+  auto& ioPool = stDelegator_->getIoPool();
+  auto& ioContexts = stDelegator_->getIoContexts();
+
+  auto sendFetchBlocksMsgAndValidatePrefetch = [&](uint64_t minBlockId,
+                                                   uint64_t maxBlockIdInCycle,
+                                                   uint64_t maxBlockId,
+                                                   uint64_t numExpectedItemDataMsgsInReply,
+                                                   uint64_t minPreFetchedBlockId,
+                                                   uint64_t maxPrefetchedBlockId,
+                                                   uint64_t src_overall_batches_sent,
+                                                   uint64_t src_overall_prefetched_batches_sent,
+                                                   uint64_t src_overall_on_spot_batches_sent,
+                                                   uint64_t src_num_io_contexts_dropped,
+                                                   uint64_t src_num_io_contexts_invoked,
+                                                   uint64_t src_num_io_contexts_consumed) {
+    ASSERT_NFF(fakeDstReplica_->sendFetchBlocksMsg(minBlockId,
+                                                   maxBlockIdInCycle,
+                                                   maxBlockId,
+                                                   numExpectedItemDataMsgsInReply,
+                                                   FakeDestination::kDefaultSenderReplicaId,
+                                                   0,
+                                                   0));
+
+    ASSERT_NFF(stDelegator_->assertBCStateTranMetricKeyVal("src_overall_batches_sent", src_overall_batches_sent));
+    ASSERT_NFF(stDelegator_->assertBCStateTranMetricKeyVal("src_overall_prefetched_batches_sent",
+                                                           src_overall_prefetched_batches_sent));
+    ASSERT_NFF(stDelegator_->assertBCStateTranMetricKeyVal("src_overall_on_spot_batches_sent",
+                                                           src_overall_on_spot_batches_sent));
+    ASSERT_NFF(stDelegator_->assertBCStateTranMetricKeyVal("src_num_io_contexts_dropped", src_num_io_contexts_dropped));
+    ASSERT_NFF(stDelegator_->assertBCStateTranMetricKeyVal("src_num_io_contexts_invoked", src_num_io_contexts_invoked));
+    ASSERT_NFF(
+        stDelegator_->assertBCStateTranMetricKeyVal("src_num_io_contexts_consumed", src_num_io_contexts_consumed));
+    testedReplicaIf_.sent_messages_.clear();
+
+    ASSERT_EQ(targetConfig_.maxNumberOfChunksInBatch, ioContexts.size());
+
+    size_t numBlocksRequested{maxPrefetchedBlockId - minPreFetchedBlockId + 1};
+    auto j{maxPrefetchedBlockId};
+    size_t i{};
+    for (; i < std::min(numBlocksRequested, ioContexts.size()); ++i, --j) {
+      ASSERT_EQ(ioContexts[i]->blockId, j);
+      ASSERT_TRUE(ioContexts[i]->future.valid());
+    }
+  };
+
+  uint64_t src_overall_batches_sent{};
+  uint64_t src_overall_prefetched_batches_sent{};
+  uint64_t src_overall_on_spot_batches_sent{};
+  uint64_t src_num_io_contexts_dropped{};
+  uint64_t src_num_io_contexts_invoked{};
+  uint64_t src_num_io_contexts_consumed{};
+
+  // 1) Lets send a standard FetchBlocksMsg(request full batch), we expect batch prediction to trigger
+  uint64_t minPreFetchedBlockId = testState_.minRequiredBlockId + targetConfig_.maxNumberOfChunksInBatch;
+  uint64_t maxPrefetchedBlockId = minPreFetchedBlockId + targetConfig_.maxNumberOfChunksInBatch - 1;
+  ASSERT_NFF(
+      sendFetchBlocksMsgAndValidatePrefetch(testState_.minRequiredBlockId,
+                                            testState_.maxRequiredBlockId,
+                                            0,
+                                            0,
+                                            minPreFetchedBlockId,
+                                            maxPrefetchedBlockId,
+                                            ++src_overall_batches_sent,
+                                            src_overall_prefetched_batches_sent,
+                                            ++src_overall_on_spot_batches_sent,
+                                            src_num_io_contexts_dropped,
+                                            src_num_io_contexts_invoked = targetConfig_.maxNumberOfChunksInBatch * 2,
+                                            src_num_io_contexts_consumed = targetConfig_.maxNumberOfChunksInBatch));
+
+  // 2) Send another FetchBlocksMsg and see that prefetch goes as expected
+  testState_.minRequiredBlockId = testState_.minRequiredBlockId + targetConfig_.maxNumberOfChunksInBatch;
+  minPreFetchedBlockId = testState_.minRequiredBlockId + targetConfig_.maxNumberOfChunksInBatch;
+  maxPrefetchedBlockId = minPreFetchedBlockId + targetConfig_.maxNumberOfChunksInBatch - 1;
+  ASSERT_NFF(
+      sendFetchBlocksMsgAndValidatePrefetch(testState_.minRequiredBlockId,
+                                            testState_.maxRequiredBlockId,
+                                            0,
+                                            0,
+                                            minPreFetchedBlockId,
+                                            maxPrefetchedBlockId,
+                                            ++src_overall_batches_sent,
+                                            ++src_overall_prefetched_batches_sent,
+                                            src_overall_on_spot_batches_sent,
+                                            src_num_io_contexts_dropped,
+                                            src_num_io_contexts_invoked += targetConfig_.maxNumberOfChunksInBatch,
+                                            src_num_io_contexts_consumed += targetConfig_.maxNumberOfChunksInBatch));
+
+  // 3) Clear Io contexts and see that (again) when sending FetchBlocksMsg, on-spot batch is sent
+  stDelegator_->clearIoContexts();
+  testState_.minRequiredBlockId = testState_.minRequiredBlockId + targetConfig_.maxNumberOfChunksInBatch;
+  minPreFetchedBlockId = testState_.minRequiredBlockId + targetConfig_.maxNumberOfChunksInBatch;
+  maxPrefetchedBlockId = minPreFetchedBlockId + targetConfig_.maxNumberOfChunksInBatch - 1;
+  ASSERT_NFF(
+      sendFetchBlocksMsgAndValidatePrefetch(testState_.minRequiredBlockId,
+                                            testState_.maxRequiredBlockId,
+                                            0,
+                                            0,
+                                            minPreFetchedBlockId,
+                                            maxPrefetchedBlockId,
+                                            ++src_overall_batches_sent,
+                                            src_overall_prefetched_batches_sent,
+                                            ++src_overall_on_spot_batches_sent,
+                                            src_num_io_contexts_dropped,
+                                            src_num_io_contexts_invoked += 2 * targetConfig_.maxNumberOfChunksInBatch,
+                                            src_num_io_contexts_consumed += targetConfig_.maxNumberOfChunksInBatch));
+
+  // 4) Change front block Id on ioContexts, and check that pre-fetch is cleared while sending another FetchBlocksMsg
+  testState_.minRequiredBlockId = testState_.minRequiredBlockId + targetConfig_.maxNumberOfChunksInBatch;
+  ioContexts.front()->blockId = ioContexts.front()->blockId - 1;
+  minPreFetchedBlockId = testState_.minRequiredBlockId + targetConfig_.maxNumberOfChunksInBatch;
+  maxPrefetchedBlockId = minPreFetchedBlockId + targetConfig_.maxNumberOfChunksInBatch - 1;
+  ASSERT_NFF(
+      sendFetchBlocksMsgAndValidatePrefetch(testState_.minRequiredBlockId,
+                                            testState_.maxRequiredBlockId,
+                                            0,
+                                            0,
+                                            minPreFetchedBlockId,
+                                            maxPrefetchedBlockId,
+                                            ++src_overall_batches_sent,
+                                            src_overall_prefetched_batches_sent,
+                                            ++src_overall_on_spot_batches_sent,
+                                            src_num_io_contexts_dropped += targetConfig_.maxNumberOfChunksInBatch,
+                                            src_num_io_contexts_invoked += 2 * targetConfig_.maxNumberOfChunksInBatch,
+                                            src_num_io_contexts_consumed += targetConfig_.maxNumberOfChunksInBatch));
+
+  // 5) Change mid block Id on ioContexts, and check that pre-fetch is cleared while sending another FetchBlocksMsg
+  testState_.minRequiredBlockId = testState_.minRequiredBlockId + targetConfig_.maxNumberOfChunksInBatch;
+  ioContexts[3]->blockId = ioContexts[3]->blockId - 1;
+  minPreFetchedBlockId = testState_.minRequiredBlockId + targetConfig_.maxNumberOfChunksInBatch;
+  maxPrefetchedBlockId = minPreFetchedBlockId + targetConfig_.maxNumberOfChunksInBatch - 1;
+  ASSERT_NFF(
+      sendFetchBlocksMsgAndValidatePrefetch(testState_.minRequiredBlockId,
+                                            testState_.maxRequiredBlockId,
+                                            0,
+                                            0,
+                                            minPreFetchedBlockId,
+                                            maxPrefetchedBlockId,
+                                            ++src_overall_batches_sent,
+                                            src_overall_prefetched_batches_sent,
+                                            ++src_overall_on_spot_batches_sent,
+                                            src_num_io_contexts_dropped += targetConfig_.maxNumberOfChunksInBatch,
+                                            src_num_io_contexts_invoked += 2 * targetConfig_.maxNumberOfChunksInBatch,
+                                            src_num_io_contexts_consumed += targetConfig_.maxNumberOfChunksInBatch));
+
+  // 6) Consume front future on ioContexts, and check that pre-fetch is cleared while sending another FetchBlocksMsg
+  testState_.minRequiredBlockId = testState_.minRequiredBlockId + targetConfig_.maxNumberOfChunksInBatch;
+  ioContexts[0]->future.get();
+  minPreFetchedBlockId = testState_.minRequiredBlockId + targetConfig_.maxNumberOfChunksInBatch;
+  maxPrefetchedBlockId = minPreFetchedBlockId + targetConfig_.maxNumberOfChunksInBatch - 1;
+  ASSERT_NFF(
+      sendFetchBlocksMsgAndValidatePrefetch(testState_.minRequiredBlockId,
+                                            testState_.maxRequiredBlockId,
+                                            0,
+                                            0,
+                                            minPreFetchedBlockId,
+                                            maxPrefetchedBlockId,
+                                            ++src_overall_batches_sent,
+                                            src_overall_prefetched_batches_sent,
+                                            ++src_overall_on_spot_batches_sent,
+                                            src_num_io_contexts_dropped += targetConfig_.maxNumberOfChunksInBatch,
+                                            src_num_io_contexts_invoked += 2 * targetConfig_.maxNumberOfChunksInBatch,
+                                            src_num_io_contexts_consumed += targetConfig_.maxNumberOfChunksInBatch));
+
+  // 7) Partial prediction test: Clear last 3 contexts, As of now we do not support partial prediciton. So we expect
+  // all contexts to be cleared and fetched
+  for (auto it = ioContexts.begin() + (targetConfig_.maxNumberOfChunksInBatch - 3); it != ioContexts.end();) {
+    ioPool.free(*it);
+    it = ioContexts.erase(it);
+  }
+  testState_.minRequiredBlockId = testState_.minRequiredBlockId + targetConfig_.maxNumberOfChunksInBatch;
+  minPreFetchedBlockId = testState_.minRequiredBlockId + targetConfig_.maxNumberOfChunksInBatch;
+  maxPrefetchedBlockId = minPreFetchedBlockId + targetConfig_.maxNumberOfChunksInBatch - 1;
+  ASSERT_NFF(
+      sendFetchBlocksMsgAndValidatePrefetch(testState_.minRequiredBlockId,
+                                            testState_.maxRequiredBlockId,
+                                            0,
+                                            0,
+                                            minPreFetchedBlockId,
+                                            maxPrefetchedBlockId,
+                                            ++src_overall_batches_sent,
+                                            src_overall_prefetched_batches_sent,
+                                            ++src_overall_on_spot_batches_sent,
+                                            src_num_io_contexts_dropped += (targetConfig_.maxNumberOfChunksInBatch - 3),
+                                            src_num_io_contexts_invoked += 2 * targetConfig_.maxNumberOfChunksInBatch,
+                                            src_num_io_contexts_consumed += targetConfig_.maxNumberOfChunksInBatch));
+}
+
+/////////////////////////////////////////////////////////////////
 //
-//       BcStTest Backup Replica (Initialization, Checkpointing)
+//  BcStTest Backup Replica (Initialization, Checkpointing) Tests
 //
-/////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Check that a backup replica save and load checkpoints, in particular the RVT as part of the CP
 TEST_F(BcStTest, bkpCheckCheckpointsPersistency) {
@@ -1864,7 +2395,7 @@ TEST_F(BcStTest, bkpCheckCheckPruningPersistency) {
 // Check inter-versions compatibility: period to version 1.6 there is no RVT data in checkpoint.
 // We would like to check that replica is able to reconstruct the whole RVT from storage, when no data is found in
 // Checkpoint
-TEST_F(BcStTest, ValidateRvbDataInitialSource) {
+TEST_F(BcStTest, bkpValidateRvbDataInitialSource) {
   // do not store RVB data in checkpoints (simulate v1.5)
   targetConfig_.enableStoreRvbDataDuringCheckpointing = false;
   ASSERT_NFF(initialize());
@@ -1923,8 +2454,8 @@ TEST_F(BcStTest, ValidateRvbDataInitialSource) {
 class BcStTestParamFixture3 : public BcStTest,
                               public testing::WithParamInterface<tuple<size_t, size_t, size_t, size_t, bool>> {};
 
-// generate blocks an checkpoint them to simulate consensus "advancing"
-// Then validate the checkpoints and compare the in memory in the one built from the checkpoint data
+// generate blocks and checkpoint them to simulate consensus "advancing"
+// Then validate the checkpoints and compare the ones in memory with the one built from the checkpoint data
 TEST_P(BcStTestParamFixture3, bkpValidateCheckpointingWithConsensusCommitsAndPruning) {
   auto maxBlockIdOnFirstCycle = get<0>(GetParam()) * testConfig_.checkpointWindowSize / 100;
   auto numBlocksToAdd = get<1>(GetParam()) * testConfig_.checkpointWindowSize / 100;
