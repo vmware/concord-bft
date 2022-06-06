@@ -213,9 +213,10 @@ void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_de
   ConcordAssertAND((last_checkpoint_desc_.maxBlockId <= new_checkpoint_desc.maxBlockId),
                    (last_checkpoint_desc_.checkpointNum < new_checkpoint_desc.checkpointNum));
 
-  //
-  //    Add blocks to RVT
-  //
+  // First, remove blocks from RVT (if any blocks were pruned during the checkpoint window)
+  pruneRvbDataDuringCheckpoint(new_checkpoint_desc);
+
+  // Second, Add blocks to RVT (if any blocks were added during the checkpoint window)
   auto max_rvb_id = in_mem_rvt_->getMaxRvbId();
   if (last_checkpoint_desc_.checkpointNum != 0) {
     add_range_min_block_id = std::min(new_checkpoint_desc.maxBlockId, last_checkpoint_desc_.maxBlockId + 1);
@@ -234,15 +235,14 @@ void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_de
     }
   }
   add_range_min_block_id = (max_rvb_id == 0) ? add_range_min_block_id : max_rvb_id;
+  if (!pruned_blocks_digests_.empty()) {
+    add_range_min_block_id = std::max(add_range_min_block_id, pruned_blocks_digests_.back().first + 1);
+  }
+
   addRvbDataOnBlockRange(
       add_range_min_block_id, new_checkpoint_desc.maxBlockId, new_checkpoint_desc.digestOfMaxBlockId);
 
-  //
-  //    remove blocks from RVT
-  //
-  pruneRvbDataDuringCheckpoint(new_checkpoint_desc);
-
-  // Fill checkpoint and print tree
+  // Third, fill checkpoint and print tree
   if (!in_mem_rvt_->empty()) {
     ConcordAssert(in_mem_rvt_->validate());
 

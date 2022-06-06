@@ -558,6 +558,9 @@ class BcStTest : public ::testing::Test {
   // Infra member functions
   void compareAppStateblocks(uint64_t minBlockId, uint64_t maxBlockId) const;
 
+  // Target/Product - backup replica, during checkpointing
+  void bkpPrune(uint64_t maxBlockIdToDelete);
+
   // Target/Product ST - destination API & assertions
   void dstStartRunningAndCollecting(FetchingState expectedState = FetchingState::NotFetching);
   void dstStartCollecting();
@@ -612,8 +615,7 @@ DataGenerator::DataGenerator(const Config& targetConfig, const TestConfig& testC
  */
 void DataGenerator::generateBlocks(TestAppState& appState, uint64_t fromBlockId, uint64_t toBlockId) {
   std::unique_ptr<char[]> buff = std::make_unique<char[]>(Block::getMaxTotalBlockSize());
-  ConcordAssertEQ(toBlockId % testConfig_.checkpointWindowSize, 0);
-  ConcordAssertGT(fromBlockId, 1);
+  ConcordAssertGT(fromBlockId, appState.getGenesisBlockNum());
 
   auto maxBlockDataSize = Block::calcMaxDataSize();
   std::shared_ptr<Block> prevBlk;
@@ -1224,6 +1226,13 @@ void BcStTest::initialize() {
   initialized_ = true;
 }
 
+void BcStTest::bkpPrune(uint64_t maxBlockIdToDelete) {
+  auto rvbm = stDelegator_->getRvbManager();
+  rvbm->reportLastAgreedPrunableBlockId(maxBlockIdToDelete);
+  // we need to actually delete all blocks in storage to simulate pruning
+  ASSERT_NFF(appState_.deleteBlocksUntil(maxBlockIdToDelete + 1));
+}
+
 void BcStTest::dstStartRunningAndCollecting(FetchingState expectedState) {
   LOG_TRACE(GL, "");
   ASSERT_DEST_UNDER_TEST;
@@ -1821,7 +1830,7 @@ TEST_F(BcStTest, dstSetNewPrefferedReplicasOnFetchBlocksMsgRejection) {
     });
   };
 
-  targetConfig_.maxFetchRetransmissions = 1;  // to trigger an immidiate source change after single msg corruption
+  targetConfig_.maxFetchRetransmissions = 1;  // to trigger an immediate source change after single msg corruption
   ASSERT_NFF(initialize());
   ASSERT_NFF(dstStartRunningAndCollecting());
   ASSERT_NFF(fakeSrcReplica_->replyAskForCheckpointSummariesMsg());
@@ -2114,12 +2123,10 @@ TEST_F(BcStTest, srcTestSendRvbGroupDigests) {
   // Prune approx half of the blocks and send another request, We expect source to send the missing blocks
   // from the pruned blocks digests vector. So the batch should start from much newer blocks, but the digests should be
   // exactly the same since the RVT has not changed.
-  auto rvbm = stDelegator_->getRvbManager();
   auto maxBlockIdToDelete =
       testState_.minRequiredBlockId + ((testState_.maxRequiredBlockId - testState_.minRequiredBlockId) / 2);
-  rvbm->reportLastAgreedPrunableBlockId(maxBlockIdToDelete);
-  // we need to actually delete all blocks in storage to simlate pruning
-  ASSERT_NFF(appState_.deleteBlocksUntil(maxBlockIdToDelete + 1));
+  // Prune all blocks until block ID maxBlockIdToDelete
+  ASSERT_NFF(bkpPrune(maxBlockIdToDelete));
   auto startRvbId = stDelegator_->nextRvbBlockId(testState_.minRequiredBlockId);
   if (startRvbId == 0) {
     startRvbId = targetConfig_.fetchRangeSize;
@@ -2385,8 +2392,7 @@ TEST_F(BcStTest, bkpCheckCheckPruningPersistency) {
       testState_.maxRequiredBlockId - ((testState_.maxRequiredBlockId - appState_.getGenesisBlockNum() + 1) / 2);
   ASSERT_GT(midBlockId, appState_.getGenesisBlockNum() + 1);
   ASSERT_LT(midBlockId, testState_.maxRequiredBlockId);
-  auto rvbm = stDelegator_->getRvbManager();
-  rvbm->reportLastAgreedPrunableBlockId(midBlockId);
+  ASSERT_NFF(bkpPrune(midBlockId));
   const auto digestsBefore = stDelegator_->getPrunedBlocksDigests();
   ASSERT_NFF(dstRestart(false, FetchingState::NotFetching));
   const auto digestsafter = stDelegator_->getPrunedBlocksDigests();
@@ -2483,8 +2489,7 @@ TEST_P(BcStTestParamFixture3, bkpValidateCheckpointingWithConsensusCommitsAndPru
     }
     // Prune blocks
     if (pruneTillBlockId > 0) {
-      auto rvbm = stDelegator_->getRvbManager();
-      rvbm->reportLastAgreedPrunableBlockId(pruneTillBlockId);
+      ASSERT_NFF(bkpPrune(pruneTillBlockId));
     }
     // create checkpoint
     if (resetartBetweenCP) {
@@ -2565,6 +2570,36 @@ INSTANTIATE_TEST_CASE_P(BcStTest,
                             BcStTestParamFixtureInput3(1000, 0, 100, 9, true),
                             // Add blocks and Prune and restart between checkpointing
                             BcStTestParamFixtureInput3(100, 100, 50, 100, true)), );
+
+// This specific test reproduces a bug found on deployment. It Tests checkpointing with non-equal checkpoint window and
+// some pruning between, The last pruning delete almost the whole blockchain.
+TEST_F(BcStTest, bkpCheckpointingWithPruning) {
+  targetConfig_.fetchRangeSize = 64;
+  targetConfig_.maxNumberOfChunksInBatch = 64;
+  targetConfig_.RVT_K = 1024;
+
+  ASSERT_NFF(initialize());
+  ASSERT_NFF(cmnStartRunning());
+
+  // 1st checkpoint window - last block Id added = 140, no pruning
+  ASSERT_NFF(dataGen_->generateBlocks(appState_, 2, 140));
+  stDelegator_->createCheckpointOfCurrentState(1);
+
+  // 2nd checkpoint window - last block Id added = 291, prune till block ID 159
+  ASSERT_NFF(dataGen_->generateBlocks(appState_, 141, 291));
+  ASSERT_NFF(bkpPrune(159));
+  stDelegator_->createCheckpointOfCurrentState(2);
+
+  // 3rd checkpoint window - last block Id added = 441 , prune till block ID 268
+  ASSERT_NFF(dataGen_->generateBlocks(appState_, 292, 441));
+  ASSERT_NFF(bkpPrune(268));
+  stDelegator_->createCheckpointOfCurrentState(3);
+
+  // 4th checkpoint window - last block Id added = 592 , prune till block ID 528
+  ASSERT_NFF(dataGen_->generateBlocks(appState_, 442, 592));
+  ASSERT_NFF(bkpPrune(528));
+  stDelegator_->createCheckpointOfCurrentState(4);
+}
 
 // Test correctness of RVB Data conflict detection. RVB data digest is part of the checkpoint and should be compared
 // in addition to comparing Reserved pages digest, and current state digests.
