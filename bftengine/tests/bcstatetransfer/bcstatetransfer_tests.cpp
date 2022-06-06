@@ -582,7 +582,16 @@ class BcStTest : public ::testing::Test {
                              std::function<R(Args...)> callAtEnd = EMPTY_FUNC,
                              bool skipReplyOnce = false,
                              size_t sleepDurationAfterReplyMilli = 20);
-  void getReservedPagesStage(bool skipReply = false, bool reject = false, size_t sleepDurationAfterReplyMilli = 0);
+  template <class R, class... Args>
+  void getMissingblocksStage(bool rejectOnce,
+                             uint16_t reason,
+                             std::function<R(Args...)> callAtStart = EMPTY_FUNC,
+                             std::function<R(Args...)> callAtEnd = EMPTY_FUNC,
+                             size_t sleepDurationAfterReplyMilli = 20);
+  void getReservedPagesStage(bool skipReply = false,
+                             bool reject = false,
+                             size_t sleepDurationAfterReplyMilli = 0,
+                             uint16_t rejectionReason = RejectFetchingMsg::Reason::RES_PAGE_NOT_FOUND);
   void dstValidateCycleEnd(size_t timeToSleepAfterreportCompletedMilli);
   void dstRestart(bool productDbDeleteOnEnd, FetchingState expectedState);
 
@@ -749,6 +758,8 @@ void BcStTestDelegator::assertBCStateTranMetricKeyVal(const std::string& key, ui
     ASSERT_EQ(stMetrics_.src_num_io_contexts_invoked_.Get().Get(), val);
   } else if (key == "src_num_io_contexts_consumed") {
     ASSERT_EQ(stMetrics_.src_num_io_contexts_consumed_.Get().Get(), val);
+  } else if (key == "received_reject_fetching_msg") {
+    ASSERT_EQ(stMetrics_.received_reject_fetching_msg_.Get().Get(), val);
   } else {
     FAIL() << "Unexpected key!";
   }
@@ -1037,8 +1048,7 @@ void FakeSources::replyFetchBlocksMsg() {
 
   // very basic validity check, no simulate corruption
   if ((fetchBlocksMsg->minBlockId == 0) || (fetchBlocksMsg->maxBlockId == 0)) {
-    RejectFetchingMsg outMsg(RejectFetchingMsg::Reason::BLOCK_NOT_FOUND_IN_STORAGE);
-    outMsg.requestMsgSeqNum = fetchBlocksMsg->msgSeqNum;
+    RejectFetchingMsg outMsg(RejectFetchingMsg::Reason::BLOCK_NOT_FOUND_IN_STORAGE, fetchBlocksMsg->msgSeqNum);
     stDelegator_->onMessage(&outMsg, sizeof(RejectFetchingMsg), msg.to_);
     testedReplicaIf_.sent_messages_.pop_front();
     return;
@@ -1485,7 +1495,7 @@ void BcStTest::getMissingblocksStage(std::function<R(Args...)> callAtStart,
       ASSERT_NFF(fakeSrcReplica_->replyFetchBlocksMsg());
       skipReplyOnce = false;
     }
-    // There might be pending jobs for putBlock, we need to wait some time and then finalize them by calling
+    // There might be pending jobs for putBlock, we need to wait some time and then finalize them by calling onTimer
     this_thread::sleep_for(chrono::milliseconds(sleepDurationAfterReplyMilli));
     stateTransfer_->onTimer();
     ASSERT_NFF(dstAssertFetchBlocksMsgSent());
@@ -1494,13 +1504,56 @@ void BcStTest::getMissingblocksStage(std::function<R(Args...)> callAtStart,
     }
     testState_.minRequiredBlockId = datastore_->getFirstRequiredBlock();
     testState_.nextRequiredBlock = stDelegator_->getNextRequiredBlock();
+
     if (callAtEnd) {
       ASSERT_NFF(callAtEnd());
     }
   }
 }
 
-void BcStTest::getReservedPagesStage(bool skipReply, bool reject, size_t sleepDurationAfterReplyMilli) {
+template <class R, class... Args>
+void BcStTest::getMissingblocksStage(bool rejectOnce,
+                                     uint16_t rejectionReason,
+                                     std::function<R(Args...)> callAtStart,
+                                     std::function<R(Args...)> callAtEnd,
+                                     size_t sleepDurationAfterReplyMilli) {
+  testState_.nextRequiredBlock = stDelegator_->getNextRequiredBlock();
+  while (true) {
+    if (callAtStart) {
+      ASSERT_NFF(callAtStart());
+    }
+    if (rejectOnce) {
+      ASSERT_EQ(testedReplicaIf_.sent_messages_.size(), 1);
+      const auto& msg = testedReplicaIf_.sent_messages_.front();
+      ASSERT_NFF(assertMsgType(msg, MsgType::FetchBlocks));
+      auto fetchBlocksMsg = reinterpret_cast<FetchBlocksMsg*>(msg.data_.get());
+      RejectFetchingMsg outMsg(rejectionReason, fetchBlocksMsg->msgSeqNum);
+      stDelegator_->onMessage(&outMsg, sizeof(RejectFetchingMsg), msg.to_);
+      testedReplicaIf_.sent_messages_.pop_front();
+      rejectOnce = false;
+    } else {
+      ASSERT_NFF(fakeSrcReplica_->replyFetchBlocksMsg());
+      // There might be pending jobs for putBlock, we need to wait some time and then finalize them by calling onTimer
+      this_thread::sleep_for(chrono::milliseconds(sleepDurationAfterReplyMilli));
+      stateTransfer_->onTimer();
+      ASSERT_NFF(dstAssertFetchBlocksMsgSent());
+    }
+    if (datastore_->getFirstRequiredBlock() == 0) {
+      break;
+    }
+    testState_.minRequiredBlockId = datastore_->getFirstRequiredBlock();
+    testState_.nextRequiredBlock = stDelegator_->getNextRequiredBlock();
+
+    if (callAtEnd) {
+      ASSERT_NFF(callAtEnd());
+    }
+  }
+}
+
+void BcStTest::getReservedPagesStage(bool skipReply,
+                                     bool reject,
+                                     size_t sleepDurationAfterReplyMilli,
+                                     uint16_t rejectionReason) {
   ASSERT_TRUE(!(reject && !skipReply));
   ASSERT_NFF(dstAssertFetchResPagesMsgSent());
   if (reject) {
@@ -1508,8 +1561,7 @@ void BcStTest::getReservedPagesStage(bool skipReply, bool reject, size_t sleepDu
     const auto& msg = testedReplicaIf_.sent_messages_.front();
     ASSERT_NFF(assertMsgType(msg, MsgType::FetchResPages));
     auto fetchResPagesMsg = reinterpret_cast<FetchResPagesMsg*>(msg.data_.get());
-    RejectFetchingMsg outMsg(RejectFetchingMsg::Reason::RES_PAGE_NOT_FOUND);
-    outMsg.requestMsgSeqNum = fetchResPagesMsg->msgSeqNum;
+    RejectFetchingMsg outMsg(rejectionReason, fetchResPagesMsg->msgSeqNum);
     stDelegator_->onMessage(&outMsg, sizeof(RejectFetchingMsg), msg.to_);
     testedReplicaIf_.sent_messages_.pop_front();
   }
@@ -1858,9 +1910,9 @@ TEST_F(BcStTest, dstSetNewPrefferedReplicasOnFetchBlocksMsgRejection) {
 }
 
 // Since no reply, replica enters a new cycle.
-// The assumption is naive - as if all messages to all sources were not replied. In practice it is not tracked anywhere
-// in code.
-TEST_F(BcStTest, dstEndterInternalCycleOnFetchReservedPagesNotReplied) {
+// The assumption is naive - as if all messages to all sources were not replied.
+// In practice it is not tracked anywhere in code.
+TEST_F(BcStTest, dstEnterInternalCycleOnFetchReservedPagesNotReplied) {
   ASSERT_NFF(initialize());
 
   // 1st cycle - source will not answer destination request for reserved pages
@@ -1880,6 +1932,32 @@ TEST_F(BcStTest, dstEndterInternalCycleOnFetchReservedPagesNotReplied) {
   ASSERT_NFF(compareAppStateblocks(testState_.maxRequiredBlockId - testState_.numBlocksToCollect + 1,
                                    testState_.maxRequiredBlockId));
 }
+
+class BcStTestParamFixtureRejectReason : public BcStTest, public testing::WithParamInterface<uint16_t> {};
+// Rejection is handled gracefully while getting missing blocks
+TEST_P(BcStTestParamFixtureRejectReason, dstRejectFetchBlocksMsgOnce) {
+  auto rejectionReason = GetParam();
+  ASSERT_NFF(initialize());
+  ASSERT_NFF(dstStartRunningAndCollecting());
+  ASSERT_NFF(fakeSrcReplica_->replyAskForCheckpointSummariesMsg());
+
+  ASSERT_NFF(getMissingblocksStage<void>(true, rejectionReason));
+  ASSERT_NFF(getReservedPagesStage());
+  ASSERT_NFF(stDelegator_->assertBCStateTranMetricKeyVal("received_reject_fetching_msg", 1));
+
+  ASSERT_NFF(dstValidateCycleEnd(10));
+  ASSERT_NFF(compareAppStateblocks(testState_.maxRequiredBlockId - testState_.numBlocksToCollect + 1,
+                                   testState_.maxRequiredBlockId));
+}
+
+INSTANTIATE_TEST_CASE_P(BcStTest,
+                        BcStTestParamFixtureRejectReason,
+                        ::testing::Values(RejectFetchingMsg::Reason::IN_STATE_TRANSFER,
+                                          RejectFetchingMsg::Reason::BLOCK_RANGE_NOT_FOUND,
+                                          RejectFetchingMsg::Reason::IN_ACTIVE_SESSION,
+                                          RejectFetchingMsg::Reason::INVALID_NUMBER_OF_BLOCKS_REQUESTED,
+                                          RejectFetchingMsg::Reason::BLOCK_NOT_FOUND_IN_STORAGE,
+                                          RejectFetchingMsg::Reason::DIGESTS_FOR_RVBGROUP_NOT_FOUND), );
 
 /////////////////////////////////////////////////////////
 //
