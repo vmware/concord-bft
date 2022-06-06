@@ -596,11 +596,27 @@ void BCStateTran::createCheckpointOfCurrentStateImpl(uint64_t checkpointNumber) 
   LOG_INFO(logger_, "Done creating (and persisting) checkpoint of current state!" << KVLOG(checkpointNumber));
 }
 
+const Digest &BCStateTran::computeDefaultRvbDataDigest() const {
+  // RVB Data is empty: initialize defaultRvbDataDigest with input kDefaultInputRvbDataDigest
+  static Digest defaultRvbDataDigest;
+  static std::once_flag calculate_once;
+
+  std::call_once(calculate_once, [&] {
+    static constexpr int kDefaultInputRvbDataDigest = 1;
+    concord::util::digest::DigestUtil::Context ctx;
+    ctx.update(reinterpret_cast<const char *>(&kDefaultInputRvbDataDigest), sizeof(kDefaultInputRvbDataDigest));
+    ctx.writeDigest(defaultRvbDataDigest.getForUpdate());
+    LOG_INFO(logging::getLogger("concord.bft"), KVLOG(defaultRvbDataDigest));
+  });
+  return defaultRvbDataDigest;
+}
+
 void BCStateTran::getDigestOfCheckpointImpl(uint64_t checkpointNumber,
                                             uint16_t sizeOfDigestBuffer,
                                             uint64_t &outBlockId,
                                             char *outStateDigest,
-                                            char *outOtherDigest) {
+                                            char *outResPagesDigest,
+                                            char *outRVBDataDigest) {
   ConcordAssert(running_);
   ConcordAssertGE(sizeOfDigestBuffer, sizeof(Digest));
   ConcordAssertGT(checkpointNumber, 0);
@@ -609,20 +625,34 @@ void BCStateTran::getDigestOfCheckpointImpl(uint64_t checkpointNumber,
   ConcordAssert(psd_->hasCheckpointDesc(checkpointNumber));
 
   DataStore::CheckpointDesc desc = psd_->getCheckpointDesc(checkpointNumber);
+  auto rvbDataSize = desc.rvbData.size();
+  auto copysize = std::min(sizeof(Digest), static_cast<size_t>(sizeOfDigestBuffer));
+  Digest rvbDataDigest;
+  const Digest &actualRvbDataDigest = (rvbDataSize == 0) ? computeDefaultRvbDataDigest() : rvbDataDigest;
+
+  memset(outStateDigest, 0, sizeOfDigestBuffer);
+  memset(outResPagesDigest, 0, sizeOfDigestBuffer);
+  memset(outRVBDataDigest, 0, sizeOfDigestBuffer);
+
+  if (rvbDataSize != 0) {
+    // RVB data exists: calculate a digest bases on the checkpoint desc.rvbData and it's size
+    DigestUtil::Context digestCtx;
+    digestCtx.update(reinterpret_cast<const char *>(desc.rvbData.data()), rvbDataSize);
+    digestCtx.update(reinterpret_cast<const char *>(&rvbDataSize), sizeof(rvbDataSize));
+    digestCtx.writeDigest(rvbDataDigest.getForUpdate());
+  }
+
   LOG_INFO(logger_,
-           KVLOG(desc.checkpointNum, desc.maxBlockId, desc.digestOfMaxBlockId, desc.digestOfResPagesDescriptor));
+           KVLOG(desc.checkpointNum,
+                 desc.maxBlockId,
+                 copysize,
+                 desc.digestOfMaxBlockId,
+                 desc.digestOfResPagesDescriptor,
+                 actualRvbDataDigest));
 
-  uint16_t s = std::min((uint16_t)sizeof(Digest), sizeOfDigestBuffer);
-  memcpy(outStateDigest, desc.digestOfMaxBlockId.get(), s);
-
-  if (s < sizeOfDigestBuffer) {
-    memset(outStateDigest + s, 0, sizeOfDigestBuffer - s);
-  }
-  memcpy(outOtherDigest, desc.digestOfResPagesDescriptor.get(), s);
-
-  if (s < sizeOfDigestBuffer) {
-    memset(outOtherDigest + s, 0, sizeOfDigestBuffer - s);
-  }
+  memcpy(outStateDigest, desc.digestOfMaxBlockId.get(), copysize);
+  memcpy(outResPagesDigest, desc.digestOfResPagesDescriptor.get(), copysize);
+  memcpy(outRVBDataDigest, actualRvbDataDigest.get(), copysize);
   outBlockId = desc.maxBlockId;
 }
 
@@ -3835,13 +3865,13 @@ void BCStateTran::computeDigestOfPage(
   c.update(reinterpret_cast<const char *>(&pageId), sizeof(pageId));
   c.update(reinterpret_cast<const char *>(&checkpointNumber), sizeof(checkpointNumber));
   if (checkpointNumber > 0) c.update(page, pageSize);
-  c.writeDigest(reinterpret_cast<char *>(&outDigest));
+  c.writeDigest(outDigest.getForUpdate());
 }
 
 void BCStateTran::computeDigestOfPagesDescriptor(const DataStore::ResPagesDescriptor *pagesDesc, Digest &outDigest) {
   DigestUtil::Context c;
   c.update(reinterpret_cast<const char *>(pagesDesc), pagesDesc->size());
-  c.writeDigest(reinterpret_cast<char *>(&outDigest));
+  c.writeDigest(outDigest.getForUpdate());
 }
 
 void BCStateTran::computeDigestOfBlockImpl(const uint64_t blockNum,

@@ -58,7 +58,10 @@ class CheckpointInfo {
     return checkpointCertificate->addMsg(msg, replicaId);
   }
 
-  bool isCheckpointCertificateComplete() const { return checkpointCertificate->isComplete(); }
+  bool isCheckpointCertificateComplete() const {
+    LOG_DEBUG(GL, "Checkpoint certificate completed!");
+    return checkpointCertificate->isComplete();
+  }
 
   // A replica considers a checkpoint to be super stable if it knows that all n/n replicas have reached to this
   // checkpoint. This is in contrary to stable checkpoint which means that the replica knows that a byzantine quorum of

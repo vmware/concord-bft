@@ -804,8 +804,8 @@ void RangeValidationTree::addInternalNode(const RVTNodePtr& node_to_add) {
     return;
   }
 
-  /* If we are here, we might need to create multiple levels, dependend on belonging of current_node to an RVB group.
-    tree is aligned to rvb index 1.
+  /* If we are here, we might need to create multiple levels, dependent on belonging of current_node to an RVB group.
+    Tree is aligned to rvb index 1.
     There might be a tree like this (RVT_K=4)
     L3        1
     L2   33			    49

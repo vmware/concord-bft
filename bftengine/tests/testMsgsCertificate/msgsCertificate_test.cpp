@@ -62,7 +62,7 @@ class msgsCertificateTestsFixture : public ::testing::Test {
     MsgsCertificate<CheckpointMsg, true, true, true, CheckpointMsg> replysCertificate(
         numOfReplicas, fval, numOfRequired, selfReplicaId);
 
-    auto selfMsg = new CheckpointMsg(selfReplicaId, 0, 0, Digest(), Digest(), false);
+    auto selfMsg = new CheckpointMsg(selfReplicaId, 0, 0, Digest(), Digest(), Digest(), false);
     selfMsg->setEpochNumber(0);
     replysCertificate.addMsg(selfMsg, selfReplicaId);
 

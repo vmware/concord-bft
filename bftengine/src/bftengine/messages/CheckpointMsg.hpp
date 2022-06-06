@@ -14,6 +14,7 @@
 #include "MessageBase.hpp"
 #include "Digest.hpp"
 #include "ReplicaConfig.hpp"
+#include "Metrics.hpp"
 
 using concord::util::digest::Digest;
 
@@ -27,7 +28,8 @@ class CheckpointMsg : public MessageBase {
                 SeqNum seqNum,
                 State state,
                 const Digest& stateDigest,
-                const Digest& fullStateDigest,
+                const Digest& resPagesDigest,
+                const Digest& rvbDataDigest,
                 bool stateIsStable,
                 const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
 
@@ -39,9 +41,11 @@ class CheckpointMsg : public MessageBase {
 
   State state() const { return b()->state; }
 
-  Digest& digestOfState() const { return b()->stateDigest; }
+  Digest& stateDigest() const { return b()->stateDigest; }
 
-  Digest& otherDigest() const { return b()->otherDigest; }
+  Digest& reservedPagesDigest() const { return b()->reservedPagesDigest; }
+
+  Digest& rvbDataDigest() const { return b()->rvbDataDigest; }
 
   uint16_t idOfGeneratedReplica() const { return b()->genReplicaId; }
 
@@ -58,13 +62,26 @@ class CheckpointMsg : public MessageBase {
   void sign();
 
   void setSenderId(NodeIdType id) { sender_ = id; }
-  static bool equivalent(CheckpointMsg* a, CheckpointMsg* b) {
-    return (a->seqNumber() == b->seqNumber()) && (a->digestOfState() == b->digestOfState()) &&
-           (a->otherDigest() == b->otherDigest()) && (a->state() == b->state());
-  }
+
+  // Returns true if a selected sub-group of members are all equal (equivalent is not necessarily equal)
+  static bool equivalent(const CheckpointMsg* a, const CheckpointMsg* b);
+
   inline size_t getHeaderLen() const { return sizeof(Header); }
 
+  static void UpdateAggregator() { metrics_component_.UpdateAggregator(); }
+  static concordMetrics::Component& getMetricComponent() { return metrics_component_; }
+  static void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
+    metrics_component_.SetAggregator(aggregator);
+  }
+
  protected:
+  // Metrics - we maintain global (static) metrics for any type T
+  static concordMetrics::Component metrics_component_;
+  struct Metrics {
+    concordMetrics::CounterHandle number_of_mismatches_;
+  };
+  static Metrics metrics_;
+
   template <typename MessageT>
   friend size_t sizeOfHeader();
 
@@ -75,12 +92,13 @@ class CheckpointMsg : public MessageBase {
     EpochNum epochNum;
     State state;
     Digest stateDigest;
-    Digest otherDigest;
+    Digest reservedPagesDigest;
+    Digest rvbDataDigest;
     ReplicaId genReplicaId;  // the replica that originally generated this message
     uint8_t flags;           // followed by a signature (by genReplicaId)
   };
 #pragma pack(pop)
-  static_assert(sizeof(Header) == (6 + 8 + 8 + 8 + DIGEST_SIZE + DIGEST_SIZE + 2 + 1), "Header is 97B");
+  static_assert(sizeof(Header) == (6 + 8 + 8 + 8 + (3 * DIGEST_SIZE) + 2 + 1), "Header is 129B");
 
   Header* b() const { return (Header*)msgBody_; }
 };

@@ -29,8 +29,8 @@ class NullStateTransfer : public IStateTransfer {
                                      uint16_t sizeOfDigestBuffer,
                                      uint64_t& outBlockId,
                                      char* outStateDigest,
-                                     char* outFullStateDigest) override;
-
+                                     char* outResPagesDigest,
+                                     char* outRBVDataDigest) override;
   virtual void startCollectingState() override;
   virtual bool isCollectingState() const override;
 

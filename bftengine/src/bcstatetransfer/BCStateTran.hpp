@@ -90,9 +90,14 @@ class BCStateTran : public IStateTransfer {
                              uint16_t sizeOfDigestBuffer,
                              uint64_t& outBlockId,
                              char* outStateDigest,
-                             char* outFullStateDigest) override {
-    getDigestOfCheckpointHandler_(
-        checkpointNumber, sizeOfDigestBuffer, std::ref(outBlockId), outStateDigest, outFullStateDigest);
+                             char* outResPagesDigest,
+                             char* outRVBDataDigest) override {
+    getDigestOfCheckpointHandler_(checkpointNumber,
+                                  sizeOfDigestBuffer,
+                                  std::ref(outBlockId),
+                                  outStateDigest,
+                                  outResPagesDigest,
+                                  outRVBDataDigest);
   }
   void startCollectingState() override { startCollectingStateHandler_(); }
   bool isCollectingState() const override { return psd_->getIsFetchingState(); }
@@ -157,7 +162,8 @@ class BCStateTran : public IStateTransfer {
                                  uint16_t sizeOfDigestBuffer,
                                  uint64_t& outBlockId,
                                  char* outStateDigest,
-                                 char* outFullStateDigest);
+                                 char* outResPagesDigest,
+                                 char* outRVBDataDigest);
   void startCollectingStateImpl();
   void onTimerImpl();
   void handleStateTransferMessageImpl(char* msg,
@@ -215,7 +221,7 @@ class BCStateTran : public IStateTransfer {
   std::function<void(char*, uint32_t, uint16_t, LocalTimePoint)> handleStateTransferMessageHandler_;
   std::function<void(ConsensusMsg msg)> handleIncomingConsensusMessageHandler_;
   std::function<void()> onTimerHandler_;
-  std::function<void(uint64_t, uint16_t, uint64_t&, char*, char*)> getDigestOfCheckpointHandler_;
+  std::function<void(uint64_t, uint16_t, uint64_t&, char*, char*, char*)> getDigestOfCheckpointHandler_;
   std::function<void(std::string&)> getStatusHandler_;
   std::function<void(uint64_t)> reportLastAgreedPrunableBlockIdHandler_;
 
@@ -484,6 +490,7 @@ class BCStateTran : public IStateTransfer {
   DataStore::CheckpointDesc createCheckpointDesc(uint64_t checkpointNumber, const Digest& digestOfResPagesDescriptor);
   Digest checkpointReservedPages(uint64_t checkpointNumber, DataStoreTransaction* txn);
   void deleteOldCheckpoints(uint64_t checkpointNumber, DataStoreTransaction* txn);
+  const Digest& computeDefaultRvbDataDigest() const;
 
   ///////////////////////////////////////////////////////////////////////////
   // Consistency

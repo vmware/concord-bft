@@ -1047,7 +1047,7 @@ struct VerifyDbCheckpoint {
     for (const auto &s : statusList) {
       auto &cp = s.first;
       os << "  \"ReplicaId\": " << cp.idOfGeneratedReplica() << ", \"seqNum\": " << cp.seqNumber()
-         << " \"blockId\": " << cp.state() << " \"blockDigest\": " << cp.digestOfState()
+         << " \"blockId\": " << cp.state() << " \"blockDigest\": " << cp.stateDigest()
          << ", \"verified\": " << std::boolalpha << s.second << "\n";
     }
     os << "  }";
@@ -1096,7 +1096,7 @@ struct VerifyDbCheckpoint {
               const CheckpointDesc &desc,
               bool verifySignature,
               const std::map<ReplicaId, std::unique_ptr<IVerifier>> &verifiers) const {
-    auto is_digest_valid = (!desc.digestOfMaxBlockId.isZero() && (msg.digestOfState() == desc.digestOfMaxBlockId) &&
+    auto is_digest_valid = (!desc.digestOfMaxBlockId.isZero() && (msg.stateDigest() == desc.digestOfMaxBlockId) &&
                             (msg.state() == desc.maxBlockId));
     auto is_check_point_signature_valid{true};
     if (verifySignature) {

@@ -81,7 +81,7 @@ std::pair<BlockId, Digest> IntegrityChecker::getLatestsCheckpointDescriptor() co
   LOG_INFO(logger_, "Latest checkpoint descriptor: " << key.toString() << " for block: " << block);
   delete it;
   auto desc = getCheckpointDescriptor(key);
-  Digest digest(desc.checkpointMsgs[0]->digestOfState().content());
+  Digest digest(desc.checkpointMsgs[0]->stateDigest().content());
   return std::make_pair(block, digest);
 }
 
@@ -127,7 +127,7 @@ std::pair<BlockId, Digest> IntegrityChecker::getCheckpointDescriptor(const Block
     throw std::runtime_error("no checkpoints information for block " + std::to_string(block_id));
 
   auto desc = getCheckpointDescriptor(first_good_block_descriptor_key);
-  Digest digest(desc.checkpointMsgs[0]->digestOfState().content());
+  Digest digest(desc.checkpointMsgs[0]->stateDigest().content());
   return std::make_pair(first_good_block_descriptor, digest);
 }
 
@@ -139,13 +139,14 @@ void IntegrityChecker::validateCheckpointDescriptor(const DescriptorOfLastStable
     m->validate(*repsInfo_);
     LOG_INFO(logger_,
              "Checkpoint message from replica: " << m->idOfGeneratedReplica() << " block:" << m->state()
-                                                 << " digest: " << m->digestOfState());
+                                                 << " digest: " << m->stateDigest());
     LOG_DEBUG(logger_,
               KVLOG(m->seqNumber(),
                     m->epochNumber(),
                     m->state(),
-                    m->digestOfState(),
-                    m->otherDigest(),
+                    m->stateDigest(),
+                    m->reservedPagesDigest(),
+                    m->rvbDataDigest(),
                     m->idOfGeneratedReplica()));
     checkpointsInfo[m->seqNumber()].addCheckpointMsg(m, m->idOfGeneratedReplica());
     if (checkpointsInfo[m->seqNumber()].isCheckpointCertificateComplete()) {
