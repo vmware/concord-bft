@@ -224,16 +224,6 @@ module Proof {
                             :: Replica.LiteInv(c.hosts[replicaIdx].replicaConstants, v.hosts[replicaIdx].replicaVariables))
   }
 
-  predicate HonestReplicasExecuteSequentially(c: Constants, v:Variables) {
-    && v.WF(c)
-    && (forall replicaIdx | 0 <= replicaIdx < |c.hosts| && c.clusterConfig.IsHonestReplica(replicaIdx)
-          :: HonestReplicaExecuteSequentially(c.hosts[replicaIdx].replicaConstants, v.hosts[replicaIdx].replicaVariables))
-  }
-
-  predicate HonestReplicaExecuteSequentially(replicaConstants:Replica.Constants, replicaVariables:Replica.Variables) {
-    && Replica.ContiguousCommits(replicaConstants, replicaVariables, replicaVariables.countExecutedSeqIDs)
-  }
-
   predicate Inv(c: Constants, v:Variables) {
     //&& PrePreparesCarrySameClientOpsForGivenSeqID(c, v)
     // Do not remove, lite invariant about internal honest Node invariants:
@@ -250,7 +240,6 @@ module Proof {
     && EveryCommitClientOpMatchesRecordedPrePrepare(c, v)
     && HonestReplicasLockOnPrepareForGivenView(c, v)
     && HonestReplicasLockOnCommitForGivenView(c, v)
-    && HonestReplicasExecuteSequentially(c, v)
     && CommitMsgsFromHonestSendersAgree(c, v)
   }
 
@@ -690,7 +679,7 @@ module Proof {
     && var h_v' := v'.hosts[step.id].replicaVariables;
     && Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step)
     && h_step.ExecuteStep?
-    && Replica.Execute(h_c, h_v, h_v', step.msgOps)
+    && Replica.Execute(h_c, h_v, h_v', step.msgOps, h_step.seqID)
   }
 
   lemma ExecuteStepPreservesInv(c: Constants, v:Variables, v':Variables, 
@@ -747,7 +736,7 @@ module Proof {
         case DoCommitStep(seqID) => { 
           DoCommitStepPreservesInv(c, v, v', step, h_step);
         }
-        case ExecuteStep() => {
+        case ExecuteStep(seqID) => {
           ExecuteStepPreservesInv(c, v, v', step, h_step);
         }
     } else if (c.clusterConfig.IsClient(step.id)) {
