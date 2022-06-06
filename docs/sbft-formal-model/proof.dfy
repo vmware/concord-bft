@@ -224,6 +224,16 @@ module Proof {
                             :: Replica.LiteInv(c.hosts[replicaIdx].replicaConstants, v.hosts[replicaIdx].replicaVariables))
   }
 
+  predicate HonestReplicasExecuteSequentially(c: Constants, v:Variables) {
+    && v.WF(c)
+    && (forall replicaIdx | 0 <= replicaIdx < |c.hosts| && c.clusterConfig.IsHonestReplica(replicaIdx)
+          :: HonestReplicaExecuteSequentially(c.hosts[replicaIdx].replicaConstants, v.hosts[replicaIdx].replicaVariables))
+  }
+
+  predicate HonestReplicaExecuteSequentially(replicaConstants:Replica.Constants, replicaVariables:Replica.Variables) {
+    && Replica.ContiguousCommits(replicaConstants, replicaVariables, replicaVariables.countExecutedSeqIDs)
+  }
+
   predicate Inv(c: Constants, v:Variables) {
     //&& PrePreparesCarrySameClientOpsForGivenSeqID(c, v)
     // Do not remove, lite invariant about internal honest Node invariants:
@@ -240,6 +250,7 @@ module Proof {
     && EveryCommitClientOpMatchesRecordedPrePrepare(c, v)
     && HonestReplicasLockOnPrepareForGivenView(c, v)
     && HonestReplicasLockOnCommitForGivenView(c, v)
+    && HonestReplicasExecuteSequentially(c, v)
     && CommitMsgsFromHonestSendersAgree(c, v)
   }
 
@@ -668,6 +679,28 @@ module Proof {
     CommitMsgStability(c, v, v', step);
   }
 
+  predicate ExecuteStepIsEnabled(c: Constants, v:Variables, v':Variables,
+                                   step:Step, h_step:Replica.Step)
+  {
+    && Inv(c, v)
+    && NextStep(c, v, v', step)
+    && IsHonestReplica(c, step.id)
+    && var h_c := c.hosts[step.id].replicaConstants;
+    && var h_v := v.hosts[step.id].replicaVariables;
+    && var h_v' := v'.hosts[step.id].replicaVariables;
+    && Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step)
+    && h_step.ExecuteStep?
+    && Replica.Execute(h_c, h_v, h_v', step.msgOps)
+  }
+
+  lemma ExecuteStepPreservesInv(c: Constants, v:Variables, v':Variables, 
+                                  step:Step, h_step:Replica.Step)
+    requires ExecuteStepIsEnabled(c, v, v', step, h_step)
+    ensures Inv(c, v')
+  {
+    CommitMsgStability(c, v, v', step);
+  }
+
   lemma SendCommitStepPreservesInv(c: Constants, v:Variables, v':Variables, 
                                    step:Step, h_step:Replica.Step)
     requires SentCommitIsEnabled(c, v, v', step, h_step)
@@ -713,6 +746,9 @@ module Proof {
         }
         case DoCommitStep(seqID) => { 
           DoCommitStepPreservesInv(c, v, v', step, h_step);
+        }
+        case ExecuteStep() => {
+          ExecuteStepPreservesInv(c, v, v', step, h_step);
         }
     } else if (c.clusterConfig.IsClient(step.id)) {
 
