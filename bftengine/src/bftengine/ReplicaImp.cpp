@@ -4616,6 +4616,7 @@ void ReplicaImp::start() {
   if (!firstTime_ || config_.getdebugPersistentStorageEnabled()) clientsManager->loadInfoFromReservedPages();
   addTimers();
   recoverRequests();
+  // Callback to enable compaction on v4 column families after recovering blocks.
   enableCFOptions_();
   // The following line will start the processing thread.
   // It must happen after the replica recovers requests in the main thread.

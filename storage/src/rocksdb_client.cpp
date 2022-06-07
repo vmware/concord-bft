@@ -30,8 +30,6 @@
 #include <atomic>
 #include <utility>
 
-#include "rocksdb/time_stamp_comparator.h"
-
 #include "assertUtils.hpp"
 #include "Logger.hpp"
 
@@ -195,6 +193,7 @@ void Client::openRocksDB(bool readOnly,
       if (comparator_ && (cf_desc.name == ::rocksdb::kDefaultColumnFamilyName)) {
         cf_desc.options.comparator = comparator_.get();
       } else if ((cf_desc.name == LATEST_KEYS_CF) || (cf_desc.name == IMMUTABLE_KEYS_CF)) {
+        // Needed for recovery of v4 blockchain, compaction is enabled after recovry of requests.
         cf_desc.options.disable_auto_compactions = true;
         repair = true;
       }
@@ -211,10 +210,11 @@ void Client::openRocksDB(bool readOnly,
     dbInstance_.reset(db);
   } else {
     ::rocksdb::OptimisticTransactionDBOptions txn_options;
+    // Needed for recovery of v4 blockchain
     if (repair) {
       LOG_INFO(logger(), "Start repairing database after restart");
       auto s = ::rocksdb::RepairDB(m_dbPath, db_options, cf_descs);
-      if (!s.ok()) throw std::runtime_error("Failed to repar data base: " + s.ToString());
+      if (!s.ok()) throw std::runtime_error("Failed to repair data base: " + s.ToString());
       LOG_INFO(logger(), "Finished repairing database");
     }
     s = ::rocksdb::OptimisticTransactionDB::Open(
