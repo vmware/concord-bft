@@ -31,4 +31,15 @@ struct ScopedDuration {
   const std::chrono::time_point<std::chrono::steady_clock> start = std::chrono::steady_clock::now();
 };
 
+// Put a dummy KV, flush the CF and delete the KV
+inline void persistCf(const std::string& cf, std::shared_ptr<concord::storage::rocksdb::NativeClient>& native_client) {
+  native_client->put(cf, kvbc::keyTypes::v4_cf_flush, kvbc::V4Version());
+  auto& rocksdb = native_client->rawDB();
+  auto* handle = native_client->columnFamilyHandle(cf);
+  auto s = rocksdb.Flush(::rocksdb::FlushOptions{}, handle);
+  ConcordAssert(s.ok());
+  native_client->del(cf, kvbc::keyTypes::v4_cf_flush);
+  LOG_INFO(V4_BLOCK_LOG, "Persisted column family " << cf);
+}
+
 }  // namespace concord::kvbc::v4blockchain::detail

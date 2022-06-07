@@ -207,10 +207,11 @@ void Client::openRocksDB(bool readOnly,
     dbInstance_.reset(db);
   } else {
     ::rocksdb::OptimisticTransactionDBOptions txn_options;
+    // Needed for recovery of v4 blockchain
     if (repair) {
       LOG_INFO(logger(), "Start repairing database after restart");
       auto s = ::rocksdb::RepairDB(m_dbPath, db_options, cf_descs);
-      if (!s.ok()) throw std::runtime_error("Failed to repar data base: " + s.ToString());
+      if (!s.ok()) throw std::runtime_error("Failed to repair data base: " + s.ToString());
       LOG_INFO(logger(), "Finished repairing database");
     }
     s = ::rocksdb::OptimisticTransactionDB::Open(
