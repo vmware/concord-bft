@@ -80,7 +80,6 @@ std::ostream& operator<<(std::ostream& os, const TxMint& tx);
 struct TxBurn {
   TxBurn(libutt::BurnOp&& op) : op_{std::move(op)} {}
   libutt::BurnOp op_;
-  std::optional<ReplicaSigShares> sigShares_;  // Computed when the tx is delivered to a client
 };
 std::ostream& operator<<(std::ostream& os, const TxBurn& tx);
 
