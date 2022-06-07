@@ -18,7 +18,6 @@
 #include <unordered_map>
 #include "categorization/updates.h"
 #include "v4blockchain/detail/categories.h"
-#include "rocksdb/time_stamp_comparator.h"
 #include <rocksdb/compaction_filter.h>
 #include "endianness.hpp"
 #include "hex_tools.h"
@@ -48,6 +47,8 @@ class LatestKeys {
   // E.L need to be used with compaction filter
   static constexpr Flags STALE_ON_UPDATE = {0x1};
   static constexpr size_t FLAGS_SIZE = STALE_ON_UPDATE.size();
+  static constexpr size_t TIME_STAMP_SIZE = sizeof(std::uint64_t);
+  static constexpr size_t VALUE_POSTFIX_SIZE = TIME_STAMP_SIZE + FLAGS_SIZE;
   LatestKeys(const std::shared_ptr<concord::storage::rocksdb::NativeClient>&,
              const std::optional<std::map<std::string, concord::kvbc::categorization::CATEGORY_TYPE>>&,
              std::function<BlockId()>&& f);
@@ -103,7 +104,7 @@ class LatestKeys {
 
   static ::rocksdb::Slice getFlagsSlice(const ::rocksdb::Slice& val) {
     ConcordAssertGE(val.size(), FLAGS_SIZE);
-    return ::rocksdb::Slice(val.data() + val.size() - FLAGS_SIZE, FLAGS_SIZE);
+    return ::rocksdb::Slice(val.data() + val.size() - VALUE_POSTFIX_SIZE, FLAGS_SIZE);
   }
   // check the key flags posfix for stale on update
   static bool isStaleOnUpdate(const ::rocksdb::Slice& val) {

@@ -62,6 +62,7 @@ enum class EBFTSubtype : std::uint8_t {
   STCheckpointDescriptor,
   STTempBlock,
   PublicStateHashAtDbCheckpoint,
+  GeneralUse,
 };
 
 enum class EMigrationSubType : std::uint8_t {

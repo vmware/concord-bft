@@ -542,6 +542,69 @@ TEST_F(v4_kvbc, check_if_trim_history_is_needed) {
   blockchain->checkpointInProcess(true);
 }
 
+TEST(local_blockchain, load_genesis_and_last_blocs) {
+  std::map<std::string, categorization::CATEGORY_TYPE> cat_map{
+      {"merkle", categorization::CATEGORY_TYPE::block_merkle},
+      {"versioned", categorization::CATEGORY_TYPE::versioned_kv},
+      {"versioned_2", categorization::CATEGORY_TYPE::versioned_kv},
+      {"immutable", categorization::CATEGORY_TYPE::immutable},
+      {categorization::kConcordInternalCategoryId, categorization::CATEGORY_TYPE::versioned_kv}};
+
+  std::random_device seed;
+  std::mt19937 gen{seed()};                   // seed the generator
+  std::uniform_int_distribution dist{5, 20};  // set min and max
+  int numblocks = dist(gen);                  // generate number
+  int numblocks_to_delete = numblocks - 4;
+
+  {
+    auto native_cl2 = TestRocksDb::createNative(33);
+    auto blckchn = v4blockchain::KeyValueBlockchain{native_cl2, true, cat_map};
+
+    std::vector<std::string> merkle_keys;
+    std::vector<std::string> versioned_keys;
+    for (int i = 0; i < numblocks; i++) {
+      categorization::Updates updates;
+      int numkeys = dist(gen);  // generate number
+      categorization::BlockMerkleUpdates merkle_updates;
+      std::string merkle_key_prefix = "merkle_key";
+      std::string merkle_val_prefix = "merkle_val";
+      for (int j = 0; j < numkeys; ++j) {
+        std::string key = merkle_key_prefix + std::to_string(i) + std::to_string(j);
+        std::string val = merkle_val_prefix + std::to_string(i) + std::to_string(j);
+        merkle_updates.addUpdate(std::string(key), std::string(val));
+        merkle_keys.push_back(key);
+      }
+
+      updates.add("merkle", std::move(merkle_updates));
+
+      blckchn.add(std::move(updates));
+    }
+
+    ASSERT_EQ(blckchn.getLastReachableBlockId(), numblocks);
+    ASSERT_EQ(blckchn.getGenesisBlockId(), 1);
+  }
+  {
+    auto native_cl2 = TestRocksDb::createNative(33);
+    auto blckchn = v4blockchain::KeyValueBlockchain{native_cl2, true, cat_map};
+    ASSERT_EQ(blckchn.getLastReachableBlockId(), numblocks);
+    ASSERT_EQ(blckchn.getGenesisBlockId(), 1);
+    auto nbtd = numblocks_to_delete;
+    while (nbtd > 0) {
+      blckchn.deleteGenesisBlock();
+      --nbtd;
+    }
+
+    ASSERT_EQ(blckchn.getGenesisBlockId(), 1 + numblocks_to_delete);
+  }
+
+  {
+    auto native_cl2 = TestRocksDb::createNative(33);
+    auto blckchn = v4blockchain::KeyValueBlockchain{native_cl2, true, cat_map};
+    ASSERT_EQ(blckchn.getLastReachableBlockId(), numblocks);
+    ASSERT_EQ(blckchn.getGenesisBlockId(), 1 + numblocks_to_delete);
+  }
+}
+
 TEST(local_blockchain, delete_last_reachable) {
   auto key1 = std::string("merkle_key1");
   auto key2 = std::string("merkle_key2");
@@ -635,20 +698,17 @@ TEST(local_blockchain, delete_last_reachable) {
 
       ASSERT_NE(blckchn.getSnapShot(), nullptr);
       ASSERT_GT(blckchn.getSnapShot()->GetSequenceNumber(), 0);
-
-      auto block = std::string("moshe");
-      blckchn.addBlockToSTChain(100, block.c_str(), block.size(), false);
     }
 
-    auto& rocksdb = native_cl->rawDB();
-    // Flush to persist CFs
-    auto cfs = native_cl->columnFamilies(native_cl->path());
-    for (const auto& cf : cfs) {
-      auto* handle = native_cl->columnFamilyHandle(cf);
-      LOG_INFO(V4_BLOCK_LOG, "Flusing CF " << cf);
-      auto s = rocksdb.Flush(::rocksdb::FlushOptions{}, handle);
-      ASSERT_TRUE(s.ok());
-    }
+    // auto& rocksdb = native_cl->rawDB();
+    // // Flush to persist CFs
+    // auto cfs = native_cl->columnFamilies(native_cl->path());
+    // for (const auto& cf : cfs) {
+    //   auto* handle = native_cl->columnFamilyHandle(cf);
+    //   LOG_INFO(V4_BLOCK_LOG, "Flusing CF " << cf);
+    //   auto s = rocksdb.Flush(::rocksdb::FlushOptions{}, handle);
+    //   ASSERT_TRUE(s.ok());
+    // }
 
     // Can't delete single block
     ASSERT_DEATH(blckchn.deleteLastReachableBlock(), "");
@@ -980,16 +1040,16 @@ TEST(automated_local_blockchain, automated_delete_last_reachable) {
     auto second_seqnum = blckchn.getSnapShot()->GetSequenceNumber();
     ASSERT_GT(second_seqnum, first_seqnum);
 
-    // Flush to persist CFs
-    auto block = std::string("moshe");
-    blckchn.addBlockToSTChain(100, block.c_str(), block.size(), false);
-    auto& rocksdb = native_cl2->rawDB();
-    auto cfs = native_cl2->columnFamilies(native_cl2->path());
-    for (const auto& cf : cfs) {
-      auto* handle = native_cl2->columnFamilyHandle(cf);
-      auto s = rocksdb.Flush(::rocksdb::FlushOptions{}, handle);
-      ASSERT_TRUE(s.ok());
-    }
+    // // Flush to persist CFs
+    // auto block = std::string("moshe");
+    // blckchn.addBlockToSTChain(100, block.c_str(), block.size(), false);
+    // auto& rocksdb = native_cl2->rawDB();
+    // auto cfs = native_cl2->columnFamilies(native_cl2->path());
+    // for (const auto& cf : cfs) {
+    //   auto* handle = native_cl2->columnFamilyHandle(cf);
+    //   auto s = rocksdb.Flush(::rocksdb::FlushOptions{}, handle);
+    //   ASSERT_TRUE(s.ok());
+    // }
     std::vector<std::string> versioned_new_keys;
     std::vector<std::string> imm_new_keys;
 
