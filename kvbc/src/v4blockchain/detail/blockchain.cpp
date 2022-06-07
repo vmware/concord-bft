@@ -21,6 +21,7 @@ Blockchain::Blockchain(const std::shared_ptr<concord::storage::rocksdb::NativeCl
     : native_client_{native_client} {
   if (native_client->createColumnFamilyIfNotExisting(v4blockchain::detail::BLOCKS_CF)) {
     LOG_INFO(V4_BLOCK_LOG, "Created [" << v4blockchain::detail::BLOCKS_CF << "] column family for the main blockchain");
+    v4blockchain::detail::persistCf(v4blockchain::detail::BLOCKS_CF, native_client_);
   }
   auto last_reachable_block_id = loadLastReachableBlockId();
   if (last_reachable_block_id) {

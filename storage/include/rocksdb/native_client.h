@@ -204,41 +204,6 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
   friend class NativeWriteBatch;
 };
 
-struct SnapshotMgr {
-  struct InternalSnapShot : ::rocksdb::Snapshot {
-    InternalSnapShot(::rocksdb::SequenceNumber sn) : sn_(sn) {}
-
-    virtual ::rocksdb::SequenceNumber GetSequenceNumber() const override { return sn_; }
-    virtual ~InternalSnapShot(){};
-    ::rocksdb::SequenceNumber sn_;
-  };
-
-  SnapshotMgr(::rocksdb::DB *db) : db_(db) { sh_ = db_->GetSnapshot(); }
-
-  SnapshotMgr(::rocksdb::DB *db, ::rocksdb::Snapshot *sh) : db_(db), sh_(sh) {}
-
-  std::string getStorableSeqNumAndPreventRelease() {
-    release = false;
-    return concordUtils::toBigEndianStringBuffer(sh_->GetSequenceNumber());
-  }
-
-  static std::unique_ptr<InternalSnapShot> getSnapShotFromSeqnum(const std::string &sn) {
-    return std::make_unique<InternalSnapShot>(concordUtils::fromBigEndianBuffer<::rocksdb::SequenceNumber>(sn.data()));
-  }
-
-  const ::rocksdb::Snapshot *get() { return sh_; }
-  // check if it's not InternalSnapShot
-  void releaseInputSnapShot(const ::rocksdb::Snapshot *sh) { db_->ReleaseSnapshot(sh); }
-
-  ~SnapshotMgr() {
-    if (release) {
-      db_->ReleaseSnapshot(sh_);
-    }
-  }
-  ::rocksdb::DB *db_{nullptr};
-  const ::rocksdb::Snapshot *sh_{nullptr};
-  bool release{true};
-};
 }  // namespace concord::storage::rocksdb
 
 #include "native_write_batch.ipp"
