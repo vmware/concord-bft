@@ -26,6 +26,57 @@
 namespace concord::kvbc::v4blockchain {
 
 using namespace concord::kvbc;
+/*
+Internal class for mananging rocksdb snapshots for recovery.
+It's not exposed as it's tailored to our specific use case of making
+RocksDB snapshot persisted across restarts.
+
+*/
+struct RecoverySnapshot {
+  /*
+  this class is used on recovery, it's instantiated from the persisted RocksDB sequnce number,
+  and is given to RocksDB "get" method in the read options, in order to read values from a stable state.
+  */
+  struct V4snapshot : ::rocksdb::Snapshot {
+    V4snapshot(::rocksdb::SequenceNumber sn) : sn_(sn) {}
+
+    virtual ::rocksdb::SequenceNumber GetSequenceNumber() const override { return sn_; }
+    virtual ~V4snapshot(){};
+    ::rocksdb::SequenceNumber sn_;
+  };
+
+  RecoverySnapshot(::rocksdb::DB *db) : db_(db) { sh_ = db_->GetSnapshot(); }
+
+  RecoverySnapshot(::rocksdb::DB *db, ::rocksdb::Snapshot *sh) : db_(db), sh_(sh) {}
+
+  std::string getStorableSeqNumAndPreventRelease() {
+    release = false;
+    return concordUtils::toBigEndianStringBuffer(sh_->GetSequenceNumber());
+  }
+
+  static std::unique_ptr<V4snapshot> getV4SnapShotFromSeqnum(const std::string &sn) {
+    return std::make_unique<V4snapshot>(concordUtils::fromBigEndianBuffer<::rocksdb::SequenceNumber>(sn.data()));
+  }
+
+  const ::rocksdb::Snapshot *get() { return sh_; }
+  // check if it's not V4snapshot
+  void releasePreviousSnapshot(const ::rocksdb::Snapshot *sh) {
+    if (dynamic_cast<const RecoverySnapshot::V4snapshot *>(sh) != nullptr) {
+      LOG_FATAL(V4_BLOCK_LOG, "Can't call rocksdb release with v4 snapshot");
+      ConcordAssert(false);
+    }
+    db_->ReleaseSnapshot(sh);
+  }
+
+  ~RecoverySnapshot() {
+    if (release) {
+      db_->ReleaseSnapshot(sh_);
+    }
+  }
+  ::rocksdb::DB *db_{nullptr};
+  const ::rocksdb::Snapshot *sh_{nullptr};
+  bool release{true};
+};
 
 KeyValueBlockchain::KeyValueBlockchain(
     const std::shared_ptr<concord::storage::rocksdb::NativeClient> &native_client,

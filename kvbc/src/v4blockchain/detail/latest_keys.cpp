@@ -26,8 +26,6 @@ auto getSliceArray(const Sliceable&... sls) {
   return std::array<::rocksdb::Slice, sizeof...(sls)>{sls...};
 }
 
-static size_t TIME_STAMP_SIZE = sizeof(std::uint64_t);
-
 LatestKeys::LatestKeys(const std::shared_ptr<concord::storage::rocksdb::NativeClient>& native_client,
                        const std::optional<std::map<std::string, categorization::CATEGORY_TYPE>>& categories,
                        std::function<BlockId()>&& f)
@@ -35,10 +33,13 @@ LatestKeys::LatestKeys(const std::shared_ptr<concord::storage::rocksdb::NativeCl
   if (native_client_->createColumnFamilyIfNotExisting(v4blockchain::detail::LATEST_KEYS_CF, getCompFilter())) {
     LOG_INFO(V4_BLOCK_LOG,
              "Created [" << v4blockchain::detail::LATEST_KEYS_CF << "] column family for the latest keys");
+    v4blockchain::detail::persistCf(v4blockchain::detail::LATEST_KEYS_CF, native_client_);
+    native_client_->put(v4blockchain::detail::LATEST_KEYS_CF, kvbc::keyTypes::v4_cf_flush, kvbc::V4Version());
   }
   if (native_client_->createColumnFamilyIfNotExisting(v4blockchain::detail::IMMUTABLE_KEYS_CF, getCompFilter())) {
     LOG_INFO(V4_BLOCK_LOG,
              "Created [" << v4blockchain::detail::IMMUTABLE_KEYS_CF << "] column family for the immutable keys");
+    v4blockchain::detail::persistCf(v4blockchain::detail::IMMUTABLE_KEYS_CF, native_client_);
   }
 }
 
@@ -473,16 +474,6 @@ void LatestKeys::multiGetLatestVersion(const std::string& category_id,
       throw std::runtime_error{"Revert multiGet() failure: " + status.ToString()};
     }
   }
-}
-
-::rocksdb::Slice ExtractTimestampFromUserKey(const ::rocksdb::Slice& user_key, size_t ts_sz) {
-  ConcordAssert(user_key.size() >= ts_sz);
-  return ::rocksdb::Slice(user_key.data() + user_key.size() - ts_sz, ts_sz);
-}
-
-::rocksdb::Slice StripTimestampFromUserKey(const ::rocksdb::Slice& user_key, size_t ts_sz) {
-  ConcordAssertGE(user_key.size(), ts_sz);
-  return ::rocksdb::Slice(user_key.data(), user_key.size() - ts_sz);
 }
 
 bool LatestKeys::LKCompactionFilter::Filter(int /*level*/,
