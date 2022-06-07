@@ -213,6 +213,7 @@ class TestAppState : public IAppState, public IBlocksDeleter {
     }
   }
 
+  // until is the 1st block which is not deleted.
   BlockId deleteBlocksUntil(BlockId until) override {
     if (genesis_block_id_ == 0) {
       throw std::logic_error{"Cannot delete a block range from an empty blockchain"};
