@@ -23,6 +23,76 @@
 #include <utt/Client.h>
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+namespace {
+auto coinTypeToStr = [](const libutt::Fr& type) -> const char* {
+  if (type == libutt::Coin::NormalType()) return "NORMAL";
+  if (type == libutt::Coin::BudgetType()) return "BUDGET";
+  return "INVALID coin type!\n";
+};
+
+template <typename T>
+std::string preview(const T& value) {
+  return "<...>";
+}
+
+template <>
+std::string preview(const libutt::Coin& coin) {
+  std::stringstream ss;
+  ss << "<";
+  ss << "type:" << coinTypeToStr(coin.type) << ", val:" << coin.val.as_ulong() << ", sn:" << coin.sn.as_ulong();
+  ss << " ...>";
+  return ss.str();
+}
+
+template <>
+std::string preview(const libutt::Tx& tx) {
+  std::stringstream ss;
+  ss << "<UTT Tx: " << tx.getHashHex() << " ...>";
+  return ss.str();
+}
+
+template <>
+std::string preview(const Block& block) {
+  if (block.tx_) {
+    std::stringstream ss;
+    ss << "<"
+       << "id:" << block.id_ << ", ";
+    if (const auto* txUtt = std::get_if<TxUtt>(&(*block.tx_))) {
+      ss << "UTT Tx: " << txUtt->utt_.getHashHex();
+    } else if (const auto* txMint = std::get_if<TxMint>(&(*block.tx_))) {
+      ss << "Mint Tx: " << txMint->op_.getHashHex();
+    } else if (const auto* txBurn = std::get_if<TxBurn>(&(*block.tx_))) {
+      ss << "Burn Tx: " << txBurn->op_.getHashHex();
+    } else {
+      ss << *block.tx_;
+    }
+    ss << " ...>";
+    return ss.str();
+  } else {
+    return "<Empty>";
+  }
+}
+
+template <>
+std::string preview(const libutt::TxIn& txi) {
+  std::stringstream ss;
+  ss << "<";
+  ss << "type:" << coinTypeToStr(txi.coin_type);
+  ss << " ...>";
+  return ss.str();
+}
+
+template <>
+std::string preview(const libutt::TxOut& txo) {
+  std::stringstream ss;
+  ss << "<";
+  ss << "type:" << coinTypeToStr(txo.coin_type);
+  ss << " ...>";
+  return ss.str();
+}
+}  // namespace
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 using DataViewPtr = std::unique_ptr<struct DataView>;
 struct DataView {
   static constexpr const char* const s_PrefixComment = "# ";
@@ -71,75 +141,49 @@ struct DataView {
   void keyValue(const std::string& key, const T& value) const {
     std::cout << s_PrefixList << key << s_InfixKV << value << '\n';
   }
-};
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-template <>
-void DataView::keyValue(const std::string& key, const std::vector<std::string>& v) const {
-  std::cout << " - " << key << ": [";
-  list(v);
-  std::cout << "]\n";
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-namespace {
-auto coinTypeToStr = [](const libutt::Fr& type) -> const char* {
-  if (type == libutt::Coin::NormalType()) return "NORMAL";
-  if (type == libutt::Coin::BudgetType()) return "BUDGET";
-  return "INVALID coin type!\n";
-};
-
-std::string preview(const libutt::Coin& coin) {
-  std::stringstream ss;
-  ss << "<";
-  ss << "type:" << coinTypeToStr(coin.type) << ", val:" << coin.val.as_ulong() << ", sn:" << coin.sn.as_ulong();
-  ss << " ...>";
-  return ss.str();
-}
-
-std::string preview(const libutt::Tx& tx) {
-  std::stringstream ss;
-  ss << "<UTT Tx: " << tx.getHashHex() << " ...>";
-  return ss.str();
-}
-
-std::string preview(const Block& block) {
-  if (block.tx_) {
-    std::stringstream ss;
-    ss << "<"
-       << "id:" << block.id_ << ", ";
-    if (const auto* txUtt = std::get_if<TxUtt>(&(*block.tx_))) {
-      ss << "UTT Tx: " << txUtt->utt_.getHashHex();
-    } else if (const auto* txMint = std::get_if<TxMint>(&(*block.tx_))) {
-      ss << "Mint Tx: " << txMint->op_.getHashHex();
-    } else if (const auto* txBurn = std::get_if<TxBurn>(&(*block.tx_))) {
-      ss << "Burn Tx: " << txBurn->op_.getHashHex();
-    } else {
-      ss << *block.tx_;
-    }
-    ss << " ...>";
-    return ss.str();
-  } else {
-    return "<Empty>";
+  template <typename T>
+  void keyValue(const std::string& key, const std::optional<T>& value) const {
+    if (value.has_value())
+      keyValue(key, *value);
+    else
+      std::cout << s_PrefixList << key << s_InfixKV << "<NotSet>\n";
   }
-}
 
-std::string preview(const libutt::TxIn& txi) {
-  std::stringstream ss;
-  ss << "<";
-  ss << "type:" << coinTypeToStr(txi.coin_type);
-  ss << " ...>";
-  return ss.str();
-}
+  template <typename T>
+  void keyValue(const std::string& key, const std::vector<T>& v) const {
+    std::cout << s_PrefixList << key << s_InfixKV << '[';
+    if (!v.empty()) {
+      for (size_t i = 0; i < v.size() - 1; ++i) std::cout << v[i] << ", ";
+      std::cout << v.back();
+    }
+    std::cout << "]\n";
+  }
 
-std::string preview(const libutt::TxOut& txo) {
-  std::stringstream ss;
-  ss << "<";
-  ss << "type:" << coinTypeToStr(txo.coin_type);
-  ss << " ...>";
-  return ss.str();
-}
-}  // namespace
+  template <typename T>
+  void keyValuePreview(const std::string& key, const T& value, size_t indent = 0) const {
+    if (indent > 0) std::cout << std::setw(indent) << ' ';
+    std::cout << s_PrefixList << key << s_InfixKV << preview(value) << '\n';
+  }
+
+  template <typename T>
+  void keyValuePreview(const std::string& key, const std::optional<T>& value) const {
+    if (value.has_value())
+      keyValue(key, preview(*value));
+    else
+      std::cout << s_PrefixList << key << s_InfixKV << "<NotSet>\n";
+  }
+
+  template <typename T>
+  void keyValuePreview(const std::string& key, const std::vector<T>& v) const {
+    if (v.empty()) {
+      keyValue(key, v);
+      return;
+    }
+    std::cout << s_PrefixList << key << s_InfixKV << '\n';
+    for (size_t i = 0; i < v.size(); ++i) keyValuePreview(std::to_string(i), v[i], 2 /*indent*/);
+  }
+};
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 struct ParamsView : DataView {
@@ -283,28 +327,15 @@ struct WalletView : DataView {
 
     comment("Parameters for UTT");
     key("p");
-
-    comment("Address");
     key("ask");
     key("rpk");
     key("bpk");
 
-    // Coins
     comment("Normal Coins");
-    key("coins");
-    // push("coins");
-    if (wallet_.coins.empty()) comment("No coins");
-    for (size_t i = 0; i < wallet_.coins.size(); ++i) {
-      keyValue(std::to_string(i), preview(wallet_.coins[i]));
-    }
-    // pop();
+    keyValuePreview("coins", wallet_.coins);
 
-    // Budget Coin
     comment("Budget Coin");
-    if (wallet_.budgetCoin)
-      keyValue("budgetCoin", preview(*wallet_.budgetCoin));
-    else
-      keyValue("budgetCoin", "<Empty>");
+    keyValuePreview("budgetCoin", wallet_.budgetCoin);
   }
 
   DataViewPtr makeSubView(const std::string& key) const override {
@@ -419,7 +450,7 @@ struct UttTxView : DataView {
     key("ins");
     // push("ins");
     for (size_t i = 0; i < tx_.ins.size(); ++i) {
-      keyValue(std::to_string(i), preview(tx_.ins[i]));
+      keyValuePreview(std::to_string(i), tx_.ins[i]);
     }
     // pop();
 
@@ -427,7 +458,7 @@ struct UttTxView : DataView {
     key("outs");
     // push("outs");
     for (size_t i = 0; i < tx_.outs.size(); ++i) {
-      keyValue(std::to_string(i), preview(tx_.outs[i]));
+      keyValuePreview(std::to_string(i), tx_.outs[i]);
     }
     // pop();
   }
@@ -448,22 +479,31 @@ struct BlockView : DataView {
 
   void print() const override {
     title("Block");
-
     if (block_.id_ == 0) comment("Genesis block");
-    keyValue("id", block_.id_);
     if (block_.tx_) {
       if (const auto* txUtt = std::get_if<TxUtt>(&(*block_.tx_))) {
-        keyValue("utt", preview(txUtt->utt_));
-        if (txUtt->sigShares_)
-          key("sigShares");
-        else
-          keyValue("sigShares", "<Empty>");
+        comment("UTT Txn Block");
+        keyValue("id", block_.id_);
+        keyValuePreview("utt", txUtt->utt_);
+        keyValuePreview("sigShares", txUtt->sigShares_);
+      } else if (const auto* txMint = std::get_if<TxMint>(&(*block_.tx_))) {
+        comment("Mint Txn Block");
+        keyValue("id", block_.id_);
+        keyValue("pid", txMint->pid_);
+        keyValue("mintSeqNum", txMint->mintSeqNum_);
+        keyValue("amount", txMint->amount_);
+        keyValuePreview("op", txMint->op_);
+        keyValuePreview("sigShares", txMint->sigShares_);
+      } else if (const auto* txBurn = std::get_if<TxBurn>(&(*block_.tx_))) {
+        comment("Burn Txn Block");
+        keyValuePreview("op", txBurn->op_);
       } else {
-        comment("Public transaction");
-        std::cout << *block_.tx_ << '\n';
+        comment("Public Txn Block");
+        keyValue("id", block_.id_);
+        keyValue("tx", *block_.tx_);
       }
     } else {
-      std::cout << "No transaction.\n";
+      keyValue("tx", "<Empty>");
     }
   }
 
@@ -488,7 +528,7 @@ struct LedgerView : DataView {
 
   void print() const override {
     title("Ledger");
-    for (size_t i = 0; i < blocks_.size(); ++i) keyValue(std::to_string(i), preview(blocks_[i]));
+    for (size_t i = 0; i < blocks_.size(); ++i) keyValuePreview(std::to_string(i), blocks_[i]);
   }
 
   DataViewPtr makeSubView(size_t idx) const override {
@@ -525,6 +565,12 @@ UTTDataViewer::UTTDataViewer(UTTDataViewer&& other) = default;
 UTTDataViewer& UTTDataViewer::operator=(UTTDataViewer&& other) = default;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+void UTTDataViewer::prompt() const {
+  std::cout << "\nYou are navigating the application state (type ':h' for commands, ':q' to exit):\n";
+  std::cout << "view " << getCurrentPath() << "> ";
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 std::string UTTDataViewer::getCurrentPath() const {
   if (!current_) throw std::runtime_error("UTTDataViewer: current view is empty!");
 
@@ -545,6 +591,12 @@ std::string UTTDataViewer::getCurrentPath() const {
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void UTTDataViewer::handleCommand(const std::string& cmd) {
+  if (cmd == ":h") {
+    // [TODO-UTT] View help
+    std::cout << "NYI\n";
+    return;
+  }
+
   const DataView* newView = current_;
   if (cmd == "~") {  // Go to the root
     newView = root_.get();

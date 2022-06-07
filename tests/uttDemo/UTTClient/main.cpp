@@ -887,8 +887,7 @@ int main(int argc, char** argv) {
 
     while (true) {
       if (viewer) {
-        std::cout << "\nYou are navigating the application state (type ':q' to exit):\n";
-        std::cout << app.getMyPid() << ' ' << viewer->getCurrentPath() << " > ";
+        viewer->prompt();
       } else {
         std::cout << "\nEnter command (type 'h' for commands, 'q' to exit):\n";
         std::cout << app.getMyPid() << "> ";

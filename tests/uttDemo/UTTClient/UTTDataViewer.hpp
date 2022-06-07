@@ -45,11 +45,11 @@ struct UTTDataViewer {
   UTTDataViewer(UTTDataViewer&& other);
   UTTDataViewer& operator=(UTTDataViewer&& other);
 
+  void prompt() const;
   void handleCommand(const std::string& cmd);
 
-  std::string getCurrentPath() const;
-
  private:
+  std::string getCurrentPath() const;
   std::unique_ptr<DataView> root_;
   const DataView* current_ = nullptr;
 };
