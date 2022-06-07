@@ -14,6 +14,7 @@
 #include "v4blockchain/detail/categories.h"
 #include "v4blockchain/detail/column_families.h"
 #include "Logger.hpp"
+#include "v4blockchain/detail/detail.h"
 
 using namespace concord::kvbc;
 namespace concord::kvbc::v4blockchain::detail {
@@ -23,10 +24,12 @@ Categories::Categories(const std::shared_ptr<concord::storage::rocksdb::NativeCl
     : native_client_(client) {
   if (native_client_->createColumnFamilyIfNotExisting(v4blockchain::detail::CATEGORIES_CF)) {
     LOG_INFO(V4_BLOCK_LOG, "Created [" << v4blockchain::detail::CATEGORIES_CF << "]");
+    v4blockchain::detail::persistCf(v4blockchain::detail::CATEGORIES_CF, native_client_);
   }
   loadCategories();
   if (category_to_prefix_.empty()) {
     initNewBlockchainCategories(category_types);
+
   } else {
     initExistingBlockchainCategories(category_types);
   }

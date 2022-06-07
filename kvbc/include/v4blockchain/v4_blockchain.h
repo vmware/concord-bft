@@ -65,12 +65,23 @@ class KeyValueBlockchain {
   concord::util::digest::BlockDigest parentDigest(BlockId block_id) const;
   std::optional<BlockId> getLastStatetransferBlockId() const;
 
-  //////////////////Garbage collection for Keys that use TimeStamp API///////////////////////////
-  // Using the RocksDB timestamp API, means that older user versions are not being deleted
-  // On compaction unless they are mark as safe to delete.
-  // If we get a new sequnce number it means that the previous sequence nunber was committed and it's
-  // safe to trim up to the last block that was added during that sn.
-  // An exception is when db checkpoint is being taken where no trimming is allowed.
+  //////////////////Recovery infra///////////////////////////
+  /*
+  Recovery is needed when we crash while executing a BFT sequence number's requests.
+  On start, the blocks that were added as part of that sn will get deleted by calling,
+  deleteLastReachable.
+  The complexity is to revert the latest column family to the state prior the block addition, as
+  a key can get updated but its previous version is not known.
+
+  When we detect that a BFT sequnce number has changed, it means that the previous sequence number is committed,
+  and we can take a rocksdb snapshot of its blockchain state in order to use for recovery if the current sn execution
+  fails.
+
+  When deleteLastReachable is called, we take rocksdb stored sequnce number that was taken in the snapshot, and use it
+  to instantiate an inheritted Snapshot object.
+  that object is given to rocksdb when reading the last block KV in order to get their values as it was when the
+  previous BFT sequnce number has committed.
+  */
   uint64_t onNewBFTSequenceNumber(const categorization::Updates &updates);
   void checkpointInProcess(bool flag) { checkpointInProcess_ = flag; }
   uint64_t getBlockSequenceNumber(const categorization::Updates &updates) const;
@@ -161,6 +172,7 @@ class KeyValueBlockchain {
   const float updates_to_final_size_ration_{2.5};
   // Not owner of the object, do not need to delete
   const ::rocksdb::Snapshot *snap_shot_{nullptr};
+  util::ThreadPool thread_pool_{1};
 };
 
 }  // namespace concord::kvbc::v4blockchain

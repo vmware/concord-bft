@@ -25,6 +25,57 @@
 namespace concord::kvbc::v4blockchain {
 
 using namespace concord::kvbc;
+/*
+Internal class for mananging rocksdb snapshots for recovery.
+It's not exposed as it's tailored to our specific use case of making
+RocksDB snapshot persisted across restarts.
+
+*/
+struct RecoverySnapshot {
+  /*
+  this class is used on recovery, it's instantiated from the persisted RocksDB sequnce number,
+  and is given to RocksDB "get" method in the read options, in order to read values from a stable state.
+  */
+  struct V4snapshot : ::rocksdb::Snapshot {
+    V4snapshot(::rocksdb::SequenceNumber sn) : sn_(sn) {}
+
+    virtual ::rocksdb::SequenceNumber GetSequenceNumber() const override { return sn_; }
+    virtual ~V4snapshot(){};
+    ::rocksdb::SequenceNumber sn_;
+  };
+
+  RecoverySnapshot(::rocksdb::DB *db) : db_(db) { sh_ = db_->GetSnapshot(); }
+
+  RecoverySnapshot(::rocksdb::DB *db, ::rocksdb::Snapshot *sh) : db_(db), sh_(sh) {}
+
+  std::string getStorableSeqNumAndPreventRelease() {
+    release = false;
+    return concordUtils::toBigEndianStringBuffer(sh_->GetSequenceNumber());
+  }
+
+  static std::unique_ptr<V4snapshot> getV4SnapShotFromSeqnum(const std::string &sn) {
+    return std::make_unique<V4snapshot>(concordUtils::fromBigEndianBuffer<::rocksdb::SequenceNumber>(sn.data()));
+  }
+
+  const ::rocksdb::Snapshot *get() { return sh_; }
+  // check if it's not V4snapshot
+  void releasePreviousSnapshot(const ::rocksdb::Snapshot *sh) {
+    if (dynamic_cast<const RecoverySnapshot::V4snapshot *>(sh) != nullptr) {
+      LOG_FATAL(V4_BLOCK_LOG, "Can't call rocksdb release with v4 snapshot");
+      ConcordAssert(false);
+    }
+    db_->ReleaseSnapshot(sh);
+  }
+
+  ~RecoverySnapshot() {
+    if (release) {
+      db_->ReleaseSnapshot(sh_);
+    }
+  }
+  ::rocksdb::DB *db_{nullptr};
+  const ::rocksdb::Snapshot *sh_{nullptr};
+  bool release{true};
+};
 
 KeyValueBlockchain::KeyValueBlockchain(
     const std::shared_ptr<concord::storage::rocksdb::NativeClient> &native_client,
@@ -37,7 +88,7 @@ KeyValueBlockchain::KeyValueBlockchain(
   if (!link_st_chain) return;
   // Mark version of blockchain
   native_client_->put(kvbc::keyTypes::blockchain_version, kvbc::V4Version());
-  // E.L - if snapshot key is empty deduce first start and take snapshot, nned to flush?
+  detail::persistCf(::rocksdb::kDefaultColumnFamilyName, native_client_);
   if (state_transfer_chain_.getLastBlockId() == 0) return;
   // Make sure that if linkSTChainFrom() has been interrupted (e.g. a crash or an abnormal shutdown), all DBAdapter
   // methods will return the correct values. For example, if state transfer had completed and linkSTChainFrom() was
@@ -65,7 +116,8 @@ KeyValueBlockchain::KeyValueBlockchain(
 BlockId KeyValueBlockchain::add(categorization::Updates &&updates) {
   auto scoped = v4blockchain::detail::ScopedDuration{"Add block"};
   // Should be performed before we add the block with the current Updates.
-  auto sequence_number = onNewBFTSequenceNumber(updates);
+  auto future_seq_num_ = thread_pool_.async(
+      [this](const categorization::Updates &updates) { return onNewBFTSequenceNumber(updates); }, updates);
   addGenesisBlockKey(updates);
   v4blockchain::detail::Block block;
   block.addUpdates(updates);
@@ -75,6 +127,7 @@ BlockId KeyValueBlockchain::add(categorization::Updates &&updates) {
   LOG_DEBUG(V4_BLOCK_LOG,
             "Block size is " << block_size << " reserving batch to be " << updates_to_final_size_ration_ * block_size
                              << " size of final block is " << write_batch.size());
+  auto sequence_number = future_seq_num_.get();
   native_client_->write(std::move(write_batch));
   block_chain_.setBlockId(block_id);
   if (sequence_number > 0) setLastBlockSequenceNumber(sequence_number);
@@ -118,7 +171,7 @@ void KeyValueBlockchain::deleteLastReachableBlock() {
   */
   auto opt_seq_num = native_client_->get(kvbc::keyTypes::v4_snapshot_sequence);
   ConcordAssert(opt_seq_num.has_value());
-  auto internal_snapshot = concord::storage::rocksdb::SnapshotMgr::getSnapShotFromSeqnum(*opt_seq_num);
+  auto internal_snapshot = RecoverySnapshot::getV4SnapShotFromSeqnum(*opt_seq_num);
   LOG_INFO(V4_BLOCK_LOG,
            "Deleting last reachable using snap shot with rocks seq num " << internal_snapshot->GetSequenceNumber());
   latest_keys_.revertLastBlockKeys(*updates, last_reachable_id, write_batch, internal_snapshot.get());
@@ -156,7 +209,6 @@ uint64_t KeyValueBlockchain::onNewBFTSequenceNumber(const categorization::Update
     return 0;
   }
   auto scoped = v4blockchain::detail::ScopedDuration{"onNewBFTSequenceNumber take snap"};
-  // E.L
   if (!last_block_sn_) {
     // check if we have snapshot
     auto opt_seq_num = native_client_->get(kvbc::keyTypes::v4_snapshot_sequence);
@@ -166,44 +218,22 @@ uint64_t KeyValueBlockchain::onNewBFTSequenceNumber(const categorization::Update
     }
     // else - first start, take snapshot.
   }
-  // handle case where it's the first start.
   /* New BFT sequקnce number:
-  important note : at this place state of latest and blocks is stable, therefore crashing here will not have impact on
-  recovery as deleteLastReachable will not be called.
+  important note : at this place state of latest and blocks is stable as the blocks state is synced i.e. last reachable
+  is from the prev sn therefore crashing here will not call deleteLastReachable.
 
-  normal flow -
+  flow -
   1 - take db snapshot T it's equals to state sequence_number - 1 - RAII object to release on crash only.
   2 - read current value from db T', it equals to sequence_number - 2;
   3 - release T'
   4 - store T in v4_snapshot_sequence
-
-  crash here and restart/first start -
-  1 - blocks state is synced as last reachable is from the prev sn,so we reach here only when recover execution and
-  adding the first block of the new sn. 2 - if we repeat normal flow I think it should be correct it seems not to be
-  matter if we crashed on each of the steps, the alg will perform correctly as it creates a new correct T and releases
-  the previous even though logically the prev can be equal to the newly taken.
-
-  crash in execution of sn after adding blocks, then deleting on state sync and readding on recovery -
-  do normal flow - is natural here as after reverting the blocks event though in terms of values the databases should be
-  in the same state, in the eyeys of RocksDB the key were updated and their versions is different.
   */
 
-  /*
-  if we crah prioir storing the seqnum we need to release the snapshot,
-  if we crash after we store we need the snapshot to be alive and not to relase it.
-
-  if crash in the exact call few scenarios are possible:
-  - the seqnum is stored - in this case the snapshot is not released.
-  - the snapshot is not released and not stored - ok since we're on stable seqnum at the time of creation and delete
-  last reachable will not be called, so compaction will be enabled, and we'll reach here again when re-adding the first
-  block of the bft seqnum
-  */
-
-  auto new_snap_shot = concord::storage::rocksdb::SnapshotMgr{&native_client_->rawDB()};
+  auto new_snap_shot = RecoverySnapshot{&native_client_->rawDB()};
   auto old_rock_sn = 0;
   if (snap_shot_) {
     old_rock_sn = snap_shot_->GetSequenceNumber();
-    new_snap_shot.releaseInputSnapShot(snap_shot_);
+    new_snap_shot.releasePreviousSnapshot(snap_shot_);
   }
 
   native_client_->put(kvbc::keyTypes::v4_snapshot_sequence, new_snap_shot.getStorableSeqNumAndPreventRelease());

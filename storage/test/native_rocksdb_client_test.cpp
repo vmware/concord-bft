@@ -1087,44 +1087,6 @@ TEST_F(native_rocksdb_test, restore_db_from_snapshot) {
   ASSERT_EQ(checkPoints.size(), 0);
 }
 
-// TEST_F(native_rocksdb_test, recover_from_rocksdb_snapshot) {
-//   auto db_path = db->path();
-//   auto &raw_db = db->rawDB();
-//   std::string key = "key";
-//   std::string val_v1 = "v1";
-//   std::string val_v2 = "v2";
-//   db->put(key, val_v1);
-//   auto snpsht_mgr = SnapshotMgr{&raw_db};
-//   ASSERT_NE(snpsht_mgr.get(), nullptr);
-//   auto rocks_sn = snpsht_mgr.get()->GetSequenceNumber();
-//   ASSERT_GT(rocks_sn, 0);
-//   auto dbValue = db->get(key);
-//   ASSERT_TRUE(dbValue.has_value());
-//   ASSERT_EQ(*dbValue, val_v1);
-
-//   db->put(key, val_v2);
-//   dbValue = db->get(key);
-//   ASSERT_TRUE(dbValue.has_value());
-//   ASSERT_EQ(*dbValue, val_v2);
-
-//   // read with snapshot
-//   ::rocksdb::ReadOptions ro;
-//   ro.snapshot = snpsht_mgr.get();
-//   dbValue = db->get(::rocksdb::kDefaultColumnFamilyName, key, ro);
-//   ASSERT_TRUE(dbValue.has_value());
-//   ASSERT_EQ(*dbValue, val_v1);
-
-//   // close database
-//   db.reset();
-//   db = TestRocksDb::createNative();
-//   auto internal_snpsht = SnapshotMgr::InternalSnapShot(rocks_sn);
-//   ::rocksdb::ReadOptions ro2;
-//   ro2.snapshot = &internal_snpsht;
-//   dbValue = db->get(::rocksdb::kDefaultColumnFamilyName, key, ro);
-//   ASSERT_TRUE(dbValue.has_value());
-//   ASSERT_EQ(*dbValue, val_v1);
-// }
-
 }  // namespace
 
 int main(int argc, char *argv[]) {
