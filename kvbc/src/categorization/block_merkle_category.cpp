@@ -541,13 +541,13 @@ std::pair<SetOfKeyValuePairs, KeysVector> BlockMerkleCategory::rewriteAlreadyPru
 }
 
 std::vector<std::string> BlockMerkleCategory::getBlockStaleKeys(BlockId block_id, const BlockMerkleOutput& out) const {
-  std::vector<Hash> hash_stale_keys;
+  std::set<Hash> hash_stale_keys;
   auto [hashed_keys, _, latest_versions] = getLatestVersions(out);
   (void)_;
   auto overwritten_active_keys_from_pruned_blocks = findActiveKeysFromPrunedBlocks(hashed_keys);
   for (auto& kv : overwritten_active_keys_from_pruned_blocks) {
     for (const auto& hashed_key : kv.second) {
-      hash_stale_keys.push_back(Hash(hashed_key.value));
+      hash_stale_keys.emplace(Hash(hashed_key.value));
     }
   }
 
@@ -560,12 +560,12 @@ std::vector<std::string> BlockMerkleCategory::getBlockStaleKeys(BlockId block_id
     if (block_id == tagged_version->version) {
       if (tagged_version->deleted) {
         // The latest version is a tombstone.
-        hash_stale_keys.push_back(hashed_key);
+        hash_stale_keys.emplace(hashed_key);
       }
     } else {
       // block_id < tagged_version->version
       // The key has been overwritten.
-      hash_stale_keys.push_back(hashed_key);
+      hash_stale_keys.emplace(hashed_key);
     }
   }
   std::vector<std::string> stale_keys;

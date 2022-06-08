@@ -172,11 +172,11 @@ std::unordered_map<BlockId, std::vector<std::string>> VersionedKeyValueCategory:
 
 std::vector<std::string> VersionedKeyValueCategory::getBlockStaleKeys(BlockId block_id,
                                                                       const VersionedOutput &out) const {
-  std::vector<std::string> stale_keys_;
+  std::set<std::string> stale_keys_;
   for (const auto &[_, keys] : activeKeysFromPrunedBlocks(out.keys)) {
     (void)_;
     for (const auto &key : keys) {
-      stale_keys_.push_back(key);
+      stale_keys_.emplace(key);
     }
   }
   for (const auto &[key, flags] : out.keys) {
@@ -186,10 +186,10 @@ std::vector<std::string> VersionedKeyValueCategory::getBlockStaleKeys(BlockId bl
 
     // Note: Deleted keys cannot be marked as stale on update.
     if (flags.stale_on_update || flags.deleted || latest->version > block_id) {
-      stale_keys_.push_back(key);
+      stale_keys_.emplace(key);
     }
   }
-  return stale_keys_;
+  return std::vector<std::string>(stale_keys_.begin(), stale_keys_.end());
 }
 
 std::size_t VersionedKeyValueCategory::deleteGenesisBlock(BlockId block_id,
