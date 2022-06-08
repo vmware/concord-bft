@@ -20,10 +20,12 @@ int EdDSAMultisigSigner::requiredLengthForSignedData() const { return sizeof(Sin
 void EdDSAMultisigSigner::signData(const char *hash, int hashLen, char *outSig, int outSigLen) {
   ConcordAssertEQ(outSigLen, requiredLengthForSignedData());
   SingleEdDSASignature result;
-  ConcordAssertGE((size_t)outSigLen, result.signatureBytes.size());
-  auto outSigBytesLen = (size_t)result.signatureBytes.size();
-  privateKey_.sign(
-      reinterpret_cast<const uint8_t *>(hash), (size_t)hashLen, result.signatureBytes.data(), outSigBytesLen);
+  ConcordAssertGE(static_cast<size_t>(outSigLen), result.signatureBytes.size());
+  auto outSigBytesLen = result.signatureBytes.size();
+  privateKey_.sign(reinterpret_cast<const uint8_t *>(hash),
+                   static_cast<size_t>(hashLen),
+                   result.signatureBytes.data(),
+                   outSigBytesLen);
   ConcordAssertEQ(outSigBytesLen, result.signatureBytes.size());
   result.id = id_;
   std::memcpy(outSig, &result, sizeof(SingleEdDSASignature));

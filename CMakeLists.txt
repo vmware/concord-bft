@@ -48,17 +48,9 @@ option(BUILD_THIRDPARTY "Wheter to build third party librarie or use preinstalle
 option(CODECOVERAGE "Enable Code Coverage Metrics in Clang" OFF)
 option(ENABLE_RESTART_RECOVERY_TESTS "Enable tests for restart recovery" OFF)
 
-if((NOT (USE_EDDSA_OPENSSL OR USE_RELIC)) OR (USE_EDDSA_OPENSSL AND USE_RELIC))
-    message(FATAL_ERROR "Exactly one threshold/multisig implementation can be chosen, "
-            "Choose one of the following cmake options: [USE_EDDSA_OPENSSL, USE_RELIC]")
-endif()
-
-if(USE_EDDSA_OPENSSL)
-    message("Using OpenSSL EdDSA threshold signatures")
-endif()
-
-if(USE_RELIC)
-    message("Using Relic BLS threshold signatures")
+if(NOT (USE_EDDSA_OPENSSL OR USE_RELIC))
+    message(FATAL_ERROR "At least one threshold/multisig implementation can be chosen, "
+            "Choose at least one of the following cmake options: [USE_EDDSA_OPENSSL, USE_RELIC]")
 endif()
 
 if((USE_OPENSSL OR USE_EDDSA_OPENSSL) AND NOT BUILD_THIRDPARTY)

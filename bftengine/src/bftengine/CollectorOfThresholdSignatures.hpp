@@ -376,8 +376,8 @@ class CollectorOfThresholdSignatures {
       {
         // optimistically, don't use share verification
         std::unique_ptr<IThresholdAccumulator> acc{verifier->newAccumulator(false)};
-        for (uint16_t i = 0; i < reqDataItems; i++) acc->add(sigDataItems[i].sigBody, sigDataItems[i].sigLength);
         acc->setExpectedDigest(reinterpret_cast<unsigned char*>(expectedDigest.content()), DIGEST_SIZE);
+        for (uint16_t i = 0; i < reqDataItems; i++) acc->add(sigDataItems[i].sigBody, sigDataItems[i].sigLength);
         fullSignedDataLength = acc->getFullSignedData(bufferForSigComputations.data(), bufferSize);
       }
 
@@ -387,8 +387,8 @@ class CollectorOfThresholdSignatures {
         // this still can succeed if there're enough valid shares.
         // at least replica with bad   signatures will be identified.
         std::unique_ptr<IThresholdAccumulator> acc{verifier->newAccumulator(true)};
-        for (uint16_t i = 0; i < reqDataItems; i++) acc->add(sigDataItems[i].sigBody, sigDataItems[i].sigLength);
         acc->setExpectedDigest(reinterpret_cast<unsigned char*>(expectedDigest.content()), DIGEST_SIZE);
+        for (uint16_t i = 0; i < reqDataItems; i++) acc->add(sigDataItems[i].sigBody, sigDataItems[i].sigLength);
         fullSignedDataLength = acc->getFullSignedData(bufferForSigComputations.data(), bufferSize);
         if (!verifier->verify(
                 (char*)&expectedDigest, sizeof(Digest), bufferForSigComputations.data(), fullSignedDataLength)) {
