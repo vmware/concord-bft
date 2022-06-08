@@ -62,9 +62,10 @@ bool ClientsManager::RequestsInfo::removeRequestsOutOfBatchBoundsSafe(NodeIdType
 void ClientsManager::RequestsInfo::removeOldPendingReqsSafe(NodeIdType clientId, ReqId reqSeqNum) {
   const lock_guard<mutex> lock(requestsMapMutex_);
   for (auto it = requestsMap_.begin(); it != requestsMap_.end();) {
-    if (it->first <= reqSeqNum) {
+    const auto oldSeqNum = it->first;
+    if (oldSeqNum <= reqSeqNum) {
+      LOG_INFO(CL_MNGR, "Remove old pending request" << KVLOG(clientId, oldSeqNum, reqSeqNum));
       it = requestsMap_.erase(it);
-      LOG_INFO(CL_MNGR, "Remove old pending request" << KVLOG(clientId, reqSeqNum));
     } else
       it++;
   }
@@ -132,47 +133,48 @@ void ClientsManager::RequestsInfo::logAllPendingRequestsExceedingThreshold(const
 
 /*************************** Class ClientsManager::RepliesInfo ***************************/
 
-void ClientsManager::RepliesInfo::deleteOldestReplyIfNeededSafe(NodeIdType clientId, uint16_t maxNumOfReqsPerClient) {
-  Time earliestTime = MaxTime;
-  ReqId earliestReplyId = 0;
-  if (repliesMap_.size() < maxNumOfReqsPerClient) return;
-  if (repliesMap_.size() > maxNumOfReqsPerClient)
+void ClientsManager::RepliesInfo::deleteReplyIfNeededSafe(NodeIdType clientId,
+                                                          ReqId reqSeqNum,
+                                                          uint16_t maxNumOfReqsPerClient,
+                                                          uint16_t reqIndex) {
+  ReqId savedReplyId = 0;
+  if (repliesBiMap_.size() > maxNumOfReqsPerClient) {
     LOG_FATAL(CL_MNGR,
               "More than maxNumOfReqsPerClient_ items in repliesInfo"
-                  << KVLOG(repliesMap_.size(), maxNumOfReqsPerClient, clientId));
-  for (auto& reply : repliesMap_) {
-    if (earliestTime > reply.second) {
-      earliestReplyId = reply.first;
-      earliestTime = reply.second;
+                  << KVLOG(repliesBiMap_.size(), maxNumOfReqsPerClient, clientId));
+  }
+
+  if (repliesBiMap_.right.find(reqIndex) != repliesBiMap_.right.end()) {
+    savedReplyId = repliesBiMap_.right.at(reqIndex);
+    if (savedReplyId > reqSeqNum) {
+      LOG_WARN(CL_MNGR, "A newer reply was already saved" << KVLOG(clientId, reqSeqNum, savedReplyId, reqIndex));
     }
   }
-  const lock_guard<mutex> lock(repliesMapMutex_);
-  if (earliestReplyId) {
-    repliesMap_.erase(earliestReplyId);
-  } else if (!repliesMap_.empty()) {
-    // Delete reply arrived through ST
-    auto const& reply = repliesMap_.cbegin();
-    earliestReplyId = reply->first;
-    earliestTime = reply->second;
-    repliesMap_.erase(reply);
+
+  if (savedReplyId) {
+    const lock_guard<mutex> lock(repliesMapMutex_);
+    repliesBiMap_.left.erase(savedReplyId);
+    LOG_DEBUG(CL_MNGR, "Deleted reply message" << KVLOG(clientId, savedReplyId, reqIndex, repliesBiMap_.size()));
   }
-  LOG_DEBUG(CL_MNGR,
-            "Deleted reply message" << KVLOG(
-                clientId, earliestReplyId, earliestTime.time_since_epoch().count(), repliesMap_.size()));
 }
 
-bool ClientsManager::RepliesInfo::insertOrAssignSafe(ReqId reqSeqNum, Time time) {
+void ClientsManager::RepliesInfo::insertOrAssignSafe(ReqId reqSeqNum, uint16_t reqIndexInBatch) {
   const lock_guard<mutex> lock(repliesMapMutex_);
-  return repliesMap_.insert_or_assign(reqSeqNum, time).second;
+  repliesBiMap_.insert(boost::bimaps::bimap<ReqId, uint16_t>::value_type(reqSeqNum, reqIndexInBatch));
 }
 
 bool ClientsManager::RepliesInfo::findSafe(ReqId reqSeqNum) {
   const lock_guard<mutex> lock(repliesMapMutex_);
-  return (repliesMap_.find(reqSeqNum) != repliesMap_.end());
+  return (repliesBiMap_.left.find(reqSeqNum) != repliesBiMap_.left.end());
 }
 
 bool ClientsManager::RepliesInfo::find(ReqId reqSeqNum) const {
-  return (repliesMap_.find(reqSeqNum) != repliesMap_.end());
+  return (repliesBiMap_.left.find(reqSeqNum) != repliesBiMap_.left.end());
+}
+
+uint16_t ClientsManager::RepliesInfo::getIndex(ReqId reqSeqNum) const {
+  const auto& replyIt = repliesBiMap_.left.find(reqSeqNum);
+  return (replyIt != repliesBiMap_.left.end()) ? replyIt->second : 0;
 }
 
 /*************************** Class ClientsManager ***************************/
@@ -204,12 +206,16 @@ ClientsManager::ClientsManager(const std::set<NodeIdType>& proxyClients,
       clientServices_{clientServices},
       internalClients_{internalClients},
       maxReplySize_(ReplicaConfig::instance().getmaxReplyMessageSize()),
-      maxNumOfReqsPerClient_(
-          ReplicaConfig::instance().clientBatchingEnabled ? ReplicaConfig::instance().clientBatchingMaxMsgsNbr : 1),
+      maxNumOfReqsPerClient_(ReplicaConfig::instance().clientBatchingEnabled &&
+                                     ReplicaConfig::instance().preExecutionFeatureEnabled
+                                 ? ReplicaConfig::instance().clientBatchingMaxMsgsNbr
+                                 : 1),
       metrics_(metrics),
       metric_reply_inconsistency_detected_{metrics_.RegisterCounter("totalReplyInconsistenciesDetected")},
       metric_removed_due_to_out_of_boundaries_{metrics_.RegisterCounter("totalRemovedDueToOutOfBoundaries")} {
-  reservedPagesPerClient_ = reservedPagesPerClient(sizeOfReservedPage(), maxReplySize_);
+  ConcordAssert(maxNumOfReqsPerClient_ > 0);
+  reservedPagesPerRequest_ = reservedPagesPerRequest(sizeOfReservedPage(), maxReplySize_);
+  reservedPagesPerClient_ = reservedPagesPerClient(sizeOfReservedPage(), maxReplySize_, maxNumOfReqsPerClient_);
   for (NodeIdType i = 0; i < ReplicaConfig::instance().numReplicas + ReplicaConfig::instance().numRoReplicas; i++) {
     clientIds_.insert(i);
   }
@@ -240,11 +246,19 @@ ClientsManager::ClientsManager(const std::set<NodeIdType>& proxyClients,
                         << KVLOG(sizeOfReservedPage(), reservedPagesPerClient_, maxReplySize_, maxNumOfReqsPerClient_));
 }
 
-uint32_t ClientsManager::reservedPagesPerClient(const uint32_t& sizeOfReservedPage, const uint32_t& maxReplySize) {
-  uint32_t reservedPagesPerClient = maxReplySize / sizeOfReservedPage;
+uint32_t ClientsManager::reservedPagesPerRequest(uint32_t sizeOfReservedPage, uint32_t maxReplySize) {
+  uint32_t reservedPagesPerReq = maxReplySize / sizeOfReservedPage;
   if (maxReplySize % sizeOfReservedPage != 0) {
-    reservedPagesPerClient++;
+    reservedPagesPerReq++;
   }
+  return reservedPagesPerReq;
+}
+
+uint32_t ClientsManager::reservedPagesPerClient(uint32_t sizeOfReservedPage,
+                                                uint32_t maxReplySize,
+                                                uint16_t maxNumReqPerClient) {
+  uint32_t reservedPagesPerReq = reservedPagesPerRequest(sizeOfReservedPage, maxReplySize);
+  uint32_t reservedPagesPerClient = reservedPagesPerReq * maxNumReqPerClient;
   reservedPagesPerClient++;  // for storing client public key
   return reservedPagesPerClient;
 }
@@ -255,34 +269,41 @@ uint32_t ClientsManager::reservedPagesPerClient(const uint32_t& sizeOfReservedPa
 // * fill clientInfo
 // * remove pending request if loaded reply is newer
 void ClientsManager::loadInfoFromReservedPages() {
-  for (auto const& clientId : clientIds_) {
+  for (auto const& [clientId, clientInfo] : clientsInfo_) {
     if (internalClients_.find(clientId) != internalClients_.end()) continue;
     if (loadReservedPage(getKeyPageId(clientId), sizeOfReservedPage(), scratchPage_.data())) {
-      auto& info = clientsInfo_[clientId];
       std::istringstream iss(scratchPage_);
-      concord::serialize::Serializable::deserialize(iss, info.pubKey);
-      ConcordAssertGT(info.pubKey.first.length(), 0);
-      KeyExchangeManager::instance().loadClientPublicKey(info.pubKey.first, info.pubKey.second, clientId, false);
+      concord::serialize::Serializable::deserialize(iss, clientInfo.pubKey);
+      ConcordAssertGT(clientInfo.pubKey.first.length(), 0);
+      KeyExchangeManager::instance().loadClientPublicKey(
+          clientInfo.pubKey.first, clientInfo.pubKey.second, clientId, false);
     }
 
-    if (!loadReservedPage(getReplyFirstPageId(clientId), sizeOfReservedPage(), scratchPage_.data())) continue;
-    ClientReplyMsgHeader* replyHeader = (ClientReplyMsgHeader*)scratchPage_.data();
-    ConcordAssert(replyHeader->msgType == 0 || replyHeader->msgType == MsgCode::ClientReply);
-    ConcordAssert(replyHeader->currentPrimaryId == 0);
-    ConcordAssert(replyHeader->replyLength >= 0);
-    ConcordAssert(replyHeader->replyLength + sizeof(ClientReplyMsgHeader) <= maxReplySize_);
+    for (uint16_t indexInBatch = 0; indexInBatch < maxNumOfReqsPerClient_; indexInBatch++) {
+      const auto pageOffset = getReplyFirstPageId(clientId) + indexInBatch * reservedPagesPerRequest_;
+      if (!loadReservedPage(pageOffset, sizeOfReservedPage(), scratchPage_.data())) continue;
+      ClientReplyMsgHeader* replyHeader = reinterpret_cast<ClientReplyMsgHeader*>(scratchPage_.data());
+      ConcordAssert(replyHeader->msgType == 0 || replyHeader->msgType == MsgCode::ClientReply);
+      ConcordAssert(replyHeader->currentPrimaryId == 0);
+      ConcordAssert(replyHeader->replyLength + sizeof(ClientReplyMsgHeader) <= maxReplySize_);
 
-    clientsInfo_[clientId].repliesInfo->deleteOldestReplyIfNeededSafe(clientId, maxNumOfReqsPerClient_);
-    const auto& res = clientsInfo_[clientId].repliesInfo->insertOrAssignSafe(replyHeader->reqSeqNum, MinTime);
-    LOG_INFO(CL_MNGR, "Added/updated reply message" << KVLOG(clientId, replyHeader->reqSeqNum, res));
-    clientsInfo_[clientId].requestsInfo->removeOldPendingReqsSafe(clientId, replyHeader->reqSeqNum);
+      clientInfo.repliesInfo->deleteReplyIfNeededSafe(
+          clientId, replyHeader->reqSeqNum, maxNumOfReqsPerClient_, indexInBatch);
+      clientInfo.repliesInfo->insertOrAssignSafe(replyHeader->reqSeqNum, indexInBatch);
+
+      LOG_INFO(CL_MNGR,
+               "Added/updated reply message" << KVLOG(clientId, replyHeader->reqSeqNum, indexInBatch, pageOffset));
+      clientInfo.requestsInfo->removeOldPendingReqsSafe(clientId, replyHeader->reqSeqNum);
+    }
   }
 }
 
 bool ClientsManager::hasReply(NodeIdType clientId, ReqId reqSeqNum) {
   try {
     const bool found = clientsInfo_.at(clientId).repliesInfo->findSafe(reqSeqNum);
-    if (found) LOG_DEBUG(CL_MNGR, "Reply found for" << KVLOG(clientId, reqSeqNum));
+    if (found) {
+      LOG_DEBUG(CL_MNGR, "Reply found for" << KVLOG(clientId, reqSeqNum));
+    }
     return found;
   } catch (const std::out_of_range& e) {
     LOG_DEBUG(CL_MNGR, "No info found for client" << KVLOG(clientId, reqSeqNum));
@@ -290,8 +311,13 @@ bool ClientsManager::hasReply(NodeIdType clientId, ReqId reqSeqNum) {
   }
 }
 
-void ClientsManager::deleteOldestReply(NodeIdType clientId) {
-  clientsInfo_[clientId].repliesInfo->deleteOldestReplyIfNeededSafe(clientId, maxNumOfReqsPerClient_);
+void ClientsManager::deleteReplyIfNeeded(NodeIdType clientId, uint16_t indexInBatch, ReqId newReqSeqNum) {
+  try {
+    clientsInfo_[clientId].repliesInfo->deleteReplyIfNeededSafe(
+        clientId, newReqSeqNum, maxNumOfReqsPerClient_, indexInBatch);
+  } catch (const std::out_of_range& e) {
+    LOG_DEBUG(CL_MNGR, "No info found for client" << KVLOG(clientId, newReqSeqNum));
+  }
 }
 
 // Reference the ClientInfo of the corresponding client:
@@ -305,11 +331,20 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateNewReplyMsgAndWriteToSto
                                                                                      uint16_t currentPrimaryId,
                                                                                      char* reply,
                                                                                      uint32_t replyLength,
+                                                                                     uint16_t reqIndexInBatch,
                                                                                      uint32_t rsiLength,
                                                                                      uint32_t executionResult) {
-  clientsInfo_[clientId].repliesInfo->deleteOldestReplyIfNeededSafe(clientId, maxNumOfReqsPerClient_);
-  clientsInfo_[clientId].repliesInfo->insertOrAssignSafe(requestSeqNum, getMonotonicTime());
-  LOG_DEBUG(CL_MNGR, KVLOG(clientId, requestSeqNum));
+  ConcordAssert(reqIndexInBatch < maxNumOfReqsPerClient_);
+  if (!isValidClient(clientId)) {
+    LOG_DEBUG(CL_MNGR, "Invalid client id" << KVLOG(clientId, requestSeqNum));
+    return nullptr;
+  }
+  uint16_t requestOffset = reqIndexInBatch * reservedPagesPerRequest_;
+  clientsInfo_[clientId].repliesInfo->deleteReplyIfNeededSafe(
+      clientId, requestSeqNum, maxNumOfReqsPerClient_, reqIndexInBatch);
+  clientsInfo_[clientId].repliesInfo->insertOrAssignSafe(requestSeqNum, reqIndexInBatch);
+
+  LOG_DEBUG(CL_MNGR, KVLOG(clientId, requestSeqNum, reqIndexInBatch, requestOffset));
   auto r = std::make_unique<ClientReplyMsg>(myId_, requestSeqNum, reply, replyLength - rsiLength, executionResult);
 
   // At this point, the rsi data is not part of the reply
@@ -330,7 +365,7 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateNewReplyMsgAndWriteToSto
 
   LOG_DEBUG(CL_MNGR, KVLOG(clientId, requestSeqNum, numOfPages, sizeLastPage));
   // write reply message to reserved pages
-  const uint32_t firstPageId = getReplyFirstPageId(clientId);
+  const uint32_t firstPageId = getReplyFirstPageId(clientId) + requestOffset;
   for (uint32_t i = 0; i < numOfPages; i++) {
     const char* ptrPage = r->body() + i * sizeOfReservedPage();
     const uint32_t sizePage = ((i < numOfPages - 1) ? sizeOfReservedPage() : sizeLastPage);
@@ -358,11 +393,21 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateNewReplyMsgAndWriteToSto
 std::unique_ptr<ClientReplyMsg> ClientsManager::allocateReplyFromSavedOne(NodeIdType clientId,
                                                                           ReqId requestSeqNum,
                                                                           uint16_t currentPrimaryId) {
-  const uint32_t firstPageId = getReplyFirstPageId(clientId);
-  LOG_DEBUG(CL_MNGR, KVLOG(clientId, requestSeqNum, firstPageId));
+  if (!isValidClient(clientId)) {
+    LOG_DEBUG(CL_MNGR, "Invalid client id" << KVLOG(clientId, requestSeqNum));
+    return nullptr;
+  }
+  auto& repliesInfo = clientsInfo_[clientId].repliesInfo;
+  if (!repliesInfo->findSafe(requestSeqNum)) {
+    LOG_WARN(CL_MNGR, "Reply is not found for specified request" << KVLOG(clientId, requestSeqNum));
+  }
+  uint16_t reqIndexInBatch = repliesInfo->getIndex(requestSeqNum);
+  uint16_t requestOffset = reqIndexInBatch * reservedPagesPerRequest_;
+  const uint32_t firstPageId = getReplyFirstPageId(clientId) + requestOffset;
+  LOG_DEBUG(CL_MNGR, KVLOG(clientId, requestSeqNum, firstPageId, requestOffset));
   loadReservedPage(firstPageId, sizeOfReservedPage(), scratchPage_.data());
 
-  ClientReplyMsgHeader* replyHeader = (ClientReplyMsgHeader*)scratchPage_.data();
+  ClientReplyMsgHeader* replyHeader = reinterpret_cast<ClientReplyMsgHeader*>(scratchPage_.data());
   ConcordAssert(replyHeader->msgType == MsgCode::ClientReply);
   ConcordAssert(replyHeader->currentPrimaryId == 0);
   ConcordAssert(replyHeader->replyLength > 0);
@@ -420,19 +465,25 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateReplyFromSavedOne(NodeId
 void ClientsManager::setClientPublicKey(NodeIdType clientId,
                                         const std::string& key,
                                         concord::util::crypto::KeyFormat fmt) {
-  LOG_INFO(CL_MNGR, "key: " << key << " fmt: " << (uint16_t)fmt << " client: " << clientId);
-  ClientInfo& info = clientsInfo_[clientId];
-  info.pubKey = std::make_pair(key, fmt);
-  std::string page(sizeOfReservedPage(), 0);
-  std::ostringstream oss(page);
-  concord::serialize::Serializable::serialize(oss, info.pubKey);
-  saveReservedPage(getKeyPageId(clientId), oss.tellp(), oss.str().data());
+  try {
+    LOG_INFO(CL_MNGR, "key: " << key << " fmt: " << (uint16_t)fmt << " client: " << clientId);
+    ClientInfo& info = clientsInfo_[clientId];
+    info.pubKey = std::make_pair(key, fmt);
+    std::string page(sizeOfReservedPage(), 0);
+    std::ostringstream oss(page);
+    concord::serialize::Serializable::serialize(oss, info.pubKey);
+    saveReservedPage(getKeyPageId(clientId), oss.tellp(), oss.str().data());
+  } catch (const std::out_of_range& e) {
+    LOG_DEBUG(CL_MNGR, "No info found for client" << KVLOG(clientId));
+  }
 }
 
 bool ClientsManager::isClientRequestInProcess(NodeIdType clientId, ReqId reqSeqNum) {
   try {
     const bool found = clientsInfo_.at(clientId).requestsInfo->findSafe(reqSeqNum);
-    if (found) LOG_DEBUG(CL_MNGR, "The request is executing right now" << KVLOG(clientId, reqSeqNum));
+    if (found) {
+      LOG_DEBUG(CL_MNGR, "The request is executing right now" << KVLOG(clientId, reqSeqNum));
+    }
     return found;
   } catch (const std::out_of_range& e) {
     LOG_DEBUG(CL_MNGR, "No info found for client" << KVLOG(clientId, reqSeqNum));
@@ -454,17 +505,18 @@ bool ClientsManager::isPending(NodeIdType clientId, ReqId reqSeqNum) const {
 // * request seq number is bigger than the last reply seq number.
 bool ClientsManager::canBecomePending(NodeIdType clientId, ReqId reqSeqNum) const {
   try {
-    ReqId requestsNum = clientsInfo_.at(clientId).requestsInfo->size();
+    const auto& clientInfo = clientsInfo_.at(clientId);
+    ReqId requestsNum = clientInfo.requestsInfo->size();
     if (requestsNum == maxNumOfReqsPerClient_) {
       LOG_DEBUG(CL_MNGR,
                 "Maximum number of requests per client reached" << KVLOG(maxNumOfReqsPerClient_, clientId, reqSeqNum));
       return false;
     }
-    if (clientsInfo_.at(clientId).requestsInfo->find(reqSeqNum)) {
+    if (clientInfo.requestsInfo->find(reqSeqNum)) {
       LOG_DEBUG(CL_MNGR, "The request is executing right now" << KVLOG(clientId, reqSeqNum));
       return false;
     }
-    if (clientsInfo_.at(clientId).repliesInfo->find(reqSeqNum)) {
+    if (clientInfo.repliesInfo->find(reqSeqNum)) {
       LOG_DEBUG(CL_MNGR, "The request has been already executed" << KVLOG(clientId, reqSeqNum));
       return false;
     }
@@ -477,11 +529,19 @@ bool ClientsManager::canBecomePending(NodeIdType clientId, ReqId reqSeqNum) cons
 }
 
 void ClientsManager::addPendingRequest(NodeIdType clientId, ReqId reqSeqNum, const std::string& cid) {
-  clientsInfo_[clientId].requestsInfo->emplaceSafe(clientId, reqSeqNum, cid);
+  try {
+    clientsInfo_[clientId].requestsInfo->emplaceSafe(clientId, reqSeqNum, cid);
+  } catch (const std::out_of_range& e) {
+    LOG_DEBUG(CL_MNGR, "No info found for client" << KVLOG(clientId, reqSeqNum));
+  }
 }
 
 void ClientsManager::markRequestAsCommitted(NodeIdType clientId, ReqId reqSeqNum) {
-  clientsInfo_[clientId].requestsInfo->markRequestAsCommitted(clientId, reqSeqNum);
+  try {
+    clientsInfo_[clientId].requestsInfo->markRequestAsCommitted(clientId, reqSeqNum);
+  } catch (const std::out_of_range& e) {
+    LOG_DEBUG(CL_MNGR, "No info found for client" << KVLOG(clientId, reqSeqNum));
+  }
 }
 
 /*
@@ -493,8 +553,12 @@ void ClientsManager::markRequestAsCommitted(NodeIdType clientId, ReqId reqSeqNum
  * that we shouldn't have more than maxNumOfRequestsInBatch. Thus, we can safely remove them from the client manager.
  */
 void ClientsManager::removeRequestsOutOfBatchBounds(NodeIdType clientId, ReqId reqSequenceNum) {
-  if (clientsInfo_[clientId].requestsInfo->removeRequestsOutOfBatchBoundsSafe(clientId, reqSequenceNum))
-    metric_removed_due_to_out_of_boundaries_++;
+  try {
+    if (clientsInfo_[clientId].requestsInfo->removeRequestsOutOfBatchBoundsSafe(clientId, reqSequenceNum))
+      metric_removed_due_to_out_of_boundaries_++;
+  } catch (const std::out_of_range& e) {
+    LOG_DEBUG(CL_MNGR, "No info found for client" << KVLOG(clientId, reqSequenceNum));
+  }
 }
 
 void ClientsManager::removePendingForExecutionRequest(NodeIdType clientId, ReqId reqSeqNum) {
@@ -514,7 +578,9 @@ Time ClientsManager::infoOfEarliestPendingRequest(std::string& cid) const {
   for (const auto& clientInfo : clientsInfo_)
     clientInfo.second.requestsInfo->infoOfEarliestPendingRequest(earliestTime, earliestPendingReqInfo);
   cid = earliestPendingReqInfo.cid;
-  if (earliestPendingReqInfo.time != MaxTime) LOG_DEBUG(CL_MNGR, "Earliest pending request: " << KVLOG(cid));
+  if (earliestPendingReqInfo.time != MaxTime) {
+    LOG_DEBUG(CL_MNGR, "Earliest pending request: " << KVLOG(cid));
+  }
   return earliestPendingReqInfo.time;
 }
 

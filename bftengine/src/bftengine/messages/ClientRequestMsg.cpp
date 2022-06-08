@@ -46,7 +46,8 @@ ClientRequestMsg::ClientRequestMsg(NodeIdType sender,
                                    const concordUtils::SpanContext& spanContext,
                                    const char* requestSignature,
                                    uint32_t requestSignatureLen,
-                                   const uint32_t extraBufSize)
+                                   uint32_t extraBufSize,
+                                   uint16_t indexInBatch)
     : MessageBase(sender,
                   MsgCode::ClientRequest,
                   spanContext.data().size(),
@@ -54,7 +55,16 @@ ClientRequestMsg::ClientRequestMsg(NodeIdType sender,
   // logical XOR - if requestSignatureLen is zero requestSignature must be null and vise versa
   ConcordAssert((requestSignature == nullptr) == (requestSignatureLen == 0));
   // set header
-  setParams(sender, reqSeqNum, requestLength, flags, reqTimeoutMilli, result, cid, requestSignatureLen, extraBufSize);
+  setParams(sender,
+            reqSeqNum,
+            requestLength,
+            flags,
+            reqTimeoutMilli,
+            result,
+            cid,
+            requestSignatureLen,
+            extraBufSize,
+            indexInBatch);
 
   // set span context
   char* position = body() + sizeof(ClientRequestMsgHeader);
@@ -221,7 +231,8 @@ void ClientRequestMsg::setParams(NodeIdType sender,
                                  uint32_t result,
                                  const std::string& cid,
                                  uint32_t requestSignatureLen,
-                                 uint32_t extraBufSize) {
+                                 uint32_t extraBufSize,
+                                 uint16_t indexInBatch) {
   auto* header = msgBody();
   header->idOfClientProxy = sender;
   header->timeoutMilli = reqTimeoutMilli;
@@ -232,6 +243,7 @@ void ClientRequestMsg::setParams(NodeIdType sender,
   header->cidLength = cid.size();
   header->reqSignatureLength = requestSignatureLen;
   header->extraDataLength = extraBufSize;
+  header->indexInBatch = indexInBatch;
 }
 
 std::string ClientRequestMsg::getCid() const {

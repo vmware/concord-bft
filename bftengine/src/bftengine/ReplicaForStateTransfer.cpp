@@ -49,7 +49,10 @@ ReplicaForStateTransfer::ReplicaForStateTransfer(const ReplicaConfig &config,
   ClientsManager::setNumResPages(
       (config.numReplicas + config.numRoReplicas + config.numOfClientProxies + config.numOfExternalClients +
        config.numReplicas + config.numOfClientServices) *
-      ClientsManager::reservedPagesPerClient(config.getsizeOfReservedPage(), config.maxReplyMessageSize));
+      ClientsManager::reservedPagesPerClient(
+          config.getsizeOfReservedPage(),
+          config.maxReplyMessageSize,
+          (config.clientBatchingEnabled && config.preExecutionFeatureEnabled) ? config.clientBatchingMaxMsgsNbr : 1));
   ClusterKeyStore::setNumResPages(config.numReplicas);
 
   if (firstTime_ || !config_.debugPersistentStorageEnabled)
