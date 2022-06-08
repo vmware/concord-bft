@@ -17,6 +17,7 @@
 
 class EdDSAMultisigFactory : public IThresholdFactory {
  public:
+  EdDSAMultisigFactory();
   IThresholdVerifier *newVerifier(ShareID reqSigners,
                                   ShareID totalSigners,
                                   const char *publicKeyStr,

@@ -9,12 +9,11 @@
 // notices and license terms. Your use of these subcomponents is subject to the
 // terms and conditions of the subcomponent's license, as noted in the
 // LICENSE file.
-#include <openssl/crypto.h>
-#include <openssl/evp.h>
 #include <boost/algorithm/hex.hpp>
 #include "threshsign/IPublicKey.h"
 #include "openssl_crypto.hpp"
 #include "threshsign/eddsa/SSLEdDSAPublicKey.h"
+#include "threshsign/eddsa/OpenSSLWrappers.h"
 
 SSLEdDSAPublicKey::SSLEdDSAPublicKey(const EdDSAPublicKeyBytes& bytes) : bytes_(bytes) {}
 
@@ -24,12 +23,11 @@ bool SSLEdDSAPublicKey::verify(const uint8_t* message,
                                const size_t messageLen,
                                const uint8_t* signature,
                                const size_t signatureLen) const {
-  EVP_PKEY* pkey =
-      EVP_PKEY_new_raw_public_key(NID_ED25519, nullptr, (const unsigned char*)bytes_.data(), bytes_.size());
-  EVP_MD_CTX* edCtx = EVP_MD_CTX_new();
-  ConcordAssertEQ(EVP_DigestVerifyInit(edCtx, nullptr, nullptr, nullptr, pkey), 1);
+  UniquePKEY pkey{EVP_PKEY_new_raw_public_key(NID_ED25519, nullptr, bytes_.data(), bytes_.size())};
+  UniqueOpenSSLContext ctx{EVP_MD_CTX_new()};
+  ConcordAssertEQ(EVP_DigestVerifyInit(ctx.get(), nullptr, nullptr, nullptr, pkey.get()), OPENSSL_SUCCESS);
 
-  if (1 != EVP_DigestVerify(edCtx, signature, signatureLen, message, messageLen)) {
+  if (OPENSSL_SUCCESS != EVP_DigestVerify(ctx.get(), signature, signatureLen, message, messageLen)) {
     return false;
   }
   return true;

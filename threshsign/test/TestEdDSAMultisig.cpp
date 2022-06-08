@@ -18,28 +18,37 @@
 #include "threshsign/eddsa/EdDSAMultisigVerifier.h"
 #include "threshsign/eddsa/SingleEdDSASignature.h"
 
-std::string sha3_256(std::string msg) {
-  std::array<uint8_t, 32> digest = {0};
-  size_t actualDigestSize = 32;
-  auto ret = EVP_Digest(msg.data(),
-                        msg.size(),
-                        digest.data(),
-                        reinterpret_cast<unsigned int*>(&actualDigestSize),
-                        EVP_sha3_256(),
-                        nullptr);
-  EXPECT_EQ(ret, 1u);
-  EXPECT_EQ(actualDigestSize, 32);
-  return std::string((const char*)digest.data(), actualDigestSize);
-}
+class EdDSAMultisigTest : public testing::Test {
+ public:
+  std::string sha3_256(std::string msg) {
+    constexpr const size_t sha256ByteCount = 32;
+    std::array<uint8_t, sha256ByteCount> digest = {0};
+    size_t actualDigestSize = sha256ByteCount;
+    auto ret = EVP_Digest(msg.data(),
+                          msg.size(),
+                          digest.data(),
+                          reinterpret_cast<unsigned int*>(&actualDigestSize),
+                          EVP_sha3_256(),
+                          nullptr);
+    EXPECT_EQ(ret, 1u);
+    EXPECT_EQ(actualDigestSize, sha256ByteCount);
+    return std::string((const char*)digest.data(), actualDigestSize);
+  }
 
-std::string testMsg() {
-  const std::string msg = "This is a test message";
-  return sha3_256(msg);
-}
+  std::string testMsgDigest() {
+    const std::string msg = "This is a test message";
+    return sha3_256(msg);
+  }
 
-TEST(EdDSAMultisigTest, ValidateSerializeDeserialize) {
-  EdDSAMultisigFactory factory;
-  auto [privateKey, publicKey] = factory.newKeyPair();
+ protected:
+  EdDSAMultisigFactory factory_;
+
+ private:
+  void SetUp() override { EDDSA_MULTISIG_LOG.setLogLevel(log4cplus::DEBUG_LOG_LEVEL); }
+};
+
+TEST_F(EdDSAMultisigTest, ValidateSerializeDeserialize) {
+  auto [privateKey, publicKey] = factory_.newKeyPair();
   auto eddsaPrivateKey = dynamic_cast<SSLEdDSAPrivateKey*>(privateKey.get());
   auto eddsaPublicKey = dynamic_cast<SSLEdDSAPublicKey*>(publicKey.get());
   auto privateHexString = eddsaPrivateKey->toString();
@@ -48,17 +57,16 @@ TEST(EdDSAMultisigTest, ValidateSerializeDeserialize) {
   ASSERT_EQ(publicHexString, SSLEdDSAPublicKey::fromHexString(publicHexString).toString());
 }
 
-TEST(EdDSAMultisigTest, TestNewVerify) {
-  EdDSAMultisigFactory factory;
-  auto [privateKey, publicKey] = factory.newKeyPair();
+TEST_F(EdDSAMultisigTest, TestSingleVerificationUsingFactory) {
+  auto [privateKey, publicKey] = factory_.newKeyPair();
   auto eddsaPrivateKey = dynamic_cast<SSLEdDSAPrivateKey*>(privateKey.get());
   auto eddsaPublicKey = dynamic_cast<SSLEdDSAPublicKey*>(publicKey.get());
 
-  auto* signer = factory.newSigner(1, eddsaPrivateKey->toString().c_str());
-  auto* verifier = factory.newVerifier(1, 1, "", {"", eddsaPublicKey->toString()});
+  auto* signer = factory_.newSigner(1, eddsaPrivateKey->toString().c_str());
+  auto* verifier = factory_.newVerifier(1, 1, "", {"", eddsaPublicKey->toString()});
   auto accumulator = verifier->newAccumulator(false);
 
-  auto msg = testMsg();
+  auto msg = testMsgDigest();
   SingleEdDSASignature signature;
   signer->signData(msg.data(), (int)msg.size(), reinterpret_cast<char*>(&signature), (int)sizeof(SingleEdDSASignature));
 
@@ -73,13 +81,11 @@ TEST(EdDSAMultisigTest, TestNewVerify) {
   ASSERT_TRUE(verifier->verify(msg.data(), (int)msg.size(), multisigBuffer.get(), multisigBytes));
 }
 
-TEST(EdDSAMultisigTest, TestSignatureAccumulation) {
-  EdDSAMultisigFactory factory;
+TEST_F(EdDSAMultisigTest, TestSignatureAccumulation) {
   constexpr const uint64_t n_signers = 100;
-  auto [signers, verifier] = factory.newRandomSigners(n_signers, n_signers);
+  auto [signers, verifier] = factory_.newRandomSigners(n_signers, n_signers);
   auto accumulator = verifier->newAccumulator(false);
-  const std::string msg = "This is a test message";
-  const auto digest = sha3_256(msg);
+  const std::string digest = testMsgDigest();
 
   accumulator->setExpectedDigest(reinterpret_cast<const unsigned char*>(digest.data()), (int)digest.size());
   std::vector<SingleEdDSASignature> signatures(signers.size() - 1);
@@ -105,32 +111,28 @@ TEST(EdDSAMultisigTest, TestSignatureAccumulation) {
   }
 }
 
-TEST(EdDSAMultisigTest, TestSignVerifyValidity) {
-  EdDSAMultisigFactory factory;
-  auto [privateKey, publicKey] = factory.newKeyPair();
+TEST_F(EdDSAMultisigTest, TestSignVerifyValidity) {
+  auto [privateKey, publicKey] = factory_.newKeyPair();
   auto eddsaPrivateKey = dynamic_cast<SSLEdDSAPrivateKey*>(privateKey.get());
   auto eddsaPublicKey = dynamic_cast<SSLEdDSAPublicKey*>(publicKey.get());
-  ASSERT_TRUE(eddsaPublicKey->verify(testMsg(), eddsaPrivateKey->sign(testMsg())));
+  ASSERT_TRUE(eddsaPublicKey->verify(testMsgDigest(), eddsaPrivateKey->sign(testMsgDigest())));
 }
 
-TEST(EdDSAMultisigTest, TestSignVerifyInvalidSignature) {
-  EdDSAMultisigFactory factory;
-  auto [privateKey, publicKey] = factory.newKeyPair();
+TEST_F(EdDSAMultisigTest, TestSignVerifyInvalidSignature) {
+  auto [privateKey, publicKey] = factory_.newKeyPair();
   auto eddsaPrivateKey = dynamic_cast<SSLEdDSAPrivateKey*>(privateKey.get());
   auto eddsaPublicKey = dynamic_cast<SSLEdDSAPublicKey*>(publicKey.get());
-  auto signature = eddsaPrivateKey->sign(testMsg());
+  auto signature = eddsaPrivateKey->sign(testMsgDigest());
   // Invalidate a single signature byte
   signature[0] = (char)~signature[0];
-  ASSERT_FALSE(eddsaPublicKey->verify(testMsg(), signature));
+  ASSERT_FALSE(eddsaPublicKey->verify(testMsgDigest(), signature));
 }
 
-TEST(EdDSAMultisigTest, TestValidMultiSignature) {
-  EdDSAMultisigFactory factory;
+TEST_F(EdDSAMultisigTest, TestValidMultiSignature) {
   constexpr const uint64_t n_signers = 7;
-  auto [signers, verifier] = factory.newRandomSigners(n_signers, n_signers);
+  auto [signers, verifier] = factory_.newRandomSigners(n_signers, n_signers);
   auto accumulator = verifier->newAccumulator(false);
-  const std::string msg = "This is a test message";
-  const auto digest = sha3_256(msg);
+  const auto digest = testMsgDigest();
 
   accumulator->setExpectedDigest(reinterpret_cast<const unsigned char*>(digest.data()), (int)digest.size());
   std::vector<SingleEdDSASignature> signatures(signers.size() - 1);
@@ -151,10 +153,9 @@ TEST(EdDSAMultisigTest, TestValidMultiSignature) {
   ASSERT_TRUE(verifier->verify(digest.data(), (int)digest.size(), multisigBuffer.get(), multisigBytes));
 }
 
-TEST(EdDSAMultisigTest, TestInvalidMultiSignature) {
-  EdDSAMultisigFactory factory;
+TEST_F(EdDSAMultisigTest, TestInvalidMultiSignature) {
   constexpr const uint64_t n_signers = 2;
-  auto [signers, verifier] = factory.newRandomSigners(n_signers, n_signers);
+  auto [signers, verifier] = factory_.newRandomSigners(n_signers, n_signers);
   auto accumulator = verifier->newAccumulator(false);
   const std::string msg = "This is a test message";
   const auto digest = sha3_256(msg);
