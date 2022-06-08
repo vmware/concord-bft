@@ -54,7 +54,10 @@ class Block {
     return std::shared_ptr<Block>(reinterpret_cast<Block*>(buff));
   }
 
-  static void free(Block* i) { std::free(static_cast<void*>(i)); }
+  static void free(Block* blk) {
+    char* blockBytes = reinterpret_cast<char*>(blk);
+    delete[] blockBytes;
+  }
 
   StateTransferDigest digestPrev;  // For block ID N, this is the digest calculated on block ID N-1
   uint32_t actualDataSize;
