@@ -117,7 +117,7 @@ TEST_F(SourceSelectorTestFixture, on_construction_is_reset_reports_true) { ASSER
 
 TEST_F(SourceSelectorTestFixture, leave_initial_state_when_there_are_any_preferred_replicas) {
   ASSERT_TRUE(source_selector.isReset());
-  source_selector.setAllReplicasAsPreferred();
+  source_selector.checkAndRefillPreferredReplicas();
   ASSERT_FALSE(source_selector.isReset());
 }
 
@@ -135,7 +135,7 @@ TEST_F(SourceSelectorTestFixture, leave_initial_state_when_the_fetching_timestam
 
 TEST_F(SourceSelectorTestFixture, reset_removes_preferred_replicas) {
   ASSERT_EQ(source_selector.numberOfPreferredReplicas(), 0);
-  source_selector.setAllReplicasAsPreferred();
+  source_selector.checkAndRefillPreferredReplicas();
   ASSERT_EQ(source_selector.numberOfPreferredReplicas(), replicas.size());
   source_selector.reset();
   ASSERT_EQ(source_selector.numberOfPreferredReplicas(), 0);
@@ -174,7 +174,7 @@ TEST_F(SourceSelectorTestFixture, reset_sets_the_fetching_timestamp_to_zero) {
 // Others
 TEST_F(SourceSelectorTestFixture, set_all_replicas_as_preferred) {
   ASSERT_FALSE(source_selector.hasPreferredReplicas());
-  source_selector.setAllReplicasAsPreferred();
+  source_selector.checkAndRefillPreferredReplicas();
   ASSERT_TRUE(source_selector.hasPreferredReplicas());
 
   for (const auto& replica : replicas) {

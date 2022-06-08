@@ -185,6 +185,7 @@ BCStateTran::Metrics BCStateTran::createRegisterMetrics() {
       metrics_component_.RegisterCounter("on_timer"),
       metrics_component_.RegisterCounter("one_shot_timer"),
       metrics_component_.RegisterCounter("on_transferring_complete"),
+      metrics_component_.RegisterCounter("internal_cycle_counter"),
       metrics_component_.RegisterCounter("handle_AskForCheckpointSummaries_msg"),
       metrics_component_.RegisterCounter("dst_handle_CheckpointsSummary_msg"),
       metrics_component_.RegisterCounter("src_handle_FetchBlocks_msg"),
@@ -241,7 +242,6 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
       maxNumOfStoredCheckpoints_{0},
       numberOfReservedPages_{0},
       cycleCounter_{0},
-      internalCycleCounter_{0},
       running_{false},
       replicaForStateTransfer_{nullptr},
       buffer_(new char[maxItemSize_]),
@@ -374,7 +374,7 @@ void BCStateTran::initImpl(uint64_t maxNumOfRequiredStoredCheckpoints,
         LOG_INFO(logger_, "State Transfer cycle continues");
         startCollectingStats();
         if ((fs == FetchingState::GettingMissingBlocks) || (fs == FetchingState::GettingMissingResPages)) {
-          SetAllReplicasAsPreferred();
+          setAllReplicasAsPreferred();
         }
 
         if (fs == FetchingState::GettingMissingBlocks) {
@@ -865,9 +865,8 @@ void BCStateTran::startCollectingStats() {
 }
 
 void BCStateTran::startCollectingStateInternal() {
-  LOG_DEBUG(logger_, KVLOG(internalCycleCounter_));
+  metrics_.internal_cycle_counter++;
   ConcordAssert(sourceSelector_.noPreferredReplicas());
-  ++internalCycleCounter_;
 
   // between cycles, reset collecting state
   {  // txn scope
@@ -889,9 +888,9 @@ void BCStateTran::startCollectingStateImpl() {
     LOG_WARN(logger_, "Already in State Transfer, ignore call...");
     return;
   }
-  LOG_INFO(
-      logger_,
-      std::boolalpha << "State Transfer cycle started (#" << ++cycleCounter_ << ")," << KVLOG(internalCycleCounter_));
+  ++cycleCounter_;
+  auto internalCycleCounter = metrics_.internal_cycle_counter.Get().Get();
+  LOG_INFO(logger_, "State Transfer cycle started:" << KVLOG(cycleCounter_, internalCycleCounter));
 
   {  // txn scope
     DataStoreTransaction::Guard g(psd_->beginTransaction());
@@ -1824,15 +1823,19 @@ void BCStateTran::clearIoContexts() {
   ioContexts_.clear();
 }
 
-void BCStateTran::sendRejectFetchingMsg(const char *reason, uint64_t msgSeqNum, uint16_t destReplicaId) {
-  RejectFetchingMsg outMsg;
+void BCStateTran::sendRejectFetchingMsg(const uint16_t rejectionCode,
+                                        uint64_t msgSeqNum,
+                                        uint16_t destReplicaId,
+                                        std::string_view additionalInfo) {
+  RejectFetchingMsg outMsg(rejectionCode, msgSeqNum);
 
   if (sourceSession_.isOpen() && (sourceSession_.ownerDestReplicaId() == destReplicaId)) {
     sourceSession_.close();
   }
-  outMsg.requestMsgSeqNum = msgSeqNum;
   metrics_.sent_reject_fetch_msg_++;
-  LOG_WARN(logger_, "Rejecting msg. Sending RejectFetchingMsg to replica: " << KVLOG(reason, destReplicaId, msgSeqNum));
+  LOG_WARN(logger_,
+           "Rejecting msg. Sending RejectFetchingMsg to replica: " << KVLOG(
+               rejectionCode, outMsg.reasonMessages[rejectionCode], additionalInfo, destReplicaId, msgSeqNum));
   replicaForStateTransfer_->sendStateTransferMessage(
       reinterpret_cast<char *>(&outMsg), sizeof(RejectFetchingMsg), destReplicaId);
 }
@@ -1963,8 +1966,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
 
   uint64_t numBlocksRequested = static_cast<uint64_t>(m->maxBlockId - m->minBlockId + 1);
   if (numBlocksRequested > config_.maxNumberOfChunksInBatch) {
-    sendRejectFetchingMsg(
-        "Number of blocks requested exceeds config_.maxNumberOfChunksInBatch", m->msgSeqNum, replicaId);
+    sendRejectFetchingMsg(RejectFetchingMsg::Reason::INVALID_NUMBER_OF_BLOCKS_REQUESTED, m->msgSeqNum, replicaId);
     return false;
   }
 
@@ -1973,18 +1975,22 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
 
   // Reject if I'm already in ST (source or destination)
   if (isActiveDestination(fetchingState)) {
-    sendRejectFetchingMsg("In state transfer", m->msgSeqNum, replicaId);
+    sendRejectFetchingMsg(RejectFetchingMsg::Reason::IN_STATE_TRANSFER, m->msgSeqNum, replicaId);
     return false;
   }
   if (m->maxBlockId > lastReachableBlockNum) {
-    sendRejectFetchingMsg("Required blocks range is not present", m->msgSeqNum, replicaId);
+    sendRejectFetchingMsg(RejectFetchingMsg::Reason::BLOCK_RANGE_NOT_FOUND,
+                          m->msgSeqNum,
+                          replicaId,
+                          KVLOG(m->maxBlockId, lastReachableBlockNum));
     return false;
   }
   auto [sessionOpened, otherReplicaSessionClosed] = sourceSession_.tryOpen(replicaId);
   (void)otherReplicaSessionClosed;
   if (sessionOpened == false) {
-    auto reason = "Active session with ownerDestReplicaId=" + std::to_string(sourceSession_.ownerDestReplicaId());
-    sendRejectFetchingMsg(reason.c_str(), m->msgSeqNum, replicaId);
+    auto additionalInfo =
+        "Active session with ownerDestReplicaId=" + std::to_string(sourceSession_.ownerDestReplicaId());
+    sendRejectFetchingMsg(RejectFetchingMsg::Reason::IN_ACTIVE_SESSION, m->msgSeqNum, replicaId, additionalInfo);
     return false;
   }
   // comment: otherReplicaSessionClosed is supposed to mark the need to clear io contexts.
@@ -1993,9 +1999,9 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
   size_t rvbGroupDigestsExpectedSize =
       (m->rvbGroupId != 0) ? rvbm_->getSerializedDigestsOfRvbGroup(m->rvbGroupId, nullptr, 0, true) : 0;
   if ((rvbGroupDigestsExpectedSize == 0) && (m->rvbGroupId != 0)) {
-    // Destination RVB Group request cannot be obtained, reject
-    auto reason = "RVB Group request cannot be obtained, rejecting request:" + KVLOG(m->rvbGroupId);
-    sendRejectFetchingMsg(reason.c_str(), m->msgSeqNum, replicaId);
+    auto additionalInfo = "RVB Group request cannot be fullfiled, rejecting request:" + KVLOG(m->rvbGroupId);
+    sendRejectFetchingMsg(
+        RejectFetchingMsg::Reason::DIGESTS_FOR_RVBGROUP_NOT_FOUND, m->msgSeqNum, replicaId, additionalInfo);
     sourceSession_.close();
     return false;
   }
@@ -2058,8 +2064,9 @@ void BCStateTran::continueSendBatch() {
         }
         TimeRecorder scoped_timer(*histograms_.src_next_block_wait_duration);
         if (!ctx->future.get()) {
-          auto reason = "Block not found in storage, abort batch:" + KVLOG(ctx->blockId);
-          sendRejectFetchingMsg(reason.c_str(), m->msgSeqNum, sb.destReplicaId);
+          auto additionalInfo = "Block not found in storage, abort batch:" + KVLOG(ctx->blockId);
+          sendRejectFetchingMsg(
+              RejectFetchingMsg::Reason::BLOCK_NOT_FOUND_IN_STORAGE, m->msgSeqNum, sb.destReplicaId, additionalInfo);
           sourceSession_.close();
           sourceBatch_.active = false;
           return;
@@ -2087,9 +2094,12 @@ void BCStateTran::continueSendBatch() {
 
     // if msg is invalid (lastKnownChunkInLastRequiredBlock+1 does not exist)
     if ((sb.numSentChunks == 0) && (sb.nextChunk > numOfChunksInNextBlock)) {
-      auto reason =
+      auto additionalInfo =
           "Msg is invalid (illegal chunk number):" + KVLOG(sb.destReplicaId, sb.nextChunk, numOfChunksInNextBlock);
-      sendRejectFetchingMsg(reason.c_str(), m->msgSeqNum, sb.destReplicaId);
+      sendRejectFetchingMsg(RejectFetchingMsg::Reason::INVALID_NUMBER_OF_BLOCKS_REQUESTED,
+                            m->msgSeqNum,
+                            sb.destReplicaId,
+                            additionalInfo);
       sourceSession_.close();
       sourceBatch_.active = false;
       return;
@@ -2120,10 +2130,11 @@ void BCStateTran::continueSendBatch() {
       size_t rvbGroupDigestsActualSize =
           rvbm_->getSerializedDigestsOfRvbGroup(m->rvbGroupId, outMsg->data, sb.rvbGroupDigestsExpectedSize, false);
       if ((rvbGroupDigestsActualSize == 0) || (sb.rvbGroupDigestsExpectedSize != rvbGroupDigestsActualSize)) {
-        auto reason = "Rejecting message - not holding all requested digests (or some other error)" +
-                      KVLOG(sb.rvbGroupDigestsExpectedSize, rvbGroupDigestsActualSize);
+        auto additionalInfo = "Rejecting message - not holding all requested digests (or some other error)" +
+                              KVLOG(sb.rvbGroupDigestsExpectedSize, rvbGroupDigestsActualSize);
         ItemDataMsg::free(outMsg);
-        sendRejectFetchingMsg(reason.c_str(), m->msgSeqNum, sb.destReplicaId);
+        sendRejectFetchingMsg(
+            RejectFetchingMsg::Reason::DIGESTS_FOR_RVBGROUP_NOT_FOUND, m->msgSeqNum, sb.destReplicaId, additionalInfo);
         sourceSession_.close();
         sourceBatch_.active = false;
         return;
@@ -2249,9 +2260,7 @@ bool BCStateTran::onMessage(const FetchResPagesMsg *m, uint32_t msgLen, uint16_t
 
   // if msg should be rejected
   if ((isActiveDestination(fetchingState)) || (!psd_->hasCheckpointDesc(m->requiredCheckpointNum))) {
-    RejectFetchingMsg outMsg;
-    outMsg.requestMsgSeqNum = m->msgSeqNum;
-
+    RejectFetchingMsg outMsg(RejectFetchingMsg::Reason::RES_PAGE_NOT_FOUND, m->msgSeqNum);
     LOG_WARN(logger_,
              "Rejecting msg. Sending RejectFetchingMsg to replica " << KVLOG(replicaId,
                                                                              fetchingState,
@@ -2380,8 +2389,19 @@ bool BCStateTran::onMessage(const RejectFetchingMsg *m, uint32_t msgLen, uint16_
     return false;
   }
 
+  auto itr = m->reasonMessages.find(m->rejectionCode);
+  if (itr == m->reasonMessages.end()) {
+    LOG_WARN(logger_, "Msg is invalid: " << KVLOG(replicaId, m->rejectionCode));
+    metrics_.invalid_reject_fetching_msg_++;
+    return false;
+  }
+
   // if msg is not relevant
-  if (sourceSelector_.currentReplica() != replicaId || lastMsgSeqNum_ != m->requestMsgSeqNum) {
+  if ((sourceSelector_.currentReplica() != replicaId) || (lastMsgSeqNum_ != m->requestMsgSeqNum) ||
+      ((fs == FetchingState::GettingMissingBlocks) &&
+       (m->rejectionCode == RejectFetchingMsg::Reason::RES_PAGE_NOT_FOUND)) ||
+      ((fs == FetchingState::GettingMissingResPages) &&
+       (m->rejectionCode != RejectFetchingMsg::Reason::RES_PAGE_NOT_FOUND))) {
     LOG_WARN(
         logger_,
         "Msg is irrelevant" << KVLOG(replicaId, sourceSelector_.currentReplica(), lastMsgSeqNum_, m->requestMsgSeqNum));
@@ -2389,27 +2409,23 @@ bool BCStateTran::onMessage(const RejectFetchingMsg *m, uint32_t msgLen, uint16_
     return false;
   }
 
-  LOG_INFO(logger_, "Received RejectFetchingMsg:" << KVLOG(replicaId, m->requestMsgSeqNum));
-  if (sourceSelector_.isPreferredSourceId(replicaId)) {
-    LOG_WARN(logger_, "Removing replica from preferred replicas: " << KVLOG(replicaId));
+  LOG_INFO(
+      logger_,
+      "Received reject msg" << KVLOG(stateName(fs), m->rejectionCode, itr->second, replicaId, m->requestMsgSeqNum));
+
+  if (fs == FetchingState::GettingMissingResPages) {
+    if (m->rejectionCode == RejectFetchingMsg::Reason::RES_PAGE_NOT_FOUND) {
+      sourceSelector_.reset();
+      // Probably consensus has advanced while destination replica was collecting blocks
+      // and all replicas have already deleted the requested reserved pages
+      // for the target checkpoint so enter new cycle
+      startCollectingStateInternal();
+    }
+  } else {
+    // One of the valid rejection code while getting missing blocks so move on to next source
     sourceSelector_.removeCurrentReplica();
     clearAllPendingItemsData();
-  }
-
-  if (sourceSelector_.hasPreferredReplicas()) {
     processData();
-  } else if (fs == FetchingState::GettingMissingBlocks) {
-    LOG_DEBUG(logger_, "Adding all peer replicas to preferredReplicas_ (because preferredReplicas_.size()==0)");
-
-    // in this case, we will try to use all other replicas (remove current replica)
-    SetAllReplicasAsPreferred();
-    sourceSelector_.removeCurrentReplica();
-    processData();
-  } else if (fs == FetchingState::GettingMissingResPages) {
-    // enter new cycle
-    startCollectingStateInternal();
-  } else {
-    ConcordAssert(false);
   }
   return false;
 }
@@ -2903,7 +2919,7 @@ set<uint16_t> BCStateTran::allOtherReplicas() {
   return others;
 }
 
-void BCStateTran::SetAllReplicasAsPreferred() { sourceSelector_.setAllReplicasAsPreferred(); }
+void BCStateTran::setAllReplicasAsPreferred() { sourceSelector_.checkAndRefillPreferredReplicas(); }
 
 void BCStateTran::reportCollectingStatus(const uint32_t actualBlockSize, bool toLog) {
   metrics_.overall_blocks_collected_++;
@@ -3592,10 +3608,11 @@ void BCStateTran::cycleEndSummary() {
   Throughput::Results blocksCollectedResults, bytesCollectedResults, blocksPostProcessedResults;
   std::ostringstream sources_str;
   const auto &sources_ = sourceSelector_.getActualSources();
+  auto internalCycleCounter = metrics_.internal_cycle_counter.Get().Get();
 
   if ((gettingMissingBlocksDT_.totalDuration() == 0) || (cycleDT_.totalDuration() == 0)) {
     // we print full summary only if we were collecting blocks
-    LOG_INFO(logger_, "State Transfer cycle ended (#" << cycleCounter_ << ")," << KVLOG(internalCycleCounter_));
+    LOG_INFO(logger_, "State Transfer cycle ended:" << KVLOG(cycleCounter_, internalCycleCounter));
     return;
   }
 
@@ -3616,7 +3633,7 @@ void BCStateTran::cycleEndSummary() {
   LOG_INFO(
       logger_,
       "State Transfer cycle ended (#"
-          << cycleCounter_ << ")," << KVLOG(internalCycleCounter_)
+          << cycleCounter_ << ")," << KVLOG(internalCycleCounter)
           << " ,Total Duration: " << convertMillisecToReadableStr(cycleDuration)
           << " ,Time to get checkpoint summaries: " << convertMillisecToReadableStr(gettingCheckpointSummariesDuration)
           << " ,Time to fetch missing blocks: " << convertMillisecToReadableStr(gettingMissingBlocksDuration)

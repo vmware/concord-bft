@@ -277,7 +277,6 @@ class BCStateTran : public IStateTransfer {
   uint64_t maxNumOfStoredCheckpoints_;
   std::atomic_uint64_t numberOfReservedPages_;
   uint32_t cycleCounter_;
-  uint32_t internalCycleCounter_;
 
   std::atomic<bool> running_;
   IReplicaForStateTransfer* replicaForStateTransfer_;
@@ -481,7 +480,7 @@ class BCStateTran : public IStateTransfer {
   void cycleEndSummary();
   void onGettingMissingBlocksEnd(DataStoreTransaction* txn);
   set<uint16_t> allOtherReplicas();
-  void SetAllReplicasAsPreferred();
+  void setAllReplicasAsPreferred();
 
   ///////////////////////////////////////////////////////////////////////////
   // Helper methods
@@ -647,6 +646,7 @@ class BCStateTran : public IStateTransfer {
     CounterHandle one_shot_timer_;
 
     CounterHandle on_transferring_complete_;
+    CounterHandle internal_cycle_counter;
 
     CounterHandle handle_AskForCheckpointSummaries_msg_;
     CounterHandle handle_CheckpointsSummary_msg_;
@@ -818,7 +818,10 @@ class BCStateTran : public IStateTransfer {
 
   friend std::ostream& operator<<(std::ostream& os, const BCStateTran::SourceBatch& batch);
   void continueSendBatch();
-  void sendRejectFetchingMsg(const char* reason, uint64_t msgSeqNum, uint16_t destReplicaId);
+  void sendRejectFetchingMsg(const uint16_t rejectionCode,
+                             uint64_t msgSeqNum,
+                             uint16_t destReplicaId,
+                             std::string_view additionalInfo = "");
   ///////////////////////////////////////////////////////////////////////////
   // Latency Historgrams (snapshots)
   ///////////////////////////////////////////////////////////////////////////
