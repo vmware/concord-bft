@@ -69,6 +69,7 @@ class BlockMerkleCategory {
                              std::vector<std::optional<TaggedVersion>>& versions) const;
 
   std::vector<std::string> getBlockStaleKeys(BlockId, const BlockMerkleOutput&) const;
+  std::set<std::string> getStaleActiveKeys(BlockId, const BlockMerkleOutput&) const;
   // Delete the given block ID as a genesis one.
   // Precondition: The given block ID must be the genesis one.
   std::size_t deleteGenesisBlock(BlockId, const BlockMerkleOutput&, detail::LocalWriteBatch&);

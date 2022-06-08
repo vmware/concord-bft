@@ -91,6 +91,8 @@ class VersionedKeyValueCategory {
 
   // Get all stale keys as of `block_id`.
   std::vector<std::string> getBlockStaleKeys(BlockId block_id, const VersionedOutput &) const;
+  // Get all stale keys from active keys as of `block_id`.
+  std::set<std::string> getStaleActiveKeys(BlockId block_id, const VersionedOutput &) const;
 
  private:
   void addDeletes(BlockId, std::vector<std::string> &&keys, VersionedOutput &, storage::rocksdb::NativeWriteBatch &);

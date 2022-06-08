@@ -392,6 +392,24 @@ std::map<std::string, std::vector<std::string>> KeyValueBlockchain::getBlockStal
   return stale_keys;
 }
 
+std::map<std::string, std::set<std::string>> KeyValueBlockchain::getStaleActiveKeys(BlockId block_id) const {
+  // Get block node from storage
+  auto block = block_chain_.getBlock(block_id);
+  if (!block) {
+    const auto msg = "Failed to get block node for block ID = " + std::to_string(block_id);
+    throw std::runtime_error{msg};
+  }
+
+  std::map<std::string, std::set<std::string>> stale_keys;
+  for (auto&& [category_id, update_info] : block.value().data.categories_updates_info) {
+    stale_keys[category_id] =
+        std::visit([&block_id, category_id = category_id, this](
+                       const auto& update_info) { return getStaleActiveKeys(block_id, category_id, update_info); },
+                   update_info);
+  }
+  return stale_keys;
+}
+
 void KeyValueBlockchain::trimBlocksFromSnapshot(BlockId block_id_at_checkpoint) {
   ConcordAssertGE(block_id_at_checkpoint, INITIAL_GENESIS_BLOCK_ID);
   ConcordAssertLE(block_id_at_checkpoint, getLastReachableBlockId());
@@ -706,6 +724,26 @@ std::vector<std::string> KeyValueBlockchain::getStaleKeys(BlockId block_id,
                                                           const std::string& category_id,
                                                           const BlockMerkleOutput& updates_info) const {
   return std::get<detail::BlockMerkleCategory>(getCategoryRef(category_id)).getBlockStaleKeys(block_id, updates_info);
+}
+
+std::set<std::string> KeyValueBlockchain::getStaleActiveKeys(BlockId block_id,
+                                                             const std::string& category_id,
+                                                             const ImmutableOutput& updates_info) const {
+  return std::get<detail::ImmutableKeyValueCategory>(getCategoryRef(category_id))
+      .getStaleActiveKeys(block_id, updates_info);
+}
+
+std::set<std::string> KeyValueBlockchain::getStaleActiveKeys(BlockId block_id,
+                                                             const std::string& category_id,
+                                                             const VersionedOutput& updates_info) const {
+  return std::get<detail::VersionedKeyValueCategory>(getCategoryRef(category_id))
+      .getStaleActiveKeys(block_id, updates_info);
+}
+
+std::set<std::string> KeyValueBlockchain::getStaleActiveKeys(BlockId block_id,
+                                                             const std::string& category_id,
+                                                             const BlockMerkleOutput& updates_info) const {
+  return std::get<detail::BlockMerkleCategory>(getCategoryRef(category_id)).getStaleActiveKeys(block_id, updates_info);
 }
 
 // Deletes per category
