@@ -18,7 +18,7 @@ class EdDSAMultisigVerifier;
 
 class EdDSASignatureAccumulator : public IThresholdAccumulator {
  public:
-  EdDSASignatureAccumulator(const EdDSAMultisigVerifier &verifier);
+  EdDSASignatureAccumulator(const EdDSAMultisigVerifier &verifier, bool shareVerification);
   int add(const char *sigShareWithId, int len) override;
   void setExpectedDigest(const unsigned char *msg, int len) override;
   size_t getFullSignedData(char *outThreshSig, int threshSigLen) override;
@@ -29,6 +29,8 @@ class EdDSASignatureAccumulator : public IThresholdAccumulator {
  private:
   std::unordered_map<uint32_t, SingleEdDSASignature> signatures_;
   std::string msgDigest_;
+  const EdDSAMultisigVerifier &verifier_;
+  const bool shareVerification_;
 };
 
 class EdDSAMultisigVerifier : public IThresholdVerifier {
@@ -43,6 +45,7 @@ class EdDSAMultisigVerifier : public IThresholdVerifier {
   int requiredLengthForSignedData() const override;
   const IPublicKey &getPublicKey() const override;
   const IShareVerificationKey &getShareVerificationKey(ShareID signer) const override;
+  bool verifySingleSignature(const std::string_view msg, const SingleEdDSASignature &signature) const;
   ~EdDSAMultisigVerifier() override = default;
 
  private:
