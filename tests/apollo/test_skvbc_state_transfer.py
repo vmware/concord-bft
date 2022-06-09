@@ -84,7 +84,6 @@ class SkvbcStateTransferTest(ApolloTest):
         await bft_network.force_quorum_including_replica(stale_node)
         await skvbc.assert_successful_put_get()
 
-    @unittest.skip("Disable until BC-19686 gets resolved.")
     @with_trio
     @with_bft_network(start_replica_cmd, rotate_keys=True)
     async def test_state_transfer_with_multiple_clients(self, bft_network,exchange_keys=True):
@@ -102,7 +101,7 @@ class SkvbcStateTransferTest(ApolloTest):
         bft_network.start_replicas(working_replicas)
 
         # Need to send more than self.STATE_TRANSFER_WINDOW due to batching
-        await skvbc.run_concurrent_ops(int(STATE_TRANSFER_WINDOW * 1.5), write_weight=1)
+        await skvbc.run_concurrent_ops(int(STATE_TRANSFER_WINDOW * 3), write_weight=1)
         await skvbc.network_wait_for_checkpoint(working_replicas,
                                                 expected_checkpoint_num=lambda checkpoint_num: checkpoint_num >= 2)
 
