@@ -20,7 +20,7 @@ import trio
 from util.test_base import ApolloTest
 from util import bft_network_partitioning as net
 from util import skvbc as kvbc
-from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, skip_for_tls
+from util.bft import with_trio, with_bft_network, with_constant_load, KEY_FILE_PREFIX, skip_for_tls
 from util.skvbc_history_tracker import verify_linearizability
 from util import eliot_logging as log
 
@@ -474,7 +474,8 @@ class SkvbcRestartRecoveryTest(ApolloTest):
     @with_trio
     @with_bft_network(start_replica_cmd)
     @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
-    async def test_recovering_view_after_restart_with_packet_loss(self, bft_network, tracker):
+    @with_constant_load
+    async def test_recovering_view_after_restart_with_packet_loss(self, bft_network, skvbc, tracker, constant_load):
         """
         Implement a test with constant client load that is running under the Packet Dropping Adversary
         with 50% chance of dropping a packet from all replicas and trigger View Changes periodically.
@@ -499,7 +500,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         loop_count = 0
         log.log_message(f"Loop run: {loop_count}")
 
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+        #skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
 
         while (loop_count < 5):
             loop_count = loop_count + 1
