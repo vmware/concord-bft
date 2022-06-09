@@ -76,20 +76,24 @@ std::string preview(const Block& block) {
 template <>
 std::string preview(const libutt::TxIn& txi) {
   std::stringstream ss;
-  ss << "<";
-  ss << "type:" << coinTypeToStr(txi.coin_type);
-  ss << " ...>";
+  ss << "<type:" << coinTypeToStr(txi.coin_type) << " ..>";
   return ss.str();
 }
 
 template <>
 std::string preview(const libutt::TxOut& txo) {
   std::stringstream ss;
-  ss << "<";
-  ss << "type:" << coinTypeToStr(txo.coin_type);
-  ss << " ...>";
+  ss << "<type:" << coinTypeToStr(txo.coin_type) << " ..>";
   return ss.str();
 }
+
+template <>
+std::string preview(const libutt::RandSigShare& sigShare) {
+  std::stringstream ss;
+  ss << "<s1:" << sigShare.s1 << ", s2:" << sigShare.s2 << '>';
+  return ss.str();
+}
+
 }  // namespace
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -138,20 +142,23 @@ struct DataView {
   void key(const std::string& key) const { std::cout << s_PrefixList << key << s_InfixKV << "<...>\n"; }
 
   template <typename T>
-  void keyValue(const std::string& key, const T& value) const {
+  void keyValue(const std::string& key, const T& value, size_t indent = 0) const {
+    if (indent > 0) std::cout << std::setw(indent) << ' ';
     std::cout << s_PrefixList << key << s_InfixKV << value << '\n';
   }
 
   template <typename T>
-  void keyValue(const std::string& key, const std::optional<T>& value) const {
+  void keyValue(const std::string& key, const std::optional<T>& value, size_t indent = 0) const {
+    if (indent > 0) std::cout << std::setw(indent) << ' ';
     if (value.has_value())
-      keyValue(key, *value);
+      keyValue(key, *value, indent);
     else
       std::cout << s_PrefixList << key << s_InfixKV << "<NotSet>\n";
   }
 
   template <typename T>
-  void keyValue(const std::string& key, const std::vector<T>& v) const {
+  void keyValue(const std::string& key, const std::vector<T>& v, size_t indent = 0) const {
+    if (indent > 0) std::cout << std::setw(indent) << ' ';
     std::cout << s_PrefixList << key << s_InfixKV << '[';
     if (!v.empty()) {
       for (size_t i = 0; i < v.size() - 1; ++i) std::cout << v[i] << ", ";
@@ -167,21 +174,23 @@ struct DataView {
   }
 
   template <typename T>
-  void keyValuePreview(const std::string& key, const std::optional<T>& value) const {
+  void keyValuePreview(const std::string& key, const std::optional<T>& value, size_t indent = 0) const {
+    if (indent > 0) std::cout << std::setw(indent) << ' ';
     if (value.has_value())
-      keyValue(key, preview(*value));
+      keyValue(key, preview(*value), indent);
     else
       std::cout << s_PrefixList << key << s_InfixKV << "<NotSet>\n";
   }
 
   template <typename T>
-  void keyValuePreview(const std::string& key, const std::vector<T>& v) const {
+  void keyValuePreview(const std::string& key, const std::vector<T>& v, size_t indent = 0) const {
+    if (indent > 0) std::cout << std::setw(indent) << ' ';
     if (v.empty()) {
-      keyValue(key, v);
+      std::cout << s_PrefixList << key << s_InfixKV << "[]\n";
       return;
     }
     std::cout << s_PrefixList << key << s_InfixKV << '\n';
-    for (size_t i = 0; i < v.size(); ++i) keyValuePreview(std::to_string(i), v[i], 2 /*indent*/);
+    for (size_t i = 0; i < v.size(); ++i) keyValuePreview(std::to_string(i), v[i], indent + 2);
   }
 };
 
@@ -307,7 +316,10 @@ struct NormalCoinsView : DataView {
   NormalCoinsView(const DataView* prev, std::string key, const std::vector<libutt::Coin>& coins)
       : DataView(prev, std::move(key)), coins_{coins} {}
 
-  void print() const override { throw UTTDataViewerError("Expected valid normal coin index!"); }
+  void print() const override {
+    title("Coins");
+    keyValuePreview("coins", coins_);
+  }
 
   DataViewPtr makeSubView(size_t idx) const override {
     if (idx >= coins_.size()) throw IndexOutOfBoundsError(key_);
@@ -388,17 +400,33 @@ struct UttTxOutView : DataView {
 
     keyValue("coin_type", coinTypeToStr(txo_.coin_type));
     keyValue("exp_date", txo_.exp_date.as_ulong());
-    // std::cout << "    exp_date: " << txo.exp_date.as_ulong() << '\n';
-    // std::cout << "    H: " << (txo.H ? "..." : "<Empty>") << '\n';
-    // std::cout << "    vcm_1: " << txo.vcm_1.toString() << '\n';
-    // std::cout << "    range proof: " << (txo.range_pi ? "..." : "<Empty>") << '\n';
-    // std::cout << "    d: " << txo.d.as_ulong() << '\n';
-    // std::cout << "    vcm_2: " << txo.vcm_2.toString() << '\n';
-    // std::cout << "    vcm_eq_pi: <...>\n";
-    // std::cout << "    t: " << txo.t.as_ulong() << '\n';
-    // std::cout << "    icm: " << txo.icm.toString() << '\n';
-    // std::cout << "    icm_pok: " << (txo.icm_pok ? "<...>" : "<Empty>") << '\n';
-    // std::cout << "    ctxt: <...>\n";
+
+    comment("Commitment to coin value transferred to the recipient");
+    keyValuePreview("vcm_1", txo_.vcm_1);
+
+    comment("Range proof for the coin value in 'vcm_1'");
+    keyValuePreview("range_pi", txo_.range_pi);
+
+    comment("Randomness for vcm_2 (is *never* serialized!)");
+    keyValue("d", txo_.d);
+
+    comment("Re-commitment under ck_tx");
+    keyValuePreview("vcm_2", txo_.vcm_2);
+
+    comment("Proof that vcm_1 and vcm_2 commit to the same value");
+    keyValuePreview("vcm_eq_pi", txo_.vcm_eq_pi);
+
+    comment("Randomness for 'icm' (is *never* serialized!)");
+    keyValue("t", txo_.t);
+
+    comment("Commitment to identity of the recipient, under ck_tx");
+    keyValuePreview("icm", txo_.icm);
+
+    comment("ZKPoK of opening for icm");
+    keyValuePreview("icm_pok", txo_.icm_pok);
+
+    comment("Encryption of coin value and coin commitment randomness");
+    keyValuePreview("ctxt", txo_.ctxt);
   }
 };
 
@@ -407,6 +435,11 @@ struct UttTxInsView : DataView {
   const std::vector<libutt::TxIn>& ins_;
   UttTxInsView(const DataView* prev, std::string key, const std::vector<libutt::TxIn>& ins)
       : DataView(prev, std::move(key)), ins_{ins} {}
+
+  void print() const override {
+    comment("UTT Tx Inputs");
+    keyValuePreview("ins", ins_);
+  }
 
   DataViewPtr makeSubView(size_t idx) const override {
     if (idx >= ins_.size()) throw IndexOutOfBoundsError("UTT input transactions");
@@ -419,6 +452,11 @@ struct UttTxOutsView : DataView {
   const std::vector<libutt::TxOut>& outs_;
   UttTxOutsView(const DataView* prev, std::string key, const std::vector<libutt::TxOut>& outs)
       : DataView(prev, std::move(key)), outs_{outs} {}
+
+  void print() const override {
+    comment("UTT Tx Outputs");
+    keyValuePreview("outs", outs_);
+  }
 
   DataViewPtr makeSubView(size_t idx) const override {
     if (idx >= outs_.size()) throw IndexOutOfBoundsError("UTT output transactions");
@@ -447,26 +485,32 @@ struct UttTxView : DataView {
     key("budget_pi");
 
     comment("Input transactions");
-    key("ins");
-    // push("ins");
-    for (size_t i = 0; i < tx_.ins.size(); ++i) {
-      keyValuePreview(std::to_string(i), tx_.ins[i]);
-    }
-    // pop();
+    keyValuePreview("ins", tx_.ins);
 
     comment("Output transactions");
-    key("outs");
-    // push("outs");
-    for (size_t i = 0; i < tx_.outs.size(); ++i) {
-      keyValuePreview(std::to_string(i), tx_.outs[i]);
-    }
-    // pop();
+    keyValuePreview("outs", tx_.outs);
   }
 
   DataViewPtr makeSubView(const std::string& key) const override {
     if (key == "ins") return std::make_unique<UttTxInsView>(this, "ins", tx_.ins);
     if (key == "outs") return std::make_unique<UttTxOutsView>(this, "outs", tx_.outs);
     return nullptr;
+  }
+};
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+struct UttSigSharesView : DataView {
+  const UttSigShares& sigShares_;
+
+  UttSigSharesView(const DataView* prev, std::string key, const UttSigShares& sigShares)
+      : DataView(prev, key), sigShares_{sigShares} {}
+
+  void print() const override {
+    title("Utt Signature Shares");
+    comment("Replica ids that provided the shares");
+    keyValue("signerIds", sigShares_.signerIds_);
+    comment("Signer shares per coin");
+    keyValuePreview("signerShares", sigShares_.signerShares_);
   }
 };
 
@@ -512,6 +556,15 @@ struct BlockView : DataView {
       const auto* txUtt = std::get_if<TxUtt>(&(*block_.tx_));
       if (!txUtt) throw UTTDataViewerError("Expected a utt tx in block!");
       return std::make_unique<UttTxView>(this, "utt", txUtt->utt_);
+    }
+    if (key == "sigShares") {
+      const UttSigShares* sigShares = nullptr;
+      if (const auto* txUtt = std::get_if<TxUtt>(&(*block_.tx_)))
+        sigShares = txUtt->sigShares_ ? &(*txUtt->sigShares_) : nullptr;
+      else if (const auto* txMint = std::get_if<TxMint>(&(*block_.tx_)))
+        sigShares = txMint->sigShares_ ? &(*txUtt->sigShares_) : nullptr;
+      if (!sigShares) throw UTTDataViewerError("Expected non-empty sig shares!");
+      return std::make_unique<UttSigSharesView>(this, "sigShares", *sigShares);
     }
     return nullptr;
   }
@@ -566,7 +619,7 @@ UTTDataViewer& UTTDataViewer::operator=(UTTDataViewer&& other) = default;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void UTTDataViewer::prompt() const {
-  std::cout << "\nYou are navigating the application state (type ':h' for commands, ':q' to exit):\n";
+  std::cout << "\nYou are navigating the application state (type '.h' for commands, '.q' to exit):\n";
   std::cout << "view " << getCurrentPath() << "> ";
 }
 
@@ -591,7 +644,7 @@ std::string UTTDataViewer::getCurrentPath() const {
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void UTTDataViewer::handleCommand(const std::string& cmd) {
-  if (cmd == ":h") {
+  if (cmd == ".h") {
     // [TODO-UTT] View help
     std::cout << "NYI\n";
     return;

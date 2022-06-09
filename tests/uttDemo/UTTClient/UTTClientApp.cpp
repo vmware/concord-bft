@@ -81,12 +81,12 @@ void UTTClientApp::executeTx(const Tx& tx) {
   } else if (const auto* txMint = std::get_if<TxMint>(&tx)) {  // Client claims minted coins
     if (txMint->pid_ == myPid_) {
       ConcordAssert(txMint->sigShares_.has_value());
-      ConcordAssert(txMint->sigShares_->sigShares_.size() == 1);
+      ConcordAssert(txMint->sigShares_->signerShares_.size() == 1);
       std::cout << "\nApplying Mint tx: " << txMint->op_.getHashHex() << '\n';
       auto coin = txMint->op_.claimCoin(wallet_.p,
                                         wallet_.ask,
                                         numReplicas_,
-                                        txMint->sigShares_->sigShares_[0],
+                                        txMint->sigShares_->signerShares_[0],
                                         txMint->sigShares_->signerIds_,
                                         wallet_.bpk);
 
@@ -121,12 +121,12 @@ void UTTClientApp::tryClaimCoins(const TxUtt& tx) {
   const auto& sigShares = *tx.sigShares_;
 
   size_t numTxo = tx.utt_.outs.size();
-  if (numTxo != sigShares.sigShares_.size())
+  if (numTxo != sigShares.signerShares_.size())
     throw std::runtime_error("Number of output coins differs from provided sig shares!");
 
   for (size_t i = 0; i < numTxo; ++i) {
-    auto result =
-        libutt::Client::tryClaimCoin(wallet_, tx.utt_, i, sigShares.sigShares_[i], sigShares.signerIds_, numReplicas_);
+    auto result = libutt::Client::tryClaimCoin(
+        wallet_, tx.utt_, i, sigShares.signerShares_[i], sigShares.signerIds_, numReplicas_);
     if (result) {
       std::cout << " + \'" << myPid_ << "' claims " << fmtCurrency(result->value_)
                 << (result->isBudgetCoin_ ? " budget" : " normal") << " coin.\n";
