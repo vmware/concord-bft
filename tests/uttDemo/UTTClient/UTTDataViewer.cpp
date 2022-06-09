@@ -619,7 +619,7 @@ UTTDataViewer& UTTDataViewer::operator=(UTTDataViewer&& other) = default;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void UTTDataViewer::prompt() const {
-  std::cout << "\nYou are navigating the application state (type '.h' for commands, '.q' to exit):\n";
+  std::cout << "\nYou are navigating the application state (type '.h' for commands, '.q' to stop browsing.):\n";
   std::cout << "view " << getCurrentPath() << "> ";
 }
 
@@ -645,19 +645,31 @@ std::string UTTDataViewer::getCurrentPath() const {
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void UTTDataViewer::handleCommand(const std::string& cmd) {
   if (cmd == ".h") {
-    // [TODO-UTT] View help
-    std::cout << "NYI\n";
+    std::cout << "\nYou can browse the state similar to a directory structure.\n";
+
+    std::cout << "\nPaths are delimited with '/' and interpreted relative to the current path.\n";
+    std::cout << "Each path token can be a key name or an index number.\n";
+    std::cout << "Example: if your current path is the root you can view the first coin in the wallet with "
+                 "'wallet/coins/0'\n";
+
+    std::cout << "\nUse '..' in a path to go back one level.\n";
+    std::cout
+        << "Example: if your current path is 'wallet/coins/0' you can view the second coin in the wallet with '../1'\n";
+
+    std::cout << "\nIf you want to specify a path relative to the root use '~' at the start.\n";
+    std::cout << "Example: switch to viewing the ledger '~/ledger'\n";
     return;
   }
 
   const DataView* newView = current_;
-  if (cmd == "~") {  // Go to the root
-    newView = root_.get();
-  } else if (!cmd.empty()) {  // Interpret a relative path
+
+  if (!cmd.empty()) {  // Interpret a relative path
     std::stringstream ss(cmd);
     std::string token;
     while (getline(ss, token, '/')) {
-      if (token == "..") {
+      if (token == "~") {
+        newView = root_.get();
+      } else if (token == "..") {
         if (newView == root_.get()) throw UTTDataViewerError("You cannot go back.");
         newView = newView->prev_;  // Go back
       } else if (!token.empty()) {
@@ -665,6 +677,7 @@ void UTTDataViewer::handleCommand(const std::string& cmd) {
       }
     }
   }
+
   if (!newView) throw std::runtime_error("UTTDataViewer produced an empty view!");
   current_ = newView;
   current_->print();
