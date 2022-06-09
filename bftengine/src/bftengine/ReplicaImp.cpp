@@ -5670,6 +5670,7 @@ void ReplicaImp::sendResponses(PrePrepareMsg *ppMsg, IRequestsHandler::Execution
     // Internal clients don't expect to be answered
     if (repsInfo->isIdOfInternalClient(req.clientId)) {
       clientsManager->removePendingForExecutionRequest(req.clientId, req.requestSequenceNum);
+      free(req.outReply);
       continue;
     }
     if (executionResult != 0) {
