@@ -28,7 +28,7 @@ class NetworkTrafficControl():
         assert 0 == os.system('tc qdisc del dev lo root') == 0,\
                  "tc delte command failed, need to be removed orelse it will affect the replica"
     
-    def put_loop_back_interface_delay(self,delay_factor):
+    def put_loop_back_interface_delay(self, delay_factor):
         assert 0 == os.system('tc qdisc add dev lo root netem delay '+\
                          str(delay_factor) + 'ms'),\
                          "Make sure tc is installed in the replica"

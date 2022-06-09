@@ -1162,6 +1162,29 @@ class BftTestNetwork:
             self.stop_replicas(self.random_set_of_replicas(
                 len(self.procs) - (2 * self.config.f + self.config.c + 1), without={primary, replica_id}))
 
+
+    async def wait_for_getting_missing_blocks_state(self, replica_id):
+        """
+        Check metrics on fetching replica to see if the replica is in a
+        GettingMissingBlocks state
+
+        Returns the current source replica for state transfer.
+        """
+        async def is_getting_blocks(replica_id):
+            key = ['bc_state_transfer', 'Statuses', 'fetching_state']
+            state = await self.metrics.get(replica_id, *key)
+            return state == "GettingMissingBlocks"
+
+        with log.start_action(action_type="wait_for_getting_missing_blocks_state", replica=replica_id) as action:
+            async def replica_to_be_in_getting_missing_blocks_state():
+                is_getting = await is_getting_blocks(replica_id)
+                source_replica_id = await self.source_replica(replica_id)
+                if is_getting:
+                    action.add_success_fields(source_replica_id=source_replica_id)
+                    return source_replica_id
+
+            return await self.wait_for(replica_to_be_in_getting_missing_blocks_state, 10, .5)
+
     async def wait_for_fetching_state(self, replica_id):
         """
         Check metrics on fetching replica to see if the replica is in a

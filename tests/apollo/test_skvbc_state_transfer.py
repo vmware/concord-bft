@@ -16,6 +16,7 @@ from os import environ
 
 from util.consts import STATE_TRANSFER_WINDOW
 from util.test_base import ApolloTest
+from util import bft_network_partitioning as net
 from util import bft_network_traffic_control as ntc
 import trio
 
@@ -113,8 +114,8 @@ class SkvbcStateTransferTest(ApolloTest):
         await skvbc.assert_successful_put_get()
         await bft_network.force_quorum_including_replica(stale_node)
         await skvbc.assert_successful_put_get()
+    
 
-    # This test should never run with TLS/TCP, only UDP
     @skip_for_tls
     @with_trio
     @with_bft_network(start_replica_cmd,
@@ -122,47 +123,45 @@ class SkvbcStateTransferTest(ApolloTest):
                     rotate_keys=True)
     async def test_state_transfer_with_internal_cycle(self, bft_network, exchange_keys=True):
         """
-        state transfer starts and destination replica(fetcher) is
+        State transfer starts and destination replica (fetcher) is
         blocked during getMissingBlocks state, a bunch of data is added
-        to the rest of the cluster  using multiple clients. Then destination
-        replica is unblocked and state transfer resume . After one cycle
-        of state transfer is done replica goes into another internal(
-        from getReserved page state to getCheckpointSummary State)
-        cycle to fetch remaining blocks which were added during first cycle.
+        to the rest of the cluster using multiple clients. Then destination
+        replica is unblocked and state transfer resumes. After one cycle
+        of state transfer is done replica goes into another internal (
+        from getReserved page state to getCheckpointSummary State) cycle
+        to fetch remaining blocks which were added during first cycle.
         """
 
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         stale_node = random.choice(
             bft_network.all_replicas(without={0}))
+        stale_nodes={stale_node}
 
-        await skvbc.start_replicas_and_write_with_multiple_clients(
+        await skvbc.prime_for_state_transfer(
             stale_nodes={stale_node},
-            write_run_duration=30,
+            checkpoints_num=4,
             persistency_enabled=False
         )
-
-        with ntc.NetworkTrafficControl() as tc:
-            #delay added to loopback interface to capture the stale replica in GettingMissingBlocks state
-            tc.put_loop_back_interface_delay(200)
+        
+        with net.ReplicaSubsetTwoWayIsolatingAdversary(bft_network, stale_nodes) as adversary:
             bft_network.start_replica(stale_node)
-            with trio.fail_after(30):
-                while(True):
-                    fetchingState = await bft_network.get_metric(stale_node, bft_network,
-                                                             "Statuses", "fetching_state", "bc_state_transfer")
-                    if(fetchingState == "GettingMissingBlocks"):
-                        break
-                    await trio.sleep(0.1)
-        await skvbc.send_concurrent_ops_with_isolated_replica(isolated_replica={stale_node}, run_duration=30)
+            adversary.interfere(10)
+            await bft_network.wait_for_getting_missing_blocks_state(stale_node)
+        
+        await skvbc.send_concurrent_ops_with_isolated_replica(stale_nodes, run_duration=50)
         await bft_network.wait_for_state_transfer_to_stop(0, stale_node)
         await bft_network.wait_for_replicas_rvt_root_values_to_be_in_sync(bft_network.all_replicas())
         await bft_network.force_quorum_including_replica(stale_node)
         await skvbc.assert_successful_put_get()
+        internal_cycle_counter = await bft_network.get_metric(stale_node, bft_network, "Counters", "internal_cycle_counter", 'bc_state_transfer')
+        self.assertEqual(internal_cycle_counter, 1, "Replica did not enter new internal cycle.")
 
+    
     @with_trio
     @with_bft_network(start_replica_cmd, rotate_keys=True)
     async def test_state_transfer_for_two_successive_cycles(self, bft_network,exchange_keys=True):
         """
-        Test that state transfer starts and completes and completes in 2
+        Test that state transfer starts and completes in two
         successive cycles. Stop one node, add a bunch of data to the rest
         of the cluster, start the node and verify state transfer works as
         expected. After successful state transfer the same source node is

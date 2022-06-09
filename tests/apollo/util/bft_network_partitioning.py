@@ -305,10 +305,10 @@ class ReplicaSubsetTwoWayIsolatingAdversary(NetworkPartitioningAdversary):
         self.replicas_to_isolate = replicas_to_isolate
         super(ReplicaSubsetTwoWayIsolatingAdversary, self).__init__(bft_network)
 
-    def interfere(self):
+    def interfere(self, drop_rate_percentage=100):
         for ir in self.replicas_to_isolate:
             for r in self.bft_network.all_replicas():
                 if ir != r:
-                    self._drop_packets_between(ir, r)
-                    self._drop_packets_between(r, ir)
+                    self._drop_packets_between(ir, r, drop_rate_percentage)
+                    self._drop_packets_between(r, ir, drop_rate_percentage)
 
