@@ -361,8 +361,8 @@ std::pair<GetBlockDataReply, ReplicaSpecificInfo> sendGetBlockDataRequest(Wallet
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-ReplicaSigShares DeserializeSigShares(size_t numOutCoins, ReplicaSpecificInfo&& rsi, size_t thresh) {
-  ReplicaSigShares result;
+UttSigShares DeserializeSigShares(size_t numOutCoins, ReplicaSpecificInfo&& rsi, size_t thresh) {
+  UttSigShares result;
 
   // Pick first F+1 signers - we assume no malicious replicas
 
@@ -377,18 +377,18 @@ ReplicaSigShares DeserializeSigShares(size_t numOutCoins, ReplicaSpecificInfo&& 
     ss.ignore(1, '\n');  // skip newline
 
     ConcordAssert(size == numOutCoins);  // Make sure the rsi contains the same number of coins as the tx
-    result.sigShares_.resize(size);
+    result.signerShares_.resize(size);
 
     // Add this replica share to the list for i-th coin (the order is defined by signerIds)
     for (size_t i = 0; i < size; ++i) {
-      result.sigShares_[i].emplace_back(libutt::RandSigShare(ss));
+      result.signerShares_[i].emplace_back(libutt::RandSigShare(ss));
     }
   }
 
   // Sanity checks
   ConcordAssert(result.signerIds_.size() == thresh);
-  for (size_t i = 0; i < result.sigShares_.size(); ++i)
-    ConcordAssert(result.signerIds_.size() == result.sigShares_[i].size());
+  for (size_t i = 0; i < result.signerShares_.size(); ++i)
+    ConcordAssert(result.signerIds_.size() == result.signerShares_[i].size());
 
   return result;
 }
@@ -420,7 +420,7 @@ void syncState(UTTClientApp& app, WalletCommunicator& comm) {
       LOG_INFO(logger, "Received UTT Tx " << txUtt->utt_.getHashHex() << " for block " << replyBlockId);
 
       // Deserialize sig shares from replica specific info
-      ReplicaSigShares sigShares =
+      UttSigShares sigShares =
           DeserializeSigShares(txUtt->utt_.outs.size(), std::move(result.second), app.getSigThresh());
 
       // Add sig shares
@@ -429,8 +429,7 @@ void syncState(UTTClientApp& app, WalletCommunicator& comm) {
       LOG_INFO(logger, "Received Mint Tx " << txMint->op_.getHashHex() << " for block " << replyBlockId);
 
       // Deserialize sig shares from replica specific info
-      ReplicaSigShares sigShares =
-          DeserializeSigShares(1 /*expected coins*/, std::move(result.second), app.getSigThresh());
+      UttSigShares sigShares = DeserializeSigShares(1 /*expected coins*/, std::move(result.second), app.getSigThresh());
 
       // Add sig shares
       txMint->sigShares_ = std::move(sigShares);
@@ -912,7 +911,7 @@ int main(int argc, char** argv) {
 
       try {
         if (viewer) {
-          if (tokens[0] == ":q")
+          if (tokens[0] == ".q")
             viewer = std::nullopt;  // Reset
           else
             viewer->handleCommand(tokens[0]);

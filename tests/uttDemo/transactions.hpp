@@ -27,9 +27,9 @@
 std::vector<uint8_t> StrToBytes(const std::string& str);
 std::string BytesToStr(const std::vector<uint8_t>& bytes);
 
-struct ReplicaSigShares {
+struct UttSigShares {
   std::vector<size_t> signerIds_;
-  std::vector<std::vector<libutt::RandSigShare>> sigShares_;  // Signiture shares for each output coin
+  std::vector<std::vector<libutt::RandSigShare>> signerShares_;  // Signature shares per coin
 };
 
 struct TxPublicDeposit {
@@ -61,7 +61,7 @@ std::ostream& operator<<(std::ostream& os, const TxPublicTransfer& tx);
 struct TxUtt {
   TxUtt(libutt::Tx&& utt) : utt_{std::move(utt)} {}
   libutt::Tx utt_;
-  std::optional<ReplicaSigShares> sigShares_;  // Computed when the tx is delivered to a client
+  std::optional<UttSigShares> sigShares_;  // Computed when the tx is delivered to a client
 };
 std::ostream& operator<<(std::ostream& os, const TxUtt& tx);
 
@@ -73,7 +73,7 @@ struct TxMint {
   uint64_t mintSeqNum_;
   size_t amount_;
   libutt::MintOp op_;
-  std::optional<ReplicaSigShares> sigShares_;  // Computed when the tx is delivered to a client
+  std::optional<UttSigShares> sigShares_;  // Computed when the tx is delivered to a client
 };
 std::ostream& operator<<(std::ostream& os, const TxMint& tx);
 
