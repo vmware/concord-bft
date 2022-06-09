@@ -100,7 +100,10 @@ std::pair<po::options_description, po::variables_map> parseArgs(int argc, char* 
     
     ("ext-event-group-id",
       po::value<std::int64_t>()->default_value(0),
-      "External event group id or offset for streaming state keys proof");
+      "External event group id or offset for streaming state keys proof")
+
+    ("checkpoint_kv_count", po::value<std::int64_t>()->default_value(0),
+      "Count of keys to generate state checkpoint");
 
   // clang-format on
 
@@ -147,6 +150,7 @@ int run(int argc, char* argv[]) {
   const auto rocksdb_conf = config["rocksdb-config-file"].as<std::string>();
   const auto client_id = (config["client-id"].empty() ? std::string{} : config["client-id"].as<std::string>());
   const auto ext_ev_group_id = config["ext-event-group-id"].as<std::int64_t>();
+  const auto checkpoint_kv_count = config["checkpoint_kv_count"].as<std::int64_t>();
 
   if (point_lookup_batch_size < 1) {
     std::cerr << "point-lookup-batch-size must be greater than or equal to 1" << std::endl;
@@ -293,7 +297,6 @@ int run(int argc, char* argv[]) {
       const auto& statuses = multi_get_batch.statuses(i);
       for (auto j = 0ull; j < serialized_keys.size(); ++j) {
         ConcordAssert(statuses[j].ok());
-        num_of_keys++;
         auto dbvalue = concord::kvbc::categorization::DbValue{};
         try {
           auto* start = reinterpret_cast<const std::uint8_t*>(value_slices[j].data());
@@ -327,6 +330,11 @@ int run(int argc, char* argv[]) {
 
         if (has_access(trids)) {
           hash_state_kv(serialized_keys[j], value);
+          num_of_keys++;
+          if ((checkpoint_kv_count > 0) && (num_of_keys % checkpoint_kv_count == 0)) {
+            std::cout << "key_count: " << num_of_keys << " - "
+                      << "hash: " << bufferToHex(current_hash.data(), current_hash.size()) << std::endl;
+          }
         }
         // print all state keys - hash(val), trid
         // print_kv_with_acl(serialized_keys[j], value, trids, (trids.size() ? false : true));
