@@ -390,43 +390,62 @@ struct UttTxInView : DataView {
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+struct PedEqProofView : DataView {
+  const libutt::PedEqProof& data_;
+
+  PedEqProofView(const DataView* prev, std::string key, const libutt::PedEqProof& data)
+      : DataView(prev, std::move(key)), data_{data} {}
+
+  void print() const override {
+    title("Pederson Equality Proof");
+    keyValue("s", data_.s);
+    keyValue("e", data_.e);
+  }
+};
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 struct UttTxOutView : DataView {
-  const libutt::TxOut& txo_;
-  UttTxOutView(const DataView* prev, std::string key, const libutt::TxOut& txo)
-      : DataView(prev, std::move(key)), txo_{txo} {}
+  const libutt::TxOut& data_;
+  UttTxOutView(const DataView* prev, std::string key, const libutt::TxOut& data)
+      : DataView(prev, std::move(key)), data_{data} {}
 
   void print() const override {
     title("UTT Tx Output");
 
-    keyValue("coin_type", coinTypeToStr(txo_.coin_type));
-    keyValue("exp_date", txo_.exp_date.as_ulong());
+    keyValue("coin_type", coinTypeToStr(data_.coin_type));
+    keyValue("exp_date", data_.exp_date.as_ulong());
 
     comment("Commitment to coin value transferred to the recipient");
-    keyValuePreview("vcm_1", txo_.vcm_1);
+    keyValuePreview("vcm_1", data_.vcm_1);
 
     comment("Range proof for the coin value in 'vcm_1'");
-    keyValuePreview("range_pi", txo_.range_pi);
+    keyValuePreview("range_pi", data_.range_pi);
 
     comment("Randomness for vcm_2 (is *never* serialized!)");
-    keyValue("d", txo_.d);
+    keyValue("d", data_.d);
 
     comment("Re-commitment under ck_tx");
-    keyValuePreview("vcm_2", txo_.vcm_2);
+    keyValuePreview("vcm_2", data_.vcm_2);
 
     comment("Proof that vcm_1 and vcm_2 commit to the same value");
-    keyValuePreview("vcm_eq_pi", txo_.vcm_eq_pi);
+    keyValuePreview("vcm_eq_pi", data_.vcm_eq_pi);
 
     comment("Randomness for 'icm' (is *never* serialized!)");
-    keyValue("t", txo_.t);
+    keyValue("t", data_.t);
 
     comment("Commitment to identity of the recipient, under ck_tx");
-    keyValuePreview("icm", txo_.icm);
+    keyValuePreview("icm", data_.icm);
 
     comment("ZKPoK of opening for icm");
-    keyValuePreview("icm_pok", txo_.icm_pok);
+    keyValuePreview("icm_pok", data_.icm_pok);
 
     comment("Encryption of coin value and coin commitment randomness");
-    keyValuePreview("ctxt", txo_.ctxt);
+    keyValuePreview("ctxt", data_.ctxt);
+  }
+
+  DataViewPtr makeSubView(const std::string& key) const override {
+    if (key == "vcm_eq_pi") return std::make_unique<PedEqProofView>(this, "vcm_eq_pi", data_.vcm_eq_pi);
+    return nullptr;
   }
 };
 
