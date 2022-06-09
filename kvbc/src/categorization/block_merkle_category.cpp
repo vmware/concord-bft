@@ -561,6 +561,7 @@ std::vector<std::string> BlockMerkleCategory::getBlockStaleKeys(BlockId block_id
   std::vector<Hash> hash_stale_keys;
   auto [hashed_keys, _, latest_versions] = getLatestVersions(out);
   (void)_;
+  (void)latest_versions;
   for (auto i = 0u; i < hashed_keys.size(); i++) {
     auto& tagged_version = latest_versions[i];
     auto& hashed_key = hashed_keys[i];
