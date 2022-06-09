@@ -561,13 +561,6 @@ std::vector<std::string> BlockMerkleCategory::getBlockStaleKeys(BlockId block_id
   std::vector<Hash> hash_stale_keys;
   auto [hashed_keys, _, latest_versions] = getLatestVersions(out);
   (void)_;
-  auto overwritten_active_keys_from_pruned_blocks = findActiveKeysFromPrunedBlocks(hashed_keys);
-  for (auto& kv : overwritten_active_keys_from_pruned_blocks) {
-    for (const auto& hashed_key : kv.second) {
-      hash_stale_keys.push_back(Hash(hashed_key.value));
-    }
-  }
-
   for (auto i = 0u; i < hashed_keys.size(); i++) {
     auto& tagged_version = latest_versions[i];
     auto& hashed_key = hashed_keys[i];
