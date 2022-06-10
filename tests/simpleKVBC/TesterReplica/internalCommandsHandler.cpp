@@ -92,6 +92,7 @@ void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequests
   // To handle block accumulation if enabled
   VersionedUpdates verUpdates;
   BlockMerkleUpdates merkleUpdates;
+  uint64_t sequenceNum = 0;
 
   for (auto &req : requests) {
     if (req.outExecutionStatus != static_cast<uint32_t>(OperationResult::UNKNOWN))
@@ -115,6 +116,7 @@ void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequests
       // Only if requests size is greater than 1 and other conditions are met, block accumulation is enabled.
       bool isBlockAccumulationEnabled =
           ((requests.size() > 1) && (req.flags & bftEngine::MsgFlag::HAS_PRE_PROCESSED_FLAG));
+      sequenceNum = req.executionSequenceNum;
       res = executeWriteCommand(req.requestSize,
                                 req.request,
                                 req.executionSequenceNum,
@@ -137,7 +139,7 @@ void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequests
 
   if (merkleUpdates.size() > 0 || verUpdates.size() > 0) {
     // Write Block accumulated requests
-    writeAccumulatedBlock(requests, verUpdates, merkleUpdates);
+    writeAccumulatedBlock(requests, verUpdates, merkleUpdates, sequenceNum);
   }
 }
 
@@ -266,7 +268,8 @@ std::optional<std::map<std::string, std::string>> InternalCommandsHandler::getBl
 
 void InternalCommandsHandler::writeAccumulatedBlock(ExecutionRequestsQueue &blockedRequests,
                                                     VersionedUpdates &verUpdates,
-                                                    BlockMerkleUpdates &merkleUpdates) {
+                                                    BlockMerkleUpdates &merkleUpdates,
+                                                    uint64_t sn) {
   // Only block accumulated requests will be processed here
   BlockId currBlock = m_storage->getLastBlockId();
 
@@ -294,7 +297,7 @@ void InternalCommandsHandler::writeAccumulatedBlock(ExecutionRequestsQueue &bloc
           "SKVBCWrite message handled; writesCounter=" << m_writesCounter << " currBlock=" << write_rep.latest_block);
     }
   }
-  addBlock(verUpdates, merkleUpdates);
+  addBlock(verUpdates, merkleUpdates, sn);
 }
 
 OperationResult InternalCommandsHandler::verifyWriteCommand(uint32_t requestSize,
@@ -340,11 +343,12 @@ void InternalCommandsHandler::addKeys(const SKVBCWriteRequest &writeReq,
   addMetadataKeyValue(verUpdates, sequenceNum);
 }
 
-void InternalCommandsHandler::addBlock(VersionedUpdates &verUpdates, BlockMerkleUpdates &merkleUpdates) {
+void InternalCommandsHandler::addBlock(VersionedUpdates &verUpdates, BlockMerkleUpdates &merkleUpdates, uint64_t sn) {
   BlockId currBlock = m_storage->getLastBlockId();
   Updates updates;
 
   // Add all key-values in the block merkle category as public ones.
+  auto internal_updates = VersionedUpdates{};
   if (m_addAllKeysAsPublic) {
     ConcordAssertNE(m_kvbc, nullptr);
     auto public_state = m_kvbc->getPublicStateKeys();
@@ -363,12 +367,12 @@ void InternalCommandsHandler::addBlock(VersionedUpdates &verUpdates, BlockMerkle
       std::sort(public_state->keys.begin(), public_state->keys.end());
     }
     const auto public_state_ser = detail::serialize(*public_state);
-    auto public_state_updates = VersionedUpdates{};
-    public_state_updates.addUpdate(std::string{concord::kvbc::keyTypes::state_public_key_set},
-                                   std::string{public_state_ser.cbegin(), public_state_ser.cend()});
-    updates.add(kConcordInternalCategoryId, std::move(public_state_updates));
-  }
 
+    internal_updates.addUpdate(std::string{concord::kvbc::keyTypes::state_public_key_set},
+                               std::string{public_state_ser.cbegin(), public_state_ser.cend()});
+  }
+  addMetadataKeyValue(internal_updates, sn);
+  updates.add(kConcordInternalCategoryId, std::move(internal_updates));
   updates.add(VERSIONED_KV_CAT_ID, std::move(verUpdates));
   updates.add(BLOCK_MERKLE_CAT_ID, std::move(merkleUpdates));
   const auto newBlockId = m_blockAdder->add(std::move(updates));
@@ -452,7 +456,7 @@ OperationResult InternalCommandsHandler::executeWriteCommand(uint32_t requestSiz
       VersionedUpdates verUpdates;
       BlockMerkleUpdates merkleUpdates;
       addKeys(write_req, sequenceNum, verUpdates, merkleUpdates);
-      addBlock(verUpdates, merkleUpdates);
+      addBlock(verUpdates, merkleUpdates, sequenceNum);
     }
   }
 

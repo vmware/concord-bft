@@ -93,6 +93,7 @@ uint64_t ReplicaStateSyncImp::executeBasedOnBftSeqNum(logging::Logger& logger,
   LOG_INFO(logger,
            "Inconsistent blockchain block deleted "
                << KVLOG(removedBlocksNum, lastExecutedSeqNum, lastBlockSeqNum, blockchain.getLastBlockId()));
+  blockchain.onFinishDeleteLastReachable();
   return removedBlocksNum;
 }
 
@@ -134,6 +135,7 @@ uint64_t ReplicaStateSyncImp::executeBasedOnBlockId(logging::Logger& logger,
              "Replica state sync based on last reachable KVBC block ID deleted blocks "
                  << KVLOG(deletedBlocks, lastReachableKvbcBlockId));
   }
+  blockchain.onFinishDeleteLastReachable();
   return deletedBlocks;
 }
 

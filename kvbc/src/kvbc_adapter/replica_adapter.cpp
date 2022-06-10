@@ -60,7 +60,9 @@ ReplicaBlockchain::ReplicaBlockchain(
   if (aux_types.has_value()) {
     metrics_comp_.SetAggregator(aux_types->aggregator_);
   }
-  if (bftEngine::ReplicaConfig::instance().kvBlockchainVersion == BLOCKCHAIN_VERSION::CATEGORIZED_BLOCKCHAIN) {
+  auto blockchain_version = bftEngine::ReplicaConfig::instance().kvBlockchainVersion;
+  LOG_INFO(CAT_BLOCK_LOG, "Configured " << blockchain_version);
+  if (blockchain_version == BLOCKCHAIN_VERSION::CATEGORIZED_BLOCKCHAIN) {
     version_ = BLOCKCHAIN_VERSION::CATEGORIZED_BLOCKCHAIN;
     LOG_INFO(CAT_BLOCK_LOG, "Instantiating categorized type blockchain");
     kvbc_ = std::make_shared<concord::kvbc::categorization::KeyValueBlockchain>(
@@ -75,7 +77,7 @@ ReplicaBlockchain::ReplicaBlockchain(
     up_state_snapshot_ = std::make_unique<concord::kvbc::adapter::common::statesnapshot::KVBCStateSnapshot>(
         up_reader_.get(), native_client);
     up_db_chkpt_ = std::make_unique<concord::kvbc::adapter::categorization::DbCheckpointImpl>(kvbc_);
-  } else if (bftEngine::ReplicaConfig::instance().kvBlockchainVersion == BLOCKCHAIN_VERSION::V4_BLOCKCHAIN) {
+  } else if (blockchain_version == BLOCKCHAIN_VERSION::V4_BLOCKCHAIN) {
     version_ = BLOCKCHAIN_VERSION::V4_BLOCKCHAIN;
     LOG_INFO(V4_BLOCK_LOG, "Instantiating v4 type blockchain");
     v4_kvbc_ =
@@ -100,19 +102,6 @@ ReplicaBlockchain::ReplicaBlockchain(
   ConcordAssertNE(app_state_, nullptr);
   ConcordAssertNE(state_snapshot_, nullptr);
   ConcordAssertNE(db_chkpt_, nullptr);
-}
-
-void ReplicaBlockchain::enableCFOptions() {
-  if (version_ == BLOCKCHAIN_VERSION::CATEGORIZED_BLOCKCHAIN) return;
-  auto *handle = native_client_->columnFamilyHandle(concord::kvbc::v4blockchain::detail::LATEST_KEYS_CF);
-  auto s = native_client_->rawDB().SetOptions(handle, {{"disable_auto_compactions", "false"}});
-  if (!s.ok()) throw std::runtime_error("Failed to enable compaction: " + s.ToString());
-  handle = native_client_->columnFamilyHandle(concord::kvbc::v4blockchain::detail::IMMUTABLE_KEYS_CF);
-  s = native_client_->rawDB().SetOptions(handle, {{"disable_auto_compactions", "false"}});
-  if (!s.ok()) throw std::runtime_error("Failed to enable compaction: " + s.ToString());
-  LOG_INFO(V4_BLOCK_LOG,
-           "Compation is enables for " << concord::kvbc::v4blockchain::detail::LATEST_KEYS_CF << " and  "
-                                       << concord::kvbc::v4blockchain::detail::IMMUTABLE_KEYS_CF);
 }
 
 }  // namespace concord::kvbc::adapter

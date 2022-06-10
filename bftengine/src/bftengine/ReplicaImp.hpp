@@ -335,8 +335,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
              concordUtil::Timers& timers,
              shared_ptr<concord::performance::PerformanceManager> pm,
              shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm,
-             const std::function<void(bool)>& viewChangeCallBack,
-             const std::function<void()>& enableCFOptions);
+             const std::function<void(bool)>& viewChangeCallBack);
 
   ReplicaImp(const LoadedReplicaData&,
              shared_ptr<IRequestsHandler>,
@@ -347,8 +346,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
              concordUtil::Timers& timers,
              shared_ptr<concord::performance::PerformanceManager> pm,
              shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm,
-             const std::function<void(bool)>& viewChangeCallBack,
-             const std::function<void()>& enableCFOptions);
+             const std::function<void(bool)>& viewChangeCallBack);
 
   virtual ~ReplicaImp();
 
@@ -437,8 +435,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
              shared_ptr<concord::performance::PerformanceManager> pm,
              shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm,
              shared_ptr<PersistentStorage> ps,
-             const std::function<void(bool)>& viewChangeCallBack,
-             const std::function<void()>& enableCFOptions);
+             const std::function<void(bool)>& viewChangeCallBack);
 
   void registerMsgHandlers();
 
@@ -751,7 +748,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   ReplicaStatusHandlers replStatusHandlers_;
   concord::util::CallbackRegistry<uint64_t> onViewNumCallbacks_;
   concord::util::CallbackRegistry<SeqNum> onSeqNumIsStableCallbacks_;
-  std::function<void()> enableCFOptions_;
 
 #ifdef USE_FAKE_CLOCK_IN_TS
   std::optional<TimeServiceManager<concord::util::FakeClock>> time_service_manager_;

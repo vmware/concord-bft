@@ -33,13 +33,10 @@ LatestKeys::LatestKeys(const std::shared_ptr<concord::storage::rocksdb::NativeCl
   if (native_client_->createColumnFamilyIfNotExisting(v4blockchain::detail::LATEST_KEYS_CF, getCompFilter())) {
     LOG_INFO(V4_BLOCK_LOG,
              "Created [" << v4blockchain::detail::LATEST_KEYS_CF << "] column family for the latest keys");
-    v4blockchain::detail::persistCf(v4blockchain::detail::LATEST_KEYS_CF, native_client_);
-    native_client_->put(v4blockchain::detail::LATEST_KEYS_CF, kvbc::keyTypes::v4_cf_flush, kvbc::V4Version());
   }
   if (native_client_->createColumnFamilyIfNotExisting(v4blockchain::detail::IMMUTABLE_KEYS_CF, getCompFilter())) {
     LOG_INFO(V4_BLOCK_LOG,
              "Created [" << v4blockchain::detail::IMMUTABLE_KEYS_CF << "] column family for the immutable keys");
-    v4blockchain::detail::persistCf(v4blockchain::detail::IMMUTABLE_KEYS_CF, native_client_);
   }
 }
 
@@ -48,7 +45,7 @@ void LatestKeys::addBlockKeys(const concord::kvbc::categorization::Updates& upda
                               storage::rocksdb::NativeWriteBatch& write_batch) {
   LOG_DEBUG(V4_BLOCK_LOG, "Adding keys of block [" << block_id << "] to the latest CF");
   auto block_key = v4blockchain::detail::Blockchain::generateKey(block_id);
-  ConcordAssertEQ(block_key.size(), TIME_STAMP_SIZE);
+  ConcordAssertEQ(block_key.size(), VERSION_SIZE);
   for (const auto& [category_id, updates] : updates.categoryUpdates().kv) {
     std::visit([cat_id = category_id, &write_batch, &block_key, this](
                    const auto& updates) { handleCategoryUpdates(block_key, cat_id, updates, write_batch); },
@@ -90,8 +87,8 @@ void LatestKeys::handleCategoryUpdates(const std::string& block_version,
                                        concord::storage::rocksdb::NativeWriteBatch& write_batch) {
   const auto& prefix = category_mapping_.categoryPrefix(category_id);
   // add keys
-  Flags flags = {0};
   for (const auto& [k, v] : updates.kv) {
+    Flags flags = {0};
     if (v.stale_on_update) {
       flags = STALE_ON_UPDATE;
     }
@@ -195,29 +192,45 @@ void LatestKeys::revertCategoryKeysImp(const std::string& cFamily,
                                        const UPDATES& updates,
                                        concord::storage::rocksdb::NativeWriteBatch& write_batch,
                                        ::rocksdb::Snapshot* snpsht) {
-  std::string get_key;
-  std::string out_ts;
   const auto& prefix = category_mapping_.categoryPrefix(category_id);
   auto sn = snpsht->GetSequenceNumber();
   ::rocksdb::ReadOptions ro;
   ro.snapshot = snpsht;
+
+  std::vector<std::string> keys;
+  std::vector<::rocksdb::PinnableSlice> values;
+  std::vector<::rocksdb::Status> statuses;
+
   for (const auto& [k, _] : updates) {
     (void)_;  // unsued
-    get_key.clear();
-    get_key.append(prefix);
-    get_key.append(k);
-    // check if key exists for the previous version
-    // get with snapshot to read previous stable value.
-    auto opt_val = native_client_->get(cFamily, get_key, ro);
-    // if no previous version, delete it.
-    if (!opt_val) {
-      LOG_INFO(V4_BLOCK_LOG, "Couldn't find previous version for key " << get_key << " rocks sn " << sn);
-      write_batch.del(cFamily, getSliceArray(prefix, k));
-      continue;
+    keys.push_back(prefix + k);
+  }
+  native_client_->multiGet(cFamily, keys, values, statuses, ro);
+  for (auto i = 0ull; i < keys.size(); ++i) {
+    const auto& status = statuses[i];
+    auto& val = values[i];
+    const auto& key = keys[i];
+    if (status.ok()) {
+      const char* data = nullptr;
+      size_t size{};
+      if (val.IsPinned()) {
+        data = val.data();
+        size = val.size();
+      } else {
+        data = val.GetSelf()->data();
+        size = val.GetSelf()->size();
+      }
+      // add the previous value , already contains currect version as postfix
+      auto actual_version = concordUtils::fromBigEndianBuffer<BlockId>(data + (size - sizeof(BlockId)));
+      LOG_DEBUG(V4_BLOCK_LOG,
+                "Found previous version for key " << key << " rocks sn " << sn << " version " << actual_version);
+      write_batch.put(cFamily, key, val);
+    } else if (status.IsNotFound()) {
+      LOG_DEBUG(V4_BLOCK_LOG, "Couldn't find previous version for key " << key << " rocks sn " << sn);
+      write_batch.del(cFamily, key);
+    } else {
+      throw std::runtime_error{"Revert multiGet() failure: " + status.ToString()};
     }
-    // add the previous value , already contains currect version as postfix
-    LOG_INFO(V4_BLOCK_LOG, "Found previous version for key " << get_key << " rocks sn " << sn);
-    write_batch.put(cFamily, getSliceArray(prefix, k), getSliceArray(*opt_val));
   }
 }
 
@@ -226,45 +239,63 @@ void LatestKeys::revertDeletedKeysImp(const std::string& category_id,
                                       const DELETES& deletes,
                                       concord::storage::rocksdb::NativeWriteBatch& write_batch,
                                       ::rocksdb::Snapshot* snpsht) {
-  static thread_local std::string get_key;
-  static thread_local std::string out_ts;
   const auto& prefix = category_mapping_.categoryPrefix(category_id);
   auto sn = snpsht->GetSequenceNumber();
   ::rocksdb::ReadOptions ro;
   ro.snapshot = snpsht;
+  std::vector<std::string> keys;
+  keys.reserve(deletes.size());
+  std::vector<::rocksdb::PinnableSlice> values;
+  std::vector<::rocksdb::Status> statuses;
   for (const auto& k : deletes) {
-    get_key.clear();
-    get_key.append(prefix);
-    get_key.append(k);
-    // check if key exists for the previous version
-    auto opt_val = native_client_->get(v4blockchain::detail::LATEST_KEYS_CF, get_key, ro);
-    // A key was deleted in the last block, but we can't find the previous version for revert.
-    // I think it's not a scenario for assertion or excepion as the input is from external source i.e. execution engine.
-    if (!opt_val) {
-      LOG_WARN(V4_BLOCK_LOG, "Couldn't find previous version for deleted key " << get_key);
-      continue;
-    }
-    // add the previous value , already contains currect version as postfix
-    LOG_INFO(V4_BLOCK_LOG, "Found previous version for deleted key " << get_key << " rocks sn " << sn);
-    write_batch.put(v4blockchain::detail::LATEST_KEYS_CF, getSliceArray(prefix, k), getSliceArray(*opt_val));
+    keys.emplace_back(prefix + k);
   }
+  native_client_->multiGet(v4blockchain::detail::LATEST_KEYS_CF, keys, values, statuses, ro);
+  for (auto i = 0ull; i < keys.size(); ++i) {
+    const auto& status = statuses[i];
+    auto& val = values[i];
+    const auto& key = keys[i];
+    if (status.ok()) {
+      // add the previous value , already contains currect version as postfix
+      const char* data = nullptr;
+      size_t size{};
+      if (val.IsPinned()) {
+        data = val.data();
+        size = val.size();
+      } else {
+        data = val.GetSelf()->data();
+        size = val.GetSelf()->size();
+      }
+      auto actual_version = concordUtils::fromBigEndianBuffer<BlockId>(data + (size - sizeof(BlockId)));
+      LOG_DEBUG(V4_BLOCK_LOG,
+                "Found previous version for key " << key << " rocks sn " << sn << " version " << actual_version);
+      write_batch.put(v4blockchain::detail::LATEST_KEYS_CF, key, val);
+    } else if (status.IsNotFound()) {
+      LOG_WARN(V4_BLOCK_LOG, "Couldn't find previous version for key " << key << " rocks sn " << sn);
+    } else {
+      throw std::runtime_error{"Revert multiGet() failure: " + status.ToString()};
+    }
+  }
+}
+
+const std::string& LatestKeys::getColumnFamilyFromCategory(const std::string& category_id) const {
+  auto category_type = category_mapping_.categoryType(category_id);
+  if (category_type == concord::kvbc::categorization::CATEGORY_TYPE::immutable) {
+    return v4blockchain::detail::IMMUTABLE_KEYS_CF;
+  }
+  return v4blockchain::detail::LATEST_KEYS_CF;
 }
 
 std::optional<categorization::Value> LatestKeys::getValue(const std::string& category_id,
                                                           const std::string& key) const {
   std::string get_key;
-  std::string out_ts;
   const auto& prefix = category_mapping_.categoryPrefix(category_id);
   get_key.append(prefix);
   get_key.append(key);
   auto category_type = category_mapping_.categoryType(category_id);
-  const std::string* column_family_ptr = nullptr;
-  if (category_type == concord::kvbc::categorization::CATEGORY_TYPE::immutable) {
-    column_family_ptr = &(v4blockchain::detail::IMMUTABLE_KEYS_CF);
-  } else {
-    column_family_ptr = &(v4blockchain::detail::LATEST_KEYS_CF);
-  }
-  auto opt_val = native_client_->get(*column_family_ptr, get_key);
+  const auto& column_family_str = getColumnFamilyFromCategory(category_id);
+
+  auto opt_val = native_client_->get(column_family_str, get_key);
   if (!opt_val) {
     LOG_DEBUG(V4_BLOCK_LOG,
               "Reading key " << std::hash<std::string>{}(key) << " not found,  category_id " << category_id
@@ -296,10 +327,67 @@ std::optional<categorization::Value> LatestKeys::getValue(const std::string& cat
 void LatestKeys::multiGetValue(const std::string& category_id,
                                const std::vector<std::string>& keys,
                                std::vector<std::optional<categorization::Value>>& values) const {
+  const auto& prefix = category_mapping_.categoryPrefix(category_id);
+  const auto& column_family_str = getColumnFamilyFromCategory(category_id);
+  auto category_type = category_mapping_.categoryType(category_id);
   values.clear();
-  values.reserve(keys.size());
-  for (const auto& key : keys) {
-    values.push_back(getValue(category_id, key));
+  values.resize(keys.size());
+  std::vector<std::string> get_keys;
+  get_keys.reserve(keys.size());
+  std::vector<::rocksdb::Status> statuses;
+  std::vector<::rocksdb::PinnableSlice> sl_values;
+  statuses.reserve(keys.size());
+  sl_values.reserve(keys.size());
+
+  for (const auto& k : keys) {
+    get_keys.emplace_back(prefix + k);
+  }
+
+  native_client_->multiGet(column_family_str, get_keys, sl_values, statuses);
+
+  for (auto i = 0ull; i < get_keys.size(); ++i) {
+    const auto& status = statuses[i];
+    auto& sl_val = sl_values[i];
+    const auto& key = get_keys[i];
+    if (status.ok()) {
+      const char* data = nullptr;
+      size_t size{};
+      if (sl_val.IsPinned()) {
+        data = sl_val.data();
+        size = sl_val.size();
+      } else {
+        data = sl_val.GetSelf()->data();
+        size = sl_val.GetSelf()->size();
+      }
+      auto actual_version = concordUtils::fromBigEndianBuffer<BlockId>(data + (size - VERSION_SIZE));
+      LOG_DEBUG(V4_BLOCK_LOG,
+                "Reading key " << std::hash<std::string>{}(key) << " version " << actual_version << " category_id "
+                               << category_id << " prefix " << prefix << " key is hex "
+                               << concordUtils::bufferToHex(key.data(), key.size()) << " raw key " << key);
+      switch (category_type) {
+        case concord::kvbc::categorization::CATEGORY_TYPE::block_merkle:
+          values[i] = categorization::MerkleValue{{actual_version, std::string(data, size - VALUE_POSTFIX_SIZE)}};
+          break;
+        case concord::kvbc::categorization::CATEGORY_TYPE::immutable: {
+          values[i] = categorization::ImmutableValue{{actual_version, std::string(data, size - VALUE_POSTFIX_SIZE)}};
+          break;
+        }
+        case concord::kvbc::categorization::CATEGORY_TYPE::versioned_kv: {
+          values[i] = categorization::VersionedValue{{actual_version, std::string(data, size - VALUE_POSTFIX_SIZE)}};
+          break;
+        }
+        default:
+          ConcordAssert(false);
+      }
+    } else if (status.IsNotFound()) {
+      LOG_DEBUG(V4_BLOCK_LOG,
+                "Reading key " << std::hash<std::string>{}(key) << " not found,  category_id " << category_id
+                               << " prefix " << prefix << " key is hex "
+                               << concordUtils::bufferToHex(key.data(), key.size()) << " raw key " << key);
+      values[i] = std::nullopt;
+    } else {
+      throw std::runtime_error{"Revert multiGet() failure: " + status.ToString()};
+    }
   }
 }
 
@@ -336,10 +424,52 @@ std::optional<categorization::TaggedVersion> LatestKeys::getLatestVersion(const 
 void LatestKeys::multiGetLatestVersion(const std::string& category_id,
                                        const std::vector<std::string>& keys,
                                        std::vector<std::optional<categorization::TaggedVersion>>& versions) const {
+  const auto& prefix = category_mapping_.categoryPrefix(category_id);
+  const auto& column_family_str = getColumnFamilyFromCategory(category_id);
+  std::vector<std::string> get_keys;
+  get_keys.reserve(keys.size());
+  std::vector<::rocksdb::Status> statuses;
+  std::vector<::rocksdb::PinnableSlice> sl_values;
   versions.clear();
-  versions.reserve(keys.size());
-  for (const auto& key : keys) {
-    versions.push_back(getLatestVersion(category_id, key));
+  versions.resize(keys.size());
+  statuses.reserve(keys.size());
+  sl_values.reserve(keys.size());
+
+  for (const auto& k : keys) {
+    get_keys.emplace_back(prefix + k);
+  }
+
+  native_client_->multiGet(column_family_str, get_keys, sl_values, statuses);
+
+  for (auto i = 0ull; i < get_keys.size(); ++i) {
+    const auto& status = statuses[i];
+    auto& sl_val = sl_values[i];
+    const auto& key = get_keys[i];
+    if (status.ok()) {
+      const char* data = nullptr;
+      size_t size{};
+      if (sl_val.IsPinned()) {
+        data = sl_val.data();
+        size = sl_val.size();
+      } else {
+        data = sl_val.GetSelf()->data();
+        size = sl_val.GetSelf()->size();
+      }
+      auto actual_version = concordUtils::fromBigEndianBuffer<BlockId>(data + (size - VERSION_SIZE));
+      LOG_DEBUG(V4_BLOCK_LOG,
+                "Reading key version " << std::hash<std::string>{}(key) << " version " << actual_version
+                                       << " category_id " << category_id << " prefix " << prefix << " key is hex "
+                                       << concordUtils::bufferToHex(key.data(), key.size()) << " raw key " << key);
+      versions[i] = categorization::TaggedVersion{false, actual_version};
+    } else if (status.IsNotFound()) {
+      LOG_DEBUG(V4_BLOCK_LOG,
+                "Reading key version " << std::hash<std::string>{}(key) << " not found, category_id " << category_id
+                                       << " prefix " << prefix << " key is hex "
+                                       << concordUtils::bufferToHex(key.data(), key.size()) << " raw key " << key);
+      versions[i] = std::nullopt;
+    } else {
+      throw std::runtime_error{"Revert multiGet() failure: " + status.ToString()};
+    }
   }
 }
 
@@ -348,13 +478,13 @@ bool LatestKeys::LKCompactionFilter::Filter(int /*level*/,
                                             const ::rocksdb::Slice& val,
                                             std::string* /*new_value*/,
                                             bool* /*value_changed*/) const {
-  if (!LatestKeys::isStaleOnUpdate(val) || val.size() <= TIME_STAMP_SIZE) return false;
+  if (!LatestKeys::isStaleOnUpdate(val) || val.size() <= VERSION_SIZE) return false;
   auto genesis = genesis_id();
-  auto ts_slice = ::rocksdb::Slice(val.data() + val.size() - TIME_STAMP_SIZE, TIME_STAMP_SIZE);
+  auto ts_slice = ::rocksdb::Slice(val.data() + val.size() - VERSION_SIZE, VERSION_SIZE);
   auto key_version = concordUtils::fromBigEndianBuffer<uint64_t>(ts_slice.data());
   if (key_version >= genesis) return false;
   LOG_INFO(V4_BLOCK_LOG, "Filtering key with version " << key_version << " genesis is " << genesis);
-  return false;
+  return true;
 }
 
 }  // namespace concord::kvbc::v4blockchain::detail

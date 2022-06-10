@@ -114,9 +114,11 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
   std::optional<std::map<std::string, std::string>> getBlockUpdates(concord::kvbc::BlockId blockId) const;
   void writeAccumulatedBlock(ExecutionRequestsQueue &blockedRequests,
                              concord::kvbc::categorization::VersionedUpdates &verUpdates,
-                             concord::kvbc::categorization::BlockMerkleUpdates &merkleUpdates);
+                             concord::kvbc::categorization::BlockMerkleUpdates &merkleUpdates,
+                             uint64_t sn);
   void addBlock(concord::kvbc::categorization::VersionedUpdates &verUpdates,
-                concord::kvbc::categorization::BlockMerkleUpdates &merkleUpdates);
+                concord::kvbc::categorization::BlockMerkleUpdates &merkleUpdates,
+                uint64_t sn);
   void addKeys(const skvbc::messages::SKVBCWriteRequest &writeReq,
                uint64_t sequenceNum,
                concord::kvbc::categorization::VersionedUpdates &verUpdates,
