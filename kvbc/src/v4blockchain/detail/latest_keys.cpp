@@ -33,13 +33,10 @@ LatestKeys::LatestKeys(const std::shared_ptr<concord::storage::rocksdb::NativeCl
   if (native_client_->createColumnFamilyIfNotExisting(v4blockchain::detail::LATEST_KEYS_CF, getCompFilter())) {
     LOG_INFO(V4_BLOCK_LOG,
              "Created [" << v4blockchain::detail::LATEST_KEYS_CF << "] column family for the latest keys");
-    v4blockchain::detail::persistCf(v4blockchain::detail::LATEST_KEYS_CF, native_client_);
-    native_client_->put(v4blockchain::detail::LATEST_KEYS_CF, kvbc::keyTypes::v4_cf_flush, kvbc::V4Version());
   }
   if (native_client_->createColumnFamilyIfNotExisting(v4blockchain::detail::IMMUTABLE_KEYS_CF, getCompFilter())) {
     LOG_INFO(V4_BLOCK_LOG,
              "Created [" << v4blockchain::detail::IMMUTABLE_KEYS_CF << "] column family for the immutable keys");
-    v4blockchain::detail::persistCf(v4blockchain::detail::IMMUTABLE_KEYS_CF, native_client_);
   }
 }
 

@@ -96,8 +96,7 @@ class IReplica {
                                       MetadataStorage *,
                                       std::shared_ptr<concord::performance::PerformanceManager> pm,
                                       const std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> &sm,
-                                      const std::function<void(bool)> &,
-                                      const std::function<void()> &);
+                                      const std::function<void(bool)> &);
   static IReplicaPtr createNewReplica(const ReplicaConfig &,
                                       std::shared_ptr<IRequestsHandler>,
                                       IStateTransfer *,
@@ -106,8 +105,7 @@ class IReplica {
                                       bool &erasedMetadata,
                                       std::shared_ptr<concord::performance::PerformanceManager> pm,
                                       const std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> &sm,
-                                      const std::function<void(bool)> &,
-                                      const std::function<void()> &);
+                                      const std::function<void(bool)> &);
 
   static IReplicaPtr createNewRoReplica(const ReplicaConfig &,
                                         std::shared_ptr<IRequestsHandler>,

@@ -163,16 +163,14 @@ class SimpleTestReplica {
                     bftEngine::SimpleInMemoryStateTransfer::ISimpleInMemoryStateTransfer *inMemoryST,
                     MetadataStorage *metaDataStorage)
       : comm{commObject}, replicaConfig{rc}, behaviorPtr{behvPtr}, statePtr(state) {
-    replica = IReplica::createNewReplica(
-        rc,
-        std::shared_ptr<bftEngine::IRequestsHandler>(state),
-        inMemoryST,
-        comm,
-        metaDataStorage,
-        std::make_shared<concord::performance::PerformanceManager>(),
-        nullptr /*SecretsManagerEnc*/,
-        [](bool) {},
-        []() {});  // call back
+    replica = IReplica::createNewReplica(rc,
+                                         std::shared_ptr<bftEngine::IRequestsHandler>(state),
+                                         inMemoryST,
+                                         comm,
+                                         metaDataStorage,
+                                         std::make_shared<concord::performance::PerformanceManager>(),
+                                         nullptr /*SecretsManagerEnc*/,
+                                         [](bool) {});  // call back
     replica->SetAggregator(std::make_shared<concordMetrics::Aggregator>());
   }
 

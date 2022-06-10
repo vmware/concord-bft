@@ -3994,8 +3994,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
                        concordUtil::Timers &timers,
                        shared_ptr<concord::performance::PerformanceManager> pm,
                        shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm,
-                       const std::function<void(bool)> &viewChangeCallBack,
-                       const std::function<void()> &enableCFOptions)
+                       const std::function<void(bool)> &viewChangeCallBack)
     : ReplicaImp(false,
                  ld.repConfig,
                  requestsHandler,
@@ -4009,8 +4008,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
                  pm,
                  sm,
                  persistentStorage,
-                 viewChangeCallBack,
-                 enableCFOptions) {
+                 viewChangeCallBack) {
   LOG_INFO(GL, "Initialising Replica with LoadedReplicaData");
   ConcordAssertNE(persistentStorage, nullptr);
 
@@ -4242,8 +4240,7 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
                        concordUtil::Timers &timers,
                        shared_ptr<concord::performance::PerformanceManager> pm,
                        shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm,
-                       const std::function<void(bool)> &viewChangeCallBack,
-                       const std::function<void()> &enableCFOptions)
+                       const std::function<void(bool)> &viewChangeCallBack)
     : ReplicaImp(true,
                  config,
                  requestsHandler,
@@ -4257,8 +4254,7 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
                  pm,
                  sm,
                  persistentStorage,
-                 viewChangeCallBack,
-                 enableCFOptions) {
+                 viewChangeCallBack) {
   LOG_INFO(GL, "Initialising Replica with ReplicaConfig");
   if (persistentStorage != nullptr) {
     ps_ = persistentStorage;
@@ -4282,8 +4278,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
                        shared_ptr<concord::performance::PerformanceManager> pm,
                        shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm,
                        shared_ptr<PersistentStorage> ps,
-                       const std::function<void(bool)> &viewChangeCallBack,
-                       const std::function<void()> &enableCFOptions)
+                       const std::function<void(bool)> &viewChangeCallBack)
     : ReplicaForStateTransfer(config, requestsHandler, stateTrans, msgsCommunicator, msgHandlers, firstTime, timers),
       viewChangeProtocolEnabled{config.viewChangeProtocolEnabled},
       autoPrimaryRotationEnabled{config.autoPrimaryRotationEnabled},
@@ -4387,8 +4382,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       time_in_active_view_(histograms_.timeInActiveView),
       time_in_state_transfer_(histograms_.timeInStateTransfer),
       reqBatchingLogic_(*this, config_, metrics_, timers),
-      replStatusHandlers_(*this),
-      enableCFOptions_(enableCFOptions) {
+      replStatusHandlers_(*this) {
   ConcordAssertLT(config_.getreplicaId(), config_.getnumReplicas());
   // TODO(GG): more asserts on params !!!!!!!!!!!
 
