@@ -230,9 +230,6 @@ class ReplicaBlockchain : public IBlocksDeleter,
     native_client_->rawDB().GetIntProperty(handle, rocksdb::Slice(property.c_str(), property.length()), val);
   }
 
-  //
-  void enableCFOptions();
-
  private:
   void switch_to_rawptr();
 
