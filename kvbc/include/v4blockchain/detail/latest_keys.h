@@ -47,8 +47,8 @@ class LatestKeys {
   // E.L need to be used with compaction filter
   static constexpr Flags STALE_ON_UPDATE = {0x1};
   static constexpr size_t FLAGS_SIZE = STALE_ON_UPDATE.size();
-  static constexpr size_t TIME_STAMP_SIZE = sizeof(std::uint64_t);
-  static constexpr size_t VALUE_POSTFIX_SIZE = TIME_STAMP_SIZE + FLAGS_SIZE;
+  static constexpr size_t VERSION_SIZE = sizeof(std::uint64_t);
+  static constexpr size_t VALUE_POSTFIX_SIZE = VERSION_SIZE + FLAGS_SIZE;
   LatestKeys(const std::shared_ptr<concord::storage::rocksdb::NativeClient>&,
              const std::optional<std::map<std::string, concord::kvbc::categorization::CATEGORY_TYPE>>&,
              std::function<BlockId()>&& f);
@@ -136,6 +136,7 @@ class LatestKeys {
   }
 
   std::string getCategoryFromPrefix(const std::string& p) const { return category_mapping_.getCategoryFromPrefix(p); }
+  const std::string& getColumnFamilyFromCategory(const std::string& category_id) const;
 
  private:
   // This filter is used to delete stale on update keys if their version is smaller than the genesis block

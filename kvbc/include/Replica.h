@@ -229,6 +229,7 @@ class Replica : public IReplica,
   logging::Logger logger;
   RepStatus m_currentRepStatus;
 
+  concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery blockchain_recovery;
   concord::kvbc::IStorageFactory::DatabaseSet m_dbSet;
   // The ReplicaBlockchain is used for a normal read-write replica.
   std::optional<adapter::ReplicaBlockchain> op_kvBlockchain;

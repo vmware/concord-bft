@@ -107,6 +107,7 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
 
   // Batching interface.
   NativeWriteBatch getBatch(size_t reserved_bytes = 0) const;
+  NativeWriteBatch getBatch(std::string &&data) const;
   void write(NativeWriteBatch &&);
 
   // MultiGet interface
@@ -125,6 +126,13 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
                 const std::vector<KeySpan> &keys,
                 std::vector<::rocksdb::PinnableSlice> &values,
                 std::vector<::rocksdb::Status> &statuses) const;
+
+  template <typename KeySpan>
+  void multiGet(const std::string &cFamily,
+                const std::vector<KeySpan> &keys,
+                std::vector<::rocksdb::PinnableSlice> &values,
+                std::vector<::rocksdb::Status> &statuses,
+                ::rocksdb::ReadOptions ro) const;
 
   // Iterator interface.
   // Iterators initially don't point to a key value, i.e. they convert to false.

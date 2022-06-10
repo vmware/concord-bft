@@ -29,6 +29,7 @@
 #include "categorization/db_categories.h"
 #include "block_metadata.hpp"
 #include "kvbc_key_types.hpp"
+#include "kvbc_adapter/replica_adapter.hpp"
 
 using concord::storage::rocksdb::NativeClient;
 using namespace concord::kvbc;
@@ -476,7 +477,7 @@ TEST_F(v4_kvbc, trim_history_get_block_sequence_number) {
   }
 }
 
-TEST_F(v4_kvbc, check_if_trim_history_is_needed) {
+TEST_F(v4_kvbc, on_new_bft_sn) {
   {
     categorization::Updates updates;
     ASSERT_EQ(blockchain->onNewBFTSequenceNumber(updates), 0);
@@ -605,241 +606,6 @@ TEST(local_blockchain, load_genesis_and_last_blocs) {
   }
 }
 
-TEST(local_blockchain, delete_last_reachable) {
-  auto key1 = std::string("merkle_key1");
-  auto key2 = std::string("merkle_key2");
-  auto key3 = std::string("merkle_key3");
-  auto val1 = std::string("merkle_value1");
-  auto val2 = std::string("merkle_value2");
-  auto val3 = std::string("merkle_value3");
-  auto val_updated = std::string("merkle_value_updated");
-
-  auto ver_key1 = std::string("ver_key1");
-  auto ver_key2 = std::string("ver_key2");
-  auto ver_key3 = std::string("ver_key3");
-  auto ver_val1 = std::string("ver_val1");
-  auto ver_val2 = std::string("ver_val2");
-  auto ver_val3 = std::string("ver_val3");
-  auto ver_val_updated = std::string("ver_value_updated");
-
-  auto imm_key1 = std::string("imm_key1");
-  auto imm_key2 = std::string("imm_key2");
-  auto imm_val1 = std::string("imm_val1");
-  auto imm_val2 = std::string("imm_val2");
-
-  {
-    auto native_cl = TestRocksDb::createNative(1);
-    std::map<std::string, categorization::CATEGORY_TYPE> cat_map{
-        {"merkle", categorization::CATEGORY_TYPE::block_merkle},
-        {"versioned", categorization::CATEGORY_TYPE::versioned_kv},
-        {"versioned_2", categorization::CATEGORY_TYPE::versioned_kv},
-        {"immutable", categorization::CATEGORY_TYPE::immutable},
-        {categorization::kConcordInternalCategoryId, categorization::CATEGORY_TYPE::versioned_kv}};
-    auto blckchn = v4blockchain::KeyValueBlockchain{native_cl, true, cat_map};
-    // Can't delete from empty blockchain
-    ASSERT_DEATH(blckchn.deleteLastReachableBlock(), "");
-
-    // Add block 1 with 2 keys at sn 1
-    {
-      categorization::Updates updates;
-      // Merkle
-      categorization::BlockMerkleUpdates merkle_updates;
-      merkle_updates.addUpdate(std::string("merkle_key1"), std::string("merkle_value1"));
-      merkle_updates.addUpdate(std::string("merkle_key2"), std::string("merkle_value2"));
-      updates.add("merkle", std::move(merkle_updates));
-      // Versioned
-      categorization::VersionedUpdates ver_updates;
-      ver_updates.calculateRootHash(false);
-      ver_updates.addUpdate("ver_key1", "ver_val1");
-      ver_updates.addUpdate("ver_key2", categorization::VersionedUpdates::Value{"ver_val2", true});
-      updates.add("versioned", std::move(ver_updates));
-
-      categorization::ImmutableUpdates immutable_updates;
-      immutable_updates.addUpdate("imm_key1", {"imm_val1", {"1"}});
-      updates.add("immutable", std::move(immutable_updates));
-
-      uint64_t id = 1;
-      auto sid = concordUtils::toBigEndianStringBuffer(id);
-      categorization::VersionedUpdates in_updates;
-      in_updates.addUpdate(std::string(1, concord::kvbc::IBlockMetadata::kBlockMetadataKey),
-                           categorization::VersionedUpdates::Value{sid, true});
-      updates.add(concord::kvbc::categorization::kConcordInternalCategoryId, std::move(in_updates));
-
-      auto blck_id = blckchn.add(std::move(updates));
-      ASSERT_EQ(blck_id, 1);
-
-      auto getval = blckchn.getLatest("merkle", key1);
-      ASSERT_TRUE(getval.has_value());
-      auto mer_var = std::get<kvbc::categorization::MerkleValue>(*getval);
-      ASSERT_EQ(mer_var.data, val1);
-      ASSERT_EQ(blck_id, mer_var.block_id);
-      getval = blckchn.getLatest("merkle", key2);
-      ASSERT_TRUE(getval.has_value());
-      mer_var = std::get<kvbc::categorization::MerkleValue>(*getval);
-      ASSERT_EQ(mer_var.data, val2);
-      ASSERT_EQ(blck_id, mer_var.block_id);
-
-      getval = blckchn.getLatest("versioned", ver_key1);
-      ASSERT_TRUE(getval.has_value());
-      auto ver_var = std::get<kvbc::categorization::VersionedValue>(*getval);
-      ASSERT_EQ(ver_var.data, ver_val1);
-      ASSERT_EQ(blck_id, ver_var.block_id);
-      getval = blckchn.getLatest("versioned", ver_key2);
-      ASSERT_TRUE(getval.has_value());
-      ver_var = std::get<kvbc::categorization::VersionedValue>(*getval);
-      ASSERT_EQ(ver_var.data, ver_val2);
-      ASSERT_EQ(blck_id, ver_var.block_id);
-
-      getval = blckchn.getLatest("immutable", imm_key1);
-      ASSERT_TRUE(getval.has_value());
-      auto imm_var = std::get<kvbc::categorization::ImmutableValue>(*getval);
-      ASSERT_EQ(imm_var.data, imm_val1);
-      ASSERT_EQ(blck_id, imm_var.block_id);
-
-      ASSERT_NE(blckchn.getSnapShot(), nullptr);
-      ASSERT_GT(blckchn.getSnapShot()->GetSequenceNumber(), 0);
-    }
-
-    // auto& rocksdb = native_cl->rawDB();
-    // // Flush to persist CFs
-    // auto cfs = native_cl->columnFamilies(native_cl->path());
-    // for (const auto& cf : cfs) {
-    //   auto* handle = native_cl->columnFamilyHandle(cf);
-    //   LOG_INFO(V4_BLOCK_LOG, "Flusing CF " << cf);
-    //   auto s = rocksdb.Flush(::rocksdb::FlushOptions{}, handle);
-    //   ASSERT_TRUE(s.ok());
-    // }
-
-    // Can't delete single block
-    ASSERT_DEATH(blckchn.deleteLastReachableBlock(), "");
-    // E.L add scenario of deleting the first sn
-
-    // Add block 2 where key1 is updated and key2 is deleted.
-    {
-      categorization::Updates updates;
-      categorization::BlockMerkleUpdates merkle_updates;
-      merkle_updates.addUpdate(std::string("merkle_key1"), std::string("merkle_value_updated"));
-      merkle_updates.addUpdate(std::string("merkle_key3"), std::string("merkle_value3"));
-      merkle_updates.addDelete(std::string("merkle_key2"));
-      updates.add("merkle", std::move(merkle_updates));
-
-      // Versioned
-      categorization::VersionedUpdates ver_updates;
-      ver_updates.calculateRootHash(false);
-      ver_updates.addUpdate("ver_key1", "ver_value_updated");
-      ver_updates.addUpdate("ver_key3", "ver_val3");
-      ver_updates.addDelete("ver_key2");
-      updates.add("versioned", std::move(ver_updates));
-
-      categorization::ImmutableUpdates immutable_updates;
-      immutable_updates.addUpdate("imm_key2", {"imm_val2", {"2"}});
-      updates.add("immutable", std::move(immutable_updates));
-
-      uint64_t id = 2;
-      auto sid = concordUtils::toBigEndianStringBuffer(id);
-      categorization::VersionedUpdates in_updates;
-      in_updates.addUpdate(std::string(1, concord::kvbc::IBlockMetadata::kBlockMetadataKey),
-                           categorization::VersionedUpdates::Value{sid, true});
-      updates.add(concord::kvbc::categorization::kConcordInternalCategoryId, std::move(in_updates));
-
-      auto blck_id = blckchn.add(std::move(updates));
-      ASSERT_EQ(blck_id, 2);
-
-      auto getval = blckchn.getLatest("merkle", key1);
-      ASSERT_TRUE(getval.has_value());
-      auto mer_var = std::get<kvbc::categorization::MerkleValue>(*getval);
-      ASSERT_EQ(mer_var.data, val_updated);
-      ASSERT_EQ(blck_id, mer_var.block_id);
-
-      getval = blckchn.getLatest("merkle", key3);
-      ASSERT_TRUE(getval.has_value());
-      mer_var = std::get<kvbc::categorization::MerkleValue>(*getval);
-      ASSERT_EQ(mer_var.data, val3);
-      ASSERT_EQ(blck_id, mer_var.block_id);
-      // delete
-      getval = blckchn.getLatest("merkle", key2);
-      ASSERT_FALSE(getval.has_value());
-
-      getval = blckchn.getLatest("versioned", ver_key1);
-      ASSERT_TRUE(getval.has_value());
-      auto ver_var = std::get<kvbc::categorization::VersionedValue>(*getval);
-      ASSERT_EQ(ver_var.data, ver_val_updated);
-      ASSERT_EQ(blck_id, ver_var.block_id);
-
-      getval = blckchn.getLatest("versioned", ver_key3);
-      ASSERT_TRUE(getval.has_value());
-      ver_var = std::get<kvbc::categorization::VersionedValue>(*getval);
-      ASSERT_EQ(ver_var.data, ver_val3);
-      ASSERT_EQ(blck_id, ver_var.block_id);
-      // delete
-      getval = blckchn.getLatest("versioned", ver_key2);
-      ASSERT_FALSE(getval.has_value());
-
-      getval = blckchn.getLatest("immutable", imm_key1);
-      ASSERT_TRUE(getval.has_value());
-      auto imm_var = std::get<kvbc::categorization::ImmutableValue>(*getval);
-      ASSERT_EQ(imm_var.data, imm_val1);
-      ASSERT_EQ(1, imm_var.block_id);
-
-      ASSERT_NE(blckchn.getSnapShot(), nullptr);
-      ASSERT_GT(blckchn.getSnapShot()->GetSequenceNumber(), 0);
-    }
-  }
-
-  // restart blockchain
-  {
-    auto native_cl = TestRocksDb::createNative(1);
-    std::map<std::string, categorization::CATEGORY_TYPE> cat_map{
-        {"merkle", categorization::CATEGORY_TYPE::block_merkle},
-        {"versioned", categorization::CATEGORY_TYPE::versioned_kv},
-        {"versioned_2", categorization::CATEGORY_TYPE::versioned_kv},
-        {"immutable", categorization::CATEGORY_TYPE::immutable},
-        {categorization::kConcordInternalCategoryId, categorization::CATEGORY_TYPE::versioned_kv}};
-    auto blckchn = v4blockchain::KeyValueBlockchain{native_cl, true, cat_map};
-    ASSERT_EQ(blckchn.getLastReachableBlockId(), 2);
-    blckchn.deleteLastReachableBlock();
-    ASSERT_EQ(blckchn.getLastReachableBlockId(), 1);
-
-    auto blck_id = 1;
-    auto getval = blckchn.getLatest("merkle", key1);
-    ASSERT_TRUE(getval.has_value());
-    auto mer_var = std::get<kvbc::categorization::MerkleValue>(*getval);
-    ASSERT_EQ(mer_var.data, val1);
-    ASSERT_EQ(blck_id, mer_var.block_id);
-    getval = blckchn.getLatest("merkle", key2);
-    ASSERT_TRUE(getval.has_value());
-    mer_var = std::get<kvbc::categorization::MerkleValue>(*getval);
-    ASSERT_EQ(mer_var.data, val2);
-    ASSERT_EQ(blck_id, mer_var.block_id);
-
-    getval = blckchn.getLatest("versioned", ver_key1);
-    ASSERT_TRUE(getval.has_value());
-    auto ver_var = std::get<kvbc::categorization::VersionedValue>(*getval);
-    ASSERT_EQ(ver_var.data, ver_val1);
-    ASSERT_EQ(blck_id, ver_var.block_id);
-    getval = blckchn.getLatest("versioned", ver_key2);
-    ASSERT_TRUE(getval.has_value());
-    ver_var = std::get<kvbc::categorization::VersionedValue>(*getval);
-    ASSERT_EQ(ver_var.data, ver_val2);
-    ASSERT_EQ(blck_id, ver_var.block_id);
-
-    getval = blckchn.getLatest("immutable", imm_key1);
-    ASSERT_TRUE(getval.has_value());
-    auto imm_var = std::get<kvbc::categorization::ImmutableValue>(*getval);
-    ASSERT_EQ(imm_var.data, imm_val1);
-    ASSERT_EQ(blck_id, imm_var.block_id);
-
-    getval = blckchn.getLatest("merkle", key3);
-    ASSERT_FALSE(getval.has_value());
-
-    getval = blckchn.getLatest("versioned", ver_key3);
-    ASSERT_FALSE(getval.has_value());
-
-    getval = blckchn.getLatest("immutable", imm_key2);
-    ASSERT_FALSE(getval.has_value());
-  }
-}
-
 TEST(automated_local_blockchain, automated_delete_last_reachable) {
   auto native_cl = TestRocksDb::createNative(2);
   std::map<std::string, categorization::CATEGORY_TYPE> cat_map{
@@ -859,12 +625,13 @@ TEST(automated_local_blockchain, automated_delete_last_reachable) {
   std::vector<std::string> merkle_new_keys;
   std::vector<std::string> versioned_new_keys;
   std::vector<std::string> imm_new_keys;
-
+  std::string dbpath;
   {
     auto native_cl2 = TestRocksDb::createNative(3);
+    dbpath = native_cl2->path();
     auto blckchn = v4blockchain::KeyValueBlockchain{native_cl2, true, cat_map};
     // Can't delete from empty blockchain
-    ASSERT_DEATH(blckchn.deleteLastReachableBlock(), "");
+    ASSERT_THROW(blckchn.deleteLastReachableBlock(), std::logic_error);
 
     /*
     1 - add blocks at the same sn
@@ -891,7 +658,7 @@ TEST(automated_local_blockchain, automated_delete_last_reachable) {
       if (i > 0) {
         std::random_device seed;
         std::mt19937 gen{seed()};
-        int from = merkle_keys.size() - numkeys;
+        int from = (int)(merkle_keys.size() - numkeys);
         std::uniform_int_distribution dist{0, from};  // set min and max
         int guess = dist(gen);
         auto key = merkle_keys[guess];  // generate number
@@ -912,10 +679,10 @@ TEST(automated_local_blockchain, automated_delete_last_reachable) {
       if (i > 0) {
         std::random_device seed;
         std::mt19937 gen{seed()};
-        int from = merkle_keys.size() - numkeys;
+        int from = (int)(versioned_keys.size() - numkeys);
         std::uniform_int_distribution dist{0, from};  // set min and max
         int guess = dist(gen);                        // generate number
-        auto key = merkle_keys[guess];
+        auto key = versioned_keys[guess];
         ver_updates.addDelete(std::string(key));
       }
       updates.add("versioned", std::move(ver_updates));
@@ -946,6 +713,8 @@ TEST(automated_local_blockchain, automated_delete_last_reachable) {
     auto first_seqnum = blckchn.getSnapShot()->GetSequenceNumber();
     ASSERT_GT(first_seqnum, 0);
 
+    std::cout << "Starting new bft seq num \n";
+
     // new sequence number
     merkle_keys.clear();
     versioned_keys.clear();
@@ -973,7 +742,7 @@ TEST(automated_local_blockchain, automated_delete_last_reachable) {
       if (i > 0) {
         std::random_device seed;
         std::mt19937 gen{seed()};
-        int from = merkle_keys.size() - numkeys;
+        int from = (int)(merkle_keys.size() - numkeys);
         std::uniform_int_distribution dist{0, from};  // set min and max
         int guess = dist(gen);                        // generate number
         auto key = merkle_keys[guess];
@@ -1002,10 +771,10 @@ TEST(automated_local_blockchain, automated_delete_last_reachable) {
       if (i > 0) {
         std::random_device seed;
         std::mt19937 gen{seed()};
-        int from = merkle_keys.size() - numkeys;
+        int from = (int)(versioned_keys.size() - numkeys);
         std::uniform_int_distribution dist{0, from};  // set min and max
         int guess = dist(gen);                        // generate number
-        auto key = merkle_keys[guess];
+        auto key = versioned_keys[guess];
         ver_updates.addDelete(std::string(key));
       }
       updates.add("versioned", std::move(ver_updates));
@@ -1040,16 +809,6 @@ TEST(automated_local_blockchain, automated_delete_last_reachable) {
     auto second_seqnum = blckchn.getSnapShot()->GetSequenceNumber();
     ASSERT_GT(second_seqnum, first_seqnum);
 
-    // // Flush to persist CFs
-    // auto block = std::string("moshe");
-    // blckchn.addBlockToSTChain(100, block.c_str(), block.size(), false);
-    // auto& rocksdb = native_cl2->rawDB();
-    // auto cfs = native_cl2->columnFamilies(native_cl2->path());
-    // for (const auto& cf : cfs) {
-    //   auto* handle = native_cl2->columnFamilyHandle(cf);
-    //   auto s = rocksdb.Flush(::rocksdb::FlushOptions{}, handle);
-    //   ASSERT_TRUE(s.ok());
-    // }
     std::vector<std::string> versioned_new_keys;
     std::vector<std::string> imm_new_keys;
 
@@ -1066,7 +825,7 @@ TEST(automated_local_blockchain, automated_delete_last_reachable) {
       ASSERT_TRUE(val.has_value());
     }
   }
-
+  { concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{dbpath, false}; }
   {
     auto native_cl2 = TestRocksDb::createNative(3);
     auto blckchn = v4blockchain::KeyValueBlockchain{native_cl2, true, cat_map};
@@ -1075,9 +834,13 @@ TEST(automated_local_blockchain, automated_delete_last_reachable) {
       blckchn.deleteLastReachableBlock();
     }
     ASSERT_EQ(blckchn.getLastReachableBlockId(), numblocks);
+    blckchn.onFinishDeleteLastReachable();
     for (const auto& k : merkle_new_keys) {
       auto val = blckchn.getLatest("merkle", k);
-      ASSERT_FALSE(val.has_value());
+      if (val.has_value()) {
+        auto mv = std::get<concord::kvbc::categorization::MerkleValue>(*val);
+        ASSERT_FALSE(true);
+      }
     }
     for (const auto& k : versioned_new_keys) {
       auto val = blckchn.getLatest("versioned", k);
@@ -1133,6 +896,428 @@ TEST(automated_local_blockchain, automated_delete_last_reachable) {
       ASSERT_EQ(m_comp_val.data, m_val.data);
       ASSERT_EQ(m_comp_val.block_id, m_val.block_id);
       imm_cf_it.next();
+    }
+  }
+}
+
+/* create two instances of blockchains and add the same blocks to both.
+ on a certain point mark that checkpoint is in process and from this phase add blocks only to a single blockchain.
+ The blockchain that we stopped adding blocks to will be the expected blockchain after we'll trim the one that keeps
+ adding.
+*/
+TEST(checkpoint_recovery, trimming) {
+  auto native_cl = TestRocksDb::createNative(5);
+  std::map<std::string, categorization::CATEGORY_TYPE> cat_map{
+      {"merkle", categorization::CATEGORY_TYPE::block_merkle},
+      {"versioned", categorization::CATEGORY_TYPE::versioned_kv},
+      {"versioned_2", categorization::CATEGORY_TYPE::versioned_kv},
+      {"immutable", categorization::CATEGORY_TYPE::immutable},
+      {categorization::kConcordInternalCategoryId, categorization::CATEGORY_TYPE::versioned_kv}};
+  auto blckchn_compare_state = v4blockchain::KeyValueBlockchain{native_cl, true, cat_map};
+
+  std::random_device seed;
+  std::mt19937 gen{seed()};                     // seed the generator
+  std::uniform_int_distribution dist{20, 100};  // set min and max
+  int numblocks = dist(gen);                    // generate number
+  int numblocks_seq2 = dist(gen);
+
+  std::vector<std::string> merkle_new_keys;
+  std::vector<std::string> versioned_new_keys;
+  std::vector<std::string> imm_new_keys;
+  std::string dbpath;
+  uint64_t last_id{};
+  {
+    auto native_cl2 = TestRocksDb::createNative(6);
+    dbpath = native_cl2->path();
+    auto blckchn = v4blockchain::KeyValueBlockchain{native_cl2, true, cat_map};
+
+    std::vector<std::string> merkle_keys;
+    std::vector<std::string> versioned_keys;
+    for (int i = 0; i < numblocks; i++) {
+      categorization::Updates updates;
+      int numkeys = dist(gen);  // generate number
+      categorization::BlockMerkleUpdates merkle_updates;
+      std::string merkle_key_prefix = "merkle_key";
+      std::string merkle_val_prefix = "merkle_val";
+      for (int j = 0; j < numkeys; ++j) {
+        std::string key = merkle_key_prefix + std::to_string(i) + std::to_string(j);
+        std::string val = merkle_val_prefix + std::to_string(i) + std::to_string(j);
+        merkle_updates.addUpdate(std::string(key), std::string(val));
+        merkle_keys.push_back(key);
+      }
+
+      if (i > 0) {
+        std::random_device seed;
+        std::mt19937 gen{seed()};
+        int from = (int)(merkle_keys.size() - numkeys);
+        std::uniform_int_distribution dist{0, from};  // set min and max
+        int guess = dist(gen);
+        auto key = merkle_keys[guess];  // generate number
+        merkle_updates.addDelete(std::string(key));
+      }
+      updates.add("merkle", std::move(merkle_updates));
+
+      categorization::VersionedUpdates ver_updates;
+      std::string ver_key_prefix = "ver_key";
+      std::string ver_val_prefix = "ver_val";
+      for (int j = 0; j < numkeys; ++j) {
+        std::string key = ver_key_prefix + std::to_string(i) + std::to_string(j);
+        std::string val = ver_val_prefix + std::to_string(i) + std::to_string(j);
+        ver_updates.addUpdate(std::string(key), std::string(val));
+        versioned_keys.push_back(key);
+      }
+
+      if (i > 0) {
+        std::random_device seed;
+        std::mt19937 gen{seed()};
+        int from = (int)(versioned_keys.size() - numkeys);
+        std::uniform_int_distribution dist{0, from};  // set min and max
+        int guess = dist(gen);                        // generate number
+        auto key = versioned_keys[guess];
+        ver_updates.addDelete(std::string(key));
+      }
+      updates.add("versioned", std::move(ver_updates));
+
+      categorization::ImmutableUpdates immutable_updates;
+      std::string imm_key_prefix = "imm_key";
+      std::string imm_val_prefix = "imm_val";
+      for (int j = 0; j < numkeys; ++j) {
+        std::string key = imm_key_prefix + std::to_string(i) + std::to_string(j);
+        std::string val = imm_val_prefix + std::to_string(i) + std::to_string(j);
+      }
+      updates.add("immutable", std::move(immutable_updates));
+
+      uint64_t sn = 1;
+      auto str_sn = concordUtils::toBigEndianStringBuffer(sn);
+      categorization::VersionedUpdates in_updates;
+      in_updates.addUpdate(std::string(1, concord::kvbc::IBlockMetadata::kBlockMetadataKey),
+                           categorization::VersionedUpdates::Value{str_sn, true});
+      updates.add(concord::kvbc::categorization::kConcordInternalCategoryId, std::move(in_updates));
+
+      auto up_copy = updates;
+      blckchn.add(std::move(updates));
+      blckchn_compare_state.add(std::move(up_copy));
+    }
+    // Upon setting to true, we take snap shot
+    ASSERT_EQ(blckchn.getChkpntSnapShot(), nullptr);
+    last_id = blckchn.getLastReachableBlockId();
+    auto opt_seq_num = native_cl2->get(concord::kvbc::keyTypes::v4_snapshot_sequence_checkpoint);
+    ASSERT_FALSE(opt_seq_num.has_value());
+    blckchn.checkpointInProcess(true);
+    ASSERT_NE(blckchn.getChkpntSnapShot(), nullptr);
+    opt_seq_num = native_cl2->get(concord::kvbc::keyTypes::v4_snapshot_sequence_checkpoint);
+    ASSERT_TRUE(opt_seq_num.has_value());
+    auto last_id_from_storage =
+        concord::kvbc::v4blockchain::KeyValueBlockchain::RecoverySnapshot::getStableVersion(*opt_seq_num);
+    ASSERT_EQ(last_id, last_id_from_storage);
+
+    merkle_keys.clear();
+    versioned_keys.clear();
+    for (int i = 0; i < numblocks_seq2; i++) {
+      categorization::Updates updates;
+      int numkeys = dist(gen);  // generate number
+      categorization::BlockMerkleUpdates merkle_updates;
+      std::string merkle_key_prefix = "merkle_key";
+      std::string merkle_val_prefix = "merkle_val";
+      for (int j = 0; j < numkeys; ++j) {
+        std::string key = merkle_key_prefix + std::to_string(i) + std::to_string(j);
+        // generate update
+        std::string val = merkle_val_prefix + std::to_string(i) + std::to_string(j) + std::to_string(j);
+        merkle_updates.addUpdate(std::string(key), std::string(val));
+        merkle_keys.push_back(key);
+      }
+      // new keys
+      for (int j = 0; j < numkeys; ++j) {
+        std::string key = merkle_key_prefix + "new" + std::to_string(i) + std::to_string(j);
+        std::string val = merkle_val_prefix + std::to_string(i) + std::to_string(j) + std::to_string(j);
+        merkle_updates.addUpdate(std::string(key), std::string(val));
+        merkle_new_keys.push_back(key);
+      }
+
+      if (i > 0) {
+        std::random_device seed;
+        std::mt19937 gen{seed()};
+        int from = (int)(merkle_keys.size() - numkeys);
+        std::uniform_int_distribution dist{0, from};  // set min and max
+        int guess = dist(gen);                        // generate number
+        auto key = merkle_keys[guess];
+        merkle_updates.addDelete(std::string(key));
+      }
+      updates.add("merkle", std::move(merkle_updates));
+
+      categorization::VersionedUpdates ver_updates;
+      std::string ver_key_prefix = "ver_key";
+      std::string ver_val_prefix = "ver_val";
+      for (int j = 0; j < numkeys; ++j) {
+        std::string key = ver_key_prefix + std::to_string(i) + std::to_string(j);
+        std::string val = ver_val_prefix + std::to_string(i) + std::to_string(j) + std::to_string(j);
+        ver_updates.addUpdate(std::string(key), std::string(val));
+        versioned_keys.push_back(key);
+      }
+
+      // new keys
+      for (int j = 0; j < numkeys; ++j) {
+        std::string key = ver_key_prefix + "new" + std::to_string(i) + std::to_string(j);
+        std::string val = ver_val_prefix + std::to_string(i) + std::to_string(j) + std::to_string(j);
+        ver_updates.addUpdate(std::string(key), std::string(val));
+        versioned_new_keys.push_back(key);
+      }
+
+      if (i > 0) {
+        std::random_device seed;
+        std::mt19937 gen{seed()};
+        int from = (int)(versioned_keys.size() - numkeys);
+        std::uniform_int_distribution dist{0, from};  // set min and max
+        int guess = dist(gen);                        // generate number
+        auto key = versioned_keys[guess];
+        ver_updates.addDelete(std::string(key));
+      }
+      updates.add("versioned", std::move(ver_updates));
+
+      categorization::ImmutableUpdates immutable_updates;
+      std::string imm_key_prefix = "imm_key";
+      std::string imm_val_prefix = "imm_val";
+      for (int j = 0; j < numkeys; ++j) {
+        std::string key = imm_key_prefix + std::to_string(i) + std::to_string(j);
+        std::string val = imm_val_prefix + std::to_string(i) + std::to_string(j) + std::to_string(j);
+        immutable_updates.addUpdate(std::string(key), {std::string(val), {"1"}});
+      }
+      // new keys
+      for (int j = 0; j < numkeys; ++j) {
+        std::string key = imm_key_prefix + "new" + std::to_string(i) + std::to_string(j);
+        std::string val = imm_val_prefix + std::to_string(i) + std::to_string(j) + std::to_string(j);
+        immutable_updates.addUpdate(std::string(key), {std::string(val), {"1"}});
+        imm_new_keys.push_back(key);
+      }
+      updates.add("immutable", std::move(immutable_updates));
+
+      blckchn.add(std::move(updates));
+    }
+
+    std::vector<std::string> versioned_new_keys;
+    std::vector<std::string> imm_new_keys;
+
+    for (const auto& k : merkle_new_keys) {
+      auto val = blckchn.getLatest("merkle", k);
+      ASSERT_TRUE(val.has_value());
+    }
+    for (const auto& k : versioned_new_keys) {
+      auto val = blckchn.getLatest("versioned", k);
+      ASSERT_TRUE(val.has_value());
+    }
+    for (const auto& k : imm_new_keys) {
+      auto val = blckchn.getLatest("immutable", k);
+      ASSERT_TRUE(val.has_value());
+    }
+  }
+
+  { concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{dbpath, true}; }
+  // restart the blockchain
+  {
+    auto native_cl2 = TestRocksDb::createNative(6);
+    auto blckchn = v4blockchain::KeyValueBlockchain{native_cl2, true, cat_map};
+    {
+      auto recdb = concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery::getRecoveryDB(dbpath, true);
+      // check that only blocks that were added after calling checkpointInProcess(true) has value in recovery db.
+      for (uint64_t i = 0; i <= last_id; ++i) {
+        auto opt_val = recdb->get(concord::kvbc::v4blockchain::detail::Blockchain::generateKey(i));
+        ASSERT_FALSE(opt_val.has_value());
+      }
+      for (uint64_t i = last_id + 1; i <= last_id + numblocks_seq2; ++i) {
+        auto opt_val = recdb->get(concord::kvbc::v4blockchain::detail::Blockchain::generateKey(i));
+        ASSERT_TRUE(opt_val.has_value());
+      }
+    }
+
+    auto curr_last_id = blckchn.getLastReachableBlockId();
+    ASSERT_GT(curr_last_id, last_id);
+    // cal the trim blocks
+    blckchn.trimBlocksFromSnapshot(last_id);
+    curr_last_id = blckchn.getLastReachableBlockId();
+    ASSERT_EQ(curr_last_id, last_id);
+    auto other_last = blckchn_compare_state.getLastReachableBlockId();
+    ASSERT_EQ(other_last, last_id);
+
+    for (const auto& k : merkle_new_keys) {
+      auto val = blckchn.getLatest("merkle", k);
+      if (val.has_value()) {
+        auto mv = std::get<concord::kvbc::categorization::MerkleValue>(*val);
+        ASSERT_FALSE(true);
+      }
+    }
+    for (const auto& k : versioned_new_keys) {
+      auto val = blckchn.getLatest("versioned", k);
+      ASSERT_FALSE(val.has_value());
+    }
+    for (const auto& k : imm_new_keys) {
+      auto val = blckchn.getLatest("immutable", k);
+      ASSERT_FALSE(val.has_value());
+    }
+
+    auto latest_cf_it = native_cl->getIterator(concord::kvbc::v4blockchain::detail::LATEST_KEYS_CF);
+    latest_cf_it.first();
+    while (latest_cf_it) {
+      auto key = latest_cf_it.key();
+      auto cat = blckchn_compare_state.getCategoryFromPrefix(key.substr(0, 1));
+      ASSERT_NE(cat, "immutable");
+      if (cat != "merkle" && cat != "versioned") {
+        latest_cf_it.next();
+        continue;
+      }
+      auto comp_val = blckchn_compare_state.getLatest(cat, key.substr(1, key.size() - 1));
+      ASSERT_TRUE(comp_val.has_value());
+      auto val = blckchn.getLatest(cat, key.substr(1, key.size() - 1));
+      ASSERT_TRUE(val.has_value());
+      if (cat == "merkle") {
+        auto m_comp_val = std::get<concord::kvbc::categorization::MerkleValue>(*comp_val);
+        auto m_val = std::get<concord::kvbc::categorization::MerkleValue>(*val);
+        ASSERT_EQ(m_comp_val.data, m_val.data);
+        ASSERT_EQ(m_comp_val.block_id, m_val.block_id);
+      } else if (cat == "versioned") {
+        auto m_comp_val = std::get<concord::kvbc::categorization::VersionedValue>(*comp_val);
+        auto m_val = std::get<concord::kvbc::categorization::VersionedValue>(*val);
+        ASSERT_EQ(m_comp_val.data, m_val.data);
+        ASSERT_EQ(m_comp_val.block_id, m_val.block_id);
+      }
+      latest_cf_it.next();
+    }
+    auto imm_cf_it = native_cl->getIterator(concord::kvbc::v4blockchain::detail::IMMUTABLE_KEYS_CF);
+    imm_cf_it.first();
+    while (imm_cf_it) {
+      auto key = imm_cf_it.key();
+      auto cat = blckchn_compare_state.getCategoryFromPrefix(key.substr(0, 1));
+      if (cat != "immutable") {
+        imm_cf_it.next();
+        continue;
+      }
+      auto comp_val = blckchn_compare_state.getLatest(cat, key.substr(1, key.size() - 1));
+      ASSERT_TRUE(comp_val.has_value());
+      auto val = blckchn.getLatest(cat, key.substr(1, key.size() - 1));
+      ASSERT_TRUE(val.has_value());
+      auto m_comp_val = std::get<concord::kvbc::categorization::ImmutableValue>(*comp_val);
+      auto m_val = std::get<concord::kvbc::categorization::ImmutableValue>(*val);
+      ASSERT_EQ(m_comp_val.data, m_val.data);
+      ASSERT_EQ(m_comp_val.block_id, m_val.block_id);
+      imm_cf_it.next();
+    }
+  }
+}
+
+TEST(recovery, blockchain_recovery_class) {
+  std::string path = "/tmp";
+  auto chkpnt_path = concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery::getPath(path, true);
+  ASSERT_EQ(chkpnt_path, "/tmp/concord_recovery_checkpoint");
+  auto exec_path = concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery::getPath(path, false);
+  ASSERT_EQ(exec_path, "/tmp/concord_recovery_execution");
+
+  {
+    auto recdb = concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery::getRecoveryDB(path, false);
+    ASSERT_TRUE(recdb);
+    ASSERT_EQ(recdb->path(), "/tmp/concord_recovery_execution");
+    ASSERT_TRUE(fs::is_directory(recdb->path()));
+    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery::removeRecoveryDB(path, false);
+    ASSERT_FALSE(fs::is_directory(recdb->path()));
+  }
+
+  {
+    auto recdb = concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery::getRecoveryDB(path, true);
+    ASSERT_TRUE(recdb);
+    ASSERT_EQ(recdb->path(), "/tmp/concord_recovery_checkpoint");
+    ASSERT_TRUE(fs::is_directory(recdb->path()));
+    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery::removeRecoveryDB(path, true);
+    ASSERT_FALSE(fs::is_directory(recdb->path()));
+  }
+}
+
+TEST(recovery, storeLastReachableRevertBatch) {
+  auto native_cl = TestRocksDb::createNative(98);
+  auto path = native_cl->path();
+  std::map<std::string, categorization::CATEGORY_TYPE> cat_map{
+      {"merkle", categorization::CATEGORY_TYPE::block_merkle},
+      {"versioned", categorization::CATEGORY_TYPE::versioned_kv},
+      {"versioned_2", categorization::CATEGORY_TYPE::versioned_kv},
+      {"immutable", categorization::CATEGORY_TYPE::immutable},
+      {categorization::kConcordInternalCategoryId, categorization::CATEGORY_TYPE::versioned_kv}};
+  auto blckchn = v4blockchain::KeyValueBlockchain{native_cl, true, cat_map};
+
+  blckchn.storeLastReachableRevertBatch(false);
+  auto exec_path = concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery::getPath(path, false);
+  //(genesis_id == last_reachable_id)
+  ASSERT_FALSE(fs::is_directory(exec_path));
+
+  std::random_device seed;
+  std::mt19937 gen{seed()};                     // seed the generator
+  std::uniform_int_distribution dist{20, 100};  // set min and max
+  int numblocks = dist(gen);                    // generate number
+
+  for (uint64_t i = 1; i < (uint64_t)numblocks; i++) {
+    categorization::Updates updates;
+    int numkeys = dist(gen);  // generate number
+
+    categorization::ImmutableUpdates immutable_updates;
+    std::string imm_key_prefix = "imm_key";
+    std::string imm_val_prefix = "imm_val";
+    for (int j = 0; j < numkeys; ++j) {
+      std::string key = imm_key_prefix + std::to_string(i) + std::to_string(j);
+      std::string val = imm_val_prefix + std::to_string(i) + std::to_string(j);
+    }
+    updates.add("immutable", std::move(immutable_updates));
+
+    uint64_t sn = i;
+    auto str_sn = concordUtils::toBigEndianStringBuffer(sn);
+    categorization::VersionedUpdates in_updates;
+    in_updates.addUpdate(std::string(1, concord::kvbc::IBlockMetadata::kBlockMetadataKey),
+                         categorization::VersionedUpdates::Value{str_sn, true});
+    updates.add(concord::kvbc::categorization::kConcordInternalCategoryId, std::move(in_updates));
+
+    blckchn.add(std::move(updates));
+  }
+
+  for (uint64_t i = numblocks; i < (uint64_t)2 * numblocks; i++) {
+    categorization::Updates updates;
+    int numkeys = dist(gen);  // generate number
+
+    categorization::ImmutableUpdates immutable_updates;
+    std::string imm_key_prefix = "imm_key";
+    std::string imm_val_prefix = "imm_val";
+    for (int j = 0; j < numkeys; ++j) {
+      std::string key = imm_key_prefix + std::to_string(i) + std::to_string(j);
+      std::string val = imm_val_prefix + std::to_string(i) + std::to_string(j);
+    }
+    updates.add("immutable", std::move(immutable_updates));
+
+    uint64_t sn = (uint64_t)numblocks;
+    auto str_sn = concordUtils::toBigEndianStringBuffer(sn);
+    categorization::VersionedUpdates in_updates;
+    in_updates.addUpdate(std::string(1, concord::kvbc::IBlockMetadata::kBlockMetadataKey),
+                         categorization::VersionedUpdates::Value{str_sn, true});
+    updates.add(concord::kvbc::categorization::kConcordInternalCategoryId, std::move(in_updates));
+
+    blckchn.add(std::move(updates));
+  }
+  // put dummy value to check if storeLastReachableRevertBatch doesn't override
+  {
+    auto recdb = concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery::getRecoveryDB(path, false);
+    auto key = concord::kvbc::v4blockchain::detail::Blockchain::generateKey(numblocks);
+    recdb->put(key, std::string{"dummy"});
+  }
+  blckchn.storeLastReachableRevertBatch(false);
+  ASSERT_TRUE(fs::is_directory(exec_path));
+
+  {
+    auto recdb = concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery::getRecoveryDB(path, false);
+    auto key = concord::kvbc::v4blockchain::detail::Blockchain::generateKey(numblocks - 1);
+    auto val = recdb->get(key);
+    ASSERT_FALSE(val.has_value());
+    for (int i = numblocks; i < 2 * numblocks; ++i) {
+      key = concord::kvbc::v4blockchain::detail::Blockchain::generateKey(i);
+      val = recdb->get(key);
+      if (i == numblocks) {
+        ASSERT_EQ(*val, std::string{"dummy"});
+      }
+      if (!val.has_value()) {
+        ASSERT_TRUE(false);
+      }
     }
   }
 }

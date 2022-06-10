@@ -30,6 +30,7 @@ class NativeWriteBatch {
  public:
   NativeWriteBatch(const std::shared_ptr<const NativeClient> &) noexcept;
   NativeWriteBatch(const std::shared_ptr<const NativeClient> &, size_t reserved_bytes) noexcept;
+  NativeWriteBatch(const std::shared_ptr<const NativeClient> &, std::string &&data) noexcept;
   template <typename KeySpan, typename ValueSpan>
   void put(const std::string &cFamily, const KeySpan &key, const ValueSpan &value);
   template <typename KeySpan, typename ValueSpan>
@@ -64,6 +65,7 @@ class NativeWriteBatch {
 
   std::size_t size() const;
   std::uint32_t count() const;
+  std::string data() const { return batch_.Data(); }
 
  private:
   std::shared_ptr<const NativeClient> client_;

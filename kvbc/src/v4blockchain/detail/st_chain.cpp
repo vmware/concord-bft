@@ -23,7 +23,6 @@ StChain::StChain(const std::shared_ptr<concord::storage::rocksdb::NativeClient>&
   if (native_client_->createColumnFamilyIfNotExisting(v4blockchain::detail::ST_CHAIN_CF)) {
     LOG_INFO(V4_BLOCK_LOG,
              "Created [" << v4blockchain::detail::ST_CHAIN_CF << "] column family for the state transfer blockchain");
-    v4blockchain::detail::persistCf(v4blockchain::detail::ST_CHAIN_CF, native_client_);
   }
   loadLastBlockId();
   if (last_block_id_ > 0) {

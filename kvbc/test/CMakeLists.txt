@@ -338,7 +338,8 @@ if (BUILD_ROCKSDB_STORAGE)
     )
 
     add_executable(replica_state_sync_test replica_state_sync_test.cpp)
-    add_test(replica_state_sync_test replica_state_sync_test)
+    add_test(replica_state_sync_test_v4 replica_state_sync_test v4)
+    add_test(replica_state_sync_test_categorized replica_state_sync_test categorized)
     target_link_libraries(replica_state_sync_test PUBLIC
             GTest::Main
             GTest::GTest
