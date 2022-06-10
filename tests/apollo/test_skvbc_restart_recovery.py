@@ -497,25 +497,23 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         # start replicas
         [bft_network.start_replica(i) for i in bft_network.all_replicas()]
 
-        loop_count = 0
-        log.log_message(f"Loop run: {loop_count}")
+        loop_count_outer = 0
 
         #skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
 
-        while (loop_count < 5):
-            loop_count = loop_count + 1
-            log.log_message(f"Loop run: {loop_count}")
-            with net.PacketDroppingAdversary(bft_network, drop_rate_percentage=50) as adversary:
-                adversary.interfere()
+        while (loop_count_outer < 20):
+            loop_count_outer = loop_count_outer + 1
+            loop_count = 0
+            while (loop_count < 5):
+                loop_count = loop_count + 1
+                log.log_message(f"Loop run: {loop_count}")
+                with net.PacketDroppingAdversary(bft_network, drop_rate_percentage=50) as adversary:
+                    adversary.interfere()
 
-                view = await bft_network.get_current_view()
+                    primary = await bft_network.get_current_primary()
+                    bft_network.stop_replica(primary)
 
-                primary = await bft_network.get_current_primary()
-                bft_network.stop_replica(primary)
-
-                bft_network.start_replica(primary)
-
-                await bft_network.wait_for_replicas_to_reach_at_least_view(replicas_ids=bft_network.all_replicas(), expected_view=view + 1, timeout=60)
+                    bft_network.start_replica(primary)
 
                 await bft_network.wait_for_fast_path_to_be_prevalent(
                 run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
