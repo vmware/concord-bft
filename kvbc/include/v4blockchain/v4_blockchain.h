@@ -42,6 +42,7 @@ class KeyValueBlockchain {
   BlockId deleteBlocksUntil(BlockId until);
   void deleteGenesisBlock();
   void deleteLastReachableBlock();
+  void onFinishDeleteLastReachable();
   ///////////////////// State Transfer////////////////////
   // Returns true if a block exists in the blockchain or state-transfer chain
   bool hasBlock(BlockId) const;
@@ -64,29 +65,6 @@ class KeyValueBlockchain {
   // Gets the digest from block, the digest represents the digest of the previous block i.e. parent digest
   concord::util::digest::BlockDigest parentDigest(BlockId block_id) const;
   std::optional<BlockId> getLastStatetransferBlockId() const;
-
-  //////////////////Recovery infra///////////////////////////
-  /*
-  Recovery is needed when we crash while executing a BFT sequence number's requests.
-  On start, the blocks that were added as part of that sn will get deleted by calling,
-  deleteLastReachable.
-  The complexity is to revert the latest column family to the state prior the block addition, as
-  a key can get updated but its previous version is not known.
-
-  When we detect that a BFT sequnce number has changed, it means that the previous sequence number is committed,
-  and we can take a rocksdb snapshot of its blockchain state in order to use for recovery if the current sn execution
-  fails.
-
-  When deleteLastReachable is called, we take rocksdb stored sequnce number that was taken in the snapshot, and use it
-  to instantiate an inheritted Snapshot object.
-  that object is given to rocksdb when reading the last block KV in order to get their values as it was when the
-  previous BFT sequnce number has committed.
-  */
-  uint64_t onNewBFTSequenceNumber(const categorization::Updates &updates);
-  void checkpointInProcess(bool flag) { checkpointInProcess_ = flag; }
-  uint64_t getBlockSequenceNumber(const categorization::Updates &updates) const;
-  std::optional<uint64_t> getLastBlockSequenceNumber() { return last_block_sn_; }
-  void setLastBlockSequenceNumber(uint64_t sn) { last_block_sn_ = sn; }
 
   // In v4 storage in contrast to the categorized storage, pruning does not impact the state i.e. the digest
   // Of the blocks, in order to restrict deviation in the tail we add the genesis at the time the block is added,
@@ -147,8 +125,96 @@ class KeyValueBlockchain {
   // Precondition3: `block_id_at_checkpoint` <= getLastReachableBlockId()
   void trimBlocksFromSnapshot(BlockId block_id_at_checkpoint);
 
-  /////////////////////////////////////////
+  //////////////////Recovery infra///////////////////////////
+  /*
+  Recovery is needed when we crash while executing a BFT sequence number's requests or when trimming the blocks that
+  were added during a checkpoint creation. The complexity is to revert the latest column family to the state prior the
+  block addition, as a key can get updated but its previous version is not known. On BFT recovery, we detect that a BFT
+  sequence number has changed, and we can take a rocksdb snapshot of its blockchain state to use for recovery if the
+  current sn execution fails. the deletion process itself is a two-phase operation: 1 - open the blockchain in readonly
+  mode 2 - get the updates needed for reverting the last block, using the snapshot of either BFT or checkpoint. 3 - save
+  the serialized updates in a different recovery DB. 4- start the blockchain in write mode and apply the updates.
+
+  */
+
+  // take snapshot and release the prev if BFT sn has changed.
+  uint64_t onNewBFTSequenceNumber(const categorization::Updates &updates);
+  // take snapshot and release on start and end of checkpoint.
+  void checkpointInProcess(bool flag);
+  uint64_t getBlockSequenceNumber(const categorization::Updates &updates) const;
+  std::optional<uint64_t> getLastBlockSequenceNumber() { return last_block_sn_; }
+  void setLastBlockSequenceNumber(uint64_t sn) { last_block_sn_ = sn; }
   const ::rocksdb::Snapshot *getSnapShot() { return snap_shot_; }
+  const ::rocksdb::Snapshot *getChkpntSnapShot() { return chkpnt_snap_shot_; }
+  // open an instance of DB for storing recovery udpates.
+  std::shared_ptr<storage::rocksdb::NativeClient> getRecoveryDB();
+
+  // helper class for clients to call when recovery is needed.
+  // path - the path of the blockchain db.
+  struct BlockchainRecovery {
+    BlockchainRecovery(const std::string &path, bool is_chkpnt);
+    static std::shared_ptr<storage::rocksdb::NativeClient> getRecoveryDB(const std::string &path, bool is_chkpnt);
+    static void removeRecoveryDB(const std::string &path, bool is_chkpnt);
+    static std::string getPath(const std::string &path, bool is_chkpnt);
+  };
+
+  /*
+    this class is used on recovery, it's instantiated from the persisted RocksDB sequnce number,
+    and is given to RocksDB "get" method in the read options, in order to read values from a stable state.
+    */
+  struct RecoverySnapshot {
+    struct V4snapshot : ::rocksdb::Snapshot {
+      V4snapshot(::rocksdb::SequenceNumber sn) : sn_(sn) {}
+      virtual ::rocksdb::SequenceNumber GetSequenceNumber() const override { return sn_; }
+      virtual ~V4snapshot(){};
+      ::rocksdb::SequenceNumber sn_;
+    };
+
+    RecoverySnapshot(::rocksdb::DB *db) : db_(db) { sh_ = db_->GetSnapshot(); }
+    RecoverySnapshot(::rocksdb::DB *db, ::rocksdb::Snapshot *sh) : db_(db), sh_(sh) {}
+    /*
+     Get the value to store in the data base which is concatenation of the rocksdb sn,
+     and the Concord stable version that can be either BFT sn or block id depends whether
+     the context is recovery or trim block for checkpoint.
+     once the value is taken we don't wont to use the RAII property.
+    */
+    std::string getStorableSeqNumAndPreventRelease(const uint64_t stable_version) {
+      release = false;
+      return concordUtils::toBigEndianStringBuffer(sh_->GetSequenceNumber()) +
+             concordUtils::toBigEndianStringBuffer(stable_version);
+    }
+
+    static std::unique_ptr<V4snapshot> getV4SnapShotFromSeqnum(const std::string &sn) {
+      return std::make_unique<V4snapshot>(concordUtils::fromBigEndianBuffer<::rocksdb::SequenceNumber>(sn.data()));
+    }
+    // Get the BFT data part of the stored value
+    static uint64_t getStableVersion(const std::string &sn) {
+      return concordUtils::fromBigEndianBuffer<uint64_t>(sn.data() + sizeof(::rocksdb::SequenceNumber));
+    }
+    const ::rocksdb::Snapshot *get() { return sh_; }
+
+    // check if it's not V4snapshot
+    void releasePreviousSnapshot(const ::rocksdb::Snapshot *sh) { releasePreviousSnapshot(sh, db_); }
+    static void releasePreviousSnapshot(const ::rocksdb::Snapshot *sh, ::rocksdb::DB *db) {
+      if (dynamic_cast<const RecoverySnapshot::V4snapshot *>(sh) != nullptr) {
+        LOG_FATAL(V4_BLOCK_LOG, "Can't call rocksdb release with v4 snapshot");
+        ConcordAssert(false);
+      }
+      db->ReleaseSnapshot(sh);
+    }
+
+    ~RecoverySnapshot() {
+      if (release) {
+        db_->ReleaseSnapshot(sh_);
+      }
+    }
+    ::rocksdb::DB *db_{nullptr};
+    const ::rocksdb::Snapshot *sh_{nullptr};
+    bool release{true};
+  };
+
+  // Gets a set of updates needed to revert a last reachable block and stores them in a recovery db.
+  void storeLastReachableRevertBatch(bool checkpoint);
 
  private:  // Member functons
   std::optional<categorization::Value> getValueFromUpdate(BlockId block_id,
@@ -172,7 +238,10 @@ class KeyValueBlockchain {
   const float updates_to_final_size_ration_{2.5};
   // Not owner of the object, do not need to delete
   const ::rocksdb::Snapshot *snap_shot_{nullptr};
+  const ::rocksdb::Snapshot *chkpnt_snap_shot_{nullptr};
+  // const ::rocksdb::Snapshot *chkpoint_snap_shot_{nullptr};
   util::ThreadPool thread_pool_{1};
+  bool is_trimming_chkpnt_blocks_{false};
 };
 
 }  // namespace concord::kvbc::v4blockchain

@@ -52,10 +52,14 @@ Status DbCheckpointManager::createDbCheckpoint(const CheckpointId& checkPointId,
         LOG_ERROR(getLogger(), "Failed to create rocksdb checkpoint: " << KVLOG(checkPointId));
         return status;
       }
+      auto end_ckpnt = Clock::now();
+      auto duration_chpnt_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_ckpnt - start);
+      LOG_INFO(getLogger(), "just checkpoint duation: " << KVLOG(duration_chpnt_ms.count()));
       prepareCheckpointCb_(lastBlockId, dbClient_->getPathForCheckpoint(checkPointId));
       auto end = Clock::now();
 
       auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+      LOG_INFO(getLogger(), "checkpoint with cb duation: " << KVLOG(duration_ms.count()));
       lastDbCheckpointBlockId_.Get().Set(lastBlockId);
       numOfDbCheckpointsCreated_++;
       auto maxSoFar = maxDbCheckpointCreationTimeMsec_.Get().Get();

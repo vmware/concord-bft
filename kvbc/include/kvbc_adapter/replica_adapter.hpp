@@ -53,6 +53,13 @@ class ReplicaBlockchain : public IBlocksDeleter,
   void deleteGenesisBlock() override final { return deleter_->deleteGenesisBlock(); }
   BlockId deleteBlocksUntil(BlockId until) override final { return deleter_->deleteBlocksUntil(until); }
   void deleteLastReachableBlock() override final { return deleter_->deleteLastReachableBlock(); }
+
+  // Helper method, not part of the interface
+  void onFinishDeleteLastReachable() {
+    if (v4_kvbc_) {
+      v4_kvbc_->onFinishDeleteLastReachable();
+    }
+  }
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -222,9 +229,6 @@ class ReplicaBlockchain : public IBlocksDeleter,
     auto handle = native_client_->columnFamilyHandle(cf);
     native_client_->rawDB().GetIntProperty(handle, rocksdb::Slice(property.c_str(), property.length()), val);
   }
-
-  //
-  void enableCFOptions();
 
  private:
   void switch_to_rawptr();

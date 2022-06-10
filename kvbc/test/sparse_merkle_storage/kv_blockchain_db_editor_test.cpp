@@ -632,6 +632,7 @@ TEST_F(DbEditorTests, get_summary_stale_keys) {
 }
 
 TEST_F(DbEditorTests, get_summary_stale_active_keys) {
+  if (version == "v4") return;
   CreateBlockchain(other_path_db_id_, 1, std::nullopt, true);
   ASSERT_EQ(EXIT_SUCCESS,
             run(CommandLineArguments{{kTestName, rocksDbPath(other_path_db_id_), "getStaleKeysSummary"}}, out_, err_));

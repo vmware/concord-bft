@@ -26,6 +26,10 @@ inline NativeWriteBatch::NativeWriteBatch(const std::shared_ptr<const NativeClie
                                           size_t reserved_bytes) noexcept
     : client_{client}, batch_{reserved_bytes} {}
 
+inline NativeWriteBatch::NativeWriteBatch(const std::shared_ptr<const NativeClient> &client,
+                                          std::string &&data) noexcept
+    : client_{client}, batch_{std::move(data)} {}
+
 template <typename KeySpan, typename ValueSpan>
 void NativeWriteBatch::put(const std::string &cFamily, const KeySpan &key, const ValueSpan &value) {
   auto s = batch_.Put(client_->columnFamilyHandle(cFamily), detail::toSlice(key), detail::toSlice(value));

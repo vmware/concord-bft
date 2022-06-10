@@ -158,6 +158,10 @@ EDBKeyType DBKeyManipulator::getDBKeyType(const Sliver &s) {
     case toChar(EDBKeyType::Migration):
       return EDBKeyType::Migration;
   }
+  LOG_FATAL(
+      logger(),
+      "Key type does not match, key(hex) " << concordUtils::bufferToHex(s.data(), s.size()) << " key " << s.toString());
+  printCallStack();
   ConcordAssert(false);
 
   // Dummy return to silence the compiler.

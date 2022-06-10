@@ -148,6 +148,15 @@ void NativeClient::multiGet(const std::string &cFamily,
                             const std::vector<KeySpan> &keys,
                             std::vector<::rocksdb::PinnableSlice> &values,
                             std::vector<::rocksdb::Status> &statuses) const {
+  multiGet(cFamily, keys, values, statuses, ::rocksdb::ReadOptions{});
+}
+
+template <typename KeySpan>
+void NativeClient::multiGet(const std::string &cFamily,
+                            const std::vector<KeySpan> &keys,
+                            std::vector<::rocksdb::PinnableSlice> &values,
+                            std::vector<::rocksdb::Status> &statuses,
+                            ::rocksdb::ReadOptions ro) const {
   if (values.size() < keys.size()) {
     values.resize(keys.size());
   }
@@ -161,17 +170,17 @@ void NativeClient::multiGet(const std::string &cFamily,
   for (const auto &k : keys) {
     key_slices.emplace_back(detail::toSlice(k));
   }
-  client_->dbInstance_->MultiGet(::rocksdb::ReadOptions{},
-                                 columnFamilyHandle(cFamily),
-                                 key_slices.size(),
-                                 key_slices.data(),
-                                 values.data(),
-                                 statuses.data());
+  client_->dbInstance_->MultiGet(
+      ro, columnFamilyHandle(cFamily), key_slices.size(), key_slices.data(), values.data(), statuses.data());
 }
 
 inline NativeWriteBatch NativeClient::getBatch(size_t reserved_bytes) const {
   return reserved_bytes == 0 ? NativeWriteBatch{shared_from_this()}
                              : NativeWriteBatch{shared_from_this(), reserved_bytes};
+}
+
+inline NativeWriteBatch NativeClient::getBatch(std::string &&data) const {
+  return NativeWriteBatch{shared_from_this(), std::move(data)};
 }
 
 inline NativeIterator NativeClient::getIterator() const {

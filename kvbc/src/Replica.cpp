@@ -315,8 +315,7 @@ void Replica::createReplicaAndSyncState() {
       m_metadataStorage,
       pm_,
       secretsManager_,
-      std::bind(&AdaptivePruningManager::setPrimary, &AdaptivePruningManager_, std::placeholders::_1),
-      [&]() { m_kvBlockchain->enableCFOptions(); });
+      std::bind(&AdaptivePruningManager::setPrimary, &AdaptivePruningManager_, std::placeholders::_1));
   requestHandler->setPersistentStorage(m_replicaPtr->persistentStorage());
   AdaptivePruningManager_.initBFTClient(m_replicaPtr->internalClient());
 
@@ -354,6 +353,8 @@ void Replica::createReplicaAndSyncState() {
       [this]() -> uint64_t { return getLastBlockId(); },
       [value_converter = m_stateSnapshotValueConverter](BlockId block_id_at_checkpoint, const std::string &path) {
         const auto read_only = false;
+        // prepare the blockchain for the trim, needs to happen before we open the blockchain
+        concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery(path, true);
         auto db = storage::rocksdb::NativeClient::newClient(
             path, read_only, storage::rocksdb::NativeClient::DefaultOptions{});
         const auto link_st_chain = false;
@@ -470,6 +471,7 @@ Replica::Replica(ICommunication *comm,
                  const std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> &secretsManager)
     : logger(logging::getLogger("skvbc.replica")),
       m_currentRepStatus(RepStatus::Idle),
+      blockchain_recovery(storageFactory->path(), false),
       m_dbSet{storageFactory->newDatabaseSet()},
       m_bcDbAdapter{std::move(m_dbSet.dbAdapter)},
       m_metadataDBClient{m_dbSet.metadataDBClient},

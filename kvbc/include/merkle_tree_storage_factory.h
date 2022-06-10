@@ -46,6 +46,7 @@ class RocksDBStorageFactory : public IStorageFactory {
   DatabaseSet newDatabaseSet() const override;
   std::unique_ptr<storage::IMetadataKeyManipulator> newMetadataKeyManipulator() const override;
   std::unique_ptr<storage::ISTKeyManipulator> newSTKeyManipulator() const override;
+  std::string path() const override { return dbPath_; }
 
  private:
   const std::string dbPath_;
@@ -62,6 +63,7 @@ class MemoryDBStorageFactory : public IStorageFactory {
   DatabaseSet newDatabaseSet() const override;
   std::unique_ptr<storage::IMetadataKeyManipulator> newMetadataKeyManipulator() const override;
   std::unique_ptr<storage::ISTKeyManipulator> newSTKeyManipulator() const override;
+  std::string path() const override { return ""; }
 };
 
 }  // namespace concord::kvbc::v2MerkleTree
