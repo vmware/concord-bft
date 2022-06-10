@@ -512,8 +512,9 @@ class SkvbcRestartRecoveryTest(ApolloTest):
 
                     primary = await bft_network.get_current_primary()
                     bft_network.stop_replica(primary)
-
                     bft_network.start_replica(primary)
+
+                    await trio.sleep(seconds=20)
 
                 await bft_network.wait_for_fast_path_to_be_prevalent(
                 run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
