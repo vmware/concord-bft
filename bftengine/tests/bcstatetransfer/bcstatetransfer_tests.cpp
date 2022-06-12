@@ -689,6 +689,7 @@ void DataGenerator::generateCheckpointDescriptors(const TestAppState& appState,
     DataStore::ResPagesDescriptor* resPagesDesc = datastore->getResPagesDescriptor(i);
     Digest digestOfResPagesDescriptor;
     BCStateTran::computeDigestOfPagesDescriptor(resPagesDesc, digestOfResPagesDescriptor);
+    datastore->free(resPagesDesc);
 
     desc.digestOfResPagesDescriptor = digestOfResPagesDescriptor;
     rvbm->updateRvbDataDuringCheckpoint(desc);
@@ -1136,6 +1137,7 @@ void FakeSources::replyResPagesMsg(bool& outDoneSending) {
                                               targetConfig_.sizeOfReservedPage);
       idx++;
     }
+    datastore_->free(resPagesDesc);
   }
   ASSERT_TRUE(rawVBlock_.get());
   uint32_t vblockSize = stDelegator_->getSizeOfVirtualBlock(rawVBlock_.get(), targetConfig_.sizeOfReservedPage);
