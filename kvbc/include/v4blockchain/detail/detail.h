@@ -24,7 +24,7 @@ struct ScopedDuration {
   ~ScopedDuration() {
     auto jobDuration =
         std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
-    LOG_INFO(V4_BLOCK_LOG, msg_ << " duration [" << jobDuration << "] micro");
+    LOG_DEBUG(V4_BLOCK_LOG, msg_ << " duration [" << jobDuration << "] micro");
   }
 
   const char* msg_;

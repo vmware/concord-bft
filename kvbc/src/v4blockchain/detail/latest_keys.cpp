@@ -483,7 +483,7 @@ bool LatestKeys::LKCompactionFilter::Filter(int /*level*/,
   auto ts_slice = ::rocksdb::Slice(val.data() + val.size() - VERSION_SIZE, VERSION_SIZE);
   auto key_version = concordUtils::fromBigEndianBuffer<uint64_t>(ts_slice.data());
   if (key_version >= genesis) return false;
-  LOG_INFO(V4_BLOCK_LOG, "Filtering key with version " << key_version << " genesis is " << genesis);
+  LOG_DEBUG(V4_BLOCK_LOG, "Filtering key with version " << key_version << " genesis is " << genesis);
   return true;
 }
 
