@@ -10,8 +10,6 @@
 // terms and conditions of the subcomponent's license, as noted in the
 // LICENSE file.
 //
-// Created by yflum on 01/06/2022.
-//
 #pragma once
 #include <memory>
 

@@ -22,6 +22,7 @@
 #include <iostream>
 #include <chrono>
 #include <boost/program_options.hpp>
+#include "thread_pool.hpp"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
@@ -38,6 +39,10 @@
 
 static std::unique_ptr<std::vector<uint8_t>> s_data{nullptr};
 
+/**
+ * Initializes randomDataBytes random bytes
+ * @param randomDataBytes
+ */
 void initRandomData(size_t randomDataBytes) {
   assert(randomDataBytes % sizeof(uint32_t) == 0);
   // Single threaded implementation
@@ -56,25 +61,27 @@ const std::vector<uint8_t>& getRandomData() { return *s_data; }
 
 enum Algorithm { EdDSA = 1, BlsThreshold = 2, BlsMultisig = 3 };
 
-IThresholdFactory* getFactory(Algorithm alg) {
+/// Returns an initialized factory which is used to generate signers and verifiers of alg
+std::unique_ptr<IThresholdFactory> getFactory(Algorithm alg) {
   if (alg == EdDSA) {
-    return new EdDSAMultisigFactory();
+    return std::make_unique<EdDSAMultisigFactory>();
   }
   if (alg == BlsThreshold || alg == BlsMultisig) {
     bool multisig = alg == BlsMultisig;
-    return new BLS::Relic::BlsThresholdFactory(BLS::Relic::PublicParametersFactory::getByCurveType("BN-P254"), multisig);
+    return std::make_unique<BLS::Relic::BlsThresholdFactory>(
+        BLS::Relic::PublicParametersFactory::getByCurveType("BN-P254"), multisig);
   }
 
   throw;
 }
 
+/// Used because of the interface of picobench
 struct BenchmarkParams {
-  IThresholdFactory* factory;
+  std::unique_ptr<IThresholdFactory> factory;
   uint64_t messageByteCount;
   int signerCount;
   int threshold;
   uint64_t messageCount;
-
 };
 
 /**
@@ -83,7 +90,7 @@ struct BenchmarkParams {
  */
 void signerBenchmark(picobench::state& s) {
   const BenchmarkParams& params = *(BenchmarkParams*)s.user_data();
-  auto [factory, msgByteSize, signerCount, threshold, messageCount] = params;
+  auto& [factory, msgByteSize, signerCount, threshold, messageCount] = params;
   const auto& dataToSign = getRandomData();
   auto [signers, _] = factory->newRandomSigners(threshold, signerCount);
 
@@ -113,7 +120,7 @@ void signerBenchmark(picobench::state& s) {
  */
 void verifierBenchmark(picobench::state& s) {
   const BenchmarkParams& params = *(BenchmarkParams*)s.user_data();
-  auto [factory, msgByteSize, signerCount, threshold, messageCount] = params;
+  auto& [factory, msgByteSize, signerCount, threshold, messageCount] = params;
 
   if (s.iterations() > messageCount) {
     std::cout << "Warning: The number of verification rounds: " << s.iterations()
@@ -167,9 +174,10 @@ void verifierBenchmark(picobench::state& s) {
   s.set_result(validVerificationCount);
 }
 
-std::function<void(picobench::state & s)> addPrints(const std::string& name, std::function<void(picobench::state & s)> func) {
-  return [func, name](picobench::state & s) {
-    std::cout << "Running Benchmark" << name << "...";
+std::function<void(picobench::state& s)> printInfo(const std::string& name,
+                                                   std::function<void(picobench::state& s)> func) {
+  return [func, name](picobench::state& s) {
+    std::cout << "Running " << name << "...";
     std::cout.flush();
     auto start = std::chrono::high_resolution_clock::now();
     func(s);
@@ -188,12 +196,16 @@ namespace po = boost::program_options;
 
 int main(int argc, char* argv[]) {
   po::options_description desc;
+  bool noSignersBenchmark = true;
+  bool noVerifierBenchmark = true;
   // clang-format off
   desc.add_options()
     ("signers", po::value<std::vector<int>>()->required()->multitoken(), "Number of signers, separated by a comma")
     ("thresholds", po::value<std::vector<int>>()->required()->multitoken(), "Signature validation thresholds, separated by a comma")
     ("random", po::value<uint64_t>()->default_value(1 << 20), "Random bytes to be used as messages to sign")
     ("message", po::value<uint64_t>()->default_value(1 << 10), "The byte size of a single message")
+    ("no-signer", po::bool_switch(&noSignersBenchmark), "Dont benchmark signers")
+    ("no-verifier", po::bool_switch(&noVerifierBenchmark), "Dont benchmark verifier")
   ;
   // clang-format on
   po::variables_map opts;
@@ -216,9 +228,18 @@ int main(int argc, char* argv[]) {
 
   const auto randomByteCount = opts["random"].as<uint64_t>();
   const auto messageByteCount = opts["message"].as<uint64_t>();
-  const std::unordered_map<Algorithm, std::string> algToName = {{EdDSA, "eddsa"}, {BlsThreshold, "bls-tresh"}, {BlsMultisig, "bls-multisig"}};
-  const std::unordered_map<std::string, std::function<void(picobench::state & s)>> suiteToFunction = {
-      {"Signer", signerBenchmark}, {"Verifier", verifierBenchmark}};
+  const std::unordered_map<Algorithm, std::string> algToName = {
+      {EdDSA, "eddsa"}, {BlsThreshold, "bls-tresh"}, {BlsMultisig, "bls-multisig"}};
+  std::unordered_map<std::string, std::function<void(picobench::state & s)>> suiteToFunction;
+
+  if (!noSignersBenchmark) {
+    suiteToFunction.emplace("SignerBenchmark", signerBenchmark);
+  }
+
+  if (!noVerifierBenchmark) {
+    suiteToFunction.emplace("VerifierBenchmark", verifierBenchmark);
+  }
+
   std::vector<std::string> titles;
   std::vector<std::unique_ptr<BenchmarkParams>> params;
 
@@ -234,10 +255,13 @@ int main(int argc, char* argv[]) {
             .threshold = thresholds[i],
             .messageCount = randomByteCount / messageByteCount,
         };
-        params.push_back(std::make_unique<BenchmarkParams>(currentParams));
-        auto& currentBenchmark =
-            picobench::global_registry::new_benchmark(algName.c_str(), addPrints(titles.back() + ", Algorithm: " + algName, suiteToFunction.at(suiteName)));
+        params.push_back(std::make_unique<BenchmarkParams>(std::move(currentParams)));
+        auto& currentBenchmark = picobench::global_registry::new_benchmark(
+            algName.c_str(), printInfo(titles.back() + ", Algorithm: " + algName, suiteToFunction.at(suiteName)));
         currentBenchmark.user_data((uintptr_t)params.back().get());
+        if (algName == algToName.at(EdDSA)) {
+          currentBenchmark.baseline(true);
+        }
       }
     }
   }

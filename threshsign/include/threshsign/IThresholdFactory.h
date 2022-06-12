@@ -25,6 +25,8 @@ class IShareVerificationKey;
 
 class IThresholdFactory {
  public:
+  using SignersVerifierTuple =
+      std::tuple<std::vector<std::unique_ptr<IThresholdSigner>>, std::unique_ptr<IThresholdVerifier>>;
   virtual ~IThresholdFactory() {}
 
  public:
@@ -45,8 +47,7 @@ class IThresholdFactory {
    * Generates numSigners IThresholdSigner objects with random SKs and a corresponding IThresholdVerifier.
    * Useful for writing tests!
    */
-  virtual std::tuple<std::vector<IThresholdSigner*>, IThresholdVerifier*> newRandomSigners(
-      NumSharesType reqSigners, NumSharesType numSigners) const = 0;
+  virtual SignersVerifierTuple newRandomSigners(NumSharesType reqSigners, NumSharesType numSigners) const = 0;
 
   /**
    * Generates a single key pair
