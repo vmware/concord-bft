@@ -17,6 +17,7 @@
 #include <cstring>
 #include <deque>
 #include <memory>
+
 #include "IStateTransfer.hpp"
 #include "messages/MessageBase.hpp"
 
@@ -45,7 +46,7 @@ class TestReplica : public IReplicaForStateTransfer {
   ///////////////////////////////////////////////////////////////////////////
   void onTransferringComplete(uint64_t checkpointNumberOfNewState) override { onTransferringCompleteCalled_ = true; };
 
-  void freeStateTransferMsg(char* m) override { delete m; }
+  void freeStateTransferMsg(char* msg) override { std::free(msg); }
 
   void sendStateTransferMessage(char* m, uint32_t size, uint16_t replicaId) override {
     sent_messages_.emplace_back(Msg(m, size, replicaId));
