@@ -23,8 +23,8 @@ class EdDSAMultisigFactory : public IThresholdFactory {
                                   const char *publicKeyStr,
                                   const std::vector<std::string> &verifKeysHex) const override;
   IThresholdSigner *newSigner(ShareID id, const char *secretKeyStr) const override;
-  std::tuple<std::vector<IThresholdSigner *>, IThresholdVerifier *> newRandomSigners(
-      NumSharesType reqSigners, NumSharesType numSigners) const override;
+  IThresholdFactory::SignersVerifierTuple newRandomSigners(NumSharesType reqSigners,
+                                                           NumSharesType numSigners) const override;
   std::pair<std::unique_ptr<IShareSecretKey>, std::unique_ptr<IShareVerificationKey>> newKeyPair() const override;
   ~EdDSAMultisigFactory() override = default;
 };

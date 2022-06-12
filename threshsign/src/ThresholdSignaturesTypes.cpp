@@ -94,10 +94,7 @@ void Cryptosystem::generateNewPseudorandomKeys() {
     privateKeys_[i] = signers[i]->getShareSecretKey().toString();
   }
 
-  for (auto signer : signers) delete signer;
-
   signerID_ = NID;
-  delete verifier;
 }
 
 std::pair<std::string, std::string> Cryptosystem::generateNewKeyPair() {

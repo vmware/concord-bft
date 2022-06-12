@@ -78,34 +78,34 @@ IThresholdSigner* BlsThresholdFactory::newSigner(ShareID id, const char* secretK
   return new BlsThresholdSigner(params, id, BNT(std::string(secretKeyStr)));
 }
 
-std::tuple<std::vector<IThresholdSigner*>, IThresholdVerifier*> BlsThresholdFactory::newRandomSigners(
-    NumSharesType reqSigners, NumSharesType numSigners) const {
+IThresholdFactory::SignersVerifierTuple BlsThresholdFactory::newRandomSigners(NumSharesType reqSigners,
+                                                                              NumSharesType numSigners) const {
   // Need to generate secret keys for the signers
   std::unique_ptr<BlsThresholdKeygenBase> keygen(newKeygen(reqSigners, numSigners));
 
   // Create signers
-  std::vector<IThresholdSigner*> sks(static_cast<size_t>(numSigners + 1));  // 1-based indices
-  std::vector<BlsPublicKey> verifKeys;                                      // 1-based indices as well
-  verifKeys.push_back(BlsPublicKey());                                      // signer 0 has no PK
+  std::vector<std::unique_ptr<IThresholdSigner>> sks(static_cast<size_t>(numSigners + 1));  // 1-based indices
+  std::vector<BlsPublicKey> verifKeys;                                                      // 1-based indices as well
+  verifKeys.push_back(BlsPublicKey());                                                      // signer 0 has no PK
 
   for (ShareID i = 1; i <= numSigners; i++) {
     size_t idx = static_cast<size_t>(i);  // thanks, C++!
 
-    sks[idx] = new BlsThresholdSigner(params, i, keygen->getShareSecretKey(i));
+    sks[idx].reset(new BlsThresholdSigner(params, i, keygen->getShareSecretKey(i)));
     verifKeys.push_back(dynamic_cast<const BlsPublicKey&>(sks[idx]->getShareVerificationKey()));
   }
 
   // Create verifier
-  IThresholdVerifier* verifier;
+  std::unique_ptr<IThresholdVerifier> verifier;
 
   if (useMultisig) {
     LOG_DEBUG(BLS_LOG, "Creating multisig BLS verifier");
-    verifier = new BlsMultisigVerifier(params, reqSigners, numSigners, verifKeys);
+    verifier.reset(new BlsMultisigVerifier(params, reqSigners, numSigners, verifKeys));
   } else {
-    verifier = new BlsThresholdVerifier(params, keygen->getPublicKey(), reqSigners, numSigners, verifKeys);
+    verifier.reset(new BlsThresholdVerifier(params, keygen->getPublicKey(), reqSigners, numSigners, verifKeys));
   }
 
-  return std::make_tuple(sks, verifier);
+  return {std::move(sks), std::move(verifier)};
 }
 
 std::pair<std::unique_ptr<IShareSecretKey>, std::unique_ptr<IShareVerificationKey>> BlsThresholdFactory::newKeyPair()

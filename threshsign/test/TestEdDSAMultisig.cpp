@@ -128,29 +128,32 @@ TEST_F(EdDSAMultisigTest, TestSignVerifyInvalidSignature) {
   ASSERT_FALSE(eddsaPublicKey->verify(testMsgDigest(), signature));
 }
 
-TEST_F(EdDSAMultisigTest, TestValidMultiSignature) {
+TEST_F(EdDSAMultisigTest, TestValidMultiSignatureSmallThreshold) {
   constexpr const uint64_t n_signers = 7;
-  auto [signers, verifier] = factory_.newRandomSigners(n_signers, n_signers);
-  auto accumulator = verifier->newAccumulator(false);
   const auto digest = testMsgDigest();
 
-  accumulator->setExpectedDigest(reinterpret_cast<const unsigned char*>(digest.data()), (int)digest.size());
-  std::vector<SingleEdDSASignature> signatures(signers.size() - 1);
-  for (size_t i = 0; i < signatures.size(); i++) {
-    signers[i + 1]->signData(
-        digest.data(), (int)digest.size(), reinterpret_cast<char*>(&signatures[i]), sizeof(SingleEdDSASignature));
-  }
-  // Make sure that verification does not depend on order, as signatures do not arrive in order
-  std::random_shuffle(signatures.begin(), signatures.end());
-  for (auto& signature : signatures) {
-    accumulator->add(reinterpret_cast<const char*>(&signature), sizeof(SingleEdDSASignature));
-  }
+  for (int threshold = 1; threshold <= 7; threshold++) {
+    auto [signers, verifier] = factory_.newRandomSigners(n_signers, n_signers);
+    auto accumulator = verifier->newAccumulator(false);
 
-  auto multisigBytes = verifier->requiredLengthForSignedData();
-  auto multisigBuffer = std::make_unique<char[]>((size_t)multisigBytes);
-  accumulator->getFullSignedData(multisigBuffer.get(), multisigBytes);
+    accumulator->setExpectedDigest(reinterpret_cast<const unsigned char*>(digest.data()), (int)digest.size());
+    std::vector<SingleEdDSASignature> signatures(signers.size() - 1);
+    for (size_t i = 0; i < signatures.size(); i++) {
+      signers[i + 1]->signData(
+          digest.data(), (int)digest.size(), reinterpret_cast<char*>(&signatures[i]), sizeof(SingleEdDSASignature));
+    }
+    // Make sure that verification does not depend on order, as signatures do not arrive in order
+    std::random_shuffle(signatures.begin(), signatures.end());
+    for (auto& signature : signatures) {
+      accumulator->add(reinterpret_cast<const char*>(&signature), sizeof(SingleEdDSASignature));
+    }
 
-  ASSERT_TRUE(verifier->verify(digest.data(), (int)digest.size(), multisigBuffer.get(), multisigBytes));
+    auto multisigBytes = verifier->requiredLengthForSignedData();
+    auto multisigBuffer = std::make_unique<char[]>((size_t)multisigBytes);
+    accumulator->getFullSignedData(multisigBuffer.get(), multisigBytes);
+
+    ASSERT_TRUE(verifier->verify(digest.data(), (int)digest.size(), multisigBuffer.get(), multisigBytes));
+  }
 }
 
 TEST_F(EdDSAMultisigTest, TestInvalidMultiSignature) {
