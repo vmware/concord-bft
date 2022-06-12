@@ -70,10 +70,14 @@ IThresholdAccumulator *EdDSAMultisigVerifier::newAccumulator(bool withShareVerif
 
 bool EdDSAMultisigVerifier::verifySingleSignature(const std::string_view msg,
                                                   const SingleEdDSASignature &signature) const {
-  auto result = EdDSAMultisigVerifier::publicKeys_[signature.id].verify(reinterpret_cast<const uint8_t *>(msg.data()),
-                                                                        msg.size(),
-                                                                        signature.signatureBytes.data(),
-                                                                        signature.signatureBytes.size());
+  if (signature.id == 0) {
+    return false;
+  }
+
+  auto result = publicKeys_[signature.id].verify(reinterpret_cast<const uint8_t *>(msg.data()),
+                                                 msg.size(),
+                                                 signature.signatureBytes.data(),
+                                                 signature.signatureBytes.size());
   LOG_DEBUG(EDDSA_MULTISIG_LOG, "Verified id: " << KVLOG(signature.id, result));
   return result;
 }
@@ -91,16 +95,13 @@ bool EdDSAMultisigVerifier::verify(const char *msg, int msgLen, const char *sig,
 
   const SingleEdDSASignature *allSignatures = reinterpret_cast<const SingleEdDSASignature *>(sig);
   size_t validSignatureCount = 0;
-  for (int i = 0; i < static_cast<int>(signatureCountInBuffer); i++) {
-    auto &currentSignature = allSignatures[i];
-    if (currentSignature.id == 0) {
-      continue;
-    }
-    auto result = verifySingleSignature(std::string_view(msg, msgLenUnsigned), currentSignature);
+
+  for (int i = 0; i < (int)signatureCountInBuffer; i++) {
+    auto result = verifySingleSignature(std::string_view(msg, msgLenUnsigned), allSignatures[i]);
     validSignatureCount += result == true;
   }
 
-  bool result = validSignatureCount == threshold_;
+  bool result = validSignatureCount >= threshold_;
   LOG_DEBUG(EDDSA_MULTISIG_LOG, KVLOG(validSignatureCount, threshold_));
   return result;
 }

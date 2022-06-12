@@ -46,29 +46,29 @@ IThresholdSigner *EdDSAMultisigFactory::newSigner(ShareID id, const char *secret
       SSLEdDSAPrivateKey::fromHexString(std::string(secretKeyStr, SSLEdDSAPrivateKey::KeyByteSize * 2)), (uint32_t)id);
 }
 
-std::tuple<std::vector<IThresholdSigner *>, IThresholdVerifier *> EdDSAMultisigFactory::newRandomSigners(
-    NumSharesType reqSigners, NumSharesType numSigners) const {
+IThresholdFactory::SignersVerifierTuple EdDSAMultisigFactory::newRandomSigners(NumSharesType reqSigners,
+                                                                               NumSharesType numSigners) const {
   std::vector<SSLEdDSAPrivateKey> allPrivateKeys;
   std::vector<SSLEdDSAPublicKey> allPublicKeys;
-  std::vector<IThresholdSigner *> signers;
+  std::vector<std::unique_ptr<IThresholdSigner>> signers(static_cast<size_t>(numSigners + 1));
 
   // One-based indices
   allPrivateKeys.push_back(SSLEdDSAPrivateKey{{0}});
   allPublicKeys.push_back(SSLEdDSAPublicKey{{0}});
-  signers.push_back(new EdDSAMultisigSigner(allPrivateKeys[0], (uint32_t)0));
+  signers[0].reset(new EdDSAMultisigSigner(allPrivateKeys[0], (uint32_t)0));
 
   ConcordAssertLE(reqSigners, numSigners);
-  for (int i = 0; i < numSigners; i++) {
+  for (size_t i = 1; i <= static_cast<size_t>(numSigners); i++) {
     auto [privateKey, publicKey] = newKeyPair();
     const auto &priv = *dynamic_cast<SSLEdDSAPrivateKey *>(privateKey.get());
     const auto &pub = *dynamic_cast<SSLEdDSAPublicKey *>(publicKey.get());
     allPrivateKeys.push_back(priv);
     allPublicKeys.push_back(pub);
-    signers.push_back(new EdDSAMultisigSigner(allPrivateKeys[(size_t)i + 1], (uint32_t)i + 1));
+    signers[i].reset(new EdDSAMultisigSigner(allPrivateKeys[static_cast<size_t>(i)], static_cast<uint32_t>(i)));
   }
 
-  EdDSAMultisigVerifier *verifier = new EdDSAMultisigVerifier(allPublicKeys, (size_t)numSigners, (size_t)reqSigners);
-  return {signers, verifier};
+  auto verifier = std::make_unique<EdDSAMultisigVerifier>(allPublicKeys, (size_t)numSigners, (size_t)reqSigners);
+  return {std::move(signers), std::move(verifier)};
 }
 
 std::pair<std::unique_ptr<IShareSecretKey>, std::unique_ptr<IShareVerificationKey>> EdDSAMultisigFactory::newKeyPair()
