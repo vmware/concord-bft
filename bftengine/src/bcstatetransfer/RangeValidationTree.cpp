@@ -566,7 +566,6 @@ void RangeValidationTree::printToLog(LogPrintVerbosity verbosity, string&& user_
   q.push(root_);
   while (q.size()) {
     auto& node = q.front();
-    q.pop();
     oss << node->info_.toString() << " ";
 
     if (verbosity == LogPrintVerbosity::DETAILED) {
@@ -585,6 +584,7 @@ void RangeValidationTree::printToLog(LogPrintVerbosity verbosity, string&& user_
     }
     oss << "|";
     if (node->info_.level() == 1) {
+      q.pop();
       continue;
     }
 
@@ -595,6 +595,7 @@ void RangeValidationTree::printToLog(LogPrintVerbosity verbosity, string&& user_
       ConcordAssert(iter != id_to_node_.end());
       q.push(iter->second);
     }
+    q.pop();
   }
   LOG_INFO(logger_, oss.str());
 }
