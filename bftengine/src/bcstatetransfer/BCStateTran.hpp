@@ -388,7 +388,7 @@ class BCStateTran : public IStateTransfer {
 
   typedef MsgsCertificate<CheckpointSummaryMsg, false, false, true, CheckpointSummaryMsg> CheckpointSummaryMsgCert;
 
-  // map from checkpintNum to CheckpointSummaryMsgCert
+  // map from checkpointNum to CheckpointSummaryMsgCert
   map<uint64_t, CheckpointSummaryMsgCert*> summariesCerts;
 
   // map from replica Id to number of accepted CheckpointSummaryMsg messages

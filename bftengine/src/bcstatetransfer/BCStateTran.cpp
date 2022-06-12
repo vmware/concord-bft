@@ -1609,13 +1609,8 @@ bool BCStateTran::onMessage(const AskForCheckpointSummariesMsg *m, uint32_t msgL
     if (!psd_->hasCheckpointDesc(i)) continue;
 
     DataStore::CheckpointDesc cpDesc = psd_->getCheckpointDesc(i);
-    auto deleter = [](CheckpointSummaryMsg *msg) {
-      char *bytes = reinterpret_cast<char *>(msg);
-      delete[] bytes;
-    };
-    auto msg = std::unique_ptr<CheckpointSummaryMsg, decltype(deleter)>(
-        CheckpointSummaryMsg::create(cpDesc.rvbData.size()), deleter);
 
+    auto msg = CheckpointSummaryMsg::alloc(cpDesc.rvbData.size());
     msg->checkpointNum = i;
     msg->maxBlockId = cpDesc.maxBlockId;
     msg->digestOfMaxBlockId = cpDesc.digestOfMaxBlockId;
@@ -1632,8 +1627,8 @@ bool BCStateTran::onMessage(const AskForCheckpointSummariesMsg *m, uint32_t msgL
                                                        msg->requestMsgSeqNum,
                                                        msg->sizeofRvbData()));
 
-    replicaForStateTransfer_->sendStateTransferMessage(reinterpret_cast<char *>(msg.get()), msg->size(), replicaId);
-
+    replicaForStateTransfer_->sendStateTransferMessage(reinterpret_cast<char *>(msg), msg->size(), toReplicaId);
+    CheckpointSummaryMsg::free(msg);
     metrics_.sent_checkpoint_summary_msg_++;
     sent = true;
   }
@@ -2132,7 +2127,7 @@ void BCStateTran::continueSendBatch() {
       if ((rvbGroupDigestsActualSize == 0) || (sb.rvbGroupDigestsExpectedSize != rvbGroupDigestsActualSize)) {
         auto additionalInfo = "Rejecting message - not holding all requested digests (or some other error)" +
                               KVLOG(sb.rvbGroupDigestsExpectedSize, rvbGroupDigestsActualSize);
-        ItemDataMsg::free(outMsg);
+        replicaForStateTransfer_->freeStateTransferMsg(reinterpret_cast<char *>(outMsg));
         sendRejectFetchingMsg(
             RejectFetchingMsg::Reason::DIGESTS_FOR_RVBGROUP_NOT_FOUND, m->msgSeqNum, sb.destReplicaId, additionalInfo);
         sourceSession_.close();
