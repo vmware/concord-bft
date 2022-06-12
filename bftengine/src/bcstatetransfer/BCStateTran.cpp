@@ -3606,7 +3606,7 @@ void BCStateTran::onGettingMissingBlocksEnd(DataStoreTransaction *txn) {
 // up to the point we have reached
 void BCStateTran::cycleEndSummary() {
   Throughput::Results blocksCollectedResults, bytesCollectedResults, blocksPostProcessedResults;
-  std::ostringstream sources_str;
+  std::ostringstream sources_str("NA");
   const auto &sources_ = sourceSelector_.getActualSources();
   auto internalCycleCounter = metrics_.internal_cycle_counter.Get().Get();
 
@@ -3623,8 +3623,10 @@ void BCStateTran::cycleEndSummary() {
   bytesFetched_.stop(true);
   blocksPostProcessed_.stop(true);
 
-  std::copy(sources_.begin(), sources_.end() - 1, std::ostream_iterator<uint16_t>(sources_str, ","));
-  sources_str << sources_.back();
+  if (!sources_.empty()) {
+    std::copy(sources_.begin(), sources_.end() - 1, std::ostream_iterator<uint16_t>(sources_str, ","));
+    sources_str << sources_.back();
+  }
   auto cycleDuration = cycleDT_.totalDuration(true);
   auto gettingCheckpointSummariesDuration = gettingCheckpointSummariesDT_.totalDuration(true);
   auto gettingMissingBlocksDuration = gettingMissingBlocksDT_.totalDuration(true);
