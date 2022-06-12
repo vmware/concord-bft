@@ -50,6 +50,7 @@ class ImmutableKeyValueCategory {
   ImmutableOutput add(BlockId, ImmutableInput &&, storage::rocksdb::NativeWriteBatch &);
 
   std::vector<std::string> getBlockStaleKeys(BlockId, const ImmutableOutput &) const;
+  std::set<std::string> getStaleActiveKeys(BlockId, const ImmutableOutput &) const { return {}; }
 
   // Delete the genesis block. Implemented by directly calling deleteBlock().
   std::size_t deleteGenesisBlock(BlockId, const ImmutableOutput &, detail::LocalWriteBatch &);

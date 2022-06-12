@@ -24,11 +24,13 @@
 #include "sliver.hpp"
 #include "storage/db_types.h"
 #include "storage/merkle_tree_key_manipulator.h"
+#include "categorization/updates.h"
 
 namespace {
 
 using namespace concord::kvbc::v2MerkleTree;
 using concord::kvbc::BlockId;
+using concord::kvbc::categorization::Updates;
 using concord::kvbc::INITIAL_GENESIS_BLOCK_ID;
 using concord::kvbc::SetOfKeyValuePairs;
 using concordUtils::toBigEndianStringBuffer;
@@ -61,10 +63,11 @@ class DbEditorTestsBase : public Test {
 
   virtual void CreateBlockchain(std::size_t db_id,
                                 BlockId blocks,
-                                std::optional<BlockId> mismatch_at = std::nullopt) = 0;
+                                std::optional<BlockId> mismatch_at = std::nullopt,
+                                bool override_keys = false) = 0;
 
   virtual void DeleteBlocksUntil(std::size_t db_id, BlockId until_block_id) = 0;
-
+  virtual BlockId AddBlock(std::size_t db_id, Updates&& updates) = 0;
   Sliver getSliver(unsigned value) { return toBigEndianStringBuffer(value); }
 
   SetOfKeyValuePairs generateMetadata() {

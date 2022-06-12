@@ -530,7 +530,8 @@ struct GetCategoryEarliestStale {
            "  Returns the first blockID and a list of stale keys for this blockID a given category has in \n"
            "  the [genesisBlockID, BLOCK-VERSION-TO] range.\n"
            "  If BLOCK-VERSION-TO is not set, the search range is [genesisBlockID, lastReachableBlockID].\n"
-           "  Note that this method performs linear search which may take time on big blockchains.";
+           "  Note that this method performs linear search which may take time on big blockchains."
+           "  Note that this method does not take into account stale active keys";
   }
 
   std::string execute(KeyValueBlockchain &adapter, const CommandArguments &args) const {
@@ -606,20 +607,31 @@ struct GetStaleKeysSummary {
     }
     const auto &categories = adapter.blockchainCategories();
     std::map<CATEGORY_TYPE, uint64_t> stale_keys_per_category_type_;
+    std::map<CATEGORY_TYPE, std::set<std::string>> stale_active_keys_per_category_type_;
     for (const auto &[cat_id, cat_type] : categories) {
       (void)cat_id;
       stale_keys_per_category_type_.emplace(cat_type, 0);
     }
     for (auto block = firstBlockID; block <= latestBlockID; block++) {
       auto stale_keys = adapter.getBlockStaleKeys(block);
+      auto stale_active_keys = adapter.getStaleActiveKeys(block);
       for (const auto &[cat_id, cat_type] : categories) {
         stale_keys_per_category_type_[cat_type] += stale_keys[cat_id].size();
+        stale_active_keys_per_category_type_[cat_type].insert(stale_active_keys[cat_id].begin(),
+                                                              stale_active_keys[cat_id].end());
       }
     }
+    stale_keys_per_category_type_[CATEGORY_TYPE::block_merkle] +=
+        stale_active_keys_per_category_type_[CATEGORY_TYPE::block_merkle].size();
+    stale_keys_per_category_type_[CATEGORY_TYPE::versioned_kv] +=
+        stale_active_keys_per_category_type_[CATEGORY_TYPE::versioned_kv].size();
     std::map<std::string, std::string> out;
-    for (auto const &[cat_type, num_of_stale] : stale_keys_per_category_type_) {
-      out[cat_type_str.at(cat_type)] = std::to_string(num_of_stale);
-    }
+    out[cat_type_str.at(CATEGORY_TYPE::block_merkle)] =
+        std::to_string(stale_keys_per_category_type_[CATEGORY_TYPE::block_merkle]);
+    out[cat_type_str.at(CATEGORY_TYPE::versioned_kv)] =
+        std::to_string(stale_keys_per_category_type_[CATEGORY_TYPE::versioned_kv]);
+    out[cat_type_str.at(CATEGORY_TYPE::immutable)] =
+        std::to_string(stale_keys_per_category_type_[CATEGORY_TYPE::immutable]);
     return toJson(out);
   }
 };
