@@ -638,7 +638,7 @@ void DataGenerator::generateBlocks(TestAppState& appState, uint64_t fromBlockId,
     std::shared_ptr<Block> blk;
     StateTransferDigest digestPrev{1};
     if ((i == fromBlockId) && (!appState.hasBlock(i - 1))) {
-      blk = Block::createFromData(dataSize, buff.get(), i, digestPrev);
+      blk.reset(Block::createFromData(dataSize, buff.get(), i, digestPrev), Block::BlockDeleter());
     } else {
       if (!prevBlk) {
         prevBlk = appState.peekBlock(i - 1);
@@ -646,7 +646,7 @@ void DataGenerator::generateBlocks(TestAppState& appState, uint64_t fromBlockId,
       }
       computeBlockDigest(
           prevBlk->blockId, reinterpret_cast<const char*>(prevBlk.get()), prevBlk->totalBlockSize, &digestPrev);
-      blk = Block::createFromData(dataSize, buff.get(), i, digestPrev);
+      blk.reset(Block::createFromData(dataSize, buff.get(), i, digestPrev), Block::BlockDeleter());
     }
     // we assume that last parameter is ignored
     ASSERT_TRUE(appState.putBlock(i, reinterpret_cast<const char*>(blk.get()), blk->totalBlockSize, false));

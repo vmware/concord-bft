@@ -38,26 +38,28 @@ class Block {
   static uint32_t getMaxTotalBlockSize() { return kMaxBlockSize_; }
   static void setMaxTotalBlockSize(uint32_t size) { kMaxBlockSize_ = size; }
 
-  static std::shared_ptr<Block> createFromData(uint32_t dataSize,
-                                               const char* data,
-                                               uint64_t blockId,
-                                               StateTransferDigest& digestPrev) {
+  struct BlockDeleter {
+    void operator()(Block* blk) {
+      char* buff = reinterpret_cast<char*>(blk);
+      delete[] buff;
+    }
+  };
+
+  static Block* createFromData(uint32_t dataSize, const char* data, uint64_t blockId, StateTransferDigest& digestPrev) {
     auto totalBlockSize = calcTotalBlockSize(dataSize);
     ConcordAssertLE(totalBlockSize, kMaxBlockSize_);
-    Block* blk = reinterpret_cast<Block*>(new char[totalBlockSize]);
-    return std::shared_ptr<Block>(blk->initBlock(data, dataSize, totalBlockSize, blockId, digestPrev));
+    char* buff = new char[totalBlockSize];
+    Block* blk = reinterpret_cast<Block*>(buff);
+    blk->initBlock(data, dataSize, totalBlockSize, blockId, digestPrev);
+    return blk;
   }
 
-  static std::shared_ptr<Block> createFromBlock(const char* blk, uint32_t blkSize) {
+  static Block* createFromBlock(const char* blk, uint32_t blkSize) {
     ConcordAssertLE(blkSize, kMaxBlockSize_);
-    char* buff = static_cast<char*>(new char[blkSize]);
+    ConcordAssertGT(blkSize, 0);
+    auto buff = new char[blkSize];
     memcpy(buff, blk, blkSize);
-    return std::shared_ptr<Block>(reinterpret_cast<Block*>(buff));
-  }
-
-  static void free(Block* blk) {
-    char* blockBytes = reinterpret_cast<char*>(blk);
-    delete[] blockBytes;
+    return reinterpret_cast<Block*>(buff);
   }
 
   StateTransferDigest digestPrev;  // For block ID N, this is the digest calculated on block ID N-1
@@ -71,14 +73,13 @@ class Block {
   static uint32_t calcDataSize(uint32_t totalSize) { return totalSize - sizeof(Block) + 1; }
   static uint32_t kMaxBlockSize_;
 
-  Block* initBlock(
+  void initBlock(
       const char* data, uint32_t dataSize, uint32_t totalBlockSize, uint64_t blockId, StateTransferDigest& digestPrev) {
     this->actualDataSize = dataSize;
     this->totalBlockSize = totalBlockSize;
     this->blockId = blockId;
     memcpy(this->data, data, dataSize);
     this->digestPrev = digestPrev;
-    return this;
   }
 };
 
@@ -167,7 +168,7 @@ class TestAppState : public IAppState, public IBlocksDeleter {
   bool putBlock(const uint64_t blockId, const char* block, const uint32_t blockSize, bool lastBlock) override {
     std::lock_guard<std::mutex> lg(mtx);
     ConcordAssertLE(blockSize, Block::getMaxTotalBlockSize());
-    const auto blk = Block::createFromBlock(block, blockSize);
+    const std::shared_ptr<Block> blk(Block::createFromBlock(block, blockSize), Block::BlockDeleter());
     if (blockId > last_block_id_) {
       last_block_id_ = blockId;
     }
