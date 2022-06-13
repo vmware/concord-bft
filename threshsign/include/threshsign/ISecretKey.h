@@ -11,21 +11,15 @@
 // LICENSE file.
 
 #pragma once
-
 #include <ostream>
+#include "Serializable.h"
 
-class ISecretKey {
+class ISecretKey : public concord::serialize::IStringSerializable {
  public:
-  virtual ~ISecretKey() {}
-
- public:
-  virtual std::string toString() const = 0;
-
- public:
-  friend std::ostream& operator<<(std::ostream& out, const ISecretKey& pk);
+  virtual ~ISecretKey() = default;
 };
 
 class IShareSecretKey : public ISecretKey {
  public:
-  virtual ~IShareSecretKey() {}
+  virtual ~IShareSecretKey() = default;
 };

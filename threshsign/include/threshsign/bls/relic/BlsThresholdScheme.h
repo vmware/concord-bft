@@ -23,3 +23,9 @@
 #include "BlsThresholdSigner.h"
 #include "BlsThresholdVerifier.h"
 #include "BlsThresholdFactory.h"
+
+// RELIC has a #define PRIME which conflicts with CryptoPP's Integer::PRIME, so we #undef PRIME here
+// before including the Shoup code.
+#undef PRIME
+// ...also RELIC has a #define HASH that conflicts as well
+#undef HASH

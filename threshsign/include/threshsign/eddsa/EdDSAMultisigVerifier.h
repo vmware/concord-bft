@@ -11,14 +11,15 @@
 // LICENSE file.
 #pragma once
 #include "threshsign/IThresholdVerifier.h"
-#include "SSLEdDSAPublicKey.h"
 #include "SingleEdDSASignature.h"
+#include "crypto/eddsa/EdDSAVerifier.hpp"
+#include "EdDSAThreshsignKeys.h"
 
 class EdDSAMultisigVerifier;
 
 class EdDSASignatureAccumulator : public IThresholdAccumulator {
  public:
-  EdDSASignatureAccumulator(const EdDSAMultisigVerifier &verifier, bool shareVerification);
+  EdDSASignatureAccumulator();
   int add(const char *sigShareWithId, int len) override;
   void setExpectedDigest(const unsigned char *msg, int len) override;
   size_t getFullSignedData(char *outThreshSig, int threshSigLen) override;
@@ -27,15 +28,15 @@ class EdDSASignatureAccumulator : public IThresholdAccumulator {
   std::set<ShareID> getInvalidShareIds() const override;
 
  private:
+  /// Accumulated signatures
   std::unordered_map<uint32_t, SingleEdDSASignature> signatures_;
-  std::string msgDigest_;
-  const EdDSAMultisigVerifier &verifier_;
-  const bool shareVerification_;
+  std::string expectedMsgDigest_;
 };
 
 class EdDSAMultisigVerifier : public IThresholdVerifier {
  public:
-  EdDSAMultisigVerifier(const std::vector<SSLEdDSAPublicKey> &publicKeys,
+  using SingleVerifier = EdDSAVerifier<EdDSAThreshsignPublicKey>;
+  EdDSAMultisigVerifier(const std::vector<SingleVerifier> &verifiers,
                         const size_t signersCount,
                         const size_t threshold);
   IThresholdAccumulator *newAccumulator(bool withShareVerification) const override;
@@ -45,11 +46,14 @@ class EdDSAMultisigVerifier : public IThresholdVerifier {
   int requiredLengthForSignedData() const override;
   const IPublicKey &getPublicKey() const override;
   const IShareVerificationKey &getShareVerificationKey(ShareID signer) const override;
-  bool verifySingleSignature(const std::string_view msg, const SingleEdDSASignature &signature) const;
+  bool verifySingleSignature(const uint8_t *msg,
+                             size_t msgLen,
+                             const SingleEdDSASignature &signature,
+                             const SingleVerifier &verifier) const;
   ~EdDSAMultisigVerifier() override = default;
 
  private:
-  std::vector<SSLEdDSAPublicKey> publicKeys_;
+  std::vector<SingleVerifier> verifiers_;
   const size_t signersCount_;
   const size_t threshold_;
 };

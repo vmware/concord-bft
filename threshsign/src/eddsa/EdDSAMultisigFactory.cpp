@@ -13,61 +13,65 @@
 #include <openssl/evp.h>
 #include "threshsign/eddsa/EdDSAMultisigFactory.h"
 #include "openssl_crypto.hpp"
-#include "threshsign/eddsa/SSLEdDSAPrivateKey.h"
-#include "threshsign/eddsa/SSLEdDSAPublicKey.h"
+#include "threshsign/eddsa/EdDSAThreshsignKeys.h"
 #include "threshsign/eddsa/EdDSAMultisigSigner.h"
 #include "threshsign/eddsa/EdDSAMultisigVerifier.h"
-#include "threshsign/eddsa/OpenSSLWrappers.h"
 #include <boost/algorithm/hex.hpp>
 #include <iostream>
+#include "openssl_crypto.hpp"
+
+using concord::util::openssl_utils::UniquePKEY;
+using concord::util::openssl_utils::UniqueOpenSSLPKEYContext;
+using concord::util::openssl_utils::OPENSSL_SUCCESS;
 
 IThresholdVerifier *EdDSAMultisigFactory::newVerifier(ShareID reqSigners,
                                                       ShareID totalSigners,
                                                       const char *publicKeyStr,
                                                       const std::vector<std::string> &verifKeysStr) const {
+  using SingleVerifier = EdDSAMultisigVerifier::SingleVerifier;
+  using PublicKey = SingleVerifier::VerifierKeyType;
   UNUSED(publicKeyStr);
   ConcordAssertEQ(verifKeysStr.size(), static_cast<std::vector<std::string>::size_type>(totalSigners + 1));
-  std::vector<SSLEdDSAPublicKey> publicKeys;
-  publicKeys.push_back(SSLEdDSAPublicKey(SSLEdDSAPublicKey::EdDSAPublicKeyBytes{}));
-  std::transform(verifKeysStr.begin() + 1,
-                 verifKeysStr.end(),
-                 std::back_inserter(publicKeys),
-                 [](const std::string &publicKeyHex) {
-                   LOG_DEBUG(EDDSA_MULTISIG_LOG, KVLOG(publicKeyHex));
-                   return SSLEdDSAPublicKey::fromHexString(publicKeyHex);
-                 });
+  std::vector<SingleVerifier> verifiers;
+  verifiers.emplace_back(SingleVerifier{EdDSAThreshsignPublicKey{EdDSAThreshsignPublicKey::ByteArray{}}});
+  std::transform(
+      verifKeysStr.begin() + 1, verifKeysStr.end(), std::back_inserter(verifiers), [](const std::string &publicKeyHex) {
+        LOG_DEBUG(EDDSA_MULTISIG_LOG, KVLOG(publicKeyHex));
+        return EdDSAMultisigVerifier::SingleVerifier(fromHexString<PublicKey>(publicKeyHex));
+      });
   auto newVerifier =
-      new EdDSAMultisigVerifier(publicKeys, static_cast<size_t>(totalSigners), static_cast<size_t>(reqSigners));
+      new EdDSAMultisigVerifier(verifiers, static_cast<size_t>(totalSigners), static_cast<size_t>(reqSigners));
   return newVerifier;
 }
 
 IThresholdSigner *EdDSAMultisigFactory::newSigner(ShareID id, const char *secretKeyStr) const {
-  return new EdDSAMultisigSigner(
-      SSLEdDSAPrivateKey::fromHexString(std::string(secretKeyStr, SSLEdDSAPrivateKey::KeyByteSize * 2)), (uint32_t)id);
+  auto privateKey =
+      fromHexString<EdDSAThreshsignPrivateKey>(std::string(secretKeyStr, EdDSAThreshsignPrivateKey::ByteSize * 2));
+  return new EdDSAMultisigSigner(privateKey, (uint32_t)id);
 }
 
 IThresholdFactory::SignersVerifierTuple EdDSAMultisigFactory::newRandomSigners(NumSharesType reqSigners,
                                                                                NumSharesType numSigners) const {
-  std::vector<SSLEdDSAPrivateKey> allPrivateKeys;
-  std::vector<SSLEdDSAPublicKey> allPublicKeys;
+  std::vector<EdDSAThreshsignPrivateKey> allPrivateKeys;
+  std::vector<EdDSAMultisigVerifier::SingleVerifier> allVerifiers;
   std::vector<std::unique_ptr<IThresholdSigner>> signers(static_cast<size_t>(numSigners + 1));
 
   // One-based indices
-  allPrivateKeys.push_back(SSLEdDSAPrivateKey{{0}});
-  allPublicKeys.push_back(SSLEdDSAPublicKey{{0}});
+  allPrivateKeys.push_back(EdDSAThreshsignPrivateKey{EdDSAThreshsignPrivateKey::ByteArray{}});
+  allVerifiers.emplace_back(EdDSAThreshsignPublicKey{EdDSAThreshsignPublicKey::ByteArray{}});
   signers[0].reset(new EdDSAMultisigSigner(allPrivateKeys[0], (uint32_t)0));
 
   ConcordAssertLE(reqSigners, numSigners);
   for (size_t i = 1; i <= static_cast<size_t>(numSigners); i++) {
     auto [privateKey, publicKey] = newKeyPair();
-    const auto &priv = *dynamic_cast<SSLEdDSAPrivateKey *>(privateKey.get());
-    const auto &pub = *dynamic_cast<SSLEdDSAPublicKey *>(publicKey.get());
+    const auto &priv = *dynamic_cast<EdDSAThreshsignPrivateKey *>(privateKey.get());
+    const auto &pub = *dynamic_cast<EdDSAThreshsignPublicKey *>(publicKey.get());
     allPrivateKeys.push_back(priv);
-    allPublicKeys.push_back(pub);
+    allVerifiers.emplace_back(pub);
     signers[i].reset(new EdDSAMultisigSigner(allPrivateKeys[static_cast<size_t>(i)], static_cast<uint32_t>(i)));
   }
 
-  auto verifier = std::make_unique<EdDSAMultisigVerifier>(allPublicKeys, (size_t)numSigners, (size_t)reqSigners);
+  auto verifier = std::make_unique<EdDSAMultisigVerifier>(allVerifiers, (size_t)numSigners, (size_t)reqSigners);
   return {std::move(signers), std::move(verifier)};
 }
 
@@ -85,15 +89,16 @@ std::pair<std::unique_ptr<IShareSecretKey>, std::unique_ptr<IShareVerificationKe
   }
   uniquePKEY.reset(pkey);
 
-  SSLEdDSAPrivateKey::EdDSAPrivateKeyBytes privateKey;
-  SSLEdDSAPublicKey::EdDSAPublicKeyBytes publicKey;
-  size_t len = SSLEdDSAPrivateKey::KeyByteSize;
+  EdDSAThreshsignPrivateKey::ByteArray privateKey;
+  EdDSAThreshsignPublicKey::ByteArray publicKey;
+  size_t len = EdDSAThreshsignPrivateKey::ByteSize;
   ConcordAssertEQ(EVP_PKEY_get_raw_private_key(pkey, privateKey.data(), &len), OPENSSL_SUCCESS);
-  ConcordAssertEQ(len, SSLEdDSAPrivateKey::KeyByteSize);
-  len = SSLEdDSAPublicKey::KeyByteSize;
+  ConcordAssertEQ(len, EdDSAThreshsignPrivateKey::ByteSize);
+  len = EdDSAThreshsignPublicKey::ByteSize;
   ConcordAssertEQ(EVP_PKEY_get_raw_public_key(pkey, (uint8_t *)publicKey.data(), &len), OPENSSL_SUCCESS);
-  ConcordAssertEQ(len, SSLEdDSAPublicKey::KeyByteSize);
-  return {std::make_unique<SSLEdDSAPrivateKey>(privateKey), std::make_unique<SSLEdDSAPublicKey>(publicKey)};
+  ConcordAssertEQ(len, EdDSAThreshsignPublicKey::ByteSize);
+  return {std::make_unique<EdDSAThreshsignPrivateKey>(privateKey),
+          std::make_unique<EdDSAThreshsignPublicKey>(publicKey)};
 }
 EdDSAMultisigFactory::EdDSAMultisigFactory() { /*EDDSA_MULTISIG_LOG.setLogLevel(log4cplus::DEBUG_LOG_LEVEL);*/
 }

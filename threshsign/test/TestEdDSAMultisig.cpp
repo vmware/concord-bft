@@ -13,8 +13,8 @@
 #include <openssl/evp.h>
 #include <random>
 #include "gtest/gtest.h"
-#include "../include/threshsign/eddsa/EdDSAMultisigFactory.h"
-#include "../include/threshsign/eddsa/EdDSAMultisigSigner.h"
+#include "threshsign/eddsa/EdDSAMultisigFactory.h"
+#include "threshsign/eddsa/EdDSAMultisigSigner.h"
 #include "threshsign/eddsa/EdDSAMultisigVerifier.h"
 #include "threshsign/eddsa/SingleEdDSASignature.h"
 
@@ -49,18 +49,18 @@ class EdDSAMultisigTest : public testing::Test {
 
 TEST_F(EdDSAMultisigTest, ValidateSerializeDeserialize) {
   auto [privateKey, publicKey] = factory_.newKeyPair();
-  auto eddsaPrivateKey = dynamic_cast<SSLEdDSAPrivateKey*>(privateKey.get());
-  auto eddsaPublicKey = dynamic_cast<SSLEdDSAPublicKey*>(publicKey.get());
+  auto eddsaPrivateKey = dynamic_cast<EdDSAThreshsignPrivateKey*>(privateKey.get());
+  auto eddsaPublicKey = dynamic_cast<EdDSAThreshsignPublicKey*>(publicKey.get());
   auto privateHexString = eddsaPrivateKey->toString();
   auto publicHexString = eddsaPublicKey->toString();
-  ASSERT_EQ(privateHexString, SSLEdDSAPrivateKey::fromHexString(privateHexString).toString());
-  ASSERT_EQ(publicHexString, SSLEdDSAPublicKey::fromHexString(publicHexString).toString());
+  ASSERT_EQ(privateHexString, fromHexString<EdDSAThreshsignPrivateKey>(privateHexString).toString());
+  ASSERT_EQ(publicHexString, fromHexString<EdDSAThreshsignPublicKey>(publicHexString).toString());
 }
 
 TEST_F(EdDSAMultisigTest, TestSingleVerificationUsingFactory) {
   auto [privateKey, publicKey] = factory_.newKeyPair();
-  auto eddsaPrivateKey = dynamic_cast<SSLEdDSAPrivateKey*>(privateKey.get());
-  auto eddsaPublicKey = dynamic_cast<SSLEdDSAPublicKey*>(publicKey.get());
+  auto eddsaPrivateKey = dynamic_cast<EdDSAThreshsignPrivateKey*>(privateKey.get());
+  auto eddsaPublicKey = dynamic_cast<EdDSAThreshsignPublicKey*>(publicKey.get());
 
   auto* signer = factory_.newSigner(1, eddsaPrivateKey->toString().c_str());
   auto* verifier = factory_.newVerifier(1, 1, "", {"", eddsaPublicKey->toString()});
@@ -104,43 +104,30 @@ TEST_F(EdDSAMultisigTest, TestSignatureAccumulation) {
         static_cast<size_t>(accumulator->add(reinterpret_cast<const char*>(&signature), sizeof(SingleEdDSASignature)));
     auto actualMultisigBytes = static_cast<int>(accumulator->getFullSignedData(multisigBuffer.get(), multisigBytes));
     if (signatureCount == signatures.size()) {
-      ASSERT_TRUE(verifier->verify(digest.data(), (int)digest.size(), multisigBuffer.get(), actualMultisigBytes));
+      ASSERT_TRUE(
+          verifier->verify(digest.data(), static_cast<int>(digest.size()), multisigBuffer.get(), actualMultisigBytes));
     } else {
-      ASSERT_FALSE(verifier->verify(digest.data(), (int)digest.size(), multisigBuffer.get(), actualMultisigBytes));
+      ASSERT_FALSE(
+          verifier->verify(digest.data(), static_cast<int>(digest.size()), multisigBuffer.get(), actualMultisigBytes));
     }
   }
-}
-
-TEST_F(EdDSAMultisigTest, TestSignVerifyValidity) {
-  auto [privateKey, publicKey] = factory_.newKeyPair();
-  auto eddsaPrivateKey = dynamic_cast<SSLEdDSAPrivateKey*>(privateKey.get());
-  auto eddsaPublicKey = dynamic_cast<SSLEdDSAPublicKey*>(publicKey.get());
-  ASSERT_TRUE(eddsaPublicKey->verify(testMsgDigest(), eddsaPrivateKey->sign(testMsgDigest())));
-}
-
-TEST_F(EdDSAMultisigTest, TestSignVerifyInvalidSignature) {
-  auto [privateKey, publicKey] = factory_.newKeyPair();
-  auto eddsaPrivateKey = dynamic_cast<SSLEdDSAPrivateKey*>(privateKey.get());
-  auto eddsaPublicKey = dynamic_cast<SSLEdDSAPublicKey*>(publicKey.get());
-  auto signature = eddsaPrivateKey->sign(testMsgDigest());
-  // Invalidate a single signature byte
-  signature[0] = (char)~signature[0];
-  ASSERT_FALSE(eddsaPublicKey->verify(testMsgDigest(), signature));
 }
 
 TEST_F(EdDSAMultisigTest, TestValidMultiSignatureSmallThreshold) {
   constexpr const uint64_t n_signers = 7;
   const auto digest = testMsgDigest();
 
-  for (int threshold = 1; threshold <= 7; threshold++) {
+  for (uint64_t threshold = 1; threshold <= n_signers; threshold++) {
     auto [signers, verifier] = factory_.newRandomSigners(n_signers, n_signers);
     auto accumulator = verifier->newAccumulator(false);
 
     accumulator->setExpectedDigest(reinterpret_cast<const unsigned char*>(digest.data()), (int)digest.size());
     std::vector<SingleEdDSASignature> signatures(signers.size() - 1);
     for (size_t i = 0; i < signatures.size(); i++) {
-      signers[i + 1]->signData(
-          digest.data(), (int)digest.size(), reinterpret_cast<char*>(&signatures[i]), sizeof(SingleEdDSASignature));
+      signers[i + 1]->signData(digest.data(),
+                               static_cast<int>(digest.size()),
+                               reinterpret_cast<char*>(&signatures[i]),
+                               sizeof(SingleEdDSASignature));
     }
     // Make sure that verification does not depend on order, as signatures do not arrive in order
     std::random_shuffle(signatures.begin(), signatures.end());
@@ -149,10 +136,10 @@ TEST_F(EdDSAMultisigTest, TestValidMultiSignatureSmallThreshold) {
     }
 
     auto multisigBytes = verifier->requiredLengthForSignedData();
-    auto multisigBuffer = std::make_unique<char[]>((size_t)multisigBytes);
+    auto multisigBuffer = std::make_unique<char[]>(static_cast<size_t>(multisigBytes));
     accumulator->getFullSignedData(multisigBuffer.get(), multisigBytes);
 
-    ASSERT_TRUE(verifier->verify(digest.data(), (int)digest.size(), multisigBuffer.get(), multisigBytes));
+    ASSERT_TRUE(verifier->verify(digest.data(), static_cast<int>(digest.size()), multisigBuffer.get(), multisigBytes));
   }
 }
 
@@ -163,12 +150,15 @@ TEST_F(EdDSAMultisigTest, TestInvalidMultiSignature) {
   const std::string msg = "This is a test message";
   const auto digest = sha3_256(msg);
 
-  accumulator->setExpectedDigest(reinterpret_cast<const unsigned char*>(digest.data()), (int)digest.size());
+  accumulator->setExpectedDigest(reinterpret_cast<const unsigned char*>(digest.data()),
+                                 static_cast<int>(digest.size()));
   std::vector<SingleEdDSASignature> signatures(signers.size());
   for (size_t i = 1; i < signers.size(); i++) {
-    signers[i]->signData(
-        digest.data(), (int)digest.size(), reinterpret_cast<char*>(&signatures[i]), sizeof(SingleEdDSASignature));
-    auto& currentSig = *(SingleEdDSASignature*)&signatures[i];
+    signers[i]->signData(digest.data(),
+                         static_cast<int>(digest.size()),
+                         reinterpret_cast<char*>(&signatures[i]),
+                         sizeof(SingleEdDSASignature));
+    auto& currentSig = *reinterpret_cast<SingleEdDSASignature*>(&signatures[i]);
     currentSig.signatureBytes[0] = static_cast<uint8_t>(~currentSig.signatureBytes[0]);
     accumulator->add(reinterpret_cast<const char*>(&signatures[i]), sizeof(SingleEdDSASignature));
   }
@@ -176,11 +166,10 @@ TEST_F(EdDSAMultisigTest, TestInvalidMultiSignature) {
   auto multisigBuffer = std::make_unique<char[]>((size_t)multisigBytes);
   accumulator->getFullSignedData(multisigBuffer.get(), multisigBytes);
 
-  ASSERT_FALSE(verifier->verify(digest.data(), (int)digest.size(), multisigBuffer.get(), multisigBytes));
+  ASSERT_FALSE(verifier->verify(digest.data(), static_cast<int>(digest.size()), multisigBuffer.get(), multisigBytes));
 }
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
-
   return RUN_ALL_TESTS();
 }

@@ -17,7 +17,9 @@
 #include <unordered_set>
 
 #include "threshsign/ThresholdSignaturesTypes.h"
-#include <threshsign/ThresholdSignaturesSchemes.h>
+#include "threshsign/IThresholdAccumulator.h"
+#include "threshsign/IThresholdSigner.h"
+#include "threshsign/IThresholdVerifier.h"
 #include "KeyfileIOUtils.hpp"
 #include "crypto_utils.hpp"
 

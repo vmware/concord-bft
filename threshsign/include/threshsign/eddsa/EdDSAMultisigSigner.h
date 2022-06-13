@@ -11,13 +11,13 @@
 // LICENSE file.
 #pragma once
 
-#include "../IThresholdSigner.h"
-#include "SSLEdDSAPrivateKey.h"
-#include "SSLEdDSAPublicKey.h"
+#include "threshsign/IThresholdSigner.h"
+#include "EdDSAThreshsignKeys.h"
+#include "crypto/eddsa/EdDSASigner.hpp"
 
-class EdDSAMultisigSigner : public IThresholdSigner {
+class EdDSAMultisigSigner : public IThresholdSigner, public EdDSASigner<EdDSAThreshsignPrivateKey> {
  public:
-  EdDSAMultisigSigner(const SSLEdDSAPrivateKey &privateKey, const uint32_t id);
+  EdDSAMultisigSigner(const EdDSAThreshsignPrivateKey &privateKey, const uint32_t id);
   int requiredLengthForSignedData() const override;
 
   void signData(const char *hash, int hashLen, char *outSig, int outSigLen) override;
@@ -26,7 +26,11 @@ class EdDSAMultisigSigner : public IThresholdSigner {
   ~EdDSAMultisigSigner() override = default;
 
  private:
-  SSLEdDSAPrivateKey privateKey_;
-  SSLEdDSAPublicKey publicKey_;
+  class StubVerificationKey : public IShareVerificationKey {
+    virtual std::string toString() const { return ""; }
+  };
+
+  /// This is a stub so that getShareVerificationKey can have a return value
+  const StubVerificationKey publicKey_;
   uint32_t id_;
 };

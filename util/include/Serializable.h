@@ -26,6 +26,15 @@
 namespace concord {
 namespace serialize {
 
+class IStringSerializable {
+ public:
+  virtual std::string toString() const = 0;
+  virtual ~IStringSerializable() = default;
+  friend std::ostream& operator<<(std::ostream& out, const IStringSerializable& serializable) {
+    return out << serializable.toString();
+  }
+};
+
 /** *******************************************************************************************************************
  * This class defines common functionality used for classes
  * serialization/deserialization. This provides an ability to save/retrieve
