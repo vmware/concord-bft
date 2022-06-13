@@ -82,6 +82,9 @@ IThresholdAccumulator *EdDSAMultisigVerifier::newAccumulator(bool withShareVerif
 bool EdDSAMultisigVerifier::verifySingleSignature(const uint8_t *msg,
                                                   size_t msgLen,
                                                   const SingleEdDSASignature &signature) const {
+  if (signature.id == 0) {
+    return false;
+  }
   return verifiers_[signature.id].verify(msg, msgLen, signature.signatureBytes.data(), signature.signatureBytes.size());
 }
 
