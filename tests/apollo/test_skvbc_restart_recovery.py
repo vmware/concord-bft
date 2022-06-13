@@ -322,7 +322,65 @@ class SkvbcRestartRecoveryTest(ApolloTest):
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: c == 0, rotate_keys=True)
+    @with_constant_load
     @verify_linearizability()
+    async def test_recovering_fast_path(self, bft_network, tracker):
+        """
+        The Apollo test, which should be part of the test_skvbc_restart_recovery suite needs to implement the following steps:
+
+        1. Start all Replicas and Introduce constantly running Client requests in the background.
+        2. Verify that the system is processing client requests on Fast Path.
+        3. Restart the Primary to initiate View Change.
+        4. Verify the View Change succeeded.
+        5. Wait for the system to recover Fast commit path again (Here we will have to set a time limit for which we expect the system to recover to Fast path. We can start with 1 minute interval.)
+        6. Stop 1 Non Primary replica to transition the system to Slow path.
+        7. Verify the system is making progress on Slow path.
+        8. Restart the Primary to initiate View Change.
+        9. Start the Replica we stopped in step 6 and verify the View Change succeeded.
+        10. Goto Step 2.
+        """
+        # start replicas
+        [bft_network.start_replica(i) for i in bft_network.all_replicas()]
+
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+
+        loop_count = 0
+        while (loop_count < 1):
+            loop_count = loop_count + 1
+
+            view = await bft_network.get_current_view()
+
+            primary = await bft_network.get_current_primary()
+            bft_network.stop_replica(primary)
+            bft_network.start_replica(primary)
+
+
+
+            await bft_network.wait_for_replicas_to_reach_at_least_view(replicas_ids=bft_network.all_replicas(), expected_view=view + 1, timeout=60)
+
+            await bft_network.wait_for_fast_path_to_be_prevalent(
+            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
+
+            view = await bft_network.get_current_view()
+
+            non_primary = primary
+            bft_network.stop_replica(non_primary)
+
+            await bft_network.wait_for_slow_path_to_be_prevalent(
+            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
+
+            primary = await bft_network.get_current_primary()
+            bft_network.stop_replica(primary)
+            bft_network.start_replica(primary)
+
+            await bft_network.wait_for_replicas_to_reach_at_least_view(replicas_ids=bft_network.all_replicas(), expected_view=view + 1, timeout=60)
+
+            bft_network.start_replica(non_primary)
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: c == 0, rotate_keys=True)
+    @verify_linearizability()
+    @with_constant_load
     async def test_recovering_of_primary_with_initiated_view_change(self, bft_network, tracker):
         """
         The Apollo test, which should be part of the test_skvbc_restart_recovery suite needs to implement the following steps:
