@@ -585,6 +585,7 @@ class BcStTest : public ::testing::Test {
   void dstAssertAskForCheckpointSummariesSent(uint64_t checkpoint_num);
   void dstAssertFetchBlocksMsgSent();
   void dstAssertFetchResPagesMsgSent();
+  void dstReportMultiplePrePrepareMessagesReceived(size_t numberOfPreprepareMessages, uint16_t senderId);
 
   // Target/Product ST - source API & assertions// This should be the same as TestConfig
   void srcAssertCheckpointSummariesSent(uint64_t minRepliedCheckpointNum, uint64_t maxRepliedCheckpointNum);
@@ -1354,6 +1355,14 @@ void BcStTest::dstAssertFetchResPagesMsgSent() {
   ASSERT_EQ(testedReplicaIf_.sent_messages_.front().to_, currentSourceId);
 }
 
+void BcStTest::dstReportMultiplePrePrepareMessagesReceived(size_t numberOfPreprepareMessages, uint16_t senderId) {
+  std::unique_ptr<MessageBase> msg;
+  ASSERT_NFF(msg = dataGen_->generatePrePrepareMsg(senderId));
+  for (size_t i = 1; i <= numberOfPreprepareMessages; i++) {
+    stateTransfer_->handleIncomingConsensusMessage(ConsensusMsg(msg->type(), senderId));
+  }
+}
+
 void BcStTest::srcAssertCheckpointSummariesSent(uint64_t minRepliedCheckpointNum, uint64_t maxRepliedCheckpointNum) {
   LOG_TRACE(GL, "");
   ASSERT_SRC_UNDER_TEST;
@@ -1695,12 +1704,8 @@ TEST_P(BcStTestParamFixture2, dstSourceSelectorPrimaryAwareness) {
   auto ss = stDelegator_->getSourceSelector();
   const std::function<void(void)> trigger_source_change = [&]() {
     std::call_once(once_flag, [&] {
-      std::unique_ptr<MessageBase> msg;
-      // Generate prePrepare messages to trigger source selector to change the source to avoid primary.
-      ASSERT_NFF(msg = dataGen_->generatePrePrepareMsg(ss.currentReplica()));
-      for (uint16_t i = 1; i <= targetConfig_.minPrePrepareMsgsForPrimaryAwareness; i++) {
-        stateTransfer_->handleIncomingConsensusMessage(ConsensusMsg(msg->type(), msg->senderId()));
-      }
+      ASSERT_NFF(dstReportMultiplePrePrepareMessagesReceived(targetConfig_.minPrePrepareMsgsForPrimaryAwareness,
+                                                             ss.currentReplica()));
     });
   };
   ASSERT_NFF(getMissingblocksStage(EMPTY_FUNC, trigger_source_change));
@@ -1811,12 +1816,8 @@ TEST_F(BcStTest, dstSendPrePrepareMsgsDuringStateTransfer) {
   auto ss = stDelegator_->getSourceSelector();
   const std::function<void(void)> trigger_source_change = [&]() {
     std::call_once(once_flag, [&] {
-      std::unique_ptr<MessageBase> msg;
-      // Generate prePrepare messages to trigger source selector to change the source to avoid primary.
-      ASSERT_NFF(msg = dataGen_->generatePrePrepareMsg(ss.currentReplica()));
-      for (uint16_t i = 1; i <= targetConfig_.minPrePrepareMsgsForPrimaryAwareness; i++) {
-        stateTransfer_->handleIncomingConsensusMessage(ConsensusMsg(msg->type(), msg->senderId()));
-      }
+      ASSERT_NFF(dstReportMultiplePrePrepareMessagesReceived(targetConfig_.minPrePrepareMsgsForPrimaryAwareness,
+                                                             ss.currentReplica()));
     });
   };
   ASSERT_NFF(getMissingblocksStage(EMPTY_FUNC, trigger_source_change));
@@ -1867,14 +1868,10 @@ TEST_F(BcStTest, dstPreprepareFromMultipleSourcesDuringStateTransfer) {
   auto ss = stDelegator_->getSourceSelector();
   const std::function<void(void)> generate_preprepare_messages = [&]() {
     std::call_once(once_flag, [&] {
-      std::unique_ptr<MessageBase> msg;
-      // Generate enough prePrepare messages but from more than one source so that source does not get changed
-      ASSERT_NFF(msg = dataGen_->generatePrePrepareMsg(ss.currentReplica()));
-      for (uint16_t i = 1; i <= targetConfig_.minPrePrepareMsgsForPrimaryAwareness - 1; i++) {
-        stateTransfer_->handleIncomingConsensusMessage(ConsensusMsg(msg->type(), msg->senderId()));
-      }
-      stateTransfer_->handleIncomingConsensusMessage(
-          ConsensusMsg(msg->type(), (msg->senderId() + 1) % targetConfig_.numReplicas));
+      auto senderId = ss.currentReplica();
+      ASSERT_NFF(dstReportMultiplePrePrepareMessagesReceived(targetConfig_.minPrePrepareMsgsForPrimaryAwareness - 1,
+                                                             senderId));
+      ASSERT_NFF(dstReportMultiplePrePrepareMessagesReceived(1, (senderId + 1) % targetConfig_.numReplicas));
     });
   };
   ASSERT_NFF(getMissingblocksStage(EMPTY_FUNC, generate_preprepare_messages));
@@ -1979,6 +1976,42 @@ TEST_F(BcStTest, dstEnterInternalCycleOnFetchReservedPagesNotReplied) {
   ASSERT_NFF(fakeSrcReplica_->replyAskForCheckpointSummariesMsg(false));
   ASSERT_NFF(getReservedPagesStage());
 
+  ASSERT_NFF(dstValidateCycleEnd(10));
+  ASSERT_NFF(compareAppStateblocks(testState_.maxRequiredBlockId - testState_.numBlocksToCollect + 1,
+                                   testState_.maxRequiredBlockId));
+}
+
+// This test makes sure that current primary is not modified during GettingCheckpointSummaries
+// Its doing so by checking the value of currentPrimary in source selector.
+// It sends 2 cycles of preprepare messages that in any other St state whould have triggerred a new primary awarness.
+// Since they are sent during GettingCheckpointSummaries, they are being  ignored.
+TEST_F(BcStTest, dstTestprimaryAwarnessduringAskForCheckpointSummariesMsg) {
+  ASSERT_NFF(initialize());
+  ASSERT_NFF(dstStartRunningAndCollecting());
+  auto ss = stDelegator_->getSourceSelector();
+  ASSERT_EQ(ss.currentPrimary(), NO_REPLICA);  // make sure primary unknown
+  // ST cycle has started, askForCheckpointSummariesMsg sent and destination is waiting for reply.
+  // Before replying - Generate prePrepare messages to trigger source selector to change the source to avoid primary.
+
+  // report <minPrePrepareMsgsForPrimaryAwareness> pre prepare messages with primary as <currentPrimary>
+  ASSERT_NFF(dstReportMultiplePrePrepareMessagesReceived(targetConfig_.minPrePrepareMsgsForPrimaryAwareness,
+                                                         (targetConfig_.myReplicaId + 1) % targetConfig_.numReplicas));
+
+  // Validate that primary has not changed and is still unknown, due to the fact that ST should ignore preprepares
+  // during askForCheckpointSummariesMsg
+  ASSERT_EQ(ss.currentPrimary(), NO_REPLICA);
+
+  // report another <minPrePrepareMsgsForPrimaryAwareness> pre prepare messages with a different primary
+  ASSERT_NFF(dstReportMultiplePrePrepareMessagesReceived(targetConfig_.minPrePrepareMsgsForPrimaryAwareness,
+                                                         (targetConfig_.myReplicaId + 2) % targetConfig_.numReplicas));
+
+  // Validate again that primary is still unknown
+  ASSERT_EQ(ss.currentPrimary(), NO_REPLICA);
+
+  ASSERT_NFF(fakeSrcReplica_->replyAskForCheckpointSummariesMsg());
+  ASSERT_NFF(getMissingblocksStage<void>());
+  ASSERT_NFF(getReservedPagesStage());
+  // now validate completion
   ASSERT_NFF(dstValidateCycleEnd(10));
   ASSERT_NFF(compareAppStateblocks(testState_.maxRequiredBlockId - testState_.numBlocksToCollect + 1,
                                    testState_.maxRequiredBlockId));

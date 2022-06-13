@@ -3952,7 +3952,10 @@ void BCStateTran::handleIncomingConsensusMessageImpl(ConsensusMsg msg) {
 
   switch (msg.type_) {
     case MsgCode::PrePrepare:
-      if (config_.enableSourceSelectorPrimaryAwareness) {
+      // As of now, during GettingCheckpointSummaries we expect preferred replicas to keep empty. For simplicity, avoid
+      // primary awareness during this short perio
+      if ((getFetchingState() != FetchingState::GettingCheckpointSummaries) &&
+          (config_.enableSourceSelectorPrimaryAwareness)) {
         sourceSelector_.updateCurrentPrimary(msg.sender_id_);
       }
       break;
