@@ -619,6 +619,8 @@ bool ReconfigurationHandler::handle(const concord::messages::WedgeCommand& comma
   auto blockId = persistReconfigurationBlock(
       serialized_command, bft_seq_num, std::string{kvbc::keyTypes::reconfiguration_wedge_key}, ts, false);
   LOG_INFO(getLogger(), "WedgeCommand block is " << blockId);
+  LOG_INFO(getLogger(), "Stopping adaptive pruning resource manager");
+  apm_.stop();
   return true;
 }
 
@@ -710,7 +712,8 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeC
                           std::string(serialized_cmd_data.begin(), serialized_cmd_data.end()));
   }
   auto blockId = persistReconfigurationBlock(ver_updates, sequence_number, ts, true);
-
+  LOG_INFO(getLogger(), "Stopping adaptive pruning resource manager");
+  apm_.stop();
   // update reserved pages for RO replica
   auto epochNum = bftEngine::EpochManager::instance().getSelfEpochNumber();
   auto wedgePoint = (sequence_number + 2 * checkpointWindowSize);
@@ -739,6 +742,8 @@ bool ReconfigurationHandler::handle(const concord::messages::RestartCommand& com
   auto blockId = persistReconfigurationBlock(
       serialized_command, bft_seq_num, std::string{kvbc::keyTypes::reconfiguration_restart_key}, ts, true);
   LOG_INFO(getLogger(), "RestartCommand block is " << blockId);
+  LOG_INFO(getLogger(), "Stopping adaptive pruning resource manager");
+  apm_.stop();
   return true;
 }
 
@@ -1007,6 +1012,8 @@ bool ReconfigurationHandler::handle(const messages::UnwedgeCommand& cmd,
       bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(0);
       bftEngine::ControlStateManager::instance().unwedge();
       bftEngine::IControlHandler::instance()->resetState();
+      LOG_INFO(getLogger(), "Starting adaptive pruning resource manager");
+      apm_.start();
       LOG_INFO(getLogger(), "Unwedge command completed successfully");
     } else {
       bftEngine::EpochManager::instance().setNewEpochFlag(true);
