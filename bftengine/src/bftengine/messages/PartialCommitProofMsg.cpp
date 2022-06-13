@@ -13,7 +13,7 @@
 #include "assertUtils.hpp"
 #include "ReplicasInfo.hpp"
 #include "EpochManager.hpp"
-#include <threshsign/ThresholdSignaturesSchemes.h>
+#include "threshsign/IThresholdSigner.h"
 
 namespace bftEngine {
 namespace impl {

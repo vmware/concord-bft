@@ -180,7 +180,4 @@
 #define KVARGS2(_1, _2) (#_1, _1, #_2, _2)
 #define KVARGS1(_1) (#_1, _1)
 
-#define UNUSED(expr) \
-  do {               \
-    (void)(expr);    \
-  } while (0)
+#define UNUSED(expr) (void)(expr)

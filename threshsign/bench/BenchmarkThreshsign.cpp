@@ -11,10 +11,8 @@
 // LICENSE file.
 //
 
-// #define PICOBENCH_DEBUG
 #define PICOBENCH_IMPLEMENT
 #define PICOBENCH_STD_FUNCTION_BENCHMARKS
-// #define PICOBENCH_IMPLEMENT_WITH_MAIN
 
 #include <vector>
 #include <deque>
@@ -30,7 +28,7 @@
 #pragma GCC diagnostic ignored "-Wsign-compare"
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wc99-extensions"
-#include "include/threshsign/bench/picobench.h"
+#include "../../thirdparty/include/picobench.h"
 #include "macros.h"
 #include "include/threshsign/eddsa/EdDSAMultisigFactory.h"
 #include "include/threshsign/eddsa/SingleEdDSASignature.h"
@@ -187,9 +185,12 @@ std::function<void(picobench::state& s)> printInfo(const std::string& name,
   };
 }
 
-std::string appendBenchmarkInfo(const std::string& title, uint64_t signerCount, uint64_t threshold, uint64_t msgLength) {
-  return title + " Signers: " + std::to_string(signerCount) + std::string(", Threshold: ") +
-         std::to_string(threshold) + ", Message Bytes: " + std::to_string(msgLength >> 10) + "KB";
+std::string appendBenchmarkInfo(const std::string& title,
+                                uint64_t signerCount,
+                                uint64_t threshold,
+                                uint64_t msgLength) {
+  return title + " Signers: " + std::to_string(signerCount) + std::string(", Threshold: ") + std::to_string(threshold) +
+         ", Message Bytes: " + std::to_string(msgLength >> 10) + "KB";
 }
 
 namespace po = boost::program_options;

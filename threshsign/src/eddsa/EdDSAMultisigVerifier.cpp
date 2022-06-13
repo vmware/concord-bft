@@ -9,17 +9,13 @@
 // notices and license terms. Your use of these subcomponents is subject to the
 // terms and conditions of the subcomponent's license, as noted in the
 // LICENSE file.
+#include <cstdint>
 #include "threshsign/IThresholdVerifier.h"
 #include "threshsign/eddsa/EdDSAMultisigVerifier.h"
-#include <numeric>
 
 int EdDSASignatureAccumulator::add(const char *sigShareWithId, int len) {
   ConcordAssertEQ(len, static_cast<int>(sizeof(SingleEdDSASignature)));
   auto &singleSignature = *reinterpret_cast<const SingleEdDSASignature *>(sigShareWithId);
-
-  if (shareVerification_ && !verifier_.verifySingleSignature(msgDigest_, singleSignature)) {
-    return static_cast<int>(signatures_.size());
-  }
 
   auto result = signatures_.insert({singleSignature.id, singleSignature});
   if (result.second) {
@@ -29,7 +25,7 @@ int EdDSASignatureAccumulator::add(const char *sigShareWithId, int len) {
 }
 void EdDSASignatureAccumulator::setExpectedDigest(const unsigned char *msg, int len) {
   LOG_DEBUG(EDDSA_MULTISIG_LOG, KVLOG(len));
-  msgDigest_ = std::string(reinterpret_cast<const char *>(msg), static_cast<size_t>(len));
+  expectedMsgDigest_ = std::string(reinterpret_cast<const char *>(msg), static_cast<size_t>(len));
 }
 
 size_t EdDSASignatureAccumulator::getFullSignedData(char *outThreshSig, int threshSigLen) {
@@ -45,45 +41,40 @@ size_t EdDSASignatureAccumulator::getFullSignedData(char *outThreshSig, int thre
   return offset;
 }
 
-bool EdDSASignatureAccumulator::hasShareVerificationEnabled() const { return shareVerification_; }
+bool EdDSASignatureAccumulator::hasShareVerificationEnabled() const { return false; }
 int EdDSASignatureAccumulator::getNumValidShares() const { return 0; }
 std::set<ShareID> EdDSASignatureAccumulator::getInvalidShareIds() const { return std::set<ShareID>(); }
 
-EdDSASignatureAccumulator::EdDSASignatureAccumulator(const EdDSAMultisigVerifier &verifier, bool shareVerification)
-    : verifier_(verifier), shareVerification_(shareVerification) {
-  LOG_DEBUG(EDDSA_MULTISIG_LOG, KVLOG(this));
-}
+EdDSASignatureAccumulator::EdDSASignatureAccumulator() { LOG_DEBUG(EDDSA_MULTISIG_LOG, KVLOG(this)); }
 
-EdDSAMultisigVerifier::EdDSAMultisigVerifier(const std::vector<SSLEdDSAPublicKey> &publicKeys,
+EdDSAMultisigVerifier::EdDSAMultisigVerifier(const std::vector<SingleVerifier> &verifiers,
                                              const size_t signersCount,
                                              const size_t threshold)
-    : publicKeys_(), signersCount_(signersCount + 1), threshold_(threshold) {
-  if (signersCount_ == publicKeys.size()) {
-    publicKeys_ = publicKeys;
-  }
-  LOG_DEBUG(EDDSA_MULTISIG_LOG, KVLOG(this, publicKeys_.size()));
+    : verifiers_(verifiers), signersCount_(signersCount + 1), threshold_(threshold) {
+  ConcordAssertEQ(verifiers.size(), signersCount + 1);
+  LOG_DEBUG(EDDSA_MULTISIG_LOG, KVLOG(this, verifiers_.size()));
 }
 
 IThresholdAccumulator *EdDSAMultisigVerifier::newAccumulator(bool withShareVerification) const {
-  return new EdDSASignatureAccumulator(*this, withShareVerification);
+  UNUSED(withShareVerification);
+  return new EdDSASignatureAccumulator();
 }
 
-bool EdDSAMultisigVerifier::verifySingleSignature(const std::string_view msg,
-                                                  const SingleEdDSASignature &signature) const {
+bool EdDSAMultisigVerifier::verifySingleSignature(const uint8_t *msg,
+                                                  size_t msgLen,
+                                                  const SingleEdDSASignature &signature,
+                                                  const SingleVerifier &verifier) const {
   if (signature.id == 0) {
     return false;
   }
 
-  auto result = publicKeys_[signature.id].verify(reinterpret_cast<const uint8_t *>(msg.data()),
-                                                 msg.size(),
-                                                 signature.signatureBytes.data(),
-                                                 signature.signatureBytes.size());
+  auto result = verifier.verify(msg, msgLen, signature.signatureBytes.data(), signature.signatureBytes.size());
   LOG_DEBUG(EDDSA_MULTISIG_LOG, "Verified id: " << KVLOG(signature.id, result));
   return result;
 }
 
 bool EdDSAMultisigVerifier::verify(const char *msg, int msgLen, const char *sig, int sigLen) const {
-  LOG_DEBUG(EDDSA_MULTISIG_LOG, KVLOG(this, publicKeys_.size(), signersCount_, threshold_, sigLen));
+  LOG_DEBUG(EDDSA_MULTISIG_LOG, KVLOG(this, verifiers_.size(), signersCount_, threshold_, sigLen));
   auto msgLenUnsigned = static_cast<size_t>(msgLen);
   auto sigLenUnsigned = static_cast<unsigned long>(sigLen);
   ConcordAssert(sigLenUnsigned % sizeof(SingleEdDSASignature) == 0);
@@ -96,8 +87,10 @@ bool EdDSAMultisigVerifier::verify(const char *msg, int msgLen, const char *sig,
   const SingleEdDSASignature *allSignatures = reinterpret_cast<const SingleEdDSASignature *>(sig);
   size_t validSignatureCount = 0;
 
-  for (int i = 0; i < (int)signatureCountInBuffer; i++) {
-    auto result = verifySingleSignature(std::string_view(msg, msgLenUnsigned), allSignatures[i]);
+  for (int i = 0; i < static_cast<int>(signatureCountInBuffer); i++) {
+    auto &currentSignature = allSignatures[i];
+    auto result = verifySingleSignature(
+        reinterpret_cast<const uint8_t *>(msg), msgLenUnsigned, currentSignature, verifiers_[currentSignature.id]);
     validSignatureCount += result == true;
   }
 
@@ -109,7 +102,7 @@ bool EdDSAMultisigVerifier::verify(const char *msg, int msgLen, const char *sig,
 int EdDSAMultisigVerifier::requiredLengthForSignedData() const {
   return static_cast<int>(static_cast<unsigned long>(signersCount_) * sizeof(SingleEdDSASignature));
 }
-const IPublicKey &EdDSAMultisigVerifier::getPublicKey() const { return publicKeys_[0]; }
+const IPublicKey &EdDSAMultisigVerifier::getPublicKey() const { return verifiers_[0].getPubKey(); }
 const IShareVerificationKey &EdDSAMultisigVerifier::getShareVerificationKey(ShareID signer) const {
-  return publicKeys_[static_cast<size_t>(signer)];
+  return verifiers_[static_cast<size_t>(signer)].getPubKey();
 }

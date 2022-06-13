@@ -11,9 +11,10 @@
 // LICENSE file.
 #pragma once
 
-#include "../IThresholdFactory.h"
-#include "../IThresholdSigner.h"
-#include "../IThresholdVerifier.h"
+#include "threshsign/IThresholdFactory.h"
+#include "threshsign/IThresholdSigner.h"
+#include "threshsign/IThresholdVerifier.h"
+#include "EdDSAThreshsignKeys.h"
 
 class EdDSAMultisigFactory : public IThresholdFactory {
  public:

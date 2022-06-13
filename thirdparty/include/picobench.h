@@ -1,3 +1,4 @@
+// clang-format off
 // picobench v2.00
 // https://github.com/iboB/picobench
 //
@@ -1451,3 +1452,4 @@ high_res_clock::time_point high_res_clock::now()
 }
 
 #endif
+// clang-format on
