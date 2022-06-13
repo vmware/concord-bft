@@ -477,7 +477,10 @@ std::optional<Tx> createPublicTx(const std::vector<std::string>& tokens, const U
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void printHelp() {
   std::cout << "\nCommands:\n";
-  std::cout << "view\t\t\t\t-- start browsing the application state.\n";
+  std::cout << k_CmdAccounts << "\t\t\t-- print all available account names you can send public or utt funds to.\n";
+  std::cout << k_CmdBalance << "\t\t\t\t-- print details about your account.\n";
+  std::cout << k_CmdLedger << "\t\t\t\t-- print all transactions that happened on the Blockchain.\n";
+  std::cout << k_CmdView << "\t\t\t\t-- start browsing the application state.\n";
 
   std::cout << "transfer [account] [amount]\t-- transfer public money to another account.\n";
   std::cout << "utt [account] [amount]\t\t-- transfer money anonymously to another account.\n";
@@ -531,10 +534,12 @@ void checkBalance(UTTClientApp& app, WalletCommunicator& comm) {
   std::cout << "  Public balance:\t" << app.fmtCurrency(myAccount.getPublicBalance()) << '\n';
   std::cout << "  UTT wallet balance:\t" << app.fmtCurrency(app.getUttBalance()) << '\n';
   std::cout << "  UTT wallet coins:\t[";
-  if (!app.getMyUttWallet().coins.empty()) {
-    for (int i = 0; i < (int)app.getMyUttWallet().coins.size() - 1; ++i)
-      std::cout << app.fmtCurrency(app.getMyUttWallet().coins[i].getValue()) << ", ";
-    std::cout << app.fmtCurrency(app.getMyUttWallet().coins.back().getValue());
+
+  const auto& myWallet = app.getMyUttWallet();
+  if (!myWallet.coins.empty()) {
+    for (int i = 0; i < (int)myWallet.coins.size() - 1; ++i)
+      std::cout << app.fmtCurrency(myWallet.coins[i].getValue()) << ", ";
+    std::cout << app.fmtCurrency(myWallet.coins.back().getValue());
   }
   std::cout << "]\n";
   std::cout << "  Anonymous budget:\t" << app.fmtCurrency(app.getUttBudget()) << '\n';
