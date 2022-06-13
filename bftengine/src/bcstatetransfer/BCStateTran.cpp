@@ -1102,48 +1102,48 @@ void BCStateTran::handleStateTransferMessageImpl(char *msg,
   LOG_DEBUG(logger_, "new message with type=" << msgHeader->type);
 
   FetchingState fs = getFetchingState();
-  bool noDelete = false;
+  bool freeMessage{true};
   switch (msgHeader->type) {
     case MsgType::AskForCheckpointSummaries:
       if (fs == FetchingState::NotFetching) {
         metrics_.handle_AskForCheckpointSummaries_msg_++;
-        noDelete = onMessage(reinterpret_cast<AskForCheckpointSummariesMsg *>(msg), msgLen, senderId);
+        freeMessage = onMessage(reinterpret_cast<AskForCheckpointSummariesMsg *>(msg), msgLen, senderId);
       }
       break;
     case MsgType::CheckpointsSummary:
       if (fs == FetchingState::GettingCheckpointSummaries) {
         metrics_.handle_CheckpointsSummary_msg_++;
-        noDelete = onMessage(reinterpret_cast<CheckpointSummaryMsg *>(msg), msgLen, senderId);
+        freeMessage = onMessage(reinterpret_cast<CheckpointSummaryMsg *>(msg), msgLen, senderId);
       }
       break;
     case MsgType::FetchBlocks: {
       TimeRecorder scoped_timer(*histograms_.src_handle_FetchBlocks_msg_duration);
       metrics_.handle_FetchBlocks_msg_++;
-      noDelete = onMessage(reinterpret_cast<FetchBlocksMsg *>(msg), msgLen, senderId);
+      freeMessage = onMessage(reinterpret_cast<FetchBlocksMsg *>(msg), msgLen, senderId);
     } break;
     case MsgType::FetchResPages: {
       TimeRecorder scoped_timer(*histograms_.src_handle_FetchResPages_msg_duration);
       metrics_.handle_FetchResPages_msg_++;
-      noDelete = onMessage(reinterpret_cast<FetchResPagesMsg *>(msg), msgLen, senderId);
+      freeMessage = onMessage(reinterpret_cast<FetchResPagesMsg *>(msg), msgLen, senderId);
     } break;
     case MsgType::RejectFetching:
       if (fs == FetchingState::GettingMissingBlocks || fs == FetchingState::GettingMissingResPages) {
         metrics_.handle_RejectFetching_msg_++;
-        noDelete = onMessage(reinterpret_cast<RejectFetchingMsg *>(msg), msgLen, senderId);
+        freeMessage = onMessage(reinterpret_cast<RejectFetchingMsg *>(msg), msgLen, senderId);
       }
       break;
     case MsgType::ItemData:
       if (fs == FetchingState::GettingMissingBlocks || fs == FetchingState::GettingMissingResPages) {
         TimeRecorder scoped_timer(*histograms_.dst_handle_ItemData_msg);
         metrics_.handle_ItemData_msg_++;
-        noDelete = onMessage(reinterpret_cast<ItemDataMsg *>(msg), msgLen, senderId, incomingEventsQPushTime);
+        freeMessage = onMessage(reinterpret_cast<ItemDataMsg *>(msg), msgLen, senderId, incomingEventsQPushTime);
       }
       break;
     default:
       break;
   }
 
-  if (!noDelete) {
+  if (freeMessage) {
     replicaForStateTransfer_->freeStateTransferMsg(msg);
   }
   time_in_incoming_events_queue_rec_.start();
@@ -1581,7 +1581,7 @@ bool BCStateTran::onMessage(const AskForCheckpointSummariesMsg *m, uint32_t msgL
   if (msgLen < sizeof(AskForCheckpointSummariesMsg) || m->minRelevantCheckpointNum == 0 || m->msgSeqNum == 0) {
     LOG_WARN(logger_, "Msg is invalid: " << KVLOG(msgLen, m->minRelevantCheckpointNum, m->msgSeqNum));
     metrics_.invalid_ask_for_checkpoint_summaries_msg_++;
-    return false;
+    return true;
   }
 
   // if msg is not relevant
@@ -1593,7 +1593,7 @@ bool BCStateTran::onMessage(const AskForCheckpointSummariesMsg *m, uint32_t msgL
              "Msg is irrelevant: " << KVLOG(
                  isCollectingState, seqNumInvalid, m->minRelevantCheckpointNum, lastStoredCheckpoint));
     metrics_.irrelevant_ask_for_checkpoint_summaries_msg_++;
-    return false;
+    return true;
   }
 
   uint64_t toCheckpoint = lastStoredCheckpoint;
@@ -1609,13 +1609,8 @@ bool BCStateTran::onMessage(const AskForCheckpointSummariesMsg *m, uint32_t msgL
     if (!psd_->hasCheckpointDesc(i)) continue;
 
     DataStore::CheckpointDesc cpDesc = psd_->getCheckpointDesc(i);
-    auto deleter = [](CheckpointSummaryMsg *msg) {
-      char *bytes = reinterpret_cast<char *>(msg);
-      delete[] bytes;
-    };
-    auto msg = std::unique_ptr<CheckpointSummaryMsg, decltype(deleter)>(
-        CheckpointSummaryMsg::create(cpDesc.rvbData.size()), deleter);
 
+    auto msg = CheckpointSummaryMsg::alloc(cpDesc.rvbData.size());
     msg->checkpointNum = i;
     msg->maxBlockId = cpDesc.maxBlockId;
     msg->digestOfMaxBlockId = cpDesc.digestOfMaxBlockId;
@@ -1632,8 +1627,8 @@ bool BCStateTran::onMessage(const AskForCheckpointSummariesMsg *m, uint32_t msgL
                                                        msg->requestMsgSeqNum,
                                                        msg->sizeofRvbData()));
 
-    replicaForStateTransfer_->sendStateTransferMessage(reinterpret_cast<char *>(msg.get()), msg->size(), replicaId);
-
+    replicaForStateTransfer_->sendStateTransferMessage(reinterpret_cast<char *>(msg), msg->size(), toReplicaId);
+    CheckpointSummaryMsg::free(msg);
     metrics_.sent_checkpoint_summary_msg_++;
     sent = true;
   }
@@ -1641,7 +1636,7 @@ bool BCStateTran::onMessage(const AskForCheckpointSummariesMsg *m, uint32_t msgL
   if (!sent) {
     LOG_INFO(logger_, "Failed to send relevant CheckpointSummaryMsg: " << KVLOG(toReplicaId));
   }
-  return false;
+  return true;
 }
 
 bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint16_t replicaId) {
@@ -1654,7 +1649,7 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
     auto fetchingState = stateName(getFetchingState());
     LOG_WARN(logger_, "Msg is irrelevant: " << KVLOG(fetchingState));
     metrics_.irrelevant_checkpoint_summary_msg_++;
-    return false;
+    return true;
   }
 
   // if msg is invalid
@@ -1664,7 +1659,7 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
              "Msg is invalid: " << KVLOG(
                  replicaId, msgLen, m->checkpointNum, m->digestOfResPagesDescriptor.isZero(), m->requestMsgSeqNum));
     metrics_.invalid_checkpoint_summary_msg_++;
-    return false;
+    return true;
   }
 
   // if msg is not relevant
@@ -1673,7 +1668,7 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
              "Msg is irrelevant: " << KVLOG(
                  replicaId, m->requestMsgSeqNum, lastMsgSeqNum_, m->checkpointNum, psd_->getLastStoredCheckpoint()));
     metrics_.irrelevant_checkpoint_summary_msg_++;
-    return false;
+    return true;
   }
 
   uint16_t numOfMsgsFromSender =
@@ -1682,7 +1677,7 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
   // if we have too many messages from the same replica
   if (numOfMsgsFromSender >= (psd_->getMaxNumOfStoredCheckpoints() + 1)) {
     LOG_WARN(logger_, "Too many messages from replica: " << KVLOG(replicaId, numOfMsgsFromSender));
-    return false;
+    return true;
   }
 
   auto p = summariesCerts.find(m->checkpointNum);
@@ -1702,7 +1697,7 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
 
   if (!cert->isComplete()) {
     LOG_INFO(logger_, "Does not have enough CheckpointSummaryMsg messages");
-    return true;
+    return false;
   }
 
   LOG_INFO(logger_, "Has enough CheckpointSummaryMsg messages");
@@ -1727,7 +1722,7 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
     LOG_ERROR(logger_, "Failed to set new RVT data! restart cycle...");
     // enter new cycle
     startCollectingStateInternal();
-    return true;
+    return false;
   }
   metrics_.current_rvb_data_state_.Get().Set(rvbm_->getStateOfRvbData());
 
@@ -1792,7 +1787,7 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
   metrics_.last_block_.Get().Set(newCheckpoint.maxBlockId);
 
   processData();
-  return true;
+  return false;
 }
 
 uint16_t BCStateTran::getBlocksConcurrentAsync(uint64_t maxBlockId, uint64_t minBlockId, uint16_t numBlocks) {
@@ -1954,20 +1949,20 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
                                          m->maxBlockId,
                                          m->maxBlockIdInCycle));
     metrics_.invalid_fetch_blocks_msg_++;
-    return false;
+    return true;
   }
 
   // if msg is not relevant
   if (!checkValidityAndSaveMsgSeqNum(replicaId, m->msgSeqNum)) {
     LOG_WARN(logger_, "Msg is irrelevant: " << KVLOG(replicaId, m->msgSeqNum));
     metrics_.irrelevant_fetch_blocks_msg_++;
-    return false;
+    return true;
   }
 
   uint64_t numBlocksRequested = static_cast<uint64_t>(m->maxBlockId - m->minBlockId + 1);
   if (numBlocksRequested > config_.maxNumberOfChunksInBatch) {
     sendRejectFetchingMsg(RejectFetchingMsg::Reason::INVALID_NUMBER_OF_BLOCKS_REQUESTED, m->msgSeqNum, replicaId);
-    return false;
+    return true;
   }
 
   FetchingState fetchingState = getFetchingState();
@@ -1976,14 +1971,14 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
   // Reject if I'm already in ST (source or destination)
   if (isActiveDestination(fetchingState)) {
     sendRejectFetchingMsg(RejectFetchingMsg::Reason::IN_STATE_TRANSFER, m->msgSeqNum, replicaId);
-    return false;
+    return true;
   }
   if (m->maxBlockId > lastReachableBlockNum) {
     sendRejectFetchingMsg(RejectFetchingMsg::Reason::BLOCK_RANGE_NOT_FOUND,
                           m->msgSeqNum,
                           replicaId,
                           KVLOG(m->maxBlockId, lastReachableBlockNum));
-    return false;
+    return true;
   }
   auto [sessionOpened, otherReplicaSessionClosed] = sourceSession_.tryOpen(replicaId);
   (void)otherReplicaSessionClosed;
@@ -1991,7 +1986,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
     auto additionalInfo =
         "Active session with ownerDestReplicaId=" + std::to_string(sourceSession_.ownerDestReplicaId());
     sendRejectFetchingMsg(RejectFetchingMsg::Reason::IN_ACTIVE_SESSION, m->msgSeqNum, replicaId, additionalInfo);
-    return false;
+    return true;
   }
   // comment: otherReplicaSessionClosed is supposed to mark the need to clear io contexts.
   // To save time, do it later and not here.
@@ -2003,7 +1998,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
     sendRejectFetchingMsg(
         RejectFetchingMsg::Reason::DIGESTS_FOR_RVBGROUP_NOT_FOUND, m->msgSeqNum, replicaId, additionalInfo);
     sourceSession_.close();
-    return false;
+    return true;
   }
 
   // start recording time to send a whole batch, and its size
@@ -2032,7 +2027,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
                                                                      m->lastKnownChunkInLastRequiredBlock,
                                                                      m->rvbGroupId));
   continueSendBatch();
-  return false;
+  return true;
 }
 
 void BCStateTran::continueSendBatch() {
@@ -2132,7 +2127,7 @@ void BCStateTran::continueSendBatch() {
       if ((rvbGroupDigestsActualSize == 0) || (sb.rvbGroupDigestsExpectedSize != rvbGroupDigestsActualSize)) {
         auto additionalInfo = "Rejecting message - not holding all requested digests (or some other error)" +
                               KVLOG(sb.rvbGroupDigestsExpectedSize, rvbGroupDigestsActualSize);
-        ItemDataMsg::free(outMsg);
+        replicaForStateTransfer_->freeStateTransferMsg(reinterpret_cast<char *>(outMsg));
         sendRejectFetchingMsg(
             RejectFetchingMsg::Reason::DIGESTS_FOR_RVBGROUP_NOT_FOUND, m->msgSeqNum, sb.destReplicaId, additionalInfo);
         sourceSession_.close();
@@ -2246,14 +2241,14 @@ bool BCStateTran::onMessage(const FetchResPagesMsg *m, uint32_t msgLen, uint16_t
   if (msgLen < sizeof(FetchResPagesMsg) || m->msgSeqNum == 0 || m->requiredCheckpointNum == 0) {
     LOG_WARN(logger_, "Msg is invalid: " << KVLOG(replicaId, msgLen, m->msgSeqNum, m->requiredCheckpointNum));
     metrics_.invalid_fetch_res_pages_msg_++;
-    return false;
+    return true;
   }
 
   // if msg is not relevant
   if (!checkValidityAndSaveMsgSeqNum(replicaId, m->msgSeqNum)) {
     LOG_WARN(logger_, "Msg is irrelevant: " << KVLOG(replicaId, m->msgSeqNum));
     metrics_.irrelevant_fetch_res_pages_msg_++;
-    return false;
+    return true;
   }
 
   FetchingState fetchingState = getFetchingState();
@@ -2273,7 +2268,7 @@ bool BCStateTran::onMessage(const FetchResPagesMsg *m, uint32_t msgLen, uint16_t
     metrics_.sent_reject_fetch_msg_++;
     replicaForStateTransfer_->sendStateTransferMessage(
         reinterpret_cast<char *>(&outMsg), sizeof(RejectFetchingMsg), replicaId);
-    return false;
+    return true;
   }
 
   // find virtual block
@@ -2317,7 +2312,7 @@ bool BCStateTran::onMessage(const FetchResPagesMsg *m, uint32_t msgLen, uint16_t
   // if msg is invalid (because lastKnownChunk+1 does not exist)
   if (nextChunk > numOfChunksInVBlock) {
     LOG_WARN(logger_, "Msg is invalid: illegal chunk number: " << KVLOG(replicaId, nextChunk, numOfChunksInVBlock));
-    return false;
+    return true;
   }
 
   // send chunks
@@ -2368,7 +2363,7 @@ bool BCStateTran::onMessage(const FetchResPagesMsg *m, uint32_t msgLen, uint16_t
       break;
     }
   }
-  return false;
+  return true;
 }
 
 bool BCStateTran::onMessage(const RejectFetchingMsg *m, uint32_t msgLen, uint16_t replicaId) {
@@ -2379,21 +2374,21 @@ bool BCStateTran::onMessage(const RejectFetchingMsg *m, uint32_t msgLen, uint16_
   if (fs != FetchingState::GettingMissingBlocks && fs != FetchingState::GettingMissingResPages) {
     LOG_ERROR(logger_,
               "Expected Fetching State GettingMissingBlocks or GettingMissingResPages. Got: " << stateName(fs));
-    return false;
+    return true;
   }
 
   // if msg is invalid
   if (msgLen < sizeof(RejectFetchingMsg)) {
     LOG_WARN(logger_, "Msg is invalid: " << KVLOG(replicaId, msgLen));
     metrics_.invalid_reject_fetching_msg_++;
-    return false;
+    return true;
   }
 
   auto itr = m->reasonMessages.find(m->rejectionCode);
   if (itr == m->reasonMessages.end()) {
     LOG_WARN(logger_, "Msg is invalid: " << KVLOG(replicaId, m->rejectionCode));
     metrics_.invalid_reject_fetching_msg_++;
-    return false;
+    return true;
   }
 
   // if msg is not relevant
@@ -2406,7 +2401,7 @@ bool BCStateTran::onMessage(const RejectFetchingMsg *m, uint32_t msgLen, uint16_
         logger_,
         "Msg is irrelevant" << KVLOG(replicaId, sourceSelector_.currentReplica(), lastMsgSeqNum_, m->requestMsgSeqNum));
     metrics_.irrelevant_reject_fetching_msg_++;
-    return false;
+    return true;
   }
 
   LOG_INFO(
@@ -2427,7 +2422,7 @@ bool BCStateTran::onMessage(const RejectFetchingMsg *m, uint32_t msgLen, uint16_
     clearAllPendingItemsData();
     processData();
   }
-  return false;
+  return true;
 }
 
 // Retrieve either a chunk of a block or a reserved page when fetching
@@ -2442,12 +2437,12 @@ bool BCStateTran::onMessage(const ItemDataMsg *m,
   if ((fs != FetchingState::GettingMissingBlocks) && (fs != FetchingState::GettingMissingResPages)) {
     LOG_ERROR(logger_,
               "Expected Fetching State GettingMissingBlocks or GettingMissingResPages. Got: " << stateName(fs));
-    return false;
+    return true;
   }
 
   if (!sourceSelector_.isValidSourceId(replicaId)) {
     LOG_ERROR(logger_, "Msg received from invalid source " << replicaId);
-    return false;
+    return true;
   }
 
   const auto MaxNumOfChunksInBlock =
@@ -2479,7 +2474,7 @@ bool BCStateTran::onMessage(const ItemDataMsg *m,
                                          m->rvbDigestsSize,
                                          m->dataSize));
     metrics_.invalid_item_data_msg_++;
-    return false;
+    return true;
   }
 
   auto fetchingState = fs;
@@ -2507,7 +2502,7 @@ bool BCStateTran::onMessage(const ItemDataMsg *m,
                                               totalSizeOfPendingItemDataMsgs,
                                               config_.maxPendingDataFromSourceReplica));
       metrics_.irrelevant_item_data_msg_++;
-      return false;
+      return true;
     }
   } else {
     ConcordAssertEQ(psd_->getFirstRequiredBlock(), 0);
@@ -2529,7 +2524,7 @@ bool BCStateTran::onMessage(const ItemDataMsg *m,
                                               totalSizeOfPendingItemDataMsgs,
                                               config_.maxPendingDataFromSourceReplica));
       metrics_.irrelevant_item_data_msg_++;
-      return false;
+      return true;
     }
   }
 
@@ -2556,12 +2551,12 @@ bool BCStateTran::onMessage(const ItemDataMsg *m,
     totalSizeOfPendingItemDataMsgs += m->dataSize;
     metrics_.total_size_of_pending_item_data_msgs_.Get().Set(totalSizeOfPendingItemDataMsgs);
     processData(m->lastInBatch, m->rvbDigestsSize);
-    return true;
+    return false;
   } else {
     LOG_INFO(
         logger_,
         "ItemDataMsg was NOT added to pendingItemDataMsgs: " << KVLOG(replicaId, fetchingState, m->requestMsgSeqNum));
-    return false;
+    return true;
   }
 }
 
@@ -3606,7 +3601,7 @@ void BCStateTran::onGettingMissingBlocksEnd(DataStoreTransaction *txn) {
 // up to the point we have reached
 void BCStateTran::cycleEndSummary() {
   Throughput::Results blocksCollectedResults, bytesCollectedResults, blocksPostProcessedResults;
-  std::ostringstream sources_str;
+  std::ostringstream sources_str("NA");
   const auto &sources_ = sourceSelector_.getActualSources();
   auto internalCycleCounter = metrics_.internal_cycle_counter.Get().Get();
 
@@ -3623,8 +3618,10 @@ void BCStateTran::cycleEndSummary() {
   bytesFetched_.stop(true);
   blocksPostProcessed_.stop(true);
 
-  std::copy(sources_.begin(), sources_.end() - 1, std::ostream_iterator<uint16_t>(sources_str, ","));
-  sources_str << sources_.back();
+  if (!sources_.empty()) {
+    std::copy(sources_.begin(), sources_.end() - 1, std::ostream_iterator<uint16_t>(sources_str, ","));
+    sources_str << sources_.back();
+  }
   auto cycleDuration = cycleDT_.totalDuration(true);
   auto gettingCheckpointSummariesDuration = gettingCheckpointSummariesDT_.totalDuration(true);
   auto gettingMissingBlocksDuration = gettingMissingBlocksDT_.totalDuration(true);

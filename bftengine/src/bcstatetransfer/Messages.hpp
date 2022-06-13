@@ -56,17 +56,20 @@ struct AskForCheckpointSummariesMsg : public BCStateTranBaseMsg {
 struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
   CheckpointSummaryMsg() = delete;
 
-  static CheckpointSummaryMsg* create(size_t rvbDataSize) {
+  static CheckpointSummaryMsg* alloc(size_t rvbDataSize) {
     size_t totalByteSize = sizeof(CheckpointSummaryMsg) + rvbDataSize - 1;
-    CheckpointSummaryMsg* msg{reinterpret_cast<CheckpointSummaryMsg*>(new char[totalByteSize])};
+    CheckpointSummaryMsg* msg{static_cast<CheckpointSummaryMsg*>(std::malloc(totalByteSize))};
+    if (!msg) {
+      throw std::bad_alloc();
+    }
     memset(msg, 0, totalByteSize);
     msg->type = MsgType::CheckpointsSummary;
     msg->rvbDataSize = rvbDataSize;
     return msg;
   }
 
-  static CheckpointSummaryMsg* create(const CheckpointSummaryMsg* rMsg) {
-    auto msg = create(rMsg->rvbDataSize);
+  static CheckpointSummaryMsg* alloc(const CheckpointSummaryMsg* rMsg) {
+    auto msg = alloc(rMsg->rvbDataSize);
     msg->checkpointNum = rMsg->checkpointNum;
     msg->maxBlockId = rMsg->maxBlockId;
     msg->digestOfMaxBlockId = rMsg->digestOfMaxBlockId;
@@ -74,6 +77,10 @@ struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
     msg->requestMsgSeqNum = rMsg->requestMsgSeqNum;
     memcpy(msg->data, rMsg->data, rMsg->rvbDataSize);
     return msg;
+  }
+
+  static void free(const CheckpointSummaryMsg* msg) {
+    std::free(const_cast<char*>(reinterpret_cast<const char*>(msg)));
   }
 
   static void free(void* context, const CheckpointSummaryMsg* msg) {
@@ -222,20 +229,18 @@ struct RejectFetchingMsg : public BCStateTranBaseMsg {
 
 struct ItemDataMsg : public BCStateTranBaseMsg {
   static ItemDataMsg* alloc(uint32_t dataSize) {
-    size_t s = sizeof(ItemDataMsg) - 1 + dataSize;
-    char* buff = reinterpret_cast<char*>(std::malloc(s));
-    memset(buff, 0, s);
-    ItemDataMsg* retVal = reinterpret_cast<ItemDataMsg*>(buff);
-    retVal->type = MsgType::ItemData;
-    retVal->dataSize = dataSize;
-
-    return retVal;
+    size_t msgSize = sizeof(ItemDataMsg) - 1 + dataSize;
+    ItemDataMsg* msg = static_cast<ItemDataMsg*>(std::malloc(msgSize));
+    if (!msg) {
+      throw std::bad_alloc();
+    }
+    memset(msg, 0, msgSize);
+    msg->type = MsgType::ItemData;
+    msg->dataSize = dataSize;
+    return msg;
   }
 
-  static void free(ItemDataMsg* i) {
-    void* buff = i;
-    std::free(buff);
-  }
+  static void free(ItemDataMsg* msg) { std::free(msg); }
 
   uint64_t requestMsgSeqNum;
   uint64_t blockNumber;
