@@ -499,8 +499,6 @@ class SkvbcRestartRecoveryTest(ApolloTest):
 
         loop_count_outer = 0
 
-        #skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
-
         while (loop_count_outer < 20):
             loop_count_outer = loop_count_outer + 1
             loop_count = 0
