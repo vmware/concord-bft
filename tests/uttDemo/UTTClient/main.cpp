@@ -28,9 +28,12 @@
 #include "utt_blockchain_app.hpp"
 #include "utt_config.hpp"
 
+#include "UTTClientApp.hpp"
 #include <utt/Client.h>
 #include <utt/MintOp.h>
 #include <utt/BurnOp.h>
+
+#include "UTTDataViewer.hpp"
 
 using namespace bftEngine;
 using namespace bft::communication;
@@ -43,10 +46,11 @@ using ReplicaSpecificInfo = std::map<uint16_t, std::vector<uint8_t>>;  // [Repli
 namespace {
 const std::string k_CmdQuit = "q";
 const std::string k_CmdHelp = "h";
-// Queries
+// Query
 const std::string k_CmdAccounts = "accounts";
 const std::string k_CmdBalance = "balance";
 const std::string k_CmdLedger = "ledger";
+const std::string k_CmdView = "view";
 // UTT
 const std::string k_CmdUtt = "utt";
 const std::string k_CmdMint = "mint";
@@ -223,131 +227,6 @@ class WalletCommunicator : public IReceiver {
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-struct ClientAppParams {
-  uint16_t clientId_ = 0;
-  std::string configFileName_;
-  std::string summarizeFileName_;
-};
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-class UTTClientApp : public UTTBlockchainApp {
- public:
-  UTTClientApp(uint16_t walletId) {
-    if (walletId == 0) throw std::runtime_error("wallet id must be a positive value!");
-
-    const std::string fileName = "config/utt_wallet_" + std::to_string(walletId);
-    std::ifstream ifs(fileName);
-    if (!ifs.is_open()) throw std::runtime_error("Missing config: " + fileName);
-
-    UTTClientConfig cfg;
-    ifs >> cfg;
-
-    myPid_ = cfg.wallet_.getUserPid();
-    if (myPid_.empty()) throw std::runtime_error("Empty wallet pid!");
-
-    for (auto& pid : cfg.pids_) {
-      if (pid == myPid_) continue;
-      otherPids_.emplace(std::move(pid));
-    }
-    if (otherPids_.empty()) throw std::runtime_error("Other pids are empty!");
-
-    LOG_INFO(logger, "Successfully loaded UTT wallet with pid '" << myPid_);
-
-    addAccount(Account{myPid_, cfg.initPublicBalance_});
-    wallet_ = std::move(cfg.wallet_);
-  }
-
-  const Account& getMyAccount() const { return *getAccountById(myPid_); }
-  Account& getMyAccount() { return *getAccountById(myPid_); }
-
-  size_t getUttBalance() const {
-    size_t balance = 0;
-    for (const auto& c : wallet_.coins) balance += c.getValue();
-    return balance;
-  }
-
-  size_t getUttBudget() const { return wallet_.budgetCoin ? wallet_.budgetCoin->getValue() : 0; }
-
-  template <typename T>
-  std::string fmtCurrency(T val) const {
-    return "$" + std::to_string(val);
-  }
-
-  std::string myPid_;
-  std::set<std::string> otherPids_;
-  libutt::Wallet wallet_;
-  // [TODO-UTT] Compare these values with the provided config (equality is assumed)
-  uint16_t numReplicas_ = 4;
-  uint16_t sigThresh_ = 2;  // F + 1
-
- private:
-  void executeTx(const Tx& tx) override {
-    UTTBlockchainApp::executeTx(tx);  // Common logic for tx execution
-
-    // Client removes spent coins and attempts to claim output coins
-    if (const auto* txUtt = std::get_if<TxUtt>(&tx)) {
-      std::cout << "\nApplying UTT tx: " << txUtt->utt_.getHashHex() << '\n';
-      pruneSpentCoins();
-      tryClaimCoins(*txUtt);
-    }
-    // Client claims minted coins
-    else if (const auto* txMint = std::get_if<TxMint>(&tx)) {
-      if (txMint->pid_ == myPid_) {
-        ConcordAssert(txMint->sigShares_.has_value());
-        ConcordAssert(txMint->sigShares_->sigShares_.size() == 1);
-        std::cout << "\nApplying Mint tx: " << txMint->op_.getHashHex() << '\n';
-        auto coin = txMint->op_.claimCoin(wallet_.p,
-                                          wallet_.ask,
-                                          numReplicas_,
-                                          txMint->sigShares_->sigShares_[0],
-                                          txMint->sigShares_->signerIds_,
-                                          wallet_.bpk);
-
-        std::cout << " + '" << myPid_ << "' claims " << fmtCurrency(coin.getValue())
-                  << (coin.isBudget() ? " budget" : " normal") << " coin.\n";
-        wallet_.addCoin(coin);
-      }
-      // Client removes burned coins
-    } else if (const auto* txBurn = std::get_if<TxBurn>(&tx)) {
-      if (txBurn->op_.getOwnerPid() == myPid_) {
-        std::cout << "\nApplying Burn tx: " << txBurn->op_.getHashHex() << '\n';
-        pruneSpentCoins();
-      }
-    }
-  }
-
-  void pruneSpentCoins() {
-    auto result = libutt::Client::pruneSpentCoins(wallet_, nullset_);
-
-    for (const size_t value : result.spentCoins_)
-      std::cout << " - \'" << wallet_.getUserPid() << "' removes spent " << fmtCurrency(value) << " normal coin.\n";
-
-    if (result.spentBudgetCoin_)
-      std::cout << " - \'" << wallet_.getUserPid() << "' removes spent " << fmtCurrency(*result.spentBudgetCoin_)
-                << " budget coin.\n";
-  }
-
-  void tryClaimCoins(const TxUtt& tx) {
-    // Add any new coins
-    if (!tx.sigShares_) throw std::runtime_error("Missing sigShares in utt tx!");
-    const auto& sigShares = *tx.sigShares_;
-
-    size_t numTxo = tx.utt_.outs.size();
-    if (numTxo != sigShares.sigShares_.size())
-      throw std::runtime_error("Number of output coins differs from provided sig shares!");
-
-    for (size_t i = 0; i < numTxo; ++i) {
-      auto result = libutt::Client::tryClaimCoin(
-          wallet_, tx.utt_, i, sigShares.sigShares_[i], sigShares.signerIds_, numReplicas_);
-      if (result) {
-        std::cout << " + '" << myPid_ << "' claims " << fmtCurrency(result->value_)
-                  << (result->isBudgetCoin_ ? " budget" : " normal") << " coin.\n";
-      }
-    }
-  }
-};
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
 struct UttPayment {
   UttPayment(std::string receiver, size_t amount, bool dbgDoubleSpend = false)
       : receiver_(std::move(receiver)), amount_(amount), dbgDoubleSpend_(dbgDoubleSpend) {}
@@ -360,6 +239,13 @@ std::ostream& operator<<(std::ostream& os, const UttPayment& payment) {
   os << "utt " << payment.receiver_ << ' ' << payment.amount_;
   return os;
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+struct ClientAppParams {
+  uint16_t clientId_ = 0;
+  std::string configFileName_;
+  std::string summarizeFileName_;
+};
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 ClientAppParams setupParams(int argc, char** argv) {
@@ -475,8 +361,8 @@ std::pair<GetBlockDataReply, ReplicaSpecificInfo> sendGetBlockDataRequest(Wallet
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-ReplicaSigShares DeserializeSigShares(size_t numOutCoins, ReplicaSpecificInfo&& rsi, size_t thresh) {
-  ReplicaSigShares result;
+UttSigShares DeserializeSigShares(size_t numOutCoins, ReplicaSpecificInfo&& rsi, size_t thresh) {
+  UttSigShares result;
 
   // Pick first F+1 signers - we assume no malicious replicas
 
@@ -491,18 +377,18 @@ ReplicaSigShares DeserializeSigShares(size_t numOutCoins, ReplicaSpecificInfo&& 
     ss.ignore(1, '\n');  // skip newline
 
     ConcordAssert(size == numOutCoins);  // Make sure the rsi contains the same number of coins as the tx
-    result.sigShares_.resize(size);
+    result.signerShares_.resize(size);
 
     // Add this replica share to the list for i-th coin (the order is defined by signerIds)
     for (size_t i = 0; i < size; ++i) {
-      result.sigShares_[i].emplace_back(libutt::RandSigShare(ss));
+      result.signerShares_[i].emplace_back(libutt::RandSigShare(ss));
     }
   }
 
   // Sanity checks
   ConcordAssert(result.signerIds_.size() == thresh);
-  for (size_t i = 0; i < result.sigShares_.size(); ++i)
-    ConcordAssert(result.signerIds_.size() == result.sigShares_[i].size());
+  for (size_t i = 0; i < result.signerShares_.size(); ++i)
+    ConcordAssert(result.signerIds_.size() == result.signerShares_[i].size());
 
   return result;
 }
@@ -534,8 +420,8 @@ void syncState(UTTClientApp& app, WalletCommunicator& comm) {
       LOG_INFO(logger, "Received UTT Tx " << txUtt->utt_.getHashHex() << " for block " << replyBlockId);
 
       // Deserialize sig shares from replica specific info
-      ReplicaSigShares sigShares =
-          DeserializeSigShares(txUtt->utt_.outs.size(), std::move(result.second), app.sigThresh_);
+      UttSigShares sigShares =
+          DeserializeSigShares(txUtt->utt_.outs.size(), std::move(result.second), app.getSigThresh());
 
       // Add sig shares
       txUtt->sigShares_ = std::move(sigShares);
@@ -543,7 +429,7 @@ void syncState(UTTClientApp& app, WalletCommunicator& comm) {
       LOG_INFO(logger, "Received Mint Tx " << txMint->op_.getHashHex() << " for block " << replyBlockId);
 
       // Deserialize sig shares from replica specific info
-      ReplicaSigShares sigShares = DeserializeSigShares(1 /*expected coins*/, std::move(result.second), app.sigThresh_);
+      UttSigShares sigShares = DeserializeSigShares(1 /*expected coins*/, std::move(result.second), app.getSigThresh());
 
       // Add sig shares
       txMint->sigShares_ = std::move(sigShares);
@@ -558,9 +444,9 @@ void syncState(UTTClientApp& app, WalletCommunicator& comm) {
 std::optional<UttPayment> createUttPayment(const std::vector<std::string>& tokens, const UTTClientApp& app) {
   if (tokens.size() == 3 && (tokens[0] == k_CmdUtt || tokens[0] == k_CmdDbgUttDoubleSpend)) {
     const auto& receiver = tokens[1];
-    if (receiver == app.myPid_) throw std::domain_error("utt explicit self payments are not supported!");
+    if (receiver == app.getMyPid()) throw std::domain_error("utt explicit self payments are not supported!");
 
-    if (app.otherPids_.count(receiver) == 0) throw std::domain_error("utt payment receiver is unknown!");
+    if (app.getOtherPids().count(receiver) == 0) throw std::domain_error("utt payment receiver is unknown!");
 
     int payment = std::atoi(tokens[2].c_str());
     if (payment <= 0) throw std::domain_error("utt payment amount must be positive!");
@@ -577,12 +463,12 @@ std::optional<UttPayment> createUttPayment(const std::vector<std::string>& token
 std::optional<Tx> createPublicTx(const std::vector<std::string>& tokens, const UTTClientApp& app) {
   if (tokens.size() == 2) {
     if (tokens[0] == "deposit")
-      return TxPublicDeposit(app.myPid_, std::atoi(tokens[1].c_str()));
+      return TxPublicDeposit(app.getMyPid(), std::atoi(tokens[1].c_str()));
     else if (tokens[0] == "withdraw")
-      return TxPublicWithdraw(app.myPid_, std::atoi(tokens[1].c_str()));
+      return TxPublicWithdraw(app.getMyPid(), std::atoi(tokens[1].c_str()));
   } else if (tokens.size() == 3) {
     if (tokens[0] == "transfer")
-      return TxPublicTransfer(app.myPid_, std::move(tokens[1]), std::atoi(tokens[2].c_str()));
+      return TxPublicTransfer(app.getMyPid(), std::move(tokens[1]), std::atoi(tokens[2].c_str()));
   }
 
   return std::nullopt;
@@ -594,6 +480,8 @@ void printHelp() {
   std::cout << k_CmdAccounts << "\t\t\t-- print all available account names you can send public or utt funds to.\n";
   std::cout << k_CmdBalance << "\t\t\t\t-- print details about your account.\n";
   std::cout << k_CmdLedger << "\t\t\t\t-- print all transactions that happened on the Blockchain.\n";
+  std::cout << k_CmdView << "\t\t\t\t-- start browsing the application state.\n";
+
   std::cout << "transfer [account] [amount]\t-- transfer public money to another account.\n";
   std::cout << "utt [account] [amount]\t\t-- transfer money anonymously to another account.\n";
   std::cout << k_CmdMint << " [amount]\t\t\t-- exchanges public money for coin(s) usable in utt payments\n";
@@ -614,8 +502,8 @@ void printHelp() {
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void printAccounts(UTTClientApp& app) {
-  std::cout << "My account: " << app.myPid_ << '\n';
-  for (const auto& pid : app.otherPids_) {
+  std::cout << "My account: " << app.getMyPid() << '\n';
+  for (const auto& pid : app.getOtherPids()) {
     std::cout << pid << '\n';
   }
 }
@@ -626,14 +514,14 @@ void printCreateTxResult(const UTTClientApp& app, const libutt::Client::CreateTx
   std::cout << "\nCreated UTT tx " << result.tx.getHashHex() << '\n';
   std::cout << "  Type: " << result.txType_ << '\n';
   for (size_t coinValue : result.inputNormalCoinValues_)
-    std::cout << "  - '" << app.myPid_ << "' will spend " << app.fmtCurrency(coinValue) << " normal coin.\n";
+    std::cout << "  - '" << app.getMyPid() << "' will spend " << app.fmtCurrency(coinValue) << " normal coin.\n";
   if (result.inputBudgetCoinValue_)
-    std::cout << "  - '" << app.myPid_ << "' will spend " << app.fmtCurrency(*result.inputBudgetCoinValue_)
+    std::cout << "  - '" << app.getMyPid() << "' will spend " << app.fmtCurrency(*result.inputBudgetCoinValue_)
               << " budget coin.\n";
   for (const auto& [pid, coinValue] : result.recipients_)
     std::cout << "  + '" << pid << "' will receive " << app.fmtCurrency(coinValue) << " normal coin.\n";
   if (result.outputBudgetCoinValue_)
-    std::cout << "  + '" << app.myPid_ << "' will receive " << app.fmtCurrency(*result.outputBudgetCoinValue_)
+    std::cout << "  + '" << app.getMyPid() << "' will receive " << app.fmtCurrency(*result.outputBudgetCoinValue_)
               << " budget coin.\n";
 }
 
@@ -646,10 +534,12 @@ void checkBalance(UTTClientApp& app, WalletCommunicator& comm) {
   std::cout << "  Public balance:\t" << app.fmtCurrency(myAccount.getPublicBalance()) << '\n';
   std::cout << "  UTT wallet balance:\t" << app.fmtCurrency(app.getUttBalance()) << '\n';
   std::cout << "  UTT wallet coins:\t[";
-  if (!app.wallet_.coins.empty()) {
-    for (int i = 0; i < (int)app.wallet_.coins.size() - 1; ++i)
-      std::cout << app.fmtCurrency(app.wallet_.coins[i].getValue()) << ", ";
-    std::cout << app.fmtCurrency(app.wallet_.coins.back().getValue());
+
+  const auto& myWallet = app.getMyUttWallet();
+  if (!myWallet.coins.empty()) {
+    for (int i = 0; i < (int)myWallet.coins.size() - 1; ++i)
+      std::cout << app.fmtCurrency(myWallet.coins[i].getValue()) << ", ";
+    std::cout << app.fmtCurrency(myWallet.coins.back().getValue());
   }
   std::cout << "]\n";
   std::cout << "  Anonymous budget:\t" << app.fmtCurrency(app.getUttBudget()) << '\n';
@@ -659,7 +549,7 @@ void checkBalance(UTTClientApp& app, WalletCommunicator& comm) {
 void checkLedger(UTTClientApp& app, WalletCommunicator& comm) {
   syncState(app, comm);
   std::cout << '\n';
-  for (const auto& block : app.GetBlocks()) {
+  for (const auto& block : app.getBlocks()) {
     std::cout << block << '\n';
   }
 }
@@ -676,14 +566,14 @@ void mintCoin(UTTClientApp& app, WalletCommunicator& comm, const std::vector<std
   static bft::client::SeqNumberGenerator gen{bft::client::ClientId{0}};  // ClientId used just for logging
   uint64_t nextMintSeqNum = gen.unique();
 
-  auto uniqueHash = uniqueMintHash(app.myPid_, nextMintSeqNum);
-  libutt::MintOp mintOp(uniqueHash, amount, app.myPid_);
+  auto uniqueHash = uniqueMintHash(app.getMyPid(), nextMintSeqNum);
+  libutt::MintOp mintOp(uniqueHash, amount, app.getMyPid());
 
   std::cout << "\nCreated a Mint tx: " << mintOp.getHashHex() << '\n';
-  std::cout << " - '" << app.myPid_ << "' will spend " << app.fmtCurrency(amount) << " public money.\n";
-  std::cout << " + '" << app.myPid_ << "' will receive " << app.fmtCurrency(amount) << " coin.\n";
+  std::cout << " - '" << app.getMyPid() << "' will spend " << app.fmtCurrency(amount) << " public money.\n";
+  std::cout << " + '" << app.getMyPid() << "' will receive " << app.fmtCurrency(amount) << " coin.\n";
 
-  Tx tx = TxMint{app.myPid_, nextMintSeqNum, amount, std::move(mintOp)};
+  Tx tx = TxMint{app.getMyPid(), nextMintSeqNum, amount, std::move(mintOp)};
 
   auto reply = sendTxRequest(comm, tx);
   if (reply.success) {
@@ -704,14 +594,14 @@ void burnCoin(UTTClientApp& app, WalletCommunicator& comm, const std::vector<std
 
   const size_t amount = static_cast<size_t>(value);
 
-  std::cout << ">>> Running a BURN operation for '" << app.myPid_ << " of " << app.fmtCurrency(amount) << '\n';
+  std::cout << ">>> Running a BURN operation for '" << app.getMyPid() << " of " << app.fmtCurrency(amount) << '\n';
 
   while (true) {
     syncState(app, comm);
-    if (app.wallet_.coins.empty()) throw std::domain_error("No coins to burn!");
+    if (app.getMyUttWallet().coins.empty()) throw std::domain_error("No coins to burn!");
     if (app.getUttBalance() < amount) throw std::domain_error("Insufficient anonymous balance!");
 
-    auto result = libutt::Client::createTxForBurn(app.wallet_, amount);
+    auto result = libutt::Client::createTxForBurn(app.getMyUttWallet(), amount);
 
     if (result.burnOp_) {
       std::cout << "\nCreated a BURN tx: " << result.burnOp_->getHashHex() << '\n';
@@ -756,7 +646,7 @@ void burnCoin(UTTClientApp& app, WalletCommunicator& comm, const std::vector<std
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void runUttPayment(const UttPayment& payment, UTTClientApp& app, WalletCommunicator& comm) {
-  std::cout << "\n>>> Running a UTT payment from '" << app.myPid_ << "' to '" << payment.receiver_;
+  std::cout << "\n>>> Running a UTT payment from '" << app.getMyPid() << "' to '" << payment.receiver_;
   std::cout << "' for " << app.fmtCurrency(payment.amount_) << '\n';
 
   while (true) {
@@ -771,7 +661,7 @@ void runUttPayment(const UttPayment& payment, UTTClientApp& app, WalletCommunica
     if (app.getUttBalance() < payment.amount_) throw std::domain_error("Insufficient balance for utt payment!");
     if (app.getUttBudget() < payment.amount_) throw std::domain_error("Insufficient anonymous budget for utt payment!");
 
-    auto result = libutt::Client::createTxForPayment(app.wallet_, payment.receiver_, payment.amount_);
+    auto result = libutt::Client::createTxForPayment(app.getMyUttWallet(), payment.receiver_, payment.amount_);
 
     // Describe what the utt transaction intends to do.
     printCreateTxResult(app, result);
@@ -830,8 +720,8 @@ void dbgForceCheckpoint(UTTClientApp& app, WalletCommunicator& comm) {
   std::cout << "Running " << numTx << " transactions to cause a checkpoint...\n";
   const int depositValue = 1;
   for (int i = 0; i < numTx; ++i) {
-    std::cout << (i + 1) << " : Public deposit " << app.fmtCurrency(depositValue) << " to '" << app.myPid_ << "'\n";
-    auto reply = sendTxRequest(comm, TxPublicDeposit(app.myPid_, depositValue));
+    std::cout << (i + 1) << " : Public deposit " << app.fmtCurrency(depositValue) << " to '" << app.getMyPid() << "'\n";
+    auto reply = sendTxRequest(comm, TxPublicDeposit(app.getMyPid(), depositValue));
     if (reply.success) {
       app.setLastKnownBlockId(reply.last_block_id);
     } else {
@@ -845,7 +735,7 @@ void dbgForceCheckpoint(UTTClientApp& app, WalletCommunicator& comm) {
 void dbgRunRandomTxs(UTTClientApp& app, WalletCommunicator& comm, int count, unsigned int seed = 0) {
   ConcordAssert(count > 0);
   const auto& myAccount = app.getMyAccount();
-  const size_t numOtherPids = app.otherPids_.size();
+  const size_t numOtherPids = app.getOtherPids().size();
   ConcordAssert(numOtherPids > 0);
 
   if (seed == 0) {
@@ -859,9 +749,9 @@ void dbgRunRandomTxs(UTTClientApp& app, WalletCommunicator& comm, int count, uns
 
   for (int i = 0; i < count; ++i) {
     // Pick random wallet to transfer to
-    auto randWalletIt = app.otherPids_.begin();
+    auto randWalletIt = app.getOtherPids().begin();
     std::advance(randWalletIt, gen() % numOtherPids);
-    ConcordAssert(randWalletIt != app.otherPids_.end());
+    ConcordAssert(randWalletIt != app.getOtherPids().end());
 
     const size_t uttBalance = app.getUttBalance();
     const size_t publicBalance = myAccount.getPublicBalance();
@@ -965,7 +855,7 @@ int main(int argc, char** argv) {
   try {
     UTTBlockchainApp::initUTTLibrary();
 
-    UTTClientApp app(params.clientId_);
+    UTTClientApp app(logger, params.clientId_);
 
     WalletCommunicator comm(logger, params.clientId_, params.configFileName_);
 
@@ -979,12 +869,12 @@ int main(int argc, char** argv) {
 
       const auto& myAccount = app.getMyAccount();
       // Format: WalletPid LastKnownBlockId PublicBalance UttBalance UttBudget";
-      ofs << app.myPid_ << ' ' << app.getLastKnownBlockId() << ' ' << myAccount.getPublicBalance() << ' '
+      ofs << app.getMyPid() << ' ' << app.getLastKnownBlockId() << ' ' << myAccount.getPublicBalance() << ' '
           << app.getUttBalance() << ' ' << app.getUttBudget() << '\n';
       return 0;
     }
 
-    std::cout << "Wallet initialization for '" << app.myPid_ << "' done.\n";
+    std::cout << "Wallet initialization for '" << app.getMyPid() << "' done.\n";
     std::cout << "Using Payment Service #" << comm.getPaymentServiceId() << "\n\n";
 
     // Initial check of balance
@@ -997,9 +887,15 @@ int main(int argc, char** argv) {
       std::cout << "PaymentService did not respond.\n";
     }
 
+    std::optional<UTTDataViewer> viewer;
+
     while (true) {
-      std::cout << "\nEnter command (type 'h' for commands, 'q' to exit):\n";
-      std::cout << app.myPid_ << "> ";
+      if (viewer) {
+        viewer->prompt();
+      } else {
+        std::cout << "\nEnter command (type 'h' for commands, 'q' to exit):\n";
+        std::cout << app.getMyPid() << "> ";
+      }
 
       std::string cmd;
       std::getline(std::cin, cmd);
@@ -1019,7 +915,12 @@ int main(int argc, char** argv) {
       if (tokens.empty()) continue;
 
       try {
-        if (tokens[0] == k_CmdQuit) {
+        if (viewer) {
+          if (tokens[0] == ".q")
+            viewer = std::nullopt;  // Reset
+          else
+            viewer->handleCommand(tokens[0]);
+        } else if (tokens[0] == k_CmdQuit) {
           std::cout << "Quitting...\n";
           return 0;
         } else if (tokens[0] == k_CmdHelp) {
@@ -1032,6 +933,14 @@ int main(int argc, char** argv) {
           checkBalance(app, comm);
         } else if (tokens[0] == k_CmdLedger) {
           checkLedger(app, comm);
+        } else if (tokens[0] == k_CmdView) {
+          ConcordAssert(viewer == std::nullopt);
+          viewer = UTTDataViewer(app);
+          syncState(app, comm);
+          if (tokens.size() > 1)
+            viewer->handleCommand(tokens[1]);
+          else
+            viewer->handleCommand("");
         } else if (tokens[0] == k_CmdDbgCheckpoint) {
           dbgForceCheckpoint(app, comm);
         } else if (tokens[0] == k_CmdRandom) {
@@ -1054,6 +963,8 @@ int main(int argc, char** argv) {
         std::cout << "PaymentService did not respond.\n";
       } catch (const std::domain_error& e) {
         std::cout << "Validation error: " << e.what() << '\n';
+      } catch (const UTTDataViewerError& e) {
+        std::cout << "view: " << e.what() << '\n';
       }
     }
   } catch (const std::exception& e) {

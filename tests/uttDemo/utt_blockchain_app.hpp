@@ -70,10 +70,10 @@ class UTTBlockchainApp {
 
   void addAccount(Account&& acc);
 
-  const std::map<std::string, Account>& GetAccounts() const;
-  std::map<std::string, Account>& GetAccounts();
+  const std::map<std::string, Account>& getAccounts() const;
+  std::map<std::string, Account>& getAccounts();
 
-  const std::vector<Block>& GetBlocks() const;
+  const std::vector<Block>& getBlocks() const;
 
   const Account* getAccountById(const std::string& id) const;
   Account* getAccountById(const std::string& id);
