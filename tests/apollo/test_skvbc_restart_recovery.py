@@ -504,6 +504,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         while (loop_count_outer < 20):
             loop_count_outer = loop_count_outer + 1
             loop_count = 0
+            primary = 0
             while (loop_count < 5):
                 loop_count = loop_count + 1
                 log.log_message(f"Loop run: {loop_count}")
@@ -516,8 +517,11 @@ class SkvbcRestartRecoveryTest(ApolloTest):
 
                     await trio.sleep(seconds=20)
 
-                await bft_network.wait_for_fast_path_to_be_prevalent(
-                run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
+                primary = (primary + 1) % bft_network.config.n
+                await self._await_replicas_in_state_transfer(log, bft_network, skvbc, primary)
+
+            await bft_network.wait_for_fast_path_to_be_prevalent(
+            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
 
     @staticmethod
     async def _await_replicas_in_state_transfer(logger, bft_network, skvbc, primary):
