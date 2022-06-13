@@ -539,18 +539,29 @@ std::pair<SetOfKeyValuePairs, KeysVector> BlockMerkleCategory::rewriteAlreadyPru
   }
   return std::make_pair(merkle_blocks_to_rewrite, merkle_blocks_to_delete);
 }
-
-std::vector<std::string> BlockMerkleCategory::getBlockStaleKeys(BlockId block_id, const BlockMerkleOutput& out) const {
-  std::vector<Hash> hash_stale_keys;
+std::set<std::string> BlockMerkleCategory::getStaleActiveKeys(BlockId block_id, const BlockMerkleOutput& out) const {
+  std::set<Hash> hash_stale_keys;
   auto [hashed_keys, _, latest_versions] = getLatestVersions(out);
+  (void)latest_versions;
   (void)_;
   auto overwritten_active_keys_from_pruned_blocks = findActiveKeysFromPrunedBlocks(hashed_keys);
   for (auto& kv : overwritten_active_keys_from_pruned_blocks) {
     for (const auto& hashed_key : kv.second) {
-      hash_stale_keys.push_back(Hash(hashed_key.value));
+      hash_stale_keys.emplace(Hash(hashed_key.value));
     }
   }
-
+  std::set<std::string> stale_keys;
+  for (auto& key : out.keys) {
+    if (std::find(hash_stale_keys.begin(), hash_stale_keys.end(), hash(key.first)) != hash_stale_keys.end()) {
+      stale_keys.emplace(key.first);
+    }
+  }
+  return stale_keys;
+}
+std::vector<std::string> BlockMerkleCategory::getBlockStaleKeys(BlockId block_id, const BlockMerkleOutput& out) const {
+  std::vector<Hash> hash_stale_keys;
+  auto [hashed_keys, _, latest_versions] = getLatestVersions(out);
+  (void)_;
   for (auto i = 0u; i < hashed_keys.size(); i++) {
     auto& tagged_version = latest_versions[i];
     auto& hashed_key = hashed_keys[i];

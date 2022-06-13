@@ -15,7 +15,7 @@ endif(BUILD_ROCKSDB_STORAGE)
 
 if(USE_S3_OBJECT_STORE)
     add_executable(s3_client_test s3_test.cpp)
-    add_test(NAME s3_client_test COMMAND env MINIO_BINARY_PATH=$ENV{HOME}/minio ${CMAKE_CURRENT_BINARY_DIR}/s3_client_test)
+    add_test(NAME s3_client_test COMMAND env CI=on MINIO_BINARY_PATH=$ENV{HOME}/minio ${CMAKE_CURRENT_BINARY_DIR}/s3_client_test)
     target_link_libraries(s3_client_test PUBLIC
         GTest::Main
         GTest::GTest

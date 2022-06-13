@@ -178,7 +178,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   // last known stable checkpoint of each peer replica.
   // We sometimes delete checkpoints before lastExecutedSeqNum
-  std::map<ReplicaId, CheckpointMsg*> tableOfStableCheckpoints;
+  std::map<ReplicaId, std::shared_ptr<CheckpointMsg>> tableOfStableCheckpoints;
 
   // managing information about the clients
   std::shared_ptr<ClientsManager> clientsManager;

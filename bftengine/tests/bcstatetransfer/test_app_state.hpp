@@ -55,7 +55,10 @@ class Block {
     return std::shared_ptr<Block>(reinterpret_cast<Block*>(buff));
   }
 
-  static void free(Block* i) { std::free(static_cast<void*>(i)); }
+  static void free(Block* blk) {
+    char* blockBytes = reinterpret_cast<char*>(blk);
+    delete[] blockBytes;
+  }
 
   StateTransferDigest digestPrev;  // For block ID N, this is the digest calculated on block ID N-1
   uint32_t actualDataSize;
@@ -103,6 +106,15 @@ class TestAppState : public IAppState, public IBlocksDeleter {
                 uint32_t outBlockMaxSize,
                 uint32_t* outBlockActualSize) const override {
     std::lock_guard<std::mutex> lg(mtx);
+
+    if (blockId == concord::kvbc::INITIAL_GENESIS_BLOCK_ID) {
+      // The genesis block has the string "vmware blockchain" inside
+      static constexpr char genesisBlockData[] = "vmware blockchain";
+      auto len = strlen(genesisBlockData);
+      memcpy(outBlock, genesisBlockData, len);
+      *outBlockActualSize = len;
+      return true;
+    }
     auto it = blocks_.find(blockId);
     if (it == blocks_.end()) {
       return false;
@@ -204,6 +216,7 @@ class TestAppState : public IAppState, public IBlocksDeleter {
     }
   }
 
+  // until is the 1st block which is not deleted.
   BlockId deleteBlocksUntil(BlockId until) override {
     if (genesis_block_id_ == 0) {
       throw std::logic_error{"Cannot delete a block range from an empty blockchain"};

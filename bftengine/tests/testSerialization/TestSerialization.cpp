@@ -111,12 +111,17 @@ void testCheckWindowSetUp(const SeqNum shift, bool toSet) {
   const SeqNum checkpointSeqNum2 = 300;
   ReplicaId sender = 3;
   Digest stateDigest;
+  char rvbDataContent[DIGEST_SIZE] = "rvb_data_content";
+  Digest rvbDataDigest(rvbDataContent, sizeof(rvbDataContent));
   const bool stateIsStable = true;
-  CheckpointMsg checkpointInitialMsg0(sender, checkpointSeqNum0, 0, stateDigest, stateDigest, stateIsStable);
+  CheckpointMsg checkpointInitialMsg0(
+      sender, checkpointSeqNum0, 0, stateDigest, stateDigest, rvbDataDigest, stateIsStable);
   checkpointInitialMsg0.sign();
-  CheckpointMsg checkpointInitialMsg1(sender, checkpointSeqNum1, 0, stateDigest, stateDigest, stateIsStable);
+  CheckpointMsg checkpointInitialMsg1(
+      sender, checkpointSeqNum1, 0, stateDigest, stateDigest, rvbDataDigest, stateIsStable);
   checkpointInitialMsg1.sign();
-  CheckpointMsg checkpointInitialMsg2(sender, checkpointSeqNum2, 0, stateDigest, stateDigest, stateIsStable);
+  CheckpointMsg checkpointInitialMsg2(
+      sender, checkpointSeqNum2, 0, stateDigest, stateDigest, rvbDataDigest, stateIsStable);
   checkpointInitialMsg2.sign();
 
   const bool completed = true;
@@ -345,12 +350,17 @@ void testCheckDescriptorOfLastStableCheckpoint(bool init) {
   const SeqNum checkpointSeqNum2 = 300;
   const ReplicaId sender = 3;
   const Digest stateDigest('d');
+  char rvbDataContent[DIGEST_SIZE] = "rvb_data_content";
+  Digest rvbDataDigest(rvbDataContent, sizeof(rvbDataContent));
   const bool stateIsStable = true;
-  CheckpointMsg checkpointInitialMsg0(sender, checkpointSeqNum0, 0, stateDigest, stateDigest, stateIsStable);
+  CheckpointMsg checkpointInitialMsg0(
+      sender, checkpointSeqNum0, 0, stateDigest, stateDigest, rvbDataDigest, stateIsStable);
   checkpointInitialMsg0.sign();
-  CheckpointMsg checkpointInitialMsg1(sender, checkpointSeqNum1, 0, stateDigest, stateDigest, stateIsStable);
+  CheckpointMsg checkpointInitialMsg1(
+      sender, checkpointSeqNum1, 0, stateDigest, stateDigest, rvbDataDigest, stateIsStable);
   checkpointInitialMsg1.sign();
-  CheckpointMsg checkpointInitialMsg2(sender, checkpointSeqNum2, 0, stateDigest, stateDigest, stateIsStable);
+  CheckpointMsg checkpointInitialMsg2(
+      sender, checkpointSeqNum2, 0, stateDigest, stateDigest, rvbDataDigest, stateIsStable);
   checkpointInitialMsg2.sign();
   std::vector<CheckpointMsg *> msgs;
   msgs.push_back(&checkpointInitialMsg0);

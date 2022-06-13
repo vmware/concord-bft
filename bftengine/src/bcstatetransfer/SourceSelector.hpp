@@ -72,7 +72,6 @@ class SourceSelector {
 
   bool hasSource() const;
   void removeCurrentReplica();
-  void setAllReplicasAsPreferred();
   void reset();
   bool isReset() const;
   bool retransmissionTimeoutExpired(uint64_t currTimeMilli) const;
@@ -106,7 +105,7 @@ class SourceSelector {
 
   uint16_t currentPrimary() { return currentPrimary_; }
 
-  void removePreferredReplica(uint16_t replicaId) { preferredReplicas_.erase(replicaId); }
+  void removePreferredReplica(uint16_t replicaId);
 
   uint16_t numberOfPreferredReplicas() const { return static_cast<uint16_t>(preferredReplicas_.size()); }
 
@@ -123,6 +122,8 @@ class SourceSelector {
   void updateCurrentPrimary(uint16_t newPrimaryReplicaId);
 
   uint16_t minPrePrepareMsgsForPrimaryAwareness() { return minPrePrepareMsgsForPrimaryAwareness_; }
+
+  void checkAndRefillPreferredReplicas();
 
   // Metric
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {

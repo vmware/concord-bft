@@ -109,15 +109,15 @@ void BCStateTran::bindInterfaceHandlers() {
 
   getDigestOfCheckpointHandler_ = (config_.runInSeparateThread) ?
     static_cast<decltype(getDigestOfCheckpointHandler_)>([this](uint64_t checkpointNumber, uint16_t sizeOfDigestBuffer,
-        uint64_t& outBlockId, char* outStateDigest, char* outFullStateDigest) {
+        uint64_t& outBlockId, char* outStateDigest, char* outResPagesDigest, char* outRVBDataDigest) {
       DEBUG_PRINT(logger_, "Before getDigestOfCheckpointImpl");
       MARK_START_TIME;
       incomingEventsQ_->push(std::bind(
         &BCStateTran::getDigestOfCheckpointImpl, this, checkpointNumber,sizeOfDigestBuffer,
-        std::ref(outBlockId), outStateDigest, outFullStateDigest));
+        std::ref(outBlockId), outStateDigest, outResPagesDigest, outRVBDataDigest));
         CALC_DURATION;
       DEBUG_PRINT(logger_, "After getDigestOfCheckpointImpl" << KVLOG(jobDuration)); }) :
-    std::bind(&BCStateTran::getDigestOfCheckpointImpl, this, _1, _2, _3 , _4, _5);
+    std::bind(&BCStateTran::getDigestOfCheckpointImpl, this, _1, _2, _3 , _4, _5, _6);
 
   addOnFetchingStateChangeCallbackHandler_ = (config_.runInSeparateThread) ?
     static_cast<decltype(addOnFetchingStateChangeCallbackHandler_)>([this](const std::function<void(uint64_t)> &cb) {
