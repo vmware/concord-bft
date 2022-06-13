@@ -13,6 +13,9 @@
 #include <array>
 #include <cstdint>
 
+/**
+ * Used as an interface between signers and verifiers
+ */
 struct SingleEdDSASignature {
   uint64_t id;
   std::array<uint8_t, 64> signatureBytes;

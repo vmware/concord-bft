@@ -119,8 +119,9 @@ int main(int argc, char** argv) {
     uint16_t ro = 0;
     std::string outputPrefix;
 
+    // The duplicate declaration is here on purpose,
+    // This code will not compile if both USE_RELIC and USE_EDDSA_OPENSSL are set
 #ifdef USE_RELIC
-    // TODO(yf): add eddsa here
     std::string slowType = MULTISIG_BLS_SCHEME;
     std::string slowParam = "BN-P254";
     std::string commitType = MULTISIG_BLS_SCHEME;

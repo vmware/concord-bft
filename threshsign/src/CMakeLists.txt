@@ -2,10 +2,7 @@ set(common_source_files
         XAssert.cpp
         Utils.cpp
         Timer.cpp
-        IPublicKey.cpp
-        ISecretKey.cpp
         IPublicParameters.cpp
-        IThresholdVerifier.cpp
         VectorOfShares.cpp
         ThresholdSignaturesTypes.cpp
         )

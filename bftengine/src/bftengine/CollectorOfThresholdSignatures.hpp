@@ -27,7 +27,8 @@
 #include "Logger.hpp"
 #include "kvstream.h"
 #include "demangle.hpp"
-#include <threshsign/ThresholdSignaturesSchemes.h>
+#include "threshsign/IThresholdVerifier.h"
+#include "threshsign/IThresholdAccumulator.h"
 
 namespace bftEngine {
 namespace impl {

@@ -12,6 +12,7 @@
 #include <bftengine/Replica.hpp>
 #include <optional>
 #include <functional>
+#include <bitset>
 #include <messages/StateTransferMsg.hpp>
 #include "ReadOnlyReplica.hpp"
 #include "MsgHandlersRegistrator.hpp"

@@ -27,7 +27,9 @@
 #include <ostream>
 #include <string>
 #include <vector>
-
+#include <openssl/crypto.h>
+#include <openssl/evp.h>
+#include "memory.hpp"
 #include "assertUtils.hpp"
 
 namespace concord {
@@ -194,6 +196,12 @@ class UnexpectedOpenSSLCryptoFailureException : public std::exception {
   explicit UnexpectedOpenSSLCryptoFailureException(const std::string& what) : message(what) {}
   virtual const char* what() const noexcept override { return message.c_str(); }
 };
+
+using UniqueOpenSSLContext = custom_deleter_unique_ptr<EVP_MD_CTX, EVP_MD_CTX_free>;
+using UniqueOpenSSLPKEYContext = custom_deleter_unique_ptr<EVP_PKEY_CTX, EVP_PKEY_CTX_free>;
+using UniquePKEY = custom_deleter_unique_ptr<EVP_PKEY, EVP_PKEY_free>;
+
+constexpr int OPENSSL_SUCCESS = 1;
 
 }  // namespace openssl_utils
 }  // namespace util

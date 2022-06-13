@@ -9,26 +9,26 @@
 // notices and license terms. Your use of these subcomponents is subject to the
 // terms and conditions of the subcomponent's license, as noted in the
 // LICENSE file.
-#include "threshsign/eddsa/SSLEdDSAPrivateKey.h"
+#include "threshsign/eddsa/EdDSAThreshsignKeys.h"
 #include "threshsign/eddsa/EdDSAMultisigSigner.h"
 #include "threshsign/eddsa/SingleEdDSASignature.h"
 
-EdDSAMultisigSigner::EdDSAMultisigSigner(const SSLEdDSAPrivateKey &privateKey, const uint32_t id)
-    : privateKey_{privateKey}, publicKey_{{0}}, id_{id} {}
+EdDSAMultisigSigner::EdDSAMultisigSigner(const EdDSAThreshsignPrivateKey &privateKey, const uint32_t id)
+    : EdDSASigner<EdDSAThreshsignPrivateKey>{privateKey}, publicKey_{}, id_{id} {}
 
 int EdDSAMultisigSigner::requiredLengthForSignedData() const { return sizeof(SingleEdDSASignature); }
+
 void EdDSAMultisigSigner::signData(const char *hash, int hashLen, char *outSig, int outSigLen) {
-  ConcordAssertEQ(outSigLen, requiredLengthForSignedData());
+  ConcordAssertGE(outSigLen, requiredLengthForSignedData());
   SingleEdDSASignature result;
-  ConcordAssertGE(static_cast<size_t>(outSigLen), result.signatureBytes.size());
   auto outSigBytesLen = result.signatureBytes.size();
-  privateKey_.sign(reinterpret_cast<const uint8_t *>(hash),
-                   static_cast<size_t>(hashLen),
-                   result.signatureBytes.data(),
-                   outSigBytesLen);
+  sign(reinterpret_cast<const uint8_t *>(hash),
+       static_cast<size_t>(hashLen),
+       result.signatureBytes.data(),
+       outSigBytesLen);
   ConcordAssertEQ(outSigBytesLen, result.signatureBytes.size());
   result.id = id_;
   std::memcpy(outSig, &result, sizeof(SingleEdDSASignature));
 }
-const IShareSecretKey &EdDSAMultisigSigner::getShareSecretKey() const { return privateKey_; }
+const IShareSecretKey &EdDSAMultisigSigner::getShareSecretKey() const { return getPrivKey(); }
 const IShareVerificationKey &EdDSAMultisigSigner::getShareVerificationKey() const { return publicKey_; }

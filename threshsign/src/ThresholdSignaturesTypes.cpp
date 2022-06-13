@@ -11,22 +11,13 @@
 // LICENSE file.
 
 #include <regex>
-
 #include "threshsign/ThresholdSignaturesTypes.h"
 #include "threshsign/IThresholdSigner.h"
 #include "threshsign/IThresholdVerifier.h"
 #include "threshsign/IThresholdFactory.h"
+#include "threshsign/ThresholdSignaturesSchemes.h"
 #include "yaml_utils.hpp"
 #include "Logger.hpp"
-
-#ifdef USE_RELIC
-#include "threshsign/bls/relic/BlsThresholdFactory.h"
-#include "threshsign/bls/relic/PublicParametersFactory.h"
-#endif
-
-#ifdef USE_EDDSA_OPENSSL
-#include "threshsign/eddsa/EdDSAMultisigFactory.h"
-#endif
 
 Cryptosystem::Cryptosystem(const std::string& sysType,
                            const std::string& sysSubtype,
@@ -59,6 +50,7 @@ IThresholdFactory* Cryptosystem::createThresholdFactory() {
     return new BLS::Relic::BlsThresholdFactory(BLS::Relic::PublicParametersFactory::getByCurveType(subtype_.c_str()));
   }
 #endif
+
 #ifdef USE_EDDSA_OPENSSL
   if (type_ == MULTISIG_EDDSA_SCHEME) {
     return new EdDSAMultisigFactory();
@@ -75,7 +67,6 @@ IThresholdFactory* Cryptosystem::createThresholdFactory() {
 
 void Cryptosystem::generateNewPseudorandomKeys() {
   std::unique_ptr<IThresholdFactory> factory(createThresholdFactory());
-  std::cout << (uint64_t)factory.get() << std::endl;
 
   auto [signers, verifier] = factory->newRandomSigners(threshold_, numSigners_);
   if (type_ == THRESHOLD_BLS_SCHEME) publicKey_ = verifier->getPublicKey().toString();
@@ -230,8 +221,8 @@ IThresholdSigner* Cryptosystem::createThresholdSigner() {
   return factory->newSigner(signerID_, privateKeys_.front().c_str());
 }
 
-static const size_t expectedPublicKeyLength = 130;
-static const size_t expectedVerificationKeyLength = 130;
+static constexpr const size_t BLSExpectedPublicKeyLength = 130;
+static constexpr const size_t BLSExpectedVerificationKeyLength = 130;
 
 void Cryptosystem::validatePublicKey(const std::string& key) const {
   if (type_ == MULTISIG_EDDSA_SCHEME) {
@@ -240,7 +231,7 @@ void Cryptosystem::validatePublicKey(const std::string& key) const {
   }
 
   if (forceMultisig_ || type_ == THRESHOLD_BLS_SCHEME)
-    if (!((key.length() == expectedPublicKeyLength) && (std::regex_match(key, std::regex("[0-9A-Fa-f]+")))))
+    if (!((key.length() == BLSExpectedPublicKeyLength) && (std::regex_match(key, std::regex("[0-9A-Fa-f]+")))))
       throw std::runtime_error("invalid public key for this cryptosystem (type " + type_ + " and subtype " + subtype_ +
                                "): " + key);
 }
@@ -251,7 +242,7 @@ void Cryptosystem::validateVerificationKey(const std::string& key) const {
     return;
   }
 
-  if (!((key.length() == expectedVerificationKeyLength) && (std::regex_match(key, std::regex("[0-9A-Fa-f]+")))))
+  if (!((key.length() == BLSExpectedVerificationKeyLength) && (std::regex_match(key, std::regex("[0-9A-Fa-f]+")))))
     throw std::runtime_error("invalid verification key for this cryptosystem (type " + type_ + " and subtype " +
                              subtype_ + "): " + key);
 }

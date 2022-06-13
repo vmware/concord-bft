@@ -14,15 +14,11 @@
 
 #include <string>
 #include <ostream>
+#include "Serializable.h"
 
-class IPublicKey {
+class IPublicKey : public concord::serialize::IStringSerializable {
  public:
-  virtual ~IPublicKey() {}
-
- public:
-  virtual std::string toString() const = 0;
-
-  friend std::ostream& operator<<(std::ostream& out, const IPublicKey& pk);
+  virtual ~IPublicKey() = default;
 };
 
 /**
@@ -30,5 +26,5 @@ class IPublicKey {
  */
 class IShareVerificationKey : public IPublicKey {
  public:
-  virtual ~IShareVerificationKey() {}
+  virtual ~IShareVerificationKey() = default;
 };

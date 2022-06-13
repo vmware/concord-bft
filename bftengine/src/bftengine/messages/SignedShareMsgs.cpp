@@ -14,7 +14,7 @@
 #include "Logger.hpp"
 #include "kvstream.h"
 #include "EpochManager.hpp"
-#include <threshsign/ThresholdSignaturesSchemes.h>
+#include "threshsign/IThresholdSigner.h"
 
 namespace bftEngine {
 namespace impl {
