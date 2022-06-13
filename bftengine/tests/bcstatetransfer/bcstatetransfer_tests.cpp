@@ -2745,6 +2745,68 @@ TEST_F(BcStTest, bkpCheckpointingWithPruning) {
   stDelegator_->createCheckpointOfCurrentState(4);
 }
 
+// This test runs a random scenario, similar to the one in bkpCheckpointingWithPruning
+TEST_F(BcStTest, bkpRandomCheckpointingWithPruning) {
+  static constexpr size_t chanceBlocksAddedDuringCheckpointPcg = 90;
+  static constexpr size_t chanceBlocksPrunedDuringCheckpointPcg = 20;
+  static constexpr size_t minBlocksToAdd = 1;
+  static constexpr size_t maxBlocksToAdd = 150;
+  static constexpr size_t numIterations = 150;
+
+  targetConfig_.RVT_K = 64;
+  ASSERT_NFF(initialize());
+  ASSERT_NFF(cmnStartRunning());
+
+  uint64_t genesisBlockId = appState_.getGenesisBlockNum();
+  uint64_t lastRechableBlockId = appState_.getLastReachableBlockNum();
+  uint64_t checkpointNumber{1};
+  size_t numBlocksToAdd, numBlocksToPrune, pcgBlocksToPrune;
+  for (size_t i{0}; i < numIterations; ++i, ++checkpointNumber) {
+    if ((rand() % 101) <= chanceBlocksAddedDuringCheckpointPcg) {
+      numBlocksToAdd = (rand() % (maxBlocksToAdd - minBlocksToAdd + 1)) + minBlocksToAdd;
+    } else {
+      numBlocksToAdd = 0;
+    }
+    if ((rand() % 101) <= chanceBlocksPrunedDuringCheckpointPcg) {
+      // prune 1 to 100 percent of blocks
+      pcgBlocksToPrune = (rand() % 100) + 1;
+      numBlocksToPrune = (((lastRechableBlockId + numBlocksToAdd) - (genesisBlockId) + 1) * pcgBlocksToPrune) / 100;
+    } else {
+      numBlocksToPrune = 0;
+    }
+
+    // add blocks
+    if (numBlocksToAdd > 0) {
+      // leave for debug
+      // auto fromBlockId{lastRechableBlockId + 1};
+      // auto toBlockId{lastRechableBlockId + numBlocksToAdd};
+      // LOG_ERROR(GL,
+      //           "Add blocks:" << KVLOG(
+      //               checkpointNumber, numBlocksToAdd, genesisBlockId, lastRechableBlockId, fromBlockId, toBlockId));
+      ASSERT_NFF(dataGen_->generateBlocks(appState_, lastRechableBlockId + 1, lastRechableBlockId + numBlocksToAdd));
+      ASSERT_EQ(appState_.getLastReachableBlockNum(), lastRechableBlockId + numBlocksToAdd);
+      lastRechableBlockId = appState_.getLastReachableBlockNum();
+    }
+    // Prune only if not passing the last new reachable block
+    if ((numBlocksToPrune > 0) && (genesisBlockId + numBlocksToPrune < lastRechableBlockId + numBlocksToAdd)) {
+      // Prune % of total blocks, 1% to 100%.
+      auto maxBlockIdToDelete{genesisBlockId + numBlocksToPrune - 1};
+      if (maxBlockIdToDelete == lastRechableBlockId) {
+        // Keep at least one block
+        --maxBlockIdToDelete;
+      }
+      // leave for debug
+      // LOG_ERROR(GL, "Prune blocks:" << KVLOG(checkpointNumber, numBlocksToPrune, genesisBlockId,
+      // maxBlockIdToDelete));
+      ASSERT_NFF(bkpPrune(maxBlockIdToDelete));
+      genesisBlockId = maxBlockIdToDelete + 1;
+      ASSERT_EQ(appState_.getGenesisBlockNum(), genesisBlockId);
+    }
+    // checkpointing stage
+    stDelegator_->createCheckpointOfCurrentState(checkpointNumber);
+  }
+}
+
 // Test correctness of RVB Data conflict detection. RVB data digest is part of the checkpoint and should be compared
 // in addition to comparing Reserved pages digest, and current state digests.
 TEST_F(BcStTest, bkpTestRvbDataConflictDetection) {
