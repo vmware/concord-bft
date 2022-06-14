@@ -506,10 +506,10 @@ class SkvbcRestartRecoveryTest(ApolloTest):
             while (loop_count < 5):
                 loop_count = loop_count + 1
                 log.log_message(f"Loop run: {loop_count}")
+                primary = await bft_network.get_current_primary()
                 with net.PacketDroppingAdversary(bft_network, drop_rate_percentage=50) as adversary:
                     adversary.interfere()
 
-                    primary = await bft_network.get_current_primary()
                     bft_network.stop_replica(primary)
                     bft_network.start_replica(primary)
 
