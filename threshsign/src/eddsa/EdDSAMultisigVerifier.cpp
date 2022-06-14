@@ -52,7 +52,7 @@ EdDSAMultisigVerifier::EdDSAMultisigVerifier(const std::vector<SingleVerifier> &
                                              const size_t threshold)
     : verifiers_(verifiers), signersCount_(signersCount + 1), threshold_(threshold) {
   ConcordAssertEQ(verifiers.size(), signersCount + 1);
-  LOG_DEBUG(EDDSA_MULTISIG_LOG, KVLOG(this, verifiers_.size()));
+  LOG_DEBUG(EDDSA_MULTISIG_LOG, KVLOG(this, verifiers_.size(), threshold_));
 }
 
 IThresholdAccumulator *EdDSAMultisigVerifier::newAccumulator(bool withShareVerification) const {

@@ -10,7 +10,6 @@
 // terms and conditions of the subcomponent's license, as noted in the
 // LICENSE file.
 
-#include <regex>
 #include "threshsign/ThresholdSignaturesTypes.h"
 #include "threshsign/IThresholdSigner.h"
 #include "threshsign/IThresholdVerifier.h"
@@ -18,6 +17,9 @@
 #include "threshsign/ThresholdSignaturesSchemes.h"
 #include "yaml_utils.hpp"
 #include "Logger.hpp"
+#include "string.hpp"
+
+using concord::util::isValidHexString;
 
 Cryptosystem::Cryptosystem(const std::string& sysType,
                            const std::string& sysSubtype,
@@ -221,42 +223,45 @@ IThresholdSigner* Cryptosystem::createThresholdSigner() {
   return factory->newSigner(signerID_, privateKeys_.front().c_str());
 }
 
-static constexpr const size_t BLSExpectedPublicKeyLength = 130;
-static constexpr const size_t BLSExpectedVerificationKeyLength = 130;
-
-void Cryptosystem::validatePublicKey(const std::string& key) const {
-  if (type_ == MULTISIG_EDDSA_SCHEME) {
-    // TODO: implement validation
+void Cryptosystem::validateKey(const std::string& key, size_t expectedSize) const {
+  auto isValidHex = isValidHexString(key);
+  if ((expectedSize == 0 || (key.length() == expectedSize)) && isValidHex) {
     return;
   }
 
-  if (forceMultisig_ || type_ == THRESHOLD_BLS_SCHEME)
-    if (!((key.length() == BLSExpectedPublicKeyLength) && (std::regex_match(key, std::regex("[0-9A-Fa-f]+")))))
-      throw std::runtime_error("invalid public key for this cryptosystem (type " + type_ + " and subtype " + subtype_ +
-                               "): " + key);
+  throw std::runtime_error("Invalid key for this cryptosystem (type " + type_ + " and subtype " + subtype_ +
+                           "): " + key + " expected key size: " + std::to_string(expectedSize) + ", Actual key size: " +
+                           std::to_string(key.length()) + ", IsValidHex: " + std::to_string(isValidHex));
+}
+
+void Cryptosystem::validatePublicKey(const std::string& key) const {
+#ifdef USE_EDDSA_OPENSSL
+  UNUSED(key);
+  return;
+#else
+  constexpr const size_t expectedKeyLength = 130u;
+  validateKey(key, expectedKeyLength);
+#endif
 }
 
 void Cryptosystem::validateVerificationKey(const std::string& key) const {
-  if (type_ == MULTISIG_EDDSA_SCHEME) {
-    // TODO: implement validation
-    return;
-  }
-
-  if (!((key.length() == BLSExpectedVerificationKeyLength) && (std::regex_match(key, std::regex("[0-9A-Fa-f]+")))))
-    throw std::runtime_error("invalid verification key for this cryptosystem (type " + type_ + " and subtype " +
-                             subtype_ + "): " + key);
+#ifdef USE_EDDSA_OPENSSL
+  constexpr const size_t expectedKeyLength = EdDSAPublicKeyByteSize * 2;
+#else
+  constexpr const size_t expectedKeyLength = 130u;
+#endif
+  validateKey(key, expectedKeyLength);
 }
 
 void Cryptosystem::validatePrivateKey(const std::string& key) const {
+#ifdef USE_EDDSA_OPENSSL
+  constexpr const size_t expectedKeyLength = EdDSAPrivateKeyByteSize * 2;
+#else
   // We currently do not validate the length of the private key's string
   // representation because the length of its serialization varies slightly.
-  if (type_ == MULTISIG_EDDSA_SCHEME) {
-    // TODO: implement validation
-    return;
-  }
-  if (!std::regex_match(key, std::regex("[0-9A-Fa-f]+")))
-    throw std::runtime_error("invalid private key for cryptosystem (type " + type_ + " and subtype " + subtype_ +
-                             "): " + key);
+  constexpr const size_t expectedKeyLength = 0;
+#endif
+  validateKey(key, expectedKeyLength);
 }
 
 bool Cryptosystem::isValidCryptosystemSelection(const std::string& type, const std::string& subtype) {
@@ -306,9 +311,14 @@ bool Cryptosystem::isValidCryptosystemSelection(const std::string& type,
 
 const std::vector<std::pair<std::string, std::string>>& Cryptosystem::getAvailableCryptosystemTypes() {
   static const std::vector<std::pair<std::string, std::string>> cryptoSystems = {
+#ifdef USE_RELIC
       {MULTISIG_BLS_SCHEME, "an elliptical curve type, for example, BN-P254"},
       {THRESHOLD_BLS_SCHEME, "an elliptical curve type, for example, BN-P254"},
-      {MULTISIG_EDDSA_SCHEME, "EdDSA 25519"}};
+#endif
+#ifdef USE_EDDSA_OPENSSL
+      {MULTISIG_EDDSA_SCHEME, "EdDSA 25519"}
+#endif
+  };
   return cryptoSystems;
 }
 void Cryptosystem::writeConfiguration(std::ostream& output, const std::string& prefix, const uint16_t& replicaId) {
@@ -317,7 +327,8 @@ void Cryptosystem::writeConfiguration(std::ostream& output, const std::string& p
   output << prefix << "_cryptosystem_type: " << getType() << "\n";
   output << prefix << "_cryptosystem_subtype_parameter: " << getSubtype() << "\n";
   output << prefix << "_cryptosystem_num_signers: " << numReplicas << "\n";
-  if (getType() == THRESHOLD_BLS_SCHEME) output << prefix << "_cryptosystem_threshold: " << getThreshold() << "\n";
+  if (getType() == THRESHOLD_BLS_SCHEME || getType() == MULTISIG_EDDSA_SCHEME)
+    output << prefix << "_cryptosystem_threshold: " << getThreshold() << "\n";
   output << prefix << "_cryptosystem_public_key: " << getSystemPublicKey() << "\n";
   std::vector<std::string> verificationKeys = getSystemVerificationKeys();
   output << prefix << "_cryptosystem_verification_keys:\n";
@@ -341,7 +352,7 @@ Cryptosystem* Cryptosystem::fromConfiguration(std::istream& input,
   std::uint16_t numSigners = yaml::readValue<std::uint16_t>(input, prefix + "_cryptosystem_num_signers");
   std::string publicKey = "uninitialized";
   uint16_t threshold = 1;
-  if (type == THRESHOLD_BLS_SCHEME)
+  if (type == THRESHOLD_BLS_SCHEME || type == MULTISIG_EDDSA_SCHEME)
     threshold = yaml::readValue<std::uint16_t>(input, prefix + "_cryptosystem_threshold");
   else if (type == MULTISIG_BLS_SCHEME)
     threshold = numSigners;
