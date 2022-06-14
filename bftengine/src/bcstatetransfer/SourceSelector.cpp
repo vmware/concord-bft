@@ -221,7 +221,9 @@ void SourceSelector::selectSource(uint64_t currTimeMilli) {
 }
 
 void SourceSelector::updateCurrentPrimary(uint16_t newPrimary) {
-  if (currentPrimary_ == newPrimary) return;
+  if (currentPrimary_ == newPrimary) {
+    return;
+  }
   auto resetNominatedPrimary = [&]() {
     nominatedPrimary_ = NO_REPLICA;
     nominatedPrimaryCounter_ = 0;
