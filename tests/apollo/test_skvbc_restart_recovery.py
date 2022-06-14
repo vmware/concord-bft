@@ -20,7 +20,7 @@ import trio
 from util.test_base import ApolloTest
 from util import bft_network_partitioning as net
 from util import skvbc as kvbc
-from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, skip_for_tls
+from util.bft import with_trio, with_bft_network, with_constant_load, KEY_FILE_PREFIX, skip_for_tls
 from util.skvbc_history_tracker import verify_linearizability
 from util import eliot_logging as log
 
@@ -470,6 +470,55 @@ class SkvbcRestartRecoveryTest(ApolloTest):
                 run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
             log.log_message("fast path prevailed")
 
+    @skip_for_tls
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    @with_constant_load
+    async def test_recovering_view_after_restart_with_packet_loss(self, bft_network, skvbc, constant_load):
+        """
+        Implement a test with constant client load that is running under the Packet Dropping Adversary
+        with 50% chance of dropping a packet from all replicas and trigger View Changes periodically.
+        The test should run for 10 minutes and in the end we drop the adversarial packet dropping
+        activity and verify that we will regain Fast Commit path in the system.
+        Step by step scenario:
+        1. Create a packet dropping adversary with 50% chance of dropping any packet.
+        2. Introduce constant client load.
+        3. Restart the current primary to trigger View Change.
+        4. Wait for View Change to complete (because of the packet dropping activity this could take significantly more time than usual and a non-deterministic view increments can happen).
+        5. Loop to step 3.
+        """
+        # uncomment for live tracking of log messages from the test
+        # class foo:
+        #     def log_message(self, var):
+        #         print(f"{var}")
+
+        # log = foo()
+        # start replicas
+        [bft_network.start_replica(i) for i in bft_network.all_replicas()]
+
+        loop_count_outer = 0
+
+        while (loop_count_outer < 20):
+            loop_count_outer = loop_count_outer + 1
+            loop_count = 0
+            primary = 0
+            while (loop_count < 5):
+                loop_count = loop_count + 1
+                log.log_message(f"Loop run: {loop_count}")
+                primary = await bft_network.get_current_primary()
+                with net.PacketDroppingAdversary(bft_network, drop_rate_percentage=50) as adversary:
+                    adversary.interfere()
+
+                    bft_network.stop_replica(primary)
+                    bft_network.start_replica(primary)
+
+                    await trio.sleep(seconds=20)
+
+                primary = (primary + 1) % bft_network.config.n
+                await self._await_replicas_in_state_transfer(log, bft_network, skvbc, primary)
+
+            await bft_network.wait_for_fast_path_to_be_prevalent(
+            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
 
     @staticmethod
     async def _await_replicas_in_state_transfer(logger, bft_network, skvbc, primary):
