@@ -528,6 +528,7 @@ class FakeSources : public FakeReplicaBase {
   void replyAskForCheckpointSummariesMsg(bool generateBlocksAndDescriptors = true);
   void replyFetchBlocksMsg();
   void replyResPagesMsg(bool& outDoneSending);
+  void rejectFetchingMsg(uint16_t rejCode, uint64_t reqMsgSeqNum, uint16_t destReplicaId);
 
  protected:
   std::unique_ptr<char[]> rawVBlock_;
@@ -1082,12 +1083,7 @@ void FakeSources::replyFetchBlocksMsg() {
 
   // very basic validity check, no simulate corruption
   if ((fetchBlocksMsg->minBlockId == 0) || (fetchBlocksMsg->maxBlockId == 0)) {
-    RejectFetchingMsg rejectFetchingMsg(RejectFetchingMsg::Reason::BLOCK_NOT_FOUND_IN_STORAGE,
-                                        fetchBlocksMsg->msgSeqNum);
-    char* rejectFetchingMsgBuff{nullptr};
-    ASSERT_NFF(TestUtils::mallocCopy(
-        reinterpret_cast<char*>(&rejectFetchingMsg), sizeof(RejectFetchingMsg), &rejectFetchingMsgBuff));
-    stDelegator_->handleStateTransferMessage(rejectFetchingMsgBuff, sizeof(RejectFetchingMsg), msg.to_);
+    rejectFetchingMsg(RejectFetchingMsg::Reason::BLOCK_NOT_FOUND_IN_STORAGE, fetchBlocksMsg->msgSeqNum, msg.to_);
     testedReplicaIf_.sent_messages_.pop_front();
     return;
   }
@@ -1224,6 +1220,14 @@ void FakeSources::replyResPagesMsg(bool& outDoneSending) {
     }
   }  // while
   testedReplicaIf_.sent_messages_.pop_front();
+}
+
+void FakeSources::rejectFetchingMsg(uint16_t rejCode, uint64_t reqMsgSeqNum, uint16_t destReplicaId) {
+  RejectFetchingMsg rejectFetchingMsg(rejCode, reqMsgSeqNum);
+  char* rejectFetchingMsgBuff{nullptr};
+  ASSERT_NFF(TestUtils::mallocCopy(
+      reinterpret_cast<char*>(&rejectFetchingMsg), sizeof(RejectFetchingMsg), &rejectFetchingMsgBuff));
+  stDelegator_->handleStateTransferMessage(rejectFetchingMsgBuff, sizeof(RejectFetchingMsg), destReplicaId);
 }
 
 /////////////////////////////////////////////////////////
@@ -1581,11 +1585,7 @@ void BcStTest::getMissingblocksStage(bool rejectOnce,
       const auto& msg = testedReplicaIf_.sent_messages_.front();
       ASSERT_NFF(assertMsgType(msg, MsgType::FetchBlocks));
       auto fetchBlocksMsg = reinterpret_cast<FetchBlocksMsg*>(msg.data_.get());
-      RejectFetchingMsg rejectFetchingMsg(rejectionReason, fetchBlocksMsg->msgSeqNum);
-      char* rejectFetchingMsgBuff{nullptr};
-      ASSERT_NFF(TestUtils::mallocCopy(
-          reinterpret_cast<char*>(&rejectFetchingMsg), sizeof(RejectFetchingMsg), &rejectFetchingMsgBuff));
-      stDelegator_->handleStateTransferMessage(rejectFetchingMsgBuff, sizeof(RejectFetchingMsg), msg.to_);
+      ASSERT_NFF(fakeSrcReplica_->rejectFetchingMsg(rejectionReason, fetchBlocksMsg->msgSeqNum, msg.to_));
       testedReplicaIf_.sent_messages_.pop_front();
       rejectOnce = false;
     } else {
@@ -1618,11 +1618,7 @@ void BcStTest::getReservedPagesStage(bool skipReply,
     const auto& msg = testedReplicaIf_.sent_messages_.front();
     ASSERT_NFF(assertMsgType(msg, MsgType::FetchResPages));
     auto fetchResPagesMsg = reinterpret_cast<FetchResPagesMsg*>(msg.data_.get());
-    RejectFetchingMsg rejectFetchingMsg(rejectionReason, fetchResPagesMsg->msgSeqNum);
-    char* rejectFetchingMsgBuff{nullptr};
-    ASSERT_NFF(TestUtils::mallocCopy(
-        reinterpret_cast<char*>(&rejectFetchingMsg), sizeof(RejectFetchingMsg), &rejectFetchingMsgBuff));
-    stDelegator_->handleStateTransferMessage(rejectFetchingMsgBuff, sizeof(RejectFetchingMsg), msg.to_);
+    ASSERT_NFF(fakeSrcReplica_->rejectFetchingMsg(rejectionReason, fetchResPagesMsg->msgSeqNum, msg.to_));
     testedReplicaIf_.sent_messages_.pop_front();
   }
   if (!skipReply) {
