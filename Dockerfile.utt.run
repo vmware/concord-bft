@@ -1,0 +1,44 @@
+
+# Image for running the UTT Demo executables
+
+FROM ubuntu:18.04
+LABEL Description="Run environment for UTT demo"
+
+# Install 3rd parties
+RUN apt-get update && apt-get -y --no-install-recommends install \
+    libboost-filesystem1.65-dev \
+    libboost-system1.65-dev \
+    libsnappy-dev
+
+# Copy runtime dependencies from the build environment image
+COPY --from=concordbft/concord-bft-utt:0.39 /usr/local/lib/librocksdb.so.6.8.1 /usr/local/lib/
+RUN ln -s /usr/local/lib/librocksdb.so.6.8.1 /usr/local/lib/librocksdb.so.6.8
+RUN ln -s /usr/local/lib/librocksdb.so.6.8.1 /usr/local/lib/librocksdb.so.6
+RUN ln -s /usr/local/lib/librocksdb.so.6.8.1 /usr/local/lib/librocksdb.so
+
+COPY --from=concordbft/concord-bft-utt:0.39 /usr/local/lib/libhdr_histogram.so.4.2.0 /usr/local/lib/
+RUN ln -s /usr/local/lib/libhdr_histogram.so.4.2.0 /usr/local/lib/libhdr_histogram.so.4
+RUN ln -s /usr/local/lib/libhdr_histogram.so.4.2.0 /usr/local/lib/libhdr_histogram.so
+
+COPY --from=concordbft/concord-bft-utt:0.39 /usr/local/lib/libprotobuf.so.3.15.2.0 /usr/local/lib/
+RUN ln -s /usr/local/lib/libprotobuf.so.3.15.2.0 /usr/local/lib/libprotobuf.so
+
+COPY --from=concordbft/concord-bft-utt:0.39 /usr/local/lib/libopentracing.so.1.6.0 /usr/local/lib/
+RUN ln -s /usr/local/lib/libopentracing.so.1.6.0 /usr/local/lib/libopentracing.so.1
+RUN ln -s /usr/local/lib/libopentracing.so.1.6.0 /usr/local/lib/libopentracing.so
+
+COPY --from=concordbft/concord-bft-utt:0.39 /usr/local/lib/libgmp.so.10.3.2 /usr/local/lib/
+RUN ln -s /usr/local/lib/libgmp.so.10.3.2 /usr/local/lib/libgmp.so.10
+RUN ln -s /usr/local/lib/libgmp.so.10.3.2 /usr/local/lib/libgmp.so
+
+COPY --from=concordbft/concord-bft-utt:0.39 /usr/local/lib/libgmpxx.so.4.5.2 /usr/local/lib/
+RUN ln -s /usr/local/lib/libgmpxx.so.4.5.2 /usr/local/lib/libgmpxx.so.4
+RUN ln -s /usr/local/lib/libgmpxx.so.4.5.2 /usr/local/lib/libgmpxx.so
+
+COPY --from=concordbft/concord-bft-utt:0.39 /usr/local/ssl/lib/libcrypto.so.1.1 /usr/local/ssl/lib/
+RUN ln -s /usr/local/ssl/lib/libcrypto.so.1.1 /usr/local/ssl/lib/libcrypto.so.1
+RUN ln -s /usr/local/ssl/lib/libcrypto.so.1.1 /usr/local/ssl/lib/libcrypto.so
+
+COPY --from=concordbft/concord-bft-utt:0.39 /usr/local/ssl/lib/libssl.so.1.1 /usr/local/ssl/lib/
+RUN ln -s /usr/local/ssl/lib/libssl.so.1.1 /usr/local/ssl/lib/libssl.so.1
+RUN ln -s /usr/local/ssl/lib/libssl.so.1.1 /usr/local/ssl/lib/libssl.so
