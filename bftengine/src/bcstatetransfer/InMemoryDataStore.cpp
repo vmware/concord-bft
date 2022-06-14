@@ -23,7 +23,7 @@ namespace bcst {
 namespace impl {
 
 InMemoryDataStore::InMemoryDataStore(uint32_t sizeOfReservedPage) : sizeOfReservedPage_(sizeOfReservedPage) {
-  checkpointBeingFetched.checkpointNum = 0;
+  checkpointBeingFetched_.checkpointNum = 0;
 }
 
 bool InMemoryDataStore::initialized() { return wasInit_; }
@@ -124,25 +124,24 @@ void InMemoryDataStore::setIsFetchingState(bool b) { fetching = b; }
 bool InMemoryDataStore::getIsFetchingState() { return fetching; }
 
 void InMemoryDataStore::setCheckpointBeingFetched(const CheckpointDesc& c) {
-  ConcordAssert(checkpointBeingFetched.checkpointNum == 0);
+  ConcordAssert(checkpointBeingFetched_.checkpointNum == 0);
 
-  checkpointBeingFetched = c;
+  checkpointBeingFetched_ = c;
 }
 
 DataStore::CheckpointDesc InMemoryDataStore::getCheckpointBeingFetched() {
-  ConcordAssert(checkpointBeingFetched.checkpointNum != 0);
+  ConcordAssert(checkpointBeingFetched_.checkpointNum != 0);
 
-  return checkpointBeingFetched;
+  return checkpointBeingFetched_;
 }
 
-bool InMemoryDataStore::hasCheckpointBeingFetched() { return (checkpointBeingFetched.checkpointNum != 0); }
+bool InMemoryDataStore::hasCheckpointBeingFetched() { return (checkpointBeingFetched_.checkpointNum != 0); }
 
 void InMemoryDataStore::deleteCheckpointBeingFetched() {
   // TODO(DD): Create a ctor for CheckpointDesc?
   // NOLINTNEXTLINE(bugprone-undefined-memory-manipulation)
-  memset(&checkpointBeingFetched, 0, sizeof(checkpointBeingFetched));
-
-  ConcordAssert(checkpointBeingFetched.checkpointNum == 0);
+  checkpointBeingFetched_.makeZero();
+  ConcordAssert(checkpointBeingFetched_.checkpointNum == 0);
 }
 
 void InMemoryDataStore::setFirstRequiredBlock(uint64_t i) { firstRequiredBlock = i; }
