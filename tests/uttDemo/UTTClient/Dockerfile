@@ -1,6 +1,7 @@
 
 # Image for running the UTT Demo Replica
-FROM concordbft/concord-bft:0.39
+#FROM concordbft/concord-bft:0.39
+FROM utt-demo-run:latest
 LABEL Description="UTT Demo Client"
 
 WORKDIR /concord/
