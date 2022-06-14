@@ -473,9 +473,8 @@ class SkvbcRestartRecoveryTest(ApolloTest):
     @skip_for_tls
     @with_trio
     @with_bft_network(start_replica_cmd)
-    @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
     @with_constant_load
-    async def test_recovering_view_after_restart_with_packet_loss(self, bft_network, skvbc, tracker, constant_load):
+    async def test_recovering_view_after_restart_with_packet_loss(self, bft_network, skvbc, constant_load):
         """
         Implement a test with constant client load that is running under the Packet Dropping Adversary
         with 50% chance of dropping a packet from all replicas and trigger View Changes periodically.
