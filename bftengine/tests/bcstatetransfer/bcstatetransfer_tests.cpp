@@ -422,7 +422,6 @@ class BcStTestDelegator {
   void assertSourceSelectorMetricKeyVal(const std::string& key, uint64_t val);
   SourceSelector& getSourceSelector() { return stateTransfer_->sourceSelector_; }
   const std::set<uint16_t>& getPreferredReplicas() { return stateTransfer_->sourceSelector_.preferredReplicas_; }
-  void clearPreferredReplicas(const std::set<uint16_t>& replicasToKeep = std::set<uint16_t>{});
   void validateEqualRVTs(const RangeValidationTree& rvtA, const RangeValidationTree& rvtB) const;
   FetchingState getFetchingState() { return stateTransfer_->getFetchingState(); }
   bool isSrcSessionOpen() const { return stateTransfer_->sourceSession_.isOpen(); }
@@ -844,10 +843,6 @@ void BcStTestDelegator::validateEqualRVTs(const RangeValidationTree& rvtA, const
     ASSERT_EQ(rvtA.root_->parent_id_, rvtB.root_->parent_id_);
     ASSERT_EQ(rvtA.root_->insertion_counter_, rvtB.root_->insertion_counter_);
   }
-}
-
-void BcStTestDelegator::clearPreferredReplicas(const std::set<uint16_t>& replicasToKeep) {
-  stateTransfer_->sourceSelector_.preferredReplicas_ = replicasToKeep;
 }
 
 /////////////////////////////////////////////////////////
@@ -1931,27 +1926,19 @@ TEST_F(BcStTest, dstFullStateTransferWithRestarts) {
 
 // Since state is getting missing blocks, replica re-set preffered group and continues without the rejecting source
 TEST_F(BcStTest, dstSetNewPrefferedReplicasOnFetchBlocksMsgRejection) {
-  std::once_flag once_flag;
-  const std::function<void(void)> corruptFetchBlocksMsgRequestOnce = [&]() {
-    std::call_once(once_flag, [&] {
-      // corrupt the sent message
-      ASSERT_EQ(testedReplicaIf_.sent_messages_.size(), 1);
-      const auto& msg = testedReplicaIf_.sent_messages_.front();
-      ASSERT_NFF(assertMsgType(msg, MsgType::FetchBlocks));
-      auto fetchBlocksMsg = reinterpret_cast<FetchBlocksMsg*>(msg.data_.get());
-      fetchBlocksMsg->minBlockId = 0;
-      fetchBlocksMsg->maxBlockId = 0;
-
-      // remove preferred replicas in destination, to trigger an entry into new cycle
-      stDelegator_->clearPreferredReplicas();
-    });
-  };
+  list<uint16_t> rejectReasons{RejectFetchingMsg::Reason::IN_STATE_TRANSFER,
+                               RejectFetchingMsg::Reason::BLOCK_RANGE_NOT_FOUND,
+                               RejectFetchingMsg::Reason::IN_ACTIVE_SESSION,
+                               RejectFetchingMsg::Reason::INVALID_NUMBER_OF_BLOCKS_REQUESTED,
+                               RejectFetchingMsg::Reason::BLOCK_NOT_FOUND_IN_STORAGE,
+                               RejectFetchingMsg::Reason::DIGESTS_FOR_RVBGROUP_NOT_FOUND};
 
   targetConfig_.maxFetchRetransmissions = 1;  // to trigger an immediate source change after single msg corruption
   ASSERT_NFF(initialize());
   ASSERT_NFF(dstStartRunningAndCollecting());
   ASSERT_NFF(fakeSrcReplica_->replyAskForCheckpointSummariesMsg());
-  ASSERT_NFF(getMissingblocksStage(corruptFetchBlocksMsgRequestOnce, EMPTY_FUNC));
+  ASSERT_NFF(getMissingblocksStage(
+      EMPTY_FUNC, EMPTY_FUNC, TSkipReplyFlag::False, 0, TRejectFlag::True, std::move(rejectReasons)));
   ASSERT_NFF(getReservedPagesStage());
   // now validate completion
   ASSERT_NFF(dstValidateCycleEnd());
@@ -1969,8 +1956,8 @@ TEST_F(BcStTest, dstEnterInternalCycleOnFetchReservedPagesRejection) {
   ASSERT_NFF(getMissingblocksStage<void>());
   const auto& preferredReplicas = stDelegator_->getPreferredReplicas();
   ASSERT_EQ(preferredReplicas.size(), targetConfig_.fVal + 1);
-  ASSERT_NFF(getReservedPagesStage(
-      TSkipReplyFlag::False, TRejectOnceFlag::True, RejectFetchingMsg::Reason::RES_PAGE_NOT_FOUND));
+  ASSERT_NFF(
+      getReservedPagesStage(TSkipReplyFlag::False, TRejectFlag::True, RejectFetchingMsg::Reason::RES_PAGE_NOT_FOUND));
   ASSERT_TRUE(preferredReplicas.empty());
   ASSERT_EQ(FetchingState::GettingCheckpointSummaries, stDelegator_->getFetchingState());
 
