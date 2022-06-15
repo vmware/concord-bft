@@ -187,8 +187,9 @@ void InternalCommandsHandler::preExecute(IRequestsHandler::ExecutionRequest &req
 }
 
 void InternalCommandsHandler::addMetadataKeyValue(VersionedUpdates &updates, uint64_t sequenceNum) const {
-  updates.addUpdate(std::string{concord::kvbc::IBlockMetadata::kBlockMetadataKeyStr},
-                    m_blockMetadata->serialize(sequenceNum));
+  updates.addUpdate(
+      std::string{concord::kvbc::IBlockMetadata::kBlockMetadataKeyStr},
+      concord::kvbc::categorization::VersionedUpdates::Value{m_blockMetadata->serialize(sequenceNum), true});
 }
 
 std::optional<std::string> InternalCommandsHandler::get(const std::string &key, BlockId blockId) const {
