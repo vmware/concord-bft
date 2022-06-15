@@ -508,7 +508,8 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
         if (requestsOfNonPrimary.size() < NonPrimaryCombinedReqSize)
           requestsOfNonPrimary[m->requestSeqNum()] = std::make_pair(getMonotonicTime(), m);
         send(m, currentPrimary());
-        LOG_INFO(CNSUS, "Forwarding ClientRequestMsg to the current primary." << KVLOG(reqSeqNum, clientId));
+        LOG_INFO(CNSUS,
+                 "Forwarding ClientRequestMsg to the current primary." << KVLOG(reqSeqNum, clientId, currentPrimary()));
         return;
       }
       if (clientsManager->isPending(clientId, reqSeqNum)) {
