@@ -15,7 +15,6 @@
 #include "openssl_crypto.hpp"
 
 /**
- * This class
  * @tparam PublicKeyType The type of the public key - expected to be a SerializableByteArray
  *
  */
