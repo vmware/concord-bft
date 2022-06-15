@@ -216,6 +216,20 @@ class KeyValueBlockchain {
   // Gets a set of updates needed to revert a last reachable block and stores them in a recovery db.
   void storeLastReachableRevertBatch(bool checkpoint);
 
+  // stale keys helper methods for tests
+  std::map<std::string, std::vector<std::string>> getBlockStaleKeys(BlockId block_id) const;
+  std::vector<std::string> getStaleKeys(BlockId block_id,
+                                        const std::string &category_id,
+                                        const categorization::BlockMerkleInput &updates_input) const;
+
+  std::vector<std::string> getStaleKeys(BlockId block_id,
+                                        const std::string &category_id,
+                                        const categorization::VersionedInput &updates_input) const;
+
+  std::vector<std::string> getStaleKeys(BlockId block_id,
+                                        const std::string &category_id,
+                                        const categorization::ImmutableInput &updates_input) const;
+
  private:  // Member functons
   std::optional<categorization::Value> getValueFromUpdate(BlockId block_id,
                                                           const std::string &key,

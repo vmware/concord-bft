@@ -75,7 +75,8 @@ void InternalCommandsHandler::add(std::string &&key,
   } else {
     const auto &cat = keyToCategory(key);
     if (cat == VERSIONED_KV_CAT_ID) {
-      verUpdates.addUpdate(std::move(key), std::move(value));
+      verUpdates.addUpdate(std::move(key),
+                           concord::kvbc::categorization::VersionedUpdates::Value{std::move(value), true});
       return;
     }
     merkleUpdates.addUpdate(std::move(key), std::move(value));

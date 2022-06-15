@@ -682,4 +682,65 @@ std::shared_ptr<storage::rocksdb::NativeClient> KeyValueBlockchain::BlockchainRe
   return concord::storage::rocksdb::NativeClient::fromIDBClient(db);
 }
 
+std::map<std::string, std::vector<std::string>> KeyValueBlockchain::getBlockStaleKeys(BlockId block_id) const {
+  auto updates = block_chain_.getBlockUpdates(block_id);
+  if (!updates) {
+    const auto msg = "Failed to get updates for block ID = " + std::to_string(block_id);
+    throw std::runtime_error{msg};
+  }
+
+  std::map<std::string, std::vector<std::string>> stale_keys;
+  for (auto &&[category_id, update_input] : updates->categoryUpdates().kv) {
+    stale_keys[category_id] =
+        std::visit([&block_id, category_id = category_id, this](
+                       const auto &update_input) { return getStaleKeys(block_id, category_id, update_input); },
+                   update_input);
+  }
+  return stale_keys;
+}
+
+std::vector<std::string> KeyValueBlockchain::getStaleKeys(BlockId block_id,
+                                                          const std::string &category_id,
+                                                          const categorization::BlockMerkleInput &updates_input) const {
+  std::vector<std::string> stale_keys;
+  for (const auto &[k, _] : updates_input.kv) {
+    auto opt_val = getLatestVersion(category_id, k);
+    if (!opt_val.has_value() || opt_val->version > block_id) {
+      stale_keys.push_back(k);
+    }
+  }
+
+  for (const auto &k : updates_input.deletes) {
+    stale_keys.push_back(k);
+  }
+  return stale_keys;
+}
+
+std::vector<std::string> KeyValueBlockchain::getStaleKeys(BlockId block_id,
+                                                          const std::string &category_id,
+                                                          const categorization::VersionedInput &updates_input) const {
+  std::vector<std::string> stale_keys;
+  for (const auto &[k, v] : updates_input.kv) {
+    auto opt_val = getLatestVersion(category_id, k);
+    if (!opt_val.has_value() || opt_val->version > block_id || v.stale_on_update) {
+      stale_keys.push_back(k);
+    }
+  }
+
+  for (const auto &k : updates_input.deletes) {
+    stale_keys.push_back(k);
+  }
+  return stale_keys;
+}
+
+std::vector<std::string> KeyValueBlockchain::getStaleKeys(BlockId block_id,
+                                                          const std::string &category_id,
+                                                          const categorization::ImmutableInput &updates_input) const {
+  std::vector<std::string> stale_keys;
+  for (const auto &[k, _] : updates_input.kv) {
+    stale_keys.push_back(k);
+  }
+  return stale_keys;
+}
+
 }  // namespace concord::kvbc::v4blockchain

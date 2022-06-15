@@ -548,9 +548,6 @@ struct GetCategoryEarliestStale {
   }
 
   std::string execute(concord::kvbc::adapter::ReplicaBlockchain &adapter, const CommandArguments &args) const {
-    if (adapter.blockchainVersion() == BLOCKCHAIN_VERSION::V4_BLOCKCHAIN) {
-      throw std::invalid_argument{"Operation not valid for v4 blockchain"};
-    }
     if (args.values.empty()) {
       throw NotFoundException{"No Category ID was given"};
     }
@@ -563,7 +560,7 @@ struct GetCategoryEarliestStale {
     std::map<std::string, std::vector<std::string>> stale_keys;
     std::string keys_as_string;
     for (auto block = adapter.getGenesisBlockId(); block <= latestBlockID; block++) {
-      stale_keys = adapter.getReadOnlyCategorizedBlockchain()->getBlockStaleKeys(block);
+      stale_keys = adapter.getBlockStaleKeys(block);
       if (stale_keys.count(cat) && !stale_keys[cat].empty()) {
         relevantBlockId = block;
         keys_as_string = getStaleKeysStr(stale_keys[cat]);

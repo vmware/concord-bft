@@ -223,6 +223,9 @@ class ReplicaBlockchain : public IBlocksDeleter,
   const concord::kvbc::categorization::KeyValueBlockchain *const getReadOnlyCategorizedBlockchain() {
     return kvbc_.get();
   }
+  std::map<std::string, std::vector<std::string>> getBlockStaleKeys(BlockId block_id) const {
+    return kvbc_ == nullptr ? v4_kvbc_->getBlockStaleKeys(block_id) : kvbc_->getBlockStaleKeys(block_id);
+  }
   std::shared_ptr<storage::IDBClient> asIDBClient() const { return native_client_->asIDBClient(); }
   std::unordered_set<std::string> columnFamilies() const { return native_client_->columnFamilies(); }
   void getCFProperty(const std::string &cf, const std::string &property, uint64_t *val) const {
