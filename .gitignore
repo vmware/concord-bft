@@ -10,6 +10,7 @@ compile_commands.json
 *__pycache__
 MakefileCustom
 utt-demo/bin/
+utt-demo/config/
 utt-demo/run/
 
 # VIM swap.
