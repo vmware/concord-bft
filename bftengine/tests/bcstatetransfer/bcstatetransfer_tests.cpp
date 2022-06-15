@@ -417,6 +417,10 @@ class BcStTestDelegator {
     return stateTransfer_->checkStructureOfVirtualBlock(virtualBlock, virtualBlockSize, pageSize, logger);
   }
   const Digest& computeDefaultRvbDataDigest() const { return stateTransfer_->computeDefaultRvbDataDigest(); }
+  void enableFetchingState(void) {
+    DataStoreTransaction::Guard g(stateTransfer_->psd_->beginTransaction());
+    g.txn()->setIsFetchingState(true);
+  }
 
   // Source Selector
   void assertSourceSelectorMetricKeyVal(const std::string& key, uint64_t val);
@@ -1303,7 +1307,7 @@ void BcStTest::dstStartCollecting() {
   ASSERT_TRUE(stateTransfer_->isRunning());
   stateTransfer_->startCollectingState();
   ASSERT_EQ(FetchingState::GettingCheckpointSummaries, stDelegator_->getFetchingState());
-  auto minRelevantCheckpoint = datastore_->getLastStoredCheckpoint() + 1;
+  auto minRelevantCheckpoint = datastore_->getLastStoredCheckpoint() ? datastore_->getLastStoredCheckpoint() : 1;
   dstAssertAskForCheckpointSummariesSent(minRelevantCheckpoint);
 }
 
@@ -2625,6 +2629,25 @@ TEST_F(BcStTest, bkpValidateRvbDataInitialSource) {
   testConfig_.productDbDeleteOnEnd = true;
 }
 
+TEST_F(BcStTest, askChkptSummeriesFromStoppedNetwork) {
+  ASSERT_NFF(initialize());
+  ASSERT_NFF(dstStartRunningAndCollecting());
+  ASSERT_NFF(fakeSrcReplica_->replyAskForCheckpointSummariesMsg());
+  ASSERT_NFF(getMissingblocksStage<void>());
+  ASSERT_NFF(getReservedPagesStage());
+  // Last stored checkpoint would have been updated by now.
+  // Restarted replica is expected to resume from where it left.
+  // As last cycle wasn't completed it should enter into GettingCheckpointSummaries stage.
+  ASSERT_NFF(stDelegator_->enableFetchingState());
+  ASSERT_NFF(dstRestart(false, FetchingState::GettingCheckpointSummaries));
+  ASSERT_NFF(fakeSrcReplica_->replyAskForCheckpointSummariesMsg(false));
+  ASSERT_NFF(getReservedPagesStage());
+  // now validate completion
+  ASSERT_NFF(dstValidateCycleEnd(10));
+  ASSERT_NFF(compareAppStateblocks(testState_.maxRequiredBlockId - testState_.numBlocksToCollect + 1,
+                                   testState_.maxRequiredBlockId));
+}
+
 class BcStTestParamFixture3 : public BcStTest,
                               public testing::WithParamInterface<tuple<size_t, size_t, size_t, size_t, bool>> {};
 
@@ -2640,7 +2663,7 @@ TEST_P(BcStTestParamFixture3, bkpValidateCheckpointingWithConsensusCommitsAndPru
 
   ASSERT_NFF(initialize());
   ASSERT_NFF(cmnStartRunning());
-  uint64_t nextCheckpointNum = datastore_->getLastStoredCheckpoint() + 1;
+  uint64_t nextCheckpointNum = datastore_->getLastStoredCheckpoint() ? datastore_->getLastStoredCheckpoint() : 1;
 
   uint64_t minBlockInCp = appState_.getGenesisBlockNum() + 1;
   uint64_t maxBlockInCp = maxBlockIdOnFirstCycle;

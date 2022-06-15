@@ -86,9 +86,11 @@ void InMemoryDataStore::setPrunedBlocksDigests(const std::vector<std::pair<Block
 }
 std::vector<std::pair<BlockId, Digest>> InMemoryDataStore::getPrunedBlocksDigests() { return prunedBlocksDigests; }
 
-void InMemoryDataStore::setCheckpointDesc(uint64_t checkpoint, const CheckpointDesc& desc) {
+void InMemoryDataStore::setCheckpointDesc(uint64_t checkpoint,
+                                          const CheckpointDesc& desc,
+                                          const bool checkIfAlreadyExists) {
   ConcordAssert(checkpoint == desc.checkpointNum);
-  ConcordAssert(descMap.count(checkpoint) == 0);
+  ConcordAssertOR(!checkIfAlreadyExists, descMap.count(checkpoint) == 0);
 
   descMap[checkpoint] = desc;
 
@@ -234,12 +236,13 @@ void InMemoryDataStore::associatePendingResPageWithCheckpoint(uint32_t inPageId,
 void InMemoryDataStore::setResPage(uint32_t inPageId,
                                    uint64_t inCheckpoint,
                                    const Digest& inPageDigest,
-                                   const char* inPage) {
+                                   const char* inPage,
+                                   const bool checkIfAlreadyExists) {
   auto lock = std::unique_lock(reservedPagesLock_);
-  LOG_DEBUG(logger(), "pageId: " << inPageId << " checkpoint: " << inCheckpoint);
+  LOG_DEBUG(logger(), KVLOG(inPageId, inCheckpoint, checkIfAlreadyExists));
   // create key, and make sure that we don't already have this element
   ResPageKey key = {inPageId, inCheckpoint};
-  ConcordAssert(pages.count(key) == 0);
+  ConcordAssertOR(!checkIfAlreadyExists, (pages.count(key) == 0));
 
   // prepare page
   char* page = reinterpret_cast<char*>(std::malloc(sizeOfReservedPage_));

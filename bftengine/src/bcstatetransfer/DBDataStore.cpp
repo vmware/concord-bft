@@ -187,12 +187,12 @@ void DBDataStore::deserializeCheckpoint(std::istream& is, CheckpointDesc& desc) 
   Serializable::deserialize(is, desc.digestOfResPagesDescriptor.getForUpdate(), DIGEST_SIZE);
   Serializable::deserialize(is, desc.rvbData);
 }
-void DBDataStore::setCheckpointDesc(uint64_t checkpoint, const CheckpointDesc& desc) {
+void DBDataStore::setCheckpointDesc(uint64_t checkpoint, const CheckpointDesc& desc, const bool checkIfAlreadyExists) {
   LOG_DEBUG(logger(), toString(desc));
   std::ostringstream oss;
   serializeCheckpoint(oss, desc);
   put(chkpDescKey(checkpoint), oss.str());
-  inmem_->setCheckpointDesc(checkpoint, desc);
+  inmem_->setCheckpointDesc(checkpoint, desc, checkIfAlreadyExists);
 }
 bool DBDataStore::hasCheckpointDesc(uint64_t checkpoint) {
   if (inmem_->hasCheckpointDesc(checkpoint)) return true;
@@ -305,14 +305,18 @@ void DBDataStore::setResPageTxn(
   LOG_DEBUG(logger(), KVLOG(inPageId, inCheckpoint, inPageDigest.toString(), txn->getId(), dynamic_key));
 }
 
-void DBDataStore::setResPage(uint32_t inPageId, uint64_t inCheckpoint, const Digest& inPageDigest, const char* inPage) {
+void DBDataStore::setResPage(uint32_t inPageId,
+                             uint64_t inCheckpoint,
+                             const Digest& inPageDigest,
+                             const char* inPage,
+                             const bool checkIfAlreadyExists) {
   if (txn_)
     setResPageTxn(inPageId, inCheckpoint, inPageDigest, inPage, txn_);
   else {
     ITransaction::Guard g(dbc_->beginTransaction());
     setResPageTxn(inPageId, inCheckpoint, inPageDigest, inPage, g.txn());
   }
-  inmem_->setResPage(inPageId, inCheckpoint, inPageDigest, inPage);
+  inmem_->setResPage(inPageId, inCheckpoint, inPageDigest, inPage, checkIfAlreadyExists);
   LOG_TRACE(logger(), inmem_->getPagesForLog());
 }
 /** ******************************************************************************************************************

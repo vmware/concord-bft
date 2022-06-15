@@ -93,7 +93,9 @@ class DataStore : public std::enable_shared_from_this<DataStore> {
     std::vector<char> rvbData{};
   };
 
-  virtual void setCheckpointDesc(uint64_t checkpoint, const CheckpointDesc& desc) = 0;
+  virtual void setCheckpointDesc(uint64_t checkpoint,
+                                 const CheckpointDesc& desc,
+                                 const bool checkIfAlreadyExists = true) = 0;
   virtual CheckpointDesc getCheckpointDesc(uint64_t checkpoint) = 0;
   virtual bool hasCheckpointDesc(uint64_t checkpoint) = 0;
   virtual void deleteDescOfSmallerCheckpoints(uint64_t checkpoint) = 0;
@@ -113,7 +115,11 @@ class DataStore : public std::enable_shared_from_this<DataStore> {
                                                      uint64_t inCheckpoint,
                                                      const Digest& inPageDigest) = 0;
 
-  virtual void setResPage(uint32_t inPageId, uint64_t inCheckpoint, const Digest& inPageDigest, const char* inPage) = 0;
+  virtual void setResPage(uint32_t inPageId,
+                          uint64_t inCheckpoint,
+                          const Digest& inPageDigest,
+                          const char* inPage,
+                          const bool checkIfAlreadyExists = true) = 0;
   virtual bool getResPage(uint32_t inPageId, uint64_t inCheckpoint, uint64_t* outActualCheckpoint) {
     return getResPage(inPageId, inCheckpoint, outActualCheckpoint, nullptr, nullptr, 0);
   }
@@ -227,15 +233,21 @@ class DataStoreTransaction : public DataStore, public ITransaction {
                                              const Digest& inPageDigest) override {
     ds_->associatePendingResPageWithCheckpoint(inPageId, inCheckpoint, inPageDigest);
   }
-  void setCheckpointDesc(uint64_t checkpoint, const CheckpointDesc& desc) override {
-    ds_->setCheckpointDesc(checkpoint, desc);
+  void setCheckpointDesc(uint64_t checkpoint,
+                         const CheckpointDesc& desc,
+                         const bool checkIfAlreadyExists = true) override {
+    ds_->setCheckpointDesc(checkpoint, desc, checkIfAlreadyExists);
   }
   void setFirstStoredCheckpoint(uint64_t c) override { ds_->setFirstStoredCheckpoint(c); }
   void setPendingResPage(uint32_t inPageId, const char* inPage, uint32_t pageLen) override {
     ds_->setPendingResPage(inPageId, inPage, pageLen);
   }
-  void setResPage(uint32_t inPageId, uint64_t inCheckpoint, const Digest& inPageDigest, const char* inPage) override {
-    ds_->setResPage(inPageId, inCheckpoint, inPageDigest, inPage);
+  void setResPage(uint32_t inPageId,
+                  uint64_t inCheckpoint,
+                  const Digest& inPageDigest,
+                  const char* inPage,
+                  const bool checkIfAlreadyExists = true) override {
+    ds_->setResPage(inPageId, inCheckpoint, inPageDigest, inPage, checkIfAlreadyExists);
   }
   bool initialized() override { return ds_->initialized(); }
   bool getIsFetchingState() override { return ds_->getIsFetchingState(); }
