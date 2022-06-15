@@ -9,6 +9,10 @@ help: ## The Makefile helps to build and run the UTT demo.
 	@cat $(MAKEFILE_LIST) | grep -E '^[a-zA-Z_-]+:.*?## .*$$' | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
+.PHONY: pull
+pull: ## Pull the latest demo images
+	@docker-compose pull
+
 .PHONY: build
 build: ## Builds the UTT demo binaries and prepares the required directories.
 	@make -C .. format
@@ -28,17 +32,24 @@ build: ## Builds the UTT demo binaries and prepares the required directories.
 .PHONY: build-docker-all
 build-docker-all: build-docker-wallet build-docker-payment-service build-docker-replica ## Builds all required images for the wallet, payment service and replica.
 
+.PHONY: build-docker-runenv
+build-docker-runenv: ## Builds the environment image for running the demo
+	@docker build --rm --no-cache=true -f Dockerfile.runenv . -t concordbft/utt-demo-runenv
+	@echo
+	@echo "Build finished. Docker image name: \"concordbft/utt-demo-runenv:latest\"."
+	@echo "Before you push it to Docker Hub, please tag it to match the respective build environment tag."
+
 .PHONY: build-docker-wallet
 build-docker-wallet: ## Builds only the wallet docker image.
-	@docker build -f ../tests/uttDemo/UTTClient/Dockerfile . -t utt-demo-wallet
+	@docker build -f ../tests/uttDemo/UTTClient/Dockerfile . -t concordbft/utt-demo-wallet
 
 .PHONY: build-docker-payment-service
 build-docker-payment-service: ## Builds only the payment service docker image.
-	@docker build -f ../tests/uttDemo/PaymentService/Dockerfile . -t utt-demo-payment-service
+	@docker build -f ../tests/uttDemo/PaymentService/Dockerfile . -t concordbft/utt-demo-payment-service
 
 .PHONY: build-docker-replica
 build-docker-replica: ## Builds only the replica docker image.
-	@docker build -f ../tests/uttDemo/UTTReplica/Dockerfile . -t utt-demo-replica
+	@docker build -f ../tests/uttDemo/UTTReplica/Dockerfile . -t concordbft/utt-demo-replica
 
 .PHONY: start
 start: ## Starts the demo by running all required services.
