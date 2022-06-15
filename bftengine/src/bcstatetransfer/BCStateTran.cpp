@@ -302,6 +302,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
   ConcordAssert(replicas_.count(config_.myReplicaId) == 1 || config.isReadOnly);
   ConcordAssertGE(config_.maxNumOfReservedPages, 2);
   ConcordAssertLT(finalizePutblockTimeoutMilli_, config_.refreshTimerMs);
+  ConcordAssertEQ(RejectFetchingMsg::reasonMessages.size(), RejectFetchingMsg::Reason::LAST - 1);
   if (config_.sourceSessionExpiryDurationMs > 0) {
     ConcordAssertGT(config_.sourceSessionExpiryDurationMs, config_.fetchRetransmissionTimeoutMs);
   }
@@ -2397,9 +2398,13 @@ bool BCStateTran::onMessage(const RejectFetchingMsg *m, uint32_t msgLen, uint16_
        (m->rejectionCode == RejectFetchingMsg::Reason::RES_PAGE_NOT_FOUND)) ||
       ((fs == FetchingState::GettingMissingResPages) &&
        (m->rejectionCode != RejectFetchingMsg::Reason::RES_PAGE_NOT_FOUND))) {
-    LOG_WARN(
-        logger_,
-        "Msg is irrelevant" << KVLOG(replicaId, sourceSelector_.currentReplica(), lastMsgSeqNum_, m->requestMsgSeqNum));
+    LOG_WARN(logger_,
+             "Msg is irrelevant" << KVLOG(replicaId,
+                                          sourceSelector_.currentReplica(),
+                                          stateName(fs),
+                                          m->rejectionCode,
+                                          lastMsgSeqNum_,
+                                          m->requestMsgSeqNum));
     metrics_.irrelevant_reject_fetching_msg_++;
     return true;
   }
