@@ -20,6 +20,7 @@ int EdDSAMultisigSigner::requiredLengthForSignedData() const { return sizeof(Sin
 
 void EdDSAMultisigSigner::signData(const char *hash, int hashLen, char *outSig, int outSigLen) {
   ConcordAssertGE(outSigLen, requiredLengthForSignedData());
+  LOG_DEBUG(EDDSA_MULTISIG_LOG, KVLOG(id_));
   SingleEdDSASignature result;
   auto outSigBytesLen = result.signatureBytes.size();
   sign(reinterpret_cast<const uint8_t *>(hash),
