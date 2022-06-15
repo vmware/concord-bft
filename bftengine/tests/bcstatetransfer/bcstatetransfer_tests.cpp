@@ -421,6 +421,7 @@ class BcStTestDelegator {
   // Source Selector
   void assertSourceSelectorMetricKeyVal(const std::string& key, uint64_t val);
   SourceSelector& getSourceSelector() { return stateTransfer_->sourceSelector_; }
+  const std::set<uint16_t>& getPreferredReplicas() { return stateTransfer_->sourceSelector_.preferredReplicas_; }
   void clearPreferredReplicas(const std::set<uint16_t>& replicasToKeep = std::set<uint16_t>{});
   void validateEqualRVTs(const RangeValidationTree& rvtA, const RangeValidationTree& rvtB) const;
   FetchingState getFetchingState() { return stateTransfer_->getFetchingState(); }
@@ -1958,26 +1959,25 @@ TEST_F(BcStTest, dstSetNewPrefferedReplicasOnFetchBlocksMsgRejection) {
                                    testState_.maxRequiredBlockId));
 }
 
-// Since no reply, replica enters a new cycle.
-// The assumption is naive - as if all messages to all sources were not replied.
-// In practice it is not tracked anywhere in code.
-TEST_F(BcStTest, dstEnterInternalCycleOnFetchReservedPagesNotReplied) {
+// This test checks that replica enters a new internal cycle when reserved pages reuqest is rejected.
+TEST_F(BcStTest, dstEnterInternalCycleOnFetchReservedPagesRejection) {
   ASSERT_NFF(initialize());
 
   // 1st cycle - source will not answer destination request for reserved pages
   ASSERT_NFF(dstStartRunningAndCollecting());
   ASSERT_NFF(fakeSrcReplica_->replyAskForCheckpointSummariesMsg());
   ASSERT_NFF(getMissingblocksStage<void>());
-  // remove preferred replicas in destination, to trigger an entry into new cycle
-  stDelegator_->clearPreferredReplicas();
-  ASSERT_NFF(getReservedPagesStage(true, true, 0));
+  const auto& preferredReplicas = stDelegator_->getPreferredReplicas();
+  ASSERT_EQ(preferredReplicas.size(), targetConfig_.fVal + 1);
+  ASSERT_NFF(getReservedPagesStage(
+      TSkipReplyFlag::False, TRejectOnceFlag::True, RejectFetchingMsg::Reason::RES_PAGE_NOT_FOUND));
+  ASSERT_TRUE(preferredReplicas.empty());
   ASSERT_EQ(FetchingState::GettingCheckpointSummaries, stDelegator_->getFetchingState());
 
-  // 2nd cycle starts, this time nothing 'bad' happens, but cycle is only for getting the reserved pages
+  // 2nd (internal) cycle starts, this time nothing 'bad' happens, but cycle is only for getting the reserved pages
   ASSERT_NFF(fakeSrcReplica_->replyAskForCheckpointSummariesMsg(false));
   ASSERT_NFF(getReservedPagesStage());
-
-  ASSERT_NFF(dstValidateCycleEnd(10));
+  ASSERT_NFF(dstValidateCycleEnd());
   ASSERT_NFF(compareAppStateblocks(testState_.maxRequiredBlockId - testState_.numBlocksToCollect + 1,
                                    testState_.maxRequiredBlockId));
 }
