@@ -28,7 +28,7 @@
 #pragma GCC diagnostic ignored "-Wsign-compare"
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wc99-extensions"
-#include "../../thirdparty/include/picobench.h"
+#include "picobench.h"
 #include "macros.h"
 #include "include/threshsign/eddsa/EdDSAMultisigFactory.h"
 #include "include/threshsign/eddsa/SingleEdDSASignature.h"
@@ -42,7 +42,7 @@ static std::unique_ptr<std::vector<uint8_t>> s_data{nullptr};
  * @param randomDataBytes
  */
 void initRandomData(size_t randomDataBytes) {
-  assert(randomDataBytes % sizeof(uint32_t) == 0);
+  ConcordAssertEQ(randomDataBytes % sizeof(uint32_t), 0);
   // Single threaded implementation
   s_data = std::make_unique<std::vector<uint8_t>>(randomDataBytes);
   uint32_t* randData = (uint32_t*)s_data->data();

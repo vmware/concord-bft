@@ -22,7 +22,7 @@
 
 #include "threshsign/ThresholdSignaturesTypes.h"
 #include "KeyfileIOUtils.hpp"
-
+#include "util/filesystem.hpp"
 // Helper functions and static state to this executable's main function.
 
 static bool containsHelpOption(int argc, char** argv) {
@@ -119,25 +119,27 @@ int main(int argc, char** argv) {
     uint16_t ro = 0;
     std::string outputPrefix;
 
-    // The duplicate declaration is here on purpose,
-    // This code will not compile if both USE_RELIC and USE_EDDSA_OPENSSL are set
+    std::string defaultSysType = "UninitializedCryptoSystem";
+    std::string defaultSubSysType = "UninitializedCryptoSubSystem";
+
 #ifdef USE_RELIC
-    std::string slowType = MULTISIG_BLS_SCHEME;
-    std::string slowParam = "BN-P254";
-    std::string commitType = MULTISIG_BLS_SCHEME;
-    std::string commitParam = "BN-P254";
-    std::string optType = MULTISIG_BLS_SCHEME;
-    std::string optParam = "BN-P254";
+    defaultSysType = MULTISIG_BLS_SCHEME;
+    defaultSubSysType = "BN-P254";
 #endif
 
+// Note that if both USE_RELIC and MULTISIG_EDDSA_SCHEME macros are set, the last option is the one which will be taken
 #ifdef USE_EDDSA_OPENSSL
-    std::string slowType = MULTISIG_EDDSA_SCHEME;
-    std::string slowParam = "ED25519";
-    std::string commitType = MULTISIG_EDDSA_SCHEME;
-    std::string commitParam = "ED25519";
-    std::string optType = MULTISIG_EDDSA_SCHEME;
-    std::string optParam = "ED25519";
+    defaultSysType = MULTISIG_EDDSA_SCHEME;
+    defaultSubSysType = "ED25519";
 #endif
+
+    // These are currently unused
+    std::string slowType = defaultSysType;
+    std::string slowParam = defaultSubSysType;
+    std::string commitType = defaultSysType;
+    std::string commitParam = defaultSubSysType;
+    std::string optType = defaultSysType;
+    std::string optParam = defaultSubSysType;
 
     for (int i = 1; i < argc; ++i) {
       std::string option(argv[i]);
@@ -205,19 +207,11 @@ int main(int argc, char** argv) {
       config.publicKeysOfReplicas.insert(std::pair<uint16_t, std::string>(i, rsaKeys[i].second));
     }
 
-#ifdef USE_EDDSA_OPENSSL
-    auto* sysType = MULTISIG_EDDSA_SCHEME;
-    auto* subSysType = "ED25519";
-#endif
-
-#ifdef USE_RELIC
-    auto* sysType = MULTISIG_BLS_SCHEME;
-    auto* subSysType = "BN-P254";
-#endif
-
     // We want to generate public key for n-out-of-n case
-    Cryptosystem cryptoSys(sysType, subSysType, n, n);
+    Cryptosystem cryptoSys(defaultSysType, defaultSubSysType, n, n);
     cryptoSys.generateNewPseudorandomKeys();
+
+    LOG_INFO(GL, "Outputting replica keys to: " << fs::absolute(outputPrefix).parent_path().string());
 
     // Output the generated keys.
     for (uint16_t i = 0; i < n; ++i) {
