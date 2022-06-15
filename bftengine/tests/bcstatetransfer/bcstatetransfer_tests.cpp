@@ -615,7 +615,8 @@ class BcStTest : public ::testing::Test {
                              TRejectFlag reject = TRejectFlag::False,
                              uint16_t rejectionReason = 0,
                              size_t sleepDurationAfterReplyMilli = 20);
-  void dstValidateCycleEnd(size_t timeToSleepAfterreportCompletedMilli);
+
+  void dstValidateCycleEnd(size_t timeToSleepAfterreportCompletedMilli = 10);
   void dstRestart(bool productDbDeleteOnEnd, FetchingState expectedState);
 
  public:  // why public? quick workaround to allow binding on derived class
@@ -1648,7 +1649,7 @@ TEST_P(BcStTestParamFixture1, dstFullStateTransfer) {
   ASSERT_NFF(getMissingblocksStage<void>());
   ASSERT_NFF(getReservedPagesStage());
   // now validate completion
-  ASSERT_NFF(dstValidateCycleEnd(10));
+  ASSERT_NFF(dstValidateCycleEnd());
   ASSERT_NFF(compareAppStateblocks(testState_.maxRequiredBlockId - testState_.numBlocksToCollect + 1,
                                    testState_.maxRequiredBlockId));
 }
@@ -1705,7 +1706,9 @@ TEST_P(BcStTestParamFixture2, dstSourceSelectorPrimaryAwareness) {
 
   ASSERT_NFF(getReservedPagesStage());
   // validate completion
-  ASSERT_NFF(dstValidateCycleEnd(10));
+  ASSERT_NFF(dstValidateCycleEnd());
+  ASSERT_NFF(compareAppStateblocks(testState_.maxRequiredBlockId - testState_.numBlocksToCollect + 1,
+                                   testState_.maxRequiredBlockId));
 }
 
 // 1st element - enable source selector primary awareness
@@ -1762,7 +1765,9 @@ TEST_F(BcStTest, dstValidateRealSourceListReported) {
   ASSERT_NFF(getMissingblocksStage<void>());
   ASSERT_NFF(getReservedPagesStage());
   // now validate completion
-  ASSERT_NFF(dstValidateCycleEnd(10));
+  ASSERT_NFF(dstValidateCycleEnd());
+  ASSERT_NFF(compareAppStateblocks(testState_.maxRequiredBlockId - testState_.numBlocksToCollect + 1,
+                                   testState_.maxRequiredBlockId));
 }
 
 // Validate a recurring source selection, during ongoing state transfer;
@@ -1788,7 +1793,9 @@ TEST_F(BcStTest, dstValidatePeriodicSourceReplacement) {
                                         {"replacement_due_to_retransmission_timeout", 0},
                                         {"replacement_due_to_bad_data", 0}});
   ASSERT_NFF(getReservedPagesStage());
-  ASSERT_NFF(dstValidateCycleEnd(10));
+  ASSERT_NFF(dstValidateCycleEnd());
+  ASSERT_NFF(compareAppStateblocks(testState_.maxRequiredBlockId - testState_.numBlocksToCollect + 1,
+                                   testState_.maxRequiredBlockId));
 }
 
 // TBD BC-14432
@@ -1816,7 +1823,9 @@ TEST_F(BcStTest, dstSendPrePrepareMsgsDuringStateTransfer) {
                                         {"replacement_due_to_bad_data", 0}});
   ASSERT_NFF(getReservedPagesStage());
   // validate completion
-  ASSERT_NFF(dstValidateCycleEnd(10));
+  ASSERT_NFF(dstValidateCycleEnd());
+  ASSERT_NFF(compareAppStateblocks(testState_.maxRequiredBlockId - testState_.numBlocksToCollect + 1,
+                                   testState_.maxRequiredBlockId));
 }
 
 TEST_F(BcStTest, dstProcessDataWithNoKnownSources) {
@@ -1841,7 +1850,9 @@ TEST_F(BcStTest, dstProcessDataWithNoKnownSources) {
   ASSERT_NFF(getMissingblocksStage<void>());
   ASSERT_NFF(getReservedPagesStage());
   // validate completion
-  ASSERT_NFF(dstValidateCycleEnd(10));
+  ASSERT_NFF(dstValidateCycleEnd());
+  ASSERT_NFF(compareAppStateblocks(testState_.maxRequiredBlockId - testState_.numBlocksToCollect + 1,
+                                   testState_.maxRequiredBlockId));
 }
 
 TEST_F(BcStTest, dstPreprepareFromMultipleSourcesDuringStateTransfer) {
@@ -1870,7 +1881,9 @@ TEST_F(BcStTest, dstPreprepareFromMultipleSourcesDuringStateTransfer) {
                                         {"replacement_due_to_bad_data", 0}});
   ASSERT_NFF(getReservedPagesStage());
   // validate completion
-  ASSERT_NFF(dstValidateCycleEnd(10));
+  ASSERT_NFF(dstValidateCycleEnd());
+  ASSERT_NFF(compareAppStateblocks(testState_.maxRequiredBlockId - testState_.numBlocksToCollect + 1,
+                                   testState_.maxRequiredBlockId));
 }
 
 // Run a full state transfer with 3 cycles
@@ -1885,7 +1898,9 @@ TEST_F(BcStTest, dstFullStateTransferMultipleCycles) {
     ASSERT_NFF(getMissingblocksStage<void>());
     ASSERT_NFF(getReservedPagesStage());
     // now validate completion
-    ASSERT_NFF(dstValidateCycleEnd(10));
+    ASSERT_NFF(dstValidateCycleEnd());
+    ASSERT_NFF(compareAppStateblocks(testState_.maxRequiredBlockId - testState_.numBlocksToCollect + 1,
+                                     testState_.maxRequiredBlockId));
     if (i != nextcycleSizeMultiplier.size())
       testState_.moveToNextCycle(testConfig_,
                                  appState_,
@@ -1908,7 +1923,9 @@ TEST_F(BcStTest, dstFullStateTransferWithRestarts) {
   ASSERT_NFF(getMissingblocksStage<void>(restart_on_specific_iterations, EMPTY_FUNC));
   ASSERT_NFF(getReservedPagesStage());
   // now validate completion
-  ASSERT_NFF(dstValidateCycleEnd(10));
+  ASSERT_NFF(dstValidateCycleEnd());
+  ASSERT_NFF(compareAppStateblocks(testState_.maxRequiredBlockId - testState_.numBlocksToCollect + 1,
+                                   testState_.maxRequiredBlockId));
 }
 
 // Since state is getting missing blocks, replica re-set preffered group and continues without the rejecting source
@@ -1936,7 +1953,7 @@ TEST_F(BcStTest, dstSetNewPrefferedReplicasOnFetchBlocksMsgRejection) {
   ASSERT_NFF(getMissingblocksStage(corruptFetchBlocksMsgRequestOnce, EMPTY_FUNC));
   ASSERT_NFF(getReservedPagesStage());
   // now validate completion
-  ASSERT_NFF(dstValidateCycleEnd(10));
+  ASSERT_NFF(dstValidateCycleEnd());
   ASSERT_NFF(compareAppStateblocks(testState_.maxRequiredBlockId - testState_.numBlocksToCollect + 1,
                                    testState_.maxRequiredBlockId));
 }
@@ -1996,7 +2013,7 @@ TEST_F(BcStTest, dstTestprimaryAwarnessduringAskForCheckpointSummariesMsg) {
   ASSERT_NFF(getMissingblocksStage<void>());
   ASSERT_NFF(getReservedPagesStage());
   // now validate completion
-  ASSERT_NFF(dstValidateCycleEnd(10));
+  ASSERT_NFF(dstValidateCycleEnd());
   ASSERT_NFF(compareAppStateblocks(testState_.maxRequiredBlockId - testState_.numBlocksToCollect + 1,
                                    testState_.maxRequiredBlockId));
 }
@@ -2014,7 +2031,7 @@ TEST_P(BcStTestParamFixtureRejectReason, dstRejectFetchBlocksMsgOnce) {
   ASSERT_NFF(getReservedPagesStage());
   ASSERT_NFF(stDelegator_->assertBCStateTranMetricKeyVal("received_reject_fetching_msg", 1));
 
-  ASSERT_NFF(dstValidateCycleEnd(10));
+  ASSERT_NFF(dstValidateCycleEnd());
   ASSERT_NFF(compareAppStateblocks(testState_.maxRequiredBlockId - testState_.numBlocksToCollect + 1,
                                    testState_.maxRequiredBlockId));
 }
