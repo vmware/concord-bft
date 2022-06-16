@@ -130,9 +130,10 @@ class RangeValidationTree {
 
   enum class LogPrintVerbosity { DETAILED, SUMMARY };
 
-  // Log tree only if total elements are less than 10K. In case of failure can assert.
-  // SUMMARY - prints basic structure and node ids only
-  void printToLog(LogPrintVerbosity verbosity, std::string&& user_label = "") const noexcept;  // change to 3 levels
+  // Prints current tree information to log. Basic information is always printed. If verbosity is DETAILED and there
+  // less than kMaxNodesToPrintStructure+1 nodes in the tree, structure is printed as well.
+  // The label is an optional string, to mark the caller.
+  void printToLog(LogPrintVerbosity verbosity, std::string&& user_label = "") const noexcept;
 
   // Validate structure and values inside tree. In case of failure can assert.
   bool validate() const noexcept;
@@ -371,7 +372,7 @@ class RangeValidationTree {
   static uint32_t RVT_K;
   const uint32_t fetch_range_size_{};
   const size_t value_size_{};
-  static constexpr size_t kMaxNodesToPrint{10000};
+  static constexpr size_t kMaxNodesToPrintStructure{100};
   static constexpr uint8_t CHECKPOINT_PERSISTENCY_VERSION{1};
   static constexpr uint8_t version_num_{CHECKPOINT_PERSISTENCY_VERSION};
   static constexpr uint64_t magic_num_{0x1122334455667788};

@@ -549,10 +549,6 @@ void RangeValidationTree::printToLog(LogPrintVerbosity verbosity, string&& user_
     LOG_INFO(logger_, "Empty RVT");
     return;
   }
-  if (totalNodes() > kMaxNodesToPrint) {
-    LOG_WARN(logger_, "Huge tree so would not log");
-    return;
-  }
   std::ostringstream oss;
   if (!user_label.empty()) {
     oss << "Label=" << user_label << ", ";
@@ -561,6 +557,12 @@ void RangeValidationTree::printToLog(LogPrintVerbosity verbosity, string&& user_
       << ", max_rvb_index_=" << max_rvb_index_ << ", RVT_K=" << RVT_K << ", FRS=" << fetch_range_size_
       << ", value_size=" << value_size_;
 
+  // For large trees, print only basic info without structure
+  if ((totalNodes() > kMaxNodesToPrintStructure) || (verbosity == LogPrintVerbosity::SUMMARY)) {
+    LOG_INFO(logger_, oss.str());
+    return;
+  }
+
   oss << " ,Structure:";
   queue<RVTNodePtr> q;
   q.push(root_);
@@ -568,20 +570,17 @@ void RangeValidationTree::printToLog(LogPrintVerbosity verbosity, string&& user_
     auto& node = q.front();
     oss << node->info_.toString() << " ";
 
-    if (verbosity == LogPrintVerbosity::DETAILED) {
-      oss << ", level=" << node->info_.level() << ", rvb_index=" << node->info_.rvb_index()
-          << ", insertion_counter_=" << node->insertion_counter_
-          << ", current_value_=" << node->current_value_.toString()
-          << ", min_cid=" << NodeInfo(node->minChildId()).toString()
-          << ", max_cid=" << NodeInfo(node->maxChildId()).toString();
+    oss << ", level=" << node->info_.level() << ", rvb_index=" << node->info_.rvb_index()
+        << ", insertion_counter_=" << node->insertion_counter_ << ", current_value_=" << node->current_value_.toString()
+        << ", min_cid=" << NodeInfo(node->minChildId()).toString()
+        << ", max_cid=" << NodeInfo(node->maxChildId()).toString();
 
-      // Keep for debugging
-      // ConcordAssert(node->hasChilds());
-      // oss << " child_ids:";
-      // for (const auto& cid : node->child_ids_) {
-      //   oss << NodeInfo(cid).toString();
-      // }
-    }
+    // Keep for debugging
+    // ConcordAssert(node->hasChilds());
+    // oss << " child_ids:";
+    // for (const auto& cid : node->child_ids_) {
+    //   oss << NodeInfo(cid).toString();
+    // }
     oss << "|";
     if (node->info_.level() == 1) {
       q.pop();
