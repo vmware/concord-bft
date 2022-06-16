@@ -43,7 +43,7 @@ class DataStore : public std::enable_shared_from_this<DataStore> {
   virtual bool initialized() = 0;
   virtual void setAsInitialized() = 0;
 
-  virtual void setReplicas(const set<uint16_t> replicas) = 0;
+  virtual void setReplicas(const set<uint16_t>& replicas) = 0;
   virtual set<uint16_t> getReplicas() = 0;
 
   virtual void setMyReplicaId(uint16_t id) = 0;
@@ -204,7 +204,7 @@ class DataStoreTransaction : public DataStore, public ITransaction {
    * DataStore implementation
    */
   void setAsInitialized() override { ds_->setAsInitialized(); }
-  void setReplicas(const set<uint16_t> replicas) override { ds_->setReplicas(replicas); }
+  void setReplicas(const set<uint16_t>& replicas) override { ds_->setReplicas(replicas); }
   void setMyReplicaId(uint16_t id) override { ds_->setMyReplicaId(id); }
   void setMaxNumOfStoredCheckpoints(uint64_t numChp) override { ds_->setMaxNumOfStoredCheckpoints(numChp); }
   void setNumberOfReservedPages(uint32_t numResPgs) override { ds_->setNumberOfReservedPages(numResPgs); }

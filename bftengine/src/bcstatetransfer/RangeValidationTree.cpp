@@ -473,19 +473,19 @@ bool RangeValidationTree::validateTreeValues() const noexcept {
   auto iter = id_to_node_.begin();
   ConcordAssert(iter->second != nullptr);
   std::set<uint64_t> validated_ids;
-  size_t skipped{};
 
   do {
     NodeVal sum_of_childs{};
-    auto current_node = iter->second;
 
     if (iter == id_to_node_.end()) {
       break;
     }
+
+    auto current_node = iter->second;
+
     if (current_node->info_.level() <= 1) {
       ++iter;
       validated_ids.insert(current_node->info_.id());
-      ++skipped;
       continue;
     }
 

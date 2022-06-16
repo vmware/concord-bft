@@ -58,7 +58,7 @@ class DBDataStore : public DataStore {
   }
 
   void setAsInitialized() override;
-  void setReplicas(const set<uint16_t>) override;
+  void setReplicas(const set<uint16_t>&) override;
   void setMyReplicaId(uint16_t) override;
   void setMaxNumOfStoredCheckpoints(uint64_t) override;
   void setNumberOfReservedPages(uint32_t) override;

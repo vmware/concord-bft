@@ -30,7 +30,7 @@ bool InMemoryDataStore::initialized() { return wasInit_; }
 
 void InMemoryDataStore::setAsInitialized() { wasInit_ = true; }
 
-void InMemoryDataStore::setReplicas(const set<uint16_t> replicas) { replicas_ = replicas; }
+void InMemoryDataStore::setReplicas(const set<uint16_t>& replicas) { replicas_ = replicas; }
 
 set<uint16_t> InMemoryDataStore::getReplicas() {
   ConcordAssert(!replicas_.empty());

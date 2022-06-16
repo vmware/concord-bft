@@ -44,7 +44,7 @@ class InMemoryDataStore : public DataStore {
   bool initialized() override;
   void setAsInitialized() override;
 
-  void setReplicas(const set<uint16_t> replicas) override;
+  void setReplicas(const set<uint16_t>& replicas) override;
   set<uint16_t> getReplicas() override;
 
   void setMyReplicaId(uint16_t id) override;

@@ -164,7 +164,7 @@ void DBDataStore::setLastRequiredBlock(uint64_t i) {
   putInt(LastRequiredBlock, i);
   inmem_->setLastRequiredBlock(i);
 }
-void DBDataStore::setReplicas(const std::set<std::uint16_t> replicas) {
+void DBDataStore::setReplicas(const std::set<std::uint16_t>& replicas) {
   std::ostringstream oss;
   Serializable::serialize(oss, replicas);
   put(Replicas, oss.str());
