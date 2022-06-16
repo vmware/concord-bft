@@ -5,4 +5,6 @@ target_link_libraries(client-pool-timer-test PUBLIC
   GTest::Main
   concord_client_pool
 )
-add_test(client-pool-timer-test client-pool-timer-test)
+
+# Disabled due to instability
+# add_test(client-pool-timer-test client-pool-timer-test)
