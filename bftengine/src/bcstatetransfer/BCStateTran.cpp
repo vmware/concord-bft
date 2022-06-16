@@ -331,7 +331,7 @@ BCStateTran::~BCStateTran() {
 void BCStateTran::loadMetrics() {
   FetchingState fs = getFetchingState();
   metrics_.fetching_state_.Get().Set(stateName(fs));
-  metrics_.is_fetching_.Get().Set(static_cast<uint64_t>(fs != FetchingState::NotFetching));
+  metrics_.is_fetching_.Get().Set(static_cast<uint64_t>(isActiveDestination(fs)));
 
   metrics_.last_stored_checkpoint_.Get().Set(psd_->getLastStoredCheckpoint());
   metrics_.number_of_reserved_pages_.Get().Set(psd_->getNumberOfReservedPages());
@@ -1436,7 +1436,7 @@ void BCStateTran::onFetchingStateChange(FetchingState newFetchingState) {
   logger_ =
       (newFetchingState == FetchingState::NotFetching) || isActiveSource(newFetchingState) ? ST_SRC_LOG : ST_DST_LOG;
   metrics_.fetching_state_.Get().Set(stateName(newFetchingState));
-  metrics_.is_fetching_.Get().Set(static_cast<uint64_t>(newFetchingState != FetchingState::NotFetching));
+  metrics_.is_fetching_.Get().Set(static_cast<uint64_t>(isActiveDestination(newFetchingState)));
   lastFetchingState_ = newFetchingState;
 }
 
