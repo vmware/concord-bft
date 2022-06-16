@@ -82,6 +82,9 @@ ReplicaBlockchain::ReplicaBlockchain(
     LOG_INFO(V4_BLOCK_LOG, "Instantiating v4 type blockchain");
     v4_kvbc_ =
         std::make_shared<concord::kvbc::v4blockchain::KeyValueBlockchain>(native_client, link_st_chain, category_types);
+    if (aux_types.has_value()) {
+      v4_kvbc_->setAggregator(aux_types->aggregator_);
+    }
     up_deleter_ = std::make_unique<concord::kvbc::adapter::v4blockchain::BlocksDeleterAdapter>(v4_kvbc_, aux_types);
     up_reader_ = std::make_unique<concord::kvbc::adapter::v4blockchain::BlocksReaderAdapter>(v4_kvbc_);
     up_adder_ = std::make_unique<concord::kvbc::adapter::v4blockchain::BlocksAdderAdapter>(v4_kvbc_);

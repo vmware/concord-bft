@@ -1001,11 +1001,13 @@ TEST(checkpoint_recovery, trimming) {
     // Upon setting to true, we take snap shot
     ASSERT_EQ(blckchn.getChkpntSnapShot(), nullptr);
     last_id = blckchn.getLastReachableBlockId();
-    auto opt_seq_num = native_cl2->get(concord::kvbc::keyTypes::v4_snapshot_sequence_checkpoint);
+    auto opt_seq_num =
+        native_cl2->get(v4blockchain::detail::MISC_CF, concord::kvbc::keyTypes::v4_snapshot_sequence_checkpoint);
     ASSERT_FALSE(opt_seq_num.has_value());
     blckchn.checkpointInProcess(true);
     ASSERT_NE(blckchn.getChkpntSnapShot(), nullptr);
-    opt_seq_num = native_cl2->get(concord::kvbc::keyTypes::v4_snapshot_sequence_checkpoint);
+    opt_seq_num =
+        native_cl2->get(v4blockchain::detail::MISC_CF, concord::kvbc::keyTypes::v4_snapshot_sequence_checkpoint);
     ASSERT_TRUE(opt_seq_num.has_value());
     auto last_id_from_storage =
         concord::kvbc::v4blockchain::KeyValueBlockchain::RecoverySnapshot::getStableVersion(*opt_seq_num);
