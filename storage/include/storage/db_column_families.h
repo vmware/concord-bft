@@ -20,3 +20,4 @@ inline const auto ST_CHAIN_CF = std::string{"v4_st_chain"};
 inline const auto LATEST_KEYS_CF = std::string{"v4_latest_keys"};
 inline const auto IMMUTABLE_KEYS_CF = std::string{"v4_immutable_keys"};
 inline const auto CATEGORIES_CF = std::string{"v4_categories"};
+inline const auto MISC_CF = std::string{"v4_misc"};

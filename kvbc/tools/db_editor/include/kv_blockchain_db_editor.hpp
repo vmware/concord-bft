@@ -56,7 +56,10 @@ inline const std::map<CATEGORY_TYPE, std::string> cat_type_str = {
 inline concord::kvbc::adapter::ReplicaBlockchain getAdapter(const std::string &path, const bool read_only = false) {
   auto db = getDBClient(path, read_only);
   auto native = concord::storage::rocksdb::NativeClient::fromIDBClient(db);
-  auto opt_val = native->get(kvbc::keyTypes::blockchain_version);
+  std::optional<std::string> opt_val;
+  if (native->hasColumnFamily(v4blockchain::detail::MISC_CF)) {
+    opt_val = native->get(v4blockchain::detail::MISC_CF, kvbc::keyTypes::blockchain_version);
+  }
   // Make sure we don't link the temporary ST chain as we don't want to change the DB in any way.
   const auto link_temp_st_chain = false;
   if (opt_val && *opt_val == kvbc::V4Version()) {

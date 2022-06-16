@@ -1136,9 +1136,18 @@ class SkvbcReconfigurationTest(ApolloTest):
 
                             key = ['kv_blockchain_deletes', 'Counters', 'numOfMerkleKeysDeleted']
                             deletes += await bft_network.metrics.get(crashed_replica, *key)
-                            
-                        except KeyError:
-                            continue
+
+                        except KeyError:#might be using the v4 storage
+                            try:
+                                key = ['v4_blockchain', 'Gauges', 'numOfBlocksDeleted']
+                                deletes = await bft_network.metrics.get(crashed_replica, *key)
+                                log.log_message(message_type=f"pruning_merics {key}, count {deletes}")
+                            except KeyError:
+                                continue
+                            else:
+                                # success!
+                                if deletes >= 0:
+                                    break
                         else:
                             # success!
                             if deletes >= 0:
