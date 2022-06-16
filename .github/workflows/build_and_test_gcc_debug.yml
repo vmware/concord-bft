@@ -60,6 +60,7 @@ jobs:
                               -DKEEP_APOLLO_LOGS=TRUE\
                               -DRUN_APOLLO_TESTS=FALSE\
                               -DUSE_FAKE_CLOCK_IN_TIME_SERVICE=TRUE\" "\
+              && script -q -e -c "make simple-test" \
               && script -q -e -c "make test"
         - name: Prepare artifacts
           if: failure()

@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <chrono>
 #include "../../../tests/config/test_parameters.hpp"
-#include "../../../tests/simpleTest/simple_test_replica.hpp"
+#include "../../../tests/simpleTest/include/simple_test_replica.hpp"
 
 struct PersistencyTestInfo {
   uint32_t sleepBetweenRestartsMillis;
