@@ -193,7 +193,7 @@ class DataStoreTransaction : public DataStore, public ITransaction {
  public:
   class Guard : public ITransaction::Guard {
    public:
-    Guard(DataStoreTransaction* t) : ITransaction::Guard(t) {}
+    explicit Guard(DataStoreTransaction* t) : ITransaction::Guard(t) {}
     DataStoreTransaction* txn() { return static_cast<DataStoreTransaction*>(txn_); }
   };
 

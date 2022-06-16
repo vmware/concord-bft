@@ -474,7 +474,6 @@ void DBDataStore::deserializePrunedBlocksDigests(std::istream& is,
   size_t size{};
   Serializable::deserialize(is, size);
   for (size_t i{0}; i < size; ++i) {
-    std::pair<BlockId, Digest> p;
     BlockId blockId;
     Digest digest;
     Serializable::deserialize(is, blockId);

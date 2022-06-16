@@ -137,12 +137,7 @@ DataStore::CheckpointDesc InMemoryDataStore::getCheckpointBeingFetched() {
 
 bool InMemoryDataStore::hasCheckpointBeingFetched() { return (checkpointBeingFetched_.checkpointNum != 0); }
 
-void InMemoryDataStore::deleteCheckpointBeingFetched() {
-  // TODO(DD): Create a ctor for CheckpointDesc?
-  // NOLINTNEXTLINE(bugprone-undefined-memory-manipulation)
-  checkpointBeingFetched_.makeZero();
-  ConcordAssert(checkpointBeingFetched_.checkpointNum == 0);
-}
+void InMemoryDataStore::deleteCheckpointBeingFetched() { checkpointBeingFetched_.makeZero(); }
 
 void InMemoryDataStore::setFirstRequiredBlock(uint64_t i) { firstRequiredBlock = i; }
 

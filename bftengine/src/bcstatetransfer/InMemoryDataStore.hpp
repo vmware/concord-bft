@@ -171,8 +171,8 @@ class InMemoryDataStore : public DataStore {
 
   std::atomic_bool fetching{false};
 
+  // No checkpoint is being fetched if checkpointBeingFetched_.checkpointNum is 0
   CheckpointDesc checkpointBeingFetched_;
-  // none if checkpointBeingFetched_.checkpointNum == 0
 
   uint64_t firstRequiredBlock = UINT64_MAX;
   uint64_t lastRequiredBlock = UINT64_MAX;

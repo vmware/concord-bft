@@ -884,13 +884,12 @@ void RangeValidationTree::removeAndUpdateInternalNodes(const RVTNodePtr& rvt_nod
     cur_node = parent_node;
   }
 
-  if (cur_node == root_) {
-    root_->substractValue(value);
+  ConcordAssertEQ(cur_node, root_);
+  root_->substractValue(value);
 
-    if (root_->hasNoChilds()) {
-      setNewRoot(nullptr);
-      return;
-    }
+  if (root_->hasNoChilds()) {
+    setNewRoot(nullptr);
+    return;
   }
 
   // Loop 2
