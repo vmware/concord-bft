@@ -242,6 +242,17 @@ class KeyValueBlockchain {
   // const ::rocksdb::Snapshot *chkpoint_snap_shot_{nullptr};
   util::ThreadPool thread_pool_{1};
   bool is_trimming_chkpnt_blocks_{false};
+
+  // Metrics
+  std::shared_ptr<concordMetrics::Aggregator> aggregator_;
+  concordMetrics::Component v4_metrics_comp_;
+  concordMetrics::GaugeHandle blocks_deleted_;
+
+ public:
+  void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
+    aggregator_ = aggregator;
+    v4_metrics_comp_.SetAggregator(aggregator_);
+  }
 };
 
 }  // namespace concord::kvbc::v4blockchain
