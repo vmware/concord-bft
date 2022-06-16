@@ -197,6 +197,8 @@ struct RejectFetchingMsg : public BCStateTranBaseMsg {
   class Reason {
    public:
     enum : uint16_t {
+      FIRST = 0,  // should not be used and must be first!
+
       RES_PAGE_NOT_FOUND = 1,
       IN_STATE_TRANSFER = 2,
       BLOCK_RANGE_NOT_FOUND = 3,
@@ -204,6 +206,8 @@ struct RejectFetchingMsg : public BCStateTranBaseMsg {
       INVALID_NUMBER_OF_BLOCKS_REQUESTED = 5,
       BLOCK_NOT_FOUND_IN_STORAGE = 6,
       DIGESTS_FOR_RVBGROUP_NOT_FOUND = 7,
+
+      LAST,  // should not be used and must be last!
     };
   };
   RejectFetchingMsg() = delete;
