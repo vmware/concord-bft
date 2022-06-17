@@ -31,7 +31,7 @@ class BlocksDbCheckpointAdapter : public IDBCheckpoint {
   }
 
   // Do nothing, its a NOOP for categorized blockchain
-  void checkpointInProcess(bool flag) override final { v4_kvbc_->checkpointInProcess(flag); }
+  void checkpointInProcess(bool flag, kvbc::BlockId bid) override final { v4_kvbc_->checkpointInProcess(flag, bid); }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 

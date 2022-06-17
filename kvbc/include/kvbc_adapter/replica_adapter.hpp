@@ -213,7 +213,7 @@ class ReplicaBlockchain : public IBlocksDeleter,
     return db_chkpt_->trimBlocksFromCheckpoint(block_id_at_checkpoint);
   }
 
-  void checkpointInProcess(bool flag) override final { db_chkpt_->checkpointInProcess(flag); }
+  void checkpointInProcess(bool flag, kvbc::BlockId bid) override final { db_chkpt_->checkpointInProcess(flag, bid); }
   //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   /////////////////////////db editor support//////////////////////////
   std::map<std::string, concord::kvbc::categorization::CATEGORY_TYPE> blockchainCategories() const {

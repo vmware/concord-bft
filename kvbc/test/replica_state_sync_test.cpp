@@ -231,7 +231,7 @@ TEST_F(replica_state_sync_on_bft_seq_num_test, bft_seq_num_less_than_block_seq_n
   ASSERT_EQ(2, blockchain_->getLastBlockId());
 
   if (version == "v4") {
-    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), false};
+    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), std::nullopt};
   }
   const auto last_executed_bft_seq_num = 1;
   ASSERT_EQ(1,
@@ -247,7 +247,7 @@ TEST_F(replica_state_sync_on_bft_seq_num_test, cannot_delete_only_block_left) {
   ASSERT_EQ(1, blockchain_->getGenesisBlockId());
   ASSERT_EQ(1, blockchain_->getLastBlockId());
   if (version == "v4") {
-    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), false};
+    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), std::nullopt};
   }
   const auto last_executed_bft_seq_num = 1;
   ASSERT_THROW(replica_state_sync_.executeBasedOnBftSeqNum(
@@ -266,7 +266,7 @@ TEST_F(replica_state_sync_on_bft_seq_num_test, cannot_delete_only_block_left_wit
   ASSERT_EQ(2, blockchain_->getLastBlockId());
 
   if (version == "v4") {
-    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), false};
+    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), std::nullopt};
   }
   const auto last_executed_bft_seq_num = 2;
   ASSERT_THROW(replica_state_sync_.executeBasedOnBftSeqNum(
@@ -284,7 +284,7 @@ TEST_F(replica_state_sync_on_bft_seq_num_test, bft_too_many_inconsistent_blocks_
   ASSERT_EQ(1, blockchain_->getGenesisBlockId());
   ASSERT_EQ(4, blockchain_->getLastBlockId());
   if (version == "v4") {
-    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), false};
+    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), std::nullopt};
   }
   const auto last_executed_bft_seq_num = 2;
   ASSERT_THROW(replica_state_sync_.executeBasedOnBftSeqNum(logger_, *blockchain_, last_executed_bft_seq_num, 1),
@@ -319,7 +319,7 @@ TEST_F(replica_state_sync_on_block_id_test, metadata_block_id_bigger_than_last_b
   addBlockWithBftSeqNum(2);
   persistLastBlockIdInMetadata();
   if (version == "v4") {
-    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), false};
+    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), std::nullopt};
   }
   blockchain_->deleteLastReachableBlock();
   ASSERT_EQ(0, replica_state_sync_.executeBasedOnBlockId(logger_, *blockchain_, metadata_, kMaxNumOfBlocksToDelete));
@@ -335,7 +335,7 @@ TEST_F(replica_state_sync_on_block_id_test, max_num_of_blocksto_delete_is_honour
     addBlockWithBftSeqNum(3);
   }
   if (version == "v4") {
-    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), false};
+    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), std::nullopt};
   }
   ASSERT_THROW(replica_state_sync_.executeBasedOnBlockId(logger_, *blockchain_, metadata_, kMaxNumOfBlocksToDelete),
                std::runtime_error);
@@ -348,7 +348,7 @@ TEST_F(replica_state_sync_on_block_id_test, in_sync) {
   addBlockWithBftSeqNum(2);
   persistLastBlockIdInMetadata();
   if (version == "v4") {
-    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), false};
+    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), std::nullopt};
   }
   ASSERT_EQ(0, replica_state_sync_.executeBasedOnBlockId(logger_, *blockchain_, metadata_, kMaxNumOfBlocksToDelete));
   ASSERT_EQ(2, blockchain_->getLastBlockId());
@@ -363,7 +363,7 @@ TEST_F(replica_state_sync_on_block_id_test, out_of_sync) {
   addBlockWithBftSeqNum(3);
   ASSERT_EQ(5, blockchain_->getLastBlockId());
   if (version == "v4") {
-    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), false};
+    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), std::nullopt};
   }
   ASSERT_EQ(3, replica_state_sync_.executeBasedOnBlockId(logger_, *blockchain_, metadata_, kMaxNumOfBlocksToDelete));
   ASSERT_EQ(2, blockchain_->getLastBlockId());
@@ -375,7 +375,7 @@ TEST_F(replica_state_sync_on_block_id_test, cannot_delete_only_block_left) {
   ASSERT_EQ(1, blockchain_->getGenesisBlockId());
   ASSERT_EQ(1, blockchain_->getLastBlockId());
   if (version == "v4") {
-    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), false};
+    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), std::nullopt};
   }
   ASSERT_THROW(replica_state_sync_.executeBasedOnBlockId(logger_, *blockchain_, metadata_, kMaxNumOfBlocksToDelete),
                std::exception);
@@ -392,7 +392,7 @@ TEST_F(replica_state_sync_on_block_id_test, cannot_delete_only_block_left_with_p
 
   blockchain_->deleteBlocksUntil(2);
   if (version == "v4") {
-    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), false};
+    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), std::nullopt};
   }
   // Expect a throw from KVBC when trying to delete the only block (genesis, block ID = 2) in the system.
   ASSERT_THROW(replica_state_sync_.executeBasedOnBlockId(logger_, *blockchain_, metadata_, kMaxNumOfBlocksToDelete),
@@ -409,7 +409,7 @@ TEST_F(replica_state_sync_test, out_of_sync_on_upgade) {
 
   const auto last_executed_bft_seq_num = 1;
   if (version == "v4") {
-    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), false};
+    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), std::nullopt};
   }
   ASSERT_EQ(1,
             replica_state_sync_.execute(
@@ -471,7 +471,7 @@ TEST_F(replica_state_sync_test, out_of_sync_after_software_upgrade) {
   addBlockWithBftSeqNum(4);
 
   if (version == "v4") {
-    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), false};
+    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), std::nullopt};
   }
 
   const auto last_executed_bft_seq_num = 3;

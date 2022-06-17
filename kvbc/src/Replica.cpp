@@ -354,7 +354,7 @@ void Replica::createReplicaAndSyncState() {
       [value_converter = m_stateSnapshotValueConverter](BlockId block_id_at_checkpoint, const std::string &path) {
         const auto read_only = false;
         // prepare the blockchain for the trim, needs to happen before we open the blockchain
-        concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery(path, true);
+        concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery(path, block_id_at_checkpoint);
         auto db = storage::rocksdb::NativeClient::newClient(
             path, read_only, storage::rocksdb::NativeClient::DefaultOptions{});
         const auto link_st_chain = false;
@@ -362,7 +362,7 @@ void Replica::createReplicaAndSyncState() {
         kvbc.trimBlocksFromCheckpoint(block_id_at_checkpoint);
         kvbc.computeAndPersistPublicStateHash(block_id_at_checkpoint, value_converter);
       },
-      [this](bool flag) { checkpointInProcess(flag); });
+      [this](bool flag, kvbc::BlockId id) { checkpointInProcess(flag, id); });
 }
 
 /**
@@ -458,7 +458,7 @@ BlockId Replica::getLastBlockId() const {
   return m_kvBlockchain->getLastBlockId();
 }
 
-void Replica::checkpointInProcess(bool flag) { m_kvBlockchain->checkpointInProcess(flag); }
+void Replica::checkpointInProcess(bool flag, kvbc::BlockId id) { m_kvBlockchain->checkpointInProcess(flag, id); }
 
 void Replica::set_command_handler(std::shared_ptr<ICommandsHandler> handler) { m_cmdHandler = handler; }
 
@@ -471,7 +471,7 @@ Replica::Replica(ICommunication *comm,
                  const std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> &secretsManager)
     : logger(logging::getLogger("skvbc.replica")),
       m_currentRepStatus(RepStatus::Idle),
-      blockchain_recovery(storageFactory->path(), false),
+      blockchain_recovery(storageFactory->path(), std::nullopt),
       m_dbSet{storageFactory->newDatabaseSet()},
       m_bcDbAdapter{std::move(m_dbSet.dbAdapter)},
       m_metadataDBClient{m_dbSet.metadataDBClient},
