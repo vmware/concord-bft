@@ -11,33 +11,20 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include <thread>
-#include <sys/param.h>
-#include <string>
-#include <cstring>
 #include <getopt.h>
-#include <unistd.h>
-#include <tuple>
-#include <chrono>
-#include <memory>
-#include <boost/algorithm/string.hpp>
-#include <experimental/filesystem>
+#include "util/filesystem.hpp"
+#include <regex>
 
-#include "Logger.hpp"
 #include "SetupReplica.hpp"
-#include "communication/CommFactory.hpp"
-#include "common_constants.hpp"
+#include "common.hpp"
 #include "memorydb/client.h"
-#include "string.hpp"
-#include "config_file_parser.hpp"
-#include "direct_kv_storage_factory.h"
-#include "merkle_tree_storage_factory.h"
 #include "secrets_manager_plain.h"
 #include "secrets_manager_enc.h"
+#include "direct_kv_storage_factory.h"
+#include "merkle_tree_storage_factory.h"
 #include "tests/config/test_comm_config.hpp"
 
-namespace fs = std::experimental::filesystem;
-namespace concord::kvbc {
+namespace concord::osexample {
 
 // Copy a value from the YAML node to `out`.
 // Throws and exception if no value could be read but the value is required.
@@ -94,6 +81,7 @@ void SetupReplica::ParseReplicaConfFile(bftEngine::ReplicaConfig& replicaConfig,
   readYamlField(rconfig_yaml, "pathToOperatorPublicKey_", replicaConfig.pathToOperatorPublicKey_);
   readYamlField(rconfig_yaml, "dbCheckpointFeatureEnabled", replicaConfig.dbCheckpointFeatureEnabled);
   readYamlField(rconfig_yaml, "dbCheckPointWindowSize", replicaConfig.dbCheckPointWindowSize);
+  readYamlField(rconfig_yaml, "batchedPreProcessEnabled", replicaConfig.batchedPreProcessEnabled);
   replicaConfig.dbSnapshotIntervalSeconds =
       std::chrono::seconds(rconfig_yaml["dbSnapshotIntervalSeconds"].as<uint64_t>());
   replicaConfig.dbCheckpointMonitorIntervalSeconds =
@@ -108,7 +96,6 @@ std::unique_ptr<SetupReplica> SetupReplica::ParseArgs(int argc, char** argv) {
     args << argv[i] << " ";
   }
   LOG_INFO(GL, "Parsing" << KVLOG(argc) << " arguments, args:" << args.str());
-  logging::Logger logger = logging::getLogger("osexample::test_replica");
 
   try {
     bftEngine::ReplicaConfig& replicaConfig = bftEngine::ReplicaConfig::instance();
@@ -182,16 +169,15 @@ std::unique_ptr<SetupReplica> SetupReplica::ParseArgs(int argc, char** argv) {
     std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm =
         std::make_shared<concord::secretsmanager::SecretsManagerPlain>();
     std::unique_ptr<bft::communication::ICommunication> comm_ptr(
-        createCommunication(replicaConfig, sm, logger, keysFilePrefix, commConfigFile, metricsPort));
+        createCommunication(replicaConfig, sm, keysFilePrefix, commConfigFile, metricsPort));
     if (!comm_ptr) {
       throw std::runtime_error("Failed to create communication");
     }
 
-    LOG_INFO(logger, "\nReplica Configuration: \n" << replicaConfig);
+    LOG_INFO(getLogger(), "\nReplica Configuration: \n" << replicaConfig);
     std::unique_ptr<SetupReplica> setup = nullptr;
     setup.reset(new SetupReplica(replicaConfig,
                                  std::move(comm_ptr),
-                                 logger,
                                  metricsPort,
                                  persistMode == PersistencyMode::RocksDB,
                                  logPropsFile,
@@ -210,10 +196,10 @@ std::unique_ptr<SetupReplica> SetupReplica::ParseArgs(int argc, char** argv) {
 bft::communication::ICommunication* SetupReplica::createCommunication(
     bftEngine::ReplicaConfig& replicaConfig,
     std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl>& sm,
-    logging::Logger logger,
     std::string& keysFilePrefix,
     std::string& commConfigFile,
     uint16_t& metricsPort) {
+  logging::Logger logger = getLogger();
   TestCommConfig testCommConfig(logger);
   testCommConfig.GetReplicaConfig(replicaConfig.replicaId, keysFilePrefix, &replicaConfig);
   uint16_t numOfReplicas =
@@ -239,11 +225,11 @@ bft::communication::ICommunication* SetupReplica::createCommunication(
   return bft::communication::CommFactory::create(conf);
 }
 
-std::unique_ptr<IStorageFactory> SetupReplica::GetStorageFactory() {
+std::unique_ptr<concord::kvbc::IStorageFactory> SetupReplica::GetStorageFactory() {
   // TODO handle persistence mode
   std::stringstream dbPath;
   dbPath << CommonConstants::DB_FILE_PREFIX << GetReplicaConfig().replicaId;
-  return std::make_unique<v2MerkleTree::RocksDBStorageFactory>(dbPath.str());
+  return std::make_unique<concord::kvbc::v2MerkleTree::RocksDBStorageFactory>(dbPath.str());
 }
 
 std::vector<std::string> SetupReplica::getKeyDirectories(const std::string& path) {
@@ -268,8 +254,11 @@ void SetupReplica::setPublicKeysOfClients(
 
   LOG_INFO(GL, "" << KVLOG(principalsMapping, keysRootPath));
   std::vector<std::string> keysDirectories = SetupReplica::getKeyDirectories(keysRootPath);
-  std::vector<std::string> clientIdChunks;
-  boost::split(clientIdChunks, principalsMapping, boost::is_any_of(";"));
+
+  std::regex regex("\\;");
+  std::vector<std::string> clientIdChunks(
+      std::sregex_token_iterator(principalsMapping.begin(), principalsMapping.end(), regex, -1),
+      std::sregex_token_iterator());
 
   if (clientIdChunks.size() != keysDirectories.size()) {
     std::stringstream msg;
@@ -292,8 +281,11 @@ void SetupReplica::setPublicKeysOfClients(
     keyPlaintext = smp.decryptFile(keyFilePath);
     if (keyPlaintext.has_value()) {
       // Each clientIdChunk would look like "11 12 13 14"
-      std::vector<std::string> clientIds;
-      boost::split(clientIds, clientIdChunks.at(i), boost::is_any_of(" "));
+      regex = " ";
+      std::vector<std::string> clientIds(
+          std::sregex_token_iterator(clientIdChunks.at(i).begin(), clientIdChunks.at(i).end(), regex, -1),
+          std::sregex_token_iterator());
+
       std::set<uint16_t> clientIdsSet;
       for (const std::string& clientId : clientIds) {
         clientIdsSet.insert(std::stoi(clientId));
@@ -307,4 +299,4 @@ void SetupReplica::setPublicKeysOfClients(
   }
   bftEngine::ReplicaConfig::instance().clientsKeysPrefix = keysRootPath;
 }
-}  // namespace concord::kvbc
+}  // namespace concord::osexample

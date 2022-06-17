@@ -13,20 +13,21 @@
 
 #pragma once
 
+#include <memory>
+#include <chrono>
+#include <thread>
+
 #include "Logger.hpp"
 #include "OpenTracing.hpp"
 #include "sliver.hpp"
 #include "db_interfaces.h"
 #include "block_metadata.hpp"
 #include "KVBCInterfaces.h"
-#include <memory>
 #include "ControlStateManager.hpp"
-#include <chrono>
-#include <thread>
 #include "kv_replica_msgs.cmf.hpp"
 #include "SharedTypes.hpp"
 #include "categorization/db_categories.h"
-#include "categorization/kv_blockchain.h"
+#include "kvbc_adapter/replica_adapter.hpp"
 
 static const std::string VERSIONED_KV_CAT_ID{concord::kvbc::categorization::kExecutionPrivateCategory};
 static const std::string BLOCK_MERKLE_CAT_ID{concord::kvbc::categorization::kExecutionProvableCategory};
@@ -36,29 +37,27 @@ class KVCommandHandler : public concord::kvbc::ICommandsHandler {
   KVCommandHandler(concord::kvbc::IReader *storage,
                    concord::kvbc::IBlockAdder *blocksAdder,
                    concord::kvbc::IBlockMetadata *blockMetadata,
-                   logging::Logger &logger,
                    bool addAllKeysAsPublic = false,
-                   concord::kvbc::categorization::KeyValueBlockchain *kvbc = nullptr)
-      : m_storage(storage),
-        m_blockAdder(blocksAdder),
-        m_blockMetadata(blockMetadata),
-        m_logger(logger),
-        m_addAllKeysAsPublic{addAllKeysAsPublic},
-        m_kvbc{kvbc} {
-    if (m_addAllKeysAsPublic) {
-      ConcordAssertNE(m_kvbc, nullptr);
+                   concord::kvbc::adapter::ReplicaBlockchain *kvbc = nullptr)
+      : storageReader_(storage),
+        blockAdder_(blocksAdder),
+        blockMetadata_(blockMetadata),
+        addAllKeysAsPublic_{addAllKeysAsPublic},
+        kvbc_{kvbc} {
+    if (addAllKeysAsPublic_) {
+      ConcordAssertNE(kvbc_, nullptr);
     }
   }
 
   void execute(ExecutionRequestsQueue &requests,
                std::optional<bftEngine::Timestamp> timestamp,
                const std::string &batchCid,
-               concordUtils::SpanWrapper &parent_span) override;
+               concordUtils::SpanWrapper &parentSpan) override;
 
   void preExecute(IRequestsHandler::ExecutionRequest &req,
                   std::optional<bftEngine::Timestamp> timestamp,
                   const std::string &batchCid,
-                  concordUtils::SpanWrapper &parent_span) override;
+                  concordUtils::SpanWrapper &parentSpan) override;
 
   void setPerformanceManager(std::shared_ptr<concord::performance::PerformanceManager> perfManager) override;
 
@@ -92,15 +91,16 @@ class KVCommandHandler : public concord::kvbc::ICommandsHandler {
                                                 size_t maxReplySize,
                                                 uint32_t &outReplySize) const;
 
-  bftEngine::OperationResult executeReadCommand(const kvbc::messages::KVReadRequest &request,
+  bftEngine::OperationResult executeReadCommand(const concord::osexample::kv::messages::KVReadRequest &request,
                                                 size_t maxReplySize,
                                                 char *outReply,
                                                 uint32_t &outReplySize);
 
-  bftEngine::OperationResult executeGetBlockDataCommand(const kvbc::messages::KVGetBlockDataRequest &request,
-                                                        size_t maxReplySize,
-                                                        char *outReply,
-                                                        uint32_t &outReplySize);
+  bftEngine::OperationResult executeGetBlockDataCommand(
+      const concord::osexample::kv::messages::KVGetBlockDataRequest &request,
+      size_t maxReplySize,
+      char *outReply,
+      uint32_t &outReplySize);
 
   bftEngine::OperationResult executeGetLastBlockCommand(size_t maxReplySize, char *outReply, uint32_t &outReplySize);
 
@@ -114,10 +114,12 @@ class KVCommandHandler : public concord::kvbc::ICommandsHandler {
   std::optional<std::map<std::string, std::string>> getBlockUpdates(concord::kvbc::BlockId blockId) const;
   void writeAccumulatedBlock(ExecutionRequestsQueue &blockedRequests,
                              concord::kvbc::categorization::VersionedUpdates &verUpdates,
-                             concord::kvbc::categorization::BlockMerkleUpdates &merkleUpdates);
+                             concord::kvbc::categorization::BlockMerkleUpdates &merkleUpdates,
+                             uint64_t sn);
   void addBlock(concord::kvbc::categorization::VersionedUpdates &verUpdates,
-                concord::kvbc::categorization::BlockMerkleUpdates &merkleUpdates);
-  void addKeys(const kvbc::messages::KVWriteRequest &writeReq,
+                concord::kvbc::categorization::BlockMerkleUpdates &merkleUpdates,
+                uint64_t sn);
+  void addKeys(const concord::osexample::kv::messages::KVWriteRequest &writeReq,
                uint64_t sequenceNum,
                concord::kvbc::categorization::VersionedUpdates &verUpdates,
                concord::kvbc::categorization::BlockMerkleUpdates &merkleUpdates);
@@ -126,15 +128,19 @@ class KVCommandHandler : public concord::kvbc::ICommandsHandler {
       concord::kvbc::categorization::VersionedUpdates &blockAccumulatedVerUpdates,
       concord::kvbc::categorization::BlockMerkleUpdates &blockAccumulatedMerkleUpdates) const;
 
+  logging::Logger getLogger() const {
+    static logging::Logger logger_(logging::getLogger("osexample::KVCommandHandler"));
+    return logger_;
+  }
+
  private:
-  concord::kvbc::IReader *m_storage;
-  concord::kvbc::IBlockAdder *m_blockAdder;
-  concord::kvbc::IBlockMetadata *m_blockMetadata;
-  logging::Logger &m_logger;
-  size_t m_readsCounter = 0;
-  size_t m_writesCounter = 0;
-  size_t m_getLastBlockCounter = 0;
+  concord::kvbc::IReader *storageReader_;
+  concord::kvbc::IBlockAdder *blockAdder_;
+  concord::kvbc::IBlockMetadata *blockMetadata_;
+  size_t readsCounter_ = 0;
+  size_t writesCounter_ = 0;
+  size_t getLastBlockCounter_ = 0;
   std::shared_ptr<concord::performance::PerformanceManager> perfManager_;
-  bool m_addAllKeysAsPublic{false};  // Add all key-values in the block merkle category as public ones.
-  concord::kvbc::categorization::KeyValueBlockchain *m_kvbc{nullptr};
+  bool addAllKeysAsPublic_{false};  // Add all key-values in the block merkle category as public ones.
+  concord::kvbc::adapter::ReplicaBlockchain *kvbc_{nullptr};
 };

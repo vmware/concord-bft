@@ -5,14 +5,19 @@ cleanup() {
   killall -q minio || true
   rm -rf gen-sec.*
   rm -rf exampleReplicaTests_DB_*
+  rm -rf certs
+  rm -rf minio_data_dir
+  rm -rf replica_keys_*
 }
-
-#trap 'cleanup' SIGINT
 
 cleanup
 
 scriptdir=$(cd $(dirname $0); pwd -P)
 echo $scriptdir
+
+echo "Starting example demo run..."
+
+cd $scriptdir
 
 echo "Generating new keys..."
 $scriptdir/../../tools/GenerateConcordKeys -f 1 -n 4 -o replica_keys_
@@ -20,8 +25,7 @@ $scriptdir/../../tools/GenerateConcordKeys -f 1 -n 4 -o replica_keys_
 # Generates num_participants number of key pairs
 $scriptdir/create_concord_clients_transaction_signing_keys.sh -n 5 -o /tmp
 
-# Generate TLS certificates
-rm -rf $scriptdir/certs/
+echo "Generating SSL certificates for TlsTcp communication..."
 $scriptdir/create_tls_certs.sh 10
 
 # run 4 replica's with unique replica id's
@@ -34,9 +38,10 @@ $scriptdir/../replica/test_replica -i 2 -a $scriptdir/replica_conf &
 echo "Running replica 4..."
 $scriptdir/../replica/test_replica -i 3 -a $scriptdir/replica_conf &
 
-env MINIO_ROOT_USER=concordbft MINIO_ROOT_PASSWORD=concordbft ~/minio server minio_data_dir &
+sleep 10
+
+echo "Running client!"
+time $scriptdir/../client/test_client -f 1 -c 0 -i 4 -r 4 -e 0 -m $scriptdir/../msg-configs/msg-1
 
 sleep 5
-
-echo "Finished!"
-# cleanup
+echo "Run completed!"

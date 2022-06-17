@@ -20,13 +20,14 @@
 #include <yaml-cpp/yaml.h>
 #include "ReplicaConfig.hpp"
 #include "communication/ICommunication.hpp"
+#include "communication/CommFactory.hpp"
 #include "Logger.hpp"
 #include "MetricsServer.hpp"
 #include "storage_factory_interface.h"
 #include "PerformanceManager.hpp"
 #include "secrets_manager_impl.h"
 
-namespace concord::kvbc {
+namespace concord::osexample {
 
 enum class PersistencyMode {
   Off,       // no persistency at all
@@ -50,7 +51,7 @@ class SetupReplica {
   static void readYamlField(const YAML::Node& yaml, const std::string& index, T& out, bool value_required = false);
 
   // This function returns the storage factory based on persistant mode
-  std::unique_ptr<IStorageFactory> GetStorageFactory();
+  std::unique_ptr<concord::kvbc::IStorageFactory> GetStorageFactory();
   std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> GetSecretManager() const { return sm_; }
 
   // This function returns the replica config object.
@@ -59,7 +60,6 @@ class SetupReplica {
   // This function returns the communication object once created.
   bft::communication::ICommunication* GetCommunication() const { return communication_.get(); }
   concordMetrics::Server& GetMetricsServer() { return metricsServer_; }
-  logging::Logger GetLogger() { return logger_; }
   const bool UsePersistentStorage() const { return usePersistentStorage_; }
 
   // This function is used to get the Log properties file location which is passed from replica config.
@@ -75,7 +75,6 @@ class SetupReplica {
  private:
   SetupReplica(const bftEngine::ReplicaConfig& config,
                std::unique_ptr<bft::communication::ICommunication> comm,
-               logging::Logger logger,
                uint16_t metricsPort,
                bool usePersistentStorage,
                const std::string& logPropsFile,
@@ -83,7 +82,6 @@ class SetupReplica {
                bool addAllKeysAsPublic)
       : replicaConfig_(config),
         communication_(std::move(comm)),
-        logger_(logger),
         metricsServer_(metricsPort),
         usePersistentStorage_(usePersistentStorage),
         logPropsFile_(logPropsFile),
@@ -93,13 +91,17 @@ class SetupReplica {
 
   SetupReplica() = delete;
 
+  static logging::Logger getLogger() {
+    static logging::Logger logger_(logging::getLogger("osexample::SetupReplica"));
+    return logger_;
+  }
+
   // This function is used to get the Transaction signing keys path.
   static std::vector<std::string> getKeyDirectories(const std::string& keysRootPath);
 
   static bft::communication::ICommunication* createCommunication(
       bftEngine::ReplicaConfig& replicaConfig,
       std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl>& sm,
-      logging::Logger logger,
       std::string& keysFilePrefix,
       std::string& commConfigFile,
       uint16_t& metricsPort);
@@ -110,7 +112,6 @@ class SetupReplica {
 
   const bftEngine::ReplicaConfig& replicaConfig_;
   std::unique_ptr<bft::communication::ICommunication> communication_;
-  logging::Logger logger_;
   concordMetrics::Server metricsServer_;
   bool usePersistentStorage_;
   std::string logPropsFile_;
@@ -120,4 +121,4 @@ class SetupReplica {
   bool addAllKeysAsPublic_{false};
 };
 
-}  // namespace concord::kvbc
+}  // namespace concord::osexample

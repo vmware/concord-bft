@@ -232,6 +232,6 @@ if(BUILD_TESTING)
     add_subdirectory(bftengine/tests)
     add_subdirectory(tests)
     add_subdirectory(messages)
-    add_subdirectory(example)
+    add_subdirectory(examples)
 endif()
 

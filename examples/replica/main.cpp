@@ -34,11 +34,11 @@
 #include <memory>
 #include <unistd.h>
 
-namespace concord::kvbc::example {
+namespace concord::osexample {
 std::atomic_bool timeToExit = false;
 std::shared_ptr<concord::kvbc::Replica> replica(nullptr);
 
-void cronSetup(SetupReplica& setup, const Replica& replica) {
+void cronSetup(SetupReplica& setup, const concord::kvbc::Replica& replica) {
   if (!setup.GetCronEntryNumberOfExecutes()) {
     return;
   }
@@ -79,19 +79,21 @@ void cronSetup(SetupReplica& setup, const Replica& replica) {
 void runReplica(int argc, char** argv) {
   const auto setup = SetupReplica::ParseArgs(argc, argv);
   logging::initLogger(setup->getLogPropertiesFile());
-  auto logger = setup->GetLogger();
   MDC_PUT(MDC_REPLICA_ID_KEY, std::to_string(setup->GetReplicaConfig().replicaId));
   MDC_PUT(MDC_THREAD_KEY, "main");
 
-  replica = std::make_shared<Replica>(setup->GetCommunication(),
-                                      setup->GetReplicaConfig(),
-                                      setup->GetStorageFactory(),
-                                      setup->GetMetricsServer().GetAggregator(),
-                                      setup->GetPerformanceManager(),
-                                      std::map<std::string, categorization::CATEGORY_TYPE>{
-                                          {VERSIONED_KV_CAT_ID, categorization::CATEGORY_TYPE::versioned_kv},
-                                          {BLOCK_MERKLE_CAT_ID, categorization::CATEGORY_TYPE::block_merkle}},
-                                      setup->GetSecretManager());
+  replica = std::make_shared<concord::kvbc::Replica>(
+      setup->GetCommunication(),
+      setup->GetReplicaConfig(),
+      setup->GetStorageFactory(),
+      setup->GetMetricsServer().GetAggregator(),
+      setup->GetPerformanceManager(),
+      std::map<std::string, concord::kvbc::categorization::CATEGORY_TYPE>{
+          {VERSIONED_KV_CAT_ID, concord::kvbc::categorization::CATEGORY_TYPE::versioned_kv},
+          {concord::kvbc::categorization::kExecutionEventGroupLatestCategory,
+           concord::kvbc::categorization::CATEGORY_TYPE::versioned_kv},
+          {BLOCK_MERKLE_CAT_ID, concord::kvbc::categorization::CATEGORY_TYPE::block_merkle}},
+      setup->GetSecretManager());
   bftEngine::ControlStateManager::instance().addOnRestartProofCallBack(
       [argv, &setup]() {
         setup->GetCommunication()->stop();
@@ -100,19 +102,19 @@ void runReplica(int argc, char** argv) {
       },
       static_cast<uint8_t>(ReplicaRestartReadyMsg::Reason::Scale));
 
-  auto* blockMetadata = new BlockMetadata(*replica);
+  auto* blockMetadata = new concord::kvbc::BlockMetadata(*replica);
 
-  if (!setup->GetReplicaConfig().isReadOnly) replica->setReplicaStateSync(new ReplicaStateSyncImp(blockMetadata));
+  if (!setup->GetReplicaConfig().isReadOnly)
+    replica->setReplicaStateSync(new concord::kvbc::ReplicaStateSyncImp(blockMetadata));
 
   auto osrCmdHandler =
       std::make_shared<KVCommandHandler>(replica.get(),
                                          replica.get(),
                                          blockMetadata,
-                                         logger,
                                          setup->AddAllKeysAsPublic(),
                                          replica->kvBlockchain() ? &replica->kvBlockchain().value() : nullptr);
   replica->set_command_handler(osrCmdHandler);
-  replica->setStateSnapshotValueConverter(categorization::KeyValueBlockchain::kNoopConverter);
+  replica->setStateSnapshotValueConverter([](std::string&& v) -> std::string { return std::move(v); });
   replica->start();
 
   // Setup a test cron table, if requested in configuration.
@@ -131,14 +133,14 @@ void runReplica(int argc, char** argv) {
     }
   }
 }
-}  // namespace concord::kvbc::example
+}  // namespace concord::osexample
 
 using namespace std;
 
 namespace {
 static void signal_handler(int signal_num) {
   LOG_INFO(GL, "Program received signal " << signal_num);
-  concord::kvbc::example::timeToExit = true;
+  concord::osexample::timeToExit = true;
 }
 }  // namespace
 int main(int argc, char** argv) {
@@ -146,7 +148,7 @@ int main(int argc, char** argv) {
   signal(SIGTERM, signal_handler);
 
   try {
-    concord::kvbc::example::runReplica(argc, argv);
+    concord::osexample::runReplica(argc, argv);
   } catch (const std::exception& e) {
     LOG_FATAL(GL, "exception: " << e.what());
   }

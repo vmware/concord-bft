@@ -37,3 +37,4 @@ principalsMapping: 7 8 17;9 10 18;11 12 19;13 14;15 16
 logPropsFile: logging.properties
 keysFilePrefix: replica_keys_
 cronEntryNumberOfExecutes: 3
+batchedPreProcessEnabled: true
