@@ -397,6 +397,7 @@ class SkvbcCheckpointTest(ApolloTest):
             isolated_replicas,
             expected_checkpoint_num=lambda ecn: ecn == checkpoint_before + 1)
 
+    @unittest.skip("Unstable test")
     @with_trio
     @with_bft_network(start_replica_cmd_with_corrupted_checkpoint_msgs(corrupt_checkpoints_from_replica_ids={ 1 }),
                       selected_configs=lambda n, f, c: n == 7)
@@ -404,12 +405,14 @@ class SkvbcCheckpointTest(ApolloTest):
     async def test_rvt_conflict_detection_after_corrupting_checkpoint_msg_for_single_replica(self, bft_network):
         await self._test_checkpointing_with_corruptions(bft_network, { 1 })
 
+    @unittest.skip("Unstable test")
     @with_trio
     @with_bft_network(start_replica_cmd_with_corrupted_checkpoint_msgs(corrupt_checkpoints_from_replica_ids={ 1, 2 }),
                       selected_configs=lambda n, f, c: n == 7 and f == 2)
     async def test_rvt_conflict_detection_after_corrupting_checkpoint_msg_for_2_replicas(self, bft_network):
         await self._test_checkpointing_with_corruptions(bft_network, { 1, 2 })
 
+    @unittest.skip("Unstable test")
     @with_trio
     @with_bft_network(start_replica_cmd_with_corrupted_checkpoint_msgs(corrupt_checkpoints_from_replica_ids={ 1, 2, 3 }),
                       selected_configs=lambda n, f, c: n == 7 and f == 2)
@@ -456,6 +459,7 @@ class SkvbcCheckpointTest(ApolloTest):
                 assert number_of_checkpoint_mismatch == n, \
                     f"Replica {replica_id} number_of_checkpoint_mismatch={number_of_checkpoint_mismatch} != {n}"
 
+    @unittest.skip("Unstable test")
     @with_trio
     @with_bft_network(start_replica_cmd_with_corrupted_checkpoint_msgs(corrupt_checkpoints_from_replica_ids={ 0 }))
     async def test_checkpoint_propagation_after_corrupting_checkpoint_msg_for_primary(self, bft_network):
