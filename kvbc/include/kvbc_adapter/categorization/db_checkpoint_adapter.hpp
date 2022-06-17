@@ -28,7 +28,7 @@ class DbCheckpointImpl : public IDBCheckpoint {
     return kvbc_->trimBlocksFromSnapshot(block_id_at_checkpoint);
   }
 
-  void checkpointInProcess(bool) override final {}
+  void checkpointInProcess(bool, kvbc::BlockId) override final {}
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 

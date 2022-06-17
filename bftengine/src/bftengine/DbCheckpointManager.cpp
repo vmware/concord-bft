@@ -83,7 +83,7 @@ Status DbCheckpointManager::createDbCheckpoint(const CheckpointId& checkPointId,
     for (auto& cb : onDbCheckpointCreated_) {
       if (cb) cb(seqNum);
     }
-    checkpointInProcessCb_(false);
+    checkpointInProcessCb_(false, lastBlockId);
   }
   updateMetrics();
   return Status::OK();
@@ -168,12 +168,13 @@ uint64_t DbCheckpointManager::directorySize(const _fs::path& directory, const bo
   return size;
 }
 
-void DbCheckpointManager::initializeDbCheckpointManager(std::shared_ptr<concord::storage::IDBClient> dbClient,
-                                                        std::shared_ptr<bftEngine::impl::PersistentStorage> p,
-                                                        std::shared_ptr<concordMetrics::Aggregator> aggregator,
-                                                        const std::function<BlockId()>& getLastBlockIdCb,
-                                                        const PrepareCheckpointCallback& prepareCheckpointCb,
-                                                        const std::function<void(bool)>& checkpointInProcessCb) {
+void DbCheckpointManager::initializeDbCheckpointManager(
+    std::shared_ptr<concord::storage::IDBClient> dbClient,
+    std::shared_ptr<bftEngine::impl::PersistentStorage> p,
+    std::shared_ptr<concordMetrics::Aggregator> aggregator,
+    const std::function<BlockId()>& getLastBlockIdCb,
+    const PrepareCheckpointCallback& prepareCheckpointCb,
+    const std::function<void(bool, concord::kvbc::BlockId)>& checkpointInProcessCb) {
   dbClient_ = dbClient;
   ps_ = p;
   dbCheckPointDirPath_ = ReplicaConfig::instance().getdbCheckpointDirPath();
@@ -382,8 +383,8 @@ SeqNum DbCheckpointManager::getLastStableSeqNum() const {
   return 0;
 }
 
-void DbCheckpointManager::setCheckpointInProcess(bool flag) const {
-  if (checkpointInProcessCb_) checkpointInProcessCb_(flag);
+void DbCheckpointManager::setCheckpointInProcess(bool flag, concord::kvbc::BlockId blockId) const {
+  if (checkpointInProcessCb_) checkpointInProcessCb_(flag, blockId);
 }
 
 BlockId DbCheckpointManager::getLastReachableBlock() const {

@@ -140,19 +140,22 @@ class KeyValueBlockchain {
   // take snapshot and release the prev if BFT sn has changed.
   uint64_t onNewBFTSequenceNumber(const categorization::Updates &updates);
   // take snapshot and release on start and end of checkpoint.
-  void checkpointInProcess(bool flag);
+  void checkpointInProcess(bool flag, kvbc::BlockId block_id_at_chkpnt);
   uint64_t getBlockSequenceNumber(const categorization::Updates &updates) const;
   std::optional<uint64_t> getLastBlockSequenceNumber() { return last_block_sn_; }
   void setLastBlockSequenceNumber(uint64_t sn) { last_block_sn_ = sn; }
   const ::rocksdb::Snapshot *getSnapShot() { return snap_shot_; }
-  const ::rocksdb::Snapshot *getChkpntSnapShot() { return chkpnt_snap_shot_; }
+  std::optional<const ::rocksdb::Snapshot *> getCheckpointSnapShot(const kvbc::BlockId id) {
+    if (chkpnt_snap_shots_.count(id) == 0) return std::nullopt;
+    return chkpnt_snap_shots_[id];
+  }
   // open an instance of DB for storing recovery udpates.
   std::shared_ptr<storage::rocksdb::NativeClient> getRecoveryDB();
 
   // helper class for clients to call when recovery is needed.
   // path - the path of the blockchain db.
   struct BlockchainRecovery {
-    BlockchainRecovery(const std::string &path, bool is_chkpnt);
+    BlockchainRecovery(const std::string &path, const std::optional<kvbc::BlockId> &block_id_at_chkpnt);
     static std::shared_ptr<storage::rocksdb::NativeClient> getRecoveryDB(const std::string &path, bool is_chkpnt);
     static void removeRecoveryDB(const std::string &path, bool is_chkpnt);
     static std::string getPath(const std::string &path, bool is_chkpnt);
@@ -182,6 +185,14 @@ class KeyValueBlockchain {
       release = false;
       return concordUtils::toBigEndianStringBuffer(sh_->GetSequenceNumber()) +
              concordUtils::toBigEndianStringBuffer(stable_version);
+    }
+
+    static std::string getStorableKey(std::optional<kvbc::BlockId> block_id_at_chkpnt) {
+      if (block_id_at_chkpnt.has_value()) {
+        return kvbc::keyTypes::v4_snapshot_sequence_checkpoint +
+               concordUtils::toBigEndianStringBuffer(*block_id_at_chkpnt);
+      }
+      return kvbc::keyTypes::v4_snapshot_sequence;
     }
 
     static std::unique_ptr<V4snapshot> getV4SnapShotFromSeqnum(const std::string &sn) {
@@ -214,7 +225,7 @@ class KeyValueBlockchain {
   };
 
   // Gets a set of updates needed to revert a last reachable block and stores them in a recovery db.
-  void storeLastReachableRevertBatch(bool checkpoint);
+  void storeLastReachableRevertBatch(const std::optional<kvbc::BlockId> &block_id_at_chkpnt);
 
  private:  // Member functons
   std::optional<categorization::Value> getValueFromUpdate(BlockId block_id,
@@ -233,15 +244,14 @@ class KeyValueBlockchain {
   v4blockchain::detail::StChain state_transfer_chain_;
   v4blockchain::detail::LatestKeys latest_keys_;
   // flag to mark whether a checkpoint is being taken.
-  std::atomic_bool checkpointInProcess_{false};
   std::optional<uint64_t> last_block_sn_;
   const float updates_to_final_size_ration_{2.5};
   // Not owner of the object, do not need to delete
   const ::rocksdb::Snapshot *snap_shot_{nullptr};
-  const ::rocksdb::Snapshot *chkpnt_snap_shot_{nullptr};
+  std::map<kvbc::BlockId, const ::rocksdb::Snapshot *> chkpnt_snap_shots_;
   // const ::rocksdb::Snapshot *chkpoint_snap_shot_{nullptr};
   util::ThreadPool thread_pool_{1};
-  bool is_trimming_chkpnt_blocks_{false};
+  std::optional<kvbc::BlockId> chkpnt_block_id_;
 
   // Metrics
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;

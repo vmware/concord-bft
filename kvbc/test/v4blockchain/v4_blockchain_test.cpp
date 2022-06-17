@@ -59,10 +59,11 @@ class v4_kvbc : public Test {
     ASSERT_EQ(0, db.use_count());
     cleanup();
   }
-  void create_blocks(uint64_t num_blocks,
+  void create_blocks(uint64_t last_block,
                      uint32_t& num_merkle_each,
                      uint32_t& num_versioned_each,
-                     uint32_t& num_immutable_each) {
+                     uint32_t& num_immutable_each,
+                     uint64_t start_blk = 1) {
     std::mt19937 rgen;
     std::uniform_int_distribution<uint32_t> dist(10, 100);
     num_merkle_each = dist(rgen);
@@ -72,7 +73,7 @@ class v4_kvbc : public Test {
     // <category_name>_key_<blockId>_<key_id>
     // Values are:
     // <category_name>_value_<blockId>_<key_id>
-    for (uint64_t blk = 1; blk <= num_blocks; ++blk) {
+    for (uint64_t blk = start_blk; blk <= last_block; ++blk) {
       categorization::Updates updates;
 
       categorization::BlockMerkleUpdates merkle_updates;
@@ -540,7 +541,6 @@ TEST_F(v4_kvbc, on_new_bft_sn) {
     ASSERT_NE(blockchain->getSnapShot(), snpsth_10);
     ASSERT_GT(blockchain->getSnapShot()->GetSequenceNumber(), 0);
   }
-  blockchain->checkpointInProcess(true);
 }
 
 TEST(local_blockchain, load_genesis_and_last_blocs) {
@@ -825,7 +825,7 @@ TEST(automated_local_blockchain, automated_delete_last_reachable) {
       ASSERT_TRUE(val.has_value());
     }
   }
-  { concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{dbpath, false}; }
+  { concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{dbpath, std::nullopt}; }
   {
     auto native_cl2 = TestRocksDb::createNative(3);
     auto blckchn = v4blockchain::KeyValueBlockchain{native_cl2, true, cat_map};
@@ -999,15 +999,14 @@ TEST(checkpoint_recovery, trimming) {
       blckchn_compare_state.add(std::move(up_copy));
     }
     // Upon setting to true, we take snap shot
-    ASSERT_EQ(blckchn.getChkpntSnapShot(), nullptr);
     last_id = blckchn.getLastReachableBlockId();
     auto opt_seq_num =
         native_cl2->get(v4blockchain::detail::MISC_CF, concord::kvbc::keyTypes::v4_snapshot_sequence_checkpoint);
     ASSERT_FALSE(opt_seq_num.has_value());
-    blckchn.checkpointInProcess(true);
-    ASSERT_NE(blckchn.getChkpntSnapShot(), nullptr);
+    blckchn.checkpointInProcess(true, last_id);
     opt_seq_num =
-        native_cl2->get(v4blockchain::detail::MISC_CF, concord::kvbc::keyTypes::v4_snapshot_sequence_checkpoint);
+        native_cl2->get(v4blockchain::detail::MISC_CF,
+                        concord::kvbc::v4blockchain::KeyValueBlockchain::RecoverySnapshot::getStorableKey(last_id));
     ASSERT_TRUE(opt_seq_num.has_value());
     auto last_id_from_storage =
         concord::kvbc::v4blockchain::KeyValueBlockchain::RecoverySnapshot::getStableVersion(*opt_seq_num);
@@ -1113,7 +1112,7 @@ TEST(checkpoint_recovery, trimming) {
     }
   }
 
-  { concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{dbpath, true}; }
+  { concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{dbpath, last_id}; }
   // restart the blockchain
   {
     auto native_cl2 = TestRocksDb::createNative(6);
@@ -1231,6 +1230,66 @@ TEST(recovery, blockchain_recovery_class) {
   }
 }
 
+TEST_F(v4_kvbc, checkpointInProcess) {
+  uint64_t max_block = 100;
+  uint32_t num_merkle_each = 0;
+  uint32_t num_versioned_each = 0;
+  uint32_t num_immutable_each = 0;
+  create_blocks(max_block, num_merkle_each, num_versioned_each, num_immutable_each);
+  // Should equal last reachable block
+  ASSERT_DEATH(blockchain->checkpointInProcess(true, 99), "");
+  auto opt_snp = blockchain->getCheckpointSnapShot(99);
+  ASSERT_FALSE(opt_snp.has_value());
+  auto opt_db_val = db->get(v4blockchain::detail::MISC_CF,
+                            concord::kvbc::v4blockchain::KeyValueBlockchain::RecoverySnapshot::getStorableKey(99));
+  ASSERT_FALSE(opt_db_val.has_value());
+
+  blockchain->checkpointInProcess(true, 100);
+  opt_snp = blockchain->getCheckpointSnapShot(100);
+  ASSERT_TRUE(opt_snp.has_value());
+  opt_db_val = db->get(v4blockchain::detail::MISC_CF,
+                       concord::kvbc::v4blockchain::KeyValueBlockchain::RecoverySnapshot::getStorableKey(100));
+  ASSERT_TRUE(opt_db_val.has_value());
+  auto internal_snapshot_100 =
+      concord::kvbc::v4blockchain::KeyValueBlockchain::RecoverySnapshot::getV4SnapShotFromSeqnum(*opt_db_val);
+  ASSERT_GT(internal_snapshot_100->GetSequenceNumber(), 0);
+  auto stable_version_100 =
+      concord::kvbc::v4blockchain::KeyValueBlockchain::RecoverySnapshot::getStableVersion(*opt_db_val);
+  ASSERT_EQ(stable_version_100, 100);
+
+  create_blocks(200, num_merkle_each, num_versioned_each, num_immutable_each, 101);
+  blockchain->checkpointInProcess(true, 200);
+  opt_snp = blockchain->getCheckpointSnapShot(100);
+  ASSERT_TRUE(opt_snp.has_value());
+
+  opt_snp = blockchain->getCheckpointSnapShot(200);
+  ASSERT_TRUE(opt_snp.has_value());
+  opt_db_val = db->get(v4blockchain::detail::MISC_CF,
+                       concord::kvbc::v4blockchain::KeyValueBlockchain::RecoverySnapshot::getStorableKey(200));
+  ASSERT_TRUE(opt_db_val.has_value());
+  auto internal_snapshot_200 =
+      concord::kvbc::v4blockchain::KeyValueBlockchain::RecoverySnapshot::getV4SnapShotFromSeqnum(*opt_db_val);
+  ASSERT_GT(internal_snapshot_200->GetSequenceNumber(), internal_snapshot_100->GetSequenceNumber());
+  auto stable_version_200 =
+      concord::kvbc::v4blockchain::KeyValueBlockchain::RecoverySnapshot::getStableVersion(*opt_db_val);
+  ASSERT_EQ(stable_version_200, 200);
+
+  // deletes
+  blockchain->checkpointInProcess(false, 100);
+  opt_snp = blockchain->getCheckpointSnapShot(100);
+  ASSERT_FALSE(opt_snp.has_value());
+  opt_db_val = db->get(v4blockchain::detail::MISC_CF,
+                       concord::kvbc::v4blockchain::KeyValueBlockchain::RecoverySnapshot::getStorableKey(100));
+  ASSERT_FALSE(opt_db_val.has_value());
+
+  blockchain->checkpointInProcess(false, 200);
+  opt_snp = blockchain->getCheckpointSnapShot(200);
+  ASSERT_FALSE(opt_snp.has_value());
+  opt_db_val = db->get(v4blockchain::detail::MISC_CF,
+                       concord::kvbc::v4blockchain::KeyValueBlockchain::RecoverySnapshot::getStorableKey(200));
+  ASSERT_FALSE(opt_db_val.has_value());
+}
+
 TEST(recovery, storeLastReachableRevertBatch) {
   auto native_cl = TestRocksDb::createNative(98);
   auto path = native_cl->path();
@@ -1303,7 +1362,7 @@ TEST(recovery, storeLastReachableRevertBatch) {
     auto key = concord::kvbc::v4blockchain::detail::Blockchain::generateKey(numblocks);
     recdb->put(key, std::string{"dummy"});
   }
-  blckchn.storeLastReachableRevertBatch(false);
+  blckchn.storeLastReachableRevertBatch(std::nullopt);
   ASSERT_TRUE(fs::is_directory(exec_path));
 
   {

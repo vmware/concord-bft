@@ -124,7 +124,8 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
           std::vector<std::uint8_t>(req.request, req.request + req.requestSize), createDbChkPtMsg);
       if (!createDbChkPtMsg.noop) {
         const auto& lastStableSeqNum = DbCheckpointManager::instance().getLastStableSeqNum();
-        DbCheckpointManager::instance().setCheckpointInProcess(true);
+        std::optional blockId(DbCheckpointManager::instance().getLastReachableBlock());
+        DbCheckpointManager::instance().setCheckpointInProcess(true, *blockId);
         if (lastStableSeqNum == static_cast<SeqNum>(createDbChkPtMsg.seqNum)) {
           DbCheckpointManager::instance().createDbCheckpointAsync(createDbChkPtMsg.seqNum, timestamp, std::nullopt);
         } else {
@@ -133,7 +134,6 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
           // seq num because checkpoint msg certificate is stored on stable seq num and is used for intergrity
           // check of db snapshots
           const auto& seqNumToCreateSanpshot = createDbChkPtMsg.seqNum;
-          std::optional blockId(DbCheckpointManager::instance().getLastReachableBlock());
           DbCheckpointManager::instance().setOnStableSeqNumCb_([seqNumToCreateSanpshot, timestamp, blockId](SeqNum s) {
             if (s == static_cast<SeqNum>(seqNumToCreateSanpshot))
               DbCheckpointManager::instance().createDbCheckpointAsync(seqNumToCreateSanpshot, timestamp, blockId);
