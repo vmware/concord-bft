@@ -44,7 +44,7 @@ class InMemoryDataStore : public DataStore {
   bool initialized() override;
   void setAsInitialized() override;
 
-  void setReplicas(const set<uint16_t> replicas) override;
+  void setReplicas(const set<uint16_t>& replicas) override;
   set<uint16_t> getReplicas() override;
 
   void setMyReplicaId(uint16_t id) override;
@@ -171,8 +171,8 @@ class InMemoryDataStore : public DataStore {
 
   std::atomic_bool fetching{false};
 
-  CheckpointDesc checkpointBeingFetched;
-  // none if checkpointBeingFetched.checkpointNum == 0
+  // No checkpoint is being fetched if checkpointBeingFetched_.checkpointNum is 0
+  CheckpointDesc checkpointBeingFetched_;
 
   uint64_t firstRequiredBlock = UINT64_MAX;
   uint64_t lastRequiredBlock = UINT64_MAX;

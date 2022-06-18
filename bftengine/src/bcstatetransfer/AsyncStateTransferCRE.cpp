@@ -56,9 +56,8 @@ class Communication : public ICommunication {
   }
   std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t>&& msg, NodeNum endpointNum) override {
     auto ret = dests;
-    if (dests.find(repId_) != dests.end()) {
-      dests.erase(repId_);
-    }
+    dests.erase(repId_);
+
     msgsCommunicator_->send(dests, reinterpret_cast<char*>(msg.data()), msg.size());
     return ret;
   }

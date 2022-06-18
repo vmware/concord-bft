@@ -164,7 +164,7 @@ void DBDataStore::setLastRequiredBlock(uint64_t i) {
   putInt(LastRequiredBlock, i);
   inmem_->setLastRequiredBlock(i);
 }
-void DBDataStore::setReplicas(const std::set<std::uint16_t> replicas) {
+void DBDataStore::setReplicas(const std::set<std::uint16_t>& replicas) {
   std::ostringstream oss;
   Serializable::serialize(oss, replicas);
   put(Replicas, oss.str());
@@ -474,7 +474,6 @@ void DBDataStore::deserializePrunedBlocksDigests(std::istream& is,
   size_t size{};
   Serializable::deserialize(is, size);
   for (size_t i{0}; i < size; ++i) {
-    std::pair<BlockId, Digest> p;
     BlockId blockId;
     Digest digest;
     Serializable::deserialize(is, blockId);

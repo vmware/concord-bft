@@ -360,7 +360,6 @@ void BCStateTran::initImpl(uint64_t maxNumOfRequiredStoredCheckpoints,
              "Init BCStateTran object:" << KVLOG(
                  maxNumOfStoredCheckpoints_, numberOfReservedPages_, config_.sizeOfReservedPage));
 
-    FetchingState fs{FetchingState::NotFetching};
     if (psd_->initialized()) {
       LOG_INFO(logger_, "Loading existing data from storage");
 
@@ -369,7 +368,7 @@ void BCStateTran::initImpl(uint64_t maxNumOfRequiredStoredCheckpoints,
       rvbm_->init(psd_->getIsFetchingState());
       metrics_.current_rvb_data_state_.Get().Set(rvbm_->getStateOfRvbData());
 
-      fs = getFetchingState();
+      FetchingState fs = getFetchingState();
       LOG_INFO(logger_, "Starting state is " << stateName(fs));
       if (isActiveDestination(fs)) {
         LOG_INFO(logger_, "State Transfer cycle continues");
@@ -1853,7 +1852,6 @@ void BCStateTran::sourcePrepareBatch(uint64_t numBlocksRequested) {
   auto &sb = sourceBatch_;
   bool invokeGetBlocks{true};
   auto sizeIoContexts = ioContexts_.size();
-  bool clearContexts{sizeIoContexts > 0};
   uint64_t numBlocksToGet = numBlocksRequested;
   uint64_t startBlockIdToGet = sb.nextBlockId;
   if ((!config_.enableSourceBlocksPreFetch) || (sizeIoContexts == 0)) {
@@ -1881,37 +1879,11 @@ void BCStateTran::sourcePrepareBatch(uint64_t numBlocksRequested) {
       // exact prediction!
       invokeGetBlocks = false;
     }
-
-    // TODO - leaving this part of code (temporarily) for future development.
-    // As of now, we support only exact prediction
-
-    // } else {
-    //   if (numBlocksRequested < sizeIoContexts) {
-    //     for (auto it = ioContexts_.begin() + numBlocksRequested; it != ioContexts_.end();) {
-    //       ioPool_.free(*it);
-    //       it = ioContexts_.erase(it);
-    //     }
-    //     metrics_.src_num_io_contexts_dropped_.Get().Set(metrics_.src_num_io_contexts_dropped_.Get().Get() +
-    //                                                     (sizeIoContexts - numBlocksRequested));
-    //     invokeGetBlocks = false;
-    //   } else {
-    //     // numBlocksRequested > sizeIoContexts
-    //     numBlocksToGet = numBlocksRequested - sizeIoContexts;
-    //     startBlockIdToGet = sb.nextBlockId - sizeIoContexts;
-    //     clearContexts = false;
-    //     LOG_INFO(logger_,
-    //              "Call getBlocksConcurrentAsync(3):" << KVLOG(numBlocksToGet,
-    //                                                           startBlockIdToGet,
-    //                                                           sb.nextBlockId,
-    //                                                           numBlocksRequested,
-    //                                                           sizeIoContexts,
-    //                                                           sb.destRequest.minBlockId));
-    //   }
-    // }
   }
 
   if (invokeGetBlocks) {
-    if (clearContexts) {
+    // Contexts have to be cleared
+    if (sizeIoContexts > 0) {
       metrics_.src_num_io_contexts_dropped_.Get().Set(metrics_.src_num_io_contexts_dropped_.Get().Get() +
                                                       sizeIoContexts);
       clearIoContexts();
@@ -3507,7 +3479,6 @@ void BCStateTran::processData(bool lastInBatch, uint32_t rvbDigestsSize) {
         //////////////////////////////////////////////////////////////////////////
         // if we have a new vblock
         //////////////////////////////////////////////////////////////////////////
-        DataStore::CheckpointDesc cp{0};
         {
           DataStoreTransaction::Guard g(psd_->beginTransaction());
           sourceSelector_.onReceivedValidBlockFromSource();

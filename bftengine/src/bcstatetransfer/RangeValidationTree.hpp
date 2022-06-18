@@ -155,9 +155,9 @@ class RangeValidationTree {
 
     NodeVal(const std::shared_ptr<char[]>&& val, size_t size);
     NodeVal(const char* val_ptr, size_t size);
-    NodeVal(const NodeVal_t* val);
-    NodeVal(const NodeVal_t& val);
-    NodeVal(const NodeVal_t&& val);
+    explicit NodeVal(const NodeVal_t* val);
+    explicit NodeVal(const NodeVal_t& val);
+    explicit NodeVal(const NodeVal_t&& val);
     NodeVal();
 
     NodeVal& operator+=(const NodeVal& other);
@@ -177,14 +177,14 @@ class RangeValidationTree {
   };
 
   struct NodeInfo {
-    NodeInfo(uint64_t node_id) : id_data_(node_id) {}
+    explicit NodeInfo(uint64_t node_id) : id_data_(node_id) {}
     NodeInfo(uint8_t l, uint64_t index) : id_data_(l, index) {}
     NodeInfo() = delete;
 
-    bool operator<(NodeInfo& other) const noexcept {
+    bool operator<(const NodeInfo& other) const noexcept {
       return ((level() <= other.level()) || (rvb_index() < other.rvb_index())) ? true : false;
     }
-    bool operator!=(NodeInfo& other) const noexcept {
+    bool operator!=(const NodeInfo& other) const noexcept {
       return ((level() != other.level()) || (rvb_index() != other.rvb_index())) ? true : false;
     }
     std::string toString() const noexcept;
@@ -291,7 +291,7 @@ class RangeValidationTree {
   using RVTNodePtr = std::shared_ptr<RVTNode>;
 
   struct RVTNode : public RVBNode {
-    RVTNode(const RVBNodePtr& child_node);
+    explicit RVTNode(const RVBNodePtr& child_node);
     RVTNode(uint8_t level, uint64_t rvb_index);
     RVTNode(SerializedRVTNode& node, char* cur_val_ptr, size_t cur_value_size);
     static RVTNodePtr createFromSerialized(std::istringstream& is);

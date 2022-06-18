@@ -554,8 +554,8 @@ RVBGroupId RVBManager::getFetchBlocksRvbGroupId(BlockId from_block_id, BlockId t
   LOG_TRACE(logger_, KVLOG(from_block_id, to_block_id));
   ConcordAssertLE(from_block_id, to_block_id);
 
-  BlockId min_stored_rvb_id, max_stored_rvb_id;
   if (!stored_rvb_digests_.empty()) {
+    BlockId min_stored_rvb_id, max_stored_rvb_id;
     min_stored_rvb_id = stored_rvb_digests_.begin()->first;
     max_stored_rvb_id = (--stored_rvb_digests_.end())->first;
     uint64_t diff = max_stored_rvb_id - min_stored_rvb_id;
