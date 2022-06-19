@@ -79,7 +79,9 @@ class InMemoryDataStore : public DataStore {
   // Checkpoints
   //////////////////////////////////////////////////////////////////////////
 
-  void setCheckpointDesc(uint64_t checkpoint, const CheckpointDesc& desc) override;
+  void setCheckpointDesc(uint64_t checkpoint,
+                         const CheckpointDesc& desc,
+                         const bool checkIfAlreadyExists = true) override;
   CheckpointDesc getCheckpointDesc(uint64_t checkpoint) override;
   bool hasCheckpointDesc(uint64_t checkpoint) override;
   void deleteDescOfSmallerCheckpoints(uint64_t checkpoint) override;
@@ -117,7 +119,11 @@ class InMemoryDataStore : public DataStore {
                                              uint64_t inCheckpoint,
                                              const Digest& inPageDigest) override;
 
-  void setResPage(uint32_t inPageId, uint64_t inCheckpoint, const Digest& inPageDigest, const char* inPage) override;
+  void setResPage(uint32_t inPageId,
+                  uint64_t inCheckpoint,
+                  const Digest& inPageDigest,
+                  const char* inPage,
+                  const bool checkIfAlreadyExists = true) override;
 
   bool getResPage(uint32_t inPageId,
                   uint64_t inCheckpoint,
