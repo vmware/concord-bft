@@ -43,7 +43,12 @@ def start_replica_cmd(builddir, replica_id):
             "-v", viewChangeTimeoutMilli,
             "-e", str(True)
             ]
+# uncomment for live tracking of log messages from the test
+class foo:
+    def log_message(self, var):
+        print(f"{var}")
 
+log = foo()
 
 class SkvbcRestartRecoveryTest(ApolloTest):
 
@@ -119,13 +124,6 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         current_primary = 0
         next_primary = 1
         view = 0
-
-        # uncomment for live tracking of log messages from the test
-        # class foo:
-        #     def log_message(self, var):
-        #         print(f"{var}")
-        #
-        # log = foo()
 
         # Perform multiple view changes and restart 1 replica while the replicas are agreeing the new View
         while view < 100:
@@ -324,7 +322,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: c == 0, rotate_keys=True)
     @with_constant_load
     @verify_linearizability()
-    async def test_recovering_fast_path(self, bft_network, tracker):
+    async def test_recovering_fast_path(self, bft_network, skvbc, constant_load, tracker):
         """
         The Apollo test, which should be part of the test_skvbc_restart_recovery suite needs to implement the following steps:
 
@@ -342,34 +340,39 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         # start replicas
         [bft_network.start_replica(i) for i in bft_network.all_replicas()]
 
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
-
         loop_count = 0
         while (loop_count < 1):
             loop_count = loop_count + 1
 
+            log.log_message("view = await bft_network.get_current_view(")
             view = await bft_network.get_current_view()
 
             primary = await bft_network.get_current_primary()
             bft_network.stop_replica(primary)
             bft_network.start_replica(primary)
 
-
-
+            log.log_message("wait_for_replicas_to_reach_at_least_view(")
             await bft_network.wait_for_replicas_to_reach_at_least_view(replicas_ids=bft_network.all_replicas(), expected_view=view + 1, timeout=60)
 
+            log.log_message("_await_replicas_in_state_transfer(")
+            await self._await_replicas_in_state_transfer(log, bft_network, skvbc, (primary + 1) % bft_network.config.n)
+
+            await trio.sleep(seconds=20)
+            log.log_message("wait_for_fast_path_to_be_prevalent(")
             await bft_network.wait_for_fast_path_to_be_prevalent(
-            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
+            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=40)
 
             view = await bft_network.get_current_view()
 
             non_primary = primary
             bft_network.stop_replica(non_primary)
 
-            await bft_network.wait_for_slow_path_to_be_prevalent(
-            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
-
             primary = await bft_network.get_current_primary()
+
+            log.log_message("wait_for_slow_path_to_be_prevalent(")
+            await bft_network.wait_for_slow_path_to_be_prevalent(
+            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20, replica_id=non_primary)
+
             bft_network.stop_replica(primary)
             bft_network.start_replica(primary)
 
@@ -464,13 +467,6 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         7) Wait for State Transfer to finish and for all replicas to participate in Fast Path.
         8) Goto Step 2.
         """
-
-        # uncomment for live tracking of log messages from the test
-        # class foo:
-        #     def log_message(self, var):
-        #         print(f"{var}")
-        #
-        # log = foo()
 
         # start replicas
         [bft_network.start_replica(i) for i in bft_network.all_replicas()]
