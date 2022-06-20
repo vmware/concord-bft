@@ -45,6 +45,7 @@
 #include "strategy/MangledPreProcessResultMsgStrategy.hpp"
 #include "WrapCommunication.hpp"
 #include "secrets_manager_enc.h"
+#include "blockchain_misc.hpp"
 
 #ifdef USE_S3_OBJECT_STORE
 #include "s3/config_parser.hpp"
@@ -138,6 +139,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
         {"replica-byzantine-strategies", optional_argument, 0, 'g'},
         {"pre-exec-result-auth", no_argument, 0, 'x'},
         {"time_service", optional_argument, 0, 'f'},
+        {"blockchain-version", optional_argument, 0, 'V'},
         {"enable-db-checkpoint", required_argument, 0, 'h'},
 
         // direct options - assign directly ro a non-null flag
@@ -148,7 +150,8 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     int optionIndex = 0;
     LOG_INFO(GL, "Command line options:");
     while ((o = getopt_long(
-                argc, argv, "i:k:n:s:v:a:3:l:e:w:c:b:m:q:z:y:udp:t:o:r:g:xf:h:j:", longOptions, &optionIndex)) != -1) {
+                argc, argv, "i:k:n:s:v:a:3:l:e:w:c:b:m:q:z:y:udp:t:o:r:g:xf:h:j:V:", longOptions, &optionIndex)) !=
+           -1) {
       switch (o) {
         // long-options-only first
         case 2:
@@ -227,6 +230,15 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
         case 'v': {
           replicaConfig.viewChangeTimerMillisec = concord::util::to<std::uint16_t>(std::string(optarg));
           replicaConfig.viewChangeProtocolEnabled = true;
+        } break;
+        case 'V': {
+          auto version = concord::util::to<std::uint16_t>(std::string(optarg));
+          if (version != BLOCKCHAIN_VERSION::CATEGORIZED_BLOCKCHAIN && version != BLOCKCHAIN_VERSION::V4_BLOCKCHAIN) {
+            std::ostringstream ss;
+            ss << "invalid option for blockchain version " << version;
+            throw std::runtime_error{ss.str()};
+          }
+          replicaConfig.kvBlockchainVersion = version;
         } break;
         case 'a': {
           replicaConfig.autoPrimaryRotationTimerMillisec = concord::util::to<std::uint16_t>(std::string(optarg));

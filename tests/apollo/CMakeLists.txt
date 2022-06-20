@@ -46,6 +46,7 @@ endif()
 set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} KEEP_APOLLO_LOGS=${KEEP_APOLLO_LOGS}")
 set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} TXN_SIGNING_ENABLED=${TXN_SIGNING_ENABLED}")
 set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} TIME_SERVICE_ENABLED=TRUE")
+set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} BLOCKCHAIN_VERSION=1")
 set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} USE_FAKE_CLOCK_IN_TIME_SERVICE=${USE_FAKE_CLOCK_IN_TIME_SERVICE}")
 
 if (OMIT_TEST_OUTPUT)
@@ -101,6 +102,12 @@ add_test(NAME skvbc_auto_view_change_tests COMMAND sh -c
 add_test(NAME skvbc_state_transfer_tests COMMAND sh -c
         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_state_transfer_tests python3 -m unittest test_skvbc_state_transfer ${TEST_OUTPUT}"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} BLOCKCHAIN_VERSION=4")
+add_test(NAME skvbc_state_transfer_tests_v4 COMMAND sh -c
+        "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_state_transfer_tests python3 -m unittest test_skvbc_state_transfer ${TEST_OUTPUT}_v4"
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} BLOCKCHAIN_VERSION=1")
 
 # PreExecution tests are executed two times - with PreExecution Result Authentication enabled and disabled.
 add_test(NAME skvbc_preexecution_tests COMMAND sh -c

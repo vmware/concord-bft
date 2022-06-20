@@ -41,6 +41,12 @@ def start_replica_cmd(builddir, replica_id):
     viewChangeTimeoutMilli = "10000"
     path = os.path.join(builddir, "tests", "simpleKVBC",
                         "TesterReplica", "skvbc_replica")
+
+    if os.environ.get('BLOCKCHAIN_VERSION', default="1").lower() == "4" :
+        blockchain_version = "4"
+    else :
+        blockchain_version = "1"
+        
     return [path,
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
@@ -48,6 +54,7 @@ def start_replica_cmd(builddir, replica_id):
             "-v", viewChangeTimeoutMilli,
             "-e", str(True),
             "-f", '1',
+            "-V",blockchain_version,
             "-o", builddir + "/operator_pub.pem"
             ]
 

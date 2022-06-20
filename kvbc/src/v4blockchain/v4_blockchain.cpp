@@ -643,11 +643,11 @@ KeyValueBlockchain::BlockchainRecovery::BlockchainRecovery(const std::string &pa
     return;
   }
   auto native = concord::storage::rocksdb::NativeClient::fromIDBClient(db);
-  auto opt_val = native->get(v4blockchain::detail::MISC_CF, kvbc::keyTypes::blockchain_version);
-  const auto link_temp_st_chain = false;
-  if (opt_val && *opt_val != kvbc::V4Version()) {
+  if (!native->hasColumnFamily(v4blockchain::detail::MISC_CF)) {
+    LOG_DEBUG(V4_BLOCK_LOG, "V4 cf wasn't found, it's either categorized storage or first run");
     return;
   }
+  const auto link_temp_st_chain = false;
   try {
     auto v4_kvbc = concord::kvbc::v4blockchain::KeyValueBlockchain{native, link_temp_st_chain};
     v4_kvbc.storeLastReachableRevertBatch(block_id_at_chkpnt);
