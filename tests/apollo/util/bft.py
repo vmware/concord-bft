@@ -758,6 +758,8 @@ class BftTestNetwork:
 
         if keep_logs:
             test_name = os.environ.get('TEST_NAME')
+            if os.environ.get('BLOCKCHAIN_VERSION', default="1").lower() == "4" :
+                test_name = test_name + "_v4"
 
             if not test_name:
                 test_name = f"{self._replica_log_dir_timestamp}_{self.current_test}"
