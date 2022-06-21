@@ -329,7 +329,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         # start replicas
         [bft_network.start_replica(i) for i in bft_network.all_replicas()]
 
-        log = foo()
+        # log = foo()
 
         loop_count = 0
         while (loop_count < 100):
