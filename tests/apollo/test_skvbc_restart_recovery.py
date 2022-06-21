@@ -44,6 +44,9 @@ def start_replica_cmd(builddir, replica_id):
             "-e", str(True)
             ]
 
+class foo:
+    def log_message(self, var):
+        print(f"{var}")
 
 class SkvbcRestartRecoveryTest(ApolloTest):
 
@@ -79,10 +82,6 @@ class SkvbcRestartRecoveryTest(ApolloTest):
             bft_network.all_replicas(without={primary_replica}))
 
         # uncomment for live tracking of log messages from the test
-        # class foo:
-        #     def log_message(self, var):
-        #         print(f"{var}")
-        #
         # log = foo()
 
         for v in range(300):
@@ -119,13 +118,6 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         current_primary = 0
         next_primary = 1
         view = 0
-
-        # uncomment for live tracking of log messages from the test
-        # class foo:
-        #     def log_message(self, var):
-        #         print(f"{var}")
-        #
-        # log = foo()
 
         # Perform multiple view changes and restart 1 replica while the replicas are agreeing the new View
         while view < 100:
@@ -245,10 +237,6 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         view = 0
 
         # uncomment for live tracking of log messages from the test
-        # class foo:
-        #     def log_message(self, var):
-        #         print(f"{var}")
-        #
         # log = foo()
 
         # Perform multiple view changes by restarting F replicas where the Primary is included
@@ -319,6 +307,62 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         # the restarts we performed while the system was in view change.
         await bft_network.wait_for_fast_path_to_be_prevalent(
             run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: c == 0, rotate_keys=True)
+    @with_constant_load
+    async def test_recovering_fast_path(self, bft_network, skvbc, constant_load):
+        """
+        The Apollo test, which should be part of the test_skvbc_restart_recovery suite needs to implement the following steps:
+
+        1. Start all Replicas and Introduce constantly running Client requests in the background.
+        2. Verify that the system is processing client requests on Fast Path.
+        3. Restart the Primary to initiate View Change.
+        4. Verify the View Change succeeded.
+        5. Wait for the system to recover Fast commit path again (Here we will have to set a time limit for which we expect the system to recover to Fast path. We can start with 1 minute interval.)
+        6. Stop 1 Non Primary replica to transition the system to Slow path.
+        7. Verify the system is making progress on Slow path.
+        8. Restart the Primary to initiate View Change.
+        9. Start the Replica we stopped in step 6 and verify the View Change succeeded.
+        10. Goto Step 2.
+        """
+        # start replicas
+        [bft_network.start_replica(i) for i in bft_network.all_replicas()]
+
+        # log = foo()
+
+        loop_count = 0
+        while (loop_count < 100):
+            loop_count = loop_count + 1
+
+            view = await bft_network.get_current_view()
+
+            primary = await bft_network.get_current_primary()
+            bft_network.stop_replica(primary)
+            await trio.sleep(seconds=10)
+            bft_network.start_replica(primary)
+
+            await bft_network.wait_for_replicas_to_reach_at_least_view(replicas_ids=bft_network.all_replicas(), expected_view=view + 1, timeout=60)
+
+            await bft_network.wait_for_fast_path_to_be_prevalent(
+            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20, timeout=180)
+
+            view = await bft_network.get_current_view()
+
+            non_primary = primary
+            bft_network.stop_replica(non_primary)
+
+            primary = await bft_network.get_current_primary()
+
+            await bft_network.wait_for_slow_path_to_be_prevalent(
+            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20, replica_id=primary, timeout=180)
+
+            bft_network.stop_replica(primary)
+            bft_network.start_replica(primary)
+
+            await bft_network.wait_for_replicas_to_reach_at_least_view(replicas_ids=bft_network.all_replicas(), expected_view=view + 1, timeout=60)
+
+            bft_network.start_replica(non_primary)
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: c == 0, rotate_keys=True)
@@ -407,13 +451,6 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         8) Goto Step 2.
         """
 
-        # uncomment for live tracking of log messages from the test
-        # class foo:
-        #     def log_message(self, var):
-        #         print(f"{var}")
-        #
-        # log = foo()
-
         # start replicas
         [bft_network.start_replica(i) for i in bft_network.all_replicas()]
 
@@ -488,12 +525,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         5. Loop to step 3.
         """
         # uncomment for live tracking of log messages from the test
-        # class foo:
-        #     def log_message(self, var):
-        #         print(f"{var}")
-
         # log = foo()
-        # start replicas
         [bft_network.start_replica(i) for i in bft_network.all_replicas()]
 
         loop_count_outer = 0
