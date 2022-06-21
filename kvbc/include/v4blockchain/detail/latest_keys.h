@@ -50,8 +50,7 @@ class LatestKeys {
   static constexpr size_t VERSION_SIZE = sizeof(std::uint64_t);
   static constexpr size_t VALUE_POSTFIX_SIZE = VERSION_SIZE + FLAGS_SIZE;
   LatestKeys(const std::shared_ptr<concord::storage::rocksdb::NativeClient>&,
-             const std::optional<std::map<std::string, concord::kvbc::categorization::CATEGORY_TYPE>>&,
-             std::function<BlockId()>&& f);
+             const std::optional<std::map<std::string, concord::kvbc::categorization::CATEGORY_TYPE>>&);
   void addBlockKeys(const concord::kvbc::categorization::Updates&, BlockId, storage::rocksdb::NativeWriteBatch&);
 
   void handleCategoryUpdates(const std::string& block_version,
@@ -113,8 +112,6 @@ class LatestKeys {
     return flags_sl == stale_flag;
   }
 
-  ::rocksdb::CompactionFilter* getCompFilter() { return &comp_filter_; }
-
   // get the value and return deserialized value if needed.
   std::optional<categorization::Value> getValue(const std::string& category_id, const std::string& key) const;
 
@@ -137,24 +134,26 @@ class LatestKeys {
 
   std::string getCategoryFromPrefix(const std::string& p) const { return category_mapping_.getCategoryFromPrefix(p); }
   const std::string& getColumnFamilyFromCategory(const std::string& category_id) const;
-
- private:
-  // This filter is used to delete stale on update keys if their version is smaller than the genesis block
-  // It's being called by RocksDB on compaction
   struct LKCompactionFilter : ::rocksdb::CompactionFilter {
-    LKCompactionFilter(std::function<BlockId()> f) : genesis_id(f) {}
+    static ::rocksdb::CompactionFilter* getFilter() {
+      static LKCompactionFilter instance;
+      return &instance;
+    }
+    LKCompactionFilter() {}
     const char* Name() const override { return "LatestKeysCompactionFilter"; }
     bool Filter(int /*level*/,
                 const ::rocksdb::Slice& key,
                 const ::rocksdb::Slice& val,
                 std::string* /*new_value*/,
                 bool* /*value_changed*/) const override;
-    std::function<BlockId()> genesis_id;
   };
+
+ private:
+  // This filter is used to delete stale on update keys if their version is smaller than the genesis block
+  // It's being called by RocksDB on compaction
 
   std::shared_ptr<concord::storage::rocksdb::NativeClient> native_client_;
   v4blockchain::detail::Categories category_mapping_;
-  LKCompactionFilter comp_filter_;
 };
 
 }  // namespace concord::kvbc::v4blockchain::detail

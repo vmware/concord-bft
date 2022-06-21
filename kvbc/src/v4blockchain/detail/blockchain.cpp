@@ -17,6 +17,8 @@
 
 namespace concord::kvbc::v4blockchain::detail {
 
+std::atomic<BlockId> Blockchain::global_genesis_block_id = INVALID_BLOCK_ID;
+
 Blockchain::Blockchain(const std::shared_ptr<concord::storage::rocksdb::NativeClient>& native_client)
     : native_client_{native_client} {
   if (native_client->createColumnFamilyIfNotExisting(v4blockchain::detail::BLOCKS_CF)) {
@@ -29,8 +31,8 @@ Blockchain::Blockchain(const std::shared_ptr<concord::storage::rocksdb::NativeCl
   }
   auto genesis_blockId = loadGenesisBlockId();
   if (genesis_blockId) {
-    genesis_block_id_ = genesis_blockId.value();
-    LOG_INFO(CAT_BLOCK_LOG, "Genesis block was loaded from storage " << genesis_block_id_);
+    setGenesisBlockId(genesis_blockId.value());
+    LOG_INFO(V4_BLOCK_LOG, "Genesis block was loaded from storage " << genesis_block_id_);
   }
 }
 
@@ -81,12 +83,14 @@ BlockId Blockchain::deleteBlocksUntil(BlockId until) {
   // We don't want to erase all the blockchain
   const auto last_deleted_block = std::min(last_reachable_block_id_.load() - 1, until - 1);
   auto write_batch = native_client_->getBatch();
-  for (uint64_t i = genesis_block_id_; i <= last_deleted_block; ++i) {
-    deleteBlock(i, write_batch);
-  }
+
+  // Removes the database entries in the range ["begin_key", "end_key"), i.e.,
+  // including "begin_key" and excluding "end_key" --> this is why end is (last_deleted_block + 1)
+  write_batch.delRange(
+      v4blockchain::detail::BLOCKS_CF, generateKey(genesis_block_id_), generateKey(last_deleted_block + 1));
   native_client_->write(std::move(write_batch));
   auto blocks_deleted = (last_deleted_block - genesis_block_id_) + 1;
-  genesis_block_id_ = last_deleted_block + 1;
+  setGenesisBlockId(last_deleted_block + 1);
 
   LOG_INFO(V4_BLOCK_LOG, "Deleted " << blocks_deleted << " blocks, new genesis is " << genesis_block_id_);
   return last_deleted_block;
@@ -98,7 +102,7 @@ void Blockchain::deleteGenesisBlock() {
   auto write_batch = native_client_->getBatch();
   deleteBlock(genesis_block_id_, write_batch);
   native_client_->write(std::move(write_batch));
-  ++genesis_block_id_;
+  setGenesisBlockId(genesis_block_id_ + 1);
   LOG_INFO(V4_BLOCK_LOG, "Deleted genesis, new genesis is " << genesis_block_id_);
 }
 
@@ -205,7 +209,7 @@ std::optional<BlockId> Blockchain::loadGenesisBlockId() {
 
 void Blockchain::setBlockId(BlockId id) {
   setLastReachable(id);
-  if (genesis_block_id_ == INVALID_BLOCK_ID) genesis_block_id_ = id;
+  if (genesis_block_id_ == INVALID_BLOCK_ID) setGenesisBlockId(id);
 }
 
 bool Blockchain::hasBlock(BlockId block_id) const {

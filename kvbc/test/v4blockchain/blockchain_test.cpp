@@ -16,6 +16,7 @@
 #include "v4blockchain/detail/blockchain.h"
 #include "storage/test/storage_test_common.h"
 #include "v4blockchain/detail/column_families.h"
+#include <random>
 
 using concord::storage::rocksdb::NativeClient;
 using namespace concord::kvbc;
@@ -538,6 +539,63 @@ TEST_F(v4_blockchain, delete_until) {
     // until is less than the genesis
     ASSERT_DEATH(blockchain_local.deleteBlocksUntil(1), "");
   }
+}
+
+TEST_F(v4_blockchain, auto_delete_until) {
+  auto blockchain = v4blockchain::detail::Blockchain{db};
+  // Can't delete from empty blockchain
+  ASSERT_DEATH(blockchain.deleteBlocksUntil(1), "");
+
+  std::random_device seed;
+  std::mt19937 gen{seed()};                     // seed the generator
+  std::uniform_int_distribution dist{20, 100};  // set min and max
+  int numblocks = dist(gen);                    // generate number
+
+  for (uint64_t id = 1; id <= (uint64_t)numblocks; ++id) {
+    auto wb = db->getBatch();
+    auto versioned_cat = std::string("versioned");
+    auto key = std::string("key");
+    auto val = std::string("val");
+    auto updates = categorization::Updates{};
+    auto ver_updates = categorization::VersionedUpdates{};
+    ver_updates.addUpdate("key", "val");
+    updates.add(versioned_cat, std::move(ver_updates));
+    ASSERT_EQ(id, blockchain.addBlock(updates, wb));
+    db->write(std::move(wb));
+    blockchain.setBlockId(id);
+  }
+  auto curr_last = blockchain.getLastReachable();
+  auto last_del = blockchain.deleteBlocksUntil(numblocks + 1);
+  ASSERT_EQ(last_del, curr_last - 1);
+  ASSERT_EQ(last_del + 1, blockchain.getGenesisBlockId());
+  auto del_block = blockchain.getBlockData(last_del - 10);
+  ASSERT_FALSE(del_block.has_value());
+  auto gen_data = blockchain.getBlockData(blockchain.getGenesisBlockId());
+  ASSERT_TRUE(gen_data.has_value());
+
+  for (uint64_t id = curr_last + 1; id <= (uint64_t)numblocks + curr_last; ++id) {
+    auto wb = db->getBatch();
+    auto versioned_cat = std::string("versioned");
+    auto key = std::string("key");
+    auto val = std::string("val");
+    auto updates = categorization::Updates{};
+    auto ver_updates = categorization::VersionedUpdates{};
+    ver_updates.addUpdate("key", "val");
+    updates.add(versioned_cat, std::move(ver_updates));
+    ASSERT_EQ(id, blockchain.addBlock(updates, wb));
+    db->write(std::move(wb));
+    blockchain.setBlockId(id);
+  }
+
+  curr_last = blockchain.getLastReachable();
+  auto del_until = curr_last - 10;
+  ASSERT_EQ(blockchain.deleteBlocksUntil(del_until), del_until - 1);
+  ASSERT_EQ(del_until, blockchain.getGenesisBlockId());
+
+  del_block = blockchain.getBlockData(del_until - 1);
+  ASSERT_FALSE(del_block.has_value());
+  gen_data = blockchain.getBlockData(blockchain.getGenesisBlockId());
+  ASSERT_TRUE(gen_data.has_value());
 }
 
 TEST_F(v4_blockchain, delete_genesis) {

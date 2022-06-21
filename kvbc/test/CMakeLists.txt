@@ -272,6 +272,7 @@ if (BUILD_ROCKSDB_STORAGE)
 
     add_executable(v4_latest_keys_unit_test
         v4blockchain/v4_latest_keys_test.cpp )
+    file(COPY v4blockchain/rocksdb_config_test.ini DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
     add_test(v4_latest_keys_unit_test v4_latest_keys_unit_test)
     target_link_libraries(v4_latest_keys_unit_test PUBLIC
         GTest::Main

@@ -34,7 +34,7 @@ KeyValueBlockchain::KeyValueBlockchain(
     : native_client_{native_client},
       block_chain_{native_client_},
       state_transfer_chain_{native_client_},
-      latest_keys_{native_client_, category_types, [&]() { return block_chain_.getGenesisBlockId(); }},
+      latest_keys_{native_client_, category_types},
       v4_metrics_comp_{concordMetrics::Component("v4_blockchain", std::make_shared<concordMetrics::Aggregator>())},
       blocks_deleted_{v4_metrics_comp_.RegisterGauge("numOfBlocksDeleted", (block_chain_.getGenesisBlockId() - 1))} {
   if (!link_st_chain) return;
@@ -191,7 +191,7 @@ void KeyValueBlockchain::storeLastReachableRevertBatch(const std::optional<kvbc:
       auto write_batch = native_client_->getBatch();
       latest_keys_.revertLastBlockKeys(*updates, last_reachable_id, write_batch, internal_snapshot.get());
       // delete from blockchain
-      block_chain_.deleteLastReachableBlock(write_batch);
+      block_chain_.deleteBlock(last_reachable_id, write_batch);
       auto ser_batch = write_batch.data();
       recoverdb->put(key, ser_batch);
     } else {

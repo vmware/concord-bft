@@ -24,6 +24,7 @@
 #include "v4blockchain/detail/column_families.h"
 #include "categorization/db_categories.h"
 #include "categorized_kvbc_msgs.cmf.hpp"
+#include "rocksdb/native_client.h"
 
 using concord::storage::rocksdb::NativeClient;
 using namespace concord::kvbc;
@@ -103,13 +104,50 @@ class v4_kvbc : public Test {
 };
 
 TEST_F(v4_kvbc, creation) {
-  v4blockchain::detail::LatestKeys latest_keys{db, categories, []() { return 1; }};
+  v4blockchain::detail::LatestKeys latest_keys{db, categories};
 
   ASSERT_TRUE(db->hasColumnFamily(v4blockchain::detail::LATEST_KEYS_CF));
   ASSERT_TRUE(db->hasColumnFamily(v4blockchain::detail::IMMUTABLE_KEYS_CF));
   for (const auto& [k, v] : categories) {
     (void)v;
     ASSERT_TRUE(latest_keys.getCategoryPrefix(k).size() > 0);
+  }
+}
+
+std::shared_ptr<rocksdb::Statistics> completeRocksDBConfiguration(
+    ::rocksdb::Options& db_options, std::vector<::rocksdb::ColumnFamilyDescriptor>& cf_descs) {
+  for (auto& d : cf_descs) {
+    if ((d.name == concord::kvbc::v4blockchain::detail::LATEST_KEYS_CF) ||
+        (d.name == concord::kvbc::v4blockchain::detail::IMMUTABLE_KEYS_CF)) {
+      d.options.compaction_filter = concord::kvbc::v4blockchain::detail::LatestKeys::LKCompactionFilter::getFilter();
+    }
+  }
+  return db_options.statistics;
+}
+
+TEST(column_family, set_filter) {
+  {
+    auto db = TestRocksDb::createNative();
+    auto categories = std::map<std::string, categorization::CATEGORY_TYPE>{
+        {"merkle", categorization::CATEGORY_TYPE::block_merkle},
+        {"versioned", categorization::CATEGORY_TYPE::versioned_kv},
+        {"versioned_2", categorization::CATEGORY_TYPE::versioned_kv},
+        {"immutable", categorization::CATEGORY_TYPE::immutable}};
+    v4blockchain::detail::LatestKeys latest_keys{db, categories};
+    auto options = db->columnFamilyOptions(v4blockchain::detail::LATEST_KEYS_CF);
+    ASSERT_NE(options.compaction_filter, nullptr);
+    ASSERT_EQ(options.compaction_filter, v4blockchain::detail::LatestKeys::LKCompactionFilter::getFilter());
+  }
+  {
+    std::string dbConfPath = "./rocksdb_config_test.ini";
+    auto opts = concord::storage::rocksdb::NativeClient::UserOptions{
+        dbConfPath, [](::rocksdb::Options& db_options, std::vector<::rocksdb::ColumnFamilyDescriptor>& cf_descs) {
+          completeRocksDBConfiguration(db_options, cf_descs);
+        }};
+    auto db = TestRocksDb::createNative(opts);
+    auto options = db->columnFamilyOptions(v4blockchain::detail::LATEST_KEYS_CF);
+    ASSERT_NE(options.compaction_filter, nullptr);
+    ASSERT_EQ(std::string(options.compaction_filter->Name()), std::string("LatestKeysCompactionFilter"));
   }
 }
 
@@ -123,7 +161,7 @@ TEST_F(v4_kvbc, add_and_get_keys) {
     bool deleted;
   };
   v4blockchain::detail::LatestKeys::Flags no_flags = {0};
-  v4blockchain::detail::LatestKeys latest_keys{db, categories, []() { return 1; }};
+  v4blockchain::detail::LatestKeys latest_keys{db, categories};
   std::random_device seed;
   std::mt19937 gen{seed()};                   // seed the generator
   std::uniform_int_distribution dist{5, 20};  // set min and max

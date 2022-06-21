@@ -117,6 +117,10 @@ uint64_t ReplicaStateSyncImp::executeBasedOnBlockId(logging::Logger& logger,
   // it throws. Rationale is that we cannot leave the system in an unknown state. Instead, we throw, effectively
   // stopping the system and await manual intervention as the next startup would lead to the same situation.
   while (lastReachableKvbcBlockId > lastMtdBlockId && genesisBlockId <= lastReachableKvbcBlockId) {
+    LOG_INFO(logger,
+             "Deleting last reachable " << lastReachableKvbcBlockId << " metadata block " << *lastMtdBlockId
+                                        << " block deleted " << deletedBlocks << " max num blocks to delete "
+                                        << maxNumOfBlocksToDelete);
     blockchain.deleteLastReachableBlock();
     lastReachableKvbcBlockId = blockchain.getLastBlockId();
     ++deletedBlocks;

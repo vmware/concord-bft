@@ -15,7 +15,6 @@
 #include <rocksdb/options.h>
 #include <stdexcept>
 #include "util/filesystem.hpp"
-#include "storage/db_column_families.h"
 
 #ifdef USE_ROCKSDB
 
@@ -191,8 +190,6 @@ void Client::openRocksDB(bool readOnly,
     for (auto &cf_desc : cf_descs) {
       if (comparator_ && (cf_desc.name == ::rocksdb::kDefaultColumnFamilyName)) {
         cf_desc.options.comparator = comparator_.get();
-      } else if ((cf_desc.name == LATEST_KEYS_CF) || (cf_desc.name == IMMUTABLE_KEYS_CF)) {
-        // E.L needs to set the compaction filter here.
       }
     }
   }

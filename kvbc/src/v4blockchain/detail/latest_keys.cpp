@@ -27,14 +27,15 @@ auto getSliceArray(const Sliceable&... sls) {
 }
 
 LatestKeys::LatestKeys(const std::shared_ptr<concord::storage::rocksdb::NativeClient>& native_client,
-                       const std::optional<std::map<std::string, categorization::CATEGORY_TYPE>>& categories,
-                       std::function<BlockId()>&& f)
-    : native_client_{native_client}, category_mapping_(native_client, categories), comp_filter_(std::move(f)) {
-  if (native_client_->createColumnFamilyIfNotExisting(v4blockchain::detail::LATEST_KEYS_CF, getCompFilter())) {
+                       const std::optional<std::map<std::string, categorization::CATEGORY_TYPE>>& categories)
+    : native_client_{native_client}, category_mapping_(native_client, categories) {
+  if (native_client_->createColumnFamilyIfNotExisting(v4blockchain::detail::LATEST_KEYS_CF,
+                                                      LKCompactionFilter::getFilter())) {
     LOG_INFO(V4_BLOCK_LOG,
              "Created [" << v4blockchain::detail::LATEST_KEYS_CF << "] column family for the latest keys");
   }
-  if (native_client_->createColumnFamilyIfNotExisting(v4blockchain::detail::IMMUTABLE_KEYS_CF, getCompFilter())) {
+  if (native_client_->createColumnFamilyIfNotExisting(v4blockchain::detail::IMMUTABLE_KEYS_CF,
+                                                      LKCompactionFilter::getFilter())) {
     LOG_INFO(V4_BLOCK_LOG,
              "Created [" << v4blockchain::detail::IMMUTABLE_KEYS_CF << "] column family for the immutable keys");
   }
@@ -479,11 +480,12 @@ bool LatestKeys::LKCompactionFilter::Filter(int /*level*/,
                                             std::string* /*new_value*/,
                                             bool* /*value_changed*/) const {
   if (!LatestKeys::isStaleOnUpdate(val) || val.size() <= VERSION_SIZE) return false;
-  auto genesis = genesis_id();
   auto ts_slice = ::rocksdb::Slice(val.data() + val.size() - VERSION_SIZE, VERSION_SIZE);
   auto key_version = concordUtils::fromBigEndianBuffer<uint64_t>(ts_slice.data());
-  if (key_version >= genesis) return false;
-  LOG_DEBUG(V4_BLOCK_LOG, "Filtering key with version " << key_version << " genesis is " << genesis);
+  if (key_version >= concord::kvbc::v4blockchain::detail::Blockchain::global_genesis_block_id) return false;
+  LOG_INFO(V4_BLOCK_LOG,
+           "Filtering key with version " << key_version << " genesis is "
+                                         << concord::kvbc::v4blockchain::detail::Blockchain::global_genesis_block_id);
   return true;
 }
 

@@ -64,6 +64,10 @@ class Blockchain {
   void setBlockId(BlockId id);
   BlockId getLastReachable() const { return last_reachable_block_id_; }
   BlockId getGenesisBlockId() const { return genesis_block_id_; }
+  void setGenesisBlockId(BlockId id) {
+    genesis_block_id_ = id;
+    global_genesis_block_id = id;
+  }
 
   // Returns the buffer that represents the block
   std::optional<std::string> getBlockData(concord::kvbc::BlockId id) const;
@@ -102,9 +106,10 @@ class Blockchain {
   // stats for tests
   uint64_t from_future{};
   uint64_t from_storage{};
-
- private:
+  static std::atomic<BlockId> global_genesis_block_id;
   void deleteBlock(BlockId id, storage::rocksdb::NativeWriteBatch& wb) {
+    ConcordAssertLE(id, last_reachable_block_id_);
+    ConcordAssertGE(id, genesis_block_id_);
     wb.del(v4blockchain::detail::BLOCKS_CF, generateKey(id));
   }
 
