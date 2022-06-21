@@ -1391,13 +1391,13 @@ class BftTestNetwork:
 
         return await self.wait_for(expected_checkpoint_to_be_reached, 30, .5)
 
-    async def wait_for_fast_path_to_be_prevalent(self, run_ops, threshold, replica_id=0):
+    async def wait_for_fast_path_to_be_prevalent(self, run_ops, threshold, replica_id=0, timeout=90):
         await self._wait_for_consensus_path_to_be_prevalent(
             fast=True, run_ops=run_ops, threshold=threshold, replica_id=replica_id)
 
-    async def wait_for_slow_path_to_be_prevalent(self, run_ops, threshold, replica_id=0):
+    async def wait_for_slow_path_to_be_prevalent(self, run_ops, threshold, replica_id=0, timeout=90):
         await self._wait_for_consensus_path_to_be_prevalent(
-            fast=False, run_ops=run_ops, threshold=threshold, replica_id=replica_id)
+            fast=False, run_ops=run_ops, threshold=threshold, replica_id=replica_id, timeout=timeout)
 
     async def _wait_for_consensus_path_to_be_prevalent(self, fast, run_ops, threshold, replica_id=0, timeout=90):
         """

@@ -311,8 +311,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: c == 0, rotate_keys=True)
     @with_constant_load
-    @verify_linearizability()
-    async def test_recovering_fast_path(self, bft_network, skvbc, constant_load, tracker):
+    async def test_recovering_fast_path(self, bft_network, skvbc, constant_load):
         """
         The Apollo test, which should be part of the test_skvbc_restart_recovery suite needs to implement the following steps:
 
@@ -333,10 +332,9 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         log = foo()
 
         loop_count = 0
-        while (loop_count < 1):
+        while (loop_count < 100):
             loop_count = loop_count + 1
 
-            log.log_message("view = await bft_network.get_current_view(")
             view = await bft_network.get_current_view()
 
             primary = await bft_network.get_current_primary()
@@ -344,16 +342,10 @@ class SkvbcRestartRecoveryTest(ApolloTest):
             await trio.sleep(seconds=10)
             bft_network.start_replica(primary)
 
-            log.log_message("wait_for_replicas_to_reach_at_least_view(")
             await bft_network.wait_for_replicas_to_reach_at_least_view(replicas_ids=bft_network.all_replicas(), expected_view=view + 1, timeout=60)
 
-            log.log_message("_await_replicas_in_state_transfer(")
-            # await self._await_replicas_in_state_transfer(log, bft_network, skvbc, (primary + 1) % bft_network.config.n)
-            await trio.sleep(seconds=120)
-
-            log.log_message("wait_for_fast_path_to_be_prevalent(")
             await bft_network.wait_for_fast_path_to_be_prevalent(
-            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
+            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20, timeout=180)
 
             view = await bft_network.get_current_view()
 
@@ -362,10 +354,8 @@ class SkvbcRestartRecoveryTest(ApolloTest):
 
             primary = await bft_network.get_current_primary()
 
-            log.log_message("wait_for_slow_path_to_be_prevalent(")
-            await trio.sleep(seconds=120)
             await bft_network.wait_for_slow_path_to_be_prevalent(
-            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20, replica_id=primary)
+            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20, replica_id=primary, timeout=180)
 
             bft_network.stop_replica(primary)
             bft_network.start_replica(primary)
