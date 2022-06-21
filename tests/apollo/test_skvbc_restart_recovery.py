@@ -353,7 +353,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
 
             log.log_message("wait_for_fast_path_to_be_prevalent(")
             await bft_network.wait_for_fast_path_to_be_prevalent(
-            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=10)
+            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
 
             view = await bft_network.get_current_view()
 
