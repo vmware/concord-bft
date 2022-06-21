@@ -232,7 +232,6 @@ class SkvbcStateTransferTest(ApolloTest):
         await bft_network.wait_for_state_transfer_to_stop(0, stale_node)
         await bft_network.wait_for_replicas_rvt_root_values_to_be_in_sync(bft_network.all_replicas())
 
-    @unittest.skip("Unstable test - disabled until fixed BC-19123")
     @with_trio
     @with_bft_network(start_replica_cmd)
     async def test_state_transfer_rvt_validity_after_pruning(self, bft_network):

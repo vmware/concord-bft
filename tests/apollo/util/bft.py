@@ -800,17 +800,22 @@ class BftTestNetwork:
 
         with log.start_action(action_type="start_replica_process", replica=replica_id, is_external=is_external,
                               binary_path=replica_binary_path, binary_digest=digest):
+            my_env = os.environ.copy()
+            my_env["RID"] = str(replica_id)
             if is_external:
                 self.procs[replica_id] = subprocess.run(
                     start_cmd,
-                    check=True
+                    check=True,
+                    env=my_env
                 )
             else:
                 self.procs[replica_id] = subprocess.Popen(
                     start_cmd,
                     stdout=stdout_file,
                     stderr=stderr_file,
-                    close_fds=True)
+                    close_fds=True,
+                    env=my_env
+                    )
 
                 if keep_logs:
                     self.verify_matching_replica_client_communication(replica_test_log_path)

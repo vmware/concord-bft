@@ -5127,6 +5127,11 @@ void ReplicaImp::finishExecutePrePrepareMsg(PrePrepareMsg *ppMsg,
   LOG_INFO(CNSUS, "Finished execution of request seqNum:" << ppMsg->seqNumber());
   uint64_t checkpointNum{};
   if ((lastExecutedSeqNum + 1) % checkpointWindowSize == 0) {
+    // Save the epoch to the reserved pages
+    auto epochMgr = bftEngine::EpochManager::instance();
+    auto epochNum = epochMgr.getSelfEpochNumber();
+    epochMgr.setSelfEpochNumber(epochNum);
+    epochMgr.setGlobalEpochNumber(epochNum);
     checkpointNum = (lastExecutedSeqNum + 1) / checkpointWindowSize;
     stateTransfer->createCheckpointOfCurrentState(
         checkpointNum);  // TODO(GG): should make sure that this operation is idempotent, even if it was partially
@@ -5196,10 +5201,6 @@ void ReplicaImp::finalizeExecution() {
   }
 
   if (lastExecutedSeqNum % checkpointWindowSize == 0) {
-    // Load the epoch to the reserved pages
-    auto epoch = bftEngine::EpochManager::instance().getSelfEpochNumber();
-    bftEngine::EpochManager::instance().setSelfEpochNumber(epoch);
-    bftEngine::EpochManager::instance().setGlobalEpochNumber(epoch);
     Digest stateDigest, reservedPagesDigest, rvbDataDigest;
     CheckpointMsg::State checkState;
     const uint64_t checkpointNum = lastExecutedSeqNum / checkpointWindowSize;
@@ -5478,6 +5479,11 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
   }
   uint64_t checkpointNum{};
   if ((lastExecutedSeqNum + 1) % checkpointWindowSize == 0) {
+    // Save the epoch to the reserved pages
+    auto epochMgr = bftEngine::EpochManager::instance();
+    auto epochNum = epochMgr.getSelfEpochNumber();
+    epochMgr.setSelfEpochNumber(epochNum);
+    epochMgr.setGlobalEpochNumber(epochNum);
     checkpointNum = (lastExecutedSeqNum + 1) / checkpointWindowSize;
     stateTransfer->createCheckpointOfCurrentState(checkpointNum);
     checkpoint_times_.start(lastExecutedSeqNum);
@@ -5520,10 +5526,6 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
   }
 
   if (lastExecutedSeqNum % checkpointWindowSize == 0) {
-    // Load the epoch to the reserved pages
-    auto epoch = bftEngine::EpochManager::instance().getSelfEpochNumber();
-    bftEngine::EpochManager::instance().setSelfEpochNumber(epoch);
-    bftEngine::EpochManager::instance().setGlobalEpochNumber(epoch);
     Digest stateDigest, reservedPagesDigest, rvbDataDigest;
     CheckpointMsg::State state;
     const uint64_t checkpointNum = lastExecutedSeqNum / checkpointWindowSize;
