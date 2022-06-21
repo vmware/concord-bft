@@ -177,6 +177,7 @@ void RequestsBatch::releaseReqsAndSendBatchedReplyIfCompleted(PreProcessReplyMsg
   string batchCid;
   atomic_uint32_t batchSize = 0;
   PreProcessBatchReplyMsgSharedPtr batchReplyMsg;
+  list<uint16_t> reqOffsetsInBatch;
   {
     unique_lock<mutex> lock(batchMutex_);
     if (!batchInProcess_) {
@@ -192,14 +193,17 @@ void RequestsBatch::releaseReqsAndSendBatchedReplyIfCompleted(PreProcessReplyMsg
     batchCid = batchCid_;
     batchSize = batchSize_;
     // The last batch request has pre-processed => send batched reply message
-    lock.unlock();
-    for (auto const &replyMsg : repliesList_) {
-      replyMsgsSize += replyMsg->size();
-      preProcessor_.releaseClientPreProcessRequestSafe(clientId_, replyMsg->reqOffsetInBatch(), COMPLETE);
+    for (auto const &reply : repliesList_) {
+      replyMsgsSize += reply->size();
+      reqOffsetsInBatch.emplace_front(reply->reqOffsetInBatch());
     }
-    lock.lock();
     batchReplyMsg = make_shared<PreProcessBatchReplyMsg>(
         clientId_, senderId, repliesList_, batchCid_, replyMsgsSize, preProcessor_.myReplica_.getCurrentView());
+  }
+  for (const auto reqOffsetInBatch : reqOffsetsInBatch)
+    preProcessor_.releaseClientPreProcessRequestSafe(clientId_, reqOffsetInBatch, COMPLETE);
+  {
+    unique_lock<mutex> lock(batchMutex_);
     resetBatchParams();
   }
   preProcessor_.sendMsg(batchReplyMsg->body(), primaryId, batchReplyMsg->type(), batchReplyMsg->size());
