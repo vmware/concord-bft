@@ -17,9 +17,11 @@
 
 class EdDSAMultisigVerifier;
 
+bool isSignatureValid(const SingleEdDSASignature &signature);
+
 class EdDSASignatureAccumulator : public IThresholdAccumulator {
  public:
-  EdDSASignatureAccumulator();
+  EdDSASignatureAccumulator(bool verification, const EdDSAMultisigVerifier &verifier);
   int add(const char *sigShareWithId, int len) override;
   void setExpectedDigest(const unsigned char *msg, int len) override;
   size_t getFullSignedData(char *outThreshSig, int threshSigLen) override;
@@ -31,6 +33,14 @@ class EdDSASignatureAccumulator : public IThresholdAccumulator {
   /// Accumulated signatures
   std::unordered_map<uint32_t, SingleEdDSASignature> signatures_;
   std::string expectedMsgDigest_;
+  /* Flag for eager verification when shares are added.
+   * The verification is mandatory, CollectorOfThresholdSignatures will only pass threshold signatures
+   * (And not signerCount signatures) to the accumulator. It won't pass signatures which are reported as invalid
+   * via the getInvalidShareIds() function repeatedly.
+   */
+  const bool verification_;
+  const EdDSAMultisigVerifier &verifier_;
+  std::set<ShareID> invalidShares_;
 };
 
 class EdDSAMultisigVerifier : public IThresholdVerifier {
@@ -42,14 +52,14 @@ class EdDSAMultisigVerifier : public IThresholdVerifier {
   IThresholdAccumulator *newAccumulator(bool withShareVerification) const override;
 
   bool verify(const char *msg, int msgLen, const char *sig, int sigLen) const override;
-
   int requiredLengthForSignedData() const override;
+  size_t maxShareID() const;
+
+  /// This is stubbed as there is no meaning to a single public key in this implementation
   const IPublicKey &getPublicKey() const override;
   const IShareVerificationKey &getShareVerificationKey(ShareID signer) const override;
-  bool verifySingleSignature(const uint8_t *msg,
-                             size_t msgLen,
-                             const SingleEdDSASignature &signature,
-                             const SingleVerifier &verifier) const;
+
+  bool verifySingleSignature(const uint8_t *msg, size_t msgLen, const SingleEdDSASignature &signature) const;
   ~EdDSAMultisigVerifier() override = default;
 
  private:

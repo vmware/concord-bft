@@ -16,6 +16,8 @@ import trio
 import time
 
 from collections import namedtuple
+
+from util.consts import CHECKPOINT_SEQUENCES
 from util.skvbc_exceptions import BadReplyError
 from util import eliot_logging as log
 from util import bft
@@ -279,7 +281,7 @@ class SimpleKVBCProtocol:
             checkpoint_before = await self.bft_network.wait_for_checkpoint(
                 replica_id=random.choice(initial_nodes))
             # Write enough data to checkpoint and create a need for state transfer
-            for i in range(1 + num_of_checkpoints_to_add * 150):
+            for i in range(1 + num_of_checkpoints_to_add * CHECKPOINT_SEQUENCES):
                 key = self.random_key()
                 val = self.random_value()
                 reply = await self.send_write_kv_set(client, [(key, val)])
