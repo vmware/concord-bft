@@ -367,6 +367,48 @@ class SkvbcRestartRecoveryTest(ApolloTest):
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: c == 0, rotate_keys=True)
     @verify_linearizability()
+    async def test_restart_f_replicas_verify_fastpath(self, bft_network, tracker):
+        """
+        1. Start all Replicas.
+        2. Chose F non Primary Replicas to stop.
+        3. Advance the others 5 Checkpoints.
+        4. Bring back the previously stopped F replicas.
+        5. Wait for State Transfer to finish on all.
+        6. Verify the system is processing on Fast Path.
+        7. Goto Step 2.
+        """
+        # start replicas
+        [bft_network.start_replica(i) for i in bft_network.all_replicas()]
+
+        log = foo()
+        loop_counter = 0
+        while (loop_counter < 1):
+            loop_counter = loop_counter + 1
+
+            primary = await bft_network.get_current_primary()
+            replicas_to_restart = random.sample(
+                bft_network.all_replicas(without={primary}), bft_network.config.f)
+
+            [bft_network.stop_replica(i) for i in replicas_to_restart]
+
+            skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+            await skvbc.fill_and_wait_for_checkpoint(
+                initial_nodes=bft_network.all_replicas(without = set(replicas_to_restart)),
+                num_of_checkpoints_to_add=5,
+                verify_checkpoint_persistency=False,
+                assert_state_transfer_not_started=False
+            )
+
+            [bft_network.start_replica(i) for i in replicas_to_restart]
+            await trio.sleep(seconds=10)
+            await self._await_replicas_in_state_transfer(log, bft_network, skvbc, primary)
+
+            await bft_network.wait_for_fast_path_to_be_prevalent(
+                run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: c == 0, rotate_keys=True)
+    @verify_linearizability()
     async def test_recovering_of_primary_with_initiated_view_change(self, bft_network, tracker):
         """
         The Apollo test, which should be part of the test_skvbc_restart_recovery suite needs to implement the following steps:
@@ -555,7 +597,9 @@ class SkvbcRestartRecoveryTest(ApolloTest):
     @staticmethod
     async def _await_replicas_in_state_transfer(logger, bft_network, skvbc, primary):
         for r in bft_network.get_live_replicas():
+            logger.log_message("got live replicas")
             fetching = await bft_network.is_fetching(r)
+            logger.log_message(f"is_fetching: {fetching}")
             if fetching:
                 logger.log_message(f"Replica {r} is fetching, waiting for ST to finish ...")
                 # assuming Primary has latest state
