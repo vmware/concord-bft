@@ -258,6 +258,7 @@ std::optional<CheckpointId> DbCheckpointManager::createDbCheckpointAsync(const S
     return std::nullopt;
   }
   // start async create db checkpoint operation
+  DbCheckpointManager::instance().setCheckpointInProcess(true, lastBlockid);
   auto ret = std::async(std::launch::async, [this, seqNum, timestamp, lastBlockid]() -> void {
     createDbCheckpoint(lastBlockid, lastBlockid, seqNum, timestamp);
   });

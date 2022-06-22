@@ -125,7 +125,6 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
       if (!createDbChkPtMsg.noop) {
         const auto& lastStableSeqNum = DbCheckpointManager::instance().getLastStableSeqNum();
         std::optional blockId(DbCheckpointManager::instance().getLastReachableBlock());
-        DbCheckpointManager::instance().setCheckpointInProcess(true, *blockId);
         if (lastStableSeqNum == static_cast<SeqNum>(createDbChkPtMsg.seqNum)) {
           DbCheckpointManager::instance().createDbCheckpointAsync(createDbChkPtMsg.seqNum, timestamp, std::nullopt);
         } else {
