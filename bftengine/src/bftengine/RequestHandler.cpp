@@ -133,6 +133,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
           // seq num because checkpoint msg certificate is stored on stable seq num and is used for intergrity
           // check of db snapshots
           const auto& seqNumToCreateSanpshot = createDbChkPtMsg.seqNum;
+          DbCheckpointManager::instance().setCheckpointInProcess(true, *blockId);
           DbCheckpointManager::instance().setOnStableSeqNumCb_([seqNumToCreateSanpshot, timestamp, blockId](SeqNum s) {
             if (s == static_cast<SeqNum>(seqNumToCreateSanpshot))
               DbCheckpointManager::instance().createDbCheckpointAsync(seqNumToCreateSanpshot, timestamp, blockId);
