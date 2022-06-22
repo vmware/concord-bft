@@ -18,6 +18,7 @@ from os import environ
 
 import trio
 
+from util.consts import CHECKPOINT_SEQUENCES
 from util.test_base import ApolloTest
 from util.bft import with_trio, with_bft_network, with_constant_load, KEY_FILE_PREFIX, skip_for_tls
 from util import bft_network_partitioning as net
@@ -77,7 +78,6 @@ class SkvbcChaoticStartupTest(ApolloTest):
 
         first_stable_checkpoint_to_reach = 1
         checkpoints_to_advance_after_first = 2
-        seq_nums_per_checkpoint = 150
         num_reqs_after_first_checkpoint = 4
 
         async def write_req(num_req=1):
@@ -107,7 +107,7 @@ class SkvbcChaoticStartupTest(ApolloTest):
                 while True:
                     last_exec = await bft_network.get_metric(late_replica, bft_network, 'Gauges', "lastExecutedSeqNum")
                     log.log_message(message_type=f"replica = {late_replica}; lase_exec = {last_exec}")
-                    if last_exec == seq_nums_per_checkpoint + num_reqs_after_first_checkpoint:
+                    if last_exec == CHECKPOINT_SEQUENCES + num_reqs_after_first_checkpoint:
                         break
                     await trio.sleep(seconds=0.3)
 
@@ -133,7 +133,7 @@ class SkvbcChaoticStartupTest(ApolloTest):
                         last_stable = await bft_network.get_metric(replica_id, bft_network, 'Gauges', "lastStableSeqNum")
                         last_exec = await bft_network.get_metric(replica_id, bft_network, 'Gauges', "lastExecutedSeqNum")
                         log.log_message(message_type=f"replica = {replica_id}; last_stable = {last_stable}; lase_exec = {last_exec}")
-                        if replica_id == late_replica and last_exec == 2*seq_nums_per_checkpoint:
+                        if replica_id == late_replica and last_exec == 2*CHECKPOINT_SEQUENCES:
                             late_replica_catch_up = True
 
                     await write_req()
