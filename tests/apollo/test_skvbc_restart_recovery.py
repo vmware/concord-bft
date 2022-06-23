@@ -549,6 +549,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
                 run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
             log.log_message("fast path prevailed")
 
+    @skip_for_tls
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: c == 0, rotate_keys=True)
     @verify_linearizability()
