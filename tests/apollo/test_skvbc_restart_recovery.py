@@ -382,7 +382,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
 
         #log = foo()
         loop_counter = 0
-        while (loop_counter < 1):
+        while (loop_counter < 100):
             loop_counter = loop_counter + 1
 
             primary = await bft_network.get_current_primary()
