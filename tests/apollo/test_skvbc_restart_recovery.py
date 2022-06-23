@@ -380,7 +380,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         # start replicas
         [bft_network.start_replica(i) for i in bft_network.all_replicas()]
 
-        log = foo()
+        #log = foo()
         loop_counter = 0
         while (loop_counter < 1):
             loop_counter = loop_counter + 1
@@ -597,9 +597,8 @@ class SkvbcRestartRecoveryTest(ApolloTest):
     @staticmethod
     async def _await_replicas_in_state_transfer(logger, bft_network, skvbc, primary):
         for r in bft_network.get_live_replicas():
-            logger.log_message("got live replicas")
+            logger.log_message(f"Replica {r} is alive")
             fetching = await bft_network.is_fetching(r)
-            logger.log_message(f"is_fetching: {fetching}")
             if fetching:
                 logger.log_message(f"Replica {r} is fetching, waiting for ST to finish ...")
                 # assuming Primary has latest state
