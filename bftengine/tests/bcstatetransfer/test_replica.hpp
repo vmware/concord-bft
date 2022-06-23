@@ -46,7 +46,10 @@ class TestReplica : public IReplicaForStateTransfer {
   ///////////////////////////////////////////////////////////////////////////
   void onTransferringComplete(uint64_t checkpointNumberOfNewState) override { onTransferringCompleteCalled_ = true; };
 
-  void freeStateTransferMsg(char* msg) override { std::free(msg); }
+  void freeStateTransferMsg(char* msg) override {
+    // Same behavior as in ReplicaForStateTransfer
+    std::free(msg - sizeof(MessageBase::Header));
+  }
 
   void sendStateTransferMessage(char* m, uint32_t size, uint16_t replicaId) override {
     sent_messages_.emplace_back(Msg(m, size, replicaId));

@@ -2103,7 +2103,7 @@ void BCStateTran::continueSendBatch() {
       if ((rvbGroupDigestsActualSize == 0) || (sb.rvbGroupDigestsExpectedSize != rvbGroupDigestsActualSize)) {
         auto additionalInfo = "Rejecting message - not holding all requested digests (or some other error)" +
                               KVLOG(sb.rvbGroupDigestsExpectedSize, rvbGroupDigestsActualSize);
-        replicaForStateTransfer_->freeStateTransferMsg(reinterpret_cast<char *>(outMsg));
+        ItemDataMsg::free(outMsg);
         sendRejectFetchingMsg(
             RejectFetchingMsg::Reason::DIGESTS_FOR_RVBGROUP_NOT_FOUND, m->msgSeqNum, sb.destReplicaId, additionalInfo);
         sourceSession_.close();
