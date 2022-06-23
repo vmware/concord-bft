@@ -549,6 +549,60 @@ class SkvbcRestartRecoveryTest(ApolloTest):
                 run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
             log.log_message("fast path prevailed")
 
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: c == 0, rotate_keys=True)
+    @verify_linearizability()
+    async def test_view_change_with_isolated_replicas(self, bft_network, tracker):
+        """
+        test View Changes with multiple View increments, where the
+        isolated F-1 expected next primaries will not be able to step in as
+        primaries, but will activate the corresponding view for which it is
+        theirs turn to become Primary.
+
+        Step by step scenario:
+        1. Use a one way isolating adversary to isolate the F-1 replicas after the current primary in such a way that they cannot send messages to the peers, but can receive messages from them.
+        2. Stop the current primary.
+        3. Send Client requests to trigger a View Change.
+        4. Wait for the system to finish View Change. Note that multiple View increments will happen.
+        5. Drop the network adversary and verify Fast Commit Path is recovered in the system by introducing client requests.
+
+        We can perform this test in a loop multiple times.
+        """
+
+        # start replicas
+        [bft_network.start_replica(i) for i in bft_network.all_replicas()]
+
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+        loop_count = 0
+        while (loop_count < 5):
+            loop_count = loop_count + 1
+
+            primary = await bft_network.get_current_primary()
+
+            replicas_to_isolate = random.sample(
+                bft_network.all_replicas(without={primary}), bft_network.config.f - 1)
+
+            other_replicas = [primary]
+            for r1 in bft_network.all_replicas(without={primary}):
+                append = True
+                for r2 in replicas_to_isolate:
+                    if (r1 == r2):
+                        append = False
+                        break
+                if (append):
+                    other_replicas.append(r1)
+
+            view = await bft_network.get_current_view()
+
+            with net.ReplicaOneWayTwoSubsetsIsolatingAdversary(bft_network, [], replicas_to_isolate) as adversary:
+                adversary.interfere()
+
+                await skvbc.run_concurrent_ops(10)
+                await bft_network.wait_for_replicas_to_reach_at_least_view(other_replicas, expected_view=view + 1, timeout=60)
+
+            await bft_network.wait_for_fast_path_to_be_prevalent(
+                run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
+
     @skip_for_tls
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -598,6 +652,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
     async def _await_replicas_in_state_transfer(logger, bft_network, skvbc, primary):
         for r in bft_network.get_live_replicas():
             logger.log_message(f"Replica {r} is alive")
+
             fetching = await bft_network.is_fetching(r)
             if fetching:
                 logger.log_message(f"Replica {r} is fetching, waiting for ST to finish ...")
