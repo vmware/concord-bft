@@ -575,7 +575,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
 
         skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
         loop_count = 0
-        while (loop_count < 5):
+        while (loop_count < 100):
             loop_count = loop_count + 1
 
             primary = await bft_network.get_current_primary()
