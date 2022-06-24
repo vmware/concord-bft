@@ -36,8 +36,8 @@ struct ReservedPagesMock : public IReservedPages {
 
 TEST(checkAndSetState_empty, ClientKeyStore) {
   ReservedPagesMock rpm{5, true};
-  ClientKeyStore cks;
-  ASSERT_FALSE(cks.published_);
+  ClientKeyStore cks(true);
+  ASSERT_FALSE(cks.published());
 }
 
 TEST(checkAndSetState_set_true, ClientKeyStore) {
@@ -48,9 +48,9 @@ TEST(checkAndSetState_set_true, ClientKeyStore) {
   std::vector<uint8_t> ser_keys;
   concord::messages::keys_and_signatures::serialize(ser_keys, cpk);
   std::string str_ser(ser_keys.begin(), ser_keys.end());
-  ClientKeyStore cks;
+  ClientKeyStore cks(false);
   cks.save(str_ser);
-  ASSERT_TRUE(cks.published_);
+  ASSERT_TRUE(cks.published());
   auto loaded_keys = cks.load();
   auto hashed_keys = concord::util::SHA3_256().digest(str_ser.c_str(), str_ser.size());
   auto strHashed_keys = std::string(hashed_keys.begin(), hashed_keys.end());
@@ -66,13 +66,13 @@ TEST(checkAndSetState_start_true, ClientKeyStore) {
   concord::messages::keys_and_signatures::serialize(ser_keys, cpk);
   std::string str_ser(ser_keys.begin(), ser_keys.end());
   {
-    ClientKeyStore cks;
-    ASSERT_FALSE(cks.published_);
+    ClientKeyStore cks(true);
+    ASSERT_FALSE(cks.published());
     cks.save(str_ser);
-    ASSERT_TRUE(cks.published_);
+    ASSERT_TRUE(cks.published());
   }
   {
-    ClientKeyStore cks;
-    ASSERT_TRUE(cks.published_);
+    ClientKeyStore cks(false);
+    ASSERT_TRUE(cks.published());
   }
 }

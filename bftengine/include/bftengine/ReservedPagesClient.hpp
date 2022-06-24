@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <map>
 #include <iostream>
+#include "Logger.hpp"
 
 namespace bftEngine {
 
@@ -102,6 +103,9 @@ class ResPagesClient : public ReservedPagesClientBase, public IReservedPages {
     return res_pages_->loadReservedPage(my_offset() + reservedPageId, copyLength, outReservedPage);
   }
   void saveReservedPage(uint32_t reservedPageId, uint32_t copyLength, const char* inReservedPage) override {
+    LOG_TRACE(logging::getLogger("bftengine.res_page"),
+              typeid(T).name() << " page: " << reservedPageId << " offset: " << my_offset()
+                               << " abs page: " << my_offset() + reservedPageId);
     res_pages_->saveReservedPage(my_offset() + reservedPageId, copyLength, inReservedPage);
   }
   void zeroReservedPage(uint32_t reservedPageId) override {

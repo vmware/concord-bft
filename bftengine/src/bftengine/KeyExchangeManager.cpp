@@ -29,7 +29,7 @@ KeyExchangeManager::KeyExchangeManager(InitData* id)
       quorumSize_{static_cast<uint32_t>(2 * ReplicaConfig::instance().fVal + ReplicaConfig::instance().cVal)},
       publicKeys_{clusterSize_},
       private_keys_(id->secretsMgr),
-      clientsPublicKeys_(),
+      clientsPublicKeys_(ReplicaConfig::instance().get("concord.bft.keyExchage.clientKeysEnabled", true)),
       client_(id->cl),
       multiSigKeyHdlr_(id->kg),
       clientPublicKeyStore_{id->cpks},
@@ -38,10 +38,6 @@ KeyExchangeManager::KeyExchangeManager(InitData* id)
   registerForNotification(id->ke);
   notifyRegistry();
   if (!ReplicaConfig::instance().getkeyExchangeOnStart()) initial_exchange_ = true;
-  if (!ReplicaConfig::instance().get("concord.bft.keyExchage.clientKeysEnabled", true)) {
-    LOG_INFO(KEY_EX_LOG, "Publish client keys is disabled");
-    clientsPublicKeys_.published_ = true;
-  }
 }
 
 void KeyExchangeManager::initMetrics(std::shared_ptr<concordMetrics::Aggregator> a, std::chrono::seconds interval) {
@@ -270,7 +266,7 @@ void KeyExchangeManager::sendKeyExchange(const SeqNum& sn) {
 
 // sends the clients public keys via the internal client, if keys weren't published or outdated.
 void KeyExchangeManager::sendInitialClientsKeys(const std::string& keys) {
-  if (clientsPublicKeys_.published_) {
+  if (clientsPublicKeys_.published()) {
     LOG_INFO(KEY_EX_LOG, "Clients public keys were already published");
     return;
   }
@@ -286,6 +282,7 @@ void KeyExchangeManager::sendInitialClientsKeys(const std::string& keys) {
 }
 
 void KeyExchangeManager::onPublishClientsKeys(const std::string& keys, std::optional<std::string> bootstrap_keys) {
+  LOG_INFO(KEY_EX_LOG, "");
   auto save = true;
   if (bootstrap_keys) {
     if (keys != *bootstrap_keys) {
