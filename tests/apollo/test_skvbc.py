@@ -19,7 +19,7 @@ import trio
 from util.test_base import ApolloTest
 from util import blinking_replica
 from util import skvbc as kvbc
-from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
+from util.bft import interesting_configs, with_trio, with_bft_network, KEY_FILE_PREFIX, BFTConfig
 
 
 def start_replica_cmd(builddir, replica_id):
@@ -31,7 +31,8 @@ def start_replica_cmd(builddir, replica_id):
     """
     statusTimerMilli = "500"
     viewChangeTimeoutMilli = "10000"
-    path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
+    path = os.path.join(builddir, "tests", "simpleKVBC",
+                        "TesterReplica", "skvbc_replica")
     return [path,
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
@@ -63,7 +64,8 @@ class SkvbcTest(ApolloTest):
 
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
-        stale_nodes = bft_network.random_set_of_replicas(bft_network.config.f, without={0})
+        stale_nodes = bft_network.random_set_of_replicas(
+            bft_network.config.f, without={0})
 
         for i in range(151):
             await skvbc.send_write_kv_set()
@@ -115,11 +117,11 @@ class SkvbcTest(ApolloTest):
             try:
                 view = await bft_network.get_metric(0, bft_network, "Gauges", "view")
             except trio.TooSlowError:
-                await trio.sleep(5) # replica 0 is probably no available yet
+                await trio.sleep(5)  # replica 0 is probably no available yet
                 pass
             while int(view) != 1:
                 await trio.sleep(1)
-                view =  await bft_network.get_metric(0,bft_network, "Gauges", "view")
+                view = await bft_network.get_metric(0, bft_network, "Gauges", "view")
 
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
@@ -130,7 +132,7 @@ class SkvbcTest(ApolloTest):
             seqNum = await bft_network.get_metric(0, bft_network, "Gauges", "lastExecutedSeqNum")
             while seqNum < 100:
                 await trio.sleep(1)
-                seqNum =  await bft_network.get_metric(0, bft_network, "Gauges", "lastExecutedSeqNum")
+                seqNum = await bft_network.get_metric(0, bft_network, "Gauges", "lastExecutedSeqNum")
 
     @with_trio
     @with_bft_network(start_replica_cmd, rotate_keys=True)
@@ -143,7 +145,8 @@ class SkvbcTest(ApolloTest):
         with blinking_replica.BlinkingReplica() as blinking:
             br = random.choice(
                 bft_network.all_replicas(without={0}))
-            bft_network.start_replicas(replicas=bft_network.all_replicas(without={br}))
+            bft_network.start_replicas(
+                replicas=bft_network.all_replicas(without={br}))
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
             blinking.start_blinking(bft_network.start_replica_cmd(br))
@@ -153,15 +156,22 @@ class SkvbcTest(ApolloTest):
                 # Ensure keys aren't identical
                 await skvbc.read_your_writes()
 
+    @with_trio
+    @with_bft_network(start_replica_cmd, rotate_keys=True, bft_configs=[BFTConfig(n=1, f=0, c=0)],)
+    async def test_get_block_data_single_replica_cluster(self, bft_network, exchange_keys=True):
+        await self._test_get_block_data_(bft_network, exchange_keys)
 
     @with_trio
     @with_bft_network(start_replica_cmd, rotate_keys=True)
-    async def test_get_block_data(self, bft_network,exchange_keys=True):
+    async def test_get_block_data(self, bft_network, exchange_keys=True):
+        await self._test_get_block_data_(bft_network, exchange_keys)
+
+    async def _test_get_block_data_(self, bft_network, exchange_keys=True):
         """
         Ensure that we can put a block and use the GetBlockData API request to
         retrieve its KV pairs.
         """
-    
+
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
@@ -249,6 +259,7 @@ class SkvbcTest(ApolloTest):
         successful_write = write_result.success
 
         self.assertTrue(not successful_write)
+
 
 if __name__ == '__main__':
     unittest.main()
