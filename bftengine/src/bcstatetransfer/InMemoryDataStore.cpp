@@ -238,6 +238,14 @@ void InMemoryDataStore::setResPage(uint32_t inPageId,
   ResPageKey key = {inPageId, inCheckpoint};
   ConcordAssertOR(!checkIfAlreadyExists, (pages.count(key) == 0));
 
+  // Data might already exist in the map so no extra memory should be allocated
+  if (!checkIfAlreadyExists) {
+    ConcordAssert(pages.count(key));
+    ConcordAssert(!memcmp(pages[key].page, inPage, sizeOfReservedPage_));
+    ConcordAssert(!memcmp(&pages[key].pageDigest, &inPageDigest, sizeof(Digest)));
+    return;
+  }
+  
   // prepare page
   char* page = reinterpret_cast<char*>(std::malloc(sizeOfReservedPage_));
   memcpy(page, inPage, sizeOfReservedPage_);
