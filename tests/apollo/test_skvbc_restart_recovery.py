@@ -598,8 +598,12 @@ class SkvbcRestartRecoveryTest(ApolloTest):
             with net.ReplicaOneWayTwoSubsetsIsolatingAdversary(bft_network, [], replicas_to_isolate) as adversary:
                 adversary.interfere()
 
+                bft_network.stop_replica(primary)
                 await skvbc.run_concurrent_ops(10)
-                await bft_network.wait_for_replicas_to_reach_at_least_view(other_replicas, expected_view=view + 1, timeout=60)
+
+                await bft_network.wait_for_replicas_to_reach_at_least_view(other_replicas, expected_view=view + bft_network.config.f, timeout=60)
+
+            bft_network.start_replica(primary)
 
             await bft_network.wait_for_fast_path_to_be_prevalent(
                 run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
