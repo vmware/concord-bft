@@ -56,7 +56,7 @@ def start_replica_cmd_with_slowdown(builddir, replica_id):
             "-i", str(replica_id),
             "-s", statusTimerMilli,
             "-v", viewChangeTimeoutMilli,
-            "--delay-state-transfer-messages-millisec", '10'
+            "--delay-state-transfer-messages-millisec", '8'
             ]
 
 class SkvbcPersistenceTest(ApolloTest):
@@ -276,7 +276,7 @@ class SkvbcPersistenceTest(ApolloTest):
                bft_network.stop_replica(stale_node)
 
     @with_trio
-    @with_bft_network(start_replica_cmd,
+    @with_bft_network(start_replica_cmd=start_replica_cmd_with_slowdown,
                       selected_configs=lambda n, f, c: f >= 2)
     @verify_linearizability()
     async def test_st_when_fetcher_and_sender_crash(self, bft_network, tracker):
@@ -302,7 +302,7 @@ class SkvbcPersistenceTest(ApolloTest):
 
         client, known_key, known_val = \
             await skvbc.prime_for_state_transfer(stale_nodes={stale_node},
-                                                           checkpoints_num=random.randint(5, 7))
+                                                           checkpoints_num=random.randint(10, 13))
 
         # exclude the primary and the stale node
         non_primary_replicas = bft_network.all_replicas(without={0, stale_node})

@@ -459,7 +459,6 @@ class SkvbcCheckpointTest(ApolloTest):
                 assert number_of_checkpoint_mismatch == n, \
                     f"Replica {replica_id} number_of_checkpoint_mismatch={number_of_checkpoint_mismatch} != {n}"
 
-    @unittest.skip("Unstable test")
     @with_trio
     @with_bft_network(start_replica_cmd_with_corrupted_checkpoint_msgs(corrupt_checkpoints_from_replica_ids={ 0 }))
     async def test_checkpoint_propagation_after_corrupting_checkpoint_msg_for_primary(self, bft_network):
