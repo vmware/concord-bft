@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2020-2022 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -23,11 +23,22 @@
 
 namespace concord_client_pool {
 
-// Note oddity: ClientT has to implement `operator<<`
+/*
+ * Timer type used by Concord's Client Pool implementation for managing batching timeouts.
+ *
+ * Note oddity: ClientT has to implement `operator<<` (for logging purposes)
+ */
 template <typename ClientT>
 class Timer {
  public:
   using Clock = std::chrono::high_resolution_clock;
+
+  /*
+   * Constructor for a Timer<ClientT> to (once started) asynchronously call on_timeout after timeout milliseconds. A
+   * value of 0 milliseconds for timeout is interpreted as meaning there is no timeout, and in that case, starting the
+   * constructed Timer will never cause it to call on_timeout. Any behavior of the constructed Timer should be
+   * considered undefined if timeout is a negative number of milliseconds.
+   */
   Timer(std::chrono::milliseconds timeout, std::function<void(ClientT&&)> on_timeout)
       : timeout_{timeout},
         on_timeout_{on_timeout},
@@ -38,8 +49,19 @@ class Timer {
     }
   }
 
+  /*
+   * Destructor for Timer<ClientT>. This Timer will not make any calls to its on_timeout function after its destructor
+   * has returned, however, if there is an ongoing timeout when this destructor begins, this Timer may call the
+   * on_timeout function concurrently with this destructor.
+   */
   ~Timer() { stopTimerThread(); }
 
+  /*
+   * Stop and end any asynchronous thread this Timer has for managing timeouts and callbacks. This puts this Timer
+   * object into an inactive "done" state (this transition cannot be reversed). Once this funciton has returned, this
+   * Timer will not make any calls to its on_timeout function, however, if there is an ongoing timeout when
+   * stopTimerThread begins, this Timer may call its on_timeout function concurrently with stopTimerThread.
+   */
   void stopTimerThread() {
     if (timeout_.count() == 0) {
       return;
@@ -48,6 +70,16 @@ class Timer {
     timer_thread_future_.wait();
   }
 
+  /*
+   * Start the timer for a timeout, and make an asynchronous call to the on_timeout function (given at this Timer's
+   * construction) with client as a parameter after the timeout duration (also given at this Timer's construction).
+   * Note that, though this Timer's implementation should make a reasonable effort to make this callback after about
+   * the given timeout duration, no hard guarantees about the precise timing of this callback are provided. No callback
+   * will be made if this Timer was constructed with a timeout of 0 milliseconds or if stopTimerThread has previously
+   * been called for this Timer. Behavior is undefined if start is called at any time when there is an ongoing timeout
+   * from a previous call to start that has not either completed its callback or been successfully cancelled via
+   * cancel() or stopTimerThread().
+   */
   void start(const ClientT& client) {
     if (timeout_.count() == 0 || not timer_thread_future_.valid() || io_context_.stopped()) {
       LOG_WARN(logger_, "Timer cannot start for client " << client_);
@@ -66,6 +98,16 @@ class Timer {
     LOG_DEBUG(logger_, "Timer set for client " << client_);
   }
 
+  /*
+   * Attempt to cancel any ongoing timeout. If there is such an ongoing timeout and it is cancelled successfully, the
+   * call to this Timer's on_timeout function scheduled by the most recent call to start will not occur. If there is
+   * such an ongoing timeout and it could not be cancelled successfully, that call will still occur. Returns the
+   * approximate duration, in milliseconds, between the most recent time start begin timing a timeout and the time this
+   * call to cancel returns (this duration is guaranteed to be non-negative, but no other particular guarantees of its
+   * accuracy or precision are given). Instead returns a duration of 0 milliseconds if this Timer was constructed with
+   * a timeout duration of 0 milliseconds. Behavior is undefined if no calls to start have been made for this Timer
+   * prior to this call to cancel.
+   */
   std::chrono::milliseconds cancel() {
     if (timeout_.count() == 0) {
       return timeout_;
