@@ -597,7 +597,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
 
             view = await bft_network.get_current_view()
 
-            with net.ReplicaOneWayTwoSubsetsIsolatingAdversary(bft_network, [], replicas_to_isolate) as adversary:
+            with net.ReplicaOneWayTwoSubsetsIsolatingAdversary(bft_network, other_replicas, replicas_to_isolate) as adversary:
                 adversary.interfere()
 
                 bft_network.stop_replica(primary)
