@@ -1219,6 +1219,7 @@ class BftTestNetwork:
                         last_stable = await self.get_metric(replica_id, self, 'Gauges', "lastStableSeqNum")
                         last_stable_seqs.append(last_stable)
                         action.log(message_type="lastStableSeqNum", replica=replica_id, last_stable=last_stable)
+                    assert checkpoint >= last_stable / 150, "Probably got wrong checkpoint as input"
                     if sum(x == 150 * checkpoint for x in last_stable_seqs) == len(replicas):
                         break
                     else:
