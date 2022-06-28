@@ -32,9 +32,7 @@ class InMemoryDataStore : public DataStore {
   explicit InMemoryDataStore(uint32_t sizeOfReservedPage);
   ~InMemoryDataStore() override {
     deleteAllPendingPages();
-    for (auto& p : pages) {
-      ::free(p.second.page);
-    }
+    pages.clear();
   }
 
   //////////////////////////////////////////////////////////////////////////
@@ -183,7 +181,7 @@ class InMemoryDataStore : public DataStore {
   uint64_t firstRequiredBlock = UINT64_MAX;
   uint64_t lastRequiredBlock = UINT64_MAX;
 
-  map<uint32_t, char*> pendingPages;
+  map<uint32_t, std::shared_ptr<char[]>> pendingPages;
 
   struct ResPageKey {
     uint32_t pageId;
@@ -199,7 +197,7 @@ class InMemoryDataStore : public DataStore {
 
   struct ResPageVal {
     Digest pageDigest;
-    char* page;
+    std::shared_ptr<char[]> page;
   };
 
   map<ResPageKey, ResPageVal> pages;
@@ -215,7 +213,7 @@ class InMemoryDataStore : public DataStore {
   const uint32_t getSizeOfReservedPage() const { return sizeOfReservedPage_; }
   const map<uint64_t, CheckpointDesc>& getDescMap() const { return descMap; }
   const map<ResPageKey, ResPageVal>& getPagesMap() const { return pages; }
-  const map<uint32_t, char*>& getPendingPagesMap() const { return pendingPages; }
+  const map<uint32_t, std::shared_ptr<char[]>>& getPendingPagesMap() const { return pendingPages; }
   std::mutex reservedPagesLock_;
   void setInitialized(bool init) { wasInit_ = init; }
   logging::Logger& logger() {

@@ -155,18 +155,18 @@ void InMemoryDataStore::setPendingResPage(uint32_t inPageId, const char* inPage,
   auto lock = std::unique_lock(reservedPagesLock_);
   auto pos = pendingPages.find(inPageId);
 
-  char* page = nullptr;
+  std::shared_ptr<char[]> page;
 
   if (pos == pendingPages.end()) {
-    page = reinterpret_cast<char*>(std::malloc(sizeOfReservedPage_));
+    page = std::shared_ptr<char[]>(new char[sizeOfReservedPage_]);
     pendingPages[inPageId] = page;
   } else {
     page = pos->second;
   }
 
-  memcpy(page, inPage, inPageLen);
+  memcpy(page.get(), inPage, inPageLen);
 
-  if (inPageLen < sizeOfReservedPage_) memset(page + inPageLen, 0, (sizeOfReservedPage_ - inPageLen));
+  if (inPageLen < sizeOfReservedPage_) memset(page.get() + inPageLen, 0, (sizeOfReservedPage_ - inPageLen));
 }
 
 bool InMemoryDataStore::hasPendingResPage(uint32_t inPageId) {
@@ -181,7 +181,7 @@ void InMemoryDataStore::getPendingResPage(uint32_t inPageId, char* outPage, uint
 
   ConcordAssert(pos != pendingPages.end());
 
-  memcpy(outPage, pos->second, pageLen);
+  memcpy(outPage, pos->second.get(), pageLen);
 }
 
 uint32_t InMemoryDataStore::numOfAllPendingResPage() {
@@ -199,8 +199,6 @@ set<uint32_t> InMemoryDataStore::getNumbersOfPendingResPages() {
 
 void InMemoryDataStore::deleteAllPendingPages() {
   auto lock = std::unique_lock(reservedPagesLock_);
-  for (auto p : pendingPages) std::free(p.second);
-
   pendingPages.clear();
 }
 
@@ -241,14 +239,14 @@ void InMemoryDataStore::setResPage(uint32_t inPageId,
   // Data might already exist in the map so no extra memory should be allocated
   if (!checkIfAlreadyExists) {
     ConcordAssert(pages.count(key));
-    ConcordAssert(!memcmp(pages[key].page, inPage, sizeOfReservedPage_));
+    ConcordAssert(!memcmp(pages[key].page.get(), inPage, sizeOfReservedPage_));
     ConcordAssert(!memcmp(&pages[key].pageDigest, &inPageDigest, sizeof(Digest)));
     return;
   }
-  
+
   // prepare page
-  char* page = reinterpret_cast<char*>(std::malloc(sizeOfReservedPage_));
-  memcpy(page, inPage, sizeOfReservedPage_);
+  std::shared_ptr<char[]> page(new char[sizeOfReservedPage_]);
+  memcpy(page.get(), inPage, sizeOfReservedPage_);
 
   // create value
   ResPageVal val = {inPageDigest, page};
@@ -286,7 +284,7 @@ bool InMemoryDataStore::getResPage(uint32_t inPageId,
 
   if (outPage != nullptr) {
     ConcordAssert(copylength > 0);
-    memcpy(outPage, p->second.page, copylength);
+    memcpy(outPage, p->second.page.get(), copylength);
   }
   return true;
 }
@@ -308,7 +306,6 @@ void InMemoryDataStore::deleteCoveredResPageInSmallerCheckpoints(uint64_t inMinR
       // delete
       ConcordAssert(iter->second.page != nullptr);
       oss << "[" << iter->first.pageId << ":" << iter->first.checkpoint << "] ";
-      std::free(iter->second.page);
       iter = pages.erase(iter);
     } else {
       prevItemPageId = iter->first.pageId;
