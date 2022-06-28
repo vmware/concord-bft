@@ -585,15 +585,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
             for i in index_list:
                 replicas_to_isolate.append(i % bft_network.config.n)
 
-            other_replicas = [primary]
-            for r1 in bft_network.all_replicas(without={primary}):
-                append = True
-                for r2 in replicas_to_isolate:
-                    if (r1 == r2):
-                        append = False
-                        break
-                if (append):
-                    other_replicas.append(r1)
+            other_replicas = bft_network.all_replicas(without=set(replicas_to_isolate))
 
             view = await bft_network.get_current_view()
 
