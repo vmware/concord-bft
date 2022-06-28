@@ -580,8 +580,10 @@ class SkvbcRestartRecoveryTest(ApolloTest):
 
             primary = await bft_network.get_current_primary()
 
-            replicas_to_isolate = random.sample(
-                bft_network.all_replicas(without={primary}), bft_network.config.f - 1)
+            index_list = range(primary + 1, primary + bft_network.config.f)
+            replicas_to_isolate = []
+            for i in index_list:
+                replicas_to_isolate.append(i % bft_network.config.n)
 
             other_replicas = [primary]
             for r1 in bft_network.all_replicas(without={primary}):
