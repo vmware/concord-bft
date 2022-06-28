@@ -356,7 +356,9 @@ class SkvbcStateTransferTest(ApolloTest):
                 print(f'Replica {replica_to_restart} will be restarted.')
                 bft_network.stop_replica(replica_to_restart, True)
                 bft_network.start_replica(replica_to_restart)
-                await trio.sleep(seconds=1)
+                # Restarted replica should get enough time to load metric holding last-stored-checkpoint
+                # Ideally concord should not allow to read metric while replica is still coming up or going down
+                await trio.sleep(seconds=2)
 
         # Validate that the RVT root values are in sync after all of the prunings and restarts have finished
         await bft_network.wait_for_replicas_rvt_root_values_to_be_in_sync(bft_network.all_replicas())
