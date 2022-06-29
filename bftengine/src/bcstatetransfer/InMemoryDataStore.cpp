@@ -155,10 +155,10 @@ void InMemoryDataStore::setPendingResPage(uint32_t inPageId, const char* inPage,
   auto lock = std::unique_lock(reservedPagesLock_);
   auto pos = pendingPages.find(inPageId);
 
-  std::shared_ptr<char[]> page;
+  PagePtr page;
 
   if (pos == pendingPages.end()) {
-    page = std::shared_ptr<char[]>(new char[sizeOfReservedPage_]);
+    page = PagePtr(new char[sizeOfReservedPage_]);
     pendingPages[inPageId] = page;
   } else {
     page = pos->second;
@@ -192,7 +192,7 @@ uint32_t InMemoryDataStore::numOfAllPendingResPage() {
 set<uint32_t> InMemoryDataStore::getNumbersOfPendingResPages() {
   set<uint32_t> retSet;
   auto lock = std::unique_lock(reservedPagesLock_);
-  for (auto p : pendingPages) retSet.insert(p.first);
+  for (const auto& p : pendingPages) retSet.insert(p.first);
 
   return retSet;
 }
@@ -234,25 +234,22 @@ void InMemoryDataStore::setResPage(uint32_t inPageId,
   LOG_DEBUG(logger(), KVLOG(inPageId, inCheckpoint, checkIfAlreadyExists));
   // create key, and make sure that we don't already have this element
   ResPageKey key = {inPageId, inCheckpoint};
-  ConcordAssertOR(!checkIfAlreadyExists, (pages.count(key) == 0));
-
-  // Data might already exist in the map so no extra memory should be allocated
-  if (!checkIfAlreadyExists) {
-    ConcordAssert(pages.count(key));
-    ConcordAssert(!memcmp(pages[key].page.get(), inPage, sizeOfReservedPage_));
-    ConcordAssert(!memcmp(&pages[key].pageDigest, &inPageDigest, sizeof(Digest)));
-    return;
-  }
+  bool keyExists = pages.count(key) > 0;
+  ConcordAssertOR(!checkIfAlreadyExists, !keyExists);
 
   // prepare page
-  std::shared_ptr<char[]> page(new char[sizeOfReservedPage_]);
+  PagePtr page;
+  if (!keyExists) {
+    page = PagePtr(new char[sizeOfReservedPage_]);
+    // create value
+    ResPageVal val = {inPageDigest, page};
+    // add to the pages map
+    pages[key] = val;
+  } else {
+    page = pages[key].page;
+  }
+
   memcpy(page.get(), inPage, sizeOfReservedPage_);
-
-  // create value
-  ResPageVal val = {inPageDigest, page};
-
-  // add to the pages map
-  pages[key] = val;
 }
 
 bool InMemoryDataStore::getResPage(uint32_t inPageId,
