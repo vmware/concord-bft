@@ -257,10 +257,6 @@ class PreProcessor {
   void finalizePreProcessing(NodeIdType clientId, uint16_t reqOffsetInBatch, const std::string &batchCid);
   void cancelPreProcessing(NodeIdType clientId, const std::string &batchCid, uint16_t reqOffsetInBatch);
   void setPreprocessingRightNow(uint16_t clientId, uint16_t reqOffsetInBatch, bool set);
-  PreProcessingResult handlePreProcessedReqByPrimaryAndGetConsensusResult(uint16_t clientId,
-                                                                          uint16_t reqOffsetInBatch,
-                                                                          uint32_t resultBufLen,
-                                                                          bftEngine::OperationResult preProcessResult);
   void holdCompleteOrCancelRequest(const std::string &reqCid,
                                    PreProcessingResult result,
                                    NodeIdType clientId,
