@@ -138,7 +138,8 @@ target_link_libraries(multiIO_test PUBLIC
 )
 
 add_executable(kv_blockchain_db_editor_test sparse_merkle_storage/kv_blockchain_db_editor_test.cpp )
-add_test(kv_blockchain_db_editor_test kv_blockchain_db_editor_test)
+add_test(kv_blockchain_db_editor_test_v4 kv_blockchain_db_editor_test v4)
+add_test(kv_blockchain_db_editor_test_categorized kv_blockchain_db_editor_test categorized)
 
 target_include_directories(kv_blockchain_db_editor_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include/kvbc_app_filter/ 
 																${CMAKE_CURRENT_SOURCE_DIR}/../../bftengine/src)
@@ -220,6 +221,105 @@ if (BUILD_ROCKSDB_STORAGE)
         kvbc
         stdc++fs
     )
+
+    add_executable(v4_blockchain_handler_unit_test
+        v4blockchain/v4_blockchain_test.cpp )
+    add_test(v4_blockchain_handler_unit_test v4_blockchain_handler_unit_test)
+    target_link_libraries(v4_blockchain_handler_unit_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
+
+    add_executable(v4_blocks_unit_test
+        v4blockchain/blocks_test.cpp )
+    add_test(v4_blocks_unit_test v4_blocks_unit_test)
+    target_link_libraries(v4_blocks_unit_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
+
+    add_executable(v4_st_chain_unit_test
+        v4blockchain/st_chain_test.cpp )
+    add_test(v4_st_chain_unit_test v4_st_chain_unit_test)
+    target_link_libraries(v4_st_chain_unit_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
+
+    add_executable(v4_categories_unit_test
+        v4blockchain/categories_test.cpp )
+    add_test(v4_categories_unit_test v4_categories_unit_test)
+    target_link_libraries(v4_categories_unit_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
+
+    add_executable(v4_latest_keys_unit_test
+        v4blockchain/v4_latest_keys_test.cpp )
+    file(COPY v4blockchain/rocksdb_config_test.ini DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+    add_test(v4_latest_keys_unit_test v4_latest_keys_unit_test)
+    target_link_libraries(v4_latest_keys_unit_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
+
+    add_executable(v4_blockchain_unit_test
+        v4blockchain/blockchain_test.cpp )
+    add_test(v4_blockchain_unit_test v4_blockchain_unit_test)
+    target_link_libraries(v4_blockchain_unit_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
+
+    add_executable(app_state_adapter_test
+    kvbc_adapter/v4blockchain/app_state_adapter_test.cpp )
+    add_test(app_state_adapter_test app_state_adapter_test)
+    target_link_libraries(app_state_adapter_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
+
+    add_executable(common_state_snapshot_adapter_test
+            kvbc_adapter/common/state_snapshot_adapter_test.cpp )
+    add_test(common_state_snapshot_adapter_test common_state_snapshot_adapter_test)
+    target_link_libraries(common_state_snapshot_adapter_test PUBLIC
+            GTest::Main
+            GTest::GTest
+            util
+            corebft
+            kvbc
+            stdc++fs
+    )
+
+    
     add_executable(pruning_test pruning_test.cpp)
     add_test(pruning_test pruning_test)
     target_link_libraries(pruning_test
@@ -239,7 +339,8 @@ if (BUILD_ROCKSDB_STORAGE)
     )
 
     add_executable(replica_state_sync_test replica_state_sync_test.cpp)
-    add_test(replica_state_sync_test replica_state_sync_test)
+    add_test(replica_state_sync_test_v4 replica_state_sync_test v4)
+    add_test(replica_state_sync_test_categorized replica_state_sync_test categorized)
     target_link_libraries(replica_state_sync_test PUBLIC
             GTest::Main
             GTest::GTest

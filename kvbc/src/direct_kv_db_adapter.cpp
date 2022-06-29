@@ -24,6 +24,7 @@
 #include "string.hpp"
 #include "assertUtils.hpp"
 #include "categorization/kv_blockchain.h"
+#include "v4blockchain/v4_blockchain.h"
 
 #include <string.h>
 
@@ -408,22 +409,30 @@ BlockId DBAdapter::addBlock(const SetOfKeyValuePairs &kv) {
 void DBAdapter::addRawBlock(const RawBlock &block, const BlockId &blockId, bool lastBlock) {
   SetOfKeyValuePairs keys;
   if (saveKvPairsSeparately_ && block.length() > 0) {
-    concord::kvbc::categorization::RawBlock parsedBlock;
+    std::optional<concord::kvbc::categorization::CategoryInput> categoryInput;
     std::string strBlockId = std::to_string(blockId);
     concordUtils::Sliver slivBlockId = concordUtils::Sliver::copy(strBlockId.data(), strBlockId.length());
-    parsedBlock = concord::kvbc::categorization::RawBlock::deserialize(block);
-    for (auto &[key, value] : parsedBlock.data.updates.kv) {
-      LOG_DEBUG(logger_, KVLOG(key, blockId));
-      std::visit(
-          [this, &keys, slivBlockId](auto &&arg) {
-            for (auto &[k, v] : arg.kv) {
-              LOG_DEBUG(logger_, KVLOG(k));
-              concordUtils::Sliver sKey = Sliver::copy(k.data(), k.length());
-              keys[sKey] = slivBlockId;
-              (void)v;
-            }
-          },
-          value);
+    if (concord::kvbc::BlockVersion::getBlockVersion(block) == concord::kvbc::block_version::V1) {
+      auto parsedBlock = concord::kvbc::v4blockchain::detail::Block(block.string_view());
+      categoryInput.emplace(parsedBlock.getUpdates().categoryUpdates());
+    } else {
+      auto parsedBlock = concord::kvbc::categorization::RawBlock::deserialize(block);
+      categoryInput.emplace(parsedBlock.data.updates);
+    }
+    if (categoryInput.has_value()) {
+      for (auto &[key, value] : categoryInput->kv) {
+        LOG_DEBUG(logger_, KVLOG(key, blockId));
+        std::visit(
+            [this, &keys, slivBlockId](auto &&arg) {
+              for (auto &[k, v] : arg.kv) {
+                LOG_DEBUG(logger_, KVLOG(k));
+                concordUtils::Sliver sKey = Sliver::copy(k.data(), k.length());
+                keys[sKey] = slivBlockId;
+                (void)v;
+              }
+            },
+            value);
+      }
     }
   }
 

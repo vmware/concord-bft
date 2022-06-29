@@ -29,7 +29,8 @@ class NativeClient;
 class NativeWriteBatch {
  public:
   NativeWriteBatch(const std::shared_ptr<const NativeClient> &) noexcept;
-
+  NativeWriteBatch(const std::shared_ptr<const NativeClient> &, size_t reserved_bytes) noexcept;
+  NativeWriteBatch(const std::shared_ptr<const NativeClient> &, std::string &&data) noexcept;
   template <typename KeySpan, typename ValueSpan>
   void put(const std::string &cFamily, const KeySpan &key, const ValueSpan &value);
   template <typename KeySpan, typename ValueSpan>
@@ -38,6 +39,11 @@ class NativeWriteBatch {
   // Multi-value put used to eliminate excess copying.
   template <typename KeySpan, size_t N>
   void put(const std::string &cFamily, const KeySpan &key, const std::array<::rocksdb::Slice, N> &value);
+  template <size_t K, size_t N>
+  void put(const std::string &cFamily,
+           const std::array<::rocksdb::Slice, K> &key,
+           const std::array<::rocksdb::Slice, N> &value);
+
   template <typename KeySpan, size_t N>
   void put(const KeySpan &key, const std::array<::rocksdb::Slice, N> &value);
 
@@ -47,6 +53,10 @@ class NativeWriteBatch {
   template <typename KeySpan>
   void del(const KeySpan &key);
 
+  // Multi key used to eliminate excess copying.
+  template <size_t K>
+  void del(const std::string &cFamily, const std::array<::rocksdb::Slice, K> &key);
+
   // Remove the DB entries in the range [beginKey, endKey).
   template <typename BeginSpan, typename EndSpan>
   void delRange(const std::string &cFamily, const BeginSpan &beginKey, const EndSpan &endKey);
@@ -55,6 +65,7 @@ class NativeWriteBatch {
 
   std::size_t size() const;
   std::uint32_t count() const;
+  std::string data() const { return batch_.Data(); }
 
  private:
   std::shared_ptr<const NativeClient> client_;

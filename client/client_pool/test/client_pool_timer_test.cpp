@@ -25,7 +25,7 @@ using TestClient = std::shared_ptr<void>;
 
 TEST(client_pool_timer, work_items) {
   uint16_t num_times_called = 0;
-  std::chrono::milliseconds timeout = 1ms;
+  std::chrono::milliseconds timeout = 10ms;
   auto timer = Timer<TestClient>(timeout, [&num_times_called](TestClient&& c) -> void { num_times_called++; });
 
   // Wait for timeout
