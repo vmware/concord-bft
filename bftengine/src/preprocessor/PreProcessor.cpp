@@ -1025,7 +1025,7 @@ bool PreProcessor::handleSinglePreProcessRequestMsg(PreProcessRequestMsgSharedPt
     preProcessorMetrics_.preProcInFlyRequestsNum++;  // Increase the metric on non-primary replica
     auto totalPreExecDurationRecorder = TimeRecorder(*totalPreExecDurationRecorder_.get());
     // Pre-process the request, calculate a hash of the result and send a reply message back
-    launchAsyncReqPreProcessingJob(preProcessReqMsg, batchCid, false, false, std::move(totalPreExecDurationRecorder));
+    launchAsyncReqPreProcessingJob(preProcessReqMsg, batchCid, false, std::move(totalPreExecDurationRecorder));
     return true;
   }
   return false;
@@ -1626,7 +1626,7 @@ void PreProcessor::handleClientPreProcessRequestByPrimary(PreProcessRequestMsgSh
   // For requests arrived in a batch PreProcessBatchRequestMsg will be sent to non-primaries
   if (!arrivedInBatch || !batchedPreProcessEnabled_) sendPreProcessRequestToAllReplicas(preProcessRequestMsg);
   // Pre-process the request and calculate a hash of the result
-  launchAsyncReqPreProcessingJob(preProcessRequestMsg, batchCid, true, false, std::move(time_recorder));
+  launchAsyncReqPreProcessingJob(preProcessRequestMsg, batchCid, true, std::move(time_recorder));
 }
 
 // Non-primary replica: start client request handling
@@ -1725,7 +1725,6 @@ void PreProcessor::setPreprocessingRightNow(uint16_t clientId, uint16_t reqOffse
 void PreProcessor::launchAsyncReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                                   const string &batchCid,
                                                   bool isPrimary,
-                                                  bool isRetry,
                                                   TimeRecorder &&totalPreExecDurationRecorder) {
   auto launchAsyncPreProcessJobRecorder = TimeRecorder(*launchAsyncPreProcessJobRecorder_.get());
   setPreprocessingRightNow(preProcessReqMsg->clientId(), preProcessReqMsg->reqOffsetInBatch(), true);
@@ -1733,7 +1732,6 @@ void PreProcessor::launchAsyncReqPreProcessingJob(const PreProcessRequestMsgShar
                                                preProcessReqMsg,
                                                batchCid,
                                                isPrimary,
-                                               isRetry,
                                                std::move(totalPreExecDurationRecorder),
                                                std::move(launchAsyncPreProcessJobRecorder));
   threadPool_.add(preProcessJob);
@@ -1822,19 +1820,6 @@ PreProcessingResult PreProcessor::handlePreProcessedReqByPrimaryAndGetConsensusR
   return NONE;
 }
 
-void PreProcessor::handlePreProcessedReqPrimaryRetry(NodeIdType clientId,
-                                                     uint16_t reqOffsetInBatch,
-                                                     uint32_t resultBufLen,
-                                                     const string &batchCid,
-                                                     OperationResult preProcessResult) {
-  concord::diagnostics::TimeRecorder scoped_timer(*histograms_.handlePreProcessedReqPrimaryRetry);
-  if (handlePreProcessedReqByPrimaryAndGetConsensusResult(clientId, reqOffsetInBatch, resultBufLen, preProcessResult) ==
-      COMPLETE)
-    finalizePreProcessing(clientId, reqOffsetInBatch, batchCid);
-  else
-    cancelPreProcessing(clientId, batchCid, reqOffsetInBatch);
-}
-
 void PreProcessor::handleReqPreProcessedByPrimary(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                                   const string &batchCid,
                                                   uint16_t clientId,
@@ -1896,18 +1881,13 @@ void PreProcessor::handleReqPreProcessedByNonPrimary(uint16_t clientId,
 
 void PreProcessor::handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                              const string &batchCid,
-                                             bool isPrimary,
-                                             bool isRetry) {
+                                             bool isPrimary) {
   const string &reqCid = preProcessReqMsg->getCid();
   const uint16_t &clientId = preProcessReqMsg->clientId();
   const uint16_t &reqOffsetInBatch = preProcessReqMsg->reqOffsetInBatch();
   const SeqNum &reqSeqNum = preProcessReqMsg->reqSeqNum();
   uint32_t actualResultBufLen = 0;
   const auto preProcessResult = launchReqPreProcessing(batchCid, preProcessReqMsg, actualResultBufLen);
-  if (isPrimary && isRetry) {
-    handlePreProcessedReqPrimaryRetry(clientId, reqOffsetInBatch, actualResultBufLen, batchCid, preProcessResult);
-    return;
-  }
   SCOPED_MDC_CID(reqCid);
   if (isPrimary) {
     pm_->Delay<concord::performance::SlowdownPhase::PreProcessorAfterPreexecPrimary>();
@@ -1930,14 +1910,12 @@ AsyncPreProcessJob::AsyncPreProcessJob(PreProcessor &preProcessor,
                                        const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                        const string &batchCid,
                                        bool isPrimary,
-                                       bool isRetry,
                                        TimeRecorder &&totalPreExecDurationRecorder,
                                        TimeRecorder &&launchAsyncPreProcessJobRecorder)
     : preProcessor_(preProcessor),
       preProcessReqMsg_(preProcessReqMsg),
       batchCid_(batchCid),
       isPrimary_(isPrimary),
-      isRetry_(isRetry),
       totalJobDurationRecorder_(std::move(totalPreExecDurationRecorder)),
       launchAsyncPreProcessJobRecorder_(std::move(launchAsyncPreProcessJobRecorder)) {}
 
@@ -1953,7 +1931,7 @@ void AsyncPreProcessJob::execute() {
   }
   MDC_PUT(MDC_REPLICA_ID_KEY, std::to_string(preProcessor_.myReplicaId_));
   MDC_PUT(MDC_THREAD_KEY, "async-preprocess");
-  preProcessor_.handleReqPreProcessingJob(preProcessReqMsg_, batchCid_, isPrimary_, isRetry_);
+  preProcessor_.handleReqPreProcessingJob(preProcessReqMsg_, batchCid_, isPrimary_);
 }
 
 void AsyncPreProcessJob::release() {
