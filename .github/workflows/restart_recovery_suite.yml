@@ -65,7 +65,7 @@ jobs:
                               -DBUILD_COMM_TCP_PLAIN=FALSE \
                               -DCMAKE_CXX_FLAGS_RELEASE='-O3 -g' \
                               -DUSE_LOG4CPP=TRUE \
-                              -CONCORD_BFT_CTEST_TIMEOUT=18000 \
+                              -DCONCORD_BFT_CTEST_TIMEOUT=18000 \
                               -DBUILD_ROCKSDB_STORAGE=TRUE \
                               ${{ matrix.use_s3_obj_store }} \
                               -DUSE_OPENTRACING=ON \
