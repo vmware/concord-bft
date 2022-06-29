@@ -261,12 +261,12 @@ class PreProcessor {
                                                                           uint16_t reqOffsetInBatch,
                                                                           uint32_t resultBufLen,
                                                                           bftEngine::OperationResult preProcessResult);
-  void handlePreProcessReplyMsg(const std::string &reqCid,
-                                PreProcessingResult result,
-                                NodeIdType clientId,
-                                uint16_t reqOffsetInBatch,
-                                SeqNum reqSeqNum,
-                                const std::string &batchCid);
+  void holdCompleteOrCancelRequest(const std::string &reqCid,
+                                   PreProcessingResult result,
+                                   NodeIdType clientId,
+                                   uint16_t reqOffsetInBatch,
+                                   SeqNum reqSeqNum,
+                                   const std::string &batchCid);
   void updateAggregatorAndDumpMetrics();
   void addTimers();
   void cancelTimers();
