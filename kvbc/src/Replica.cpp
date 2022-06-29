@@ -810,7 +810,7 @@ bool Replica::getPrevDigestFromObjectStoreBlock(uint64_t blockId,
   static_assert(sizeof(StateTransferDigest) == DIGEST_SIZE);
   try {
     const auto rawBlockSer = m_bcDbAdapter->getRawBlock(blockId);
-    if (concord::kvbc::BlockVersion::getBlockVersion(rawBlockSer) == concord::kvbc::block_version::V1) {
+    if (concord::kvbc::BlockVersion::getBlockVersion(rawBlockSer) == concord::kvbc::block_version::V4) {
       const auto prev_digest = concord::kvbc::adapter::v4blockchain::utils::V4BlockUtils::getparentDigest(rawBlockSer);
       static_assert(prev_digest.size() == DIGEST_SIZE);
       memcpy(outPrevBlockDigest, prev_digest.data(), DIGEST_SIZE);
@@ -834,7 +834,7 @@ void Replica::getPrevDigestFromObjectStoreBlock(const char *blockData,
   ConcordAssertNE(outPrevBlockDigest, nullptr);
   static_assert(sizeof(StateTransferDigest) == DIGEST_SIZE);
   auto view = std::string_view{blockData, blockSize};
-  if (concord::kvbc::BlockVersion::getBlockVersion(view) == concord::kvbc::block_version::V1) {
+  if (concord::kvbc::BlockVersion::getBlockVersion(view) == concord::kvbc::block_version::V4) {
     const auto prev_digest = concord::kvbc::adapter::v4blockchain::utils::V4BlockUtils::getparentDigest(view);
     static_assert(prev_digest.size() == DIGEST_SIZE);
     memcpy(outPrevBlockDigest, prev_digest.data(), DIGEST_SIZE);

@@ -20,6 +20,8 @@
 #include "bftengine/CheckpointInfo.hpp"
 #include "bcstatetransfer/BCStateTran.hpp"
 #include "direct_kv_storage_factory.h"
+#include "v4blockchain/v4_blockchain.h"
+#include "kvbc_adapter/v4blockchain/blocks_utils.hpp"
 
 namespace concord::kvbc::tools {
 using namespace std::placeholders;
@@ -159,23 +161,6 @@ void IntegrityChecker::validateCheckpointDescriptor(const DescriptorOfLastStable
 }
 
 Digest IntegrityChecker::checkBlock(const BlockId& block_id, const Digest& expected_digest) const {
-  const auto rawBlock = getBlock(block_id, expected_digest);
-  Digest parentBlockDigest;
-  static_assert(rawBlock.data.parent_digest.size() == DIGEST_SIZE);
-  static_assert(sizeof(Digest) == DIGEST_SIZE);
-  memcpy(const_cast<char*>(parentBlockDigest.get()), rawBlock.data.parent_digest.data(), DIGEST_SIZE);
-  LOG_DEBUG(logger_, "parent block digest: " << parentBlockDigest.toString());
-  return parentBlockDigest;
-}
-std::pair<Digest, concord::kvbc::categorization::RawBlock> IntegrityChecker::getBlock(const BlockId& block_id) const {
-  // get and parse the block
-  auto rawBlockSer = s3_dbset_.dbAdapter->getRawBlock(block_id);
-  return std::make_pair(computeBlockDigest(block_id, rawBlockSer.string_view()),
-                        concord::kvbc::categorization::RawBlock::deserialize(rawBlockSer));
-}
-
-concord::kvbc::categorization::RawBlock IntegrityChecker::getBlock(const BlockId& block_id,
-                                                                   const Digest& expected_digest) const {
   // get and parse the block
   auto rawBlockSer = s3_dbset_.dbAdapter->getRawBlock(block_id);
   auto calcDigest = computeBlockDigest(block_id, rawBlockSer.string_view());
@@ -185,7 +170,32 @@ concord::kvbc::categorization::RawBlock IntegrityChecker::getBlock(const BlockId
     throw std::runtime_error("block:" + std::to_string(block_id) + std::string(" expected digest: ") +
                              expected_digest.toString() + std::string(" doesn't match calculated digest: ") +
                              calcDigest.toString());
-  return kvbc::categorization::RawBlock::deserialize(rawBlockSer);
+
+  if (concord::kvbc::BlockVersion::getBlockVersion(rawBlockSer) == concord::kvbc::block_version::V4) {
+    const auto parentBlockDigest =
+        concord::kvbc::adapter::v4blockchain::utils::V4BlockUtils::getparentDigest(rawBlockSer);
+    static_assert(parentBlockDigest.size() == DIGEST_SIZE);
+    return Digest(parentBlockDigest);
+  } else {
+    const auto rawBlock = concord::kvbc::categorization::RawBlock::deserialize(rawBlockSer);
+    Digest parentBlockDigest;
+    static_assert(rawBlock.data.parent_digest.size() == DIGEST_SIZE);
+    static_assert(sizeof(Digest) == DIGEST_SIZE);
+    memcpy(const_cast<char*>(parentBlockDigest.get()), rawBlock.data.parent_digest.data(), DIGEST_SIZE);
+    LOG_DEBUG(logger_, "parent block digest: " << parentBlockDigest.toString());
+    return parentBlockDigest;
+  }
+}
+std::pair<Digest, std::variant<concord::kvbc::categorization::RawBlock, concord::kvbc::RawBlock>>
+IntegrityChecker::getBlock(const BlockId& block_id) const {
+  // get and parse the block
+  auto rawBlockSer = s3_dbset_.dbAdapter->getRawBlock(block_id);
+  if (concord::kvbc::BlockVersion::getBlockVersion(rawBlockSer) == concord::kvbc::block_version::V4) {
+    return std::make_pair(computeBlockDigest(block_id, rawBlockSer.string_view()), rawBlockSer);
+  } else {
+    return std::make_pair(computeBlockDigest(block_id, rawBlockSer.string_view()),
+                          concord::kvbc::categorization::RawBlock::deserialize(rawBlockSer));
+  }
 }
 
 Digest IntegrityChecker::computeBlockDigest(const BlockId& block_id, const std::string_view block) const {
@@ -216,32 +226,49 @@ void IntegrityChecker::validateKey(const std::string& key) const {
   // retrieve block and get value
   auto [block_digest, raw_block] = getBlock(containing_block_id);
   (void)block_digest;
-  for (auto& [category, value] : raw_block.data.updates.kv) {
-    auto cat = category;
-    std::visit(
-        [cat, key, this](auto&& arg) {
-          using T = std::decay_t<decltype(arg)>;
-          if constexpr (std::is_same_v<T, kvbc::categorization::BlockMerkleInput>) {
-            auto search = arg.kv.find(key);
-            if (search == arg.kv.end())
-              LOG_DEBUG(logger_, "key [" << key << "] not found in category: " << cat);
-            else
-              LOG_INFO(logger_, "found key [ " << key << "] value [" << search->second << "] in category " << cat);
-          } else if constexpr (std::is_same_v<T, kvbc::categorization::VersionedInput>) {
-            auto search = arg.kv.find(key);
-            if (search == arg.kv.end())
-              LOG_DEBUG(logger_, "key [" << key << "] not found in category: " << cat);
-            else
-              LOG_INFO(logger_, "found key [ " << key << "] value [" << search->second.data << "] in category " << cat);
-          } else if constexpr (std::is_same_v<T, kvbc::categorization::ImmutableInput>) {
-            auto search = arg.kv.find(key);
-            if (search == arg.kv.end())
-              LOG_DEBUG(logger_, "key [" << key << "] not found in category: " << cat);
-            else
-              LOG_INFO(logger_, "found key [ " << key << "] value [" << search->second.data << "] in category " << cat);
-          }
-        },
-        value);
+  std::optional<concord::kvbc::categorization::CategoryInput> category_input;
+  std::visit(
+      [&category_input](auto&& l_raw_block) {
+        using T = std::decay_t<decltype(l_raw_block)>;
+        if constexpr (std::is_same_v<T, concord::kvbc::RawBlock>) {
+          auto parsedBlock = concord::kvbc::v4blockchain::detail::Block(l_raw_block.string_view());
+          category_input.emplace(parsedBlock.getUpdates().categoryUpdates());
+        } else if constexpr (std::is_same_v<T, concord::kvbc::categorization::RawBlock>) {
+          category_input.emplace(l_raw_block.data.updates);
+        }
+      },
+      std::move(raw_block));
+
+  if (category_input) {
+    for (auto& [category, value] : category_input->kv) {
+      auto cat = category;
+      std::visit(
+          [cat, key, this](auto&& arg) {
+            using T = std::decay_t<decltype(arg)>;
+            if constexpr (std::is_same_v<T, kvbc::categorization::BlockMerkleInput>) {
+              auto search = arg.kv.find(key);
+              if (search == arg.kv.end())
+                LOG_DEBUG(logger_, "key [" << key << "] not found in category: " << cat);
+              else
+                LOG_INFO(logger_, "found key [ " << key << "] value [" << search->second << "] in category " << cat);
+            } else if constexpr (std::is_same_v<T, kvbc::categorization::VersionedInput>) {
+              auto search = arg.kv.find(key);
+              if (search == arg.kv.end())
+                LOG_DEBUG(logger_, "key [" << key << "] not found in category: " << cat);
+              else
+                LOG_INFO(logger_,
+                         "found key [ " << key << "] value [" << search->second.data << "] in category " << cat);
+            } else if constexpr (std::is_same_v<T, kvbc::categorization::ImmutableInput>) {
+              auto search = arg.kv.find(key);
+              if (search == arg.kv.end())
+                LOG_DEBUG(logger_, "key [" << key << "] not found in category: " << cat);
+              else
+                LOG_INFO(logger_,
+                         "found key [ " << key << "] value [" << search->second.data << "] in category " << cat);
+            }
+          },
+          value);
+    }
   }
 }
 

@@ -25,7 +25,7 @@ enum BLOCKCHAIN_VERSION { CATEGORIZED_BLOCKCHAIN = 1, V4_BLOCKCHAIN = 4, INVALID
 inline std::string V4Version() { return "V4_BLOCKCHAIN"; }
 
 using version_type = uint16_t;
-enum class block_version : version_type { V1 = 0x1 };
+enum class block_version : version_type { V1 = 0x0, V4 = 0x1 };
 const size_t BLOCK_VERSION_SIZE = sizeof(version_type);
 
 class BlockVersion {

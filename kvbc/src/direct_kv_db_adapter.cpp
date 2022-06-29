@@ -412,7 +412,7 @@ void DBAdapter::addRawBlock(const RawBlock &block, const BlockId &blockId, bool 
     std::optional<concord::kvbc::categorization::CategoryInput> categoryInput;
     std::string strBlockId = std::to_string(blockId);
     concordUtils::Sliver slivBlockId = concordUtils::Sliver::copy(strBlockId.data(), strBlockId.length());
-    if (concord::kvbc::BlockVersion::getBlockVersion(block) == concord::kvbc::block_version::V1) {
+    if (concord::kvbc::BlockVersion::getBlockVersion(block) == concord::kvbc::block_version::V4) {
       auto parsedBlock = concord::kvbc::v4blockchain::detail::Block(block.string_view());
       categoryInput.emplace(parsedBlock.getUpdates().categoryUpdates());
     } else {

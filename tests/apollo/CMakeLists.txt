@@ -76,14 +76,20 @@ if (BUILD_ROCKSDB_STORAGE)
     set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} BLOCKCHAIN_VERSION=1")
 
     if (USE_S3_OBJECT_STORE)
-        add_test(NAME skvbc_ro_replica_tests COMMAND sh -c
+        add_test(NAME skvbc_ro_replica_tests_1 COMMAND sh -c
                 "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_ro_replica_tests python3 -m unittest test_skvbc_ro_replica ${TEST_OUTPUT}"
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-
-        add_test(NAME skvbc_s3_integrity_check_tests COMMAND sh -c
+        add_test(NAME skvbc_s3_integrity_check_tests_1 COMMAND sh -c
                 "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_s3_integrity_check_tests python3 -m unittest test_skvbc_s3_integrity_check ${TEST_OUTPUT}"
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-
+        set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} BLOCKCHAIN_VERSION=4")
+        add_test(NAME skvbc_ro_replica_tests_4 COMMAND sh -c
+                "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_ro_replica_tests python3 -m unittest test_skvbc_ro_replica ${TEST_OUTPUT}"
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+        add_test(NAME skvbc_s3_integrity_check_tests_4 COMMAND sh -c
+                "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_s3_integrity_check_tests python3 -m unittest test_skvbc_s3_integrity_check ${TEST_OUTPUT}"
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+        set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} BLOCKCHAIN_VERSION=1")
     endif()
 endif()
 

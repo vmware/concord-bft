@@ -38,7 +38,7 @@ It is stored as is in DB and is a passable unit for the use of state-transfer.
 */
 class Block {
  public:
-  static constexpr block_version BLOCK_VERSION = block_version::V1;
+  static constexpr block_version BLOCK_VERSION = block_version::V4;
   static constexpr uint64_t HEADER_SIZE = BLOCK_VERSION_SIZE + sizeof(concord::util::digest::BlockDigest);
   // Pre-reserve buffer size
   Block(uint64_t reserve_size) : buffer_(HEADER_SIZE, 0) {
