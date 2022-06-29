@@ -65,14 +65,13 @@ jobs:
                               -DBUILD_COMM_TCP_PLAIN=FALSE \
                               -DCMAKE_CXX_FLAGS_RELEASE='-O3 -g' \
                               -DUSE_LOG4CPP=TRUE \
-                              -DCONCORD_BFT_CTEST_TIMEOUT=18000 \
                               -DBUILD_ROCKSDB_STORAGE=TRUE \
                               ${{ matrix.use_s3_obj_store }} \
                               -DUSE_OPENTRACING=ON \
                               -DOMIT_TEST_OUTPUT=OFF\
                               -DKEEP_APOLLO_LOGS=TRUE\
                               -DUSE_FAKE_CLOCK_IN_TIME_SERVICE=TRUE\" "\
-              && script -q -e -c "make test-single-suite TEST_NAME=skvbc_restart_recovery_tests"
+              && script -q -e -c "make -DCONCORD_BFT_CTEST_TIMEOUT=18000 test-single-suite TEST_NAME=skvbc_restart_recovery_tests"
         - name: Prepare artifacts
           if: failure()
           run: |
