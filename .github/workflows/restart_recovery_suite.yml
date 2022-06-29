@@ -10,6 +10,7 @@ concurrency:
 jobs:
   build:
     name: Build
+    timeout-minutes: 600
     runs-on: ubuntu-18.04
     outputs:
       err_output: ${{ steps.prepare_err_artifacts.outputs.test}}
@@ -58,6 +59,7 @@ jobs:
                               -DBUILD_COMM_TCP_PLAIN=FALSE \
                               -DCMAKE_CXX_FLAGS_RELEASE='-O3 -g' \
                               -DUSE_LOG4CPP=TRUE \
+                              -CONCORD_BFT_CTEST_TIMEOUT=18000 \
                               -DBUILD_ROCKSDB_STORAGE=TRUE \
                               ${{ matrix.use_s3_obj_store }} \
                               -DUSE_OPENTRACING=ON \
