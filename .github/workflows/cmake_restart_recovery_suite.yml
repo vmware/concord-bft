@@ -1,4 +1,4 @@
-name: Release build (clang)
+name: Restart recovery suite
 on:
   schedule:
     - cron: '0 5 * * *'
@@ -109,4 +109,3 @@ jobs:
           run: |
             echo "Errors exist in replica logs. Please check Artifacts"
             exit 1
-     
