@@ -239,6 +239,25 @@ class SkvbcStateTransferTest(ApolloTest):
         await bft_network.wait_for_state_transfer_to_stop(0, stale_node)
         await bft_network.wait_for_replicas_rvt_root_values_to_be_in_sync(bft_network.all_replicas())
 
+
+    async def wait_for_pruning_to_complete(self, client, op, bft_network):
+        with log.start_action(action_type="wait for pruning to finish") as action:
+            with trio.fail_after(seconds=30):
+                while True:
+                    num_replies = 0
+                    await op.prune_status()
+                    rsi_rep = client.get_rsi_replies()
+                    for r in rsi_rep.values():
+                        status = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
+                        last_prune_blockid = status.response.last_pruned_block
+                        action.log(message_type=f"last_prune_blockid {last_prune_blockid}, status.response.sender {status.response.sender}")
+
+                        if status.response.in_progress is False and last_prune_blockid > 0:
+                            num_replies += 1
+                    if num_replies == bft_network.config.n:
+                        break
+
+
     @with_trio
     @with_bft_network(start_replica_cmd)
     async def test_state_transfer_rvt_validity_after_pruning(self, bft_network):
@@ -264,7 +283,7 @@ class SkvbcStateTransferTest(ApolloTest):
 
         await skvbc.prime_for_state_transfer(
             stale_nodes={stale_node},
-            checkpoints_num=10, # key-exchange changes the last executed seqnum
+            checkpoints_num=5, # key-exchange changes the last executed seqnum
             persistency_enabled=False
         )
 
@@ -287,16 +306,18 @@ class SkvbcStateTransferTest(ApolloTest):
             latest_pruneable_blocks += [lpab.response]
 
         await op.prune(latest_pruneable_blocks)
+        await self.wait_for_pruning_to_complete(client, op, bft_network)
 
         # Wait for two checkpoints so that the RVT is updated to reflect the changes after the pruning
         await skvbc.fill_and_wait_for_checkpoint(
             bft_network.all_replicas(),
-            num_of_checkpoints_to_add=2,
+            num_of_checkpoints_to_add=3,
             verify_checkpoint_persistency=False,
             assert_state_transfer_not_started=False)
 
         # Validate that the RVT root values are in sync after the pruning has finished
         await bft_network.wait_for_replicas_rvt_root_values_to_be_in_sync(bft_network.all_replicas())
+
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -340,21 +361,7 @@ class SkvbcStateTransferTest(ApolloTest):
                 print('Pruning...')
                 await op.prune(latest_pruneable_blocks)
 
-                with trio.fail_after(seconds=30):
-                    while True:
-                        num_replies = 0
-                        await op.prune_status()
-                        rsi_rep = client.get_rsi_replies()
-                        for r in rsi_rep.values():
-                            status = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
-                            last_prune_blockid = status.response.last_pruned_block
-                            log.log_message(message_type=f"last_prune_blockid {last_prune_blockid}, status.response.sender {status.response.sender}")
-                            
-                            if status.response.in_progress is False and last_prune_blockid > 0:
-                                num_replies += 1
-                        if num_replies == bft_network.config.n:
-                            break
-                print('Done pruning.')
+                await self.wait_for_pruning_to_complete(client, op, bft_network)
         
             restart = random.choice([0, 1])
             if restart == 1:
