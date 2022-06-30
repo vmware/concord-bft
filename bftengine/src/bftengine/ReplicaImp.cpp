@@ -3548,6 +3548,11 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
     tryToSendPrePrepareMsg(false);
   }
 
+  if (!currentViewIsActive()) {
+    LOG_INFO(GL, "tryToEnterView after Stable Sequence Number is Received ...");
+    tryToEnterView();
+  }
+
   auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
 
   // Once a replica is has got the the wedge point, it mark itself as wedged. Then, once it restarts, it cleans
