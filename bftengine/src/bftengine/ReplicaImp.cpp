@@ -719,10 +719,14 @@ ClientRequestMsg *ReplicaImp::addRequestToPrePrepareMessage(ClientRequestMsg *&n
           nextRequest->clientProxyId(), nextRequest->requestSeqNum(), nextRequest->getCid());
       metric_primary_batching_duration_.finishMeasurement(nextRequest->getCid());
     }
-  } else if (nextRequest->size() > maxStorageForRequests) {  // The message is too big
+  } else {  // The message is too big
     LOG_WARN(GL,
-             "Request was dropped because it exceeds maximum allowed size" << KVLOG(
-                 prePrepareMsg.seqNumber(), nextRequest->senderId(), nextRequest->size(), maxStorageForRequests));
+             "Request was dropped because it exceeds maximum allowed size"
+                 << KVLOG(prePrepareMsg.seqNumber(),
+                          nextRequest->senderId(),
+                          nextRequest->size(),
+                          prePrepareMsg.remainingSizeForRequests()));
+    return nullptr;  // To break the outside loop that
   }
   primaryCombinedReqSize -= nextRequest->size();
   requestsQueueOfPrimary.pop();
