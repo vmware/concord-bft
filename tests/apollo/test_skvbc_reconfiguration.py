@@ -1342,7 +1342,6 @@ class SkvbcReconfigurationTest(ApolloTest):
 
         await self.send_restart_with_params(bft_network, bft=bft, restart=False, post_restart=post_restart)
 
-    @unittest.skip("Unstable test - BC-19216")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_restart_no_bft_with_restart_flag(self, bft_network):
@@ -1358,7 +1357,6 @@ class SkvbcReconfigurationTest(ApolloTest):
         crashed_replicas = set(range(replica_count - 2, replica_count))
         await self.send_restart_with_params(bft_network, bft=True, restart=True, faulty_replica_ids=crashed_replicas)
 
-    @unittest.skip("Unstable test")
     @with_trio
     @with_bft_network(start_replica_cmd_with_key_exchange, selected_configs=lambda n, f, c: n == 7, rotate_keys=True, publish_master_keys=True)
     async def test_remove_nodes(self, bft_network):
@@ -1680,7 +1678,6 @@ class SkvbcReconfigurationTest(ApolloTest):
             assert status.response.error_msg == 'key_not_found'
             assert status.success is False
 
-    @unittest.skip("Unstable test - BC-17828")
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd_with_object_store_and_ke, num_ro_replicas=1, rotate_keys=True,
                       selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
