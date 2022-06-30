@@ -96,13 +96,22 @@ module Replica {
     }
   }
 
+  datatype CheckpointMsgs = CheckpointMsgs(msgs:set<Network.Message<Message>>) {
+    predicate WF(c:Constants) {
+      && c.WF()
+      && (forall msg | msg in msgs :: && msg.payload.CheckpointMsg?
+                                      && c.clusterConfig.IsReplica(msg.sender))
+    }
+  }
+
   datatype Variables = Variables(
     view:ViewNum,
     workingWindow:WorkingWindow,
     viewChangeMsgsRecvd:ViewChangeMsgs,
     newViewMsgsRecvd:NewViewMsgs,
     countExecutedSeqIDs:SequenceID,
-    lastStableCheckpoint:SequenceID
+    lastStableCheckpoint:SequenceID,
+    checkpointMsgsRecvd:CheckpointMsgs
   ) {
     predicate WF(c:Constants)
     {
@@ -110,6 +119,7 @@ module Replica {
       && workingWindow.WF(c)
       && viewChangeMsgsRecvd.WF(c)
       && newViewMsgsRecvd.WF(c)
+      && checkpointMsgsRecvd.WF(c)
     }
   }
 
@@ -177,7 +187,6 @@ module Replica {
     // 3. From all the collected PreparedCertificates take the one with the highest View.
     // 4. If it is empty  we need to fill with NoOp.
     // 5. If it contains valid full quorum we take the Client Operation and insist it will be committed in the new View.
-    // var preparedCertificates := set cert | 
 
     var relevantPrepareCertificates := set viewChangeMsg, cert |
                                    && viewChangeMsg in newViewMsg.payload.vcMsgs.msgs
@@ -492,6 +501,39 @@ module Replica {
     && v' == v.(newViewMsgsRecvd := v.newViewMsgsRecvd.(msgs := v.newViewMsgsRecvd.msgs + {msg}))
   }
 
+  predicate SendCheckpoint(c:Constants, v:Variables, v':Variables, msgOps:Network.MessageOps<Message>, seqID:SequenceID) {
+    && v.WF(c)
+    && msgOps.IsSend()
+    && var msg := msgOps.send.value;
+    && msg.payload.CheckpointMsg?
+    && msg.payload.seqIDReached <= v.countExecutedSeqIDs
+    && v == v'
+  }
+
+  predicate RecvCheckpoint(c:Constants, v:Variables, v':Variables, msgOps:Network.MessageOps<Message>) {
+    && v.WF(c)
+    && msgOps.IsRecv()
+    && var msg := msgOps.recv.value;
+    && msg.payload.CheckpointMsg?
+    && v' == v.(checkpointMsgsRecvd := v.checkpointMsgsRecvd.(msgs := v.checkpointMsgsRecvd.msgs + {msg}))
+  }
+
+  predicate HasStableCheckpointForSeqID(c:Constants, v:Variables, seqID:SequenceID) {
+    && v.WF(c)
+    && var relevantCheckpointMsgs := set msg | && msg in v.checkpointMsgsRecvd.msgs 
+                                               && msg.payload.CheckpointMsg?
+                                               && msg.payload.seqIDReached == seqID;
+    && |relevantCheckpointMsgs| >= c.clusterConfig.AgreementQuorum()
+  }
+
+  predicate AdvanceWorkingWindow(c:Constants, v:Variables, v':Variables, msgOps:Network.MessageOps<Message>, seqID:SequenceID) {
+    && v.WF(c)
+    && msgOps.NoSendRecv()
+    && seqID > v.lastStableCheckpoint
+    && HasStableCheckpointForSeqID(c, v, seqID)
+    && v' == v.(lastStableCheckpoint := seqID)
+  }
+
   predicate Init(c:Constants, v:Variables) {
     && v.view == 0
     && (forall seqID | seqID in v.workingWindow.committedClientOperations
@@ -515,6 +557,9 @@ module Replica {
     | RecvCommitStep()
     | DoCommitStep(seqID:SequenceID)
     | ExecuteStep(seqID:SequenceID)
+    | SendCheckpointStep(seqID:SequenceID)
+    | RecvCheckpointStep()
+    | AdvanceWorkingWindowStep(seqID:SequenceID)
     //| SendReplyToClient(seqID:SequenceID)
     // TODO: uncomment those steps when we start working on the proof
     // | LeaveViewStep(newView:ViewNum)
@@ -534,6 +579,9 @@ module Replica {
        case RecvCommitStep() => RecvCommit(c, v, v', msgOps)
        case DoCommitStep(seqID) => DoCommit(c, v, v', msgOps, seqID)
        case ExecuteStep(seqID) => Execute(c, v, v', msgOps, seqID)
+       case SendCheckpointStep(seqID) => SendCheckpoint(c, v, v', msgOps, seqID)
+       case RecvCheckpointStep() => RecvCheckpoint(c, v, v', msgOps)
+       case AdvanceWorkingWindowStep(seqID) => AdvanceWorkingWindow(c, v, v', msgOps, seqID)
        // TODO: uncomment those steps when we start working on the proof
        // case LeaveViewStep(newView) => LeaveView(c, v, v', msgOps, newView)
        // case SendViewChangeMsgStep() => SendViewChangeMsg(c, v, v', msgOps)
