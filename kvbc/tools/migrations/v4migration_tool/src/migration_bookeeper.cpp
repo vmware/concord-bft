@@ -42,15 +42,17 @@ int BookKeeper::migrate(int argc, char* argv[]) {
 void BookKeeper::initialize_migration() {
   number_of_batches_allowed_in_cycle_ = config_["max-point-lookup-batches"].as<std::uint64_t>();
   const auto read_only = true;
+  const auto link_st_chain = true;
   const auto migrate_to_v4 = config_["migrate-to-v4"].as<bool>();
 
   auto rodb = NativeClient::newClient(
       config_["input-rocksdb-path"].as<std::string>(), read_only, NativeClient::DefaultOptions{});
   auto wodb = NativeClient::newClient(
       config_["output-rocksdb-path"].as<std::string>(), !read_only, NativeClient::DefaultOptions{});
-  v4_kvbc_ = std::make_shared<BlockchainAdapter<concord::kvbc::V4_BLOCKCHAIN>>(migrate_to_v4 ? wodb : rodb, false);
-  cat_kvbc_ =
-      std::make_shared<BlockchainAdapter<concord::kvbc::CATEGORIZED_BLOCKCHAIN>>(migrate_to_v4 ? rodb : wodb, false);
+  v4_kvbc_ = std::make_shared<BlockchainAdapter<concord::kvbc::V4_BLOCKCHAIN>>(
+      migrate_to_v4 ? wodb : rodb, migrate_to_v4 ? link_st_chain : !link_st_chain);
+  cat_kvbc_ = std::make_shared<BlockchainAdapter<concord::kvbc::CATEGORIZED_BLOCKCHAIN>>(
+      migrate_to_v4 ? rodb : wodb, migrate_to_v4 ? !link_st_chain : link_st_chain);
   single_batch_ = std::make_shared<decltype(single_batch_)::element_type>();
   storage_thread_ = std::make_unique<std::thread>([this, migrate_to_v4]() {
     if (migrate_to_v4) {
@@ -146,14 +148,14 @@ void BookKeeper::store_to(std::shared_ptr<concord::kvbc::adapter::ReplicaBlockch
     {
       std::unique_lock<std::mutex> lock(batch_mutex_);
       auto max_batch_id = max_read_batch_id_.load();
-      if ((max_batch_id != 0) && read_completed_.load() && (max_write_batch_id_.load() > max_batch_id)) {
+      if ((max_batch_id != 0) && read_completed_.load() && (max_write_batch_id_.load() >= max_batch_id)) {
         return;
       }
       wait_pred_result = batch_cond_var_.wait_for(
           lock, std::chrono::seconds(1), [this]() { return max_write_batch_id_.load() <= max_read_batch_id_.load(); });
 
       max_batch_id = max_read_batch_id_.load();
-      if ((max_batch_id != 0) && read_completed_.load() && (max_write_batch_id_.load() > max_batch_id)) {
+      if ((max_batch_id != 0) && read_completed_.load() && (max_write_batch_id_.load() >= max_batch_id)) {
         return;
       }
     }
