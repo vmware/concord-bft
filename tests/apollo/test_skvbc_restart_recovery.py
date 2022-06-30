@@ -26,6 +26,8 @@ from util import eliot_logging as log
 
 viewChangeTimeoutSec = 5
 
+loops = 40
+
 def start_replica_cmd(builddir, replica_id):
     """
     Return a command that starts an skvbc replica when passed to
@@ -84,7 +86,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         # uncomment for live tracking of log messages from the test
         # log = foo()
 
-        for v in range(300):
+        for v in range(loops):
             async with trio.open_nursery() as nursery:
                 # Start the sending of client operations in the background.
                 nursery.start_soon(skvbc.send_indefinite_ops)
@@ -120,7 +122,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         view = 0
 
         # Perform multiple view changes and restart 1 replica while the replicas are agreeing the new View
-        while view < 100:
+        while view < loops:
             # Pick one replica to restart while the others are agreeing the next View.
             # We want a replica other than the current primary, which will be restarted to trigger the view change
             # and we want also the restarted replica to be different from the next primary
@@ -240,7 +242,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         # log = foo()
 
         # Perform multiple view changes by restarting F replicas where the Primary is included
-        while view < 100:
+        while view < loops:
             # Pick F-1 replicas to be restarted excluding the next primary.
             # We will unconditionally insert the current primary in this
             # sequence to trigger the view change
@@ -332,7 +334,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         # log = foo()
 
         loop_count = 0
-        while (loop_count < 100):
+        while (loop_count < loops):
             loop_count = loop_count + 1
 
             view = await bft_network.get_current_view()
@@ -382,7 +384,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
 
         #log = foo()
         loop_counter = 0
-        while (loop_counter < 100):
+        while (loop_counter < loops):
             loop_counter = loop_counter + 1
 
             primary = await bft_network.get_current_primary()
@@ -426,7 +428,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         [bft_network.start_replica(i) for i in bft_network.all_replicas()]
 
         loop_counter = 0
-        while (loop_counter < 100):
+        while (loop_counter < loops):
             loop_counter = loop_counter + 1
             log.log_message(f"Loop run {loop_counter}")
             # loop start
@@ -497,7 +499,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         [bft_network.start_replica(i) for i in bft_network.all_replicas()]
 
         loop_counter = 0
-        while (loop_counter < 100):
+        while (loop_counter < loops):
             loop_counter = loop_counter + 1
             log.log_message(f"Loop run {loop_counter}")
             # loop start
@@ -575,7 +577,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
 
         skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
         loop_count = 0
-        while (loop_count < 100):
+        while (loop_count < loops):
             loop_count = loop_count + 1
 
             primary = await bft_network.get_current_primary()
@@ -625,7 +627,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
 
         loop_count_outer = 0
 
-        while (loop_count_outer < 20):
+        while (loop_count_outer < loops/5):
             loop_count_outer = loop_count_outer + 1
             loop_count = 0
             primary = 0
