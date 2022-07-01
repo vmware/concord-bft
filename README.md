@@ -187,7 +187,7 @@ Run the following from the top level concord-bft directory:
 
    ./build/tests/simpleTest/scripts/testReplicasAndClient.sh
 
-### Using simple test application via Python script
+#### Using simple test application via Python script
 
 You can use the simpleTest.py script to run various configurations via a simple
 command line interface.
@@ -196,16 +196,26 @@ Please find more information [here](./tests/simpleTest/README.md)
 ## Directory Structure
 
 
-- [bftengine](./bftengine): concord-bft codebase
-	- [include](./bftengine/include): external interfaces of concord-bft (to be used by client applications)
-	- [src](./bftengine/src): internal implementation of concord-bft
-    - [tests](./bftengine/tests): tests and usage examples
-- [threshsign](./threshsign): crypto library that supports digital threshold signatures
-	- [include](./threshsign/include): external interfaces of threshsign (to be used by client applications)
-	- [src](./threshsign/src): internal implementation of threshsign
-    - [tests](./threshsign/tests): tests and usage examples
-- [scripts](./scripts): build scripts
-- [tests](./tests): BFT engine system tests
+- [bftengine](./bftengine): Library containing State transfer, SBFT consensus, and Pre execution.
+- [ccron](./ccron): Distributed Job Scheduler. Find more information [here](./ccron/README.md)
+- [client](./client): Contains the implementation of BFT Client and Thin Replica Client.
+- [communication](./communication): Contains the abstractions which is used by all the Replicas to send and receive messages.
+- [diagnostics](./diagnostics): This library is used for building interactive diagnostics for applications built on top of concord-bft.
+- [docs](./docs): Contains documentation of design decisions for various components of concord. This is a place where we will opensource our design and provide tutorials to onboard new developers from the community.
+- [kvbc](./kvbc): This contains the code for Key-Value Blockchain (Merkle tree-based). Find more information [here](./docs/kvbc)
+- [logging](./logging): Log4cpp abstraction for concord open source.
+- [messages](./messages): Concord Message format library which does code generation for serialization and deserialization of messages. Find more information [here](./messages/README.md)
+- [performance](./performance): Components provided for making better performance measurements and bottleneck analysis.
+- [reconfiguration](./reconfiguration): This is the reconfiguration handler library. But major code of reconfiguration is in closed source.
+- [scripts](./scripts): Some miscellaneous scripts.
+- [secretsmanager](./secretsmanager): Abstraction for encryption and decryption.
+- [storage](./storage):  Library abstracting the storage layer. It provides functions to access RocksDB and MemoryDB.
+- [tests](./tests): Contains a Tester Replica, Test client, and Apollo Testing Framework.
+- [thin-replicap-server](./thin-replica-server): Implementation of Thin Replica Server.
+- [thirdparty](./thirdparty): Some third party cmake files for external dependencies.
+- [threshsign](./threshsign): crypto library that supports digital threshold signatures.
+- [tools](./tools): This is a tools folder for any tools that we create, like tools for generating all the keys required by the replicas in a Concord cluster.
+- [util](./util): This contains the utility libraries, like thread pools, metrics, asserting, crypto utilities, etc.
 
 ## Contributing
 
