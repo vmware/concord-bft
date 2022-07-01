@@ -26,7 +26,7 @@ from util import eliot_logging as log
 
 viewChangeTimeoutSec = 5
 
-loops = 16
+loops = 4
 timeouts = 60 # variable accustoms to VM speed
 
 def start_replica_cmd(builddir, replica_id):
@@ -86,7 +86,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
             bft_network.all_replicas(without={primary_replica}))
 
         # uncomment for live tracking of log messages from the test
-        log = foo()
+        # log = foo()
 
         for v in range(loops):
             async with trio.open_nursery() as nursery:
@@ -123,7 +123,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         next_primary = 1
         view = 0
 
-        log = foo()
+        # log = foo()
 
         # Perform multiple view changes and restart 1 replica while the replicas are agreeing the new View
         while view < loops:
@@ -243,7 +243,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         view = 0
 
         # uncomment for live tracking of log messages from the test
-        log = foo()
+        # log = foo()
 
         # Perform multiple view changes by restarting F replicas where the Primary is included
         while view < loops:
@@ -335,7 +335,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         # start replicas
         [bft_network.start_replica(i) for i in bft_network.all_replicas()]
 
-        # log = foo()
+        # # log = foo()
 
         loop_count = 0
         while (loop_count < loops):
@@ -386,7 +386,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         # start replicas
         [bft_network.start_replica(i) for i in bft_network.all_replicas()]
 
-        log = foo()
+        # log = foo()
         loop_counter = 0
         while (loop_counter < loops):
             loop_counter = loop_counter + 1
@@ -427,7 +427,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         7) Verify View Change was successful.
         8) Goto Step 2.
         """
-        log = foo()
+        # log = foo()
         # start replicas
         [bft_network.start_replica(i) for i in bft_network.all_replicas()]
 
@@ -443,6 +443,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
             # Stop the expected next Primary.
             bft_network.stop_replica(next_primary)
 
+            await trio.sleep(seconds=5)
             # Advance the system 5 Checkpoints.
             skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
             await skvbc.fill_and_wait_for_checkpoint(
@@ -499,7 +500,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         7) Wait for State Transfer to finish and for all replicas to participate in Fast Path.
         8) Goto Step 2.
         """
-        log = foo()
+        # log = foo()
         # start replicas
         [bft_network.start_replica(i) for i in bft_network.all_replicas()]
 
@@ -576,7 +577,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
 
         We can perform this test in a loop multiple times.
         """
-        log = foo()
+        # log = foo()
         # start replicas
         [bft_network.start_replica(i) for i in bft_network.all_replicas()]
 
@@ -627,7 +628,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         5. Loop to step 3.
         """
         # uncomment for live tracking of log messages from the test
-        log = foo()
+        # log = foo()
         [bft_network.start_replica(i) for i in bft_network.all_replicas()]
 
         loop_count_outer = 0
