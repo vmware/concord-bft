@@ -26,7 +26,8 @@ from util import eliot_logging as log
 
 viewChangeTimeoutSec = 5
 
-loops = 40
+loops = 16
+timeouts = 60 # variable accustoms to VM speed
 
 def start_replica_cmd(builddir, replica_id):
     """
@@ -60,6 +61,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         _next_primary = (_current_primary + 1) % num_replicas
         return _current_primary, _next_primary
 
+    @unittest.skip("May loop infinitely")
     @with_trio
     @with_bft_network(start_replica_cmd, rotate_keys=True)
     async def test_restarting_replica_with_client_load(self, bft_network):
@@ -84,7 +86,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
             bft_network.all_replicas(without={primary_replica}))
 
         # uncomment for live tracking of log messages from the test
-        # log = foo()
+        log = foo()
 
         for v in range(loops):
             async with trio.open_nursery() as nursery:
@@ -120,6 +122,8 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         current_primary = 0
         next_primary = 1
         view = 0
+
+        log = foo()
 
         # Perform multiple view changes and restart 1 replica while the replicas are agreeing the new View
         while view < loops:
@@ -163,7 +167,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
             old_view = view
 
             # Wait for quorum of replicas to move to a higher view
-            with trio.fail_after(seconds=40):
+            with trio.fail_after(seconds=10 + timeouts):
                 while view == old_view:
                     log.log_message(f"waiting for vc current view={view}")
                     await skvbc.run_concurrent_ops(1)
@@ -239,7 +243,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         view = 0
 
         # uncomment for live tracking of log messages from the test
-        # log = foo()
+        log = foo()
 
         # Perform multiple view changes by restarting F replicas where the Primary is included
         while view < loops:
@@ -344,10 +348,10 @@ class SkvbcRestartRecoveryTest(ApolloTest):
             await trio.sleep(seconds=10)
             bft_network.start_replica(primary)
 
-            await bft_network.wait_for_replicas_to_reach_at_least_view(replicas_ids=bft_network.all_replicas(), expected_view=view + 1, timeout=60)
+            await bft_network.wait_for_replicas_to_reach_at_least_view(replicas_ids=bft_network.all_replicas(), expected_view=view + 1, timeout=30 + timeouts)
 
             await bft_network.wait_for_fast_path_to_be_prevalent(
-            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20, timeout=180)
+            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20, timeout=150 + timeouts)
 
             view = await bft_network.get_current_view()
 
@@ -357,12 +361,12 @@ class SkvbcRestartRecoveryTest(ApolloTest):
             primary = await bft_network.get_current_primary()
 
             await bft_network.wait_for_slow_path_to_be_prevalent(
-            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20, replica_id=primary, timeout=180)
+            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20, replica_id=primary, timeout=150 + timeouts)
 
             bft_network.stop_replica(primary)
             bft_network.start_replica(primary)
 
-            await bft_network.wait_for_replicas_to_reach_at_least_view(replicas_ids=bft_network.all_replicas(), expected_view=view + 1, timeout=60)
+            await bft_network.wait_for_replicas_to_reach_at_least_view(replicas_ids=bft_network.all_replicas(), expected_view=view + 1, timeout=30 + timeouts)
 
             bft_network.start_replica(non_primary)
 
@@ -382,7 +386,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         # start replicas
         [bft_network.start_replica(i) for i in bft_network.all_replicas()]
 
-        #log = foo()
+        log = foo()
         loop_counter = 0
         while (loop_counter < loops):
             loop_counter = loop_counter + 1
@@ -423,7 +427,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         7) Verify View Change was successful.
         8) Goto Step 2.
         """
-
+        log = foo()
         # start replicas
         [bft_network.start_replica(i) for i in bft_network.all_replicas()]
 
@@ -445,7 +449,8 @@ class SkvbcRestartRecoveryTest(ApolloTest):
                 initial_nodes=bft_network.all_replicas(without = {next_primary}),
                 num_of_checkpoints_to_add=5,
                 verify_checkpoint_persistency=False,
-                assert_state_transfer_not_started=False
+                assert_state_transfer_not_started=False,
+                timeout=15 + timeouts
             )
 
             # Stop the current Primary
@@ -476,7 +481,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
 
             await self._await_replicas_in_state_transfer(log, bft_network, skvbc, primary)
 
-            await bft_network.wait_for_replicas_to_reach_at_least_view(replicas_ids=bft_network.all_replicas(), expected_view=view, timeout=60)
+            await bft_network.wait_for_replicas_to_reach_at_least_view(replicas_ids=bft_network.all_replicas(), expected_view=view, timeout=20 + timeouts)
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: c == 0, rotate_keys=True)
@@ -494,7 +499,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         7) Wait for State Transfer to finish and for all replicas to participate in Fast Path.
         8) Goto Step 2.
         """
-
+        log = foo()
         # start replicas
         [bft_network.start_replica(i) for i in bft_network.all_replicas()]
 
@@ -532,7 +537,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
             bft_network.start_replica(primary)
 
             # Wait for quorum of replicas to move to a higher view
-            with trio.fail_after(seconds=40):
+            with trio.fail_after(seconds=60):
                 old_view = view
                 while view == old_view:
                     log.log_message(f"waiting for vc current view={view}, old_view={old_view}")
@@ -571,7 +576,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
 
         We can perform this test in a loop multiple times.
         """
-
+        log = foo()
         # start replicas
         [bft_network.start_replica(i) for i in bft_network.all_replicas()]
 
@@ -597,7 +602,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
                 bft_network.stop_replica(primary)
                 await skvbc.run_concurrent_ops(10)
 
-                await bft_network.wait_for_replicas_to_reach_at_least_view(other_replicas, expected_view=view + bft_network.config.f, timeout=60)
+                await bft_network.wait_for_replicas_to_reach_at_least_view(other_replicas, expected_view=view + bft_network.config.f, timeout=15 + timeouts)
 
             bft_network.start_replica(primary)
 
@@ -622,7 +627,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         5. Loop to step 3.
         """
         # uncomment for live tracking of log messages from the test
-        # log = foo()
+        log = foo()
         [bft_network.start_replica(i) for i in bft_network.all_replicas()]
 
         loop_count_outer = 0
@@ -658,7 +663,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
             if fetching:
                 logger.log_message(f"Replica {r} is fetching, waiting for ST to finish ...")
                 # assuming Primary has latest state
-                with trio.fail_after(seconds=100):
+                with trio.fail_after(seconds=60 + timeouts):
                     key = ['replica', 'Gauges', 'lastStableSeqNum']
                     primary_last_stable = await bft_network.metrics.get(primary, *key)
                     fetching_last_stable = await bft_network.metrics.get(r, *key)

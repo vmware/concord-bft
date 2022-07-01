@@ -1365,13 +1365,13 @@ class BftTestNetwork:
 
         return await self.wait_for(rvt_root_value_to_be_returned, timeout, .5)
 
-    async def wait_for_replicas_to_checkpoint(self, replica_ids, expected_checkpoint_num=None):
+    async def wait_for_replicas_to_checkpoint(self, replica_ids, expected_checkpoint_num=None, timeout=30):
         """
         Wait for every replica in `replicas` to take a checkpoint.
         Check every .5 seconds and give fail after 30 seconds.
         """
         with log.start_action(action_type="wait_for_replicas_to_checkpoint", replica_ids=replica_ids, expected_checkpoint_num=expected_checkpoint_num):
-            with trio.fail_after(30): # seconds
+            with trio.fail_after(timeout): # seconds
                 async with trio.open_nursery() as nursery:
                     for replica_id in replica_ids:
                         nursery.start_soon(self.wait_for_checkpoint, replica_id, expected_checkpoint_num)

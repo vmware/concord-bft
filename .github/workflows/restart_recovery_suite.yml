@@ -16,7 +16,7 @@ concurrency:
 jobs:
   build:
     name: Build
-    timeout-minutes: 600
+    timeout-minutes: 260
     runs-on: ubuntu-18.04
     outputs:
       err_output: ${{ steps.prepare_err_artifacts.outputs.test}}
@@ -66,7 +66,7 @@ jobs:
                               -DOMIT_TEST_OUTPUT=OFF\
                               -DKEEP_APOLLO_LOGS=TRUE\
                               -DUSE_FAKE_CLOCK_IN_TIME_SERVICE=TRUE\" "\
-              && script -q -e -c "CONCORD_BFT_CTEST_TIMEOUT=18000 make test-single-suite TEST_NAME=skvbc_restart_recovery_tests"
+              && script -q -e -c "CONCORD_BFT_CTEST_TIMEOUT=16000 make test-single-suite TEST_NAME=skvbc_restart_recovery_tests"
         - name: Prepare artifacts
           if: failure()
           run: |

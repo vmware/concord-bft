@@ -263,7 +263,8 @@ class SimpleKVBCProtocol:
             num_of_checkpoints_to_add=2,
             verify_checkpoint_persistency=True,
             assert_state_transfer_not_started=True,
-            without_clients=None):
+            without_clients=None,
+            timeout=30):
         """
         A helper function used by tests to fill a window with data and then
         checkpoint it.
@@ -291,13 +292,14 @@ class SimpleKVBCProtocol:
                 initial_nodes,
                 expected_checkpoint_num=lambda ecn: ecn == checkpoint_before + num_of_checkpoints_to_add,
                 verify_checkpoint_persistency=verify_checkpoint_persistency,
-                assert_state_transfer_not_started=assert_state_transfer_not_started)
+                assert_state_transfer_not_started=assert_state_transfer_not_started, timeout=timeout)
 
     async def network_wait_for_checkpoint(
             self, initial_nodes,
             expected_checkpoint_num=lambda ecn: ecn == 2,
             verify_checkpoint_persistency=True,
-            assert_state_transfer_not_started=True):
+            assert_state_transfer_not_started=True,
+            timeout=30):
         with log.start_action(action_type="network_wait_for_checkpoint"):
             if assert_state_transfer_not_started:
                 await self.bft_network.assert_state_transfer_not_started_all_up_nodes(
@@ -318,7 +320,7 @@ class SimpleKVBCProtocol:
                 # Bring up the first 3 replicas and ensure that they have the
                 # checkpoint data.
                 [ self.bft_network.start_replica(i) for i in initial_nodes ]
-                await self.bft_network.wait_for_replicas_to_checkpoint(initial_nodes, expected_checkpoint_num)
+                await self.bft_network.wait_for_replicas_to_checkpoint(initial_nodes, expected_checkpoint_num, timeout)
 
     async def assert_successful_put_get(self):
         """ Assert that we can get a valid put """
