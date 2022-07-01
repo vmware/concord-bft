@@ -26,8 +26,8 @@ from util import eliot_logging as log
 
 viewChangeTimeoutSec = 5
 
-loops = 4
-timeouts = 60 # variable accustoms to VM speed
+loops = 16
+timeouts = 60 # variable is added to vurnable timeouts in case vm is slow.
 
 def start_replica_cmd(builddir, replica_id):
     """
