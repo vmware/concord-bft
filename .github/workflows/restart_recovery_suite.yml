@@ -1,7 +1,7 @@
 name: Restart recovery suite
 on:
   schedule:
-    - cron: '0 5 * * *'
+    - cron: '0 2 * * *'
   push:
     branches:
       - '*' # matches every branch
