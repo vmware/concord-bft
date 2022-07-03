@@ -4399,7 +4399,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
   onViewNumCallbacks_.add([&](bool) {
     if (config_.keyExchangeOnStart && !KeyExchangeManager::instance().exchanged()) {
       LOG_INFO(GL, "key exchange has not been finished yet. Give it another try");
-      KeyExchangeManager::instance().sendInitialKey(currentPrimary());
+      KeyExchangeManager::instance().sendInitialKey(this);
     }
   });
   stateTransfer->addOnFetchingStateChangeCallback([&](uint64_t) {
@@ -4408,7 +4408,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
     // initial key exchange after completing ST
     if (!isCollectingState()) {
       if (ReplicaConfig::instance().getkeyExchangeOnStart() && !KeyExchangeManager::instance().exchanged()) {
-        KeyExchangeManager::instance().sendInitialKey(currentPrimary(), lastExecutedSeqNum);
+        KeyExchangeManager::instance().sendInitialKey(this, lastExecutedSeqNum);
         LOG_INFO(GL, "Send initial key exchange after completing state transfer " << KVLOG(lastExecutedSeqNum));
       }
     }
@@ -4620,7 +4620,7 @@ void ReplicaImp::start() {
   msgsCommunicator_->startMsgsProcessing(config_.getreplicaId());
 
   if (ReplicaConfig::instance().getkeyExchangeOnStart() && !KeyExchangeManager::instance().exchanged()) {
-    KeyExchangeManager::instance().sendInitialKey(currentPrimary());
+    KeyExchangeManager::instance().sendInitialKey(this);
   } else {
     // If key exchange is disabled, first publish the replica's main (rsa) key to clients
     if (ReplicaConfig::instance().publishReplicasMasterKeyOnStartup) KeyExchangeManager::instance().sendMainPublicKey();

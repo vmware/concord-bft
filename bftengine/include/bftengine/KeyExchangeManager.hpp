@@ -23,7 +23,7 @@
 namespace bftEngine::impl {
 
 class IInternalBFTClient;
-
+class ReplicaImp;
 typedef int64_t SeqNum;  // TODO [TK] redefinition
 
 class KeyExchangeManager {
@@ -34,7 +34,7 @@ class KeyExchangeManager {
   // Send the current main public key of the replica to consensus
   void sendMainPublicKey();
   // Generates and publish the first replica's key,
-  void sendInitialKey(uint32_t prim = 0, const SeqNum& = 0);
+  void sendInitialKey(const ReplicaImp* repImpInstance, const SeqNum& = 0);
   // The execution handler implementation that is called when a key exchange msg has passed consensus.
   std::string onKeyExchange(const KeyExchangeMsg& kemsg, const SeqNum& req_sn, const std::string& cid);
   // Register a IKeyExchanger to notification when keys are rotated.
@@ -188,7 +188,7 @@ class KeyExchangeManager {
    * Samples periodically how many connections the replica has with other replicas.
    * returns when num of connections is (clusterSize - 1) i.e. full communication.
    */
-  void waitForLiveQuorum(uint32_t prim = 0);
+  void waitForLiveQuorum(const ReplicaImp* repImpInstance);
   void waitForFullCommunication();
   void initMetrics(std::shared_ptr<concordMetrics::Aggregator> a, std::chrono::seconds interval);
   // deleted
