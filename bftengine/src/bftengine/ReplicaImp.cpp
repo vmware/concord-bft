@@ -711,7 +711,8 @@ PrePrepareMsg *ReplicaImp::createPrePrepareMessage() {
 ClientRequestMsg *ReplicaImp::addRequestToPrePrepareMessage(ClientRequestMsg *&nextRequest,
                                                             PrePrepareMsg &prePrepareMsg,
                                                             uint32_t maxStorageForRequests) {
-  if (nextRequest->size() <= prePrepareMsg.remainingSizeForRequests()) {
+  uint64_t remaining_size = prePrepareMsg.remainingSizeForRequests();
+  if (nextRequest->size() <= remaining_size) {
     SCOPED_MDC_CID(nextRequest->getCid());
     if (clientsManager->canBecomePending(nextRequest->clientProxyId(), nextRequest->requestSeqNum())) {
       prePrepareMsg.addRequest(nextRequest->body(), nextRequest->size());
@@ -719,14 +720,16 @@ ClientRequestMsg *ReplicaImp::addRequestToPrePrepareMessage(ClientRequestMsg *&n
           nextRequest->clientProxyId(), nextRequest->requestSeqNum(), nextRequest->getCid());
       metric_primary_batching_duration_.finishMeasurement(nextRequest->getCid());
     }
-  } else {  // The message is too big
+  } else if (nextRequest->size() >
+             maxStorageForRequests) {  // The message will never be able to get into a prepreapre message
     LOG_WARN(GL,
-             "Request was dropped because it exceeds maximum allowed size"
-                 << KVLOG(prePrepareMsg.seqNumber(),
-                          nextRequest->senderId(),
-                          nextRequest->size(),
-                          prePrepareMsg.remainingSizeForRequests()));
-    return nullptr;  // To break the outside loop that
+             "Request was dropped because it exceeds maximum allowed size" << KVLOG(
+                 prePrepareMsg.seqNumber(), nextRequest->senderId(), nextRequest->size(), maxStorageForRequests));
+  } else {
+    LOG_WARN(GL,
+             "Request was dropped because it exceeds the prePrepare remaining size"
+                 << KVLOG(prePrepareMsg.seqNumber(), nextRequest->senderId(), nextRequest->size(), remaining_size));
+    return nullptr;
   }
   primaryCombinedReqSize -= nextRequest->size();
   requestsQueueOfPrimary.pop();
