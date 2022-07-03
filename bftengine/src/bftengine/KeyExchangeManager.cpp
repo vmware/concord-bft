@@ -237,6 +237,10 @@ void KeyExchangeManager::sendKeyExchange(const SeqNum& sn) {
     LOG_INFO(KEY_EX_LOG, "we already have a candidate for this sequence number, trying to send it again");
     msg.pubkey = candidate_private_keys_.generated.pub;
     msg.repID = repID_;
+    SeqNum new_sn = sn;
+    if ((sn - candidate_private_keys_.generated.sn) / checkpointWindowSize < 2)
+      new_sn = candidate_private_keys_.generated.sn;
+    candidate_private_keys_.generated.sn = new_sn;
     msg.generated_sn = candidate_private_keys_.generated.sn;
     msg.epoch = EpochManager::instance().getSelfEpochNumber();
     std::stringstream ss;
