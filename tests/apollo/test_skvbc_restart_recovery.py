@@ -198,7 +198,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
             log.log_message("wait for fast path to be prevalent")
             # Make sure fast path is prevalent before moving to another round ot the test
             await bft_network.wait_for_fast_path_to_be_prevalent(
-                run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=1)
+                run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=1, timeout=60+timeouts)
             log.log_message("fast path prevailed")
 
         # Before the test ends we verify the Fast Path is prevalent, no matter
