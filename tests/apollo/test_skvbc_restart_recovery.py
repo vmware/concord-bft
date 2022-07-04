@@ -61,7 +61,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         _next_primary = (_current_primary + 1) % num_replicas
         return _current_primary, _next_primary
 
-    @unittest.skip("May loop infinitely")
+    # @unittest.skip("May loop infinitely")
     @with_trio
     @with_bft_network(start_replica_cmd, rotate_keys=True)
     async def test_restarting_replica_with_client_load(self, bft_network):
@@ -89,22 +89,23 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         # log = foo()
 
         for v in range(loops):
-            async with trio.open_nursery() as nursery:
-                # Start the sending of client operations in the background.
-                nursery.start_soon(skvbc.send_indefinite_ops)
-                while True:
+            with trio.move_on_after(seconds=6.5):
+                async with trio.open_nursery() as nursery:
+                    nursery.start_soon(skvbc.send_indefinite_ops)
+                    # Start the sending of client operations in the background.
+
                     log.log_message(f"Stop replica {replica_to_restart} and wait for system to move to slow path")
                     bft_network.stop_replica(replica_to_restart, True)
                     latest_slow_paths = total_slow_paths = await bft_network.num_of_slow_path_requests(primary_replica)
-                    with trio.fail_after(seconds=15):
+                    with trio.fail_after(seconds=3):
                         while latest_slow_paths - total_slow_paths == 0:
                             await trio.sleep(seconds=0.1)
                             latest_slow_paths = await bft_network.num_of_slow_path_requests(primary_replica)
                     log.log_message(f"Start replica {replica_to_restart} and wait for system to move to fast path")
                     bft_network.start_replica(replica_to_restart)
                     latest_fast_paths = total_fast_paths = await bft_network.num_of_fast_path_requests(primary_replica)
-                    with trio.fail_after(seconds=15):
-                        while latest_fast_paths - total_fast_paths == 0:
+                    with trio.fail_after(seconds=3):
+                        while latest_fast_paths == total_fast_paths:
                             await trio.sleep(seconds=0.1)
                             latest_fast_paths = await bft_network.num_of_fast_path_requests(primary_replica)
 
