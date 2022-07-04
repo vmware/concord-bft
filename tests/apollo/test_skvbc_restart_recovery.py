@@ -88,26 +88,32 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         # uncomment for live tracking of log messages from the test
         # log = foo()
 
+        async def client_load(task_status=trio.TASK_STATUS_IGNORED):
+            with trio.CancelScope() as scope:
+                task_status.started(scope)
+                await skvbc.send_indefinite_ops()
+
         for v in range(loops):
-            with trio.move_on_after(seconds=6.5):
-                async with trio.open_nursery() as nursery:
-                    nursery.start_soon(skvbc.send_indefinite_ops)
+            async with trio.open_nursery() as nursery:
+                # Start the sending of client operations in the background.
+                scoped_client_load = await nursery.start(client_load)
                     # Start the sending of client operations in the background.
 
-                    log.log_message(f"Stop replica {replica_to_restart} and wait for system to move to slow path")
-                    bft_network.stop_replica(replica_to_restart, True)
-                    latest_slow_paths = total_slow_paths = await bft_network.num_of_slow_path_requests(primary_replica)
-                    with trio.fail_after(seconds=3):
-                        while latest_slow_paths - total_slow_paths == 0:
-                            await trio.sleep(seconds=0.1)
-                            latest_slow_paths = await bft_network.num_of_slow_path_requests(primary_replica)
-                    log.log_message(f"Start replica {replica_to_restart} and wait for system to move to fast path")
-                    bft_network.start_replica(replica_to_restart)
-                    latest_fast_paths = total_fast_paths = await bft_network.num_of_fast_path_requests(primary_replica)
-                    with trio.fail_after(seconds=3):
-                        while latest_fast_paths == total_fast_paths:
-                            await trio.sleep(seconds=0.1)
-                            latest_fast_paths = await bft_network.num_of_fast_path_requests(primary_replica)
+                log.log_message(f"Stop replica {replica_to_restart} and wait for system to move to slow path")
+                bft_network.stop_replica(replica_to_restart, True)
+                latest_slow_paths = total_slow_paths = await bft_network.num_of_slow_path_requests(primary_replica)
+                with trio.fail_after(seconds=15):
+                    while latest_slow_paths - total_slow_paths == 0:
+                        await trio.sleep(seconds=0.1)
+                        latest_slow_paths = await bft_network.num_of_slow_path_requests(primary_replica)
+                log.log_message(f"Start replica {replica_to_restart} and wait for system to move to fast path")
+                bft_network.start_replica(replica_to_restart)
+                latest_fast_paths = total_fast_paths = await bft_network.num_of_fast_path_requests(primary_replica)
+                with trio.fail_after(seconds=15):
+                    while latest_fast_paths == total_fast_paths:
+                        await trio.sleep(seconds=0.1)
+                        latest_fast_paths = await bft_network.num_of_fast_path_requests(primary_replica)
+                scoped_client_load.cancel()
 
         # Before the test ends we verify the Fast Path is prevalent,
         # no matter the restarts we performed on the selected replica.
