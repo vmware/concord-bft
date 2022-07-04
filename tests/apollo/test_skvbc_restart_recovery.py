@@ -93,10 +93,10 @@ class SkvbcRestartRecoveryTest(ApolloTest):
                 task_status.started(scope)
                 await skvbc.send_indefinite_ops()
 
-        for v in range(loops):
+        for v in range(loops * 100):
             async with trio.open_nursery() as nursery:
-                # Start the sending of client operations in the background.
                 scoped_client_load = await nursery.start(client_load)
+                # Start the sending of client operations in the background.
                     # Start the sending of client operations in the background.
 
                 log.log_message(f"Stop replica {replica_to_restart} and wait for system to move to slow path")
