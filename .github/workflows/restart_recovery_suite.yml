@@ -2,12 +2,6 @@ name: Restart recovery suite
 on:
   schedule:
     - cron: '0 2 * * *'
-  push:
-    branches:
-      - '*' # matches every branch
-  pull_request:
-    branches:
-      - '*' # matches every branch
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
