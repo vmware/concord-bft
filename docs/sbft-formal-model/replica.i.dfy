@@ -27,6 +27,9 @@ module Replica {
       && forall x | x in ps :: && ps[x].payload.Prepare? 
                                && c.clusterConfig.IsReplica(ps[x].sender)
   }
+  function EmptyPrepareProofSet() : PrepareProofSet {
+    map[]
+  }
 
   type CommitProofSet = map<HostId, Network.Message<Message>>
   predicate CommitProofSetWF(c:Constants, cs:CommitProofSet)
@@ -34,6 +37,9 @@ module Replica {
   {
       && forall x | x in cs :: && cs[x].payload.Commit?
                                && c.clusterConfig.IsReplica(cs[x].sender)
+  }
+  function EmptyCommitProofSet() : CommitProofSet {
+    map[]
   }
 
   type PrePreparesRcvd = imap<SequenceID, Option<Network.Message<Message>>>
@@ -50,19 +56,29 @@ module Replica {
     committedClientOperations:imap<SequenceID, Option<OperationWrapper>>,
     prePreparesRcvd:PrePreparesRcvd,
     preparesRcvd:imap<SequenceID, PrepareProofSet>,
-    commitsRcvd:imap<SequenceID, CommitProofSet>
+    commitsRcvd:imap<SequenceID, CommitProofSet>,
+    lastStableCheckpoint:SequenceID
   ) {
+    function getActiveSequenceIDs(c:Constants) : iset<SequenceID> 
+      requires c.WF()
+    {
+      iset seqID | lastStableCheckpoint <= seqID < lastStableCheckpoint + c.clusterConfig.workingWindowSize //TODO: refactor to finite sets/maps
+    }
     predicate WF(c:Constants)
       requires c.WF()
     {
-      && FullImap(committedClientOperations)
-      && FullImap(preparesRcvd)
-      && FullImap(commitsRcvd)
+      && committedClientOperations.Keys == getActiveSequenceIDs(c)
+      && preparesRcvd.Keys == getActiveSequenceIDs(c)
+      && commitsRcvd.Keys == getActiveSequenceIDs(c)
       && PrePreparesRcvdWF(prePreparesRcvd)
       && (forall seqID | seqID in preparesRcvd :: PrepareProofSetWF(c, preparesRcvd[seqID]))
       && (forall seqID | seqID in commitsRcvd :: CommitProofSetWF(c, commitsRcvd[seqID]))
     }
+    function ShiftWorkingWindow<T>(c:Constants, m:imap<SequenceID,T>, empty:T) : imap<SequenceID,T> {
+      imap seqID | seqID in getActiveSequenceIDs(c) :: if seqID in m then m[seqID] else empty
+    }
   }
+
 
   // Define your Host protocol state machine here.
   datatype Constants = Constants(myId:HostId, clusterConfig:ClusterConfig.Constants) {
@@ -110,7 +126,6 @@ module Replica {
     viewChangeMsgsRecvd:ViewChangeMsgs,
     newViewMsgsRecvd:NewViewMsgs,
     countExecutedSeqIDs:SequenceID,
-    lastStableCheckpoint:SequenceID,
     checkpointMsgsRecvd:CheckpointMsgs
   ) {
     predicate WF(c:Constants)
@@ -303,6 +318,7 @@ module Replica {
   {
     && v.WF(c)
     && msg.payload.Commit?
+    && msg.payload.seqID in v.workingWindow.getActiveSequenceIDs(c)
     && c.clusterConfig.IsReplica(msg.sender)
     && ViewIsActive(c, v)
     && msg.payload.view == v.view
@@ -347,7 +363,7 @@ module Replica {
   {
     && v.WF(c)
     && (forall seqID | && seqID <= targetSeqID
-                       && seqID > v.lastStableCheckpoint
+                       && seqID > v.workingWindow.lastStableCheckpoint
                      :: v.workingWindow.committedClientOperations[seqID].Some?)
   }
 
@@ -529,19 +545,24 @@ module Replica {
   predicate AdvanceWorkingWindow(c:Constants, v:Variables, v':Variables, msgOps:Network.MessageOps<Message>, seqID:SequenceID) {
     && v.WF(c)
     && msgOps.NoSendRecv()
-    && seqID > v.lastStableCheckpoint
+    && seqID > v.workingWindow.lastStableCheckpoint
     && HasStableCheckpointForSeqID(c, v, seqID)
-    && v' == v.(lastStableCheckpoint := seqID)
+    && v' == v.(workingWindow := v.workingWindow.(
+      lastStableCheckpoint := seqID, 
+      prePreparesRcvd := v.workingWindow.ShiftWorkingWindow(c, v.workingWindow.prePreparesRcvd, None),
+      preparesRcvd := v.workingWindow.ShiftWorkingWindow(c, v.workingWindow.preparesRcvd, EmptyPrepareProofSet()),
+      commitsRcvd := v.workingWindow.ShiftWorkingWindow(c, v.workingWindow.commitsRcvd, EmptyCommitProofSet())))
   }
 
   predicate Init(c:Constants, v:Variables) {
+    && v.WF(c)
     && v.view == 0
     && (forall seqID | seqID in v.workingWindow.committedClientOperations
                 :: v.workingWindow.committedClientOperations[seqID].None?)
     && (forall seqID | seqID in v.workingWindow.prePreparesRcvd
                 :: v.workingWindow.prePreparesRcvd[seqID].None?)
-    && (forall seqID | seqID in v.workingWindow.preparesRcvd :: v.workingWindow.preparesRcvd[seqID] == map[])
-    && (forall seqID | seqID in v.workingWindow.commitsRcvd :: v.workingWindow.commitsRcvd[seqID] == map[])
+    && (forall seqID | seqID in v.workingWindow.preparesRcvd :: v.workingWindow.preparesRcvd[seqID] == EmptyPrepareProofSet())
+    && (forall seqID | seqID in v.workingWindow.commitsRcvd :: v.workingWindow.commitsRcvd[seqID] == EmptyCommitProofSet())
     && v.viewChangeMsgsRecvd.msgs == {}
     && v.newViewMsgsRecvd.msgs == {}
   }
