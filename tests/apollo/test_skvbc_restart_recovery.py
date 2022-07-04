@@ -97,7 +97,6 @@ class SkvbcRestartRecoveryTest(ApolloTest):
             async with trio.open_nursery() as nursery:
                 scoped_client_load = await nursery.start(client_load)
                 # Start the sending of client operations in the background.
-                    # Start the sending of client operations in the background.
 
                 log.log_message(f"Stop replica {replica_to_restart} and wait for system to move to slow path")
                 bft_network.stop_replica(replica_to_restart, True)
