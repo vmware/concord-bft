@@ -18,6 +18,12 @@ set(util_source_files
 add_library(util        STATIC ${util_source_files})
 add_library(util_shared SHARED ${util_source_files})
 
+# Use below macros to use CryptoPP's SHA_256 or OpenSSL's SHA_256 hashing.
+# USE_CRYPTOPP_SHA_256
+# USE_OPENSSL_SHA_256
+target_compile_definitions(util PUBLIC USE_OPENSSL_SHA3_256)
+target_compile_definitions(util_shared PUBLIC USE_OPENSSL_SHA3_256)
+
 if(USE_OPENSSL)
     if(NOT BUILD_THIRDPARTY)
         find_package(OpenSSL REQUIRED)
