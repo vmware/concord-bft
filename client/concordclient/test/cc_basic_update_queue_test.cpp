@@ -11,7 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "client/concordclient/event_update.hpp"
+#include "client/concordclient/trc_queue.hpp"
 #include "client/concordclient/thread_safe_queue.hpp"
 #include "client/concordclient/concord_client_exceptions.hpp"
 

@@ -14,7 +14,7 @@
 #include "gtest/gtest.h"
 
 #include "client/thin-replica-client/trc_hash.hpp"
-#include "client/concordclient/event_update.hpp"
+#include "client/concordclient/trc_queue.hpp"
 #include "kvbc_app_filter/kvbc_app_filter.h"
 
 using com::vmware::concord::thin_replica::Data;

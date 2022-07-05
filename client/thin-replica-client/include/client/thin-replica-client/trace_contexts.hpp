@@ -19,7 +19,7 @@
 #include <optional>
 
 #include "thin_replica.pb.h"
-#include "client/concordclient/event_update.hpp"
+#include "client/concordclient/trc_queue.hpp"
 #include "Logger.hpp"
 
 using opentracing::expected;

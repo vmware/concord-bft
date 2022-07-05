@@ -165,7 +165,7 @@ void ConcordClient::checkAndReConnectGrpcConnections() {
 }
 
 void ConcordClient::subscribe(const SubscribeRequest& sub_req,
-                              std::shared_ptr<EventUpdateQueue>& queue,
+                              std::shared_ptr<TrcQueue>& queue,
                               const std::unique_ptr<opentracing::Span>& parent_span) {
   bool expected = false;
   if (!active_subscription_.compare_exchange_weak(expected, true)) {

@@ -26,7 +26,7 @@
 #include "bftclient/bft_client.h"
 #include "client/thin-replica-client/thin_replica_client.hpp"
 #include "client/client_pool/concord_client_pool.hpp"
-#include "client/concordclient/event_update.hpp"
+#include "client/concordclient/trc_queue.hpp"
 #include "client/concordclient/snapshot_update.hpp"
 #include "client/concordclient/concord_client_exceptions.hpp"
 #include "Metrics.hpp"
@@ -166,7 +166,7 @@ class ConcordClient {
 
   // Subscribe to events which are pushed into the given update queue.
   void subscribe(const SubscribeRequest& request,
-                 std::shared_ptr<EventUpdateQueue>& queue,
+                 std::shared_ptr<TrcQueue>& queue,
                  const std::unique_ptr<opentracing::Span>& parent_span);
 
   // Note, if the caller doesn't unsubscribe and no runtime error occurs then resources

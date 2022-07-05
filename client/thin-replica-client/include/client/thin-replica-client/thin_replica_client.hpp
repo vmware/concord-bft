@@ -48,7 +48,7 @@
 #include <condition_variable>
 #include <thread>
 #include "Logger.hpp"
-#include "client/concordclient/event_update.hpp"
+#include "client/concordclient/trc_queue.hpp"
 #include "client/concordclient/concord_client_exceptions.hpp"
 
 namespace client::thin_replica_client {
@@ -94,7 +94,7 @@ struct ThinReplicaClientConfig {
   // ReleaseConsumers, or ReEnableConsumers. Furthermore, a ThinReplicaClient
   // guarantees it will never execute the Clear or Push functions of the queue
   // after that ThinReplicaClient's destructor has returned.
-  std::shared_ptr<concord::client::concordclient::EventUpdateQueue> update_queue;
+  std::shared_ptr<concord::client::concordclient::TrcQueue> update_queue;
   // max_faulty is the maximum number of simultaneously Byzantine-faulty servers
   // that must be tolerated (this is equivalent to the F value for the Concord
   // cluster the servers are from).
@@ -107,7 +107,7 @@ struct ThinReplicaClientConfig {
   std::chrono::seconds no_agreement_warn_duration;
 
   ThinReplicaClientConfig(std::string client_id_,
-                          std::shared_ptr<concord::client::concordclient::EventUpdateQueue> update_queue_,
+                          std::shared_ptr<concord::client::concordclient::TrcQueue> update_queue_,
                           std::size_t max_faulty_,
                           std::vector<std::shared_ptr<client::concordclient::GrpcConnection>>& trs_conns_,
                           std::chrono::seconds no_agreement_warn_duration_ = kNoAgreementWarnDuration)

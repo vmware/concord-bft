@@ -38,7 +38,7 @@ using concord::client::concordclient::Update;
 using concord::client::concordclient::UpdateNotFound;
 using concord::client::concordclient::OutOfRangeSubscriptionRequest;
 using concord::client::concordclient::InternalError;
-using concord::client::concordclient::EventUpdateQueue;
+using concord::client::concordclient::TrcQueue;
 using std::atomic_bool;
 using std::list;
 using std::logic_error;
@@ -723,7 +723,7 @@ void ThinReplicaClient::pushUpdateToUpdateQueue(std::unique_ptr<EventVariant> up
 
   // push update to the update queue for consumption by the application using
   // TRC
-  config_->update_queue->push(std::move(update));
+  config_->update_queue->push(std::move(update.release()));
 
   // update metrics
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
@@ -950,7 +950,7 @@ void ThinReplicaClient::Subscribe() {
 
   config_->update_queue->clear();
   while (state.size() > 0) {
-    config_->update_queue->push(move(state.front()));
+    config_->update_queue->push(std::move(state.front().release()));
     state.pop_front();
   }
   latest_verified_block_id_ = block_id;

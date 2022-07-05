@@ -58,7 +58,7 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
   }
 
   auto span = opentracing::Tracer::Global()->StartSpan("subscribe", {});
-  std::shared_ptr<cc::EventUpdateQueue> update_queue = std::make_shared<cc::BasicEventUpdateQueue>();
+  std::shared_ptr<cc::TrcQueue> update_queue = std::make_shared<cc::TrcQueue>();
   client_->subscribe(request, update_queue, span);
 
   // TODO: Return UNAVAILABLE as documented in event.proto if ConcordClient is unhealthy
