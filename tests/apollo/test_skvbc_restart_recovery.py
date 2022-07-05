@@ -61,7 +61,6 @@ class SkvbcRestartRecoveryTest(ApolloTest):
         _next_primary = (_current_primary + 1) % num_replicas
         return _current_primary, _next_primary
 
-    # @unittest.skip("May loop infinitely")
     @with_trio
     @with_bft_network(start_replica_cmd, rotate_keys=True)
     async def test_restarting_replica_with_client_load(self, bft_network):
@@ -93,10 +92,12 @@ class SkvbcRestartRecoveryTest(ApolloTest):
                 task_status.started(scope)
                 await skvbc.send_indefinite_ops()
 
-        for v in range(loops * 100):
-            async with trio.open_nursery() as nursery:
-                scoped_client_load = await nursery.start(client_load)
-                # Start the sending of client operations in the background.
+        async with trio.open_nursery() as nursery:
+            # Start the sending of client operations in the background.
+            scoped_client_load = await nursery.start(client_load)
+            for v in range(loops * 100):
+                if (0 == v % loops):
+                    log.log_message(f"iteration {v}")
 
                 log.log_message(f"Stop replica {replica_to_restart} and wait for system to move to slow path")
                 bft_network.stop_replica(replica_to_restart, True)
@@ -112,7 +113,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
                     while latest_fast_paths == total_fast_paths:
                         await trio.sleep(seconds=0.1)
                         latest_fast_paths = await bft_network.num_of_fast_path_requests(primary_replica)
-                scoped_client_load.cancel()
+            scoped_client_load.cancel()
 
         # Before the test ends we verify the Fast Path is prevalent,
         # no matter the restarts we performed on the selected replica.
