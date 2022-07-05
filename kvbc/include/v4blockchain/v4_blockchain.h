@@ -156,7 +156,9 @@ class KeyValueBlockchain {
   // path - the path of the blockchain db.
   struct BlockchainRecovery {
     BlockchainRecovery(const std::string &path, const std::optional<kvbc::BlockId> &block_id_at_chkpnt);
-    static std::shared_ptr<storage::rocksdb::NativeClient> getRecoveryDB(const std::string &path, bool is_chkpnt);
+    static std::shared_ptr<storage::rocksdb::NativeClient> getRecoveryDB(const std::string &path,
+                                                                         bool is_chkpnt,
+                                                                         bool read_only);
     static void removeRecoveryDB(const std::string &path, bool is_chkpnt);
     static std::string getPath(const std::string &path, bool is_chkpnt);
   };
@@ -265,12 +267,12 @@ class KeyValueBlockchain {
   std::map<kvbc::BlockId, const ::rocksdb::Snapshot *> chkpnt_snap_shots_;
   // const ::rocksdb::Snapshot *chkpoint_snap_shot_{nullptr};
   util::ThreadPool thread_pool_{1};
-  std::optional<kvbc::BlockId> chkpnt_block_id_;
 
   // Metrics
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;
   concordMetrics::Component v4_metrics_comp_;
   concordMetrics::GaugeHandle blocks_deleted_;
+  concordMetrics::CounterHandle deleted_keys_;
 
  public:
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {

@@ -80,6 +80,9 @@ void LatestKeys::handleCategoryUpdates(const std::string& block_version,
                               << concordUtils::bufferToHex(k.data(), k.size()) << " raw key " << k);
     write_batch.del(v4blockchain::detail::LATEST_KEYS_CF, getSliceArray(prefix, k));
   }
+  if (deleted_keys_ && updates.deletes.size() > 0) {
+    *deleted_keys_ += updates.deletes.size();
+  }
 }
 
 void LatestKeys::handleCategoryUpdates(const std::string& block_version,
@@ -111,6 +114,9 @@ void LatestKeys::handleCategoryUpdates(const std::string& block_version,
                               << category_id << " prefix " << prefix << " key is hex "
                               << concordUtils::bufferToHex(k.data(), k.size()) << " raw key " << k);
     write_batch.del(v4blockchain::detail::LATEST_KEYS_CF, getSliceArray(prefix, k));
+  }
+  if (deleted_keys_ && updates.deletes.size() > 0) {
+    *deleted_keys_ += updates.deletes.size();
   }
 }
 

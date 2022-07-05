@@ -183,14 +183,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
     return;
   }
   if (userRequestsHandler_) {
-    // Do not measure pre-exec and read requests.
-    auto isPost =
-        (requests.size() > 0 && !(requests.back().flags & (bftEngine::PRE_PROCESS_FLAG | bftEngine::READ_ONLY_FLAG)));
-    ISystemResourceEntity::scopedDurMeasurment m(
-        resourceEntity_, ISystemResourceEntity::type::post_execution_utilization, isPost);
     userRequestsHandler_->execute(requests, timestamp, batchCid, parent_span);
-    // the size of the queue resembles how many requests have passed consensus.
-    resourceEntity_.addMeasurement({ISystemResourceEntity::type::transactions_accumulated, requests.size(), 0, 0});
   }
   return;
 }
