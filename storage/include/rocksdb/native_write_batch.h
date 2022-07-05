@@ -65,7 +65,8 @@ class NativeWriteBatch {
 
   std::size_t size() const;
   std::uint32_t count() const;
-  std::string data() const { return batch_.Data(); }
+  const std::string &data() const { return batch_.Data(); }
+  void clear() { return batch_.Clear(); }
 
  private:
   std::shared_ptr<const NativeClient> client_;

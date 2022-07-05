@@ -54,6 +54,7 @@ ReplicaBlockchain::ReplicaBlockchain(
       add_block_duration{metrics_comp_.RegisterGauge("AddBlockDurationMicro", 0)},
       multiget_latest_duration{metrics_comp_.RegisterGauge("MultigetLatestDurationMicro", 0)},
       multiget_version_duration{metrics_comp_.RegisterGauge("MultigetLatestVersionDurationMicro", 0)},
+      delete_blocks_until_duration{metrics_comp_.RegisterGauge("AccumulatedDeleteBlocksUntilDurationMicro", 0)},
       get_counter{metrics_comp_.RegisterCounter("GetCounter")},
       multiget_lat_version_counter{metrics_comp_.RegisterCounter("MultiGetLatestVersionCounter")} {
   metrics_comp_.Register();
@@ -85,7 +86,7 @@ ReplicaBlockchain::ReplicaBlockchain(
     if (aux_types.has_value()) {
       v4_kvbc_->setAggregator(aux_types->aggregator_);
     }
-    up_deleter_ = std::make_unique<concord::kvbc::adapter::v4blockchain::BlocksDeleterAdapter>(v4_kvbc_, aux_types);
+    up_deleter_ = std::make_unique<concord::kvbc::adapter::v4blockchain::BlocksDeleterAdapter>(v4_kvbc_);
     up_reader_ = std::make_unique<concord::kvbc::adapter::v4blockchain::BlocksReaderAdapter>(v4_kvbc_);
     up_adder_ = std::make_unique<concord::kvbc::adapter::v4blockchain::BlocksAdderAdapter>(v4_kvbc_);
     up_app_state_ = std::make_unique<concord::kvbc::adapter::v4blockchain::AppStateAdapter>(v4_kvbc_);
@@ -105,6 +106,16 @@ ReplicaBlockchain::ReplicaBlockchain(
   ConcordAssertNE(app_state_, nullptr);
   ConcordAssertNE(state_snapshot_, nullptr);
   ConcordAssertNE(db_chkpt_, nullptr);
+}
+
+BlockId ReplicaBlockchain::deleteBlocksUntil(BlockId until) {
+  auto prev_dur = delete_blocks_until_duration.Get().Get();
+  auto start = std::chrono::steady_clock::now();
+  auto id = deleter_->deleteBlocksUntil(until);
+  auto dur = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
+  delete_blocks_until_duration.Get().Set(prev_dur + dur);
+  metrics_comp_.UpdateAggregator();
+  return id;
 }
 
 }  // namespace concord::kvbc::adapter
