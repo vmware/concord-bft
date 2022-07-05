@@ -13,7 +13,6 @@
 
 #pragma once
 
-#include "Digest.hpp"
 #include "blockchain_misc.hpp"
 
 namespace concord::kvbc::adapter::v4blockchain::utils {
