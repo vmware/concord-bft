@@ -74,7 +74,9 @@ module Replica {
       && (forall seqID | seqID in preparesRcvd :: PrepareProofSetWF(c, preparesRcvd[seqID]))
       && (forall seqID | seqID in commitsRcvd :: CommitProofSetWF(c, commitsRcvd[seqID]))
     }
-    function ShiftWorkingWindow<T>(c:Constants, m:imap<SequenceID,T>, empty:T) : imap<SequenceID,T> {
+    function ShiftWorkingWindow<T>(c:Constants, m:imap<SequenceID,T>, empty:T) : imap<SequenceID,T> 
+      requires c.WF()
+    {
       imap seqID | seqID in getActiveSequenceIDs(c) :: if seqID in m then m[seqID] else empty
     }
   }
@@ -290,6 +292,7 @@ module Replica {
   {
     && v.WF(c)
     && msg.payload.Prepare?
+    && msg.payload.seqID in v.workingWindow.getActiveSequenceIDs(c)
     && c.clusterConfig.IsReplica(msg.sender)
     && ViewIsActive(c, v)
     && msg.payload.view == v.view
@@ -339,8 +342,10 @@ module Replica {
                                  v.workingWindow.commitsRcvd[msg.payload.seqID][msg.sender := msg]]))
   }
 
-  predicate QuorumOfCommits(c:Constants, v:Variables, seqID:SequenceID) {
-    && v.WF(c)
+  predicate QuorumOfCommits(c:Constants, v:Variables, seqID:SequenceID) 
+    requires v.WF(c)
+    requires seqID in v.workingWindow.getActiveSequenceIDs(c)
+  {
     && |v.workingWindow.commitsRcvd[seqID]| >= c.clusterConfig.AgreementQuorum()
   }
 
@@ -348,6 +353,7 @@ module Replica {
   {
     && v.WF(c)
     && msgOps.NoSendRecv()
+    && seqID in v.workingWindow.getActiveSequenceIDs(c)
     && QuorumOfPrepares(c, v, seqID)
     && QuorumOfCommits(c, v, seqID)
     && v.workingWindow.prePreparesRcvd[seqID].Some?
@@ -360,8 +366,9 @@ module Replica {
   }
 
   predicate ContiguousCommits(c:Constants, v:Variables, targetSeqID:SequenceID)
+    requires v.WF(c)
+    requires targetSeqID in v.workingWindow.getActiveSequenceIDs(c)
   {
-    && v.WF(c)
     && (forall seqID | && seqID <= targetSeqID
                        && seqID > v.workingWindow.lastStableCheckpoint
                      :: v.workingWindow.committedClientOperations[seqID].Some?)
@@ -371,14 +378,16 @@ module Replica {
   {
     && v.WF(c)
     && msgOps.NoSendRecv()
+    && seqID in v.workingWindow.getActiveSequenceIDs(c)
     && v.countExecutedSeqIDs < seqID
     && ContiguousCommits(c, v, seqID)
     && v' == v.(countExecutedSeqIDs := seqID)
   }
 
   predicate QuorumOfPrepares(c:Constants, v:Variables, seqID:SequenceID)
+    requires v.WF(c)
+    requires seqID in v.workingWindow.getActiveSequenceIDs(c)
   {
-    && v.WF(c)
     && |v.workingWindow.preparesRcvd[seqID]| >= c.clusterConfig.AgreementQuorum()
   }
 
@@ -408,6 +417,7 @@ module Replica {
   {
     && v.WF(c)
     && msgOps.IsSend()
+    && seqID in v.workingWindow.getActiveSequenceIDs(c)
     && ViewIsActive(c, v)
     && QuorumOfPrepares(c, v, seqID)
     && v.workingWindow.prePreparesRcvd[seqID].Some?
@@ -443,6 +453,7 @@ module Replica {
 
   function ExtractCertificateForSeqID(c:Constants, v:Variables, seqID:SequenceID) : PreparedCertificate
     requires v.WF(c)
+    requires seqID in v.workingWindow.getActiveSequenceIDs(c)
   {
     var preparesRecvd := set msg | msg in v.workingWindow.preparesRcvd[seqID].Values && msg.payload.Prepare?;
     if |preparesRecvd| < c.clusterConfig.AgreementQuorum() 
