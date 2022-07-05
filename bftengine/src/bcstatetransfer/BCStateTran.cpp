@@ -603,7 +603,7 @@ const Digest &BCStateTran::computeDefaultRvbDataDigest() const {
 
   std::call_once(calculate_once, [&] {
     static constexpr int kDefaultInputRvbDataDigest = 1;
-    concord::util::digest::DigestUtil::Context ctx;
+    DigestGenerator ctx;
     ctx.update(reinterpret_cast<const char *>(&kDefaultInputRvbDataDigest), sizeof(kDefaultInputRvbDataDigest));
     ctx.writeDigest(defaultRvbDataDigest.getForUpdate());
     LOG_INFO(logging::getLogger("concord.bft"), KVLOG(defaultRvbDataDigest));
@@ -636,7 +636,7 @@ void BCStateTran::getDigestOfCheckpointImpl(uint64_t checkpointNumber,
 
   if (rvbDataSize != 0) {
     // RVB data exists: calculate a digest bases on the checkpoint desc.rvbData and it's size
-    DigestUtil::Context digestCtx;
+    DigestGenerator digestCtx;
     digestCtx.update(reinterpret_cast<const char *>(desc.rvbData.data()), rvbDataSize);
     digestCtx.update(reinterpret_cast<const char *>(&rvbDataSize), sizeof(rvbDataSize));
     digestCtx.writeDigest(rvbDataDigest.getForUpdate());
@@ -3853,7 +3853,6 @@ void BCStateTran::checkStoredCheckpoints(uint64_t firstStoredCheckpoint, uint64_
 ///////////////////////////////////////////////////////////////////////////
 // Compute digests
 ///////////////////////////////////////////////////////////////////////////
-
 
 void BCStateTran::computeDigestOfPage(
     const uint32_t pageId, const uint64_t checkpointNumber, const char *page, uint32_t pageSize, Digest &outDigest) {

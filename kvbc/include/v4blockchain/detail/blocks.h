@@ -18,7 +18,6 @@
 
 // #include "blocks.h"
 #include "kv_types.hpp"
-#include "Digest.hpp"
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
 #include "categorized_kvbc_msgs.cmf.hpp"
 #include "assertUtils.hpp"

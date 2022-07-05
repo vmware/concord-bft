@@ -55,6 +55,7 @@ using concord::storage::rocksdb::KeyComparator;
 using namespace std;
 using namespace bftEngine::bcst;
 using namespace concord::util;
+using concord::util::digest::DigestGenerator;
 
 using std::chrono::milliseconds;
 using random_bytes_engine = std::independent_bits_engine<std::default_random_engine, CHAR_BIT, unsigned char>;
@@ -3041,7 +3042,7 @@ TEST_F(BcStTest, bkpTestRvbDataConflictDetection) {
       const auto& defaultRvbDataDigest = stDelegator_->computeDefaultRvbDataDigest();
       ASSERT_TRUE(!memcmp(defaultRvbDataDigest.content(), rvbDataDigest.content(), sizeof(Digest)));
     } else {
-      digest::DigestUtil::Context digestCtx;
+      DigestGenerator digestCtx;
       Digest rvbDataDigest;
       auto rvbDataSize = desc.rvbData.size();
       digestCtx.update(reinterpret_cast<const char*>(desc.rvbData.data()), rvbDataSize);
