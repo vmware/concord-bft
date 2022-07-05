@@ -35,9 +35,6 @@ jobs:
               script -q -e -c "make pull"
               sudo df -h
               script -q -e -c "CONCORD_BFT_CMAKE_OMIT_TEST_OUTPUT=TRUE CONCORD_BFT_CMAKE_KEEP_APOLLO_LOGS=FALSE CONCORD_BFT_CMAKE_TSAN=TRUE CONCORD_BFT_CMAKE_USE_FAKE_CLOCK_IN_TIME_SERVICE=TRUE \
-              CONCORD_BFT_CMAKE_USE_CRYPTOPP_HASH=TRUE \
-              CONCORD_BFT_CMAKE_USE_OPENSSL_SHA_256=FALSE \
-              CONCORD_BFT_CMAKE_USE_OPENSSL_SHA3_256=FALSE \
               make build" \
               && script -q -e -c "make test"
         - name: Check if TSAN passed

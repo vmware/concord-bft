@@ -30,9 +30,6 @@ jobs:
           sudo df -h
           script -q -e -c "CONCORD_BFT_CONTAINER_CC=clang CONCORD_BFT_CONTAINER_CXX=clang++ \
           CONCORD_BFT_CMAKE_CODECOVERAGE=TRUE CONCORD_BFT_CMAKE_TRANSPORT=UDP \
-          CONCORD_BFT_CMAKE_USE_CRYPTOPP_HASH=TRUE \
-          CONCORD_BFT_CMAKE_USE_OPENSSL_SHA_256=FALSE \
-          CONCORD_BFT_CMAKE_USE_OPENSSL_SHA3_256=FALSE \
           make build" && script -q -e -c "make test"
         continue-on-error: true
 
