@@ -33,6 +33,8 @@ class Digest {
 
   Digest(const Digest& other) { memcpy(d, other.d, DIGEST_SIZE); }
 
+  Digest(const BlockDigest& other) { memcpy(d, other.data(), other.size()); }
+
   bool isZero() const {
     for (int i = 0; i < DIGEST_SIZE; i++) {
       if (d[i] != 0) return false;

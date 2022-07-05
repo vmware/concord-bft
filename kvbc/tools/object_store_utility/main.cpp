@@ -63,8 +63,11 @@ int main(int argc, char** argv) {
   po::options_description restore_options{"restore OPTIONS"};
   restore_options.add_options()
       ("db-path",
-      po::value<fs::path>()->required()->notifier(std::bind(std::mem_fn(&DBRestore::initRocksDB), restorer.get(), _1)),
-      "rocksDB directory path");
+      po::value<fs::path>()->required(),
+      "rocksDB directory path")
+      ("blockchain-version",
+      po::value<decltype(bftEngine::ReplicaConfig::instance().kvBlockchainVersion)>()->default_value(4),
+      "Type of blockchain, supported values are 1 and 4");
 
   auto usage = [logger, global, mandatory, check_options, restore_options]() {
     LOG_INFO(logger, "\nUsage: " << global << "\n" << mandatory << "\n" << check_options << "\n" << restore_options);
@@ -93,21 +96,28 @@ int main(int argc, char** argv) {
     if (cmd == "validate"){
       po::store(po::command_line_parser(opts).options(check_options).run(), var_map);
       po::notify(var_map);
-       if (var_map.count("key")) {
-         checker->validateKey(var_map["key"].as<std::string>());
-       } else if (var_map.count("all")) {
-         checker->validateAll();
-       } else if (var_map.count("range")) {
-         checker->validateRange(var_map["range"].as<std::uint64_t>());
-       } else {
-         LOG_ERROR(logger, check_options);
-         exit(1);
-       }
-    }else if (cmd == "restore"){
+      if (var_map.count("key")) {
+        checker->validateKey(var_map["key"].as<std::string>());
+      } else if (var_map.count("all")) {
+        checker->validateAll();
+      } else if (var_map.count("range")) {
+        checker->validateRange(var_map["range"].as<std::uint64_t>());
+      } else {
+        LOG_ERROR(logger, check_options);
+        exit(1);
+      }
+    } else if (cmd == "restore") {
       po::store(po::command_line_parser(opts).options(restore_options).run(), var_map);
       po::notify(var_map);
+      auto blockchain_version =
+          var_map["blockchain-version"].as<decltype(bftEngine::ReplicaConfig::instance().kvBlockchainVersion)>();
+      if ((blockchain_version != 1) && (blockchain_version != 4)) {
+        throw std::runtime_error("Wrong blockchain version is specified (it should be 1 or 4): " +
+                                 std::to_string(blockchain_version));
+      }
+      restorer->initRocksDB(var_map["db-path"].as<fs::path>(), blockchain_version);
       restorer->restore();
-    }else{
+    } else {
       usage();
     }
   } catch (const std::exception& e) {

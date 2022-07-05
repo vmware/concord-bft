@@ -14,6 +14,7 @@
 
 #include <string_view>
 #include <optional>
+#include <variant>
 
 #include "util/filesystem.hpp"
 #include "kv_types.hpp"
@@ -83,12 +84,8 @@ class IntegrityChecker {
   /** Get block for block id
    * @return block digest, de-serialized RawBlock
    */
-  std::pair<Digest, concord::kvbc::categorization::RawBlock> getBlock(const BlockId&) const;
-
-  /** Get block for block id and validade it against expected digest
-   * @return deserialized RawBlock
-   */
-  concord::kvbc::categorization::RawBlock getBlock(const BlockId&, const Digest& expected_digest) const;
+  std::pair<Digest, std::variant<concord::kvbc::categorization::RawBlock, concord::kvbc::RawBlock>> getBlock(
+      const BlockId&) const;
 
   /** Calculate block digest
    * @return block digest

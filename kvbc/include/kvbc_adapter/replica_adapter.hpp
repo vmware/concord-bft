@@ -233,6 +233,11 @@ class ReplicaBlockchain : public IBlocksDeleter,
     native_client_->rawDB().GetIntProperty(handle, rocksdb::Slice(property.c_str(), property.length()), val);
   }
 
+  ////////////////////////////Tools support//////////////////////////
+  std::optional<concord::util::digest::Digest> getParentDigest(BlockId block_id) {
+    return kvbc_ == nullptr ? v4_kvbc_->parentDigest(block_id) : kvbc_->parentDigest(block_id);
+  }
+
  private:
   void switch_to_rawptr();
 
