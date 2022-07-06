@@ -42,27 +42,21 @@ module Replica {
     map[]
   }
 
-  type PrePreparesRcvd = imap<SequenceID, Option<Network.Message<Message>>>
-  predicate PrePreparesRcvdWF(prePreparesRcvd:PrePreparesRcvd) {
-    && FullImap(prePreparesRcvd)
-    && (forall x | x in prePreparesRcvd && prePreparesRcvd[x].Some? :: prePreparesRcvd[x].value.payload.PrePrepare?)
-  }
-
   // The Working Window data structure. Here Replicas keep the PrePrepare from the Primary
   // and the votes from all peers. Once a Client Operation is committed by a given Replica
   // to a specific Sequence ID (the Replica has collected the necessary quorum of votes from
   // peers) the Client Operation is inserted in the committedClientOperations as appropriate.
   datatype WorkingWindow = WorkingWindow(
-    committedClientOperations:imap<SequenceID, Option<OperationWrapper>>,
-    prePreparesRcvd:PrePreparesRcvd,
-    preparesRcvd:imap<SequenceID, PrepareProofSet>,
-    commitsRcvd:imap<SequenceID, CommitProofSet>,
+    committedClientOperations:map<SequenceID, Option<OperationWrapper>>,
+    prePreparesRcvd:map<SequenceID, Option<Network.Message<Message>>>,
+    preparesRcvd:map<SequenceID, PrepareProofSet>,
+    commitsRcvd:map<SequenceID, CommitProofSet>,
     lastStableCheckpoint:SequenceID
   ) {
-    function getActiveSequenceIDs(c:Constants) : iset<SequenceID> 
+    function getActiveSequenceIDs(c:Constants) : set<SequenceID> 
       requires c.WF()
     {
-      iset seqID | lastStableCheckpoint <= seqID < lastStableCheckpoint + c.clusterConfig.workingWindowSize //TODO: refactor to finite sets/maps
+      set seqID | lastStableCheckpoint <= seqID < lastStableCheckpoint + c.clusterConfig.workingWindowSize //TODO: refactor to finite sets/maps
     }
     predicate WF(c:Constants)
       requires c.WF()
@@ -70,14 +64,15 @@ module Replica {
       && committedClientOperations.Keys == getActiveSequenceIDs(c)
       && preparesRcvd.Keys == getActiveSequenceIDs(c)
       && commitsRcvd.Keys == getActiveSequenceIDs(c)
-      && PrePreparesRcvdWF(prePreparesRcvd)
+      && prePreparesRcvd.Keys == getActiveSequenceIDs(c)
+      && (forall x | x in prePreparesRcvd && prePreparesRcvd[x].Some? :: prePreparesRcvd[x].value.payload.PrePrepare?)
       && (forall seqID | seqID in preparesRcvd :: PrepareProofSetWF(c, preparesRcvd[seqID]))
       && (forall seqID | seqID in commitsRcvd :: CommitProofSetWF(c, commitsRcvd[seqID]))
     }
-    function ShiftWorkingWindow<T>(c:Constants, m:imap<SequenceID,T>, empty:T) : imap<SequenceID,T> 
+    function ShiftWorkingWindow<T>(c:Constants, m:map<SequenceID,T>, empty:T) : map<SequenceID,T> 
       requires c.WF()
     {
-      imap seqID | seqID in getActiveSequenceIDs(c) :: if seqID in m then m[seqID] else empty
+      map seqID | seqID in getActiveSequenceIDs(c) :: if seqID in m then m[seqID] else empty
     }
   }
 
@@ -255,6 +250,7 @@ module Replica {
     && v.WF(c)
     && LiteInv(c, v)
     && msg.payload.PrePrepare?
+    && msg.payload.seqID in v.workingWindow.getActiveSequenceIDs(c)
     && c.clusterConfig.IsReplica(msg.sender)
     && ViewIsActive(c, v)
     && msg.payload.view == v.view
@@ -344,8 +340,8 @@ module Replica {
 
   predicate QuorumOfCommits(c:Constants, v:Variables, seqID:SequenceID) 
     requires v.WF(c)
-    requires seqID in v.workingWindow.getActiveSequenceIDs(c)
   {
+    && seqID in v.workingWindow.getActiveSequenceIDs(c)
     && |v.workingWindow.commitsRcvd[seqID]| >= c.clusterConfig.AgreementQuorum()
   }
 
@@ -386,8 +382,8 @@ module Replica {
 
   predicate QuorumOfPrepares(c:Constants, v:Variables, seqID:SequenceID)
     requires v.WF(c)
-    requires seqID in v.workingWindow.getActiveSequenceIDs(c)
   {
+    && seqID in v.workingWindow.getActiveSequenceIDs(c)
     && |v.workingWindow.preparesRcvd[seqID]| >= c.clusterConfig.AgreementQuorum()
   }
 
@@ -399,6 +395,7 @@ module Replica {
   {
     && v.WF(c)
     && msgOps.IsSend()
+    && seqID in v.workingWindow.getActiveSequenceIDs(c)
     && ViewIsActive(c, v)
     && v.workingWindow.prePreparesRcvd[seqID].Some?
     && msgOps.send == Some(Network.Message(c.myId,
