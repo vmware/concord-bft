@@ -134,6 +134,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
 
         # Perform multiple view changes and restart 1 replica while the replicas are agreeing the new View
         while view < loops:
+            log.log_message(f"view {view}")
             # Pick one replica to restart while the others are agreeing the next View.
             # We want a replica other than the current primary, which will be restarted to trigger the view change
             # and we want also the restarted replica to be different from the next primary
@@ -174,7 +175,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
             old_view = view
 
             # Wait for quorum of replicas to move to a higher view
-            with trio.fail_after(seconds=10 + timeouts):
+            with trio.fail_after(seconds=20 + timeouts):
                 while view == old_view:
                     log.log_message(f"waiting for vc current view={view}")
                     await skvbc.run_concurrent_ops(1)
@@ -205,7 +206,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
             log.log_message("wait for fast path to be prevalent")
             # Make sure fast path is prevalent before moving to another round ot the test
             await bft_network.wait_for_fast_path_to_be_prevalent(
-                run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=1, timeout=60+timeouts)
+                run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20, timeout=60+timeouts)
             log.log_message("fast path prevailed")
 
         # Before the test ends we verify the Fast Path is prevalent, no matter
