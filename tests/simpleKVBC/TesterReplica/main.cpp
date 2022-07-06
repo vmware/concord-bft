@@ -72,15 +72,15 @@ class STAddRemoveHandlerTest : public concord::client::reconfiguration::IStateHa
   }
 };
 
-void cronSetup(TestSetup& setup, const Replica& replica) {
+void cronSetup(TestSetup& setup, const Replica& main_replica) {
   if (!setup.GetCronEntryNumberOfExecutes()) {
     return;
   }
   const auto numberOfExecutes = *setup.GetCronEntryNumberOfExecutes();
 
   using namespace concord::cron;
-  const auto cronTableRegistry = replica.cronTableRegistry();
-  const auto ticksGenerator = replica.ticksGenerator();
+  const auto cronTableRegistry = main_replica.cronTableRegistry();
+  const auto ticksGenerator = main_replica.ticksGenerator();
 
   auto& cronTable = cronTableRegistry->operator[](TestSetup::kCronTableComponentId);
 
@@ -116,15 +116,17 @@ void run_replica(int argc, char** argv) {
   MDC_PUT(MDC_REPLICA_ID_KEY, std::to_string(setup->GetReplicaConfig().replicaId));
   MDC_PUT(MDC_THREAD_KEY, "main");
 
-  replica = std::make_shared<Replica>(setup->GetCommunication(),
-                                      setup->GetReplicaConfig(),
-                                      setup->GetStorageFactory(),
-                                      setup->GetMetricsServer().GetAggregator(),
-                                      setup->GetPerformanceManager(),
-                                      std::map<std::string, categorization::CATEGORY_TYPE>{
-                                          {VERSIONED_KV_CAT_ID, categorization::CATEGORY_TYPE::versioned_kv},
-                                          {BLOCK_MERKLE_CAT_ID, categorization::CATEGORY_TYPE::block_merkle}},
-                                      setup->GetSecretManager());
+  replica = std::make_shared<Replica>(
+      setup->GetCommunication(),
+      setup->GetReplicaConfig(),
+      setup->GetStorageFactory(),
+      setup->GetMetricsServer().GetAggregator(),
+      setup->GetPerformanceManager(),
+      std::map<std::string, categorization::CATEGORY_TYPE>{
+          {VERSIONED_KV_CAT_ID, categorization::CATEGORY_TYPE::versioned_kv},
+          {categorization::kExecutionEventGroupLatestCategory, categorization::CATEGORY_TYPE::versioned_kv},
+          {BLOCK_MERKLE_CAT_ID, categorization::CATEGORY_TYPE::block_merkle}},
+      setup->GetSecretManager());
   bftEngine::ControlStateManager::instance().addOnRestartProofCallBack(
       [argv, &setup]() {
         setup->GetCommunication()->stop();
@@ -145,7 +147,7 @@ void run_replica(int argc, char** argv) {
                                                 setup->AddAllKeysAsPublic(),
                                                 replica->kvBlockchain() ? &replica->kvBlockchain().value() : nullptr);
   replica->set_command_handler(cmdHandler);
-  replica->setStateSnapshotValueConverter(categorization::KeyValueBlockchain::kNoopConverter);
+  replica->setStateSnapshotValueConverter([](std::string&& v) -> std::string { return std::move(v); });
   replica->start();
 
   auto& replicaConfig = setup->GetReplicaConfig();

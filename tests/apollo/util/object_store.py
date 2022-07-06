@@ -47,11 +47,17 @@ def start_replica_cmd_prefix(builddir, replica_id, config):
     ro_params = [ "--s3-config-file",
                   path_to_s3_config
                   ]
+    if os.environ.get('BLOCKCHAIN_VERSION', default="1").lower() == "4" :
+        blockchain_version = "4"
+    else :
+        blockchain_version = "1"
+
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
     ret = [path,
            "-k", KEY_FILE_PREFIX,
            "-i", str(replica_id),
            "-s", statusTimerMilli,
+           "-V", blockchain_version,
            "-l", os.path.join(builddir, "tests", "simpleKVBC", "scripts", "logging.properties")
            ]
     if replica_id >= config.n and replica_id < config.n + config.num_ro_replicas and os.environ.get("CONCORD_BFT_MINIO_BINARY_PATH"):

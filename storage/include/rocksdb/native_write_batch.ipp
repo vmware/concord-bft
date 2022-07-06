@@ -22,6 +22,14 @@ namespace concord::storage::rocksdb {
 inline NativeWriteBatch::NativeWriteBatch(const std::shared_ptr<const NativeClient> &client) noexcept
     : client_{client} {}
 
+inline NativeWriteBatch::NativeWriteBatch(const std::shared_ptr<const NativeClient> &client,
+                                          size_t reserved_bytes) noexcept
+    : client_{client}, batch_{reserved_bytes} {}
+
+inline NativeWriteBatch::NativeWriteBatch(const std::shared_ptr<const NativeClient> &client,
+                                          std::string &&data) noexcept
+    : client_{client}, batch_{std::move(data)} {}
+
 template <typename KeySpan, typename ValueSpan>
 void NativeWriteBatch::put(const std::string &cFamily, const KeySpan &key, const ValueSpan &value) {
   auto s = batch_.Put(client_->columnFamilyHandle(cFamily), detail::toSlice(key), detail::toSlice(value));
@@ -44,6 +52,16 @@ void NativeWriteBatch::put(const std::string &cFamily,
   detail::throwOnError("batch put(multi-value) failed"sv, std::move(s));
 }
 
+template <size_t K, size_t N>
+void NativeWriteBatch::put(const std::string &cFamily,
+                           const std::array<::rocksdb::Slice, K> &key,
+                           const std::array<::rocksdb::Slice, N> &value) {
+  auto s = batch_.Put(client_->columnFamilyHandle(cFamily),
+                      ::rocksdb::SliceParts(key.data(), K),
+                      ::rocksdb::SliceParts(value.data(), N));
+  detail::throwOnError("batch put(multi-key-value) failed"sv, std::move(s));
+}
+
 template <typename KeySpan, size_t N>
 void put(const KeySpan &key, const std::array<::rocksdb::Slice, N> &value) {
   put(NativeClient::defaultColumnFamily(), key, value);
@@ -58,6 +76,12 @@ void NativeWriteBatch::del(const std::string &cFamily, const KeySpan &key) {
 template <>
 inline void NativeWriteBatch::del<::rocksdb::Slice>(const std::string &cFamily, const ::rocksdb::Slice &key) {
   auto s = batch_.Delete(client_->columnFamilyHandle(cFamily), key);
+  detail::throwOnError("batch del failed"sv, std::move(s));
+}
+
+template <size_t K>
+void NativeWriteBatch::del(const std::string &cFamily, const std::array<::rocksdb::Slice, K> &key) {
+  auto s = batch_.Delete(client_->columnFamilyHandle(cFamily), ::rocksdb::SliceParts(key.data(), K));
   detail::throwOnError("batch del failed"sv, std::move(s));
 }
 

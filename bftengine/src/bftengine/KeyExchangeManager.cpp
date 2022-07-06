@@ -20,6 +20,7 @@
 #include "bftengine/EpochManager.hpp"
 #include "concord.cmf.hpp"
 #include "communication/StateControl.hpp"
+#include "ReplicaImp.hpp"
 
 namespace bftEngine::impl {
 
@@ -313,11 +314,11 @@ void KeyExchangeManager::loadClientPublicKey(const std::string& key,
   if (saveToReservedPages) saveClientsPublicKeys(SigManager::instance()->getClientsPublicKeys());
 }
 
-void KeyExchangeManager::sendInitialKey(uint32_t prim, const SeqNum& s) {
+void KeyExchangeManager::sendInitialKey(const ReplicaImp* repImpInstance, const SeqNum& s) {
   std::unique_lock<std::mutex> lock(startup_mutex_);
   SCOPED_MDC(MDC_REPLICA_ID_KEY, std::to_string(ReplicaConfig::instance().replicaId));
   if (!ReplicaConfig::instance().waitForFullCommOnStartup) {
-    waitForLiveQuorum(prim);
+    waitForLiveQuorum(repImpInstance);
   } else {
     waitForFullCommunication();
   }
@@ -325,7 +326,7 @@ void KeyExchangeManager::sendInitialKey(uint32_t prim, const SeqNum& s) {
   metrics_->sent_key_exchange_on_start_status.Get().Set("True");
 }
 
-void KeyExchangeManager::waitForLiveQuorum(uint32_t prim) {
+void KeyExchangeManager::waitForLiveQuorum(const ReplicaImp* repImpInstance) {
   // If transport is UDP, we can't know the connection status, and we are in Apollo context therefore giving 2sec grace.
   if (client_->isUdp()) {
     LOG_INFO(KEY_EX_LOG, "UDP communication");
@@ -336,22 +337,24 @@ void KeyExchangeManager::waitForLiveQuorum(uint32_t prim) {
    * Basically, we can start once we have n-f live replicas. However, to avoid unnecessary view change,
    * we wait for the first primary for a pre-defined amount of time.
    */
-  if (repID_ != prim) {
+  auto primary = repImpInstance->currentPrimary();
+  if (repID_ != primary) {
     auto start = getMonotonicTime();
     auto timeoutForPrim = bftEngine::ReplicaConfig::instance().timeoutForPrimaryOnStartupSeconds;
-    LOG_INFO(KEY_EX_LOG, "waiting for at most " << timeoutForPrim << " for primary (" << prim << ") to be ready");
+    LOG_INFO(KEY_EX_LOG, "waiting for at most " << timeoutForPrim << " for primary (" << primary << ") to be ready");
     while (std::chrono::duration<double, std::milli>(getMonotonicTime() - start).count() / 1000 < timeoutForPrim) {
-      if (client_->isReplicaConnected(prim)) {
-        LOG_INFO(KEY_EX_LOG, "primary (" << prim << ") is connected");
+      if (client_->isReplicaConnected(primary)) {
+        LOG_INFO(KEY_EX_LOG, "primary (" << primary << ") is connected");
         break;
       }
       std::this_thread::sleep_for(std::chrono::seconds(1));
+      primary = repImpInstance->currentPrimary();
     }
-    if (!client_->isReplicaConnected(prim)) {
+    if (!client_->isReplicaConnected(primary)) {
       LOG_INFO(KEY_EX_LOG,
                "replica was not able to connect to primary ("
-                   << prim << ")  after " << timeoutForPrim
-                   << " seconds. The will wait for live quorum and starts (this may cause to a view change");
+                   << primary << ")  after " << timeoutForPrim
+                   << " seconds. This will wait for live quorum(this may cause a view change)");
     }
   }
   auto avlble = client_->numOfConnectedReplicas(clusterSize_);
@@ -360,7 +363,7 @@ void KeyExchangeManager::waitForLiveQuorum(uint32_t prim) {
   // Num of connections should be: (liveQuorum - 1) excluding the current replica
   while (avlble < liveQuorum - 1) {
     LOG_INFO(KEY_EX_LOG,
-             "Consensus engine not available, " << avlble << " replicas are connected, we need at lease " << liveQuorum
+             "Consensus engine not available, " << avlble << " replicas are connected, we need at least " << liveQuorum
                                                 << " to start");
     std::this_thread::sleep_for(std::chrono::seconds(1));
     avlble = client_->numOfConnectedReplicas(clusterSize_);

@@ -230,6 +230,9 @@ class TestAppState : public IAppState, public IBlocksDeleter {
     return until - 1;
   }
 
+  // This is not implemented
+  void deleteLastReachableBlock() override {}
+
  private:
   uint64_t last_block_id_;
   uint64_t genesis_block_id_;

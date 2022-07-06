@@ -3548,6 +3548,11 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
     tryToSendPrePrepareMsg(false);
   }
 
+  if (!currentViewIsActive()) {
+    LOG_INFO(GL, "tryToEnterView after Stable Sequence Number is Received ...");
+    tryToEnterView();
+  }
+
   auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
 
   // Once a replica is has got the the wedge point, it mark itself as wedged. Then, once it restarts, it cleans
@@ -4394,7 +4399,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
   onViewNumCallbacks_.add([&](bool) {
     if (config_.keyExchangeOnStart && !KeyExchangeManager::instance().exchanged()) {
       LOG_INFO(GL, "key exchange has not been finished yet. Give it another try");
-      KeyExchangeManager::instance().sendInitialKey(currentPrimary());
+      KeyExchangeManager::instance().sendInitialKey(this);
     }
   });
   stateTransfer->addOnFetchingStateChangeCallback([&](uint64_t) {
@@ -4403,7 +4408,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
     // initial key exchange after completing ST
     if (!isCollectingState()) {
       if (ReplicaConfig::instance().getkeyExchangeOnStart() && !KeyExchangeManager::instance().exchanged()) {
-        KeyExchangeManager::instance().sendInitialKey(currentPrimary(), lastExecutedSeqNum);
+        KeyExchangeManager::instance().sendInitialKey(this, lastExecutedSeqNum);
         LOG_INFO(GL, "Send initial key exchange after completing state transfer " << KVLOG(lastExecutedSeqNum));
       }
     }
@@ -4610,13 +4615,12 @@ void ReplicaImp::start() {
   if (!firstTime_ || config_.getdebugPersistentStorageEnabled()) clientsManager->loadInfoFromReservedPages();
   addTimers();
   recoverRequests();
-
   // The following line will start the processing thread.
   // It must happen after the replica recovers requests in the main thread.
   msgsCommunicator_->startMsgsProcessing(config_.getreplicaId());
 
   if (ReplicaConfig::instance().getkeyExchangeOnStart() && !KeyExchangeManager::instance().exchanged()) {
-    KeyExchangeManager::instance().sendInitialKey(currentPrimary());
+    KeyExchangeManager::instance().sendInitialKey(this);
   } else {
     // If key exchange is disabled, first publish the replica's main (rsa) key to clients
     if (ReplicaConfig::instance().publishReplicasMasterKeyOnStartup) KeyExchangeManager::instance().sendMainPublicKey();

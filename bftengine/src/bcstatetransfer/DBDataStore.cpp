@@ -376,7 +376,7 @@ void DBDataStore::associatePendingResPageWithCheckpointTxn(uint32_t inPageId,
   auto page = pendingPages.find(inPageId);
   ConcordAssert(page != pendingPages.end());
 
-  setResPageTxn(inPageId, inCheckpoint, inPageDigest, page->second, txn);
+  setResPageTxn(inPageId, inCheckpoint, inPageDigest, page->second.get(), txn);
   txn->del(pendingPageKey(inPageId));
 }
 void DBDataStore::deleteAllPendingPagesTxn(ITransaction* txn) {

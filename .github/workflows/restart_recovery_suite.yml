@@ -1,7 +1,7 @@
 name: Restart recovery suite
 on:
   schedule:
-    - cron: '0 5 * * *'
+    - cron: '0 1 * * *'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -10,7 +10,7 @@ concurrency:
 jobs:
   build:
     name: Build
-    timeout-minutes: 600
+    timeout-minutes: 420
     runs-on: ubuntu-18.04
     outputs:
       err_output: ${{ steps.prepare_err_artifacts.outputs.test}}
@@ -19,12 +19,6 @@ jobs:
       matrix:
             compiler:
                 - "CONCORD_BFT_CONTAINER_CC=clang CONCORD_BFT_CONTAINER_CXX=clang++"
-            ci_build_type:
-                - "-DCMAKE_BUILD_TYPE=RELEASE -DBUILD_COMM_TCP_TLS=FALSE"
-                - "-DCMAKE_BUILD_TYPE=RELEASE -DBUILD_COMM_TCP_TLS=TRUE"
-            use_s3_obj_store:
-                - "-DUSE_S3_OBJECT_STORE=ON"
-                - "-DUSE_S3_OBJECT_STORE=OFF"
     steps:
         - name: Cleanup pre-installed tools
           run: |
@@ -53,20 +47,20 @@ jobs:
               script -q -e -c "make build \
                               ${{ matrix.compiler}} \
                               CONCORD_BFT_CMAKE_FLAGS=\"\
-                              ${{ matrix.ci_build_type }} \
+                              -DCMAKE_BUILD_TYPE=RELEASE \
+                              -DBUILD_COMM_TCP_TLS=FALSE \
                               -DBUILD_TESTING=ON \
                               -DENABLE_RESTART_RECOVERY_TESTS=TRUE \
                               -DBUILD_COMM_TCP_PLAIN=FALSE \
                               -DCMAKE_CXX_FLAGS_RELEASE='-O3 -g' \
                               -DUSE_LOG4CPP=TRUE \
-                              -CONCORD_BFT_CTEST_TIMEOUT=18000 \
                               -DBUILD_ROCKSDB_STORAGE=TRUE \
-                              ${{ matrix.use_s3_obj_store }} \
+                              -DUSE_S3_OBJECT_STORE=OFF \
                               -DUSE_OPENTRACING=ON \
                               -DOMIT_TEST_OUTPUT=OFF\
                               -DKEEP_APOLLO_LOGS=TRUE\
                               -DUSE_FAKE_CLOCK_IN_TIME_SERVICE=TRUE\" "\
-              && script -q -e -c "make test-single-suite TEST_NAME=skvbc_restart_recovery_tests"
+              && script -q -e -c "CONCORD_BFT_CTEST_TIMEOUT=26000 make test-single-suite TEST_NAME=skvbc_restart_recovery_tests"
         - name: Prepare artifacts
           if: failure()
           run: |
