@@ -38,15 +38,17 @@ when a backwards incompatible change is made.
 
 ## Install and Build (Ubuntu Linux 18.04)
 
-Concord-BFT supports two kinds of builds: native and docker.
+Concord-BFT supports two kinds of builds are,
+* Docker
+* Native
 
-The docker build is **strongly recommended**.
+The docker build is **strongly recommended**
 
 ### Docker
 
-* Install the latest docker.
+* [Install the latest docker] (https://docs.docker.com/engine/install/ubuntu/).
 * Optional: [configure docker as non-root user](https://docs.docker.com/engine/install/linux-postinstall/#manage-docker-as-a-non-root-user).
-* Build:
+* Build concord-bft
 ```sh
 cd concord-bft
 make
@@ -55,9 +57,11 @@ make test
 Run `make help` to see more commands.
 
 Note:
+* If you face any format related issues than run `make format` before running `make` command to build concord-bft.
 * The output binaries are stored in the host's `concord-bft/build`.
-* `Makefile` is configurable.
-For example, if you want to use another compiler you may pass it to the `make`:
+* Default compiler is clang and clang++.
+* `Makefile` is configurable. If you want to use another compiler you may pass it to the `make`.
+For example,
 ```
 make CONCORD_BFT_CONTAINER_CXX=g++ \
     CONCORD_BFT_CONTAINER_CC=gcc \
@@ -66,17 +70,12 @@ make CONCORD_BFT_CONTAINER_CXX=g++ \
 
 Other build options, including passthrough options for CMake, are defined in the Makefile and prefixed with `CONCORD_BFT_`. Variables that are capable of being overridden on the commandline are set with the Make conditional operator `?=` and are at the beginning of [Makefile](Makefile). Please check that file for options.
 
-#### Select comm module
-One option that is worth calling out explicitly is the communication (transport) library. Transport defaults to TLS and can be configured explicitly by setting the `CONCORD_BFT_CMAKE_TRANSPORT` flag. The flag defaults to **TLS**, but also supports **UDP** and **TCP**. These can be useful because the use of pinned certificates for TLS requires an out of band setup.
-
-See [create_tls_certs.sh](scripts/linux/create_tls_certs.sh) for an example. This script is used in apollo tests. For production usage, an out of band deployment for each replica must be used to avoid revealing private keys to each replica.
-
 ### Native
 
 ```sh
 git clone https://github.com/vmware/concord-bft
 cd concord-bft
-sudo ./install_deps.sh # Installs all dependencies and 3rd parties
+sudo ./install_deps.sh    # Install all dependencies and 3rd parties
 mkdir build
 cd build
 cmake ..
@@ -88,21 +87,17 @@ In order to turn on or off various options, you need to change your cmake config
 done by passing arguments to cmake with a `-D` prefix: e.g. `cmake -DBUILD_TESTING=OFF`. Note that
 make must be run afterwards to build according to the configuration. Please see [CMakeLists.txt](CMakeLists.txt) for configurable options.
 
-#### Select comm module
-One option that is worth calling out explicitly is the communication (transport) library.
 
-We support both UDP and TCP communication. UDP is the default. In order to
-enable TCP communication, build with `-DBUILD_COMM_TCP_PLAIN=TRUE` in the cmake
-instructions shown above.  If set, the test client will run using TCP. If you
-wish to use TCP in your application, you need to build the TCP module as
-mentioned above and then create the communication object using CommFactory and
-passing PlainTcpConfig object to it.
+### Select comm module
+One option that is worth calling out explicitly is the communication (transport) library. Transport defaults to TLS and can be configured explicitly by setting the `CONCORD_BFT_CMAKE_TRANSPORT` flag. The flag defaults to **TLS**, but also supports **UDP** and **TCP**.
+In order to enable TCP or UDP communication, build with below flags,
+```
+make build CONCORD_BFT_CMAKE_TRANSPORT=TCP    # To enable TCP communication
+make build CONCORD_BFT_CMAKE_TRANSPORT=UDP    # To enable UDP communication
+```
+These can be useful because the use of pinned certificates for TLS requires an out of band setup.
 
-We also support TCP over TLS communication. To enable it, change the
-`BUILD_COMM_TCP_TLS` flag to `TRUE` in the main CMakeLists.txt file. When
-running simpleTest using the testReplicasAndClient.sh - there is no need to create TLS certificates manually. The script will use the `create_tls_certs.sh` (located under the scripts/linux folder) to create certificates. The latter can be used to create TLS files for any number of replicas, e.g. when extending existing tests.
-
-As we used pinned certificates for TLS, the user will have to manually provide these. THey can use the [create_tls_certs.sh](scripts/linux/create_tls_certs.sh) script as an example.
+See [create_tls_certs.sh](scripts/linux/create_tls_certs.sh) for an example. This script is used in apollo tests. For production usage, an out of band deployment for each replica must be used to avoid revealing private keys to each replica.
 
 
 ### C++ Linter
@@ -178,20 +173,18 @@ Please find more details about the Apollo framework [here](tests/apollo/README.m
 ## Run examples
 
 
-### Simple test application (4 replicas and 1 client on a single machine)
-
-Tests are compiled into in the build directory and can be run from anywhere as
-long as they aren't moved.
-
-Run the following from the top level concord-bft directory:
-
-   ./build/tests/simpleTest/scripts/testReplicasAndClient.sh
-
-#### Using simple test application via Python script
-
-You can use the simpleTest.py script to run various configurations via a simple
-command line interface.
-Please find more information [here](./tests/simpleTest/README.md)
+### Simple Test application
+Simple Test application is used to demonstrate how to use concord and enables you to perform READ and WRITE requests
+from client to replicas on a single-register state machine and then the consensus algorithm is run using this setup.
+Simple Test is compiled into the build directory and can be run from anywhere as long as it isn't moved.
+Simple Test can be run using 2 methods:
+#### 1) Shell script
+./build/tests/simpleTest/scripts/testReplicasAndClient.sh
+You can use this shell script to run Simple Test using default configuration i.e. 4 replicas and 1 client.
+#### 2) Python script
+./build/tests/simpleTest/scripts/simpleTest.py
+You can use the simpleTest.py script to run various configurations via a simple command line interface.
+Please find more information on Simple Test [here](./tests/simpleTest/README.md)
 
 ## Directory Structure
 
@@ -225,9 +218,6 @@ signed our contributor license agreement (CLA), our bot will update the issue wh
 questions about the CLA process, please refer to our [FAQ](https://cla.vmware.com/faq). For more detailed information,
 refer to [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Notes
-The library calls `std::terminate()` when it cannot continue in a safe manner.
-In that way, users can install a handler that does something different than just calling `std::abort()`.
 
 ## Community
 
