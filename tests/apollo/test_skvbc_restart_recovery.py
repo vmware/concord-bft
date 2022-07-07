@@ -666,6 +666,28 @@ class SkvbcRestartRecoveryTest(ApolloTest):
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f >= 2, rotate_keys=False)
     async def test_isolated_non_primaries(self, bft_network):
+        """
+        In this test we isolate the non-primary replicas form each other,
+        leaving only their connection to the primary. In this setup only
+        the primary is the only one who can bidirectionally communicate
+        with each replica. In this state the system can progress only up
+        to the working window size. We advance past the first stable checkpoint
+        which only the primary will collect and we initiate view change.
+        We perform this test in multiple cycles to verify correct recovery
+        and in the end we drop all adversaries and verify fast path is
+        recovered.
+        Step by step scenario:
+        1. Start all replicas.
+        2. Set up an adversary to block all messages between the non-primary replicas.
+           This way non-primaries will only be able to communicate with the primary bidirectionally.
+        3. Start Client requests to fill beyond 50% of the Working Window.
+        4. Drop the network adversary.
+        5. Stop the Primary to trigger a View Change and verify it completed successfully.
+        We perform the above described steps in cycle multiple times. Once all the cycles are
+        completed and all adversarial activities are dropped we verify that the system is able
+        to recover Fast Commit path.
+
+        """
         # log = foo()
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
