@@ -53,10 +53,15 @@ module Replica {
     commitsRcvd:map<SequenceID, CommitProofSet>,
     lastStableCheckpoint:SequenceID
   ) {
+    predicate IsActiveSeqID(c:Constants, seqID:SequenceID)
+    {
+      && lastStableCheckpoint <= seqID < lastStableCheckpoint + c.clusterConfig.workingWindowSize
+    }
     function getActiveSequenceIDs(c:Constants) : set<SequenceID> 
       requires c.WF()
     {
-      set seqID | lastStableCheckpoint <= seqID < lastStableCheckpoint + c.clusterConfig.workingWindowSize //TODO: refactor to finite sets/maps
+      set seqID:SequenceID | && IsActiveSeqID(c, seqID) // This statement provides a trigger by naming the constraint
+                             && lastStableCheckpoint <= seqID < lastStableCheckpoint + c.clusterConfig.workingWindowSize // This statement satisfies Dafny's finite set heuristics.
     }
     predicate WF(c:Constants)
       requires c.WF()
