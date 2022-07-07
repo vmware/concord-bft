@@ -72,7 +72,10 @@ class CheckpointInfo {
 
   const auto& getAllCheckpointMsgs() const { return checkpointCertificate->getAllMsgs(); }
 
-  void tryToMarkCheckpointCertificateCompleted() { checkpointCertificate->tryToMarkComplete(); }
+  void tryToMarkCheckpointCertificateCompleted() {
+    LOG_DEBUG(GL, "Trying to mark checkpoint certificate complete");
+    checkpointCertificate->tryToMarkComplete();
+  }
 
   bool checkpointSentAllOrApproved() const { return sentToAllOrApproved; }
 
