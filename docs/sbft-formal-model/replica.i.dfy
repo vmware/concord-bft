@@ -69,7 +69,7 @@ module Replica {
       && (forall seqID | seqID in preparesRcvd :: PrepareProofSetWF(c, preparesRcvd[seqID]))
       && (forall seqID | seqID in commitsRcvd :: CommitProofSetWF(c, commitsRcvd[seqID]))
     }
-    function ShiftWorkingWindow<T>(c:Constants, m:map<SequenceID,T>, empty:T) : map<SequenceID,T> 
+    function Shift<T>(c:Constants, m:map<SequenceID,T>, empty:T) : map<SequenceID,T> 
       requires c.WF()
     {
       map seqID | seqID in getActiveSequenceIDs(c) :: if seqID in m then m[seqID] else empty
@@ -557,9 +557,9 @@ module Replica {
     && HasStableCheckpointForSeqID(c, v, seqID)
     && v' == v.(workingWindow := v.workingWindow.(
       lastStableCheckpoint := seqID, 
-      prePreparesRcvd := v.workingWindow.ShiftWorkingWindow(c, v.workingWindow.prePreparesRcvd, None),
-      preparesRcvd := v.workingWindow.ShiftWorkingWindow(c, v.workingWindow.preparesRcvd, EmptyPrepareProofSet()),
-      commitsRcvd := v.workingWindow.ShiftWorkingWindow(c, v.workingWindow.commitsRcvd, EmptyCommitProofSet())))
+      prePreparesRcvd := v.workingWindow.Shift(c, v.workingWindow.prePreparesRcvd, None),
+      preparesRcvd := v.workingWindow.Shift(c, v.workingWindow.preparesRcvd, EmptyPrepareProofSet()),
+      commitsRcvd := v.workingWindow.Shift(c, v.workingWindow.commitsRcvd, EmptyCommitProofSet())))
   }
 
   predicate Init(c:Constants, v:Variables) {
