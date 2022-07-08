@@ -61,9 +61,7 @@ jobs:
                               -DRUN_APOLLO_TESTS=FALSE\
                               -DUSE_FAKE_CLOCK_IN_TIME_SERVICE=TRUE\" "\
               && script -q -e -c "make simple-test" \
-              && script -q -e -c "make test-single-apollo-case \
-                                  TEST_FILE_NAME=test_skvbc_reconfiguration TEST_CASE_NAME=test_tls_exchange_client_replica_with_st \
-                                  NUM_REPEATS=5 BREAK_ON_FAILURE=TRUE"
+              && script -q -e -c "make test-single-apollo-case TEST_FILE_NAME=test_skvbc_reconfiguration TEST_CASE_NAME=test_tls_exchange_client_replica_with_st"
         - name: Prepare artifacts
           if: failure()
           run: |
