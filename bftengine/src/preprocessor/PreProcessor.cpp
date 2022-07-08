@@ -496,6 +496,14 @@ bool PreProcessor::handlePossiblyExpiredRequest(const RequestStateSharedPtr &req
     const auto &clientId = reqStatePtr->getClientId();
     const auto &batchCid = reqStatePtr->getBatchCid();
     const auto &reqCid = reqStatePtr->getReqCid();
+    if (reqStatePtr->getPreProcessRequest() == nullptr) {
+      /*  We increment here because the requests coming directly from client are getting timedout(here the
+       *  increments to the counter are missed) and we decrement as normal since the requests are expired.
+       *  Here we decrement more compared to increments, this creates a negative side buffer overflow,
+       *  so to balance the count and to prevent this buffer overflow we increment the counter here.
+       */
+      preProcessorMetrics_.preProcInFlyRequestsNum++;
+    }
     LOG_INFO(logger(), "Let replica handle request" << KVLOG(batchCid, reqSeqNum, reqCid, clientId));
     incomingMsgsStorage_->pushExternalMsg(reqStatePtr->buildClientRequestMsg(true));
     releaseClientPreProcessRequest(reqStateEntry, EXPIRED);
@@ -1514,7 +1522,10 @@ void PreProcessor::releaseClientPreProcessRequest(const RequestStateSharedPtr &r
     }
     reqEntry->reqProcessingStatePtr.reset();
     if (!batchCid.empty()) ongoingReqBatches_[clientId]->increaseNumOfCompletedReqs(1);
-    if (!myReplica_.isCurrentPrimary()) {
+    /* we added the below preProcInFlyRequestsNum >0 check to prevent the buffer overflow due to more decrements during
+     * view change
+     */
+    if (!myReplica_.isCurrentPrimary() && (preProcessorMetrics_.preProcInFlyRequestsNum.Get().Get() > 0)) {
       preProcessorMetrics_.preProcInFlyRequestsNum--;
     }
     if (memoryPoolEnabled_) releasePreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch);
