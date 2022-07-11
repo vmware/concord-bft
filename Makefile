@@ -247,13 +247,23 @@ test-range: ## Run all tests in the range [START,END], inclusive: `make test-ran
 			cd ${CONCORD_BFT_BUILD_DIR} && \
 			ctest ${CONCORD_BFT_ADDITIONAL_CTEST_RUN_PARAMS} -I ${START},${END}"
 
+# ctest allows repeating tests, but not with the exact needed behavior below.
 .PHONY: test-single-suite
-test-single-suite: ## Run a single test `make test-single-suite TEST_NAME=<test name>`
-	docker run ${BASIC_RUN_PARAMS} \
-		${CONCORD_BFT_CONTAINER_SHELL} -c \
-		"mkdir -p ${CONCORD_BFT_CORE_DIR} && \
-		cd ${CONCORD_BFT_BUILD_DIR} && \
-		ctest ${CONCORD_BFT_ADDITIONAL_CTEST_RUN_PARAMS} -V -R ${TEST_NAME} --timeout ${CONCORD_BFT_CTEST_TIMEOUT} --output-on-failure"
+test-single-suite: SHELL:=/bin/bash
+test-single-suite: ## Run a single test `make test-single-suite TEST_NAME=<test name> NUM_REPEATS=<number of repeats,default=1,optional> BREAK_ON_FAILURE=<TRUE|FALSE,optional>`. Example: `make test-single-suite TEST_NAME=timers_tests BREAK_ON_FAILURE=TRUE NUM_REPEATS=3`
+	num_failures=0; \
+	for (( i=1; i<=${NUM_REPEATS__}; i++ )); do \
+		echo "=== Starting iteration $${i}/${NUM_REPEATS__}"; \
+		docker run ${BASIC_RUN_PARAMS} ${CONCORD_BFT_CONTAINER_SHELL} -c \
+			"mkdir -p ${CONCORD_BFT_CORE_DIR} && cd ${CONCORD_BFT_BUILD_DIR} && \
+			ctest ${CONCORD_BFT_ADDITIONAL_CTEST_RUN_PARAMS} -V -R ${TEST_NAME} --timeout ${CONCORD_BFT_CTEST_TIMEOUT} --output-on-failure"; \
+			RESULT=$$?; \
+		if [[ $${RESULT} -ne 0 ]];then \
+			(( num_failures=num_failures+1 )); \
+			if [[ '${BREAK_ON_FAILURE__}' = 'TRUE' ]];then echo "Breaking on first failure! (iteration $$i)"; exit $${RESULT}; fi; fi; \
+	done; \
+	echo "Test ${TEST_NAME} completed ${NUM_REPEATS__} iterations" \
+		"($$((${NUM_REPEATS__}-num_failures)) succeed, $${num_failures} failed)";
 
 .PHONY: test-single-apollo-case
 test-single-apollo-case: ## Run a single Apollo test case: `make test-single-apollo-case TEST_FILE_NAME=<test file name> TEST_CASE_NAME=<test case name> NUM_REPEATS=<number of repeats,default=1,optional> BREAK_ON_FAILURE=<TRUE|FALSE,optional>`. Test suite file name should come without *.py. Test case is expected without a class name, and must be unique. Example: `make test-single-apollo-case BREAK_ON_FAILURE=TRUE NUM_REPEATS=100 TEST_FILE_NAME=test_skvbc_reconfiguration TEST_CASE_NAME=test_tls_exchange_client_replica_with_st`
