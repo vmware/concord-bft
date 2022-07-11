@@ -360,4 +360,18 @@ if (BUILD_ROCKSDB_STORAGE)
             kvbc
             stdc++fs
     )
+
+    add_executable(v4_migration_test migrations/v4_migration_test.cpp)
+    add_test(v4_migration_test v4_migration_test)
+    target_link_libraries(v4_migration_test PUBLIC
+            GTest::Main
+            GTest::GTest
+            ${Boost_LIBRARIES}
+            v4migration_tool_lib
+            util
+            corebft
+            kvbc
+            stdc++fs
+            execution_data_cmf
+    )
 endif (BUILD_ROCKSDB_STORAGE)
