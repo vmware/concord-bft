@@ -238,6 +238,10 @@ class ReplicaBlockchain : public IBlocksDeleter,
     return kvbc_ == nullptr ? v4_kvbc_->parentDigest(block_id) : kvbc_->parentDigest(block_id);
   }
 
+  std::optional<concord::util::digest::Digest> calculateBlockDigest(BlockId block_id) {
+    return kvbc_ == nullptr ? v4_kvbc_->calculateBlockDigest(block_id) : kvbc_->calculateBlockDigest(block_id);
+  }
+
  private:
   void switch_to_rawptr();
 

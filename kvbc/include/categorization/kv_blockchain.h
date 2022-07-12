@@ -74,6 +74,7 @@ class KeyValueBlockchain {
   }
 
   std::optional<Hash> parentDigest(BlockId block_id) const;
+  std::optional<Hash> calculateBlockDigest(BlockId block_id) const;
   bool hasBlock(BlockId block_id) const;
 
   std::vector<std::string> getStaleKeys(BlockId block_id,

@@ -1383,7 +1383,7 @@ TEST(recovery, storeLastReachableRevertBatch) {
   }
 }
 
-TEST(recovery, laodLastReachableAfterDeletion) {
+TEST(recovery, loadLastReachableAfterDeletion) {
   std::string dbpath;
   std::random_device seed;
   std::mt19937 gen{seed()};                     // seed the generator
@@ -2480,6 +2480,23 @@ TEST_F(v4_kvbc, all_get_latest_versions) {
       ASSERT_EQ(immutable_versions[i], (latest_versions[i])->version);
     }
   }
+}
+
+TEST_F(v4_kvbc, digest_checks) {
+  uint64_t max_block = 500;
+  uint32_t num_merkle_each = 10;
+  uint32_t num_versioned_each = 10;
+  uint32_t num_immutable_each = 10;
+  create_blocks(max_block, num_merkle_each, num_versioned_each, num_immutable_each);
+  ASSERT_EQ(blockchain->getGenesisBlockId(), 1);
+  ASSERT_EQ(blockchain->getLastReachableBlockId(), max_block);
+
+  for (auto i = blockchain->getGenesisBlockId(); i < blockchain->getLastReachableBlockId(); ++i) {
+    ASSERT_EQ(blockchain->calculateBlockDigest(i), blockchain->parentDigest(i + 1));
+  }
+  concord::util::digest::BlockDigest empty_digest;
+  empty_digest.fill(0);
+  ASSERT_NE(empty_digest, blockchain->calculateBlockDigest(max_block));
 }
 
 // TEST_F(v4_kvbc, trim_blocks) {
