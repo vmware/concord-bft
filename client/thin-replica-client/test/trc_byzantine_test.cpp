@@ -54,6 +54,7 @@ const string kTestingClientID = "mock_client_id";
 const string kTestingJaegerAddress = "127.0.0.1:6831";
 const uint16_t kMaxFaultyIn4NodeCluster = 1;
 static_assert((kMaxFaultyIn4NodeCluster * 3 + 1) == 4);
+const uint32_t queueSize = 100;
 
 // Helper function(s) and struct(s) to test case(s) in this suite.
 
@@ -163,7 +164,7 @@ struct ByzantineTestCaseState {
         byzantine_behavior_(byzantine_behavior),
         server_preparer_(correct_data_preparer_, correct_hasher_, byzantine_behavior_),
         mock_servers_(CreateByzantineMockServers(num_servers, server_preparer_)),
-        update_queue_(new TrcQueue()),
+        update_queue_(new TrcQueue(queueSize)),
         trs_connections_(
             CreateTrsConnections<ByzantineMockThinReplicaServerPreparer::ByzantineMockServer>(mock_servers_)),
         trc_config_(new ThinReplicaClientConfig(kTestingClientID, update_queue_, max_faulty, trs_connections_)),

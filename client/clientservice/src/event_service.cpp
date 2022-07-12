@@ -58,7 +58,7 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
   }
 
   auto span = opentracing::Tracer::Global()->StartSpan("subscribe", {});
-  std::shared_ptr<cc::TrcQueue> update_queue = std::make_shared<cc::TrcQueue>();
+  std::shared_ptr<cc::TrcQueue> update_queue = std::make_shared<cc::TrcQueue>(kQueueDataSize);
   client_->subscribe(request, update_queue, span);
 
   // TODO: Return UNAVAILABLE as documented in event.proto if ConcordClient is unhealthy
@@ -70,7 +70,7 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
     try {
       // We need to check if the client cancelled the subscription.
       // Therefore, we cannot block via pop().
-      update = update_queue->popTill(10ms);
+      update = update_queue->popTill(100ms);
     } catch (const UpdateNotFound& e) {
       status = grpc::Status(grpc::StatusCode::NOT_FOUND, e.what());
       break;

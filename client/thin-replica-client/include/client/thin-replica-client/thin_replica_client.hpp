@@ -83,8 +83,8 @@ struct ThinReplicaClientConfig {
   // client_id is a byte string, at most 256 bytes in length, containing only
   // characters matching the regexp [a-zA-Z0-9._:-#/ ]. Client IDs may also be
   // referred as TRID (thin replica ID) or participant ID. A client ID typically
-  // uniquely identfies a participant group if participant grouping is enabled,
-  // say for hot standby failover. Otherwise it uniquely identifies a
+  // uniquely identifies a participant group if participant grouping is enabled,
+  // say for hot standby fail-over. Otherwise, it uniquely identifies a
   // participant.
   std::string client_id;
   // update_queue is a shared pointer to an UpdateQueue object to be used to
@@ -435,9 +435,6 @@ class ThinReplicaClient final {
   // applications where multiple sequential updates are received and processed
   // at once, it is sufficient to only acknowledge the latest update of a batch.
   void AcknowledgeBlockID(uint64_t block_id);
-
-  // Register the callback to update external metrics
-  void setMetricsCallback(const std::function<void(const ThinReplicaClientMetrics&)>& exposeAndSetMetrics);
 };
 
 }  // namespace client::thin_replica_client

@@ -58,7 +58,6 @@ class StateSnapshotServiceImpl final
 
   logging::Logger logger_;
   static const int32_t MAX_TIMEOUT_MS = 600000;  // 10 mins
-  static constexpr size_t kQueueDataSize{10000u};
   std::shared_ptr<concord::client::concordclient::ConcordClient> client_;
   std::map<std::shared_ptr<bool>, std::shared_ptr<bftEngine::RequestCallBack>> callbacks_for_cleanup_;
   std::mutex cleanup_mutex_;

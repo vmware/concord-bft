@@ -42,6 +42,7 @@ using client::thin_replica_client::ThinReplicaClientConfig;
 const string kTestingClientID = "mock_client_id";
 const string kTestingJaegerAddress = "127.0.0.1:6831";
 const milliseconds kBriefDelayDuration = 10ms;
+const uint32_t queueSize = 100;
 
 namespace {
 
@@ -59,7 +60,7 @@ TEST(thin_replica_client_test, test_destructor_always_successful) {
   size_t num_replicas = 3 * max_faulty + 1;
   unique_ptr<ThinReplicaClient> trc;
 
-  shared_ptr<TrcQueue> update_queue = make_shared<TrcQueue>();
+  shared_ptr<TrcQueue> update_queue = make_shared<TrcQueue>(queueSize);
 
   auto mock_servers = CreateTrsConnections(num_replicas);
   auto trc_config = make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, mock_servers);
@@ -113,7 +114,7 @@ TEST(thin_replica_client_test, test_no_parameter_subscribe_success_cases) {
   uint16_t max_faulty = 1;
   size_t num_replicas = 3 * max_faulty + 1;
 
-  shared_ptr<TrcQueue> update_queue = make_shared<TrcQueue>();
+  shared_ptr<TrcQueue> update_queue = make_shared<TrcQueue>(queueSize);
 
   auto mock_servers = CreateTrsConnections(num_replicas, stream_preparer, hasher);
   auto trc_config = make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, mock_servers);
@@ -141,7 +142,7 @@ TEST(thin_replica_client_test, test_1_parameter_subscribe_success_cases) {
   uint16_t max_faulty = 1;
   size_t num_replicas = 3 * max_faulty + 1;
 
-  shared_ptr<TrcQueue> update_queue = make_shared<TrcQueue>();
+  shared_ptr<TrcQueue> update_queue = make_shared<TrcQueue>(queueSize);
 
   auto mock_servers = CreateTrsConnections(num_replicas, stream_preparer, hasher);
   auto trc_config = make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, mock_servers);
@@ -190,7 +191,7 @@ TEST(thin_replica_client_test, test_1_parameter_subscribe_to_unresponsive_server
   size_t num_replicas = 3 * max_faulty + 1;
   size_t num_unresponsive = num_replicas - max_faulty;
 
-  shared_ptr<TrcQueue> update_queue = make_shared<TrcQueue>();
+  shared_ptr<TrcQueue> update_queue = make_shared<TrcQueue>(queueSize);
 
   auto mock_servers = CreateTrsConnections(num_replicas, stream_preparer, hasher, num_unresponsive);
   auto trc_config = make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, mock_servers);
@@ -227,7 +228,7 @@ TEST(thin_replica_client_test, test_unsubscribe_successful) {
   uint16_t max_faulty = 1;
   size_t num_replicas = 3 * max_faulty + 1;
 
-  shared_ptr<TrcQueue> update_queue = make_shared<TrcQueue>();
+  shared_ptr<TrcQueue> update_queue = make_shared<TrcQueue>(queueSize);
 
   auto mock_servers = CreateTrsConnections(num_replicas, stream_preparer, hasher);
   auto trc_config = make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, mock_servers);
@@ -262,7 +263,7 @@ TEST(thin_replica_client_test, test_pop_fetches_updates_) {
   uint16_t max_faulty = 1;
   size_t num_replicas = 3 * max_faulty + 1;
 
-  shared_ptr<TrcQueue> update_queue = make_shared<TrcQueue>();
+  shared_ptr<TrcQueue> update_queue = make_shared<TrcQueue>(queueSize);
 
   auto mock_servers = CreateTrsConnections(num_replicas, stream_preparer, hasher);
   auto trc_config = make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, mock_servers);
@@ -303,7 +304,7 @@ TEST(thin_replica_client_test, test_acknowledge_block_id_success) {
   uint16_t max_faulty = 1;
   size_t num_replicas = 3 * max_faulty + 1;
 
-  shared_ptr<TrcQueue> update_queue = make_shared<TrcQueue>();
+  shared_ptr<TrcQueue> update_queue = make_shared<TrcQueue>(queueSize);
 
   auto mock_servers = CreateTrsConnections(num_replicas, stream_preparer, hasher);
   auto trc_config = make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, mock_servers);
@@ -354,7 +355,7 @@ TEST(thin_replica_client_test, test_correct_data_returned_) {
   uint16_t max_faulty = 1;
   size_t num_replicas = 3 * max_faulty + 1;
 
-  shared_ptr<TrcQueue> update_queue = make_shared<TrcQueue>();
+  shared_ptr<TrcQueue> update_queue = make_shared<TrcQueue>(queueSize);
 
   auto mock_servers = CreateTrsConnections(num_replicas, stream_preparer, hasher);
   auto trc_config = make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, mock_servers);

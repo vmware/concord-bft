@@ -15,7 +15,6 @@
 
 #include <condition_variable>
 #include <boost/lockfree/spsc_queue.hpp>
-#include <list>
 #include <memory>
 #include <thread>
 #include <mutex>
@@ -36,16 +35,16 @@ class TrcQueue {
   std::exception_ptr exception_;
   std::mutex mutex_;
   std::condition_variable condition_;
-  static constexpr size_t kQueueDataSize{10000u};
+  logging::Logger logger_;
 
  public:
   // Construct a TrcQueue.
-  TrcQueue() : queue_data_(kQueueDataSize) {}
+  TrcQueue(uint32_t queueSize) : queue_data_(queueSize), logger_(logging::getLogger("concord.client.trc_queue")) {}
 
   // Copying or moving a TrcQueue is explicitly disallowed, as we do not know of a compelling use case
   // requiring copying or moving TrcQueue, we believe semantics for these operations are likely to be
   // messy in some cases, and we believe implementation may be non-trivial. We may revisit the decision to disallow
-  // these operations should compelling use cases for them be found in the future.
+  // these operations should compel use cases for them be found in the future.
   TrcQueue(const TrcQueue& other) = delete;
   TrcQueue(const TrcQueue&& other) = delete;
   TrcQueue& operator=(const TrcQueue& other) = delete;
@@ -58,58 +57,53 @@ class TrcQueue {
     condition_.notify_one();
   }
 
-  std::unique_ptr<EventVariant> popTill(std::chrono::milliseconds timeout) {
-    {
-      std::unique_lock<std::mutex> lock(mutex_);
-      auto is_timeout = !condition_.wait_for(
-          lock, timeout, [this]() { return this->exception_ || (queue_data_.read_available() > 0); });
-      if (is_timeout) return nullptr;
+  std::unique_ptr<EventVariant> getElementFromTheQueue() {
+    if (queue_data_.read_available()) {
+      auto update = std::move(queue_data_.front());
+      queue_data_.pop();
+      return std::make_unique<EventVariant>(std::move(*update));
     }
     if (exception_) {
       auto e = exception_;
       exception_ = nullptr;
       std::rethrow_exception(e);
     }
-    ConcordAssertGT(queue_data_.read_available(), 0);
-    auto update = std::move(queue_data_.front());
-    queue_data_.pop();
-    return std::unique_ptr<EventVariant>(update);
+    return nullptr;
+  }
+
+  std::unique_ptr<EventVariant> popTill(std::chrono::milliseconds timeout) {
+    auto update = getElementFromTheQueue();
+    if (update) return update;
+    {
+      std::unique_lock<std::mutex> lock(mutex_);
+      auto is_timeout =
+          !condition_.wait_for(lock, timeout, [this]() { return this->exception_ || queue_data_.read_available(); });
+      if (is_timeout) {
+        LOG_WARN(logger_, "Timeout getting element from the queue");
+        return nullptr;
+      }
+    }
+    return getElementFromTheQueue();
   }
 
   std::unique_ptr<EventVariant> pop() {
-    std::unique_lock<std::mutex> lock(mutex_);
-    while (!exception_ && !(queue_data_.read_available() > 0)) {
-      condition_.wait(lock);
+    auto update = getElementFromTheQueue();
+    if (update) return update;
+    {
+      std::unique_lock<std::mutex> lock(mutex_);
+      while (!exception_ && !queue_data_.read_available()) {
+        condition_.wait(lock);
+      }
     }
-    if (exception_) {
-      auto e = exception_;
-      exception_ = nullptr;
-      std::rethrow_exception(e);
-    }
-    ConcordAssertGT(queue_data_.read_available(), 0);
-    auto update = std::move(queue_data_.front());
-    queue_data_.pop();
-    return std::unique_ptr<EventVariant>(update);
+    return getElementFromTheQueue();
   }
 
-  std::unique_ptr<EventVariant> tryPop() {
-    if (exception_) {
-      auto e = exception_;
-      exception_ = nullptr;
-      std::rethrow_exception(e);
-    }
-    if (queue_data_.read_available() > 0) {
-      auto update = std::move(queue_data_.front());
-      queue_data_.pop();
-      return std::unique_ptr<EventVariant>(update);
-    } else {
-      return nullptr;
-    }
-  }
+  // For the testing purpose only
+  std::unique_ptr<EventVariant> tryPop() { return getElementFromTheQueue(); }
 
   uint64_t size() { return queue_data_.read_available(); }
 
-  void setException(std::exception_ptr e) { exception_ = e; }
+  void setException(std::exception_ptr e) { exception_ = std::move(e); }
 };
 
 }  // namespace concord::client::concordclient

@@ -60,7 +60,7 @@ class EventServiceImpl final : public vmware::concord::client::event::v1::EventS
 
  private:
   logging::Logger logger_;
-  static constexpr size_t kQueueDataSize{10000u};
+  static constexpr size_t kQueueDataSize{4000u};
   std::shared_ptr<concord::client::concordclient::ConcordClient> client_;
   EventServiceMetrics metrics_;
 };
