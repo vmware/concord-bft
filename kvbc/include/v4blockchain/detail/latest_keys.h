@@ -133,6 +133,11 @@ class LatestKeys {
   }
 
   std::string getCategoryFromPrefix(const std::string& p) const { return category_mapping_.getCategoryFromPrefix(p); }
+
+  concord::kvbc::categorization::CATEGORY_TYPE categoryType(const std::string& category_id) const {
+    return category_mapping_.categoryType(category_id);
+  }
+
   const std::string& getColumnFamilyFromCategory(const std::string& category_id) const;
   struct LKCompactionFilter : ::rocksdb::CompactionFilter {
     static ::rocksdb::CompactionFilter* getFilter() {

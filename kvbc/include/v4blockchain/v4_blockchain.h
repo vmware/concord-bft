@@ -272,9 +272,10 @@ class KeyValueBlockchain {
 
   // Metrics
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;
-  concordMetrics::Component v4_metrics_comp_;
+  mutable concordMetrics::Component v4_metrics_comp_;
   concordMetrics::GaugeHandle blocks_deleted_;
   concordMetrics::CounterHandle deleted_keys_;
+  mutable concordMetrics::CounterHandle immutables_reads_;
 
  public:
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {

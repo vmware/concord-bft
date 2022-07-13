@@ -145,9 +145,8 @@ void LatestKeys::handleCategoryUpdates(const std::string& block_version,
                             << category_id << " prefix " << prefix << " key is hex "
                             << concordUtils::bufferToHex(k.data(), k.size()) << " key size " << k.size()
                             << " value size " << v.data.size() << " raw key " << k);
-    write_batch.put(v4blockchain::detail::IMMUTABLE_KEYS_CF,
-                    getSliceArray(prefix, k),
-                    getSliceArray(v.data, sl_flags, block_version));
+    write_batch.put(
+        v4blockchain::detail::IMMUTABLE_KEYS_CF, getSliceArray(prefix, k), getSliceArray(sl_flags, block_version));
   }
 }
 
