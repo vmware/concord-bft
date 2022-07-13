@@ -825,6 +825,16 @@ std::optional<Hash> KeyValueBlockchain::parentDigest(BlockId block_id) const {
   return block_chain_.parentDigest(block_id);
 }
 
+std::optional<Hash> KeyValueBlockchain::calculateBlockDigest(BlockId block_id) const {
+  // get the block from ST chain or block chain.
+  auto raw_block = getRawBlock(block_id);
+  if (raw_block) {
+    auto my_block = categorization::RawBlock::serialize(raw_block.value());
+    return computeBlockDigest(block_id, reinterpret_cast<const char*>(my_block.data()), my_block.size());
+  }
+  return std::nullopt;
+}
+
 bool KeyValueBlockchain::hasBlock(BlockId block_id) const {
   const auto last_reachable_block = getLastReachableBlockId();
   if (block_id > last_reachable_block) {

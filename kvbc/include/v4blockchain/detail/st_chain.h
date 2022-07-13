@@ -32,6 +32,8 @@ class StChain {
   // Returns the buffer that represents the block
   std::optional<std::string> getBlockData(concord::kvbc::BlockId) const;
   concord::util::digest::BlockDigest getBlockParentDigest(concord::kvbc::BlockId id) const;
+  concord::util::digest::BlockDigest getBlockDigest(concord::kvbc::BlockId id) const;
+
   ///////// ST last block ID
   void resetChain() { last_block_id_ = 0; }
   void updateLastIdAfterDeletion(const kvbc::BlockId);

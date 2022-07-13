@@ -64,6 +64,8 @@ class KeyValueBlockchain {
   void pruneOnSTLink(const categorization::Updates &);
   // Gets the digest from block, the digest represents the digest of the previous block i.e. parent digest
   concord::util::digest::BlockDigest parentDigest(BlockId block_id) const;
+  concord::util::digest::BlockDigest calculateBlockDigest(BlockId block_id) const;
+
   std::optional<BlockId> getLastStatetransferBlockId() const;
 
   // In v4 storage in contrast to the categorized storage, pruning does not impact the state i.e. the digest
