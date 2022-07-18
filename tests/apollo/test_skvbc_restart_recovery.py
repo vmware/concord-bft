@@ -174,8 +174,6 @@ class SkvbcRestartRecoveryTest(ApolloTest):
 
             old_view = view
 
-            await self._await_replicas_in_state_transfer(log, bft_network, skvbc, current_primary)
-
             # Wait for quorum of replicas to move to a higher view
             with trio.fail_after(seconds=20 + timeouts):
                 while view == old_view:
