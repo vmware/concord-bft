@@ -524,6 +524,14 @@ module Proof {
     && Replica.SendCommit(h_c, h_v, h_v', step.msgOps, h_step.seqID)
   }
 
+  lemma SendCommitStepPreservesInv(c: Constants, v:Variables, v':Variables, 
+                                   step:Step, h_step:Replica.Step)
+    requires SentCommitIsEnabled(c, v, v', step, h_step)
+    ensures Inv(c, v')
+  {
+    CommitMsgStability(c, v, v', step);
+  }
+
   predicate SendClientOperationIsEnabled(c: Constants, v:Variables, v':Variables,
                                          step:Step, h_step:Client.Step)
   {
@@ -765,9 +773,133 @@ module Proof {
     CommitMsgStability(c, v, v', step);
   }
 
-  lemma SendCommitStepPreservesInv(c: Constants, v:Variables, v':Variables, 
+  predicate LeaveViewStepIsEnabled(c: Constants, v:Variables, v':Variables,
                                    step:Step, h_step:Replica.Step)
-    requires SentCommitIsEnabled(c, v, v', step, h_step)
+  {
+    && Inv(c, v)
+    && NextStep(c, v, v', step)
+    && IsHonestReplica(c, step.id)
+    && var h_c := c.hosts[step.id].replicaConstants;
+    && var h_v := v.hosts[step.id].replicaVariables;
+    && var h_v' := v'.hosts[step.id].replicaVariables;
+    && Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step)
+    && h_step.LeaveViewStep?
+    && Replica.LeaveView(h_c, h_v, h_v', step.msgOps, h_step.newView)
+  }
+
+  lemma LeaveViewStepPreservesInv(c: Constants, v:Variables, v':Variables, 
+                                  step:Step, h_step:Replica.Step)
+    requires LeaveViewStepIsEnabled(c, v, v', step, h_step)
+    ensures Inv(c, v')
+  {
+    CommitMsgStability(c, v, v', step);
+  }
+
+  predicate SendViewChangeMsgStepIsEnabled(c: Constants, v:Variables, v':Variables,
+                                   step:Step, h_step:Replica.Step)
+  {
+    && Inv(c, v)
+    && NextStep(c, v, v', step)
+    && IsHonestReplica(c, step.id)
+    && var h_c := c.hosts[step.id].replicaConstants;
+    && var h_v := v.hosts[step.id].replicaVariables;
+    && var h_v' := v'.hosts[step.id].replicaVariables;
+    && Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step)
+    && h_step.SendViewChangeMsgStep?
+    && Replica.SendViewChangeMsg(h_c, h_v, h_v', step.msgOps)
+  }
+
+  lemma SendViewChangeMsgStepPreservesInv(c: Constants, v:Variables, v':Variables, 
+                                  step:Step, h_step:Replica.Step)
+    requires SendViewChangeMsgStepIsEnabled(c, v, v', step, h_step)
+    ensures Inv(c, v')
+  {
+    CommitMsgStability(c, v, v', step);
+  }
+
+  predicate RecvViewChangeMsgStepIsEnabled(c: Constants, v:Variables, v':Variables,
+                                   step:Step, h_step:Replica.Step)
+  {
+    && Inv(c, v)
+    && NextStep(c, v, v', step)
+    && IsHonestReplica(c, step.id)
+    && var h_c := c.hosts[step.id].replicaConstants;
+    && var h_v := v.hosts[step.id].replicaVariables;
+    && var h_v' := v'.hosts[step.id].replicaVariables;
+    && Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step)
+    && h_step.RecvViewChangeMsgStep?
+    && Replica.RecvViewChangeMsg(h_c, h_v, h_v', step.msgOps)
+  }
+
+  lemma RecvViewChangeMsgStepPreservesInv(c: Constants, v:Variables, v':Variables, 
+                                  step:Step, h_step:Replica.Step)
+    requires RecvViewChangeMsgStepIsEnabled(c, v, v', step, h_step)
+    ensures Inv(c, v')
+  {
+    CommitMsgStability(c, v, v', step);
+  }
+
+  predicate SelectQuorumOfViewChangeMsgsStepIsEnabled(c: Constants, v:Variables, v':Variables,
+                                   step:Step, h_step:Replica.Step)
+  {
+    && Inv(c, v)
+    && NextStep(c, v, v', step)
+    && IsHonestReplica(c, step.id)
+    && var h_c := c.hosts[step.id].replicaConstants;
+    && var h_v := v.hosts[step.id].replicaVariables;
+    && var h_v' := v'.hosts[step.id].replicaVariables;
+    && Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step)
+    && h_step.SelectQuorumOfViewChangeMsgsStep?
+    && Replica.SelectQuorumOfViewChangeMsgs(h_c, h_v, h_v', step.msgOps, h_step.viewChangeMsgsSelectedByPrimary)
+  }
+
+  lemma SelectQuorumOfViewChangeMsgsStepPreservesInv(c: Constants, v:Variables, v':Variables, 
+                                  step:Step, h_step:Replica.Step)
+    requires SelectQuorumOfViewChangeMsgsStepIsEnabled(c, v, v', step, h_step)
+    ensures Inv(c, v')
+  {
+    CommitMsgStability(c, v, v', step);
+  }
+
+  predicate SendNewViewMsgStepIsEnabled(c: Constants, v:Variables, v':Variables,
+                                   step:Step, h_step:Replica.Step)
+  {
+    && Inv(c, v)
+    && NextStep(c, v, v', step)
+    && IsHonestReplica(c, step.id)
+    && var h_c := c.hosts[step.id].replicaConstants;
+    && var h_v := v.hosts[step.id].replicaVariables;
+    && var h_v' := v'.hosts[step.id].replicaVariables;
+    && Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step)
+    && h_step.SendNewViewMsgStep?
+    && Replica.SendNewViewMsg(h_c, h_v, h_v', step.msgOps)
+  }
+
+  lemma SendNewViewMsgStepPreservesInv(c: Constants, v:Variables, v':Variables, 
+                                  step:Step, h_step:Replica.Step)
+    requires SendNewViewMsgStepIsEnabled(c, v, v', step, h_step)
+    ensures Inv(c, v')
+  {
+    CommitMsgStability(c, v, v', step);
+  }
+
+  predicate RecvNewViewMsgStepIsEnabled(c: Constants, v:Variables, v':Variables,
+                                   step:Step, h_step:Replica.Step)
+  {
+    && Inv(c, v)
+    && NextStep(c, v, v', step)
+    && IsHonestReplica(c, step.id)
+    && var h_c := c.hosts[step.id].replicaConstants;
+    && var h_v := v.hosts[step.id].replicaVariables;
+    && var h_v' := v'.hosts[step.id].replicaVariables;
+    && Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step)
+    && h_step.RecvNewViewMsgStep?
+    && Replica.RecvNewViewMsg(h_c, h_v, h_v', step.msgOps)
+  }
+
+  lemma RecvNewViewMsgStepPreservesInv(c: Constants, v:Variables, v':Variables, 
+                                  step:Step, h_step:Replica.Step)
+    requires RecvNewViewMsgStepIsEnabled(c, v, v', step, h_step)
     ensures Inv(c, v')
   {
     CommitMsgStability(c, v, v', step);
@@ -823,6 +955,25 @@ module Proof {
         case AdvanceWorkingWindowStep(seqID) => {
           AdvanceWorkingWindowStepPreservesInv(c, v, v', step, h_step);
         }
+        case LeaveViewStep(newView) => {
+          LeaveViewStepPreservesInv(c, v, v', step, h_step);
+        }
+        case SendViewChangeMsgStep() => {
+          SendViewChangeMsgStepPreservesInv(c, v, v', step, h_step);
+        }
+        case RecvViewChangeMsgStep() => {
+          RecvViewChangeMsgStepPreservesInv(c, v, v', step, h_step);
+        }
+        case SelectQuorumOfViewChangeMsgsStep(viewChangeMsgsSelectedByPrimary) => {
+          SelectQuorumOfViewChangeMsgsStepPreservesInv(c, v, v', step, h_step);
+        }
+        case SendNewViewMsgStep() => {
+          SendNewViewMsgStepPreservesInv(c, v, v', step, h_step);
+        }
+        case RecvNewViewMsgStep() => {
+          RecvNewViewMsgStepPreservesInv(c, v, v', step, h_step);
+        }
+
     } else if (c.clusterConfig.IsClient(step.id)) {
 
       var h_c := c.hosts[step.id].clientConstants;
