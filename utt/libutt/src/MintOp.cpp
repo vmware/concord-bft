@@ -8,10 +8,10 @@
 #include <utt/Comm.h>
 #include <utt/Params.h>
 #include <utt/MintOp.h>
+#include <utt/RandSig.h>
 
-#include <utt/Serialization.h>
-
-namespace libutt {
+#include <xassert/XAssert.h>
+#include <xutils/Log.h>
 
 std::ostream& operator<<(std::ostream& out, const libutt::MintOp& op) {
   out << op.sn << endl;
@@ -29,17 +29,19 @@ std::istream& operator>>(std::istream& in, libutt::MintOp& op) {
   return in;
 }
 
+namespace libutt {
+
 static Fr createSN(std::string uniqueHash) { return hashToField("new sn|" + uniqueHash); }
 
-MintOp::MintOp(std::string uniqueHash, size_t v, const std::string& recipPID) {
+MintOp::MintOp(const std::string& uniqueHash, size_t v, const std::string& recipPID) {
   testAssertGreaterThanOrEqual(v, 1);
 
   sn = createSN(uniqueHash);
   pidHash = AddrSK::pidHash(recipPID);
   value.set_ulong(static_cast<unsigned long>(v));
 }
-
-bool MintOp::validate(std::string uniqueHash, size_t v, std::string recipPID) const {
+MintOp::MintOp(std::istream& in) { in >> *this; }
+bool MintOp::validate(const std::string& uniqueHash, size_t v, const std::string& recipPID) const {
   Fr snV = createSN(uniqueHash);
   Fr pidHashV = AddrSK::pidHash(recipPID);
   Fr valueV;
