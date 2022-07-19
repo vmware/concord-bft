@@ -89,6 +89,10 @@ void RequestProcessingState::updatePreProcessResultData(OperationResult preProce
 void RequestProcessingState::handlePrimaryPreProcessed(const char *preProcessResultData,
                                                        uint32_t preProcessResultLen,
                                                        OperationResult preProcessResult) {
+  LOG_DEBUG(logger(),
+            "Handle request pre-processed by the primary replica" << KVLOG(
+                clientId_, batchCid_, reqSeqNum_, reqCid_, (uint32_t)preProcessResult, (uint32_t)preProcessResult));
+  preprocessingRightNow_ = false;
   primaryPreProcessResult_ = preProcessResult;
   if (preProcessResult != OperationResult::UNKNOWN) {
     primaryPreProcessResultData_ = preProcessResultData;
@@ -143,10 +147,13 @@ void RequestProcessingState::detectNonDeterministicPreProcessing(const uint8_t *
 
 void RequestProcessingState::handlePreProcessReplyMsg(const PreProcessReplyMsgSharedPtr &preProcessReplyMsg) {
   const auto &senderId = preProcessReplyMsg->senderId();
-  if (preProcessReplyMsg->status() != STATUS_REJECT) {
+  const auto status = preProcessReplyMsg->status();
+  LOG_DEBUG(logger(),
+            "Handle pre-processed reply message" << KVLOG(senderId, clientId_, batchCid_, reqSeqNum_, reqCid_, status));
+  if (status != STATUS_REJECT) {
     const auto &newHashArray = convertToArray(preProcessReplyMsg->resultsHash());
     // Counts equal hashes and saves the signatures with the replica ID. They will be used as a proof that the primary
-    // is sending correct preexecution result to the rest of the replicas.
+    // is sending correct pre-execution result to the rest of the replicas.
     if (!preProcessingResultHashes_[newHashArray]
              .emplace(preProcessReplyMsg->getResultHashSignature(),
                       preProcessReplyMsg->senderId(),
@@ -257,7 +264,7 @@ PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult()
                  << KVLOG(batchCid_, reqSeqNum_, reqCid_, numOfReceivedReplies_, numOfRequiredEqualReplies_));
     return CONTINUE;
   }
-  if (primaryPreProcessResultLen_ == 0) {
+  if (preprocessingRightNow_) {
     LOG_INFO(logger(),
              "Primary replica did not complete pre-processing yet, continue waiting"
                  << KVLOG(batchCid_, reqSeqNum_, reqCid_));
@@ -265,7 +272,9 @@ PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult()
   }
   uint16_t maxNumOfEqualHashes = 0;
   auto itOfChosenHash = calculateMaxNbrOfEqualHashes(maxNumOfEqualHashes);
-  LOG_INFO(logger(), KVLOG(maxNumOfEqualHashes, numOfRequiredEqualReplies_));
+  LOG_INFO(logger(),
+           "Define pre-processing consensus result"
+               << KVLOG(maxNumOfEqualHashes, numOfReceivedReplies_, numOfRequiredEqualReplies_));
   if (maxNumOfEqualHashes >= numOfRequiredEqualReplies_) {
     agreedPreProcessResult_ = itOfChosenHash->second.cbegin()->getPreProcessResult();
     if (itOfChosenHash->first == primaryPreProcessResultHash_) {
@@ -290,6 +299,8 @@ PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult()
       const auto modifiedResult = detectFailureDueToBlockID(itOfChosenHash->first, 0);
       if (modifiedResult.first.size() > 0) {
         modifyPrimaryResult(modifiedResult);
+        LOG_DEBUG(logger(),
+                  "The replicas have reached the consensus" << KVLOG(static_cast<uint32_t>(agreedPreProcessResult_)));
         return COMPLETE;
       }
       reportNonEqualHashes(itOfChosenHash->first.data(), itOfChosenHash->first.size());
@@ -329,6 +340,7 @@ const std::set<PreProcessResultSignature> &RequestProcessingState::getPreProcess
                                                                              preprocessingRightNow_,
                                                                              (int)agreedPreProcessResult_,
                                                                              (int)primaryPreProcessResult_,
+                                                                             primaryPreProcessResultLen_,
                                                                              numOfReceivedReplies_));
   ConcordAssert(false);
 }
