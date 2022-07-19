@@ -1,0 +1,20 @@
+#pragma once
+#include <string>
+#include <memory>
+#include <vector>
+namespace libutt {
+class RandSigShareSK;
+}
+namespace libutt::api {
+class BankIdentity {
+ public:
+  BankIdentity(const std::string& id, const std::string& bsk);
+  template <typename T>
+  std::vector<uint8_t> sign(T& data) const;
+  const std::string& getId() const;
+
+ private:
+  std::string bid_;
+  std::unique_ptr<libutt::RandSigShareSK> bsk_;
+};
+}  // namespace libutt::api
