@@ -176,3 +176,10 @@ enable_testing()
 add_subdirectory(libutt)
 add_subdirectory(libxassert)
 add_subdirectory(libxutils)
+
+set(newutt_src 
+    libutt/src/details.cpp
+    )
+add_library(newutt STATIC ${newutt_src})
+target_link_libraries(newutt PUBLIC utt)
+target_include_directories(newutt PUBLIC include)
