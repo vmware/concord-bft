@@ -179,6 +179,7 @@ add_subdirectory(libxutils)
 
 set(newutt_src 
     libutt/src/details.cpp
+    libutt/src/commitment.cpp
     )
 add_library(newutt STATIC ${newutt_src})
 target_link_libraries(newutt PUBLIC utt)
