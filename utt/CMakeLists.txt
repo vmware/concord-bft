@@ -191,3 +191,7 @@ set(newutt_src
 add_library(newutt STATIC ${newutt_src})
 target_link_libraries(newutt PUBLIC utt)
 target_include_directories(newutt PUBLIC include)
+add_subdirectory(tests)
+
+
+
