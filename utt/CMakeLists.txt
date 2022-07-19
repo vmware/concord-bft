@@ -180,6 +180,7 @@ add_subdirectory(libxutils)
 set(newutt_src 
     libutt/src/details.cpp
     libutt/src/commitment.cpp
+    libutt/src/registratorIdentity.cpp
     libutt/src/common.cpp
     )
 add_library(newutt STATIC ${newutt_src})
