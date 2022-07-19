@@ -182,6 +182,7 @@ set(newutt_src
     libutt/src/nullifier.cpp
     libutt/src/commitment.cpp
     libutt/src/clientIdentity.cpp
+    libutt/src/coin.cpp
     libutt/src/registratorIdentity.cpp
     libutt/src/common.cpp
     )
