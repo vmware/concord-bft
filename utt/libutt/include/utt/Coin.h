@@ -75,7 +75,8 @@ class Coin {
  public:
   // WARNING: Used only for deserialization
   Coin() {}
-
+  // Used to create the coin's partial commitment (without nullfier)
+  Coin(const CommKey& ck, const Fr& sn, const Fr& val, const Fr& type, const Fr& exp_date, const Fr& pidHash);
   // Used in TxOut::tryMakeMine and Factory
   Coin(const CommKey& ck,
        const Nullifier::Params& np,
