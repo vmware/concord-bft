@@ -39,7 +39,8 @@ class AddrSK {
   // Registration signature on rcm
   RandSig rs;
 
- public:
+  IBE::MPK mpk_;
+
   std::string getPid() const { return pid; }
   Fr getPidHash() const;
 
