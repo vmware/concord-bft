@@ -81,11 +81,11 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     replicaConfig.timeServiceEnabled = true;
     replicaConfig.enablePostExecutionSeparation = true;
     replicaConfig.set("sourceReplicaReplacementTimeoutMilli", 6000);
-    replicaConfig.set("concord.bft.st.runInSeparateThread", true);
-    replicaConfig.set("concord.bft.keyExchage.clientKeysEnabled", false);
-    replicaConfig.set("concord.bft.st.fetchRangeSize", 27);
-    replicaConfig.set("concord.bft.st.gettingMissingBlocksSummaryWindowSize", 60);
-    replicaConfig.set("concord.bft.st.RVT_K", 12);
+    replicaConfig.set("concord.common.bft.st.runInSeparateThread", true);
+    replicaConfig.set("concord.common.bft.keyExchage.clientKeysEnabled", false);
+    replicaConfig.set("concord.common.bft.st.fetchRangeSize", 27);
+    replicaConfig.set("concord.common.bft.st.gettingMissingBlocksSummaryWindowSize", 60);
+    replicaConfig.set("concord.common.bft.st.RVT_K", 12);
     replicaConfig.preExecutionResultAuthEnabled = false;
     replicaConfig.numOfClientServices = 1;
     replicaConfig.kvBlockchainVersion = 4;
@@ -252,7 +252,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
           replicaConfig.keyExchangeOnStart = true;
         } break;
         case 'w': {
-          replicaConfig.set("concord.bft.keyExchage.clientKeysEnabled", true);
+          replicaConfig.set("concord.common.bft.keyExchage.clientKeysEnabled", true);
         } break;
         case 'y': {
           const auto concurrencyLevel = concord::util::to<std::uint16_t>(std::string(optarg));

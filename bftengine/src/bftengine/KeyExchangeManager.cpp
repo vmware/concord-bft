@@ -30,7 +30,7 @@ KeyExchangeManager::KeyExchangeManager(InitData* id)
       quorumSize_{static_cast<uint32_t>(2 * ReplicaConfig::instance().fVal + ReplicaConfig::instance().cVal)},
       publicKeys_{clusterSize_},
       private_keys_(id->secretsMgr),
-      clientsPublicKeys_(ReplicaConfig::instance().get("concord.bft.keyExchage.clientKeysEnabled", true)),
+      clientsPublicKeys_(ReplicaConfig::instance().get("concord.common.bft.keyExchage.clientKeysEnabled", true)),
       client_(id->cl),
       multiSigKeyHdlr_(id->kg),
       clientPublicKeyStore_{id->cpks},

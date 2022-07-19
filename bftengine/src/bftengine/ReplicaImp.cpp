@@ -2399,7 +2399,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
 
         } else if (numRelevant >= config_.getfVal() + 1) {
           static uint32_t maxTimeSinceLastExecutionInMainWindowMs =
-              config_.get<uint32_t>("concord.bft.st.maxTimeSinceLastExecutionInMainWindowMs", 5000);
+              config_.get<uint32_t>("concord.common.bft.st.maxTimeSinceLastExecutionInMainWindowMs", 5000);
 
           Time timeOfLastEcecution = MinTime;
           if (mainLog->insideActiveWindow(lastExecutedSeqNum))

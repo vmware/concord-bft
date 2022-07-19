@@ -100,7 +100,7 @@ SimpleTestReplica *SimpleTestReplica::create_replica(ISimpleTestReplicaBehavior 
   replicaConfig.replicaId = rp.replicaId;
   replicaConfig.statusReportTimerMillisec = 10000;
   replicaConfig.keyExchangeOnStart = false;
-  replicaConfig.set("concord.bft.keyExchage.clientKeysEnabled", false);
+  replicaConfig.set("concord.common.bft.keyExchage.clientKeysEnabled", false);
   replicaConfig.concurrencyLevel = 1;
   replicaConfig.debugPersistentStorageEnabled =
       rp.persistencyMode == PersistencyMode::InMemory || rp.persistencyMode == PersistencyMode::File;

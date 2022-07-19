@@ -86,7 +86,7 @@ IStorageFactory::DatabaseSet S3StorageFactory::newDatabaseSet() const {
       ret.dataDBClient,
       std::move(dataKeyGenerator),
       true /* use_mdt */,
-      bftEngine::ReplicaConfig::instance().get<bool>("concord.storage.s3.save_kv_pairs_separately", false));
+      bftEngine::ReplicaConfig::instance().get<bool>("concord.common.storage.s3.save_kv_pairs_separately", false));
 
   return ret;
 }

@@ -74,7 +74,7 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
 
 void ReadOnlyReplica::start() {
   ReplicaForStateTransfer::start();
-  size_t sendAskForCheckpointMsgPeriodSec = config_.get("concord.bft.ro.sendAskForCheckpointMsgPeriodSec", 30);
+  size_t sendAskForCheckpointMsgPeriodSec = config_.get("concord.common.bft.ro.sendAskForCheckpointMsgPeriodSec", 30);
   askForCheckpointMsgTimer_ = timers_.add(
       std::chrono::seconds(sendAskForCheckpointMsgPeriodSec), Timers::Timer::RECURRING, [this](Timers::Handle) {
         if (!this->isCollectingState()) {
