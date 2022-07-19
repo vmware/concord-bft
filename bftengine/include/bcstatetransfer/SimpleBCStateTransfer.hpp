@@ -19,6 +19,7 @@
 #include <future>
 
 #include "bftengine/IStateTransfer.hpp"
+#include "bftengine/ReplicaConfig.hpp"
 #include "Metrics.hpp"
 #include "kvstream.h"
 #include "Digest.hpp"
@@ -185,6 +186,26 @@ struct Config {
   bool enableSourceBlocksPreFetch = true;
   bool enableSourceSelectorPrimaryAwareness = true;
   bool enableStoreRvbDataDuringCheckpointing = true;
+
+  void AdjustToExecutionEngine() {
+    // Reconfigure a configuration member, based on the current execution engine.
+#define RECONFIGURE_PARAMETER(member, config, type, config_path) \
+  member = config.get<type>(config_path + #member, member)
+
+    auto &kReplicaConfig = ReplicaConfig::instance();
+    std::string execution_engine = execution_engine_text_identifier(kReplicaConfig.executionEngine);
+    LOG_INFO(GL, "Adjusting ST configuration parameters for engine: " + execution_engine);
+    std::stringstream ss;
+    std::transform(execution_engine.begin(), execution_engine.end(), execution_engine.begin(), ::tolower);
+    ss << "concord." << execution_engine << ".bft.st.";
+
+    LOG_TRACE(GL, KVLOG(ReplicaConfig::instance()));
+    RECONFIGURE_PARAMETER(maxNumberOfChunksInBatch, kReplicaConfig, uint16_t, ss.str());
+    RECONFIGURE_PARAMETER(fetchRangeSize, kReplicaConfig, uint32_t, ss.str());
+    LOG_TRACE(GL, KVLOG(ReplicaConfig::instance()));
+
+    LOG_INFO(GL, "State transfer configuration has been adjusted.");
+  }
 };
 
 inline std::ostream &operator<<(std::ostream &os, const Config &c) {

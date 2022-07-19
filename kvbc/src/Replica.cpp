@@ -536,6 +536,7 @@ Replica::Replica(ICommunication *comm,
   };
   stConfig.runInSeparateThread = replicaConfig_.isReadOnly ? false : true;
 
+  stConfig.AdjustToExecutionEngine();
 #if !defined USE_COMM_PLAIN_TCP && !defined USE_COMM_TLS_TCP
   // maxChunkSize * maxNumberOfChunksInBatch shouldn't exceed UDP message size which is limited to 64KB
   if (stConfig.maxChunkSize * stConfig.maxNumberOfChunksInBatch > 64 * 1024) {

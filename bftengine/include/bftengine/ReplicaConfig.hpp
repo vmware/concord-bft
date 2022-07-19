@@ -35,6 +35,22 @@ namespace bftEngine {
 
 enum BatchingPolicy { BATCH_SELF_ADJUSTED, BATCH_BY_REQ_SIZE, BATCH_BY_REQ_NUM, BATCH_ADAPTIVE };
 
+enum class ExecutionEngine : char { DAML = 0, ETH = 1, TEE = 2, PERF = 3 };
+
+constexpr const char* execution_engine_text_identifier(ExecutionEngine executionEngine) noexcept {
+  switch (executionEngine) {
+    case ExecutionEngine::DAML:
+      return "DAML";
+    case ExecutionEngine::ETH:
+      return "ETH";
+    case ExecutionEngine::TEE:
+      return "TEE";
+    case ExecutionEngine::PERF:
+      return "PERF";
+  }
+  return "";
+}
+
 class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConfig> {
  public:
   friend class concord::serialize::SerializableFactory<ReplicaConfig>;
@@ -281,6 +297,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                "the concord-ctl script");
   CONFIG_PARAM(kvBlockchainVersion, std::uint32_t, 1u, "Default version of KV blockchain for this replica");
 
+  CONFIG_PARAM(executionEngine, ExecutionEngine, ExecutionEngine::DAML, "The underlying execution engine.");
+
   // Parameter to enable/disable waiting for transaction data to be persisted.
   // Not predefined configuration parameters
   // Example of usage:
@@ -406,6 +424,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, diagnosticsServerPort);
     serialize(outStream, useUnifiedCertificates);
     serialize(outStream, kvBlockchainVersion);
+    serialize(outStream, executionEngine);
   }
   void deserializeDataMembers(std::istream& inStream) {
     deserialize(inStream, isReadOnly);
@@ -506,6 +525,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, diagnosticsServerPort);
     deserialize(inStream, useUnifiedCertificates);
     deserialize(inStream, kvBlockchainVersion);
+    deserialize(inStream, executionEngine);
   }
 
  private:
@@ -591,6 +611,7 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.adaptivePruningIntervalPeriod,
               rc.dbSnapshotIntervalSeconds.count());
   os << ",";
+  const auto execution_engine = execution_engine_text_identifier(rc.executionEngine);
   os << KVLOG(rc.dbCheckpointMonitorIntervalSeconds.count(),
               rc.dbCheckpointDiskSpaceThreshold,
               rc.enableMultiplexChannel,
@@ -599,7 +620,8 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.enablePreProcessorMemoryPool,
               rc.diagnosticsServerPort,
               rc.useUnifiedCertificates,
-              rc.kvBlockchainVersion);
+              rc.kvBlockchainVersion,
+              execution_engine);
   os << ", ";
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
   return os;
