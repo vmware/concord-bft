@@ -3,18 +3,19 @@
 #include <cstddef>
 #include <optional>
 
-#include <xassert/XAssert.h>
-#include <xutils/Log.h>
-
 namespace libutt {
+class BurnOp;
+class AddrSK;
 class Coin;
 class Params;
-class BurnOp;
 class RandSigPK;
 class RegAuthPK;
+}  // namespace libutt
 
 std::ostream& operator<<(std::ostream&, const libutt::BurnOp&);
 std::istream& operator>>(std::istream&, libutt::BurnOp&);
+
+namespace libutt {
 
 // Represents an operation that burns a valid coin. This operation should be
 // part of a public transaction (e.g., a transaction that converts an anonymous
@@ -52,8 +53,8 @@ class BurnOp {
   bool operator==(const BurnOp& o) const;
   bool operator!=(const BurnOp& o) const { return !operator==(o); }
 
-  friend std::ostream& operator<<(std::ostream&, const libutt::BurnOp&);
-  friend std::istream& operator>>(std::istream&, libutt::BurnOp&);
+  friend std::ostream& ::operator<<(std::ostream&, const libutt::BurnOp&);
+  friend std::istream& ::operator>>(std::istream&, libutt::BurnOp&);
 };
 
 }  // end of namespace libutt

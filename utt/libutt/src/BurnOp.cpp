@@ -16,6 +16,9 @@
 
 #include <utt/Serialization.h>
 
+#include <xassert/XAssert.h>
+#include <xutils/Log.h>
+#include <xutils/Utils.h>
 struct InternalDataOfBurnOp {
   std::string pid;   // owner pid
   libutt::Fr value;  // value of the burned coin
@@ -24,12 +27,8 @@ struct InternalDataOfBurnOp {
   libutt::Tx tx;
 };
 
-namespace libutt {
-
 std::ostream& operator<<(std::ostream& out, const libutt::BurnOp& op) {
   InternalDataOfBurnOp* d = (InternalDataOfBurnOp*)op.p;
-  assertTrue(d != nullptr);
-
   out << (d->pid) << endl;
   out << (d->value) << endl;
   out << (d->r_d) << endl;
@@ -60,6 +59,8 @@ std::istream& operator>>(std::istream& in, libutt::BurnOp& op) {
 
   return in;
 }
+
+namespace libutt {
 
 BurnOp::BurnOp(std::istream& in) : p(nullptr) { in >> *this; }
 
