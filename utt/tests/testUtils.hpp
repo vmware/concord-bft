@@ -23,7 +23,7 @@ using namespace libutt;
 using namespace libutt::api;
 namespace libutt::api::testing {
 std::vector<uint32_t> getSubGroup(uint32_t n, uint32_t size) {
-    std::srand((unsigned int)std::time(0));
+  std::srand((unsigned int)std::time(0));
   std::map<uint32_t, uint32_t> ret;
   for (uint32_t i = 0; i < n; i++) ret[i] = i;
   for (uint32_t i = 0; i < n - size; i++) {

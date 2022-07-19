@@ -12,7 +12,12 @@ class ClientIdentity;
 class Coin {
  public:
   enum Type { Normal = 0x0, Budget };
-  Coin(Details& d, const std::vector<uint64_t>& sn, const std::vector<uint64_t>& val, Type p, const std::vector<uint64_t>& exp_date, ClientIdentity& cid);
+  Coin(Details& d,
+       const std::vector<uint64_t>& sn,
+       const std::vector<uint64_t>& val,
+       Type p,
+       const std::vector<uint64_t>& exp_date,
+       ClientIdentity& cid);
   const Nullifier& getNullifier() const;
   bool hasSig() const;
   void setSig(const std::vector<uint8_t>& sig);

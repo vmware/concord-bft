@@ -78,8 +78,8 @@ std::istream& operator>>(std::istream& in, libutt::Coin& c) {
 namespace libutt {
 Coin::Coin(const CommKey& ck, const Fr& sn, const Fr& val, const Fr& type, const Fr& exp_date, const Fr& pidHash)
     : ck(ck), pid_hash(pidHash), sn(sn), val(val), type(type), exp_date(exp_date), t(Fr::random_element()) {
-      Coin::commit();
-    }
+  Coin::commit();
+}
 
 Coin::Coin(const CommKey& ck,
            const Nullifier::Params& np,

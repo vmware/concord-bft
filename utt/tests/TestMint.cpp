@@ -33,15 +33,15 @@ int main(int argc, char* argv[]) {
     std::vector<std::vector<uint8_t>> rsigs;
     std::string simulatonOfUniqueTxHash = std::to_string(((uint64_t)rand()) * ((uint64_t)rand()) * ((uint64_t)rand()));
     auto mint = Mint(simulatonOfUniqueTxHash, 100, c.getPid());
-    for (size_t i =  0 ; i < banks.size() ; i++) {
+    for (size_t i = 0; i < banks.size(); i++) {
       rsigs.push_back(banks[i]->sign(mint));
     }
     auto sbs = testing::getSubGroup((uint32_t)n, (uint32_t)thresh);
     std::map<uint32_t, std::vector<uint8_t>> sigs;
     for (auto i : sbs) {
-        sigs[i] = rsigs[i];
+      sigs[i] = rsigs[i];
     }
-    auto coin = mint.claimCoin(d, c, (uint32_t) n, sigs);
+    auto coin = mint.claimCoin(d, c, (uint32_t)n, sigs);
     assertTrue(c.validate(coin));
     assertTrue(coin.getNullifier().validate(d));
   }
