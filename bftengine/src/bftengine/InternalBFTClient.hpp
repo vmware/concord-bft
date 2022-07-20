@@ -28,6 +28,7 @@ class IInternalBFTClient {
   // Note: users should be aware that if they push a request from the consumer/replica thread(s), the given callback
   // will be called in the same thread.
   virtual uint64_t sendRequest(uint64_t flags, uint32_t requestLength, const char* request, const std::string& cid) = 0;
+  uint64_t sendRequest(uint64_t flags, const concord::serialize::Serializable& msg, const std::string& cid);
   virtual uint64_t sendRequest(uint64_t flags,
                                uint32_t requestLength,
                                const char* request,

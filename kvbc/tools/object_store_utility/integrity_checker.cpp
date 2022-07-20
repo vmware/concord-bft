@@ -40,14 +40,13 @@ void IntegrityChecker::initKeysConfig(const fs::path& keys_file) {
   config.fVal = parser.get_value<std::uint16_t>("f_val");
   config.cVal = parser.get_value<std::uint16_t>("c_val");
   config.publicKeysOfReplicas.clear();
+  auto mainPublicKeys = parser.get_values<std::string>("replica_public_keys");
 
-  const auto txnSignerPublicKeys = parser.get_values<std::string>("replica_public_keys");
-
-  if (txnSignerPublicKeys.size() < config.numReplicas)
+  if (mainPublicKeys.size() < config.numReplicas)
     throw std::runtime_error("number of replicas and number of replicas don't match: " + keys_file.string());
 
   for (size_t i = 0; i < config.numReplicas; ++i)
-    config.publicKeysOfReplicas.insert(std::pair<uint16_t, std::string>(i, txnSignerPublicKeys[i]));
+    config.publicKeysOfReplicas.insert(std::pair<uint16_t, std::string>(i, mainPublicKeys[i]));
 
   config.replicaId = config.numReplicas;  // "my" replica id shouldn't match one of the regular replicas
 
@@ -77,7 +76,7 @@ std::pair<BlockId, Digest> IntegrityChecker::getLatestsCheckpointDescriptor() co
   auto it = dynamic_cast<s3::Client*>(s3_dbset_.metadataDBClient.get())
                 ->getIterator<s3::Client::SortByModifiedDescIterator>();
   auto [key, val] = it->seekAtLeast(Sliver::copy(checkpoints_prefix_.data(), checkpoints_prefix_.length()));
-  (void)val;
+  UNUSED(val);
   if (it->isEnd()) throw std::runtime_error("no checkpoints information in S3 storage");
 
   std::string suff = key.toString().substr(checkpoints_prefix_.length());
@@ -101,9 +100,9 @@ DescriptorOfLastStableCheckpoint IntegrityChecker::getCheckpointDescriptor(const
   DescriptorOfLastStableCheckpoint desc(config.getnumReplicas(), {});
   uint32_t dbDescSize = DescriptorOfLastStableCheckpoint::maxSize(config.getnumReplicas());
   size_t actualSize = 0;
-  char* buff = new char[dbDescSize];
-  memcpy(buff, checkpoint_descriptor.data(), checkpoint_descriptor.length());
-  desc.deserialize(buff, dbDescSize, actualSize);
+  auto buff = std::make_unique<char[]>(dbDescSize);
+  memcpy(buff.get(), checkpoint_descriptor.data(), checkpoint_descriptor.length());
+  desc.deserialize(buff.get(), dbDescSize, actualSize);
   validateCheckpointDescriptor(desc);
   return desc;
 }
@@ -218,7 +217,7 @@ void IntegrityChecker::validateKey(const std::string& key) const {
   // Retrieve the latest block number for specified key
   Sliver sKey = Sliver::copy(key.data(), key.length());
   auto [containing_block, _] = s3_dbset_.dbAdapter->getValue(sKey, 0);
-  (void)_;
+  UNUSED(_);
   auto containing_block_id = util::to<BlockId>(containing_block.data());
   LOG_INFO(logger_, "containing_block_id: " << containing_block_id);
 
@@ -227,7 +226,7 @@ void IntegrityChecker::validateKey(const std::string& key) const {
 
   // retrieve block and get value
   auto [block_digest, raw_block] = getBlock(containing_block_id);
-  (void)block_digest;
+  UNUSED(block_digest);
   std::optional<concord::kvbc::categorization::CategoryInput> category_input;
   std::visit(
       [&category_input](auto&& l_raw_block) {

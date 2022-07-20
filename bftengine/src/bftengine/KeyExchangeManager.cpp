@@ -112,7 +112,8 @@ std::string KeyExchangeManager::onKeyExchange(const KeyExchangeMsg& kemsg,
   auto liveQuorumSize = ReplicaConfig::instance().waitForFullCommOnStartup ? clusterSize_ : quorumSize_;
   if (ReplicaConfig::instance().getkeyExchangeOnStart() && (publicKeys_.numOfExchangedReplicas() <= liveQuorumSize))
     LOG_INFO(KEY_EX_LOG,
-             "Exchanged [" << publicKeys_.numOfExchangedReplicas() << "] out of [" << liveQuorumSize << "]");
+             "Exchanged [" << publicKeys_.numOfExchangedReplicas() << "] out of [" << liveQuorumSize << "]"
+                           << KVLOG(kemsg.repID));
   if (!initial_exchange_ && exchanged()) {
     initial_exchange_ = true;
     if (ReplicaConfig::instance().getkeyExchangeOnStart() &&
@@ -221,7 +222,10 @@ void KeyExchangeManager::sendMainPublicKey() {
   concord::messages::ReconfigurationRequest req;
   req.sender = repID_;
   req.command =
-      concord::messages::ReplicaMainKeyUpdate{repID_, SigManager::instance()->getPublicKeyOfVerifier(repID_), "hex"};
+      concord::messages::ReplicaMainKeyUpdate{repID_,
+                                              SigManager::instance()->getPublicKeyOfVerifier(repID_),
+                                              "hex",
+                                              static_cast<uint8_t>(SigManager::instance()->getMainKeyAlgorithm())};
   // Mark this request as an internal one
   std::vector<uint8_t> data_vec;
   concord::messages::serialize(data_vec, req);
@@ -236,51 +240,37 @@ void KeyExchangeManager::sendMainPublicKey() {
   LOG_INFO(KEY_EX_LOG, "Replica has published its main public key to the consensus");
 }
 
-void KeyExchangeManager::sendKeyExchange(const SeqNum& sn) {
+void KeyExchangeManager::generateConsensusKeyAndSendInternalClientMsg(const SeqNum& sn) {
   if (private_keys_.lastGeneratedSeqnum() &&  // if not initial
       (sn - private_keys_.lastGeneratedSeqnum()) / checkpointWindowSize < 2) {
-    LOG_INFO(KEY_EX_LOG, "ignore request - already exchanged keys for seqnum: " << private_keys_.lastGeneratedSeqnum());
+    LOG_INFO(KEY_EX_LOG,
+             "ignore request - already exchanged consensus keys for seqnum: " << private_keys_.lastGeneratedSeqnum());
     return;
   }
+
+  auto& candidate = candidate_private_keys_.generated;
+  bool generateNewPair = sn != candidate.sn || candidate.cid.empty();
   KeyExchangeMsg msg;
-  if (!candidate_private_keys_.generated.cid.empty()) {
-    // In some cases, we may try to send another key exchange message before the previous one has been committed (i.e,
-    // initial key exchange after VC/ST, two consecutive key exchange commands). In this case, we want to reuse the old
-    // generated key-exchange message
-    LOG_INFO(KEY_EX_LOG, "we already have a candidate for this sequence number, trying to send it again");
-    msg.pubkey = candidate_private_keys_.generated.pub;
-    msg.repID = repID_;
-    SeqNum new_sn = sn;
-    if ((sn - candidate_private_keys_.generated.sn) / checkpointWindowSize < 2)
-      new_sn = candidate_private_keys_.generated.sn;
-    candidate_private_keys_.generated.sn = new_sn;
-    msg.generated_sn = candidate_private_keys_.generated.sn;
-    msg.epoch = EpochManager::instance().getSelfEpochNumber();
-    std::stringstream ss;
-    concord::serialize::Serializable::serialize(ss, msg);
-    auto strMsg = ss.str();
-    client_->sendRequest(
-        bftEngine::KEY_EXCHANGE_FLAG, strMsg.size(), strMsg.c_str(), candidate_private_keys_.generated.cid);
-    metrics_->sent_key_exchange_counter++;
-    return;
-  }
-
-  auto cid = generateCid(kInitialKeyExchangeCid);
-  auto [prv, pub] = multiSigKeyHdlr_->generateMultisigKeyPair();
-  candidate_private_keys_.generated.priv = prv;
-  candidate_private_keys_.generated.pub = pub;
-  candidate_private_keys_.generated.cid = cid;
-  candidate_private_keys_.generated.sn = sn;
-
-  LOG_INFO(KEY_EX_LOG, "Sending key exchange :" << KVLOG(cid, pub));
-  msg.pubkey = pub;
   msg.repID = repID_;
   msg.generated_sn = sn;
   msg.epoch = EpochManager::instance().getSelfEpochNumber();
-  std::stringstream ss;
-  concord::serialize::Serializable::serialize(ss, msg);
-  auto strMsg = ss.str();
-  client_->sendRequest(bftEngine::KEY_EXCHANGE_FLAG, strMsg.size(), strMsg.c_str(), cid);
+
+  if (generateNewPair) {
+    auto cid = generateCid(kInitialKeyExchangeCid);
+    auto [prv, pub, algorithm] = multiSigKeyHdlr_->generateMultisigKeyPair();
+    candidate.algorithm = algorithm;
+    candidate.priv = prv;
+    candidate.pub = pub;
+    candidate.cid = cid;
+    candidate.sn = sn;
+  } else {
+    LOG_INFO(KEY_EX_LOG, "we already have a candidate for this sequence number, trying to send it again");
+  }
+
+  msg.pubkey = candidate.pub;
+  msg.algorithm = candidate.algorithm;
+  LOG_INFO(KEY_EX_LOG, "Sending consensus key exchange :" << KVLOG(candidate.cid, msg.pubkey, msg.algorithm));
+  client_->sendRequest(bftEngine::KEY_EXCHANGE_FLAG, msg, candidate.cid);
   metrics_->sent_key_exchange_counter++;
 }
 
@@ -339,7 +329,8 @@ void KeyExchangeManager::sendInitialKey(const ReplicaImp* repImpInstance, const 
   } else {
     waitForFullCommunication();
   }
-  sendKeyExchange(s);
+
+  generateConsensusKeyAndSendInternalClientMsg(s);
   metrics_->sent_key_exchange_on_start_status.Get().Set("True");
 }
 

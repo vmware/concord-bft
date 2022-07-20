@@ -95,10 +95,10 @@ std::pair<std::unique_ptr<IShareSecretKey>, std::unique_ptr<IShareVerificationKe
   ConcordAssertEQ(EVP_PKEY_get_raw_private_key(pkey, privateKey.data(), &len), OPENSSL_SUCCESS);
   ConcordAssertEQ(len, EdDSAThreshsignPrivateKey::ByteSize);
   len = EdDSAThreshsignPublicKey::ByteSize;
-  ConcordAssertEQ(EVP_PKEY_get_raw_public_key(pkey, (uint8_t *)publicKey.data(), &len), OPENSSL_SUCCESS);
+  ConcordAssertEQ(EVP_PKEY_get_raw_public_key(pkey, reinterpret_cast<uint8_t *>(publicKey.data()), &len),
+                  OPENSSL_SUCCESS);
   ConcordAssertEQ(len, EdDSAThreshsignPublicKey::ByteSize);
   return {std::make_unique<EdDSAThreshsignPrivateKey>(privateKey),
           std::make_unique<EdDSAThreshsignPublicKey>(publicKey)};
 }
-EdDSAMultisigFactory::EdDSAMultisigFactory() { /*EDDSA_MULTISIG_LOG.setLogLevel(log4cplus::DEBUG_LOG_LEVEL);*/
-}
+EdDSAMultisigFactory::EdDSAMultisigFactory() {}

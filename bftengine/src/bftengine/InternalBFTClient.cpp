@@ -37,3 +37,11 @@ uint64_t InternalBFTClient::sendRequest(uint64_t flags,
   LOG_DEBUG(GL, "Sent internal consensus: seq num [" << sn << "] client id [" << getClientId() << "]");
   return sn;
 }
+uint64_t IInternalBFTClient::sendRequest(uint64_t flags,
+                                         const concord::serialize::Serializable& msg,
+                                         const string& cid) {
+  std::stringstream ss;
+  concord::serialize::Serializable::serialize(ss, msg);
+  auto strMsg = ss.str();
+  return sendRequest(flags, strMsg.size(), strMsg.c_str(), cid);
+}

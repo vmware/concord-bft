@@ -20,6 +20,7 @@
 #include "SysConsts.hpp"
 #include "crypto.hpp"
 #include <future>
+
 namespace bftEngine::impl {
 
 class IInternalBFTClient;
@@ -30,7 +31,7 @@ class KeyExchangeManager {
  public:
   void exchangeTlsKeys(const SeqNum& bft_sn);
   // Generates and publish key to consensus
-  void sendKeyExchange(const SeqNum&);
+  void generateConsensusKeyAndSendInternalClientMsg(const SeqNum& sn);
   // Send the current main public key of the replica to consensus
   void sendMainPublicKey();
   // Generates and publish the first replica's key,
@@ -48,7 +49,7 @@ class KeyExchangeManager {
     uint32_t liveClusterSize = ReplicaConfig::instance().waitForFullCommOnStartup ? clusterSize_ : quorumSize_;
     bool exchange_self_keys = publicKeys_.keyExists(ReplicaConfig::instance().replicaId);
     return ReplicaConfig::instance().getkeyExchangeOnStart()
-               ? (publicKeys_.numOfExchangedReplicas() >= liveClusterSize - 1) && exchange_self_keys
+               ? (publicKeys_.numOfExchangedReplicas() + 1 >= liveClusterSize) && exchange_self_keys
                : true;
   }
   const std::string kInitialKeyExchangeCid = "KEY-EXCHANGE-";
@@ -92,11 +93,15 @@ class KeyExchangeManager {
         std::string cid;
         // seqnum of key exchange request
         SeqNum sn;
+        // Key algorithm
+        concord::crypto::SignatureAlgorithm algorithm;
+
         void clear() {
           priv.clear();
           pub.clear();
           cid.clear();
           sn = 0;
+          algorithm = concord::crypto::SignatureAlgorithm::Uninitialized;
         }
       } generated;
       // seqnum -> private key

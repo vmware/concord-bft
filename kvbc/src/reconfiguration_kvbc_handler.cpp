@@ -103,7 +103,9 @@ kvbc::BlockId ReconfigurationBlockTools::persistReconfigurationBlock(
   updates.add(concord::kvbc::categorization::kConcordInternalCategoryId, std::move(sn_updates));
 
   try {
-    return blocks_adder_.add(std::move(updates));
+    auto ret = blocks_adder_.add(std::move(updates));
+    LOG_INFO(GL, "Persist result: " << KVLOG(ret));
+    return ret;
   } catch (const std::exception& e) {
     LOG_ERROR(GL, "failed to persist the reconfiguration block: " << e.what());
     throw;
@@ -500,6 +502,7 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientRec
   return true;
 }
 
+// TODO(yf): this is where client key exchange is published
 bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientExchangePublicKey& command,
                                               uint64_t bft_seq_num,
                                               uint32_t sender_id,
@@ -1155,7 +1158,9 @@ bool InternalKvReconfigurationHandler::handle(const concord::messages::ReplicaMa
                                   std::string{kvbc::keyTypes::reconfiguration_rep_main_key} + std::to_string(sender_id),
                                   ts,
                                   false);
-  LOG_INFO(getLogger(), "received ReplicaMainKeyUpdate" << KVLOG(sender_id, bft_seq_num, blockId));
+  auto signatureAlgorithmId = static_cast<uint32_t>(command.algorithm);
+  LOG_INFO(getLogger(),
+           "Persisted ReplicaMainKeyUpdate on chain" << KVLOG(sender_id, bft_seq_num, blockId, signatureAlgorithmId));
   return true;
 }
 bool InternalKvReconfigurationHandler::handle(const concord::messages::WedgeCommand& command,

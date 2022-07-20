@@ -272,5 +272,7 @@ void SigManager::setClientPublicKey(const std::string& key, PrincipalId id, KeyF
 }
 bool SigManager::hasVerifier(PrincipalId pid) { return verifiers_.find(pid) != verifiers_.end(); }
 
+concord::crypto::SignatureAlgorithm SigManager::getMainKeyAlgorithm() const { return concord::crypto::EdDSA; }
+
 }  // namespace impl
 }  // namespace bftEngine

@@ -203,7 +203,7 @@ int main(int argc, char** argv) {
     Cryptosystem cryptoSys(defaultSysType, defaultSubSysType, n, n);
     cryptoSys.generateNewPseudorandomKeys();
 
-    LOG_INFO(GL, "Outputting replica keys to: " << fs::absolute(outputPrefix).parent_path().string());
+    LOG_INFO(GL, "Outputting initial replica keys to: " << fs::absolute(outputPrefix).parent_path().string());
 
     // Output the generated keys.
     for (uint16_t i = 0; i < n; ++i) {

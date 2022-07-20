@@ -75,7 +75,7 @@ bool ReconfigurationHandler::handle(const KeyExchangeCommand& command,
   if (command.tls) {
     bftEngine::impl::KeyExchangeManager::instance().exchangeTlsKeys(sequence_number);
   } else {
-    bftEngine::impl::KeyExchangeManager::instance().sendKeyExchange(sequence_number);
+    bftEngine::impl::KeyExchangeManager::instance().generateConsensusKeyAndSendInternalClientMsg(sequence_number);
   }
   return true;
 }

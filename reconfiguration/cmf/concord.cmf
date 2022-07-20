@@ -232,6 +232,7 @@ Msg ReplicaMainKeyUpdate 64 {
     uint64 sender_id
     string key
     string format
+    uint8 algorithm
 }
 
 Msg ClientStateReply 39 {
