@@ -27,7 +27,6 @@
 #include "db_interfaces.h"
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
 #include "state_snapshot_interface.hpp"
-#include "ISystemResourceEntity.hpp"
 #include "replica_adapter_auxilliary_types.hpp"
 #include "categorization/kv_blockchain.h"
 #include "v4blockchain/v4_blockchain.h"
@@ -51,7 +50,7 @@ class ReplicaBlockchain : public IBlocksDeleter,
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // IBlocksDeleter implementation
   void deleteGenesisBlock() override final { return deleter_->deleteGenesisBlock(); }
-  BlockId deleteBlocksUntil(BlockId until) override final { return deleter_->deleteBlocksUntil(until); }
+  BlockId deleteBlocksUntil(BlockId until) override final;
   void deleteLastReachableBlock() override final { return deleter_->deleteLastReachableBlock(); }
 
   // Helper method, not part of the interface
@@ -277,6 +276,7 @@ class ReplicaBlockchain : public IBlocksDeleter,
   mutable concordMetrics::GaugeHandle add_block_duration;
   mutable concordMetrics::GaugeHandle multiget_latest_duration;
   mutable concordMetrics::GaugeHandle multiget_version_duration;
+  mutable concordMetrics::GaugeHandle delete_blocks_until_duration;
   mutable concordMetrics::CounterHandle get_counter;
   mutable concordMetrics::CounterHandle multiget_lat_version_counter;
 };

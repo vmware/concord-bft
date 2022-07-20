@@ -287,9 +287,8 @@ IReplica::IReplicaPtr IReplica::createNewRoReplica(const ReplicaConfig &replicaC
 
 std::shared_ptr<IRequestsHandler> IRequestsHandler::createRequestsHandler(
     std::shared_ptr<IRequestsHandler> userReqHandler,
-    const std::shared_ptr<concord::cron::CronTableRegistry> &cronTableRegistry,
-    concord::performance::ISystemResourceEntity &resourceEntity) {
-  auto reqHandler = new bftEngine::RequestHandler(resourceEntity);
+    const std::shared_ptr<concord::cron::CronTableRegistry> &cronTableRegistry) {
+  auto reqHandler = new bftEngine::RequestHandler();
   reqHandler->setUserRequestHandler(userReqHandler);
   reqHandler->setCronTableRegistry(cronTableRegistry);
   return std::shared_ptr<IRequestsHandler>(reqHandler);

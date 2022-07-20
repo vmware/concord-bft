@@ -1095,8 +1095,8 @@ TEST(checkpoint_recovery, trimming) {
       blckchn.add(std::move(updates));
     }
 
-    std::vector<std::string> versioned_new_keys;
-    std::vector<std::string> imm_new_keys;
+    // std::vector<std::string> versioned_new_keys;
+    // std::vector<std::string> imm_new_keys;
 
     for (const auto& k : merkle_new_keys) {
       auto val = blckchn.getLatest("merkle", k);
@@ -1118,7 +1118,8 @@ TEST(checkpoint_recovery, trimming) {
     auto native_cl2 = TestRocksDb::createNative(6);
     auto blckchn = v4blockchain::KeyValueBlockchain{native_cl2, true, cat_map};
     {
-      auto recdb = concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery::getRecoveryDB(dbpath, true);
+      auto recdb =
+          concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery::getRecoveryDB(dbpath, true, true);
       // check that only blocks that were added after calling checkpointInProcess(true) has value in recovery db.
       for (uint64_t i = 0; i <= last_id; ++i) {
         auto opt_val = recdb->get(concord::kvbc::v4blockchain::detail::Blockchain::generateKey(i));
@@ -1212,7 +1213,7 @@ TEST(recovery, blockchain_recovery_class) {
   ASSERT_EQ(exec_path, "/tmp/concord_recovery_execution");
 
   {
-    auto recdb = concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery::getRecoveryDB(path, false);
+    auto recdb = concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery::getRecoveryDB(path, false, false);
     ASSERT_TRUE(recdb);
     ASSERT_EQ(recdb->path(), "/tmp/concord_recovery_execution");
     ASSERT_TRUE(fs::is_directory(recdb->path()));
@@ -1221,7 +1222,7 @@ TEST(recovery, blockchain_recovery_class) {
   }
 
   {
-    auto recdb = concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery::getRecoveryDB(path, true);
+    auto recdb = concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery::getRecoveryDB(path, true, false);
     ASSERT_TRUE(recdb);
     ASSERT_EQ(recdb->path(), "/tmp/concord_recovery_checkpoint");
     ASSERT_TRUE(fs::is_directory(recdb->path()));
@@ -1358,7 +1359,7 @@ TEST(recovery, storeLastReachableRevertBatch) {
   }
   // put dummy value to check if storeLastReachableRevertBatch doesn't override
   {
-    auto recdb = concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery::getRecoveryDB(path, false);
+    auto recdb = concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery::getRecoveryDB(path, false, false);
     auto key = concord::kvbc::v4blockchain::detail::Blockchain::generateKey(numblocks);
     recdb->put(key, std::string{"dummy"});
   }
@@ -1366,7 +1367,7 @@ TEST(recovery, storeLastReachableRevertBatch) {
   ASSERT_TRUE(fs::is_directory(exec_path));
 
   {
-    auto recdb = concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery::getRecoveryDB(path, false);
+    auto recdb = concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery::getRecoveryDB(path, false, true);
     auto key = concord::kvbc::v4blockchain::detail::Blockchain::generateKey(numblocks - 1);
     auto val = recdb->get(key);
     ASSERT_FALSE(val.has_value());
