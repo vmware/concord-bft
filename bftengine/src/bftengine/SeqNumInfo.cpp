@@ -387,14 +387,14 @@ bool SeqNumInfo::addFastPathPartialCommitMsg(PartialCommitProofMsg* m) {
 
 bool SeqNumInfo::addFastPathFullCommitMsg(FullCommitProofMsg* m, bool directAdd) {
   ConcordAssert(m != nullptr);
-
   if (hasFastPathFullCommitProof()) return false;
 
   PartialCommitProofMsg* myPCP = getFastPathSelfPartialCommitProofMsg();
 
   if (myPCP == nullptr) {
     // TODO(GG): can be improved (we can keep the FullCommitProof  message until myPCP!=nullptr
-    LOG_WARN(CNSUS, "FullCommitProofMsg arrived before PrePrepare. TODO(GG): should be handled to avoid delays. ");
+    LOG_WARN(CNSUS,
+             "FullCommitProofMsg arrived before PartialCommitProofMsg. TODO(GG): should be handled to avoid delays. ");
     return false;
   }
 

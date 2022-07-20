@@ -13,6 +13,8 @@
 #include "crypto.hpp"
 #include <string>
 #include <cstdint>
+#include <tuple>
+#include <crypto/crypto.h>
 
 // Interface for objects that need to be notified on key rotation
 class IKeyExchanger {
@@ -25,7 +27,7 @@ class IKeyExchanger {
 class IMultiSigKeyGenerator {
  public:
   virtual ~IMultiSigKeyGenerator() {}
-  virtual std::pair<std::string, std::string> generateMultisigKeyPair() = 0;
+  virtual std::tuple<std::string, std::string, concord::crypto::SignatureAlgorithm> generateMultisigKeyPair() = 0;
 };
 
 class IClientPublicKeyStore {

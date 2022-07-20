@@ -45,12 +45,11 @@ Cryptosystem::Cryptosystem(const std::string& sysType,
 // Helper function to generateNewPseudorandomKeys.
 IThresholdFactory* Cryptosystem::createThresholdFactory() {
 #ifdef USE_RELIC
-  if (type_ == MULTISIG_BLS_SCHEME || forceMultisig_) {
+  bool is_bls = type_ == MULTISIG_BLS_SCHEME || type_ == THRESHOLD_BLS_SCHEME;
+  if (is_bls) {
+    bool use_multisig = type_ == MULTISIG_BLS_SCHEME || (type_ == THRESHOLD_BLS_SCHEME && forceMultisig_);
     return new BLS::Relic::BlsThresholdFactory(BLS::Relic::PublicParametersFactory::getByCurveType(subtype_.c_str()),
-                                               true);
-  }
-  if (type_ == THRESHOLD_BLS_SCHEME) {
-    return new BLS::Relic::BlsThresholdFactory(BLS::Relic::PublicParametersFactory::getByCurveType(subtype_.c_str()));
+                                               use_multisig);
   }
 #endif
 

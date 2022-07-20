@@ -42,6 +42,7 @@ using std::string;
 using std::string_view;
 using std::this_thread::sleep_for;
 using std::unique_ptr;
+using std::tuple;
 
 using concord::crypto::cryptopp::RSA_SIGNATURE_LENGTH;
 using concord::crypto::SIGN_VERIFY_ALGO;
@@ -96,7 +97,9 @@ class MockInternalBFTClient : public IInternalBFTClient {
 class MockMultiSigKeyGenerator : public IMultiSigKeyGenerator {
  public:
   virtual ~MockMultiSigKeyGenerator() override{};
-  virtual pair<string, string> generateMultisigKeyPair() override { return pair("", ""); }
+  virtual tuple<string, string, concord::crypto::SignatureAlgorithm> generateMultisigKeyPair() override {
+    return tuple("", "", concord::crypto::SignatureAlgorithm::Uninitialized);
+  }
 };
 
 class MockKeyExchanger : public IKeyExchanger {

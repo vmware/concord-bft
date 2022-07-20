@@ -2193,6 +2193,10 @@ void ReplicaImp::onFastPathCommitCombinedSigSucceeded(SeqNum seqNumber,
 
   SeqNumInfo &seqNumInfo = mainLog->get(seqNumber);
 
+  FullCommitProofMsg *fcp = seqNumInfo.getFastPathFullCommitProofMsg();
+  // One replica produces FullCommitProofMsg Immediately
+  ConcordAssert(fcp == nullptr || config_.numReplicas != 1);
+
   seqNumInfo.onCompletionOfCommitSignaturesProcessing(
       seqNumber, view, cPath, combinedSig, combinedSigLen, span_context);
 
@@ -2200,7 +2204,7 @@ void ReplicaImp::onFastPathCommitCombinedSigSucceeded(SeqNum seqNumber,
   seqNumInfo.forceComplete();  // TODO(GG): remove forceComplete() (we know that  seqNumInfo is committed because
   // of the  FullCommitProofMsg message)
 
-  FullCommitProofMsg *fcp = seqNumInfo.getFastPathFullCommitProofMsg();
+  fcp = seqNumInfo.getFastPathFullCommitProofMsg();
   ConcordAssert(fcp != nullptr);
 
   if (ps_) {
