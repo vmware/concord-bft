@@ -7,10 +7,14 @@
 #include <vector>
 
 namespace libutt::api {
-BankIdentity::BankIdentity(const std::string& id, const std::string& bsk) {
+BankIdentity::BankIdentity(const std::string& id, const std::string& bsk, const std::string& bvk, const std::string& rvk) {
   bid_ = id;
   bsk_.reset(new libutt::RandSigShareSK());
   *bsk_ = libutt::deserialize<libutt::RandSigShareSK>(bsk);
+  bvk_.reset(new libutt::RandSigPK());
+  *bvk_ = libutt::deserialize<libutt::RandSigPK>(bvk);
+  rvk_.reset(new libutt::RegAuthPK());
+  *rvk_ = libutt::deserialize<libutt::RegAuthPK>(rvk);
 }
 
 const std::string& BankIdentity::getId() const { return bid_; }

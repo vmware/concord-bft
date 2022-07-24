@@ -18,7 +18,7 @@ int main(int argc, char* argv[]) {
   auto [dkg, rc] = testing::init(n, thresh);
   auto& d = Details::instance();
   auto registrators = testing::GenerateRegistrators(n, rc);
-  auto banks = testing::GenerateCommitters(n, dkg);
+  auto banks = testing::GenerateCommitters(n, dkg, rc.toPK());
   auto clients = testing::GenerateClients(c, dkg.getSK().toPK());
 
   for (auto& c : clients) {

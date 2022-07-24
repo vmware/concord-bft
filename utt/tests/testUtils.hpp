@@ -56,10 +56,10 @@ std::vector<std::shared_ptr<RegistratorIdentity>> GenerateRegistrators(size_t n,
   return registrators;
 }
 
-std::vector<std::shared_ptr<BankIdentity>> GenerateCommitters(size_t n, const RandSigDKG& dkg) {
+std::vector<std::shared_ptr<BankIdentity>> GenerateCommitters(size_t n, const RandSigDKG& dkg, const RegAuthPK& rvk) {
   std::vector<std::shared_ptr<BankIdentity>> banks;
   for (size_t i = 0; i < n; i++) {
-    banks.push_back(std::make_shared<BankIdentity>(std::to_string(i), serialize<RandSigShareSK>(dkg.skShares[i])));
+    banks.push_back(std::make_shared<BankIdentity>(std::to_string(i), serialize<RandSigShareSK>(dkg.skShares[i]), serialize<RandSigPK>(dkg.getPK()),  serialize<RegAuthPK>(rvk)));
   }
   return banks;
 }
