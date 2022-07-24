@@ -295,6 +295,7 @@ class SkvbcReconfigurationTest(ApolloTest):
             for i in range(500):
                 await skvbc.send_write_kv_set()
             current_view = await bft_network.wait_for_view(0)
+            await trio.sleep(3)
             # Let the next primary complete state transfer
             bft_network.start_replica(next_primary)
             await bft_network.wait_for_state_transfer_to_start()
