@@ -19,7 +19,7 @@ int main(int argc, char* argv[]) {
   auto& d = Details::instance();
   auto registrators = testing::GenerateRegistrators(n, rc);
   auto banks = testing::GenerateCommitters(n, dkg, rc.toPK());
-  auto clients = testing::GenerateClients(c, dkg.getSK().toPK());
+  auto clients = testing::GenerateClients(c, dkg.getSK().toPK(), rc.toPK());
 
   for (auto& c : clients) {
     testing::registerClient(d, c, registrators, thresh);

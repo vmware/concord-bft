@@ -13,6 +13,7 @@
 #include <utt/Serialization.h>
 #include <utt/Address.h>
 #include <utt/Comm.h>
+#include <utt/Coin.h>
 
 #include <vector>
 #include <memory>
@@ -64,11 +65,13 @@ std::vector<std::shared_ptr<BankIdentity>> GenerateCommitters(size_t n, const Ra
   return banks;
 }
 
-std::vector<ClientIdentity> GenerateClients(size_t c, const RandSigPK& rvk) {
+std::vector<ClientIdentity> GenerateClients(size_t c, const RandSigPK& bvk, const RegAuthPK& rvk) {
   std::vector<ClientIdentity> clients;
-  std::string bpk = libutt::serialize<libutt::RandSigPK>(rvk);
+  std::string bpk = libutt::serialize<libutt::RandSigPK>(bvk);
+  std::string rpk = libutt::serialize<libutt::RegAuthPK>(rvk);
+
   for (size_t i = 0; i < c; i++) {
-    clients.push_back(ClientIdentity("client_" + std::to_string(i), bpk));
+    clients.push_back(ClientIdentity("client_" + std::to_string(i), bpk, rpk));
   }
   return clients;
 }
@@ -79,9 +82,9 @@ void registerClient(Details& d,
                     size_t thresh) {
   size_t n = registrators.size();
   std::vector<RegistrationDetails> rd;
-  auto part_comm = c.generatePartialRCM(d);
+  auto prf = c.getPRFSecretKey();
   for (auto& r : registrators) {
-    rd.push_back(r->registerClient(d, c.getPid(), c.getPidHash(), part_comm));
+    rd.push_back(r->registerClient(d, c.getPid(), c.getPidHash(), prf));
   }
   auto sids = getSubGroup((uint32_t)n, (uint32_t)thresh);
   std::map<uint32_t, std::vector<uint8_t>> rsigs;
@@ -90,7 +93,7 @@ void registerClient(Details& d,
   }
   auto sig = Utils::aggregateSigShares(
       d, Commitment::Type::REGISTRATION, (uint32_t)n, rsigs, {Fr::zero().to_words(), Fr::zero().to_words()});
-  c.setRCM(rd[0].rcm_, sig);
-  c.setIBEDetails(rd[0].dsk_priv_, rd[0].dsk_pub_);
+  c.setRCM(rd[sids.front()].rcm_, sig);
+  c.setIBEDetails(rd[sids.front()].dsk_priv_, rd[sids.front()].dsk_pub_);
 }
 }  // namespace libutt::api::testing

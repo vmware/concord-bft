@@ -11,6 +11,7 @@
 #include <utt/RegAuth.h>
 #include <utt/SplitProof.h>
 #include <utt/Tx.h>
+#include <utt/Address.h>
 
 #include <utt/Serialization.h>
 
@@ -47,11 +48,25 @@ namespace libutt {
 
 Tx::Tx(const Params& p,
        const AddrSK& ask,
-       const std::vector<Coin>& coins,
-       std::optional<Coin> b,  // set to std::nullopt, if none
+       const std::vector<Coin>& c,
+       std::optional<Coin> b,  // optional budget coin
        const std::vector<std::tuple<std::string, Fr>>& recip,
-       const RandSigPK& bpk,
-       const RegAuthPK& rpk) {
+       const RandSigPK& bpk,  // only used for debugging
+       const RegAuthPK& rpk)  // only to encrypt for the recipients
+    : Tx{p, ask.pid_hash, ask.pid, ask.rcm, ask.rs, ask.s, c, b, recip, bpk, rpk.vk, rpk.mpk} {}
+
+Tx::Tx(const Params& p,
+       const Fr pidHash,
+       const std::string& pid,
+       const Comm& rcm_,
+       const RandSig& rcm_sig,
+       const Fr& prf,
+       const std::vector<Coin>& coins,
+       std::optional<Coin> b,  // optional budget coin
+       const std::vector<std::tuple<std::string, Fr>>& recip,
+       std::optional<RandSigPK> bpk,  // only used for debugging
+       const RandSigPK& rpk,
+       const IBE::MPK& mpk) {
 #ifndef NDEBUG
   (void)bpk;
 #endif
@@ -60,7 +75,7 @@ Tx::Tx(const Params& p,
    */
   assertFalse(coins.empty());
 
-  Fr pid_hash_sender = ask.getPidHash();  // the (single) sender's PID hash
+  Fr pid_hash_sender = pidHash;  // the (single) sender's PID hash
 
   isSplitOwnCoins = true;           // true when this TXN simply splits the sender's coins
   bool isBudgeted = b.has_value();  // true when this TXN is budgeted
@@ -83,7 +98,7 @@ Tx::Tx(const Params& p,
     }
 
     // all coins must have valid signatures
-    assertTrue(coin.hasValidSig(bpk));
+    assertTrue(coin.hasValidSig(*bpk));
   }
 
   // get total value of all normal output coins
@@ -95,7 +110,7 @@ Tx::Tx(const Params& p,
 
     totalOut += val;
 
-    if (pid_recip != ask.getPid()) {
+    if (pid_recip != pid) {
       paidOut += val;
       isSplitOwnCoins = false;
       notForMeOutputs.push_back(j);
@@ -140,17 +155,17 @@ Tx::Tx(const Params& p,
    *  - Copy pre-computed nullifier + consistency proof
    *  - Copy pre-computed (input) value commitment (VCM), whose randomness is later correlated with output VCMs
    */
-  rcm = ask.rcm;    // has randomness zero
-  regsig = ask.rs;  // will be rerandomized
+  rcm = rcm_;        // has randomness zero
+  regsig = rcm_sig;  // will be rerandomized
 
-  assertTrue(regsig.verify(rcm, rpk.vk));
+  assertTrue(regsig.verify(rcm, rpk));
 
   // re-randomize rcm, with randomness 'a', and then regsig
   Fr a = Fr::random_element();  // we need to pass this into the SplitProof constructor
   rcm.rerandomize(p.getRegCK(), a);
   regsig.rerandomize(a, Fr::random_element());
 
-  assertTrue(regsig.verify(rcm, rpk.vk));
+  assertTrue(regsig.verify(rcm, rpk));
 
   // number of senders
   assertGreaterThanOrEqual(coins.size(), 1);
@@ -218,10 +233,10 @@ Tx::Tx(const Params& p,
      *  - compute range proof for vcm_1
      *  - compute ctxt
      */
-    bool icmPok = !(isBudgeted && pid_recip == ask.pid);
+    bool icmPok = !(isBudgeted && pid_recip == pid);
     bool hasRangeProof = true;
     outs.emplace_back(p.getValCK(),
-                      rpk.mpk,
+                      mpk,
                       p.getRangeProofParams(),
                       Coin::NormalType(),
                       Coin::DoesNotExpire(),  // normal coins don't expire
@@ -259,12 +274,12 @@ Tx::Tx(const Params& p,
     // ensures that there was enough budget.
     bool hasRangeProof = true;
     outs.emplace_back(p.getValCK(),
-                      rpk.mpk,
+                      mpk,
                       p.getRangeProofParams(),
                       Coin::BudgetType(),
                       Coin::SomeExpirationDate(),
                       H.back(),
-                      ask.getPid(),
+                      pid,
                       val_budget_out,
                       z_budget_recip,
                       icmPok,
@@ -285,7 +300,7 @@ Tx::Tx(const Params& p,
     }
 
     // for each output coin with same pid, compute budget proof that they have same pid
-    budget_pi = BudgetProof(forMeOutputs, p.getRegCK(), rcm, pid_hash_sender, ask.s, a, cks, icms, ts);
+    budget_pi = BudgetProof(forMeOutputs, p.getRegCK(), rcm, pid_hash_sender, prf, a, cks, icms, ts);
   }
 
   /**
@@ -296,12 +311,12 @@ Tx::Tx(const Params& p,
 
   for (size_t i = 0; i < coins.size(); i++) {
     // logdbg << "Split proof for input #" << i << endl;
-    ins[i].pi = SplitProof(p, ask.pid_hash, ask.s, coins.at(i), a, rcm, outsHash);
+    ins[i].pi = SplitProof(p, pidHash, prf, coins.at(i), a, rcm, outsHash);
   }
 
   if (isBudgeted) {
     // logdbg << "Split proof for budget coin" << endl;
-    ins.back().pi = SplitProof(p, ask.pid_hash, ask.s, *b, a, rcm, outsHash);
+    ins.back().pi = SplitProof(p, pidHash, prf, *b, a, rcm, outsHash);
   }
 
   assertEqual(ins.size(), coins.size() + (b.has_value() ? 1 : 0));

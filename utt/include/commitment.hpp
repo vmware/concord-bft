@@ -12,6 +12,9 @@ libutt::api::Commitment operator+(libutt::api::Commitment lhs, const libutt::api
 namespace libutt::api {
 class RegistratorIdentity;
 class ClientIdentity;
+namespace operations {
+  class Burn;
+}
 class Commitment {
  public:
   enum Type { REGISTRATION = 0, VALUE, COIN };
@@ -33,6 +36,7 @@ class Commitment {
  private:
   friend class RegistratorIdentity;
   friend class ClientIdentity;
+  friend class operations::Burn;
   std::shared_ptr<libutt::Comm> comm_;
 };
 }  // namespace libutt::api

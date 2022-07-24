@@ -10,6 +10,7 @@ class Coin;
 namespace libutt::api {
 class ClientIdentity;
 namespace operations {
+     class Burn;
      class Mint;
 }
 class Coin {
@@ -34,6 +35,7 @@ class Coin {
 
  private:
   friend class ClientIdentity;
+  friend class operations::Burn;
   std::unique_ptr<libutt::Coin> coin_;
   bool has_sig_{false};
 

@@ -187,6 +187,7 @@ set(newutt_src
     libutt/src/coin.cpp
     libutt/src/registratorIdentity.cpp
     libutt/src/common.cpp
+    libutt/src/burn.cpp
     )
 add_library(newutt STATIC ${newutt_src})
 target_link_libraries(newutt PUBLIC utt)

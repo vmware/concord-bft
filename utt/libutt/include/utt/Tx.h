@@ -56,6 +56,19 @@ class Tx {
      const RandSigPK& bpk,   // only used for debugging
      const RegAuthPK& rpk);  // only to encrypt for the recipients
 
+  Tx(const Params& p,
+     const Fr pidHash,
+     const std::string& pid,
+     const Comm& rcm,
+     const RandSig& rcm_sig,
+     const Fr& prf,
+     const std::vector<Coin>& c,
+     std::optional<Coin> b,  // optional budget coin
+     const std::vector<std::tuple<std::string, Fr>>& recip,
+     std::optional<RandSigPK> bpk,  // only used for debugging
+     const RandSigPK& rpk,
+     const IBE::MPK& mpk);  // only to encrypt for the recipients
+
  public:
   size_t getSize() const {
     return sizeof(isSplitOwnCoins) + rcm.getSize() + regsig.getSize() + ins.back().getSize() * ins.size() +

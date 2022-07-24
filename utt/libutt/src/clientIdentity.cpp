@@ -1,24 +1,29 @@
 #include "clientIdentity.hpp"
 #include "coin.hpp"
+#include "burn.hpp"
 #include <utt/IBE.h>
 #include <utt/Address.h>
 #include <utt/RandSig.h>
+#include <utt/RegAuth.h>
 #include <utt/Params.h>
 #include <utt/Serialization.h>
 #include <utt/Coin.h>
+#include <utt/BurnOp.h>
 #include <vector>
 #include <sstream>
 namespace libutt::api {
-ClientIdentity::ClientIdentity(const std::string& pid, const std::string& bpk) {
+ClientIdentity::ClientIdentity(const std::string& pid, const std::string& bpk, const std::string& rvk) {
   ask_.reset(new libutt::AddrSK());
   ask_->pid = pid;
   ask_->s = Fr::random_element();
   ask_->pid_hash = AddrSK::pidHash(pid);
   bpk_.reset(new libutt::RandSigPK());
   *bpk_ = libutt::deserialize<libutt::RandSigPK>(bpk);
+  rpk_.reset(new libutt::RegAuthPK());
+  *rpk_ = libutt::deserialize<libutt::RegAuthPK>(rvk);
 }
 Commitment ClientIdentity::generatePartialRCM(Details& d) {
-  std::vector<std::vector<uint64_t>> m = {getPidHash(), ask_->s.to_words(), Fr::zero().to_words()};
+  std::vector<std::vector<uint64_t>> m = {Fr::zero().to_words(), ask_->s.to_words(), Fr::zero().to_words()};
   auto comm = Commitment(d, Commitment::Type::REGISTRATION, m, true);
   return comm;
 }
@@ -45,11 +50,6 @@ std::pair<Commitment, std::vector<uint8_t>> ClientIdentity::getRcm() const {
 template <>
 bool ClientIdentity::validate<Coin>(const Coin& c) {
   return c.coin_->hasValidSig(*bpk_);
-}
-void ClientIdentity::randomizeRCM() {
-  auto r_delta = rcm_.randomize(Details::instance(), Commitment::Type::REGISTRATION);
-  Fr fr_r_delta;
-  fr_r_delta.from_words(r_delta);
 }
 
 }  // namespace libutt::api

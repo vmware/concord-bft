@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <optional>
 
+#include <utt/PolyCrypto.h>
+#include <utt/IBE.h>
 namespace libutt {
 class BurnOp;
 class AddrSK;
@@ -10,6 +12,8 @@ class Coin;
 class Params;
 class RandSigPK;
 class RegAuthPK;
+class Comm;
+class RandSig;
 }  // namespace libutt
 
 std::ostream& operator<<(std::ostream&, const libutt::BurnOp&);
@@ -29,7 +33,15 @@ class BurnOp {
 
  public:
   BurnOp(const Params& p, const AddrSK& ask, const Coin& coin, const RandSigPK& bpk, const RegAuthPK& rpk);
-
+  BurnOp(const Params& p,
+               const Fr pidHash,
+               const std::string& pid,
+               const Comm& rcm_,
+               const RandSig& rcm_sig,
+               const Fr& prf,
+               const Coin& coin,
+               std::optional<RandSigPK> bpk,
+               const RegAuthPK& rpk);
   BurnOp(std::istream& in);
 
   BurnOp(const BurnOp& o);

@@ -1,6 +1,7 @@
 set(newutt_test_sources
     TestDistributedRegistration.cpp
     TestMint.cpp
+    TestBurn.cpp
 )
 
 foreach(appSrc ${newutt_test_sources})

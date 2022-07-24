@@ -3,8 +3,10 @@
 #include "details.hpp"
 #include "testUtils.hpp"
 #include "mint.hpp"
+#include "burn.hpp"
 #include <utt/MintOp.h>
 #include <utt/Coin.h>
+#include <utt/BurnOp.h>
 #include <memory>
 #include <vector>
 #include <cstdlib>
@@ -43,6 +45,10 @@ int main(int argc, char* argv[]) {
     }
     auto coin = mint.claimCoin(d, c, (uint32_t)n, sigs);
     assertTrue(c.validate(coin));
+    Burn b_op{d, c, coin};
+    for (auto& b : banks) {
+        assertTrue(b->validate(b_op, {}));
+    }
   }
   return 0;
 }

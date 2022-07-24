@@ -13,10 +13,11 @@ namespace libutt::api {
 class RegistratorIdentity {
  public:
   RegistratorIdentity(const std::string& id, const std::string& rsk, const std::string& rbk);
+  // TODO: Understand how to generate a correct signature from the partial commitments instead of passing the prf key to the registrators
   RegistrationDetails registerClient(Details& d,
                                      const std::string& pid,
                                      const std::vector<uint64_t>& pid_hash,
-                                     const Commitment& partiail_comm) const;
+                                     const std::vector<uint64_t>& prf) const;
   bool validateRCM(const Commitment& comm, const std::vector<uint8_t>& sig);
 
  private:

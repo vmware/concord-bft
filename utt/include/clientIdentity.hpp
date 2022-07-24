@@ -6,11 +6,15 @@
 namespace libutt {
 class AddrSK;
 class RandSigPK;
+class RegAuthPK;
 }  // namespace libutt
 namespace libutt::api {
+namespace operations {
+  class Burn;
+}
 class ClientIdentity {
  public:
-  ClientIdentity(const std::string& pid, const std::string& bpk);
+  ClientIdentity(const std::string& pid, const std::string& bpk, const std::string& rpk);
   Commitment generatePartialRCM(Details& d);
   std::string getPid() const;
   std::vector<uint64_t> getPRFSecretKey() const;
@@ -22,8 +26,10 @@ class ClientIdentity {
   bool validate(const T&);
 
  private:
+  friend class operations::Burn;
   std::unique_ptr<libutt::AddrSK> ask_;
   std::unique_ptr<libutt::RandSigPK> bpk_;
+  std::unique_ptr<libutt::RegAuthPK> rpk_;
   Commitment rcm_;
   std::vector<uint8_t> rcm_sig_;
 };

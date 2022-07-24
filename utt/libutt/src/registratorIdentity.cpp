@@ -19,20 +19,18 @@ RegistratorIdentity::RegistratorIdentity(const std::string& id, const std::strin
 RegistrationDetails RegistratorIdentity::registerClient(Details& d,
                                                         const std::string& pid,
                                                         const std::vector<uint64_t>& pid_hash,
-                                                        const Commitment& partial_comm) const {
+                                                        const std::vector<uint64_t>& prf) const {
   RegistrationDetails rd;
-  Fr reg_sn;
-  // The clinet sends a commitment that contains its PRF key, hence, by taking the hash as sequence number we do commit
-  // to this PRF keyu as well So, eventually, the commitment here is for the client pid, and PRF secret key.
-  reg_sn.set_ulong(Commitment::getCommitmentSn(partial_comm));
-  std::vector<std::vector<uint64_t>> m = {pid_hash, reg_sn.to_words(), Fr::zero().to_words()};
-  auto comm = Commitment(d, Commitment::Type::REGISTRATION, m, true);
-  rd.rcm_ = comm;
   Fr fr_pid;
   fr_pid.from_words(pid_hash);
+  Fr fr_prf;
+  fr_prf.from_words(prf);
+  std::vector<std::vector<uint64_t>> m = {pid_hash, prf, Fr::zero().to_words()};
+  auto comm = Commitment(d, Commitment::Type::REGISTRATION, m, true);
+  rd.rcm_ = comm;
   std::string h1 = Commitment::getCommitmentHash(rd.rcm_);
   G1 H = libutt::hashToGroup<G1>("ps16base|" + h1);
-  auto res = rsk_->sk.shareSign({(fr_pid * H), (reg_sn * H)}, H);
+  auto res = rsk_->sk.shareSign({(fr_pid * H), (fr_prf * H)}, H);
   auto res_str = libutt::serialize<libutt::RandSigShare>(res);
   rd.rcm_sig_ = std::vector<uint8_t>(res_str.begin(), res_str.end());
   rd.dsk_pub_ = getMPK();
