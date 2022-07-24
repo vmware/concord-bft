@@ -62,8 +62,7 @@ Status Replica::initInternals() {
   if (replicaConfig_.isReadOnly) {
     LOG_INFO(logger,
              "ReadOnly Replica Status:" << KVLOG(getLastBlockNum(), getLastBlockId(), getLastReachableBlockNum()));
-    auto requestHandler =
-        bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler, cronTableRegistry_, replicaResources_);
+    auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler, cronTableRegistry_);
     requestHandler->setReconfigurationHandler(std::make_shared<pruning::ReadOnlyReplicaPruningHandler>(*this));
     m_replicaPtr = bftEngine::IReplica::createNewRoReplica(
         replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm, m_metadataStorage);
@@ -124,10 +123,9 @@ class KvbcRequestHandler : public bftEngine::RequestHandler {
       const std::shared_ptr<IRequestsHandler> &user_req_handler,
       const std::shared_ptr<concord::cron::CronTableRegistry> &cron_table_registry,
       adapter::ReplicaBlockchain &blockchain,
-      std::shared_ptr<concordMetrics::Aggregator> aggregator_,
-      ISystemResourceEntity &resourceEntity) {
+      std::shared_ptr<concordMetrics::Aggregator> aggregator_) {
     return std::shared_ptr<KvbcRequestHandler>{
-        new KvbcRequestHandler{user_req_handler, cron_table_registry, blockchain, aggregator_, resourceEntity}};
+        new KvbcRequestHandler{user_req_handler, cron_table_registry, blockchain, aggregator_}};
   }
 
  public:
@@ -150,9 +148,8 @@ class KvbcRequestHandler : public bftEngine::RequestHandler {
   KvbcRequestHandler(const std::shared_ptr<IRequestsHandler> &user_req_handler,
                      const std::shared_ptr<concord::cron::CronTableRegistry> &cron_table_registry,
                      adapter::ReplicaBlockchain &blockchain,
-                     std::shared_ptr<concordMetrics::Aggregator> aggregator_,
-                     ISystemResourceEntity &resourceEntity)
-      : bftEngine::RequestHandler(resourceEntity, aggregator_), blockchain_{blockchain} {
+                     std::shared_ptr<concordMetrics::Aggregator> aggregator_)
+      : bftEngine::RequestHandler(aggregator_), blockchain_{blockchain} {
     setUserRequestHandler(user_req_handler);
     setCronTableRegistry(cron_table_registry);
   }
@@ -304,8 +301,7 @@ void Replica::saveReconfigurationCmdToResPages(const std::string &key) {
 
 void Replica::createReplicaAndSyncState() {
   ConcordAssertNE(m_kvBlockchain, nullptr);
-  auto requestHandler =
-      KvbcRequestHandler::create(m_cmdHandler, cronTableRegistry_, *m_kvBlockchain, aggregator_, replicaResources_);
+  auto requestHandler = KvbcRequestHandler::create(m_cmdHandler, cronTableRegistry_, *m_kvBlockchain, aggregator_);
   registerReconfigurationHandlers(requestHandler);
   m_replicaPtr = bftEngine::IReplica::createNewReplica(
       replicaConfig_,
@@ -576,18 +572,22 @@ Replica::Replica(ICommunication *comm,
                             kvbc_categories,
                             concord::kvbc::adapter::aux::AdapterAuxTypes(this->aggregator_, this->replicaResources_));
     m_kvBlockchain = &(op_kvBlockchain.value());
+    bool isCategorized = replicaConfig.kvBlockchainVersion == BLOCKCHAIN_VERSION::CATEGORIZED_BLOCKCHAIN;
     auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-    concord::diagnostics::StatusHandler handler("pruning", "Pruning Status", [this]() {
+    concord::diagnostics::StatusHandler handler("pruning", "Pruning Status", [this, isCategorized]() {
       std::ostringstream oss;
       std::unordered_map<std::string, std::string> result;
-      result.insert(
-          concordUtils::toPair("versionedNumOfDeletedKeys",
-                               aggregator_->GetCounter("kv_blockchain_deletes", "numOfVersionedKeysDeleted").Get()));
-      result.insert(
-          concordUtils::toPair("immutableNumOfDeletedKeys",
-                               aggregator_->GetCounter("kv_blockchain_deletes", "numOfImmutableKeysDeleted").Get()));
-      result.insert(concordUtils::toPair(
-          "merkleNumOfDeletedKeys", aggregator_->GetCounter("kv_blockchain_deletes", "numOfMerkleKeysDeleted").Get()));
+      if (isCategorized) {
+        result.insert(
+            concordUtils::toPair("versionedNumOfDeletedKeys",
+                                 aggregator_->GetCounter("kv_blockchain_deletes", "numOfVersionedKeysDeleted").Get()));
+        result.insert(
+            concordUtils::toPair("immutableNumOfDeletedKeys",
+                                 aggregator_->GetCounter("kv_blockchain_deletes", "numOfImmutableKeysDeleted").Get()));
+        result.insert(
+            concordUtils::toPair("merkleNumOfDeletedKeys",
+                                 aggregator_->GetCounter("kv_blockchain_deletes", "numOfMerkleKeysDeleted").Get()));
+      }
       result.insert(concordUtils::toPair("getGenesisBlockId()", getGenesisBlockId()));
       result.insert(concordUtils::toPair("getLastReachableBlockId()", getLastBlockId()));
       result.insert(concordUtils::toPair("isPruningInProgress",

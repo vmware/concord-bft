@@ -148,12 +148,15 @@ class LatestKeys {
                 bool* /*value_changed*/) const override;
   };
 
+  void setDeletedKeysMetric(concordMetrics::CounterHandle* m) { deleted_keys_ = m; }
+
  private:
   // This filter is used to delete stale on update keys if their version is smaller than the genesis block
   // It's being called by RocksDB on compaction
 
   std::shared_ptr<concord::storage::rocksdb::NativeClient> native_client_;
   v4blockchain::detail::Categories category_mapping_;
+  concordMetrics::CounterHandle* deleted_keys_{nullptr};
 };
 
 }  // namespace concord::kvbc::v4blockchain::detail

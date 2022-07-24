@@ -13,28 +13,16 @@
 
 #include "kvbc_adapter/v4blockchain/blocks_deleter_adapter.hpp"
 #include "assertUtils.hpp"
-#include "ReplicaResources.h"
-
-using concord::performance::ISystemResourceEntity;
 
 namespace concord::kvbc::adapter::v4blockchain {
 
-BlocksDeleterAdapter::BlocksDeleterAdapter(std::shared_ptr<concord::kvbc::v4blockchain::KeyValueBlockchain> &kvbc,
-                                           const std::optional<aux::AdapterAuxTypes> &aux_types)
+BlocksDeleterAdapter::BlocksDeleterAdapter(std::shared_ptr<concord::kvbc::v4blockchain::KeyValueBlockchain> &kvbc)
     : kvbc_{kvbc.get()} {
-  if (aux_types.has_value()) {
-    replica_resources_.reset(&(aux_types->resource_entity_));
-  } else {
-    replica_resources_ = std::make_shared<ReplicaResourceEntity>();
-  }
   ConcordAssertNE(kvbc_, nullptr);
-  ConcordAssertEQ(!replica_resources_, false);
 }
 
 BlockId BlocksDeleterAdapter::deleteBlocksUntil(BlockId until) {
   const auto start = std::chrono::steady_clock::now();
-  ISystemResourceEntity::scopedDurMeasurment mes(*replica_resources_,
-                                                 ISystemResourceEntity::type::pruning_avg_time_micro);
   auto upTo = kvbc_->deleteBlocksUntil(until);
 
   auto jobDuration =

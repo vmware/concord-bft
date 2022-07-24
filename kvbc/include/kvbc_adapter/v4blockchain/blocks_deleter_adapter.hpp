@@ -18,7 +18,6 @@
 #include "db_interfaces.h"
 #include "v4blockchain/v4_blockchain.h"
 #include "kvbc_adapter/replica_adapter_auxilliary_types.hpp"
-#include "resources-manager/ISystemResourceEntity.hpp"
 #include "performance_handler.h"
 #include "diagnostics.h"
 
@@ -27,8 +26,7 @@ namespace concord::kvbc::adapter::v4blockchain {
 class BlocksDeleterAdapter : public IBlocksDeleter {
  public:
   virtual ~BlocksDeleterAdapter() { kvbc_ = nullptr; }
-  explicit BlocksDeleterAdapter(std::shared_ptr<concord::kvbc::v4blockchain::KeyValueBlockchain> &kvbc,
-                                const std::optional<aux::AdapterAuxTypes> &aux_types = std::nullopt);
+  explicit BlocksDeleterAdapter(std::shared_ptr<concord::kvbc::v4blockchain::KeyValueBlockchain> &kvbc);
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // IBlocksDeleter implementation
@@ -39,7 +37,6 @@ class BlocksDeleterAdapter : public IBlocksDeleter {
 
  private:
   concord::kvbc::v4blockchain::KeyValueBlockchain *kvbc_{nullptr};
-  std::shared_ptr<concord::performance::ISystemResourceEntity> replica_resources_;
 
   struct Recorders {
     static constexpr uint64_t MAX_VALUE_MICROSECONDS = 2ULL * 1000ULL * 1000ULL;  // 2 seconds
