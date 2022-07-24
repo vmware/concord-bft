@@ -288,6 +288,7 @@ class SkvbcReconfigurationTest(ApolloTest):
                 await skvbc.send_write_kv_set()
             initial_prim = 0
             next_primary = 1
+            await trio.sleep(3)
             bft_network.stop_replica(next_primary)
             next_prime_cert = self.collect_client_certificates(bft_network, [next_primary])
             await self.run_client_tls_key_exchange_cycle(bft_network, list(bft_network.all_replicas(without={next_primary})) + [bft_network.cre_id])
