@@ -61,7 +61,7 @@ jobs:
                               -DRUN_APOLLO_TESTS=TRUE\
                               -DUSE_FAKE_CLOCK_IN_TIME_SERVICE=TRUE\" "\
               && script -q -e -c "make simple-test" \
-              && script -q -e -c "make test-single-suite TEST_NAME=skvbc_reconfiguration NUM_REPEATS=300 BREAK_ON_FAILURE=FALSE"
+              && script -q -e -c "make test-single-suite TEST_NAME=skvbc_reconfiguration NUM_REPEATS=300 BREAK_ON_FAILURE=TRUE"
         - name: Prepare artifacts
           if: failure()
           run: |
