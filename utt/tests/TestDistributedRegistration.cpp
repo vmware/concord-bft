@@ -24,7 +24,6 @@ int main(int argc, char* argv[]) {
   for (auto& c : clients) {
     testing::registerClient(d, c, registrators, thresh);
     for (auto& r : registrators) {
-      c.randomizeRCM();
       auto rcm_data = c.getRcm();
       assertTrue(r->validateRCM(rcm_data.first, rcm_data.second));
     }

@@ -35,10 +35,13 @@ void ClientIdentity::setIBEDetails(const std::vector<uint8_t>& sk, const std::ve
 void ClientIdentity::setRCM(const Commitment& comm, const std::vector<uint8_t>& sig) {
   rcm_ = comm;
   rcm_sig_ = sig;
+  ask_->rcm = *(comm.comm_);
   ask_->rs = libutt::deserialize<libutt::RandSig>(sig);
 }
 
-std::pair<Commitment, std::vector<uint8_t>> ClientIdentity::getRcm() const { return {rcm_, rcm_sig_}; }
+std::pair<Commitment, std::vector<uint8_t>> ClientIdentity::getRcm() const { 
+  auto tmp = libutt::serialize<libutt::RandSig>(ask_->rs);
+  return {rcm_, std::vector<uint8_t>(tmp.begin(), tmp.end())}; }
 template <>
 bool ClientIdentity::validate<Coin>(const Coin& c) {
   return c.coin_->hasValidSig(*bpk_);
@@ -47,10 +50,6 @@ void ClientIdentity::randomizeRCM() {
   auto r_delta = rcm_.randomize(Details::instance(), Commitment::Type::REGISTRATION);
   Fr fr_r_delta;
   fr_r_delta.from_words(r_delta);
-  auto rand_sig = libutt::deserialize<libutt::RandSig>(rcm_sig_);
-  rand_sig.rerandomize(fr_r_delta, Fr::random_element());
-  auto tmp_sig = libutt::serialize<libutt::RandSig>(rand_sig);
-  rcm_sig_ = std::vector<uint8_t>(tmp_sig.begin(), tmp_sig.end());
 }
 
 }  // namespace libutt::api

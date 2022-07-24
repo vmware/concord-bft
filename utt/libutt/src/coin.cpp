@@ -6,6 +6,7 @@
 
 namespace libutt::api {
 Coin::Coin(Details& d,
+const std::vector<uint64_t>& prf,
            const std::vector<uint64_t>& sn,
            const std::vector<uint64_t>& val,
            Type t,
@@ -20,11 +21,25 @@ Coin::Coin(Details& d,
   fr_exp_date.from_words(exp_date);
   Fr pid_hash;
   pid_hash.from_words(cid.getPidHash());
-  coin_.reset(new libutt::Coin(d.getParams().ck_coin, fr_sn, fr_val, fr_type, fr_exp_date, pid_hash));
-  nullifier_.reset(new Nullifier(d, cid.getPRFSecretKey(), sn, Fr::random_element().to_words()));
+  Fr fr_prf;
+  fr_prf.from_words(prf);
+  coin_.reset(new libutt::Coin(d.getParams().ck_coin, d.getParams().null, fr_prf, fr_sn, fr_val, fr_type, libutt::Coin::DoesNotExpire(), pid_hash));
   type_ = t;
 }
-const Nullifier& Coin::getNullifier() const { return *nullifier_; }
+Coin::Coin(const Coin& c) {
+  coin_.reset(new libutt::Coin());
+  *(coin_) = *(c.coin_);
+  has_sig_ = c.has_sig_;
+  type_ = c.type_;
+}
+Coin& Coin::operator=(const Coin& c) {
+  coin_.reset(new libutt::Coin());
+  *(coin_) = *(c.coin_);
+  has_sig_ = c.has_sig_;
+  type_ = c.type_;
+  return *this;
+}
+const std::string Coin::getNullifier() const { return coin_->null.toUniqueString(); }
 bool Coin::hasSig() const { return has_sig_; }
 void Coin::setSig(const std::vector<uint8_t>& sig) {
   coin_->sig = libutt::deserialize<libutt::RandSig>(std::string(sig.begin(), sig.end()));

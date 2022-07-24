@@ -43,7 +43,6 @@ int main(int argc, char* argv[]) {
     }
     auto coin = mint.claimCoin(d, c, (uint32_t)n, sigs);
     assertTrue(c.validate(coin));
-    assertTrue(coin.getNullifier().validate(d));
   }
   return 0;
 }

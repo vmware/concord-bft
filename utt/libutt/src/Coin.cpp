@@ -76,9 +76,10 @@ std::istream& operator>>(std::istream& in, libutt::Coin& c) {
 }
 
 namespace libutt {
-Coin::Coin(const CommKey& ck, const Fr& sn, const Fr& val, const Fr& type, const Fr& exp_date, const Fr& pidHash)
+Coin::Coin(const CommKey& ck, const Nullifier::Params& np, const Fr& prf, const Fr& sn, const Fr& val, const Fr& type, const Fr& exp_date, const Fr& pidHash)
     : ck(ck), pid_hash(pidHash), sn(sn), val(val), type(type), exp_date(exp_date), t(Fr::random_element()) {
   Coin::commit();
+  null = Nullifier(np, prf, sn, t);
 }
 
 Coin::Coin(const CommKey& ck,
@@ -88,13 +89,7 @@ Coin::Coin(const CommKey& ck,
            const Fr& type,
            const Fr& exp_date,
            const AddrSK& ask)
-    : ck(ck), pid_hash(ask.getPidHash()), sn(sn), val(val), type(type), exp_date(exp_date), t(Fr::random_element()) {
-  // computes the partial commitment, which is what we include in a TXN
-  Coin::commit();
-
-  // pre-compute the coin's nullifier
-  null = Nullifier(np, ask, sn, t);
-}
+    : Coin(ck, np, ask.s, sn, val, type, exp_date, ask.getPidHash()) {}
 
 bool Coin::hasValidSig(const RandSigPK& pk) const { return sig.verify(augmentComm(), pk); }
 

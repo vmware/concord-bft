@@ -17,7 +17,6 @@ class ClientIdentity {
   std::vector<uint64_t> getPidHash() const;
   void setIBEDetails(const std::vector<uint8_t>& sk, const std::vector<uint8_t>& mpk);
   void setRCM(const Commitment& comm, const std::vector<uint8_t>& sig);
-  void randomizeRCM();
   std::pair<Commitment, std::vector<uint8_t>> getRcm() const;
   template <typename T>
   bool validate(const T&);

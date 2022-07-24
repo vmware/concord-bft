@@ -22,6 +22,7 @@ Coin Mint::claimCoin(Details& d,
       r_pid.to_words(), r_sn.to_words(), r_val.to_words(), r_type.to_words(), r_expdate.to_words()};
   auto sig = Utils::aggregateSigShares(d, Commitment::Type::COIN, n, rsigs, r);
   libutt::api::Coin c(d,
+                      cid.getPRFSecretKey(),
                       op_->getSN().to_words(),
                       op_->getVal().to_words(),
                       Coin::Type::Normal,
