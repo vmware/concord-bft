@@ -1358,6 +1358,7 @@ class SkvbcReconfigurationTest(ApolloTest):
         crashed_replicas = set(range(replica_count - 2, replica_count))
         await self.send_restart_with_params(bft_network, bft=True, restart=True, faulty_replica_ids=crashed_replicas)
 
+    @unittest.skip("Unstable test")
     @with_trio
     @with_bft_network(start_replica_cmd_with_key_exchange, selected_configs=lambda n, f, c: n == 7, rotate_keys=True, publish_master_keys=True)
     async def test_remove_nodes(self, bft_network):
