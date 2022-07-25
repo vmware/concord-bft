@@ -143,6 +143,7 @@ class DbCheckpointManager {
   // checkpoint_id = 0 indicates rocksdb size
   // only used for apollo test
   std::map<uint64_t, uint64_t> getDbSize();
+  void setIsMetadataErased(bool isMetadataErased) { isMetadataErased_ = isMetadataErased; }
 
  private:
   logging::Logger getLogger() {
@@ -203,6 +204,7 @@ class DbCheckpointManager {
   std::function<SeqNum()> getLastStableSeqNumCb_;
   std::vector<std::function<void(SeqNum)>> onDbCheckpointCreated_;
   std::string dbCheckPointDirPath_;
+  bool isMetadataErased_ = false;
   concordMetrics::Component metrics_;
   concordMetrics::GaugeHandle maxDbCheckpointCreationTimeMsec_;
   concordMetrics::GaugeHandle lastDbCheckpointSizeInMb_;
