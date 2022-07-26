@@ -11,10 +11,13 @@ set(util_source_files
     src/hex_tools.cpp
     src/OpenTracing.cpp
     src/throughput.cpp
-    src/crypto_utils.cpp
+    src/cryptopp_utils.cpp
+    src/openssl_utils.cpp
     src/RawMemoryPool.cpp
     src/config_file_parser.cpp
-    src/cryptopp_digest_creator.cpp)
+    src/cryptopp_digest_creator.cpp
+    src/io.cpp
+    src/crypto_utils.cpp)
 add_library(util        STATIC ${util_source_files})
 add_library(util_shared SHARED ${util_source_files})
 
@@ -43,10 +46,16 @@ else()
     find_package(cryptopp REQUIRED)
 endif()
 
-target_link_libraries(util PUBLIC Threads::Threads ${CRYPTOPP_LIBRARIES})
+target_link_libraries(util PUBLIC
+        Threads::Threads ${CRYPTOPP_LIBRARIES}
+        stdc++fs)
+# corebft
 target_include_directories(util PUBLIC include ${CRYPTOPP_INCLUDE_DIRS})
 
-target_link_libraries(util_shared PUBLIC Threads::Threads ${CRYPTOPP_LIBRARIES})
+target_link_libraries(util_shared PUBLIC
+        Threads::Threads ${CRYPTOPP_LIBRARIES}
+        stdc++fs)
+# corebft
 target_include_directories(util_shared PUBLIC include ${CRYPTOPP_INCLUDE_DIRS})
 
 if(USE_OPENTRACING)
@@ -76,10 +85,7 @@ set(util_header_files
     include/SimpleThreadPool.hpp
     include/sliver.hpp
     include/status.hpp
-    include/string.hpp
-    include/openssl_crypto.hpp
-    include/digest.hpp
-    include/digest_type.hpp)
+    include/string.hpp)
 install(FILES ${util_header_files} DESTINATION include/util)
 
 set_property(DIRECTORY .. APPEND PROPERTY INCLUDE_DIRECTORIES
@@ -101,3 +107,5 @@ if(USE_PROMETHEUS)
             util
             )
 endif()
+
+add_subdirectory(bench)

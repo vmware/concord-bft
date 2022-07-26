@@ -21,12 +21,24 @@ else()
     find_package(cryptopp REQUIRED)
 endif()
 
-target_link_libraries(secretsmanager PUBLIC ${CRYPTOPP_LIBRARIES})
+target_link_libraries(secretsmanager PUBLIC util ${CRYPTOPP_LIBRARIES})
 target_include_directories(secretsmanager PUBLIC include ${CRYPTOPP_INCLUDE_DIRS})
 target_include_directories(secretsmanager PRIVATE src)
 
-target_link_libraries(secretsmanager_shared PUBLIC ${CRYPTOPP_LIBRARIES})
+target_link_libraries(secretsmanager_shared PUBLIC util_shared ${CRYPTOPP_LIBRARIES})
 target_include_directories(secretsmanager_shared PUBLIC include ${CRYPTOPP_INCLUDE_DIRS})
+
+if (USE_CRYPTOPP_RSA)
+    message(STATUS "Using Crypto++ RSA/ECDSA signature/verification")
+    target_compile_definitions(secretsmanager PUBLIC USE_CRYPTOPP_RSA)
+    target_compile_definitions(secretsmanager_shared PUBLIC USE_CRYPTOPP_RSA)
+endif()
+
+if (USE_EDDSA_SINGLE_SIGN)
+    message(STATUS "Using OpenSSL EdDSA signature/verification")
+    target_compile_definitions(secretsmanager PUBLIC USE_EDDSA_SINGLE_SIGN)
+    target_compile_definitions(secretsmanager_shared PUBLIC USE_EDDSA_SINGLE_SIGN)
+endif()
 
 if (USE_JSON AND USE_HTTPLIB)
     add_subdirectory(secretretriever)
