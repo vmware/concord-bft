@@ -507,16 +507,30 @@ class BftTestNetwork:
         if self.builddir is None:
             return
         with open(self.builddir + "/operator_pub.pem", 'w') as f:
+            # EdDSA public key.
+            f.write("-----BEGIN PUBLIC KEY-----\n"
+                    "MCowBQYDK2VwAyEAq6x6mTckhvzscZmDtRAwgneYpIE3sqkdLdaZ4B5JBbw=\n"
+                    "-----END PUBLIC KEY-----")
+            """
+            # ECDSA public key.
             f.write("-----BEGIN PUBLIC KEY-----\n"
                     "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAENEMHcbJgnnYxfa1zDlIF7lzp/Ioa"
                     "NfwGuJpAg84an5FdPALwZwBp/m/X3d8kwmfZEytqt2PGMNhHMkovIaRI1A==\n"
                     "-----END PUBLIC KEY-----")
+            """
         with open(self.builddir + "/operator_priv.pem", 'w') as f:
+            # EdDSA private key.
+            f.write("-----BEGIN PRIVATE KEY-----\n"
+                    "MC4CAQAwBQYDK2VwBCIEIIIyaCtHzqPqMdvvcTIp+ZtOGccurc7e8qMPs8+jt0xo\n"
+                    "-----END PRIVATE KEY-----")
+            """
+            # ECDSA private key.
             f.write("-----BEGIN EC PRIVATE KEY-----\n"
                     "MHcCAQEEIEWf8ZTkCWbdA9WrMSNGCC7GQxvSXiDlU6dlZAi6JaCboAoGCCqGSM49"
                     "AwEHoUQDQgAENEMHcbJgnnYxfa1zDlIF7lzp/IoaNfwGuJpAg84an5FdPALwZwBp"
                     "/m/X3d8kwmfZEytqt2PGMNhHMkovIaRI1A==\n"
                     "-----END EC PRIVATE KEY-----")
+            """
 
     def generate_tls_certs(self, num_to_generate, start_index=0, use_unified_certs=False):
         """

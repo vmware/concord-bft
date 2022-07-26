@@ -47,7 +47,7 @@ class SkvbcMultiSig(ApolloTest):
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, rotate_keys=True )
     async def test_happy_initial_key_exchange(self, bft_network):
         """
-        Validates that if all replicas are up and all key-exchnage msgs reached consensus via the fast path
+        Validates that if all replicas are up and all key-exchange msgs reached consensus via the fast path
         then the counter of the exchanged keys is equal to the cluster size in all replicas.
         """
         bft_network.start_all_replicas()
@@ -177,7 +177,7 @@ class SkvbcMultiSig(ApolloTest):
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, rotate_keys=True)
-    async def test_reload_slows_path_after_key_exchange(self, bft_network):
+    async def test_reload_slow_path_after_key_exchange(self, bft_network):
 
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)

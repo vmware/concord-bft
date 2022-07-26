@@ -20,25 +20,37 @@ import concord_msgs as cmf_msgs
 
 sys.path.append(os.path.abspath("../../util/pyclient"))
 
+from cryptography.hazmat.primitives import serialization
+
 import bft_client
-from ecdsa import SigningKey
-from ecdsa import SECP256k1
-import hashlib
-from Crypto.PublicKey import RSA
+#from ecdsa import SigningKey
+#from ecdsa import SECP256k1
+#import hashlib
 
 import util.eliot_logging as log
-
 
 class Operator:
     def __init__(self, config, client, priv_key_dir):
         self.config = config
         self.client = client
-        with open(priv_key_dir + "/operator_priv.pem") as f:
-            self.private_key = SigningKey.from_pem(f.read(), hashlib.sha256)
+
+        # Read ECDSA signing key.
+        # with open(priv_key_dir + "/operator_priv.pem") as f:
+        #    self.private_key = SigningKey.from_pem(f.read(), hashlib.sha256)
+
+        # Read EdDSA signing key.
+        txn_signing_key_path = priv_key_dir + "/operator_priv.pem"
+        if txn_signing_key_path:
+            with open(txn_signing_key_path, 'rb') as f:
+                self.private_key = serialization.load_pem_private_key(f.read(), password=None)
 
     def _sign_reconf_msg(self, msg):
-        return self.private_key.sign_deterministic(msg.serialize())
-
+        signature = b''
+        if self.private_key:
+            signature = self.private_key.sign(bytes(msg.serialize()))
+        return signature
+        # Return ECDSA signature.
+        # return self.private_key.sign_deterministic(msg.serialize())
 
     def  _construct_basic_reconfiguration_request(self, command):
         reconf_msg = cmf_msgs.ReconfigurationRequest()
@@ -50,10 +62,10 @@ class Operator:
         return reconf_msg
 
     def _construct_reconfiguration_wedge_command(self):
-            wedge_cmd = cmf_msgs.WedgeCommand()
-            wedge_cmd.sender = 1000
-            wedge_cmd.noop = False
-            return self._construct_basic_reconfiguration_request(wedge_cmd)
+        wedge_cmd = cmf_msgs.WedgeCommand()
+        wedge_cmd.sender = 1000
+        wedge_cmd.noop = False
+        return self._construct_basic_reconfiguration_request(wedge_cmd)
 
     def _construct_reconfiguration_latest_prunebale_block_command(self):
         lpab_cmd = cmf_msgs.LatestPrunableBlockRequest()

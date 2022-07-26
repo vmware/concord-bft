@@ -21,7 +21,7 @@
 #include "client/reconfiguration/config.hpp"
 #include "client/reconfiguration/poll_based_state_client.hpp"
 #include "client/reconfiguration/client_reconfiguration_engine.hpp"
-#include "crypto_utils.hpp"
+#include "cryptopp_utils.hpp"
 #include "secrets_manager_plain.h"
 #include "secrets_manager_enc.h"
 #include "client/reconfiguration/default_handlers.hpp"

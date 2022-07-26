@@ -57,6 +57,7 @@ using namespace bftEngine::bcst;
 using namespace concord::util;
 using concord::util::digest::DigestGenerator;
 
+using concord::util::digest::DigestGenerator;
 using std::chrono::milliseconds;
 using random_bytes_engine = std::independent_bits_engine<std::default_random_engine, CHAR_BIT, unsigned char>;
 
