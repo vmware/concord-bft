@@ -14,6 +14,8 @@
 #include "assertUtils.hpp"
 #include "Metrics.hpp"
 #include "crypto_utils.hpp"
+#include "crypto/interface/signer.hpp"
+#include "crypto/interface/verifier.hpp"
 
 #include <utility>
 #include <vector>
@@ -26,6 +28,8 @@ using concordMetrics::AtomicCounterHandle;
 
 namespace bftEngine {
 namespace impl {
+
+using concord::util::crypto::KeyFormat;
 
 class ReplicasInfo;
 
@@ -50,22 +54,22 @@ class SigManager {
   static SigManager* init(ReplicaId myId,
                           const Key& mySigPrivateKey,
                           const std::set<std::pair<PrincipalId, const std::string>>& publicKeysOfReplicas,
-                          concord::util::crypto::KeyFormat replicasKeysFormat,
+                          KeyFormat replicasKeysFormat,
                           const std::set<std::pair<const std::string, std::set<uint16_t>>>* publicKeysOfClients,
-                          concord::util::crypto::KeyFormat clientsKeysFormat,
+                          KeyFormat clientsKeysFormat,
                           ReplicasInfo& replicasInfo);
 
   // returns 0 if pid is invalid - caller might consider throwing an exception
   uint16_t getSigLength(PrincipalId pid) const;
   // returns false if actual verification failed, or if pid is invalid
   bool verifySig(PrincipalId pid, const char* data, size_t dataLength, const char* sig, uint16_t sigLength) const;
-  void sign(const char* data, size_t dataLength, char* outSig, uint16_t outSigLength) const;
+  void sign(const char* data, size_t dataLength, char* outSig) const;
   uint16_t getMySigLength() const;
   bool isClientTransactionSigningEnabled() { return clientTransactionSigningEnabled_; }
   void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
     metrics_component_.SetAggregator(aggregator);
   }
-  void setClientPublicKey(const std::string& key, PrincipalId, concord::util::crypto::KeyFormat);
+  void setClientPublicKey(const std::string& key, PrincipalId, KeyFormat);
   bool hasVerifier(PrincipalId pid);
   SigManager(const SigManager&) = delete;
   SigManager& operator=(const SigManager&) = delete;
@@ -84,8 +88,8 @@ class SigManager {
 
   SigManager(PrincipalId myId,
              uint16_t numReplicas,
-             const std::pair<Key, concord::util::crypto::KeyFormat>& mySigPrivateKey,
-             const std::vector<std::pair<Key, concord::util::crypto::KeyFormat>>& publickeys,
+             const std::pair<Key, KeyFormat>& mySigPrivateKey,
+             const std::vector<std::pair<Key, KeyFormat>>& publickeys,
              const std::map<PrincipalId, KeyIndex>& publicKeysMapping,
              bool clientTransactionSigningEnabled,
              ReplicasInfo& replicasInfo);
@@ -93,14 +97,14 @@ class SigManager {
   static SigManager* initImpl(ReplicaId myId,
                               const Key& mySigPrivateKey,
                               const std::set<std::pair<PrincipalId, const std::string>>& publicKeysOfReplicas,
-                              concord::util::crypto::KeyFormat replicasKeysFormat,
+                              KeyFormat replicasKeysFormat,
                               const std::set<std::pair<const std::string, std::set<uint16_t>>>* publicKeysOfClients,
-                              concord::util::crypto::KeyFormat clientsKeysFormat,
+                              KeyFormat clientsKeysFormat,
                               ReplicasInfo& replicasInfo);
 
   const PrincipalId myId_;
-  std::unique_ptr<concord::util::crypto::ISigner> mySigner_;
-  std::map<PrincipalId, std::shared_ptr<concord::util::crypto::IVerifier>> verifiers_;
+  std::unique_ptr<concord::crypto::ISigner> mySigner_;
+  std::map<PrincipalId, std::shared_ptr<concord::crypto::IVerifier>> verifiers_;
   bool clientTransactionSigningEnabled_ = true;
   ReplicasInfo& replicasInfo_;
 
@@ -126,9 +130,9 @@ class SigManager {
       ReplicaId myId,
       const Key& mySigPrivateKey,
       const std::set<std::pair<PrincipalId, const std::string>>& publicKeysOfReplicas,
-      concord::util::crypto::KeyFormat replicasKeysFormat,
+      KeyFormat replicasKeysFormat,
       const std::set<std::pair<const std::string, std::set<uint16_t>>>* publicKeysOfClients,
-      concord::util::crypto::KeyFormat clientsKeysFormat,
+      KeyFormat clientsKeysFormat,
       ReplicasInfo& replicasInfo) {
     return initImpl(myId,
                     mySigPrivateKey,

@@ -4206,6 +4206,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
 
         Digest digest;
         e.getPrePrepareMsg()->digestOfRequests().digestOfDigest(digest);
+
         CommitPartialMsg *c = CommitPartialMsg::create(getCurrentView(),
                                                        s,
                                                        config_.getreplicaId(),
@@ -4682,7 +4683,7 @@ void ReplicaImp::start() {
   if (ReplicaConfig::instance().getkeyExchangeOnStart() && !KeyExchangeManager::instance().exchanged()) {
     KeyExchangeManager::instance().sendInitialKey(this);
   } else {
-    // If key exchange is disabled, first publish the replica's main (rsa) key to clients
+    // If key exchange is disabled, first publish the replica's main (rsa/eddsa) key to clients
     if (ReplicaConfig::instance().publishReplicasMasterKeyOnStartup) KeyExchangeManager::instance().sendMainPublicKey();
   }
   KeyExchangeManager::instance().sendInitialClientsKeys(SigManager::instance()->getClientsPublicKeys());
@@ -5375,8 +5376,7 @@ void ReplicaImp::onExecutionFinish() {
     std::vector<uint8_t> data_vec;
     concord::messages::serialize(data_vec, req);
     std::string sig(SigManager::instance()->getMySigLength(), '\0');
-    uint16_t sig_length{0};
-    SigManager::instance()->sign(reinterpret_cast<char *>(data_vec.data()), data_vec.size(), sig.data(), sig_length);
+    SigManager::instance()->sign(reinterpret_cast<char *>(data_vec.data()), data_vec.size(), sig.data());
     req.signature = std::vector<uint8_t>(sig.begin(), sig.end());
     data_vec.clear();
     concord::messages::serialize(data_vec, req);
@@ -5849,8 +5849,7 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
       std::vector<uint8_t> data_vec;
       concord::messages::serialize(data_vec, req);
       std::string sig(SigManager::instance()->getMySigLength(), '\0');
-      uint16_t sig_length{0};
-      SigManager::instance()->sign(reinterpret_cast<char *>(data_vec.data()), data_vec.size(), sig.data(), sig_length);
+      SigManager::instance()->sign(reinterpret_cast<char *>(data_vec.data()), data_vec.size(), sig.data());
       req.signature = std::vector<uint8_t>(sig.begin(), sig.end());
       data_vec.clear();
       concord::messages::serialize(data_vec, req);
@@ -5881,8 +5880,7 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
     std::vector<uint8_t> data_vec;
     concord::messages::serialize(data_vec, req);
     std::string sig(SigManager::instance()->getMySigLength(), '\0');
-    uint16_t sig_length{0};
-    SigManager::instance()->sign(reinterpret_cast<char *>(data_vec.data()), data_vec.size(), sig.data(), sig_length);
+    SigManager::instance()->sign(reinterpret_cast<char *>(data_vec.data()), data_vec.size(), sig.data());
     req.signature = std::vector<uint8_t>(sig.begin(), sig.end());
     data_vec.clear();
     concord::messages::serialize(data_vec, req);

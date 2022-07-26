@@ -30,6 +30,37 @@ using namespace concord::performance;
 
 namespace bftEngine {
 
+RequestHandler::RequestHandler(concord::performance::ISystemResourceEntity& resourceEntity,
+                               std::shared_ptr<concordMetrics::Aggregator> aggregator_)
+    : reconfig_dispatcher_{}, resourceEntity_(resourceEntity) {
+  reconfig_handler_.push_back(std::make_shared<concord::reconfiguration::ReconfigurationHandler>());
+  for (const auto& rh : reconfig_handler_) {
+    reconfig_dispatcher_.addReconfigurationHandler(rh);
+  }
+  reconfig_dispatcher_.addReconfigurationHandler(
+      std::make_shared<concord::reconfiguration::ClientReconfigurationHandler>());
+  reconfig_dispatcher_.setAggregator(aggregator_);
+}
+
+void RequestHandler::setUserRequestHandler(std::shared_ptr<IRequestsHandler> userHdlr) {
+  if (userHdlr) {
+    userRequestsHandler_ = userHdlr;
+    for (const auto& rh : userHdlr->getReconfigurationHandler()) {
+      reconfig_dispatcher_.addReconfigurationHandler(rh);
+    }
+  }
+}
+
+void RequestHandler::setReconfigurationHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> rh,
+                                               concord::reconfiguration::ReconfigurationHandlerType type) {
+  IRequestsHandler::setReconfigurationHandler(rh, type);
+  reconfig_dispatcher_.addReconfigurationHandler(rh, type);
+}
+
+void RequestHandler::setCronTableRegistry(const std::shared_ptr<concord::cron::CronTableRegistry>& reg) {
+  cron_table_registry_ = reg;
+}
+
 void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
                              std::optional<Timestamp> timestamp,
                              const std::string& batchCid,

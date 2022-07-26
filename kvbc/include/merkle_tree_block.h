@@ -10,9 +10,9 @@
 #include <iterator>
 #include <unordered_map>
 
-using concord::util::digest::BlockDigest;
-
 namespace concord::kvbc::v2MerkleTree::block::detail {
+
+using concord::util::digest::BlockDigest;
 
 // Creates a block that adds a set of key/values.
 RawBlock create(const SetOfKeyValuePairs &updates,

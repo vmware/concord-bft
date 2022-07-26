@@ -17,7 +17,7 @@
 #include "concord.cmf.hpp"
 #include "db_interfaces.h"
 #include "reconfiguration/ireconfiguration.hpp"
-#include "crypto_utils.hpp"
+#include "cryptopp_utils.hpp"
 #include "block_metadata.hpp"
 #include "kvbc_key_types.hpp"
 #include <future>
@@ -28,22 +28,22 @@ namespace concord::kvbc::pruning {
 // This class signs pruning messages via the replica's private key that it gets
 // through the configuration. Message contents used to generate the signature
 // are generated via the mechanisms provided in pruning_serialization.hpp/cpp .
-class RSAPruningSigner {
+class PruningSigner {
  public:
   // Construct by passing the configuration for the node the signer is running
   // on.
-  RSAPruningSigner(const std::string &key);
+  PruningSigner(const std::string &key);
   // Sign() methods sign the passed message and store the signature in the
   // 'signature' field of the message. An exception is thrown on error.
   //
-  // Note RSAPruningSigner does not handle signing of PruneRequest messages on
+  // Note PruningSigner does not handle signing of PruneRequest messages on
   // behalf of the operator, as the operator's signature is a dedicated-purpose
-  // application-level signature rather than a Concord-BFT Principal's RSA
+  // application-level signature rather than a Concord-BFT Principal's RSA/EdDSA
   // signature.
   void sign(concord::messages::LatestPrunableBlock &);
 
  private:
-  std::unique_ptr<concord::util::crypto::ISigner> signer_;
+  std::unique_ptr<concord::crypto::ISigner> signer_;
 };
 
 // This class verifies pruning messages that were signed by serializing message
@@ -52,27 +52,27 @@ class RSAPruningSigner {
 //
 // Idea is to use the principal_id as an ID that identifies senders in pruning
 // messages since it is unique across clients and replicas.
-class RSAPruningVerifier {
+class PruningVerifier {
  public:
   // Construct by passing the system configuration.
-  RSAPruningVerifier(const std::set<std::pair<uint16_t, const std::string>> &replicasPublicKeys);
+  PruningVerifier(const std::set<std::pair<uint16_t, const std::string>> &replicasPublicKeys);
   // Verify() methods verify that the message comes from the advertised sender.
   // Methods return true on successful verification and false on unsuccessful.
   // An exception is thrown on error.
   //
-  // Note RSAPruningVerifier::Verify(const com::vmware::concord::PruneRequest&)
+  // Note PruningVerifier::Verify(const com::vmware::concord::PruneRequest&)
   // handles verification of the LatestPrunableBlock message(s) contained within
   // the PruneRequest, but does not itself handle verification of the issuing
   // operator's signature of the pruning command, as the operator's signature is
   // a dedicated application-level signature rather than one of the Concord-BFT
-  // Principal's RSA signatures.
+  // Principal's RSA/EdDSA signatures.
   bool verify(const concord::messages::LatestPrunableBlock &) const;
   bool verify(const concord::messages::PruneRequest &) const;
 
  private:
   struct Replica {
     std::uint64_t principal_id{0};
-    std::unique_ptr<concord::util::crypto::IVerifier> verifier;
+    std::unique_ptr<concord::crypto::IVerifier> verifier;
   };
 
   bool verify(std::uint64_t sender, const std::string &ser, const std::string &signature) const;
@@ -167,8 +167,8 @@ class PruningHandler : public concord::reconfiguration::BftReconfigurationHandle
   void pruneThroughBlockId(kvbc::BlockId block_id) const;
   uint64_t getBlockBftSequenceNumber(kvbc::BlockId) const;
   logging::Logger logger_;
-  RSAPruningSigner signer_;
-  RSAPruningVerifier verifier_;
+  PruningSigner signer_;
+  PruningVerifier verifier_;
   kvbc::IReader &ro_storage_;
   kvbc::IBlockAdder &blocks_adder_;
   kvbc::IBlocksDeleter &blocks_deleter_;
@@ -231,7 +231,7 @@ class ReadOnlyReplicaPruningHandler : public concord::reconfiguration::BftReconf
 
  private:
   IReader &ro_storage_;
-  RSAPruningSigner signer_;
+  PruningSigner signer_;
   bool pruning_enabled_{false};
   std::uint64_t replica_id_{0};
 };

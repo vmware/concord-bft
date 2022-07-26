@@ -21,6 +21,7 @@
 #include <cryptopp/cryptlib.h>
 #include <cryptopp/modes.h>
 #include <cryptopp/aes.h>
+#include <openssl/aes.h>
 
 #include "key_params.h"
 
@@ -31,12 +32,13 @@ class AES_CBC {
   CryptoPP::AES::Decryption aesDecryption;
   CryptoPP::CBC_Mode_ExternalCipher::Encryption enc;
   CryptoPP::CBC_Mode_ExternalCipher::Decryption dec;
+  std::vector<uint8_t> key;
+  std::vector<uint8_t> iv;
 
  public:
-  static size_t getBlockSize() { return CryptoPP::AES::BLOCKSIZE; }
-  AES_CBC(KeyParams& params);
-  std::vector<uint8_t> encrypt(const std::string& input);
-  std::string decrypt(const std::vector<uint8_t>& cipher);
+  AES_CBC(const KeyParams& params);
+  std::vector<uint8_t> encrypt(const std::string& input) const;
+  std::string decrypt(const std::vector<uint8_t>& cipher) const;
 };
 
 }  // namespace concord::secretsmanager

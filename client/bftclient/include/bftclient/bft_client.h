@@ -25,7 +25,7 @@
 #include "exception.h"
 #include "metrics.h"
 #include "diagnostics.h"
-#include "crypto_utils.hpp"
+#include "cryptopp_utils.hpp"
 #include "seq_num_generator.h"
 
 namespace bft::client {
@@ -59,7 +59,7 @@ class Client {
   // Useful for testing. Shouldn't be relied on in production.
   std::optional<ReplicaId> primary() { return primary_; }
   std::string signMessage(std::vector<uint8_t>&);
-  void setTransactionSigner(concord::util::crypto::ISigner* signer) { transaction_signer_.reset(signer); }
+  void setTransactionSigner(concord::crypto::ISigner* signer) { transaction_signer_.reset(signer); }
   // thread safe version of send api
   Reply sendThreadSafe(const WriteConfig& config, Msg&& request);
   Reply sendThreadSafe(const ReadConfig& config, Msg&& request);
@@ -123,8 +123,8 @@ class Client {
 
   Metrics metrics_;
 
-  // Transaction RSA signer
-  std::unique_ptr<concord::util::crypto::ISigner> transaction_signer_;
+  // Transaction RSA/EdDSA signer
+  std::unique_ptr<concord::crypto::ISigner> transaction_signer_;
 
   static constexpr int64_t MAX_VALUE_NANOSECONDS = 1000 * 1000 * 1000;  // 1 second
   static constexpr int64_t MAX_TRANSACTION_SIZE = 100 * 1024 * 1024;    // 100MB

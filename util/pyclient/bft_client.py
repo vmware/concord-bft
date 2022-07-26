@@ -17,9 +17,7 @@ import time
 import ssl
 import os
 import random
-from Crypto.PublicKey import RSA
-from Crypto.Hash import SHA256
-from Crypto.Signature import pkcs1_15
+from cryptography.hazmat.primitives import serialization
 
 import bft_msgs
 import replica_specific_info as RSI
@@ -96,7 +94,7 @@ class BftClient(ABC):
         self.signing_key = None
         if txn_signing_key_path:
             with open(txn_signing_key_path, 'rb') as f:
-                self.signing_key = RSA.import_key(f.read())
+                self.signing_key = serialization.load_pem_private_key(f.read(), password=None)
 
     @abstractmethod
     def __enter__(self):
@@ -187,8 +185,7 @@ class BftClient(ABC):
         signature = b''
         client_id = self.client_id
         if self.signing_key:
-            h = SHA256.new(msg)
-            signature = pkcs1_15.new(self.signing_key).sign(h)
+            signature = self.signing_key.sign(bytes(msg))
             if corrupt_params:
                 msg, signature, client_id = self._corrupt_signing_params(msg, signature, client_id, corrupt_params)
 
@@ -232,8 +229,7 @@ class BftClient(ABC):
             signature = b''
             client_id = self.client_id
             if self.signing_key:
-                h = SHA256.new(msg)
-                signature = pkcs1_15.new(self.signing_key).sign(h)
+                signature = self.signing_key.sign(bytes(msg))
                 if corrupt_params and (req_index_to_corrupt == n):
                     msg, signature, client_id = self._corrupt_signing_params(msg, signature, client_id, corrupt_params)
 

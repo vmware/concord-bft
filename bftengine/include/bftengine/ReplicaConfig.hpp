@@ -20,6 +20,7 @@
 #include <chrono>
 #include "string.hpp"
 #include "kvstream.h"
+#include "sign_verify_utils.hpp"
 
 #include "Serializable.h"
 
@@ -280,6 +281,16 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                "Port to be used to communicate with the diagnostic server using"
                "the concord-ctl script");
   CONFIG_PARAM(kvBlockchainVersion, std::uint32_t, 1u, "Default version of KV blockchain for this replica");
+
+  CONFIG_PARAM(replicaMsgSigningAlgo,
+               concord::crypto::signature::SIGN_VERIFY_ALGO,
+               concord::crypto::signature::SIGN_VERIFY_ALGO::EDDSA,
+               "A flag to specify the replica message signing algorithm. It is defaulted to use EDDSA algo.");
+
+  CONFIG_PARAM(operatorMsgSigningAlgo,
+               concord::crypto::signature::SIGN_VERIFY_ALGO,
+               concord::crypto::signature::SIGN_VERIFY_ALGO::EDDSA,
+               "A flag to specify the operator message signing algorithm. It is defaulted to use EDDSA algo.");
 
   // Parameter to enable/disable waiting for transaction data to be persisted.
   // Not predefined configuration parameters

@@ -20,8 +20,10 @@ usage() {
     printf "\n-----\nhelp:\n-----\n"
     printf "%s\n\n" "-h --help, print this message"
     printf "%s\n\n" "-n --num_participants <integer>, mandatory"
+    printf "%s\n\n" "-a --algo_name, mandatory"
     printf "%s\n\n" "-r --private_key_name <string>, optional, default: transaction_signing_priv.pem"
     printf "%s\n\n" "-u --public_key_name <string>, optional, default: transaction_signing_pub.pem"
+    printf "%s\n\n" "-d --output_folder <string>, optional, default: transaction_signing_keys"
     printf "%s\n\t\t\t\t%s\n\t\t\t\t%s\n" "-o --output_base_path <string>, optional, base path in relative/absolute format" \
            "output is redirected to output_base_path/transaction_signing_keys folder" \
            "default: ./transaction_signing_keys"
@@ -33,6 +35,7 @@ parser() {
     output_folder="transaction_signing_keys"
     private_key_name="transaction_signing_priv.pem"
     public_key_name="transaction_signing_pub.pem"
+    algo_name="eddsa"
 
     while [ $1 ]; do
         case $1 in
@@ -60,6 +63,16 @@ parser() {
 
         -u | --public_key_name)
         public_key_name="$2"
+        shift 2
+        ;;
+
+        -d | --output_folder)
+        output_folder="$2"
+        shift 2
+        ;;
+
+        -a | --algo_name)
+        algo_name="$2"
         shift 2
         ;;
 
@@ -107,15 +120,26 @@ parser $@
 
 mkdir -p ${output_path}
 
-for ((i=1; i<=${num_participants}; i++)); do
-    current_path=${output_path}/${i}
-    mkdir ${current_path}
-    openssl genrsa -out ${current_path}/${private_key_name} 2048 > /dev/null
-    openssl rsa -in ${current_path}/${private_key_name} \
-                -pubout \
-                -out ${current_path}/${public_key_name} > /dev/null
-done
+case "$algo_name" in
+    "rsa")
+        for ((i=1; i<=${num_participants}; i++)); do
+            current_path=${output_path}/${i}
+            mkdir ${current_path}
+            openssl genrsa -out ${current_path}/${private_key_name} 2048 > /dev/null
+            openssl rsa -in ${current_path}/${private_key_name} \
+                        -pubout \
+                        -out ${current_path}/${public_key_name} > /dev/null
+        done;;
+
+    "eddsa")
+        for ((i=1; i<=${num_participants}; i++)); do
+            current_path=${output_path}/${i}
+            mkdir ${current_path}
+            openssl genpkey -algorithm ed25519 -outform PEM -out ${current_path}/${private_key_name} > /dev/null
+            openssl pkey -in ${current_path}/${private_key_name} \
+                        -pubout \
+                        -out ${current_path}/${public_key_name} > /dev/null
+        done;;
+esac
 
 echo "Done, keys are under ${output_path}"
-
-
