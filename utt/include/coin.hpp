@@ -1,7 +1,6 @@
 #pragma once
-#include "details.hpp"
-#include "clientIdentity.hpp"
-#include "nullifier.hpp"
+#include "globalParams.hpp"
+#include "client.hpp"
 #include "commitment.hpp"
 #include "types.hpp"
 #include <memory>
@@ -9,7 +8,7 @@ namespace libutt {
 class Coin;
 }
 namespace libutt::api {
-class ClientIdentity;
+class Client;
 namespace operations {
 class Burn;
 class Mint;
@@ -20,7 +19,7 @@ class Budget;
 class Coin {
  public:
   enum Type { Normal = 0x0, Budget };
-  Coin(Details& d,
+  Coin(const GlobalParams& d,
        const types::CurvePoint& prf,
        const types::CurvePoint& sn,
        const types::CurvePoint& val,
@@ -35,11 +34,11 @@ class Coin {
   void setSig(const types::Signature& sig);
   Type getType() const;
   types::Signature getSig() const;
-  void randomize();
+  void rerandomize();
   uint64_t getVal() const;
 
  private:
-  friend class ClientIdentity;
+  friend class Client;
   friend class operations::Burn;
   friend class operations::Transaction;
   friend class operations::Budget;

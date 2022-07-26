@@ -1,13 +1,14 @@
 #include <sstream>
 
-#include "details.hpp"
+#include "globalParams.hpp"
 #include <utt/RangeProof.h>
 #include <utt/NtlLib.h>
 #include <utt/Params.h>
 
 namespace libutt::api {
 using Fr = typename libff::default_ec_pp::Fp_type;
-void Details::init() {
+void GlobalParams::init() {
+  if (params != nullptr) return;
   unsigned char* randSeed = nullptr;  // TODO: initialize entropy source
   int size = 0;                       // TODO: initialize entropy source
 
@@ -39,5 +40,6 @@ void Details::init() {
   RangeProof::Params::initializeOmegas();
   params.reset(new libutt::Params());
 }
-libutt::Params& Details::getParams() { return *params; }
+const libutt::Params& GlobalParams::getParams() const { return *params; }
+libutt::Params& GlobalParams::getParams() { return *params; }
 }  // namespace libutt::api

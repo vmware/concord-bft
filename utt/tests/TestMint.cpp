@@ -1,6 +1,6 @@
 #include "testUtils.hpp"
 
-#include "details.hpp"
+#include "globalParams.hpp"
 #include "testUtils.hpp"
 #include "mint.hpp"
 #include <utt/MintOp.h>
@@ -21,7 +21,7 @@ int main(int argc, char* argv[]) {
   size_t n = 4;
   size_t c = 10;
   auto [dkg, rc] = testing::init(n, thresh);
-  auto& d = Details::instance();
+  auto& d = GlobalParams::instance();
   auto registrators = testing::GenerateRegistrators(n, rc);
   auto banks = testing::GenerateCommitters(n, dkg, rc.toPK());
   auto clients = testing::GenerateClients(c, dkg.getPK(), rc.toPK(), rc);

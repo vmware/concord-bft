@@ -1,4 +1,4 @@
-#include "clientIdentity.hpp"
+#include "client.hpp"
 #include "coin.hpp"
 #include "burn.hpp"
 #include "mint.hpp"
@@ -17,11 +17,11 @@
 #include <vector>
 #include <sstream>
 namespace libutt::api {
-ClientIdentity::ClientIdentity(const std::string& pid,
-                               const std::string& bpk,
-                               const std::string& rvk,
-                               const std::string& csk,
-                               const std::string& mpk) {
+Client::Client(const std::string& pid,
+               const std::string& bpk,
+               const std::string& rvk,
+               const std::string& csk,
+               const std::string& mpk) {
   ask_.reset(new libutt::AddrSK());
   ask_->pid = pid;
   ask_->s = Fr::random_element();
@@ -33,12 +33,12 @@ ClientIdentity::ClientIdentity(const std::string& pid,
   ask_->e = libutt::deserialize<libutt::IBE::EncSK>(csk);
   ask_->mpk_ = libutt::deserialize<libutt::IBE::MPK>(mpk);
 }
-Commitment ClientIdentity::generateFullRCM(Details& d) {
+Commitment Client::generateFullRCM(const GlobalParams& d) {
   std::vector<types::CurvePoint> m = {getPidHash(), ask_->s.to_words(), Fr::zero().to_words()};
   auto comm = Commitment(d, Commitment::Type::REGISTRATION, m, true);
   return comm;
 }
-Commitment ClientIdentity::generatePartialRCM(Details& d) {
+Commitment Client::generateInputRCM(const GlobalParams& d) {
   std::vector<types::CurvePoint> m = {Fr::zero().to_words(), ask_->s.to_words(), Fr::zero().to_words()};
   auto comm = Commitment(d, Commitment::Type::REGISTRATION, m, true);
 
@@ -50,26 +50,26 @@ Commitment ClientIdentity::generatePartialRCM(Details& d) {
   return comm;
 }
 
-const std::string& ClientIdentity::getPid() const { return ask_->pid; }
-types::CurvePoint ClientIdentity::getPidHash() const { return ask_->getPidHash().to_words(); }
-types::CurvePoint ClientIdentity::getPRFSecretKey() const { return ask_->s.to_words(); }
+const std::string& Client::getPid() const { return ask_->pid; }
+types::CurvePoint Client::getPidHash() const { return ask_->getPidHash().to_words(); }
+types::CurvePoint Client::getPRFSecretKey() const { return ask_->s.to_words(); }
 
-void ClientIdentity::setRCM(const Commitment& comm, const types::Signature& sig) {
+void Client::setRCM(const Commitment& comm, const types::Signature& sig) {
   rcm_ = comm;
   rcm_sig_ = sig;
   ask_->rcm = *(comm.comm_);
   ask_->rs = libutt::deserialize<libutt::RandSig>(sig);
 }
 
-std::pair<Commitment, types::Signature> ClientIdentity::getRcm() const {
+std::pair<Commitment, types::Signature> Client::getRcm() const {
   auto tmp = libutt::serialize<libutt::RandSig>(ask_->rs);
   return {rcm_, types::Signature(tmp.begin(), tmp.end())};
 }
 
 template <>
-std::vector<libutt::api::Coin> ClientIdentity::claimCoins<operations::Mint>(
+std::vector<libutt::api::Coin> Client::claimCoins<operations::Mint>(
     const operations::Mint& mint,
-    Details& d,
+    const GlobalParams& d,
     uint32_t n,
     const std::vector<std::map<uint32_t, types::Signature>>& rsigs) const {
   Fr r_pid = Fr::zero(), r_sn = Fr::zero(), r_val = Fr::zero(), r_type = Fr::zero(), r_expdate = Fr::zero();
@@ -84,14 +84,14 @@ std::vector<libutt::api::Coin> ClientIdentity::claimCoins<operations::Mint>(
                       Coin::Type::Normal,
                       libutt::Coin::DoesNotExpire().to_words());
   c.setSig(sig);
-  c.randomize();
+  c.rerandomize();
   return {c};
 }
 
 template <>
-std::vector<libutt::api::Coin> ClientIdentity::claimCoins<operations::Budget>(
+std::vector<libutt::api::Coin> Client::claimCoins<operations::Budget>(
     const operations::Budget& budget,
-    Details& d,
+    const GlobalParams& d,
     uint32_t n,
     const std::vector<std::map<uint32_t, types::Signature>>& rsigs) const {
   Fr r_pid = Fr::zero(), r_sn = Fr::zero(), r_val = Fr::zero(), r_type = Fr::zero(), r_expdate = Fr::zero();
@@ -100,13 +100,13 @@ std::vector<libutt::api::Coin> ClientIdentity::claimCoins<operations::Budget>(
   auto sig = Utils::aggregateSigShares(d, Commitment::Type::COIN, n, rsigs.front(), r);
   libutt::api::Coin c = budget.getCoin();
   c.setSig(sig);
-  c.randomize();
+  c.rerandomize();
   return {c};
 }
 template <>
-std::vector<libutt::api::Coin> ClientIdentity::claimCoins<operations::Transaction>(
+std::vector<libutt::api::Coin> Client::claimCoins<operations::Transaction>(
     const operations::Transaction& tx,
-    Details& d,
+    const GlobalParams& d,
     uint32_t n,
     const std::vector<std::map<uint32_t, types::Signature>>& rsigs) const {
   std::vector<libutt::api::Coin> ret;
@@ -124,14 +124,14 @@ std::vector<libutt::api::Coin> ClientIdentity::claimCoins<operations::Transactio
                         txo.coin_type == libutt::Coin::NormalType() ? Coin::Type::Normal : Coin::Type::Budget,
                         txo.exp_date.to_words());
     c.setSig(sig);
-    c.randomize();
+    c.rerandomize();
     ret.emplace_back(std::move(c));
   }
   return ret;
 }
 
 template <>
-bool ClientIdentity::validate<Coin>(const Coin& c) const {
+bool Client::validate<Coin>(const Coin& c) const {
   return c.coin_->hasValidSig(*bpk_);
 }
 

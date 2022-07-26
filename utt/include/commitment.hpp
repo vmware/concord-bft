@@ -1,5 +1,5 @@
 #pragma once
-#include "details.hpp"
+#include "globalParams.hpp"
 #include "types.hpp"
 #include <vector>
 #include <cstdint>
@@ -12,8 +12,8 @@ class Commitment;
 }
 libutt::api::Commitment operator+(libutt::api::Commitment lhs, const libutt::api::Commitment& rhs);
 namespace libutt::api {
-class RegistratorIdentity;
-class ClientIdentity;
+class Registrator;
+class Client;
 namespace operations {
 class Burn;
 class Transaction;
@@ -21,20 +21,17 @@ class Transaction;
 class Commitment {
  public:
   enum Type { REGISTRATION = 0, VALUE, COIN };
-  static libutt::CommKey& getCommitmentKey(Details& d, Type t);
-  Commitment(Details& d, Type t, const std::vector<types::CurvePoint>& messages, bool withG2);
-  Commitment(const std::string& comm);
+  static const libutt::CommKey& getCommitmentKey(const GlobalParams& d, Type t);
+  Commitment(const GlobalParams& d, Type t, const std::vector<types::CurvePoint>& messages, bool withG2);
   Commitment(const Commitment& comm);
   Commitment();
   Commitment& operator=(const Commitment&);
   Commitment& operator+=(const Commitment&);
-  types::CurvePoint randomize(Details& d, Type t);
-  static size_t getCommitmentSn(const Commitment& comm);
-  static std::string getCommitmentHash(const Commitment& comm);
+  types::CurvePoint rerandomize(const GlobalParams& d, Type t);
 
  private:
-  friend class RegistratorIdentity;
-  friend class ClientIdentity;
+  friend class Registrator;
+  friend class Client;
   friend class operations::Burn;
   friend class operations::Transaction;
   std::unique_ptr<libutt::Comm> comm_;

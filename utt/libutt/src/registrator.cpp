@@ -1,4 +1,4 @@
-#include "registratorIdentity.hpp"
+#include "registrator.hpp"
 #include "commitment.hpp"
 #include "common.hpp"
 #include <utt/RegAuth.h>
@@ -9,10 +9,7 @@
 #include <utt/PolyCrypto.h>
 #include <utt/Params.h>
 namespace libutt::api {
-RegistratorIdentity::RegistratorIdentity(const std::string& id,
-                                         const std::string& rsk,
-                                         const std::string& rbk,
-                                         const RegAuthSK& tmp) {
+Registrator::Registrator(const std::string& id, const std::string& rsk, const std::string& rbk, const RegAuthSK& tmp) {
   id_ = id;
   rsk_.reset(new libutt::RegAuthShareSK());
   *rsk_ = libutt::deserialize<libutt::RegAuthShareSK>(rsk);
@@ -22,7 +19,7 @@ RegistratorIdentity::RegistratorIdentity(const std::string& id,
   *tmp_ = tmp;
 }
 
-types::Signature RegistratorIdentity::ComputeRCMSig(const types::CurvePoint& pid_hash, const Commitment& rcm1) const {
+types::Signature Registrator::ComputeRCMSig(const types::CurvePoint& pid_hash, const Commitment& rcm1) const {
   Fr fr_pid;
   fr_pid.from_words(pid_hash);
   auto h1 = hashToHex(pid_hash);
@@ -32,7 +29,7 @@ types::Signature RegistratorIdentity::ComputeRCMSig(const types::CurvePoint& pid
   return types::Signature(res_str.begin(), res_str.end());
 }
 
-bool RegistratorIdentity::validateRCM(const Commitment& comm, const types::Signature& sig) const {
+bool Registrator::validateRCM(const Commitment& comm, const types::Signature& sig) const {
   libutt::RandSig rsig = libutt::deserialize<libutt::RandSig>(sig);
   return rsig.verify(*comm.comm_, rpk_->vk);
 }

@@ -178,22 +178,21 @@ add_subdirectory(libxassert)
 add_subdirectory(libxutils)
 
 set(newutt_src 
-    libutt/src/details.cpp
-    libutt/src/nullifier.cpp
+    libutt/src/globalParams.cpp
     libutt/src/commitment.cpp
-    libutt/src/clientIdentity.cpp
-    libutt/src/bankIdentity.cpp
+    libutt/src/client.cpp
+    libutt/src/comitter.cpp
     libutt/src/mint.cpp
     libutt/src/coin.cpp
-    libutt/src/registratorIdentity.cpp
+    libutt/src/registrator.cpp
     libutt/src/common.cpp
     libutt/src/burn.cpp
     libutt/src/transaction.cpp
     libutt/src/budget.cpp
     )
-add_library(newutt STATIC ${newutt_src})
-target_link_libraries(newutt PUBLIC utt)
-target_include_directories(newutt PUBLIC include)
+add_library(utt_api STATIC ${newutt_src})
+target_link_libraries(utt_api PUBLIC utt)
+target_include_directories(utt_api PUBLIC include)
 add_subdirectory(tests)
 
 

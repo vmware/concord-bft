@@ -4,7 +4,7 @@
 #include <utt/Serialization.h>
 #include <utt/Params.h>
 namespace libutt::api {
-types::Signature Utils::aggregateSigShares(Details& d,
+types::Signature Utils::aggregateSigShares(const GlobalParams& d,
                                            Commitment::Type t,
                                            uint32_t n,
                                            const std::map<uint32_t, types::Signature>& rsigs,

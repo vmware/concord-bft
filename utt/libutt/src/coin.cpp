@@ -5,7 +5,7 @@
 #include <utt/RandSig.h>
 
 namespace libutt::api {
-Coin::Coin(Details& d,
+Coin::Coin(const GlobalParams& d,
            const types::CurvePoint& prf,
            const types::CurvePoint& sn,
            const types::CurvePoint& val,
@@ -49,6 +49,7 @@ Coin::Coin() { coin_.reset(new libutt::Coin()); }
 const std::string Coin::getNullifier() const { return coin_->null.toUniqueString(); }
 bool Coin::hasSig() const { return has_sig_; }
 void Coin::setSig(const types::Signature& sig) {
+  if (sig.empty()) return;
   coin_->sig = libutt::deserialize<libutt::RandSig>(std::string(sig.begin(), sig.end()));
   has_sig_ = true;
 }
@@ -59,7 +60,7 @@ types::Signature Coin::getSig() const {
   auto str_sig = libutt::serialize<libutt::RandSig>(coin_->sig);
   return types::Signature(str_sig.begin(), str_sig.end());
 }
-void Coin::randomize() {
+void Coin::rerandomize() {
   Fr u_delta = Fr::random_element();
   coin_->sig.rerandomize(coin_->r, u_delta);
 }

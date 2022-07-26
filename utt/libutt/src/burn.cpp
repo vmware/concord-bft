@@ -1,5 +1,4 @@
 #include "burn.hpp"
-#include "nullifier.hpp"
 #include <utt/BurnOp.h>
 #include <utt/RandSig.h>
 #include <utt/Coin.h>
@@ -9,7 +8,7 @@
 #include <utt/RegAuth.h>
 
 namespace libutt::api::operations {
-Burn::Burn(Details& d, const ClientIdentity& cid, const Coin& c) {
+Burn::Burn(const GlobalParams& d, const Client& cid, const Coin& c) {
   Fr fr_pidhash;
   fr_pidhash.from_words(cid.getPidHash());
   Fr prf;
@@ -20,7 +19,6 @@ Burn::Burn(Details& d, const ClientIdentity& cid, const Coin& c) {
   auto& rpk = *(cid.rpk_);
   burn_.reset(new libutt::BurnOp(
       d.getParams(), fr_pidhash, cid.getPid(), *(rcm.first.comm_), rcm_sig, prf, *(c.coin_), *(cid.bpk_), rpk));
-  coin_ = c;
 }
-std::string Burn::getNullifier() const { return coin_.getNullifier(); }
+std::string Burn::getNullifier() const { return burn_->getNullifier(); }
 }  // namespace libutt::api::operations

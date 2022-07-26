@@ -1,7 +1,7 @@
 #pragma once
 
 #include "commitment.hpp"
-#include "details.hpp"
+#include "globalParams.hpp"
 #include "types.hpp"
 #include <memory>
 #include <vector>
@@ -13,8 +13,8 @@ class CommKey;
 namespace libutt::api {
 class Utils {
  public:
-  static CommKey& getCommitmentKey(Details& d, Commitment::Type t);
-  static types::Signature aggregateSigShares(Details& d,
+  static CommKey& getCommitmentKey(const GlobalParams& d, Commitment::Type t);
+  static types::Signature aggregateSigShares(const GlobalParams& d,
                                              Commitment::Type t,
                                              uint32_t n,
                                              const std::map<uint32_t, types::Signature>& rsigs,

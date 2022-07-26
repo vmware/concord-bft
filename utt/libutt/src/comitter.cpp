@@ -1,6 +1,6 @@
-#include "bankIdentity.hpp"
+#include "committer.hpp"
 #include "mint.hpp"
-#include "details.hpp"
+#include "globalParams.hpp"
 #include "burn.hpp"
 #include "transaction.hpp"
 #include "budget.hpp"
@@ -15,10 +15,7 @@
 #include <vector>
 
 namespace libutt::api {
-BankIdentity::BankIdentity(const std::string& id,
-                           const std::string& bsk,
-                           const std::string& bvk,
-                           const std::string& rvk) {
+Committer::Committer(const std::string& id, const std::string& bsk, const std::string& bvk, const std::string& rvk) {
   bid_ = id;
   bsk_.reset(new libutt::RandSigShareSK());
   *bsk_ = libutt::deserialize<libutt::RandSigShareSK>(bsk);
@@ -28,15 +25,15 @@ BankIdentity::BankIdentity(const std::string& id,
   *rvk_ = libutt::deserialize<libutt::RegAuthPK>(rvk);
 }
 
-const std::string& BankIdentity::getId() const { return bid_; }
+const std::string& Committer::getId() const { return bid_; }
 template <>
-std::vector<types::Signature> BankIdentity::sign<operations::Mint>(operations::Mint& mint) const {
+std::vector<types::Signature> Committer::sign<operations::Mint>(operations::Mint& mint) const {
   auto res = mint.op_->shareSignCoin(*bsk_);
   auto res_str = libutt::serialize<libutt::RandSigShare>(res);
   return {types::Signature(res_str.begin(), res_str.end())};
 }
 template <>
-std::vector<types::Signature> BankIdentity::sign<operations::Transaction>(operations::Transaction& tx) const {
+std::vector<types::Signature> Committer::sign<operations::Transaction>(operations::Transaction& tx) const {
   std::vector<types::Signature> sigs;
   auto res = tx.tx_->shareSignCoins(*bsk_);
   for (const auto& [_, sig] : res) {
@@ -47,7 +44,7 @@ std::vector<types::Signature> BankIdentity::sign<operations::Transaction>(operat
 }
 
 template <>
-std::vector<types::Signature> BankIdentity::sign<operations::Budget>(operations::Budget& budget) const {
+std::vector<types::Signature> Committer::sign<operations::Budget>(operations::Budget& budget) const {
   std::vector<types::Signature> sigs;
   std::string h1 = budget.getHashHex();
   G1 H = hashToGroup<G1>("ps16base|" + h1);
@@ -72,14 +69,14 @@ std::vector<types::Signature> BankIdentity::sign<operations::Budget>(operations:
 }
 
 template <>
-bool BankIdentity::validate<operations::Burn>(const operations::Burn& burn, const types::Signature& sig) const {
+bool Committer::validate<operations::Burn>(const operations::Burn& burn, const types::Signature& sig) const {
   (void)sig;
-  return burn.burn_->validate(Details::instance().getParams(), *(bvk_), *(rvk_));
+  return burn.burn_->validate(GlobalParams::instance().getParams(), *(bvk_), *(rvk_));
 }
 template <>
-bool BankIdentity::validate<operations::Transaction>(const operations::Transaction& tx,
-                                                     const types::Signature& sig) const {
+bool Committer::validate<operations::Transaction>(const operations::Transaction& tx,
+                                                  const types::Signature& sig) const {
   (void)sig;
-  return tx.tx_->validate(Details::instance().getParams(), *(bvk_), *(rvk_));
+  return tx.tx_->validate(GlobalParams::instance().getParams(), *(bvk_), *(rvk_));
 }
 }  // namespace libutt::api

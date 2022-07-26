@@ -5,13 +5,14 @@ namespace libutt {
 class Params;
 }
 namespace libutt::api {
-class Details {
+class GlobalParams {
  public:
-  static Details& instance() {
-    static Details d;
+  static GlobalParams& instance() {
+    static GlobalParams d;
     return d;
   }
   void init();
+  const libutt::Params& getParams() const;
   libutt::Params& getParams();
 
  private:

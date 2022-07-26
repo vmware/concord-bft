@@ -1,9 +1,8 @@
 #pragma once
 #include "coin.hpp"
-#include "clientIdentity.hpp"
-#include "details.hpp"
-#include "bankIdentity.hpp"
-#include "nullifier.hpp"
+#include "client.hpp"
+#include "globalParams.hpp"
+#include "committer.hpp"
 #include <memory>
 namespace libutt {
 class BurnOp;
@@ -11,13 +10,12 @@ class BurnOp;
 namespace libutt::api::operations {
 class Burn {
  public:
-  Burn(Details& d, const ClientIdentity& cid, const Coin& c);
+  Burn(const GlobalParams& d, const Client& cid, const Coin& c);
   std::string getNullifier() const;
 
  public:
-  friend class libutt::api::BankIdentity;
-  friend class libutt::api::ClientIdentity;
-  std::shared_ptr<libutt::BurnOp> burn_;
-  Coin coin_;
+  friend class libutt::api::Committer;
+  friend class libutt::api::Client;
+  std::unique_ptr<libutt::BurnOp> burn_;
 };
 }  // namespace libutt::api::operations

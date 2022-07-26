@@ -9,9 +9,9 @@ class RegAuthPK;
 class RandSigPK;
 }  // namespace libutt
 namespace libutt::api {
-class BankIdentity {
+class Committer {
  public:
-  BankIdentity(const std::string& id, const std::string& bsk, const std::string& bvk, const std::string& rvk);
+  Committer(const std::string& id, const std::string& bsk, const std::string& bvk, const std::string& rvk);
   template <typename T>
   std::vector<types::Signature> sign(T& data) const;
   const std::string& getId() const;

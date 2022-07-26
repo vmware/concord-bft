@@ -1,14 +1,14 @@
 #pragma once
 #include "coin.hpp"
-#include "clientIdentity.hpp"
-#include "details.hpp"
+#include "client.hpp"
+#include "globalParams.hpp"
 #include "types.hpp"
 #include <string>
 namespace libutt::api::operations {
 class Budget {
  public:
-  Budget(Details& d,
-         const libutt::api::ClientIdentity& cid,
+  Budget(const GlobalParams& d,
+         const libutt::api::Client& cid,
          uint64_t val,
          uint64_t exp_date /* represented as hours since epoch*/);
   libutt::api::Coin& getCoin();

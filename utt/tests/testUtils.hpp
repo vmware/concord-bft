@@ -1,8 +1,8 @@
 #pragma once
-#include "details.hpp"
-#include "bankIdentity.hpp"
-#include "clientIdentity.hpp"
-#include "registratorIdentity.hpp"
+#include "globalParams.hpp"
+#include "committer.hpp"
+#include "client.hpp"
+#include "registrator.hpp"
 #include "common.hpp"
 #include "coin.hpp"
 #include <utt/RegAuth.h>
@@ -39,7 +39,7 @@ std::vector<uint32_t> getSubGroup(uint32_t n, uint32_t size) {
   return rret;
 }
 std::pair<RandSigDKG, RegAuthSK> init(size_t n, size_t thresh) {
-  auto& d = Details::instance();
+  auto& d = GlobalParams::instance();
   d.init();
 
   auto dkg = RandSigDKG(thresh, n, Params::NumMessages);
@@ -48,31 +48,28 @@ std::pair<RandSigDKG, RegAuthSK> init(size_t n, size_t thresh) {
   d.getParams().ck_reg = rc.ck_reg;
   return {dkg, rc};
 }
-std::vector<std::shared_ptr<RegistratorIdentity>> GenerateRegistrators(size_t n, const RegAuthSK& rsk) {
-  std::vector<std::shared_ptr<RegistratorIdentity>> registrators;
+std::vector<std::shared_ptr<Registrator>> GenerateRegistrators(size_t n, const RegAuthSK& rsk) {
+  std::vector<std::shared_ptr<Registrator>> registrators;
   for (size_t i = 0; i < n; i++) {
-    registrators.push_back(std::make_shared<RegistratorIdentity>(
+    registrators.push_back(std::make_shared<Registrator>(
         std::to_string(i), serialize<RegAuthShareSK>(rsk.shares[i]), serialize<RegAuthPK>(rsk.toPK()), rsk));
   }
   return registrators;
 }
 
-std::vector<std::shared_ptr<BankIdentity>> GenerateCommitters(size_t n, const RandSigDKG& dkg, const RegAuthPK& rvk) {
-  std::vector<std::shared_ptr<BankIdentity>> banks;
+std::vector<std::shared_ptr<Committer>> GenerateCommitters(size_t n, const RandSigDKG& dkg, const RegAuthPK& rvk) {
+  std::vector<std::shared_ptr<Committer>> banks;
   for (size_t i = 0; i < n; i++) {
-    banks.push_back(std::make_shared<BankIdentity>(std::to_string(i),
-                                                   serialize<RandSigShareSK>(dkg.skShares[i]),
-                                                   serialize<RandSigPK>(dkg.getPK()),
-                                                   serialize<RegAuthPK>(rvk)));
+    banks.push_back(std::make_shared<Committer>(std::to_string(i),
+                                                serialize<RandSigShareSK>(dkg.skShares[i]),
+                                                serialize<RandSigPK>(dkg.getPK()),
+                                                serialize<RegAuthPK>(rvk)));
   }
   return banks;
 }
 
-std::vector<ClientIdentity> GenerateClients(size_t c,
-                                            const RandSigPK& bvk,
-                                            const RegAuthPK& rvk,
-                                            const RegAuthSK& rsk) {
-  std::vector<ClientIdentity> clients;
+std::vector<Client> GenerateClients(size_t c, const RandSigPK& bvk, const RegAuthPK& rvk, const RegAuthSK& rsk) {
+  std::vector<Client> clients;
   std::string bpk = libutt::serialize<libutt::RandSigPK>(bvk);
   std::string rpk = libutt::serialize<libutt::RegAuthPK>(rvk);
 
@@ -82,20 +79,20 @@ std::vector<ClientIdentity> GenerateClients(size_t c,
     auto mpk = rsk.toPK().mpk;
     std::string csk = libutt::serialize<libutt::IBE::EncSK>(sk);
     std::string cmpk = libutt::serialize<libutt::IBE::MPK>(mpk);
-    clients.push_back(ClientIdentity(pid, bpk, rpk, csk, cmpk));
+    clients.push_back(Client(pid, bpk, rpk, csk, cmpk));
   }
   return clients;
 }
 
-void registerClient(Details& d,
-                    ClientIdentity& c,
-                    std::vector<std::shared_ptr<RegistratorIdentity>>& registrators,
+void registerClient(const GlobalParams& d,
+                    Client& c,
+                    std::vector<std::shared_ptr<Registrator>>& registrators,
                     size_t thresh) {
   size_t n = registrators.size();
   std::vector<std::vector<uint8_t>> shares;
   auto prf = c.getPRFSecretKey();
   for (auto& r : registrators) {
-    auto rcm1 = c.generatePartialRCM(d);
+    auto rcm1 = c.generateInputRCM(d);
     shares.push_back(r->ComputeRCMSig(c.getPidHash(), rcm1));
   }
   auto sids = getSubGroup((uint32_t)n, (uint32_t)thresh);

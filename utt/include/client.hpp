@@ -1,6 +1,6 @@
 #pragma once
 #include "commitment.hpp"
-#include "details.hpp"
+#include "globalParams.hpp"
 #include "common.hpp"
 #include "types.hpp"
 #include <memory>
@@ -15,15 +15,15 @@ namespace operations {
 class Burn;
 class Transaction;
 }  // namespace operations
-class ClientIdentity {
+class Client {
  public:
-  ClientIdentity(const std::string& pid,
-                 const std::string& bpk,
-                 const std::string& rpk,
-                 const std::string& csk,
-                 const std::string& mpk);
-  Commitment generatePartialRCM(Details& d);
-  Commitment generateFullRCM(Details& d);
+  Client(const std::string& pid,
+         const std::string& bpk,
+         const std::string& rpk,
+         const std::string& csk,
+         const std::string& mpk);
+  Commitment generateInputRCM(const GlobalParams& d);
+  Commitment generateFullRCM(const GlobalParams& d);
   const std::string& getPid() const;
   types::CurvePoint getPRFSecretKey() const;
   types::CurvePoint getPidHash() const;
@@ -31,7 +31,7 @@ class ClientIdentity {
   std::pair<Commitment, types::Signature> getRcm() const;
   template <typename T>
   std::vector<libutt::api::Coin> claimCoins(const T&,
-                                            Details& d,
+                                            const GlobalParams& d,
                                             uint32_t n,
                                             const std::vector<std::map<uint32_t, types::Signature>>& rsigs) const;
 

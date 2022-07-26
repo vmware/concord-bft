@@ -1,6 +1,6 @@
 #pragma once
 #include "commitment.hpp"
-#include "details.hpp"
+#include "globalParams.hpp"
 #include <string>
 #include <memory>
 #include <vector>
@@ -10,9 +10,9 @@ class RegAuthPK;
 class RegAuthSK;
 }  // namespace libutt
 namespace libutt::api {
-class RegistratorIdentity {
+class Registrator {
  public:
-  RegistratorIdentity(const std::string& id, const std::string& rsk, const std::string& rbk, const RegAuthSK& tmp);
+  Registrator(const std::string& id, const std::string& rsk, const std::string& rbk, const RegAuthSK& tmp);
 
   types::Signature ComputeRCMSig(const types::CurvePoint& pid_hash, const Commitment& rcm1) const;
 

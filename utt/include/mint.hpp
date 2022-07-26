@@ -3,13 +3,13 @@
 #include <memory>
 #include <vector>
 #include "coin.hpp"
-#include "details.hpp"
+#include "globalParams.hpp"
 namespace libutt {
 class MintOp;
 }  // namespace libutt
 namespace libutt::api {
-class BankIdentity;
-class ClientIdentity;
+class Committer;
+class Client;
 }  // namespace libutt::api
 namespace libutt::api::operations {
 
@@ -19,8 +19,8 @@ class Mint {
   bool validate(const std::string& uniqueHash, size_t value, const std::string& recipPID) const;
 
  private:
-  friend class libutt::api::BankIdentity;
-  friend class libutt::api::ClientIdentity;
+  friend class libutt::api::Committer;
+  friend class libutt::api::Client;
   std::unique_ptr<libutt::MintOp> op_;
 };
 }  // namespace libutt::api::operations
