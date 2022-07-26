@@ -119,8 +119,8 @@ bool EdDSAMultisigVerifier::verify(const char *msg, int msgLen, const char *sig,
 int EdDSAMultisigVerifier::requiredLengthForSignedData() const {
   return static_cast<int>(static_cast<unsigned long>(signersCount_) * sizeof(SingleEdDSASignature));
 }
-const IPublicKey &EdDSAMultisigVerifier::getPublicKey() const { return verifiers_[0].getPubKey(); }
+const IPublicKey &EdDSAMultisigVerifier::getPublicKey() const { return verifiers_[0].publicKey_; }
 const IShareVerificationKey &EdDSAMultisigVerifier::getShareVerificationKey(ShareID signer) const {
-  return verifiers_[static_cast<size_t>(signer)].getPubKey();
+  return verifiers_[static_cast<size_t>(signer)].publicKey_;
 }
 size_t EdDSAMultisigVerifier::maxShareID() const { return signersCount_ + 1; }

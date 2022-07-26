@@ -63,7 +63,6 @@ class Cryptosystem {
   // Internally used helper functions.
   IThresholdFactory* createThresholdFactory();
 
-  void validateKey(const std::string& key, size_t expectedSize) const;
   void validatePublicKey(const std::string& key) const;
   void validateVerificationKey(const std::string& key) const;
   void validatePrivateKey(const std::string& key) const;

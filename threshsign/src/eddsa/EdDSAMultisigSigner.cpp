@@ -13,6 +13,8 @@
 #include "threshsign/eddsa/EdDSAMultisigSigner.h"
 #include "threshsign/eddsa/SingleEdDSASignature.h"
 
+using concord::crypto::openssl::EdDSASigner;
+
 EdDSAMultisigSigner::EdDSAMultisigSigner(const EdDSAThreshsignPrivateKey &privateKey, const uint32_t id)
     : EdDSASigner<EdDSAThreshsignPrivateKey>{privateKey}, publicKey_{}, id_{id} {}
 
@@ -31,5 +33,5 @@ void EdDSAMultisigSigner::signData(const char *hash, int hashLen, char *outSig, 
   result.id = id_;
   std::memcpy(outSig, &result, sizeof(SingleEdDSASignature));
 }
-const IShareSecretKey &EdDSAMultisigSigner::getShareSecretKey() const { return getPrivKey(); }
+const IShareSecretKey &EdDSAMultisigSigner::getShareSecretKey() const { return privateKey_; }
 const IShareVerificationKey &EdDSAMultisigSigner::getShareVerificationKey() const { return publicKey_; }
