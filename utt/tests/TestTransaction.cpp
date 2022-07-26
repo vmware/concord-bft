@@ -77,10 +77,14 @@ int main(int argc, char* argv[]) {
   }
 
   // Now, each client transfers a 50$ to its predecessor;
-  for (size_t i = 0 ; i < clients.size() ; i++) {
+  for (size_t i = 0; i < clients.size(); i++) {
     auto& issuer = clients[i];
     auto& receiver = clients[(i + 1) % clients.size()];
-    Transaction tx(d, issuer, {coins[issuer.getPid()].front()}, {bcoins[issuer.getPid()]}, {{issuer.getPid(), 50}, {receiver.getPid(), 50}});
+    Transaction tx(d,
+                   issuer,
+                   {coins[issuer.getPid()].front()},
+                   {bcoins[issuer.getPid()]},
+                   {{issuer.getPid(), 50}, {receiver.getPid(), 50}});
     coins[issuer.getPid()].erase(coins[issuer.getPid()].begin());
     bcoins.erase(issuer.getPid());
     std::unordered_map<size_t, std::vector<types::Signature>> shares;
@@ -89,15 +93,15 @@ int main(int argc, char* argv[]) {
     }
     size_t num_coins = shares[0].size();
     std::vector<std::map<uint32_t, types::Signature>> sigs;
-    for (size_t i = 0 ; i < num_coins ; i++) {
-        std::map<uint32_t, types::Signature> share_sigs;
-        auto sbs = testing::getSubGroup((uint32_t)n, (uint32_t)thresh);
-        for (auto s : sbs) {
-          share_sigs[s] = shares[s][i];
-        }
-        sigs.emplace_back(std::move(share_sigs));
+    for (size_t i = 0; i < num_coins; i++) {
+      std::map<uint32_t, types::Signature> share_sigs;
+      auto sbs = testing::getSubGroup((uint32_t)n, (uint32_t)thresh);
+      for (auto s : sbs) {
+        share_sigs[s] = shares[s][i];
+      }
+      sigs.emplace_back(std::move(share_sigs));
     }
-    auto issuer_coins = issuer.claimCoins(tx, d, (uint32_t) n, sigs);
+    auto issuer_coins = issuer.claimCoins(tx, d, (uint32_t)n, sigs);
     for (auto& coin : issuer_coins) {
       if (coin.getType() == api::Coin::Type::Normal) {
         coins[issuer.getPid()].emplace_back(std::move(coin));
@@ -106,7 +110,7 @@ int main(int argc, char* argv[]) {
         bcoins.emplace(issuer.getPid(), coin);
       }
     }
-    auto receiver_coins = receiver.claimCoins(tx, d, (uint32_t) n, sigs);
+    auto receiver_coins = receiver.claimCoins(tx, d, (uint32_t)n, sigs);
     for (auto& coin : receiver_coins) {
       if (coin.getType() == api::Coin::Type::Normal) {
         coins[receiver.getPid()].emplace_back(std::move(coin));

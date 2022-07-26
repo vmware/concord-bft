@@ -13,7 +13,7 @@ class Tx;
 
 namespace libutt::api::operations {
 class Transaction {
-  public:
+ public:
   Transaction(Details& d,
               const ClientIdentity&,
               const std::vector<Coin>&,
