@@ -98,7 +98,7 @@ Tx::Tx(const Params& p,
     }
 
     // all coins must have valid signatures
-    assertTrue(coin.hasValidSig(*bpk));
+    if (bpk.has_value()) assertTrue(coin.hasValidSig(*bpk));
   }
 
   // get total value of all normal output coins

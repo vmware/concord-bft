@@ -111,12 +111,11 @@ std::vector<libutt::api::Coin> ClientIdentity::claimCoins<operations::Transactio
     const std::vector<std::map<uint32_t, types::Signature>>& rsigs) const {
   std::vector<libutt::api::Coin> ret;
   auto mineTransactions = tx.tx_->getMineTransactions(*ask_);
-  size_t i = 0;
   for (const auto& [txoIdx, txo] : mineTransactions) {
     Fr r_pid = txo.t, r_sn = Fr::zero(), r_val = txo.d, r_type = Fr::zero(), r_expdate = Fr::zero();
     std::vector<types::CurvePoint> r = {
         r_pid.to_words(), r_sn.to_words(), r_val.to_words(), r_type.to_words(), r_expdate.to_words()};
-    auto sig = Utils::aggregateSigShares(d, Commitment::Type::COIN, n, rsigs[i], r);
+    auto sig = Utils::aggregateSigShares(d, Commitment::Type::COIN, n, rsigs[txoIdx], r);
     libutt::api::Coin c(d,
                         getPRFSecretKey(),
                         tx.tx_->getSN(txoIdx).to_words(),
@@ -127,7 +126,6 @@ std::vector<libutt::api::Coin> ClientIdentity::claimCoins<operations::Transactio
     c.setSig(sig);
     c.randomize();
     ret.emplace_back(std::move(c));
-    i++;
   }
   return ret;
 }

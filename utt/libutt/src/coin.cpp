@@ -53,6 +53,10 @@ void Coin::setSig(const types::Signature& sig) {
   has_sig_ = true;
 }
 Coin::Type Coin::getType() const { return type_; }
+
+uint64_t Coin::getVal() const {
+  return coin_->val.as_ulong();
+}
 types::Signature Coin::getSig() const {
   auto str_sig = libutt::serialize<libutt::RandSig>(coin_->sig);
   return types::Signature(str_sig.begin(), str_sig.end());

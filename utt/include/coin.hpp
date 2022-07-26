@@ -36,6 +36,7 @@ class Coin {
   Type getType() const;
   types::Signature getSig() const;
   void randomize();
+  uint64_t getVal() const;
 
  private:
   friend class ClientIdentity;
