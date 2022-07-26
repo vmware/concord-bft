@@ -26,7 +26,7 @@ int main(int argc, char* argv[]) {
   auto& d = Details::instance();
   auto registrators = testing::GenerateRegistrators(n, rc);
   auto banks = testing::GenerateCommitters(n, dkg, rc.toPK());
-  auto clients = testing::GenerateClients(c, dkg.getPK(), rc.toPK(),rc);
+  auto clients = testing::GenerateClients(c, dkg.getPK(), rc.toPK(), rc);
   for (auto& c : clients) {
     testing::registerClient(d, c, registrators, thresh);
   }
@@ -47,7 +47,7 @@ int main(int argc, char* argv[]) {
     assertTrue(c.validate(coin));
     Burn b_op{d, c, coin};
     for (auto& b : banks) {
-        assertTrue(b->validate(b_op, {}));
+      assertTrue(b->validate(b_op, {}));
     }
   }
   return 0;

@@ -13,7 +13,7 @@ namespace libutt::api {
 class RegistratorIdentity;
 class ClientIdentity;
 namespace operations {
-  class Burn;
+class Burn;
 }
 class Commitment {
  public:

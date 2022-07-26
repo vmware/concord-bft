@@ -60,22 +60,28 @@ std::vector<std::shared_ptr<RegistratorIdentity>> GenerateRegistrators(size_t n,
 std::vector<std::shared_ptr<BankIdentity>> GenerateCommitters(size_t n, const RandSigDKG& dkg, const RegAuthPK& rvk) {
   std::vector<std::shared_ptr<BankIdentity>> banks;
   for (size_t i = 0; i < n; i++) {
-    banks.push_back(std::make_shared<BankIdentity>(std::to_string(i), serialize<RandSigShareSK>(dkg.skShares[i]), serialize<RandSigPK>(dkg.getPK()),  serialize<RegAuthPK>(rvk)));
+    banks.push_back(std::make_shared<BankIdentity>(std::to_string(i),
+                                                   serialize<RandSigShareSK>(dkg.skShares[i]),
+                                                   serialize<RandSigPK>(dkg.getPK()),
+                                                   serialize<RegAuthPK>(rvk)));
   }
   return banks;
 }
 
-std::vector<ClientIdentity> GenerateClients(size_t c, const RandSigPK& bvk, const RegAuthPK& rvk, const RegAuthSK& rsk) {
+std::vector<ClientIdentity> GenerateClients(size_t c,
+                                            const RandSigPK& bvk,
+                                            const RegAuthPK& rvk,
+                                            const RegAuthSK& rsk) {
   std::vector<ClientIdentity> clients;
   std::string bpk = libutt::serialize<libutt::RandSigPK>(bvk);
   std::string rpk = libutt::serialize<libutt::RegAuthPK>(rvk);
-  
+
   for (size_t i = 0; i < c; i++) {
     std::string pid = "client_" + std::to_string(i);
     auto sk = rsk.msk.deriveEncSK(rsk.p, pid);
     auto mpk = rsk.toPK().mpk;
     std::string csk = libutt::serialize<libutt::IBE::EncSK>(sk);
-  std::string cmpk = libutt::serialize<libutt::IBE::MPK>(mpk);
+    std::string cmpk = libutt::serialize<libutt::IBE::MPK>(mpk);
     clients.push_back(ClientIdentity(pid, bpk, rpk, csk, cmpk));
   }
   return clients;

@@ -10,11 +10,15 @@ class RegAuthPK;
 }  // namespace libutt
 namespace libutt::api {
 namespace operations {
-  class Burn;
+class Burn;
 }
 class ClientIdentity {
  public:
-  ClientIdentity(const std::string& pid, const std::string& bpk, const std::string& rpk, const std::string& csk, const std::string& mpk);
+  ClientIdentity(const std::string& pid,
+                 const std::string& bpk,
+                 const std::string& rpk,
+                 const std::string& csk,
+                 const std::string& mpk);
   Commitment generatePartialRCM(Details& d);
   Commitment generateFullRCM(Details& d);
   std::string getPid() const;

@@ -13,7 +13,7 @@ namespace libutt::api {
 class RegistratorIdentity {
  public:
   RegistratorIdentity(const std::string& id, const std::string& rsk, const std::string& rbk, const RegAuthSK& tmp);
-  
+
   std::vector<uint8_t> ComputeRCMSig(const std::vector<uint64_t>& pid_hash, const Commitment& rcm1) const;
 
   bool validateRCM(const Commitment& comm, const std::vector<uint8_t>& sig);

@@ -6,7 +6,7 @@
 
 namespace libutt::api {
 Coin::Coin(Details& d,
-const std::vector<uint64_t>& prf,
+           const std::vector<uint64_t>& prf,
            const std::vector<uint64_t>& sn,
            const std::vector<uint64_t>& val,
            Type t,
@@ -23,7 +23,14 @@ const std::vector<uint64_t>& prf,
   pid_hash.from_words(cid.getPidHash());
   Fr fr_prf;
   fr_prf.from_words(prf);
-  coin_.reset(new libutt::Coin(d.getParams().ck_coin, d.getParams().null, fr_prf, fr_sn, fr_val, fr_type, libutt::Coin::DoesNotExpire(), pid_hash));
+  coin_.reset(new libutt::Coin(d.getParams().ck_coin,
+                               d.getParams().null,
+                               fr_prf,
+                               fr_sn,
+                               fr_val,
+                               fr_type,
+                               libutt::Coin::DoesNotExpire(),
+                               pid_hash));
   type_ = t;
 }
 Coin::Coin(const Coin& c) {

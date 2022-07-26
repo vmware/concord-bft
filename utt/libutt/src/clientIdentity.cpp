@@ -12,7 +12,11 @@
 #include <vector>
 #include <sstream>
 namespace libutt::api {
-ClientIdentity::ClientIdentity(const std::string& pid, const std::string& bpk, const std::string& rvk, const std::string& csk, const std::string& mpk) {
+ClientIdentity::ClientIdentity(const std::string& pid,
+                               const std::string& bpk,
+                               const std::string& rvk,
+                               const std::string& csk,
+                               const std::string& mpk) {
   ask_.reset(new libutt::AddrSK());
   ask_->pid = pid;
   ask_->s = Fr::random_element();
@@ -23,7 +27,6 @@ ClientIdentity::ClientIdentity(const std::string& pid, const std::string& bpk, c
   *rpk_ = libutt::deserialize<libutt::RegAuthPK>(rvk);
   ask_->e = libutt::deserialize<libutt::IBE::EncSK>(csk);
   ask_->mpk_ = libutt::deserialize<libutt::IBE::MPK>(mpk);
-
 }
 Commitment ClientIdentity::generateFullRCM(Details& d) {
   std::vector<std::vector<uint64_t>> m = {getPidHash(), ask_->s.to_words(), Fr::zero().to_words()};
@@ -53,9 +56,10 @@ void ClientIdentity::setRCM(const Commitment& comm, const std::vector<uint8_t>& 
   ask_->rs = libutt::deserialize<libutt::RandSig>(sig);
 }
 
-std::pair<Commitment, std::vector<uint8_t>> ClientIdentity::getRcm() const { 
+std::pair<Commitment, std::vector<uint8_t>> ClientIdentity::getRcm() const {
   auto tmp = libutt::serialize<libutt::RandSig>(ask_->rs);
-  return {rcm_, std::vector<uint8_t>(tmp.begin(), tmp.end())}; }
+  return {rcm_, std::vector<uint8_t>(tmp.begin(), tmp.end())};
+}
 template <>
 bool ClientIdentity::validate<Coin>(const Coin& c) {
   return c.coin_->hasValidSig(*bpk_);

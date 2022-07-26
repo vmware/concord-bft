@@ -12,7 +12,10 @@
 #include <vector>
 
 namespace libutt::api {
-BankIdentity::BankIdentity(const std::string& id, const std::string& bsk, const std::string& bvk, const std::string& rvk) {
+BankIdentity::BankIdentity(const std::string& id,
+                           const std::string& bsk,
+                           const std::string& bvk,
+                           const std::string& rvk) {
   bid_ = id;
   bsk_.reset(new libutt::RandSigShareSK());
   *bsk_ = libutt::deserialize<libutt::RandSigShareSK>(bsk);
@@ -32,7 +35,7 @@ std::vector<uint8_t> BankIdentity::sign<operations::Mint>(operations::Mint& mint
 
 template <>
 bool BankIdentity::validate<operations::Burn>(const operations::Burn& burn, std::vector<uint8_t> sig) const {
-  (void) sig;
+  (void)sig;
   return burn.burn_->validate(Details::instance().getParams(), *(bvk_), *(rvk_));
 }
 }  // namespace libutt::api
