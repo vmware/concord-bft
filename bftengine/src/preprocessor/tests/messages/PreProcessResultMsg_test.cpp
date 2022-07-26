@@ -71,7 +71,7 @@ std::pair<std::string, std::vector<char>> getProcessResultSigBuff(const std::uni
   std::vector<char> msgSig(msgSigSize, 0);
   auto hash = PreProcessResultHashCreator::create(
       p.result, sizeof(p.result), OperationResult::SUCCESS, p.senderId, p.reqSeqNum);
-  sigManager->sign(reinterpret_cast<const char*>(hash.data()), hash.size(), msgSig.data(), msgSigSize);
+  sigManager->sign(reinterpret_cast<const char*>(hash.data()), hash.size(), msgSig.data());
 
   // for simplicity, copy the same signatures
   std::set<PreProcessResultSignature> resultSigs;
@@ -127,7 +127,7 @@ class PreProcessResultMsgTestFixture : public testing::Test {
 
     auto hash = PreProcessResultHashCreator::create(
         p.result, sizeof(p.result), OperationResult::SUCCESS, p.senderId, p.reqSeqNum);
-    sigManager->sign(reinterpret_cast<const char*>(hash.data()), hash.size(), msgSig.data(), msgSigSize);
+    sigManager->sign(reinterpret_cast<const char*>(hash.data()), hash.size(), msgSig.data());
 
     // For simplicity, copy the same signatures
     std::list<PreProcessResultSignature> resultSigs;
@@ -256,7 +256,7 @@ TEST_F(PreProcessResultMsgTestFixture, MsgDeserialisation) {
   std::vector<char> msgSig(msgSigSize, 0);
   auto hash = PreProcessResultHashCreator::create(
       msg->requestBuf(), msg->requestLength(), OperationResult::SUCCESS, params.senderId, params.reqSeqNum);
-  sigManager->sign(reinterpret_cast<char*>(hash.data()), hash.size(), msgSig.data(), msgSigSize);
+  sigManager->sign(reinterpret_cast<char*>(hash.data()), hash.size(), msgSig.data());
   auto i = 0;
   for (const auto& s : sigs) {
     ASSERT_EQ(s.sender_replica, i++);
@@ -290,7 +290,7 @@ TEST_F(PreProcessResultMsgTestFixture, MsgDeserialisationFromBase) {
   std::vector<char> msgSig(msgSigSize, 0);
   auto hash = PreProcessResultHashCreator::create(
       msg->requestBuf(), msg->requestLength(), OperationResult::SUCCESS, params.senderId, params.reqSeqNum);
-  sigManager->sign(reinterpret_cast<char*>(hash.data()), hash.size(), msgSig.data(), msgSigSize);
+  sigManager->sign(reinterpret_cast<char*>(hash.data()), hash.size(), msgSig.data());
   auto i = 0;
   for (const auto& s : sigs) {
     ASSERT_EQ(s.sender_replica, i++);

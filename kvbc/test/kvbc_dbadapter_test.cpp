@@ -21,10 +21,9 @@ using concord::kvbc::KeysVector;
 using concord::kvbc::KeyValuePair;
 using concord::kvbc::SetOfKeyValuePairs;
 using concord::kvbc::BlockId;
-// using concord::storage::rocksdb::Client;
-// using concord::storage::rocksdb::KeyComparator;
 using concord::kvbc::v1DirectKeyValue::block::detail::create;
 using concord::kvbc::v1DirectKeyValue::block::detail::getUserData;
+using concord::util::digest::BlockDigest;
 
 namespace {
 

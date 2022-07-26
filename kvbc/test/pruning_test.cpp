@@ -42,6 +42,8 @@ const NodeIdType replica_0 = 0;
 const NodeIdType replica_1 = 1;
 const NodeIdType replica_2 = 2;
 const NodeIdType replica_3 = 3;
+
+#ifdef USE_CRYPTOPP_RSA
 std::string privateKey_0 =
     "308204BA020100300D06092A864886F70D0101010500048204A4308204A00201000282010100C55B8F7979BF24B335017082BF33EE2960E3"
     "A0"
@@ -322,6 +324,19 @@ std::string publicKey_4 =
     "BF2EA16F58773514249B03A4775C6A10561AFC8CF54B551A43FD014F3C5FE12D96AC5F117645E26D125DC7430114FA60577BF7C9AA1224D1"
     "90"
     "B2D8A83B020111";
+#elif USE_EDDSA_SINGLE_SIGN
+const std::string privateKey_0 = "61498efe1764b89357a02e2887d224154006ceacf26269f8695a4af561453eef";
+const std::string privateKey_1 = "247a74ab3620ec6b9f5feab9ee1f86521da3fa2804ad45bb5bf2c5b21ef105bc";
+const std::string privateKey_2 = "fb539bc3d66deda55524d903da26dbec1f4b6abf41ec5db521e617c64eb2c341";
+const std::string privateKey_3 = "55ea66e855b83ec4a02bd8fcce6bb4426ad3db2a842fa2a2a6777f13e40a4717";
+const std::string privateKey_4 = "f2f3d43da68329bfe31419636072e27cfd1a8fff259be4bfada667080eb00556";
+
+const std::string publicKey_0 = "386f4fb049a5d8bb0706d3793096c8f91842ce380dfc342a2001d50dfbc901f4";
+const std::string publicKey_1 = "3f9e7dbde90477c24c1bacf14e073a356c1eca482d352d9cc0b16560a4e7e469";
+const std::string publicKey_2 = "2311c6013ff657844669d8b803b2e1ed33fe06eed445f966a800a8fbb8d790e8";
+const std::string publicKey_3 = "1ba7449655784fc9ce193a7887de1e4d3d35f7c82b802440c4f28bf678a34b34";
+const std::string publicKey_4 = "c426c524c92ad9d0b740f68ee312abf0298051a7e0364a867b940e9693ae6095";
+#endif
 
 bftEngine::ReplicaConfig &replicaConfig = bftEngine::ReplicaConfig::instance();
 std::map<uint64_t, std::string> private_keys_of_replicas;
@@ -468,7 +483,7 @@ TestStateTransfer state_transfer;
 
 void CheckLatestPrunableResp(const concord::messages::LatestPrunableBlock &latest_prunable_resp,
                              int replica_idx,
-                             const RSAPruningVerifier &verifier) {
+                             const PruningVerifier &verifier) {
   ASSERT_EQ(latest_prunable_resp.replica, replica_idx);
   ASSERT_TRUE(verifier.verify(latest_prunable_resp));
 }
@@ -529,7 +544,7 @@ concord::messages::PruneRequest ConstructPruneRequest(std::size_t client_idx,
     // Send different block IDs.
     latest_block.block_id = min_prunable_block_id + i;
 
-    auto block_signer = RSAPruningSigner{pkey};
+    auto block_signer = PruningSigner{pkey};
     block_signer.sign(latest_block);
     i++;
   }
@@ -542,11 +557,11 @@ TEST_F(test_rocksdb, sign_verify_correct) {
   const auto replica_count = 4;
   uint64_t sending_id = 0;
   uint64_t client_proxy_count = 4;
-  const auto verifier = RSAPruningVerifier{replicaConfig.publicKeysOfReplicas};
-  std::vector<RSAPruningSigner> signers;
+  const auto verifier = PruningVerifier{replicaConfig.publicKeysOfReplicas};
+  std::vector<PruningSigner> signers;
   signers.reserve(replica_count);
   for (auto i = 0; i < replica_count; ++i) {
-    signers.emplace_back(RSAPruningSigner{private_keys_of_replicas[i]});
+    signers.emplace_back(PruningSigner{private_keys_of_replicas[i]});
   }
 
   // Sign and verify a LatestPrunableBlock message.
@@ -579,11 +594,11 @@ TEST_F(test_rocksdb, verify_malformed_messages) {
   const auto replica_count = 4;
   const auto client_proxy_count = replica_count;
   const auto sending_id = 1;
-  const auto verifier = RSAPruningVerifier{replicaConfig.publicKeysOfReplicas};
-  std::vector<RSAPruningSigner> signers;
+  const auto verifier = PruningVerifier{replicaConfig.publicKeysOfReplicas};
+  std::vector<PruningSigner> signers;
   signers.reserve(replica_count);
   for (auto i = 0; i < replica_count; ++i) {
-    signers.emplace_back(RSAPruningSigner{private_keys_of_replicas[i]});
+    signers.emplace_back(PruningSigner{private_keys_of_replicas[i]});
   }
 
   // Break verification of LatestPrunableBlock messages.
@@ -693,7 +708,7 @@ TEST_F(test_rocksdb, sm_latest_prunable_request_correct_num_bocks_to_keep) {
   replicaConfig.pruningEnabled_ = true;
   TestStorage storage(db);
   auto &blocks_deleter = storage;
-  const auto verifier = RSAPruningVerifier{replicaConfig.publicKeysOfReplicas};
+  const auto verifier = PruningVerifier{replicaConfig.publicKeysOfReplicas};
   replicaConfig.replicaPrivateKey = privateKey_1;
   InitBlockchainStorage(replica_count, storage);
 
@@ -718,7 +733,7 @@ TEST_F(test_rocksdb, sm_latest_prunable_request_big_num_blocks_to_keep) {
   replicaConfig.replicaPrivateKey = privateKey_1;
   TestStorage storage(db);
   auto &blocks_deleter = storage;
-  const auto verifier = RSAPruningVerifier{replicaConfig.publicKeysOfReplicas};
+  const auto verifier = PruningVerifier{replicaConfig.publicKeysOfReplicas};
 
   auto sm = PruningHandler{storage, storage, blocks_deleter, false};
 
@@ -743,7 +758,7 @@ TEST_F(test_rocksdb, sm_latest_prunable_request_no_pruning_conf) {
   replicaConfig.replicaPrivateKey = privateKey_1;
   TestStorage storage(db);
   auto &blocks_deleter = storage;
-  const auto verifier = RSAPruningVerifier{replicaConfig.publicKeysOfReplicas};
+  const auto verifier = PruningVerifier{replicaConfig.publicKeysOfReplicas};
 
   InitBlockchainStorage(replica_count, storage);
 
@@ -770,7 +785,7 @@ TEST_F(test_rocksdb, sm_latest_prunable_request_pruning_disabled) {
   replicaConfig.replicaPrivateKey = privateKey_1;
   auto storage = TestStorage(db);
   auto &blocks_deleter = storage;
-  const auto verifier = RSAPruningVerifier{replicaConfig.publicKeysOfReplicas};
+  const auto verifier = PruningVerifier{replicaConfig.publicKeysOfReplicas};
 
   InitBlockchainStorage(replica_count, storage);
 

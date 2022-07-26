@@ -15,7 +15,7 @@
 #include "gtest/gtest.h"
 #include "hex_tools.h"
 #include "sha_hash.hpp"
-#include "openssl_digest_creator.ipp"
+#include "openssl_digest_creator.hpp"
 
 using concord::util::SHA2_256;
 using concord::util::SHA3_256;

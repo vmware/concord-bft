@@ -23,7 +23,7 @@ target_link_libraries(kvbc_filter_test
         ${yaml-cpp_LIBRARIES}
         kvbc
         concord-kvbc-proto
-        concordbft_reconfiguration
+        corebft
         logging)
 
 add_executable(order_test order_test.cpp )
