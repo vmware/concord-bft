@@ -70,9 +70,7 @@ void AdaptivePruningManager::notifyReplicas(const PruneInfo &pruneInfo) {
   const std::string cid = "adaptive-pruning-manager-cid";
 
   std::string sig(SigManager::instance()->getMySigLength(), '\0');
-  uint16_t sig_length{0};
-  SigManager::instance()->sign(
-      reinterpret_cast<char *>(serialized_req.data()), serialized_req.size(), sig.data(), sig_length);
+  SigManager::instance()->sign(reinterpret_cast<char *>(serialized_req.data()), serialized_req.size(), sig.data());
   rreq.signature = std::vector<uint8_t>(sig.begin(), sig.end());
   serialized_req.clear();
   concord::messages::serialize(serialized_req, rreq);

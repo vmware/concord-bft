@@ -28,12 +28,17 @@
 #include "categorized_kvbc_msgs.cmf.hpp"
 #include "metadata_block_id.h"
 #include "ReplicaResources.h"
+#include "openssl_utils.hpp"
+
 #include <chrono>
 #include <algorithm>
 #include <memory>
 
 namespace concord::kvbc::reconfiguration {
-
+using bftEngine::ReplicaConfig;
+using concord::crypto::signature::SIGN_VERIFY_ALGO;
+using concord::crypto::cryptopp::Crypto;
+using concord::crypto::openssl::OpenSSLCryptoImpl;
 using bftEngine::impl::DbCheckpointManager;
 using bftEngine::impl::SigManager;
 using concord::kvbc::KvbAppFilter;
@@ -186,8 +191,8 @@ bool StateSnapshotReconfigurationHandler::handle(const concord::messages::StateS
                                                  uint32_t,
                                                  const std::optional<bftEngine::Timestamp>& timestamp,
                                                  concord::messages::ReconfigurationResponse& rres) {
-  if (!bftEngine::ReplicaConfig::instance().dbCheckpointFeatureEnabled ||
-      bftEngine::ReplicaConfig::instance().maxNumberOfDbCheckpoints == 0) {
+  if (!ReplicaConfig::instance().dbCheckpointFeatureEnabled ||
+      ReplicaConfig::instance().maxNumberOfDbCheckpoints == 0) {
     const auto err = "StateSnapshotRequest(participant ID = " + cmd.participant_id +
                      "): failed, the DB checkpoint feature is disabled";
     LOG_WARN(getLogger(), err);
@@ -209,7 +214,7 @@ bool StateSnapshotReconfigurationHandler::handle(const concord::messages::StateS
     const auto idempotent_kvbc = std::make_shared<const adapter::ReplicaBlockchain>(db, link_st_chain);
     const auto reader = IdempotentReader{idempotent_kvbc};
     const auto filter = KvbAppFilter{&reader, ""};
-    if (bftEngine::ReplicaConfig::instance().enableEventGroups) {
+    if (ReplicaConfig::instance().enableEventGroups) {
       // TODO: We currently only support new participants and, therefore, the event group ID will always be the last
       // (newest) public event group ID.
       resp.data->blockchain_height = filter.getNewestPublicEventGroupId();
@@ -235,7 +240,7 @@ bool StateSnapshotReconfigurationHandler::handle(const concord::messages::StateS
       resp.data.emplace();
       resp.data->snapshot_id = *checkpoint_id;
       const auto filter = KvbAppFilter{&ro_storage_, ""};
-      if (bftEngine::ReplicaConfig::instance().enableEventGroups) {
+      if (ReplicaConfig::instance().enableEventGroups) {
         // TODO: We currently only support new participants and, therefore, the event group ID will always be the last
         // (newest) public event group ID.
         resp.data->blockchain_height = filter.getNewestPublicEventGroupId();
@@ -279,7 +284,6 @@ bool StateSnapshotReconfigurationHandler::handle(const concord::messages::Signed
                                                  uint32_t,
                                                  const std::optional<bftEngine::Timestamp>&,
                                                  concord::messages::ReconfigurationResponse& reconf_resp) {
-  using bftEngine::ReplicaConfig;
   using concord::kvbc::categorization::StateHash;
   using concord::kvbc::categorization::detail::deserialize;
   using concord::kvbc::categorization::detail::serialize;
@@ -321,13 +325,9 @@ bool StateSnapshotReconfigurationHandler::handle(const concord::messages::Signed
           resp.data.hash = public_state_hash.hash;
           resp.signature.assign(SigManager::instance()->getMySigLength(), 0);
           const auto data_ser = serialize(resp.data);
-          // We pass 0 as the last parameter. At the time of writing this code, the last parameter's value is not used
-          // and is not a reference. Therefore, we pass a temporary here so that if the type is changed to a reference,
-          // it will break and will prompt the user to review it again.
           SigManager::instance()->sign(reinterpret_cast<const char*>(data_ser.data()),
                                        data_ser.size(),
-                                       reinterpret_cast<char*>(resp.signature.data()),
-                                       0);
+                                       reinterpret_cast<char*>(resp.signature.data()));
           LOG_INFO(getLogger(),
                    "SignedPublicStateHashRequest: successful request for snapshot ID = "
                        << req.snapshot_id << ", requesting participant ID = " << req.participant_id);
@@ -464,8 +464,7 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientRec
                                               const std::optional<bftEngine::Timestamp>& ts,
                                               concord::messages::ReconfigurationResponse& rres) {
   concord::messages::ClientReconfigurationStateReply rep;
-  uint16_t first_client_id =
-      bftEngine::ReplicaConfig::instance().numReplicas + bftEngine::ReplicaConfig::instance().numRoReplicas;
+  uint16_t first_client_id = ReplicaConfig::instance().numReplicas + ReplicaConfig::instance().numRoReplicas;
   if (sender_id > first_client_id) {
     for (uint8_t i = kvbc::keyTypes::CLIENT_COMMAND_TYPES::start_ + 1; i < kvbc::keyTypes::CLIENT_COMMAND_TYPES::end_;
          i++) {
@@ -545,7 +544,7 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientsAddRemoveSta
                                     const std::optional<bftEngine::Timestamp>& ts,
                                     concord::messages::ReconfigurationResponse& rres) {
   concord::messages::ClientsAddRemoveStatusResponse stats;
-  for (const auto& gr : bftEngine::ReplicaConfig::instance().clientGroups) {
+  for (const auto& gr : ReplicaConfig::instance().clientGroups) {
     for (auto cid : gr.second) {
       std::string key =
           std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
@@ -574,12 +573,11 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientKeyExchangeSt
                                     concord::messages::ReconfigurationResponse& rres) {
   concord::messages::ClientKeyExchangeStatusResponse stats;
   concord::secretsmanager::SecretsManagerPlain psm;
-  for (const auto& gr : bftEngine::ReplicaConfig::instance().clientGroups) {
+  for (const auto& gr : ReplicaConfig::instance().clientGroups) {
     for (auto cid : gr.second) {
       if (command.tls) {
-        const std::string base_path =
-            bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" + std::to_string(cid);
-        std::string client_cert_path = (bftEngine::ReplicaConfig::instance().useUnifiedCertificates)
+        const std::string base_path = ReplicaConfig::instance().certificatesRootPath + "/" + std::to_string(cid);
+        std::string client_cert_path = (ReplicaConfig::instance().useUnifiedCertificates)
                                            ? base_path + "/node.cert"
                                            : base_path + "/client/client.cert";
         auto cert = psm.decryptFile(client_cert_path).value_or("invalid client id");
@@ -701,9 +699,7 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeC
   auto execute_key_prefix =
       std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
                   static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_SCALING_EXECUTE_COMMAND)};
-  for (uint64_t i = 0;
-       i < bftEngine::ReplicaConfig::instance().numReplicas + bftEngine::ReplicaConfig::instance().numRoReplicas;
-       i++) {
+  for (uint64_t i = 0; i < ReplicaConfig::instance().numReplicas + ReplicaConfig::instance().numRoReplicas; i++) {
     concord::messages::ClientsAddRemoveExecuteCommand cmd;
     cmd.config_descriptor = command.config_descriptor;
     if (token.find(i) == token.end()) continue;
@@ -836,7 +832,7 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientKeyExchangeCo
     LOG_INFO(getLogger(), "exchange client keys for all clients");
     // We don't want to assume anything about the CRE client id. Hence, we write the update to all clients.
     // However, only the CRE client will be able to execute the requests.
-    for (const auto& cg : bftEngine::ReplicaConfig::instance().clientGroups) {
+    for (const auto& cg : ReplicaConfig::instance().clientGroups) {
       for (auto cid : cg.second) {
         target_clients.push_back(cid);
       }
@@ -874,7 +870,7 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientsAddRemoveCom
   std::map<uint64_t, std::string> token;
   for (const auto& t : command.token) token.insert(t);
 
-  for (const auto& cg : bftEngine::ReplicaConfig::instance().clientGroups) {
+  for (const auto& cg : ReplicaConfig::instance().clientGroups) {
     for (auto cid : cg.second) {
       target_clients.push_back(cid);
     }
@@ -916,7 +912,7 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientsRestartComma
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
   std::vector<uint32_t> target_clients;
-  for (const auto& cg : bftEngine::ReplicaConfig::instance().clientGroups) {
+  for (const auto& cg : ReplicaConfig::instance().clientGroups) {
     for (auto cid : cg.second) {
       target_clients.push_back(cid);
     }
@@ -944,7 +940,7 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientsRestartStatu
                                     const std::optional<bftEngine::Timestamp>& ts,
                                     concord::messages::ReconfigurationResponse& rres) {
   concord::messages::ClientsRestartStatusResponse stats;
-  for (const auto& gr : bftEngine::ReplicaConfig::instance().clientGroups) {
+  for (const auto& gr : ReplicaConfig::instance().clientGroups) {
     for (auto cid : gr.second) {
       std::string key = std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
                                     static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_RESTART_STATUS)} +
@@ -994,9 +990,8 @@ bool ReconfigurationHandler::handle(const messages::UnwedgeCommand& cmd,
   }
   LOG_INFO(getLogger(), "Unwedge command started " << KVLOG(cmd.bft_support));
   auto curr_epoch = bftEngine::EpochManager::instance().getSelfEpochNumber();
-  auto quorum_size = bftEngine::ReplicaConfig::instance().numReplicas;
-  if (cmd.bft_support)
-    quorum_size = 2 * bftEngine::ReplicaConfig::instance().fVal + bftEngine::ReplicaConfig::instance().cVal + 1;
+  auto quorum_size = ReplicaConfig::instance().numReplicas;
+  if (cmd.bft_support) quorum_size = 2 * ReplicaConfig::instance().fVal + ReplicaConfig::instance().cVal + 1;
   uint32_t valid_sigs{0};
   for (auto const& [id, unwedge_stat] : cmd.unwedges) {
     if (unwedge_stat.curr_epoch < curr_epoch) continue;
@@ -1033,7 +1028,7 @@ bool ReconfigurationHandler::handle(const messages::UnwedgeStatusRequest& req,
                                     const std::optional<bftEngine::Timestamp>& ts,
                                     concord::messages::ReconfigurationResponse& rres) {
   concord::messages::UnwedgeStatusResponse response;
-  response.replica_id = bftEngine::ReplicaConfig::instance().replicaId;
+  response.replica_id = ReplicaConfig::instance().replicaId;
   if (bftEngine::ControlStateManager::instance().getCheckpointToStopAt().has_value()) {
     if ((!req.bft_support && !bftEngine::IControlHandler::instance()->isOnNOutOfNCheckpoint()) ||
         (req.bft_support && !bftEngine::IControlHandler::instance()->isOnStableCheckpoint())) {
@@ -1044,11 +1039,10 @@ bool ReconfigurationHandler::handle(const messages::UnwedgeStatusRequest& req,
     }
   }
   auto curr_epoch = bftEngine::EpochManager::instance().getSelfEpochNumber();
-  std::string sig_data =
-      std::to_string(bftEngine::ReplicaConfig::instance().getreplicaId()) + std::to_string(curr_epoch);
+  std::string sig_data = std::to_string(ReplicaConfig::instance().getreplicaId()) + std::to_string(curr_epoch);
   auto sig_manager = bftEngine::impl::SigManager::instance();
   std::string sig(sig_manager->getMySigLength(), '\0');
-  sig_manager->sign(sig_data.c_str(), sig_data.size(), sig.data(), sig.size());
+  sig_manager->sign(sig_data.c_str(), sig_data.size(), sig.data());
   response.can_unwedge = true;
   response.curr_epoch = curr_epoch;
   response.signature = std::vector<uint8_t>(sig.begin(), sig.end());
@@ -1142,7 +1136,7 @@ bool ReconfigurationHandler::handle(const concord::messages::PruneStatusRequest&
 bool InternalKvReconfigurationHandler::verifySignature(uint32_t sender_id,
                                                        const std::string& data,
                                                        const std::string& signature) const {
-  if (sender_id >= bftEngine::ReplicaConfig::instance().numReplicas) return false;
+  if (sender_id >= ReplicaConfig::instance().numReplicas) return false;
   return bftEngine::impl::SigManager::instance()->verifySig(
       sender_id, data.data(), data.size(), signature.data(), signature.size());
 }
@@ -1247,18 +1241,24 @@ bool InternalPostKvReconfigurationHandler::handle(const concord::messages::Clien
   LOG_INFO(getLogger(),
            "Writing client keys to block [" << id << "] after key exchange, keys "
                                             << std::hash<std::string>{}(updated_client_keys));
-  if (!bftEngine::ReplicaConfig::instance().saveClinetKeyFile) return true;
+  if (!ReplicaConfig::instance().saveClinetKeyFile) return true;
   // Now that keys have exchanged, lets persist the new key in the file system
   uint32_t group_id = 0;
-  for (const auto& [gid, cgr] : bftEngine::ReplicaConfig::instance().clientGroups) {
+  for (const auto& [gid, cgr] : ReplicaConfig::instance().clientGroups) {
     if (std::find(cgr.begin(), cgr.end(), sender_id) != cgr.end()) {
       group_id = gid;
       break;
     }
   }
-  std::string path = bftEngine::ReplicaConfig::instance().clientsKeysPrefix + "/" + std::to_string(group_id) +
-                     "/transaction_signing_pub.pem";
-  auto pem_key = concord::util::crypto::Crypto::instance().RsaHexToPem(std::make_pair("", command.pub_key));
+  std::string path =
+      ReplicaConfig::instance().clientsKeysPrefix + "/" + std::to_string(group_id) + "/transaction_signing_pub.pem";
+  std::pair<std::string, std::string> pem_key;
+  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
+    pem_key = Crypto::instance().RsaHexToPem(std::make_pair("", command.pub_key));
+  } else if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
+    pem_key = OpenSSLCryptoImpl::instance().EdDSAHexToPem(std::make_pair("", command.pub_key));
+  }
+
   concord::secretsmanager::SecretsManagerPlain sm;
   LOG_INFO(getLogger(), KVLOG(path, pem_key.second, sender_id));
   return sm.encryptFile(path, pem_key.second);

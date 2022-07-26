@@ -376,8 +376,7 @@ void DbCheckpointManager::sendInternalCreateDbCheckpointMsg(const SeqNum& seqNum
   std::vector<uint8_t> data_vec;
   concord::messages::db_checkpoint_msg::serialize(data_vec, req);
   std::string sig(SigManager::instance()->getMySigLength(), '\0');
-  uint16_t sig_length{0};
-  SigManager::instance()->sign(reinterpret_cast<char*>(data_vec.data()), data_vec.size(), sig.data(), sig_length);
+  SigManager::instance()->sign(reinterpret_cast<char*>(data_vec.data()), data_vec.size(), sig.data());
   req.signature = std::vector<uint8_t>(sig.begin(), sig.end());
   data_vec.clear();
   concord::messages::db_checkpoint_msg::serialize(data_vec, req);

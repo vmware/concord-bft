@@ -109,8 +109,7 @@ void RequestProcessingState::handlePrimaryPreProcessed(const char *preProcessRes
   std::vector<char> sig(sm->getMySigLength());
   sm->sign(reinterpret_cast<const char *>(primaryPreProcessResultHash_.data()),
            primaryPreProcessResultHash_.size(),
-           sig.data(),
-           sig.size());
+           sig.data());
   if (!preProcessingResultHashes_[primaryPreProcessResultHash_]
            .emplace(std::move(sig), myReplicaId_, preProcessResult)
            .second) {
@@ -235,8 +234,7 @@ void RequestProcessingState::modifyPrimaryResult(
   std::vector<char> sig(sm->getMySigLength());
   sm->sign(reinterpret_cast<const char *>(primaryPreProcessResultHash_.data()),
            primaryPreProcessResultHash_.size(),
-           sig.data(),
-           sig.size());
+           sig.data());
   if (!preProcessingResultHashes_[primaryPreProcessResultHash_]
            .emplace(std::move(sig), myReplicaId_, primaryPreProcessResult_)
            .second) {

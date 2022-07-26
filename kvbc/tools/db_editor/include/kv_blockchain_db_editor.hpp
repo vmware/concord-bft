@@ -30,7 +30,7 @@
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
 #include "bftengine/PersistentStorageImp.hpp"
 #include "bftengine/DbMetadataStorage.hpp"
-#include "crypto_utils.hpp"
+#include "sign_verify_utils.hpp"
 #include "json_output.hpp"
 #include "bftengine/ReplicaSpecificInfoManager.hpp"
 #include "kvbc_adapter/replica_adapter.hpp"
@@ -365,8 +365,9 @@ struct VerifyBlockRequests {
       out << "\t\t\"signature_digest\": \"" << hex_digest << "\",\n";
       out << "\t\t\"persistency_type\": \"" << persistencyType(req.requestPersistencyType) << "\",\n";
       std::string verification_result;
-      auto verifier = std::make_unique<concord::util::crypto::RSAVerifier>(
+      const auto verifier = concord::crypto::signature::VerifierFactory::getReplicaVerifier(
           client_keys.ids_to_keys[req.clientId].key,
+          bftEngine::ReplicaConfig::instance().replicaMsgSigningAlgo,
           (concord::util::crypto::KeyFormat)client_keys.ids_to_keys[req.clientId].format);
 
       if (req.requestPersistencyType == concord::messages::execution_data::EPersistecyType::RAW_ON_CHAIN) {
@@ -1057,8 +1058,7 @@ struct VerifyDbCheckpoint {
   using CheckPointMsgStatus = std::vector<std::pair<const CheckpointMsg &, bool>>;
   using CheckpointDesc = bftEngine::bcst::impl::DataStore::CheckpointDesc;
   using BlockHashData = std::tuple<uint64_t, BlockDigest, BlockDigest>;  //<blockId, parentHash, blockHash>
-  using IVerifier = concord::util::crypto::IVerifier;
-  using RSAVerifier = concord::util::crypto::RSAVerifier;
+  using IVerifier = concord::crypto::IVerifier;
   using KeyFormat = concord::util::crypto::KeyFormat;
   using ReplicaId = uint16_t;
   const bool read_only = true;
@@ -1106,7 +1106,11 @@ struct VerifyDbCheckpoint {
               auto format = cmd.format;
               transform(format.begin(), format.end(), format.begin(), ::tolower);
               auto key_format = ((format == "hex") ? KeyFormat::HexaDecimalStrippedFormat : KeyFormat::PemFormat);
-              replica_keys.emplace(repId, std::make_unique<RSAVerifier>(cmd.key, key_format));
+
+              replica_keys.emplace(
+                  repId,
+                  concord::crypto::signature::VerifierFactory::getReplicaVerifier(
+                      cmd.key, bftEngine::ReplicaConfig::instance().replicaMsgSigningAlgo, key_format));
             },
             *val);
       }

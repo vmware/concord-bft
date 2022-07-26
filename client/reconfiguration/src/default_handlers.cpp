@@ -12,8 +12,9 @@
 #include "client/reconfiguration/default_handlers.hpp"
 #include "bftclient/StateControl.hpp"
 #include "concord.cmf.hpp"
-#include "crypto_utils.hpp"
-#include "kvstream.h"
+#include "cryptopp_utils.hpp"
+#include "openssl_utils.hpp"
+#include "ReplicaConfig.hpp"
 
 #include <variant>
 #include <util/filesystem.hpp>
@@ -21,6 +22,12 @@
 namespace fs = std::experimental::filesystem;
 
 namespace concord::client::reconfiguration::handlers {
+
+using bftEngine::ReplicaConfig;
+using concord::crypto::signature::SIGN_VERIFY_ALGO;
+using concord::crypto::cryptopp::Crypto;
+using concord::crypto::openssl::OpenSSLCryptoImpl;
+using concord::crypto::openssl::CertificateUtils;
 
 template <typename T>
 bool validateInputState(const State& state, std::optional<uint64_t> init_block = std::nullopt) {
@@ -64,14 +71,13 @@ void ClientTlsKeyExchangeHandler::exchangeTlsKeys(const std::string& pkey_path,
                                                   const std::string& cert_path,
                                                   const uint64_t blockid) {
   // Generate new key pair
-  auto new_cert_keys = concord::util::crypto::Crypto::instance().generateECDSAKeyPair(
+  auto new_cert_keys = concord::crypto::cryptopp::Crypto::instance().generateECDSAKeyPair(
       concord::util::crypto::KeyFormat::PemFormat, concord::util::crypto::CurveType::secp384r1);
 
   std::string master_key = sm_->decryptFile(master_key_path_).value_or(std::string());
   if (master_key.empty()) master_key = psm_.decryptFile(master_key_path_).value_or(std::string());
   if (master_key.empty()) LOG_FATAL(getLogger(), "unable to read the node master key");
-  auto cert =
-      concord::util::crypto::CertificateUtils::generateSelfSignedCert(cert_path, new_cert_keys.second, master_key);
+  auto cert = CertificateUtils::generateSelfSignedCert(cert_path, new_cert_keys.second, master_key);
 
   sm_->encryptFile(pkey_path, new_cert_keys.first);
   psm_.encryptFile(cert_path, cert);
@@ -151,9 +157,18 @@ bool ClientMasterKeyExchangeHandler::validate(const State& state) const {
 bool ClientMasterKeyExchangeHandler::execute(const State& state, WriteState& out) {
   LOG_INFO(getLogger(), "execute transaction signing key exchange request");
   // Generate new key pair
-  auto hex_keys = concord::util::crypto::Crypto::instance().generateRsaKeyPair(
-      2048, concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat);
-  auto pem_keys = concord::util::crypto::Crypto::instance().RsaHexToPem(hex_keys);
+  std::pair<std::string, std::string> hex_keys;
+  std::pair<std::string, std::string> pem_keys;
+  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
+    hex_keys = Crypto::instance().generateRsaKeyPair(concord::crypto::cryptopp::RSA_SIGNATURE_LENGTH);
+    pem_keys = Crypto::instance().RsaHexToPem(hex_keys);
+  }
+  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
+    hex_keys = OpenSSLCryptoImpl::instance().generateEdDSAKeyPair();
+    pem_keys = OpenSSLCryptoImpl::instance().EdDSAHexToPem(hex_keys);
+  }
+
+  LOG_INFO(getLogger(), "Generated pem keys:" << KVLOG(pem_keys.first, pem_keys.second));
 
   concord::messages::ReconfigurationRequest rreq;
   concord::messages::ClientExchangePublicKey creq;

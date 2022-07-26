@@ -23,7 +23,6 @@
 #include "assertUtils.hpp"
 #include "hex_tools.h"
 #include "BCStateTran.hpp"
-#include "digest.hpp"
 #include "InMemoryDataStore.hpp"
 #include "json_output.hpp"
 #include "ReservedPagesClient.hpp"
@@ -52,6 +51,7 @@ using concord::util::digest::DigestGenerator;
 
 namespace bftEngine {
 namespace bcst {
+using concord::util::digest::BlockDigest;
 
 void computeBlockDigest(const uint64_t blockId,
                         const char *block,

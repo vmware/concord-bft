@@ -8,13 +8,13 @@
 #include <utility>
 #include "digest.hpp"
 
-using concord::util::digest::BlockDigest;
-
 namespace concord::storage {
 class IDBClient;
 }
 
 namespace concord::kvbc {
+
+using concord::util::digest::BlockDigest;
 
 class NotFoundException : public std::runtime_error {
  public:

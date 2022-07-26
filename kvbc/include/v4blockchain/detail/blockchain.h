@@ -118,7 +118,7 @@ class Blockchain {
   std::atomic<BlockId> genesis_block_id_{INVALID_BLOCK_ID};
   std::shared_ptr<concord::storage::rocksdb::NativeClient> native_client_;
   util::ThreadPool thread_pool_{1};
-  std::optional<std::future<BlockDigest>> future_digest_;
+  std::optional<std::future<concord::util::digest::BlockDigest>> future_digest_;
 };
 
 }  // namespace concord::kvbc::v4blockchain::detail
