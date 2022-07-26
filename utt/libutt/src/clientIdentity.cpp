@@ -3,6 +3,7 @@
 #include "burn.hpp"
 #include "mint.hpp"
 #include "transaction.hpp"
+#include "budget.hpp"
 #include <utt/IBE.h>
 #include <utt/Address.h>
 #include <utt/RandSig.h>
@@ -66,9 +67,12 @@ std::pair<Commitment, types::Signature> ClientIdentity::getRcm() const {
 }
 
 template <>
-std::vector<libutt::api::Coin> ClientIdentity::claimCoins<operations::Mint>(const operations::Mint& mint, Details& d, uint32_t n,
-                     const std::vector<std::map<uint32_t, types::Signature>>& rsigs) const {
-   Fr r_pid = Fr::zero(), r_sn = Fr::zero(), r_val = Fr::zero(), r_type = Fr::zero(), r_expdate = Fr::zero();
+std::vector<libutt::api::Coin> ClientIdentity::claimCoins<operations::Mint>(
+    const operations::Mint& mint,
+    Details& d,
+    uint32_t n,
+    const std::vector<std::map<uint32_t, types::Signature>>& rsigs) const {
+  Fr r_pid = Fr::zero(), r_sn = Fr::zero(), r_val = Fr::zero(), r_type = Fr::zero(), r_expdate = Fr::zero();
   std::vector<types::CurvePoint> r = {
       r_pid.to_words(), r_sn.to_words(), r_val.to_words(), r_type.to_words(), r_expdate.to_words()};
   auto sig = Utils::aggregateSigShares(d, Commitment::Type::COIN, n, rsigs.front(), r);
@@ -76,59 +80,58 @@ std::vector<libutt::api::Coin> ClientIdentity::claimCoins<operations::Mint>(cons
                       getPRFSecretKey(),
                       mint.op_->getSN().to_words(),
                       mint.op_->getVal().to_words(),
+                      getPidHash(),
                       Coin::Type::Normal,
-                      libutt::Coin::DoesNotExpire().to_words(),
-                      *this);
+                      libutt::Coin::DoesNotExpire().to_words());
   c.setSig(sig);
   c.randomize();
   return {c};
 }
 
 template <>
-std::vector<libutt::api::Coin> ClientIdentity::claimCoins<operations::Transaction>(const operations::Transaction& tx, Details& d, uint32_t n,
-                     const std::vector<std::map<uint32_t, types::Signature>>& rsigs) const {
-                      std::vector<libutt::api::Coin> ret;
-    auto mineTransactions = tx.tx_->getMineTransactions(*ask_);
-    size_t i = 0;
-    for (const auto& [txoIdx, txo] : mineTransactions) {
-      Fr r_pid = txo.t, r_sn = Fr::zero(), r_val = txo.d, r_type = Fr::zero(), r_expdate = Fr::zero();
-      std::vector<types::CurvePoint> r = {r_pid.to_words(), r_sn.to_words(), r_val.to_words(), r_type.to_words(), r_expdate.to_words()};
-      auto sig = Utils::aggregateSigShares(d, Commitment::Type::COIN, n, rsigs[i], r);
-      libutt::api::Coin c(d,
-                      getPRFSecretKey(),
-                      tx.tx_->getSN(txoIdx).to_words(),
-                      txo.val.to_words(),
-                      txo.coin_type == libutt::Coin::NormalType() ? Coin::Type::Normal : Coin::Type::Budget, 
-                      txo.exp_date.to_words(),
-                      *this);
-      c.setSig(sig);
-      c.randomize();
-      ret.emplace_back(std::move(c));
-      i++;
-    }
-    return ret;
+std::vector<libutt::api::Coin> ClientIdentity::claimCoins<operations::Budget>(
+    const operations::Budget& budget,
+    Details& d,
+    uint32_t n,
+    const std::vector<std::map<uint32_t, types::Signature>>& rsigs) const {
+  Fr r_pid = Fr::zero(), r_sn = Fr::zero(), r_val = Fr::zero(), r_type = Fr::zero(), r_expdate = Fr::zero();
+  std::vector<types::CurvePoint> r = {
+      r_pid.to_words(), r_sn.to_words(), r_val.to_words(), r_type.to_words(), r_expdate.to_words()};
+  auto sig = Utils::aggregateSigShares(d, Commitment::Type::COIN, n, rsigs.front(), r);
+  libutt::api::Coin c = budget.getCoin();
+  c.setSig(sig);
+  c.randomize();
+  return {c};
+}
+template <>
+std::vector<libutt::api::Coin> ClientIdentity::claimCoins<operations::Transaction>(
+    const operations::Transaction& tx,
+    Details& d,
+    uint32_t n,
+    const std::vector<std::map<uint32_t, types::Signature>>& rsigs) const {
+  std::vector<libutt::api::Coin> ret;
+  auto mineTransactions = tx.tx_->getMineTransactions(*ask_);
+  size_t i = 0;
+  for (const auto& [txoIdx, txo] : mineTransactions) {
+    Fr r_pid = txo.t, r_sn = Fr::zero(), r_val = txo.d, r_type = Fr::zero(), r_expdate = Fr::zero();
+    std::vector<types::CurvePoint> r = {
+        r_pid.to_words(), r_sn.to_words(), r_val.to_words(), r_type.to_words(), r_expdate.to_words()};
+    auto sig = Utils::aggregateSigShares(d, Commitment::Type::COIN, n, rsigs[i], r);
+    libutt::api::Coin c(d,
+                        getPRFSecretKey(),
+                        tx.tx_->getSN(txoIdx).to_words(),
+                        txo.val.to_words(),
+                        getPidHash(),
+                        txo.coin_type == libutt::Coin::NormalType() ? Coin::Type::Normal : Coin::Type::Budget,
+                        txo.exp_date.to_words());
+    c.setSig(sig);
+    c.randomize();
+    ret.emplace_back(std::move(c));
+    i++;
+  }
+  return ret;
 }
 
-
-//   for (size_t i = 0 ; i < tx.tx_->outs.size() ; i++) {
-//     auto txo = tx.tx_->outs.at(i);
-//     auto internal_coin = tx.tx_->tryClaimCoin(d.getParams(), i, ask, n, rsigs.at(i))
-//   }
-//    Fr r_pid = Fr::zero(), r_sn = Fr::zero(), r_val = Fr::zero(), r_type = Fr::zero(), r_expdate = Fr::zero();
-//   std::vector<types::CurvePoint> r = {
-//       r_pid.to_words(), r_sn.to_words(), r_val.to_words(), r_type.to_words(), r_expdate.to_words()};
-//   auto sig = Utils::aggregateSigShares(d, Commitment::Type::COIN, n, rsigs, r);
-//   libutt::api::Coin c(d,
-//                       getPRFSecretKey(),
-//                       mint.op_->getSN().to_words(),
-//                       mint.op_->getVal().to_words(),
-//                       Coin::Type::Normal,
-//                       libutt::Coin::DoesNotExpire().to_words(),
-//                       *this);
-//   c.setSig(sig);
-//   c.randomize();
-//   return {c};
-// }
 template <>
 bool ClientIdentity::validate<Coin>(const Coin& c) const {
   return c.coin_->hasValidSig(*bpk_);

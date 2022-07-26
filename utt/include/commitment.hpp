@@ -17,7 +17,7 @@ class ClientIdentity;
 namespace operations {
 class Burn;
 class Transaction;
-}
+}  // namespace operations
 class Commitment {
  public:
   enum Type { REGISTRATION = 0, VALUE, COIN };

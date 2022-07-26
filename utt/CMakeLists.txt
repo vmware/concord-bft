@@ -189,6 +189,7 @@ set(newutt_src
     libutt/src/common.cpp
     libutt/src/burn.cpp
     libutt/src/transaction.cpp
+    libutt/src/budget.cpp
     )
 add_library(newutt STATIC ${newutt_src})
 target_link_libraries(newutt PUBLIC utt)

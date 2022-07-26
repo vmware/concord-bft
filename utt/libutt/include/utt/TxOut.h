@@ -28,7 +28,7 @@ class TxOut {
  public:
   Fr coin_type;
   Fr exp_date;
-Fr val;
+  Fr val;
   mutable std::optional<G1> H;  // we do cache H here for the clients and server to re-use
   // CommKey ck_tx;          // 'icm' and 'vcm_2' are under CK (H, g), since that's what we need for threshold signing
   // using PS16...

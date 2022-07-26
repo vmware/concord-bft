@@ -14,6 +14,7 @@ namespace operations {
 class Burn;
 class Mint;
 class Transaction;
+class Budget;
 }  // namespace operations
 
 class Coin {
@@ -23,10 +24,10 @@ class Coin {
        const types::CurvePoint& prf,
        const types::CurvePoint& sn,
        const types::CurvePoint& val,
+       const types::CurvePoint& pidhash,
        Type p,
-       const types::CurvePoint& exp_date,
-       const ClientIdentity& cid);
-  Coin(); 
+       const types::CurvePoint& exp_date);
+  Coin();
   Coin(const Coin& c);
   Coin& operator=(const Coin& c);
   const std::string getNullifier() const;
@@ -40,6 +41,7 @@ class Coin {
   friend class ClientIdentity;
   friend class operations::Burn;
   friend class operations::Transaction;
+  friend class operations::Budget;
   std::unique_ptr<libutt::Coin> coin_;
   bool has_sig_{false};
 

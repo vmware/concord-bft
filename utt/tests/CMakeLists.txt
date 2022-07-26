@@ -2,6 +2,7 @@ set(newutt_test_sources
     TestDistributedRegistration.cpp
     TestMint.cpp
     TestBurn.cpp
+    TestBudget.cpp
 )
 
 foreach(appSrc ${newutt_test_sources})

@@ -3,6 +3,7 @@
 #include "details.hpp"
 #include "burn.hpp"
 #include "transaction.hpp"
+#include "budget.hpp"
 #include <utt/Params.h>
 #include <utt/RandSig.h>
 #include <utt/RegAuth.h>
@@ -39,10 +40,35 @@ std::vector<types::Signature> BankIdentity::sign<operations::Transaction>(operat
   std::vector<types::Signature> sigs;
   auto res = tx.tx_->shareSignCoins(*bsk_);
   for (const auto& [_, sig] : res) {
-      auto sig_str = libutt::serialize<libutt::RandSigShare>(sig);
-      sigs.push_back(types::Signature(sig_str.begin(), sig_str.end()));
+    auto sig_str = libutt::serialize<libutt::RandSigShare>(sig);
+    sigs.push_back(types::Signature(sig_str.begin(), sig_str.end()));
   }
   return sigs;
+}
+
+template <>
+std::vector<types::Signature> BankIdentity::sign<operations::Budget>(operations::Budget& budget) const {
+  std::vector<types::Signature> sigs;
+  std::string h1 = budget.getHashHex();
+  G1 H = hashToGroup<G1>("ps16base|" + h1);
+  Fr pidHash;
+  Fr sn;
+  Fr val;
+  Fr type = libutt::Coin::BudgetType();
+  Fr exp_date;
+  pidHash.from_words(budget.getPidHash());
+  sn.from_words(budget.getSN());
+  val.from_words(budget.getVal());
+  exp_date.from_words(budget.getExpDate());
+  Comm icm = (pidHash * H);  // H^pidHash g^0
+  Comm scm(sn * H);          // H^sn g^0
+  Comm vcm = (val * H);      // H^value g^0
+  Comm tcm(type * H);        // H^type g^0
+  Comm dcm(exp_date * H);    // H^exp_date g^0
+
+  auto sig = bsk_->shareSign({icm, scm, vcm, tcm, dcm}, H);
+  auto sig_str = libutt::serialize<libutt::RandSigShare>(sig);
+  return {types::Signature(sig_str.begin(), sig_str.end())};
 }
 
 template <>
@@ -51,7 +77,8 @@ bool BankIdentity::validate<operations::Burn>(const operations::Burn& burn, cons
   return burn.burn_->validate(Details::instance().getParams(), *(bvk_), *(rvk_));
 }
 template <>
-bool BankIdentity::validate<operations::Transaction>(const operations::Transaction& tx, const types::Signature& sig) const {
+bool BankIdentity::validate<operations::Transaction>(const operations::Transaction& tx,
+                                                     const types::Signature& sig) const {
   (void)sig;
   return tx.tx_->validate(Details::instance().getParams(), *(bvk_), *(rvk_));
 }

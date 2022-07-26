@@ -8,7 +8,7 @@
 #include <optional>
 #include <vector>
 namespace libutt {
-class Tx; 
+class Tx;
 }
 
 namespace libutt::api::operations {
@@ -19,9 +19,10 @@ class Transaction {
               const std::optional<Coin>&,
               const std::vector<std::tuple<std::string, uint64_t>>&);
   std::vector<std::string> getNullifiers() const;
+
  private:
- friend class libutt::api::BankIdentity;
- friend class libutt::api::ClientIdentity;
+  friend class libutt::api::BankIdentity;
+  friend class libutt::api::ClientIdentity;
   std::shared_ptr<libutt::Tx> tx_;
 };
-}  // namespace libutt::api
+}  // namespace libutt::api::operations

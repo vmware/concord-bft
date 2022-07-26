@@ -44,7 +44,5 @@ Transaction::Transaction(Details& d,
                            rpk.vk,
                            mpk));
 }
-std::vector<std::string> Transaction::getNullifiers() const {
-  return tx_->getNullifiers();
-}
-}  // namespace libutt::api
+std::vector<std::string> Transaction::getNullifiers() const { return tx_->getNullifiers(); }
+}  // namespace libutt::api::operations

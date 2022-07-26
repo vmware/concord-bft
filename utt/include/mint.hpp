@@ -10,7 +10,7 @@ class MintOp;
 namespace libutt::api {
 class BankIdentity;
 class ClientIdentity;
-}
+}  // namespace libutt::api
 namespace libutt::api::operations {
 
 class Mint {

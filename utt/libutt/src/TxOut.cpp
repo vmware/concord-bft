@@ -100,8 +100,8 @@ TxOut::TxOut(const CommKey& ck_val,  // this is the (g_3, g) CK, and *not* the c
              Fr pid_hash_recip)
     : coin_type(coin_type),
       exp_date(exp_date),
-      val(val), // not serialized, only for claiming the coin
-      H(H),  // cache it here, so clients can verify their sigshares faster
+      val(val),  // not serialized, only for claiming the coin
+      H(H),      // cache it here, so clients can verify their sigshares faster
       // z(z),
       vcm_1(Comm::create(ck_val, {val, z}, false)),
       // need to pick randomness d for vcm_2 and save it to do proofs

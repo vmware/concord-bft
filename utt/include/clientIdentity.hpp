@@ -14,7 +14,7 @@ class Coin;
 namespace operations {
 class Burn;
 class Transaction;
-}
+}  // namespace operations
 class ClientIdentity {
  public:
   ClientIdentity(const std::string& pid,
@@ -30,8 +30,10 @@ class ClientIdentity {
   void setRCM(const Commitment& comm, const types::Signature& sig);
   std::pair<Commitment, types::Signature> getRcm() const;
   template <typename T>
-  std::vector<libutt::api::Coin> claimCoins(const T&, Details& d, uint32_t n,
-                     const std::vector<std::map<uint32_t, types::Signature>>& rsigs) const;
+  std::vector<libutt::api::Coin> claimCoins(const T&,
+                                            Details& d,
+                                            uint32_t n,
+                                            const std::vector<std::map<uint32_t, types::Signature>>& rsigs) const;
 
   template <typename T>
   bool validate(const T&) const;
