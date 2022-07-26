@@ -192,6 +192,13 @@ class ConcordClient {
   // TODO: Allow multiple subscriptions
   std::atomic_bool active_subscription_{false};
 
+  concordMetrics::Component metrics_component_;
+  struct Metrics {
+    concordMetrics::GaugeHandle principal_id;
+    concordMetrics::GaugeHandle participant_id_decimal_sum;  // used to represent the participant_id as a number
+    concordMetrics::StatusHandle participant_id;
+  } metrics_;
+
   std::vector<std::shared_ptr<::client::concordclient::GrpcConnection>> grpc_connections_;
   std::unique_ptr<::client::thin_replica_client::ThinReplicaClient> trc_;
   std::unique_ptr<::client::replica_state_snapshot_client::ReplicaStateSnapshotClient> rss_;

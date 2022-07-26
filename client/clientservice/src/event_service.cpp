@@ -111,7 +111,7 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
       // update write duration metric
       end_processing = std::chrono::steady_clock::now();
       auto duration_write = std::chrono::duration_cast<std::chrono::microseconds>(end_processing - start_write);
-      metrics_.write_dur.Get().Set(duration_write.count());
+      metrics_.write_duration.Get().Set(duration_write.count());
     } else if (std::holds_alternative<cc::Update>(*update)) {
       auto& legacy_event_in = std::get<cc::Update>(*update);
       Events proto_events;
@@ -132,14 +132,14 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
       // update write duration metric
       end_processing = std::chrono::steady_clock::now();
       auto duration_write = std::chrono::duration_cast<std::chrono::microseconds>(end_processing - start_write);
-      metrics_.write_dur.Get().Set(duration_write.count());
+      metrics_.write_duration.Get().Set(duration_write.count());
     } else {
       LOG_ERROR(logger_, "Got unexpected update type from TRC. This should never happen!");
     }
     // update processing duration metric
-    auto update_processing_dur =
+    auto update_processing_duration =
         std::chrono::duration_cast<std::chrono::microseconds>(end_processing - start_processing);
-    metrics_.update_processing_dur.Get().Set(update_processing_dur.count());
+    metrics_.update_processing_duration.Get().Set(update_processing_duration.count());
 
     // update metrics aggregator every second
     auto metrics_aggregator_dur =

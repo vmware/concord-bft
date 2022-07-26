@@ -13,6 +13,7 @@
 
 #include <chrono>
 #include <thread>
+#include <numeric>
 
 #include "assertUtils.hpp"
 #include "client/concordclient/concord_client.hpp"
@@ -34,7 +35,16 @@ using bft::communication::NodeInfo;
 namespace concord::client::concordclient {
 
 ConcordClient::ConcordClient(const ConcordClientConfig& config, std::shared_ptr<concordMetrics::Aggregator> aggregator)
-    : logger_(logging::getLogger("concord.client.concordclient")), config_(config), metrics_(aggregator) {
+    : logger_(logging::getLogger("concord.client.concordclient")),
+      config_(config),
+      aggregator_(aggregator),
+      metrics_component_{concordMetrics::Component("concord_client", std::make_shared<concordMetrics::Aggregator>())},
+      metrics_{
+          metrics_component_.RegisterGauge("principal_id", config.client_service.id.val),
+          metrics_component_.RegisterGauge("participant_id_decimal_sum", 0),
+          metrics_component_.RegisterStatus("participant_id", config_.subscribe_config.id),
+      } {
+  LOG_INFO(logger_, "");
   ConcordClientPoolConfig client_pool_config = createClientPoolStruct(config);
   client_pool_ = std::make_unique<concord::concord_client_pool::ConcordClientPool>(client_pool_config, metrics_);
   while (client_pool_->HealthStatus() == concord::concord_client_pool::PoolStatus::NotServing) {
@@ -42,6 +52,10 @@ ConcordClient::ConcordClient(const ConcordClientConfig& config, std::shared_ptr<
     std::this_thread::sleep_for(std::chrono::seconds(2));
   }
   createGrpcConnections();
+  
+  int sum = std::accumulate(config_.subscribe_config.id.begin(), config_.subscribe_config.id.end(), 0);
+  metrics_.participant_id_decimal_sum.Get().Set(sum);
+  metrics_component_.UpdateAggregator();
 }
 
 ConcordClientPoolConfig ConcordClient::createClientPoolStruct(const ConcordClientConfig& config) {
