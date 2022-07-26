@@ -1,4 +1,5 @@
 #pragma once
+#include "types.hpp"
 #include <string>
 #include <memory>
 #include <vector>
@@ -12,10 +13,10 @@ class BankIdentity {
  public:
   BankIdentity(const std::string& id, const std::string& bsk, const std::string& bvk, const std::string& rvk);
   template <typename T>
-  std::vector<uint8_t> sign(T& data) const;
+  types::Signature sign(T& data) const;
   const std::string& getId() const;
   template <typename T>
-  bool validate(const T&, std::vector<uint8_t> sig) const;
+  bool validate(const T&, const types::Signature& sig) const;
 
  private:
   std::string bid_;

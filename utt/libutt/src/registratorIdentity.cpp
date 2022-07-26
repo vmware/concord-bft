@@ -22,18 +22,17 @@ RegistratorIdentity::RegistratorIdentity(const std::string& id,
   *tmp_ = tmp;
 }
 
-std::vector<uint8_t> RegistratorIdentity::ComputeRCMSig(const std::vector<uint64_t>& pid_hash,
-                                                        const Commitment& rcm1) const {
+types::Signature RegistratorIdentity::ComputeRCMSig(const types::CurvePoint& pid_hash, const Commitment& rcm1) const {
   Fr fr_pid;
   fr_pid.from_words(pid_hash);
   auto h1 = hashToHex(pid_hash);
   G1 H = libutt::hashToGroup<G1>("ps16base|" + h1);
   auto res = rsk_->sk.shareSign({(fr_pid * H), *(rcm1.comm_)}, H);
   auto res_str = libutt::serialize<libutt::RandSigShare>(res);
-  return std::vector<uint8_t>(res_str.begin(), res_str.end());
+  return types::Signature(res_str.begin(), res_str.end());
 }
 
-bool RegistratorIdentity::validateRCM(const Commitment& comm, const std::vector<uint8_t>& sig) {
+bool RegistratorIdentity::validateRCM(const Commitment& comm, const types::Signature& sig) {
   libutt::RandSig rsig = libutt::deserialize<libutt::RandSig>(sig);
   return rsig.verify(*comm.comm_, rpk_->vk);
 }

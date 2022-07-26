@@ -18,7 +18,7 @@ Coin Mint::claimCoin(Details& d,
                      uint32_t n,
                      const std::map<uint32_t, std::vector<uint8_t>>& rsigs) const {
   Fr r_pid = Fr::zero(), r_sn = Fr::zero(), r_val = Fr::zero(), r_type = Fr::zero(), r_expdate = Fr::zero();
-  std::vector<std::vector<uint64_t>> r = {
+  std::vector<types::CurvePoint> r = {
       r_pid.to_words(), r_sn.to_words(), r_val.to_words(), r_type.to_words(), r_expdate.to_words()};
   auto sig = Utils::aggregateSigShares(d, Commitment::Type::COIN, n, rsigs, r);
   libutt::api::Coin c(d,

@@ -1,5 +1,6 @@
 #pragma once
 #include "details.hpp"
+#include "types.hpp"
 #include <vector>
 
 namespace libutt {
@@ -9,9 +10,9 @@ namespace libutt::api {
 class Nullifier {
  public:
   Nullifier(Details& d,
-            const std::vector<uint64_t>& prf_secret_key,
-            const std::vector<uint64_t>& sn,
-            const std::vector<uint64_t>& randomization);
+            const types::CurvePoint& prf_secret_key,
+            const types::CurvePoint& sn,
+            const types::CurvePoint& randomization);
   bool validate(Details& d) const;
   std::string toString() const;
 

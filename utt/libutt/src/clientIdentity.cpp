@@ -29,12 +29,12 @@ ClientIdentity::ClientIdentity(const std::string& pid,
   ask_->mpk_ = libutt::deserialize<libutt::IBE::MPK>(mpk);
 }
 Commitment ClientIdentity::generateFullRCM(Details& d) {
-  std::vector<std::vector<uint64_t>> m = {getPidHash(), ask_->s.to_words(), Fr::zero().to_words()};
+  std::vector<types::CurvePoint> m = {getPidHash(), ask_->s.to_words(), Fr::zero().to_words()};
   auto comm = Commitment(d, Commitment::Type::REGISTRATION, m, true);
   return comm;
 }
 Commitment ClientIdentity::generatePartialRCM(Details& d) {
-  std::vector<std::vector<uint64_t>> m = {Fr::zero().to_words(), ask_->s.to_words(), Fr::zero().to_words()};
+  std::vector<types::CurvePoint> m = {Fr::zero().to_words(), ask_->s.to_words(), Fr::zero().to_words()};
   auto comm = Commitment(d, Commitment::Type::REGISTRATION, m, true);
 
   auto& reg_ck = d.getParams().ck_reg;
@@ -46,19 +46,19 @@ Commitment ClientIdentity::generatePartialRCM(Details& d) {
 }
 
 std::string ClientIdentity::getPid() const { return ask_->pid; }
-std::vector<uint64_t> ClientIdentity::getPidHash() const { return ask_->getPidHash().to_words(); }
-std::vector<uint64_t> ClientIdentity::getPRFSecretKey() const { return ask_->s.to_words(); }
+types::CurvePoint ClientIdentity::getPidHash() const { return ask_->getPidHash().to_words(); }
+types::CurvePoint ClientIdentity::getPRFSecretKey() const { return ask_->s.to_words(); }
 
-void ClientIdentity::setRCM(const Commitment& comm, const std::vector<uint8_t>& sig) {
+void ClientIdentity::setRCM(const Commitment& comm, const types::Signature& sig) {
   rcm_ = comm;
   rcm_sig_ = sig;
   ask_->rcm = *(comm.comm_);
   ask_->rs = libutt::deserialize<libutt::RandSig>(sig);
 }
 
-std::pair<Commitment, std::vector<uint8_t>> ClientIdentity::getRcm() const {
+std::pair<Commitment, types::Signature> ClientIdentity::getRcm() const {
   auto tmp = libutt::serialize<libutt::RandSig>(ask_->rs);
-  return {rcm_, std::vector<uint8_t>(tmp.begin(), tmp.end())};
+  return {rcm_, types::Signature(tmp.begin(), tmp.end())};
 }
 template <>
 bool ClientIdentity::validate<Coin>(const Coin& c) {

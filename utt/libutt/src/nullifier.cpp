@@ -5,9 +5,9 @@
 
 namespace libutt::api {
 Nullifier::Nullifier(Details& d,
-                     const std::vector<uint64_t>& prf_secret_key,
-                     const std::vector<uint64_t>& sn,
-                     const std::vector<uint64_t>& randomization) {
+                     const types::CurvePoint& prf_secret_key,
+                     const types::CurvePoint& sn,
+                     const types::CurvePoint& randomization) {
   Fr sprf;
   sprf.from_words(prf_secret_key);
   Fr frsn;

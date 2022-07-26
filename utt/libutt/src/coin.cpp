@@ -6,11 +6,11 @@
 
 namespace libutt::api {
 Coin::Coin(Details& d,
-           const std::vector<uint64_t>& prf,
-           const std::vector<uint64_t>& sn,
-           const std::vector<uint64_t>& val,
+           const types::CurvePoint& prf,
+           const types::CurvePoint& sn,
+           const types::CurvePoint& val,
            Type t,
-           const std::vector<uint64_t>& exp_date,
+           const types::CurvePoint& exp_date,
            ClientIdentity& cid) {
   Fr fr_sn;
   fr_sn.from_words(sn);
@@ -48,14 +48,14 @@ Coin& Coin::operator=(const Coin& c) {
 }
 const std::string Coin::getNullifier() const { return coin_->null.toUniqueString(); }
 bool Coin::hasSig() const { return has_sig_; }
-void Coin::setSig(const std::vector<uint8_t>& sig) {
+void Coin::setSig(const types::Signature& sig) {
   coin_->sig = libutt::deserialize<libutt::RandSig>(std::string(sig.begin(), sig.end()));
   has_sig_ = true;
 }
 Coin::Type Coin::getType() const { return type_; }
-std::vector<uint8_t> Coin::getSig() const {
+types::Signature Coin::getSig() const {
   auto str_sig = libutt::serialize<libutt::RandSig>(coin_->sig);
-  return std::vector<uint8_t>(str_sig.begin(), str_sig.end());
+  return types::Signature(str_sig.begin(), str_sig.end());
 }
 void Coin::randomize() {
   Fr u_delta = Fr::random_element();

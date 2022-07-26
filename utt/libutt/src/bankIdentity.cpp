@@ -27,14 +27,14 @@ BankIdentity::BankIdentity(const std::string& id,
 
 const std::string& BankIdentity::getId() const { return bid_; }
 template <>
-std::vector<uint8_t> BankIdentity::sign<operations::Mint>(operations::Mint& mint) const {
+types::Signature BankIdentity::sign<operations::Mint>(operations::Mint& mint) const {
   auto res = mint.op_->shareSignCoin(*bsk_);
   auto res_str = libutt::serialize<libutt::RandSigShare>(res);
   return std::vector<uint8_t>(res_str.begin(), res_str.end());
 }
 
 template <>
-bool BankIdentity::validate<operations::Burn>(const operations::Burn& burn, std::vector<uint8_t> sig) const {
+bool BankIdentity::validate<operations::Burn>(const operations::Burn& burn, const types::Signature& sig) const {
   (void)sig;
   return burn.burn_->validate(Details::instance().getParams(), *(bvk_), *(rvk_));
 }

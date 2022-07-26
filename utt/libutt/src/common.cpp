@@ -4,11 +4,11 @@
 #include <utt/Serialization.h>
 #include <utt/Params.h>
 namespace libutt::api {
-std::vector<uint8_t> Utils::aggregateSigShares(Details& d,
-                                               Commitment::Type t,
-                                               uint32_t n,
-                                               const std::map<uint32_t, std::vector<uint8_t>>& rsigs,
-                                               std::vector<std::vector<uint64_t>> randomness) {
+types::Signature Utils::aggregateSigShares(Details& d,
+                                           Commitment::Type t,
+                                           uint32_t n,
+                                           const std::map<uint32_t, types::Signature>& rsigs,
+                                           std::vector<types::CurvePoint> randomness) {
   std::vector<libutt::RandSigShare> shares;
   std::vector<size_t> signers;
   for (const auto& [sid, rsig] : rsigs) {
@@ -31,6 +31,6 @@ std::vector<uint8_t> Utils::aggregateSigShares(Details& d,
   }
   auto csig = libutt::RandSigShare::aggregate((size_t)(n), shares, signers, ck, fr_randomness);
   auto str_csig = libutt::serialize<libutt::RandSig>(csig);
-  return std::vector<uint8_t>(str_csig.begin(), str_csig.end());
+  return types::Signature(str_csig.begin(), str_csig.end());
 }
 }  // namespace libutt::api

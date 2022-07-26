@@ -17,10 +17,7 @@ class Mint {
  public:
   Mint(const std::string& uniqueHash, size_t value, const std::string& recipPID);
   bool validate(const std::string& uniqueHash, size_t value, const std::string& recipPID) const;
-  Coin claimCoin(Details& d,
-                 ClientIdentity& cid,
-                 uint32_t n,
-                 const std::map<uint32_t, std::vector<uint8_t>>& rsigs) const;
+  Coin claimCoin(Details& d, ClientIdentity& cid, uint32_t n, const std::map<uint32_t, types::Signature>& rsigs) const;
 
  private:
   friend class libutt::api::BankIdentity;

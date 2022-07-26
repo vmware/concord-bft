@@ -2,6 +2,7 @@
 #include "commitment.hpp"
 #include "details.hpp"
 #include "common.hpp"
+#include "types.hpp"
 #include <memory>
 namespace libutt {
 class AddrSK;
@@ -22,10 +23,10 @@ class ClientIdentity {
   Commitment generatePartialRCM(Details& d);
   Commitment generateFullRCM(Details& d);
   std::string getPid() const;
-  std::vector<uint64_t> getPRFSecretKey() const;
-  std::vector<uint64_t> getPidHash() const;
-  void setRCM(const Commitment& comm, const std::vector<uint8_t>& sig);
-  std::pair<Commitment, std::vector<uint8_t>> getRcm() const;
+  types::CurvePoint getPRFSecretKey() const;
+  types::CurvePoint getPidHash() const;
+  void setRCM(const Commitment& comm, const types::Signature& sig);
+  std::pair<Commitment, types::Signature> getRcm() const;
   template <typename T>
   bool validate(const T&);
 
@@ -35,6 +36,6 @@ class ClientIdentity {
   std::unique_ptr<libutt::RandSigPK> bpk_;
   std::unique_ptr<libutt::RegAuthPK> rpk_;
   Commitment rcm_;
-  std::vector<uint8_t> rcm_sig_;
+  types::Signature rcm_sig_;
 };
 }  // namespace libutt::api

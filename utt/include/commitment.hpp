@@ -1,5 +1,6 @@
 #pragma once
 #include "details.hpp"
+#include "types.hpp"
 #include <vector>
 #include <cstdint>
 namespace libutt {
@@ -18,18 +19,13 @@ class Burn;
 class Commitment {
  public:
   enum Type { REGISTRATION = 0, VALUE, COIN };
-  static std::vector<Commitment> create(Details& d,
-                                        Type t,
-                                        const std::vector<std::vector<uint64_t>>& messages,
-                                        std::vector<std::vector<uint64_t>>& randomizations,
-                                        bool withG2);
-  Commitment(Details& d, Type t, const std::vector<std::vector<uint64_t>>& messages, bool withG2);
+  Commitment(Details& d, Type t, const std::vector<types::CurvePoint>& messages, bool withG2);
   Commitment(const std::string& comm);
   Commitment(const Commitment& comm);
   Commitment();
   Commitment& operator=(const Commitment&);
   Commitment& operator+=(const Commitment&);
-  std::vector<uint64_t> randomize(Details& d, Type t);
+  types::CurvePoint randomize(Details& d, Type t);
   static size_t getCommitmentSn(const Commitment& comm);
   static std::string getCommitmentHash(const Commitment& comm);
 
