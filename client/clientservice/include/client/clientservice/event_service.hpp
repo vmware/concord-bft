@@ -23,8 +23,8 @@ struct EventServiceMetrics {
   EventServiceMetrics()
       : metrics_component_{"EventService", std::make_shared<concordMetrics::Aggregator>()},
         total_num_writes{metrics_component_.RegisterCounter("total_num_writes", 0)},
-        update_processing_dur{metrics_component_.RegisterGauge("update_processing_dur", 0)},
-        write_dur{metrics_component_.RegisterGauge("write_dur", 0)} {
+        update_processing_duration{metrics_component_.RegisterGauge("update_processing_duration", 0)},
+        write_duration{metrics_component_.RegisterGauge("write_duration", 0)} {
     metrics_component_.Register();
   }
 
@@ -42,9 +42,9 @@ struct EventServiceMetrics {
   concordMetrics::CounterHandle total_num_writes;
   // time taken to process an update (time between when an update is received by the event service from the update queue
   // until it is written to the stream)
-  concordMetrics::GaugeHandle update_processing_dur;
+  concordMetrics::GaugeHandle update_processing_duration;
   // time taken to write an update to the gRPC stream
-  concordMetrics::GaugeHandle write_dur;
+  concordMetrics::GaugeHandle write_duration;
 };
 
 class EventServiceImpl final : public vmware::concord::client::event::v1::EventService::Service {
