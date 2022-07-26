@@ -46,7 +46,7 @@ ReplicaAsksToLeaveViewMsg* ReplicaAsksToLeaveViewMsg::create(ReplicaId senderId,
   std::memcpy(position, spanContext.data().data(), spanContext.data().size());
   position += spanContext.data().size();
 
-  sigManager->sign(m->body(), sizeof(Header), position, sigLen);
+  sigManager->sign(m->body(), sizeof(Header), position);
 
   return m;
 }

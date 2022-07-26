@@ -80,8 +80,7 @@ std::optional<std::string> PreProcessResultMsg::validatePreProcessResultSignatur
     bool verificationResult = false;
     if (myReplicaId == sig.sender_replica) {
       std::vector<char> mySignature(sigManager_->getMySigLength(), '\0');
-      sigManager_->sign(
-          reinterpret_cast<const char*>(hash.data()), hash.size(), mySignature.data(), mySignature.size());
+      sigManager_->sign(reinterpret_cast<const char*>(hash.data()), hash.size(), mySignature.data());
       verificationResult = mySignature == sig.signature;
     } else {
       verificationResult = sigManager_->verifySig(
