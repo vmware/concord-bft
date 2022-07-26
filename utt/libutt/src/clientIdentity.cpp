@@ -12,7 +12,7 @@
 #include <vector>
 #include <sstream>
 namespace libutt::api {
-ClientIdentity::ClientIdentity(const std::string& pid, const std::string& bpk, const std::string& rvk) {
+ClientIdentity::ClientIdentity(const std::string& pid, const std::string& bpk, const std::string& rvk, const std::string& csk, const std::string& mpk) {
   ask_.reset(new libutt::AddrSK());
   ask_->pid = pid;
   ask_->s = Fr::random_element();
@@ -21,21 +21,30 @@ ClientIdentity::ClientIdentity(const std::string& pid, const std::string& bpk, c
   *bpk_ = libutt::deserialize<libutt::RandSigPK>(bpk);
   rpk_.reset(new libutt::RegAuthPK());
   *rpk_ = libutt::deserialize<libutt::RegAuthPK>(rvk);
+  ask_->e = libutt::deserialize<libutt::IBE::EncSK>(csk);
+  ask_->mpk_ = libutt::deserialize<libutt::IBE::MPK>(mpk);
+
+}
+Commitment ClientIdentity::generateFullRCM(Details& d) {
+  std::vector<std::vector<uint64_t>> m = {getPidHash(), ask_->s.to_words(), Fr::zero().to_words()};
+  auto comm = Commitment(d, Commitment::Type::REGISTRATION, m, true);
+  return comm;
 }
 Commitment ClientIdentity::generatePartialRCM(Details& d) {
   std::vector<std::vector<uint64_t>> m = {Fr::zero().to_words(), ask_->s.to_words(), Fr::zero().to_words()};
   auto comm = Commitment(d, Commitment::Type::REGISTRATION, m, true);
+
+  auto& reg_ck = d.getParams().ck_reg;
+  auto h1 = hashToHex(getPidHash());
+  G1 H = libutt::hashToGroup<G1>("ps16base|" + h1);
+  CommKey ck_extra({H, reg_ck.getGen1()});
+  *(comm.comm_) = libutt::Comm::create(ck_extra, {ask_->s, Fr::zero()}, false);
   return comm;
 }
 
 std::string ClientIdentity::getPid() const { return ask_->pid; }
 std::vector<uint64_t> ClientIdentity::getPidHash() const { return ask_->getPidHash().to_words(); }
 std::vector<uint64_t> ClientIdentity::getPRFSecretKey() const { return ask_->s.to_words(); }
-
-void ClientIdentity::setIBEDetails(const std::vector<uint8_t>& sk, const std::vector<uint8_t>& mpk) {
-  ask_->e = libutt::deserialize<libutt::IBE::EncSK>(std::string(sk.begin(), sk.end()));
-  ask_->mpk_ = libutt::deserialize<libutt::IBE::MPK>(std::string(mpk.begin(), mpk.end()));
-}
 
 void ClientIdentity::setRCM(const Commitment& comm, const std::vector<uint8_t>& sig) {
   rcm_ = comm;

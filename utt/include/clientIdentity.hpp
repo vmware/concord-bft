@@ -14,12 +14,12 @@ namespace operations {
 }
 class ClientIdentity {
  public:
-  ClientIdentity(const std::string& pid, const std::string& bpk, const std::string& rpk);
+  ClientIdentity(const std::string& pid, const std::string& bpk, const std::string& rpk, const std::string& csk, const std::string& mpk);
   Commitment generatePartialRCM(Details& d);
+  Commitment generateFullRCM(Details& d);
   std::string getPid() const;
   std::vector<uint64_t> getPRFSecretKey() const;
   std::vector<uint64_t> getPidHash() const;
-  void setIBEDetails(const std::vector<uint8_t>& sk, const std::vector<uint8_t>& mpk);
   void setRCM(const Commitment& comm, const std::vector<uint8_t>& sig);
   std::pair<Commitment, std::vector<uint8_t>> getRcm() const;
   template <typename T>

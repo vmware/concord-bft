@@ -52,7 +52,7 @@ std::vector<std::shared_ptr<RegistratorIdentity>> GenerateRegistrators(size_t n,
   std::vector<std::shared_ptr<RegistratorIdentity>> registrators;
   for (size_t i = 0; i < n; i++) {
     registrators.push_back(std::make_shared<RegistratorIdentity>(
-        std::to_string(i), serialize<RegAuthShareSK>(rsk.shares[i]), serialize<RegAuthPK>(rsk.toPK())));
+        std::to_string(i), serialize<RegAuthShareSK>(rsk.shares[i]), serialize<RegAuthPK>(rsk.toPK()), rsk));
   }
   return registrators;
 }
@@ -65,13 +65,18 @@ std::vector<std::shared_ptr<BankIdentity>> GenerateCommitters(size_t n, const Ra
   return banks;
 }
 
-std::vector<ClientIdentity> GenerateClients(size_t c, const RandSigPK& bvk, const RegAuthPK& rvk) {
+std::vector<ClientIdentity> GenerateClients(size_t c, const RandSigPK& bvk, const RegAuthPK& rvk, const RegAuthSK& rsk) {
   std::vector<ClientIdentity> clients;
   std::string bpk = libutt::serialize<libutt::RandSigPK>(bvk);
   std::string rpk = libutt::serialize<libutt::RegAuthPK>(rvk);
-
+  
   for (size_t i = 0; i < c; i++) {
-    clients.push_back(ClientIdentity("client_" + std::to_string(i), bpk, rpk));
+    std::string pid = "client_" + std::to_string(i);
+    auto sk = rsk.msk.deriveEncSK(rsk.p, pid);
+    auto mpk = rsk.toPK().mpk;
+    std::string csk = libutt::serialize<libutt::IBE::EncSK>(sk);
+  std::string cmpk = libutt::serialize<libutt::IBE::MPK>(mpk);
+    clients.push_back(ClientIdentity(pid, bpk, rpk, csk, cmpk));
   }
   return clients;
 }
@@ -81,19 +86,19 @@ void registerClient(Details& d,
                     std::vector<std::shared_ptr<RegistratorIdentity>>& registrators,
                     size_t thresh) {
   size_t n = registrators.size();
-  std::vector<RegistrationDetails> rd;
+  std::vector<std::vector<uint8_t>> shares;
   auto prf = c.getPRFSecretKey();
   for (auto& r : registrators) {
-    rd.push_back(r->registerClient(d, c.getPid(), c.getPidHash(), prf));
+    auto rcm1 = c.generatePartialRCM(d);
+    shares.push_back(r->ComputeRCMSig(c.getPidHash(), rcm1));
   }
   auto sids = getSubGroup((uint32_t)n, (uint32_t)thresh);
   std::map<uint32_t, std::vector<uint8_t>> rsigs;
   for (auto i : sids) {
-    rsigs[i] = rd[i].rcm_sig_;
+    rsigs[i] = shares[i];
   }
   auto sig = Utils::aggregateSigShares(
       d, Commitment::Type::REGISTRATION, (uint32_t)n, rsigs, {Fr::zero().to_words(), Fr::zero().to_words()});
-  c.setRCM(rd[sids.front()].rcm_, sig);
-  c.setIBEDetails(rd[sids.front()].dsk_priv_, rd[sids.front()].dsk_pub_);
+  c.setRCM(c.generateFullRCM(d), sig);
 }
 }  // namespace libutt::api::testing
