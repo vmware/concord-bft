@@ -12,7 +12,7 @@
 #pragma once
 #include "threshsign/IPublicKey.h"
 #include "threshsign/ISecretKey.h"
-#include "crypto/eddsa/EdDSA.h"
+#include "crypto/eddsa/EdDSA.hpp"
 
 class EdDSAThreshsignPrivateKey : public IShareSecretKey, public EdDSAPrivateKey {
  public:
