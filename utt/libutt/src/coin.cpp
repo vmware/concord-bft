@@ -11,7 +11,7 @@ Coin::Coin(Details& d,
            const types::CurvePoint& val,
            Type t,
            const types::CurvePoint& exp_date,
-           ClientIdentity& cid) {
+           const ClientIdentity& cid) {
   Fr fr_sn;
   fr_sn.from_words(sn);
   Fr fr_val;
@@ -40,12 +40,12 @@ Coin::Coin(const Coin& c) {
   type_ = c.type_;
 }
 Coin& Coin::operator=(const Coin& c) {
-  coin_.reset(new libutt::Coin());
   *(coin_) = *(c.coin_);
   has_sig_ = c.has_sig_;
   type_ = c.type_;
   return *this;
 }
+Coin::Coin() { coin_.reset(new libutt::Coin()); }
 const std::string Coin::getNullifier() const { return coin_->null.toUniqueString(); }
 bool Coin::hasSig() const { return has_sig_; }
 void Coin::setSig(const types::Signature& sig) {

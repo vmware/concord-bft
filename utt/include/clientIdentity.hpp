@@ -10,8 +10,10 @@ class RandSigPK;
 class RegAuthPK;
 }  // namespace libutt
 namespace libutt::api {
+class Coin;
 namespace operations {
 class Burn;
+class Transaction;
 }
 class ClientIdentity {
  public:
@@ -22,16 +24,21 @@ class ClientIdentity {
                  const std::string& mpk);
   Commitment generatePartialRCM(Details& d);
   Commitment generateFullRCM(Details& d);
-  std::string getPid() const;
+  const std::string& getPid() const;
   types::CurvePoint getPRFSecretKey() const;
   types::CurvePoint getPidHash() const;
   void setRCM(const Commitment& comm, const types::Signature& sig);
   std::pair<Commitment, types::Signature> getRcm() const;
   template <typename T>
-  bool validate(const T&);
+  std::vector<libutt::api::Coin> claimCoins(const T&, Details& d, uint32_t n,
+                     const std::vector<std::map<uint32_t, types::Signature>>& rsigs) const;
+
+  template <typename T>
+  bool validate(const T&) const;
 
  private:
   friend class operations::Burn;
+  friend class operations::Transaction;
   std::unique_ptr<libutt::AddrSK> ask_;
   std::unique_ptr<libutt::RandSigPK> bpk_;
   std::unique_ptr<libutt::RegAuthPK> rpk_;

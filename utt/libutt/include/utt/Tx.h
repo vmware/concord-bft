@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <optional>
 #include <tuple>
-
+#include <unordered_map>
 #include <utt/BudgetProof.h>
 #include <utt/PolyCrypto.h>
 #include <utt/TxIn.h>
@@ -112,7 +112,7 @@ class Tx {
    * If Tx::validate() passes, each BFT replica will compute a signature share on each output's coin.
    */
   RandSigShare shareSignCoin(size_t txoIdx, const RandSigShareSK& bskShare) const;
-
+  std::unordered_map<size_t, RandSigShare> shareSignCoins(const RandSigShareSK& bskShare) const;
   /**
    * Used by BFT client to verify signature share on an output.
    */
@@ -130,7 +130,7 @@ class Tx {
 
     return sigShare.verify(getCommVector(txoIdx, H), bpkShare);
   }
-
+  std::unordered_map<size_t, TxOut> getMineTransactions(const AddrSK& ask) const;
   /**
    * Attempts to claim the output specified by 'idx':
    * i.e., decrypt the denomination, identity commitment randomness and value commitment randomness from the coin's

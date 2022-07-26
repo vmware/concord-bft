@@ -13,7 +13,7 @@ class BankIdentity {
  public:
   BankIdentity(const std::string& id, const std::string& bsk, const std::string& bvk, const std::string& rvk);
   template <typename T>
-  types::Signature sign(T& data) const;
+  std::vector<types::Signature> sign(T& data) const;
   const std::string& getId() const;
   template <typename T>
   bool validate(const T&, const types::Signature& sig) const;

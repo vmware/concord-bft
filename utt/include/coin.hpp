@@ -13,7 +13,9 @@ class ClientIdentity;
 namespace operations {
 class Burn;
 class Mint;
+class Transaction;
 }  // namespace operations
+
 class Coin {
  public:
   enum Type { Normal = 0x0, Budget };
@@ -23,8 +25,8 @@ class Coin {
        const types::CurvePoint& val,
        Type p,
        const types::CurvePoint& exp_date,
-       ClientIdentity& cid);
-  Coin() {}
+       const ClientIdentity& cid);
+  Coin(); 
   Coin(const Coin& c);
   Coin& operator=(const Coin& c);
   const std::string getNullifier() const;
@@ -37,6 +39,7 @@ class Coin {
  private:
   friend class ClientIdentity;
   friend class operations::Burn;
+  friend class operations::Transaction;
   std::unique_ptr<libutt::Coin> coin_;
   bool has_sig_{false};
 

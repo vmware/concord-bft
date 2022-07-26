@@ -32,7 +32,7 @@ types::Signature RegistratorIdentity::ComputeRCMSig(const types::CurvePoint& pid
   return types::Signature(res_str.begin(), res_str.end());
 }
 
-bool RegistratorIdentity::validateRCM(const Commitment& comm, const types::Signature& sig) {
+bool RegistratorIdentity::validateRCM(const Commitment& comm, const types::Signature& sig) const {
   libutt::RandSig rsig = libutt::deserialize<libutt::RandSig>(sig);
   return rsig.verify(*comm.comm_, rpk_->vk);
 }

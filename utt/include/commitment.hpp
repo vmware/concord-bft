@@ -5,7 +5,8 @@
 #include <cstdint>
 namespace libutt {
 class Comm;
-}
+class CommKey;
+}  // namespace libutt
 namespace libutt::api {
 class Commitment;
 }
@@ -15,10 +16,12 @@ class RegistratorIdentity;
 class ClientIdentity;
 namespace operations {
 class Burn;
+class Transaction;
 }
 class Commitment {
  public:
   enum Type { REGISTRATION = 0, VALUE, COIN };
+  static libutt::CommKey& getCommitmentKey(Details& d, Type t);
   Commitment(Details& d, Type t, const std::vector<types::CurvePoint>& messages, bool withG2);
   Commitment(const std::string& comm);
   Commitment(const Commitment& comm);
@@ -33,6 +36,7 @@ class Commitment {
   friend class RegistratorIdentity;
   friend class ClientIdentity;
   friend class operations::Burn;
-  std::shared_ptr<libutt::Comm> comm_;
+  friend class operations::Transaction;
+  std::unique_ptr<libutt::Comm> comm_;
 };
 }  // namespace libutt::api

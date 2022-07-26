@@ -16,7 +16,7 @@ class RegistratorIdentity {
 
   types::Signature ComputeRCMSig(const types::CurvePoint& pid_hash, const Commitment& rcm1) const;
 
-  bool validateRCM(const Commitment& comm, const types::Signature& sig);
+  bool validateRCM(const Commitment& comm, const types::Signature& sig) const;
 
  private:
   std::string id_;

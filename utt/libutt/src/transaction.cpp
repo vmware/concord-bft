@@ -5,7 +5,7 @@
 #include <utt/RegAuth.h>
 #include <utt/Coin.h>
 #include <utt/Address.h>
-namespace libutt::api {
+namespace libutt::api::operations {
 Transaction::Transaction(Details& d,
                          const ClientIdentity& cid,
                          const std::vector<Coin>& coins,
@@ -43,5 +43,8 @@ Transaction::Transaction(Details& d,
                            std::nullopt,
                            rpk.vk,
                            mpk));
+}
+std::vector<std::string> Transaction::getNullifiers() const {
+  return tx_->getNullifiers();
 }
 }  // namespace libutt::api

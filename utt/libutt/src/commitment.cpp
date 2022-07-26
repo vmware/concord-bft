@@ -8,22 +8,21 @@
 #include <sstream>
 
 libutt::api::Commitment operator+(libutt::api::Commitment lhs, const libutt::api::Commitment& rhs) {
-  libutt::api::Commitment comm = lhs;
-  comm += rhs;
-  return comm;
+  lhs += rhs;
+  return lhs;
 }
 
 namespace libutt::api {
-libutt::CommKey getCommitmentKey(libutt::Params& p, Commitment::Type t) {
+libutt::CommKey& Commitment::getCommitmentKey(Details& d, Commitment::Type t) {
   switch (t) {
     case Commitment::Type::REGISTRATION:
-      return p.ck_reg;
+      return d.getParams().ck_reg;
     case Commitment::Type::VALUE:
-      return p.ck_val;
+      return d.getParams().ck_val;
     case Commitment::Type::COIN:
-      return p.ck_coin;
-      return libutt::CommKey();
+      return d.getParams().ck_coin;
   }
+  throw std::runtime_error("Unkknown commitment key type");
 }
 
 Commitment::Commitment(Details& d, Type t, const std::vector<types::CurvePoint>& messages, bool withG2) {
@@ -32,7 +31,7 @@ Commitment::Commitment(Details& d, Type t, const std::vector<types::CurvePoint>&
     fr_messages[i].from_words(messages.at(i));
   }
   comm_.reset(new libutt::Comm());
-  *comm_ = libutt::Comm::create(getCommitmentKey(d.getParams(), t), fr_messages, withG2);
+  *comm_ = libutt::Comm::create(Commitment::getCommitmentKey(d, t), fr_messages, withG2);
 }
 Commitment::Commitment(const std::string& comm) {
   comm_.reset(new libutt::Comm());
@@ -40,7 +39,6 @@ Commitment::Commitment(const std::string& comm) {
 }
 Commitment::Commitment() { comm_.reset(new libutt::Comm()); }
 Commitment& Commitment::operator=(const Commitment& comm) {
-  comm_.reset(new libutt::Comm());
   *comm_ = *comm_ = *comm.comm_;
   return *this;
 }
@@ -63,7 +61,7 @@ Commitment& Commitment::operator+=(const Commitment& comm) {
 
 types::CurvePoint Commitment::randomize(Details& d, Type t) {
   Fr u_delta = Fr::random_element();
-  comm_->rerandomize(getCommitmentKey(d.getParams(), t), u_delta);
+  comm_->rerandomize(Commitment::getCommitmentKey(d, t), u_delta);
   return u_delta.to_words();
 }
 }  // namespace libutt::api

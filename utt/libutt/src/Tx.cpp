@@ -559,6 +559,13 @@ std::vector<Comm> Tx::getCommVector(size_t txoIdx, const G1& H) const {
 
   return {txo.icm, scm, txo.vcm_2, tcm, dcm};
 }
+std::unordered_map<size_t, RandSigShare> Tx::shareSignCoins(const RandSigShareSK& bskShare) const {
+  std::unordered_map<size_t, RandSigShare> ret;
+  for (size_t txoIdx = 0; txoIdx < outs.size(); txoIdx++) {
+    ret[txoIdx] = shareSignCoin(txoIdx, bskShare);
+  }
+  return ret;
+}
 
 RandSigShare Tx::shareSignCoin(size_t txoIdx, const RandSigShareSK& bskShare) const {
   // We have icm and vcm commitments under CK (H, g), but we also need commitments
@@ -579,7 +586,29 @@ RandSigShare Tx::shareSignCoin(size_t txoIdx, const RandSigShareSK& bskShare) co
 
   return bskShare.shareSign(getCommVector(txoIdx, H), H);
 }
-
+ std::unordered_map<size_t, TxOut> Tx::getMineTransactions(const AddrSK& ask) const {
+   std::unordered_map<size_t, TxOut> ret;
+  for (size_t i = 0 ; i < outs.size() ; i++) {
+    auto& txo = outs[i];
+    bool forMe;
+    AutoBuf<unsigned char> ptxt;
+    std::tie(forMe, ptxt) = ask.e.decrypt(txo.ctxt);
+    if (!forMe) {
+      continue;
+    }
+    // parse the plaintext as (value, vcm_2 randomness, icm randomness)
+    auto vdt = bytesToFrs(ptxt);
+    assertEqual(vdt.size(), 3);
+    Fr val = vdt[0];
+    Fr d = vdt[1];
+    Fr t = vdt[2];
+    ret.emplace(i, txo);
+    ret[i].val = val;
+    ret[i].d = d;
+    ret[i].t = t;
+  }
+  return ret;
+}
 std::optional<Coin> Tx::tryClaimCoin(const Params& p,
                                      size_t txoIdx,
                                      const AddrSK& ask,
