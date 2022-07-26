@@ -24,6 +24,8 @@ if(NOT DEFINED USE_LOG4CPP)
 endif()
 
 option(USE_RELIC "Enable usage of Relic library for BLS threshold signature generation/verification" OFF)
+option(USE_CRYPTOPP_RSA "Enable usage of Crypto++ library for RSA/ECDSA signature generation/verification" OFF)
+option(USE_EDDSA_SINGLE_SIGN "Enable usage of OpenSSL library for EdDSA signature generation/verification" ON)
 option(RUN_APOLLO_TESTS "Enable Apollo tests run" ON)
 option(KEEP_APOLLO_LOGS "Retains logs from replicas in separate folder for each test in build/tests/apollo/logs" ON)
 option(TXN_SIGNING_ENABLED "Enable External concord client transcattion signing" ON)
@@ -66,6 +68,11 @@ endif()
 
 if(BUILD_COMM_TCP_TLS)
     math(EXPR COMM_MODULES "${COMM_MODULES}+1")
+endif()
+
+if ((NOT USE_CRYPTOPP_RSA) AND (NOT USE_EDDSA_SINGLE_SIGN))
+    message(FATAL_ERROR "At least one signature/verification algorithm implementation must be chosen. "
+            "Choose at least one of the following cmake options: [USE_EDDSA_SINGLE_SIGN, USE_CRYPTOPP_RSA]")
 endif()
 
 # UDP module is not part of the CMake configuration, it will be used by default
