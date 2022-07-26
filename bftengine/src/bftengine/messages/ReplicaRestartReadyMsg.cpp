@@ -52,7 +52,7 @@ ReplicaRestartReadyMsg* ReplicaRestartReadyMsg::create(ReplicaId senderId,
   ReplicaRestartReadyMsg* m = new ReplicaRestartReadyMsg(senderId, s, sigLen, r, extraData, spanContext);
   auto dataSize = sizeof(Header) + m->getExtraDataLength() + spanContext.data().size();
   auto position = m->body() + dataSize;
-  sigManager->sign(m->body(), dataSize, position, sigLen);
+  sigManager->sign(m->body(), dataSize, position);
   //+-----------+-----------+----------+
   //| Header    | extraData | Signature|
   //+-----------+-----------+----------+

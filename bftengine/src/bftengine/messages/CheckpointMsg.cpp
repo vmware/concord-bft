@@ -43,7 +43,7 @@ CheckpointMsg::CheckpointMsg(ReplicaId genReplica,
 
 void CheckpointMsg::sign() {
   auto sigManager = SigManager::instance();
-  sigManager->sign(body(), sizeof(Header), body() + sizeof(Header) + spanContextSize(), sigManager->getMySigLength());
+  sigManager->sign(body(), sizeof(Header), body() + sizeof(Header) + spanContextSize());
 }
 
 void CheckpointMsg::validate(const ReplicasInfo& repInfo) const {

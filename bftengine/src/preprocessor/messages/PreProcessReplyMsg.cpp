@@ -154,7 +154,7 @@ void PreProcessReplyMsg::setupMsgBody(const char* preProcessResultBuf,
   memcpy(msgBody()->resultsHash, hash.data(), SHA3_256::SIZE_IN_BYTES);
   {
     concord::diagnostics::TimeRecorder scoped_timer(*preProcessorHistograms_->signPreProcessReplyHash);
-    sigManager->sign((char*)hash.data(), SHA3_256::SIZE_IN_BYTES, body() + sizeof(Header), sigSize);
+    sigManager->sign((char*)hash.data(), SHA3_256::SIZE_IN_BYTES, body() + sizeof(Header));
   }
   setLeftMsgParams(reqCid, sigSize);
 }
