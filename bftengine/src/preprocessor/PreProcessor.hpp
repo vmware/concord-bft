@@ -235,15 +235,13 @@ class PreProcessor {
   void launchAsyncReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                       const std::string &batchCid,
                                       bool isPrimary,
-                                      bool isRetry,
                                       TimeRecorder &&totalPreExecDurationRecorder = TimeRecorder());
   bftEngine::OperationResult launchReqPreProcessing(const std::string &batchCid,
                                                     const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                                     uint32_t &resultLen);
   void handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                  const std::string &batchCid,
-                                 bool isPrimary,
-                                 bool isRetry);
+                                 bool isPrimary);
   void handleReqPreProcessedByNonPrimary(uint16_t clientId,
                                          uint16_t reqOffsetInBatch,
                                          ReqId reqSeqNum,
@@ -256,24 +254,15 @@ class PreProcessor {
                                       uint16_t clientId,
                                       uint32_t resultBufLen,
                                       bftEngine::OperationResult preProcessResult);
-  void handlePreProcessedReqPrimaryRetry(NodeIdType clientId,
-                                         uint16_t reqOffsetInBatch,
-                                         uint32_t resultBufLen,
-                                         const std::string &batchCid,
-                                         bftEngine::OperationResult preProcessResult);
   void finalizePreProcessing(NodeIdType clientId, uint16_t reqOffsetInBatch, const std::string &batchCid);
   void cancelPreProcessing(NodeIdType clientId, const std::string &batchCid, uint16_t reqOffsetInBatch);
   void setPreprocessingRightNow(uint16_t clientId, uint16_t reqOffsetInBatch, bool set);
-  PreProcessingResult handlePreProcessedReqByPrimaryAndGetConsensusResult(uint16_t clientId,
-                                                                          uint16_t reqOffsetInBatch,
-                                                                          uint32_t resultBufLen,
-                                                                          bftEngine::OperationResult preProcessResult);
-  void handlePreProcessReplyMsg(const std::string &reqCid,
-                                PreProcessingResult result,
-                                NodeIdType clientId,
-                                uint16_t reqOffsetInBatch,
-                                SeqNum reqSeqNum,
-                                const std::string &batchCid);
+  void holdCompleteOrCancelRequest(const std::string &reqCid,
+                                   PreProcessingResult result,
+                                   NodeIdType clientId,
+                                   uint16_t reqOffsetInBatch,
+                                   SeqNum reqSeqNum,
+                                   const std::string &batchCid);
   void updateAggregatorAndDumpMetrics();
   void addTimers();
   void cancelTimers();
@@ -388,7 +377,6 @@ class AsyncPreProcessJob : public concord::util::SimpleThreadPool::Job {
                      const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                      const std::string &batchCid,
                      bool isPrimary,
-                     bool isRetry,
                      TimeRecorder &&totalPreExecDurationRecorder,
                      TimeRecorder &&launchAsyncPreProcessJobRecorder);
   virtual ~AsyncPreProcessJob() = default;
@@ -402,7 +390,6 @@ class AsyncPreProcessJob : public concord::util::SimpleThreadPool::Job {
   PreProcessRequestMsgSharedPtr preProcessReqMsg_;
   const std::string batchCid_;
   bool isPrimary_ = false;
-  bool isRetry_ = false;
   TimeRecorder totalJobDurationRecorder_;
   TimeRecorder launchAsyncPreProcessJobRecorder_;
 };

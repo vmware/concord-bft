@@ -22,7 +22,6 @@
 #include <deque>
 #include "OpenTracing.hpp"
 #include "TimeService.hpp"
-#include "ISystemResourceEntity.hpp"
 #include "PersistentStorageImp.hpp"
 
 namespace concord::reconfiguration {
@@ -55,9 +54,7 @@ class IRequestsHandler {
   };
 
   static std::shared_ptr<IRequestsHandler> createRequestsHandler(
-      std::shared_ptr<IRequestsHandler> userReqHandler,
-      const std::shared_ptr<concord::cron::CronTableRegistry> &,
-      concord::performance::ISystemResourceEntity &);
+      std::shared_ptr<IRequestsHandler> userReqHandler, const std::shared_ptr<concord::cron::CronTableRegistry> &);
   typedef std::deque<ExecutionRequest> ExecutionRequestsQueue;
 
   virtual void execute(ExecutionRequestsQueue &requests,

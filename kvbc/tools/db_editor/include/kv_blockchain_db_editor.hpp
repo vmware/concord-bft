@@ -23,7 +23,7 @@
 #include "keys_and_signatures.cmf.hpp"
 #include "concord.cmf.hpp"
 #include "db_interfaces.h"
-#include "kvbc_key_types.h"
+#include "kvbc_app_filter/kvbc_key_types.h"
 #include "categorization/db_categories.h"
 #include "storage/merkle_tree_key_manipulator.h"
 #include "bcstatetransfer/DBDataStore.hpp"

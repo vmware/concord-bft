@@ -17,7 +17,7 @@ module Messages {
   import opened HostIdentifiers
   import Network
 
-  type SequenceID = nat
+  type SequenceID = k:nat | 0 < k witness 1
   type ViewNum = nat
 
   datatype ClientOperation = ClientOperation(sender:HostId, timestamp:nat)
@@ -74,7 +74,9 @@ module Messages {
                      | Commit(view:ViewNum, seqID:SequenceID, operationWrapper:OperationWrapper)
                      | ClientRequest(clientOp:ClientOperation)
                      | ViewChangeMsg(newView:ViewNum, certificates:imap<SequenceID, PreparedCertificate>) // omitting last stable because we don't have checkpointing yet.
-                     | NewViewMsg(newView:ViewNum, vcMsgs:ViewChangeMsgsSelectedByPrimary) {
+                     | NewViewMsg(newView:ViewNum, vcMsgs:ViewChangeMsgsSelectedByPrimary) 
+                     | CheckpointMsg(seqIDReached:SequenceID)
+                     {
                        predicate WF() {
                          && (ViewChangeMsg? ==> Library.FullImap(certificates)) //TODO: rename TotalImap
                        }

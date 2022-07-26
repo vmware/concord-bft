@@ -59,7 +59,7 @@ void DBRestore::restore() {
   if (last_reachable_rocks_blockid == 0) {
     LOG_WARN(logger_, "rocksdb is empty, will restore the whole blockchain");
   } else {
-    last_reachable_rocksdb_block_digest = *(kv_blockchain_->getParentDigest(last_reachable_rocks_blockid));
+    last_reachable_rocksdb_block_digest = *(kv_blockchain_->calculateBlockDigest(last_reachable_rocks_blockid));
   }
   LOG_INFO(logger_,
            "Last reachable block in rocksdb: " << last_reachable_rocks_blockid

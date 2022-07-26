@@ -92,6 +92,12 @@ concord::util::digest::BlockDigest StChain::getBlockParentDigest(concord::kvbc::
   return block->parentDigest();
 }
 
+concord::util::digest::BlockDigest StChain::getBlockDigest(concord::kvbc::BlockId id) const {
+  auto block = getBlock(id);
+  ConcordAssert(block.has_value());
+  return block->calculateDigest(id);
+}
+
 std::optional<std::string> StChain::getBlockData(concord::kvbc::BlockId id) const {
   auto key = v4blockchain::detail::Blockchain::generateKey(id);
   return native_client_->get(v4blockchain::detail::ST_CHAIN_CF, key);

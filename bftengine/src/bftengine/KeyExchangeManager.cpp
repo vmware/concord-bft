@@ -134,7 +134,7 @@ void KeyExchangeManager::loadPublicKeys() {
   // after State Transfer public keys for all replicas are expected to exist
   auto num_loaded = publicKeys_.loadAllReplicasKeyStoresFromReservedPages();
   uint32_t liveQuorumSize = ReplicaConfig::instance().waitForFullCommOnStartup ? clusterSize_ : quorumSize_;
-  if (ReplicaConfig::instance().getkeyExchangeOnStart()) {
+  if (ReplicaConfig::instance().getkeyExchangeOnStart() && exchanged()) {
     ConcordAssertGE(num_loaded, liveQuorumSize);
   }
   LOG_INFO(KEY_EX_LOG, "building crypto system after state transfer");
@@ -231,11 +231,18 @@ void KeyExchangeManager::sendKeyExchange(const SeqNum& sn) {
     return;
   }
   KeyExchangeMsg msg;
-  if (sn == candidate_private_keys_.generated.sn && !candidate_private_keys_.generated.cid.empty()) {
+  if (!candidate_private_keys_.generated.cid.empty()) {
+    // In some cases, we may try to send another key exchange message before the previous one has been committed (i.e,
+    // initial key exchange after VC/ST, two consecutive key exchange commands). In this case, we want to reuse the old
+    // generated key-exchange message
     LOG_INFO(KEY_EX_LOG, "we already have a candidate for this sequence number, trying to send it again");
     msg.pubkey = candidate_private_keys_.generated.pub;
     msg.repID = repID_;
-    msg.generated_sn = sn;
+    SeqNum new_sn = sn;
+    if ((sn - candidate_private_keys_.generated.sn) / checkpointWindowSize < 2)
+      new_sn = candidate_private_keys_.generated.sn;
+    candidate_private_keys_.generated.sn = new_sn;
+    msg.generated_sn = candidate_private_keys_.generated.sn;
     msg.epoch = EpochManager::instance().getSelfEpochNumber();
     std::stringstream ss;
     concord::serialize::Serializable::serialize(ss, msg);
