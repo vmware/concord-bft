@@ -10,24 +10,18 @@
 // notices and license terms. Your use of these subcomponents is subject to the
 // terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
-
 #pragma once
 
-#include <stdint.h>
 #include <string>
 
-namespace concord::util::crypto {
-enum class KeyFormat : uint16_t { HexaDecimalStrippedFormat, PemFormat };
-enum class CurveType : uint16_t { secp256k1, secp384r1 };
+namespace concord::crypto {
 
-/**
- * @brief Validates the key.
- *
- * @param keyType Key type to be validated.
- * @param key Key to be validate.
- * @param expectedSize Size of the key to be validated.
- * @return Validation result.
- */
-bool isValidKey(const std::string& keyType, const std::string& key, size_t expectedSize);
-
-}  // namespace concord::util::crypto
+// Interface for verifier.
+class IVerifier {
+ public:
+  virtual bool verify(const std::string& data, const std::string& sig) const = 0;
+  virtual uint32_t signatureLength() const = 0;
+  virtual ~IVerifier() = default;
+  virtual std::string getPubKey() const = 0;
+};
+}  // namespace concord::crypto

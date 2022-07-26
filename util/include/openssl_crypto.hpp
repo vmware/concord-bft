@@ -18,23 +18,25 @@
 // and more convenient interface to the OpenSSL crypto library to fit better
 // with the rest of the Concord codebase, as the OpenSSL crypto library itself
 // has a C interface.
-
-#ifndef UTILS_OPENSSL_CRYPTO_HPP
-#define UTILS_OPENSSL_CRYPTO_HPP
+#pragma once
 
 #include <climits>
 #include <memory>
 #include <ostream>
 #include <string>
 #include <vector>
-#include <openssl/crypto.h>
-#include <openssl/evp.h>
+
 #include "memory.hpp"
 #include "assertUtils.hpp"
 
-namespace concord {
-namespace util {
-namespace openssl_utils {
+// OpenSSL includes.
+#include <openssl/crypto.h>
+#include <openssl/evp.h>
+#include <openssl/bio.h>
+#include <openssl/pem.h>
+#include <openssl/x509.h>
+
+namespace concord::util::openssl_utils {
 
 // Note these utilities may use std::strings to pass arond byte strings; note
 // this should work since C++ should guarantee std::string is a string of chars
@@ -200,11 +202,16 @@ class UnexpectedOpenSSLCryptoFailureException : public std::exception {
 using UniqueOpenSSLContext = custom_deleter_unique_ptr<EVP_MD_CTX, EVP_MD_CTX_free>;
 using UniqueOpenSSLPKEYContext = custom_deleter_unique_ptr<EVP_PKEY_CTX, EVP_PKEY_CTX_free>;
 using UniquePKEY = custom_deleter_unique_ptr<EVP_PKEY, EVP_PKEY_free>;
+using UniqueOpenSSLX509 = custom_deleter_unique_ptr<X509, X509_free>;
+using UniqueOpenSSLBIO = custom_deleter_unique_ptr<BIO, BIO_free_all>;
+using UniqueOpenSSLCipherContext = custom_deleter_unique_ptr<EVP_CIPHER_CTX, EVP_CIPHER_CTX_free>;
+using UniqueOpenSSLBIGNUM = custom_deleter_unique_ptr<BIGNUM, BN_clear_free>;
+using UniqueOpenSSLBNCTX = custom_deleter_unique_ptr<BN_CTX, BN_CTX_free>;
+using UniqueOpenSSLECKEY = custom_deleter_unique_ptr<EC_KEY, EC_KEY_free>;
+using UniqueOpenSSLECPOINT = custom_deleter_unique_ptr<EC_POINT, EC_POINT_clear_free>;
 
 constexpr int OPENSSL_SUCCESS = 1;
+constexpr int OPENSSL_FAILURE = 0;
+constexpr int OPENSSL_ERROR = -1;
 
-}  // namespace openssl_utils
-}  // namespace util
-}  // namespace concord
-
-#endif  // UTILS_OPENSSL_CRYPTO_HPP
+}  // namespace concord::util::openssl_utils

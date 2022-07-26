@@ -11,42 +11,58 @@
 // LICENSE file.
 //
 #pragma once
-#include "EdDSA.h"
+
+#include "EdDSA.hpp"
 #include "openssl_crypto.hpp"
+#include "crypto_utils.hpp"
+#include "crypto/interface/verifier.hpp"
+
+// OpenSSL includes.
+#include <openssl/pem.h>
+
+namespace concord::crypto::openssl {
 
 /**
- * @tparam PublicKeyType The type of the public key - expected to be a SerializableByteArray
- *
+ * @tparam PublicKeyType The type of the public key, expected to be a SerializableByteArray.
  */
 template <typename PublicKeyType>
-class EdDSAVerifier {
+class EdDSAVerifier : public IVerifier {
  public:
   using VerifierKeyType = PublicKeyType;
-  EdDSAVerifier(const PublicKeyType &publicKey) : publicKey_(publicKey) {}
 
-  bool verify(const std::string &message, const std::string &signature) const {
+  /**
+   * @brief Construct a new EdDSA Verifier object
+   *
+   * @param publicKey
+   */
+  explicit EdDSAVerifier(const PublicKeyType &publicKey) : publicKey_(publicKey) {}
+
+  bool verify(const std::string &message, const std::string &signature) const override {
     return verify(message.data(), message.size(), signature.data(), signature.size());
   }
 
-  bool verify(const char *msg, int msgLen, const char *sig, int sigLen) const {
-    return verify(reinterpret_cast<const uint8_t *>(msg),
-                  static_cast<size_t>(msgLen),
-                  reinterpret_cast<const uint8_t *>(sig),
-                  static_cast<size_t>(sigLen));
+  bool verify(const char *msg, std::size_t msgLen, const char *sig, std::size_t sigLen) const {
+    return verify(reinterpret_cast<const uint8_t *>(msg), msgLen, reinterpret_cast<const uint8_t *>(sig), sigLen);
   }
 
   bool verify(const uint8_t *msg, size_t msgLen, const uint8_t *sig, size_t sigLen) const {
+    using concord::util::openssl_utils::UniquePKEY;
+    using concord::util::openssl_utils::OPENSSL_SUCCESS;
     ConcordAssertEQ(sigLen, EdDSASignatureByteSize);
-    concord::util::openssl_utils::UniquePKEY pkey{
+    UniquePKEY pkey{
         EVP_PKEY_new_raw_public_key(NID_ED25519, nullptr, publicKey_.getBytes().data(), publicKey_.getBytes().size())};
     concord::util::openssl_utils::UniqueOpenSSLContext ctx{EVP_MD_CTX_new()};
-    ConcordAssertEQ(EVP_DigestVerifyInit(ctx.get(), nullptr, nullptr, nullptr, pkey.get()),
-                    concord::util::openssl_utils::OPENSSL_SUCCESS);
-    return concord::util::openssl_utils::OPENSSL_SUCCESS == EVP_DigestVerify(ctx.get(), sig, sigLen, msg, msgLen);
+    ConcordAssertEQ(EVP_DigestVerifyInit(ctx.get(), nullptr, nullptr, nullptr, pkey.get()), OPENSSL_SUCCESS);
+    return (OPENSSL_SUCCESS == EVP_DigestVerify(ctx.get(), sig, sigLen, msg, msgLen));
   }
-  const PublicKeyType &getPubKey() const { return publicKey_; }
+
+  uint32_t signatureLength() const override { return EdDSASignatureByteSize; }
+
+  std::string getPubKey() const override { return publicKey_.toString(); }
+
   virtual ~EdDSAVerifier() = default;
 
- private:
-  PublicKeyType publicKey_;
+ public:
+  const PublicKeyType publicKey_;
 };
+}  // namespace concord::crypto::openssl
