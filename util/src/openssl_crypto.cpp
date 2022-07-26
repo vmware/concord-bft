@@ -14,7 +14,6 @@
 #include "openssl_crypto.hpp"
 
 #include <openssl/ec.h>
-#include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <stdio.h>
 #include <cassert>
@@ -23,6 +22,12 @@ using concord::util::openssl_utils::AsymmetricPrivateKey;
 using concord::util::openssl_utils::AsymmetricPublicKey;
 using concord::util::openssl_utils::kExpectedSHA256HashLengthInBytes;
 using concord::util::openssl_utils::UnexpectedOpenSSLCryptoFailureException;
+using concord::util::openssl_utils::UniquePKEY;
+using concord::util::openssl_utils::UniqueOpenSSLContext;
+using concord::util::openssl_utils::UniqueOpenSSLBIGNUM;
+using concord::util::openssl_utils::UniqueOpenSSLBNCTX;
+using concord::util::openssl_utils::UniqueOpenSSLECKEY;
+using concord::util::openssl_utils::UniqueOpenSSLECPOINT;
 using std::invalid_argument;
 using std::pair;
 using std::string;
@@ -31,30 +36,6 @@ using std::unique_ptr;
 // Deleter classes for using smart pointers that correctly manage objects from
 // the OpenSSL Crypto library, given OpenSSL Crypto objects use free functions
 // provided by the library rather than normal destructors.
-class BIGNUMDeleter {
- public:
-  void operator()(BIGNUM* num) const { BN_clear_free(num); }
-};
-class BNCTXDeleter {
- public:
-  void operator()(BN_CTX* obj) const { BN_CTX_free(obj); }
-};
-class ECKEYDeleter {
- public:
-  void operator()(EC_KEY* obj) const { EC_KEY_free(obj); }
-};
-class ECPOINTDeleter {
- public:
-  void operator()(EC_POINT* obj) const { EC_POINT_clear_free(obj); }
-};
-class EVPMDCTXDeleter {
- public:
-  void operator()(EVP_MD_CTX* obj) const { EVP_MD_CTX_free(obj); }
-};
-class EVPPKEYDeleter {
- public:
-  void operator()(EVP_PKEY* obj) const { EVP_PKEY_free(obj); }
-};
 class OPENSSLStringDeleter {
  public:
   void operator()(char* string) const { OPENSSL_free(string); }
@@ -64,7 +45,7 @@ class OPENSSLStringDeleter {
 // concord::util::openssl_crypto::AsymmetricPrivateKey.
 class EVPPKEYPrivateKey : public AsymmetricPrivateKey {
  private:
-  unique_ptr<EVP_PKEY, EVPPKEYDeleter> pkey;
+  UniquePKEY pkey;
   string scheme_name;
 
  public:
@@ -83,8 +64,7 @@ class EVPPKEYPrivateKey : public AsymmetricPrivateKey {
   // EVP_PKEY object must have both its private and public keys initialized;
   // future behavior of this EVPPKEYPrivateKey object is undefined if this
   // precondition is not met.
-  EVPPKEYPrivateKey(unique_ptr<EVP_PKEY, EVPPKEYDeleter>&& pkey_ptr, const string& scheme)
-      : pkey(move(pkey_ptr)), scheme_name(scheme) {}
+  EVPPKEYPrivateKey(UniquePKEY&& pkey_ptr, const string& scheme) : pkey(move(pkey_ptr)), scheme_name(scheme) {}
   virtual ~EVPPKEYPrivateKey() override {}
 
   virtual string serialize() const override {
@@ -115,7 +95,7 @@ class EVPPKEYPrivateKey : public AsymmetricPrivateKey {
   }
 
   virtual std::string sign(const std::string& message) const override {
-    unique_ptr<EVP_MD_CTX, EVPMDCTXDeleter> digest_context(EVP_MD_CTX_new(), EVPMDCTXDeleter());
+    UniqueOpenSSLContext digest_context(EVP_MD_CTX_new());
     if (!digest_context) {
       throw UnexpectedOpenSSLCryptoFailureException(
           "OpenSSL Crypto unexpectedly failed to allocate a message digest "
@@ -162,7 +142,7 @@ class EVPPKEYPrivateKey : public AsymmetricPrivateKey {
 // concord::util::openssl_crypto::AsymmetricPublicKey.
 class EVPPKEYPublicKey : public AsymmetricPublicKey {
  private:
-  unique_ptr<EVP_PKEY, EVPPKEYDeleter> pkey;
+  UniquePKEY pkey;
   string scheme_name;
 
  public:
@@ -180,8 +160,7 @@ class EVPPKEYPublicKey : public AsymmetricPublicKey {
   // constructed with. A precondition of this constructor is that the provided
   // EVP_PKEY object must its public key initialized; future behavior of this
   // EVPPKEYPublicKey object is undefined if this precondition is not met.
-  EVPPKEYPublicKey(unique_ptr<EVP_PKEY, EVPPKEYDeleter>&& pkey_ptr, const string& scheme)
-      : pkey(move(pkey_ptr)), scheme_name(scheme) {}
+  EVPPKEYPublicKey(UniquePKEY&& pkey_ptr, const string& scheme) : pkey(move(pkey_ptr)), scheme_name(scheme) {}
   virtual ~EVPPKEYPublicKey() override {}
 
   virtual string serialize() const override {
@@ -199,7 +178,7 @@ class EVPPKEYPublicKey : public AsymmetricPublicKey {
             "OpenSSL Crypto unexpectedly failed to fetch the elliptic curve "
             "group from an elliptic curve key object.");
       }
-      unique_ptr<BN_CTX, BNCTXDeleter> big_num_context(BN_CTX_new(), BNCTXDeleter());
+      UniqueOpenSSLBNCTX big_num_context(BN_CTX_new());
       if (!big_num_context) {
         throw UnexpectedOpenSSLCryptoFailureException(
             "OpenSSL Crypto unexpectedly failed to allocate a big number "
@@ -227,7 +206,7 @@ class EVPPKEYPublicKey : public AsymmetricPublicKey {
   }
 
   virtual bool verify(const std::string& message, const std::string& signature) const override {
-    unique_ptr<EVP_MD_CTX, EVPMDCTXDeleter> digest_context(EVP_MD_CTX_new(), EVPMDCTXDeleter());
+    UniqueOpenSSLContext digest_context(EVP_MD_CTX_new());
     if (!digest_context) {
       throw UnexpectedOpenSSLCryptoFailureException(
           "OpenSSL Crypto unexpectedly failed to allocate a message digest "
@@ -260,8 +239,8 @@ concord::util::openssl_utils::generateAsymmetricCryptoKeyPair(const string& sche
     // prime256v1 is an alternative name for the same curve parameters as
     // secp256r1; prime256v1 happens to be the name OpenSSL's Crypto library
     // uses for a possible parameter to EC_KEY_new_by_curve_name.
-    unique_ptr<EC_KEY, ECKEYDeleter> key_pair(EC_KEY_new_by_curve_name(NID_X9_62_prime256v1), ECKEYDeleter());
-    unique_ptr<EC_KEY, ECKEYDeleter> public_key(EC_KEY_new_by_curve_name(NID_X9_62_prime256v1), ECKEYDeleter());
+    UniqueOpenSSLECKEY key_pair(EC_KEY_new_by_curve_name(NID_X9_62_prime256v1));
+    UniqueOpenSSLECKEY public_key(EC_KEY_new_by_curve_name(NID_X9_62_prime256v1));
     if (!key_pair || !public_key) {
       throw UnexpectedOpenSSLCryptoFailureException(
           "OpenSSL Crypto unexpectedly failed to allocate and prepare an "
@@ -283,8 +262,8 @@ concord::util::openssl_utils::generateAsymmetricCryptoKeyPair(const string& sche
           "OpenSSL Crypto unexpectedly failed to set the public key for an "
           "empty allocated elliptic curve key object.");
     }
-    unique_ptr<EVP_PKEY, EVPPKEYDeleter> private_pkey(EVP_PKEY_new(), EVPPKEYDeleter());
-    unique_ptr<EVP_PKEY, EVPPKEYDeleter> public_pkey(EVP_PKEY_new(), EVPPKEYDeleter());
+    UniquePKEY private_pkey(EVP_PKEY_new());
+    UniquePKEY public_pkey(EVP_PKEY_new());
     if (!private_pkey || !public_pkey) {
       throw UnexpectedOpenSSLCryptoFailureException(
           "OpenSSL Crypto unexpectedly failed to allocate and prepare a "
@@ -340,13 +319,13 @@ unique_ptr<AsymmetricPrivateKey> concord::util::openssl_utils::deserializePrivat
     // prime256v1 is an alternative name for the same curve parameters as
     // secp256r1; prime256v1 happens to be the name OpenSSL's Crypto library
     // uses for a possible parameter to EC_KEY_new_by_curve_name.
-    unique_ptr<EC_KEY, ECKEYDeleter> ec_key(EC_KEY_new_by_curve_name(NID_X9_62_prime256v1), ECKEYDeleter());
-    if (!ec_key) {
+    UniqueOpenSSLECKEY ec_key(EC_KEY_new_by_curve_name(NID_X9_62_prime256v1));
+    if (nullptr == ec_key.get()) {
       throw UnexpectedOpenSSLCryptoFailureException(
           "OpenSSL Crypto unexpectedly failed to allocate and prepare an "
           "elliptic curve key object.");
     }
-    unique_ptr<BIGNUM, BIGNUMDeleter> private_key(nullptr, BIGNUMDeleter());
+    UniqueOpenSSLBIGNUM private_key(nullptr);
     BIGNUM* allocated_private_key = nullptr;
     int hex_parse_return_code = BN_hex2bn(&allocated_private_key, private_key_data.c_str());
     private_key.reset(allocated_private_key);
@@ -375,13 +354,13 @@ unique_ptr<AsymmetricPrivateKey> concord::util::openssl_utils::deserializePrivat
           "OpenSSL Crypto unexpectedly failed to fetch the elliptic curve "
           "group for an elliptic curve key object.");
     }
-    unique_ptr<EC_POINT, ECPOINTDeleter> public_key(EC_POINT_new(ec_group), ECPOINTDeleter());
+    UniqueOpenSSLECPOINT public_key(EC_POINT_new(ec_group));
     if (!public_key) {
       throw UnexpectedOpenSSLCryptoFailureException(
           "OpenSSL Crypto unexpectedly failed to allocate an elliptic curve "
           "point object.");
     }
-    unique_ptr<BN_CTX, BNCTXDeleter> public_key_derivation_context(BN_CTX_new(), BNCTXDeleter());
+    UniqueOpenSSLBNCTX public_key_derivation_context(BN_CTX_new());
     if (!public_key_derivation_context) {
       throw UnexpectedOpenSSLCryptoFailureException(
           "OpenSSL Crypto unexpectedly failed to allocate a big number context "
@@ -400,7 +379,7 @@ unique_ptr<AsymmetricPrivateKey> concord::util::openssl_utils::deserializePrivat
           "curve key object.");
     }
 
-    unique_ptr<EVP_PKEY, EVPPKEYDeleter> private_pkey(EVP_PKEY_new(), EVPPKEYDeleter());
+    UniquePKEY private_pkey(EVP_PKEY_new());
     if (!private_pkey) {
       throw UnexpectedOpenSSLCryptoFailureException(
           "OpenSSL Crypto unexpectedly failed to allocate and prepare a "
@@ -431,30 +410,25 @@ std::unique_ptr<AsymmetricPrivateKey> concord::util::openssl_utils::deserializeP
                            "(which could be because it does not meet them, or could simply be "
                            "because we have not assessed this particular scheme).");
   }
-  FILE* fp = fopen(path_to_file.c_str(), "r");
-  if (!fp) {
+  unique_ptr<FILE, decltype(&fclose)> fp(fopen(path_to_file.c_str(), "r"), fclose);
+  if (nullptr == fp) {
     return nullptr;
   }
-  EC_KEY* pkey = EC_KEY_new();
+  UniqueOpenSSLECKEY pkey(EC_KEY_new());
 
-  if (!PEM_read_ECPrivateKey(fp, &pkey, nullptr, nullptr)) {
-    fclose(fp);
-    EC_KEY_free(pkey);
+  if (!PEM_read_ECPrivateKey(fp.get(), reinterpret_cast<EC_KEY**>(pkey.get()), nullptr, nullptr)) {
     throw UnexpectedOpenSSLCryptoFailureException(
         "OpenSSL Crypto unexpectedly failed to parse the private key file "
         "for " +
         path_to_file);
   }
-  fclose(fp);
 
-  unique_ptr<EVP_PKEY, EVPPKEYDeleter> private_pkey(EVP_PKEY_new(), EVPPKEYDeleter());
-  if (!EVP_PKEY_set1_EC_KEY(private_pkey.get(), pkey)) {
-    EC_KEY_free(pkey);
+  UniquePKEY private_pkey(EVP_PKEY_new());
+  if (!EVP_PKEY_set1_EC_KEY(private_pkey.get(), pkey.get())) {
     throw UnexpectedOpenSSLCryptoFailureException(
         "OpenSSL Crypto unexpectedly failed to initialize a high-level key "
         "object given an elliptic curve key object.");
   }
-  EC_KEY_free(pkey);
   return std::make_unique<EVPPKEYPrivateKey>(std::move(private_pkey), "secp256r1");
 }
 
@@ -500,7 +474,7 @@ std::unique_ptr<AsymmetricPrivateKey> concord::util::openssl_utils::deserializeP
   EVP_PKEY_free(pkey);
   BIO_free(bio);
 
-  unique_ptr<EVP_PKEY, EVPPKEYDeleter> private_pkey(EVP_PKEY_new(), EVPPKEYDeleter());
+  UniquePKEY private_pkey(EVP_PKEY_new());
   if (!EVP_PKEY_set1_EC_KEY(private_pkey.get(), eckey)) {
     EC_KEY_free(eckey);
     throw UnexpectedOpenSSLCryptoFailureException(
@@ -520,27 +494,24 @@ std::unique_ptr<AsymmetricPublicKey> concord::util::openssl_utils::deserializePu
                            "(which could be because it does not meet them, or could simply be "
                            "because we have not assessed this particular scheme).");
   }
-  FILE* fp = fopen(path_to_file.c_str(), "r");
-  if (!fp) {
-    return nullptr;
+  unique_ptr<FILE, decltype(&fclose)> fp(fopen(path_to_file.c_str(), "r"), fclose);
+  if (nullptr == fp) {
+    throw UnexpectedOpenSSLCryptoFailureException(
+        "OpenSSL Crypto unexpectedly failed to open the public key file for " + path_to_file);
   }
-  EC_KEY* pkey = EC_KEY_new();
+  UniqueOpenSSLECKEY pkey(EC_KEY_new());
 
-  if (!PEM_read_EC_PUBKEY(fp, &pkey, nullptr, nullptr)) {
-    fclose(fp);
-    EC_KEY_free(pkey);
+  if (!PEM_read_EC_PUBKEY(fp.get(), reinterpret_cast<EC_KEY**>(pkey.get()), nullptr, nullptr)) {
     throw UnexpectedOpenSSLCryptoFailureException(
         "OpenSSL Crypto unexpectedly failed to parse the public key file for " + path_to_file);
   }
-  fclose(fp);
-  unique_ptr<EVP_PKEY, EVPPKEYDeleter> public_pkey(EVP_PKEY_new(), EVPPKEYDeleter());
-  if (!EVP_PKEY_set1_EC_KEY(public_pkey.get(), pkey)) {
-    EC_KEY_free(pkey);
+
+  UniquePKEY public_pkey(EVP_PKEY_new());
+  if (!EVP_PKEY_set1_EC_KEY(public_pkey.get(), pkey.get())) {
     throw UnexpectedOpenSSLCryptoFailureException(
         "OpenSSL Crypto unexpectedly failed to initialize a high-level key "
         "object given an elliptic curve key object.");
   }
-  EC_KEY_free(pkey);
   return std::make_unique<EVPPKEYPublicKey>(std::move(public_pkey), "secp256r1");
 }
 
@@ -571,8 +542,8 @@ unique_ptr<AsymmetricPublicKey> concord::util::openssl_utils::deserializePublicK
     // prime256v1 is an alternative name for the same curve parameters as
     // secp256r1; prime256v1 happens to be the name OpenSSL's Crypto library
     // uses for a possible parameter to EC_KEY_new_by_curve_name.
-    unique_ptr<EC_KEY, ECKEYDeleter> ec_key(EC_KEY_new_by_curve_name(NID_X9_62_prime256v1), ECKEYDeleter());
-    if (!ec_key) {
+    UniqueOpenSSLECKEY ec_key(EC_KEY_new_by_curve_name(NID_X9_62_prime256v1));
+    if (nullptr == ec_key.get()) {
       throw UnexpectedOpenSSLCryptoFailureException(
           "OpenSSL Crypto unexpectedly failed to allocate and prepare an "
           "elliptic curve key object.");
@@ -583,13 +554,13 @@ unique_ptr<AsymmetricPublicKey> concord::util::openssl_utils::deserializePublicK
           "OpenSSL Crypto unexpectedly failed to fetch the elliptic curve "
           "group from an elliptic curve key object.");
     }
-    unique_ptr<EC_POINT, ECPOINTDeleter> public_key(EC_POINT_new(ec_group), ECPOINTDeleter());
+    UniqueOpenSSLECPOINT public_key(EC_POINT_new(ec_group));
     if (!public_key) {
       throw UnexpectedOpenSSLCryptoFailureException(
           "OpenSSL Crypto unexpectedly failed to allocate an elliptic curve "
           "point object.");
     }
-    unique_ptr<BN_CTX, BNCTXDeleter> big_num_context(BN_CTX_new(), BNCTXDeleter());
+    UniqueOpenSSLBNCTX big_num_context(BN_CTX_new());
     if (!big_num_context) {
       throw UnexpectedOpenSSLCryptoFailureException(
           "OpenSSL Crypto unexpectedly failed to allocate a big number context "
@@ -608,7 +579,7 @@ unique_ptr<AsymmetricPublicKey> concord::util::openssl_utils::deserializePublicK
           "elliptic curve key object.");
     }
 
-    unique_ptr<EVP_PKEY, EVPPKEYDeleter> public_pkey(EVP_PKEY_new(), EVPPKEYDeleter());
+    UniquePKEY public_pkey(EVP_PKEY_new());
     if (!public_pkey) {
       throw UnexpectedOpenSSLCryptoFailureException(
           "OpenSSL Crypto unexpectedly failed to allocate and prepare a "
@@ -635,7 +606,7 @@ string concord::util::openssl_utils::computeSHA256Hash(const string& data) {
 }
 
 string concord::util::openssl_utils::computeSHA256Hash(const char* data, size_t length) {
-  unique_ptr<EVP_MD_CTX, EVPMDCTXDeleter> digest_context(EVP_MD_CTX_new(), EVPMDCTXDeleter());
+  UniqueOpenSSLContext digest_context(EVP_MD_CTX_new());
   if (!digest_context) {
     throw UnexpectedOpenSSLCryptoFailureException(
         "OpenSSL Crypto unexpectedly failed to allocate a message digest "
