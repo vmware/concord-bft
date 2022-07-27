@@ -14,22 +14,22 @@ WGET_FLAGS="--https-only"
 echo ca_certificate=/etc/ssl/certs/ca-certificates.crt > ~/.wgetrc
 
 # Install tools
-apt-get update && apt-get ${APT_GET_FLAGS} install \
+sudo apt-get update && sudo apt-get ${APT_GET_FLAGS} install \
     autoconf \
     automake \
     libtool \
     build-essential \
     ccache \
-    clang-9 \
-    clang-format-10 \
-    clang-tidy-10 \
+    clang \
+    clang-format \
+    clang-tidy \
     curl \
     gdb \
     gdbserver \
     git \
     iptables \
     less \
-    llvm-9 \
+    llvm \
     lzip \
     net-tools \
     parallel \
@@ -43,21 +43,13 @@ apt-get update && apt-get ${APT_GET_FLAGS} install \
     iproute2 \
     wget
 
-update-alternatives --install /usr/bin/clang clang /usr/lib/llvm-9/bin/clang 100
-update-alternatives --install /usr/bin/clang++ clang++ /usr/lib/llvm-9/bin/clang++ 100
-update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-10 100
-update-alternatives --install /usr/bin/clang-format-diff clang-format-diff /usr/bin/clang-format-diff-10 100
-update-alternatives --install /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-10 100
-update-alternatives --install /usr/bin/llvm-symbolizer llvm-symbolizer /usr/lib/llvm-9/bin/llvm-symbolizer 100
-update-alternatives --install /usr/bin/llvm-profdata llvm-profdata /usr/lib/llvm-9/bin/llvm-profdata 100
-update-alternatives --install /usr/bin/llvm-cov llvm-cov /usr/lib/llvm-9/bin/llvm-cov 100
 
 # Install 3rd parties
-apt-get ${APT_GET_FLAGS} install \
-    libboost-filesystem1.65-dev \
-    libboost-system1.65-dev \
-    libboost-program-options1.65-dev \
-    libboost1.65-dev \
+sudo apt-get ${APT_GET_FLAGS} install \
+    libboost-filesystem-dev \
+    libboost-system-dev \
+    libboost-program-options-dev \
+    libboost-dev \
     libbz2-dev \
     liblz4-dev \
     libs3-dev \

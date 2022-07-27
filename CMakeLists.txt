@@ -1,4 +1,6 @@
 cmake_minimum_required(VERSION 3.2)
+set(CMAKE_CXX_COMPILER "/usr/bin/clang++")
+set(CMAKE_C_COMPILER "/usr/bin/clang")
 project(concord-bft VERSION 0.1.0.0 LANGUAGES CXX)
 
 #
