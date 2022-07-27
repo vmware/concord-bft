@@ -33,11 +33,7 @@ Client::Client(const std::string& pid,
   ask_->e = libutt::deserialize<libutt::IBE::EncSK>(csk);
   ask_->mpk_ = libutt::deserialize<libutt::IBE::MPK>(mpk);
 }
-Commitment Client::generateRCM(const GlobalParams& d) {
-  std::vector<types::CurvePoint> m = {Fr::zero().to_words(), ask_->s.to_words(), Fr::zero().to_words()};
-  auto comm = Commitment(d, Commitment::Type::REGISTRATION, m, true);
-  return comm;
-}
+
 Commitment Client::generateInputRCM() {
   Commitment comm;
   auto h1 = hashToHex(getPidHash());
@@ -55,10 +51,11 @@ const std::string& Client::getPid() const { return ask_->pid; }
 types::CurvePoint Client::getPidHash() const { return ask_->getPidHash().to_words(); }
 types::CurvePoint Client::getPRFSecretKey() const { return ask_->s.to_words(); }
 
-void Client::setRCM(const Commitment& comm, const types::Signature& sig) {
-  rcm_ = comm;
+void Client::setRCMSig(const GlobalParams& d, const types::Signature& sig) {
+  // Compute the complete rcm including s2
+  std::vector<types::CurvePoint> m = {ask_->pid_hash.to_words(), ask_->s.to_words(), Fr::zero().to_words()};
+  rcm_ = Commitment(d, Commitment::Type::REGISTRATION, m, true);
   rcm_sig_ = sig;
-  ask_->rcm = *(comm.comm_);
   ask_->rs = libutt::deserialize<libutt::RandSig>(sig);
 }
 

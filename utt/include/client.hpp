@@ -23,12 +23,13 @@ class Client {
          const std::string& csk,
          const std::string& mpk);
   Commitment generateInputRCM();
-  Commitment generateRCM(const GlobalParams& d);
   void setPRFKey(const types::CurvePoint& s2);
   const std::string& getPid() const;
   types::CurvePoint getPRFSecretKey() const;
   types::CurvePoint getPidHash() const;
-  void setRCM(const Commitment& comm, const types::Signature& sig);
+
+  // This method has to be called only after setPRFKey with s2
+  void setRCMSig(const GlobalParams& d, const types::Signature& sig);
   std::pair<Commitment, types::Signature> getRcm() const;
   template <typename T>
   std::vector<libutt::api::Coin> claimCoins(const T&,

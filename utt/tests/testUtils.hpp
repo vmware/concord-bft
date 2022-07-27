@@ -92,14 +92,12 @@ void registerClient(const GlobalParams& d,
   std::vector<std::vector<uint8_t>> shares;
   auto prf = c.getPRFSecretKey();
   Fr fr_s2 = Fr::random_element();
-  Commitment pid_rcm;
   types::CurvePoint s2;
   auto rcm1 = c.generateInputRCM();
   for (auto& r : registrators) {
-    auto [comm, ret_s2, sig] = r->ComputeRCM(d, c.getPidHash(), fr_s2.to_words(), rcm1);
+    auto [ret_s2, sig] = r->ComputeRCM(c.getPidHash(), fr_s2.to_words(), rcm1);
     shares.push_back(sig);
     if (s2.empty()) {
-      pid_rcm = comm;
       s2 = ret_s2;
     }
   }
@@ -111,6 +109,6 @@ void registerClient(const GlobalParams& d,
   auto sig = Utils::aggregateSigShares(
       d, Commitment::Type::REGISTRATION, (uint32_t)n, rsigs, {Fr::zero().to_words(), Fr::zero().to_words()});
   c.setPRFKey(s2);
-  c.setRCM(c.generateRCM(d) + pid_rcm, sig);
+  c.setRCMSig(d, sig);
 }
 }  // namespace libutt::api::testing

@@ -14,10 +14,9 @@ class Registrator {
  public:
   Registrator(const std::string& id, const std::string& rsk, const std::string& rbk, const RegAuthSK& tmp);
 
-  std::tuple<Commitment, types::CurvePoint, types::Signature> ComputeRCM(const GlobalParams& d,
-                                                                         const types::CurvePoint& pid_hash,
-                                                                         const types::CurvePoint& s2,
-                                                                         const Commitment& rcm1) const;
+  std::pair<types::CurvePoint, types::Signature> ComputeRCM(const types::CurvePoint& pid_hash,
+                                                            const types::CurvePoint& s2,
+                                                            const Commitment& rcm1) const;
 
   bool validateRCM(const Commitment& comm, const types::Signature& sig) const;
 
