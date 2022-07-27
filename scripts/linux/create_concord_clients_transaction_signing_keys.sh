@@ -20,7 +20,7 @@ usage() {
     printf "\n-----\nhelp:\n-----\n"
     printf "%s\n\n" "-h --help, print this message"
     printf "%s\n\n" "-n --num_participants <integer>, mandatory"
-    printf "%s\n\n" "-a --algo_name, mandatory"
+    printf "%s\n\n" "-a --algo_name, optional, default: eddsa"
     printf "%s\n\n" "-r --private_key_name <string>, optional, default: transaction_signing_priv.pem"
     printf "%s\n\n" "-u --public_key_name <string>, optional, default: transaction_signing_pub.pem"
     printf "%s\n\n" "-d --output_folder <string>, optional, default: transaction_signing_keys"

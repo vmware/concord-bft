@@ -17,8 +17,8 @@
 #include "hex_tools.h"
 #include "openssl_crypto.hpp"
 #include "crypto/eddsa/EdDSA.hpp"
-#include "io.hpp"
 #include "util/filesystem.hpp"
+#include "ReplicaConfig.hpp"
 
 #include <regex>
 #include <utility>
@@ -28,6 +28,8 @@ using std::pair;
 using std::array;
 using std::string;
 using std::unique_ptr;
+using bftEngine::ReplicaConfig;
+using concord::crypto::signature::SIGN_VERIFY_ALGO;
 using concord::util::crypto::KeyFormat;
 using concord::util::openssl_utils::UniquePKEY;
 using concord::util::openssl_utils::UniqueOpenSSLPKEYContext;
@@ -41,13 +43,13 @@ string CertificateUtils::generateSelfSignedCert(const string& origin_cert_path,
                                                 const string& public_key,
                                                 const string& signing_key) {
   unique_ptr<FILE, decltype(&fclose)> fp(fopen(origin_cert_path.c_str(), "r"), fclose);
-  if (!fp) {
+  if (nullptr == fp) {
     LOG_ERROR(OPENSSL_LOG, "Certificate file not found, path: " << origin_cert_path);
     return string();
   }
 
   UniqueOpenSSLX509 cert(PEM_read_X509(fp.get(), nullptr, nullptr, nullptr));
-  if (!cert) {
+  if (nullptr == cert) {
     LOG_ERROR(OPENSSL_LOG, "Cannot parse certificate, path: " << origin_cert_path);
     return string();
   }
@@ -81,15 +83,16 @@ string CertificateUtils::generateSelfSignedCert(const string& origin_cert_path,
     return {};
   }
 
-#ifdef USE_CRYPTOPP_RSA
-  if (OPENSSL_FAILURE == X509_sign(cert.get(), priv_key.get(), EVP_sha256())) {
-    LOG_ERROR(OPENSSL_LOG, "Failed to sign certificate using private key.");
-    return {};
-  }
-#endif
-  if (OPENSSL_FAILURE == X509_sign(cert.get(), priv_key.get(), nullptr)) {
-    LOG_ERROR(OPENSSL_LOG, "Failed to sign certificate using private key.");
-    return {};
+  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
+    if (OPENSSL_FAILURE == X509_sign(cert.get(), priv_key.get(), EVP_sha256())) {
+      LOG_ERROR(OPENSSL_LOG, "Failed to sign certificate using RSA private key.");
+      return {};
+    }
+  } else if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
+    if (OPENSSL_FAILURE == X509_sign(cert.get(), priv_key.get(), nullptr)) {
+      LOG_ERROR(OPENSSL_LOG, "Failed to sign certificate using EdDSA private key.");
+      return {};
+    }
   }
 
   UniqueOpenSSLBIO outbio(BIO_new(BIO_s_mem()));
@@ -115,7 +118,7 @@ bool CertificateUtils::verifyCertificate(X509& cert, const string& public_key) {
   if (BIO_write(pub_bio.get(), static_cast<const char*>(public_key.c_str()), public_key.size()) <= 0) {
     return false;
   }
-  if (!PEM_read_bio_PUBKEY(pub_bio.get(), reinterpret_cast<EVP_PKEY**>(&pub_key), nullptr, nullptr)) {
+  if (nullptr == PEM_read_bio_PUBKEY(pub_bio.get(), reinterpret_cast<EVP_PKEY**>(&pub_key), nullptr, nullptr)) {
     return false;
   }
   return (OPENSSL_SUCCESS == X509_verify(&cert, pub_key.get()));
@@ -172,13 +175,13 @@ bool CertificateUtils::verifyCertificate(const X509& cert_to_verify,
                                        : (fs::path(cert_root_directory) / std::to_string(remotePeerId) /
                                           fs::path(cert_type) / fs::path(cert_type + ".cert"));
   std::unique_ptr<FILE, decltype(&fclose)> fp(fopen(local_cert_path.c_str(), "r"), fclose);
-  if (!fp) {
+  if (nullptr == fp) {
     LOG_ERROR(OPENSSL_LOG, "Certificate file not found, path: " << local_cert_path.string());
     return false;
   }
 
   UniqueOpenSSLX509 localCert(PEM_read_X509(fp.get(), nullptr, nullptr, nullptr));
-  if (!localCert) {
+  if (nullptr == localCert) {
     LOG_ERROR(OPENSSL_LOG, "Cannot parse certificate, path: " << local_cert_path.string());
     return false;
   }
