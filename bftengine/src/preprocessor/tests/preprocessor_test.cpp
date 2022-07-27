@@ -28,6 +28,7 @@ using namespace std;
 using namespace bft::communication;
 using namespace bftEngine;
 using namespace preprocessor;
+using concord::crypto::signature::SIGN_VERIFY_ALGO;
 
 namespace {
 
@@ -53,6 +54,7 @@ const NodeIdType replica_1 = 1;
 const NodeIdType replica_2 = 2;
 const NodeIdType replica_3 = 3;
 const NodeIdType replica_4 = 4;
+const NodeIdType replica_5 = 5;
 const ViewNum viewNum = 1;
 PreProcessorRecorder preProcessorRecorder;
 std::shared_ptr<concord::performance::PerformanceManager> sdm = make_shared<concord::performance::PerformanceManager>();
@@ -155,8 +157,7 @@ class DummyPreProcessor : public PreProcessor {
 };
 
 // clang-format off
-#ifdef USE_CRYPTOPP_RSA
-unordered_map<NodeIdType, string> replicaPrivKeys = {
+unordered_map<NodeIdType, string> replicaRSAPrivKeys = {
     {replica_0, "308204BA020100300D06092A864886F70D0101010500048204A4308204A00201000282010100C55B8F7979BF24B335017082BF33EE2960E3A0"
                 "68DCDB45CA3017214BFB3F32649400A2484E2108C7CD07AA7616290667AF7C7A1922C82B51CA01867EED9B60A57F5B6EE33783EC258B234748"
                 "8B0FA3F99B05CFFBB45F80960669594B58C993D07B94D9A89ED8266D9931EAE70BB5E9063DEA9EFAF744393DCD92F2F5054624AA048C7EE50B"
@@ -269,7 +270,7 @@ unordered_map<NodeIdType, string> replicaPrivKeys = {
                 "7088BF0990AB8E232F269B5DBCD446385A66"}
 };
 
-unordered_map<NodeIdType, string> replicaPubKeys = {
+unordered_map<NodeIdType, string> replicaRSAPubKeys = {
     {replica_0, "30820120300D06092A864886F70D01010105000382010D00308201080282010100C55B8F7979BF24B335017082BF33EE2960E3A068DCDB45CA"
                 "3017214BFB3F32649400A2484E2108C7CD07AA7616290667AF7C7A1922C82B51CA01867EED9B60A57F5B6EE33783EC258B2347488B0FA3F99B"
                 "05CFFBB45F80960669594B58C993D07B94D9A89ED8266D9931EAE70BB5E9063DEA9EFAF744393DCD92F2F5054624AA048C7EE50BEF374FCDCE"
@@ -307,8 +308,8 @@ unordered_map<NodeIdType, string> replicaPubKeys = {
                 "BF2EA16F58773514249B03A4775C6A10561AFC8CF54B551A43FD014F3C5FE12D96AC5F117645E26D125DC7430114FA60577BF7C9AA1224D190"
                 "B2D8A83B020111"}
 };
-#elif USE_EDDSA_SINGLE_SIGN
-unordered_map<NodeIdType, string> replicaPrivKeys = {
+
+unordered_map<NodeIdType, string> replicaEdDSAPrivKeys = {
     {replica_0, "61498efe1764b89357a02e2887d224154006ceacf26269f8695a4af561453eef"},
     {replica_1, "247a74ab3620ec6b9f5feab9ee1f86521da3fa2804ad45bb5bf2c5b21ef105bc"},
     {replica_2, "fb539bc3d66deda55524d903da26dbec1f4b6abf41ec5db521e617c64eb2c341"},
@@ -316,15 +317,17 @@ unordered_map<NodeIdType, string> replicaPrivKeys = {
     {replica_4, "f2f3d43da68329bfe31419636072e27cfd1a8fff259be4bfada667080eb00556"}
 };
 
-unordered_map<NodeIdType, string> replicaPubKeys = {
+unordered_map<NodeIdType, string> replicaEdDSAPubKeys = {
     {replica_0, "386f4fb049a5d8bb0706d3793096c8f91842ce380dfc342a2001d50dfbc901f4"},
     {replica_1, "3f9e7dbde90477c24c1bacf14e073a356c1eca482d352d9cc0b16560a4e7e469"},
     {replica_2, "2311c6013ff657844669d8b803b2e1ed33fe06eed445f966a800a8fbb8d790e8"},
     {replica_3, "1ba7449655784fc9ce193a7887de1e4d3d35f7c82b802440c4f28bf678a34b34"},
     {replica_4, "c426c524c92ad9d0b740f68ee312abf0298051a7e0364a867b940e9693ae6095"}
 };
-#endif
 // clang-format on
+
+unordered_map<NodeIdType, string> replicaPrivKeys;
+unordered_map<NodeIdType, string> replicaPubKeys;
 
 void setUpConfiguration_4() {
   replicaConfig.replicaId = replica_0;
@@ -1130,6 +1133,14 @@ TEST(requestPreprocessingState_test, rejectMsgWithInvalidView) {
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   logging::initLogger("logging.properties");
+
+  if (replicaConfig.replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
+    replicaPrivKeys = replicaRSAPrivKeys;
+    replicaPubKeys = replicaRSAPubKeys;
+  } else if (replicaConfig.replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
+    replicaPrivKeys = replicaEdDSAPrivKeys;
+    replicaPubKeys = replicaEdDSAPubKeys;
+  }
   setUpConfiguration_4();
   RequestProcessingState::init(numOfRequiredReplies, &preProcessorRecorder);
   PreProcessReplyMsg::setPreProcessorHistograms(&preProcessorRecorder);

@@ -40,14 +40,9 @@ using concord::crypto::signature::SignerFactory;
 using concord::crypto::signature::VerifierFactory;
 using concord::crypto::openssl::OpenSSLCryptoImpl;
 using bftEngine::ReplicaConfig;
+using concord::crypto::signature::SIGN_VERIFY_ALGO;
 
-#ifdef USE_CRYPTOPP_RSA
-constexpr char ALGO_NAME[] = "rsa";
-#elif USE_EDDSA_SINGLE_SIGN
-constexpr char ALGO_NAME[] = "eddsa";
-#endif
-
-void generateKeyPairs(size_t count, const char algo[]) {
+void generateKeyPairs(size_t count) {
   ostringstream cmd;
 
   ASSERT_EQ(0, system(cmd.str().c_str()));
@@ -57,6 +52,12 @@ void generateKeyPairs(size_t count, const char algo[]) {
   cmd.str("");
   cmd.clear();
 
+  std::string algo;
+  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
+    algo = "rsa";
+  } else if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
+    algo = "eddsa";
+  }
   cmd << KEYS_GEN_SCRIPT_PATH << " -n " << count << " -r " << PRIV_KEY_NAME << " -u " << PUB_KEY_NAME << " -o "
       << KEYS_BASE_PARENT_PATH << " -a " << algo;
   ASSERT_EQ(0, system(cmd.str().c_str()));
@@ -126,7 +127,8 @@ TEST(SignerAndVerifierTest, LoadSignVerifyFromPemfiles) {
   string privKey, pubkey, sig;
   char data[RANDOM_DATA_SIZE]{0};
 
-  generateKeyPairs(1, ALGO_NAME);
+  generateKeyPairs(1);
+
   generateRandomData(data, RANDOM_DATA_SIZE);
   readFile(privateKeyFullPath, privKey);
   readFile(publicKeyFullPath, pubkey);
@@ -168,7 +170,7 @@ TEST(SigManagerTest, ReplicasOnlyCheckVerify) {
   unique_ptr<ISigner> signers[numReplicas];
   set<pair<PrincipalId, const string>> publicKeysOfReplicas;
 
-  generateKeyPairs(numReplicas, ALGO_NAME);
+  generateKeyPairs(numReplicas);
 
   // Load signers to simulate other replicas
   for (size_t i{1}; i <= numReplicas; ++i) {
@@ -235,7 +237,7 @@ TEST(SigManagerTest, ReplicasOnlyCheckSign) {
   char data[RANDOM_DATA_SIZE]{0};
   size_t expectedSignerSigLen;
 
-  generateKeyPairs(numReplicas, ALGO_NAME);
+  generateKeyPairs(numReplicas);
 
   // Load my private key
   string privateKeyFullPath({string(KEYS_BASE_PATH) + string("/") + to_string(1) + string("/") + PRIV_KEY_NAME});
@@ -298,7 +300,7 @@ TEST(SigManagerTest, ReplicasAndClientsCheckVerify) {
   set<pair<const string, set<uint16_t>>> publicKeysOfClients;
   unordered_map<PrincipalId, size_t> principalIdToSignerIndex;
 
-  generateKeyPairs(numReplicas + numParticipantNodes, ALGO_NAME);
+  generateKeyPairs(numReplicas + numParticipantNodes);
 
   // Load replica signers to simulate other replicas
   PrincipalId currPrincipalId{0};
