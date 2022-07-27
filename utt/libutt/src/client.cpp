@@ -33,23 +33,24 @@ Client::Client(const std::string& pid,
   ask_->e = libutt::deserialize<libutt::IBE::EncSK>(csk);
   ask_->mpk_ = libutt::deserialize<libutt::IBE::MPK>(mpk);
 }
-Commitment Client::generateFullRCM(const GlobalParams& d) {
-  std::vector<types::CurvePoint> m = {getPidHash(), ask_->s.to_words(), Fr::zero().to_words()};
-  auto comm = Commitment(d, Commitment::Type::REGISTRATION, m, true);
-  return comm;
-}
-Commitment Client::generateInputRCM(const GlobalParams& d) {
+Commitment Client::generateRCM(const GlobalParams& d) {
   std::vector<types::CurvePoint> m = {Fr::zero().to_words(), ask_->s.to_words(), Fr::zero().to_words()};
   auto comm = Commitment(d, Commitment::Type::REGISTRATION, m, true);
-
-  auto& reg_ck = d.getParams().ck_reg;
+  return comm;
+}
+Commitment Client::generateInputRCM() {
+  Commitment comm;
   auto h1 = hashToHex(getPidHash());
   G1 H = libutt::hashToGroup<G1>("ps16base|" + h1);
-  CommKey ck_extra({H, reg_ck.getGen1()});
-  *(comm.comm_) = libutt::Comm::create(ck_extra, {ask_->s, Fr::zero()}, false);
+  *(comm.comm_) = (ask_->s * H);
   return comm;
 }
 
+void Client::setPRFKey(const types::CurvePoint& s2) {
+  Fr fr_s2;
+  fr_s2.from_words(s2);
+  ask_->s += fr_s2;
+}
 const std::string& Client::getPid() const { return ask_->pid; }
 types::CurvePoint Client::getPidHash() const { return ask_->getPidHash().to_words(); }
 types::CurvePoint Client::getPRFSecretKey() const { return ask_->s.to_words(); }

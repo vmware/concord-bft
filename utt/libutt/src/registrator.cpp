@@ -19,14 +19,21 @@ Registrator::Registrator(const std::string& id, const std::string& rsk, const st
   *tmp_ = tmp;
 }
 
-types::Signature Registrator::ComputeRCMSig(const types::CurvePoint& pid_hash, const Commitment& rcm1) const {
+std::tuple<Commitment, types::CurvePoint, types::Signature> Registrator::ComputeRCM(const GlobalParams& d,
+                                                                                    const types::CurvePoint& pid_hash,
+                                                                                    const types::CurvePoint& s2,
+                                                                                    const Commitment& rcm1) const {
+  std::vector<types::CurvePoint> m = {pid_hash, Fr::zero().to_words(), Fr::zero().to_words()};
+  Commitment comm = Commitment(d, Commitment::Type::REGISTRATION, m, true);
   Fr fr_pid;
   fr_pid.from_words(pid_hash);
+  Fr fr_s2;
+  fr_s2.from_words(s2);
   auto h1 = hashToHex(pid_hash);
   G1 H = libutt::hashToGroup<G1>("ps16base|" + h1);
-  auto res = rsk_->sk.shareSign({(fr_pid * H), *(rcm1.comm_)}, H);
+  auto res = rsk_->sk.shareSign({(fr_pid * H), (fr_s2 * H) + *(rcm1.comm_)}, H);
   auto res_str = libutt::serialize<libutt::RandSigShare>(res);
-  return types::Signature(res_str.begin(), res_str.end());
+  return {comm, s2, types::Signature(res_str.begin(), res_str.end())};
 }
 
 bool Registrator::validateRCM(const Commitment& comm, const types::Signature& sig) const {

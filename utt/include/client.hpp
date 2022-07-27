@@ -22,8 +22,9 @@ class Client {
          const std::string& rpk,
          const std::string& csk,
          const std::string& mpk);
-  Commitment generateInputRCM(const GlobalParams& d);
-  Commitment generateFullRCM(const GlobalParams& d);
+  Commitment generateInputRCM();
+  Commitment generateRCM(const GlobalParams& d);
+  void setPRFKey(const types::CurvePoint& s2);
   const std::string& getPid() const;
   types::CurvePoint getPRFSecretKey() const;
   types::CurvePoint getPidHash() const;
