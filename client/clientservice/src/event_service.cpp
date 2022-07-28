@@ -40,6 +40,7 @@ namespace concord::client::clientservice {
 Status EventServiceImpl::Subscribe(ServerContext* context,
                                    const SubscribeRequest* proto_request,
                                    ServerWriter<SubscribeResponse>* stream) {
+  LOG_INFO(logger_, "");
   cc::SubscribeRequest request;
 
   if (proto_request->has_event_groups()) {
@@ -71,6 +72,10 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
       // We need to check if the client cancelled the subscription.
       // Therefore, we cannot block via pop().
       update = update_queue->popTill(10ms);
+      if (update) {
+        const auto update_queue_size = update_queue->size();
+        LOG_DEBUG(logger_, KVLOG(update_queue_size));
+      }
     } catch (const UpdateNotFound& e) {
       status = grpc::Status(grpc::StatusCode::NOT_FOUND, e.what());
       break;
@@ -128,6 +133,8 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
       *response.mutable_events() = proto_events;
       std::chrono::steady_clock::time_point start_write = std::chrono::steady_clock::now();
       stream->Write(response);
+      const auto block_id = legacy_event_in.block_id;
+      LOG_DEBUG(logger_, "Done write subscribe response:" << KVLOG(block_id));
       metrics_.total_num_writes++;
       // update write duration metric
       end_processing = std::chrono::steady_clock::now();

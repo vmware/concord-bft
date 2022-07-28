@@ -556,6 +556,8 @@ string KvbAppFilter::readBlockHash(BlockId block_id) {
     throw KvbReadError(msg.str());
   }
   KvbFilteredUpdate filtered_update{block_id, cid, filterKeyValuePairs(*events)};
+  auto num_events = filtered_update.kv_pairs.size();
+  LOG_DEBUG(logger_, "Sending updates (history, hash)" << KVLOG(client_id_, block_id, num_events));
   return hashUpdate(filtered_update);
 }
 

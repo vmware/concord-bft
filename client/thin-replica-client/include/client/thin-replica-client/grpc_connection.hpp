@@ -87,7 +87,10 @@ class GrpcConnection {
         client_id_(client_id),
         data_timeout_(std::chrono::seconds(data_operation_timeout_seconds)),
         hash_timeout_(std::chrono::seconds(hash_operation_timeout_seconds)),
-        snapshot_timeout_(std::chrono::seconds(snapshot_operation_timeout_seconds)) {}
+        snapshot_timeout_(std::chrono::seconds(snapshot_operation_timeout_seconds)) {
+    LOG_INFO(logger_,
+             KVLOG(data_operation_timeout_seconds, hash_operation_timeout_seconds, snapshot_operation_timeout_seconds));
+  }
 
   virtual ~GrpcConnection() { this->disconnect(); }
 
