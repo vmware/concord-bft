@@ -52,7 +52,7 @@ ConcordClient::ConcordClient(const ConcordClientConfig& config, std::shared_ptr<
     std::this_thread::sleep_for(std::chrono::seconds(2));
   }
   createGrpcConnections();
-  
+
   int sum = std::accumulate(config_.subscribe_config.id.begin(), config_.subscribe_config.id.end(), 0);
   metrics_.participant_id_decimal_sum.Get().Set(sum);
   metrics_component_.UpdateAggregator();
