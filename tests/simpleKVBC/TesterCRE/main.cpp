@@ -51,6 +51,7 @@ creParams setupCreParams(int argc, char** argv) {
                                         {"cert-folder", optional_argument, 0, 'k'},
                                         {"txn-signing-key-path", optional_argument, 0, 't'},
                                         {"interval-timeout", optional_argument, 0, 'o'},
+                                        {"use-unified-certs", optional_argument, 0, 'U'},
                                         {0, 0, 0, 0}};
   creParams cre_param;
   cre_param.replicasKeysFolder = "./replicas_rsa_keys";
@@ -58,7 +59,7 @@ creParams setupCreParams(int argc, char** argv) {
   int o = 0;
   int optionIndex = 0;
   LOG_INFO(GL, "Command line options:");
-  while ((o = getopt_long(argc, argv, "i:f:c:r:n:k:t:o:", longOptions, &optionIndex)) != -1) {
+  while ((o = getopt_long(argc, argv, "i:f:c:r:n:k:t:o:U:", longOptions, &optionIndex)) != -1) {
     switch (o) {
       case 'i': {
         client_config.id = ClientId{concord::util::to<uint16_t>(optarg)};
@@ -96,6 +97,11 @@ creParams setupCreParams(int argc, char** argv) {
         cre_param.certFolder = optarg;
       } break;
 
+      case 'U': {
+        bool use_unified_certs = concord::util::to<bool>(std::string(optarg));
+        client_config.use_unified_certs = use_unified_certs;
+      } break;
+
       case '?': {
         throw std::runtime_error("invalid arguments");
       } break;
@@ -120,8 +126,8 @@ ICommunication* createCommunication(const ClientConfig& cc,
 #ifdef USE_COMM_PLAIN_TCP
   PlainTcpConfig conf = testCommConfig.GetTCPConfig(false, cc.id.val, clients, numOfReplicas, commFileName);
 #elif USE_COMM_TLS_TCP
-  TlsTcpConfig conf =
-      testCommConfig.GetTlsTCPConfig(false, cc.id.val, clients, numOfReplicas, commFileName, certFolder);
+  TlsTcpConfig conf = testCommConfig.GetTlsTCPConfig(
+      false, cc.id.val, clients, numOfReplicas, commFileName, cc.use_unified_certs, certFolder);
   if (conf.secretData_.has_value()) {
     sm = std::make_shared<concord::secretsmanager::SecretsManagerEnc>(conf.secretData_.value());
     enc = true;
@@ -254,7 +260,7 @@ int main(int argc, char** argv) {
       enc,
       bft_clients,
       creParams.bftConfig.id.val,
-      false,
+      creParams.bftConfig.use_unified_certs,
       sm_));
   cre.registerHandler(std::make_shared<concord::client::reconfiguration::handlers::ClientMasterKeyExchangeHandler>(
       creParams.CreConfig.id_,

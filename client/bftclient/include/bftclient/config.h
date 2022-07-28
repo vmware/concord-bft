@@ -66,6 +66,7 @@ struct ClientConfig {
   uint16_t f_val;
   uint16_t c_val;
   RetryTimeoutConfig retry_timeout_config;
+  bool use_unified_certs = false;
   std::optional<std::string> transaction_signing_private_key_file_path = std::nullopt;
   std::optional<concord::secretsmanager::SecretData> secrets_manager_config = std::nullopt;
   std::optional<std::string> replicas_master_key_folder_path = "./replicas_rsa_keys";

@@ -113,7 +113,7 @@ SimpleTestReplica *SimpleTestReplica::create_replica(ISimpleTestReplicaBehavior 
       testCommConfig.GetTCPConfig(true, rp.replicaId, rp.numOfClients, rp.numOfReplicas, rp.configFileName);
 #elif USE_COMM_TLS_TCP
   TlsTcpConfig conf =
-      testCommConfig.GetTlsTCPConfig(true, rp.replicaId, rp.numOfClients, rp.numOfReplicas, rp.configFileName);
+      testCommConfig.GetTlsTCPConfig(true, rp.replicaId, rp.numOfClients, rp.numOfReplicas, rp.configFileName, false);
 #else
   PlainUdpConfig conf =
       testCommConfig.GetUDPConfig(true, rp.replicaId, rp.numOfClients, rp.numOfReplicas, rp.configFileName);

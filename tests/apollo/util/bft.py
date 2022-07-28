@@ -157,7 +157,7 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
                      rotate_keys=False, bft_configs=None, with_cre=False, publish_master_keys=False,
                      num_repeats=int(os.getenv("NUM_REPEATS", 1)),
                      break_on_first_failure=bool(os.getenv('BREAK_ON_FAILURE') == 'TRUE'),
-                     break_on_first_success=False):
+                     break_on_first_success=False, use_unified_certs=False):
     """
     Runs the decorated async function for all selected BFT configs
     start_replica_cmd is a callback which is used to start a replica. It should have the following
@@ -200,7 +200,7 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
                         async with trio.open_nursery() as background_nursery:
                             @repeat_test(num_repeats, break_on_first_failure, break_on_first_success)
                             async def test_with_bft_network():
-                                with BftTestNetwork.new(config, background_nursery, with_cre=with_cre) as bft_network:
+                                with BftTestNetwork.new(config, background_nursery, with_cre=with_cre, use_unified_certs=use_unified_certs) as bft_network:
                                     bft_network.current_test = test_name
                                     seed = args[0].test_seed
                                     with log.start_task(action_type=f"{async_fn.__name__}",
@@ -302,6 +302,7 @@ class BftTestNetwork:
         self.ro_replicas = ro_replicas
         self.txn_signing_enabled = (os.environ.get('TXN_SIGNING_ENABLED', "").lower() in ["true", "on"])
         self.with_cre = False
+        self.use_unified_certs = False
         self.cre_pid = None
         self.cre_fds = None
         self.cre_id = self.config.n + self.config.num_ro_replicas + self.config.num_clients + RESERVED_CLIENTS_QUOTA
@@ -311,7 +312,7 @@ class BftTestNetwork:
         self._generate_operator_keys()
 
     @classmethod
-    def new(cls, config, background_nursery, client_factory=None, with_cre=False):
+    def new(cls, config, background_nursery, client_factory=None, with_cre=False, use_unified_certs=False):
         builddir = os.path.abspath("../../build")
         toolsdir = os.path.join(builddir, "tools")
         testdir = tempfile.mkdtemp()
@@ -339,6 +340,7 @@ class BftTestNetwork:
                          for i in range(config.n, config.n + config.num_ro_replicas)]
         )
         bft_network.with_cre = with_cre
+        bft_network.use_unified_certs = use_unified_certs
         # Copy logging.properties file
         shutil.copy(os.path.abspath("../simpleKVBC/scripts/logging.properties"), testdir)
 
@@ -351,7 +353,7 @@ class BftTestNetwork:
             generate_cre = 0 if bft_network.with_cre is False else 1
             # Generate certificates for all replicas, clients, and reserved clients
             bft_network.generate_tls_certs(
-                bft_network.num_total_replicas() + config.num_clients + RESERVED_CLIENTS_QUOTA + generate_cre)
+                bft_network.num_total_replicas() + config.num_clients + RESERVED_CLIENTS_QUOTA + generate_cre, use_unified_certs=use_unified_certs)
 
         bft_network._init_metrics()
         bft_network._create_clients()
@@ -425,7 +427,8 @@ class BftTestNetwork:
                            "-t", os.path.join(self.txn_signing_keys_base_path, "transaction_signing_keys",
                                               str(self.principals_to_participant_map[self.cre_id]),
                                               "transaction_signing_priv.pem"),
-                           "-o", "1000"]
+                           "-o", "1000",
+                           "-U", str(int(self.use_unified_certs))]
                 digest = self.binary_digest(cre_exe) if Path(cre_exe).exists() else 'Unknown'
                 with log.start_action(action_type="start_reconfiguration_client_process", binary=cre_exe,
                                       binary_digest=digest):
@@ -454,7 +457,7 @@ class BftTestNetwork:
                 res = subprocess.run(['cp', '-rf', source_db_dir, dest_db_dir])
                 log.log_message(message_type=f"copy db files from {source_db_dir} to {dest_db_dir}, result is {res.returncode}")
 
-    async def change_configuration(self, config, generate_tls=False):
+    async def change_configuration(self, config, generate_tls=False, use_unified_certs=False):
         self.config = config
         self.replicas = [bft_config.Replica(i, "127.0.0.1",
                                             bft_config.bft_msg_port_from_node_id(i), bft_config.metrics_port_from_node_id(i))
@@ -465,7 +468,7 @@ class BftTestNetwork:
         if generate_tls and self.comm_type() == bft_config.COMM_TYPE_TCP_TLS:
             generate_cre = 0 if self.with_cre is False else 1
             # Generate certificates for replicas, clients, and reserved clients
-            self.generate_tls_certs(self.num_total_replicas() + config.num_clients + RESERVED_CLIENTS_QUOTA + generate_cre)
+            self.generate_tls_certs(self.num_total_replicas() + config.num_clients + RESERVED_CLIENTS_QUOTA + generate_cre, use_unified_certs=use_unified_certs)
 
 
     def restart_clients(self, generate_tx_signing_keys=True, restart_replicas=True):
@@ -514,7 +517,7 @@ class BftTestNetwork:
                     "/m/X3d8kwmfZEytqt2PGMNhHMkovIaRI1A==\n"
                     "-----END EC PRIVATE KEY-----")
 
-    def generate_tls_certs(self, num_to_generate, start_index=0):
+    def generate_tls_certs(self, num_to_generate, start_index=0, use_unified_certs=False):
         """
         Generate 'num_to_generate' certificates and private keys. The certificates are generated on a given range of
         node IDs folders [start_index, start_index+num_to_generate-1] into an output certificate root folder
@@ -530,7 +533,7 @@ class BftTestNetwork:
         # We want to save time in non-TLs runs, avoiding certificate generation
         temp_cert_dir = self.certdir + "/tmp"
         os.makedirs(temp_cert_dir, exist_ok=True)
-        args = [certs_gen_script_path, str(num_to_generate), temp_cert_dir, str(start_index)]
+        args = [certs_gen_script_path, str(num_to_generate), temp_cert_dir, str(start_index), str(int(use_unified_certs))]
         subprocess.run(args, check=True, stdout=subprocess.DEVNULL)
         for c in range(num_to_generate):
             comp_cert_dir = self.certdir + "/" + str(c)
@@ -579,7 +582,8 @@ class BftTestNetwork:
                                  RETRY_TIMEOUT_MILLI,
                                  self.certdir + "/" + str(client_id),
                                  self.txn_signing_keys_base_path,
-                                 self.principals_to_participant_map)
+                                 self.principals_to_participant_map,
+                                 self.use_unified_certs)
 
     def _init_metrics(self):
         metric_clients = {}
