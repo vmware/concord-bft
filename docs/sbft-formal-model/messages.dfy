@@ -95,9 +95,13 @@ module Messages {
                      | CheckpointMsg(seqIDReached:SequenceID)
                      {
                        predicate valid(quorumSize:nat) {
-                         || (ViewChangeMsg? ==> proofForLastStable.valid(lastStableCheckpoint, quorumSize))
-                         || (NewViewMsg? ==> vcMsgs.valid(newView, quorumSize))
+                         && (ViewChangeMsg? ==> proofForLastStable.valid(lastStableCheckpoint, quorumSize))
+                         && (NewViewMsg? ==> vcMsgs.valid(newView, quorumSize))
                        }
                      }
+  predicate CheckMessageValidity(msg:Message, quorumSize:nat) {
+    && (msg.ViewChangeMsg? ==> msg.proofForLastStable.valid(msg.lastStableCheckpoint, quorumSize))
+    && (msg.NewViewMsg? ==> msg.vcMsgs.valid(msg.newView, quorumSize))
+  }
   // ToDo: ClientReply
 }

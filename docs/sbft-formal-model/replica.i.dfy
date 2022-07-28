@@ -198,7 +198,7 @@ module Replica {
     requires c.WF()
     requires v.WF(c)
     requires newViewMsg.payload.NewViewMsg?
-    requires newViewMsg.payload.valid(c.clusterConfig.AgreementQuorum())
+    requires CheckMessageValidity(newViewMsg.payload, c.clusterConfig.AgreementQuorum()) //newViewMsg.payload.valid(c.clusterConfig.AgreementQuorum())
     requires newViewMsg in v.newViewMsgsRecvd.msgs
     // readability:
     requires newViewMsg.payload.newView == v.view
@@ -578,7 +578,7 @@ module Replica {
     && (forall seqID | seqID in msg.payload.certificates
             :: && msg.payload.certificates[seqID].votes <= msgOps.signedMsgsToCheck
                && msg.payload.certificates[seqID].valid(c.clusterConfig.AgreementQuorum()))
-    && msg.payload.valid(c.clusterConfig.AgreementQuorum())
+    && CheckMessageValidity(msg.payload, c.clusterConfig.AgreementQuorum()) //msg.payload.valid(c.clusterConfig.AgreementQuorum())
     && v' == v.(viewChangeMsgsRecvd := v.viewChangeMsgsRecvd.(msgs := v.viewChangeMsgsRecvd.msgs + {msg}))
   }
 
@@ -592,11 +592,10 @@ module Replica {
     && msg.payload.newView == v.view
     && msg.payload.vcMsgs.msgs <= msgOps.signedMsgsToCheck
     // Check that all the PreparedCertificates are valid
-    && msg.payload.valid(c.clusterConfig.AgreementQuorum())
+    && CheckMessageValidity(msg.payload, c.clusterConfig.AgreementQuorum()) //msg.payload.valid(c.clusterConfig.AgreementQuorum())
     // We only allow the primary to select 1 set of View Change messages per view.
     && (forall storedMsg | storedMsg in v.newViewMsgsRecvd.msgs :: msg.payload.newView != storedMsg.payload.newView)
-    && assert (forall m | m in msg.payload.vcMsgs.msgs :: m.payload.ViewChangeMsg?);
-       v' == v.(newViewMsgsRecvd := v.newViewMsgsRecvd.(msgs := v.newViewMsgsRecvd.msgs + {msg}))
+    && v' == v.(newViewMsgsRecvd := v.newViewMsgsRecvd.(msgs := v.newViewMsgsRecvd.msgs + {msg}))
               .(workingWindow := v.workingWindow.(
                 lastStableCheckpoint := HighestStable(c, msg.payload.vcMsgs.msgs), 
                 prePreparesRcvd := v.workingWindow.Clear(c, v.workingWindow.prePreparesRcvd, None),
