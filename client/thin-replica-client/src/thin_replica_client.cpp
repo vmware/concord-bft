@@ -11,15 +11,17 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "client/thin-replica-client/thin_replica_client.hpp"
+#include <memory>
+#include <numeric>
+#include <sstream>
+#include <chrono>
+#include <vector>
 
 #include <opentracing/propagation.h>
 #include <opentracing/span.h>
 #include <opentracing/tracer.h>
-#include <memory>
-#include <numeric>
-#include <sstream>
 
+#include "client/thin-replica-client/thin_replica_client.hpp"
 #include "client/thin-replica-client/trace_contexts.hpp"
 #include "client/thin-replica-client/trc_hash.hpp"
 #include "client/thin-replica-client/grpc_connection.hpp"
