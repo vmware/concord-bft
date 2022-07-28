@@ -723,6 +723,9 @@ void ThinReplicaClient::pushUpdateToUpdateQueue(std::unique_ptr<EventVariant> up
 
   // push update to the update queue for consumption by the application using
   // TRC
+  const auto& block_id = std::get<Update>(*update).block_id;
+  auto num_events = std::get<Update>(*update).kv_pairs.size();
+  LOG_TRACE(logger_, "Pushing events to UpdateQueue:" << KVLOG(block_id, num_events));
   config_->update_queue->push(std::move(update));
 
   // update metrics
