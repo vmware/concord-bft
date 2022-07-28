@@ -58,13 +58,27 @@ module Messages {
     predicate valid(view:ViewNum, quorumSize:nat) {
       && |msgs| > 0
       && (forall v | v in msgs :: && v.payload.ViewChangeMsg?
-                                  && v.payload.WF()
+                                  && v.payload.valid(quorumSize)
                                   && v.payload.newView == view) // All the ViewChange messages have to be for the same View. 
       && (forall v1, v2 | && v1 in msgs
                           && v2 in msgs
                           && v1 != v2
                             :: v1.sender != v2.sender) // unique senders
-      && |msgs| == quorumSize
+      && |msgs| == quorumSize //TODO: once proof is complete try with >=
+    }
+  }
+
+  datatype CheckpointsQuorum = CheckpointsQuorum(msgs:set<Network.Message<Message>>) {
+    predicate valid(lastStableCheckpoint:SequenceID, quorumSize:nat) {
+      && |msgs| > 0
+      && (forall m | m in msgs :: && m.payload.CheckpointMsg?
+                                  && m.payload.valid(quorumSize)
+                                  && m.payload.seqIDReached == lastStableCheckpoint)
+      && (forall m1, m2 | && m1 in msgs
+                          && m2 in msgs
+                          && m1 != m2
+                            :: m1.sender != m2.sender) // unique senders
+      && |msgs| >= quorumSize
     }
   }
 
@@ -73,12 +87,16 @@ module Messages {
                      | Prepare(view:ViewNum, seqID:SequenceID, operationWrapper:OperationWrapper)
                      | Commit(view:ViewNum, seqID:SequenceID, operationWrapper:OperationWrapper)
                      | ClientRequest(clientOp:ClientOperation)
-                     | ViewChangeMsg(newView:ViewNum, certificates:imap<SequenceID, PreparedCertificate>) // omitting last stable because we don't have checkpointing yet.
+                     | ViewChangeMsg(newView:ViewNum,
+                                     lastStableCheckpoint:SequenceID,
+                                     proofForLastStable:CheckpointsQuorum,
+                                     certificates:map<SequenceID, PreparedCertificate>)
                      | NewViewMsg(newView:ViewNum, vcMsgs:ViewChangeMsgsSelectedByPrimary) 
                      | CheckpointMsg(seqIDReached:SequenceID)
                      {
-                       predicate WF() {
-                         && (ViewChangeMsg? ==> Library.FullImap(certificates)) //TODO: rename TotalImap
+                       predicate valid(quorumSize:nat) {
+                         || (ViewChangeMsg? ==> proofForLastStable.valid(lastStableCheckpoint, quorumSize))
+                         || (NewViewMsg? ==> vcMsgs.valid(newView, quorumSize))
                        }
                      }
   // ToDo: ClientReply
