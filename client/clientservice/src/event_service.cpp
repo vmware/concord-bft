@@ -11,6 +11,8 @@
 
 #include <chrono>
 #include <iostream>
+#include <chrono>
+
 #include <opentracing/tracer.h>
 
 #include "client/clientservice/event_service.hpp"
@@ -30,8 +32,11 @@ using concord::client::concordclient::UpdateNotFound;
 using concord::client::concordclient::OutOfRangeSubscriptionRequest;
 using concord::client::concordclient::SubscriptionExists;
 using concord::client::concordclient::InternalError;
+using std::chrono::steady_clock;
+using std::chrono::duration_cast;
 
 using namespace std::chrono_literals;
+using namespace std;
 
 namespace cc = concord::client::concordclient;
 
@@ -63,7 +68,7 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
 
   // TODO: Return UNAVAILABLE as documented in event.proto if ConcordClient is unhealthy
   auto status = grpc::Status::OK;
-  std::chrono::steady_clock::time_point start_aggregator_timer = std::chrono::steady_clock::now();
+  steady_clock::time_point start_aggregator_timer = steady_clock::now();
   while (!context->IsCancelled()) {
     SubscribeResponse response;
     std::unique_ptr<EventVariant> update;
@@ -91,7 +96,7 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
     if (not update) {
       continue;
     }
-    std::chrono::steady_clock::time_point start_processing = std::chrono::steady_clock::now(), end_processing;
+    steady_clock::time_point start_processing = steady_clock::now(), end_processing;
 
     if (std::holds_alternative<cc::EventGroup>(*update)) {
       auto& event_group_in = std::get<cc::EventGroup>(*update);
@@ -105,12 +110,12 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
                                                     event_group_in.trace_context.end()};
 
       *response.mutable_event_group() = proto_event_group;
-      std::chrono::steady_clock::time_point start_write = std::chrono::steady_clock::now();
+      steady_clock::time_point start_write = steady_clock::now();
       stream->Write(response);
       metrics_.total_num_writes++;
       // update write duration metric
-      end_processing = std::chrono::steady_clock::now();
-      auto duration_write = std::chrono::duration_cast<std::chrono::microseconds>(end_processing - start_write);
+      end_processing = steady_clock::now();
+      auto duration_write = duration_cast<chrono::microseconds>(end_processing - start_write);
       metrics_.write_duration.Get().Set(duration_write.count());
     } else if (std::holds_alternative<cc::Update>(*update)) {
       auto& legacy_event_in = std::get<cc::Update>(*update);
@@ -126,27 +131,25 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
       // TODO: Set trace context
 
       *response.mutable_events() = proto_events;
-      std::chrono::steady_clock::time_point start_write = std::chrono::steady_clock::now();
+      steady_clock::time_point start_write = steady_clock::now();
       stream->Write(response);
       metrics_.total_num_writes++;
       // update write duration metric
-      end_processing = std::chrono::steady_clock::now();
-      auto duration_write = std::chrono::duration_cast<std::chrono::microseconds>(end_processing - start_write);
+      end_processing = steady_clock::now();
+      auto duration_write = duration_cast<chrono::microseconds>(end_processing - start_write);
       metrics_.write_duration.Get().Set(duration_write.count());
     } else {
       LOG_ERROR(logger_, "Got unexpected update type from TRC. This should never happen!");
     }
     // update processing duration metric
-    auto update_processing_duration =
-        std::chrono::duration_cast<std::chrono::microseconds>(end_processing - start_processing);
+    auto update_processing_duration = duration_cast<chrono::microseconds>(end_processing - start_processing);
     metrics_.update_processing_duration.Get().Set(update_processing_duration.count());
 
     // update metrics aggregator every second
-    auto metrics_aggregator_dur =
-        std::chrono::duration_cast<std::chrono::seconds>(end_processing - start_aggregator_timer);
-    if (metrics_aggregator_dur >= std::chrono::seconds(1)) {
+    auto metrics_aggregator_dur = duration_cast<chrono::seconds>(end_processing - start_aggregator_timer);
+    if (metrics_aggregator_dur >= chrono::seconds(1)) {
       metrics_.updateAggregator();
-      start_aggregator_timer = std::chrono::steady_clock::now();
+      start_aggregator_timer = steady_clock::now();
     }
   }
 

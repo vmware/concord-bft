@@ -11,15 +11,17 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "client/thin-replica-client/thin_replica_client.hpp"
+#include <memory>
+#include <numeric>
+#include <sstream>
+#include <chrono>
+#include <vector>
 
 #include <opentracing/propagation.h>
 #include <opentracing/span.h>
 #include <opentracing/tracer.h>
-#include <memory>
-#include <numeric>
-#include <sstream>
 
+#include "client/thin-replica-client/thin_replica_client.hpp"
 #include "client/thin-replica-client/trace_contexts.hpp"
 #include "client/thin-replica-client/trc_hash.hpp"
 #include "client/thin-replica-client/grpc_connection.hpp"
@@ -51,8 +53,10 @@ using std::thread;
 using std::to_string;
 using std::unique_ptr;
 using std::unordered_set;
-using std::vector;
 using std::chrono::steady_clock;
+using std::chrono::duration_cast;
+
+using namespace std;
 
 namespace client::thin_replica_client {
 
@@ -506,7 +510,7 @@ void ThinReplicaClient::receiveUpdates() {
   logDataStreamResetResult(resetDataStreamTo(0), 0);
 
   // last timestamp when responsive agreeing servers were less than config_->max_faulty + 1
-  std::optional<std::chrono::steady_clock::time_point> last_non_agreement_time;
+  std::optional<steady_clock::time_point> last_non_agreement_time;
 
   // Main subscription-driving loop; one iteration of this outer loop
   // corresponds to receiving, validating, and returning one update.
@@ -517,7 +521,7 @@ void ThinReplicaClient::receiveUpdates() {
     // gave us the actual data for this update as one of the agreeing, so we
     // need it plus max_faulty_ servers giving agreeing hashes) in order to
     // validate and return an update.
-    std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+    steady_clock::time_point start = steady_clock::now();
     Data update_in;
     unique_ptr<LogCid> update_cid;
     SpanPtr span = nullptr;
@@ -587,13 +591,12 @@ void ThinReplicaClient::receiveUpdates() {
       } else {
         no_update_msg += "block " + std::to_string(latest_verified_block_id_ + 1);
       }
-      auto current_time = std::chrono::steady_clock::now();
+      auto current_time = steady_clock::now();
       if (!last_non_agreement_time.has_value()) {
         LOG_WARN(logger_, no_update_msg);
         last_non_agreement_time = current_time;
       } else {
-        auto time_since_last_log =
-            std::chrono::duration_cast<std::chrono::seconds>(current_time - last_non_agreement_time.value());
+        auto time_since_last_log = duration_cast<chrono::seconds>(current_time - last_non_agreement_time.value());
         if (time_since_last_log.count() >= config_->no_agreement_warn_duration.count()) {
           LOG_WARN(logger_, no_update_msg);
           last_non_agreement_time = current_time;
@@ -714,7 +717,7 @@ void ThinReplicaClient::receiveUpdates() {
 }
 
 void ThinReplicaClient::pushUpdateToUpdateQueue(std::unique_ptr<EventVariant> update,
-                                                const std::chrono::steady_clock::time_point& start,
+                                                const steady_clock::time_point& start,
                                                 bool is_event_group) {
   // update current queue size metric before pushing to the update_queue
   metrics_.current_queue_size.Get().Set(config_->update_queue->size());
@@ -727,8 +730,8 @@ void ThinReplicaClient::pushUpdateToUpdateQueue(std::unique_ptr<EventVariant> up
   config_->update_queue->push(std::move(update));
 
   // update metrics
-  std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+  steady_clock::time_point end = steady_clock::now();
+  auto duration = duration_cast<chrono::microseconds>(end - start);
   metrics_.update_duration_microsec.Get().Set(duration.count());
 
   if (is_event_group) {
