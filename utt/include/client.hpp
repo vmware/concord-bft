@@ -28,8 +28,7 @@ class Client {
   types::CurvePoint getPRFSecretKey() const;
   types::CurvePoint getPidHash() const;
 
-  // This method has to be called only after setPRFKey with s2
-  void setRCMSig(const GlobalParams& d, const types::Signature& sig);
+  void setRCMSig(const GlobalParams& d, const types::CurvePoint& s2, const types::Signature& sig);
   std::pair<Commitment, types::Signature> getRcm() const;
   template <typename T>
   std::vector<libutt::api::Coin> claimCoins(const T&,
@@ -48,5 +47,6 @@ class Client {
   std::unique_ptr<libutt::RegAuthPK> rpk_;
   Commitment rcm_;
   types::Signature rcm_sig_;
+  bool complete_s = false;
 };
 }  // namespace libutt::api

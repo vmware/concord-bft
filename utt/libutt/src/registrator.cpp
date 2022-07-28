@@ -9,19 +9,17 @@
 #include <utt/PolyCrypto.h>
 #include <utt/Params.h>
 namespace libutt::api {
-Registrator::Registrator(const std::string& id, const std::string& rsk, const std::string& rbk, const RegAuthSK& tmp) {
+Registrator::Registrator(const std::string& id, const std::string& rsk, const std::string& rbk) {
   id_ = id;
   rsk_.reset(new libutt::RegAuthShareSK());
   *rsk_ = libutt::deserialize<libutt::RegAuthShareSK>(rsk);
   rpk_.reset(new libutt::RegAuthPK());
   *rpk_ = libutt::deserialize<libutt::RegAuthPK>(rbk);
-  tmp_.reset(new libutt::RegAuthSK());
-  *tmp_ = tmp;
 }
 
-std::pair<types::CurvePoint, types::Signature> Registrator::ComputeRCM(const types::CurvePoint& pid_hash,
-                                                                       const types::CurvePoint& s2,
-                                                                       const Commitment& rcm1) const {
+std::pair<types::CurvePoint, types::Signature> Registrator::signRCM(const types::CurvePoint& pid_hash,
+                                                                    const types::CurvePoint& s2,
+                                                                    const Commitment& rcm1) const {
   Fr fr_pid;
   fr_pid.from_words(pid_hash);
   Fr fr_s2;

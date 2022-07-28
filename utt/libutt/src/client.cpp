@@ -22,6 +22,8 @@ Client::Client(const std::string& pid,
                const std::string& rvk,
                const std::string& csk,
                const std::string& mpk) {
+  if (pid.empty() || bpk.empty() || rvk.empty() || csk.empty() || mpk.empty())
+    throw std::runtime_error("Invalid paramets for building the client");
   ask_.reset(new libutt::AddrSK());
   ask_->pid = pid;
   ask_->s = Fr::random_element();
@@ -43,15 +45,18 @@ Commitment Client::generateInputRCM() {
 }
 
 void Client::setPRFKey(const types::CurvePoint& s2) {
+  if (complete_s) return;
   Fr fr_s2;
   fr_s2.from_words(s2);
   ask_->s += fr_s2;
+  complete_s = true;
 }
 const std::string& Client::getPid() const { return ask_->pid; }
 types::CurvePoint Client::getPidHash() const { return ask_->getPidHash().to_words(); }
 types::CurvePoint Client::getPRFSecretKey() const { return ask_->s.to_words(); }
 
-void Client::setRCMSig(const GlobalParams& d, const types::Signature& sig) {
+void Client::setRCMSig(const GlobalParams& d, const types::CurvePoint& s2, const types::Signature& sig) {
+  setPRFKey(s2);
   // Compute the complete rcm including s2
   std::vector<types::CurvePoint> m = {ask_->pid_hash.to_words(), ask_->s.to_words(), Fr::zero().to_words()};
   rcm_ = Commitment(d, Commitment::Type::REGISTRATION, m, true);

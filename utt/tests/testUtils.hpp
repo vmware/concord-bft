@@ -52,7 +52,7 @@ std::vector<std::shared_ptr<Registrator>> GenerateRegistrators(size_t n, const R
   std::vector<std::shared_ptr<Registrator>> registrators;
   for (size_t i = 0; i < n; i++) {
     registrators.push_back(std::make_shared<Registrator>(
-        std::to_string(i), serialize<RegAuthShareSK>(rsk.shares[i]), serialize<RegAuthPK>(rsk.toPK()), rsk));
+        std::to_string(i), serialize<RegAuthShareSK>(rsk.shares[i]), serialize<RegAuthPK>(rsk.toPK())));
   }
   return registrators;
 }
@@ -95,7 +95,7 @@ void registerClient(const GlobalParams& d,
   types::CurvePoint s2;
   auto rcm1 = c.generateInputRCM();
   for (auto& r : registrators) {
-    auto [ret_s2, sig] = r->ComputeRCM(c.getPidHash(), fr_s2.to_words(), rcm1);
+    auto [ret_s2, sig] = r->signRCM(c.getPidHash(), fr_s2.to_words(), rcm1);
     shares.push_back(sig);
     if (s2.empty()) {
       s2 = ret_s2;
@@ -108,7 +108,6 @@ void registerClient(const GlobalParams& d,
   }
   auto sig = Utils::aggregateSigShares(
       d, Commitment::Type::REGISTRATION, (uint32_t)n, rsigs, {Fr::zero().to_words(), Fr::zero().to_words()});
-  c.setPRFKey(s2);
-  c.setRCMSig(d, sig);
+  c.setRCMSig(d, s2, sig);
 }
 }  // namespace libutt::api::testing

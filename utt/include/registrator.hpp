@@ -12,11 +12,11 @@ class RegAuthSK;
 namespace libutt::api {
 class Registrator {
  public:
-  Registrator(const std::string& id, const std::string& rsk, const std::string& rbk, const RegAuthSK& tmp);
+  Registrator(const std::string& id, const std::string& rsk, const std::string& rbk);
 
-  std::pair<types::CurvePoint, types::Signature> ComputeRCM(const types::CurvePoint& pid_hash,
-                                                            const types::CurvePoint& s2,
-                                                            const Commitment& rcm1) const;
+  std::pair<types::CurvePoint, types::Signature> signRCM(const types::CurvePoint& pid_hash,
+                                                         const types::CurvePoint& s2,
+                                                         const Commitment& rcm1) const;
 
   bool validateRCM(const Commitment& comm, const types::Signature& sig) const;
 
@@ -24,6 +24,5 @@ class Registrator {
   std::string id_;
   std::unique_ptr<RegAuthShareSK> rsk_;
   std::unique_ptr<RegAuthPK> rpk_;
-  std::unique_ptr<RegAuthSK> tmp_;
 };
 }  // namespace libutt::api

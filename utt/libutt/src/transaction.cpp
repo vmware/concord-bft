@@ -22,10 +22,12 @@ Transaction::Transaction(const GlobalParams& d,
   for (auto& c : coins) input_coins.push_back(*(c.coin_));
   std::optional<libutt::Coin> budget_coin = std::nullopt;
   if (bc.has_value()) budget_coin.emplace(*(bc->coin_));
-  std::vector<std::tuple<std::string, Fr>> fr_receips(recipients.size());
+  std::vector<std::tuple<std::string, Fr>> fr_recipients(recipients.size());
   for (size_t i = 0; i < recipients.size(); i++) {
-    auto& [r_str, r_id] = recipients[i];
-    auto& [id, fr] = fr_receips[i];
+    // initiate the Fr types with the values given in the recipients vector (becasue the interanl Tx object gets
+    // vector<Fr> as an input)
+    const auto& [r_str, r_id] = recipients[i];
+    auto& [id, fr] = fr_recipients[i];
     id = r_str;
     fr.set_ulong(r_id);
   }
@@ -39,7 +41,7 @@ Transaction::Transaction(const GlobalParams& d,
                            prf,
                            input_coins,
                            budget_coin,
-                           fr_receips,
+                           fr_recipients,
                            std::nullopt,
                            rpk.vk,
                            mpk));
