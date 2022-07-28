@@ -187,7 +187,7 @@ class ConcordClient {
 
   logging::Logger logger_;
   const ConcordClientConfig& config_;
-  std::shared_ptr<concordMetrics::Aggregator> metrics_;
+  std::shared_ptr<concordMetrics::Aggregator> aggregator_;
 
   // TODO: Allow multiple subscriptions
   std::atomic_bool active_subscription_{false};
