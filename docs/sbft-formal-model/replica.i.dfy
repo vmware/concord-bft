@@ -160,6 +160,7 @@ module Replica {
   predicate HaveSufficientVCMsgsToMoveTo(c:Constants, v:Variables, newView:ViewNum)
     requires v.WF(c)
   {
+    && newView > v.view
     && var relevantVCMsgs := set vcMsg | && vcMsg in v.viewChangeMsgsRecvd.msgs
                                          && vcMsg.payload.newView >= newView;
     && var senders := Messages.sendersOf(relevantVCMsgs);
