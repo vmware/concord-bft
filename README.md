@@ -38,7 +38,7 @@ when a backwards incompatible change is made.
 
 ## Install and Build (Ubuntu Linux 18.04)
 
-Concord-BFT supports two kinds of builds: native and docker.
+Concord-BFT supports two kinds of builds: native and docker. At present both builds are supported on Ubuntu Linux 18.04. 
 
 The docker build is **strongly recommended**.
 
