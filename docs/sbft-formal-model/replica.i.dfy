@@ -506,6 +506,10 @@ module Replica {
     //            (vcMsg.payload.certificates[seqID].valid(c.clusterConfig.AgreementQuorum())))
     && v' == v.(view := newView)
               .(viewChangeMsgsRecvd := v.viewChangeMsgsRecvd.(msgs := v.viewChangeMsgsRecvd.msgs + {vcMsg}))
+              .(workingWindow := v.workingWindow.(
+                prePreparesRcvd := v.workingWindow.Clear(c, v.workingWindow.prePreparesRcvd, None),
+                preparesRcvd := v.workingWindow.Clear(c, v.workingWindow.preparesRcvd, EmptyPrepareProofSet()),
+                commitsRcvd := v.workingWindow.Clear(c, v.workingWindow.commitsRcvd, EmptyCommitProofSet())))
   }
 
   function ExtractStableCheckpointProof(c:Constants, v:Variables) : set<Network.Message<Message>>
@@ -596,11 +600,7 @@ module Replica {
     // We only allow the primary to select 1 set of View Change messages per view.
     && (forall storedMsg | storedMsg in v.newViewMsgsRecvd.msgs :: msg.payload.newView != storedMsg.payload.newView)
     && v' == v.(newViewMsgsRecvd := v.newViewMsgsRecvd.(msgs := v.newViewMsgsRecvd.msgs + {msg}))
-              .(workingWindow := v.workingWindow.(
-                lastStableCheckpoint := HighestStable(c, msg.payload.vcMsgs.msgs), 
-                prePreparesRcvd := v.workingWindow.Clear(c, v.workingWindow.prePreparesRcvd, None),
-                preparesRcvd := v.workingWindow.Clear(c, v.workingWindow.preparesRcvd, EmptyPrepareProofSet()),
-                commitsRcvd := v.workingWindow.Clear(c, v.workingWindow.commitsRcvd, EmptyCommitProofSet())))
+              .(workingWindow := v.workingWindow.(lastStableCheckpoint := HighestStable(c, msg.payload.vcMsgs.msgs)))
   }
 
   predicate SendCheckpoint(c:Constants, v:Variables, v':Variables, msgOps:Network.MessageOps<Message>, seqID:SequenceID) {
