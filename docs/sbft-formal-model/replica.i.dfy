@@ -579,6 +579,10 @@ module Replica {
     && msgOps.IsRecv()
     && var msg := msgOps.recv.value;
     && msg.payload.ViewChangeMsg?
+    // Check Checkpoint msg-s signatures:
+    && var checkpointMsgs := set c | c in msg.payload.proofForLastStable.msgs;
+    && checkpointMsgs <= msgOps.signedMsgsToCheck
+    // Check Signatures for the Prepared Certificates:
     && (forall seqID | seqID in msg.payload.certificates
             :: && msg.payload.certificates[seqID].votes <= msgOps.signedMsgsToCheck
                && msg.payload.certificates[seqID].valid(c.clusterConfig.AgreementQuorum()))
