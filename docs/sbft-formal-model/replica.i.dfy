@@ -300,7 +300,7 @@ module Replica {
   predicate LiteInv(c:Constants, v:Variables) {
     && v.WF(c)
     && (forall newViewMsg | newViewMsg in v.newViewMsgsRecvd.msgs ::
-               && newViewMsg.payload.vcMsgs.valid(v.view, c.clusterConfig.AgreementQuorum())
+               && CheckMessageValidity(newViewMsg.payload, c.clusterConfig.AgreementQuorum()) //msg.payload.valid(c.clusterConfig.AgreementQuorum())
                && PrimaryForView(c, newViewMsg.payload.newView) == newViewMsg.sender)
   }
 
