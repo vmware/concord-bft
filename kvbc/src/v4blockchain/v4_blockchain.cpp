@@ -40,9 +40,6 @@ KeyValueBlockchain::KeyValueBlockchain(
           "numOfBlocksDeleted", block_chain_.getGenesisBlockId() > 0 ? (block_chain_.getGenesisBlockId() - 1) : 0)},
       deleted_keys_{v4_metrics_comp_.RegisterCounter("numOfKeysDeleted", 0)},
       immutables_reads_{v4_metrics_comp_.RegisterCounter("numOfimmutableReads", 0)} {
-  if (native_client_->createColumnFamilyIfNotExisting(v4blockchain::detail::MISC_CF)) {
-    LOG_INFO(V4_BLOCK_LOG, "Created [" << v4blockchain::detail::MISC_CF << "] column family");
-  }
   if (!link_st_chain) return;
   // Mark version of blockchain
   native_client_->put(v4blockchain::detail::MISC_CF, kvbc::keyTypes::blockchain_version, kvbc::V4Version());
