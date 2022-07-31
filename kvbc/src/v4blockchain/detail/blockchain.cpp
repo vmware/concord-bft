@@ -24,6 +24,9 @@ Blockchain::Blockchain(const std::shared_ptr<concord::storage::rocksdb::NativeCl
   if (native_client->createColumnFamilyIfNotExisting(v4blockchain::detail::BLOCKS_CF)) {
     LOG_INFO(V4_BLOCK_LOG, "Created [" << v4blockchain::detail::BLOCKS_CF << "] column family for the main blockchain");
   }
+  if (native_client_->createColumnFamilyIfNotExisting(v4blockchain::detail::MISC_CF)) {
+    LOG_INFO(V4_BLOCK_LOG, "Created [" << v4blockchain::detail::MISC_CF << "] column family");
+  }
   auto last_reachable_block_id = loadLastReachableBlockId();
   if (last_reachable_block_id) {
     last_reachable_block_id_ = last_reachable_block_id.value();
@@ -31,6 +34,9 @@ Blockchain::Blockchain(const std::shared_ptr<concord::storage::rocksdb::NativeCl
   }
   auto genesis_blockId = loadGenesisBlockId();
   if (genesis_blockId) {
+    ConcordAssertGT(genesis_blockId.value(), INVALID_BLOCK_ID);
+    ConcordAssertLE(genesis_blockId.value(), last_reachable_block_id_);
+    ConcordAssert(!hasBlock(genesis_blockId.value() - 1));
     setGenesisBlockId(genesis_blockId.value());
     LOG_INFO(V4_BLOCK_LOG, "Genesis block was loaded from storage " << genesis_block_id_);
   }
@@ -88,6 +94,7 @@ BlockId Blockchain::deleteBlocksUntil(BlockId until) {
   // including "begin_key" and excluding "end_key" --> this is why end is (last_deleted_block + 1)
   write_batch.delRange(
       v4blockchain::detail::BLOCKS_CF, generateKey(genesis_block_id_), generateKey(last_deleted_block + 1));
+  write_batch.put(v4blockchain::detail::MISC_CF, keyTypes::genesis_block_key, generateKey(last_deleted_block + 1));
   native_client_->write(std::move(write_batch));
   auto blocks_deleted = (last_deleted_block - genesis_block_id_) + 1;
   setGenesisBlockId(last_deleted_block + 1);
@@ -101,6 +108,7 @@ void Blockchain::deleteGenesisBlock() {
   ConcordAssertLT(genesis_block_id_, last_reachable_block_id_);
   auto write_batch = native_client_->getBatch();
   deleteBlock(genesis_block_id_, write_batch);
+  write_batch.put(v4blockchain::detail::MISC_CF, keyTypes::genesis_block_key, generateKey(genesis_block_id_ + 1));
   native_client_->write(std::move(write_batch));
   setGenesisBlockId(genesis_block_id_ + 1);
   LOG_INFO(V4_BLOCK_LOG, "Deleted genesis, new genesis is " << genesis_block_id_);
@@ -197,8 +205,16 @@ std::optional<BlockId> Blockchain::loadLastReachableBlockId() {
   return concordUtils::fromBigEndianBuffer<BlockId>(itr.keyView().data());
 }
 
-// get the closest key to INITIAL_GENESIS_BLOCK_ID
+// if the genesis_block_key is found it means that we had pruning and we saved the genesis id in storage,
+// use it instead of iteration that takes long time.
+// if it wasn't found we get the closest value to INITIAL_GENESIS_BLOCK_ID.
 std::optional<BlockId> Blockchain::loadGenesisBlockId() {
+  auto opt_val = native_client_->get(v4blockchain::detail::MISC_CF, kvbc::keyTypes::genesis_block_key);
+  if (opt_val.has_value()) {
+    auto gen_id = concordUtils::fromBigEndianBuffer<BlockId>(opt_val->c_str());
+    LOG_DEBUG(V4_BLOCK_LOG, "Genesis block id loaded from storage " << gen_id);
+    return gen_id;
+  }
   auto itr = native_client_->getIterator(detail::BLOCKS_CF);
   itr.seekAtLeast(generateKey(concord::kvbc::INITIAL_GENESIS_BLOCK_ID));
   if (!itr) {
