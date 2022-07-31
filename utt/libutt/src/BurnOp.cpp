@@ -15,7 +15,7 @@
 #include <utt/BurnOp.h>
 
 #include <utt/Serialization.h>
-
+#include <utt/DataUtils.hpp>
 #include <xassert/XAssert.h>
 #include <xutils/Log.h>
 #include <xutils/Utils.h>
@@ -85,7 +85,8 @@ BurnOp::BurnOp(const Params& p,
 
   std::vector<std::tuple<std::string, Fr>> recip;
   recip.emplace_back(pid, d->value);
-  Tx internalTx(p, pidHash, pid, rcm_, rcm_sig, prf, inputCoins, std::nullopt, recip, bpk, rpk.vk, rpk.mpk);
+  Tx internalTx(
+      p, pidHash, pid, rcm_, rcm_sig, prf, inputCoins, std::nullopt, recip, bpk, rpk.vk, libutt::IBEEncryptor(rpk.mpk));
 
   assertTrue(internalTx.outs.size() == 1);
 

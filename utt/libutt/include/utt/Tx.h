@@ -8,12 +8,13 @@
 #include <utt/PolyCrypto.h>
 #include <utt/TxIn.h>
 #include <utt/TxOut.h>
-
+#include <utt/DataUtils.hpp>
 #include <xassert/XAssert.h>
 #include <xutils/AutoBuf.h>
 #include <xutils/Log.h>
 #include <xutils/NotImplementedException.h>
 
+#include <memory>
 namespace libutt {
 class Coin;
 class Params;
@@ -67,7 +68,7 @@ class Tx {
      const std::vector<std::tuple<std::string, Fr>>& recip,
      std::optional<RandSigPK> bpk,  // only used for debugging
      const RandSigPK& rpk,
-     const IBE::MPK& mpk);  // only to encrypt for the recipients
+     const IEncryptor& encryptor);  // only to encrypt for the recipients
 
  public:
   size_t getSize() const {
@@ -130,7 +131,7 @@ class Tx {
 
     return sigShare.verify(getCommVector(txoIdx, H), bpkShare);
   }
-  std::unordered_map<size_t, TxOut> getMineTransactions(const AddrSK& ask) const;
+  std::unordered_map<size_t, TxOut> getMineTransactions(const IDecryptor& decriptor) const;
   /**
    * Attempts to claim the output specified by 'idx':
    * i.e., decrypt the denomination, identity commitment randomness and value commitment randomness from the coin's
@@ -148,7 +149,8 @@ class Tx {
                                    size_t n,
                                    const std::vector<RandSigShare>& sigShares,
                                    const std::vector<size_t>& signerIds,
-                                   const RandSigPK& bpk) const;
+                                   const RandSigPK& bpk,
+                                   const IDecryptor& decriptor) const;
 
   std::string getHashHex() const {
     std::stringstream ss;

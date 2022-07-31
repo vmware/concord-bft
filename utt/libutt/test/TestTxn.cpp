@@ -10,6 +10,7 @@
 #include <utt/Tx.h>
 #include <utt/Utils.h>
 #include <utt/Wallet.h>
+#include <utt/DataUtils.hpp>
 
 #include <cmath>
 #include <ctime>
@@ -187,7 +188,7 @@ void testBudgeted2to2Txn(size_t thresh, size_t n, size_t numCycles, bool isBudge
           // the final Coin object
           //
           // NOTE: Coin commitment will be re-randomized and ready to spend!
-          coin = tx.tryClaimCoin(p, txoIdx, w[j].ask, n, sigShareSubset, signerIdSubset, bpk);
+          coin = tx.tryClaimCoin(p, txoIdx, w[j].ask, n, sigShareSubset, signerIdSubset, bpk, IBEDecryptor(w[j].ask.e));
 
           if (coin.has_value()) {
             foundIdx = j;
@@ -203,7 +204,7 @@ void testBudgeted2to2Txn(size_t thresh, size_t n, size_t numCycles, bool isBudge
         // assert all of the other wallets do not think this output is theirs
         for (size_t j = 0; j < w.size(); j++) {
           if (j != foundIdx) {
-            auto coin = tx.tryClaimCoin(p, txoIdx, w[j].ask, n, {}, {}, bpk);
+            auto coin = tx.tryClaimCoin(p, txoIdx, w[j].ask, n, {}, {}, bpk, IBEDecryptor(w[j].ask.e));
             testAssertFalse(coin.has_value());
           }
         }

@@ -29,6 +29,7 @@ add_library(utt
     Replica.cpp
     BurnOp.cpp
     MintOp.cpp
+    DataUtils.cpp
 )
 
 target_include_directories(utt PUBLIC

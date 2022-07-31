@@ -9,7 +9,7 @@
 #include <utt/RandSig.h>
 #include <utt/RangeProof.h>
 #include <utt/ZKPoK.h>
-
+#include <utt/DataUtils.hpp>
 #include <xassert/XAssert.h>
 #include <xutils/AutoBuf.h>
 #include <xutils/Log.h>
@@ -68,14 +68,13 @@ class TxOut {
    * When TXNs are budgeted, the icm's in these outputs already go through the budget proof's PoK
    */
   std::optional<ZKPoK> icm_pok;
-
-  IBE::Ctxt ctxt;  // encryption of coin value and coin commitment randomness
+  std::vector<uint8_t> ctxt;  // encryption of coin value and coin commitment randomness
 
  public:
   size_t getSize() const {
     return _fr_size + _fr_size + sizeof(bool) + (H.has_value() ? _g1_size : 0) + vcm_1.getSize() + sizeof(bool) +
            (range_pi.has_value() ? range_pi->getSize() : 0) + _fr_size + vcm_2.getSize() + vcm_eq_pi.getSize() +
-           _fr_size + icm.getSize() + sizeof(bool) + (icm_pok.has_value() ? icm_pok->getSize() : 0) + ctxt.getSize();
+           _fr_size + icm.getSize() + sizeof(bool) + (icm_pok.has_value() ? icm_pok->getSize() : 0) + ctxt.size();
   }
 
   TxOut() {}
@@ -87,7 +86,6 @@ class TxOut {
    * commitment under (g_3, g) uses randomness 'z'.
    */
   TxOut(const CommKey& ck_val,  // this is the (g_3, g) CK, and *not* the coin CK
-        const IBE::MPK& mpk,
         const RangeProof::Params& rpp,
         const Fr& coin_type,
         const Fr& exp_date,
@@ -96,11 +94,11 @@ class TxOut {
         const Fr& val,
         const Fr& z,
         bool icmPok,
-        bool hasRangeProof);
+        bool hasRangeProof,
+        const IEncryptor& encryptor);
 
  protected:
   TxOut(const CommKey& ck_val,  // this is the (g_3, g) CK, and *not* the coin CK
-        const IBE::MPK& mpk,
         const RangeProof::Params& rpp,
         const Fr& coin_type,
         const Fr& exp_date,
@@ -112,7 +110,8 @@ class TxOut {
         bool hasRangeProof,
         // extra delegation parameters
         CommKey ck_tx,
-        Fr pid_hash_recip);
+        Fr pid_hash_recip,
+        const IEncryptor& encryptor);
 
  public:
   /**

@@ -14,6 +14,7 @@
 #include <utt/BurnOp.h>
 #include <utt/MintOp.h>
 #include <utt/Tx.h>
+#include <utt/DataUtils.hpp>
 #include <vector>
 #include <sstream>
 namespace libutt::api {
@@ -113,7 +114,7 @@ std::vector<libutt::api::Coin> Client::claimCoins<operations::Transaction>(
     uint32_t n,
     const std::vector<std::map<uint32_t, types::Signature>>& rsigs) const {
   std::vector<libutt::api::Coin> ret;
-  auto mineTransactions = tx.tx_->getMineTransactions(*ask_);
+  auto mineTransactions = tx.tx_->getMineTransactions(libutt::IBEDecryptor(ask_->e));
   for (const auto& [txoIdx, txo] : mineTransactions) {
     Fr r_pid = txo.t, r_sn = Fr::zero(), r_val = txo.d, r_type = Fr::zero(), r_expdate = Fr::zero();
     std::vector<types::CurvePoint> r = {

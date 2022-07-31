@@ -36,20 +36,21 @@ int main(int argc, char *argv[]) {
   logdbg << "r_1 init: " << r_1 << endl;
   logdbg << "r_2 init: " << r_2 << endl;
 
-  IBE::Ctxt ctxt = mpk.encrypt(pid, frsToBytes({v, r_1, r_2})), sameCtxt;
+  auto encbuf = frsToBytes({v, r_1, r_2});
+  AutoBuf<unsigned char> cbuf(encbuf.size());
+  memcpy(cbuf.getBuf(), encbuf.data(), encbuf.size());
+  IBE::Ctxt ctxt = mpk.encrypt(pid, cbuf), sameCtxt;
   ss << ctxt;
   ss >> sameCtxt;
   testAssertEqual(ctxt, sameCtxt);
 
   Fr samev = Fr::random_element(), samer_1 = Fr::random_element(), samer_2 = Fr::random_element();
 
-  bool success;
-  AutoBuf<unsigned char> ptxt;
-  std::tie(success, ptxt) = encsk.decrypt(ctxt);
-
+  auto [success, ptxt] = encsk.decrypt(ctxt);
   testAssertTrue(success);
-
-  auto vec = bytesToFrs(ptxt);
+  std::vector<uint8_t> pdata(ptxt.size());
+  memcpy(pdata.data(), ptxt.getBuf(), ptxt.size());
+  auto vec = bytesToFrs(pdata);
   samev = vec[0];
   samer_1 = vec[1];
   samer_2 = vec[2];
@@ -65,8 +66,10 @@ int main(int argc, char *argv[]) {
   auto ctxtCopy = ctxt;
   testAssertEqual(ctxt, ctxtCopy);
 
-  testAssertNotEqual(ctxt,
-                     mpk.encrypt(pid, frsToBytes({Fr::random_element(), Fr::random_element(), Fr::random_element()})));
+  auto frs_data = frsToBytes({Fr::random_element(), Fr::random_element(), Fr::random_element()});
+  AutoBuf<unsigned char> auto_buf_data(frs_data.size());
+  memcpy(auto_buf_data.getBuf(), encbuf.data(), encbuf.size());
+  testAssertNotEqual(ctxt, mpk.encrypt(pid, auto_buf_data));
 
   loginfo << "All is well." << endl;
 

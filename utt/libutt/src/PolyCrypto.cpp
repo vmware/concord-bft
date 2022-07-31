@@ -173,24 +173,23 @@ Fr Fr_deserialize(const unsigned char* bytes, size_t len) {
   return a;
 }
 
-AutoBuf<unsigned char> frsToBytes(const std::vector<Fr>& frs) {
+std::vector<uint8_t> frsToBytes(const std::vector<Fr>& frs) {
   size_t frSize = Fr_num_bytes();
+  std::vector<uint8_t> buf(frSize * frs.size());
 
-  AutoBuf<unsigned char> buf(frSize * frs.size());
-
-  for (size_t i = 0; i < frs.size(); i++) Fr_serialize(frs[i], buf.getBuf() + i * frSize, frSize);
+  for (size_t i = 0; i < frs.size(); i++) Fr_serialize(frs[i], buf.data() + i * frSize, frSize);
 
   return buf;
 }
 
-std::vector<Fr> bytesToFrs(const AutoBuf<unsigned char>& buf) {
+std::vector<Fr> bytesToFrs(const std::vector<uint8_t>& buf) {
   std::vector<Fr> frs;
 
   size_t frSize = Fr_num_bytes();
   size_t num = buf.size() / frSize;
 
   for (size_t i = 0; i < num; i++) {
-    auto val = Fr_deserialize(buf.getBuf() + i * frSize, frSize);
+    auto val = Fr_deserialize(buf.data() + i * frSize, frSize);
 
     frs.push_back(val);
   }

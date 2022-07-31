@@ -53,7 +53,7 @@ Tx::Tx(const Params& p,
        const std::vector<std::tuple<std::string, Fr>>& recip,
        const RandSigPK& bpk,  // only used for debugging
        const RegAuthPK& rpk)  // only to encrypt for the recipients
-    : Tx{p, ask.pid_hash, ask.pid, ask.rcm, ask.rs, ask.s, c, b, recip, bpk, rpk.vk, rpk.mpk} {}
+    : Tx{p, ask.pid_hash, ask.pid, ask.rcm, ask.rs, ask.s, c, b, recip, bpk, rpk.vk, IBEEncryptor(rpk.mpk)} {}
 
 Tx::Tx(const Params& p,
        const Fr pidHash,
@@ -66,7 +66,7 @@ Tx::Tx(const Params& p,
        const std::vector<std::tuple<std::string, Fr>>& recip,
        std::optional<RandSigPK> bpk,  // only used for debugging
        const RandSigPK& rpk,
-       const IBE::MPK& mpk) {
+       const IEncryptor& encryptor) {
 #ifndef NDEBUG
   (void)bpk;
 #endif
@@ -236,7 +236,6 @@ Tx::Tx(const Params& p,
     bool icmPok = !(isBudgeted && pid_recip == pid);
     bool hasRangeProof = true;
     outs.emplace_back(p.getValCK(),
-                      mpk,
                       p.getRangeProofParams(),
                       Coin::NormalType(),
                       Coin::DoesNotExpire(),  // normal coins don't expire
@@ -245,7 +244,8 @@ Tx::Tx(const Params& p,
                       val_recip,
                       z_recip.at(j),
                       icmPok,
-                      hasRangeProof);
+                      hasRangeProof,
+                      encryptor);
 
     // z_sum_out = z_sum_out + z_recip[j];
   }
@@ -274,7 +274,6 @@ Tx::Tx(const Params& p,
     // ensures that there was enough budget.
     bool hasRangeProof = true;
     outs.emplace_back(p.getValCK(),
-                      mpk,
                       p.getRangeProofParams(),
                       Coin::BudgetType(),
                       Coin::SomeExpirationDate(),
@@ -283,7 +282,8 @@ Tx::Tx(const Params& p,
                       val_budget_out,
                       z_budget_recip,
                       icmPok,
-                      hasRangeProof);
+                      hasRangeProof,
+                      encryptor);
 
     // add the output budget coin as one of the 'forMeTxos'
     forMeOutputs.insert(outs.size() - 1);
@@ -586,14 +586,12 @@ RandSigShare Tx::shareSignCoin(size_t txoIdx, const RandSigShareSK& bskShare) co
 
   return bskShare.shareSign(getCommVector(txoIdx, H), H);
 }
-std::unordered_map<size_t, TxOut> Tx::getMineTransactions(const AddrSK& ask) const {
+std::unordered_map<size_t, TxOut> Tx::getMineTransactions(const IDecryptor& decryptor) const {
   std::unordered_map<size_t, TxOut> ret;
   for (size_t i = 0; i < outs.size(); i++) {
     auto& txo = outs[i];
-    bool forMe;
-    AutoBuf<unsigned char> ptxt;
-    std::tie(forMe, ptxt) = ask.e.decrypt(txo.ctxt);
-    if (!forMe) {
+    auto ptxt = decryptor.decrypt(txo.ctxt);
+    if (ptxt.empty()) {
       continue;
     }
     // parse the plaintext as (value, vcm_2 randomness, icm randomness)
@@ -615,7 +613,8 @@ std::optional<Coin> Tx::tryClaimCoin(const Params& p,
                                      size_t n,
                                      const std::vector<RandSigShare>& sigShares,
                                      const std::vector<size_t>& signerIds,
-                                     const RandSigPK& bpk) const {
+                                     const RandSigPK& bpk,
+                                     const IDecryptor& decryptor) const {
   // WARNING: Use std::vector<TxOut>::at(j) so it can throw if out of bounds
   auto& txo = outs.at(txoIdx);
 
@@ -624,10 +623,8 @@ std::optional<Coin> Tx::tryClaimCoin(const Params& p,
   Fr t;    // identity commitment randomness
 
   // decrypt the ciphertext
-  bool forMe;
-  AutoBuf<unsigned char> ptxt;
-  std::tie(forMe, ptxt) = ask.e.decrypt(txo.ctxt);
-
+  auto ptxt = decryptor.decrypt(txo.ctxt);
+  bool forMe = !ptxt.empty();
   if (!forMe) {
     logtrace << "TXO #" << txoIdx << " is NOT for pid '" << ask.pid << "'!" << endl;
     return std::nullopt;
