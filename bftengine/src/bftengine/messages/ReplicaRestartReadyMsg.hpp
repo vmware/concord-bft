@@ -12,7 +12,7 @@
 #pragma once
 
 #include <cstdint>
-#include "assert.h"
+#include <cassert>
 #include "assertUtils.hpp"
 #include "ReplicaConfig.hpp"
 #include "MessageBase.hpp"

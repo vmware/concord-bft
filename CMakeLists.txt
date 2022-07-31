@@ -102,6 +102,9 @@ if(RUN_APOLLO_TESTS)
     message("-- RUN_APOLLO_TESTS Enabled")
 endif()
 
+#
+# Code Quality (static, dynamic, coverage) Analysers
+#
 if(CODECOVERAGE AND THREADCHECK)
     message(FATAL_ERROR "Cannot have both Thread and Code Coverage Enabled")
 endif()
@@ -113,6 +116,37 @@ if(CODECOVERAGE)
     string(APPEND CMAKE_EXE_LINKER_FLAGS " -fprofile-instr-generate")
     message( "-- Building with llvm Code Coverage Tools")
 endif()
+
+if(CPPCHECK)
+    find_program(cppcheck cppcheck HINTS "/usr/local/bin/cppcheck" REQUIRED)
+    message(STATUS "cppcheck ${cppcheck}")
+    if(cppcheck MATCHES "NOTFOUND")
+      message(FATAL_ERROR "failed to find cppcheck executable for CPPCHECK option")
+    endif()
+    # Create <cppcheck> work folder for whole program analysis, for faster analysis and to store some useful debug information
+    # Add cppcheck work folder and reports folder for cppcheck output.
+    file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/cppcheck/reports/)
+    # max number of threads = number of CPUs
+    include(ProcessorCount)
+    ProcessorCount(CPU_CORES)
+    set(CMAKE_CXX_CPPCHECK
+          "${cppcheck}"
+          "--enable=all"
+          "--inconclusive"
+          "--inline-suppr"
+          "--quiet"
+          "--std=c++17"
+          "--template=cppcheck1"
+          "--max-configs=1"
+          "--library=boost.cfg"
+          "--library=openssl.cfg"
+          "--library=googletest"
+          "--addon=threadsafety.py"
+          "--cppcheck-build-dir=${PROJECT_BINARY_DIR}/cppcheck/"
+          "--suppressions-list=${CMAKE_CURRENT_SOURCE_DIR}/.cppcheck/suppressions.txt"
+          "--exitcode-suppressions=${CMAKE_CURRENT_SOURCE_DIR}/.cppcheck/exitcode-suppressions.txt"
+        CACHE STRING "Default value for cppcheck CXX_CPPCHECK target property")
+endif(CPPCHECK)
 
 if(USE_S3_OBJECT_STORE)
     add_compile_definitions(USE_S3_OBJECT_STORE=1)
