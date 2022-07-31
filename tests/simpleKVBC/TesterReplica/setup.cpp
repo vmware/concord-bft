@@ -89,6 +89,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     replicaConfig.preExecutionResultAuthEnabled = false;
     replicaConfig.numOfClientServices = 1;
     replicaConfig.kvBlockchainVersion = 4;
+    replicaConfig.useUnifiedCertificates = false;
     const auto persistMode = PersistencyMode::RocksDB;
     std::string keysFilePrefix;
     std::string commConfigFile;
@@ -141,6 +142,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
         {"time_service", optional_argument, 0, 'f'},
         {"blockchain-version", optional_argument, 0, 'V'},
         {"enable-db-checkpoint", required_argument, 0, 'h'},
+        {"use-unified-certs", optional_argument, 0, 'U'},
 
         // direct options - assign directly ro a non-null flag
         {"publish-master-key-on-startup", no_argument, (int*)&replicaConfig.publishReplicasMasterKeyOnStartup, 1},
@@ -150,7 +152,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     int optionIndex = 0;
     LOG_INFO(GL, "Command line options:");
     while ((o = getopt_long(
-                argc, argv, "i:k:n:s:v:a:3:l:e:w:c:b:m:q:z:y:udp:t:o:r:g:xf:h:j:V:", longOptions, &optionIndex)) !=
+                argc, argv, "i:k:n:s:v:a:3:l:e:w:c:b:m:q:z:y:udp:t:o:r:g:xf:h:j:V:U:", longOptions, &optionIndex)) !=
            -1) {
       switch (o) {
         // long-options-only first
@@ -344,7 +346,11 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
           replicaConfig.dbCheckPointWindowSize = concord::util::to<std::uint32_t>(std::string(optarg));
           break;
         }
-
+        case 'U': {
+          bool use_unified_certs = concord::util::to<bool>(std::string(optarg));
+          replicaConfig.useUnifiedCertificates = use_unified_certs;
+          break;
+        }
         case '?': {
           throw std::runtime_error("invalid arguments");
         } break;
@@ -376,8 +382,13 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     bft::communication::PlainTcpConfig conf =
         testCommConfig.GetTCPConfig(true, replicaConfig.replicaId, numOfClients, numOfReplicas, commConfigFile);
 #elif USE_COMM_TLS_TCP
-    bft::communication::TlsTcpConfig conf = testCommConfig.GetTlsTCPConfig(
-        true, replicaConfig.replicaId, numOfClients, numOfReplicas, commConfigFile, certRootPath);
+    bft::communication::TlsTcpConfig conf = testCommConfig.GetTlsTCPConfig(true,
+                                                                           replicaConfig.replicaId,
+                                                                           numOfClients,
+                                                                           numOfReplicas,
+                                                                           commConfigFile,
+                                                                           replicaConfig.useUnifiedCertificates,
+                                                                           certRootPath);
     if (conf.secretData_.has_value()) {
       sm_ = std::make_shared<concord::secretsmanager::SecretsManagerEnc>(conf.secretData_.value());
     } else {

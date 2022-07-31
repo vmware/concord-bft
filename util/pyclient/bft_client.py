@@ -437,6 +437,7 @@ class TcpTlsClient(BftClient):
     # In create_tls_certs.sh - openssl command line utility uses CN(certificate name) in the subj field.
     # This is the host name (domain name) to be verified.
     CERT_DOMAIN_FORMAT="node%dser"
+    CERT_UNIFIED_FMT="node%d"
     # Taken from TlsTCPCommunication.cpp (we prefer hard-code and not to parse the file)
     MSG_LEN_SIZE = 4
     ENDPOINT_SIZE = 8
@@ -460,6 +461,9 @@ class TcpTlsClient(BftClient):
         Private key is under <certificate root path>/replica_id/<node type>/pk.pem,
         where node type is "server" or "client".
         """
+        if self.config.use_unified_certs :
+            return os.path.join(self.config.certs_path, str(replica_id), "pk.pem")
+
         cert_type = "client" if is_client else "server"
         return os.path.join(self.config.certs_path, str(replica_id), cert_type, "pk.pem")
 
@@ -468,6 +472,9 @@ class TcpTlsClient(BftClient):
         Certificate is under <certificate root path>/replica_id/<node type>/cert.pem,
         where node type is "server" or "client".
         """
+        if self.config.use_unified_certs :
+            return os.path.join(self.config.certs_path, str(replica_id), "node.cert")
+
         cert_type = "client" if is_client else "server"
         return os.path.join(self.config.certs_path, str(replica_id), cert_type, cert_type + ".cert")
 
@@ -500,7 +507,10 @@ class TcpTlsClient(BftClient):
         # Load my private key and certificate
         ssl_context.load_cert_chain(client_cert_path, client_pk_path)
         # Server hostname to be verified must be taken from create_tls_certs.sh
-        server_hostname = self.CERT_DOMAIN_FORMAT % dest_replica.id
+        if self.config.use_unified_certs:
+            server_hostname = self.CERT_UNIFIED_FMT % dest_replica.id
+        else:
+            server_hostname = self.CERT_DOMAIN_FORMAT % dest_replica.id
         dest_addr = (dest_replica.ip, dest_replica.port)
         ssl_stream = tcp_stream = None
         # initial state of the event should be True, we want to connect
