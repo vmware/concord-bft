@@ -29,6 +29,7 @@ option(TXN_SIGNING_ENABLED "Enable External concord client transcattion signing"
 option(BUILD_COMM_TCP_PLAIN "Enable TCP communication" OFF)
 option(LEAKCHECK "Enable Address and Leak Sanitizers" OFF)
 option(THREADCHECK "Enable Thread Sanitizer" OFF)
+option(UNDEFINED_BEHAVIOR_CHECK "Enable Undefined Behavior Sanitizer" OFF)
 option(BUILD_COMM_TCP_TLS "Enable TCP TLS communication" OFF)
 # Rocksdb is required for storage now. Consider removing this flag.
 option(BUILD_ROCKSDB_STORAGE "Enable building of RocksDB storage library" ON)
@@ -80,9 +81,23 @@ string(APPEND CMAKE_CXX_FLAGS " -Wbuiltin-macro-redefined")
 string(APPEND CMAKE_CXX_FLAGS " -pedantic")
 string(APPEND CMAKE_CXX_FLAGS " -Werror")
 string(APPEND CMAKE_CXX_FLAGS " -fno-omit-frame-pointer")
-if(LEAKCHECK AND THREADCHECK)
-    message(FATAL_ERROR "Cannot have both Thread and Address/Leak Sanitizers Enabled")
+
+# At most, only one of the next options should be defined from below ONLY_ONE_OPT_RAISED_CHECK
+set(COUNTER 0)
+set(ONLY_ONE_OPT_RAISED_CHECK LEAKCHECK;THREADCHECK;UNDEFINED_BEHAVIOR_CHECK;CODECOVERAGE)
+foreach(option IN LISTS ONLY_ONE_OPT_RAISED_CHECK)
+  if(${option})
+    MATH(EXPR COUNTER "${COUNTER}+1")
+  endif()
+endforeach()
+if(${COUNTER} GREATER 1)
+  message(FATAL_ERROR "More than one of the following options were chosen: \
+LEAKCHECK=${LEAKCHECK} \
+THREADCHECK=${THREADCHECK} \
+UNDEFINED_BEHAVIOR_CHECK=${UNDEFINED_BEHAVIOR_CHECK} \
+CODECOVERAGE=${CODECOVERAGE}")
 endif()
+
 if(LEAKCHECK)
     string(APPEND CMAKE_CXX_FLAGS " -fsanitize=leak -fsanitize=address")
     message("-- Address and Leak Sanitizers Enabled")
@@ -90,6 +105,10 @@ endif()
 if(THREADCHECK)
     string(APPEND CMAKE_CXX_FLAGS " -fsanitize=thread")
     message("-- Thread Sanitizer Enabled")
+endif()
+if(UNDEFINED_BEHAVIOR_CHECK)
+    string(APPEND CMAKE_CXX_FLAGS " -fsanitize=undefined")
+    message("-- Undefined Behavior Sanitizer Enabled")
 endif()
 
 if(OMIT_TEST_OUTPUT)
@@ -105,12 +124,6 @@ endif()
 #
 # Code Quality (static, dynamic, coverage) Analysers
 #
-if(CODECOVERAGE AND THREADCHECK)
-    message(FATAL_ERROR "Cannot have both Thread and Code Coverage Enabled")
-endif()
-if(LEAKCHECK AND CODECOVERAGE)
-    message(FATAL_ERROR "Cannot have both Code Coverage and Address/Leak Sanitizers Enabled")
-endif()
 if(CODECOVERAGE)
     string(APPEND CMAKE_CXX_FLAGS " -fprofile-instr-generate -fcoverage-mapping")
     string(APPEND CMAKE_EXE_LINKER_FLAGS " -fprofile-instr-generate")
