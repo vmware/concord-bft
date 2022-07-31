@@ -14,8 +14,7 @@
 #pragma once
 
 #include <cstring>
-#include <type_traits>
-
+#include "type_traits"
 #include "assertUtils.hpp"
 
 // Please note that methods in this file do not take endianness into consideration

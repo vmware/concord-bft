@@ -363,19 +363,6 @@ git clone -b v0.7.0 --depth 1 https://github.com/jaegertracing/jaeger-client-cpp
     cd ${HOME} && \
     rm -r jaeger-client-cpp
 
-# Cppcheck 2.8
-cd ${HOME}
-CPPCHECK_VER="2.8"
-wget ${WGET_FLAGS} https://sourceforge.net/projects/cppcheck/files/cppcheck/${CPPCHECK_VER}/cppcheck-${CPPCHECK_VER}.tar.gz/download -O ./cppcheck.tar.gz && \
- tar -xvzf cppcheck.tar.gz && rm ./cppcheck.tar.gz  && \
- cd cppcheck-${CPPCHECK_VER} && \
- mkdir build && cd build && \
- cmake .. && \
- cmake --build . && \
- make install && \
- cd ${HOME} && \
- rm -rf cppcheck-${CPPCHECK_VER}
-
 # Jaeger really wants to find BoostConfig.cmake, not FindBoost.cmake.
 # This wasn't introduced until boost 1.70.
 # Jaegertracing.cmake finds FindBoost.cmake first anyways.

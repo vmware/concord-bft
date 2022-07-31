@@ -1,6 +1,6 @@
 CONCORD_BFT_DOCKER_REPO?=concordbft/
 CONCORD_BFT_DOCKER_IMAGE?=concord-bft
-CONCORD_BFT_DOCKER_IMAGE_VERSION?=0.43
+CONCORD_BFT_DOCKER_IMAGE_VERSION?=0.42
 CONCORD_BFT_DOCKER_CONTAINER?=concord-bft
 
 CONCORD_BFT_DOCKERFILE?=Dockerfile
@@ -19,8 +19,7 @@ CONCORD_BFT_CONTAINER_CC?=clang
 CONCORD_BFT_CONTAINER_CXX?=clang++
 CONCORD_BFT_CMAKE_BUILD_TYPE?=Release
 CONCORD_BFT_CMAKE_BUILD_TESTING?=TRUE
-CONCORD_BFT_CLANG_TIDY_PATH?=${CONCORD_BFT_TARGET_SOURCE_PATH}/tools/run-clang-tidy.py
-CONCORD_BFT_CPPCHECK_PATH?=${CONCORD_BFT_TARGET_SOURCE_PATH}/scripts/run-cppcheck.sh
+CONCORD_BFT_CLANG_TIDY?=${CONCORD_BFT_TARGET_SOURCE_PATH}/tools/run-clang-tidy.py
 CONCORD_BFT_RUN_SIMPLE_TEST?=./build/tests/simpleTest/scripts/testReplicasAndClient.sh
 
 # UDP | TLS | TCP
@@ -151,8 +150,8 @@ login: ## Login to the container. Note: if the container is already running, log
 			${CONCORD_BFT_CONTAINER_SHELL};exit 0; \
 	fi
 
-.PHONY: gen-cmake
-gen-cmake: ## Generate cmake files, used internally
+.PHONY: gen_cmake
+gen_cmake: ## Generate cmake files, used internally
 	docker run ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"mkdir -p ${CONCORD_BFT_TARGET_SOURCE_PATH}/${CONCORD_BFT_BUILD_DIR} && \
@@ -163,7 +162,7 @@ gen-cmake: ## Generate cmake files, used internally
 	@echo "CMake finished."
 
 .PHONY: build
-build: gen-cmake ## Build Concord-BFT source. In order to build a specific target run: make TARGET=<target name>.
+build: gen_cmake ## Build Concord-BFT source. In order to build a specific target run: make TARGET=<target name>.
 	docker run ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"cd ${CONCORD_BFT_BUILD_DIR} && \
@@ -173,14 +172,14 @@ build: gen-cmake ## Build Concord-BFT source. In order to build a specific targe
 	@echo "Build finished. The binaries are in ${CURDIR}/${CONCORD_BFT_BUILD_DIR}"
 
 .PHONY: list-targets
-list-targets: gen-cmake ## Prints the list of available targets
+list-targets: gen_cmake ## Prints the list of available targets
 	docker run ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"cd ${CONCORD_BFT_BUILD_DIR} && \
 		make help"
 
 .PHONY: format
-format: gen-cmake ## Format Concord-BFT source with clang-format
+format: gen_cmake ## Format Concord-BFT source with clang-format
 	docker run ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"cd ${CONCORD_BFT_BUILD_DIR} && \
@@ -189,7 +188,7 @@ format: gen-cmake ## Format Concord-BFT source with clang-format
 	@echo "Format finished."
 
 .PHONY: tidy-check
-tidy-check: gen-cmake ## Run clang-tidy
+tidy-check: gen_cmake ## Run clang-tidy
 	docker run ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"set -eo pipefail && \
@@ -202,37 +201,15 @@ tidy-check: gen-cmake ## Run clang-tidy
 		make -C ${CONCORD_BFT_CLIENT_PROTO_PATH} &> /dev/null && \
 		make -C ${CONCORD_BFT_THIN_REPLICA_PROTO_PATH} &> /dev/null && \
 		make -C ${CONCORD_BFT_KVBC_PROTO_PATH} &> /dev/null && \
-		${CONCORD_BFT_CLANG_TIDY_PATH} -ignore ../.clang-tidy-ignore 2>&1 | tee clang-tidy-report.txt | ( ! grep 'error:\|note:' ) && \
+		${CONCORD_BFT_CLANG_TIDY} -ignore ../.clang-tidy-ignore 2>&1 | tee clang-tidy-report.txt | ( ! grep 'error:\|note:' ) && \
 		../scripts/check-forbidden-usage.sh .." \
-		&& (printf "\nClang-tidy finished successfully.\n") \
-		|| ( printf "\nClang-tidy failed. The full report is in ${CURDIR}/${CONCORD_BFT_BUILD_DIR}/clang-tidy-report.txt. \
-			 \nFor detail information about the checks, please refer to https://clang.llvm.org/extra/clang-tidy/checks/list.html \n" \
+		&& (echo "\nClang-tidy finished successfully.") \
+		|| ( echo "\nClang-tidy failed. The full report is in ${CURDIR}/${CONCORD_BFT_BUILD_DIR}/clang-tidy-report.txt. \
+			 \nFor detail information about the checks, please refer to https://clang.llvm.org/extra/clang-tidy/checks/list.html" \
 			 ; exit 1)
 
-
-CPPCHECK_TARGET_PATH:=${CONCORD_BFT_TARGET_SOURCE_PATH}
-ifeq (${CPPCHECK_DETECT_UNUSED_FUNC},TRUE)
-	CPPCHECK_DETECT_UNUSED_FUNC__=--detect-unused-func
-endif
-ifneq (${CPPCHECK_EXTRA_OPTS},)
-	CPPCHECK_EXTRA_OPTS__:=--extra-options '${CPPCHECK_EXTRA_OPTS}'
-endif
-ifeq (${CPPCHECK_SHOW_PROGRESS},TRUE)
-	CPPCHECK_SHOW_PROGRESS__:=--show-progress
-endif
-
-.PHONY: cppcheck
-cppcheck: gen-cmake ## Run Cppcheck static analysis: `make cppcheck CPPCHECK_TARGET_PATH=<relative path to a file or folder> CPPCHECK_DETECT_UNUSED_FUNC=<TRUE|FALSE> CPPCHECK_SHOW_PROGRESS=<TRUE|FALSE> CPPCHECK_EXTRA_OPTS="<double quoted options string>"`. All flags are optional: CPPCHECK_TARGET_PATH should be used to check only part of the source code. It is an absolute path, or relative to CONCORD_BFT_TARGET_SOURCE_PATH (default, if not defined). It supports wildcards. CPPCHECK_DETECT_UNUSED_FUNC (disabled by default) enables the detection of unused code. When enabled, the number of parallel jobs is decreased to 1. Whne CPPCHECK_SHOW_PROGRESS is enabled (disabled by default), a progress report is printed to the terminal. CPPCHECK_EXTRA_OPTS (empty by default) must be double quoted. It allows the user to add any additional Cppcheck options. Extra options are placed last in the shell call, so some of the options might override previous options. use CPPCHECK_EXTRA_OPTS="-h" to see Cppcheck options. To allow for better analysis and to allow partial code analysis, includes.txt and suppressions.txt files are used as input. You can find them under CONCORD_BFT_TARGET_SOURCE_PATH/.cppcheck.
-	@bash -c "compgen -G '${CPPCHECK_TARGET_PATH}'" &> /dev/null ; \
-	if [ $$? -ne 0 ]; then \
-		echo 'Error: CPPCHECK_TARGET_PATH=${CPPCHECK_TARGET_PATH} is not a valid file/path!'; exit 1; fi
-	docker run ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} ${CONCORD_BFT_CONTAINER_SHELL} -c " \
-		${CONCORD_BFT_CPPCHECK_PATH} --target-path '${CPPCHECK_TARGET_PATH}' \
-		${CPPCHECK_DETECT_UNUSED_FUNC__} ${CPPCHECK_SHOW_PROGRESS__} ${CPPCHECK_EXTRA_OPTS__}"; \
-	RESULT=$$?; exit $${RESULT};
-
 .PHONY: list-tests
-list-tests: gen-cmake ## List all tests. This one is helpful to choose which test to run when calling `make single-test TEST_NAME=<test name>`
+list-tests: gen_cmake ## List all tests. This one is helpful to choose which test to run when calling `make single-test TEST_NAME=<test name>`
 	docker run  ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"cd ${CONCORD_BFT_BUILD_DIR} && \
