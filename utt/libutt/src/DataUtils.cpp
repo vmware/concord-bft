@@ -117,4 +117,17 @@ std::vector<uint8_t> RSADecryptor::decrypt(const std::vector<uint8_t>& ctxt) con
   EVP_CIPHER_CTX_free(ctx);
   return ptxt;
 }
+template <>
+std::pair<std::shared_ptr<IEncryptor>, std::shared_ptr<IDecryptor>>
+EncryptionSystem::create<libutt::IBE::MPK, libutt::IBE::EncSK>(const libutt::IBE::MPK& enc,
+                                                               const libutt::IBE::EncSK& dec) {
+  return {std::make_shared<IBEEncryptor>(enc), std::make_shared<IBEDecryptor>(dec)};
+}
+
+template <>
+std::pair<std::shared_ptr<IEncryptor>, std::shared_ptr<IDecryptor>>
+EncryptionSystem::create<std::unordered_map<std::string, std::string>, std::string>(
+    const std::unordered_map<std::string, std::string>& enc, const std::string& dec) {
+  return {std::make_shared<RSAEncryptor>(enc), std::make_shared<RSADecryptor>(dec)};
+}
 }  // namespace libutt

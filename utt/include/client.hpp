@@ -8,6 +8,8 @@ namespace libutt {
 class AddrSK;
 class RandSigPK;
 class RegAuthPK;
+class IEncryptor;
+class IDecryptor;
 }  // namespace libutt
 namespace libutt::api {
 class Coin;
@@ -45,6 +47,8 @@ class Client {
   std::unique_ptr<libutt::AddrSK> ask_;
   std::unique_ptr<libutt::RandSigPK> bpk_;
   std::unique_ptr<libutt::RegAuthPK> rpk_;
+  std::shared_ptr<libutt::IDecryptor> decryptor_;
+  std::shared_ptr<libutt::IEncryptor> encryptor_;
   Commitment rcm_;
   types::Signature rcm_sig_;
   bool complete_s = false;

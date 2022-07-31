@@ -11,15 +11,18 @@
 #include <vector>
 #include <cstdint>
 #include <unordered_map>
+#include <memory>
 namespace libutt {
 class IEncryptor {
  public:
   virtual std::vector<uint8_t> encrypt(const std::string& id, const std::vector<uint8_t>& msg) const = 0;
+  virtual ~IEncryptor() {}
 };
 
 class IDecryptor {
  public:
   virtual std::vector<uint8_t> decrypt(const std::vector<uint8_t>&) const = 0;
+  virtual ~IDecryptor() {}
 };
 
 class IBEEncryptor : public IEncryptor {
@@ -43,7 +46,7 @@ class IBEDecryptor : public IDecryptor {
 class RSAEncryptor : public IEncryptor {
  public:
   RSAEncryptor(const std::unordered_map<std::string, std::string>& rsa_public_keys_map);
-  ~RSAEncryptor();
+  ~RSAEncryptor() override;
   std::vector<uint8_t> encrypt(const std::string& id, const std::vector<uint8_t>& msg) const override;
 
  private:
@@ -54,9 +57,15 @@ class RSADecryptor : public IDecryptor {
  public:
   RSADecryptor(const std::string& rsa_private_key);
   std::vector<uint8_t> decrypt(const std::vector<uint8_t>&) const override;
-  ~RSADecryptor();
+  ~RSADecryptor() override;
 
  private:
   EVP_PKEY* pkey_;
+};
+
+class EncryptionSystem {
+ public:
+  template <typename encIn, typename decIn>
+  static std::pair<std::shared_ptr<IEncryptor>, std::shared_ptr<IDecryptor>> create(const encIn& enc, const decIn& dec);
 };
 }  // namespace libutt

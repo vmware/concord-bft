@@ -35,6 +35,9 @@ Client::Client(const std::string& pid,
   *rpk_ = libutt::deserialize<libutt::RegAuthPK>(rvk);
   ask_->e = libutt::deserialize<libutt::IBE::EncSK>(csk);
   ask_->mpk_ = libutt::deserialize<libutt::IBE::MPK>(mpk);
+  auto [enc, dec] = libutt::EncryptionSystem::create(ask_->mpk_, ask_->e);
+  encryptor_ = enc;
+  decryptor_ = dec;
 }
 
 Commitment Client::generateInputRCM() {
@@ -114,7 +117,7 @@ std::vector<libutt::api::Coin> Client::claimCoins<operations::Transaction>(
     uint32_t n,
     const std::vector<std::map<uint32_t, types::Signature>>& rsigs) const {
   std::vector<libutt::api::Coin> ret;
-  auto mineTransactions = tx.tx_->getMineTransactions(libutt::IBEDecryptor(ask_->e));
+  auto mineTransactions = tx.tx_->getMineTransactions(*decryptor_);
   for (const auto& [txoIdx, txo] : mineTransactions) {
     Fr r_pid = txo.t, r_sn = Fr::zero(), r_val = txo.d, r_type = Fr::zero(), r_expdate = Fr::zero();
     std::vector<types::CurvePoint> r = {

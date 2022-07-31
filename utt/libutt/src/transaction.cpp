@@ -33,7 +33,6 @@ Transaction::Transaction(const GlobalParams& d,
     fr.set_ulong(r_id);
   }
   auto& rpk = *(cid.rpk_);
-  auto& mpk = cid.ask_->mpk_;
   tx_.reset(new libutt::Tx(d.getParams(),
                            fr_pidhash,
                            cid.getPid(),
@@ -45,7 +44,7 @@ Transaction::Transaction(const GlobalParams& d,
                            fr_recipients,
                            std::nullopt,
                            rpk.vk,
-                           libutt::IBEEncryptor(mpk)));
+                           *cid.encryptor_));
 }
 std::vector<std::string> Transaction::getNullifiers() const { return tx_->getNullifiers(); }
 }  // namespace libutt::api::operations
