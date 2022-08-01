@@ -92,6 +92,16 @@ std::pair<Commitment, types::Signature> Client::getRcm() const {
   return {rcm_, types::Signature(tmp.begin(), tmp.end())};
 }
 
+std::pair<Commitment, types::Signature> Client::rerandomizeRcm(const GlobalParams& d) const {
+  auto rcm_copy = rcm_;
+  auto r = rcm_copy.rerandomize(d, Commitment::Type::REGISTRATION);
+  Fr r_rand;
+  r_rand.from_words(r);
+  auto sig_obj = ask_->rs;
+  sig_obj.rerandomize(r_rand, Fr::random_element());
+  auto tmp = libutt::serialize<libutt::RandSig>(sig_obj);
+  return {rcm_copy, types::Signature(tmp.begin(), tmp.end())};
+}
 template <>
 std::vector<libutt::api::Coin> Client::claimCoins<operations::Mint>(
     const operations::Mint& mint,

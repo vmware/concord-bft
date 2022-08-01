@@ -37,6 +37,7 @@ class Client {
   types::CurvePoint getPidHash() const;
 
   void setRCMSig(const GlobalParams& d, const types::CurvePoint& s2, const types::Signature& sig);
+  std::pair<Commitment, types::Signature> rerandomizeRcm(const GlobalParams& d) const;
   std::pair<Commitment, types::Signature> getRcm() const;
   template <typename T>
   std::vector<libutt::api::Coin> claimCoins(const T&,
