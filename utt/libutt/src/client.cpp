@@ -21,6 +21,25 @@ namespace libutt::api {
 Client::Client(const std::string& pid,
                const std::string& bpk,
                const std::string& rvk,
+               const std::string& rsaSk,
+               const std::unordered_map<std::string, std::string>& rsa_pub_keys) {
+  if (pid.empty() || bpk.empty() || rvk.empty() || rsaSk.empty() || rsa_pub_keys.empty())
+    throw std::runtime_error("Invalid paramets for building the client");
+  ask_.reset(new libutt::AddrSK());
+  ask_->pid = pid;
+  ask_->s = Fr::random_element();
+  ask_->pid_hash = AddrSK::pidHash(pid);
+  bpk_.reset(new libutt::RandSigPK());
+  *bpk_ = libutt::deserialize<libutt::RandSigPK>(bpk);
+  rpk_.reset(new libutt::RegAuthPK());
+  *rpk_ = libutt::deserialize<libutt::RegAuthPK>(rvk);
+  auto [enc, dec] = libutt::EncryptionSystem::create(rsa_pub_keys, rsaSk);
+  encryptor_ = enc;
+  decryptor_ = dec;
+}
+Client::Client(const std::string& pid,
+               const std::string& bpk,
+               const std::string& rvk,
                const std::string& csk,
                const std::string& mpk) {
   if (pid.empty() || bpk.empty() || rvk.empty() || csk.empty() || mpk.empty())

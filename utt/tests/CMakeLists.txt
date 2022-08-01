@@ -4,6 +4,7 @@ set(newutt_test_sources
     TestBurn.cpp
     TestBudget.cpp
     TestTransaction.cpp
+    TestTransactionWithRsaEncryption.cpp
 )
 
 foreach(appSrc ${newutt_test_sources})

@@ -33,14 +33,14 @@ RSAEncryptor::RSAEncryptor(const std::unordered_map<std::string, std::string>& r
     if (!keybio) {
       throw std::runtime_error("Failed to create key BIO");
     }
-    RSA* pb_key;
+    RSA* pb_key = NULL;
     if (!PEM_read_bio_RSA_PUBKEY(keybio, &pb_key, nullptr, nullptr)) {
       throw std::runtime_error("Failed to create rsa public key");
     }
     encryptors_[id] = EVP_PKEY_new();
     EVP_PKEY_assign_RSA(encryptors_[id], pb_key);
     BIO_free(keybio);
-    RSA_free(pb_key);
+    // RSA_free(pb_key);
   }
 }
 RSAEncryptor::~RSAEncryptor() {
@@ -49,33 +49,20 @@ RSAEncryptor::~RSAEncryptor() {
   }
 }
 std::vector<uint8_t> RSAEncryptor::encrypt(const std::string& id, const std::vector<uint8_t>& msg) const {
-  if (encryptors_.find(id) == encryptors_.end()) return {};
-  EVP_CIPHER_CTX* ctx;
-  int ciphertext_len{0};
-  int len{0};
-  unsigned char iv[EVP_MAX_IV_LENGTH] = {};
-  int encrypted_key_len = EVP_PKEY_size(encryptors_.at(id));
-  unsigned char* encrypted_key = (unsigned char*)malloc((size_t)encrypted_key_len);
-
-  if (!(ctx = EVP_CIPHER_CTX_new())) return {};
-  if (1 != EVP_SealInit(ctx, EVP_aes_256_cbc(), &encrypted_key, &encrypted_key_len, iv, &(encryptors_.at(id)), 1))
-    return {};
-
-  int blocksize = EVP_CIPHER_CTX_block_size(ctx);
-  size_t metadata_size = sizeof(uint64_t) + (size_t)(encrypted_key_len) + msg.size();
-  std::vector<uint8_t> ciphertext(metadata_size + (uint64_t)(blocksize - 1));
-  std::memcpy(ciphertext.data(), &encrypted_key, sizeof(uint64_t));
-  std::memcpy(ciphertext.data() + sizeof(uint64_t), encrypted_key, (size_t)encrypted_key_len);
-
-  if (1 != EVP_SealUpdate(ctx, ciphertext.data() + metadata_size, &len, msg.data(), msg.size())) return {};
-  ciphertext_len = len;
-
-  if (1 != EVP_SealFinal(ctx, ciphertext.data() + metadata_size + len, &len)) return {};
-  ciphertext_len += len;
-  ciphertext.resize((size_t)(ciphertext_len) + metadata_size);
-  free(encrypted_key);
-  EVP_CIPHER_CTX_free(ctx);
-  return ciphertext;
+  if (encryptors_.find(id) == encryptors_.end()) throw std::runtime_error("Unknown id for encryption id: " + (id));
+  EVP_PKEY_CTX* ctx;
+  ctx = EVP_PKEY_CTX_new(encryptors_.at(id), NULL);
+  if (!ctx) throw std::runtime_error("unable to encrypt data");
+  if (EVP_PKEY_encrypt_init(ctx) <= 0) throw std::runtime_error("unable to encrypt data");
+  // if (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_OAEP_PADDING) <= 0) throw std::runtime_error("unable to encrypt data");
+  size_t out_len{0};
+  if (EVP_PKEY_encrypt(ctx, NULL, &out_len, msg.data(), msg.size()) <= 0)
+    throw std::runtime_error("unable to encrypt data");
+  std::vector<uint8_t> ctxt(out_len);
+  if (EVP_PKEY_encrypt(ctx, ctxt.data(), &out_len, msg.data(), msg.size()) <= 0)
+    throw std::runtime_error("unable to encrypt data");
+  ctxt.resize(out_len);
+  return ctxt;
 }
 
 RSADecryptor::RSADecryptor(const std::string& rsa_private_key) {
@@ -84,37 +71,25 @@ RSADecryptor::RSADecryptor(const std::string& rsa_private_key) {
   if (!keybio) {
     throw std::runtime_error("Failed to create key BIO");
   }
-  RSA* priv_key;
+  RSA* priv_key = NULL;
   if (!PEM_read_bio_RSAPrivateKey(keybio, &priv_key, nullptr, nullptr)) {
     throw std::runtime_error("Failed to create rsa public key");
   }
   pkey_ = EVP_PKEY_new();
   EVP_PKEY_assign_RSA(pkey_, priv_key);
   BIO_free(keybio);
-  RSA_free(priv_key);
 }
 RSADecryptor::~RSADecryptor() { EVP_PKEY_free(pkey_); }
 std::vector<uint8_t> RSADecryptor::decrypt(const std::vector<uint8_t>& ctxt) const {
-  uint64_t encrpted_key_size{0};
-  std::memcpy(&encrpted_key_size, ctxt.data(), sizeof(uint64_t));
-  unsigned char* encrypted_key = (unsigned char*)malloc((size_t)encrpted_key_size);
-  std::memcpy(encrypted_key, ctxt.data() + sizeof(uint64_t), encrpted_key_size);
-  const uint8_t* data = ctxt.data() + sizeof(uint64_t) + encrpted_key_size;
-  uint64_t ciphertext_len = ctxt.size() - (sizeof(uint64_t) + encrpted_key_size);
-  EVP_CIPHER_CTX* ctx;
-  int len{0};
-  int plaintext_len{0};
-  std::vector<uint8_t> ptxt(ctxt.size());
-  unsigned char iv[EVP_MAX_IV_LENGTH] = {};
-  /* Create and initialise the context */
-  if (!(ctx = EVP_CIPHER_CTX_new())) return {};
-  if (1 != EVP_OpenInit(ctx, EVP_aes_256_cbc(), encrypted_key, (int)encrpted_key_size, iv, pkey_)) return {};
-  if (1 != EVP_OpenUpdate(ctx, ptxt.data(), &len, data, ciphertext_len)) return {};
-  plaintext_len = len;
-  if (1 != EVP_OpenFinal(ctx, ptxt.data() + len, &len)) return {};
-  plaintext_len += len;
-  ptxt.resize((size_t)plaintext_len);
-  EVP_CIPHER_CTX_free(ctx);
+  EVP_PKEY_CTX* ctx;
+  ctx = EVP_PKEY_CTX_new(pkey_, NULL);
+  if (!ctx) throw std::runtime_error("unable to decrypt data");
+  if (EVP_PKEY_decrypt_init(ctx) <= 0) throw std::runtime_error("unable to decrypt data");
+  size_t out_len{0};
+  if (EVP_PKEY_decrypt(ctx, NULL, &out_len, ctxt.data(), ctxt.size()) <= 0) return {};
+  std::vector<uint8_t> ptxt(out_len);
+  if (EVP_PKEY_decrypt(ctx, ptxt.data(), &out_len, ctxt.data(), ctxt.size()) <= 0) return {};
+  ptxt.resize(out_len);
   return ptxt;
 }
 template <>

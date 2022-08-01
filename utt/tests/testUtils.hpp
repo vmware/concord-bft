@@ -20,6 +20,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <ctime>
+#include <unordered_map>
 using namespace libutt;
 using namespace libutt::api;
 namespace libutt::api::testing {
@@ -84,6 +85,21 @@ std::vector<Client> GenerateClients(size_t c, const RandSigPK& bvk, const RegAut
   return clients;
 }
 
+std::vector<Client> GenerateClients(size_t c,
+                                    const RandSigPK& bvk,
+                                    const RegAuthPK& rvk,
+                                    const std::vector<std::string>& pk,
+                                    const std::unordered_map<std::string, std::string>& pub_keys) {
+  std::vector<Client> clients;
+  std::string bpk = libutt::serialize<libutt::RandSigPK>(bvk);
+  std::string rpk = libutt::serialize<libutt::RegAuthPK>(rvk);
+
+  for (size_t i = 0; i < c; i++) {
+    std::string pid = "client_" + std::to_string(i);
+    clients.push_back(Client(pid, bpk, rpk, pk.at(i), pub_keys));
+  }
+  return clients;
+}
 void registerClient(const GlobalParams& d,
                     Client& c,
                     std::vector<std::shared_ptr<Registrator>>& registrators,

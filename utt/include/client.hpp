@@ -4,6 +4,7 @@
 #include "common.hpp"
 #include "types.hpp"
 #include <memory>
+#include <unordered_map>
 namespace libutt {
 class AddrSK;
 class RandSigPK;
@@ -24,6 +25,11 @@ class Client {
          const std::string& rpk,
          const std::string& csk,
          const std::string& mpk);
+  Client(const std::string& pid,
+         const std::string& bpk,
+         const std::string& rpk,
+         const std::string& rsaSk,
+         const std::unordered_map<std::string, std::string>& rsa_pub_keys);
   Commitment generateInputRCM();
   void setPRFKey(const types::CurvePoint& s2);
   const std::string& getPid() const;
