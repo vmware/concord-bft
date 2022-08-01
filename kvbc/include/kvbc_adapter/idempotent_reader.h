@@ -15,20 +15,22 @@
 
 #include "assertUtils.hpp"
 #include "db_interfaces.h"
-#include "kv_blockchain.h"
+#include "replica_adapter.hpp"
 
 #include <memory>
 
-namespace concord::kvbc::categorization {
+namespace concord::kvbc::adapter {
 
 // A utility that adapts a KeyValueBlockchain instance to an IReader.
-class CategorizedReader : public IReader {
+class IdempotentReader : public IReader {
  public:
-  // Constructs a CategorizedReader from a non-null KeyValueBlockchain pointer.
+  // Constructs a IdempotentReader from a non-null KeyValueBlockchain pointer.
   // Precondition: kvbc != nullptr
-  CategorizedReader(const std::shared_ptr<const KeyValueBlockchain> &kvbc) : kvbc_{kvbc} {
+  IdempotentReader(const std::shared_ptr<const ReplicaBlockchain> &kvbc) : kvbc_{kvbc} {
     ConcordAssertNE(kvbc, nullptr);
   }
+
+  virtual ~IdempotentReader() = default;
 
  public:
   std::optional<categorization::Value> get(const std::string &category_id,
@@ -72,10 +74,10 @@ class CategorizedReader : public IReader {
 
   BlockId getGenesisBlockId() const override { return kvbc_->getGenesisBlockId(); }
 
-  BlockId getLastBlockId() const override { return kvbc_->getLastReachableBlockId(); }
+  BlockId getLastBlockId() const override { return kvbc_->getLastBlockId(); }
 
  private:
-  const std::shared_ptr<const KeyValueBlockchain> kvbc_;
+  const std::shared_ptr<const ReplicaBlockchain> kvbc_;
 };
 
-}  // namespace concord::kvbc::categorization
+}  // namespace concord::kvbc::adapter

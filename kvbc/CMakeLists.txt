@@ -34,6 +34,18 @@ add_library(kvbc  src/ClientImp.cpp
     src/resources-manager/ReplicaResources.cpp
     src/resources-manager/AdaptivePruningManager.cpp
     src/resources-manager/IntervalMappingResourceManager.cpp
+
+    src/blockchain_misc.cpp
+    src/kvbc_adapter/common/state_snapshot_adapter.cpp
+    src/kvbc_adapter/categorization/db_checkpoint_adapter.cpp
+    src/kvbc_adapter/categorization/kv_blockchain_adapter.cpp
+    src/kvbc_adapter/categorization/app_state_adapter.cpp
+    src/kvbc_adapter/categorization/blocks_deleter_adapter.cpp
+
+    src/kvbc_adapter/v4blockchain/blocks_deleter_adapter.cpp
+    src/kvbc_adapter/v4blockchain/app_state_adapter.cpp
+
+    src/kvbc_adapter/replica_adapter.cpp
 )
 
 if (BUILD_ROCKSDB_STORAGE)
@@ -43,7 +55,14 @@ if (BUILD_ROCKSDB_STORAGE)
                                 src/categorization/blocks.cpp
                                 src/categorization/blockchain.cpp
                                 src/categorization/block_merkle_category.cpp
-                                src/migrations/block_merkle_latest_ver_cf_migration.cpp)
+                                src/migrations/block_merkle_latest_ver_cf_migration.cpp
+                                
+                                src/v4blockchain/v4_blockchain.cpp
+                                src/v4blockchain/detail/latest_keys.cpp
+                                src/v4blockchain/detail/categories.cpp
+                                src/v4blockchain/detail/blocks.cpp
+                                src/v4blockchain/detail/st_chain.cpp
+                                src/v4blockchain/detail/blockchain.cpp)
 
 endif (BUILD_ROCKSDB_STORAGE)
 target_link_libraries(kvbc PUBLIC corebft util)

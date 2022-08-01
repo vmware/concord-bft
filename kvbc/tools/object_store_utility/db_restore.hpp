@@ -13,7 +13,7 @@
 #pragma once
 #include <memory>
 #include "Logger.hpp"
-#include "categorization/kv_blockchain.h"
+#include "kvbc_adapter/replica_adapter.hpp"
 #include "integrity_checker.hpp"
 
 namespace concord::kvbc::tools {
@@ -21,11 +21,10 @@ class DBRestore {
  public:
   DBRestore(std::shared_ptr<IntegrityChecker> checker, logging::Logger logger) : checker_(checker), logger_(logger) {}
   void restore();
-  void initRocksDB(const fs::path&);
+  void initRocksDB(const fs::path&, uint32_t);
 
  protected:
-  std::unique_ptr<categorization::KeyValueBlockchain> kv_blockchain_;
-  IStorageFactory::DatabaseSet rocksdb_dataset_;
+  std::unique_ptr<concord::kvbc::adapter::ReplicaBlockchain> kv_blockchain_;
   std::shared_ptr<IntegrityChecker> checker_;
   logging::Logger logger_;
 };

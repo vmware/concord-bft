@@ -25,9 +25,7 @@ namespace bftEngine {
 class RequestHandler : public IRequestsHandler {
  public:
   RequestHandler(
-      concord::performance::ISystemResourceEntity &resourceEntity,
-      std::shared_ptr<concordMetrics::Aggregator> aggregator_ = std::make_shared<concordMetrics::Aggregator>())
-      : resourceEntity_(resourceEntity) {
+      std::shared_ptr<concordMetrics::Aggregator> aggregator_ = std::make_shared<concordMetrics::Aggregator>()) {
     using namespace concord::reconfiguration;
     reconfig_handler_.push_back(std::make_shared<ReconfigurationHandler>());
     for (const auto &rh : reconfig_handler_) {
@@ -74,7 +72,6 @@ class RequestHandler : public IRequestsHandler {
   std::shared_ptr<IRequestsHandler> userRequestsHandler_;
   concord::reconfiguration::Dispatcher reconfig_dispatcher_;
   std::shared_ptr<concord::cron::CronTableRegistry> cron_table_registry_;
-  concord::performance::ISystemResourceEntity &resourceEntity_;
 };
 
 }  // namespace bftEngine

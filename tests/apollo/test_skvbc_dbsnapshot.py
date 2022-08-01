@@ -305,7 +305,6 @@ class SkvbcDbSnapshotTest(ApolloTest):
             last_blockId = await bft_network.last_db_checkpoint_block_id(replica_id)
             bft_network.verify_db_snapshot_is_available(replica_id, last_blockId)
 
-    @unittest.skip("Disable until fixed. Unstable test because of BC-17338")
     @with_trio
     @with_bft_network(start_replica_cmd_with_high_db_window_size, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability()

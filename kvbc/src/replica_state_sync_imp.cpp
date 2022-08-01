@@ -10,7 +10,6 @@
 // notices and license terms. Your use of these subcomponents is subject to the
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
-//
 
 #include "assertUtils.hpp"
 #include "replica_state_sync_imp.hpp"
@@ -28,7 +27,7 @@ namespace concord::kvbc {
 ReplicaStateSyncImp::ReplicaStateSyncImp(IBlockMetadata* blockMetadata) : blockMetadata_(blockMetadata) {}
 
 uint64_t ReplicaStateSyncImp::execute(logging::Logger& logger,
-                                      categorization::KeyValueBlockchain& blockchain,
+                                      adapter::ReplicaBlockchain& blockchain,
                                       const std::shared_ptr<bftEngine::impl::PersistentStorage>& metadata,
                                       uint64_t lastExecutedSeqNum,
                                       uint32_t maxNumOfBlocksToDelete) {
@@ -58,7 +57,7 @@ uint64_t ReplicaStateSyncImp::execute(logging::Logger& logger,
 }
 
 uint64_t ReplicaStateSyncImp::executeBasedOnBftSeqNum(logging::Logger& logger,
-                                                      categorization::KeyValueBlockchain& blockchain,
+                                                      adapter::ReplicaBlockchain& blockchain,
                                                       uint64_t lastExecutedSeqNum,
                                                       uint32_t maxNumOfBlocksToDelete) {
   if (!lastExecutedSeqNum) {
@@ -67,7 +66,7 @@ uint64_t ReplicaStateSyncImp::executeBasedOnBftSeqNum(logging::Logger& logger,
   }
   uint64_t removedBlocksNum = 0;
   const auto genesisBlockId = blockchain.getGenesisBlockId();
-  BlockId lastReachableBlockId = blockchain.getLastReachableBlockId();
+  BlockId lastReachableBlockId = blockchain.getLastBlockId();
   uint64_t lastBlockSeqNum = 0;
   while (lastReachableBlockId && genesisBlockId <= lastReachableBlockId) {
     // Get execution sequence number stored in the current last block.
@@ -88,17 +87,18 @@ uint64_t ReplicaStateSyncImp::executeBasedOnBftSeqNum(logging::Logger& logger,
       throw std::runtime_error(__PRETTY_FUNCTION__ + error);
     }
     blockchain.deleteLastReachableBlock();
-    lastReachableBlockId = blockchain.getLastReachableBlockId();
+    lastReachableBlockId = blockchain.getLastBlockId();
     ++removedBlocksNum;
   }
   LOG_INFO(logger,
            "Inconsistent blockchain block deleted "
-               << KVLOG(removedBlocksNum, lastExecutedSeqNum, lastBlockSeqNum, blockchain.getLastReachableBlockId()));
+               << KVLOG(removedBlocksNum, lastExecutedSeqNum, lastBlockSeqNum, blockchain.getLastBlockId()));
+  blockchain.onFinishDeleteLastReachable();
   return removedBlocksNum;
 }
 
 uint64_t ReplicaStateSyncImp::executeBasedOnBlockId(logging::Logger& logger,
-                                                    categorization::KeyValueBlockchain& blockchain,
+                                                    adapter::ReplicaBlockchain& blockchain,
                                                     const std::shared_ptr<bftEngine::impl::PersistentStorage>& metadata,
                                                     uint32_t maxNumOfBlocksToDelete) {
   if (0 == maxNumOfBlocksToDelete) {
@@ -110,15 +110,19 @@ uint64_t ReplicaStateSyncImp::executeBasedOnBlockId(logging::Logger& logger,
   const auto lastMtdBlockId = getLastBlockIdFromMetadata(metadata);
   ConcordAssert(lastMtdBlockId.has_value());
   const auto genesisBlockId = blockchain.getGenesisBlockId();
-  auto lastReachableKvbcBlockId = blockchain.getLastReachableBlockId();
+  auto lastReachableKvbcBlockId = blockchain.getLastBlockId();
   auto deletedBlocks = uint64_t{0};
   // Even though the KVBC implementation at the time of writing cannot delete the only block left (the genesis block in
   // the loop below can be the only one left), we still write the code here so that it attempts to delete, even though
   // it throws. Rationale is that we cannot leave the system in an unknown state. Instead, we throw, effectively
   // stopping the system and await manual intervention as the next startup would lead to the same situation.
   while (lastReachableKvbcBlockId > lastMtdBlockId && genesisBlockId <= lastReachableKvbcBlockId) {
+    LOG_INFO(logger,
+             "Deleting last reachable " << lastReachableKvbcBlockId << " metadata block " << *lastMtdBlockId
+                                        << " block deleted " << deletedBlocks << " max num blocks to delete "
+                                        << maxNumOfBlocksToDelete);
     blockchain.deleteLastReachableBlock();
-    lastReachableKvbcBlockId = blockchain.getLastReachableBlockId();
+    lastReachableKvbcBlockId = blockchain.getLastBlockId();
     ++deletedBlocks;
 
     if (deletedBlocks == maxNumOfBlocksToDelete) {
@@ -135,6 +139,7 @@ uint64_t ReplicaStateSyncImp::executeBasedOnBlockId(logging::Logger& logger,
              "Replica state sync based on last reachable KVBC block ID deleted blocks "
                  << KVLOG(deletedBlocks, lastReachableKvbcBlockId));
   }
+  blockchain.onFinishDeleteLastReachable();
   return deletedBlocks;
 }
 

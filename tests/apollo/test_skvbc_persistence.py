@@ -37,12 +37,17 @@ def start_replica_cmd(builddir, replica_id):
     """
     statusTimerMilli = "500"
     viewChangeTimeoutMilli = "10000"
+    if os.environ.get('BLOCKCHAIN_VERSION', default="1").lower() == "4" :
+        blockchain_version = "4"
+    else :
+        blockchain_version = "1"
 
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
     return [path,
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
             "-s", statusTimerMilli,
+            "-V",blockchain_version,
             "-v", viewChangeTimeoutMilli 
             ]
 
@@ -56,7 +61,7 @@ def start_replica_cmd_with_slowdown(builddir, replica_id):
             "-i", str(replica_id),
             "-s", statusTimerMilli,
             "-v", viewChangeTimeoutMilli,
-            "--delay-state-transfer-messages-millisec", '10'
+            "--delay-state-transfer-messages-millisec", '8'
             ]
 
 class SkvbcPersistenceTest(ApolloTest):
@@ -275,9 +280,8 @@ class SkvbcPersistenceTest(ApolloTest):
                log.log_message(message_type=f'Stopping replica {stale_node}')
                bft_network.stop_replica(stale_node)
 
-    @unittest.skip("Unstable test - BC-19210")
     @with_trio
-    @with_bft_network(start_replica_cmd,
+    @with_bft_network(start_replica_cmd=start_replica_cmd_with_slowdown,
                       selected_configs=lambda n, f, c: f >= 2)
     @verify_linearizability()
     async def test_st_when_fetcher_and_sender_crash(self, bft_network, tracker):
@@ -303,15 +307,15 @@ class SkvbcPersistenceTest(ApolloTest):
 
         client, known_key, known_val = \
             await skvbc.prime_for_state_transfer(stale_nodes={stale_node},
-                                                           checkpoints_num=4)
+                                                           checkpoints_num=random.randint(10, 13))
 
         # exclude the primary and the stale node
-        unstable_replicas = bft_network.all_replicas(without={0, stale_node})
+        non_primary_replicas = bft_network.all_replicas(without={0, stale_node})
 
         await self._run_state_transfer_while_crashing_non_primary(
             bft_network=bft_network,
             primary=0, stale=stale_node,
-            unstable_replicas=unstable_replicas
+            non_primary_replicas=non_primary_replicas
         )
 
         await bft_network.force_quorum_including_replica(stale_node)
@@ -324,20 +328,14 @@ class SkvbcPersistenceTest(ApolloTest):
     async def _run_state_transfer_while_crashing_non_primary(
             self, bft_network,
             primary, stale,
-            unstable_replicas):
+            non_primary_replicas):
 
         source_replica_id = \
-            await self._restart_stale_until_fetches_from_unstable(
-                bft_network, stale, unstable_replicas
+            await self._restart_stale_until_non_primary_chosen_as_source(
+                bft_network, primary, stale, non_primary_replicas
             )
 
-        self.assertTrue(
-            expr=source_replica_id != primary,
-            msg="The source must NOT be the primary "
-                "(to avoid triggering a view change)"
-        )
-
-        if source_replica_id in unstable_replicas:
+        if source_replica_id in non_primary_replicas:
             log.log_message(message_type=f'Stopping source replica {source_replica_id}')
             bft_network.stop_replica(source_replica_id)
 
@@ -554,13 +552,13 @@ class SkvbcPersistenceTest(ApolloTest):
             async with trio.open_nursery() as nursery:
                 nursery.start_soon(skvbc.send_indefinite_write_requests)
 
-    async def _restart_stale_until_fetches_from_unstable(
-            self, bft_network, stale, unstable_replicas):
+    async def _restart_stale_until_non_primary_chosen_as_source(
+            self, bft_network, primary, stale, non_primary_replicas):
 
         source_replica_id = inf
 
         log.log_message(message_type=f'Restarting stale replica until '
-              f'it fetches from {unstable_replicas}...')
+              f'it fetches from {non_primary_replicas}...')
         with trio.move_on_after(10):  # seconds
             while True:
                 bft_network.start_replica(stale)
@@ -568,13 +566,14 @@ class SkvbcPersistenceTest(ApolloTest):
                     replica_id=stale
                 )
                 bft_network.stop_replica(stale)
-                if source_replica_id in unstable_replicas:
-                    # Nice! The source is a replica we can crash
+                if source_replica_id in non_primary_replicas:
+                    self.assertTrue(
+                        expr=source_replica_id != primary,
+                        msg="The source must NOT be the primary "
+                        "(to avoid triggering a view change)"
+                    )
+                    log.log_message(message_type=f'Stale replica fetching from {source_replica_id}')
                     break
-
-        if source_replica_id < inf:
-            log.log_message(message_type=f'Stale replica now fetching from {source_replica_id}')
-        else:
-            log.log_message(message_type=f'Stale replica is not fetching right now.')
-
+        
+        self.assertTrue(source_replica_id != inf, msg="Stale replica is not fetching right now.")
         return source_replica_id

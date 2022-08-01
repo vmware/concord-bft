@@ -89,9 +89,15 @@ void NativeClient::put(const std::string &cFamily, const KeySpan &key, const Val
 
 template <typename KeySpan>
 std::optional<std::string> NativeClient::get(const std::string &cFamily, const KeySpan &key) const {
+  return get(cFamily, detail::toSlice(key), ::rocksdb::ReadOptions{});
+}
+
+template <typename KeySpan>
+std::optional<std::string> NativeClient::get(const std::string &cFamily,
+                                             const KeySpan &key,
+                                             ::rocksdb::ReadOptions ro) const {
   auto value = std::string{};
-  auto s =
-      client_->dbInstance_->Get(::rocksdb::ReadOptions{}, columnFamilyHandle(cFamily), detail::toSlice(key), &value);
+  auto s = client_->dbInstance_->Get(ro, columnFamilyHandle(cFamily), detail::toSlice(key), &value);
   if (s.IsNotFound()) {
     return std::nullopt;
   }
@@ -142,6 +148,15 @@ void NativeClient::multiGet(const std::string &cFamily,
                             const std::vector<KeySpan> &keys,
                             std::vector<::rocksdb::PinnableSlice> &values,
                             std::vector<::rocksdb::Status> &statuses) const {
+  multiGet(cFamily, keys, values, statuses, ::rocksdb::ReadOptions{});
+}
+
+template <typename KeySpan>
+void NativeClient::multiGet(const std::string &cFamily,
+                            const std::vector<KeySpan> &keys,
+                            std::vector<::rocksdb::PinnableSlice> &values,
+                            std::vector<::rocksdb::Status> &statuses,
+                            ::rocksdb::ReadOptions ro) const {
   if (values.size() < keys.size()) {
     values.resize(keys.size());
   }
@@ -155,15 +170,18 @@ void NativeClient::multiGet(const std::string &cFamily,
   for (const auto &k : keys) {
     key_slices.emplace_back(detail::toSlice(k));
   }
-  client_->dbInstance_->MultiGet(::rocksdb::ReadOptions{},
-                                 columnFamilyHandle(cFamily),
-                                 key_slices.size(),
-                                 key_slices.data(),
-                                 values.data(),
-                                 statuses.data());
+  client_->dbInstance_->MultiGet(
+      ro, columnFamilyHandle(cFamily), key_slices.size(), key_slices.data(), values.data(), statuses.data());
 }
 
-inline NativeWriteBatch NativeClient::getBatch() const { return NativeWriteBatch{shared_from_this()}; }
+inline NativeWriteBatch NativeClient::getBatch(size_t reserved_bytes) const {
+  return reserved_bytes == 0 ? NativeWriteBatch{shared_from_this()}
+                             : NativeWriteBatch{shared_from_this(), reserved_bytes};
+}
+
+inline NativeWriteBatch NativeClient::getBatch(std::string &&data) const {
+  return NativeWriteBatch{shared_from_this(), std::move(data)};
+}
 
 inline NativeIterator NativeClient::getIterator() const {
   return std::unique_ptr<::rocksdb::Iterator>{client_->dbInstance_->NewIterator(::rocksdb::ReadOptions{})};
@@ -242,6 +260,18 @@ inline void NativeClient::createColumnFamilyWithImport(const std::string &cFamil
   client_->cf_handles_[cFamily] = std::move(handleUniquePtr);
 }
 
+inline bool NativeClient::createColumnFamilyIfNotExisting(const std::string &cf,
+                                                          const ::rocksdb::CompactionFilter *filter) {
+  if (!hasColumnFamily(cf)) {
+    auto cf_options = ::rocksdb::ColumnFamilyOptions{};
+    if (filter) {
+      cf_options.compaction_filter = filter;
+    }
+    createColumnFamily(cf, cf_options);
+    return true;
+  }
+  return false;
+}
 inline ::rocksdb::ColumnFamilyOptions NativeClient::columnFamilyOptions(const std::string &cFamily) const {
   auto family = columnFamilyHandle(cFamily);
   auto descriptor = ::rocksdb::ColumnFamilyDescriptor{};

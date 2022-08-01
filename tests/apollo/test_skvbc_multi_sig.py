@@ -53,9 +53,7 @@ class SkvbcMultiSig(ApolloTest):
         bft_network.start_all_replicas()
 
 
-    @unittest.skip("Disabled due to BC-5081")
     @with_trio
-    @unittest.skip("BC-5047")
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_rough_initial_key_exchange(self, bft_network):
         """
@@ -71,8 +69,9 @@ class SkvbcMultiSig(ApolloTest):
                 while True:
                     with trio.move_on_after(seconds=1):
                         try:
-                            key = ['KeyManager', 'Counters', 'KeyExchangedOnStartCounter']
-                            value = await bft_network.metrics.get(replica_id, *key)
+                            self_key_exchange_counter = await bft_network.metrics.get(replica_id, *["KeyExchangeManager", "Counters", "self_key_exchange"])
+                            public_key_exchange_for_peer_counter = await bft_network.metrics.get(replica_id, *["KeyExchangeManager", "Counters", "public_key_exchange_for_peer"])
+                            value = self_key_exchange_counter + public_key_exchange_for_peer_counter
                             if value < 6:
                                 continue
                         except trio.TooSlowError:
@@ -86,7 +85,7 @@ class SkvbcMultiSig(ApolloTest):
 
         await trio.sleep(5)
         lastExecutedValAfter = await bft_network.metrics.get(0, *lastExecutedKey)
-        self.assertEqual(lastExecutedValBefore, lastExecutedValAfter)
+        self.assertGreaterEqual(lastExecutedValAfter, lastExecutedValBefore)
 
         # make key exchange complete with partial set of replica
         bft_network.stop_replica(3)
@@ -101,8 +100,9 @@ class SkvbcMultiSig(ApolloTest):
                 while True:
                     with trio.move_on_after(seconds=1):
                         try:
-                            key = ['KeyManager', 'Counters', 'KeyExchangedOnStartCounter']
-                            value = await bft_network.metrics.get(replica_id, *key)
+                            self_key_exchange_counter = await bft_network.metrics.get(replica_id, *["KeyExchangeManager", "Counters", "self_key_exchange"])
+                            public_key_exchange_for_peer_counter = await bft_network.metrics.get(replica_id, *["KeyExchangeManager", "Counters", "public_key_exchange_for_peer"])
+                            value = self_key_exchange_counter + public_key_exchange_for_peer_counter
                             if value < 7:
                                 continue
                         except trio.TooSlowError:

@@ -164,7 +164,7 @@ void DBDataStore::setLastRequiredBlock(uint64_t i) {
   putInt(LastRequiredBlock, i);
   inmem_->setLastRequiredBlock(i);
 }
-void DBDataStore::setReplicas(const std::set<std::uint16_t> replicas) {
+void DBDataStore::setReplicas(const std::set<std::uint16_t>& replicas) {
   std::ostringstream oss;
   Serializable::serialize(oss, replicas);
   put(Replicas, oss.str());
@@ -187,12 +187,12 @@ void DBDataStore::deserializeCheckpoint(std::istream& is, CheckpointDesc& desc) 
   Serializable::deserialize(is, desc.digestOfResPagesDescriptor.getForUpdate(), DIGEST_SIZE);
   Serializable::deserialize(is, desc.rvbData);
 }
-void DBDataStore::setCheckpointDesc(uint64_t checkpoint, const CheckpointDesc& desc) {
+void DBDataStore::setCheckpointDesc(uint64_t checkpoint, const CheckpointDesc& desc, const bool checkIfAlreadyExists) {
   LOG_DEBUG(logger(), toString(desc));
   std::ostringstream oss;
   serializeCheckpoint(oss, desc);
   put(chkpDescKey(checkpoint), oss.str());
-  inmem_->setCheckpointDesc(checkpoint, desc);
+  inmem_->setCheckpointDesc(checkpoint, desc, checkIfAlreadyExists);
 }
 bool DBDataStore::hasCheckpointDesc(uint64_t checkpoint) {
   if (inmem_->hasCheckpointDesc(checkpoint)) return true;
@@ -305,14 +305,18 @@ void DBDataStore::setResPageTxn(
   LOG_DEBUG(logger(), KVLOG(inPageId, inCheckpoint, inPageDigest.toString(), txn->getId(), dynamic_key));
 }
 
-void DBDataStore::setResPage(uint32_t inPageId, uint64_t inCheckpoint, const Digest& inPageDigest, const char* inPage) {
+void DBDataStore::setResPage(uint32_t inPageId,
+                             uint64_t inCheckpoint,
+                             const Digest& inPageDigest,
+                             const char* inPage,
+                             const bool checkIfAlreadyExists) {
   if (txn_)
     setResPageTxn(inPageId, inCheckpoint, inPageDigest, inPage, txn_);
   else {
     ITransaction::Guard g(dbc_->beginTransaction());
     setResPageTxn(inPageId, inCheckpoint, inPageDigest, inPage, g.txn());
   }
-  inmem_->setResPage(inPageId, inCheckpoint, inPageDigest, inPage);
+  inmem_->setResPage(inPageId, inCheckpoint, inPageDigest, inPage, checkIfAlreadyExists);
   LOG_TRACE(logger(), inmem_->getPagesForLog());
 }
 /** ******************************************************************************************************************
@@ -372,7 +376,7 @@ void DBDataStore::associatePendingResPageWithCheckpointTxn(uint32_t inPageId,
   auto page = pendingPages.find(inPageId);
   ConcordAssert(page != pendingPages.end());
 
-  setResPageTxn(inPageId, inCheckpoint, inPageDigest, page->second, txn);
+  setResPageTxn(inPageId, inCheckpoint, inPageDigest, page->second.get(), txn);
   txn->del(pendingPageKey(inPageId));
 }
 void DBDataStore::deleteAllPendingPagesTxn(ITransaction* txn) {
@@ -474,7 +478,6 @@ void DBDataStore::deserializePrunedBlocksDigests(std::istream& is,
   size_t size{};
   Serializable::deserialize(is, size);
   for (size_t i{0}; i < size; ++i) {
-    std::pair<BlockId, Digest> p;
     BlockId blockId;
     Digest digest;
     Serializable::deserialize(is, blockId);

@@ -388,7 +388,7 @@ class BCStateTran : public IStateTransfer {
 
   typedef MsgsCertificate<CheckpointSummaryMsg, false, false, true, CheckpointSummaryMsg> CheckpointSummaryMsgCert;
 
-  // map from checkpintNum to CheckpointSummaryMsgCert
+  // map from checkpointNum to CheckpointSummaryMsgCert
   map<uint64_t, CheckpointSummaryMsgCert*> summariesCerts;
 
   // map from replica Id to number of accepted CheckpointSummaryMsg messages
@@ -761,7 +761,7 @@ class BCStateTran : public IStateTransfer {
   struct SourceSession {
    public:
     SourceSession(logging::Logger& logger, uint64_t sourceSessionExpiryDurationMs)
-        : logger_(logger), expiryDurationMs_{sourceSessionExpiryDurationMs}, startTime_{0} {}
+        : logger_(logger), expiryDurationMs_{sourceSessionExpiryDurationMs}, replicaId_{0}, startTime_{0} {}
     SourceSession() = delete;
     void close();
     // returns a pair of booleans:
@@ -787,7 +787,18 @@ class BCStateTran : public IStateTransfer {
   };
 
   struct SourceBatch {
-    SourceBatch() : active{false} {}
+    SourceBatch()
+        : active{false},
+          batchNumber{0},
+          numSentBytes{0},
+          numSentChunks{0},
+          nextBlockId{0},
+          nextChunk{0},
+          preFetchBlockId{0},
+          getNextBlock{false},
+          rvbGroupDigestsExpectedSize{0},
+          destReplicaId{0},
+          prefetched{false} {}
     std::string toString() const;
     void init(uint64_t batchNumber,
               uint64_t maxBlockId,

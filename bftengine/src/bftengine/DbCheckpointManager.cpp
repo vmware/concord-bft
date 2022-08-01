@@ -52,10 +52,14 @@ Status DbCheckpointManager::createDbCheckpoint(const CheckpointId& checkPointId,
         LOG_ERROR(getLogger(), "Failed to create rocksdb checkpoint: " << KVLOG(checkPointId));
         return status;
       }
+      auto end_ckpnt = Clock::now();
+      auto duration_chpnt_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_ckpnt - start);
+      LOG_INFO(getLogger(), "just checkpoint duation: " << KVLOG(duration_chpnt_ms.count()));
       prepareCheckpointCb_(lastBlockId, dbClient_->getPathForCheckpoint(checkPointId));
       auto end = Clock::now();
 
       auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+      LOG_INFO(getLogger(), "checkpoint with cb duation: " << KVLOG(duration_ms.count()));
       lastDbCheckpointBlockId_.Get().Set(lastBlockId);
       numOfDbCheckpointsCreated_++;
       auto maxSoFar = maxDbCheckpointCreationTimeMsec_.Get().Get();
@@ -79,6 +83,7 @@ Status DbCheckpointManager::createDbCheckpoint(const CheckpointId& checkPointId,
     for (auto& cb : onDbCheckpointCreated_) {
       if (cb) cb(seqNum);
     }
+    checkpointInProcessCb_(false, lastBlockId);
   }
   updateMetrics();
   return Status::OK();
@@ -163,11 +168,13 @@ uint64_t DbCheckpointManager::directorySize(const _fs::path& directory, const bo
   return size;
 }
 
-void DbCheckpointManager::initializeDbCheckpointManager(std::shared_ptr<concord::storage::IDBClient> dbClient,
-                                                        std::shared_ptr<bftEngine::impl::PersistentStorage> p,
-                                                        std::shared_ptr<concordMetrics::Aggregator> aggregator,
-                                                        const std::function<BlockId()>& getLastBlockIdCb,
-                                                        const PrepareCheckpointCallback& prepareCheckpointCb) {
+void DbCheckpointManager::initializeDbCheckpointManager(
+    std::shared_ptr<concord::storage::IDBClient> dbClient,
+    std::shared_ptr<bftEngine::impl::PersistentStorage> p,
+    std::shared_ptr<concordMetrics::Aggregator> aggregator,
+    const std::function<BlockId()>& getLastBlockIdCb,
+    const PrepareCheckpointCallback& prepareCheckpointCb,
+    const std::function<void(bool, concord::kvbc::BlockId)>& checkpointInProcessCb) {
   dbClient_ = dbClient;
   ps_ = p;
   dbCheckPointDirPath_ = ReplicaConfig::instance().getdbCheckpointDirPath();
@@ -176,6 +183,7 @@ void DbCheckpointManager::initializeDbCheckpointManager(std::shared_ptr<concord:
       std::min(ReplicaConfig::instance().maxNumberOfDbCheckpoints, bftEngine::impl::MAX_ALLOWED_CHECKPOINTS);
   metrics_.SetAggregator(aggregator);
   if (getLastBlockIdCb) getLastBlockIdCb_ = getLastBlockIdCb;
+  if (checkpointInProcessCb) checkpointInProcessCb_ = checkpointInProcessCb;
   prepareCheckpointCb_ = prepareCheckpointCb;
   if (ReplicaConfig::instance().dbCheckpointFeatureEnabled) {
     // in case of upgrade, we need to set the lastStableCheckpointSeqNum from persistence
@@ -250,6 +258,9 @@ std::optional<CheckpointId> DbCheckpointManager::createDbCheckpointAsync(const S
     return std::nullopt;
   }
   // start async create db checkpoint operation
+  if (!blockId.has_value()) {
+    DbCheckpointManager::instance().setCheckpointInProcess(true, lastBlockid);
+  }
   auto ret = std::async(std::launch::async, [this, seqNum, timestamp, lastBlockid]() -> void {
     createDbCheckpoint(lastBlockid, lastBlockid, seqNum, timestamp);
   });
@@ -374,6 +385,11 @@ SeqNum DbCheckpointManager::getLastStableSeqNum() const {
   if (getLastStableSeqNumCb_) return getLastStableSeqNumCb_();
   return 0;
 }
+
+void DbCheckpointManager::setCheckpointInProcess(bool flag, concord::kvbc::BlockId blockId) const {
+  if (checkpointInProcessCb_) checkpointInProcessCb_(flag, blockId);
+}
+
 BlockId DbCheckpointManager::getLastReachableBlock() const {
   if (getLastBlockIdCb_) return getLastBlockIdCb_();
   return 0;

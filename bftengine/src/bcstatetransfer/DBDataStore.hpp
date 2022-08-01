@@ -58,7 +58,7 @@ class DBDataStore : public DataStore {
   }
 
   void setAsInitialized() override;
-  void setReplicas(const set<uint16_t>) override;
+  void setReplicas(const set<uint16_t>&) override;
   void setMyReplicaId(uint16_t) override;
   void setMaxNumOfStoredCheckpoints(uint64_t) override;
   void setNumberOfReservedPages(uint32_t) override;
@@ -74,9 +74,9 @@ class DBDataStore : public DataStore {
   void deleteDescOfSmallerCheckpoints(uint64_t) override;
   void deleteCoveredResPageInSmallerCheckpoints(uint64_t) override;
   void setCheckpointBeingFetched(const CheckpointDesc&) override;
-  void setResPage(uint32_t, uint64_t, const Digest&, const char*) override;
+  void setResPage(uint32_t, uint64_t, const Digest&, const char*, const bool) override;
   void setPendingResPage(uint32_t, const char*, uint32_t) override;
-  void setCheckpointDesc(uint64_t, const CheckpointDesc&) override;
+  void setCheckpointDesc(uint64_t, const CheckpointDesc&, const bool checkIfAlreadyExists) override;
   void associatePendingResPageWithCheckpoint(uint32_t, uint64_t, const Digest&) override;
 
   void free(ResPagesDescriptor* desc) override { inmem_->free(desc); }

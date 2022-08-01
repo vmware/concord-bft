@@ -3548,6 +3548,11 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
     tryToSendPrePrepareMsg(false);
   }
 
+  if (!currentViewIsActive()) {
+    LOG_INFO(GL, "tryToEnterView after Stable Sequence Number is Received ...");
+    tryToEnterView();
+  }
+
   auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
 
   // Once a replica is has got the the wedge point, it mark itself as wedged. Then, once it restarts, it cleans
@@ -4394,7 +4399,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
   onViewNumCallbacks_.add([&](bool) {
     if (config_.keyExchangeOnStart && !KeyExchangeManager::instance().exchanged()) {
       LOG_INFO(GL, "key exchange has not been finished yet. Give it another try");
-      KeyExchangeManager::instance().sendInitialKey(currentPrimary());
+      KeyExchangeManager::instance().sendInitialKey(this);
     }
   });
   stateTransfer->addOnFetchingStateChangeCallback([&](uint64_t) {
@@ -4403,7 +4408,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
     // initial key exchange after completing ST
     if (!isCollectingState()) {
       if (ReplicaConfig::instance().getkeyExchangeOnStart() && !KeyExchangeManager::instance().exchanged()) {
-        KeyExchangeManager::instance().sendInitialKey(currentPrimary(), lastExecutedSeqNum);
+        KeyExchangeManager::instance().sendInitialKey(this, lastExecutedSeqNum);
         LOG_INFO(GL, "Send initial key exchange after completing state transfer " << KVLOG(lastExecutedSeqNum));
       }
     }
@@ -4610,13 +4615,12 @@ void ReplicaImp::start() {
   if (!firstTime_ || config_.getdebugPersistentStorageEnabled()) clientsManager->loadInfoFromReservedPages();
   addTimers();
   recoverRequests();
-
   // The following line will start the processing thread.
   // It must happen after the replica recovers requests in the main thread.
   msgsCommunicator_->startMsgsProcessing(config_.getreplicaId());
 
   if (ReplicaConfig::instance().getkeyExchangeOnStart() && !KeyExchangeManager::instance().exchanged()) {
-    KeyExchangeManager::instance().sendInitialKey(currentPrimary());
+    KeyExchangeManager::instance().sendInitialKey(this);
   } else {
     // If key exchange is disabled, first publish the replica's main (rsa) key to clients
     if (ReplicaConfig::instance().publishReplicasMasterKeyOnStartup) KeyExchangeManager::instance().sendMainPublicKey();
@@ -5127,6 +5131,11 @@ void ReplicaImp::finishExecutePrePrepareMsg(PrePrepareMsg *ppMsg,
   LOG_INFO(CNSUS, "Finished execution of request seqNum:" << ppMsg->seqNumber());
   uint64_t checkpointNum{};
   if ((lastExecutedSeqNum + 1) % checkpointWindowSize == 0) {
+    // Save the epoch to the reserved pages
+    auto epochMgr = bftEngine::EpochManager::instance();
+    auto epochNum = epochMgr.getSelfEpochNumber();
+    epochMgr.setSelfEpochNumber(epochNum);
+    epochMgr.setGlobalEpochNumber(epochNum);
     checkpointNum = (lastExecutedSeqNum + 1) / checkpointWindowSize;
     stateTransfer->createCheckpointOfCurrentState(
         checkpointNum);  // TODO(GG): should make sure that this operation is idempotent, even if it was partially
@@ -5195,38 +5204,7 @@ void ReplicaImp::finalizeExecution() {
     }
   }
 
-  if (lastExecutedSeqNum % checkpointWindowSize == 0) {
-    // Load the epoch to the reserved pages
-    auto epoch = bftEngine::EpochManager::instance().getSelfEpochNumber();
-    bftEngine::EpochManager::instance().setSelfEpochNumber(epoch);
-    bftEngine::EpochManager::instance().setGlobalEpochNumber(epoch);
-    Digest stateDigest, reservedPagesDigest, rvbDataDigest;
-    CheckpointMsg::State checkState;
-    const uint64_t checkpointNum = lastExecutedSeqNum / checkpointWindowSize;
-    stateTransfer->getDigestOfCheckpoint(checkpointNum,
-                                         sizeof(Digest),
-                                         checkState,
-                                         stateDigest.content(),
-                                         reservedPagesDigest.content(),
-                                         rvbDataDigest.content());
-    CheckpointMsg *checkMsg = new CheckpointMsg(
-        config_.getreplicaId(), lastExecutedSeqNum, checkState, stateDigest, reservedPagesDigest, rvbDataDigest, false);
-    checkMsg->sign();
-    auto &checkInfo = checkpointsLog->get(lastExecutedSeqNum);
-    checkInfo.addCheckpointMsg(checkMsg, config_.getreplicaId());
-
-    if (ps_) ps_->setCheckpointMsgInCheckWindow(lastExecutedSeqNum, checkMsg);
-
-    if (checkInfo.isCheckpointCertificateComplete()) {
-      onSeqNumIsStable(lastExecutedSeqNum);
-    }
-    checkInfo.setSelfExecutionTime(getMonotonicTime());
-    if (checkInfo.isCheckpointSuperStable()) {
-      onSeqNumIsSuperStable(lastStableSeqNum);
-    }
-
-    CryptoManager::instance().onCheckpoint(checkpointNum);
-  }
+  tryToMarkSeqNumAsStable();
 }
 
 void ReplicaImp::updateExecutedPathMetrics(const bool isSlow, uint16_t numOfRequests) {
@@ -5478,6 +5456,11 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
   }
   uint64_t checkpointNum{};
   if ((lastExecutedSeqNum + 1) % checkpointWindowSize == 0) {
+    // Save the epoch to the reserved pages
+    auto epochMgr = bftEngine::EpochManager::instance();
+    auto epochNum = epochMgr.getSelfEpochNumber();
+    epochMgr.setSelfEpochNumber(epochNum);
+    epochMgr.setGlobalEpochNumber(epochNum);
     checkpointNum = (lastExecutedSeqNum + 1) / checkpointWindowSize;
     stateTransfer->createCheckpointOfCurrentState(checkpointNum);
     checkpoint_times_.start(lastExecutedSeqNum);
@@ -5519,38 +5502,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
     }
   }
 
-  if (lastExecutedSeqNum % checkpointWindowSize == 0) {
-    // Load the epoch to the reserved pages
-    auto epoch = bftEngine::EpochManager::instance().getSelfEpochNumber();
-    bftEngine::EpochManager::instance().setSelfEpochNumber(epoch);
-    bftEngine::EpochManager::instance().setGlobalEpochNumber(epoch);
-    Digest stateDigest, reservedPagesDigest, rvbDataDigest;
-    CheckpointMsg::State state;
-    const uint64_t checkpointNum = lastExecutedSeqNum / checkpointWindowSize;
-    stateTransfer->getDigestOfCheckpoint(checkpointNum,
-                                         sizeof(Digest),
-                                         state,
-                                         stateDigest.content(),
-                                         reservedPagesDigest.content(),
-                                         rvbDataDigest.content());
-    CheckpointMsg *checkMsg = new CheckpointMsg(
-        config_.getreplicaId(), lastExecutedSeqNum, state, stateDigest, reservedPagesDigest, rvbDataDigest, false);
-    checkMsg->sign();
-    auto &checkInfo = checkpointsLog->get(lastExecutedSeqNum);
-    checkInfo.addCheckpointMsg(checkMsg, config_.getreplicaId());
-
-    if (ps_) ps_->setCheckpointMsgInCheckWindow(lastExecutedSeqNum, checkMsg);
-
-    if (checkInfo.isCheckpointCertificateComplete()) {
-      onSeqNumIsStable(lastExecutedSeqNum);
-    }
-    checkInfo.setSelfExecutionTime(getMonotonicTime());
-    if (checkInfo.isCheckpointSuperStable()) {
-      onSeqNumIsSuperStable(lastStableSeqNum);
-    }
-
-    CryptoManager::instance().onCheckpoint(checkpointNum);
-  }
+  tryToMarkSeqNumAsStable();
 
   if (numOfRequests > 0) bftRequestsHandler_->onFinishExecutingReadWriteRequests();
 
@@ -5577,6 +5529,37 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
   if (config_.getdebugStatisticsEnabled()) {
     DebugStatistics::onRequestCompleted(false);
   }
+}
+
+void ReplicaImp::tryToMarkSeqNumAsStable() {
+  if (lastExecutedSeqNum % checkpointWindowSize != 0) return;
+
+  Digest stateDigest, reservedPagesDigest, rvbDataDigest;
+  CheckpointMsg::State state;
+  const uint64_t checkpointNum = lastExecutedSeqNum / checkpointWindowSize;
+  stateTransfer->getDigestOfCheckpoint(checkpointNum,
+                                       sizeof(Digest),
+                                       state,
+                                       stateDigest.content(),
+                                       reservedPagesDigest.content(),
+                                       rvbDataDigest.content());
+  CheckpointMsg *checkMsg = new CheckpointMsg(
+      config_.getreplicaId(), lastExecutedSeqNum, state, stateDigest, reservedPagesDigest, rvbDataDigest, false);
+  checkMsg->sign();
+  auto &checkInfo = checkpointsLog->get(lastExecutedSeqNum);
+  checkInfo.addCheckpointMsg(checkMsg, config_.getreplicaId());
+
+  if (ps_) ps_->setCheckpointMsgInCheckWindow(lastExecutedSeqNum, checkMsg);
+
+  if (checkInfo.isCheckpointCertificateComplete()) {
+    onSeqNumIsStable(lastExecutedSeqNum);
+  }
+  checkInfo.setSelfExecutionTime(getMonotonicTime());
+  if (checkInfo.isCheckpointSuperStable()) {
+    onSeqNumIsSuperStable(lastStableSeqNum);
+  }
+
+  CryptoManager::instance().onCheckpoint(checkpointNum);
 }
 
 void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,

@@ -24,7 +24,6 @@ using namespace config_pool;
 using namespace bftEngine;
 using namespace bft::communication;
 
-std::shared_ptr<std::vector<char>> ConcordClient::reply_ = std::make_shared<std::vector<char>>(0);
 uint16_t ConcordClient::required_num_of_replicas_ = 0;
 uint16_t ConcordClient::num_of_replicas_ = 0;
 size_t ConcordClient::max_reply_size_ = 0;
@@ -43,7 +42,6 @@ void ConcordClient::setStatics(uint16_t required_num_of_replicas,
                                SimpleClientParams& client_params,
                                BaseCommConfig* multiplexConfig) {
   ConcordClient::max_reply_size_ = max_reply_size;
-  ConcordClient::reply_->resize((batch_size) ? batch_size * max_reply_size : max_reply_size_);
   ConcordClient::required_num_of_replicas_ = required_num_of_replicas;
   ConcordClient::num_of_replicas_ = num_of_replicas;
   pool_config_ = pool_config;
@@ -83,13 +81,12 @@ bft::client::Reply ConcordClient::SendRequest(const bft::client::WriteConfig& co
                            << " has failed to invoke, timeout=" << config.request.timeout.count()
                            << " ms has been reached");
   }
-  if (res.result != static_cast<uint32_t>(OperationResult::SUCCESS))
-    clientRequestExecutionResult_ = static_cast<OperationResult>(res.result);
+  const auto result = static_cast<OperationResult>(res.result);
+  const auto reply_size = result == OperationResult::SUCCESS ? res.matched_data.size() : sizeof(OperationResult);
+  if (result != OperationResult::SUCCESS) clientRequestExecutionResult_ = result;
   LOG_INFO(logger_,
-           "Request processing completed" << KVLOG(client_id_,
-                                                   config.request.sequence_number,
-                                                   config.request.correlation_id,
-                                                   static_cast<uint32_t>(clientRequestExecutionResult_)));
+           "Request processing completed" << KVLOG(
+               client_id_, config.request.sequence_number, config.request.correlation_id, res.result, reply_size));
   return res;
 }
 
@@ -113,13 +110,12 @@ bft::client::Reply ConcordClient::SendRequest(const bft::client::ReadConfig& con
                            << " has failed to invoke, timeout=" << config.request.timeout.count()
                            << " ms has been reached");
   }
-  if (res.result != static_cast<uint32_t>(OperationResult::SUCCESS))
-    clientRequestExecutionResult_ = static_cast<OperationResult>(res.result);
+  const auto result = static_cast<OperationResult>(res.result);
+  if (result != OperationResult::SUCCESS) clientRequestExecutionResult_ = result;
+  const auto reply_size = result == OperationResult::SUCCESS ? res.matched_data.size() : sizeof(OperationResult);
   LOG_INFO(logger_,
-           "Request processing completed" << KVLOG(client_id_,
-                                                   config.request.sequence_number,
-                                                   config.request.correlation_id,
-                                                   static_cast<uint32_t>(clientRequestExecutionResult_)));
+           "Request processing completed" << KVLOG(
+               client_id_, config.request.sequence_number, config.request.correlation_id, res.result, reply_size));
   return res;
 }
 
@@ -147,11 +143,6 @@ void ConcordClient::AddPendingRequest(std::vector<uint8_t>&& request,
     pending_reply.replyBuffer = reply_buffer;
     pending_reply.lengthOfReplyBuffer = reply_size;
   } else {
-    pending_reply.replyBuffer = reply_->data() + batching_buffer_reply_offset_ * max_reply_size_;
-    LOG_DEBUG(logger_,
-              "Given reply size is 0, setting internal buffer with offset="
-                  << (batching_buffer_reply_offset_ * max_reply_size_));
-    ++batching_buffer_reply_offset_;
     pending_reply.lengthOfReplyBuffer = max_reply_size_;
   }
   pending_reply.actualReplyLength = 0UL;
@@ -198,8 +189,11 @@ std::pair<int32_t, ConcordClient::PendingReplies> ConcordClient::SendPendingRequ
       auto data_size = received_reply_entry.second.matched_data.size();
       for (auto& pending_reply : pending_replies_) {
         if (pending_reply.cid != cid) continue;
-        auto response = received_reply_entry.second.result ? bftEngine::SendResult{received_reply_entry.second.result}
-                                                           : bftEngine::SendResult{received_reply_entry.second};
+        const auto res = static_cast<OperationResult>(received_reply_entry.second.result);
+        auto response = res == OperationResult::SUCCESS ? bftEngine::SendResult{received_reply_entry.second}
+                                                        : bftEngine::SendResult{received_reply_entry.second.result};
+        const auto reply_size =
+            res == OperationResult::SUCCESS ? received_reply_entry.second.matched_data.size() : sizeof(OperationResult);
         if (pending_reply.cb) {
           pending_reply.cb(move(response));
           LOG_INFO(logger_,
@@ -208,7 +202,8 @@ std::pair<int32_t, ConcordClient::PendingReplies> ConcordClient::SendPendingRequ
                                 batch_cid,
                                 received_reply_seq_num,
                                 pending_reply.cid,
-                                received_reply_entry.second.result));
+                                received_reply_entry.second.result,
+                                reply_size));
         } else {
           // Used for testing only
           if (data_size > pending_reply.lengthOfReplyBuffer) {
@@ -224,7 +219,8 @@ std::pair<int32_t, ConcordClient::PendingReplies> ConcordClient::SendPendingRequ
                                                            batch_cid,
                                                            received_reply_seq_num,
                                                            pending_reply.cid,
-                                                           received_reply_entry.second.result));
+                                                           received_reply_entry.second.result,
+                                                           reply_size));
         }
       }
     }
@@ -234,7 +230,6 @@ std::pair<int32_t, ConcordClient::PendingReplies> ConcordClient::SendPendingRequ
     ret = OperationResult::TIMEOUT;
   }
   LOG_INFO(logger_, "Batch processing completed" << KVLOG(client_id_, batch_cid));
-  batching_buffer_reply_offset_ = 0UL;
   pending_requests_.clear();
   return {static_cast<uint32_t>(ret), std::move(pending_replies_)};
 }

@@ -14,7 +14,7 @@
 #include "thin-replica-server/replica_state_snapshot_service_impl.hpp"
 
 #include "Logger.hpp"
-#include "rocksdb/native_client.h"
+#include "kvbc_adapter/replica_adapter.hpp"
 
 #include <stdexcept>
 #include <string>
@@ -25,8 +25,8 @@ using vmware::concord::replicastatesnapshot::StreamSnapshotRequest;
 using vmware::concord::replicastatesnapshot::StreamSnapshotResponse;
 
 using bftEngine::impl::DbCheckpointManager;
-using kvbc::categorization::KeyValueBlockchain;
 using storage::rocksdb::NativeClient;
+using concord::kvbc::adapter::ReplicaBlockchain;
 
 grpc::Status ReplicaStateSnapshotServiceImpl::StreamSnapshot(grpc::ServerContext* context,
                                                              const StreamSnapshotRequest* request,
@@ -61,10 +61,10 @@ grpc::Status ReplicaStateSnapshotServiceImpl::StreamSnapshot(grpc::ServerContext
     const auto snapshot_path = overriden_path_for_test_.has_value()
                                    ? *overriden_path_for_test_
                                    : DbCheckpointManager::instance().getPathForCheckpoint(request->snapshot_id());
-    const auto link_st_chain = false;
     const auto read_only = true;
-    auto db = NativeClient::newClient(snapshot_path, read_only, NativeClient::DefaultOptions{});
-    const auto kvbc = KeyValueBlockchain{db, link_st_chain};
+    const auto link_st_chain = false;
+    auto db_client = NativeClient::newClient(snapshot_path, read_only, NativeClient::DefaultOptions{});
+    auto kvbc_state_snapshot_ = std::make_unique<ReplicaBlockchain>(db_client, link_st_chain);
 
     const auto iterate = [&](std::string&& key, std::string&& value) {
       auto resp = StreamSnapshotResponse{};
@@ -82,14 +82,14 @@ grpc::Status ReplicaStateSnapshotServiceImpl::StreamSnapshot(grpc::ServerContext
     };
 
     if (request->has_last_received_key()) {
-      if (!kvbc.iteratePublicStateKeyValues(iterate, request->last_received_key())) {
+      if (!kvbc_state_snapshot_->iteratePublicStateKeyValues(iterate, request->last_received_key())) {
         const auto msg =
             "Streaming of State Snapshot ID = " + snapshot_id_str + " failed, reason = last_received_key not found";
         LOG_INFO(STATE_SNAPSHOT, msg);
         return grpc::Status{grpc::StatusCode::INVALID_ARGUMENT, msg};
       }
     } else {
-      kvbc.iteratePublicStateKeyValues(iterate);
+      kvbc_state_snapshot_->iteratePublicStateKeyValues(iterate);
     }
   } catch (const std::exception& e) {
     const auto err = "Streaming of State Snapshot ID = " + snapshot_id_str + " failed, reason = " + e.what();

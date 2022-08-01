@@ -32,9 +32,7 @@ class InMemoryDataStore : public DataStore {
   explicit InMemoryDataStore(uint32_t sizeOfReservedPage);
   ~InMemoryDataStore() override {
     deleteAllPendingPages();
-    for (auto& p : pages) {
-      ::free(p.second.page);
-    }
+    pages.clear();
   }
 
   //////////////////////////////////////////////////////////////////////////
@@ -44,7 +42,7 @@ class InMemoryDataStore : public DataStore {
   bool initialized() override;
   void setAsInitialized() override;
 
-  void setReplicas(const set<uint16_t> replicas) override;
+  void setReplicas(const set<uint16_t>& replicas) override;
   set<uint16_t> getReplicas() override;
 
   void setMyReplicaId(uint16_t id) override;
@@ -79,7 +77,9 @@ class InMemoryDataStore : public DataStore {
   // Checkpoints
   //////////////////////////////////////////////////////////////////////////
 
-  void setCheckpointDesc(uint64_t checkpoint, const CheckpointDesc& desc) override;
+  void setCheckpointDesc(uint64_t checkpoint,
+                         const CheckpointDesc& desc,
+                         const bool checkIfAlreadyExists = true) override;
   CheckpointDesc getCheckpointDesc(uint64_t checkpoint) override;
   bool hasCheckpointDesc(uint64_t checkpoint) override;
   void deleteDescOfSmallerCheckpoints(uint64_t checkpoint) override;
@@ -117,7 +117,11 @@ class InMemoryDataStore : public DataStore {
                                              uint64_t inCheckpoint,
                                              const Digest& inPageDigest) override;
 
-  void setResPage(uint32_t inPageId, uint64_t inCheckpoint, const Digest& inPageDigest, const char* inPage) override;
+  void setResPage(uint32_t inPageId,
+                  uint64_t inCheckpoint,
+                  const Digest& inPageDigest,
+                  const char* inPage,
+                  const bool checkIfAlreadyExists = true) override;
 
   bool getResPage(uint32_t inPageId,
                   uint64_t inCheckpoint,
@@ -171,13 +175,14 @@ class InMemoryDataStore : public DataStore {
 
   std::atomic_bool fetching{false};
 
-  CheckpointDesc checkpointBeingFetched;
-  // none if checkpointBeingFetched.checkpointNum == 0
+  // No checkpoint is being fetched if checkpointBeingFetched_.checkpointNum is 0
+  CheckpointDesc checkpointBeingFetched_;
 
   uint64_t firstRequiredBlock = UINT64_MAX;
   uint64_t lastRequiredBlock = UINT64_MAX;
 
-  map<uint32_t, char*> pendingPages;
+  using PagePtr = std::shared_ptr<char[]>;
+  map<uint32_t, PagePtr> pendingPages;
 
   struct ResPageKey {
     uint32_t pageId;
@@ -193,7 +198,7 @@ class InMemoryDataStore : public DataStore {
 
   struct ResPageVal {
     Digest pageDigest;
-    char* page;
+    PagePtr page;
   };
 
   map<ResPageKey, ResPageVal> pages;
@@ -209,7 +214,7 @@ class InMemoryDataStore : public DataStore {
   const uint32_t getSizeOfReservedPage() const { return sizeOfReservedPage_; }
   const map<uint64_t, CheckpointDesc>& getDescMap() const { return descMap; }
   const map<ResPageKey, ResPageVal>& getPagesMap() const { return pages; }
-  const map<uint32_t, char*>& getPendingPagesMap() const { return pendingPages; }
+  const map<uint32_t, PagePtr>& getPendingPagesMap() const { return pendingPages; }
   std::mutex reservedPagesLock_;
   void setInitialized(bool init) { wasInit_ = init; }
   logging::Logger& logger() {

@@ -28,6 +28,7 @@ logging::Logger THRESHSIGN_LOG = logging::getLogger("concord.bft.threshsign");
 logging::Logger BLS_LOG = logging::getLogger("concord.bft.threshsign.bls");
 logging::Logger KEY_EX_LOG = logging::getLogger("concord.bft.key-exchange");
 logging::Logger CAT_BLOCK_LOG = logging::getLogger("concord.kvbc.categorized-blockchain");
+logging::Logger V4_BLOCK_LOG = logging::getLogger("concord.kvbc.v4-blockchain");
 logging::Logger VC_LOG = logging::getLogger("concord.bft.viewchange");
 logging::Logger ST_DST_LOG = logging::getLogger("concord.bft.st.dst");
 logging::Logger ST_SRC_LOG = logging::getLogger("concord.bft.st.src");

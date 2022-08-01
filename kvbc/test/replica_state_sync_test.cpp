@@ -15,7 +15,7 @@
 #include "DbMetadataStorage.hpp"
 #include "Logger.hpp"
 #include "block_metadata.hpp"
-#include "categorization/kv_blockchain.h"
+#include "kvbc_adapter/replica_adapter.hpp"
 #include "db_interfaces.h"
 #include "metadata_block_id.h"
 #include "PersistentStorageImp.hpp"
@@ -23,6 +23,7 @@
 #include "rocksdb/native_client.h"
 #include "storage/merkle_tree_key_manipulator.h"
 #include "storage/test/storage_test_common.h"
+#include "ReplicaResources.h"
 
 #include <cstdint>
 #include <memory>
@@ -39,7 +40,7 @@ using concord::kvbc::IReader;
 using concord::kvbc::categorization::kConcordInternalCategoryId;
 using concord::kvbc::ReplicaStateSyncImp;
 using concord::kvbc::categorization::CATEGORY_TYPE;
-using concord::kvbc::categorization::KeyValueBlockchain;
+using concord::kvbc::adapter::ReplicaBlockchain;
 using concord::kvbc::categorization::TaggedVersion;
 using concord::kvbc::categorization::Updates;
 using concord::kvbc::categorization::Value;
@@ -52,9 +53,18 @@ using concord::storage::v2MerkleTree::MetadataKeyManipulator;
 using namespace ::testing;
 using namespace std::literals;
 
+std::string version;
+
 class replica_state_sync_test : public Test, public IReader {
   void SetUp() override {
     destroyDb();
+    if (version == "categorized") {
+      bftEngine::ReplicaConfig::instance().kvBlockchainVersion = 1;
+    } else if (version == "v4") {
+      bftEngine::ReplicaConfig::instance().kvBlockchainVersion = 4;
+    } else {
+      throw std::invalid_argument{"KVBC type not match any"};
+    }
     db_ = TestRocksDb::createNative();
     const auto link_st_chain = true;
     blockchain_.emplace(
@@ -130,10 +140,10 @@ class replica_state_sync_test : public Test, public IReader {
     auto ver_updates = VersionedUpdates{};
     ver_updates.addUpdate(std::string{BlockMetadata::kBlockMetadataKeyStr}, block_metadata_.serialize(seq_number));
     updates.add(kConcordInternalCategoryId, std::move(ver_updates));
-    blockchain_->addBlock(std::move(updates));
+    blockchain_->add(std::move(updates));
   }
 
-  void addBlockWithoutBftSeqNum() { blockchain_->addBlock(Updates{}); }
+  void addBlockWithoutBftSeqNum() { blockchain_->add(Updates{}); }
 
   void persistLastBlockIdInMetadata() {
     constexpr auto in_transaction = false;
@@ -151,7 +161,7 @@ class replica_state_sync_test : public Test, public IReader {
 
   // Test case specific members that are reset on SetUp() and TearDown().
   std::shared_ptr<NativeClient> db_;
-  std::optional<KeyValueBlockchain> blockchain_;
+  std::optional<ReplicaBlockchain> blockchain_;
   std::shared_ptr<PersistentStorageImp> metadata_;
 };
 
@@ -175,7 +185,7 @@ TEST_F(replica_state_sync_on_bft_seq_num_test, non_empty_blockchain_and_0_bft_se
             replica_state_sync_.executeBasedOnBftSeqNum(
                 logger_, *blockchain_, last_executed_bft_seq_num, kMaxNumOfBlocksToDelete));
   ASSERT_EQ(1, blockchain_->getGenesisBlockId());
-  ASSERT_EQ(2, blockchain_->getLastReachableBlockId());
+  ASSERT_EQ(2, blockchain_->getLastBlockId());
 }
 
 TEST_F(replica_state_sync_on_bft_seq_num_test, empty_blockchain_and_non_0_bft_seq_num) {
@@ -189,7 +199,7 @@ TEST_F(replica_state_sync_on_bft_seq_num_test, bft_seq_num_equal_to_block_seq_nu
   addBlockWithBftSeqNum(1);
   addBlockWithBftSeqNum(2);
   ASSERT_EQ(1, blockchain_->getGenesisBlockId());
-  ASSERT_EQ(2, blockchain_->getLastReachableBlockId());
+  ASSERT_EQ(2, blockchain_->getLastBlockId());
 
   const auto last_executed_bft_seq_num = 2;
   ASSERT_EQ(0,
@@ -197,65 +207,73 @@ TEST_F(replica_state_sync_on_bft_seq_num_test, bft_seq_num_equal_to_block_seq_nu
                 logger_, *blockchain_, last_executed_bft_seq_num, kMaxNumOfBlocksToDelete));
 
   ASSERT_EQ(1, blockchain_->getGenesisBlockId());
-  ASSERT_EQ(2, blockchain_->getLastReachableBlockId());
+  ASSERT_EQ(2, blockchain_->getLastBlockId());
 }
 
 TEST_F(replica_state_sync_on_bft_seq_num_test, bft_seq_num_bigger_than_block_seq_num) {
   addBlockWithBftSeqNum(1);
   addBlockWithBftSeqNum(2);
   ASSERT_EQ(1, blockchain_->getGenesisBlockId());
-  ASSERT_EQ(2, blockchain_->getLastReachableBlockId());
+  ASSERT_EQ(2, blockchain_->getLastBlockId());
 
   const auto last_executed_bft_seq_num = 42;
   ASSERT_EQ(0,
             replica_state_sync_.executeBasedOnBftSeqNum(
                 logger_, *blockchain_, last_executed_bft_seq_num, kMaxNumOfBlocksToDelete));
   ASSERT_EQ(1, blockchain_->getGenesisBlockId());
-  ASSERT_EQ(2, blockchain_->getLastReachableBlockId());
+  ASSERT_EQ(2, blockchain_->getLastBlockId());
 }
 
 TEST_F(replica_state_sync_on_bft_seq_num_test, bft_seq_num_less_than_block_seq_num) {
   addBlockWithBftSeqNum(1);
   addBlockWithBftSeqNum(2);
   ASSERT_EQ(1, blockchain_->getGenesisBlockId());
-  ASSERT_EQ(2, blockchain_->getLastReachableBlockId());
+  ASSERT_EQ(2, blockchain_->getLastBlockId());
 
+  if (version == "v4") {
+    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), std::nullopt};
+  }
   const auto last_executed_bft_seq_num = 1;
   ASSERT_EQ(1,
             replica_state_sync_.executeBasedOnBftSeqNum(
                 logger_, *blockchain_, last_executed_bft_seq_num, kMaxNumOfBlocksToDelete));
 
   ASSERT_EQ(1, blockchain_->getGenesisBlockId());
-  ASSERT_EQ(1, blockchain_->getLastReachableBlockId());
+  ASSERT_EQ(1, blockchain_->getLastBlockId());
 }
 
 TEST_F(replica_state_sync_on_bft_seq_num_test, cannot_delete_only_block_left) {
   addBlockWithBftSeqNum(2);  // block 1
   ASSERT_EQ(1, blockchain_->getGenesisBlockId());
-  ASSERT_EQ(1, blockchain_->getLastReachableBlockId());
-
+  ASSERT_EQ(1, blockchain_->getLastBlockId());
+  if (version == "v4") {
+    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), std::nullopt};
+  }
   const auto last_executed_bft_seq_num = 1;
   ASSERT_THROW(replica_state_sync_.executeBasedOnBftSeqNum(
                    logger_, *blockchain_, last_executed_bft_seq_num, kMaxNumOfBlocksToDelete),
                std::exception);
   ASSERT_EQ(1, blockchain_->getGenesisBlockId());
-  ASSERT_EQ(1, blockchain_->getLastReachableBlockId());
+  ASSERT_EQ(1, blockchain_->getLastBlockId());
 }
 
 TEST_F(replica_state_sync_on_bft_seq_num_test, cannot_delete_only_block_left_with_pruned_block) {
   addBlockWithBftSeqNum(2);  // block 1
   addBlockWithBftSeqNum(3);  // block 2
   // Prune block 1.
-  blockchain_->deleteBlock(1);
+  blockchain_->deleteBlocksUntil(2);
   ASSERT_EQ(2, blockchain_->getGenesisBlockId());
-  ASSERT_EQ(2, blockchain_->getLastReachableBlockId());
+  ASSERT_EQ(2, blockchain_->getLastBlockId());
 
+  if (version == "v4") {
+    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), std::nullopt};
+  }
   const auto last_executed_bft_seq_num = 2;
   ASSERT_THROW(replica_state_sync_.executeBasedOnBftSeqNum(
                    logger_, *blockchain_, last_executed_bft_seq_num, kMaxNumOfBlocksToDelete),
                std::exception);
   ASSERT_EQ(2, blockchain_->getGenesisBlockId());
-  ASSERT_EQ(2, blockchain_->getLastReachableBlockId());
+  ASSERT_EQ(2, blockchain_->getLastBlockId());
 }
 
 TEST_F(replica_state_sync_on_bft_seq_num_test, bft_too_many_inconsistent_blocks_detected) {
@@ -264,15 +282,17 @@ TEST_F(replica_state_sync_on_bft_seq_num_test, bft_too_many_inconsistent_blocks_
   addBlockWithBftSeqNum(3);
   addBlockWithBftSeqNum(4);
   ASSERT_EQ(1, blockchain_->getGenesisBlockId());
-  ASSERT_EQ(4, blockchain_->getLastReachableBlockId());
-
+  ASSERT_EQ(4, blockchain_->getLastBlockId());
+  if (version == "v4") {
+    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), std::nullopt};
+  }
   const auto last_executed_bft_seq_num = 2;
   ASSERT_THROW(replica_state_sync_.executeBasedOnBftSeqNum(logger_, *blockchain_, last_executed_bft_seq_num, 1),
                std::exception);
 
   // Only one block is expected to be deleted.
   ASSERT_EQ(1, blockchain_->getGenesisBlockId());
-  ASSERT_EQ(3, blockchain_->getLastReachableBlockId());
+  ASSERT_EQ(3, blockchain_->getLastBlockId());
 }
 
 TEST_F(replica_state_sync_on_block_id_test, missing_block_id_in_metadata) {
@@ -290,79 +310,95 @@ TEST_F(replica_state_sync_on_block_id_test, zero_max_blocks_to_delete) {
   persistLastBlockIdInMetadata();
   addBlockWithoutBftSeqNum();  // Force out of sync by adding a second block without persisting in metadata.
   ASSERT_EQ(0, replica_state_sync_.executeBasedOnBlockId(logger_, *blockchain_, metadata_, 0));
-  ASSERT_EQ(2, blockchain_->getLastReachableBlockId());
+  ASSERT_EQ(2, blockchain_->getLastBlockId());
 }
 
 TEST_F(replica_state_sync_on_block_id_test, metadata_block_id_bigger_than_last_block_id) {
   // Add two blocks, persist last block ID = 2 in metadata and then delete the last block.
-  addBlockWithoutBftSeqNum();
-  addBlockWithoutBftSeqNum();
+  addBlockWithBftSeqNum(1);
+  addBlockWithBftSeqNum(2);
   persistLastBlockIdInMetadata();
+  if (version == "v4") {
+    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), std::nullopt};
+  }
   blockchain_->deleteLastReachableBlock();
   ASSERT_EQ(0, replica_state_sync_.executeBasedOnBlockId(logger_, *blockchain_, metadata_, kMaxNumOfBlocksToDelete));
-  ASSERT_EQ(1, blockchain_->getLastReachableBlockId());
+  ASSERT_EQ(1, blockchain_->getLastBlockId());
 }
 
 TEST_F(replica_state_sync_on_block_id_test, max_num_of_blocksto_delete_is_honoured) {
-  addBlockWithoutBftSeqNum();
-  addBlockWithoutBftSeqNum();
+  addBlockWithBftSeqNum(1);
+  addBlockWithBftSeqNum(2);
   persistLastBlockIdInMetadata();
   // Add one more block than kMaxNumOfBlocksToDelete.
   for (auto i = 0u; i < kMaxNumOfBlocksToDelete + 1; ++i) {
-    addBlockWithoutBftSeqNum();
+    addBlockWithBftSeqNum(3);
+  }
+  if (version == "v4") {
+    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), std::nullopt};
   }
   ASSERT_THROW(replica_state_sync_.executeBasedOnBlockId(logger_, *blockchain_, metadata_, kMaxNumOfBlocksToDelete),
                std::runtime_error);
   // 2 blocks added prior to metadata persistence and 1 that is not deleted as it exceeeds `kMaxNumOfBlocksToDelete`.
-  ASSERT_EQ(2 + 1, blockchain_->getLastReachableBlockId());
+  ASSERT_EQ(2 + 1, blockchain_->getLastBlockId());
 }
 
 TEST_F(replica_state_sync_on_block_id_test, in_sync) {
-  addBlockWithoutBftSeqNum();
-  addBlockWithoutBftSeqNum();
+  addBlockWithBftSeqNum(1);
+  addBlockWithBftSeqNum(2);
   persistLastBlockIdInMetadata();
+  if (version == "v4") {
+    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), std::nullopt};
+  }
   ASSERT_EQ(0, replica_state_sync_.executeBasedOnBlockId(logger_, *blockchain_, metadata_, kMaxNumOfBlocksToDelete));
-  ASSERT_EQ(2, blockchain_->getLastReachableBlockId());
+  ASSERT_EQ(2, blockchain_->getLastBlockId());
 }
 
 TEST_F(replica_state_sync_on_block_id_test, out_of_sync) {
-  addBlockWithoutBftSeqNum();
-  addBlockWithoutBftSeqNum();
+  addBlockWithBftSeqNum(1);
+  addBlockWithBftSeqNum(2);
   persistLastBlockIdInMetadata();
-  addBlockWithoutBftSeqNum();
-  addBlockWithoutBftSeqNum();
-  addBlockWithoutBftSeqNum();
-  ASSERT_EQ(5, blockchain_->getLastReachableBlockId());
+  addBlockWithBftSeqNum(3);
+  addBlockWithBftSeqNum(3);
+  addBlockWithBftSeqNum(3);
+  ASSERT_EQ(5, blockchain_->getLastBlockId());
+  if (version == "v4") {
+    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), std::nullopt};
+  }
   ASSERT_EQ(3, replica_state_sync_.executeBasedOnBlockId(logger_, *blockchain_, metadata_, kMaxNumOfBlocksToDelete));
-  ASSERT_EQ(2, blockchain_->getLastReachableBlockId());
+  ASSERT_EQ(2, blockchain_->getLastBlockId());
 }
 
 TEST_F(replica_state_sync_on_block_id_test, cannot_delete_only_block_left) {
   persistLastBlockIdInMetadata();
   addBlockWithoutBftSeqNum();
   ASSERT_EQ(1, blockchain_->getGenesisBlockId());
-  ASSERT_EQ(1, blockchain_->getLastReachableBlockId());
-
+  ASSERT_EQ(1, blockchain_->getLastBlockId());
+  if (version == "v4") {
+    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), std::nullopt};
+  }
   ASSERT_THROW(replica_state_sync_.executeBasedOnBlockId(logger_, *blockchain_, metadata_, kMaxNumOfBlocksToDelete),
                std::exception);
   ASSERT_EQ(1, blockchain_->getGenesisBlockId());
-  ASSERT_EQ(1, blockchain_->getLastReachableBlockId());
+  ASSERT_EQ(1, blockchain_->getLastBlockId());
 }
 
 TEST_F(replica_state_sync_on_block_id_test, cannot_delete_only_block_left_with_pruned_block) {
   // Add 3 blocks, but persist metadata at block ID = 1.
-  addBlockWithoutBftSeqNum();
+  addBlockWithBftSeqNum(1);
   persistLastBlockIdInMetadata();
-  addBlockWithoutBftSeqNum();
-  addBlockWithoutBftSeqNum();
+  addBlockWithBftSeqNum(2);
+  addBlockWithBftSeqNum(2);
 
-  blockchain_->deleteBlock(1);
-
+  blockchain_->deleteBlocksUntil(2);
+  if (version == "v4") {
+    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), std::nullopt};
+  }
   // Expect a throw from KVBC when trying to delete the only block (genesis, block ID = 2) in the system.
   ASSERT_THROW(replica_state_sync_.executeBasedOnBlockId(logger_, *blockchain_, metadata_, kMaxNumOfBlocksToDelete),
                std::exception);
   ASSERT_EQ(2, blockchain_->getGenesisBlockId());
-  ASSERT_EQ(2, blockchain_->getLastReachableBlockId());
+  ASSERT_EQ(2, blockchain_->getLastBlockId());
 }
 
 TEST_F(replica_state_sync_test, out_of_sync_on_upgade) {
@@ -372,10 +408,13 @@ TEST_F(replica_state_sync_test, out_of_sync_on_upgade) {
   addBlockWithBftSeqNum(2);
 
   const auto last_executed_bft_seq_num = 1;
+  if (version == "v4") {
+    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), std::nullopt};
+  }
   ASSERT_EQ(1,
             replica_state_sync_.execute(
                 logger_, *blockchain_, metadata_, last_executed_bft_seq_num, kMaxNumOfBlocksToDelete));
-  ASSERT_EQ(1, blockchain_->getLastReachableBlockId());
+  ASSERT_EQ(1, blockchain_->getLastBlockId());
 
   // Last block ID is persisted by execute() in metadata.
   auto last_mtd_block_id = getLastBlockIdFromMetadata(metadata_);
@@ -386,7 +425,7 @@ TEST_F(replica_state_sync_test, out_of_sync_on_upgade) {
   ASSERT_EQ(0,
             replica_state_sync_.execute(
                 logger_, *blockchain_, metadata_, last_executed_bft_seq_num, kMaxNumOfBlocksToDelete));
-  ASSERT_EQ(1, blockchain_->getLastReachableBlockId());
+  ASSERT_EQ(1, blockchain_->getLastBlockId());
 
   // Last block ID remains the same.
   last_mtd_block_id = getLastBlockIdFromMetadata(metadata_);
@@ -403,11 +442,11 @@ TEST_F(replica_state_sync_test, metadata_not_persisted_on_first_block_after_soft
   ASSERT_EQ(0,
             replica_state_sync_.executeBasedOnBftSeqNum(
                 logger_, *blockchain_, last_executed_bft_seq_num, kMaxNumOfBlocksToDelete));
-  ASSERT_EQ(2, blockchain_->getLastReachableBlockId());
+  ASSERT_EQ(2, blockchain_->getLastBlockId());
 
   // Add a block after the upgrade from the new software version, without persisting metadata.
   addBlockWithoutBftSeqNum();
-  ASSERT_EQ(3, blockchain_->getLastReachableBlockId());
+  ASSERT_EQ(3, blockchain_->getLastBlockId());
 
   // Calling execute() will persist the last block ID in metadata. execute() assumes that the first block after upgrade
   // is successfuly added to both KVBC and metadata by the replica. If that is not the case as in this test, we don't
@@ -416,7 +455,7 @@ TEST_F(replica_state_sync_test, metadata_not_persisted_on_first_block_after_soft
   ASSERT_EQ(0,
             replica_state_sync_.execute(
                 logger_, *blockchain_, metadata_, last_executed_bft_seq_num + 1, kMaxNumOfBlocksToDelete));
-  ASSERT_EQ(3, blockchain_->getLastReachableBlockId());
+  ASSERT_EQ(3, blockchain_->getLastBlockId());
 
   // Last block ID is persisted by execute() in metadata.
   const auto last_mtd_block_id = getLastBlockIdFromMetadata(metadata_);
@@ -427,15 +466,19 @@ TEST_F(replica_state_sync_test, metadata_not_persisted_on_first_block_after_soft
 TEST_F(replica_state_sync_test, out_of_sync_after_software_upgrade) {
   addBlockWithBftSeqNum(1);
   addBlockWithBftSeqNum(2);
-  addBlockWithoutBftSeqNum();
+  addBlockWithBftSeqNum(3);
   persistLastBlockIdInMetadata();
-  addBlockWithoutBftSeqNum();
+  addBlockWithBftSeqNum(4);
+
+  if (version == "v4") {
+    concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), std::nullopt};
+  }
 
   const auto last_executed_bft_seq_num = 3;
   ASSERT_EQ(1,
             replica_state_sync_.execute(
                 logger_, *blockchain_, metadata_, last_executed_bft_seq_num, kMaxNumOfBlocksToDelete));
-  ASSERT_EQ(3, blockchain_->getLastReachableBlockId());
+  ASSERT_EQ(3, blockchain_->getLastBlockId());
 }
 
 TEST_F(replica_state_sync_test, in_sync_after_software_upgrade) {
@@ -449,7 +492,18 @@ TEST_F(replica_state_sync_test, in_sync_after_software_upgrade) {
   ASSERT_EQ(0,
             replica_state_sync_.execute(
                 logger_, *blockchain_, metadata_, last_executed_bft_seq_num, kMaxNumOfBlocksToDelete));
-  ASSERT_EQ(4, blockchain_->getLastReachableBlockId());
+  ASSERT_EQ(4, blockchain_->getLastBlockId());
 }
 
 }  // namespace
+
+int main(int argc, char *argv[]) {
+  InitGoogleTest(&argc, argv);
+  std::string v = argv[1];
+  if (v == "v4" || v == "categorized") {
+    version = v;
+  } else {
+    throw "Missing blockchain version argument [v4|categorized]";
+  }
+  return RUN_ALL_TESTS();
+}

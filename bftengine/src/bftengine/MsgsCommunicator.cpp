@@ -60,8 +60,9 @@ void MsgsCommunicator::send(std::set<NodeNum> dests, char* message, size_t messa
 uint32_t MsgsCommunicator::numOfConnectedReplicas(uint32_t clusterSize) {
   uint32_t ret{0};
   for (uint32_t i = 0; i < clusterSize; ++i) {
-    if (communication_->getCurrentConnectionStatus(i) == ConnectionStatus::Disconnected) continue;
-    ++ret;
+    if (communication_->getCurrentConnectionStatus(i) == ConnectionStatus::Connected) {
+      ++ret;
+    }
   }
   return ret;
 }

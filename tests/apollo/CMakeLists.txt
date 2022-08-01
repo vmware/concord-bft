@@ -36,6 +36,17 @@ if(THREADCHECK)
   ")
 endif()
 
+if(UNDEFINED_BEHAVIOR_CHECK)
+  set(UBSAN_LOG_DIR "${CMAKE_BINARY_DIR}/ubsan_logs")
+  file(MAKE_DIRECTORY ${UBSAN_LOG_DIR})
+  # For Leak Sanitizers to report errors we need to shut down processes gracefully
+  set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} GRACEFUL_SHUTDOWN=true")
+  set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} \
+  UBSAN_OPTIONS=log_path=${UBSAN_LOG_DIR}/ubsan.log:history_size=7:print_stacktrace=1:external_symbolizer_path=/usr/bin/llvm-symbolizer \
+  UBSAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer\
+  ")
+endif()
+
 if(CODECOVERAGE)
     #[[ We need to gracefully shut down processes in order to
         generate raw profile data for Code Coverage for Apollo tests.]]
@@ -46,28 +57,50 @@ endif()
 set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} KEEP_APOLLO_LOGS=${KEEP_APOLLO_LOGS}")
 set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} TXN_SIGNING_ENABLED=${TXN_SIGNING_ENABLED}")
 set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} TIME_SERVICE_ENABLED=TRUE")
+set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} BLOCKCHAIN_VERSION=1")
 set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} USE_FAKE_CLOCK_IN_TIME_SERVICE=${USE_FAKE_CLOCK_IN_TIME_SERVICE}")
 
 if (OMIT_TEST_OUTPUT)
     set(TEST_OUTPUT "2>&1 > /dev/null")
 endif()
+
 add_test(NAME skvbc_basic_tests COMMAND sh -c
         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_basic_tests python3 -m unittest test_skvbc ${TEST_OUTPUT}"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} BLOCKCHAIN_VERSION=4")
+add_test(NAME skvbc_basic_tests_v4 COMMAND sh -c
+        "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_basic_tests python3 -m unittest test_skvbc ${TEST_OUTPUT}"
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} BLOCKCHAIN_VERSION=1")
+
 
 if (BUILD_ROCKSDB_STORAGE)
     add_test(NAME skvbc_persistence_tests COMMAND sh -c
             "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_persistence_tests python3 -m unittest test_skvbc_persistence ${TEST_OUTPUT}"
             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+    set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} BLOCKCHAIN_VERSION=4")
+    add_test(NAME skvbc_persistence_tests_v4 COMMAND sh -c
+            "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_persistence_tests python3 -m unittest test_skvbc_persistence ${TEST_OUTPUT}"
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} BLOCKCHAIN_VERSION=1")
+
     if (USE_S3_OBJECT_STORE)
-        add_test(NAME skvbc_ro_replica_tests COMMAND sh -c
+        add_test(NAME skvbc_ro_replica_tests_1 COMMAND sh -c
                 "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_ro_replica_tests python3 -m unittest test_skvbc_ro_replica ${TEST_OUTPUT}"
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-
-        add_test(NAME skvbc_s3_integrity_check_tests COMMAND sh -c
+        add_test(NAME skvbc_s3_integrity_check_tests_1 COMMAND sh -c
                 "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_s3_integrity_check_tests python3 -m unittest test_skvbc_s3_integrity_check ${TEST_OUTPUT}"
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+        set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} BLOCKCHAIN_VERSION=4")
+        add_test(NAME skvbc_ro_replica_tests_4 COMMAND sh -c
+                "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_ro_replica_tests python3 -m unittest test_skvbc_ro_replica ${TEST_OUTPUT}"
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+        add_test(NAME skvbc_s3_integrity_check_tests_4 COMMAND sh -c
+                "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_s3_integrity_check_tests python3 -m unittest test_skvbc_s3_integrity_check ${TEST_OUTPUT}"
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+        set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} BLOCKCHAIN_VERSION=1")
     endif()
 endif()
 
@@ -101,9 +134,15 @@ add_test(NAME skvbc_auto_view_change_tests COMMAND sh -c
         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_auto_view_change_tests python3 -m unittest test_skvbc_auto_view_change ${TEST_OUTPUT}"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
-add_test(NAME skvbc_state_transfer_tests COMMAND sh -c
+# add_test(NAME skvbc_state_transfer_tests COMMAND sh -c
+#         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_state_transfer_tests python3 -m unittest test_skvbc_state_transfer ${TEST_OUTPUT}"
+#         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} BLOCKCHAIN_VERSION=4")
+add_test(NAME skvbc_state_transfer_tests_v4 COMMAND sh -c
         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_state_transfer_tests python3 -m unittest test_skvbc_state_transfer ${TEST_OUTPUT}"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} BLOCKCHAIN_VERSION=1")
 
 # PreExecution tests are executed two times - with PreExecution Result Authentication enabled and disabled.
 add_test(NAME skvbc_preexecution_tests COMMAND sh -c
@@ -136,6 +175,13 @@ add_test(NAME skvbc_publish_clients_keys COMMAND sudo sh -c
 add_test(NAME skvbc_backup_restore COMMAND sh -c
         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_backup_restore python3 -m unittest test_skvbc_backup_restore 2>&1 > /dev/null"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} BLOCKCHAIN_VERSION=4")
+add_test(NAME skvbc_backup_restore_v4 COMMAND sh -c
+        "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_backup_restore python3 -m unittest test_skvbc_backup_restore 2>&1 > /dev/null"
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} BLOCKCHAIN_VERSION=1")
+
 
 add_test(NAME skvbc_consensus_batching COMMAND sh -c
         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_consensus_batching python3 -m unittest test_skvbc_consensus_batching ${TEST_OUTPUT}"
@@ -187,4 +233,3 @@ add_test(NAME skvbc_restart_recovery_tests COMMAND sh -c
         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_restart_recovery_tests python3 -m unittest test_skvbc_restart_recovery ${TEST_OUTPUT}"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 endif()
-

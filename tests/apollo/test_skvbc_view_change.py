@@ -38,9 +38,26 @@ def start_replica_cmd(builddir, replica_id):
             "-i", str(replica_id),
             "-s", statusTimerMilli,
             "-v", viewChangeTimeoutMilli,
-            "-e", str(True)
+            "-e", str(True),
+            "-f", '1'
             ]
 
+def start_replica_cmd_without_key_exchange(builddir, replica_id):
+    """
+    Return a command that starts an skvbc replica when passed to
+    subprocess.Popen.
+    Note each arguments is an element in a list.
+    """
+    statusTimerMilli = "500"
+    viewChangeTimeoutMilli = "10000"
+    path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
+    return [path,
+            "-k", KEY_FILE_PREFIX,
+            "-i", str(replica_id),
+            "-s", statusTimerMilli,
+            "-v", viewChangeTimeoutMilli,
+            "-f", '1'
+            ]
 
 class SkvbcViewChangeTest(ApolloTest):
 
@@ -392,9 +409,8 @@ class SkvbcViewChangeTest(ApolloTest):
             err_msg="Make sure the unstable replica works in the latest view."
         )
 
-    @unittest.skip("unstable scenario")
     @with_trio
-    @with_bft_network(start_replica_cmd,
+    @with_bft_network(start_replica_cmd_without_key_exchange,
                       selected_configs=lambda n, f, c: c < f)
     @verify_linearizability()
     async def test_multiple_vc_slow_path(self, bft_network, tracker):
@@ -454,7 +470,7 @@ class SkvbcViewChangeTest(ApolloTest):
             current_primary = view
             [bft_network.start_replica(i) for i in crashed_replicas]
 
-        await skvbc.read_your_writes()
+            await skvbc.read_your_writes()
 
         await bft_network.wait_for_view(
             replica_id=current_primary,
@@ -464,7 +480,7 @@ class SkvbcViewChangeTest(ApolloTest):
         await skvbc.read_your_writes()
 
         #check after test is fixed
-        await bft_network.assert_slow_path_prevalent()
+        await bft_network.assert_slow_path_prevalent(0, 0, stable_replica)
 
     @with_trio
     @with_bft_network(start_replica_cmd,
@@ -667,6 +683,38 @@ class SkvbcViewChangeTest(ApolloTest):
 
         # wait for replicas to go to higher view (View 1 in this case)
         await bft_network.wait_for_replicas_to_reach_view(bft_network.all_replicas(), expected_view)
+        
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    @verify_linearizability()
+    async def test_view_changes_at_startup(self, bft_network, tracker):
+        """
+        This test aims to validate intial automatic view changes
+        with n-f startup. 
+        1) Start a BFT network excluding replicas with id 0 and 1
+        2) Sleep for sometime, so that replica timeout on connecting to current primary
+        3) Do nothing (wait for automatic view change to kick-in)
+        4) Check that two view changes have occured
+        5) Perform a "read-your-writes" check in the new view
+        """
+        exclude_replicas = {0,1}
+        bft_network.start_replicas(bft_network.all_replicas(without=exclude_replicas))
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+
+        timeout_for_primary_on_startup = 60
+        await trio.sleep(timeout_for_primary_on_startup)
+        
+        final_view = 2
+        # do nothing - just wait for view changes
+        await bft_network.wait_for_view(
+            replica_id=random.choice(
+                bft_network.all_replicas(without=exclude_replicas)),
+            expected=lambda v: v == final_view,
+            err_msg="Make sure view changes have occurred."
+        )
+        current_primary = await bft_network.get_current_primary() 
+        self.assertEqual(current_primary, final_view, "There should be exactly 2 view changes.")
+        await skvbc.read_your_writes()
 
     async def _single_vc_with_consecutive_failed_replicas(
             self,

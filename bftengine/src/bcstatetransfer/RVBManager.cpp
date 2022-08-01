@@ -116,7 +116,7 @@ void RVBManager::init(bool fetching) {
 
   LOG_INFO(logger_, std::boolalpha << KVLOG(pruned_blocks_digests_.size(), desc.checkpointNum, loaded_from_data_store));
   if (print_rvt && (debug_prints_log_level.find(getLogLevel()) != debug_prints_log_level.end())) {
-    in_mem_rvt_->printToLog(LogPrintVerbosity::DETAILED, "init");
+    in_mem_rvt_->printToLog(LogPrintVerbosity::SUMMARY, "init");
   }
 }
 
@@ -258,7 +258,7 @@ void RVBManager::updateRvbDataDuringCheckpoint(CheckpointDesc& new_checkpoint_de
     }
     std::string label{"updateRvbDataDuringCheckpoint"};
     label += std::to_string(new_checkpoint_desc.checkpointNum);
-    in_mem_rvt_->printToLog(LogPrintVerbosity::DETAILED, label.c_str());
+    in_mem_rvt_->printToLog(LogPrintVerbosity::SUMMARY, label.c_str());
   }
   last_checkpoint_desc_ = new_checkpoint_desc;
 }
@@ -309,7 +309,7 @@ bool RVBManager::setRvbData(char* data, size_t data_size, BlockId min_block_id_s
   }
 
   LOG_INFO(logger_, "Success setting new RVB data from network!");
-  in_mem_rvt_->printToLog(LogPrintVerbosity::DETAILED, "setRvbData");
+  in_mem_rvt_->printToLog(LogPrintVerbosity::SUMMARY, "setRvbData");
   rvb_data_source_ = RvbDataInitialSource::FROM_NETWORK;
   if (!data) {
     LOG_WARN(logger_, "Empty RVB data in checkpoint!");
@@ -554,8 +554,8 @@ RVBGroupId RVBManager::getFetchBlocksRvbGroupId(BlockId from_block_id, BlockId t
   LOG_TRACE(logger_, KVLOG(from_block_id, to_block_id));
   ConcordAssertLE(from_block_id, to_block_id);
 
-  BlockId min_stored_rvb_id, max_stored_rvb_id;
   if (!stored_rvb_digests_.empty()) {
+    BlockId min_stored_rvb_id, max_stored_rvb_id;
     min_stored_rvb_id = stored_rvb_digests_.begin()->first;
     max_stored_rvb_id = (--stored_rvb_digests_.end())->first;
     uint64_t diff = max_stored_rvb_id - min_stored_rvb_id;

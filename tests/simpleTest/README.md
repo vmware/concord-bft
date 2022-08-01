@@ -1,7 +1,9 @@
 # Concord Example Code and Basic Test
 
 In this directory, you'll find a simple test that demonstrates how to
-use Concord. The test implements a single-register state machine. The
+use Concord. SimpleTest gets compiled along with concord-bft using 'make'
+or 'make build' command.
+The test implements a single-register state machine. The
 state machine understands two events:
 
   * WRITE(value) sets the value in the register, and returns the
@@ -11,7 +13,7 @@ state machine understands two events:
     (zero if no value has ever been set)
 
 The state machine is defined in the `SimpleAppState` class in
-`replica.cpp`. It exposes only an `execute` method, which is called
+`simple_app_state.hpp`. It exposes only an `execute` method, which is called
 every time the replica receives an event. The `main` function simply
 starts a Concord replica parameterized with this state machine.
 
@@ -19,7 +21,8 @@ The test code is defined in `client.cpp`. The client sends a number of
 write requests, followed by a read request, repeatedly. It verifies
 that the responses to each of these events matches expectations,
 namely that the sequence number advances, and that a read returns the
-last written value.
+last written value. By default, number of requests is set to 4600 and
+log is generated after every 100 requests.
 
 In the `scripts` directory, you'll find:
 
@@ -40,23 +43,14 @@ In the `scripts` directory, you'll find:
   * `simpleTest.py`, which allows to run various configurations using command
   line interface.
 
-## Run test using pre configured shell script
-  * `create_tls_certs.ssh`, which creates self signed SSL certificates to be used with TlsTcp module.
-
-If you have built Concord with `BUILD_COMM_TCP_TLS TRUE` you must run the following commands to create SSL certificates:
+Once you have built Concord and are in the top-level directory, you can run the Docker container
+with the following command:
 
 ```
-rm -rf certs/
-./create_tls_certs.sh num_of_replicas+num_of_clients
-```
-E.g., for running the Simple Test using `testReplicasAndClient.sh, which runs 4 replicas and 1 client, you will need to run
-```
-rm -rf certs/
-./create_tls_certs.sh 5
+make login
 ```
 
-Once you have built Concord and are in the top-level directory, you can run the
-test with the following command:
+Then, you can run the test using the following command:
 
 ```
 ./build/bftengine/tests/simpleTest/scripts/testReplicasAndClient.sh
@@ -65,46 +59,159 @@ test with the following command:
 You should see output like the following:
 
 ```
-2018-09-18 11:00:00 91178 91178  INFO       LogInitializer: 121 | Compiler successfully avoids evaluating expressions in 'logtrace << expr()'
-
- 18:00:00.429 INFO: Client 4 - sends request 6447876697453756416 (isRO=0, request size=16, retransmissionMilli=150)
-When using programs that use GNU Parallel to process data for publication please cite:
+root@9cf36e02c374:/concord-bft# ./build/tests/simpleTest/scripts/testReplicasAndClient.sh
+Starting SimpleTest...
+Generating SSL certificates for TlsTcp communication...
+processing replica 0/4
+salt=F083FF33FF7F0000
+key=15EC11A047F630CA00F65C25F0B3BFD89A7054A5B9E2E3CDB6A772A58251B4C2
+iv =38106509F6528FF859C366747AA04F21
+salt=5006A159FE7F0000
+key=15EC11A047F630CA00F65C25F0B3BFD89A7054A5B9E2E3CDB6A772A58251B4C2
+iv =38106509F6528FF859C366747AA04F21
+processing replica 1/4
+salt=F0C0CD51FC7F0000
+key=15EC11A047F630CA00F65C25F0B3BFD89A7054A5B9E2E3CDB6A772A58251B4C2
+iv =38106509F6528FF859C366747AA04F21
+salt=C0494EF0FE7F0000
+key=15EC11A047F630CA00F65C25F0B3BFD89A7054A5B9E2E3CDB6A772A58251B4C2
+iv =38106509F6528FF859C366747AA04F21
+processing replica 2/4
+salt=809C0851FF7F0000
+key=15EC11A047F630CA00F65C25F0B3BFD89A7054A5B9E2E3CDB6A772A58251B4C2
+iv =38106509F6528FF859C366747AA04F21
+salt=00C59B6CFE7F0000
+key=15EC11A047F630CA00F65C25F0B3BFD89A7054A5B9E2E3CDB6A772A58251B4C2
+iv =38106509F6528FF859C366747AA04F21
+processing replica 3/4
+salt=9010C1FAFF7F0000
+key=15EC11A047F630CA00F65C25F0B3BFD89A7054A5B9E2E3CDB6A772A58251B4C2
+iv =38106509F6528FF859C366747AA04F21
+salt=800A5D27FC7F0000
+key=15EC11A047F630CA00F65C25F0B3BFD89A7054A5B9E2E3CDB6A772A58251B4C2
+iv =38106509F6528FF859C366747AA04F21
+processing replica 4/4
+salt=F01C727FFE7F0000
+key=15EC11A047F630CA00F65C25F0B3BFD89A7054A5B9E2E3CDB6A772A58251B4C2
+iv =38106509F6528FF859C366747AA04F21
+salt=D0C37FB9FC7F0000
+key=15EC11A047F630CA00F65C25F0B3BFD89A7054A5B9E2E3CDB6A772A58251B4C2
+iv =38106509F6528FF859C366747AA04F21
+Generating new keys...
+2022-06-01T06:21:58,238,+0000|INFO ||simpletest.client||||client.cpp:155|SimpleClientParams: clientInitialRetryTimeoutMilli: 150, clientMinRetryTimeoutMilli: 50, clientMaxRetryTimeoutMilli: 1000, clientSendsRequestToAllReplicasFirstThresh: 2, clientSendsRequestToAllReplicasPeriodThresh: 2, clientPeriodicResetThresh: 30
+2022-06-01T06:21:58,239,+0000|INFO ||simpletest.client||||simple_test_client.hpp:74|ClientParams: clientId: 4, numOfReplicas: 4, numOfClients: 1, numOfIterations: 4600, fVal: 1, cVal: 0
+2022-06-01T06:21:58,239,+0000|INFO ||communication.factory||||CommFactory.cpp:55|Replica communication protocol= TlsTcp, Host=0.0.0.0, Port=3718
+2022-06-01T06:21:58,239,+0000|INFO ||concord-bft.tls.runner||||TlsRunner.cpp:33|Starting TLS Runner
+2022-06-01T06:21:58,239,+0000|INFO ||concord-bft.tls.connMgr||||TlsConnectionManager.cpp:45|Starting connection manager for 4
+2022-06-01T06:21:58,239,+0000|INFO ||simpletest.client||||simple_test_client.hpp:100|Starting 4600
+2022-06-01T06:21:58,240,+0000|INFO ||concord-bft.tls.connMgr||||TlsConnectionManager.cpp:307|Resolved node 0: 127.0.0.1:3710 to 127.0.0.1:3710
+2022-06-01T06:21:58,241,+0000|INFO ||concord-bft.tls.connMgr||||TlsConnectionManager.cpp:307|Resolved node 1: 127.0.0.1:3712 to 127.0.0.1:3712
+2022-06-01T06:21:58,241,+0000|INFO ||concord-bft.tls.connMgr||||TlsConnectionManager.cpp:307|Resolved node 2: 127.0.0.1:3714 to 127.0.0.1:3714
+2022-06-01T06:21:58,241,+0000|INFO ||concord-bft.tls.connMgr||||TlsConnectionManager.cpp:307|Resolved node 3: 127.0.0.1:3716 to 127.0.0.1:3716
+2022-06-01T06:21:58,241,+0000|WARN ||concord-bft.tls.connMgr||||TlsConnectionManager.cpp:326|Failed to connect to node 0: 127.0.0.1:3710 : Connection refused
+2022-06-01T06:21:58,241,+0000|WARN ||concord-bft.tls.connMgr||||TlsConnectionManager.cpp:329|socket closed
+2022-06-01T06:21:58,242,+0000|WARN ||concord-bft.tls.connMgr||||TlsConnectionManager.cpp:326|Failed to connect to node 1: 127.0.0.1:3712 : Connection refused
+2022-06-01T06:21:58,242,+0000|WARN ||concord-bft.tls.connMgr||||TlsConnectionManager.cpp:329|socket closed
+2022-06-01T06:21:58,242,+0000|WARN ||concord-bft.tls.connMgr||||TlsConnectionManager.cpp:326|Failed to connect to node 2: 127.0.0.1:3714 : Connection refused
+2022-06-01T06:21:58,242,+0000|WARN ||concord-bft.tls.connMgr||||TlsConnectionManager.cpp:329|socket closed
+2022-06-01T06:21:58,242,+0000|WARN ||concord-bft.tls.connMgr||||TlsConnectionManager.cpp:326|Failed to connect to node 3: 127.0.0.1:3716 : Connection refused
+2022-06-01T06:21:58,242,+0000|WARN ||concord-bft.tls.connMgr||||TlsConnectionManager.cpp:329|socket closed
+2022-06-01T06:21:58,243,+0000|WARN ||concord.bft.client||||SimpleClientImp.cpp:145|The system is not ready: connectedReplicasNum=0 numberOfRequiredReplicas=3
+2022-06-01T06:21:58,243,+0000|WARN ||concord.bft.client||||SimpleClientImp.cpp:336|The system is not ready yet to handle requests => reject reqSeqNum: 6937649425107910656, clientId_: 4, cid: , reqTimeoutMilli: 18446744073709551615
+2022-06-01T06:21:58,244,+0000|WARN ||concord.bft.client||||SimpleClientImp.cpp:145|The system is not ready: connectedReplicasNum=0 numberOfRequiredReplicas=3
+2022-06-01T06:21:58,244,+0000|WARN ||concord.bft.client||||SimpleClientImp.cpp:336|The system is not ready yet to handle requests => reject reqSeqNum: 6937649425124687872, clientId_: 4, cid: , reqTimeoutMilli: 18446744073709551615
+2022-06-01T06:21:58,244,+0000|WARN ||concord.bft.client||||SimpleClientImp.cpp:145|The system is not ready: connectedReplicasNum=0 numberOfRequiredReplicas=3
+2022-06-01T06:21:58,244,+0000|WARN ||concord.bft.client||||SimpleClientImp.cpp:336|The system is not ready yet to handle requests => reject reqSeqNum: 6937649425128882176, clientId_: 4, cid: , reqTimeoutMilli: 18446744073709551615
+2022-06-01T06:21:58,245,+0000|WARN ||concord.bft.client||||SimpleClientImp.cpp:145|The system is not ready: connectedReplicasNum=0 numberOfRequiredReplicas=3
+2022-06-01T06:21:58,245,+0000|WARN ||concord.bft.client||||SimpleClientImp.cpp:336|The system is not ready yet to handle requests => reject reqSeqNum: 6937649425133076480, clientId_: 4, cid: , reqTimeoutMilli: 18446744073709551615
+2022-06-01T06:21:58,246,+0000|WARN ||concord.bft.client||||SimpleClientImp.cpp:145|The system is not ready: connectedReplicasNum=0 numberOfRequiredReplicas=3
+2022-06-01T06:21:58,246,+0000|WARN ||concord.bft.client||||SimpleClientImp.cpp:336|The system is not ready yet to handle requests => reject reqSeqNum: 6937649425133076481, clientId_: 4, cid: , reqTimeoutMilli: 18446744073709551615
+2022-06-01T06:21:58,247,+0000|WARN ||concord.bft.client||||SimpleClientImp.cpp:145|The system is not ready: connectedReplicasNum=0 numberOfRequiredReplicas=3
+2022-06-01T06:21:58,247,+0000|WARN ||concord.bft.client||||SimpleClientImp.cpp:336|The system is not ready yet to handle requests => reject reqSeqNum: 6937649425137270784, clientId_: 4, cid: , reqTimeoutMilli: 18446744073709551615
+Academic tradition requires you to cite works you base your article on.
+When using programs that use GNU Parallel to process data for publication
+please cite:
 
   O. Tange (2011): GNU Parallel - The Command-Line Power Tool,
   ;login: The USENIX Magazine, February 2011:42-47.
 
-This helps funding further development; and it won't cost you a cent.
-Or you can get GNU Parallel without this requirement by paying 10000 EUR.
+This helps funding further development; AND IT WON'T COST YOU A CENT.
+If you pay 10000 EUR you should feel free to use GNU Parallel without citing.
 
-To silence this citation notice run 'parallel --bibtex' once or use '--no-notice'.
+To silence this citation notice: run 'parallel --citation'.
 
-
- 18:00:00.429 INFO: Client 4 - sends request 6447876697453756416 (isRO=0, request size=40,  retransmissionMilli=150, numberOfTransmissions=1, resetReplies=0, sendToAll=1)
- 18:00:00.631 INFO: Client 4 - sends request 6447876697453756416 (isRO=0, request size=40,  retransmissionMilli=150, numberOfTransmissions=2, resetReplies=0, sendToAll=1)
- 18:00:00.636 INFO: Client 4 received ClientReplyMsg with seqNum=6447876697453756416 sender=1  size=32  primaryId=0 hash=1
- 18:00:00.636 INFO: Client 4 received ClientReplyMsg with seqNum=6447876697453756416 sender=0  size=32  primaryId=0 hash=1
- 18:00:00.637 INFO: Client 4 received ClientReplyMsg with seqNum=6447876697453756416 sender=2  size=32  primaryId=0 hash=1
- 18:00:00.637 INFO: Client 4 - request 6447876697453756416 has committed (isRO=0, request size=16,  retransmissionMilli=150)
+2022-06-01T06:21:59,241,+0000|INFO ||concord-bft.tls.connMgr||||TlsConnectionManager.cpp:307|Resolved node 0: 127.0.0.1:3710 to 127.0.0.1:3710
+2022-06-01T06:21:59,242,+0000|INFO ||concord-bft.tls.connMgr||||TlsConnectionManager.cpp:307|Resolved node 1: 127.0.0.1:3712 to 127.0.0.1:3712
+2022-06-01T06:21:59,243,+0000|INFO ||concord-bft.tls.connMgr||||TlsConnectionManager.cpp:307|Resolved node 2: 127.0.0.1:3714 to 127.0.0.1:3714
+2022-06-01T06:21:59,245,+0000|INFO ||concord-bft.tls.connMgr||||TlsConnectionManager.cpp:307|Resolved node 3: 127.0.0.1:3716 to 127.0.0.1:3716
+2022-06-01T06:21:59,245,+0000|INFO ||concord-bft.tls.connMgr||||TlsConnectionManager.cpp:334|Connected to node 0: 127.0.0.1:3710
+2022-06-01T06:21:59,247,+0000|INFO ||concord-bft.tls.conn||||AsyncTlsConnection.cpp:311|Certificates Path: "certs/4/client/client.cert"
+2022-06-01T06:21:59,248,+0000|INFO ||concord-bft.tls.connMgr||||TlsConnectionManager.cpp:334|Connected to node 1: 127.0.0.1:3712
+2022-06-01T06:21:59,248,+0000|INFO ||concord-bft.tls.conn||||AsyncTlsConnection.cpp:311|Certificates Path: "certs/4/client/client.cert"
+2022-06-01T06:21:59,248,+0000|INFO ||concord-bft.tls.connMgr||||TlsConnectionManager.cpp:334|Connected to node 2: 127.0.0.1:3714
+2022-06-01T06:21:59,249,+0000|INFO ||concord-bft.tls.conn||||AsyncTlsConnection.cpp:311|Certificates Path: "certs/4/client/client.cert"
+2022-06-01T06:21:59,249,+0000|INFO ||concord-bft.tls.connMgr||||TlsConnectionManager.cpp:334|Connected to node 3: 127.0.0.1:3716
+2022-06-01T06:21:59,249,+0000|INFO ||concord-bft.tls.conn||||AsyncTlsConnection.cpp:311|Certificates Path: "certs/4/client/client.cert"
+2022-06-01T06:21:59,259,+0000|INFO ||concord.bft||||crypto_utils.cpp:314|Peer: 0
+2022-06-01T06:21:59,259,+0000|INFO ||concord.bft||||crypto_utils.cpp:319|Field CN: node0ser
+2022-06-01T06:21:59,259,+0000|INFO ||concord.bft||||crypto_utils.cpp:314|Peer: 0
+2022-06-01T06:21:59,259,+0000|INFO ||concord.bft||||crypto_utils.cpp:319|Field CN: node0ser
+2022-06-01T06:21:59,264,+0000|INFO ||concord-bft.tls.connMgr||||TlsConnectionManager.cpp:234|Client handshake succeeded for peer 0
+2022-06-01T06:21:59,266,+0000|INFO ||concord.bft||||crypto_utils.cpp:314|Peer: 3
+2022-06-01T06:21:59,266,+0000|INFO ||concord.bft||||crypto_utils.cpp:319|Field CN: node3ser
+2022-06-01T06:21:59,266,+0000|INFO ||concord.bft||||crypto_utils.cpp:314|Peer: 3
+2022-06-01T06:21:59,266,+0000|INFO ||concord.bft||||crypto_utils.cpp:319|Field CN: node3ser
+2022-06-01T06:21:59,268,+0000|INFO ||concord-bft.tls.connMgr||||TlsConnectionManager.cpp:234|Client handshake succeeded for peer 3
+2022-06-01T06:21:59,270,+0000|INFO ||concord.bft||||crypto_utils.cpp:314|Peer: 2
+2022-06-01T06:21:59,270,+0000|INFO ||concord.bft||||crypto_utils.cpp:319|Field CN: node2ser
+2022-06-01T06:21:59,270,+0000|INFO ||concord.bft||||crypto_utils.cpp:314|Peer: 2
+2022-06-01T06:21:59,270,+0000|INFO ||concord.bft||||crypto_utils.cpp:319|Field CN: node2ser
+2022-06-01T06:21:59,274,+0000|INFO ||concord-bft.tls.connMgr||||TlsConnectionManager.cpp:234|Client handshake succeeded for peer 2
+2022-06-01T06:21:59,275,+0000|INFO ||concord.bft||||crypto_utils.cpp:314|Peer: 1
+2022-06-01T06:21:59,275,+0000|INFO ||concord.bft||||crypto_utils.cpp:319|Field CN: node1ser
+2022-06-01T06:21:59,275,+0000|INFO ||concord.bft||||crypto_utils.cpp:314|Peer: 1
+2022-06-01T06:21:59,275,+0000|INFO ||concord.bft||||crypto_utils.cpp:319|Field CN: node1ser
+2022-06-01T06:21:59,277,+0000|INFO ||concord-bft.tls.connMgr||||TlsConnectionManager.cpp:234|Client handshake succeeded for peer 1
+Iterations count: 100
+Total iterations count: 100
+Iterations count: 100
+Total iterations count: 200
+Iterations count: 100
+Total iterations count: 300
+Iterations count: 100
+Total iterations count: 400
+Iterations count: 100
+Total iterations count: 500
+Iterations count: 100
+Total iterations count: 600
 ...
-lots of similar send/receive/commit messages
 ...
- 17:37:11.407 INFO: Client 4 - sends request 6447870955359305728 (isRO=1, request size=8, retransmissionMilli=50)
- 17:37:11.407 INFO: Client 4 - sends request 6447870955359305728 (isRO=1, request size=32,  retransmissionMilli=50, numberOfTransmissions=1, resetReplies=0, sendToAll=1)
- 17:37:11.407 INFO: Client 4 received ClientReplyMsg with seqNum=6447870955359305728 sender=3  size=32  primaryId=0 hash=657769120
- 17:37:11.407 INFO: Client 4 received ClientReplyMsg with seqNum=6447870955359305728 sender=0  size=32  primaryId=0 hash=657769120
- 17:37:11.407 INFO: Client 4 received ClientReplyMsg with seqNum=6447870955359305728 sender=1  size=32  primaryId=0 hash=657769120
- 17:37:11.407 INFO: Client 4 - request 6447870955359305728 has committed (isRO=1, request size=8,  retransmissionMilli=50)
-Client is done, killing 'parallel' at PID 91009
+...
+Total iterations count: 4400
+Iterations count: 100
+Total iterations count: 4500
+Iterations count: 100
+Total iterations count: 4600
+2022-06-01T06:22:55,822,+0000|INFO ||concord-bft.tls.connMgr||||TlsConnectionManager.cpp:57|Stopping connection manager for 4
+2022-06-01T06:22:55,822,+0000|INFO ||simpletest.client||||simple_test_client.hpp:220|clientMetrics::retransmissions 18
+2022-06-01T06:22:55,822,+0000|INFO ||simpletest.client||||simple_test_client.hpp:223|clientMetrics::retransmissionTimer 50
+2022-06-01T06:22:55,822,+0000|INFO ||simpletest.client||||simple_test_client.hpp:236|test done, iterations: 4600
+
+Client is done, killing 'parallel' at PID 68
 
 parallel: SIGTERM received. No new jobs will be started.
 parallel: Waiting for these 4 jobs to finish. Send SIGTERM again to stop now.
-parallel: /home/bfink/builds/concord-bft/debug/bftengine/tests/simpleTest/scripts/../server 3
-parallel: /home/bfink/builds/concord-bft/debug/bftengine/tests/simpleTest/scripts/../server 2
-parallel: /home/bfink/builds/concord-bft/debug/bftengine/tests/simpleTest/scripts/../server 0
-parallel: /home/bfink/builds/concord-bft/debug/bftengine/tests/simpleTest/scripts/../server 1
+parallel: /concord-bft/build/tests/simpleTest/scripts/../server 1
+parallel: /concord-bft/build/tests/simpleTest/scripts/../server 2
+parallel: /concord-bft/build/tests/simpleTest/scripts/../server 3
+parallel: /concord-bft/build/tests/simpleTest/scripts/../server 0
 
-Killing server processes named '/home/bfink/builds/concord-bft/debug/bftengine/tests/simpleTest/scripts/../server'
+Killing server processes named '/concord-bft/build/tests/simpleTest/scripts/../server'
+root@9cf36e02c374:/concord-bft#
+root@9cf36e02c374:/concord-bft#
+
 ```
+
 ## Run test with various configurations via Python script
 
 Once you have built Concord and are in the top-level directory, you can run the
@@ -159,7 +266,7 @@ The log file from the simpleTest.py itself will be written in the log folder pro
 
 ### Examples
 The following examples all assume you are running simpleTest.py directly from
-`<CONCORD_BFT_DIR>/build/bftengine/tests/simpleTest/scripts`.
+`<CONCORD_BFT_DIR>/build/tests/simpleTest/scripts`.
 
 Here are a few single test runs that may be useful:
 

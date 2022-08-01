@@ -124,6 +124,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
           std::vector<std::uint8_t>(req.request, req.request + req.requestSize), createDbChkPtMsg);
       if (!createDbChkPtMsg.noop) {
         const auto& lastStableSeqNum = DbCheckpointManager::instance().getLastStableSeqNum();
+        std::optional blockId(DbCheckpointManager::instance().getLastReachableBlock());
         if (lastStableSeqNum == static_cast<SeqNum>(createDbChkPtMsg.seqNum)) {
           DbCheckpointManager::instance().createDbCheckpointAsync(createDbChkPtMsg.seqNum, timestamp, std::nullopt);
         } else {
@@ -132,7 +133,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
           // seq num because checkpoint msg certificate is stored on stable seq num and is used for intergrity
           // check of db snapshots
           const auto& seqNumToCreateSanpshot = createDbChkPtMsg.seqNum;
-          std::optional blockId(DbCheckpointManager::instance().getLastReachableBlock());
+          DbCheckpointManager::instance().setCheckpointInProcess(true, *blockId);
           DbCheckpointManager::instance().setOnStableSeqNumCb_([seqNumToCreateSanpshot, timestamp, blockId](SeqNum s) {
             if (s == static_cast<SeqNum>(seqNumToCreateSanpshot))
               DbCheckpointManager::instance().createDbCheckpointAsync(seqNumToCreateSanpshot, timestamp, blockId);
@@ -182,14 +183,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
     return;
   }
   if (userRequestsHandler_) {
-    // Do not measure pre-exec and read requests.
-    auto isPost =
-        (requests.size() > 0 && !(requests.back().flags & (bftEngine::PRE_PROCESS_FLAG | bftEngine::READ_ONLY_FLAG)));
-    ISystemResourceEntity::scopedDurMeasurment m(
-        resourceEntity_, ISystemResourceEntity::type::post_execution_utilization, isPost);
     userRequestsHandler_->execute(requests, timestamp, batchCid, parent_span);
-    // the size of the queue resembles how many requests have passed consensus.
-    resourceEntity_.addMeasurement({ISystemResourceEntity::type::transactions_accumulated, requests.size(), 0, 0});
   }
   return;
 }

@@ -130,9 +130,10 @@ class RangeValidationTree {
 
   enum class LogPrintVerbosity { DETAILED, SUMMARY };
 
-  // Log tree only if total elements are less than 10K. In case of failure can assert.
-  // SUMMARY - prints basic structure and node ids only
-  void printToLog(LogPrintVerbosity verbosity, std::string&& user_label = "") const noexcept;  // change to 3 levels
+  // Prints current tree information to log. Basic information is always printed. If verbosity is DETAILED and there
+  // less than kMaxNodesToPrintStructure+1 nodes in the tree, structure is printed as well.
+  // The label is an optional string, to mark the caller.
+  void printToLog(LogPrintVerbosity verbosity, std::string&& user_label = "") const noexcept;
 
   // Validate structure and values inside tree. In case of failure can assert.
   bool validate() const noexcept;
@@ -154,9 +155,9 @@ class RangeValidationTree {
 
     NodeVal(const std::shared_ptr<char[]>&& val, size_t size);
     NodeVal(const char* val_ptr, size_t size);
-    NodeVal(const NodeVal_t* val);
-    NodeVal(const NodeVal_t& val);
-    NodeVal(const NodeVal_t&& val);
+    explicit NodeVal(const NodeVal_t* val);
+    explicit NodeVal(const NodeVal_t& val);
+    explicit NodeVal(const NodeVal_t&& val);
     NodeVal();
 
     NodeVal& operator+=(const NodeVal& other);
@@ -176,14 +177,14 @@ class RangeValidationTree {
   };
 
   struct NodeInfo {
-    NodeInfo(uint64_t node_id) : id_data_(node_id) {}
+    explicit NodeInfo(uint64_t node_id) : id_data_(node_id) {}
     NodeInfo(uint8_t l, uint64_t index) : id_data_(l, index) {}
     NodeInfo() = delete;
 
-    bool operator<(NodeInfo& other) const noexcept {
+    bool operator<(const NodeInfo& other) const noexcept {
       return ((level() <= other.level()) || (rvb_index() < other.rvb_index())) ? true : false;
     }
-    bool operator!=(NodeInfo& other) const noexcept {
+    bool operator!=(const NodeInfo& other) const noexcept {
       return ((level() != other.level()) || (rvb_index() != other.rvb_index())) ? true : false;
     }
     std::string toString() const noexcept;
@@ -290,7 +291,7 @@ class RangeValidationTree {
   using RVTNodePtr = std::shared_ptr<RVTNode>;
 
   struct RVTNode : public RVBNode {
-    RVTNode(const RVBNodePtr& child_node);
+    explicit RVTNode(const RVBNodePtr& child_node);
     RVTNode(uint8_t level, uint64_t rvb_index);
     RVTNode(SerializedRVTNode& node, char* cur_val_ptr, size_t cur_value_size);
     static RVTNodePtr createFromSerialized(std::istringstream& is);
@@ -371,7 +372,7 @@ class RangeValidationTree {
   static uint32_t RVT_K;
   const uint32_t fetch_range_size_{};
   const size_t value_size_{};
-  static constexpr size_t kMaxNodesToPrint{10000};
+  static constexpr size_t kMaxNodesToPrintStructure{100};
   static constexpr uint8_t CHECKPOINT_PERSISTENCY_VERSION{1};
   static constexpr uint8_t version_num_{CHECKPOINT_PERSISTENCY_VERSION};
   static constexpr uint64_t magic_num_{0x1122334455667788};

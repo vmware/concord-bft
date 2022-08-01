@@ -235,6 +235,8 @@ struct Updates {
 
   const CategoryInput& categoryUpdates() const { return category_updates_; }
 
+  CategoryInput&& categoryUpdates() { return std::move(category_updates_); }
+
   // Appends a key-value of an `Update` type to already existing key-values for that category.
   // Precondition: The given `category_id` is of the same type as the passed updates.
   // Returns true on success or false if the given `category_id` doesn't exist.
@@ -264,7 +266,6 @@ struct Updates {
 
  private:
   friend bool operator==(const Updates&, const Updates&);
-  friend class KeyValueBlockchain;
   CategoryInput category_updates_;
 };
 

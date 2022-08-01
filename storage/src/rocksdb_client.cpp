@@ -182,7 +182,6 @@ void Client::openRocksDB(bool readOnly,
     }
     return ret;
   };
-
   if (cf_descs.empty()) {
     // Make sure we always get a handle for the default column family. Use the DB options to configure it.
     cf_descs.push_back(::rocksdb::ColumnFamilyDescriptor{::rocksdb::kDefaultColumnFamilyName, db_options});

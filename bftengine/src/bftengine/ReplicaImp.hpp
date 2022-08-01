@@ -550,6 +550,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void onReportAboutInvalidMessage(MessageBase* msg, const char* reason) override;
 
   void sendCheckpointIfNeeded();
+  void tryToMarkSeqNumAsStable();
   void tryToMarkCheckpointStableForFastPath(const SeqNum& lastCheckpointNumber,
                                             CheckpointInfo<>& checkInfo,
                                             CheckpointMsg* checkpointMessage);

@@ -20,6 +20,7 @@
 #include "bftengine/EpochManager.hpp"
 #include "concord.cmf.hpp"
 #include "communication/StateControl.hpp"
+#include "ReplicaImp.hpp"
 
 namespace bftEngine::impl {
 
@@ -29,7 +30,7 @@ KeyExchangeManager::KeyExchangeManager(InitData* id)
       quorumSize_{static_cast<uint32_t>(2 * ReplicaConfig::instance().fVal + ReplicaConfig::instance().cVal)},
       publicKeys_{clusterSize_},
       private_keys_(id->secretsMgr),
-      clientsPublicKeys_(),
+      clientsPublicKeys_(ReplicaConfig::instance().get("concord.bft.keyExchage.clientKeysEnabled", true)),
       client_(id->cl),
       multiSigKeyHdlr_(id->kg),
       clientPublicKeyStore_{id->cpks},
@@ -38,10 +39,6 @@ KeyExchangeManager::KeyExchangeManager(InitData* id)
   registerForNotification(id->ke);
   notifyRegistry();
   if (!ReplicaConfig::instance().getkeyExchangeOnStart()) initial_exchange_ = true;
-  if (!ReplicaConfig::instance().get("concord.bft.keyExchage.clientKeysEnabled", true)) {
-    LOG_INFO(KEY_EX_LOG, "Publish client keys is disabled");
-    clientsPublicKeys_.published_ = true;
-  }
 }
 
 void KeyExchangeManager::initMetrics(std::shared_ptr<concordMetrics::Aggregator> a, std::chrono::seconds interval) {
@@ -137,7 +134,7 @@ void KeyExchangeManager::loadPublicKeys() {
   // after State Transfer public keys for all replicas are expected to exist
   auto num_loaded = publicKeys_.loadAllReplicasKeyStoresFromReservedPages();
   uint32_t liveQuorumSize = ReplicaConfig::instance().waitForFullCommOnStartup ? clusterSize_ : quorumSize_;
-  if (ReplicaConfig::instance().getkeyExchangeOnStart()) {
+  if (ReplicaConfig::instance().getkeyExchangeOnStart() && exchanged()) {
     ConcordAssertGE(num_loaded, liveQuorumSize);
   }
   LOG_INFO(KEY_EX_LOG, "building crypto system after state transfer");
@@ -234,11 +231,18 @@ void KeyExchangeManager::sendKeyExchange(const SeqNum& sn) {
     return;
   }
   KeyExchangeMsg msg;
-  if (sn == candidate_private_keys_.generated.sn && !candidate_private_keys_.generated.cid.empty()) {
+  if (!candidate_private_keys_.generated.cid.empty()) {
+    // In some cases, we may try to send another key exchange message before the previous one has been committed (i.e,
+    // initial key exchange after VC/ST, two consecutive key exchange commands). In this case, we want to reuse the old
+    // generated key-exchange message
     LOG_INFO(KEY_EX_LOG, "we already have a candidate for this sequence number, trying to send it again");
     msg.pubkey = candidate_private_keys_.generated.pub;
     msg.repID = repID_;
-    msg.generated_sn = sn;
+    SeqNum new_sn = sn;
+    if ((sn - candidate_private_keys_.generated.sn) / checkpointWindowSize < 2)
+      new_sn = candidate_private_keys_.generated.sn;
+    candidate_private_keys_.generated.sn = new_sn;
+    msg.generated_sn = candidate_private_keys_.generated.sn;
     msg.epoch = EpochManager::instance().getSelfEpochNumber();
     std::stringstream ss;
     concord::serialize::Serializable::serialize(ss, msg);
@@ -270,7 +274,7 @@ void KeyExchangeManager::sendKeyExchange(const SeqNum& sn) {
 
 // sends the clients public keys via the internal client, if keys weren't published or outdated.
 void KeyExchangeManager::sendInitialClientsKeys(const std::string& keys) {
-  if (clientsPublicKeys_.published_) {
+  if (clientsPublicKeys_.published()) {
     LOG_INFO(KEY_EX_LOG, "Clients public keys were already published");
     return;
   }
@@ -286,6 +290,7 @@ void KeyExchangeManager::sendInitialClientsKeys(const std::string& keys) {
 }
 
 void KeyExchangeManager::onPublishClientsKeys(const std::string& keys, std::optional<std::string> bootstrap_keys) {
+  LOG_INFO(KEY_EX_LOG, "");
   auto save = true;
   if (bootstrap_keys) {
     if (keys != *bootstrap_keys) {
@@ -316,11 +321,11 @@ void KeyExchangeManager::loadClientPublicKey(const std::string& key,
   if (saveToReservedPages) saveClientsPublicKeys(SigManager::instance()->getClientsPublicKeys());
 }
 
-void KeyExchangeManager::sendInitialKey(uint32_t prim, const SeqNum& s) {
+void KeyExchangeManager::sendInitialKey(const ReplicaImp* repImpInstance, const SeqNum& s) {
   std::unique_lock<std::mutex> lock(startup_mutex_);
   SCOPED_MDC(MDC_REPLICA_ID_KEY, std::to_string(ReplicaConfig::instance().replicaId));
   if (!ReplicaConfig::instance().waitForFullCommOnStartup) {
-    waitForLiveQuorum(prim);
+    waitForLiveQuorum(repImpInstance);
   } else {
     waitForFullCommunication();
   }
@@ -328,7 +333,7 @@ void KeyExchangeManager::sendInitialKey(uint32_t prim, const SeqNum& s) {
   metrics_->sent_key_exchange_on_start_status.Get().Set("True");
 }
 
-void KeyExchangeManager::waitForLiveQuorum(uint32_t prim) {
+void KeyExchangeManager::waitForLiveQuorum(const ReplicaImp* repImpInstance) {
   // If transport is UDP, we can't know the connection status, and we are in Apollo context therefore giving 2sec grace.
   if (client_->isUdp()) {
     LOG_INFO(KEY_EX_LOG, "UDP communication");
@@ -339,22 +344,24 @@ void KeyExchangeManager::waitForLiveQuorum(uint32_t prim) {
    * Basically, we can start once we have n-f live replicas. However, to avoid unnecessary view change,
    * we wait for the first primary for a pre-defined amount of time.
    */
-  if (repID_ != prim) {
+  auto primary = repImpInstance->currentPrimary();
+  if (repID_ != primary) {
     auto start = getMonotonicTime();
     auto timeoutForPrim = bftEngine::ReplicaConfig::instance().timeoutForPrimaryOnStartupSeconds;
-    LOG_INFO(KEY_EX_LOG, "waiting for at most " << timeoutForPrim << " for primary (" << prim << ") to be ready");
+    LOG_INFO(KEY_EX_LOG, "waiting for at most " << timeoutForPrim << " for primary (" << primary << ") to be ready");
     while (std::chrono::duration<double, std::milli>(getMonotonicTime() - start).count() / 1000 < timeoutForPrim) {
-      if (client_->isReplicaConnected(prim)) {
-        LOG_INFO(KEY_EX_LOG, "primary (" << prim << ") is connected");
+      if (client_->isReplicaConnected(primary)) {
+        LOG_INFO(KEY_EX_LOG, "primary (" << primary << ") is connected");
         break;
       }
       std::this_thread::sleep_for(std::chrono::seconds(1));
+      primary = repImpInstance->currentPrimary();
     }
-    if (!client_->isReplicaConnected(prim)) {
+    if (!client_->isReplicaConnected(primary)) {
       LOG_INFO(KEY_EX_LOG,
                "replica was not able to connect to primary ("
-                   << prim << ")  after " << timeoutForPrim
-                   << " seconds. The will wait for live quorum and starts (this may cause to a view change");
+                   << primary << ")  after " << timeoutForPrim
+                   << " seconds. This will wait for live quorum(this may cause a view change)");
     }
   }
   auto avlble = client_->numOfConnectedReplicas(clusterSize_);
@@ -363,7 +370,7 @@ void KeyExchangeManager::waitForLiveQuorum(uint32_t prim) {
   // Num of connections should be: (liveQuorum - 1) excluding the current replica
   while (avlble < liveQuorum - 1) {
     LOG_INFO(KEY_EX_LOG,
-             "Consensus engine not available, " << avlble << " replicas are connected, we need at lease " << liveQuorum
+             "Consensus engine not available, " << avlble << " replicas are connected, we need at least " << liveQuorum
                                                 << " to start");
     std::this_thread::sleep_for(std::chrono::seconds(1));
     avlble = client_->numOfConnectedReplicas(clusterSize_);

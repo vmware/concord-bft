@@ -40,6 +40,9 @@ std::string ISecretsManagerImpl::readFile(const std::ifstream& file) {
 
 void ISecretsManagerImpl::writeFile(std::string_view file_path, const std::string& content) {
   std::ofstream out(file_path.data());
+  if (!out.is_open()) {
+    throw std::runtime_error("Failed to open file for writing: " + std::string(file_path));
+  }
   out << content;
 }
 

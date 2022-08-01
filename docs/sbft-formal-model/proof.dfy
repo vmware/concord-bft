@@ -40,8 +40,10 @@ module Proof {
     && v.WF(c)
     && (forall replicaIdx, seqID | 
               && IsHonestReplica(c, replicaIdx)
-              && assert Library.TriggerKeyInFullImap(seqID, v.hosts[replicaIdx].replicaVariables.workingWindow.prePreparesRcvd);
-                v.hosts[replicaIdx].replicaVariables.workingWindow.prePreparesRcvd[seqID].Some? 
+              && var replicaVariables := v.hosts[replicaIdx].replicaVariables;
+              && var replicaConstants := c.hosts[replicaIdx].replicaConstants;
+              && seqID in replicaVariables.workingWindow.getActiveSequenceIDs(replicaConstants)
+              && replicaVariables.workingWindow.prePreparesRcvd[seqID].Some? 
                 :: v.hosts[replicaIdx].replicaVariables.workingWindow.prePreparesRcvd[seqID].value in v.network.sentMsgs)
   }
 
@@ -50,8 +52,10 @@ module Proof {
     && v.WF(c)
     && IsHonestReplica(c, observer)
     && (forall sender, seqID | 
-              && assert Library.TriggerKeyInFullImap(seqID, v.hosts[observer].replicaVariables.workingWindow.preparesRcvd);
-                sender in v.hosts[observer].replicaVariables.workingWindow.preparesRcvd[seqID]
+              && var repicaVariables := v.hosts[observer].replicaVariables;
+              && var repicaConstants := c.hosts[observer].replicaConstants;
+              && seqID in repicaVariables.workingWindow.getActiveSequenceIDs(repicaConstants)
+              && sender in repicaVariables.workingWindow.preparesRcvd[seqID]
                 :: (&& var msg := v.hosts[observer].replicaVariables.workingWindow.preparesRcvd[seqID][sender];
                     && msg in v.network.sentMsgs
                     && msg.sender == sender
@@ -174,6 +178,9 @@ module Proof {
     && (forall commitMsg | && commitMsg in v.network.sentMsgs
                            && commitMsg.payload.Commit?
                            && IsHonestReplica(c, commitMsg.sender)
+                           && var replicaVariables := v.hosts[commitMsg.sender].replicaVariables;
+                           && var replicaConstants := c.hosts[commitMsg.sender].replicaConstants;
+                           && commitMsg.payload.seqID in replicaVariables.workingWindow.getActiveSequenceIDs(replicaConstants)
           :: && var recordedPrePrepare := 
                 v.hosts[commitMsg.sender].replicaVariables.workingWindow.prePreparesRcvd[commitMsg.payload.seqID];
              && recordedPrePrepare.Some?
@@ -198,6 +205,9 @@ module Proof {
                 && prepare in v.network.sentMsgs
                 && prepare.payload.Prepare?
                 && IsHonestReplica(c, prepare.sender)
+                && var replicaVariables := v.hosts[prepare.sender].replicaVariables;
+                && var replicaConstants := c.hosts[prepare.sender].replicaConstants;
+                && prepare.payload.seqID in replicaVariables.workingWindow.getActiveSequenceIDs(replicaConstants)
                 && prepare.payload.view == v.hosts[prepare.sender].replicaVariables.view
                   :: && var replicaWorkingWindow := v.hosts[prepare.sender].replicaVariables.workingWindow;
                      && replicaWorkingWindow.prePreparesRcvd[prepare.payload.seqID].Some?
@@ -668,6 +678,93 @@ module Proof {
     CommitMsgStability(c, v, v', step);
   }
 
+  predicate ExecuteStepIsEnabled(c: Constants, v:Variables, v':Variables,
+                                   step:Step, h_step:Replica.Step)
+  {
+    && Inv(c, v)
+    && NextStep(c, v, v', step)
+    && IsHonestReplica(c, step.id)
+    && var h_c := c.hosts[step.id].replicaConstants;
+    && var h_v := v.hosts[step.id].replicaVariables;
+    && var h_v' := v'.hosts[step.id].replicaVariables;
+    && Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step)
+    && h_step.ExecuteStep?
+    && Replica.Execute(h_c, h_v, h_v', step.msgOps, h_step.seqID)
+  }
+
+  lemma ExecuteStepPreservesInv(c: Constants, v:Variables, v':Variables, 
+                                  step:Step, h_step:Replica.Step)
+    requires ExecuteStepIsEnabled(c, v, v', step, h_step)
+    ensures Inv(c, v')
+  {
+    CommitMsgStability(c, v, v', step);
+  }
+
+  predicate SendCheckpointStepIsEnabled(c: Constants, v:Variables, v':Variables,
+                                   step:Step, h_step:Replica.Step)
+  {
+    && Inv(c, v)
+    && NextStep(c, v, v', step)
+    && IsHonestReplica(c, step.id)
+    && var h_c := c.hosts[step.id].replicaConstants;
+    && var h_v := v.hosts[step.id].replicaVariables;
+    && var h_v' := v'.hosts[step.id].replicaVariables;
+    && Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step)
+    && h_step.SendCheckpointStep?
+    && Replica.SendCheckpoint(h_c, h_v, h_v', step.msgOps, h_step.seqID)
+  }
+
+  lemma SendCheckpointStepPreservesInv(c: Constants, v:Variables, v':Variables, 
+                                  step:Step, h_step:Replica.Step)
+    requires SendCheckpointStepIsEnabled(c, v, v', step, h_step)
+    ensures Inv(c, v')
+  {
+    CommitMsgStability(c, v, v', step);
+  }
+
+  predicate RecvCheckpointStepIsEnabled(c: Constants, v:Variables, v':Variables,
+                                   step:Step, h_step:Replica.Step)
+  {
+    && Inv(c, v)
+    && NextStep(c, v, v', step)
+    && IsHonestReplica(c, step.id)
+    && var h_c := c.hosts[step.id].replicaConstants;
+    && var h_v := v.hosts[step.id].replicaVariables;
+    && var h_v' := v'.hosts[step.id].replicaVariables;
+    && Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step)
+    && h_step.RecvCheckpointStep?
+    && Replica.RecvCheckpoint(h_c, h_v, h_v', step.msgOps)
+  }
+
+  lemma RecvCheckpointStepPreservesInv(c: Constants, v:Variables, v':Variables, 
+                                  step:Step, h_step:Replica.Step)
+    requires RecvCheckpointStepIsEnabled(c, v, v', step, h_step)
+    ensures Inv(c, v')
+  {
+    CommitMsgStability(c, v, v', step);
+  }
+  predicate AdvanceWorkingWindowStepIsEnabled(c: Constants, v:Variables, v':Variables,
+                                   step:Step, h_step:Replica.Step)
+  {
+    && Inv(c, v)
+    && NextStep(c, v, v', step)
+    && IsHonestReplica(c, step.id)
+    && var h_c := c.hosts[step.id].replicaConstants;
+    && var h_v := v.hosts[step.id].replicaVariables;
+    && var h_v' := v'.hosts[step.id].replicaVariables;
+    && Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step)
+    && h_step.AdvanceWorkingWindowStep?
+    && Replica.AdvanceWorkingWindow(h_c, h_v, h_v', step.msgOps, h_step.seqID)
+  }
+
+  lemma AdvanceWorkingWindowStepPreservesInv(c: Constants, v:Variables, v':Variables, 
+                                  step:Step, h_step:Replica.Step)
+    requires AdvanceWorkingWindowStepIsEnabled(c, v, v', step, h_step)
+    ensures Inv(c, v')
+  {
+    CommitMsgStability(c, v, v', step);
+  }
+
   lemma SendCommitStepPreservesInv(c: Constants, v:Variables, v':Variables, 
                                    step:Step, h_step:Replica.Step)
     requires SentCommitIsEnabled(c, v, v', step, h_step)
@@ -713,6 +810,18 @@ module Proof {
         }
         case DoCommitStep(seqID) => { 
           DoCommitStepPreservesInv(c, v, v', step, h_step);
+        }
+        case ExecuteStep(seqID) => {
+          ExecuteStepPreservesInv(c, v, v', step, h_step);
+        }
+        case SendCheckpointStep(seqID) => {
+          SendCheckpointStepPreservesInv(c, v, v', step, h_step);
+        }
+        case RecvCheckpointStep() => {
+          RecvCheckpointStepPreservesInv(c, v, v', step, h_step);
+        }
+        case AdvanceWorkingWindowStep(seqID) => {
+          AdvanceWorkingWindowStepPreservesInv(c, v, v', step, h_step);
         }
     } else if (c.clusterConfig.IsClient(step.id)) {
 
