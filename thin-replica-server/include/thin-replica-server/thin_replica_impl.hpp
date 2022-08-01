@@ -119,9 +119,6 @@ class ThinReplicaImpl {
   // last timestamp when subscription status for live updates was not ok
   std::optional<std::chrono::steady_clock::time_point> last_failed_subscribe_status_time;
 
-  // Max Subject length in certificates should be 555 bytes with ascii characters
-  static const uint16_t certSubjectLength{555};
-
  public:
   ThinReplicaImpl(std::unique_ptr<ThinReplicaServerConfig> config,
                   std::shared_ptr<concordMetrics::Aggregator> aggregator)
