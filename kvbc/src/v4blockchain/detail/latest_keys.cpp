@@ -488,9 +488,9 @@ bool LatestKeys::LKCompactionFilter::Filter(int /*level*/,
   auto ts_slice = ::rocksdb::Slice(val.data() + val.size() - VERSION_SIZE, VERSION_SIZE);
   auto key_version = concordUtils::fromBigEndianBuffer<uint64_t>(ts_slice.data());
   if (key_version >= concord::kvbc::v4blockchain::detail::Blockchain::global_genesis_block_id) return false;
-  LOG_INFO(V4_BLOCK_LOG,
-           "Filtering key with version " << key_version << " genesis is "
-                                         << concord::kvbc::v4blockchain::detail::Blockchain::global_genesis_block_id);
+  LOG_DEBUG(V4_BLOCK_LOG,
+            "Filtering key with version " << key_version << " genesis is "
+                                          << concord::kvbc::v4blockchain::detail::Blockchain::global_genesis_block_id);
   return true;
 }
 
