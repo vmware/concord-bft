@@ -71,6 +71,38 @@ def start_replica_cmd(builddir, replica_id):
             "-o", builddir + "/operator_pub.pem"]
 
 
+def start_replica_cmd_with_avg_db_window_size(builddir, replica_id):
+    """
+    Return a command with operator that starts an skvbc replica when passed to
+    subprocess.Popen.
+
+    Note each arguments is an element in a list.
+    """
+    statusTimerMilli = "500"
+    viewChangeTimeoutMilli = "10000"
+    path = os.path.join(builddir, "tests", "simpleKVBC",
+                        "TesterReplica", "skvbc_replica")
+    if os.environ.get('TIME_SERVICE_ENABLED', default="FALSE").lower() == "true":
+        time_service_enabled = "1"
+    else:
+        time_service_enabled = "0"
+
+    batch_size = "1"
+    return [path,
+            "-k", KEY_FILE_PREFIX,
+            "-i", str(replica_id),
+            "-s", statusTimerMilli,
+            "-v", viewChangeTimeoutMilli,
+            "-l", os.path.join(builddir, "tests", "simpleKVBC",
+                               "scripts", "logging.properties"),
+            "-f", time_service_enabled,
+            "-b", "2",
+            "-q", batch_size,
+            "-h", "2",
+            "-j", str(2*DB_CHECKPOINT_WIN_SIZE),
+            "-o", builddir + "/operator_pub.pem"]
+
+
 def start_replica_cmd_with_high_db_window_size(builddir, replica_id):
     """
     Return a command with operator that starts an skvbc replica when passed to
@@ -657,6 +689,57 @@ class SkvbcDbSnapshotTest(ApolloTest):
             self.assertGreater(nb_fast_path, 0)
 
     @with_trio
+    @with_bft_network(start_replica_cmd_with_avg_db_window_size, selected_configs=lambda n, f, c: n == 7)
+    async def test_verify_dbcheckpoints_after_scale_with_restart(self, bft_network):
+        # STEP 1: create dbcheckpoint
+        bft_network.start_all_replicas()
+        client = bft_network.random_client()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        await skvbc.send_n_kvs_sequentially(300)
+
+        # There will be 1 dbcheckpoints created on stable seq num 300
+        await bft_network.wait_for_stable_checkpoint(bft_network.all_replicas(), 300)
+        await bft_network.wait_for_created_db_snapshots_metric(bft_network.all_replicas(), 1)
+
+        # check if dbcheckpoint created with get_dbcheckpoint_info_request operator command
+        op = operator.Operator(bft_network.config, client, bft_network.builddir)
+        rep = await op.get_dbcheckpoint_info_request(bft=False)
+        data = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
+        self.assertTrue(data.success)
+        for r in client.get_rsi_replies().values():
+            res = cmf_msgs.ReconfigurationResponse.deserialize(r)
+            self.assertEqual(len(res[0].response.db_checkpoint_info), 1)
+            dbcheckpoint_info_list = res[0].response.db_checkpoint_info
+            self.assertTrue(any(dbcheckpoint_info.seq_num ==
+                                300 for dbcheckpoint_info in dbcheckpoint_info_list))
+        for replica_id in bft_network.all_replicas():
+            last_blockId = await bft_network.last_db_checkpoint_block_id(replica_id)
+            bft_network.verify_db_snapshot_is_available(replica_id, last_blockId)
+
+        # STEP 2: Perform scale with restart
+        client.config._replace(req_timeout_milli=10000)
+        op = operator.Operator(bft_network.config, client, bft_network.builddir)
+        test_config = 'new_configuration'
+        await op.add_remove_with_wedge(test_config, bft=False, restart=True)
+        await self.validate_epoch_number(bft_network, 1, bft_network.all_replicas())
+        bft_network.restart_clients(generate_tx_signing_keys=True, restart_replicas=False)
+
+        # STEP 3: Verify for all dbcheckpoints using get_dbcheckpoint_info_request operator command
+        # It will fetch all dbcheckpoints created before and after scale with restart.
+        client = bft_network.random_client()
+        op = operator.Operator(bft_network.config, client, bft_network.builddir)
+        rep = await op.get_dbcheckpoint_info_request(bft=False)
+        data = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
+        self.assertTrue(data.success)
+        for r in client.get_rsi_replies().values():
+            res = cmf_msgs.ReconfigurationResponse.deserialize(r)
+            self.assertEqual(len(res[0].response.db_checkpoint_info), 2)
+            dbcheckpoint_info_list = res[0].response.db_checkpoint_info
+            self.assertTrue(any(dbcheckpoint_info.block_id ==
+                                300 for dbcheckpoint_info in dbcheckpoint_info_list))
+
+
+    @with_trio
     @with_bft_network(start_replica_cmd_with_high_db_window_size, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability()
     async def test_signed_public_state_hash_req_existing_checkpoint(self, bft_network, tracker):
@@ -912,6 +995,17 @@ class SkvbcDbSnapshotTest(ApolloTest):
                 for element in os.scandir(db_dir):
                     if element.is_file():
                         size += os.path.getsize(element)
-                assert size == db_size      
+                assert size == db_size
+
+    async def validate_epoch_number(self, bft_network, epoch_number, replicas):
+        with trio.fail_after(seconds=70):
+            succ = False
+            while not succ:
+                succ = True
+                for r in replicas:
+                    curr_epoch = await bft_network.get_metric(r, bft_network, "Gauges", "epoch_number", component="epoch_manager")
+                    if curr_epoch != epoch_number:
+                        succ = False
+                        break
 
 
