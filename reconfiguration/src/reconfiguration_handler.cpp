@@ -149,7 +149,7 @@ void ReconfigurationHandler::handleWedgeCommands(bool bft_support,
           if (wedgePt == s) restart_replicas_cb();
         });
       } else {
-        bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(restart_replicas_cb);
+        bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(restart_replicas_cb);
       }
     }
     if (blockNewConnections) {

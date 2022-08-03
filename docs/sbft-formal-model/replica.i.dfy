@@ -27,6 +27,9 @@ module Replica {
       && forall x | x in ps :: && ps[x].payload.Prepare? 
                                && c.clusterConfig.IsReplica(ps[x].sender)
   }
+  function EmptyPrepareProofSet() : PrepareProofSet {
+    map[]
+  }
 
   type CommitProofSet = map<HostId, Network.Message<Message>>
   predicate CommitProofSetWF(c:Constants, cs:CommitProofSet)
@@ -35,11 +38,8 @@ module Replica {
       && forall x | x in cs :: && cs[x].payload.Commit?
                                && c.clusterConfig.IsReplica(cs[x].sender)
   }
-
-  type PrePreparesRcvd = imap<SequenceID, Option<Network.Message<Message>>>
-  predicate PrePreparesRcvdWF(prePreparesRcvd:PrePreparesRcvd) {
-    && FullImap(prePreparesRcvd)
-    && (forall x | x in prePreparesRcvd && prePreparesRcvd[x].Some? :: prePreparesRcvd[x].value.payload.PrePrepare?)
+  function EmptyCommitProofSet() : CommitProofSet {
+    map[]
   }
 
   // The Working Window data structure. Here Replicas keep the PrePrepare from the Primary
@@ -47,22 +47,40 @@ module Replica {
   // to a specific Sequence ID (the Replica has collected the necessary quorum of votes from
   // peers) the Client Operation is inserted in the committedClientOperations as appropriate.
   datatype WorkingWindow = WorkingWindow(
-    committedClientOperations:imap<SequenceID, Option<OperationWrapper>>,
-    prePreparesRcvd:PrePreparesRcvd,
-    preparesRcvd:imap<SequenceID, PrepareProofSet>,
-    commitsRcvd:imap<SequenceID, CommitProofSet>
+    committedClientOperations:map<SequenceID, Option<OperationWrapper>>,
+    prePreparesRcvd:map<SequenceID, Option<Network.Message<Message>>>,
+    preparesRcvd:map<SequenceID, PrepareProofSet>,
+    commitsRcvd:map<SequenceID, CommitProofSet>,
+    lastStableCheckpoint:SequenceID
   ) {
+    predicate IsActiveSeqID(c:Constants, seqID:SequenceID)
+    {
+      && lastStableCheckpoint <= seqID < lastStableCheckpoint + c.clusterConfig.workingWindowSize
+    }
+    function getActiveSequenceIDs(c:Constants) : set<SequenceID> 
+      requires c.WF()
+    {
+      set seqID:SequenceID | && IsActiveSeqID(c, seqID) // This statement provides a trigger by naming the constraint
+                             && lastStableCheckpoint <= seqID < lastStableCheckpoint + c.clusterConfig.workingWindowSize // This statement satisfies Dafny's finite set heuristics.
+    }
     predicate WF(c:Constants)
       requires c.WF()
     {
-      && FullImap(committedClientOperations)
-      && FullImap(preparesRcvd)
-      && FullImap(commitsRcvd)
-      && PrePreparesRcvdWF(prePreparesRcvd)
+      && committedClientOperations.Keys == getActiveSequenceIDs(c)
+      && preparesRcvd.Keys == getActiveSequenceIDs(c)
+      && commitsRcvd.Keys == getActiveSequenceIDs(c)
+      && prePreparesRcvd.Keys == getActiveSequenceIDs(c)
+      && (forall x | x in prePreparesRcvd && prePreparesRcvd[x].Some? :: prePreparesRcvd[x].value.payload.PrePrepare?)
       && (forall seqID | seqID in preparesRcvd :: PrepareProofSetWF(c, preparesRcvd[seqID]))
       && (forall seqID | seqID in commitsRcvd :: CommitProofSetWF(c, commitsRcvd[seqID]))
     }
+    function Shift<T>(c:Constants, m:map<SequenceID,T>, empty:T) : map<SequenceID,T> 
+      requires c.WF()
+    {
+      map seqID | seqID in getActiveSequenceIDs(c) :: if seqID in m then m[seqID] else empty
+    }
   }
+
 
   // Define your Host protocol state machine here.
   datatype Constants = Constants(myId:HostId, clusterConfig:ClusterConfig.Constants) {
@@ -96,11 +114,21 @@ module Replica {
     }
   }
 
+  datatype CheckpointMsgs = CheckpointMsgs(msgs:set<Network.Message<Message>>) {
+    predicate WF(c:Constants) {
+      && c.WF()
+      && (forall msg | msg in msgs :: && msg.payload.CheckpointMsg?
+                                      && c.clusterConfig.IsReplica(msg.sender))
+    }
+  }
+
   datatype Variables = Variables(
     view:ViewNum,
     workingWindow:WorkingWindow,
     viewChangeMsgsRecvd:ViewChangeMsgs,
-    newViewMsgsRecvd:NewViewMsgs
+    newViewMsgsRecvd:NewViewMsgs,
+    countExecutedSeqIDs:SequenceID,
+    checkpointMsgsRecvd:CheckpointMsgs
   ) {
     predicate WF(c:Constants)
     {
@@ -108,6 +136,7 @@ module Replica {
       && workingWindow.WF(c)
       && viewChangeMsgsRecvd.WF(c)
       && newViewMsgsRecvd.WF(c)
+      && checkpointMsgsRecvd.WF(c)
     }
   }
 
@@ -175,7 +204,6 @@ module Replica {
     // 3. From all the collected PreparedCertificates take the one with the highest View.
     // 4. If it is empty  we need to fill with NoOp.
     // 5. If it contains valid full quorum we take the Client Operation and insist it will be committed in the new View.
-    // var preparedCertificates := set cert | 
 
     var relevantPrepareCertificates := set viewChangeMsg, cert |
                                    && viewChangeMsg in newViewMsg.payload.vcMsgs.msgs
@@ -227,6 +255,7 @@ module Replica {
     && v.WF(c)
     && LiteInv(c, v)
     && msg.payload.PrePrepare?
+    && msg.payload.seqID in v.workingWindow.getActiveSequenceIDs(c)
     && c.clusterConfig.IsReplica(msg.sender)
     && ViewIsActive(c, v)
     && msg.payload.view == v.view
@@ -264,6 +293,7 @@ module Replica {
   {
     && v.WF(c)
     && msg.payload.Prepare?
+    && msg.payload.seqID in v.workingWindow.getActiveSequenceIDs(c)
     && c.clusterConfig.IsReplica(msg.sender)
     && ViewIsActive(c, v)
     && msg.payload.view == v.view
@@ -292,6 +322,7 @@ module Replica {
   {
     && v.WF(c)
     && msg.payload.Commit?
+    && msg.payload.seqID in v.workingWindow.getActiveSequenceIDs(c)
     && c.clusterConfig.IsReplica(msg.sender)
     && ViewIsActive(c, v)
     && msg.payload.view == v.view
@@ -312,8 +343,10 @@ module Replica {
                                  v.workingWindow.commitsRcvd[msg.payload.seqID][msg.sender := msg]]))
   }
 
-  predicate QuorumOfCommits(c:Constants, v:Variables, seqID:SequenceID) {
-    && v.WF(c)
+  predicate QuorumOfCommits(c:Constants, v:Variables, seqID:SequenceID) 
+    requires v.WF(c)
+  {
+    && seqID in v.workingWindow.getActiveSequenceIDs(c)
     && |v.workingWindow.commitsRcvd[seqID]| >= c.clusterConfig.AgreementQuorum()
   }
 
@@ -321,6 +354,7 @@ module Replica {
   {
     && v.WF(c)
     && msgOps.NoSendRecv()
+    && seqID in v.workingWindow.getActiveSequenceIDs(c)
     && QuorumOfPrepares(c, v, seqID)
     && QuorumOfCommits(c, v, seqID)
     && v.workingWindow.prePreparesRcvd[seqID].Some?
@@ -332,9 +366,29 @@ module Replica {
                                                                           Some(msg.payload.operationWrapper)]))
   }
 
-  predicate QuorumOfPrepares(c:Constants, v:Variables, seqID:SequenceID)
+  predicate ContiguousCommits(c:Constants, v:Variables, targetSeqID:SequenceID)
+    requires v.WF(c)
+    requires targetSeqID in v.workingWindow.getActiveSequenceIDs(c)
+  {
+    && (forall seqID | && seqID <= targetSeqID
+                       && seqID > v.workingWindow.lastStableCheckpoint
+                     :: v.workingWindow.committedClientOperations[seqID].Some?)
+  }
+
+  predicate Execute(c:Constants, v:Variables, v':Variables, msgOps:Network.MessageOps<Message>, seqID:SequenceID)
   {
     && v.WF(c)
+    && msgOps.NoSendRecv()
+    && seqID in v.workingWindow.getActiveSequenceIDs(c)
+    && v.countExecutedSeqIDs < seqID
+    && ContiguousCommits(c, v, seqID)
+    && v' == v.(countExecutedSeqIDs := seqID)
+  }
+
+  predicate QuorumOfPrepares(c:Constants, v:Variables, seqID:SequenceID)
+    requires v.WF(c)
+  {
+    && seqID in v.workingWindow.getActiveSequenceIDs(c)
     && |v.workingWindow.preparesRcvd[seqID]| >= c.clusterConfig.AgreementQuorum()
   }
 
@@ -346,6 +400,7 @@ module Replica {
   {
     && v.WF(c)
     && msgOps.IsSend()
+    && seqID in v.workingWindow.getActiveSequenceIDs(c)
     && ViewIsActive(c, v)
     && v.workingWindow.prePreparesRcvd[seqID].Some?
     && msgOps.send == Some(Network.Message(c.myId,
@@ -364,6 +419,7 @@ module Replica {
   {
     && v.WF(c)
     && msgOps.IsSend()
+    && seqID in v.workingWindow.getActiveSequenceIDs(c)
     && ViewIsActive(c, v)
     && QuorumOfPrepares(c, v, seqID)
     && v.workingWindow.prePreparesRcvd[seqID].Some?
@@ -399,6 +455,7 @@ module Replica {
 
   function ExtractCertificateForSeqID(c:Constants, v:Variables, seqID:SequenceID) : PreparedCertificate
     requires v.WF(c)
+    requires seqID in v.workingWindow.getActiveSequenceIDs(c)
   {
     var preparesRecvd := set msg | msg in v.workingWindow.preparesRcvd[seqID].Values && msg.payload.Prepare?;
     if |preparesRecvd| < c.clusterConfig.AgreementQuorum() 
@@ -473,14 +530,52 @@ module Replica {
     && v' == v.(newViewMsgsRecvd := v.newViewMsgsRecvd.(msgs := v.newViewMsgsRecvd.msgs + {msg}))
   }
 
+  predicate SendCheckpoint(c:Constants, v:Variables, v':Variables, msgOps:Network.MessageOps<Message>, seqID:SequenceID) {
+    && v.WF(c)
+    && msgOps.IsSend()
+    && var msg := msgOps.send.value;
+    && msg.payload.CheckpointMsg?
+    && msg.payload.seqIDReached <= v.countExecutedSeqIDs
+    && v == v'
+  }
+
+  predicate RecvCheckpoint(c:Constants, v:Variables, v':Variables, msgOps:Network.MessageOps<Message>) {
+    && v.WF(c)
+    && msgOps.IsRecv()
+    && var msg := msgOps.recv.value;
+    && msg.payload.CheckpointMsg?
+    && v' == v.(checkpointMsgsRecvd := v.checkpointMsgsRecvd.(msgs := v.checkpointMsgsRecvd.msgs + {msg}))
+  }
+
+  predicate HasStableCheckpointForSeqID(c:Constants, v:Variables, seqID:SequenceID) {
+    && v.WF(c)
+    && var relevantCheckpointMsgs := set msg | && msg in v.checkpointMsgsRecvd.msgs 
+                                               && msg.payload.CheckpointMsg?
+                                               && msg.payload.seqIDReached == seqID;
+    && |relevantCheckpointMsgs| >= c.clusterConfig.AgreementQuorum()
+  }
+
+  predicate AdvanceWorkingWindow(c:Constants, v:Variables, v':Variables, msgOps:Network.MessageOps<Message>, seqID:SequenceID) {
+    && v.WF(c)
+    && msgOps.NoSendRecv()
+    && seqID > v.workingWindow.lastStableCheckpoint
+    && HasStableCheckpointForSeqID(c, v, seqID)
+    && v' == v.(workingWindow := v.workingWindow.(
+      lastStableCheckpoint := seqID, 
+      prePreparesRcvd := v.workingWindow.Shift(c, v.workingWindow.prePreparesRcvd, None),
+      preparesRcvd := v.workingWindow.Shift(c, v.workingWindow.preparesRcvd, EmptyPrepareProofSet()),
+      commitsRcvd := v.workingWindow.Shift(c, v.workingWindow.commitsRcvd, EmptyCommitProofSet())))
+  }
+
   predicate Init(c:Constants, v:Variables) {
+    && v.WF(c)
     && v.view == 0
     && (forall seqID | seqID in v.workingWindow.committedClientOperations
                 :: v.workingWindow.committedClientOperations[seqID].None?)
     && (forall seqID | seqID in v.workingWindow.prePreparesRcvd
                 :: v.workingWindow.prePreparesRcvd[seqID].None?)
-    && (forall seqID | seqID in v.workingWindow.preparesRcvd :: v.workingWindow.preparesRcvd[seqID] == map[])
-    && (forall seqID | seqID in v.workingWindow.commitsRcvd :: v.workingWindow.commitsRcvd[seqID] == map[])
+    && (forall seqID | seqID in v.workingWindow.preparesRcvd :: v.workingWindow.preparesRcvd[seqID] == EmptyPrepareProofSet())
+    && (forall seqID | seqID in v.workingWindow.commitsRcvd :: v.workingWindow.commitsRcvd[seqID] == EmptyCommitProofSet())
     && v.viewChangeMsgsRecvd.msgs == {}
     && v.newViewMsgsRecvd.msgs == {}
   }
@@ -495,7 +590,10 @@ module Replica {
     | SendCommitStep(seqID:SequenceID)
     | RecvCommitStep()
     | DoCommitStep(seqID:SequenceID)
-    //| Execute(seqID:SequenceID)
+    | ExecuteStep(seqID:SequenceID)
+    | SendCheckpointStep(seqID:SequenceID)
+    | RecvCheckpointStep()
+    | AdvanceWorkingWindowStep(seqID:SequenceID)
     //| SendReplyToClient(seqID:SequenceID)
     // TODO: uncomment those steps when we start working on the proof
     // | LeaveViewStep(newView:ViewNum)
@@ -514,6 +612,10 @@ module Replica {
        case SendCommitStep(seqID) => SendCommit(c, v, v', msgOps, seqID)
        case RecvCommitStep() => RecvCommit(c, v, v', msgOps)
        case DoCommitStep(seqID) => DoCommit(c, v, v', msgOps, seqID)
+       case ExecuteStep(seqID) => Execute(c, v, v', msgOps, seqID)
+       case SendCheckpointStep(seqID) => SendCheckpoint(c, v, v', msgOps, seqID)
+       case RecvCheckpointStep() => RecvCheckpoint(c, v, v', msgOps)
+       case AdvanceWorkingWindowStep(seqID) => AdvanceWorkingWindow(c, v, v', msgOps, seqID)
        // TODO: uncomment those steps when we start working on the proof
        // case LeaveViewStep(newView) => LeaveView(c, v, v', msgOps, newView)
        // case SendViewChangeMsgStep() => SendViewChangeMsg(c, v, v', msgOps)

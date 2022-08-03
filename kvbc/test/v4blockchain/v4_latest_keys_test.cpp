@@ -292,7 +292,9 @@ TEST_F(v4_kvbc, add_and_get_keys) {
       } else {
         ASSERT_TRUE(false);
       }
-      ASSERT_EQ(val, v.val);
+      if (v.type != "immutable") {
+        ASSERT_EQ(val, v.val);
+      }
       ASSERT_EQ(id, v.version);
 
       ASSERT_EQ(opt_version->version, v.version);

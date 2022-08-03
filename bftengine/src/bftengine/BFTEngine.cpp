@@ -25,6 +25,7 @@
 #include "ReservedPagesClient.hpp"
 #include "bftengine/EpochManager.hpp"
 #include "bcstatetransfer/AsyncStateTransferCRE.hpp"
+#include "DbCheckpointManager.hpp"
 #include <condition_variable>
 #include <memory>
 #include <mutex>
@@ -194,6 +195,8 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
     }
     LOG_INFO(GL, "erasedMetaData flag = " << erasedMetaData);
     if (erasedMetaData) {
+      // Here when metadata is erased, we need to update DBCheckpointManager.
+      DbCheckpointManager::instance().setIsMetadataErased(true);
       metadataStoragePtr->eraseData();
       isNewStorage = metadataStoragePtr->initMaxSizeOfObjects(objectDescriptors, numOfObjects);
       auto secFileDir = ReplicaConfig::instance().getkeyViewFilePath();
@@ -287,9 +290,8 @@ IReplica::IReplicaPtr IReplica::createNewRoReplica(const ReplicaConfig &replicaC
 
 std::shared_ptr<IRequestsHandler> IRequestsHandler::createRequestsHandler(
     std::shared_ptr<IRequestsHandler> userReqHandler,
-    const std::shared_ptr<concord::cron::CronTableRegistry> &cronTableRegistry,
-    concord::performance::ISystemResourceEntity &resourceEntity) {
-  auto reqHandler = new bftEngine::RequestHandler(resourceEntity);
+    const std::shared_ptr<concord::cron::CronTableRegistry> &cronTableRegistry) {
+  auto reqHandler = new bftEngine::RequestHandler();
   reqHandler->setUserRequestHandler(userReqHandler);
   reqHandler->setCronTableRegistry(cronTableRegistry);
   return std::shared_ptr<IRequestsHandler>(reqHandler);

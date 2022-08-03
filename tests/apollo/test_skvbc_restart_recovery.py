@@ -26,7 +26,7 @@ from util import eliot_logging as log
 
 viewChangeTimeoutSec = 5
 
-loops = 16
+loops = 10
 timeouts = 60 # variable is added to vurnable timeouts in case vm is slow.
 
 def start_replica_cmd(builddir, replica_id):
@@ -134,6 +134,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
 
         # Perform multiple view changes and restart 1 replica while the replicas are agreeing the new View
         while view < loops:
+            log.log_message(f"view {view}")
             # Pick one replica to restart while the others are agreeing the next View.
             # We want a replica other than the current primary, which will be restarted to trigger the view change
             # and we want also the restarted replica to be different from the next primary
@@ -174,7 +175,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
             old_view = view
 
             # Wait for quorum of replicas to move to a higher view
-            with trio.fail_after(seconds=10 + timeouts):
+            with trio.fail_after(seconds=20 + timeouts):
                 while view == old_view:
                     log.log_message(f"waiting for vc current view={view}")
                     await skvbc.run_concurrent_ops(1)
@@ -205,7 +206,7 @@ class SkvbcRestartRecoveryTest(ApolloTest):
             log.log_message("wait for fast path to be prevalent")
             # Make sure fast path is prevalent before moving to another round ot the test
             await bft_network.wait_for_fast_path_to_be_prevalent(
-                run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=1, timeout=60+timeouts)
+                run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20, timeout=60+timeouts)
             log.log_message("fast path prevailed")
 
         # Before the test ends we verify the Fast Path is prevalent, no matter
@@ -661,6 +662,74 @@ class SkvbcRestartRecoveryTest(ApolloTest):
 
             await bft_network.wait_for_fast_path_to_be_prevalent(
             run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f >= 2, rotate_keys=False)
+    async def test_isolated_non_primaries(self, bft_network):
+        """
+        In this test we isolate the non-primary replicas form each other,
+        leaving only their connection to the primary. In this setup only
+        the primary is the only one who can bidirectionally communicate
+        with each replica. In this state the system can progress only up
+        to the working window size. We advance past the first stable checkpoint
+        which only the primary will collect and we initiate view change.
+        We perform this test in multiple cycles to verify correct recovery
+        and in the end we drop all adversaries and verify fast path is
+        recovered.
+        Step by step scenario:
+        1. Start all replicas.
+        2. Set up an adversary to block all messages between the non-primary replicas.
+           This way non-primaries will only be able to communicate with the primary bidirectionally.
+        3. Start Client requests to fill beyond 50% of the Working Window.
+        4. Drop the network adversary.
+        5. Stop the Primary to trigger a View Change and verify it completed successfully.
+        We perform the above described steps in cycle multiple times. Once all the cycles are
+        completed and all adversarial activities are dropped we verify that the system is able
+        to recover Fast Commit path.
+
+        """
+        # log = foo()
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
+        async def write_req(num_req=1):
+            for _ in range(num_req):
+                await skvbc.send_write_kv_set()
+
+        current_primary = 0
+        next_primary = 1
+
+        for r in range(loops):
+
+            log.log_message(f"run = {r}")
+            with net.ReplicaOneWayTwoSubsetsIsolatingAdversary(bft_network, {}, {}) as adversary:
+                for isolated_replica in bft_network.all_replicas(without={current_primary}):
+                    adversary.add_rule({isolated_replica},
+                                       bft_network.all_replicas(without={current_primary, isolated_replica}))
+                adversary.interfere()
+
+                await write_req(200)
+
+            bft_network.stop_replica(current_primary)
+            for v in range(4):
+                with trio.move_on_after(seconds=1):
+                    await write_req(1)
+            await trio.sleep(seconds=20)
+            bft_network.start_replica(current_primary)
+
+            view = await bft_network.wait_for_view(
+                replica_id=next_primary,
+                expected=None,
+                err_msg="Make sure a view change happens"
+            )
+
+            current_primary, next_primary = self._advance_current_next_primary(view, bft_network.config.n)
+            log.log_message(f"current_primary = {current_primary}; next_primary = {next_primary}")
+
+        log.log_message("wait for fast path to be prevalent")
+        await bft_network.wait_for_fast_path_to_be_prevalent(
+            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
+        log.log_message("fast path prevailed")
 
     @staticmethod
     async def _await_replicas_in_state_transfer(logger, bft_network, skvbc, primary):

@@ -80,6 +80,9 @@ void LatestKeys::handleCategoryUpdates(const std::string& block_version,
                               << concordUtils::bufferToHex(k.data(), k.size()) << " raw key " << k);
     write_batch.del(v4blockchain::detail::LATEST_KEYS_CF, getSliceArray(prefix, k));
   }
+  if (deleted_keys_ && updates.deletes.size() > 0) {
+    *deleted_keys_ += updates.deletes.size();
+  }
 }
 
 void LatestKeys::handleCategoryUpdates(const std::string& block_version,
@@ -112,6 +115,9 @@ void LatestKeys::handleCategoryUpdates(const std::string& block_version,
                               << concordUtils::bufferToHex(k.data(), k.size()) << " raw key " << k);
     write_batch.del(v4blockchain::detail::LATEST_KEYS_CF, getSliceArray(prefix, k));
   }
+  if (deleted_keys_ && updates.deletes.size() > 0) {
+    *deleted_keys_ += updates.deletes.size();
+  }
 }
 
 void LatestKeys::handleCategoryUpdates(const std::string& block_version,
@@ -139,9 +145,8 @@ void LatestKeys::handleCategoryUpdates(const std::string& block_version,
                             << category_id << " prefix " << prefix << " key is hex "
                             << concordUtils::bufferToHex(k.data(), k.size()) << " key size " << k.size()
                             << " value size " << v.data.size() << " raw key " << k);
-    write_batch.put(v4blockchain::detail::IMMUTABLE_KEYS_CF,
-                    getSliceArray(prefix, k),
-                    getSliceArray(v.data, sl_flags, block_version));
+    write_batch.put(
+        v4blockchain::detail::IMMUTABLE_KEYS_CF, getSliceArray(prefix, k), getSliceArray(sl_flags, block_version));
   }
 }
 
@@ -483,9 +488,9 @@ bool LatestKeys::LKCompactionFilter::Filter(int /*level*/,
   auto ts_slice = ::rocksdb::Slice(val.data() + val.size() - VERSION_SIZE, VERSION_SIZE);
   auto key_version = concordUtils::fromBigEndianBuffer<uint64_t>(ts_slice.data());
   if (key_version >= concord::kvbc::v4blockchain::detail::Blockchain::global_genesis_block_id) return false;
-  LOG_INFO(V4_BLOCK_LOG,
-           "Filtering key with version " << key_version << " genesis is "
-                                         << concord::kvbc::v4blockchain::detail::Blockchain::global_genesis_block_id);
+  LOG_DEBUG(V4_BLOCK_LOG,
+            "Filtering key with version " << key_version << " genesis is "
+                                          << concord::kvbc::v4blockchain::detail::Blockchain::global_genesis_block_id);
   return true;
 }
 

@@ -396,7 +396,9 @@ void AsyncTlsConnection::initServerSSLContext() {
 }
 
 bool AsyncTlsConnection::verifyCertificateClient(asio::ssl::verify_context& ctx, NodeNum expected_dest_id) {
-  if (X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT != X509_STORE_CTX_get_error(ctx.native_handle())) {
+  auto err = X509_STORE_CTX_get_error(ctx.native_handle());
+  if (X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT != err) {
+    LOG_WARN(logger_, "The certificate has an error " << KVLOG(err));
     return false;
   }
   std::string subject(256, 0);
@@ -411,7 +413,9 @@ bool AsyncTlsConnection::verifyCertificateClient(asio::ssl::verify_context& ctx,
 }
 
 bool AsyncTlsConnection::verifyCertificateServer(asio::ssl::verify_context& ctx) {
-  if (X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT != X509_STORE_CTX_get_error(ctx.native_handle())) {
+  auto err = X509_STORE_CTX_get_error(ctx.native_handle());
+  if (X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT != err) {
+    LOG_WARN(logger_, "The certificate has an error " << KVLOG(err));
     return false;
   }
   X509* cert = X509_STORE_CTX_get_current_cert(ctx.native_handle());

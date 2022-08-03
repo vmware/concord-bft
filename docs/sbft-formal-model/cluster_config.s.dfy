@@ -16,7 +16,8 @@ module ClusterConfig {
 
   datatype Constants = Constants(
     maxByzantineFaultyReplicas:nat,
-    numClients:nat
+    numClients:nat,
+    workingWindowSize:nat
   ) {
 
     predicate WF()

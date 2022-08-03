@@ -29,6 +29,7 @@ option(TXN_SIGNING_ENABLED "Enable External concord client transcattion signing"
 option(BUILD_COMM_TCP_PLAIN "Enable TCP communication" OFF)
 option(LEAKCHECK "Enable Address and Leak Sanitizers" OFF)
 option(THREADCHECK "Enable Thread Sanitizer" OFF)
+option(UNDEFINED_BEHAVIOR_CHECK "Enable Undefined Behavior Sanitizer" OFF)
 option(BUILD_COMM_TCP_TLS "Enable TCP TLS communication" OFF)
 # Rocksdb is required for storage now. Consider removing this flag.
 option(BUILD_ROCKSDB_STORAGE "Enable building of RocksDB storage library" ON)
@@ -80,9 +81,23 @@ string(APPEND CMAKE_CXX_FLAGS " -Wbuiltin-macro-redefined")
 string(APPEND CMAKE_CXX_FLAGS " -pedantic")
 string(APPEND CMAKE_CXX_FLAGS " -Werror")
 string(APPEND CMAKE_CXX_FLAGS " -fno-omit-frame-pointer")
-if(LEAKCHECK AND THREADCHECK)
-    message(FATAL_ERROR "Cannot have both Thread and Address/Leak Sanitizers Enabled")
+
+# At most, only one of the next options should be defined from below ONLY_ONE_OPT_RAISED_CHECK
+set(COUNTER 0)
+set(ONLY_ONE_OPT_RAISED_CHECK LEAKCHECK;THREADCHECK;UNDEFINED_BEHAVIOR_CHECK;CODECOVERAGE)
+foreach(option IN LISTS ONLY_ONE_OPT_RAISED_CHECK)
+  if(${option})
+    MATH(EXPR COUNTER "${COUNTER}+1")
+  endif()
+endforeach()
+if(${COUNTER} GREATER 1)
+  message(FATAL_ERROR "More than one of the following options were chosen: \
+LEAKCHECK=${LEAKCHECK} \
+THREADCHECK=${THREADCHECK} \
+UNDEFINED_BEHAVIOR_CHECK=${UNDEFINED_BEHAVIOR_CHECK} \
+CODECOVERAGE=${CODECOVERAGE}")
 endif()
+
 if(LEAKCHECK)
     string(APPEND CMAKE_CXX_FLAGS " -fsanitize=leak -fsanitize=address")
     message("-- Address and Leak Sanitizers Enabled")
@@ -90,6 +105,10 @@ endif()
 if(THREADCHECK)
     string(APPEND CMAKE_CXX_FLAGS " -fsanitize=thread")
     message("-- Thread Sanitizer Enabled")
+endif()
+if(UNDEFINED_BEHAVIOR_CHECK)
+    string(APPEND CMAKE_CXX_FLAGS " -fsanitize=undefined")
+    message("-- Undefined Behavior Sanitizer Enabled")
 endif()
 
 if(OMIT_TEST_OUTPUT)
@@ -102,17 +121,45 @@ if(RUN_APOLLO_TESTS)
     message("-- RUN_APOLLO_TESTS Enabled")
 endif()
 
-if(CODECOVERAGE AND THREADCHECK)
-    message(FATAL_ERROR "Cannot have both Thread and Code Coverage Enabled")
-endif()
-if(LEAKCHECK AND CODECOVERAGE)
-    message(FATAL_ERROR "Cannot have both Code Coverage and Address/Leak Sanitizers Enabled")
-endif()
+#
+# Code Quality (static, dynamic, coverage) Analysers
+#
 if(CODECOVERAGE)
     string(APPEND CMAKE_CXX_FLAGS " -fprofile-instr-generate -fcoverage-mapping")
     string(APPEND CMAKE_EXE_LINKER_FLAGS " -fprofile-instr-generate")
     message( "-- Building with llvm Code Coverage Tools")
 endif()
+
+if(CPPCHECK)
+    find_program(cppcheck cppcheck HINTS "/usr/local/bin/cppcheck" REQUIRED)
+    message(STATUS "cppcheck ${cppcheck}")
+    if(cppcheck MATCHES "NOTFOUND")
+      message(FATAL_ERROR "failed to find cppcheck executable for CPPCHECK option")
+    endif()
+    # Create <cppcheck> work folder for whole program analysis, for faster analysis and to store some useful debug information
+    # Add cppcheck work folder and reports folder for cppcheck output.
+    file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/cppcheck/reports/)
+    # max number of threads = number of CPUs
+    include(ProcessorCount)
+    ProcessorCount(CPU_CORES)
+    set(CMAKE_CXX_CPPCHECK
+          "${cppcheck}"
+          "--enable=all"
+          "--inconclusive"
+          "--inline-suppr"
+          "--quiet"
+          "--std=c++17"
+          "--template=cppcheck1"
+          "--max-configs=1"
+          "--library=boost.cfg"
+          "--library=openssl.cfg"
+          "--library=googletest"
+          "--addon=threadsafety.py"
+          "--cppcheck-build-dir=${PROJECT_BINARY_DIR}/cppcheck/"
+          "--suppressions-list=${CMAKE_CURRENT_SOURCE_DIR}/.cppcheck/suppressions.txt"
+          "--exitcode-suppressions=${CMAKE_CURRENT_SOURCE_DIR}/.cppcheck/exitcode-suppressions.txt"
+        CACHE STRING "Default value for cppcheck CXX_CPPCHECK target property")
+endif(CPPCHECK)
 
 if(USE_S3_OBJECT_STORE)
     add_compile_definitions(USE_S3_OBJECT_STORE=1)

@@ -36,6 +36,17 @@ if(THREADCHECK)
   ")
 endif()
 
+if(UNDEFINED_BEHAVIOR_CHECK)
+  set(UBSAN_LOG_DIR "${CMAKE_BINARY_DIR}/ubsan_logs")
+  file(MAKE_DIRECTORY ${UBSAN_LOG_DIR})
+  # For Leak Sanitizers to report errors we need to shut down processes gracefully
+  set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} GRACEFUL_SHUTDOWN=true")
+  set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} \
+  UBSAN_OPTIONS=log_path=${UBSAN_LOG_DIR}/ubsan.log:history_size=7:print_stacktrace=1:external_symbolizer_path=/usr/bin/llvm-symbolizer \
+  UBSAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer\
+  ")
+endif()
+
 if(CODECOVERAGE)
     #[[ We need to gracefully shut down processes in order to
         generate raw profile data for Code Coverage for Apollo tests.]]

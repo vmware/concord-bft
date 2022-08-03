@@ -1095,8 +1095,8 @@ TEST(checkpoint_recovery, trimming) {
       blckchn.add(std::move(updates));
     }
 
-    std::vector<std::string> versioned_new_keys;
-    std::vector<std::string> imm_new_keys;
+    // std::vector<std::string> versioned_new_keys;
+    // std::vector<std::string> imm_new_keys;
 
     for (const auto& k : merkle_new_keys) {
       auto val = blckchn.getLatest("merkle", k);
@@ -1118,7 +1118,8 @@ TEST(checkpoint_recovery, trimming) {
     auto native_cl2 = TestRocksDb::createNative(6);
     auto blckchn = v4blockchain::KeyValueBlockchain{native_cl2, true, cat_map};
     {
-      auto recdb = concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery::getRecoveryDB(dbpath, true);
+      auto recdb =
+          concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery::getRecoveryDB(dbpath, true, true);
       // check that only blocks that were added after calling checkpointInProcess(true) has value in recovery db.
       for (uint64_t i = 0; i <= last_id; ++i) {
         auto opt_val = recdb->get(concord::kvbc::v4blockchain::detail::Blockchain::generateKey(i));
@@ -1212,7 +1213,7 @@ TEST(recovery, blockchain_recovery_class) {
   ASSERT_EQ(exec_path, "/tmp/concord_recovery_execution");
 
   {
-    auto recdb = concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery::getRecoveryDB(path, false);
+    auto recdb = concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery::getRecoveryDB(path, false, false);
     ASSERT_TRUE(recdb);
     ASSERT_EQ(recdb->path(), "/tmp/concord_recovery_execution");
     ASSERT_TRUE(fs::is_directory(recdb->path()));
@@ -1221,7 +1222,7 @@ TEST(recovery, blockchain_recovery_class) {
   }
 
   {
-    auto recdb = concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery::getRecoveryDB(path, true);
+    auto recdb = concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery::getRecoveryDB(path, true, false);
     ASSERT_TRUE(recdb);
     ASSERT_EQ(recdb->path(), "/tmp/concord_recovery_checkpoint");
     ASSERT_TRUE(fs::is_directory(recdb->path()));
@@ -1358,7 +1359,7 @@ TEST(recovery, storeLastReachableRevertBatch) {
   }
   // put dummy value to check if storeLastReachableRevertBatch doesn't override
   {
-    auto recdb = concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery::getRecoveryDB(path, false);
+    auto recdb = concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery::getRecoveryDB(path, false, false);
     auto key = concord::kvbc::v4blockchain::detail::Blockchain::generateKey(numblocks);
     recdb->put(key, std::string{"dummy"});
   }
@@ -1366,7 +1367,7 @@ TEST(recovery, storeLastReachableRevertBatch) {
   ASSERT_TRUE(fs::is_directory(exec_path));
 
   {
-    auto recdb = concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery::getRecoveryDB(path, false);
+    auto recdb = concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery::getRecoveryDB(path, false, true);
     auto key = concord::kvbc::v4blockchain::detail::Blockchain::generateKey(numblocks - 1);
     auto val = recdb->get(key);
     ASSERT_FALSE(val.has_value());
@@ -1383,7 +1384,7 @@ TEST(recovery, storeLastReachableRevertBatch) {
   }
 }
 
-TEST(recovery, laodLastReachableAfterDeletion) {
+TEST(recovery, loadLastReachableAfterDeletion) {
   std::string dbpath;
   std::random_device seed;
   std::mt19937 gen{seed()};                     // seed the generator
@@ -2480,6 +2481,23 @@ TEST_F(v4_kvbc, all_get_latest_versions) {
       ASSERT_EQ(immutable_versions[i], (latest_versions[i])->version);
     }
   }
+}
+
+TEST_F(v4_kvbc, digest_checks) {
+  uint64_t max_block = 500;
+  uint32_t num_merkle_each = 10;
+  uint32_t num_versioned_each = 10;
+  uint32_t num_immutable_each = 10;
+  create_blocks(max_block, num_merkle_each, num_versioned_each, num_immutable_each);
+  ASSERT_EQ(blockchain->getGenesisBlockId(), 1);
+  ASSERT_EQ(blockchain->getLastReachableBlockId(), max_block);
+
+  for (auto i = blockchain->getGenesisBlockId(); i < blockchain->getLastReachableBlockId(); ++i) {
+    ASSERT_EQ(blockchain->calculateBlockDigest(i), blockchain->parentDigest(i + 1));
+  }
+  concord::util::digest::BlockDigest empty_digest;
+  empty_digest.fill(0);
+  ASSERT_NE(empty_digest, blockchain->calculateBlockDigest(max_block));
 }
 
 // TEST_F(v4_kvbc, trim_blocks) {

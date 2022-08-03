@@ -122,6 +122,7 @@ class ClientApiTestFixture : public ::testing::Test {
                                1,
                                0,
                                RetryTimeoutConfig{},
+                               0,
                                std::nullopt};
 
   Config cre_config{5, 10};

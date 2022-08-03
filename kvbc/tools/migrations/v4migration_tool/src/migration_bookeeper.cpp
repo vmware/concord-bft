@@ -29,10 +29,10 @@ int BookKeeper::migrate(int argc, char* argv[]) {
   initialize_migration();
 
   LOG_INFO(logger_, "Starting the migration");
-  if (config_["migrate-to-v4"].as<bool>()) {
-    migrate(cat_kvbc_->getAdapter(), v4_kvbc_->getAdapter());
-  } else {
+  if (config_["migrate-to-v1"].as<bool>()) {
     migrate(v4_kvbc_->getAdapter(), cat_kvbc_->getAdapter());
+  } else {
+    migrate(cat_kvbc_->getAdapter(), v4_kvbc_->getAdapter());
   }
 
   LOG_INFO(logger_, "Successfully completed Migration, thanks for your time !!!");
@@ -43,7 +43,7 @@ void BookKeeper::initialize_migration() {
   number_of_batches_allowed_in_cycle_ = config_["max-point-lookup-batches"].as<std::uint64_t>();
   const auto read_only = true;
   const auto link_st_chain = true;
-  const auto migrate_to_v4 = config_["migrate-to-v4"].as<bool>();
+  const auto migrate_to_v4 = !config_["migrate-to-v1"].as<bool>();
 
   auto rodb = NativeClient::newClient(
       config_["input-rocksdb-path"].as<std::string>(), read_only, NativeClient::DefaultOptions{});
@@ -220,9 +220,9 @@ bool BookKeeper::parse_args(int argc, char* argv[]) {
   ("point-lookup-threads",
    value<std::uint64_t>()->default_value(system_threads),
    "Number of threads that execute point lookups in parallel.")
-  ("migrate-to-v4",
-   value<bool>()->default_value(true),
-   "This tells whether we want to migrate a categorized blockchain to v4 blockchain. If its false then reverse will happen");
+  ("migrate-to-v1",
+   value<bool>()->default_value(false),
+   "This tells whether we want to migrate a v4 blockchain to v1 blockchain.");
   // clang-format on
 
   store(parse_command_line(argc, argv, config_desc_), config_);

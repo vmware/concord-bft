@@ -13,10 +13,10 @@
 
 #include <queue>
 #include <algorithm>
+#include <type_traits>
 
 #include "RangeValidationTree.hpp"
 #include "Digest.hpp"
-#include "type_traits"
 #include "throughput.hpp"
 
 using concord::util::digest::DigestUtil;

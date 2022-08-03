@@ -7,13 +7,21 @@ target_link_libraries(block_merkle_latest_ver_cf_migration_tool PUBLIC
     ${Boost_LIBRARIES}
 )
 
+add_library(v4migration_tool_lib v4migration_tool/src/migration_bookeeper.cpp)
+target_include_directories(v4migration_tool_lib PUBLIC "v4migration_tool/include" )
+target_link_libraries(v4migration_tool_lib PUBLIC
+        kvbc
+        util
+        ${Boost_LIBRARIES}
+        )
+
 add_executable(v4migration_tool
-        v4migration_tool/src/v4migration_tool.cpp
-        v4migration_tool/src/migration_bookeeper.cpp)
+        v4migration_tool/src/v4migration_tool.cpp )
 
 target_include_directories(v4migration_tool PUBLIC "v4migration_tool/include" )
 
 target_link_libraries(v4migration_tool PUBLIC
+        v4migration_tool_lib
         kvbc
         util
         ${Boost_LIBRARIES}

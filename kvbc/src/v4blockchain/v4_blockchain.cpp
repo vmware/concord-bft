@@ -36,14 +36,15 @@ KeyValueBlockchain::KeyValueBlockchain(
       state_transfer_chain_{native_client_},
       latest_keys_{native_client_, category_types},
       v4_metrics_comp_{concordMetrics::Component("v4_blockchain", std::make_shared<concordMetrics::Aggregator>())},
-      blocks_deleted_{v4_metrics_comp_.RegisterGauge("numOfBlocksDeleted", (block_chain_.getGenesisBlockId() - 1))} {
-  if (native_client_->createColumnFamilyIfNotExisting(v4blockchain::detail::MISC_CF)) {
-    LOG_INFO(V4_BLOCK_LOG, "Created [" << v4blockchain::detail::MISC_CF << "] column family");
-  }
+      blocks_deleted_{v4_metrics_comp_.RegisterGauge(
+          "numOfBlocksDeleted", block_chain_.getGenesisBlockId() > 0 ? (block_chain_.getGenesisBlockId() - 1) : 0)},
+      deleted_keys_{v4_metrics_comp_.RegisterCounter("numOfKeysDeleted", 0)},
+      immutables_reads_{v4_metrics_comp_.RegisterCounter("numOfimmutableReads", 0)} {
   if (!link_st_chain) return;
   // Mark version of blockchain
   native_client_->put(v4blockchain::detail::MISC_CF, kvbc::keyTypes::blockchain_version, kvbc::V4Version());
   v4_metrics_comp_.Register();
+  latest_keys_.setDeletedKeysMetric(&deleted_keys_);
   if (state_transfer_chain_.getLastBlockId() == 0) return;
   // Make sure that if linkSTChainFrom() has been interrupted (e.g. a crash or an abnormal shutdown), all DBAdapter
   // methods will return the correct values. For example, if state transfer had completed and linkSTChainFrom() was
@@ -70,6 +71,7 @@ KeyValueBlockchain::KeyValueBlockchain(
 */
 BlockId KeyValueBlockchain::add(categorization::Updates &&updates) {
   auto scoped = v4blockchain::detail::ScopedDuration{"Add block"};
+  static thread_local uint64_t total_size = 0;
   // Should be performed before we add the block with the current Updates.
   auto future_seq_num_ = thread_pool_.async(
       [this](const categorization::Updates &updates) { return onNewBFTSequenceNumber(updates); }, updates);
@@ -79,13 +81,18 @@ BlockId KeyValueBlockchain::add(categorization::Updates &&updates) {
   auto block_size = block.size();
   auto write_batch = native_client_->getBatch(block_size * updates_to_final_size_ration_);
   auto block_id = add(updates, block, write_batch);
+  total_size += write_batch.size();
   LOG_DEBUG(V4_BLOCK_LOG,
             "Block size is " << block_size << " reserving batch to be " << updates_to_final_size_ration_ * block_size
-                             << " size of final block is " << write_batch.size());
+                             << " size of final block is " << write_batch.size() << " total bytes written to stroage "
+                             << total_size);
   auto sequence_number = future_seq_num_.get();
   native_client_->write(std::move(write_batch));
   block_chain_.setBlockId(block_id);
   if (sequence_number > 0) setLastBlockSequenceNumber(sequence_number);
+  if (block_id % 100 == 0) {
+    v4_metrics_comp_.UpdateAggregator();
+  }
   return block_id;
 }
 
@@ -123,8 +130,9 @@ void KeyValueBlockchain::deleteLastReachableBlock() {
   } else if (last_reachable_id == genesis_id) {
     throw std::logic_error{"Cannot delete only block as a last reachable one"};
   }
-  auto recoverdb =
-      KeyValueBlockchain::BlockchainRecovery::getRecoveryDB(native_client_->path(), chkpnt_block_id_.has_value());
+  auto ro = true;
+  auto is_chkpnt = false;
+  auto recoverdb = KeyValueBlockchain::BlockchainRecovery::getRecoveryDB(native_client_->path(), is_chkpnt, ro);
   auto key = concord::kvbc::v4blockchain::detail::Blockchain::generateKey(last_reachable_id);
   auto batch_data = recoverdb->get(key);
   if (!batch_data.has_value()) {
@@ -136,8 +144,8 @@ void KeyValueBlockchain::deleteLastReachableBlock() {
   auto write_batch = native_client_->getBatch(std::move(*batch_data));
   native_client_->write(std::move(write_batch));
   block_chain_.setBlockId(--last_reachable_id);
-  LOG_INFO(V4_BLOCK_LOG,
-           "Wrote revert updates of block " << last_reachable_id + 1 << " last reachable is " << last_reachable_id);
+  LOG_DEBUG(V4_BLOCK_LOG,
+            "Wrote revert updates of block " << last_reachable_id + 1 << " last reachable is " << last_reachable_id);
 }
 
 /*
@@ -150,7 +158,6 @@ as stable. the set of updates needed for reverting a block is saved on a recover
 block is called.
 */
 void KeyValueBlockchain::storeLastReachableRevertBatch(const std::optional<kvbc::BlockId> &block_id_at_chkpnt) {
-  std::shared_ptr<storage::rocksdb::NativeClient> recoverdb;
   uint64_t unstable_version{};
   auto last_reachable_id = block_chain_.getLastReachable();
   auto genesis_id = block_chain_.getGenesisBlockId();
@@ -176,23 +183,29 @@ void KeyValueBlockchain::storeLastReachableRevertBatch(const std::optional<kvbc:
   iterate over the range, for each block X get the set of updates needed to revert to the state X-1,
   and insert it to the recovery db.
   */
+  auto start_id = unstable_version;
+  if (unstable_version <= stable_version) {
+    return;
+  }
   LOG_INFO(V4_BLOCK_LOG, "reverting from " << unstable_version << " to " << stable_version);
+  uint64_t revert_size = 0;
+  auto ro = false;
+  auto write_batch = native_client_->getBatch();
+  auto recoverdb =
+      KeyValueBlockchain::BlockchainRecovery::getRecoveryDB(native_client_->path(), block_id_at_chkpnt.has_value(), ro);
   while (unstable_version > stable_version) {
-    if (!recoverdb) {
-      recoverdb =
-          KeyValueBlockchain::BlockchainRecovery::getRecoveryDB(native_client_->path(), block_id_at_chkpnt.has_value());
-    }
+    write_batch.clear();
     auto key = concord::kvbc::v4blockchain::detail::Blockchain::generateKey(last_reachable_id);
     auto opt_val = recoverdb->get(key);
     if (!opt_val.has_value()) {
-      LOG_INFO(V4_BLOCK_LOG,
-               "Reverting updates of block " << last_reachable_id << " unstable version " << unstable_version
-                                             << " stable version " << stable_version);
-      auto write_batch = native_client_->getBatch();
+      LOG_DEBUG(V4_BLOCK_LOG,
+                "Reverting updates of block " << last_reachable_id << " unstable version " << unstable_version
+                                              << " stable version " << stable_version);
       latest_keys_.revertLastBlockKeys(*updates, last_reachable_id, write_batch, internal_snapshot.get());
       // delete from blockchain
       block_chain_.deleteBlock(last_reachable_id, write_batch);
-      auto ser_batch = write_batch.data();
+      const auto &ser_batch = write_batch.data();
+      revert_size += ser_batch.size();
       recoverdb->put(key, ser_batch);
     } else {
       LOG_INFO(V4_BLOCK_LOG, "Recovery DB alredy has block " << last_reachable_id << " updates");
@@ -205,6 +218,9 @@ void KeyValueBlockchain::storeLastReachableRevertBatch(const std::optional<kvbc:
     updates = block_chain_.getBlockUpdates(last_reachable_id);
     unstable_version = block_id_at_chkpnt.has_value() ? last_reachable_id : getBlockSequenceNumber(*updates);
   }
+  LOG_INFO(V4_BLOCK_LOG,
+           "Done reverting from version [" << start_id << "] to version [" << unstable_version << "] total bytes "
+                                           << revert_size << " bytes");
 }
 
 /*
@@ -328,6 +344,21 @@ concord::util::digest::BlockDigest KeyValueBlockchain::parentDigest(BlockId bloc
     return empty_digest;
   }
   return block_chain_.getBlockParentDigest(block_id);
+}
+
+concord::util::digest::BlockDigest KeyValueBlockchain::calculateBlockDigest(BlockId block_id) const {
+  const auto last_reachable_block = getLastReachableBlockId();
+  if (block_id > last_reachable_block) {
+    return state_transfer_chain_.getBlockDigest(block_id);
+  }
+  if (block_id < getGenesisBlockId()) {
+    LOG_ERROR(V4_BLOCK_LOG,
+              "Trying to get digest from block " << block_id << " while genesis is " << getGenesisBlockId());
+    concord::util::digest::BlockDigest empty_digest;
+    empty_digest.fill(0);
+    return empty_digest;
+  }
+  return block_chain_.calculateBlockDigest(block_id);
 }
 
 void KeyValueBlockchain::addBlockToSTChain(const BlockId &block_id,
@@ -521,6 +552,14 @@ std::optional<categorization::Value> KeyValueBlockchain::get(const std::string &
 
 std::optional<categorization::Value> KeyValueBlockchain::getLatest(const std::string &category_id,
                                                                    const std::string &key) const {
+  auto category_type = latest_keys_.categoryType(category_id);
+  if (category_type == concord::kvbc::categorization::CATEGORY_TYPE::immutable) {
+    immutables_reads_++;
+    v4_metrics_comp_.UpdateAggregator();
+    auto opt_version = latest_keys_.getLatestVersion(category_id, key);
+    if (!opt_version) return std::nullopt;
+    return get(category_id, key, opt_version->version);
+  }
   return latest_keys_.getValue(category_id, key);
 }
 
@@ -563,7 +602,21 @@ void KeyValueBlockchain::multiGet(const std::string &category_id,
 void KeyValueBlockchain::multiGetLatest(const std::string &category_id,
                                         const std::vector<std::string> &keys,
                                         std::vector<std::optional<categorization::Value>> &values) const {
-  return latest_keys_.multiGetValue(category_id, keys, values);
+  auto category_type = latest_keys_.categoryType(category_id);
+  if (category_type == concord::kvbc::categorization::CATEGORY_TYPE::immutable) {
+    immutables_reads_++;
+    v4_metrics_comp_.UpdateAggregator();
+    std::vector<std::optional<categorization::TaggedVersion>> tagged_versions;
+    latest_keys_.multiGetLatestVersion(category_id, keys, tagged_versions);
+    std::vector<BlockId> versions;
+    std::for_each(
+        tagged_versions.begin(), tagged_versions.end(), [&versions](std::optional<categorization::TaggedVersion> &tv) {
+          versions.push_back(tv.has_value() ? tv->version : detail::Blockchain::INVALID_BLOCK_ID);
+        });
+    multiGet(category_id, keys, versions, values);
+    return;
+  }
+  latest_keys_.multiGetValue(category_id, keys, values);
 }
 
 std::optional<categorization::TaggedVersion> KeyValueBlockchain::getLatestVersion(const std::string &category_id,
@@ -581,13 +634,48 @@ void KeyValueBlockchain::multiGetLatestVersion(
 void KeyValueBlockchain::trimBlocksFromSnapshot(BlockId block_id_at_checkpoint) {
   ConcordAssertNE(block_id_at_checkpoint, detail::Blockchain::INVALID_BLOCK_ID);
   ConcordAssertLE(block_id_at_checkpoint, getLastReachableBlockId());
-  chkpnt_block_id_ = block_id_at_checkpoint;
-  while (block_id_at_checkpoint < getLastReachableBlockId()) {
-    LOG_INFO(V4_BLOCK_LOG,
-             "Deleting last reachable block = " << getLastReachableBlockId()
-                                                << ", DB checkpoint = " << native_client_->path());
-    deleteLastReachableBlock();
+  auto genesis_id = block_chain_.getGenesisBlockId();
+  if (genesis_id >= block_id_at_checkpoint) {
+    throw std::logic_error{"checkpoint block id should be bigger than genesis"};
   }
+  auto start_id = getLastReachableBlockId();
+  auto ro = true;
+  auto is_chkpnt = true;
+  std::shared_ptr<storage::rocksdb::NativeClient> recoverdb;
+  auto trimmed = false;
+  while (getLastReachableBlockId() > block_id_at_checkpoint) {
+    trimmed = true;
+    auto last_reachable_id = getLastReachableBlockId();
+    if (!recoverdb) {
+      recoverdb = KeyValueBlockchain::BlockchainRecovery::getRecoveryDB(native_client_->path(), is_chkpnt, ro);
+    }
+    LOG_DEBUG(
+        V4_BLOCK_LOG,
+        "Deleting last reachable block = " << last_reachable_id << ", DB checkpoint = " << native_client_->path());
+    auto key = concord::kvbc::v4blockchain::detail::Blockchain::generateKey(last_reachable_id);
+    auto batch_data = recoverdb->get(key);
+    if (!batch_data.has_value()) {
+      LOG_FATAL(V4_BLOCK_LOG,
+                "No recovery data found in recovery db " << recoverdb->path() << " for block " << last_reachable_id
+                                                         << ", did you call storeLastReachableRevertBatch?");
+      ConcordAssert(false);
+    }
+    auto write_batch = native_client_->getBatch(std::move(*batch_data));
+    native_client_->write(std::move(write_batch));
+    block_chain_.setBlockId(--last_reachable_id);
+    LOG_DEBUG(V4_BLOCK_LOG,
+              "Wrote revert updates of block " << last_reachable_id + 1 << " last reachable is " << last_reachable_id);
+  }
+  if (trimmed) {
+    LOG_INFO(V4_BLOCK_LOG,
+             "Trimmed range of blocks from [" << start_id << "] to [" << block_id_at_checkpoint
+                                              << "] DB checkpoint db path " << native_client_->path());
+  } else {
+    LOG_INFO(V4_BLOCK_LOG,
+             "Trimming wasn't needed as block id at checkpoint " << block_id_at_checkpoint
+                                                                 << " equals to last reachable " << start_id);
+  }
+
   KeyValueBlockchain::BlockchainRecovery::removeRecoveryDB(native_client_->path(), true);
   native_client_->del(v4blockchain::detail::MISC_CF, RecoverySnapshot::getStorableKey(block_id_at_checkpoint));
 }
@@ -604,18 +692,22 @@ void KeyValueBlockchain::checkpointInProcess(bool flag, kvbc::BlockId block_id_a
   if (flag) {
     auto last_reachable_id = block_chain_.getLastReachable();
     ConcordAssertEQ(last_reachable_id, block_id_at_chkpnt);
-    LOG_INFO(V4_BLOCK_LOG, "Taking snapshot at checkpoint start with block id " << last_reachable_id);
     auto new_snap_shot = RecoverySnapshot{&native_client_->rawDB()};
     chkpnt_snap_shots_[last_reachable_id] = new_snap_shot.get();
+    LOG_INFO(V4_BLOCK_LOG,
+             "Taking snapshot at checkpoint start with block id "
+                 << last_reachable_id << " snapshot sn " << chkpnt_snap_shots_[last_reachable_id]->GetSequenceNumber());
     native_client_->put(v4blockchain::detail::MISC_CF,
                         RecoverySnapshot::getStorableKey(block_id_at_chkpnt),
                         new_snap_shot.getStorableSeqNumAndPreventRelease(last_reachable_id));
   } else {
     if (chkpnt_snap_shots_.count(block_id_at_chkpnt) > 0) {
+      auto sn = chkpnt_snap_shots_[block_id_at_chkpnt]->GetSequenceNumber();
       RecoverySnapshot::releasePreviousSnapshot(chkpnt_snap_shots_[block_id_at_chkpnt], &native_client_->rawDB());
       chkpnt_snap_shots_.erase(block_id_at_chkpnt);
       native_client_->del(v4blockchain::detail::MISC_CF, RecoverySnapshot::getStorableKey(block_id_at_chkpnt));
-      LOG_INFO(V4_BLOCK_LOG, "Released snapshot for checkpoint at block id " << block_id_at_chkpnt);
+      LOG_INFO(V4_BLOCK_LOG,
+               "Released snapshot for checkpoint at block id " << block_id_at_chkpnt << " snapshot sn " << sn);
     } else {
       LOG_WARN(V4_BLOCK_LOG, "Didn't find snapshot for checkpoint at block id " << block_id_at_chkpnt);
     }
@@ -678,13 +770,14 @@ void KeyValueBlockchain::BlockchainRecovery::removeRecoveryDB(const std::string 
 }
 
 std::shared_ptr<storage::rocksdb::NativeClient> KeyValueBlockchain::BlockchainRecovery::getRecoveryDB(
-    const std::string &path, bool is_chkpnt) {
+    const std::string &path, bool is_chkpnt, bool read_only) {
   auto rec_path = getPath(path, is_chkpnt);
-  auto ro = false;
-  fs::create_directory(rec_path);
-  LOG_INFO(V4_BLOCK_LOG, "Openned recoverdb at " << rec_path);
+  if (!read_only) {
+    fs::create_directory(rec_path);
+  }
   std::shared_ptr<storage::IDBClient> db{std::make_shared<storage::rocksdb::Client>(rec_path)};
-  db->init(ro);
+  db->init(read_only);
+  LOG_INFO(V4_BLOCK_LOG, "Openned recoverdb at " << rec_path);
   return concord::storage::rocksdb::NativeClient::fromIDBClient(db);
 }
 

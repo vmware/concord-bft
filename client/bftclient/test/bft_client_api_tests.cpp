@@ -61,6 +61,7 @@ class ClientApiTestFixture : public ::testing::Test {
                                1,
                                0,
                                RetryTimeoutConfig{},
+                               0,
                                nullopt};
 
   // Just print all received messages from a client

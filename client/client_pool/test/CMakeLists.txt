@@ -6,5 +6,4 @@ target_link_libraries(client-pool-timer-test PUBLIC
   concord_client_pool
 )
 
-# Disabled due to instability
-# add_test(client-pool-timer-test client-pool-timer-test)
+add_test(client-pool-timer-test client-pool-timer-test)
