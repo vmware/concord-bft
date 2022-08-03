@@ -80,7 +80,7 @@ class RequestsBatch {
   bool isBatchRegistered(std::string &batchCid) const;
   bool isBatchInProcess() const;
   bool isBatchInProcess(std::string &batchCid) const;
-  void increaseNumOfCompletedReqs(uint32_t count) { numOfCompletedReqs_ += count; }
+  void increaseNumOfCompletedReqs(uint32_t count);
   RequestStateSharedPtr &getRequestState(uint16_t reqOffsetInBatch);
   const std::string getBatchCid() const;
   void cancelBatchAndReleaseRequests(const std::string &batchCid, PreProcessingResult status);
@@ -145,6 +145,7 @@ class PreProcessor {
 
   static void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator);
 
+  // For testing purposes
   ReqId getOngoingReqIdForClient(uint16_t clientId, uint16_t reqOffsetInBatch);
 
  protected:
@@ -224,11 +225,6 @@ class PreProcessor {
                                     uint64_t reqRetryId,
                                     const std::string &reqCid,
                                     const std::string &ongoingCid);
-  void cancelPreProcessingOnNonPrimary(const ClientPreProcessReqMsgUniquePtr &clientReqMsg,
-                                       NodeIdType destId,
-                                       uint16_t reqOffsetInBatch,
-                                       uint64_t reqRetryId,
-                                       const std::string &batchCid);
   uint32_t getBufferOffset(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch) const;
   const char *getPreProcessResultBuffer(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch);
   void releasePreProcessResultBuffer(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch);
@@ -363,7 +359,6 @@ class PreProcessor {
   std::shared_ptr<concord::diagnostics::Recorder> totalPreExecDurationRecorder_;
   std::shared_ptr<concord::diagnostics::Recorder> launchAsyncPreProcessJobRecorder_;
   std::shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
-  bool batchedPreProcessEnabled_;
   bool memoryPoolEnabled_;
 };
 

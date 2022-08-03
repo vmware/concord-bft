@@ -77,7 +77,6 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     replicaConfig.clientBatchingEnabled = true;
     replicaConfig.pruningEnabled_ = true;
     replicaConfig.numBlocksToKeep_ = 10;
-    replicaConfig.batchedPreProcessEnabled = true;
     replicaConfig.timeServiceEnabled = true;
     replicaConfig.enablePostExecutionSeparation = true;
     replicaConfig.set("sourceReplicaReplacementTimeoutMilli", 6000);
