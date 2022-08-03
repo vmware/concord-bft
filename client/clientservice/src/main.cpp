@@ -37,6 +37,7 @@ using concord::client::concordclient::ConcordClientConfig;
 namespace po = boost::program_options;
 
 const static int kLogConfigRefreshIntervalInMs = 60 * 1000;
+const double kTraceSamplingRate = 0.000001;
 static std::unique_ptr<ClientService> clientservice = nullptr;
 
 const static char* getLog4CplusConfigLocation() {
@@ -90,7 +91,7 @@ class JaegerLogger : public jaegertracing::logging::Logger {
 
 void initJaeger(const std::string& addr) {
   // No sampling for now - report all traces
-  jaegertracing::samplers::Config sampler_config(jaegertracing::kSamplerTypeConst, 1.0);
+  jaegertracing::samplers::Config sampler_config(jaegertracing::kSamplerTypeConst, kTraceSamplingRate);
   jaegertracing::reporters::Config reporter_config(jaegertracing::reporters::Config::kDefaultQueueSize,
                                                    jaegertracing::reporters::Config::defaultBufferFlushInterval(),
                                                    false /* false=don't log spans, true=JaegerUI */,

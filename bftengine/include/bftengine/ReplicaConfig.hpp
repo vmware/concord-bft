@@ -253,9 +253,9 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                30u,
                "Amount of keys to get at once via multiGet when iterating state");
 
-  CONFIG_PARAM(enableMultiplexChannel, bool, false, "whether multiplex communication channel is enabled")
+  CONFIG_PARAM(enableMultiplexChannel, bool, true, "whether multiplex communication channel is enabled")
 
-  CONFIG_PARAM(useUnifiedCertificates, bool, false, "A flag to use unified Certificates");
+  CONFIG_PARAM(useUnifiedCertificates, bool, true, "A flag to use unified Certificates");
 
   CONFIG_PARAM(adaptivePruningIntervalDuration,
                std::chrono::milliseconds,

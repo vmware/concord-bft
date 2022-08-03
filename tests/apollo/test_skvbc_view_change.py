@@ -42,6 +42,22 @@ def start_replica_cmd(builddir, replica_id):
             "-f", '1'
             ]
 
+def start_replica_cmd_without_key_exchange(builddir, replica_id):
+    """
+    Return a command that starts an skvbc replica when passed to
+    subprocess.Popen.
+    Note each arguments is an element in a list.
+    """
+    statusTimerMilli = "500"
+    viewChangeTimeoutMilli = "10000"
+    path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
+    return [path,
+            "-k", KEY_FILE_PREFIX,
+            "-i", str(replica_id),
+            "-s", statusTimerMilli,
+            "-v", viewChangeTimeoutMilli,
+            "-f", '1'
+            ]
 
 class SkvbcViewChangeTest(ApolloTest):
 
@@ -393,9 +409,8 @@ class SkvbcViewChangeTest(ApolloTest):
             err_msg="Make sure the unstable replica works in the latest view."
         )
 
-    @unittest.skip("unstable scenario")
     @with_trio
-    @with_bft_network(start_replica_cmd,
+    @with_bft_network(start_replica_cmd_without_key_exchange,
                       selected_configs=lambda n, f, c: c < f)
     @verify_linearizability()
     async def test_multiple_vc_slow_path(self, bft_network, tracker):
@@ -455,7 +470,7 @@ class SkvbcViewChangeTest(ApolloTest):
             current_primary = view
             [bft_network.start_replica(i) for i in crashed_replicas]
 
-        await skvbc.read_your_writes()
+            await skvbc.read_your_writes()
 
         await bft_network.wait_for_view(
             replica_id=current_primary,
@@ -465,7 +480,7 @@ class SkvbcViewChangeTest(ApolloTest):
         await skvbc.read_your_writes()
 
         #check after test is fixed
-        await bft_network.assert_slow_path_prevalent()
+        await bft_network.assert_slow_path_prevalent(0, 0, stable_replica)
 
     @with_trio
     @with_bft_network(start_replica_cmd,

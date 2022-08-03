@@ -115,14 +115,56 @@ void DbCheckpointManager::loadCheckpointDataFromPersistence() {
 }
 
 void DbCheckpointManager::init() {
-  // check if there is chkpt data in persistence
-  loadCheckpointDataFromPersistence();
-  // if there is a checkpoint created in database but entry corresponding to that is not found in persistence
-  // then probably, its a partially created checkpoint and we want to remove it
-  auto listOfCheckpointsCreated = dbClient_->getListOfCreatedCheckpoints();
-  for (auto& cp : listOfCheckpointsCreated) {
-    if (dbCheckptMetadata_.dbCheckPoints_.find(cp) == dbCheckptMetadata_.dbCheckPoints_.end()) {
-      removeCheckpoint(cp);
+  // In case when metadata erased, we have to update dbcheckpoint metadata from file system
+  // if any dbcheckpoints are present in the file system.
+  if (isMetadataErased_) {
+    // update metadata for dbcheckpoints from file system
+    const auto& checkpointDir = dbClient_->getCheckpointPath();
+    _fs::path path(checkpointDir);
+    std::vector<_fs::directory_entry> allDBCheckpoints;
+
+    try {
+      if (_fs::exists(path)) {
+        uint64_t lastCreatedDbCheckpoint = 0;
+        for (const auto& entry : _fs::directory_iterator(checkpointDir)) {
+          const auto filenameStr = entry.path().filename().string();
+          if (_fs::is_directory(entry)) {
+            allDBCheckpoints.push_back(entry);
+            const CheckpointId& checkPointId = std::stoi(filenameStr);
+            const auto blockId = checkPointId;
+
+            _fs::file_time_type ftime = _fs::last_write_time(entry.path());
+            std::time_t cftime = decltype(ftime)::clock::to_time_t(ftime);
+            const std::chrono::seconds creationTime = std::chrono::seconds(cftime);
+            {
+              std::scoped_lock lock(lockLastDbCheckpointDesc_);
+              lastCreatedCheckpointMetadata_.emplace(DbCheckpointMetadata::DbCheckPointDescriptor{
+                  checkPointId, creationTime, blockId, lastCheckpointSeqNum_});
+              dbCheckptMetadata_.dbCheckPoints_.insert({checkPointId, lastCreatedCheckpointMetadata_.value()});
+            }
+
+            // extract the last created BlockId from all created dbCheckpoints.
+            lastCreatedDbCheckpoint = std::max(lastCreatedDbCheckpoint, checkPointId);
+            numOfDbCheckpointsCreated_++;
+          }
+        }
+        lastDbCheckpointBlockId_.Get().Set(lastCreatedDbCheckpoint);
+        metrics_.UpdateAggregator();
+      }
+      updateMetrics();
+    } catch (std::exception& e) {
+      LOG_WARN(getLogger(), "Failed to update checkpoints metadata from checkpoint directory" << e.what());
+    }
+  } else {
+    // check if there is chkpt data in persistence
+    loadCheckpointDataFromPersistence();
+    // if there is a checkpoint created in database but entry corresponding to that is not found in persistence
+    // then probably, its a partially created checkpoint and we want to remove it
+    auto listOfCheckpointsCreated = dbClient_->getListOfCreatedCheckpoints();
+    for (auto& cp : listOfCheckpointsCreated) {
+      if (dbCheckptMetadata_.dbCheckPoints_.find(cp) == dbCheckptMetadata_.dbCheckPoints_.end()) {
+        removeCheckpoint(cp);
+      }
     }
   }
 

@@ -38,10 +38,8 @@ KeyValueBlockchain::KeyValueBlockchain(
       v4_metrics_comp_{concordMetrics::Component("v4_blockchain", std::make_shared<concordMetrics::Aggregator>())},
       blocks_deleted_{v4_metrics_comp_.RegisterGauge(
           "numOfBlocksDeleted", block_chain_.getGenesisBlockId() > 0 ? (block_chain_.getGenesisBlockId() - 1) : 0)},
-      deleted_keys_{v4_metrics_comp_.RegisterCounter("numOfKeysDeleted", 0)} {
-  if (native_client_->createColumnFamilyIfNotExisting(v4blockchain::detail::MISC_CF)) {
-    LOG_INFO(V4_BLOCK_LOG, "Created [" << v4blockchain::detail::MISC_CF << "] column family");
-  }
+      deleted_keys_{v4_metrics_comp_.RegisterCounter("numOfKeysDeleted", 0)},
+      immutables_reads_{v4_metrics_comp_.RegisterCounter("numOfimmutableReads", 0)} {
   if (!link_st_chain) return;
   // Mark version of blockchain
   native_client_->put(v4blockchain::detail::MISC_CF, kvbc::keyTypes::blockchain_version, kvbc::V4Version());
@@ -554,6 +552,14 @@ std::optional<categorization::Value> KeyValueBlockchain::get(const std::string &
 
 std::optional<categorization::Value> KeyValueBlockchain::getLatest(const std::string &category_id,
                                                                    const std::string &key) const {
+  auto category_type = latest_keys_.categoryType(category_id);
+  if (category_type == concord::kvbc::categorization::CATEGORY_TYPE::immutable) {
+    immutables_reads_++;
+    v4_metrics_comp_.UpdateAggregator();
+    auto opt_version = latest_keys_.getLatestVersion(category_id, key);
+    if (!opt_version) return std::nullopt;
+    return get(category_id, key, opt_version->version);
+  }
   return latest_keys_.getValue(category_id, key);
 }
 
@@ -596,7 +602,21 @@ void KeyValueBlockchain::multiGet(const std::string &category_id,
 void KeyValueBlockchain::multiGetLatest(const std::string &category_id,
                                         const std::vector<std::string> &keys,
                                         std::vector<std::optional<categorization::Value>> &values) const {
-  return latest_keys_.multiGetValue(category_id, keys, values);
+  auto category_type = latest_keys_.categoryType(category_id);
+  if (category_type == concord::kvbc::categorization::CATEGORY_TYPE::immutable) {
+    immutables_reads_++;
+    v4_metrics_comp_.UpdateAggregator();
+    std::vector<std::optional<categorization::TaggedVersion>> tagged_versions;
+    latest_keys_.multiGetLatestVersion(category_id, keys, tagged_versions);
+    std::vector<BlockId> versions;
+    std::for_each(
+        tagged_versions.begin(), tagged_versions.end(), [&versions](std::optional<categorization::TaggedVersion> &tv) {
+          versions.push_back(tv.has_value() ? tv->version : detail::Blockchain::INVALID_BLOCK_ID);
+        });
+    multiGet(category_id, keys, versions, values);
+    return;
+  }
+  latest_keys_.multiGetValue(category_id, keys, values);
 }
 
 std::optional<categorization::TaggedVersion> KeyValueBlockchain::getLatestVersion(const std::string &category_id,

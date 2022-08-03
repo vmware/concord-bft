@@ -178,6 +178,7 @@ TlsTcpConfig TestCommConfig::GetTlsTCPConfig(bool is_replica,
                                              uint16_t& num_of_clients,
                                              uint16_t& num_of_replicas,
                                              const std::string& config_file_name,
+                                             bool use_unified_certs,
                                              const std::string& cert_root_path) {
   string ip;
   uint16_t port;
@@ -200,7 +201,7 @@ TlsTcpConfig TestCommConfig::GetTlsTCPConfig(bool is_replica,
                       id,
                       cert_root_path,
                       "TLS_AES_256_GCM_SHA384",
-                      false,
+                      use_unified_certs,
                       nullptr,
                       secretData);
   return retVal;

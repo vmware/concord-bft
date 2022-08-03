@@ -12,9 +12,9 @@
 
 #include "InternalBFTClient.hpp"
 #include "messages/ClientRequestMsg.hpp"
-#include "chrono"
 #include "Logger.hpp"
 
+#include <chrono>
 #include <utility>
 
 uint64_t InternalBFTClient::sendRequest(uint64_t flags,

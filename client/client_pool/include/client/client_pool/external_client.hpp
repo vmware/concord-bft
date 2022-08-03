@@ -117,8 +117,6 @@ class ConcordClient {
   static uint16_t num_of_replicas_;
   static uint16_t required_num_of_replicas_;
   static size_t max_reply_size_;
-  // A shared memory for all clients to return reply because for now the reply is not important
-  static std::shared_ptr<std::vector<char>> reply_;
   static bool delayed_behaviour_;
   static std::set<bft::client::ReplicaId> all_replicas_;
   static config_pool::ConcordClientPoolConfig pool_config_;
@@ -136,7 +134,6 @@ class ConcordClient {
   using PendingRequests = std::deque<bftEngine::ClientRequest>;
   PendingRequests pending_requests_;
   PendingReplies pending_replies_;
-  size_t batching_buffer_reply_offset_ = 0UL;
   bftEngine::OperationResult clientRequestExecutionResult_;
   std::unordered_map<std::string, std::chrono::steady_clock::time_point> cid_before_send_map_;
   std::unordered_map<std::string, std::chrono::steady_clock::time_point> cid_response_map_;

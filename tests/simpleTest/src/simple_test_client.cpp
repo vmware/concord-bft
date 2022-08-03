@@ -31,7 +31,8 @@ bool SimpleTestClient::run() {
 #ifdef USE_COMM_PLAIN_TCP
   PlainTcpConfig conf = testCommConfig.GetTCPConfig(false, id, cp.numOfClients, cp.numOfReplicas, cp.configFileName);
 #elif USE_COMM_TLS_TCP
-  TlsTcpConfig conf = testCommConfig.GetTlsTCPConfig(false, id, cp.numOfClients, cp.numOfReplicas, cp.configFileName);
+  TlsTcpConfig conf =
+      testCommConfig.GetTlsTCPConfig(false, id, cp.numOfClients, cp.numOfReplicas, cp.configFileName, false);
 #else
   PlainUdpConfig conf = testCommConfig.GetUDPConfig(false, id, cp.numOfClients, cp.numOfReplicas, cp.configFileName);
 #endif
