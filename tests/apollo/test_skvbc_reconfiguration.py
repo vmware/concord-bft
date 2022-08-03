@@ -286,16 +286,19 @@ class SkvbcReconfigurationTest(ApolloTest):
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
             for i in range(100):
                 await skvbc.send_write_kv_set()
+
+            #await trio.sleep(2)
+            await skvbc.validate_seq_num_for_all_replicas()
             initial_prim = 0
             next_primary = 1
-            await trio.sleep(1)
+            #await trio.sleep(1)
             bft_network.stop_replica(next_primary)
             next_prime_cert = self.collect_client_certificates(bft_network, [next_primary])
             await self.run_client_tls_key_exchange_cycle(bft_network, list(bft_network.all_replicas(without={next_primary})) + [bft_network.cre_id])
             for i in range(500):
                 await skvbc.send_write_kv_set()
             current_view = await bft_network.wait_for_view(0)
-            await trio.sleep(1)
+            #await trio.sleep(1)
             # Let the next primary complete state transfer
             bft_network.start_replica(next_primary)
             await bft_network.wait_for_state_transfer_to_start()

@@ -433,6 +433,35 @@ class SimpleKVBCProtocol:
         else:
             return writeset[0][0], writeset[0][1]
 
+    async def validate_seq_num_for_all_replicas(self):
+         # Validate if all replicas have same last executed sequenec number after the write
+        seq_nums = {}
+
+        while True:
+            s1 = await self.bft_network.wait_for_last_executed_seq_num(0)
+            sys.stdout.write("\nValue of s1 is %s" % s1)
+            await trio.sleep(2)
+            s2 = await self.bft_network.wait_for_last_executed_seq_num(0)
+            sys.stdout.write("\nValue of s2 is %s" % s2)
+            if (s1 == s2):
+                break
+
+        #await trio.sleep(2)
+        for r in self.bft_network.all_replicas():
+            sys.stdout.write("\nValue of r is %s" % r)
+            rs = await self.bft_network.wait_for_last_executed_seq_num(r)
+            sys.stdout.write("\nValue of rs is %s" % rs)
+
+            while (s1 != rs):
+                rs = await self.bft_network.wait_for_last_executed_seq_num(r)
+                sys.stdout.write("\nValue of rs is %s" % rs)
+                sys.stdout.write("\nValue of s1 is %s" % s1)
+            seq_nums[r] = rs
+
+        sys.stdout.write('\n seq num list is \n')
+        for i in seq_nums:
+            sys.stdout.write("\nValue is %s" % seq_nums[i])
+
     async def send_kv_set(self, client, readset, writeset, read_version, long_exec=False, reply_assert=True,
                           raise_slowErrorIfAny=True, description='send_kv_set'):
         seq_num = client.req_seq_num.next()
