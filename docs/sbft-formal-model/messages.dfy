@@ -58,7 +58,7 @@ module Messages {
     predicate valid(view:ViewNum, quorumSize:nat) {
       && |msgs| > 0
       && (forall v | v in msgs :: && v.payload.ViewChangeMsg?
-                                  && v.payload.valid(quorumSize)
+                                  && v.payload.validViewChangeMsg(quorumSize)
                                   && v.payload.newView == view) // All the ViewChange messages have to be for the same View. 
       && (forall v1, v2 | && v1 in msgs
                           && v2 in msgs
@@ -72,7 +72,6 @@ module Messages {
     predicate valid(lastStableCheckpoint:SequenceID, quorumSize:nat) {
       && |msgs| > 0
       && (forall m | m in msgs :: && m.payload.CheckpointMsg?
-                                  && m.payload.valid(quorumSize)
                                   && m.payload.seqIDReached == lastStableCheckpoint)
       && (forall m1, m2 | && m1 in msgs
                           && m2 in msgs
@@ -94,14 +93,21 @@ module Messages {
                      | NewViewMsg(newView:ViewNum, vcMsgs:ViewChangeMsgsSelectedByPrimary) 
                      | CheckpointMsg(seqIDReached:SequenceID)
                      {
-                       predicate valid(quorumSize:nat) {
-                         && (ViewChangeMsg? ==> proofForLastStable.valid(lastStableCheckpoint, quorumSize))
-                         && (NewViewMsg? ==> vcMsgs.valid(newView, quorumSize))
+                       predicate valid(quorumSize:nat)
+                       {
+                         && (ViewChangeMsg? ==> validViewChangeMsg(quorumSize))
+                         && (NewViewMsg? ==> validNewViewMsg(quorumSize))
+                       }
+                       predicate validViewChangeMsg(quorumSize:nat) 
+                         requires ViewChangeMsg?
+                       {
+                         proofForLastStable.valid(lastStableCheckpoint, quorumSize)
+                       }
+                       predicate validNewViewMsg(quorumSize:nat) 
+                         requires NewViewMsg?
+                       {
+                         vcMsgs.valid(newView, quorumSize)
                        }
                      }
-  predicate CheckMessageValidity(msg:Message, quorumSize:nat) {
-    && (msg.ViewChangeMsg? ==> msg.proofForLastStable.valid(msg.lastStableCheckpoint, quorumSize))
-    && (msg.NewViewMsg? ==> msg.vcMsgs.valid(msg.newView, quorumSize))
-  }
   // ToDo: ClientReply
 }
