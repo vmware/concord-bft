@@ -830,7 +830,8 @@ void PreProcessor::onMessage<ClientBatchRequestMsg>(ClientBatchRequestMsg *msg) 
     if (!preProcessReqMsgList.empty())
       // For the non-batched inter-replicas communication PreProcessReq messages get sent to all non-primary replicas
       // in handleClientPreProcessRequestByPrimary function one-by-one
-      sendPreProcessBatchReqToAllReplicas(std::move(clientBatchMsg), preProcessReqMsgList, overallPreProcessReqMsgsSize);
+      sendPreProcessBatchReqToAllReplicas(
+          std::move(clientBatchMsg), preProcessReqMsgList, overallPreProcessReqMsgsSize);
   } else {
     LOG_DEBUG(logger(), "Pass ClientBatchRequestMsg to the current primary" << KVLOG(senderId, clientId, batchCid));
     sendMsg(clientBatchMsg->body(), myReplica_.currentPrimary(), clientBatchMsg->type(), clientBatchMsg->size());
@@ -1780,6 +1781,11 @@ ReqId PreProcessor::getOngoingReqIdForClient(uint16_t clientId, uint16_t reqOffs
   lock_guard<mutex> lock(reqEntry->mutex);
   if (reqEntry->reqProcessingStatePtr) return reqEntry->reqProcessingStatePtr->getReqSeqNum();
   return 0;
+}
+
+// For test purposes
+RequestsBatchSharedPtr PreProcessor::getOngoingBatchForClient(uint16_t clientId) {
+  return ongoingReqBatches_[clientId];
 }
 
 void PreProcessor::handleReqPreProcessedByPrimary(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,

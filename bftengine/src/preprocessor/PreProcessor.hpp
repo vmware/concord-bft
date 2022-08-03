@@ -147,6 +147,7 @@ class PreProcessor {
 
   // For testing purposes
   ReqId getOngoingReqIdForClient(uint16_t clientId, uint16_t reqOffsetInBatch);
+  RequestsBatchSharedPtr getOngoingBatchForClient(uint16_t clientId);
 
  protected:
   bool checkPreProcessRequestMsgCorrectness(const PreProcessRequestMsgSharedPtr &requestMsg);
