@@ -84,6 +84,11 @@ make
 sudo make test
 ```
 
+By default the build chooses the active compiler on the native build platform. In order to force compilation by clang you can use the following command.
+```sh
+CC=clang CXX=clang++ cmake ..
+```
+
 In order to turn on or off various options, you need to change your cmake configuration. This is
 done by passing arguments to cmake with a `-D` prefix: e.g. `cmake -DBUILD_TESTING=OFF`. Note that
 make must be run afterwards to build according to the configuration. Please see [CMakeLists.txt](CMakeLists.txt) for configurable options.
