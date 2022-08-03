@@ -134,6 +134,7 @@ class SkvbcReconfigurationTest(ApolloTest):
     def tearDownClass(cls):
         pass
 
+    @unittest.skip("Skipping for single case repro")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True, publish_master_keys=True)
     async def test_clients_add_remove_cmd(self, bft_network):
@@ -287,18 +288,18 @@ class SkvbcReconfigurationTest(ApolloTest):
             for i in range(100):
                 await skvbc.send_write_kv_set()
 
-            #await trio.sleep(2)
-            await skvbc.validate_seq_num_for_all_replicas()
+            seq_num1 = await skvbc.validate_last_exec_seq_num_for_all_replicas(60)
+            seq_num2 = await skvbc.validate_last_exec_seq_num_for_all_replicas(90)
+            assert seq_num1 == seq_num2
+
             initial_prim = 0
             next_primary = 1
-            #await trio.sleep(1)
             bft_network.stop_replica(next_primary)
             next_prime_cert = self.collect_client_certificates(bft_network, [next_primary])
             await self.run_client_tls_key_exchange_cycle(bft_network, list(bft_network.all_replicas(without={next_primary})) + [bft_network.cre_id])
             for i in range(500):
                 await skvbc.send_write_kv_set()
             current_view = await bft_network.wait_for_view(0)
-            #await trio.sleep(1)
             # Let the next primary complete state transfer
             bft_network.start_replica(next_primary)
             await bft_network.wait_for_state_transfer_to_start()
@@ -1396,6 +1397,7 @@ class SkvbcReconfigurationTest(ApolloTest):
 
         await self.send_restart_with_params(bft_network, bft=bft, restart=False, post_restart=post_restart)
 
+    @unittest.skip("Skipping for single case repro")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_restart_no_bft_with_restart_flag(self, bft_network):
@@ -1412,6 +1414,7 @@ class SkvbcReconfigurationTest(ApolloTest):
         crashed_replicas = set(range(replica_count - 2, replica_count))
         await self.send_restart_with_params(bft_network, bft=True, restart=True, faulty_replica_ids=crashed_replicas)
 
+    @unittest.skip("Skipping for single case repro")
     @with_trio
     @with_bft_network(start_replica_cmd_with_key_exchange, selected_configs=lambda n, f, c: n == 7, rotate_keys=True, publish_master_keys=True)
     async def test_remove_nodes(self, bft_network):
@@ -1738,6 +1741,7 @@ class SkvbcReconfigurationTest(ApolloTest):
             assert status.response.error_msg == 'key_not_found'
             assert status.success is False
 
+    @unittest.skip("Skipping for single case repro")
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd_with_object_store_and_ke, num_ro_replicas=1, rotate_keys=True,
                       selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
