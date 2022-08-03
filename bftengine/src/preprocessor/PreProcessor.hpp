@@ -80,7 +80,7 @@ class RequestsBatch {
   bool isBatchRegistered(std::string &batchCid) const;
   bool isBatchInProcess() const;
   bool isBatchInProcess(std::string &batchCid) const;
-  void increaseNumOfCompletedReqs(uint32_t count) { numOfCompletedReqs_ += count; }
+  void increaseNumOfCompletedReqs(uint32_t count);
   RequestStateSharedPtr &getRequestState(uint16_t reqOffsetInBatch);
   const std::string getBatchCid() const;
   void cancelBatchAndReleaseRequests(const std::string &batchCid, PreProcessingResult status);

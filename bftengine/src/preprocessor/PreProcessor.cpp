@@ -125,6 +125,11 @@ RequestStateSharedPtr &RequestsBatch::getRequestState(uint16_t reqOffsetInBatch)
   return requestsMap_[reqOffsetInBatch];
 }
 
+void RequestsBatch::increaseNumOfCompletedReqs(uint32_t count) {
+  numOfCompletedReqs_ += count;
+  LOG_INFO(preProcessor_.logger(), KVLOG(numOfCompletedReqs_));
+}
+
 void RequestsBatch::handlePossiblyExpiredRequests() {
   uint32_t reqsExpired = 0;
   for (const auto &req : requestsMap_)
@@ -229,6 +234,8 @@ void RequestsBatch::cancelRequestAndBatchIfCompleted(const string &reqBatchCid,
     lock.unlock();
     preProcessor_.releaseClientPreProcessRequest(reqEntry, status);
     lock.lock();
+    LOG_INFO(preProcessor_.logger(),
+             "Request Released, batch release started" << KVLOG(clientId_, reqBatchCid, batchCid_));
     finalizeBatchIfCompleted();
   }
 }
@@ -242,12 +249,12 @@ void RequestsBatch::finalizeBatchIfCompletedSafe() {
 // On a primary replica; unsafe
 void RequestsBatch::finalizeBatchIfCompleted() {
   if (!batchSize_) {
-    LOG_WARN(preProcessor_.logger(), "Release called for an empty batch" << KVLOG(clientId_));
+    LOG_INFO(preProcessor_.logger(), "Release called for an empty batch" << KVLOG(clientId_));
     return;
   }
   if (numOfCompletedReqs_ < batchSize_) {
-    LOG_DEBUG(preProcessor_.logger(),
-              "The batch is not completed yet" << KVLOG(clientId_, batchCid_, numOfCompletedReqs_, batchSize_));
+    LOG_INFO(preProcessor_.logger(),
+             "The batch is not completed yet" << KVLOG(clientId_, batchCid_, numOfCompletedReqs_, batchSize_));
     return;
   }
   const auto batchCid = batchCid_;
@@ -1304,9 +1311,9 @@ void PreProcessor::holdCompleteOrCancelRequest(const string &reqCid,
                                                uint16_t reqOffsetInBatch,
                                                SeqNum reqSeqNum,
                                                const string &batchCid) {
-  LOG_DEBUG(logger(),
-            "Decide how to continue request processing"
-                << KVLOG(result, batchCid, reqSeqNum, reqCid, clientId, reqOffsetInBatch));
+  LOG_INFO(logger(),
+           "Decide how to continue request processing"
+               << KVLOG(result, batchCid, reqSeqNum, reqCid, clientId, reqOffsetInBatch));
   switch (result) {
     case NONE:      // No action required - pre-processing has been already completed
     case CONTINUE:  // Not enough equal hashes collected
@@ -1331,8 +1338,10 @@ void PreProcessor::holdCompleteOrCancelRequest(const string &reqCid,
 void PreProcessor::cancelPreProcessing(NodeIdType clientId, const string &batchCid, uint16_t reqOffsetInBatch) {
   const auto &batchEntry = ongoingReqBatches_[clientId];
   const auto &reqEntry = batchEntry->getRequestState(reqOffsetInBatch);
+  LOG_INFO(logger(), "Cancelling pre processing : " << KVLOG(clientId, batchCid));
   if (!batchCid.empty()) {
     batchEntry->cancelRequestAndBatchIfCompleted(batchCid, reqOffsetInBatch, CANCEL);
+    LOG_INFO(logger(), "Request Cancelled :" << KVLOG(clientId, batchCid));
     return;
   }
   preProcessorMetrics_.preProcConsensusNotReached++;
@@ -1546,7 +1555,12 @@ void PreProcessor::releaseClientPreProcessRequest(const RequestStateSharedPtr &r
       }
     }
     reqEntry->reqProcessingStatePtr.reset();
-    if (batchedPreProcessEnabled_ && !batchCid.empty()) ongoingReqBatches_[clientId]->increaseNumOfCompletedReqs(1);
+    if (batchedPreProcessEnabled_ && !batchCid.empty()) {
+      LOG_INFO(
+          logger(),
+          "Increase the Num of Completed Counter" << KVLOG(batchCid, reqSeqNum, reqCid, clientId, reqOffsetInBatch));
+      ongoingReqBatches_[clientId]->increaseNumOfCompletedReqs(1);
+    }
     if (!myReplica_.isCurrentPrimary()) {
       preProcessorMetrics_.preProcInFlyRequestsNum--;
     }
@@ -1836,9 +1850,9 @@ void PreProcessor::handleReqPreProcessedByPrimary(const PreProcessRequestMsgShar
           preProcessResult);
       result = reqEntry->reqProcessingStatePtr->definePreProcessingConsensusResult();
     }
-    LOG_DEBUG(logger(),
-              "Request has been pre-processed by the primary replica"
-                  << KVLOG(clientId, batchCid, reqSeqNum, reqCid, (uint32_t)preProcessResult, result));
+    LOG_INFO(logger(),
+             "Request has been pre-processed by the primary replica"
+                 << KVLOG(clientId, batchCid, reqSeqNum, reqCid, (uint32_t)preProcessResult, result));
     if (result != NONE) holdCompleteOrCancelRequest(reqCid, result, clientId, reqOffsetInBatch, reqSeqNum, batchCid);
   }
 }

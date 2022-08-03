@@ -304,6 +304,7 @@ PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult()
         return COMPLETE;
       }
       reportNonEqualHashes(itOfChosenHash->first.data(), itOfChosenHash->first.size());
+      LOG_INFO(logger(), "Returning cancel as hash is not equal");
       return CANCEL;
     }
   } else
