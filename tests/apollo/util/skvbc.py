@@ -440,12 +440,9 @@ class SimpleKVBCProtocol:
                 while True:
                     repl_counter = 0
                     last_seq_num0 = await self.bft_network.wait_for_last_executed_seq_num(repl_counter)
-                    sys.stdout.write("\nValue of last_seq_num0 is %s" % last_seq_num0)
                     while repl_counter < self.bft_network.num_total_replicas() - 1:
                         repl_counter += 1
-                        sys.stdout.write("\nValue of repl_counter is %s" % repl_counter)
                         last_seq_num1 = await self.bft_network.wait_for_last_executed_seq_num(repl_counter)
-                        sys.stdout.write("\nValue of last_seq_num1 is %s" % last_seq_num1)
                         if last_seq_num0 != last_seq_num1:
                             break
                     if repl_counter == self.bft_network.num_total_replicas() - 1:
