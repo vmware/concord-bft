@@ -14,12 +14,11 @@
 
 #include "gtest/gtest.h"
 #include "hex_tools.h"
-#include "sha_hash.hpp"
-#include "openssl_digest_creator.hpp"
+#include "openssl/digest_creator.hpp"
 
 using concord::util::SHA2_256;
 using concord::util::SHA3_256;
-using concord::util::digest::OpenSSLDigestCreator;
+using concord::util::crypto::openssl::OpenSSLDigestCreator;
 
 using DigestGeneratorTest_SHA2_256 = OpenSSLDigestCreator<SHA2_256>;
 using DigestGeneratorTest_SHA3_256 = OpenSSLDigestCreator<SHA3_256>;

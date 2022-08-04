@@ -11,11 +11,11 @@
 // terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
-#include "crypto_utils.hpp"
+#include "crypto.hpp"
 #include "string.hpp"
 #include <unordered_map>
 
-namespace concord::util::crypto {
+namespace concord::crypto {
 
 const std::unordered_map<std::string, int> name_to_id_map = {{"C", NID_countryName},
                                                              {"L", NID_localityName},
@@ -25,7 +25,7 @@ const std::unordered_map<std::string, int> name_to_id_map = {{"C", NID_countryNa
                                                              {"CN", NID_commonName}};
 
 bool isValidKey(const std::string& keyName, const std::string& key, size_t expectedSize) {
-  auto isValidHex = isValidHexString(key);
+  auto isValidHex = util::isValidHexString(key);
   if ((expectedSize == 0 or (key.length() == expectedSize)) and isValidHex) {
     return true;
   }
@@ -104,4 +104,4 @@ std::vector<std::string> CertificateUtils::getSubjectFieldListByName(const std::
   X509_STORE_free(store);
   return attribute_list;
 }
-}  // namespace concord::util::crypto
+}  // namespace concord::crypto

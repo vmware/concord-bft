@@ -21,16 +21,18 @@
 #include "concord.cmf.hpp"
 #include "communication/StateControl.hpp"
 #include "ReplicaImp.hpp"
-#include "openssl_utils.hpp"
-#include "sign_verify_utils.hpp"
+#include "crypto/factory.hpp"
+#include "crypto.hpp"
+#include "openssl/utils.hpp"
 
 namespace bftEngine::impl {
 
-using concord::util::crypto::KeyFormat;
-using concord::crypto::openssl::CertificateUtils;
-using concord::crypto::signature::SIGN_VERIFY_ALGO;
-using concord::crypto::cryptopp::Crypto;
-using concord::crypto::openssl::OpenSSLCryptoImpl;
+using concord::crypto::KeyFormat;
+using concord::crypto::SIGN_VERIFY_ALGO;
+using concord::crypto::EdDSAHexToPem;
+using concord::crypto::RsaHexToPem;
+using concord::crypto::generateECDSAKeyPair;
+using concord::crypto::generateSelfSignedCert;
 
 KeyExchangeManager::KeyExchangeManager(InitData* id)
     : repID_{ReplicaConfig::instance().getreplicaId()},
@@ -155,8 +157,7 @@ void KeyExchangeManager::loadClientPublicKeys() {
 }
 
 void KeyExchangeManager::exchangeTlsKeys(const std::string& type, const SeqNum& bft_sn) {
-  auto keys = concord::crypto::cryptopp::Crypto::instance().generateECDSAKeyPair(
-      concord::util::crypto::KeyFormat::PemFormat, concord::util::crypto::CurveType::secp384r1);
+  auto keys = generateECDSAKeyPair(concord::crypto::KeyFormat::PemFormat, concord::crypto::CurveType::secp384r1);
   bool use_unified_certs = bftEngine::ReplicaConfig::instance().useUnifiedCertificates;
   const std::string base_path =
       bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" + std::to_string(repID_);
@@ -165,13 +166,12 @@ void KeyExchangeManager::exchangeTlsKeys(const std::string& type, const SeqNum& 
 
   std::string prev_key_pem;
   if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
-    prev_key_pem = Crypto::instance().RsaHexToPem(std::make_pair(SigManager::instance()->getSelfPrivKey(), "")).first;
+    prev_key_pem = RsaHexToPem(std::make_pair(SigManager::instance()->getSelfPrivKey(), "")).first;
   } else if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
-    prev_key_pem =
-        OpenSSLCryptoImpl::instance().EdDSAHexToPem(std::make_pair(SigManager::instance()->getSelfPrivKey(), "")).first;
+    prev_key_pem = EdDSAHexToPem(std::make_pair(SigManager::instance()->getSelfPrivKey(), "")).first;
   }
 
-  auto cert = CertificateUtils::generateSelfSignedCert(cert_path, keys.second, prev_key_pem);
+  auto cert = generateSelfSignedCert(cert_path, keys.second, prev_key_pem);
   // Now that we have generated new key pair and certificate, lets do the actual exchange on this replica
   std::string pk_path = root_path + "/pk.pem";
   std::fstream nec_f(pk_path);

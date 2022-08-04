@@ -14,8 +14,7 @@
 
 #include "EdDSA.hpp"
 #include "openssl_crypto.hpp"
-#include "crypto_utils.hpp"
-#include "crypto/interface/verifier.hpp"
+#include "crypto/verifier.hpp"
 
 // OpenSSL includes.
 #include <openssl/pem.h>
@@ -48,7 +47,7 @@ class EdDSAVerifier : public IVerifier {
   bool verify(const uint8_t *msg, size_t msgLen, const uint8_t *sig, size_t sigLen) const {
     using concord::util::openssl_utils::UniquePKEY;
     using concord::util::openssl_utils::OPENSSL_SUCCESS;
-    ConcordAssertEQ(sigLen, EdDSASignatureByteSize);
+    ConcordAssertEQ(sigLen, concord::util::crypto::openssl::EdDSASignatureByteSize);
     UniquePKEY pkey{
         EVP_PKEY_new_raw_public_key(NID_ED25519, nullptr, publicKey_.getBytes().data(), publicKey_.getBytes().size())};
     concord::util::openssl_utils::UniqueOpenSSLContext ctx{EVP_MD_CTX_new()};
@@ -56,7 +55,7 @@ class EdDSAVerifier : public IVerifier {
     return (OPENSSL_SUCCESS == EVP_DigestVerify(ctx.get(), sig, sigLen, msg, msgLen));
   }
 
-  uint32_t signatureLength() const override { return EdDSASignatureByteSize; }
+  uint32_t signatureLength() const override { return concord::util::crypto::openssl::EdDSASignatureByteSize; }
 
   std::string getPubKey() const override { return publicKey_.toString(); }
 

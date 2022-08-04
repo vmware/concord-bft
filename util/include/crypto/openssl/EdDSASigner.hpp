@@ -14,8 +14,8 @@
 
 #include "EdDSA.hpp"
 #include "openssl_crypto.hpp"
+#include "crypto/signer.hpp"
 #include "crypto_utils.hpp"
-#include "crypto/interface/signer.hpp"
 
 namespace concord::crypto::openssl {
 
@@ -40,10 +40,10 @@ class EdDSASigner : public ISigner {
   }
 
   std::string sign(const uint8_t *msg, size_t len) const {
-    std::string signature(EdDSASignatureByteSize, 0);
-    size_t sigLen_ = EdDSASignatureByteSize;
+    std::string signature(concord::util::crypto::openssl::EdDSASignatureByteSize, 0);
+    size_t sigLen_ = concord::util::crypto::openssl::EdDSASignatureByteSize;
     sign(msg, len, reinterpret_cast<uint8_t *>(signature.data()), sigLen_);
-    ConcordAssertEQ(sigLen_, EdDSASignatureByteSize);
+    ConcordAssertEQ(sigLen_, concord::util::crypto::openssl::EdDSASignatureByteSize);
     return signature;
   }
 
@@ -58,7 +58,7 @@ class EdDSASigner : public ISigner {
     return sign(reinterpret_cast<const uint8_t *>(message.data()), message.size());
   }
 
-  uint32_t signatureLength() const override { return EdDSASignatureByteSize; }
+  uint32_t signatureLength() const override { return concord::util::crypto::openssl::EdDSASignatureByteSize; }
 
   std::string getPrivKey() const override { return privateKey_.toString(); }
 

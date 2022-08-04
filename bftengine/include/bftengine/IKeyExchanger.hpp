@@ -10,7 +10,7 @@
 // file.
 
 #pragma once
-#include "cryptopp_utils.hpp"
+#include "crypto.hpp"
 #include <string>
 #include <cstdint>
 
@@ -31,5 +31,5 @@ class IMultiSigKeyGenerator {
 class IClientPublicKeyStore {
  public:
   virtual ~IClientPublicKeyStore() = default;
-  virtual void setClientPublicKey(uint16_t clientId, const std::string& key, concord::util::crypto::KeyFormat) = 0;
+  virtual void setClientPublicKey(uint16_t clientId, const std::string& key, concord::crypto::KeyFormat) = 0;
 };

@@ -15,10 +15,10 @@
 #include "gtest/gtest.h"
 #include "hex_tools.h"
 #include "digest_holder.hpp"
-#include "cryptopp_digest_creator.hpp"
+#include "cryptopp/digest_creator.hpp"
 
 using concord::util::digest::DigestHolder;
-using concord::util::digest::CryptoppDigestCreator;
+using concord::util::crypto::cryptopp::CryptoppDigestCreator;
 
 using Digest = DigestHolder<CryptoppDigestCreator>;
 

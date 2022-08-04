@@ -49,7 +49,7 @@ void ViewChangeMsgTestsFixture::ViewChangeMsgTests(bool bAddElements,
   ReplicasInfo replicaInfo(config, true, true);
   std::unique_ptr<SigManager> sigManager(createSigManager(config.replicaId,
                                                           config.replicaPrivateKey,
-                                                          concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                                                          concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                                           config.publicKeysOfReplicas,
                                                           replicaInfo));
   ViewsManager manager(&replicaInfo);
@@ -193,7 +193,7 @@ void ViewChangeMsgTestsFixture::ViewChangeMsgAddRemoveComplaints(const std::stri
   ReplicasInfo replicaInfo(config, true, true);
   std::unique_ptr<SigManager> sigManager(createSigManager(config.replicaId,
                                                           config.replicaPrivateKey,
-                                                          concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                                                          concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                                           config.publicKeysOfReplicas,
                                                           replicaInfo));
   ViewsManager manager(&replicaInfo);

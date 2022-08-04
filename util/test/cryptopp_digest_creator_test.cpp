@@ -14,9 +14,9 @@
 
 #include "gtest/gtest.h"
 #include "hex_tools.h"
-#include "cryptopp_digest_creator.hpp"
+#include "cryptopp/digest_creator.hpp"
 
-using concord::util::digest::CryptoppDigestCreator;
+using concord::util::crypto::cryptopp::CryptoppDigestCreator;
 
 using DigestGeneratorTest = CryptoppDigestCreator;
 

@@ -12,7 +12,7 @@
 #pragma once
 #include "threshsign/IThresholdVerifier.h"
 #include "SingleEdDSASignature.h"
-#include "crypto/eddsa/EdDSAVerifier.hpp"
+#include "crypto/openssl/EdDSAVerifier.hpp"
 #include "EdDSAThreshsignKeys.h"
 
 class EdDSAMultisigVerifier;

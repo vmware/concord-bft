@@ -17,7 +17,8 @@
 #include <string>
 #include <vector>
 
-namespace concord::util::crypto {
+namespace concord::crypto {
+
 enum class KeyFormat : uint16_t { HexaDecimalStrippedFormat, PemFormat };
 enum class CurveType : uint16_t { secp256k1, secp384r1 };
 
@@ -36,4 +37,4 @@ bool isValidKey(const std::string& keyType, const std::string& key, size_t expec
   static std::vector<std::string> getSubjectFieldListByName(const std::string& cert_bundle_path,
                                                             const std::string& attribute_name);
 
-}  // namespace concord::util::crypto
+}  // namespace concord::crypto

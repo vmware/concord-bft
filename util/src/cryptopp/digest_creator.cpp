@@ -21,12 +21,13 @@
 #include <cryptopp/ida.h>
 #include <cryptopp/eccrypto.h>
 
-#include "cryptopp_digest_creator.hpp"
+#include "cryptopp/digest_creator.hpp"
 #include "digest.hpp"
 
-namespace concord::util::digest {
+namespace concord::util::crypto::cryptopp {
 
 using CryptoPP::SecByteBlock;
+using concord::util::digest::DigestGenerator;
 
 CryptoppDigestCreator::CryptoppDigestCreator() {
   DigestType* p = new DigestType();
@@ -87,4 +88,4 @@ CryptoppDigestCreator::~CryptoppDigestCreator() {
     internalState_ = nullptr;
   }
 }
-}  // namespace concord::util::digest
+}  // namespace concord::util::crypto::cryptopp

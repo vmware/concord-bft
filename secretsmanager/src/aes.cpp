@@ -28,7 +28,7 @@ using std::unique_ptr;
 using concord::util::openssl_utils::OPENSSL_SUCCESS;
 using concord::util::openssl_utils::UniqueOpenSSLCipherContext;
 using bftEngine::ReplicaConfig;
-using concord::crypto::signature::SIGN_VERIFY_ALGO;
+using concord::crypto::SIGN_VERIFY_ALGO;
 
 AES_CBC::AES_CBC(const KeyParams& params) {
   if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {

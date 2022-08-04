@@ -21,13 +21,12 @@
 #include "threshsign/IThresholdSigner.h"
 #include "threshsign/IThresholdVerifier.h"
 #include "KeyfileIOUtils.hpp"
-#include "sign_verify_utils.hpp"
+#include "crypto/factory.hpp"
 
 using concord::crypto::ISigner;
 using concord::crypto::IVerifier;
-using concord::crypto::signature::SignerFactory;
-using concord::crypto::signature::VerifierFactory;
-using concord::util::crypto::KeyFormat;
+using concord::crypto::Factory;
+using concord::crypto::KeyFormat;
 using bftEngine::ReplicaConfig;
 
 // How often to output status when testing cryptosystems, measured as an
@@ -143,13 +142,13 @@ static bool testReplicaKeyPair(const std::string& privateKey, const std::string&
   const std::string invalidPublicKey = "FAILURE: Invalid public key for replica " + std::to_string(replicaID) + ".\n";
 
   try {
-    signer = SignerFactory::getReplicaSigner(privateKey, ReplicaConfig::instance().replicaMsgSigningAlgo);
+    signer = Factory::getSigner(privateKey, ReplicaConfig::instance().replicaMsgSigningAlgo);
   } catch (const std::exception& e) {
     std::cout << invalidPrivateKey;
     return false;
   }
   try {
-    verifier = VerifierFactory::getReplicaVerifier(publicKey, ReplicaConfig::instance().replicaMsgSigningAlgo);
+    verifier = Factory::getVerifier(publicKey, ReplicaConfig::instance().replicaMsgSigningAlgo);
   } catch (const std::exception& e) {
     std::cout << invalidPublicKey;
     return false;

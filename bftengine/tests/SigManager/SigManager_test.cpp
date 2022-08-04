@@ -19,10 +19,11 @@
 #include <cryptopp/base64.h>
 #include <cryptopp/files.h>
 #include "gtest/gtest.h"
-#include "sign_verify_utils.hpp"
+#include "crypto/factory.hpp"
+#include "crypto.hpp"
 
 using namespace std;
-using concord::util::crypto::KeyFormat;
+using concord::crypto::KeyFormat;
 
 constexpr char KEYS_BASE_PARENT_PATH[] = "/tmp/";
 constexpr char KEYS_BASE_PATH[] = "/tmp/transaction_signing_keys";
@@ -36,11 +37,10 @@ std::default_random_engine generator;
 
 using concord::crypto::ISigner;
 using concord::crypto::IVerifier;
-using concord::crypto::signature::SignerFactory;
-using concord::crypto::signature::VerifierFactory;
-using concord::crypto::openssl::OpenSSLCryptoImpl;
+using concord::crypto::Factory;
 using bftEngine::ReplicaConfig;
-using concord::crypto::signature::SIGN_VERIFY_ALGO;
+using concord::crypto::SIGN_VERIFY_ALGO;
+using concord::crypto::generateEdDSAKeyPair;
 
 void generateKeyPairs(size_t count) {
   ostringstream cmd;
@@ -87,12 +87,11 @@ void corrupt(char* data, size_t len) {
 TEST(SignerAndVerifierTest, LoadSignVerifyFromHexKeyPair) {
   char data[RANDOM_DATA_SIZE]{0};
 
-  const auto keyPair = OpenSSLCryptoImpl::instance().generateEdDSAKeyPair();
+  const auto keyPair = generateEdDSAKeyPair();
   generateRandomData(data, RANDOM_DATA_SIZE);
 
-  const auto signer_ = SignerFactory::getReplicaSigner(keyPair.first, ReplicaConfig::instance().replicaMsgSigningAlgo);
-  const auto verifier_ =
-      VerifierFactory::getReplicaVerifier(keyPair.second, ReplicaConfig::instance().replicaMsgSigningAlgo);
+  const auto signer_ = Factory::getSigner(keyPair.first, ReplicaConfig::instance().replicaMsgSigningAlgo);
+  const auto verifier_ = Factory::getVerifier(keyPair.second, ReplicaConfig::instance().replicaMsgSigningAlgo);
 
   // sign with RSASigner/EdDSASigner
   std::string sig;
@@ -134,9 +133,9 @@ TEST(SignerAndVerifierTest, LoadSignVerifyFromPemfiles) {
   readFile(publicKeyFullPath, pubkey);
 
   const auto signer_ =
-      SignerFactory::getReplicaSigner(privKey, ReplicaConfig::instance().replicaMsgSigningAlgo, KeyFormat::PemFormat);
-  const auto verifier_ = VerifierFactory::getReplicaVerifier(
-      pubkey, ReplicaConfig::instance().replicaMsgSigningAlgo, KeyFormat::PemFormat);
+      Factory::getSigner(privKey, ReplicaConfig::instance().replicaMsgSigningAlgo, KeyFormat::PemFormat);
+  const auto verifier_ =
+      Factory::getVerifier(pubkey, ReplicaConfig::instance().replicaMsgSigningAlgo, KeyFormat::PemFormat);
 
   // sign with RSASigner/EdDSASigner
   size_t expectedSignerSigLen = signer_->signatureLength();
@@ -183,8 +182,7 @@ TEST(SigManagerTest, ReplicasOnlyCheckVerify) {
       myPrivKey = privKey;
       continue;
     }
-    signers[pid] =
-        SignerFactory::getReplicaSigner(privKey, ReplicaConfig::instance().replicaMsgSigningAlgo, KeyFormat::PemFormat);
+    signers[pid] = Factory::getSigner(privKey, ReplicaConfig::instance().replicaMsgSigningAlgo, KeyFormat::PemFormat);
     string pubKeyFullPath({string(KEYS_BASE_PATH) + string("/") + to_string(i) + string("/") + PUB_KEY_NAME});
     readFile(pubKeyFullPath, pubKey);
     publicKeysOfReplicas.insert(make_pair(pid, pubKey));
@@ -247,8 +245,7 @@ TEST(SigManagerTest, ReplicasOnlyCheckSign) {
   string pubKeyFullPath({string(KEYS_BASE_PATH) + string("/") + to_string(1) + string("/") + PUB_KEY_NAME});
   readFile(pubKeyFullPath, pubKey);
 
-  verifier = VerifierFactory::getReplicaVerifier(
-      pubKey, ReplicaConfig::instance().replicaMsgSigningAlgo, KeyFormat::PemFormat);
+  verifier = Factory::getVerifier(pubKey, ReplicaConfig::instance().replicaMsgSigningAlgo, KeyFormat::PemFormat);
 
   // load public key of other replicas, must be done for SigManager ctor
   for (size_t i{2}; i <= numReplicas; ++i) {
@@ -314,7 +311,7 @@ TEST(SigManagerTest, ReplicasAndClientsCheckVerify) {
       continue;
     }
     signers[signerIndex] =
-        SignerFactory::getReplicaSigner(privKey, ReplicaConfig::instance().replicaMsgSigningAlgo, KeyFormat::PemFormat);
+        Factory::getSigner(privKey, ReplicaConfig::instance().replicaMsgSigningAlgo, KeyFormat::PemFormat);
 
     string pubKeyFullPath({string(KEYS_BASE_PATH) + string("/") + to_string(i) + string("/") + PUB_KEY_NAME});
     readFile(pubKeyFullPath, pubKey);
@@ -330,7 +327,7 @@ TEST(SigManagerTest, ReplicasAndClientsCheckVerify) {
     string privateKeyFullPath({string(KEYS_BASE_PATH) + string("/") + to_string(i) + string("/") + PRIV_KEY_NAME});
     readFile(privateKeyFullPath, privKey);
     signers[signerIndex] =
-        SignerFactory::getReplicaSigner(privKey, ReplicaConfig::instance().replicaMsgSigningAlgo, KeyFormat::PemFormat);
+        Factory::getSigner(privKey, ReplicaConfig::instance().replicaMsgSigningAlgo, KeyFormat::PemFormat);
     string pubKeyFullPath({string(KEYS_BASE_PATH) + string("/") + to_string(i) + string("/") + PUB_KEY_NAME});
     set<PrincipalId> principalIds;
     for (size_t j{0}; j < numBftClientsInParticipantNodes; ++j) {

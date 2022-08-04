@@ -23,22 +23,25 @@
 
 #include "thread_pool.hpp"
 #include "picobench.hpp"
-#include "cryptopp_utils.hpp"
-#include "crypto/eddsa/EdDSASigner.hpp"
-#include "crypto/eddsa/EdDSAVerifier.hpp"
+#include "crypto.hpp"
+#include "crypto/openssl/EdDSASigner.hpp"
+#include "crypto/openssl/EdDSAVerifier.hpp"
 #include "util/filesystem.hpp"
-#include "openssl_utils.hpp"
-#include "crypto_utils.hpp"
+#include "crypto/cryptopp/signers.hpp"
+#include "crypto/cryptopp/verifiers.hpp"
 
 namespace concord::benchmark {
 using std::string;
 using std::unique_ptr;
-using concord::util::crypto::KeyFormat;
+using concord::crypto::KeyFormat;
 using concord::crypto::cryptopp::RSASigner;
 using concord::crypto::cryptopp::RSAVerifier;
-using concord::crypto::cryptopp::Crypto;
-using concord::crypto::openssl::OpenSSLCryptoImpl;
 using concord::crypto::cryptopp::RSA_SIGNATURE_LENGTH;
+using concord::crypto::generateEdDSAKeyPair;
+using concord::crypto::generateRsaKeyPair;
+using concord::util::crypto::openssl::EdDSAPrivateKey;
+using concord::util::crypto::openssl::EdDSAPublicKey;
+using concord::util::crypto::openssl::deserializeKey;
 
 using TestSigner = concord::crypto::openssl::EdDSASigner<EdDSAPrivateKey>;
 using TestVerifier = concord::crypto::openssl::EdDSAVerifier<EdDSAPublicKey>;
@@ -49,8 +52,8 @@ constexpr size_t RANDOM_DATA_SIZE = 1000U;
 constexpr uint8_t RANDOM_DATA_ARRAY_SIZE = 100U;
 static string randomData[RANDOM_DATA_ARRAY_SIZE];
 
-const auto rsaKeysPair = Crypto::instance().generateRsaKeyPair(RSA_SIGNATURE_LENGTH);
-const auto eddsaKeysPair = OpenSSLCryptoImpl::instance().generateEdDSAKeyPair();
+const auto rsaKeysPair = generateRsaKeyPair(RSA_SIGNATURE_LENGTH);
+const auto eddsaKeysPair = generateEdDSAKeyPair();
 
 /**
  * Initializes 'randomData' with random bytes of size 'len'.

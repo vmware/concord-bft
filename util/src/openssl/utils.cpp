@@ -11,37 +11,26 @@
 // terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
-#include "openssl_utils.hpp"
+#include "utils.hpp"
 #include "Logger.hpp"
-#include "assertUtils.hpp"
-#include "hex_tools.h"
-#include "openssl_crypto.hpp"
-#include "crypto/eddsa/EdDSA.hpp"
 #include "util/filesystem.hpp"
 #include "ReplicaConfig.hpp"
 
 #include <regex>
-#include <utility>
 
-namespace concord::crypto::openssl {
-using std::pair;
-using std::array;
-using std::string;
+namespace concord::crypto {
 using std::unique_ptr;
+using std::string;
 using bftEngine::ReplicaConfig;
-using concord::crypto::signature::SIGN_VERIFY_ALGO;
-using concord::util::crypto::KeyFormat;
+using concord::crypto::SIGN_VERIFY_ALGO;
 using concord::util::openssl_utils::UniquePKEY;
-using concord::util::openssl_utils::UniqueOpenSSLPKEYContext;
 using concord::util::openssl_utils::UniqueOpenSSLX509;
 using concord::util::openssl_utils::UniqueOpenSSLBIO;
 using concord::util::openssl_utils::OPENSSL_SUCCESS;
 using concord::util::openssl_utils::OPENSSL_FAILURE;
 using concord::util::openssl_utils::OPENSSL_ERROR;
 
-string CertificateUtils::generateSelfSignedCert(const string& origin_cert_path,
-                                                const string& public_key,
-                                                const string& signing_key) {
+string generateSelfSignedCert(const string& origin_cert_path, const string& public_key, const string& signing_key) {
   unique_ptr<FILE, decltype(&fclose)> fp(fopen(origin_cert_path.c_str(), "r"), fclose);
   if (nullptr == fp) {
     LOG_ERROR(OPENSSL_LOG, "Certificate file not found, path: " << origin_cert_path);
@@ -111,7 +100,7 @@ string CertificateUtils::generateSelfSignedCert(const string& origin_cert_path,
   return certStr;
 }
 
-bool CertificateUtils::verifyCertificate(X509& cert, const string& public_key) {
+bool verifyCertificate(X509& cert, const string& public_key) {
   UniquePKEY pub_key(EVP_PKEY_new());
   UniqueOpenSSLBIO pub_bio(BIO_new(BIO_s_mem()));
 
@@ -124,11 +113,11 @@ bool CertificateUtils::verifyCertificate(X509& cert, const string& public_key) {
   return (OPENSSL_SUCCESS == X509_verify(&cert, pub_key.get()));
 }
 
-bool CertificateUtils::verifyCertificate(const X509& cert_to_verify,
-                                         const string& cert_root_directory,
-                                         uint32_t& remote_peer_id,
-                                         string& conn_type,
-                                         bool use_unified_certs) {
+bool verifyCertificate(const X509& cert_to_verify,
+                       const string& cert_root_directory,
+                       uint32_t& remote_peer_id,
+                       string& conn_type,
+                       bool use_unified_certs) {
   // First get the source ID
   static constexpr size_t SIZE = 512;
   string subject(SIZE, 0);
@@ -189,79 +178,4 @@ bool CertificateUtils::verifyCertificate(const X509& cert_to_verify,
   // this is actual comparison, compares hash of 2 certs
   return (X509_cmp(&cert_to_verify, localCert.get()) == 0);
 }
-
-pair<string, string> OpenSSLCryptoImpl::generateEdDSAKeyPair(const KeyFormat fmt) const {
-  UniquePKEY edPkey;
-  UniqueOpenSSLPKEYContext edPkeyCtx(EVP_PKEY_CTX_new_id(NID_ED25519, nullptr));
-
-  ConcordAssertNE(edPkeyCtx, nullptr);
-
-  ConcordAssertEQ(OPENSSL_SUCCESS, EVP_PKEY_keygen_init(edPkeyCtx.get()));
-  ConcordAssertEQ(
-      OPENSSL_SUCCESS,
-      EVP_PKEY_keygen(edPkeyCtx.get(), reinterpret_cast<EVP_PKEY**>(&edPkey)));  // Generate EdDSA key 'edPkey'.
-
-  array<unsigned char, EdDSASignatureByteSize> privKey;
-  array<unsigned char, EdDSASignatureByteSize> pubKey;
-  size_t privlen{EdDSASignatureByteSize};
-  size_t publen{EdDSASignatureByteSize};
-
-  ConcordAssertEQ(OPENSSL_SUCCESS, EVP_PKEY_get_raw_private_key(edPkey.get(), privKey.data(), &privlen));
-  ConcordAssertEQ(OPENSSL_SUCCESS, EVP_PKEY_get_raw_public_key(edPkey.get(), pubKey.data(), &publen));
-
-  pair<string, string> keyPair(boost::algorithm::hex(string(reinterpret_cast<char*>(privKey.data()), privlen)),
-                               boost::algorithm::hex(string(reinterpret_cast<char*>(pubKey.data()), publen)));
-
-  if (KeyFormat::PemFormat == fmt) {
-    keyPair = EdDSAHexToPem(keyPair);
-  }
-  return keyPair;
-}
-
-pair<string, string> OpenSSLCryptoImpl::EdDSAHexToPem(const std::pair<std::string, std::string>& hex_key_pair) const {
-  string privPemString;
-  string pubPemString;
-
-  if (!hex_key_pair.first.empty()) {  // Proceed with private key pem file generation.
-    const auto privKey = boost::algorithm::unhex(hex_key_pair.first);
-
-    UniquePKEY ed_privKey(EVP_PKEY_new_raw_private_key(
-        NID_ED25519, nullptr, reinterpret_cast<const unsigned char*>(privKey.data()), privKey.size()));
-    ConcordAssertNE(nullptr, ed_privKey);
-
-    UniqueOpenSSLBIO bio(BIO_new(BIO_s_mem()));
-    ConcordAssertNE(nullptr, bio);
-
-    ConcordAssertEQ(OPENSSL_SUCCESS,
-                    PEM_write_bio_PrivateKey(bio.get(), ed_privKey.get(), nullptr, nullptr, 0, nullptr, nullptr));
-
-    const auto lenToRead = BIO_pending(bio.get());
-    std::vector<uint8_t> output(lenToRead);
-    ConcordAssertGT(BIO_read(bio.get(), output.data(), lenToRead), 0);
-    privPemString = string(output.begin(), output.end());
-  }
-
-  if (!hex_key_pair.second.empty()) {  // Proceed with public key pem file generation.
-    const auto pubKey = boost::algorithm::unhex(hex_key_pair.second);
-
-    UniquePKEY ed_pubKey(EVP_PKEY_new_raw_public_key(
-        NID_ED25519, nullptr, reinterpret_cast<const unsigned char*>(pubKey.data()), pubKey.size()));
-    ConcordAssertNE(nullptr, ed_pubKey);
-
-    UniqueOpenSSLBIO bio(BIO_new(BIO_s_mem()));
-    ConcordAssertNE(nullptr, bio);
-
-    ConcordAssertEQ(OPENSSL_SUCCESS, PEM_write_bio_PUBKEY(bio.get(), ed_pubKey.get()));
-
-    const auto lenToRead = BIO_pending(bio.get());
-    std::vector<uint8_t> output(lenToRead);
-    ConcordAssertGT(BIO_read(bio.get(), output.data(), lenToRead), 0);
-    pubPemString = string(output.begin(), output.end());
-  }
-  return make_pair(privPemString, pubPemString);
-}
-
-KeyFormat OpenSSLCryptoImpl::getFormat(const string& key) const {
-  return (key.find("BEGIN") != string::npos) ? KeyFormat::PemFormat : KeyFormat::HexaDecimalStrippedFormat;
-}
-}  // namespace concord::crypto::openssl
+}  // namespace concord::crypto

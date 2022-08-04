@@ -13,7 +13,7 @@
 
 #include "threshsign/IThresholdSigner.h"
 #include "EdDSAThreshsignKeys.h"
-#include "crypto/eddsa/EdDSASigner.hpp"
+#include "crypto/openssl/EdDSASigner.hpp"
 
 class EdDSAMultisigSigner : public IThresholdSigner,
                             public concord::crypto::openssl::EdDSASigner<EdDSAThreshsignPrivateKey> {

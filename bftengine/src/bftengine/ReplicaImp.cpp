@@ -4485,9 +4485,9 @@ ReplicaImp::ReplicaImp(bool firstTime,
     sigManager_.reset(SigManager::init(config_.replicaId,
                                        config_.replicaPrivateKey,
                                        config_.publicKeysOfReplicas,
-                                       concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                                       concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                        ReplicaConfig::instance().getPublicKeysOfClients(),
-                                       concord::util::crypto::KeyFormat::PemFormat,
+                                       concord::crypto::KeyFormat::PemFormat,
                                        *repsInfo));
     viewsManager = new ViewsManager(repsInfo);
   } else {

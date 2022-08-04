@@ -28,7 +28,7 @@
 #pragma GCC diagnostic ignored "-Wsign-compare"
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wc99-extensions"
-#include "picobench.h"
+#include "picobench.hpp"
 #include "macros.h"
 #include "include/threshsign/eddsa/EdDSAMultisigFactory.h"
 #include "include/threshsign/eddsa/SingleEdDSASignature.h"
