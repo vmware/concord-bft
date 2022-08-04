@@ -433,6 +433,7 @@ class BcStTestDelegator {
     DataStoreTransaction::Guard g(stateTransfer_->psd_->beginTransaction());
     g.txn()->setIsFetchingState(true);
   }
+  void setEraseMetadataFlag() { stateTransfer_->setEraseMetadataFlagImpl(); }
 
   // Source Selector
   void assertSourceSelectorMetricKeyVal(const std::string& key, uint64_t val);
@@ -2711,6 +2712,78 @@ TEST_F(BcStTest, bkpValidateRvbDataInitialSource) {
 
   testConfig_.productDbDeleteOnEnd = true;
 }
+
+// Validate differenent combinations of scenarios in which RVT construction will happen while replica coming up
+// Part of such scenarios have also been convered with test=bkpValidateRvbDataInitialSource
+// 1. Restart replica with non-zero checkpoints
+// 2. Restart replica with 0 checkpoints (having only few blocks)
+// 3. Restart replica after erasing metadata (upgrade scenario) having non-zero checkpoints
+// 4. Restart replica after erasing metadata having 0 checkpoints (having only few blocks)
+// 5. Restart replica (while in ST) after erasing metadata having non-zero checkpoints
+// 6. Restart replica (while in ST) having non-zero checkpoints
+// Please note that -
+// We don't expect replica to succeed state trasfer with 0 checkpoints so do_not_checkpoint is mutually exclusive with
+// restart_while_replica_in_state_transfer
+
+class BcStTestParamFixture4 : public BcStTest, public testing::WithParamInterface<tuple<bool, bool, bool>> {};
+TEST_P(BcStTestParamFixture4, bkpValidateRvbDataConstruction) {
+  auto restart_while_replica_in_state_transfer = std::get<0>(GetParam());
+  auto erase_metadata = std::get<1>(GetParam());
+  auto do_not_checkpoint = std::get<2>(GetParam());
+
+  if (do_not_checkpoint) {
+    targetConfig_.fetchRangeSize = 4;
+    targetConfig_.maxNumberOfChunksInBatch = 4;
+    targetConfig_.RVT_K = 3;
+  }
+  ASSERT_NFF(initialize());
+  if (do_not_checkpoint) {
+    testState_.maxRequiredBlockId = 25;
+  }
+
+  ASSERT_NFF(cmnStartRunning());
+
+  if (restart_while_replica_in_state_transfer) {
+    ASSERT_NFF(dstStartCollecting());
+    ASSERT_NFF(fakeSrcReplica_->replyAskForCheckpointSummariesMsg());
+    ASSERT_NFF(getMissingblocksStage<void>());
+    if (erase_metadata) {
+      stDelegator_->setEraseMetadataFlag();
+      ASSERT_NFF(dstRestart(false, FetchingState::NotFetching));
+    } else {
+      // Whenever metadata is removed replica will start with state as FetchingState::NotFetching
+      ASSERT_NFF(dstRestart(false, FetchingState::GettingMissingResPages));
+    }
+  } else {
+    ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, testState_.maxRequiredBlockId));
+    if (!do_not_checkpoint) {
+      for (size_t i{testState_.minRepliedCheckpointNum}; i <= testState_.maxRepliedCheckpointNum; ++i) {
+        stDelegator_->createCheckpointOfCurrentState(i);
+      }
+    }
+    if (erase_metadata) {
+      stDelegator_->setEraseMetadataFlag();
+    }
+    ASSERT_NFF(dstRestart(false, FetchingState::NotFetching));
+  }
+
+  auto rvbm = stDelegator_->getRvbManager();
+  if (erase_metadata || do_not_checkpoint) {
+    ASSERT_EQ(rvbm->getRvbDataSource(), RVBManager::RvbDataInitialSource::FROM_STORAGE_RECONSTRUCTION);
+  } else {
+    ASSERT_EQ(rvbm->getRvbDataSource(), RVBManager::RvbDataInitialSource::FROM_STORAGE_CP);
+  }
+}
+
+using BcStTestParamFixtureInput4 = tuple<bool, bool, bool>;
+INSTANTIATE_TEST_CASE_P(BcStTest,
+                        BcStTestParamFixture4,
+                        ::testing::Values(BcStTestParamFixtureInput4(false, false, false),
+                                          BcStTestParamFixtureInput4(false, false, true),
+                                          BcStTestParamFixtureInput4(false, true, false),
+                                          BcStTestParamFixtureInput4(false, true, true),
+                                          BcStTestParamFixtureInput4(true, true, false),
+                                          BcStTestParamFixtureInput4(true, false, false)), );
 
 TEST_F(BcStTest, askChkptSummeriesFromStoppedNetwork) {
   ASSERT_NFF(initialize());
