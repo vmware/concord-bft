@@ -23,14 +23,13 @@
 #include "threshsign/ThresholdSignaturesTypes.h"
 #include "KeyfileIOUtils.hpp"
 #include "util/filesystem.hpp"
-#include "openssl_utils.hpp"
-#include "cryptopp_utils.hpp"
+#include "crypto.hpp"
 
 using bftEngine::ReplicaConfig;
-using concord::crypto::cryptopp::Crypto;
-using concord::crypto::signature::SIGN_VERIFY_ALGO;
+using concord::crypto::SIGN_VERIFY_ALGO;
 using concord::crypto::cryptopp::RSA_SIGNATURE_LENGTH;
-using concord::crypto::openssl::OpenSSLCryptoImpl;
+using concord::crypto::generateEdDSAKeyPair;
+using concord::crypto::generateRsaKeyPair;
 
 // Helper functions and static state to this executable's main function.
 
@@ -193,9 +192,9 @@ int main(int argc, char** argv) {
 
     for (uint16_t i = 0; i < n + ro; ++i) {
       if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
-        replicaKeyPairs.push_back(Crypto::instance().generateRsaKeyPair(RSA_SIGNATURE_LENGTH));
+        replicaKeyPairs.push_back(generateRsaKeyPair(RSA_SIGNATURE_LENGTH));
       } else if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
-        replicaKeyPairs.push_back(OpenSSLCryptoImpl::instance().generateEdDSAKeyPair());
+        replicaKeyPairs.push_back(generateEdDSAKeyPair());
       }
       config.publicKeysOfReplicas.insert(std::pair<uint16_t, std::string>(i, replicaKeyPairs[i].second));
     }

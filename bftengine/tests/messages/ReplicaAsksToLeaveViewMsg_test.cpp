@@ -36,7 +36,7 @@ TEST(ReplicaAsksToLeaveViewMsg, base_methods) {
   ReplicasInfo replicaInfo(config, true, true);
   std::unique_ptr<SigManager> sigManager(createSigManager(config.replicaId,
                                                           config.replicaPrivateKey,
-                                                          concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                                                          concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                                           config.publicKeysOfReplicas,
                                                           replicaInfo));
   ViewsManager manager(&replicaInfo);

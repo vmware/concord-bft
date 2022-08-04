@@ -13,9 +13,9 @@
 #include "PrimitiveTypes.hpp"
 #include "assertUtils.hpp"
 #include "Metrics.hpp"
-#include "crypto_utils.hpp"
-#include "crypto/interface/signer.hpp"
-#include "crypto/interface/verifier.hpp"
+#include "crypto.hpp"
+#include "crypto/signer.hpp"
+#include "crypto/verifier.hpp"
 
 #include <utility>
 #include <vector>
@@ -29,7 +29,7 @@ using concordMetrics::AtomicCounterHandle;
 namespace bftEngine {
 namespace impl {
 
-using concord::util::crypto::KeyFormat;
+using concord::crypto::KeyFormat;
 
 class ReplicasInfo;
 

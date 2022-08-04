@@ -22,15 +22,15 @@
 #include "secrets_manager_plain.h"
 #include "bftengine/DbCheckpointManager.hpp"
 #include "ReplicaConfig.hpp"
-#include "sign_verify_utils.hpp"
+#include "crypto/factory.hpp"
 
 #include <fstream>
 
 namespace concord::reconfiguration {
 
 using namespace concord::messages;
-using concord::util::crypto::KeyFormat;
-using concord::crypto::signature::VerifierFactory;
+using concord::crypto::KeyFormat;
+using concord::crypto::Factory;
 
 bool ReconfigurationHandler::handle(const WedgeCommand& cmd,
                                     uint64_t bft_seq_num,
@@ -334,8 +334,8 @@ BftReconfigurationHandler::BftReconfigurationHandler() {
     key_str.append(buf, 0, key_content.gcount());
   }
   key_str.append(buf, 0, key_content.gcount());
-  verifier_ = VerifierFactory::getReplicaVerifier(
-      key_str, bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo, KeyFormat::PemFormat);
+  verifier_ =
+      Factory::getVerifier(key_str, bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo, KeyFormat::PemFormat);
 }
 
 bool BftReconfigurationHandler::verifySignature(uint32_t sender_id,

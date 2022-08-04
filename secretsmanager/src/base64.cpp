@@ -24,7 +24,7 @@ using std::string;
 using std::vector;
 using std::string_view;
 using bftEngine::ReplicaConfig;
-using concord::crypto::signature::SIGN_VERIFY_ALGO;
+using concord::crypto::SIGN_VERIFY_ALGO;
 
 string base64Enc(const vector<uint8_t>& msgBytes) {
   if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {

@@ -11,7 +11,7 @@
 
 namespace concord::secretsmanager {
 using bftEngine::ReplicaConfig;
-using concord::crypto::signature::SIGN_VERIFY_ALGO;
+using concord::crypto::SIGN_VERIFY_ALGO;
 
 KeyParams::KeyParams(const std::string& pkey, const std::string& piv) {
   if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {

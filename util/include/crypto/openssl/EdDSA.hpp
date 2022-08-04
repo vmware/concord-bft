@@ -11,9 +11,12 @@
 // LICENSE file.
 //
 #pragma once
-#include "SerializableByteArray.hpp"
+
 #include "crypto_utils.hpp"
+#include "SerializableByteArray.hpp"
 #include "openssl_crypto.hpp"
+
+namespace concord::util::crypto::openssl {
 
 static constexpr const size_t EdDSAPrivateKeyByteSize = 32UL;
 static constexpr const size_t EdDSAPublicKeyByteSize = 32UL;
@@ -71,9 +74,8 @@ static std::vector<uint8_t> extractHexKeyFromPem(const std::string_view pemKey, 
  */
 template <typename ByteArrayKeyClass>
 static ByteArrayKeyClass deserializeKey(
-    const std::string& key,
-    concord::util::crypto::KeyFormat format = concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat) {
-  using concord::util::crypto::KeyFormat;
+    const std::string& key, concord::crypto::KeyFormat format = concord::crypto::KeyFormat::HexaDecimalStrippedFormat) {
+  using concord::crypto::KeyFormat;
 
   constexpr size_t keyLength = ByteArrayKeyClass::ByteSize;
 
@@ -84,3 +86,4 @@ static ByteArrayKeyClass deserializeKey(
   }
   return fromHexString<ByteArrayKeyClass>(key);
 }
+}  // namespace concord::util::crypto::openssl

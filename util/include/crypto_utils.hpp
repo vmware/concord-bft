@@ -16,7 +16,8 @@
 #include <stdint.h>
 #include <string>
 
-namespace concord::util::crypto {
+namespace concord::crypto {
+
 enum class KeyFormat : uint16_t { HexaDecimalStrippedFormat, PemFormat };
 enum class CurveType : uint16_t { secp256k1, secp384r1 };
 
@@ -30,4 +31,4 @@ enum class CurveType : uint16_t { secp256k1, secp384r1 };
  */
 bool isValidKey(const std::string& keyType, const std::string& key, size_t expectedSize);
 
-}  // namespace concord::util::crypto
+}  // namespace concord::crypto

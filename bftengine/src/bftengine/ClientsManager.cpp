@@ -417,9 +417,7 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateReplyFromSavedOne(NodeId
   return r;
 }
 
-void ClientsManager::setClientPublicKey(NodeIdType clientId,
-                                        const std::string& key,
-                                        concord::util::crypto::KeyFormat fmt) {
+void ClientsManager::setClientPublicKey(NodeIdType clientId, const std::string& key, concord::crypto::KeyFormat fmt) {
   LOG_INFO(CL_MNGR, "key: " << key << " fmt: " << (uint16_t)fmt << " client: " << clientId);
   ClientInfo& info = clientsInfo_[clientId];
   info.pubKey = std::make_pair(key, fmt);

@@ -14,7 +14,7 @@
 
 typedef std::pair<uint16_t, std::string> IdToKeyPair;
 
-using concord::crypto::signature::SIGN_VERIFY_ALGO;
+using concord::crypto::SIGN_VERIFY_ALGO;
 using bftEngine::ReplicaConfig;
 
 const std::string replicaRSAPrivateKey = {
@@ -107,7 +107,7 @@ bftEngine::ReplicaConfig& createReplicaConfig(uint16_t fVal, uint16_t cVal) {
 
 bftEngine::impl::SigManager* createSigManager(size_t myId,
                                               std::string& myPrivateKey,
-                                              concord::util::crypto::KeyFormat replicasKeysFormat,
+                                              concord::crypto::KeyFormat replicasKeysFormat,
                                               std::set<std::pair<uint16_t, const std::string>>& publicKeysOfReplicas,
                                               ReplicasInfo& replicasInfo) {
   return SigManager::init(myId,
@@ -115,6 +115,6 @@ bftEngine::impl::SigManager* createSigManager(size_t myId,
                           publicKeysOfReplicas,
                           replicasKeysFormat,
                           nullptr,
-                          concord::util::crypto::KeyFormat::PemFormat,
+                          concord::crypto::KeyFormat::PemFormat,
                           replicasInfo);
 }

@@ -11,17 +11,17 @@
 // terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
-#include "crypto_utils.hpp"
+#include "crypto.hpp"
 #include "string.hpp"
 
-namespace concord::util::crypto {
+namespace concord::crypto {
 
 bool isValidKey(const std::string& keyName, const std::string& key, size_t expectedSize) {
-  auto isValidHex = isValidHexString(key);
+  auto isValidHex = util::isValidHexString(key);
   if ((expectedSize == 0 or (key.length() == expectedSize)) and isValidHex) {
     return true;
   }
   throw std::runtime_error("Invalid " + keyName + " key (" + key + ") of size " + std::to_string(expectedSize) +
                            " bytes.");
 }
-}  // namespace concord::util::crypto
+}  // namespace concord::crypto

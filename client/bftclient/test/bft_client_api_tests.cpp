@@ -32,7 +32,7 @@
 #include "bftclient/bft_client.h"
 #include "bftclient/fake_comm.h"
 #include "msg_receiver.h"
-#include "sign_verify_utils.hpp"
+#include "crypto/factory.hpp"
 #include "Logger.hpp"
 #include "ReplicaConfig.hpp"
 
@@ -43,8 +43,8 @@ using namespace bftEngine::impl;
 using namespace bftEngine;
 using namespace placeholders;
 using namespace concord::secretsmanager;
-using concord::util::crypto::KeyFormat;
-using concord::crypto::signature::VerifierFactory;
+using concord::crypto::KeyFormat;
+using concord::crypto::Factory;
 using namespace CryptoPP;
 using bftEngine::ReplicaConfig;
 
@@ -190,8 +190,8 @@ TEST_P(ClientApiTestParametrizedFixture, print_received_messages_and_timeout) {
     stream << file.rdbuf();
     auto pub_key_str = stream.str();
 
-    transaction_verifier_ = VerifierFactory::getReplicaVerifier(
-        pub_key_str, ReplicaConfig::instance().replicaMsgSigningAlgo, KeyFormat::PemFormat);
+    transaction_verifier_ =
+        Factory::getVerifier(pub_key_str, ReplicaConfig::instance().replicaMsgSigningAlgo, KeyFormat::PemFormat);
   }
   unique_ptr<FakeCommunication> comm;
   if (sign_transaction) {

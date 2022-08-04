@@ -28,7 +28,7 @@ using namespace std;
 using namespace bft::communication;
 using namespace bftEngine;
 using namespace preprocessor;
-using concord::crypto::signature::SIGN_VERIFY_ALGO;
+using concord::crypto::SIGN_VERIFY_ALGO;
 
 namespace {
 
@@ -351,9 +351,9 @@ void setUpConfiguration_4() {
     sigManager[i].reset(SigManager::initInTesting(i,
                                                   replicaPrivKeys[i],
                                                   replicaConfig.publicKeysOfReplicas,
-                                                  concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                                                  concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                                   nullptr,
-                                                  concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                                                  concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                                   *replicasInfo[i].get()));
   }
   replicaConfig.replicaId = replica_0;

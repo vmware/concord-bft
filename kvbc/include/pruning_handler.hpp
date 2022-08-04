@@ -17,7 +17,6 @@
 #include "concord.cmf.hpp"
 #include "db_interfaces.h"
 #include "reconfiguration/ireconfiguration.hpp"
-#include "cryptopp_utils.hpp"
 #include "block_metadata.hpp"
 #include "kvbc_key_types.hpp"
 #include <future>

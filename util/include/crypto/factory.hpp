@@ -13,22 +13,21 @@
 
 #pragma once
 
-#include "openssl_utils.hpp"
-#include "cryptopp_utils.hpp"
-#include "crypto/eddsa/EdDSA.hpp"
-#include "crypto/eddsa/EdDSASigner.hpp"
-#include "crypto/eddsa/EdDSAVerifier.hpp"
+#include "crypto/cryptopp/signers.hpp"
+#include "crypto/cryptopp/verifiers.hpp"
+#include "crypto/openssl/EdDSASigner.hpp"
+#include "crypto/openssl/EdDSAVerifier.hpp"
 #include "Logger.hpp"
 
-namespace concord::crypto::signature {
+namespace concord::crypto {
 enum class SIGN_VERIFY_ALGO : uint8_t { ECDSA, RSA, EDDSA };
 
-class SignerFactory {
+class Factory {
  public:
-  static std::unique_ptr<ISigner> getReplicaSigner(
+  static std::unique_ptr<ISigner> getSigner(
       const std::string& signingKey,
       SIGN_VERIFY_ALGO signingAlgo,
-      concord::util::crypto::KeyFormat fmt = concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat) {
+      concord::crypto::KeyFormat fmt = concord::crypto::KeyFormat::HexaDecimalStrippedFormat) {
     switch (signingAlgo) {
       case SIGN_VERIFY_ALGO::ECDSA: {
         return std::unique_ptr<concord::crypto::ISigner>(new concord::crypto::cryptopp::ECDSASigner(signingKey, fmt));
@@ -37,8 +36,11 @@ class SignerFactory {
         return std::unique_ptr<concord::crypto::ISigner>(new concord::crypto::cryptopp::RSASigner(signingKey, fmt));
       }
       case SIGN_VERIFY_ALGO::EDDSA: {
-        using MainReplicaSigner = concord::crypto::openssl::EdDSASigner<EdDSAPrivateKey>;
-        const auto signingKeyObject = deserializeKey<EdDSAPrivateKey>(signingKey, fmt);
+        using MainReplicaSigner =
+            concord::crypto::openssl::EdDSASigner<concord::util::crypto::openssl::EdDSAPrivateKey>;
+        const auto signingKeyObject =
+            concord::util::crypto::openssl::deserializeKey<concord::util::crypto::openssl::EdDSAPrivateKey>(signingKey,
+                                                                                                            fmt);
         return std::unique_ptr<MainReplicaSigner>(new MainReplicaSigner(signingKeyObject.getBytes()));
       }
       default:
@@ -46,14 +48,11 @@ class SignerFactory {
         return {};
     }
   }
-};
 
-class VerifierFactory {
- public:
-  static std::unique_ptr<IVerifier> getReplicaVerifier(
+  static std::unique_ptr<IVerifier> getVerifier(
       const std::string& verificationKey,
       SIGN_VERIFY_ALGO verifierAlgo,
-      concord::util::crypto::KeyFormat fmt = concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat) {
+      concord::crypto::KeyFormat fmt = concord::crypto::KeyFormat::HexaDecimalStrippedFormat) {
     switch (verifierAlgo) {
       case SIGN_VERIFY_ALGO::ECDSA: {
         return std::unique_ptr<concord::crypto::IVerifier>(
@@ -64,8 +63,11 @@ class VerifierFactory {
             new concord::crypto::cryptopp::RSAVerifier(verificationKey, fmt));
       }
       case SIGN_VERIFY_ALGO::EDDSA: {
-        using MainReplicaVerifier = concord::crypto::openssl::EdDSAVerifier<EdDSAPublicKey>;
-        const auto verifyingKeyObject = deserializeKey<EdDSAPublicKey>(verificationKey, fmt);
+        using MainReplicaVerifier =
+            concord::crypto::openssl::EdDSAVerifier<concord::util::crypto::openssl::EdDSAPublicKey>;
+        const auto verifyingKeyObject =
+            concord::util::crypto::openssl::deserializeKey<concord::util::crypto::openssl::EdDSAPublicKey>(
+                verificationKey, fmt);
         return std::unique_ptr<MainReplicaVerifier>(new MainReplicaVerifier(verifyingKeyObject.getBytes()));
       }
       default:
@@ -74,4 +76,4 @@ class VerifierFactory {
     }
   }
 };
-}  // namespace concord::crypto::signature
+}  // namespace concord::crypto

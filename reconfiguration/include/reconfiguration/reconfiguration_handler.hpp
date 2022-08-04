@@ -18,7 +18,6 @@
 #include "ireconfiguration.hpp"
 #include "OpenTracing.hpp"
 #include "SigManager.hpp"
-#include "cryptopp_utils.hpp"
 
 namespace concord::reconfiguration {
 class BftReconfigurationHandler : public IReconfigurationHandler {

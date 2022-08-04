@@ -12,16 +12,18 @@
 #pragma once
 #include "threshsign/IPublicKey.h"
 #include "threshsign/ISecretKey.h"
-#include "crypto/eddsa/EdDSA.hpp"
+#include "crypto/openssl/EdDSA.hpp"
 
-class EdDSAThreshsignPrivateKey : public IShareSecretKey, public EdDSAPrivateKey {
+class EdDSAThreshsignPrivateKey : public IShareSecretKey, public concord::util::crypto::openssl::EdDSAPrivateKey {
  public:
-  EdDSAThreshsignPrivateKey(const EdDSAThreshsignPrivateKey::ByteArray& arr) : EdDSAPrivateKey(arr) {}
+  EdDSAThreshsignPrivateKey(const EdDSAThreshsignPrivateKey::ByteArray& arr)
+      : concord::util::crypto::openssl::EdDSAPrivateKey(arr) {}
   std::string toString() const override { return toHexString(); }
 };
 
-class EdDSAThreshsignPublicKey : public IShareVerificationKey, public EdDSAPublicKey {
+class EdDSAThreshsignPublicKey : public IShareVerificationKey, public concord::util::crypto::openssl::EdDSAPublicKey {
  public:
-  EdDSAThreshsignPublicKey(const EdDSAThreshsignPublicKey::ByteArray& arr) : EdDSAPublicKey(arr) {}
+  EdDSAThreshsignPublicKey(const EdDSAThreshsignPublicKey::ByteArray& arr)
+      : concord::util::crypto::openssl::EdDSAPublicKey(arr) {}
   std::string toString() const override { return toHexString(); }
 };

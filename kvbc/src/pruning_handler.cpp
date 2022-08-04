@@ -16,12 +16,11 @@
 #include "pruning_handler.hpp"
 #include "categorization/versioned_kv_category.h"
 #include "kvbc_key_types.hpp"
-#include "sign_verify_utils.hpp"
+#include "crypto/factory.hpp"
 
 namespace concord::kvbc::pruning {
 
-using concord::crypto::signature::SignerFactory;
-using concord::crypto::signature::VerifierFactory;
+using concord::crypto::Factory;
 using bftEngine::ReplicaConfig;
 
 void PruningSigner::sign(concord::messages::LatestPrunableBlock& block) {
@@ -34,14 +33,13 @@ void PruningSigner::sign(concord::messages::LatestPrunableBlock& block) {
 }
 
 PruningSigner::PruningSigner(const std::string& key) {
-  signer_ = SignerFactory::getReplicaSigner(key, ReplicaConfig::instance().replicaMsgSigningAlgo);
+  signer_ = Factory::getSigner(key, ReplicaConfig::instance().replicaMsgSigningAlgo);
 }
 
 PruningVerifier::PruningVerifier(const std::set<std::pair<uint16_t, const std::string>>& replicasPublicKeys) {
   auto i = 0u;
   for (auto& [idx, pkey] : replicasPublicKeys) {
-    replicas_.push_back(
-        Replica{idx, VerifierFactory::getReplicaVerifier(pkey, ReplicaConfig::instance().replicaMsgSigningAlgo)});
+    replicas_.push_back(Replica{idx, Factory::getVerifier(pkey, ReplicaConfig::instance().replicaMsgSigningAlgo)});
     const auto ins_res = replica_ids_.insert(replicas_.back().principal_id);
     if (!ins_res.second) {
       throw std::runtime_error{"PruningVerifier found duplicate replica principal_id: " +

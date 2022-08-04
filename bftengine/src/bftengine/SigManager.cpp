@@ -12,13 +12,12 @@
 #include "SigManager.hpp"
 #include "assertUtils.hpp"
 #include "ReplicasInfo.hpp"
-#include "openssl_utils.hpp"
 
 #include <algorithm>
 #include "keys_and_signatures.cmf.hpp"
 #include "ReplicaConfig.hpp"
 #include "hex_tools.h"
-#include "sign_verify_utils.hpp"
+#include "crypto/factory.hpp"
 
 using namespace std;
 
@@ -26,8 +25,7 @@ namespace bftEngine {
 namespace impl {
 
 using concord::crypto::IVerifier;
-using concord::crypto::signature::SignerFactory;
-using concord::crypto::signature::VerifierFactory;
+using concord::crypto::Factory;
 
 concord::messages::keys_and_signatures::ClientsPublicKeys clientsPublicKeys_;
 
@@ -142,7 +140,7 @@ SigManager::SigManager(PrincipalId myId,
 
   ConcordAssert(publicKeysMapping.size() >= numPublickeys);
   if (!mySigPrivateKey.first.empty()) {
-    mySigner_ = SignerFactory::getReplicaSigner(
+    mySigner_ = Factory::getSigner(
         mySigPrivateKey.first, ReplicaConfig::instance().replicaMsgSigningAlgo, mySigPrivateKey.second);
   }
   for (const auto& p : publicKeysMapping) {
@@ -153,7 +151,7 @@ SigManager::SigManager(PrincipalId myId,
     const auto& [key, format] = publickeys[p.second];
     if (iter == publicKeyIndexToVerifier.end()) {
       verifiers_[p.first] = std::shared_ptr<IVerifier>(
-          VerifierFactory::getReplicaVerifier(key, ReplicaConfig::instance().replicaMsgSigningAlgo, format));
+          Factory::getVerifier(key, ReplicaConfig::instance().replicaMsgSigningAlgo, format));
       publicKeyIndexToVerifier[p.second] = verifiers_[p.first];
     } else {
       verifiers_[p.first] = iter->second;
@@ -261,7 +259,7 @@ void SigManager::setClientPublicKey(const std::string& key, PrincipalId id, KeyF
     try {
       std::unique_lock lock(mutex_);
       verifiers_.insert_or_assign(id,
-                                  std::shared_ptr<IVerifier>(VerifierFactory::getReplicaVerifier(
+                                  std::shared_ptr<IVerifier>(Factory::getVerifier(
                                       key, ReplicaConfig::instance().replicaMsgSigningAlgo, format)));
     } catch (const std::exception& e) {
       LOG_ERROR(KEY_EX_LOG, "failed to add a key for client: " << id << " reason: " << e.what());

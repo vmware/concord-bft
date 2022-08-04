@@ -52,9 +52,9 @@ ReplicaLoader::ErrorCode loadConfig(LoadedReplicaData &ld) {
   ld.sigManager = SigManager::init(config.replicaId,
                                    config.replicaPrivateKey,
                                    config.publicKeysOfReplicas,
-                                   concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                                   concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                    ReplicaConfig::instance().getPublicKeysOfClients(),
-                                   concord::util::crypto::KeyFormat::PemFormat,
+                                   concord::crypto::KeyFormat::PemFormat,
                                    *ld.repsInfo);
 
   std::unique_ptr<Cryptosystem> cryptoSys = std::make_unique<Cryptosystem>(ld.repConfig.thresholdSystemType_,

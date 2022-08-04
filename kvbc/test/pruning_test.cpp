@@ -36,11 +36,11 @@ using concord::kvbc::BlockId;
 using namespace concord::kvbc;
 using namespace concord::kvbc::categorization;
 using namespace concord::kvbc::pruning;
-using concord::crypto::openssl::OpenSSLCryptoImpl;
 using concord::crypto::cryptopp::RSA_SIGNATURE_LENGTH;
-using concord::crypto::cryptopp::Crypto;
-using concord::crypto::signature::SIGN_VERIFY_ALGO;
+using concord::crypto::SIGN_VERIFY_ALGO;
 using bftEngine::ReplicaConfig;
+using concord::crypto::generateRsaKeyPair;
+using concord::crypto::generateEdDSAKeyPair;
 
 namespace {
 const NodeIdType replica_0 = 0;
@@ -56,9 +56,9 @@ std::map<uint64_t, std::string> private_keys_of_replicas;
 void setUpKeysConfiguration_4() {
   for (auto i = 0; i < noOfReplicas; ++i) {
     if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
-      keyPair[i] = Crypto::instance().generateRsaKeyPair(RSA_SIGNATURE_LENGTH);
+      keyPair[i] = generateRsaKeyPair(RSA_SIGNATURE_LENGTH);
     } else if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
-      keyPair[i] = OpenSSLCryptoImpl::instance().generateEdDSAKeyPair();
+      keyPair[i] = generateEdDSAKeyPair();
     }
   }
 

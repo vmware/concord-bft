@@ -11,20 +11,15 @@
 
 #pragma once
 
-#include <type_traits>
-#include <openssl/evp.h>
-#include <cstdint>
-#include <memory>
-
-#include "digest_creator.hpp"
 #include "sha_hash.hpp"
+#include "../digest_creator.hpp"
 
-namespace concord::util::digest {
+namespace concord::util::crypto::openssl {
 
 template <typename SHACTX,
           typename = std::enable_if_t<std::is_same_v<SHACTX, concord::util::SHA2_256> ||
                                       std::is_same_v<SHACTX, concord::util::SHA3_256>>>
-class OpenSSLDigestCreator : public DigestCreator {
+class OpenSSLDigestCreator : public concord::util::digest::DigestCreator {
  public:
   OpenSSLDigestCreator() = default;
 
@@ -73,4 +68,4 @@ class OpenSSLDigestCreator : public DigestCreator {
   bool initialized_{false};
   SHACTX hash_ctx_;
 };
-}  // namespace concord::util::digest
+}  // namespace concord::util::crypto::openssl

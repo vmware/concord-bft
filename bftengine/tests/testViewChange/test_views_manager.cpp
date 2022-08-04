@@ -53,7 +53,7 @@ class ViewsManagerTest : public ::testing::Test {
         replicasInfo(rc, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs),
         sigManager(createSigManager(rc.replicaId,
                                     rc.replicaPrivateKey,
-                                    concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                                    concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                     rc.publicKeysOfReplicas,
                                     replicasInfo)),
         viewsManager(std::make_unique<ViewsManager>(&replicasInfo)) {}

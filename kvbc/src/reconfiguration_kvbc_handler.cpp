@@ -28,7 +28,7 @@
 #include "categorized_kvbc_msgs.cmf.hpp"
 #include "metadata_block_id.h"
 #include "ReplicaResources.h"
-#include "openssl_utils.hpp"
+#include "crypto.hpp"
 
 #include <chrono>
 #include <algorithm>
@@ -36,15 +36,15 @@
 
 namespace concord::kvbc::reconfiguration {
 using bftEngine::ReplicaConfig;
-using concord::crypto::signature::SIGN_VERIFY_ALGO;
-using concord::crypto::cryptopp::Crypto;
-using concord::crypto::openssl::OpenSSLCryptoImpl;
+using concord::crypto::SIGN_VERIFY_ALGO;
 using bftEngine::impl::DbCheckpointManager;
 using bftEngine::impl::SigManager;
 using concord::kvbc::KvbAppFilter;
 using concord::kvbc::adapter::IdempotentReader;
 using concord::messages::SnapshotResponseStatus;
 using concord::storage::rocksdb::NativeClient;
+using concord::crypto::RsaHexToPem;
+using concord::crypto::EdDSAHexToPem;
 
 std::optional<categorization::Value> get(const std::string& key, BlockId id, kvbc::IReader& ro_storage) {
   auto opt_val = ro_storage.getLatest(concord::kvbc::categorization::kConcordReconfigurationCategoryId, key);
@@ -1254,9 +1254,9 @@ bool InternalPostKvReconfigurationHandler::handle(const concord::messages::Clien
       ReplicaConfig::instance().clientsKeysPrefix + "/" + std::to_string(group_id) + "/transaction_signing_pub.pem";
   std::pair<std::string, std::string> pem_key;
   if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
-    pem_key = Crypto::instance().RsaHexToPem(std::make_pair("", command.pub_key));
+    pem_key = RsaHexToPem(std::make_pair("", command.pub_key));
   } else if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
-    pem_key = OpenSSLCryptoImpl::instance().EdDSAHexToPem(std::make_pair("", command.pub_key));
+    pem_key = EdDSAHexToPem(std::make_pair("", command.pub_key));
   }
 
   concord::secretsmanager::SecretsManagerPlain sm;

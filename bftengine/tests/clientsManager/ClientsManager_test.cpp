@@ -16,9 +16,10 @@
 #include "gtest/gtest.h"
 #include "messages/ClientReplyMsg.hpp"
 #include "ReservedPagesMock.hpp"
-#include "sign_verify_utils.hpp"
+#include "crypto/factory.hpp"
+#include "crypto.hpp"
 
-using concord::crypto::signature::SignerFactory;
+using concord::crypto::Factory;
 using bftEngine::impl::ClientsManager;
 using bftEngine::impl::NodeIdType;
 using bftEngine::impl::ReplicasInfo;
@@ -26,7 +27,7 @@ using bftEngine::impl::SigManager;
 using bftEngine::ReplicaConfig;
 using bftEngine::ReservedPagesClientBase;
 using bftEngine::test::ReservedPagesMock;
-using concord::util::crypto::KeyFormat;
+using concord::crypto::KeyFormat;
 using concord::secretsmanager::ISecretsManagerImpl;
 using concordUtil::Timers;
 using std::chrono::milliseconds;
@@ -43,10 +44,10 @@ using std::this_thread::sleep_for;
 using std::unique_ptr;
 using std::vector;
 
-using concord::crypto::cryptopp::Crypto;
 using concord::crypto::cryptopp::RSA_SIGNATURE_LENGTH;
-using concord::crypto::openssl::OpenSSLCryptoImpl;
-using concord::crypto::signature::SIGN_VERIFY_ALGO;
+using concord::crypto::SIGN_VERIFY_ALGO;
+using concord::crypto::generateRsaKeyPair;
+using concord::crypto::generateEdDSAKeyPair;
 
 // Testing values to be used for certain Concord-BFT configuration that ClientsManager and/or its dependencies may
 // reference.
@@ -149,9 +150,9 @@ static void setMockReservedPages(shared_ptr<ReservedPagesMock<ClientsManager>>& 
 static void resetSigManager() {
   SigManager::Key kReplicaPrivateKeyForTesting;
   if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
-    kReplicaPrivateKeyForTesting = Crypto::instance().generateRsaKeyPair(RSA_SIGNATURE_LENGTH).first;
+    kReplicaPrivateKeyForTesting = generateRsaKeyPair(RSA_SIGNATURE_LENGTH).first;
   } else if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
-    kReplicaPrivateKeyForTesting = OpenSSLCryptoImpl::instance().generateEdDSAKeyPair().first;
+    kReplicaPrivateKeyForTesting = generateEdDSAKeyPair().first;
   }
   sig_manager_for_key_exchange_manager.reset(SigManager::init(kReplicaIdForTesting,
                                                               kReplicaPrivateKeyForTesting,
@@ -233,8 +234,8 @@ static bool verifyClientPublicKeyLoadedToKEM(NodeIdType client_id, const pair<st
   if (!(SigManager::instance()->hasVerifier(client_id))) {
     return false;
   }
-  const auto signer = SignerFactory::getReplicaSigner(
-      expected_key.first, ReplicaConfig::instance().replicaMsgSigningAlgo, kKeyFormatForTesting);
+  const auto signer =
+      Factory::getSigner(expected_key.first, ReplicaConfig::instance().replicaMsgSigningAlgo, kKeyFormatForTesting);
   string signature = signer->sign(kArbitraryMessageForTestingKeyAgreement);
   return SigManager::instance()->verifySig(client_id,
                                            kArbitraryMessageForTestingKeyAgreement.data(),
@@ -322,9 +323,9 @@ TEST(ClientsManager, loadInfoFromReservedPagesLoadsCorrectInfo) {
   map<NodeIdType, pair<string, string>> client_keys;
 
   if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
-    client_keys[2] = Crypto::instance().generateRsaKeyPair(RSA_SIGNATURE_LENGTH);
+    client_keys[2] = generateRsaKeyPair(RSA_SIGNATURE_LENGTH);
   } else if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
-    client_keys[2] = OpenSSLCryptoImpl::instance().generateEdDSAKeyPair();
+    client_keys[2] = generateEdDSAKeyPair();
   }
 
   map<NodeIdType, pair<ReqId, string>> client_replies;
@@ -445,9 +446,9 @@ TEST(ClientsManager, loadInfoFromReservedPagesHandlesNoInfoAvailable) {
 TEST(ClientsManager, loadInfoFromReservedPagesHandlesSingleClientClientsManager) {
   pair<string, string> client_key_pair;
   if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
-    client_key_pair = Crypto::instance().generateRsaKeyPair(RSA_SIGNATURE_LENGTH);
+    client_key_pair = generateRsaKeyPair(RSA_SIGNATURE_LENGTH);
   } else if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
-    client_key_pair = OpenSSLCryptoImpl::instance().generateEdDSAKeyPair();
+    client_key_pair = generateEdDSAKeyPair();
   }
 
   string reply_message = "reply 1 to client 2";
@@ -1329,11 +1330,11 @@ TEST(ClientsManager, setClientPublicKey) {
   pair<string, string> client_2_key;
   pair<string, string> client_7_key;
   if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
-    client_2_key = Crypto::instance().generateRsaKeyPair(RSA_SIGNATURE_LENGTH);
-    client_7_key = Crypto::instance().generateRsaKeyPair(RSA_SIGNATURE_LENGTH);
+    client_2_key = generateRsaKeyPair(RSA_SIGNATURE_LENGTH);
+    client_7_key = generateRsaKeyPair(RSA_SIGNATURE_LENGTH);
   } else if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
-    client_2_key = OpenSSLCryptoImpl::instance().generateEdDSAKeyPair();
-    client_7_key = OpenSSLCryptoImpl::instance().generateEdDSAKeyPair();
+    client_2_key = generateEdDSAKeyPair();
+    client_7_key = generateEdDSAKeyPair();
   }
 
   unique_ptr<ClientsManager> cm(new ClientsManager({}, {4, 5, 7}, {}, {}, metrics));

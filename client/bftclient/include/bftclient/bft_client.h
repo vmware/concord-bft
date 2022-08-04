@@ -25,8 +25,8 @@
 #include "exception.h"
 #include "metrics.h"
 #include "diagnostics.h"
-#include "cryptopp_utils.hpp"
 #include "seq_num_generator.h"
+#include "crypto/signer.hpp"
 
 namespace bft::client {
 
@@ -123,7 +123,7 @@ class Client {
 
   Metrics metrics_;
 
-  // Transaction RSA/EdDSA signer
+  // Transaction signer
   std::unique_ptr<concord::crypto::ISigner> transaction_signer_;
 
   static constexpr int64_t MAX_VALUE_NANOSECONDS = 1000 * 1000 * 1000;  // 1 second

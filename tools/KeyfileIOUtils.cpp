@@ -20,12 +20,14 @@
 #include <exception>
 #include "KeyfileIOUtils.hpp"
 #include "yaml_utils.hpp"
-#include "crypto/eddsa/EdDSA.hpp"
+#include "crypto/openssl/EdDSA.hpp"
 #include "crypto_utils.hpp"
 
-using concord::util::crypto::isValidKey;
+using concord::crypto::isValidKey;
 using bftEngine::ReplicaConfig;
-using concord::crypto::signature::SIGN_VERIFY_ALGO;
+using concord::crypto::SIGN_VERIFY_ALGO;
+using concord::util::crypto::openssl::EdDSAPrivateKeyByteSize;
+using concord::util::crypto::openssl::EdDSAPublicKeyByteSize;
 
 void outputReplicaKeyfile(uint16_t numReplicas,
                           uint16_t numRoReplicas,
