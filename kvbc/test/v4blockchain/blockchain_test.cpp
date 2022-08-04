@@ -681,6 +681,72 @@ TEST_F(v4_blockchain, block_updates) {
   }
 }
 
+TEST(v4_blockchain_genesis, load_genesis) {
+  // 1 - add blocks.
+  // 2 - test genesis
+
+  std::random_device seed;
+  std::mt19937 gen{seed()};                             // seed the generator
+  std::uniform_int_distribution dist{100, 1000};        // set min and max
+  auto rand_number = static_cast<uint64_t>(dist(gen));  // generate number
+  {
+    auto db = TestRocksDb::createNative(rand_number);
+    auto blockchain = v4blockchain::detail::Blockchain{db};
+    for (uint64_t i = 1; i <= rand_number; ++i) {
+      auto wb = db->getBatch();
+      auto versioned_cat = std::string("versioned");
+      auto key = std::string("key");
+      auto val = std::string("val");
+      auto updates = categorization::Updates{};
+      auto ver_updates = categorization::VersionedUpdates{};
+      ver_updates.addUpdate("key", "val");
+      updates.add(versioned_cat, std::move(ver_updates));
+
+      auto id = blockchain.addBlock(updates, wb);
+      ASSERT_EQ(id, i);
+      db->write(std::move(wb));
+      blockchain.setBlockId(id);
+    }
+    ASSERT_EQ(blockchain.getGenesisBlockId(), 1);
+    auto opt_val = db->get(v4blockchain::detail::MISC_CF, concord::kvbc::keyTypes::genesis_block_key);
+    ASSERT_FALSE(opt_val.has_value());
+  }
+  auto del_until = rand_number / 2;
+  {
+    // 3 - restart blockchain - test genesis.
+    auto db = TestRocksDb::createNative(rand_number);
+    auto blockchain = v4blockchain::detail::Blockchain{db};
+    ASSERT_EQ(blockchain.getGenesisBlockId(), 1);
+    // 4 - delete until
+    blockchain.deleteBlocksUntil(del_until);
+    auto opt_val = db->get(v4blockchain::detail::MISC_CF, concord::kvbc::keyTypes::genesis_block_key);
+    ASSERT_TRUE(opt_val.has_value());
+    auto gen_id = concordUtils::fromBigEndianBuffer<BlockId>(opt_val->c_str());
+    ASSERT_EQ(gen_id, del_until);
+    ASSERT_EQ(blockchain.getGenesisBlockId(), del_until);
+  }
+  auto new_gen = del_until + 1;
+  {
+    // 5 - restart blockchain - test genesis.
+    auto db = TestRocksDb::createNative(rand_number);
+    auto blockchain = v4blockchain::detail::Blockchain{db};
+    ASSERT_EQ(blockchain.getGenesisBlockId(), del_until);
+    // 6 - delete genesis
+    blockchain.deleteGenesisBlock();
+    auto opt_val = db->get(v4blockchain::detail::MISC_CF, concord::kvbc::keyTypes::genesis_block_key);
+    ASSERT_TRUE(opt_val.has_value());
+    auto gen_id = concordUtils::fromBigEndianBuffer<BlockId>(opt_val->c_str());
+    ASSERT_EQ(gen_id, new_gen);
+    ASSERT_EQ(blockchain.getGenesisBlockId(), gen_id);
+  }
+  {
+    // 9 - restart blockchain and test genesis.
+    auto db = TestRocksDb::createNative(rand_number);
+    auto blockchain = v4blockchain::detail::Blockchain{db};
+    ASSERT_EQ(blockchain.getGenesisBlockId(), new_gen);
+  }
+}
+
 }  // end namespace
 
 int main(int argc, char** argv) {
