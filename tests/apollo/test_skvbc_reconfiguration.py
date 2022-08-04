@@ -289,8 +289,9 @@ class SkvbcReconfigurationTest(ApolloTest):
                 await skvbc.send_write_kv_set()
 
             seq_num1 = await skvbc.validate_last_exec_seq_num_for_all_replicas(60)
+            # Repeat this validation as there might be a case where seq nums for all replicas are same
+            # but there are more seq nums remaining for each of them
             seq_num2 = await skvbc.validate_last_exec_seq_num_for_all_replicas(90)
-            assert seq_num1 == seq_num2
 
             initial_prim = 0
             next_primary = 1
