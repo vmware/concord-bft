@@ -23,6 +23,7 @@ void ThresholdAccumulatorBase<VerificationKey, NumType, SigShareParserFunc>::set
   assertNotNull(msg);
   assertStrictlyPositive(len);
 
+#ifndef BUILD_CONFIG_GEN_TOOL_FOR_MAC
   if (!hasExpectedDigest()) {
     expectedDigest.reset(new unsigned char[static_cast<size_t>(len)]);
     memcpy(reinterpret_cast<void*>(expectedDigest.get()),
@@ -56,6 +57,7 @@ void ThresholdAccumulatorBase<VerificationKey, NumType, SigShareParserFunc>::set
       throw std::runtime_error("Cannot reset expected digest to a different one");
     }
   }
+#endif
 }
 
 template <class VerificationKey, class NumType, typename SigShareParserFunc>

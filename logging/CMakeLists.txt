@@ -5,6 +5,10 @@ add_library(logging STATIC src/Logger.cpp )
 target_include_directories(logging PUBLIC include/)
 set_property(TARGET logging PROPERTY POSITION_INDEPENDENT_CODE ON)
 
+if(BUILD_CONFIG_GEN_TOOL_FOR_MAC)
+target_compile_features(logging PRIVATE cxx_std_17)
+endif()
+
 if(USE_LOG4CPP)
 	message(STATUS "USE_LOG4CPP")
 	target_sources(logging PRIVATE src/Logging4cplus.cpp)
@@ -20,6 +24,7 @@ else(USE_LOG4CPP)
 	target_sources(logging PRIVATE src/Logging.cpp)
 endif(USE_LOG4CPP)
 
-
 set_property(DIRECTORY ${CMAKE_SOURCE_DIR} APPEND PROPERTY LINK_LIBRARIES logging)
-set_property(DIRECTORY .. APPEND PROPERTY LINK_LIBRARIES logging) 
+if(NOT BUILD_CONFIG_GEN_TOOL_FOR_MAC)
+set_property(DIRECTORY .. APPEND PROPERTY LINK_LIBRARIES logging)
+endif()
