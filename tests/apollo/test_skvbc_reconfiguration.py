@@ -288,7 +288,7 @@ class SkvbcReconfigurationTest(ApolloTest):
             for i in range(100):
                 await skvbc.send_write_kv_set()
 
-            multiple_validate_last_exec_seq_num_for_all_replicas(30);
+            await skvbc.multiple_validate_last_exec_seq_num_for_all_replicas(30);
 
             initial_prim = 0
             next_primary = 1
