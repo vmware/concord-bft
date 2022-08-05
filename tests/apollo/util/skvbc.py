@@ -433,8 +433,24 @@ class SimpleKVBCProtocol:
         else:
             return writeset[0][0], writeset[0][1]
 
+    async def multiple_validate_last_exec_seq_num_for_all_replicas(self, timeout):
+
+        # We fetch last executed sequnce number which is equal for all replicas till we get such two equal sequence numbers. 
+        # This is done to avoid the case where sequence numbers for all replicas are same
+        # but there are more sequence numbers remaining for each of them
+
+        with log.start_action(action_type="mutliple_validate_last_exec_seq_num_for_all_replicas"):
+            with trio.fail_after(timeout):
+                while True:
+                    seq_num1 = await skvbc.validate_last_exec_seq_num_for_all_replicas(timeout)
+                    seq_num2 = await skvbc.validate_last_exec_seq_num_for_all_replicas(timeout)
+                    if seq_num1 == seq_num2:
+                        break
+
     async def validate_last_exec_seq_num_for_all_replicas(self, timeout):
-        # Validate if all replicas have same last executed sequenec number after the write
+
+        # Validate if all replicas have same last executed sequence number after the write
+
         with log.start_action(action_type="validate_last_exec_seq_num_for_all_replicas"):
             with trio.fail_after(timeout):
                 while True:
@@ -444,11 +460,10 @@ class SimpleKVBCProtocol:
                         repl_counter += 1
                         last_seq_num1 = await self.bft_network.wait_for_last_executed_seq_num(repl_counter)
                         if last_seq_num0 != last_seq_num1:
+                            await trio.sleep(0.5)
                             break
                     if repl_counter == self.bft_network.num_total_replicas() - 1:
                         return last_seq_num0
-                    else:
-                        await trio.sleep(0.5)
 
     async def send_kv_set(self, client, readset, writeset, read_version, long_exec=False, reply_assert=True,
                           raise_slowErrorIfAny=True, description='send_kv_set'):
