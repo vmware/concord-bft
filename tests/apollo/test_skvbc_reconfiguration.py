@@ -282,6 +282,9 @@ class SkvbcReconfigurationTest(ApolloTest):
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
             for i in range(100):
                 await skvbc.send_write_kv_set()
+
+            await skvbc.multiple_validate_last_exec_seq_num_for_all_replicas(30);
+
             initial_prim = 0
             next_primary = 1
             bft_network.stop_replica(next_primary)
