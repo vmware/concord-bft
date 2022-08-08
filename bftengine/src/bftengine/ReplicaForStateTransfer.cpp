@@ -80,7 +80,7 @@ void ReplicaForStateTransfer::start() {
             auto latestHandledUpdate = cre_->getLatestKnownUpdateBlock();
             auto latestReconfUpdates = pbc->getStateUpdate(succ);
             if (!succ) {
-              LOG_ERROR(GL, "unable to get the latest reconfiguration updates");
+              LOG_WARN(GL, "unable to get the latest reconfiguration updates");
             }
             for (const auto &update : latestReconfUpdates) {
               if (update.blockid > latestHandledUpdate) {
