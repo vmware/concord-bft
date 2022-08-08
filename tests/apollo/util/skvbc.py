@@ -462,6 +462,8 @@ class SimpleKVBCProtocol:
                 while True:
                     seq_num1 = await self.validate_last_exec_seq_num_for_all_replicas(timeout)
                     seq_num2 = await self.validate_last_exec_seq_num_for_all_replicas(timeout)
+                    sys.stdout.write("\nValue of seq_num1 is %s" % seq_num1)
+                    sys.stdout.write("\nValue of seq_num2 is %s" % seq_num2)
                     if seq_num1 == seq_num2:
                         break
 
