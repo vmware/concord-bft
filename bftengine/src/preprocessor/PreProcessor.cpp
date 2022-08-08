@@ -496,6 +496,13 @@ bool PreProcessor::handlePossiblyExpiredRequest(const RequestStateSharedPtr &req
     const auto &clientId = reqStatePtr->getClientId();
     const auto &batchCid = reqStatePtr->getBatchCid();
     const auto &reqCid = reqStatePtr->getReqCid();
+    if (!reqStatePtr->getPreProcessRequest()) {
+      /* preProcInFlyRequestsNum metric does not get increased when the PreProcessRequestMsg does not
+       * arrive for the request, which mostly happens during a view change. In this case, we only
+       * decrease this metric, so it gets overflowed. We increase the metric here as compensation.
+       */
+      preProcessorMetrics_.preProcInFlyRequestsNum++;
+    }
     LOG_INFO(logger(), "Let replica handle request" << KVLOG(batchCid, reqSeqNum, reqCid, clientId));
     incomingMsgsStorage_->pushExternalMsg(reqStatePtr->buildClientRequestMsg(true));
     releaseClientPreProcessRequest(reqStateEntry, EXPIRED);
@@ -1514,7 +1521,8 @@ void PreProcessor::releaseClientPreProcessRequest(const RequestStateSharedPtr &r
     }
     reqEntry->reqProcessingStatePtr.reset();
     if (!batchCid.empty()) ongoingReqBatches_[clientId]->increaseNumOfCompletedReqs(1);
-    if (!myReplica_.isCurrentPrimary()) {
+    // Prevent preProcInFlyRequestsNum metric to be overflowed during a view change
+    if (!myReplica_.isCurrentPrimary() && (preProcessorMetrics_.preProcInFlyRequestsNum.Get().Get() > 0)) {
       preProcessorMetrics_.preProcInFlyRequestsNum--;
     }
     if (memoryPoolEnabled_) releasePreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch);
