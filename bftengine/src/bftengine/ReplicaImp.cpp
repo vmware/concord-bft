@@ -2416,14 +2416,11 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
     }
   }
 
-  if (askForStateTransfer && !stateTransfer->isCollectingState()) {
+  if (askForStateTransfer && !isCollectingState()) {
     if (activeExecutions_ > 0)
       isStartCollectingState_ = true;
     else {
-      LOG_INFO(GL, "Call to startCollectingState()");
-      time_in_state_transfer_.start();
-      clientsManager->clearAllPendingRequests();  // to avoid entering a new view on old request timeout
-      stateTransfer->startCollectingState();
+      startCollectingState("On receiving checkpoint message");
     }
   } else if (msgSenderId == msgGenReplicaId) {
     if (msgSeqNum > lastStableSeqNum + kWorkWindowSize) {
@@ -3354,6 +3351,7 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
     if (ps_) {
       ps_->endWriteTran(config_.getsyncOnUpdateOfMetadata());
     }
+    setIsCollectingState(false);
     return;
   }
   lastExecutedSeqNum = newCheckpointSeqNum;
@@ -3419,6 +3417,8 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
     LOG_INFO(GL, "tryToEnterView after State Transfer finished ...");
     tryToEnterView();
   }
+
+  setIsCollectingState(false);
 }
 
 void ReplicaImp::onSeqNumIsSuperStable(SeqNum superStableSeqNum) {
@@ -4285,6 +4285,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
                        shared_ptr<PersistentStorage> ps,
                        const std::function<void(bool)> &viewChangeCallBack)
     : ReplicaForStateTransfer(config, requestsHandler, stateTrans, msgsCommunicator, msgHandlers, firstTime, timers),
+      isCollectingState_{stateTransfer->isCollectingState()},
       viewChangeProtocolEnabled{config.viewChangeProtocolEnabled},
       autoPrimaryRotationEnabled{config.autoPrimaryRotationEnabled},
       restarted_{!firstTime},
@@ -5240,13 +5241,18 @@ void ReplicaImp::updateLimitsAndMetrics(PrePrepareMsg *ppMsg) {
   }
 }
 
+void ReplicaImp::startCollectingState(std::string &&reason) {
+  setIsCollectingState(true);
+  LOG_INFO(GL, "Start Collecting State" << KVLOG(reason));
+  time_in_state_transfer_.start();
+  clientsManager->clearAllPendingRequests();  // to avoid entering a new view on old request timeout
+  stateTransfer->startCollectingState();
+}
+
 void ReplicaImp::handleDeferredRequests() {
   if (isStartCollectingState_) {
-    if (!stateTransfer->isCollectingState()) {
-      LOG_INFO(GL, "Call to startCollectingState()");
-      time_in_state_transfer_.start();
-      clientsManager->clearAllPendingRequests();  // to avoid entering a new view on old request timeout
-      stateTransfer->startCollectingState();
+    if (!isCollectingState()) {
+      startCollectingState("Handle Deferred Requests");
     } else {
       LOG_ERROR(GL, "Collecting state should be active while we are in onExecutionFinish");
     }
