@@ -122,6 +122,44 @@ class SkvbcPersistenceTest(ApolloTest):
 
     @with_trio
     @with_bft_network(start_replica_cmd)
+    async def test_rvt_construction_in_absense_of_metadata(self, bft_network):
+        """
+        This test aims to validate the upgrade scenario by removing metadata
+        1) Write 4 checkpoints to the blockchain
+        2) Stop all replicas
+        3) Remove metadata
+        4) Start all replicas
+        5) Wait for the RVT root values to be in sync
+        """
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
+        await skvbc.fill_and_wait_for_checkpoint(
+                bft_network.all_replicas(),
+                num_of_checkpoints_to_add=4,
+                verify_checkpoint_persistency=False,
+                assert_state_transfer_not_started=False)
+
+        await bft_network.wait_for_replicas_rvt_root_values_to_be_in_sync(bft_network.all_replicas())
+
+        bft_network.stop_all_replicas()
+
+        [ bft_network.remove_metadata(i) for i in bft_network.all_replicas() ]
+
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
+        await skvbc.fill_and_wait_for_checkpoint(
+                bft_network.all_replicas(),
+                num_of_checkpoints_to_add=4,
+                verify_checkpoint_persistency=False,
+                assert_state_transfer_not_started=False)
+
+        await bft_network.wait_for_replicas_rvt_root_values_to_be_in_sync(bft_network.all_replicas())
+
+
+    @with_trio
+    @with_bft_network(start_replica_cmd)
     @verify_linearizability()
     async def test_read_written_data_after_restart_of_all_nodes(self, bft_network, tracker):
         """
