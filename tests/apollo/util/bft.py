@@ -1830,9 +1830,28 @@ class BftTestNetwork:
                             str(self.config.c),
                             "37",  # number of principles, defined in setup.cpp
                             "10"]  # max client batch size, defined in ReplicaConfig.hpp
+            out_file_name = "reset_md_out." + str(replica_id) + ".log"
+            err_file_name = "reset_md_err." + str(replica_id) + ".log"
+            with open(out_file_name, 'w+') as stdout_file, open(err_file_name, 'w+') as stderr_file:
+                res = subprocess.run(reset_md_cmd, stdout=stdout_file, stderr=stderr_file)
+                assert res.returncode == 0
 
-            with open("reset_md_out.log", 'w+') as stdout_file, open("reset_md_err.log", 'w+') as stderr_file:
-                subprocess.run(reset_md_cmd, stdout=stdout_file, stderr=stderr_file)
+    def remove_metadata(self, replica_id):
+        with log.start_action(action_type="remove_metadata", replica_id=replica_id) as action:
+            db_editor_path = os.path.join(self.builddir, "kvbc", "tools", "db_editor", "kv_blockchain_db_editor")
+            db_dir = os.path.join(self.testdir, DB_FILE_PREFIX + str(replica_id))
+            remove_md_cmd = [db_editor_path,
+                            db_dir,
+                            "removeMetadata",
+                            str(replica_id),
+                            str(self.config.f),
+                            str(self.config.c)]
+            out_file_name = "remove_md_out." + str(replica_id) + ".log"
+            err_file_name = "remove_md_err." + str(replica_id) + ".log"
+            with open(out_file_name, 'w+') as stdout_file, open(err_file_name, 'w+') as stderr_file:
+                res = subprocess.run(remove_md_cmd, stdout=stdout_file, stderr=stderr_file)
+                assert res.returncode == 0
+
 
     async def wait_for_stable_checkpoint(self, replicas, stable_seqnum):
         with trio.fail_after(seconds=30):

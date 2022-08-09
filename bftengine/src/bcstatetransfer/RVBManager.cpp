@@ -46,14 +46,18 @@ RVBManager::RVBManager(const Config& config, const IAppState* state_api, const s
 }
 
 void RVBManager::init(bool fetching) {
-  LOG_TRACE(logger_, "");
-  bool loaded_from_data_store = false;
+  LOG_INFO(logger_, std::boolalpha << KVLOG(fetching));
+  bool loaded_from_stored_checkpoint = false;
+  bool hasCheckpointBeingFetched{ds_->hasCheckpointBeingFetched()};
   static constexpr bool print_rvt = true;
   CheckpointDesc desc{0};
+  uint64_t last_stored_cp_num{};
 
-  if (ds_->hasCheckpointBeingFetched()) {
+  if (hasCheckpointBeingFetched) {
     ConcordAssert(fetching);
     desc = ds_->getCheckpointBeingFetched();
+    ConcordAssertGT(desc.maxBlockId, 0);
+    ConcordAssertGT(desc.checkpointNum, 0);
   } else {
     // unknown state for RVBM
     auto last_stored_cp_num = ds_->getLastStoredCheckpoint();
@@ -62,11 +66,19 @@ void RVBManager::init(bool fetching) {
       last_checkpoint_desc_ = desc;
     }
   }
+  LOG_INFO(logger_,
+           std::boolalpha << KVLOG(last_stored_cp_num,
+                                   hasCheckpointBeingFetched,
+                                   desc.checkpointNum,
+                                   desc.maxBlockId,
+                                   desc.digestOfMaxBlockId,
+                                   desc.digestOfResPagesDescriptor));
 
   // Get pruned blocks digests
   pruned_blocks_digests_ = ds_->getPrunedBlocksDigests();
   metrics_.pruning_vector_elements_count_.Get().Set(pruned_blocks_digests_.size());
   metrics_.pruning_vector_size_in_bytes_.Get().Set(pruned_blocks_digests_.size() * (sizeof(BlockId) + sizeof(Digest)));
+  LOG_INFO(logger_, KVLOG(pruned_blocks_digests_.size()));
 
   if (config_.enableStoreRvbDataDuringCheckpointing) {
     // Try to get RVT from persistent storage. Even if the tree exist we need to check if it
@@ -74,8 +86,8 @@ void RVBManager::init(bool fetching) {
     if ((desc.checkpointNum > 0) && (!desc.rvbData.empty())) {
       // There is RVB data in this checkpoint - try to load it
       std::istringstream rvb_data(std::string(reinterpret_cast<const char*>(desc.rvbData.data()), desc.rvbData.size()));
-      loaded_from_data_store = in_mem_rvt_->setSerializedRvbData(rvb_data);
-      if (!loaded_from_data_store) {
+      loaded_from_stored_checkpoint = in_mem_rvt_->setSerializedRvbData(rvb_data);
+      if (!loaded_from_stored_checkpoint) {
         LOG_ERROR(logger_, "Failed to load RVB data from stored checkpoint" << KVLOG(desc.checkpointNum));
         metrics_.failures_while_setting_serialized_rvt_++;
       } else {
@@ -85,36 +97,43 @@ void RVBManager::init(bool fetching) {
           // in some cases, if not fetching, we might try to look for other checkpoints but this is fatal enough to
           // reconstruct from storage
           LOG_ERROR(logger_, "Failed to validate loaded RVB data from stored checkpoint" << KVLOG(desc.checkpointNum));
-          loaded_from_data_store = false;
+          loaded_from_stored_checkpoint = false;
           in_mem_rvt_->clear();
           rvb_data_source_ = RvbDataInitialSource::NIL;
         } else {
-          LOG_INFO(logger_, "Success setting and validating new RVB data from data store!");
+          LOG_INFO(logger_, "Success setting and validating new RVB data from stored checkpoint");
         }
       }
     }
   }
 
-  if (!loaded_from_data_store && (desc.maxBlockId > 0)) {
+  if (!loaded_from_stored_checkpoint) {
     uint64_t num_rvbs_added{};
     // If desc data is valid, try to reconstruct by reading digests from storage (no persistency data was found)
     DurationTracker<std::chrono::milliseconds> reconstruct_dt("reconstruct_dt", true);
     auto genesis_block_id = as_->getGenesisBlockNum();
-    LOG_INFO(logger_, "Reconstructing RVB data" << KVLOG(loaded_from_data_store, desc.maxBlockId, genesis_block_id));
-    if (genesis_block_id <= desc.maxBlockId) {
+    LOG_INFO(logger_,
+             "Reconstructing RVB data" << KVLOG(desc.maxBlockId, genesis_block_id, as_->getLastReachableBlockNum()));
+    if (desc.maxBlockId > 0 && genesis_block_id <= desc.maxBlockId) {
       num_rvbs_added =
           addRvbDataOnBlockRange(genesis_block_id, desc.maxBlockId, std::optional<Digest>(desc.digestOfMaxBlockId));
-      if (!in_mem_rvt_->validate()) {
-        LOG_FATAL(logger_, "Failed to validate reconstructed RVB data from storage" << KVLOG(desc.checkpointNum));
-        ConcordAssert(false);
-      }
+      rvb_data_source_ = RvbDataInitialSource::FROM_STORAGE_RECONSTRUCTION;
+    } else if (as_->getLastReachableBlockNum() > 1) {
+      num_rvbs_added = addRvbDataOnBlockRange(genesis_block_id, as_->getLastReachableBlockNum(), std::nullopt);
+      rvb_data_source_ = RvbDataInitialSource::FROM_STORAGE_RECONSTRUCTION;
+    } else {
+      LOG_INFO(logger_, "Empty blockchain");
+      return;
     }
-    rvb_data_source_ = RvbDataInitialSource::FROM_STORAGE_RECONSTRUCTION;
+
+    if (!in_mem_rvt_->validate()) {
+      LOG_FATAL(logger_, "Failed to validate reconstructed RVB data from storage" << KVLOG(desc.checkpointNum));
+      ConcordAssert(false);
+    }
     auto total_duration = reconstruct_dt.totalDuration(true);
     LOG_INFO(logger_, "Done Reconstructing RVB data from storage" << KVLOG(total_duration, num_rvbs_added));
   }
 
-  LOG_INFO(logger_, std::boolalpha << KVLOG(pruned_blocks_digests_.size(), desc.checkpointNum, loaded_from_data_store));
   if (print_rvt && (debug_prints_log_level.find(getLogLevel()) != debug_prints_log_level.end())) {
     in_mem_rvt_->printToLog(LogPrintVerbosity::SUMMARY, "init");
   }
