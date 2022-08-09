@@ -20,7 +20,6 @@ install_build_tools() {
         automake \
         libtool \
         build-essential \
-        ccache \
         clang-9 \
         clang-format-10 \
         clang-tidy-10 \
@@ -401,50 +400,64 @@ wget ${WGET_FLAGS} https://archive.apache.org/dist/thrift/0.11.0/thrift-0.11.0.t
     make -j$(nproc) install && \
     cd ${HOME} && \
     rm -r thrift-0.11.0 thrift-0.11.0.tar.gz
-
 }
 
 install_jaegertracing_cpp_lib(){
-# TODO: Upgrade to opentelemetry-cpp
-# Tracing via Jaeger and Thrift protocol
-# Copy FindThrift.cmake because installing Thrift does not include a CMake definition
-cd $HOME
-git clone -b v0.7.0 --depth 1 https://github.com/jaegertracing/jaeger-client-cpp && \
-    cd jaeger-client-cpp && \
-    mkdir build && \
-    cd build && \
-    cmake -DHUNTER_ENABLED=OFF -DHUNTER_BUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF \
-          -DBUILD_SHARED_LIBS=OFF -DJAEGERTRACING_BUILD_EXAMPLES=OFF \
-          -DJAEGERTRACING_PLUGIN=OFF -DJAEGERTRACING_COVERAGE=OFF \
-          -DJAEGERTRACING_BUILD_CROSSDOCK=OFF -DJAEGERTRACING_WITH_YAML_CPP=OFF \
-          .. && \
-    make -j$(nproc) install && \
-    cp ../cmake/Findthrift.cmake /usr/share/cmake-3.20/Modules/ && \
-    cd ${HOME} && \
-    rm -r jaeger-client-cpp
+  # TODO: Upgrade to opentelemetry-cpp
+  # Tracing via Jaeger and Thrift protocol
+  # Copy FindThrift.cmake because installing Thrift does not include a CMake definition
+  cd $HOME
+  git clone -b v0.7.0 --depth 1 https://github.com/jaegertracing/jaeger-client-cpp && \
+      cd jaeger-client-cpp && \
+      mkdir build && \
+      cd build && \
+      cmake -DHUNTER_ENABLED=OFF -DHUNTER_BUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF \
+            -DBUILD_SHARED_LIBS=OFF -DJAEGERTRACING_BUILD_EXAMPLES=OFF \
+            -DJAEGERTRACING_PLUGIN=OFF -DJAEGERTRACING_COVERAGE=OFF \
+            -DJAEGERTRACING_BUILD_CROSSDOCK=OFF -DJAEGERTRACING_WITH_YAML_CPP=OFF \
+            .. && \
+      make -j$(nproc) install && \
+      cp ../cmake/Findthrift.cmake /usr/share/cmake-3.20/Modules/ && \
+      cd ${HOME} && \
+      rm -r jaeger-client-cpp
 
-# Cppcheck 2.8
-cd ${HOME}
-CPPCHECK_VER="2.8"
-wget ${WGET_FLAGS} https://sourceforge.net/projects/cppcheck/files/cppcheck/${CPPCHECK_VER}/cppcheck-${CPPCHECK_VER}.tar.gz/download -O ./cppcheck.tar.gz && \
- tar -xvzf cppcheck.tar.gz && rm ./cppcheck.tar.gz  && \
- cd cppcheck-${CPPCHECK_VER} && \
- mkdir build && cd build && \
- cmake .. && \
- cmake --build . && \
- make install && \
- cd ${HOME} && \
- rm -rf cppcheck-${CPPCHECK_VER}
+  # Jaeger really wants to find BoostConfig.cmake, not FindBoost.cmake.
+  # This wasn't introduced until boost 1.70.
+  # Jaegertracing.cmake finds FindBoost.cmake first anyways.
+  # The following sed just removes the search for BoostConfig.cmake.
+  sed -i '/boost_components/d' /usr/local/lib/cmake/jaegertracing/jaegertracingConfig.cmake
+}
 
-# Jaeger really wants to find BoostConfig.cmake, not FindBoost.cmake.
-# This wasn't introduced until boost 1.70.
-# Jaegertracing.cmake finds FindBoost.cmake first anyways.
-# The following sed just removes the search for BoostConfig.cmake.
-sed -i '/boost_components/d' /usr/local/lib/cmake/jaegertracing/jaegertracingConfig.cmake
-
+install_cppcheck(){
+  cd ${HOME}
+  CPPCHECK_VER="2.8"
+  wget ${WGET_FLAGS} https://sourceforge.net/projects/cppcheck/files/cppcheck/${CPPCHECK_VER}/cppcheck-${CPPCHECK_VER}.tar.gz/download -O ./cppcheck.tar.gz && \
+  tar -xvzf cppcheck.tar.gz && rm ./cppcheck.tar.gz  && \
+  cd cppcheck-${CPPCHECK_VER} && \
+  mkdir build && cd build && \
+  cmake .. && \
+  cmake --build . && \
+  make install && \
+  cd ${HOME} && \
+  rm -rf cppcheck-${CPPCHECK_VER}
 }
 
 
+install_ccache(){
+  # ccache is used to accelerate C/C++ recompilation
+  CCACHE_VER=4.6.1
+  cd "$HOME"
+  wget https://github.com/ccache/ccache/releases/download/v${CCACHE_VER}/ccache-${CCACHE_VER}.tar.xz && \
+    tar xvf ccache-${CCACHE_VER}.tar.xz && \
+    cd ccache-${CCACHE_VER} && \
+    mkdir build && cd build && \
+    cmake -DCMAKE_BUILD_TYPE=Release -DREDIS_STORAGE_BACKEND=OFF .. && \
+    make && \
+    make install && \
+    cd "${HOME}" && \
+    rm -rf ccache-${CCACHE_VER} ccache-${CCACHE_VER}.tar.xz
+  mkdir -p /mnt/ccache/
+}
 
 install_build_tools
 install_third_party_libraries
@@ -467,7 +480,8 @@ install_json_lib
 install_httplib
 install_thrift_lib
 install_jaegertracing_cpp_lib
-
+install_cppcheck
+install_ccache
 
 # After installing all libraries, let's make sure that they will be found at compile time
 ldconfig -v
