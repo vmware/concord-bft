@@ -43,11 +43,7 @@ module Messages {
       || (&& |votes| == quorumSize
           && WF()
           && (forall v | v in votes :: v.payload == prototype()) // messages have to be votes that match eachother by the prototype 
-          && (forall v1, v2 | && v1 in votes
-                              && v2 in votes
-                              && v1 != v2
-                                :: v1.sender != v2.sender) // unique senders
-          )
+          && UniqueSenders(votes))
     }
     predicate empty() {
       && |votes| == 0
@@ -60,10 +56,7 @@ module Messages {
       && (forall v | v in msgs :: && v.payload.ViewChangeMsg?
                                   && v.payload.validViewChangeMsg(quorumSize)
                                   && v.payload.newView == view) // All the ViewChange messages have to be for the same View. 
-      && (forall v1, v2 | && v1 in msgs
-                          && v2 in msgs
-                          && v1 != v2
-                            :: v1.sender != v2.sender) // unique senders
+      && UniqueSenders(msgs)
       && |msgs| == quorumSize //TODO: once proof is complete try with >=
     }
   }
@@ -73,12 +66,16 @@ module Messages {
       && |msgs| > 0
       && (forall m | m in msgs :: && m.payload.CheckpointMsg?
                                   && m.payload.seqIDReached == lastStableCheckpoint)
-      && (forall m1, m2 | && m1 in msgs
-                          && m2 in msgs
-                          && m1 != m2
-                            :: m1.sender != m2.sender) // unique senders
+      && UniqueSenders(msgs)
       && |msgs| >= quorumSize
     }
+  }
+
+  predicate UniqueSenders(msgs:set<Network.Message<Message>>) {
+    (forall m1, m2 | && m1 in msgs
+                     && m2 in msgs
+                     && m1 != m2
+                       :: m1.sender != m2.sender)
   }
 
   // Define your Message datatype here.

@@ -42,12 +42,15 @@ module Replica {
     map[]
   }
 
+  function NothingCommitted() : map<SequenceID, OperationWrapper> {
+    map[]
+  }
+
   // The Working Window data structure. Here Replicas keep the PrePrepare from the Primary
   // and the votes from all peers. Once a Client Operation is committed by a given Replica
   // to a specific Sequence ID (the Replica has collected the necessary quorum of votes from
   // peers) the Client Operation is inserted in the committedClientOperations as appropriate.
   datatype WorkingWindow = WorkingWindow(
-    committedClientOperations:map<SequenceID, Option<OperationWrapper>>,
     prePreparesRcvd:map<SequenceID, Option<Network.Message<Message>>>,
     preparesRcvd:map<SequenceID, PrepareProofSet>,
     commitsRcvd:map<SequenceID, CommitProofSet>,
@@ -66,7 +69,6 @@ module Replica {
     predicate WF(c:Constants)
       requires c.WF()
     {
-      && committedClientOperations.Keys == getActiveSequenceIDs(c)
       && preparesRcvd.Keys == getActiveSequenceIDs(c)
       && commitsRcvd.Keys == getActiveSequenceIDs(c)
       && prePreparesRcvd.Keys == getActiveSequenceIDs(c)
@@ -79,13 +81,20 @@ module Replica {
     {
       map seqID | seqID in getActiveSequenceIDs(c) :: if seqID in m then m[seqID] else empty
     }
-    function Clear<T>(c:Constants, m:map<SequenceID,T>, empty:T) : map<SequenceID,T> 
+    function Clear<T>(c:Constants, empty:T) : map<SequenceID,T>
       requires c.WF()
     {
       map seqID | seqID in getActiveSequenceIDs(c) :: empty
     }
+    function EmptyWorkingWindow(c:Constants) : WorkingWindow
+      requires c.WF()
+    {
+      var prePreparesRcvd := Clear(c, Option<Network.Message<Message>>.None);
+      var preparesRcvd := Clear(c, EmptyPrepareProofSet());
+      var commitsRcvd := Clear(c, EmptyCommitProofSet());
+      WorkingWindow(prePreparesRcvd, preparesRcvd, commitsRcvd, lastStableCheckpoint)
+    }
   }
-
 
   // Define your Host protocol state machine here.
   datatype Constants = Constants(myId:HostId, clusterConfig:ClusterConfig.Constants) {
@@ -130,6 +139,7 @@ module Replica {
   datatype Variables = Variables(
     view:ViewNum,
     workingWindow:WorkingWindow,
+    committedClientOperations:map<SequenceID, OperationWrapper>,
     viewChangeMsgsRecvd:ViewChangeMsgs,
     newViewMsgsRecvd:NewViewMsgs,
     countExecutedSeqIDs:SequenceID,
@@ -227,6 +237,7 @@ module Replica {
   function HighestStable(c:Constants, msgs:set<Network.Message<Message>>) : SequenceID
     requires c.WF()
     requires forall m | m in msgs :: m.payload.ViewChangeMsg?
+    decreases |msgs|
   {
     if |msgs| == 0
     then 1
@@ -416,10 +427,9 @@ module Replica {
     && v.workingWindow.prePreparesRcvd[seqID].Some?
     && var msg := v.workingWindow.prePreparesRcvd[seqID].value;
     // TODO: We should be able to commit empty (Noop) operations as well
-    && v' == v.(workingWindow := 
-               v.workingWindow.(committedClientOperations :=
-                                 v.workingWindow.committedClientOperations[msg.payload.seqID := 
-                                                                          Some(msg.payload.operationWrapper)]))
+    && v' == v.(committedClientOperations :=
+                                 v.committedClientOperations[msg.payload.seqID := 
+                                                                          msg.payload.operationWrapper])
   }
 
   predicate ContiguousCommits(c:Constants, v:Variables, targetSeqID:SequenceID)
@@ -428,7 +438,7 @@ module Replica {
   {
     && (forall seqID | && seqID <= targetSeqID
                        && seqID > v.workingWindow.lastStableCheckpoint
-                     :: v.workingWindow.committedClientOperations[seqID].Some?)
+                     :: seqID in v.committedClientOperations)
   }
 
   predicate Execute(c:Constants, v:Variables, v':Variables, msgOps:Network.MessageOps<Message>, seqID:SequenceID)
@@ -507,10 +517,7 @@ module Replica {
     //            (vcMsg.payload.certificates[seqID].valid(c.clusterConfig.AgreementQuorum())))
     && v' == v.(view := newView)
               .(viewChangeMsgsRecvd := v.viewChangeMsgsRecvd.(msgs := v.viewChangeMsgsRecvd.msgs + {vcMsg}))
-              .(workingWindow := v.workingWindow.(
-                prePreparesRcvd := v.workingWindow.Clear(c, v.workingWindow.prePreparesRcvd, None),
-                preparesRcvd := v.workingWindow.Clear(c, v.workingWindow.preparesRcvd, EmptyPrepareProofSet()),
-                commitsRcvd := v.workingWindow.Clear(c, v.workingWindow.commitsRcvd, EmptyCommitProofSet())))
+              .(workingWindow := v.workingWindow.EmptyWorkingWindow(c))
   }
 
   function ExtractStableCheckpointProof(c:Constants, v:Variables) : set<Network.Message<Message>>
@@ -605,7 +612,7 @@ module Replica {
     // We only allow the primary to select 1 set of View Change messages per view.
     && (forall storedMsg | storedMsg in v.newViewMsgsRecvd.msgs :: msg.payload.newView != storedMsg.payload.newView)
     && v' == v.(newViewMsgsRecvd := v.newViewMsgsRecvd.(msgs := v.newViewMsgsRecvd.msgs + {msg}))
-              .(workingWindow := v.workingWindow.(lastStableCheckpoint := HighestStable(c, msg.payload.vcMsgs.msgs)))
+              .(workingWindow := v.workingWindow.(lastStableCheckpoint := HighestStable(c, msg.payload.vcMsgs.msgs))) //TODO: split into two phases.
   }
 
   predicate SendCheckpoint(c:Constants, v:Variables, v':Variables, msgOps:Network.MessageOps<Message>, seqID:SequenceID) {
@@ -648,8 +655,7 @@ module Replica {
   predicate Init(c:Constants, v:Variables) {
     && v.WF(c)
     && v.view == 0
-    && (forall seqID | seqID in v.workingWindow.committedClientOperations
-                :: v.workingWindow.committedClientOperations[seqID].None?)
+    && v.committedClientOperations == NothingCommitted()
     && (forall seqID | seqID in v.workingWindow.prePreparesRcvd
                 :: v.workingWindow.prePreparesRcvd[seqID].None?)
     && (forall seqID | seqID in v.workingWindow.preparesRcvd :: v.workingWindow.preparesRcvd[seqID] == EmptyPrepareProofSet())
