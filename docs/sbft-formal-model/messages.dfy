@@ -24,6 +24,8 @@ module Messages {
 
   datatype OperationWrapper = Noop | ClientOp(clientOperation: ClientOperation)
 
+  type CommittedClientOperations = map<SequenceID, OperationWrapper>
+
   function sendersOf(msgs:set<Network.Message<Message>>) : set<HostIdentifiers.HostId> {
     set msg | msg in msgs :: msg.sender
   }
@@ -62,9 +64,16 @@ module Messages {
   }
 
   datatype CheckpointsQuorum = CheckpointsQuorum(msgs:set<Network.Message<Message>>) {
+    function prototype() : Message 
+      requires |msgs| > 0
+    {
+      var prot :| prot in msgs;
+      prot.payload
+    }
     predicate valid(lastStableCheckpoint:SequenceID, quorumSize:nat) {
       && |msgs| > 0
       && (forall m | m in msgs :: && m.payload.CheckpointMsg?
+                                  && m.payload == prototype()
                                   && m.payload.seqIDReached == lastStableCheckpoint)
       && UniqueSenders(msgs)
       && |msgs| >= quorumSize
@@ -88,7 +97,7 @@ module Messages {
                                      proofForLastStable:CheckpointsQuorum,
                                      certificates:map<SequenceID, PreparedCertificate>)
                      | NewViewMsg(newView:ViewNum, vcMsgs:ViewChangeMsgsSelectedByPrimary) 
-                     | CheckpointMsg(seqIDReached:SequenceID)
+                     | CheckpointMsg(seqIDReached:SequenceID, committedClientOperations:CommittedClientOperations)
                      {
                        predicate valid(quorumSize:nat)
                        {

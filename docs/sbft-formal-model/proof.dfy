@@ -762,12 +762,34 @@ module Proof {
     && var h_v' := v'.hosts[step.id].replicaVariables;
     && Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step)
     && h_step.AdvanceWorkingWindowStep?
-    && Replica.AdvanceWorkingWindow(h_c, h_v, h_v', step.msgOps, h_step.seqID)
+    && Replica.AdvanceWorkingWindow(h_c, h_v, h_v', step.msgOps, h_step.seqID, h_step.checkpointsQuorum)
   }
 
   lemma AdvanceWorkingWindowStepPreservesInv(c: Constants, v:Variables, v':Variables, 
                                   step:Step, h_step:Replica.Step)
     requires AdvanceWorkingWindowStepIsEnabled(c, v, v', step, h_step)
+    ensures Inv(c, v')
+  {
+    CommitMsgStability(c, v, v', step);
+  }
+
+  predicate PerformStateTransferStepIsEnabled(c: Constants, v:Variables, v':Variables,
+                                   step:Step, h_step:Replica.Step)
+  {
+    && Inv(c, v)
+    && NextStep(c, v, v', step)
+    && IsHonestReplica(c, step.id)
+    && var h_c := c.hosts[step.id].replicaConstants;
+    && var h_v := v.hosts[step.id].replicaVariables;
+    && var h_v' := v'.hosts[step.id].replicaVariables;
+    && Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step)
+    && h_step.PerformStateTransferStep?
+    && Replica.PerformStateTransfer(h_c, h_v, h_v', step.msgOps, h_step.seqID, h_step.checkpointsQuorum)
+  }
+
+  lemma PerformStateTransferStepPreservesInv(c: Constants, v:Variables, v':Variables, 
+                                  step:Step, h_step:Replica.Step)
+    requires PerformStateTransferStepIsEnabled(c, v, v', step, h_step)
     ensures Inv(c, v')
   {
     CommitMsgStability(c, v, v', step);
@@ -952,8 +974,11 @@ module Proof {
         case RecvCheckpointStep() => {
           RecvCheckpointStepPreservesInv(c, v, v', step, h_step);
         }
-        case AdvanceWorkingWindowStep(seqID) => {
+        case AdvanceWorkingWindowStep(seqID, checkpointsQuorum) => {
           AdvanceWorkingWindowStepPreservesInv(c, v, v', step, h_step);
+        }
+        case PerformStateTransferStep(seqID, checkpointsQuorum) => {
+          PerformStateTransferStepPreservesInv(c, v, v', step, h_step);
         }
         case LeaveViewStep(newView) => {
           LeaveViewStepPreservesInv(c, v, v', step, h_step);
