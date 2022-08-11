@@ -18,7 +18,6 @@
 #include "openssl_crypto.hpp"
 #include "crypto/openssl/EdDSA.hpp"
 #include "util/filesystem.hpp"
-#include "ReplicaConfig.hpp"
 
 #include <regex>
 #include <utility>
@@ -27,7 +26,6 @@ namespace concord::crypto {
 using std::array;
 using std::pair;
 using std::string;
-using bftEngine::ReplicaConfig;
 using concord::crypto::KeyFormat;
 using concord::crypto::CurveType;
 using concord::util::openssl_utils::UniquePKEY;
