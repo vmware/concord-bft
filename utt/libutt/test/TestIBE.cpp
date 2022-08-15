@@ -68,7 +68,7 @@ int main(int argc, char *argv[]) {
 
   auto frs_data = frsToBytes({Fr::random_element(), Fr::random_element(), Fr::random_element()});
   AutoBuf<unsigned char> auto_buf_data(frs_data.size());
-  memcpy(auto_buf_data.getBuf(), encbuf.data(), encbuf.size());
+  memcpy(auto_buf_data.getBuf(), frs_data.data(), frs_data.size());
   testAssertNotEqual(ctxt, mpk.encrypt(pid, auto_buf_data));
 
   loginfo << "All is well." << endl;

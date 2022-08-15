@@ -25,8 +25,8 @@ std::ostream& operator<<(std::ostream& out, const libutt::TxOut& txout) {
   // out << txout.t << endl;
   out << txout.icm;
   out << txout.icm_pok;
-
-  out << std::string(txout.ctxt.begin(), txout.ctxt.end()) << endl;
+  out << txout.ctxt.size() << endl;
+  out.write((char*)(txout.ctxt.data()), (long)txout.ctxt.size());
   return out;
 }
 
@@ -50,10 +50,11 @@ std::istream& operator>>(std::istream& in, libutt::TxOut& txout) {
   // libff::consume_OUTPUT_NEWLINE(in);
   in >> txout.icm;
   in >> txout.icm_pok;
-  std::string s;
-  in >> s;
-  memcpy(txout.ctxt.data(), s.data(), s.size());
+  size_t ctxt_size{0};
+  in >> ctxt_size;
   libff::consume_OUTPUT_NEWLINE(in);
+  txout.ctxt.resize(ctxt_size);
+  if (ctxt_size > 0) in.read((char*)(txout.ctxt.data()), (long)ctxt_size);
   return in;
 }
 
