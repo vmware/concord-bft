@@ -17,6 +17,22 @@ Budget::Budget(const GlobalParams& d, const libutt::api::Client& cid, uint64_t v
                             libutt::api::Coin::Type::Budget,
                             fr_expdate.to_words());
 }
+Budget::Budget(const GlobalParams& d,
+               const types::CurvePoint& pidHash,
+               uint64_t val,
+               uint64_t exp_date /* represented as hours since epoch*/) {
+  Fr fr_val;
+  fr_val.set_ulong(val);
+  Fr fr_expdate;
+  fr_expdate.set_ulong(exp_date);
+  coin_ = libutt::api::Coin(d,
+                            Fr::random_element().to_words(),
+                            fr_val.to_words(),
+                            pidHash,
+                            libutt::api::Coin::Type::Budget,
+                            fr_expdate.to_words());
+}
+
 libutt::api::Coin& Budget::getCoin() { return coin_; }
 const libutt::api::Coin& Budget::getCoin() const { return coin_; }
 std::string Budget::getHashHex() const {

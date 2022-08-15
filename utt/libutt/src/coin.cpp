@@ -23,14 +23,28 @@ Coin::Coin(const GlobalParams& d,
   pid_hash.from_words(pidhash);
   Fr fr_prf;
   fr_prf.from_words(prf);
-  coin_.reset(new libutt::Coin(d.getParams().ck_coin,
-                               d.getParams().null,
-                               fr_prf,
-                               fr_sn,
-                               fr_val,
-                               fr_type,
-                               libutt::Coin::DoesNotExpire(),
-                               pid_hash));
+  coin_.reset(new libutt::Coin(
+      d.getParams().ck_coin, d.getParams().null, fr_prf, fr_sn, fr_val, fr_type, fr_exp_date, pid_hash));
+  type_ = t;
+}
+
+Coin::Coin(const GlobalParams& d,
+           const types::CurvePoint& sn,
+           const types::CurvePoint& val,
+           const types::CurvePoint& pidhash,
+           Type t,
+           const types::CurvePoint& exp_date) {
+  Fr fr_sn;
+  fr_sn.from_words(sn);
+  Fr fr_val;
+  fr_val.from_words(val);
+  Fr fr_type = t == Type::Normal ? libutt::Coin::NormalType() : libutt::Coin::BudgetType();
+  Fr fr_exp_date;
+  fr_exp_date.from_words(exp_date);
+  Fr pid_hash;
+  pid_hash.from_words(pidhash);
+
+  coin_.reset(new libutt::Coin(d.getParams().ck_coin, fr_sn, fr_val, fr_type, fr_exp_date, pid_hash));
   type_ = t;
 }
 Coin::Coin(const Coin& c) {
@@ -64,4 +78,8 @@ void Coin::rerandomize() {
   Fr u_delta = Fr::random_element();
   coin_->sig.rerandomize(coin_->r, u_delta);
 }
+
+types::CurvePoint Coin::getPidHash() const { return coin_->pid_hash.to_words(); }
+types::CurvePoint Coin::getSN() const { return coin_->sn.to_words(); }
+std::string Coin::getExpDate() const { return exp_date_str_; }
 }  // namespace libutt::api
