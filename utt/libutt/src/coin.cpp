@@ -82,4 +82,5 @@ void Coin::rerandomize() {
 types::CurvePoint Coin::getPidHash() const { return coin_->pid_hash.to_words(); }
 types::CurvePoint Coin::getSN() const { return coin_->sn.to_words(); }
 std::string Coin::getExpDate() const { return exp_date_str_; }
+types::CurvePoint Coin::getExpDateAsCurvePoint() const { return coin_->exp_date.to_words(); }
 }  // namespace libutt::api

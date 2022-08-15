@@ -38,8 +38,4 @@ const libutt::api::Coin& Budget::getCoin() const { return coin_; }
 std::string Budget::getHashHex() const {
   return hashToHex(("Budget|" + libutt::serialize<libutt::Coin>((*coin_.coin_))));
 }
-types::CurvePoint Budget::getPidHash() const { return coin_.coin_->pid_hash.to_words(); }
-types::CurvePoint Budget::getSN() const { return coin_.coin_->sn.to_words(); }
-types::CurvePoint Budget::getVal() const { return coin_.coin_->val.to_words(); }
-types::CurvePoint Budget::getExpDate() const { return coin_.coin_->exp_date.to_words(); }
 }  // namespace libutt::api::operations

@@ -18,10 +18,6 @@ class Budget {
   libutt::api::Coin& getCoin();
   const libutt::api::Coin& getCoin() const;
   std::string getHashHex() const;
-  types::CurvePoint getPidHash() const;
-  types::CurvePoint getSN() const;
-  types::CurvePoint getVal() const;
-  types::CurvePoint getExpDate() const;
 
  private:
   libutt::api::Coin coin_;

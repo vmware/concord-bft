@@ -45,6 +45,7 @@ class Coin {
   types::CurvePoint getPidHash() const;
   types::CurvePoint getSN() const;
   std::string getExpDate() const;
+  types::CurvePoint getExpDateAsCurvePoint() const;
 
  private:
   friend class Client;

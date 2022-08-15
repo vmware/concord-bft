@@ -53,10 +53,11 @@ std::vector<types::Signature> Committer::sign<operations::Budget>(operations::Bu
   Fr val;
   Fr type = libutt::Coin::BudgetType();
   Fr exp_date;
-  pidHash.from_words(budget.getPidHash());
-  sn.from_words(budget.getSN());
-  val.from_words(budget.getVal());
-  exp_date.from_words(budget.getExpDate());
+  auto& bcoin = budget.getCoin();
+  pidHash.from_words(bcoin.getPidHash());
+  sn.from_words(bcoin.getSN());
+  val.set_ulong(bcoin.getVal());
+  exp_date.from_words(bcoin.getExpDateAsCurvePoint());
   Comm icm = (pidHash * H);  // H^pidHash g^0
   Comm scm(sn * H);          // H^sn g^0
   Comm vcm = (val * H);      // H^value g^0
