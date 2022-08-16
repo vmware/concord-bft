@@ -39,15 +39,15 @@ std::vector<uint32_t> getSubGroup(uint32_t n, uint32_t size) {
   }
   return rret;
 }
-std::pair<RandSigDKG, RegAuthSK> init(size_t n, size_t thresh) {
-  auto& d = GlobalParams::instance();
+std::tuple<libutt::api::GlobalParams, RandSigDKG, RegAuthSK> init(size_t n, size_t thresh) {
+  GlobalParams d;
   d.init();
 
   auto dkg = RandSigDKG(thresh, n, Params::NumMessages);
   d.getParams() = Params::random(dkg.getCK());
   auto rc = RegAuthSK::generateKeyAndShares(d.getParams().ck_reg, thresh, n, d.getParams().ibe);
   d.getParams().ck_reg = rc.ck_reg;
-  return {dkg, rc};
+  return {d, dkg, rc};
 }
 std::vector<std::shared_ptr<Registrator>> GenerateRegistrators(size_t n, const RegAuthSK& rsk) {
   std::vector<std::shared_ptr<Registrator>> registrators;

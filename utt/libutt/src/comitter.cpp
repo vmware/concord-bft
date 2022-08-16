@@ -70,14 +70,17 @@ std::vector<types::Signature> Committer::sign<operations::Budget>(operations::Bu
 }
 
 template <>
-bool Committer::validate<operations::Burn>(const operations::Burn& burn, const types::Signature& sig) const {
+bool Committer::validate<operations::Burn>(const GlobalParams& p,
+                                           const operations::Burn& burn,
+                                           const types::Signature& sig) const {
   (void)sig;
-  return burn.burn_->validate(GlobalParams::instance().getParams(), *(bvk_), *(rvk_));
+  return burn.burn_->validate(p.getParams(), *(bvk_), *(rvk_));
 }
 template <>
-bool Committer::validate<operations::Transaction>(const operations::Transaction& tx,
+bool Committer::validate<operations::Transaction>(const GlobalParams& p,
+                                                  const operations::Transaction& tx,
                                                   const types::Signature& sig) const {
   (void)sig;
-  return tx.tx_->validate(GlobalParams::instance().getParams(), *(bvk_), *(rvk_));
+  return tx.tx_->validate(p.getParams(), *(bvk_), *(rvk_));
 }
 }  // namespace libutt::api

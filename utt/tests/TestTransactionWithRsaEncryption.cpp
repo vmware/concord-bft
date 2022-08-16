@@ -110,8 +110,7 @@ int main(int argc, char* argv[]) {
   for (size_t i = 0; i < c; i++) {
     pub_keys["client_" + std::to_string(i)] = pkeys.at(i);
   }
-  auto [dkg, rc] = testing::init(n, thresh);
-  auto& d = GlobalParams::instance();
+  auto [d, dkg, rc] = testing::init(n, thresh);
   auto registrators = testing::GenerateRegistrators(n, rc);
   auto banks = testing::GenerateCommitters(n, dkg, rc.toPK());
   auto clients = testing::GenerateClients(c, dkg.getPK(), rc.toPK(), pr_keys, pub_keys);

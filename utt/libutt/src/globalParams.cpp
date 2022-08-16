@@ -6,9 +6,12 @@
 #include <utt/Params.h>
 
 namespace libutt::api {
+bool GlobalParams::initialized = false;
 using Fr = typename libff::default_ec_pp::Fp_type;
+
 void GlobalParams::init() {
-  if (params != nullptr) return;
+  if (initialized) return;
+  initialized = true;
   unsigned char* randSeed = nullptr;  // TODO: initialize entropy source
   int size = 0;                       // TODO: initialize entropy source
 
@@ -42,4 +45,14 @@ void GlobalParams::init() {
 }
 const libutt::Params& GlobalParams::getParams() const { return *params; }
 libutt::Params& GlobalParams::getParams() { return *params; }
+
+GlobalParams::GlobalParams(const GlobalParams& other) {
+  params.reset(new libutt::Params());
+  *params = *(other.params);
+}
+GlobalParams& GlobalParams::operator=(const GlobalParams& other) {
+  params.reset(new libutt::Params());
+  *params = *(other.params);
+  return *this;
+}
 }  // namespace libutt::api

@@ -1,5 +1,6 @@
 #pragma once
 #include "types.hpp"
+#include "globalParams.hpp"
 #include <string>
 #include <memory>
 #include <vector>
@@ -16,7 +17,7 @@ class Committer {
   std::vector<types::Signature> sign(T& data) const;
   const std::string& getId() const;
   template <typename T>
-  bool validate(const T&, const types::Signature& sig) const;
+  bool validate(const GlobalParams& p, const T&, const types::Signature& sig) const;
 
  private:
   std::string bid_;

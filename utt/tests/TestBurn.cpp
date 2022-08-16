@@ -22,8 +22,7 @@ int main(int argc, char* argv[]) {
   size_t thresh = 3;
   size_t n = 4;
   size_t c = 10;
-  auto [dkg, rc] = testing::init(n, thresh);
-  auto& d = GlobalParams::instance();
+  auto [d, dkg, rc] = testing::init(n, thresh);
   auto registrators = testing::GenerateRegistrators(n, rc);
   auto banks = testing::GenerateCommitters(n, dkg, rc.toPK());
   auto clients = testing::GenerateClients(c, dkg.getPK(), rc.toPK(), rc);
@@ -47,7 +46,7 @@ int main(int argc, char* argv[]) {
     assertTrue(c.validate(coin));
     Burn b_op{d, c, coin};
     for (auto& b : banks) {
-      assertTrue(b->validate(b_op, {}));
+      assertTrue(b->validate(d, b_op, {}));
     }
   }
   return 0;
