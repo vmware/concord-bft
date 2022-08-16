@@ -21,6 +21,7 @@
 #include "client_pool_config.hpp"
 #include "communication/StatusInfo.h"
 #include "external_client_exception.hpp"
+#include "concord_client_message.cmf.hpp"
 
 namespace concord {
 
@@ -103,6 +104,12 @@ class ConcordClient {
   static void setDelayFlagForTest(bool delay);
 
   std::string messageSignature(bft::client::Msg&);
+
+  void prepareConcordClientRequest(bft::client::Msg& request,
+                                   bftEngine::RequestType request_type,
+                                   const std::string& client_service_id);
+
+  void prepareConcordClientResponse(bft::client::Msg& response);
 
  private:
   void CreateClient(std::shared_ptr<concordMetrics::Aggregator> aggregator);

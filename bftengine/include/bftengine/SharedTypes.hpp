@@ -29,4 +29,6 @@ enum class OperationResult : uint32_t {
   INTERNAL_ERROR
 };
 
+enum class RequestType : uint32_t { RAW_MESSAGE, ANY_MESSAGE };
+
 }  // namespace bftEngine
