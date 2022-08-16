@@ -4,6 +4,8 @@
 #include "commitment.hpp"
 #include "types.hpp"
 #include <memory>
+#include <optional>
+
 namespace libutt {
 class Coin;
 }
@@ -41,7 +43,7 @@ class Coin {
   void setSig(const types::Signature& sig);
   Type getType() const;
   types::Signature getSig() const;
-  void rerandomize();
+  void rerandomize(std::optional<types::CurvePoint> base_randomness);
   uint64_t getVal() const;
   types::CurvePoint getPidHash() const;
   types::CurvePoint getSN() const;

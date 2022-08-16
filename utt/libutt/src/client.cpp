@@ -94,7 +94,7 @@ std::pair<Commitment, types::Signature> Client::getRcm() const {
 
 std::pair<Commitment, types::Signature> Client::rerandomizeRcm(const GlobalParams& d) const {
   auto rcm_copy = rcm_;
-  auto r = rcm_copy.rerandomize(d, Commitment::Type::REGISTRATION);
+  auto r = rcm_copy.rerandomize(d, Commitment::Type::REGISTRATION, std::nullopt);
   Fr r_rand;
   r_rand.from_words(r);
   auto sig_obj = ask_->rs;
@@ -117,7 +117,7 @@ std::vector<libutt::api::Coin> Client::claimCoins<operations::Mint>(
                       Coin::Type::Normal,
                       libutt::Coin::DoesNotExpire().to_words());
   c.setSig(sig);
-  c.rerandomize();
+  c.rerandomize(std::nullopt);
   return {c};
 }
 
@@ -130,7 +130,7 @@ std::vector<libutt::api::Coin> Client::claimCoins<operations::Budget>(
   auto sig = Utils::unblindSignature(d, Commitment::Type::COIN, r, blindedSigs.front());
   libutt::api::Coin c = budget.getCoin();
   c.setSig(sig);
-  c.rerandomize();
+  c.rerandomize(std::nullopt);
   return {c};
 }
 template <>
@@ -151,7 +151,7 @@ std::vector<libutt::api::Coin> Client::claimCoins<operations::Transaction>(
                         txo.coin_type == libutt::Coin::NormalType() ? Coin::Type::Normal : Coin::Type::Budget,
                         txo.exp_date.to_words());
     c.setSig(sig);
-    c.rerandomize();
+    c.rerandomize(std::nullopt);
     ret.emplace_back(std::move(c));
   }
   return ret;

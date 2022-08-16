@@ -48,8 +48,11 @@ Commitment& Commitment::operator+=(const Commitment& comm) {
   return *this;
 }
 
-types::CurvePoint Commitment::rerandomize(const GlobalParams& d, Type t) {
+types::CurvePoint Commitment::rerandomize(const GlobalParams& d,
+                                          Type t,
+                                          std::optional<types::CurvePoint> base_randomness) {
   Fr u_delta = Fr::random_element();
+  if (base_randomness.has_value()) u_delta.from_words(*base_randomness);
   comm_->rerandomize(Commitment::getCommitmentKey(d, t), u_delta);
   return u_delta.to_words();
 }

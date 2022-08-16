@@ -74,8 +74,9 @@ types::Signature Coin::getSig() const {
   auto str_sig = libutt::serialize<libutt::RandSig>(coin_->sig);
   return types::Signature(str_sig.begin(), str_sig.end());
 }
-void Coin::rerandomize() {
+void Coin::rerandomize(std::optional<types::CurvePoint> base_randomness) {
   Fr u_delta = Fr::random_element();
+  if (base_randomness.has_value()) u_delta.from_words(*base_randomness);
   coin_->sig.rerandomize(coin_->r, u_delta);
 }
 void Coin::createNullifier(const GlobalParams& d, const types::CurvePoint& prf) {

@@ -3,6 +3,8 @@
 #include "types.hpp"
 #include <vector>
 #include <cstdint>
+#include <optional>
+
 namespace libutt {
 class Comm;
 class CommKey;
@@ -27,7 +29,7 @@ class Commitment {
   Commitment();
   Commitment& operator=(const Commitment&);
   Commitment& operator+=(const Commitment&);
-  types::CurvePoint rerandomize(const GlobalParams& d, Type t);
+  types::CurvePoint rerandomize(const GlobalParams& d, Type t, std::optional<types::CurvePoint> base_randomness);
 
  private:
   friend class Registrator;
