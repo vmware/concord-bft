@@ -47,5 +47,24 @@ int main(int argc, char* argv[]) {
     auto coin = c.claimCoins(budget, d, (uint32_t)n, {sigs}).front();
     assertTrue(c.validate(coin));
   }
+
+  // Now, do the same for a budget created by the replicas.
+  for (auto& c : clients) {
+    std::vector<std::vector<uint8_t>> rsigs;
+    uint64_t now = (uint64_t)(duration_cast<hours>(system_clock::now().time_since_epoch()).count());
+    auto budget = Budget(d, c.getPidHash(), 1000, now + 100U);
+    for (size_t i = 0; i < banks.size(); i++) {
+      rsigs.push_back(banks[i]->sign(budget).front());
+    }
+    auto sbs = testing::getSubGroup((uint32_t)n, (uint32_t)thresh);
+    std::map<uint32_t, std::vector<uint8_t>> sigs;
+    for (auto i : sbs) {
+      sigs[i] = rsigs[i];
+    }
+    auto coin = c.claimCoins(budget, d, (uint32_t)n, {sigs}).front();
+    coin.createNullifier(d, c.getPRFSecretKey());
+    assertTrue(!coin.getNullifier().empty());
+    assertTrue(c.validate(coin));
+  }
   return 0;
 }

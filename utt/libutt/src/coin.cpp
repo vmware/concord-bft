@@ -78,7 +78,11 @@ void Coin::rerandomize() {
   Fr u_delta = Fr::random_element();
   coin_->sig.rerandomize(coin_->r, u_delta);
 }
-
+void Coin::createNullifier(const GlobalParams& d, const types::CurvePoint& prf) {
+  Fr fr_prf;
+  fr_prf.from_words(prf);
+  coin_->createNullifier(d.getParams().null, fr_prf);
+}
 types::CurvePoint Coin::getPidHash() const { return coin_->pid_hash.to_words(); }
 types::CurvePoint Coin::getSN() const { return coin_->sn.to_words(); }
 std::string Coin::getExpDate() const { return exp_date_str_; }

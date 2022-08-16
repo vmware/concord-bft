@@ -36,6 +36,7 @@ class Coin {
   Coin(const Coin& c);
   Coin& operator=(const Coin& c);
   const std::string getNullifier() const;
+  void createNullifier(const GlobalParams& d, const types::CurvePoint& prf);
   bool hasSig() const;
   void setSig(const types::Signature& sig);
   Type getType() const;

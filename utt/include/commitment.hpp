@@ -20,7 +20,7 @@ class Transaction;
 }  // namespace operations
 class Commitment {
  public:
-  enum Type { REGISTRATION = 0, VALUE, COIN };
+  enum Type { REGISTRATION = 0, COIN };
   static const libutt::CommKey& getCommitmentKey(const GlobalParams& d, Type t);
   Commitment(const GlobalParams& d, Type t, const std::vector<types::CurvePoint>& messages, bool withG2);
   Commitment(const Commitment& comm);

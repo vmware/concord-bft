@@ -17,12 +17,10 @@ const libutt::CommKey& Commitment::getCommitmentKey(const GlobalParams& d, Commi
   switch (t) {
     case Commitment::Type::REGISTRATION:
       return d.getParams().getRegCK();
-    case Commitment::Type::VALUE:
-      return d.getParams().getValCK();
     case Commitment::Type::COIN:
       return d.getParams().getCoinCK();
   }
-  throw std::runtime_error("Unkknown commitment key type");
+  throw std::runtime_error("Unknown commitment key type");
 }
 
 Commitment::Commitment(const GlobalParams& d, Type t, const std::vector<types::CurvePoint>& messages, bool withG2) {
