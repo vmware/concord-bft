@@ -56,7 +56,6 @@ class Coin {
   friend class operations::Transaction;
   friend class operations::Budget;
   std::unique_ptr<libutt::Coin> coin_;
-  std::string exp_date_str_;
   bool has_sig_{false};
 
   Type type_;

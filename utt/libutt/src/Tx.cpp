@@ -276,7 +276,7 @@ Tx::Tx(const Params& p,
     outs.emplace_back(p.getValCK(),
                       p.getRangeProofParams(),
                       Coin::BudgetType(),
-                      Coin::SomeExpirationDate(),
+                      b->getExpDate(),  // The budget coin inherit the old budget coin expiration date
                       H.back(),
                       pid,
                       val_budget_out,

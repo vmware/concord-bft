@@ -86,6 +86,9 @@ void Coin::createNullifier(const GlobalParams& d, const types::CurvePoint& prf) 
 }
 types::CurvePoint Coin::getPidHash() const { return coin_->pid_hash.to_words(); }
 types::CurvePoint Coin::getSN() const { return coin_->sn.to_words(); }
-std::string Coin::getExpDate() const { return exp_date_str_; }
+std::string Coin::getExpDate() const {
+  if (type_ == Type::Normal) return std::string();
+  return Utils::getStrExpirationDateFromUint(coin_->getExpDate().as_ulong());
+}
 types::CurvePoint Coin::getExpDateAsCurvePoint() const { return coin_->exp_date.to_words(); }
 }  // namespace libutt::api

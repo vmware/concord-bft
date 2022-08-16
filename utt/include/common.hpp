@@ -18,5 +18,7 @@ class Utils {
                                            Commitment::Type,
                                            const std::vector<types::CurvePoint>& randomness,
                                            const types::Signature& sig);
+  static uint64_t getExpirationDateAsUint(const std::string& exp_date);
+  static std::string getStrExpirationDateFromUint(uint64_t exp_date);
 };
 }  // namespace libutt::api

@@ -118,8 +118,8 @@ int main(int argc, char* argv[]) {
   std::unordered_map<std::string, libutt::api::Coin> bcoins;
   for (auto& c : clients) {
     std::vector<types::Signature> rsigs;
-    uint64_t now = (uint64_t)(duration_cast<hours>(system_clock::now().time_since_epoch()).count());
-    auto budget = Budget(d, c, 1000, now + 100U);
+    std::string exp_date = "2100-12-10 09:14:23";
+    auto budget = Budget(d, c, 1000, exp_date);
     for (size_t i = 0; i < banks.size(); i++) {
       rsigs.push_back(banks[i]->sign(budget).front());
     }

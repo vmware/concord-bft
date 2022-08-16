@@ -184,7 +184,7 @@ class Coin {
 
   size_t getValue() const { return static_cast<size_t>(val.as_ulong()); }
   std::string getType() const { return typeToString(type); }
-
+  Fr getExpDate() const { return exp_date; }
   /**
    * Call this when you need a partial coin commitment to include in a TXN
    * via Tx::Tx()
