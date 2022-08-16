@@ -18,12 +18,8 @@
 #include <vector>
 #include <sstream>
 namespace libutt::api {
-Client::Client(const std::string& pid,
-               const std::string& bpk,
-               const std::string& rvk,
-               const std::string& rsaSk,
-               const std::unordered_map<std::string, std::string>& rsa_pub_keys) {
-  if (pid.empty() || bpk.empty() || rvk.empty() || rsaSk.empty() || rsa_pub_keys.empty())
+Client::Client(const std::string& pid, const std::string& bpk, const std::string& rvk, const std::string& rsaSk) {
+  if (pid.empty() || bpk.empty() || rvk.empty() || rsaSk.empty())
     throw std::runtime_error("Invalid paramets for building the client");
   ask_.reset(new libutt::AddrSK());
   ask_->pid = pid;
@@ -33,9 +29,7 @@ Client::Client(const std::string& pid,
   *bpk_ = libutt::deserialize<libutt::RandSigPK>(bpk);
   rpk_.reset(new libutt::RegAuthPK());
   *rpk_ = libutt::deserialize<libutt::RegAuthPK>(rvk);
-  auto [enc, dec] = libutt::EncryptionSystem::create(rsa_pub_keys, rsaSk);
-  encryptor_ = enc;
-  decryptor_ = dec;
+  decryptor_ = std::make_shared<libutt::RSADecryptor>(rsaSk);
 }
 Client::Client(const std::string& pid,
                const std::string& bpk,
@@ -54,9 +48,7 @@ Client::Client(const std::string& pid,
   *rpk_ = libutt::deserialize<libutt::RegAuthPK>(rvk);
   ask_->e = libutt::deserialize<libutt::IBE::EncSK>(csk);
   ask_->mpk_ = libutt::deserialize<libutt::IBE::MPK>(mpk);
-  auto [enc, dec] = libutt::EncryptionSystem::create(ask_->mpk_, ask_->e);
-  encryptor_ = enc;
-  decryptor_ = dec;
+  decryptor_ = std::make_shared<libutt::IBEDecryptor>(ask_->e);
 }
 
 Commitment Client::generateInputRCM() {

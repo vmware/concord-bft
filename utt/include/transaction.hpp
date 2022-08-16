@@ -9,7 +9,8 @@
 #include <vector>
 namespace libutt {
 class Tx;
-}
+class IEncryptor;
+}  // namespace libutt
 
 namespace libutt::api::operations {
 class Transaction {
@@ -18,7 +19,8 @@ class Transaction {
               const Client&,
               const std::vector<Coin>&,
               const std::optional<Coin>&,
-              const std::vector<std::tuple<std::string, uint64_t>>&);
+              const std::vector<std::tuple<std::string, uint64_t>>&,
+              const IEncryptor& encryptor);
   std::vector<std::string> getNullifiers() const;
 
  private:

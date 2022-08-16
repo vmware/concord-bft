@@ -12,6 +12,7 @@
 #include <utt/Coin.h>
 #include <utt/BurnOp.h>
 #include <utt/Tx.h>
+#include <utt/DataUtils.hpp>
 
 #include <memory>
 #include <vector>
@@ -106,14 +107,10 @@ int main(int argc, char* argv[]) {
   size_t thresh = 3;
   size_t n = 4;
   size_t c = 3;
-  std::unordered_map<std::string, std::string> pub_keys;
-  for (size_t i = 0; i < c; i++) {
-    pub_keys["client_" + std::to_string(i)] = pkeys.at(i);
-  }
   auto [d, dkg, rc] = testing::init(n, thresh);
   auto registrators = testing::GenerateRegistrators(n, rc);
   auto banks = testing::GenerateCommitters(n, dkg, rc.toPK());
-  auto clients = testing::GenerateClients(c, dkg.getPK(), rc.toPK(), pr_keys, pub_keys);
+  auto clients = testing::GenerateClients(c, dkg.getPK(), rc.toPK(), pr_keys);
   for (auto& c : clients) {
     testing::registerClient(d, c, registrators, thresh);
   }
@@ -159,11 +156,16 @@ int main(int argc, char* argv[]) {
   for (size_t i = 0; i < clients.size(); i++) {
     auto& issuer = clients[i];
     auto& receiver = clients[(i + 1) % clients.size()];
+    std::map<std::string, std::string> tx_pub_keys;
+    tx_pub_keys[issuer.getPid()] = pkeys[i];
+    tx_pub_keys[receiver.getPid()] = pkeys[(i + 1) % clients.size()];
+    libutt::RSAEncryptor tx_encryptor(tx_pub_keys);
     Transaction tx(d,
                    issuer,
                    {coins[issuer.getPid()].front()},
                    {bcoins[issuer.getPid()]},
-                   {{issuer.getPid(), 50}, {receiver.getPid(), 50}});
+                   {{issuer.getPid(), 50}, {receiver.getPid(), 50}},
+                   tx_encryptor);
     coins[issuer.getPid()].erase(coins[issuer.getPid()].begin());
     bcoins.erase(issuer.getPid());
     std::unordered_map<size_t, std::vector<types::Signature>> shares;

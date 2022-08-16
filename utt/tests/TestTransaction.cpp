@@ -41,6 +41,10 @@ int main(int argc, char* argv[]) {
   }
   std::unordered_map<std::string, std::vector<libutt::api::Coin>> coins;
   std::unordered_map<std::string, libutt::api::Coin> bcoins;
+  std::unordered_map<size_t, std::shared_ptr<libutt::IBEEncryptor>> encryptors_;
+  for (size_t i = 0; i < clients.size(); i++) {
+    encryptors_[i] = std::make_shared<libutt::IBEEncryptor>(rc.toPK().mpk);
+  }
   for (auto& c : clients) {
     std::vector<types::Signature> rsigs;
     uint64_t now = (uint64_t)(duration_cast<hours>(system_clock::now().time_since_epoch()).count());
@@ -85,7 +89,8 @@ int main(int argc, char* argv[]) {
                    issuer,
                    {coins[issuer.getPid()].front()},
                    {bcoins[issuer.getPid()]},
-                   {{issuer.getPid(), 50}, {receiver.getPid(), 50}});
+                   {{issuer.getPid(), 50}, {receiver.getPid(), 50}},
+                   *(encryptors_.at((i + 1) % clients.size())));
     coins[issuer.getPid()].erase(coins[issuer.getPid()].begin());
     bcoins.erase(issuer.getPid());
     std::unordered_map<size_t, std::vector<types::Signature>> shares;

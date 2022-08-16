@@ -88,15 +88,14 @@ std::vector<Client> GenerateClients(size_t c, const RandSigPK& bvk, const RegAut
 std::vector<Client> GenerateClients(size_t c,
                                     const RandSigPK& bvk,
                                     const RegAuthPK& rvk,
-                                    const std::vector<std::string>& pk,
-                                    const std::unordered_map<std::string, std::string>& pub_keys) {
+                                    const std::vector<std::string>& pk) {
   std::vector<Client> clients;
   std::string bpk = libutt::serialize<libutt::RandSigPK>(bvk);
   std::string rpk = libutt::serialize<libutt::RegAuthPK>(rvk);
 
   for (size_t i = 0; i < c; i++) {
     std::string pid = "client_" + std::to_string(i);
-    clients.push_back(Client(pid, bpk, rpk, pk.at(i), pub_keys));
+    clients.push_back(Client(pid, bpk, rpk, pk.at(i)));
   }
   return clients;
 }

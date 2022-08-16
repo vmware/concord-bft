@@ -11,7 +11,8 @@ Transaction::Transaction(const GlobalParams& d,
                          const Client& cid,
                          const std::vector<Coin>& coins,
                          const std::optional<Coin>& bc,
-                         const std::vector<std::tuple<std::string, uint64_t>>& recipients) {
+                         const std::vector<std::tuple<std::string, uint64_t>>& recipients,
+                         const IEncryptor& encryptor) {
   Fr fr_pidhash;
   fr_pidhash.from_words(cid.getPidHash());
   Fr prf;
@@ -44,7 +45,7 @@ Transaction::Transaction(const GlobalParams& d,
                            fr_recipients,
                            std::nullopt,
                            rpk.vk,
-                           *cid.encryptor_));
+                           encryptor));
 }
 std::vector<std::string> Transaction::getNullifiers() const { return tx_->getNullifiers(); }
 }  // namespace libutt::api::operations

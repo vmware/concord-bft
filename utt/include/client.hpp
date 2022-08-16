@@ -25,11 +25,7 @@ class Client {
          const std::string& rpk,
          const std::string& csk,
          const std::string& mpk);
-  Client(const std::string& pid,
-         const std::string& bpk,
-         const std::string& rpk,
-         const std::string& rsaSk,
-         const std::unordered_map<std::string, std::string>& rsa_pub_keys);
+  Client(const std::string& pid, const std::string& bpk, const std::string& rpk, const std::string& rsaSk);
   Commitment generateInputRCM();
   void setPRFKey(const types::CurvePoint& s2);
   const std::string& getPid() const;
@@ -54,7 +50,6 @@ class Client {
   std::unique_ptr<libutt::RandSigPK> bpk_;
   std::unique_ptr<libutt::RegAuthPK> rpk_;
   std::shared_ptr<libutt::IDecryptor> decryptor_;
-  std::shared_ptr<libutt::IEncryptor> encryptor_;
   Commitment rcm_;
   types::Signature rcm_sig_;
   bool complete_s = false;

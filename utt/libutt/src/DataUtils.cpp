@@ -26,7 +26,7 @@ std::vector<uint8_t> IBEDecryptor::decrypt(const std::vector<uint8_t>& data) con
   return ret;
 }
 
-RSAEncryptor::RSAEncryptor(const std::unordered_map<std::string, std::string>& rsa_public_keys_map) {
+RSAEncryptor::RSAEncryptor(const std::map<std::string, std::string>& rsa_public_keys_map) {
   for (const auto& [id, pub_key_str] : rsa_public_keys_map) {
     BIO* keybio;
     keybio = BIO_new_mem_buf(pub_key_str.c_str(), -1);
@@ -54,7 +54,6 @@ std::vector<uint8_t> RSAEncryptor::encrypt(const std::string& id, const std::vec
   ctx = EVP_PKEY_CTX_new(encryptors_.at(id), NULL);
   if (!ctx) throw std::runtime_error("unable to encrypt data");
   if (EVP_PKEY_encrypt_init(ctx) <= 0) throw std::runtime_error("unable to encrypt data");
-  // if (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_OAEP_PADDING) <= 0) throw std::runtime_error("unable to encrypt data");
   size_t out_len{0};
   if (EVP_PKEY_encrypt(ctx, NULL, &out_len, msg.data(), msg.size()) <= 0)
     throw std::runtime_error("unable to encrypt data");
@@ -91,18 +90,5 @@ std::vector<uint8_t> RSADecryptor::decrypt(const std::vector<uint8_t>& ctxt) con
   if (EVP_PKEY_decrypt(ctx, ptxt.data(), &out_len, ctxt.data(), ctxt.size()) <= 0) return {};
   ptxt.resize(out_len);
   return ptxt;
-}
-template <>
-std::pair<std::shared_ptr<IEncryptor>, std::shared_ptr<IDecryptor>>
-EncryptionSystem::create<libutt::IBE::MPK, libutt::IBE::EncSK>(const libutt::IBE::MPK& enc,
-                                                               const libutt::IBE::EncSK& dec) {
-  return {std::make_shared<IBEEncryptor>(enc), std::make_shared<IBEDecryptor>(dec)};
-}
-
-template <>
-std::pair<std::shared_ptr<IEncryptor>, std::shared_ptr<IDecryptor>>
-EncryptionSystem::create<std::unordered_map<std::string, std::string>, std::string>(
-    const std::unordered_map<std::string, std::string>& enc, const std::string& dec) {
-  return {std::make_shared<RSAEncryptor>(enc), std::make_shared<RSADecryptor>(dec)};
 }
 }  // namespace libutt

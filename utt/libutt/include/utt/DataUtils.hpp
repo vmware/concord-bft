@@ -45,12 +45,12 @@ class IBEDecryptor : public IDecryptor {
 
 class RSAEncryptor : public IEncryptor {
  public:
-  RSAEncryptor(const std::unordered_map<std::string, std::string>& rsa_public_keys_map);
+  RSAEncryptor(const std::map<std::string, std::string>& rsa_public_keys_map);
   ~RSAEncryptor() override;
   std::vector<uint8_t> encrypt(const std::string& id, const std::vector<uint8_t>& msg) const override;
 
  private:
-  mutable std::unordered_map<std::string, EVP_PKEY*> encryptors_;
+  mutable std::map<std::string, EVP_PKEY*> encryptors_;
 };
 
 class RSADecryptor : public IDecryptor {
@@ -61,11 +61,5 @@ class RSADecryptor : public IDecryptor {
 
  private:
   EVP_PKEY* pkey_;
-};
-
-class EncryptionSystem {
- public:
-  template <typename encIn, typename decIn>
-  static std::pair<std::shared_ptr<IEncryptor>, std::shared_ptr<IDecryptor>> create(const encIn& enc, const decIn& dec);
 };
 }  // namespace libutt
