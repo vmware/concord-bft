@@ -13,11 +13,10 @@ class CommKey;
 namespace libutt::api {
 class Utils {
  public:
-  static CommKey& getCommitmentKey(const GlobalParams& d, Commitment::Type t);
-  static types::Signature aggregateSigShares(const GlobalParams& d,
-                                             Commitment::Type t,
-                                             uint32_t n,
-                                             const std::map<uint32_t, types::Signature>& rsigs,
-                                             const std::vector<types::CurvePoint>& randomness);
+  static types::Signature aggregateSigShares(uint32_t n, const std::map<uint32_t, types::Signature>& rsigs);
+  static types::Signature unblindSignature(const GlobalParams& p,
+                                           Commitment::Type,
+                                           const std::vector<types::CurvePoint>& randomness,
+                                           const types::Signature& sig);
 };
 }  // namespace libutt::api

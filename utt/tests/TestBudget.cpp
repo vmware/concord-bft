@@ -43,7 +43,8 @@ int main(int argc, char* argv[]) {
     for (auto i : sbs) {
       sigs[i] = rsigs[i];
     }
-    auto coin = c.claimCoins(budget, d, (uint32_t)n, {sigs}).front();
+    auto blinded_sig = Utils::aggregateSigShares((uint32_t)n, {sigs});
+    auto coin = c.claimCoins(budget, d, {blinded_sig}).front();
     assertTrue(c.validate(coin));
   }
 
@@ -60,7 +61,8 @@ int main(int argc, char* argv[]) {
     for (auto i : sbs) {
       sigs[i] = rsigs[i];
     }
-    auto coin = c.claimCoins(budget, d, (uint32_t)n, {sigs}).front();
+    auto blinded_sig = Utils::aggregateSigShares((uint32_t)n, {sigs});
+    auto coin = c.claimCoins(budget, d, {blinded_sig}).front();
     coin.createNullifier(d, c.getPRFSecretKey());
     assertTrue(!coin.getNullifier().empty());
     assertTrue(c.validate(coin));

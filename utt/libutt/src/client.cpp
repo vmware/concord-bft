@@ -104,14 +104,11 @@ std::pair<Commitment, types::Signature> Client::rerandomizeRcm(const GlobalParam
 }
 template <>
 std::vector<libutt::api::Coin> Client::claimCoins<operations::Mint>(
-    const operations::Mint& mint,
-    const GlobalParams& d,
-    uint32_t n,
-    const std::vector<std::map<uint32_t, types::Signature>>& rsigs) const {
+    const operations::Mint& mint, const GlobalParams& d, const std::vector<types::Signature>& blindedSigs) const {
   Fr r_pid = Fr::zero(), r_sn = Fr::zero(), r_val = Fr::zero(), r_type = Fr::zero(), r_expdate = Fr::zero();
   std::vector<types::CurvePoint> r = {
       r_pid.to_words(), r_sn.to_words(), r_val.to_words(), r_type.to_words(), r_expdate.to_words()};
-  auto sig = Utils::aggregateSigShares(d, Commitment::Type::COIN, n, rsigs.front(), r);
+  auto sig = Utils::unblindSignature(d, Commitment::Type::COIN, r, blindedSigs.front());
   libutt::api::Coin c(d,
                       getPRFSecretKey(),
                       mint.op_->getSN().to_words(),
@@ -126,14 +123,11 @@ std::vector<libutt::api::Coin> Client::claimCoins<operations::Mint>(
 
 template <>
 std::vector<libutt::api::Coin> Client::claimCoins<operations::Budget>(
-    const operations::Budget& budget,
-    const GlobalParams& d,
-    uint32_t n,
-    const std::vector<std::map<uint32_t, types::Signature>>& rsigs) const {
+    const operations::Budget& budget, const GlobalParams& d, const std::vector<types::Signature>& blindedSigs) const {
   Fr r_pid = Fr::zero(), r_sn = Fr::zero(), r_val = Fr::zero(), r_type = Fr::zero(), r_expdate = Fr::zero();
   std::vector<types::CurvePoint> r = {
       r_pid.to_words(), r_sn.to_words(), r_val.to_words(), r_type.to_words(), r_expdate.to_words()};
-  auto sig = Utils::aggregateSigShares(d, Commitment::Type::COIN, n, rsigs.front(), r);
+  auto sig = Utils::unblindSignature(d, Commitment::Type::COIN, r, blindedSigs.front());
   libutt::api::Coin c = budget.getCoin();
   c.setSig(sig);
   c.rerandomize();
@@ -141,17 +135,14 @@ std::vector<libutt::api::Coin> Client::claimCoins<operations::Budget>(
 }
 template <>
 std::vector<libutt::api::Coin> Client::claimCoins<operations::Transaction>(
-    const operations::Transaction& tx,
-    const GlobalParams& d,
-    uint32_t n,
-    const std::vector<std::map<uint32_t, types::Signature>>& rsigs) const {
+    const operations::Transaction& tx, const GlobalParams& d, const std::vector<types::Signature>& blindedSigs) const {
   std::vector<libutt::api::Coin> ret;
   auto mineTransactions = tx.tx_->getMineTransactions(*decryptor_);
   for (const auto& [txoIdx, txo] : mineTransactions) {
     Fr r_pid = txo.t, r_sn = Fr::zero(), r_val = txo.d, r_type = Fr::zero(), r_expdate = Fr::zero();
     std::vector<types::CurvePoint> r = {
         r_pid.to_words(), r_sn.to_words(), r_val.to_words(), r_type.to_words(), r_expdate.to_words()};
-    auto sig = Utils::aggregateSigShares(d, Commitment::Type::COIN, n, rsigs[txoIdx], r);
+    auto sig = Utils::unblindSignature(d, Commitment::Type::COIN, r, blindedSigs[txoIdx]);
     libutt::api::Coin c(d,
                         getPRFSecretKey(),
                         tx.tx_->getSN(txoIdx).to_words(),

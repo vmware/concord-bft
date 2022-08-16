@@ -42,8 +42,7 @@ class Client {
   template <typename T>
   std::vector<libutt::api::Coin> claimCoins(const T&,
                                             const GlobalParams& d,
-                                            uint32_t n,
-                                            const std::vector<std::map<uint32_t, types::Signature>>& rsigs) const;
+                                            const std::vector<types::Signature>& blindedSigs) const;
 
   template <typename T>
   bool validate(const T&) const;

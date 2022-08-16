@@ -122,8 +122,8 @@ void registerClient(const GlobalParams& d,
   for (auto i : sids) {
     rsigs[i] = shares[i];
   }
-  auto sig = Utils::aggregateSigShares(
-      d, Commitment::Type::REGISTRATION, (uint32_t)n, rsigs, {Fr::zero().to_words(), Fr::zero().to_words()});
+  auto sig = Utils::aggregateSigShares((uint32_t)n, rsigs);
+  sig = Utils::unblindSignature(d, Commitment::Type::REGISTRATION, {Fr::zero().to_words(), Fr::zero().to_words()}, sig);
   c.setRCMSig(d, s2, sig);
 }
 }  // namespace libutt::api::testing

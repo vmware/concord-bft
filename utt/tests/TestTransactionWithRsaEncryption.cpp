@@ -131,7 +131,8 @@ int main(int argc, char* argv[]) {
     for (auto i : sbs) {
       sigs[i] = rsigs[i];
     }
-    auto coin = c.claimCoins(budget, d, (uint32_t)n, {sigs}).front();
+    auto blinded_sig = Utils::aggregateSigShares((uint32_t)n, {sigs});
+    auto coin = c.claimCoins(budget, d, {blinded_sig}).front();
     assertTrue(c.validate(coin));
     bcoins.emplace(c.getPid(), coin);
   }
@@ -148,7 +149,8 @@ int main(int argc, char* argv[]) {
     for (auto i : sbs) {
       sigs[i] = rsigs[i];
     }
-    auto coin = c.claimCoins(mint, d, (uint32_t)n, {sigs}).front();
+    auto blinded_sig = Utils::aggregateSigShares((uint32_t)n, {sigs});
+    auto coin = c.claimCoins(mint, d, {blinded_sig}).front();
     assertTrue(c.validate(coin));
     coins[c.getPid()].emplace_back(std::move(coin));
   }
@@ -169,16 +171,17 @@ int main(int argc, char* argv[]) {
       shares[i] = banks[i]->sign(tx);
     }
     size_t num_coins = shares[0].size();
-    std::vector<std::map<uint32_t, types::Signature>> sigs;
+    std::vector<types::Signature> sigs;
     for (size_t i = 0; i < num_coins; i++) {
       std::map<uint32_t, types::Signature> share_sigs;
       auto sbs = testing::getSubGroup((uint32_t)n, (uint32_t)thresh);
       for (auto s : sbs) {
         share_sigs[s] = shares[s][i];
       }
-      sigs.emplace_back(std::move(share_sigs));
+      auto blinded_sig = Utils::aggregateSigShares((uint32_t)n, {share_sigs});
+      sigs.emplace_back(std::move(blinded_sig));
     }
-    auto issuer_coins = issuer.claimCoins(tx, d, (uint32_t)n, sigs);
+    auto issuer_coins = issuer.claimCoins(tx, d, sigs);
     for (auto& coin : issuer_coins) {
       if (coin.getType() == api::Coin::Type::Normal) {
         coins[issuer.getPid()].emplace_back(std::move(coin));
@@ -187,7 +190,7 @@ int main(int argc, char* argv[]) {
         bcoins.emplace(issuer.getPid(), coin);
       }
     }
-    auto receiver_coins = receiver.claimCoins(tx, d, (uint32_t)n, sigs);
+    auto receiver_coins = receiver.claimCoins(tx, d, sigs);
     for (auto& coin : receiver_coins) {
       if (coin.getType() == api::Coin::Type::Normal) {
         coins[receiver.getPid()].emplace_back(std::move(coin));
