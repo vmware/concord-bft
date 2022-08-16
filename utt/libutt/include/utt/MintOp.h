@@ -30,6 +30,7 @@ class MintOp {
   Fr sn;       // serial number of the new coin
   Fr pidHash;  // hash of recipient pid
   Fr value;    // value of the new coin
+  std::string clientId;
   // Notice that all data members are public because we assume that creating an anonymous new coin should be part of a
   // public transaction
  public:
@@ -41,7 +42,7 @@ class MintOp {
   MintOp(const std::string& uniqueHash, size_t value, const std::string& recipPID);
 
   MintOp(std::istream& in);
-
+  std::string getClientId() const { return clientId; }
   size_t getSize() const { return _fr_size * 3; }
 
   // uniqueHash, value and recipPID should be taken from the public transaction

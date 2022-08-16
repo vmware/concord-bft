@@ -10,7 +10,9 @@ namespace libutt::api::operations {
 Mint::Mint(const std::string& uniqueHash, size_t value, const std::string& recipPID) {
   op_.reset(new libutt::MintOp(uniqueHash, value, recipPID));
 }
-bool Mint::validate(const std::string& uniqueHash, size_t value, const std::string& recipPID) const {
-  return op_->validate(uniqueHash, value, recipPID);
-}
+
+std::string Mint::getHash() const { return op_->getHashHex(); }
+uint64_t Mint::getVal() const { return op_->getVal().as_ulong(); }
+std::string Mint::getRecipentID() const { return op_->getClientId(); }
+
 }  // namespace libutt::api::operations

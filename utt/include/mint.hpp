@@ -16,7 +16,9 @@ namespace libutt::api::operations {
 class Mint {
  public:
   Mint(const std::string& uniqueHash, size_t value, const std::string& recipPID);
-  bool validate(const std::string& uniqueHash, size_t value, const std::string& recipPID) const;
+  std::string getHash() const;
+  uint64_t getVal() const;
+  std::string getRecipentID() const;
 
  private:
   friend class libutt::api::Committer;
