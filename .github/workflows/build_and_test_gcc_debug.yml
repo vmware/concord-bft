@@ -17,7 +17,7 @@ jobs:
             compiler:
                 - "CONCORD_BFT_CONTAINER_CC=gcc CONCORD_BFT_CONTAINER_CXX=g++"
             ci_build_type:
-                - "-DCMAKE_BUILD_TYPE=DEBUG -DBUILD_COMM_TCP_TLS=FALSE"
+                - "-DCMAKE_BUILD_TYPE=DEBUG -DBUILD_COMM_TCP_TLS=TRUE"
             use_s3_obj_store:
                 - "-DUSE_S3_OBJECT_STORE=ON"
     steps:
@@ -58,10 +58,10 @@ jobs:
                               -DUSE_OPENTRACING=ON \
                               -DOMIT_TEST_OUTPUT=OFF\
                               -DKEEP_APOLLO_LOGS=TRUE\
-                              -DRUN_APOLLO_TESTS=FALSE\
+                              -DRUN_APOLLO_TESTS=TRUE\
                               -DUSE_FAKE_CLOCK_IN_TIME_SERVICE=TRUE\" "\
               && script -q -e -c "make simple-test" \
-              && script -q -e -c "make test"
+              && script -q -e -c "make test-single-suite TEST_NAME=skvbc_reconfiguration NUM_REPEATS=100 BREAK_ON_FAILURE=FALSE"
         - name: Prepare artifacts
           if: failure()
           run: |
