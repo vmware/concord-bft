@@ -129,6 +129,7 @@ GrpcConnection::Result GrpcConnection::openDataStream(const SubscriptionRequest&
   });
   auto status = stream.wait_for(data_timeout_);
   if (status == future_status::timeout || status == future_status::deferred) {
+    LOG_WARN(logger_, KVLOG(address_, client_id_));
     data_context_->TryCancel();
     stream.wait();
     data_context_.reset();
@@ -158,6 +159,7 @@ void GrpcConnection::cancelDataStream() {
     return;
   }
   ConcordAssertNE(data_context_, nullptr);
+  LOG_WARN(logger_, KVLOG(address_, client_id_));
   data_context_->TryCancel();
   data_context_.reset();
   data_stream_.reset();
@@ -172,6 +174,7 @@ GrpcConnection::Result GrpcConnection::readData(Data* data) {
   auto result = async(launch::async, [this, data] { return data_stream_->Read(data); });
   auto status = result.wait_for(data_timeout_);
   if (status == future_status::timeout || status == future_status::deferred) {
+    LOG_WARN(logger_, KVLOG(address_, client_id_));
     data_context_->TryCancel();
     result.wait();
     data_context_.reset();
@@ -203,6 +206,7 @@ GrpcConnection::Result GrpcConnection::openStateStream(const ReadStateRequest& r
   });
   auto status = stream.wait_for(data_timeout_);
   if (status == future_status::timeout || status == future_status::deferred) {
+    LOG_WARN(logger_, KVLOG(address_, client_id_));
     state_context_->TryCancel();
     stream.wait();
     state_context_.reset();
@@ -231,6 +235,7 @@ void GrpcConnection::cancelStateStream() {
     return;
   }
   ConcordAssertNE(state_context_, nullptr);
+  LOG_WARN(logger_, KVLOG(address_, client_id_));
   state_context_->TryCancel();
   state_context_.reset();
   state_stream_.reset();
@@ -246,6 +251,7 @@ GrpcConnection::Result GrpcConnection::closeStateStream() {
   auto result = async(launch::async, [this] { return state_stream_->Finish(); });
   auto status = result.wait_for(data_timeout_);
   if (status == future_status::timeout || status == future_status::deferred) {
+    LOG_WARN(logger_, KVLOG(address_, client_id_));
     state_context_->TryCancel();
     result.wait();
     state_context_.reset();
@@ -277,6 +283,7 @@ GrpcConnection::Result GrpcConnection::readState(Data* data) {
   auto result = async(launch::async, [this, data] { return state_stream_->Read(data); });
   auto status = result.wait_for(data_timeout_);
   if (status == future_status::timeout || status == future_status::deferred) {
+    LOG_WARN(logger_, KVLOG(address_, client_id_));
     state_context_->TryCancel();
     result.wait();
     state_context_.reset();
@@ -300,6 +307,7 @@ GrpcConnection::Result GrpcConnection::readStateHash(const ReadStateHashRequest&
   });
   auto status = result.wait_for(hash_timeout_);
   if (status == future_status::timeout || status == future_status::deferred) {
+    LOG_WARN(logger_, KVLOG(address_, client_id_));
     context.TryCancel();
     result.wait();
     return Result::kTimeout;
@@ -335,6 +343,7 @@ GrpcConnection::Result GrpcConnection::openHashStream(SubscriptionRequest& reque
   });
   auto status = stream.wait_for(data_timeout_);
   if (status == future_status::timeout || status == future_status::deferred) {
+    LOG_WARN(logger_, KVLOG(address_, client_id_));
     hash_context_->TryCancel();
     stream.wait();
     hash_context_.reset();
@@ -364,6 +373,7 @@ void GrpcConnection::cancelHashStream() {
     return;
   }
   ConcordAssertNE(hash_context_, nullptr);
+  LOG_WARN(logger_, KVLOG(address_, client_id_));
   hash_context_->TryCancel();
   hash_context_.reset();
   hash_stream_.reset();
@@ -378,6 +388,7 @@ GrpcConnection::Result GrpcConnection::readHash(Hash* hash) {
   auto result = async(launch::async, [this, hash] { return hash_stream_->Read(hash); });
   auto status = result.wait_for(hash_timeout_);
   if (status == future_status::timeout || status == future_status::deferred) {
+    LOG_WARN(logger_, KVLOG(address_, client_id_));
     hash_context_->TryCancel();
     result.wait();
     hash_context_.reset();
@@ -412,6 +423,7 @@ GrpcConnection::Result GrpcConnection::openStateSnapshotStream(
   });
   auto status = stream.wait_for(data_timeout_);
   if (status == future_status::timeout || status == future_status::deferred) {
+    LOG_WARN(logger_, KVLOG(address_, client_id_));
     snapshot_context->TryCancel();
     stream.wait();
     snapshot_context.reset();
@@ -450,6 +462,7 @@ void GrpcConnection::cancelStateSnapshotStream(RequestId request_id) {
         return;
       }
       ConcordAssertNE((it->second).first, nullptr);
+      LOG_WARN(logger_, KVLOG(address_, client_id_));
       (it->second).first->TryCancel();
       (it->second).first.reset();
       (it->second).second.reset();
@@ -470,6 +483,7 @@ void GrpcConnection::cancelAllStateSnapshotStreams() {
         continue;
       }
       ConcordAssertNE(c.second.first, nullptr);
+      LOG_WARN(logger_, KVLOG(address_, client_id_));
       c.second.first->TryCancel();
       c.second.first.reset();
       c.second.second.reset();
@@ -503,6 +517,7 @@ GrpcConnection::Result GrpcConnection::readStateSnapshot(
       ReadLock read_lock(rss_streams_mutex_);
       auto it = rss_streams_.find(request_id);
       if (it != rss_streams_.end()) {
+        LOG_WARN(logger_, KVLOG(address_, client_id_));
         ((it->second).first)->TryCancel();
         result.wait();
         ((it->second).first).reset();

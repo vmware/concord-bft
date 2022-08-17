@@ -29,18 +29,18 @@
 #include <stdexcept>
 #include <string>
 #include <fstream>
+
 #include "Logger.hpp"
 #include "Metrics.hpp"
-
 #include "db_interfaces.h"
 #include "kv_types.hpp"
 #include "kvbc_app_filter/kvbc_app_filter.h"
 #include "kvbc_app_filter/kvbc_key_types.h"
-
 #include "thin_replica.grpc.pb.h"
 #include "subscription_buffer.hpp"
 #include "trs_metrics.hpp"
-#include <util/filesystem.hpp>
+#include "util/filesystem.hpp"
+#include "hex_tools.h"
 
 using google::protobuf::util::TimeUtil;
 using namespace std::chrono_literals;
@@ -415,8 +415,11 @@ class ThinReplicaImpl {
           auto kvb_update =
               kvbc::KvbUpdate{update.block_id, update.correlation_id, std::move(update.immutable_kv_pairs)};
           const auto& filtered_update = kvb_filter->filterUpdate(kvb_update);
+          const auto num_events = filtered_update.kv_pairs.size();
+          const auto block_id = filtered_update.block_id;
+          const auto client_id = getClientId(context);
           if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Data>()) {
-            LOG_DEBUG(logger_, "Live updates send data");
+            LOG_DEBUG(logger_, "Sending updates (live, data)" << KVLOG(client_id, block_id, num_events));
             auto correlation_id = filtered_update.correlation_id;
             if (update.parent_span) {
               sendData(stream, filtered_update, {*update.parent_span});
@@ -433,7 +436,7 @@ class ThinReplicaImpl {
               sendData(stream, filtered_update, {propagated_span_context});
             }
           } else if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Hash>()) {
-            LOG_DEBUG(logger_, "Live updates send hash");
+            LOG_DEBUG(logger_, "Sending updates (live, hash)" << KVLOG(client_id, block_id, num_events));
             sendHash(stream, update.block_id, kvb_filter->hashUpdate(filtered_update));
           }
           metrics.last_sent_block_id.Get().Set(update.block_id);
@@ -790,6 +793,11 @@ class ThinReplicaImpl {
       }
       while (queue.pop(kvb_update)) {
         try {
+          auto block_id = kvb_update.block_id;
+          auto num_events = kvb_update.kv_pairs.size();
+          auto client_id = getClientId(context);
+          LOG_DEBUG(logger_, "Sending updates (history, data)" << KVLOG(client_id, block_id, num_events));
+
           sendData(stream, kvb_update);
         } catch (StreamClosed& error) {
           LOG_WARN(logger, "Data stream closed at block " << kvb_update.block_id);
@@ -1160,7 +1168,8 @@ class ThinReplicaImpl {
     com::vmware::concord::thin_replica::Hash hash;
     hash.mutable_events()->set_block_id(block_id);
     hash.mutable_events()->set_hash(update_hash);
-    LOG_DEBUG(logger_, "COMPARE SendHash block_id " << block_id << " update_hash " << update_hash);
+    concordUtils::HexPrintBuffer update_hash_buff{update_hash.data(), update_hash.size()};
+    LOG_DEBUG(logger_, "COMPARE SendHash block_id " << block_id << " update_hash " << update_hash_buff);
     if (!stream->Write(hash)) {
       throw StreamClosed("Hash stream closed");
     }

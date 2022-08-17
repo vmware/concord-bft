@@ -23,8 +23,8 @@ struct EventServiceMetrics {
   EventServiceMetrics()
       : metrics_component_{"EventService", std::make_shared<concordMetrics::Aggregator>()},
         total_num_writes{metrics_component_.RegisterCounter("total_num_writes", 0)},
-        update_processing_dur{metrics_component_.RegisterGauge("update_processing_dur", 0)},
-        write_dur{metrics_component_.RegisterGauge("write_dur", 0)} {
+        update_processing_duration{metrics_component_.RegisterGauge("update_processing_duration", 0)},
+        write_duration{metrics_component_.RegisterGauge("write_duration", 0)} {
     metrics_component_.Register();
   }
 
@@ -37,14 +37,36 @@ struct EventServiceMetrics {
  private:
   concordMetrics::Component metrics_component_;
 
+  // TODO - GILL - update_processing_duration and write_duration should be removed later, as histogram/snapshots are
+  // preferable
  public:
   // total number of updates written to the gRPC stream
   concordMetrics::CounterHandle total_num_writes;
   // time taken to process an update (time between when an update is received by the event service from the update queue
   // until it is written to the stream)
-  concordMetrics::GaugeHandle update_processing_dur;
+  concordMetrics::GaugeHandle update_processing_duration;
   // time taken to write an update to the gRPC stream
-  concordMetrics::GaugeHandle write_dur;
+  concordMetrics::GaugeHandle write_duration;
+};
+
+struct Recorders {
+  static constexpr uint64_t MAX_VALUE_MICROSECONDS = 60ULL * 1000ULL * 1000ULL;  // 60 seconds
+
+  Recorders() {
+    auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+    if (!registrar.perf.isRegisteredComponent("clientservice_event_service")) {
+      registrar.perf.registerComponent("clientservice_event_service", {processing_duration, write_duration});
+    }
+  }
+  ~Recorders() {
+    auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+    if (registrar.perf.isRegisteredComponent("clientservice_event_service")) {
+      registrar.perf.unRegisterComponent("clientservice_event_service");
+    }
+  }
+
+  DEFINE_SHARED_RECORDER(processing_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(write_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
 };
 
 class EventServiceImpl final : public vmware::concord::client::event::v1::EventService::Service {
@@ -62,6 +84,7 @@ class EventServiceImpl final : public vmware::concord::client::event::v1::EventS
   logging::Logger logger_;
   std::shared_ptr<concord::client::concordclient::ConcordClient> client_;
   EventServiceMetrics metrics_;
+  Recorders histograms_;
 };
 
 }  // namespace concord::client::clientservice
