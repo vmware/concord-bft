@@ -15,7 +15,10 @@
 #include <vector>
 
 namespace libutt::api {
-Committer::Committer(const std::string& id, const std::string& bsk, const std::string& bvk, const std::string& rvk) {
+CoinsSigner::CoinsSigner(const std::string& id,
+                         const std::string& bsk,
+                         const std::string& bvk,
+                         const std::string& rvk) {
   bid_ = id;
   bsk_.reset(new libutt::RandSigShareSK());
   *bsk_ = libutt::deserialize<libutt::RandSigShareSK>(bsk);
@@ -25,15 +28,15 @@ Committer::Committer(const std::string& id, const std::string& bsk, const std::s
   *rvk_ = libutt::deserialize<libutt::RegAuthPK>(rvk);
 }
 
-const std::string& Committer::getId() const { return bid_; }
+const std::string& CoinsSigner::getId() const { return bid_; }
 template <>
-std::vector<types::Signature> Committer::sign<operations::Mint>(operations::Mint& mint) const {
+std::vector<types::Signature> CoinsSigner::sign<operations::Mint>(operations::Mint& mint) const {
   auto res = mint.op_->shareSignCoin(*bsk_);
   auto res_str = libutt::serialize<libutt::RandSigShare>(res);
   return {types::Signature(res_str.begin(), res_str.end())};
 }
 template <>
-std::vector<types::Signature> Committer::sign<operations::Transaction>(operations::Transaction& tx) const {
+std::vector<types::Signature> CoinsSigner::sign<operations::Transaction>(operations::Transaction& tx) const {
   std::vector<types::Signature> sigs;
   auto res = tx.tx_->shareSignCoins(*bsk_);
   for (const auto& [_, sig] : res) {
@@ -44,7 +47,7 @@ std::vector<types::Signature> Committer::sign<operations::Transaction>(operation
 }
 
 template <>
-std::vector<types::Signature> Committer::sign<operations::Budget>(operations::Budget& budget) const {
+std::vector<types::Signature> CoinsSigner::sign<operations::Budget>(operations::Budget& budget) const {
   std::vector<types::Signature> sigs;
   std::string h1 = budget.getHashHex();
   G1 H = hashToGroup<G1>("ps16base|" + h1);
@@ -70,16 +73,16 @@ std::vector<types::Signature> Committer::sign<operations::Budget>(operations::Bu
 }
 
 template <>
-bool Committer::validate<operations::Burn>(const GlobalParams& p,
-                                           const operations::Burn& burn,
-                                           const types::Signature& sig) const {
+bool CoinsSigner::validate<operations::Burn>(const GlobalParams& p,
+                                             const operations::Burn& burn,
+                                             const types::Signature& sig) const {
   (void)sig;
   return burn.burn_->validate(p.getParams(), *(bvk_), *(rvk_));
 }
 template <>
-bool Committer::validate<operations::Transaction>(const GlobalParams& p,
-                                                  const operations::Transaction& tx,
-                                                  const types::Signature& sig) const {
+bool CoinsSigner::validate<operations::Transaction>(const GlobalParams& p,
+                                                    const operations::Transaction& tx,
+                                                    const types::Signature& sig) const {
   (void)sig;
   return tx.tx_->validate(p.getParams(), *(bvk_), *(rvk_));
 }

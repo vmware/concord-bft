@@ -24,7 +24,7 @@ class Transaction {
   std::vector<std::string> getNullifiers() const;
 
  private:
-  friend class libutt::api::Committer;
+  friend class libutt::api::CoinsSigner;
   friend class libutt::api::Client;
   std::shared_ptr<libutt::Tx> tx_;
 };

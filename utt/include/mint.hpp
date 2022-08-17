@@ -8,7 +8,7 @@ namespace libutt {
 class MintOp;
 }  // namespace libutt
 namespace libutt::api {
-class Committer;
+class CoinsSigner;
 class Client;
 }  // namespace libutt::api
 namespace libutt::api::operations {
@@ -21,7 +21,7 @@ class Mint {
   std::string getRecipentID() const;
 
  private:
-  friend class libutt::api::Committer;
+  friend class libutt::api::CoinsSigner;
   friend class libutt::api::Client;
   std::unique_ptr<libutt::MintOp> op_;
 };

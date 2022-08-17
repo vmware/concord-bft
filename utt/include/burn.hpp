@@ -51,7 +51,7 @@ class Burn {
   const Coin& getCoin() const;
 
  public:
-  friend class libutt::api::Committer;
+  friend class libutt::api::CoinsSigner;
   friend class libutt::api::Client;
   std::unique_ptr<libutt::BurnOp> burn_{nullptr};
   const Coin& c_;
