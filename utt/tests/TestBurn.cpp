@@ -47,7 +47,7 @@ int main(int argc, char* argv[]) {
     assertTrue(c.validate(coin));
     Burn b_op{d, c, coin};
     for (auto& b : banks) {
-      assertTrue(b->validate(d, b_op, {}));
+      assertTrue(b->validate(d, b_op));
     }
   }
   return 0;

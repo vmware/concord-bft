@@ -15,7 +15,7 @@
 #include "coin.hpp"
 #include "client.hpp"
 #include "globalParams.hpp"
-#include "committer.hpp"
+#include "coinsSigner.hpp"
 #include <memory>
 namespace libutt {
 class BurnOp;

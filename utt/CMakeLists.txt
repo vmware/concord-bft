@@ -181,7 +181,7 @@ set(newutt_src
     libutt/src/globalParams.cpp
     libutt/src/commitment.cpp
     libutt/src/client.cpp
-    libutt/src/comitter.cpp
+    libutt/src/coinsSigner.cpp
     libutt/src/mint.cpp
     libutt/src/coin.cpp
     libutt/src/registrator.cpp

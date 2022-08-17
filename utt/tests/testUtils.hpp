@@ -1,6 +1,6 @@
 #pragma once
 #include "globalParams.hpp"
-#include "committer.hpp"
+#include "coinsSigner.hpp"
 #include "client.hpp"
 #include "registrator.hpp"
 #include "common.hpp"
