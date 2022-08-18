@@ -156,6 +156,8 @@ std::ostream& operator<<(std::ostream& os, const HistogramValues& values) {
   os << "  99.9: " << values.pct_99_9 << std::endl;
   os << "  99.99: " << values.pct_99_99 << std::endl;
   os << "  99.999: " << values.pct_99_999 << std::endl;
+  os << "  99.9999: " << values.pct_99_9999 << std::endl;
+  os << "  99.99999: " << values.pct_99_99999 << std::endl;
   return os;
 }
 

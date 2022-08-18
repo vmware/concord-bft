@@ -284,13 +284,16 @@ struct HistogramValues {
     pct_99_9 = hdr_value_at_percentile(h, 99.9);
     pct_99_99 = hdr_value_at_percentile(h, 99.99);
     pct_99_999 = hdr_value_at_percentile(h, 99.999);
+    pct_99_9999 = hdr_value_at_percentile(h, 99.9999);
+    pct_99_99999 = hdr_value_at_percentile(h, 99.99999);
   }
 
   bool operator==(const HistogramValues& other) const {
     return count == other.count && min == other.min && max == other.max && pct_10 == other.pct_10 &&
            pct_25 == other.pct_25 && pct_50 == other.pct_50 && pct_75 == other.pct_75 && pct_90 == other.pct_90 &&
            pct_95 == other.pct_95 && pct_99 == other.pct_99 && pct_99_9 == other.pct_99 &&
-           pct_99_99 == other.pct_99_99 && pct_99_999 == other.pct_99_999;
+           pct_99_99 == other.pct_99_99 && pct_99_999 == other.pct_99_999 && pct_99_9999 == other.pct_99_9999 &&
+           pct_99_99999 == other.pct_99_99999;
   }
   bool operator!=(const HistogramValues& other) const { return !(*this == other); }
 
@@ -308,6 +311,8 @@ struct HistogramValues {
   int64_t pct_99_9 = 0;
   int64_t pct_99_99 = 0;
   int64_t pct_99_999 = 0;
+  int64_t pct_99_9999 = 0;
+  int64_t pct_99_99999 = 0;
 };
 
 struct HistogramData {
