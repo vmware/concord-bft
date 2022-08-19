@@ -1,0 +1,40 @@
+numOfClientProxies: 0
+numOfExternalClients: 30
+concurrencyLevel: 3
+debugStatisticsEnabled: true
+viewChangeTimerMillisec: 10000
+statusReportTimerMillisec: 500
+preExecutionFeatureEnabled: true 
+clientBatchingEnabled: true 
+pruningEnabled_: true
+numBlocksToKeep_: 10
+batchedPreProcessEnabled: true
+timeServiceEnabled: true
+enablePostExecutionSeparation: true
+preExecutionResultAuthEnabled: false
+numOfClientServices: 1
+viewChangeProtocolEnabled: true
+autoPrimaryRotationTimerMillisec: 5000
+autoPrimaryRotationEnabled: true
+keyExchangeOnStart: true
+batchingPolicy: 0
+maxBatchSizeInBytes: 33554432
+maxNumOfRequestsInBatch: 100
+batchFlushPeriod: 1000
+pathToOperatorPublicKey_: operator_pub.pem
+publicKeysOfClients:
+dbCheckpointFeatureEnabled: false
+dbCheckPointWindowSize: 150
+dbSnapshotIntervalSeconds: 3600
+dbCheckpointMonitorIntervalSeconds: 60
+maxNumberOfDbCheckpoints: 0
+dbCheckpointDirPath:
+clientTransactionSigningEnabled: false
+blockAccumulation: false
+publishReplicasMasterKeyOnStartup: 1
+txnSigningKeysPath: /tmp/transaction_signing_keys
+principalsMapping: 7 8 17;9 10 18;11 12 19;13 14;15 16
+logPropsFile: logging.properties
+keysFilePrefix: replica_keys_
+cronEntryNumberOfExecutes: 3
+batchedPreProcessEnabled: true

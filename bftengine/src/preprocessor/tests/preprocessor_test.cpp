@@ -729,6 +729,75 @@ TEST(requestPreprocessingState_test, validatePreProcessBatchReplyMsg) {
   }
 }
 
+// Verify that requests and the batch have been successfully released in case no pre-processing consensus reached
+TEST(requestPreprocessingState_test, batchCancelledNoConsensusReached) {
+  const uint numOfReplicas = 4;
+
+  bftEngine::impl::ReplicasInfo repInfo(replicaConfig, false, false);
+  DummyReplica replica(repInfo);
+  replica.setPrimary(true);
+  replicaConfig.preExecReqStatusCheckTimerMillisec = preExecReqStatusCheckTimerMillisec;
+  replicaConfig.replicaId = replica_0;
+
+  concordUtil::Timers timers;
+  PreProcessor preProcessor(msgsCommunicator, msgsStorage, msgHandlersRegPtr, requestsHandler, replica, timers, sdm);
+
+  // Create the client batch request message
+  auto reqMsgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientBatchRequest);
+  deque<ClientRequestMsg*> reqBatch;
+  const uint numOfMsgsInBatch = 2;
+  uint batchSize = 0;
+  for (uint i = 0; i < numOfMsgsInBatch; i++) {
+    auto* clientReqMsg = new ClientRequestMsg(clientId, 2, i + 5, bufLen, buf, reqTimeoutMilli, to_string(i + 5));
+    reqBatch.push_back(clientReqMsg);
+    batchSize += clientReqMsg->size();
+  }
+  auto* clientBatchReqMsg = new ClientBatchRequestMsg(clientId, reqBatch, batchSize, cid);
+  // Call the PreProcessor callback to handle ClientBatchRequest message
+  reqMsgHandlerCallback(clientBatchReqMsg);
+  usleep(waitForExecTimerMillisec * 1000);
+  const auto& ongoingBatch = preProcessor.getOngoingBatchForClient(clientId);
+  // Verify that the requests/batch have been registered
+  ConcordAssertEQ(ongoingBatch->isBatchInProcess(cid), true);
+  ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 0), 5);
+  ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 1), 6);
+
+  // Create the client batch reply message
+  auto replyMsgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::PreProcessBatchReply);
+  uint overallRepliesSize = 0;
+  for (uint senderId = 1; senderId < numOfReplicas; senderId++) {
+    SigManager::instance(sigManager[senderId].get());
+    PreProcessReplyMsgsList repliesList;
+    for (uint i = 0; i < numOfMsgsInBatch; i++) {
+      auto preProcessReplyMsg = make_shared<PreProcessReplyMsg>(senderId,
+                                                                clientId,
+                                                                i,
+                                                                i + 5,
+                                                                i,
+                                                                buf,
+                                                                bufLen,
+                                                                to_string(i + 5),
+                                                                STATUS_GOOD,
+                                                                OperationResult::SUCCESS,
+                                                                viewNum);
+      repliesList.push_back(preProcessReplyMsg);
+      overallRepliesSize += preProcessReplyMsg->size();
+    }
+    // Call the PreProcessor callback to handle PreProcessBatchReplyMsg message
+    replyMsgHandlerCallback(
+        new PreProcessBatchReplyMsg(clientId, senderId, repliesList, cid, overallRepliesSize, viewNum));
+  }
+
+  usleep(reqTimeoutMilli * 1000);
+  // Verify that the requests/batch have been released
+  ConcordAssertEQ(ongoingBatch->isBatchInProcess(), false);
+  ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 0), 0);
+  ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 1), 0);
+
+  clearDiagnosticsHandlers();
+  for (auto& req : reqBatch) delete req;
+}
+
 TEST(requestPreprocessingState_test, requestTimedOut) {
   setUpConfiguration_7();
 
@@ -809,6 +878,7 @@ TEST(requestPreprocessingState_test, primaryCrashNotDetected) {
   clearDiagnosticsHandlers();
 }
 
+// Verify that in case of timed out requests, the requests and the batch get properly released
 TEST(requestPreprocessingState_test, batchMsgTimedOutOnNonPrimary) {
   setUpConfiguration_7();
 
@@ -832,12 +902,17 @@ TEST(requestPreprocessingState_test, batchMsgTimedOutOnNonPrimary) {
   auto* clientBatchReqMsg = new ClientBatchRequestMsg(clientId, batch, batchSize, cid);
   msgHandlerCallback(clientBatchReqMsg);
   usleep(waitForExecTimerMillisec * 1000);
+  const auto& ongoingBatch = preProcessor.getOngoingBatchForClient(clientId);
+  // Verify that the requests and the batch have been registered
+  ConcordAssertEQ(ongoingBatch->isBatchRegistered(cid), true);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 0), 5);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 1), 6);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 2), 7);
 
   usleep(replicaConfig.preExecReqStatusCheckTimerMillisec * 1000);
   timers.evaluate();
+  // Verify that the requests and the batch have been released
+  ConcordAssertEQ(ongoingBatch->isBatchInProcess(), false);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 0), 0);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 1), 0);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 2), 0);
@@ -848,6 +923,7 @@ TEST(requestPreprocessingState_test, batchMsgTimedOutOnNonPrimary) {
   }
 }
 
+// Verify that in case of timed out requests, the requests and the batch get properly released
 TEST(requestPreprocessingState_test, batchMsgTimedOutOnPrimary) {
   setUpConfiguration_7();
 
@@ -871,12 +947,17 @@ TEST(requestPreprocessingState_test, batchMsgTimedOutOnPrimary) {
   auto* clientBatchReqMsg = new ClientBatchRequestMsg(clientId, batch, batchSize, cid);
   msgHandlerCallback(clientBatchReqMsg);
   usleep(waitForExecTimerMillisec * 1000);
+  const auto& ongoingBatch = preProcessor.getOngoingBatchForClient(clientId);
+  // Verify that the requests and the batch have been registered
+  ConcordAssertEQ(ongoingBatch->isBatchInProcess(cid), true);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 0), 5);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 1), 6);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 2), 7);
 
   usleep(reqTimeoutMilli * 1000 * 4);
   timers.evaluate();
+  // Verify that the requests and the batch have been released
+  ConcordAssertEQ(ongoingBatch->isBatchInProcess(), false);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 0), 0);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 1), 0);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 2), 0);
@@ -887,7 +968,7 @@ TEST(requestPreprocessingState_test, batchMsgTimedOutOnPrimary) {
   }
 }
 
-TEST(requestPreprocessingState_test, handlePreProcessBatchRequestMsg) {
+TEST(requestPreprocessingState_test, handlePreProcessBatchRequestMsgByNonPrimary) {
   setUpConfiguration_7();
 
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, false, false);
@@ -924,6 +1005,9 @@ TEST(requestPreprocessingState_test, handlePreProcessBatchRequestMsg) {
   auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::PreProcessBatchRequest);
   msgHandlerCallback(preProcessBatchReqMsg);
   usleep(waitForExecTimerMillisec * 1000);
+  const auto& ongoingBatch = preProcessor.getOngoingBatchForClient(clientId);
+  // Verify that the requests and the batch have been released
+  ConcordAssertEQ(ongoingBatch->isBatchInProcess(), false);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 0), 0);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 1), 0);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 2), 0);
@@ -1048,6 +1132,7 @@ int main(int argc, char** argv) {
   const chrono::milliseconds msgTimeOut(20000);
   msgsStorage = make_shared<IncomingMsgsStorageImp>(msgHandlersRegPtr, msgTimeOut, replicaConfig.replicaId);
   setUpCommunication();
+  memset(buf, bufLen, 5);
   int res = RUN_ALL_TESTS();
   return res;
 }

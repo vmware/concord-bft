@@ -84,6 +84,11 @@ make
 sudo make test
 ```
 
+By default the build chooses the active compiler on the native build platform. In order to force compilation by clang you can use the following command.
+```sh
+CC=clang CXX=clang++ cmake ..
+```
+
 In order to turn on or off various options, you need to change your cmake configuration. This is
 done by passing arguments to cmake with a `-D` prefix: e.g. `cmake -DBUILD_TESTING=OFF`. Note that
 make must be run afterwards to build according to the configuration. Please see [CMakeLists.txt](CMakeLists.txt) for configurable options.
@@ -192,6 +197,17 @@ Run the following from the top level concord-bft directory:
 You can use the simpleTest.py script to run various configurations via a simple
 command line interface.
 Please find more information [here](./tests/simpleTest/README.md)
+
+### Example application
+This example demo application shows some capabilities of the Concord-BFT consensus-based byzantine fault-tolerant state machine replication library.
+For Concord-BFT users who are interested in learning more about Concord-BFT and its uses, this application offers a demonstration and instruction.
+Overall, any blockchain application based on concord-bft consensus may be created using this example application.
+<br>
+
+Use the [test_example.sh](example/scripts/test_example.sh) script to run the example application. This script is also used to perform this demo via the command line interface with different configurations.
+<br>
+
+Please see [here](example/README.md) for more information about the example/demo application.
 
 ## Directory Structure
 

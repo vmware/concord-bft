@@ -1,6 +1,6 @@
 CONCORD_BFT_DOCKER_REPO?=concordbft/
 CONCORD_BFT_DOCKER_IMAGE?=concord-bft
-CONCORD_BFT_DOCKER_IMAGE_VERSION?=0.43
+CONCORD_BFT_DOCKER_IMAGE_VERSION?=0.44
 CONCORD_BFT_DOCKER_CONTAINER?=concord-bft
 
 CONCORD_BFT_DOCKERFILE?=Dockerfile
@@ -11,6 +11,7 @@ CONCORD_BFT_RECONFIGURATION_CMF_PATHS?=${CONCORD_BFT_TARGET_SOURCE_PATH}/build/r
 CONCORD_BFT_BFTENGINE_CMF_PATHS?=${CONCORD_BFT_TARGET_SOURCE_PATH}/build/bftengine/cmf
 CONCORD_BFT_CCRON_CMF_PATHS?=${CONCORD_BFT_TARGET_SOURCE_PATH}/build/ccron/cmf
 CONCORD_BFT_SKVBC_CMF_PATHS?=${CONCORD_BFT_TARGET_SOURCE_PATH}/build/tests/simpleKVBC/cmf
+CONCORD_BFT_EXAMPLE_CMF_PATHS?=${CONCORD_BFT_TARGET_SOURCE_PATH}/build/examples/kv-cmf
 CONCORD_BFT_CLIENT_PROTO_PATH?=${CONCORD_BFT_TARGET_SOURCE_PATH}/build/client/proto
 CONCORD_BFT_THIN_REPLICA_PROTO_PATH?=${CONCORD_BFT_TARGET_SOURCE_PATH}/build/thin-replica-server/proto
 CONCORD_BFT_KVBC_PROTO_PATH?=${CONCORD_BFT_TARGET_SOURCE_PATH}/build/kvbc/proto
@@ -58,6 +59,7 @@ CONCORD_BFT_CMAKE_ASAN?=FALSE
 CONCORD_BFT_CMAKE_TSAN?=FALSE
 CONCORD_BFT_CMAKE_UBSAN?=FALSE
 CONCORD_BFT_CMAKE_CODECOVERAGE?=FALSE
+CONCORD_BFT_CMAKE_CCACHE?=TRUE
 CONCORD_BFT_CMAKE_USE_FAKE_CLOCK_IN_TIME_SERVICE?=FALSE
 ENABLE_RESTART_RECOVERY_TESTS?=FALSE
 
@@ -71,6 +73,13 @@ endif
 ifeq (${CONCORD_BFT_CMAKE_CODECOVERAGE},TRUE)
 	CONCORD_BFT_CMAKE_CXX_FLAGS_RELEASE='-O0 -g'
 endif
+
+# The consistency parameter makes sense only at MacOS.
+# It is ignored at all other platforms.
+CONCORD_BFT_CONTAINER_MOUNT_CONSISTENCY?=,consistency=cached
+CONCORD_BFT_CTEST_TIMEOUT?=3000 # Default value is 1500 sec. It takes 2500 to run all the tests at my dev station
+CONCORD_BFT_USER_GROUP?=--user `id -u`:`id -g`
+CONCORD_BFT_CORE_DIR?=${CONCORD_BFT_TARGET_SOURCE_PATH}/${CONCORD_BFT_BUILD_DIR}/cores
 
 CONCORD_BFT_CMAKE_FLAGS?= \
 			-DCMAKE_BUILD_TYPE=${CONCORD_BFT_CMAKE_BUILD_TYPE} \
@@ -99,17 +108,19 @@ CONCORD_BFT_CMAKE_FLAGS?= \
 			-DTXN_SIGNING_ENABLED=${CONCORD_BFT_CMAKE_TRANSACTION_SIGNING_ENABLED} \
 			-DENABLE_RESTART_RECOVERY_TESTS=${ENABLE_RESTART_RECOVERY_TESTS}
 
-
-# The consistency parameter makes sense only at MacOS.
-# It is ignored at all other platforms.
-CONCORD_BFT_CONTAINER_MOUNT_CONSISTENCY?=,consistency=cached
-CONCORD_BFT_CTEST_TIMEOUT?=3000 # Default value is 1500 sec. It takes 2500 to run all the tests at my dev station
-CONCORD_BFT_USER_GROUP?=--user `id -u`:`id -g`
-CONCORD_BFT_CORE_DIR?=${CONCORD_BFT_TARGET_SOURCE_PATH}/${CONCORD_BFT_BUILD_DIR}/cores
-
 CONCORD_BFT_ADDITIONAL_RUN_PARAMS?=
 APOLLO_CTEST_RUN_PARAMS?=
 CONCORD_BFT_FORMAT_CMD=make format-check &&
+
+ifeq (${CONCORD_BFT_CMAKE_CCACHE},TRUE)
+	CCACHE_HOST_CACHE_DIR=${HOME}/.ccache/
+	CCACHE_CONTAINER_CACHE_DIR=/mnt/ccache/
+	CONCORD_BFT_CMAKE_FLAGS+=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache
+	CONCORD_BFT_ADDITIONAL_RUN_PARAMS+=\
+		--mount type=bind,source=${CCACHE_HOST_CACHE_DIR},target=${CCACHE_CONTAINER_CACHE_DIR}${CONCORD_BFT_CONTAINER_MOUNT_CONSISTENCY} \
+		--env CCACHE_CONFIGPATH=/concord-bft/.ccache/ccache.conf \
+		--env CCACHE_DIR=/mnt/ccache/
+endif
 
 ifneq (${APOLLO_LOG_STDOUT},)
 	CONCORD_BFT_ADDITIONAL_RUN_PARAMS+=--env APOLLO_LOG_STDOUT=TRUE
@@ -157,7 +168,7 @@ login: ## Login to the container. Note: if the container is already running, log
 	fi
 
 .PHONY: gen-cmake
-gen-cmake: ## Generate cmake files, used internally
+gen-cmake: create-ccache-folder ## Generate cmake files, used internally
 	docker run ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"mkdir -p ${CONCORD_BFT_TARGET_SOURCE_PATH}/${CONCORD_BFT_BUILD_DIR} && \
@@ -203,6 +214,7 @@ tidy-check: gen-cmake ## Run clang-tidy
 		make -C ${CONCORD_BFT_RECONFIGURATION_CMF_PATHS} &> /dev/null && \
 		make -C ${CONCORD_BFT_BFTENGINE_CMF_PATHS} &> /dev/null && \
 		make -C ${CONCORD_BFT_CCRON_CMF_PATHS} &> /dev/null && \
+		make -C ${CONCORD_BFT_EXAMPLE_CMF_PATHS} &> /dev/null && \
 		make -C ${CONCORD_BFT_SKVBC_CMF_PATHS} &> /dev/null && \
 		make -C ${CONCORD_BFT_CLIENT_PROTO_PATH} &> /dev/null && \
 		make -C ${CONCORD_BFT_THIN_REPLICA_PROTO_PATH} &> /dev/null && \
@@ -325,21 +337,30 @@ test-single-gtest-case: ## Run a single GoogleTest test case: `make test-single-
 		${CONCORD_BFT_CONTAINER_SHELL} -c "${CONCORD_BFT_BUILD_DIR}/${PREFIX} \
 		--gtest_filter=*${TEST_CASE_FILTER}* --gtest_repeat=${NUM_REPEATS__} $${break_on_failure_opt}";
 
+CLEAN_ALL?=FALSE
+CLEAN_BIN?=TRUE
+CLEAN_UNTRACKED=?FALSE
+CLEAN_CACHE?=FALSE
 .PHONY: clean
-clean: ## Clean Concord-BFT build directory
-	docker run ${BASIC_RUN_PARAMS} \
-		${CONCORD_BFT_CONTAINER_SHELL} -c \
-		"rm -rf ${CONCORD_BFT_BUILD_DIR}"
+clean: create-ccache-folder ## Clean Concord-BFT build directory (set CLEAN_BIN=TRUE), repository untracked file (set CLEAN_UNTRACKED=TRUE) and ccache cache (set CLEAN_CACHE=TRUE). By default, only CLEAN_BIN=TRUE while CLEAN_UNTRACKED and CLEAN_CACHE are FALSE. use CLEAN_ALL=TRUE if you want to mark all flags as TRUE. If CLEAN_UNTRACKED is TRUE: For a 'dry run' use DRY_RUN=TRUE, for an interactive run use INTER=TRUE. examples: 1) `make clean` will clean only the build folder. 2) `make clean CLEAN_BIN=FALSE CLEAN_CACHE=TRUE` cleans ccache cache folder content. 3) `make clean CLEAN_ALL=TRUE` cleans build folder, untracked files, and ccache cache.
+	@if [ '${CLEAN_ALL}' = 'TRUE' ] || [ '${CLEAN_BIN}' = 'TRUE' ]; then \
+		docker run ${BASIC_RUN_PARAMS} \
+			${CONCORD_BFT_CONTAINER_SHELL} -c \
+			"rm -rf ${CONCORD_BFT_BUILD_DIR}"; \
+	fi
+	@if [ '${CLEAN_ALL}' = 'TRUE' ] || [ '${CLEAN_UNTRACKED}' = 'TRUE' ]; then \
+		if [ "${DRY_RUN}" = "TRUE" ] && [ "${INTER}" = "TRUE" ]; then git clean -dxfni; \
+		elif [ "${DRY_RUN}" != "TRUE" ] && [ "${INTER}" != "TRUE" ]; then git clean -dxf; \
+		elif [ "${DRY_RUN}" = "TRUE" ] && [ "${INTER}" != "TRUE" ]; then git clean -dxfn; \
+		else git clean -dxfi; fi; \
+	fi
+	@if [ '${CLEAN_ALL}' = 'TRUE' ] || [ '${CLEAN_CACHE}' = 'TRUE' ]; then \
+		rm -rf ${CCACHE_HOST_CACHE_DIR}/*; \
+	fi
 
-.PHONY: clean-all
-clean-all: ## Clean Concord-BFT build directory and any other untracked/ignored files.For a 'dry run' use DRY_RUN=TRUE, for an interactive run use INTER=TRUE.
-	docker run ${BASIC_RUN_PARAMS} \
-		${CONCORD_BFT_CONTAINER_SHELL} -c \
-		"rm -rf ${CONCORD_BFT_BUILD_DIR}"
-		@if [ "${DRY_RUN}" = "TRUE" ] && [ "${INTER}" = "TRUE" ]; then git clean -dxfni; fi
-		@if [ "${DRY_RUN}" != "TRUE" ] && [ "${INTER}" != "TRUE" ]; then git clean -dxf; fi
-		@if [ "${DRY_RUN}" = "TRUE" ] && [ "${INTER}" != "TRUE" ]; then git clean -dxfn; fi
-		@if [ "${DRY_RUN}" != "TRUE" ] && [ "${INTER}" = "TRUE" ]; then git clean -dxfi; fi
+.PHONY: create-ccache-folder
+create-ccache-folder: ## Create ccache host folder
+	@if [ ${CONCORD_BFT_CMAKE_CCACHE} = "TRUE" ]; then mkdir -p ${CCACHE_HOST_CACHE_DIR}; fi
 
 .PHONY: codecoverage
 codecoverage: ## Generate Code Coverage report for Apollo tests

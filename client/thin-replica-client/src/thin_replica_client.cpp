@@ -11,15 +11,17 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "client/thin-replica-client/thin_replica_client.hpp"
+#include <memory>
+#include <numeric>
+#include <sstream>
+#include <chrono>
+#include <vector>
 
 #include <opentracing/propagation.h>
 #include <opentracing/span.h>
 #include <opentracing/tracer.h>
-#include <memory>
-#include <numeric>
-#include <sstream>
 
+#include "client/thin-replica-client/thin_replica_client.hpp"
 #include "client/thin-replica-client/trace_contexts.hpp"
 #include "client/thin-replica-client/trc_hash.hpp"
 #include "client/thin-replica-client/grpc_connection.hpp"
@@ -693,8 +695,6 @@ void ThinReplicaClient::receiveUpdates() {
 
     // Push update to update queue for consumption before receiving next update
     pushUpdateToUpdateQueue(std::move(update), start, update_in.has_event_group());
-    metrics_.num_updates_processed++;
-
     // Reset read timeout, failure and ignored metrics before the next update
     resetMetricsBeforeNextUpdate();
 
@@ -723,18 +723,24 @@ void ThinReplicaClient::pushUpdateToUpdateQueue(std::unique_ptr<EventVariant> up
 
   // push update to the update queue for consumption by the application using
   // TRC
+  const auto& block_id = std::get<Update>(*update).block_id;
+  auto num_events = std::get<Update>(*update).kv_pairs.size();
+  LOG_TRACE(logger_, "Pushing events to UpdateQueue:" << KVLOG(block_id, num_events));
   config_->update_queue->push(std::move(update));
 
   // update metrics
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-  metrics_.update_dur_us.Get().Set(duration.count());
+  metrics_.update_duration_microsec.Get().Set(duration.count());
 
   if (is_event_group) {
     metrics_.last_verified_event_group_id.Get().Set(latest_verified_event_group_id_);
   } else {
     metrics_.last_verified_block_id.Get().Set(latest_verified_block_id_);
   }
+
+  metrics_.num_updates_processed++;
+  metrics_.num_events_processed.Get().Set(metrics_.num_events_processed.Get().Get() + num_events);
 }
 
 void ThinReplicaClient::resetMetricsBeforeNextUpdate() {
@@ -954,6 +960,9 @@ void ThinReplicaClient::Subscribe() {
     state.pop_front();
   }
   latest_verified_block_id_ = block_id;
+  metrics_.last_verified_block_id.Get().Set(latest_verified_block_id_);
+  metrics_.current_queue_size.Get().Set(config_->update_queue->size());
+
   // Create and launch thread to stream updates from the servers and push them
   // into the queue.
   stop_subscription_thread_ = false;

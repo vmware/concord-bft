@@ -572,18 +572,22 @@ Replica::Replica(ICommunication *comm,
                             kvbc_categories,
                             concord::kvbc::adapter::aux::AdapterAuxTypes(this->aggregator_, this->replicaResources_));
     m_kvBlockchain = &(op_kvBlockchain.value());
+    bool isCategorized = replicaConfig.kvBlockchainVersion == BLOCKCHAIN_VERSION::CATEGORIZED_BLOCKCHAIN;
     auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-    concord::diagnostics::StatusHandler handler("pruning", "Pruning Status", [this]() {
+    concord::diagnostics::StatusHandler handler("pruning", "Pruning Status", [this, isCategorized]() {
       std::ostringstream oss;
       std::unordered_map<std::string, std::string> result;
-      result.insert(
-          concordUtils::toPair("versionedNumOfDeletedKeys",
-                               aggregator_->GetCounter("kv_blockchain_deletes", "numOfVersionedKeysDeleted").Get()));
-      result.insert(
-          concordUtils::toPair("immutableNumOfDeletedKeys",
-                               aggregator_->GetCounter("kv_blockchain_deletes", "numOfImmutableKeysDeleted").Get()));
-      result.insert(concordUtils::toPair(
-          "merkleNumOfDeletedKeys", aggregator_->GetCounter("kv_blockchain_deletes", "numOfMerkleKeysDeleted").Get()));
+      if (isCategorized) {
+        result.insert(
+            concordUtils::toPair("versionedNumOfDeletedKeys",
+                                 aggregator_->GetCounter("kv_blockchain_deletes", "numOfVersionedKeysDeleted").Get()));
+        result.insert(
+            concordUtils::toPair("immutableNumOfDeletedKeys",
+                                 aggregator_->GetCounter("kv_blockchain_deletes", "numOfImmutableKeysDeleted").Get()));
+        result.insert(
+            concordUtils::toPair("merkleNumOfDeletedKeys",
+                                 aggregator_->GetCounter("kv_blockchain_deletes", "numOfMerkleKeysDeleted").Get()));
+      }
       result.insert(concordUtils::toPair("getGenesisBlockId()", getGenesisBlockId()));
       result.insert(concordUtils::toPair("getLastReachableBlockId()", getLastBlockId()));
       result.insert(concordUtils::toPair("isPruningInProgress",

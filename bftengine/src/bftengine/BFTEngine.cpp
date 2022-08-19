@@ -25,6 +25,7 @@
 #include "ReservedPagesClient.hpp"
 #include "bftengine/EpochManager.hpp"
 #include "bcstatetransfer/AsyncStateTransferCRE.hpp"
+#include "DbCheckpointManager.hpp"
 #include <condition_variable>
 #include <memory>
 #include <mutex>
@@ -194,6 +195,8 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
     }
     LOG_INFO(GL, "erasedMetaData flag = " << erasedMetaData);
     if (erasedMetaData) {
+      // Here when metadata is erased, we need to update DBCheckpointManager.
+      DbCheckpointManager::instance().setIsMetadataErased(true);
       metadataStoragePtr->eraseData();
       isNewStorage = metadataStoragePtr->initMaxSizeOfObjects(objectDescriptors, numOfObjects);
       auto secFileDir = ReplicaConfig::instance().getkeyViewFilePath();

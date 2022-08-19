@@ -988,7 +988,7 @@ bool ReconfigurationHandler::handle(const messages::UnwedgeCommand& cmd,
                                     uint32_t,
                                     const std::optional<bftEngine::Timestamp>& ts,
                                     concord::messages::ReconfigurationResponse&) {
-  if (!bftEngine::ControlStateManager::instance().getCheckpointToStopAt().has_value()) {
+  if (!bftEngine::ControlStateManager::instance().isWedged()) {
     LOG_INFO(getLogger(), "replica is already unwedge");
     return true;
   }

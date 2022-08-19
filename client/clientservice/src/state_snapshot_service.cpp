@@ -9,6 +9,8 @@
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
+#include <chrono>
+
 #include <condition_variable>
 #include <opentracing/tracer.h>
 #include <google/protobuf/util/time_util.h>
@@ -41,6 +43,7 @@ using concord::messages::ReconfigurationResponse;
 using concord::messages::ReconfigurationErrorMsg;
 using concord::messages::StateSnapshotReadAsOfRequest;
 using concord::messages::StateSnapshotReadAsOfResponse;
+using std::chrono::duration_cast;
 
 using concord::client::concordclient::SnapshotKVPair;
 using concord::client::concordclient::SnapshotQueue;
@@ -51,6 +54,8 @@ using concord::client::concordclient::StreamUnavailable;
 using concord::client::concordclient::InternalError;
 using concord::client::concordclient::EndOfStream;
 using concord::client::concordclient::RequestOverload;
+
+using namespace std;
 
 namespace concord::client::clientservice {
 
@@ -202,12 +207,11 @@ static std::shared_ptr<bftEngine::RequestCallBack> getCallbackLambda(const bftEn
   return std::make_shared<bftEngine::RequestCallBack>(callback);
 }
 
-std::chrono::milliseconds StateSnapshotServiceImpl::setTimeoutFromDeadline(ServerContext* context) {
-  std::chrono::milliseconds timeout = 120s;  // This is default timeout
+chrono::milliseconds StateSnapshotServiceImpl::setTimeoutFromDeadline(ServerContext* context) {
+  chrono::milliseconds timeout = 120s;  // This is default timeout
   if (context != nullptr) {
     auto end_time = context->deadline();
-    auto curr_timeout =
-        std::chrono::duration_cast<std::chrono::milliseconds>(end_time - std::chrono::system_clock::now());
+    auto curr_timeout = duration_cast<chrono::milliseconds>(end_time - chrono::system_clock::now());
     if ((curr_timeout.count() > 0) && (curr_timeout.count() <= MAX_TIMEOUT_MS)) {
       timeout = curr_timeout;
     } else {
@@ -222,7 +226,7 @@ std::chrono::milliseconds StateSnapshotServiceImpl::setTimeoutFromDeadline(Serve
 Status StateSnapshotServiceImpl::GetRecentSnapshot(ServerContext* context,
                                                    const GetRecentSnapshotRequest* proto_request,
                                                    GetRecentSnapshotResponse* response) {
-  std::chrono::milliseconds timeout = setTimeoutFromDeadline(context);
+  chrono::milliseconds timeout = setTimeoutFromDeadline(context);
   LOG_INFO(logger_, "Received a GetRecentSnapshotRequest with timeout : " << timeout.count() << "ms");
 
   auto write_config = std::shared_ptr<WriteConfig>(
@@ -350,7 +354,7 @@ Status StateSnapshotServiceImpl::StreamSnapshot(ServerContext* context,
   }
 
   if (is_end_of_stream && status.ok()) {
-    std::chrono::milliseconds timeout = setTimeoutFromDeadline(context);
+    chrono::milliseconds timeout = setTimeoutFromDeadline(context);
     isHashValid(proto_request->snapshot_id(), accumulated_hash, timeout, status);
   }
 
@@ -359,7 +363,7 @@ Status StateSnapshotServiceImpl::StreamSnapshot(ServerContext* context,
 
 void StateSnapshotServiceImpl::isHashValid(uint64_t snapshot_id,
                                            const concord::util::SHA3_256::Digest& final_hash,
-                                           const std::chrono::milliseconds& timeout,
+                                           const chrono::milliseconds& timeout,
                                            Status& return_status) {
   auto read_config = std::shared_ptr<ReadConfig>(
       new ReadConfig{RequestConfig{false, 0, 1024 * 1024, timeout, "signedHashReq", "", false, true},
@@ -484,7 +488,7 @@ void StateSnapshotServiceImpl::compareWithRsiAndSetReadAsOfResponse(
 Status StateSnapshotServiceImpl::ReadAsOf(ServerContext* context,
                                           const ReadAsOfRequest* proto_request,
                                           ReadAsOfResponse* response) {
-  std::chrono::milliseconds timeout = setTimeoutFromDeadline(context);
+  chrono::milliseconds timeout = setTimeoutFromDeadline(context);
   LOG_INFO(logger_, "Received a ReadAsOfRequest with timeout : " << timeout.count() << "ms");
 
   auto read_config = std::shared_ptr<ReadConfig>(
