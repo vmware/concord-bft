@@ -6,7 +6,7 @@ syntax = "proto3";
 package vmware.concord.utt.wallet.api.v1;
 
 service TestService {
-    rpc reverse(ReverseStringRequest) returns (ReverseStringResponse);
+    rpc reverseString(ReverseStringRequest) returns (ReverseStringResponse);
 }
 
 message ReverseStringRequest {

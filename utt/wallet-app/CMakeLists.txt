@@ -4,8 +4,8 @@ set(src
     main.cpp
 )
 
-add_executable(utt-wallet ${src})
+add_executable(wallet-app ${src})
 
-target_link_libraries(utt-wallet PUBLIC
+target_link_libraries(wallet-app PUBLIC
   utt-wallet-api-proto
 )
