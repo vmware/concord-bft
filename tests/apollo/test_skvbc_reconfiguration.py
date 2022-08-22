@@ -884,9 +884,54 @@ class SkvbcReconfigurationTest(ApolloTest):
             await bft_network.wait_for_state_transfer_to_stop(initial_prim,
                                                               r,
                                                               stop_on_stable_seq_num=True)
-        await self.try_to_unwedge(bft_network=bft_network, bft=False, restart=False)
         for i in range(100):
             await skvbc.send_write_kv_set()
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
+    async def test_wedge_command_with_state_transfer_with_write(self, bft_network):
+        """
+            This test checks that even a replica that received the super stable checkpoint via the state transfer mechanism
+            is able to stop at the super stable checkpoint.
+            The test does the following:
+            1. Start all replicas but 1
+            2. A client sends a wedge command
+            3. Validate that all started replicas reached to the next next checkpoint
+            4. Start the late replica
+            5. Perform client writes
+            6. Validate that the late replica completed the state transfer
+            7. Validate that all replicas stopped at the super stable checkpoint and that new commands are not being processed
+        """
+        initial_prim = 0
+        late_replicas = bft_network.random_set_of_replicas(1, {initial_prim})
+        on_time_replicas = bft_network.all_replicas(without=late_replicas)
+        bft_network.start_replicas(on_time_replicas)
+
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        await skvbc.wait_for_liveness()
+
+
+        initial_fast_path_count = await bft_network.get_metric(initial_prim, bft_network, "Counters", "totalFastPaths")
+        client = bft_network.random_client()
+        # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
+        client.config._replace(req_timeout_milli=10000)
+        op = operator.Operator(bft_network.config, client,  bft_network.builddir)
+        await op.wedge()
+        await self.validate_stop_on_wedge_point(bft_network=bft_network, skvbc=skvbc, fullWedge=False)
+        await self.try_to_unwedge(bft_network=bft_network, bft=True, restart=False)
+        bft_network.start_replicas(late_replicas)
+        for i in range(300):
+            await skvbc.send_write_kv_set()
+        await bft_network.wait_for_state_transfer_to_start()
+        for r in late_replicas:
+            await bft_network.wait_for_state_transfer_to_stop(initial_prim,
+                                                              r,
+                                                              stop_on_stable_seq_num=True)
+        for i in range(300):
+            await skvbc.send_write_kv_set()
+
+        final_fast_path_count = await bft_network.get_metric(initial_prim, bft_network, "Counters", "totalFastPaths")
+        self.assertGreater(final_fast_path_count, initial_fast_path_count)
 
 
     @unittest.skip("Skipping for single case repro")
