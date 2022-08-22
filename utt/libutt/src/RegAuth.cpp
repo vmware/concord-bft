@@ -57,11 +57,15 @@ RegAuthSK RegAuthSK::random(const CommKey& ck_reg, const IBE::Params& p) {
 
   return rsk;
 }
+void RegAuthSK::setIBEParams(const IBE::Params& ibe_params) {
+  p = ibe_params;
+  for (auto& sk : shares) {
+    sk.p = ibe_params;
+  }
+}
 
-RegAuthSK RegAuthSK::generateKeyAndShares(CommKey& ck_reg, size_t t, size_t n, const IBE::Params& p_) {
-  (void)(ck_reg);
+RegAuthSK RegAuthSK::generateKeyAndShares(size_t t, size_t n) {
   RegAuthSK ras;
-  ras.p = p_;
   ras.msk = IBE::MSK::random();
   size_t ell = 2;  // Registration commit contains only 3 messages
   // degree t-1 polynomial f(X) such that t players can reconstruct f(0) = x, which encodes the bank's secret key x
@@ -122,6 +126,7 @@ RegAuthSK RegAuthSK::generateKeyAndShares(CommKey& ck_reg, size_t t, size_t n, c
   ras.shares = skRegShares;
   return ras;
 }
+
 // AddrSK RegAuthSK::randomUser() const {
 //    // WARNING: Not a secure PRNG, but okay for this.
 //    return registerUser(std::to_string(rand()) + "@rand.com");

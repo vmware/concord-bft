@@ -60,7 +60,8 @@ class RegAuthSK {
 
  public:
   static RegAuthSK random(const CommKey& ck_reg, const IBE::Params& p);
-  static RegAuthSK generateKeyAndShares(CommKey& baseComm, size_t t, size_t n, const IBE::Params& p);
+  static RegAuthSK generateKeyAndShares(size_t t, size_t n);
+  void setIBEParams(const IBE::Params& p);
 
  public:
   // AddrSK randomUser() const;

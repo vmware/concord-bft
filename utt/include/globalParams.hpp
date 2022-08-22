@@ -24,15 +24,21 @@ class GlobalParams {
    * and more (see uttlib/Params.h)
    *
    */
-  static bool initialized;
 
  public:
+  struct BaseLibsInitData {
+    std::string ntl_finite_field{"21888242871839275222246405745257275088548364400416034343698204186575808495617"};
+    bool libff_inhibit_profiling_info{true};
+    bool libff_inhibit_profiling_counters{true};
+    std::pair<unsigned char*, int> entropy_source{nullptr, false};
+  };
   GlobalParams() = default;
   /**
    * @brief Initialize the global parameters object with a default object.
    *
    */
-  void init();
+  static GlobalParams create(void* initData);
+  static void initLibs(const BaseLibsInitData& initData);
 
   /**
    * @brief Get the libutt::Params object
@@ -40,7 +46,6 @@ class GlobalParams {
    * @return const libutt::Params&
    */
   const libutt::Params& getParams() const;
-  libutt::Params& getParams();
   GlobalParams(const GlobalParams& other);
   GlobalParams& operator=(const GlobalParams& other);
 

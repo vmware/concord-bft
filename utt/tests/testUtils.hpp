@@ -24,6 +24,11 @@
 using namespace libutt;
 using namespace libutt::api;
 namespace libutt::api::testing {
+struct GpData {
+  libutt::CommKey cck;
+  libutt::CommKey rck;
+};
+
 std::vector<uint32_t> getSubset(uint32_t n, uint32_t size) {
   std::srand((unsigned int)std::time(0));
   std::map<uint32_t, uint32_t> ret;
@@ -40,13 +45,13 @@ std::vector<uint32_t> getSubset(uint32_t n, uint32_t size) {
   return rret;
 }
 std::tuple<libutt::api::GlobalParams, RandSigDKG, RegAuthSK> init(size_t n, size_t thresh) {
-  GlobalParams d;
-  d.init();
-
+  GlobalParams::BaseLibsInitData base_libs_init_data;
+  GlobalParams::initLibs(base_libs_init_data);
   auto dkg = RandSigDKG(thresh, n, Params::NumMessages);
-  d.getParams() = Params::random(dkg.getCK());
-  auto rc = RegAuthSK::generateKeyAndShares(d.getParams().ck_reg, thresh, n, d.getParams().ibe);
-  d.getParams().ck_reg = rc.ck_reg;
+  auto rc = RegAuthSK::generateKeyAndShares(thresh, n);
+  GpData gp_data{dkg.getCK(), rc.ck_reg};
+  GlobalParams d = GlobalParams::create((void*)(&gp_data));
+  rc.setIBEParams(d.getParams().ibe);
   return {d, dkg, rc};
 }
 std::vector<std::shared_ptr<Registrator>> GenerateRegistrators(size_t n, const RegAuthSK& rsk) {
