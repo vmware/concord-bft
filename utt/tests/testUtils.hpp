@@ -24,7 +24,7 @@
 using namespace libutt;
 using namespace libutt::api;
 namespace libutt::api::testing {
-std::vector<uint32_t> getSubGroup(uint32_t n, uint32_t size) {
+std::vector<uint32_t> getSubset(uint32_t n, uint32_t size) {
   std::srand((unsigned int)std::time(0));
   std::map<uint32_t, uint32_t> ret;
   for (uint32_t i = 0; i < n; i++) ret[i] = i;
@@ -116,7 +116,7 @@ void registerClient(const GlobalParams& d,
       s2 = ret_s2;
     }
   }
-  auto sids = getSubGroup((uint32_t)n, (uint32_t)thresh);
+  auto sids = getSubset((uint32_t)n, (uint32_t)thresh);
   std::map<uint32_t, std::vector<uint8_t>> rsigs;
   for (auto i : sids) {
     rsigs[i] = shares[i];

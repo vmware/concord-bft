@@ -60,7 +60,7 @@ Coin& Coin::operator=(const Coin& c) {
   return *this;
 }
 Coin::Coin() { coin_.reset(new libutt::Coin()); }
-const std::string Coin::getNullifier() const { return coin_->null.toUniqueString(); }
+std::string Coin::getNullifier() const { return coin_->null.toUniqueString(); }
 bool Coin::hasSig() const { return has_sig_; }
 void Coin::setSig(const types::Signature& sig) {
   if (sig.empty()) return;

@@ -38,7 +38,7 @@ int main(int argc, char* argv[]) {
     for (size_t i = 0; i < banks.size(); i++) {
       rsigs.push_back(banks[i]->sign(budget).front());
     }
-    auto sbs = testing::getSubGroup((uint32_t)n, (uint32_t)thresh);
+    auto sbs = testing::getSubset((uint32_t)n, (uint32_t)thresh);
     std::map<uint32_t, std::vector<uint8_t>> sigs;
     for (auto i : sbs) {
       sigs[i] = rsigs[i];
@@ -56,7 +56,7 @@ int main(int argc, char* argv[]) {
     for (size_t i = 0; i < banks.size(); i++) {
       rsigs.push_back(banks[i]->sign(budget).front());
     }
-    auto sbs = testing::getSubGroup((uint32_t)n, (uint32_t)thresh);
+    auto sbs = testing::getSubset((uint32_t)n, (uint32_t)thresh);
     std::map<uint32_t, std::vector<uint8_t>> sigs;
     for (auto i : sbs) {
       sigs[i] = rsigs[i];

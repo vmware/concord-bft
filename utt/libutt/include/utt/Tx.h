@@ -131,7 +131,7 @@ class Tx {
 
     return sigShare.verify(getCommVector(txoIdx, H), bpkShare);
   }
-  std::unordered_map<size_t, TxOut> getMineTransactions(const IDecryptor& decriptor) const;
+  std::unordered_map<size_t, TxOut> getMyTransactions(const IDecryptor& decryptor) const;
   /**
    * Attempts to claim the output specified by 'idx':
    * i.e., decrypt the denomination, identity commitment randomness and value commitment randomness from the coin's
@@ -150,7 +150,7 @@ class Tx {
                                    const std::vector<RandSigShare>& sigShares,
                                    const std::vector<size_t>& signerIds,
                                    const RandSigPK& bpk,
-                                   const IDecryptor& decriptor) const;
+                                   const IDecryptor& decryptor) const;
 
   std::string getHashHex() const {
     std::stringstream ss;

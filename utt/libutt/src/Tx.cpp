@@ -586,7 +586,7 @@ RandSigShare Tx::shareSignCoin(size_t txoIdx, const RandSigShareSK& bskShare) co
 
   return bskShare.shareSign(getCommVector(txoIdx, H), H);
 }
-std::unordered_map<size_t, TxOut> Tx::getMineTransactions(const IDecryptor& decryptor) const {
+std::unordered_map<size_t, TxOut> Tx::getMyTransactions(const IDecryptor& decryptor) const {
   std::unordered_map<size_t, TxOut> ret;
   for (size_t i = 0; i < outs.size(); i++) {
     auto& txo = outs[i];

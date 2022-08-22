@@ -20,7 +20,7 @@
 namespace libutt::api::operations {
 /**
  * @brief
- * The Budget is used for creating an initial budger coin. This can ber viewed as a mint operation for budget coin.
+ * The Budget is used for creating an initial budget coin. This can ber viewed as a mint operation for budget coin.
  **/
 class Budget {
  public:

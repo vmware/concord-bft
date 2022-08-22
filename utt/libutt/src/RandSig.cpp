@@ -201,7 +201,7 @@ RandSig RandSigShare::aggregate(size_t n,
   std::vector<G1> s2;
   for (auto& ss : sigShares) {
     if (ss.s1 != sig.s1) {
-      throw std::runtime_error("Expected signature shares with the same 'h'");
+      throw std::runtime_error("Expected signature shares with the same base");
     }
 
     s2.push_back(ss.s2);

@@ -42,7 +42,7 @@ class MintOp {
   MintOp(const std::string& uniqueHash, size_t value, const std::string& recipPID);
 
   MintOp(std::istream& in);
-  std::string getClientId() const { return clientId; }
+  const std::string& getClientId() const { return clientId; }
   size_t getSize() const { return _fr_size * 3; }
 
   // uniqueHash, value and recipPID should be taken from the public transaction

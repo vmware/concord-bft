@@ -20,7 +20,7 @@
 namespace libutt::api {
 Client::Client(const std::string& pid, const std::string& bpk, const std::string& rvk, const std::string& rsaSk) {
   if (pid.empty() || bpk.empty() || rvk.empty() || rsaSk.empty())
-    throw std::runtime_error("Invalid paramets for building the client");
+    throw std::runtime_error("Invalid parameters for building the client");
   ask_.reset(new libutt::AddrSK());
   ask_->pid = pid;
   ask_->s = Fr::random_element();
@@ -37,7 +37,7 @@ Client::Client(const std::string& pid,
                const std::string& csk,
                const std::string& mpk) {
   if (pid.empty() || bpk.empty() || rvk.empty() || csk.empty() || mpk.empty())
-    throw std::runtime_error("Invalid paramets for building the client");
+    throw std::runtime_error("Invalid parameters for building the client");
   ask_.reset(new libutt::AddrSK());
   ask_->pid = pid;
   ask_->s = Fr::random_element();
@@ -97,6 +97,7 @@ std::pair<Commitment, types::Signature> Client::rerandomizeRcm(const GlobalParam
 template <>
 std::vector<libutt::api::Coin> Client::claimCoins<operations::Mint>(
     const operations::Mint& mint, const GlobalParams& d, const std::vector<types::Signature>& blindedSigs) const {
+  if (blindedSigs.size() != 1) throw std::runtime_error("Mint suppose to contain a single coin only");
   Fr r_pid = Fr::zero(), r_sn = Fr::zero(), r_val = Fr::zero(), r_type = Fr::zero(), r_expdate = Fr::zero();
   std::vector<types::CurvePoint> r = {
       r_pid.to_words(), r_sn.to_words(), r_val.to_words(), r_type.to_words(), r_expdate.to_words()};
@@ -116,6 +117,7 @@ std::vector<libutt::api::Coin> Client::claimCoins<operations::Mint>(
 template <>
 std::vector<libutt::api::Coin> Client::claimCoins<operations::Budget>(
     const operations::Budget& budget, const GlobalParams& d, const std::vector<types::Signature>& blindedSigs) const {
+  if (blindedSigs.size() != 1) throw std::runtime_error("Mint suppose to contain a single coin only");
   Fr r_pid = Fr::zero(), r_sn = Fr::zero(), r_val = Fr::zero(), r_type = Fr::zero(), r_expdate = Fr::zero();
   std::vector<types::CurvePoint> r = {
       r_pid.to_words(), r_sn.to_words(), r_val.to_words(), r_type.to_words(), r_expdate.to_words()};
@@ -129,8 +131,9 @@ template <>
 std::vector<libutt::api::Coin> Client::claimCoins<operations::Transaction>(
     const operations::Transaction& tx, const GlobalParams& d, const std::vector<types::Signature>& blindedSigs) const {
   std::vector<libutt::api::Coin> ret;
-  auto mineTransactions = tx.tx_->getMineTransactions(*decryptor_);
+  auto mineTransactions = tx.tx_->getMyTransactions(*decryptor_);
   for (const auto& [txoIdx, txo] : mineTransactions) {
+    if (blindedSigs.size() >= txoIdx) throw std::runtime_error("Invalid number of blinded signatures");
     Fr r_pid = txo.t, r_sn = Fr::zero(), r_val = txo.d, r_type = Fr::zero(), r_expdate = Fr::zero();
     std::vector<types::CurvePoint> r = {
         r_pid.to_words(), r_sn.to_words(), r_val.to_words(), r_type.to_words(), r_expdate.to_words()};
