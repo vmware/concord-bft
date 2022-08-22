@@ -15,8 +15,14 @@
  * 0x01020304 -> 1.2.3.4 */
 #define PLUSAES_VERSION 0x00090200
 
+#if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Weverything"
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+#endif
 
 /** AES cipher APIs */
 namespace plusaes {
@@ -717,5 +723,9 @@ inline Error crypt_ctr(unsigned char *data,
 
 }  // namespace plusaes
 
+#if defined(__clang__)
 #pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 #endif  // PLUSAES_HPP__

@@ -262,7 +262,7 @@ std::size_t hash_value(const libutt::Fr& f) {
   libutt::AutoBuf<unsigned char> buf(static_cast<long>(size));
 
   mpz_export(buf, &size, 1, 1, 1, 0, rop);
-  auto h = boost::hash_range<unsigned char*>(buf, buf + buf.size());
+  auto h = boost::hash_range<unsigned char*>(buf, buf + (int64_t)buf.size());
 
   mpz_clear(rop);
   return h;

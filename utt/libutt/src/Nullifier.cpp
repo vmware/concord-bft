@@ -54,7 +54,7 @@ Nullifier::Nullifier(const Params& p, const Fr& prf, const Fr& sn, const Fr& t)
   assertTrue(Nullifier::verify(p));
 }
 
-Nullifier::Nullifier(const Params& p, const AddrSK& ask, const Fr& sn, const Fr& t) : Nullifier(p, ask.s, sn, t){};
+Nullifier::Nullifier(const Params& p, const AddrSK& ask, const Fr& sn, const Fr& t) : Nullifier(p, ask.s, sn, t) {}
 
 bool Nullifier::verify(const Params& p) const { return ReducedPairing(n, vk) == p.ehh * y; }
 

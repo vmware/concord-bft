@@ -40,6 +40,7 @@ std::vector<types::Signature> CoinsSigner::sign<operations::Transaction>(operati
   std::vector<types::Signature> sigs;
   auto res = tx.tx_->shareSignCoins(*bsk_);
   for (const auto& [_, sig] : res) {
+    (void)_;
     auto sig_str = libutt::serialize<libutt::RandSigShare>(sig);
     sigs.push_back(types::Signature(sig_str.begin(), sig_str.end()));
   }

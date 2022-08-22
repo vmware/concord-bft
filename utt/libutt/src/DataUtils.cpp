@@ -48,6 +48,7 @@ RSAEncryptor::RSAEncryptor(const std::map<std::string, std::string>& rsa_public_
 }
 RSAEncryptor::~RSAEncryptor() {
   for (auto [_, rsa_pub_key] : encryptors_) {
+    (void)_;
     if (rsa_pub_key) EVP_PKEY_free(rsa_pub_key);
   }
 }

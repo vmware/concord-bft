@@ -17,5 +17,3 @@ foreach(appSrc ${newutt_test_sources})
     add_test(NAME ${appName} COMMAND ${appName})
     set_target_properties(${appName} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${appDir})
 endforeach()
-
-target_compile_definitions(TestParallelPairing PRIVATE -DUSE_MULTITHREADING)

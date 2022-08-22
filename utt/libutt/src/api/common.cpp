@@ -11,12 +11,10 @@
 #include <sstream>
 #include <iomanip>
 
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(_WIN64)
 #define timegm _mkgmtime
 #endif
-#if defined(_WIN64)
-#define timegm _mkgmtime
-#endif
+
 namespace libutt::api {
 types::Signature Utils::aggregateSigShares(uint32_t n, const std::map<uint32_t, types::Signature>& rsigs) {
   std::vector<libutt::RandSigShare> shares;
