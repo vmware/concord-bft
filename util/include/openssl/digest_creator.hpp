@@ -12,7 +12,7 @@
 #pragma once
 
 #include "sha_hash.hpp"
-#include "../digest_creator.hpp"
+#include "digestCreator.hpp"
 
 namespace concord::util::crypto::openssl {
 

@@ -171,7 +171,8 @@ void KeyExchangeManager::exchangeTlsKeys(const std::string& type, const SeqNum& 
     prev_key_pem = EdDSAHexToPem(std::make_pair(SigManager::instance()->getSelfPrivKey(), "")).first;
   }
 
-  auto cert = generateSelfSignedCert(cert_path, keys.second, prev_key_pem);
+  auto cert =
+      generateSelfSignedCert(cert_path, keys.second, prev_key_pem, ReplicaConfig::instance().replicaMsgSigningAlgo);
   // Now that we have generated new key pair and certificate, lets do the actual exchange on this replica
   std::string pk_path = root_path + "/pk.pem";
   std::fstream nec_f(pk_path);

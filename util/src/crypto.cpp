@@ -15,12 +15,21 @@
 #include "Logger.hpp"
 #include "assertUtils.hpp"
 #include "hex_tools.h"
-#include "openssl_crypto.hpp"
+#include "string.hpp"
 #include "crypto/openssl/EdDSA.hpp"
 #include "util/filesystem.hpp"
 
 #include <regex>
 #include <utility>
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#include <cryptopp/dll.h>
+#include <cryptopp/pem.h>
+#include <cryptopp/rsa.h>
+#include <cryptopp/cryptlib.h>
+#include <cryptopp/oids.h>
+#pragma GCC diagnostic pop
 
 namespace concord::crypto {
 using std::array;
@@ -186,5 +195,14 @@ pair<string, string> generateECDSAKeyPair(const KeyFormat fmt, CurveType curve_t
 
 KeyFormat getFormat(const std::string& key) {
   return (key.find("BEGIN") != std::string::npos) ? KeyFormat::PemFormat : KeyFormat::HexaDecimalStrippedFormat;
+}
+
+bool isValidKey(const std::string& keyName, const std::string& key, size_t expectedSize) {
+  auto isValidHex = util::isValidHexString(key);
+  if ((expectedSize == 0 or (key.length() == expectedSize)) and isValidHex) {
+    return true;
+  }
+  throw std::runtime_error("Invalid " + keyName + " key (" + key + ") of size " + std::to_string(expectedSize) +
+                           " bytes.");
 }
 }  // namespace concord::crypto

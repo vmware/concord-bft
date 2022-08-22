@@ -14,14 +14,12 @@
 #include "utils.hpp"
 #include "Logger.hpp"
 #include "util/filesystem.hpp"
-#include "ReplicaConfig.hpp"
 
 #include <regex>
 
 namespace concord::crypto {
 using std::unique_ptr;
 using std::string;
-using bftEngine::ReplicaConfig;
 using concord::crypto::SIGN_VERIFY_ALGO;
 using concord::util::openssl_utils::UniquePKEY;
 using concord::util::openssl_utils::UniqueOpenSSLX509;
@@ -30,7 +28,10 @@ using concord::util::openssl_utils::OPENSSL_SUCCESS;
 using concord::util::openssl_utils::OPENSSL_FAILURE;
 using concord::util::openssl_utils::OPENSSL_ERROR;
 
-string generateSelfSignedCert(const string& origin_cert_path, const string& public_key, const string& signing_key) {
+string generateSelfSignedCert(const string& origin_cert_path,
+                              const string& public_key,
+                              const string& signing_key,
+                              const SIGN_VERIFY_ALGO signingAlgo) {
   unique_ptr<FILE, decltype(&fclose)> fp(fopen(origin_cert_path.c_str(), "r"), fclose);
   if (nullptr == fp) {
     LOG_ERROR(OPENSSL_LOG, "Certificate file not found, path: " << origin_cert_path);
@@ -72,12 +73,12 @@ string generateSelfSignedCert(const string& origin_cert_path, const string& publ
     return {};
   }
 
-  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
+  if (SIGN_VERIFY_ALGO::RSA == signingAlgo) {
     if (OPENSSL_FAILURE == X509_sign(cert.get(), priv_key.get(), EVP_sha256())) {
       LOG_ERROR(OPENSSL_LOG, "Failed to sign certificate using RSA private key.");
       return {};
     }
-  } else if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
+  } else if (SIGN_VERIFY_ALGO::EDDSA == signingAlgo) {
     if (OPENSSL_FAILURE == X509_sign(cert.get(), priv_key.get(), nullptr)) {
       LOG_ERROR(OPENSSL_LOG, "Failed to sign certificate using EdDSA private key.");
       return {};

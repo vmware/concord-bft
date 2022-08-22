@@ -415,6 +415,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, diagnosticsServerPort);
     serialize(outStream, useUnifiedCertificates);
     serialize(outStream, kvBlockchainVersion);
+    serialize(outStream, operatorMsgSigningAlgo);
+    serialize(outStream, replicaMsgSigningAlgo);
   }
   void deserializeDataMembers(std::istream& inStream) {
     deserialize(inStream, isReadOnly);
@@ -515,6 +517,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, diagnosticsServerPort);
     deserialize(inStream, useUnifiedCertificates);
     deserialize(inStream, kvBlockchainVersion);
+    deserialize(inStream, operatorMsgSigningAlgo);
+    deserialize(inStream, replicaMsgSigningAlgo);
   }
 
  private:
@@ -600,6 +604,10 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.adaptivePruningIntervalPeriod,
               rc.dbSnapshotIntervalSeconds.count());
   os << ",";
+  const auto replicaMsgSignAlgo =
+      (concord::crypto::SIGN_VERIFY_ALGO::RSA == rc.replicaMsgSigningAlgo) ? "rsa" : "eddsa";
+  const auto operatorMsgSignAlgo =
+      (concord::crypto::SIGN_VERIFY_ALGO::ECDSA == rc.operatorMsgSigningAlgo) ? "ecdsa" : "eddsa";
   os << KVLOG(rc.dbCheckpointMonitorIntervalSeconds.count(),
               rc.dbCheckpointDiskSpaceThreshold,
               rc.enableMultiplexChannel,
@@ -608,7 +616,9 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.enablePreProcessorMemoryPool,
               rc.diagnosticsServerPort,
               rc.useUnifiedCertificates,
-              rc.kvBlockchainVersion);
+              rc.kvBlockchainVersion,
+              replicaMsgSignAlgo,
+              operatorMsgSignAlgo);
   os << ", ";
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
   return os;

@@ -81,7 +81,8 @@ void ClientTlsKeyExchangeHandler::exchangeTlsKeys(const std::string& pkey_path,
   std::string master_key = sm_->decryptFile(master_key_path_).value_or(std::string());
   if (master_key.empty()) master_key = psm_.decryptFile(master_key_path_).value_or(std::string());
   if (master_key.empty()) LOG_FATAL(getLogger(), "unable to read the node master key");
-  auto cert = generateSelfSignedCert(cert_path, new_cert_keys.second, master_key);
+  auto cert = generateSelfSignedCert(
+      cert_path, new_cert_keys.second, master_key, ReplicaConfig::instance().replicaMsgSigningAlgo);
 
   sm_->encryptFile(pkey_path, new_cert_keys.first);
   psm_.encryptFile(cert_path, cert);

@@ -12,7 +12,7 @@
 //
 #pragma once
 
-#include "crypto_utils.hpp"
+#include "crypto.hpp"
 #include "SerializableByteArray.hpp"
 #include "openssl_crypto.hpp"
 

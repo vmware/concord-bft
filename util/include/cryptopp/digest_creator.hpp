@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include "../digest_creator.hpp"
+#include "digestCreator.hpp"
 #include "digest_type.hpp"
 
 #if defined MD5_DIGEST

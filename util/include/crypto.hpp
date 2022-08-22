@@ -13,24 +13,13 @@
 
 #pragma once
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
-#include <cryptopp/dll.h>
-#include <cryptopp/pem.h>
-#include <cryptopp/rsa.h>
-#include <cryptopp/cryptlib.h>
-#include <cryptopp/oids.h>
-#pragma GCC diagnostic pop
-
-#include <openssl/bio.h>
-#include <openssl/ec.h>
-#include <openssl/pem.h>
-#include <openssl/x509.h>
-#include <openssl/evp.h>
-
-#include "crypto_utils.hpp"
+#include <stdint.h>
+#include <string>
 
 namespace concord::crypto {
+
+enum class KeyFormat : uint16_t { HexaDecimalStrippedFormat, PemFormat };
+enum class CurveType : uint16_t { secp256k1, secp384r1 };
 
 /**
  * @brief Generates an EdDSA asymmetric key pair (private-public key pair).
@@ -91,4 +80,14 @@ std::pair<std::string, std::string> ECDSAHexToPem(const std::pair<std::string, s
  * identifying the input format.
  */
 KeyFormat getFormat(const std::string& key_str);
+
+/**
+ * @brief Validates the key.
+ *
+ * @param keyType Key type to be validated.
+ * @param key Key to be validate.
+ * @param expectedSize Size of the key to be validated.
+ * @return Validation result.
+ */
+bool isValidKey(const std::string& keyType, const std::string& key, size_t expectedSize);
 }  // namespace concord::crypto

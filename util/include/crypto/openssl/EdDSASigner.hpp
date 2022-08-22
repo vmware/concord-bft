@@ -15,7 +15,7 @@
 #include "EdDSA.hpp"
 #include "openssl_crypto.hpp"
 #include "crypto/signer.hpp"
-#include "crypto_utils.hpp"
+#include "crypto.hpp"
 
 namespace concord::crypto::openssl {
 
