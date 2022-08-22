@@ -178,17 +178,17 @@ add_subdirectory(libxassert)
 add_subdirectory(libxutils)
 
 set(newutt_src 
-    libutt/src/globalParams.cpp
-    libutt/src/commitment.cpp
-    libutt/src/client.cpp
-    libutt/src/coinsSigner.cpp
-    libutt/src/mint.cpp
-    libutt/src/coin.cpp
-    libutt/src/registrator.cpp
-    libutt/src/common.cpp
-    libutt/src/burn.cpp
-    libutt/src/transaction.cpp
-    libutt/src/budget.cpp
+    libutt/src/api/globalParams.cpp
+    libutt/src/api/commitment.cpp
+    libutt/src/api/client.cpp
+    libutt/src/api/coinsSigner.cpp
+    libutt/src/api/mint.cpp
+    libutt/src/api/coin.cpp
+    libutt/src/api/registrator.cpp
+    libutt/src/api/common.cpp
+    libutt/src/api/burn.cpp
+    libutt/src/api/transaction.cpp
+    libutt/src/api/budget.cpp
     )
 add_library(utt_api STATIC ${newutt_src})
 target_link_libraries(utt_api PUBLIC utt)
