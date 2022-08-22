@@ -85,7 +85,7 @@ class Coin {
    *
    * @return std::string
    */
-     std::string getNullifier() const;
+  std::string getNullifier() const;
 
   /**
    * @brief Create a Nullifier for this coin. Only the client can invoke this method

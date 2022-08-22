@@ -55,10 +55,9 @@ class Utils {
   /**
    * @brief Convert a string format date to uint.
    *
-   * @param exp_date An input string represents a date in the format of %Y-%m-%d %H:%M:%S. For example, 2022-08-17
+   * @param exp_date An input string represents a UTC date in the format of %Y-%m-%d %H:%M:%S. For example, 2022-08-17
    * 11:28:32
-   * @return uint64_t The encoded date as uint of in the following format yyyymmddHHMMSS for example 2022-08-17 11:28:32
-   * -> 20220817112832
+   * @return uint64_t The encoded date as uint
    */
   static uint64_t getExpirationDateAsUint(const std::string& exp_date);
 

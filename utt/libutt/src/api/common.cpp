@@ -6,8 +6,17 @@
 
 #include <math.h>
 #include <ctime>
-#include <time.h>
 #include <chrono>
+#include <locale>
+#include <sstream>
+#include <iomanip>
+
+#if defined(_WIN32)
+#define timegm _mkgmtime
+#endif
+#if defined(_WIN64)
+#define timegm _mkgmtime
+#endif
 namespace libutt::api {
 types::Signature Utils::aggregateSigShares(uint32_t n, const std::map<uint32_t, types::Signature>& rsigs) {
   std::vector<libutt::RandSigShare> shares;
@@ -38,32 +47,23 @@ types::Signature Utils::unblindSignature(const GlobalParams& p,
 }
 
 uint64_t Utils::getExpirationDateAsUint(const std::string& exp_date) {
-  struct tm due_date;
-  strptime(exp_date.c_str(), "%Y-%m-%d %T", &due_date);
-  auto ulong_exp_date = std::pow(10, 10) * (due_date.tm_year + 1900) + std::pow(10, 8) * (due_date.tm_mon + 1) +
-                        std::pow(10, 6) * due_date.tm_mday + std::pow(10, 4) * due_date.tm_hour +
-                        std::pow(10, 2) * due_date.tm_min + due_date.tm_sec;
-  return (uint64_t)ulong_exp_date;
+  std::tm due_date = {};
+  std::istringstream ss(exp_date);
+  if (!(ss >> std::get_time(&due_date, "%Y-%m-%d %H:%M:%S"))) return 0;
+  auto ret = std::chrono::duration_cast<std::chrono::milliseconds>(
+                 std::chrono::system_clock::from_time_t(timegm(&due_date)).time_since_epoch())
+                 .count();
+  return (uint64_t)ret;
 }
 
 std::string Utils::getStrExpirationDateFromUint(uint64_t exp_date) {
-  std::string ret;
-  uint16_t year = (uint16_t)(exp_date / (uint64_t)std::pow(10, 10));
-  exp_date %= (uint64_t)std::pow(10, 10);
-  uint16_t month = (uint16_t)(exp_date / (uint64_t)std::pow(10, 8));
-  auto m_str = month >= 10 ? std::to_string(month) : "0" + std::to_string(month);
-  exp_date %= (uint64_t)std::pow(10, 8);
-  uint16_t day = (uint16_t)(exp_date / (uint64_t)std::pow(10, 6));
-  auto d_str = month >= 10 ? std::to_string(day) : "0" + std::to_string(day);
-  exp_date %= (uint64_t)std::pow(10, 6);
-  uint16_t hours = (uint16_t)(exp_date / (uint64_t)std::pow(10, 4));
-  auto h_str = month >= 10 ? std::to_string(hours) : "0" + std::to_string(hours);
-  exp_date %= (uint64_t)std::pow(10, 4);
-  uint16_t minutes = (uint16_t)(exp_date / (uint64_t)std::pow(10, 2));
-  auto min_str = month >= 10 ? std::to_string(minutes) : "0" + std::to_string(minutes);
-  exp_date %= (uint64_t)std::pow(10, 2);
-  uint16_t seconds = (uint16_t)(exp_date);
-  auto sec_str = month >= 10 ? std::to_string(seconds) : "0" + std::to_string(seconds);
-  return std::to_string(year) + "-" + m_str + "-" + d_str + " " + h_str + ":" + min_str + ":" + sec_str;
+  auto tp = std::chrono::time_point<std::chrono::system_clock>(std::chrono::milliseconds(exp_date));
+  auto tt = std::chrono::system_clock::to_time_t(tp);
+  std::tm* due_date;
+  due_date = std::gmtime(&tt);
+  std::stringstream ss;
+  ss << std::put_time(due_date, "%Y-%m-%d %H:%M:%S");
+  auto ret = ss.str();
+  return ret;
 }
 }  // namespace libutt::api

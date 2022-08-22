@@ -7,7 +7,7 @@
 #include <sstream>
 
 auto bio_deleter = [](BIO* bio) { BIO_free(bio); };
-auto ctx_deleter = [](EVP_PKEY_CTX* epc) { EVP_PKEY_CTX_free(epc);};
+auto ctx_deleter = [](EVP_PKEY_CTX* epc) { EVP_PKEY_CTX_free(epc); };
 
 typedef std::unique_ptr<BIO, decltype(bio_deleter)> ManagedBIO;
 typedef std::unique_ptr<EVP_PKEY_CTX, decltype(ctx_deleter)> ManagedEPC;

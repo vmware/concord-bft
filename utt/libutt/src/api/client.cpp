@@ -133,7 +133,7 @@ std::vector<libutt::api::Coin> Client::claimCoins<operations::Transaction>(
   std::vector<libutt::api::Coin> ret;
   auto mineTransactions = tx.tx_->getMyTransactions(*decryptor_);
   for (const auto& [txoIdx, txo] : mineTransactions) {
-    if (blindedSigs.size() >= txoIdx) throw std::runtime_error("Invalid number of blinded signatures");
+    if (blindedSigs.size() <= txoIdx) throw std::runtime_error("Invalid number of blinded signatures");
     Fr r_pid = txo.t, r_sn = Fr::zero(), r_val = txo.d, r_type = Fr::zero(), r_expdate = Fr::zero();
     std::vector<types::CurvePoint> r = {
         r_pid.to_words(), r_sn.to_words(), r_val.to_words(), r_type.to_words(), r_expdate.to_words()};
