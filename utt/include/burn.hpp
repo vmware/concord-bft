@@ -30,7 +30,7 @@ class Burn {
   /**
    * @brief Construct a new Burn object
    *
-   * @param p The shared global UTT parametrs
+   * @param p The shared global UTT parameters
    * @param cid The client object, notice that the Burn request can be created only by the owner of the coin.
    * @param coin_to_burn The coin we want to burn
    */

@@ -28,7 +28,7 @@ class IEncryptor;
 namespace libutt::api::operations {
 class Transaction {
   /**
-   * @brief A transaction represents a transfer of UTT coin(s) from a sender accound c1 to other accoun(s) [c2, ...,
+   * @brief A transaction represents a transfer of UTT coin(s) from a sender account c1 to other account(s) [c2, ...,
    * cn]. Notice, that a self transaction is also valid
    *
    */

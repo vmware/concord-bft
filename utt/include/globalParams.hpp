@@ -20,7 +20,7 @@ class Params;
 namespace libutt::api {
 class GlobalParams {
   /**
-   * @brief Represents a shared known global UTT params. These parameters includes commitment keys, nullifier parametrs
+   * @brief Represents a shared known global UTT params. These parametesr include commitment keys, nullifier parameters
    * and more (see uttlib/Params.h)
    *
    */

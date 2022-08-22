@@ -40,7 +40,7 @@ class Utils {
   static types::Signature aggregateSigShares(uint32_t n, const std::map<uint32_t, types::Signature>& rsigs);
 
   /**
-   * @brief ublineds a signature randomness
+   * @brief ublined a signature randomness
    *
    * @param p The shared global UTT parametrs
    * @param t The signature type (one of REGISTRATION or COIN)
@@ -63,7 +63,7 @@ class Utils {
   static uint64_t getExpirationDateAsUint(const std::string& exp_date);
 
   /**
-   * @brief The reverese of getExpirationDateAsUint method
+   * @brief The reverese of getExpirationDateAsUint method i.e converts a uint date to a string format
    *
    * @param exp_date
    * @return std::string

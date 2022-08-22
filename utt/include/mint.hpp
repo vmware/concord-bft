@@ -28,7 +28,7 @@ namespace libutt::api::operations {
 
 class Mint {
   /**
-   * @brief The mint operation takes public tokens and convert them to a single UTT coin
+   * @brief The mint operation takes public tokens and converts them into a single UTT coin
    *
    */
  public:
@@ -37,7 +37,7 @@ class Mint {
    *
    * @param uniqueHash The mint transaction hash
    * @param value The required value
-   * @param recipPID The recipent id
+   * @param recipPID The recipient id
    */
   Mint(const std::string& uniqueHash, size_t value, const std::string& recipPID);
   std::string getHash() const;

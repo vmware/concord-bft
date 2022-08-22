@@ -34,16 +34,16 @@ class Budget;
 class Coin {
   /**
    * @brief Represent a UTT coin. A coin can be either a normal value coin or a budget coin. A budget coin is a coin
-   * that limits the amount of annonymus transferred tokens.
+   * that limits the amount of anonymous transferred tokens.
    *
    */
  public:
   enum Type { Normal = 0x0, Budget };
   /**
-   * @brief Construct a new Coin object. This constructor also construct the coin's nulliffier. Hence it can be invoked
+   * @brief Constructs a new Coin object. This constructor also construct the coin's nulliffier. Hence it can be invoked
    * only by the client.
    *
-   * @param p The shared global UTT parametrs
+   * @param p The shared global UTT parameters
    * @param prf The secret client's PRF key
    * @param serial_number The coin's serial number (detrmined by the bank). The serial number is not a secret.
    * @param val The coin value

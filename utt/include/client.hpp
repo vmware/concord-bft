@@ -33,7 +33,7 @@ class Transaction;
 }  // namespace operations
 class Client {
   /**
-   * @brief The Client object represents the client's public and private date and a group of relevant operations.
+   * @brief The Client object represents the client's public and private data and a group of relevant operations.
    *
    */
  public:
@@ -41,7 +41,7 @@ class Client {
    * @brief Construct a new Client object using an IBE based PKI
    *
    * @param id The client id
-   * @param bnak_public_key The serialized bank public key
+   * @param bank_public_key The serialized bank public key
    * @param registration_public_key The serialized registration public key
    * @param client_ibe_secret_key The serialized IBE client's secret
    * @param ibe_mpk The serialized IBE MPK object
@@ -134,7 +134,7 @@ class Client {
    * @tparam T one of <operations::Mint, operations::Budget, operations::Transaction>
    * @param p The shared global UTT parametrs
    * @param blindedSigs The combined signature. Notice, that even if someone else has collected the signature, only the
-   * client knows the coin's randomness and hance only the client can unblind it
+   * client knows the coin's randomness and hence only the client can unblind it
    * @return std::vector<libutt::api::Coin> A vector of coins (a transaction may returns multiple coins)
    */
   template <typename T>
