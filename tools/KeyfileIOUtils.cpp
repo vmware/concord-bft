@@ -21,7 +21,7 @@
 #include "KeyfileIOUtils.hpp"
 #include "yaml_utils.hpp"
 #include "crypto/openssl/EdDSA.hpp"
-#include "crypto_utils.hpp"
+#include "crypto.hpp"
 
 using concord::crypto::isValidKey;
 using bftEngine::ReplicaConfig;

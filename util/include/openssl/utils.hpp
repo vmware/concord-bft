@@ -18,12 +18,14 @@
 #include <openssl/ec.h>
 #include <openssl/x509.h>
 #include <openssl/evp.h>
+#include "crypto/factory.hpp"
 
 namespace concord::crypto {
 
 std::string generateSelfSignedCert(const std::string& origin_cert_path,
                                    const std::string& pub_key,
-                                   const std::string& signing_key);
+                                   const std::string& signing_key,
+                                   const SIGN_VERIFY_ALGO signingAlgo);
 /**
  * @brief Verifies the signature of certificate 'cert' using public key 'pub_key'.
  *

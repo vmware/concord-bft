@@ -13,7 +13,6 @@ set(util_source_files
     src/throughput.cpp
     src/crypto.cpp
     src/openssl/utils.cpp
-    src/crypto_utils.cpp
     src/crypto/cryptopp/signers.cpp
     src/crypto/cryptopp/verifiers.cpp
     src/RawMemoryPool.cpp
@@ -52,13 +51,13 @@ target_link_libraries(util PUBLIC
         Threads::Threads ${CRYPTOPP_LIBRARIES}
         stdc++fs)
 # corebft
-target_include_directories(util PUBLIC include ${CRYPTOPP_INCLUDE_DIRS} ../bftengine/include/bftengine include/openssl)
+target_include_directories(util PUBLIC include ${CRYPTOPP_INCLUDE_DIRS} include/openssl)
 
 target_link_libraries(util_shared PUBLIC
         Threads::Threads ${CRYPTOPP_LIBRARIES}
         stdc++fs)
 # corebft
-target_include_directories(util_shared PUBLIC include ${CRYPTOPP_INCLUDE_DIRS} ../bftengine/include/bftengine include/openssl)
+target_include_directories(util_shared PUBLIC include ${CRYPTOPP_INCLUDE_DIRS} include/openssl)
 
 if(USE_OPENTRACING)
     if(NOT DEFINED OPENTRACING_INCLUDE_DIR)

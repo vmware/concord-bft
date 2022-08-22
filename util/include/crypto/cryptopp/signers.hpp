@@ -15,9 +15,8 @@
 
 #include <memory>
 
-#include "crypto_utils.hpp"
+#include "crypto.hpp"
 #include "crypto/signer.hpp"
-#include "crypto/verifier.hpp"
 
 namespace concord::crypto::cryptopp {
 

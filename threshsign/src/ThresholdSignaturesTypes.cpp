@@ -18,7 +18,7 @@
 #include "yaml_utils.hpp"
 #include "Logger.hpp"
 #include "string.hpp"
-#include "crypto_utils.hpp"
+#include "crypto.hpp"
 
 using concord::crypto::isValidKey;
 
