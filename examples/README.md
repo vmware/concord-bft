@@ -58,48 +58,29 @@ make
 
 ## Run Example/Demo
 This simple example can be run from the script [test_osexample.sh](scripts/test_osexample.sh) under `example/script` directory.
+Or, it can be directly run from python script [test_osexample.py](scripts/test_osexample.py.in).
 
 
 ### Simple scenario (4 replicas and 1 client)
 This demo can be run from inside the container once the build is finished.
 
-Run the [test_osexample.sh](scripts/test_osexample.sh) script from the container's `build/example/scripts` directory.
+* Run the [test_osexample.sh](scripts/test_osexample.sh) script from the container's `build/example/scripts` directory.
 ```sh
 ./test_osexample.sh
+```
+* Run the [test_osexample.py](scripts/test_osexample.py.in) script from the container's `build/example/scripts` directory with default commandline arguments `-bft n=4,cl=1`, where n is number of replicas and cl is number of client.
+It is a configurable script which can be configured according to the need.
+```sh
+./test_osexample.py -bft n=4,cl=1
 ```
 
 
 #### Explanation of the [test_osexample.sh](scripts/test_osexample.sh)
-On our example, we will use the script [test_osexample.sh](scripts/test_osexample.sh) and this script is used for following things,
+On our example, we will use the script [test_osexample.py](scripts/test_osexample.py.in) and this script is used for following things,
 * It is used to generate the keys for replica's. For more [refer](../tools/README.md)
-```
-$scriptdir/../../tools/GenerateConcordKeys -f 1 -n 4 -o replica_keys_
-```
-
 * It is used to generate TLS certificates used in for TLSTCP communication which we are using as a default mode of communication. For more [refer](../scripts/linux/create_tls_certs.sh)
-```
-# Generate TLS certificates
-$scriptdir/create_tls_certs.sh 10
-```
-
 * Running multiple replica's. Here we are running 4 replica's.
-```
-# run 4 replica's with unique replica id's
-echo "Running replica 1..."
-$scriptdir/../replica/test_replica -i 0 -a $scriptdir/replica_conf &
-echo "Running replica 2..."
-$scriptdir/../replica/test_replica -i 1 -a $scriptdir/replica_conf &
-echo "Running replica 3..."
-$scriptdir/../replica/test_replica -i 2 -a $scriptdir/replica_conf &
-echo "Running replica 4..."
-$scriptdir/../replica/test_replica -i 3 -a $scriptdir/replica_conf &
-```
-
 * Running client
-```
-time $scriptdir/../client/test_client -f 1 -c 0 -i 4 -r 4 -e 0 -m $scriptdir/../msg-configs/msg-1
-```
-
 * For resources cleanup.
 
 

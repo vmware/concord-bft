@@ -1,0 +1,382 @@
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
+
+# Concord
+#
+# Copyright (c) 2022 VMware, Inc. All Rights Reserved.
+#
+# This product is licensed to you under the Apache 2.0 license (the "License").
+# You may not use this product except in compliance with the Apache 2.0 License.
+#
+# This product may include a number of subcomponents with separate copyright
+# notices and license terms. Your use of these subcomponents is subject to the
+# terms and conditions of the subcomponent's license, as noted in the LICENSE
+# file.
+
+import argparse
+import os
+import glob
+import shutil
+import subprocess
+import threading
+import io
+import sys
+import re
+import logging
+import time
+import multiprocessing
+
+generate_concord_keys = "@concord_bft_tools_BINARY_DIR@/GenerateConcordKeys"
+replica_bin_dir = "@CMAKE_BINARY_DIR@/examples/replica"
+client_bin_dir = "@CMAKE_BINARY_DIR@/examples/client"
+scripts_dir = "@CMAKE_BINARY_DIR@/examples/scripts"
+replica_conf_dir = "@CMAKE_BINARY_DIR@/examples/scripts/replica_conf"
+msg_conf_dir = "@CMAKE_BINARY_DIR@/examples/msg-configs/msg-1"
+
+g_logger = logging.getLogger("osexample_test")
+g_log_formatter = logging.Formatter(
+    "%(asctime)-15s %(levelname)-6s %(""message)s")
+g_log_console_handler = logging.StreamHandler()
+g_log_console_handler.setFormatter(g_log_formatter)
+g_logger.addHandler(g_log_console_handler)
+
+## this variable will be update if there are any ERROR and FATALS found in client node
+isStop = False
+
+class Environment:
+
+    def __init__(
+        self,
+        rep_exe,
+        cl_exe,
+        replica_bin_dir,
+        client_bin_dir,
+        log_dir,
+        replica_conf_dir,
+        msg_config_dir,
+        ):
+        self.replica_exec = rep_exe
+        self.client_exec = cl_exe
+        self.replica_bin_dir = replica_bin_dir
+        self.client_bin_dir = client_bin_dir
+        self.log_dir = log_dir
+        self.replica_conf_dir = replica_conf_dir
+        self.msg_config_dir = msg_config_dir
+
+
+class BFT:
+
+    def __init__(self, name, n, r, f, c, cl):
+        self.name = name
+        self.num_of_replicas = n
+        self.num_of_replicas_to_run = r
+        self.num_of_faulties = f
+        self.num_of_slow = c
+        self.num_of_clients = cl
+
+
+class TestProcess:
+
+    def __init__(
+        self,
+        friendly_name,
+        executable,
+        params,
+        log_dir,
+        uid,
+        isClient,
+        check_for_fatal_error_callback = None
+        ):
+
+        self.friendly_name = friendly_name
+
+        # full path to the executable
+        self.executable = executable
+        self.log_dir = log_dir
+        self.params = params
+        self.uid = uid
+        self.process = None
+        self.thread = None
+        self.out_file = None
+        self.isClient = isClient
+        self.check_for_fatal_error_callback = check_for_fatal_error_callback
+
+    def invoke_check_for_fatal_error(self, txt):
+        if self.check_for_fatal_error_callback:
+            self.check_for_fatal_error_callback=self.check_for_fatal_error_callback(txt)
+
+    def run(self):
+        cmd = [self.executable]
+        cmd.extend(self.params)
+
+        g_logger.debug(f"Run command: {cmd}")
+
+        self.out_file = os.path.join(
+            self.log_dir, self.friendly_name + "_" + str(self.uid) + "_out.log")
+        os.chdir(self.log_dir)
+
+        FNULL = open(os.devnull, 'w')
+        with io.open(self.out_file, "wb", 8196) as out_writer, \
+        io.open(self.out_file, "br", 8196) as out_b_reader, \
+        io.open(self.out_file, "r", 8196) as out_t_reader:
+            self.process = subprocess.Popen(cmd,
+                                        bufsize=8196,
+                                        stdout=out_writer,
+                                        stderr=FNULL)
+            
+            ## Checking for any FATALS and ERRORS in client nodes
+            if self.isClient:
+                while self.process.poll() is None:
+                    t = out_t_reader.readline()
+                    self.invoke_check_for_fatal_error(t)
+
+    def start(self):
+        self.thread = threading.Thread(target=self.run)
+        self.thread.start()
+
+    def wait(self):
+        self.thread.join()
+
+    def stop(self):
+        self.process.terminate()
+        self.process.communicate()
+
+    def kill(self):
+        self.process.kill()
+        self.process.communicate()
+
+
+def cleanup():
+    # kill all test_replica processes if already running before starting example demo
+    try:
+        # iterating through each instance of the process
+        name = "test_replica"
+        for line in os.popen("ps ax | grep " + name + " | grep -v grep"):
+            fields = line.split()
+             
+            # extracting Process ID from the output
+            pid = fields[0]
+             
+            # terminating process
+            os.kill(int(pid), signal.SIGKILL)
+         
+    except Exception:
+        print("Error encountered while killing test_replica processes")
+
+
+# this method is used to find for any ERROR and FATAL messages in client so we can stop
+def check_for_fatal_error(text):
+    if text is None:
+        return
+
+    ## If there are any ERROR and FATAL messages in client, than we can simply exit from here.
+    pattern = re.compile('ERROR|FATAL')
+    global isStop
+    for m in re.finditer(pattern, text):
+        isStop = True
+        sys.exit(1)
+    return check_for_fatal_error
+
+
+def get_commandline_args():
+    """
+    parse command line
+    :return: args structure
+    """
+
+    parser = \
+        argparse.ArgumentParser(description='osexample test automation script',
+                                formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("-rd",
+                        help="Replica binary executable directory",
+                        default=replica_bin_dir)
+    parser.add_argument("-cd",
+                        help="Client binary executable directory",
+                        default=client_bin_dir)
+    parser.add_argument("-ld",
+                        help="Directory for log files",
+                        default=scripts_dir)
+    parser.add_argument("-rcd",
+                        help="replica config directory",
+                        default=replica_conf_dir)
+    parser.add_argument("-mcd",
+                        help="client message config directory",
+                        default=msg_conf_dir)
+    parser.add_argument("-l",
+                        help="Set log level for this script (not for the " +
+                        "executables)",
+                        default="INFO")
+    parser.add_argument("-bft",
+                       default=["n=4,cl=1"],
+                       nargs="+",
+                       help="List of BFT configuration sets to use. All " +
+                       "parameters should be separated by ','. " +
+                       "n - total number of replicas, " +
+                       "cl - number of running clients")
+    return parser.parse_args()
+
+
+def main():
+
+    # kill all running replica processes
+    cleanup()
+    args = get_commandline_args()
+    env = Environment(
+            'test_replica',
+            'test_client',
+            args.rd,
+            args.cd,
+            args.ld,
+            args.rcd,
+            args.mcd,
+            )
+
+    global g_logger
+    g_logger.setLevel(args.l)
+
+    configs = []
+    for param in args.bft:
+        set = param.split(",")
+        n = cl = None
+        f = 1
+        c = 0
+        
+        for p_expr in set:
+            p = p_expr.split("=")
+            if p[0] == "n":
+                n = int(p[1])
+            elif p[0] == "cl":
+                cl = int(p[1])
+            else:
+                print("Unsupported parameter: {}".format(p[0]))
+                return -1
+
+        r = n  # number of running replicas
+        if n is None or cl is None:
+            print("Unable to parse BFT parameters")
+            return -1
+        if 3 * f + 2 * c + 1 != n:
+            g_logger.error("N = 3f + 2c + 1 is not satisfied")
+            return -1
+        if r < 2 * f + c + 1:
+            g_logger.error("r >= 2f + c + 1 is not satisfied")
+            return -1
+        if r > n:
+            g_logger.error("r <= n is not satisfied")
+            return -1
+        if cl > 2:
+            g_logger.error("Max number of clients is 2")
+            return -1
+
+        configs.append(BFT(param, n, r, f, c, cl))
+
+    for cf in configs:
+        g_logger.debug("Creating test configuration {0} with n={1},r={2} f = {3}, c = {4}, cl = {5}".format(
+            cf.name,
+            cf.num_of_replicas,
+            cf.num_of_replicas_to_run,
+            cf.num_of_faulties,
+            cf.num_of_slow,
+            cf.num_of_clients,
+            ))
+
+    time_stamp = time.strftime("%Y%m%dT%H%M%S")
+    log_a_path = os.path.abspath(env.log_dir)
+    tlog_dir = os.path.join(log_a_path, time_stamp)
+
+    if not os.path.exists(tlog_dir):
+        os.mkdir(tlog_dir)
+
+    log_file_handler = logging.FileHandler(os.path.join(
+            tlog_dir, "test_log.txt"))
+    log_file_handler.setFormatter(g_log_formatter)
+    g_logger.addHandler(log_file_handler)
+
+    # create replica's keys
+    cmd = [generate_concord_keys,
+            "-n", str(n),
+            "-f", str(f),
+            "-o", os.path.join(tlog_dir, "replica_keys_")]
+    subprocess.check_call(cmd)
+
+    # Generates num_participants number of key pairs
+    cmd = [os.path.join(env.log_dir, "create_concord_clients_transaction_signing_keys.sh"),
+            "-n", str(5),
+            "-o", "/tmp"]
+    subprocess.call(cmd)
+
+    # create TLS certificates
+    cmd = [os.path.join(env.log_dir, "create_tls_certs.sh"), str(n + cl),
+            os.path.join(tlog_dir, "certs")]
+    subprocess.call(cmd)
+
+    ## replica and client test process
+    clientsTestProcess = []
+    replicasTestProcess = []
+
+    for i in range(0, 4):
+        params = [
+            "-i", str(i),
+            "-r", str(n),
+            "-a", str(os.path.join(env.replica_conf_dir)),
+            ]
+
+        tp = TestProcess(
+            env.replica_exec,
+            os.path.join(replica_bin_dir, env.replica_exec),
+            params,
+            tlog_dir,
+            i,
+            False,
+            )
+        replicasTestProcess.append(tp)
+
+    for i in range(0, 1):
+        params = [
+            "-i", str(n + i),
+            "-r", str(n),
+            "-c", str(c),
+            "-e", str(0),   # execution engine type
+            "-f", str(f),
+            "-c", str(c),
+            "-m", str(os.path.join(env.msg_config_dir)),
+            ]
+
+        tp = TestProcess(
+            env.client_exec,
+            os.path.join(client_bin_dir, env.client_exec),
+            params,
+            tlog_dir,
+            n + i,
+            True,
+            check_for_fatal_error
+            )
+        clientsTestProcess.append(tp)
+
+    for tp in replicasTestProcess + clientsTestProcess:
+        tp.start()
+
+    g_logger.debug("processes started")
+
+    for tp in clientsTestProcess:
+        tp.wait()
+    
+    for tp in replicasTestProcess:
+        tp.stop()
+
+    g_logger.debug("processes stopped")
+
+    if isStop:
+        g_logger.info("TEST FAILED")
+        print("Complete replica and client logs can be found at {0}".format(tlog_dir))
+        assert False
+        return 1
+    
+    g_logger.info("TEST SUCCESS")
+    print("Complete replica and client logs can be found at {0}".format(tlog_dir))
+    print("DONE")
+    return 0
+
+
+## Driver function
+main()
