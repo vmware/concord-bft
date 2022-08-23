@@ -189,7 +189,29 @@ bool RandSigShare::verify(const std::vector<Comm>& c, const RandSigSharePK& pk) 
   //}
   // return lhs == rhs;
 }
+RandSig RandSigShare::aggregate(size_t n,
+                                const std::vector<RandSigShare>& sigShares,
+                                const std::vector<size_t>& signerIds) {
+  RandSig sig;
 
+  // WARNING: Assuming all shares verify and have the same base 'h' is wrong
+  // since individual calls on RandSigShare::verify(sigShares[i], ...) will not guarantee this!
+  // Instead, the caller must ensure this manually, which we do here.
+  sig.s1 = sigShares[0].s1;
+  std::vector<G1> s2;
+  for (auto& ss : sigShares) {
+    if (ss.s1 != sig.s1) {
+      throw std::runtime_error("Expected signature shares with the same base");
+    }
+
+    s2.push_back(ss.s2);
+  }
+
+  auto lagr = lagrange_coefficients_naive(n, signerIds);
+
+  sig.s2 = multiExp(s2, lagr);
+  return sig;
+}
 RandSig RandSigShare::aggregate(size_t n,
                                 const std::vector<RandSigShare>& sigShares,
                                 const std::vector<size_t>& signerIds,

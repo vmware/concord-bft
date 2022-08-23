@@ -6,7 +6,7 @@
 #include <utt/Coin.h>
 #include <utt/Params.h>
 #include <utt/TxOut.h>
-
+#include <utt/DataUtils.hpp>
 #include <utt/Serialization.h>  // WARNING: include last
 
 std::ostream& operator<<(std::ostream& out, const libutt::TxOut& txout) {
@@ -25,8 +25,8 @@ std::ostream& operator<<(std::ostream& out, const libutt::TxOut& txout) {
   // out << txout.t << endl;
   out << txout.icm;
   out << txout.icm_pok;
-
-  out << txout.ctxt << endl;
+  out << txout.ctxt.size() << endl;
+  out.write((char*)(txout.ctxt.data()), (long)txout.ctxt.size());
   return out;
 }
 
@@ -50,16 +50,17 @@ std::istream& operator>>(std::istream& in, libutt::TxOut& txout) {
   // libff::consume_OUTPUT_NEWLINE(in);
   in >> txout.icm;
   in >> txout.icm_pok;
-
-  in >> txout.ctxt;
+  size_t ctxt_size{0};
+  in >> ctxt_size;
   libff::consume_OUTPUT_NEWLINE(in);
+  txout.ctxt.resize(ctxt_size);
+  if (ctxt_size > 0) in.read((char*)(txout.ctxt.data()), (long)ctxt_size);
   return in;
 }
 
 namespace libutt {
 
 TxOut::TxOut(const CommKey& ck_val,
-             const IBE::MPK& mpk,
              const RangeProof::Params& rpp,
              const Fr& coin_type,
              const Fr& exp_date,
@@ -68,9 +69,9 @@ TxOut::TxOut(const CommKey& ck_val,
              const Fr& val,
              const Fr& z,
              bool icmPok,
-             bool hasRangeProof)
+             bool hasRangeProof,
+             const IEncryptor& encryptor)
     : TxOut(ck_val,
-            mpk,
             rpp,
             coin_type,
             exp_date,
@@ -82,10 +83,10 @@ TxOut::TxOut(const CommKey& ck_val,
             hasRangeProof,
             // extra delegation parameters
             CommKey({H, ck_val.getGen1()}),
-            AddrSK::pidHash(pid)) {}
+            AddrSK::pidHash(pid),
+            encryptor) {}
 
 TxOut::TxOut(const CommKey& ck_val,  // this is the (g_3, g) CK, and *not* the coin CK
-             const IBE::MPK& mpk,
              const RangeProof::Params& rpp,
              const Fr& coin_type,
              const Fr& exp_date,
@@ -97,10 +98,12 @@ TxOut::TxOut(const CommKey& ck_val,  // this is the (g_3, g) CK, and *not* the c
              bool hasRangeProof,
              // extra delegation parameters
              CommKey ck_tx,
-             Fr pid_hash_recip)
+             Fr pid_hash_recip,
+             const IEncryptor& encryptor)
     : coin_type(coin_type),
       exp_date(exp_date),
-      H(H),  // cache it here, so clients can verify their sigshares faster
+      val(val),  // not serialized, only for claiming the coin
+      H(H),      // cache it here, so clients can verify their sigshares faster
       // z(z),
       vcm_1(Comm::create(ck_val, {val, z}, false)),
       // need to pick randomness d for vcm_2 and save it to do proofs
@@ -110,7 +113,7 @@ TxOut::TxOut(const CommKey& ck_val,  // this is the (g_3, g) CK, and *not* the c
       // need to pick randomness t for icm and save it to do proofs
       t(Fr::random_element()),
       icm(Comm::create(ck_tx, {pid_hash_recip, t}, false)),
-      ctxt(mpk.encrypt(pid, frsToBytes({val, d, t}))) {
+      ctxt(encryptor.encrypt(pid, frsToBytes({val, d, t}))) {
   if (icmPok) {
     icm_pok.emplace(ck_tx, icm, pid_hash_recip, t);
   }

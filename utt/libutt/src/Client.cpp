@@ -1,6 +1,6 @@
 
 #include <utt/Client.h>
-
+#include <utt/DataUtils.hpp>
 namespace libutt::Client {
 
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -352,12 +352,10 @@ std::optional<ClaimCoinResult> tryClaimCoin(Wallet& w,
   Fr val;  // coin value
   Fr d;    // vcm_2 value commitment randomness
   Fr t;    // identity commitment randomness
-
+  IBEDecryptor decryptor(w.ask.e);
   // decrypt the ciphertext
-  bool forMe;
-  AutoBuf<unsigned char> ptxt;
-  std::tie(forMe, ptxt) = w.ask.e.decrypt(txo.ctxt);
-
+  auto ptxt = decryptor.decrypt(txo.ctxt);
+  bool forMe = !ptxt.empty();
   if (!forMe) {
     logtrace << "TXO #" << txoIdx << " is NOT for pid '" << w.ask.pid << "'!" << endl;
     return std::nullopt;

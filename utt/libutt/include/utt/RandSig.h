@@ -184,6 +184,8 @@ class RandSigShare {
                            const CommKey& ck,
                            const std::vector<Fr>& r);
 
+  static RandSig aggregate(size_t n, const std::vector<RandSigShare>& sigShares, const std::vector<size_t>& signerIds);
+
  public:
   bool operator==(const RandSigShare& o) const { return s1 == o.s1 && s2 == o.s2 && true; }
 

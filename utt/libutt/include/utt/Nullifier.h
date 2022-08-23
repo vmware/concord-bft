@@ -63,7 +63,7 @@ class Nullifier {
   Nullifier() {}
 
   Nullifier(std::istream& in) : Nullifier() { in >> *this; }
-
+  Nullifier(const Params& p, const Fr& prf, const Fr& sn, const Fr& t);
   /**
    * Used to create a nullifier when spending the specified coin via a transaction.
    *

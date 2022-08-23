@@ -137,7 +137,7 @@ class IBE {
    * The IBE authority's master PK
    */
   class MSK {
-   protected:
+   public:
     // the master SK of the IBE authority
     Fr msk;
 
@@ -175,6 +175,9 @@ std::istream& operator>>(std::istream&, libutt::IBE::Params&);
 
 std::ostream& operator<<(std::ostream&, const libutt::IBE::MPK&);
 std::istream& operator>>(std::istream&, libutt::IBE::MPK&);
+
+std::ostream& operator<<(std::ostream&, const libutt::IBE::MSK&);
+std::istream& operator>>(std::istream&, libutt::IBE::MSK&);
 
 // WARNING: Serialization and deserialization operators, must be in the global namespace
 std::ostream& operator<<(std::ostream&, const libutt::IBE::Ctxt&);

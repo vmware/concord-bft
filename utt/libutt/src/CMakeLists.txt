@@ -29,8 +29,10 @@ add_library(utt
     Replica.cpp
     BurnOp.cpp
     MintOp.cpp
+    DataUtils.cpp
 )
 
+find_package(OpenSSL REQUIRED)
 target_include_directories(utt PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>"
     "$<INSTALL_INTERFACE:${INSTALL_CMAKE_DIR}/include>"
@@ -38,11 +40,11 @@ target_include_directories(utt PUBLIC
 
 if(APPLE)
     target_link_libraries(utt PUBLIC
-        ntl ff pthread zm gmp gmpxx xutils xassert
+        ntl ff pthread zm gmp gmpxx xutils xassert OpenSSL::Crypto
     )
 else()
     target_link_libraries(utt PUBLIC
-        ntl ff pthread zm gmp gmpxx xutils xassert stdc++fs
+        ntl ff pthread zm gmp gmpxx xutils xassert stdc++fs OpenSSL::Crypto
     )
 endif()
 

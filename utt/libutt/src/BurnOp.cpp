@@ -15,7 +15,10 @@
 #include <utt/BurnOp.h>
 
 #include <utt/Serialization.h>
-
+#include <utt/DataUtils.hpp>
+#include <xassert/XAssert.h>
+#include <xutils/Log.h>
+#include <xutils/Utils.h>
 struct InternalDataOfBurnOp {
   std::string pid;   // owner pid
   libutt::Fr value;  // value of the burned coin
@@ -24,12 +27,8 @@ struct InternalDataOfBurnOp {
   libutt::Tx tx;
 };
 
-namespace libutt {
-
 std::ostream& operator<<(std::ostream& out, const libutt::BurnOp& op) {
   InternalDataOfBurnOp* d = (InternalDataOfBurnOp*)op.p;
-  assertTrue(d != nullptr);
-
   out << (d->pid) << endl;
   out << (d->value) << endl;
   out << (d->r_d) << endl;
@@ -61,21 +60,33 @@ std::istream& operator>>(std::istream& in, libutt::BurnOp& op) {
   return in;
 }
 
+namespace libutt {
+
 BurnOp::BurnOp(std::istream& in) : p(nullptr) { in >> *this; }
 
-BurnOp::BurnOp(const Params& p, const AddrSK& ask, const Coin& coin, const RandSigPK& bpk, const RegAuthPK& rpk) {
+BurnOp::BurnOp(const Params& p, const AddrSK& ask, const Coin& coin, const RandSigPK& bpk, const RegAuthPK& rpk)
+    : BurnOp{p, ask.pid_hash, ask.pid, ask.rcm, ask.rs, ask.s, coin, bpk, rpk} {}
+BurnOp::BurnOp(const Params& p,
+               const Fr pidHash,
+               const std::string& pid,
+               const Comm& rcm_,
+               const RandSig& rcm_sig,
+               const Fr& prf,
+               const Coin& coin,
+               std::optional<RandSigPK> bpk,
+               const RegAuthPK& rpk) {
   InternalDataOfBurnOp* d = new InternalDataOfBurnOp;
   this->p = d;
 
-  d->pid = ask.getPid();
+  d->pid = pid;
   d->value = coin.val;
 
   std::vector<Coin> inputCoins = std::vector<Coin>{coin};
 
   std::vector<std::tuple<std::string, Fr>> recip;
-  recip.emplace_back(ask.getPid(), d->value);
-
-  Tx internalTx(p, ask, inputCoins, std::nullopt, recip, bpk, rpk);
+  recip.emplace_back(pid, d->value);
+  Tx internalTx(
+      p, pidHash, pid, rcm_, rcm_sig, prf, inputCoins, std::nullopt, recip, bpk, rpk.vk, libutt::IBEEncryptor(rpk.mpk));
 
   assertTrue(internalTx.outs.size() == 1);
 

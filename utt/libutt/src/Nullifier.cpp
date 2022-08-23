@@ -49,12 +49,12 @@ std::istream& operator>>(std::istream& in, libutt::Nullifier::Params& null) {
 
 namespace libutt {
 
-Nullifier::Nullifier(const Params& p, const AddrSK& ask, const Fr& sn, const Fr& t)
-    : n((ask.s + sn).inverse() * p.h),
-      y(ReducedPairing(n, p.w_tilde) ^ t),
-      vk((ask.s + sn) * p.h_tilde + t * p.w_tilde) {
+Nullifier::Nullifier(const Params& p, const Fr& prf, const Fr& sn, const Fr& t)
+    : n((prf + sn).inverse() * p.h), y(ReducedPairing(n, p.w_tilde) ^ t), vk((prf + sn) * p.h_tilde + t * p.w_tilde) {
   assertTrue(Nullifier::verify(p));
 }
+
+Nullifier::Nullifier(const Params& p, const AddrSK& ask, const Fr& sn, const Fr& t) : Nullifier(p, ask.s, sn, t) {}
 
 bool Nullifier::verify(const Params& p) const { return ReducedPairing(n, vk) == p.ehh * y; }
 

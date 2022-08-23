@@ -431,10 +431,8 @@ int main(int argc, char* argv[]) {
               Fr t;    // identity commitment randomness
 
               // decrypt the ciphertext
-              bool forMe;
-              AutoBuf<unsigned char> ptxt;
-              std::tie(forMe, ptxt) = ask.e.decrypt(txo.ctxt);
-
+              auto ptxt = ask.e.decrypt(txo.ctxt);
+              auto forMe = !ptxt.empty();
               if (!forMe) {
                 logtrace << "TXO #" << txoIdx << " is NOT for pid '" << ask.pid << "'!" << endl;
                 return std::nullopt;

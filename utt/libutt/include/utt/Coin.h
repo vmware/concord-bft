@@ -75,6 +75,17 @@ class Coin {
  public:
   // WARNING: Used only for deserialization
   Coin() {}
+  // Used to create the coin's partial commitment (without nullfier)
+  Coin(const CommKey& ck, const Fr& sn, const Fr& val, const Fr& type, const Fr& exp_date, const Fr& pidHash);
+
+  Coin(const CommKey& ck,
+       const Nullifier::Params& np,
+       const Fr& prf,
+       const Fr& sn,
+       const Fr& val,
+       const Fr& type,
+       const Fr& exp_date,
+       const Fr& pidHash);
 
   // Used in TxOut::tryMakeMine and Factory
   Coin(const CommKey& ck,
@@ -167,13 +178,13 @@ class Coin {
    * Called in Factory::mintRandomCoin() and in Coin::hasValidSig()
    */
   Comm augmentComm() const { return Coin::augmentComm(ck, ccm_txn, type, exp_date); }
-
+  void createNullifier(const Nullifier::Params& np, const Fr& prf);
   bool isNormal() const { return type == Coin::NormalType(); }
   bool isBudget() const { return type == Coin::BudgetType(); }
 
   size_t getValue() const { return static_cast<size_t>(val.as_ulong()); }
   std::string getType() const { return typeToString(type); }
-
+  Fr getExpDate() const { return exp_date; }
   /**
    * Call this when you need a partial coin commitment to include in a TXN
    * via Tx::Tx()

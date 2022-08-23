@@ -37,6 +37,14 @@ std::istream& operator>>(std::istream& in, libutt::IBE::MPK& mpk) {
   return in;
 }
 
+std::ostream& operator<<(std::ostream& out, const libutt::IBE::MSK& msk) {
+  out << msk.msk;
+  return out;
+}
+std::istream& operator>>(std::istream& in, libutt::IBE::MSK& msk) {
+  in >> msk.msk;
+  return in;
+}
 // WARNING: Serialization operators must be in the global namespace
 std::ostream& operator<<(std::ostream& out, const libutt::IBE::Ctxt& c) {
   out << c.R << endl;

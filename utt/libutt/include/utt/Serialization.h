@@ -112,4 +112,28 @@ void deserializeVector(std::istream& in, std::vector<T>& v) {
   }
 }
 
+template <typename T>
+std::string serialize(const T& data) {
+  std::stringstream ss;
+  ss << data;
+  return ss.str();
+}
+template <typename T>
+T deserialize(const std::string& data) {
+  std::stringstream ss;
+  ss.str(data);
+  T ret;
+  ss >> ret;
+  return ret;
+}
+
+template <typename T>
+T deserialize(const std::vector<uint8_t>& data) {
+  std::stringstream ss;
+  ss.str(std::string(data.begin(), data.end()));
+  T ret;
+  ss >> ret;
+  return ret;
+}
+
 }  // namespace libutt

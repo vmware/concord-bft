@@ -145,9 +145,9 @@ size_t Fr_num_bytes();  // size of a serialized Fr
 void Fr_serialize(const Fr& fr, unsigned char* bytes, size_t capacity);
 Fr Fr_deserialize(const unsigned char* bytes, size_t len);
 
-AutoBuf<unsigned char> frsToBytes(const std::vector<Fr>& frs);
+std::vector<uint8_t> frsToBytes(const std::vector<Fr>& frs);
 
-std::vector<Fr> bytesToFrs(const AutoBuf<unsigned char>& buf);
+std::vector<Fr> bytesToFrs(const std::vector<uint8_t>& buf);
 
 /**
  * Returns some random bytes via the C++ RNG.
