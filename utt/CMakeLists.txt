@@ -176,3 +176,24 @@ enable_testing()
 add_subdirectory(libutt)
 add_subdirectory(libxassert)
 add_subdirectory(libxutils)
+
+set(newutt_src 
+    libutt/src/api/UTTParams.cpp
+    libutt/src/api/commitment.cpp
+    libutt/src/api/client.cpp
+    libutt/src/api/coinsSigner.cpp
+    libutt/src/api/mint.cpp
+    libutt/src/api/coin.cpp
+    libutt/src/api/registrator.cpp
+    libutt/src/api/common.cpp
+    libutt/src/api/burn.cpp
+    libutt/src/api/transaction.cpp
+    libutt/src/api/budget.cpp
+    )
+add_library(utt_api STATIC ${newutt_src})
+target_link_libraries(utt_api PUBLIC utt)
+target_include_directories(utt_api PUBLIC include)
+add_subdirectory(tests)
+
+
+

@@ -3,17 +3,18 @@
 #include <cstddef>
 #include <optional>
 #include <tuple>
-
+#include <unordered_map>
 #include <utt/BudgetProof.h>
 #include <utt/PolyCrypto.h>
 #include <utt/TxIn.h>
 #include <utt/TxOut.h>
-
+#include <utt/DataUtils.hpp>
 #include <xassert/XAssert.h>
 #include <xutils/AutoBuf.h>
 #include <xutils/Log.h>
 #include <xutils/NotImplementedException.h>
 
+#include <memory>
 namespace libutt {
 class Coin;
 class Params;
@@ -55,6 +56,19 @@ class Tx {
      const std::vector<std::tuple<std::string, Fr>>& recip,
      const RandSigPK& bpk,   // only used for debugging
      const RegAuthPK& rpk);  // only to encrypt for the recipients
+
+  Tx(const Params& p,
+     const Fr pidHash,
+     const std::string& pid,
+     const Comm& rcm,
+     const RandSig& rcm_sig,
+     const Fr& prf,
+     const std::vector<Coin>& c,
+     std::optional<Coin> b,  // optional budget coin
+     const std::vector<std::tuple<std::string, Fr>>& recip,
+     std::optional<RandSigPK> bpk,  // only used for debugging
+     const RandSigPK& rpk,
+     const IEncryptor& encryptor);  // only to encrypt for the recipients
 
  public:
   size_t getSize() const {
@@ -99,7 +113,7 @@ class Tx {
    * If Tx::validate() passes, each BFT replica will compute a signature share on each output's coin.
    */
   RandSigShare shareSignCoin(size_t txoIdx, const RandSigShareSK& bskShare) const;
-
+  std::unordered_map<size_t, RandSigShare> shareSignCoins(const RandSigShareSK& bskShare) const;
   /**
    * Used by BFT client to verify signature share on an output.
    */
@@ -117,7 +131,7 @@ class Tx {
 
     return sigShare.verify(getCommVector(txoIdx, H), bpkShare);
   }
-
+  std::unordered_map<size_t, TxOut> getMyTransactions(const IDecryptor& decryptor) const;
   /**
    * Attempts to claim the output specified by 'idx':
    * i.e., decrypt the denomination, identity commitment randomness and value commitment randomness from the coin's
@@ -135,7 +149,8 @@ class Tx {
                                    size_t n,
                                    const std::vector<RandSigShare>& sigShares,
                                    const std::vector<size_t>& signerIds,
-                                   const RandSigPK& bpk) const;
+                                   const RandSigPK& bpk,
+                                   const IDecryptor& decryptor) const;
 
   std::string getHashHex() const {
     std::stringstream ss;

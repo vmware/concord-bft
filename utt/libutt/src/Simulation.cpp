@@ -156,10 +156,9 @@ std::optional<Coin> tryClaimCoin(const Context& ctx,
   Fr t;    // identity commitment randomness
 
   // decrypt the ciphertext
-  bool forMe;
-  AutoBuf<unsigned char> ptxt;
-  std::tie(forMe, ptxt) = ask.e.decrypt(txo.ctxt);
-
+  IBEDecryptor decryptor(ask.e);
+  auto ptxt = decryptor.decrypt(txo.ctxt);
+  bool forMe = !ptxt.empty();
   if (!forMe) {
     logtrace << "TXO #" << txoIdx << " is NOT for pid '" << ask.pid << "'!" << endl;
     return std::nullopt;

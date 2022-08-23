@@ -8,14 +8,16 @@
 #include <utt/Comm.h>
 #include <utt/Params.h>
 #include <utt/MintOp.h>
+#include <utt/RandSig.h>
 
-#include <utt/Serialization.h>
-
-namespace libutt {
+#include <xassert/XAssert.h>
+#include <xutils/Log.h>
 
 std::ostream& operator<<(std::ostream& out, const libutt::MintOp& op) {
   out << op.sn << endl;
   out << op.pidHash << endl;
+  out << op.clientId.size() << endl;
+  out.write((char*)(op.clientId.data()), (long)op.clientId.size());
   out << op.value;
   return out;
 }
@@ -25,21 +27,28 @@ std::istream& operator>>(std::istream& in, libutt::MintOp& op) {
   libff::consume_OUTPUT_NEWLINE(in);
   in >> op.pidHash;
   libff::consume_OUTPUT_NEWLINE(in);
+  size_t idSize{0};
+  in >> idSize;
+  libff::consume_OUTPUT_NEWLINE(in);
+  op.clientId.resize(idSize);
+  if (idSize > 0) in.read((char*)(op.clientId.data()), (long)idSize);
   in >> op.value;
   return in;
 }
 
+namespace libutt {
+
 static Fr createSN(std::string uniqueHash) { return hashToField("new sn|" + uniqueHash); }
 
-MintOp::MintOp(std::string uniqueHash, size_t v, const std::string& recipPID) {
+MintOp::MintOp(const std::string& uniqueHash, size_t v, const std::string& recipPID) {
   testAssertGreaterThanOrEqual(v, 1);
-
+  clientId = recipPID;
   sn = createSN(uniqueHash);
   pidHash = AddrSK::pidHash(recipPID);
   value.set_ulong(static_cast<unsigned long>(v));
 }
-
-bool MintOp::validate(std::string uniqueHash, size_t v, std::string recipPID) const {
+MintOp::MintOp(std::istream& in) { in >> *this; }
+bool MintOp::validate(const std::string& uniqueHash, size_t v, const std::string& recipPID) const {
   Fr snV = createSN(uniqueHash);
   Fr pidHashV = AddrSK::pidHash(recipPID);
   Fr valueV;

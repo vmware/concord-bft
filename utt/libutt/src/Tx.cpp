@@ -11,6 +11,7 @@
 #include <utt/RegAuth.h>
 #include <utt/SplitProof.h>
 #include <utt/Tx.h>
+#include <utt/Address.h>
 
 #include <utt/Serialization.h>
 
@@ -47,11 +48,25 @@ namespace libutt {
 
 Tx::Tx(const Params& p,
        const AddrSK& ask,
-       const std::vector<Coin>& coins,
-       std::optional<Coin> b,  // set to std::nullopt, if none
+       const std::vector<Coin>& c,
+       std::optional<Coin> b,  // optional budget coin
        const std::vector<std::tuple<std::string, Fr>>& recip,
-       const RandSigPK& bpk,
-       const RegAuthPK& rpk) {
+       const RandSigPK& bpk,  // only used for debugging
+       const RegAuthPK& rpk)  // only to encrypt for the recipients
+    : Tx{p, ask.pid_hash, ask.pid, ask.rcm, ask.rs, ask.s, c, b, recip, bpk, rpk.vk, IBEEncryptor(rpk.mpk)} {}
+
+Tx::Tx(const Params& p,
+       const Fr pidHash,
+       const std::string& pid,
+       const Comm& rcm_,
+       const RandSig& rcm_sig,
+       const Fr& prf,
+       const std::vector<Coin>& coins,
+       std::optional<Coin> b,  // optional budget coin
+       const std::vector<std::tuple<std::string, Fr>>& recip,
+       std::optional<RandSigPK> bpk,  // only used for debugging
+       const RandSigPK& rpk,
+       const IEncryptor& encryptor) {
 #ifndef NDEBUG
   (void)bpk;
 #endif
@@ -60,7 +75,7 @@ Tx::Tx(const Params& p,
    */
   assertFalse(coins.empty());
 
-  Fr pid_hash_sender = ask.getPidHash();  // the (single) sender's PID hash
+  Fr pid_hash_sender = pidHash;  // the (single) sender's PID hash
 
   isSplitOwnCoins = true;           // true when this TXN simply splits the sender's coins
   bool isBudgeted = b.has_value();  // true when this TXN is budgeted
@@ -83,7 +98,7 @@ Tx::Tx(const Params& p,
     }
 
     // all coins must have valid signatures
-    assertTrue(coin.hasValidSig(bpk));
+    if (bpk.has_value()) assertTrue(coin.hasValidSig(*bpk));
   }
 
   // get total value of all normal output coins
@@ -95,7 +110,7 @@ Tx::Tx(const Params& p,
 
     totalOut += val;
 
-    if (pid_recip != ask.getPid()) {
+    if (pid_recip != pid) {
       paidOut += val;
       isSplitOwnCoins = false;
       notForMeOutputs.push_back(j);
@@ -140,17 +155,17 @@ Tx::Tx(const Params& p,
    *  - Copy pre-computed nullifier + consistency proof
    *  - Copy pre-computed (input) value commitment (VCM), whose randomness is later correlated with output VCMs
    */
-  rcm = ask.rcm;    // has randomness zero
-  regsig = ask.rs;  // will be rerandomized
+  rcm = rcm_;        // has randomness zero
+  regsig = rcm_sig;  // will be rerandomized
 
-  assertTrue(regsig.verify(rcm, rpk.vk));
+  assertTrue(regsig.verify(rcm, rpk));
 
   // re-randomize rcm, with randomness 'a', and then regsig
   Fr a = Fr::random_element();  // we need to pass this into the SplitProof constructor
   rcm.rerandomize(p.getRegCK(), a);
   regsig.rerandomize(a, Fr::random_element());
 
-  assertTrue(regsig.verify(rcm, rpk.vk));
+  assertTrue(regsig.verify(rcm, rpk));
 
   // number of senders
   assertGreaterThanOrEqual(coins.size(), 1);
@@ -218,10 +233,9 @@ Tx::Tx(const Params& p,
      *  - compute range proof for vcm_1
      *  - compute ctxt
      */
-    bool icmPok = !(isBudgeted && pid_recip == ask.pid);
+    bool icmPok = !(isBudgeted && pid_recip == pid);
     bool hasRangeProof = true;
     outs.emplace_back(p.getValCK(),
-                      rpk.mpk,
                       p.getRangeProofParams(),
                       Coin::NormalType(),
                       Coin::DoesNotExpire(),  // normal coins don't expire
@@ -230,7 +244,8 @@ Tx::Tx(const Params& p,
                       val_recip,
                       z_recip.at(j),
                       icmPok,
-                      hasRangeProof);
+                      hasRangeProof,
+                      encryptor);
 
     // z_sum_out = z_sum_out + z_recip[j];
   }
@@ -259,16 +274,16 @@ Tx::Tx(const Params& p,
     // ensures that there was enough budget.
     bool hasRangeProof = true;
     outs.emplace_back(p.getValCK(),
-                      rpk.mpk,
                       p.getRangeProofParams(),
                       Coin::BudgetType(),
-                      Coin::SomeExpirationDate(),
+                      b->getExpDate(),  // The budget coin inherit the old budget coin expiration date
                       H.back(),
-                      ask.getPid(),
+                      pid,
                       val_budget_out,
                       z_budget_recip,
                       icmPok,
-                      hasRangeProof);
+                      hasRangeProof,
+                      encryptor);
 
     // add the output budget coin as one of the 'forMeTxos'
     forMeOutputs.insert(outs.size() - 1);
@@ -285,7 +300,7 @@ Tx::Tx(const Params& p,
     }
 
     // for each output coin with same pid, compute budget proof that they have same pid
-    budget_pi = BudgetProof(forMeOutputs, p.getRegCK(), rcm, pid_hash_sender, ask.s, a, cks, icms, ts);
+    budget_pi = BudgetProof(forMeOutputs, p.getRegCK(), rcm, pid_hash_sender, prf, a, cks, icms, ts);
   }
 
   /**
@@ -296,12 +311,12 @@ Tx::Tx(const Params& p,
 
   for (size_t i = 0; i < coins.size(); i++) {
     // logdbg << "Split proof for input #" << i << endl;
-    ins[i].pi = SplitProof(p, ask.pid_hash, ask.s, coins.at(i), a, rcm, outsHash);
+    ins[i].pi = SplitProof(p, pidHash, prf, coins.at(i), a, rcm, outsHash);
   }
 
   if (isBudgeted) {
     // logdbg << "Split proof for budget coin" << endl;
-    ins.back().pi = SplitProof(p, ask.pid_hash, ask.s, *b, a, rcm, outsHash);
+    ins.back().pi = SplitProof(p, pidHash, prf, *b, a, rcm, outsHash);
   }
 
   assertEqual(ins.size(), coins.size() + (b.has_value() ? 1 : 0));
@@ -544,6 +559,13 @@ std::vector<Comm> Tx::getCommVector(size_t txoIdx, const G1& H) const {
 
   return {txo.icm, scm, txo.vcm_2, tcm, dcm};
 }
+std::unordered_map<size_t, RandSigShare> Tx::shareSignCoins(const RandSigShareSK& bskShare) const {
+  std::unordered_map<size_t, RandSigShare> ret;
+  for (size_t txoIdx = 0; txoIdx < outs.size(); txoIdx++) {
+    ret[txoIdx] = shareSignCoin(txoIdx, bskShare);
+  }
+  return ret;
+}
 
 RandSigShare Tx::shareSignCoin(size_t txoIdx, const RandSigShareSK& bskShare) const {
   // We have icm and vcm commitments under CK (H, g), but we also need commitments
@@ -564,14 +586,35 @@ RandSigShare Tx::shareSignCoin(size_t txoIdx, const RandSigShareSK& bskShare) co
 
   return bskShare.shareSign(getCommVector(txoIdx, H), H);
 }
-
+std::unordered_map<size_t, TxOut> Tx::getMyTransactions(const IDecryptor& decryptor) const {
+  std::unordered_map<size_t, TxOut> ret;
+  for (size_t i = 0; i < outs.size(); i++) {
+    auto& txo = outs[i];
+    auto ptxt = decryptor.decrypt(txo.ctxt);
+    if (ptxt.empty()) {
+      continue;
+    }
+    // parse the plaintext as (value, vcm_2 randomness, icm randomness)
+    auto vdt = bytesToFrs(ptxt);
+    assertEqual(vdt.size(), 3);
+    Fr val = vdt[0];
+    Fr d = vdt[1];
+    Fr t = vdt[2];
+    ret.emplace(i, txo);
+    ret[i].val = val;
+    ret[i].d = d;
+    ret[i].t = t;
+  }
+  return ret;
+}
 std::optional<Coin> Tx::tryClaimCoin(const Params& p,
                                      size_t txoIdx,
                                      const AddrSK& ask,
                                      size_t n,
                                      const std::vector<RandSigShare>& sigShares,
                                      const std::vector<size_t>& signerIds,
-                                     const RandSigPK& bpk) const {
+                                     const RandSigPK& bpk,
+                                     const IDecryptor& decryptor) const {
   // WARNING: Use std::vector<TxOut>::at(j) so it can throw if out of bounds
   auto& txo = outs.at(txoIdx);
 
@@ -580,10 +623,8 @@ std::optional<Coin> Tx::tryClaimCoin(const Params& p,
   Fr t;    // identity commitment randomness
 
   // decrypt the ciphertext
-  bool forMe;
-  AutoBuf<unsigned char> ptxt;
-  std::tie(forMe, ptxt) = ask.e.decrypt(txo.ctxt);
-
+  auto ptxt = decryptor.decrypt(txo.ctxt);
+  bool forMe = !ptxt.empty();
   if (!forMe) {
     logtrace << "TXO #" << txoIdx << " is NOT for pid '" << ask.pid << "'!" << endl;
     return std::nullopt;

@@ -10,7 +10,7 @@
 #include <utt/Tx.h>
 #include <utt/Utils.h>
 #include <utt/Wallet.h>
-
+#include <utt/DataUtils.hpp>
 #include <cmath>
 #include <ctime>
 #include <iostream>
@@ -164,13 +164,15 @@ class BenchTxn {
         // Step 4: Measure TXN claim mine! time (includes sig aggregation time)
         //
         tcm.startLap();
-        auto coin = tx.tryClaimCoin(p, txoIdx, w[ownerIdx].ask, n, sigShareSubset, signerIdSubset, bpk);
+        auto coin = tx.tryClaimCoin(
+            p, txoIdx, w[ownerIdx].ask, n, sigShareSubset, signerIdSubset, bpk, IBEDecryptor(w[ownerIdx].ask.e));
         assertTrue(coin.has_value());
         w[ownerIdx].addCoin(*coin);
         tcm.endLap();
 
         tim.startLap();
-        coin = tx.tryClaimCoin(p, txoIdx, w[nonOwnerIdx].ask, n, sigShareSubset, signerIdSubset, bpk);
+        coin = tx.tryClaimCoin(
+            p, txoIdx, w[nonOwnerIdx].ask, n, sigShareSubset, signerIdSubset, bpk, IBEDecryptor(w[ownerIdx].ask.e));
         assertFalse(coin.has_value());
         tim.endLap();
       }
