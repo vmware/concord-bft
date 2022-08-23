@@ -1,6 +1,6 @@
 #include "testUtils.hpp"
 
-#include "globalParams.hpp"
+#include "UTTParams.hpp"
 #include "testUtils.hpp"
 #include "mint.hpp"
 #include <utt/MintOp.h>

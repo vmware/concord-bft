@@ -14,7 +14,7 @@
 #pragma once
 
 #include "commitment.hpp"
-#include "globalParams.hpp"
+#include "UTTParams.hpp"
 #include "types.hpp"
 #include <memory>
 #include <vector>
@@ -31,42 +31,26 @@ class Utils {
    */
  public:
   /**
-   * @brief Aggreate the shared signatures for a given signature
+   * @brief Aggregate the shared signatures for a given signature
    *
    * @param n The total number of coinsSigner replicas in the system
-   * @param rsigs A map of <signer ID, Signature> of a thershold collected signatures
+   * @param rsigs A map of <signer ID, Signature> of a threshold collected signatures
    * @return types::Signature The combined signature
    */
   static types::Signature aggregateSigShares(uint32_t n, const std::map<uint32_t, types::Signature>& rsigs);
 
   /**
-   * @brief ublined a signature randomness
+   * @brief un-blind a signature randomness
    *
-   * @param p The shared global UTT parametrs
+   * @param p The shared global UTT parameters
    * @param t The signature type (one of REGISTRATION or COIN)
    * @param randomness A vector of randoms known only by the client
-   * @param sig The signature to unblind
+   * @param sig The signature to un-blind
    * @return types::Signature
    */
-  static types::Signature unblindSignature(const GlobalParams& p,
+  static types::Signature unblindSignature(const UTTParams& p,
                                            Commitment::Type t,
                                            const std::vector<types::CurvePoint>& randomness,
                                            const types::Signature& sig);
-  /**
-   * @brief Convert a string format date to uint.
-   *
-   * @param exp_date An input string represents a UTC date in the format of %Y-%m-%d %H:%M:%S. For example, 2022-08-17
-   * 11:28:32
-   * @return uint64_t The encoded date as uint
-   */
-  static uint64_t getExpirationDateAsUint(const std::string& exp_date);
-
-  /**
-   * @brief The reverese of getExpirationDateAsUint method i.e converts a uint date to a string format
-   *
-   * @param exp_date
-   * @return std::string
-   */
-  static std::string getStrExpirationDateFromUint(uint64_t exp_date);
 };
 }  // namespace libutt::api

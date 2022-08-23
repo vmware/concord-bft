@@ -5,7 +5,7 @@
 #include <utt/RandSig.h>
 
 namespace libutt::api {
-Coin::Coin(const GlobalParams& d,
+Coin::Coin(const UTTParams& d,
            const types::CurvePoint& prf,
            const types::CurvePoint& sn,
            const types::CurvePoint& val,
@@ -28,7 +28,7 @@ Coin::Coin(const GlobalParams& d,
   type_ = t;
 }
 
-Coin::Coin(const GlobalParams& d,
+Coin::Coin(const UTTParams& d,
            const types::CurvePoint& sn,
            const types::CurvePoint& val,
            const types::CurvePoint& pidhash,
@@ -79,16 +79,12 @@ void Coin::rerandomize(std::optional<types::CurvePoint> base_randomness) {
   if (base_randomness.has_value()) u_delta.from_words(*base_randomness);
   coin_->sig.rerandomize(coin_->r, u_delta);
 }
-void Coin::createNullifier(const GlobalParams& d, const types::CurvePoint& prf) {
+void Coin::createNullifier(const UTTParams& d, const types::CurvePoint& prf) {
   Fr fr_prf;
   fr_prf.from_words(prf);
   coin_->createNullifier(d.getParams().null, fr_prf);
 }
 types::CurvePoint Coin::getPidHash() const { return coin_->pid_hash.to_words(); }
 types::CurvePoint Coin::getSN() const { return coin_->sn.to_words(); }
-std::string Coin::getExpDate() const {
-  if (type_ == Type::Normal) return std::string();
-  return Utils::getStrExpirationDateFromUint(coin_->getExpDate().as_ulong());
-}
 types::CurvePoint Coin::getExpDateAsCurvePoint() const { return coin_->exp_date.to_words(); }
 }  // namespace libutt::api

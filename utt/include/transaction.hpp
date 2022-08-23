@@ -14,7 +14,7 @@
 #pragma once
 #include "client.hpp"
 #include "coin.hpp"
-#include "globalParams.hpp"
+#include "UTTParams.hpp"
 #include "coinsSigner.hpp"
 #include "client.hpp"
 #include <memory>
@@ -36,15 +36,15 @@ class Transaction {
   /**
    * @brief Construct a new Transaction object
    *
-   * @param p The shared global UTT parametrs
+   * @param p The shared global UTT parameters
    * @param client The client that creates the transaction
    * @param input_coins The transaction's input UTT coins
-   * @param budget_coin An optionsl budget coin (self transaction doesn't require a budget coin)
-   * @param recipients A vector of receipents, each repcient is represented as <string id,numeric id>
-   * @param encryptor An obeject that responsible for encrypting some of the transaction data for the given recipients
+   * @param budget_coin An optional budget coin (self transaction doesn't require a budget coin)
+   * @param recipients A vector of recipients, each recipient is represented as <string id,numeric id>
+   * @param encryptor An object that responsible for encrypting some of the transaction data for the given recipients
    * (see libutt/include/DataUtils.h)
    */
-  Transaction(const GlobalParams& p,
+  Transaction(const UTTParams& p,
               const Client& client,
               const std::vector<Coin>& input_coins,
               const std::optional<Coin>& budget_coin,

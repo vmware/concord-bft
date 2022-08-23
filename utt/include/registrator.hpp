@@ -13,7 +13,7 @@
 
 #pragma once
 #include "commitment.hpp"
-#include "globalParams.hpp"
+#include "UTTParams.hpp"
 #include <string>
 #include <memory>
 #include <vector>
@@ -33,7 +33,7 @@ class Registrator {
    * @brief Construct a new Registrator replica object
    *
    * @param id The replica ID
-   * @param registartor_secret_key The replica's seriazlied share of the secret registration key
+   * @param registartor_secret_key The replica's serialized share of the secret registration key
    * @param registration_public_key The serialized registration public key
    */
   Registrator(const std::string& id,
@@ -47,7 +47,7 @@ class Registrator {
    * @param s2 The replica's part of the secret. In the distributed case s2 much be deterministic among all replicas. It
    * doesn't have to be a secret but it does need to be unpredictable
    * @param rcm1 The user commitment on its own s1
-   * @return std::pair<types::CurvePoint, types::Signature> returns the chossen s2 and the share signature
+   * @return std::pair<types::CurvePoint, types::Signature> returns the choosen s2 and the share signature
    */
   std::pair<types::CurvePoint, types::Signature> signRCM(const types::CurvePoint& pid_hash,
                                                          const types::CurvePoint& s2,

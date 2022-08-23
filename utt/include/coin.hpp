@@ -12,7 +12,7 @@
 // file.
 
 #pragma once
-#include "globalParams.hpp"
+#include "UTTParams.hpp"
 #include "client.hpp"
 #include "commitment.hpp"
 #include "types.hpp"
@@ -40,19 +40,19 @@ class Coin {
  public:
   enum Type { Normal = 0x0, Budget };
   /**
-   * @brief Constructs a new Coin object. This constructor also construct the coin's nulliffier. Hence it can be invoked
+   * @brief Constructs a new Coin object. This constructor also construct the coin's nullifier. Hence it can be invoked
    * only by the client.
    *
    * @param p The shared global UTT parameters
    * @param prf The secret client's PRF key
-   * @param serial_number The coin's serial number (detrmined by the bank). The serial number is not a secret.
+   * @param serial_number The coin's serial number (determined by the bank). The serial number is not a secret.
    * @param val The coin value
    * @param client_id_hash The client ID hash (as a CurvePoint)
    * @param t The coin's type (wither Normal or Budget)
    * @param expiration_date Expiration date given as CurvePoint, in case of a Normal coin, the expiration_date is
    * ignored
    */
-  Coin(const GlobalParams& p,
+  Coin(const UTTParams& p,
        const types::CurvePoint& prf,
        const types::CurvePoint& serial_number,
        const types::CurvePoint& val,
@@ -60,17 +60,17 @@ class Coin {
        Type t,
        const types::CurvePoint& expiration_date);
   /**
-   * @brief Construct a new Coin object without the nullfier (can be constructed not only by the client)
+   * @brief Construct a new Coin object without the nullifier (can be constructed not only by the client)
    *
-   * @param p The shared global UTT parametrs
-   * @param serial_number The coin's serial number (detrmined by the bank). The serial number is not a secret.
+   * @param p The shared global UTT parameters
+   * @param serial_number The coin's serial number (determined by the bank). The serial number is not a secret.
    * @param val The coin value
    * @param client_id_hash The client ID hash (as a CurvePoint)
    * @param t The coin's type (either Normal or Budget)
    * @param expiration_date Expiration date given as CurvePoint, in case of a Normal coin, the expiration_date is
    * ignored
    */
-  Coin(const GlobalParams& p,
+  Coin(const UTTParams& p,
        const types::CurvePoint& serial_number,
        const types::CurvePoint& val,
        const types::CurvePoint& client_id_hash,
@@ -90,10 +90,10 @@ class Coin {
   /**
    * @brief Create a Nullifier for this coin. Only the client can invoke this method
    *
-   * @param p The shared global UTT parametrs
+   * @param p The shared global UTT parameters
    * @param prf The secret client's PRF key
    */
-  void createNullifier(const GlobalParams& p, const types::CurvePoint& prf);
+  void createNullifier(const UTTParams& p, const types::CurvePoint& prf);
 
   /**
    * @brief Check if this coin has a signature associated with it
@@ -125,9 +125,9 @@ class Coin {
   types::Signature getSig() const;
 
   /**
-   * @brief Rerandomize the coin's signature with the coin's randomness
+   * @brief Re-randomize the coin's signature with the coin's randomness
    *
-   * @param base_randomness An optional base randomness to be used for the rerandomization (not be used in the regular
+   * @param base_randomness An optional base randomness to be used for the re-randomization (not be used in the regular
    * case)
    */
   void rerandomize(std::optional<types::CurvePoint> base_randomness);
@@ -152,14 +152,6 @@ class Coin {
    * @return types::CurvePoint
    */
   types::CurvePoint getSN() const;
-
-  /**
-   * @brief Get the coin's expiration date in a string format. The format is %Y-%m-%d %H:%M%S. For example, 2022-08-01
-   * 03:14:56
-   *
-   * @return std::string
-   */
-  std::string getExpDate() const;
 
   /**
    * @brief Get the coin's expiration date as a CurvePoint

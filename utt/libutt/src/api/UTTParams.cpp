@@ -1,6 +1,6 @@
 #include <sstream>
 
-#include "globalParams.hpp"
+#include "UTTParams.hpp"
 #include <utt/RangeProof.h>
 #include <utt/NtlLib.h>
 #include <utt/Params.h>
@@ -11,7 +11,7 @@ struct GpInitData {
   libutt::CommKey cck;
   libutt::CommKey rck;
 };
-void GlobalParams::initLibs(const GlobalParams::BaseLibsInitData& init_data) {
+void UTTParams::initLibs(const UTTParams::BaseLibsInitData& init_data) {
   // Apparently, libff logs some extra info when computing pairings
   libff::inhibit_profiling_info = init_data.libff_inhibit_profiling_info;
 
@@ -23,7 +23,7 @@ void GlobalParams::initLibs(const GlobalParams::BaseLibsInitData& init_data) {
   libff::default_ec_pp::init_public_params();
 
   // Initializes the NTL finite field
-  NTL::ZZ p = NTL::conv<ZZ>(init_data.ntl_finite_field.c_str());
+  NTL::ZZ p = NTL::conv<ZZ>("21888242871839275222246405745257275088548364400416034343698204186575808495617");
   NTL::ZZ_p::init(p);
 
   NTL::SetSeed(init_data.entropy_source.first, init_data.entropy_source.second);
@@ -40,8 +40,8 @@ void GlobalParams::initLibs(const GlobalParams::BaseLibsInitData& init_data) {
   RangeProof::Params::initializeOmegas();
 }
 
-GlobalParams GlobalParams::create(void* initData) {
-  GlobalParams gp;
+UTTParams UTTParams::create(void* initData) {
+  UTTParams gp;
   gp.params.reset(new libutt::Params());
   if (initData) {
     GpInitData* init_data = (GpInitData*)initData;
@@ -50,13 +50,13 @@ GlobalParams GlobalParams::create(void* initData) {
   }
   return gp;
 }
-const libutt::Params& GlobalParams::getParams() const { return *params; }
+const libutt::Params& UTTParams::getParams() const { return *params; }
 
-GlobalParams::GlobalParams(const GlobalParams& other) {
+UTTParams::UTTParams(const UTTParams& other) {
   params.reset(new libutt::Params());
   *params = *(other.params);
 }
-GlobalParams& GlobalParams::operator=(const GlobalParams& other) {
+UTTParams& UTTParams::operator=(const UTTParams& other) {
   params.reset(new libutt::Params());
   *params = *(other.params);
   return *this;

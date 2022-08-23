@@ -1,5 +1,5 @@
 #pragma once
-#include "globalParams.hpp"
+#include "UTTParams.hpp"
 #include "coinsSigner.hpp"
 #include "client.hpp"
 #include "registrator.hpp"
@@ -21,6 +21,7 @@
 #include <iostream>
 #include <ctime>
 #include <unordered_map>
+#include <chrono>
 using namespace libutt;
 using namespace libutt::api;
 namespace libutt::api::testing {
@@ -30,7 +31,7 @@ struct GpData {
 };
 
 std::vector<uint32_t> getSubset(uint32_t n, uint32_t size) {
-  std::srand((unsigned int)std::time(0));
+  std::srand((unsigned int)std::chrono::system_clock::now().time_since_epoch().count());
   std::map<uint32_t, uint32_t> ret;
   for (uint32_t i = 0; i < n; i++) ret[i] = i;
   for (uint32_t i = 0; i < n - size; i++) {
@@ -44,13 +45,13 @@ std::vector<uint32_t> getSubset(uint32_t n, uint32_t size) {
   }
   return rret;
 }
-std::tuple<libutt::api::GlobalParams, RandSigDKG, RegAuthSK> init(size_t n, size_t thresh) {
-  GlobalParams::BaseLibsInitData base_libs_init_data;
-  GlobalParams::initLibs(base_libs_init_data);
+std::tuple<libutt::api::UTTParams, RandSigDKG, RegAuthSK> init(size_t n, size_t thresh) {
+  UTTParams::BaseLibsInitData base_libs_init_data;
+  UTTParams::initLibs(base_libs_init_data);
   auto dkg = RandSigDKG(thresh, n, Params::NumMessages);
   auto rc = RegAuthSK::generateKeyAndShares(thresh, n);
   GpData gp_data{dkg.getCK(), rc.ck_reg};
-  GlobalParams d = GlobalParams::create((void*)(&gp_data));
+  UTTParams d = UTTParams::create((void*)(&gp_data));
   rc.setIBEParams(d.getParams().ibe);
   return {d, dkg, rc};
 }
@@ -104,7 +105,7 @@ std::vector<Client> GenerateClients(size_t c,
   }
   return clients;
 }
-void registerClient(const GlobalParams& d,
+void registerClient(const UTTParams& d,
                     Client& c,
                     std::vector<std::shared_ptr<Registrator>>& registrators,
                     size_t thresh) {

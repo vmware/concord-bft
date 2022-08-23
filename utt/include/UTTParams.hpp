@@ -18,26 +18,25 @@ namespace libutt {
 class Params;
 }
 namespace libutt::api {
-class GlobalParams {
+class UTTParams {
   /**
-   * @brief Represents a shared known global UTT params. These parametesr include commitment keys, nullifier parameters
-   * and more (see uttlib/Params.h)
+   * @brief Represents a shared known UTT instance params. These parameters include commitment keys, nullifier
+   * parameters and more (see uttlib/Params.h)
    *
    */
 
  public:
   struct BaseLibsInitData {
-    std::string ntl_finite_field{"21888242871839275222246405745257275088548364400416034343698204186575808495617"};
     bool libff_inhibit_profiling_info{true};
     bool libff_inhibit_profiling_counters{true};
     std::pair<unsigned char*, int> entropy_source{nullptr, false};
   };
-  GlobalParams() = default;
+  UTTParams() = default;
   /**
    * @brief Initialize the global parameters object with a default object.
    *
    */
-  static GlobalParams create(void* initData);
+  static UTTParams create(void* initData);
   static void initLibs(const BaseLibsInitData& initData);
 
   /**
@@ -46,8 +45,8 @@ class GlobalParams {
    * @return const libutt::Params&
    */
   const libutt::Params& getParams() const;
-  GlobalParams(const GlobalParams& other);
-  GlobalParams& operator=(const GlobalParams& other);
+  UTTParams(const UTTParams& other);
+  UTTParams& operator=(const UTTParams& other);
 
  private:
   std::unique_ptr<libutt::Params> params;

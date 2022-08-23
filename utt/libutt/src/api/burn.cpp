@@ -8,7 +8,7 @@
 #include <utt/RegAuth.h>
 
 namespace libutt::api::operations {
-Burn::Burn(const GlobalParams& d, const Client& cid, const Coin& coin) : c_{coin} {
+Burn::Burn(const UTTParams& d, const Client& cid, const Coin& coin) : c_{coin} {
   Fr fr_pidhash;
   fr_pidhash.from_words(cid.getPidHash());
   Fr prf;

@@ -12,7 +12,7 @@
 // file.
 
 #pragma once
-#include "globalParams.hpp"
+#include "UTTParams.hpp"
 #include "types.hpp"
 #include <vector>
 #include <cstdint>
@@ -44,22 +44,22 @@ class Commitment {
   /**
    * @brief Get the Commitment Key object for the given commitment type
    *
-   * @param p The shared global UTT parametrs
+   * @param p The shared global UTT parameters
    * @param t The commitment type
    * @return const libutt::CommKey&
    */
-  static const libutt::CommKey& getCommitmentKey(const GlobalParams& p, Type t);
+  static const libutt::CommKey& getCommitmentKey(const UTTParams& p, Type t);
 
   /**
    * @brief Construct a new Commitment object
    *
-   * @param p The shared global UTT parametrs
+   * @param p The shared global UTT parameters
    * @param t The commitment type
    * @param messages A vector if messages we want to commit on (given as CurvePoints)
    * @param withG2 Indicates if we want to have the commitment in the G2 group. In the regular case this should be
    * always true
    */
-  Commitment(const GlobalParams& p, Type t, const std::vector<types::CurvePoint>& messages, bool withG2);
+  Commitment(const UTTParams& p, Type t, const std::vector<types::CurvePoint>& messages, bool withG2);
   Commitment(const Commitment& comm);
   Commitment();
   Commitment& operator=(const Commitment&);
@@ -73,14 +73,14 @@ class Commitment {
   Commitment& operator+=(const Commitment&);
 
   /**
-   * @brief Rerandomize the commitment (possibly based on a given base_randomness)
+   * @brief Re-randomize the commitment (possibly based on a given base_randomness)
    *
-   * @param p The shared global UTT parametrs
+   * @param p The shared global UTT parameters
    * @param t The commitment type
-   * @param base_randomness An optinoal based randomness
+   * @param base_randomness An optional based randomness
    * @return types::CurvePoint
    */
-  types::CurvePoint rerandomize(const GlobalParams& p, Type t, std::optional<types::CurvePoint> base_randomness);
+  types::CurvePoint rerandomize(const UTTParams& p, Type t, std::optional<types::CurvePoint> base_randomness);
 
  private:
   friend class Registrator;

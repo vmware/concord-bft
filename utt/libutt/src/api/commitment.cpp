@@ -13,7 +13,7 @@ libutt::api::Commitment operator+(libutt::api::Commitment lhs, const libutt::api
 }
 
 namespace libutt::api {
-const libutt::CommKey& Commitment::getCommitmentKey(const GlobalParams& d, Commitment::Type t) {
+const libutt::CommKey& Commitment::getCommitmentKey(const UTTParams& d, Commitment::Type t) {
   switch (t) {
     case Commitment::Type::REGISTRATION:
       return d.getParams().getRegCK();
@@ -23,7 +23,7 @@ const libutt::CommKey& Commitment::getCommitmentKey(const GlobalParams& d, Commi
   throw std::runtime_error("Unknown commitment key type");
 }
 
-Commitment::Commitment(const GlobalParams& d, Type t, const std::vector<types::CurvePoint>& messages, bool withG2) {
+Commitment::Commitment(const UTTParams& d, Type t, const std::vector<types::CurvePoint>& messages, bool withG2) {
   std::vector<Fr> fr_messages(messages.size());
   for (size_t i = 0; i < messages.size(); i++) {
     fr_messages[i].from_words(messages.at(i));
@@ -48,7 +48,7 @@ Commitment& Commitment::operator+=(const Commitment& comm) {
   return *this;
 }
 
-types::CurvePoint Commitment::rerandomize(const GlobalParams& d,
+types::CurvePoint Commitment::rerandomize(const UTTParams& d,
                                           Type t,
                                           std::optional<types::CurvePoint> base_randomness) {
   Fr u_delta = Fr::random_element();

@@ -16,7 +16,7 @@
 #include <memory>
 #include <vector>
 #include "coin.hpp"
-#include "globalParams.hpp"
+#include "UTTParams.hpp"
 namespace libutt {
 class MintOp;
 }

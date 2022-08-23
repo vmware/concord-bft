@@ -14,7 +14,7 @@
 #pragma once
 #include "coin.hpp"
 #include "client.hpp"
-#include "globalParams.hpp"
+#include "UTTParams.hpp"
 #include "coinsSigner.hpp"
 #include <memory>
 namespace libutt {
@@ -34,7 +34,7 @@ class Burn {
    * @param cid The client object, notice that the Burn request can be created only by the owner of the coin.
    * @param coin_to_burn The coin we want to burn
    */
-  Burn(const GlobalParams& p, const Client& cid, const Coin& coin_to_burn);
+  Burn(const UTTParams& p, const Client& cid, const Coin& coin_to_burn);
 
   /**
    * @brief Get the Nullifier object, to be used by the bank

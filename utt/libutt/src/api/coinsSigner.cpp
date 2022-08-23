@@ -1,6 +1,6 @@
 #include "coinsSigner.hpp"
 #include "mint.hpp"
-#include "globalParams.hpp"
+#include "UTTParams.hpp"
 #include "burn.hpp"
 #include "transaction.hpp"
 #include "budget.hpp"
@@ -74,11 +74,11 @@ std::vector<types::Signature> CoinsSigner::sign<operations::Budget>(operations::
 }
 
 template <>
-bool CoinsSigner::validate<operations::Burn>(const GlobalParams& p, const operations::Burn& burn) const {
+bool CoinsSigner::validate<operations::Burn>(const UTTParams& p, const operations::Burn& burn) const {
   return burn.burn_->validate(p.getParams(), *(bvk_), *(rvk_));
 }
 template <>
-bool CoinsSigner::validate<operations::Transaction>(const GlobalParams& p, const operations::Transaction& tx) const {
+bool CoinsSigner::validate<operations::Transaction>(const UTTParams& p, const operations::Transaction& tx) const {
   return tx.tx_->validate(p.getParams(), *(bvk_), *(rvk_));
 }
 }  // namespace libutt::api

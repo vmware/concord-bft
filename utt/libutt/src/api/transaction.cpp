@@ -7,7 +7,7 @@
 #include <utt/Address.h>
 #include <utt/DataUtils.hpp>
 namespace libutt::api::operations {
-Transaction::Transaction(const GlobalParams& d,
+Transaction::Transaction(const UTTParams& d,
                          const Client& cid,
                          const std::vector<Coin>& coins,
                          const std::optional<Coin>& bc,

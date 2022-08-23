@@ -1,6 +1,6 @@
 #include "testUtils.hpp"
 
-#include "globalParams.hpp"
+#include "UTTParams.hpp"
 #include "testUtils.hpp"
 #include "budget.hpp"
 #include <utt/MintOp.h>
@@ -33,8 +33,7 @@ int main(int argc, char* argv[]) {
 
   for (auto& c : clients) {
     std::vector<std::vector<uint8_t>> rsigs;
-    std::string exp_date = "2100-12-10 09:14:23";
-    auto budget = Budget(d, c, 1000, exp_date);
+    auto budget = Budget(d, c, 1000, 123456789);
     for (size_t i = 0; i < banks.size(); i++) {
       rsigs.push_back(banks[i]->sign(budget).front());
     }
@@ -51,8 +50,7 @@ int main(int argc, char* argv[]) {
   // Now, do the same for a budget created by the replicas.
   for (auto& c : clients) {
     std::vector<std::vector<uint8_t>> rsigs;
-    std::string exp_date = "2100-12-10 09:14:23";
-    auto budget = Budget(d, c.getPidHash(), 1000, exp_date);
+    auto budget = Budget(d, c.getPidHash(), 1000, 123456789);
     for (size_t i = 0; i < banks.size(); i++) {
       rsigs.push_back(banks[i]->sign(budget).front());
     }

@@ -70,7 +70,7 @@ const std::string& Client::getPid() const { return ask_->pid; }
 types::CurvePoint Client::getPidHash() const { return ask_->getPidHash().to_words(); }
 types::CurvePoint Client::getPRFSecretKey() const { return ask_->s.to_words(); }
 
-void Client::setRCMSig(const GlobalParams& d, const types::CurvePoint& s2, const types::Signature& sig) {
+void Client::setRCMSig(const UTTParams& d, const types::CurvePoint& s2, const types::Signature& sig) {
   setPRFKey(s2);
   // Compute the complete rcm including s2
   std::vector<types::CurvePoint> m = {ask_->pid_hash.to_words(), ask_->s.to_words(), Fr::zero().to_words()};
@@ -84,7 +84,7 @@ std::pair<Commitment, types::Signature> Client::getRcm() const {
   return {rcm_, types::Signature(tmp.begin(), tmp.end())};
 }
 
-std::pair<Commitment, types::Signature> Client::rerandomizeRcm(const GlobalParams& d) const {
+std::pair<Commitment, types::Signature> Client::rerandomizeRcm(const UTTParams& d) const {
   auto rcm_copy = rcm_;
   auto r = rcm_copy.rerandomize(d, Commitment::Type::REGISTRATION, std::nullopt);
   Fr r_rand;
@@ -96,7 +96,7 @@ std::pair<Commitment, types::Signature> Client::rerandomizeRcm(const GlobalParam
 }
 template <>
 std::vector<libutt::api::Coin> Client::claimCoins<operations::Mint>(
-    const operations::Mint& mint, const GlobalParams& d, const std::vector<types::Signature>& blindedSigs) const {
+    const operations::Mint& mint, const UTTParams& d, const std::vector<types::Signature>& blindedSigs) const {
   if (blindedSigs.size() != 1) throw std::runtime_error("Mint suppose to contain a single coin only");
   Fr r_pid = Fr::zero(), r_sn = Fr::zero(), r_val = Fr::zero(), r_type = Fr::zero(), r_expdate = Fr::zero();
   std::vector<types::CurvePoint> r = {
@@ -116,7 +116,7 @@ std::vector<libutt::api::Coin> Client::claimCoins<operations::Mint>(
 
 template <>
 std::vector<libutt::api::Coin> Client::claimCoins<operations::Budget>(
-    const operations::Budget& budget, const GlobalParams& d, const std::vector<types::Signature>& blindedSigs) const {
+    const operations::Budget& budget, const UTTParams& d, const std::vector<types::Signature>& blindedSigs) const {
   if (blindedSigs.size() != 1) throw std::runtime_error("Mint suppose to contain a single coin only");
   Fr r_pid = Fr::zero(), r_sn = Fr::zero(), r_val = Fr::zero(), r_type = Fr::zero(), r_expdate = Fr::zero();
   std::vector<types::CurvePoint> r = {
@@ -129,7 +129,7 @@ std::vector<libutt::api::Coin> Client::claimCoins<operations::Budget>(
 }
 template <>
 std::vector<libutt::api::Coin> Client::claimCoins<operations::Transaction>(
-    const operations::Transaction& tx, const GlobalParams& d, const std::vector<types::Signature>& blindedSigs) const {
+    const operations::Transaction& tx, const UTTParams& d, const std::vector<types::Signature>& blindedSigs) const {
   std::vector<libutt::api::Coin> ret;
   auto mineTransactions = tx.tx_->getMyTransactions(*decryptor_);
   for (const auto& [txoIdx, txo] : mineTransactions) {

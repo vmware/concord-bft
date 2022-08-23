@@ -1,4 +1,4 @@
-#include "globalParams.hpp"
+#include "UTTParams.hpp"
 #include "testUtils.hpp"
 
 #include <memory>

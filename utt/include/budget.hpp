@@ -14,7 +14,7 @@
 #pragma once
 #include "coin.hpp"
 #include "client.hpp"
-#include "globalParams.hpp"
+#include "UTTParams.hpp"
 #include "types.hpp"
 #include <string>
 namespace libutt::api::operations {
@@ -25,29 +25,29 @@ namespace libutt::api::operations {
 class Budget {
  public:
   /**
-   * @brief Construct a new Budget object by the client (including a nullfier)
+   * @brief Construct a new Budget object by the client (including a nullifier)
    *
-   * @param p The shared global UTT parametrs
+   * @param p The shared global UTT parameters
    * @param cid The client who creates the budget coin
    * @param val The budget value
-   * @param exp_date Expiration date in the format of YYYY-mm-dd HH:MM::SS, for example, 2100-12-10 09:12:34
+   * @param exp_date Expiration date, the format is to be determined by an upper level
    */
-  Budget(const GlobalParams& p, const libutt::api::Client& cid, uint64_t val, const std::string& exp_date);
+  Budget(const UTTParams& p, const libutt::api::Client& cid, uint64_t val, uint64_t exp_date);
 
   /**
    * @brief Construct a new Budget object without the client secret data. For building a budget coin by the bank
    *
-   * @param p The shared global UTT parametrs
+   * @param p The shared global UTT parameters
    * @param pidHash The public client ID hash
    * @param val The budget value
-   * @param exp_date Expiration date in the format of YYYY-mm-dd HH:MM::SS, for example, 2100-12-10 09:12:34
+   * @param exp_date Expiration date, the format is to be determined by an upper level
    */
-  Budget(const GlobalParams& p, const types::CurvePoint& pidHash, uint64_t val, const std::string& exp_date);
+  Budget(const UTTParams& p, const types::CurvePoint& pidHash, uint64_t val, uint64_t exp_date);
 
   /**
    * @brief Get the Coin object
    *
-   * @return libutt::api::Coin& The budget coin notice that having the budget coin doesn't necessarly mean that it also
+   * @return libutt::api::Coin& The budget coin notice that having the budget coin doesn't necessarily mean that it also
    * has the signature.
    */
   libutt::api::Coin& getCoin();

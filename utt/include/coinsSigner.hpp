@@ -13,7 +13,7 @@
 
 #pragma once
 #include "types.hpp"
-#include "globalParams.hpp"
+#include "UTTParams.hpp"
 #include <string>
 #include <memory>
 #include <vector>
@@ -61,15 +61,15 @@ class CoinsSigner {
 
   /**
    * @brief Validating UTT transactions. Validating here is only about UTT validation - mostly verifying cryptographic
-   * statesments
+   * statements
    *
    * @tparam T One of <operations::Burn, operations::Transaction>
-   * @param p The shared global UTT parametrs
+   * @param p The shared global UTT parameters
    * @return true if the transcation is valid
    * @return false if not
    */
   template <typename T>
-  bool validate(const GlobalParams& p, const T&) const;
+  bool validate(const UTTParams& p, const T&) const;
 
  private:
   std::string bid_;

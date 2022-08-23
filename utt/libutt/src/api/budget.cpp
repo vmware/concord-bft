@@ -6,12 +6,12 @@
 #include <utt/Serialization.h>
 
 namespace libutt::api::operations {
-Budget::Budget(const GlobalParams& d, const libutt::api::Client& cid, uint64_t val, const std::string& exp_date) {
+Budget::Budget(const UTTParams& d, const libutt::api::Client& cid, uint64_t val, uint64_t exp_date) {
   Fr fr_val;
   fr_val.set_ulong(val);
   Fr fr_expdate;
 
-  fr_expdate.set_ulong(Utils::getExpirationDateAsUint(exp_date));
+  fr_expdate.set_ulong(exp_date);
   coin_ = libutt::api::Coin(d,
                             cid.getPRFSecretKey(),
                             Fr::random_element().to_words(),
@@ -20,11 +20,11 @@ Budget::Budget(const GlobalParams& d, const libutt::api::Client& cid, uint64_t v
                             libutt::api::Coin::Type::Budget,
                             fr_expdate.to_words());
 }
-Budget::Budget(const GlobalParams& d, const types::CurvePoint& pidHash, uint64_t val, const std::string& exp_date) {
+Budget::Budget(const UTTParams& d, const types::CurvePoint& pidHash, uint64_t val, uint64_t exp_date) {
   Fr fr_val;
   fr_val.set_ulong(val);
   Fr fr_expdate;
-  fr_expdate.set_ulong(Utils::getExpirationDateAsUint(exp_date));
+  fr_expdate.set_ulong(exp_date);
   coin_ = libutt::api::Coin(d,
                             Fr::random_element().to_words(),
                             fr_val.to_words(),

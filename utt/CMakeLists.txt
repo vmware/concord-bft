@@ -178,7 +178,7 @@ add_subdirectory(libxassert)
 add_subdirectory(libxutils)
 
 set(newutt_src 
-    libutt/src/api/globalParams.cpp
+    libutt/src/api/UTTParams.cpp
     libutt/src/api/commitment.cpp
     libutt/src/api/client.cpp
     libutt/src/api/coinsSigner.cpp
