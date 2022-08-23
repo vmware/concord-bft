@@ -33,7 +33,6 @@ using grpc::Status;
 using grpc_connectivity_state::GRPC_CHANNEL_READY;
 
 using std::future_status;
-using std::launch;
 
 using namespace std::chrono_literals;
 
@@ -123,7 +122,7 @@ GrpcConnection::Result GrpcConnection::openDataStream(const SubscriptionRequest&
   data_context_.reset(new grpc::ClientContext());
   data_context_->AddMetadata("client_id", client_id_);
 
-  auto stream = async(launch::async, [this, &request] {
+  auto stream = worker_thread_pool_->async([this, &request] {
     ReadLock read_lock(channel_mutex_);
     return trc_stub_->SubscribeToUpdates(data_context_.get(), request);
   });
@@ -171,7 +170,7 @@ GrpcConnection::Result GrpcConnection::readData(Data* data) {
   ConcordAssertNE(data_stream_, nullptr);
   ConcordAssertNE(data_context_, nullptr);
 
-  auto result = async(launch::async, [this, data] { return data_stream_->Read(data); });
+  auto result = worker_thread_pool_->async([this, data] { return data_stream_->Read(data); });
   auto status = result.wait_for(data_timeout_);
   if (status == future_status::timeout || status == future_status::deferred) {
     LOG_WARN(logger_, KVLOG(address_, client_id_));
@@ -200,7 +199,7 @@ GrpcConnection::Result GrpcConnection::openStateStream(const ReadStateRequest& r
   state_context_.reset(new grpc::ClientContext());
   state_context_->AddMetadata("client_id", client_id_);
 
-  auto stream = async(launch::async, [this, &request] {
+  auto stream = worker_thread_pool_->async([this, &request] {
     ReadLock read_lock(channel_mutex_);
     return trc_stub_->ReadState(state_context_.get(), request);
   });
@@ -248,7 +247,7 @@ GrpcConnection::Result GrpcConnection::closeStateStream() {
   ConcordAssertNE(state_context_, nullptr);
 
   // "state" is not an infite data stream and we expect proper termination
-  auto result = async(launch::async, [this] { return state_stream_->Finish(); });
+  auto result = worker_thread_pool_->async([this] { return state_stream_->Finish(); });
   auto status = result.wait_for(data_timeout_);
   if (status == future_status::timeout || status == future_status::deferred) {
     LOG_WARN(logger_, KVLOG(address_, client_id_));
@@ -280,7 +279,7 @@ GrpcConnection::Result GrpcConnection::readState(Data* data) {
   ConcordAssertNE(state_stream_, nullptr);
   ConcordAssertNE(state_context_, nullptr);
 
-  auto result = async(launch::async, [this, data] { return state_stream_->Read(data); });
+  auto result = worker_thread_pool_->async([this, data] { return state_stream_->Read(data); });
   auto status = result.wait_for(data_timeout_);
   if (status == future_status::timeout || status == future_status::deferred) {
     LOG_WARN(logger_, KVLOG(address_, client_id_));
@@ -301,7 +300,7 @@ GrpcConnection::Result GrpcConnection::readStateHash(const ReadStateHashRequest&
 
   ClientContext context;
   context.AddMetadata("client_id", client_id_);
-  auto result = async(launch::async, [this, &context, &request, hash] {
+  auto result = worker_thread_pool_->async([this, &context, &request, hash] {
     ReadLock read_lock(channel_mutex_);
     return trc_stub_->ReadStateHash(&context, request, hash);
   });
@@ -337,7 +336,7 @@ GrpcConnection::Result GrpcConnection::openHashStream(SubscriptionRequest& reque
   hash_context_.reset(new grpc::ClientContext());
   hash_context_->AddMetadata("client_id", client_id_);
 
-  auto stream = async(launch::async, [this, &request] {
+  auto stream = worker_thread_pool_->async([this, &request] {
     ReadLock read_lock(channel_mutex_);
     return trc_stub_->SubscribeToUpdateHashes(hash_context_.get(), request);
   });
@@ -385,7 +384,7 @@ GrpcConnection::Result GrpcConnection::readHash(Hash* hash) {
   ConcordAssertNE(hash_stream_, nullptr);
   ConcordAssertNE(hash_context_, nullptr);
 
-  auto result = async(launch::async, [this, hash] { return hash_stream_->Read(hash); });
+  auto result = worker_thread_pool_->async([this, hash] { return hash_stream_->Read(hash); });
   auto status = result.wait_for(hash_timeout_);
   if (status == future_status::timeout || status == future_status::deferred) {
     LOG_WARN(logger_, KVLOG(address_, client_id_));
@@ -417,7 +416,7 @@ GrpcConnection::Result GrpcConnection::openStateSnapshotStream(
   std::unique_ptr<grpc::ClientReaderInterface<vmware::concord::replicastatesnapshot::StreamSnapshotResponse>>
       snapshot_stream;
 
-  auto stream = async(launch::async, [this, &request, &snapshot_context] {
+  auto stream = worker_thread_pool_->async([this, &request, &snapshot_context] {
     ReadLock read_lock(channel_mutex_);
     return rss_stub_->StreamSnapshot(snapshot_context.get(), request);
   });
@@ -506,7 +505,7 @@ bool GrpcConnection::hasStateSnapshotStream(RequestId request_id) {
 
 GrpcConnection::Result GrpcConnection::readStateSnapshot(
     RequestId request_id, vmware::concord::replicastatesnapshot::StreamSnapshotResponse* snapshot_response) {
-  auto result = async(launch::async, [this, snapshot_response, request_id] {
+  auto result = worker_thread_pool_->async([this, snapshot_response, request_id] {
     ReadLock read_lock(rss_streams_mutex_);
     return (((this->rss_streams_)[request_id]).second)->Read(snapshot_response);
   });
