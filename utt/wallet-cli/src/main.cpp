@@ -1,13 +1,13 @@
 #include <iostream>
 
 #include <grpcpp/grpcpp.h>
-#include "api.grpc.pb.h"  // Generated from wallet-app/proto/api
+#include "api.grpc.pb.h"  // Generated from utt/wallet/proto/api
 
 int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
 
-  std::cout << "Welcome to the UTT Wallet CLI Application.\n";
+  std::cout << "UTT Wallet CLI Application.\n";
 
   // gRPC
   try {
