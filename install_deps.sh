@@ -57,7 +57,6 @@ install_build_tools() {
 # Install 3rd parties
 install_third_party_libraries() {
     apt-get ${APT_GET_FLAGS} install \
-        libboost-filesystem1.65-dev \
         libboost-system1.65-dev \
         libboost-program-options1.65-dev \
         libboost1.65-dev \

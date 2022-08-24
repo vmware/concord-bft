@@ -13,7 +13,7 @@
 #include "direct_kv_db_adapter.h"
 #include "storage/direct_kv_key_manipulator.h"
 
-#include <experimental/filesystem>
+#include <util/filesystem.hpp>
 
 using namespace std;
 
@@ -58,7 +58,7 @@ uint8_t *writeInTransaction(const ObjectId &objectId, const uint32_t &dataLen) {
 
 DBMetadataStorage *initiateMetadataStorage(Client *dbClient, const std::string &dbPath, bool remove_old_file) {
   if (remove_old_file) {
-    std::experimental::filesystem::remove_all(dbPath.c_str());
+    fs::remove_all(dbPath.c_str());
   }
   DBMetadataStorage *metadataStorage_ =
       new DBMetadataStorage(dbClient, std::make_unique<concord::storage::v1DirectKeyValue::MetadataKeyManipulator>());
