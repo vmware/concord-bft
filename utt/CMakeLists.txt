@@ -176,6 +176,7 @@ enable_testing()
 add_subdirectory(libutt)
 add_subdirectory(libxassert)
 add_subdirectory(libxutils)
+add_subdirectory(wallet-cli)
 
 set(newutt_src 
     libutt/src/api/UTTParams.cpp
