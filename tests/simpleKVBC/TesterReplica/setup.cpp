@@ -35,8 +35,7 @@
 #include "secrets_manager_plain.h"
 
 #include <boost/algorithm/string.hpp>
-#include <experimental/filesystem>
-
+#include <util/filesystem.hpp>
 #include "strategy/StrategyUtils.hpp"
 #include "strategy/ByzantineStrategy.hpp"
 #include "strategy/ShufflePrePrepareMsgStrategy.hpp"
@@ -50,8 +49,6 @@
 #ifdef USE_S3_OBJECT_STORE
 #include "s3/config_parser.hpp"
 #endif
-
-namespace fs = std::experimental::filesystem;
 
 namespace concord::kvbc {
 
