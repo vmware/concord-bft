@@ -718,15 +718,13 @@ void ThinReplicaClient::receiveUpdates() {
 void ThinReplicaClient::pushUpdateToUpdateQueue(std::unique_ptr<EventVariant> update,
                                                 const std::chrono::steady_clock::time_point& start,
                                                 bool is_event_group) {
-  // update current queue size metric before pushing to the update_queue
-  metrics_.current_queue_size.Get().Set(config_->update_queue->size());
-
-  // push update to the update queue for consumption by the application using
-  // TRC
+  // push update to the update queue for consumption by the application using TRC
   const auto& block_id = std::get<Update>(*update).block_id;
   auto num_events = std::get<Update>(*update).kv_pairs.size();
-  LOG_TRACE(logger_, "Pushing events to UpdateQueue:" << KVLOG(block_id, num_events));
   config_->update_queue->push(std::move(update));
+  auto update_queue_size = config_->update_queue->size();
+  metrics_.current_queue_size.Get().Set(update_queue_size);
+  LOG_TRACE(logger_, "Events pushed to UpdateQueue:" << KVLOG(block_id, num_events, update_queue_size));
 
   // update metrics
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
