@@ -153,6 +153,45 @@ def with_constant_load(async_fn):
                 nursery.cancel_scope.cancel()
     return wrapper
 
+def set_sanitizers_env(bft_network):
+    """
+    If we run Apollo with sanitizer, we need to override the output folder according to the
+    test suite name and test case name.
+    """
+    sanitizer_option = None
+    if 'UBSAN_OPTIONS' in os.environ:
+        sanitizer_option = 'UBSAN_OPTIONS'
+        sanitizer_log_dir = "ubsan_logs"
+        sanitizer_log_prefix = "ubsan.log"
+    elif 'TSAN_OPTIONS' in os.environ:
+        sanitizer_option = 'TSAN_OPTIONS'
+        sanitizer_log_dir = "tsan_logs"
+        sanitizer_log_prefix = "tsan.log"
+    elif 'ASAN_OPTIONS' in os.environ:
+        sanitizer_option = 'ASAN_OPTIONS'
+        sanitizer_log_dir = "asan_logs"
+        sanitizer_log_prefix = "asan.log"
+    test_suite_name = os.environ.get('TEST_NAME')
+
+    if sanitizer_option:
+        test_suite_name = os.environ.get('TEST_NAME')
+        if os.environ.get('BLOCKCHAIN_VERSION', default="1").lower() == "4" :
+            test_suite_name += "_v4"
+        sanitizer_log_path = os.path.join(bft_network.builddir, sanitizer_log_dir, test_suite_name, bft_network.current_test)
+        sanitizer_options = os.environ[sanitizer_option].partition(':')
+        str = ""
+        i = 0
+        assert len(sanitizer_options) > 0
+        while i < len(sanitizer_options):
+            if "log_path=" in sanitizer_options[i]: # remove the older log path
+                i = i + 2
+            else:
+                str += sanitizer_options[i]
+                i = i + 1
+        str += ":log_path=" + os.path.join(sanitizer_log_path, sanitizer_log_prefix) # add a new log path
+        os.environ[sanitizer_option] = str
+        os.makedirs(sanitizer_log_path, exist_ok=True) # create the test output folder
+
 def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None, num_ro_replicas=0,
                      rotate_keys=False, bft_configs=None, with_cre=False, publish_master_keys=False,
                      num_repeats=int(os.getenv("NUM_REPEATS", 1)),
@@ -213,6 +252,7 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
                                         if rotate_keys:
                                             await bft_network.check_initital_key_exchange(
                                                 check_master_key_publication=publish_master_keys)
+                                        set_sanitizers_env(bft_network)
                                         bft_network.test_start_time = time.time()
                                         await async_fn(*args, **kwargs, bft_network=bft_network)
                             await test_with_bft_network()
