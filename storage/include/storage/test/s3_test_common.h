@@ -13,8 +13,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <fstream>
-#include <experimental/filesystem>
-namespace fs = std::experimental::filesystem;
+#include <util/filesystem.hpp>
 
 namespace concord::storage::s3::test {
 

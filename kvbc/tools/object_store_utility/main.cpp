@@ -30,8 +30,7 @@ int main(int argc, char** argv) {
   auto checker = std::make_shared<IntegrityChecker>(logger);
   auto restorer = std::make_shared<DBRestore>(checker, logger);
 
-  po::options_description global{boost::dll::program_location().filename().string() +
-                                " MANDATORY_OPTIONS <validate|restore> OPTIONS"};
+  po::options_description global{"object_store_utility MANDATORY_OPTIONS <validate|restore> OPTIONS"};
   global.add_options()("help", "produce a help message");
 
   po::options_description mandatory{"MANDATORY_OPTIONS"};
