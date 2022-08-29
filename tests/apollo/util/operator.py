@@ -20,37 +20,47 @@ import concord_msgs as cmf_msgs
 
 sys.path.append(os.path.abspath("../../util/pyclient"))
 
+# For EdDSA algorithm.
 from cryptography.hazmat.primitives import serialization
 
+# For ECDSA algorithm.
+from ecdsa import SigningKey
+from ecdsa import SECP256k1
+import hashlib
+
 import bft_client
-#from ecdsa import SigningKey
-#from ecdsa import SECP256k1
-#import hashlib
 
 import util.eliot_logging as log
+
+# NOTE: When the value is changed, then ensure to change in ReplicaConfig class'
+# 'operatorMsgSigningAlgo' value also.
+operator_msg_signing_algo = "eddsa" # or "ecdsa"
 
 class Operator:
     def __init__(self, config, client, priv_key_dir):
         self.config = config
         self.client = client
 
-        # Read ECDSA signing key.
-        # with open(priv_key_dir + "/operator_priv.pem") as f:
-        #    self.private_key = SigningKey.from_pem(f.read(), hashlib.sha256)
-
-        # Read EdDSA signing key.
-        txn_signing_key_path = priv_key_dir + "/operator_priv.pem"
-        if txn_signing_key_path:
-            with open(txn_signing_key_path, 'rb') as f:
-                self.private_key = serialization.load_pem_private_key(f.read(), password=None)
+        if ("ecdsa" == operator_msg_signing_algo):
+            # Read ECDSA signing key.
+            with open(priv_key_dir + "/operator_priv.pem") as f:
+                self.private_key = SigningKey.from_pem(f.read(), hashlib.sha256)
+        elif ("eddsa" == operator_msg_signing_algo):
+            # Read EdDSA signing key.
+            txn_signing_key_path = priv_key_dir + "/operator_priv.pem"
+            if txn_signing_key_path:
+                with open(txn_signing_key_path, 'rb') as f:
+                    self.private_key = serialization.load_pem_private_key(f.read(), password=None)
 
     def _sign_reconf_msg(self, msg):
-        signature = b''
-        if self.private_key:
-            signature = self.private_key.sign(bytes(msg.serialize()))
-        return signature
-        # Return ECDSA signature.
-        # return self.private_key.sign_deterministic(msg.serialize())
+        if ("ecdsa" == operator_msg_signing_algo):
+            # Return ECDSA signature.
+            return self.private_key.sign_deterministic(msg.serialize())
+        elif ("eddsa" == operator_msg_signing_algo):
+            signature = b''
+            if self.private_key:
+                signature = self.private_key.sign(bytes(msg.serialize()))
+            return signature
 
     def  _construct_basic_reconfiguration_request(self, command):
         reconf_msg = cmf_msgs.ReconfigurationRequest()

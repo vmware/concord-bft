@@ -93,7 +93,7 @@ TEST(SignerAndVerifierTest, LoadSignVerifyFromHexKeyPair) {
   const auto signer_ = Factory::getSigner(keyPair.first, ReplicaConfig::instance().replicaMsgSigningAlgo);
   const auto verifier_ = Factory::getVerifier(keyPair.second, ReplicaConfig::instance().replicaMsgSigningAlgo);
 
-  // sign with RSASigner/EdDSASigner
+  // sign with replica signer.
   std::string sig;
   size_t expectedSignerSigLen = signer_->signatureLength();
   sig.reserve(expectedSignerSigLen);
@@ -103,7 +103,7 @@ TEST(SignerAndVerifierTest, LoadSignVerifyFromHexKeyPair) {
   lenRetData = sig.size();
   ASSERT_EQ(lenRetData, expectedSignerSigLen);
 
-  // validate with RSAVerifier/EdDSAVerifier
+  // validate with replica verifier.
   ASSERT_TRUE(verifier_->verify(str_data, sig));
 
   // change data randomally, expect failure
@@ -137,7 +137,7 @@ TEST(SignerAndVerifierTest, LoadSignVerifyFromPemfiles) {
   const auto verifier_ =
       Factory::getVerifier(pubkey, ReplicaConfig::instance().replicaMsgSigningAlgo, KeyFormat::PemFormat);
 
-  // sign with RSASigner/EdDSASigner
+  // sign with replica signer.
   size_t expectedSignerSigLen = signer_->signatureLength();
   sig.reserve(expectedSignerSigLen);
   size_t lenRetData;
@@ -146,7 +146,7 @@ TEST(SignerAndVerifierTest, LoadSignVerifyFromPemfiles) {
   lenRetData = sig.size();
   ASSERT_EQ(lenRetData, expectedSignerSigLen);
 
-  // validate with RSAVerifier/EdDSAVerifier
+  // validate with replica verifier.
   ASSERT_TRUE(verifier_->verify(str_data, sig));
 
   // change data randomally, expect failure
@@ -201,7 +201,7 @@ TEST(SigManagerTest, ReplicasOnlyCheckVerify) {
 
     if (i == myId) continue;
 
-    // sign with RSASigner/EdDSASigner (other replicas, mock)
+    // sign with replica signer (other replicas, mock)
     expectedSignerSigLen = signer->signatureLength();
     sig.reserve(expectedSignerSigLen);
     generateRandomData(data, RANDOM_DATA_SIZE);
@@ -263,7 +263,7 @@ TEST(SigManagerTest, ReplicasOnlyCheckSign) {
   sig.resize(expectedSignerSigLen);
   sigManager->sign(data, RANDOM_DATA_SIZE, sig.data());
 
-  // Validate with RSAVerifier (mock)
+  // Validate with replica verifier (mock)
   std::string str_data(data, RANDOM_DATA_SIZE);
   ASSERT_TRUE(verifier->verify(str_data, sig));
 
