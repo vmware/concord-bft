@@ -51,7 +51,7 @@ class RequestServiceServicer(object):
         INVALID_ARGUMENT: if a required field is not set.
         RESOURCE_EXHAUSTED: if Concord Client is overloaded. The caller should retry with a backoff.
         UNAVAILABLE: if Concord Client is currently unable to process any requests. The caller should retry with a backoff.
-        ABORTED: if Concord has a contention between concurrently running requests. The caller should retry.
+        ABORTED: if Concord has a contention between concurrently running requests or if execution engine has rejected requests. The caller should retry.
         INTERNAL: if Concord Client cannot progress independent of the request.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)

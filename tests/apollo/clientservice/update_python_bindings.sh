@@ -9,6 +9,7 @@ fi
 PROTOS=(
   $PWD/../../../client/proto/request/v1/request.proto
   $PWD/../../../client/proto/event/v1/event.proto
+  $PWD/../../../client/proto/state_snapshot/v1/state_snapshot.proto
 )
 
 for proto in ${PROTOS[@]}; do
