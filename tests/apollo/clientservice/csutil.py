@@ -16,9 +16,11 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 import request_pb2 as request_proto  # noqa: E402
 import event_pb2 as event_proto  # noqa: E402
+import state_snapshot_pb2 as state_snapshot_proto
 
 import request_pb2_grpc as request_grpc  # noqa: E402
 import event_pb2_grpc as event_grpc  # noqa: E402
+import state_snapshot_pb2_grpc as state_snapshot_grpc
 
 
 class Clientservice:
@@ -26,6 +28,7 @@ class Clientservice:
         self.channel = grpc.insecure_channel("{}:{}".format(host, port))
         self.request_stub = request_grpc.RequestServiceStub(self.channel)
         self.event_stub = event_grpc.EventServiceStub(self.channel)
+        self.state_snapshot_stub = state_snapshot_grpc.StateSnapshotServiceStub(self.channel)
 
     def __del__(self):
         self.channel.close()
@@ -51,3 +54,15 @@ class Clientservice:
                 event_groups=event_proto.EventGroupsRequest(event_group_id=id)
             )
         return self.event_stub.Subscribe(req)
+
+    def get_recent_snapshot(self):
+        req = state_snapshot_proto.GetRecentSnapshotRequest()
+        return self.state_snapshot_stub.GetRecentSnapshot(req)
+
+
+    def stream_snapshot(self, id, last_recvd_key=""):
+        req = state_snapshot_proto.StreamSnapshotRequest(snapshot_id=id, last_received_key=last_recvd_key)
+        return self.state_snapshot_stub.StreamSnapshot(req)
+
+    def read_as_of(self, id, keys_list=[""]):
+        req = state_snapshot_proto.ReadAsOfRequest(snashot_id = id, keys = keys_list)
