@@ -66,3 +66,4 @@ class Clientservice:
 
     def read_as_of(self, id, keys_list=[""]):
         req = state_snapshot_proto.ReadAsOfRequest(snashot_id = id, keys = keys_list)
+        return self.state_snapshot_stub.ReadAsOf(req)
