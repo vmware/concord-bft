@@ -64,7 +64,7 @@ inline word_t ch(word_t x, word_t y, word_t z) { return (x & y) ^ ((~x) & z); }
 inline word_t maj(word_t x, word_t y, word_t z) { return (x & y) ^ (x & z) ^ (y & z); }
 
 inline word_t rotr(word_t x, std::size_t n) {
-  assert(n < 32);
+  if (n >= 32) throw std::runtime_error("invalid n argument");
   return mask_32bit((x >> n) | (x << (32 - n)));
 }
 
@@ -73,7 +73,7 @@ inline word_t bsig0(word_t x) { return rotr(x, 2) ^ rotr(x, 13) ^ rotr(x, 22); }
 inline word_t bsig1(word_t x) { return rotr(x, 6) ^ rotr(x, 11) ^ rotr(x, 25); }
 
 inline word_t shr(word_t x, std::size_t n) {
-  assert(n < 32);
+  if (n >= 32) throw std::runtime_error("invalid n argument");
   return x >> n;
 }
 
@@ -83,7 +83,7 @@ inline word_t ssig1(word_t x) { return rotr(x, 17) ^ rotr(x, 19) ^ shr(x, 10); }
 
 template <typename RaIter1, typename RaIter2>
 void hash256_block(RaIter1 message_digest, RaIter2 first, RaIter2 last) {
-  assert(first + 64 == last);
+  if (first + 64 != last) throw std::runtime_error("invalid arguments");
   static_cast<void>(last);  // for avoiding unused-variable warning
   word_t w[64];
   std::fill(w, w + 64, 0);

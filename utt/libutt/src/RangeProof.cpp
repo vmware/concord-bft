@@ -216,7 +216,7 @@ std::vector<Fr> __computeGamma(size_t val64, size_t N, const Fr& val) {
   // X^N - 1
   std::vector<Fr> g2_sel = RangeProof::Params::XNminus1;
 
-  const std::vector<Fr> gamma = poly_add(poly_mult_naive(g1_sel, g1), poly_mult_naive(g2_sel, g2));
+  std::vector<Fr> gamma = poly_add(poly_mult_naive(g1_sel, g1), poly_mult_naive(g2_sel, g2));
 
 #ifndef NDEBUG
   // logdbg << "Checking \\gamma(X) was computed correctly" << endl;
