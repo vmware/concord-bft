@@ -529,8 +529,17 @@ class SkvbcRestartRecoveryTest(ApolloTest):
 
             bft_network.stop_replica(next_primary)
 
+            expected_final_view = expected_final_view + 1
+            await skvbc.run_concurrent_ops(10)
+            await bft_network.wait_for_view(
+                replica_id=random.choice(bft_network.all_replicas(without={primary, next_primary})),
+                expected=lambda v: v == expected_final_view,
+                err_msg="Make sure view change has been triggered."
+            )
             bft_network.start_replica(primary)
             bft_network.start_replica(next_primary)
+
+            await trio.sleep(seconds=10)
 
             await bft_network.wait_for_fast_path_to_be_prevalent(
                 run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
