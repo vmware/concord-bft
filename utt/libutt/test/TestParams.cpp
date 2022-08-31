@@ -17,7 +17,7 @@ int main(int argc, char *argv[]) {
   Params p = Params::random();
   Params otherp = Params::random();
   Params samep = p;
-
+  (void)samep;
   testAssertNotEqual(p, otherp);
   testAssertEqual(p, samep);
 

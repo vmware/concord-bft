@@ -53,7 +53,8 @@ Tx::Tx(const Params& p,
        const std::vector<std::tuple<std::string, Fr>>& recip,
        const RandSigPK& bpk,  // only used for debugging
        const RegAuthPK& rpk)  // only to encrypt for the recipients
-    : Tx{p, ask.pid_hash, ask.pid, ask.rcm, ask.rs, ask.s, c, b, recip, bpk, rpk.vk, IBEEncryptor(rpk.mpk)} {}
+    : Tx{p, ask.pid_hash, ask.pid, ask.rcm, ask.rs, ask.s, c, std::move(b), recip, bpk, rpk.vk, IBEEncryptor(rpk.mpk)} {
+}
 
 Tx::Tx(const Params& p,
        const Fr pidHash,
@@ -105,7 +106,7 @@ Tx::Tx(const Params& p,
   std::set<size_t> forMeOutputs;
   std::vector<size_t> notForMeOutputs;
   for (size_t j = 0; j < recip.size(); j++) {
-    auto pid_recip = std::get<0>(recip[j]);
+    const auto& pid_recip = std::get<0>(recip[j]);
     auto val = static_cast<size_t>(std::get<1>(recip[j]).as_ulong());
 
     totalOut += val;
@@ -356,7 +357,7 @@ bool Tx::quickPayValidate(const Params& p, const RandSigPK& bpk, const RegAuthPK
     return false;
   }
 
-  assert(!isBudgeted || budget_pi.has_value());
+  assertTrue(!isBudgeted || budget_pi.has_value());
 
   /**
    * Step 2: Check registration authority's sig on registration commitment

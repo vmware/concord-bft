@@ -38,7 +38,7 @@ std::istream& operator>>(std::istream& in, libutt::MintOp& op) {
 
 namespace libutt {
 
-static Fr createSN(std::string uniqueHash) { return hashToField("new sn|" + uniqueHash); }
+static Fr createSN(const std::string& uniqueHash) { return hashToField("new sn|" + uniqueHash); }
 
 MintOp::MintOp(const std::string& uniqueHash, size_t v, const std::string& recipPID) {
   testAssertGreaterThanOrEqual(v, 1);

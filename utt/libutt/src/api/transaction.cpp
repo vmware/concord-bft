@@ -22,8 +22,11 @@ Transaction::Transaction(const UTTParams& d,
   auto rcm = cid.getRcm();
   auto rcm_str_sig = std::string(rcm.second.begin(), rcm.second.end());
   auto rcm_sig = libutt::deserialize<libutt::RandSig>(rcm_str_sig);
-  std::vector<libutt::Coin> input_coins;
-  for (auto& c : coins) input_coins.push_back(*(c.coin_));
+  std::vector<libutt::Coin> input_coins(coins.size());
+  for (size_t i = 0; i < coins.size(); i++) {
+    const auto& c = coins[i];
+    input_coins[i] = *(c.coin_);
+  }
   std::optional<libutt::Coin> budget_coin = std::nullopt;
   if (bc.has_value()) budget_coin.emplace(*(bc->coin_));
   std::vector<std::tuple<std::string, Fr>> fr_recipients(recipients.size());

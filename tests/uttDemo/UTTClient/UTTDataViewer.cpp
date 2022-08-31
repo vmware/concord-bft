@@ -522,7 +522,7 @@ struct UttSigSharesView : DataView {
   const UttSigShares& sigShares_;
 
   UttSigSharesView(const DataView* prev, std::string key, const UttSigShares& sigShares)
-      : DataView(prev, key), sigShares_{sigShares} {}
+      : DataView(prev, std::move(key)), sigShares_{sigShares} {}
 
   void print() const override {
     title("Utt Signature Shares");
@@ -654,7 +654,7 @@ std::string UTTDataViewer::getCurrentPath() const {
   }
 
   std::stringstream path;
-  for (int i = keys.size() - 1; i > 0; --i) {
+  for (size_t i = keys.size() - 1; i > 0; --i) {
     path << keys[i] << '/';
   }
   path << keys[0];

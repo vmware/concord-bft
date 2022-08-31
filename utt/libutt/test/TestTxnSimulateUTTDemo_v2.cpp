@@ -117,10 +117,11 @@ int main(int argc, char* argv[]) {
       // Claim output coins
       for (size_t txoIdx = 0; txoIdx < clientTx.outs.size(); txoIdx++) {
         // Sample a subset of sigshares to aggregate
-        std::vector<RandSigShare> sigShareSubset;
         std::vector<size_t> signerIdSubset = random_subset(ctx.thresh_, ctx.n_);
-        for (auto id : signerIdSubset) {
-          sigShareSubset.push_back(replicaSignShares.at(id).at(txoIdx));
+        std::vector<RandSigShare> sigShareSubset(signerIdSubset.size());
+        for (size_t i = 0; i < signerIdSubset.size(); i++) {
+          auto id = signerIdSubset.at(i);
+          sigShareSubset[i] = replicaSignShares.at(id).at(txoIdx);
         }
 
         // Ensure only one of the wallets identifies this output as theirs and claims it

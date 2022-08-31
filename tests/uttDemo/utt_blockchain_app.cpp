@@ -104,7 +104,7 @@ void UTTBlockchainApp::appendBlock(Block&& bl) {
 }
 
 std::optional<BlockId> UTTBlockchainApp::executeBlocks() {
-  for (int i = lastExecutedBlockId_ + 1; i < (int)blocks_.size(); ++i)
+  for (size_t i = lastExecutedBlockId_ + 1; i < blocks_.size(); ++i)
     if (blocks_[i].tx_) executeTx(*blocks_[i].tx_);
 
   lastExecutedBlockId_ = blocks_.size() - 1;

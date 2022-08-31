@@ -93,7 +93,7 @@ class WalletCommunicator : public IReceiver {
     std::string listenHost;
     uint16_t listenPort = 0;
     {
-      std::stringstream ss(std::move(walletAddr));
+      std::stringstream ss(walletAddr);
       std::getline(ss, listenHost, ':');
       ss >> listenPort;
 
@@ -117,7 +117,7 @@ class WalletCommunicator : public IReceiver {
     std::string paymentServiceHost;
     uint16_t paymentServicePort = 0;
     {
-      std::stringstream ss(std::move(paymentServiceAddr));
+      std::stringstream ss(paymentServiceAddr);
       std::getline(ss, paymentServiceHost, ':');
       ss >> paymentServicePort;
 
@@ -339,7 +339,7 @@ std::pair<GetBlockDataReply, ReplicaSpecificInfo> sendGetBlockDataRequest(Wallet
   blockDataReq.block_id = blockId;
 
   UTTRequest req;
-  req.request = std::move(blockDataReq);
+  req.request = blockDataReq;
 
   std::vector<uint8_t> reqBytes;
   serialize(reqBytes, req);
@@ -467,8 +467,7 @@ std::optional<Tx> createPublicTx(const std::vector<std::string>& tokens, const U
     else if (tokens[0] == "withdraw")
       return TxPublicWithdraw(app.getMyPid(), std::atoi(tokens[1].c_str()));
   } else if (tokens.size() == 3) {
-    if (tokens[0] == "transfer")
-      return TxPublicTransfer(app.getMyPid(), std::move(tokens[1]), std::atoi(tokens[2].c_str()));
+    if (tokens[0] == "transfer") return TxPublicTransfer(app.getMyPid(), tokens[1], std::atoi(tokens[2].c_str()));
   }
 
   return std::nullopt;
@@ -761,7 +760,7 @@ void dbgRunRandomTxs(UTTClientApp& app, WalletCommunicator& comm, int count, uns
 
     auto randomMint = [&]() {
       const int maxBalance = std::max<int>(publicBalance, 1);
-      const int amount = 1 + gen() % maxBalance;  // in [1 .. maxBalance]
+      const uint64_t amount = 1 + gen() % maxBalance;  // in [1 .. maxBalance]
       std::cout << "Random mint tx " << (i + 1) << ": " << amount << '\n';
       std::vector<std::string> tokens = {"mint", std::to_string(amount)};
       mintCoin(app, comm, tokens);
@@ -769,7 +768,7 @@ void dbgRunRandomTxs(UTTClientApp& app, WalletCommunicator& comm, int count, uns
 
     auto randomBurn = [&]() {
       const int maxBalance = std::max<int>(uttBalance, 1);
-      const int amount = 1 + gen() % maxBalance;  // in [1 .. maxBalance]
+      const uint64_t amount = 1 + gen() % maxBalance;  // in [1 .. maxBalance]
       std::cout << "Random burn tx " << (i + 1) << ": " << amount << '\n';
       std::vector<std::string> tokens = {"burn", std::to_string(amount)};
       try {
@@ -781,7 +780,7 @@ void dbgRunRandomTxs(UTTClientApp& app, WalletCommunicator& comm, int count, uns
 
     auto randomPublicTx = [&]() {
       const int maxBalance = std::max<int>(publicBalance, 1);
-      const int amount = 1 + gen() % maxBalance;  // in [1 .. maxBalance]
+      const uint64_t amount = 1 + gen() % maxBalance;  // in [1 .. maxBalance]
       std::vector<std::string> tokens = {"transfer", *randWalletIt, std::to_string(amount)};
       auto tx = createPublicTx(tokens, app);
       ConcordAssert(tx.has_value());
@@ -790,7 +789,7 @@ void dbgRunRandomTxs(UTTClientApp& app, WalletCommunicator& comm, int count, uns
     };
 
     auto randomUttTx = [&]() {
-      const int amount = 1 + gen() % uttBalance;  // in [1 .. balance]
+      const uint64_t amount = 1 + gen() % uttBalance;  // in [1 .. balance]
       std::vector<std::string> tokens = {"utt", *randWalletIt, std::to_string(amount)};
       auto uttPayment = createUttPayment(tokens, app);
       ConcordAssert(uttPayment.has_value());
