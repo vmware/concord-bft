@@ -221,6 +221,7 @@ if(USE_GRPC)
 	add_subdirectory(thin-replica-server)
 endif()
 add_subdirectory(ccron)
+# [TODO-UTT] Compile libutt on GCC
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
     add_subdirectory(utt)
 endif()
