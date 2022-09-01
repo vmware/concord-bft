@@ -97,7 +97,7 @@ TxOut::TxOut(const CommKey& ck_val,  // this is the (g_3, g) CK, and *not* the c
              bool icmPok,
              bool hasRangeProof,
              // extra delegation parameters
-             CommKey ck_tx,
+             const CommKey& ck_tx,
              Fr pid_hash_recip,
              const IEncryptor& encryptor)
     : coin_type(coin_type),

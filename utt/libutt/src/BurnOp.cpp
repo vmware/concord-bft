@@ -85,8 +85,18 @@ BurnOp::BurnOp(const Params& p,
 
   std::vector<std::tuple<std::string, Fr>> recip;
   recip.emplace_back(pid, d->value);
-  Tx internalTx(
-      p, pidHash, pid, rcm_, rcm_sig, prf, inputCoins, std::nullopt, recip, bpk, rpk.vk, libutt::IBEEncryptor(rpk.mpk));
+  Tx internalTx(p,
+                pidHash,
+                pid,
+                rcm_,
+                rcm_sig,
+                prf,
+                inputCoins,
+                std::nullopt,
+                recip,
+                std::move(bpk),
+                rpk.vk,
+                libutt::IBEEncryptor(rpk.mpk));
 
   assertTrue(internalTx.outs.size() == 1);
 
@@ -127,6 +137,7 @@ BurnOp::~BurnOp() {
 }
 
 BurnOp& BurnOp::operator=(const BurnOp& o) {
+  if (&o == this) return *this;
   InternalDataOfBurnOp* d1 = (InternalDataOfBurnOp*)this->p;
 
   if (d1 != nullptr) {
@@ -175,7 +186,7 @@ bool BurnOp::validate(const Params& p, const RandSigPK& bpk, const RegAuthPK& rp
 
   Fr hashPid = AddrSK::pidHash(d->pid);
 
-  CommKey ck_val = p.getValCK();
+  const CommKey& ck_val = p.getValCK();
 
   G1 H;
 

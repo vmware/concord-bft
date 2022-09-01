@@ -109,7 +109,7 @@ class TxOut {
         bool icmPok,
         bool hasRangeProof,
         // extra delegation parameters
-        CommKey ck_tx,
+        const CommKey& ck_tx,
         Fr pid_hash_recip,
         const IEncryptor& encryptor);
 

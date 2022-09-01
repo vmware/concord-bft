@@ -122,7 +122,8 @@ int main(int argc, char** argv) {
       if (walletPids.empty()) throw std::runtime_error("Must provide wallet pids!");
 
       std::vector<std::string> checkUnique{walletPids};
-      std::unique(checkUnique.begin(), checkUnique.end());
+      auto _ = std::unique(checkUnique.begin(), checkUnique.end());
+      (void)_;
       if (walletPids.size() != checkUnique.size()) throw std::runtime_error("Must provide unique pids!");
     }
 

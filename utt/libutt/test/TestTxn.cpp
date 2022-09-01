@@ -172,10 +172,11 @@ void testBudgeted2to2Txn(size_t thresh, size_t n, size_t numCycles, bool isBudge
         }
 
         // first, sample a subset of sigshares to aggregate
-        std::vector<RandSigShare> sigShareSubset;
         std::vector<size_t> signerIdSubset = random_subset(thresh, n);
-        for (auto id : signerIdSubset) {
-          sigShareSubset.push_back(sigShares.at(id));
+        std::vector<RandSigShare> sigShareSubset(signerIdSubset.size());
+        for (size_t i = 0; i < signerIdSubset.size(); i++) {
+          auto id = signerIdSubset.at(i);
+          sigShareSubset[i] = sigShares.at(id);
         }
 
         // next, ensure only one of the wallets identifies this output as theirs

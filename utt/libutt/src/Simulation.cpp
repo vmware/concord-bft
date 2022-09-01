@@ -236,10 +236,11 @@ void signAndClaimOutputCoins(const Context& ctx, Tx& tx, std::vector<Wallet>& w)
     replicasSignOutputCoins(ctx, tx, txoIdx, sigShares);
 
     // first, sample a subset of sigshares to aggregate
-    std::vector<RandSigShare> sigShareSubset;
     std::vector<size_t> signerIdSubset = random_subset(ctx.thresh_, ctx.n_);
-    for (auto id : signerIdSubset) {
-      sigShareSubset.push_back(sigShares.at(id));
+    std::vector<RandSigShare> sigShareSubset(signerIdSubset.size());
+    for (size_t i = 0; i < signerIdSubset.size(); i++) {
+      auto id = signerIdSubset.at(i);
+      sigShareSubset[i] = sigShares.at(id);
     }
 
     // next, ensure only one of the wallets identifies this output as theirs

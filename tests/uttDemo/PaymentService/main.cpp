@@ -66,7 +66,7 @@ class PaymentServiceCommunicator : public IReceiver {
     std::string listenHost;
     uint16_t listenPort = 0;
     {
-      std::stringstream ss(std::move(paymentServiceAddr));
+      std::stringstream ss(paymentServiceAddr);
       std::getline(ss, listenHost, ':');
       ss >> listenPort;
 
@@ -90,7 +90,7 @@ class PaymentServiceCommunicator : public IReceiver {
       std::string walletHost;
       uint16_t walletPort = 0;
       {
-        std::stringstream ss(std::move(walletAddr));
+        std::stringstream ss(walletAddr);
         std::getline(ss, walletHost, ':');
         ss >> walletPort;
 

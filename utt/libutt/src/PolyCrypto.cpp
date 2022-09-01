@@ -78,15 +78,17 @@ GT MultiPairing(const std::vector<G1>& g1, const std::vector<G2>& g2) {
   using G2_precomp = libff::default_ec_pp::G2_precomp_type;
   using Fqk = libff::default_ec_pp::Fqk_type;
 
-  std::vector<G1_precomp> g1p;
-  std::vector<G2_precomp> g2p;
+  std::vector<G1_precomp> g1p(g1.size());
+  std::vector<G2_precomp> g2p(g2.size());
 
-  for (auto el : g1) {
-    g1p.push_back(libff::default_ec_pp::precompute_G1(el));
+  for (size_t i = 0; i < g1.size(); i++) {
+    auto el = g1.at(i);
+    g1p[i] = libff::default_ec_pp::precompute_G1(el);
   }
 
-  for (auto el : g2) {
-    g2p.push_back(libff::default_ec_pp::precompute_G2(el));
+  for (size_t i = 0; i < g2.size(); i++) {
+    auto el = g2[i];
+    g2p[i] = libff::default_ec_pp::precompute_G2(el);
   }
 
   auto numDblMiller = g1.size() / 2;
