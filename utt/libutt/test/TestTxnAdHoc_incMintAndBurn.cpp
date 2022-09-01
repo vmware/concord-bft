@@ -52,7 +52,9 @@ int main(int argc, char* argv[]) {
 
   assertGreaterThanOrEqual(wallets.size(), 2);
 
-  size_t numCycles = 500;
+  // [TODO-UTT] Consider providing longer simulations a part of a
+  // specialized test-suite for utt
+  size_t numCycles = 200;
 
   size_t newMoney = 0;
   size_t burnedMoney = 0;
