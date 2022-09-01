@@ -1,0 +1,187 @@
+// Copyright 2021 VMware, all rights reserved
+//
+// UTT Wallet's api
+
+syntax = "proto3";
+// [TODO-UTT] Condense this package identifier into fewer tokens?
+package vmware.concord.utt.wallet.api.v1; 
+
+// Test
+// [TODO-UTT] Remove TestService
+service TestService {
+    rpc reverseString(ReverseStringRequest) returns (ReverseStringResponse);
+}
+
+message ReverseStringRequest {
+    optional string input = 1;
+}
+
+message ReverseStringResponse {
+    optional string output = 1;
+}
+
+// UTT Wallet Service Interface
+// This interface follows the UTT contract interface as close as possible.
+// [TODO-UTT] Consider if we should use a simplified version of this api that assumes synchronous requests
+// - This would mean that a request will receive a response only when signatures are computed.
+service UTTWalletService {
+    rpc registerUser(RegisterUserRequest) returns (RegisterUserResponse);
+    rpc getUserRegistration(GetUserRegistrationRequest) returns (GetUserRegistrationResponse);
+
+    // Note: creating a public budget is done by an administrator
+    rpc getLatestPublicBudget(GetLatestPublicBudgetRequest) returns (GetLatestPublicBudgetResponse);
+
+    // [TODO-UTT] Consider if we need to get the budget sig alone.
+    // Here is the problem: only one budget coin can exist for a user at the any time, but the signature
+    // is not ready at the same time as the budget coin.
+    // If we call getLatestPublicBudget and get back both a budget coin and a sig then we can use the coin.
+    // If we get just the budget coin the sig is still pending.
+    // But when we get the sig eventually we're not guaranteed that its for the same budget coin.
+    // Concurrently some administrator may have created a new budget coin.
+    // The safest bet is to call getLatestPublicBudgetSig until you get both a budget coin and a sig.
+    // Otherwise we need to verify that the coin and sig match and if not - request the coin and/or sig until they do.
+    rpc getLatestPublicBudgetSig(GetLatestPublicBudgetSigRequest) returns (GetLatestPublicBudgetSigResponse);
+
+    rpc transfer(TransferRequest) returns (TransferResponse);
+
+    // Note: mint is supposed to convert public funds (Ether, ERC-20 tokens, etc.) to private funds (UTT tokens).
+    // Here we make an assumption that the wallet service keeps track of our public funds but in reality
+    // we need a way to use one or more Ethereum accounts representing the public funds of the user.
+    rpc mint(MintRequest) returns (MintResponse);
+
+    // Note: burn is supposed to convert private funds (UTT tokens) to public funds (Ether, ERC-20 tokens, etc.).
+    // Here we make an assumption that the wallet service keeps track of our public funds but in reality
+    // we need a way to use one or more Ethereum accounts representing the public funds of the user.
+    rpc burn(BurnRequest) returns (BurnResponse);
+
+    // Same as getNumOfLastAddedTranscation from spec
+    rpc getLastAddedTxNumber(GetLastAddedTxNumberRequest) returns (GetLastAddedTxNumberResponse);
+
+    // Same as getNumOfLastSignedTranscation from spec
+    rpc getLastSignedTxNumber(GetLastSignedTxNumberRequest) returns (GetLastSignedTxNumberResponse);
+
+    rpc getTransaction(GetTransactionRequest) returns (GetTransactionResponse);
+
+    rpc getTransactionSig(GetTransactionSigRequest) returns (GetTransactionSigResponse);
+}
+
+message RegisterUserRequest {
+    optional string user_id = 1;    
+    optional bytes input_rcm = 2;   // The user's input registration commitment
+    optional bytes user_pk = 3;     // The user's public key
+}
+
+// [TODO-UTT] Consider if we should include the complete result in the response
+// instead of indicating success and then periodically requesting the registration data
+message RegisterUserResponse {
+    // [TODO-UTT] Replace flag with error enum indicating the exact error.
+    optional bool success = 1;      // Indicates if the registration was accepted by the service
+}
+
+message GetUserRegistrationRequest {
+    optional string user_id = 1;
+}
+
+message GetUserRegistrationResponse {
+    optional string user_id = 1;    
+    optional bytes user_pk = 2;     // User's public key
+    optional bytes s2 = 3;          // System-generated part of the user's PRF key (used for nullifiers)
+    optional bytes rs = 4;          // A signature on the full registration commitment
+}
+
+message GetLatestPublicBudgetRequest {
+    optional string user_id = 1;
+}
+
+message GetLatestPublicBudgetResponse {
+    optional bytes budget_coin = 1;
+    // [TODO-UTT] Consider returning the signature in the same response as the budget coin,
+    // optional bytes signature = 2; // Could be empty
+}
+
+message GetLatestPublicBudgetSigRequest {
+    optional string user_id = 1;
+}
+
+message GetLatestPublicBudgetSigResponse {
+    optional bytes signature = 1;
+}
+
+message TransferRequest {
+    optional TransferTx transfer = 1;
+}
+
+message TransferResponse {
+    optional uint64 tx_number = 1;
+}
+
+message MintRequest {
+    optional string user_id = 1;
+    optional uint64 value = 2;
+}
+
+message MintResponse {
+    optional uint64 tx_number = 1;
+}
+
+message BurnRequest {
+    optional string user_id = 1;
+    optional bytes burn_tx = 2;
+    optional uint64 value = 3;
+}
+
+message BurnResponse {
+    optional uint64 tx_number = 1;
+}
+
+message GetLastAddedTxNumberRequest {
+}
+
+message GetLastAddedTxNumberResponse {
+    optional uint64 tx_number = 1;
+}
+
+message GetLastSignedTxNumberRequest {
+}
+
+message GetLastSignedTxNumberResponse {
+    optional uint64 tx_number = 1;
+}
+
+message GetTransactionRequest {
+    optional uint64 tx_number = 1;
+}
+
+message GetTransactionResponse {
+    optional uint64 tx_number = 1;
+    oneof tx {
+        TransferTx transfer = 2;
+        MintTx mint = 3;
+        BurnTx burn = 4;
+      }
+}
+
+message TransferTx {
+    // [TODO-UTT] What else is in a transfer tx?
+    // -- should be mostly represented as bytes since this is an anonymous tx.
+    optional bytes tx = 1;
+}
+
+message MintTx {
+    // [TODO-UTT] What else is in a mint tx?
+    optional bytes tx = 1;
+}
+
+message BurnTx {
+    // [TODO-UTT] What else is in a burn tx?
+    optional bytes tx = 1;
+}
+
+message GetTransactionSigRequest {
+    optional uint64 tx_number = 1;
+}
+
+message GetTransactionSigResponse {
+    optional uint64 tx_number = 1;
+    repeated bytes signatures = 2;
+}
