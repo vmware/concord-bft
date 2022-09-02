@@ -495,6 +495,59 @@ class SkvbcRestartRecoveryTest(ApolloTest):
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: c == 0, rotate_keys=True)
     @verify_linearizability()
+    async def test_stop_primary_during_initiated_view_change(self, bft_network, tracker):
+        # 1. Start all replicas.
+        # 2. Introduce client requests.
+        # 3. In parallel to the requests, crash the Primary.
+        # 4. Wait for the system to perform a View Change.
+        # 5. During the View Change Process stop the New Primary while the replicas are rebuilding the previous View's Working Window. This might require functionality not present in Apollo to be able to stop the selected replica in the appropriate moment.
+        # 6. Wait for the system to move to the next View.
+        # 7. Start All previously stopped replicas.
+        # 8. Wait for Fast Commit Path to recover.
+        # 9. Goto step 2.
+
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+        
+        [bft_network.start_replica(i) for i in bft_network.all_replicas()]
+
+
+        for i in range(loops):
+
+            await skvbc.run_concurrent_ops(100)
+            
+            primary = await bft_network.get_current_primary()
+            next_primary = (primary + 1) % bft_network.config.n
+            expected_final_view = await bft_network.get_current_view() + 1
+
+            bft_network.stop_replica(primary)
+            await skvbc.run_concurrent_ops(10)
+            await bft_network.wait_for_view(
+                replica_id=random.choice(bft_network.all_replicas(without={primary})),
+                expected=lambda v: v == expected_final_view,
+                err_msg="Make sure view change has been triggered."
+            )
+
+            bft_network.stop_replica(next_primary)
+
+            expected_final_view = expected_final_view + 1
+            await skvbc.run_concurrent_ops(10)
+            await bft_network.wait_for_view(
+                replica_id=random.choice(bft_network.all_replicas(without={primary, next_primary})),
+                expected=lambda v: v == expected_final_view,
+                err_msg="Make sure view change has been triggered."
+            )
+            bft_network.start_replica(primary)
+            bft_network.start_replica(next_primary)
+
+            await trio.sleep(seconds=10)
+
+            await bft_network.wait_for_fast_path_to_be_prevalent(
+                run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
+
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: c == 0, rotate_keys=True)
+    @verify_linearizability()
     async def test_view_change_with_non_primary_replica_in_state_transfer(self, bft_network, tracker):
         """
         The Apollo test, which should be part of the test_skvbc_restart_recovery suite implements the following steps:
