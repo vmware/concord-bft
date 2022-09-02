@@ -69,7 +69,7 @@ install_third_party_libraries() {
         libz-dev \
         libzstd-dev
 
-    pip3 install --upgrade wheel && pip3 install --upgrade trio
+    pip3 install --upgrade wheel && pip3 install --upgrade trio && pip3 install --upgrade pip
     pip3 install \
         eliot eliot-tree \
         tatsu==4.4.0 \
@@ -78,7 +78,8 @@ install_third_party_libraries() {
         ecdsa \
         protobuf==3.15.8 \
         grpcio==1.37.1 \
-        grpcio-tools==1.37.1
+        grpcio-tools==1.37.1 \
+        cryptography==3.3.2
 }
 
 
