@@ -194,7 +194,8 @@ auto RequestProcessingState::calculateMaxNbrOfEqualHashes(uint16_t &maxNumOfEqua
 bool RequestProcessingState::isReqTimedOut() const {
   if (!clientPreProcessReqMsg_) return false;
 
-  LOG_DEBUG(logger(), KVLOG(preprocessingRightNow_));
+  LOG_DEBUG(logger(),
+            "Check if request timed out" << KVLOG(clientId_, batchCid_, reqSeqNum_, reqCid_, preprocessingRightNow_));
   if (!preprocessingRightNow_) {
     // Check request timeout once an asynchronous pre-execution completed (to not abort the execution thread)
     auto reqProcessingTime = getMonotonicTimeMilli() - entryTime_;
