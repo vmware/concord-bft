@@ -1,26 +1,23 @@
 find_package(GTest REQUIRED)
 find_package(rapidcheck)
+find_package(yaml-cpp ${YAML_CPP_VERSION} REQUIRED)
 
-if(Boost_FOUND)
-    add_executable(blockchain_view_test blockchain_view_test.cpp )
-    add_test(blockchain_view_test blockchain_view_test)
-    target_include_directories(blockchain_view_test PRIVATE ${Boost_INCLUDE_DIRS})
-    target_link_libraries(blockchain_view_test PUBLIC
-        GTest::Main
-        util
-        kvbc
-    )
-endif()
+add_executable(blockchain_view_test blockchain_view_test.cpp )
+add_test(blockchain_view_test blockchain_view_test)
+target_link_libraries(blockchain_view_test PUBLIC
+            GTest::Main
+            util
+            kvbc
+)
 add_subdirectory(resources-manager)
 add_test(NAME kvbc_filter_test COMMAND kvbc_filter_test)
 add_executable(kvbc_filter_test
         kvbc_app_filter/kvbc_filter_test.cpp)
 
 target_link_libraries(kvbc_filter_test
-        ${Boost_LIBRARIES}
         GTest::Main
         GTest::GTest
-        ${yaml-cpp_LIBRARIES}
+        yaml-cpp
         kvbc
         concord-kvbc-proto
         corebft
@@ -100,9 +97,9 @@ target_link_libraries(sparse_merkle_base_types_test PUBLIC
     corebft
     kvbc
 )
-if(NOT BUILD_THIRDPARTY)
-    find_package(OpenSSL REQUIRED)
-endif()
+
+find_package(OpenSSL REQUIRED)
+
 add_executable(sparse_merkle_internal_node_test sparse_merkle/internal_node_test.cpp
     )
 add_test(sparse_merkle_internal_node_test sparse_merkle_internal_node_test)
@@ -368,7 +365,7 @@ if (BUILD_ROCKSDB_STORAGE)
     # target_link_libraries(v4_migration_test PUBLIC
     #         GTest::Main
     #         GTest::GTest
-    #         ${Boost_LIBRARIES}
+    #         Boost::program_options
     #         v4migration_tool_lib
     #         util
     #         corebft

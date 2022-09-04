@@ -11,7 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include <boost/detail/endian.hpp>
+#include "endianness.hpp"
 #include <boost/lockfree/spsc_queue.hpp>
 #include <cassert>
 #include <exception>
@@ -292,21 +292,21 @@ class FakeStorage : public concord::kvbc::IReader {
 // Helper function to test cases involving computation of expected hash
 // value(s).
 std::string blockIdToByteStringLittleEndian(const BlockId &block_id) {
-#ifdef BOOST_LITTLE_ENDIAN
+#ifdef CONCORD_LITTLE_ENDIAN
   return std::string(reinterpret_cast<const char *>(&block_id), sizeof(block_id));
-#else  // BOOST_LITTLE_ENDIAN not defined in this case
-#ifndef BOOST_BIG_ENDIAN
+#else  // CONCORD_LITTLE_ENDIAN not defined in this case
+#ifndef CONCORD_BIG_ENDIAN
   static_assert(false,
                 "Cannot determine endianness (needed for computing expected "
                 "Thin Replica hash values).");
-#endif  // BOOST_BIG_ENDIAN defined
+#endif  // CONCORD_BIG_ENDIAN defined
   const char *block_id_as_bytes = reinterpret_cast<const char *>(block_id);
   string block_id_little_endian;
   for (size_t i = 1; i <= sizeof(block_id); ++i) {
     block_id_little_endian += *(block_id_as_bytes + sizeof(block_id) - i);
   }
   return block_id_little_endian;
-#endif  // BOOST_LITTLE_ENDIAN defined/else
+#endif  // CONCORD_LITTLE_ENDIAN defined/else
 }
 
 // Prefix the key with the immutable index to make it unique and ordered.

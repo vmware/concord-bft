@@ -1,17 +1,15 @@
-cmake_minimum_required(VERSION 3.2)
+cmake_minimum_required(VERSION 3.24)
 project(concord-bft VERSION 0.1.0.0 LANGUAGES CXX)
 
-#
-# C++ options
-#   TODO: change to set_target_properties?
-#   https://crascit.com/2015/03/28/enabling-cxx11-in-cmake/
-#
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(SLEEP_FOR_DBG FALSE)
-
-set(MIN_BOOST_VERSION 1.64)
+# targets with generic names like "format" may already exist in an imported libs
+cmake_policy(SET CMP0002 OLD)
+set(ALLOW_DUPLICATE_CUSTOM_TARGETS TRUE)
+set(MIN_BOOST_VERSION 1.80)
+set(YAML_CPP_VERSION 0.7.0)
 
 # Default to debug builds
 # Release builds can be enabled by running cmake with -DCMAKE_BUILD_TYPE=Release
@@ -43,7 +41,7 @@ option(USE_JSON "Enable use of JSON library" ON)
 option(USE_HTTPLIB "Enable use of httplib" ON)
 option(USE_GRPC "Enable GRPC and Protobuf" ON)
 option(USE_OPENSSL "Enable use of OpenSSL" ON)
-option(BUILD_THIRDPARTY "Wheter to build third party librarie or use preinstalled ones" OFF)
+option(BUILD_THIRDPARTY "Whether to build third party libraries or use preinstalled ones" OFF)
 option(CODECOVERAGE "Enable Code Coverage Metrics in Clang" OFF)
 option(ENABLE_RESTART_RECOVERY_TESTS "Enable tests for restart recovery" OFF)
 option(BUILD_UTT "Build UTT library" ON)

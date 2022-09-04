@@ -4,5 +4,5 @@ add_executable(hash_state_benchmark hash_state_benchmark.cpp)
 target_link_libraries(hash_state_benchmark PUBLIC
     kvbc
     util
-    ${Boost_LIBRARIES}
+    Boost::program_options
 )

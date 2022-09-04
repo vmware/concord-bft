@@ -1,5 +1,7 @@
 project (test_replica LANGUAGES CXX)
 
+find_package(yaml-cpp ${YAML_CPP_VERSION} REQUIRED)
+
 set(test_replica_source 
         main.cpp
         src/KVCommandHandler.cpp

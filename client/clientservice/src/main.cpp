@@ -15,7 +15,7 @@
 #include <vector>
 #include <chrono>
 #include <boost/program_options.hpp>
-#include <boost/asio/signal_set.hpp>
+#include <boost/asio.hpp>
 #include <yaml-cpp/yaml.h>
 
 #include "client/clientservice/client_service.hpp"

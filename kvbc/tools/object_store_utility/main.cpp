@@ -13,7 +13,6 @@
 
 #include "Logger.hpp"
 #include <functional>
-#include <boost/dll.hpp>
 #include <boost/program_options.hpp>
 
 #include "integrity_checker.hpp"

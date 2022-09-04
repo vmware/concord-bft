@@ -6,7 +6,7 @@
 # If you prefer working w/o docker at your dev station just run the script with sudo.
 # If you need to add any tool or dependency this is the right place to do it.
 # Please bear in mind that we want to keep our list of dependencies as small as possible.
-set -e
+set -ex
 
 APT_GET_FLAGS="-y --no-install-recommends"
 WGET_FLAGS="--https-only"
@@ -18,17 +18,20 @@ install_build_tools() {
     apt-get update && apt-get ${APT_GET_FLAGS} install \
         autoconf \
         automake \
-        libtool \
+        bison \
         build-essential \
         clang-9 \
         clang-format-10 \
         clang-tidy-10 \
         curl \
+        flex \
         gdb \
         gdbserver \
         git \
+        iproute2 \
         iptables \
         less \
+        libtool \
         llvm-9 \
         lzip \
         net-tools \
@@ -40,7 +43,6 @@ install_build_tools() {
         python3-dev \
         sudo \
         vim \
-        iproute2 \
         wget
 
     update-alternatives --install /usr/bin/clang clang /usr/lib/llvm-9/bin/clang 100
@@ -57,15 +59,11 @@ install_build_tools() {
 # Install 3rd parties
 install_third_party_libraries() {
     apt-get ${APT_GET_FLAGS} install \
-        libboost-system1.65-dev \
-        libboost-program-options1.65-dev \
-        libboost1.65-dev \
         libbz2-dev \
         liblz4-dev \
         libs3-dev \
         libsnappy-dev \
         libssl-dev \
-        libyaml-cpp-dev \
         libz-dev \
         libzstd-dev
 
@@ -86,8 +84,31 @@ install_third_party_libraries() {
 # Build 3rd parties
 install_cmake() {
     wget ${WGET_FLAGS} -O cmake-linux.sh \
-        https://github.com/Kitware/CMake/releases/download/v3.20.2/cmake-3.20.2-linux-x86_64.sh && \
-        sh cmake-linux.sh -- --skip-license --prefix=/usr
+    https://github.com/Kitware/CMake/releases/download/v3.24.2/cmake-3.24.2-linux-x86_64.sh &&\
+    sh cmake-linux.sh -- --skip-license --prefix=/usr
+}
+
+install_boost() {
+    cd ${HOME}
+    git clone --recurse-submodules --depth=1 --single-branch --branch=boost-1.80.0 https://github.com/boostorg/boost.git
+    cd boost
+    mkdir build
+    cd build
+    cmake -DBOOST_INCLUDE_LIBRARIES="program_options;thread;locale;asio;lockfree;bimap" ..
+    make install
+    cd ${HOME}
+    rm -rf boost
+}
+
+install_yaml() {
+    cd ${HOME}
+    git clone -b yaml-cpp-0.7.0 --single-branch  https://github.com/jbeder/yaml-cpp.git
+    mkdir yaml-cpp/build
+    cd yaml-cpp/build
+    cmake -DYAML_CPP_BUILD_TESTS=OFF -DYAML_CPP_BUILD_TOOLS=OFF -DYAML_BUILD_SHARED_LIBS=OFF ..
+    make -j$(nproc) install
+    cd ${HOME}
+    rm -rf xvzf yaml-cpp
 }
 
 install_HdrHistogram_lib() {
@@ -369,42 +390,39 @@ install_httplib() {
 }
 
 # Thrift is the protocol used by Jaeger to export metrics
+#depends: boost
 install_thrift_lib(){
 cd $HOME
-wget ${WGET_FLAGS} https://archive.apache.org/dist/thrift/0.11.0/thrift-0.11.0.tar.gz && \
-    tar xzf thrift-0.11.0.tar.gz && \
-    cd thrift-0.11.0 && \
-    ./configure CXXFLAGS='-g -O2' \
+  git clone -b v0.13.0 https://github.com/apache/thrift.git
+  cd thrift
+  ./bootstrap.sh
+  ./configure CXXFLAGS='-g -O2' \
       --without-python --enable-static --disable-shared \
-      --disable-tests --disable-tutorial --disable-coverage && \
-    make -j$(nproc) install && \
-    cd ${HOME} && \
-    rm -r thrift-0.11.0 thrift-0.11.0.tar.gz
+      --disable-tests --disable-tutorial --disable-coverage
+  make -j$(nproc) install
+  cd ${HOME}
+  rm -r thrift
 }
 
 install_jaegertracing_cpp_lib(){
   # TODO: Upgrade to opentelemetry-cpp
   # Tracing via Jaeger and Thrift protocol
   # Copy FindThrift.cmake because installing Thrift does not include a CMake definition
+  
+  #depends on opentracing, thrift, nlohmann, httplib
   cd $HOME
-  git clone -b v0.7.0 --depth 1 https://github.com/jaegertracing/jaeger-client-cpp && \
-      cd jaeger-client-cpp && \
-      mkdir build && \
-      cd build && \
-      cmake -DHUNTER_ENABLED=OFF -DHUNTER_BUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF \
+  git clone -b v0.9.0 --depth 1 https://github.com/jaegertracing/jaeger-client-cpp
+  cd jaeger-client-cpp && mkdir build && cd build
+  cp ../cmake/Findthrift.cmake /usr/share/cmake-3.24/Modules/
+  cmake     -DHUNTER_ENABLED=OFF -DHUNTER_BUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF \
             -DBUILD_SHARED_LIBS=OFF -DJAEGERTRACING_BUILD_EXAMPLES=OFF \
             -DJAEGERTRACING_PLUGIN=OFF -DJAEGERTRACING_COVERAGE=OFF \
             -DJAEGERTRACING_BUILD_CROSSDOCK=OFF -DJAEGERTRACING_WITH_YAML_CPP=OFF \
-            .. && \
-      make -j$(nproc) install && \
-      cp ../cmake/Findthrift.cmake /usr/share/cmake-3.20/Modules/ && \
-      cd ${HOME} && \
-      rm -r jaeger-client-cpp
-
-  # Jaeger really wants to find BoostConfig.cmake, not FindBoost.cmake.
-  # This wasn't introduced until boost 1.70.
-  # Jaegertracing.cmake finds FindBoost.cmake first anyways.
-  # The following sed just removes the search for BoostConfig.cmake.
+            ..
+  make -j$(nproc) install
+  cd ${HOME}
+  rm -r jaeger-client-cpp
+  
   sed -i '/boost_components/d' /usr/local/lib/cmake/jaegertracing/jaegertracingConfig.cmake
 }
 
@@ -442,6 +460,8 @@ install_ccache(){
 install_build_tools
 install_third_party_libraries
 install_cmake
+install_boost
+install_yaml
 install_HdrHistogram_lib
 install_log4cpp_lib
 install_googletest

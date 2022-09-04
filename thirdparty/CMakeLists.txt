@@ -4,14 +4,8 @@ include(CheckIncludeFileCXX)
 include(CheckIncludeFiles)
 include(ExternalProject)
 include(ProcessorCount)
+include(FetchContent)
 
-ProcessorCount(NPROC)
 
-set(THIRDPARTY_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR})
-file(MAKE_DIRECTORY ${THIRDPARTY_INSTALL_DIR}/include)
-
-include(gmp.cmake)
-include(relic.cmake)
-include(openssl.cmake)
-include(hdrhistogram.cmake)
-include(rocksdb.cmake)
+include(boost.cmake)
+include(yaml-cpp.cmake)
