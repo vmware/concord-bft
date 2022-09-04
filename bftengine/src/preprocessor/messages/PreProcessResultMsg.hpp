@@ -48,7 +48,8 @@ class PreProcessResultMsg : public ClientRequestMsg {
                       const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{},
                       const char* messageSignature = nullptr,
                       uint32_t messageSignatureLen = 0,
-                      const std::string& resultSignatures = "");
+                      const std::string& resultSignatures = "",
+                      uint16_t indexInBatch = 0);
 
   PreProcessResultMsg(bftEngine::ClientRequestMsgHeader* body);
 

@@ -25,6 +25,7 @@
 #include <unordered_map>
 #include <memory>
 #include <queue>
+#include <boost/bimap.hpp>
 
 namespace bftEngine {
 class IStateTransfer;
@@ -105,6 +106,7 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
                                                                        uint16_t currentPrimaryId,
                                                                        char* reply,
                                                                        uint32_t replyLength,
+                                                                       uint16_t reqIndexInBatch,
                                                                        uint32_t rsiLength,
                                                                        uint32_t executionResult = 0);
 
@@ -180,11 +182,10 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
   // VC_LOG must be initialized. Behavior is undefined if it is not.
   void logAllPendingRequestsExceedingThreshold(const int64_t threshold, const Time& currTime) const;
 
-  // Deletes the reply to clientId this ClientsManager currently has a record for made at the earliest time. If this
-  // ClientsManager has any reply records to the given clientId, but none of those records have a record time, the one
-  // for the earliest request sequence number will be deleted. Does nothing if this ClientsManager has no reply records
-  // to the given clientId. Behavior is undefined if clientId does not belong to a valid client.
-  void deleteOldestReply(NodeIdType clientId);
+  // Deletes the reply to clientId this ClientsManager currently has a record for at same index in batch. There should
+  // be at most 1 reply at the index saved for each client. Does nothing if this ClientsManager has no reply records to
+  // the given clientId and index. Behavior is undefined if clientId does not belong to a valid client.
+  void deleteReplyIfNeeded(NodeIdType clientId, uint16_t indexInBatch, ReqId newReqSeqNum = 0);
 
   // Sets/updates a client public key and persist it to the reserved pages. Behavior is undefined in the following
   // cases:
@@ -193,7 +194,10 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
   void setClientPublicKey(NodeIdType, const std::string& key, concord::util::crypto::KeyFormat) override;
 
   // General
-  static uint32_t reservedPagesPerClient(const uint32_t& sizeOfReservedPage, const uint32_t& maxReplySize);
+  static uint32_t reservedPagesPerRequest(uint32_t sizeOfReservedPage, uint32_t maxReplySize);
+  static uint32_t reservedPagesPerClient(uint32_t sizeOfReservedPage,
+                                         uint32_t maxReplySize,
+                                         uint16_t maxNumReqPerClient);
 
   bool isInternal(NodeIdType clientId) const;
 
@@ -208,6 +212,7 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
 
   std::string scratchPage_;
 
+  uint32_t reservedPagesPerRequest_;
   uint32_t reservedPagesPerClient_;
 
   struct RequestInfo {
@@ -244,15 +249,25 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
 
   class RepliesInfo {
    public:
-    void deleteOldestReplyIfNeededSafe(NodeIdType clientId, uint16_t maxNumOfReqsPerClient);
-    bool insertOrAssignSafe(ReqId reqSeqNum, Time time);
+    // The thread safety here is between the PreProcessor thread, which is read-only, and the ReplicaImp main thread,
+    // which performs either read or write at a time. So, all write operations should be guarded as well as PrePropessor
+    // calls hasReply and isClientRequestInProcess. All other operations are safe.
+    void deleteReplyIfNeededSafe(NodeIdType clientId,
+                                 ReqId reqSeqNum,
+                                 uint16_t maxNumOfReqsPerClient,
+                                 uint16_t reqIndex);
+    void insertOrAssignSafe(ReqId reqSeqNum, uint16_t reqIndexInBatch);
     bool findSafe(ReqId reqSeqNum);
 
     bool find(ReqId reqSeqNum) const;
+    uint16_t getIndex(ReqId reqSeqNum) const;
 
    public:
     std::mutex repliesMapMutex_;
-    std::map<ReqId, Time> repliesMap_;
+    // repliesBiMap_ maps request sequence number to request index in client batch and vice versa.
+    // We use the seqNum to index map to calculate the page of a saved reply in the reserved pages,
+    // and we use the index as a key when we delete a reply record that is about to be overridden.
+    boost::bimaps::bimap<ReqId, uint16_t> repliesBiMap_;
   };
 
   struct ClientInfo {

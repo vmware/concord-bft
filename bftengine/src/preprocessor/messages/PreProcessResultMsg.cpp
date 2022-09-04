@@ -29,7 +29,8 @@ PreProcessResultMsg::PreProcessResultMsg(NodeIdType sender,
                                          const concordUtils::SpanContext& spanContext,
                                          const char* messageSignature,
                                          uint32_t messageSignatureLen,
-                                         const std::string& resultSignatures)
+                                         const std::string& resultSignatures,
+                                         uint16_t indexInBatch)
     : ClientRequestMsg(sender,
                        HAS_PRE_PROCESSED_FLAG,
                        reqSeqNum,
@@ -41,7 +42,8 @@ PreProcessResultMsg::PreProcessResultMsg(NodeIdType sender,
                        spanContext,
                        messageSignature,
                        messageSignatureLen,
-                       resultSignatures.size()) {
+                       resultSignatures.size(),
+                       indexInBatch) {
   msgBody_->msgType = MsgCode::PreProcessResult;
   // ClientRequestMsg allocates additional memory for the signatures.
   // Get pointer to it here and assert if the buffer is not big enough.

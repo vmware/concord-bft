@@ -1353,7 +1353,8 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffset
                                                        span_context,
                                                        reqProcessingStatePtr->getReqSignature(),
                                                        reqProcessingStatePtr->getReqSignatureLength(),
-                                                       sigsBuf);
+                                                       sigsBuf,
+                                                       reqOffsetInBatch);
       LOG_DEBUG(logger(),
                 "Pass PreProcessResultMsg to ReplicaImp for consensus"
                     << KVLOG(batchCid, reqSeqNum, reqCid, clientId, reqOffsetInBatch, preProcessResult));
@@ -1368,7 +1369,9 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffset
                                                     preProcessResult,
                                                     span_context,
                                                     reqProcessingStatePtr->getReqSignature(),
-                                                    reqProcessingStatePtr->getReqSignatureLength());
+                                                    reqProcessingStatePtr->getReqSignatureLength(),
+                                                    0,
+                                                    reqOffsetInBatch);
       LOG_DEBUG(logger(),
                 "Pass pre-processed ClientRequestMsg to ReplicaImp for consensus"
                     << KVLOG(batchCid, reqSeqNum, reqCid, clientId, reqOffsetInBatch, preProcessResult));
@@ -1756,6 +1759,7 @@ OperationResult PreProcessor::launchReqPreProcessing(const string &batchCid,
       maxPreExecResultSize_,
       preProcessResultBuffer,
       reqSeqNum,
+      reqOffsetInBatch,
       preProcessReqMsg->result()};
   requestsHandler_.preExecute(request, std::nullopt, reqCid, span);
   auto preProcessResult = static_cast<OperationResult>(request.outExecutionStatus);

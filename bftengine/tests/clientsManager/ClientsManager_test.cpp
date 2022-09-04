@@ -41,7 +41,6 @@ using std::string;
 using std::string_view;
 using std::this_thread::sleep_for;
 using std::unique_ptr;
-using std::vector;
 
 // Testing values to be used for certain Concord-BFT configuration that ClientsManager and/or its dependencies may
 // reference.
@@ -136,13 +135,6 @@ static void resetMockReservedPages() {
   ReservedPagesClientBase::setReservedPages(res_pages_mock_.get());
 }
 
-static shared_ptr<ReservedPagesMock<ClientsManager>> getMockReservedPages() { return res_pages_mock_; }
-
-static void setMockReservedPages(shared_ptr<ReservedPagesMock<ClientsManager>>& res_pages) {
-  res_pages_mock_ = res_pages;
-  ReservedPagesClientBase::setReservedPages(res_pages_mock_.get());
-}
-
 static void resetSigManager() {
   sig_manager_for_key_exchange_manager.reset(SigManager::init(kReplicaIdForTesting,
                                                               kReplicaPrivateKeyForTesting,
@@ -178,6 +170,8 @@ static void initializeKeyExchangeManagerForClientsManagerTesting() {
   // Note we have to use 1 replica rather than 0 since ReplicasInfo expects the numReplicas = 3F + 2C + 1 variant to
   // hold.
   ReplicaConfig::instance().setnumReplicas(1);
+
+  ReplicaConfig::instance().setpreExecutionFeatureEnabled(true);
 
   // We are relying on these defaults.
   ConcordAssert(ReplicaConfig::instance().getfVal() == 0);
@@ -239,15 +233,28 @@ static bool verifyNoClientPublicKeyLoadedToKEM(NodeIdType client_id) {
 
 TEST(ClientsManager, reservedPagesPerClient) {
   uint32_t sizeOfReservedPage = 1024;
+  uint32_t maxNumReqPerClient = 1;
   uint32_t maxReplysize = 1000;
-  auto numPagesPerCl = bftEngine::impl::ClientsManager::reservedPagesPerClient(sizeOfReservedPage, maxReplysize);
+  auto numPagesPerCl =
+      bftEngine::impl::ClientsManager::reservedPagesPerClient(sizeOfReservedPage, maxReplysize, maxNumReqPerClient);
   ASSERT_EQ(numPagesPerCl, 2);
   maxReplysize = 3000;
-  numPagesPerCl = bftEngine::impl::ClientsManager::reservedPagesPerClient(sizeOfReservedPage, maxReplysize);
+  numPagesPerCl =
+      bftEngine::impl::ClientsManager::reservedPagesPerClient(sizeOfReservedPage, maxReplysize, maxNumReqPerClient);
   ASSERT_EQ(numPagesPerCl, 4);
   maxReplysize = 1024;
-  numPagesPerCl = bftEngine::impl::ClientsManager::reservedPagesPerClient(sizeOfReservedPage, maxReplysize);
+  numPagesPerCl =
+      bftEngine::impl::ClientsManager::reservedPagesPerClient(sizeOfReservedPage, maxReplysize, maxNumReqPerClient);
   ASSERT_EQ(numPagesPerCl, 2);
+  maxNumReqPerClient = 40;
+  numPagesPerCl =
+      bftEngine::impl::ClientsManager::reservedPagesPerClient(sizeOfReservedPage, maxReplysize, maxNumReqPerClient);
+  ASSERT_EQ(numPagesPerCl, 41);
+  maxReplysize = 2000;
+  maxNumReqPerClient = 20;
+  numPagesPerCl =
+      bftEngine::impl::ClientsManager::reservedPagesPerClient(sizeOfReservedPage, maxReplysize, maxNumReqPerClient);
+  ASSERT_EQ(numPagesPerCl, 41);
 }
 
 TEST(ClientsManager, constructor) {
@@ -292,7 +299,7 @@ TEST(ClientsManager, numberOfRequiredReservedPagesSucceeds) {
   resetMockReservedPages();
   unique_ptr<ClientsManager> cm(new ClientsManager({1, 2, 3}, {4}, {}, {5, 6}, metrics));
 
-  // Note we do not actually check the values retruned by numberOfRequiredReservedPages (other than expecting them to be
+  // Note we do not actually check the values returned by numberOfRequiredReservedPages (other than expecting them to be
   // above 0), as exactly what value this function returns is considered an implementation detail of ClientsManager
   // subject to change and not something guaranteed by ClientsManager's interface.
   EXPECT_GT(cm->numberOfRequiredReservedPages(), 0)
@@ -326,7 +333,7 @@ TEST(ClientsManager, loadInfoFromReservedPagesLoadsCorrectInfo) {
   for (const auto& reply : client_replies) {
     string reply_msg = reply.second.second;
     cm->allocateNewReplyMsgAndWriteToStorage(
-        reply.first, reply.second.first, 0, reply_msg.data(), reply_msg.length(), kRSILengthForTesting);
+        reply.first, reply.second.first, 0, reply_msg.data(), reply_msg.length(), 0, kRSILengthForTesting);
   }
 
   clearClientPublicKeysLoadedToKEM();
@@ -385,7 +392,7 @@ TEST(ClientsManager, loadInfoFromReservedPagesLoadsCorrectInfo) {
   for (const auto& reply : client_replies) {
     string reply_msg = reply.second.second;
     cm->allocateNewReplyMsgAndWriteToStorage(
-        reply.first, reply.second.first, 0, reply_msg.data(), reply_msg.length(), kRSILengthForTesting);
+        reply.first, reply.second.first, 0, reply_msg.data(), reply_msg.length(), 0, kRSILengthForTesting);
   }
 
   clearClientPublicKeysLoadedToKEM();
@@ -435,7 +442,8 @@ TEST(ClientsManager, loadInfoFromReservedPagesHandlesSingleClientClientsManager)
   resetMockReservedPages();
   unique_ptr<ClientsManager> cm(new ClientsManager({2}, {}, {}, {}, metrics));
   cm->setClientPublicKey(2, client_key_pair.second, kKeyFormatForTesting);
-  cm->allocateNewReplyMsgAndWriteToStorage(2, 1, 0, reply_message.data(), reply_message.length(), kRSILengthForTesting);
+  cm->allocateNewReplyMsgAndWriteToStorage(
+      2, 1, 0, reply_message.data(), reply_message.length(), 0, kRSILengthForTesting);
 
   clearClientPublicKeysLoadedToKEM();
   cm.reset(new ClientsManager({2}, {}, {}, {}, metrics));
@@ -453,105 +461,6 @@ TEST(ClientsManager, loadInfoFromReservedPagesHandlesSingleClientClientsManager)
   }
 }
 
-TEST(ClientsManager, loadInfoFromReservedPagesCorrectlyDeletesOldReplies) {
-  set<NodeIdType> client_ids{1, 2, 3, 4};
-  set<NodeIdType> proxy_client_ids{1, 2, 3};
-  set<NodeIdType> external_client_ids{4};
-  set<NodeIdType> internal_client_ids{};
-
-  map<NodeIdType, pair<ReqId, string>> client_replies;
-  client_replies[2] = {9, "reply 9 to client 2"};
-  client_replies[4] = {12, "reply 12 to client 4"};
-
-  uint16_t client_batch_size = 2;
-  map<NodeIdType, vector<pair<ReqId, string>>> older_client_replies;
-  older_client_replies[2].emplace_back(1, "reply 1 to client 2");
-  older_client_replies[2].emplace_back(3, "reply 3 to client 2");
-  older_client_replies[4].emplace_back(2, "reply 2 to client 4");
-  older_client_replies[4].emplace_back(8, "reply 8 to client 4");
-
-  resetMockReservedPages();
-  unique_ptr<ClientsManager> cm(
-      new ClientsManager(proxy_client_ids, external_client_ids, {}, internal_client_ids, metrics));
-  for (const auto& reply : client_replies) {
-    string reply_msg = reply.second.second;
-    cm->allocateNewReplyMsgAndWriteToStorage(
-        reply.first, reply.second.first, 0, reply_msg.data(), reply_msg.length(), kRSILengthForTesting);
-  }
-  auto res_pages_with_newer_replies = getMockReservedPages();
-
-  ReplicaConfig::instance().setclientBatchingEnabled(false);
-  resetMockReservedPages();
-  cm.reset(new ClientsManager(proxy_client_ids, external_client_ids, {}, internal_client_ids, metrics));
-  for (const auto& replies : older_client_replies) {
-    ReqId seq_num = replies.second[0].first;
-    string reply_msg = replies.second[0].second;
-    cm->allocateNewReplyMsgAndWriteToStorage(
-        replies.first, seq_num, 0, reply_msg.data(), reply_msg.length(), kRSILengthForTesting);
-  }
-  setMockReservedPages(res_pages_with_newer_replies);
-  EXPECT_NO_THROW(cm->loadInfoFromReservedPages()) << "ClientsManager::loadInfoFromReservedPages failed.";
-  for (const auto& reply : client_replies) {
-    EXPECT_TRUE(cm->hasReply(reply.first, reply.second.first))
-        << "ClientsManager::loadInfoFromReservedPages failed to load a newer reply record from the reserved pages to a "
-           "ClientsManager that already had an older reply record for the relevant client.";
-    EXPECT_FALSE(cm->hasReply(reply.first, older_client_replies[reply.first][0].first))
-        << "ClientsManager::loadInfoFromReservedPages failed to automatically delete the existing reply record for a "
-           "client when loading a newer one with client batching disabled.";
-  }
-
-  ReplicaConfig::instance().setclientBatchingEnabled(true);
-  ReplicaConfig::instance().setclientBatchingMaxMsgsNbr(client_batch_size);
-  resetMockReservedPages();
-  cm.reset(new ClientsManager(proxy_client_ids, external_client_ids, {}, internal_client_ids, metrics));
-  for (const auto& replies : older_client_replies) {
-    NodeIdType client_id = replies.first;
-    for (const auto& reply : replies.second) {
-      ReqId seq_num = reply.first;
-      string reply_msg = reply.second;
-      cm->allocateNewReplyMsgAndWriteToStorage(
-          client_id, seq_num, 0, reply_msg.data(), reply_msg.length(), kRSILengthForTesting);
-    }
-  }
-  setMockReservedPages(res_pages_with_newer_replies);
-  EXPECT_NO_THROW(cm->loadInfoFromReservedPages()) << "ClientsManager::loadInfoFromReservedPages failed.";
-  for (const auto& reply : client_replies) {
-    EXPECT_TRUE(cm->hasReply(reply.first, reply.second.first))
-        << "ClientsManager::loadInfoFromReservedPages failed to load a newer reply record from the reserved pages to a "
-           "ClientsManager that already had older reply records for the relevant client.";
-    EXPECT_FALSE(cm->hasReply(reply.first, older_client_replies[reply.first][0].first))
-        << "ClientsManager::loadInfoFromReservedPages failed to automatically delete the oldest existing reply record "
-           "for a client when loading a newer one with client batching enabled and a number of existing reply records "
-           "already equalling the maximum client batch size.";
-    EXPECT_TRUE(cm->hasReply(reply.first, older_client_replies[reply.first][1].first))
-        << "ClientsManager::loadInfoFromReservedPages deleted a reply record for a client other than the oldest one "
-           "when loading a newer record with client batching enabled and a number of existing reply records already "
-           "equalling the maximum client batch size.";
-  }
-
-  ReplicaConfig::instance().setclientBatchingEnabled(true);
-  ReplicaConfig::instance().setclientBatchingMaxMsgsNbr(client_batch_size);
-  resetMockReservedPages();
-  cm.reset(new ClientsManager(proxy_client_ids, external_client_ids, {}, internal_client_ids, metrics));
-  for (const auto& replies : older_client_replies) {
-    ReqId seq_num = replies.second[0].first;
-    string reply_msg = replies.second[0].second;
-    cm->allocateNewReplyMsgAndWriteToStorage(
-        replies.first, seq_num, 0, reply_msg.data(), reply_msg.length(), kRSILengthForTesting);
-  }
-  setMockReservedPages(res_pages_with_newer_replies);
-  EXPECT_NO_THROW(cm->loadInfoFromReservedPages()) << "ClientsManager::loadInfoFromReservedPages failed.";
-  for (const auto& reply : client_replies) {
-    EXPECT_TRUE(cm->hasReply(reply.first, reply.second.first))
-        << "ClientsManager::loadInfoFromReservedPages failed to load a newer reply record from the reserved pages to a "
-           "ClientsManager that already had an older reply record for the relevant client.";
-    EXPECT_TRUE(cm->hasReply(reply.first, older_client_replies[reply.first][0].first))
-        << "ClientsManager::loadInfoFromReservedPages deleted an existing reply record for a client when loading a "
-           "newer one with client batching enabled despite having fewer existing reply records than the maximum client "
-           "batch size.";
-  }
-}
-
 TEST(ClientsManager, loadInfoFromReservedPagesCorrectlyDeletesOldRequests) {
   ReplicaConfig::instance().setclientBatchingEnabled(true);
   ReplicaConfig::instance().setclientBatchingMaxMsgsNbr(5);
@@ -559,7 +468,8 @@ TEST(ClientsManager, loadInfoFromReservedPagesCorrectlyDeletesOldRequests) {
   unique_ptr<ClientsManager> cm(new ClientsManager({1}, {2, 3}, {}, {4, 5}, metrics));
 
   string reply_message = "reply 6 to client 3";
-  cm->allocateNewReplyMsgAndWriteToStorage(3, 6, 0, reply_message.data(), reply_message.length(), kRSILengthForTesting);
+  cm->allocateNewReplyMsgAndWriteToStorage(
+      3, 6, 0, reply_message.data(), reply_message.length(), 0, kRSILengthForTesting);
 
   cm.reset(new ClientsManager({1}, {2, 3}, {}, {4, 5}, metrics));
   for (ReqId i = 5; i <= 7; ++i) {
@@ -583,53 +493,21 @@ TEST(ClientsManager, loadInfoFromReservedPagesCorrectlyDeletesOldRequests) {
 }
 
 TEST(ClientsManager, loadInfoFromReservedPagesCorrectlyHandles0BatchSize) {
-  string reply_1_message = "reply 1 to client 2";
-  string reply_2_message = "reply 2 to client 2";
-  string reply_message_to_client_3 = "reply 1 to client 3";
-
+  // Batch size should be >= 1
+  auto batchSize = ReplicaConfig::instance().getclientBatchingMaxMsgsNbr();
   ReplicaConfig::instance().setclientBatchingEnabled(true);
   ReplicaConfig::instance().setclientBatchingMaxMsgsNbr(0);
   resetMockReservedPages();
-  unique_ptr<ClientsManager> cm(new ClientsManager({}, {1, 2, 3}, {}, {4}, metrics));
-  cm->allocateNewReplyMsgAndWriteToStorage(
-      2, 2, 0, reply_2_message.data(), reply_2_message.length(), kRSILengthForTesting);
-  auto res_pages_with_new_reply = getMockReservedPages();
-
-  // Note the influence of client batch size on ClientsManager::loadInfoFromReservedPages's behavior is that (when
-  // client batching is enabled), if a reply record for a client is found in the reserved pages, and the number of
-  // existing reply records the ClientsManager has for that client equals or exceeds the maximum client batch size, then
-  // the single oldest reply record for that client is automatically deleted. Therefore, we expect that, if
-  // ClientsManager::loadInfoFromReservedPages is called for a ClientsManager with client batching enabled but a batch
-  // size of 0, it will delete the oldest existing reply record for any client it finds a reply for in the reserved
-  // pages, but it will still successfully load the new reply record from the reserved pages. We also expect it will not
-  // delete any reply records for clients for which there are no reply records in the reserved pages.
-
-  resetMockReservedPages();
-  cm.reset(new ClientsManager({}, {1, 2, 3}, {}, {4}, metrics));
-  cm->allocateNewReplyMsgAndWriteToStorage(
-      2, 1, 0, reply_1_message.data(), reply_1_message.length(), kRSILengthForTesting);
-  cm->allocateNewReplyMsgAndWriteToStorage(
-      3, 1, 0, reply_message_to_client_3.data(), reply_message_to_client_3.length(), kRSILengthForTesting);
-  setMockReservedPages(res_pages_with_new_reply);
-  EXPECT_NO_THROW(cm->loadInfoFromReservedPages()) << "ClientsManager::loadInfoFromReservedPages for a ClientsManager "
-                                                      "configured with client batching enabled and a batch size of 0.";
-  EXPECT_TRUE(cm->hasReply(2, 2))
-      << "ClientsManager::loadInfoFromReservedPages failed to load a newer reply record from the reserved pages to a "
-         "ClientsManager that already had an older reply record for the relevant client while configured with client "
-         "batching enabled and a batch size of 0.";
-  EXPECT_FALSE(cm->hasReply(2, 1))
-      << "ClientsManager::loadInfoFromReservedPages failed to automatically delete the existing reply record for a "
-         "client when loading a newer one with client batching enabled and a batch size of 0.";
-  EXPECT_TRUE(cm->hasReply(3, 1)) << "ClientsManager::loadInfoFromReservedPages deleted a reply record for a client "
-                                     "for which there should have been no reply records in the reserved pages while "
-                                     "configured with client batching enabled and a batch size of 0.";
+  EXPECT_DEATH(unique_ptr<ClientsManager> cm(new ClientsManager({}, {1, 2, 3}, {}, {4}, metrics)), "");
+  ReplicaConfig::instance().setclientBatchingMaxMsgsNbr(batchSize);
 }
 
 TEST(ClientsManager, hasReply) {
   resetMockReservedPages();
   string reply_message = "reply 9 to client 5";
   unique_ptr<ClientsManager> cm(new ClientsManager({1, 2}, {3, 4}, {}, {5, 6}, metrics));
-  cm->allocateNewReplyMsgAndWriteToStorage(5, 9, 0, reply_message.data(), reply_message.length(), kRSILengthForTesting);
+  cm->allocateNewReplyMsgAndWriteToStorage(
+      5, 9, 0, reply_message.data(), reply_message.length(), 0, kRSILengthForTesting);
 
   EXPECT_TRUE(cm->hasReply(5, 9))
       << "ClientsManager::hasReply returned false for a reply the ClientsManager should have had a record for.";
@@ -637,7 +515,7 @@ TEST(ClientsManager, hasReply) {
   EXPECT_FALSE(cm->hasReply(5, 5)) << "ClientsManager::hasReply returned true when given a client ID/reply sequence "
                                       "number combination that it should not have had a reply record for.";
 
-  cm->deleteOldestReply(5);
+  cm->deleteReplyIfNeeded(5, 0);
   EXPECT_FALSE(cm->hasReply(5, 9)) << "ClientsManager::hasReply returned true for a reply record it previously had but "
                                       "which should have been deleted.";
 }
@@ -692,7 +570,7 @@ TEST(ClientsManager, allocateNewReplyMsgAndWriteToStorageWorksCorrectlyInTheGene
   unique_ptr<ClientsManager> cm(new ClientsManager({}, {1, 2, 4}, {}, {5, 7}, metrics));
 
   unique_ptr<ClientReplyMsg> message = cm->allocateNewReplyMsgAndWriteToStorage(
-      4, 3, 8, message_body.data(), message_body.length(), kRSILengthForTesting);
+      4, 3, 8, message_body.data(), message_body.length(), 0, kRSILengthForTesting);
   EXPECT_TRUE(cm->hasReply(4, 3)) << "ClientsManager::allocateNewReplyMsgAndWriteToStorage failed to add a reply "
                                      "record for the allocated reply to the ClientsManager.";
   ASSERT_TRUE(message)
@@ -726,7 +604,7 @@ TEST(ClientsManager, allocateNewReplyMsgAndWriteToStorageWorksCorrectlyInTheGene
   const string kNewExpectedMessageBody = "This is an arbitrary newer revision of the previous message.";
   message_body = kNewExpectedMessageBody;
   message = cm->allocateNewReplyMsgAndWriteToStorage(
-      4, 3, 9, message_body.data(), message_body.length(), kRSILengthForTesting);
+      4, 3, 9, message_body.data(), message_body.length(), 0, kRSILengthForTesting);
   ASSERT_TRUE(message) << "ClientsManager::allocateNewReplyMsgAndWriteToStorage returned a null pointer when given a "
                           "newer replacement for an existing message client ID/sequence number combination.";
   EXPECT_EQ(message->currentPrimaryId(), 9)
@@ -766,11 +644,11 @@ TEST(ClientsManager, allocateNewReplyMsgAndWriteToStorageCorrectlyDeletesOldRepl
   ReplicaConfig::instance().setclientBatchingEnabled(false);
   unique_ptr<ClientsManager> cm(new ClientsManager({2, 7}, {1, 3, 5}, {}, {10, 11}, metrics));
   cm->allocateNewReplyMsgAndWriteToStorage(
-      5, 1, 0, reply_1_to_5_message.data(), reply_1_to_5_message.length(), kRSILengthForTesting);
+      5, 1, 0, reply_1_to_5_message.data(), reply_1_to_5_message.length(), 0, kRSILengthForTesting);
   cm->allocateNewReplyMsgAndWriteToStorage(
-      10, 1, 0, reply_1_to_10_message.data(), reply_1_to_10_message.length(), kRSILengthForTesting);
+      10, 1, 0, reply_1_to_10_message.data(), reply_1_to_10_message.length(), 0, kRSILengthForTesting);
   cm->allocateNewReplyMsgAndWriteToStorage(
-      5, 6, 0, reply_6_to_5_message.data(), reply_6_to_5_message.length(), kRSILengthForTesting);
+      5, 6, 0, reply_6_to_5_message.data(), reply_6_to_5_message.length(), 0, kRSILengthForTesting);
   EXPECT_TRUE(cm->hasReply(5, 6))
       << "ClientsManager::allocateNewReplyMsgAndWriteToStorage failed to add a new reply record for a client which "
          "already had an existing reply record with client batching disabled.";
@@ -784,9 +662,9 @@ TEST(ClientsManager, allocateNewReplyMsgAndWriteToStorageCorrectlyDeletesOldRepl
   ReplicaConfig::instance().setclientBatchingMaxMsgsNbr(2);
   cm.reset(new ClientsManager({2, 7}, {1, 3, 5}, {}, {10, 11}, metrics));
   cm->allocateNewReplyMsgAndWriteToStorage(
-      5, 1, 0, reply_1_to_5_message.data(), reply_1_to_5_message.length(), kRSILengthForTesting);
+      5, 1, 0, reply_1_to_5_message.data(), reply_1_to_5_message.length(), 0, kRSILengthForTesting);
   cm->allocateNewReplyMsgAndWriteToStorage(
-      5, 4, 0, reply_4_to_5_message.data(), reply_4_to_5_message.length(), kRSILengthForTesting);
+      5, 4, 0, reply_4_to_5_message.data(), reply_4_to_5_message.length(), 1, kRSILengthForTesting);
   EXPECT_TRUE(cm->hasReply(5, 4)) << "ClientsManager::allocateNewReplyMsgAndWriteToStorage failed to add a new reply "
                                      "record for a client with client batching enabled and a number of existing reply "
                                      "records for that client less than the maximum client batch size.";
@@ -796,7 +674,7 @@ TEST(ClientsManager, allocateNewReplyMsgAndWriteToStorageCorrectlyDeletesOldRepl
          "being less than the maximum client batch size.";
 
   cm->allocateNewReplyMsgAndWriteToStorage(
-      5, 6, 0, reply_6_to_5_message.data(), reply_6_to_5_message.length(), kRSILengthForTesting);
+      5, 6, 0, reply_6_to_5_message.data(), reply_6_to_5_message.length(), 0, kRSILengthForTesting);
   EXPECT_TRUE(cm->hasReply(5, 6)) << "ClientsManager::allocateNewReplyMsgAndWriteToStorage failed to add a new reply "
                                      "record for a client with client batching enabled and a number of existing reply "
                                      "records for that client equal to the maximum client batch size.";
@@ -815,13 +693,26 @@ TEST(ClientsManager, allocateNewReplyMsgAndWriteToStorageHandlesApplicableCorner
   string empty_reply = "";
 
   unique_ptr<ClientsManager> cm(new ClientsManager({}, {1, 2, 3}, {}, {4}, metrics));
-  unique_ptr<ClientReplyMsg> message =
-      cm->allocateNewReplyMsgAndWriteToStorage(1, 0, 0, empty_reply.data(), empty_reply.length(), kRSILengthForTesting);
+  unique_ptr<ClientReplyMsg> message = cm->allocateNewReplyMsgAndWriteToStorage(
+      1, 0, 0, empty_reply.data(), empty_reply.length(), 0, kRSILengthForTesting);
   ASSERT_TRUE(message) << "ClientsManager::allocateNewReplyMsgAndWriteToStorage returned a null pointer when "
                           "attempting to allocate a ClientReplyMsg with an empty payload.";
   string allocated_reply_body = string(message->replyBuf(), message->replyLength());
   EXPECT_EQ(allocated_reply_body, "") << "ClientsManager::allocateNewReplyMsgAndWriteToStorage returned an allocated "
                                          "ClientReplyMsg with a non-empty payload when called with an empty payload.";
+}
+
+TEST(ClientsManager, allocateNewReplyMsgAndWriteToStorageOutOfRangeReqIndex) {
+  resetMockReservedPages();
+  int batchSize = 2;
+  ReplicaConfig::instance().setclientBatchingEnabled(true);
+  ReplicaConfig::instance().setclientBatchingMaxMsgsNbr(batchSize);
+  unique_ptr<ClientsManager> cm(new ClientsManager({}, {1, 2, 3}, {}, {4}, metrics));
+  string replyMsg = "reply 3 to client 1";
+
+  EXPECT_DEATH(cm->allocateNewReplyMsgAndWriteToStorage(
+                   1, 3, 0, replyMsg.data(), replyMsg.length(), batchSize, kRSILengthForTesting),
+               "");
 }
 
 TEST(ClientsManager, allocateReplyFromSavedOneWorksCorrectlyInTheGeneralCase) {
@@ -831,7 +722,7 @@ TEST(ClientsManager, allocateReplyFromSavedOneWorksCorrectlyInTheGeneralCase) {
   string reply = kExpectedMessageBody;
 
   unique_ptr<ClientsManager> cm(new ClientsManager({8}, {1, 2}, {}, {4}, metrics));
-  cm->allocateNewReplyMsgAndWriteToStorage(1, 3, 9, reply.data(), reply.length(), kRSILengthForTesting);
+  cm->allocateNewReplyMsgAndWriteToStorage(1, 3, 9, reply.data(), reply.length(), 0, kRSILengthForTesting);
 
   cm.reset(new ClientsManager({8}, {1, 2}, {}, {4}, metrics));
   unique_ptr<ClientReplyMsg> message = cm->allocateReplyFromSavedOne(1, 3, 12);
@@ -857,7 +748,7 @@ TEST(ClientsManager, allocateReplyFromSavedOneCorrectlyHandlesCasesWithClientBat
   string reply = kExpectedMessageBody;
 
   unique_ptr<ClientsManager> cm(new ClientsManager({8}, {1, 2}, {}, {4}, metrics));
-  cm->allocateNewReplyMsgAndWriteToStorage(1, 3, 9, reply.data(), reply.length(), kRSILengthForTesting);
+  cm->allocateNewReplyMsgAndWriteToStorage(1, 3, 9, reply.data(), reply.length(), 0, kRSILengthForTesting);
 
   cm.reset(new ClientsManager({8}, {1, 2}, {}, {4}, metrics));
   unique_ptr<ClientReplyMsg> message = cm->allocateReplyFromSavedOne(1, 3, 12);
@@ -876,6 +767,37 @@ TEST(ClientsManager, allocateReplyFromSavedOneCorrectlyHandlesCasesWithClientBat
   EXPECT_FALSE(message)
       << "ClientsManger::allocateReplyFromSavedOne returned a non-null pointer when given a sequence number not "
          "matching the reply that should have been in the reserved pages in the case where client batching is enabled.";
+}
+
+TEST(ClientsManager, allocateReplyFromSavedOneOfBatch) {
+  resetMockReservedPages();
+  ReplicaConfig::instance().setclientBatchingEnabled(true);
+  ReplicaConfig::instance().setclientBatchingMaxMsgsNbr(3);
+  uint16_t currentPrimary = 9;
+  string replies[3] = {"reply1", "reply2", "reply3"};
+
+  unique_ptr<ClientsManager> cm(new ClientsManager({8}, {1, 2}, {}, {4}, metrics));
+  for (int i = 0; i < 3; i++)
+    cm->allocateNewReplyMsgAndWriteToStorage(
+        1, i, currentPrimary, replies[i].data(), replies[i].length(), i, kRSILengthForTesting);
+
+  cm.reset(new ClientsManager({8}, {1, 2}, {}, {4}, metrics));
+  cm->loadInfoFromReservedPages();
+
+  for (int i = 0; i < 3; i++) {
+    EXPECT_TRUE(cm->hasReply(1, i)) << "cm->loadInfoFromReservedPages failed to load all reserved pages";
+    unique_ptr<ClientReplyMsg> message = cm->allocateReplyFromSavedOne(1, i, currentPrimary);
+    ASSERT_TRUE(message)
+        << "ClientsManager::allocateReplyFromSavedOne returned a null pointer when the requested reply message should "
+           "have been available in the reserved pages in the case where client batching is enabled.";
+    EXPECT_EQ(message->reqSeqNum(), i)
+        << "ClientsManager::allocateReplyFromSavedOne returned an allocated ClientReplyMsg with a reqSeqNum value not "
+           "matching the requested sequence number.";
+    string allocated_reply_body = string(message->replyBuf(), message->replyLength());
+    EXPECT_EQ(allocated_reply_body, replies[i])
+        << "ClientsManager::allocateReplyFromSavedOne returned an allocated ClientReplyMsg with a paylod not matching "
+           "the message that should have been in the reserved pages.";
+  }
 }
 
 TEST(ClientsManager, isClientRequestInProcess) {
@@ -946,7 +868,7 @@ TEST(ClientsManager, canBecomePending) {
          "have allowed canBecomePending to return true for it.";
 
   string reply = "This is an arbitrary reply message.";
-  cm->allocateNewReplyMsgAndWriteToStorage(5, 1, 0, reply.data(), reply.length(), kRSILengthForTesting);
+  cm->allocateNewReplyMsgAndWriteToStorage(5, 1, 0, reply.data(), reply.length(), 0, kRSILengthForTesting);
   EXPECT_FALSE(cm->canBecomePending(5, 1))
       << "ClientsManager::canBecomePending returned true for a client ID/request sequence number combination for which "
          "the ClientsManager should have had an existing reply record.";
@@ -1013,7 +935,7 @@ TEST(ClientsManager, addPendingRequest) {
   cm->addPendingRequest(3, 1, expected_cid);
   EXPECT_FALSE(cm->isPending(3, 1))
       << "ClientsManager::addPendingRequest appears to have un-marked an existing request record marked as committed "
-         "when trying to add a rquest that should have already existed.";
+         "when trying to add a request that should have already existed.";
 }
 
 TEST(ClientsManager, markRequestAsCommitted) {
@@ -1242,7 +1164,7 @@ TEST(ClientsManager, logAllPendingRequestsExceedingThreshold) {
       << "ClientsManager::logAllPendingRequestsExceedingThreshold failed for a ClientsManager with no request records.";
 }
 
-TEST(ClientsManager, deleteOldestReply) {
+TEST(ClientsManager, deleteReplyIfNeeded) {
   resetMockReservedPages();
   ReplicaConfig::instance().setclientBatchingEnabled(true);
   ReplicaConfig::instance().setclientBatchingMaxMsgsNbr(3);
@@ -1250,22 +1172,35 @@ TEST(ClientsManager, deleteOldestReply) {
   string reply_2 = "repy 2";
   string reply_6 = "repy 6";
   string reply_8 = "repy 8";
+  string reply_9 = "repy 9";
+  string reply_11 = "repy 11";
 
   unique_ptr<ClientsManager> cm(new ClientsManager({5, 8}, {6, 7, 9}, {}, {11}, metrics));
-  cm->allocateNewReplyMsgAndWriteToStorage(8, 6, 0, reply_6.data(), reply_6.size(), kRSILengthForTesting);
+  cm->allocateNewReplyMsgAndWriteToStorage(8, 6, 0, reply_6.data(), reply_6.size(), 0, kRSILengthForTesting);
   sleep_for(brief_delay);
-  cm->allocateNewReplyMsgAndWriteToStorage(8, 8, 0, reply_8.data(), reply_8.size(), kRSILengthForTesting);
+  cm->allocateNewReplyMsgAndWriteToStorage(8, 8, 0, reply_8.data(), reply_8.size(), 1, kRSILengthForTesting);
   sleep_for(brief_delay);
-  cm->allocateNewReplyMsgAndWriteToStorage(8, 2, 0, reply_2.data(), reply_2.size(), kRSILengthForTesting);
+  cm->allocateNewReplyMsgAndWriteToStorage(8, 2, 0, reply_2.data(), reply_2.size(), 2, kRSILengthForTesting);
 
-  cm->deleteOldestReply(8);
+  cm->deleteReplyIfNeeded(8, 0);
   EXPECT_FALSE(cm->hasReply(8, 6))
-      << "ClientsManager::deleteOldestReply failed to delete the oldest reply record for the given client.";
+      << "ClientsManager::deleteReplyIfNeeded failed to delete the oldest reply record for the given client.";
   EXPECT_TRUE(cm->hasReply(8, 8) && cm->hasReply(8, 2))
-      << "ClientsManager::deleteOldestReply deleted a reply record other than the oldest one for the given client.";
+      << "ClientsManager::deleteReplyIfNeeded deleted a reply record other than the oldest one for the given client.";
 
-  EXPECT_NO_THROW(cm->deleteOldestReply(6))
-      << "ClientsManager::deleteOldestReply failed when given a client with no reply records.";
+  sleep_for(brief_delay);
+  cm->allocateNewReplyMsgAndWriteToStorage(8, 9, 0, reply_2.data(), reply_2.size(), 1, kRSILengthForTesting);
+  EXPECT_FALSE(cm->hasReply(8, 8))
+      << "ClientsManager::deleteReplyIfNeeded failed to delete a reply record at the index of the new reply.";
+  EXPECT_TRUE(cm->hasReply(8, 2)) << "ClientsManager::deleteReplyIfNeeded deleted a reply record at other index.";
+
+  sleep_for(brief_delay);
+  cm->allocateNewReplyMsgAndWriteToStorage(8, 11, 0, reply_2.data(), reply_2.size(), 0, kRSILengthForTesting);
+  EXPECT_TRUE(cm->hasReply(8, 9) && cm->hasReply(8, 2))
+      << "ClientsManager::deleteReplyIfNeeded deleted a reply record at other index.";
+
+  EXPECT_NO_THROW(cm->deleteReplyIfNeeded(6, 0))
+      << "ClientsManager::deleteReplyIfNeeded failed when given a client with no reply records.";
 }
 
 TEST(ClientsManager, isInternal) {
