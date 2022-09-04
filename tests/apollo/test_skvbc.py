@@ -152,8 +152,8 @@ class SkvbcTest(ApolloTest):
                 bft_network.all_replicas(without={0}))
             bft_network.start_replicas(replicas=bft_network.all_replicas(without={br}))
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-
-            blinking.start_blinking(bft_network.start_replica_cmd(br))
+            start_cmd, replica_binary_path = bft_network.start_replica_cmd(br)
+            blinking.start_blinking(start_cmd)
 
             for _ in range(300):
                 # Perform an unconditional KV put.

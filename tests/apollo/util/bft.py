@@ -14,6 +14,7 @@
 import hashlib
 from logging import setLogRecordFactory
 import sys
+import psutil
 
 import os
 import os.path
@@ -153,44 +154,52 @@ def with_constant_load(async_fn):
                 nursery.cancel_scope.cancel()
     return wrapper
 
-def set_sanitizers_env(bft_network):
+def set_debug_tools_env(bft_network):
     """
-    If we run Apollo with sanitizer, we need to override the output folder according to the
+    If we run Apollo with sanitizer,/profiles and other tools we need to override the output folder according to the
     test suite name and test case name.
     """
+    tool_folder_name = None
     sanitizer_option = None
     if 'UBSAN_OPTIONS' in os.environ:
         sanitizer_option = 'UBSAN_OPTIONS'
-        sanitizer_log_dir = "ubsan_logs"
+        tool_folder_name = "ubsan_logs"
         sanitizer_log_prefix = "ubsan.log"
     elif 'TSAN_OPTIONS' in os.environ:
         sanitizer_option = 'TSAN_OPTIONS'
-        sanitizer_log_dir = "tsan_logs"
+        tool_folder_name = "tsan_logs"
         sanitizer_log_prefix = "tsan.log"
     elif 'ASAN_OPTIONS' in os.environ:
         sanitizer_option = 'ASAN_OPTIONS'
-        sanitizer_log_dir = "asan_logs"
+        tool_folder_name = "asan_logs"
         sanitizer_log_prefix = "asan.log"
+    elif os.environ.get('ENABLE_HEAPTRACK', default="false").lower() == "true":
+        tool_folder_name = "heaptrack_logs"
+
     test_suite_name = os.environ.get('TEST_NAME')
 
-    if sanitizer_option:
+    if tool_folder_name:
         test_suite_name = os.environ.get('TEST_NAME')
         if os.environ.get('BLOCKCHAIN_VERSION', default="1").lower() == "4" :
             test_suite_name += "_v4"
-        sanitizer_log_path = os.path.join(bft_network.builddir, sanitizer_log_dir, test_suite_name, bft_network.current_test)
-        sanitizer_options = os.environ[sanitizer_option].partition(':')
-        str = ""
-        i = 0
-        assert len(sanitizer_options) > 0
-        while i < len(sanitizer_options):
-            if "log_path=" in sanitizer_options[i]: # remove the older log path
-                i = i + 2
-            else:
-                str += sanitizer_options[i]
-                i = i + 1
-        str += ":log_path=" + os.path.join(sanitizer_log_path, sanitizer_log_prefix) # add a new log path
-        os.environ[sanitizer_option] = str
-        os.makedirs(sanitizer_log_path, exist_ok=True) # create the test output folder
+        tool_log_path = os.path.join(bft_network.builddir, tool_folder_name, test_suite_name, bft_network.current_test)
+        if sanitizer_option:
+            sanitizer_options = os.environ[sanitizer_option].partition(':')
+            str = ""
+            i = 0
+            assert len(sanitizer_options) > 0
+            while i < len(sanitizer_options):
+                if "log_path=" in sanitizer_options[i]: # remove the older log path
+                    i = i + 2
+                else:
+                    str += sanitizer_options[i]
+                    i = i + 1
+            str += ":log_path=" + os.path.join(tool_log_path, sanitizer_log_prefix) # add a new log path
+            os.environ[sanitizer_option] = str
+        os.makedirs(tool_log_path, exist_ok=True) # create the test output folder
+        if os.environ.get('ENABLE_HEAPTRACK', default="false").lower() == "true":
+            bft_network.tool_log_path = tool_log_path
+            bft_network.heaptrack_enabled = True
 
 def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None, num_ro_replicas=0,
                      rotate_keys=False, bft_configs=None, with_cre=False, publish_master_keys=False,
@@ -252,7 +261,7 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
                                         if rotate_keys:
                                             await bft_network.check_initital_key_exchange(
                                                 check_master_key_publication=publish_master_keys)
-                                        set_sanitizers_env(bft_network)
+                                        set_debug_tools_env(bft_network)
                                         bft_network.test_start_time = time.time()
                                         await async_fn(*args, **kwargs, bft_network=bft_network)
                             await test_with_bft_network()
@@ -303,8 +312,8 @@ class BftTestNetwork:
             if self.test_start_time:
                 message = f"test duration = {time.time() - self.test_start_time} seconds"
                 log.log_message(message_type=message)
-                if self.test_dir:
-                    with open(f"{self.test_dir}test_duration.log", 'w+') as log_file:
+                if self.current_test_case_path:
+                    with open(f"{self.current_test_case_path}test_duration.log", 'w+') as log_file:
                         log_file.write(f"{message}\n")
             if self.perf_proc:
                 self.perf_proc.wait()
@@ -322,11 +331,13 @@ class BftTestNetwork:
         self.toolsdir = toolsdir
         self.procs = procs
         self.replicas = replicas
+        self.heaptrack_enabled = False
         # Make sure that client order is deterministic so that
         # seeded random client choices are deterministic
         self.clients = OrderedDict(clients)
         self.metrics = metrics
         self.reserved_clients = {}
+        self.debug_tool_procs = {}
         self.reserved_client_ids_in_use = []
         if client_factory:
             self.client_factory = client_factory
@@ -336,7 +347,7 @@ class BftTestNetwork:
         self.open_fds = {}
         self.current_test = ""
         self.background_nursery = background_nursery
-        self.test_dir = None
+        self.current_test_case_path = None
         self.test_start_time = None
         self.perf_proc = None
         self.ro_replicas = ro_replicas
@@ -443,10 +454,10 @@ class BftTestNetwork:
                     now = datetime.now().strftime("%y-%m-%d_%H:%M:%S")
                     test_name = f"{now}_{self.current_test}"
 
-                self.test_dir = f"{self.builddir}/tests/apollo/logs/{test_name}/{self.current_test}/"
-                test_log = f"{self.test_dir}stdout_cre.log"
+                self.current_test_case_path = f"{self.builddir}/tests/apollo/logs/{test_name}/{self.current_test}/"
+                test_log = f"{self.current_test_case_path}stdout_cre.log"
 
-                os.makedirs(self.test_dir, exist_ok=True)
+                os.makedirs(self.current_test_case_path, exist_ok=True)
 
                 stdout_file = open(test_log, 'w+')
                 stderr_file = open(test_log, 'w+')
@@ -725,6 +736,10 @@ class BftTestNetwork:
             cmd = self.config.start_replica_cmd(self.builddir, replica_id, self.config)
         else:
             cmd = self.config.start_replica_cmd(self.builddir, replica_id)
+        replica_binary_path_index = 0
+        if self.heaptrack_enabled:
+            replica_binary_path_index = 1
+            cmd.insert(0, "heaptrack")
         if self.certdir:
             cmd.append("-c")
             cmd.append(self.certdir + "/" + str(replica_id))
@@ -734,7 +749,7 @@ class BftTestNetwork:
             keys_path = os.path.join(self.txn_signing_keys_base_path, "transaction_signing_keys")
             cmd.append("-t")
             cmd.append(keys_path)
-        return cmd
+        return cmd, cmd[replica_binary_path_index]
 
     def check_error_logs(self):
         """
@@ -743,10 +758,10 @@ class BftTestNetwork:
         """
         with log.start_action(action_type="replica_log_scanner") as action:
             cmd = ['grep', '-R', 'FATAL', '--exclude=ReplicaErrorLogs.txt']
-            file_path = f"{self.test_dir}ReplicaErrorLogs.txt"
+            file_path = f"{self.current_test_case_path}ReplicaErrorLogs.txt"
 
             with open(file_path, 'w+') as outfile:
-                subprocess.run(cmd, stdout=outfile, cwd=self.test_dir)
+                subprocess.run(cmd, stdout=outfile, cwd=self.current_test_case_path)
 
             if os.path.isfile(file_path):
                 if  os.stat(file_path).st_size > 0:
@@ -770,7 +785,6 @@ class BftTestNetwork:
                 except AlreadyRunningError:
                     if not self.is_existing:
                         raise
-
             assert len(self.procs) == self.config.n
 
     def stop_all_replicas(self):
@@ -808,10 +822,10 @@ class BftTestNetwork:
             if not test_name:
                 test_name = f"{self._replica_log_dir_timestamp}_{self.current_test}"
 
-            self.test_dir = os.path.join(self.builddir, "tests", "apollo", "logs", test_name, self.current_test)
-            replica_test_log_path = os.path.join(self.test_dir, f"stdout_{replica_id}.log")
+            self.current_test_case_path = os.path.join(self.builddir, "tests", "apollo", "logs", test_name, self.current_test)
+            replica_test_log_path = os.path.join(self.current_test_case_path, f"stdout_{replica_id}.log")
 
-            os.makedirs(self.test_dir, exist_ok=True)
+            os.makedirs(self.current_test_case_path, exist_ok=True)
 
             stdout_file = open(replica_test_log_path, 'w+')
             stderr_file = open(replica_test_log_path, 'w+')
@@ -840,22 +854,20 @@ class BftTestNetwork:
             raise AlreadyRunningError(replica_id)
 
         is_external = self.is_existing and self.config.stop_replica_cmd is not None
-        start_cmd = self.start_replica_cmd(replica_id)
-        replica_binary_path = start_cmd[0]
+        start_cmd, replica_binary_path = self.start_replica_cmd(replica_id)
         digest = self.binary_digest(replica_binary_path) if Path(replica_binary_path).exists() else 'Unknown'
-
         with log.start_action(action_type="start_replica_process", replica=replica_id, is_external=is_external,
                               binary_path=replica_binary_path, binary_digest=digest):
             my_env = os.environ.copy()
             my_env["RID"] = str(replica_id)
             if is_external:
-                self.procs[replica_id] = subprocess.run(
+                p = subprocess.run(
                     start_cmd,
                     check=True,
                     env=my_env
                 )
             else:
-                self.procs[replica_id] = subprocess.Popen(
+                p = subprocess.Popen(
                     start_cmd,
                     stdout=stdout_file,
                     stderr=stderr_file,
@@ -866,12 +878,23 @@ class BftTestNetwork:
                 if keep_logs:
                     self.verify_matching_replica_client_communication(replica_test_log_path)
 
+            if self.heaptrack_enabled:
+                # p holds heaptrack subprocess object. We would like to signal the actual replica executable to stop, lets find its pid using psutil:
+                for cid in psutil.Process(p.pid).children():
+                    if cid.name() == 'skvbc_replica':
+                        self.procs[replica_id] = psutil.Process(cid.pid)
+                        self.debug_tool_procs[replica_id] = p
+                        break
+                assert replica_id in self.debug_tool_procs
+            else:
+                self.procs[replica_id] = p
+
         replica_for_perf = os.environ.get('PERF_REPLICA', "")
         if self.test_start_time and replica_for_perf and int(replica_for_perf) == replica_id:
             log.log_message(message_type=f"Profiling replica {replica_id} using perf")
             perf_samples = os.environ.get('PERF_SAMPLES', "1000")
             perf_cmd = ["perf", "record", "-F", perf_samples, "-p", f"{self.procs[replica_id].pid}",
-                        "-a", "-g", "-o", f"{self.test_dir}perf.data"]
+                        "-a", "-g", "-o", f"{self.current_test_case_path}perf.data"]
             self.perf_proc = subprocess.Popen(perf_cmd, close_fds=True)
 
     @staticmethod
@@ -985,7 +1008,20 @@ class BftTestNetwork:
                 for fd in self.open_fds.get(replica_id, ()):
                     fd.close()
                 p.wait()
+                if replica_id in self.debug_tool_procs:
+                    heaptrack_proc = self.debug_tool_procs[replica_id]
+                    heaptrack_proc_id = heaptrack_proc.pid
+                    heaptrack_proc.wait()
+                    heaptrack_src_log_name = "heaptrack.skvbc_replica." + str(heaptrack_proc_id) + ".gz"
+                    heaptrack_dst_base = "heaptrack.skvbc_replica_pid_" + str(heaptrack_proc_id) + "_replicaid_" + str(replica_id)
+                    heaptrack_dst_gz_path = os.path.join(self.tool_log_path, heaptrack_dst_base + ".gz")
+                    heaptrack_dst_log_path = os.path.join(self.tool_log_path, heaptrack_dst_base + ".log")
 
+                    shutil.copyfile(os.path.join(
+                        self.testdir, heaptrack_src_log_name), os.path.join(self.tool_log_path, heaptrack_dst_gz_path))
+                    with open(heaptrack_dst_log_path, 'w') as logfile:
+                        subprocess.call(["heaptrack_print","-p","1","-l","1","-o","1", heaptrack_dst_gz_path], stdout=logfile, shell=False)
+                    del self.debug_tool_procs[replica_id]
             del self.procs[replica_id]
 
     def _stop_external_replica(self, replica_id):
