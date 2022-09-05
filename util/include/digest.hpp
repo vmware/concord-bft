@@ -16,7 +16,7 @@
 
 #if defined USE_CRYPTOPP_SHA_256
 #include "cryptopp/digest_creator.hpp"
-#elif defined USE_OPENSSL_SHA_256 || defined USE_OPENSSL_SHA3_256
+#elif defined USE_OPENSSL_SHA_256
 #include "openssl/digest_creator.hpp"
 #endif
 
@@ -28,9 +28,6 @@ using DigestGenerator = concord::util::crypto::cryptopp::CryptoppDigestCreator;
 #elif defined USE_OPENSSL_SHA_256
 using Digest = DigestHolder<concord::util::crypto::openssl::OpenSSLDigestCreator<SHA2_256> >;
 using DigestGenerator = concord::util::crypto::openssl::OpenSSLDigestCreator<SHA2_256>;
-#elif defined USE_OPENSSL_SHA3_256
-using Digest = DigestHolder<concord::util::crypto::openssl::OpenSSLDigestCreator<SHA3_256> >;
-using DigestGenerator = concord::util::crypto::openssl::OpenSSLDigestCreator<SHA3_256>;
 #endif
 
 static_assert(DIGEST_SIZE >= sizeof(uint64_t), "Digest size should be >= sizeof(uint64_t)");
