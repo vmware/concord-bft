@@ -18,173 +18,71 @@
 #include "crypto/openssl/EdDSA.hpp"
 #include "crypto/openssl/EdDSASigner.hpp"
 #include "crypto/openssl/EdDSAVerifier.hpp"
-#include "crypto.hpp"
+#include "crypto/crypto.hpp"
 
 namespace {
 using concord::crypto::KeyFormat;
 using concord::crypto::generateEdDSAKeyPair;
 using concord::crypto::EdDSAHexToPem;
-using concord::util::crypto::openssl::EdDSAPrivateKey;
-using concord::util::crypto::openssl::EdDSAPublicKey;
-using concord::util::crypto::openssl::EdDSAPrivateKeyByteSize;
-using concord::util::crypto::openssl::deserializeKey;
+using concord::crypto::openssl::EdDSAPrivateKey;
+using concord::crypto::openssl::EdDSAPublicKey;
+using concord::crypto::openssl::EdDSAPrivateKeyByteSize;
+using concord::crypto::openssl::EdDSAPublicKeyByteSize;
+using concord::crypto::openssl::deserializeKey;
 
-using TestTxnSigner = concord::crypto::openssl::EdDSASigner<EdDSAPrivateKey>;
-using TestTxnVerifier = concord::crypto::openssl::EdDSAVerifier<EdDSAPublicKey>;
+class EdDSATests : public ::testing::Test {
+ public:
+  using Signer = concord::crypto::openssl::EdDSASigner<EdDSAPrivateKey>;
+  using Verifier = concord::crypto::openssl::EdDSAVerifier<EdDSAPublicKey>;
 
-TEST(openssl_utils, check_eddsa_keys_hex_format_length) {
-  const auto hexKeys = generateEdDSAKeyPair(KeyFormat::HexaDecimalStrippedFormat);
-  ASSERT_EQ(hexKeys.first.size(), EdDSAPrivateKeyByteSize * 2);
-  ASSERT_EQ(hexKeys.second.size(), EdDSAPrivateKeyByteSize * 2);
+  void SetUp() override { initSignerVerifier(KeyFormat::HexaDecimalStrippedFormat); }
+
+  void initSignerVerifier(KeyFormat format) {
+    auto keys = generateEdDSAKeyPair(format);
+
+    const auto signingKey = deserializeKey<EdDSAPrivateKey>(keys.first, format);
+    const auto verificationKey = deserializeKey<EdDSAPublicKey>(keys.second, format);
+
+    signer_ = std::make_unique<Signer>(signingKey.getBytes());
+    verifier_ = std::make_unique<Verifier>(verificationKey.getBytes());
+  }
+
+  std::vector<concord::Byte> sign(const std::string& data) {
+    const auto expectedSigLength = signer_->signatureLength();
+    std::vector<concord::Byte> signature(signer_->signatureLength());
+    auto sigLength = signer_->sign(data, signature.data());
+    EXPECT_EQ(sigLength, expectedSigLength);
+    return signature;
+  }
+
+  bool verify(const std::string& data, const std::vector<concord::Byte>& signature) {
+    return verifier_->verify(data, signature);
+  }
+
+  void signVerify(const std::string& data) { ASSERT_TRUE(verify(data, sign(data))); }
+
+  std::unique_ptr<Signer> signer_;
+  std::unique_ptr<Verifier> verifier_;
+  static constexpr const char* Message = "Hello VMworld";
+};
+
+TEST_F(EdDSATests, TestHexFormatKeyLengths) {
+  const auto keyPair = generateEdDSAKeyPair(KeyFormat::HexaDecimalStrippedFormat);
+  ASSERT_TRUE(concord::crypto::isValidKey("", keyPair.first, EdDSAPrivateKeyByteSize * 2));
+  ASSERT_TRUE(concord::crypto::isValidKey("", keyPair.second, EdDSAPublicKeyByteSize * 2));
 }
 
-TEST(openssl_utils, generate_eddsa_keys_hex_format) {
-  ASSERT_NO_THROW(generateEdDSAKeyPair());
-  const auto hexKeys1 = generateEdDSAKeyPair();
-  LOG_INFO(GL, hexKeys1.first << " | " << hexKeys1.second);
-
-  ASSERT_NO_THROW(generateEdDSAKeyPair(KeyFormat::HexaDecimalStrippedFormat));
-  const auto hexKeys2 = generateEdDSAKeyPair(KeyFormat::HexaDecimalStrippedFormat);
-  LOG_INFO(GL, hexKeys2.first << " | " << hexKeys2.second);
+TEST_F(EdDSATests, TestPEMFormatValidity) {
+  initSignerVerifier(KeyFormat::PemFormat);
+  signVerify(Message);
 }
 
-TEST(openssl_utils, generate_eddsa_keys_pem_format) {
-  ASSERT_NO_THROW(generateEdDSAKeyPair());
-  ASSERT_NO_THROW(generateEdDSAKeyPair(KeyFormat::PemFormat));
-  const auto pemKeys = generateEdDSAKeyPair(KeyFormat::PemFormat);
-  LOG_INFO(GL, pemKeys.first << " | " << pemKeys.second);
-}
+TEST_F(EdDSATests, TestValidSignature) { signVerify(Message); }
 
-TEST(openssl_utils, test_eddsa_keys_hex_ok) {
-  auto hexKeys = generateEdDSAKeyPair();
-
-  const auto signingKey = deserializeKey<EdDSAPrivateKey>(hexKeys.first);
-  const auto verificationKey = deserializeKey<EdDSAPublicKey>(hexKeys.second);
-
-  TestTxnSigner signer(signingKey.getBytes());
-  TestTxnVerifier verifier(verificationKey.getBytes());
-
-  const std::string data = "Hello VMworld";
-  auto sig = signer.sign(data);
-  ASSERT_TRUE(verifier.verify(data, sig));
-}
-
-TEST(openssl_utils, test_eddsa_keys_hex_nok) {
-  const auto hexKeys = generateEdDSAKeyPair();
-
-  const auto signingKey = deserializeKey<EdDSAPrivateKey>(hexKeys.first);
-  const auto verificationKey = deserializeKey<EdDSAPublicKey>(hexKeys.second);
-
-  TestTxnSigner signer(signingKey.getBytes());
-  TestTxnVerifier verifier(verificationKey.getBytes());
-
-  const std::string data = "Hello VMworld";
-  auto sig = signer.sign(data);
-
-  // Corrupt data.
-  ++sig[0];
-
-  ASSERT_FALSE(verifier.verify(data, sig));
-}
-
-TEST(openssl_utils, test_eddsa_keys_pem_ok) {
-  const auto pemKeys = generateEdDSAKeyPair(KeyFormat::PemFormat);
-
-  const auto signingKey = deserializeKey<EdDSAPrivateKey>(pemKeys.first, KeyFormat::PemFormat);
-  const auto verificationKey = deserializeKey<EdDSAPublicKey>(pemKeys.second, KeyFormat::PemFormat);
-
-  TestTxnSigner signer(signingKey.getBytes());
-  TestTxnVerifier verifier(verificationKey.getBytes());
-
-  const std::string data = "Hello VMworld";
-  auto sig = signer.sign(data);
-  ASSERT_TRUE(verifier.verify(data, sig));
-}
-
-TEST(openssl_utils, test_eddsa_keys_pem_nok) {
-  const auto pemKeys = generateEdDSAKeyPair(KeyFormat::PemFormat);
-
-  const auto signingKey = deserializeKey<EdDSAPrivateKey>(pemKeys.first, KeyFormat::PemFormat);
-  const auto verificationKey = deserializeKey<EdDSAPublicKey>(pemKeys.second, KeyFormat::PemFormat);
-
-  TestTxnSigner signer(signingKey.getBytes());
-  TestTxnVerifier verifier(verificationKey.getBytes());
-
-  const std::string data = "Hello VMworld";
-  auto sig = signer.sign(data);
-
-  // Corrupt data.
-  ++sig[0];
-
-  ASSERT_FALSE(verifier.verify(data, sig));
-}
-
-TEST(openssl_utils, test_eddsa_keys_combined_a_ok) {
-  const auto hexKeys = generateEdDSAKeyPair();
-  const auto pemKeys = EdDSAHexToPem(hexKeys);
-
-  const auto signingKey = deserializeKey<EdDSAPrivateKey>(hexKeys.first);
-  const auto verificationKey = deserializeKey<EdDSAPublicKey>(pemKeys.second, KeyFormat::PemFormat);
-
-  TestTxnSigner signer(signingKey.getBytes());
-  TestTxnVerifier verifier(verificationKey.getBytes());
-
-  const std::string data = "Hello VMworld";
-  auto sig = signer.sign(data);
-  ASSERT_TRUE(verifier.verify(data, sig));
-}
-
-TEST(openssl_utils, test_eddsa_keys_combined_a_nok) {
-  const auto hexKeys = generateEdDSAKeyPair();
-  const auto pemKeys = EdDSAHexToPem(hexKeys);
-
-  const auto signingKey = deserializeKey<EdDSAPrivateKey>(hexKeys.first);
-  const auto verificationKey = deserializeKey<EdDSAPublicKey>(pemKeys.second, KeyFormat::PemFormat);
-
-  TestTxnSigner signer(signingKey.getBytes());
-  TestTxnVerifier verifier(verificationKey.getBytes());
-
-  const std::string data = "Hello VMworld";
-  auto sig = signer.sign(data);
-
-  // Corrupt data.
-  ++sig[0];
-
-  ASSERT_FALSE(verifier.verify(data, sig));
-}
-
-TEST(openssl_utils, test_eddsa_keys_combined_b_ok) {
-  const auto hexKeys = generateEdDSAKeyPair();
-  const auto pemKeys = EdDSAHexToPem(hexKeys);
-
-  const auto signingKey = deserializeKey<EdDSAPrivateKey>(pemKeys.first, KeyFormat::PemFormat);
-  const auto verificationKey = deserializeKey<EdDSAPublicKey>(hexKeys.second);
-
-  TestTxnSigner signer(signingKey.getBytes());
-  TestTxnVerifier verifier(verificationKey.getBytes());
-
-  const std::string data = "Hello VMworld";
-  auto sig = signer.sign(data);
-  ASSERT_TRUE(verifier.verify(data, sig));
-}
-
-TEST(openssl_utils, test_eddsa_keys_combined_b_nok) {
-  const auto hexKeys = generateEdDSAKeyPair();
-  const auto pemKeys = EdDSAHexToPem(hexKeys);
-
-  const auto signingKey = deserializeKey<EdDSAPrivateKey>(pemKeys.first, KeyFormat::PemFormat);
-  const auto verificationKey = deserializeKey<EdDSAPublicKey>(hexKeys.second);
-
-  TestTxnSigner signer(signingKey.getBytes());
-  TestTxnVerifier verifier(verificationKey.getBytes());
-
-  std::string data = "Hello VMworld";
-  auto sig = signer.sign(data);
-
-  // Corrupt data.
-  ++sig[0];
-
-  ASSERT_FALSE(verifier.verify(data, sig));
+TEST_F(EdDSATests, TestInvalidSignature) {
+  auto signature = sign(Message);
+  signature[0] = ~signature[0];
+  ASSERT_FALSE(verify(Message, signature));
 }
 }  // namespace
 

@@ -12,11 +12,11 @@
 //
 #pragma once
 
-#include "crypto.hpp"
+#include "crypto/crypto.hpp"
 #include "SerializableByteArray.hpp"
 #include "openssl_crypto.hpp"
 
-namespace concord::util::crypto::openssl {
+namespace concord::crypto::openssl {
 
 static constexpr const size_t EdDSAPrivateKeyByteSize = 32UL;
 static constexpr const size_t EdDSAPublicKeyByteSize = 32UL;
@@ -86,4 +86,4 @@ static ByteArrayKeyClass deserializeKey(
   }
   return fromHexString<ByteArrayKeyClass>(key);
 }
-}  // namespace concord::util::crypto::openssl
+}  // namespace concord::crypto::openssl

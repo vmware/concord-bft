@@ -64,6 +64,10 @@ struct MsgParams {
   const std::string spanContext{rawSpanContext};
 };
 
+std::vector<concord::Byte> copyAsBytes(const std::vector<char> vec) {
+  return *reinterpret_cast<const std::vector<concord::Byte>*>(&vec);
+}
+
 std::pair<std::string, std::vector<char>> getProcessResultSigBuff(const std::unique_ptr<SigManager>& sigManager,
                                                                   const MsgParams& p,
                                                                   const int sigCount) {
@@ -76,7 +80,7 @@ std::pair<std::string, std::vector<char>> getProcessResultSigBuff(const std::uni
   // for simplicity, copy the same signatures
   std::set<PreProcessResultSignature> resultSigs;
   for (int i = 0; i < sigCount; i++) {
-    resultSigs.emplace(std::vector<char>(msgSig), i, OperationResult::SUCCESS);
+    resultSigs.emplace(copyAsBytes(msgSig), i, OperationResult::SUCCESS);
   }
   return std::make_pair(PreProcessResultSignature::serializeResultSignatures(resultSigs, sigCount), msgSig);
 }
@@ -132,7 +136,7 @@ class PreProcessResultMsgTestFixture : public testing::Test {
     // For simplicity, copy the same signatures
     std::list<PreProcessResultSignature> resultSigs;
     for (int i = 0; i < sigCount; i++) {
-      resultSigs.emplace_back(std::vector<char>(msgSig), i, OperationResult::SUCCESS);
+      resultSigs.emplace_back(copyAsBytes(msgSig), i, OperationResult::SUCCESS);
     }
 
     return std::make_unique<PreProcessResultMsg>(p.senderId,
@@ -204,7 +208,7 @@ TEST_F(PreProcessResultMsgTestFixture, SignatureDeserialization) {
 
   std::set<PreProcessResultSignature> resultSigs;
   for (int i = 0; i < replicaInfo.getNumberOfReplicas(); i++) {
-    resultSigs.emplace(std::vector<char>(msgSig), i, OperationResult::SUCCESS);
+    resultSigs.emplace(copyAsBytes(msgSig), i, OperationResult::SUCCESS);
   }
   auto resultSigsBuf =
       PreProcessResultSignature::serializeResultSignatures(resultSigs, replicaInfo.getNumberOfReplicas());
@@ -220,7 +224,7 @@ TEST_F(PreProcessResultMsgTestFixture, ShrinkSignaturesToSize) {
   auto numReplies = 7;
   auto numRepliesNeeded = 4;
   for (int i = 0; i < numReplies; i++) {
-    resultSigs.emplace(std::vector<char>(msgSig), i, OperationResult::SUCCESS);
+    resultSigs.emplace(copyAsBytes(msgSig), i, OperationResult::SUCCESS);
   }
 
   auto resultSigsBuf = PreProcessResultSignature::serializeResultSignatures(resultSigs, numRepliesNeeded);
@@ -260,7 +264,7 @@ TEST_F(PreProcessResultMsgTestFixture, MsgDeserialisation) {
   auto i = 0;
   for (const auto& s : sigs) {
     ASSERT_EQ(s.sender_replica, i++);
-    EXPECT_THAT(msgSig, s.signature);
+    EXPECT_THAT(copyAsBytes(msgSig), s.signature);
   }
 }
 
@@ -294,7 +298,7 @@ TEST_F(PreProcessResultMsgTestFixture, MsgDeserialisationFromBase) {
   auto i = 0;
   for (const auto& s : sigs) {
     ASSERT_EQ(s.sender_replica, i++);
-    EXPECT_THAT(msgSig, s.signature);
+    EXPECT_THAT(copyAsBytes(msgSig), s.signature);
   }
 }
 

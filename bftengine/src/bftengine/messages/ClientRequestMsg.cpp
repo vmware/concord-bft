@@ -205,8 +205,9 @@ void ClientRequestMsg::validateImp(const ReplicasInfo& repInfo) const {
     throw std::runtime_error(msg.str());
   }
   if (doSigVerify) {
-    if (!sigManager->verifySig(
-            clientId, requestBuf(), header->requestLength, requestSignature(), header->reqSignatureLength)) {
+    if (!sigManager->verifySig(clientId,
+                               std::string_view{requestBuf(), header->requestLength},
+                               std::string_view{requestSignature(), header->reqSignatureLength})) {
       std::stringstream msg;
       LOG_WARN(CNSUS, "Signature verification failed for" << KVLOG(header->reqSeqNum, this->senderId(), clientId));
       msg << "Signature verification failed for: "

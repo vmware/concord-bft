@@ -23,7 +23,7 @@
 #define DigestType CryptoPP::SHA512
 #endif
 
-namespace concord::util::crypto::cryptopp {
+namespace concord::crypto::cryptopp {
 
 // Implements digest creator using Crypto++ library.
 class CryptoppDigestCreator : public concord::util::digest::DigestCreator {
@@ -46,4 +46,4 @@ class CryptoppDigestCreator : public concord::util::digest::DigestCreator {
  private:
   void* internalState_;
 };
-}  // namespace concord::util::crypto::cryptopp
+}  // namespace concord::crypto::cryptopp

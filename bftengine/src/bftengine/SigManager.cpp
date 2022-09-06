@@ -26,6 +26,7 @@ namespace impl {
 
 using concord::crypto::IVerifier;
 using concord::crypto::Factory;
+using concord::crypto::KeyFormat;
 
 concord::messages::keys_and_signatures::ClientsPublicKeys clientsPublicKeys_;
 
@@ -203,14 +204,12 @@ uint16_t SigManager::getSigLength(PrincipalId pid) const {
 }
 
 bool SigManager::verifySig(
-    PrincipalId pid, const char* data, size_t dataLength, const char* sig, uint16_t sigLength) const {
+    PrincipalId pid, const concord::Byte* data, size_t dataLength, const concord::Byte* sig, uint16_t sigLength) const {
   bool result = false;
   {
-    std::string str_data(data, dataLength);
-    std::string str_sig(sig, sigLength);
     std::shared_lock lock(mutex_);
     if (auto pos = verifiers_.find(pid); pos != verifiers_.end()) {
-      result = pos->second->verify(str_data, str_sig);
+      result = pos->second->verifyBuffer(data, dataLength, sig, sigLength);
     } else {
       LOG_ERROR(GL, "Unrecognized pid " << pid);
       metrics_.sigVerificationFailedOnUnrecognizedParticipantId_++;
@@ -245,10 +244,12 @@ bool SigManager::verifySig(
   return result;
 }
 
-void SigManager::sign(const char* data, size_t dataLength, char* outSig) const {
-  std::string str_data(data, dataLength);
-  std::string sig = mySigner_->sign(str_data);
-  std::memcpy(outSig, sig.c_str(), sig.size());
+size_t SigManager::sign(const concord::Byte* data, size_t dataLength, concord::Byte* outSig) const {
+  return mySigner_->signBuffer(data, dataLength, outSig);
+}
+
+size_t SigManager::sign(const char* data, size_t dataLength, char* outSig) const {
+  return sign(reinterpret_cast<const uint8_t*>(data), dataLength, reinterpret_cast<uint8_t*>(outSig));
 }
 
 uint16_t SigManager::getMySigLength() const { return (uint16_t)mySigner_->signatureLength(); }
@@ -273,6 +274,10 @@ void SigManager::setClientPublicKey(const std::string& key, PrincipalId id, KeyF
 bool SigManager::hasVerifier(PrincipalId pid) { return verifiers_.find(pid) != verifiers_.end(); }
 
 concord::crypto::SignatureAlgorithm SigManager::getMainKeyAlgorithm() const { return concord::crypto::EdDSA; }
+concord::crypto::ISigner& SigManager::getSigner() { return *mySigner_; }
+const concord::crypto::IVerifier& SigManager::getVerifier(PrincipalId otherPrincipal) const {
+  return *verifiers_.at(otherPrincipal);
+}
 
 }  // namespace impl
 }  // namespace bftEngine

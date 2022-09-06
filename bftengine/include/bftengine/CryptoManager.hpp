@@ -18,7 +18,7 @@
 #include "ReplicaConfig.hpp"
 #include "IKeyExchanger.hpp"
 #include "Logger.hpp"
-#include "crypto/crypto.h"
+#include "crypto/crypto.hpp"
 
 namespace bftEngine {
 typedef std::int64_t SeqNum;                    // TODO [TK] redefinition

@@ -15,6 +15,7 @@ set(util_source_files
     src/openssl/utils.cpp
     src/crypto/cryptopp/signers.cpp
     src/crypto/cryptopp/verifiers.cpp
+    src/crypto/cryptopp/keygen.cpp
     src/RawMemoryPool.cpp
     src/config_file_parser.cpp
     src/cryptopp/digest_creator.cpp

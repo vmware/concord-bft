@@ -14,17 +14,17 @@
 #pragma once
 
 #include <memory>
-
-#include "crypto.hpp"
+#include "types.hpp"
+#include "crypto/crypto.hpp"
 #include "crypto/verifier.hpp"
 
 namespace concord::crypto::cryptopp {
 
 class ECDSAVerifier : public IVerifier {
  public:
-  ECDSAVerifier(const std::string& str_pub_key,
+  ECDSAVerifier(const std::string &str_pub_key,
                 concord::crypto::KeyFormat fmt = concord::crypto::KeyFormat::HexaDecimalStrippedFormat);
-  bool verify(const std::string& data, const std::string& sig) const override;
+  bool verifyBuffer(const concord::Byte *msg, size_t msgLen, const concord::Byte *sig, size_t sigLen) const override;
   uint32_t signatureLength() const override;
   std::string getPubKey() const override { return key_str_; }
   ~ECDSAVerifier();
@@ -37,9 +37,9 @@ class ECDSAVerifier : public IVerifier {
 
 class RSAVerifier : public IVerifier {
  public:
-  RSAVerifier(const std::string& str_pub_key,
+  RSAVerifier(const std::string &str_pub_key,
               concord::crypto::KeyFormat fmt = concord::crypto::KeyFormat::HexaDecimalStrippedFormat);
-  bool verify(const std::string& data, const std::string& sig) const override;
+  bool verifyBuffer(const concord::Byte *msg, size_t msgLen, const concord::Byte *sig, size_t sigLen) const override;
   uint32_t signatureLength() const override;
   std::string getPubKey() const override { return key_str_; }
   ~RSAVerifier();

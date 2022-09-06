@@ -15,7 +15,7 @@
 #include "EdDSA.hpp"
 #include "openssl_crypto.hpp"
 #include "crypto/signer.hpp"
-#include "crypto.hpp"
+#include "crypto/crypto.hpp"
 
 namespace concord::crypto::openssl {
 
@@ -33,39 +33,32 @@ class EdDSASigner : public ISigner {
    *
    * @param privateKey
    */
-  explicit EdDSASigner(const PrivateKeyType &privateKey) : privateKey_(privateKey) {
-    pkey_.reset(EVP_PKEY_new_raw_private_key(
+  explicit EdDSASigner(const PrivateKeyType &privateKey) : privateKey_(privateKey) {}
+
+  size_t signBuffer(const concord::Byte *msg, size_t len, concord::Byte *signature) override {
+    using concord::util::openssl_utils::UniquePKEY;
+    UniquePKEY pkey(EVP_PKEY_new_raw_private_key(
         NID_ED25519, nullptr, privateKey_.getBytes().data(), privateKey_.getBytes().size()));
-    ConcordAssertNE(pkey_, nullptr);
-  }
+    ConcordAssertNE(pkey, nullptr);
 
-  std::string sign(const uint8_t *msg, size_t len) const {
-    std::string signature(concord::util::crypto::openssl::EdDSASignatureByteSize, 0);
-    size_t sigLen_ = concord::util::crypto::openssl::EdDSASignatureByteSize;
-    sign(msg, len, reinterpret_cast<uint8_t *>(signature.data()), sigLen_);
-    ConcordAssertEQ(sigLen_, concord::util::crypto::openssl::EdDSASignatureByteSize);
-    return signature;
-  }
-
-  void sign(const uint8_t *msg, size_t len, uint8_t *signature, size_t &signatureLength) const {
+    size_t signatureLength = concord::crypto::openssl::EdDSASignatureByteSize;
     using concord::util::openssl_utils::OPENSSL_SUCCESS;
     concord::util::openssl_utils::UniqueOpenSSLContext ctx{EVP_MD_CTX_new()};
-    ConcordAssertEQ(EVP_DigestSignInit(ctx.get(), nullptr, nullptr, nullptr, pkey_.get()), OPENSSL_SUCCESS);
-    ConcordAssertEQ(EVP_DigestSign(ctx.get(), signature, &signatureLength, msg, len), OPENSSL_SUCCESS);
+    ConcordAssertEQ(EVP_DigestSignInit(ctx.get(), nullptr, nullptr, nullptr, pkey.get()), OPENSSL_SUCCESS);
+    ConcordAssertEQ(EVP_DigestSign(ctx.get(),
+                                   reinterpret_cast<unsigned char *>(signature),
+                                   &signatureLength,
+                                   reinterpret_cast<const unsigned char *>(msg),
+                                   len),
+                    OPENSSL_SUCCESS);
+    return signatureLength;
   }
 
-  std::string sign(const std::string &message) override {
-    return sign(reinterpret_cast<const uint8_t *>(message.data()), message.size());
-  }
-
-  uint32_t signatureLength() const override { return concord::util::crypto::openssl::EdDSASignatureByteSize; }
+  size_t signatureLength() const override { return concord::crypto::openssl::EdDSASignatureByteSize; }
 
   std::string getPrivKey() const override { return privateKey_.toString(); }
 
   virtual ~EdDSASigner() = default;
-
- private:
-  concord::util::openssl_utils::UniquePKEY pkey_;
 
  protected:
   const PrivateKeyType privateKey_;

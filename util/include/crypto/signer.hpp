@@ -12,15 +12,27 @@
 // file.
 #pragma once
 
+#include "crypto.hpp"
+#include "types.hpp"
 #include <string>
 
 namespace concord::crypto {
 
 // Interface for signer.
+// Signers expect the memory for the signature to be allocated by the caller
+// to prevent redundant memory allocations
 class ISigner {
  public:
-  virtual std::string sign(const std::string& data) = 0;
-  virtual uint32_t signatureLength() const = 0;
+  // This function's name need to be different from ISigner::sign, otherwise inheriting
+  // classes will hide ISigner::sign
+  virtual size_t signBuffer(const Byte* dataIn, size_t dataLen, Byte* sigOutBuffer) = 0;
+  template <typename Container>
+  size_t sign(const Container& dataIn, Byte* sigOutBuffer) {
+    static_assert(sizeof(typename Container::value_type) == sizeof(Byte),
+                  "Attempting to sign a container whose elements are not byte-sized");
+    return signBuffer(reinterpret_cast<const Byte*>(dataIn.data()), dataIn.size(), sigOutBuffer);
+  }
+  virtual size_t signatureLength() const = 0;
   virtual ~ISigner() = default;
   virtual std::string getPrivKey() const = 0;
 };

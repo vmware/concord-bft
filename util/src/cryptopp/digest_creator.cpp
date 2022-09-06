@@ -24,7 +24,7 @@
 #include "cryptopp/digest_creator.hpp"
 #include "digest.hpp"
 
-namespace concord::util::crypto::cryptopp {
+namespace concord::crypto::cryptopp {
 
 using CryptoPP::SecByteBlock;
 using concord::util::digest::DigestGenerator;
@@ -88,4 +88,4 @@ CryptoppDigestCreator::~CryptoppDigestCreator() {
     internalState_ = nullptr;
   }
 }
-}  // namespace concord::util::crypto::cryptopp
+}  // namespace concord::crypto::cryptopp

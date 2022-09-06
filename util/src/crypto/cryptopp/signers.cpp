@@ -26,6 +26,7 @@ namespace concord::crypto::cryptopp {
 
 using namespace CryptoPP;
 using concord::crypto::KeyFormat;
+using concord::Byte;
 
 class ECDSASigner::Impl {
   std::unique_ptr<ECDSA<ECP, CryptoPP::SHA256>::Signer> signer_;
@@ -36,18 +37,21 @@ class ECDSASigner::Impl {
     signer_ = std::make_unique<ECDSA<ECP, CryptoPP::SHA256>::Signer>(std::move(privateKey));
   }
 
-  std::string sign(const std::string& data_to_sign) {
-    size_t siglen = signer_->MaxSignatureLength();
-    std::string signature(siglen, 0x00);
-    siglen = signer_->SignMessage(
-        prng_, (const CryptoPP::byte*)&data_to_sign[0], data_to_sign.size(), (CryptoPP::byte*)&signature[0]);
-    signature.resize(siglen);
-    return signature;
+  size_t sign(const Byte* dataIn, size_t dataLen, Byte* sigOutBuffer) {
+    return signer_->SignMessage(prng_, reinterpret_cast<const byte*>(dataIn), dataLen, (CryptoPP::byte*)sigOutBuffer);
   }
-  uint32_t signatureLength() const { return signer_->SignatureLength(); }
+
+  size_t signatureLength() const { return signer_->SignatureLength(); }
 };
 
-std::string ECDSASigner::sign(const std::string& data) { return impl_->sign(data); }
+std::string ECDSASigner::sign(const std::string& data) {
+  size_t siglen = impl_->signatureLength();
+  std::string signature(siglen, 0x00);
+  siglen = signBuffer(
+      reinterpret_cast<const Byte* const>(data.data()), data.size(), reinterpret_cast<Byte*>(signature.data()));
+  signature.resize(siglen);
+  return signature;
+}
 
 ECDSASigner::ECDSASigner(const std::string& str_priv_key, KeyFormat fmt) : key_str_{str_priv_key} {
   ECDSA<ECP, CryptoPP::SHA256>::PrivateKey privateKey;
@@ -61,7 +65,10 @@ ECDSASigner::ECDSASigner(const std::string& str_priv_key, KeyFormat fmt) : key_s
   impl_.reset(new Impl(privateKey));
 }
 
-uint32_t ECDSASigner::signatureLength() const { return impl_->signatureLength(); }
+size_t ECDSASigner::signatureLength() const { return impl_->signatureLength(); }
+size_t ECDSASigner::signBuffer(const Byte* dataIn, size_t dataLen, Byte* sigOutBuffer) {
+  return impl_->sign(dataIn, dataLen, sigOutBuffer);
+}
 
 ECDSASigner::~ECDSASigner() = default;
 
@@ -70,14 +77,11 @@ class RSASigner::Impl {
   Impl(CryptoPP::RSA::PrivateKey& private_key) {
     signer_ = std::make_unique<RSASS<PKCS1v15, CryptoPP::SHA256>::Signer>(std::move(private_key));
   }
-  std::string sign(const std::string& data_to_sign) {
-    size_t siglen = signer_->MaxSignatureLength();
-    std::string signature(siglen, 0x00);
-    siglen = signer_->SignMessage(
-        prng_, (const CryptoPP::byte*)&data_to_sign[0], data_to_sign.size(), (CryptoPP::byte*)&signature[0]);
-    signature.resize(siglen);
-    return signature;
+
+  uint32_t sign(const Byte* const dataIn, uint32_t dataLen, Byte* sigOutBuffer) {
+    return signer_->SignMessage(prng_, (const CryptoPP::byte*)dataIn, dataLen, (CryptoPP::byte*)sigOutBuffer);
   }
+
   uint32_t signatureLength() const { return signer_->SignatureLength(); }
 
  private:
@@ -97,9 +101,11 @@ RSASigner::RSASigner(const std::string& str_priv_key, KeyFormat fmt) : key_str_{
   impl_.reset(new RSASigner::Impl(private_key));
 }
 
-std::string RSASigner::sign(const std::string& data) { return impl_->sign(data); }
+size_t RSASigner::signBuffer(const Byte* const dataIn, size_t dataLen, Byte* sigOutBuffer) {
+  return impl_->sign(dataIn, dataLen, sigOutBuffer);
+}
 
-uint32_t RSASigner::signatureLength() const { return impl_->signatureLength(); }
+size_t RSASigner::signatureLength() const { return impl_->signatureLength(); }
 
 RSASigner::~RSASigner() = default;
 

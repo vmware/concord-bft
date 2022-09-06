@@ -36,11 +36,9 @@ class Factory {
         return std::unique_ptr<concord::crypto::ISigner>(new concord::crypto::cryptopp::RSASigner(signingKey, fmt));
       }
       case SIGN_VERIFY_ALGO::EDDSA: {
-        using MainReplicaSigner =
-            concord::crypto::openssl::EdDSASigner<concord::util::crypto::openssl::EdDSAPrivateKey>;
+        using MainReplicaSigner = concord::crypto::openssl::EdDSASigner<concord::crypto::openssl::EdDSAPrivateKey>;
         const auto signingKeyObject =
-            concord::util::crypto::openssl::deserializeKey<concord::util::crypto::openssl::EdDSAPrivateKey>(signingKey,
-                                                                                                            fmt);
+            concord::crypto::openssl::deserializeKey<concord::crypto::openssl::EdDSAPrivateKey>(signingKey, fmt);
         return std::unique_ptr<MainReplicaSigner>(new MainReplicaSigner(signingKeyObject.getBytes()));
       }
       default:
@@ -63,11 +61,9 @@ class Factory {
             new concord::crypto::cryptopp::RSAVerifier(verificationKey, fmt));
       }
       case SIGN_VERIFY_ALGO::EDDSA: {
-        using MainReplicaVerifier =
-            concord::crypto::openssl::EdDSAVerifier<concord::util::crypto::openssl::EdDSAPublicKey>;
+        using MainReplicaVerifier = concord::crypto::openssl::EdDSAVerifier<concord::crypto::openssl::EdDSAPublicKey>;
         const auto verifyingKeyObject =
-            concord::util::crypto::openssl::deserializeKey<concord::util::crypto::openssl::EdDSAPublicKey>(
-                verificationKey, fmt);
+            concord::crypto::openssl::deserializeKey<concord::crypto::openssl::EdDSAPublicKey>(verificationKey, fmt);
         return std::unique_ptr<MainReplicaVerifier>(new MainReplicaVerifier(verifyingKeyObject.getBytes()));
       }
       default:

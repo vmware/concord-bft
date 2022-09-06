@@ -5379,9 +5379,8 @@ void ReplicaImp::onExecutionFinish() {
     // Mark this request as an internal one
     std::vector<uint8_t> data_vec;
     concord::messages::serialize(data_vec, req);
-    std::string sig(SigManager::instance()->getMySigLength(), '\0');
-    SigManager::instance()->sign(reinterpret_cast<char *>(data_vec.data()), data_vec.size(), sig.data());
-    req.signature = std::vector<uint8_t>(sig.begin(), sig.end());
+    req.signature.resize(SigManager::instance()->getMySigLength());
+    SigManager::instance()->sign(data_vec.data(), data_vec.size(), req.signature.data());
     data_vec.clear();
     concord::messages::serialize(data_vec, req);
     std::string strMsg(data_vec.begin(), data_vec.end());

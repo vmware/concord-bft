@@ -11,60 +11,54 @@
 // terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
-#include "crypto.hpp"
+#include "crypto/crypto.hpp"
 #include "Logger.hpp"
 #include "assertUtils.hpp"
 #include "hex_tools.h"
 #include "string.hpp"
+#include "types.hpp"
 #include "crypto/openssl/EdDSA.hpp"
 #include "util/filesystem.hpp"
-
-#include <regex>
 #include <utility>
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
-#include <cryptopp/dll.h>
-#include <cryptopp/pem.h>
-#include <cryptopp/rsa.h>
-#include <cryptopp/cryptlib.h>
-#include <cryptopp/oids.h>
-#pragma GCC diagnostic pop
 
 namespace concord::crypto {
 using std::array;
 using std::pair;
 using std::string;
+using concord::Byte;
 using concord::crypto::KeyFormat;
 using concord::crypto::CurveType;
 using concord::util::openssl_utils::UniquePKEY;
 using concord::util::openssl_utils::UniqueOpenSSLPKEYContext;
 using concord::util::openssl_utils::UniqueOpenSSLBIO;
 using concord::util::openssl_utils::OPENSSL_SUCCESS;
-using concord::util::crypto::openssl::EdDSASignatureByteSize;
-using namespace CryptoPP;
+using concord::crypto::openssl::EdDSASignatureByteSize;
+using concord::crypto::openssl::EdDSAPrivateKeyByteSize;
+using concord::crypto::openssl::EdDSAPublicKeyByteSize;
 
 pair<string, string> generateEdDSAKeyPair(const KeyFormat fmt) {
   UniquePKEY edPkey;
   UniqueOpenSSLPKEYContext edPkeyCtx(EVP_PKEY_CTX_new_id(NID_ED25519, nullptr));
 
   ConcordAssertNE(edPkeyCtx, nullptr);
-
   ConcordAssertEQ(OPENSSL_SUCCESS, EVP_PKEY_keygen_init(edPkeyCtx.get()));
-  ConcordAssertEQ(
-      OPENSSL_SUCCESS,
-      EVP_PKEY_keygen(edPkeyCtx.get(), reinterpret_cast<EVP_PKEY**>(&edPkey)));  // Generate EdDSA key 'edPkey'.
+  EVP_PKEY* keygenRet = nullptr;
+  ConcordAssertEQ(OPENSSL_SUCCESS, EVP_PKEY_keygen(edPkeyCtx.get(), &keygenRet));
+  edPkey.reset(keygenRet);
 
-  array<unsigned char, EdDSASignatureByteSize> privKey;
-  array<unsigned char, EdDSASignatureByteSize> pubKey;
-  size_t privlen{EdDSASignatureByteSize};
-  size_t publen{EdDSASignatureByteSize};
+  array<Byte, EdDSAPrivateKeyByteSize> privKey;
+  array<Byte, EdDSAPublicKeyByteSize> pubKey;
+  size_t keyLen{EdDSAPrivateKeyByteSize};
 
-  ConcordAssertEQ(OPENSSL_SUCCESS, EVP_PKEY_get_raw_private_key(edPkey.get(), privKey.data(), &privlen));
-  ConcordAssertEQ(OPENSSL_SUCCESS, EVP_PKEY_get_raw_public_key(edPkey.get(), pubKey.data(), &publen));
+  ConcordAssertEQ(OPENSSL_SUCCESS, EVP_PKEY_get_raw_private_key(edPkey.get(), privKey.data(), &keyLen));
+  ConcordAssertEQ(keyLen, EdDSAPrivateKeyByteSize);
+  keyLen = EdDSAPublicKeyByteSize;
+  ConcordAssertEQ(OPENSSL_SUCCESS, EVP_PKEY_get_raw_public_key(edPkey.get(), pubKey.data(), &keyLen));
+  ConcordAssertEQ(keyLen, EdDSAPublicKeyByteSize);
 
-  pair<string, string> keyPair(boost::algorithm::hex(string(reinterpret_cast<char*>(privKey.data()), privlen)),
-                               boost::algorithm::hex(string(reinterpret_cast<char*>(pubKey.data()), publen)));
+  pair<string, string> keyPair(
+      boost::algorithm::hex(string(reinterpret_cast<char*>(privKey.data()), EdDSAPrivateKeyByteSize)),
+      boost::algorithm::hex(string(reinterpret_cast<char*>(pubKey.data()), EdDSAPublicKeyByteSize)));
 
   if (KeyFormat::PemFormat == fmt) {
     keyPair = EdDSAHexToPem(keyPair);
@@ -113,84 +107,6 @@ pair<string, string> EdDSAHexToPem(const std::pair<std::string, std::string>& he
     pubPemString = string(output.begin(), output.end());
   }
   return make_pair(privPemString, pubPemString);
-}
-
-pair<string, string> RsaHexToPem(const pair<string, string>& key_pair) {
-  pair<string, string> out;
-  if (!key_pair.first.empty()) {
-    StringSource priv_str(key_pair.first, true, new HexDecoder());
-    CryptoPP::RSA::PrivateKey priv;
-    priv.Load(priv_str);
-    StringSink priv_string_sink(out.first);
-    PEM_Save(priv_string_sink, priv);
-    priv_string_sink.MessageEnd();
-  }
-
-  if (!key_pair.second.empty()) {
-    StringSource pub_str(key_pair.second, true, new HexDecoder());
-    CryptoPP::RSA::PublicKey pub;
-    pub.Load(pub_str);
-    StringSink pub_string_sink(out.second);
-    PEM_Save(pub_string_sink, pub);
-    pub_string_sink.MessageEnd();
-  }
-  return out;
-}
-
-pair<string, string> ECDSAHexToPem(const pair<string, string>& key_pair) {
-  pair<string, string> out;
-  if (!key_pair.first.empty()) {
-    StringSource priv_str(key_pair.first, true, new HexDecoder());
-    ECDSA<ECP, CryptoPP::SHA256>::PrivateKey priv;
-    priv.Load(priv_str);
-    StringSink priv_string_sink(out.first);
-    PEM_Save(priv_string_sink, priv);
-  }
-  if (!key_pair.second.empty()) {
-    StringSource pub_str(key_pair.second, true, new HexDecoder());
-    ECDSA<ECP, CryptoPP::SHA256>::PublicKey pub;
-    pub.Load(pub_str);
-    StringSink pub_string_sink(out.second);
-    PEM_Save(pub_string_sink, pub);
-  }
-  return out;
-}
-
-pair<string, string> generateRsaKeyPair(const uint32_t sig_length, const KeyFormat fmt) {
-  AutoSeededRandomPool rng;
-  pair<string, string> keyPair;
-
-  RSAES<OAEP<CryptoPP::SHA256>>::Decryptor priv(rng, sig_length);
-  RSAES<OAEP<CryptoPP::SHA256>>::Encryptor pub(priv);
-  HexEncoder privEncoder(new StringSink(keyPair.first));
-  priv.AccessMaterial().Save(privEncoder);
-  privEncoder.MessageEnd();
-
-  HexEncoder pubEncoder(new StringSink(keyPair.second));
-  pub.AccessMaterial().Save(pubEncoder);
-  pubEncoder.MessageEnd();
-  if (fmt == KeyFormat::PemFormat) {
-    keyPair = RsaHexToPem(keyPair);
-  }
-  return keyPair;
-}
-
-pair<string, string> generateECDSAKeyPair(const KeyFormat fmt, CurveType curve_types) {
-  AutoSeededRandomPool prng;
-  ECDSA<ECP, CryptoPP::SHA256>::PrivateKey privateKey;
-  ECDSA<ECP, CryptoPP::SHA256>::PublicKey publicKey;
-
-  privateKey.Initialize(prng, curve_types == CurveType::secp256k1 ? ASN1::secp256k1() : ASN1::secp384r1());
-  privateKey.MakePublicKey(publicKey);
-  pair<string, string> keyPair;
-  HexEncoder privEncoder(new StringSink(keyPair.first));
-  privateKey.Save(privEncoder);
-  HexEncoder pubEncoder(new StringSink(keyPair.second));
-  publicKey.Save(pubEncoder);
-  if (fmt == KeyFormat::PemFormat) {
-    keyPair = ECDSAHexToPem(keyPair);
-  }
-  return keyPair;
 }
 
 KeyFormat getFormat(const std::string& key) {

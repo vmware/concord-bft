@@ -154,14 +154,19 @@ static bool testReplicaKeyPair(const std::string& privateKey, const std::string&
     return false;
   }
 
+  auto expectedSignatureLength = signer->signatureLength();
+  ConcordAssertGT(expectedSignatureLength, 0);
+
   for (auto iter = std::begin(kHashesToTest); iter != std::end(kHashesToTest); ++iter) {
     const std::string& hash = *iter;
 
-    std::string sig;
+    std::string sig(expectedSignatureLength + 1, '\x00');
     try {
-      sig = signer->sign(hash);
-      if (sig.empty()) {
+      auto sigLength = signer->sign(hash, reinterpret_cast<concord::Byte*>(sig.data()));
+      if (sigLength != expectedSignatureLength) {
         std::cout << "FAILURE: Failed to sign data with replica " << replicaID << "'s private key.\n";
+        std::cout << "Expected signature length: " << expectedSignatureLength << ", actual length: " << sigLength
+                  << ".\n";
         return false;
       }
     } catch (std::exception& e) {

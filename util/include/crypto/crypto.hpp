@@ -13,10 +13,13 @@
 
 #pragma once
 
-#include <stdint.h>
+#include <cstdint>
 #include <string>
+#include <cstddef>
 
 namespace concord::crypto {
+
+enum SignatureAlgorithm : uint32_t { Uninitialized = 0, BLS = 1, EdDSA = 2, RSA = 3 };
 
 enum class KeyFormat : uint16_t { HexaDecimalStrippedFormat, PemFormat };
 enum class CurveType : uint16_t { secp256k1, secp384r1 };
@@ -36,40 +39,6 @@ std::pair<std::string, std::string> generateEdDSAKeyPair(const KeyFormat fmt = K
  * @return pair<string, string>
  */
 std::pair<std::string, std::string> EdDSAHexToPem(const std::pair<std::string, std::string>& hex_key_pair);
-
-/**
- * @brief Generates an RSA asymmetric key pair (private-public key pair).
- *
- * @param fmt Output key format.
- * @return pair<string, string> Private-Public key pair.
- */
-std::pair<std::string, std::string> generateRsaKeyPair(const uint32_t sig_length,
-                                                       const KeyFormat fmt = KeyFormat::HexaDecimalStrippedFormat);
-
-/**
- * @brief Generates an ECDSA asymmetric key pair (private-public key pair).
- *
- * @param fmt Output key format.
- * @return pair<string, string> Private-Public key pair.
- */
-std::pair<std::string, std::string> generateECDSAKeyPair(
-    const KeyFormat fmt, concord::crypto::CurveType curve_type = concord::crypto::CurveType::secp256k1);
-
-/**
- * @brief Generates an RSA PEM file from hexadecimal key pair (private-public key pair).
- *
- * @param key_pair Key pair in hexa-decimal format.
- * @return pair<string, string>
- */
-std::pair<std::string, std::string> RsaHexToPem(const std::pair<std::string, std::string>& key_pair);
-
-/**
- * @brief Generates an ECDSA PEM file from hexadecimal key pair (private-public key pair).
- *
- * @param key_pair Key pair in hexa-decimal format.
- * @return pair<string, string>
- */
-std::pair<std::string, std::string> ECDSAHexToPem(const std::pair<std::string, std::string>& key_pair);
 
 /**
  * @brief If the key string contains 'BEGIN' token, then it is PEM format, else HEX format.

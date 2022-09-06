@@ -10,11 +10,10 @@
 // file.
 
 #pragma once
-#include "crypto.hpp"
 #include <string>
 #include <cstdint>
 #include <tuple>
-#include <crypto/crypto.h>
+#include "crypto/crypto.hpp"
 
 // Interface for objects that need to be notified on key rotation
 class IKeyExchanger {

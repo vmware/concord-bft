@@ -106,10 +106,8 @@ void RequestProcessingState::handlePrimaryPreProcessed(const char *preProcessRes
   // information.
   if (preProcessResult != OperationResult::SUCCESS) setupPreProcessResultData(preProcessResult);
   auto sm = SigManager::instance();
-  std::vector<char> sig(sm->getMySigLength());
-  sm->sign(reinterpret_cast<const char *>(primaryPreProcessResultHash_.data()),
-           primaryPreProcessResultHash_.size(),
-           sig.data());
+  std::vector<uint8_t> sig(sm->getMySigLength());
+  sm->sign(primaryPreProcessResultHash_.data(), primaryPreProcessResultHash_.size(), sig.data());
   if (!preProcessingResultHashes_[primaryPreProcessResultHash_]
            .emplace(std::move(sig), myReplicaId_, preProcessResult)
            .second) {
@@ -232,10 +230,8 @@ void RequestProcessingState::modifyPrimaryResult(
   memcpy(const_cast<char *>(primaryPreProcessResultData_), result.first.c_str(), primaryPreProcessResultLen_);
   primaryPreProcessResultHash_ = result.second;
   auto sm = SigManager::instance();
-  std::vector<char> sig(sm->getMySigLength());
-  sm->sign(reinterpret_cast<const char *>(primaryPreProcessResultHash_.data()),
-           primaryPreProcessResultHash_.size(),
-           sig.data());
+  std::vector<uint8_t> sig(sm->getMySigLength());
+  sm->sign(primaryPreProcessResultHash_.data(), primaryPreProcessResultHash_.size(), sig.data());
   if (!preProcessingResultHashes_[primaryPreProcessResultHash_]
            .emplace(std::move(sig), myReplicaId_, primaryPreProcessResult_)
            .second) {

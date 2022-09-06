@@ -61,7 +61,9 @@ void ReplicaAsksToLeaveViewMsg::validate(const ReplicasInfo& repInfo) const {
   uint16_t sigLen = sigManager->getSigLength(idOfGeneratedReplica());
   if (size() < totalSize + sigLen) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": size"));
 
-  if (!sigManager->verifySig(idOfGeneratedReplica(), body(), sizeof(Header), body() + totalSize, sigLen))
+  if (!sigManager->verifySig(idOfGeneratedReplica(),
+                             std::string_view{body(), sizeof(Header)},
+                             std::string_view{body() + totalSize, sigLen}))
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": verifySig"));
 }
 

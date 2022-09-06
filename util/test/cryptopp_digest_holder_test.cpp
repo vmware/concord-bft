@@ -18,7 +18,7 @@
 #include "cryptopp/digest_creator.hpp"
 
 using concord::util::digest::DigestHolder;
-using concord::util::crypto::cryptopp::CryptoppDigestCreator;
+using concord::crypto::cryptopp::CryptoppDigestCreator;
 
 using Digest = DigestHolder<CryptoppDigestCreator>;
 

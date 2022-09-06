@@ -1133,9 +1133,7 @@ struct VerifyDbCheckpoint {
     if (verifier) {
       auto signature_len = verifier->signatureLength();
       if (signature_len == sig_len) {
-        std::string _data(data, data_len);
-        std::string _sig(sig, sig_len);
-        return verifier->verify(_data, _sig);
+        return verifier->verify(std::string_view{data, data_len}, std::string_view{sig, sig_len});
       }
     }
     return false;

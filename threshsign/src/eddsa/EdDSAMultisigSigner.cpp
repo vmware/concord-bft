@@ -25,10 +25,7 @@ void EdDSAMultisigSigner::signData(const char *hash, int hashLen, char *outSig, 
   LOG_DEBUG(EDDSA_MULTISIG_LOG, KVLOG(id_));
   SingleEdDSASignature result;
   auto outSigBytesLen = result.signatureBytes.size();
-  sign(reinterpret_cast<const uint8_t *>(hash),
-       static_cast<size_t>(hashLen),
-       result.signatureBytes.data(),
-       outSigBytesLen);
+  signBuffer(reinterpret_cast<const concord::Byte *>(hash), static_cast<size_t>(hashLen), result.signatureBytes.data());
   ConcordAssertEQ(outSigBytesLen, result.signatureBytes.size());
   result.id = id_;
   std::memcpy(outSig, &result, sizeof(SingleEdDSASignature));

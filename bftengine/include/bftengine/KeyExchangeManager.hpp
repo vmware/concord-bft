@@ -18,7 +18,7 @@
 #include "Metrics.hpp"
 #include "secrets_manager_impl.h"
 #include "SysConsts.hpp"
-#include "crypto.hpp"
+#include "crypto/crypto.hpp"
 #include <future>
 
 namespace bftEngine::impl {

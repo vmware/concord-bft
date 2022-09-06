@@ -14,7 +14,7 @@
 
 #include "gtest/gtest.h"
 #include <iterator>
-#include "crypto.hpp"
+#include "crypto/crypto.hpp"
 #include <fstream>
 #include <util/filesystem.hpp>
 #include "Logger.hpp"
@@ -27,14 +27,14 @@ using concord::crypto::generateECDSAKeyPair;
 using concord::crypto::ECDSAHexToPem;
 
 TEST(crypto_utils, generate_rsa_keys_hex_format) {
-  ASSERT_NO_THROW(generateRsaKeyPair(RSA_SIGNATURE_LENGTH));
-  auto keys = generateRsaKeyPair(RSA_SIGNATURE_LENGTH);
+  ASSERT_NO_THROW(generateRsaKeyPair());
+  auto keys = generateRsaKeyPair();
   LOG_INFO(GL, keys.first << " | " << keys.second);
 }
 
 TEST(crypto_utils, generate_rsa_keys_pem_format) {
-  ASSERT_NO_THROW(generateRsaKeyPair(RSA_SIGNATURE_LENGTH, KeyFormat::PemFormat));
-  auto keys = generateRsaKeyPair(RSA_SIGNATURE_LENGTH, KeyFormat::PemFormat);
+  ASSERT_NO_THROW(generateRsaKeyPair(KeyFormat::PemFormat));
+  auto keys = generateRsaKeyPair(KeyFormat::PemFormat);
   LOG_INFO(GL, keys.first << " | " << keys.second);
 }
 
@@ -51,7 +51,7 @@ TEST(crypto_utils, generate_ECDSA_keys_hex_format) {
 }
 
 TEST(crypto_utils, test_rsa_keys_hex) {
-  auto keys = generateRsaKeyPair(RSA_SIGNATURE_LENGTH);
+  auto keys = generateRsaKeyPair();
   RSASigner signer(keys.first, KeyFormat::HexaDecimalStrippedFormat);
   RSAVerifier verifier(keys.second, KeyFormat::HexaDecimalStrippedFormat);
   std::string data = "Hello world";
@@ -60,7 +60,7 @@ TEST(crypto_utils, test_rsa_keys_hex) {
 }
 
 TEST(crypto_utils, test_rsa_keys_pem) {
-  auto keys = generateRsaKeyPair(RSA_SIGNATURE_LENGTH, KeyFormat::PemFormat);
+  auto keys = generateRsaKeyPair(KeyFormat::PemFormat);
   RSASigner signer(keys.first, KeyFormat::PemFormat);
   RSAVerifier verifier(keys.second, KeyFormat::PemFormat);
   std::string data = "Hello world";
@@ -69,7 +69,7 @@ TEST(crypto_utils, test_rsa_keys_pem) {
 }
 
 TEST(crypto_utils, test_rsa_keys_combined_a) {
-  auto keys = generateRsaKeyPair(RSA_SIGNATURE_LENGTH);
+  auto keys = generateRsaKeyPair();
   auto pemKeys = RsaHexToPem(keys);
   RSASigner signer(keys.first, KeyFormat::HexaDecimalStrippedFormat);
   RSAVerifier verifier(pemKeys.second, KeyFormat::PemFormat);
@@ -79,7 +79,7 @@ TEST(crypto_utils, test_rsa_keys_combined_a) {
 }
 
 TEST(crypto_utils, test_rsa_keys_combined_b) {
-  auto keys = generateRsaKeyPair(RSA_SIGNATURE_LENGTH);
+  auto keys = generateRsaKeyPair();
   auto pemKeys = RsaHexToPem(keys);
   RSASigner signer(pemKeys.first, KeyFormat::PemFormat);
   RSAVerifier verifier(keys.second, KeyFormat::HexaDecimalStrippedFormat);

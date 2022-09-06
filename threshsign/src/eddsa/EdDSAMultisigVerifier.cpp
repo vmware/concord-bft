@@ -79,13 +79,14 @@ IThresholdAccumulator *EdDSAMultisigVerifier::newAccumulator(bool withShareVerif
   return new EdDSASignatureAccumulator(withShareVerification, *this);
 }
 
-bool EdDSAMultisigVerifier::verifySingleSignature(const uint8_t *msg,
+bool EdDSAMultisigVerifier::verifySingleSignature(const concord::Byte *msg,
                                                   size_t msgLen,
                                                   const SingleEdDSASignature &signature) const {
   if (signature.id == 0) {
     return false;
   }
-  return verifiers_[signature.id].verify(msg, msgLen, signature.signatureBytes.data(), signature.signatureBytes.size());
+  return verifiers_[signature.id].verifyBuffer(
+      msg, msgLen, signature.signatureBytes.data(), signature.signatureBytes.size());
 }
 
 bool EdDSAMultisigVerifier::verify(const char *msg, int msgLen, const char *sig, int sigLen) const {

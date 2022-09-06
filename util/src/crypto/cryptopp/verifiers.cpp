@@ -12,6 +12,7 @@
 // file.
 
 #include "crypto/cryptopp/verifiers.hpp"
+#include "types.hpp"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
@@ -26,28 +27,28 @@ namespace concord::crypto::cryptopp {
 
 using namespace CryptoPP;
 using concord::crypto::KeyFormat;
+using concord::Byte;
 
 class ECDSAVerifier::Impl {
   std::unique_ptr<ECDSA<ECP, CryptoPP::SHA256>::Verifier> verifier_;
 
  public:
-  Impl(ECDSA<ECP, CryptoPP::SHA256>::PublicKey& publicKey) {
+  Impl(ECDSA<ECP, CryptoPP::SHA256>::PublicKey &publicKey) {
     verifier_ = std::make_unique<ECDSA<ECP, CryptoPP::SHA256>::Verifier>(std::move(publicKey));
   }
 
-  bool verify(const std::string& data_to_verify, const std::string& signature) const {
-    return verifier_->VerifyMessage((const CryptoPP::byte*)&data_to_verify[0],
-                                    data_to_verify.size(),
-                                    (const CryptoPP::byte*)&signature[0],
-                                    signature.size());
+  bool verify(const Byte *msg, size_t msgLen, const Byte *sig, size_t sigLen) const {
+    return verifier_->VerifyMessage((const CryptoPP::byte *)&msg[0], msgLen, (const CryptoPP::byte *)sig, sigLen);
   }
 
   uint32_t signatureLength() const { return verifier_->SignatureLength(); }
 };
 
-bool ECDSAVerifier::verify(const std::string& data, const std::string& sig) const { return impl_->verify(data, sig); }
+bool ECDSAVerifier::verifyBuffer(const Byte *msg, size_t msgLen, const Byte *sig, size_t sigLen) const {
+  return impl_->verify(msg, msgLen, sig, sigLen);
+}
 
-ECDSAVerifier::ECDSAVerifier(const std::string& str_pub_key, KeyFormat fmt) : key_str_{str_pub_key} {
+ECDSAVerifier::ECDSAVerifier(const std::string &str_pub_key, KeyFormat fmt) : key_str_{str_pub_key} {
   ECDSA<ECP, CryptoPP::SHA256>::PublicKey publicKey;
   if (fmt == KeyFormat::PemFormat) {
     StringSource s(str_pub_key, true);
@@ -65,14 +66,11 @@ ECDSAVerifier::~ECDSAVerifier() = default;
 
 class RSAVerifier::Impl {
  public:
-  Impl(CryptoPP::RSA::PublicKey& public_key) {
+  Impl(CryptoPP::RSA::PublicKey &public_key) {
     verifier_ = std::make_unique<RSASS<PKCS1v15, CryptoPP::SHA256>::Verifier>(std::move(public_key));
   }
-  bool verify(const std::string& data_to_verify, const std::string& signature) const {
-    return verifier_->VerifyMessage((const CryptoPP::byte*)&data_to_verify[0],
-                                    data_to_verify.size(),
-                                    (const CryptoPP::byte*)&signature[0],
-                                    signature.size());
+  bool verify(const Byte *msg, size_t msgLen, const Byte *sig, size_t sigLen) const {
+    return verifier_->VerifyMessage((const CryptoPP::byte *)msg, msgLen, (const CryptoPP::byte *)sig, sigLen);
   }
 
   uint32_t signatureLength() const { return verifier_->SignatureLength(); }
@@ -81,7 +79,7 @@ class RSAVerifier::Impl {
   std::unique_ptr<RSASS<PKCS1v15, CryptoPP::SHA256>::Verifier> verifier_;
 };
 
-RSAVerifier::RSAVerifier(const std::string& str_pub_key, KeyFormat fmt) : key_str_{str_pub_key} {
+RSAVerifier::RSAVerifier(const std::string &str_pub_key, KeyFormat fmt) : key_str_{str_pub_key} {
   CryptoPP::RSA::PublicKey public_key;
   if (fmt == KeyFormat::PemFormat) {
     StringSource s(str_pub_key, true);
@@ -93,7 +91,9 @@ RSAVerifier::RSAVerifier(const std::string& str_pub_key, KeyFormat fmt) : key_st
   impl_.reset(new RSAVerifier::Impl(public_key));
 }
 
-bool RSAVerifier::verify(const std::string& data, const std::string& sig) const { return impl_->verify(data, sig); }
+bool RSAVerifier::verifyBuffer(const Byte *msg, size_t msgLen, const Byte *sig, size_t sigLen) const {
+  return impl_->verify(msg, msgLen, sig, sigLen);
+}
 
 uint32_t RSAVerifier::signatureLength() const { return impl_->signatureLength(); }
 
