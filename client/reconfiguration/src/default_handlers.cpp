@@ -12,9 +12,10 @@
 #include "client/reconfiguration/default_handlers.hpp"
 #include "bftclient/StateControl.hpp"
 #include "concord.cmf.hpp"
-#include "crypto.hpp"
+#include "crypto/crypto.hpp"
 #include "ReplicaConfig.hpp"
 #include "openssl/utils.hpp"
+#include "crypto/cryptopp/keygen.hpp"
 
 #include <variant>
 #include <util/filesystem.hpp>
@@ -165,7 +166,7 @@ bool ClientMasterKeyExchangeHandler::execute(const State& state, WriteState& out
   std::pair<std::string, std::string> hex_keys;
   std::pair<std::string, std::string> pem_keys;
   if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
-    hex_keys = generateRsaKeyPair(concord::crypto::cryptopp::RSA_SIGNATURE_LENGTH);
+    hex_keys = generateRsaKeyPair();
     pem_keys = RsaHexToPem(hex_keys);
   }
   if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {

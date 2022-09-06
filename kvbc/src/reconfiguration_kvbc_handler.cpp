@@ -28,7 +28,8 @@
 #include "categorized_kvbc_msgs.cmf.hpp"
 #include "metadata_block_id.h"
 #include "ReplicaResources.h"
-#include "crypto.hpp"
+#include "crypto/crypto.hpp"
+#include "crypto/cryptopp/keygen.hpp"
 
 #include <chrono>
 #include <algorithm>
@@ -1001,8 +1002,7 @@ bool ReconfigurationHandler::handle(const messages::UnwedgeCommand& cmd,
     std::string sig_data = std::to_string(id) + std::to_string(unwedge_stat.curr_epoch);
     auto& sig = unwedge_stat.signature;
     std::string signature(sig.begin(), sig.end());
-    bool valid = bftEngine::impl::SigManager::instance()->verifySig(
-        id, sig_data.c_str(), sig_data.size(), signature.data(), signature.size());
+    bool valid = bftEngine::impl::SigManager::instance()->verifySig(id, sig_data, signature);
     if (valid) valid_sigs++;
   }
   LOG_INFO(getLogger(), "verified " << valid_sigs << " unwedge signatures, required quorum is " << quorum_size);
@@ -1140,8 +1140,7 @@ bool InternalKvReconfigurationHandler::verifySignature(uint32_t sender_id,
                                                        const std::string& data,
                                                        const std::string& signature) const {
   if (sender_id >= ReplicaConfig::instance().numReplicas) return false;
-  return bftEngine::impl::SigManager::instance()->verifySig(
-      sender_id, data.data(), data.size(), signature.data(), signature.size());
+  return bftEngine::impl::SigManager::instance()->verifySig(sender_id, data, signature);
 }
 
 bool InternalKvReconfigurationHandler::handle(const concord::messages::ReplicaMainKeyUpdate& command,

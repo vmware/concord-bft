@@ -58,7 +58,7 @@ class PreProcessReplyMsg : public MessageBase {
   const ReplyStatus status() const { return msgBody()->status; }
   const bftEngine::OperationResult preProcessResult() const { return msgBody()->preProcessResult; }
   const ViewNum viewNum() const { return msgBody()->viewNum; }
-  std::vector<char> getResultHashSignature() const;
+  std::vector<uint8_t> getResultHashSignature() const;
   std::string getCid() const;
 
   static void setPreProcessorHistograms(preprocessor::PreProcessorRecorder* histograms) {

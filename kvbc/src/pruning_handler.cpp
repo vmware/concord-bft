@@ -20,7 +20,6 @@
 
 namespace concord::kvbc::pruning {
 
-using concord::crypto::Factory;
 using bftEngine::ReplicaConfig;
 
 void PruningSigner::sign(concord::messages::LatestPrunableBlock& block) {
@@ -28,18 +27,21 @@ void PruningSigner::sign(concord::messages::LatestPrunableBlock& block) {
   std::string ser;
   oss << block.replica << block.block_id;
   ser = oss.str();
-  std::string signature = signer_->sign(ser);
-  block.signature = std::vector<uint8_t>(signature.begin(), signature.end());
+  std::vector<uint8_t> signature(signer_->signatureLength());
+  auto actualSignatureLength = signer_->sign(ser, signature.data());
+  ConcordAssertEQ(actualSignatureLength, signer_->signatureLength());
+  block.signature = std::move(signature);
 }
 
 PruningSigner::PruningSigner(const std::string& key) {
-  signer_ = Factory::getSigner(key, ReplicaConfig::instance().replicaMsgSigningAlgo);
+  signer_ = concord::crypto::Factory::getSigner(key, ReplicaConfig::instance().replicaMsgSigningAlgo);
 }
 
 PruningVerifier::PruningVerifier(const std::set<std::pair<uint16_t, const std::string>>& replicasPublicKeys) {
   auto i = 0u;
   for (auto& [idx, pkey] : replicasPublicKeys) {
-    replicas_.push_back(Replica{idx, Factory::getVerifier(pkey, ReplicaConfig::instance().replicaMsgSigningAlgo)});
+    replicas_.push_back(
+        Replica{idx, concord::crypto::Factory::getVerifier(pkey, ReplicaConfig::instance().replicaMsgSigningAlgo)});
     const auto ins_res = replica_ids_.insert(replicas_.back().principal_id);
     if (!ins_res.second) {
       throw std::runtime_error{"PruningVerifier found duplicate replica principal_id: " +

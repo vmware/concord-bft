@@ -21,13 +21,13 @@
 #include "KeyfileIOUtils.hpp"
 #include "yaml_utils.hpp"
 #include "crypto/openssl/EdDSA.hpp"
-#include "crypto.hpp"
+#include "crypto/crypto.hpp"
 
 using concord::crypto::isValidKey;
 using bftEngine::ReplicaConfig;
 using concord::crypto::SIGN_VERIFY_ALGO;
-using concord::util::crypto::openssl::EdDSAPrivateKeyByteSize;
-using concord::util::crypto::openssl::EdDSAPublicKeyByteSize;
+using concord::crypto::openssl::EdDSAPrivateKeyByteSize;
+using concord::crypto::openssl::EdDSAPublicKeyByteSize;
 
 void outputReplicaKeyfile(uint16_t numReplicas,
                           uint16_t numRoReplicas,

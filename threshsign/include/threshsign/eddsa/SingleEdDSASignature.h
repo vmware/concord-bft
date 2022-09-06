@@ -12,11 +12,13 @@
 #pragma once
 #include <array>
 #include <cstdint>
+#include "types.hpp"
+#include "crypto/openssl/EdDSA.hpp"
 
 /**
  * Used as an interface between signers and verifiers
  */
 struct SingleEdDSASignature {
   uint64_t id;
-  std::array<uint8_t, 64> signatureBytes;
+  std::array<concord::Byte, concord::crypto::openssl::EdDSASignatureByteSize> signatureBytes;
 };

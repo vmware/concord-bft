@@ -15,7 +15,7 @@
 
 #include <memory>
 
-#include "crypto.hpp"
+#include "crypto/crypto.hpp"
 #include "crypto/signer.hpp"
 
 namespace concord::crypto::cryptopp {
@@ -26,8 +26,9 @@ class ECDSASigner : public ISigner {
  public:
   ECDSASigner(const std::string& str_priv_key,
               concord::crypto::KeyFormat fmt = concord::crypto::KeyFormat::HexaDecimalStrippedFormat);
-  std::string sign(const std::string& data) override;
-  uint32_t signatureLength() const override;
+  std::string sign(const std::string& data);
+  size_t signBuffer(const Byte* const dataIn, size_t dataLen, Byte* sigOutBuffer) override;
+  size_t signatureLength() const override;
   std::string getPrivKey() const override { return key_str_; }
   ~ECDSASigner();
 
@@ -41,8 +42,8 @@ class RSASigner : public ISigner {
  public:
   RSASigner(const std::string& str_priv_key,
             concord::crypto::KeyFormat fmt = concord::crypto::KeyFormat::HexaDecimalStrippedFormat);
-  std::string sign(const std::string& data) override;
-  uint32_t signatureLength() const override;
+  size_t signBuffer(const Byte* const dataIn, size_t dataLen, Byte* sigOutBuffer) override;
+  size_t signatureLength() const override;
   std::string getPrivKey() const override { return key_str_; }
   ~RSASigner();
 

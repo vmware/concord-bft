@@ -23,12 +23,13 @@
 
 #include "thread_pool.hpp"
 #include "picobench.hpp"
-#include "crypto.hpp"
+#include "crypto/crypto.hpp"
 #include "crypto/openssl/EdDSASigner.hpp"
 #include "crypto/openssl/EdDSAVerifier.hpp"
 #include "util/filesystem.hpp"
 #include "crypto/cryptopp/signers.hpp"
 #include "crypto/cryptopp/verifiers.hpp"
+#include "crypto/cryptopp/keygen.hpp"
 
 namespace concord::benchmark {
 using std::string;
@@ -39,12 +40,13 @@ using concord::crypto::cryptopp::RSAVerifier;
 using concord::crypto::cryptopp::RSA_SIGNATURE_LENGTH;
 using concord::crypto::generateEdDSAKeyPair;
 using concord::crypto::generateRsaKeyPair;
-using concord::util::crypto::openssl::EdDSAPrivateKey;
-using concord::util::crypto::openssl::EdDSAPublicKey;
-using concord::util::crypto::openssl::deserializeKey;
+using concord::crypto::openssl::EdDSAPrivateKey;
+using concord::crypto::openssl::EdDSAPublicKey;
+using concord::crypto::openssl::deserializeKey;
 
 using TestSigner = concord::crypto::openssl::EdDSASigner<EdDSAPrivateKey>;
 using TestVerifier = concord::crypto::openssl::EdDSAVerifier<EdDSAPublicKey>;
+using SignatureBytes = std::vector<concord::Byte>;
 
 std::default_random_engine generator;
 
@@ -52,7 +54,7 @@ constexpr size_t RANDOM_DATA_SIZE = 1000U;
 constexpr uint8_t RANDOM_DATA_ARRAY_SIZE = 100U;
 static string randomData[RANDOM_DATA_ARRAY_SIZE];
 
-const auto rsaKeysPair = generateRsaKeyPair(RSA_SIGNATURE_LENGTH);
+const auto rsaKeysPair = generateRsaKeyPair();
 const auto eddsaKeysPair = generateEdDSAKeyPair();
 
 /**
@@ -78,13 +80,12 @@ void generateRandomData(size_t len) {
  * @param s
  */
 void edDSASignerBenchmark(picobench::state& s) {
-  string sig;
   const auto signingKey = deserializeKey<EdDSAPrivateKey>(eddsaKeysPair.first);
-  auto signer_ = unique_ptr<TestSigner>(new TestSigner(signingKey.getBytes()));
+  auto signer_ = unique_ptr<concord::crypto::ISigner>(new TestSigner(signingKey.getBytes()));
+  size_t expectedSignerSigLen = signer_->signatureLength();
+  SignatureBytes sig(expectedSignerSigLen);
 
   // Sign with EdDSASigner.
-  size_t expectedSignerSigLen = signer_->signatureLength();
-  sig.reserve(expectedSignerSigLen);
   size_t lenRetData;
 
   uint64_t signaturesPerformed = 0;
@@ -92,8 +93,7 @@ void edDSASignerBenchmark(picobench::state& s) {
     picobench::scope scope(s);
 
     for (int msgIdx = 0; msgIdx < s.iterations(); msgIdx++) {
-      sig = signer_->sign(randomData[msgIdx % RANDOM_DATA_ARRAY_SIZE]);
-      lenRetData = sig.size();
+      lenRetData = signer_->sign(randomData[msgIdx % RANDOM_DATA_ARRAY_SIZE], sig.data());
       ++signaturesPerformed;
       ConcordAssertEQ(lenRetData, expectedSignerSigLen);
     }
@@ -107,23 +107,20 @@ void edDSASignerBenchmark(picobench::state& s) {
  * @param s
  */
 void edDSAVerifierBenchmark(picobench::state& s) {
-  string sig;
   const auto signingKey = deserializeKey<EdDSAPrivateKey>(eddsaKeysPair.first);
+  auto signer_ = unique_ptr<concord::crypto::ISigner>(new TestSigner(signingKey.getBytes()));
+  size_t expectedSignerSigLen = signer_->signatureLength();
+  SignatureBytes sig(expectedSignerSigLen);
   const auto verificationKey = deserializeKey<EdDSAPublicKey>(eddsaKeysPair.second);
-
-  auto signer_ = unique_ptr<TestSigner>(new TestSigner(signingKey.getBytes()));
   auto verifier_ = unique_ptr<TestVerifier>(new TestVerifier(verificationKey.getBytes()));
 
   // Sign with EdDSASigner.
-  size_t expectedSignerSigLen = signer_->signatureLength();
-  sig.reserve(expectedSignerSigLen);
-  size_t lenRetData;
-
   const auto offset = (uint8_t)rand() % RANDOM_DATA_ARRAY_SIZE;
-  sig = signer_->sign(randomData[offset]);
-  lenRetData = sig.size();
+  size_t lenRetData = signer_->sign(randomData[offset], sig.data());
   ConcordAssertEQ(lenRetData, expectedSignerSigLen);
 
+  std::string sigAsString("\x00", sig.size() + 1);
+  std::memcpy(sigAsString.data(), sig.data(), sig.size());
   uint64_t signaturesVerified = 0;
   {
     picobench::scope scope(s);
@@ -132,7 +129,7 @@ void edDSAVerifierBenchmark(picobench::state& s) {
       ++signaturesVerified;
 
       // validate with EdDSAVerifier.
-      ConcordAssert(verifier_->verify(randomData[offset], sig));
+      ConcordAssert(verifier_->verify(randomData[offset], sigAsString));
     }
   }
   s.set_result(signaturesVerified);
@@ -144,11 +141,12 @@ void edDSAVerifierBenchmark(picobench::state& s) {
  * @param s
  */
 void rsaSignerBenchmark(picobench::state& s) {
-  string sig;
-  auto signer_ = unique_ptr<RSASigner>(new RSASigner(rsaKeysPair.first, KeyFormat::HexaDecimalStrippedFormat));
-
-  // Sign with RSA_Signer.
+  auto signer_ =
+      unique_ptr<concord::crypto::ISigner>(new RSASigner(rsaKeysPair.first, KeyFormat::HexaDecimalStrippedFormat));
   size_t expectedSignerSigLen = signer_->signatureLength();
+  SignatureBytes sig;
+  // Sign with RSA_Signer.
+
   sig.reserve(expectedSignerSigLen);
   size_t lenRetData;
 
@@ -157,8 +155,7 @@ void rsaSignerBenchmark(picobench::state& s) {
     picobench::scope scope(s);
 
     for (int msgIdx = 0; msgIdx < s.iterations(); msgIdx++) {
-      sig = signer_->sign(randomData[msgIdx % RANDOM_DATA_ARRAY_SIZE]);
-      lenRetData = sig.size();
+      lenRetData = signer_->sign(randomData[msgIdx % RANDOM_DATA_ARRAY_SIZE], sig.data());
       ++signaturesPerformed;
       ConcordAssertEQ(lenRetData, expectedSignerSigLen);
     }
@@ -172,20 +169,20 @@ void rsaSignerBenchmark(picobench::state& s) {
  * @param s
  */
 void rsaVerifierBenchmark(picobench::state& s) {
-  string sig;
-  auto signer_ = unique_ptr<RSASigner>(new RSASigner(rsaKeysPair.first, KeyFormat::HexaDecimalStrippedFormat));
+  auto signer_ =
+      unique_ptr<concord::crypto::ISigner>(new RSASigner(rsaKeysPair.first, KeyFormat::HexaDecimalStrippedFormat));
+  size_t expectedSignerSigLen = signer_->signatureLength();
+  SignatureBytes sig(expectedSignerSigLen);
   auto verifier_ = unique_ptr<RSAVerifier>(new RSAVerifier(rsaKeysPair.second, KeyFormat::HexaDecimalStrippedFormat));
 
   // Sign with RSASigner.
-  size_t expectedSignerSigLen = signer_->signatureLength();
-  sig.reserve(expectedSignerSigLen);
-  size_t lenRetData;
 
   const auto offset = (uint8_t)rand() % RANDOM_DATA_ARRAY_SIZE;
-  sig = signer_->sign(randomData[offset]);
-  lenRetData = sig.size();
+  size_t lenRetData = signer_->sign(randomData[offset], sig.data());
   ConcordAssertEQ(lenRetData, expectedSignerSigLen);
 
+  std::string sigAsString("\x00", sig.size() + 1);
+  std::memcpy(sigAsString.data(), sig.data(), sig.size());
   uint64_t signaturesVerified = 0;
   {
     picobench::scope scope(s);
@@ -194,7 +191,7 @@ void rsaVerifierBenchmark(picobench::state& s) {
       ++signaturesVerified;
 
       // validate with RSAVerifier.
-      ConcordAssert(verifier_->verify(randomData[offset], sig));
+      ConcordAssert(verifier_->verify(randomData[offset], sigAsString));
     }
   }
   s.set_result(signaturesVerified);

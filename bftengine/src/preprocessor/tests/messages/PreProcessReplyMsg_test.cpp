@@ -109,8 +109,8 @@ TEST_F(PreProcessReplyMsgTestFixture, getResultHashSignature) {
                                                viewNum);
   const auto hash =
       PreProcessResultHashCreator::create(preProcessResultBuf, preProcessResultBufLen, opResult, clientId, reqSeqNum);
-  auto expected_signature = std::vector<char>(sigManager->getMySigLength(), 0);
-  sigManager->sign((char*)hash.data(), sizeof(hash), expected_signature.data());
+  auto expected_signature = std::vector<concord::Byte>(sigManager->getMySigLength());
+  sigManager->sign(hash.data(), sizeof(hash), expected_signature.data());
   EXPECT_THAT(expected_signature, testing::ContainerEq(preProcessReplyMsg.getResultHashSignature()));
   clearDiagnosticsHandlers();
 }

@@ -59,7 +59,7 @@ class EdDSAMultisigVerifier : public IThresholdVerifier {
   const IPublicKey &getPublicKey() const override;
   const IShareVerificationKey &getShareVerificationKey(ShareID signer) const override;
 
-  bool verifySingleSignature(const uint8_t *msg, size_t msgLen, const SingleEdDSASignature &signature) const;
+  bool verifySingleSignature(const concord::Byte *msg, size_t msgLen, const SingleEdDSASignature &signature) const;
   ~EdDSAMultisigVerifier() override = default;
 
  private:

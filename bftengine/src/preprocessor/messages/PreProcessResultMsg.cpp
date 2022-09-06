@@ -79,12 +79,12 @@ std::optional<std::string> PreProcessResultMsg::validatePreProcessResultSignatur
   for (const auto& sig : sigs) {
     bool verificationResult = false;
     if (myReplicaId == sig.sender_replica) {
-      std::vector<char> mySignature(sigManager_->getMySigLength(), '\0');
-      sigManager_->sign(reinterpret_cast<const char*>(hash.data()), hash.size(), mySignature.data());
+      std::vector<uint8_t> mySignature(sigManager_->getMySigLength(), '\0');
+      sigManager_->sign(hash.data(), hash.size(), mySignature.data());
       verificationResult = mySignature == sig.signature;
     } else {
       verificationResult = sigManager_->verifySig(
-          sig.sender_replica, (const char*)hash.data(), hash.size(), sig.signature.data(), sig.signature.size());
+          sig.sender_replica, hash.data(), hash.size(), sig.signature.data(), sig.signature.size());
     }
 
     if (!verificationResult) {
@@ -145,7 +145,7 @@ std::set<PreProcessResultSignature> PreProcessResultSignature::deserializeResult
       throw std::runtime_error("Deserialization error - remaining buffer length is less than a signature size");
     }
 
-    ret.emplace(std::vector<char>(buf + pos, buf + pos + signature_size), sender_id, pre_process_result);
+    ret.emplace(std::vector<uint8_t>(buf + pos, buf + pos + signature_size), sender_id, pre_process_result);
     pos += signature_size;
 
     if (len - pos == 0) {

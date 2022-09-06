@@ -14,16 +14,16 @@
 #include "threshsign/ISecretKey.h"
 #include "crypto/openssl/EdDSA.hpp"
 
-class EdDSAThreshsignPrivateKey : public IShareSecretKey, public concord::util::crypto::openssl::EdDSAPrivateKey {
+class EdDSAThreshsignPrivateKey : public IShareSecretKey, public concord::crypto::openssl::EdDSAPrivateKey {
  public:
   EdDSAThreshsignPrivateKey(const EdDSAThreshsignPrivateKey::ByteArray& arr)
-      : concord::util::crypto::openssl::EdDSAPrivateKey(arr) {}
+      : concord::crypto::openssl::EdDSAPrivateKey(arr) {}
   std::string toString() const override { return toHexString(); }
 };
 
-class EdDSAThreshsignPublicKey : public IShareVerificationKey, public concord::util::crypto::openssl::EdDSAPublicKey {
+class EdDSAThreshsignPublicKey : public IShareVerificationKey, public concord::crypto::openssl::EdDSAPublicKey {
  public:
   EdDSAThreshsignPublicKey(const EdDSAThreshsignPublicKey::ByteArray& arr)
-      : concord::util::crypto::openssl::EdDSAPublicKey(arr) {}
+      : concord::crypto::openssl::EdDSAPublicKey(arr) {}
   std::string toString() const override { return toHexString(); }
 };

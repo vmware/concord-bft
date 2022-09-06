@@ -23,7 +23,8 @@
 #include "threshsign/ThresholdSignaturesTypes.h"
 #include "KeyfileIOUtils.hpp"
 #include "util/filesystem.hpp"
-#include "crypto.hpp"
+#include "crypto/crypto.hpp"
+#include "crypto/cryptopp/keygen.hpp"
 
 using bftEngine::ReplicaConfig;
 using concord::crypto::SIGN_VERIFY_ALGO;
@@ -192,7 +193,7 @@ int main(int argc, char** argv) {
 
     for (uint16_t i = 0; i < n + ro; ++i) {
       if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
-        replicaKeyPairs.push_back(generateRsaKeyPair(RSA_SIGNATURE_LENGTH));
+        replicaKeyPairs.push_back(generateRsaKeyPair());
       } else if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
         replicaKeyPairs.push_back(generateEdDSAKeyPair());
       }

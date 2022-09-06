@@ -18,7 +18,7 @@
 
 using concord::util::SHA2_256;
 using concord::util::SHA3_256;
-using concord::util::crypto::openssl::OpenSSLDigestCreator;
+using concord::crypto::openssl::OpenSSLDigestCreator;
 
 using DigestGeneratorTest_SHA2_256 = OpenSSLDigestCreator<SHA2_256>;
 using DigestGeneratorTest_SHA3_256 = OpenSSLDigestCreator<SHA3_256>;

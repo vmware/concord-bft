@@ -20,7 +20,7 @@
 using concord::util::SHA2_256;
 using concord::util::SHA3_256;
 using concord::util::digest::DigestHolder;
-using concord::util::crypto::openssl::OpenSSLDigestCreator;
+using concord::crypto::openssl::OpenSSLDigestCreator;
 
 using Digest256 = DigestHolder<OpenSSLDigestCreator<SHA2_256>>;
 using Digest3_256 = DigestHolder<OpenSSLDigestCreator<SHA3_256>>;

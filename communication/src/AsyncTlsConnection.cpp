@@ -19,7 +19,8 @@
 #include <chrono>
 #include <optional>
 
-#include "crypto.hpp"
+#include "crypto/crypto.hpp"
+#include "crypto/cryptopp/keygen.hpp"
 #include "AsyncTlsConnection.h"
 #include "TlsDiagnostics.h"
 #include "TlsWriteQueue.h"

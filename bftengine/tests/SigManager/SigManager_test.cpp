@@ -20,7 +20,7 @@
 #include <cryptopp/files.h>
 #include "gtest/gtest.h"
 #include "crypto/factory.hpp"
-#include "crypto.hpp"
+#include "crypto/crypto.hpp"
 
 using namespace std;
 using concord::crypto::KeyFormat;
@@ -78,11 +78,13 @@ void generateRandomData(char* data, size_t len) {
   }
 }
 
-void corrupt(char* data, size_t len) {
+void corrupt(concord::Byte* data, size_t len) {
   for (size_t i{0}; i < len; ++i) {
     ++data[i];
   }
 }
+
+void corrupt(char* data, size_t len) { corrupt(reinterpret_cast<concord::Byte*>(data), len); }
 
 TEST(SignerAndVerifierTest, LoadSignVerifyFromHexKeyPair) {
   char data[RANDOM_DATA_SIZE]{0};
@@ -94,13 +96,11 @@ TEST(SignerAndVerifierTest, LoadSignVerifyFromHexKeyPair) {
   const auto verifier_ = Factory::getVerifier(keyPair.second, ReplicaConfig::instance().replicaMsgSigningAlgo);
 
   // sign with replica signer.
-  std::string sig;
   size_t expectedSignerSigLen = signer_->signatureLength();
-  sig.reserve(expectedSignerSigLen);
+  std::vector<concord::Byte> sig(expectedSignerSigLen);
   size_t lenRetData;
   std::string str_data(data, RANDOM_DATA_SIZE);
-  sig = signer_->sign(str_data);
-  lenRetData = sig.size();
+  lenRetData = signer_->sign(str_data, sig.data());
   ASSERT_EQ(lenRetData, expectedSignerSigLen);
 
   // validate with replica verifier.
@@ -123,7 +123,7 @@ TEST(SignerAndVerifierTest, LoadSignVerifyFromPemfiles) {
   string publicKeyFullPath({string(KEYS_BASE_PATH) + string("/1/") + PUB_KEY_NAME});
   string privateKeyFullPath({string(KEYS_BASE_PATH) + string("/1/") + PRIV_KEY_NAME});
 
-  string privKey, pubkey, sig;
+  string privKey, pubkey;
   char data[RANDOM_DATA_SIZE]{0};
 
   generateKeyPairs(1);
@@ -139,12 +139,10 @@ TEST(SignerAndVerifierTest, LoadSignVerifyFromPemfiles) {
 
   // sign with replica signer.
   size_t expectedSignerSigLen = signer_->signatureLength();
-  sig.reserve(expectedSignerSigLen);
-  size_t lenRetData;
+  std::vector<concord::Byte> sig(expectedSignerSigLen);
   std::string str_data(data, RANDOM_DATA_SIZE);
-  sig = signer_->sign(str_data);
-  lenRetData = sig.size();
-  ASSERT_EQ(lenRetData, expectedSignerSigLen);
+  uint32_t lenRetData = signer_->sign(str_data, sig.data());
+  ASSERT_EQ(lenRetData, signer_->signatureLength());
 
   // validate with replica verifier.
   ASSERT_TRUE(verifier_->verify(str_data, sig));
@@ -194,7 +192,7 @@ TEST(SigManagerTest, ReplicasOnlyCheckVerify) {
 
   for (size_t i{0}; i < numReplicas; ++i) {
     const auto& signer = signers[i];
-    string sig;
+
     char data[RANDOM_DATA_SIZE]{0};
     size_t lenRetData;
     size_t expectedSignerSigLen;
@@ -203,26 +201,26 @@ TEST(SigManagerTest, ReplicasOnlyCheckVerify) {
 
     // sign with replica signer (other replicas, mock)
     expectedSignerSigLen = signer->signatureLength();
-    sig.reserve(expectedSignerSigLen);
+    std::vector<concord::Byte> sig(expectedSignerSigLen);
+
     generateRandomData(data, RANDOM_DATA_SIZE);
     std::string str_data(data, RANDOM_DATA_SIZE);
-    sig = signer->sign(str_data);
-    lenRetData = sig.size();
+    lenRetData = signer->sign(str_data, sig.data());
     ASSERT_EQ(lenRetData, expectedSignerSigLen);
 
     // Validate with SigManager (my replica)
-    size_t expectedVerifierSigLen = sigManager->getSigLength(i);
-    ASSERT_TRUE(sigManager->verifySig(i, data, RANDOM_DATA_SIZE, sig.data(), expectedVerifierSigLen));
+    ASSERT_EQ(sig.size(), sigManager->getSigLength(i));
+    ASSERT_TRUE(sigManager->verifySig(i, std::string_view{data, RANDOM_DATA_SIZE}, sig));
 
     // change data randomally, expect failure
     char data1[RANDOM_DATA_SIZE];
     std::copy(std::begin(data), std::end(data), std::begin(data1));
     corrupt(data1 + 10, 1);
-    ASSERT_FALSE(sigManager->verifySig(i, data1, RANDOM_DATA_SIZE, sig.data(), expectedVerifierSigLen));
+    ASSERT_FALSE(sigManager->verifySig(i, std::string_view{data1, RANDOM_DATA_SIZE}, sig));
 
     // change signature randomally, expect failure
     corrupt(sig.data(), 1);
-    ASSERT_FALSE(sigManager->verifySig(i, data, RANDOM_DATA_SIZE, sig.data(), expectedVerifierSigLen));
+    ASSERT_FALSE(sigManager->verifySig(i, std::string_view{data, RANDOM_DATA_SIZE}, sig));
   }
 }
 
@@ -364,7 +362,6 @@ TEST(SigManagerTest, ReplicasAndClientsCheckVerify) {
   PrincipalId minPidInclusive = 1, maxPidInclusive = currPrincipalId - 1;
   std::uniform_int_distribution<int> distribution(minPidInclusive, maxPidInclusive);
   for (size_t i{0}; i < 3E4; ++i) {
-    string sig;
     char data[RANDOM_DATA_SIZE]{0};
     size_t lenRetData, expectedVerifierSigLen, expectedSignerSigLen, signerIndex;
     bool expectFailure = false;
@@ -380,18 +377,16 @@ TEST(SigManagerTest, ReplicasAndClientsCheckVerify) {
 
     // sign
     expectedSignerSigLen = signers[signerIndex]->signatureLength();
-    sig.reserve(expectedSignerSigLen);
+    std::vector<concord::Byte> sig(expectedSignerSigLen);
     generateRandomData(data, RANDOM_DATA_SIZE);
     std::string str_data(data, RANDOM_DATA_SIZE);
-    sig = signers[signerIndex]->sign(str_data);
-    lenRetData = sig.size();
+    lenRetData = signers[signerIndex]->sign(str_data, sig.data());
     ASSERT_EQ(lenRetData, expectedSignerSigLen);
 
     // Validate with SigManager (my replica)
     expectedVerifierSigLen = sigManager->getSigLength(signerPrincipalId);
     ASSERT_TRUE((expectFailure && expectedVerifierSigLen == 0) || (!expectFailure && expectedVerifierSigLen > 0));
-    bool signatureValid =
-        sigManager->verifySig(signerPrincipalId, data, RANDOM_DATA_SIZE, sig.data(), expectedVerifierSigLen);
+    bool signatureValid = sigManager->verifySig(signerPrincipalId, std::string_view{data, RANDOM_DATA_SIZE}, sig);
     ASSERT_TRUE((expectFailure && !signatureValid) || (!expectFailure && signatureValid));
   }
 }

@@ -36,18 +36,10 @@ class EdDSAVerifier : public IVerifier {
    */
   explicit EdDSAVerifier(const PublicKeyType &publicKey) : publicKey_(publicKey) {}
 
-  bool verify(const std::string &message, const std::string &signature) const override {
-    return verify(message.data(), message.size(), signature.data(), signature.size());
-  }
-
-  bool verify(const char *msg, std::size_t msgLen, const char *sig, std::size_t sigLen) const {
-    return verify(reinterpret_cast<const uint8_t *>(msg), msgLen, reinterpret_cast<const uint8_t *>(sig), sigLen);
-  }
-
-  bool verify(const uint8_t *msg, size_t msgLen, const uint8_t *sig, size_t sigLen) const {
+  bool verifyBuffer(const Byte *msg, size_t msgLen, const Byte *sig, size_t sigLen) const override {
     using concord::util::openssl_utils::UniquePKEY;
     using concord::util::openssl_utils::OPENSSL_SUCCESS;
-    ConcordAssertEQ(sigLen, concord::util::crypto::openssl::EdDSASignatureByteSize);
+    ConcordAssertEQ(sigLen, concord::crypto::openssl::EdDSASignatureByteSize);
     UniquePKEY pkey{
         EVP_PKEY_new_raw_public_key(NID_ED25519, nullptr, publicKey_.getBytes().data(), publicKey_.getBytes().size())};
     concord::util::openssl_utils::UniqueOpenSSLContext ctx{EVP_MD_CTX_new()};
@@ -55,7 +47,7 @@ class EdDSAVerifier : public IVerifier {
     return (OPENSSL_SUCCESS == EVP_DigestVerify(ctx.get(), sig, sigLen, msg, msgLen));
   }
 
-  uint32_t signatureLength() const override { return concord::util::crypto::openssl::EdDSASignatureByteSize; }
+  uint32_t signatureLength() const override { return concord::crypto::openssl::EdDSASignatureByteSize; }
 
   std::string getPubKey() const override { return publicKey_.toString(); }
 

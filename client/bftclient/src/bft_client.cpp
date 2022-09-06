@@ -130,12 +130,8 @@ Msg Client::createClientMsg(const RequestConfig& config, Msg&& request, bool rea
     size_t actualSigSize = 0;
     position += config.correlation_id.size();
     {
-      std::string sig;
-      std::string data(request.begin(), request.end());
       TimeRecorder scoped_timer(*histograms_->sign_duration);
-      sig = transaction_signer_->sign(data);
-      actualSigSize = sig.size();
-      std::memcpy(position, sig.data(), sig.size());
+      actualSigSize = transaction_signer_->sign(request, position);
       ConcordAssert(expected_sig_len == actualSigSize);
       header->reqSignatureLength = actualSigSize;
       histograms_->transaction_size->record(request.size());
@@ -382,7 +378,8 @@ std::string Client::signMessage(std::vector<uint8_t>& data) {
   if (transaction_signer_) {
     auto expected_sig_len = transaction_signer_->signatureLength();
     signature.resize(expected_sig_len);
-    signature = transaction_signer_->sign(std::string(data.begin(), data.end()));
+    auto actual_sig_len = transaction_signer_->sign(data, reinterpret_cast<uint8_t*>(signature.data()));
+    ConcordAssertEQ(actual_sig_len, expected_sig_len);
   }
   return signature;
 }

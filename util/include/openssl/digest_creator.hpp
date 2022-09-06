@@ -14,7 +14,7 @@
 #include "sha_hash.hpp"
 #include "digestCreator.hpp"
 
-namespace concord::util::crypto::openssl {
+namespace concord::crypto::openssl {
 
 template <typename SHACTX,
           typename = std::enable_if_t<std::is_same_v<SHACTX, concord::util::SHA2_256> ||
@@ -68,4 +68,4 @@ class OpenSSLDigestCreator : public concord::util::digest::DigestCreator {
   bool initialized_{false};
   SHACTX hash_ctx_;
 };
-}  // namespace concord::util::crypto::openssl
+}  // namespace concord::crypto::openssl

@@ -19,7 +19,20 @@ namespace concord::crypto {
 // Interface for verifier.
 class IVerifier {
  public:
-  virtual bool verify(const std::string& data, const std::string& sig) const = 0;
+  virtual bool verifyBuffer(const Byte* data,
+                            size_t dataByteSize,
+                            const Byte* signature,
+                            size_t signatureByteSize) const = 0;
+  template <typename DataContainer, typename SignatureContainer>
+  bool verify(const DataContainer& data, const SignatureContainer& signature) const {
+    static_assert(sizeof(typename DataContainer::value_type) == sizeof(Byte), "data elements are not byte-sized");
+    static_assert(sizeof(typename SignatureContainer::value_type) == sizeof(Byte),
+                  "signature elements are not byte-sized");
+    return verifyBuffer(reinterpret_cast<const Byte*>(data.data()),
+                        data.size(),
+                        reinterpret_cast<const Byte*>(signature.data()),
+                        signature.size());
+  }
   virtual uint32_t signatureLength() const = 0;
   virtual ~IVerifier() = default;
   virtual std::string getPubKey() const = 0;
