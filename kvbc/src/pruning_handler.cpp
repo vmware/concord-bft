@@ -212,7 +212,7 @@ void PruningHandler::pruneThroughBlockId(kvbc::BlockId block_id) const {
     bftEngine::ControlStateManager::instance().setPruningProcess(true);
     auto prune = [this](kvbc::BlockId until) {
       try {
-        blocks_deleter_.deleteBlocksUntil(until);
+        blocks_deleter_.deleteBlocksUntil(until, false);
       } catch (std::exception& e) {
         LOG_FATAL(logger_, e.what());
         std::terminate();

@@ -261,7 +261,7 @@ TEST_F(replica_state_sync_on_bft_seq_num_test, cannot_delete_only_block_left_wit
   addBlockWithBftSeqNum(2);  // block 1
   addBlockWithBftSeqNum(3);  // block 2
   // Prune block 1.
-  blockchain_->deleteBlocksUntil(2);
+  blockchain_->deleteBlocksUntil(2, false);
   ASSERT_EQ(2, blockchain_->getGenesisBlockId());
   ASSERT_EQ(2, blockchain_->getLastBlockId());
 
@@ -390,7 +390,7 @@ TEST_F(replica_state_sync_on_block_id_test, cannot_delete_only_block_left_with_p
   addBlockWithBftSeqNum(2);
   addBlockWithBftSeqNum(2);
 
-  blockchain_->deleteBlocksUntil(2);
+  blockchain_->deleteBlocksUntil(2, false);
   if (version == "v4") {
     concord::kvbc::v4blockchain::KeyValueBlockchain::BlockchainRecovery{db_->path(), std::nullopt};
   }

@@ -41,7 +41,7 @@ class KeyValueBlockchain {
               v4blockchain::detail::Block &block,
               storage::rocksdb::NativeWriteBatch &);
   ////////////////////// DELETE //////////////////////////
-  BlockId deleteBlocksUntil(BlockId until);
+  BlockId deleteBlocksUntil(BlockId until, bool delete_files_in_range = false);
   void deleteGenesisBlock();
   void deleteLastReachableBlock();
   void onFinishDeleteLastReachable();
@@ -277,6 +277,7 @@ class KeyValueBlockchain {
   std::map<kvbc::BlockId, const ::rocksdb::Snapshot *> chkpnt_snap_shots_;
   // const ::rocksdb::Snapshot *chkpoint_snap_shot_{nullptr};
   util::ThreadPool thread_pool_{1};
+  util::ThreadPool compaction_thread_pool_{1};
 
   // Metrics
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;

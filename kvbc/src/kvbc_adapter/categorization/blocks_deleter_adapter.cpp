@@ -40,7 +40,8 @@ void BlocksDeleterAdapter::deleteGenesisBlock() {
   }
   kvbc_->deleteBlock(genesisBlock);
 }
-BlockId BlocksDeleterAdapter::deleteBlocksUntil(BlockId until) {
+
+BlockId BlocksDeleterAdapter::deleteBlocksUntil(BlockId until, bool delete_files_in_range) {
   const auto genesisBlock = kvbc_->getGenesisBlockId();
   if (genesisBlock == 0) {
     throw std::logic_error{"Cannot delete a block range from an empty blockchain"};

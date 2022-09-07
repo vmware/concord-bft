@@ -86,6 +86,7 @@ class Operator:
         prune_cmd.latest_prunable_block = latest_pruneble_blocks
         prune_cmd.tick_period_seconds = tick_period_seconds
         prune_cmd.batch_blocks_num = batch_blocks_num
+        prune_cmd.delete_files_in_range = False
         return self._construct_basic_reconfiguration_request(prune_cmd)
 
     def _construct_reconfiguration_prune_status_request(self):

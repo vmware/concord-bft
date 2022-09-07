@@ -18,6 +18,7 @@
 #include <unordered_map>
 #include <atomic>
 #include <limits>
+#include <mutex>
 #include "rocksdb/native_client.h"
 #include <memory>
 #include "kv_types.hpp"
@@ -51,9 +52,11 @@ class Blockchain {
   // Delete up to until not including until if until is within last reachable block,
   // else delete up to last reachable block and not including last reachable block.
   // Do nothing of last reachable block is same as the genesis block.
-  BlockId deleteBlocksUntil(BlockId until);
+  BlockId deleteBlocksUntil(BlockId until, bool delete_files_in_range = false);
   void deleteGenesisBlock();
   void deleteLastReachableBlock(storage::rocksdb::NativeWriteBatch&);
+  bool needCompaction();
+  void compaction();
   ///////////////////State Transfer/////////////////////////////////
   bool hasBlock(BlockId) const;
   ///////////////////////////////////////////////////////////////
@@ -119,6 +122,8 @@ class Blockchain {
   std::shared_ptr<concord::storage::rocksdb::NativeClient> native_client_;
   util::ThreadPool thread_pool_{1};
   std::optional<std::future<BlockDigest>> future_digest_;
+  bool need_compaction_{false};
+  std::mutex compaction_mutex_;
 };
 
 }  // namespace concord::kvbc::v4blockchain::detail

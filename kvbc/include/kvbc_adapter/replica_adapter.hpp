@@ -50,7 +50,7 @@ class ReplicaBlockchain : public IBlocksDeleter,
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // IBlocksDeleter implementation
   void deleteGenesisBlock() override final { return deleter_->deleteGenesisBlock(); }
-  BlockId deleteBlocksUntil(BlockId until) override final;
+  BlockId deleteBlocksUntil(BlockId until, bool delete_files_in_range) override final;
   void deleteLastReachableBlock() override final { return deleter_->deleteLastReachableBlock(); }
 
   // Helper method, not part of the interface

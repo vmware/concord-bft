@@ -228,6 +228,12 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
               const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
 
+  bool handle(const concord::messages::PruneCompactRequest& command,
+              uint64_t sequence_number,
+              uint32_t,
+              const std::optional<bftEngine::Timestamp>&,
+              concord::messages::ReconfigurationResponse&) override;
+
   bool handle(const concord::messages::ClientKeyExchangeCommand& command,
               uint64_t sequence_number,
               uint32_t,

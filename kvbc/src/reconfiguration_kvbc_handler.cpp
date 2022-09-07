@@ -823,6 +823,25 @@ bool ReconfigurationHandler::handle(const concord::messages::PruneRequest& comma
   return true;
 }
 
+// This is one way to trigger the compaction outside of a snapshot if the system is idle
+// An optimization could be to release the snapshot in the PruneRequest handler
+// and call compaction immediately after.
+bool ReconfigurationHandler::handle(const concord::messages::PruneCompactRequest& command,
+                                    uint64_t sequence_number,
+                                    uint32_t,
+                                    const std::optional<bftEngine::Timestamp>& ts,
+                                    concord::messages::ReconfigurationResponse&) {
+  std::vector<uint8_t> serialized_command;
+  concord::messages::serialize(serialized_command, command);
+  auto blockId = persistReconfigurationBlock(serialized_command,
+                                             sequence_number,
+                                             std::string{kvbc::keyTypes::reconfiguration_prune_compact_key, 0x1},
+                                             ts,
+                                             false);
+  LOG_INFO(getLogger(), "PruneCompactRequest configuration command block is " << blockId);
+  return true;
+}
+
 bool ReconfigurationHandler::handle(const concord::messages::ClientKeyExchangeCommand& command,
                                     uint64_t sequence_number,
                                     uint32_t,
