@@ -26,7 +26,7 @@ class ClientRequestMsg : public MessageBase {
   static_assert(sizeof(ClientRequestMsgHeader::msgType) == sizeof(MessageBase::Header::msgType), "");
   static_assert(sizeof(ClientRequestMsgHeader::idOfClientProxy) == sizeof(NodeIdType), "");
   static_assert(sizeof(ClientRequestMsgHeader::reqSeqNum) == sizeof(ReqId), "");
-  static_assert(sizeof(ClientRequestMsgHeader) == 50, "ClientRequestMsgHeader size is 50B");
+  static_assert(sizeof(ClientRequestMsgHeader) == 52, "ClientRequestMsgHeader size is 52B");
   static concord::diagnostics::Recorder sigNatureVerificationRecorder;
   // TODO(GG): more asserts
 
@@ -42,7 +42,8 @@ class ClientRequestMsg : public MessageBase {
                    const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{},
                    const char* requestSignature = nullptr,
                    uint32_t requestSignatureLen = 0,
-                   const uint32_t extraBufSize = 0);
+                   uint32_t extraBufSize = 0,
+                   uint16_t indexInBatch = 0);
 
   ClientRequestMsg(NodeIdType sender);
 
@@ -70,6 +71,8 @@ class ClientRequestMsg : public MessageBase {
 
   uint64_t requestTimeoutMilli() const { return msgBody()->timeoutMilli; }
 
+  uint16_t requestIndexInBatch() const { return msgBody()->indexInBatch; }
+
   std::string getCid() const;
 
   void validate(const ReplicasInfo& repInfo) const override { validateImp(repInfo); }
@@ -95,7 +98,8 @@ class ClientRequestMsg : public MessageBase {
                  uint32_t result,
                  const std::string& cid,
                  uint32_t requestSignatureLen,
-                 uint32_t extraBufSize);
+                 uint32_t extraBufSize,
+                 uint16_t offsetInBatch);
 };
 
 template <>

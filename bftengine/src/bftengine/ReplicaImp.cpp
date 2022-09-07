@@ -69,95 +69,106 @@
 using concordUtil::Timers;
 using namespace std;
 using namespace std::chrono;
-using namespace std::placeholders;
 using namespace concord::diagnostics;
 
 namespace bftEngine::impl {
 
 void ReplicaImp::registerMsgHandlers() {
   msgHandlers_->registerMsgHandler(MsgCode::Checkpoint,
-                                   bind(&ReplicaImp::messageHandler<CheckpointMsg>, this, _1),
-                                   bind(&ReplicaImp::validatedMessageHandler<CheckpointMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<CheckpointMsg>, this, placeholders::_1),
+                                   bind(&ReplicaImp::validatedMessageHandler<CheckpointMsg>, this, placeholders::_1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::CommitPartial,
-                                   bind(&ReplicaImp::messageHandler<CommitPartialMsg>, this, _1),
-                                   bind(&ReplicaImp::validatedMessageHandler<CommitPartialMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(
+      MsgCode::CommitPartial,
+      bind(&ReplicaImp::messageHandler<CommitPartialMsg>, this, placeholders::_1),
+      bind(&ReplicaImp::validatedMessageHandler<CommitPartialMsg>, this, placeholders::_1));
 
   msgHandlers_->registerMsgHandler(MsgCode::CommitFull,
-                                   bind(&ReplicaImp::messageHandler<CommitFullMsg>, this, _1),
-                                   bind(&ReplicaImp::validatedMessageHandler<CommitFullMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<CommitFullMsg>, this, placeholders::_1),
+                                   bind(&ReplicaImp::validatedMessageHandler<CommitFullMsg>, this, placeholders::_1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::FullCommitProof,
-                                   bind(&ReplicaImp::messageHandler<FullCommitProofMsg>, this, _1),
-                                   bind(&ReplicaImp::validatedMessageHandler<FullCommitProofMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(
+      MsgCode::FullCommitProof,
+      bind(&ReplicaImp::messageHandler<FullCommitProofMsg>, this, placeholders::_1),
+      bind(&ReplicaImp::validatedMessageHandler<FullCommitProofMsg>, this, placeholders::_1));
 
   msgHandlers_->registerMsgHandler(MsgCode::NewView,
-                                   bind(&ReplicaImp::messageHandler<NewViewMsg>, this, _1),
-                                   bind(&ReplicaImp::validatedMessageHandler<NewViewMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<NewViewMsg>, this, placeholders::_1),
+                                   bind(&ReplicaImp::validatedMessageHandler<NewViewMsg>, this, placeholders::_1));
 
   msgHandlers_->registerMsgHandler(MsgCode::PrePrepare,
-                                   bind(&ReplicaImp::messageHandler<PrePrepareMsg>, this, _1),
-                                   bind(&ReplicaImp::validatedMessageHandler<PrePrepareMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<PrePrepareMsg>, this, placeholders::_1),
+                                   bind(&ReplicaImp::validatedMessageHandler<PrePrepareMsg>, this, placeholders::_1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::PartialCommitProof,
-                                   bind(&ReplicaImp::messageHandler<PartialCommitProofMsg>, this, _1),
-                                   bind(&ReplicaImp::validatedMessageHandler<PartialCommitProofMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(
+      MsgCode::PartialCommitProof,
+      bind(&ReplicaImp::messageHandler<PartialCommitProofMsg>, this, placeholders::_1),
+      bind(&ReplicaImp::validatedMessageHandler<PartialCommitProofMsg>, this, placeholders::_1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::PreparePartial,
-                                   bind(&ReplicaImp::messageHandler<PreparePartialMsg>, this, _1),
-                                   bind(&ReplicaImp::validatedMessageHandler<PreparePartialMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(
+      MsgCode::PreparePartial,
+      bind(&ReplicaImp::messageHandler<PreparePartialMsg>, this, placeholders::_1),
+      bind(&ReplicaImp::validatedMessageHandler<PreparePartialMsg>, this, placeholders::_1));
 
   msgHandlers_->registerMsgHandler(MsgCode::PrepareFull,
-                                   bind(&ReplicaImp::messageHandler<PrepareFullMsg>, this, _1),
-                                   bind(&ReplicaImp::validatedMessageHandler<PrepareFullMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<PrepareFullMsg>, this, placeholders::_1),
+                                   bind(&ReplicaImp::validatedMessageHandler<PrepareFullMsg>, this, placeholders::_1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::ReqMissingData,
-                                   bind(&ReplicaImp::messageHandler<ReqMissingDataMsg>, this, _1),
-                                   bind(&ReplicaImp::validatedMessageHandler<ReqMissingDataMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(
+      MsgCode::ReqMissingData,
+      bind(&ReplicaImp::messageHandler<ReqMissingDataMsg>, this, placeholders::_1),
+      bind(&ReplicaImp::validatedMessageHandler<ReqMissingDataMsg>, this, placeholders::_1));
 
   msgHandlers_->registerMsgHandler(MsgCode::SimpleAck,
-                                   bind(&ReplicaImp::messageHandler<SimpleAckMsg>, this, _1),
-                                   bind(&ReplicaImp::validatedMessageHandler<SimpleAckMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<SimpleAckMsg>, this, placeholders::_1),
+                                   bind(&ReplicaImp::validatedMessageHandler<SimpleAckMsg>, this, placeholders::_1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::StartSlowCommit,
-                                   bind(&ReplicaImp::messageHandler<StartSlowCommitMsg>, this, _1),
-                                   bind(&ReplicaImp::validatedMessageHandler<StartSlowCommitMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(
+      MsgCode::StartSlowCommit,
+      bind(&ReplicaImp::messageHandler<StartSlowCommitMsg>, this, placeholders::_1),
+      bind(&ReplicaImp::validatedMessageHandler<StartSlowCommitMsg>, this, placeholders::_1));
 
   msgHandlers_->registerMsgHandler(MsgCode::ViewChange,
-                                   bind(&ReplicaImp::messageHandler<ViewChangeMsg>, this, _1),
-                                   bind(&ReplicaImp::validatedMessageHandler<ViewChangeMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<ViewChangeMsg>, this, placeholders::_1),
+                                   bind(&ReplicaImp::validatedMessageHandler<ViewChangeMsg>, this, placeholders::_1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::ClientRequest,
-                                   bind(&ReplicaImp::messageHandler<ClientRequestMsg>, this, _1),
-                                   bind(&ReplicaImp::validatedMessageHandler<ClientRequestMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(
+      MsgCode::ClientRequest,
+      bind(&ReplicaImp::messageHandler<ClientRequestMsg>, this, placeholders::_1),
+      bind(&ReplicaImp::validatedMessageHandler<ClientRequestMsg>, this, placeholders::_1));
 
   msgHandlers_->registerMsgHandler(
       MsgCode::PreProcessResult,
-      bind(&ReplicaImp::messageHandler<preprocessor::PreProcessResultMsg>, this, _1),
-      bind(&ReplicaImp::validatedMessageHandler<preprocessor::PreProcessResultMsg>, this, _1));
+      bind(&ReplicaImp::messageHandler<preprocessor::PreProcessResultMsg>, this, placeholders::_1),
+      bind(&ReplicaImp::validatedMessageHandler<preprocessor::PreProcessResultMsg>, this, placeholders::_1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::ReplicaStatus,
-                                   bind(&ReplicaImp::messageHandler<ReplicaStatusMsg>, this, _1),
-                                   bind(&ReplicaImp::validatedMessageHandler<ReplicaStatusMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(
+      MsgCode::ReplicaStatus,
+      bind(&ReplicaImp::messageHandler<ReplicaStatusMsg>, this, placeholders::_1),
+      bind(&ReplicaImp::validatedMessageHandler<ReplicaStatusMsg>, this, placeholders::_1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::AskForCheckpoint,
-                                   bind(&ReplicaImp::messageHandler<AskForCheckpointMsg>, this, _1),
-                                   bind(&ReplicaImp::validatedMessageHandler<AskForCheckpointMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(
+      MsgCode::AskForCheckpoint,
+      bind(&ReplicaImp::messageHandler<AskForCheckpointMsg>, this, placeholders::_1),
+      bind(&ReplicaImp::validatedMessageHandler<AskForCheckpointMsg>, this, placeholders::_1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::ReplicaAsksToLeaveView,
-                                   bind(&ReplicaImp::messageHandler<ReplicaAsksToLeaveViewMsg>, this, _1),
-                                   bind(&ReplicaImp::validatedMessageHandler<ReplicaAsksToLeaveViewMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(
+      MsgCode::ReplicaAsksToLeaveView,
+      bind(&ReplicaImp::messageHandler<ReplicaAsksToLeaveViewMsg>, this, placeholders::_1),
+      bind(&ReplicaImp::validatedMessageHandler<ReplicaAsksToLeaveViewMsg>, this, placeholders::_1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::ReplicaRestartReady,
-                                   bind(&ReplicaImp::messageHandler<ReplicaRestartReadyMsg>, this, _1),
-                                   bind(&ReplicaImp::validatedMessageHandler<ReplicaRestartReadyMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(
+      MsgCode::ReplicaRestartReady,
+      bind(&ReplicaImp::messageHandler<ReplicaRestartReadyMsg>, this, placeholders::_1),
+      bind(&ReplicaImp::validatedMessageHandler<ReplicaRestartReadyMsg>, this, placeholders::_1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::ReplicasRestartReadyProof,
-                                   bind(&ReplicaImp::messageHandler<ReplicasRestartReadyProofMsg>, this, _1),
-                                   bind(&ReplicaImp::validatedMessageHandler<ReplicasRestartReadyProofMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(
+      MsgCode::ReplicasRestartReadyProof,
+      bind(&ReplicaImp::messageHandler<ReplicasRestartReadyProofMsg>, this, placeholders::_1),
+      bind(&ReplicaImp::validatedMessageHandler<ReplicasRestartReadyProofMsg>, this, placeholders::_1));
 
   msgHandlers_->registerMsgHandler(MsgCode::StateTransfer,
-                                   bind(&ReplicaImp::messageHandler<StateTransferMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<StateTransferMsg>, this, placeholders::_1));
 
   msgHandlers_->registerInternalMsgHandler([this](InternalMessage &&msg) { onInternalMsg(std::move(msg)); });
 }
@@ -4021,7 +4032,8 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
   bftEngine::ControlStateManager::instance().setRemoveMetadataFunc([&](bool) { ps_->setEraseMetadataStorageFlag(); });
   bftEngine::ControlStateManager::instance().setRestartReadyFunc(
       [&](uint8_t reason, const std::string &extraData) { sendRepilcaRestartReady(reason, extraData); });
-  bftEngine::EpochManager::instance().setNewEpochFlagHandler(std::bind(&PersistentStorage::setNewEpochFlag, ps_, _1));
+  bftEngine::EpochManager::instance().setNewEpochFlagHandler(
+      std::bind(&PersistentStorage::setNewEpochFlag, ps_, placeholders::_1));
   lastAgreedView = ld.viewsManager->latestActiveView();
 
   if (ld.viewsManager->viewIsActive(lastAgreedView)) {
@@ -4266,7 +4278,8 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
     bftEngine::ControlStateManager::instance().setRemoveMetadataFunc([&](bool) { ps_->setEraseMetadataStorageFlag(); });
     bftEngine::ControlStateManager::instance().setRestartReadyFunc(
         [&](uint8_t reason, const std::string &extraData) { sendRepilcaRestartReady(reason, extraData); });
-    bftEngine::EpochManager::instance().setNewEpochFlagHandler(std::bind(&PersistentStorage::setNewEpochFlag, ps_, _1));
+    bftEngine::EpochManager::instance().setNewEpochFlagHandler(
+        std::bind(&PersistentStorage::setNewEpochFlag, ps_, placeholders::_1));
   }
 }
 
@@ -4670,6 +4683,7 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
                                                                               reply.maxReplyLength(),
                                                                               reply.replyBuf(),
                                                                               request->requestSeqNum(),
+                                                                              request->requestIndexInBatch(),
                                                                               request->result()});
   {
     TimeRecorder scoped_timer(*histograms_.executeReadOnlyRequest);
@@ -4990,6 +5004,7 @@ void ReplicaImp::executeSpecialRequests(PrePrepareMsg *ppMsg,
           static_cast<uint32_t>(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
           static_cast<char *>(std::malloc(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader))),
           req.requestSeqNum(),
+          req.requestIndexInBatch(),
           req.result()});
 
       numOfSpecialReqs--;
@@ -5060,6 +5075,7 @@ void ReplicaImp::executeRequests(PrePrepareMsg *ppMsg, Bitmap &requestSet, Times
         static_cast<uint32_t>(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
         replyBuffer,
         req.requestSeqNum(),
+        req.requestIndexInBatch(),
         req.result(),
         replySize});
 
@@ -5608,6 +5624,7 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
         static_cast<uint32_t>(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
         replyBuffer,
         req.requestSeqNum(),
+        req.requestIndexInBatch(),
         req.result(),
         replySize});
     // Decode the pre-execution block-id for the conflict detection optimization,
@@ -5669,10 +5686,17 @@ void ReplicaImp::sendResponses(PrePrepareMsg *ppMsg, IRequestsHandler::Execution
                                                                         currentPrimary(),
                                                                         req.outReply,
                                                                         req.outActualReplySize,
+                                                                        req.reqIndexInClientBatch,
                                                                         req.outReplicaSpecificInfoSize,
                                                                         executionResult);
-        send(replyMsg.get(), req.clientId);
-        free(req.outReply);
+        if (replyMsg) {
+          send(replyMsg.get(), req.clientId);
+          free(req.outReply);
+        } else {
+          LOG_DEBUG(GL,
+                    "Failed to allocate and save new reply to storage"
+                        << KVLOG(req.clientId, req.requestSequenceNum, req.reqIndexInClientBatch));
+        }
         req.outReply = nullptr;
         clientsManager->removePendingForExecutionRequest(req.clientId, req.requestSequenceNum);
         continue;
@@ -5689,10 +5713,17 @@ void ReplicaImp::sendResponses(PrePrepareMsg *ppMsg, IRequestsHandler::Execution
                                                                     currentPrimary(),
                                                                     req.outReply,
                                                                     req.outActualReplySize,
+                                                                    req.reqIndexInClientBatch,
                                                                     0,
                                                                     executionResult);
-    send(replyMsg.get(), req.clientId);
-    free(req.outReply);
+    if (replyMsg) {
+      send(replyMsg.get(), req.clientId);
+      free(req.outReply);
+    } else {
+      LOG_DEBUG(GL,
+                "Failed to allocate and save new reply to storage"
+                    << KVLOG(req.clientId, req.requestSequenceNum, req.reqIndexInClientBatch));
+    }
     req.outReply = nullptr;
     clientsManager->removePendingForExecutionRequest(req.clientId, req.requestSequenceNum);
   }

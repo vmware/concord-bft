@@ -150,9 +150,10 @@ class TestPackUnpack(unittest.TestCase):
         msg = b'hello'
         op_result = 5
         cid = str(req_seq_num)
+        batch_index = 4
 
         packed = bft_msgs.pack_request(client_id, req_seq_num, read_only, timeout_milli, cid, msg, op_result,
-                                       pre_process=False, span_context=span_context)
+                                       pre_process=False, span_context=span_context, batch_index=batch_index)
         header, unpacked_span_context, unpacked_msg, unpacked_cid = bft_msgs.unpack_request(packed)
 
         self.assertEqual(len(span_context), header.span_context_size)
@@ -167,6 +168,7 @@ class TestPackUnpack(unittest.TestCase):
         self.assertEqual(span_context, unpacked_span_context)
         self.assertEqual(msg, unpacked_msg)
         self.assertEqual(cid, unpacked_cid)
+        self.assertEqual(batch_index, header.index_in_batch)
 
     def test_expect_msg_error(self):
         data = b'someinvalidmsg'

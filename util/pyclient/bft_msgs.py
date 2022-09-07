@@ -35,7 +35,7 @@ MSG_TYPE_SIZE = struct.calcsize(MSG_TYPE_FMT)
 # Little Endian format with no padding
 # We don't include the msg type here, since we have to read it first to
 # understand what message is incoming.
-REQUEST_HEADER_FMT = "<LHQLQLQLHL"
+REQUEST_HEADER_FMT = "<LHQLQLQLHLH"
 REQUEST_HEADER_SIZE = struct.calcsize(REQUEST_HEADER_FMT)
 
 # The struct definition of the client batch request msg header
@@ -52,7 +52,8 @@ REPLY_HEADER_FMT = "<LHQLLL"
 REPLY_HEADER_SIZE = struct.calcsize(REPLY_HEADER_FMT)
 
 RequestHeader = namedtuple('RequestHeader', ['span_context_size', 'client_id', 'flags', 'op_result', 'req_seq_num',
-                                             'length', 'timeout_milli', 'cid', 'req_sig_len', 'extra_data_length'])
+                                             'length', 'timeout_milli', 'cid', 'req_sig_len', 'extra_data_length',
+                                             'index_in_batch'])
 
 BatchRequestHeader = namedtuple('BatchRequestHeader', ['cid', 'client_id', 'num_of_messages_in_batch', 'data_size'])
 
@@ -78,7 +79,7 @@ class OperationResult(IntEnum):
     INTERNAL_ERROR = 10
 
 def pack_request(client_id, req_seq_num, read_only, timeout_milli, cid, msg, op_result = 0, pre_process=False,
-                 reconfiguration=False, span_context=b'', signature=b''):
+                 reconfiguration=False, span_context=b'', signature=b'', batch_index=0):
     """Create and return a buffer with a header and message"""
     flags = 0x0
     if read_only:
@@ -90,7 +91,7 @@ def pack_request(client_id, req_seq_num, read_only, timeout_milli, cid, msg, op_
     sig_len = len(signature) if signature else 0
     extra_data_len = 0
     header = RequestHeader(len(span_context), client_id, flags, op_result, req_seq_num, len(msg), timeout_milli,
-                           len(cid), sig_len, extra_data_len)
+                           len(cid), sig_len, extra_data_len, batch_index)
     data = b''.join([pack_request_header(header, pre_process), span_context, msg, cid.encode(), signature])
     return data
 
