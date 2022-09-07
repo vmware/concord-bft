@@ -36,6 +36,10 @@ Msg LatestPrunableBlock 14 {
    bytes signature
 }
 
+Msg PruneCompactRequest 16 {
+  uint64 sender
+}
+
 Msg PruneRequest 15 {
   uint64 sender
   list LatestPrunableBlock latest_prunable_block
@@ -450,6 +454,7 @@ Msg ReconfigurationRequest 1 {
     GetVersionCommand
     DownloadCommand
     DownloadStatusCommand
+    PruneCompactRequest
     LatestPrunableBlockRequest
     PruneRequest
     PruneStatusRequest

@@ -32,6 +32,7 @@ class BlocksDeleterAdapter : public IBlocksDeleter {
   // IBlocksDeleter implementation
   void deleteGenesisBlock() override final { kvbc_->deleteGenesisBlock(); }
   void deleteLastReachableBlock() override final { return kvbc_->deleteLastReachableBlock(); }
+  void compactBlocksUntil(BlockId until) override final;
   BlockId deleteBlocksUntil(BlockId until) override final;
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -51,6 +52,8 @@ class BlocksDeleterAdapter : public IBlocksDeleter {
 
     ~Recorders() {}
 
+    DEFINE_SHARED_RECORDER(
+        compact_batch_blocks_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
     DEFINE_SHARED_RECORDER(
         delete_batch_blocks_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
   };

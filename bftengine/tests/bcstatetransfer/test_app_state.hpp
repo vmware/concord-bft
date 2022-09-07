@@ -201,6 +201,7 @@ class TestAppState : public IAppState, public IBlocksDeleter {
   uint64_t getLastReachableBlockNum() const override { return last_reachable_block_id_; }
   uint64_t getGenesisBlockNum() const override { return genesis_block_id_; }
   uint64_t getLastBlockNum() const override { return last_block_id_; };
+  void compactBlocksUntil(BlockId until) override{};  // does nothing
 
   size_t postProcessUntilBlockId(uint64_t maxBlockId) override {
     sleepForRandomtime(1, 2);

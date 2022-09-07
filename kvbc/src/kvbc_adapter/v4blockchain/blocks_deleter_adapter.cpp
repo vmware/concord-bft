@@ -21,6 +21,15 @@ BlocksDeleterAdapter::BlocksDeleterAdapter(std::shared_ptr<concord::kvbc::v4bloc
   ConcordAssertNE(kvbc_, nullptr);
 }
 
+void BlocksDeleterAdapter::compactBlocksUntil(BlockId until) {
+  const auto start = std::chrono::steady_clock::now();
+  kvbc_->compactBlocksUntil(until);
+
+  auto jobDuration =
+      std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
+  histograms_.compact_batch_blocks_duration->recordAtomic(jobDuration);
+}
+
 BlockId BlocksDeleterAdapter::deleteBlocksUntil(BlockId until) {
   const auto start = std::chrono::steady_clock::now();
   auto upTo = kvbc_->deleteBlocksUntil(until);

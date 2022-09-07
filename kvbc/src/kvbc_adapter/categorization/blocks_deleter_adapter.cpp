@@ -40,6 +40,9 @@ void BlocksDeleterAdapter::deleteGenesisBlock() {
   }
   kvbc_->deleteBlock(genesisBlock);
 }
+void BlocksDeleterAdapter::compactBlocksUntil(BlockId until) {
+  // do nothing
+}
 BlockId BlocksDeleterAdapter::deleteBlocksUntil(BlockId until) {
   const auto genesisBlock = kvbc_->getGenesisBlockId();
   if (genesisBlock == 0) {

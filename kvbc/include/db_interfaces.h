@@ -90,6 +90,9 @@ class IBlocksDeleter {
   // Throws on errors or if the blockchain is empty (no genesis block).
   virtual void deleteGenesisBlock() = 0;
 
+  // Compaction
+  virtual void compactBlocksUntil(BlockId until) = 0;
+
   // Deletes blocks in the [genesis, until) range. If the until value is bigger than the last block, blocks in the
   // range [genesis, lastBlock] will be deleted.
   // Returns the last deleted block ID.

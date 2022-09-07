@@ -107,6 +107,12 @@ BlockId KeyValueBlockchain::add(const categorization::Updates &updates,
 
 //////////////////////////// DELETER////////////////////////////////////////////
 
+void KeyValueBlockchain::compactBlocksUntil(BlockId until) {
+  auto scoped = v4blockchain::detail::ScopedDuration{"compactBlocksUntil"};
+  block_chain_.compactBlocksUntil(until);
+  v4_metrics_comp_.UpdateAggregator();
+}
+
 BlockId KeyValueBlockchain::deleteBlocksUntil(BlockId until) {
   auto scoped = v4blockchain::detail::ScopedDuration{"deleteBlocksUntil"};
   auto id = block_chain_.deleteBlocksUntil(until);
@@ -273,6 +279,7 @@ uint64_t KeyValueBlockchain::onNewBFTSequenceNumber(const categorization::Update
   native_client_->put(v4blockchain::detail::MISC_CF,
                       kvbc::keyTypes::v4_snapshot_sequence,
                       new_snap_shot.getStorableSeqNumAndPreventRelease(bft_stable_sn));
+
   snap_shot_ = new_snap_shot.get();
   LOG_DEBUG(V4_BLOCK_LOG,
             "New sequence number identified "

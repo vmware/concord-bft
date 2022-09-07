@@ -48,6 +48,7 @@ class Blockchain {
   BlockId addBlock(const concord::kvbc::categorization::Updates&, storage::rocksdb::NativeWriteBatch&);
   BlockId addBlock(v4blockchain::detail::Block& block, storage::rocksdb::NativeWriteBatch&);
   //////////////////DELETE//////////////////////////////////////
+  void compactBlocksUntil(BlockId until);
   // Delete up to until not including until if until is within last reachable block,
   // else delete up to last reachable block and not including last reachable block.
   // Do nothing of last reachable block is same as the genesis block.

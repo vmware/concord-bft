@@ -54,6 +54,7 @@ ReplicaBlockchain::ReplicaBlockchain(
       add_block_duration{metrics_comp_.RegisterGauge("AddBlockDurationMicro", 0)},
       multiget_latest_duration{metrics_comp_.RegisterGauge("MultigetLatestDurationMicro", 0)},
       multiget_version_duration{metrics_comp_.RegisterGauge("MultigetLatestVersionDurationMicro", 0)},
+      compact_blocks_until_duration{metrics_comp_.RegisterGauge("AccumulatedCompactBlocksUntilDurationMicro", 0)},
       delete_blocks_until_duration{metrics_comp_.RegisterGauge("AccumulatedDeleteBlocksUntilDurationMicro", 0)},
       get_counter{metrics_comp_.RegisterCounter("GetCounter")},
       multiget_lat_version_counter{metrics_comp_.RegisterCounter("MultiGetLatestVersionCounter")} {
@@ -106,6 +107,15 @@ ReplicaBlockchain::ReplicaBlockchain(
   ConcordAssertNE(app_state_, nullptr);
   ConcordAssertNE(state_snapshot_, nullptr);
   ConcordAssertNE(db_chkpt_, nullptr);
+}
+
+void ReplicaBlockchain::compactBlocksUntil(BlockId until) {
+  auto prev_dur = compact_blocks_until_duration.Get().Get();
+  auto start = std::chrono::steady_clock::now();
+  deleter_->compactBlocksUntil(until);
+  auto dur = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
+  compact_blocks_until_duration.Get().Set(prev_dur + dur);
+  metrics_comp_.UpdateAggregator();
 }
 
 BlockId ReplicaBlockchain::deleteBlocksUntil(BlockId until) {

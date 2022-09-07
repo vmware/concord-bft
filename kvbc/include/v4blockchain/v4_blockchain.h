@@ -39,6 +39,7 @@ class KeyValueBlockchain {
               v4blockchain::detail::Block &block,
               storage::rocksdb::NativeWriteBatch &);
   ////////////////////// DELETE //////////////////////////
+  void compactBlocksUntil(BlockId until);
   BlockId deleteBlocksUntil(BlockId until);
   void deleteGenesisBlock();
   void deleteLastReachableBlock();

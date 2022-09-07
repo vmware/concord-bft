@@ -385,6 +385,8 @@ BlockId Replica::addBlockToIdleReplica(categorization::Updates &&updates) {
 
 void Replica::deleteGenesisBlock() { return m_kvBlockchain->deleteGenesisBlock(); }
 
+void Replica::compactBlocksUntil(BlockId until) { return m_kvBlockchain->compactBlocksUntil(until); }
+
 BlockId Replica::deleteBlocksUntil(BlockId until) {
   // Inform State Transfer about pruning. We must do it in this thread context for persistency considerations, and in
   // this layer to lower the chance for bugs (there are multiple callers to this function), in which pruning is not

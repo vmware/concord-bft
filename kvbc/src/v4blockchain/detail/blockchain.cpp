@@ -92,8 +92,13 @@ BlockId Blockchain::deleteBlocksUntil(BlockId until) {
 
   // Removes the database entries in the range ["begin_key", "end_key"), i.e.,
   // including "begin_key" and excluding "end_key" --> this is why end is (last_deleted_block + 1)
-  write_batch.delRange(
-      v4blockchain::detail::BLOCKS_CF, generateKey(genesis_block_id_), generateKey(last_deleted_block + 1));
+  //
+  // There is a bug in Rocksdb 6.8.1 that sometimes does not execute
+  // the DeleteRange call: a workaround is to re-execute it so instead
+  // of deleting the range from genesis_block_id_ we start it from 1.
+  // The caller will have to re-run the prune. The bug does not seem
+  // to exist in Rocksdb 6.29.5.
+  write_batch.delRange(v4blockchain::detail::BLOCKS_CF, generateKey(1), generateKey(last_deleted_block + 1));
   write_batch.put(v4blockchain::detail::MISC_CF, keyTypes::genesis_block_key, generateKey(last_deleted_block + 1));
   native_client_->write(std::move(write_batch));
   auto blocks_deleted = (last_deleted_block - genesis_block_id_) + 1;
@@ -101,6 +106,13 @@ BlockId Blockchain::deleteBlocksUntil(BlockId until) {
 
   LOG_INFO(V4_BLOCK_LOG, "Deleted " << blocks_deleted << " blocks, new genesis is " << genesis_block_id_);
   return last_deleted_block;
+}
+
+// Compacts between 1 and genesis_block_id - 1 in order to physically reclaim space
+// from the last delRange()
+void Blockchain::compactBlocksUntil(BlockId until) {
+  native_client_->compactRange(v4blockchain::detail::BLOCKS_CF, generateKey(1), generateKey(until + 1));
+  LOG_INFO(V4_BLOCK_LOG, "Compacted up to " << until);
 }
 
 void Blockchain::deleteGenesisBlock() {

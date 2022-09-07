@@ -425,6 +425,10 @@ class TestStorage : public IReader, public IBlockAdder, public IBlocksDeleter {
     bc_.deleteBlock(genesisBlock);
   }
 
+  void compactBlocksUntil(BlockId until) override {
+    // does nothing
+  }
+
   BlockId deleteBlocksUntil(BlockId until) override {
     const auto genesisBlock = bc_.getGenesisBlockId();
     if (genesisBlock == 0) {
