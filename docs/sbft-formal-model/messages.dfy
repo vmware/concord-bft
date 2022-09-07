@@ -72,10 +72,10 @@ module Messages {
     }
     predicate valid(lastStableCheckpoint:SequenceID, quorumSize:nat) {
       && |msgs| > 0
+      && UniqueSenders(msgs)
       && (forall m | m in msgs :: && m.payload.CheckpointMsg?
                                   && m.payload == prototype()
                                   && m.payload.seqIDReached == lastStableCheckpoint)
-      && UniqueSenders(msgs)
       && |msgs| >= quorumSize
     }
   }

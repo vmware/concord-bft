@@ -46,16 +46,17 @@ module Replica {
     map[]
   }
 
-  // Define your Host protocol state machine here.
+  // Definition for a Replica Host state machine starts here.
+  // First we define the Constants then the Variables:
   datatype Constants = Constants(myId:HostId, clusterConfig:ClusterConfig.Constants) {
     // host constants coupled to DistributedSystem Constants:
-    // DistributedSystem tells us our id so we can recognize inbound messages.
-    // clusterSize is in clusterConfig.
     predicate WF() {
       && clusterConfig.WF()
       && clusterConfig.IsReplica(myId)
     }
 
+    // DistributedSystem tells us our id so we can recognize inbound messages.
+    // clusterSize is in clusterConfig.
     predicate Configure(id:HostId, clusterConf:ClusterConfig.Constants) {
       && myId == id
       && clusterConfig == clusterConf
@@ -439,7 +440,7 @@ module Replica {
                                                                           msg.payload.operationWrapper])
   }
 
-  predicate ContiguousCommits(c:Constants, v:Variables, targetSeqID:SequenceID)
+  predicate ContiguousCommitsUntil(c:Constants, v:Variables, targetSeqID:SequenceID)
     requires v.WF(c)
     requires targetSeqID in v.workingWindow.getActiveSequenceIDs(c)
   {
@@ -454,7 +455,7 @@ module Replica {
     && msgOps.NoSendRecv()
     && seqID in v.workingWindow.getActiveSequenceIDs(c)
     && v.countExecutedSeqIDs < seqID
-    && ContiguousCommits(c, v, seqID)
+    && ContiguousCommitsUntil(c, v, seqID)
     && v' == v.(countExecutedSeqIDs := seqID)
   }
 
@@ -664,7 +665,7 @@ module Replica {
     && msgOps.NoSendRecv()
     && seqID > v.workingWindow.lastStableCheckpoint
     && seqID in v.workingWindow.getActiveSequenceIDs(c)
-    && ContiguousCommits(c, v, seqID)
+    && ContiguousCommitsUntil(c, v, seqID)
     && HasStableCheckpointForSeqID(c, v, seqID, checkpointsQuorum)
     && v' == v.(workingWindow := v.workingWindow.(
       lastStableCheckpoint := seqID, 
