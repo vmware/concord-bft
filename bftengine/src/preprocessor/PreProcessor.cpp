@@ -127,7 +127,8 @@ RequestStateSharedPtr &RequestsBatch::getRequestState(uint16_t reqOffsetInBatch)
 
 void RequestsBatch::increaseNumOfCompletedReqs(uint32_t count) {
   numOfCompletedReqs_ += count;
-  LOG_DEBUG(preProcessor_.logger(), KVLOG(numOfCompletedReqs_));
+  LOG_DEBUG(preProcessor_.logger(),
+            "Increased a number of completed requests" << KVLOG(clientId_, batchCid_, batchSize_, numOfCompletedReqs_));
 }
 
 void RequestsBatch::handlePossiblyExpiredRequests() {
@@ -1483,11 +1484,11 @@ void PreProcessor::releaseClientPreProcessRequestSafe(uint16_t clientId,
 void PreProcessor::releaseClientPreProcessRequest(const RequestStateSharedPtr &reqEntry, PreProcessingResult result) {
   auto &givenReq = reqEntry->reqProcessingStatePtr;
   if (givenReq) {
-    const auto &clientId = givenReq->getClientId();
-    const auto &reqOffsetInBatch = givenReq->getReqOffsetInBatch();
-    const auto &batchCid = givenReq->getBatchCid();
+    const auto clientId = givenReq->getClientId();
+    const auto reqOffsetInBatch = givenReq->getReqOffsetInBatch();
+    const auto batchCid = givenReq->getBatchCid();
     auto reqSeqNum = givenReq->getReqSeqNum();
-    auto &reqCid = givenReq->getReqCid();
+    auto reqCid = givenReq->getReqCid();
     if (result == COMPLETE) {
       if (reqEntry->reqProcessingHistory.size() >= reqEntry->reqProcessingHistoryHeight) {
         auto &removeFromHistoryReq = reqEntry->reqProcessingHistory.front();
