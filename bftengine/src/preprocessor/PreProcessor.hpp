@@ -337,7 +337,6 @@ class PreProcessor {
     concordMetrics::CounterHandle preProcBatchReqReceived;
     concordMetrics::CounterHandle preProcReqInvalid;
     concordMetrics::AtomicCounterHandle preProcReqIgnored;
-    concordMetrics::AtomicCounterHandle preProcReqRejected;
     concordMetrics::CounterHandle preProcConsensusNotReached;
     concordMetrics::CounterHandle preProcessRequestTimedOut;
     concordMetrics::CounterHandle preProcPossiblePrimaryFaultDetected;

@@ -35,8 +35,7 @@ RVBManager::RVBManager(const Config& config, const IAppState* state_api, const s
       rvb_data_source_(RvbDataInitialSource::NIL),
       metrics_component_{
           concordMetrics::Component("state_transfer_rvb_manager", std::make_shared<concordMetrics::Aggregator>())},
-      metrics_{metrics_component_.RegisterCounter("report_during_checkpointing_errors"),
-               metrics_component_.RegisterCounter("pruning_reports"),
+      metrics_{metrics_component_.RegisterCounter("pruning_reports"),
                metrics_component_.RegisterCounter("failures_while_setting_serialized_rvt"),
                metrics_component_.RegisterGauge("pruning_vector_elements_count", 0),
                metrics_component_.RegisterGauge("pruning_vector_size_in_bytes", 0),
