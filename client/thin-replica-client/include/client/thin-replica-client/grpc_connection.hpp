@@ -79,7 +79,7 @@ class GrpcConnection {
   enum class Result { kUnknown, kSuccess, kFailure, kTimeout, kOutOfRange, kNotFound, kEndOfStream };
 
   static const size_t maxWorkerThreadPoolSize = 8;
-  static const size_t defaultWorkerThreadPoolSize = maxWorkerThreadPoolSize;
+  static const size_t defaultWorkerThreadPoolSize = 1;
 
   GrpcConnection(const std::string& address,
                  const std::string& client_id,
