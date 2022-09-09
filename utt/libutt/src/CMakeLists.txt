@@ -33,18 +33,23 @@ add_library(utt
 )
 
 find_package(OpenSSL REQUIRED)
+add_dependencies(utt libfqfft ntl libff)
+
 target_include_directories(utt PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>"
     "$<INSTALL_INTERFACE:${INSTALL_CMAKE_DIR}/include>"
+    ${LIBFF_INCLUDE_DIR}
+    ${NTL_INCLUDE_DIR}
+    ${ZM_INCLUDE_DIR}
 )
 
 if(APPLE)
     target_link_libraries(utt PUBLIC
-        ntl ff pthread zm gmp gmpxx xutils xassert OpenSSL::Crypto
+        ${NTL_LIBRARY} ${LIBFF_LIBRARY} pthread ${ZM_LIBRARY} gmp gmpxx xutils xassert OpenSSL::Crypto
     )
 else()
     target_link_libraries(utt PUBLIC
-        ntl ff pthread zm gmp gmpxx xutils xassert stdc++fs OpenSSL::Crypto
+        ${NTL_LIBRARY} ${LIBFF_LIBRARY} pthread ${ZM_LIBRARY} gmp gmpxx xutils xassert stdc++fs OpenSSL::Crypto
     )
 endif()
 

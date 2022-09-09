@@ -459,104 +459,6 @@ install_ccache(){
   mkdir -p /mnt/ccache/
 }
 
-install_libsodium(){
-    # Cryptographic library (used in libutt)
-    cd ${HOME}
-    wget ${WGET_FLAGS} https://download.libsodium.org/libsodium/releases/libsodium-1.0.18.tar.gz -O libsodium.tar.gz
-    tar -xvzf libsodium.tar.gz
-    cd libsodium-1.0.18
-    ./configure
-    make -j${NUM_CPUS} && make check
-    sudo make install
-    cd ${HOME}
-    rm -rf libsodium.tar.gz libsodium-1.0.18
-}
-
-install_ntl(){
-    # Number theory library (used in libutt)
-    cd ${HOME}
-    wget ${WGET_FLAGS} https://libntl.org/ntl-11.5.1.tar.gz -O ntl.tar.gz
-    tar -xvzf ntl.tar.gz
-    cd ntl-11.5.1/src 
-    ./configure
-    make -j${NUM_CPUS}
-    sudo make install
-    cd ${HOME}
-    rm -rf ntl.tar.gz ntl-11.5.1
-}
-
-install_ate_pairing(){
-    # Compute optimal ate pairings over BN curves (used in libutt)
-    cd ${HOME}
-    git clone https://github.com/herumi/ate-pairing.git ate-pairing
-    cd ate-pairing/
-    git checkout 530223d7502e95f6141be19addf1e24d27a14d50
-
-    ATE_PAIRING_FLAGS="DBG=on"
-
-    make -j $NUM_CPUS -C src \
-        SUPPORT_SNARK=1 \
-        $ATE_PAIRING_FLAGS
-
-    INCL_DIR=/usr/local/include/ate-pairing/include
-    sudo mkdir -p "$INCL_DIR"
-    sudo cp include/bn.h  "$INCL_DIR"
-    sudo cp include/zm.h  "$INCL_DIR"
-    sudo cp include/zm2.h "$INCL_DIR"
-
-    LIB_DIR=/usr/local/lib
-    sudo cp lib/libzm.a "$LIB_DIR"
-
-    cd ${HOME}
-    rm -rf ate-pairing/
-}
-
-install_libff(){
-    # Finite fields and elliptic curves library (used in libutt)
-    cd ${HOME}
-    git clone https://github.com/scipr-lab/libff.git libff
-    cd libff/
-    git checkout a152abfcef21b7778cece96fe77f5e0f819ba79e
-
-    mkdir -p build/
-    cd build/
-    # WARNING: Does not link correctly with -DPERFORMANCE=ON
-    cmake \
-        -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-        -DCMAKE_INSTALL_PREFIX=/usr/local \
-        -DIS_LIBFF_PARENT=OFF \
-        -DBINARY_OUTPUT=OFF \
-        -DNO_PT_COMPRESSION=ON \
-        -DCMAKE_CXX_FLAGS="-Wno-unused-parameter -Wno-unused-value -Wno-unused-variable -I$sourcedir $CMAKE_CXX_FLAGS" \
-        -DUSE_ASM=ON \
-        -DPERFORMANCE=OFF \
-        -DMULTICORE=OFF \
-        -DCURVE="BN128" \
-        -DWITH_PROCPS=OFF ..
-
-    make -j $NUM_CPUS
-    sudo make install
-
-    cd ${HOME}
-    rm -rf libff/
-}
-
-install_libfqfft(){
-    # Fast Fourier transforms in finite fields (used in libutt)
-    cd ${HOME}
-    git clone https://github.com/alinush/libfqfft.git libfqfft
-    cd libfqfft/
-    git checkout 1ebd069d2a00254558998c93767efbbbd51f250a
-
-    INCL_DIR=/usr/local/include/libfqfft
-    sudo mkdir -p "$INCL_DIR"
-    sudo cp -r libfqfft/* "$INCL_DIR/"
-    sudo rm "$INCL_DIR/CMakeLists.txt"
-
-    cd ${HOME}
-    rm -rf libfqfft/
-}
-
 install_build_tools
 install_third_party_libraries
 install_cmake
@@ -580,13 +482,6 @@ install_thrift_lib
 install_jaegertracing_cpp_lib
 install_cppcheck
 install_ccache
-
-# libutt dependencies
-install_libsodium
-install_ntl
-install_ate_pairing
-install_libff
-install_libfqfft
 
 # After installing all libraries, let's make sure that they will be found at compile time
 ldconfig -v

@@ -46,6 +46,7 @@ option(USE_OPENSSL "Enable use of OpenSSL" ON)
 option(BUILD_THIRDPARTY "Wheter to build third party librarie or use preinstalled ones" OFF)
 option(CODECOVERAGE "Enable Code Coverage Metrics in Clang" OFF)
 option(ENABLE_RESTART_RECOVERY_TESTS "Enable tests for restart recovery" OFF)
+option(BUILD_UTT "Build UTT library" OFF)
 
 if(USE_OPENSSL AND NOT BUILD_THIRDPARTY)
     set(OPENSSL_ROOT_DIR /usr/local/ssl) # not to confuse with system ssl libs
@@ -222,7 +223,7 @@ if(USE_GRPC)
 endif()
 add_subdirectory(ccron)
 # [TODO-UTT] Compile libutt on GCC
-if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+if (BUILD_UTT AND "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
     add_subdirectory(utt)
 endif()
 

@@ -18,13 +18,7 @@ project(libxutils VERSION 0.1.0.0 LANGUAGES CXX)
 #
 # Dependencies
 #
-find_package(xassert QUIET)
 
-if(xassert_FOUND)
-    message("xassert library is installed!")
-else()
-    message("xassert library not installed. Please download, build and install from https://github.com/alinush/xassert")
-endif()
 
 #find_package(Threads REQUIRED)
 #find_package(Boost 1.65 COMPONENTS program_options REQUIRED)
