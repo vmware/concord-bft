@@ -1,7 +1,7 @@
 cmake_minimum_required (VERSION 3.2)
 # project(<name> VERSION <ver> LANGUAGES CXX)
 project(libutt VERSION 0.1.0.0 LANGUAGES CXX)
-
+message(STATUS "Building UTT")
 #
 # Configuration options
 #
@@ -80,7 +80,7 @@ link_directories("/usr/local/lib")
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../cmake")
 #
 # Compiler flags
 #
@@ -93,7 +93,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # just use signed types everywhere and cast your unsigned to signed when mixing unsigned
 # variables with signed ones. See: http://soundsoftware.ac.uk/c-pitfall-unsigned
 set(CXX_FLAGS_INTEGER_CORRECTNESS 
-    "-Wconversion -Wsign-conversion -Wsign-compare")
+    "-Wno-conversion -Wno-sign-conversion -Wsign-compare -Wno-float-conversion -Wno-unused-parameter -Wno-unknown-pragmas" )
 set(CXX_FLAGS_FORMAT 
     "-Wformat-y2k -Wno-format-extra-args -Wno-format-zero-length -Wformat-nonliteral -Wformat-security -Wformat=2")
 set(CXX_FLAGS_OPTIMIZATIONS "-O3")
@@ -172,6 +172,7 @@ endif()
 #
 enable_testing()
 
+include(dependencies.cmake)
 # Subdirectories
 add_subdirectory(libutt)
 add_subdirectory(libxassert)
