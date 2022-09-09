@@ -93,7 +93,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../cmake")
 # just use signed types everywhere and cast your unsigned to signed when mixing unsigned
 # variables with signed ones. See: http://soundsoftware.ac.uk/c-pitfall-unsigned
 set(CXX_FLAGS_INTEGER_CORRECTNESS 
-    "-Wno-conversion -Wno-sign-conversion -Wsign-compare -Wno-float-conversion -Wno-unused-parameter -Wno-unknown-pragmas" )
+    "-Wconversion -Wsign-conversion -Wsign-compare")
 set(CXX_FLAGS_FORMAT 
     "-Wformat-y2k -Wno-format-extra-args -Wno-format-zero-length -Wformat-nonliteral -Wformat-security -Wformat=2")
 set(CXX_FLAGS_OPTIMIZATIONS "-O3")

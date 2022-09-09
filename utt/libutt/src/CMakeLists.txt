@@ -38,6 +38,9 @@ add_dependencies(utt libfqfft ntl libff)
 target_include_directories(utt PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>"
     "$<INSTALL_INTERFACE:${INSTALL_CMAKE_DIR}/include>"
+)
+
+target_include_directories(utt SYSTEM PUBLIC
     ${LIBFF_INCLUDE_DIR}
     ${NTL_INCLUDE_DIR}
     ${ZM_INCLUDE_DIR}

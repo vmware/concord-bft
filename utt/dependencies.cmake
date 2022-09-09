@@ -42,7 +42,7 @@ ExternalProject_Add(ate_pairing
                     GIT_REPOSITORY "https://github.com/herumi/ate-pairing.git"
                     GIT_TAG "530223d7502e95f6141be19addf1e24d27a14d50"
                     CONFIGURE_COMMAND ""
-                    BUILD_COMMAND ${CMAKE_MAKE_PROGRAM} -C src -j${NPROC} DBG=on SUPPORT_SNAKR=1 
+                    BUILD_COMMAND ${CMAKE_MAKE_PROGRAM} -C src -j${NPROC} DBG=on SUPPORT_SNARK=1 
                     BUILD_IN_SOURCE 1
                     LOG_DOWNLOAD 1
                     LOG_BUILD 1
