@@ -19,7 +19,7 @@
 #include <list>
 #include "openssl_crypto.hpp"
 #include "thin_replica.grpc.pb.h"
-#include "client/concordclient/event_update.hpp"
+#include "client/concordclient/trc_queue.hpp"
 
 namespace client::thin_replica_client {
 
