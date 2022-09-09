@@ -1,15 +1,16 @@
 
-# Concord-BFT UTT Demo
+# Concord-BFT UTT Bank Demo
+
+**IMPORTANT: The source code for the demo has been removed from master and building a new version of the demo is currently not supported. The only possiblity is to pull and run the demo with the existing images. For further development of the demo using the source code refer to this branch 'https://github.com/vmware/concord-bft/tree/utt-demo-stable'**
 
 ## Overview
 
-This branch of concord-bft contains a demo of UnTracable Transactions (UTT), this is a
-cryptographic framework for allowing accountable anonymous payments. The demo has two types of
+This is a demo for UnTracable Transactions (UTT) - new cryptographic framework for accountable anonymous payments. The demo represents a simple banking system and has two types of
 transactions available:
  * Public transactions - these represent ordinary money transfers visible to the bank.
- * UTT transactions - these represent accountable anonymous transfers which can be either
- fully anonymous to the bank (not knowing who or how much transferred to whom) and can be
- accountable (only a limited amount of money can be transferred anonymously in a given time period).
+ * UTT transactions - these represent anonymous transfers which do not reveal information to the bank
+ about the sender, recipient or amount of money transferred. Anonymous transfers are a subject to a anonimity
+ budget - an allowance on the amount of money that can be transferred anonymously by each user.
 
 ## Install docker and docker-compose
 
@@ -67,6 +68,7 @@ To start the stopped service again use:
   docker-compose start payment-service-[n]
   docker-compose start replica-[n]
   ```
+
 ## Building demo using docker and make
 
 This is the recommended way to build the utt demo.
