@@ -46,7 +46,7 @@ option(USE_OPENSSL "Enable use of OpenSSL" ON)
 option(BUILD_THIRDPARTY "Wheter to build third party librarie or use preinstalled ones" OFF)
 option(CODECOVERAGE "Enable Code Coverage Metrics in Clang" OFF)
 option(ENABLE_RESTART_RECOVERY_TESTS "Enable tests for restart recovery" OFF)
-option(BUILD_UTT "Build UTT library" ON)
+option(BUILD_UTT "Build UTT library" OFF)
 
 if(USE_OPENSSL AND NOT BUILD_THIRDPARTY)
     set(OPENSSL_ROOT_DIR /usr/local/ssl) # not to confuse with system ssl libs

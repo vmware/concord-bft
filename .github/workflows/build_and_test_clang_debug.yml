@@ -21,6 +21,8 @@ jobs:
             use_s3_obj_store:
                 - "-DUSE_S3_OBJECT_STORE=ON"
                 - "-DUSE_S3_OBJECT_STORE=OFF"
+            utt:
+                - "-DBUILD_UTT=ON"
     steps:
         - name: Cleanup pre-installed tools
           run: |
