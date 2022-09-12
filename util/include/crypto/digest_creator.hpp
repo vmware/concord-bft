@@ -11,7 +11,7 @@
 
 #pragma once
 
-namespace concord::util::digest {
+namespace concord::crypto {
 
 // It is responsible for generating the digest.
 class DigestCreator {
@@ -26,4 +26,4 @@ class DigestCreator {
                        char* outBufferForDigest,
                        size_t lengthOfBufferForDigest) = 0;
 };
-}  // namespace concord::util::digest
+}  // namespace concord::crypto

@@ -15,9 +15,7 @@
 #include <fstream>
 
 #include "gtest/gtest.h"
-#include "sha_hash.hpp"
-
-using namespace concord::util;
+#include "crypto/openssl/hash.hpp"
 
 namespace {
 
@@ -55,7 +53,7 @@ struct SHATest : public ::testing::Test {
 
 // All hash strings in this test were computed with https://emn178.github.io/online-tools/sha3_256.html
 struct SHA3_256TestType {
-  using Hash = SHA3_256;
+  using Hash = concord::crypto::openssl::SHA3_256;
   static constexpr auto OPENSSL_TYPE = "sha3-256";
   static constexpr auto EMPTY_DIGEST = "a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a";
   static constexpr auto ARTIST_DIGEST = "2a3697512e6ce65dcf220b5c189c1045db4aaf59855a507b873d51c7505c54a5";
@@ -64,7 +62,7 @@ struct SHA3_256TestType {
 
 // All hash strings in this test were computed with https://emn178.github.io/online-tools/sha256.html
 struct SHA2_256TestType {
-  using Hash = SHA2_256;
+  using Hash = concord::crypto::openssl::SHA2_256;
   static constexpr auto OPENSSL_TYPE = "sha256";
   static constexpr auto EMPTY_DIGEST = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
   static constexpr auto ARTIST_DIGEST = "70b1e8e06785cae451496104850781f33faf6cc8e0777ecd3a9ccaaefb154b2d";

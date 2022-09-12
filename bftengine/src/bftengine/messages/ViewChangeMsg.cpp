@@ -19,7 +19,7 @@
 #include "SigManager.hpp"
 #include "EpochManager.hpp"
 
-using concord::util::digest::DigestGenerator;
+using concord::crypto::DigestGenerator;
 
 namespace bftEngine {
 namespace impl {

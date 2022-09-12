@@ -14,7 +14,7 @@
 // This convenience header combines different block implementations.
 
 #include "aes.h"
-#include "openssl_crypto.hpp"
+#include "crypto/openssl/crypto.hpp"
 #include "assertUtils.hpp"
 #include "ReplicaConfig.hpp"
 
@@ -25,8 +25,8 @@ namespace concord::secretsmanager {
 using std::vector;
 using std::string;
 using std::unique_ptr;
-using concord::util::openssl_utils::OPENSSL_SUCCESS;
-using concord::util::openssl_utils::UniqueOpenSSLCipherContext;
+using concord::crypto::openssl::OPENSSL_SUCCESS;
+using concord::crypto::openssl::UniqueCipherContext;
 using bftEngine::ReplicaConfig;
 using concord::crypto::SIGN_VERIFY_ALGO;
 
@@ -61,7 +61,7 @@ vector<uint8_t> AES_CBC::encrypt(const string& input) {
       plaintext.get()[i] = (unsigned char)input[i];
     }
 
-    UniqueOpenSSLCipherContext ctx(EVP_CIPHER_CTX_new());
+    UniqueCipherContext ctx(EVP_CIPHER_CTX_new());
     ConcordAssert(nullptr != ctx);
 
     int c_len{0};
@@ -95,7 +95,7 @@ string AES_CBC::decrypt(const vector<uint8_t>& cipher) {
     int c_len{0}, f_len{0};
 
     unique_ptr<unsigned char[]> plaintext(new unsigned char[cipherLength]);
-    UniqueOpenSSLCipherContext ctx(EVP_CIPHER_CTX_new());
+    UniqueCipherContext ctx(EVP_CIPHER_CTX_new());
     ConcordAssert(nullptr != ctx);
 
     ConcordAssert(OPENSSL_SUCCESS == EVP_DecryptInit_ex(ctx.get(), EVP_aes_256_cbc(), nullptr, key.data(), iv.data()));

@@ -17,13 +17,13 @@
 #define TRC_HASH_HPP_
 
 #include <list>
-#include "openssl_crypto.hpp"
+#include "crypto/openssl/crypto.hpp"
 #include "thin_replica.grpc.pb.h"
 #include "client/concordclient/trc_queue.hpp"
 
 namespace client::thin_replica_client {
 
-const size_t kThinReplicaHashLength = concord::util::openssl_utils::kExpectedSHA256HashLengthInBytes;
+const size_t kThinReplicaHashLength = concord::crypto::openssl::kExpectedSHA256HashLengthInBytes;
 
 // Compute the Thin Replica Mechanism hash of a given update; the hash is
 // returned as a byte string stored in an std::string and should be of length

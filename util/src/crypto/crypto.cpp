@@ -27,18 +27,44 @@ using std::pair;
 using std::string;
 using concord::Byte;
 using concord::crypto::KeyFormat;
-using concord::crypto::CurveType;
-using concord::util::openssl_utils::UniquePKEY;
-using concord::util::openssl_utils::UniqueOpenSSLPKEYContext;
-using concord::util::openssl_utils::UniqueOpenSSLBIO;
-using concord::util::openssl_utils::OPENSSL_SUCCESS;
-using concord::crypto::openssl::EdDSASignatureByteSize;
-using concord::crypto::openssl::EdDSAPrivateKeyByteSize;
-using concord::crypto::openssl::EdDSAPublicKeyByteSize;
+using concord::crypto::openssl::UniquePKEY;
+using concord::crypto::openssl::UniqueECKEY;
+using concord::crypto::openssl::UniquePKEYContext;
+using concord::crypto::openssl::UniqueBIO;
+using concord::crypto::openssl::OPENSSL_SUCCESS;
+using concord::crypto::Ed25519PrivateKeyByteSize;
+using concord::crypto::Ed25519PublicKeyByteSize;
+
+pair<string, string> generateECKeyPair(int id, const KeyFormat fmt) {
+  constexpr size_t maxKeySize = 2048;
+
+  UniqueBIO outbio;
+  openssl::UniqueECKEY myecc{EC_KEY_new_by_curve_name(id)};
+
+  ConcordAssertEQ(OPENSSL_SUCCESS, EC_KEY_generate_key(myecc.get()));
+  UniquePKEY pkey{EVP_PKEY_new()};
+  EVP_PKEY_assign_EC_KEY(pkey.get(), myecc.get());
+
+  array<Byte, maxKeySize> privKey;
+  array<Byte, maxKeySize> pubKey;
+  size_t privKeyLen{maxKeySize};
+  size_t pubKeyLen{maxKeySize};
+
+  ConcordAssertEQ(OPENSSL_SUCCESS, EVP_PKEY_get_raw_private_key(pkey.get(), privKey.data(), &privKeyLen));
+  ConcordAssertEQ(OPENSSL_SUCCESS, EVP_PKEY_get_raw_public_key(pkey.get(), pubKey.data(), &pubKeyLen));
+
+  pair<string, string> keyPair(boost::algorithm::hex(string(reinterpret_cast<char*>(privKey.data()), privKeyLen)),
+                               boost::algorithm::hex(string(reinterpret_cast<char*>(pubKey.data()), pubKeyLen)));
+
+  if (KeyFormat::PemFormat == fmt) {
+    keyPair = EdDSAHexToPem(keyPair);
+  }
+  return keyPair;
+}
 
 pair<string, string> generateEdDSAKeyPair(const KeyFormat fmt) {
   UniquePKEY edPkey;
-  UniqueOpenSSLPKEYContext edPkeyCtx(EVP_PKEY_CTX_new_id(NID_ED25519, nullptr));
+  UniquePKEYContext edPkeyCtx(EVP_PKEY_CTX_new_id(NID_ED25519, nullptr));
 
   ConcordAssertNE(edPkeyCtx, nullptr);
   ConcordAssertEQ(OPENSSL_SUCCESS, EVP_PKEY_keygen_init(edPkeyCtx.get()));
@@ -46,19 +72,19 @@ pair<string, string> generateEdDSAKeyPair(const KeyFormat fmt) {
   ConcordAssertEQ(OPENSSL_SUCCESS, EVP_PKEY_keygen(edPkeyCtx.get(), &keygenRet));
   edPkey.reset(keygenRet);
 
-  array<Byte, EdDSAPrivateKeyByteSize> privKey;
-  array<Byte, EdDSAPublicKeyByteSize> pubKey;
-  size_t keyLen{EdDSAPrivateKeyByteSize};
+  array<Byte, Ed25519PrivateKeyByteSize> privKey;
+  array<Byte, Ed25519PublicKeyByteSize> pubKey;
+  size_t keyLen{Ed25519PrivateKeyByteSize};
 
   ConcordAssertEQ(OPENSSL_SUCCESS, EVP_PKEY_get_raw_private_key(edPkey.get(), privKey.data(), &keyLen));
-  ConcordAssertEQ(keyLen, EdDSAPrivateKeyByteSize);
-  keyLen = EdDSAPublicKeyByteSize;
+  ConcordAssertEQ(keyLen, Ed25519PrivateKeyByteSize);
+  keyLen = Ed25519PublicKeyByteSize;
   ConcordAssertEQ(OPENSSL_SUCCESS, EVP_PKEY_get_raw_public_key(edPkey.get(), pubKey.data(), &keyLen));
-  ConcordAssertEQ(keyLen, EdDSAPublicKeyByteSize);
+  ConcordAssertEQ(keyLen, Ed25519PublicKeyByteSize);
 
   pair<string, string> keyPair(
-      boost::algorithm::hex(string(reinterpret_cast<char*>(privKey.data()), EdDSAPrivateKeyByteSize)),
-      boost::algorithm::hex(string(reinterpret_cast<char*>(pubKey.data()), EdDSAPublicKeyByteSize)));
+      boost::algorithm::hex(string(reinterpret_cast<char*>(privKey.data()), Ed25519PrivateKeyByteSize)),
+      boost::algorithm::hex(string(reinterpret_cast<char*>(pubKey.data()), Ed25519PublicKeyByteSize)));
 
   if (KeyFormat::PemFormat == fmt) {
     keyPair = EdDSAHexToPem(keyPair);
@@ -77,7 +103,7 @@ pair<string, string> EdDSAHexToPem(const std::pair<std::string, std::string>& he
         NID_ED25519, nullptr, reinterpret_cast<const unsigned char*>(privKey.data()), privKey.size()));
     ConcordAssertNE(nullptr, ed_privKey);
 
-    UniqueOpenSSLBIO bio(BIO_new(BIO_s_mem()));
+    UniqueBIO bio(BIO_new(BIO_s_mem()));
     ConcordAssertNE(nullptr, bio);
 
     ConcordAssertEQ(OPENSSL_SUCCESS,
@@ -96,7 +122,7 @@ pair<string, string> EdDSAHexToPem(const std::pair<std::string, std::string>& he
         NID_ED25519, nullptr, reinterpret_cast<const unsigned char*>(pubKey.data()), pubKey.size()));
     ConcordAssertNE(nullptr, ed_pubKey);
 
-    UniqueOpenSSLBIO bio(BIO_new(BIO_s_mem()));
+    UniqueBIO bio(BIO_new(BIO_s_mem()));
     ConcordAssertNE(nullptr, bio);
 
     ConcordAssertEQ(OPENSSL_SUCCESS, PEM_write_bio_PUBKEY(bio.get(), ed_pubKey.get()));

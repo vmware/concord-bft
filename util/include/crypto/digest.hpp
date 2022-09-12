@@ -11,23 +11,22 @@
 
 #pragma once
 
-#include "digest_type.hpp"
 #include "digest_holder.hpp"
 
 #if defined USE_CRYPTOPP_SHA_256
 #include "cryptopp/digest_creator.hpp"
 #elif defined USE_OPENSSL_SHA_256
-#include "openssl/digest_creator.hpp"
+#include "crypto/openssl/digest_creator.hpp"
 #endif
 
-namespace concord::util::digest {
+namespace concord::crypto {
 
 #if defined USE_CRYPTOPP_SHA_256
 using Digest = DigestHolder<concord::crypto::cryptopp::CryptoppDigestCreator>;
 using DigestGenerator = concord::crypto::cryptopp::CryptoppDigestCreator;
 #elif defined USE_OPENSSL_SHA_256
-using Digest = DigestHolder<concord::crypto::openssl::OpenSSLDigestCreator<SHA2_256> >;
-using DigestGenerator = concord::crypto::openssl::OpenSSLDigestCreator<SHA2_256>;
+using Digest = DigestHolder<concord::crypto::openssl::OpenSSLDigestCreator<concord::crypto::openssl::SHA2_256> >;
+using DigestGenerator = concord::crypto::openssl::OpenSSLDigestCreator<concord::crypto::openssl::SHA2_256>;
 #endif
 
 static_assert(DIGEST_SIZE >= sizeof(uint64_t), "Digest size should be >= sizeof(uint64_t)");
@@ -37,4 +36,4 @@ inline std::ostream& operator<<(std::ostream& os, const Digest& digest) {
   os << digest.toString();
   return os;
 }
-}  // namespace concord::util::digest
+}  // namespace concord::crypto

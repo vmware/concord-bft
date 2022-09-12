@@ -25,6 +25,8 @@
 #include <ostream>
 #include <string>
 #include <vector>
+#include "crypto/openssl/crypto.hpp"
+#include "crypto/crypto.hpp"
 
 #include "memory.hpp"
 #include "assertUtils.hpp"
@@ -36,7 +38,22 @@
 #include <openssl/pem.h>
 #include <openssl/x509.h>
 
-namespace concord::util::openssl_utils {
+namespace concord::crypto::openssl {
+
+using UniqueContext = custom_deleter_unique_ptr<EVP_MD_CTX, EVP_MD_CTX_free>;
+using UniquePKEYContext = custom_deleter_unique_ptr<EVP_PKEY_CTX, EVP_PKEY_CTX_free>;
+using UniquePKEY = custom_deleter_unique_ptr<EVP_PKEY, EVP_PKEY_free>;
+using UniqueX509 = custom_deleter_unique_ptr<X509, X509_free>;
+using UniqueBIO = custom_deleter_unique_ptr<BIO, BIO_free_all>;
+using UniqueCipherContext = custom_deleter_unique_ptr<EVP_CIPHER_CTX, EVP_CIPHER_CTX_free>;
+using UniqueBIGNUM = custom_deleter_unique_ptr<BIGNUM, BN_clear_free>;
+using UniqueBNCTX = custom_deleter_unique_ptr<BN_CTX, BN_CTX_free>;
+using UniqueECKEY = custom_deleter_unique_ptr<EC_KEY, EC_KEY_free>;
+using UniqueECPOINT = custom_deleter_unique_ptr<EC_POINT, EC_POINT_clear_free>;
+
+constexpr int OPENSSL_SUCCESS = 1;
+constexpr int OPENSSL_FAILURE = 0;
+constexpr int OPENSSL_ERROR = -1;
 
 // Note these utilities may use std::strings to pass arond byte strings; note
 // this should work since C++ should guarantee std::string is a string of chars
@@ -60,14 +77,14 @@ class AsymmetricPrivateKey {
   virtual ~AsymmetricPrivateKey() {}
 
   // Serialize the private key to a printable format, returning the serialized
-  // object as a string. May throw an UnexpectedOpenSSLCryptoFailureException if
+  // object as a string. May throw an OpenSSLError if
   // the underlying OpenSSL Crypto library unexpectedly reports a failure while
   // attempting this operation.
   virtual std::string serialize() const = 0;
 
   // Produce and return a signature of a given message. Note both the message
   // and signature are logically byte strings handled via std::strings. May
-  // throw an UnexpectedOpenSSLCryptoFailureException if the underlying OpenSSL
+  // throw an OpenSSLError if the underlying OpenSSL
   // Crypto library unexpectedly reports a failure while attempting this
   // operation.
   virtual std::string sign(const std::string& message) const = 0;
@@ -91,7 +108,7 @@ class AsymmetricPublicKey {
   virtual ~AsymmetricPublicKey() {}
 
   // Serialize the public key to a printable format, returning the serialized
-  // object as a string. May throw an UnexpectedOpenSSLCryptoFailureException if
+  // object as a string. May throw an OpenSSLError if
   // the underlying OpenSSL Crypto library unexpectedly reports a failure while
   // attempting this operation.
   virtual std::string serialize() const = 0;
@@ -101,7 +118,7 @@ class AsymmetricPublicKey {
   // signature are logically byte strings handled via std::strings. Returns
   // true if this private key validates the signature as being a valid signature
   // of the message under the corresponding public key, and false otherwise. May
-  // throw an UnexpectedOpenSSLCryptoFailureException if the underlying OpenSSL
+  // throw an OpenSSLError if the underlying OpenSSL
   // Crypto library unexpectedly reports a failure while attempting this
   // operation.
   virtual bool verify(const std::string& message, const std::string& signature) const = 0;
@@ -110,11 +127,72 @@ class AsymmetricPublicKey {
   AsymmetricPublicKey() {}
 };
 
+// Wrapper class for OpenSSL Crypto's EVP_PKEY objects implementing
+// AsymmetricPrivateKey.
+class EVPPKEYPrivateKey : public AsymmetricPrivateKey {
+ private:
+  UniquePKEY pkey;
+  std::string scheme_name;
+
+ public:
+  // Copying and moving EVPPKEYPrivateKey objects is currently unimplemented;
+  // note the default implementations for copy and move operations would not be
+  // appropriate for this class since the EVP_PKEY object it contains must be
+  // memory-managed through the OpenSSL library rather than by default
+  // mechanisms.
+  EVPPKEYPrivateKey(const EVPPKEYPrivateKey& other) = delete;
+  EVPPKEYPrivateKey(const EVPPKEYPrivateKey&& other) = delete;
+  EVPPKEYPrivateKey& operator=(const EVPPKEYPrivateKey& other) = delete;
+  EVPPKEYPrivateKey& operator=(const EVPPKEYPrivateKey&& other) = delete;
+
+  // Note the constructed EVPPKEYPrivateKey takes ownership of the pointer it is
+  // constructed with. A precondition of this constructor is that the provided
+  // EVP_PKEY object must have both its private and public keys initialized;
+  // future behavior of this EVPPKEYPrivateKey object is undefined if this
+  // precondition is not met.
+  EVPPKEYPrivateKey(UniquePKEY&& pkey_ptr, const std::string& scheme);
+  virtual ~EVPPKEYPrivateKey() override;
+
+  virtual std::string serialize() const override;
+
+  virtual std::string sign(const std::string& message) const override;
+};
+
+// Wrapper class for OpenSSL Crypto's EVP_PKEY objects implementing
+// concord::util::openssl_crypto::AsymmetricPublicKey.
+class EVPPKEYPublicKey : public AsymmetricPublicKey {
+ private:
+  UniquePKEY pkey;
+  std::string scheme_name;
+
+ public:
+  // Copying and moving EVPPKEYPublicKey objects is currently unimplemented;
+  // note the default implementations for copy and move operations would not be
+  // appropriate for this class since the EVP_PKEY object it contains must be
+  // memory-managed through the OpenSSL library rather than by default
+  // mechanisms.
+  EVPPKEYPublicKey(const EVPPKEYPublicKey& other) = delete;
+  EVPPKEYPublicKey(const EVPPKEYPublicKey&& other) = delete;
+  EVPPKEYPublicKey& operator=(const EVPPKEYPublicKey& other) = delete;
+  EVPPKEYPublicKey& operator=(const EVPPKEYPublicKey&& other) = delete;
+
+  // Note the constructed EVPPKEYPublicKey takes ownership of the pointer it is
+  // constructed with. A precondition of this constructor is that the provided
+  // EVP_PKEY object must its public key initialized; future behavior of this
+  // EVPPKEYPublicKey object is undefined if this precondition is not met.
+  EVPPKEYPublicKey(UniquePKEY&& pkey_ptr, const std::string& scheme);
+  virtual ~EVPPKEYPublicKey() override;
+
+  virtual std::string serialize() const override;
+
+  virtual bool verify(const std::string& message, const std::string& signature) const override;
+};
+
 // List of currently permitted and supported asymmetric cryptography schemes
 // Concord might use. Note Concord maintainers should not add new schemes to
 // this list and implement support for them unless those new schemes have been
 // vetted for acceptability and adequacy for our purposes, considering our
-// security requirements. May throw an UnexpectedOpenSSLCryptoFailureException
+// security requirements. May throw an OpenSSLError
 // if the underlying OpenSSL Crypto library unexpectedly reports a failure while
 // attempting this operation.
 const static std::vector<std::string> kPermittedAsymmetricCryptoSchemes({
@@ -128,13 +206,18 @@ const static std::vector<std::string> kPermittedAsymmetricCryptoSchemes({
                  //              this curve.
 });
 
+std::pair<std::unique_ptr<AsymmetricPrivateKey>, std::unique_ptr<AsymmetricPublicKey>>
+generateAsymmetricCryptoKeyPairById(int id, std::string scheme_name);
+
+std::pair<std::string, std::string> generateECDSAKeyPair(CurveType curveType, const KeyFormat fmt);
+
 // Function for pseudorandomly generating a key pair for asymmetric
 // cryptography, given an asymmetric cryptography scheme listed in
 // KPermittedAsymmetricCryptoSchemes.
 // Throws an std::invalid_argument if the scheme_name parameter is not permitted
 // and supported (that is, if scheme_name is not listed in
 // kPermittedAsymmetricCryptoSchemes). May throw an
-// UnexpectedOpenSSLCryptoFailureException if the underlying OpenSSL Crypto
+// OpenSSLError if the underlying OpenSSL Crypto
 // library unexpectedly reports a failure while attempting this operation.
 std::pair<std::unique_ptr<AsymmetricPrivateKey>, std::unique_ptr<AsymmetricPublicKey>> generateAsymmetricCryptoKeyPair(
     const std::string& scheme_name);
@@ -144,7 +227,7 @@ std::pair<std::unique_ptr<AsymmetricPrivateKey>, std::unique_ptr<AsymmetricPubli
 // This function will handle determining what scheme the key is for and
 // constructing an AsymmetricPrivateKey object of the appropriate type. This
 // function may throw an invalid_argument exception if it fails to parse the
-// serialized key. It may also throw an UnexpectedOpenSSLCryptoFailureException
+// serialized key. It may also throw an OpenSSLError
 // if the underlying OpenSSL Crypto library unexpectedly reports a failure while
 // attempting this operation.
 std::unique_ptr<AsymmetricPrivateKey> deserializePrivateKey(const std::string& input);
@@ -165,7 +248,7 @@ std::unique_ptr<AsymmetricPublicKey> deserializePublicKeyFromPem(const std::stri
 // This function will handle determining what scheme the key is for and
 // constructing an AsymmetricPublicKey object of the appropriate type. This
 // function may throw an invalid_argument exception if it fails to parse the
-// serialized key. It may also throw an UnexpectedOpenSSLCryptoFailureException
+// serialized key. It may also throw an OpenSSLError
 // if the underlying OpenSSL Crypto library unexpectedly reports a failure while
 // attempting this operation.
 std::unique_ptr<AsymmetricPublicKey> deserializePublicKey(const std::string& input);
@@ -180,7 +263,7 @@ const size_t kExpectedSHA256HashLengthInBytes = (256 / 8);
 // kExpectedSHA256HashLengthInBytes, the byte string this function returns will
 // be padded at its end with extra 0 byte(s).
 //
-// May throw an UnexpectedOpenSSLCryptoFailureException if the underlying
+// May throw an OpenSSLError if the underlying
 // OpenSSL Crypto library unexpectedly reports a failure while attempting this
 // operation.
 std::string computeSHA256Hash(const std::string& data);
@@ -190,28 +273,21 @@ std::string computeSHA256Hash(const char* data, size_t length);
 
 // Exception that may be thrown if a call into OpenSSLCrypto returns a failure
 // unexpectedly.
-class UnexpectedOpenSSLCryptoFailureException : public std::exception {
+class OpenSSLError : public std::exception {
  private:
   std::string message;
 
  public:
-  explicit UnexpectedOpenSSLCryptoFailureException(const std::string& what) : message(what) {}
+  explicit OpenSSLError(const std::string& what) : message(what) {}
   virtual const char* what() const noexcept override { return message.c_str(); }
 };
 
-using UniqueOpenSSLContext = custom_deleter_unique_ptr<EVP_MD_CTX, EVP_MD_CTX_free>;
-using UniqueOpenSSLPKEYContext = custom_deleter_unique_ptr<EVP_PKEY_CTX, EVP_PKEY_CTX_free>;
-using UniquePKEY = custom_deleter_unique_ptr<EVP_PKEY, EVP_PKEY_free>;
-using UniqueOpenSSLX509 = custom_deleter_unique_ptr<X509, X509_free>;
-using UniqueOpenSSLBIO = custom_deleter_unique_ptr<BIO, BIO_free_all>;
-using UniqueOpenSSLCipherContext = custom_deleter_unique_ptr<EVP_CIPHER_CTX, EVP_CIPHER_CTX_free>;
-using UniqueOpenSSLBIGNUM = custom_deleter_unique_ptr<BIGNUM, BN_clear_free>;
-using UniqueOpenSSLBNCTX = custom_deleter_unique_ptr<BN_CTX, BN_CTX_free>;
-using UniqueOpenSSLECKEY = custom_deleter_unique_ptr<EC_KEY, EC_KEY_free>;
-using UniqueOpenSSLECPOINT = custom_deleter_unique_ptr<EC_POINT, EC_POINT_clear_free>;
+// Deleter classes for using smart pointers that correctly manage objects from
+// the OpenSSL Crypto library, given OpenSSL Crypto objects use free functions
+// provided by the library rather than normal destructors.
+class OPENSSLStringDeleter {
+ public:
+  void operator()(char* string) const { OPENSSL_free(string); }
+};
 
-constexpr int OPENSSL_SUCCESS = 1;
-constexpr int OPENSSL_FAILURE = 0;
-constexpr int OPENSSL_ERROR = -1;
-
-}  // namespace concord::util::openssl_utils
+}  // namespace concord::crypto::openssl

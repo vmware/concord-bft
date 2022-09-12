@@ -20,7 +20,6 @@ namespace preprocessor {
 using namespace std;
 using namespace bftEngine;
 using namespace chrono;
-using namespace concord::util;
 using namespace concord::kvbc::sparse_merkle;
 
 uint16_t RequestProcessingState::numOfRequiredEqualReplies_ = 0;
@@ -124,9 +123,8 @@ void RequestProcessingState::releaseResources() {
   preProcessRequestMsg_.reset();
 }
 
-void RequestProcessingState::detectNonDeterministicPreProcessing(const SHA3_256::Digest &newHash,
-                                                                 NodeIdType newSenderId,
-                                                                 uint64_t reqRetryId) const {
+void RequestProcessingState::detectNonDeterministicPreProcessing(
+    const concord::crypto::openssl::SHA3_256::Digest &newHash, NodeIdType newSenderId, uint64_t reqRetryId) const {
   for (auto &hashArray : preProcessingResultHashes_)
     if ((newHash != hashArray.first) && reqRetryId_ && (reqRetryId_ == reqRetryId)) {
       // Compare only between matching request/reply retry ids
@@ -170,9 +168,10 @@ void RequestProcessingState::handlePreProcessReplyMsg(const PreProcessReplyMsgSh
   }
 }
 
-SHA3_256::Digest RequestProcessingState::convertToArray(const uint8_t resultsHash[SHA3_256::SIZE_IN_BYTES]) {
-  SHA3_256::Digest hashArray;
-  for (uint64_t i = 0; i < SHA3_256::SIZE_IN_BYTES; i++) hashArray[i] = resultsHash[i];
+concord::crypto::openssl::SHA3_256::Digest RequestProcessingState::convertToArray(
+    const uint8_t resultsHash[concord::crypto::openssl::SHA3_256::SIZE_IN_BYTES]) {
+  concord::crypto::openssl::SHA3_256::Digest hashArray;
+  for (uint64_t i = 0; i < concord::crypto::openssl::SHA3_256::SIZE_IN_BYTES; i++) hashArray[i] = resultsHash[i];
   return hashArray;
 }
 
@@ -206,8 +205,8 @@ bool RequestProcessingState::isReqTimedOut() const {
   return false;
 }
 
-std::pair<std::string, concord::util::SHA3_256::Digest> RequestProcessingState::detectFailureDueToBlockID(
-    const concord::util::SHA3_256::Digest &other, uint64_t blockId) {
+std::pair<std::string, concord::crypto::openssl::SHA3_256::Digest> RequestProcessingState::detectFailureDueToBlockID(
+    const concord::crypto::openssl::SHA3_256::Digest &other, uint64_t blockId) {
   // Since this scenario is rare, a new string is allocated for safety.
   std::string modifiedResult(primaryPreProcessResultData_, primaryPreProcessResultLen_);
   ConcordAssertGT(modifiedResult.size(), sizeof(uint64_t));
@@ -222,11 +221,11 @@ std::pair<std::string, concord::util::SHA3_256::Digest> RequestProcessingState::
         "Primary hash is different from quorum due to mismatch in block id" << KVLOG(batchCid_, reqSeqNum_, reqCid_));
     return {modifiedResult, modifiedHash};
   }
-  return {"", concord::util::SHA3_256::Digest{}};
+  return {"", concord::crypto::openssl::SHA3_256::Digest{}};
 }
 
 void RequestProcessingState::modifyPrimaryResult(
-    const std::pair<std::string, concord::util::SHA3_256::Digest> &result) {
+    const std::pair<std::string, concord::crypto::openssl::SHA3_256::Digest> &result) {
   memcpy(const_cast<char *>(primaryPreProcessResultData_), result.first.c_str(), primaryPreProcessResultLen_);
   primaryPreProcessResultHash_ = result.second;
   auto sm = SigManager::instance();
@@ -242,9 +241,11 @@ void RequestProcessingState::modifyPrimaryResult(
 void RequestProcessingState::reportNonEqualHashes(const unsigned char *chosenData, uint32_t chosenSize) const {
   // Primary replica calculated hash is different from a hash that passed pre-execution consensus => we don't have
   // correct pre-processed results.
-  const auto &primaryHash =
-      Hash(SHA3_256().digest(primaryPreProcessResultHash_.data(), primaryPreProcessResultHash_.size())).toString();
-  const auto &hashPassedConsensus = Hash(SHA3_256().digest(chosenData, chosenSize)).toString();
+  const auto &primaryHash = Hash(concord::crypto::openssl::SHA3_256().digest(primaryPreProcessResultHash_.data(),
+                                                                             primaryPreProcessResultHash_.size()))
+                                .toString();
+  const auto &hashPassedConsensus =
+      Hash(concord::crypto::openssl::SHA3_256().digest(chosenData, chosenSize)).toString();
   LOG_WARN(logger(),
            "Primary replica pre-processing result hash: "
                << primaryHash << " is different from one passed the consensus: " << hashPassedConsensus

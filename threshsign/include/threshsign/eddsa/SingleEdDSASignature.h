@@ -20,5 +20,5 @@
  */
 struct SingleEdDSASignature {
   uint64_t id;
-  std::array<concord::Byte, concord::crypto::openssl::EdDSASignatureByteSize> signatureBytes;
+  std::array<concord::Byte, concord::crypto::Ed25519SignatureByteSize> signatureBytes;
 };

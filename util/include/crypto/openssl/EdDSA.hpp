@@ -14,22 +14,18 @@
 
 #include "crypto/crypto.hpp"
 #include "SerializableByteArray.hpp"
-#include "openssl_crypto.hpp"
+#include "crypto.hpp"
 
 namespace concord::crypto::openssl {
 
-static constexpr const size_t EdDSAPrivateKeyByteSize = 32UL;
-static constexpr const size_t EdDSAPublicKeyByteSize = 32UL;
-static constexpr const size_t EdDSASignatureByteSize = 64UL;
-
-class EdDSAPrivateKey : public SerializableByteArray<EdDSAPrivateKeyByteSize> {
+class EdDSAPrivateKey : public SerializableByteArray<Ed25519PrivateKeyByteSize> {
  public:
-  EdDSAPrivateKey(const EdDSAPrivateKey::ByteArray& arr) : SerializableByteArray<EdDSAPrivateKeyByteSize>(arr) {}
+  EdDSAPrivateKey(const EdDSAPrivateKey::ByteArray& arr) : SerializableByteArray<Ed25519PrivateKeyByteSize>(arr) {}
 };
 
-class EdDSAPublicKey : public SerializableByteArray<EdDSAPublicKeyByteSize> {
+class EdDSAPublicKey : public SerializableByteArray<Ed25519PublicKeyByteSize> {
  public:
-  EdDSAPublicKey(const EdDSAPublicKey::ByteArray& arr) : SerializableByteArray<EdDSAPublicKeyByteSize>(arr) {}
+  EdDSAPublicKey(const EdDSAPublicKey::ByteArray& arr) : SerializableByteArray<Ed25519PublicKeyByteSize>(arr) {}
 };
 
 /**
@@ -42,12 +38,12 @@ class EdDSAPublicKey : public SerializableByteArray<EdDSAPublicKeyByteSize> {
  */
 template <typename ByteArrayKeyClass>
 static std::vector<uint8_t> extractHexKeyFromPem(const std::string_view pemKey, size_t KeyLength) {
-  using concord::util::openssl_utils::UniquePKEY;
-  using concord::util::openssl_utils::UniqueOpenSSLBIO;
-  using concord::util::openssl_utils::OPENSSL_SUCCESS;
+  using concord::crypto::openssl::UniquePKEY;
+  using concord::crypto::openssl::UniqueBIO;
+  using concord::crypto::openssl::OPENSSL_SUCCESS;
 
   UniquePKEY pkey;
-  UniqueOpenSSLBIO bio(BIO_new(BIO_s_mem()));
+  UniqueBIO bio(BIO_new(BIO_s_mem()));
 
   ConcordAssertGT(BIO_write(bio.get(), pemKey.data(), static_cast<int>(pemKey.size())), 0);
 

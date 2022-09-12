@@ -16,11 +16,11 @@
 #include <type_traits>
 
 #include "RangeValidationTree.hpp"
-#include "digest.hpp"
+#include "crypto/digest.hpp"
 #include "type_traits"
 #include "throughput.hpp"
 
-using concord::util::digest::DigestGenerator;
+using concord::crypto::DigestGenerator;
 
 using namespace std;
 using namespace concord::serialize;

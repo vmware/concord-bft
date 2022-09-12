@@ -17,7 +17,7 @@
 #include "sliver.hpp"
 #include "kv_types.hpp"
 #include "block_metadata.hpp"
-#include "sha_hash.hpp"
+#include "crypto/openssl/hash.hpp"
 #include <unistd.h>
 #include <algorithm>
 #include <variant>
@@ -44,7 +44,7 @@ using skvbc::messages::SKVBCRequest;
 using skvbc::messages::SKVBCWriteReply;
 using skvbc::messages::SKVBCWriteRequest;
 
-using Hasher = concord::util::SHA3_256;
+using Hasher = concord::crypto::openssl::SHA3_256;
 using Hash = Hasher::Digest;
 
 const uint64_t LONG_EXEC_CMD_TIME_IN_SEC = 11;

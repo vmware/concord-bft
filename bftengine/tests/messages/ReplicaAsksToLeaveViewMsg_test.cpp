@@ -12,14 +12,11 @@
 #include "gtest/gtest.h"
 
 #include "helper.hpp"
-#include "digest_type.hpp"
 #include "ViewsManager.hpp"
 #include "ReplicasInfo.hpp"
 #include "SigManager.hpp"
 #include "messages/MsgCode.hpp"
 #include "messages/ReplicaAsksToLeaveViewMsg.hpp"
-#include "bftengine/ClientMsgs.hpp"
-#include "bftengine/ReplicaConfig.hpp"
 #include "ReservedPagesMock.hpp"
 #include "EpochManager.hpp"
 

@@ -12,7 +12,7 @@
 #include "gtest/gtest.h"
 
 #include "helper.hpp"
-#include "digest_type.hpp"
+#include "crypto/digest_parametes.hpp"
 #include "ViewsManager.hpp"
 #include "ReplicasInfo.hpp"
 #include "SigManager.hpp"

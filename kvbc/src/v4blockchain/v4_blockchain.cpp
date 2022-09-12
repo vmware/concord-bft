@@ -353,7 +353,8 @@ std::optional<BlockId> KeyValueBlockchain::getLastStatetransferBlockId() const {
   return state_transfer_chain_.getLastBlockId();
 }
 
-std::optional<BlockDigest> KeyValueBlockchain::parentDigest(BlockId block_id) const {
+
+std::optional<concord::crypto::BlockDigest> KeyValueBlockchain::parentDigest(BlockId block_id) const {
   const auto last_reachable_block = getLastReachableBlockId();
   if (block_id > last_reachable_block) {
     return std::optional<BlockDigest>(state_transfer_chain_.getBlockParentDigest(block_id));
@@ -366,7 +367,7 @@ std::optional<BlockDigest> KeyValueBlockchain::parentDigest(BlockId block_id) co
   return std::optional<BlockDigest>(block_chain_.getBlockParentDigest(block_id));
 }
 
-std::optional<BlockDigest> KeyValueBlockchain::calculateBlockDigest(BlockId block_id) const {
+std::optional<concord::crypto::BlockDigest> KeyValueBlockchain::calculateBlockDigest(BlockId block_id) const {
   const auto last_reachable_block = getLastReachableBlockId();
   if (block_id > last_reachable_block) {
     return std::optional<BlockDigest>(state_transfer_chain_.getBlockDigest(block_id));

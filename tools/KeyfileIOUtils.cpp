@@ -26,8 +26,8 @@
 using concord::crypto::isValidKey;
 using bftEngine::ReplicaConfig;
 using concord::crypto::SIGN_VERIFY_ALGO;
-using concord::crypto::openssl::EdDSAPrivateKeyByteSize;
-using concord::crypto::openssl::EdDSAPublicKeyByteSize;
+using concord::crypto::Ed25519PrivateKeyByteSize;
+using concord::crypto::Ed25519PublicKeyByteSize;
 
 void outputReplicaKeyfile(uint16_t numReplicas,
                           uint16_t numRoReplicas,
@@ -118,7 +118,7 @@ Cryptosystem* inputReplicaKeyfileMultisig(const std::string& filename, ReplicaCo
     if ("rsa" == mainKeyAlgo) {
       validateRSAPublicKey(replicaPublicKeys[i]);
     } else if ("eddsa" == mainKeyAlgo) {
-      constexpr const size_t expectedKeyLength = EdDSAPublicKeyByteSize * 2;
+      constexpr const size_t expectedKeyLength = Ed25519PublicKeyByteSize * 2;
       isValidKey("EdDSA public", replicaPublicKeys[i], expectedKeyLength);
     }
     config.publicKeysOfReplicas.insert(std::pair<uint16_t, std::string>(i, replicaPublicKeys[i]));
@@ -127,7 +127,7 @@ Cryptosystem* inputReplicaKeyfileMultisig(const std::string& filename, ReplicaCo
   if ("rsa" == mainKeyAlgo) {
     validateRSAPrivateKey(config.replicaPrivateKey);
   } else if ("eddsa" == mainKeyAlgo) {
-    constexpr const size_t expectedKeyLength = EdDSAPrivateKeyByteSize * 2;
+    constexpr const size_t expectedKeyLength = Ed25519PrivateKeyByteSize * 2;
     isValidKey("EdDSA private", config.replicaPrivateKey, expectedKeyLength);
   }
 

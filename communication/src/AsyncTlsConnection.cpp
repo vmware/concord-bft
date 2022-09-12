@@ -28,7 +28,7 @@
 #include "secrets_manager_plain.h"
 #include "communication/StateControl.hpp"
 #include "hex_tools.h"
-#include "openssl/utils.hpp"
+#include "crypto/openssl/certificates.hpp"
 
 namespace bft::communication::tls {
 using bftEngine::ReplicaConfig;

@@ -14,11 +14,11 @@
 #include <memory>
 #include <cstring>
 
-#include "digest_type.hpp"
 #include "digest_creator.hpp"
+#include "digest_parametes.hpp"
 #include "hex_tools.h"
 
-namespace concord::util::digest {
+namespace concord::crypto {
 
 using BlockDigest = std::array<std::uint8_t, DIGEST_SIZE>;
 
@@ -93,4 +93,4 @@ class DigestHolder {
  private:
   char d[DIGEST_SIZE];  // DIGEST_SIZE should be >= 8 bytes;  // Stores digest.
 };
-}  // namespace concord::util::digest
+}  // namespace concord::crypto

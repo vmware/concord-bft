@@ -14,7 +14,7 @@
 #include "concord.cmf.hpp"
 #include "crypto/crypto.hpp"
 #include "ReplicaConfig.hpp"
-#include "openssl/utils.hpp"
+#include "crypto/openssl/certificates.hpp"
 #include "crypto/cryptopp/keygen.hpp"
 
 #include <variant>

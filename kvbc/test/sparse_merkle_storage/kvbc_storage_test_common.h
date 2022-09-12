@@ -19,7 +19,7 @@
 #include "sparse_merkle/base_types.h"
 #include "SimpleBCStateTransfer.hpp"
 
-using concord::util::digest::BlockDigest;
+using concord::crypto::BlockDigest;
 
 inline BlockDigest blockDigest(concord::kvbc::BlockId blockId, const concordUtils::Sliver &block) {
   return ::bftEngine::bcst::computeBlockDigest(blockId, block.data(), block.length());

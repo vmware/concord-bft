@@ -11,11 +11,11 @@
 
 #include "NullStateTransfer.hpp"
 #include "assertUtils.hpp"
-#include "digest.hpp"
+#include "crypto/digest.hpp"
 #include "Logger.hpp"
 
-using concord::util::digest::Digest;
-using concord::util::digest::DigestGenerator;
+using concord::crypto::Digest;
+using concord::crypto::DigestGenerator;
 
 namespace bftEngine {
 namespace impl {

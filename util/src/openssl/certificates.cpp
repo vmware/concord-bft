@@ -11,7 +11,7 @@
 // terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
-#include "utils.hpp"
+#include "crypto/openssl/certificates.hpp"
 #include "Logger.hpp"
 #include "util/filesystem.hpp"
 
@@ -21,12 +21,12 @@ namespace concord::crypto {
 using std::unique_ptr;
 using std::string;
 using concord::crypto::SIGN_VERIFY_ALGO;
-using concord::util::openssl_utils::UniquePKEY;
-using concord::util::openssl_utils::UniqueOpenSSLX509;
-using concord::util::openssl_utils::UniqueOpenSSLBIO;
-using concord::util::openssl_utils::OPENSSL_SUCCESS;
-using concord::util::openssl_utils::OPENSSL_FAILURE;
-using concord::util::openssl_utils::OPENSSL_ERROR;
+using concord::crypto::openssl::UniquePKEY;
+using concord::crypto::openssl::UniqueX509;
+using concord::crypto::openssl::UniqueBIO;
+using concord::crypto::openssl::OPENSSL_SUCCESS;
+using concord::crypto::openssl::OPENSSL_FAILURE;
+using concord::crypto::openssl::OPENSSL_ERROR;
 
 string generateSelfSignedCert(const string& origin_cert_path,
                               const string& public_key,
@@ -38,14 +38,14 @@ string generateSelfSignedCert(const string& origin_cert_path,
     return string();
   }
 
-  UniqueOpenSSLX509 cert(PEM_read_X509(fp.get(), nullptr, nullptr, nullptr));
+  UniqueX509 cert(PEM_read_X509(fp.get(), nullptr, nullptr, nullptr));
   if (nullptr == cert) {
     LOG_ERROR(OPENSSL_LOG, "Cannot parse certificate, path: " << origin_cert_path);
     return string();
   }
 
   UniquePKEY priv_key(EVP_PKEY_new());
-  UniqueOpenSSLBIO priv_bio(BIO_new(BIO_s_mem()));
+  UniqueBIO priv_bio(BIO_new(BIO_s_mem()));
 
   if (BIO_write(priv_bio.get(), static_cast<const char*>(signing_key.c_str()), signing_key.size()) <= 0) {
     LOG_ERROR(OPENSSL_LOG, "Unable to create private key object");
@@ -57,7 +57,7 @@ string generateSelfSignedCert(const string& origin_cert_path,
     return string();
   }
   UniquePKEY pub_key(EVP_PKEY_new());
-  UniqueOpenSSLBIO pub_bio(BIO_new(BIO_s_mem()));
+  UniqueBIO pub_bio(BIO_new(BIO_s_mem()));
 
   if (BIO_write(pub_bio.get(), static_cast<const char*>(public_key.c_str()), public_key.size()) <= 0) {
     LOG_ERROR(OPENSSL_LOG, "Unable to write public key object");
@@ -85,7 +85,7 @@ string generateSelfSignedCert(const string& origin_cert_path,
     }
   }
 
-  UniqueOpenSSLBIO outbio(BIO_new(BIO_s_mem()));
+  UniqueBIO outbio(BIO_new(BIO_s_mem()));
   if (OPENSSL_FAILURE == PEM_write_bio_X509(outbio.get(), cert.get())) {
     LOG_ERROR(OPENSSL_LOG, "Unable to create certificate object");
     return string();
@@ -103,7 +103,7 @@ string generateSelfSignedCert(const string& origin_cert_path,
 
 bool verifyCertificate(X509& cert, const string& public_key) {
   UniquePKEY pub_key(EVP_PKEY_new());
-  UniqueOpenSSLBIO pub_bio(BIO_new(BIO_s_mem()));
+  UniqueBIO pub_bio(BIO_new(BIO_s_mem()));
 
   if (BIO_write(pub_bio.get(), static_cast<const char*>(public_key.c_str()), public_key.size()) <= 0) {
     return false;
@@ -170,7 +170,7 @@ bool verifyCertificate(const X509& cert_to_verify,
     return false;
   }
 
-  UniqueOpenSSLX509 localCert(PEM_read_X509(fp.get(), nullptr, nullptr, nullptr));
+  UniqueX509 localCert(PEM_read_X509(fp.get(), nullptr, nullptr, nullptr));
   if (nullptr == localCert) {
     LOG_ERROR(OPENSSL_LOG, "Cannot parse certificate, path: " << local_cert_path.string());
     return false;

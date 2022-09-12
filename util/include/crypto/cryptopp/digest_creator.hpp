@@ -11,8 +11,8 @@
 
 #pragma once
 
-#include "digestCreator.hpp"
-#include "digest_type.hpp"
+#include "crypto/digest_creator.hpp"
+#include "crypto/digest_parametes.hpp"
 
 #if defined MD5_DIGEST
 #include <cryptopp/md5.h>
@@ -26,7 +26,7 @@
 namespace concord::crypto::cryptopp {
 
 // Implements digest creator using Crypto++ library.
-class CryptoppDigestCreator : public concord::util::digest::DigestCreator {
+class CryptoppDigestCreator : public concord::crypto::DigestCreator {
  public:
   CryptoppDigestCreator();
   virtual ~CryptoppDigestCreator();

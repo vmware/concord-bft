@@ -23,7 +23,7 @@ using concord::kvbc::SetOfKeyValuePairs;
 using concord::kvbc::BlockId;
 using concord::kvbc::v1DirectKeyValue::block::detail::create;
 using concord::kvbc::v1DirectKeyValue::block::detail::getUserData;
-using concord::util::digest::BlockDigest;
+using concord::crypto::BlockDigest;
 
 namespace {
 

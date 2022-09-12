@@ -16,14 +16,14 @@
 #include "bftengine/ClientMsgs.hpp"
 #include "messages/PrePrepareMsg.hpp"
 #include "messages/PreProcessResultMsg.hpp"
-#include "digest.hpp"
+#include "crypto/digest.hpp"
 namespace concord::kvbc::strategy {
 
 using bftEngine::impl::MessageBase;
 using bftEngine::impl::PrePrepareMsg;
 using bftEngine::ClientRequestMsgHeader;
 using preprocessor::PreProcessResultMsg;
-using concord::util::digest::DigestGenerator;
+using concord::crypto::DigestGenerator;
 
 std::string concord::kvbc::strategy::MangledPreProcessResultMsgStrategy::getStrategyName() {
   return CLASSNAME(MangledPreProcessResultMsgStrategy);

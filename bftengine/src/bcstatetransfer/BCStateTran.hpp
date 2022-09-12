@@ -518,9 +518,9 @@ class BCStateTran : public IStateTransfer {
                                    const uint32_t blockSize,
                                    Digest* outDigest);
 
-  static concord::util::digest::BlockDigest computeDigestOfBlock(const uint64_t blockNum,
-                                                                 const char* block,
-                                                                 const uint32_t blockSize);
+  static concord::crypto::BlockDigest computeDigestOfBlock(const uint64_t blockNum,
+                                                           const char* block,
+                                                           const uint32_t blockSize);
 
  protected:
   // A wrapper function to get a block from the IAppState and compute its digest.
