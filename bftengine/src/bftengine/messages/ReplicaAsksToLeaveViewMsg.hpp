@@ -14,7 +14,7 @@
 #include <cstdint>
 
 #include "assertUtils.hpp"
-#include "digest.hpp"
+#include "crypto/digest.hpp"
 #include "ReplicaConfig.hpp"
 #include "MessageBase.hpp"
 #include "OpenTracing.hpp"

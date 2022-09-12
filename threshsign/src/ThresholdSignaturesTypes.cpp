@@ -236,7 +236,7 @@ void Cryptosystem::validatePublicKey(const std::string& key) const {
 
 void Cryptosystem::validateVerificationKey(const std::string& key) const {
 #ifdef USE_EDDSA_OPENSSL
-  constexpr const size_t expectedKeyLength = concord::crypto::openssl::EdDSAPublicKeyByteSize * 2;
+  constexpr const size_t expectedKeyLength = concord::crypto::Ed25519PublicKeyByteSize * 2;
 #else
   constexpr const size_t expectedKeyLength = 130u;
 #endif
@@ -246,7 +246,7 @@ void Cryptosystem::validateVerificationKey(const std::string& key) const {
 
 void Cryptosystem::validatePrivateKey(const std::string& key) const {
 #ifdef USE_EDDSA_OPENSSL
-  constexpr const size_t expectedKeyLength = concord::crypto::openssl::EdDSAPrivateKeyByteSize * 2;
+  constexpr const size_t expectedKeyLength = concord::crypto::Ed25519PrivateKeyByteSize * 2;
 #else
   // We currently do not validate the length of the private key's string
   // representation because the length of its serialization varies slightly.

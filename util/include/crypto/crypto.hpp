@@ -24,6 +24,10 @@ enum SignatureAlgorithm : uint32_t { Uninitialized = 0, BLS = 1, EdDSA = 2, RSA 
 enum class KeyFormat : uint16_t { HexaDecimalStrippedFormat, PemFormat };
 enum class CurveType : uint16_t { secp256k1, secp384r1 };
 
+static constexpr const size_t Ed25519PrivateKeyByteSize = 32UL;
+static constexpr const size_t Ed25519PublicKeyByteSize = 32UL;
+static constexpr const size_t Ed25519SignatureByteSize = 64UL;
+
 /**
  * @brief Generates an EdDSA asymmetric key pair (private-public key pair).
  *
@@ -31,6 +35,9 @@ enum class CurveType : uint16_t { secp256k1, secp384r1 };
  * @return pair<string, string> Private-Public key pair.
  */
 std::pair<std::string, std::string> generateEdDSAKeyPair(const KeyFormat fmt = KeyFormat::HexaDecimalStrippedFormat);
+
+std::pair<std::string, std::string> generateECDSAKeyPair(CurveType type,
+                                                         const KeyFormat fmt = KeyFormat::HexaDecimalStrippedFormat);
 
 /**
  * @brief Generates an EdDSA PEM file from hexadecimal key pair (private-public key pair).

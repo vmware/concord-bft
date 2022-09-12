@@ -18,9 +18,9 @@
 #include "messages/PrePrepareMsg.hpp"
 #include "messages/ClientRequestMsg.hpp"
 
-#include "digest.hpp"
+#include "crypto/digest.hpp"
 
-using concord::util::digest::DigestGenerator;
+using concord::crypto::DigestGenerator;
 namespace concord::kvbc::strategy {
 
 using bftEngine::impl::MessageBase;

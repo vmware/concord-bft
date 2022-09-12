@@ -63,8 +63,8 @@ class KeyValueBlockchain {
   // On State-transfer, we read this key and prune up to this block.
   void pruneOnSTLink(const categorization::Updates &);
   // Gets the digest from block, the digest represents the digest of the previous block i.e. parent digest
-  concord::util::digest::BlockDigest parentDigest(BlockId block_id) const;
-  concord::util::digest::BlockDigest calculateBlockDigest(BlockId block_id) const;
+  concord::crypto::BlockDigest parentDigest(BlockId block_id) const;
+  concord::crypto::BlockDigest calculateBlockDigest(BlockId block_id) const;
 
   std::optional<BlockId> getLastStatetransferBlockId() const;
 

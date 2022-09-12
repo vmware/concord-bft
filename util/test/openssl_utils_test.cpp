@@ -26,9 +26,10 @@ using concord::crypto::generateEdDSAKeyPair;
 using concord::crypto::EdDSAHexToPem;
 using concord::crypto::openssl::EdDSAPrivateKey;
 using concord::crypto::openssl::EdDSAPublicKey;
-using concord::crypto::openssl::EdDSAPrivateKeyByteSize;
-using concord::crypto::openssl::EdDSAPublicKeyByteSize;
+using concord::crypto::Ed25519PrivateKeyByteSize;
+using concord::crypto::Ed25519PublicKeyByteSize;
 using concord::crypto::openssl::deserializeKey;
+using concord::crypto::CurveType;
 
 class EdDSATests : public ::testing::Test {
  public:
@@ -68,8 +69,8 @@ class EdDSATests : public ::testing::Test {
 
 TEST_F(EdDSATests, TestHexFormatKeyLengths) {
   const auto keyPair = generateEdDSAKeyPair(KeyFormat::HexaDecimalStrippedFormat);
-  ASSERT_TRUE(concord::crypto::isValidKey("", keyPair.first, EdDSAPrivateKeyByteSize * 2));
-  ASSERT_TRUE(concord::crypto::isValidKey("", keyPair.second, EdDSAPublicKeyByteSize * 2));
+  ASSERT_TRUE(concord::crypto::isValidKey("", keyPair.first, Ed25519PrivateKeyByteSize * 2));
+  ASSERT_TRUE(concord::crypto::isValidKey("", keyPair.second, Ed25519PublicKeyByteSize * 2));
 }
 
 TEST_F(EdDSATests, TestPEMFormatValidity) {
@@ -85,6 +86,15 @@ TEST_F(EdDSATests, TestInvalidSignature) {
   ASSERT_FALSE(verify(Message, signature));
 }
 }  // namespace
+
+TEST(openssl_test, generateECDSA) {
+  auto a = concord::crypto::openssl::generateAsymmetricCryptoKeyPairById(NID_secp256k1, "secp256k1");
+  std::cout << a.first->serialize() << std::endl;
+  std::cout << a.second->serialize() << std::endl;
+  auto b = concord::crypto::openssl::generateAsymmetricCryptoKeyPairById(NID_secp384r1, "secp384r1");
+  std::cout << b.first->serialize() << std::endl;
+  std::cout << b.second->serialize() << std::endl;
+}
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);

@@ -22,7 +22,7 @@
 #include "merkle_tree_db_adapter.h"
 #include "merkle_tree_key_manipulator.h"
 #include "merkle_tree_serialization.h"
-#include "sha_hash.hpp"
+#include "crypto/openssl/hash.hpp"
 #include "sparse_merkle/base_types.h"
 #include "sparse_merkle/internal_node.h"
 
@@ -264,7 +264,7 @@ void calculateSha2(benchmark::State &state) {
 
 void calculateSha3(benchmark::State &state) {
   const auto value = randomBuffer(state.range(0));
-  auto hasher = SHA3_256{};
+  auto hasher = concord::crypto::openssl::SHA3_256{};
 
   for (auto _ : state) {
     const auto hash = hasher.digest(value.data(), value.size());

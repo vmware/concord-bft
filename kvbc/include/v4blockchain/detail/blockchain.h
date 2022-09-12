@@ -73,7 +73,7 @@ class Blockchain {
   std::optional<std::string> getBlockData(concord::kvbc::BlockId id) const;
   std::optional<categorization::Updates> getBlockUpdates(BlockId id) const;
 
-  concord::util::digest::BlockDigest getBlockParentDigest(concord::kvbc::BlockId id) const;
+  concord::crypto::BlockDigest getBlockParentDigest(concord::kvbc::BlockId id) const;
 
   // Returns the actual values from blockchain DB for each of the block ids.
   // This function expects unique blocks in block_ids.
@@ -92,7 +92,7 @@ class Blockchain {
   void multiGetBlockUpdates(std::vector<BlockId> block_ids,
                             std::unordered_map<BlockId, std::optional<categorization::Updates>>& values) const;
 
-  concord::util::digest::BlockDigest calculateBlockDigest(concord::kvbc::BlockId id) const;
+  concord::crypto::BlockDigest calculateBlockDigest(concord::kvbc::BlockId id) const;
 
   // Generates a key (big endian string representation) from the block id.
   static std::string generateKey(BlockId id) { return concordUtils::toBigEndianStringBuffer(id); }
@@ -118,7 +118,7 @@ class Blockchain {
   std::atomic<BlockId> genesis_block_id_{INVALID_BLOCK_ID};
   std::shared_ptr<concord::storage::rocksdb::NativeClient> native_client_;
   util::ThreadPool thread_pool_{1};
-  std::optional<std::future<concord::util::digest::BlockDigest>> future_digest_;
+  std::optional<std::future<concord::crypto::BlockDigest>> future_digest_;
 };
 
 }  // namespace concord::kvbc::v4blockchain::detail

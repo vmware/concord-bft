@@ -55,9 +55,9 @@ using concord::storage::rocksdb::KeyComparator;
 using namespace std;
 using namespace bftEngine::bcst;
 using namespace concord::util;
-using concord::util::digest::DigestGenerator;
+using concord::crypto::DigestGenerator;
 
-using concord::util::digest::DigestGenerator;
+using concord::crypto::DigestGenerator;
 using std::chrono::milliseconds;
 using random_bytes_engine = std::independent_bits_engine<std::default_random_engine, CHAR_BIT, unsigned char>;
 
@@ -3028,7 +3028,7 @@ TEST_F(BcStTest, bkpTestRvbDataConflictDetection) {
     ASSERT_TRUE(datastore_->hasCheckpointDesc(i));
 
     DataStore::CheckpointDesc desc = datastore_->getCheckpointDesc(i);
-    digest::Digest stateDigest, reservedPagesDigest, rvbDataDigest;
+    Digest stateDigest, reservedPagesDigest, rvbDataDigest;
     uint64_t outBlockId;
 
     stateTransfer_->getDigestOfCheckpoint(

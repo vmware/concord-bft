@@ -4,7 +4,7 @@
 #include "messages/MsgsCertificate.hpp"
 #include "messages/ClientReplyMsg.hpp"
 #include "CheckpointInfo.hpp"
-#include "digest.hpp"
+#include "crypto/digest.hpp"
 #include "helper.hpp"
 #include "SigManager.hpp"
 #include "ReservedPagesMock.hpp"

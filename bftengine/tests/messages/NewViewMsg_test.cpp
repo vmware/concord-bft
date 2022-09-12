@@ -16,7 +16,7 @@
 #include "helper.hpp"
 #include "messages/MsgCode.hpp"
 #include "messages/NewViewMsg.hpp"
-#include "digest.hpp"
+#include "crypto/digest.hpp"
 #include "bftengine/ReplicaConfig.hpp"
 #include "ReservedPagesMock.hpp"
 #include "EpochManager.hpp"

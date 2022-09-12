@@ -15,7 +15,7 @@
 #include "RVBManager.hpp"
 #include "throughput.hpp"
 
-using concord::util::digest::DigestGenerator;
+using concord::crypto::DigestGenerator;
 using namespace std;
 using namespace concord::util;
 

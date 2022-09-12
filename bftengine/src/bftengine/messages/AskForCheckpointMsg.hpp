@@ -12,7 +12,7 @@
 #pragma once
 
 #include "MessageBase.hpp"
-#include "digest.hpp"
+#include "crypto/digest.hpp"
 #include "OpenTracing.hpp"
 #include "assertUtils.hpp"
 

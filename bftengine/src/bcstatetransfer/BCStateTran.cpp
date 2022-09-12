@@ -38,7 +38,7 @@ using std::tie;
 using namespace std::placeholders;
 using namespace concord::diagnostics;
 using namespace concord::util;
-using concord::util::digest::DigestGenerator;
+using concord::crypto::DigestGenerator;
 
 // uncomment to add debug prints
 // #define BCSTATETRAN_DO_DEBUG
@@ -51,7 +51,7 @@ using concord::util::digest::DigestGenerator;
 
 namespace bftEngine {
 namespace bcst {
-using concord::util::digest::BlockDigest;
+using concord::crypto::BlockDigest;
 
 void computeBlockDigest(const uint64_t blockId,
                         const char *block,

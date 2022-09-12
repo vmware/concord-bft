@@ -18,12 +18,12 @@
 #include <set>
 #include "assertUtils.hpp"
 #include "storage/db_interface.h"
-#include "digest.hpp"
+#include "crypto/digest.hpp"
 #include "Logger.hpp"
 
 using std::set;
 using concord::storage::ITransaction;
-using concord::util::digest::Digest;
+using concord::crypto::Digest;
 
 namespace bftEngine {
 namespace bcst {

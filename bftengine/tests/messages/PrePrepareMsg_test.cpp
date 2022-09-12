@@ -28,7 +28,7 @@
 
 using namespace bftEngine;
 using namespace bftEngine::impl;
-using concord::util::digest::DigestGenerator;
+using concord::crypto::DigestGenerator;
 
 bftEngine::test::ReservedPagesMock<EpochManager> res_pages_mock_;
 

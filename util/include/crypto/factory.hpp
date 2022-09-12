@@ -20,56 +20,31 @@
 #include "Logger.hpp"
 
 namespace concord::crypto {
-enum class SIGN_VERIFY_ALGO : uint8_t { ECDSA, RSA, EDDSA };
 
+enum class SIGN_VERIFY_ALGO : uint8_t { ECDSA, RSA, EDDSA };
+enum class Provider : uint16_t { OpenSSL, CryptoPP };
+
+constexpr static const Provider DefaultProvider = Provider::OpenSSL;
+
+/**
+ * This class hides the implementation details from users of cryptographic algorithms
+ * and allows the addition and removal of libraries in a single place
+ */
 class Factory {
  public:
   static std::unique_ptr<ISigner> getSigner(
       const std::string& signingKey,
       SIGN_VERIFY_ALGO signingAlgo,
-      concord::crypto::KeyFormat fmt = concord::crypto::KeyFormat::HexaDecimalStrippedFormat) {
-    switch (signingAlgo) {
-      case SIGN_VERIFY_ALGO::ECDSA: {
-        return std::unique_ptr<concord::crypto::ISigner>(new concord::crypto::cryptopp::ECDSASigner(signingKey, fmt));
-      }
-      case SIGN_VERIFY_ALGO::RSA: {
-        return std::unique_ptr<concord::crypto::ISigner>(new concord::crypto::cryptopp::RSASigner(signingKey, fmt));
-      }
-      case SIGN_VERIFY_ALGO::EDDSA: {
-        using MainReplicaSigner = concord::crypto::openssl::EdDSASigner<concord::crypto::openssl::EdDSAPrivateKey>;
-        const auto signingKeyObject =
-            concord::crypto::openssl::deserializeKey<concord::crypto::openssl::EdDSAPrivateKey>(signingKey, fmt);
-        return std::unique_ptr<MainReplicaSigner>(new MainReplicaSigner(signingKeyObject.getBytes()));
-      }
-      default:
-        LOG_ERROR(EDDSA_SIG_LOG, "Invalid signing algorithm.");
-        return {};
-    }
-  }
+      concord::crypto::KeyFormat fmt = concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
+      Provider provider = DefaultProvider);
 
   static std::unique_ptr<IVerifier> getVerifier(
       const std::string& verificationKey,
       SIGN_VERIFY_ALGO verifierAlgo,
-      concord::crypto::KeyFormat fmt = concord::crypto::KeyFormat::HexaDecimalStrippedFormat) {
-    switch (verifierAlgo) {
-      case SIGN_VERIFY_ALGO::ECDSA: {
-        return std::unique_ptr<concord::crypto::IVerifier>(
-            new concord::crypto::cryptopp::ECDSAVerifier(verificationKey, fmt));
-      }
-      case SIGN_VERIFY_ALGO::RSA: {
-        return std::unique_ptr<concord::crypto::IVerifier>(
-            new concord::crypto::cryptopp::RSAVerifier(verificationKey, fmt));
-      }
-      case SIGN_VERIFY_ALGO::EDDSA: {
-        using MainReplicaVerifier = concord::crypto::openssl::EdDSAVerifier<concord::crypto::openssl::EdDSAPublicKey>;
-        const auto verifyingKeyObject =
-            concord::crypto::openssl::deserializeKey<concord::crypto::openssl::EdDSAPublicKey>(verificationKey, fmt);
-        return std::unique_ptr<MainReplicaVerifier>(new MainReplicaVerifier(verifyingKeyObject.getBytes()));
-      }
-      default:
-        LOG_ERROR(EDDSA_SIG_LOG, "Invalid verifying algorithm.");
-        return {};
-    }
-  }
+      concord::crypto::KeyFormat fmt = concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
+      Provider provider = DefaultProvider);
+
+  static std::pair<std::string, std::string> generateKeys(SIGN_VERIFY_ALGO verifierAlgo,
+                                                          Provider provider = DefaultProvider);
 };
 }  // namespace concord::crypto

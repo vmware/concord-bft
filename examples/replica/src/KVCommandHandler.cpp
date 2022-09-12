@@ -18,7 +18,7 @@
 #include "KVCommandHandler.hpp"
 #include "assertUtils.hpp"
 #include "kv_types.hpp"
-#include "sha_hash.hpp"
+#include "crypto/openssl/hash.hpp"
 #include "ReplicaConfig.hpp"
 #include "kvbc_key_types.hpp"
 
@@ -42,7 +42,7 @@ using concord::osexample::kv::messages::KVRequest;
 using concord::osexample::kv::messages::KVWriteReply;
 using concord::osexample::kv::messages::KVWriteRequest;
 
-using Hasher = concord::util::SHA3_256;
+using Hasher = concord::crypto::openssl::SHA3_256;
 using Hash = Hasher::Digest;
 
 const uint64_t LONG_EXEC_CMD_TIME_IN_SEC = 11;

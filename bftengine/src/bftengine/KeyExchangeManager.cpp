@@ -23,7 +23,7 @@
 #include "ReplicaImp.hpp"
 #include "crypto/factory.hpp"
 #include "crypto/crypto.hpp"
-#include "openssl/utils.hpp"
+#include "crypto/openssl/certificates.hpp"
 #include "crypto/cryptopp/keygen.hpp"
 
 namespace bftEngine::impl {

@@ -18,17 +18,18 @@
 
 #include <openssl/evp.h>
 
+#include "types.hpp"
 #include "hex_tools.h"
 #include "assertUtils.hpp"
 
-namespace concord::util::detail {
+namespace concord::crypto::openssl {
 
 // A simple wrapper class around OpenSSL versions > 1.1.1 that implements EVP hash functions.
 template <const EVP_MD* (*EVPMethod)(), size_t DIGEST_SIZE_IN_BYTES>
 class EVPHash {
  public:
   static constexpr size_t SIZE_IN_BYTES = DIGEST_SIZE_IN_BYTES;
-  typedef std::array<uint8_t, SIZE_IN_BYTES> Digest;
+  using Digest = std::array<concord::Byte, SIZE_IN_BYTES>;
 
   EVPHash() noexcept : ctx_(EVP_MD_CTX_new()) { ConcordAssert(ctx_ != nullptr); }
 
@@ -108,4 +109,8 @@ class EVPHash {
   EVP_MD_CTX* ctx_{nullptr};
   bool updating_{false};
 };
-}  // namespace concord::util::detail
+
+using SHA3_256 = EVPHash<EVP_sha3_256, 32>;
+using SHA2_256 = EVPHash<EVP_sha256, 32>;
+
+}  // namespace concord::crypto::openssl

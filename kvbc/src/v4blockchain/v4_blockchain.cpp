@@ -331,7 +331,7 @@ std::optional<BlockId> KeyValueBlockchain::getLastStatetransferBlockId() const {
   return state_transfer_chain_.getLastBlockId();
 }
 
-concord::util::digest::BlockDigest KeyValueBlockchain::parentDigest(BlockId block_id) const {
+concord::crypto::BlockDigest KeyValueBlockchain::parentDigest(BlockId block_id) const {
   const auto last_reachable_block = getLastReachableBlockId();
   if (block_id > last_reachable_block) {
     return state_transfer_chain_.getBlockParentDigest(block_id);
@@ -339,14 +339,14 @@ concord::util::digest::BlockDigest KeyValueBlockchain::parentDigest(BlockId bloc
   if (block_id < getGenesisBlockId()) {
     LOG_ERROR(V4_BLOCK_LOG,
               "Trying to get digest from block " << block_id << " while genesis is " << getGenesisBlockId());
-    concord::util::digest::BlockDigest empty_digest;
+    concord::crypto::BlockDigest empty_digest;
     empty_digest.fill(0);
     return empty_digest;
   }
   return block_chain_.getBlockParentDigest(block_id);
 }
 
-concord::util::digest::BlockDigest KeyValueBlockchain::calculateBlockDigest(BlockId block_id) const {
+concord::crypto::BlockDigest KeyValueBlockchain::calculateBlockDigest(BlockId block_id) const {
   const auto last_reachable_block = getLastReachableBlockId();
   if (block_id > last_reachable_block) {
     return state_transfer_chain_.getBlockDigest(block_id);
@@ -354,7 +354,7 @@ concord::util::digest::BlockDigest KeyValueBlockchain::calculateBlockDigest(Bloc
   if (block_id < getGenesisBlockId()) {
     LOG_ERROR(V4_BLOCK_LOG,
               "Trying to get digest from block " << block_id << " while genesis is " << getGenesisBlockId());
-    concord::util::digest::BlockDigest empty_digest;
+    concord::crypto::BlockDigest empty_digest;
     empty_digest.fill(0);
     return empty_digest;
   }

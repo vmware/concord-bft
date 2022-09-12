@@ -38,7 +38,7 @@ It is stored as is in DB and is a passable unit for the use of state-transfer.
 class Block {
  public:
   static constexpr block_version BLOCK_VERSION = block_version::V4;
-  static constexpr uint64_t HEADER_SIZE = BLOCK_VERSION_SIZE + sizeof(concord::util::digest::BlockDigest);
+  static constexpr uint64_t HEADER_SIZE = BLOCK_VERSION_SIZE + sizeof(concord::crypto::BlockDigest);
   // Pre-reserve buffer size
   Block(uint64_t reserve_size) : buffer_(HEADER_SIZE, 0) {
     buffer_.reserve(reserve_size);
@@ -65,19 +65,19 @@ class Block {
     return *reinterpret_cast<const block_version*>(buffer_.data());
   }
 
-  const concord::util::digest::BlockDigest& parentDigest() const {
+  const concord::crypto::BlockDigest& parentDigest() const {
     ConcordAssert(isValid_);
     ConcordAssert(buffer_.size() >= HEADER_SIZE);
-    return *reinterpret_cast<const concord::util::digest::BlockDigest*>(buffer_.data() + sizeof(version_type));
+    return *reinterpret_cast<const concord::crypto::BlockDigest*>(buffer_.data() + sizeof(version_type));
   }
 
-  void addDigest(const concord::util::digest::BlockDigest& digest) {
+  void addDigest(const concord::crypto::BlockDigest& digest) {
     ConcordAssert(isValid_);
     ConcordAssert(buffer_.size() >= HEADER_SIZE);
     std::copy(digest.cbegin(), digest.cend(), buffer_.data() + sizeof(version_type));
   }
 
-  concord::util::digest::BlockDigest calculateDigest(concord::kvbc::BlockId id) const {
+  concord::crypto::BlockDigest calculateDigest(concord::kvbc::BlockId id) const {
     ConcordAssert(isValid_);
     return calculateDigest(id, reinterpret_cast<const char*>(buffer_.data()), buffer_.size());
   }
@@ -102,9 +102,7 @@ class Block {
     return std::move(buffer_);
   }
 
-  static concord::util::digest::BlockDigest calculateDigest(concord::kvbc::BlockId id,
-                                                            const char* buffer,
-                                                            uint64_t size) {
+  static concord::crypto::BlockDigest calculateDigest(concord::kvbc::BlockId id, const char* buffer, uint64_t size) {
     return bftEngine::bcst::computeBlockDigest(id, buffer, size);
   }
 

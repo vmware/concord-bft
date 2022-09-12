@@ -12,17 +12,17 @@
 #include <openssl/crypto.h>
 #include <openssl/evp.h>
 #include "threshsign/eddsa/EdDSAMultisigFactory.h"
-#include "openssl_crypto.hpp"
+#include "crypto/openssl/crypto.hpp"
 #include "threshsign/eddsa/EdDSAThreshsignKeys.h"
 #include "threshsign/eddsa/EdDSAMultisigSigner.h"
 #include "threshsign/eddsa/EdDSAMultisigVerifier.h"
 #include <boost/algorithm/hex.hpp>
 #include <iostream>
-#include "openssl_crypto.hpp"
+#include "crypto/openssl/crypto.hpp"
 
-using concord::util::openssl_utils::UniquePKEY;
-using concord::util::openssl_utils::UniqueOpenSSLPKEYContext;
-using concord::util::openssl_utils::OPENSSL_SUCCESS;
+using concord::crypto::openssl::UniquePKEY;
+using concord::crypto::openssl::UniquePKEYContext;
+using concord::crypto::openssl::OPENSSL_SUCCESS;
 
 IThresholdVerifier *EdDSAMultisigFactory::newVerifier(ShareID reqSigners,
                                                       ShareID totalSigners,
@@ -79,7 +79,7 @@ std::pair<std::unique_ptr<IShareSecretKey>, std::unique_ptr<IShareVerificationKe
     const {
   UniquePKEY uniquePKEY;
   EVP_PKEY *pkey = nullptr;
-  UniqueOpenSSLPKEYContext pctx{EVP_PKEY_CTX_new_id(EVP_PKEY_ED25519, NULL)};
+  UniquePKEYContext pctx{EVP_PKEY_CTX_new_id(EVP_PKEY_ED25519, NULL)};
   if (EVP_PKEY_keygen_init(pctx.get()) != OPENSSL_SUCCESS) {
     throw std::invalid_argument("EVP_PKEY_keygen_init failed");
   }

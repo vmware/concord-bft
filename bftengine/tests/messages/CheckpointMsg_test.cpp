@@ -13,7 +13,7 @@
 #include <iostream>
 #include <memory>
 #include "gtest/gtest.h"
-#include "digest.hpp"
+#include "crypto/digest.hpp"
 #include "messages/CheckpointMsg.hpp"
 #include "bftengine/ClientMsgs.hpp"
 #include "bftengine/ClientMsgs.hpp"

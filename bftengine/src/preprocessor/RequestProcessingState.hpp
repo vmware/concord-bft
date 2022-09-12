@@ -80,21 +80,21 @@ class RequestProcessingState {
   void resetRejectedReplicasList() { rejectedReplicaIds_.clear(); }
   void setPreprocessingRightNow(bool set) { preprocessingRightNow_ = set; }
   const std::set<PreProcessResultSignature>& getPreProcessResultSignatures();
-  const concord::util::SHA3_256::Digest& getResultHash() { return primaryPreProcessResultHash_; };
+  const concord::crypto::openssl::SHA3_256::Digest& getResultHash() { return primaryPreProcessResultHash_; };
   const bftEngine::OperationResult getAgreedPreProcessResult() const { return agreedPreProcessResult_; }
 
   static void init(uint16_t numOfRequiredReplies, preprocessor::PreProcessorRecorder* histograms);
   uint16_t getNumOfReceivedReplicas() { return numOfReceivedReplies_; };
 
  private:
-  static concord::util::SHA3_256::Digest convertToArray(
-      const uint8_t resultsHash[concord::util::SHA3_256::SIZE_IN_BYTES]);
+  static concord::crypto::openssl::SHA3_256::Digest convertToArray(
+      const uint8_t resultsHash[concord::crypto::openssl::SHA3_256::SIZE_IN_BYTES]);
   static logging::Logger& logger() {
     static logging::Logger logger_ = logging::getLogger("concord.preprocessor");
     return logger_;
   }
   auto calculateMaxNbrOfEqualHashes(uint16_t& maxNumOfEqualHashes) const;
-  void detectNonDeterministicPreProcessing(const concord::util::SHA3_256::Digest& newHash,
+  void detectNonDeterministicPreProcessing(const concord::crypto::openssl::SHA3_256::Digest& newHash,
                                            NodeIdType newSenderId,
                                            uint64_t reqRetryId) const;
   void setupPreProcessResultData(bftEngine::OperationResult preProcessResult);
@@ -103,11 +103,11 @@ class RequestProcessingState {
   void reportNonEqualHashes(const unsigned char* chosenData, uint32_t chosenSize) const;
 
   // Detect if a hash is different from the input parameter because of the appended block id.
-  std::pair<std::string, concord::util::SHA3_256::Digest> detectFailureDueToBlockID(
-      const concord::util::SHA3_256::Digest&, uint64_t);
+  std::pair<std::string, concord::crypto::openssl::SHA3_256::Digest> detectFailureDueToBlockID(
+      const concord::crypto::openssl::SHA3_256::Digest&, uint64_t);
 
   // Set a new block id at the end of the result.
-  void modifyPrimaryResult(const std::pair<std::string, concord::util::SHA3_256::Digest>&);
+  void modifyPrimaryResult(const std::pair<std::string, concord::crypto::openssl::SHA3_256::Digest>&);
 
  private:
   static uint16_t numOfRequiredEqualReplies_;
@@ -132,10 +132,10 @@ class RequestProcessingState {
   uint32_t primaryPreProcessResultLen_ = 0;
   bftEngine::OperationResult primaryPreProcessResult_ = bftEngine::OperationResult::UNKNOWN;
   bftEngine::OperationResult agreedPreProcessResult_ = bftEngine::OperationResult::UNKNOWN;
-  concord::util::SHA3_256::Digest primaryPreProcessResultHash_ = {};
+  concord::crypto::openssl::SHA3_256::Digest primaryPreProcessResultHash_ = {};
   // Maps result hash to a list of replica signatures sent for this hash. This also implicitly gives the number of
   // replicas returning a specific hash.
-  std::map<concord::util::SHA3_256::Digest, std::set<PreProcessResultSignature>> preProcessingResultHashes_;
+  std::map<concord::crypto::openssl::SHA3_256::Digest, std::set<PreProcessResultSignature>> preProcessingResultHashes_;
   bool preprocessingRightNow_ = false;
   uint64_t reqRetryId_ = 0;
 };

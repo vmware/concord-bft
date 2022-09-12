@@ -275,7 +275,7 @@ TEST_F(v4_kvbc, creation) {
 }
 
 TEST_F(v4_kvbc, add_blocks) {
-  concord::util::digest::BlockDigest empty_digest;
+  concord::crypto::BlockDigest empty_digest;
   for (auto& d : empty_digest) {
     d = 0;
   }
@@ -1643,7 +1643,7 @@ TEST_F(v4_kvbc, st_link_until) {
 
 TEST_F(v4_kvbc, parent_digest) {
   std::string block_data;
-  concord::util::digest::BlockDigest empty_digest;
+  concord::crypto::BlockDigest empty_digest;
   for (auto& d : empty_digest) {
     d = 0;
   }
@@ -2495,7 +2495,7 @@ TEST_F(v4_kvbc, digest_checks) {
   for (auto i = blockchain->getGenesisBlockId(); i < blockchain->getLastReachableBlockId(); ++i) {
     ASSERT_EQ(blockchain->calculateBlockDigest(i), blockchain->parentDigest(i + 1));
   }
-  concord::util::digest::BlockDigest empty_digest;
+  concord::crypto::BlockDigest empty_digest;
   empty_digest.fill(0);
   ASSERT_NE(empty_digest, blockchain->calculateBlockDigest(max_block));
 }
