@@ -12,6 +12,20 @@ libutt::api::Commitment operator+(libutt::api::Commitment lhs, const libutt::api
   return lhs;
 }
 
+std::ostream& operator<<(std::ostream& out, const libutt::api::Commitment& comm) {
+  out << *(comm.comm_);
+  return out;
+}
+std::istream& operator>>(std::istream& in, libutt::api::Commitment& comm) {
+  in >> *(comm.comm_);
+  return in;
+}
+
+bool operator==(const libutt::api::Commitment& comm1, const libutt::api::Commitment& comm2) {
+  if (!comm1.comm_ && !comm2.comm_) return true;
+  if (!comm1.comm_ || !comm2.comm_) return false;
+  return *(comm1.comm_) == *(comm2.comm_);
+}
 namespace libutt::api {
 const libutt::CommKey& Commitment::getCommitmentKey(const UTTParams& d, Commitment::Type t) {
   switch (t) {

@@ -14,6 +14,12 @@
 #pragma once
 #include <string>
 #include <memory>
+namespace libutt::api {
+class UTTParams;
+}
+std::ostream& operator<<(std::ostream& out, const libutt::api::UTTParams& params);
+std::istream& operator>>(std::istream& in, libutt::api::UTTParams& params);
+bool operator==(const libutt::api::UTTParams& params1, const libutt::api::UTTParams& params2);
 namespace libutt {
 class Params;
 }
@@ -49,6 +55,9 @@ class UTTParams {
   UTTParams& operator=(const UTTParams& other);
 
  private:
+  friend std::ostream& ::operator<<(std::ostream& out, const libutt::api::UTTParams& params);
+  friend std::istream& ::operator>>(std::istream& in, libutt::api::UTTParams& params);
+  friend bool ::operator==(const libutt::api::UTTParams& params1, const libutt::api::UTTParams& params2);
   std::unique_ptr<libutt::Params> params;
 };
 }  // namespace libutt::api

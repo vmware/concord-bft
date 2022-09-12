@@ -26,6 +26,9 @@ namespace libutt::api {
 class Commitment;
 }
 libutt::api::Commitment operator+(libutt::api::Commitment lhs, const libutt::api::Commitment& rhs);
+bool operator==(const libutt::api::Commitment& comm1, const libutt::api::Commitment& comm2);
+std::ostream& operator<<(std::ostream& out, const libutt::api::Commitment& comm);
+std::istream& operator>>(std::istream& in, libutt::api::Commitment& comm);
 namespace libutt::api {
 class Registrator;
 class Client;
@@ -87,6 +90,9 @@ class Commitment {
   friend class Client;
   friend class operations::Burn;
   friend class operations::Transaction;
+  friend std::ostream& ::operator<<(std::ostream& out, const libutt::api::Commitment& comm);
+  friend std::istream& ::operator>>(std::istream& in, libutt::api::Commitment& comm);
+  friend bool ::operator==(const libutt::api::Commitment& comm1, const libutt::api::Commitment& comm2);
   std::unique_ptr<libutt::Comm> comm_;
 };
 }  // namespace libutt::api
