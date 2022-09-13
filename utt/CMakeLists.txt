@@ -179,6 +179,7 @@ add_subdirectory(libxassert)
 add_subdirectory(libxutils)
 add_subdirectory(wallet-cli)
 
+# [TODO-UTT] This improved api for libutt could go into its own subproject 
 set(newutt_src 
     libutt/src/api/UTTParams.cpp
     libutt/src/api/commitment.cpp
@@ -195,6 +196,10 @@ set(newutt_src
 add_library(utt_api STATIC ${newutt_src})
 target_link_libraries(utt_api PUBLIC utt)
 target_include_directories(utt_api PUBLIC include)
+
+add_subdirectory(utt-client-api)
+#add_subdirectory(utt-server-api)
+
 add_subdirectory(tests)
 
 
