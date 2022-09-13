@@ -40,7 +40,7 @@ class MintOp {
   // NB: In order to make sure that the value of uniqueHash is unique it is possible to add a random value
   // to the transaction
   MintOp(const std::string& uniqueHash, size_t value, const std::string& recipPID);
-
+  MintOp();
   MintOp(std::istream& in);
   const std::string& getClientId() const { return clientId; }
   size_t getSize() const { return _fr_size * 3; }

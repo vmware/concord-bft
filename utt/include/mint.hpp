@@ -40,6 +40,8 @@ class Mint {
    * @param recipPID The recipient id
    */
   Mint(const std::string& uniqueHash, size_t value, const std::string& recipPID);
+  Mint(const Mint& other);
+  Mint& operator=(const Mint& other);
   std::string getHash() const;
   uint64_t getVal() const;
   std::string getRecipentID() const;

@@ -92,11 +92,28 @@ int main(int argc, char* argv[]) {
                    *(encryptors_.at((i + 1) % clients.size())));
     coins[issuer.getPid()].erase(coins[issuer.getPid()].begin());
     bcoins.erase(issuer.getPid());
-    std::unordered_map<size_t, std::vector<types::Signature>> shares;
+    std::map<size_t, std::vector<types::Signature>> shares;
+    std::vector<uint16_t> shares_signers;
     for (size_t i = 0; i < banks.size(); i++) {
       shares[i] = banks[i]->sign(tx);
+      shares_signers.push_back(banks[i]->getId());
     }
     size_t num_coins = shares[0].size();
+    for (size_t i = 0; i < num_coins; i++) {
+      std::vector<types::Signature> share_sigs(n);
+      auto sbs = testing::getSubset((uint32_t)n, (uint32_t)n);
+      for (auto s : sbs) {
+        share_sigs[s] = shares[s][i];
+      }
+      for (auto& b : banks) {
+        for (size_t k = 0; k < share_sigs.size(); k++) {
+          auto& sig = share_sigs[k];
+          auto& signer = shares_signers[k];
+          assertTrue(b->validatePartialSignature(signer, sig, i, tx));
+        }
+      }
+    }
+
     std::vector<types::Signature> sigs;
     for (size_t i = 0; i < num_coins; i++) {
       std::map<uint32_t, types::Signature> share_sigs;

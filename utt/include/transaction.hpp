@@ -71,6 +71,13 @@ class Transaction {
    */
   std::optional<Coin> getBudgetCoin() const;
 
+  /**
+   * @brief Get the number of output coins in the transaction
+   *
+   * @return uint32_t
+   */
+  uint32_t getNumOfOutputCoins() const;
+
  private:
   friend class libutt::api::CoinsSigner;
   friend class libutt::api::Client;
