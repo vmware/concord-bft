@@ -42,6 +42,7 @@ class MintOp {
   MintOp(const std::string& uniqueHash, size_t value, const std::string& recipPID);
 
   MintOp(std::istream& in);
+  MintOp() {}
   const std::string& getClientId() const { return clientId; }
   size_t getSize() const { return _fr_size * 3; }
 

@@ -18,10 +18,17 @@
 #include "types.hpp"
 #include <memory>
 #include <optional>
+#include <iostream>
 
 namespace libutt {
 class Coin;
+namespace api {
+class Coin;
 }
+}  // namespace libutt
+
+std::ostream& operator<<(std::ostream& out, const libutt::api::Coin& coin);
+std::istream& operator>>(std::istream& in, libutt::api::Coin& coin);
 namespace libutt::api {
 class Client;
 namespace operations {
@@ -30,7 +37,6 @@ class Mint;
 class Transaction;
 class Budget;
 }  // namespace operations
-
 class Coin {
   /**
    * @brief Represent a UTT coin. A coin can be either a normal value coin or a budget coin. A budget coin is a coin
@@ -38,7 +44,7 @@ class Coin {
    *
    */
  public:
-  enum Type { Normal = 0x0, Budget };
+  enum Type : uint16_t { Normal = 0x0, Budget };
   /**
    * @brief Constructs a new Coin object. This constructor also construct the coin's nullifier. Hence it can be invoked
    * only by the client.
@@ -165,6 +171,8 @@ class Coin {
   friend class operations::Burn;
   friend class operations::Transaction;
   friend class operations::Budget;
+  friend std::ostream& ::operator<<(std::ostream&, const libutt::api::Coin&);
+  friend std::istream& ::operator>>(std::istream&, libutt::api::Coin&);
   std::unique_ptr<libutt::Coin> coin_;
   bool has_sig_{false};
 

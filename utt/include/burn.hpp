@@ -20,6 +20,13 @@
 namespace libutt {
 class BurnOp;
 }
+
+namespace libutt::api::operations {
+class Burn;
+}
+
+std::ostream& operator<<(std::ostream& out, const libutt::api::operations::Burn& burn);
+std::istream& operator>>(std::istream& in, libutt::api::operations::Burn& burn);
 namespace libutt::api::operations {
 /**
  * @brief This object represent a Burn operation.
@@ -35,7 +42,9 @@ class Burn {
    * @param coin_to_burn The coin we want to burn
    */
   Burn(const UTTParams& p, const Client& cid, const Coin& coin_to_burn);
-
+  Burn();
+  Burn(const Burn& other);
+  Burn& operator=(const Burn& other);
   /**
    * @brief Get the Nullifier object, to be used by the bank
    *
@@ -53,7 +62,9 @@ class Burn {
  public:
   friend class libutt::api::CoinsSigner;
   friend class libutt::api::Client;
+  friend std::ostream& ::operator<<(std::ostream& out, const libutt::api::operations::Burn& burn);
+  friend std::istream& ::operator>>(std::istream& in, libutt::api::operations::Burn& burn);
   std::unique_ptr<libutt::BurnOp> burn_{nullptr};
-  const Coin& c_;
+  Coin c_;
 };
 }  // namespace libutt::api::operations

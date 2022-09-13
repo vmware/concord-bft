@@ -5,6 +5,15 @@
 #include <utt/PolyCrypto.h>
 #include <utt/Serialization.h>
 
+std::ostream& operator<<(std::ostream& out, const libutt::api::operations::Budget& budget) {
+  out << budget.coin_;
+  return out;
+}
+std::istream& operator>>(std::istream& in, libutt::api::operations::Budget& budget) {
+  in >> budget.coin_;
+  return in;
+}
+
 namespace libutt::api::operations {
 Budget::Budget(const UTTParams& d, const libutt::api::Client& cid, uint64_t val, uint64_t exp_date) {
   Fr fr_val;
@@ -32,7 +41,6 @@ Budget::Budget(const UTTParams& d, const types::CurvePoint& pidHash, uint64_t va
                             libutt::api::Coin::Type::Budget,
                             fr_expdate.to_words());
 }
-
 libutt::api::Coin& Budget::getCoin() { return coin_; }
 const libutt::api::Coin& Budget::getCoin() const { return coin_; }
 std::string Budget::getHashHex() const {
