@@ -48,7 +48,6 @@ option(CODECOVERAGE "Enable Code Coverage Metrics in Clang" OFF)
 option(ENABLE_RESTART_RECOVERY_TESTS "Enable tests for restart recovery" OFF)
 option(BUILD_UTT "Build UTT library" OFF)
 
-option(BUILD_UTT "Builds UTT components" ON)
 if(USE_OPENSSL AND NOT BUILD_THIRDPARTY)
     set(OPENSSL_ROOT_DIR /usr/local/ssl) # not to confuse with system ssl libs
 endif()
