@@ -560,8 +560,8 @@ std::vector<Comm> Tx::getCommVector(size_t txoIdx, const G1& H) const {
 
   return {txo.icm, scm, txo.vcm_2, tcm, dcm};
 }
-std::unordered_map<size_t, RandSigShare> Tx::shareSignCoins(const RandSigShareSK& bskShare) const {
-  std::unordered_map<size_t, RandSigShare> ret;
+std::map<size_t, RandSigShare> Tx::shareSignCoins(const RandSigShareSK& bskShare) const {
+  std::map<size_t, RandSigShare> ret;
   for (size_t txoIdx = 0; txoIdx < outs.size(); txoIdx++) {
     ret[txoIdx] = shareSignCoin(txoIdx, bskShare);
   }

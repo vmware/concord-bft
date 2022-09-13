@@ -53,7 +53,7 @@ class MsgCode {
     ClientRequest = 700,
     ClientBatchRequest = 750,
     ClientReply = 800,
-
+    Reserved = 900,
   };
 };
 

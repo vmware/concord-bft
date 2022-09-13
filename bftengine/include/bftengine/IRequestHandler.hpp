@@ -76,6 +76,7 @@ class IRequestsHandler {
   virtual void setReconfigurationHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> rh,
                                          concord::reconfiguration::ReconfigurationHandlerType type =
                                              static_cast<concord::reconfiguration::ReconfigurationHandlerType>(1)) {
+    (void)type;
     reconfig_handler_.push_back(rh);
   }
   virtual void setPersistentStorage(const std::shared_ptr<bftEngine::impl::PersistentStorage> &persistent_storage) {}

@@ -89,6 +89,12 @@ add_library(bftclient STATIC src/bftengine/SimpleClientImp)
 add_library(bftheaders INTERFACE)
 target_include_directories(bftheaders INTERFACE include)
 
+include(CheckCCompilerFlag)
+if (HAVE_SIGN_CONVERSION)
+    target_compile_options(bftheaders INTERFACE -Wno-sign-conversion)
+    target_compile_options(corebft PRIVATE -Wno-sign-conversion)
+endif (HAVE_SIGN_CONVERSION)
+
 get_property(perf_include GLOBAL PROPERTY PERF_MANAGER_INCLUDE_DIR)
 get_property(kvbc_include GLOBAL PROPERTY KVBC_INCLUDE_DIR)
 

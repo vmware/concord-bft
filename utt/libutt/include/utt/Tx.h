@@ -113,7 +113,7 @@ class Tx {
    * If Tx::validate() passes, each BFT replica will compute a signature share on each output's coin.
    */
   RandSigShare shareSignCoin(size_t txoIdx, const RandSigShareSK& bskShare) const;
-  std::unordered_map<size_t, RandSigShare> shareSignCoins(const RandSigShareSK& bskShare) const;
+  std::map<size_t, RandSigShare> shareSignCoins(const RandSigShareSK& bskShare) const;
   /**
    * Used by BFT client to verify signature share on an output.
    */
