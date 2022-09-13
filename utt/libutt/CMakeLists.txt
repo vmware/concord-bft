@@ -1,0 +1,5 @@
+add_subdirectory(src)
+#add_subdirectory(examples)
+add_subdirectory(test)
+add_subdirectory(bench)
+#add_subdirectory(app)
