@@ -147,7 +147,7 @@ void MessageSender::sendWriteRequest(bft::client::Msg& msg) {
     msgConsumer_->deserialize(rep, false);
 
   } catch (std::exception& e) {
-    LOG_WARN(getLogger(), "error while initiating bft request " << e.what());
+    LOG_WARN(getLogger(), "error while initiating bft write request " << e.what());
   }
 }
 
@@ -170,6 +170,6 @@ void MessageSender::sendReadRequest(bft::client::Msg& msg) {
     msgConsumer_->deserialize(rep, true);
 
   } catch (std::exception& e) {
-    LOG_WARN(getLogger(), "error while initiating bft request " << e.what());
+    LOG_WARN(getLogger(), "error while initiating bft read request " << e.what());
   }
 }

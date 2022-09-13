@@ -2,11 +2,9 @@
 
 cleanup() {
   killall -q test_replica || true
-  killall -q minio || true
   rm -rf gen-sec.*
   rm -rf exampleReplicaTests_DB_*
   rm -rf certs
-  rm -rf minio_data_dir
   rm -rf replica_keys_*
 }
 
