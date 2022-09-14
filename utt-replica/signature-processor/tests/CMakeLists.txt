@@ -1,11 +1,8 @@
-
-foreach(appSrc ${sigProcessor_test_sources})
-    get_filename_component(appName ${appSrc} NAME_WE)
-    set(appDir ../bin/test)
-
-    add_executable(${appName} ${appSrc})
-    target_link_libraries(${appName} PRIVATE utt_api sig_processor)
-
-    add_test(NAME ${appName} COMMAND ${appName})
-    set_target_properties(${appName} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${appDir})
-endforeach()
+find_package(GTest REQUIRED)
+add_executable(sig_processor_tests sigProcessorTests.cpp )
+add_test(sig_processor_tests sig_processor_tests)
+target_link_libraries(sig_processor_tests PRIVATE 
+                                        logging 
+                                        GTest::Main 
+                                        GTest::GTest 
+                                        sig_processor)

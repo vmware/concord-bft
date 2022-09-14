@@ -15,7 +15,7 @@
 #include "burn.hpp"
 #include "transaction.hpp"
 #include "budget.hpp"
-
+#include "Logger.hpp"
 #include <utt/RegAuth.h>
 #include <utt/RandSigDKG.h>
 #include <utt/Serialization.h>
@@ -37,15 +37,16 @@
 #include <mutex>
 #include <condition_variable>
 #include <thread>
+
+#include "gtest/gtest.h"
+namespace {
 using namespace bft::communication;
 using namespace libutt;
 using namespace libutt::api;
 using namespace libutt::api::operations;
 
-std::map<uint16_t, std::map<uint64_t, std::vector<uint8_t>>> full_signatures;
-std::mutex sigs_lock;
-std::condition_variable cv;
 logging::Logger logger = logging::getLogger("sigProcessorTests");
+
 class TestComm : public ICommunication {
   std::vector<NodeNum> isolated;
 
@@ -172,69 +173,15 @@ std::vector<Client> GenerateClients(size_t c, const RandSigPK& bvk, const RegAut
   }
   return clients;
 }
-bool cond(uint64_t sigId) {
-  if (full_signatures.empty()) return false;
-  for (const auto& [_, data] : full_signatures) {
-    (void)_;
-    if (data.find(sigId) == data.end()) return false;
-  }
-  return true;
-}
-libutt::api::types::Signature waitAndGetFullSig(uint64_t sigId, uint16_t source) {
-  std::unique_lock lk{sigs_lock};
-  LOG_INFO(logger, "collecting full signature for sid: " << sigId);
-  cv.wait(lk, [&sigId] { return cond(sigId); });
-  return full_signatures.at(source).at(sigId);
-}
-uint16_t n = 4;
-uint16_t t = 3;
 
-int main(int argc, char* argv[]) {
-  // initiate A UTT instance utt1
-  std::srand(0);
-  (void)argc;
-  (void)argv;
-  size_t c = 10;
-  auto [d, dkg, rc] = init(n, t);
-  auto registrators = GenerateRegistrators(n, rc);
-  auto banks = GenerateCommitters(n, dkg, rc.toPK());
-  auto clients = GenerateClients(c, dkg.getPK(), rc.toPK(), rc);
-
-  // initiate signature collectors
-  TestComm comm;
-  std::map<uint16_t, std::shared_ptr<utt::SigProcessor>> sig_processors;
-  std::map<uint16_t, std::shared_ptr<MsgsCommunicator>> message_comms;
-  for (uint16_t i = 0; i < n; i++) {
-    std::shared_ptr<MsgHandlersRegistrator> msr = std::make_shared<MsgHandlersRegistrator>();
-    std::shared_ptr<IncomingMsgsStorage> ims =
-        std::make_shared<IncomingMsgsStorageImp>(msr, std::chrono::milliseconds(1000), i);
-    std::shared_ptr<IReceiver> receiver = std::make_shared<TestReceiver>(ims);
-    std::shared_ptr<MsgsCommunicator> msc = std::make_shared<MsgsCommunicator>(&comm, ims, receiver);
-    message_comms[i] = msc;
-    msr->registerMsgHandler(MsgCode::ClientRequest, [&](bftEngine::impl::MessageBase* message) {
-      ClientRequestMsg* msg = (ClientRequestMsg*)message;
-      uint64_t job_id{0};
-      libutt::api::types::Signature fsig(msg->requestLength() - sizeof(uint64_t));
-      std::memcpy(&job_id, msg->requestBuf(), sizeof(uint64_t));
-      std::memcpy(fsig.data(), msg->requestBuf() + sizeof(uint64_t), fsig.size());
-      {
-        std::unique_lock lk(sigs_lock);
-        for (size_t j = 0; j < n; j++) full_signatures[j][job_id] = fsig;
-      }
-      cv.notify_all();
-      delete msg;
-    });
-    sig_processors[i] =
-        std::make_shared<utt::SigProcessor>(i, n, t, 1000, msc, msr, ((IncomingMsgsStorageImp*)(ims.get()))->timers());
-    msc->startCommunication(i);
-    msc->startMsgsProcessing(i);
-  }
-
-  LOG_INFO(logger, "register clients...");
-  uint64_t jid{0};
-  // Now, lets compute the client's rcm using the sigCollectors
+void registerClients(uint64_t& jid,
+                     uint16_t n,
+                     const std::function<libutt::api::types::Signature(uint64_t, uint16_t)>& get_full_sig_cb,
+                     UTTParams& d,
+                     vector<Client>& clients,
+                     std::vector<std::shared_ptr<Registrator>>& registrators,
+                     std::map<uint16_t, std::shared_ptr<utt::SigProcessor>>& sig_processors) {
   for (size_t i = 0; i < clients.size(); i++) {
-    LOG_INFO(logger, "register client " << i);
     auto& c = clients[i];
     Fr fr_s2 = Fr::random_element();
     types::CurvePoint s2 = fr_s2.to_words();
@@ -250,26 +197,26 @@ int main(int argc, char* argv[]) {
       };
       sig_processors[j]->processSignature(jid, sig, vcb);
     }
-    auto sig = waitAndGetFullSig(jid, 0);
+    auto sig = get_full_sig_cb(jid, 0);
     jid++;
     sig =
         Utils::unblindSignature(d, Commitment::Type::REGISTRATION, {Fr::zero().to_words(), Fr::zero().to_words()}, sig);
     c.setRCMSig(d, s2, sig);
     auto rcm_data = c.rerandomizeRcm(d);
     for (auto& r : registrators) {
-      assertTrue(r->validateRCM(rcm_data.first, rcm_data.second));
+      ASSERT_TRUE(r->validateRCM(rcm_data.first, rcm_data.second));
     }
   }
+}
 
-  std::unordered_map<std::string, std::vector<libutt::api::Coin>> coins;
-  std::unordered_map<std::string, libutt::api::Coin> bcoins;
-  std::unordered_map<size_t, std::shared_ptr<libutt::IBEEncryptor>> encryptors_;
-  for (size_t i = 0; i < clients.size(); i++) {
-    encryptors_[i] = std::make_shared<libutt::IBEEncryptor>(rc.toPK().mpk);
-  }
-
-  // issue initial budget coins
-  LOG_INFO(logger, "issue initial budget coins");
+void createBudget(uint64_t& jid,
+                  uint16_t n,
+                  const std::function<libutt::api::types::Signature(uint64_t, uint16_t)>& get_full_sig_cb,
+                  UTTParams& d,
+                  vector<Client>& clients,
+                  std::unordered_map<std::string, libutt::api::Coin>& bcoins,
+                  std::vector<std::shared_ptr<CoinsSigner>>& banks,
+                  std::map<uint16_t, std::shared_ptr<utt::SigProcessor>>& sig_processors) {
   for (auto& c : clients) {
     std::vector<types::Signature> rsigs;
     auto budget = Budget(d, c, 1000, 123456789);
@@ -281,14 +228,22 @@ int main(int argc, char* argv[]) {
       };
       sig_processors[j]->processSignature(jid, psig, vcb);
     }
-    auto sig = waitAndGetFullSig(jid, 0);
+    auto sig = get_full_sig_cb(jid, 0);
     jid++;
     auto coin = c.claimCoins(budget, d, {sig}).front();
-    assertTrue(c.validate(coin));
+    ASSERT_TRUE(c.validate(coin));
     bcoins.emplace(c.getPid(), coin);
   }
+}
 
-  LOG_INFO(logger, "issue initial UTT coins (mint operation)");
+void mintCoins(uint64_t& jid,
+               uint16_t n,
+               const std::function<libutt::api::types::Signature(uint64_t, uint16_t)>& get_full_sig_cb,
+               UTTParams& d,
+               vector<Client>& clients,
+               std::unordered_map<std::string, std::vector<libutt::api::Coin>>& coins,
+               std::vector<std::shared_ptr<CoinsSigner>>& banks,
+               std::map<uint16_t, std::shared_ptr<utt::SigProcessor>>& sig_processors) {
   for (auto& c : clients) {
     std::string simulatonOfUniqueTxHash = std::to_string(((uint64_t)rand()) * ((uint64_t)rand()) * ((uint64_t)rand()));
     auto mint = Mint(simulatonOfUniqueTxHash, 100, c.getPid());
@@ -300,19 +255,198 @@ int main(int argc, char* argv[]) {
       };
       sig_processors[j]->processSignature(jid, psig, vcb);
     }
-    auto sig = waitAndGetFullSig(jid, 0);
+    auto sig = get_full_sig_cb(jid, 0);
     jid++;
     auto coin = c.claimCoins(mint, d, {sig}).front();
-    assertTrue(c.validate(coin));
+    ASSERT_TRUE(c.validate(coin));
     coins[c.getPid()].emplace_back(std::move(coin));
   }
+}
+class test_utt_instance : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    logging::Logger MSGS = logging::getLogger("concord.bft.msgs");
+    logging::Logger GL = logging::getLogger("concord.bft");
+    MSGS.setLogLevel(60000);
+    GL.setLogLevel(40000);
+    auto [p, dkg, rc] = init(n, t);
+    d = p;
+    registrators = GenerateRegistrators(n, rc);
+    banks = GenerateCommitters(n, dkg, rc.toPK());
+    clients = GenerateClients(c, dkg.getPK(), rc.toPK(), rc);
+    for (size_t i = 0; i < clients.size(); i++) {
+      encryptors_[i] = std::make_shared<libutt::IBEEncryptor>(rc.toPK().mpk);
+    }
+    for (uint16_t i = 0; i < n; i++) {
+      std::shared_ptr<MsgHandlersRegistrator> msr = std::make_shared<MsgHandlersRegistrator>();
+      std::shared_ptr<IncomingMsgsStorage> ims =
+          std::make_shared<IncomingMsgsStorageImp>(msr, std::chrono::milliseconds(1000), i);
+      std::shared_ptr<IReceiver> receiver = std::make_shared<TestReceiver>(ims);
+      std::shared_ptr<MsgsCommunicator> msc = std::make_shared<MsgsCommunicator>(&comm, ims, receiver);
+      message_comms[i] = msc;
+      msr->registerMsgHandler(MsgCode::ClientRequest, [&](bftEngine::impl::MessageBase* message) {
+        ClientRequestMsg* msg = (ClientRequestMsg*)message;
+        uint64_t job_id{0};
+        libutt::api::types::Signature fsig(msg->requestLength() - sizeof(uint64_t));
+        std::memcpy(&job_id, msg->requestBuf(), sizeof(uint64_t));
+        std::memcpy(fsig.data(), msg->requestBuf() + sizeof(uint64_t), fsig.size());
+        {
+          std::unique_lock lk(sigs_lock);
+          for (size_t j = 0; j < n; j++) full_signatures[j][job_id] = fsig;
+        }
+        cv.notify_all();
+        delete msg;
+      });
+      sig_processors[i] = std::make_shared<utt::SigProcessor>(
+          i, n, t, 1000, msc, msr, ((IncomingMsgsStorageImp*)(ims.get()))->timers());
+      msc->startCommunication(i);
+      msc->startMsgsProcessing(i);
+    }
+    {
+      std::unique_lock lk{sigs_lock};
+      full_signatures.clear();
+    }
+  }
 
-  // Now, each client transfers a 50$ to its predecessor;
-  LOG_INFO(logger, "issue UTT transactions");
+  void TearDown() override {
+    for (uint16_t i = 0; i < n; i++) {
+      message_comms[i]->stopMsgsProcessing();
+      message_comms[i]->stopCommunication();
+    }
+  }
+  bool wait_cond(uint64_t sigId) {
+    if (full_signatures.empty()) return false;
+    for (const auto& [_, data] : full_signatures) {
+      (void)_;
+      if (data.find(sigId) == data.end()) return false;
+    }
+    return true;
+  }
+  libutt::api::types::Signature waitAndGetFullSig(uint64_t sigId, uint16_t source) {
+    std::unique_lock lk{sigs_lock};
+    cv.wait(lk, [&] { return wait_cond(sigId); });
+    return full_signatures.at(source).at(sigId);
+  }
+  std::vector<Client> clients;
+  std::vector<std::shared_ptr<CoinsSigner>> banks;
+  std::vector<std::shared_ptr<Registrator>> registrators;
+  UTTParams d;
+  std::map<uint16_t, std::shared_ptr<utt::SigProcessor>> sig_processors;
+  std::map<uint16_t, std::shared_ptr<MsgsCommunicator>> message_comms;
+  std::unordered_map<size_t, std::shared_ptr<libutt::IBEEncryptor>> encryptors_;
+  TestComm comm;
+  uint16_t n = 4;
+  uint16_t t = 3;
+  size_t c = 10;
+  std::map<uint16_t, std::map<uint64_t, std::vector<uint8_t>>> full_signatures;
+  std::mutex sigs_lock;
+  std::condition_variable cv;
+  uint64_t job_id{0};
+};
+
+class utt_system_include_clients : public test_utt_instance {
+ protected:
+  void SetUp() override {
+    test_utt_instance::SetUp();
+    registerClients(
+        job_id,
+        n,
+        [&](uint64_t sigId, uint16_t source) { return waitAndGetFullSig(sigId, source); },
+        d,
+        clients,
+        registrators,
+        sig_processors);
+    {
+      std::unique_lock lk{sigs_lock};
+      full_signatures.clear();
+    }
+  }
+};
+
+class utt_system_include_budget : public utt_system_include_clients {
+ protected:
+  void SetUp() override {
+    utt_system_include_clients::SetUp();
+    createBudget(
+        job_id,
+        n,
+        [&](uint64_t sigId, uint16_t source) { return waitAndGetFullSig(sigId, source); },
+        d,
+        clients,
+        bcoins,
+        banks,
+        sig_processors);
+    {
+      std::unique_lock lk{sigs_lock};
+      full_signatures.clear();
+    }
+  }
+  std::unordered_map<std::string, libutt::api::Coin> bcoins;
+};
+
+class utt_complete_system : public utt_system_include_budget {
+ protected:
+  void SetUp() override {
+    utt_system_include_budget::SetUp();
+    mintCoins(
+        job_id,
+        n,
+        [&](uint64_t sigId, uint16_t source) { return waitAndGetFullSig(sigId, source); },
+        d,
+        clients,
+        coins,
+        banks,
+        sig_processors);
+    {
+      std::unique_lock lk{sigs_lock};
+      full_signatures.clear();
+    }
+  }
+  std::unordered_map<std::string, std::vector<libutt::api::Coin>> coins;
+};
+
+TEST_F(test_utt_instance, test_clients_registration) {
+  registerClients(
+      job_id,
+      n,
+      [&](uint64_t sigId, uint16_t source) { return waitAndGetFullSig(sigId, source); },
+      d,
+      clients,
+      registrators,
+      sig_processors);
+}
+
+TEST_F(utt_system_include_clients, test_budget_creation) {
+  std::unordered_map<std::string, libutt::api::Coin> bcoins;
+  createBudget(
+      job_id,
+      n,
+      [&](uint64_t sigId, uint16_t source) { return waitAndGetFullSig(sigId, source); },
+      d,
+      clients,
+      bcoins,
+      banks,
+      sig_processors);
+}
+
+TEST_F(utt_system_include_budget, test_mint_creation) {
+  std::unordered_map<std::string, std::vector<libutt::api::Coin>> coins;
+  mintCoins(
+      job_id,
+      n,
+      [&](uint64_t sigId, uint16_t source) { return waitAndGetFullSig(sigId, source); },
+      d,
+      clients,
+      coins,
+      banks,
+      sig_processors);
+}
+
+TEST_F(utt_complete_system, test_simple_transactions) {
+  auto& jid = job_id;
   for (size_t i = 0; i < clients.size(); i++) {
     auto& issuer = clients[i];
     auto& receiver = clients[(i + 1) % clients.size()];
-    LOG_INFO(logger, "client " << i << " transfers 50$ using one 100$ UTT coin to client " << (i + 1) % clients.size());
     Transaction tx(d,
                    issuer,
                    {coins[issuer.getPid()].front()},
@@ -344,7 +478,7 @@ int main(int argc, char* argv[]) {
       if (coin.getType() == api::Coin::Type::Normal) {
         coins[issuer.getPid()].emplace_back(std::move(coin));
       } else {
-        assertTrue(bcoins.find(issuer.getPid()) == bcoins.end());
+        ASSERT_TRUE(bcoins.find(issuer.getPid()) == bcoins.end());
         bcoins.emplace(issuer.getPid(), coin);
       }
     }
@@ -353,33 +487,30 @@ int main(int argc, char* argv[]) {
       if (coin.getType() == api::Coin::Type::Normal) {
         coins[receiver.getPid()].emplace_back(std::move(coin));
       } else {
-        assertTrue(false);
+        ASSERT_TRUE(false);
       }
     }
   }
 
-  LOG_INFO(logger, "validate the state is as expected...");
   for (const auto& c : clients) {
-    assertTrue(coins[c.getPid()].size() == 2);
-    for (const auto& coin : coins[c.getPid()]) assertTrue(coin.getVal() == 50U);
-    assertTrue(bcoins[c.getPid()].getVal() == 950U);
+    ASSERT_TRUE(coins[c.getPid()].size() == 2);
+    for (const auto& coin : coins[c.getPid()]) ASSERT_TRUE(coin.getVal() == 50U);
+    ASSERT_TRUE(bcoins[c.getPid()].getVal() == 950U);
   }
+}
 
-  // Now, each client has a budget of 950$ and 2 coins of 50$ each. Lets run some transactions in parallel to make sure
-  // the sigCollector is thread safe
+TEST_F(utt_complete_system, test_parallel_transactions) {
+  auto& jid = job_id;
   std::vector<std::pair<std::vector<uint64_t>, Transaction>> txs;
   for (size_t i = 0; i < clients.size(); i++) {
     auto& issuer = clients[i];
     auto& receiver = clients[(i + 1) % clients.size()];
-    LOG_INFO(logger,
-             "client " << i << " created a transaction for transferring 50$ using one 50$ UTT coin to client "
-                       << (i + 1) % clients.size());
     std::vector<uint64_t> jids_;
     Transaction tx(d,
                    issuer,
                    {coins[issuer.getPid()].front()},
                    {bcoins[issuer.getPid()]},
-                   {{receiver.getPid(), 50}},
+                   {{issuer.getPid(), 50}, {receiver.getPid(), 50}},
                    *(encryptors_.at((i + 1) % clients.size())));
     coins[issuer.getPid()].erase(coins[issuer.getPid()].begin());
     bcoins.erase(issuer.getPid());
@@ -387,7 +518,6 @@ int main(int argc, char* argv[]) {
     txs.push_back({jids_, tx});
   }
   std::vector<std::thread> sig_jobs(txs.size());
-  LOG_INFO(logger, "computing signatures in parallel");
   for (size_t k = 0; k < txs.size(); k++) {
     sig_jobs[k] = std::thread(
         [&](const std::vector<uint64_t>& ids_, const Transaction& tx_, uint64_t k_) {
@@ -405,11 +535,9 @@ int main(int argc, char* argv[]) {
         txs[k].first,
         txs[k].second,
         k);
-    // sig_jobs[k].join();
   }
   for (auto& t : sig_jobs) t.join();
   std::vector<std::vector<types::Signature>> txs_sigs;
-  LOG_INFO(logger, "collect complete signatures");
   for (const auto& [ids, tx] : txs) {
     std::vector<types::Signature> sigs;
     for (auto sid : ids) {
@@ -418,7 +546,6 @@ int main(int argc, char* argv[]) {
     }
     txs_sigs.push_back(sigs);
   }
-  LOG_INFO(logger, "claiming coins");
   for (size_t i = 0; i < clients.size(); i++) {
     auto& issuer = clients[i];
     auto& receiver = clients[(i + 1) % clients.size()];
@@ -429,7 +556,7 @@ int main(int argc, char* argv[]) {
       if (coin.getType() == api::Coin::Type::Normal) {
         coins[issuer.getPid()].emplace_back(std::move(coin));
       } else {
-        assertTrue(bcoins.find(issuer.getPid()) == bcoins.end());
+        ASSERT_TRUE(bcoins.find(issuer.getPid()) == bcoins.end());
         bcoins.emplace(issuer.getPid(), coin);
       }
     }
@@ -438,32 +565,29 @@ int main(int argc, char* argv[]) {
       if (coin.getType() == api::Coin::Type::Normal) {
         coins[receiver.getPid()].emplace_back(std::move(coin));
       } else {
-        assertTrue(false);
+        ASSERT_TRUE(false);
       }
     }
   }
 
-  LOG_INFO(logger, "validate the state is as expected...");
   for (const auto& c : clients) {
-    assertTrue(coins[c.getPid()].size() == 2);
-    for (const auto& coin : coins[c.getPid()]) assertTrue(coin.getVal() == 50U);
-    assertTrue(bcoins[c.getPid()].getVal() == 900U);
+    ASSERT_TRUE(coins[c.getPid()].size() == 2);
+    for (const auto& coin : coins[c.getPid()]) ASSERT_TRUE(coin.getVal() == 50U);
+    ASSERT_TRUE(bcoins[c.getPid()].getVal() == 950U);
   }
+}
 
-  // Now, we want to take down one of the signature collector (say 0), and make sure we are still able to process the
-  // signature that are under its own responsibility
-  LOG_INFO(logger, "Disabling collector number 0");
+TEST_F(utt_complete_system, test_replica_crash) {
+  auto& jid = job_id;
   comm.isolateNode(0);
   for (size_t i = 0; i < clients.size(); i++) {
     auto& issuer = clients[i];
     auto& receiver = clients[(i + 1) % clients.size()];
-    LOG_INFO(logger, "client " << i << " transfers 50$ using one 50$ UTT coin to client " << (i + 1) % clients.size());
-    std::vector<uint64_t> jids_;
     Transaction tx(d,
                    issuer,
                    {coins[issuer.getPid()].front()},
                    {bcoins[issuer.getPid()]},
-                   {{receiver.getPid(), 50}},
+                   {{issuer.getPid(), 50}, {receiver.getPid(), 50}},
                    *(encryptors_.at((i + 1) % clients.size())));
     coins[issuer.getPid()].erase(coins[issuer.getPid()].begin());
     bcoins.erase(issuer.getPid());
@@ -490,7 +614,7 @@ int main(int argc, char* argv[]) {
       if (coin.getType() == api::Coin::Type::Normal) {
         coins[issuer.getPid()].emplace_back(std::move(coin));
       } else {
-        assertTrue(bcoins.find(issuer.getPid()) == bcoins.end());
+        ASSERT_TRUE(bcoins.find(issuer.getPid()) == bcoins.end());
         bcoins.emplace(issuer.getPid(), coin);
       }
     }
@@ -499,21 +623,20 @@ int main(int argc, char* argv[]) {
       if (coin.getType() == api::Coin::Type::Normal) {
         coins[receiver.getPid()].emplace_back(std::move(coin));
       } else {
-        assertTrue(false);
+        ASSERT_TRUE(false);
       }
     }
   }
 
-  LOG_INFO(logger, "validate the state is as expected...");
   for (const auto& c : clients) {
-    assertTrue(coins[c.getPid()].size() == 2);
-    for (const auto& coin : coins[c.getPid()]) assertTrue(coin.getVal() == 50U);
-    assertTrue(bcoins[c.getPid()].getVal() == 850U);
+    ASSERT_TRUE(coins[c.getPid()].size() == 2);
+    for (const auto& coin : coins[c.getPid()]) ASSERT_TRUE(coin.getVal() == 50U);
+    ASSERT_TRUE(bcoins[c.getPid()].getVal() == 950U);
   }
+}
 
-  for (uint16_t i = 0; i < n; i++) {
-    message_comms[i]->stopMsgsProcessing();
-    message_comms[i]->stopCommunication();
-  }
-  return 0;
+}  // namespace
+int main(int argc, char** argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
 }
