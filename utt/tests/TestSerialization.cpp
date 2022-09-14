@@ -28,16 +28,26 @@ int main(int argc, char* argv[]) {
   for (auto& c : clients) {
     testing::registerClient(d, c, registrators, thresh);
   }
+
+  // Test UTTParams de/serialization
   std::vector<uint8_t> serialized_params = libutt::api::serialize<libutt::api::UTTParams>(d);
   auto deserialized_params = libutt::api::deserialize<libutt::api::UTTParams>(serialized_params);
   assertTrue(deserialized_params == d);
 
   Commitment rcm = clients[0].getRcm().first;
+
+  // Test Commitment de/serialization
   std::vector<uint8_t> serialized_rcm = libutt::api::serialize<libutt::api::Commitment>(rcm);
   auto deserialized_rcm = libutt::api::deserialize<libutt::api::Commitment>(serialized_rcm);
   assertTrue(rcm == deserialized_rcm);
   Fr fr_val;
   fr_val.set_ulong(100);
+
+  /*
+    We define a *complete coin* as a UTT coin that contains a nullifier.
+    We define an *incomplete coin* as a UTT coin that does not contain a nullifier.
+  */
+  // Test a complete normal coin de/serialization
   libutt::api::Coin c1(d,
                        Fr::random_element().to_words(),
                        Fr::random_element().to_words(),
@@ -54,6 +64,7 @@ int main(int argc, char* argv[]) {
   assertTrue(c1.getSN() == c1_deserialized.getSN());
   assertTrue(c1.getExpDateAsCurvePoint() == c1_deserialized.getExpDateAsCurvePoint());
 
+  // Test an incomplete normal coin de/serialization
   libutt::api::Coin c2(d,
                        Fr::random_element().to_words(),
                        fr_val.to_words(),
@@ -69,6 +80,7 @@ int main(int argc, char* argv[]) {
   assertTrue(c2.getSN() == c2_deserialized.getSN());
   assertTrue(c2.getExpDateAsCurvePoint() == c2_deserialized.getExpDateAsCurvePoint());
 
+  // Test a complete budget coin de/serialization
   libutt::api::Coin c3(d,
                        Fr::random_element().to_words(),
                        fr_val.to_words(),
@@ -84,6 +96,7 @@ int main(int argc, char* argv[]) {
   assertTrue(c3.getSN() == c3_deserialized.getSN());
   assertTrue(c3.getExpDateAsCurvePoint() == c3_deserialized.getExpDateAsCurvePoint());
 
+  // Test an incomplete budget coin de/serialization
   libutt::api::Coin c4(d,
                        Fr::random_element().to_words(),
                        Fr::random_element().to_words(),
@@ -100,6 +113,7 @@ int main(int argc, char* argv[]) {
   assertTrue(c4.getSN() == c4_deserialized.getSN());
   assertTrue(c4.getExpDateAsCurvePoint() == c4_deserialized.getExpDateAsCurvePoint());
 
+  // Test Budget request de/serialization
   libutt::api::operations::Budget b1(d, Fr::random_element().to_words(), 100, 987654321);
   std::vector<uint8_t> b1_serialized = libutt::api::serialize<libutt::api::operations::Budget>(b1);
   libutt::api::operations::Budget b1_deserialized =
@@ -118,6 +132,8 @@ int main(int argc, char* argv[]) {
     std::vector<std::vector<uint8_t>> rsigs;
     std::string simulatonOfUniqueTxHash = std::to_string(((uint64_t)rand()) * ((uint64_t)rand()) * ((uint64_t)rand()));
     auto mint = Mint(simulatonOfUniqueTxHash, 100, c.getPid());
+
+    // Test Mint request de/serialization
     std::vector<uint8_t> mint_serialized = libutt::api::serialize<libutt::api::operations::Mint>(mint);
     auto mint_deserialized = libutt::api::deserialize<libutt::api::operations::Mint>(mint_serialized);
     assertTrue(mint.getHash() == mint_deserialized.getHash());
@@ -134,6 +150,8 @@ int main(int argc, char* argv[]) {
     auto blinded_sig = Utils::aggregateSigShares((uint32_t)n, {sigs});
     auto coin = c.claimCoins(mint, d, {blinded_sig}).front();
     libutt::api::operations::Burn b_op{d, c, coin};
+
+    // Test Burn request de/serialization
     std::vector<uint8_t> burn_serialized = libutt::api::serialize<libutt::api::operations::Burn>(b_op);
     auto burn_deserialized = libutt::api::deserialize<libutt::api::operations::Burn>(burn_serialized);
     assertTrue(b_op.getNullifier() == burn_deserialized.getNullifier());
@@ -177,6 +195,7 @@ int main(int argc, char* argv[]) {
   auto encryptor = std::make_shared<libutt::IBEEncryptor>(rc.toPK().mpk);
   Transaction tx(d, client1, {coin}, {bcoin}, {{client1.getPid(), 50}, {client2.getPid(), 50}}, *(encryptor));
 
+  // Test Transaction de/serialization
   std::vector<uint8_t> serialized_tx = libutt::api::serialize<libutt::api::operations::Transaction>(tx);
   auto deserialized_tx = libutt::api::deserialize<libutt::api::operations::Transaction>(serialized_tx);
   for (size_t i = 0; i < tx.getInputCoins().size(); i++) {
