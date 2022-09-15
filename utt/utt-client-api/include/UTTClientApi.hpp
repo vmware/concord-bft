@@ -18,17 +18,7 @@
 #include <variant>
 #include <optional>
 
-namespace utt {
-
-// [TODO-UTT] The utt configuration is shared between the client and server
-// Move to some common file
-
-struct Configuration {
-  bool useBudget = true;
-  std::vector<std::vector<uint8_t>> secrets;
-};
-
-}  // namespace utt
+#include <UTTCommonApi.hpp>
 
 namespace utt::client {
 
@@ -39,7 +29,7 @@ namespace utt::client {
 struct IWalletStorage {};
 
 // Provides the means to generate a public/private key pair when creating a user
-struct IPKInfrastructre {};
+struct IPKInfrastructure {};
 
 enum class Error {};
 struct TransferTx {};
@@ -152,13 +142,22 @@ class User {
    *
    */
   TransferResult transfer(const std::string& userId, const std::string& destPK, uint64_t amount) const;
+
+  // [TODO-UTT] State
 };
 
-Configuration generateUTTConfig(const std::vector<std::string>& commiterPublicKeys, bool useBudget);
+// [TODO-UTT] We need to also define the corruption thresholds for each multi-party entity
+Configuration generateConfiguration(const std::vector<std::string>& committerPublicKeys,
+                                    const std::vector<std::string>& registrationPublicKeys,
+                                    bool useBudget);
+
+// Creates and initialize a new user
 User createUser(const std::string& userId,
                 const std::vector<uint8_t>& params,
-                IPKInfrastructre& pki,
+                IPKInfrastructure& pki,
                 IWalletStorage& storage);
-User loadUser(IWalletStorage& storage);
+
+// Load an existing user from storage
+User loadUserFromStorage(IWalletStorage& storage);
 
 }  // namespace utt::client

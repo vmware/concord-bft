@@ -31,6 +31,7 @@ std::pair<types::CurvePoint, types::Signature> Registrator::signRCM(const types:
   return {s2, types::Signature(res_str.begin(), res_str.end())};
 }
 
+// [TODO-UTT] "validate" calls "verify" - don't change terms even if they sound "similar"
 bool Registrator::validateRCM(const Commitment& comm, const types::Signature& sig) const {
   libutt::RandSig rsig = libutt::deserialize<libutt::RandSig>(sig);
   return rsig.verify(*comm.comm_, rpk_->vk);

@@ -23,6 +23,7 @@ class RegAuthPK;
 class RegAuthSK;
 }  // namespace libutt
 namespace libutt::api {
+//[TODO-UTT] The dictionary word is "Registrar"
 class Registrator {
   /**
    * @brief The registrator replica object responsible for the (distributed) registration procedure
@@ -49,6 +50,7 @@ class Registrator {
    * @param rcm1 The user commitment on its own s1
    * @return std::pair<types::CurvePoint, types::Signature> returns the choosen s2 and the share signature
    */
+  // [TODO-UTT] The caller already knows s2 why do we return s2 back?
   std::pair<types::CurvePoint, types::Signature> signRCM(const types::CurvePoint& pid_hash,
                                                          const types::CurvePoint& s2,
                                                          const Commitment& rcm1) const;
@@ -63,6 +65,8 @@ class Registrator {
    * @return false if not
    */
   bool validateRCM(const Commitment& comm, const types::Signature& sig) const;
+
+  // [TODO-UTT] How do we verify an RCM sig share?
 
  private:
   std::string id_;

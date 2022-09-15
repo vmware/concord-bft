@@ -17,49 +17,56 @@
 #include <string>
 #include <vector>
 
+#include <UTTCommonApi.hpp>
+
 namespace utt::server {
 
-// [TODO-UTT] Move the configuration to a common source file
-struct Configuration {
-  std::map<std::string, std::string> encryptedCommitSecrets;
-  std::map<std::string, std::string> encryptedRegistrationSecrets;
-  std::string commitVerificationKey;
-  std::string registrationVerificationKey;
-  std::vector<uint8_t> publicParams;
-};
-
+// Registrars comprise a multi-party authority that registers users.
 struct Registrar {
-  std::string secretKey;
+  std::string secretKeyShare;
   std::string publicKey;
   std::vector<uint8_t> publicParams;
 };
 
+// Committers comprise a multi-party authority that issues tokens.
 struct Committer {
-  std::string secretKey;
+  std::string secretKeyShare;
   std::string publicKey;
   std::vector<uint8_t> publicParams;
 };
 
-// Generate S2 based on a given s2 hint.
-// hint is an unpredictable hash. s2 is computed deterministically from hint.
-std::vector<uint8_t> generateS2(const std::vector<uint8_t>& hint);
+// [TODO-UTT] Given a configuration create a registrar/committer
+// [TODO-UTT] Add separate functions to validate a configuration?
+Registrar createRegistrar(const utt::Configuration& config,
+                          const std::string& registrarId,
+                          const std::string& registrarSecret);
+Committer createCommitter(const utt::Configuration& config,
+                          const std::string& committerId,
+                          const std::string& committerSecret);
+
+// Generates S2 from a nonce value.
+// S2 is the server-side generated part of the user's PRF key.
+// The nonce should be generated server-side in a deterministic but unpredictable by the client way.
+std::vector<uint8_t> generateS2(const std::vector<uint8_t>& nonce);
 
 // Creates the full RCM for a user with userId using the given rcm1 and s2.
-std::vector<uint8_t> createRCM(const Registrar& registrar,
+std::vector<uint8_t> createRcm(const Registrar& registrar,
                                const std::string& userId,
                                const std::vector<uint8_t>& rcm1,
                                const std::vector<uint8_t>& s2);
 
 // [TODO-UTT] Why don't we pass in the computed RCM instead of userId, s2 and rcm1?
-std::vector<uint8_t> signRCM(const Registrar& registrar,
+// Returns an rcm sign share
+std::vector<uint8_t> signRcm(const Registrar& registrar,
                              const std::string& userId,
                              const std::vector<uint8_t>& s2,
                              const std::vector<uint8_t>& rcm1);
 
-// [TODO-UTT] When do we verify an rcm against the sig?
-bool verifyRCM(const Registrar& registrar, const std::vector<uint8_t>& rcm, const std::vector<uint8_t>& rs);
+bool verifyRcmSig(const Registrar& registrar, const std::vector<uint8_t>& rcm, const std::vector<uint8_t>& rs);
 
-bool verifyPartialRcmSig(const Registrar& registrar, const std::vector<uint8_t>& rcm, const std::vector<uint8_t>& rs);
+bool verifyRcmSigShare(const Registrar& registrar,
+                       const std::vector<uint8_t>& rcm,
+                       const std::vector<uint8_t>& rsShare);
 
 // Returns the nullifiers of the input coins in a transaction
 std::vector<std::string> getNullifiers(const std::vector<uint8_t>& tx);
