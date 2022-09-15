@@ -78,22 +78,22 @@ bool validateTx(const Committer& committer, const std::vector<uint8_t>& tx) {
 }
 
 bool verifyTxOutputSig(const Committer& committer,
-                       const std::vector<uint8_t>& sig,
-                       const std::vector<uint8_t>& output) {
+                       const std::vector<uint8_t>& txOutput,
+                       const std::vector<uint8_t>& sig) {
   // [TODO-UTT] Implement verifyTxOutputSig
   (void)committer;
+  (void)txOutput;
   (void)sig;
-  (void)output;
   return false;
 }
 
 bool verifyTxOutputSigShare(const Committer& committer,
-                            const std::vector<uint8_t>& sigShare,
-                            const std::vector<uint8_t>& output) {
+                            const std::vector<uint8_t>& txOutput,
+                            const std::vector<uint8_t>& sigShare) {
   // [TODO-UTT] Implement verifyTxOutputSigShare
   (void)committer;
+  (void)txOutput;
   (void)sigShare;
-  (void)output;
   return false;
 }
 

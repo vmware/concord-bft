@@ -21,6 +21,8 @@
 
 namespace utt::server {
 
+// [TODO-UTT] Properly annotate functions for automated doc generation.
+
 // Registrars comprise a multi-party authority that registers users.
 struct Registrar {
   std::string secretKeyShare;
@@ -35,8 +37,13 @@ struct Committer {
   std::vector<uint8_t> publicParams;
 };
 
-// [TODO-UTT] Given a configuration create a registrar/committer
-// [TODO-UTT] Add separate functions to validate a configuration?
+// [TODO-UTT] Consider using strong types instead of just byte vectors to help the user prevent errors
+// Example: struct RcmSig { std::vector<uint8_t> bytes; } instead of just std::vector<uint8_t>
+// Example: struct RcmSigShare { std::vector<uint8_t> bytes; } instead of just std::vector<uint8_t>
+// RcmSig and RcmSigShare are now more difficult to mismatch
+
+// Given a configuration create a registrar/committer
+// [TODO-UTT] Add a separate function to validate a configuration?
 Registrar createRegistrar(const utt::Configuration& config,
                           const std::string& registrarId,
                           const std::string& registrarSecret);
@@ -71,17 +78,18 @@ bool verifyRcmSigShare(const Registrar& registrar,
 // Returns the nullifiers of the input coins in a transaction
 std::vector<std::string> getNullifiers(const std::vector<uint8_t>& tx);
 
-// Verifies the correctness of the transactions
+// Verifies the correctness of the transaction
 bool validateTx(const Committer& committer, const std::vector<uint8_t>& tx);
 
-bool verifyTxOutputSig(const Committer& committer, const std::vector<uint8_t>& sig, const std::vector<uint8_t>& output);
+bool verifyTxOutputSig(const Committer& committer,
+                       const std::vector<uint8_t>& txOutput,
+                       const std::vector<uint8_t>& sig);
 
 bool verifyTxOutputSigShare(const Committer& committer,
-                            const std::vector<uint8_t>& sigShare,
-                            const std::vector<uint8_t>& output);
+                            const std::vector<uint8_t>& txOutput,
+                            const std::vector<uint8_t>& sigShare);
 
-// Verifies the correctness of the transactions
-// [TODO-UTT] Returns a sig share for each output
+// Returns a sig share for each output
 std::vector<std::vector<uint8_t>> signTxOutputs(const Committer& committer, const std::vector<uint8_t>& tx);
 
 // Creates a budget token for a given amount, serial number nonce, expiration date and amount.
@@ -96,18 +104,24 @@ std::vector<uint8_t> createBudgetToken(const Committer& committer,
 bool hasBudget(const std::vector<uint8_t>& tx);
 
 // returns the expiration time of the budget coin within a transaction
-// [TODO-UTT] What should be the type of the time object?
+// [TODO-UTT] What should be the type of the time object? We may decide that it's a 64-bit unix timestamp, but we can
+// also provide N-bytes for time data. Example "TimeData getExpireTimeData(tx)" "struct TimeData { std::array<uint8_t,
+// N> bytes; }" Need to decide how many bytes to provide, which could depend on the size of a single curve point inside
+// libutt With a 64-bit unix timestamp we could simplify things, but we could create an obstacle for high-resolution
+// timestamps.
 uint64_t getExpireTime(const std::vector<uint8_t>& tx);
 
 // returns the pidHash, value and sequence number of the given mint operation
 struct MintOpData {
-  std::vector<uint8_t> pidHash;  // [TODO-UTT] Why the pid hash? How it is used?
+  std::vector<uint8_t> pidHash;  // [TODO-UTT] Why the pid hash? How it is used? A hash of the userId is used internally
+                                 // by libutt no need to expose this outside.
   uint64_t value = 0;
   uint64_t seqNum = 0;  // [TODO-UTT] Why is it returning the seqNum? How it is used?
 };
 MintOpData getMintData(const std::vector<uint8_t>& mintOp);
 
 // Gets the Burned coin nullifier
+// [TODO-UTT] This can be handled by a generalized getNullifier that works on all applicable transaction types.
 std::string getNullifier(const std::vector<uint8_t>& burnTx);
 
 }  // namespace utt::server
