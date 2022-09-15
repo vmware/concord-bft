@@ -59,6 +59,10 @@ class Transaction {
               const std::vector<std::tuple<std::string, uint64_t>>& recipients,
               const IEncryptor& encryptor);
   Transaction();
+  Transaction(const Transaction&);
+  Transaction(Transaction&&);
+  Transaction& operator=(const Transaction&);
+  Transaction& operator=(Transaction&&);
   /**
    * @brief Get the transaction's nullifiers
    *

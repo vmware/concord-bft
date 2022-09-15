@@ -85,6 +85,8 @@ class Coin {
   Coin();
   Coin(const Coin& c);
   Coin& operator=(const Coin& c);
+  Coin(Coin&& c);
+  Coin& operator=(Coin&& c);
 
   /**
    * @brief Get the coin's Nullifier as a string

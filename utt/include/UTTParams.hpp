@@ -53,6 +53,8 @@ class UTTParams {
   const libutt::Params& getParams() const;
   UTTParams(const UTTParams& other);
   UTTParams& operator=(const UTTParams& other);
+  UTTParams(UTTParams&&);
+  UTTParams operator=(UTTParams&&);
 
  private:
   friend std::ostream& ::operator<<(std::ostream& out, const libutt::api::UTTParams& params);

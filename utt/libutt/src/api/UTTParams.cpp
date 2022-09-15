@@ -66,13 +66,18 @@ UTTParams UTTParams::create(void* initData) {
 }
 const libutt::Params& UTTParams::getParams() const { return *params; }
 
-UTTParams::UTTParams(const UTTParams& other) {
-  params.reset(new libutt::Params());
-  *params = *(other.params);
-}
+UTTParams::UTTParams(const UTTParams& other) { *this = other; }
 UTTParams& UTTParams::operator=(const UTTParams& other) {
+  if (this == &other) return *this;
   params.reset(new libutt::Params());
   *params = *(other.params);
+  return *this;
+}
+
+UTTParams::UTTParams(UTTParams&& other) { *this = std::move(other); }
+UTTParams UTTParams::operator=(UTTParams&& other) {
+  if (this == &other) return *this;
+  params = std::move(other.params);
   return *this;
 }
 }  // namespace libutt::api
