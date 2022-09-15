@@ -22,40 +22,34 @@
 namespace {
 using namespace concord::crypto::cryptopp;
 using concord::crypto::KeyFormat;
-using concord::crypto::cryptopp::RSA_SIGNATURE_LENGTH;
 using concord::crypto::generateRsaKeyPair;
 using concord::crypto::RsaHexToPem;
 using concord::crypto::generateECDSAKeyPair;
 using concord::crypto::ECDSAHexToPem;
 
 std::string getSig(const std::string& data, concord::crypto::ISigner& signer) {
-  std::string buf(signer.signatureLength() + 1, '\x00');
+  std::string buf(signer.signatureLength(), '\x00');
   signer.sign(data, reinterpret_cast<concord::Byte*>(buf.data()));
   return buf;
 }
 
 TEST(cryptopp_utils, generate_rsa_keys_hex_format) {
-  ASSERT_NO_THROW(generateRsaKeyPair());
-  auto keys = generateRsaKeyPair();
-  LOG_INFO(GL, keys.first << " | " << keys.second);
+  ASSERT_NO_THROW(auto keys = generateRsaKeyPair(); LOG_INFO(GL, keys.first << " | " << keys.second););
 }
 
 TEST(cryptopp_utils, generate_rsa_keys_pem_format) {
-  ASSERT_NO_THROW(generateRsaKeyPair(KeyFormat::PemFormat));
-  auto keys = generateRsaKeyPair(KeyFormat::PemFormat);
-  LOG_INFO(GL, keys.first << " | " << keys.second);
+  ASSERT_NO_THROW(auto keys = generateRsaKeyPair(KeyFormat::PemFormat);
+                  LOG_INFO(GL, keys.first << " | " << keys.second););
 }
 
 TEST(cryptopp_utils, generate_ECDSA_keys_pem_format) {
-  ASSERT_NO_THROW(generateECDSAKeyPair(KeyFormat::PemFormat));
-  auto keys = generateECDSAKeyPair(KeyFormat::PemFormat);
-  LOG_INFO(GL, keys.first << " | " << keys.second);
+  ASSERT_NO_THROW(auto keys = generateECDSAKeyPair(KeyFormat::PemFormat);
+                  LOG_INFO(GL, keys.first << " | " << keys.second););
 }
 
 TEST(cryptopp_utils, generate_ECDSA_keys_hex_format) {
-  ASSERT_NO_THROW(generateECDSAKeyPair(KeyFormat::HexaDecimalStrippedFormat));
-  auto keys = generateECDSAKeyPair(KeyFormat::HexaDecimalStrippedFormat);
-  LOG_INFO(GL, keys.first << " | " << keys.second);
+  ASSERT_NO_THROW(auto keys = generateECDSAKeyPair(KeyFormat::HexaDecimalStrippedFormat);
+                  LOG_INFO(GL, keys.first << " | " << keys.second););
 }
 
 TEST(cryptopp_utils, test_rsa_keys_hex) {

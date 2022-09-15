@@ -36,7 +36,7 @@
 #include "kv_types.hpp"
 #include "kvbc_app_filter/kvbc_app_filter.h"
 #include "kvbc_app_filter/kvbc_key_types.h"
-#include "crypto_utils.hpp"
+#include "crypto/openssl/certificates.hpp"
 
 #include "thin_replica.grpc.pb.h"
 #include "subscription_buffer.hpp"
@@ -704,7 +704,7 @@ class ThinReplicaImpl {
                                       std::unordered_set<std::string>& cert_ou_field_set,
                                       bool use_unified_certs) {
     auto field_name = (use_unified_certs ? "O" : "OU");
-    auto attribute_list = util::crypto::CertificateUtils::getSubjectFieldListByName(root_cert_path, field_name);
+    auto attribute_list = crypto::getSubjectFieldListByName(root_cert_path, field_name);
     for (auto& val : attribute_list) {
       cert_ou_field_set.emplace(std::move(val));
     }
@@ -722,7 +722,7 @@ class ThinReplicaImpl {
 
   static std::string getClientIdFromCertificate(const std::string& client_cert_path, bool use_unified_certs = false) {
     auto field_name = (use_unified_certs ? "O" : "OU");
-    return util::crypto::CertificateUtils::getSubjectFieldByName(client_cert_path, field_name);
+    return crypto::getSubjectFieldByName(client_cert_path, field_name);
   }
 
  private:

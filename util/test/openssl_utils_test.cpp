@@ -23,13 +23,11 @@
 namespace {
 using concord::crypto::KeyFormat;
 using concord::crypto::generateEdDSAKeyPair;
-using concord::crypto::EdDSAHexToPem;
 using concord::crypto::openssl::EdDSAPrivateKey;
 using concord::crypto::openssl::EdDSAPublicKey;
 using concord::crypto::Ed25519PrivateKeyByteSize;
 using concord::crypto::Ed25519PublicKeyByteSize;
 using concord::crypto::openssl::deserializeKey;
-using concord::crypto::CurveType;
 
 class EdDSATests : public ::testing::Test {
  public:

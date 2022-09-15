@@ -45,7 +45,6 @@ using std::this_thread::sleep_for;
 using std::unique_ptr;
 using std::tuple;
 
-using concord::crypto::cryptopp::RSA_SIGNATURE_LENGTH;
 using concord::crypto::SIGN_VERIFY_ALGO;
 using concord::crypto::generateRsaKeyPair;
 using concord::crypto::generateEdDSAKeyPair;

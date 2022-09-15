@@ -37,7 +37,6 @@ using std::unique_ptr;
 using concord::crypto::KeyFormat;
 using concord::crypto::cryptopp::RSASigner;
 using concord::crypto::cryptopp::RSAVerifier;
-using concord::crypto::cryptopp::RSA_SIGNATURE_LENGTH;
 using concord::crypto::generateEdDSAKeyPair;
 using concord::crypto::generateRsaKeyPair;
 using concord::crypto::openssl::EdDSAPrivateKey;
@@ -119,7 +118,7 @@ void edDSAVerifierBenchmark(picobench::state& s) {
   size_t lenRetData = signer_->sign(randomData[offset], sig.data());
   ConcordAssertEQ(lenRetData, expectedSignerSigLen);
 
-  std::string sigAsString("\x00", sig.size() + 1);
+  std::string sigAsString("\x00", sig.size());
   std::memcpy(sigAsString.data(), sig.data(), sig.size());
   uint64_t signaturesVerified = 0;
   {
@@ -181,7 +180,7 @@ void rsaVerifierBenchmark(picobench::state& s) {
   size_t lenRetData = signer_->sign(randomData[offset], sig.data());
   ConcordAssertEQ(lenRetData, expectedSignerSigLen);
 
-  std::string sigAsString("\x00", sig.size() + 1);
+  std::string sigAsString("\x00", sig.size());
   std::memcpy(sigAsString.data(), sig.data(), sig.size());
   uint64_t signaturesVerified = 0;
   {

@@ -207,7 +207,7 @@ const static std::vector<std::string> kPermittedAsymmetricCryptoSchemes({
 });
 
 std::pair<std::unique_ptr<AsymmetricPrivateKey>, std::unique_ptr<AsymmetricPublicKey>>
-generateAsymmetricCryptoKeyPairById(int id, std::string scheme_name);
+generateAsymmetricCryptoKeyPairById(int id, const std::string& scheme_name);
 
 std::pair<std::string, std::string> generateECDSAKeyPair(CurveType curveType, const KeyFormat fmt);
 

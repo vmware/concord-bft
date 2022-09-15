@@ -64,8 +64,8 @@ struct MsgParams {
   const std::string spanContext{rawSpanContext};
 };
 
-std::vector<concord::Byte> copyAsBytes(const std::vector<char> vec) {
-  return *reinterpret_cast<const std::vector<concord::Byte>*>(&vec);
+std::vector<concord::Byte> copyAsBytes(const std::vector<char>& vec) {
+  return reinterpret_cast<const std::vector<concord::Byte>&>(vec);
 }
 
 std::pair<std::string, std::vector<char>> getProcessResultSigBuff(const std::unique_ptr<SigManager>& sigManager,

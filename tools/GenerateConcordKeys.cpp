@@ -28,7 +28,6 @@
 
 using bftEngine::ReplicaConfig;
 using concord::crypto::SIGN_VERIFY_ALGO;
-using concord::crypto::cryptopp::RSA_SIGNATURE_LENGTH;
 using concord::crypto::generateEdDSAKeyPair;
 using concord::crypto::generateRsaKeyPair;
 

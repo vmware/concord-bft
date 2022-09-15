@@ -20,8 +20,6 @@
 
 namespace concord::crypto::cryptopp {
 
-constexpr static uint32_t RSA_SIGNATURE_LENGTH = 2048U;
-
 class ECDSASigner : public ISigner {
  public:
   ECDSASigner(const std::string& str_priv_key,

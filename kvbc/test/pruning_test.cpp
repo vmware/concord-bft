@@ -37,7 +37,6 @@ using concord::kvbc::BlockId;
 using namespace concord::kvbc;
 using namespace concord::kvbc::categorization;
 using namespace concord::kvbc::pruning;
-using concord::crypto::cryptopp::RSA_SIGNATURE_LENGTH;
 using concord::crypto::SIGN_VERIFY_ALGO;
 using bftEngine::ReplicaConfig;
 using concord::crypto::generateRsaKeyPair;

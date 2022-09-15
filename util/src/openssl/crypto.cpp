@@ -25,7 +25,7 @@ using std::pair;
 using std::string;
 using std::unique_ptr;
 
-void OpenSSLAssert(bool expr, const std::string msg) {
+void OpenSSLAssert(bool expr, const std::string& msg) {
   if (!expr) {
     throw OpenSSLError(msg);
   }
@@ -141,7 +141,7 @@ bool EVPPKEYPublicKey::verify(const std::string& message, const std::string& sig
 }
 
 pair<unique_ptr<AsymmetricPrivateKey>, unique_ptr<AsymmetricPublicKey>> generateAsymmetricCryptoKeyPairById(
-    int id, std::string scheme_name) {
+    int id, const std::string& scheme_name) {
   UniqueECKEY key_pair(EC_KEY_new_by_curve_name(id));
   UniqueECKEY public_key(EC_KEY_new_by_curve_name(id));
   OpenSSLAssert(key_pair.get() != nullptr && public_key.get() != nullptr,
