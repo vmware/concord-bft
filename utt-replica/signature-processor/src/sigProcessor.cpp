@@ -86,11 +86,11 @@ SigProcessor::SigProcessor(uint16_t repId,
                                  concordUtil::Timers::Timer::RECURRING,
                                  [&](concordUtil::Timers::Handle h) {
                                    (void)h;
+                                   auto now = std::chrono::steady_clock::now().time_since_epoch().count();
                                    const auto& entries = jobs_.getEntries();
                                    for (const auto& [id, entry] : entries) {
                                      (void)id;
                                      if (entry.start_time == 0) continue;
-                                     auto now = std::chrono::steady_clock::now().time_since_epoch().count();
                                      if (now - entry.start_time >= entry.job_timeout_ms) {
                                        onJobTimeout(entry);
                                      }

@@ -55,7 +55,7 @@ class SigJobEntriesMap {
     jobs_[id].job_timeout_ms = job_timeout_ms;
   }
 
-  const std::unordered_map<uint64_t, SigJobEntry>& getEntries() {
+  const std::unordered_map<uint64_t, SigJobEntry>& getEntries() const {
     std::unique_lock lck(lock_);
     return jobs_;
   }
