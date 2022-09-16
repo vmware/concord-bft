@@ -119,6 +119,7 @@ class ThinReplicaImpl {
   const std::string kCorrelationIdTag = "cid";
   // last timestamp when subscription status for live updates was not ok
   std::optional<std::chrono::steady_clock::time_point> last_failed_subscribe_status_time;
+  uint16_t update_aggregator_counter{0};
 
  public:
   ThinReplicaImpl(std::unique_ptr<ThinReplicaServerConfig> config,
@@ -151,9 +152,11 @@ class ThinReplicaImpl {
     }
 
     LOG_DEBUG(logger_, "ReadState start " << start << " end " << end);
+    ThinReplicaServerMetrics metrics("data", getClientId(context));
+    metrics.setAggregator(aggregator_);
 
     try {
-      readFromKvbAndSendData(logger_, context, stream, start, end, kvb_filter);
+      readFromKvbAndSendData(logger_, context, stream, start, end, kvb_filter, metrics);
     } catch (StreamCancelled& error) {
       return grpc::Status(grpc::StatusCode::CANCELLED, error.what());
     } catch (std::exception& error) {
@@ -284,7 +287,7 @@ class ThinReplicaImpl {
     // TRS metrics
     ThinReplicaServerMetrics metrics(stream_type, getClientId(context));
     metrics.setAggregator(aggregator_);
-    uint16_t update_aggregator_counter = 0;
+    update_aggregator_counter = 0;
     metrics.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
 
 #define CLEANUP_SUBSCRIPTION()                                               \
@@ -379,7 +382,8 @@ class ThinReplicaImpl {
       // TODO: Replace the assert with INVALID_ARGUMENT error thrown when block ID zero is requested
       ConcordAssertGT(start_block_id, 0);
       try {
-        syncAndSend<ServerContextT, ServerWriterT, DataT>(context, start_block_id, live_updates, stream, kvb_filter);
+        syncAndSend<ServerContextT, ServerWriterT, DataT>(
+            context, start_block_id, live_updates, stream, kvb_filter, metrics);
       } catch (concord::kvbc::NoLegacyEvents& error) {
         LOG_WARN(logger_, error.what());
         is_event_group_transition = true;
@@ -728,10 +732,10 @@ class ThinReplicaImpl {
                               ServerWriterT* stream,
                               kvbc::BlockId start,
                               kvbc::BlockId end,
-                              std::shared_ptr<kvbc::KvbAppFilter> kvb_filter) {
+                              std::shared_ptr<kvbc::KvbAppFilter> kvb_filter,
+                              ThinReplicaServerMetrics& metrics) {
     boost::lockfree::spsc_queue<kvbc::KvbFilteredUpdate> queue{10};
     std::atomic_bool close_stream = false;
-
     auto kvb_reader = std::async(std::launch::async,
                                  &kvbc::KvbAppFilter::readBlockRange,
                                  kvb_filter,
@@ -755,8 +759,12 @@ class ThinReplicaImpl {
           auto num_events = kvb_update.kv_pairs.size();
           auto client_id = getClientId(context);
           LOG_DEBUG(logger_, "Sending updates (history, data)" << KVLOG(client_id, block_id, num_events));
-
           sendData(stream, kvb_update);
+          metrics.last_sent_block_id.Get().Set(block_id);
+          if (++update_aggregator_counter == config_->update_metrics_aggregator_thresh) {
+            metrics.updateAggregator();
+            update_aggregator_counter = 0;
+          }
         } catch (StreamClosed& error) {
           LOG_WARN(logger, "Data stream closed at block " << kvb_update.block_id);
 
@@ -860,12 +868,13 @@ class ThinReplicaImpl {
                           ServerWriterT* stream,
                           kvbc::BlockId start,
                           kvbc::BlockId end,
-                          std::shared_ptr<kvbc::KvbAppFilter> kvb_filter) {
+                          std::shared_ptr<kvbc::KvbAppFilter> kvb_filter,
+                          ThinReplicaServerMetrics& metrics) {
     static_assert(std::is_same<DataT, com::vmware::concord::thin_replica::Data>() ||
                       std::is_same<DataT, com::vmware::concord::thin_replica::Hash>(),
                   "We expect either a Data or Hash type");
     if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Data>()) {
-      readFromKvbAndSendData(logger, context, stream, start, end, kvb_filter);
+      readFromKvbAndSendData(logger, context, stream, start, end, kvb_filter, metrics);
     } else if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Hash>()) {
       readFromKvbAndSendHashes(logger, context, stream, start, end, kvb_filter);
     }
@@ -899,7 +908,8 @@ class ThinReplicaImpl {
                    kvbc::BlockId start,
                    std::shared_ptr<SubUpdateBuffer>& live_updates,
                    ServerWriterT* stream,
-                   std::shared_ptr<kvbc::KvbAppFilter>& kvb_filter) {
+                   std::shared_ptr<kvbc::KvbAppFilter>& kvb_filter,
+                   ThinReplicaServerMetrics& metrics) {
     kvbc::BlockId first_block_id = (config_->rostorage)->getGenesisBlockId();
     if (start < first_block_id) {
       std::stringstream msg;
@@ -913,7 +923,7 @@ class ThinReplicaImpl {
     // Let's not wait for a live update yet due to there might be lots of
     // history we have to catch up with first
     LOG_INFO(logger_, "Sync reading from KVB [" << start << ", " << end << "]");
-    readAndSend<ServerContextT, ServerWriterT, DataT>(logger_, context, stream, start, end, kvb_filter);
+    readAndSend<ServerContextT, ServerWriterT, DataT>(logger_, context, stream, start, end, kvb_filter, metrics);
 
     // Let's wait until we have at least one live update
     bool is_update_available = false;
@@ -945,7 +955,7 @@ class ThinReplicaImpl {
       end = live_updates->newestBlockId();
 
       LOG_INFO(logger_, "Sync filling gap [" << start << ", " << end << "]");
-      readAndSend<ServerContextT, ServerWriterT, DataT>(logger_, context, stream, start, end, kvb_filter);
+      readAndSend<ServerContextT, ServerWriterT, DataT>(logger_, context, stream, start, end, kvb_filter, metrics);
     }
 
     // Overlap:
