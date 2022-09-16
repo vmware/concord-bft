@@ -11,7 +11,7 @@
 // terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
-#include "UTTClientApi.hpp"
+#include "utt-client-api/User.hpp"
 
 namespace utt::client {
 

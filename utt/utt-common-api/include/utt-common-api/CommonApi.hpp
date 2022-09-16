@@ -21,11 +21,16 @@ namespace utt {
 
 // This is the configuration of a UTT instance
 // [TODO-UTT] What should be the types for the different keys?
+
 struct Configuration {
   bool useBudget = true;
   // [TODO-UTT] Do we need a string id or a vector with indicies as ids is sufficient?
   std::map<std::string, std::string> encryptedCommitSecrets;        // Maps committer id to secret
   std::map<std::string, std::string> encryptedRegistrationSecrets;  // Maps registrar id to secret
+  std::map<std::string, std::string>
+      committerVerificationKeyShares;  // [TODO-UTT] Check: I think we need this for partial sig verification
+  std::map<std::string, std::string>
+      registrationVerificationKeyShares;  // [TODO-UTT] Check: I think we need this for partial sig verification
   std::string commitVerificationKey;
   std::string registrationVerificationKey;
   std::vector<uint8_t> publicParams;

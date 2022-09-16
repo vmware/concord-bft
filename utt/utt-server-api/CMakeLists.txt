@@ -1,6 +1,6 @@
 
 set(utt-server-api-src
-    src/UTTServerApi.cpp
+    src/ServerApi.cpp
 )
 
 add_library(utt_server_api STATIC ${utt-server-api-src})

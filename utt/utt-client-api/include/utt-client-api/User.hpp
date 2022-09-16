@@ -18,18 +18,9 @@
 #include <variant>
 #include <optional>
 
-#include <UTTCommonApi.hpp>
+// [TODO-UTT] All types are tentative
 
 namespace utt::client {
-
-// [TODO-UTT] All types are tentative
-// [TODO-UTT] Split User, IWalletStorage into different files
-
-// Provides the means to store the user's wallet data *te
-struct IWalletStorage {};
-
-// Provides the means to generate a public/private key pair when creating a user
-struct IPKInfrastructure {};
 
 enum class Error {};
 struct TransferTx {};
@@ -145,19 +136,5 @@ class User {
 
   // [TODO-UTT] State
 };
-
-// [TODO-UTT] We need to also define the corruption thresholds for each multi-party entity
-Configuration generateConfiguration(const std::vector<std::string>& committerPublicKeys,
-                                    const std::vector<std::string>& registrationPublicKeys,
-                                    bool useBudget);
-
-// Creates and initialize a new user
-User createUser(const std::string& userId,
-                const std::vector<uint8_t>& params,
-                IPKInfrastructure& pki,
-                IWalletStorage& storage);
-
-// Load an existing user from storage
-User loadUserFromStorage(IWalletStorage& storage);
 
 }  // namespace utt::client

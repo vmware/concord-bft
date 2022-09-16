@@ -17,30 +17,37 @@
 #include <string>
 #include <vector>
 
-#include <UTTCommonApi.hpp>
+#include "utt-common-api/CommonApi.hpp"
 
 namespace utt::server {
 
 // [TODO-UTT] Properly annotate functions for automated doc generation.
 
+// [TODO-UTT] All types are tentative
+
+// [TODO-UTT] Consider using strong types for std::vector<uint8_t> or strings.
+// This will allow not only type safety, but since we don't have binary serialization yet and
+// internally libutt uses strings for serialize/deserialize these strong types can use strings as well and then be
+// changed to byte vectors. Example: "struct Rcm { std::string bytes; }" becomes "struct Rcm { std::vector<uint8_t>
+// bytes; }"
+
 // Registrars comprise a multi-party authority that registers users.
 struct Registrar {
   std::string secretKeyShare;
-  std::string publicKey;
+  std::string verificationKey;
+  std::map<std::string, std::string>
+      verificationKeyShares;  // [TODO-UTT] Check: I think we need this for partial sig verification
   std::vector<uint8_t> publicParams;
 };
 
 // Committers comprise a multi-party authority that issues tokens.
 struct Committer {
   std::string secretKeyShare;
-  std::string publicKey;
+  std::string verificationKey;
+  std::map<std::string, std::string>
+      verificationKeyShares;  // [TODO-UTT] Check: I think we need this for partial sig verification
   std::vector<uint8_t> publicParams;
 };
-
-// [TODO-UTT] Consider using strong types instead of just byte vectors to help the user prevent errors
-// Example: struct RcmSig { std::vector<uint8_t> bytes; } instead of just std::vector<uint8_t>
-// Example: struct RcmSigShare { std::vector<uint8_t> bytes; } instead of just std::vector<uint8_t>
-// RcmSig and RcmSigShare are now more difficult to mismatch
 
 // Given a configuration create a registrar/committer
 // [TODO-UTT] Add a separate function to validate a configuration?

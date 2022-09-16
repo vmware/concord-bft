@@ -11,7 +11,7 @@
 // terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
-#include "UTTServerApi.hpp"
+#include "utt-server-api/ServerApi.hpp"
 
 namespace utt::server {
 
