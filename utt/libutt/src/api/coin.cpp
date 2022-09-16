@@ -74,14 +74,7 @@ Coin& Coin::operator=(const Coin& c) {
   return *this;
 }
 Coin::Coin() { coin_.reset(new libutt::Coin()); }
-Coin::Coin(Coin&& c) { *this = std::move(c); }
-Coin& Coin::operator=(Coin&& c) {
-  if (this == &c) return *this;
-  coin_ = std::move(c.coin_);
-  has_sig_ = c.has_sig_;
-  type_ = c.type_;
-  return *this;
-}
+
 std::string Coin::getNullifier() const { return coin_->null.toUniqueString(); }
 bool Coin::hasSig() const { return has_sig_; }
 void Coin::setSig(const types::Signature& sig) {

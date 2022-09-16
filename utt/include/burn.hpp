@@ -45,8 +45,8 @@ class Burn {
   Burn();
   Burn(const Burn& other);
   Burn& operator=(const Burn& other);
-  Burn(Burn&& other);
-  Burn& operator=(Burn&& other);
+  Burn(Burn&& other) = default;
+  Burn& operator=(Burn&& other) = default;
   /**
    * @brief Get the Nullifier object, to be used by the bank
    *

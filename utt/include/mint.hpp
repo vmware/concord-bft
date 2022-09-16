@@ -49,8 +49,8 @@ class Mint {
   Mint();
   Mint(const Mint& other);
   Mint& operator=(const Mint& other);
-  Mint(Mint&& other);
-  Mint& operator=(Mint&& other);
+  Mint(Mint&& other) = default;
+  Mint& operator=(Mint&& other) = default;
   std::string getHash() const;
   uint64_t getVal() const;
   std::string getRecipentID() const;

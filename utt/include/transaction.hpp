@@ -60,9 +60,9 @@ class Transaction {
               const IEncryptor& encryptor);
   Transaction();
   Transaction(const Transaction&);
-  Transaction(Transaction&&);
+  Transaction(Transaction&&) = default;
   Transaction& operator=(const Transaction&);
-  Transaction& operator=(Transaction&&);
+  Transaction& operator=(Transaction&&) = default;
   /**
    * @brief Get the transaction's nullifiers
    *

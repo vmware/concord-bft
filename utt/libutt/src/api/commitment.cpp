@@ -56,12 +56,7 @@ Commitment::Commitment(const Commitment& comm) {
   comm_.reset(new libutt::Comm());
   *this = comm;
 }
-Commitment::Commitment(Commitment&& other) { comm_ = std::move(other.comm_); }
-Commitment& Commitment::operator=(Commitment&& other) {
-  if (this == &other) return *this;
-  comm_ = std::move(other.comm_);
-  return *this;
-}
+
 Commitment& Commitment::operator+=(const Commitment& comm) {
   (*comm_) += *(comm.comm_);
   return *this;

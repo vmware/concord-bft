@@ -73,11 +73,4 @@ UTTParams& UTTParams::operator=(const UTTParams& other) {
   *params = *(other.params);
   return *this;
 }
-
-UTTParams::UTTParams(UTTParams&& other) { *this = std::move(other); }
-UTTParams UTTParams::operator=(UTTParams&& other) {
-  if (this == &other) return *this;
-  params = std::move(other.params);
-  return *this;
-}
 }  // namespace libutt::api

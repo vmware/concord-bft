@@ -71,19 +71,11 @@ Transaction::Transaction(const Transaction& other) {
   tx_.reset(new libutt::Tx());
   *this = other;
 }
-Transaction::Transaction(Transaction&& other) { *this = std::move(other); }
 Transaction& Transaction::operator=(const Transaction& other) {
   if (this == &other) return *this;
   *tx_ = *(other.tx_);
   input_coins_ = other.input_coins_;
   budget_coin_ = other.budget_coin_;
-  return *this;
-}
-Transaction& Transaction::operator=(Transaction&& other) {
-  if (this == &other) return *this;
-  tx_ = std::move(other.tx_);
-  input_coins_ = std::move(other.input_coins_);
-  budget_coin_ = std::move(other.budget_coin_);
   return *this;
 }
 std::vector<std::string> Transaction::getNullifiers() const { return tx_->getNullifiers(); }

@@ -38,12 +38,6 @@ Burn::Burn(const Burn& other) {
   burn_.reset(new libutt::BurnOp());
   *this = other;
 }
-Burn::Burn(Burn&& other) { *this = std::move(other); }
-Burn& Burn::operator=(Burn&& other) {
-  if (this == &other) return *this;
-  burn_ = std::move(other.burn_);
-  return *this;
-}
 Burn& Burn::operator=(const Burn& other) {
   if (&other == this) return *this;
   *(burn_) = *(other.burn_);

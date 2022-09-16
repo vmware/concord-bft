@@ -30,12 +30,6 @@ Mint& Mint::operator=(const Mint& other) {
   *(op_) = *(other.op_);
   return *this;
 }
-Mint::Mint(Mint&& other) { *this = std::move(other); }
-Mint& Mint::operator=(Mint&& other) {
-  if (this == &other) return *this;
-  op_ = std::move(other.op_);
-  return *this;
-}
 std::string Mint::getHash() const { return op_->getHashHex(); }
 uint64_t Mint::getVal() const { return op_->getVal().as_ulong(); }
 std::string Mint::getRecipentID() const { return op_->getClientId(); }

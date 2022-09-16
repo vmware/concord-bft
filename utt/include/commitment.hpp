@@ -66,8 +66,8 @@ class Commitment {
   Commitment(const Commitment& comm);
   Commitment();
   Commitment& operator=(const Commitment&);
-  Commitment(Commitment&&);
-  Commitment& operator=(Commitment&&);
+  Commitment(Commitment&&) = default;
+  Commitment& operator=(Commitment&&) = default;
 
   /**
    * @brief A + operator for multiplexing two commitments. Given two commitments c1 and c2 and their signature s1, s2.
