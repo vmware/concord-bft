@@ -516,8 +516,12 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
         clientsManager->addPendingRequest(clientId, reqSeqNum, m->getCid());
 
         // Adding the message to a queue for future retransmission.
-        if (requestsOfNonPrimary.size() < NonPrimaryCombinedReqSize)
+        if (requestsOfNonPrimary.size() < NonPrimaryCombinedReqSize) {
+          if (requestsOfNonPrimary.count(m->requestSeqNum())) {
+            delete std::get<1>(requestsOfNonPrimary.at(m->requestSeqNum()));
+          }
           requestsOfNonPrimary[m->requestSeqNum()] = std::make_pair(getMonotonicTime(), m);
+        }
         send(m, currentPrimary());
         LOG_INFO(CNSUS, "Forwarding ClientRequestMsg to the current primary." << KVLOG(reqSeqNum, clientId));
         return;
@@ -4221,6 +4225,8 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
     if (s != ld.lastStableSeqNum) {  // We have already added all msgs for our last stable Checkpoint
       checkInfo.addCheckpointMsg(e.getCheckpointMsg(), config_.getreplicaId());
       ConcordAssert(checkInfo.selfCheckpointMsg()->equals(*e.getCheckpointMsg()));
+    } else {
+      delete e.getCheckpointMsg();
     }
 
     if (e.getCompletedMark()) checkInfo.tryToMarkCheckpointCertificateCompleted();

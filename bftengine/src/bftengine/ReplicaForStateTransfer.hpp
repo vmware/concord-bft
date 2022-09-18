@@ -31,6 +31,8 @@ class ReplicaForStateTransfer : public IReplicaForStateTransfer, public ReplicaB
                           bool firstTime,  // TODO [TK] get rid of this
                           concordUtil::Timers& timers);
 
+  virtual ~ReplicaForStateTransfer() = default;
+
   IStateTransfer* getStateTransfer() const { return stateTransfer.get(); }
 
   // IReplicaForStateTransfer
