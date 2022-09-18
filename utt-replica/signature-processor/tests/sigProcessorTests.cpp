@@ -284,7 +284,10 @@ class test_utt_instance : public ::testing::Test {
       std::shared_ptr<IReceiver> receiver = std::make_shared<TestReceiver>(ims);
       std::shared_ptr<MsgsCommunicator> msc = std::make_shared<MsgsCommunicator>(&comm, ims, receiver);
       message_comms[i] = msc;
-      msr->registerMsgHandler(MsgCode::ClientRequest, [&](bftEngine::impl::MessageBase* message) {
+      sig_processors[i] = std::make_shared<utt::SigProcessor>(
+          i, n, t, 1000, msc, msr, ((IncomingMsgsStorageImp*)(ims.get()))->timers());
+      auto sp = sig_processors[i];
+      msr->registerMsgHandler(MsgCode::ClientRequest, [&, sp](bftEngine::impl::MessageBase* message) {
         ClientRequestMsg* msg = (ClientRequestMsg*)message;
         uint64_t job_id{0};
         libutt::api::types::Signature fsig(msg->requestLength() - sizeof(uint64_t));
@@ -292,19 +295,20 @@ class test_utt_instance : public ::testing::Test {
         std::memcpy(fsig.data(), msg->requestBuf() + sizeof(uint64_t), fsig.size());
         {
           std::unique_lock lk(sigs_lock);
-          for (size_t j = 0; j < n; j++) full_signatures[j][job_id] = fsig;
+          for (size_t j = 0; j < n; j++) {
+            if (full_signatures[j].find(job_id) != full_signatures[j].end()) {
+              ASSERT_TRUE(fsig == full_signatures[j].at(job_id));
+            } else {
+              full_signatures[j][job_id] = fsig;
+            }
+          }
         }
+        sp->onReceivingNewValidFullSig(job_id);
         cv.notify_all();
         delete msg;
       });
-      sig_processors[i] = std::make_shared<utt::SigProcessor>(
-          i, n, t, 1000, msc, msr, ((IncomingMsgsStorageImp*)(ims.get()))->timers());
       msc->startCommunication(i);
       msc->startMsgsProcessing(i);
-    }
-    {
-      std::unique_lock lk{sigs_lock};
-      full_signatures.clear();
     }
   }
 
@@ -314,17 +318,13 @@ class test_utt_instance : public ::testing::Test {
       message_comms[i]->stopCommunication();
     }
   }
-  bool wait_cond(uint64_t sigId) {
-    if (full_signatures.empty()) return false;
-    for (const auto& [_, data] : full_signatures) {
-      (void)_;
-      if (data.find(sigId) == data.end()) return false;
-    }
-    return true;
+  bool wait_cond(uint64_t sigId, uint16_t source) {
+    if (full_signatures.find(source) == full_signatures.end()) return false;
+    return full_signatures.at(source).find(sigId) != full_signatures.at(source).end();
   }
   libutt::api::types::Signature waitAndGetFullSig(uint64_t sigId, uint16_t source) {
     std::unique_lock lk{sigs_lock};
-    cv.wait(lk, [&] { return wait_cond(sigId); });
+    cv.wait(lk, [&] { return wait_cond(sigId, source); });
     return full_signatures.at(source).at(sigId);
   }
   std::vector<Client> clients;
@@ -606,7 +606,7 @@ TEST_F(utt_complete_system, test_replica_crash) {
     }
     std::vector<types::Signature> sigs;
     for (uint64_t sid = init_jid; sid < jid; sid++) {
-      auto sig = waitAndGetFullSig(sid, 0);
+      auto sig = waitAndGetFullSig(sid, 1);
       sigs.push_back(sig);
     }
     auto issuer_coins = issuer.claimCoins(tx, d, sigs);

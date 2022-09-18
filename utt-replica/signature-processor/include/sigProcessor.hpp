@@ -11,16 +11,40 @@
 // terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
-#include "sigData.hpp"
 #include "MsgsCommunicator.hpp"
 #include "MsgHandlersRegistrator.hpp"
 #include "MsgsCommunicator.hpp"
 #include "Timers.hpp"
 #include "communication/ICommunication.hpp"
 #include <memory>
+#include <map>
+#include <unordered_map>
+#include <mutex>
+#include <functional>
+#include <list>
 
 namespace utt {
 class SigProcessor {
+  using validationCb = std::function<bool(uint16_t id, const std::vector<uint8_t>&)>;
+  class SigJobEntry {
+   public:
+    class guard {
+     public:
+      guard(SigJobEntry& e) : entry_{e} { e.entry_lock.lock(); }
+      ~guard() { entry_.entry_lock.unlock(); }
+
+     private:
+      SigJobEntry& entry_;
+    };
+    uint64_t job_id{0};
+    uint64_t job_timeout_ms{0};
+    std::map<uint32_t, std::vector<uint8_t>> partial_sigs;
+    validationCb vcb = nullptr;
+
+   private:
+    friend class guard;
+    std::mutex entry_lock;
+  };
   /**
    * @brief The sigProcessor responsibility is to compute the partial UTT signature, collecting and combining the full
    * signature.
@@ -91,6 +115,12 @@ class SigProcessor {
                         const std::vector<uint8_t>& sig,
                         const validationCb& vcb,
                         uint64_t job_timeout_ms = 1000);
+  /**
+   * @brief Handles the event of receiving a new valid full signature. The validation assumed to be done by the caller.
+   *
+   * @param sig_id the signature's job id
+   */
+  void onReceivingNewValidFullSig(uint64_t sig_id);
 
  private:
   /**
@@ -103,19 +133,16 @@ class SigProcessor {
   void onReceivingNewPartialSig(uint64_t sig_id, uint16_t sig_source, const std::vector<uint8_t>& partial_sig);
 
   /**
-   * @brief Handles the event of receiving a new valid full signature. The validation assumed to be done by the caller.
-   *
-   * @param sig_id the signature's job id
-   */
-  void onReceivingNewValidFullSig(uint64_t sig_id);
-
-  /**
    * @brief Handles the event of timeout for a specific job
    *
-   * @param entry the entry that represents the job
+   * @param job_id the job id
+   * @param sig the partial signature of the replica for job_id
    */
-  void onJobTimeout(const SigJobEntry& entry);
-
+  void onJobTimeout(uint64_t job_id, const std::vector<uint8_t>& sig);
+  static logging::Logger& getLogger() {
+    static logging::Logger logger_ = logging::getLogger("utt.signatureProcessor");
+    return logger_;
+  }
   std::shared_ptr<bftEngine::impl::MsgsCommunicator> msgs_communicator_;
   concordUtil::Timers& timers_;
   uint16_t repId_;
@@ -129,7 +156,9 @@ class SigProcessor {
     std::memcpy(ret.data() + sizeof(uint64_t), sig.data(), sig.size());
     return ret;
   };
-  SigJobEntriesMap jobs_;
   concordUtil::Timers::Handle timeout_handler_;
+  std::unordered_map<uint64_t, SigJobEntry> jobs_;
+  std::map<uint64_t, std::map<uint64_t, std::vector<uint8_t>>> timeouts_map_;
+  std::mutex jobs_lock_;
 };
 }  // namespace utt

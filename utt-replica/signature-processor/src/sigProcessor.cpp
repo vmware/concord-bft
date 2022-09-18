@@ -17,6 +17,7 @@
 #include "bftengine/ReplicaConfig.hpp"
 #include "bftengine/messages/MessageBase.hpp"
 #include "bftengine/messages/ClientRequestMsg.hpp"
+#include <algorithm>
 
 namespace utt {
 namespace messages {
@@ -86,32 +87,52 @@ SigProcessor::SigProcessor(uint16_t repId,
                                  concordUtil::Timers::Timer::RECURRING,
                                  [&](concordUtil::Timers::Handle h) {
                                    (void)h;
-                                   auto now = std::chrono::steady_clock::now().time_since_epoch().count();
-                                   const auto& entries = jobs_.getEntries();
-                                   for (const auto& [id, entry] : entries) {
-                                     (void)id;
-                                     if (entry.start_time == 0) continue;
-                                     if (now - entry.start_time >= entry.job_timeout_ms) {
-                                       onJobTimeout(entry);
-                                     }
+                                   uint64_t now =
+                                       (uint64_t)(std::chrono::steady_clock::now().time_since_epoch().count());
+                                   // In order not to rotate over all the jobs, we will rotate the ordered timeouts_job_
+                                   // map only up till "now"
+                                   std::unique_lock lck(jobs_lock_);
+                                   for (const auto& [timestamp, data] : timeouts_map_) {
+                                     if (timestamp > now) break;
+                                     for (const auto& [sid, sig] : data) onJobTimeout(sid, sig);
                                    }
                                  });
 }
 
+// Called from the signing thread
 void SigProcessor::processSignature(uint64_t sig_id,
                                     const std::vector<uint8_t>& sig,
                                     const validationCb& vcb,
                                     uint64_t job_timeout_ms) {
-  jobs_.registerEntry(sig_id, vcb, job_timeout_ms);
-  const auto& jobEntry = jobs_.get(sig_id);
-  auto& validator = jobs_.getJobValidator(sig_id);
-  std::vector<uint16_t> invalids;
-  for (auto& [id, psig] : jobEntry.partial_sigs) {
-    if (!validator(id, psig)) invalids.push_back((uint16_t)id);
+  uint64_t job_timeout = std::chrono::steady_clock::now().time_since_epoch().count() + job_timeout_ms;
+  SigJobEntry* entry{nullptr};
+  {
+    std::unique_lock lck(jobs_lock_);
+    timeouts_map_[job_timeout][sig_id] = sig;
+    entry = &(jobs_[sig_id]);
   }
-  for (auto id : invalids) jobs_.removePartialSig(sig_id, (uint32_t)id);
-
-  jobs_.addPartialSig(sig_id, (uint32_t)repId_, sig);
+  // Acquire the entry lock to prevent rc between this thread (signing thread) and the message processor thread
+  {
+    SigJobEntry::guard guard{*entry};
+    // remove all already collected invalid partial signatures
+    for (auto iter = entry->partial_sigs.begin(); iter != entry->partial_sigs.end();) {
+      if (!vcb(iter->first, iter->second)) {
+        iter = entry->partial_sigs.erase(iter);
+      } else {
+        ++iter;
+      }
+    }
+    entry->job_id = sig_id;
+    entry->job_timeout_ms = job_timeout;
+    entry->vcb = vcb;
+#ifdef DEBUG
+    if (entry->partial_sigs.find((uint32_t)repId_) != entry->partial_sigs.end()) {
+      throw std::runtime_error{"replica has already added this signature"};
+    }
+#endif
+  }
+  onReceivingNewPartialSig(sig_id, repId_, sig);
+  // Now, send the new partial signature to the signature coordinator
   auto job_coordinator = get_job_coordinator_cb(sig_id);
   if (job_coordinator == repId_) return;
   messages::PartialSigMsg msg(repId_, sig, sig_id);
@@ -119,38 +140,69 @@ void SigProcessor::processSignature(uint64_t sig_id,
 }
 
 SigProcessor::~SigProcessor() { timers_.cancel(timeout_handler_); }
+
+// Can be called by either the signing thread or the message processor thread.
 void SigProcessor::onReceivingNewPartialSig(uint64_t sig_id,
                                             uint16_t sig_source,
                                             const std::vector<uint8_t>& partial_sig) {
-  if (jobs_.hasPartialSig(sig_id, sig_source)) return;
-  if (jobs_.getNumOfPartialSigs(sig_id) == threshold_) return;
-  if (jobs_.isRegistered(sig_id)) {
-    auto& validator = jobs_.getJobValidator(sig_id);
-    if (!validator(sig_source, partial_sig)) return;
+  SigJobEntry* entry{nullptr};
+  {
+    std::unique_lock lck(jobs_lock_);
+    entry = &jobs_[sig_id];
   }
-  jobs_.addPartialSig(sig_id, (uint32_t)sig_source, partial_sig);
-  const SigJobEntry& entry = jobs_.get(sig_id);
-  if (entry.partial_sigs.size() == threshold_) {
-    auto sig = libutt::api::Utils::aggregateSigShares(n_, entry.partial_sigs);
-    auto requestSeqNum =
-        std::chrono::duration_cast<std::chrono::microseconds>(getMonotonicTime().time_since_epoch()).count();
-    std::vector<uint8_t> appClientReq = generate_app_client_request_cb_(sig_id, sig);
-    auto crm = new bftEngine::impl::ClientRequestMsg(repId_,
-                                                     0x0,
-                                                     requestSeqNum,
-                                                     (uint32_t)appClientReq.size(),
-                                                     (const char*)appClientReq.data(),
-                                                     60000,
-                                                     "new-utt-sig-" + std::to_string(sig_id));
-    msgs_communicator_->getIncomingMsgsStorage()->pushExternalMsg(std::unique_ptr<MessageBase>(crm));
+  {
+    SigJobEntry::guard guard{*entry};
+    if (entry->partial_sigs.find(sig_source) != entry->partial_sigs.end()) return;
+    if (entry->partial_sigs.size() == threshold_) return;
+    if (sig_source != repId_ && entry->vcb != nullptr) {
+      if (!entry->vcb(sig_source, partial_sig)) {
+        if (sig_source == repId_) LOG_WARN(getLogger(), "got invalid signature " << KVLOG(sig_source, sig_id));
+        return;
+      }
+    }
+    entry->partial_sigs[sig_source] = partial_sig;
+    // We don't care doing this part under the entry lock, because if we did reach the threshold, we won't use this
+    // entry anymore
+    if (entry->partial_sigs.size() == threshold_) {
+      auto sig = libutt::api::Utils::aggregateSigShares(n_, entry->partial_sigs);
+      auto requestSeqNum =
+          std::chrono::duration_cast<std::chrono::microseconds>(getMonotonicTime().time_since_epoch()).count();
+      std::vector<uint8_t> appClientReq = generate_app_client_request_cb_(sig_id, sig);
+      auto crm = new bftEngine::impl::ClientRequestMsg(repId_,
+                                                       0x0,
+                                                       requestSeqNum,
+                                                       (uint32_t)appClientReq.size(),
+                                                       (const char*)appClientReq.data(),
+                                                       60000,
+                                                       "new-utt-sig-" + std::to_string(sig_id));
+      msgs_communicator_->getIncomingMsgsStorage()->pushExternalMsg(std::unique_ptr<MessageBase>(crm));
+    }
   }
 }
-void SigProcessor::onReceivingNewValidFullSig(uint64_t sig_id) { jobs_.erase(sig_id); }
-void SigProcessor::onJobTimeout(const SigJobEntry& entry) {
-  if (entry.partial_sigs.find(repId_) == entry.partial_sigs.end()) return;
+// Called by the validating thread
+void SigProcessor::onReceivingNewValidFullSig(uint64_t sig_id) {
+  // Erase the relevant data from the in-memory data structures
+  {
+    std::unique_lock lck(jobs_lock_);
+    auto& entry = jobs_[sig_id];
+    uint64_t job_timeout{0};
+    uint64_t sig_id{0};
+    {
+      SigJobEntry::guard guard{entry};
+      job_timeout = entry.job_timeout_ms;
+      sig_id = entry.job_id;
+    }
+    timeouts_map_[job_timeout].erase(sig_id);
+    if (timeouts_map_[job_timeout].size() == 0) timeouts_map_.erase(job_timeout);
+    jobs_.erase(sig_id);
+  }
+}
+
+// Called by the timer handler (which is the message processor thread)
+void SigProcessor::onJobTimeout(uint64_t job_id, const std::vector<uint8_t>& sig) {
   for (uint16_t rid = 0; rid < n_; rid++) {
     if (rid == repId_) continue;
-    messages::PartialSigMsg* msg = new messages::PartialSigMsg(repId_, entry.partial_sigs.at(repId_), entry.job_id);
+    messages::PartialSigMsg* msg = new messages::PartialSigMsg(repId_, sig, job_id);
     msgs_communicator_->sendAsyncMessage((uint64_t)rid, msg->body(), msg->size());
   }
 }
