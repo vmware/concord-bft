@@ -39,8 +39,8 @@ class SimpleMemoryPool {
  public:
   using ElementPtr = std::shared_ptr<T>;
   SimpleMemoryPool(size_t maxNumElements,
-                   std::function<void(ElementPtr&)> allocCallback = nullptr,
-                   std::function<void(ElementPtr&)> freeCallback = nullptr,
+                   std::function<void(const ElementPtr&)> allocCallback = nullptr,
+                   std::function<void(const ElementPtr&)> freeCallback = nullptr,
                    std::function<void()> ctorCallback = nullptr)
       : maxNumElements_(maxNumElements), allocCallback_{allocCallback}, freeCallback_(freeCallback) {
     if (maxNumElements == 0) throw std::invalid_argument("maxNumElements cannnot be 0!");
@@ -71,7 +71,7 @@ class SimpleMemoryPool {
   }
 
   // Comment: elements can be free in any order
-  void free(ElementPtr& element) {
+  void free(const ElementPtr& element) {
     if (freeQ_.size() == maxNumElements_) {
       throw std::runtime_error("All elements have been already returned!");
     }
@@ -91,7 +91,7 @@ class SimpleMemoryPool {
   const size_t maxNumElements_;
   std::deque<ElementPtr> freeQ_;
   std::deque<ElementPtr> allocatedQ_;
-  std::function<void(ElementPtr&)> allocCallback_;
-  std::function<void(ElementPtr&)> freeCallback_;
+  std::function<void(const ElementPtr&)> allocCallback_;
+  std::function<void(const ElementPtr&)> freeCallback_;
 };  // SimpleMemoryPool
 }  // namespace concord::util
