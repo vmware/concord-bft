@@ -43,7 +43,7 @@ class BurnOp {
          std::optional<RandSigPK> bpk,
          const RegAuthPK& rpk);
   BurnOp(std::istream& in);
-
+  BurnOp() {}
   BurnOp(const BurnOp& o);
 
   virtual ~BurnOp();

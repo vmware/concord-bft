@@ -5,6 +5,7 @@ set(newutt_test_sources
     TestBudget.cpp
     TestTransaction.cpp
     TestTransactionWithRsaEncryption.cpp
+    TestSerialization.cpp
 )
 
 foreach(appSrc ${newutt_test_sources})

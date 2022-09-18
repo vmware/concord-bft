@@ -5,6 +5,20 @@
 #include <utt/NtlLib.h>
 #include <utt/Params.h>
 
+std::ostream& operator<<(std::ostream& out, const libutt::api::UTTParams& params) {
+  out << params.getParams();
+  return out;
+}
+std::istream& operator>>(std::istream& in, libutt::api::UTTParams& params) {
+  params.params.reset(new libutt::Params());
+  in >> *(params.params);
+  return in;
+}
+bool operator==(const libutt::api::UTTParams& params1, const libutt::api::UTTParams& params2) {
+  if (!params1.params && !params2.params) return true;
+  if (!params1.params || !params2.params) return false;
+  return *(params1.params) == *(params2.params);
+}
 namespace libutt::api {
 using Fr = typename libff::default_ec_pp::Fp_type;
 struct GpInitData {
@@ -52,11 +66,9 @@ UTTParams UTTParams::create(void* initData) {
 }
 const libutt::Params& UTTParams::getParams() const { return *params; }
 
-UTTParams::UTTParams(const UTTParams& other) {
-  params.reset(new libutt::Params());
-  *params = *(other.params);
-}
+UTTParams::UTTParams(const UTTParams& other) { *this = other; }
 UTTParams& UTTParams::operator=(const UTTParams& other) {
+  if (this == &other) return *this;
   params.reset(new libutt::Params());
   *params = *(other.params);
   return *this;

@@ -3,6 +3,22 @@
 #include <utt/Params.h>
 #include <utt/Serialization.h>
 #include <utt/RandSig.h>
+#include <ostream>
+
+std::ostream& operator<<(std::ostream& out, const libutt::api::Coin& coin) {
+  out << coin.has_sig_ << std::endl;
+  out << *(coin.coin_) << std::endl;
+  return out;
+}
+std::istream& operator>>(std::istream& in, libutt::api::Coin& coin) {
+  coin.coin_.reset(new libutt::Coin());
+  in >> coin.has_sig_;
+  libff::consume_OUTPUT_NEWLINE(in);
+  in >> *(coin.coin_);
+  libff::consume_OUTPUT_NEWLINE(in);
+  coin.type_ = coin.coin_->isNormal() ? libutt::api::Coin::Type::Normal : libutt::api::Coin::Type::Budget;
+  return in;
+}
 
 namespace libutt::api {
 Coin::Coin(const UTTParams& d,
@@ -49,9 +65,7 @@ Coin::Coin(const UTTParams& d,
 }
 Coin::Coin(const Coin& c) {
   coin_.reset(new libutt::Coin());
-  *(coin_) = *(c.coin_);
-  has_sig_ = c.has_sig_;
-  type_ = c.type_;
+  *this = c;
 }
 Coin& Coin::operator=(const Coin& c) {
   *(coin_) = *(c.coin_);
@@ -60,6 +74,7 @@ Coin& Coin::operator=(const Coin& c) {
   return *this;
 }
 Coin::Coin() { coin_.reset(new libutt::Coin()); }
+
 std::string Coin::getNullifier() const { return coin_->null.toUniqueString(); }
 bool Coin::hasSig() const { return has_sig_; }
 void Coin::setSig(const types::Signature& sig) {

@@ -18,6 +18,12 @@
 #include "types.hpp"
 #include <string>
 namespace libutt::api::operations {
+class Budget;
+}
+
+std::ostream& operator<<(std::ostream& out, const libutt::api::operations::Budget& budget);
+std::istream& operator>>(std::istream& in, libutt::api::operations::Budget& budget);
+namespace libutt::api::operations {
 /**
  * @brief
  * The Budget is used for creating an initial budget coin. This can ber viewed as a mint operation for budget coin.
@@ -43,6 +49,7 @@ class Budget {
    * @param exp_date Expiration date, the format is to be determined by an upper level
    */
   Budget(const UTTParams& p, const types::CurvePoint& pidHash, uint64_t val, uint64_t exp_date);
+  Budget() {}
 
   /**
    * @brief Get the Coin object
@@ -61,6 +68,8 @@ class Budget {
   std::string getHashHex() const;
 
  private:
+  friend std::ostream& ::operator<<(std::ostream& out, const libutt::api::operations::Budget& budget);
+  friend std::istream& ::operator>>(std::istream& in, libutt::api::operations::Budget& budget);
   libutt::api::Coin coin_;
 };
 }  // namespace libutt::api::operations

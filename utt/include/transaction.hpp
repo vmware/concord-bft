@@ -20,6 +20,14 @@
 #include <memory>
 #include <optional>
 #include <vector>
+
+namespace libutt::api::operations {
+class Transaction;
+}
+
+std::ostream& operator<<(std::ostream& out, const libutt::api::operations::Transaction& tx);
+std::istream& operator>>(std::istream& in, libutt::api::operations::Transaction& tx);
+
 namespace libutt {
 class Tx;
 class IEncryptor;
@@ -50,6 +58,11 @@ class Transaction {
               const std::optional<Coin>& budget_coin,
               const std::vector<std::tuple<std::string, uint64_t>>& recipients,
               const IEncryptor& encryptor);
+  Transaction();
+  Transaction(const Transaction&);
+  Transaction(Transaction&&) = default;
+  Transaction& operator=(const Transaction&);
+  Transaction& operator=(Transaction&&) = default;
   /**
    * @brief Get the transaction's nullifiers
    *
@@ -74,6 +87,8 @@ class Transaction {
  private:
   friend class libutt::api::CoinsSigner;
   friend class libutt::api::Client;
+  friend std::ostream& ::operator<<(std::ostream& out, const libutt::api::operations::Transaction& tx);
+  friend std::istream& ::operator>>(std::istream& in, libutt::api::operations::Transaction& tx);
   std::shared_ptr<libutt::Tx> tx_;
   std::vector<Coin> input_coins_;
   std::optional<Coin> budget_coin_;

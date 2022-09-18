@@ -6,6 +6,20 @@
 #include <utt/Coin.h>
 #include <utt/Address.h>
 #include <utt/DataUtils.hpp>
+
+std::ostream& operator<<(std::ostream& out, const libutt::api::operations::Transaction& tx) {
+  out << *(tx.tx_) << std::endl;
+  libutt::serializeVector(out, tx.input_coins_);
+  out << tx.budget_coin_;
+  return out;
+}
+std::istream& operator>>(std::istream& in, libutt::api::operations::Transaction& tx) {
+  in >> *(tx.tx_);
+  libff::consume_OUTPUT_NEWLINE(in);
+  libutt::deserializeVector(in, tx.input_coins_);
+  in >> tx.budget_coin_;
+  return in;
+}
 namespace libutt::api::operations {
 Transaction::Transaction(const UTTParams& d,
                          const Client& cid,
@@ -51,6 +65,18 @@ Transaction::Transaction(const UTTParams& d,
                            std::nullopt,
                            rpk.vk,
                            encryptor));
+}
+Transaction::Transaction() { tx_.reset(new libutt::Tx()); }
+Transaction::Transaction(const Transaction& other) {
+  tx_.reset(new libutt::Tx());
+  *this = other;
+}
+Transaction& Transaction::operator=(const Transaction& other) {
+  if (this == &other) return *this;
+  *tx_ = *(other.tx_);
+  input_coins_ = other.input_coins_;
+  budget_coin_ = other.budget_coin_;
+  return *this;
 }
 std::vector<std::string> Transaction::getNullifiers() const { return tx_->getNullifiers(); }
 const std::vector<Coin>& Transaction::getInputCoins() const { return input_coins_; }
