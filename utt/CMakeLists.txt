@@ -198,7 +198,6 @@ target_link_libraries(utt_api PUBLIC utt)
 target_include_directories(utt_api PUBLIC include)
 
 add_subdirectory(utt-client-api)
-add_subdirectory(utt-server-api)
 
 add_subdirectory(tests)
 
