@@ -25,7 +25,20 @@
 
 namespace utt {
 class SigProcessor {
+ public:
   using validationCb = std::function<bool(uint16_t id, const std::vector<uint8_t>&)>;
+  /**
+   * @brief GenerateAppClientRequestCb is a callback for generating the content of ClientRequestMsg that will be
+   * published by the replica who managed to collect the full signature. The output might be a platform specific (for
+   * example, a composed ethereum request) and has to contain the full signature and its id. The default implementation
+   * is simply the [sig_id, signature] serialized as a vector of bytes
+   *
+   */
+  using GenerateAppClientRequestCb = std::function<std::vector<uint8_t>(uint64_t, const std::vector<uint8_t>&)>;
+
+  static const GenerateAppClientRequestCb default_client_app_request_generator;
+
+ private:
   class SigJobEntry {
    public:
     class guard {
@@ -40,6 +53,7 @@ class SigProcessor {
     uint64_t job_timeout_ms{0};
     std::map<uint32_t, std::vector<uint8_t>> partial_sigs;
     validationCb vcb = nullptr;
+    GenerateAppClientRequestCb client_app_data_generator_cb_ = nullptr;
 
    private:
     friend class guard;
@@ -56,15 +70,6 @@ class SigProcessor {
    * is that it has to be deterministic among all replicas The default implementation is simply job_id % n
    */
   using JobCoordinatorCb = std::function<uint16_t(uint64_t)>;
-
-  /**
-   * @brief GenerateAppClientRequestCb is a callback for generating the content of ClientRequestMsg that will be
-   * published by the replica who managed to collect the full signature. The output might be a platform specific (for
-   * example, a composed ethereum request) and has to contain the full signature and its id. The default implementation
-   * is simply the [sig_id, signature] serialized as a vector of bytes
-   *
-   */
-  using GenerateAppClientRequestCb = std::function<std::vector<uint8_t>(uint64_t, const std::vector<uint8_t>&)>;
 
   /**
    * @brief Construct a new Sig Processor object
@@ -91,14 +96,6 @@ class SigProcessor {
    */
   void setCoordinatorCb(const JobCoordinatorCb& coordinator_cb) { get_job_coordinator_cb = coordinator_cb; }
 
-  /**
-   * @brief Set the GenerateAppClientRequestCb callback
-   *
-   * @param gen_client_req_cb
-   */
-  void setGenerateClientRequestCb(const GenerateAppClientRequestCb& gen_client_req_cb) {
-    generate_app_client_request_cb_ = gen_client_req_cb;
-  }
   ~SigProcessor();
 
   /**
@@ -110,11 +107,15 @@ class SigProcessor {
    * @param vcb a callback for validating other partial signatures for this job
    * @param job_timeout a timeout for this job(s). If the timeout passes, the replica will broadcast the partial
    * signature to all. The default is 1000 ms
+   * @param client_app_generator_cb_ a callback that defines how the upper level produce a message from the complete
+   * signature and the sig_id
    */
-  void processSignature(uint64_t sig_id,
-                        const std::vector<uint8_t>& sig,
-                        const validationCb& vcb,
-                        uint64_t job_timeout_ms = 1000);
+  void processSignature(
+      uint64_t sig_id,
+      const std::vector<uint8_t>& sig,
+      const validationCb& vcb,
+      uint64_t job_timeout_ms = 1000,
+      const GenerateAppClientRequestCb& client_app_generator_cb_ = default_client_app_request_generator);
   /**
    * @brief Handles the event of receiving a new valid full signature. The validation assumed to be done by the caller.
    *
@@ -133,6 +134,16 @@ class SigProcessor {
   void onReceivingNewPartialSig(uint64_t sig_id, uint16_t sig_source, const std::vector<uint8_t>& partial_sig);
 
   /**
+   * @brief Publishing the complete signature to the consensus
+   *
+   * @param sig_id the signature id
+   * @param complete_signature the complete aggregated signature
+   * @param cb a callback that defines how the upper level generates the application request to the consensus
+   */
+  void publishCompleteSignature(uint64_t sig_id,
+                                const std::vector<uint8_t>& complete_signature,
+                                const GenerateAppClientRequestCb& cb);
+  /**
    * @brief Handles the event of timeout for a specific job
    *
    * @param job_id the job id
@@ -150,12 +161,6 @@ class SigProcessor {
   uint16_t threshold_;
   uint64_t timer_handler_timeout_;
   JobCoordinatorCb get_job_coordinator_cb = [&](uint64_t sigId) { return sigId % n_; };
-  GenerateAppClientRequestCb generate_app_client_request_cb_ = [](uint64_t sig_id, const std::vector<uint8_t>& sig) {
-    std::vector<uint8_t> ret(sizeof(uint64_t) + sig.size(), 0);
-    std::memcpy(ret.data(), &sig_id, sizeof(uint64_t));
-    std::memcpy(ret.data() + sizeof(uint64_t), sig.data(), sig.size());
-    return ret;
-  };
   concordUtil::Timers::Handle timeout_handler_;
   std::unordered_map<uint64_t, SigJobEntry> jobs_;
   std::map<uint64_t, std::map<uint64_t, std::vector<uint8_t>>> timeouts_map_;

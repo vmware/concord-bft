@@ -65,6 +65,13 @@ class PartialSigMsg : public bftEngine::impl::MessageBase {
   Header* b() const { return (Header*)msgBody_; }
 };
 }  // namespace messages
+const SigProcessor::GenerateAppClientRequestCb SigProcessor::default_client_app_request_generator =
+    [](uint64_t sig_id, const std::vector<uint8_t>& sig) {
+      std::vector<uint8_t> ret(sizeof(uint64_t) + sig.size(), 0);
+      std::memcpy(ret.data(), &sig_id, sizeof(uint64_t));
+      std::memcpy(ret.data() + sizeof(uint64_t), sig.data(), sig.size());
+      return ret;
+    };
 SigProcessor::SigProcessor(uint16_t repId,
                            uint16_t n,
                            uint16_t threshold,
@@ -103,7 +110,8 @@ SigProcessor::SigProcessor(uint16_t repId,
 void SigProcessor::processSignature(uint64_t sig_id,
                                     const std::vector<uint8_t>& sig,
                                     const validationCb& vcb,
-                                    uint64_t job_timeout_ms) {
+                                    uint64_t job_timeout_ms,
+                                    const GenerateAppClientRequestCb& client_app_generator_cb_) {
   uint64_t job_timeout = std::chrono::steady_clock::now().time_since_epoch().count() + job_timeout_ms;
   SigJobEntry* entry{nullptr};
   {
@@ -125,11 +133,18 @@ void SigProcessor::processSignature(uint64_t sig_id,
     entry->job_id = sig_id;
     entry->job_timeout_ms = job_timeout;
     entry->vcb = vcb;
+    entry->client_app_data_generator_cb_ = client_app_generator_cb_;
 #ifdef DEBUG
     if (entry->partial_sigs.find((uint32_t)repId_) != entry->partial_sigs.end()) {
       throw std::runtime_error{"replica has already added this signature"};
     }
 #endif
+    // if we already have enough valid partial signatures, lets publish the complete signature and return
+    if (entry->partial_sigs.size() == threshold_) {
+      auto complete_sig = libutt::api::Utils::aggregateSigShares(n_, entry->partial_sigs);
+      publishCompleteSignature(sig_id, complete_sig, entry->client_app_data_generator_cb_);
+      return;
+    }
   }
   onReceivingNewPartialSig(sig_id, repId_, sig);
   // Now, send the new partial signature to the signature coordinator
@@ -141,7 +156,7 @@ void SigProcessor::processSignature(uint64_t sig_id,
 
 SigProcessor::~SigProcessor() { timers_.cancel(timeout_handler_); }
 
-// Can be called by either the signing thread or the message processor thread.
+// Called either, the message processor thread or the sining thread
 void SigProcessor::onReceivingNewPartialSig(uint64_t sig_id,
                                             uint16_t sig_source,
                                             const std::vector<uint8_t>& partial_sig) {
@@ -163,21 +178,26 @@ void SigProcessor::onReceivingNewPartialSig(uint64_t sig_id,
     entry->partial_sigs[sig_source] = partial_sig;
     // We don't care doing this part under the entry lock, because if we did reach the threshold, we won't use this
     // entry anymore
-    if (entry->partial_sigs.size() == threshold_) {
+    if (entry->client_app_data_generator_cb_ != nullptr && entry->partial_sigs.size() == threshold_) {
       auto sig = libutt::api::Utils::aggregateSigShares(n_, entry->partial_sigs);
-      auto requestSeqNum =
-          std::chrono::duration_cast<std::chrono::microseconds>(getMonotonicTime().time_since_epoch()).count();
-      std::vector<uint8_t> appClientReq = generate_app_client_request_cb_(sig_id, sig);
-      auto crm = new bftEngine::impl::ClientRequestMsg(repId_,
-                                                       0x0,
-                                                       requestSeqNum,
-                                                       (uint32_t)appClientReq.size(),
-                                                       (const char*)appClientReq.data(),
-                                                       60000,
-                                                       "new-utt-sig-" + std::to_string(sig_id));
-      msgs_communicator_->getIncomingMsgsStorage()->pushExternalMsg(std::unique_ptr<MessageBase>(crm));
+      publishCompleteSignature(sig_id, sig, entry->client_app_data_generator_cb_);
     }
   }
+}
+void SigProcessor::publishCompleteSignature(uint64_t sig_id,
+                                            const std::vector<uint8_t>& sig,
+                                            const GenerateAppClientRequestCb& cb) {
+  auto requestSeqNum =
+      std::chrono::duration_cast<std::chrono::microseconds>(getMonotonicTime().time_since_epoch()).count();
+  std::vector<uint8_t> appClientReq = cb(sig_id, sig);
+  auto crm = new bftEngine::impl::ClientRequestMsg(repId_,
+                                                   0x0,
+                                                   requestSeqNum,
+                                                   (uint32_t)appClientReq.size(),
+                                                   (const char*)appClientReq.data(),
+                                                   60000,
+                                                   "new-utt-sig-" + std::to_string(sig_id));
+  msgs_communicator_->getIncomingMsgsStorage()->pushExternalMsg(std::unique_ptr<MessageBase>(crm));
 }
 // Called by the validating thread
 void SigProcessor::onReceivingNewValidFullSig(uint64_t sig_id) {
