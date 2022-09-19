@@ -76,9 +76,9 @@ class User {
   uint64_t getBalance() const;
 
   /**
-   * @brief Get the value of the currently avialable budget coin
+   * @brief Get the value of the currently available budget coin
    */
-  uint64_t getBudget() const;
+  uint64_t getPrivacyBudget() const;
 
   /**
    * @brief Get the user's id

@@ -25,16 +25,25 @@ namespace utt::client {
 
 // [TODO-UTT] All types are tentative
 
-// Provides the means to store the user's wallet data *te
+// Provides the means to store the user's wallet data
 struct IWalletStorage {};
 
 // Provides the means to generate a public/private key pair when creating a user
 struct IPKInfrastructure {};
 
-// [TODO-UTT] We need to also define the corruption thresholds for each multi-party entity
-Configuration generateConfiguration(const std::vector<std::string>& committerPublicKeys,
-                                    const std::vector<std::string>& registrationPublicKeys,
-                                    bool useBudget);
+struct ConfigInputParams {
+  bool useBudget = true;  // Disable/enable usage of a budget token
+  std::vector<std::string> multipartyPublicKeys;
+  uint16_t t = 0;  // Corruption threshold
+};
+
+/// @brief Initialize the UTT Client API. Must be called before any other API function.
+void Initialize();
+
+/// @brief Generates a UTT Instance Configuration given the input parameters
+/// @param inputParams
+/// @return unique UTT instance configuration
+Configuration generateConfig(const ConfigInputParams& inputParams);
 
 // Creates and initialize a new user
 User createUser(const std::string& userId,

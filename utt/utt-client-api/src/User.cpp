@@ -45,8 +45,8 @@ uint64_t User::getBalance() const {
   return 0;
 }
 
-uint64_t User::getBudget() const {
-  // [TODO-UTT] Implement User::getBudget
+uint64_t User::getPrivacyBudget() const {
+  // [TODO-UTT] Implement User::getPrivacyBudget
   return 0;
 }
 
