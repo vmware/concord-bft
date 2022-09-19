@@ -240,9 +240,9 @@ void RequestsBatch::cancelRequestAndBatchIfCompleted(const string &reqBatchCid,
 }
 
 // On a primary replica
-void RequestsBatch::finalizeBatchIfCompletedSafe() {
+void RequestsBatch::finalizeBatchIfCompletedSafe(const std::string &batchCid) {
   const lock_guard<mutex> lock(batchMutex_);
-  finalizeBatchIfCompleted();
+  if (!batchCid_.empty() && (batchCid == batchCid_)) finalizeBatchIfCompleted();
 }
 
 // On a primary replica; unsafe
@@ -1387,7 +1387,7 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffset
     }
     LOG_INFO(logger(),
              "Pre-processing completed for" << KVLOG(batchCid, reqSeqNum, reqCid, clientId, reqOffsetInBatch));
-    if (!batchCid.empty()) batchEntry->finalizeBatchIfCompletedSafe();
+    batchEntry->finalizeBatchIfCompletedSafe(batchCid);
   }
 }
 

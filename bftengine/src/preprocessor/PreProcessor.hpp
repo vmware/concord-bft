@@ -88,7 +88,7 @@ class RequestsBatch {
                                         uint16_t reqOffsetInBatch,
                                         PreProcessingResult status);
   void releaseReqsAndSendBatchedReplyIfCompleted(PreProcessReplyMsgSharedPtr replyMsg);
-  void finalizeBatchIfCompletedSafe();
+  void finalizeBatchIfCompletedSafe(const std::string &batchCid);
   void handlePossiblyExpiredRequests();
   void sendCancelBatchedPreProcessingMsgToNonPrimaries(const ClientMsgsList &clientMsgs, NodeIdType destId);
   uint64_t getBlockId() const;
