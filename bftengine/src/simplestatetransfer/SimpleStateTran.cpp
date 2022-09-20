@@ -531,8 +531,6 @@ void SimpleStateTran::startCollectingState() {
 
 bool SimpleStateTran::isCollectingState() const {
   ConcordAssert(isInitialized());
-  ConcordAssert(internalST_->isRunning());
-
   return internalST_->isCollectingState();
 }
 
