@@ -24,14 +24,14 @@ namespace utt {
 
 struct Configuration {
   bool useBudget = true;
-  std::vector<std::vector<uint8_t>> encryptedCommitSecrets;
-  std::vector<std::vector<uint8_t>> encryptedRegistrationSecrets;
-  std::vector<std::vector<uint8_t>>
+  std::vector<std::string> encryptedCommitSecrets;
+  std::vector<std::string> encryptedRegistrationSecrets;
+  std::vector<std::string>
       committerVerificationKeyShares;  // [TODO-UTT] Check: I think we need this for partial sig verification
-  std::vector<std::vector<uint8_t>>
+  std::vector<std::string>
       registrationVerificationKeyShares;  // [TODO-UTT] Check: I think we need this for partial sig verification
-  std::vector<uint8_t> commitVerificationKey;
-  std::vector<uint8_t> registrationVerificationKey;
+  std::string commitVerificationKey;
+  std::string registrationVerificationKey;
   std::vector<uint8_t> publicParams;
 };
 

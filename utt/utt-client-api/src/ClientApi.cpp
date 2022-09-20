@@ -17,6 +17,7 @@
 #include <utt/Params.h>
 #include <utt/RandSigDKG.h>
 #include <utt/RegAuth.h>
+#include <utt/Serialization.h>
 
 // libutt new api
 #include <UTTParams.hpp>
@@ -47,14 +48,15 @@ Configuration generateConfig(const ConfigInputParams& inputParams) {
   if (inputParams.multipartyPublicKeys.empty())
     throw std::runtime_error("Generating UTT Instance Config with empty multiparty entries!");
 
-  if (inputParams.t == 0) throw std::runtime_error("Generating UTT Instance Config with zero corruption threshold!");
+  if (inputParams.corruptionThreshold == 0)
+    throw std::runtime_error("Generating UTT Instance Config with zero corruption threshold!");
 
-  if (inputParams.t >= inputParams.multipartyPublicKeys.size())
+  if (inputParams.corruptionThreshold >= inputParams.multipartyPublicKeys.size())
     throw std::runtime_error(
         "Generating UTT Instance Config with threshold not less than the number of multiparty entities!");
 
   const size_t n = inputParams.multipartyPublicKeys.size();
-  const size_t t = inputParams.t;
+  const size_t t = inputParams.corruptionThreshold;
 
   // Generate public parameters and committer (bank) authority secret keys
   auto dkg = libutt::RandSigDKG(t, n, libutt::Params::NumMessages);
@@ -72,25 +74,25 @@ Configuration generateConfig(const ConfigInputParams& inputParams) {
   Configuration config;
   config.useBudget = inputParams.useBudget;
   config.publicParams = libutt::api::serialize<libutt::api::UTTParams>(publicParams);
-  config.commitVerificationKey = libutt::api::serialize<libutt::RandSigPK>(dkg.sk.toPK());
-  config.registrationVerificationKey = libutt::api::serialize<libutt::RegAuthPK>(rsk.toPK());
+  config.commitVerificationKey = libutt::serialize<libutt::RandSigPK>(dkg.sk.toPK());
+  config.registrationVerificationKey = libutt::serialize<libutt::RegAuthPK>(rsk.toPK());
 
   // Add public verification keys
-  config.commitVerificationKey = libutt::api::serialize<libutt::RandSigPK>(dkg.sk.toPK());
-  config.registrationVerificationKey = libutt::api::serialize<libutt::RegAuthPK>(rsk.toPK());
+  config.commitVerificationKey = libutt::serialize<libutt::RandSigPK>(dkg.sk.toPK());
+  config.registrationVerificationKey = libutt::serialize<libutt::RegAuthPK>(rsk.toPK());
 
   // Add keys per multiparty entity
   for (size_t i = 0; i < inputParams.multipartyPublicKeys.size(); ++i) {
     // Add encrypted secret key shares
     // [TODO-UTT] Encrypt each secret share with the entities's public key
-    config.encryptedCommitSecrets.emplace_back(libutt::api::serialize<libutt::RandSigShareSK>(dkg.skShares[i]));
-    config.encryptedRegistrationSecrets.emplace_back(libutt::api::serialize<libutt::RegAuthShareSK>(rsk.shares[i]));
+    config.encryptedCommitSecrets.emplace_back(libutt::serialize<libutt::RandSigShareSK>(dkg.skShares[i]));
+    config.encryptedRegistrationSecrets.emplace_back(libutt::serialize<libutt::RegAuthShareSK>(rsk.shares[i]));
 
     // Add public key shares
     config.committerVerificationKeyShares.emplace_back(
-        libutt::api::serialize<libutt::RandSigSharePK>(dkg.skShares[i].toPK()));
+        libutt::serialize<libutt::RandSigSharePK>(dkg.skShares[i].toPK()));
     config.registrationVerificationKeyShares.emplace_back(
-        libutt::api::serialize<libutt::RegAuthSharePK>(rsk.shares[i].toPK()));
+        libutt::serialize<libutt::RegAuthSharePK>(rsk.shares[i].toPK()));
   }
 
   return config;

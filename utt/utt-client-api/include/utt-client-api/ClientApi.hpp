@@ -34,7 +34,7 @@ struct IPKInfrastructure {};
 struct ConfigInputParams {
   bool useBudget = true;  // Disable/enable usage of a budget token
   std::vector<std::string> multipartyPublicKeys;
-  uint16_t t = 0;  // Corruption threshold
+  uint16_t corruptionThreshold = 0;
 };
 
 /// @brief Initialize the UTT Client API. Must be called before any other API function.
