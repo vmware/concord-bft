@@ -210,16 +210,16 @@ install_relic_toolkit() {
 install_rocksdb_lib() {
     cd ${HOME}
     wget ${WGET_FLAGS} \
-        https://github.com/facebook/rocksdb/archive/v6.8.1.tar.gz && \
-        tar -xzf v6.8.1.tar.gz && \
-        rm v6.8.1.tar.gz && \
-        cd rocksdb-6.8.1 && \
+        https://github.com/facebook/rocksdb/archive/v6.29.5.tar.gz && \
+        tar -xzf v6.29.5.tar.gz && \
+        rm v6.29.5.tar.gz && \
+        cd rocksdb-6.29.5 && \
         EXTRA_CXXFLAGS="-fno-omit-frame-pointer -g " \
         EXTRA_CFLAGS="-fno-omit-frame-pointer -g " \
         PORTABLE=1 make -j$(nproc) USE_RTTI=1 shared_lib && \
         PORTABLE=1 make install-shared && \
         cd ${HOME} && \
-        rm -r rocksdb-6.8.1
+        rm -r rocksdb-6.29.5
 
 }
 install_rapidcheck() {
