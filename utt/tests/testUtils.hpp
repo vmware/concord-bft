@@ -57,19 +57,29 @@ std::tuple<libutt::api::UTTParams, RandSigDKG, RegAuthSK> init(size_t n, size_t 
 }
 std::vector<std::shared_ptr<Registrator>> GenerateRegistrators(size_t n, const RegAuthSK& rsk) {
   std::vector<std::shared_ptr<Registrator>> registrators;
+  std::map<uint16_t, std::string> validation_keys;
+  for (size_t i = 0; i < n; i++) {
+    auto& sk = rsk.shares[i];
+    validation_keys[(uint16_t)i] = serialize<RegAuthSharePK>(sk.toPK());
+  }
   for (size_t i = 0; i < n; i++) {
     registrators.push_back(std::make_shared<Registrator>(
-        std::to_string(i), serialize<RegAuthShareSK>(rsk.shares[i]), serialize<RegAuthPK>(rsk.toPK())));
+        (uint16_t)i, serialize<RegAuthShareSK>(rsk.shares[i]), validation_keys, serialize<RegAuthPK>(rsk.toPK())));
   }
   return registrators;
 }
 
 std::vector<std::shared_ptr<CoinsSigner>> GenerateCommitters(size_t n, const RandSigDKG& dkg, const RegAuthPK& rvk) {
   std::vector<std::shared_ptr<CoinsSigner>> banks;
+  std::map<uint16_t, std::string> share_verification_keys_;
   for (size_t i = 0; i < n; i++) {
-    banks.push_back(std::make_shared<CoinsSigner>(std::to_string(i),
+    share_verification_keys_[(uint16_t)i] = serialize<RandSigSharePK>(dkg.skShares[i].toPK());
+  }
+  for (size_t i = 0; i < n; i++) {
+    banks.push_back(std::make_shared<CoinsSigner>((uint16_t)i,
                                                   serialize<RandSigShareSK>(dkg.skShares[i]),
                                                   serialize<RandSigPK>(dkg.getPK()),
+                                                  share_verification_keys_,
                                                   serialize<RegAuthPK>(rvk)));
   }
   return banks;
@@ -111,6 +121,7 @@ void registerClient(const UTTParams& d,
                     size_t thresh) {
   size_t n = registrators.size();
   std::vector<std::vector<uint8_t>> shares;
+  std::vector<uint16_t> shares_signers;
   auto prf = c.getPRFSecretKey();
   Fr fr_s2 = Fr::random_element();
   types::CurvePoint s2;
@@ -118,8 +129,16 @@ void registerClient(const UTTParams& d,
   for (auto& r : registrators) {
     auto [ret_s2, sig] = r->signRCM(c.getPidHash(), fr_s2.to_words(), rcm1);
     shares.push_back(sig);
+    shares_signers.push_back(r->getId());
     if (s2.empty()) {
       s2 = ret_s2;
+    }
+  }
+  for (auto& r : registrators) {
+    for (size_t i = 0; i < shares.size(); i++) {
+      auto& sig = shares[i];
+      auto& signer = shares_signers[i];
+      assertTrue(r->validatePartialRCMSig(signer, c.getPidHash(), s2, rcm1, sig));
     }
   }
   auto sids = getSubset((uint32_t)n, (uint32_t)thresh);

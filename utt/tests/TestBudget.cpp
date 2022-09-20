@@ -33,9 +33,18 @@ int main(int argc, char* argv[]) {
 
   for (auto& c : clients) {
     std::vector<std::vector<uint8_t>> rsigs;
+    std::vector<uint16_t> shares_signers;
     auto budget = Budget(d, c, 1000, 123456789);
     for (size_t i = 0; i < banks.size(); i++) {
       rsigs.push_back(banks[i]->sign(budget).front());
+      shares_signers.push_back(banks[i]->getId());
+    }
+    for (auto& b : banks) {
+      for (size_t i = 0; i < rsigs.size(); i++) {
+        auto& sig = rsigs[i];
+        auto& signer = shares_signers[i];
+        assertTrue(b->validatePartialSignature<Budget>(signer, sig, 0, budget));
+      }
     }
     auto sbs = testing::getSubset((uint32_t)n, (uint32_t)thresh);
     std::map<uint32_t, std::vector<uint8_t>> sigs;

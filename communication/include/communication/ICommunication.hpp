@@ -37,6 +37,7 @@ class IReceiver {
   // For each NodeNum, this method will never be concurrently
   // executed by two different threads.
   virtual void onConnectionStatusChanged(NodeNum node, ConnectionStatus newStatus) = 0;
+  virtual ~IReceiver() = default;
 };
 
 class ICommunication {

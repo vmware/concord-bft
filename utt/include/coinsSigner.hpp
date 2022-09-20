@@ -17,8 +17,10 @@
 #include <string>
 #include <memory>
 #include <vector>
+#include <map>
 namespace libutt {
 class RandSigShareSK;
+class RandSigSharePK;
 class RegAuthPK;
 class RandSigPK;
 }  // namespace libutt
@@ -35,11 +37,13 @@ class CoinsSigner {
    * @param id The signer id
    * @param signer_secret_key The signer's secret key serialized as a string
    * @param bank_public_key The bank's public key serialized as string
+   * @param shares_verification_keys Other replicas verification keys
    * @param registration_public_key The registration service's public key serialized as string
    */
-  CoinsSigner(const std::string& id,
+  CoinsSigner(uint16_t id,
               const std::string& signer_secret_key,
               const std::string& bank_public_key,
+              const std::map<uint16_t, std::string>& shares_verification_keys,
               const std::string& registration_public_key);
 
   /**
@@ -50,14 +54,14 @@ class CoinsSigner {
    * @return std::vector<types::Signature> A transaction may yield more than one signature (one per coin)
    */
   template <typename T>
-  std::vector<types::Signature> sign(T& data) const;
+  std::vector<types::Signature> sign(const T& data) const;
 
   /**
    * @brief Get the Singer's ID
    *
    * @return const std::string&
    */
-  const std::string& getId() const;
+  uint16_t getId() const;
 
   /**
    * @brief Validating UTT transactions. Validating here is only about UTT validation - mostly verifying cryptographic
@@ -71,10 +75,24 @@ class CoinsSigner {
   template <typename T>
   bool validate(const UTTParams& p, const T&) const;
 
+  /**
+   * @brief Validating partial signatures of UTT operations
+   *
+   * @tparam T One of <operations::Mint, operations::Budget, operations::Transaction>
+   * @param id the Id of the signature generator
+   * @param sig the partial signature to validate
+   * @param txId the signature index in the transaction (only relevant to operations::Transaction)
+   * @return true if valid
+   * @return false if not
+   */
+  template <typename T>
+  bool validatePartialSignature(uint16_t id, const types::Signature& sig, uint64_t txId, const T&) const;
+
  private:
-  std::string bid_;
+  uint16_t bid_;
   std::unique_ptr<libutt::RandSigShareSK> bsk_;
   std::unique_ptr<libutt::RandSigPK> bvk_;
   std::unique_ptr<libutt::RegAuthPK> rvk_;
+  std::map<uint16_t, std::unique_ptr<libutt::RandSigSharePK>> shares_verification_keys_;
 };
 }  // namespace libutt::api

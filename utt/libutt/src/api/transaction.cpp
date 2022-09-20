@@ -81,4 +81,6 @@ Transaction& Transaction::operator=(const Transaction& other) {
 std::vector<std::string> Transaction::getNullifiers() const { return tx_->getNullifiers(); }
 const std::vector<Coin>& Transaction::getInputCoins() const { return input_coins_; }
 std::optional<Coin> Transaction::getBudgetCoin() const { return budget_coin_; }
+
+uint32_t Transaction::getNumOfOutputCoins() const { return (uint32_t)tx_->outs.size(); }
 }  // namespace libutt::api::operations
