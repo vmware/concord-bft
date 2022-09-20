@@ -98,4 +98,11 @@ Configuration generateConfig(const ConfigInputParams& inputParams) {
   return config;
 }
 
+std::unique_ptr<User> createUser(const std::string& userId,
+                                 const std::vector<uint8_t>& publicParams,
+                                 IUserPKInfrastructure& pki,
+                                 IUserStorage& storage) {
+  return User::createInitial(userId, publicParams, pki, storage);
+}
+
 }  // namespace utt::client

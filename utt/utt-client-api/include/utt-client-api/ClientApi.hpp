@@ -17,6 +17,7 @@
 #include <string>
 #include <variant>
 #include <optional>
+#include <memory>
 
 #include "utt-common-api/CommonApi.hpp"
 #include "utt-client-api/User.hpp"
@@ -26,10 +27,10 @@ namespace utt::client {
 // [TODO-UTT] All types are tentative
 
 // Provides the means to store the user's wallet data
-struct IWalletStorage {};
+struct IUserStorage {};
 
 // Provides the means to generate a public/private key pair when creating a user
-struct IPKInfrastructure {};
+struct IUserPKInfrastructure {};
 
 struct ConfigInputParams {
   bool useBudget = true;  // Disable/enable usage of a budget token
@@ -45,13 +46,18 @@ void Initialize();
 /// @return unique UTT instance configuration
 Configuration generateConfig(const ConfigInputParams& inputParams);
 
-// Creates and initialize a new user
-User createUser(const std::string& userId,
-                const std::vector<uint8_t>& params,
-                IPKInfrastructure& pki,
-                IWalletStorage& storage);
+/// @brief Creates and initializes a new UTT user
+/// @param userId A unique string identifying the user in the UTT instance
+/// @param params The public parameters of the UTT instance
+/// @param pki A public key infrastructure object that can be used to generate a public/private key pair for the user
+/// @param storage A storage interface for the user's data
+/// @return Newly created user object
+std::unique_ptr<User> createUser(const std::string& userId,
+                                 const std::vector<uint8_t>& params,
+                                 IUserPKInfrastructure& pki,
+                                 IUserStorage& storage);
 
 // Load an existing user from storage
-User loadUserFromStorage(IWalletStorage& storage);
+std::unique_ptr<User> loadUserFromStorage(IUserStorage& storage);
 
 }  // namespace utt::client

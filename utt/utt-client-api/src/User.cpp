@@ -13,7 +13,64 @@
 
 #include "utt-client-api/User.hpp"
 
+// libutt
+#include <utt/Params.h>
+#include <utt/RegAuth.h>
+#include <utt/RandSig.h>
+#include <utt/Address.h>
+#include <utt/Coin.h>
+
+// libutt new interface
+#include <UTTParams.hpp>
+#include <coin.hpp>
+#include <client.hpp>
+
 namespace utt::client {
+
+struct Impl {
+  std::string sk_;                     // User's secret key
+  std::string pk_;                     // User's public key
+  libutt::api::types::CurvePoint s1_;  // User's secret part of the PRF key
+  libutt::api::UTTParams params_;
+  std::unique_ptr<libutt::api::Client> client_;  // User's credentials
+
+  uint16_t lastExecutedTxNum_ = 0;
+  std::vector<libutt::api::Coin> coins_;         // User's unspent UTT coins (tokens)
+  std::optional<libutt::api::Coin> budgetCoin_;  // User's current UTT budget coin (token)
+};
+
+std::unique_ptr<User> User::createInitial(const std::string& userId,
+                                          const std::vector<uint8_t>& publicParams,
+                                          IUserPKInfrastructure& pki,
+                                          IUserStorage& storage) {
+  (void)pki;
+  (void)storage;
+  if (userId.empty()) throw std::runtime_error("UserId cannot be empty!");
+  if (publicParams.empty()) throw std::runtime_error("UTT instance public params cannot be empty!");
+
+  // [TODO-UTT] Maybe we do something with pki and storage here before we try to create the user.
+  // - Ask pki to create a new public/private key pair?
+  // - Ask storage to allocate X amount of storage?
+  // - Generate s1
+
+  // [TODO-UTT] To create a user we need to successfully generate and persist to storage the user's secret key
+  // and PRF secret s1.
+
+  // std::unique_ptr<User> user;
+
+  // Create a client object with an RSA based PKI
+  // user.pImpl_->client_ = libutt::api::Client(userId, )
+
+  return std::make_unique<User>();
+}
+
+std::unique_ptr<User> User::createFromStorage(IUserStorage& storage) {
+  (void)storage;
+  return nullptr;
+}
+
+User::User() : pImpl_{new Impl{}} {}
+User::~User() = default;
 
 std::vector<uint8_t> User::getRegistrationInput() const {
   // [TODO-UTT] Implement User::getRegistrationInput
@@ -51,9 +108,8 @@ uint64_t User::getPrivacyBudget() const {
 }
 
 const std::string& User::getUserId() const {
-  // [TODO-UTT] Implement User::getUserId
-  static const std::string& s_Undefined = "Undefined";
-  return s_Undefined;
+  static std::string s_userId = "undefined";
+  return s_userId;
 }
 
 const std::string& User::getPK() const {

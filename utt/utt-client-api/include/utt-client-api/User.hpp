@@ -17,10 +17,14 @@
 #include <string>
 #include <variant>
 #include <optional>
+#include <memory>
 
 // [TODO-UTT] All types are tentative
 
 namespace utt::client {
+
+struct IUserPKInfrastructure;
+struct IUserStorage;
 
 enum class Error {};
 struct TransferTx {};
@@ -33,6 +37,16 @@ using TransferResult = std::variant<TransferTx, Error>;
 
 class User {
  public:
+  static std::unique_ptr<User> createInitial(const std::string& userId,
+                                             const std::vector<uint8_t>& publicParams,
+                                             IUserPKInfrastructure& pki,
+                                             IUserStorage& storage);
+
+  static std::unique_ptr<User> createFromStorage(IUserStorage& storage);
+
+  User();
+  ~User();
+
   /**
    * @brief Create the user registration commitment "rcm1".
    *
@@ -134,7 +148,8 @@ class User {
    */
   TransferResult transfer(const std::string& userId, const std::string& destPK, uint64_t amount) const;
 
-  // [TODO-UTT] State
+ private:
+  std::unique_ptr<struct Impl> pImpl_;
 };
 
 }  // namespace utt::client
