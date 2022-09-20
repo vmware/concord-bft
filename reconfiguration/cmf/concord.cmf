@@ -489,6 +489,7 @@ Msg ReconfigurationRequest 1 {
     SignedPublicStateHashRequest
     StateSnapshotReadAsOfRequest
     DbSizeReadRequest
+    PruneCompactRequest
   } command
   bytes additional_data
 }
