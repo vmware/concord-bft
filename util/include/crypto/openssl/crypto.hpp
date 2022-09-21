@@ -188,28 +188,8 @@ class EVPPKEYPublicKey : public AsymmetricPublicKey {
   virtual bool verify(const std::string& message, const std::string& signature) const override;
 };
 
-// List of currently permitted and supported asymmetric cryptography schemes
-// Concord might use. Note Concord maintainers should not add new schemes to
-// this list and implement support for them unless those new schemes have been
-// vetted for acceptability and adequacy for our purposes, considering our
-// security requirements. May throw an OpenSSLError
-// if the underlying OpenSSL Crypto library unexpectedly reports a failure while
-// attempting this operation.
-const static std::vector<std::string> kPermittedAsymmetricCryptoSchemes({
-    "secp256r1"  // secp256r1 is an ECDSA scheme. Apparently it is
-                 // NIST-approved.
-                 // TODO (Alex): (I am using this curve as it was recommended by
-                 //              Ittai) Find reputable sources vouching for the
-                 //              security of this curve and cite them here.
-                 // TODO (Alex): Also consider seeing if VMware's security
-                 //              department has any comments on the security of
-                 //              this curve.
-});
-
 std::pair<std::unique_ptr<AsymmetricPrivateKey>, std::unique_ptr<AsymmetricPublicKey>>
 generateAsymmetricCryptoKeyPairById(int id, const std::string& scheme_name);
-
-std::pair<std::string, std::string> generateECDSAKeyPair(CurveType curveType, const KeyFormat fmt);
 
 // Function for pseudorandomly generating a key pair for asymmetric
 // cryptography, given an asymmetric cryptography scheme listed in

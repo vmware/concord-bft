@@ -20,7 +20,6 @@
 #include "pruning_handler.hpp"
 
 #include "storage/test/storage_test_common.h"
-#include "crypto/cryptopp/keygen.hpp"
 
 #include <cassert>
 #include <cstdint>
@@ -37,9 +36,8 @@ using concord::kvbc::BlockId;
 using namespace concord::kvbc;
 using namespace concord::kvbc::categorization;
 using namespace concord::kvbc::pruning;
-using concord::crypto::SIGN_VERIFY_ALGO;
+using concord::crypto::SignatureAlgorithm;
 using bftEngine::ReplicaConfig;
-using concord::crypto::generateRsaKeyPair;
 using concord::crypto::generateEdDSAKeyPair;
 
 namespace {
@@ -55,9 +53,7 @@ std::map<uint64_t, std::string> private_keys_of_replicas;
 
 void setUpKeysConfiguration_4() {
   for (auto i = 0; i < noOfReplicas; ++i) {
-    if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
-      keyPair[i] = generateRsaKeyPair();
-    } else if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
+    if (ReplicaConfig::instance().replicaMsgSigningAlgo == SignatureAlgorithm::EdDSA) {
       keyPair[i] = generateEdDSAKeyPair();
     }
   }

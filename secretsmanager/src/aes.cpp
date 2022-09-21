@@ -16,10 +16,7 @@
 #include "aes.h"
 #include "crypto/openssl/crypto.hpp"
 #include "assertUtils.hpp"
-#include "ReplicaConfig.hpp"
-
 #include <openssl/aes.h>
-#include <cryptopp/filters.h>
 
 namespace concord::secretsmanager {
 using std::vector;
@@ -27,29 +24,9 @@ using std::string;
 using std::unique_ptr;
 using concord::crypto::openssl::OPENSSL_SUCCESS;
 using concord::crypto::openssl::UniqueCipherContext;
-using bftEngine::ReplicaConfig;
-using concord::crypto::SIGN_VERIFY_ALGO;
-
-AES_CBC::AES_CBC(const KeyParams& params) {
-  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
-    ConcordAssertEQ(params.key.size(), 256 / 8);
-    aesEncryption = CryptoPP::AES::Encryption(params.key.data(), params.key.size());
-    aesDecryption = CryptoPP::AES::Decryption(params.key.data(), params.key.size());
-    enc = CryptoPP::CBC_Mode_ExternalCipher::Encryption(aesEncryption, params.iv.data());
-    dec = CryptoPP::CBC_Mode_ExternalCipher::Decryption(aesDecryption, params.iv.data());
-  } else if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
-    key = params.key;
-    iv = params.iv;
-  }
-}
 
 vector<uint8_t> AES_CBC::encrypt(const string& input) {
-  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
-    vector<uint8_t> cipher;
-    CryptoPP::StringSource ss(
-        input, true, new CryptoPP::StreamTransformationFilter(enc, new CryptoPP::VectorSink(cipher)));
-    return cipher;
-  } else if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
+  if (algo_ == concord::crypto::SignatureAlgorithm::EdDSA) {
     if (input.empty()) {
       return {};
     }
@@ -67,7 +44,8 @@ vector<uint8_t> AES_CBC::encrypt(const string& input) {
     int c_len{0};
     int f_len{0};
 
-    ConcordAssert(OPENSSL_SUCCESS == EVP_EncryptInit_ex(ctx.get(), EVP_aes_256_cbc(), nullptr, key.data(), iv.data()));
+    ConcordAssert(OPENSSL_SUCCESS ==
+                  EVP_EncryptInit_ex(ctx.get(), EVP_aes_256_cbc(), nullptr, params_.key.data(), params_.iv.data()));
     ConcordAssert(OPENSSL_SUCCESS ==
                   EVP_EncryptUpdate(ctx.get(), ciphertext.get(), &c_len, plaintext.get(), input.size()));
     ConcordAssert(OPENSSL_SUCCESS == EVP_EncryptFinal_ex(ctx.get(), ciphertext.get() + c_len, &f_len));
@@ -81,12 +59,7 @@ vector<uint8_t> AES_CBC::encrypt(const string& input) {
 }
 
 string AES_CBC::decrypt(const vector<uint8_t>& cipher) {
-  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
-    string pt;
-    CryptoPP::VectorSource ss(
-        cipher, true, new CryptoPP::StreamTransformationFilter(dec, new CryptoPP::StringSink(pt)));
-    return pt;
-  } else if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
+  if (algo_ == concord::crypto::SignatureAlgorithm::EdDSA) {
     if (cipher.capacity() == 0) {
       return {};
     }
@@ -98,7 +71,8 @@ string AES_CBC::decrypt(const vector<uint8_t>& cipher) {
     UniqueCipherContext ctx(EVP_CIPHER_CTX_new());
     ConcordAssert(nullptr != ctx);
 
-    ConcordAssert(OPENSSL_SUCCESS == EVP_DecryptInit_ex(ctx.get(), EVP_aes_256_cbc(), nullptr, key.data(), iv.data()));
+    ConcordAssert(OPENSSL_SUCCESS ==
+                  EVP_DecryptInit_ex(ctx.get(), EVP_aes_256_cbc(), nullptr, params_.key.data(), params_.iv.data()));
     EVP_CIPHER_CTX_set_key_length(ctx.get(), EVP_MAX_KEY_LENGTH);
     ConcordAssert(
         OPENSSL_SUCCESS ==

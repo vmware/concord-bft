@@ -18,26 +18,22 @@
 #include <vector>
 #include <string>
 
-#include <cryptopp/cryptlib.h>
-#include <cryptopp/modes.h>
-#include <cryptopp/aes.h>
-
+#include "crypto/crypto.hpp"
 #include "key_params.h"
 
 namespace concord::secretsmanager {
 
 class AES_CBC {
-  CryptoPP::AES::Encryption aesEncryption;
-  CryptoPP::AES::Decryption aesDecryption;
-  CryptoPP::CBC_Mode_ExternalCipher::Encryption enc;
-  CryptoPP::CBC_Mode_ExternalCipher::Decryption dec;
-  std::vector<uint8_t> key;
-  std::vector<uint8_t> iv;
-
  public:
-  AES_CBC(const KeyParams& params);
+  AES_CBC(const KeyParams& params,
+          concord::crypto::SignatureAlgorithm algo = concord::crypto::SignatureAlgorithm::EdDSA)
+      : params_{params}, algo_{algo} {}
   std::vector<uint8_t> encrypt(const std::string& input);
   std::string decrypt(const std::vector<uint8_t>& cipher);
+
+ private:
+  KeyParams params_;
+  concord::crypto::SignatureAlgorithm algo_;
 };
 
 }  // namespace concord::secretsmanager

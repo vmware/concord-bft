@@ -28,7 +28,7 @@ using namespace std;
 using namespace bft::communication;
 using namespace bftEngine;
 using namespace preprocessor;
-using concord::crypto::SIGN_VERIFY_ALGO;
+using concord::crypto::SignatureAlgorithm;
 
 namespace {
 
@@ -1135,10 +1135,7 @@ int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   logging::initLogger("logging.properties");
 
-  if (replicaConfig.replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
-    replicaPrivKeys = replicaRSAPrivKeys;
-    replicaPubKeys = replicaRSAPubKeys;
-  } else if (replicaConfig.replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
+  if (replicaConfig.replicaMsgSigningAlgo == SignatureAlgorithm::EdDSA) {
     replicaPrivKeys = replicaEdDSAPrivKeys;
     replicaPubKeys = replicaEdDSAPubKeys;
   }

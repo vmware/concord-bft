@@ -15,21 +15,14 @@
 #include <iostream>
 #include <vector>
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
-#include <cryptopp/dll.h>
-#pragma GCC diagnostic pop
-
 #include "threshsign/ThresholdSignaturesTypes.h"
 #include "KeyfileIOUtils.hpp"
 #include "util/filesystem.hpp"
 #include "crypto/crypto.hpp"
-#include "crypto/cryptopp/keygen.hpp"
 
 using bftEngine::ReplicaConfig;
-using concord::crypto::SIGN_VERIFY_ALGO;
+using concord::crypto::SignatureAlgorithm;
 using concord::crypto::generateEdDSAKeyPair;
-using concord::crypto::generateRsaKeyPair;
 
 // Helper functions and static state to this executable's main function.
 
@@ -191,9 +184,7 @@ int main(int argc, char** argv) {
     std::vector<std::pair<std::string, std::string>> replicaKeyPairs;
 
     for (uint16_t i = 0; i < n + ro; ++i) {
-      if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
-        replicaKeyPairs.push_back(generateRsaKeyPair());
-      } else if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
+      if (ReplicaConfig::instance().replicaMsgSigningAlgo == SignatureAlgorithm::EdDSA) {
         replicaKeyPairs.push_back(generateEdDSAKeyPair());
       }
       config.publicKeysOfReplicas.insert(std::pair<uint16_t, std::string>(i, replicaKeyPairs[i].second));

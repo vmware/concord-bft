@@ -15,7 +15,6 @@
 #include "crypto/crypto.hpp"
 #include "ReplicaConfig.hpp"
 #include "crypto/openssl/certificates.hpp"
-#include "crypto/cryptopp/keygen.hpp"
 
 #include <variant>
 #include <util/filesystem.hpp>
@@ -25,15 +24,10 @@ namespace fs = std::experimental::filesystem;
 namespace concord::client::reconfiguration::handlers {
 
 using bftEngine::ReplicaConfig;
-using concord::crypto::SIGN_VERIFY_ALGO;
-using concord::crypto::generateRsaKeyPair;
-using concord::crypto::generateECDSAKeyPair;
-using concord::crypto::RsaHexToPem;
-using concord::crypto::generateEdDSAKeyPair;
+using concord::crypto::SignatureAlgorithm;
 using concord::crypto::EdDSAHexToPem;
 using concord::crypto::generateSelfSignedCert;
 using concord::crypto::KeyFormat;
-using concord::crypto::CurveType;
 
 template <typename T>
 bool validateInputState(const State& state, std::optional<uint64_t> init_block = std::nullopt) {
@@ -77,7 +71,7 @@ void ClientTlsKeyExchangeHandler::exchangeTlsKeys(const std::string& pkey_path,
                                                   const std::string& cert_path,
                                                   const uint64_t blockid) {
   // Generate new key pair
-  auto new_cert_keys = generateECDSAKeyPair(KeyFormat::PemFormat, CurveType::secp384r1);
+  auto new_cert_keys = concord::crypto::generateEdDSAKeyPair(KeyFormat::PemFormat);
 
   std::string master_key = sm_->decryptFile(master_key_path_).value_or(std::string());
   if (master_key.empty()) master_key = psm_.decryptFile(master_key_path_).value_or(std::string());
@@ -165,12 +159,9 @@ bool ClientMasterKeyExchangeHandler::execute(const State& state, WriteState& out
   // Generate new key pair
   std::pair<std::string, std::string> hex_keys;
   std::pair<std::string, std::string> pem_keys;
-  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
-    hex_keys = generateRsaKeyPair();
-    pem_keys = RsaHexToPem(hex_keys);
-  }
-  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
-    hex_keys = generateEdDSAKeyPair();
+
+  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SignatureAlgorithm::EdDSA) {
+    hex_keys = concord::crypto::generateEdDSAKeyPair();
     pem_keys = EdDSAHexToPem(hex_keys);
   }
 

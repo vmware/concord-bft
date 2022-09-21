@@ -12,22 +12,11 @@
 #pragma once
 
 #include "digest_holder.hpp"
-
-#if defined USE_CRYPTOPP_SHA_256
-#include "cryptopp/digest_creator.hpp"
-#elif defined USE_OPENSSL_SHA_256
 #include "crypto/openssl/digest_creator.hpp"
-#endif
 
 namespace concord::crypto {
 
-#if defined USE_CRYPTOPP_SHA_256
-using Digest = DigestHolder<concord::crypto::cryptopp::CryptoppDigestCreator>;
-using DigestGenerator = concord::crypto::cryptopp::CryptoppDigestCreator;
-#elif defined USE_OPENSSL_SHA_256
-using Digest = DigestHolder<concord::crypto::openssl::OpenSSLDigestCreator<concord::crypto::openssl::SHA2_256> >;
-using DigestGenerator = concord::crypto::openssl::OpenSSLDigestCreator<concord::crypto::openssl::SHA2_256>;
-#endif
+using Digest = DigestHolder<DigestGenerator>;
 
 static_assert(DIGEST_SIZE >= sizeof(uint64_t), "Digest size should be >= sizeof(uint64_t)");
 static_assert(sizeof(Digest) == DIGEST_SIZE, "sizeof(Digest) != DIGEST_SIZE");

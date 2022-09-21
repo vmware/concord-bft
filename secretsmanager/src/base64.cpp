@@ -14,76 +14,49 @@
 // This convenience header combines different block implementations.
 
 #include "base64.h"
-#include "ReplicaConfig.hpp"
-
-#include <cryptopp/cryptlib.h>
-#include <cryptopp/base64.h>
+#include <cstring>
 
 namespace concord::secretsmanager {
 using std::string;
 using std::vector;
 using std::string_view;
-using bftEngine::ReplicaConfig;
-using concord::crypto::SIGN_VERIFY_ALGO;
 
 string base64Enc(const vector<uint8_t>& msgBytes) {
-  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
-    CryptoPP::Base64Encoder encoder;
-    encoder.Put(msgBytes.data(), msgBytes.size());
-    encoder.MessageEnd();
-    uint64_t output_size = encoder.MaxRetrievable();
-    string output(output_size, '0');
-    encoder.Get((unsigned char*)output.data(), output.size());
+  if (msgBytes.capacity() == 0) return {};
+  BIO* b64 = BIO_new(BIO_f_base64());
+  BIO* bio = BIO_new(BIO_s_mem());
+  bio = BIO_push(b64, bio);
+  BIO_write(bio, msgBytes.data(), msgBytes.capacity());
 
-    return output;
-  } else if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
-    if (msgBytes.capacity() == 0) {
-      return {};
-    }
-    BIO* b64 = BIO_new(BIO_f_base64());
-    BIO* bio = BIO_new(BIO_s_mem());
-    bio = BIO_push(b64, bio);
-    BIO_write(bio, msgBytes.data(), msgBytes.capacity());
+  BUF_MEM* bufferPtr{nullptr};
+  BIO_get_mem_ptr(bio, &bufferPtr);
+  BIO_set_close(bio, BIO_NOCLOSE);
+  BIO_flush(bio);
+  BIO_free_all(bio);
 
-    BUF_MEM* bufferPtr{nullptr};
-    BIO_get_mem_ptr(bio, &bufferPtr);
-    BIO_set_close(bio, BIO_NOCLOSE);
-    BIO_flush(bio);
-    BIO_free_all(bio);
-
-    const auto msgLen = (*bufferPtr).length;
-    vector<uint8_t> encodedMsg(msgLen);
-    memcpy(&encodedMsg[0], (*bufferPtr).data, msgLen);
-    BUF_MEM_free(bufferPtr);
-    return string(encodedMsg.begin(), encodedMsg.end());
-  }
-  return {};
+  const auto msgLen = (*bufferPtr).length;
+  vector<uint8_t> encodedMsg(msgLen);
+  memcpy(&encodedMsg[0], (*bufferPtr).data, msgLen);
+  BUF_MEM_free(bufferPtr);
+  return string(encodedMsg.begin(), encodedMsg.end());
 }
 
 vector<uint8_t> base64Dec(const string& b64message) {
-  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
-    vector<uint8_t> dec;
-    CryptoPP::StringSource ss(b64message, true, new CryptoPP::Base64Decoder(new CryptoPP::VectorSink(dec)));
-    return dec;
-  } else if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
-    const string b64msg(stripPemHeaderFooter(b64message, "-----BEGIN PRIVATE KEY-----", "-----END PRIVATE KEY-----"));
+  const string b64msg(stripPemHeaderFooter(b64message, "-----BEGIN PRIVATE KEY-----", "-----END PRIVATE KEY-----"));
 
-    if (b64msg.empty()) {
-      return {};
-    }
-    vector<uint8_t> decodedOutput(calcDecodeLength(b64msg.data()));
+  if (b64msg.empty()) return {};
 
-    BIO* bio = BIO_new_mem_buf(b64msg.data(), -1);
-    BIO* b64 = BIO_new(BIO_f_base64());
-    bio = BIO_push(b64, bio);
+  vector<uint8_t> decodedOutput(calcDecodeLength(b64msg.data()));
 
-    const int outputLen = BIO_read(bio, decodedOutput.data(), b64msg.size());
-    vector<uint8_t> dec(outputLen);
-    memcpy(&dec[0], decodedOutput.data(), outputLen);
-    BIO_free_all(bio);
-    return dec;
-  }
-  return {};
+  BIO* bio = BIO_new_mem_buf(b64msg.data(), -1);
+  BIO* b64 = BIO_new(BIO_f_base64());
+  bio = BIO_push(b64, bio);
+
+  const int outputLen = BIO_read(bio, decodedOutput.data(), b64msg.size());
+  vector<uint8_t> dec(outputLen);
+  memcpy(&dec[0], decodedOutput.data(), outputLen);
+  BIO_free_all(bio);
+  return dec;
 }
 
 size_t calcDecodeLength(const char* b64message) {

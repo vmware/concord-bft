@@ -63,10 +63,6 @@ add_executable(lru_cache_test lru_cache_test.cpp )
 add_test(lru_cache_test lru_cache_test)
 target_link_libraries(lru_cache_test GTest::Main util)
 
-add_executable(openssl_crypto_wrapper_test openssl_crypto_wrapper_tests.cpp)
-add_test(openssl_crypto_wrapper_test openssl_crypto_wrapper_test)
-target_link_libraries(openssl_crypto_wrapper_test GTest::Main util)
-
 add_executable(simple_memory_pool_test simple_memory_pool_test.cpp)
 add_test(simple_memory_pool_test simple_memory_pool_test)
 target_link_libraries(simple_memory_pool_test GTest::Main util)
@@ -74,10 +70,6 @@ target_link_libraries(simple_memory_pool_test GTest::Main util)
 add_executable(RawMemoryPool_test RawMemoryPool_test.cpp)
 add_test(RawMemoryPool_test RawMemoryPool_test)
 target_link_libraries(RawMemoryPool_test GTest::Main util)
-
-add_executable(cryptopp_utils_test cryptopp_utils_test.cpp )
-add_test(cryptopp_utils_test cryptopp_utils_test)
-target_link_libraries(cryptopp_utils_test GTest::Main util)
 
 add_executable(openssl_utils_test openssl_utils_test.cpp )
 add_test(openssl_utils_test openssl_utils_test)
@@ -91,17 +83,9 @@ add_executable(utilization_test utilization_test.cpp)
 add_test(utilization_test utilization_test)
 target_link_libraries(utilization_test GTest::Main util)
 
-add_executable(cryptopp_digest_creator_test cryptopp_digest_creator_test.cpp)
-add_test(cryptopp_digest_creator_test cryptopp_digest_creator_test)
-target_link_libraries(cryptopp_digest_creator_test GTest::Main util)
-
 add_executable(openssl_digest_creator_test openssl_digest_creator_test.cpp)
 add_test(openssl_digest_creator_test openssl_digest_creator_test)
 target_link_libraries(openssl_digest_creator_test GTest::Main util)
-
-add_executable(cryptopp_digest_holder_test cryptopp_digest_holder_test.cpp)
-add_test(cryptopp_digest_holder_test cryptopp_digest_holder_test)
-target_link_libraries(cryptopp_digest_holder_test GTest::Main util)
 
 add_executable(openssl_digest_holder_test openssl_digest_holder_test.cpp)
 add_test(openssl_digest_holder_test openssl_digest_holder_test)

@@ -16,7 +16,6 @@ set(preprocessor_source_files
 
 add_library(preprocessor STATIC ${preprocessor_source_files})
 
-target_include_directories(preprocessor PUBLIC ${CRYPTOPP_INCLUDE_DIRS})
 target_include_directories(preprocessor PUBLIC ${bftengine_SOURCE_DIR}/include)
 target_include_directories(preprocessor PUBLIC ${bftengine_SOURCE_DIR}/include/bftengine)
 target_include_directories(preprocessor PUBLIC ${bftengine_SOURCE_DIR}/src/bftengine)

@@ -20,7 +20,7 @@
 namespace concord::crypto {
 using std::unique_ptr;
 using std::string;
-using concord::crypto::SIGN_VERIFY_ALGO;
+using concord::crypto::SignatureAlgorithm;
 using concord::crypto::openssl::UniquePKEY;
 using concord::crypto::openssl::UniqueX509;
 using concord::crypto::openssl::UniqueBIO;
@@ -38,7 +38,7 @@ const std::unordered_map<std::string, int> name_to_id_map = {{"C", NID_countryNa
 string generateSelfSignedCert(const string& origin_cert_path,
                               const string& public_key,
                               const string& signing_key,
-                              const SIGN_VERIFY_ALGO signingAlgo) {
+                              const SignatureAlgorithm signingAlgo) {
   unique_ptr<FILE, decltype(&fclose)> fp(fopen(origin_cert_path.c_str(), "r"), fclose);
   if (nullptr == fp) {
     LOG_ERROR(OPENSSL_LOG, "Certificate file not found, path: " << origin_cert_path);
@@ -80,12 +80,12 @@ string generateSelfSignedCert(const string& origin_cert_path,
     return {};
   }
 
-  if (SIGN_VERIFY_ALGO::RSA == signingAlgo) {
+  if (SignatureAlgorithm::RSA == signingAlgo) {
     if (OPENSSL_FAILURE == X509_sign(cert.get(), priv_key.get(), EVP_sha256())) {
       LOG_ERROR(OPENSSL_LOG, "Failed to sign certificate using RSA private key.");
       return {};
     }
-  } else if (SIGN_VERIFY_ALGO::EDDSA == signingAlgo) {
+  } else if (SignatureAlgorithm::EdDSA == signingAlgo) {
     if (OPENSSL_FAILURE == X509_sign(cert.get(), priv_key.get(), nullptr)) {
       LOG_ERROR(OPENSSL_LOG, "Failed to sign certificate using EdDSA private key.");
       return {};

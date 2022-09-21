@@ -18,7 +18,6 @@
 #include "ReservedPagesMock.hpp"
 #include "crypto/factory.hpp"
 #include "crypto/crypto.hpp"
-#include "crypto/cryptopp/keygen.hpp"
 
 using concord::crypto::Factory;
 using bftEngine::impl::ClientsManager;
@@ -45,8 +44,7 @@ using std::this_thread::sleep_for;
 using std::unique_ptr;
 using std::tuple;
 
-using concord::crypto::SIGN_VERIFY_ALGO;
-using concord::crypto::generateRsaKeyPair;
+using concord::crypto::SignatureAlgorithm;
 using concord::crypto::generateEdDSAKeyPair;
 
 // Testing values to be used for certain Concord-BFT configuration that ClientsManager and/or its dependencies may
@@ -144,9 +142,7 @@ static void resetMockReservedPages() {
 
 static void resetSigManager() {
   SigManager::Key kReplicaPrivateKeyForTesting;
-  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
-    kReplicaPrivateKeyForTesting = generateRsaKeyPair().first;
-  } else if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
+  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SignatureAlgorithm::EdDSA) {
     kReplicaPrivateKeyForTesting = generateEdDSAKeyPair().first;
   }
   sig_manager_for_key_exchange_manager.reset(SigManager::init(kReplicaIdForTesting,
@@ -329,9 +325,7 @@ TEST(ClientsManager, loadInfoFromReservedPagesLoadsCorrectInfo) {
 
   map<NodeIdType, pair<string, string>> client_keys;
 
-  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
-    client_keys[2] = generateRsaKeyPair();
-  } else if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
+  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SignatureAlgorithm::EdDSA) {
     client_keys[2] = generateEdDSAKeyPair();
   }
 
@@ -452,9 +446,7 @@ TEST(ClientsManager, loadInfoFromReservedPagesHandlesNoInfoAvailable) {
 
 TEST(ClientsManager, loadInfoFromReservedPagesHandlesSingleClientClientsManager) {
   pair<string, string> client_key_pair;
-  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
-    client_key_pair = generateRsaKeyPair();
-  } else if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
+  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SignatureAlgorithm::EdDSA) {
     client_key_pair = generateEdDSAKeyPair();
   }
 
@@ -1264,10 +1256,7 @@ TEST(ClientsManager, setClientPublicKey) {
 
   pair<string, string> client_2_key;
   pair<string, string> client_7_key;
-  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
-    client_2_key = generateRsaKeyPair();
-    client_7_key = generateRsaKeyPair();
-  } else if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
+  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SignatureAlgorithm::EdDSA) {
     client_2_key = generateEdDSAKeyPair();
     client_7_key = generateEdDSAKeyPair();
   }

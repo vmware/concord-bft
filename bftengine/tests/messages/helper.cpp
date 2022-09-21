@@ -14,7 +14,7 @@
 
 typedef std::pair<uint16_t, std::string> IdToKeyPair;
 
-using concord::crypto::SIGN_VERIFY_ALGO;
+using concord::crypto::SignatureAlgorithm;
 using bftEngine::ReplicaConfig;
 
 const std::string replicaRSAPrivateKey = {
@@ -62,10 +62,7 @@ void loadPrivateAndPublicKeys(std::string& myPrivateKey,
   ConcordAssert(numReplicas <= 7);
 
   std::string pubKey;
-  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
-    myPrivateKey = replicaRSAPrivateKey;
-    pubKey = replicaRSAPubKey;
-  } else if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
+  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SignatureAlgorithm::EdDSA) {
     myPrivateKey = replicaEdDSAPrivateKey;
     pubKey = replicaEdDSAPubKey;
   }

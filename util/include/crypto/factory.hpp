@@ -13,16 +13,13 @@
 
 #pragma once
 
-#include "crypto/cryptopp/signers.hpp"
-#include "crypto/cryptopp/verifiers.hpp"
 #include "crypto/openssl/EdDSASigner.hpp"
 #include "crypto/openssl/EdDSAVerifier.hpp"
 #include "Logger.hpp"
 
 namespace concord::crypto {
 
-enum class SIGN_VERIFY_ALGO : uint8_t { ECDSA, RSA, EDDSA };
-enum class Provider : uint16_t { OpenSSL, CryptoPP };
+enum class Provider : uint16_t { OpenSSL };
 
 constexpr static const Provider DefaultProvider = Provider::OpenSSL;
 
@@ -34,17 +31,17 @@ class Factory {
  public:
   static std::unique_ptr<ISigner> getSigner(
       const std::string& signingKey,
-      SIGN_VERIFY_ALGO signingAlgo,
+      SignatureAlgorithm signingAlgo,
       concord::crypto::KeyFormat fmt = concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
       Provider provider = DefaultProvider);
 
   static std::unique_ptr<IVerifier> getVerifier(
       const std::string& verificationKey,
-      SIGN_VERIFY_ALGO verifierAlgo,
+      SignatureAlgorithm verifierAlgo,
       concord::crypto::KeyFormat fmt = concord::crypto::KeyFormat::HexaDecimalStrippedFormat,
       Provider provider = DefaultProvider);
 
-  static std::pair<std::string, std::string> generateKeys(SIGN_VERIFY_ALGO verifierAlgo,
+  static std::pair<std::string, std::string> generateKeys(SignatureAlgorithm verifierAlgo,
                                                           Provider provider = DefaultProvider);
 };
 }  // namespace concord::crypto

@@ -441,19 +441,4 @@ string computeSHA256Hash(const char* data, size_t length) {
   return hash;
 }
 
-std::pair<std::string, std::string> generateECDSAKeyPair(CurveType curveType, const KeyFormat fmt) {
-  // TODO(yf): need to implement PEM support
-  UNUSED(fmt);
-  UNUSED(curveType);
-  /* UNUSED(fmt);
-   if (curveType == CurveType::secp256k1) {
-     return generateAsymmetricCryptoKeyPairById(NID_secp256k1, fmt);
-   }
-   else if (curveType == CurveType::secp384r1) {
-     return generateAsymmetricCryptoKeyPairById(NID_secp256k1, fmt);
-   }*/
-  ConcordAssert(false);
-  return {};
-}
-
 }  // namespace concord::crypto::openssl

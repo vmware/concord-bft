@@ -6,12 +6,6 @@ add_executable(GenerateConcordKeys
                KeyfileIOUtils.cpp
                )
 
-if(BUILD_THIRDPARTY)
-    add_dependencies(GenerateConcordKeys cryptopp)
-else()
-    find_package(cryptopp REQUIRED)
-endif()
-
 target_include_directories(GenerateConcordKeys
                            PRIVATE
                            ${threshsign_SOURCE_DIR}/src
@@ -19,12 +13,11 @@ target_include_directories(GenerateConcordKeys
                            ${threshsign_SOURCE_DIR}/include
                            ${bftengine_SOURCE_DIR}/src
                            ${bftengine_SOURCE_DIR}/include
-                           ${CRYPTOPP_INCLUDE_DIRS})
+                          )
 
 target_link_libraries(GenerateConcordKeys
                       PUBLIC
                       threshsign
-                      ${CRYPTOPP_LIBRARIES}
                       util
 					  stdc++fs)
 

@@ -11,53 +11,27 @@ set(util_source_files
     src/hex_tools.cpp
     src/OpenTracing.cpp
     src/throughput.cpp
-        src/crypto/crypto.cpp
-        src/openssl/certificates.cpp
-    src/crypto/cryptopp/signers.cpp
-    src/crypto/cryptopp/verifiers.cpp
-    src/crypto/cryptopp/keygen.cpp
+    src/crypto/crypto.cpp
+    src/openssl/certificates.cpp
     src/RawMemoryPool.cpp
     src/config_file_parser.cpp
-        src/crypto/cryptopp/digest_creator.cpp
     src/io.cpp)
 add_library(util        STATIC ${util_source_files} src/crypto/factory.cpp)
-add_library(util_shared SHARED ${util_source_files} src/crypto/factory.cpp)
-
-# Use below macros to use CryptoPP's SHA_256 or OpenSSL's SHA_256 hashing.
-# USE_CRYPTOPP_SHA_256
-target_compile_definitions(util PUBLIC USE_OPENSSL_SHA_256)
-target_compile_definitions(util_shared PUBLIC USE_OPENSSL_SHA_256)
 
 if(USE_OPENSSL)
     if(NOT BUILD_THIRDPARTY)
         find_package(OpenSSL REQUIRED)
     endif()
     target_sources(util PRIVATE src/openssl/crypto.cpp)
-    target_sources(util_shared PRIVATE src/openssl/crypto.cpp)
     target_link_libraries(util PUBLIC OpenSSL::Crypto)
-    target_link_libraries(util_shared PUBLIC OpenSSL::Crypto)
     target_compile_definitions(util PUBLIC USE_OPENSSL)
-    target_compile_definitions(util_shared PUBLIC USE_OPENSSL)
-endif()
-
-if(BUILD_THIRDPARTY)
-    add_dependencies(util cryptopp)
-    add_dependencies(util_shared cryptopp)
-else()
-    find_package(cryptopp REQUIRED)
 endif()
 
 target_link_libraries(util PUBLIC
-        Threads::Threads ${CRYPTOPP_LIBRARIES}
+        Threads::Threads
         stdc++fs)
-# corebft
-target_include_directories(util PUBLIC include ${CRYPTOPP_INCLUDE_DIRS} include/openssl)
 
-target_link_libraries(util_shared PUBLIC
-        Threads::Threads ${CRYPTOPP_LIBRARIES}
-        stdc++fs)
-# corebft
-target_include_directories(util_shared PUBLIC include ${CRYPTOPP_INCLUDE_DIRS} include/openssl)
+target_include_directories(util PUBLIC include include/openssl)
 
 if(USE_OPENTRACING)
     if(NOT DEFINED OPENTRACING_INCLUDE_DIR)
@@ -69,9 +43,6 @@ if(USE_OPENTRACING)
     target_include_directories(util PUBLIC ${OPENTRACING_INCLUDE_DIR})
     target_link_libraries(util PUBLIC ${OPENTRACING_LIBRARY})
     target_compile_definitions(util PUBLIC USE_OPENTRACING=1)
-    target_include_directories(util_shared PUBLIC ${OPENTRACING_INCLUDE_DIR})
-    target_link_libraries(util_shared PUBLIC ${OPENTRACING_LIBRARY})
-    target_compile_definitions(util_shared PUBLIC USE_OPENTRACING=1)
 endif()
 
 if(BUILD_TESTING)
@@ -91,7 +62,6 @@ install(FILES ${util_header_files} DESTINATION include/util)
 
 set_property(DIRECTORY .. APPEND PROPERTY INCLUDE_DIRECTORIES
         ${CMAKE_CURRENT_SOURCE_DIR}/include/)
-install(TARGETS util_shared DESTINATION lib${LIB_SUFFIX})
 
 set_property(GLOBAL PROPERTY UTIL_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
 

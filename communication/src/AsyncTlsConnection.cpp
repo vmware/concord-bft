@@ -20,7 +20,6 @@
 #include <optional>
 
 #include "crypto/crypto.hpp"
-#include "crypto/cryptopp/keygen.hpp"
 #include "AsyncTlsConnection.h"
 #include "TlsDiagnostics.h"
 #include "TlsWriteQueue.h"
@@ -32,10 +31,9 @@
 
 namespace bft::communication::tls {
 using bftEngine::ReplicaConfig;
-using concord::crypto::SIGN_VERIFY_ALGO;
+using concord::crypto::SignatureAlgorithm;
 using concord::crypto::verifyCertificate;
 using concord::crypto::EdDSAHexToPem;
-using concord::crypto::RsaHexToPem;
 using concord::crypto::getFormat;
 
 void AsyncTlsConnection::startReading() {
@@ -449,11 +447,7 @@ std::pair<bool, NodeNum> AsyncTlsConnection::checkCertificate(X509& received_cer
            "main key");
   std::string pem_pub_key = StateControl::instance().getPeerPubKey(peerId);
   if (pem_pub_key.empty()) return std::make_pair(false, peerId);
-  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
-    if (getFormat(pem_pub_key) != concord::crypto::KeyFormat::PemFormat) {
-      pem_pub_key = RsaHexToPem(std::make_pair("", StateControl::instance().getPeerPubKey(peerId))).second;
-    }
-  } else if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
+  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SignatureAlgorithm::EdDSA) {
     if (getFormat(pem_pub_key) != concord::crypto::KeyFormat::PemFormat) {
       pem_pub_key = EdDSAHexToPem(std::make_pair("", StateControl::instance().getPeerPubKey(peerId))).second;
     }

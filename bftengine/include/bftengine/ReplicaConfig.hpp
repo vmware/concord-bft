@@ -121,10 +121,11 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   CONFIG_PARAM(adaptiveBatchingDecCond, std::string, "0.5", "The decrease condition");
 
   // Crypto system
-  // RSA public keys of all replicas. map from replica identifier to a public key
+
+  // Public keys of all replicas. map from replica identifier to a public key
   std::set<std::pair<uint16_t, const std::string>> publicKeysOfReplicas;
 
-  // RSA public keys of all clients. Each public key holds set of distinct client (principal) ids which are expected to
+  // Public keys of clients. Each public key holds set of distinct client ids which are expected to
   // sign with the matching private key
   std::set<std::pair<const std::string, std::set<uint16_t>>> publicKeysOfClients;
   std::unordered_map<uint16_t, std::set<uint16_t>> clientGroups;
@@ -281,13 +282,13 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   CONFIG_PARAM(kvBlockchainVersion, std::uint32_t, 1u, "Default version of KV blockchain for this replica");
 
   CONFIG_PARAM(replicaMsgSigningAlgo,
-               concord::crypto::SIGN_VERIFY_ALGO,
-               concord::crypto::SIGN_VERIFY_ALGO::EDDSA,
+               concord::crypto::SignatureAlgorithm,
+               concord::crypto::SignatureAlgorithm::EdDSA,
                "A flag to specify the replica message signing algorithm. It is defaulted to use EDDSA algo.");
 
   CONFIG_PARAM(operatorMsgSigningAlgo,
-               concord::crypto::SIGN_VERIFY_ALGO,
-               concord::crypto::SIGN_VERIFY_ALGO::EDDSA,
+               concord::crypto::SignatureAlgorithm,
+               concord::crypto::SignatureAlgorithm::EdDSA,
                "A flag to specify the operator message signing algorithm. It is defaulted to use EDDSA algo.");
 
   // Parameter to enable/disable waiting for transaction data to be persisted.
@@ -605,9 +606,8 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.dbSnapshotIntervalSeconds.count());
   os << ",";
   const auto replicaMsgSignAlgo =
-      (concord::crypto::SIGN_VERIFY_ALGO::RSA == rc.replicaMsgSigningAlgo) ? "rsa" : "eddsa";
-  const auto operatorMsgSignAlgo =
-      (concord::crypto::SIGN_VERIFY_ALGO::ECDSA == rc.operatorMsgSigningAlgo) ? "ecdsa" : "eddsa";
+      (concord::crypto::SignatureAlgorithm::EdDSA == rc.replicaMsgSigningAlgo) ? "eddsa" : "undefined";
+  const auto operatorMsgSignAlgo = "eddsa";
   os << KVLOG(rc.dbCheckpointMonitorIntervalSeconds.count(),
               rc.dbCheckpointDiskSpaceThreshold,
               rc.enableMultiplexChannel,

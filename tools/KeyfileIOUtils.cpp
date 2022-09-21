@@ -21,11 +21,10 @@
 #include "KeyfileIOUtils.hpp"
 #include "yaml_utils.hpp"
 #include "crypto/openssl/EdDSA.hpp"
-#include "crypto/crypto.hpp"
 
 using concord::crypto::isValidKey;
 using bftEngine::ReplicaConfig;
-using concord::crypto::SIGN_VERIFY_ALGO;
+using concord::crypto::SignatureAlgorithm;
 using concord::crypto::Ed25519PrivateKeyByteSize;
 using concord::crypto::Ed25519PublicKeyByteSize;
 
@@ -56,9 +55,7 @@ void outputReplicaKeyfile(uint16_t numReplicas,
   output << "\n";
 
   output << "main_key_algorithm: ";
-  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
-    output << "rsa\n";
-  } else if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
+  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SignatureAlgorithm::EdDSA) {
     output << "eddsa\n";
   }
   output << "replica_private_key: " << config.replicaPrivateKey << "\n";

@@ -24,15 +24,12 @@
 #include "crypto/factory.hpp"
 #include "crypto/crypto.hpp"
 #include "crypto/openssl/certificates.hpp"
-#include "crypto/cryptopp/keygen.hpp"
 
 namespace bftEngine::impl {
 
 using concord::crypto::KeyFormat;
-using concord::crypto::SIGN_VERIFY_ALGO;
+using concord::crypto::SignatureAlgorithm;
 using concord::crypto::EdDSAHexToPem;
-using concord::crypto::RsaHexToPem;
-using concord::crypto::generateECDSAKeyPair;
 using concord::crypto::generateSelfSignedCert;
 
 KeyExchangeManager::KeyExchangeManager(InitData* id)
@@ -159,7 +156,7 @@ void KeyExchangeManager::loadClientPublicKeys() {
 }
 
 void KeyExchangeManager::exchangeTlsKeys(const std::string& type, const SeqNum& bft_sn) {
-  auto keys = generateECDSAKeyPair(concord::crypto::KeyFormat::PemFormat, concord::crypto::CurveType::secp384r1);
+  auto keys = concord::crypto::generateEdDSAKeyPair(concord::crypto::KeyFormat::PemFormat);
   bool use_unified_certs = bftEngine::ReplicaConfig::instance().useUnifiedCertificates;
   const std::string base_path =
       bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" + std::to_string(repID_);
@@ -167,9 +164,7 @@ void KeyExchangeManager::exchangeTlsKeys(const std::string& type, const SeqNum& 
   std::string cert_path = (use_unified_certs) ? root_path + "/node.cert" : root_path + "/" + type + ".cert";
 
   std::string prev_key_pem;
-  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
-    prev_key_pem = RsaHexToPem(std::make_pair(SigManager::instance()->getSelfPrivKey(), "")).first;
-  } else if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
+  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SignatureAlgorithm::EdDSA) {
     prev_key_pem = EdDSAHexToPem(std::make_pair(SigManager::instance()->getSelfPrivKey(), "")).first;
   }
 

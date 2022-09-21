@@ -27,18 +27,12 @@
 #include "crypto/openssl/EdDSASigner.hpp"
 #include "crypto/openssl/EdDSAVerifier.hpp"
 #include "util/filesystem.hpp"
-#include "crypto/cryptopp/signers.hpp"
-#include "crypto/cryptopp/verifiers.hpp"
-#include "crypto/cryptopp/keygen.hpp"
 
 namespace concord::benchmark {
 using std::string;
 using std::unique_ptr;
 using concord::crypto::KeyFormat;
-using concord::crypto::cryptopp::RSASigner;
-using concord::crypto::cryptopp::RSAVerifier;
 using concord::crypto::generateEdDSAKeyPair;
-using concord::crypto::generateRsaKeyPair;
 using concord::crypto::openssl::EdDSAPrivateKey;
 using concord::crypto::openssl::EdDSAPublicKey;
 using concord::crypto::openssl::deserializeKey;
@@ -53,7 +47,6 @@ constexpr size_t RANDOM_DATA_SIZE = 1000U;
 constexpr uint8_t RANDOM_DATA_ARRAY_SIZE = 100U;
 static string randomData[RANDOM_DATA_ARRAY_SIZE];
 
-const auto rsaKeysPair = generateRsaKeyPair();
 const auto eddsaKeysPair = generateEdDSAKeyPair();
 
 /**
@@ -135,75 +128,11 @@ void edDSAVerifierBenchmark(picobench::state& s) {
 }
 
 /**
- * @brief A benchmark which measures the time it takes for RSA signer to sign a message.
- *
- * @param s
- */
-void rsaSignerBenchmark(picobench::state& s) {
-  auto signer_ =
-      unique_ptr<concord::crypto::ISigner>(new RSASigner(rsaKeysPair.first, KeyFormat::HexaDecimalStrippedFormat));
-  size_t expectedSignerSigLen = signer_->signatureLength();
-  SignatureBytes sig;
-  // Sign with RSA_Signer.
-
-  sig.reserve(expectedSignerSigLen);
-  size_t lenRetData;
-
-  uint64_t signaturesPerformed = 0;
-  {
-    picobench::scope scope(s);
-
-    for (int msgIdx = 0; msgIdx < s.iterations(); msgIdx++) {
-      lenRetData = signer_->sign(randomData[msgIdx % RANDOM_DATA_ARRAY_SIZE], sig.data());
-      ++signaturesPerformed;
-      ConcordAssertEQ(lenRetData, expectedSignerSigLen);
-    }
-  }
-  s.set_result(signaturesPerformed);
-}
-
-/**
- * @brief A benchmark which measures the time it takes for RSA verifier to verify a signature.
- *
- * @param s
- */
-void rsaVerifierBenchmark(picobench::state& s) {
-  auto signer_ =
-      unique_ptr<concord::crypto::ISigner>(new RSASigner(rsaKeysPair.first, KeyFormat::HexaDecimalStrippedFormat));
-  size_t expectedSignerSigLen = signer_->signatureLength();
-  SignatureBytes sig(expectedSignerSigLen);
-  auto verifier_ = unique_ptr<RSAVerifier>(new RSAVerifier(rsaKeysPair.second, KeyFormat::HexaDecimalStrippedFormat));
-
-  // Sign with RSASigner.
-
-  const auto offset = (uint8_t)rand() % RANDOM_DATA_ARRAY_SIZE;
-  size_t lenRetData = signer_->sign(randomData[offset], sig.data());
-  ConcordAssertEQ(lenRetData, expectedSignerSigLen);
-
-  std::string sigAsString("\x00", sig.size());
-  std::memcpy(sigAsString.data(), sig.data(), sig.size());
-  uint64_t signaturesVerified = 0;
-  {
-    picobench::scope scope(s);
-
-    for (int msgIdx = 0; msgIdx < s.iterations(); msgIdx++) {
-      ++signaturesVerified;
-
-      // validate with RSAVerifier.
-      ConcordAssert(verifier_->verify(randomData[offset], sigAsString));
-    }
-  }
-  s.set_result(signaturesVerified);
-}
-
-/**
  * @brief Construct a new PICOBENCH object.
  * Take one of the fastest samples out of 2 samples.
  */
 PICOBENCH(edDSASignerBenchmark).label("EdDSA-Signer").samples(2).iterations({1, 10, 100, 1000, 10000});
-PICOBENCH(rsaSignerBenchmark).label("RSA-Signer").samples(2).iterations({1, 10, 100, 1000, 10000});
 PICOBENCH(edDSAVerifierBenchmark).label("EdDSA-Verifier").samples(2).iterations({1, 10, 100, 1000, 10000});
-PICOBENCH(rsaVerifierBenchmark).label("RSA-Verifier").samples(2).iterations({1, 10, 100, 1000, 10000});
 }  // namespace concord::benchmark
 
 /**

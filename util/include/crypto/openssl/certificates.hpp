@@ -25,7 +25,7 @@ namespace concord::crypto {
 std::string generateSelfSignedCert(const std::string& origin_cert_path,
                                    const std::string& pub_key,
                                    const std::string& signing_key,
-                                   const SIGN_VERIFY_ALGO signingAlgo);
+                                   const SignatureAlgorithm signingAlgo);
 /**
  * @brief Verifies the signature of certificate 'cert' using public key 'pub_key'.
  *

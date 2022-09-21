@@ -15,7 +15,7 @@
 
 namespace concord::crypto {
 
-using AlgProvider = std::pair<SIGN_VERIFY_ALGO, Provider>;
+using AlgProvider = std::pair<SignatureAlgorithm, Provider>;
 
 class AlgProviderHash {
  public:
@@ -28,19 +28,14 @@ class AlgProviderHash {
 };
 
 std::unique_ptr<ISigner> Factory::getSigner(const std::string& signingKey,
-                                            SIGN_VERIFY_ALGO signingAlgo,
+                                            SignatureAlgorithm signingAlgo,
                                             concord::crypto::KeyFormat fmt,
                                             Provider provider) {
   using ImplInitializer = std::function<std::unique_ptr<ISigner>()>;
-  namespace cryptopp = concord::crypto::cryptopp;
   namespace openssl = concord::crypto::openssl;
 
   const std::unordered_map<AlgProvider, ImplInitializer, AlgProviderHash> providerAlgorithmToSigner = {
-      {{SIGN_VERIFY_ALGO::ECDSA, Provider::CryptoPP},
-       [&]() { return std::make_unique<cryptopp::ECDSASigner>(signingKey, fmt); }},
-      {{SIGN_VERIFY_ALGO::RSA, Provider::CryptoPP},
-       [&]() { return std::make_unique<cryptopp::RSASigner>(signingKey, fmt); }},
-      {{SIGN_VERIFY_ALGO::EDDSA, Provider::OpenSSL}, [&]() {
+      {{SignatureAlgorithm::EdDSA, Provider::OpenSSL}, [&]() {
          const auto signingKeyObject = openssl::deserializeKey<openssl::EdDSAPrivateKey>(signingKey, fmt);
          return std::make_unique<openssl::EdDSASigner<openssl::EdDSAPrivateKey>>(signingKeyObject.getBytes());
        }}};
@@ -49,19 +44,14 @@ std::unique_ptr<ISigner> Factory::getSigner(const std::string& signingKey,
 }
 
 std::unique_ptr<IVerifier> Factory::getVerifier(const std::string& verificationKey,
-                                                SIGN_VERIFY_ALGO verifierAlgo,
+                                                SignatureAlgorithm verifierAlgo,
                                                 concord::crypto::KeyFormat fmt,
                                                 Provider provider) {
   using ImplInitializer = std::function<std::unique_ptr<IVerifier>()>;
-  namespace cryptopp = concord::crypto::cryptopp;
   namespace openssl = concord::crypto::openssl;
 
   const std::unordered_map<AlgProvider, ImplInitializer, AlgProviderHash> providerAlgorithmToVerifier = {
-      {{SIGN_VERIFY_ALGO::ECDSA, Provider::CryptoPP},
-       [&]() { return std::make_unique<cryptopp::ECDSAVerifier>(verificationKey, fmt); }},
-      {{SIGN_VERIFY_ALGO::RSA, Provider::CryptoPP},
-       [&]() { return std::make_unique<cryptopp::RSAVerifier>(verificationKey, fmt); }},
-      {{SIGN_VERIFY_ALGO::EDDSA, Provider::OpenSSL}, [&]() {
+      {{SignatureAlgorithm::EdDSA, Provider::OpenSSL}, [&]() {
          const auto signingKeyObject = openssl::deserializeKey<openssl::EdDSAPublicKey>(verificationKey, fmt);
          return std::make_unique<openssl::EdDSAVerifier<openssl::EdDSAPublicKey>>(signingKeyObject.getBytes());
        }}};

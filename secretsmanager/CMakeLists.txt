@@ -6,35 +6,19 @@ set(secretsmanager_source_files
     src/secrets_manager_plain.cpp
     src/secrets_manager_impl.cpp
     src/base64.cpp
-    src/aes.cpp
-    src/key_params.cpp)
+    src/aes.cpp)
 
-add_library(secretsmanager STATIC 
-    ${secretsmanager_source_files})
-add_library(secretsmanager_shared SHARED
-    ${secretsmanager_source_files})
+add_library(secretsmanager STATIC ${secretsmanager_source_files})
 
-if(BUILD_THIRDPARTY)
-    add_dependencies(secretsmanager cryptopp)
-    add_dependencies(secretsmanager_shared cryptopp)
-else()
-    find_package(cryptopp REQUIRED)
-endif()
-
-target_link_libraries(secretsmanager PUBLIC util ${CRYPTOPP_LIBRARIES})
-target_include_directories(secretsmanager PUBLIC include ${CRYPTOPP_INCLUDE_DIRS})
-target_include_directories(secretsmanager PRIVATE src)
-target_include_directories(secretsmanager PUBLIC ../bftengine/include/bftengine)
-
-target_link_libraries(secretsmanager_shared PUBLIC util_shared ${CRYPTOPP_LIBRARIES})
-target_include_directories(secretsmanager_shared PUBLIC include ${CRYPTOPP_INCLUDE_DIRS})
-target_include_directories(secretsmanager_shared PUBLIC ../bftengine/include/bftengine)
+target_include_directories(secretsmanager PRIVATE include src)
+target_link_libraries(secretsmanager PUBLIC util)
 
 if (USE_JSON AND USE_HTTPLIB)
     add_subdirectory(secretretriever)
 else ()
     message(STATUS "Not building secretretriever, usage of JSON library and/or httplib is disabled")
 endif()
+
 if (BUILD_TESTING)
     add_subdirectory(test)
 endif()

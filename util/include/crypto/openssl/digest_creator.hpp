@@ -68,4 +68,10 @@ class OpenSSLDigestCreator : public concord::crypto::DigestCreator {
   bool initialized_{false};
   SHACTX hash_ctx_;
 };
+
 }  // namespace concord::crypto::openssl
+
+namespace concord::crypto {
+
+using DigestGenerator = concord::crypto::openssl::OpenSSLDigestCreator<concord::crypto::openssl::SHA2_256>;
+}  // namespace concord::crypto

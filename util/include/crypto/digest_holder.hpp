@@ -93,4 +93,5 @@ class DigestHolder {
  private:
   char d[DIGEST_SIZE];  // DIGEST_SIZE should be >= 8 bytes;  // Stores digest.
 };
+
 }  // namespace concord::crypto

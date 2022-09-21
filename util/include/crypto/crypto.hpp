@@ -36,9 +36,6 @@ static constexpr const size_t Ed25519SignatureByteSize = 64UL;
  */
 std::pair<std::string, std::string> generateEdDSAKeyPair(const KeyFormat fmt = KeyFormat::HexaDecimalStrippedFormat);
 
-std::pair<std::string, std::string> generateECDSAKeyPair(CurveType type,
-                                                         const KeyFormat fmt = KeyFormat::HexaDecimalStrippedFormat);
-
 /**
  * @brief Generates an EdDSA PEM file from hexadecimal key pair (private-public key pair).
  *

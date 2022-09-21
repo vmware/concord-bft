@@ -13,11 +13,7 @@
 #include "helper.hpp"
 
 #include <random>
-#include <cryptopp/dll.h>
-#include <cryptopp/rsa.h>
-#include <cryptopp/osrng.h>
-#include <cryptopp/base64.h>
-#include <cryptopp/files.h>
+
 #include "gtest/gtest.h"
 #include "crypto/factory.hpp"
 #include "crypto/crypto.hpp"
@@ -39,7 +35,7 @@ using concord::crypto::ISigner;
 using concord::crypto::IVerifier;
 using concord::crypto::Factory;
 using bftEngine::ReplicaConfig;
-using concord::crypto::SIGN_VERIFY_ALGO;
+using concord::crypto::SignatureAlgorithm;
 using concord::crypto::generateEdDSAKeyPair;
 
 void generateKeyPairs(size_t count) {
@@ -53,9 +49,7 @@ void generateKeyPairs(size_t count) {
   cmd.clear();
 
   std::string algo;
-  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::RSA) {
-    algo = "rsa";
-  } else if (ReplicaConfig::instance().replicaMsgSigningAlgo == SIGN_VERIFY_ALGO::EDDSA) {
+  if (ReplicaConfig::instance().replicaMsgSigningAlgo == SignatureAlgorithm::EdDSA) {
     algo = "eddsa";
   }
   cmd << KEYS_GEN_SCRIPT_PATH << " -n " << count << " -r " << PRIV_KEY_NAME << " -u " << PUB_KEY_NAME << " -o "

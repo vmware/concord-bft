@@ -85,15 +85,6 @@ TEST_F(EdDSATests, TestInvalidSignature) {
 }
 }  // namespace
 
-TEST(openssl_test, generateECDSA) {
-  auto a = concord::crypto::openssl::generateAsymmetricCryptoKeyPairById(NID_secp256k1, "secp256k1");
-  std::cout << a.first->serialize() << std::endl;
-  std::cout << a.second->serialize() << std::endl;
-  auto b = concord::crypto::openssl::generateAsymmetricCryptoKeyPairById(NID_secp384r1, "secp384r1");
-  std::cout << b.first->serialize() << std::endl;
-  std::cout << b.second->serialize() << std::endl;
-}
-
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
