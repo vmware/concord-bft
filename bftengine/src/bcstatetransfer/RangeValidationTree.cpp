@@ -326,6 +326,7 @@ RangeValidationTree::RangeValidationTree(const logging::Logger& logger,
       logger_(logger),
       fetch_range_size_(fetch_range_size),
       value_size_(value_size),
+#ifdef ENABLE_ALL_METRICS
       metrics_component_{
           concordMetrics::Component("range_validation_tree", std::make_shared<concordMetrics::Aggregator>())},
       metrics_{metrics_component_.RegisterGauge("rvt_size_in_bytes", 0),
@@ -335,6 +336,10 @@ RangeValidationTree::RangeValidationTree(const logging::Logger& logger,
                metrics_component_.RegisterGauge("rvt_max_rvb_id", 0),
                metrics_component_.RegisterGauge("serialized_rvt_size", 0),
                metrics_component_.RegisterCounter("rvt_validation_failures")} {
+#else
+      metrics_component_{
+          concordMetrics::Component("range_validation_tree", std::make_shared<concordMetrics::Aggregator>())} {
+#endif
   LOG_INFO(logger_, KVLOG(RVT_K, fetch_range_size_, value_size));
   NodeVal::kNodeValueModulo_ = NodeVal::calcModulo(value_size_);
   ConcordAssert(NodeVal::kNodeValueModulo_ != NodeVal_t(static_cast<signed long>(0)));
@@ -534,12 +539,16 @@ bool RangeValidationTree::validateTreeValues() const noexcept {
 bool RangeValidationTree::validate() const noexcept {
   auto ret = validateTreeStructure();
   if (!ret) {
+#ifdef ENABLE_ALL_METRICS
     metrics_.rvt_validation_failures_++;
+#endif
     return false;
   }
   ret = validateTreeValues();
   if (!ret) {
+#ifdef ENABLE_ALL_METRICS
     metrics_.rvt_validation_failures_++;
+#endif
   }
   return true;
 }
@@ -1015,11 +1024,13 @@ void RangeValidationTree::addRightNode(const RVBId rvb_id, const char* data, siz
   if (min_rvb_index_ == 0) {
     min_rvb_index_ = rvb_index;
   }
+#ifdef ENABLE_ALL_METRICS
   metrics_.rvt_size_in_bytes_.Get().Set(id_to_node_.size() * (sizeof(uint64_t) + sizeof(RVTNode)));
   metrics_.rvt_min_rvb_id_.Get().Set(getMinRvbId());
   metrics_.rvt_max_rvb_id_.Get().Set(getMaxRvbId());
   metrics_.total_rvt_nodes_.Get().Set(totalNodes());
   metrics_.total_rvt_levels_.Get().Set(totalLevels());
+#endif
   LOG_TRACE(logger_, KVLOG(min_rvb_index_, max_rvb_index_, rvb_id));
 }
 
@@ -1044,11 +1055,13 @@ void RangeValidationTree::removeLeftNode(const RVBId rvb_id, const char* data, s
   } else {
     ++min_rvb_index_;
   }
+#ifdef ENABLE_ALL_METRICS
   metrics_.rvt_size_in_bytes_.Get().Set(id_to_node_.size() * (sizeof(uint64_t) + sizeof(RVTNode)));
   metrics_.rvt_min_rvb_id_.Get().Set(getMinRvbId());
   metrics_.rvt_max_rvb_id_.Get().Set(getMaxRvbId());
   metrics_.total_rvt_nodes_.Get().Set(totalNodes());
   metrics_.total_rvt_levels_.Get().Set(totalLevels());
+#endif
   LOG_TRACE(logger_, KVLOG(min_rvb_index_, max_rvb_index_, rvb_id));
 }
 
@@ -1088,7 +1101,9 @@ std::ostringstream RangeValidationTree::getSerializedRvbData() const {
   }
 
   LOG_TRACE(logger_, KVLOG(os.str().size()));
+#ifdef ENABLE_ALL_METRICS
   metrics_.serialized_rvt_size_.Get().Set(os.str().size());
+#endif
   LOG_TRACE(logger_, "Nodes:" << totalNodes() << " root value:" << root_->current_value_.toString());
   return os;
 }
@@ -1174,13 +1189,14 @@ bool RangeValidationTree::setSerializedRvbData(std::istringstream& is) {
     clear();
     return false;
   }
-
+#ifdef ENABLE_ALL_METRICS
   metrics_.rvt_size_in_bytes_.Get().Set(id_to_node_.size() * (sizeof(uint64_t) + sizeof(RVTNode)));
   metrics_.total_rvt_nodes_.Get().Set(totalNodes());
   metrics_.total_rvt_levels_.Get().Set(totalLevels());
   metrics_.rvt_min_rvb_id_.Get().Set(getMinRvbId());
   metrics_.rvt_max_rvb_id_.Get().Set(getMaxRvbId());
   metrics_.serialized_rvt_size_.Get().Set(is.str().size());
+#endif
   LOG_TRACE(logger_, "Nodes:" << totalNodes() << " root value:" << root_->current_value_.toString());
   return true;
 }
