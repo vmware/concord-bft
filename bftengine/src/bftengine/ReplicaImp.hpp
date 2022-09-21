@@ -302,6 +302,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   CounterHandle metric_sent_newview_msg_due_to_status_;
   CounterHandle metric_sent_preprepare_msg_due_to_status_;
   CounterHandle metric_sent_replica_asks_to_leave_view_msg_due_to_status_;
+#ifdef ENABLE_ALL_METRICS
   CounterHandle metric_sent_preprepare_msg_due_to_reqMissingData_;
   CounterHandle metric_sent_startSlowPath_msg_due_to_reqMissingData_;
   CounterHandle metric_sent_partialCommitProof_msg_due_to_reqMissingData_;
@@ -310,9 +311,12 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   CounterHandle metric_sent_commitPartial_msg_due_to_reqMissingData_;
   CounterHandle metric_sent_commitFull_msg_due_to_reqMissingData_;
   CounterHandle metric_sent_fullCommitProof_msg_due_to_reqMissingData_;
+#endif
   CounterHandle metric_total_finished_consensuses_;
   CounterHandle metric_total_preexec_requests_executed_;
+#ifdef ENABLE_ALL_METRICS
   CounterHandle metric_received_restart_ready_;
+#endif
   CounterHandle metric_received_restart_proof_;
   PerfMetric<uint64_t> metric_consensus_duration_;
   PerfMetric<uint64_t> metric_post_exe_duration_;
