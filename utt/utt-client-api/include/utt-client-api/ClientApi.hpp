@@ -34,7 +34,7 @@ struct IUserPKInfrastructure {};
 
 struct ConfigInputParams {
   bool useBudget = true;  // Disable/enable usage of a budget token
-  std::vector<std::string> multipartyPublicKeys;
+  std::vector<std::string> participantsPublicKeys;
   uint16_t corruptionThreshold = 0;
 };
 
@@ -53,7 +53,7 @@ Configuration generateConfig(const ConfigInputParams& inputParams);
 /// @param storage A storage interface for the user's data
 /// @return Newly created user object
 std::unique_ptr<User> createUser(const std::string& userId,
-                                 const std::vector<uint8_t>& params,
+                                 const PublicParams& params,
                                  IUserPKInfrastructure& pki,
                                  IUserStorage& storage);
 

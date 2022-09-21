@@ -5,6 +5,7 @@
 #include "mint.hpp"
 #include "commitment.hpp"
 #include "transaction.hpp"
+#include "config.hpp"
 #include <utt/Coin.h>
 #include <utt/MintOp.h>
 #include <utt/BurnOp.h>
@@ -33,6 +34,14 @@ int main(int argc, char* argv[]) {
   std::vector<uint8_t> serialized_params = libutt::api::serialize<libutt::api::UTTParams>(d);
   auto deserialized_params = libutt::api::deserialize<libutt::api::UTTParams>(serialized_params);
   assertTrue(deserialized_params == d);
+
+  // Test Configuration de/serialization
+  {
+    auto config = libutt::api::Configuration(n, thresh);
+    auto serialized_config = libutt::api::serialize<libutt::api::Configuration>(config);
+    auto deserialized_config = libutt::api::deserialize<libutt::api::Configuration>(serialized_config);
+    assertTrue(deserialized_config == config);
+  }
 
   Commitment rcm = clients[0].getRcm().first;
 

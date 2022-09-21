@@ -142,6 +142,10 @@ class IBE {
     Fr msk;
 
    public:
+    bool operator==(const MSK& o) const { return msk == o.msk; }
+    bool operator!=(const MSK& o) const { return !operator==(o); }
+
+   public:
     static MSK random() {
       MSK msk;
       msk.msk = Fr::random_element();

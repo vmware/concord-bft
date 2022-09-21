@@ -40,13 +40,13 @@ struct Impl {
 };
 
 std::unique_ptr<User> User::createInitial(const std::string& userId,
-                                          const std::vector<uint8_t>& publicParams,
+                                          const PublicParams& params,
                                           IUserPKInfrastructure& pki,
                                           IUserStorage& storage) {
   (void)pki;
   (void)storage;
   if (userId.empty()) throw std::runtime_error("UserId cannot be empty!");
-  if (publicParams.empty()) throw std::runtime_error("UTT instance public params cannot be empty!");
+  if (params.empty()) throw std::runtime_error("UTT instance public params cannot be empty!");
 
   // [TODO-UTT] Maybe we do something with pki and storage here before we try to create the user.
   // - Ask pki to create a new public/private key pair?

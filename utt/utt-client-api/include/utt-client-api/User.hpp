@@ -19,7 +19,7 @@
 #include <optional>
 #include <memory>
 
-// [TODO-UTT] All types are tentative
+#include <utt-common-api/CommonApi.hpp>
 
 namespace utt::client {
 
@@ -37,14 +37,7 @@ using TransferResult = std::variant<TransferTx, Error>;
 
 class User {
  public:
-  static std::unique_ptr<User> createInitial(const std::string& userId,
-                                             const std::vector<uint8_t>& publicParams,
-                                             IUserPKInfrastructure& pki,
-                                             IUserStorage& storage);
-
-  static std::unique_ptr<User> createFromStorage(IUserStorage& storage);
-
-  User();
+  User();  // Default empty user object
   ~User();
 
   /**
@@ -149,6 +142,21 @@ class User {
   TransferResult transfer(const std::string& userId, const std::string& destPK, uint64_t amount) const;
 
  private:
+  // Users can be created only by the top-level ClientApi functions
+  friend std::unique_ptr<User> createUser(const std::string& userId,
+                                          const PublicParams& params,
+                                          IUserPKInfrastructure& pki,
+                                          IUserStorage& storage);
+
+  friend std::unique_ptr<User> loadUserFromStorage(IUserStorage& storage);
+
+  static std::unique_ptr<User> createInitial(const std::string& userId,
+                                             const PublicParams& params,
+                                             IUserPKInfrastructure& pki,
+                                             IUserStorage& storage);
+
+  static std::unique_ptr<User> createFromStorage(IUserStorage& storage);
+
   std::unique_ptr<struct Impl> pImpl_;
 };
 

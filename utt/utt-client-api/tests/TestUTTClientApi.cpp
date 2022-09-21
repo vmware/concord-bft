@@ -24,35 +24,41 @@
 // libutt new interface
 #include <registrator.hpp>
 #include <coinsSigner.hpp>
+#include <common.hpp>
+#include <config.hpp>
+#include <serialization.hpp>
 
 using namespace libutt;
 
 struct ServerMock {
   static ServerMock createFromConfig(const utt::Configuration& config) {
-    assertTrue(config.committerVerificationKeyShares.size() > 0);
-    assertTrue(config.committerVerificationKeyShares.size() == config.registrationVerificationKeyShares.size());
+    // assertTrue(config.committerVerificationKeyShares.size() > 0);
+    // assertTrue(config.committerVerificationKeyShares.size() == config.registrationVerificationKeyShares.size());
 
     ServerMock mock;
+    mock.config_ =
+        std::make_unique<libutt::api::Configuration>(libutt::api::deserialize<libutt::api::Configuration>(config));
 
     // Create registrars
-    for (size_t i = 0; i < config.encryptedRegistrationSecrets.size(); ++i) {
-      mock.registrars.emplace_back(
-          std::to_string(i), config.encryptedRegistrationSecrets[i], config.registrationVerificationKey);
-    }
+    // for (size_t i = 0; i < config.encryptedRegistrationSecrets.size(); ++i) {
+    //   mock.registrars.emplace_back(
+    //       std::to_string(i), mock.config_.getRegistrationSecret(i), mock.config_.getRegistrationVerificationKey());
+    // }
 
-    // Create coins signers
-    for (size_t i = 0; i < config.encryptedCommitSecrets.size(); ++i) {
-      mock.coinsSigners.emplace_back(std::to_string(i),
-                                     config.encryptedCommitSecrets[i],
-                                     config.commitVerificationKey,
-                                     config.registrationVerificationKey);
-    }
+    // // Create coins signers
+    // for (size_t i = 0; i < config.encryptedCommitSecrets.size(); ++i) {
+    //   mock.coinsSigners.emplace_back(std::to_string(i),
+    //                                  config.encryptedCommitSecrets[i],
+    //                                  config.commitVerificationKey,
+    //                                  config.registrationVerificationKey);
+    // }
 
     return mock;
   }
 
-  std::vector<libutt::api::Registrator> registrars;
-  std::vector<libutt::api::CoinsSigner> coinsSigners;
+  std::unique_ptr<libutt::api::Configuration> config_;
+  std::vector<libutt::api::Registrator> registrars_;
+  std::vector<libutt::api::CoinsSigner> coinsSigners_;
 };
 
 int main(int argc, char* argv[]) {
@@ -67,7 +73,7 @@ int main(int argc, char* argv[]) {
 
   // Create a UTT system tolerating F faulty participants
   const uint16_t F = 1;
-  cfgInputParams.multipartyPublicKeys = std::vector<std::string>(3 * F + 1, "placeholderForPublicKey");
+  cfgInputParams.participantsPublicKeys = std::vector<std::string>(3 * F + 1, "placeholderForPublicKey");
   cfgInputParams.corruptionThreshold = F + 1;
 
   // Create a new UTT instance config
@@ -82,12 +88,12 @@ int main(int argc, char* argv[]) {
   std::vector<std::unique_ptr<utt::client::User>> users;
   users.reserve(C);
 
-  utt::client::IUserStorage storage;
-  utt::client::IUserPKInfrastructure pki;
+  // utt::client::IUserStorage storage;
+  // utt::client::IUserPKInfrastructure pki;
 
-  for (int i = 0; i < C; ++i) {
-    users.emplace_back(utt::client::createUser("user-" + std::to_string(i), config.publicParams, pki, storage));
-  }
+  // for (int i = 0; i < C; ++i) {
+  //   users.emplace_back(utt::client::createUser("user-" + std::to_string(i), config.publicParams, pki, storage));
+  // }
 
   for (const auto& user : users) {
     std::cout << user->getUserId() << " created!\n";

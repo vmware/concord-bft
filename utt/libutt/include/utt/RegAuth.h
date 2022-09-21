@@ -84,6 +84,11 @@ class RegAuthShareSK {
   IBE::MSK msk;  // IBE MSK, needed to issue encryption SKs to users
 
  public:
+  bool operator==(const RegAuthShareSK& o) const { return sk == o.sk && msk == o.msk; }
+
+  bool operator!=(const RegAuthShareSK& o) const { return !operator==(o); }
+
+ public:
   RegAuthShareSK() {}
 
   RegAuthSharePK toPK() const {

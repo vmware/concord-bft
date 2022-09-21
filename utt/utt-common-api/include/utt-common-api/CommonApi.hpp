@@ -19,20 +19,12 @@
 
 namespace utt {
 
-// This is the configuration of a UTT instance
-// [TODO-UTT] What should be the types for the different keys?
+// [TODO-UTT] All types are tentative
 
-struct Configuration {
-  bool useBudget = true;
-  std::vector<std::string> encryptedCommitSecrets;
-  std::vector<std::string> encryptedRegistrationSecrets;
-  std::vector<std::string>
-      committerVerificationKeyShares;  // [TODO-UTT] Check: I think we need this for partial sig verification
-  std::vector<std::string>
-      registrationVerificationKeyShares;  // [TODO-UTT] Check: I think we need this for partial sig verification
-  std::string commitVerificationKey;
-  std::string registrationVerificationKey;
-  std::vector<uint8_t> publicParams;
-};
+/// @brief The complete configuration required to deploy a UTT instance, contains public and secret data
+using Configuration = std::vector<uint8_t>;
+
+/// @brief Part of the complete configuration required to create new users, consists of public data only
+using PublicParams = std::vector<uint8_t>;
 
 }  // namespace utt
