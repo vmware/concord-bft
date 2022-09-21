@@ -78,29 +78,19 @@ class GrpcConnection {
   // Possible results of RPC operations a GrpcConnection may report.
   enum class Result { kUnknown, kSuccess, kFailure, kTimeout, kOutOfRange, kNotFound, kEndOfStream };
 
-  static const size_t defaultSubscriptionThreadPoolSize = 1;
-  static const size_t maxSubscriptionThreadPoolSize = 8;
-
   GrpcConnection(const std::string& address,
                  const std::string& client_id,
                  uint16_t data_operation_timeout_seconds,
                  uint16_t hash_operation_timeout_seconds,
-                 uint16_t snapshot_operation_timeout_seconds = 5,
-                 size_t thread_pool_size = defaultSubscriptionThreadPoolSize)
+                 uint16_t snapshot_operation_timeout_seconds = 5)
       : logger_(logging::getLogger("concord.client.thin_replica.trscon")),
         address_(address),
         client_id_(client_id),
-        subscription_pool_size(thread_pool_size),
         data_timeout_(std::chrono::seconds(data_operation_timeout_seconds)),
         hash_timeout_(std::chrono::seconds(hash_operation_timeout_seconds)),
         snapshot_timeout_(std::chrono::seconds(snapshot_operation_timeout_seconds)) {
-    if (thread_pool_size > maxSubscriptionThreadPoolSize) {
-      LOG_WARN(logger_,
-               "Setting to maximum allowed worker thread pool size: " << maxSubscriptionThreadPoolSize
-                                                                      << " instead of requested: " << thread_pool_size);
-      subscription_pool_size = maxSubscriptionThreadPoolSize;
-    }
-    subscription_pool_ = std::make_unique<concord::util::ThreadPool>(thread_pool_size);
+    grpc_connection_pool_ = std::make_unique<concord::util::ThreadPool>(1);
+    ConcordAssertNE(grpc_connection_pool_, nullptr);
     LOG_INFO(logger_,
              KVLOG(data_operation_timeout_seconds, hash_operation_timeout_seconds, snapshot_operation_timeout_seconds));
   }
@@ -226,9 +216,7 @@ class GrpcConnection {
   std::atomic_uint64_t current_req_id_{1};
 
   // Reader threads
-  std::unique_ptr<concord::util::ThreadPool> subscription_pool_;
-  // size of subscription thread pool
-  std::size_t subscription_pool_size;
+  std::unique_ptr<concord::util::ThreadPool> grpc_connection_pool_;
 
   // gRPC connection
   std::shared_ptr<grpc::Channel> channel_;
