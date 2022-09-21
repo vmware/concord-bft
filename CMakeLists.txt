@@ -47,6 +47,7 @@ option(BUILD_THIRDPARTY "Wheter to build third party librarie or use preinstalle
 option(CODECOVERAGE "Enable Code Coverage Metrics in Clang" OFF)
 option(ENABLE_RESTART_RECOVERY_TESTS "Enable tests for restart recovery" OFF)
 option(BUILD_UTT "Build UTT library" OFF)
+option(CONCORD_ENABLE_ALL_METRICS "Enable all metrics in concord" ON)
 
 if(USE_OPENSSL AND NOT BUILD_THIRDPARTY)
     set(OPENSSL_ROOT_DIR /usr/local/ssl) # not to confuse with system ssl libs
