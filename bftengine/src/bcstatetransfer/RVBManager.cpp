@@ -33,6 +33,7 @@ RVBManager::RVBManager(const Config& config, const IAppState* state_api, const s
       ds_{ds},
       in_mem_rvt_{new RangeValidationTree(logger_, config_.RVT_K, config_.fetchRangeSize)},
       rvb_data_source_(RvbDataInitialSource::NIL),
+#ifdef ENABLE_ALL_METRICS
       metrics_component_{
           concordMetrics::Component("state_transfer_rvb_manager", std::make_shared<concordMetrics::Aggregator>())},
       metrics_{metrics_component_.RegisterCounter("report_during_checkpointing_errors"),
@@ -41,6 +42,11 @@ RVBManager::RVBManager(const Config& config, const IAppState* state_api, const s
                metrics_component_.RegisterGauge("pruning_vector_elements_count", 0),
                metrics_component_.RegisterGauge("pruning_vector_size_in_bytes", 0),
                metrics_component_.RegisterGauge("stored_rvb_digests_size_in_bytes", 0)} {
+#else
+      metrics_component_{
+          concordMetrics::Component("state_transfer_rvb_manager", std::make_shared<concordMetrics::Aggregator>())} {
+#endif
+
   LOG_TRACE(logger_, "");
   last_checkpoint_desc_.makeZero();
 }
@@ -76,8 +82,10 @@ void RVBManager::init(bool fetching) {
 
   // Get pruned blocks digests
   pruned_blocks_digests_ = ds_->getPrunedBlocksDigests();
+#ifdef ENABLE_ALL_METRICS
   metrics_.pruning_vector_elements_count_.Get().Set(pruned_blocks_digests_.size());
   metrics_.pruning_vector_size_in_bytes_.Get().Set(pruned_blocks_digests_.size() * (sizeof(BlockId) + sizeof(Digest)));
+#endif
   LOG_INFO(logger_, KVLOG(pruned_blocks_digests_.size()));
 
   if (config_.enableStoreRvbDataDuringCheckpointing) {
@@ -89,7 +97,9 @@ void RVBManager::init(bool fetching) {
       loaded_from_stored_checkpoint = in_mem_rvt_->setSerializedRvbData(rvb_data);
       if (!loaded_from_stored_checkpoint) {
         LOG_ERROR(logger_, "Failed to load RVB data from stored checkpoint" << KVLOG(desc.checkpointNum));
+#ifdef ENABLE_ALL_METRICS
         metrics_.failures_while_setting_serialized_rvt_++;
+#endif
       } else {
         rvb_data_source_ = RvbDataInitialSource::FROM_STORAGE_CP;
 
@@ -175,9 +185,11 @@ void RVBManager::pruneRvbDataDuringCheckpoint(const CheckpointDesc& new_checkpoi
                           << KVLOG(min_block_id, max_block_id));
       pruned_blocks_digests_.erase(pruned_blocks_digests_.begin(), pruned_blocks_digests_.begin() + i);
       ds_->setPrunedBlocksDigests(pruned_blocks_digests_);
+#ifdef ENABLE_ALL_METRICS
       metrics_.pruning_vector_elements_count_.Get().Set(pruned_blocks_digests_.size());
       metrics_.pruning_vector_size_in_bytes_.Get().Set(pruned_blocks_digests_.size() *
                                                        (sizeof(BlockId) + sizeof(Digest)));
+#endif
     }
   }
 
@@ -293,7 +305,9 @@ bool RVBManager::setRvbData(char* data, size_t data_size, BlockId min_block_id_s
     if (!in_mem_rvt_->setSerializedRvbData(rvb_data)) {
       in_mem_rvt_->clear();
       LOG_ERROR(logger_, "Failed setting RVB data! (setSerializedRvbData failed!)");
+#ifdef ENABLE_ALL_METRICS
       metrics_.failures_while_setting_serialized_rvt_++;
+#endif
       return false;
     }
 
@@ -547,7 +561,9 @@ bool RVBManager::setSerializedDigestsOfRvbGroup(char* data,
     }
   }
   stored_rvb_digests_.merge(digests);
+#ifdef ENABLE_ALL_METRICS
   metrics_.stored_rvb_digests_size_in_bytes_.Get().Set(stored_rvb_digests_.size() * (sizeof(BlockId) + sizeof(Digest)));
+#endif
   LOG_INFO(logger_,
            "Done updating RVB stored digests:" << KVLOG(rvb_group_id_added,
                                                         rvb_group_id_removed,
@@ -734,7 +750,9 @@ RVBId RVBManager::nextRvbBlockId(BlockId block_id) const {
 void RVBManager::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBlockId) {
   DurationTracker<std::chrono::milliseconds> store_pruned_digests_dt("store_pruned_digests_dt", true);
   LOG_TRACE(logger_, KVLOG(lastAgreedPrunableBlockId));
+#ifdef ENABLE_ALL_METRICS
   metrics_.pruning_reports_++;
+#endif
   auto initial_size = pruned_blocks_digests_.size();
   RVBId start_rvb_id = in_mem_rvt_->getMinRvbId();
 
@@ -791,8 +809,10 @@ void RVBManager::reportLastAgreedPrunableBlockId(uint64_t lastAgreedPrunableBloc
                                                               pruned_blocks_digests_.front().first,
                                                               pruned_blocks_digests_.back().first));
   }
+#ifdef ENABLE_ALL_METRICS
   metrics_.pruning_vector_elements_count_.Get().Set(pruned_blocks_digests_.size());
   metrics_.pruning_vector_size_in_bytes_.Get().Set(pruned_blocks_digests_.size() * (sizeof(BlockId) + sizeof(Digest)));
+#endif
 }
 
 std::string RVBManager::getStateOfRvbData() const {
