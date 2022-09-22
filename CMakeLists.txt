@@ -225,6 +225,7 @@ add_subdirectory(ccron)
 # [TODO-UTT] Compile libutt on GCC
 if (BUILD_UTT AND "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
     add_subdirectory(utt)
+    add_subdirectory(utt-replica)
 endif()
 
 #

@@ -40,6 +40,7 @@ namespace libutt {
 
 static Fr createSN(const std::string& uniqueHash) { return hashToField("new sn|" + uniqueHash); }
 
+MintOp::MintOp() {}
 MintOp::MintOp(const std::string& uniqueHash, size_t v, const std::string& recipPID) {
   testAssertGreaterThanOrEqual(v, 1);
   clientId = recipPID;
