@@ -49,14 +49,13 @@ Configuration generateConfig(const ConfigInputParams& inputParams) {
   if (inputParams.participantsPublicKeys.empty())
     throw std::runtime_error("Generating UTT Instance Config with empty participants!");
 
-  if (inputParams.corruptionThreshold == 0)
-    throw std::runtime_error("Generating UTT Instance Config with zero corruption threshold!");
+  if (inputParams.threshold == 0) throw std::runtime_error("Generating UTT Instance Config with zero threshold!");
 
-  if (inputParams.corruptionThreshold >= inputParams.participantsPublicKeys.size())
-    throw std::runtime_error("Generating UTT Instance Config with threshold not less than the number of participants!");
+  if (inputParams.threshold > inputParams.participantsPublicKeys.size())
+    throw std::runtime_error("Generating UTT Instance Config with threshold greater than the number of participants!");
 
   const size_t n = inputParams.participantsPublicKeys.size();
-  const size_t t = inputParams.corruptionThreshold;
+  const size_t t = inputParams.threshold;
 
   auto config = libutt::api::Configuration(n, t);
 

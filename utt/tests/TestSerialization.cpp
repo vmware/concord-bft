@@ -38,9 +38,16 @@ int main(int argc, char* argv[]) {
   // Test Configuration de/serialization
   {
     auto config = libutt::api::Configuration(n, thresh);
+    assertTrue(config.isValid());
     auto serialized_config = libutt::api::serialize<libutt::api::Configuration>(config);
     auto deserialized_config = libutt::api::deserialize<libutt::api::Configuration>(serialized_config);
+    assertTrue(deserialized_config.isValid());
     assertTrue(deserialized_config == config);
+
+    const auto& publicConfig = config.getPublicConfig();
+    auto serialized_public_config = libutt::api::serialize<libutt::api::PublicConfig>(publicConfig);
+    auto deserialized_public_config = libutt::api::deserialize<libutt::api::PublicConfig>(serialized_public_config);
+    assertTrue(deserialized_public_config == publicConfig);
   }
 
   Commitment rcm = clients[0].getRcm().first;

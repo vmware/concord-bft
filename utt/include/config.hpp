@@ -16,16 +16,45 @@
 #include <memory>
 
 namespace libutt::api {
+class PublicConfig;
 class Configuration;
 }  // namespace libutt::api
+
+std::ostream& operator<<(std::ostream& out, const libutt::api::PublicConfig& config);
+std::istream& operator>>(std::istream& in, libutt::api::PublicConfig& config);
 
 std::ostream& operator<<(std::ostream& out, const libutt::api::Configuration& config);
 std::istream& operator>>(std::istream& in, libutt::api::Configuration& config);
 
 namespace libutt::api {
+/// @brief The set of public parameters visible to all users of the system
+class PublicConfig {
+ public:
+  PublicConfig();
+  ~PublicConfig();
+
+  PublicConfig(PublicConfig&& o);
+  PublicConfig& operator=(PublicConfig&& o);
+
+  bool operator==(const PublicConfig& o);
+  bool operator!=(const PublicConfig& o);
+
+ private:
+  friend class Configuration;
+  friend std::ostream& ::operator<<(std::ostream& out, const libutt::api::PublicConfig& config);
+  friend std::istream& ::operator>>(std::istream& in, libutt::api::PublicConfig& config);
+
+  struct Impl;
+  std::unique_ptr<Impl> pImpl_;
+};
+
+/// @brief The complete configuration of a UTT Instance, including the PublicConfig
 class Configuration {
  public:
   Configuration();
+  /// @brief Constructs a UTT instance configuration
+  /// @param n The number of participants for multiparty signature computation
+  /// @param t The number of participant shares required to reconstruct a signature
   Configuration(size_t n, size_t t);
   ~Configuration();
 
@@ -35,7 +64,11 @@ class Configuration {
   bool operator==(const Configuration& o);
   bool operator!=(const Configuration& o);
 
-  // [TODO-UTT] Public getters for different "generic typed" values of the config
+  bool isValid() const;
+
+  size_t getNumParticipants() const;
+  size_t getThreshold() const;
+  const PublicConfig& getPublicConfig() const;
 
  private:
   friend std::ostream& ::operator<<(std::ostream& out, const libutt::api::Configuration& config);

@@ -35,7 +35,7 @@ struct IUserPKInfrastructure {};
 struct ConfigInputParams {
   bool useBudget = true;  // Disable/enable usage of a budget token
   std::vector<std::string> participantsPublicKeys;
-  uint16_t corruptionThreshold = 0;
+  uint16_t threshold = 0;  // The number of participant shares required to reconstruct a signature
 };
 
 /// @brief Initialize the UTT Client API. Must be called before any other API function.

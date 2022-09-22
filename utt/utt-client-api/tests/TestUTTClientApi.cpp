@@ -74,7 +74,7 @@ int main(int argc, char* argv[]) {
   // Create a UTT system tolerating F faulty participants
   const uint16_t F = 1;
   cfgInputParams.participantsPublicKeys = std::vector<std::string>(3 * F + 1, "placeholderForPublicKey");
-  cfgInputParams.corruptionThreshold = F + 1;
+  cfgInputParams.threshold = F + 1;
 
   // Create a new UTT instance config
   auto config = utt::client::generateConfig(cfgInputParams);
