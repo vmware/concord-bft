@@ -24,7 +24,7 @@ namespace utt {
 /// @brief The complete configuration required to deploy a UTT instance, contains public and secret data
 using Configuration = std::vector<uint8_t>;
 
-/// @brief Part of the complete configuration required to create new users, consists of public data only
-using PublicParams = std::vector<uint8_t>;
+/// @brief The public part of a UTT instance configuration visible to all users
+using PublicConfig = std::vector<uint8_t>;
 
 }  // namespace utt

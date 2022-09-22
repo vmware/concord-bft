@@ -42,6 +42,14 @@ bool PublicConfig::operator==(const PublicConfig& o) {
 
 bool PublicConfig::operator!=(const PublicConfig& o) { return !operator==(o); }
 
+std::string PublicConfig::getCommitVerificationKey() const {
+  return libutt::serialize<libutt::RandSigPK>(pImpl_->commitVerificationKey_);
+}
+
+std::string PublicConfig::getRegistrationVerificationKey() const {
+  return libutt::serialize<libutt::RegAuthPK>(pImpl_->registrationVerificationKey_);
+}
+
 struct Configuration::Impl {
   // [TODO-UTT] The commit and registration secrets need to be encrypted
   // [TODO-UTT] Decide if each participant can be represented by an index or it needs something more like a string id
@@ -126,6 +134,14 @@ bool Configuration::isValid() const {
 size_t Configuration::getNumParticipants() const { return pImpl_->n_; }
 size_t Configuration::getThreshold() const { return pImpl_->t_; }
 const PublicConfig& Configuration::getPublicConfig() const { return pImpl_->publicConfig_; }
+
+std::string Configuration::getCommitSecret(size_t idx) const {
+  return libutt::serialize<libutt::RandSigShareSK>(pImpl_->commitSecrets_.at(idx));
+}
+
+std::string Configuration::getRegistrationSecret(size_t idx) const {
+  return libutt::serialize<libutt::RegAuthShareSK>(pImpl_->registrationSecrets_.at(idx));
+}
 
 }  // namespace libutt::api
 

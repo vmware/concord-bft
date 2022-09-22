@@ -39,6 +39,11 @@ class PublicConfig {
   bool operator==(const PublicConfig& o);
   bool operator!=(const PublicConfig& o);
 
+  std::string getCommitVerificationKey() const;
+  std::string getRegistrationVerificationKey() const;
+
+  // [TODO-UTT] More getters if needed
+
  private:
   friend class Configuration;
   friend std::ostream& ::operator<<(std::ostream& out, const libutt::api::PublicConfig& config);
@@ -69,6 +74,11 @@ class Configuration {
   size_t getNumParticipants() const;
   size_t getThreshold() const;
   const PublicConfig& getPublicConfig() const;
+
+  std::string getCommitSecret(size_t idx) const;
+  std::string getRegistrationSecret(size_t idx) const;
+
+  // [TODO-UTT] More getters if needed
 
  private:
   friend std::ostream& ::operator<<(std::ostream& out, const libutt::api::Configuration& config);

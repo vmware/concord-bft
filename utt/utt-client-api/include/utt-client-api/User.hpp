@@ -35,6 +35,25 @@ using Tx = std::variant<TransferTx, BurnTx, MintTx>;
 using BurnResult = std::variant<TransferTx, BurnTx, Error>;
 using TransferResult = std::variant<TransferTx, Error>;
 
+// Provides the means to store the user's data
+struct IUserStorage {};
+
+// Provides the means to generate a public/private key pair when creating a user
+struct IUserPKInfrastructure {
+  struct KeyPair {
+    KeyPair(std::string sk, std::string pk) : sk_{std::move(sk)}, pk_{std::move(pk)} {}
+    std::string sk_;
+    std::string pk_;
+  };
+
+  /// @brief Generate a private/public key pair for a user
+  /// @param userId The user's id (used optionally)
+  /// @return The generate key pair
+  virtual KeyPair generateKeys(const std::string& userId) = 0;
+
+  virtual ~IUserPKInfrastructure() = default;
+};
+
 class User {
  public:
   User();  // Default empty user object
@@ -144,14 +163,14 @@ class User {
  private:
   // Users can be created only by the top-level ClientApi functions
   friend std::unique_ptr<User> createUser(const std::string& userId,
-                                          const PublicParams& params,
+                                          const PublicConfig& config,
                                           IUserPKInfrastructure& pki,
                                           IUserStorage& storage);
 
   friend std::unique_ptr<User> loadUserFromStorage(IUserStorage& storage);
 
   static std::unique_ptr<User> createInitial(const std::string& userId,
-                                             const PublicParams& params,
+                                             const PublicConfig& config,
                                              IUserPKInfrastructure& pki,
                                              IUserStorage& storage);
 

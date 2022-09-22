@@ -24,6 +24,8 @@
 #include <UTTParams.hpp>
 #include <coin.hpp>
 #include <client.hpp>
+#include <config.hpp>
+#include <serialization.hpp>
 
 namespace utt::client {
 
@@ -40,13 +42,13 @@ struct Impl {
 };
 
 std::unique_ptr<User> User::createInitial(const std::string& userId,
-                                          const PublicParams& params,
+                                          const PublicConfig& config,
                                           IUserPKInfrastructure& pki,
                                           IUserStorage& storage) {
   (void)pki;
   (void)storage;
-  if (userId.empty()) throw std::runtime_error("UserId cannot be empty!");
-  if (params.empty()) throw std::runtime_error("UTT instance public params cannot be empty!");
+  if (userId.empty()) throw std::runtime_error("User id cannot be empty!");
+  if (config.empty()) throw std::runtime_error("UTT instance public config cannot be empty!");
 
   // [TODO-UTT] Maybe we do something with pki and storage here before we try to create the user.
   // - Ask pki to create a new public/private key pair?
@@ -55,13 +57,16 @@ std::unique_ptr<User> User::createInitial(const std::string& userId,
 
   // [TODO-UTT] To create a user we need to successfully generate and persist to storage the user's secret key
   // and PRF secret s1.
+  auto userKeys = pki.generateKeys(userId);
+  auto uttConfig = libutt::api::deserialize<libutt::api::PublicConfig>(config);
 
-  // std::unique_ptr<User> user;
+  auto user = std::make_unique<User>();
 
   // Create a client object with an RSA based PKI
-  // user.pImpl_->client_ = libutt::api::Client(userId, )
+  user->pImpl_->client_.reset(new libutt::api::Client(
+      userId, uttConfig.getCommitVerificationKey(), uttConfig.getRegistrationVerificationKey(), userKeys.sk_));
 
-  return std::make_unique<User>();
+  return user;
 }
 
 std::unique_ptr<User> User::createFromStorage(IUserStorage& storage) {
@@ -108,8 +113,8 @@ uint64_t User::getPrivacyBudget() const {
 }
 
 const std::string& User::getUserId() const {
-  static std::string s_userId = "undefined";
-  return s_userId;
+  static const std::string s_empty;
+  return pImpl_->client_ ? pImpl_->client_->getPid() : s_empty;
 }
 
 const std::string& User::getPK() const {

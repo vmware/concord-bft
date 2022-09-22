@@ -65,10 +65,10 @@ Configuration generateConfig(const ConfigInputParams& inputParams) {
 }
 
 std::unique_ptr<User> createUser(const std::string& userId,
-                                 const PublicParams& publicParams,
+                                 const PublicConfig& config,
                                  IUserPKInfrastructure& pki,
                                  IUserStorage& storage) {
-  return User::createInitial(userId, publicParams, pki, storage);
+  return User::createInitial(userId, config, pki, storage);
 }
 
 }  // namespace utt::client

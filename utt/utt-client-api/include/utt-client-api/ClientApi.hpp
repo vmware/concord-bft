@@ -26,12 +26,6 @@ namespace utt::client {
 
 // [TODO-UTT] All types are tentative
 
-// Provides the means to store the user's wallet data
-struct IUserStorage {};
-
-// Provides the means to generate a public/private key pair when creating a user
-struct IUserPKInfrastructure {};
-
 struct ConfigInputParams {
   bool useBudget = true;  // Disable/enable usage of a budget token
   std::vector<std::string> participantsPublicKeys;
@@ -53,7 +47,7 @@ Configuration generateConfig(const ConfigInputParams& inputParams);
 /// @param storage A storage interface for the user's data
 /// @return Newly created user object
 std::unique_ptr<User> createUser(const std::string& userId,
-                                 const PublicParams& params,
+                                 const PublicConfig& config,
                                  IUserPKInfrastructure& pki,
                                  IUserStorage& storage);
 
