@@ -595,12 +595,16 @@ class BCStateTran : public IStateTransfer {
     GaugeHandle is_fetching_;
     GaugeHandle checkpoint_being_fetched_;
     GaugeHandle last_stored_checkpoint_;
+#ifdef ENABLE_ALL_METRICS
     GaugeHandle number_of_reserved_pages_;
     GaugeHandle size_of_reserved_page_;
     GaugeHandle last_msg_seq_num_;
+#endif
     GaugeHandle next_required_block_;
     GaugeHandle next_commited_block_id_;
+#ifdef ENABLE_ALL_METRICS
     GaugeHandle num_pending_item_data_msgs_;
+#endif
     GaugeHandle total_size_of_pending_item_data_msgs_;
     AtomicGaugeHandle last_block_;
     GaugeHandle last_reachable_block_;
@@ -621,34 +625,45 @@ class BCStateTran : public IStateTransfer {
     CounterHandle received_item_data_msg_;
     CounterHandle received_illegal_msg_;
 
+#ifdef ENABLE_ALL_METRICS
     CounterHandle invalid_ask_for_checkpoint_summaries_msg_;
     CounterHandle irrelevant_ask_for_checkpoint_summaries_msg_;
+#endif
     CounterHandle invalid_checkpoint_summary_msg_;
+#ifdef ENABLE_ALL_METRICS
     CounterHandle irrelevant_checkpoint_summary_msg_;
     CounterHandle invalid_fetch_blocks_msg_;
     CounterHandle irrelevant_fetch_blocks_msg_;
     CounterHandle invalid_fetch_res_pages_msg_;
     CounterHandle irrelevant_fetch_res_pages_msg_;
+#endif
     CounterHandle invalid_reject_fetching_msg_;
+#ifdef ENABLE_ALL_METRICS
     CounterHandle irrelevant_reject_fetching_msg_;
+#endif
     CounterHandle invalid_item_data_msg_;
     CounterHandle irrelevant_item_data_msg_;
 
+#ifdef ENABLE_ALL_METRICS
     AtomicCounterHandle create_checkpoint_;
-    CounterHandle mark_checkpoint_as_stable_;
     AtomicCounterHandle load_reserved_page_;
     AtomicCounterHandle load_reserved_page_from_pending_;
     AtomicCounterHandle load_reserved_page_from_checkpoint_;
     AtomicCounterHandle save_reserved_page_;
     CounterHandle zero_reserved_page_;
+#endif
     CounterHandle start_collecting_state_;
     CounterHandle on_timer_;
+#ifdef ENABLE_ALL_METRICS
     CounterHandle one_shot_timer_;
+#endif
 
     CounterHandle on_transferring_complete_;
     CounterHandle internal_cycle_counter;
 
+#ifdef ENABLE_ALL_METRICS
     CounterHandle handle_AskForCheckpointSummaries_msg_;
+#endif
     CounterHandle handle_CheckpointsSummary_msg_;
     CounterHandle handle_FetchBlocks_msg_;
     CounterHandle handle_FetchResPages_msg_;
@@ -666,7 +681,9 @@ class BCStateTran : public IStateTransfer {
 
     // TODO - consider moving into RVB Manager + add more metrics as needed.
     CounterHandle overall_rvb_digests_validated_;
+#ifdef ENABLE_ALL_METRICS
     CounterHandle overall_rvb_digest_groups_validated_;
+#endif
     CounterHandle overall_rvb_digests_validation_failed_;
     CounterHandle overall_rvb_digest_groups_validation_failed_;
     StatusHandle current_rvb_data_state_;
