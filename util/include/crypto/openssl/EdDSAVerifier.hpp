@@ -34,7 +34,6 @@ class EdDSAVerifier : public IVerifier {
   explicit EdDSAVerifier(const PublicKeyType &publicKey) : publicKey_(publicKey) {}
 
   bool verifyBuffer(const Byte *msg, size_t msgLen, const Byte *sig, size_t sigLen) const override {
-    ConcordAssertEQ(sigLen, Ed25519SignatureByteSize);
     UniquePKEY pkey{
         EVP_PKEY_new_raw_public_key(NID_ED25519, nullptr, publicKey_.getBytes().data(), publicKey_.getBytes().size())};
     UniqueContext ctx{EVP_MD_CTX_new()};

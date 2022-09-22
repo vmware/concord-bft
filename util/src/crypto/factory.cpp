@@ -52,8 +52,8 @@ std::unique_ptr<IVerifier> Factory::getVerifier(const std::string& verificationK
 
   const std::unordered_map<AlgProvider, ImplInitializer, AlgProviderHash> providerAlgorithmToVerifier = {
       {{SignatureAlgorithm::EdDSA, Provider::OpenSSL}, [&]() {
-         const auto signingKeyObject = openssl::deserializeKey<openssl::EdDSAPublicKey>(verificationKey, fmt);
-         return std::make_unique<openssl::EdDSAVerifier<openssl::EdDSAPublicKey>>(signingKeyObject.getBytes());
+         const auto verifyingKeyObject = openssl::deserializeKey<openssl::EdDSAPublicKey>(verificationKey, fmt);
+         return std::make_unique<openssl::EdDSAVerifier<openssl::EdDSAPublicKey>>(verifyingKeyObject.getBytes());
        }}};
 
   return providerAlgorithmToVerifier.at({verifierAlgo, provider})();
