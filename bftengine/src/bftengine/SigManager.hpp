@@ -58,7 +58,8 @@ class SigManager {
   // returns 0 if pid is invalid - caller might consider throwing an exception
   uint16_t getSigLength(PrincipalId pid) const;
   // returns false if actual verification failed, or if pid is invalid
-  bool verifySig(PrincipalId pid, const char* data, size_t dataLength, const char* sig, uint16_t sigLength) const;
+  [[nodiscard]] bool verifySig(
+      PrincipalId pid, const char* data, size_t dataLength, const char* sig, uint16_t sigLength) const;
   void sign(const char* data, size_t dataLength, char* outSig, uint16_t outSigLength) const;
   uint16_t getMySigLength() const;
   bool isClientTransactionSigningEnabled() { return clientTransactionSigningEnabled_; }
