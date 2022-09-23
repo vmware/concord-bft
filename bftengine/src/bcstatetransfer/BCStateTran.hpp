@@ -663,8 +663,8 @@ class BCStateTran : public IStateTransfer {
 
 #ifdef ENABLE_ALL_METRICS
     CounterHandle handle_AskForCheckpointSummaries_msg_;
-#endif
     CounterHandle handle_CheckpointsSummary_msg_;
+#endif
     CounterHandle handle_FetchBlocks_msg_;
     CounterHandle handle_FetchResPages_msg_;
     CounterHandle handle_RejectFetching_msg_;
