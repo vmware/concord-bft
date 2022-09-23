@@ -103,6 +103,17 @@ void Server::RecvLoop() {
       continue;
     }
 
+    if (addrlen == 0) {
+      // This may happen after a shutdown on the socket which causes 0 bytes
+      // to be returned with empty address (probably platform dependent).
+      // In this case we simply continue and recheck if we're still running.
+      //
+      // Note: If zero bytes are received from a valid address (if at all possible)
+      // we go to the next check and send an error as usual.
+      LOG_WARN(logger_, "Empty peer address. Received " << len << " bytes.");
+      continue;
+    }
+
     if (buf_[0] != kRequest || len != sizeof(Header)) {
       LOG_WARN(logger_, "Received invalid request");
       sendError(&cliaddr, addrlen);
