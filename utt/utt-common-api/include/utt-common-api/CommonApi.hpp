@@ -27,4 +27,34 @@ using Configuration = std::vector<uint8_t>;
 /// @brief The public part of a UTT instance configuration visible to all users
 using PublicConfig = std::vector<uint8_t>;
 
+/// @brief A user generated commitment used as input for registration in the UTT instance
+using UserRegistrationInput = std::vector<uint8_t>;
+
+/// @brief A signature on the user's full registration commitment
+using RegistrationSig = std::vector<uint8_t>;
+
+/// @brief A system generated part of the user's PRF key
+using S2 = std::vector<uint64_t>;
+
+/// @brief The privacy budget determines how much in value can a user transfer anonymously to other users.
+using PrivacyBudget = std::vector<uint8_t>;
+
+/// @brief Signature on a privacy budget object
+using PrivacyBudgetSig = std::vector<uint8_t>;
+
+/// @brief Represents an anonymous transfer transaction in the system
+using TransferTx = std::vector<uint8_t>;
+
+/// @brief Represents a public mint transaction in the system
+using MintTx = std::vector<uint8_t>;
+
+/// @brief Represents a public burn transaction in the system
+using BurnTx = std::vector<uint8_t>;
+
+/// @brief A signature on a single output of a transaction
+using TxOutputSig = std::vector<uint8_t>;
+
+/// @brief The signatures associated with the ordered outputs of a transaction
+using TxOutputSigs = std::vector<TxOutputSig>;
+
 }  // namespace utt

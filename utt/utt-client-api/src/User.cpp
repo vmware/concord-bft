@@ -25,6 +25,7 @@
 #include <coin.hpp>
 #include <client.hpp>
 #include <config.hpp>
+#include <budget.hpp>
 #include <serialization.hpp>
 
 namespace utt::client {
@@ -36,7 +37,7 @@ struct Impl {
   libutt::api::UTTParams params_;
   std::unique_ptr<libutt::api::Client> client_;  // User's credentials
 
-  uint16_t lastExecutedTxNum_ = 0;
+  uint64_t lastExecutedTxNum_ = 0;
   std::vector<libutt::api::Coin> coins_;         // User's unspent UTT coins (tokens)
   std::optional<libutt::api::Coin> budgetCoin_;  // User's current UTT budget coin (token)
 };
@@ -71,74 +72,98 @@ std::unique_ptr<User> User::createInitial(const std::string& userId,
 
 std::unique_ptr<User> User::createFromStorage(IUserStorage& storage) {
   (void)storage;
+  // [TODO-UTT] Implement User::createFromStorage
   return nullptr;
 }
 
 User::User() : pImpl_{new Impl{}} {}
 User::~User() = default;
 
-std::vector<uint8_t> User::getRegistrationInput() const {
-  // [TODO-UTT] Implement User::getRegistrationInput
-  return std::vector<uint8_t>{};
+UserRegistrationInput User::getRegistrationInput() const {
+  if (!pImpl_->client_) return UserRegistrationInput{};  // Empty
+  return libutt::api::serialize<libutt::api::Commitment>(pImpl_->client_->generateInputRCM());
 }
 
-bool User::useRegistration(const std::string& pk, const std::vector<uint8_t>& rs, const std::vector<uint8_t>& s2) {
-  // [TODO-UTT] Implement User::useRegistration
-  (void)pk;
-  (void)rs;
-  (void)s2;
-  return false;
+bool User::updateRegistration(const std::string& pk, const RegistrationSig& rs, const S2& s2) {
+  if (!pImpl_->client_) return false;
+  if (!(pImpl_->pk_ == pk)) return false;  // Expect a matching public key
+
+  // [TODO-UTT] What if we already updated a registration? How do we check it?
+  pImpl_->client_->setRCMSig(pImpl_->params_, s2, rs);
+
+  return true;
 }
 
-bool User::useBudgetCoin(const std::vector<uint8_t>& budgetCoin) {
-  // [TODO-UTT] Implement User::useBudgetCoin
-  (void)budgetCoin;
-  return false;
-}
+bool User::updatePrivacyBudget(const PrivacyBudget& budget, const PrivacyBudgetSig& sig) {
+  if (!pImpl_->client_) return false;
 
-bool User::useBudgetCoinSig(const std::vector<uint8_t>& sig) {
-  // [TODO-UTT] Implement User::useBudgetCoinSig
-  (void)sig;
-  return false;
+  auto claimedCoins = pImpl_->client_->claimCoins(libutt::api::deserialize<libutt::api::operations::Budget>(budget),
+                                                  pImpl_->params_,
+                                                  std::vector<libutt::api::types::Signature>{sig});
+
+  // Expect a single budget token to be claimed by the user
+  if (claimedCoins.size() != 1) return false;
+
+  pImpl_->budgetCoin_ = claimedCoins[0];
+
+  return true;
 }
 
 uint64_t User::getBalance() const {
-  // [TODO-UTT] Implement User::getBalance
-  return 0;
+  uint64_t sum = 0;
+  for (const auto& coin : pImpl_->coins_) {
+    sum += coin.getVal();
+  }
+  return sum;
 }
 
-uint64_t User::getPrivacyBudget() const {
-  // [TODO-UTT] Implement User::getPrivacyBudget
-  return 0;
-}
+uint64_t User::getPrivacyBudget() const { return pImpl_->budgetCoin_ ? pImpl_->budgetCoin_->getVal() : 0; }
 
 const std::string& User::getUserId() const {
   static const std::string s_empty;
   return pImpl_->client_ ? pImpl_->client_->getPid() : s_empty;
 }
 
-const std::string& User::getPK() const {
-  // [TODO-UTT] Implement User::getPK
-  static const std::string& s_Undefined = "Undefined";
-  return s_Undefined;
-}
+const std::string& User::getPK() const { return pImpl_->pk_; }
 
-uint64_t User::getLastExecutedTxNum() const {
-  // [TODO-UTT] Implement User::getLastExecutedTxNum
-  return 0;
-}
+uint64_t User::getLastExecutedTxNum() const { return pImpl_->lastExecutedTxNum_; }
 
-bool User::update(uint64_t txNum, const Tx& tx, const std::vector<std::vector<uint8_t>>& sigs) {
-  // [TODO-UTT] Implement User::update
-  (void)txNum;
+bool User::updateTransferTx(uint64_t txNum, const TransferTx& tx, const TxOutputSigs& sigs) {
+  if (txNum != pImpl_->lastExecutedTxNum_ + 1) return false;
+  pImpl_->lastExecutedTxNum_ = txNum;
+
+  // [TODO-UTT] Claim output coins
   (void)tx;
   (void)sigs;
+
   return false;
 }
 
-void User::update(uint64_t txNum) {
-  // [TODO-UTT] Implement User::update no-op
-  (void)txNum;
+bool User::updateMintTx(uint64_t txNum, const MintTx& tx, const TxOutputSigs& sigs) {
+  if (txNum != pImpl_->lastExecutedTxNum_ + 1) return false;
+  pImpl_->lastExecutedTxNum_ = txNum;
+
+  // [TODO-UTT] Claim output coins
+  (void)tx;
+  (void)sigs;
+
+  return false;
+}
+
+bool User::updateBurnTx(uint64_t txNum, const MintTx& tx) {
+  if (txNum != pImpl_->lastExecutedTxNum_ + 1) return false;
+  pImpl_->lastExecutedTxNum_ = txNum;
+
+  // [TODO-UTT] Slash burned coins
+  (void)tx;
+
+  return false;
+}
+
+bool User::updateNoOp(uint64_t txNum) {
+  if (txNum != pImpl_->lastExecutedTxNum_ + 1) return false;
+  pImpl_->lastExecutedTxNum_ = txNum;
+  return true;
 }
 
 BurnResult User::burn(uint64_t amount) const {

@@ -23,15 +23,7 @@
 
 namespace utt::client {
 
-struct IUserPKInfrastructure;
-struct IUserStorage;
-
 enum class Error {};
-struct TransferTx {};
-struct MintTx {};
-struct BurnTx {};
-
-using Tx = std::variant<TransferTx, BurnTx, MintTx>;
 using BurnResult = std::variant<TransferTx, BurnTx, Error>;
 using TransferResult = std::variant<TransferTx, Error>;
 
@@ -59,42 +51,22 @@ class User {
   User();  // Default empty user object
   ~User();
 
-  /**
-   * @brief Create the user registration commitment "rcm1".
-   *
-   * @return rcm1 as a byte array
-   */
-  std::vector<uint8_t> getRegistrationInput() const;
+  /// @brief Creates an input registration commitment. Multiple calls generate the same object.
+  /// @return The user's registration input object
+  UserRegistrationInput getRegistrationInput() const;
 
-  /**
-   * @brief Use a registration with the following credentials:
-   *
-   * @param pk The user's public key associated with the registration
-   * @param rs The signature on user's registration commitment
-   * @param s2 The system-side part of the user's PRF key
-   *
-   * @return true if the use of the registration is accepted
-   */
-  bool useRegistration(const std::string& pk, const std::vector<uint8_t>& rs, const std::vector<uint8_t>& s2);
+  /// @brief Updates the registration for the user using data computed by the system
+  /// @param pk The system sent public key for the registration (must be equal to the user's public key)
+  /// @param rs A signature on the user's registration
+  /// @param s2 A system generated part of the user's nullifier secret key
+  /// @return True if the registration is accepted by the user
+  bool updateRegistration(const std::string& pk, const RegistrationSig& rs, const S2& s2);
 
-  /**
-   * @brief Use a previously created budget coin for anonymous transactions
-   *
-   * @param budgetCoin The budget coin
-   *
-   * @return true if the use of the budget coin is accepted
-   */
-  bool useBudgetCoin(const std::vector<uint8_t>& budgetCoin);
-
-  // [TODO-UTT] Decide if we need a separate interface for setting the budget coin and sig.
-  /**
-   * @brief Use a signature for a previously created budget coin
-   *
-   * @param budgetCoin The budget coin
-   *
-   * @return true if the use of the budget coin signature is accepted
-   */
-  bool useBudgetCoinSig(const std::vector<uint8_t>& sig);
+  /// @brief Updates the privacy budget of the user
+  /// @param token The budget token object
+  /// @param sig The budget token signature
+  /// @return True if the budget token is accepted
+  bool updatePrivacyBudget(const PrivacyBudget& budget, const PrivacyBudgetSig& sig);
 
   /**
    * @brief Get the total value of unspent UTT tokens
@@ -102,7 +74,7 @@ class User {
   uint64_t getBalance() const;
 
   /**
-   * @brief Get the value of the currently available budget coin
+   * @brief Get the value of the currently available privacy budget
    */
   uint64_t getPrivacyBudget() const;
 
@@ -121,22 +93,29 @@ class User {
    */
   uint64_t getLastExecutedTxNum() const;
 
-  /**
-   * @brief Update the state of the client by applying a new transaction
-   *
-   * @param txNum The transaction number
-   * @param tx The transaction object
-   * @param sigs A vector of signatures for each output of the transaction
-   *
-   * @return true if the transaction was applied to the state
-   */
-  bool update(uint64_t txNum, const Tx& tx, const std::vector<std::vector<uint8_t>>& sigs);
+  /// @brief Update the user's state with the effects of a transfer transaction
+  /// @param txNum The transaction number
+  /// @param tx A transfer transaction
+  /// @param sigs The signatures on the transaction outputs
+  /// @return
+  bool updateTransferTx(uint64_t txNum, const TransferTx& tx, const TxOutputSigs& sigs);
 
-  /**
-   * @brief The client can ignore irrelevant transactions by recording the transaction number as a no-op.
-   *
-   */
-  void update(uint64_t txNum);
+  /// @brief Update the user's state with the effects of a mint transaction
+  /// @param txNum The transaction number
+  /// @param tx A mint transaction
+  /// @param sigs The signatures on the transaction outputs
+  /// @return
+  bool updateMintTx(uint64_t txNum, const MintTx& tx, const TxOutputSigs& sigs);
+
+  /// @brief Update the user's state with the effects of a burn transaction
+  /// @param txNum The transaction number
+  /// @param tx A burn transaction
+  /// @return
+  bool updateBurnTx(uint64_t txNum, const BurnTx& tx);
+
+  /// @brief The user records the tx as a no-op and skips it
+  /// @param txNum
+  bool updateNoOp(uint64_t txNum);
 
   /**
    * @brief Ask to burn some amount of tokens. This function needs to be called repeatedly until the final burn
