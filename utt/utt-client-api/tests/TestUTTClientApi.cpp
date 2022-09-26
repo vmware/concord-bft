@@ -21,12 +21,14 @@
 #include <utt/RegAuth.h>
 #include <utt/RandSig.h>
 #include <utt/Utils.h>
+#include <utt/Coin.h>
 
 // libutt new interface
 #include <registrator.hpp>
 #include <coinsSigner.hpp>
 #include <common.hpp>
 #include <config.hpp>
+#include <budget.hpp>
 #include <serialization.hpp>
 
 std::map<std::string, std::pair<std::string, std::string>> k_TestKeys{
@@ -101,8 +103,13 @@ std::map<std::string, std::pair<std::string, std::string>> k_TestKeys{
 using namespace libutt;
 
 struct RegisterUserResponse {
-  libutt::api::types::Signature sig;
-  libutt::api::types::CurvePoint s2;
+  utt::RegistrationSig sig;
+  utt::S2 s2;
+};
+
+struct PrivacyBudgetResponse {
+  utt::PrivacyBudget budget;
+  utt::PrivacyBudgetSig sig;
 };
 
 struct ServerMock {
@@ -130,7 +137,7 @@ struct ServerMock {
     assertFalse(userId.empty());
     assertFalse(userRegInput.empty());
 
-    auto pidHash = libutt::api::Utils::getPidHash(userId);
+    auto pidHash = libutt::api::Utils::curvePointFromHash(userId);
     assertFalse(pidHash.empty());
 
     auto rcm1 = libutt::api::deserialize<libutt::api::Commitment>(userRegInput);
@@ -163,6 +170,38 @@ struct ServerMock {
     return resp;
   }
 
+  PrivacyBudgetResponse createBudget(const std::string& userId, uint64_t amount, uint64_t expireTime) {
+    (void)expireTime;
+    assertFalse(userId.empty());
+    assertTrue(amount > 0);
+
+    auto pidHash = libutt::api::Utils::curvePointFromHash(userId);
+    auto snHash = libutt::api::Utils::curvePointFromHash("budget|" + std::to_string(++tokenId_));
+
+    auto budget =
+        libutt::api::operations::Budget(config_->getPublicConfig().getParams(), snHash, pidHash, amount, expireTime);
+
+    std::vector<std::vector<uint8_t>> shares;
+    for (const auto& signer : coinsSigners_) {
+      shares.emplace_back(signer.sign(budget).front());
+    }
+
+    const uint32_t n = config_->getNumParticipants();
+    const uint32_t t = config_->getThreshold();
+
+    std::map<uint32_t, std::vector<uint8_t>> shareSubset;
+    auto idxSubset = libutt::random_subset(t, n);
+    for (size_t idx : idxSubset) {
+      shareSubset[(uint32_t)idx] = shares[(uint32_t)idx];
+    }
+
+    PrivacyBudgetResponse resp;
+    resp.budget = libutt::api::serialize<libutt::api::operations::Budget>(budget);
+    resp.sig = libutt::api::Utils::aggregateSigShares(n, shareSubset);
+    return resp;
+  }
+
+  uint32_t tokenId_ = 0;
   std::unique_ptr<libutt::api::Configuration> config_;
   std::vector<libutt::api::Registrator> registrars_;
   std::vector<libutt::api::CoinsSigner> coinsSigners_;
@@ -222,6 +261,18 @@ int main(int argc, char* argv[]) {
     // data to check if it's matching
     auto result = users[i]->updateRegistration(users[i]->getPK(), resp.sig, resp.s2);
     assertTrue(result);
+  }
+
+  // Create budgets
+  for (size_t i = 0; i < C; ++i) {
+    const uint64_t amount = (i + 1) * 100;
+    auto resp = serverMock.createBudget(users[i]->getUserId(), amount, 123456);
+    assertFalse(resp.budget.empty());
+    assertFalse(resp.sig.empty());
+
+    auto result = users[i]->updatePrivacyBudget(resp.budget, resp.sig);
+    assertTrue(result);
+    assertTrue(users[i]->getPrivacyBudget() == amount);
   }
 
   return 0;

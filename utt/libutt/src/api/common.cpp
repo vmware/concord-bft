@@ -16,7 +16,7 @@
 #endif
 
 namespace libutt::api {
-types::CurvePoint Utils::getPidHash(const std::string& userId) {
+types::CurvePoint Utils::curvePointFromHash(const std::string& userId) {
   if (userId.empty()) return types::CurvePoint{};
   return libutt::hashToField(userId).to_words();
 }

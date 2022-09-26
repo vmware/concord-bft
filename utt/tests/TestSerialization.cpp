@@ -130,7 +130,8 @@ int main(int argc, char* argv[]) {
   assertTrue(c4.getExpDateAsCurvePoint() == c4_deserialized.getExpDateAsCurvePoint());
 
   // Test Budget request de/serialization
-  libutt::api::operations::Budget b1(d, Fr::random_element().to_words(), 100, 987654321);
+  libutt::api::operations::Budget b1(
+      d, Fr::random_element().to_words(), Fr::random_element().to_words(), 100, 987654321);
   std::vector<uint8_t> b1_serialized = libutt::api::serialize<libutt::api::operations::Budget>(b1);
   libutt::api::operations::Budget b1_deserialized =
       libutt::api::deserialize<libutt::api::operations::Budget>(b1_serialized);
