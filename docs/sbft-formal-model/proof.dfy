@@ -182,6 +182,16 @@ module Proof {
                                        commitMsg.payload.seqID, commitMsg.payload.operationWrapper))
   }
 
+  predicate EverySentCommitIsInWorkingWindowOrBefore(c:Constants, v:Variables) {
+    && v.WF(c)
+    && (forall commitMsg | && commitMsg in v.network.sentMsgs
+                           && commitMsg.payload.Commit?
+                           && IsHonestReplica(c, commitMsg.sender)
+          :: && var replicaVariables := v.hosts[commitMsg.sender].replicaVariables;
+             && var replicaConstants := c.hosts[commitMsg.sender].replicaConstants;
+             && commitMsg.payload.seqID < replicaVariables.workingWindow.lastStableCheckpoint + replicaConstants.clusterConfig.workingWindowSize)
+  }
+
   predicate {:opaque} EveryCommitClientOpMatchesRecordedPrePrepare(c:Constants, v:Variables) {
     && v.WF(c)
     && (forall commitMsg | && commitMsg in v.network.sentMsgs
@@ -248,7 +258,7 @@ module Proof {
     // Do not remove, lite invariant about internal honest Node invariants:
     && AllReplicasLiteInv(c, v)
     && RecordedPreparesHaveValidSenderID(c, v)
-    && SentPreparesMatchRecordedPrePrepareIfHostInSameView(c, v)
+    //&& SentPreparesMatchRecordedPrePrepareIfHostInSameView(c, v)
     && RecordedPrePreparesRecvdCameFromNetwork(c, v)
     && RecordedPreparesInAllHostsRecvdCameFromNetwork(c, v)
     && RecordedPreparesMatchHostView(c, v)
@@ -256,6 +266,7 @@ module Proof {
     && RecordedPreparesClientOpsMatchPrePrepare(c, v)
     && RecordedCommitsClientOpsMatchPrePrepare(c, v)
     && EveryCommitIsSupportedByPreviouslySentPrepares(c, v)
+    && EverySentCommitIsInWorkingWindowOrBefore(c, v)
     && EveryCommitClientOpMatchesRecordedPrePrepare(c, v)
     && HonestReplicasLockOnPrepareForGivenView(c, v)
     && HonestReplicasLockOnCommitForGivenView(c, v)
@@ -451,6 +462,22 @@ module Proof {
     reveal_EveryCommitClientOpMatchesRecordedPrePrepare();
     reveal_HonestReplicasLockOnCommitForGivenView();
     ProofCommitMsgsFromHonestSendersAgree(c, v, v', step);
+    assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v') by {
+      if (c.clusterConfig.IsHonestReplica(step.id)) {
+        var h_c := c.hosts[step.id].replicaConstants;
+        var h_v := v.hosts[step.id].replicaVariables;
+        var h_v' := v'.hosts[step.id].replicaVariables;
+        var h_step :| Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step);
+        if(h_step.AdvanceWorkingWindowStep?) {
+          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
+        } else if(h_step.SendCommitStep?) {
+          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
+        }
+        else {
+          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
+        }
+      }
+    }
   }
 
   lemma QuorumOfPreparesInNetworkMonotonic(c: Constants, v:Variables, v':Variables, step:Step)
