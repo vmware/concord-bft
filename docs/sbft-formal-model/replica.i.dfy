@@ -681,9 +681,15 @@ module Replica {
                                  seqID:SequenceID,
                                  checkpointsQuorum:CheckpointsQuorum) {
     && v.WF(c)
-    // TODO: Implement to preserve liveness
     && msgOps.NoSendRecv()
-    && v' == v
+    && seqID > v.workingWindow.lastStableCheckpoint + |v.workingWindow.getActiveSequenceIDs(c)|
+    && HasStableCheckpointForSeqID(c, v, seqID, checkpointsQuorum)
+    && v' == v.(workingWindow := v.workingWindow.(
+                lastStableCheckpoint := seqID, 
+                prePreparesRcvd := v.workingWindow.Shift(c, v.workingWindow.prePreparesRcvd, seqID, None),
+                preparesRcvd := v.workingWindow.Shift(c, v.workingWindow.preparesRcvd, seqID, EmptyPrepareProofSet()),
+                commitsRcvd := v.workingWindow.Shift(c, v.workingWindow.commitsRcvd, seqID, EmptyCommitProofSet())))
+              .(committedClientOperations := checkpointsQuorum.prototype().committedClientOperations)
   }
 
   predicate Init(c:Constants, v:Variables) {
