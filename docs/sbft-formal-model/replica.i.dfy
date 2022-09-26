@@ -310,8 +310,13 @@ module Replica {
     && msgOps.IsSend()
     && CurrentPrimary(c, v) == c.myId
     && var msg := msgOps.send.value;
-    && msg.payload.PrePrepare? // We have a liveness bug here, we need some state that says for the client which operation ID-s we have executed
-    && v == v'
+    && msg.payload.PrePrepare?
+    && msg.payload.view == v.view
+    && msg.payload.seqID in v.workingWindow.getActiveSequenceIDs(c)
+    && msg.payload.seqID !in v.workingWindow.prePreparesRcvd
+    && v' == v.(workingWindow :=
+                v.workingWindow.(prePreparesRcvd :=
+                                 v.workingWindow.prePreparesRcvd[msg.payload.seqID := Some(msg)]))
   }
 
   // Node local invariants that we need to satisfy dafny requires. This gets proven as part of the Distributed system invariants.
