@@ -182,14 +182,24 @@ module Proof {
                                        commitMsg.payload.seqID, commitMsg.payload.operationWrapper))
   }
 
-  predicate EverySentCommitIsInWorkingWindowOrBefore(c:Constants, v:Variables) {
+  predicate EverySentIntraViewMsgIsInWorkingWindowOrBefore(c:Constants, v:Variables) {
     && v.WF(c)
-    && (forall commitMsg | && commitMsg in v.network.sentMsgs
-                           && commitMsg.payload.Commit?
-                           && IsHonestReplica(c, commitMsg.sender)
-          :: && var replicaVariables := v.hosts[commitMsg.sender].replicaVariables;
-             && var replicaConstants := c.hosts[commitMsg.sender].replicaConstants;
-             && commitMsg.payload.seqID < replicaVariables.workingWindow.lastStableCheckpoint + replicaConstants.clusterConfig.workingWindowSize)
+    && (forall msg | && msg in v.network.sentMsgs
+                           && msg.payload.IsIntraViewMsg()
+                           && IsHonestReplica(c, msg.sender)
+          :: && var replicaVariables := v.hosts[msg.sender].replicaVariables;
+             && var replicaConstants := c.hosts[msg.sender].replicaConstants;
+             && msg.payload.seqID < replicaVariables.workingWindow.lastStableCheckpoint + replicaConstants.clusterConfig.workingWindowSize)
+  }
+
+  predicate EverySentIntraViewMsgIsForAViewLessOrEqualToSenderView(c:Constants, v:Variables) {
+    && v.WF(c)
+    && (forall msg | && msg in v.network.sentMsgs
+                           && msg.payload.IsIntraViewMsg()
+                           && IsHonestReplica(c, msg.sender)
+          :: && var replicaVariables := v.hosts[msg.sender].replicaVariables;
+             && var replicaConstants := c.hosts[msg.sender].replicaConstants;
+             && msg.payload.view <= replicaVariables.view)
   }
 
   predicate {:opaque} EveryCommitClientOpMatchesRecordedPrePrepare(c:Constants, v:Variables) {
@@ -200,6 +210,7 @@ module Proof {
                            && var replicaVariables := v.hosts[commitMsg.sender].replicaVariables;
                            && var replicaConstants := c.hosts[commitMsg.sender].replicaConstants;
                            && commitMsg.payload.seqID in replicaVariables.workingWindow.getActiveSequenceIDs(replicaConstants)
+                           && commitMsg.payload.view == replicaVariables.view
           :: && var recordedPrePrepare := 
                 v.hosts[commitMsg.sender].replicaVariables.workingWindow.prePreparesRcvd[commitMsg.payload.seqID];
              && recordedPrePrepare.Some?
@@ -266,7 +277,8 @@ module Proof {
     && RecordedPreparesClientOpsMatchPrePrepare(c, v)
     && RecordedCommitsClientOpsMatchPrePrepare(c, v)
     && EveryCommitIsSupportedByPreviouslySentPrepares(c, v)
-    && EverySentCommitIsInWorkingWindowOrBefore(c, v)
+    && EverySentIntraViewMsgIsInWorkingWindowOrBefore(c, v)
+    && EverySentIntraViewMsgIsForAViewLessOrEqualToSenderView(c, v)
     && EveryCommitClientOpMatchesRecordedPrePrepare(c, v)
     && HonestReplicasLockOnPrepareForGivenView(c, v)
     && HonestReplicasLockOnCommitForGivenView(c, v)
@@ -468,9 +480,41 @@ module Proof {
         var h_v := v.hosts[step.id].replicaVariables;
         var h_v' := v'.hosts[step.id].replicaVariables;
         var h_step :| Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step);
-        if(h_step.AdvanceWorkingWindowStep?) {
+        if(h_step.SendPrePrepareStep?) {
+          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
+        } else if(h_step.RecvPrePrepareStep?) {
+          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
+        } else if(h_step.SendPrepareStep?) {
+          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
+        } else if(h_step.RecvPrepareStep?) {
           assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
         } else if(h_step.SendCommitStep?) {
+          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
+        } else if(h_step.RecvCommitStep?) {
+          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
+        } else if(h_step.DoCommitStep?) {
+          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
+        } else if(h_step.ExecuteStep?) {
+          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
+        } else if(h_step.SendCheckpointStep?) {
+          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
+        } else if(h_step.RecvCheckpointStep?) {
+          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
+        } else if(h_step.AdvanceWorkingWindowStep?) {
+          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
+        } else if(h_step.PerformStateTransferStep?) {
+          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
+        } else if(h_step.LeaveViewStep?) {
+          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
+        } else if(h_step.SendViewChangeMsgStep?) {
+          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
+        } else if(h_step.RecvViewChangeMsgStep?) {
+          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
+        } else if(h_step.SelectQuorumOfViewChangeMsgsStep?) {
+          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
+        } else if(h_step.SendNewViewMsgStep?) {
+          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
+        } else if(h_step.RecvNewViewMsgStep?) {
           assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
         }
         else {

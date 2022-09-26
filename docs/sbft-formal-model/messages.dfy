@@ -114,6 +114,11 @@ module Messages {
                        {
                          vcMsgs.valid(newView, quorumSize)
                        }
+                       predicate IsIntraViewMsg() {
+                          || PrePrepare?
+                          || Prepare?
+                          || Commit? 
+                       }
                      }
   // ToDo: ClientReply
 }
