@@ -173,6 +173,15 @@ module Proof {
                                          commitMsg.payload.seqID))
   }
 
+  predicate {:opaque} EveryCommitIsSupportedByPreviouslySentPrepares(c:Constants, v:Variables) {
+    && v.WF(c)
+    && (forall commitMsg | && commitMsg in v.network.sentMsgs
+                           && commitMsg.payload.Commit?
+                           && IsHonestReplica(c, commitMsg.sender)
+          :: QuorumOfPreparesInNetwork(c, v, commitMsg.payload.view, 
+                                       commitMsg.payload.seqID, commitMsg.payload.operationWrapper))
+  }
+
   predicate {:opaque} EveryCommitClientOpMatchesRecordedPrePrepare(c:Constants, v:Variables) {
     && v.WF(c)
     && (forall commitMsg | && commitMsg in v.network.sentMsgs
@@ -246,7 +255,7 @@ module Proof {
     && EveryCommitMsgIsSupportedByAQuorumOfPrepares(c, v)
     && RecordedPreparesClientOpsMatchPrePrepare(c, v)
     && RecordedCommitsClientOpsMatchPrePrepare(c, v)
-    && EveryCommitIsSupportedByRecordedPrepares(c, v)
+    && EveryCommitIsSupportedByPreviouslySentPrepares(c, v)
     && EveryCommitClientOpMatchesRecordedPrePrepare(c, v)
     && HonestReplicasLockOnPrepareForGivenView(c, v)
     && HonestReplicasLockOnCommitForGivenView(c, v)
@@ -430,7 +439,7 @@ module Proof {
     requires Inv(c, v)
     requires NextStep(c, v, v', step)
     ensures RecordedCommitsClientOpsMatchPrePrepare(c, v')
-    ensures EveryCommitIsSupportedByRecordedPrepares(c, v')
+    ensures EveryCommitIsSupportedByPreviouslySentPrepares(c, v')
     ensures EveryCommitClientOpMatchesRecordedPrePrepare(c, v')
     ensures HonestReplicasLockOnCommitForGivenView(c, v')
     ensures EveryCommitMsgIsSupportedByAQuorumOfPrepares(c, v')
@@ -438,7 +447,7 @@ module Proof {
   {
     ProofEveryCommitMsgIsSupportedByAQuorumOfPrepares(c, v, v', step);
     reveal_RecordedCommitsClientOpsMatchPrePrepare();
-    reveal_EveryCommitIsSupportedByRecordedPrepares();
+    reveal_EveryCommitIsSupportedByPreviouslySentPrepares();
     reveal_EveryCommitClientOpMatchesRecordedPrePrepare();
     reveal_HonestReplicasLockOnCommitForGivenView();
     ProofCommitMsgsFromHonestSendersAgree(c, v, v', step);
@@ -1036,7 +1045,7 @@ module Proof {
   {
     if Init(c, v) {
       reveal_RecordedCommitsClientOpsMatchPrePrepare();
-      reveal_EveryCommitIsSupportedByRecordedPrepares();
+      reveal_EveryCommitIsSupportedByPreviouslySentPrepares();
       reveal_EveryCommitClientOpMatchesRecordedPrePrepare();
       reveal_HonestReplicasLockOnCommitForGivenView();
       reveal_CommitMsgsFromHonestSendersAgree();
