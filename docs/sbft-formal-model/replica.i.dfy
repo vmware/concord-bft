@@ -123,7 +123,7 @@ module Replica {
   datatype ViewChangeMsgs = ViewChangeMsgs(msgs:set<Network.Message<Message>>) {
     predicate WF(c:Constants) {
       && c.WF()
-      && (forall msg | msg in msgs :: && msg.payload.ViewChangeMsg?
+      && (forall msg {:trigger msg in msgs, msg.payload.ViewChangeMsg?} | msg in msgs :: && msg.payload.ViewChangeMsg?
                                       && c.clusterConfig.IsReplica(msg.sender))
     }
   }

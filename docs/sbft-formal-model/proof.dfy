@@ -84,7 +84,7 @@ module Proof {
   // a given View, this message will not change unless a View Change happens.
   predicate HonestReplicasLockOnPrepareForGivenView(c: Constants, v:Variables)
   {
-    && (forall msg1, msg2 | 
+    && (forall msg1, msg2 {:trigger msg1.payload.Prepare?, msg2.payload.Prepare?} | 
         && msg1 in v.network.sentMsgs 
         && msg2 in v.network.sentMsgs 
         && msg1.payload.Prepare?
