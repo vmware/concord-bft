@@ -31,6 +31,14 @@ class Utils {
    */
  public:
   /**
+   * @brief Computes the hash of a user id as a curve point
+   *
+   * @param userId The unique string id of the user
+   * @return The curve point result
+   */
+  static types::CurvePoint getPidHash(const std::string& userId);
+
+  /**
    * @brief Aggregate the shared signatures for a given signature
    *
    * @param n The total number of coinsSigner replicas in the system

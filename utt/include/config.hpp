@@ -18,6 +18,7 @@
 namespace libutt::api {
 class PublicConfig;
 class Configuration;
+class UTTParams;
 }  // namespace libutt::api
 
 std::ostream& operator<<(std::ostream& out, const libutt::api::PublicConfig& config);
@@ -41,6 +42,7 @@ class PublicConfig {
 
   std::string getCommitVerificationKey() const;
   std::string getRegistrationVerificationKey() const;
+  const UTTParams& getParams() const;
 
   // [TODO-UTT] More getters if needed
 
@@ -60,7 +62,7 @@ class Configuration {
   /// @brief Constructs a UTT instance configuration
   /// @param n The number of participants for multiparty signature computation
   /// @param t The number of participant shares required to reconstruct a signature
-  Configuration(size_t n, size_t t);
+  Configuration(uint32_t n, uint32_t t);
   ~Configuration();
 
   Configuration(Configuration&& o);
@@ -71,12 +73,12 @@ class Configuration {
 
   bool isValid() const;
 
-  size_t getNumParticipants() const;
-  size_t getThreshold() const;
+  uint32_t getNumParticipants() const;
+  uint32_t getThreshold() const;
   const PublicConfig& getPublicConfig() const;
 
-  std::string getCommitSecret(size_t idx) const;
-  std::string getRegistrationSecret(size_t idx) const;
+  std::string getCommitSecret(uint32_t idx) const;
+  std::string getRegistrationSecret(uint32_t idx) const;
 
   // [TODO-UTT] More getters if needed
 

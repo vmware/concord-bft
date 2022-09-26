@@ -16,6 +16,11 @@
 #endif
 
 namespace libutt::api {
+types::CurvePoint Utils::getPidHash(const std::string& userId) {
+  if (userId.empty()) return types::CurvePoint{};
+  return libutt::hashToField(userId).to_words();
+}
+
 types::Signature Utils::aggregateSigShares(uint32_t n, const std::map<uint32_t, types::Signature>& rsigs) {
   std::vector<libutt::RandSigShare> shares;
   std::vector<size_t> signers;
@@ -28,6 +33,7 @@ types::Signature Utils::aggregateSigShares(uint32_t n, const std::map<uint32_t, 
   auto str_csig = libutt::serialize<libutt::RandSig>(csig);
   return types::Signature(str_csig.begin(), str_csig.end());
 }
+
 types::Signature Utils::unblindSignature(const UTTParams& p,
                                          Commitment::Type t,
                                          const std::vector<types::CurvePoint>& randomness,

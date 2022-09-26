@@ -50,11 +50,13 @@ std::string PublicConfig::getRegistrationVerificationKey() const {
   return libutt::serialize<libutt::RegAuthPK>(pImpl_->registrationVerificationKey_);
 }
 
+const UTTParams& PublicConfig::getParams() const { return pImpl_->params_; }
+
 struct Configuration::Impl {
   // [TODO-UTT] The commit and registration secrets need to be encrypted
   // [TODO-UTT] Decide if each participant can be represented by an index or it needs something more like a string id
-  size_t n_ = 0;
-  size_t t_ = 0;
+  uint32_t n_ = 0;
+  uint32_t t_ = 0;
   PublicConfig publicConfig_;
   std::vector<RandSigShareSK> commitSecrets_;
   std::vector<RegAuthShareSK> registrationSecrets_;
@@ -64,7 +66,7 @@ struct Configuration::Impl {
 
 Configuration::Configuration() : pImpl_{new Impl{}} {}
 
-Configuration::Configuration(size_t n, size_t t) : Configuration() {
+Configuration::Configuration(uint32_t n, uint32_t t) : Configuration() {
   if (n == 0 || t == 0 || t > n) throw std::runtime_error("Invalid configuration participant size and/or threshold");
 
   pImpl_->n_ = n;
@@ -131,15 +133,15 @@ bool Configuration::isValid() const {
          pImpl_->registrationVerificationKeyShares_.size() == pImpl_->n_;
 }
 
-size_t Configuration::getNumParticipants() const { return pImpl_->n_; }
-size_t Configuration::getThreshold() const { return pImpl_->t_; }
+uint32_t Configuration::getNumParticipants() const { return pImpl_->n_; }
+uint32_t Configuration::getThreshold() const { return pImpl_->t_; }
 const PublicConfig& Configuration::getPublicConfig() const { return pImpl_->publicConfig_; }
 
-std::string Configuration::getCommitSecret(size_t idx) const {
+std::string Configuration::getCommitSecret(uint32_t idx) const {
   return libutt::serialize<libutt::RandSigShareSK>(pImpl_->commitSecrets_.at(idx));
 }
 
-std::string Configuration::getRegistrationSecret(size_t idx) const {
+std::string Configuration::getRegistrationSecret(uint32_t idx) const {
   return libutt::serialize<libutt::RegAuthShareSK>(pImpl_->registrationSecrets_.at(idx));
 }
 

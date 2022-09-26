@@ -62,7 +62,7 @@ std::unique_ptr<User> User::createInitial(const std::string& userId,
   auto uttConfig = libutt::api::deserialize<libutt::api::PublicConfig>(config);
 
   auto user = std::make_unique<User>();
-
+  user->pImpl_->params_ = uttConfig.getParams();
   // Create a client object with an RSA based PKI
   user->pImpl_->client_.reset(new libutt::api::Client(
       userId, uttConfig.getCommitVerificationKey(), uttConfig.getRegistrationVerificationKey(), userKeys.sk_));
@@ -87,9 +87,19 @@ UserRegistrationInput User::getRegistrationInput() const {
 bool User::updateRegistration(const std::string& pk, const RegistrationSig& rs, const S2& s2) {
   if (!pImpl_->client_) return false;
   if (!(pImpl_->pk_ == pk)) return false;  // Expect a matching public key
+  if (rs.empty() || s2.empty()) return false;
 
   // [TODO-UTT] What if we already updated a registration? How do we check it?
   pImpl_->client_->setRCMSig(pImpl_->params_, s2, rs);
+
+  // Un-blind the signature
+  std::vector<libutt::api::types::CurvePoint> randomness = {libutt::Fr::zero().to_words(),
+                                                            libutt::Fr::zero().to_words()};
+  auto sig =
+      libutt::api::Utils::unblindSignature(pImpl_->params_, libutt::api::Commitment::REGISTRATION, randomness, rs);
+  if (sig.empty()) return false;
+
+  pImpl_->client_->setRCMSig(pImpl_->params_, s2, sig);
 
   return true;
 }
