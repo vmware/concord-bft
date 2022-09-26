@@ -217,6 +217,21 @@ module Proof {
              && commitMsg.payload.operationWrapper == recordedPrePrepare.value.payload.operationWrapper)
   }
 
+  predicate {:opaque} EveryPrepareClientOpMatchesRecordedPrePrepare(c:Constants, v:Variables) {
+    && v.WF(c)
+    && (forall prepareMsg | && prepareMsg in v.network.sentMsgs
+                           && prepareMsg.payload.Prepare?
+                           && IsHonestReplica(c, prepareMsg.sender)
+                           && var replicaVariables := v.hosts[prepareMsg.sender].replicaVariables;
+                           && var replicaConstants := c.hosts[prepareMsg.sender].replicaConstants;
+                           && prepareMsg.payload.seqID in replicaVariables.workingWindow.getActiveSequenceIDs(replicaConstants)
+                           && prepareMsg.payload.view == replicaVariables.view
+          :: && var recordedPrePrepare := 
+                v.hosts[prepareMsg.sender].replicaVariables.workingWindow.prePreparesRcvd[prepareMsg.payload.seqID];
+             && recordedPrePrepare.Some?
+             && prepareMsg.payload.operationWrapper == recordedPrePrepare.value.payload.operationWrapper)
+  }
+
   predicate RecordedPreparesMatchHostView(c:Constants, v:Variables) {
     && v.WF(c)
     && (forall observer, seqID, sender | 
@@ -279,6 +294,7 @@ module Proof {
     && EveryCommitIsSupportedByPreviouslySentPrepares(c, v)
     && EverySentIntraViewMsgIsInWorkingWindowOrBefore(c, v)
     && EverySentIntraViewMsgIsForAViewLessOrEqualToSenderView(c, v)
+    && EveryPrepareClientOpMatchesRecordedPrePrepare(c, v)
     && EveryCommitClientOpMatchesRecordedPrePrepare(c, v)
     && HonestReplicasLockOnPrepareForGivenView(c, v)
     && HonestReplicasLockOnCommitForGivenView(c, v)
@@ -463,6 +479,7 @@ module Proof {
     requires NextStep(c, v, v', step)
     ensures RecordedCommitsClientOpsMatchPrePrepare(c, v')
     ensures EveryCommitIsSupportedByPreviouslySentPrepares(c, v')
+    ensures EveryPrepareClientOpMatchesRecordedPrePrepare(c, v')
     ensures EveryCommitClientOpMatchesRecordedPrePrepare(c, v')
     ensures HonestReplicasLockOnCommitForGivenView(c, v')
     ensures EveryCommitMsgIsSupportedByAQuorumOfPrepares(c, v')
@@ -471,57 +488,10 @@ module Proof {
     ProofEveryCommitMsgIsSupportedByAQuorumOfPrepares(c, v, v', step);
     reveal_RecordedCommitsClientOpsMatchPrePrepare();
     reveal_EveryCommitIsSupportedByPreviouslySentPrepares();
+    reveal_EveryPrepareClientOpMatchesRecordedPrePrepare();
     reveal_EveryCommitClientOpMatchesRecordedPrePrepare();
     reveal_HonestReplicasLockOnCommitForGivenView();
     ProofCommitMsgsFromHonestSendersAgree(c, v, v', step);
-    assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v') by {
-      if (c.clusterConfig.IsHonestReplica(step.id)) {
-        var h_c := c.hosts[step.id].replicaConstants;
-        var h_v := v.hosts[step.id].replicaVariables;
-        var h_v' := v'.hosts[step.id].replicaVariables;
-        var h_step :| Replica.NextStep(h_c, h_v, h_v', step.msgOps, h_step);
-        if(h_step.SendPrePrepareStep?) {
-          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
-        } else if(h_step.RecvPrePrepareStep?) {
-          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
-        } else if(h_step.SendPrepareStep?) {
-          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
-        } else if(h_step.RecvPrepareStep?) {
-          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
-        } else if(h_step.SendCommitStep?) {
-          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
-        } else if(h_step.RecvCommitStep?) {
-          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
-        } else if(h_step.DoCommitStep?) {
-          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
-        } else if(h_step.ExecuteStep?) {
-          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
-        } else if(h_step.SendCheckpointStep?) {
-          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
-        } else if(h_step.RecvCheckpointStep?) {
-          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
-        } else if(h_step.AdvanceWorkingWindowStep?) {
-          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
-        } else if(h_step.PerformStateTransferStep?) {
-          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
-        } else if(h_step.LeaveViewStep?) {
-          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
-        } else if(h_step.SendViewChangeMsgStep?) {
-          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
-        } else if(h_step.RecvViewChangeMsgStep?) {
-          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
-        } else if(h_step.SelectQuorumOfViewChangeMsgsStep?) {
-          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
-        } else if(h_step.SendNewViewMsgStep?) {
-          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
-        } else if(h_step.RecvNewViewMsgStep?) {
-          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
-        }
-        else {
-          assert EveryCommitClientOpMatchesRecordedPrePrepare(c, v');
-        }
-      }
-    }
   }
 
   lemma QuorumOfPreparesInNetworkMonotonic(c: Constants, v:Variables, v':Variables, step:Step)
@@ -675,6 +645,7 @@ module Proof {
     requires SendPrepareIsEnabled(c, v, v', step, h_step)
     ensures Inv(c, v')
   {
+    reveal_EveryPrepareClientOpMatchesRecordedPrePrepare();
     CommitMsgStability(c, v, v', step);
   }
 
@@ -1117,6 +1088,7 @@ module Proof {
     if Init(c, v) {
       reveal_RecordedCommitsClientOpsMatchPrePrepare();
       reveal_EveryCommitIsSupportedByPreviouslySentPrepares();
+      reveal_EveryPrepareClientOpMatchesRecordedPrePrepare();
       reveal_EveryCommitClientOpMatchesRecordedPrePrepare();
       reveal_HonestReplicasLockOnCommitForGivenView();
       reveal_CommitMsgsFromHonestSendersAgree();
