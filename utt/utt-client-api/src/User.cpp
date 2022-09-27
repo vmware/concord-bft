@@ -134,6 +134,7 @@ utt::Transaction User::Impl::createTx_1t1(const libutt::api::Coin& coin,
   recip.emplace_back(userId, coin.getVal());
 
   std::map<std::string, std::string> credentials;
+  credentials.emplace(client_->getPid(), pk_);
   credentials.emplace(userId, pk);
   libutt::RSAEncryptor encryptor(credentials);
 
@@ -154,8 +155,8 @@ utt::Transaction User::Impl::createTx_1t2(const libutt::api::Coin& coin,
   recip.emplace_back(client_->getPid(), coin.getVal() - amount);
 
   std::map<std::string, std::string> credentials;
-  credentials.emplace(userId, pk);
   credentials.emplace(client_->getPid(), pk_);
+  credentials.emplace(userId, pk);
   libutt::RSAEncryptor encryptor(credentials);
 
   auto uttTx = libutt::api::operations::Transaction(params_, *client_, {coin}, budgetCoin_, recip, encryptor);
@@ -173,6 +174,7 @@ utt::Transaction User::Impl::createTx_2t1(const std::vector<libutt::api::Coin>& 
   recip.emplace_back(userId, coins[0].getVal() + coins[1].getVal());
 
   std::map<std::string, std::string> credentials;
+  credentials.emplace(client_->getPid(), pk_);
   credentials.emplace(userId, pk);
   libutt::RSAEncryptor encryptor(credentials);
 
@@ -193,8 +195,8 @@ utt::Transaction User::Impl::createTx_2t2(const std::vector<libutt::api::Coin>& 
   recip.emplace_back(client_->getPid(), (coins[0].getVal() + coins[1].getVal()) - amount);
 
   std::map<std::string, std::string> credentials;
-  credentials.emplace(userId, pk);
   credentials.emplace(client_->getPid(), pk_);
+  credentials.emplace(userId, pk);
   libutt::RSAEncryptor encryptor(credentials);
 
   auto uttTx = libutt::api::operations::Transaction(params_, *client_, coins, budgetCoin_, recip, encryptor);
@@ -225,6 +227,7 @@ std::unique_ptr<User> User::createInitial(const std::string& userId,
   auto uttConfig = libutt::api::deserialize<libutt::api::PublicConfig>(config);
 
   auto user = std::make_unique<User>();
+  user->pImpl_->pk_ = userKeys.pk_;
   user->pImpl_->params_ = uttConfig.getParams();
   // Create a client object with an RSA based PKI
   user->pImpl_->client_.reset(new libutt::api::Client(
@@ -277,6 +280,9 @@ bool User::updatePrivacyBudget(const PrivacyBudget& budget, const PrivacyBudgetS
   // Expect a single budget token to be claimed by the user
   if (claimedCoins.size() != 1) return false;
 
+  if (!pImpl_->client_->validate(claimedCoins[0])) throw std::runtime_error("Invalid initial budget coin!");
+
+  // [TODO-UTT] Requires atomic, durable write through IUserStorage
   pImpl_->budgetCoin_ = claimedCoins[0];
 
   return true;
@@ -304,13 +310,43 @@ uint64_t User::getLastExecutedTxNum() const { return pImpl_->lastExecutedTxNum_;
 bool User::updateTransferTx(uint64_t txNum, const Transaction& tx, const TxOutputSigs& sigs) {
   if (tx.type_ != Transaction::Type::Transfer) return false;
   if (txNum != pImpl_->lastExecutedTxNum_ + 1) return false;
+
+  auto uttTx = libutt::api::deserialize<libutt::api::operations::Transaction>(tx.data_);
+
+  // [TODO-UTT] Requires atomic, durable write batch through IUserStorage
   pImpl_->lastExecutedTxNum_ = txNum;
 
-  // [TODO-UTT] Claim output coins
-  (void)tx;
-  (void)sigs;
+  // [TODO-UTT] More consistency checks
+  // If we slash coins we expect to also update our budget coin
 
-  return false;
+  // Slash spent coins
+  for (const auto& null : uttTx.getNullifiers()) {
+    auto it = std::find_if(pImpl_->coins_.begin(), pImpl_->coins_.end(), [&null](const libutt::api::Coin& coin) {
+      return coin.getNullifier() == null;
+    });
+    if (it != pImpl_->coins_.end()) {
+      pImpl_->coins_.erase(it);
+    }
+  }
+
+  // Claim coins
+  auto claimedCoins = pImpl_->client_->claimCoins(uttTx, pImpl_->params_, sigs);
+  for (auto& coin : claimedCoins) {
+    if (coin.getType() == libutt::api::Coin::Type::Normal) {
+      if (!pImpl_->client_->validate(coin)) throw std::runtime_error("Invalid normal coin in transfer!");
+      pImpl_->coins_.emplace_back(std::move(coin));
+    } else if (coin.getType() == libutt::api::Coin::Type::Budget) {
+      // Replace budget coin
+      if (!pImpl_->client_->validate(coin)) throw std::runtime_error("Invalid budget coin in transfer!");
+      if (coin.getVal() > 0) {
+        pImpl_->budgetCoin_ = std::move(coin);
+      } else {
+        pImpl_->budgetCoin_ = std::nullopt;
+      }
+    }
+  }
+
+  return true;
 }
 
 bool User::updateMintTx(uint64_t txNum, const Transaction& tx, const TxOutputSig& sig) {
@@ -325,6 +361,8 @@ bool User::updateMintTx(uint64_t txNum, const Transaction& tx, const TxOutputSig
 
   // Expect a single token to be claimed by the user
   if (claimedCoins.size() != 1) return false;
+
+  if (!pImpl_->client_->validate(claimedCoins[0])) throw std::runtime_error("Invalid minted coin!");
 
   // [TODO-UTT] Requires atomic, durable write batch through IUserStorage
   pImpl_->lastExecutedTxNum_ = txNum;
@@ -394,9 +432,6 @@ std::variant<utt::Transaction, Error> User::burn(uint64_t amount) const {
 std::variant<utt::Transaction, Error> User::transfer(const std::string& userId,
                                                      const std::string& destPK,
                                                      uint64_t amount) const {
-  Transaction tx;
-  tx.type_ = utt::Transaction::Type::Transfer;
-
   try {
     if (userId.empty() || destPK.empty() || amount == 0) throw std::runtime_error("Invalid arguments!");
     if (!pImpl_->client_) throw std::runtime_error("Uinitialized user!");
@@ -427,8 +462,6 @@ std::variant<utt::Transaction, Error> User::transfer(const std::string& userId,
   } catch (const std::runtime_error& e) {
     return std::string(e.what());
   }
-
-  return tx;
 }
 
 }  // namespace utt::client

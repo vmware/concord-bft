@@ -126,6 +126,7 @@ int main(int argc, char* argv[]) {
     }
     auto issuer_coins = issuer.claimCoins(tx, d, sigs);
     for (auto& coin : issuer_coins) {
+      assertTrue(issuer.validate(coin));
       if (coin.getType() == api::Coin::Type::Normal) {
         coins[issuer.getPid()].emplace_back(std::move(coin));
       } else {
@@ -135,6 +136,7 @@ int main(int argc, char* argv[]) {
     }
     auto receiver_coins = receiver.claimCoins(tx, d, sigs);
     for (auto& coin : receiver_coins) {
+      assertTrue(receiver.validate(coin));
       if (coin.getType() == api::Coin::Type::Normal) {
         coins[receiver.getPid()].emplace_back(std::move(coin));
       } else {

@@ -33,6 +33,7 @@
 #include <budget.hpp>
 #include <mint.hpp>
 #include <burn.hpp>
+#include <transaction.hpp>
 #include <serialization.hpp>
 
 std::map<std::string, std::pair<std::string, std::string>> k_TestKeys{
@@ -125,7 +126,7 @@ struct MintResponse {
 struct TransferResponse {
   uint64_t txNum = 0;
   utt::Transaction tx;
-  utt::TxOutputSig sig;
+  utt::TxOutputSigs sigs;
 };
 
 struct BurnResponse {
@@ -268,6 +269,45 @@ struct ServerMock {
     return resp;
   }
 
+  TransferResponse transfer(const utt::Transaction& tx) {
+    assertTrue(tx.type_ == utt::Transaction::Type::Transfer);
+
+    auto uttTx = libutt::api::deserialize<libutt::api::operations::Transaction>(tx.data_);
+
+    for (auto& null : uttTx.getNullifiers()) {
+      assertTrue(nullifiers_.count(null) == 0);
+      nullifiers_.emplace(std::move(null));
+    }
+
+    std::vector<std::vector<std::vector<uint8_t>>> shares;
+    for (const auto& signer : coinsSigners_) {
+      shares.emplace_back(signer.sign(uttTx));
+    }
+
+    const uint32_t n = config_->getNumParticipants();
+    const uint32_t t = config_->getThreshold();
+
+    size_t numOutCoins = shares[0].size();
+    assertTrue(numOutCoins > 0);
+
+    TransferResponse resp;
+    resp.txNum = ++lastExecutedTxNum_;
+    resp.tx = tx;
+
+    // Aggreggate a signature for each output coin
+    for (size_t i = 0; i < numOutCoins; ++i) {
+      std::map<uint32_t, std::vector<uint8_t>> shareSubset;
+      auto idxSubset = libutt::random_subset(t, n);
+      for (size_t idx : idxSubset) {
+        shareSubset[(uint32_t)idx] = shares[(uint32_t)idx][i];
+      }
+
+      resp.sigs.emplace_back(libutt::api::Utils::aggregateSigShares(n, shareSubset));
+    }
+
+    return resp;
+  }
+
   uint32_t lastTokenId_ = 0;
   uint64_t lastExecutedTxNum_ = 0;
   std::set<std::string> nullifiers_;
@@ -334,7 +374,7 @@ int main(int argc, char* argv[]) {
 
   // Create budgets
   for (size_t i = 0; i < C; ++i) {
-    const uint64_t amount = (i + 1) * 100;
+    const uint64_t amount = 100;
     auto resp = serverMock.createBudget(users[i]->getUserId(), amount, 0);
     assertFalse(resp.budget.empty());
     assertFalse(resp.sig.empty());
@@ -345,24 +385,60 @@ int main(int argc, char* argv[]) {
   }
 
   // Mint amount
-  for (size_t i = 0; i < 1; ++i) {
-    const uint64_t amount = (i + 1) * 100;
-    auto resp = serverMock.mint(users[i]->getUserId(), amount);
+  {
+    const uint64_t amount = 100;
+    auto resp = serverMock.mint(users[0]->getUserId(), amount);
     assertTrue(resp.txNum > 0);
     assertTrue(resp.tx.type_ == utt::Transaction::Type::Mint);
     assertFalse(resp.tx.data_.empty());
     assertFalse(resp.sig.empty());
 
-    auto result = users[i]->updateMintTx(resp.txNum, resp.tx, resp.sig);
+    auto result = users[0]->updateMintTx(resp.txNum, resp.tx, resp.sig);
     assertTrue(result);
-    assertTrue(users[i]->getBalance() == amount);
+    assertTrue(users[0]->getBalance() == amount);
+
+    users[1]->updateNoOp(resp.txNum);
+  }
+
+  // Transfer amount
+  {
+    const uint64_t amount = 100;
+    assertTrue(users[0]->getBalance() == amount);
+    assertTrue(users[0]->getPrivacyBudget() == amount);
+
+    auto transferResult = users[0]->transfer("user-2", k_TestKeys["user-2"].second, amount);
+    assertTrue(std::holds_alternative<utt::Transaction>(transferResult));
+    const auto& tx = std::get<utt::Transaction>(transferResult);
+    assertTrue(tx.type_ == utt::Transaction::Type::Transfer);
+    assertFalse(tx.data_.empty());
+
+    auto resp = serverMock.transfer(tx);
+    assertFalse(resp.sigs.empty());
+
+    {
+      auto res = users[0]->updateTransferTx(resp.txNum, resp.tx, resp.sigs);
+      assertTrue(res);
+      assertTrue(users[0]->getBalance() == 0);
+      assertTrue(users[0]->getPrivacyBudget() == 0);
+    }
+
+    {
+      assertTrue(users[1]->getBalance() == 0);
+      assertTrue(users[1]->getPrivacyBudget() == 100);
+
+      auto res = users[1]->updateTransferTx(resp.txNum, resp.tx, resp.sigs);
+      assertTrue(res);
+      assertTrue(users[1]->getBalance() == 100);
+      assertTrue(users[1]->getPrivacyBudget() == 100);
+    }
   }
 
   // Burn amount
-  for (size_t i = 0; i < 1; ++i) {
-    const uint64_t amount = users[i]->getBalance();
-    assertTrue(amount > 0);
-    auto burnResult = users[i]->burn(amount);
+  {
+    const uint64_t amount = 100;
+    assertTrue(users[1]->getBalance() == amount);
+    auto burnResult = users[1]->burn(amount);
+    assertTrue(std::holds_alternative<utt::Transaction>(burnResult));
     const auto& tx = std::get<utt::Transaction>(burnResult);
     assertTrue(tx.type_ == utt::Transaction::Type::Burn);
     assertFalse(tx.data_.empty());
@@ -372,9 +448,9 @@ int main(int argc, char* argv[]) {
     assertTrue(resp.tx.type_ == utt::Transaction::Type::Burn);
     assertFalse(resp.tx.data_.empty());
 
-    auto result = users[i]->updateBurnTx(resp.txNum, resp.tx);
+    auto result = users[1]->updateBurnTx(resp.txNum, resp.tx);
     assertTrue(result);
-    assertTrue(users[i]->getBalance() == 0);
+    assertTrue(users[1]->getBalance() == 0);
   }
 
   return 0;
