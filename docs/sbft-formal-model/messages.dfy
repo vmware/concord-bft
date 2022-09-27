@@ -24,6 +24,8 @@ module Messages {
 
   datatype OperationWrapper = Noop | ClientOp(clientOperation: ClientOperation)
 
+  type CommittedClientOperations = map<SequenceID, OperationWrapper>
+
   function sendersOf(msgs:set<Network.Message<Message>>) : set<HostIdentifiers.HostId> {
     set msg | msg in msgs :: msg.sender
   }
@@ -43,11 +45,7 @@ module Messages {
       || (&& |votes| == quorumSize
           && WF()
           && (forall v | v in votes :: v.payload == prototype()) // messages have to be votes that match eachother by the prototype 
-          && (forall v1, v2 | && v1 in votes
-                              && v2 in votes
-                              && v1 != v2
-                                :: v1.sender != v2.sender) // unique senders
-          )
+          && UniqueSenders(votes))
     }
     predicate empty() {
       && |votes| == 0
@@ -58,14 +56,35 @@ module Messages {
     predicate valid(view:ViewNum, quorumSize:nat) {
       && |msgs| > 0
       && (forall v | v in msgs :: && v.payload.ViewChangeMsg?
-                                  && v.payload.WF()
+                                  && v.payload.validViewChangeMsg(quorumSize)
                                   && v.payload.newView == view) // All the ViewChange messages have to be for the same View. 
-      && (forall v1, v2 | && v1 in msgs
-                          && v2 in msgs
-                          && v1 != v2
-                            :: v1.sender != v2.sender) // unique senders
-      && |msgs| == quorumSize
+      && UniqueSenders(msgs)
+      && |msgs| == quorumSize //TODO: once proof is complete try with >=
     }
+  }
+
+  datatype CheckpointsQuorum = CheckpointsQuorum(msgs:set<Network.Message<Message>>) {
+    function prototype() : Message 
+      requires |msgs| > 0
+    {
+      var prot :| prot in msgs;
+      prot.payload
+    }
+    predicate valid(lastStableCheckpoint:SequenceID, quorumSize:nat) {
+      && |msgs| > 0
+      && UniqueSenders(msgs)
+      && (forall m | m in msgs :: && m.payload.CheckpointMsg?
+                                  && m.payload == prototype()
+                                  && m.payload.seqIDReached == lastStableCheckpoint)
+      && |msgs| >= quorumSize
+    }
+  }
+
+  predicate UniqueSenders(msgs:set<Network.Message<Message>>) {
+    (forall m1, m2 | && m1 in msgs
+                     && m2 in msgs
+                     && m1 != m2
+                       :: m1.sender != m2.sender)
   }
 
   // Define your Message datatype here.
@@ -73,12 +92,32 @@ module Messages {
                      | Prepare(view:ViewNum, seqID:SequenceID, operationWrapper:OperationWrapper)
                      | Commit(view:ViewNum, seqID:SequenceID, operationWrapper:OperationWrapper)
                      | ClientRequest(clientOp:ClientOperation)
-                     | ViewChangeMsg(newView:ViewNum, certificates:imap<SequenceID, PreparedCertificate>) // omitting last stable because we don't have checkpointing yet.
+                     | ViewChangeMsg(newView:ViewNum,
+                                     lastStableCheckpoint:SequenceID,
+                                     proofForLastStable:CheckpointsQuorum,
+                                     certificates:map<SequenceID, PreparedCertificate>)
                      | NewViewMsg(newView:ViewNum, vcMsgs:ViewChangeMsgsSelectedByPrimary) 
-                     | CheckpointMsg(seqIDReached:SequenceID)
+                     | CheckpointMsg(seqIDReached:SequenceID, committedClientOperations:CommittedClientOperations)
                      {
-                       predicate WF() {
-                         && (ViewChangeMsg? ==> Library.FullImap(certificates)) //TODO: rename TotalImap
+                       predicate valid(quorumSize:nat)
+                       {
+                         && (ViewChangeMsg? ==> validViewChangeMsg(quorumSize))
+                         && (NewViewMsg? ==> validNewViewMsg(quorumSize))
+                       }
+                       predicate validViewChangeMsg(quorumSize:nat) 
+                         requires ViewChangeMsg?
+                       {
+                         proofForLastStable.valid(lastStableCheckpoint, quorumSize)
+                       }
+                       predicate validNewViewMsg(quorumSize:nat) 
+                         requires NewViewMsg?
+                       {
+                         vcMsgs.valid(newView, quorumSize)
+                       }
+                       predicate IsIntraViewMsg() {
+                          || PrePrepare?
+                          || Prepare?
+                          || Commit? 
                        }
                      }
   // ToDo: ClientReply
