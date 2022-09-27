@@ -13,13 +13,17 @@
 
 #include <chrono>
 #include <grpcpp/grpcpp.h>
+#include <grpcpp/health_check_service_interface.h>
+#include <grpcpp/ext/proto_server_reflection_plugin.h>
+#include <grpcpp/ext/health_check_service_server_builder_option.h>
 
 using namespace std::literals::chrono_literals;
 
 namespace concord::client::clientservice {
 
 void ClientService::start(const std::string& addr, unsigned num_async_threads, uint64_t max_receive_msg_size) {
-  grpc::EnableDefaultHealthCheckService(true);
+  grpc::EnableDefaultHealthCheckService(false);
+  grpc::reflection::InitProtoReflectionServerBuilderPlugin();
 
   grpc::ServerBuilder builder;
   builder.AddListeningPort(addr, grpc::InsecureServerCredentials());
@@ -28,6 +32,15 @@ void ClientService::start(const std::string& addr, unsigned num_async_threads, u
   // Register synchronous services
   builder.RegisterService(event_service_.get());
   builder.RegisterService(state_snapshot_service_.get());
+
+  // Register custom health service
+  std::unique_ptr<grpc::HealthCheckServiceInterface> custom_health_service(
+      new HealthCheckService(health_service_.get()));
+  grpc::HealthCheckServiceInterface* health_service_copy = custom_health_service.get();
+  std::unique_ptr<grpc::ServerBuilderOption> option(
+      new grpc::HealthCheckServiceServerBuilderOption(std::move(custom_health_service)));
+  builder.SetOption(std::move(option));
+  builder.RegisterService(health_service_.get());
 
   // Register asynchronous services
   builder.RegisterService(&request_service_);
@@ -39,15 +52,17 @@ void ClientService::start(const std::string& addr, unsigned num_async_threads, u
   clientservice_server_ = std::unique_ptr<grpc::Server>(builder.BuildAndStart());
   // clientservice_server_ now points to a running gRPC server which is ready to process calls
 
+  health_ = clientservice_server_->GetHealthCheckService();
+  ConcordAssertEQ(health_service_copy, health_);
+
   // From the "C++ Performance Notes" in the gRPC documentation:
   // "Right now, the best performance trade-off is having numcpu's threads and one completion queue per thread."
   for (unsigned i = 0; i < num_async_threads; ++i) {
     server_threads_.emplace_back(std::thread([this, i] { this->handleRpcs(i); }));
   }
-
-  auto health = clientservice_server_->GetHealthCheckService();
-  health->SetServingStatus(kRequestService, true);
-  health->SetServingStatus(kEventService, true);
+  ConcordAssertNE(health_, nullptr);
+  health_->SetServingStatus(kRequestService, client_ ? client_->isClientPoolHealthy() : false);
+  health_->SetServingStatus(kEventService, true);
 }
 
 void ClientService::wait() {
@@ -74,6 +89,7 @@ void ClientService::shutdown() {
   } else {
     LOG_INFO(logger_, "Clientservice is not running.");
   }
+  if (health_) health_->Shutdown();
 }
 
 void ClientService::handleRpcs(unsigned thread_idx) {

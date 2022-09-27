@@ -17,6 +17,7 @@
 #include "event_service.hpp"
 #include "request_service.hpp"
 #include "state_snapshot_service.hpp"
+#include "health_service.hpp"
 #include "Logger.hpp"
 #include "client/concordclient/concord_client.hpp"
 
@@ -29,7 +30,8 @@ class ClientService {
       : logger_(logging::getLogger("concord.client.clientservice")),
         client_(std::move(client)),
         event_service_(std::make_unique<EventServiceImpl>(client_, aggregator)),
-        state_snapshot_service_(std::make_unique<StateSnapshotServiceImpl>(client_)){};
+        state_snapshot_service_(std::make_unique<StateSnapshotServiceImpl>(client_)),
+        health_service_(std::make_unique<HealthCheckServiceImpl>(client_)){};
 
   void start(const std::string& addr, unsigned num_async_threads, uint64_t max_receive_msg_size);
 
@@ -58,6 +60,7 @@ class ClientService {
   // Synchronous services
   std::unique_ptr<EventServiceImpl> event_service_;
   std::unique_ptr<StateSnapshotServiceImpl> state_snapshot_service_;
+  std::unique_ptr<HealthCheckServiceImpl> health_service_;
 
   // Asynchronous services
   vmware::concord::client::request::v1::RequestService::AsyncService request_service_;
@@ -65,6 +68,7 @@ class ClientService {
   std::vector<std::unique_ptr<grpc::ServerCompletionQueue>> cqs_;
   std::vector<std::thread> server_threads_;
   std::unique_ptr<grpc::Server> clientservice_server_;
+  grpc::HealthCheckServiceInterface* health_;
 };
 
 }  // namespace concord::client::clientservice
