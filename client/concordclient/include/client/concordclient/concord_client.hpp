@@ -180,6 +180,10 @@ class ConcordClient {
   // Get subscription id.
   std::string getSubscriptionId() const { return config_.subscribe_config.id; }
 
+  // Get client-pool health status
+  // The caller has the responsibility of making sure that client_pool_ object exists before the method is called.
+  bool isClientPoolHealthy();
+
  private:
   config_pool::ConcordClientPoolConfig createClientPoolStruct(const ConcordClientConfig& config);
   void createGrpcConnections();
