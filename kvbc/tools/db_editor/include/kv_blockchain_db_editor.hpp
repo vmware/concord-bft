@@ -34,6 +34,7 @@
 #include "json_output.hpp"
 #include "bftengine/ReplicaSpecificInfoManager.hpp"
 #include "kvbc_adapter/replica_adapter.hpp"
+#include "bftengine/DbCheckpointMetadata.hpp"
 
 #include <unordered_map>
 
@@ -977,6 +978,15 @@ struct ResetMetadata {
         }
       }
     }
+
+    // remove db checkpoint metadata after updating it with empty dbcheckpoint metadata
+    DbCheckpointMetadata dbchkpt_mdt;
+    std::ostringstream outStream;
+    concord::serialize::Serializable::serialize(outStream, dbchkpt_mdt);
+    auto data = outStream.str();
+    std::vector<uint8_t> v(data.begin(), data.end());
+    p->setDbCheckpointMetadata(v);
+
     p->endWriteTran();
     return toJson(result);
   }
