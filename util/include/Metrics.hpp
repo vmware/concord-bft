@@ -37,6 +37,7 @@ using Counter = BasicCounter<uint64_t>;
 using AtomicGauge = BasicGauge<std::atomic_uint64_t>;
 using AtomicCounter = BasicCounter<std::atomic_uint64_t>;
 using Status = BasicStatus<std::string>;
+using TagsMap = std::unordered_map<std::string, std::string>;
 
 // Forward declarations since Aggregator requires these types.
 class Component;
@@ -153,7 +154,7 @@ struct metric_ {
   std::string component;
   std::string name;
   std::variant<Counter, Gauge, Status, SummaryDescription> value;
-  std::unordered_map<std::string, std::string> tag_map;
+  TagsMap tag_map;
 };
 
 /******************************** Class Values ********************************/
@@ -196,11 +197,11 @@ class Names {
 // during initialization.
 class Tags {
  private:
-  std::vector<std::unordered_map<std::string, std::string>> gauge_tags_;
-  std::vector<std::unordered_map<std::string, std::string>> status_tags_;
-  std::vector<std::unordered_map<std::string, std::string>> counter_tags_;
-  std::vector<std::unordered_map<std::string, std::string>> atomic_tags_;
-  std::vector<std::unordered_map<std::string, std::string>> atomic_gauge_tags_;
+  std::vector<TagsMap> gauge_tags_;
+  std::vector<TagsMap> status_tags_;
+  std::vector<TagsMap> counter_tags_;
+  std::vector<TagsMap> atomic_tags_;
+  std::vector<TagsMap> atomic_gauge_tags_;
 
   friend class Component;
   friend class Aggregator;
@@ -256,16 +257,10 @@ class Component {
 
   // Create a Gauge, add it to the component and return a reference to the
   // gauge.
-  Handle<Gauge> RegisterGauge(const std::string& name, const uint64_t val);
-  Handle<Gauge> RegisterGauge(const std::string& name,
-                              const uint64_t val,
-                              const std::unordered_map<std::string, std::string>& tag_map);
+  Handle<Gauge> RegisterGauge(const std::string& name, const uint64_t val, const TagsMap& tag_map = {});
   Handle<Status> RegisterStatus(const std::string& name, const std::string& val);
-  Handle<Counter> RegisterCounter(const std::string& name, const uint64_t val);
-  Handle<Counter> RegisterCounter(const std::string& name,
-                                  const uint64_t val,
-                                  const std::unordered_map<std::string, std::string>& tag_map);
-  Handle<Counter> RegisterCounter(const std::string& name) { return RegisterCounter(name, 0); }
+  Handle<Counter> RegisterCounter(const std::string& name, const uint64_t val, const TagsMap& tag_map = {});
+  Handle<Counter> RegisterCounter(const std::string& name) { return RegisterCounter(name, 0, {}); }
   Handle<AtomicCounter> RegisterAtomicCounter(const std::string& name, const uint64_t val);
   Handle<AtomicCounter> RegisterAtomicCounter(const std::string& name) { return RegisterAtomicCounter(name, 0); }
   Handle<AtomicGauge> RegisterAtomicGauge(const std::string& name, const uint64_t val);
