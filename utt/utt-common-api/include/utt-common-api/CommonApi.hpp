@@ -42,19 +42,16 @@ using PrivacyBudget = std::vector<uint8_t>;
 /// @brief Signature on a privacy budget object
 using PrivacyBudgetSig = std::vector<uint8_t>;
 
-/// @brief Represents an anonymous transfer transaction in the system
-using TransferTx = std::vector<uint8_t>;
-
-/// @brief Represents a public mint transaction in the system
-using MintTx = std::vector<uint8_t>;
-
-/// @brief Represents a public burn transaction in the system
-using BurnTx = std::vector<uint8_t>;
-
 /// @brief A signature on a single output of a transaction
 using TxOutputSig = std::vector<uint8_t>;
 
 /// @brief The signatures associated with the ordered outputs of a transaction
 using TxOutputSigs = std::vector<TxOutputSig>;
+
+/// @brief A transaction and its type
+struct Transaction {
+  enum class Type { Undefined = 0, Mint = 1, Transfer = 2, Burn = 3 } type_ = Type::Undefined;
+  std::vector<uint8_t> data_;
+};
 
 }  // namespace utt

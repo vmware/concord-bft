@@ -23,9 +23,7 @@
 
 namespace utt::client {
 
-enum class Error {};
-using BurnResult = std::variant<TransferTx, BurnTx, Error>;
-using TransferResult = std::variant<TransferTx, Error>;
+using Error = std::string;
 
 // Provides the means to store the user's data
 struct IUserStorage {};
@@ -60,13 +58,13 @@ class User {
   /// @param rs A signature on the user's registration
   /// @param s2 A system generated part of the user's nullifier secret key
   /// @return True if the registration is accepted by the user
-  bool updateRegistration(const std::string& pk, const RegistrationSig& rs, const S2& s2);
+  bool updateRegistration(const std::string& pk, const utt::RegistrationSig& rs, const utt::S2& s2);
 
   /// @brief Updates the privacy budget of the user
   /// @param token The budget token object
   /// @param sig The budget token signature
   /// @return True if the budget token is accepted
-  bool updatePrivacyBudget(const PrivacyBudget& budget, const PrivacyBudgetSig& sig);
+  bool updatePrivacyBudget(const utt::PrivacyBudget& budget, const utt::PrivacyBudgetSig& sig);
 
   /**
    * @brief Get the total value of unspent UTT tokens
@@ -98,20 +96,20 @@ class User {
   /// @param tx A transfer transaction
   /// @param sigs The signatures on the transaction outputs
   /// @return
-  bool updateTransferTx(uint64_t txNum, const TransferTx& tx, const TxOutputSigs& sigs);
+  bool updateTransferTx(uint64_t txNum, const utt::Transaction& tx, const utt::TxOutputSigs& sigs);
 
   /// @brief Update the user's state with the effects of a mint transaction
   /// @param txNum The transaction number
   /// @param tx A mint transaction
-  /// @param sigs The signatures on the transaction outputs
+  /// @param sig The signature on the transaction output (we assume a mint tx has a single output)
   /// @return
-  bool updateMintTx(uint64_t txNum, const MintTx& tx, const TxOutputSigs& sigs);
+  bool updateMintTx(uint64_t txNum, const utt::Transaction& tx, const utt::TxOutputSig& sig);
 
   /// @brief Update the user's state with the effects of a burn transaction
   /// @param txNum The transaction number
   /// @param tx A burn transaction
   /// @return
-  bool updateBurnTx(uint64_t txNum, const BurnTx& tx);
+  bool updateBurnTx(uint64_t txNum, const utt::Transaction& tx);
 
   /// @brief The user records the tx as a no-op and skips it
   /// @param txNum
@@ -126,7 +124,7 @@ class User {
    * @return Returns a valid UTT transaction to burn or merge/split UTT tokens or an error.
    *
    */
-  BurnResult burn(uint64_t amount) const;
+  std::variant<utt::Transaction, Error> burn(uint64_t amount) const;
 
   /**
    * @brief Ask to transfer some amount of tokens. This function needs to be called repeatedly until the final transfer
@@ -137,25 +135,28 @@ class User {
    * @return Returns a valid UTT transaction to transfer or merge/split UTT tokens or an error.
    *
    */
-  TransferResult transfer(const std::string& userId, const std::string& destPK, uint64_t amount) const;
+  std::variant<utt::Transaction, Error> transfer(const std::string& userId,
+                                                 const std::string& destPK,
+                                                 uint64_t amount) const;
 
  private:
   // Users can be created only by the top-level ClientApi functions
   friend std::unique_ptr<User> createUser(const std::string& userId,
-                                          const PublicConfig& config,
+                                          const utt::PublicConfig& config,
                                           IUserPKInfrastructure& pki,
                                           IUserStorage& storage);
 
   friend std::unique_ptr<User> loadUserFromStorage(IUserStorage& storage);
 
   static std::unique_ptr<User> createInitial(const std::string& userId,
-                                             const PublicConfig& config,
+                                             const utt::PublicConfig& config,
                                              IUserPKInfrastructure& pki,
                                              IUserStorage& storage);
 
   static std::unique_ptr<User> createFromStorage(IUserStorage& storage);
 
-  std::unique_ptr<struct Impl> pImpl_;
+  struct Impl;
+  std::unique_ptr<Impl> pImpl_;
 };
 
 }  // namespace utt::client
