@@ -371,7 +371,7 @@ void DbCheckpointManager::updateMetrics() {
     lastDbCheckpointSizeInMb_.Get().Set(lastDbCheckpointSize / (1024 * 1024));
     metrics_.UpdateAggregator();
     LOG_INFO(getLogger(), "rocksdb check point id:" << it->first << ", size: " << HumanReadable{lastDbCheckpointSize});
-    LOG_INFO(GL, "-- RocksDb checkpoint metrics dump--" + metrics_.ToJson());
+    LOG_DEBUG(GL, "-- RocksDb checkpoint metrics dump--" + metrics_.ToJson());
   }
 }
 void DbCheckpointManager::updateLastCmdInfo(const SeqNum& seqNum, const std::optional<Timestamp>& timestamp) {

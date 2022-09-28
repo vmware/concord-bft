@@ -238,7 +238,6 @@ void AsyncTlsConnection::write(std::shared_ptr<OutgoingMsg> msg) {
     LOG_ERROR(logger_, "write_msg_ already in use by other thread, msg pushed to the write queue.");
     return;
   }
-  LOG_DEBUG(logger_, "Writing" << KVLOG(write_msg_->msg.size()));
 
   // We don't want to include tcp transmission time.
   histograms_.send_time_in_queue->recordAtomic(durationInMicros(write_msg_->send_time));
@@ -270,7 +269,7 @@ void AsyncTlsConnection::write(std::shared_ptr<OutgoingMsg> msg) {
         write_msg_used_ = false;
         write(write_queue_.pop());
       }));
-  LOG_DEBUG(logger_, "Write:" << KVLOG(peer_id_.value()));
+  LOG_DEBUG(logger_, "Write:" << KVLOG(peer_id_.value(), write_msg_->msg.size()));
   startWriteTimer();
 }
 

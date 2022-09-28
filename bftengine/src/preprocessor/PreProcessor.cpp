@@ -710,9 +710,6 @@ bool PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUnique
   const NodeIdType &clientId = clientMsg->clientProxyId();
   const ReqId &reqSeqNum = clientMsg->requestSeqNum();
   const auto &reqCid = clientMsg->getCid();
-  LOG_DEBUG(
-      logger(),
-      "Handle Request:" << KVLOG(batchCid, reqSeqNum, reqCid, clientId, senderId, arrivedInBatch, reqOffsetInBatch));
 
   bool registerSucceeded = false;
   {
@@ -744,8 +741,9 @@ bool PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUnique
     return true;
   }
   LOG_DEBUG(logger(),
-            "ClientPreProcessRequestMsg" << KVLOG(batchCid, reqSeqNum, reqCid, clientId, senderId)
-                                         << " is ignored because request is old/duplicated");
+            "ClientPreProcessRequestMsg"
+                << KVLOG(batchCid, reqSeqNum, reqCid, clientId, senderId, arrivedInBatch, reqOffsetInBatch)
+                << " is ignored because request is old/duplicated");
   preProcessorMetrics_.preProcReqIgnored++;
   return false;
 }
