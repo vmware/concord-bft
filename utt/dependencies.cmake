@@ -75,8 +75,6 @@ ExternalProject_Add(libff
                                 -DMULTICORE=OFF
                                 -DCURVE=BN128
                                 -DWITH_PROCPS=OFF
-                                -DCCACHE_FOUND=OFF
-                                -DCMAKE_POSITION_INDEPENDENT_CODE=ON
                     BUILD_COMMAND ${CMAKE_MAKE_PROGRAM} -j${NPROC}
                     DEPENDS libsodium
                     DEPENDS ate_pairing
