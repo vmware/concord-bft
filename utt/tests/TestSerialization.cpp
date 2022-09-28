@@ -37,7 +37,7 @@ int main(int argc, char* argv[]) {
 
   // Test Configuration de/serialization
   {
-    auto config = libutt::api::Configuration((uint32_t)n, (uint32_t)thresh);
+    auto config = libutt::api::Configuration((uint16_t)n, (uint16_t)thresh);
     assertTrue(config.isValid());
     auto serialized_config = libutt::api::serialize<libutt::api::Configuration>(config);
     auto deserialized_config = libutt::api::deserialize<libutt::api::Configuration>(serialized_config);

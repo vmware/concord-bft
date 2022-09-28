@@ -144,12 +144,22 @@ struct ServerMock {
     auto registrationVerificationKey = mock.config_->getPublicConfig().getRegistrationVerificationKey();
     auto commitVerificationKey = mock.config_->getPublicConfig().getCommitVerificationKey();
 
+    std::map<uint16_t, std::string> commitVerificationKeyShares;
+    std::map<uint16_t, std::string> registrationVerificationKeyShares;
+    for (uint16_t i = 0; i < mock.config_->getNumParticipants(); ++i) {
+      commitVerificationKeyShares.emplace(i, mock.config_->getCommitVerificationKeyShare(i));
+      registrationVerificationKeyShares.emplace(i, mock.config_->getRegistrationVerificationKeyShare(i));
+    }
+
     // Create registrars and coins signers
-    for (uint32_t i = 0; i < mock.config_->getNumParticipants(); ++i) {
+    for (uint16_t i = 0; i < mock.config_->getNumParticipants(); ++i) {
       mock.registrars_.emplace_back(
-          std::to_string(i), mock.config_->getRegistrationSecret(i), registrationVerificationKey);
-      mock.coinsSigners_.emplace_back(
-          std::to_string(i), mock.config_->getCommitSecret(i), commitVerificationKey, registrationVerificationKey);
+          i, mock.config_->getRegistrationSecret(i), registrationVerificationKeyShares, registrationVerificationKey);
+      mock.coinsSigners_.emplace_back(i,
+                                      mock.config_->getCommitSecret(i),
+                                      commitVerificationKey,
+                                      commitVerificationKeyShares,
+                                      registrationVerificationKey);
     }
 
     return mock;
@@ -177,8 +187,8 @@ struct ServerMock {
       shares.emplace_back(std::move(share));
     }
 
-    const uint32_t n = config_->getNumParticipants();
-    const uint32_t t = config_->getThreshold();
+    const uint16_t n = config_->getNumParticipants();
+    const uint16_t t = config_->getThreshold();
 
     std::map<uint32_t, std::vector<uint8_t>> shareSubset;
     auto idxSubset = libutt::random_subset(t, n);
@@ -207,8 +217,8 @@ struct ServerMock {
       shares.emplace_back(signer.sign(budget).front());
     }
 
-    const uint32_t n = config_->getNumParticipants();
-    const uint32_t t = config_->getThreshold();
+    const uint16_t n = config_->getNumParticipants();
+    const uint16_t t = config_->getThreshold();
 
     std::map<uint32_t, std::vector<uint8_t>> shareSubset;
     auto idxSubset = libutt::random_subset(t, n);
@@ -236,8 +246,8 @@ struct ServerMock {
       shares.emplace_back(signer.sign(mintTx).front());
     }
 
-    const uint32_t n = config_->getNumParticipants();
-    const uint32_t t = config_->getThreshold();
+    const uint16_t n = config_->getNumParticipants();
+    const uint16_t t = config_->getThreshold();
 
     std::map<uint32_t, std::vector<uint8_t>> shareSubset;
     auto idxSubset = libutt::random_subset(t, n);
@@ -284,8 +294,8 @@ struct ServerMock {
       shares.emplace_back(signer.sign(uttTx));
     }
 
-    const uint32_t n = config_->getNumParticipants();
-    const uint32_t t = config_->getThreshold();
+    const uint16_t n = config_->getNumParticipants();
+    const uint16_t t = config_->getThreshold();
 
     size_t numOutCoins = shares[0].size();
     assertTrue(numOutCoins > 0);
@@ -294,7 +304,7 @@ struct ServerMock {
     resp.txNum = ++lastExecutedTxNum_;
     resp.tx = tx;
 
-    // Aggreggate a signature for each output coin
+    // Aggregate a signature for each output coin
     for (size_t i = 0; i < numOutCoins; ++i) {
       std::map<uint32_t, std::vector<uint8_t>> shareSubset;
       auto idxSubset = libutt::random_subset(t, n);

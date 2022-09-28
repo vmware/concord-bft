@@ -54,8 +54,8 @@ Configuration generateConfig(const ConfigInputParams& inputParams) {
   if (inputParams.threshold > inputParams.participantsPublicKeys.size())
     throw std::runtime_error("Generating UTT Instance Config with threshold greater than the number of participants!");
 
-  const uint32_t n = (uint32_t)inputParams.participantsPublicKeys.size();
-  const uint32_t t = inputParams.threshold;
+  const uint16_t n = (uint16_t)inputParams.participantsPublicKeys.size();
+  const uint16_t t = inputParams.threshold;
 
   auto config = libutt::api::Configuration(n, t);
 

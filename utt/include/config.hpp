@@ -62,7 +62,7 @@ class Configuration {
   /// @brief Constructs a UTT instance configuration
   /// @param n The number of participants for multiparty signature computation
   /// @param t The number of participant shares required to reconstruct a signature
-  Configuration(uint32_t n, uint32_t t);
+  Configuration(uint16_t n, uint16_t t);
   ~Configuration();
 
   Configuration(Configuration&& o);
@@ -73,14 +73,16 @@ class Configuration {
 
   bool isValid() const;
 
-  uint32_t getNumParticipants() const;
-  uint32_t getThreshold() const;
+  uint16_t getNumParticipants() const;
+  uint16_t getThreshold() const;
+
   const PublicConfig& getPublicConfig() const;
 
-  std::string getCommitSecret(uint32_t idx) const;
-  std::string getRegistrationSecret(uint32_t idx) const;
+  std::string getCommitSecret(uint16_t idx) const;
+  std::string getRegistrationSecret(uint16_t idx) const;
 
-  // [TODO-UTT] More getters if needed
+  std::string getCommitVerificationKeyShare(uint16_t idx) const;
+  std::string getRegistrationVerificationKeyShare(uint16_t idx) const;
 
  private:
   friend std::ostream& ::operator<<(std::ostream& out, const libutt::api::Configuration& config);
