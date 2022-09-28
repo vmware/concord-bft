@@ -58,11 +58,15 @@ struct User::Impl {
                                 const std::string& userId,
                                 const std::string& pk);
 
+  libutt::RSAEncryptor createRsaEncryptorForTransferToOther(const std::string& otherUserId, const std::string& otherPk);
+
   std::string sk_;                     // User's secret key
   std::string pk_;                     // User's public key
   libutt::api::types::CurvePoint s1_;  // User's secret part of the PRF key
   libutt::api::UTTParams params_;
   std::unique_ptr<libutt::api::Client> client_;  // User's credentials
+  std::unique_ptr<libutt::RSAEncryptor>
+      selfTxEncryptor_;  // Encryptor with own's public key for self transactions (computed once for convenience)
 
   uint64_t lastExecutedTxNum_ = 0;
   std::vector<libutt::api::Coin> coins_;         // User's unspent UTT coins (tokens)
@@ -82,11 +86,7 @@ utt::Transaction User::Impl::createTx_Self1t2(const libutt::api::Coin& coin, uin
   recip.emplace_back(client_->getPid(), amount);
   recip.emplace_back(client_->getPid(), coin.getVal() - amount);
 
-  std::map<std::string, std::string> credentials;
-  credentials.emplace(client_->getPid(), pk_);
-  libutt::RSAEncryptor encryptor(credentials);
-
-  auto uttTx = libutt::api::operations::Transaction(params_, *client_, {coin}, std::nullopt, recip, encryptor);
+  auto uttTx = libutt::api::operations::Transaction(params_, *client_, {coin}, std::nullopt, recip, *selfTxEncryptor_);
 
   utt::Transaction tx;
   tx.type_ = utt::Transaction::Type::Transfer;
@@ -98,11 +98,7 @@ utt::Transaction User::Impl::createTx_Self2t1(const std::vector<libutt::api::Coi
   std::vector<std::tuple<std::string, uint64_t>> recip;
   recip.emplace_back(client_->getPid(), coins[0].getVal() + coins[1].getVal());
 
-  std::map<std::string, std::string> credentials;
-  credentials.emplace(client_->getPid(), pk_);
-  libutt::RSAEncryptor encryptor(credentials);
-
-  auto uttTx = libutt::api::operations::Transaction(params_, *client_, coins, std::nullopt, recip, encryptor);
+  auto uttTx = libutt::api::operations::Transaction(params_, *client_, coins, std::nullopt, recip, *selfTxEncryptor_);
 
   utt::Transaction tx;
   tx.type_ = utt::Transaction::Type::Transfer;
@@ -115,11 +111,7 @@ utt::Transaction User::Impl::createTx_Self2t2(const std::vector<libutt::api::Coi
   recip.emplace_back(client_->getPid(), amount);
   recip.emplace_back(client_->getPid(), (coins[0].getVal() + coins[1].getVal()) - amount);
 
-  std::map<std::string, std::string> credentials;
-  credentials.emplace(client_->getPid(), pk_);
-  libutt::RSAEncryptor encryptor(credentials);
-
-  auto uttTx = libutt::api::operations::Transaction(params_, *client_, coins, std::nullopt, recip, encryptor);
+  auto uttTx = libutt::api::operations::Transaction(params_, *client_, coins, std::nullopt, recip, *selfTxEncryptor_);
 
   utt::Transaction tx;
   tx.type_ = utt::Transaction::Type::Transfer;
@@ -133,11 +125,7 @@ utt::Transaction User::Impl::createTx_1t1(const libutt::api::Coin& coin,
   std::vector<std::tuple<std::string, uint64_t>> recip;
   recip.emplace_back(userId, coin.getVal());
 
-  std::map<std::string, std::string> credentials;
-  credentials.emplace(client_->getPid(), pk_);
-  credentials.emplace(userId, pk);
-  libutt::RSAEncryptor encryptor(credentials);
-
+  auto encryptor = createRsaEncryptorForTransferToOther(userId, pk);
   auto uttTx = libutt::api::operations::Transaction(params_, *client_, {coin}, budgetCoin_, recip, encryptor);
 
   utt::Transaction tx;
@@ -154,11 +142,7 @@ utt::Transaction User::Impl::createTx_1t2(const libutt::api::Coin& coin,
   recip.emplace_back(userId, amount);
   recip.emplace_back(client_->getPid(), coin.getVal() - amount);
 
-  std::map<std::string, std::string> credentials;
-  credentials.emplace(client_->getPid(), pk_);
-  credentials.emplace(userId, pk);
-  libutt::RSAEncryptor encryptor(credentials);
-
+  auto encryptor = createRsaEncryptorForTransferToOther(userId, pk);
   auto uttTx = libutt::api::operations::Transaction(params_, *client_, {coin}, budgetCoin_, recip, encryptor);
 
   utt::Transaction tx;
@@ -173,11 +157,7 @@ utt::Transaction User::Impl::createTx_2t1(const std::vector<libutt::api::Coin>& 
   std::vector<std::tuple<std::string, uint64_t>> recip;
   recip.emplace_back(userId, coins[0].getVal() + coins[1].getVal());
 
-  std::map<std::string, std::string> credentials;
-  credentials.emplace(client_->getPid(), pk_);
-  credentials.emplace(userId, pk);
-  libutt::RSAEncryptor encryptor(credentials);
-
+  auto encryptor = createRsaEncryptorForTransferToOther(userId, pk);
   auto uttTx = libutt::api::operations::Transaction(params_, *client_, coins, budgetCoin_, recip, encryptor);
 
   utt::Transaction tx;
@@ -194,17 +174,21 @@ utt::Transaction User::Impl::createTx_2t2(const std::vector<libutt::api::Coin>& 
   recip.emplace_back(userId, amount);
   recip.emplace_back(client_->getPid(), (coins[0].getVal() + coins[1].getVal()) - amount);
 
-  std::map<std::string, std::string> credentials;
-  credentials.emplace(client_->getPid(), pk_);
-  credentials.emplace(userId, pk);
-  libutt::RSAEncryptor encryptor(credentials);
-
+  auto encryptor = createRsaEncryptorForTransferToOther(userId, pk);
   auto uttTx = libutt::api::operations::Transaction(params_, *client_, coins, budgetCoin_, recip, encryptor);
 
   utt::Transaction tx;
   tx.type_ = utt::Transaction::Type::Transfer;
   tx.data_ = libutt::api::serialize<libutt::api::operations::Transaction>(uttTx);
   return tx;
+}
+
+libutt::RSAEncryptor User::Impl::createRsaEncryptorForTransferToOther(const std::string& otherUserId,
+                                                                      const std::string& otherPk) {
+  std::map<std::string, std::string> creds;
+  creds.emplace(client_->getPid(), pk_);  // Own credentials used for budget coin and change output
+  creds.emplace(otherUserId, otherPk);    // Other user credentials
+  return libutt::RSAEncryptor{creds};
 }
 
 std::unique_ptr<User> User::createInitial(const std::string& userId,
@@ -233,6 +217,9 @@ std::unique_ptr<User> User::createInitial(const std::string& userId,
   user->pImpl_->client_.reset(new libutt::api::Client(
       userId, uttConfig.getCommitVerificationKey(), uttConfig.getRegistrationVerificationKey(), userKeys.sk_));
 
+  std::map<std::string, std::string> selfTxCredentials{{userId, userKeys.pk_}};
+  user->pImpl_->selfTxEncryptor_ = std::make_unique<libutt::RSAEncryptor>(selfTxCredentials);
+
   return user;
 }
 
@@ -255,17 +242,15 @@ bool User::updateRegistration(const std::string& pk, const RegistrationSig& rs, 
   if (!(pImpl_->pk_ == pk)) return false;  // Expect a matching public key
   if (rs.empty() || s2.empty()) return false;
 
-  // [TODO-UTT] What if we already updated a registration? How do we check it?
-  pImpl_->client_->setRCMSig(pImpl_->params_, s2, rs);
-
   // Un-blind the signature
   std::vector<libutt::api::types::CurvePoint> randomness = {libutt::Fr::zero().to_words(),
                                                             libutt::Fr::zero().to_words()};
-  auto sig =
+  auto unblindedSig =
       libutt::api::Utils::unblindSignature(pImpl_->params_, libutt::api::Commitment::REGISTRATION, randomness, rs);
-  if (sig.empty()) return false;
+  if (unblindedSig.empty()) return false;
 
-  pImpl_->client_->setRCMSig(pImpl_->params_, s2, sig);
+  // [TODO-UTT] What if we already updated a registration? How do we check it?
+  pImpl_->client_->setRCMSig(pImpl_->params_, s2, unblindedSig);
 
   return true;
 }
@@ -398,69 +383,59 @@ bool User::updateNoOp(uint64_t txNum) {
   return true;
 }
 
-std::variant<utt::Transaction, Error> User::burn(uint64_t amount) const {
-  try {
-    if (!pImpl_->client_) throw std::runtime_error("User not initialized!");
-    if (amount == 0) throw std::runtime_error("Burn amount must be positive!");
+utt::Transaction User::burn(uint64_t amount) const {
+  if (!pImpl_->client_) throw std::runtime_error("User not initialized!");
+  if (amount == 0) throw std::runtime_error("Burn amount must be positive!");
 
-    const uint64_t balance = getBalance();
-    if (balance < amount) throw std::runtime_error("User has insufficient balance!");
+  const uint64_t balance = getBalance();
+  if (balance < amount) throw std::runtime_error("User has insufficient balance!");
 
-    auto pickedCoins = PickCoinsPreferExactMatch(pImpl_->coins_, amount);
-    if (pickedCoins.empty()) throw std::runtime_error("Coin strategy didn't pick any coins!");
+  auto pickedCoins = PickCoinsPreferExactMatch(pImpl_->coins_, amount);
+  if (pickedCoins.empty()) throw std::runtime_error("Coin strategy didn't pick any coins!");
 
-    if (pickedCoins.size() == 1) {
-      const auto& coin = pImpl_->coins_.at(pickedCoins[0]);
-      const uint64_t value = coin.getVal();
-      if (value < amount) throw std::runtime_error("Coin strategy picked a single insufficient coin!");
-      if (value == amount) return pImpl_->createTx_Burn(coin);
-      return pImpl_->createTx_Self1t2(coin, amount);  // value > payment
-    } else if (pickedCoins.size() == 2) {
-      const std::vector<libutt::api::Coin> inputCoins = {pImpl_->coins_.at(pickedCoins[0]),
-                                                         pImpl_->coins_.at(pickedCoins[1])};
-      const uint64_t value = inputCoins[0].getVal() + inputCoins[1].getVal();
-      if (value <= amount) return pImpl_->createTx_Self2t1(inputCoins);  // Coin merge
-      return pImpl_->createTx_Self2t2(inputCoins, amount);               // value > payment
-    } else {
-      throw std::runtime_error("Coin strategy picked more than two coins!");
-    }
-  } catch (const std::runtime_error& e) {
-    return std::string(e.what());
+  if (pickedCoins.size() == 1) {
+    const auto& coin = pImpl_->coins_.at(pickedCoins[0]);
+    const uint64_t value = coin.getVal();
+    if (value < amount) throw std::runtime_error("Coin strategy picked a single insufficient coin!");
+    if (value == amount) return pImpl_->createTx_Burn(coin);
+    return pImpl_->createTx_Self1t2(coin, amount);  // value > payment
+  } else if (pickedCoins.size() == 2) {
+    const std::vector<libutt::api::Coin> inputCoins = {pImpl_->coins_.at(pickedCoins[0]),
+                                                       pImpl_->coins_.at(pickedCoins[1])};
+    const uint64_t value = inputCoins[0].getVal() + inputCoins[1].getVal();
+    if (value <= amount) return pImpl_->createTx_Self2t1(inputCoins);  // Coin merge
+    return pImpl_->createTx_Self2t2(inputCoins, amount);               // value > payment
+  } else {
+    throw std::runtime_error("Coin strategy picked more than two coins!");
   }
 }
 
-std::variant<utt::Transaction, Error> User::transfer(const std::string& userId,
-                                                     const std::string& destPK,
-                                                     uint64_t amount) const {
-  try {
-    if (userId.empty() || destPK.empty() || amount == 0) throw std::runtime_error("Invalid arguments!");
-    if (!pImpl_->client_) throw std::runtime_error("Uinitialized user!");
+utt::Transaction User::transfer(const std::string& userId, const std::string& destPK, uint64_t amount) const {
+  if (userId.empty() || destPK.empty() || amount == 0) throw std::runtime_error("Invalid arguments!");
+  if (!pImpl_->client_) throw std::runtime_error("Uninitialized user!");
 
-    const uint64_t balance = getBalance();
-    if (balance < amount) throw std::runtime_error("User has insufficient balance!");
-    const size_t budget = getPrivacyBudget();
-    if (budget < amount) throw std::runtime_error("User has insufficient privacy budget!");
+  const uint64_t balance = getBalance();
+  if (balance < amount) throw std::runtime_error("User has insufficient balance!");
+  const size_t budget = getPrivacyBudget();
+  if (budget < amount) throw std::runtime_error("User has insufficient privacy budget!");
 
-    auto pickedCoins = PickCoinsPreferExactMatch(pImpl_->coins_, amount);
-    if (pickedCoins.empty()) throw std::runtime_error("Coin strategy didn't pick any coins!");
+  auto pickedCoins = PickCoinsPreferExactMatch(pImpl_->coins_, amount);
+  if (pickedCoins.empty()) throw std::runtime_error("Coin strategy didn't pick any coins!");
 
-    if (pickedCoins.size() == 1) {
-      const auto& coin = pImpl_->coins_.at(pickedCoins[0]);
-      const auto value = coin.getVal();
-      if (value < amount) throw std::runtime_error("Coin strategy picked a single insufficient coin!");
-      if (value == amount) return pImpl_->createTx_1t1(coin, userId, destPK);
-      return pImpl_->createTx_1t2(coin, amount, userId, destPK);  // value > amount
-    } else if (pickedCoins.size() == 2) {
-      std::vector<libutt::api::Coin> inputCoins{pImpl_->coins_.at(pickedCoins[0]), pImpl_->coins_.at(pickedCoins[1])};
-      const auto value = inputCoins[0].getVal() + inputCoins[1].getVal();
-      if (value < amount) return pImpl_->createTx_Self2t1(inputCoins);  // Coin merge
-      if (value == amount) return pImpl_->createTx_2t1(inputCoins, userId, destPK);
-      return pImpl_->createTx_2t2(inputCoins, amount, userId, destPK);  // value > amount
-    } else {
-      throw std::runtime_error("Coin strategy picked more than two coins!");
-    }
-  } catch (const std::runtime_error& e) {
-    return std::string(e.what());
+  if (pickedCoins.size() == 1) {
+    const auto& coin = pImpl_->coins_.at(pickedCoins[0]);
+    const auto value = coin.getVal();
+    if (value < amount) throw std::runtime_error("Coin strategy picked a single insufficient coin!");
+    if (value == amount) return pImpl_->createTx_1t1(coin, userId, destPK);
+    return pImpl_->createTx_1t2(coin, amount, userId, destPK);  // value > amount
+  } else if (pickedCoins.size() == 2) {
+    std::vector<libutt::api::Coin> inputCoins{pImpl_->coins_.at(pickedCoins[0]), pImpl_->coins_.at(pickedCoins[1])};
+    const auto value = inputCoins[0].getVal() + inputCoins[1].getVal();
+    if (value < amount) return pImpl_->createTx_Self2t1(inputCoins);  // Coin merge
+    if (value == amount) return pImpl_->createTx_2t1(inputCoins, userId, destPK);
+    return pImpl_->createTx_2t2(inputCoins, amount, userId, destPK);  // value > amount
+  } else {
+    throw std::runtime_error("Coin strategy picked more than two coins!");
   }
 }
 

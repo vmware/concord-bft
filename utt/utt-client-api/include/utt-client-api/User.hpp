@@ -23,8 +23,6 @@
 
 namespace utt::client {
 
-using Error = std::string;
-
 // Provides the means to store the user's data
 struct IUserStorage {};
 
@@ -124,7 +122,7 @@ class User {
    * @return Returns a valid UTT transaction to burn or merge/split UTT tokens or an error.
    *
    */
-  std::variant<utt::Transaction, Error> burn(uint64_t amount) const;
+  utt::Transaction burn(uint64_t amount) const;
 
   /**
    * @brief Ask to transfer some amount of tokens. This function needs to be called repeatedly until the final transfer
@@ -135,9 +133,7 @@ class User {
    * @return Returns a valid UTT transaction to transfer or merge/split UTT tokens or an error.
    *
    */
-  std::variant<utt::Transaction, Error> transfer(const std::string& userId,
-                                                 const std::string& destPK,
-                                                 uint64_t amount) const;
+  utt::Transaction transfer(const std::string& userId, const std::string& destPK, uint64_t amount) const;
 
  private:
   // Users can be created only by the top-level ClientApi functions

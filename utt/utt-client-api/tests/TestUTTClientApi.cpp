@@ -98,10 +98,10 @@ std::map<std::string, std::pair<std::string, std::string>> k_TestKeys{
       "K/1CYV1uMNbchmuVQb2Kd2JyE1gQF8s3ShsbteMc5og=\n"
       "-----END RSA PRIVATE KEY-----\n",
       "-----BEGIN PUBLIC KEY-----\n"
-      "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDMw+qeJXQ/ZxrqSqjRXoN2wFYN\n"
-      "whljh7RTBJuIzaqK2pDL+zaKaREzgufG/7r2uk8njWW7EJbriLcmj1oJA913LPl4\n"
-      "YWUEORKl7Cb6wLoPO/E5gAt1JJ0dhDeCRU+E7vtNQ4pLyy2dYS2GHO1Tm88yuFeg\n"
-      "S3gkINPYgzNggGJ2cQIDAQAB\n"
+      "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCnmdqW7f/rg8CiUzLugxc0jPMq\n"
+      "zphhtl40IqINAk3pasCQsA3TeHSa1fcKocFMY9bfQRvqiKpnK74d0V0fujFUaPIM\n"
+      "lKMLWXEVefwe1fOYrDXOoz7N3Go7x9u/LXwCA6HehXtIavtTPQs1yHldb/bDocEh\n"
+      "jfGvU3TLXkAuGWsnmQIDAQAB\n"
       "-----END PUBLIC KEY-----\n"}},
 };
 
@@ -134,7 +134,24 @@ struct BurnResponse {
   utt::Transaction tx;
 };
 
+struct ExecutedTx {
+  utt::Transaction tx_;
+  utt::TxOutputSigs sigs_;
+  std::string publicUserId_;  // Burns and mints are public transactions that expose the user id, we save it here for
+                              // convenience
+};
+
 struct ServerMock {
+  // UTT Configuration
+  std::unique_ptr<libutt::api::Configuration> config_;
+  std::vector<libutt::api::Registrator> registrars_;
+  std::vector<libutt::api::CoinsSigner> coinsSigners_;
+
+  // UTT State
+  uint32_t lastTokenId_ = 0;
+  std::set<std::string> nullifiers_;
+  std::vector<ExecutedTx> ledger_;
+
   static ServerMock createFromConfig(const utt::Configuration& config) {
     ServerMock mock;
     mock.config_ =
@@ -163,6 +180,12 @@ struct ServerMock {
     }
 
     return mock;
+  }
+
+  uint64_t getLastExecutedTxNum() const { return ledger_.size(); }
+  const ExecutedTx& getExecutedTx(uint64_t txNum) const {
+    if (txNum == 0) throw std::runtime_error("Zero is not a valid transaction number!");
+    return ledger_.at(txNum - 1);
   }
 
   RegisterUserResponse registerUser(const std::string& userId, const utt::UserRegistrationInput& userRegInput) {
@@ -232,7 +255,7 @@ struct ServerMock {
     return resp;
   }
 
-  MintResponse mint(const std::string& userId, uint64_t amount) {
+  uint64_t mint(const std::string& userId, uint64_t amount) {
     assertFalse(userId.empty());
     assertTrue(amount > 0);
 
@@ -255,36 +278,46 @@ struct ServerMock {
       shareSubset[(uint32_t)idx] = shares[(uint32_t)idx];
     }
 
-    MintResponse resp;
-    resp.txNum = ++lastExecutedTxNum_;
-    resp.tx.type_ = utt::Transaction::Type::Mint;
-    resp.tx.data_ = libutt::api::serialize<libutt::api::operations::Mint>(mintTx);
-    resp.sig = libutt::api::Utils::aggregateSigShares(n, shareSubset);
-    return resp;
+    ExecutedTx executedTx;
+    executedTx.tx_.type_ = utt::Transaction::Type::Mint;
+    executedTx.tx_.data_ = libutt::api::serialize<libutt::api::operations::Mint>(mintTx);
+    executedTx.sigs_.emplace_back(libutt::api::Utils::aggregateSigShares(n, shareSubset));
+    executedTx.publicUserId_ = userId;
+    ledger_.emplace_back(std::move(executedTx));
+
+    return ledger_.size();
   }
 
-  BurnResponse burn(const utt::Transaction& tx) {
+  uint64_t burn(const std::string& userId, const utt::Transaction& tx) {
     assertTrue(tx.type_ == utt::Transaction::Type::Burn);
 
     auto burn = libutt::api::deserialize<libutt::api::operations::Burn>(tx.data_);
     auto null = burn.getNullifier();
-    assertTrue(nullifiers_.count(null) == 0);
 
+    loginfo << "TxNum: " << (ledger_.size() + 1) << endl;
+
+    assertTrue(nullifiers_.count(null) == 0);
+    loginfo << "Adding burn coin nullifier from " << userId << " : " << null << endl;
     nullifiers_.emplace(std::move(null));
 
-    BurnResponse resp;
-    resp.txNum = ++lastExecutedTxNum_;
-    resp.tx = tx;
+    ExecutedTx executedTx;
+    executedTx.tx_.type_ = utt::Transaction::Type::Burn;
+    executedTx.tx_.data_ = libutt::api::serialize<libutt::api::operations::Burn>(burn);
+    executedTx.publicUserId_ = userId;
+    ledger_.emplace_back(std::move(executedTx));
 
-    return resp;
+    return ledger_.size();
   }
 
-  TransferResponse transfer(const utt::Transaction& tx) {
+  uint64_t transfer(const utt::Transaction& tx) {
     assertTrue(tx.type_ == utt::Transaction::Type::Transfer);
 
     auto uttTx = libutt::api::deserialize<libutt::api::operations::Transaction>(tx.data_);
 
-    for (auto& null : uttTx.getNullifiers()) {
+    loginfo << "TxNum: " << (ledger_.size() + 1) << endl;
+
+    for (auto&& null : uttTx.getNullifiers()) {
+      loginfo << "Adding anon transfer input coin nullifier: " << null << endl;
       assertTrue(nullifiers_.count(null) == 0);
       nullifiers_.emplace(std::move(null));
     }
@@ -300,9 +333,9 @@ struct ServerMock {
     size_t numOutCoins = shares[0].size();
     assertTrue(numOutCoins > 0);
 
-    TransferResponse resp;
-    resp.txNum = ++lastExecutedTxNum_;
-    resp.tx = tx;
+    ExecutedTx executedTx;
+    executedTx.tx_.type_ = utt::Transaction::Type::Transfer;
+    executedTx.tx_.data_ = libutt::api::serialize<libutt::api::operations::Transaction>(uttTx);
 
     // Aggregate a signature for each output coin
     for (size_t i = 0; i < numOutCoins; ++i) {
@@ -311,19 +344,13 @@ struct ServerMock {
       for (size_t idx : idxSubset) {
         shareSubset[(uint32_t)idx] = shares[(uint32_t)idx][i];
       }
-
-      resp.sigs.emplace_back(libutt::api::Utils::aggregateSigShares(n, shareSubset));
+      executedTx.sigs_.emplace_back(libutt::api::Utils::aggregateSigShares(n, shareSubset));
     }
 
-    return resp;
-  }
+    ledger_.emplace_back(std::move(executedTx));
 
-  uint32_t lastTokenId_ = 0;
-  uint64_t lastExecutedTxNum_ = 0;
-  std::set<std::string> nullifiers_;
-  std::unique_ptr<libutt::api::Configuration> config_;
-  std::vector<libutt::api::Registrator> registrars_;
-  std::vector<libutt::api::CoinsSigner> coinsSigners_;
+    return ledger_.size();
+  }
 };
 
 int main(int argc, char* argv[]) {
@@ -363,11 +390,57 @@ int main(int argc, char* argv[]) {
     }
   };
 
+  auto syncUsersWithServer = [&]() {
+    for (size_t i = 0; i < C; ++i) {
+      for (uint64_t txNum = users[i]->getLastExecutedTxNum() + 1; txNum <= serverMock.getLastExecutedTxNum(); ++txNum) {
+        const auto& executedTx = serverMock.getExecutedTx(txNum);
+        switch (executedTx.tx_.type_) {
+          case utt::Transaction::Type::Mint: {
+            if (executedTx.publicUserId_ == users[i]->getUserId()) {
+              loginfo << "Updating " << users[i]->getUserId() << " mint|txNum:" << txNum << endl;
+              assertTrue(executedTx.sigs_.size() == 1);
+              auto result = users[i]->updateMintTx(txNum, executedTx.tx_, executedTx.sigs_.front());
+              assertTrue(result);
+            } else {
+              loginfo << "Updating NO-OP " << users[i]->getUserId() << " mint|txNum:" << txNum << endl;
+              auto result = users[i]->updateNoOp(txNum);
+              assertTrue(result);
+            }
+          } break;
+          case utt::Transaction::Type::Burn: {
+            if (executedTx.publicUserId_ == users[i]->getUserId()) {
+              loginfo << "Updating " << users[i]->getUserId() << " burn|txNum:" << txNum << endl;
+              assertTrue(executedTx.sigs_.empty());
+              auto result = users[i]->updateBurnTx(txNum, executedTx.tx_);
+              assertTrue(result);
+            } else {
+              loginfo << "Updating NO-OP " << users[i]->getUserId() << " burn|txNum:" << txNum << endl;
+              auto result = users[i]->updateNoOp(txNum);
+              assertTrue(result);
+            }
+          } break;
+          case utt::Transaction::Type::Transfer: {
+            loginfo << "Updating " << users[i]->getUserId() << " transfer|txNum:" << txNum << endl;
+            assertFalse(executedTx.sigs_.empty());
+            auto result = users[i]->updateTransferTx(txNum, executedTx.tx_, executedTx.sigs_);
+            assertTrue(result);
+          } break;
+          default:
+            assertFail("Unknown tx type!");
+        }
+      }
+    }
+  };
+
   // Create users
   utt::client::IUserStorage storage;
   DummyUserPKInfrastructure pki;
+  std::vector<uint64_t> initialBalance;
+  std::vector<uint64_t> initialBudget;
   for (int i = 0; i < C; ++i) {
     users.emplace_back(utt::client::createUser("user-" + std::to_string(i + 1), publicConfig, pki, storage));
+    initialBalance.emplace_back((i + 1) * 100);
+    initialBudget.emplace_back((i + 1) * 100);
   }
 
   // Register users
@@ -376,91 +449,82 @@ int main(int argc, char* argv[]) {
     assertFalse(resp.s2.empty());
     assertFalse(resp.sig.empty());
 
-    // [TODO-UTT] The user's pk should be recorded by the system and returned as part of the registration
-    // data to check if it's matching
+    // Note: the user's pk is usually recorded by the system and returned as part of the registration
     auto result = users[i]->updateRegistration(users[i]->getPK(), resp.sig, resp.s2);
     assertTrue(result);
   }
 
   // Create budgets
   for (size_t i = 0; i < C; ++i) {
-    const uint64_t amount = 100;
-    auto resp = serverMock.createBudget(users[i]->getUserId(), amount, 0);
+    auto resp = serverMock.createBudget(users[i]->getUserId(), initialBudget[i], 0);
     assertFalse(resp.budget.empty());
     assertFalse(resp.sig.empty());
 
     auto result = users[i]->updatePrivacyBudget(resp.budget, resp.sig);
     assertTrue(result);
-    assertTrue(users[i]->getPrivacyBudget() == amount);
+    assertTrue(users[i]->getPrivacyBudget() == initialBudget[i]);
   }
 
-  // Mint amount
+  // Mint test
   {
-    const uint64_t amount = 100;
-    auto resp = serverMock.mint(users[0]->getUserId(), amount);
-    assertTrue(resp.txNum > 0);
-    assertTrue(resp.tx.type_ == utt::Transaction::Type::Mint);
-    assertFalse(resp.tx.data_.empty());
-    assertFalse(resp.sig.empty());
-
-    auto result = users[0]->updateMintTx(resp.txNum, resp.tx, resp.sig);
-    assertTrue(result);
-    assertTrue(users[0]->getBalance() == amount);
-
-    users[1]->updateNoOp(resp.txNum);
-  }
-
-  // Transfer amount
-  {
-    const uint64_t amount = 100;
-    assertTrue(users[0]->getBalance() == amount);
-    assertTrue(users[0]->getPrivacyBudget() == amount);
-
-    auto transferResult = users[0]->transfer("user-2", k_TestKeys["user-2"].second, amount);
-    assertTrue(std::holds_alternative<utt::Transaction>(transferResult));
-    const auto& tx = std::get<utt::Transaction>(transferResult);
-    assertTrue(tx.type_ == utt::Transaction::Type::Transfer);
-    assertFalse(tx.data_.empty());
-
-    auto resp = serverMock.transfer(tx);
-    assertFalse(resp.sigs.empty());
-
-    {
-      auto res = users[0]->updateTransferTx(resp.txNum, resp.tx, resp.sigs);
-      assertTrue(res);
-      assertTrue(users[0]->getBalance() == 0);
-      assertTrue(users[0]->getPrivacyBudget() == 0);
+    for (size_t i = 0; i < C; ++i) {
+      auto txNum = serverMock.mint(users[i]->getUserId(), initialBalance[i]);
+      assertTrue(txNum == serverMock.getLastExecutedTxNum());
     }
 
-    {
-      assertTrue(users[1]->getBalance() == 0);
-      assertTrue(users[1]->getPrivacyBudget() == 100);
+    syncUsersWithServer();
 
-      auto res = users[1]->updateTransferTx(resp.txNum, resp.tx, resp.sigs);
-      assertTrue(res);
-      assertTrue(users[1]->getBalance() == 100);
-      assertTrue(users[1]->getPrivacyBudget() == 100);
+    for (size_t i = 0; i < C; ++i) {
+      assertTrue(users[i]->getBalance() == initialBalance[i]);
+      assertTrue(users[i]->getPrivacyBudget() == initialBudget[i]);  // Unchanged
     }
   }
 
-  // Burn amount
+  // Each user sends to the next one (wrapping around to the first) some amount
   {
-    const uint64_t amount = 100;
-    assertTrue(users[1]->getBalance() == amount);
-    auto burnResult = users[1]->burn(amount);
-    assertTrue(std::holds_alternative<utt::Transaction>(burnResult));
-    const auto& tx = std::get<utt::Transaction>(burnResult);
-    assertTrue(tx.type_ == utt::Transaction::Type::Burn);
-    assertFalse(tx.data_.empty());
+    const uint64_t amount = 50;
+    for (size_t i = 0; i < C; ++i) {
+      size_t nextUserIdx = (i + 1) % C;
+      std::string nextUserId = "user-" + std::to_string(nextUserIdx + 1);
+      assertTrue(amount <= users[i]->getBalance());
+      loginfo << "Sending " << amount << " from " << users[i]->getUserId() << " to " << nextUserId << endl;
+      auto tx = users[i]->transfer(nextUserId, k_TestKeys[nextUserId].second, amount);
+      auto txNum = serverMock.transfer(tx);
+      assertTrue(txNum == serverMock.getLastExecutedTxNum());
+    }
+    syncUsersWithServer();
 
-    auto resp = serverMock.burn(tx);
-    assertTrue(resp.txNum > 0);
-    assertTrue(resp.tx.type_ == utt::Transaction::Type::Burn);
-    assertFalse(resp.tx.data_.empty());
+    for (size_t i = 0; i < C; ++i) {
+      assertTrue(users[i]->getBalance() ==
+                 initialBalance[i]);  // Unchanged - each user sent X and received X from another user
+      assertTrue(users[i]->getPrivacyBudget() ==
+                 initialBudget[i] - amount);  // Each transfer costs the same amount of privacy budget
+    }
+  }
 
-    auto result = users[1]->updateBurnTx(resp.txNum, resp.tx);
-    assertTrue(result);
-    assertTrue(users[1]->getBalance() == 0);
+  // All users burn their private funds
+  for (size_t i = 0; i < C; ++i) {
+    const uint64_t balance = users[i]->getBalance();
+    assertTrue(balance > 0);
+
+    while (true) {
+      auto tx = users[i]->burn(balance);
+      if (tx.type_ == utt::Transaction::Type::Burn) {
+        auto txNum = serverMock.burn(users[i]->getUserId(), tx);
+        assertTrue(txNum == serverMock.getLastExecutedTxNum());
+        syncUsersWithServer();
+        break;  // We can stop processing after burning the coin
+      } else if (tx.type_ == utt::Transaction::Type::Transfer) {
+        // We need to process a self transaction (split/merge)
+        auto txNum = serverMock.transfer(tx);
+        assertTrue(txNum == serverMock.getLastExecutedTxNum());
+        syncUsersWithServer();
+      }
+    }
+  }
+
+  for (size_t i = 0; i < C; ++i) {
+    assertTrue(users[i]->getBalance() == 0);
   }
 
   return 0;
