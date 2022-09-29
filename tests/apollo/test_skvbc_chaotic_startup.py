@@ -51,7 +51,6 @@ class SkvbcChaoticStartupTest(ApolloTest):
 
     __test__ = False  # so that PyTest ignores this test scenario
 
-    @unittest.skip("After CheckpointMsg-s forwarding, in this situation the late Replica initiates State Transfer.")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_inactive_window_catchup_up_to_gap(self, bft_network):
@@ -84,6 +83,8 @@ class SkvbcChaoticStartupTest(ApolloTest):
             for _ in range(num_req):
                 await skvbc.send_write_kv_set()
 
+        await trio.sleep(1)
+
         with net.ReplicaOneWayTwoSubsetsIsolatingAdversary(
                 bft_network, {late_replica},
                 bft_network.all_replicas(without={primary, late_replica})) as adversary:
@@ -107,38 +108,37 @@ class SkvbcChaoticStartupTest(ApolloTest):
                 while True:
                     last_exec = await bft_network.get_metric(late_replica, bft_network, 'Gauges', "lastExecutedSeqNum")
                     log.log_message(message_type=f"replica = {late_replica}; lase_exec = {last_exec}")
-                    if last_exec == seq_nums_per_checkpoint + num_reqs_after_first_checkpoint:
+                    if last_exec == seq_nums_per_checkpoint + num_reqs_after_first_checkpoint + 1:
                         break
                     await trio.sleep(seconds=0.3)
 
             bft_network.stop_replica(late_replica)
 
-            # create 2 checkpoints and wait for checkpoint propagation
-            await skvbc.fill_and_wait_for_checkpoint(
-                initial_nodes=bft_network.all_replicas(without={late_replica}),
-                num_of_checkpoints_to_add=checkpoints_to_advance_after_first,
-                verify_checkpoint_persistency=False
-            )
+        # create 2 checkpoints and wait for checkpoint propagation
+        await skvbc.fill_and_wait_for_checkpoint(
+            initial_nodes=bft_network.all_replicas(without={late_replica}),
+            num_of_checkpoints_to_add=checkpoints_to_advance_after_first,
+            verify_checkpoint_persistency=False
+        )
 
-            await bft_network.wait_for_replicas_to_collect_stable_checkpoint(
-                bft_network.all_replicas(without={late_replica}),
-                first_stable_checkpoint_to_reach + checkpoints_to_advance_after_first)
+        await bft_network.wait_for_replicas_to_collect_stable_checkpoint(
+            bft_network.all_replicas(without={late_replica}),
+            first_stable_checkpoint_to_reach + checkpoints_to_advance_after_first)
 
-            bft_network.start_replica(late_replica)
-            with trio.fail_after(seconds=30):
-            
-                late_replica_catch_up = False
-                while not late_replica_catch_up:
-                    for replica_id in bft_network.get_live_replicas():
-                        last_stable = await bft_network.get_metric(replica_id, bft_network, 'Gauges', "lastStableSeqNum")
-                        last_exec = await bft_network.get_metric(replica_id, bft_network, 'Gauges', "lastExecutedSeqNum")
-                        log.log_message(message_type=f"replica = {replica_id}; last_stable = {last_stable}; lase_exec = {last_exec}")
-                        if replica_id == late_replica and last_exec == 2*seq_nums_per_checkpoint:
-                            late_replica_catch_up = True
+        bft_network.start_replica(late_replica)
+        with trio.fail_after(seconds=30):
+            late_replica_catch_up = False
+            while not late_replica_catch_up:
+                for replica_id in bft_network.get_live_replicas():
+                    last_stable = await bft_network.get_metric(replica_id, bft_network, 'Gauges', "lastStableSeqNum")
+                    last_exec = await bft_network.get_metric(replica_id, bft_network, 'Gauges', "lastExecutedSeqNum")
+                    log.log_message(message_type=f"replica = {replica_id}; last_stable = {last_stable}; lase_exec = {last_exec}")
+                    if replica_id == late_replica and last_exec >= 3*seq_nums_per_checkpoint:
+                        late_replica_catch_up = True
+                await write_req()
+                await trio.sleep(seconds=3)
 
-                    await write_req()
-                    await trio.sleep(seconds=3)
-
+    @unittest.skip("Testing in CI/CD")
     @skip_for_tls
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
@@ -301,7 +301,6 @@ class SkvbcChaoticStartupTest(ApolloTest):
 
 
     # @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
-    @unittest.skip("Disabled due to BC-6816")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     @with_constant_load
@@ -337,25 +336,26 @@ class SkvbcChaoticStartupTest(ApolloTest):
         bft_network.stop_replica(late_replica)
 
         for isolated_replica, views_to_advance in [(0, 1), (1, 2)]:
-            with net.ReplicaSubsetTwoWayIsolatingAdversary(bft_network, {isolated_replica}) as adversary:
-                adversary.interfere()
-                try:
-                    client = bft_network.random_client()
-                    client.primary = None
-                    for _ in range(5):
-                        msg = skvbc.write_req(
-                            [], [(skvbc.random_key(), skvbc.random_value())], 0)
-                        await client.write(msg)
-                except:
-                    pass
+            bft_network.stop_replica(isolated_replica)
+            try:
+                client = bft_network.random_client()
+                client.primary = None
+                for _ in range(5):
+                    msg = skvbc.write_req(
+                        [], [(skvbc.random_key(), skvbc.random_value())], 0)
+                    await client.write(msg)
+            except:
+                pass
 
-                # Wait for View Change initiation to happen
-                with trio.fail_after(60):
-                    while True:
-                        view_of_connected_replica = await self._get_gauge(connected_replica, bft_network, "currentActiveView")
-                        if view_of_connected_replica == current_view + views_to_advance:
-                            break
-                        await trio.sleep(0.2)
+            # Wait for View Change initiation to happen
+            with trio.fail_after(60):
+                while True:
+                    view_of_connected_replica = await self._get_gauge(connected_replica, bft_network, "currentActiveView")
+                    if view_of_connected_replica == current_view + views_to_advance:
+                        break
+                    await trio.sleep(0.2)
+
+            bft_network.start_replica(isolated_replica)
 
             view = await bft_network.wait_for_view(
                 replica_id=connected_replica,
@@ -377,6 +377,7 @@ class SkvbcChaoticStartupTest(ApolloTest):
         await bft_network.wait_for_fast_path_to_be_prevalent(
             run_ops=lambda: write_req(), threshold=num_req)
 
+    @unittest.skip("Testing in CI/CD")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     @with_constant_load
@@ -625,6 +626,7 @@ class SkvbcChaoticStartupTest(ApolloTest):
 
         await self._wait_for_replicas_to_generate_checkpoint(bft_network, skvbc, expected_next_primary, bft_network.all_replicas(without={initial_primary}))
 
+    @unittest.skip("Testing in CI/CD")
     @skip_for_tls
     @with_trio
     @with_bft_network(start_replica_cmd_with_vc_timeout("20000"),
