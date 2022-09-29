@@ -22,7 +22,7 @@ namespace utt::client {
 
 std::vector<size_t> PickCoinsPreferExactMatch(const std::vector<libutt::api::Coin>& coins, uint64_t targetAmount) {
   // Precondition: 0 < targetAmount <= balance
-  if (targetAmount == 0) std::runtime_error("Target amount cannot be zero!");
+  if (targetAmount == 0) throw std::runtime_error("Target amount cannot be zero!");
   uint64_t sum = 0;
   for (const auto& coin : coins) {
     sum += coin.getVal();
