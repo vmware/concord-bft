@@ -31,6 +31,7 @@ class Communication : public ICommunication {
       : msgsCommunicator_{msgsCommunicator}, repId_{bftEngine::ReplicaConfig::instance().replicaId} {
     msgHandlers->registerMsgHandler(MsgCode::ClientReply, [&](bftEngine::impl::MessageBase* message) {
       if (receiver_) receiver_->onNewMessage(message->senderId(), message->body(), message->size());
+      delete message;
     });
   }
 
