@@ -967,6 +967,7 @@ struct ResetMetadata {
       p->setCheckpointMsgInCheckWindow(stableSeqNum, cpm);
       result["stable seq num"] = std::to_string(stableSeqNum);
     }
+    delete cpm;
     p->setPrimaryLastUsedSeqNum(lastExecutedSn);
     if (removeRsis) {
       for (uint32_t principle = 0; principle < nVal + principles; principle++) {
