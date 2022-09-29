@@ -1414,13 +1414,11 @@ class SkvbcReconfigurationTest(ApolloTest):
 
         await self.send_restart_with_params(bft_network, bft=bft, restart=False, post_restart=post_restart)
 
-    @unittest.skip("temporary skipped on side branch due to failure, solve before merge")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_restart_no_bft_with_restart_flag(self, bft_network):
         await self.send_restart_with_params(bft_network, bft=False, restart=True)
 
-    @unittest.skip("temporary skipped on side branch due to failure, solve before merge")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, publish_master_keys=True)
     async def test_restart_with_bft_with_restart_flag(self, bft_network):
@@ -1431,7 +1429,6 @@ class SkvbcReconfigurationTest(ApolloTest):
         crashed_replicas = set(range(replica_count - 2, replica_count))
         await self.send_restart_with_params(bft_network, bft=True, restart=True, faulty_replica_ids=crashed_replicas)
 
-    @unittest.skip("temporary skipped on side branch due to failure, solve before merge")
     @with_trio
     @with_bft_network(start_replica_cmd_with_key_exchange, selected_configs=lambda n, f, c: n == 7, rotate_keys=True, publish_master_keys=True)
     async def test_remove_nodes(self, bft_network):
@@ -1475,7 +1472,6 @@ class SkvbcReconfigurationTest(ApolloTest):
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(nb_fast_path, 0)
 
-    @unittest.skip("temporary skipped on side branch due to failure, solve before merge")
     @with_trio
     @with_bft_network(start_replica_cmd_with_key_exchange, selected_configs=lambda n, f, c: n == 7, rotate_keys=True, publish_master_keys=True)
     async def test_remove_nodes_with_f_failures(self, bft_network):
@@ -1856,7 +1852,6 @@ class SkvbcReconfigurationTest(ApolloTest):
         #validate the blockId is same as the 2nd reconfiguration command block
         self.assertEqual(blockIdRor, blockIdreplica)
 
-    @unittest.skip("temporary skipped on side branch due to failure, solve before merge")
     @with_trio
     @with_bft_network(start_replica_cmd_with_key_exchange, selected_configs=lambda n, f, c: n == 7, rotate_keys=True, publish_master_keys=True)
     async def test_install_command(self, bft_network):

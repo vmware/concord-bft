@@ -688,7 +688,6 @@ class SkvbcDbSnapshotTest(ApolloTest):
             nb_fast_path = await bft_network.num_of_fast_path_requests(r)
             self.assertGreater(nb_fast_path, 0)
 
-    @unittest.skip("temporary skipped on side branch due to failure, solve before merge")
     @with_trio
     @with_bft_network(start_replica_cmd_with_avg_db_window_size, selected_configs=lambda n, f, c: n == 7)
     async def test_verify_dbcheckpoints_after_scale_with_restart(self, bft_network):
