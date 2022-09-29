@@ -105,7 +105,7 @@ struct UserInput {
   }
 };
 
-namespace bftEngine::bcst::impl {
+namespace bftEngine::bcst::impl::test {
 
 using FetchingState = BCStateTran::FetchingState;
 
@@ -3056,7 +3056,7 @@ TEST_F(BcStTest, bkpTestRvbDataConflictDetection) {
   }
 }
 
-}  // namespace bftEngine::bcst::impl
+}  // namespace bftEngine::bcst::impl::test
 
 int main(int argc, char** argv) {
   srand(time(NULL));

@@ -79,7 +79,7 @@ set(corebft_source_files
 # pthread dependency
 find_package(Threads REQUIRED)
 #message("Threads library: ${CMAKE_THREAD_LIBS_INIT}")
-find_package(cryptopp REQUIRED)
+
 #
 # Targets
 #
@@ -114,7 +114,6 @@ target_link_libraries(corebft PUBLIC
   db_checkpoint_msg
   cre
   stdc++fs
-  ${CRYPTOPP_LIBRARIES}
   )
 
 

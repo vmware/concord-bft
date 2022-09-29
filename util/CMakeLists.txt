@@ -1,6 +1,6 @@
 # pthread dependency
 find_package(Threads REQUIRED)
-
+find_package(Boost ${MIN_BOOST_VERSION} REQUIRED)
 set(util_source_files
     src/Metrics.cpp
     src/MetricsServer.cpp
@@ -16,7 +16,7 @@ set(util_source_files
     src/RawMemoryPool.cpp
     src/config_file_parser.cpp
     src/io.cpp)
-add_library(util        STATIC ${util_source_files} src/crypto/factory.cpp)
+add_library(util STATIC ${util_source_files} src/crypto/factory.cpp)
 
 if(USE_OPENSSL)
     if(NOT BUILD_THIRDPARTY)
@@ -29,6 +29,7 @@ endif()
 
 target_link_libraries(util PUBLIC
         Threads::Threads
+        Boost::headers
         stdc++fs)
 
 target_include_directories(util PUBLIC include include/openssl)

@@ -19,6 +19,7 @@
 #include "crypto/openssl/EdDSASigner.hpp"
 #include "crypto/openssl/EdDSAVerifier.hpp"
 #include "crypto/crypto.hpp"
+#include "crypto/integer.hpp"
 
 namespace {
 using concord::crypto::KeyFormat;
@@ -28,6 +29,7 @@ using concord::crypto::openssl::EdDSAPublicKey;
 using concord::crypto::Ed25519PrivateKeyByteSize;
 using concord::crypto::Ed25519PublicKeyByteSize;
 using concord::crypto::openssl::deserializeKey;
+using concord::crypto::openssl::Integer;
 
 class EdDSATests : public ::testing::Test {
  public:
@@ -83,9 +85,65 @@ TEST_F(EdDSATests, TestInvalidSignature) {
   signature[0] = ~signature[0];
   ASSERT_FALSE(verify(Message, signature));
 }
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// BIGNUM arithmetics
+
+static const std::string dec_str = "82019154470699086128524248488673846867876336512717";
+static const std::string hex_str = "381EAA1628D17FC89EEE8B6637457BF25F039E2ECD";
+
+TEST(IntegerTests, ConstructorTrivial) { Integer num; }
+
+TEST(IntegerTests, ConstructFromHexString) {
+  auto num = concord::crypto::Integer::fromHexString(hex_str);
+  ASSERT_EQ(num.toDecString(), dec_str);
+  ASSERT_EQ(num.toHexString(), hex_str);
+}
+
+TEST(IntegerTests, ConstructFromDecString) {
+  auto num = concord::crypto::Integer::fromDecString(dec_str);
+  ASSERT_EQ(num.toDecString(), dec_str);
+  ASSERT_EQ(num.toHexString(), hex_str);
+}
+
+TEST(IntegerTests, Addition) {
+  auto x = concord::crypto::Integer::fromDecString(dec_str);
+  auto y = concord::crypto::Integer::fromDecString("1544706990861285242484886738");
+  x += y;
+  ASSERT_EQ(x.toDecString(), "82019154470699086128525793195664708153118821399455");
+}
+
+TEST(IntegerTests, Substruction) {
+  auto x = concord::crypto::Integer::fromDecString(dec_str);
+  auto y = concord::crypto::Integer::fromDecString("1544706990861285242484886738");
+  x -= y;
+  ASSERT_EQ(x.toDecString(), "82019154470699086128522703781682985582633851625979");
+}
+
+TEST(IntegerTests, Multiplication) {
+  auto x = concord::crypto::Integer::fromDecString(dec_str);
+  auto y = concord::crypto::Integer::fromDecString("484886738");
+  x = x * y;
+  ASSERT_EQ(x.toDecString(), "39770000264815396452441171603574491553676073799041641647146");
+}
+
+TEST(IntegerTests, Division) {
+  auto x = concord::crypto::Integer::fromDecString(dec_str);
+  auto y = concord::crypto::Integer::fromDecString("484886738");
+  x = x / y;
+  ASSERT_EQ(x.toDecString(), "169151160555558618162339281155332086784927");
+}
+
+TEST(IntegerTests, Modulo) {
+  auto x = concord::crypto::Integer::fromDecString(dec_str);
+  auto y = concord::crypto::Integer::fromDecString("484886738");
+  x = x % y;
+  ASSERT_EQ(x.toDecString(), "175914591");
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
+  logging::initLogger("logging.properties");
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

@@ -59,11 +59,14 @@ using concord::client::reconfiguration::ClientReconfigurationEngine;
 
 namespace bftEngine::bcst::impl {
 
+namespace test {
+class BcStTestDelegator;
+}
 class RVBManager;
 
 class BCStateTran : public IStateTransfer {
   // The next friend declerations are used strictly for testing
-  friend class BcStTestDelegator;
+  friend class test::BcStTestDelegator;
 
  public:
   //////////////////////////////////////////////////////////////////////////////

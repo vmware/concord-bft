@@ -18,7 +18,6 @@
 #include <string>
 #include <cmath>
 
-#include <cryptopp/integer.h>
 #include "gtest/gtest.h"
 
 #include "RangeValidationTree.hpp"
@@ -26,12 +25,12 @@
 #include "kv_types.hpp"
 
 using namespace std;
-using namespace CryptoPP;
 using namespace concord::kvbc;
 
-namespace bftEngine::bcst::impl {
+namespace bftEngine::bcst::impl::test {
 
 using NodeInfo = RangeValidationTree::NodeInfo;
+using NodeVal = RangeValidationTree::NodeVal;
 using RVTNode = RangeValidationTree::RVTNode;
 #define ASSERT_NFF ASSERT_NO_FATAL_FAILURE
 
@@ -45,12 +44,12 @@ class DataGenerator {
   struct InputValues {
     InputValues(const string& left_child, const string& right_child, const string& parent)
         : a(left_child.c_str()), b(right_child.c_str()), c(parent.c_str()) {}
-    Integer a;
-    Integer b;
-    Integer c;
+    NodeVal a;
+    NodeVal b;
+    NodeVal c;
   };
 
-  const size_t hash_size_{32};
+  size_t hash_size_{32};
   InputValues values_{randomString(hash_size_), randomString(hash_size_), randomString(hash_size_)};
 };
 
@@ -144,8 +143,8 @@ void BcStTestDelegator::removeLeftNode(const RVBId start_id, const RVBId end_id)
 
 class RVTTest : public ::testing::Test {
  public:
-  void SetUp() override{};
-  void TearDown() override{};
+  void SetUp() override { NodeVal::getModulo(rvt_config_.hash_size_); }
+  void TearDown() override {}
   void init(const RVTConfig& config);
   RVTConfig getRandomConfig() const;
 
@@ -158,7 +157,6 @@ class RVTTest : public ::testing::Test {
 void RVTTest::init(const RVTConfig& config) {
   data_generator_ = std::make_unique<DataGenerator>(config.hash_size_);
   rvt_delegator_ = std::make_unique<BcStTestDelegator>(config, logger_);
-  logging::Logger::getInstance("concord.bft.st.rvb").setLogLevel(log4cplus::INFO_LOG_LEVEL);
 }
 
 RVTConfig RVTTest::getRandomConfig() const {
@@ -170,7 +168,7 @@ RVTConfig RVTTest::getRandomConfig() const {
 }
 
 // Validate add, sub ops on Integer data type
-TEST_F(RVTTest, cryptoPPIntegerAdditionSubtraction) {
+TEST_F(RVTTest, NodeValAdditionSubtraction) {
   init(RVTConfig{});
   auto a = data_generator_->values_.a;
   auto b = data_generator_->values_.b;
@@ -181,7 +179,7 @@ TEST_F(RVTTest, cryptoPPIntegerAdditionSubtraction) {
 }
 
 // Validate commutative, associative, distributive properties on Integer data type
-TEST_F(RVTTest, cryptoPPIntegerCommutativeAssociativeDistributiveProperties) {
+TEST_F(RVTTest, NodeValCommutativeAssociativeDistributiveProperties) {
   init(getRandomConfig());
   auto a = data_generator_->values_.a;
   auto b = data_generator_->values_.b;
@@ -200,7 +198,7 @@ TEST_F(RVTTest, cryptoPPIntegerCommutativeAssociativeDistributiveProperties) {
   ASSERT_EQ(a * (b + c), a * b + a * c);
 }
 
-TEST_F(RVTTest, cryptoPPIntegerModOps) {
+TEST_F(RVTTest, NodeValModOps) {
   init(getRandomConfig());
   auto a = data_generator_->values_.a;
   auto b = data_generator_->values_.b;
@@ -209,33 +207,9 @@ TEST_F(RVTTest, cryptoPPIntegerModOps) {
     // random value 0 - return
     return;
   }
-  Integer mod_res = (a + b) % c;
-  Integer div_res = (a + b) / c;
+  NodeVal mod_res = (a + b) % c;
+  NodeVal div_res = (a + b) / c;
   ASSERT_EQ(c * div_res + mod_res, a + b);
-}
-
-TEST_F(RVTTest, encodeDecodeCrytoPPIntegerWithString) {
-  std::string input = DataGenerator::randomString(DataGenerator::randomNum(1, 64, 8));
-  Integer obj(reinterpret_cast<unsigned char*>(input.data()), input.size());
-  size_t len = obj.MinEncodedSize();
-  ASSERT_EQ(len, input.size());
-  string output;
-  output.resize(len);
-  obj.Encode(reinterpret_cast<CryptoPP::byte*>(output.data()), output.size(), Integer::UNSIGNED);
-  ASSERT_EQ(output, input);
-}
-
-TEST_F(RVTTest, encodeDecodeCrytoPPIntegerWithStream) {
-  std::string input = DataGenerator::randomString(DataGenerator::randomNum(1, 64, 8));
-  Integer obj(reinterpret_cast<unsigned char*>(input.data()), input.size());
-  ASSERT_EQ(obj.MinEncodedSize(), input.size());
-  vector<char> output(obj.MinEncodedSize());
-  obj.Encode(reinterpret_cast<CryptoPP::byte*>(output.data()), output.size());
-  ostringstream oss;
-  for (auto& c : output) {
-    oss << c;
-  }
-  ASSERT_EQ(oss.str(), input);
 }
 
 TEST_F(RVTTest, StartIntheMiddleInsertionsOnly) {
@@ -535,8 +509,10 @@ INSTANTIATE_TEST_CASE_P(RVTTest,
                                            ::testing::ValuesIn(value_sizes),
                                            ::testing::ValuesIn(scenarios)), );
 
+}  // namespace bftEngine::bcst::impl::test
+
 int main(int argc, char** argv) {
+  logging::initLogger("logging.properties");
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
-}  // namespace bftEngine::bcst::impl

@@ -28,7 +28,7 @@ using namespace concord::serialize;
 namespace bftEngine::bcst::impl {
 
 using NodeVal = RangeValidationTree::NodeVal;
-using NodeVal_t = CryptoPP::Integer;
+using NodeVal_t = RangeValidationTree::NodeVal_t;
 using RVTNode = RangeValidationTree::RVTNode;
 using RVBNode = RangeValidationTree::RVBNode;
 using NodeInfo = RangeValidationTree::NodeInfo;
@@ -45,65 +45,6 @@ using RVTNodePtr = RangeValidationTree::RVTNodePtr;
 #define DEBUG_PRINT(x, y)
 #define logInfoVal(x)
 #endif
-
-/////////////////////////////////////////// NodeVal ////////////////////////////////////////////////
-
-NodeVal_t NodeVal::calcModulo(size_t val_size) {
-  NodeVal_t v = NodeVal_t(1);
-  v = v << (val_size * 8ULL);
-  return v;
-}
-
-NodeVal_t NodeVal::kNodeValueModulo_ = 0;
-
-NodeVal::NodeVal(const shared_ptr<char[]>&& val, size_t size) {
-  val_ = NodeVal_t(reinterpret_cast<unsigned char*>(val.get()), size) % kNodeValueModulo_;
-}
-
-NodeVal::NodeVal(const char* val_ptr, size_t size) {
-  val_ = NodeVal_t(reinterpret_cast<const unsigned char*>(val_ptr), size) % kNodeValueModulo_;
-}
-
-NodeVal::NodeVal(const NodeVal_t* val) { val_ = (*val) % kNodeValueModulo_; }
-
-NodeVal::NodeVal(const NodeVal_t& val) { val_ = (val) % kNodeValueModulo_; }
-
-NodeVal::NodeVal(const NodeVal_t&& val) { val_ = (val) % kNodeValueModulo_; }
-
-NodeVal::NodeVal() : val_{(int64_t)0} {}
-
-NodeVal& NodeVal::operator+=(const NodeVal& other) {
-  val_ = (val_ + other.val_) % kNodeValueModulo_;
-  return *this;
-}
-
-NodeVal& NodeVal::operator-=(const NodeVal& other) {
-  val_ = ((val_ - other.val_) % kNodeValueModulo_);
-  return *this;
-}
-
-bool NodeVal::operator!=(const NodeVal& other) { return (val_ != other.val_); }
-
-bool NodeVal::operator==(const NodeVal& other) { return (val_ == other.val_); }
-
-// Used only to print
-std::string NodeVal::toString() const noexcept {
-  std::ostringstream oss;
-  // oss << std::dec << val_;
-  oss << std::hex << val_;
-  return oss.str();
-}
-
-std::string NodeVal::getDecoded() const noexcept {
-  // Encode to string does not work
-  vector<char> output(val_.MinEncodedSize());
-  val_.Encode(reinterpret_cast<CryptoPP::byte*>(output.data()), output.size());
-  ostringstream oss;
-  for (auto& c : output) {
-    oss << c;
-  }
-  return oss.str();
-}
 
 //////////////////////////////// NodeInfo  ///////////////////////////////////
 uint64_t NodeInfo::id(uint8_t level, uint64_t rvb_index) {
@@ -205,7 +146,7 @@ RVBNode::RVBNode(uint8_t level, uint64_t rvb_index)
 }
 
 // serialized in memory nodes
-RVBNode::RVBNode(uint64_t node_id, char* val_ptr, size_t size) : info_(node_id), current_value_(val_ptr, size) {
+RVBNode::RVBNode(uint64_t node_id, NodeVal&& val) : info_(node_id), current_value_(std::move(val)) {
   ConcordAssertGE(info_.level(), kDefaultRVTLeafLevel);
   logInfoVal("construct: ");  // leave for debugging
 }
@@ -228,8 +169,8 @@ RVTNode::RVTNode(uint8_t level, uint64_t rvb_index)
 }
 
 // Created from serialized data
-RVTNode::RVTNode(SerializedRVTNode& node, char* cur_val_ptr, size_t cur_value_size)
-    : RVBNode(node.id, cur_val_ptr, cur_value_size),
+RVTNode::RVTNode(SerializedRVTNode& node, NodeVal&& val)
+    : RVBNode(node.id, std::move(val)),
       parent_id_(node.parent_id),
       child_ids_(std::move(node.child_ids)),
       insertion_counter_{node.last_insertion_index},
@@ -265,9 +206,7 @@ std::ostringstream RVTNode::serialize() const {
   Serializable::serialize(os, parent_id_);
   Serializable::serialize(os, insertion_counter_);
   Serializable::serialize(os, child_ids_);
-  Serializable::serialize(os, current_value_.getSize());
-  auto decoded_val = current_value_.getDecoded();
-  Serializable::serialize(os, decoded_val.data(), current_value_.getSize());
+  Serializable::serialize(os, current_value_.toHexString());
   // We do not serialize initial_value_ since it can be easily re-calculated
   return os;
 }
@@ -277,12 +216,10 @@ RVTNodePtr RVTNode::createFromSerialized(std::istringstream& is) {
   Serializable::deserialize(is, snode.id);
   Serializable::deserialize(is, snode.parent_id);
   Serializable::deserialize(is, snode.last_insertion_index);
-  // Serializable::deserialize(is, nchilds);
   Serializable::deserialize(is, snode.child_ids);
-  Serializable::deserialize(is, snode.current_value_encoded_size);
-  std::unique_ptr<char[]> ptr_cur = std::make_unique<char[]>(snode.current_value_encoded_size);
-  Serializable::deserialize(is, ptr_cur.get(), snode.current_value_encoded_size);
-  return std::make_shared<RVTNode>(snode, ptr_cur.get(), snode.current_value_encoded_size);
+  std::string hexVal;
+  Serializable::deserialize(is, hexVal);
+  return std::make_shared<RVTNode>(snode, NodeVal(NodeVal_t::fromHexString(hexVal)));
 }
 
 // In some cases RVB node might be inserted in as a middle child (see more details in above ctor)
@@ -342,8 +279,7 @@ RangeValidationTree::RangeValidationTree(const logging::Logger& logger,
           concordMetrics::Component("range_validation_tree", std::make_shared<concordMetrics::Aggregator>())} {
 #endif
   LOG_INFO(logger_, KVLOG(RVT_K, fetch_range_size_, value_size));
-  NodeVal::kNodeValueModulo_ = NodeVal::calcModulo(value_size_);
-  ConcordAssert(NodeVal::kNodeValueModulo_ != NodeVal_t(static_cast<signed long>(0)));
+  NodeVal::getModulo(value_size_);
   RVTMetadata::staticAssert();
   SerializedRVTNode::staticAssert();
   RangeValidationTree::RVT_K = RVT_K;
@@ -740,7 +676,7 @@ void RangeValidationTree::removeRVBNode(const shared_ptr<RVBNode>& rvb_node) {
     updateOpenRvtNodeArrays(ArrUpdateType::CHECK_REMOVE_NODE, node);
     node_ids_to_erase_.insert(id);
     auto val_negative = node->initial_value_;
-    val_negative.val_.SetNegative();
+    val_negative.setNegative();
     addValueToInternalNodes(getRVTNodeByType(node, NodeType::PARENT), val_negative);
   }
   node->popChildId(rvb_node->info_.id());
@@ -885,7 +821,7 @@ void RangeValidationTree::removeAndUpdateInternalNodes(const RVTNodePtr& rvt_nod
       if (cur_node != rvt_node) {
         node_ids_to_erase_.insert(cur_node->info_.id());
         auto val_negative = cur_node->initial_value_;
-        val_negative.val_.SetNegative();
+        val_negative.setNegative();
         updateOpenRvtNodeArrays(ArrUpdateType::CHECK_REMOVE_NODE, cur_node);
         addValueToInternalNodes(parent_node, val_negative);
       }

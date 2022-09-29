@@ -22,7 +22,7 @@
 #include <limits>
 #include <unordered_set>
 
-#include <cryptopp/integer.h>
+#include "crypto/integer.hpp"
 
 #include "crypto/digest.hpp"
 #include "Serializable.h"
@@ -62,21 +62,23 @@ using RVBIndex = uint64_t;
 // 1. Tree does not store RVB nodes.
 // 2. Only blocks at specific interval are validated to improve replica recovery time.
 // 3. Each node in tree is represented having type as NodeInfo.
-// 4. NodeVal is stored in form of CryptoPP::Integer.
+// 4. NodeVal is stored in form of concord::crypto::Integer.
 //
 // Implementation notes -
 // 1. APIs do not throw exception
 // 2. Thread safety is delegated to caller (e.g. RVBManager)
 // 3. Bad inputs values are asserted
 //
+namespace test {
+class BcStTestDelegator;
+}
 
 class RangeValidationTree {
   // The next friend declerations are used strictly for testing
-  friend class BcStTestDelegator;
-
-  using NodeVal_t = CryptoPP::Integer;
+  friend class test::BcStTestDelegator;
 
  public:
+  using NodeVal_t = concord::crypto::Integer;
   /////////////////////////// API /////////////////////////////////////
   RangeValidationTree(const logging::Logger& logger, uint32_t RVT_K, uint32_t fetch_range_size, size_t value_size = 32);
   ~RangeValidationTree() = default;
@@ -150,28 +152,51 @@ class RangeValidationTree {
 
  public:
   struct NodeVal {
-    static NodeVal_t kNodeValueModulo_;
-    static NodeVal_t calcModulo(size_t val_size);
+    NodeVal(const char* vptr, size_t size)
+        : val_{NodeVal_t(reinterpret_cast<unsigned const char*>(vptr), size) % getModulo()} {}
+    NodeVal(const std::shared_ptr<char[]>&& v, size_t size) : NodeVal(v.get(), size) {}
+    NodeVal(const std::string& v) : NodeVal(v.data(), v.size()) {}
+    NodeVal(const NodeVal& v) : val_(v.val_) {}
+    NodeVal(NodeVal&& v) : val_(std::move(v.val_)) {}
+    NodeVal(long n) : val_{n} {}
+    NodeVal() : val_{0L} {}
+    NodeVal(const NodeVal_t& v) : val_{v % getModulo()} {}
 
-    NodeVal(const std::shared_ptr<char[]>&& val, size_t size);
-    NodeVal(const char* val_ptr, size_t size);
-    explicit NodeVal(const NodeVal_t* val);
-    explicit NodeVal(const NodeVal_t& val);
-    explicit NodeVal(const NodeVal_t&& val);
-    NodeVal();
+    NodeVal operator+(const NodeVal& v) { return NodeVal((val_ + v.val_) % getModulo()); }
+    NodeVal operator-(const NodeVal& v) { return NodeVal((val_ - v.val_) % getModulo()); }
+    NodeVal operator*(const NodeVal& v) { return NodeVal((val_ * v.val_) % getModulo()); }
+    NodeVal operator/(const NodeVal& v) { return NodeVal((val_ / v.val_) % getModulo()); }
+    NodeVal operator%(const NodeVal& v) { return NodeVal(val_ % v.val_); }
+    NodeVal& operator+=(const NodeVal& v) {
+      val_ = (val_ + v.val_) % getModulo();
+      return *this;
+    }
+    NodeVal& operator-=(const NodeVal& v) {
+      val_ = (val_ - v.val_) % getModulo();
+      return *this;
+    }
+    bool operator!=(const NodeVal& v) const { return (val_ != v.val_); }
+    bool operator==(const NodeVal& v) const { return (val_ == v.val_); }
 
-    NodeVal& operator+=(const NodeVal& other);
-    NodeVal& operator-=(const NodeVal& other);
-    bool operator!=(const NodeVal& other);
-    bool operator==(const NodeVal& other);
+    void setNegative() { val_.setNegative(); }
 
-    const NodeVal_t& getVal() const { return val_; }
-    std::string toString() const noexcept;
-    std::string getDecoded() const noexcept;
-    size_t getSize() const { return val_.MinEncodedSize(); }
+    std::string toString() const noexcept { return val_.toHexString(); }
+    std::string toHexString() const noexcept { return val_.toHexString(); }
+
+    static NodeVal_t getModulo(size_t val_size = 0) {
+      static NodeVal_t kNodeValueModulo = calcModulo(val_size);
+      return kNodeValueModulo;
+    }
 
     static constexpr size_t kDigestContextOutputSize = DIGEST_SIZE;
     static constexpr std::array<char, kDigestContextOutputSize> initialValueZeroData{};
+
+   private:
+    static NodeVal_t calcModulo(size_t val_size) {
+      NodeVal_t v(1L);
+      NodeVal_t res = v << (val_size * 8ULL);
+      return res;
+    }
 
     NodeVal_t val_;
   };
@@ -253,7 +278,7 @@ class RangeValidationTree {
   struct RVBNode {
     RVBNode(uint64_t rvb_index, const char* data, size_t data_size);
     RVBNode(uint8_t level, uint64_t rvb_index);
-    RVBNode(uint64_t node_id, char* val, size_t size);
+    RVBNode(uint64_t node_id, NodeVal&&);
     void logInfoVal(const std::string& prefix = "");
     const std::shared_ptr<char[]> computeNodeInitialValue(NodeInfo& node_id, const char* data, size_t data_size);
 
@@ -281,8 +306,6 @@ class RangeValidationTree {
     uint64_t parent_id;
     size_t last_insertion_index;
     std::deque<uint64_t> child_ids;
-    size_t current_value_encoded_size;
-
     static void staticAssert() noexcept;
   };
 
@@ -293,7 +316,7 @@ class RangeValidationTree {
   struct RVTNode : public RVBNode {
     explicit RVTNode(const RVBNodePtr& child_node);
     RVTNode(uint8_t level, uint64_t rvb_index);
-    RVTNode(SerializedRVTNode& node, char* cur_val_ptr, size_t cur_value_size);
+    RVTNode(SerializedRVTNode& node, NodeVal&&);
     static RVTNodePtr createFromSerialized(std::istringstream& is);
 
     void addValue(const NodeVal& nvalue);

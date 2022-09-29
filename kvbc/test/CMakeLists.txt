@@ -137,6 +137,7 @@ target_link_libraries(multiIO_test PUBLIC
     corebft
 )
 
+find_package(cryptopp REQUIRED)
 add_executable(kv_blockchain_db_editor_test sparse_merkle_storage/kv_blockchain_db_editor_test.cpp )
 add_test(kv_blockchain_db_editor_test_v4 kv_blockchain_db_editor_test v4)
 add_test(kv_blockchain_db_editor_test_categorized kv_blockchain_db_editor_test categorized)
@@ -151,6 +152,7 @@ target_link_libraries(kv_blockchain_db_editor_test PUBLIC
     kvbc
     stdc++fs
     execution_data_cmf
+    ${CRYPTOPP_LIBRARIES}
 )
 endif(BUILD_ROCKSDB_STORAGE)
 
