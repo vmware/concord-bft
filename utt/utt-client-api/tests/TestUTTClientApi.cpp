@@ -293,11 +293,7 @@ struct ServerMock {
 
     auto burn = libutt::api::deserialize<libutt::api::operations::Burn>(tx.data_);
     auto null = burn.getNullifier();
-
-    loginfo << "TxNum: " << (ledger_.size() + 1) << endl;
-
     assertTrue(nullifiers_.count(null) == 0);
-    loginfo << "Adding burn coin nullifier from " << userId << " : " << null << endl;
     nullifiers_.emplace(std::move(null));
 
     ExecutedTx executedTx;
@@ -313,11 +309,7 @@ struct ServerMock {
     assertTrue(tx.type_ == utt::Transaction::Type::Transfer);
 
     auto uttTx = libutt::api::deserialize<libutt::api::operations::Transaction>(tx.data_);
-
-    loginfo << "TxNum: " << (ledger_.size() + 1) << endl;
-
     for (auto&& null : uttTx.getNullifiers()) {
-      loginfo << "Adding anon transfer input coin nullifier: " << null << endl;
       assertTrue(nullifiers_.count(null) == 0);
       nullifiers_.emplace(std::move(null));
     }
@@ -391,36 +383,32 @@ int main(int argc, char* argv[]) {
   };
 
   auto syncUsersWithServer = [&]() {
+    loginfo << "Synchronizing users with server" << endl;
     for (size_t i = 0; i < C; ++i) {
       for (uint64_t txNum = users[i]->getLastExecutedTxNum() + 1; txNum <= serverMock.getLastExecutedTxNum(); ++txNum) {
         const auto& executedTx = serverMock.getExecutedTx(txNum);
         switch (executedTx.tx_.type_) {
           case utt::Transaction::Type::Mint: {
             if (executedTx.publicUserId_ == users[i]->getUserId()) {
-              loginfo << "Updating " << users[i]->getUserId() << " mint|txNum:" << txNum << endl;
               assertTrue(executedTx.sigs_.size() == 1);
               auto result = users[i]->updateMintTx(txNum, executedTx.tx_, executedTx.sigs_.front());
               assertTrue(result);
             } else {
-              loginfo << "Updating NO-OP " << users[i]->getUserId() << " mint|txNum:" << txNum << endl;
               auto result = users[i]->updateNoOp(txNum);
               assertTrue(result);
             }
           } break;
           case utt::Transaction::Type::Burn: {
             if (executedTx.publicUserId_ == users[i]->getUserId()) {
-              loginfo << "Updating " << users[i]->getUserId() << " burn|txNum:" << txNum << endl;
               assertTrue(executedTx.sigs_.empty());
               auto result = users[i]->updateBurnTx(txNum, executedTx.tx_);
               assertTrue(result);
             } else {
-              loginfo << "Updating NO-OP " << users[i]->getUserId() << " burn|txNum:" << txNum << endl;
               auto result = users[i]->updateNoOp(txNum);
               assertTrue(result);
             }
           } break;
           case utt::Transaction::Type::Transfer: {
-            loginfo << "Updating " << users[i]->getUserId() << " transfer|txNum:" << txNum << endl;
             assertFalse(executedTx.sigs_.empty());
             auto result = users[i]->updateTransferTx(txNum, executedTx.tx_, executedTx.sigs_);
             assertTrue(result);
@@ -444,6 +432,7 @@ int main(int argc, char* argv[]) {
   }
 
   // Register users
+  loginfo << "Registering users" << endl;
   for (size_t i = 0; i < C; ++i) {
     auto resp = serverMock.registerUser(users[i]->getUserId(), users[i]->getRegistrationInput());
     assertFalse(resp.s2.empty());
@@ -455,6 +444,7 @@ int main(int argc, char* argv[]) {
   }
 
   // Create budgets
+  loginfo << "Creating user budgets" << endl;
   for (size_t i = 0; i < C; ++i) {
     auto resp = serverMock.createBudget(users[i]->getUserId(), initialBudget[i], 0);
     assertFalse(resp.budget.empty());
@@ -467,6 +457,7 @@ int main(int argc, char* argv[]) {
 
   // Mint test
   {
+    loginfo << "Minting tokens" << endl;
     for (size_t i = 0; i < C; ++i) {
       auto txNum = serverMock.mint(users[i]->getUserId(), initialBalance[i]);
       assertTrue(txNum == serverMock.getLastExecutedTxNum());
@@ -486,10 +477,11 @@ int main(int argc, char* argv[]) {
     for (size_t i = 0; i < C; ++i) {
       size_t nextUserIdx = (i + 1) % C;
       std::string nextUserId = "user-" + std::to_string(nextUserIdx + 1);
-      assertTrue(amount <= users[i]->getBalance());
       loginfo << "Sending " << amount << " from " << users[i]->getUserId() << " to " << nextUserId << endl;
-      auto tx = users[i]->transfer(nextUserId, k_TestKeys[nextUserId].second, amount);
-      auto txNum = serverMock.transfer(tx);
+      assertTrue(amount <= users[i]->getBalance());
+      auto result = users[i]->transfer(nextUserId, k_TestKeys[nextUserId].second, amount);
+      assertTrue(result.isFinal_);
+      auto txNum = serverMock.transfer(result.requiredTx_);
       assertTrue(txNum == serverMock.getLastExecutedTxNum());
     }
     syncUsersWithServer();
@@ -503,20 +495,23 @@ int main(int argc, char* argv[]) {
   }
 
   // All users burn their private funds
+  loginfo << "Burning user's tokens" << endl;
   for (size_t i = 0; i < C; ++i) {
     const uint64_t balance = users[i]->getBalance();
     assertTrue(balance > 0);
 
     while (true) {
-      auto tx = users[i]->burn(balance);
-      if (tx.type_ == utt::Transaction::Type::Burn) {
-        auto txNum = serverMock.burn(users[i]->getUserId(), tx);
+      auto result = users[i]->burn(balance);
+      if (result.requiredTx_.type_ == utt::Transaction::Type::Burn) {
+        assertTrue(result.isFinal_);
+        auto txNum = serverMock.burn(users[i]->getUserId(), result.requiredTx_);
         assertTrue(txNum == serverMock.getLastExecutedTxNum());
         syncUsersWithServer();
         break;  // We can stop processing after burning the coin
-      } else if (tx.type_ == utt::Transaction::Type::Transfer) {
+      } else if (result.requiredTx_.type_ == utt::Transaction::Type::Transfer) {
+        assertFalse(result.isFinal_);
         // We need to process a self transaction (split/merge)
-        auto txNum = serverMock.transfer(tx);
+        auto txNum = serverMock.transfer(result.requiredTx_);
         assertTrue(txNum == serverMock.getLastExecutedTxNum());
         syncUsersWithServer();
       }

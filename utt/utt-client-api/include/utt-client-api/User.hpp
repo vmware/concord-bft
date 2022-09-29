@@ -42,6 +42,20 @@ struct IUserPKInfrastructure {
   virtual ~IUserPKInfrastructure() = default;
 };
 
+/// @brief A transaction required to be executed in order to fulfill some burn request
+/// with a target amount
+struct BurnResult {
+  utt::Transaction requiredTx_;
+  bool isFinal_ = true;
+};
+
+/// @brief A transaction required to be executed in order to fulfill some transfer request
+/// with a target amount
+struct TransferResult {
+  utt::Transaction requiredTx_;
+  bool isFinal_ = true;
+};
+
 class User {
  public:
   User();  // Default empty user object
@@ -113,27 +127,21 @@ class User {
   /// @param txNum
   bool updateNoOp(uint64_t txNum);
 
-  /**
-   * @brief Ask to burn some amount of tokens. This function needs to be called repeatedly until the final burn
-   * transaction is produced.
-   *
-   * @param amount The amount of tokens to burn.
-   *
-   * @return Returns a valid UTT transaction to burn or merge/split UTT tokens or an error.
-   *
-   */
-  utt::Transaction burn(uint64_t amount) const;
+  /// @brief Ask to burn some amount of tokens. This function needs to be called repeatedly until the final burn
+  /// transaction is produced.
+  /// @param amount The amount of private funds to burn.
+  /// @return Result indicating the required transaction to fulfill the burn request and whether
+  /// it is the final one.
+  BurnResult burn(uint64_t amount) const;
 
-  /**
-   * @brief Ask to transfer some amount of tokens. This function needs to be called repeatedly until the final transfer
-   * transaction is produced.
-   *
-   * @param amount The amount of tokens to transfer.
-   *
-   * @return Returns a valid UTT transaction to transfer or merge/split UTT tokens or an error.
-   *
-   */
-  utt::Transaction transfer(const std::string& userId, const std::string& destPK, uint64_t amount) const;
+  /// @brief Ask to transfer some amount of private funds. This function needs to be called repeatedly until the final
+  /// transfer transaction is produced.
+  /// @param userId The receiver user id
+  /// @param pk The receiver public key
+  /// @param amount The amount of private funds to transfer
+  /// @return Returns a result indicating the required transaction to execute in order
+  /// to transfer the desired amount.
+  TransferResult transfer(const std::string& userId, const std::string& pk, uint64_t amount) const;
 
  private:
   // Users can be created only by the top-level ClientApi functions

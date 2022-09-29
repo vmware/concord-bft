@@ -383,7 +383,7 @@ bool User::updateNoOp(uint64_t txNum) {
   return true;
 }
 
-utt::Transaction User::burn(uint64_t amount) const {
+BurnResult User::burn(uint64_t amount) const {
   if (!pImpl_->client_) throw std::runtime_error("User not initialized!");
   if (amount == 0) throw std::runtime_error("Burn amount must be positive!");
 
@@ -397,20 +397,20 @@ utt::Transaction User::burn(uint64_t amount) const {
     const auto& coin = pImpl_->coins_.at(pickedCoins[0]);
     const uint64_t value = coin.getVal();
     if (value < amount) throw std::runtime_error("Coin strategy picked a single insufficient coin!");
-    if (value == amount) return pImpl_->createTx_Burn(coin);
-    return pImpl_->createTx_Self1t2(coin, amount);  // value > payment
+    if (value == amount) return {pImpl_->createTx_Burn(coin), true /*isFinal*/};
+    return {pImpl_->createTx_Self1t2(coin, amount), false /*isFinal*/};  // value > payment
   } else if (pickedCoins.size() == 2) {
     const std::vector<libutt::api::Coin> inputCoins = {pImpl_->coins_.at(pickedCoins[0]),
                                                        pImpl_->coins_.at(pickedCoins[1])};
     const uint64_t value = inputCoins[0].getVal() + inputCoins[1].getVal();
-    if (value <= amount) return pImpl_->createTx_Self2t1(inputCoins);  // Coin merge
-    return pImpl_->createTx_Self2t2(inputCoins, amount);               // value > payment
+    if (value <= amount) return {pImpl_->createTx_Self2t1(inputCoins), false /*isFinal*/};  // Coin merge
+    return {pImpl_->createTx_Self2t2(inputCoins, amount), false /*isFinal*/};               // value > payment
   } else {
     throw std::runtime_error("Coin strategy picked more than two coins!");
   }
 }
 
-utt::Transaction User::transfer(const std::string& userId, const std::string& destPK, uint64_t amount) const {
+TransferResult User::transfer(const std::string& userId, const std::string& destPK, uint64_t amount) const {
   if (userId.empty() || destPK.empty() || amount == 0) throw std::runtime_error("Invalid arguments!");
   if (!pImpl_->client_) throw std::runtime_error("Uninitialized user!");
 
@@ -426,14 +426,14 @@ utt::Transaction User::transfer(const std::string& userId, const std::string& de
     const auto& coin = pImpl_->coins_.at(pickedCoins[0]);
     const auto value = coin.getVal();
     if (value < amount) throw std::runtime_error("Coin strategy picked a single insufficient coin!");
-    if (value == amount) return pImpl_->createTx_1t1(coin, userId, destPK);
-    return pImpl_->createTx_1t2(coin, amount, userId, destPK);  // value > amount
+    if (value == amount) return {pImpl_->createTx_1t1(coin, userId, destPK), true /*isFinal*/};
+    return {pImpl_->createTx_1t2(coin, amount, userId, destPK), true /*isFinal*/};  // value > amount
   } else if (pickedCoins.size() == 2) {
     std::vector<libutt::api::Coin> inputCoins{pImpl_->coins_.at(pickedCoins[0]), pImpl_->coins_.at(pickedCoins[1])};
     const auto value = inputCoins[0].getVal() + inputCoins[1].getVal();
-    if (value < amount) return pImpl_->createTx_Self2t1(inputCoins);  // Coin merge
-    if (value == amount) return pImpl_->createTx_2t1(inputCoins, userId, destPK);
-    return pImpl_->createTx_2t2(inputCoins, amount, userId, destPK);  // value > amount
+    if (value < amount) return {pImpl_->createTx_Self2t1(inputCoins), false /*isFinal*/};  // Coin merge
+    if (value == amount) return {pImpl_->createTx_2t1(inputCoins, userId, destPK), true /*isFinal*/};
+    return {pImpl_->createTx_2t2(inputCoins, amount, userId, destPK), true /*isFinal*/};  // value > amount
   } else {
     throw std::runtime_error("Coin strategy picked more than two coins!");
   }
