@@ -100,7 +100,7 @@ CODECOVERAGE=${CODECOVERAGE}")
 endif()
 
 if(LEAKCHECK)
-    string(APPEND CMAKE_CXX_FLAGS " -fsanitize=leak -fsanitize=address")
+    string(APPEND CMAKE_CXX_FLAGS " -fsanitize=leak -fsanitize=address -DRUN_WITH_LEAKCHECK=1")
     message("-- Address and Leak Sanitizers Enabled")
 endif()
 if(THREADCHECK)
