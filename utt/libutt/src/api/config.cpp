@@ -54,7 +54,6 @@ const UTTParams& PublicConfig::getParams() const { return pImpl_->params_; }
 
 struct Configuration::Impl {
   // [TODO-UTT] The commit and registration secrets need to be encrypted
-  // [TODO-UTT] Decide if each participant can be represented by an index or it needs something more like a string id
   uint16_t n_ = 0;
   uint16_t t_ = 0;
   PublicConfig publicConfig_;

@@ -33,10 +33,10 @@ class Utils {
   /**
    * @brief Computes the hash of a string as a curve point. Useful for computing pid and token sn hashes.
    *
-   * @param userId Input string
+   * @param str Input string
    * @return Output curve point representing the hash of the string
    */
-  static types::CurvePoint curvePointFromHash(const std::string& userId);
+  static types::CurvePoint curvePointFromHash(const std::string& str);
 
   /**
    * @brief Aggregate the shared signatures for a given signature
