@@ -64,6 +64,11 @@ Configuration generateConfig(const ConfigInputParams& inputParams) {
   return libutt::api::serialize<libutt::api::Configuration>(config);
 }
 
+PublicConfig getPublicConfig(const Configuration& config) {
+  auto temp = libutt::api::deserialize<libutt::api::Configuration>(config);
+  return libutt::api::serialize<libutt::api::PublicConfig>(temp.getPublicConfig());
+}
+
 std::unique_ptr<User> createUser(const std::string& userId,
                                  const PublicConfig& config,
                                  IUserPKInfrastructure& pki,
