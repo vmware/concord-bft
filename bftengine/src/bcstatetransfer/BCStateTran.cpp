@@ -273,8 +273,8 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
       postponedSendFetchBlocksMsg_(false),
       ioPool_(
           config_.maxNumberOfChunksInBatch,
-          nullptr,                                     // alloc callback
-          [&](std::shared_ptr<BlockIOContext> &ctx) {  // free callback
+          nullptr,                                           // alloc callback
+          [&](const std::shared_ptr<BlockIOContext> &ctx) {  // free callback
             if (ctx->future.valid()) {
               try {
                 LOG_DEBUG(logger_, "Waiting for previous thread to finish job on context " << KVLOG(ctx->blockId));
