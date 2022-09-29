@@ -41,7 +41,8 @@ install_build_tools() {
         sudo \
         vim \
         iproute2 \
-        wget
+        wget \
+        heaptrack
 
     update-alternatives --install /usr/bin/clang clang /usr/lib/llvm-9/bin/clang 100
     update-alternatives --install /usr/bin/clang++ clang++ /usr/lib/llvm-9/bin/clang++ 100
@@ -78,7 +79,9 @@ install_third_party_libraries() {
         ecdsa \
         protobuf==3.15.8 \
         grpcio==1.37.1 \
-        grpcio-tools==1.37.1
+        grpcio-tools==1.37.1 \
+        psutil==5.9.1
+
 }
 
 

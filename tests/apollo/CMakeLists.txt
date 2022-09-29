@@ -47,6 +47,11 @@ if(UNDEFINED_BEHAVIOR_CHECK)
   ")
 endif()
 
+if(HEAPTRACK)
+  # shut down processes gracefully, enable heaptrack and set log dir
+  set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} GRACEFUL_SHUTDOWN=true ENABLE_HEAPTRACK=TRUE")
+endif()
+
 if(CODECOVERAGE)
     #[[ We need to gracefully shut down processes in order to
         generate raw profile data for Code Coverage for Apollo tests.]]
