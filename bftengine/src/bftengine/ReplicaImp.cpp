@@ -4255,6 +4255,8 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
     if (s != ld.lastStableSeqNum) {  // We have already added all msgs for our last stable Checkpoint
       checkInfo.addCheckpointMsg(e.getCheckpointMsg(), config_.getreplicaId());
       ConcordAssert(checkInfo.selfCheckpointMsg()->equals(*e.getCheckpointMsg()));
+    } else {
+      delete e.getCheckpointMsg();
     }
 
     if (e.getCompletedMark()) checkInfo.tryToMarkCheckpointCertificateCompleted();
