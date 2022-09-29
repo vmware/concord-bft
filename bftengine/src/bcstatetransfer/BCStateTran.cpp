@@ -475,6 +475,7 @@ void BCStateTran::stopRunningImpl() {
   ConcordAssertNE(replicaForStateTransfer_, nullptr);
   // This one should always be first!
   running_ = false;
+  clearIoContexts();
   if (postProcessingQ_) {
     postProcessingQ_->stop();
   }

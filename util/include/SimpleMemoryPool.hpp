@@ -51,6 +51,17 @@ class SimpleMemoryPool {
     }
   }
 
+  virtual ~SimpleMemoryPool() {
+    if (freeCallback_) {
+      for (const auto& element : allocatedQ_) {
+        freeCallback_(element);
+      }
+      for (const auto& element : freeQ_) {
+        freeCallback_(element);
+      }
+    }
+  }
+
   size_t numFreeElements() const { return freeQ_.size(); }
   size_t numAllocatedElements() const { return allocatedQ_.size(); }
   bool empty() { return freeQ_.empty(); };
