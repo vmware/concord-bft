@@ -72,7 +72,7 @@ class WalletApp {
 
     // Generate a privacy config for a N=4 replica system tolerating F=1 failures
     utt::client::ConfigInputParams params;
-    params.participantsPublicKeys = std::vector<std::string>{4, "placeholderPublicKey"};  // N = 3 * F + 1
+    params.validatorPublicKeys = std::vector<std::string>{4, "placeholderPublicKey"};  // N = 3 * F + 1
     params.threshold = 2;                                                                 // F + 1
     auto config = utt::client::generateConfig(params);
     if (config.empty()) throw std::runtime_error("Failed to generate a privacy app configuration!");
