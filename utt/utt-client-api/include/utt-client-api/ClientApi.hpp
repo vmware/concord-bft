@@ -17,6 +17,7 @@
 #include <string>
 #include <variant>
 #include <optional>
+#include <memory>
 
 #include "utt-common-api/CommonApi.hpp"
 #include "utt-client-api/User.hpp"
@@ -25,24 +26,32 @@ namespace utt::client {
 
 // [TODO-UTT] All types are tentative
 
-// Provides the means to store the user's wallet data *te
-struct IWalletStorage {};
+struct ConfigInputParams {
+  bool useBudget = true;  // Disable/enable usage of a budget token
+  std::vector<std::string> validatorPublicKeys;
+  uint16_t threshold = 0;  // The number of validator shares required to reconstruct a signature
+};
 
-// Provides the means to generate a public/private key pair when creating a user
-struct IPKInfrastructure {};
+/// @brief Initialize the UTT Client API. Must be called before any other API function.
+void Initialize();
 
-// [TODO-UTT] We need to also define the corruption thresholds for each multi-party entity
-Configuration generateConfiguration(const std::vector<std::string>& committerPublicKeys,
-                                    const std::vector<std::string>& registrationPublicKeys,
-                                    bool useBudget);
+/// @brief Generates a UTT Instance Configuration given the input parameters
+/// @param inputParams
+/// @return unique UTT instance configuration
+Configuration generateConfig(const ConfigInputParams& inputParams);
 
-// Creates and initialize a new user
-User createUser(const std::string& userId,
-                const std::vector<uint8_t>& params,
-                IPKInfrastructure& pki,
-                IWalletStorage& storage);
+/// @brief Creates and initializes a new UTT user
+/// @param userId A unique string identifying the user in the UTT instance
+/// @param config The public config of the UTT instance
+/// @param pki A public key infrastructure object that can be used to generate a public/private key pair for the user
+/// @param storage A storage interface for the user's data
+/// @return Newly created user object
+std::unique_ptr<User> createUser(const std::string& userId,
+                                 const PublicConfig& config,
+                                 IUserPKInfrastructure& pki,
+                                 IUserStorage& storage);
 
 // Load an existing user from storage
-User loadUserFromStorage(IWalletStorage& storage);
+std::unique_ptr<User> loadUserFromStorage(IUserStorage& storage);
 
 }  // namespace utt::client

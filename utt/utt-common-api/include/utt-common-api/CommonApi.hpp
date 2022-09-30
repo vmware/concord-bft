@@ -19,21 +19,39 @@
 
 namespace utt {
 
-// This is the configuration of a UTT instance
-// [TODO-UTT] What should be the types for the different keys?
+// [TODO-UTT] All types are tentative
 
-struct Configuration {
-  bool useBudget = true;
-  // [TODO-UTT] Do we need a string id or a vector with indicies as ids is sufficient?
-  std::map<std::string, std::string> encryptedCommitSecrets;        // Maps committer id to secret
-  std::map<std::string, std::string> encryptedRegistrationSecrets;  // Maps registrar id to secret
-  std::map<std::string, std::string>
-      committerVerificationKeyShares;  // [TODO-UTT] Check: I think we need this for partial sig verification
-  std::map<std::string, std::string>
-      registrationVerificationKeyShares;  // [TODO-UTT] Check: I think we need this for partial sig verification
-  std::string commitVerificationKey;
-  std::string registrationVerificationKey;
-  std::vector<uint8_t> publicParams;
+/// @brief The complete configuration required to deploy a UTT instance, contains public and secret data
+using Configuration = std::vector<uint8_t>;
+
+/// @brief The public part of a UTT instance configuration visible to all users
+using PublicConfig = std::vector<uint8_t>;
+
+/// @brief A user generated commitment used as input for registration in the UTT instance
+using UserRegistrationInput = std::vector<uint8_t>;
+
+/// @brief A signature on the user's full registration commitment
+using RegistrationSig = std::vector<uint8_t>;
+
+/// @brief A system generated part of the user's PRF key
+using S2 = std::vector<uint64_t>;
+
+/// @brief The privacy budget determines how much in value can a user transfer anonymously to other users.
+using PrivacyBudget = std::vector<uint8_t>;
+
+/// @brief Signature on a privacy budget object
+using PrivacyBudgetSig = std::vector<uint8_t>;
+
+/// @brief A signature on a single output of a transaction
+using TxOutputSig = std::vector<uint8_t>;
+
+/// @brief The signatures associated with the ordered outputs of a transaction
+using TxOutputSigs = std::vector<TxOutputSig>;
+
+/// @brief A transaction and its type
+struct Transaction {
+  enum class Type { Undefined = 0, Mint = 1, Transfer = 2, Burn = 3 } type_ = Type::Undefined;
+  std::vector<uint8_t> data_;
 };
 
 }  // namespace utt

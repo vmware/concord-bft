@@ -123,6 +123,7 @@ std::vector<libutt::api::Coin> Client::claimCoins<operations::Budget>(
       r_pid.to_words(), r_sn.to_words(), r_val.to_words(), r_type.to_words(), r_expdate.to_words()};
   auto sig = Utils::unblindSignature(d, Commitment::Type::COIN, r, blindedSigs.front());
   libutt::api::Coin c = budget.getCoin();
+  c.createNullifier(d, getPRFSecretKey());
   c.setSig(sig);
   c.rerandomize(std::nullopt);
   return {c};

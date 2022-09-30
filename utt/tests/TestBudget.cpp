@@ -59,7 +59,9 @@ int main(int argc, char* argv[]) {
   // Now, do the same for a budget created by the replicas.
   for (auto& c : clients) {
     std::vector<std::vector<uint8_t>> rsigs;
-    auto budget = Budget(d, c.getPidHash(), 1000, 123456789);
+    auto snHash = Fr::random_element()
+                      .to_words();  // Assume each replica can compute the same sn using some common execution state
+    auto budget = Budget(d, snHash, c.getPidHash(), 1000, 123456789);
     for (size_t i = 0; i < banks.size(); i++) {
       rsigs.push_back(banks[i]->sign(budget).front());
     }

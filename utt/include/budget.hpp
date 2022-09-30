@@ -44,11 +44,16 @@ class Budget {
    * @brief Construct a new Budget object without the client secret data. For building a budget coin by the bank
    *
    * @param p The shared global UTT parameters
+   * @param snHash Hash of the unique sn for the coin generated deterministically by the bank
    * @param pidHash The public client ID hash
    * @param val The budget value
    * @param exp_date Expiration date, the format is to be determined by an upper level
    */
-  Budget(const UTTParams& p, const types::CurvePoint& pidHash, uint64_t val, uint64_t exp_date);
+  Budget(const UTTParams& p,
+         const types::CurvePoint& snHash,
+         const types::CurvePoint& pidHash,
+         uint64_t val,
+         uint64_t exp_date);
   Budget() {}
 
   /**

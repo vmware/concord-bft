@@ -5,6 +5,7 @@
 #include "mint.hpp"
 #include "commitment.hpp"
 #include "transaction.hpp"
+#include "config.hpp"
 #include <utt/Coin.h>
 #include <utt/MintOp.h>
 #include <utt/BurnOp.h>
@@ -33,6 +34,21 @@ int main(int argc, char* argv[]) {
   std::vector<uint8_t> serialized_params = libutt::api::serialize<libutt::api::UTTParams>(d);
   auto deserialized_params = libutt::api::deserialize<libutt::api::UTTParams>(serialized_params);
   assertTrue(deserialized_params == d);
+
+  // Test Configuration de/serialization
+  {
+    auto config = libutt::api::Configuration((uint16_t)n, (uint16_t)thresh);
+    assertTrue(config.isValid());
+    auto serialized_config = libutt::api::serialize<libutt::api::Configuration>(config);
+    auto deserialized_config = libutt::api::deserialize<libutt::api::Configuration>(serialized_config);
+    assertTrue(deserialized_config.isValid());
+    assertTrue(deserialized_config == config);
+
+    const auto& publicConfig = config.getPublicConfig();
+    auto serialized_public_config = libutt::api::serialize<libutt::api::PublicConfig>(publicConfig);
+    auto deserialized_public_config = libutt::api::deserialize<libutt::api::PublicConfig>(serialized_public_config);
+    assertTrue(deserialized_public_config == publicConfig);
+  }
 
   Commitment rcm = clients[0].getRcm().first;
 
@@ -114,7 +130,8 @@ int main(int argc, char* argv[]) {
   assertTrue(c4.getExpDateAsCurvePoint() == c4_deserialized.getExpDateAsCurvePoint());
 
   // Test Budget request de/serialization
-  libutt::api::operations::Budget b1(d, Fr::random_element().to_words(), 100, 987654321);
+  libutt::api::operations::Budget b1(
+      d, Fr::random_element().to_words(), Fr::random_element().to_words(), 100, 987654321);
   std::vector<uint8_t> b1_serialized = libutt::api::serialize<libutt::api::operations::Budget>(b1);
   libutt::api::operations::Budget b1_deserialized =
       libutt::api::deserialize<libutt::api::operations::Budget>(b1_serialized);
