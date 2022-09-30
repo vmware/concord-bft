@@ -19,7 +19,6 @@
 #include <variant>
 #include <util/filesystem.hpp>
 #include <fstream>
-namespace fs = std::experimental::filesystem;
 
 namespace concord::client::reconfiguration::handlers {
 
