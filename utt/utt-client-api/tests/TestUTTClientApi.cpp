@@ -117,23 +117,6 @@ struct PrivacyBudgetResponse {
   utt::PrivacyBudgetSig sig;
 };
 
-struct MintResponse {
-  uint64_t txNum = 0;
-  utt::Transaction tx;
-  utt::TxOutputSig sig;
-};
-
-struct TransferResponse {
-  uint64_t txNum = 0;
-  utt::Transaction tx;
-  utt::TxOutputSigs sigs;
-};
-
-struct BurnResponse {
-  uint64_t txNum = 0;
-  utt::Transaction tx;
-};
-
 struct ExecutedTx {
   utt::Transaction tx_;
   utt::TxOutputSigs sigs_;
@@ -163,13 +146,13 @@ struct ServerMock {
 
     std::map<uint16_t, std::string> commitVerificationKeyShares;
     std::map<uint16_t, std::string> registrationVerificationKeyShares;
-    for (uint16_t i = 0; i < mock.config_->getNumParticipants(); ++i) {
+    for (uint16_t i = 0; i < mock.config_->getNumValidators(); ++i) {
       commitVerificationKeyShares.emplace(i, mock.config_->getCommitVerificationKeyShare(i));
       registrationVerificationKeyShares.emplace(i, mock.config_->getRegistrationVerificationKeyShare(i));
     }
 
     // Create registrars and coins signers
-    for (uint16_t i = 0; i < mock.config_->getNumParticipants(); ++i) {
+    for (uint16_t i = 0; i < mock.config_->getNumValidators(); ++i) {
       mock.registrars_.emplace_back(
           i, mock.config_->getRegistrationSecret(i), registrationVerificationKeyShares, registrationVerificationKey);
       mock.coinsSigners_.emplace_back(i,
@@ -197,7 +180,7 @@ struct ServerMock {
 
     auto rcm1 = libutt::api::deserialize<libutt::api::Commitment>(userRegInput);
 
-    // [TODO-UTT] Each participant in computing the registration signature
+    // [TODO-UTT] Each validator in computing the registration signature
     // must pick the same s2 based on some "seed". Here we simply generate
     // a single s2 which is a big simplification.
     libutt::api::types::CurvePoint s2 = libutt::Fr::random_element().to_words();
@@ -210,7 +193,7 @@ struct ServerMock {
       shares.emplace_back(std::move(share));
     }
 
-    const uint16_t n = config_->getNumParticipants();
+    const uint16_t n = config_->getNumValidators();
     const uint16_t t = config_->getThreshold();
 
     std::map<uint32_t, std::vector<uint8_t>> shareSubset;
@@ -225,7 +208,7 @@ struct ServerMock {
     return resp;
   }
 
-  PrivacyBudgetResponse createBudget(const std::string& userId, uint64_t amount, uint64_t expireTime) {
+  PrivacyBudgetResponse createPrivacyBudget(const std::string& userId, uint64_t amount, uint64_t expireTime) {
     assertFalse(userId.empty());
     assertTrue(amount > 0);
 
@@ -240,7 +223,7 @@ struct ServerMock {
       shares.emplace_back(signer.sign(budget).front());
     }
 
-    const uint16_t n = config_->getNumParticipants();
+    const uint16_t n = config_->getNumValidators();
     const uint16_t t = config_->getThreshold();
 
     std::map<uint32_t, std::vector<uint8_t>> shareSubset;
@@ -269,7 +252,7 @@ struct ServerMock {
       shares.emplace_back(signer.sign(mintTx).front());
     }
 
-    const uint16_t n = config_->getNumParticipants();
+    const uint16_t n = config_->getNumValidators();
     const uint16_t t = config_->getThreshold();
 
     std::map<uint32_t, std::vector<uint8_t>> shareSubset;
@@ -319,7 +302,7 @@ struct ServerMock {
       shares.emplace_back(signer.sign(uttTx));
     }
 
-    const uint16_t n = config_->getNumParticipants();
+    const uint16_t n = config_->getNumValidators();
     const uint16_t t = config_->getThreshold();
 
     size_t numOutCoins = shares[0].size();
@@ -355,9 +338,9 @@ int main(int argc, char* argv[]) {
 
   utt::client::ConfigInputParams cfgInputParams;
 
-  // Create a UTT system tolerating F faulty participants
+  // Create a UTT system tolerating F faulty validators
   const uint16_t F = 1;
-  cfgInputParams.participantsPublicKeys = std::vector<std::string>(3 * F + 1, "placeholderForPublicKey");
+  cfgInputParams.validatorPublicKeys = std::vector<std::string>(3 * F + 1, "placeholderForPublicKey");
   cfgInputParams.threshold = F + 1;
 
   // Create a new UTT instance config
@@ -446,7 +429,7 @@ int main(int argc, char* argv[]) {
   // Create budgets
   loginfo << "Creating user budgets" << endl;
   for (size_t i = 0; i < C; ++i) {
-    auto resp = serverMock.createBudget(users[i]->getUserId(), initialBudget[i], 0);
+    auto resp = serverMock.createPrivacyBudget(users[i]->getUserId(), initialBudget[i], 0);
     assertFalse(resp.budget.empty());
     assertFalse(resp.sig.empty());
 

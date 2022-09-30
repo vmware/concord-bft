@@ -45,21 +45,21 @@ void Initialize() {
 }
 
 Configuration generateConfig(const ConfigInputParams& inputParams) {
-  // We derive the size of the participants from the size of the provided input public keys
-  if (inputParams.participantsPublicKeys.empty())
-    throw std::runtime_error("Generating UTT Instance Config with empty participants!");
+  // We derive the size of the validators from the size of the provided input public keys
+  if (inputParams.validatorPublicKeys.empty())
+    throw std::runtime_error("Generating UTT Instance Config with empty validator public keys!");
 
   if (inputParams.threshold == 0) throw std::runtime_error("Generating UTT Instance Config with zero threshold!");
 
-  if (inputParams.threshold > inputParams.participantsPublicKeys.size())
-    throw std::runtime_error("Generating UTT Instance Config with threshold greater than the number of participants!");
+  if (inputParams.threshold > inputParams.validatorPublicKeys.size())
+    throw std::runtime_error("Generating UTT Instance Config with threshold greater than the number of validators!");
 
-  const uint16_t n = (uint16_t)inputParams.participantsPublicKeys.size();
+  const uint16_t n = (uint16_t)inputParams.validatorPublicKeys.size();
   const uint16_t t = inputParams.threshold;
 
   auto config = libutt::api::Configuration(n, t);
 
-  // [TODO-UTT] Use the participant's public keys to encrypt the configuration secrets for each participant
+  // [TODO-UTT] Use the validator's public keys to encrypt the configuration secrets for each validator
 
   return libutt::api::serialize<libutt::api::Configuration>(config);
 }

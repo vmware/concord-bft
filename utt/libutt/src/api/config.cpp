@@ -66,7 +66,7 @@ struct Configuration::Impl {
 Configuration::Configuration() : pImpl_{new Impl{}} {}
 
 Configuration::Configuration(uint16_t n, uint16_t t) : Configuration() {
-  if (n == 0 || t == 0 || t > n) throw std::runtime_error("Invalid configuration participant size and/or threshold");
+  if (n == 0 || t == 0 || t > n) throw std::runtime_error("Invalid number of validators and/or threshold");
 
   pImpl_->n_ = n;
   pImpl_->t_ = t;
@@ -94,12 +94,12 @@ Configuration::Configuration(uint16_t n, uint16_t t) : Configuration() {
   pImpl_->publicConfig_.pImpl_->commitVerificationKey_ = dkg.sk.toPK();
   pImpl_->publicConfig_.pImpl_->registrationVerificationKey_ = rsk.toPK();
 
-  // [TODO-UTT] Important!!! - These secrets need to be encrypted for each participant
+  // [TODO-UTT] Important!!! - These secrets need to be encrypted for each validator
   // before the config is used to deploy a UTT instance
   pImpl_->commitSecrets_ = std::move(dkg.skShares);
   pImpl_->registrationSecrets_ = std::move(rsk.shares);
 
-  // We need to make the public key shares accessible to all participants.
+  // We need to make the public key shares accessible to all validators.
   pImpl_->committerVerificationKeyShares_.reserve(pImpl_->commitSecrets_.size());
   for (size_t i = 0; i < pImpl_->commitSecrets_.size(); ++i) {
     pImpl_->committerVerificationKeyShares_.emplace_back(pImpl_->commitSecrets_[i].toPK());
@@ -132,7 +132,7 @@ bool Configuration::isValid() const {
          pImpl_->registrationVerificationKeyShares_.size() == pImpl_->n_;
 }
 
-uint16_t Configuration::getNumParticipants() const { return pImpl_->n_; }
+uint16_t Configuration::getNumValidators() const { return pImpl_->n_; }
 uint16_t Configuration::getThreshold() const { return pImpl_->t_; }
 const PublicConfig& Configuration::getPublicConfig() const { return pImpl_->publicConfig_; }
 

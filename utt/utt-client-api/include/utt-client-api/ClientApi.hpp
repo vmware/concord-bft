@@ -28,8 +28,8 @@ namespace utt::client {
 
 struct ConfigInputParams {
   bool useBudget = true;  // Disable/enable usage of a budget token
-  std::vector<std::string> participantsPublicKeys;
-  uint16_t threshold = 0;  // The number of participant shares required to reconstruct a signature
+  std::vector<std::string> validatorPublicKeys;
+  uint16_t threshold = 0;  // The number of validator shares required to reconstruct a signature
 };
 
 /// @brief Initialize the UTT Client API. Must be called before any other API function.
@@ -42,7 +42,7 @@ Configuration generateConfig(const ConfigInputParams& inputParams);
 
 /// @brief Creates and initializes a new UTT user
 /// @param userId A unique string identifying the user in the UTT instance
-/// @param params The public parameters of the UTT instance
+/// @param config The public config of the UTT instance
 /// @param pki A public key infrastructure object that can be used to generate a public/private key pair for the user
 /// @param storage A storage interface for the user's data
 /// @return Newly created user object

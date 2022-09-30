@@ -41,22 +41,22 @@ namespace utt::client {
 struct User::Impl {
   utt::Transaction createTx_Burn(const libutt::api::Coin& coin);
 
-  utt::Transaction createTx_Self1t2(const libutt::api::Coin& coin, uint64_t amount);
-  utt::Transaction createTx_Self2t1(const std::vector<libutt::api::Coin>& coins);
-  utt::Transaction createTx_Self2t2(const std::vector<libutt::api::Coin>& coins, uint64_t amount);
+  utt::Transaction createTx_Self1to2(const libutt::api::Coin& coin, uint64_t amount);
+  utt::Transaction createTx_Self2to1(const std::vector<libutt::api::Coin>& coins);
+  utt::Transaction createTx_Self2to2(const std::vector<libutt::api::Coin>& coins, uint64_t amount);
 
-  utt::Transaction createTx_1t1(const libutt::api::Coin& coin, const std::string& userId, const std::string& pk);
-  utt::Transaction createTx_1t2(const libutt::api::Coin& coin,
-                                uint64_t amount,
-                                const std::string& userId,
-                                const std::string& pk);
-  utt::Transaction createTx_2t1(const std::vector<libutt::api::Coin>& coins,
-                                const std::string& userId,
-                                const std::string& pk);
-  utt::Transaction createTx_2t2(const std::vector<libutt::api::Coin>& coins,
-                                uint64_t amount,
-                                const std::string& userId,
-                                const std::string& pk);
+  utt::Transaction createTx_1to1(const libutt::api::Coin& coin, const std::string& userId, const std::string& pk);
+  utt::Transaction createTx_1to2(const libutt::api::Coin& coin,
+                                 uint64_t amount,
+                                 const std::string& userId,
+                                 const std::string& pk);
+  utt::Transaction createTx_2to1(const std::vector<libutt::api::Coin>& coins,
+                                 const std::string& userId,
+                                 const std::string& pk);
+  utt::Transaction createTx_2to2(const std::vector<libutt::api::Coin>& coins,
+                                 uint64_t amount,
+                                 const std::string& userId,
+                                 const std::string& pk);
 
   libutt::RSAEncryptor createRsaEncryptorForTransferToOther(const std::string& otherUserId, const std::string& otherPk);
 
@@ -81,7 +81,7 @@ utt::Transaction User::Impl::createTx_Burn(const libutt::api::Coin& coin) {
   return tx;
 }
 
-utt::Transaction User::Impl::createTx_Self1t2(const libutt::api::Coin& coin, uint64_t amount) {
+utt::Transaction User::Impl::createTx_Self1to2(const libutt::api::Coin& coin, uint64_t amount) {
   std::vector<std::tuple<std::string, uint64_t>> recip;
   recip.emplace_back(client_->getPid(), amount);
   recip.emplace_back(client_->getPid(), coin.getVal() - amount);
@@ -94,7 +94,7 @@ utt::Transaction User::Impl::createTx_Self1t2(const libutt::api::Coin& coin, uin
   return tx;
 }
 
-utt::Transaction User::Impl::createTx_Self2t1(const std::vector<libutt::api::Coin>& coins) {
+utt::Transaction User::Impl::createTx_Self2to1(const std::vector<libutt::api::Coin>& coins) {
   std::vector<std::tuple<std::string, uint64_t>> recip;
   recip.emplace_back(client_->getPid(), coins[0].getVal() + coins[1].getVal());
 
@@ -106,7 +106,7 @@ utt::Transaction User::Impl::createTx_Self2t1(const std::vector<libutt::api::Coi
   return tx;
 }
 
-utt::Transaction User::Impl::createTx_Self2t2(const std::vector<libutt::api::Coin>& coins, uint64_t amount) {
+utt::Transaction User::Impl::createTx_Self2to2(const std::vector<libutt::api::Coin>& coins, uint64_t amount) {
   std::vector<std::tuple<std::string, uint64_t>> recip;
   recip.emplace_back(client_->getPid(), amount);
   recip.emplace_back(client_->getPid(), (coins[0].getVal() + coins[1].getVal()) - amount);
@@ -119,9 +119,9 @@ utt::Transaction User::Impl::createTx_Self2t2(const std::vector<libutt::api::Coi
   return tx;
 }
 
-utt::Transaction User::Impl::createTx_1t1(const libutt::api::Coin& coin,
-                                          const std::string& userId,
-                                          const std::string& pk) {
+utt::Transaction User::Impl::createTx_1to1(const libutt::api::Coin& coin,
+                                           const std::string& userId,
+                                           const std::string& pk) {
   std::vector<std::tuple<std::string, uint64_t>> recip;
   recip.emplace_back(userId, coin.getVal());
 
@@ -134,10 +134,10 @@ utt::Transaction User::Impl::createTx_1t1(const libutt::api::Coin& coin,
   return tx;
 }
 
-utt::Transaction User::Impl::createTx_1t2(const libutt::api::Coin& coin,
-                                          uint64_t amount,
-                                          const std::string& userId,
-                                          const std::string& pk) {
+utt::Transaction User::Impl::createTx_1to2(const libutt::api::Coin& coin,
+                                           uint64_t amount,
+                                           const std::string& userId,
+                                           const std::string& pk) {
   std::vector<std::tuple<std::string, uint64_t>> recip;
   recip.emplace_back(userId, amount);
   recip.emplace_back(client_->getPid(), coin.getVal() - amount);
@@ -151,9 +151,9 @@ utt::Transaction User::Impl::createTx_1t2(const libutt::api::Coin& coin,
   return tx;
 }
 
-utt::Transaction User::Impl::createTx_2t1(const std::vector<libutt::api::Coin>& coins,
-                                          const std::string& userId,
-                                          const std::string& pk) {
+utt::Transaction User::Impl::createTx_2to1(const std::vector<libutt::api::Coin>& coins,
+                                           const std::string& userId,
+                                           const std::string& pk) {
   std::vector<std::tuple<std::string, uint64_t>> recip;
   recip.emplace_back(userId, coins[0].getVal() + coins[1].getVal());
 
@@ -166,10 +166,10 @@ utt::Transaction User::Impl::createTx_2t1(const std::vector<libutt::api::Coin>& 
   return tx;
 }
 
-utt::Transaction User::Impl::createTx_2t2(const std::vector<libutt::api::Coin>& coins,
-                                          uint64_t amount,
-                                          const std::string& userId,
-                                          const std::string& pk) {
+utt::Transaction User::Impl::createTx_2to2(const std::vector<libutt::api::Coin>& coins,
+                                           uint64_t amount,
+                                           const std::string& userId,
+                                           const std::string& pk) {
   std::vector<std::tuple<std::string, uint64_t>> recip;
   recip.emplace_back(userId, amount);
   recip.emplace_back(client_->getPid(), (coins[0].getVal() + coins[1].getVal()) - amount);
@@ -398,13 +398,13 @@ BurnResult User::burn(uint64_t amount) const {
     const uint64_t value = coin.getVal();
     if (value < amount) throw std::runtime_error("Coin strategy picked a single insufficient coin!");
     if (value == amount) return {pImpl_->createTx_Burn(coin), true /*isFinal*/};
-    return {pImpl_->createTx_Self1t2(coin, amount), false /*isFinal*/};  // value > payment
+    return {pImpl_->createTx_Self1to2(coin, amount), false /*isFinal*/};  // value > payment
   } else if (pickedCoins.size() == 2) {
     const std::vector<libutt::api::Coin> inputCoins = {pImpl_->coins_.at(pickedCoins[0]),
                                                        pImpl_->coins_.at(pickedCoins[1])};
     const uint64_t value = inputCoins[0].getVal() + inputCoins[1].getVal();
-    if (value <= amount) return {pImpl_->createTx_Self2t1(inputCoins), false /*isFinal*/};  // Coin merge
-    return {pImpl_->createTx_Self2t2(inputCoins, amount), false /*isFinal*/};               // value > payment
+    if (value <= amount) return {pImpl_->createTx_Self2to1(inputCoins), false /*isFinal*/};  // Coin merge
+    return {pImpl_->createTx_Self2to2(inputCoins, amount), false /*isFinal*/};               // value > payment
   } else {
     throw std::runtime_error("Coin strategy picked more than two coins!");
   }
@@ -426,14 +426,14 @@ TransferResult User::transfer(const std::string& userId, const std::string& dest
     const auto& coin = pImpl_->coins_.at(pickedCoins[0]);
     const auto value = coin.getVal();
     if (value < amount) throw std::runtime_error("Coin strategy picked a single insufficient coin!");
-    if (value == amount) return {pImpl_->createTx_1t1(coin, userId, destPK), true /*isFinal*/};
-    return {pImpl_->createTx_1t2(coin, amount, userId, destPK), true /*isFinal*/};  // value > amount
+    if (value == amount) return {pImpl_->createTx_1to1(coin, userId, destPK), true /*isFinal*/};
+    return {pImpl_->createTx_1to2(coin, amount, userId, destPK), true /*isFinal*/};  // value > amount
   } else if (pickedCoins.size() == 2) {
     std::vector<libutt::api::Coin> inputCoins{pImpl_->coins_.at(pickedCoins[0]), pImpl_->coins_.at(pickedCoins[1])};
     const auto value = inputCoins[0].getVal() + inputCoins[1].getVal();
-    if (value < amount) return {pImpl_->createTx_Self2t1(inputCoins), false /*isFinal*/};  // Coin merge
-    if (value == amount) return {pImpl_->createTx_2t1(inputCoins, userId, destPK), true /*isFinal*/};
-    return {pImpl_->createTx_2t2(inputCoins, amount, userId, destPK), true /*isFinal*/};  // value > amount
+    if (value < amount) return {pImpl_->createTx_Self2to1(inputCoins), false /*isFinal*/};  // Coin merge
+    if (value == amount) return {pImpl_->createTx_2to1(inputCoins, userId, destPK), true /*isFinal*/};
+    return {pImpl_->createTx_2to2(inputCoins, amount, userId, destPK), true /*isFinal*/};  // value > amount
   } else {
     throw std::runtime_error("Coin strategy picked more than two coins!");
   }

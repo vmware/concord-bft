@@ -60,8 +60,8 @@ class Configuration {
  public:
   Configuration();
   /// @brief Constructs a UTT instance configuration
-  /// @param n The number of participants for multiparty signature computation
-  /// @param t The number of participant shares required to reconstruct a signature
+  /// @param n The number of validators for multiparty signature computation
+  /// @param t The number of validator shares required to reconstruct a signature
   Configuration(uint16_t n, uint16_t t);
   ~Configuration();
 
@@ -73,7 +73,7 @@ class Configuration {
 
   bool isValid() const;
 
-  uint16_t getNumParticipants() const;
+  uint16_t getNumValidators() const;
   uint16_t getThreshold() const;
 
   const PublicConfig& getPublicConfig() const;
