@@ -73,9 +73,9 @@ message RegisterUserRequest {
 // [TODO-UTT] Consider if we should include the complete result in the response
 // instead of indicating success and then periodically requesting the registration data
 message RegisterUserResponse {
-    optional string err = 1;                                    // Returns any error generated during registration
-    optional bytes signature = 2;                               // Signature on the user's registration
-    optional bytes system_generated_nullifier_key_part = 3;     // Second part of the user's nullifier key 
+    optional string err = 1;        // Returns any error generated during registration
+    optional bytes signature = 2;   // Signature on the user's registration
+    repeated uint64 s2 = 3;         // Second part of the user's nullifier key 
 }
 
 message GetUserRegistrationRequest {
@@ -86,7 +86,7 @@ message GetUserRegistrationResponse {
     optional string err = 1;
     optional string user_id = 2;    
     optional bytes user_pk = 3;     // User's public key
-    optional bytes s2 = 4;          // System-generated part of the user's PRF key (used for nullifiers)
+    repeated uint64 s2 = 4;          // System-generated part of the user's PRF key (used for nullifiers)
     optional bytes rs = 5;          // A signature on the full registration commitment
 }
 

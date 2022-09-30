@@ -11,87 +11,28 @@
 
 using namespace vmware::concord::utt::wallet::api::v1;
 
-class RemoteWalletService {
- public:
-  using Error = std::optional<std::string>;
+using GrpcWalletService = std::unique_ptr<WalletService::Stub>;
 
-  RemoteWalletService() {
-    std::string grpcServerAddr = "127.0.0.1:49000";
+GrpcWalletService connectToGrpcWalletService() {
+  std::string grpcServerAddr = "127.0.0.1:49000";
 
-    std::cout << "Connecting to gRPC server at " << grpcServerAddr << " ...\n";
+  std::cout << "Connecting to gRPC server at " << grpcServerAddr << " ...\n";
 
-    auto chan = grpc::CreateChannel(grpcServerAddr, grpc::InsecureChannelCredentials());
+  auto chan = grpc::CreateChannel(grpcServerAddr, grpc::InsecureChannelCredentials());
 
-    if (!chan) {
-      throw std::runtime_error("Failed to create gRPC channel.");
-    }
-    auto timeoutSec = std::chrono::seconds(5);
-    if (chan->WaitForConnected(std::chrono::system_clock::now() + timeoutSec)) {
-      std::cout << "Connected.\n";
-    } else {
-      throw std::runtime_error("Failed to connect to gRPC server after " + std::to_string(timeoutSec.count()) +
-                               " seconds.");
-    }
-
-    stub_ = WalletService::NewStub(chan);
-    if (!stub_) {
-      throw std::runtime_error("Failed to create gRPC client stub.");
-    }
+  if (!chan) {
+    throw std::runtime_error("Failed to create gRPC channel.");
+  }
+  auto timeoutSec = std::chrono::seconds(5);
+  if (chan->WaitForConnected(std::chrono::system_clock::now() + timeoutSec)) {
+    std::cout << "Connected.\n";
+  } else {
+    throw std::runtime_error("Failed to connect to gRPC server after " + std::to_string(timeoutSec.count()) +
+                             " seconds.");
   }
 
-  /// @brief Deploys a privacy application
-  /// @param config The configuration of the privacy app
-  /// @return The identifier of the deployed app and an error - either one is set depending on the result of this
-  /// operation
-  std::pair<std::string, Error> deployPrivacyApp(const utt::Configuration& config) {
-    grpc::ClientContext ctx;
-
-    DeployPrivacyAppRequest req;
-    req.set_config(config.data(), config.size());
-
-    DeployPrivacyAppResponse resp;
-    stub_->deployPrivacyApp(&ctx, req, &resp);
-
-    return std::pair<std::string, Error>{resp.app_id(), resp.err()};
-  }
-
-  struct RegisterResponse {
-    utt::RegistrationSig sig_;
-    utt::S2 nullifierKeySystemPart_;
-  };
-
-  std::pair<RegisterResponse, Error> registerUser(const std::string& userId,
-                                             const std::string& pk,
-                                             const utt::UserRegistrationInput& regInput) {
-    grpc::ClientContext ctx;
-
-    RegisterUserRequest req;
-    req.set_user_id(userId);
-    req.set_input_rcm(regInput.data(), regInput.size());
-    req.set_user_pk(pk);
-
-    RegisterUserResponse resp;
-    stub_->registerUser(&ctx, req, &resp);
-
-    auto msgSig = resp.signature();
-    utt::RegistrationSig sig = std::vector<uint8_t>(msgSig.begin(), msgSig.end());
-
-    // std::pair<Registration, Error> ret;
-
-    // if (!resp.err().empty()) {
-    //   ret.second = resp.err();
-    // } else {
-    //   resp.user_id();
-    // }
-
-    // return ret;
-
-    return std::pair<RegisterResponse, Error>{};
-  }
-
- private:
-  std::unique_ptr<WalletService::Stub> stub_;
-};
+  return WalletService::NewStub(chan);
+}
 
 void printHelp() {
   std::cout << "\nCommands:\n";
@@ -123,7 +64,7 @@ class WalletApp {
     std::cout << "Last executed transaction number: " << it->second->getLastExecutedTxNum() << '\n';
   }
 
-  void deployApp(RemoteWalletService& remote) {
+  void deployApp(GrpcWalletService& grpc) {
     if (!deployedAppId_.empty()) {
       std::cout << "Privacy app '" << deployedAppId_ << "' already deployed\n";
       return;
@@ -136,20 +77,26 @@ class WalletApp {
     auto config = utt::client::generateConfig(params);
     if (config.empty()) throw std::runtime_error("Failed to generate a privacy app configuration!");
 
-    // Note that keeping the config around in memory is just for a demo purpose and should not happen
-    auto [appId, err] = remote.deployPrivacyApp(config);
-    if (err) {
-      std::cout << "Failed to deploy privacy app: " << *err << '\n';
+    grpc::ClientContext ctx;
+
+    DeployPrivacyAppRequest req;
+    req.set_config(config.data(), config.size());
+
+    DeployPrivacyAppResponse resp;
+    grpc->deployPrivacyApp(&ctx, req, &resp);
+
+    // Note that keeping the config around in memory is just for a demo purpose and should not happen in real system
+    if (resp.has_err()) {
+      std::cout << "Failed to deploy privacy app: " << resp.err() << '\n';
     } else {
-      deployedAppId_ = std::move(appId);
+      deployedAppId_ = resp.app_id();
       // We need the public config part which can typically be obtained from the service, but we keep it for simplicity
       deployedPublicConfig_ = std::make_unique<utt::PublicConfig>(utt::client::getPublicConfig(config));
       std::cout << "Successfully deployed privacy app with id: " << deployedAppId_ << '\n';
     }
   }
 
-  void registerUser(const std::string& userId, RemoteWalletService& remote) {
-    (void)remote;
+  void registerUser(const std::string& userId, GrpcWalletService& grpc) {
     if (userId.empty()) throw std::runtime_error("Cannot register user with empty user id!");
     if (deployedAppId_.empty()) {
       std::cout << "You must first deploy a privacy app to register a user. Use command 'deploy app'\n";
@@ -164,8 +111,28 @@ class WalletApp {
     auto user = utt::client::createUser(userId, *deployedPublicConfig_, pki_, storage_);
     if (!user) throw std::runtime_error("Failed to create user!");
 
-    auto regInput = user->getRegistrationInput();
-    if (regInput.empty()) throw std::runtime_error("Failed to create user registration input!");
+    auto userRegInput = user->getRegistrationInput();
+    if (userRegInput.empty()) throw std::runtime_error("Failed to create user registration input!");
+
+    grpc::ClientContext ctx;
+
+    RegisterUserRequest req;
+    req.set_user_id(userId);
+    req.set_input_rcm(userRegInput.data(), userRegInput.size());
+    req.set_user_pk(user->getPK());
+
+    RegisterUserResponse resp;
+    grpc->registerUser(&ctx, req, &resp);
+
+    utt::RegistrationSig sig = std::vector<uint8_t>(resp.signature().begin(), resp.signature().begin());
+    utt::S2 s2;
+    for (const auto& val : resp.s2()) {
+      s2.emplace_back(val);
+    }
+    if (!user->updateRegistration(user->getPK(), sig, s2))
+      throw std::runtime_error("Failed to update user's registration!");
+
+    std::cout << "Successfully registered user with id '" << user->getUserId() << "'\n";
 
     users_.emplace(userId, std::move(user));
   }
@@ -234,7 +201,9 @@ int main(int argc, char* argv[]) {
   // budget -- print the currently available anonymity budget (a budget is created in advance for each user)
 
   try {
-    auto remote = RemoteWalletService();
+    auto grpc = connectToGrpcWalletService();
+    if (!grpc) throw std::runtime_error("Failed to create gRPC client stub.");
+
     auto app = WalletApp();
 
     while (true) {
@@ -265,7 +234,7 @@ int main(int argc, char* argv[]) {
           if (cmdTokens.size() != 2) {
             std::cout << "Usage: specify the user id to register.\n";
           } else {
-            app.registerUser(cmdTokens[1], remote);
+            app.registerUser(cmdTokens[1], grpc);
           }
         } else if (cmdTokens[0] == "show") {
           if (cmdTokens.size() != 2) {
