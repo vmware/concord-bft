@@ -707,6 +707,8 @@ module Replica {
     && (forall seqID | seqID in v.workingWindow.commitsRcvd :: v.workingWindow.commitsRcvd[seqID] == EmptyCommitProofSet())
     && v.viewChangeMsgsRecvd.msgs == {}
     && v.newViewMsgsRecvd.msgs == {}
+    && v.countExecutedSeqIDs == 0
+    && v.checkpointMsgsRecvd.msgs == {}
   }
 
   // Jay Normal Form - Dafny syntactic sugar, useful for selecting the next step

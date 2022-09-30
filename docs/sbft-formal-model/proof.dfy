@@ -260,6 +260,16 @@ module Proof {
                         == prepare.payload.operationWrapper)
   }
 
+  predicate RecordedCheckpointsRecvdCameFromNetwork(c:Constants, v:Variables) {
+    && v.WF(c)
+    && (forall replicaIdx, checkpointMsg | 
+              && IsHonestReplica(c, replicaIdx)
+              && var replicaVariables := v.hosts[replicaIdx].replicaVariables;
+              && var replicaConstants := c.hosts[replicaIdx].replicaConstants;
+              && checkpointMsg in replicaVariables.checkpointMsgsRecvd.msgs
+                :: checkpointMsg in v.network.sentMsgs)
+  }
+
   // predicate PrePreparesCarrySameClientOpsForGivenSeqID(c:Constants, v:Variables)
   // {
   //   && v.WF(c)
@@ -299,6 +309,7 @@ module Proof {
     && HonestReplicasLockOnPrepareForGivenView(c, v)
     && HonestReplicasLockOnCommitForGivenView(c, v)
     && CommitMsgsFromHonestSendersAgree(c, v)
+    && RecordedCheckpointsRecvdCameFromNetwork(c, v)
   }
 
   function sentPreparesForSeqID(c: Constants, v:Variables, view:nat, seqID:Messages.SequenceID,
