@@ -26,6 +26,8 @@
 
 namespace utt::client {
 
+bool s_initialized = false;
+
 // Matches the expected data structure by UTTParams::create since the method hides the actual type by using a void*
 struct CommitmentKeys {
   libutt::CommKey cck;
@@ -33,8 +35,6 @@ struct CommitmentKeys {
 };
 
 void Initialize() {
-  static bool s_initialized = false;
-
   if (!s_initialized) {
     // Initialize underlying libraries
     libutt::api::UTTParams::BaseLibsInitData base_libs_init_data;
@@ -45,6 +45,8 @@ void Initialize() {
 }
 
 Configuration generateConfig(const ConfigInputParams& inputParams) {
+  if (!s_initialized) throw std::runtime_error("Privacy Client API not initialized!");
+
   // We derive the size of the validators from the size of the provided input public keys
   if (inputParams.validatorPublicKeys.empty())
     throw std::runtime_error("Generating UTT Instance Config with empty validator public keys!");
@@ -65,6 +67,7 @@ Configuration generateConfig(const ConfigInputParams& inputParams) {
 }
 
 PublicConfig getPublicConfig(const Configuration& config) {
+  if (!s_initialized) throw std::runtime_error("Privacy Client API not initialized!");
   auto temp = libutt::api::deserialize<libutt::api::Configuration>(config);
   return libutt::api::serialize<libutt::api::PublicConfig>(temp.getPublicConfig());
 }
@@ -73,6 +76,7 @@ std::unique_ptr<User> createUser(const std::string& userId,
                                  const PublicConfig& config,
                                  IUserPKInfrastructure& pki,
                                  IUserStorage& storage) {
+  if (!s_initialized) throw std::runtime_error("Privacy Client API not initialized!");
   return User::createInitial(userId, config, pki, storage);
 }
 

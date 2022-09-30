@@ -202,6 +202,8 @@ int main(int argc, char* argv[]) {
     auto grpc = connectToGrpcWalletService();
     if (!grpc) throw std::runtime_error("Failed to create gRPC client stub.");
 
+    utt::client::Initialize();
+
     auto app = WalletApp();
 
     while (true) {
@@ -217,7 +219,7 @@ int main(int argc, char* argv[]) {
       if (cmd == "h") {
         printHelp();
       } else if (cmd == "deploy app") {
-        // Deploy app
+        app.deployApp(grpc);
       } else {
         // Tokenize command
         std::vector<std::string> cmdTokens;
