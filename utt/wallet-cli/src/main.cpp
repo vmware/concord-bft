@@ -125,10 +125,8 @@ class WalletApp {
     grpc->registerUser(&ctx, req, &resp);
 
     utt::RegistrationSig sig = std::vector<uint8_t>(resp.signature().begin(), resp.signature().begin());
-    utt::S2 s2;
-    for (const auto& val : resp.s2()) {
-      s2.emplace_back(val);
-    }
+    utt::S2 s2 = std::vector<uint8_t>(resp.s2().begin(), resp.s2().end());
+
     if (!user->updateRegistration(user->getPK(), sig, s2))
       throw std::runtime_error("Failed to update user's registration!");
 

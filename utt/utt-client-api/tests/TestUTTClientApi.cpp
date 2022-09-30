@@ -203,7 +203,7 @@ struct ServerMock {
     }
 
     RegisterUserResponse resp;
-    resp.s2 = s2;
+    resp.s2 = libutt::api::serializeCurvePoint(s2);
     resp.sig = libutt::api::Utils::aggregateSigShares(n, shareSubset);
     return resp;
   }

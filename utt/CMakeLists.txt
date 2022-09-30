@@ -193,6 +193,7 @@ set(newutt_src
     libutt/src/api/transaction.cpp
     libutt/src/api/budget.cpp
     libutt/src/api/config.cpp
+    libutt/src/api/serialization.cpp
     )
 add_library(utt_api STATIC ${newutt_src})
 target_link_libraries(utt_api PUBLIC utt)

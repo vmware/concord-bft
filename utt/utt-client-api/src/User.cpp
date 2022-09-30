@@ -250,7 +250,7 @@ bool User::updateRegistration(const std::string& pk, const RegistrationSig& rs, 
   if (unblindedSig.empty()) return false;
 
   // [TODO-UTT] What if we already updated a registration? How do we check it?
-  pImpl_->client_->setRCMSig(pImpl_->params_, s2, unblindedSig);
+  pImpl_->client_->setRCMSig(pImpl_->params_, libutt::api::deserializeCurvePoint(s2), unblindedSig);
 
   return true;
 }

@@ -30,6 +30,14 @@ int main(int argc, char* argv[]) {
     testing::registerClient(d, c, registrators, thresh);
   }
 
+  // Test curve point
+  {
+    auto curvePoint = Fr::random_element().to_words();
+    auto serialized_curvePoint = libutt::api::serializeCurvePoint(curvePoint);
+    auto deserialized_curvePoint = libutt::api::deserializeCurvePoint(serialized_curvePoint);
+    assertTrue(deserialized_curvePoint == curvePoint);
+  }
+
   // Test UTTParams de/serialization
   std::vector<uint8_t> serialized_params = libutt::api::serialize<libutt::api::UTTParams>(d);
   auto deserialized_params = libutt::api::deserialize<libutt::api::UTTParams>(serialized_params);

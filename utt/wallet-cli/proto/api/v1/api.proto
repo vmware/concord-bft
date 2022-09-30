@@ -75,7 +75,7 @@ message RegisterUserRequest {
 message RegisterUserResponse {
     optional string err = 1;        // Returns any error generated during registration
     optional bytes signature = 2;   // Signature on the user's registration
-    repeated uint64 s2 = 3;         // Second part of the user's nullifier key 
+    optional bytes s2 = 3;          // Second part of the user's nullifier key 
 }
 
 message GetUserRegistrationRequest {
@@ -86,7 +86,7 @@ message GetUserRegistrationResponse {
     optional string err = 1;
     optional string user_id = 2;    
     optional bytes user_pk = 3;     // User's public key
-    repeated uint64 s2 = 4;          // System-generated part of the user's PRF key (used for nullifiers)
+    optional bytes s2 = 4;          // System-generated part of the user's PRF key (used for nullifiers)
     optional bytes rs = 5;          // A signature on the full registration commitment
 }
 
@@ -184,5 +184,5 @@ message GetTransactionSigRequest {
 
 message GetTransactionSigResponse {
     optional uint64 tx_number = 1;
-    repeated bytes signatures = 2;
+    optional bytes signatures = 2;
 }
