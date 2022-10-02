@@ -17,14 +17,14 @@ using BLS::Relic::Library;
 
 int AppMain(const std::vector<std::string>& args) {
   // Must call this outside TRY {} block
-  std::unique_ptr<Library> lib(Library::GetPtr());
+  static const Library& lib(Library::Get());
 
   TRY {
     LOG_DEBUG(THRESHSIGN_LOG, "RELIC Type 1 paring: " << pc_map_is_type1());
     LOG_DEBUG(THRESHSIGN_LOG, "RELIC Type 3 paring: " << pc_map_is_type3());
     LOG_DEBUG(THRESHSIGN_LOG, "Launching RelicAppMain()...");
 
-    return RelicAppMain(*lib, args);
+    return RelicAppMain(lib, args);
   }
   CATCH_ANY {
     LOG_ERROR(THRESHSIGN_LOG, "RELIC threw an exception");
