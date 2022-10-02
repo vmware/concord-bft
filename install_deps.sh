@@ -149,26 +149,6 @@ install_googletest() {
 
 }
 
-# Here we compile cryptopp and cryptoopp-pem in a single library libcryptopp
-# cryptopp-pem provides PEM parsing for Wei Dai's Crypto++ (cryptopp).
-install_cryptopp() {
-    cd ${HOME}
-    wget ${WGET_FLAGS} \
-        https://github.com/weidai11/cryptopp/archive/CRYPTOPP_8_2_0.tar.gz && \
-        tar -xzf CRYPTOPP_8_2_0.tar.gz && \
-        rm CRYPTOPP_8_2_0.tar.gz && \
-        git clone https://github.com/noloader/cryptopp-pem.git && \
-        cd cryptopp-pem && \
-        git checkout CRYPTOPP_8_2_0 && \
-        cp *.h *.cpp ${HOME}/cryptopp-CRYPTOPP_8_2_0 && \
-        cd ${HOME}/cryptopp-CRYPTOPP_8_2_0 && \
-        rm -r ${HOME}/cryptopp-pem && \
-        CXX_FLAGS="-march=x86-64 -mtune=generic" make -j$(nproc) && \
-        make install && \
-        rm -r ${HOME}/cryptopp-CRYPTOPP_8_2_0
-
-}
-
 install_gmp_lib() {
     cd ${HOME}
     wget ${WGET_FLAGS} https://gmplib.org/download/gmp/gmp-6.1.2.tar.lz && \
@@ -465,7 +445,6 @@ install_cmake
 install_HdrHistogram_lib
 install_log4cpp_lib
 install_googletest
-install_cryptopp
 install_gmp_lib
 install_relic_toolkit
 install_rocksdb_lib

@@ -35,13 +35,9 @@
 #include "bftengine/ReplicaSpecificInfoManager.hpp"
 #include "kvbc_adapter/replica_adapter.hpp"
 #include "bftengine/DbCheckpointMetadata.hpp"
+#include "hex_tools.h"
 
 #include <unordered_map>
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
-#include <cryptopp/dll.h>
-#pragma GCC diagnostic pop
 
 namespace concord::kvbc::tools::db_editor {
 
@@ -267,7 +263,6 @@ struct GetBlockRequests {
   }
 
   std::string execute(const concord::kvbc::adapter::ReplicaBlockchain &adapter, const CommandArguments &args) const {
-    using namespace CryptoPP;
     if (args.values.empty()) {
       throw std::invalid_argument{"Missing BLOCK-ID argument"};
     }
@@ -289,12 +284,7 @@ struct GetBlockRequests {
     out << "{\n";
     out << "\"requests\": [\n";
     for (const auto &req : record.requests) {
-      HexEncoder encoder;
-      std::string hex_digest;
-      encoder.Attach(new StringSink(hex_digest));
-      encoder.Put(reinterpret_cast<const CryptoPP::byte *>(req.signature.c_str()), req.signature.size());
-      encoder.MessageEnd();
-
+      auto hex_digest = concordUtils::bufferToHex(req.signature.c_str(), req.signature.size());
       out << "\t{\n";
       out << "\t\t\"client_id\": " << req.clientId << ",\n";
       out << "\t\t\"cid\": \"" << req.cid << "\",\n";
@@ -316,7 +306,6 @@ struct VerifyBlockRequests {
   }
 
   std::string execute(const concord::kvbc::adapter::ReplicaBlockchain &adapter, const CommandArguments &args) const {
-    using namespace CryptoPP;
     if (args.values.empty()) {
       throw std::invalid_argument{"Missing BLOCK-ID argument"};
     }
@@ -355,11 +344,7 @@ struct VerifyBlockRequests {
     out << "{\n";
     out << "\"requests\": [\n";
     for (const auto &req : record.requests) {
-      HexEncoder encoder;
-      std::string hex_digest;
-      encoder.Attach(new StringSink(hex_digest));
-      encoder.Put(reinterpret_cast<const CryptoPP::byte *>(req.signature.c_str()), req.signature.size());
-      encoder.MessageEnd();
+      auto hex_digest = concordUtils::bufferToHex(req.signature.c_str(), req.signature.size());
       out << "\t{\n";
       out << "\t\t\"client_id\": " << req.clientId << ",\n";
       out << "\t\t\"cid\": \"" << req.cid << "\",\n";

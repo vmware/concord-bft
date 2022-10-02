@@ -18,15 +18,7 @@
 #include <iostream>
 #include <ctime>
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
-#include <cryptopp/dll.h>
-#include <cryptopp/rsa.h>
-#include <cryptopp/osrng.h>
-#include <cryptopp/base64.h>
-#include <cryptopp/files.h>
 #include "gtest/gtest.h"
-#pragma GCC diagnostic pop
 
 #include "bftengine/ClientMsgs.hpp"
 #include "bftclient/bft_client.h"
@@ -45,7 +37,6 @@ using namespace placeholders;
 using namespace concord::secretsmanager;
 using concord::crypto::KeyFormat;
 using concord::crypto::Factory;
-using namespace CryptoPP;
 using bftEngine::ReplicaConfig;
 
 using ReplicaId_t = bft::client::ReplicaId;

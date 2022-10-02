@@ -14,12 +14,6 @@
 
 #ifdef USE_RELIC
 #include "bls/relic/BlsThresholdScheme.h"
-
-// RELIC has a #define PRIME which conflicts with CryptoPP's Integer::PRIME, so we #undef PRIME here
-// before including the Shoup code.
-#undef PRIME
-// ...also RELIC has a #define HASH that conflicts as well
-#undef HASH
 #endif
 
 #ifdef USE_EDDSA_OPENSSL
