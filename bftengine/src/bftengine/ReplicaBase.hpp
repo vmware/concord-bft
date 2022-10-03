@@ -52,7 +52,7 @@ class ReplicaBase {
 
   std::shared_ptr<MsgsCommunicator> getMsgsCommunicator() const { return msgsCommunicator_; }
   std::shared_ptr<MsgHandlersRegistrator> getMsgHandlersRegistrator() const { return msgHandlers_; }
-
+  concordUtil::Timers* getTimers() { return &timers_; }
   void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
     if (aggregator) {
       aggregator_ = aggregator;

@@ -69,6 +69,12 @@ class ReplicaInternal : public IReplica {
 
   std::shared_ptr<IInternalBFTClient> internalClient() const override { return internal_client_; }
 
+  std::shared_ptr<MsgsCommunicator> getMsgsCommunicator() const override { return replica_->getMsgsCommunicator(); }
+  std::shared_ptr<MsgHandlersRegistrator> getMsgHandlersRegistrator() const override {
+    return replica_->getMsgHandlersRegistrator();
+  }
+  concordUtil::Timers *getTimers() override { return replica_->getTimers(); }
+
  private:
   std::unique_ptr<ReplicaBase> replica_;
   std::condition_variable debugWait_;
