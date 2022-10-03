@@ -94,9 +94,10 @@ std::pair<Commitment, types::Signature> Client::rerandomizeRcm(const UTTParams& 
   auto tmp = libutt::serialize<libutt::RandSig>(sig_obj);
   return {rcm_copy, types::Signature(tmp.begin(), tmp.end())};
 }
+
 template <>
-std::vector<libutt::api::Coin> Client::claimCoins<operations::Mint>(
-    const operations::Mint& mint, const UTTParams& d, const std::vector<types::Signature>& blindedSigs) const {
+std::vector<libutt::api::Coin> Client::claimCoins<libutt::MintOp>(
+    const libutt::MintOp& mint, const UTTParams& d, const std::vector<types::Signature>& blindedSigs) const {
   if (blindedSigs.size() != 1) throw std::runtime_error("Mint suppose to contain a single coin only");
   Fr r_pid = Fr::zero(), r_sn = Fr::zero(), r_val = Fr::zero(), r_type = Fr::zero(), r_expdate = Fr::zero();
   std::vector<types::CurvePoint> r = {
@@ -104,14 +105,20 @@ std::vector<libutt::api::Coin> Client::claimCoins<operations::Mint>(
   auto sig = Utils::unblindSignature(d, Commitment::Type::COIN, r, blindedSigs.front());
   libutt::api::Coin c(d,
                       getPRFSecretKey(),
-                      mint.op_->getSN().to_words(),
-                      mint.op_->getVal().to_words(),
+                      mint.getSN().to_words(),
+                      mint.getVal().to_words(),
                       getPidHash(),
                       Coin::Type::Normal,
                       libutt::Coin::DoesNotExpire().to_words());
   c.setSig(sig);
   c.rerandomize(std::nullopt);
   return {c};
+}
+
+template <>
+std::vector<libutt::api::Coin> Client::claimCoins<operations::Mint>(
+    const operations::Mint& mint, const UTTParams& d, const std::vector<types::Signature>& blindedSigs) const {
+  return {mint.claimCoin(*this, d, blindedSigs.front())};
 }
 
 template <>

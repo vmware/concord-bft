@@ -63,8 +63,8 @@ class MintOp {
 
   std::string getHashHex() const;
 
-  Fr getSN() { return sn; }
-  Fr getVal() { return value; }
+  Fr getSN() const { return sn; }
+  Fr getVal() const { return value; }
   bool operator==(const MintOp& o) const { return ((sn == o.sn) && (pidHash == o.pidHash) && (value == o.value)); }
   bool operator!=(const MintOp& o) const { return !operator==(o); }
 };

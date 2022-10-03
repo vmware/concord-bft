@@ -35,11 +35,17 @@ CoinsSigner::CoinsSigner(uint16_t id,
 
 uint16_t CoinsSigner::getId() const { return bid_; }
 template <>
-std::vector<types::Signature> CoinsSigner::sign<operations::Mint>(const operations::Mint& mint) const {
-  auto res = mint.op_->shareSignCoin(*bsk_);
+std::vector<types::Signature> CoinsSigner::sign<libutt::MintOp>(const libutt::MintOp& mint) const {
+  auto res = mint.shareSignCoin(*bsk_);
   auto res_str = libutt::serialize<libutt::RandSigShare>(res);
   return {types::Signature(res_str.begin(), res_str.end())};
 }
+
+template <>
+std::vector<types::Signature> CoinsSigner::sign<operations::Mint>(const operations::Mint& mint) const {
+  return {mint.shareSign(*this)};
+}
+
 template <>
 std::vector<types::Signature> CoinsSigner::sign<operations::Transaction>(const operations::Transaction& tx) const {
   std::vector<types::Signature> sigs;
@@ -92,12 +98,20 @@ bool CoinsSigner::validate<operations::Transaction>(const UTTParams& p, const op
 }
 
 template <>
+bool CoinsSigner::validatePartialSignature<libutt::MintOp>(uint16_t id,
+                                                           const types::Signature& sig,
+                                                           uint64_t,
+                                                           const libutt::MintOp& mint) const {
+  libutt::RandSigShare rsig = libutt::deserialize<libutt::RandSigShare>(sig);
+  return mint.verifySigShare(rsig, *(shares_verification_keys_.at(id)));
+}
+
+template <>
 bool CoinsSigner::validatePartialSignature<operations::Mint>(uint16_t id,
                                                              const types::Signature& sig,
                                                              uint64_t,
                                                              const operations::Mint& mint) const {
-  libutt::RandSigShare rsig = libutt::deserialize<libutt::RandSigShare>(sig);
-  return mint.op_->verifySigShare(rsig, *(shares_verification_keys_.at(id)));
+  return mint.validatePartialSig(*this, id, sig);
 }
 
 template <>

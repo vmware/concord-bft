@@ -17,19 +17,14 @@
 #include <vector>
 #include "coin.hpp"
 #include "UTTParams.hpp"
+#include "coinsSigner.hpp"
+#include "client.hpp"
 
 namespace libutt::api::operations {
 class Mint;
 }
 std::ostream& operator<<(std::ostream& out, const libutt::api::operations::Mint& mint);
 std::istream& operator>>(std::istream& in, libutt::api::operations::Mint& mint);
-namespace libutt {
-class MintOp;
-}
-namespace libutt::api {
-class CoinsSigner;
-class Client;
-}  // namespace libutt::api
 namespace libutt::api::operations {
 
 class Mint {
@@ -54,12 +49,14 @@ class Mint {
   std::string getHash() const;
   uint64_t getVal() const;
   std::string getRecipentID() const;
+  bool validatePartialSig(const CoinsSigner& cs, uint16_t signer_id, const types::Signature& sig) const;
+  types::Signature shareSign(const CoinsSigner& cs) const;
+  libutt::api::Coin claimCoin(const Client& c, const UTTParams& d, const types::Signature& blindedSig) const;
 
  private:
-  friend class libutt::api::CoinsSigner;
-  friend class libutt::api::Client;
   friend std::ostream& ::operator<<(std::ostream& out, const libutt::api::operations::Mint& mint);
   friend std::istream& ::operator>>(std::istream& in, libutt::api::operations::Mint& mint);
-  std::unique_ptr<libutt::MintOp> op_;
+  struct Impl;
+  std::shared_ptr<Impl> impl_;
 };
 }  // namespace libutt::api::operations
