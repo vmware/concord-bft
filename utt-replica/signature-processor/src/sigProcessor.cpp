@@ -17,6 +17,7 @@
 #include "bftengine/ReplicaConfig.hpp"
 #include "bftengine/messages/MessageBase.hpp"
 #include "bftengine/messages/ClientRequestMsg.hpp"
+#include "bftengine/Replica.hpp"
 #include <algorithm>
 
 namespace utt {
@@ -190,14 +191,13 @@ void SigProcessor::publishCompleteSignature(uint64_t sig_id,
   auto requestSeqNum =
       std::chrono::duration_cast<std::chrono::microseconds>(getMonotonicTime().time_since_epoch()).count();
   std::vector<uint8_t> appClientReq = cb(sig_id, sig);
-  std::unique_ptr<MessageBase> cmsg =
-      std::make_unique<bftEngine::impl::ClientRequestMsg>(repId_,
-                                                          0x0,
-                                                          requestSeqNum,
-                                                          (uint32_t)appClientReq.size(),
-                                                          (const char*)appClientReq.data(),
-                                                          60000,
-                                                          "new-utt-sig-" + std::to_string(sig_id));
+  auto crm = std::make_unique<bftEngine::impl::ClientRequestMsg>(repId_,
+                                                   bftEngine::MsgFlag::INTERNAL_FLAG,
+                                                   requestSeqNum,
+                                                   (uint32_t)appClientReq.size(),
+                                                   (const char*)appClientReq.data(),
+                                                   60000,
+                                                   "new-utt-sig-" + std::to_string(sig_id));
   msgs_communicator_->getIncomingMsgsStorage()->pushExternalMsg(std::move(cmsg));
 }
 // Called by the validating thread

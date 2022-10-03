@@ -119,7 +119,8 @@ void ClientRequestMsg::validateImp(const ReplicasInfo& repInfo) const {
   }
 
   PrincipalId clientId = header->idOfClientProxy;
-  if ((header->flags & RECONFIG_FLAG) == 0) ConcordAssert(this->senderId() != repInfo.myId());
+  if ((header->flags & RECONFIG_FLAG) == 0 || (header->flags & INTERNAL_FLAG) == 0)
+    ConcordAssert(this->senderId() != repInfo.myId());
 
   /// to do - should it be just the header?
   auto minMsgSize = sizeof(ClientRequestMsgHeader) + header->cidLength + spanContextSize() + header->reqSignatureLength;
