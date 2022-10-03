@@ -61,12 +61,21 @@ class Burn {
    */
   const Coin& getCoin() const;
 
- public:
-  friend class libutt::api::CoinsSigner;
-  friend class libutt::api::Client;
+  /**
+   * @brief Validates the burned coin.
+   *
+   * @param p The shared global UTT parameters
+   * @param cs A coin signer
+   * @return true
+   * @return false
+   */
+  bool validate(const UTTParams& p, const libutt::api::CoinsSigner& cs) const;
+
+ private:
   friend std::ostream& ::operator<<(std::ostream& out, const libutt::api::operations::Burn& burn);
   friend std::istream& ::operator>>(std::istream& in, libutt::api::operations::Burn& burn);
-  std::unique_ptr<libutt::BurnOp> burn_{nullptr};
+  struct Impl;
+  std::shared_ptr<Impl> impl_{nullptr};
   Coin c_;
 };
 }  // namespace libutt::api::operations

@@ -78,8 +78,13 @@ std::vector<types::Signature> CoinsSigner::sign<operations::Budget>(const operat
 }
 
 template <>
+bool CoinsSigner::validate<libutt::BurnOp>(const UTTParams& p, const libutt::BurnOp& burn) const {
+  return burn.validate(p.getParams(), *(bvk_), *(rvk_));
+}
+
+template <>
 bool CoinsSigner::validate<operations::Burn>(const UTTParams& p, const operations::Burn& burn) const {
-  return burn.burn_->validate(p.getParams(), *(bvk_), *(rvk_));
+  return burn.validate(p, *this);
 }
 template <>
 bool CoinsSigner::validate<operations::Transaction>(const UTTParams& p, const operations::Transaction& tx) const {
