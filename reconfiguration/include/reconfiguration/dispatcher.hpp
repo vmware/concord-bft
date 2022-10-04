@@ -81,7 +81,6 @@ class Dispatcher {
   concordMetrics::Component component_;
   concordMetrics::CounterHandle executions_;
   concordMetrics::CounterHandle failures_;
-  concordMetrics::CounterHandle auth_failures_;
 };
 
 }  // namespace concord::reconfiguration

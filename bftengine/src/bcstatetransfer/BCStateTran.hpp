@@ -635,7 +635,6 @@ class BCStateTran : public IStateTransfer {
     CounterHandle irrelevant_item_data_msg_;
 
     AtomicCounterHandle create_checkpoint_;
-    CounterHandle mark_checkpoint_as_stable_;
     AtomicCounterHandle load_reserved_page_;
     AtomicCounterHandle load_reserved_page_from_pending_;
     AtomicCounterHandle load_reserved_page_from_checkpoint_;

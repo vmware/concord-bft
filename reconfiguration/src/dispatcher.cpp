@@ -103,8 +103,7 @@ Dispatcher::Dispatcher()
     : aggregator_{std::make_shared<concordMetrics::Aggregator>()},
       component_{"reconfiguration_dispatcher", aggregator_},
       executions_{component_.RegisterCounter("executions")},
-      failures_{component_.RegisterCounter("failures")},
-      auth_failures_{component_.RegisterCounter("auth_failures")} {
+      failures_{component_.RegisterCounter("failures")} {
   component_.Register();
   component_.UpdateAggregator();
 }
