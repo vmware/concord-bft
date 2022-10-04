@@ -24,19 +24,18 @@ namespace libutt {
 class Coin;
 namespace api {
 class Coin;
-}
+namespace operations {
+class Burn;
+class Transaction;
+class Budget;
+}  // namespace operations
+}  // namespace api
 }  // namespace libutt
 
 std::ostream& operator<<(std::ostream& out, const libutt::api::Coin& coin);
 std::istream& operator>>(std::istream& in, libutt::api::Coin& coin);
 namespace libutt::api {
 class Client;
-namespace operations {
-class Burn;
-class Mint;
-class Transaction;
-class Budget;
-}  // namespace operations
 class Coin {
   /**
    * @brief Represent a UTT coin. A coin can be either a normal value coin or a budget coin. A budget coin is a coin
@@ -168,14 +167,17 @@ class Coin {
    */
   types::CurvePoint getExpDateAsCurvePoint() const;
 
+  bool validate(const libutt::api::Client& c) const;
+
  private:
-  friend class Client;
   friend class operations::Burn;
-  friend class operations::Transaction;
   friend class operations::Budget;
+  friend class operations::Transaction;
+  void* getInternals() const;
   friend std::ostream& ::operator<<(std::ostream&, const libutt::api::Coin&);
   friend std::istream& ::operator>>(std::istream&, libutt::api::Coin&);
-  std::unique_ptr<libutt::Coin> coin_;
+  struct Impl;
+  std::shared_ptr<Impl> impl_;
   bool has_sig_{false};
 
   Type type_;

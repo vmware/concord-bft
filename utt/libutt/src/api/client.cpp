@@ -161,8 +161,13 @@ std::vector<libutt::api::Coin> Client::claimCoins<operations::Transaction>(
 }
 
 template <>
+bool Client::validate<libutt::Coin>(const libutt::Coin& c) const {
+  return c.hasValidSig(*bpk_);
+}
+
+template <>
 bool Client::validate<Coin>(const Coin& c) const {
-  return c.coin_->hasValidSig(*bpk_);
+  return c.validate(*this);
 }
 
 }  // namespace libutt::api

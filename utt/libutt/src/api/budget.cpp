@@ -44,6 +44,6 @@ Budget::Budget(const UTTParams& d,
 libutt::api::Coin& Budget::getCoin() { return coin_; }
 const libutt::api::Coin& Budget::getCoin() const { return coin_; }
 std::string Budget::getHashHex() const {
-  return hashToHex(("Budget|" + libutt::serialize<libutt::Coin>((*coin_.coin_))));
+  return hashToHex("Budget|" + libutt::serialize<libutt::Coin>(*((libutt::Coin*)(coin_.getInternals()))));
 }
 }  // namespace libutt::api::operations

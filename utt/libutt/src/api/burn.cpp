@@ -35,17 +35,26 @@ Burn::Burn(const UTTParams& d, const Client& cid, const Coin& coin) : c_{coin} {
   const auto rcm_str_sig = std::string(rcm.second.begin(), rcm.second.end());
   const auto rcm_sig = libutt::deserialize<libutt::RandSig>(rcm_str_sig);
   auto& rpk = *(cid.rpk_);
-  impl_.reset(new Burn::Impl(
-      d.getParams(), fr_pidhash, cid.getPid(), *(rcm.first.comm_), rcm_sig, prf, *(coin.coin_), *(cid.bpk_), rpk));
+  impl_.reset(new Burn::Impl(d.getParams(),
+                             fr_pidhash,
+                             cid.getPid(),
+                             *(rcm.first.comm_),
+                             rcm_sig,
+                             prf,
+                             *((libutt::Coin*)(coin.getInternals())),
+                             *(cid.bpk_),
+                             rpk));
 }
 Burn::Burn() { impl_.reset(new Burn::Impl()); }
 Burn::Burn(const Burn& other) {
   impl_.reset(new Burn::Impl());
   impl_->burn_op_ = other.impl_->burn_op_;
+  c_ = other.c_;
 }
 Burn& Burn::operator=(const Burn& other) {
   if (&other == this) return *this;
   impl_->burn_op_ = other.impl_->burn_op_;
+  c_ = other.c_;
   return *this;
 }
 std::string Burn::getNullifier() const { return impl_->burn_op_.getNullifier(); }
