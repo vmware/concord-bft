@@ -1,4 +1,9 @@
+cmake_minimum_required(VERSION 3.5)
+set(CMAKE_CXX_STANDARD 17)
+
 find_package(GRPC REQUIRED)
+find_package(absl CONFIG REQUIRED)
+find_package(Protobuf CONFIG REQUIRED)
 find_package(Boost ${MIN_BOOST_VERSION} COMPONENTS program_options REQUIRED)
 find_package(jaegertracing REQUIRED)
 
@@ -13,6 +18,7 @@ target_link_libraries(clientservice-lib PUBLIC
   concordclient
   gRPC::grpc++
   gRPC::grpc++_reflection
+  protobuf::libprotobuf
   logging
   yaml-cpp
   secret_retriever

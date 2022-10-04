@@ -76,9 +76,9 @@ install_third_party_libraries() {
         pytest \
         pycryptodome \
         ecdsa \
-        protobuf==3.15.8 \
-        grpcio==1.37.1 \
-        grpcio-tools==1.37.1
+        protobuf==3.21.5 \
+        grpcio==1.48.0 \
+        grpcio-tools==1.48.0
 }
 
 
@@ -300,36 +300,20 @@ install_openssl() {
 # https://github.com/grpc/grpc/blob/master/test/distrib/cpp/run_distrib_test_cmake.sh
 install_grpc() {
     cd ${HOME}
-    git clone -b v1.37.1 --depth 1 --recurse-submodules https://github.com/grpc/grpc && \
-        cd grpc && \
-        mkdir -p ${HOME}/grpc/third_party/abseil-cpp/cmake/build && \
-        cd ${HOME}/grpc/third_party/abseil-cpp/cmake/build && \
-        cmake -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_POSITION_INDEPENDENT_CODE=TRUE \
-            -DCMAKE_INSTALL_PREFIX=/usr/local \
-            ../.. && \
-        make -j$(nproc) install && \
-        mkdir -p ${HOME}/grpc/third_party/protobuf/cmake/build && \
-        cd ${HOME}/grpc/third_party/protobuf/cmake/build && \
-        cmake -DBUILD_SHARED_LIBS=ON \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=/usr/local \
-            .. && \
-        make -j$(nproc) install && \
-        mkdir -p ${HOME}/grpc/cmake/build && \
-        cd ${HOME}/grpc/cmake/build && \
-        cmake -DgRPC_INSTALL=ON \
-            -DgRPC_ABSL_PROVIDER=package \
-            -DgRPC_PROTOBUF_PROVIDER=package \
-            -DgRPC_SSL_PROVIDER=package \
-            -DBUILD_SHARED_LIBS=ON \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=/usr/local \
-            ../.. && \
-        make -j$(nproc) install &&
-        cd ${HOME} && \
-        rm -r ${HOME}/grpc
-
+    git clone -b v1.48.x --depth 1 --recurse-submodules https://github.com/grpc/grpc && \
+    mkdir -p ${HOME}/grpc/cmake/build && \
+    cd ${HOME}/grpc/cmake/build && \
+    cmake -DCMAKE_CXX_STANDARD=17 \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DBUILD_SHARED_LIBS=ON \
+          -DgRPC_INSTALL=ON \
+          -DgRPC_BUILD_TESTS=OFF \
+          -DgRPC_SSL_PROVIDER=package \
+          -DCMAKE_INSTALL_PREFIX=/opt/grpc \
+          ../.. && \
+    make -j$(nproc) install && \
+    cd ${HOME} && \
+    rm -r ${HOME}/grpc
 }
 
 install_prometheus() {
