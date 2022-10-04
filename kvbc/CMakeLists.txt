@@ -27,7 +27,7 @@ add_library(kvbc  src/ClientImp.cpp
     src/sparse_merkle/tree.cpp
     src/sparse_merkle/update_cache.cpp
     src/sparse_merkle/walker.cpp
-    
+
     src/reconfiguration_kvbc_handler.cpp
     src/resources-manager/ReplicaResources.cpp
     src/resources-manager/AdaptivePruningManager.cpp
@@ -54,7 +54,7 @@ if (BUILD_ROCKSDB_STORAGE)
                                 src/categorization/blockchain.cpp
                                 src/categorization/block_merkle_category.cpp
                                 src/migrations/block_merkle_latest_ver_cf_migration.cpp
-                                
+
                                 src/v4blockchain/v4_blockchain.cpp
                                 src/v4blockchain/detail/latest_keys.cpp
                                 src/v4blockchain/detail/categories.cpp
@@ -88,3 +88,7 @@ find_package(CMFC REQUIRED)
 add_subdirectory(cmf)
 
 set_property(GLOBAL PROPERTY KVBC_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+if (CONCORD_ENABLE_ALL_METRICS)
+    target_compile_definitions(kvbc PUBLIC "ENABLE_ALL_METRICS")
+endif()

@@ -135,3 +135,7 @@ if(BUILD_SLOWDOWN)
     target_compile_definitions(bftclient PUBLIC USE_SLOWDOWN)
     target_compile_definitions(corebft PUBLIC USE_SLOWDOWN)
 endif()
+
+if (CONCORD_ENABLE_ALL_METRICS)
+    target_compile_definitions(corebft PUBLIC "ENABLE_ALL_METRICS")
+endif()

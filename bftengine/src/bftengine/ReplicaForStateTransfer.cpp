@@ -38,7 +38,9 @@ ReplicaForStateTransfer::ReplicaForStateTransfer(const ReplicaConfig &config,
     : ReplicaBase(config, requestsHandler, msgComm, msgHandlerReg, timers),
       stateTransfer{(stateTransfer != nullptr ? stateTransfer : new NullStateTransfer())},
       metric_received_state_transfers_{metrics_.RegisterCounter("receivedStateTransferMsgs")},
+#ifdef ENABLE_ALL_METRICS
       metric_state_transfer_timer_{metrics_.RegisterGauge("replicaForStateTransferTimer", 0)},
+#endif
       firstTime_(firstTime) {
   bftEngine::ControlStateManager::instance().setRemoveMetadataFunc([&](bool include_st) {
     if (include_st) this->stateTransfer->setEraseMetadataFlag();
@@ -62,7 +64,9 @@ ReplicaForStateTransfer::ReplicaForStateTransfer(const ReplicaConfig &config,
   const std::chrono::milliseconds defaultTimeout = 5s;
   stateTranTimer_ = timers_.add(
       defaultTimeout, Timers::Timer::RECURRING, [stateTransfer](Timers::Handle h) { stateTransfer->onTimer(); });
+#ifdef ENABLE_ALL_METRICS
   metric_state_transfer_timer_.Get().Set(defaultTimeout.count());
+#endif
 }
 
 void ReplicaForStateTransfer::start() {
@@ -151,7 +155,9 @@ void ReplicaForStateTransfer::changeStateTransferTimerPeriod(uint32_t timerPerio
   // processing thread
   LOG_INFO(GL, "Changing stateTranTimer_ timeout to " << KVLOG(timerPeriodMilli));
   timers_.reset(stateTranTimer_, std::chrono::milliseconds(timerPeriodMilli));
+#ifdef ENABLE_ALL_METRICS
   metric_state_transfer_timer_.Get().Set(timerPeriodMilli);
+#endif
 }
 
 Timers::Handle ReplicaForStateTransfer::addOneShotTimer(uint32_t timeoutMilli) {

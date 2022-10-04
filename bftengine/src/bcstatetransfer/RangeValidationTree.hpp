@@ -381,6 +381,7 @@ class RangeValidationTree {
 
  protected:
   concordMetrics::Component metrics_component_;
+#ifdef ENABLE_ALL_METRICS
   struct Metrics {
     GaugeHandle rvt_size_in_bytes_;
     GaugeHandle total_rvt_nodes_;
@@ -391,6 +392,7 @@ class RangeValidationTree {
     CounterHandle rvt_validation_failures_;
   };
   mutable Metrics metrics_;
+#endif
 };
 
 using LogPrintVerbosity = RangeValidationTree::LogPrintVerbosity;

@@ -169,6 +169,7 @@ class RVBManager {
   RvbDataInitialSource rvb_data_source_;
 
   concordMetrics::Component metrics_component_;
+#ifdef ENABLE_ALL_METRICS
   struct Metrics {
     concordMetrics::CounterHandle pruning_reports_;
     concordMetrics::CounterHandle failures_while_setting_serialized_rvt_;
@@ -177,7 +178,7 @@ class RVBManager {
     concordMetrics::GaugeHandle stored_rvb_digests_size_in_bytes_;
   };
   mutable Metrics metrics_;
-
+#endif
  protected:
   const Digest getBlockAndComputeDigest(uint64_t block_id) const;
   void computeDigestOfBlock(const uint64_t block_id,
