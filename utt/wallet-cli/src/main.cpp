@@ -4,6 +4,7 @@
 #include "api.grpc.pb.h"  // Generated from utt/wallet/proto/api
 
 #include "utt-client-api/ClientApi.hpp"
+#include "utt-client-api/TestKeys.hpp"
 
 #include <map>
 #include <string>
@@ -49,7 +50,7 @@ void printHelp() {
   // budget -- print the currently available anonymity budget (a budget is created in advance for each user)
 }
 
-class WalletApp {
+class Wallet {
  public:
   void showUser(const std::string& userId) {
     auto it = users_.find(userId);
@@ -73,7 +74,7 @@ class WalletApp {
     // Generate a privacy config for a N=4 replica system tolerating F=1 failures
     utt::client::ConfigInputParams params;
     params.validatorPublicKeys = std::vector<std::string>{4, "placeholderPublicKey"};  // N = 3 * F + 1
-    params.threshold = 2;                                                                 // F + 1
+    params.threshold = 2;                                                              // F + 1
     auto config = utt::client::generateConfig(params);
     if (config.empty()) throw std::runtime_error("Failed to generate a privacy app configuration!");
 
@@ -88,6 +89,8 @@ class WalletApp {
     // Note that keeping the config around in memory is just for a demo purpose and should not happen in real system
     if (resp.has_err()) {
       std::cout << "Failed to deploy privacy app: " << resp.err() << '\n';
+    } else if (resp.app_id().empty()) {
+      std::cout << "Failed to deploy privacy app: empty app id!\n";
     } else {
       deployedAppId_ = resp.app_id();
       // We need the public config part which can typically be obtained from the service, but we keep it for simplicity
@@ -124,23 +127,33 @@ class WalletApp {
     RegisterUserResponse resp;
     grpc->registerUser(&ctx, req, &resp);
 
-    utt::RegistrationSig sig = std::vector<uint8_t>(resp.signature().begin(), resp.signature().begin());
-    utt::S2 s2 = std::vector<uint8_t>(resp.s2().begin(), resp.s2().end());
+    if (resp.has_err()) {
+      std::cout << "Failed to register user: " << resp.err() << '\n';
+    } else {
+      utt::RegistrationSig sig = std::vector<uint8_t>(resp.signature().begin(), resp.signature().end());
+      std::cout << "Got sig for registration with size: " << sig.size() << '\n';
 
-    if (!user->updateRegistration(user->getPK(), sig, s2))
-      throw std::runtime_error("Failed to update user's registration!");
+      utt::S2 s2 = std::vector<uint64_t>(resp.s2().begin(), resp.s2().end());
+      std::cout << "Got S2 for registration: [";
+      for (const auto& val : s2) std::cout << val << ' ';
+      std::cout << "]\n";
 
-    std::cout << "Successfully registered user with id '" << user->getUserId() << "'\n";
-
-    users_.emplace(userId, std::move(user));
+      if (!user->updateRegistration(user->getPK(), sig, s2)) {
+        std::cout << "Failed to update user's registration!\n";
+      } else {
+        std::cout << "Successfully registered user with id '" << user->getUserId() << "'\n";
+        users_.emplace(userId, std::move(user));
+      }
+    }
   }
 
  private:
   struct DummyUserPKInfrastructure : public utt::client::IUserPKInfrastructure {
-    virtual KeyPair generateKeys(const std::string& userId) override {
-      (void)userId;
-      static std::string s_EmptyKey;
-      return KeyPair{s_EmptyKey, s_EmptyKey};
+    utt::client::IUserPKInfrastructure::KeyPair generateKeys(const std::string& userId) override {
+      const auto& keys = utt::client::test::getKeysForUser(userId);
+      if (keys.first.empty()) throw std::runtime_error("No test private key for " + userId);
+      if (keys.second.empty()) throw std::runtime_error("No test public key for " + userId);
+      return utt::client::IUserPKInfrastructure::KeyPair{keys.first, keys.second};
     }
   };
 
@@ -204,7 +217,7 @@ int main(int argc, char* argv[]) {
 
     utt::client::Initialize();
 
-    auto app = WalletApp();
+    auto wallet = Wallet();
 
     while (true) {
       std::cout << "Enter command (type 'h' for commands 'Ctr-D' to quit):\n > ";
@@ -219,7 +232,7 @@ int main(int argc, char* argv[]) {
       if (cmd == "h") {
         printHelp();
       } else if (cmd == "deploy app") {
-        app.deployApp(grpc);
+        wallet.deployApp(grpc);
       } else {
         // Tokenize command
         std::vector<std::string> cmdTokens;
@@ -234,13 +247,13 @@ int main(int argc, char* argv[]) {
           if (cmdTokens.size() != 2) {
             std::cout << "Usage: specify the user id to register.\n";
           } else {
-            app.registerUser(cmdTokens[1], grpc);
+            wallet.registerUser(cmdTokens[1], grpc);
           }
         } else if (cmdTokens[0] == "show") {
           if (cmdTokens.size() != 2) {
             std::cout << "Usage: specify the user id to show,\n";
           } else {
-            app.showUser(cmdTokens[1]);
+            wallet.showUser(cmdTokens[1]);
           }
         } else {
           std::cout << "Unknown command '" << cmd << "'\n";

@@ -195,7 +195,6 @@ std::unique_ptr<User> User::createInitial(const std::string& userId,
                                           const PublicConfig& config,
                                           IUserPKInfrastructure& pki,
                                           IUserStorage& storage) {
-  (void)pki;
   (void)storage;
   if (userId.empty()) throw std::runtime_error("User id cannot be empty!");
   if (config.empty()) throw std::runtime_error("UTT instance public config cannot be empty!");
@@ -208,6 +207,9 @@ std::unique_ptr<User> User::createInitial(const std::string& userId,
   // [TODO-UTT] To create a user we need to successfully generate and persist to storage the user's secret key
   // and PRF secret s1.
   auto userKeys = pki.generateKeys(userId);
+  if (userKeys.sk_.empty()) throw std::runtime_error("User public key not generated!");
+  if (userKeys.pk_.empty()) throw std::runtime_error("User private key not generated!");
+
   auto uttConfig = libutt::api::deserialize<libutt::api::PublicConfig>(config);
 
   auto user = std::make_unique<User>();
@@ -250,7 +252,7 @@ bool User::updateRegistration(const std::string& pk, const RegistrationSig& rs, 
   if (unblindedSig.empty()) return false;
 
   // [TODO-UTT] What if we already updated a registration? How do we check it?
-  pImpl_->client_->setRCMSig(pImpl_->params_, libutt::api::deserializeCurvePoint(s2), unblindedSig);
+  pImpl_->client_->setRCMSig(pImpl_->params_, s2, unblindedSig);
 
   return true;
 }

@@ -34,7 +34,8 @@ using UserRegistrationInput = std::vector<uint8_t>;
 using RegistrationSig = std::vector<uint8_t>;
 
 /// @brief A system generated part of the user's PRF key
-using S2 = std::vector<uint8_t>;
+// [TODO-UTT] Should be a byte vector similar to other opaque data types
+using S2 = std::vector<uint64_t>;
 
 /// @brief The privacy budget determines how much in value can a user transfer anonymously to other users.
 using PrivacyBudget = std::vector<uint8_t>;

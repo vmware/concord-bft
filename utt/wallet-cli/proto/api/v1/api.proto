@@ -66,8 +66,8 @@ message DeployPrivacyAppResponse {
 
 message RegisterUserRequest {
     optional string user_id = 1;    
-    optional bytes input_rcm = 2;   // The user's input registration commitment
-    optional bytes user_pk = 3;     // The user's public key
+    optional string user_pk = 2;    // The user's public key
+    optional bytes input_rcm = 3;   // The user's input registration commitment
 }
 
 // [TODO-UTT] Consider if we should include the complete result in the response
@@ -75,7 +75,7 @@ message RegisterUserRequest {
 message RegisterUserResponse {
     optional string err = 1;        // Returns any error generated during registration
     optional bytes signature = 2;   // Signature on the user's registration
-    optional bytes s2 = 3;          // Second part of the user's nullifier key 
+    repeated uint64 s2 = 3;          // Second part of the user's nullifier key 
 }
 
 message GetUserRegistrationRequest {
