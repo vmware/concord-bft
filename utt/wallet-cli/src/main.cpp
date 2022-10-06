@@ -4,7 +4,6 @@
 #include "api.grpc.pb.h"  // Generated from utt/wallet/proto/api
 
 #include "utt-client-api/ClientApi.hpp"
-#include "utt-client-api/TestKeys.hpp"
 
 #include <map>
 #include <string>
@@ -111,6 +110,17 @@ class Wallet {
       return;
     }
 
+    // Print out the list of valid user ids with pre-generated keys if we don't have a match.
+    // This is a temp code until we can generate keys on demand for every user id.
+    auto userIds = pki_.getUserIds();
+    auto it = std::find(userIds.begin(), userIds.end(), userId);
+    if (it == userIds.end()) {
+      std::cout << "Please use one of the following userIds:\n[";
+      for (const auto& userId : userIds) std::cout << userId << ' ';
+      std::cout << "]\n";
+      return;
+    }
+
     auto user = utt::client::createUser(userId, *deployedPublicConfig_, pki_, storage_);
     if (!user) throw std::runtime_error("Failed to create user!");
 
@@ -148,20 +158,11 @@ class Wallet {
   }
 
  private:
-  struct DummyUserPKInfrastructure : public utt::client::IUserPKInfrastructure {
-    utt::client::IUserPKInfrastructure::KeyPair generateKeys(const std::string& userId) override {
-      const auto& keys = utt::client::test::getKeysForUser(userId);
-      if (keys.first.empty()) throw std::runtime_error("No test private key for " + userId);
-      if (keys.second.empty()) throw std::runtime_error("No test public key for " + userId);
-      return utt::client::IUserPKInfrastructure::KeyPair{keys.first, keys.second};
-    }
-  };
-
   struct DummyUserStorage : public utt::client::IUserStorage {};
 
   std::unique_ptr<utt::PublicConfig> deployedPublicConfig_;
   std::string deployedAppId_;
-  DummyUserPKInfrastructure pki_;
+  utt::client::TestUserPKInfrastructure pki_;
   DummyUserStorage storage_;
   std::map<std::string, std::unique_ptr<utt::client::User>> users_;
 };

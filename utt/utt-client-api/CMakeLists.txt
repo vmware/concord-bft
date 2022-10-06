@@ -3,7 +3,7 @@ set(utt-client-api-src
     src/ClientApi.cpp
     src/User.cpp
     src/PickCoins.cpp
-    src/TestKeys.cpp
+    src/UserPKI.cpp
 )
 
 add_library(utt_client_api STATIC ${utt-client-api-src})

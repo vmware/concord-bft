@@ -20,27 +20,12 @@
 #include <memory>
 
 #include <utt-common-api/CommonApi.hpp>
+#include "utt-client-api/UserPKI.hpp"
 
 namespace utt::client {
 
 // Provides the means to store the user's data
 struct IUserStorage {};
-
-// Provides the means to generate a public/private key pair when creating a user
-struct IUserPKInfrastructure {
-  struct KeyPair {
-    KeyPair(std::string sk, std::string pk) : sk_{std::move(sk)}, pk_{std::move(pk)} {}
-    std::string sk_;
-    std::string pk_;
-  };
-
-  /// @brief Generate a private/public key pair for a user
-  /// @param userId The user's id (used optionally)
-  /// @return The generate key pair
-  virtual KeyPair generateKeys(const std::string& userId) = 0;
-
-  virtual ~IUserPKInfrastructure() = default;
-};
 
 /// @brief A transaction required to be executed in order to fulfill some burn request
 /// with a target amount

@@ -11,11 +11,11 @@
 // terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
-#include <utt-client-api/TestKeys.hpp>
+#include "utt-client-api/UserPKI.hpp"
 
 #include <map>
 
-namespace utt::client::test {
+namespace utt::client {
 
 const std::map<std::string, std::pair<std::string, std::string>> k_TestKeys{
     {"user-1",
@@ -86,14 +86,27 @@ const std::map<std::string, std::pair<std::string, std::string>> k_TestKeys{
       "-----END PUBLIC KEY-----\n"}},
 };
 
-const std::pair<std::string, std::string>& getKeysForUser(const std::string& userId) {
-  auto it = k_TestKeys.find(userId);
-  if (it != k_TestKeys.end()) {
-    return it->second;
+std::vector<std::string> TestUserPKInfrastructure::getUserIds() const {
+  std::vector<std::string> userIds;
+  userIds.reserve(k_TestKeys.size());
+  for (const auto& kvp : k_TestKeys) {
+    userIds.emplace_back(kvp.first);
   }
-
-  static const std::pair<std::string, std::string> s_empty;
-  return s_empty;
+  return userIds;
 }
 
-}  // namespace utt::client::test
+const std::string& TestUserPKInfrastructure::getPublicKey(const std::string& userId) const {
+  auto it = k_TestKeys.find(userId);
+  if (it == k_TestKeys.end())
+    throw std::runtime_error("TestUserPKInfrastructure - no pre-generated public key for " + userId);
+  return it->second.second;
+}
+
+IUserPKInfrastructure::KeyPair TestUserPKInfrastructure::generateKeys(const std::string& userId) {
+  auto it = k_TestKeys.find(userId);
+  if (it == k_TestKeys.end())
+    throw std::runtime_error("TestUserPKInfrastructure - no pre-generated keys for " + userId);
+  return KeyPair(it->second.first, it->second.second);
+}
+
+}  // namespace utt::client

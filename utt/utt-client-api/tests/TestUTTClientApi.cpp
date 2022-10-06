@@ -12,7 +12,6 @@
 // file.
 
 #include <utt-client-api/ClientApi.hpp>
-#include <utt-client-api/TestKeys.hpp>
 
 #include <xassert/XAssert.h>
 
@@ -280,23 +279,15 @@ int main(int argc, char* argv[]) {
 
   // Create a valid server-side mock based on the config
   auto serverMock = ServerMock::createFromConfig(config);
-  (void)serverMock;
 
   // Create new users by using the public config
-  const int C = 3;
+  utt::client::TestUserPKInfrastructure pki;
+  auto testUserIds = pki.getUserIds();
+  const size_t C = testUserIds.size();
+  loginfo << "Test users: " << C << '\n';
+  assertTrue(C >= 3);  // At least 3 test users expected
+
   std::vector<std::unique_ptr<utt::client::User>> users;
-  users.reserve(C);
-
-  auto publicConfig = libutt::api::serialize<libutt::api::PublicConfig>(serverMock.config_->getPublicConfig());
-
-  struct DummyUserPKInfrastructure : public utt::client::IUserPKInfrastructure {
-    utt::client::IUserPKInfrastructure::KeyPair generateKeys(const std::string& userId) override {
-      const auto& keys = utt::client::test::getKeysForUser(userId);
-      if (keys.first.empty()) throw std::runtime_error("No test private key for " + userId);
-      if (keys.second.empty()) throw std::runtime_error("No test public key for " + userId);
-      return utt::client::IUserPKInfrastructure::KeyPair{keys.first, keys.second};
-    }
-  };
 
   auto syncUsersWithServer = [&]() {
     loginfo << "Synchronizing users with server" << endl;
@@ -336,13 +327,14 @@ int main(int argc, char* argv[]) {
     }
   };
 
-  // Create users
+  // Create new users by using the public config
   utt::client::IUserStorage storage;
-  DummyUserPKInfrastructure pki;
+  auto publicConfig = libutt::api::serialize<libutt::api::PublicConfig>(serverMock.config_->getPublicConfig());
   std::vector<uint64_t> initialBalance;
   std::vector<uint64_t> initialBudget;
-  for (int i = 0; i < C; ++i) {
-    users.emplace_back(utt::client::createUser("user-" + std::to_string(i + 1), publicConfig, pki, storage));
+
+  for (size_t i = 0; i < C; ++i) {
+    users.emplace_back(utt::client::createUser(testUserIds[i], publicConfig, pki, storage));
     initialBalance.emplace_back((i + 1) * 100);
     initialBudget.emplace_back((i + 1) * 100);
   }
@@ -395,7 +387,7 @@ int main(int argc, char* argv[]) {
       std::string nextUserId = "user-" + std::to_string(nextUserIdx + 1);
       loginfo << "Sending " << amount << " from " << users[i]->getUserId() << " to " << nextUserId << endl;
       assertTrue(amount <= users[i]->getBalance());
-      auto result = users[i]->transfer(nextUserId, utt::client::test::getKeysForUser(nextUserId).second, amount);
+      auto result = users[i]->transfer(nextUserId, pki.getPublicKey(nextUserId), amount);
       assertTrue(result.isFinal_);
       auto txNum = serverMock.transfer(result.requiredTx_);
       assertTrue(txNum == serverMock.getLastExecutedTxNum());
