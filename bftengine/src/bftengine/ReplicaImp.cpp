@@ -439,9 +439,9 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   // check message validity
   const bool invalidClient =
       !isValidClient(clientId) &&
-      !((repsInfo->isIdOfReplica(clientId) || repsInfo->isIdOfPeerRoReplica(clientId)) && (flags & RECONFIG_FLAG));
+      !((repsInfo->isIdOfReplica(clientId) || repsInfo->isIdOfPeerRoReplica(clientId)) && (flags & RECONFIG_FLAG || flags & INTERNAL_FLAG));
   const bool sentFromReplicaToNonPrimary =
-      !(flags & RECONFIG_FLAG) && repsInfo->isIdOfReplica(senderId) && !isCurrentPrimary();
+      !(flags & RECONFIG_FLAG || flags & INTERNAL_FLAG) && repsInfo->isIdOfReplica(senderId) && !isCurrentPrimary();
 
   if (invalidClient) {
     ++numInvalidClients;
@@ -5487,7 +5487,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
           reqIdx++;
           continue;
         }
-        const bool validClient = isValidClient(clientId) || ((req.flags() & RECONFIG_FLAG) && isIdOfReplica(clientId));
+        const bool validClient = isValidClient(clientId) || ((flags & RECONFIG_FLAG || flags & INTERNAL_FLAG) && isIdOfReplica(clientId));
         if (!validClient) {
           ++numInvalidClients;
           LOG_WARN(CNSUS, "The client is not valid" << KVLOG(clientId));
