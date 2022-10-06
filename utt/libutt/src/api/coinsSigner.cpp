@@ -15,28 +15,37 @@
 #include <vector>
 
 namespace libutt::api {
+struct CoinsSigner::Impl {
+  Impl(const libutt::RandSigShareSK& bsk,
+       const libutt::RandSigPK& bvk,
+       const libutt::RegAuthPK& rvk,
+       const std::map<uint16_t, libutt::RandSigSharePK>& shares_verification_keys)
+      : bsk_{bsk}, bvk_{bvk}, rvk_{rvk}, shares_verification_keys_{shares_verification_keys} {}
+  libutt::RandSigShareSK bsk_;
+  libutt::RandSigPK bvk_;
+  libutt::RegAuthPK rvk_;
+  std::map<uint16_t, libutt::RandSigSharePK> shares_verification_keys_;
+};
 CoinsSigner::CoinsSigner(uint16_t id,
                          const std::string& bsk,
                          const std::string& bvk,
                          const std::map<uint16_t, std::string>& shares_verification_keys,
                          const std::string& rvk) {
   bid_ = id;
-  bsk_.reset(new libutt::RandSigShareSK());
-  *bsk_ = libutt::deserialize<libutt::RandSigShareSK>(bsk);
-  bvk_.reset(new libutt::RandSigPK());
-  *bvk_ = libutt::deserialize<libutt::RandSigPK>(bvk);
-  rvk_.reset(new libutt::RegAuthPK());
-  *rvk_ = libutt::deserialize<libutt::RegAuthPK>(rvk);
+  std::map<uint16_t, libutt::RandSigSharePK> shares_verification_keys_;
   for (const auto& [id, svk] : shares_verification_keys) {
-    shares_verification_keys_[id].reset(new libutt::RandSigSharePK());
-    *(shares_verification_keys_[id]) = libutt::deserialize<libutt::RandSigSharePK>(svk);
+    shares_verification_keys_[id] = libutt::deserialize<libutt::RandSigSharePK>(svk);
   }
+  impl_.reset(new CoinsSigner::Impl(libutt::deserialize<libutt::RandSigShareSK>(bsk),
+                                    libutt::deserialize<libutt::RandSigPK>(bvk),
+                                    libutt::deserialize<libutt::RegAuthPK>(rvk),
+                                    shares_verification_keys_));
 }
 
 uint16_t CoinsSigner::getId() const { return bid_; }
 template <>
 std::vector<types::Signature> CoinsSigner::sign<libutt::MintOp>(const libutt::MintOp& mint) const {
-  auto res = mint.shareSignCoin(*bsk_);
+  auto res = mint.shareSignCoin(impl_->bsk_);
   auto res_str = libutt::serialize<libutt::RandSigShare>(res);
   return {types::Signature(res_str.begin(), res_str.end())};
 }
@@ -49,7 +58,7 @@ std::vector<types::Signature> CoinsSigner::sign<operations::Mint>(const operatio
 template <>
 std::vector<types::Signature> CoinsSigner::sign<libutt::Tx>(const libutt::Tx& tx) const {
   std::vector<types::Signature> sigs;
-  auto res = tx.shareSignCoins(*bsk_);
+  auto res = tx.shareSignCoins(impl_->bsk_);
   for (const auto& [_, sig] : res) {
     (void)_;
     auto sig_str = libutt::serialize<libutt::RandSigShare>(sig);
@@ -83,14 +92,14 @@ std::vector<types::Signature> CoinsSigner::sign<operations::Budget>(const operat
   Comm tcm(type * H);        // H^type g^0
   Comm dcm(exp_date * H);    // H^exp_date g^0
 
-  auto sig = bsk_->shareSign({icm, scm, vcm, tcm, dcm}, H);
+  auto sig = impl_->bsk_.shareSign({icm, scm, vcm, tcm, dcm}, H);
   auto sig_str = libutt::serialize<libutt::RandSigShare>(sig);
   return {types::Signature(sig_str.begin(), sig_str.end())};
 }
 
 template <>
 bool CoinsSigner::validate<libutt::BurnOp>(const UTTParams& p, const libutt::BurnOp& burn) const {
-  return burn.validate(p.getParams(), *(bvk_), *(rvk_));
+  return burn.validate(p.getParams(), impl_->bvk_, impl_->rvk_);
 }
 
 template <>
@@ -100,7 +109,7 @@ bool CoinsSigner::validate<operations::Burn>(const UTTParams& p, const operation
 
 template <>
 bool CoinsSigner::validate<libutt::Tx>(const UTTParams& p, const libutt::Tx& tx) const {
-  return tx.validate(p.getParams(), *(bvk_), *(rvk_));
+  return tx.validate(p.getParams(), impl_->bvk_, impl_->rvk_);
 }
 
 template <>
@@ -114,7 +123,7 @@ bool CoinsSigner::validatePartialSignature<libutt::MintOp>(uint16_t id,
                                                            uint64_t,
                                                            const libutt::MintOp& mint) const {
   libutt::RandSigShare rsig = libutt::deserialize<libutt::RandSigShare>(sig);
-  return mint.verifySigShare(rsig, *(shares_verification_keys_.at(id)));
+  return mint.verifySigShare(rsig, impl_->shares_verification_keys_.at(id));
 }
 
 template <>
@@ -149,7 +158,7 @@ bool CoinsSigner::validatePartialSignature<operations::Budget>(uint16_t id,
   Comm dcm(exp_date * H);    // H^exp_date g^0
 
   libutt::RandSigShare rsig = libutt::deserialize<libutt::RandSigShare>(sig);
-  return rsig.verify({icm, scm, vcm, tcm, dcm}, *(shares_verification_keys_.at(id)));
+  return rsig.verify({icm, scm, vcm, tcm, dcm}, impl_->shares_verification_keys_.at(id));
 }
 
 template <>
@@ -158,7 +167,7 @@ bool CoinsSigner::validatePartialSignature<libutt::Tx>(uint16_t id,
                                                        uint64_t txId,
                                                        const libutt::Tx& tx) const {
   libutt::RandSigShare rsig = libutt::deserialize<libutt::RandSigShare>(sig);
-  return tx.verifySigShare(txId, rsig, *(shares_verification_keys_.at(id)));
+  return tx.verifySigShare(txId, rsig, impl_->shares_verification_keys_.at(id));
 }
 template <>
 bool CoinsSigner::validatePartialSignature<operations::Transaction>(uint16_t id,

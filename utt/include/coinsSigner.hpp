@@ -90,9 +90,7 @@ class CoinsSigner {
 
  private:
   uint16_t bid_;
-  std::unique_ptr<libutt::RandSigShareSK> bsk_;
-  std::unique_ptr<libutt::RandSigPK> bvk_;
-  std::unique_ptr<libutt::RegAuthPK> rvk_;
-  std::map<uint16_t, std::unique_ptr<libutt::RandSigSharePK>> shares_verification_keys_;
+  struct Impl;
+  std::shared_ptr<Impl> impl_;
 };
 }  // namespace libutt::api
