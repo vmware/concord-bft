@@ -100,7 +100,8 @@ bool ClientRequestMsg::shouldValidateAsync() const {
   // manner, as that will lead to overhead. Similarly, key exchanges should happen rarely, and thus we should validate
   // as quick as possible, in sync.
   const auto* header = msgBody();
-  if (((header->flags & RECONFIG_FLAG) != 0) || ((header->flags & KEY_EXCHANGE_FLAG) != 0) || (header->flags & INTERNAL_FLAG) != 0) {
+  if (((header->flags & RECONFIG_FLAG) != 0) || ((header->flags & KEY_EXCHANGE_FLAG) != 0) ||
+      (header->flags & INTERNAL_FLAG) != 0) {
     return false;
   }
   return true;
