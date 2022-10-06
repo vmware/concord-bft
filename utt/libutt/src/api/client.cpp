@@ -136,10 +136,11 @@ std::vector<libutt::api::Coin> Client::claimCoins<operations::Budget>(
   return {c};
 }
 template <>
-std::vector<libutt::api::Coin> Client::claimCoins<operations::Transaction>(
-    const operations::Transaction& tx, const UTTParams& d, const std::vector<types::Signature>& blindedSigs) const {
+std::vector<libutt::api::Coin> Client::claimCoins<libutt::Tx>(const libutt::Tx& tx,
+                                                              const UTTParams& d,
+                                                              const std::vector<types::Signature>& blindedSigs) const {
   std::vector<libutt::api::Coin> ret;
-  auto mineTransactions = tx.tx_->getMyTransactions(*decryptor_);
+  auto mineTransactions = tx.getMyTransactions(*decryptor_);
   for (const auto& [txoIdx, txo] : mineTransactions) {
     if (blindedSigs.size() <= txoIdx) throw std::runtime_error("Invalid number of blinded signatures");
     Fr r_pid = txo.t, r_sn = Fr::zero(), r_val = txo.d, r_type = Fr::zero(), r_expdate = Fr::zero();
@@ -148,7 +149,7 @@ std::vector<libutt::api::Coin> Client::claimCoins<operations::Transaction>(
     auto sig = Utils::unblindSignature(d, Commitment::Type::COIN, r, blindedSigs[txoIdx]);
     libutt::api::Coin c(d,
                         getPRFSecretKey(),
-                        tx.tx_->getSN(txoIdx).to_words(),
+                        tx.getSN(txoIdx).to_words(),
                         txo.val.to_words(),
                         getPidHash(),
                         txo.coin_type == libutt::Coin::NormalType() ? Coin::Type::Normal : Coin::Type::Budget,
@@ -158,6 +159,12 @@ std::vector<libutt::api::Coin> Client::claimCoins<operations::Transaction>(
     ret.emplace_back(std::move(c));
   }
   return ret;
+}
+
+template <>
+std::vector<libutt::api::Coin> Client::claimCoins<operations::Transaction>(
+    const operations::Transaction& tx, const UTTParams& d, const std::vector<types::Signature>& blindedSigs) const {
+  return tx.claimCoins(*this, d, blindedSigs);
 }
 
 template <>

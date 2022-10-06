@@ -90,13 +90,19 @@ class Transaction {
    * @return uint32_t
    */
   uint32_t getNumOfOutputCoins() const;
+  std::vector<types::Signature> shareSign(const CoinsSigner& cs) const;
+  std::vector<libutt::api::Coin> claimCoins(const Client& c,
+                                            const UTTParams& d,
+                                            const std::vector<types::Signature>& blindedSigs) const;
+  bool validate(const CoinsSigner& cs, const UTTParams& p) const;
+  bool validatePartialSignature(const CoinsSigner& cs, uint16_t id, const types::Signature& sig, uint64_t txId) const;
 
  private:
-  friend class libutt::api::CoinsSigner;
   friend class libutt::api::Client;
   friend std::ostream& ::operator<<(std::ostream& out, const libutt::api::operations::Transaction& tx);
   friend std::istream& ::operator>>(std::istream& in, libutt::api::operations::Transaction& tx);
-  std::shared_ptr<libutt::Tx> tx_;
+  struct Impl;
+  std::shared_ptr<Impl> impl_;
   std::vector<Coin> input_coins_;
   std::optional<Coin> budget_coin_;
 };

@@ -47,15 +47,20 @@ std::vector<types::Signature> CoinsSigner::sign<operations::Mint>(const operatio
 }
 
 template <>
-std::vector<types::Signature> CoinsSigner::sign<operations::Transaction>(const operations::Transaction& tx) const {
+std::vector<types::Signature> CoinsSigner::sign<libutt::Tx>(const libutt::Tx& tx) const {
   std::vector<types::Signature> sigs;
-  auto res = tx.tx_->shareSignCoins(*bsk_);
+  auto res = tx.shareSignCoins(*bsk_);
   for (const auto& [_, sig] : res) {
     (void)_;
     auto sig_str = libutt::serialize<libutt::RandSigShare>(sig);
     sigs.push_back(types::Signature(sig_str.begin(), sig_str.end()));
   }
   return sigs;
+}
+
+template <>
+std::vector<types::Signature> CoinsSigner::sign<operations::Transaction>(const operations::Transaction& tx) const {
+  return tx.shareSign(*this);
 }
 
 template <>
@@ -92,9 +97,15 @@ template <>
 bool CoinsSigner::validate<operations::Burn>(const UTTParams& p, const operations::Burn& burn) const {
   return burn.validate(p, *this);
 }
+
+template <>
+bool CoinsSigner::validate<libutt::Tx>(const UTTParams& p, const libutt::Tx& tx) const {
+  return tx.validate(p.getParams(), *(bvk_), *(rvk_));
+}
+
 template <>
 bool CoinsSigner::validate<operations::Transaction>(const UTTParams& p, const operations::Transaction& tx) const {
-  return tx.tx_->validate(p.getParams(), *(bvk_), *(rvk_));
+  return tx.validate(*this, p);
 }
 
 template <>
@@ -142,11 +153,18 @@ bool CoinsSigner::validatePartialSignature<operations::Budget>(uint16_t id,
 }
 
 template <>
+bool CoinsSigner::validatePartialSignature<libutt::Tx>(uint16_t id,
+                                                       const types::Signature& sig,
+                                                       uint64_t txId,
+                                                       const libutt::Tx& tx) const {
+  libutt::RandSigShare rsig = libutt::deserialize<libutt::RandSigShare>(sig);
+  return tx.verifySigShare(txId, rsig, *(shares_verification_keys_.at(id)));
+}
+template <>
 bool CoinsSigner::validatePartialSignature<operations::Transaction>(uint16_t id,
                                                                     const types::Signature& sig,
                                                                     uint64_t txId,
                                                                     const operations::Transaction& tx) const {
-  libutt::RandSigShare rsig = libutt::deserialize<libutt::RandSigShare>(sig);
-  return tx.tx_->verifySigShare(txId, rsig, *(shares_verification_keys_.at(id)));
+  return tx.validatePartialSignature(*this, id, sig, txId);
 }
 }  // namespace libutt::api
