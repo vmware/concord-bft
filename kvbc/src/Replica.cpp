@@ -65,7 +65,7 @@ Status Replica::initInternals() {
     auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler, cronTableRegistry_);
     requestHandler->setReconfigurationHandler(std::make_shared<pruning::ReadOnlyReplicaPruningHandler>(*this));
     m_replicaPtr = bftEngine::IReplica::createNewRoReplica(
-        replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm, m_metadataStorage);
+        replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm.get(), m_metadataStorage);
     m_stateTransfer->addOnTransferringCompleteCallback([this](std::uint64_t) {
       std::vector<concord::client::reconfiguration::State> stateFromReservedPages;
       uint64_t wedgePt{0};
@@ -307,7 +307,7 @@ void Replica::createReplicaAndSyncState() {
       replicaConfig_,
       requestHandler,
       m_stateTransfer,
-      m_ptrComm,
+      m_ptrComm.get(),
       m_metadataStorage,
       pm_,
       secretsManager_,
