@@ -21,7 +21,6 @@
 #include <iostream>
 
 namespace libutt {
-class Coin;
 namespace api {
 class Coin;
 namespace operations {

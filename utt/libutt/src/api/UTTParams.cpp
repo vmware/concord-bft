@@ -5,21 +5,13 @@
 #include <utt/NtlLib.h>
 #include <utt/Params.h>
 
-std::ostream& operator<<(std::ostream& out, const libutt::api::UTTParams& params) {
-  out << params.getParams();
-  return out;
-}
-std::istream& operator>>(std::istream& in, libutt::api::UTTParams& params) {
-  params.params.reset(new libutt::Params());
-  in >> *(params.params);
-  return in;
-}
-bool operator==(const libutt::api::UTTParams& params1, const libutt::api::UTTParams& params2) {
-  if (!params1.params && !params2.params) return true;
-  if (!params1.params || !params2.params) return false;
-  return *(params1.params) == *(params2.params);
-}
 namespace libutt::api {
+struct UTTParams::Impl {
+  Impl(libutt::Params params_) : params{params_} {}
+  Impl() = default;
+  libutt::Params params;
+};
+
 using Fr = typename libff::default_ec_pp::Fp_type;
 struct GpInitData {
   libutt::CommKey cck;
@@ -56,21 +48,37 @@ void UTTParams::initLibs(const UTTParams::BaseLibsInitData& init_data) {
 
 UTTParams UTTParams::create(void* initData) {
   UTTParams gp;
-  gp.params.reset(new libutt::Params());
+  gp.impl_.reset(new UTTParams::Impl());
   if (initData) {
     GpInitData* init_data = (GpInitData*)initData;
-    *(gp.params) = libutt::Params::random(init_data->cck);
-    gp.params->ck_reg = init_data->rck;
+    gp.impl_->params = libutt::Params::random(init_data->cck);
+    gp.impl_->params.ck_reg = init_data->rck;
   }
   return gp;
 }
-const libutt::Params& UTTParams::getParams() const { return *params; }
+void* UTTParams::getParams() const { return &(impl_->params); }
 
-UTTParams::UTTParams(const UTTParams& other) { *this = other; }
+UTTParams::UTTParams(const UTTParams& other) {
+  impl_.reset(new UTTParams::Impl());
+  impl_->params = other.impl_->params;
+}
 UTTParams& UTTParams::operator=(const UTTParams& other) {
   if (this == &other) return *this;
-  params.reset(new libutt::Params());
-  *params = *(other.params);
+  impl_.reset(new UTTParams::Impl());
+  impl_->params = other.impl_->params;
   return *this;
 }
 }  // namespace libutt::api
+
+std::ostream& operator<<(std::ostream& out, const libutt::api::UTTParams& params) {
+  out << params.impl_->params;
+  return out;
+}
+std::istream& operator>>(std::istream& in, libutt::api::UTTParams& params) {
+  if (params.impl_ == nullptr) params.impl_.reset(new libutt::api::UTTParams::Impl());
+  in >> params.impl_->params;
+  return in;
+}
+bool operator==(const libutt::api::UTTParams& params1, const libutt::api::UTTParams& params2) {
+  return params1.impl_->params == params2.impl_->params;
+}

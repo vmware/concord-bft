@@ -37,7 +37,7 @@ Burn::Burn(const UTTParams& d, const Client& cid, const Coin& coin) : c_{coin} {
   auto clientInternals = cid.getInternals();
   auto rpk = (RegAuthPK*)(clientInternals[1]);
   auto bpk = (RandSigPK*)(clientInternals[0]);
-  impl_.reset(new Burn::Impl(d.getParams(),
+  impl_.reset(new Burn::Impl(*((libutt::Params*)d.getParams()),
                              fr_pidhash,
                              cid.getPid(),
                              *((libutt::Comm*)rcm.first.getInternals()),

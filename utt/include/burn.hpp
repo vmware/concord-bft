@@ -17,9 +17,6 @@
 #include "UTTParams.hpp"
 #include "coinsSigner.hpp"
 #include <memory>
-namespace libutt {
-class BurnOp;
-}
 
 namespace libutt::api::operations {
 class Burn;

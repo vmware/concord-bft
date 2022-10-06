@@ -125,7 +125,7 @@ std::tuple<libutt::api::UTTParams, RandSigDKG, RegAuthSK> init(size_t n, size_t 
   auto rc = RegAuthSK::generateKeyAndShares(thresh, n);
   GpData gp_data{dkg.getCK(), rc.ck_reg};
   UTTParams d = UTTParams::create((void*)(&gp_data));
-  rc.setIBEParams(d.getParams().ibe);
+  rc.setIBEParams(((libutt::Params*)d.getParams())->ibe);
   return {d, dkg, rc};
 }
 std::vector<std::shared_ptr<Registrator>> GenerateRegistrators(size_t n, const RegAuthSK& rsk) {

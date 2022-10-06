@@ -33,7 +33,7 @@ Coin::Coin(const UTTParams& d,
   pid_hash.from_words(pidhash);
   Fr fr_prf;
   fr_prf.from_words(prf);
-  impl_.reset(new Coin::Impl(d.getParams(), fr_prf, fr_sn, fr_val, fr_type, fr_exp_date, pid_hash));
+  impl_.reset(new Coin::Impl(*((libutt::Params*)d.getParams()), fr_prf, fr_sn, fr_val, fr_type, fr_exp_date, pid_hash));
   type_ = t;
 }
 
@@ -52,7 +52,7 @@ Coin::Coin(const UTTParams& d,
   fr_exp_date.from_words(exp_date);
   Fr pid_hash;
   pid_hash.from_words(pidhash);
-  impl_.reset(new Coin::Impl(d.getParams(), fr_sn, fr_val, fr_type, fr_exp_date, pid_hash));
+  impl_.reset(new Coin::Impl(*((libutt::Params*)d.getParams()), fr_sn, fr_val, fr_type, fr_exp_date, pid_hash));
   type_ = t;
 }
 Coin::Coin(const Coin& c) {
@@ -91,7 +91,7 @@ void Coin::rerandomize(std::optional<types::CurvePoint> base_randomness) {
 void Coin::createNullifier(const UTTParams& d, const types::CurvePoint& prf) {
   Fr fr_prf;
   fr_prf.from_words(prf);
-  impl_->coin_.createNullifier(d.getParams().null, fr_prf);
+  impl_->coin_.createNullifier(((libutt::Params*)d.getParams())->null, fr_prf);
 }
 types::CurvePoint Coin::getPidHash() const { return impl_->coin_.pid_hash.to_words(); }
 types::CurvePoint Coin::getSN() const { return impl_->coin_.sn.to_words(); }

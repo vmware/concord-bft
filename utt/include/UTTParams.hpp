@@ -20,9 +20,7 @@ class UTTParams;
 std::ostream& operator<<(std::ostream& out, const libutt::api::UTTParams& params);
 std::istream& operator>>(std::istream& in, libutt::api::UTTParams& params);
 bool operator==(const libutt::api::UTTParams& params1, const libutt::api::UTTParams& params2);
-namespace libutt {
-class Params;
-}
+
 namespace libutt::api {
 class UTTParams {
   /**
@@ -45,21 +43,20 @@ class UTTParams {
   static UTTParams create(void* initData);
   static void initLibs(const BaseLibsInitData& initData);
 
-  /**
-   * @brief Get the libutt::Params object
-   *
-   * @return const libutt::Params&
-   */
-  const libutt::Params& getParams() const;
   UTTParams(const UTTParams& other);
   UTTParams& operator=(const UTTParams& other);
   UTTParams(UTTParams&&) = default;
   UTTParams& operator=(UTTParams&&) = default;
 
+  // should be used only internally by uttlib
+  void* getParams() const;
+
  private:
   friend std::ostream& ::operator<<(std::ostream& out, const libutt::api::UTTParams& params);
   friend std::istream& ::operator>>(std::istream& in, libutt::api::UTTParams& params);
   friend bool ::operator==(const libutt::api::UTTParams& params1, const libutt::api::UTTParams& params2);
-  std::unique_ptr<libutt::Params> params;
+  struct Impl;
+
+  std::shared_ptr<Impl> impl_;
 };
 }  // namespace libutt::api

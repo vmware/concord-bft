@@ -18,13 +18,6 @@
 #include "types.hpp"
 #include <memory>
 #include <unordered_map>
-namespace libutt {
-class AddrSK;
-class RandSigPK;
-class RegAuthPK;
-class IEncryptor;
-class IDecryptor;
-}  // namespace libutt
 namespace libutt::api {
 class Coin;
 namespace operations {

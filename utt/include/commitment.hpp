@@ -18,10 +18,6 @@
 #include <cstdint>
 #include <optional>
 
-namespace libutt {
-class Comm;
-class CommKey;
-}  // namespace libutt
 namespace libutt::api {
 class Commitment;
 }
@@ -44,14 +40,6 @@ class Commitment {
    */
  public:
   enum Type { REGISTRATION = 0, COIN };
-  /**
-   * @brief Get the Commitment Key object for the given commitment type
-   *
-   * @param p The shared global UTT parameters
-   * @param t The commitment type
-   * @return const libutt::CommKey&
-   */
-  static const libutt::CommKey& getCommitmentKey(const UTTParams& p, Type t);
 
   /**
    * @brief Construct a new Commitment object

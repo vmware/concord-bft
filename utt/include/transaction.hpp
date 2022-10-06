@@ -20,6 +20,7 @@
 #include <memory>
 #include <optional>
 #include <vector>
+#include <utt/DataUtils.hpp>
 
 namespace libutt::api::operations {
 class Transaction;
@@ -27,11 +28,6 @@ class Transaction;
 
 std::ostream& operator<<(std::ostream& out, const libutt::api::operations::Transaction& tx);
 std::istream& operator>>(std::istream& in, libutt::api::operations::Transaction& tx);
-
-namespace libutt {
-class Tx;
-class IEncryptor;
-}  // namespace libutt
 
 namespace libutt::api::operations {
 class Transaction {

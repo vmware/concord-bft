@@ -18,12 +18,6 @@
 #include <memory>
 #include <vector>
 #include <map>
-namespace libutt {
-class RegAuthShareSK;
-class RegAuthPK;
-class RegAuthSK;
-class RegAuthSharePK;
-}  // namespace libutt
 namespace libutt::api {
 class Registrator {
   /**

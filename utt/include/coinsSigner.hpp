@@ -18,12 +18,6 @@
 #include <memory>
 #include <vector>
 #include <map>
-namespace libutt {
-class RandSigShareSK;
-class RandSigSharePK;
-class RegAuthPK;
-class RandSigPK;
-}  // namespace libutt
 namespace libutt::api {
 class CoinsSigner {
   /**

@@ -41,7 +41,15 @@ types::Signature Utils::unblindSignature(const UTTParams& p,
   libutt::RandSig rsig = libutt::deserialize<libutt::RandSig>(sig);
   std::vector<Fr> fr_randomness(randomness.size());
   for (size_t i = 0; i < randomness.size(); i++) fr_randomness[i].from_words(randomness[i]);
-  libutt::CommKey ck = Commitment::getCommitmentKey(p, t);
+  libutt::CommKey ck;
+  switch (t) {
+    case Commitment::Type::REGISTRATION:
+      ck = ((libutt::Params*)p.getParams())->getRegCK();
+      break;
+    case Commitment::Type::COIN:
+      ck = ((libutt::Params*)p.getParams())->getCoinCK();
+      break;
+  }
   std::vector<G1> g = ck.g;  // g_1, g_2, \dots, g_\ell, g
   g.pop_back();              // g_1, g_2, \dots, g_\ell
 

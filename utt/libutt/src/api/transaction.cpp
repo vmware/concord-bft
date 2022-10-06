@@ -57,7 +57,7 @@ Transaction::Transaction(const UTTParams& d,
   }
   auto clientInternals = cid.getInternals();
   auto rpk = (RegAuthPK*)(clientInternals[1]);
-  impl_.reset(new Transaction::Impl(d.getParams(),
+  impl_.reset(new Transaction::Impl(*((libutt::Params*)d.getParams()),
                                     fr_pidhash,
                                     cid.getPid(),
                                     *((libutt::Comm*)rcm.first.getInternals()),

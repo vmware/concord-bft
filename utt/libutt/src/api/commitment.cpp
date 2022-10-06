@@ -15,22 +15,24 @@ struct Commitment::Impl {
   Impl() = default;
   libutt::Comm comm_;
 };
-const libutt::CommKey& Commitment::getCommitmentKey(const UTTParams& d, Commitment::Type t) {
-  switch (t) {
-    case Commitment::Type::REGISTRATION:
-      return d.getParams().getRegCK();
-    case Commitment::Type::COIN:
-      return d.getParams().getCoinCK();
-  }
-  throw std::runtime_error("Unknown commitment key type");
-}
 
 Commitment::Commitment(const UTTParams& d, Type t, const std::vector<types::CurvePoint>& messages, bool withG2) {
   std::vector<Fr> fr_messages(messages.size());
   for (size_t i = 0; i < messages.size(); i++) {
     fr_messages[i].from_words(messages.at(i));
   }
-  impl_.reset(new Commitment::Impl(Commitment::getCommitmentKey(d, t), fr_messages, withG2));
+  libutt::CommKey ck;
+  switch (t) {
+    case libutt::api::Commitment::Type::REGISTRATION:
+      ck = ((libutt::Params*)d.getParams())->getRegCK();
+      break;
+    case libutt::api::Commitment::Commitment::Type::COIN:
+      ck = ((libutt::Params*)d.getParams())->getCoinCK();
+      break;
+    default:
+      throw std::runtime_error("invalid commitment type");
+  }
+  impl_.reset(new Commitment::Impl(ck, fr_messages, withG2));
 }
 
 Commitment::Commitment() { impl_.reset(new Commitment::Impl()); }
@@ -51,7 +53,18 @@ types::CurvePoint Commitment::rerandomize(const UTTParams& d,
                                           std::optional<types::CurvePoint> base_randomness) {
   Fr u_delta = Fr::random_element();
   if (base_randomness.has_value()) u_delta.from_words(*base_randomness);
-  impl_->comm_.rerandomize(Commitment::getCommitmentKey(d, t), u_delta);
+  libutt::CommKey ck;
+  switch (t) {
+    case libutt::api::Commitment::Type::REGISTRATION:
+      ck = ((libutt::Params*)d.getParams())->getRegCK();
+      break;
+    case libutt::api::Commitment::Commitment::Type::COIN:
+      ck = ((libutt::Params*)d.getParams())->getCoinCK();
+      break;
+    default:
+      throw std::runtime_error("invalid commitment type");
+  }
+  impl_->comm_.rerandomize(ck, u_delta);
   return u_delta.to_words();
 }
 void* Commitment::getInternals() const { return &(impl_->comm_); }

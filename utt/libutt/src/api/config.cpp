@@ -88,7 +88,7 @@ Configuration::Configuration(uint16_t n, uint16_t t) : Configuration() {
   pImpl_->publicConfig_.pImpl_->params_ = libutt::api::UTTParams::create((void*)(&commitmentKeys));
 
   // For some reason we need to go back and set the IBE parameters although we might not be using IBE.
-  rsk.setIBEParams(pImpl_->publicConfig_.pImpl_->params_.getParams().ibe);
+  rsk.setIBEParams(((libutt::Params*)(pImpl_->publicConfig_.pImpl_->params_.getParams()))->ibe);
 
   // Public verification keys
   pImpl_->publicConfig_.pImpl_->commitVerificationKey_ = dkg.sk.toPK();

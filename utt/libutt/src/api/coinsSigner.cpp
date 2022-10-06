@@ -99,7 +99,7 @@ std::vector<types::Signature> CoinsSigner::sign<operations::Budget>(const operat
 
 template <>
 bool CoinsSigner::validate<libutt::BurnOp>(const UTTParams& p, const libutt::BurnOp& burn) const {
-  return burn.validate(p.getParams(), impl_->bvk_, impl_->rvk_);
+  return burn.validate(*((libutt::Params*)p.getParams()), impl_->bvk_, impl_->rvk_);
 }
 
 template <>
@@ -109,7 +109,7 @@ bool CoinsSigner::validate<operations::Burn>(const UTTParams& p, const operation
 
 template <>
 bool CoinsSigner::validate<libutt::Tx>(const UTTParams& p, const libutt::Tx& tx) const {
-  return tx.validate(p.getParams(), impl_->bvk_, impl_->rvk_);
+  return tx.validate(*((libutt::Params*)p.getParams()), impl_->bvk_, impl_->rvk_);
 }
 
 template <>
