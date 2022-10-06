@@ -6,9 +6,6 @@
 #include "commitment.hpp"
 #include "transaction.hpp"
 #include "config.hpp"
-#include <utt/Coin.h>
-#include <utt/MintOp.h>
-#include <utt/BurnOp.h>
 #include <utt/DataUtils.hpp>
 #include "serialization.hpp"
 using namespace libutt;

@@ -22,13 +22,6 @@
 #include <utt/Params.h>
 #include <utt/IBE.h>
 #include <utt/Serialization.h>
-#include <utt/Address.h>
-#include <utt/Comm.h>
-#include <utt/Coin.h>
-#include <utt/MintOp.h>
-#include <utt/Coin.h>
-#include <utt/BurnOp.h>
-#include <utt/Tx.h>
 
 #include <chrono>
 #include <map>

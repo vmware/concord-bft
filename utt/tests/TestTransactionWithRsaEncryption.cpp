@@ -9,10 +9,6 @@
 #include "coin.hpp"
 #include "types.hpp"
 #include <utt/MintOp.h>
-#include <utt/Coin.h>
-#include <utt/BurnOp.h>
-#include <utt/Tx.h>
-#include <utt/DataUtils.hpp>
 
 #include <memory>
 #include <vector>

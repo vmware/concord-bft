@@ -3,8 +3,6 @@
 #include "UTTParams.hpp"
 #include "testUtils.hpp"
 #include "mint.hpp"
-#include <utt/MintOp.h>
-#include <utt/Coin.h>
 #include <memory>
 #include <vector>
 #include <cstdlib>

@@ -11,9 +11,6 @@
 #include <utt/Params.h>
 #include <utt/IBE.h>
 #include <utt/Serialization.h>
-#include <utt/Address.h>
-#include <utt/Comm.h>
-#include <utt/Coin.h>
 
 #include <vector>
 #include <memory>

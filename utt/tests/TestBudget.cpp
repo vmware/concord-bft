@@ -3,9 +3,6 @@
 #include "UTTParams.hpp"
 #include "testUtils.hpp"
 #include "budget.hpp"
-#include <utt/MintOp.h>
-#include <utt/Coin.h>
-#include <utt/BurnOp.h>
 #include <memory>
 #include <vector>
 #include <cstdlib>

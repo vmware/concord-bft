@@ -4,9 +4,6 @@
 #include "testUtils.hpp"
 #include "mint.hpp"
 #include "burn.hpp"
-#include <utt/MintOp.h>
-#include <utt/Coin.h>
-#include <utt/BurnOp.h>
 #include <memory>
 #include <vector>
 #include <cstdlib>
