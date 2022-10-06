@@ -89,8 +89,7 @@ class Registrator {
 
  private:
   std::uint16_t id_;
-  std::unique_ptr<RegAuthShareSK> rsk_;
-  std::unique_ptr<RegAuthPK> rpk_;
-  std::map<uint16_t, std::unique_ptr<RegAuthSharePK>> validation_keys_;
+  struct Impl;
+  std::shared_ptr<Impl> impl_;
 };
 }  // namespace libutt::api
