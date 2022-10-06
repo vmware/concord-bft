@@ -88,7 +88,7 @@ class RequestsBatch {
                                         uint16_t reqOffsetInBatch,
                                         PreProcessingResult status);
   void releaseReqsAndSendBatchedReplyIfCompleted(PreProcessReplyMsgSharedPtr replyMsg);
-  void finalizeBatchIfCompletedSafe();
+  void finalizeBatchIfCompletedSafe(const std::string &batchCid);
   void handlePossiblyExpiredRequests();
   void sendCancelBatchedPreProcessingMsgToNonPrimaries(const ClientMsgsList &clientMsgs, NodeIdType destId);
   uint64_t getBlockId() const;
@@ -337,7 +337,6 @@ class PreProcessor {
     concordMetrics::CounterHandle preProcBatchReqReceived;
     concordMetrics::CounterHandle preProcReqInvalid;
     concordMetrics::AtomicCounterHandle preProcReqIgnored;
-    concordMetrics::AtomicCounterHandle preProcReqRejected;
     concordMetrics::CounterHandle preProcConsensusNotReached;
     concordMetrics::CounterHandle preProcessRequestTimedOut;
     concordMetrics::CounterHandle preProcPossiblePrimaryFaultDetected;

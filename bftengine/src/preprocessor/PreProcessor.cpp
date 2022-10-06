@@ -127,7 +127,8 @@ RequestStateSharedPtr &RequestsBatch::getRequestState(uint16_t reqOffsetInBatch)
 
 void RequestsBatch::increaseNumOfCompletedReqs(uint32_t count) {
   numOfCompletedReqs_ += count;
-  LOG_DEBUG(preProcessor_.logger(), KVLOG(numOfCompletedReqs_));
+  LOG_DEBUG(preProcessor_.logger(),
+            "Increased a number of completed requests" << KVLOG(clientId_, batchCid_, batchSize_, numOfCompletedReqs_));
 }
 
 void RequestsBatch::handlePossiblyExpiredRequests() {
@@ -239,9 +240,9 @@ void RequestsBatch::cancelRequestAndBatchIfCompleted(const string &reqBatchCid,
 }
 
 // On a primary replica
-void RequestsBatch::finalizeBatchIfCompletedSafe() {
+void RequestsBatch::finalizeBatchIfCompletedSafe(const std::string &batchCid) {
   const lock_guard<mutex> lock(batchMutex_);
-  finalizeBatchIfCompleted();
+  if (!batchCid_.empty() && (batchCid == batchCid_)) finalizeBatchIfCompleted();
 }
 
 // On a primary replica; unsafe
@@ -373,7 +374,6 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                            metricsComponent_.RegisterCounter("preProcBatchReqReceived"),
                            metricsComponent_.RegisterCounter("preProcReqInvalid"),
                            metricsComponent_.RegisterAtomicCounter("preProcReqIgnored"),
-                           metricsComponent_.RegisterAtomicCounter("preProcReqRejected"),
                            metricsComponent_.RegisterCounter("preProcConsensusNotReached"),
                            metricsComponent_.RegisterCounter("preProcessRequestTimedOut"),
                            metricsComponent_.RegisterCounter("preProcPossiblePrimaryFaultDetected"),
@@ -709,9 +709,6 @@ bool PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUnique
   const NodeIdType &clientId = clientMsg->clientProxyId();
   const ReqId &reqSeqNum = clientMsg->requestSeqNum();
   const auto &reqCid = clientMsg->getCid();
-  LOG_DEBUG(
-      logger(),
-      "Handle Request:" << KVLOG(batchCid, reqSeqNum, reqCid, clientId, senderId, arrivedInBatch, reqOffsetInBatch));
 
   bool registerSucceeded = false;
   {
@@ -743,8 +740,9 @@ bool PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUnique
     return true;
   }
   LOG_DEBUG(logger(),
-            "ClientPreProcessRequestMsg" << KVLOG(batchCid, reqSeqNum, reqCid, clientId, senderId)
-                                         << " is ignored because request is old/duplicated");
+            "ClientPreProcessRequestMsg"
+                << KVLOG(batchCid, reqSeqNum, reqCid, clientId, senderId, arrivedInBatch, reqOffsetInBatch)
+                << " is ignored because request is old/duplicated");
   preProcessorMetrics_.preProcReqIgnored++;
   return false;
 }
@@ -1386,7 +1384,7 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffset
     }
     LOG_INFO(logger(),
              "Pre-processing completed for" << KVLOG(batchCid, reqSeqNum, reqCid, clientId, reqOffsetInBatch));
-    if (!batchCid.empty()) batchEntry->finalizeBatchIfCompletedSafe();
+    batchEntry->finalizeBatchIfCompletedSafe(batchCid);
   }
 }
 
@@ -1483,11 +1481,11 @@ void PreProcessor::releaseClientPreProcessRequestSafe(uint16_t clientId,
 void PreProcessor::releaseClientPreProcessRequest(const RequestStateSharedPtr &reqEntry, PreProcessingResult result) {
   auto &givenReq = reqEntry->reqProcessingStatePtr;
   if (givenReq) {
-    const auto &clientId = givenReq->getClientId();
-    const auto &reqOffsetInBatch = givenReq->getReqOffsetInBatch();
-    const auto &batchCid = givenReq->getBatchCid();
+    const auto clientId = givenReq->getClientId();
+    const auto reqOffsetInBatch = givenReq->getReqOffsetInBatch();
+    const auto batchCid = givenReq->getBatchCid();
     auto reqSeqNum = givenReq->getReqSeqNum();
-    auto &reqCid = givenReq->getReqCid();
+    auto reqCid = givenReq->getReqCid();
     if (result == COMPLETE) {
       if (reqEntry->reqProcessingHistory.size() >= reqEntry->reqProcessingHistoryHeight) {
         auto &removeFromHistoryReq = reqEntry->reqProcessingHistory.front();

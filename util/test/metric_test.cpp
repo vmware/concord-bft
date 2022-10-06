@@ -101,8 +101,8 @@ TEST(MetricTest, ToJson) {
 TEST(MetricTest, CollectGauges) {
   auto aggregator = std::make_shared<Aggregator>();
   Component c("replica", aggregator);
-  c.RegisterGauge("connected_peers", 3);
-  c.RegisterGauge("total_peers", 4);
+  c.RegisterGauge("connected_peers", 3, {{"key_1", "val_1"}, {"key_2", "val_2"}});
+  c.RegisterGauge("total_peers", 4, {{"key_1", "val_1"}});
   c.Register();
 
   Component c2("state-transfer", aggregator);
@@ -117,13 +117,16 @@ TEST(MetricTest, CollectGauges) {
       if (g.name == "connected_peers") {
         ASSERT_EQ(std::get<Gauge>(g.value).Get(), 3);
         numOfGaugesInReplica++;
+        ASSERT_EQ(g.tag_map.size(), 2);
       } else if (g.name == "total_peers") {
         ASSERT_EQ(std::get<Gauge>(g.value).Get(), 4);
         numOfGaugesInReplica++;
+        ASSERT_EQ(g.tag_map.size(), 1);
       }
     } else if (g.component == "state-transfer") {
       if (g.name == "blocks-remaining") {
         ASSERT_EQ(std::get<Gauge>(g.value).Get(), 5);
+        ASSERT_EQ(g.tag_map.size(), 0);
         numOfGaugesInStateTransfer++;
       }
     }

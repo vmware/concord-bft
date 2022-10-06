@@ -40,7 +40,7 @@ using concord::client::concordclient::Update;
 using concord::client::concordclient::UpdateNotFound;
 using concord::client::concordclient::OutOfRangeSubscriptionRequest;
 using concord::client::concordclient::InternalError;
-using concord::client::concordclient::EventUpdateQueue;
+using concord::client::concordclient::TrcQueue;
 using std::atomic_bool;
 using std::list;
 using std::logic_error;
@@ -719,12 +719,9 @@ void ThinReplicaClient::pushUpdateToUpdateQueue(std::unique_ptr<EventVariant> up
                                                 const std::chrono::steady_clock::time_point& start,
                                                 bool is_event_group) {
   // push update to the update queue for consumption by the application using TRC
-  const auto& block_id = std::get<Update>(*update).block_id;
-  auto num_events = std::get<Update>(*update).kv_pairs.size();
-  config_->update_queue->push(std::move(update));
+  config_->update_queue->push(update.release());
   auto update_queue_size = config_->update_queue->size();
   metrics_.current_queue_size.Get().Set(update_queue_size);
-  LOG_TRACE(logger_, "Events pushed to UpdateQueue:" << KVLOG(block_id, num_events, update_queue_size));
 
   // update metrics
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
@@ -736,9 +733,6 @@ void ThinReplicaClient::pushUpdateToUpdateQueue(std::unique_ptr<EventVariant> up
   } else {
     metrics_.last_verified_block_id.Get().Set(latest_verified_block_id_);
   }
-
-  metrics_.num_updates_processed++;
-  metrics_.num_events_processed.Get().Set(metrics_.num_events_processed.Get().Get() + num_events);
 }
 
 void ThinReplicaClient::resetMetricsBeforeNextUpdate() {
@@ -954,7 +948,7 @@ void ThinReplicaClient::Subscribe() {
 
   config_->update_queue->clear();
   while (state.size() > 0) {
-    config_->update_queue->push(move(state.front()));
+    config_->update_queue->push(state.front().release());
     state.pop_front();
   }
   latest_verified_block_id_ = block_id;

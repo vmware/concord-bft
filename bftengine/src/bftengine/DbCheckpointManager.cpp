@@ -119,42 +119,7 @@ void DbCheckpointManager::init() {
   // if any dbcheckpoints are present in the file system.
   if (isMetadataErased_) {
     // update metadata for dbcheckpoints from file system
-    const auto& checkpointDir = dbClient_->getCheckpointPath();
-    _fs::path path(checkpointDir);
-    std::vector<_fs::directory_entry> allDBCheckpoints;
-
-    try {
-      if (_fs::exists(path)) {
-        uint64_t lastCreatedDbCheckpoint = 0;
-        for (const auto& entry : _fs::directory_iterator(checkpointDir)) {
-          const auto filenameStr = entry.path().filename().string();
-          if (_fs::is_directory(entry)) {
-            allDBCheckpoints.push_back(entry);
-            const CheckpointId& checkPointId = std::stoi(filenameStr);
-            const auto blockId = checkPointId;
-
-            _fs::file_time_type ftime = _fs::last_write_time(entry.path());
-            std::time_t cftime = decltype(ftime)::clock::to_time_t(ftime);
-            const std::chrono::seconds creationTime = std::chrono::seconds(cftime);
-            {
-              std::scoped_lock lock(lockLastDbCheckpointDesc_);
-              lastCreatedCheckpointMetadata_.emplace(DbCheckpointMetadata::DbCheckPointDescriptor{
-                  checkPointId, creationTime, blockId, lastCheckpointSeqNum_});
-              dbCheckptMetadata_.dbCheckPoints_.insert({checkPointId, lastCreatedCheckpointMetadata_.value()});
-            }
-
-            // extract the last created BlockId from all created dbCheckpoints.
-            lastCreatedDbCheckpoint = std::max(lastCreatedDbCheckpoint, checkPointId);
-            numOfDbCheckpointsCreated_++;
-          }
-        }
-        lastDbCheckpointBlockId_.Get().Set(lastCreatedDbCheckpoint);
-        metrics_.UpdateAggregator();
-      }
-      updateMetrics();
-    } catch (std::exception& e) {
-      LOG_WARN(getLogger(), "Failed to update checkpoints metadata from checkpoint directory" << e.what());
-    }
+    builMetadataFromFileSystem();
   } else {
     // check if there is chkpt data in persistence
     loadCheckpointDataFromPersistence();
@@ -406,7 +371,7 @@ void DbCheckpointManager::updateMetrics() {
     lastDbCheckpointSizeInMb_.Get().Set(lastDbCheckpointSize / (1024 * 1024));
     metrics_.UpdateAggregator();
     LOG_INFO(getLogger(), "rocksdb check point id:" << it->first << ", size: " << HumanReadable{lastDbCheckpointSize});
-    LOG_INFO(GL, "-- RocksDb checkpoint metrics dump--" + metrics_.ToJson());
+    LOG_DEBUG(GL, "-- RocksDb checkpoint metrics dump--" + metrics_.ToJson());
   }
 }
 void DbCheckpointManager::updateLastCmdInfo(const SeqNum& seqNum, const std::optional<Timestamp>& timestamp) {
@@ -472,5 +437,49 @@ std::map<uint64_t, uint64_t> DbCheckpointManager::getDbSize() {
     }
   }
   return dbSizeMap;
+}
+void DbCheckpointManager::builMetadataFromFileSystem() {
+  // update metadata for dbcheckpoints from file system
+  const auto& checkpointDir = dbClient_->getCheckpointPath();
+  _fs::path path(checkpointDir);
+
+  try {
+    if (_fs::exists(path)) {
+      for (const auto& entry : _fs::directory_iterator(checkpointDir)) {
+        const auto filenameStr = entry.path().filename().string();
+        // directory name is last block id in the db checkpoint
+        // and must be a valid numeric string
+        if (filenameStr.find_first_not_of("0123456789") != string::npos) {
+          LOG_WARN(getLogger(), "Invalid file or directory:" << filenameStr << " found in checkpoint folder");
+          continue;
+        }
+        if (_fs::is_directory(entry)) {
+          const CheckpointId& checkPointId = std::stoi(filenameStr);
+          const auto blockId = checkPointId;
+          _fs::file_time_type ftime = _fs::last_write_time(entry.path());
+          std::time_t cftime = decltype(ftime)::clock::to_time_t(ftime);
+          const std::chrono::seconds creationTime = std::chrono::seconds(cftime);
+          {
+            std::scoped_lock lock(lockLastDbCheckpointDesc_);
+            const auto checkPointDescriptor = DbCheckpointMetadata::DbCheckPointDescriptor{
+                checkPointId, creationTime, blockId, lastCheckpointSeqNum_};
+            dbCheckptMetadata_.dbCheckPoints_.insert({checkPointId, checkPointDescriptor});
+          }
+        }
+      }
+
+      if (auto it = dbCheckptMetadata_.dbCheckPoints_.rbegin(); it != dbCheckptMetadata_.dbCheckPoints_.rend()) {
+        lastCreatedCheckpointMetadata_ = it->second;
+        dbCheckptMetadata_.lastCmdTimestamp_ = it->second.creationTimeSinceEpoch_;
+        lastCheckpointCreationTime_ = dbCheckptMetadata_.lastCmdTimestamp_;
+        lastDbCheckpointBlockId_.Get().Set(it->second.lastBlockId_);
+        metrics_.UpdateAggregator();
+        updateMetrics();
+      }
+      updateDbCheckpointMetadata();
+    }
+  } catch (std::exception& e) {
+    LOG_WARN(getLogger(), "Failed to update checkpoints metadata from checkpoint directory" << e.what());
+  }
 }
 }  // namespace bftEngine::impl

@@ -19,3 +19,9 @@ add_custom_command(TARGET copy_tran_sign_keys_script
 add_custom_target(copy_msgConfig_dir ALL COMMENT "Copying msg-configs directory")
 add_custom_command(TARGET copy_msgConfig_dir
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/msg-configs ${CMAKE_CURRENT_BINARY_DIR}/msg-configs)
+
+# Fill in CMAKE variables in the python wrapper
+configure_file (
+        "${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_osexample.py.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/scripts/test_osexample.py"
+)

@@ -71,7 +71,9 @@ class ReplicaForStateTransfer : public IReplicaForStateTransfer, public ReplicaB
   std::unique_ptr<bftEngine::IStateTransfer> stateTransfer;
   Timers::Handle stateTranTimer_;
   concordMetrics::CounterHandle metric_received_state_transfers_;
+#ifdef ENABLE_ALL_METRICS
   concordMetrics::GaugeHandle metric_state_transfer_timer_;
+#endif
   bool firstTime_;
   std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> cre_;
   std::unordered_set<uint16_t> msgs_to_peek_{MsgCode::PrePrepare};

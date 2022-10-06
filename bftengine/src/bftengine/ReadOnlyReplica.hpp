@@ -68,7 +68,7 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
   } ro_metrics_;
 
   std::unique_ptr<MetadataStorage> metadataStorage_;
-  std::atomic<SeqNum> last_executed_seq_num_;
+  std::atomic<SeqNum> last_executed_seq_num_{0};
 
  private:
   // This function serves as an ReplicaStatusHandlers alternative for ReadOnlyReplica. The reason to use this function

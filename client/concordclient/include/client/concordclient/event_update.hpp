@@ -19,8 +19,6 @@
 #include <variant>
 #include <vector>
 
-#include "client/concordclient/thread_safe_queue.hpp"
-
 namespace concord::client::concordclient {
 
 struct EventGroup {
@@ -47,10 +45,5 @@ struct Update {
   std::string correlation_id_;
   std::string span_context;
 };
-
-typedef std::variant<Update, EventGroup> EventVariant;
-
-using EventUpdateQueue = IQueue<EventVariant>;
-using BasicEventUpdateQueue = BasicThreadSafeQueue<EventVariant>;
 
 }  // namespace concord::client::concordclient

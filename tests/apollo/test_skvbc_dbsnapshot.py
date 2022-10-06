@@ -728,15 +728,22 @@ class SkvbcDbSnapshotTest(ApolloTest):
         # It will fetch all dbcheckpoints created before and after scale with restart.
         client = bft_network.random_client()
         op = operator.Operator(bft_network.config, client, bft_network.builddir)
+        latest_checkpoint_id = 0
+        snapshot_rep = await op.state_snapshot_req()
+        resp = cmf_msgs.ReconfigurationResponse.deserialize(snapshot_rep)[0]
+        snapshot_id = resp.response.data.snapshot_id
         rep = await op.get_dbcheckpoint_info_request(bft=False)
         data = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
-        self.assertTrue(data.success)
+        self.assertTrue(data.success)        
         for r in client.get_rsi_replies().values():
             res = cmf_msgs.ReconfigurationResponse.deserialize(r)
             self.assertEqual(len(res[0].response.db_checkpoint_info), 2)
             dbcheckpoint_info_list = res[0].response.db_checkpoint_info
             self.assertTrue(any(dbcheckpoint_info.block_id ==
                                 300 for dbcheckpoint_info in dbcheckpoint_info_list))
+            for dbcheckpoint_info in dbcheckpoint_info_list:
+                latest_checkpoint_id = max(latest_checkpoint_id, dbcheckpoint_info.block_id)
+            assert(latest_checkpoint_id == snapshot_id)
 
 
     @with_trio
@@ -948,6 +955,7 @@ class SkvbcDbSnapshotTest(ApolloTest):
         await bft_network.wait_for_consensus_path(path_type=ConsensusPathType.OPTIMISTIC_FAST,
                                                   run_ops=lambda: skvbc.send_n_kvs_sequentially(DB_CHECKPOINT_WIN_SIZE),
                                                   threshold=5)
+                                                  
 
     async def validate_stop_on_wedge_point(self, bft_network, skvbc, fullWedge=False):
         with log.start_action(action_type="validate_stop_on_stable_checkpoint") as action:

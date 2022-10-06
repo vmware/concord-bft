@@ -20,6 +20,7 @@ AdaptivePruningManager::AdaptivePruningManager(
       mode(LEGACY),
       interval(interval),
       ro_storage_(ro_storage),
+#ifdef ENABLE_ALL_METRICS
       metricComponent(std::string("Adaptive Pruning"), aggregator),
       blocksPerSecondMetric(metricComponent.RegisterAtomicGauge(std::string("reportedBlocksPerSecondToPrune"), 0)),
       batchSizeMetric(metricComponent.RegisterAtomicGauge("batchToPruneAtOnceSize", 0)),
@@ -27,6 +28,9 @@ AdaptivePruningManager::AdaptivePruningManager(
       postExecUtilizationMetric(metricComponent.RegisterAtomicGauge("percantageOfTimeUtilizedByUser", 0)),
       pruningAvgTimeMicroMetric(metricComponent.RegisterAtomicGauge("avgBlockPruneTime", 0)),
       pruningUtilizationMetric(metricComponent.RegisterAtomicGauge("percantageOfTimeUtilizedByPruning", 0)) {
+#else
+      metricComponent(std::string("Adaptive Pruning"), aggregator) {
+#endif
   (void)ro_storage_;
   resourceManager->setPeriod(bftEngine::ReplicaConfig::instance().adaptivePruningIntervalPeriod);
   metricComponent.Register();
@@ -47,13 +51,14 @@ void AdaptivePruningManager::notifyReplicas(const PruneInfo &pruneInfo) {
   pruneRequest.batch_blocks_num = pruneInfo.blocksPerSecond;
 
   // Is this going to register all send values or just update current
+#ifdef ENABLE_ALL_METRICS
   blocksPerSecondMetric.Get().Set(pruneInfo.blocksPerSecond);
   batchSizeMetric.Get().Set(pruneInfo.batchSize);
   transactionsPerSecondMetric.Get().Set(pruneInfo.transactionsPerSecond);
   postExecUtilizationMetric.Get().Set(pruneInfo.postExecUtilization);
   pruningAvgTimeMicroMetric.Get().Set(pruneInfo.pruningAvgTimeMicro);
   pruningUtilizationMetric.Get().Set(pruneInfo.pruningUtilization);
-
+#endif
   LOG_DEBUG(ADPTV_PRUNING,
             "Sending PruneTicksChangeRequest { interval between ticks seconds = "
                 << pruneRequest.interval_between_ticks_seconds

@@ -180,6 +180,7 @@ class DbCheckpointManager {
   void updateDbCheckpointMetadata();
   void updateLastCmdInfo(const SeqNum&, const std::optional<Timestamp>&);
   void removeDbCheckpointFuture(CheckpointId);
+  void builMetadataFromFileSystem();
   void updateMetrics();
   InternalBftClient* client_{nullptr};
   std::atomic<bool> stopped_ = false;

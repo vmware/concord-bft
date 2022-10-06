@@ -1,0 +1,10 @@
+*.o
+*.a
+*.so
+*.d
+depinst/
+depsrc/
+README.html
+doxygen/
+/build/
+/Testing

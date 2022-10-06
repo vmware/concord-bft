@@ -39,15 +39,7 @@ T FindValue(const char* const val_type, const string& val_name, const vector<str
 
 /******************************** Class Component ********************************/
 
-Component::Handle<Gauge> Component::RegisterGauge(const string& name, const uint64_t val) {
-  names_.gauge_names_.emplace_back(name);
-  values_.gauges_.emplace_back(Gauge(val));
-  return Component::Handle<Gauge>(values_.gauges_, values_.gauges_.size() - 1, metricsEnabled_);
-}
-
-Component::Handle<Gauge> Component::RegisterGauge(const string& name,
-                                                  const uint64_t val,
-                                                  const std::unordered_map<std::string, std::string>& tag_map) {
+Component::Handle<Gauge> Component::RegisterGauge(const string& name, const uint64_t val, const TagsMap& tag_map) {
   names_.gauge_names_.emplace_back(name);
   tags_.gauge_tags_.emplace_back(tag_map);
   values_.gauges_.emplace_back(Gauge(val));
@@ -60,15 +52,7 @@ Component::Handle<Status> Component::RegisterStatus(const string& name, const st
   return Component::Handle<Status>(values_.statuses_, values_.statuses_.size() - 1, metricsEnabled_);
 }
 
-Component::Handle<Counter> Component::RegisterCounter(const string& name, const uint64_t val) {
-  names_.counter_names_.emplace_back(name);
-  values_.counters_.emplace_back(Counter(val));
-  return Component::Handle<Counter>(values_.counters_, values_.counters_.size() - 1, metricsEnabled_);
-}
-
-Component::Handle<Counter> Component::RegisterCounter(const string& name,
-                                                      const uint64_t val,
-                                                      const std::unordered_map<std::string, std::string>& tag_map) {
+Component::Handle<Counter> Component::RegisterCounter(const string& name, const uint64_t val, const TagsMap& tag_map) {
   names_.counter_names_.emplace_back(name);
   tags_.counter_tags_.emplace_back(tag_map);
   values_.counters_.emplace_back(Counter(val));
@@ -92,7 +76,7 @@ std::list<Metric> Component::CollectGauges() {
   if (!metricsEnabled_) return list<Metric>();
   std::list<Metric> ret;
   for (size_t i = 0; i < names_.gauge_names_.size(); i++) {
-    if (tags_.gauge_tags_.size() > i) {
+    if (tags_.gauge_tags_[i].size()) {
       ret.emplace_back(Metric{name_, names_.gauge_names_[i], values_.gauges_[i], tags_.gauge_tags_[i]});
     } else {
       ret.emplace_back(Metric{name_, names_.gauge_names_[i], values_.gauges_[i]});
@@ -108,7 +92,7 @@ std::list<Metric> Component::CollectCounters() {
   if (!metricsEnabled_) return list<Metric>();
   std::list<Metric> ret;
   for (size_t i = 0; i < names_.counter_names_.size(); i++) {
-    if (tags_.counter_tags_.size() > i) {
+    if (tags_.counter_tags_[i].size()) {
       ret.emplace_back(Metric{name_, names_.counter_names_[i], values_.counters_[i], tags_.counter_tags_[i]});
     } else {
       ret.emplace_back(Metric{name_, names_.counter_names_[i], values_.counters_[i]});

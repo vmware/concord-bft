@@ -23,6 +23,7 @@
 #include "assertUtils.hpp"
 #include "thin_replica.grpc.pb.h"
 #include "replica_state_snapshot.grpc.pb.h"
+#include "thread_pool.hpp"
 #include "Logger.hpp"
 
 using namespace std::chrono_literals;
@@ -88,6 +89,8 @@ class GrpcConnection {
         data_timeout_(std::chrono::seconds(data_operation_timeout_seconds)),
         hash_timeout_(std::chrono::seconds(hash_operation_timeout_seconds)),
         snapshot_timeout_(std::chrono::seconds(snapshot_operation_timeout_seconds)) {
+    grpc_connection_pool_ = std::make_unique<concord::util::ThreadPool>(1);
+    ConcordAssertNE(grpc_connection_pool_, nullptr);
     LOG_INFO(logger_,
              KVLOG(data_operation_timeout_seconds, hash_operation_timeout_seconds, snapshot_operation_timeout_seconds));
   }
@@ -211,6 +214,9 @@ class GrpcConnection {
       rss_streams_;
   std::shared_mutex rss_streams_mutex_;
   std::atomic_uint64_t current_req_id_{1};
+
+  // Reader threads
+  std::unique_ptr<concord::util::ThreadPool> grpc_connection_pool_;
 
   // gRPC connection
   std::shared_ptr<grpc::Channel> channel_;

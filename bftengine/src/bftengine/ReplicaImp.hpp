@@ -78,6 +78,7 @@ using concordMetrics::StatusHandle;
 
 class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
  protected:
+  std::atomic_bool isCollectingState_;
   const bool viewChangeProtocolEnabled;
   const bool autoPrimaryRotationEnabled;
 
@@ -301,6 +302,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   CounterHandle metric_sent_newview_msg_due_to_status_;
   CounterHandle metric_sent_preprepare_msg_due_to_status_;
   CounterHandle metric_sent_replica_asks_to_leave_view_msg_due_to_status_;
+#ifdef ENABLE_ALL_METRICS
   CounterHandle metric_sent_preprepare_msg_due_to_reqMissingData_;
   CounterHandle metric_sent_startSlowPath_msg_due_to_reqMissingData_;
   CounterHandle metric_sent_partialCommitProof_msg_due_to_reqMissingData_;
@@ -309,9 +311,12 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   CounterHandle metric_sent_commitPartial_msg_due_to_reqMissingData_;
   CounterHandle metric_sent_commitFull_msg_due_to_reqMissingData_;
   CounterHandle metric_sent_fullCommitProof_msg_due_to_reqMissingData_;
+#endif
   CounterHandle metric_total_finished_consensuses_;
   CounterHandle metric_total_preexec_requests_executed_;
+#ifdef ENABLE_ALL_METRICS
   CounterHandle metric_received_restart_ready_;
+#endif
   CounterHandle metric_received_restart_proof_;
   PerfMetric<uint64_t> metric_consensus_duration_;
   PerfMetric<uint64_t> metric_post_exe_duration_;
@@ -368,7 +373,11 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   std::function<bool(MessageBase*)> getMessageValidator();
 
   // InternalReplicaApi
-  bool isCollectingState() const override { return stateTransfer->isCollectingState(); }
+  bool isCollectingState() const override {
+    LOG_DEBUG(GL, "Thread ID: " << std::this_thread::get_id());
+    return isCollectingState_;
+  }
+  void startCollectingState(std::string&& reason = "");
   bool isValidClient(NodeIdType clientId) const override { return clientsManager->isValidClient(clientId); }
   bool isIdOfReplica(NodeIdType id) const override { return repsInfo->isIdOfReplica(id); }
   const std::set<ReplicaId>& getIdsOfPeerReplicas() const override { return repsInfo->idsOfPeerReplicas(); }
@@ -381,6 +390,12 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   }
   bool isClientRequestInProcess(NodeIdType clientId, ReqId reqSeqNum) const override {
     return clientsManager->isClientRequestInProcess(clientId, reqSeqNum);
+  }
+  inline void setIsCollectingState(bool newState) {
+    LOG_INFO(GL,
+             std::boolalpha << "Setting CollectingState to" << KVLOG(newState)
+                            << " Thread ID: " << std::this_thread::get_id());
+    isCollectingState_ = newState;
   }
   SeqNum getPrimaryLastUsedSeqNum() const override { return primaryLastUsedSeqNum; }
   uint64_t getRequestsInQueue() const override { return requestsQueueOfPrimary.size(); }

@@ -63,8 +63,8 @@ struct ClientConfig {
   ClientId id;
   std::set<ReplicaId> all_replicas;
   std::set<ReplicaId> ro_replicas;
-  uint16_t f_val;
-  uint16_t c_val;
+  uint16_t f_val = 0;
+  uint16_t c_val = 0;
   RetryTimeoutConfig retry_timeout_config;
   bool use_unified_certs = false;
   std::optional<std::string> transaction_signing_private_key_file_path = std::nullopt;
@@ -76,7 +76,7 @@ struct ClientConfig {
 struct RequestConfig {
   bool pre_execute = false;
   uint64_t sequence_number = 0;
-  uint32_t max_reply_size = 64 * 1024;
+  uint32_t max_reply_size = 1024 * 1024;
   std::chrono::milliseconds timeout = 5s;
   std::string correlation_id = "";
   std::string span_context = "";

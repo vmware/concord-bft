@@ -2427,14 +2427,11 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
     }
   }
 
-  if (askForStateTransfer && !stateTransfer->isCollectingState()) {
+  if (askForStateTransfer && !isCollectingState()) {
     if (activeExecutions_ > 0)
       isStartCollectingState_ = true;
     else {
-      LOG_INFO(GL, "Call to startCollectingState()");
-      time_in_state_transfer_.start();
-      clientsManager->clearAllPendingRequests();  // to avoid entering a new view on old request timeout
-      stateTransfer->startCollectingState();
+      startCollectingState("On receiving checkpoint message");
     }
   } else if (msgSenderId == msgGenReplicaId) {
     if (msgSeqNum > lastStableSeqNum + kWorkWindowSize) {
@@ -3365,6 +3362,7 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
     if (ps_) {
       ps_->endWriteTran(config_.getsyncOnUpdateOfMetadata());
     }
+    setIsCollectingState(false);
     return;
   }
   lastExecutedSeqNum = newCheckpointSeqNum;
@@ -3430,6 +3428,8 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
     LOG_INFO(GL, "tryToEnterView after State Transfer finished ...");
     tryToEnterView();
   }
+
+  setIsCollectingState(false);
 }
 
 void ReplicaImp::onSeqNumIsSuperStable(SeqNum superStableSeqNum) {
@@ -3708,14 +3708,22 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
     PrePrepareMsg *pp = seqNumInfo.getSelfPrePrepareMsg();
     if (msg->getPrePrepareIsMissing()) {
       if (pp != nullptr) {
+#ifdef ENABLE_ALL_METRICS
         sendAndIncrementMetric(pp, msgSender, metric_sent_preprepare_msg_due_to_reqMissingData_);
+#else
+        send(pp, msgSender);
+#endif
       }
     }
 
     if (config_.getreplicaId() == currentPrimary()) {
       if (seqNumInfo.slowPathStarted() && !msg->getSlowPathHasStarted()) {
         StartSlowCommitMsg startSlowMsg(config_.getreplicaId(), getCurrentView(), msgSeqNum);
+#ifdef ENABLE_ALL_METRICS
         sendAndIncrementMetric(&startSlowMsg, msgSender, metric_sent_startSlowPath_msg_due_to_reqMissingData_);
+#else
+        send(&startSlowMsg, msgSender);
+#endif
       }
     }
 
@@ -3723,14 +3731,22 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
       CommitFullMsg *c = seqNumInfo.getValidCommitFullMsg();
       if (c != nullptr) {
         LOG_INFO(CNSUS, "Sending FullCommit message as a response of RFMD" << KVLOG(msgSender, msgSeqNum));
+#ifdef ENABLE_ALL_METRICS
         sendAndIncrementMetric(c, msgSender, metric_sent_commitFull_msg_due_to_reqMissingData_);
+#else
+        send(c, msgSender);
+#endif
       }
     }
 
     if (msg->getFullCommitProofIsMissing() && seqNumInfo.hasFastPathFullCommitProof()) {
       FullCommitProofMsg *fcp = seqNumInfo.getFastPathFullCommitProofMsg();
       LOG_INFO(CNSUS, "Sending FullCommitProof message as a response of RFMD" << KVLOG(msgSender, msgSeqNum));
+#ifdef ENABLE_ALL_METRICS
       sendAndIncrementMetric(fcp, msgSender, metric_sent_fullCommitProof_msg_due_to_reqMissingData_);
+#else
+      send(fcp, msgSender);
+#endif
     }
 
     if (msg->getPartialProofIsMissing() && seqNumInfo.isTimeCorrect()) {
@@ -3739,7 +3755,11 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
 
       if (pcf != nullptr) {
         LOG_INFO(CNSUS, "Sending PartialProof message as a response of RFMD" << KVLOG(msgSender, msgSeqNum));
+#ifdef ENABLE_ALL_METRICS
         sendAndIncrementMetric(pcf, msgSender, metric_sent_partialCommitProof_msg_due_to_reqMissingData_);
+#else
+        send(pcf, msgSender);
+#endif
       }
     }
 
@@ -3748,7 +3768,11 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
 
       if (pr != nullptr) {
         LOG_INFO(CNSUS, "Sending PartialPrepare message as a response of RFMD" << KVLOG(msgSender, msgSeqNum));
+#ifdef ENABLE_ALL_METRICS
         sendAndIncrementMetric(pr, msgSender, metric_sent_preparePartial_msg_due_to_reqMissingData_);
+#else
+        send(pr, msgSender);
+#endif
       }
     }
 
@@ -3757,7 +3781,11 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
 
       if (pf != nullptr) {
         LOG_INFO(CNSUS, "Sending FullPrepare message as a response of RFMD" << KVLOG(msgSender, msgSeqNum));
+#ifdef ENABLE_ALL_METRICS
         sendAndIncrementMetric(pf, msgSender, metric_sent_prepareFull_msg_due_to_reqMissingData_);
+#else
+        send(pf, msgSender);
+#endif
       }
     }
 
@@ -3765,7 +3793,11 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
       CommitPartialMsg *c = seqNumInfo.getSelfCommitPartialMsg();
       if (c != nullptr) {
         LOG_INFO(CNSUS, "Sending PartialCommit message as a response of RFMD" << KVLOG(msgSender, msgSeqNum));
+#ifdef ENABLE_ALL_METRICS
         sendAndIncrementMetric(c, msgSender, metric_sent_commitPartial_msg_due_to_reqMissingData_);
+#else
+        send(c, msgSender);
+#endif
       }
     }
   } else {
@@ -3931,7 +3963,9 @@ void ReplicaImp::onMessage<ReplicaRestartReadyMsg>(ReplicaRestartReadyMsg *msg) 
   auto &restart_msgs = restart_ready_msgs_[static_cast<uint8_t>(msg->getReason())];
   if (restart_msgs.find(msg->idOfGeneratedReplica()) == restart_msgs.end()) {
     restart_msgs[msg->idOfGeneratedReplica()] = std::make_unique<ReplicaRestartReadyMsg>(msg);
+#ifdef ENABLE_ALL_METRICS
     metric_received_restart_ready_++;
+#endif
   } else {
     LOG_INFO(GL,
              "Received multiple ReplicaRestartReadyMsg from sender_id "
@@ -4298,6 +4332,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
                        shared_ptr<PersistentStorage> ps,
                        const std::function<void(bool)> &viewChangeCallBack)
     : ReplicaForStateTransfer(config, requestsHandler, stateTrans, msgsCommunicator, msgHandlers, firstTime, timers),
+      isCollectingState_{stateTransfer->isCollectingState()},
       viewChangeProtocolEnabled{config.viewChangeProtocolEnabled},
       autoPrimaryRotationEnabled{config.autoPrimaryRotationEnabled},
       restarted_{!firstTime},
@@ -4368,6 +4403,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_sent_preprepare_msg_due_to_status_{metrics_.RegisterCounter("sentPreprepareMsgDueToStatus")},
       metric_sent_replica_asks_to_leave_view_msg_due_to_status_{
           metrics_.RegisterCounter("sentReplicaAsksToLeaveViewMsgDueToStatus")},
+#ifdef ENABLE_ALL_METRICS
       metric_sent_preprepare_msg_due_to_reqMissingData_{
           metrics_.RegisterCounter("sentPreprepareMsgDueToReqMissingData")},
       metric_sent_startSlowPath_msg_due_to_reqMissingData_{
@@ -4384,9 +4420,12 @@ ReplicaImp::ReplicaImp(bool firstTime,
           metrics_.RegisterCounter("sentCommitFullMsgDueToReqMissingData")},
       metric_sent_fullCommitProof_msg_due_to_reqMissingData_{
           metrics_.RegisterCounter("sentFullCommitProofMsgDueToReqMissingData")},
+#endif
       metric_total_finished_consensuses_{metrics_.RegisterCounter("totalOrderedRequests")},
       metric_total_preexec_requests_executed_{metrics_.RegisterCounter("totalPreExecRequestsExecuted")},
+#ifdef ENABLE_ALL_METRICS
       metric_received_restart_ready_{metrics_.RegisterCounter("receivedRestartReadyMsg", 0)},
+#endif
       metric_received_restart_proof_{metrics_.RegisterCounter("receivedRestartProofMsg", 0)},
       metric_consensus_duration_{metrics_, "consensusDuration", 1000, 100, true},
       metric_post_exe_duration_{metrics_, "postExeDuration", 1000, 100, true},
@@ -5256,13 +5295,18 @@ void ReplicaImp::updateLimitsAndMetrics(PrePrepareMsg *ppMsg) {
   }
 }
 
+void ReplicaImp::startCollectingState(std::string &&reason) {
+  setIsCollectingState(true);
+  LOG_INFO(GL, "Start Collecting State" << KVLOG(reason));
+  time_in_state_transfer_.start();
+  clientsManager->clearAllPendingRequests();  // to avoid entering a new view on old request timeout
+  stateTransfer->startCollectingState();
+}
+
 void ReplicaImp::handleDeferredRequests() {
   if (isStartCollectingState_) {
-    if (!stateTransfer->isCollectingState()) {
-      LOG_INFO(GL, "Call to startCollectingState()");
-      time_in_state_transfer_.start();
-      clientsManager->clearAllPendingRequests();  // to avoid entering a new view on old request timeout
-      stateTransfer->startCollectingState();
+    if (!isCollectingState()) {
+      startCollectingState("Handle Deferred Requests");
     } else {
       LOG_ERROR(GL, "Collecting state should be active while we are in onExecutionFinish");
     }
