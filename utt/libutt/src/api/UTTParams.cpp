@@ -7,7 +7,7 @@
 
 namespace libutt::api {
 struct UTTParams::Impl {
-  Impl(libutt::Params params_) : params{params_} {}
+  Impl(const libutt::Params& params_) : params{params_} {}
   Impl() = default;
   libutt::Params params;
 };

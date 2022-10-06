@@ -37,6 +37,7 @@ Commitment::Commitment(const UTTParams& d, Type t, const std::vector<types::Curv
 
 Commitment::Commitment() { impl_.reset(new Commitment::Impl()); }
 Commitment& Commitment::operator=(const Commitment& comm) {
+  if (this == &comm) return *this;
   impl_->comm_ = comm.impl_->comm_;
   return *this;
 }

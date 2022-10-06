@@ -62,6 +62,7 @@ Coin::Coin(const Coin& c) {
   type_ = c.type_;
 }
 Coin& Coin::operator=(const Coin& c) {
+  if (this == &c) return *this;
   impl_->coin_ = c.impl_->coin_;
   has_sig_ = c.has_sig_;
   type_ = c.type_;
