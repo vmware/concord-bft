@@ -18,18 +18,35 @@
 #include <vector>
 #include <sstream>
 namespace libutt::api {
+struct Client::Impl {
+  Impl(const std::string& pid, const libutt::RandSigPK& bpk, const libutt::RegAuthPK& rpk, const std::string& rsaSk)
+      : bpk_{bpk}, rpk_{rpk}, decryptor_{std::make_shared<libutt::RSADecryptor>(rsaSk)} {
+    ask_.pid = pid;
+    ask_.s = Fr::random_element();
+    ask_.pid_hash = AddrSK::pidHash(pid);
+  }
+  Impl(const std::string& pid,
+       const libutt::RandSigPK& bpk,
+       const libutt::RegAuthPK& rpk,
+       const libutt::IBE::EncSK& esk,
+       const libutt::IBE::MPK& mpk)
+      : bpk_{bpk}, rpk_{rpk}, decryptor_{std::make_shared<libutt::IBEDecryptor>(esk)} {
+    ask_.pid = pid;
+    ask_.s = Fr::random_element();
+    ask_.pid_hash = AddrSK::pidHash(pid);
+    ask_.e = esk;
+    ask_.mpk_ = mpk;
+  }
+  libutt::RandSigPK bpk_;
+  libutt::RegAuthPK rpk_;
+  std::shared_ptr<libutt::IDecryptor> decryptor_;
+  libutt::AddrSK ask_;
+};
 Client::Client(const std::string& pid, const std::string& bpk, const std::string& rvk, const std::string& rsaSk) {
   if (pid.empty() || bpk.empty() || rvk.empty() || rsaSk.empty())
     throw std::runtime_error("Invalid parameters for building the client");
-  ask_.reset(new libutt::AddrSK());
-  ask_->pid = pid;
-  ask_->s = Fr::random_element();
-  ask_->pid_hash = AddrSK::pidHash(pid);
-  bpk_.reset(new libutt::RandSigPK());
-  *bpk_ = libutt::deserialize<libutt::RandSigPK>(bpk);
-  rpk_.reset(new libutt::RegAuthPK());
-  *rpk_ = libutt::deserialize<libutt::RegAuthPK>(rvk);
-  decryptor_ = std::make_shared<libutt::RSADecryptor>(rsaSk);
+  impl_.reset(new Client::Impl(
+      pid, libutt::deserialize<libutt::RandSigPK>(bpk), libutt::deserialize<libutt::RegAuthPK>(rvk), rsaSk));
 }
 Client::Client(const std::string& pid,
                const std::string& bpk,
@@ -38,24 +55,18 @@ Client::Client(const std::string& pid,
                const std::string& mpk) {
   if (pid.empty() || bpk.empty() || rvk.empty() || csk.empty() || mpk.empty())
     throw std::runtime_error("Invalid parameters for building the client");
-  ask_.reset(new libutt::AddrSK());
-  ask_->pid = pid;
-  ask_->s = Fr::random_element();
-  ask_->pid_hash = AddrSK::pidHash(pid);
-  bpk_.reset(new libutt::RandSigPK());
-  *bpk_ = libutt::deserialize<libutt::RandSigPK>(bpk);
-  rpk_.reset(new libutt::RegAuthPK());
-  *rpk_ = libutt::deserialize<libutt::RegAuthPK>(rvk);
-  ask_->e = libutt::deserialize<libutt::IBE::EncSK>(csk);
-  ask_->mpk_ = libutt::deserialize<libutt::IBE::MPK>(mpk);
-  decryptor_ = std::make_shared<libutt::IBEDecryptor>(ask_->e);
+  impl_.reset(new Client::Impl(pid,
+                               libutt::deserialize<libutt::RandSigPK>(bpk),
+                               libutt::deserialize<libutt::RegAuthPK>(rvk),
+                               libutt::deserialize<libutt::IBE::EncSK>(csk),
+                               libutt::deserialize<libutt::IBE::MPK>(mpk)));
 }
 
 Commitment Client::generateInputRCM() {
   Commitment comm;
   auto h1 = hashToHex(getPidHash());
   G1 H = libutt::hashToGroup<G1>("ps16base|" + h1);
-  *(comm.comm_) = (ask_->s * H);
+  *(comm.comm_) = (impl_->ask_.s * H);
   return comm;
 }
 
@@ -63,24 +74,24 @@ void Client::setPRFKey(const types::CurvePoint& s2) {
   if (complete_s) return;
   Fr fr_s2;
   fr_s2.from_words(s2);
-  ask_->s += fr_s2;
+  impl_->ask_.s += fr_s2;
   complete_s = true;
 }
-const std::string& Client::getPid() const { return ask_->pid; }
-types::CurvePoint Client::getPidHash() const { return ask_->getPidHash().to_words(); }
-types::CurvePoint Client::getPRFSecretKey() const { return ask_->s.to_words(); }
+const std::string& Client::getPid() const { return impl_->ask_.pid; }
+types::CurvePoint Client::getPidHash() const { return impl_->ask_.getPidHash().to_words(); }
+types::CurvePoint Client::getPRFSecretKey() const { return impl_->ask_.s.to_words(); }
 
 void Client::setRCMSig(const UTTParams& d, const types::CurvePoint& s2, const types::Signature& sig) {
   setPRFKey(s2);
   // Compute the complete rcm including s2
-  std::vector<types::CurvePoint> m = {ask_->pid_hash.to_words(), ask_->s.to_words(), Fr::zero().to_words()};
+  std::vector<types::CurvePoint> m = {impl_->ask_.pid_hash.to_words(), impl_->ask_.s.to_words(), Fr::zero().to_words()};
   rcm_ = Commitment(d, Commitment::Type::REGISTRATION, m, true);
   rcm_sig_ = sig;
-  ask_->rs = libutt::deserialize<libutt::RandSig>(sig);
+  impl_->ask_.rs = libutt::deserialize<libutt::RandSig>(sig);
 }
 
 std::pair<Commitment, types::Signature> Client::getRcm() const {
-  auto tmp = libutt::serialize<libutt::RandSig>(ask_->rs);
+  auto tmp = libutt::serialize<libutt::RandSig>(impl_->ask_.rs);
   return {rcm_, types::Signature(tmp.begin(), tmp.end())};
 }
 
@@ -89,7 +100,7 @@ std::pair<Commitment, types::Signature> Client::rerandomizeRcm(const UTTParams& 
   auto r = rcm_copy.rerandomize(d, Commitment::Type::REGISTRATION, std::nullopt);
   Fr r_rand;
   r_rand.from_words(r);
-  auto sig_obj = ask_->rs;
+  auto sig_obj = impl_->ask_.rs;
   sig_obj.rerandomize(r_rand, Fr::random_element());
   auto tmp = libutt::serialize<libutt::RandSig>(sig_obj);
   return {rcm_copy, types::Signature(tmp.begin(), tmp.end())};
@@ -140,7 +151,7 @@ std::vector<libutt::api::Coin> Client::claimCoins<libutt::Tx>(const libutt::Tx& 
                                                               const UTTParams& d,
                                                               const std::vector<types::Signature>& blindedSigs) const {
   std::vector<libutt::api::Coin> ret;
-  auto mineTransactions = tx.getMyTransactions(*decryptor_);
+  auto mineTransactions = tx.getMyTransactions(*(impl_->decryptor_));
   for (const auto& [txoIdx, txo] : mineTransactions) {
     if (blindedSigs.size() <= txoIdx) throw std::runtime_error("Invalid number of blinded signatures");
     Fr r_pid = txo.t, r_sn = Fr::zero(), r_val = txo.d, r_type = Fr::zero(), r_expdate = Fr::zero();
@@ -169,7 +180,7 @@ std::vector<libutt::api::Coin> Client::claimCoins<operations::Transaction>(
 
 template <>
 bool Client::validate<libutt::Coin>(const libutt::Coin& c) const {
-  return c.hasValidSig(*bpk_);
+  return c.hasValidSig(impl_->bpk_);
 }
 
 template <>
@@ -177,4 +188,5 @@ bool Client::validate<Coin>(const Coin& c) const {
   return c.validate(*this);
 }
 
+std::vector<void*> Client::getInternals() const { return {&(impl_->bpk_), &(impl_->rpk_)}; }
 }  // namespace libutt::api

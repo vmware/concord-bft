@@ -155,10 +155,9 @@ class Client {
  private:
   friend class operations::Burn;
   friend class operations::Transaction;
-  std::unique_ptr<libutt::AddrSK> ask_;
-  std::unique_ptr<libutt::RandSigPK> bpk_;
-  std::unique_ptr<libutt::RegAuthPK> rpk_;
-  std::shared_ptr<libutt::IDecryptor> decryptor_;
+  struct Impl;
+  std::vector<void*> getInternals() const;
+  std::shared_ptr<Impl> impl_;
   Commitment rcm_;
   types::Signature rcm_sig_;
   bool complete_s = false;

@@ -34,7 +34,9 @@ Burn::Burn(const UTTParams& d, const Client& cid, const Coin& coin) : c_{coin} {
   const auto rcm = cid.getRcm();
   const auto rcm_str_sig = std::string(rcm.second.begin(), rcm.second.end());
   const auto rcm_sig = libutt::deserialize<libutt::RandSig>(rcm_str_sig);
-  auto& rpk = *(cid.rpk_);
+  auto clientInternals = cid.getInternals();
+  auto rpk = (RegAuthPK*)(clientInternals[1]);
+  auto bpk = (RandSigPK*)(clientInternals[0]);
   impl_.reset(new Burn::Impl(d.getParams(),
                              fr_pidhash,
                              cid.getPid(),
@@ -42,8 +44,8 @@ Burn::Burn(const UTTParams& d, const Client& cid, const Coin& coin) : c_{coin} {
                              rcm_sig,
                              prf,
                              *((libutt::Coin*)(coin.getInternals())),
-                             *(cid.bpk_),
-                             rpk));
+                             *(bpk),
+                             *(rpk)));
 }
 Burn::Burn() { impl_.reset(new Burn::Impl()); }
 Burn::Burn(const Burn& other) {

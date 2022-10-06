@@ -55,7 +55,8 @@ Transaction::Transaction(const UTTParams& d,
     id = r_str;
     fr.set_ulong(r_id);
   }
-  auto& rpk = *(cid.rpk_);
+  auto clientInternals = cid.getInternals();
+  auto rpk = (RegAuthPK*)(clientInternals[1]);
   impl_.reset(new Transaction::Impl(d.getParams(),
                                     fr_pidhash,
                                     cid.getPid(),
@@ -65,7 +66,7 @@ Transaction::Transaction(const UTTParams& d,
                                     input_coins,
                                     budget_coin,
                                     fr_recipients,
-                                    rpk.vk,
+                                    rpk->vk,
                                     encryptor));
 }
 Transaction::Transaction() { impl_.reset(new Transaction::Impl()); }
