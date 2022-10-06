@@ -7,26 +7,14 @@
 
 #include <sstream>
 
-libutt::api::Commitment operator+(libutt::api::Commitment lhs, const libutt::api::Commitment& rhs) {
-  lhs += rhs;
-  return lhs;
-}
-
-std::ostream& operator<<(std::ostream& out, const libutt::api::Commitment& comm) {
-  out << *(comm.comm_);
-  return out;
-}
-std::istream& operator>>(std::istream& in, libutt::api::Commitment& comm) {
-  in >> *(comm.comm_);
-  return in;
-}
-
-bool operator==(const libutt::api::Commitment& comm1, const libutt::api::Commitment& comm2) {
-  if (!comm1.comm_ && !comm2.comm_) return true;
-  if (!comm1.comm_ || !comm2.comm_) return false;
-  return *(comm1.comm_) == *(comm2.comm_);
-}
 namespace libutt::api {
+struct Commitment::Impl {
+  Impl(const libutt::CommKey& ck, const std::vector<Fr>& messages, bool withG2) {
+    comm_ = libutt::Comm::create(ck, messages, withG2);
+  }
+  Impl() = default;
+  libutt::Comm comm_;
+};
 const libutt::CommKey& Commitment::getCommitmentKey(const UTTParams& d, Commitment::Type t) {
   switch (t) {
     case Commitment::Type::REGISTRATION:
@@ -42,23 +30,19 @@ Commitment::Commitment(const UTTParams& d, Type t, const std::vector<types::Curv
   for (size_t i = 0; i < messages.size(); i++) {
     fr_messages[i].from_words(messages.at(i));
   }
-  comm_.reset(new libutt::Comm());
-  *comm_ = libutt::Comm::create(Commitment::getCommitmentKey(d, t), fr_messages, withG2);
+  impl_.reset(new Commitment::Impl(Commitment::getCommitmentKey(d, t), fr_messages, withG2));
 }
 
-Commitment::Commitment() { comm_.reset(new libutt::Comm()); }
+Commitment::Commitment() { impl_.reset(new Commitment::Impl()); }
 Commitment& Commitment::operator=(const Commitment& comm) {
-  *comm_ = *comm.comm_;
+  impl_->comm_ = comm.impl_->comm_;
   return *this;
 }
 
-Commitment::Commitment(const Commitment& comm) {
-  comm_.reset(new libutt::Comm());
-  *this = comm;
-}
+Commitment::Commitment(const Commitment& comm) : Commitment() { impl_->comm_ = comm.impl_->comm_; }
 
 Commitment& Commitment::operator+=(const Commitment& comm) {
-  (*comm_) += *(comm.comm_);
+  impl_->comm_ += comm.impl_->comm_;
   return *this;
 }
 
@@ -67,7 +51,26 @@ types::CurvePoint Commitment::rerandomize(const UTTParams& d,
                                           std::optional<types::CurvePoint> base_randomness) {
   Fr u_delta = Fr::random_element();
   if (base_randomness.has_value()) u_delta.from_words(*base_randomness);
-  comm_->rerandomize(Commitment::getCommitmentKey(d, t), u_delta);
+  impl_->comm_.rerandomize(Commitment::getCommitmentKey(d, t), u_delta);
   return u_delta.to_words();
 }
+void* Commitment::getInternals() const { return &(impl_->comm_); }
 }  // namespace libutt::api
+
+libutt::api::Commitment operator+(libutt::api::Commitment lhs, const libutt::api::Commitment& rhs) {
+  lhs += rhs;
+  return lhs;
+}
+
+std::ostream& operator<<(std::ostream& out, const libutt::api::Commitment& comm) {
+  out << comm.impl_->comm_;
+  return out;
+}
+std::istream& operator>>(std::istream& in, libutt::api::Commitment& comm) {
+  in >> comm.impl_->comm_;
+  return in;
+}
+
+bool operator==(const libutt::api::Commitment& comm1, const libutt::api::Commitment& comm2) {
+  return comm1.impl_->comm_ == comm2.impl_->comm_;
+}

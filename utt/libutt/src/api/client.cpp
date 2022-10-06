@@ -66,7 +66,7 @@ Commitment Client::generateInputRCM() {
   Commitment comm;
   auto h1 = hashToHex(getPidHash());
   G1 H = libutt::hashToGroup<G1>("ps16base|" + h1);
-  *(comm.comm_) = (impl_->ask_.s * H);
+  *((libutt::Comm*)comm.getInternals()) = (impl_->ask_.s * H);
   return comm;
 }
 

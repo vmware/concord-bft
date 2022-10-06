@@ -33,7 +33,7 @@ std::pair<types::CurvePoint, types::Signature> Registrator::signRCM(const types:
   fr_s2.from_words(s2);
   auto h1 = hashToHex(pid_hash);
   G1 H = libutt::hashToGroup<G1>("ps16base|" + h1);
-  auto res = rsk_->sk.shareSign({(fr_pid * H), (fr_s2 * H) + *(rcm1.comm_)}, H);
+  auto res = rsk_->sk.shareSign({(fr_pid * H), (fr_s2 * H) + *((libutt::Comm*)rcm1.getInternals())}, H);
   auto res_str = libutt::serialize<libutt::RandSigShare>(res);
   return {s2, types::Signature(res_str.begin(), res_str.end())};
 }
@@ -49,10 +49,10 @@ bool Registrator::validatePartialRCMSig(uint16_t id,
   auto h1 = hashToHex(pid_hash);
   G1 H = libutt::hashToGroup<G1>("ps16base|" + h1);
   libutt::RandSigShare rsig = libutt::deserialize<libutt::RandSigShare>(sig);
-  return rsig.verify({(fr_pid * H), (fr_s2 * H) + *(rcm1.comm_)}, validation_keys_.at(id)->vk);
+  return rsig.verify({(fr_pid * H), (fr_s2 * H) + *((libutt::Comm*)rcm1.getInternals())}, validation_keys_.at(id)->vk);
 }
 bool Registrator::validateRCM(const Commitment& comm, const types::Signature& sig) const {
   libutt::RandSig rsig = libutt::deserialize<libutt::RandSig>(sig);
-  return rsig.verify(*comm.comm_, rpk_->vk);
+  return rsig.verify(*((libutt::Comm*)comm.getInternals()), rpk_->vk);
 }
 }  // namespace libutt::api

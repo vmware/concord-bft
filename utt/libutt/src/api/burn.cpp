@@ -40,7 +40,7 @@ Burn::Burn(const UTTParams& d, const Client& cid, const Coin& coin) : c_{coin} {
   impl_.reset(new Burn::Impl(d.getParams(),
                              fr_pidhash,
                              cid.getPid(),
-                             *(rcm.first.comm_),
+                             *((libutt::Comm*)rcm.first.getInternals()),
                              rcm_sig,
                              prf,
                              *((libutt::Coin*)(coin.getInternals())),

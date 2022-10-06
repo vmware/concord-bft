@@ -95,6 +95,8 @@ class Commitment {
   friend std::ostream& ::operator<<(std::ostream& out, const libutt::api::Commitment& comm);
   friend std::istream& ::operator>>(std::istream& in, libutt::api::Commitment& comm);
   friend bool ::operator==(const libutt::api::Commitment& comm1, const libutt::api::Commitment& comm2);
-  std::unique_ptr<libutt::Comm> comm_;
+  struct Impl;
+  void* getInternals() const;
+  std::shared_ptr<Impl> impl_;
 };
 }  // namespace libutt::api
