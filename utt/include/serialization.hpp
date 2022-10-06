@@ -14,13 +14,7 @@
 #include <iostream>
 #include <vector>
 #include <sstream>
-
-#include "types.hpp"
-
 namespace libutt::api {
-
-std::vector<uint8_t> serializeCurvePoint(const types::CurvePoint& curvePoint);
-types::CurvePoint deserializeCurvePoint(const std::vector<uint8_t>& data);
 
 template <typename T>
 std::vector<uint8_t> serialize(const T& data) {
