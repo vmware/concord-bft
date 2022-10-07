@@ -22,13 +22,18 @@ grpc::Status HealthCheckServiceImpl::Check(grpc::ServerContext* /*context*/,
     return grpc::Status(grpc::StatusCode::NOT_FOUND, "");
   }
   if (iter->first == kRequestService) {
-    response->set_status(getRequeserviceHealthStatus());
-    return grpc::Status::OK;
+    auto rs_status = getRequeserviceHealthStatus();
+    response->set_status(rs_status);
+    iter->second = rs_status;
+  } else {
+    updateAggregateHealth();
+    // TODO: Add implementation for event service and state snapshot service
+    response->set_status(iter->second);
   }
-  response->set_status(iter->second);
   return grpc::Status::OK;
 }
 
+// TODO: Make Watch asynchronous instead of using a polling mechanism for efficiency
 grpc::Status HealthCheckServiceImpl::Watch(grpc::ServerContext* context,
                                            const HealthCheckRequest* request,
                                            grpc::ServerWriter<HealthCheckResponse>* writer) {
@@ -41,8 +46,12 @@ grpc::Status HealthCheckServiceImpl::Watch(grpc::ServerContext* context,
       if (iter == status_map_.end()) {
         response.set_status(response.SERVICE_UNKNOWN);
       } else if (iter->first == kRequestService) {
-        response.set_status(getRequeserviceHealthStatus());
+        auto rs_status = getRequeserviceHealthStatus();
+        response.set_status(rs_status);
+        iter->second = rs_status;
       } else {
+        updateAggregateHealth();
+        // TODO: Add implementation for event service and state snapshot service
         response.set_status(iter->second);
       }
       if (response.status() != last_state) {
@@ -50,7 +59,7 @@ grpc::Status HealthCheckServiceImpl::Watch(grpc::ServerContext* context,
         last_state = response.status();
       }
     }
-    gpr_sleep_until(gpr_time_add(gpr_now(GPR_CLOCK_MONOTONIC), gpr_time_from_minutes(1, GPR_TIMESPAN)));
+    gpr_sleep_until(gpr_time_add(gpr_now(GPR_CLOCK_MONOTONIC), gpr_time_from_seconds(30, GPR_TIMESPAN)));
   }
   return grpc::Status::OK;
 }
@@ -87,6 +96,15 @@ void HealthCheckServiceImpl::Shutdown() {
 HealthCheckResponse_ServingStatus HealthCheckServiceImpl::getRequeserviceHealthStatus() {
   if (!client_) return HealthCheckResponse::NOT_SERVING;
   return (client_->isClientPoolHealthy()) ? HealthCheckResponse::SERVING : HealthCheckResponse::NOT_SERVING;
+}
+
+void HealthCheckServiceImpl::updateAggregateHealth() {
+  bool aggregate_health = true;  // reports healthy iff all services are healthy
+  for (auto& [k, v] : status_map_) {
+    if (k == "") continue;
+    aggregate_health = aggregate_health && (v == HealthCheckResponse::SERVING);
+  }
+  status_map_[""] = aggregate_health ? HealthCheckResponse::SERVING : HealthCheckResponse::NOT_SERVING;
 }
 
 }  // namespace concord::client::clientservice

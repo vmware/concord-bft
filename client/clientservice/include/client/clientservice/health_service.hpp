@@ -45,6 +45,10 @@ class HealthCheckServiceImpl : public grpc::health::v1::Health::Service {
   // atleast one client in the client pool is ready to serve requests
   HealthCheckResponse_ServingStatus getRequeserviceHealthStatus();
 
+  // updates the overall clientservice health, i.e., reports healthy
+  // iff all the services in clientservice are healthy
+  void updateAggregateHealth();
+
  public:
   const std::string kRequestService{"vmware.concord.client.request.v1.RequestService"};
   const std::string kEventService{"vmware.concord.client.event.v1.EventService"};
