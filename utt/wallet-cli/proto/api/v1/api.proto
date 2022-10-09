@@ -6,25 +6,15 @@ syntax = "proto3";
 // [TODO-UTT] Condense this package identifier into fewer tokens?
 package vmware.concord.utt.wallet.api.v1; 
 
-// Test
-// [TODO-UTT] Remove TestService
-service TestService {
-    rpc reverseString(ReverseStringRequest) returns (ReverseStringResponse);
-}
-
-message ReverseStringRequest {
-    optional string input = 1;
-}
-
-message ReverseStringResponse {
-    optional string output = 1;
-}
-
-// UTT Wallet Service Interface
+// Privacy Wallet Service Interface
 // This interface follows the UTT contract interface as close as possible.
 // [TODO-UTT] Consider if we should use a simplified version of this api that assumes synchronous requests
 // - This would mean that a request will receive a response only when signatures are computed.
-service UTTWalletService {
+service WalletService {
+    // Temporary adding the deployment of privacy app to the wallet service
+    // [TODO-UTT] This operation should be performed by an administrator-only tool
+    rpc deployPrivacyApp(DeployPrivacyAppRequest) returns (DeployPrivacyAppResponse);
+
     rpc registerUser(RegisterUserRequest) returns (RegisterUserResponse);
     rpc getUserRegistration(GetUserRegistrationRequest) returns (GetUserRegistrationResponse);
 
@@ -65,17 +55,27 @@ service UTTWalletService {
     rpc getTransactionSig(GetTransactionSigRequest) returns (GetTransactionSigResponse);
 }
 
+message DeployPrivacyAppRequest {
+    optional bytes config = 1;
+}
+
+message DeployPrivacyAppResponse {
+    optional string err = 1;    // Returns any error generated during deployment
+    optional string app_id = 2; // Some way to identify the deployed application
+}
+
 message RegisterUserRequest {
     optional string user_id = 1;    
-    optional bytes input_rcm = 2;   // The user's input registration commitment
-    optional bytes user_pk = 3;     // The user's public key
+    optional string user_pk = 2;    // The user's public key
+    optional bytes input_rcm = 3;   // The user's input registration commitment
 }
 
 // [TODO-UTT] Consider if we should include the complete result in the response
 // instead of indicating success and then periodically requesting the registration data
 message RegisterUserResponse {
-    // [TODO-UTT] Replace flag with error enum indicating the exact error.
-    optional bool success = 1;      // Indicates if the registration was accepted by the service
+    optional string err = 1;        // Returns any error generated during registration
+    optional bytes signature = 2;   // Signature on the user's registration
+    repeated uint64 s2 = 3;          // Second part of the user's nullifier key 
 }
 
 message GetUserRegistrationRequest {
@@ -83,10 +83,11 @@ message GetUserRegistrationRequest {
 }
 
 message GetUserRegistrationResponse {
-    optional string user_id = 1;    
-    optional bytes user_pk = 2;     // User's public key
-    optional bytes s2 = 3;          // System-generated part of the user's PRF key (used for nullifiers)
-    optional bytes rs = 4;          // A signature on the full registration commitment
+    optional string err = 1;
+    optional string user_id = 2;    
+    optional bytes user_pk = 3;     // User's public key
+    optional bytes s2 = 4;          // System-generated part of the user's PRF key (used for nullifiers)
+    optional bytes rs = 5;          // A signature on the full registration commitment
 }
 
 message GetLatestPublicBudgetRequest {
@@ -183,5 +184,5 @@ message GetTransactionSigRequest {
 
 message GetTransactionSigResponse {
     optional uint64 tx_number = 1;
-    repeated bytes signatures = 2;
+    optional bytes signatures = 2;
 }

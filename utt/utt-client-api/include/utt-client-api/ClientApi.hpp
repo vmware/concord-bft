@@ -40,6 +40,11 @@ void Initialize();
 /// @return unique UTT instance configuration
 Configuration generateConfig(const ConfigInputParams& inputParams);
 
+/// @brief Convenience method to obtain the public part from an already existing config
+/// @param config The input configuration
+/// @return The public part of the configuration
+PublicConfig getPublicConfig(const Configuration& config);
+
 /// @brief Creates and initializes a new UTT user
 /// @param userId A unique string identifying the user in the UTT instance
 /// @param config The public config of the UTT instance
