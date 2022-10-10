@@ -21,6 +21,7 @@ class StateControl {
     static StateControl instance_;
     return instance_;
   }
+
   void lockComm() { lock_comm_.lock(); }
   bool tryLockComm() { return lock_comm_.try_lock(); }
   void unlockComm() { lock_comm_.unlock(); }
@@ -30,11 +31,15 @@ class StateControl {
   }
 
   void restartComm(uint32_t id) { comm_restart_cb_registry_.invokeAll(id); }
+
+  void restartThinReplicaServer(uint32_t id) {restartComm(id);}
+
   void setGetPeerPubKeyMethod(std::function<std::string(uint32_t)> m) { get_peer_pub_key_ = std::move(m); }
   std::string getPeerPubKey(uint32_t id) {
     if (get_peer_pub_key_) return get_peer_pub_key_(id);
     return std::string();
   }
+
 
  private:
   std::mutex lock_comm_;
