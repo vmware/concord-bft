@@ -21,9 +21,8 @@
 void printHelp() {
   std::cout << "\nCommands:\n";
   std::cout << "deploy app -- generates a privacy app config and deploys it to the blockchain.\n";
-  std::cout
-      << "register <userId> -- creates a new user and registers it in a previously deployed privacy app instance\n";
-  std::cout << "show <userId> -- prints information about a user created by this wallet\n";
+  std::cout << "register -- creates a new user and registers it in a previously deployed privacy app instance\n";
+  std::cout << "info -- prints information about the user managed by this wallet\n";
 
   // mint <amount> -- convert some amount of public funds (ERC20 tokens) to private funds (UTT tokens)
   // burn <amount> -- convert some amount of private funds (UTT tokens) to public funds (ERC20 tokens)
@@ -78,10 +77,35 @@ int main(int argc, char* argv[]) {
   // the wallet service) private balance -- print the number of UTT tokens the user has currently (compute locally)
   // budget -- print the currently available anonymity budget (a budget is created in advance for each user)
 
+  if (argc != 2) {
+    std::cout << "Usage: specify the user id\n";
+    return 0;
+  }
+
+  auto userId = std::string(argv[1]);
+
+  // Check that we have test RSA keys for this user id
+  // If not - print the avaialble user ids
+  utt::client::TestUserPKInfrastructure pki;
+
+  // Print out the list of valid user ids with pre-generated keys if we don't have a match.
+  // This is a temp code until we can generate keys on demand for every user id.
+  auto userIds = pki.getUserIds();
+  auto it = std::find(userIds.begin(), userIds.end(), userId);
+  if (it == userIds.end()) {
+    std::cout << "Use one of the following user ids: [";
+    for (const auto& userId : userIds) std::cout << userId << ' ';
+    std::cout << "]\n";
+    return 0;
+  }
+
   try {
     utt::client::Initialize();
 
-    auto wallet = Wallet();
+    auto wallet = Wallet(userId, pki);
+
+    std::cout << "WARNING: The wallet will not be operational until you perform the 'deploy app' command.\nThis is a "
+                 "temporary solution and will be changed.\n";
 
     while (true) {
       std::cout << "Enter command (type 'h' for commands 'Ctr-D' to quit):\n > ";
@@ -97,31 +121,12 @@ int main(int argc, char* argv[]) {
         printHelp();
       } else if (cmd == "deploy app") {
         wallet.deployApp();
+      } else if (cmd == "register") {
+        wallet.registerUser();
+      } else if (cmd == "info") {
+        wallet.showInfo();
       } else {
-        // Tokenize command
-        std::vector<std::string> cmdTokens;
-        {
-          std::stringstream ss(cmd);
-          std::string t;
-          while (std::getline(ss, t, ' ')) cmdTokens.emplace_back(std::move(t));
-        }
-        if (cmdTokens.empty()) continue;
-
-        if (cmdTokens[0] == "register") {
-          if (cmdTokens.size() != 2) {
-            std::cout << "Usage: specify the user id to register.\n";
-          } else {
-            wallet.registerUser(cmdTokens[1]);
-          }
-        } else if (cmdTokens[0] == "show") {
-          if (cmdTokens.size() != 2) {
-            std::cout << "Usage: specify the user id to show,\n";
-          } else {
-            wallet.showUser(cmdTokens[1]);
-          }
-        } else {
-          std::cout << "Unknown command '" << cmd << "'\n";
-        }
+        std::cout << "Unknown command '" << cmd << "'\n";
       }
     }
 
