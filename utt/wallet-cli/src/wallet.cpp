@@ -17,7 +17,9 @@
 
 using namespace vmware::concord::utt::wallet::api::v1;
 
-Wallet::Wallet() { connect(); }
+Wallet::Wallet(std::string userId, utt::client::IUserPKInfrastructure& pki) : userId_{std::move(userId)}, pki_{pki} {
+  connect();
+}
 
 void Wallet::connect() {
   std::string grpcServerAddr = "127.0.0.1:49000";
@@ -40,22 +42,18 @@ void Wallet::connect() {
   grpc_ = WalletService::NewStub(chan);
 }
 
-void Wallet::showUser(const std::string& userId) {
-  auto it = users_.find(userId);
-  if (it == users_.end()) {
-    std::cout << "User '" << userId << "' does not exist.\n";
-    return;
-  }
+void Wallet::showInfo() const {
+  std::cout << "User Id: " << userId_ << '\n';
 
-  std::cout << "User Id: " << it->first << '\n';
-  std::cout << "Private balance: " << it->second->getBalance() << '\n';
-  std::cout << "Privacy budget: " << it->second->getPrivacyBudget() << '\n';
-  std::cout << "Last executed transaction number: " << it->second->getLastExecutedTxNum() << '\n';
+  if (!checkOperationl()) return;
+  std::cout << "Private balance: " << user_->getBalance() << '\n';
+  std::cout << "Privacy budget: " << user_->getPrivacyBudget() << '\n';
+  std::cout << "Last executed transaction number: " << user_->getLastExecutedTxNum() << '\n';
 }
 
 void Wallet::deployApp() {
-  if (!deployedAppId_.empty()) {
-    std::cout << "Privacy app '" << deployedAppId_ << "' already deployed\n";
+  if (isOperational_) {
+    std::cout << "The wallet has already deployed an app and is operational.\n";
     return;
   }
 
@@ -74,54 +72,35 @@ void Wallet::deployApp() {
   DeployPrivacyAppResponse resp;
   grpc_->deployPrivacyApp(&ctx, req, &resp);
 
-  // Note that keeping the config around in memory is just for a demo purpose and should not happen in real system
+  // Note that keeping the config around in memory is just a temp solution and should not happen in real system
   if (resp.has_err()) {
     std::cout << "Failed to deploy privacy app: " << resp.err() << '\n';
   } else if (resp.app_id().empty()) {
     std::cout << "Failed to deploy privacy app: empty app id!\n";
   } else {
-    deployedAppId_ = resp.app_id();
-    // We need the public config part which can typically be obtained from the service, but we keep it for simplicity
-    deployedPublicConfig_ = std::make_unique<utt::PublicConfig>(utt::client::getPublicConfig(config));
-    std::cout << "Successfully deployed privacy app with id: " << deployedAppId_ << '\n';
+    // We need the public config part which can typically be obtained from the service, but we derive it for simplicity
+    auto publicConfig = utt::client::getPublicConfig(config);
+    std::cout << "Successfully deployed privacy app with id: " << resp.app_id() << '\n';
+
+    user_ = utt::client::createUser(userId_, publicConfig, pki_, storage_);
+    if (!user_) throw std::runtime_error("Failed to create user!");
+
+    isOperational_ = true;
   }
 }
 
-void Wallet::registerUser(const std::string& userId) {
-  if (userId.empty()) throw std::runtime_error("Cannot register user with empty user id!");
-  if (deployedAppId_.empty()) {
-    std::cout << "You must first deploy a privacy app to register a user. Use command 'deploy app'\n";
-    return;
-  }
+void Wallet::registerUser() {
+  if (!checkOperationl()) return;
 
-  if (users_.find(userId) != users_.end()) {
-    std::cout << "User '" << userId << " is already registered!\n";
-    return;
-  }
-
-  // Print out the list of valid user ids with pre-generated keys if we don't have a match.
-  // This is a temp code until we can generate keys on demand for every user id.
-  auto userIds = pki_.getUserIds();
-  auto it = std::find(userIds.begin(), userIds.end(), userId);
-  if (it == userIds.end()) {
-    std::cout << "Please use one of the following userIds:\n[";
-    for (const auto& userId : userIds) std::cout << userId << ' ';
-    std::cout << "]\n";
-    return;
-  }
-
-  auto user = utt::client::createUser(userId, *deployedPublicConfig_, pki_, storage_);
-  if (!user) throw std::runtime_error("Failed to create user!");
-
-  auto userRegInput = user->getRegistrationInput();
+  auto userRegInput = user_->getRegistrationInput();
   if (userRegInput.empty()) throw std::runtime_error("Failed to create user registration input!");
 
   grpc::ClientContext ctx;
 
   RegisterUserRequest req;
-  req.set_user_id(userId);
+  req.set_user_id(userId_);
   req.set_input_rcm(userRegInput.data(), userRegInput.size());
-  req.set_user_pk(user->getPK());
+  req.set_user_pk(user_->getPK());
 
   RegisterUserResponse resp;
   grpc_->registerUser(&ctx, req, &resp);
@@ -137,11 +116,20 @@ void Wallet::registerUser(const std::string& userId) {
     for (const auto& val : s2) std::cout << val << ' ';
     std::cout << "]\n";
 
-    if (!user->updateRegistration(user->getPK(), sig, s2)) {
+    if (!user_->updateRegistration(user_->getPK(), sig, s2)) {
       std::cout << "Failed to update user's registration!\n";
-    } else {
-      std::cout << "Successfully registered user with id '" << user->getUserId() << "'\n";
-      users_.emplace(userId, std::move(user));
     }
   }
+}
+
+void Wallet::requestPrivacyBudget() {
+  if (!checkOperationl()) return;
+}
+
+bool Wallet::checkOperationl() const {
+  if (!isOperational_) {
+    std::cout << "You must first deploy a privacy app. Use command 'deploy app'\n";
+    return false;
+  }
+  return true;
 }
