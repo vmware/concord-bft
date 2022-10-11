@@ -67,7 +67,7 @@ TEST(SimpleMemoryPoolTest, basic_test) {
 TEST(SimpleMemoryPoolTest, test_callbacks) {
   int a = 10, b = 20, c = 30;
   SimpleMemoryPool<int> pool(
-      100, [&](std::shared_ptr<int> &) { ++a; }, [&](std::shared_ptr<int> &) { ++b; }, [&]() { ++c; });
+      100, [&](const std::shared_ptr<int> &) { ++a; }, [&](const std::shared_ptr<int> &) { ++b; }, [&]() { ++c; });
 
   ASSERT_EQ(a, 10);
   ASSERT_EQ(b, 20);

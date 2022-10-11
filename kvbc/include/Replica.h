@@ -239,12 +239,12 @@ class Replica : public IReplica,
   // The IdbAdapter instance is used for a read-only replica.
   std::unique_ptr<IDbAdapter> m_bcDbAdapter;
   std::shared_ptr<storage::IDBClient> m_metadataDBClient;
-  bft::communication::ICommunication *m_ptrComm = nullptr;
+  std::unique_ptr<bft::communication::ICommunication> m_ptrComm;
   const bftEngine::ReplicaConfig &replicaConfig_;
   bftEngine::IReplica::IReplicaPtr m_replicaPtr = nullptr;
   std::shared_ptr<ICommandsHandler> m_cmdHandler = nullptr;
   bftEngine::IStateTransfer *m_stateTransfer = nullptr;
-  concord::storage::DBMetadataStorage *m_metadataStorage = nullptr;
+  std::unique_ptr<concord::storage::DBMetadataStorage> m_metadataStorage;
   std::unique_ptr<ReplicaStateSync> replicaStateSync_;
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;
   std::shared_ptr<concord::performance::PerformanceManager> pm_;

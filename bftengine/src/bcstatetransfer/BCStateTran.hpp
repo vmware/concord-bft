@@ -70,7 +70,7 @@ class BCStateTran : public IStateTransfer {
   // Ctor & Dtor (Initialization)
   //////////////////////////////////////////////////////////////////////////////
   BCStateTran(const Config& config, IAppState* const stateApi, DataStore* ds = nullptr);
-  ~BCStateTran() override;
+  virtual ~BCStateTran() override;
 
   ///////////////////////////////////////////////////////////////////////////
   // IStateTransfer methods
