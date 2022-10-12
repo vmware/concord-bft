@@ -28,7 +28,7 @@ struct EnumHash {
 
 class StateControl {
  public:
- using CallbackRegistry = concord::util::CallbackRegistry<uint32_t>;
+  using CallbackRegistry = concord::util::CallbackRegistry<uint32_t>;
   enum class EventType { TLS_COMM, THIN_REPLICA_SERVER };
 
   static StateControl& instance() {
@@ -81,9 +81,8 @@ class StateControl {
   }
 
   std::mutex lock_comm_;
-  //keeping function template to be void(uint32_t) for uniformity
-  std::unordered_map<const EventType, std::unique_ptr<CallbackRegistry>, EnumHash>
-      event_registry_;
+  // keeping function template to be void(uint32_t) for uniformity
+  std::unordered_map<const EventType, std::unique_ptr<CallbackRegistry>, EnumHash> event_registry_;
   std::function<std::string(uint32_t)> get_peer_pub_key_;
 };
 }  // namespace bft::communication
