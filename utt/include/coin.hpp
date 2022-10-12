@@ -168,6 +168,8 @@ class Coin {
    */
   types::CurvePoint getExpDateAsCurvePoint() const;
 
+  uint64_t getExpDate() const;
+
  private:
   friend class Client;
   friend class operations::Burn;

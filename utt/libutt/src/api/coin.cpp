@@ -102,4 +102,5 @@ void Coin::createNullifier(const UTTParams& d, const types::CurvePoint& prf) {
 types::CurvePoint Coin::getPidHash() const { return coin_->pid_hash.to_words(); }
 types::CurvePoint Coin::getSN() const { return coin_->sn.to_words(); }
 types::CurvePoint Coin::getExpDateAsCurvePoint() const { return coin_->exp_date.to_words(); }
+uint64_t Coin::getExpDate() const { return coin_->exp_date.as_ulong(); }
 }  // namespace libutt::api
