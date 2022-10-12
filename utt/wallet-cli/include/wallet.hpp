@@ -23,7 +23,7 @@
 
 class Wallet {
  public:
-  Wallet(std::string userId, utt::client::IUserPKInfrastructure& pki);
+  Wallet(std::string userId, utt::client::TestUserPKInfrastructure& pki);
 
   void showInfo() const;
 
@@ -34,13 +34,30 @@ class Wallet {
   /// @brief Request registration of the current user
   void registerUser();
 
-  /// @brief Request the privacy budget. The amount of the budget is predetermined by the deployed app.
+  /// @brief Request the creation of a privacy budget. The amount of the budget is predetermined by the deployed app.
   /// This operation could be performed entirely by an administrator, but we add it in the wallet
   /// for demo purposes.
-  void requestPrivacyBudget();
+  void createPrivacyBudget();
+
+  /// @brief Requests the minting of public funds to private funds.
+  /// @param amount the amount of public funds
+  void mint(uint64_t amount);
+
+  /// @brief Transfers the desired amount anonymously to the recipient
+  /// @param amount The amount to transfer
+  /// @param recipient The user id of the recipient
+  void transfer(uint64_t amount, const std::string recipient);
+
+  /// @brief Burns the desired amount of private funds and converts them to public funds.
+  /// @param amount The amount of private funds to burn.
+  void burn(uint64_t amount);
 
  private:
   void connect();
+
+  /// @brief Sync up to the last known tx number. If the last known tx number is zero (or not provided) the
+  /// last signed transaction number will be fetched from the system
+  void syncState(uint64_t lastKnownTxNum = 0);
 
   // [TODO-UTT] This is a helper method to check if the user has been created successfully after generating
   // a privacy app config. Since we don't have access to the public config of an already deployed privacy app
@@ -48,7 +65,7 @@ class Wallet {
   // because a second wallet would also need to deploy an app to have access to the config. This needs to be
   // changed so we can deploy an app and then provide the public config to one or more wallets and create
   // the users as part of initialization.
-  bool checkOperationl() const;
+  bool checkOperational() const;
 
   struct DummyUserStorage : public utt::client::IUserStorage {};
 
@@ -57,7 +74,7 @@ class Wallet {
   bool isOperational_ = false;
   DummyUserStorage storage_;
   std::string userId_;
-  utt::client::IUserPKInfrastructure& pki_;
+  utt::client::TestUserPKInfrastructure& pki_;
   std::unique_ptr<utt::client::User> user_;
   std::unique_ptr<GrpcService> grpc_;
 };

@@ -20,8 +20,10 @@
 
 void printHelp() {
   std::cout << "\nCommands:\n";
-  std::cout << "deploy app -- generates a privacy app config and deploys it to the blockchain.\n";
-  std::cout << "register -- creates a new user and registers it in a previously deployed privacy app instance\n";
+  std::cout << "deploy app -- generates a privacy app config, deploys it on the blockchain and creates a user.\n";
+  std::cout << "register -- requests user registration required for spending coins\n";
+  std::cout << "create budget -- requests creation of a privacy budget, the amount is decided by the system.\n";
+  std::cout << "mint <amount> -- mint the requested amount of public funds.\n";
   std::cout << "info -- prints information about the user managed by this wallet\n";
 
   // mint <amount> -- convert some amount of public funds (ERC20 tokens) to private funds (UTT tokens)
@@ -91,13 +93,22 @@ int main(int argc, char* argv[]) {
   // Print out the list of valid user ids with pre-generated keys if we don't have a match.
   // This is a temp code until we can generate keys on demand for every user id.
   auto userIds = pki.getUserIds();
-  auto it = std::find(userIds.begin(), userIds.end(), userId);
-  if (it == userIds.end()) {
-    std::cout << "Use one of the following user ids: [";
-    for (const auto& userId : userIds) std::cout << userId << ' ';
-    std::cout << "]\n";
-    return 0;
-  }
+
+  auto checkValidUserId = [&userIds](const std::string& userId) {
+    auto it = std::find(userIds.begin(), userIds.end(), userId);
+
+    if (it == userIds.end()) {
+      std::cout << "Use one of the following valid user ids: [";
+      for (const auto& userId : userIds) std::cout << userId << ' ';
+      std::cout << "]\n";
+      return false;
+    }
+
+    return true;
+  };
+
+  // Check that we're creating a wallet with a valid user-id
+  if (!checkValidUserId(userId)) return 0;
 
   try {
     utt::client::Initialize();
@@ -123,10 +134,54 @@ int main(int argc, char* argv[]) {
         wallet.deployApp();
       } else if (cmd == "register") {
         wallet.registerUser();
+      } else if (cmd == "create budget") {
+        wallet.createPrivacyBudget();
       } else if (cmd == "info") {
         wallet.showInfo();
       } else {
-        std::cout << "Unknown command '" << cmd << "'\n";
+        // Tokenize params
+        std::vector<std::string> cmdTokens;
+        std::string token;
+        while (std::getline(std::cin, token)) cmdTokens.emplace_back(token);
+
+        if (!cmdTokens.empty()) {
+          if (cmdTokens[0] == "mint") {
+            if (cmdTokens.size() != 2) {
+              std::cout << "Expected the mint amount as an argument!\n";
+            } else {
+              int amount = std::atoi(cmdTokens[1].c_str());
+              if (amount <= 0) {
+                std::cout << "Expected a positive mint amount!\n";
+              } else {
+                wallet.mint((uint64_t)amount);
+              }
+            }
+          } else if (cmdTokens[0] == "transfer") {
+            if (cmdTokens.size() != 3) {
+              std::cout << "Expected the transfer amount and recipient user id as arguments!\n";
+            } else {
+              int amount = std::atoi(cmdTokens[1].c_str());
+              if (amount <= 0) {
+                std::cout << "Expected a positive transfer amount!\n";
+              } else if (checkValidUserId(cmdTokens[2])) {
+                wallet.transfer((uint64_t)amount, cmdTokens[2]);
+              }
+            }
+          } else if (cmdTokens[1] == "burn") {
+            if (cmdTokens.size() != 2) {
+              std::cout << "Expected the burn amount as an argument!\n";
+            } else {
+              int amount = std::atoi(cmdTokens[1].c_str());
+              if (amount <= 0) {
+                std::cout << "Expected a positive burn amount!\n";
+              } else {
+                wallet.burn((uint64_t)amount);
+              }
+            }
+          } else {
+            std::cout << "Unknown command '" << cmd << "'\n";
+          }
+        }
       }
     }
 

@@ -17,7 +17,7 @@
 
 using namespace vmware::concord::utt::wallet::api::v1;
 
-Wallet::Wallet(std::string userId, utt::client::IUserPKInfrastructure& pki) : userId_{std::move(userId)}, pki_{pki} {
+Wallet::Wallet(std::string userId, utt::client::TestUserPKInfrastructure& pki) : userId_{std::move(userId)}, pki_{pki} {
   connect();
 }
 
@@ -45,7 +45,7 @@ void Wallet::connect() {
 void Wallet::showInfo() const {
   std::cout << "User Id: " << userId_ << '\n';
 
-  if (!checkOperationl()) return;
+  if (!checkOperational()) return;
   std::cout << "Private balance: " << user_->getBalance() << '\n';
   std::cout << "Privacy budget: " << user_->getPrivacyBudget() << '\n';
   std::cout << "Last executed transaction number: " << user_->getLastExecutedTxNum() << '\n';
@@ -90,7 +90,7 @@ void Wallet::deployApp() {
 }
 
 void Wallet::registerUser() {
-  if (!checkOperationl()) return;
+  if (!checkOperational()) return;
 
   auto userRegInput = user_->getRegistrationInput();
   if (userRegInput.empty()) throw std::runtime_error("Failed to create user registration input!");
@@ -122,14 +122,214 @@ void Wallet::registerUser() {
   }
 }
 
-void Wallet::requestPrivacyBudget() {
-  if (!checkOperationl()) return;
+void Wallet::createPrivacyBudget() {
+  if (!checkOperational()) return;
+
+  grpc::ClientContext ctx;
+
+  CreatePrivacyBudgetRequest req;
+  req.set_user_id(userId_);
+
+  CreatePrivacyBudgetResponse resp;
+  grpc_->createPrivacyBudget(&ctx, req, &resp);
+
+  if (resp.has_err()) {
+    std::cout << "Failed to create privacy budget:" << resp.err() << '\n';
+  } else {
+    utt::PrivacyBudget budget = std::vector<uint8_t>(resp.budget().begin(), resp.budget().end());
+    utt::RegistrationSig sig = std::vector<uint8_t>(resp.signature().begin(), resp.signature().end());
+
+    std::cout << "Got budget " << budget.size() << " bytes.\n";
+    std::cout << "Got budget sig " << sig.size() << " bytes.\n";
+
+    if (!user_->updatePrivacyBudget(budget, sig)) {
+      std::cout << "Failed to update privacy budget!\n";
+    }
+  }
 }
 
-bool Wallet::checkOperationl() const {
+void Wallet::mint(uint64_t amount) {
+  if (!checkOperational()) return;
+
+  grpc::ClientContext ctx;
+
+  MintRequest req;
+  req.set_user_id(userId_);
+  req.set_value(amount);
+
+  MintResponse resp;
+  grpc_->mint(&ctx, req, &resp);
+
+  if (resp.has_err()) {
+    std::cout << "Failed to mint:" << resp.err() << '\n';
+  } else {
+    std::cout << "Successfully sent mint tx with number:" << resp.tx_number() << '\n';
+
+    syncState(resp.tx_number());
+  }
+}
+
+void Wallet::transfer(uint64_t amount, const std::string recipient) {
+  if (!checkOperational()) return;
+
+  if (user_->getBalance() < amount) {
+    std::cout << "Insufficient private balance!\n";
+    return;
+  }
+
+  if (user_->getPrivacyBudget() < amount) {
+    std::cout << "Insufficient privacy budget!\n";
+    return;
+  }
+
+  std::cout << "Started processing " << amount << "anonymous transfer to " << recipient << "...\n";
+
+  // Process the transfer until we get the final transaction
+  // On each iteration we also sync up to the tx number of our request
+  while (true) {
+    auto result = user_->transfer(recipient, pki_.getPublicKey(recipient), amount);
+
+    grpc::ClientContext ctx;
+
+    TransferRequest req;
+    req.set_tx_data(result.requiredTx_.data_.data(), result.requiredTx_.data_.size());
+
+    TransferResponse resp;
+    grpc_->transfer(&ctx, req, &resp);
+
+    if (resp.has_err()) {
+      std::cout << "Failed to transfer:" << resp.err() << '\n';
+    } else {
+      std::cout << "Successfully sent transfer tx with number:" << resp.tx_number() << '\n';
+
+      syncState(resp.tx_number());
+    }
+
+    if (result.isFinal_) break;  // Done
+  }
+}
+
+void Wallet::burn(uint64_t amount) {
+  if (!checkOperational()) return;
+
+  if (user_->getBalance() < amount) {
+    std::cout << "Insufficient private balance!\n";
+    return;
+  }
+
+  if (user_->getPrivacyBudget() < amount) {
+    std::cout << "Insufficient privacy budget!\n";
+    return;
+  }
+
+  std::cout << "Started processing " << amount << " burn...\n";
+
+  // Process the transfer until we get the final transaction
+  // On each iteration we also sync up to the tx number of our request
+  while (true) {
+    auto result = user_->burn(amount);
+
+    grpc::ClientContext ctx;
+
+    BurnRequest req;
+    req.set_tx_data(result.requiredTx_.data_.data(), result.requiredTx_.data_.size());
+
+    BurnResponse resp;
+    grpc_->burn(&ctx, req, &resp);
+
+    if (resp.has_err()) {
+      std::cout << "Failed to burn:" << resp.err() << '\n';
+    } else {
+      std::cout << "Successfully sent burn tx with number:" << resp.tx_number() << '\n';
+
+      syncState(resp.tx_number());
+    }
+
+    if (result.isFinal_) break;  // Done
+  }
+}
+
+bool Wallet::checkOperational() const {
   if (!isOperational_) {
     std::cout << "You must first deploy a privacy app. Use command 'deploy app'\n";
     return false;
   }
   return true;
+}
+
+void Wallet::syncState(uint64_t lastKnownTxNum) {
+  if (!checkOperational()) return;
+
+  std::cout << "Synchronizing state...\n";
+
+  // Sync to latest state
+  if (lastKnownTxNum == 0) {
+    std::cout << "Last known tx number is zero (or not provided) - fetching last signed tx number...\n";
+
+    grpc::ClientContext ctx;
+    GetLastSignedTxNumberRequest req;
+    GetLastSignedTxNumberResponse resp;
+    grpc_->getLastSignedTxNumber(&ctx, req, &resp);
+
+    if (resp.has_err()) {
+      std::cout << "Failed to get last signed tx number:" << resp.err() << '\n';
+    } else {
+      std::cout << "Got last signed tx number:" << resp.tx_number() << '\n';
+      lastKnownTxNum = resp.tx_number();
+    }
+  }
+
+  for (uint64_t txNum = user_->getLastExecutedTxNum() + 1; txNum <= lastKnownTxNum; ++txNum) {
+    grpc::ClientContext ctx;
+
+    GetSignedTransactionRequest req;
+    req.set_tx_number(txNum);
+
+    GetSignedTransactionResponse resp;
+    grpc_->getSignedTransaction(&ctx, req, &resp);
+
+    if (resp.has_err()) {
+      std::cout << "Failed to get signed tx with number " << txNum << ':' << resp.err() << '\n';
+      return;
+    }
+
+    std::cout << "Got signed " << TxType_Name(resp.tx_type()) << " transaction.\n";
+    std::cout << "Tx data: " << resp.tx_data().size() << " bytes\n";
+    std::cout << "Num Sigs: " << resp.sigs_size() << '\n';
+
+    utt::Transaction tx;
+    tx.data_ = std::vector<uint8_t>(resp.tx_data().begin(), resp.tx_data().end());
+
+    utt::TxOutputSigs sigs;
+    sigs.reserve((size_t)resp.sigs_size());
+    for (const auto& sig : resp.sigs()) {
+      sigs.emplace_back(std::vector<uint8_t>(sig.begin(), sig.end()));
+    }
+
+    // Apply transaction
+    switch (resp.tx_type()) {
+      case TxType::MINT: {
+        tx.type_ = utt::Transaction::Type::Mint;
+        if (sigs.size() != 1) throw std::runtime_error("Expected single signature in mint tx!");
+        if (!user_->updateMintTx(resp.tx_number(), tx, sigs[0])) {
+          throw std::runtime_error("Failed to update mint transaction!");
+        }
+      } break;
+      case TxType::TRANSFER: {
+        tx.type_ = utt::Transaction::Type::Transfer;
+        if (!user_->updateTransferTx(resp.tx_number(), tx, sigs)) {
+          throw std::runtime_error("Failed to update transfer transaction!");
+        }
+      } break;
+      case TxType::BURN: {
+        tx.type_ = utt::Transaction::Type::Transfer;
+        if (!sigs.empty()) throw std::runtime_error("Expected no signatures for burn tx!");
+        if (!user_->updateBurnTx(resp.tx_number(), tx)) {
+          throw std::runtime_error("Failed to update burn transaction!");
+        }
+      } break;
+      default:
+        throw std::runtime_error("Unexpected tx type!");
+    }
+  }
 }
