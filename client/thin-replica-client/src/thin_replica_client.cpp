@@ -1024,7 +1024,7 @@ void ThinReplicaClient::Subscribe(const SubscribeRequest& req) {
 //     - Add logic to pick a different server to send the acknowledgement to if
 //       server 0 is known to be down or faulty.
 void ThinReplicaClient::Unsubscribe() {
-  LOG_DEBUG(logger_, "Unsubscribe");
+  LOG_INFO(logger_, "Unsubscribe");
   stop_subscription_thread_ = true;
   if (subscription_thread_) {
     ConcordAssert(subscription_thread_->joinable());
