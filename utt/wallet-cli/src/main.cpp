@@ -70,7 +70,6 @@ void printHelp() {
 }
 
 int main(int argc, char* argv[]) {
-  
   if (argc != 2) {
     std::cout << "Usage: specify the user id\n";
     return 0;

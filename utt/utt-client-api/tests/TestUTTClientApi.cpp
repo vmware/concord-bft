@@ -298,27 +298,22 @@ int main(int argc, char* argv[]) {
           case utt::Transaction::Type::Mint: {
             if (executedTx.publicUserId_ == users[i]->getUserId()) {
               assertTrue(executedTx.sigs_.size() == 1);
-              auto result = users[i]->updateMintTx(txNum, executedTx.tx_, executedTx.sigs_.front());
-              assertTrue(result);
+              users[i]->updateMintTx(txNum, executedTx.tx_, executedTx.sigs_.front());
             } else {
-              auto result = users[i]->updateNoOp(txNum);
-              assertTrue(result);
+              users[i]->updateNoOp(txNum);
             }
           } break;
           case utt::Transaction::Type::Burn: {
             if (executedTx.publicUserId_ == users[i]->getUserId()) {
               assertTrue(executedTx.sigs_.empty());
-              auto result = users[i]->updateBurnTx(txNum, executedTx.tx_);
-              assertTrue(result);
+              users[i]->updateBurnTx(txNum, executedTx.tx_);
             } else {
-              auto result = users[i]->updateNoOp(txNum);
-              assertTrue(result);
+              users[i]->updateNoOp(txNum);
             }
           } break;
           case utt::Transaction::Type::Transfer: {
             assertFalse(executedTx.sigs_.empty());
-            auto result = users[i]->updateTransferTx(txNum, executedTx.tx_, executedTx.sigs_);
-            assertTrue(result);
+            users[i]->updateTransferTx(txNum, executedTx.tx_, executedTx.sigs_);
           } break;
           default:
             assertFail("Unknown tx type!");
@@ -347,8 +342,7 @@ int main(int argc, char* argv[]) {
     assertFalse(resp.sig.empty());
 
     // Note: the user's pk is usually recorded by the system and returned as part of the registration
-    auto result = users[i]->updateRegistration(users[i]->getPK(), resp.sig, resp.s2);
-    assertTrue(result);
+    users[i]->updateRegistration(users[i]->getPK(), resp.sig, resp.s2);
   }
 
   // Create budgets
@@ -358,8 +352,7 @@ int main(int argc, char* argv[]) {
     assertFalse(resp.budget.empty());
     assertFalse(resp.sig.empty());
 
-    auto result = users[i]->updatePrivacyBudget(resp.budget, resp.sig);
-    assertTrue(result);
+    users[i]->updatePrivacyBudget(resp.budget, resp.sig);
     assertTrue(users[i]->getPrivacyBudget() == initialBudget[i]);
   }
 
