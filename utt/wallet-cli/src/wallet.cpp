@@ -172,6 +172,11 @@ void Wallet::mint(uint64_t amount) {
 void Wallet::transfer(uint64_t amount, const std::string recipient) {
   if (!checkOperational()) return;
 
+  if (userId_ == recipient) {
+    std::cout << "Cannot transfer to self directly!\n";
+    return;
+  }
+
   if (user_->getBalance() < amount) {
     std::cout << "Insufficient private balance!\n";
     return;
