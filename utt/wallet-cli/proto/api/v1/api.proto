@@ -90,6 +90,7 @@ message TransferResponse {
 message MintRequest {
     optional string user_id = 1;
     optional uint64 value = 2;
+    optional bytes tx_data = 3;
 }
 
 message MintResponse {

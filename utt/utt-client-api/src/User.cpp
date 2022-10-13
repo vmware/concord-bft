@@ -387,6 +387,21 @@ void User::updateNoOp(uint64_t txNum) {
   pImpl_->lastExecutedTxNum_ = txNum;
 }
 
+utt::Transaction User::mint(uint64_t amount) const {
+  std::stringstream ss;
+  ss << Fr::random_element();
+  auto randomHash = ss.str();
+  loginfo << "Creating a mint tx with hash: " << randomHash << endl;
+
+  auto mint = libutt::api::operations::Mint(randomHash, amount, pImpl_->client_->getPid());
+
+  utt::Transaction tx;
+  tx.type_ = utt::Transaction::Type::Mint;
+  tx.data_ = libutt::api::serialize<libutt::api::operations::Mint>(mint);
+
+  return tx;
+}
+
 BurnResult User::burn(uint64_t amount) const {
   if (!pImpl_->client_) throw std::runtime_error("User not initialized!");
   if (amount == 0) throw std::runtime_error("Burn amount must be positive!");
