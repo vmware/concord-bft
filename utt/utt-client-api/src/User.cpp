@@ -36,6 +36,8 @@
 
 #include "utt-client-api/PickCoins.hpp"
 
+using namespace libutt;
+
 namespace utt::client {
 
 struct User::Impl {
@@ -239,40 +241,35 @@ UserRegistrationInput User::getRegistrationInput() const {
   return libutt::api::serialize<libutt::api::Commitment>(pImpl_->client_->generateInputRCM());
 }
 
-bool User::updateRegistration(const std::string& pk, const RegistrationSig& rs, const S2& s2) {
-  if (!pImpl_->client_) return false;
-  if (!(pImpl_->pk_ == pk)) return false;  // Expect a matching public key
-  if (rs.empty() || s2.empty()) return false;
+void User::updateRegistration(const std::string& pk, const RegistrationSig& rs, const S2& s2) {
+  if (!pImpl_->client_) throw std::runtime_error("User not initialized!");
+  if (rs.empty() || s2.empty() || pk.empty()) throw std::runtime_error("updateRegistration: invalid arguments!");
+  if (!(pImpl_->pk_ == pk)) throw std::runtime_error("Public key mismatch!");
 
   // Un-blind the signature
   std::vector<libutt::api::types::CurvePoint> randomness = {libutt::Fr::zero().to_words(),
                                                             libutt::Fr::zero().to_words()};
   auto unblindedSig =
       libutt::api::Utils::unblindSignature(pImpl_->params_, libutt::api::Commitment::REGISTRATION, randomness, rs);
-  if (unblindedSig.empty()) return false;
+  if (unblindedSig.empty()) throw std::runtime_error("Failed to unblind reg signature!");
 
   // [TODO-UTT] What if we already updated a registration? How do we check it?
   pImpl_->client_->setRCMSig(pImpl_->params_, s2, unblindedSig);
-
-  return true;
 }
 
-bool User::updatePrivacyBudget(const PrivacyBudget& budget, const PrivacyBudgetSig& sig) {
-  if (!pImpl_->client_) return false;
+void User::updatePrivacyBudget(const PrivacyBudget& budget, const PrivacyBudgetSig& sig) {
+  if (!pImpl_->client_) throw std::runtime_error("User not initialized!");
 
   auto claimedCoins = pImpl_->client_->claimCoins(libutt::api::deserialize<libutt::api::operations::Budget>(budget),
                                                   pImpl_->params_,
                                                   std::vector<libutt::api::types::Signature>{sig});
 
   // Expect a single budget token to be claimed by the user
-  if (claimedCoins.size() != 1) return false;
-
+  if (claimedCoins.size() != 1) throw std::runtime_error("Expected single budget token!");
   if (!pImpl_->client_->validate(claimedCoins[0])) throw std::runtime_error("Invalid initial budget coin!");
 
   // [TODO-UTT] Requires atomic, durable write through IUserStorage
   pImpl_->budgetCoin_ = claimedCoins[0];
-
-  return true;
 }
 
 uint64_t User::getBalance() const {
@@ -294,9 +291,10 @@ const std::string& User::getPK() const { return pImpl_->pk_; }
 
 uint64_t User::getLastExecutedTxNum() const { return pImpl_->lastExecutedTxNum_; }
 
-bool User::updateTransferTx(uint64_t txNum, const Transaction& tx, const TxOutputSigs& sigs) {
-  if (tx.type_ != Transaction::Type::Transfer) return false;
-  if (txNum != pImpl_->lastExecutedTxNum_ + 1) return false;
+void User::updateTransferTx(uint64_t txNum, const Transaction& tx, const TxOutputSigs& sigs) {
+  if (!pImpl_->client_) throw std::runtime_error("User not initialized!");
+  if (tx.type_ != Transaction::Type::Transfer) throw std::runtime_error("Transfer tx type mismatch!");
+  if (txNum != pImpl_->lastExecutedTxNum_ + 1) throw std::runtime_error("Transfer tx number is not consecutive!");
 
   auto uttTx = libutt::api::deserialize<libutt::api::operations::Transaction>(tx.data_);
 
@@ -332,57 +330,61 @@ bool User::updateTransferTx(uint64_t txNum, const Transaction& tx, const TxOutpu
       }
     }
   }
-
-  return true;
 }
 
-bool User::updateMintTx(uint64_t txNum, const Transaction& tx, const TxOutputSig& sig) {
-  if (tx.type_ != Transaction::Type::Mint) return false;
-  if (txNum != pImpl_->lastExecutedTxNum_ + 1) return false;
-  pImpl_->lastExecutedTxNum_ = txNum;
+void User::updateMintTx(uint64_t txNum, const Transaction& tx, const TxOutputSig& sig) {
+  if (!pImpl_->client_) throw std::runtime_error("User not initialized!");
+  if (tx.type_ != Transaction::Type::Mint) throw std::runtime_error("Mint tx type mismatch!");
+  if (txNum != pImpl_->lastExecutedTxNum_ + 1) throw std::runtime_error("Mint tx number is not consecutive!");
 
   auto mint = libutt::api::deserialize<libutt::api::operations::Mint>(tx.data_);
 
-  auto claimedCoins =
-      pImpl_->client_->claimCoins(mint, pImpl_->params_, std::vector<libutt::api::types::Signature>{sig});
+  if (mint.getRecipentID() != pImpl_->client_->getPid()) {
+    loginfo << "Mint transaction is for different user - ignoring." << endl;
+  } else {
+    auto claimedCoins =
+        pImpl_->client_->claimCoins(mint, pImpl_->params_, std::vector<libutt::api::types::Signature>{sig});
 
-  // Expect a single token to be claimed by the user
-  if (claimedCoins.size() != 1) return false;
+    // Expect a single token to be claimed by the user
+    if (claimedCoins.size() != 1) throw std::runtime_error("Expected single coin in mint tx!");
+    if (!pImpl_->client_->validate(claimedCoins[0])) throw std::runtime_error("Invalid minted coin!");
 
-  if (!pImpl_->client_->validate(claimedCoins[0])) throw std::runtime_error("Invalid minted coin!");
+    pImpl_->coins_.emplace_back(std::move(claimedCoins[0]));
+  }
 
   // [TODO-UTT] Requires atomic, durable write batch through IUserStorage
   pImpl_->lastExecutedTxNum_ = txNum;
-  pImpl_->coins_.emplace_back(std::move(claimedCoins[0]));
-
-  return true;
 }
 
-// [TODO-UTT] Do we actually need the whole BurnTx or we can simply use the nullifer to slash?
-bool User::updateBurnTx(uint64_t txNum, const Transaction& tx) {
-  if (tx.type_ != Transaction::Type::Burn) return false;
-  if (txNum != pImpl_->lastExecutedTxNum_ + 1) return false;
+// [TODO-UTT] Do we actually need the whole BurnTx or we can simply use the nullifier to slash?
+void User::updateBurnTx(uint64_t txNum, const Transaction& tx) {
+  if (!pImpl_->client_) throw std::runtime_error("User not initialized!");
+  if (tx.type_ != Transaction::Type::Burn) throw std::runtime_error("Burn tx type mismatch!");
+  if (txNum != pImpl_->lastExecutedTxNum_ + 1) throw std::runtime_error("Burn tx number is not consecutive!");
 
   auto burn = libutt::api::deserialize<libutt::api::operations::Burn>(tx.data_);
-  auto nullifier = burn.getNullifier();
-  if (nullifier.empty()) return false;
 
-  auto it = std::find_if(pImpl_->coins_.begin(), pImpl_->coins_.end(), [&nullifier](const libutt::api::Coin& coin) {
-    return coin.getNullifier() == nullifier;
-  });
-  if (it == pImpl_->coins_.end()) return false;
+  if (burn.getOwnerPid() != pImpl_->client_->getPid()) {
+    loginfo << "Burn transaction is for different user - ignoring." << endl;
+  } else {
+    auto nullifier = burn.getNullifier();
+    if (nullifier.empty()) throw std::runtime_error("Burn tx has empty nullifier!");
+
+    auto it = std::find_if(pImpl_->coins_.begin(), pImpl_->coins_.end(), [&nullifier](const libutt::api::Coin& coin) {
+      return coin.getNullifier() == nullifier;
+    });
+    if (it == pImpl_->coins_.end()) throw std::runtime_error("Burned token missing in wallet!");
+    pImpl_->coins_.erase(it);
+  }
 
   // [TODO-UTT] Requires atomic, durable write batch through IUserStorage
   pImpl_->lastExecutedTxNum_ = txNum;
-  pImpl_->coins_.erase(it);
-
-  return true;
 }
 
-bool User::updateNoOp(uint64_t txNum) {
-  if (txNum != pImpl_->lastExecutedTxNum_ + 1) return false;
+void User::updateNoOp(uint64_t txNum) {
+  if (!pImpl_->client_) throw std::runtime_error("User not initialized!");
+  if (txNum != pImpl_->lastExecutedTxNum_ + 1) throw std::runtime_error("Noop tx number is not consecutive!");
   pImpl_->lastExecutedTxNum_ = txNum;
-  return true;
 }
 
 BurnResult User::burn(uint64_t amount) const {

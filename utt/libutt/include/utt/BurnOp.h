@@ -56,7 +56,7 @@ class BurnOp {
 
   size_t getValue() const;
 
-  std::string getOwnerPid() const;
+  const std::string& getOwnerPid() const;
 
   std::string getNullifier() const;
 

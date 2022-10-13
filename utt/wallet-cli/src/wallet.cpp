@@ -116,9 +116,7 @@ void Wallet::registerUser() {
     for (const auto& val : s2) std::cout << val << ' ';
     std::cout << "]\n";
 
-    if (!user_->updateRegistration(user_->getPK(), sig, s2)) {
-      std::cout << "Failed to update user's registration!\n";
-    }
+    user_->updateRegistration(user_->getPK(), sig, s2);
   }
 }
 
@@ -142,9 +140,7 @@ void Wallet::createPrivacyBudget() {
     std::cout << "Got budget " << budget.size() << " bytes.\n";
     std::cout << "Got budget sig " << sig.size() << " bytes.\n";
 
-    if (!user_->updatePrivacyBudget(budget, sig)) {
-      std::cout << "Failed to update privacy budget!\n";
-    }
+    user_->updatePrivacyBudget(budget, sig);
   }
 }
 
@@ -316,22 +312,16 @@ void Wallet::syncState(uint64_t lastKnownTxNum) {
       case TxType::MINT: {
         tx.type_ = utt::Transaction::Type::Mint;
         if (sigs.size() != 1) throw std::runtime_error("Expected single signature in mint tx!");
-        if (!user_->updateMintTx(resp.tx_number(), tx, sigs[0])) {
-          throw std::runtime_error("Failed to update mint transaction!");
-        }
+        user_->updateMintTx(resp.tx_number(), tx, sigs[0]);
       } break;
       case TxType::TRANSFER: {
         tx.type_ = utt::Transaction::Type::Transfer;
-        if (!user_->updateTransferTx(resp.tx_number(), tx, sigs)) {
-          throw std::runtime_error("Failed to update transfer transaction!");
-        }
+        user_->updateTransferTx(resp.tx_number(), tx, sigs);
       } break;
       case TxType::BURN: {
         tx.type_ = utt::Transaction::Type::Transfer;
         if (!sigs.empty()) throw std::runtime_error("Expected no signatures for burn tx!");
-        if (!user_->updateBurnTx(resp.tx_number(), tx)) {
-          throw std::runtime_error("Failed to update burn transaction!");
-        }
+        user_->updateBurnTx(resp.tx_number(), tx);
       } break;
       default:
         throw std::runtime_error("Unexpected tx type!");
