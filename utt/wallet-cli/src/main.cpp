@@ -12,86 +12,75 @@
 // file.
 
 #include <iostream>
-
 #include <string>
 #include <sstream>
 
 #include "wallet.hpp"
 
+// [TODO-UTT] The wallet should use RocksDB to store UTT assets.
+// [TODO-UTT] The wallet should use some RSA cryptography to generate public/private
+// keys (used by the UTT Client Library)
+
+// [TODO-UTT] Initial registration
+// Upon first launch (no records in RocksDB) the wallet asks the user to register
+// > Choose a unique user identifier:
+// After this prompt the wallet sends a registration request and waits for the response
+// Upon successful registration the user can use any of the following commands.
+
+// [TODO-UTT] Startup Sequence
+// A. Confirm registration -- check that the user is registered, otherwise go to "Initial registration".
+// B. Synchronize
+// 1) Ask about the latest signed transaction number and compare with
+// the latest executed transaction in the wallet. Determine the range of tx numbers to be retrieved.
+// 2) For each tx number to execute request the transaction and signature (can be combined)
+// 3) Apply the transaction to the wallet state
+//  a. If it's a burn or a mint transaction matching our user-id
+//  b. IF it's an anonymous tx that we can claim outputs from or slash spent coins (check the nullifiers)
+// [TODO-UTT] Synchronization can be optimized to require fewer requests by batching tx requests and/or filtering by
+// user-id for burns and mints
+
+// [TODO-UTT] Periodic synchronization
+// We need to periodically sync with the wallet service - we can either detect this when we send requests
+// (we see that there are multiple transactions that happened before ours) or we do it periodically or before
+// attempt an operation.
+
+// Note: Limited recovery from liveness issues
+// In a single machine demo setting liveness issues will not be created due to the network,
+// so we don't need to implement the full range of precautions to handle liveness issues
+// such as timeouts.
+
+// [TODO-UTT] Commands:
+// mint <amount> -- convert some amount of public funds (ERC20 tokens) to private funds (UTT tokens)
+// burn <amount> -- convert some amount of private funds (UTT tokens) to public funds (ERC20 tokens)
+// transfer <amount> <user-id> -- transfers anonymously some amount of private funds (UTT tokens) to another user
+// public balance -- print the number of ERC20 tokens the user has (needs a gRPC method to retrieve this value from
+// the wallet service) private balance -- print the number of UTT tokens the user has currently (compute locally)
+// budget -- print the currently available anonymity budget (a budget is created in advance for each user)
+
 void printHelp() {
   std::cout << "\nCommands:\n";
-  std::cout << "deploy app -- generates a privacy app config, deploys it on the blockchain and creates a user.\n";
-  std::cout << "register -- requests user registration required for spending coins\n";
-  std::cout << "create budget -- requests creation of a privacy budget, the amount is decided by the system.\n";
-  std::cout << "mint <amount> -- mint the requested amount of public funds.\n";
-  std::cout << "info -- prints information about the user managed by this wallet\n";
-
-  // mint <amount> -- convert some amount of public funds (ERC20 tokens) to private funds (UTT tokens)
-  // burn <amount> -- convert some amount of private funds (UTT tokens) to public funds (ERC20 tokens)
-  // transfer <amount> <user-id> -- transfers anonymously some amount of private funds (UTT tokens) to another user
-  // public balance -- print the number of ERC20 tokens the user has (needs a gRPC method to retrieve this value from
-  // the wallet service) private balance -- print the number of UTT tokens the user has currently (compute locally)
-  // budget -- print the currently available anonymity budget (a budget is created in advance for each user)
+  std::cout << "deploy app      -- generates a privacy app config, deploys it on the blockchain and creates a user.\n";
+  std::cout << "info            -- prints information about the user managed by this wallet\n";
+  std::cout << "register        -- requests user registration required for spending coins\n";
+  std::cout << "create budget   -- requests creation of a privacy budget, the amount is decided by the system.\n";
+  std::cout << "mint <amount>   -- mint the requested amount of public funds.\n";
+  std::cout << "transfer <amount> <user-id> -- transfers the specified amount to the user-id as a recipient.\n";
+  std::cout << "burn <amount>   -- burns the specified amount of private funds to public funds.\n";
+  std::cout << '\n';
 }
 
 int main(int argc, char* argv[]) {
-  (void)argc;
-  (void)argv;
-
-  std::cout << "Sample Privacy Wallet CLI Application.\n";
-  // [TODO-UTT] The wallet should use RocksDB to store UTT assets.
-  // [TODO-UTT] The wallet should use some RSA cryptography to generate public/private
-  // keys (used by the UTT Client Library)
-
-  // [TODO-UTT] Initial registration
-  // Upon first launch (no records in RocksDB) the wallet asks the user to register
-  // > Choose a unique user identifier:
-  // After this prompt the wallet sends a registration request and waits for the response
-  // Upon successful registration the user can use any of the following commands.
-
-  // [TODO-UTT] Startup Sequence
-  // A. Confirm registration -- check that the user is registered, otherwise go to "Initial registration".
-  // B. Synchronize
-  // 1) Ask about the latest signed transaction number and compare with
-  // the latest executed transaction in the wallet. Determine the range of tx numbers to be retrieved.
-  // 2) For each tx number to execute request the transaction and signature (can be combined)
-  // 3) Apply the transaction to the wallet state
-  //  a. If it's a burn or a mint transaction matching our user-id
-  //  b. IF it's an anonymous tx that we can claim outputs from or slash spent coins (check the nullifiers)
-  // [TODO-UTT] Synchronization can be optimized to require fewer requests by batching tx requests and/or filtering by
-  // user-id for burns and mints
-
-  // [TODO-UTT] Periodic synchronization
-  // We need to periodically sync with the wallet service - we can either detect this when we send requests
-  // (we see that there are multiple transactions that happened before ours) or we do it periodically or before
-  // attempt an operation.
-
-  // Note: Limited recovery from liveness issues
-  // In a single machine demo setting liveness issues will not be created due to the network,
-  // so we don't need to implement the full range of precautions to handle liveness issues
-  // such as timeouts.
-
-  // [TODO-UTT] Commands:
-  // mint <amount> -- convert some amount of public funds (ERC20 tokens) to private funds (UTT tokens)
-  // burn <amount> -- convert some amount of private funds (UTT tokens) to public funds (ERC20 tokens)
-  // transfer <amount> <user-id> -- transfers anonymously some amount of private funds (UTT tokens) to another user
-  // public balance -- print the number of ERC20 tokens the user has (needs a gRPC method to retrieve this value from
-  // the wallet service) private balance -- print the number of UTT tokens the user has currently (compute locally)
-  // budget -- print the currently available anonymity budget (a budget is created in advance for each user)
-
+  
   if (argc != 2) {
     std::cout << "Usage: specify the user id\n";
     return 0;
   }
 
+  std::cout << "Sample Privacy Wallet CLI Application.\n";
+
   auto userId = std::string(argv[1]);
 
-  // Check that we have test RSA keys for this user id
-  // If not - print the avaialble user ids
   utt::client::TestUserPKInfrastructure pki;
-
-  // Print out the list of valid user ids with pre-generated keys if we don't have a match.
-  // This is a temp code until we can generate keys on demand for every user id.
   auto userIds = pki.getUserIds();
 
   auto checkValidUserId = [&userIds](const std::string& userId) {
@@ -115,11 +104,11 @@ int main(int argc, char* argv[]) {
 
     auto wallet = Wallet(userId, pki);
 
-    std::cout << "WARNING: The wallet will not be operational until you perform the 'deploy app' command.\nThis is a "
+    std::cout << "WARNING: The wallet will not be operational until you perform the 'deploy app' command. This is a "
                  "temporary solution and will be changed.\n";
 
     while (true) {
-      std::cout << "Enter command (type 'h' for commands 'Ctr-D' to quit):\n > ";
+      std::cout << "\nEnter command (type 'h' for commands 'Ctr-D' to quit):\n > ";
       std::string cmd;
       std::getline(std::cin, cmd);
 
@@ -142,7 +131,8 @@ int main(int argc, char* argv[]) {
         // Tokenize params
         std::vector<std::string> cmdTokens;
         std::string token;
-        while (std::getline(std::cin, token)) cmdTokens.emplace_back(token);
+        std::stringstream ss(cmd);
+        while (std::getline(ss, token, ' ')) cmdTokens.emplace_back(token);
 
         if (!cmdTokens.empty()) {
           if (cmdTokens[0] == "mint") {
@@ -167,7 +157,7 @@ int main(int argc, char* argv[]) {
                 wallet.transfer((uint64_t)amount, cmdTokens[2]);
               }
             }
-          } else if (cmdTokens[1] == "burn") {
+          } else if (cmdTokens[0] == "burn") {
             if (cmdTokens.size() != 2) {
               std::cout << "Expected the burn amount as an argument!\n";
             } else {
