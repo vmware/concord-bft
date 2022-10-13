@@ -107,6 +107,9 @@ class User {
   /// @param txNum
   void updateNoOp(uint64_t txNum);
 
+  /// @brief Creates a transaction to mint the requested amount
+  utt::Transaction mint(uint64_t amount) const;
+
   /// @brief Ask to burn some amount of tokens. This function needs to be called repeatedly until the final burn
   /// transaction is produced.
   /// @param amount The amount of private funds to burn.

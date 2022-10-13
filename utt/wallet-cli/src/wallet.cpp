@@ -147,11 +147,14 @@ void Wallet::createPrivacyBudget() {
 void Wallet::mint(uint64_t amount) {
   if (!checkOperational()) return;
 
+  auto mintTx = user_->mint(amount);
+
   grpc::ClientContext ctx;
 
   MintRequest req;
   req.set_user_id(userId_);
   req.set_value(amount);
+  req.set_tx_data(mintTx.data_.data(), mintTx.data_.size());
 
   MintResponse resp;
   grpc_->mint(&ctx, req, &resp);
