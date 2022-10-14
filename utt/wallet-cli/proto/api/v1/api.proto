@@ -80,11 +80,12 @@ message CreatePrivacyBudgetResponse {
 
 message TransferRequest {
     optional bytes tx_data = 1;
+    optional uint32 num_outputs = 2;
 }
 
 message TransferResponse {
     optional string err = 1;
-    optional uint64 tx_number = 2;
+    optional uint64 last_added_tx_number = 2;
 }
 
 message MintRequest {
@@ -95,7 +96,7 @@ message MintRequest {
 
 message MintResponse {
     optional string err = 1;
-    optional uint64 tx_number = 2;
+    optional uint64 last_added_tx_number = 2;
 }
 
 message BurnRequest {
@@ -106,14 +107,15 @@ message BurnRequest {
 
 message BurnResponse {
     optional string err = 1;
-    optional uint64 tx_number = 2;
+    optional uint64 last_added_tx_number = 2;
 }
 
 message GetLastAddedTxNumberRequest {
 }
 
 message GetLastAddedTxNumberResponse {
-    optional uint64 tx_number = 1;
+    optional string err = 1;
+    optional uint64 tx_number = 2;
 }
 
 message GetLastSignedTxNumberRequest {
