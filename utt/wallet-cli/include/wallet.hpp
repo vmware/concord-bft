@@ -46,7 +46,7 @@ class Wallet {
   /// @brief Transfers the desired amount anonymously to the recipient
   /// @param amount The amount to transfer
   /// @param recipient The user id of the recipient
-  void transfer(uint64_t amount, const std::string recipient);
+  void transfer(uint64_t amount, const std::string& recipient);
 
   /// @brief Burns the desired amount of private funds and converts them to public funds.
   /// @param amount The amount of private funds to burn.

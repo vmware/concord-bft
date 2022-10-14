@@ -179,11 +179,6 @@ struct ServerMock {
     assertTrue(mintTx.getRecipentID() == userId);
     assertTrue(mintTx.getVal() == amount);
 
-    //auto pidHash = libutt::api::Utils::curvePointFromHash(userId);
-    //auto uniqueHash = "mint|" + std::to_string(++lastTokenId_);
-
-    //auto mintTx = libutt::api::operations::Mint(uniqueHash, amount, userId);
-
     std::vector<std::vector<uint8_t>> shares;
     for (const auto& signer : coinsSigners_) {
       shares.emplace_back(signer.sign(mintTx).front());
@@ -200,8 +195,6 @@ struct ServerMock {
 
     ExecutedTx executedTx;
     executedTx.tx_ = tx;
-    //executedTx.tx_.type_ = utt::Transaction::Type::Mint;
-    //executedTx.tx_.data_ = libutt::api::serialize<libutt::api::operations::Mint>(mintTx);
     executedTx.sigs_.emplace_back(libutt::api::Utils::aggregateSigShares(n, shareSubset));
     executedTx.publicUserId_ = userId;
     ledger_.emplace_back(std::move(executedTx));
