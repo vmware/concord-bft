@@ -162,13 +162,13 @@ void Wallet::mint(uint64_t amount) {
   if (resp.has_err()) {
     std::cout << "Failed to mint:" << resp.err() << '\n';
   } else {
-    std::cout << "Successfully sent mint tx with number:" << resp.tx_number() << '\n';
+    std::cout << "Successfully sent mint tx. Last added tx number:" << resp.last_added_tx_number() << '\n';
 
-    syncState(resp.tx_number());
+    syncState(resp.last_added_tx_number());
   }
 }
 
-void Wallet::transfer(uint64_t amount, const std::string recipient) {
+void Wallet::transfer(uint64_t amount, const std::string& recipient) {
   if (!checkOperational()) return;
 
   if (userId_ == recipient) {
@@ -204,9 +204,9 @@ void Wallet::transfer(uint64_t amount, const std::string recipient) {
     if (resp.has_err()) {
       std::cout << "Failed to transfer:" << resp.err() << '\n';
     } else {
-      std::cout << "Successfully sent transfer tx with number:" << resp.tx_number() << '\n';
+      std::cout << "Successfully sent transfer tx. Last added tx number:" << resp.last_added_tx_number() << '\n';
 
-      syncState(resp.tx_number());
+      syncState(resp.last_added_tx_number());
     }
 
     if (result.isFinal_) break;  // Done
@@ -244,9 +244,9 @@ void Wallet::burn(uint64_t amount) {
     if (resp.has_err()) {
       std::cout << "Failed to burn:" << resp.err() << '\n';
     } else {
-      std::cout << "Successfully sent burn tx with number:" << resp.tx_number() << '\n';
+      std::cout << "Successfully sent burn tx. Last added tx number:" << resp.last_added_tx_number() << '\n';
 
-      syncState(resp.tx_number());
+      syncState(resp.last_added_tx_number());
     }
 
     if (result.isFinal_) break;  // Done
@@ -268,17 +268,17 @@ void Wallet::syncState(uint64_t lastKnownTxNum) {
 
   // Sync to latest state
   if (lastKnownTxNum == 0) {
-    std::cout << "Last known tx number is zero (or not provided) - fetching last signed tx number...\n";
+    std::cout << "Last known tx number is zero (or not provided) - fetching last added tx number...\n";
 
     grpc::ClientContext ctx;
-    GetLastSignedTxNumberRequest req;
-    GetLastSignedTxNumberResponse resp;
-    grpc_->getLastSignedTxNumber(&ctx, req, &resp);
+    GetLastAddedTxNumberRequest req;
+    GetLastAddedTxNumberResponse resp;
+    grpc_->getLastAddedTxNumber(&ctx, req, &resp);
 
     if (resp.has_err()) {
-      std::cout << "Failed to get last signed tx number:" << resp.err() << '\n';
+      std::cout << "Failed to get last added tx number:" << resp.err() << '\n';
     } else {
-      std::cout << "Got last signed tx number:" << resp.tx_number() << '\n';
+      std::cout << "Got last added tx number:" << resp.tx_number() << '\n';
       lastKnownTxNum = resp.tx_number();
     }
   }

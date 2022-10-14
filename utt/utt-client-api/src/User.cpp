@@ -93,6 +93,7 @@ utt::Transaction User::Impl::createTx_Self1to2(const libutt::api::Coin& coin, ui
   utt::Transaction tx;
   tx.type_ = utt::Transaction::Type::Transfer;
   tx.data_ = libutt::api::serialize<libutt::api::operations::Transaction>(uttTx);
+  tx.numOutputs_ = uttTx.getNumOfOutputCoins();
   return tx;
 }
 
@@ -105,6 +106,7 @@ utt::Transaction User::Impl::createTx_Self2to1(const std::vector<libutt::api::Co
   utt::Transaction tx;
   tx.type_ = utt::Transaction::Type::Transfer;
   tx.data_ = libutt::api::serialize<libutt::api::operations::Transaction>(uttTx);
+  tx.numOutputs_ = uttTx.getNumOfOutputCoins();
   return tx;
 }
 
@@ -118,6 +120,7 @@ utt::Transaction User::Impl::createTx_Self2to2(const std::vector<libutt::api::Co
   utt::Transaction tx;
   tx.type_ = utt::Transaction::Type::Transfer;
   tx.data_ = libutt::api::serialize<libutt::api::operations::Transaction>(uttTx);
+  tx.numOutputs_ = uttTx.getNumOfOutputCoins();
   return tx;
 }
 
@@ -133,6 +136,7 @@ utt::Transaction User::Impl::createTx_1to1(const libutt::api::Coin& coin,
   utt::Transaction tx;
   tx.type_ = utt::Transaction::Type::Transfer;
   tx.data_ = libutt::api::serialize<libutt::api::operations::Transaction>(uttTx);
+  tx.numOutputs_ = uttTx.getNumOfOutputCoins();
   return tx;
 }
 
@@ -150,6 +154,7 @@ utt::Transaction User::Impl::createTx_1to2(const libutt::api::Coin& coin,
   utt::Transaction tx;
   tx.type_ = utt::Transaction::Type::Transfer;
   tx.data_ = libutt::api::serialize<libutt::api::operations::Transaction>(uttTx);
+  tx.numOutputs_ = uttTx.getNumOfOutputCoins();
   return tx;
 }
 
@@ -165,6 +170,7 @@ utt::Transaction User::Impl::createTx_2to1(const std::vector<libutt::api::Coin>&
   utt::Transaction tx;
   tx.type_ = utt::Transaction::Type::Transfer;
   tx.data_ = libutt::api::serialize<libutt::api::operations::Transaction>(uttTx);
+  tx.numOutputs_ = uttTx.getNumOfOutputCoins();
   return tx;
 }
 
@@ -182,6 +188,7 @@ utt::Transaction User::Impl::createTx_2to2(const std::vector<libutt::api::Coin>&
   utt::Transaction tx;
   tx.type_ = utt::Transaction::Type::Transfer;
   tx.data_ = libutt::api::serialize<libutt::api::operations::Transaction>(uttTx);
+  tx.numOutputs_ = uttTx.getNumOfOutputCoins();
   return tx;
 }
 
