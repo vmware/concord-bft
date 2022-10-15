@@ -51,8 +51,6 @@ struct PrivacyBudgetResponse {
 struct ExecutedTx {
   utt::Transaction tx_;
   utt::TxOutputSigs sigs_;
-  std::string publicUserId_;  // Burns and mints are public transactions that expose the user id, we save it here for
-                              // convenience
 };
 
 struct ServerMock {
@@ -196,13 +194,12 @@ struct ServerMock {
     ExecutedTx executedTx;
     executedTx.tx_ = tx;
     executedTx.sigs_.emplace_back(libutt::api::Utils::aggregateSigShares(n, shareSubset));
-    executedTx.publicUserId_ = userId;
     ledger_.emplace_back(std::move(executedTx));
 
     return ledger_.size();
   }
 
-  uint64_t burn(const std::string& userId, const utt::Transaction& tx) {
+  uint64_t burn(const utt::Transaction& tx) {
     assertTrue(tx.type_ == utt::Transaction::Type::Burn);
 
     auto burn = libutt::api::deserialize<libutt::api::operations::Burn>(tx.data_);
@@ -213,7 +210,6 @@ struct ServerMock {
     ExecutedTx executedTx;
     executedTx.tx_.type_ = utt::Transaction::Type::Burn;
     executedTx.tx_.data_ = libutt::api::serialize<libutt::api::operations::Burn>(burn);
-    executedTx.publicUserId_ = userId;
     ledger_.emplace_back(std::move(executedTx));
 
     return ledger_.size();
@@ -296,20 +292,12 @@ int main(int argc, char* argv[]) {
         const auto& executedTx = serverMock.getExecutedTx(txNum);
         switch (executedTx.tx_.type_) {
           case utt::Transaction::Type::Mint: {
-            if (executedTx.publicUserId_ == users[i]->getUserId()) {
-              assertTrue(executedTx.sigs_.size() == 1);
-              users[i]->updateMintTx(txNum, executedTx.tx_, executedTx.sigs_.front());
-            } else {
-              users[i]->updateNoOp(txNum);
-            }
+            assertTrue(executedTx.sigs_.size() == 1);
+            users[i]->updateMintTx(txNum, executedTx.tx_, executedTx.sigs_.front());
           } break;
           case utt::Transaction::Type::Burn: {
-            if (executedTx.publicUserId_ == users[i]->getUserId()) {
               assertTrue(executedTx.sigs_.empty());
               users[i]->updateBurnTx(txNum, executedTx.tx_);
-            } else {
-              users[i]->updateNoOp(txNum);
-            }
           } break;
           case utt::Transaction::Type::Transfer: {
             assertFalse(executedTx.sigs_.empty());
@@ -406,7 +394,7 @@ int main(int argc, char* argv[]) {
       auto result = users[i]->burn(balance);
       if (result.requiredTx_.type_ == utt::Transaction::Type::Burn) {
         assertTrue(result.isFinal_);
-        auto txNum = serverMock.burn(users[i]->getUserId(), result.requiredTx_);
+        auto txNum = serverMock.burn(result.requiredTx_);
         assertTrue(txNum == serverMock.getLastExecutedTxNum());
         syncUsersWithServer();
         break;  // We can stop processing after burning the coin
