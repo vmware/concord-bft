@@ -77,6 +77,8 @@ void Client::setRCMSig(const UTTParams& d, const types::CurvePoint& s2, const ty
   rcm_ = Commitment(d, Commitment::Type::REGISTRATION, m, true);
   rcm_sig_ = sig;
   ask_->rs = libutt::deserialize<libutt::RandSig>(sig);
+  if (!ask_->rs.verify(*rcm_.comm_, rpk_->vk))
+    throw std::runtime_error("setRCMSig - failed to verify rcm against signature!");
 }
 
 std::pair<Commitment, types::Signature> Client::getRcm() const {
