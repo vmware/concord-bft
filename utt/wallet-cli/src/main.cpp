@@ -59,52 +59,31 @@
 
 void printHelp() {
   std::cout << "\nCommands:\n";
-  std::cout << "deploy app      -- generates a privacy app config, deploys it on the blockchain and creates a user.\n";
-  std::cout << "info            -- prints information about the user managed by this wallet\n";
-  std::cout << "register        -- requests user registration required for spending coins\n";
-  std::cout << "create budget   -- requests creation of a privacy budget, the amount is decided by the system.\n";
-  std::cout << "mint <amount>   -- mint the requested amount of public funds.\n";
-  std::cout << "transfer <amount> <user-id> -- transfers the specified amount to the user-id as a recipient.\n";
-  std::cout << "burn <amount>   -- burns the specified amount of private funds to public funds.\n";
+  std::cout << "deploy                    -- generates a privacy app config, deploys it on the blockchain and creates "
+               "test users.\n";
+  std::cout << "info <user-id>            -- prints information about the user managed by this wallet\n";
+  std::cout << "register <user-id>        -- requests user registration required for spending coins\n";
+  std::cout
+      << "create-budget <user-id>   -- requests creation of a privacy budget, the amount is decided by the system.\n";
+  std::cout << "mint <user-id> <amount>   -- mint the requested amount of public funds.\n";
+  std::cout << "transfer <amount> <from-user-id> <to-user-id> -- transfers the specified amount between users.\n";
+  std::cout << "burn <user-id> <amount>   -- burns the specified amount of private funds to public funds.\n";
   std::cout << '\n';
 }
 
 int main(int argc, char* argv[]) {
-  if (argc != 2) {
-    std::cout << "Usage: specify the user id\n";
-    return 0;
-  }
-
+  (void)argc;
+  (void)argv;
   std::cout << "Sample Privacy Wallet CLI Application.\n";
 
-  auto userId = std::string(argv[1]);
-
-  utt::client::TestUserPKInfrastructure pki;
-  auto userIds = pki.getUserIds();
-
-  auto checkValidUserId = [&userIds](const std::string& userId) {
-    auto it = std::find(userIds.begin(), userIds.end(), userId);
-
-    if (it == userIds.end()) {
-      std::cout << "Use one of the following valid user ids: [";
-      for (const auto& userId : userIds) std::cout << userId << ' ';
-      std::cout << "]\n";
-      return false;
-    }
-
-    return true;
-  };
-
-  // Check that we're creating a wallet with a valid user-id
-  if (!checkValidUserId(userId)) return 0;
+  bool deployed = false;
 
   try {
     utt::client::Initialize();
 
-    auto wallet = Wallet(userId, pki);
+    std::map<std::string, Wallet> wallets;
 
-    std::cout << "WARNING: The wallet will not be operational until you perform the 'deploy app' command. This is a "
-                 "temporary solution and will be changed.\n";
+    auto conn = Wallet::newConnection();
 
     while (true) {
       std::cout << "\nEnter command (type 'h' for commands 'Ctr-D' to quit):\n > ";
@@ -118,14 +97,23 @@ int main(int argc, char* argv[]) {
 
       if (cmd == "h") {
         printHelp();
-      } else if (cmd == "deploy app") {
-        wallet.deployApp();
-      } else if (cmd == "register") {
-        wallet.registerUser();
-      } else if (cmd == "create budget") {
-        wallet.createPrivacyBudget();
-      } else if (cmd == "info") {
-        wallet.showInfo();
+      } else if (cmd == "deploy") {
+        if (deployed) {
+          std::cout << "The privacy app is already deployed.\n";
+        } else {
+          auto publicConfig = Wallet::deployApp(conn);
+
+          utt::client::TestUserPKInfrastructure pki;
+          auto testUserIds = pki.getUserIds();
+          for (const auto& userId : testUserIds) {
+            std::cout << "Creating test user with id '" << userId << "'\n";
+            wallets.emplace(userId, Wallet(userId, pki, publicConfig));
+          }
+
+          deployed = true;
+        }
+      } else if (!deployed) {
+        std::cout << "You must first deploy the privacy application. Use the 'deploy' command.\n";
       } else {
         // Tokenize params
         std::vector<std::string> cmdTokens;
@@ -134,37 +122,55 @@ int main(int argc, char* argv[]) {
         while (std::getline(ss, token, ' ')) cmdTokens.emplace_back(token);
 
         if (!cmdTokens.empty()) {
-          if (cmdTokens[0] == "mint") {
+          if (cmdTokens[0] == "register") {
             if (cmdTokens.size() != 2) {
-              std::cout << "Expected the mint amount as an argument!\n";
+              std::cout << "Usage: register <user-id>\n";
             } else {
-              int amount = std::atoi(cmdTokens[1].c_str());
+              wallets.at(cmdTokens[1]).registerUser(conn);
+            }
+          } else if (cmdTokens[0] == "create-budget") {
+            if (cmdTokens.size() != 2) {
+              std::cout << "Usage: create-budget <user-id>\n";
+            } else {
+              wallets.at(cmdTokens[1]).createPrivacyBudget(conn);
+            }
+          } else if (cmdTokens[0] == "info") {
+            if (cmdTokens.size() != 2) {
+              std::cout << "Usage: info <user-id>\n";
+            } else {
+              wallets.at(cmdTokens[1]).showInfo();
+            }
+          } else if (cmdTokens[0] == "mint") {
+            if (cmdTokens.size() != 3) {
+              std::cout << "Usage: mint <user-id> <amount>\n";
+            } else {
+              int amount = std::atoi(cmdTokens[2].c_str());
               if (amount <= 0) {
                 std::cout << "Expected a positive mint amount!\n";
               } else {
-                wallet.mint((uint64_t)amount);
+                wallets.at(cmdTokens[1]).mint(conn, (uint64_t)amount);
               }
             }
           } else if (cmdTokens[0] == "transfer") {
-            if (cmdTokens.size() != 3) {
-              std::cout << "Expected the transfer amount and recipient user id as arguments!\n";
+            if (cmdTokens.size() != 4) {
+              std::cout << "Usage: transfer <amount> <from-user-id> <to-user-id>\n";
             } else {
               int amount = std::atoi(cmdTokens[1].c_str());
               if (amount <= 0) {
                 std::cout << "Expected a positive transfer amount!\n";
-              } else if (checkValidUserId(cmdTokens[2])) {
-                wallet.transfer((uint64_t)amount, cmdTokens[2]);
+              } else {
+                wallets.at(cmdTokens[2]).transfer(conn, (uint64_t)amount, cmdTokens[3]);
               }
             }
           } else if (cmdTokens[0] == "burn") {
-            if (cmdTokens.size() != 2) {
-              std::cout << "Expected the burn amount as an argument!\n";
+            if (cmdTokens.size() != 3) {
+              std::cout << "Usage: burn <user-id> <amount>\n";
             } else {
-              int amount = std::atoi(cmdTokens[1].c_str());
+              int amount = std::atoi(cmdTokens[2].c_str());
               if (amount <= 0) {
                 std::cout << "Expected a positive burn amount!\n";
               } else {
-                wallet.burn((uint64_t)amount);
+                wallets.at(cmdTokens[1]).burn(conn, (uint64_t)amount);
               }
             }
           } else {

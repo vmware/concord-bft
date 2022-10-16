@@ -296,8 +296,8 @@ int main(int argc, char* argv[]) {
             users[i]->updateMintTx(txNum, executedTx.tx_, executedTx.sigs_.front());
           } break;
           case utt::Transaction::Type::Burn: {
-              assertTrue(executedTx.sigs_.empty());
-              users[i]->updateBurnTx(txNum, executedTx.tx_);
+            assertTrue(executedTx.sigs_.empty());
+            users[i]->updateBurnTx(txNum, executedTx.tx_);
           } break;
           case utt::Transaction::Type::Transfer: {
             assertFalse(executedTx.sigs_.empty());

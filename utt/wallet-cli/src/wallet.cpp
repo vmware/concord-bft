@@ -17,11 +17,13 @@
 
 using namespace vmware::concord::utt::wallet::api::v1;
 
-Wallet::Wallet(std::string userId, utt::client::TestUserPKInfrastructure& pki) : userId_{std::move(userId)}, pki_{pki} {
-  connect();
+Wallet::Wallet(std::string userId, utt::client::TestUserPKInfrastructure& pki, const utt::PublicConfig& config)
+    : userId_{std::move(userId)}, pki_{pki} {
+  user_ = utt::client::createUser(userId_, config, pki_, storage_);
+  if (!user_) throw std::runtime_error("Failed to create user!");
 }
 
-void Wallet::connect() {
+Wallet::Connection Wallet::newConnection() {
   std::string grpcServerAddr = "127.0.0.1:49000";
 
   std::cout << "Connecting to gRPC server at " << grpcServerAddr << " ...\n";
@@ -39,24 +41,17 @@ void Wallet::connect() {
                              " seconds.");
   }
 
-  grpc_ = WalletService::NewStub(chan);
+  return WalletService::NewStub(chan);
 }
 
 void Wallet::showInfo() const {
   std::cout << "User Id: " << userId_ << '\n';
-
-  if (!checkOperational()) return;
   std::cout << "Private balance: " << user_->getBalance() << '\n';
   std::cout << "Privacy budget: " << user_->getPrivacyBudget() << '\n';
   std::cout << "Last executed transaction number: " << user_->getLastExecutedTxNum() << '\n';
 }
 
-void Wallet::deployApp() {
-  if (isOperational_) {
-    std::cout << "The wallet has already deployed an app and is operational.\n";
-    return;
-  }
-
+utt::PublicConfig Wallet::deployApp(Connection& conn) {
   // Generate a privacy config for a N=4 replica system tolerating F=1 failures
   utt::client::ConfigInputParams params;
   params.validatorPublicKeys = std::vector<std::string>{4, "placeholderPublicKey"};  // N = 3 * F + 1
@@ -70,28 +65,19 @@ void Wallet::deployApp() {
   req.set_config(config.data(), config.size());
 
   DeployPrivacyAppResponse resp;
-  grpc_->deployPrivacyApp(&ctx, req, &resp);
+  conn->deployPrivacyApp(&ctx, req, &resp);
 
   // Note that keeping the config around in memory is just a temp solution and should not happen in real system
-  if (resp.has_err()) {
-    std::cout << "Failed to deploy privacy app: " << resp.err() << '\n';
-  } else if (resp.app_id().empty()) {
-    std::cout << "Failed to deploy privacy app: empty app id!\n";
-  } else {
-    // We need the public config part which can typically be obtained from the service, but we derive it for simplicity
-    auto publicConfig = utt::client::getPublicConfig(config);
-    std::cout << "Successfully deployed privacy app with id: " << resp.app_id() << '\n';
+  if (resp.has_err()) throw std::runtime_error("Failed to deploy privacy app: " + resp.err());
+  if (resp.app_id().empty()) throw std::runtime_error("Failed to deploy privacy app: empty app id!");
 
-    user_ = utt::client::createUser(userId_, publicConfig, pki_, storage_);
-    if (!user_) throw std::runtime_error("Failed to create user!");
+  // We need the public config part which can typically be obtained from the service, but we derive it for simplicity
+  std::cout << "Successfully deployed privacy app with id: " << resp.app_id() << '\n';
 
-    isOperational_ = true;
-  }
+  return utt::client::getPublicConfig(config);
 }
 
-void Wallet::registerUser() {
-  if (!checkOperational()) return;
-
+void Wallet::registerUser(Connection& conn) {
   auto userRegInput = user_->getRegistrationInput();
   if (userRegInput.empty()) throw std::runtime_error("Failed to create user registration input!");
 
@@ -103,7 +89,7 @@ void Wallet::registerUser() {
   req.set_user_pk(user_->getPK());
 
   RegisterUserResponse resp;
-  grpc_->registerUser(&ctx, req, &resp);
+  conn->registerUser(&ctx, req, &resp);
 
   if (resp.has_err()) {
     std::cout << "Failed to register user: " << resp.err() << '\n';
@@ -120,16 +106,14 @@ void Wallet::registerUser() {
   }
 }
 
-void Wallet::createPrivacyBudget() {
-  if (!checkOperational()) return;
-
+void Wallet::createPrivacyBudget(Connection& conn) {
   grpc::ClientContext ctx;
 
   CreatePrivacyBudgetRequest req;
   req.set_user_id(userId_);
 
   CreatePrivacyBudgetResponse resp;
-  grpc_->createPrivacyBudget(&ctx, req, &resp);
+  conn->createPrivacyBudget(&ctx, req, &resp);
 
   if (resp.has_err()) {
     std::cout << "Failed to create privacy budget:" << resp.err() << '\n';
@@ -144,9 +128,7 @@ void Wallet::createPrivacyBudget() {
   }
 }
 
-void Wallet::mint(uint64_t amount) {
-  if (!checkOperational()) return;
-
+void Wallet::mint(Connection& conn, uint64_t amount) {
   auto mintTx = user_->mint(amount);
 
   grpc::ClientContext ctx;
@@ -157,20 +139,18 @@ void Wallet::mint(uint64_t amount) {
   req.set_tx_data(mintTx.data_.data(), mintTx.data_.size());
 
   MintResponse resp;
-  grpc_->mint(&ctx, req, &resp);
+  conn->mint(&ctx, req, &resp);
 
   if (resp.has_err()) {
     std::cout << "Failed to mint:" << resp.err() << '\n';
   } else {
     std::cout << "Successfully sent mint tx. Last added tx number:" << resp.last_added_tx_number() << '\n';
 
-    syncState(resp.last_added_tx_number());
+    syncState(conn, resp.last_added_tx_number());
   }
 }
 
-void Wallet::transfer(uint64_t amount, const std::string& recipient) {
-  if (!checkOperational()) return;
-
+void Wallet::transfer(Connection& conn, uint64_t amount, const std::string& recipient) {
   if (userId_ == recipient) {
     std::cout << "Cannot transfer to self directly!\n";
     return;
@@ -199,23 +179,21 @@ void Wallet::transfer(uint64_t amount, const std::string& recipient) {
     req.set_tx_data(result.requiredTx_.data_.data(), result.requiredTx_.data_.size());
 
     TransferResponse resp;
-    grpc_->transfer(&ctx, req, &resp);
+    conn->transfer(&ctx, req, &resp);
 
     if (resp.has_err()) {
       std::cout << "Failed to transfer:" << resp.err() << '\n';
     } else {
       std::cout << "Successfully sent transfer tx. Last added tx number:" << resp.last_added_tx_number() << '\n';
 
-      syncState(resp.last_added_tx_number());
+      syncState(conn, resp.last_added_tx_number());
     }
 
     if (result.isFinal_) break;  // Done
   }
 }
 
-void Wallet::burn(uint64_t amount) {
-  if (!checkOperational()) return;
-
+void Wallet::burn(Connection& conn, uint64_t amount) {
   if (user_->getBalance() < amount) {
     std::cout << "Insufficient private balance!\n";
     return;
@@ -239,31 +217,21 @@ void Wallet::burn(uint64_t amount) {
     req.set_tx_data(result.requiredTx_.data_.data(), result.requiredTx_.data_.size());
 
     BurnResponse resp;
-    grpc_->burn(&ctx, req, &resp);
+    conn->burn(&ctx, req, &resp);
 
     if (resp.has_err()) {
       std::cout << "Failed to burn:" << resp.err() << '\n';
     } else {
       std::cout << "Successfully sent burn tx. Last added tx number:" << resp.last_added_tx_number() << '\n';
 
-      syncState(resp.last_added_tx_number());
+      syncState(conn, resp.last_added_tx_number());
     }
 
     if (result.isFinal_) break;  // Done
   }
 }
 
-bool Wallet::checkOperational() const {
-  if (!isOperational_) {
-    std::cout << "You must first deploy a privacy app. Use command 'deploy app'\n";
-    return false;
-  }
-  return true;
-}
-
-void Wallet::syncState(uint64_t lastKnownTxNum) {
-  if (!checkOperational()) return;
-
+void Wallet::syncState(Connection& conn, uint64_t lastKnownTxNum) {
   std::cout << "Synchronizing state...\n";
 
   // Sync to latest state
@@ -273,7 +241,7 @@ void Wallet::syncState(uint64_t lastKnownTxNum) {
     grpc::ClientContext ctx;
     GetLastAddedTxNumberRequest req;
     GetLastAddedTxNumberResponse resp;
-    grpc_->getLastAddedTxNumber(&ctx, req, &resp);
+    conn->getLastAddedTxNumber(&ctx, req, &resp);
 
     if (resp.has_err()) {
       std::cout << "Failed to get last added tx number:" << resp.err() << '\n';
@@ -290,7 +258,7 @@ void Wallet::syncState(uint64_t lastKnownTxNum) {
     req.set_tx_number(txNum);
 
     GetSignedTransactionResponse resp;
-    grpc_->getSignedTransaction(&ctx, req, &resp);
+    conn->getSignedTransaction(&ctx, req, &resp);
 
     if (resp.has_err()) {
       std::cout << "Failed to get signed tx with number " << txNum << ':' << resp.err() << '\n';
