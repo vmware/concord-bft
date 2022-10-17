@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <variant>
 #include <memory>
+#include "Logger.hpp"
 
 namespace bft::communication {
 struct EnumHash {
@@ -55,6 +56,16 @@ class StateControl {
     invokeCallback(et, id);
   }
 
+  const std::string getEventTypeAsString(const EventType& et) {
+    switch (et) {
+      case EventType::TLS_COMM:
+        return "TLS_COMM";
+      case EventType::THIN_REPLICA_SERVER:
+        return "THIN_REPLICA_SERVER";
+      default:
+        return "Invalid Type";
+    }
+  }
   void setGetPeerPubKeyMethod(std::function<std::string(uint32_t)> m) { get_peer_pub_key_ = std::move(m); }
 
   std::string getPeerPubKey(uint32_t id) {
@@ -63,6 +74,8 @@ class StateControl {
   }
 
  private:
+  StateControl() : logger_(logging::getLogger("concord-bft.comm.StetControl")) {}
+
   void registerCallback(const EventType& et, std::function<void(uint32_t)> cb) {
     if (cb != nullptr) {
       if (event_registry_.find(et) == event_registry_.end()) {
@@ -76,10 +89,11 @@ class StateControl {
     if (event_registry_.find(et) != event_registry_.end()) {
       event_registry_[et]->invokeAll(id);
     } else {
-      throw std::invalid_argument{"invokeCallback called with an invalid eventType"};
+      LOG_WARN(logger_, "No callback(s) registered for eventType " << getEventTypeAsString(et));
     }
   }
 
+  logging::Logger logger_;
   std::mutex lock_comm_;
   // keeping function template to be void(uint32_t) for uniformity
   std::unordered_map<const EventType, std::unique_ptr<CallbackRegistry>, EnumHash> event_registry_;
