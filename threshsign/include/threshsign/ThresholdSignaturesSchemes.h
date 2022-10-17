@@ -12,10 +12,4 @@
 
 #pragma once
 
-#ifdef USE_RELIC
-#include "bls/relic/BlsThresholdScheme.h"
-#endif
-
-#ifdef USE_EDDSA_OPENSSL
 #include "eddsa/EdDSAMultisigFactory.h"
-#endif

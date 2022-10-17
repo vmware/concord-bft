@@ -44,20 +44,9 @@ Cryptosystem::Cryptosystem(const std::string& sysType,
 
 // Helper function to generateNewPseudorandomKeys.
 IThresholdFactory* Cryptosystem::createThresholdFactory() {
-#ifdef USE_RELIC
-  bool is_bls = type_ == MULTISIG_BLS_SCHEME || type_ == THRESHOLD_BLS_SCHEME;
-  if (is_bls) {
-    bool use_multisig = type_ == MULTISIG_BLS_SCHEME || (type_ == THRESHOLD_BLS_SCHEME && forceMultisig_);
-    return new BLS::Relic::BlsThresholdFactory(BLS::Relic::PublicParametersFactory::getByCurveType(subtype_.c_str()),
-                                               use_multisig);
-  }
-#endif
-
-#ifdef USE_EDDSA_OPENSSL
   if (type_ == MULTISIG_EDDSA_SCHEME) {
     return new EdDSAMultisigFactory();
   }
-#endif
 
   // This should never occur because Cryptosystem validates its parameters
   // in its constructor.
@@ -224,64 +213,27 @@ IThresholdSigner* Cryptosystem::createThresholdSigner() {
 }
 
 void Cryptosystem::validatePublicKey(const std::string& key) const {
-#ifdef USE_EDDSA_OPENSSL
   UNUSED(key);
   return;
-#else
-  constexpr const size_t expectedKeyLength = 130u;
-  auto keyType = type_ + " " + subtype_ + " public";
-  isValidKey(keyType, key, expectedKeyLength);
-#endif
 }
 
 void Cryptosystem::validateVerificationKey(const std::string& key) const {
-#ifdef USE_EDDSA_OPENSSL
   constexpr const size_t expectedKeyLength = concord::crypto::Ed25519PublicKeyByteSize * 2;
-#else
-  constexpr const size_t expectedKeyLength = 130u;
-#endif
   auto keyType = type_ + " " + subtype_ + " verification";
   isValidKey(keyType, key, expectedKeyLength);
 }
 
 void Cryptosystem::validatePrivateKey(const std::string& key) const {
-#ifdef USE_EDDSA_OPENSSL
   constexpr const size_t expectedKeyLength = concord::crypto::Ed25519PrivateKeyByteSize * 2;
-#else
-  // We currently do not validate the length of the private key's string
-  // representation because the length of its serialization varies slightly.
-  constexpr const size_t expectedKeyLength = 0;
-#endif
   auto keyType = type_ + " " + subtype_ + " private";
   isValidKey(keyType, key, expectedKeyLength);
 }
 
 bool Cryptosystem::isValidCryptosystemSelection(const std::string& type, const std::string& subtype) {
-#ifdef USE_RELIC
-  if (type == MULTISIG_BLS_SCHEME) {
-    try {
-      BLS::Relic::BlsThresholdFactory factory(BLS::Relic::PublicParametersFactory::getByCurveType(subtype.c_str()));
-      return true;
-    } catch (std::exception& e) {
-      LOG_FATAL(THRESHSIGN_LOG, e.what());
-      return false;
-    }
-  }
-  if (type == THRESHOLD_BLS_SCHEME) {
-    try {
-      BLS::Relic::BlsThresholdFactory factory(BLS::Relic::PublicParametersFactory::getByCurveType(subtype.c_str()));
-      return true;
-    } catch (std::exception& e) {
-      return false;
-    }
-  }
-#endif
-#ifdef USE_EDDSA_OPENSSL
   UNUSED(subtype);
   if (type == MULTISIG_EDDSA_SCHEME) {
     return true;
   }
-#endif
   return false;
 }
 
@@ -303,14 +255,7 @@ bool Cryptosystem::isValidCryptosystemSelection(const std::string& type,
 
 const std::vector<std::pair<std::string, std::string>>& Cryptosystem::getAvailableCryptosystemTypes() {
   static const std::vector<std::pair<std::string, std::string>> cryptoSystems = {
-#ifdef USE_RELIC
-      {MULTISIG_BLS_SCHEME, "an elliptical curve type, for example, BN-P254"},
-      {THRESHOLD_BLS_SCHEME, "an elliptical curve type, for example, BN-P254"},
-#endif
-#ifdef USE_EDDSA_OPENSSL
-      {MULTISIG_EDDSA_SCHEME, "EdDSA 25519"}
-#endif
-  };
+      {MULTISIG_EDDSA_SCHEME, "EdDSA 25519"}};
   return cryptoSystems;
 }
 void Cryptosystem::writeConfiguration(std::ostream& output, const std::string& prefix, const uint16_t& replicaId) {

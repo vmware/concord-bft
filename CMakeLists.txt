@@ -23,7 +23,6 @@ if(NOT DEFINED USE_LOG4CPP)
     option(USE_LOG4CPP "Enable LOG4CPP" ON)
 endif()
 
-option(USE_RELIC "Enable usage of Relic library for BLS threshold signature generation/verification" OFF)
 option(RUN_APOLLO_TESTS "Enable Apollo tests run" ON)
 option(KEEP_APOLLO_LOGS "Retains logs from replicas in separate folder for each test in build/tests/apollo/logs" ON)
 option(TXN_SIGNING_ENABLED "Enable External concord client transcattion signing" ON)
@@ -44,18 +43,12 @@ option(USE_JSON "Enable use of JSON library" ON)
 option(USE_HTTPLIB "Enable use of httplib" ON)
 option(USE_GRPC "Enable GRPC and Protobuf" ON)
 option(USE_OPENSSL "Enable use of OpenSSL" ON)
-option(USE_EDDSA_OPENSSL "Enable use of EdDSA's OpenSSL implementation for signature generation and verification" ON)
 option(BUILD_THIRDPARTY "Wheter to build third party librarie or use preinstalled ones" OFF)
 option(CODECOVERAGE "Enable Code Coverage Metrics in Clang" OFF)
 option(ENABLE_RESTART_RECOVERY_TESTS "Enable tests for restart recovery" OFF)
 option(BUILD_UTT "Build UTT library" ON)
 
-if(NOT (USE_EDDSA_OPENSSL OR USE_RELIC))
-    message(FATAL_ERROR "At least one threshold/multisig implementation needs to be chosen, "
-            "Define at least one of the following cmake options: [USE_EDDSA_OPENSSL, USE_RELIC]")
-endif()
-
-if((USE_OPENSSL OR USE_EDDSA_OPENSSL) AND NOT BUILD_THIRDPARTY)
+if((USE_OPENSSL) AND NOT BUILD_THIRDPARTY)
     set(OPENSSL_ROOT_DIR /usr/local/ssl) # not to confuse with system ssl libs
 endif()
 

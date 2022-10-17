@@ -102,16 +102,8 @@ int main(int argc, char** argv) {
     std::string defaultSysType = "UninitializedCryptoSystem";
     std::string defaultSubSysType = "UninitializedCryptoSubSystem";
 
-#ifdef USE_RELIC
-    defaultSysType = MULTISIG_BLS_SCHEME;
-    defaultSubSysType = "BN-P254";
-#endif
-
-// Note that if both USE_RELIC and MULTISIG_EDDSA_SCHEME macros are set, the last option is the one which will be taken
-#ifdef USE_EDDSA_OPENSSL
     defaultSysType = MULTISIG_EDDSA_SCHEME;
     defaultSubSysType = "ED25519";
-#endif
 
     // These are currently unused
     std::string slowType = defaultSysType;
