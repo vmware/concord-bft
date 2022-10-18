@@ -409,6 +409,68 @@ utt::Transaction User::mint(uint64_t amount) const {
   return tx;
 }
 
+void User::preCreatePrivacyBudget(const utt::Configuration& config, uint64_t amount) {
+  if (config.empty()) throw std::runtime_error("Privacy app config cannot be empty!");
+  if (amount == 0) throw std::runtime_error("Positive privacy budget amount required!");
+
+  const auto& pid = pImpl_->client_->getPid();
+
+  loginfo << "Pre-creating " << amount << " privacy budget for '" << pid << "'\n";
+
+  auto uttConfig = libutt::api::deserialize<libutt::api::Configuration>(config);
+
+  auto budget = libutt::api::operations::Budget(pImpl_->params_, *pImpl_->client_, amount, 0 /*expirationDate*/);
+
+  // auto pidHash = libutt::api::Utils::curvePointFromHash(pImpl_->client_->getPid());
+  // auto snHash = libutt::api::Utils::curvePointFromHash("budget|" + pid);
+
+  // auto budget = libutt::api::operations::Budget(uttConfig.getPublicConfig().getParams(), snHash, pidHash, amount, 0);
+
+  // Create coins signers from config
+  auto commitVerificationKey = uttConfig.getPublicConfig().getCommitVerificationKey();
+  auto registrationVerificationKey = uttConfig.getPublicConfig().getRegistrationVerificationKey();
+  std::map<uint16_t, std::string> commitVerificationKeyShares;
+  std::map<uint16_t, std::string> registrationVerificationKeyShares;
+  std::vector<libutt::api::CoinsSigner> coinsSigners;
+
+  for (uint16_t i = 0; i < uttConfig.getNumValidators(); ++i) {
+    commitVerificationKeyShares.emplace(i, uttConfig.getCommitVerificationKeyShare(i));
+    registrationVerificationKeyShares.emplace(i, uttConfig.getRegistrationVerificationKeyShare(i));
+  }
+
+  // Create coins signers
+  for (uint16_t i = 0; i < uttConfig.getNumValidators(); ++i) {
+    coinsSigners.emplace_back(i,
+                              uttConfig.getCommitSecret(i),
+                              commitVerificationKey,
+                              commitVerificationKeyShares,
+                              registrationVerificationKey);
+  }
+
+  // Sign budget signature
+  const uint16_t n = uttConfig.getNumValidators();
+  const uint16_t t = uttConfig.getThreshold();
+
+  // We just need threshold signers to sign
+  std::map<uint32_t, std::vector<uint8_t>> shareSubset;
+  for (size_t idx = 0; idx < t; ++idx) {
+    shareSubset.emplace((uint32_t)idx, coinsSigners[idx].sign(budget).front());
+  }
+
+  auto sig = libutt::api::Utils::aggregateSigShares(n, shareSubset);
+
+  // Claim and update
+  auto claimedCoins =
+      pImpl_->client_->claimCoins(budget, pImpl_->params_, std::vector<libutt::api::types::Signature>{sig});
+
+  // Expect a single budget token to be claimed by the user
+  if (claimedCoins.size() != 1) throw std::runtime_error("Expected single budget token!");
+  if (!pImpl_->client_->validate(claimedCoins[0])) throw std::runtime_error("Invalid pre-created budget coin!");
+
+  // [TODO-UTT] Requires atomic, durable write through IUserStorage
+  pImpl_->budgetCoin_ = claimedCoins[0];
+}
+
 BurnResult User::burn(uint64_t amount) const {
   if (!pImpl_->client_) throw std::runtime_error("User not initialized!");
   if (amount == 0) throw std::runtime_error("Burn amount must be positive!");

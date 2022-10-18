@@ -44,14 +44,16 @@ Wallet::Connection Wallet::newConnection() {
   return WalletService::NewStub(chan);
 }
 
-void Wallet::showInfo() const {
+void Wallet::showInfo(Connection& conn) {
+  syncState(conn);
+
   std::cout << "User Id: " << userId_ << '\n';
   std::cout << "Private balance: " << user_->getBalance() << '\n';
   std::cout << "Privacy budget: " << user_->getPrivacyBudget() << '\n';
   std::cout << "Last executed transaction number: " << user_->getLastExecutedTxNum() << '\n';
 }
 
-utt::PublicConfig Wallet::deployApp(Connection& conn) {
+std::pair<utt::Configuration, utt::PublicConfig> Wallet::deployApp(Connection& conn) {
   // Generate a privacy config for a N=4 replica system tolerating F=1 failures
   utt::client::ConfigInputParams params;
   params.validatorPublicKeys = std::vector<std::string>{4, "placeholderPublicKey"};  // N = 3 * F + 1
@@ -74,7 +76,11 @@ utt::PublicConfig Wallet::deployApp(Connection& conn) {
   // We need the public config part which can typically be obtained from the service, but we derive it for simplicity
   std::cout << "Successfully deployed privacy app with id: " << resp.app_id() << '\n';
 
-  return utt::client::getPublicConfig(config);
+  return std::pair<utt::Configuration, utt::PublicConfig>{config, utt::client::getPublicConfig(config)};
+}
+
+void Wallet::preCreatePrivacyBudget(const utt::Configuration& config, uint64_t amount) {
+  user_->preCreatePrivacyBudget(config, amount);
 }
 
 void Wallet::registerUser(Connection& conn) {
@@ -166,7 +172,7 @@ void Wallet::transfer(Connection& conn, uint64_t amount, const std::string& reci
     return;
   }
 
-  std::cout << "Started processing " << amount << "anonymous transfer to " << recipient << "...\n";
+  std::cout << "Started processing " << amount << " anonymous transfer to " << recipient << "...\n";
 
   // Process the transfer until we get the final transaction
   // On each iteration we also sync up to the tx number of our request
@@ -177,6 +183,7 @@ void Wallet::transfer(Connection& conn, uint64_t amount, const std::string& reci
 
     TransferRequest req;
     req.set_tx_data(result.requiredTx_.data_.data(), result.requiredTx_.data_.size());
+    req.set_num_outputs(result.requiredTx_.numOutputs_);
 
     TransferResponse resp;
     conn->transfer(&ctx, req, &resp);
@@ -199,11 +206,6 @@ void Wallet::burn(Connection& conn, uint64_t amount) {
     return;
   }
 
-  if (user_->getPrivacyBudget() < amount) {
-    std::cout << "Insufficient privacy budget!\n";
-    return;
-  }
-
   std::cout << "Started processing " << amount << " burn...\n";
 
   // Process the transfer until we get the final transaction
@@ -213,21 +215,41 @@ void Wallet::burn(Connection& conn, uint64_t amount) {
 
     grpc::ClientContext ctx;
 
-    BurnRequest req;
-    req.set_tx_data(result.requiredTx_.data_.data(), result.requiredTx_.data_.size());
+    if (result.isFinal_) {
+      BurnRequest req;
+      req.set_user_id(user_->getUserId());
+      req.set_value(amount);
+      req.set_tx_data(result.requiredTx_.data_.data(), result.requiredTx_.data_.size());
 
-    BurnResponse resp;
-    conn->burn(&ctx, req, &resp);
+      BurnResponse resp;
+      conn->burn(&ctx, req, &resp);
 
-    if (resp.has_err()) {
-      std::cout << "Failed to burn:" << resp.err() << '\n';
+      if (resp.has_err()) {
+        std::cout << "Failed to do burn:" << resp.err() << '\n';
+      } else {
+        std::cout << "Successfully sent burn tx. Last added tx number:" << resp.last_added_tx_number() << '\n';
+
+        syncState(conn, resp.last_added_tx_number());
+      }
+
+      break; // Done
     } else {
-      std::cout << "Successfully sent burn tx. Last added tx number:" << resp.last_added_tx_number() << '\n';
+      TransferRequest req;
+      req.set_tx_data(result.requiredTx_.data_.data(), result.requiredTx_.data_.size());
+      req.set_num_outputs(result.requiredTx_.numOutputs_);
+      TransferResponse resp;
+      conn->transfer(&ctx, req, &resp);
 
-      syncState(conn, resp.last_added_tx_number());
+      if (resp.has_err()) {
+        std::cout << "Failed to do self-transfer as part of burn:" << resp.err() << '\n';
+        return;
+      } else {
+        std::cout << "Successfully sent self-transfer tx as part of burn. Last added tx number:" << resp.last_added_tx_number() << '\n';
+
+        syncState(conn, resp.last_added_tx_number());
+      }
+      // Continue with the next transaction in the burn process
     }
-
-    if (result.isFinal_) break;  // Done
   }
 }
 
@@ -265,6 +287,11 @@ void Wallet::syncState(Connection& conn, uint64_t lastKnownTxNum) {
       return;
     }
 
+    if (!resp.has_tx_number()) {
+      std::cout << "Incomplete response from wallet service!\n";
+      return;
+    }
+
     std::cout << "Got signed " << TxType_Name(resp.tx_type()) << " transaction.\n";
     std::cout << "Tx data: " << resp.tx_data().size() << " bytes\n";
     std::cout << "Num Sigs: " << resp.sigs_size() << '\n';
@@ -290,7 +317,7 @@ void Wallet::syncState(Connection& conn, uint64_t lastKnownTxNum) {
         user_->updateTransferTx(resp.tx_number(), tx, sigs);
       } break;
       case TxType::BURN: {
-        tx.type_ = utt::Transaction::Type::Transfer;
+        tx.type_ = utt::Transaction::Type::Burn;
         if (!sigs.empty()) throw std::runtime_error("Expected no signatures for burn tx!");
         user_->updateBurnTx(resp.tx_number(), tx);
       } break;
