@@ -61,7 +61,7 @@ void printHelp() {
   std::cout << "\nCommands:\n";
   std::cout << "deploy                    -- generates a privacy app config, deploys it on the blockchain and creates "
                "test users.\n";
-  std::cout << "info <user-id>            -- prints information about the user managed by this wallet\n";
+  std::cout << "show <user-id>            -- prints information about the user managed by this wallet\n";
   std::cout << "register <user-id>        -- requests user registration required for spending coins\n";
   std::cout
       << "create-budget <user-id>   -- requests creation of a privacy budget, the amount is decided by the system.\n";
@@ -134,9 +134,9 @@ int main(int argc, char* argv[]) {
             } else {
               wallets.at(cmdTokens[1]).createPrivacyBudget(conn);
             }
-          } else if (cmdTokens[0] == "info") {
+          } else if (cmdTokens[0] == "show") {
             if (cmdTokens.size() != 2) {
-              std::cout << "Usage: info <user-id>\n";
+              std::cout << "Usage: show <user-id>\n";
             } else {
               wallets.at(cmdTokens[1]).showInfo();
             }
