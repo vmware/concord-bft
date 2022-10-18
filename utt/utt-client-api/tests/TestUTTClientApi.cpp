@@ -203,6 +203,11 @@ struct ServerMock {
     assertTrue(tx.type_ == utt::Transaction::Type::Burn);
 
     auto burn = libutt::api::deserialize<libutt::api::operations::Burn>(tx.data_);
+
+    for (const auto& signer : coinsSigners_) {
+      assertTrue(signer.validate(config_->getPublicConfig().getParams(), burn));
+    }
+
     auto null = burn.getNullifier();
     assertTrue(nullifiers_.count(null) == 0);
     nullifiers_.emplace(std::move(null));
@@ -219,6 +224,11 @@ struct ServerMock {
     assertTrue(tx.type_ == utt::Transaction::Type::Transfer);
 
     auto uttTx = libutt::api::deserialize<libutt::api::operations::Transaction>(tx.data_);
+
+    for (const auto& signer : coinsSigners_) {
+      assertTrue(signer.validate(config_->getPublicConfig().getParams(), uttTx));
+    }
+
     for (auto&& null : uttTx.getNullifiers()) {
       assertTrue(nullifiers_.count(null) == 0);
       nullifiers_.emplace(std::move(null));
