@@ -38,6 +38,8 @@ service WalletService {
 
     // Fetch an already signed (completed) transaction (either mint, burn or transfer).
     rpc getSignedTransaction(GetSignedTransactionRequest) returns (GetSignedTransactionResponse);
+
+    rpc getTxData(GetTxDataRequest) returns (GetTxDataResponse);
 }
 
 enum TxType {
@@ -136,4 +138,16 @@ message GetSignedTransactionResponse {
     optional TxType tx_type = 3;
     optional bytes tx_data = 4;
     repeated bytes sigs = 5;
+    optional uint32 tx_data_size = 6;
+}
+
+message GetTxDataRequest {
+    optional uint64 tx_number = 1;
+    optional uint32 byte_offset = 2;
+}
+
+message GetTxDataResponse {
+    optional string err = 1;
+    optional uint64 tx_number = 2;
+    optional bytes tx_data = 3;
 }

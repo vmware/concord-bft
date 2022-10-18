@@ -32,10 +32,10 @@ class Wallet {
   static std::pair<utt::Configuration, utt::PublicConfig> deployApp(Connection& conn);
 
   /// [TODO-UTT] Create privacy budget locally because the system can't process budget requests yet.
-  /// @brief Create a privacy budget locally for the user. This function is only for testing. 
+  /// @brief Create a privacy budget locally for the user. This function is only for testing.
   /// @param config A Privacy app configuration
   /// @param amount The amount of privacy budget to create
-  void preCreatePrivacyBudget(const utt::Configuration& config, uint64_t amount);
+  void createPrivacyBudgetLocal(const utt::Configuration& config, uint64_t amount);
 
   Wallet(std::string userId, utt::client::TestUserPKInfrastructure& pki, const utt::PublicConfig& config);
 
