@@ -409,22 +409,15 @@ utt::Transaction User::mint(uint64_t amount) const {
   return tx;
 }
 
-void User::preCreatePrivacyBudget(const utt::Configuration& config, uint64_t amount) {
+void User::createPrivacyBudgetLocal(const utt::Configuration& config, uint64_t amount) {
   if (config.empty()) throw std::runtime_error("Privacy app config cannot be empty!");
   if (amount == 0) throw std::runtime_error("Positive privacy budget amount required!");
 
   const auto& pid = pImpl_->client_->getPid();
 
-  loginfo << "Pre-creating " << amount << " privacy budget for '" << pid << "'\n";
+  loginfo << "Creating " << amount << " privacy budget locally for '" << pid << "'\n";
 
   auto uttConfig = libutt::api::deserialize<libutt::api::Configuration>(config);
-
-  auto budget = libutt::api::operations::Budget(pImpl_->params_, *pImpl_->client_, amount, 0 /*expirationDate*/);
-
-  // auto pidHash = libutt::api::Utils::curvePointFromHash(pImpl_->client_->getPid());
-  // auto snHash = libutt::api::Utils::curvePointFromHash("budget|" + pid);
-
-  // auto budget = libutt::api::operations::Budget(uttConfig.getPublicConfig().getParams(), snHash, pidHash, amount, 0);
 
   // Create coins signers from config
   auto commitVerificationKey = uttConfig.getPublicConfig().getCommitVerificationKey();
@@ -447,11 +440,14 @@ void User::preCreatePrivacyBudget(const utt::Configuration& config, uint64_t amo
                               registrationVerificationKey);
   }
 
-  // Sign budget signature
+  // Create budget
+  auto budget = libutt::api::operations::Budget(pImpl_->params_, *pImpl_->client_, amount, 0 /*expirationDate*/);
+
+  // Sign budget
   const uint16_t n = uttConfig.getNumValidators();
   const uint16_t t = uttConfig.getThreshold();
 
-  // We just need threshold signers to sign
+  // We need only 'threshold' signers to sign
   std::map<uint32_t, std::vector<uint8_t>> shareSubset;
   for (size_t idx = 0; idx < t; ++idx) {
     shareSubset.emplace((uint32_t)idx, coinsSigners[idx].sign(budget).front());
@@ -465,7 +461,7 @@ void User::preCreatePrivacyBudget(const utt::Configuration& config, uint64_t amo
 
   // Expect a single budget token to be claimed by the user
   if (claimedCoins.size() != 1) throw std::runtime_error("Expected single budget token!");
-  if (!pImpl_->client_->validate(claimedCoins[0])) throw std::runtime_error("Invalid pre-created budget coin!");
+  if (!pImpl_->client_->validate(claimedCoins[0])) throw std::runtime_error("Invalid local budget coin!");
 
   // [TODO-UTT] Requires atomic, durable write through IUserStorage
   pImpl_->budgetCoin_ = claimedCoins[0];

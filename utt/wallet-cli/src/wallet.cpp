@@ -79,8 +79,8 @@ std::pair<utt::Configuration, utt::PublicConfig> Wallet::deployApp(Connection& c
   return std::pair<utt::Configuration, utt::PublicConfig>{config, utt::client::getPublicConfig(config)};
 }
 
-void Wallet::preCreatePrivacyBudget(const utt::Configuration& config, uint64_t amount) {
-  user_->preCreatePrivacyBudget(config, amount);
+void Wallet::createPrivacyBudgetLocal(const utt::Configuration& config, uint64_t amount) {
+  user_->createPrivacyBudgetLocal(config, amount);
 }
 
 void Wallet::registerUser(Connection& conn) {
@@ -232,7 +232,7 @@ void Wallet::burn(Connection& conn, uint64_t amount) {
         syncState(conn, resp.last_added_tx_number());
       }
 
-      break; // Done
+      break;  // Done
     } else {
       TransferRequest req;
       req.set_tx_data(result.requiredTx_.data_.data(), result.requiredTx_.data_.size());
@@ -244,7 +244,8 @@ void Wallet::burn(Connection& conn, uint64_t amount) {
         std::cout << "Failed to do self-transfer as part of burn:" << resp.err() << '\n';
         return;
       } else {
-        std::cout << "Successfully sent self-transfer tx as part of burn. Last added tx number:" << resp.last_added_tx_number() << '\n';
+        std::cout << "Successfully sent self-transfer tx as part of burn. Last added tx number:"
+                  << resp.last_added_tx_number() << '\n';
 
         syncState(conn, resp.last_added_tx_number());
       }
@@ -280,7 +281,8 @@ void Wallet::syncState(Connection& conn, uint64_t lastKnownTxNum) {
     req.set_tx_number(txNum);
 
     GetSignedTransactionResponse resp;
-    conn->getSignedTransaction(&ctx, req, &resp);
+    auto status = conn->getSignedTransaction(&ctx, req, &resp);
+    std::cout << "getSignedTransaction status: " << status.error_message() << '\n';
 
     if (resp.has_err()) {
       std::cout << "Failed to get signed tx with number " << txNum << ':' << resp.err() << '\n';
@@ -288,16 +290,47 @@ void Wallet::syncState(Connection& conn, uint64_t lastKnownTxNum) {
     }
 
     if (!resp.has_tx_number()) {
-      std::cout << "Incomplete response from wallet service!\n";
+      std::cout << "Missing tx number in GetSignedTransactionResponse!\n";
       return;
     }
 
     std::cout << "Got signed " << TxType_Name(resp.tx_type()) << " transaction.\n";
-    std::cout << "Tx data: " << resp.tx_data().size() << " bytes\n";
+    std::cout << "Tx num: " << resp.tx_number() << '\n';
+    std::cout << "Tx data size: " << resp.tx_data().size() << " bytes\n";
+    std::cout << "Tx data actual size: " << resp.tx_data_size() << " bytes\n";
     std::cout << "Num Sigs: " << resp.sigs_size() << '\n';
 
     utt::Transaction tx;
-    tx.data_ = std::vector<uint8_t>(resp.tx_data().begin(), resp.tx_data().end());
+    std::copy(resp.tx_data().begin(), resp.tx_data().end(), std::back_inserter(tx.data_));
+
+    auto getTxData = [](Connection& conn, uint64_t txNumber, std::vector<uint8_t>& buff) {
+      grpc::ClientContext ctx;
+
+      GetTxDataRequest req;
+      req.set_tx_number(txNumber);
+      req.set_byte_offset((uint32_t)buff.size());
+
+      GetTxDataResponse resp;
+      conn->getTxData(&ctx, req, &resp);
+
+      if (resp.has_err()) {
+        throw std::runtime_error("getTxData: " + resp.err());
+      }
+      std::cout << "got extra data:" << resp.tx_data().size() << '\n';
+
+      std::copy(resp.tx_data().begin(), resp.tx_data().end(), std::back_inserter(buff));
+    };
+
+    while (true) {
+      if (tx.data_.size() < resp.tx_data_size()) {
+        std::cout << "Fetch additional tx data...\n";
+        getTxData(conn, resp.tx_number(), tx.data_);
+      } else if (tx.data_.size() > resp.tx_data_size()) {
+        throw std::runtime_error("Got more bytes than the actual tx size!");
+      } else {  // tx size == actual size
+        break;  // Done
+      }
+    }
 
     utt::TxOutputSigs sigs;
     sigs.reserve((size_t)resp.sigs_size());
