@@ -85,6 +85,8 @@ int main(int argc, char* argv[]) {
 
     auto conn = Wallet::newConnection();
 
+    utt::Configuration config;
+
     while (true) {
       std::cout << "\nEnter command (type 'h' for commands 'Ctr-D' to quit):\n > ";
       std::string cmd;
@@ -102,13 +104,13 @@ int main(int argc, char* argv[]) {
           std::cout << "The privacy app is already deployed.\n";
         } else {
           auto configs = Wallet::deployApp(conn);
+          config = std::move(configs.first);  // Save the full config for creating budgets locally later
 
           utt::client::TestUserPKInfrastructure pki;
           auto testUserIds = pki.getUserIds();
           for (const auto& userId : testUserIds) {
             std::cout << "Creating test user with id '" << userId << "'\n";
             wallets.emplace(userId, Wallet(userId, pki, configs.second));
-            wallets.at(userId).preCreatePrivacyBudget(configs.first, 10000);
           }
 
           deployed = true;
@@ -133,7 +135,7 @@ int main(int argc, char* argv[]) {
             if (cmdTokens.size() != 2) {
               std::cout << "Usage: create-budget <user-id>\n";
             } else {
-              wallets.at(cmdTokens[1]).createPrivacyBudget(conn);
+              wallets.at(cmdTokens[1]).createPrivacyBudgetLocal(config, 10000);
             }
           } else if (cmdTokens[0] == "show") {
             if (cmdTokens.size() != 2) {
