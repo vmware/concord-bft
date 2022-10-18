@@ -29,11 +29,17 @@ class Wallet {
   /// [TODO-UTT] Should be performed by an admin app
   /// @brief Deploy a privacy application
   /// @return The public configuration of the deployed application
-  static utt::PublicConfig deployApp(Connection& conn);
+  static std::pair<utt::Configuration, utt::PublicConfig> deployApp(Connection& conn);
+
+  /// [TODO-UTT] Create privacy budget locally because the system can't process budget requests yet.
+  /// @brief Create a privacy budget locally for the user. This function is only for testing. 
+  /// @param config A Privacy app configuration
+  /// @param amount The amount of privacy budget to create
+  void preCreatePrivacyBudget(const utt::Configuration& config, uint64_t amount);
 
   Wallet(std::string userId, utt::client::TestUserPKInfrastructure& pki, const utt::PublicConfig& config);
 
-  void showInfo() const;
+  void showInfo(Connection& conn);
 
   /// @brief Request registration of the current user
   void registerUser(Connection& conn);

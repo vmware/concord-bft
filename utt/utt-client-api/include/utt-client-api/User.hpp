@@ -46,6 +46,9 @@ class User {
   User();  // Default empty user object
   ~User();
 
+  /// @brief Creates a privacy budget locally - used only for testing.
+  void preCreatePrivacyBudget(const utt::Configuration& config, uint64_t amount);
+
   /// @brief Creates an input registration commitment. Multiple calls generate the same object.
   /// @return The user's registration input object
   UserRegistrationInput getRegistrationInput() const;
@@ -109,6 +112,9 @@ class User {
 
   /// @brief Creates a transaction to mint the requested amount
   utt::Transaction mint(uint64_t amount) const;
+
+  /// @brief Creates a transaction to mint the requested budget amount
+  utt::Transaction mintPrivacyBudget(uint64_t amount) const;
 
   /// @brief Ask to burn some amount of tokens. This function needs to be called repeatedly until the final burn
   /// transaction is produced.

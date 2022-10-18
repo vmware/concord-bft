@@ -101,13 +101,14 @@ int main(int argc, char* argv[]) {
         if (deployed) {
           std::cout << "The privacy app is already deployed.\n";
         } else {
-          auto publicConfig = Wallet::deployApp(conn);
+          auto configs = Wallet::deployApp(conn);
 
           utt::client::TestUserPKInfrastructure pki;
           auto testUserIds = pki.getUserIds();
           for (const auto& userId : testUserIds) {
             std::cout << "Creating test user with id '" << userId << "'\n";
-            wallets.emplace(userId, Wallet(userId, pki, publicConfig));
+            wallets.emplace(userId, Wallet(userId, pki, configs.second));
+            wallets.at(userId).preCreatePrivacyBudget(configs.first, 10000);
           }
 
           deployed = true;
@@ -138,7 +139,7 @@ int main(int argc, char* argv[]) {
             if (cmdTokens.size() != 2) {
               std::cout << "Usage: show <user-id>\n";
             } else {
-              wallets.at(cmdTokens[1]).showInfo();
+              wallets.at(cmdTokens[1]).showInfo(conn);
             }
           } else if (cmdTokens[0] == "mint") {
             if (cmdTokens.size() != 3) {
