@@ -43,17 +43,17 @@ class StateControl {
   void unlockComm() { lock_comm_.unlock(); }
 
   // Added/retained these methods to act as facade
-  void setCommRestartCallBack(std::function<void(uint32_t)> cb, const EventType& et = EventType::TLS_COMM) {
-    registerCallback(et, cb);
+  void setCommRestartCallBack(std::function<void(uint32_t)>&& cb, const EventType& et = EventType::TLS_COMM) {
+    registerCallback(et, std::move(cb));
   }
 
   void restartComm(uint32_t id, const EventType& et = EventType::TLS_COMM) { invokeCallback(et, id); }
 
-  void setTlsRestartCallBack(std::function<void(uint32_t)> cb, const EventType& et = EventType::THIN_REPLICA_SERVER) {
-    registerCallback(et, cb);
+  void setTrsRestartCallBack(std::function<void(uint32_t)>&& cb, const EventType& et = EventType::THIN_REPLICA_SERVER) {
+    registerCallback(et, std::move(cb));
   }
 
-  void restartThinReplicaServer(uint32_t id, const EventType& et = EventType::THIN_REPLICA_SERVER) {
+  void restartThinReplicaServer(uint32_t id = 0, const EventType& et = EventType::THIN_REPLICA_SERVER) {
     invokeCallback(et, id);
   }
 
@@ -79,7 +79,7 @@ class StateControl {
  private:
   StateControl() : logger_(logging::getLogger("concord-bft.comm.state_control")) {}
 
-  void registerCallback(const EventType& et, std::function<void(uint32_t)> cb) {
+  void registerCallback(const EventType& et, std::function<void(uint32_t)>&& cb) {
     ConcordAssert(cb != nullptr);
     if (event_registry_.find(et) == event_registry_.end()) {
       event_registry_.insert({et, std::make_unique<CallbackRegistry>()});
