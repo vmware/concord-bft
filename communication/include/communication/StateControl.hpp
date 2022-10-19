@@ -58,12 +58,16 @@ class StateControl {
   }
 
   const std::string getEventTypeAsString(const EventType& et) {
+    std::string str;
     switch (et) {
       case EventType::TLS_COMM:
-        return "TLS_COMM";
+        str = "TLS_COMM";
+        break;
       case EventType::THIN_REPLICA_SERVER:
-        return "THIN_REPLICA_SERVER";
+        str = "THIN_REPLICA_SERVER";
+        break;
     }
+    return str;
   }
   void setGetPeerPubKeyMethod(std::function<std::string(uint32_t)> m) { get_peer_pub_key_ = std::move(m); }
 
