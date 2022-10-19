@@ -81,7 +81,8 @@ class Coin {
        const types::CurvePoint& val,
        const types::CurvePoint& client_id_hash,
        Type t,
-       const types::CurvePoint& expiration_date);
+       const types::CurvePoint& expiration_date,
+       bool finalize = true);
   Coin();
   Coin(const Coin& c);
   Coin& operator=(const Coin& c);
@@ -102,6 +103,7 @@ class Coin {
    * @param prf The secret client's PRF key
    */
   void createNullifier(const UTTParams& p, const types::CurvePoint& prf);
+  void finalize(const UTTParams& p, const types::CurvePoint& prf);
 
   /**
    * @brief Check if this coin has a signature associated with it

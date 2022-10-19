@@ -76,15 +76,24 @@ std::istream& operator>>(std::istream& in, libutt::Coin& c) {
 }
 
 namespace libutt {
-Coin::Coin(const CommKey& ck, const Fr& sn, const Fr& val, const Fr& type, const Fr& exp_date, const Fr& pidHash)
+Coin::Coin(const CommKey& ck,
+           const Fr& sn,
+           const Fr& val,
+           const Fr& type,
+           const Fr& exp_date,
+           const Fr& pidHash,
+           bool create_commitments)
     : ck(ck),
       pid_hash(pidHash),
       sn(sn),
       val(val),
       type(type),
       exp_date(exp_date),
-      t(Fr::zero() /*When not the client creates the coin, we want to have a deterministic value for t*/) {
-  Coin::commit();
+      t(Fr::zero() /*When the coin is not created by the client, we want to have a deterministic value for t*/) {
+  if (create_commitments)
+    commit();
+  else
+    deterministically_commit();
 }
 Coin::Coin(const CommKey& ck,
            const Nullifier::Params& np,
@@ -94,9 +103,9 @@ Coin::Coin(const CommKey& ck,
            const Fr& type,
            const Fr& exp_date,
            const Fr& pidHash)
-    : ck(ck), pid_hash(pidHash), sn(sn), val(val), type(type), exp_date(exp_date), t(Fr::random_element()) {
-  Coin::commit();
+    : ck(ck), pid_hash(pidHash), sn(sn), val(val), type(type), exp_date(exp_date) {
   createNullifier(np, prf);
+  commit();
 }
 
 Coin::Coin(const CommKey& ck,
@@ -131,6 +140,28 @@ Comm Coin::augmentComm(const CommKey& ck, const Comm& ccmTxn, const Fr& type, co
   Comm ccmExtra = Comm::create(ck_extra, {type, exp_date}, true);
 
   return ccmTxn + ccmExtra;
+}
+
+void Coin::deterministically_commit() {
+  assertGreaterThanOrEqual(ck.numMessages(), 3);
+  assertTrue(ck.hasCorrectG2());
+
+  // we first commit *partially* to the coin, but not to its type and expiration date, which will be given in plaintext
+  bool withG2 = true;  // since we always need G2 counterparts to verify sigs
+  r = Fr::zero();
+  ccm_txn = Comm::create(ck, {pid_hash, sn, val, Fr::zero(), Fr::zero(), r}, withG2);
+  assertTrue(ccm_txn.hasCorrectG2(ck));
+
+  // NOTE: This is a bit hard-coded. Ideally, we might've done ck_val = Params::getValCK()?
+  // But that couples Coin with Params. Maybe this is okay after all.
+
+  // set the vcm commitment key to (g_3, g)
+  CommKey ck_val;
+  ck_val.g.push_back(ck.g[2]);       // g_3
+  ck_val.g.push_back(ck.getGen1());  // g
+
+  z = Fr::zero();
+  vcm = Comm::create(ck_val, {val, z}, false);
 }
 
 void Coin::commit() {

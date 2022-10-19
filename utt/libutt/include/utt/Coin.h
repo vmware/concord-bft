@@ -76,7 +76,13 @@ class Coin {
   // WARNING: Used only for deserialization
   Coin() {}
   // Used to create the coin's partial commitment (without nullfier)
-  Coin(const CommKey& ck, const Fr& sn, const Fr& val, const Fr& type, const Fr& exp_date, const Fr& pidHash);
+  Coin(const CommKey& ck,
+       const Fr& sn,
+       const Fr& val,
+       const Fr& type,
+       const Fr& exp_date,
+       const Fr& pidHash,
+       bool create_commitments = true);
 
   Coin(const CommKey& ck,
        const Nullifier::Params& np,
@@ -163,14 +169,13 @@ class Coin {
    */
   static Comm augmentComm(const CommKey& coinCK, const Comm& ccmTxn, const Fr& type, const Fr& exp_date);
 
- protected:
+ public:
   /**
    * Computes the partial coin commitment: g_1^pid g_2^sn g_3^val g^r (assumes r is pre-set) and the value commitment
    * g_3^val g^z, by picking a random z
    */
   void commit();
-
- public:
+  void deterministically_commit();
   /**
    * Call this when you need a full coin commitment to sign using RandSigSK::sign or
    * to verify using RandSig::verify
