@@ -124,24 +124,43 @@ int main(int argc, char* argv[]) {
         std::stringstream ss(cmd);
         while (std::getline(ss, token, ' ')) cmdTokens.emplace_back(token);
 
+        auto getWallet = [&wallets](const std::string& userId) -> Wallet* {
+          auto it = wallets.find(userId);
+          if (it == wallets.end()) return nullptr;
+          return &it->second;
+        };
+
+        // [TODO-UTT] Too much nesting, should refactor validation
         if (!cmdTokens.empty()) {
           if (cmdTokens[0] == "register") {
             if (cmdTokens.size() != 2) {
               std::cout << "Usage: register <user-id>\n";
             } else {
-              wallets.at(cmdTokens[1]).registerUser(conn);
+              if (auto wallet = getWallet(cmdTokens[1])) {
+                wallet->registerUser(conn);
+              } else {
+                std::cout << "No wallet for '" << cmdTokens[1] << "'\n";
+              }
             }
           } else if (cmdTokens[0] == "create-budget") {
             if (cmdTokens.size() != 2) {
               std::cout << "Usage: create-budget <user-id>\n";
             } else {
-              wallets.at(cmdTokens[1]).createPrivacyBudgetLocal(config, 10000);
+              if (auto wallet = getWallet(cmdTokens[1])) {
+                wallet->createPrivacyBudgetLocal(config, 10000);
+              } else {
+                std::cout << "No wallet for '" << cmdTokens[1] << "'\n";
+              }
             }
           } else if (cmdTokens[0] == "show") {
             if (cmdTokens.size() != 2) {
               std::cout << "Usage: show <user-id>\n";
             } else {
-              wallets.at(cmdTokens[1]).showInfo(conn);
+              if (auto wallet = getWallet(cmdTokens[1])) {
+                wallet->showInfo(conn);
+              } else {
+                std::cout << "No wallet for '" << cmdTokens[1] << "'\n";
+              }
             }
           } else if (cmdTokens[0] == "mint") {
             if (cmdTokens.size() != 3) {
@@ -151,7 +170,11 @@ int main(int argc, char* argv[]) {
               if (amount <= 0) {
                 std::cout << "Expected a positive mint amount!\n";
               } else {
-                wallets.at(cmdTokens[1]).mint(conn, (uint64_t)amount);
+                if (auto wallet = getWallet(cmdTokens[1])) {
+                  wallet->mint(conn, (uint64_t)amount);
+                } else {
+                  std::cout << "No wallet for '" << cmdTokens[1] << "'\n";
+                }
               }
             }
           } else if (cmdTokens[0] == "transfer") {
@@ -162,7 +185,11 @@ int main(int argc, char* argv[]) {
               if (amount <= 0) {
                 std::cout << "Expected a positive transfer amount!\n";
               } else {
-                wallets.at(cmdTokens[2]).transfer(conn, (uint64_t)amount, cmdTokens[3]);
+                if (auto fromWallet = getWallet(cmdTokens[2])) {
+                  fromWallet->transfer(conn, (uint64_t)amount, cmdTokens[3]);
+                } else {
+                  std::cout << "No wallet for '" << cmdTokens[2] << "'\n";
+                }
               }
             }
           } else if (cmdTokens[0] == "burn") {
@@ -173,7 +200,11 @@ int main(int argc, char* argv[]) {
               if (amount <= 0) {
                 std::cout << "Expected a positive burn amount!\n";
               } else {
-                wallets.at(cmdTokens[1]).burn(conn, (uint64_t)amount);
+                if (auto wallet = getWallet(cmdTokens[1])) {
+                  wallet->burn(conn, (uint64_t)amount);
+                } else {
+                  std::cout << "No wallet for '" << cmdTokens[1] << "'\n";
+                }
               }
             }
           } else {
