@@ -77,7 +77,13 @@ std::istream& operator>>(std::istream& in, libutt::Coin& c) {
 
 namespace libutt {
 Coin::Coin(const CommKey& ck, const Fr& sn, const Fr& val, const Fr& type, const Fr& exp_date, const Fr& pidHash)
-    : ck(ck), pid_hash(pidHash), sn(sn), val(val), type(type), exp_date(exp_date), t(Fr::random_element()) {
+    : ck(ck),
+      pid_hash(pidHash),
+      sn(sn),
+      val(val),
+      type(type),
+      exp_date(exp_date),
+      t(Fr::zero() /*When not the client creates the coin, we want to have a deterministic value for t*/) {
   Coin::commit();
 }
 Coin::Coin(const CommKey& ck,
@@ -103,7 +109,10 @@ Coin::Coin(const CommKey& ck,
     : Coin(ck, np, ask.s, sn, val, type, exp_date, ask.getPidHash()) {}
 
 bool Coin::hasValidSig(const RandSigPK& pk) const { return sig.verify(augmentComm(), pk); }
-void Coin::createNullifier(const Nullifier::Params& np, const Fr& prf) { null = Nullifier(np, prf, sn, t); }
+void Coin::createNullifier(const Nullifier::Params& np, const Fr& prf) {
+  t = Fr::random_element();
+  null = Nullifier(np, prf, sn, t);
+}
 Comm Coin::augmentComm(const CommKey& ck, const Comm& ccmTxn, const Fr& type, const Fr& exp_date) {
   // WARNING: Hardcoding this for now, since the code below assumes it
   // TODO(Safety): better ways of computing "subcommitment keys"
