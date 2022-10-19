@@ -46,11 +46,10 @@ Wallet::Connection Wallet::newConnection() {
 
 void Wallet::showInfo(Connection& conn) {
   syncState(conn);
-
-  std::cout << "User Id: " << userId_ << '\n';
+  std::cout << "\n--------- "<< userId_ << " ---------\n";
   std::cout << "Private balance: " << user_->getBalance() << '\n';
   std::cout << "Privacy budget: " << user_->getPrivacyBudget() << '\n';
-  std::cout << "Last executed transaction number: " << user_->getLastExecutedTxNum() << '\n';
+  std::cout << "Last executed tx number: " << user_->getLastExecutedTxNum() << '\n';
 }
 
 std::pair<utt::Configuration, utt::PublicConfig> Wallet::deployApp(Connection& conn) {
