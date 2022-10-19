@@ -883,7 +883,10 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp) {
 }
 
 void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isCreatedEarlier) {
-  if (!isCurrentPrimary()) return;
+  if (!isCurrentPrimary()) {
+    delete pp;
+    return;
+  }
   TimeRecorder scoped_timer(*histograms_.startConsensusProcess);
   if (getReplicaConfig().timeServiceEnabled) {
     pp->setTime(time_service_manager_->getClockTimePoint());
