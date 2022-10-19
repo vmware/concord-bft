@@ -18,6 +18,7 @@
 #include <variant>
 #include <memory>
 #include "Logger.hpp"
+#include "assertUtils.hpp"
 
 namespace bft::communication {
 struct EnumHash {
@@ -62,8 +63,6 @@ class StateControl {
         return "TLS_COMM";
       case EventType::THIN_REPLICA_SERVER:
         return "THIN_REPLICA_SERVER";
-      default:
-        return "Invalid Type";
     }
   }
   void setGetPeerPubKeyMethod(std::function<std::string(uint32_t)> m) { get_peer_pub_key_ = std::move(m); }
@@ -74,15 +73,14 @@ class StateControl {
   }
 
  private:
-  StateControl() : logger_(logging::getLogger("concord-bft.comm.StetControl")) {}
+  StateControl() : logger_(logging::getLogger("concord-bft.comm.state_control")) {}
 
   void registerCallback(const EventType& et, std::function<void(uint32_t)> cb) {
-    if (cb != nullptr) {
-      if (event_registry_.find(et) == event_registry_.end()) {
-        event_registry_.insert({et, std::make_unique<CallbackRegistry>()});
-      }
-      event_registry_[et]->add(cb);
+    ConcordAssert(cb != nullptr);
+    if (event_registry_.find(et) == event_registry_.end()) {
+      event_registry_.insert({et, std::make_unique<CallbackRegistry>()});
     }
+    event_registry_[et]->add(cb);
   }
 
   void invokeCallback(const EventType& et, uint32_t id) {

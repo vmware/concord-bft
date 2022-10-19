@@ -469,6 +469,7 @@ std::pair<bool, NodeNum> AsyncTlsConnection::checkCertificate(X509* received_cer
   out.close();
   BIO_free(outbio);
   LOG_INFO(logger_, "new certificate has been updated on local storage, peer: " << peerId);
+  // calling the TRS restart callback with dummy parameter 0
   bft::communication::StateControl::instance().restartThinReplicaServer(0);
   return std::make_pair(res, peerId);
 }
