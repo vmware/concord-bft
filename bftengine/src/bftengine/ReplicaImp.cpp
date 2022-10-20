@@ -4499,11 +4499,10 @@ ReplicaImp::ReplicaImp(bool firstTime,
   controller = new ControllerWithSimpleHistory(
       config_.getcVal(), config_.getfVal(), config_.getreplicaId(), getCurrentView(), primaryLastUsedSeqNum);
 
-  if (retransmissionsLogicEnabled)
-    retransmissionsManager =
-        new RetransmissionsManager(&internalThreadPool, &getIncomingMsgsStorage(), kWorkWindowSize, 0);
-  else
-    retransmissionsManager = nullptr;
+  if (retransmissionsLogicEnabled) {
+    retransmissionsManager.reset(
+        new RetransmissionsManager(&internalThreadPool, &getIncomingMsgsStorage(), kWorkWindowSize, 0));
+  }
 
   ticks_gen_ = concord::cron::TicksGenerator::create(internalBFTClient_,
                                                      *clientsManager,
