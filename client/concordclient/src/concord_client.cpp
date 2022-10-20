@@ -232,4 +232,10 @@ void ConcordClient::getSnapshot(const StateSnapshotRequest& request, std::shared
   rss_->readSnapshotStream(rss_request, remote_queue);
 }
 
+bool ConcordClient::isClientPoolHealthy() {
+  ConcordAssertNE(client_pool_, nullptr);
+  if (client_pool_->HealthStatus() == concord::concord_client_pool::PoolStatus::NotServing) return false;
+  return true;
+}
+
 }  // namespace concord::client::concordclient

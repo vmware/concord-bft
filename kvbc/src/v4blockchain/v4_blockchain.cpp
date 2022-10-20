@@ -61,6 +61,12 @@ KeyValueBlockchain::KeyValueBlockchain(
   }
 }
 
+KeyValueBlockchain::~KeyValueBlockchain() {
+  if (snap_shot_) {
+    native_client_->rawDB().ReleaseSnapshot(snap_shot_);
+  }
+}
+
 //////////////////////////// ADDER////////////////////////////////////////////
 /*
   1 - Async check if snapshot is needed

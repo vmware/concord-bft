@@ -69,13 +69,11 @@ class LibraryInitializer {
 
 class Library {
  public:
-  static Library* GetPtr() {
+  static const Library& Get() {
     // C++11 guarantees this is thread-safe (but all threads will share this variable!)
-    static Library* lib = new Library();
+    static const Library lib;
     return lib;
   }
-
-  static const Library& Get() { return *Library::GetPtr(); }
 
   ~Library();
 

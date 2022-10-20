@@ -35,6 +35,12 @@ if(${CURVE} STREQUAL "BN128")
   )
 endif()
 
+option(
+  BUILD_WALLET_CLI
+  "Enable building of wallet-cli"
+  OFF
+)
+
 #
 # Configure CCache if available
 #
@@ -177,7 +183,9 @@ include(dependencies.cmake)
 add_subdirectory(libutt)
 add_subdirectory(libxassert)
 add_subdirectory(libxutils)
-add_subdirectory(wallet-cli)
+if(BUILD_WALLET_CLI)
+    add_subdirectory(wallet-cli) 
+endif()
 
 # [TODO-UTT] This improved api for libutt could go into its own subproject 
 set(newutt_src 

@@ -28,6 +28,8 @@ namespace impl {
 
 class SignedShareBase : public MessageBase {
  public:
+  virtual ~SignedShareBase() = default;
+
   ViewNum viewNumber() const { return b()->viewNumber; }
 
   SeqNum seqNumber() const { return b()->seqNumber; }

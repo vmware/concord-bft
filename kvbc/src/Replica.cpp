@@ -65,7 +65,7 @@ Status Replica::initInternals() {
     auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler, cronTableRegistry_);
     requestHandler->setReconfigurationHandler(std::make_shared<pruning::ReadOnlyReplicaPruningHandler>(*this));
     m_replicaPtr = bftEngine::IReplica::createNewRoReplica(
-        replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm, m_metadataStorage);
+        replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm.get(), m_metadataStorage.get());
     m_stateTransfer->addOnTransferringCompleteCallback([this](std::uint64_t) {
       std::vector<concord::client::reconfiguration::State> stateFromReservedPages;
       uint64_t wedgePt{0};
@@ -307,8 +307,8 @@ void Replica::createReplicaAndSyncState() {
       replicaConfig_,
       requestHandler,
       m_stateTransfer,
-      m_ptrComm,
-      m_metadataStorage,
+      m_ptrComm.get(),
+      m_metadataStorage.get(),
       pm_,
       secretsManager_,
       std::bind(&AdaptivePruningManager::setPrimary, &AdaptivePruningManager_, std::placeholders::_1));
@@ -604,10 +604,11 @@ Replica::Replica(ICommunication *comm,
   if (!replicaConfig.isReadOnly) {
     stReconfigurationSM_ = std::make_unique<concord::kvbc::StReconfigurationHandler>(
         *m_stateTransfer, *this, this->AdaptivePruningManager_, this->replicaResources_);
-    m_metadataStorage = new DBMetadataStorage(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator());
+    m_metadataStorage.reset(
+        new DBMetadataStorage(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator()));
   } else {
-    m_metadataStorage =
-        new storage::DBMetadataStorageUnbounded(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator());
+    m_metadataStorage.reset(
+        new storage::DBMetadataStorageUnbounded(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator()));
   }
   // Instantiate IControlHandler.
   // If an application instantiation has already taken a place this will have no effect.

@@ -33,6 +33,8 @@ class KeyValueBlockchain {
                      const std::optional<std::map<std::string, concord::kvbc::categorization::CATEGORY_TYPE>>
                          &category_types = std::nullopt);
 
+  virtual ~KeyValueBlockchain();
+
   /////////////////////// Add Block ///////////////////////
   BlockId add(categorization::Updates &&);
   BlockId add(const categorization::Updates &,
