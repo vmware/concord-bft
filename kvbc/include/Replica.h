@@ -243,7 +243,7 @@ class Replica : public IReplica,
   const bftEngine::ReplicaConfig &replicaConfig_;
   bftEngine::IReplica::IReplicaPtr m_replicaPtr = nullptr;
   std::shared_ptr<ICommandsHandler> m_cmdHandler = nullptr;
-  std::unique_ptr<bftEngine::IStateTransfer> m_stateTransfer;
+  bftEngine::IStateTransfer *m_stateTransfer = nullptr;
   std::unique_ptr<concord::storage::DBMetadataStorage> m_metadataStorage;
   std::unique_ptr<ReplicaStateSync> replicaStateSync_;
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;

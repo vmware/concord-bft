@@ -65,7 +65,7 @@ Status Replica::initInternals() {
     auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler, cronTableRegistry_);
     requestHandler->setReconfigurationHandler(std::make_shared<pruning::ReadOnlyReplicaPruningHandler>(*this));
     m_replicaPtr = bftEngine::IReplica::createNewRoReplica(
-        replicaConfig_, requestHandler, m_stateTransfer.get(), m_ptrComm.get(), m_metadataStorage.get());
+        replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm.get(), m_metadataStorage.get());
     m_stateTransfer->addOnTransferringCompleteCallback([this](std::uint64_t) {
       std::vector<concord::client::reconfiguration::State> stateFromReservedPages;
       uint64_t wedgePt{0};
@@ -306,7 +306,7 @@ void Replica::createReplicaAndSyncState() {
   m_replicaPtr = bftEngine::IReplica::createNewReplica(
       replicaConfig_,
       requestHandler,
-      m_stateTransfer.get(),
+      m_stateTransfer,
       m_ptrComm.get(),
       m_metadataStorage.get(),
       pm_,
@@ -600,7 +600,7 @@ Replica::Replica(ICommunication *comm,
   m_dbSet.dataDBClient->setAggregator(aggregator_);
   m_dbSet.metadataDBClient->setAggregator(aggregator_);
   auto stKeyManipulator = std::shared_ptr<storage::ISTKeyManipulator>{storageFactory->newSTKeyManipulator()};
-  m_stateTransfer.reset(bftEngine::bcst::create(stConfig, this, m_metadataDBClient, stKeyManipulator, aggregator_));
+  m_stateTransfer = bftEngine::bcst::create(stConfig, this, m_metadataDBClient, stKeyManipulator, aggregator_);
   if (!replicaConfig.isReadOnly) {
     stReconfigurationSM_ = std::make_unique<concord::kvbc::StReconfigurationHandler>(
         *m_stateTransfer, *this, this->AdaptivePruningManager_, this->replicaResources_);
