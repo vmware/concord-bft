@@ -4542,11 +4542,10 @@ ReplicaImp::ReplicaImp(bool firstTime,
   controller = new ControllerWithSimpleHistory(
       config_.getcVal(), config_.getfVal(), config_.getreplicaId(), getCurrentView(), primaryLastUsedSeqNum);
 
-  if (retransmissionsLogicEnabled)
+  if (retransmissionsLogicEnabled) {
     retransmissionsManager =
-        new RetransmissionsManager(&internalThreadPool, &getIncomingMsgsStorage(), kWorkWindowSize, 0);
-  else
-    retransmissionsManager = nullptr;
+        std::make_unique<RetransmissionsManager>(&internalThreadPool, &getIncomingMsgsStorage(), kWorkWindowSize, 0);
+  }
 
   ticks_gen_ = concord::cron::TicksGenerator::create(internalBFTClient_,
                                                      *clientsManager,

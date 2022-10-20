@@ -89,7 +89,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   concord::util::SimpleThreadPool internalThreadPool;  // TODO(GG): !!!! rename
 
   // retransmissions manager (can be disabled)
-  RetransmissionsManager* retransmissionsManager = nullptr;
+  unique_ptr<RetransmissionsManager> retransmissionsManager;
 
   // controller
   ControllerBase* controller = nullptr;
