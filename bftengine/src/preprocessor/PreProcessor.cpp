@@ -1848,7 +1848,6 @@ void PreProcessor::handleReqPreProcessedByNonPrimary(uint16_t clientId,
                                                      const std::string &reqCid,
                                                      OperationResult preProcessResult) {
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.handlePreProcessedReqByNonPrimary);
-  setPreprocessingRightNow(clientId, reqOffsetInBatch, false);
   const auto status = (preProcessResult == OperationResult::SUCCESS) ? STATUS_GOOD : STATUS_FAILED;
   auto replyMsg = make_shared<PreProcessReplyMsg>(myReplicaId_,
                                                   clientId,
@@ -1867,6 +1866,7 @@ void PreProcessor::handleReqPreProcessedByNonPrimary(uint16_t clientId,
   } else {
     releaseReqAndSendReplyMsg(replyMsg);
   }
+  setPreprocessingRightNow(clientId, reqOffsetInBatch, false);
 }
 
 void PreProcessor::handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
