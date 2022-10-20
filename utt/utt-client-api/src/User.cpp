@@ -36,6 +36,8 @@
 
 #include "utt-client-api/PickCoins.hpp"
 
+using namespace libutt;
+
 namespace utt::client {
 
 struct User::Impl {
@@ -91,6 +93,7 @@ utt::Transaction User::Impl::createTx_Self1to2(const libutt::api::Coin& coin, ui
   utt::Transaction tx;
   tx.type_ = utt::Transaction::Type::Transfer;
   tx.data_ = libutt::api::serialize<libutt::api::operations::Transaction>(uttTx);
+  tx.numOutputs_ = uttTx.getNumOfOutputCoins();
   return tx;
 }
 
@@ -103,6 +106,7 @@ utt::Transaction User::Impl::createTx_Self2to1(const std::vector<libutt::api::Co
   utt::Transaction tx;
   tx.type_ = utt::Transaction::Type::Transfer;
   tx.data_ = libutt::api::serialize<libutt::api::operations::Transaction>(uttTx);
+  tx.numOutputs_ = uttTx.getNumOfOutputCoins();
   return tx;
 }
 
@@ -116,6 +120,7 @@ utt::Transaction User::Impl::createTx_Self2to2(const std::vector<libutt::api::Co
   utt::Transaction tx;
   tx.type_ = utt::Transaction::Type::Transfer;
   tx.data_ = libutt::api::serialize<libutt::api::operations::Transaction>(uttTx);
+  tx.numOutputs_ = uttTx.getNumOfOutputCoins();
   return tx;
 }
 
@@ -131,6 +136,7 @@ utt::Transaction User::Impl::createTx_1to1(const libutt::api::Coin& coin,
   utt::Transaction tx;
   tx.type_ = utt::Transaction::Type::Transfer;
   tx.data_ = libutt::api::serialize<libutt::api::operations::Transaction>(uttTx);
+  tx.numOutputs_ = uttTx.getNumOfOutputCoins();
   return tx;
 }
 
@@ -148,6 +154,7 @@ utt::Transaction User::Impl::createTx_1to2(const libutt::api::Coin& coin,
   utt::Transaction tx;
   tx.type_ = utt::Transaction::Type::Transfer;
   tx.data_ = libutt::api::serialize<libutt::api::operations::Transaction>(uttTx);
+  tx.numOutputs_ = uttTx.getNumOfOutputCoins();
   return tx;
 }
 
@@ -163,6 +170,7 @@ utt::Transaction User::Impl::createTx_2to1(const std::vector<libutt::api::Coin>&
   utt::Transaction tx;
   tx.type_ = utt::Transaction::Type::Transfer;
   tx.data_ = libutt::api::serialize<libutt::api::operations::Transaction>(uttTx);
+  tx.numOutputs_ = uttTx.getNumOfOutputCoins();
   return tx;
 }
 
@@ -180,6 +188,7 @@ utt::Transaction User::Impl::createTx_2to2(const std::vector<libutt::api::Coin>&
   utt::Transaction tx;
   tx.type_ = utt::Transaction::Type::Transfer;
   tx.data_ = libutt::api::serialize<libutt::api::operations::Transaction>(uttTx);
+  tx.numOutputs_ = uttTx.getNumOfOutputCoins();
   return tx;
 }
 
@@ -239,40 +248,35 @@ UserRegistrationInput User::getRegistrationInput() const {
   return libutt::api::serialize<libutt::api::Commitment>(pImpl_->client_->generateInputRCM());
 }
 
-bool User::updateRegistration(const std::string& pk, const RegistrationSig& rs, const S2& s2) {
-  if (!pImpl_->client_) return false;
-  if (!(pImpl_->pk_ == pk)) return false;  // Expect a matching public key
-  if (rs.empty() || s2.empty()) return false;
+void User::updateRegistration(const std::string& pk, const RegistrationSig& rs, const S2& s2) {
+  if (!pImpl_->client_) throw std::runtime_error("User not initialized!");
+  if (rs.empty() || s2.empty() || pk.empty()) throw std::runtime_error("updateRegistration: invalid arguments!");
+  if (!(pImpl_->pk_ == pk)) throw std::runtime_error("Public key mismatch!");
 
   // Un-blind the signature
   std::vector<libutt::api::types::CurvePoint> randomness = {libutt::Fr::zero().to_words(),
                                                             libutt::Fr::zero().to_words()};
   auto unblindedSig =
       libutt::api::Utils::unblindSignature(pImpl_->params_, libutt::api::Commitment::REGISTRATION, randomness, rs);
-  if (unblindedSig.empty()) return false;
+  if (unblindedSig.empty()) throw std::runtime_error("Failed to unblind reg signature!");
 
   // [TODO-UTT] What if we already updated a registration? How do we check it?
   pImpl_->client_->setRCMSig(pImpl_->params_, s2, unblindedSig);
-
-  return true;
 }
 
-bool User::updatePrivacyBudget(const PrivacyBudget& budget, const PrivacyBudgetSig& sig) {
-  if (!pImpl_->client_) return false;
+void User::updatePrivacyBudget(const PrivacyBudget& budget, const PrivacyBudgetSig& sig) {
+  if (!pImpl_->client_) throw std::runtime_error("User not initialized!");
 
   auto claimedCoins = pImpl_->client_->claimCoins(libutt::api::deserialize<libutt::api::operations::Budget>(budget),
                                                   pImpl_->params_,
                                                   std::vector<libutt::api::types::Signature>{sig});
 
   // Expect a single budget token to be claimed by the user
-  if (claimedCoins.size() != 1) return false;
-
+  if (claimedCoins.size() != 1) throw std::runtime_error("Expected single budget token!");
   if (!pImpl_->client_->validate(claimedCoins[0])) throw std::runtime_error("Invalid initial budget coin!");
 
   // [TODO-UTT] Requires atomic, durable write through IUserStorage
   pImpl_->budgetCoin_ = claimedCoins[0];
-
-  return true;
 }
 
 uint64_t User::getBalance() const {
@@ -294,9 +298,10 @@ const std::string& User::getPK() const { return pImpl_->pk_; }
 
 uint64_t User::getLastExecutedTxNum() const { return pImpl_->lastExecutedTxNum_; }
 
-bool User::updateTransferTx(uint64_t txNum, const Transaction& tx, const TxOutputSigs& sigs) {
-  if (tx.type_ != Transaction::Type::Transfer) return false;
-  if (txNum != pImpl_->lastExecutedTxNum_ + 1) return false;
+void User::updateTransferTx(uint64_t txNum, const Transaction& tx, const TxOutputSigs& sigs) {
+  if (!pImpl_->client_) throw std::runtime_error("User not initialized!");
+  if (tx.type_ != Transaction::Type::Transfer) throw std::runtime_error("Transfer tx type mismatch!");
+  if (txNum != pImpl_->lastExecutedTxNum_ + 1) throw std::runtime_error("Transfer tx number is not consecutive!");
 
   auto uttTx = libutt::api::deserialize<libutt::api::operations::Transaction>(tx.data_);
 
@@ -332,57 +337,134 @@ bool User::updateTransferTx(uint64_t txNum, const Transaction& tx, const TxOutpu
       }
     }
   }
-
-  return true;
 }
 
-bool User::updateMintTx(uint64_t txNum, const Transaction& tx, const TxOutputSig& sig) {
-  if (tx.type_ != Transaction::Type::Mint) return false;
-  if (txNum != pImpl_->lastExecutedTxNum_ + 1) return false;
-  pImpl_->lastExecutedTxNum_ = txNum;
+void User::updateMintTx(uint64_t txNum, const Transaction& tx, const TxOutputSig& sig) {
+  if (!pImpl_->client_) throw std::runtime_error("User not initialized!");
+  if (tx.type_ != Transaction::Type::Mint) throw std::runtime_error("Mint tx type mismatch!");
+  if (txNum != pImpl_->lastExecutedTxNum_ + 1) throw std::runtime_error("Mint tx number is not consecutive!");
 
   auto mint = libutt::api::deserialize<libutt::api::operations::Mint>(tx.data_);
 
-  auto claimedCoins =
-      pImpl_->client_->claimCoins(mint, pImpl_->params_, std::vector<libutt::api::types::Signature>{sig});
+  if (mint.getRecipentID() != pImpl_->client_->getPid()) {
+    loginfo << "Mint transaction is for different user - ignoring." << endl;
+  } else {
+    auto claimedCoins =
+        pImpl_->client_->claimCoins(mint, pImpl_->params_, std::vector<libutt::api::types::Signature>{sig});
 
-  // Expect a single token to be claimed by the user
-  if (claimedCoins.size() != 1) return false;
+    // Expect a single token to be claimed by the user
+    if (claimedCoins.size() != 1) throw std::runtime_error("Expected single coin in mint tx!");
+    if (!pImpl_->client_->validate(claimedCoins[0])) throw std::runtime_error("Invalid minted coin!");
 
-  if (!pImpl_->client_->validate(claimedCoins[0])) throw std::runtime_error("Invalid minted coin!");
+    pImpl_->coins_.emplace_back(std::move(claimedCoins[0]));
+  }
 
   // [TODO-UTT] Requires atomic, durable write batch through IUserStorage
   pImpl_->lastExecutedTxNum_ = txNum;
-  pImpl_->coins_.emplace_back(std::move(claimedCoins[0]));
-
-  return true;
 }
 
-// [TODO-UTT] Do we actually need the whole BurnTx or we can simply use the nullifer to slash?
-bool User::updateBurnTx(uint64_t txNum, const Transaction& tx) {
-  if (tx.type_ != Transaction::Type::Burn) return false;
-  if (txNum != pImpl_->lastExecutedTxNum_ + 1) return false;
+// [TODO-UTT] Do we actually need the whole BurnTx or we can simply use the nullifier to slash?
+void User::updateBurnTx(uint64_t txNum, const Transaction& tx) {
+  if (!pImpl_->client_) throw std::runtime_error("User not initialized!");
+  if (tx.type_ != Transaction::Type::Burn) throw std::runtime_error("Burn tx type mismatch!");
+  if (txNum != pImpl_->lastExecutedTxNum_ + 1) throw std::runtime_error("Burn tx number is not consecutive!");
 
   auto burn = libutt::api::deserialize<libutt::api::operations::Burn>(tx.data_);
-  auto nullifier = burn.getNullifier();
-  if (nullifier.empty()) return false;
 
-  auto it = std::find_if(pImpl_->coins_.begin(), pImpl_->coins_.end(), [&nullifier](const libutt::api::Coin& coin) {
-    return coin.getNullifier() == nullifier;
-  });
-  if (it == pImpl_->coins_.end()) return false;
+  if (burn.getOwnerPid() != pImpl_->client_->getPid()) {
+    loginfo << "Burn transaction is for different user - ignoring." << endl;
+  } else {
+    auto nullifier = burn.getNullifier();
+    if (nullifier.empty()) throw std::runtime_error("Burn tx has empty nullifier!");
+
+    auto it = std::find_if(pImpl_->coins_.begin(), pImpl_->coins_.end(), [&nullifier](const libutt::api::Coin& coin) {
+      return coin.getNullifier() == nullifier;
+    });
+    if (it == pImpl_->coins_.end()) throw std::runtime_error("Burned token missing in wallet!");
+    pImpl_->coins_.erase(it);
+  }
 
   // [TODO-UTT] Requires atomic, durable write batch through IUserStorage
   pImpl_->lastExecutedTxNum_ = txNum;
-  pImpl_->coins_.erase(it);
-
-  return true;
 }
 
-bool User::updateNoOp(uint64_t txNum) {
-  if (txNum != pImpl_->lastExecutedTxNum_ + 1) return false;
+void User::updateNoOp(uint64_t txNum) {
+  if (!pImpl_->client_) throw std::runtime_error("User not initialized!");
+  if (txNum != pImpl_->lastExecutedTxNum_ + 1) throw std::runtime_error("Noop tx number is not consecutive!");
   pImpl_->lastExecutedTxNum_ = txNum;
-  return true;
+}
+
+utt::Transaction User::mint(uint64_t amount) const {
+  std::stringstream ss;
+  ss << Fr::random_element();
+  auto randomHash = ss.str();
+  loginfo << "Creating a mint tx with hash: " << randomHash << endl;
+
+  auto mint = libutt::api::operations::Mint(randomHash, amount, pImpl_->client_->getPid());
+
+  utt::Transaction tx;
+  tx.type_ = utt::Transaction::Type::Mint;
+  tx.data_ = libutt::api::serialize<libutt::api::operations::Mint>(mint);
+
+  return tx;
+}
+
+void User::createPrivacyBudgetLocal(const utt::Configuration& config, uint64_t amount) {
+  if (config.empty()) throw std::runtime_error("Privacy app config cannot be empty!");
+  if (amount == 0) throw std::runtime_error("Positive privacy budget amount required!");
+
+  const auto& pid = pImpl_->client_->getPid();
+
+  loginfo << "Creating " << amount << " privacy budget locally for '" << pid << "'\n";
+
+  auto uttConfig = libutt::api::deserialize<libutt::api::Configuration>(config);
+
+  // Create coins signers from config
+  auto commitVerificationKey = uttConfig.getPublicConfig().getCommitVerificationKey();
+  auto registrationVerificationKey = uttConfig.getPublicConfig().getRegistrationVerificationKey();
+  std::map<uint16_t, std::string> commitVerificationKeyShares;
+  std::map<uint16_t, std::string> registrationVerificationKeyShares;
+  std::vector<libutt::api::CoinsSigner> coinsSigners;
+
+  for (uint16_t i = 0; i < uttConfig.getNumValidators(); ++i) {
+    commitVerificationKeyShares.emplace(i, uttConfig.getCommitVerificationKeyShare(i));
+    registrationVerificationKeyShares.emplace(i, uttConfig.getRegistrationVerificationKeyShare(i));
+  }
+
+  // Create coins signers
+  for (uint16_t i = 0; i < uttConfig.getNumValidators(); ++i) {
+    coinsSigners.emplace_back(i,
+                              uttConfig.getCommitSecret(i),
+                              commitVerificationKey,
+                              commitVerificationKeyShares,
+                              registrationVerificationKey);
+  }
+
+  // Create budget
+  auto budget = libutt::api::operations::Budget(pImpl_->params_, *pImpl_->client_, amount, 0 /*expirationDate*/);
+
+  // Sign budget
+  const uint16_t n = uttConfig.getNumValidators();
+  const uint16_t t = uttConfig.getThreshold();
+
+  // We need only 'threshold' signers to sign
+  std::map<uint32_t, std::vector<uint8_t>> shareSubset;
+  for (size_t idx = 0; idx < t; ++idx) {
+    shareSubset.emplace((uint32_t)idx, coinsSigners[idx].sign(budget).front());
+  }
+
+  auto sig = libutt::api::Utils::aggregateSigShares(n, shareSubset);
+
+  // Claim and update
+  auto claimedCoins =
+      pImpl_->client_->claimCoins(budget, pImpl_->params_, std::vector<libutt::api::types::Signature>{sig});
+
+  // Expect a single budget token to be claimed by the user
+  if (claimedCoins.size() != 1) throw std::runtime_error("Expected single budget token!");
+  if (!pImpl_->client_->validate(claimedCoins[0])) throw std::runtime_error("Invalid local budget coin!");
+
+  // [TODO-UTT] Requires atomic, durable write through IUserStorage
+  pImpl_->budgetCoin_ = claimedCoins[0];
 }
 
 BurnResult User::burn(uint64_t amount) const {

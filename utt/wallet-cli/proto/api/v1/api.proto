@@ -7,30 +7,16 @@ syntax = "proto3";
 package vmware.concord.utt.wallet.api.v1; 
 
 // Privacy Wallet Service Interface
-// This interface follows the UTT contract interface as close as possible.
-// [TODO-UTT] Consider if we should use a simplified version of this api that assumes synchronous requests
-// - This would mean that a request will receive a response only when signatures are computed.
 service WalletService {
     // Temporary adding the deployment of privacy app to the wallet service
     // [TODO-UTT] This operation should be performed by an administrator-only tool
     rpc deployPrivacyApp(DeployPrivacyAppRequest) returns (DeployPrivacyAppResponse);
-
     rpc registerUser(RegisterUserRequest) returns (RegisterUserResponse);
-    rpc getUserRegistration(GetUserRegistrationRequest) returns (GetUserRegistrationResponse);
 
-    // Note: creating a public budget is done by an administrator
-    rpc getLatestPublicBudget(GetLatestPublicBudgetRequest) returns (GetLatestPublicBudgetResponse);
-
-    // [TODO-UTT] Consider if we need to get the budget sig alone.
-    // Here is the problem: only one budget coin can exist for a user at the any time, but the signature
-    // is not ready at the same time as the budget coin.
-    // If we call getLatestPublicBudget and get back both a budget coin and a sig then we can use the coin.
-    // If we get just the budget coin the sig is still pending.
-    // But when we get the sig eventually we're not guaranteed that its for the same budget coin.
-    // Concurrently some administrator may have created a new budget coin.
-    // The safest bet is to call getLatestPublicBudgetSig until you get both a budget coin and a sig.
-    // Otherwise we need to verify that the coin and sig match and if not - request the coin and/or sig until they do.
-    rpc getLatestPublicBudgetSig(GetLatestPublicBudgetSigRequest) returns (GetLatestPublicBudgetSigResponse);
+    // A non-standard way for a client to force the creation of a privacy budget.
+    // Usually this operation is performed by an administrator.
+    // The value of the returned budget is determined by the system
+    rpc createPrivacyBudget(CreatePrivacyBudgetRequest) returns (CreatePrivacyBudgetResponse);
 
     rpc transfer(TransferRequest) returns (TransferResponse);
 
@@ -50,9 +36,17 @@ service WalletService {
     // Same as getNumOfLastSignedTranscation from spec
     rpc getLastSignedTxNumber(GetLastSignedTxNumberRequest) returns (GetLastSignedTxNumberResponse);
 
-    rpc getTransaction(GetTransactionRequest) returns (GetTransactionResponse);
+    // Fetch an already signed (completed) transaction (either mint, burn or transfer).
+    rpc getSignedTransaction(GetSignedTransactionRequest) returns (GetSignedTransactionResponse);
 
-    rpc getTransactionSig(GetTransactionSigRequest) returns (GetTransactionSigResponse);
+    rpc getTxData(GetTxDataRequest) returns (GetTxDataResponse);
+}
+
+enum TxType {
+    UNDEFINED = 0;
+    MINT = 1;
+    BURN = 2;
+    TRANSFER = 3;
 }
 
 message DeployPrivacyAppRequest {
@@ -70,119 +64,90 @@ message RegisterUserRequest {
     optional bytes input_rcm = 3;   // The user's input registration commitment
 }
 
-// [TODO-UTT] Consider if we should include the complete result in the response
-// instead of indicating success and then periodically requesting the registration data
 message RegisterUserResponse {
-    optional string err = 1;        // Returns any error generated during registration
-    optional bytes signature = 2;   // Signature on the user's registration
-    repeated uint64 s2 = 3;          // Second part of the user's nullifier key 
-}
-
-message GetUserRegistrationRequest {
-    optional string user_id = 1;
-}
-
-message GetUserRegistrationResponse {
     optional string err = 1;
-    optional string user_id = 2;    
-    optional bytes user_pk = 3;     // User's public key
-    optional bytes s2 = 4;          // System-generated part of the user's PRF key (used for nullifiers)
-    optional bytes rs = 5;          // A signature on the full registration commitment
+    optional bytes signature = 2;
+    repeated uint64 s2 = 3; // Second part of the user's nullifier key 
 }
 
-message GetLatestPublicBudgetRequest {
+message CreatePrivacyBudgetRequest {
     optional string user_id = 1;
 }
 
-message GetLatestPublicBudgetResponse {
-    optional bytes budget_coin = 1;
-    // [TODO-UTT] Consider returning the signature in the same response as the budget coin,
-    // optional bytes signature = 2; // Could be empty
-}
-
-message GetLatestPublicBudgetSigRequest {
-    optional string user_id = 1;
-}
-
-message GetLatestPublicBudgetSigResponse {
-    optional bytes signature = 1;
+message CreatePrivacyBudgetResponse {
+    optional string err = 1;
+    optional bytes budget = 2;
+    optional bytes signature = 3;
 }
 
 message TransferRequest {
-    optional TransferTx transfer = 1;
+    optional bytes tx_data = 1;
+    optional uint32 num_outputs = 2;
 }
 
 message TransferResponse {
-    optional uint64 tx_number = 1;
+    optional string err = 1;
+    optional uint64 last_added_tx_number = 2;
 }
 
 message MintRequest {
     optional string user_id = 1;
     optional uint64 value = 2;
+    optional bytes tx_data = 3;
 }
 
 message MintResponse {
-    optional uint64 tx_number = 1;
+    optional string err = 1;
+    optional uint64 last_added_tx_number = 2;
 }
 
 message BurnRequest {
     optional string user_id = 1;
-    optional bytes burn_tx = 2;
     optional uint64 value = 3;
+    optional bytes tx_data = 2;
 }
 
 message BurnResponse {
-    optional uint64 tx_number = 1;
+    optional string err = 1;
+    optional uint64 last_added_tx_number = 2;
 }
 
 message GetLastAddedTxNumberRequest {
 }
 
 message GetLastAddedTxNumberResponse {
-    optional uint64 tx_number = 1;
+    optional string err = 1;
+    optional uint64 tx_number = 2;
 }
 
 message GetLastSignedTxNumberRequest {
 }
 
 message GetLastSignedTxNumberResponse {
+    optional string err = 1;
+    optional uint64 tx_number = 2;
+}
+
+message GetSignedTransactionRequest {
     optional uint64 tx_number = 1;
 }
 
-message GetTransactionRequest {
+message GetSignedTransactionResponse {
+    optional string err = 1;
+    optional uint64 tx_number = 2;
+    optional TxType tx_type = 3;
+    optional bytes tx_data = 4;
+    repeated bytes sigs = 5;
+    optional uint32 tx_data_size = 6;
+}
+
+message GetTxDataRequest {
     optional uint64 tx_number = 1;
+    optional uint32 byte_offset = 2;
 }
 
-message GetTransactionResponse {
-    optional uint64 tx_number = 1;
-    oneof tx {
-        TransferTx transfer = 2;
-        MintTx mint = 3;
-        BurnTx burn = 4;
-      }
-}
-
-message TransferTx {
-    // [TODO-UTT] What else is in a transfer tx?
-    // -- should be mostly represented as bytes since this is an anonymous tx.
-    optional bytes tx = 1;
-}
-
-message MintTx {
-    // [TODO-UTT] What else is in a mint tx?
-    optional bytes tx = 1;
-}
-
-message BurnTx {
-    // [TODO-UTT] What else is in a burn tx?
-    optional bytes tx = 1;
-}
-
-message GetTransactionSigRequest {
-    optional uint64 tx_number = 1;
-}
-
-message GetTransactionSigResponse {
-    optional uint64 tx_number = 1;
-    optional bytes signatures = 2;
+message GetTxDataResponse {
+    optional string err = 1;
+    optional uint64 tx_number = 2;
+    optional bytes tx_data = 3;
 }

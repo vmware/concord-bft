@@ -53,6 +53,8 @@ using TxOutputSigs = std::vector<TxOutputSig>;
 struct Transaction {
   enum class Type { Undefined = 0, Mint = 1, Transfer = 2, Burn = 3 } type_ = Type::Undefined;
   std::vector<uint8_t> data_;
+  uint32_t numOutputs_ =
+      0;  // [TODO-UTT] This can be removed if the virtual contract provides an API to get the number of outputs of a tx
 };
 
 }  // namespace utt

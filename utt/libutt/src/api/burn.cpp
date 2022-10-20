@@ -45,6 +45,5 @@ Burn& Burn::operator=(const Burn& other) {
 }
 std::string Burn::getNullifier() const { return burn_->getNullifier(); }
 const Coin& Burn::getCoin() const { return c_; }
-
-std::string Burn::getOwnerPid() const { return burn_->getOwnerPid(); }
+const std::string& Burn::getOwnerPid() const { return burn_->getOwnerPid(); }
 }  // namespace libutt::api::operations

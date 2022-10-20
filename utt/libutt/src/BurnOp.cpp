@@ -214,7 +214,7 @@ size_t BurnOp::getValue() const {
   return v;
 }
 
-std::string BurnOp::getOwnerPid() const {
+const std::string& BurnOp::getOwnerPid() const {
   InternalDataOfBurnOp* d = (InternalDataOfBurnOp*)this->p;
   assertTrue(d != nullptr);
   return d->pid;
