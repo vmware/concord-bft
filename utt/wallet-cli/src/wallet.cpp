@@ -46,7 +46,7 @@ Wallet::Connection Wallet::newConnection() {
 
 void Wallet::showInfo(Connection& conn) {
   syncState(conn);
-  std::cout << "\n--------- "<< userId_ << " ---------\n";
+  std::cout << "\n--------- " << userId_ << " ---------\n";
   std::cout << "Private balance: " << user_->getBalance() << '\n';
   std::cout << "Privacy budget: " << user_->getPrivacyBudget() << '\n';
   std::cout << "Last executed tx number: " << user_->getLastExecutedTxNum() << '\n';
@@ -293,7 +293,7 @@ void Wallet::syncState(Connection& conn, uint64_t lastKnownTxNum) {
       return;
     }
 
-    std::cout << "Got signed " << TxType_Name(resp.tx_type()) << " transaction.\n";
+    std::cout << "Got " << TxType_Name(resp.tx_type()) << " transaction.\n";
     std::cout << "Tx num: " << resp.tx_number() << '\n';
     std::cout << "Tx data size: " << resp.tx_data().size() << " bytes\n";
     std::cout << "Tx data actual size: " << resp.tx_data_size() << " bytes\n";
@@ -320,9 +320,18 @@ void Wallet::syncState(Connection& conn, uint64_t lastKnownTxNum) {
       std::copy(resp.tx_data().begin(), resp.tx_data().end(), std::back_inserter(buff));
     };
 
+    // [TODO-UTT] As it seems the wallet grpc server written in node.js using grpc-js occasionally
+    // sends empty message (with missing fields) with no error either on the client or server.
+    // I have observed this mostly when fetching transactions which are a bit larger than other messages
+    // but not much - 20-50k. My initial suspicion was that the size of the proto message was at fault
+    // so I added a way to fetch the data in chunks. Each tx is cached in the wallet service and the client
+    // will fetch it sequentially in the next loop with 'getTxData'. This behavior could be a bug on part
+    // of the proto serialization in node.js or some misuse of gRPC in this client or the server. In any
+    // occasion this issue will plague the demo if not fixed properly, because syncing will fail and it
+    // needs to be retried.
     while (true) {
       if (tx.data_.size() < resp.tx_data_size()) {
-        std::cout << "Fetch additional tx data...\n";
+        std::cout << "Tx data was incomplete - fetch additional tx data...\n";
         getTxData(conn, resp.tx_number(), tx.data_);
       } else if (tx.data_.size() > resp.tx_data_size()) {
         throw std::runtime_error("Got more bytes than the actual tx size!");
