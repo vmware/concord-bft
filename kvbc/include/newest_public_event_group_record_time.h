@@ -15,6 +15,7 @@
 
 #include "db_interfaces.h"
 #include "kvbc_app_filter/kvbc_app_filter.h"
+#include "Logger.hpp"
 
 #include <string>
 
@@ -24,9 +25,10 @@ namespace concord::kvbc {
 
 inline std::string newestPublicEventGroupRecordTime(const IReader& reader) {
   using google::protobuf::util::TimeUtil;
-
+  auto logger_ = logging::getLogger("concord.storage.KvbAppFilter");
   auto filter = KvbAppFilter{&reader, ""};
   const auto last_public_event_group = filter.getNewestPublicEventGroup();
+  LOG_DEBUG(logger_, "Total storage reads via newestPublicEventGroupRecordTime: " << filter.num_storage_reads);
   if (!last_public_event_group) {
     // No public events - return epoch.
     return TimeUtil::ToString(TimeUtil::GetEpoch());
