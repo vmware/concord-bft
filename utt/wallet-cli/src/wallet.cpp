@@ -15,6 +15,15 @@
 
 #include <iostream>
 
+namespace {
+void printStatus(const grpc::Status& status, const char* rpcName) {
+  if (status.ok())
+    std::cout << rpcName << " grpc status ok\n";
+  else
+    std::cout << rpcName << " grpc status error " << status.error_code() << ": " << status.error_message() << '\n';
+}
+}  // namespace
+
 using namespace vmware::concord::utt::wallet::api::v1;
 
 Wallet::Wallet(std::string userId, utt::client::TestUserPKInfrastructure& pki, const utt::PublicConfig& config)
@@ -47,6 +56,7 @@ Wallet::Connection Wallet::newConnection() {
 void Wallet::showInfo(Connection& conn) {
   syncState(conn);
   std::cout << "\n--------- " << userId_ << " ---------\n";
+  std::cout << "Public balance: " << publicBalance_ << '\n';
   std::cout << "Private balance: " << user_->getBalance() << '\n';
   std::cout << "Privacy budget: " << user_->getPrivacyBudget() << '\n';
   std::cout << "Last executed tx number: " << user_->getLastExecutedTxNum() << '\n';
@@ -66,14 +76,16 @@ std::pair<utt::Configuration, utt::PublicConfig> Wallet::deployApp(Connection& c
   req.set_config(config.data(), config.size());
 
   DeployPrivacyAppResponse resp;
-  conn->deployPrivacyApp(&ctx, req, &resp);
+  auto status = conn->deployPrivacyApp(&ctx, req, &resp);
+  printStatus(status, "deployPrivacyApp");
 
   // Note that keeping the config around in memory is just a temp solution and should not happen in real system
   if (resp.has_err()) throw std::runtime_error("Failed to deploy privacy app: " + resp.err());
-  if (resp.app_id().empty()) throw std::runtime_error("Failed to deploy privacy app: empty app id!");
 
-  // We need the public config part which can typically be obtained from the service, but we derive it for simplicity
-  std::cout << "Successfully deployed privacy app with id: " << resp.app_id() << '\n';
+  std::cout << "\nDeployed privacy application\n";
+  std::cout << "-----------------------------------\n";
+  std::cout << "Privacy contract: " << resp.privacy_contract_addr() << '\n';
+  std::cout << "Token contract: " << resp.token_contract_addr() << '\n';
 
   return std::pair<utt::Configuration, utt::PublicConfig>{config, utt::client::getPublicConfig(config)};
 }
@@ -94,7 +106,8 @@ void Wallet::registerUser(Connection& conn) {
   req.set_user_pk(user_->getPK());
 
   RegisterUserResponse resp;
-  conn->registerUser(&ctx, req, &resp);
+  auto status = conn->registerUser(&ctx, req, &resp);
+  printStatus(status, "registerUser");
 
   if (resp.has_err()) {
     std::cout << "Failed to register user: " << resp.err() << '\n';
@@ -256,6 +269,26 @@ void Wallet::burn(Connection& conn, uint64_t amount) {
 void Wallet::syncState(Connection& conn, uint64_t lastKnownTxNum) {
   std::cout << "Synchronizing state...\n";
 
+  // Update public balance
+  while (true) {
+    grpc::ClientContext ctx;
+    GetPublicBalanceRequest req;
+    req.set_user_id(userId_);
+    GetPublicBalanceResponse resp;
+    auto status = conn->getPublicBalance(&ctx, req, &resp);
+    printStatus(status, "getPublicBalance");
+
+    if (resp.has_err()) {
+      std::cout << "Failed to get public balance:" << resp.err() << '\n';
+      break;
+    } else if (!resp.has_public_balance()) {
+      std::cout << "retry getPublicBalance\n";
+    } else {
+      publicBalance_ = resp.public_balance();
+      break;  // Done
+    }
+  }
+
   // Sync to latest state
   if (lastKnownTxNum == 0) {
     std::cout << "Last known tx number is zero (or not provided) - fetching last added tx number...\n";
@@ -281,7 +314,7 @@ void Wallet::syncState(Connection& conn, uint64_t lastKnownTxNum) {
 
     GetSignedTransactionResponse resp;
     auto status = conn->getSignedTransaction(&ctx, req, &resp);
-    std::cout << "getSignedTransaction status: " << status.error_message() << '\n';
+    printStatus(status, "getSignedTransaction");
 
     if (resp.has_err()) {
       std::cout << "Failed to get signed tx with number " << txNum << ':' << resp.err() << '\n';
