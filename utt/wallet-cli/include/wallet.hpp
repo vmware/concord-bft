@@ -73,4 +73,5 @@ class Wallet {
   std::string userId_;
   utt::client::TestUserPKInfrastructure& pki_;
   std::unique_ptr<utt::client::User> user_;
+  uint64_t publicBalance_ = 0;
 };
