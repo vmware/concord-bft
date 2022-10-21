@@ -62,6 +62,8 @@ class Wallet {
   /// @param amount The amount of private funds to burn.
   void burn(Connection& conn, uint64_t amount);
 
+  void debugOutput() const;
+
  private:
   /// @brief Sync up to the last known tx number. If the last known tx number is zero (or not provided) the
   /// last signed transaction number will be fetched from the system
