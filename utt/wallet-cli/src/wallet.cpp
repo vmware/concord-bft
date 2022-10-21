@@ -400,3 +400,5 @@ void Wallet::syncState(Connection& conn, uint64_t lastKnownTxNum) {
     }
   }
 }
+
+void Wallet::debugOutput() const { user_->debugOutput(); }
