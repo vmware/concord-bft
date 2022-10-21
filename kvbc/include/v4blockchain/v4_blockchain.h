@@ -64,9 +64,15 @@ class KeyValueBlockchain {
   // Each block contains the genesis block at the time of that block insertion.
   // On State-transfer, we read this key and prune up to this block.
   void pruneOnSTLink(const categorization::Updates &);
-  // Gets the digest from block, the digest represents the digest of the previous block i.e. parent digest
-  concord::util::digest::BlockDigest parentDigest(BlockId block_id) const;
-  concord::util::digest::BlockDigest calculateBlockDigest(BlockId block_id) const;
+
+  // Gets the parent digest from block block_id: this is the digest pointer to the previous block block_id-1.
+  // It is calculated over block's block_id-1, and is integrated as part of  block block_id content.
+  // Return: a optional - if call failed, optional is empty, else it holds the requested digest.
+  std::optional<concord::util::digest::BlockDigest> parentDigest(BlockId block_id) const;
+
+  // Calculates the digest of a block.
+  // Return: a optional. if call failed, optional is empty, else it holds the requested digest.
+  std::optional<concord::util::digest::BlockDigest> calculateBlockDigest(BlockId block_id) const;
 
   std::optional<BlockId> getLastStatetransferBlockId() const;
 

@@ -1655,9 +1655,12 @@ TEST_F(v4_kvbc, parent_digest) {
     merkle_updates.addUpdate("merkle_key2", "merkle_value2");
     updates.add("merkle", std::move(merkle_updates));
     ASSERT_EQ(blockchain->add(std::move(updates)), 1);
-    ASSERT_EQ(blockchain->parentDigest(0), empty_digest);
-    // also geneis has empty parent digest
+    // block 0 is undefined and has no parent
+    ASSERT_EQ(blockchain->parentDigest(0), std::nullopt);
+    // block 1 is the initial genesis - it has an empty digest
     ASSERT_EQ(blockchain->parentDigest(1), empty_digest);
+    // block 10000 does not exist as well and has no parent
+    ASSERT_EQ(blockchain->parentDigest(10000), std::nullopt);
   }
 
   // block2
@@ -1676,8 +1679,8 @@ TEST_F(v4_kvbc, parent_digest) {
 
     auto block_data2 = blockchain->getBlockData(2);
     blockchain->addBlockToSTChain(8, block_data2->c_str(), block_data2->size(), false);
-    ASSERT_DEATH(blockchain->parentDigest(3), "");
-    ASSERT_EQ(blockchain->parentDigest(8), digest);
+    ASSERT_EQ(blockchain->parentDigest(3), std::nullopt);  // block 3 does not exist
+    ASSERT_EQ(blockchain->parentDigest(8), digest);        // block 8 exist in ST chain (with a gap)
   }
 }
 

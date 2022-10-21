@@ -26,6 +26,7 @@
 namespace concord::kvbc::v4blockchain {
 
 using namespace concord::kvbc;
+using namespace concord::util::digest;
 
 KeyValueBlockchain::KeyValueBlockchain(
     const std::shared_ptr<concord::storage::rocksdb::NativeClient> &native_client,
@@ -337,34 +338,30 @@ std::optional<BlockId> KeyValueBlockchain::getLastStatetransferBlockId() const {
   return state_transfer_chain_.getLastBlockId();
 }
 
-concord::util::digest::BlockDigest KeyValueBlockchain::parentDigest(BlockId block_id) const {
+std::optional<BlockDigest> KeyValueBlockchain::parentDigest(BlockId block_id) const {
   const auto last_reachable_block = getLastReachableBlockId();
   if (block_id > last_reachable_block) {
-    return state_transfer_chain_.getBlockParentDigest(block_id);
+    return std::optional<BlockDigest>(state_transfer_chain_.getBlockParentDigest(block_id));
   }
   if (block_id < getGenesisBlockId()) {
     LOG_ERROR(V4_BLOCK_LOG,
-              "Trying to get digest from block " << block_id << " while genesis is " << getGenesisBlockId());
-    concord::util::digest::BlockDigest empty_digest;
-    empty_digest.fill(0);
-    return empty_digest;
+              "Trying to get parent digest from block " << block_id << " while genesis is " << getGenesisBlockId());
+    return std::nullopt;
   }
-  return block_chain_.getBlockParentDigest(block_id);
+  return std::optional<BlockDigest>(block_chain_.getBlockParentDigest(block_id));
 }
 
-concord::util::digest::BlockDigest KeyValueBlockchain::calculateBlockDigest(BlockId block_id) const {
+std::optional<BlockDigest> KeyValueBlockchain::calculateBlockDigest(BlockId block_id) const {
   const auto last_reachable_block = getLastReachableBlockId();
   if (block_id > last_reachable_block) {
-    return state_transfer_chain_.getBlockDigest(block_id);
+    return std::optional<BlockDigest>(state_transfer_chain_.getBlockDigest(block_id));
   }
   if (block_id < getGenesisBlockId()) {
     LOG_ERROR(V4_BLOCK_LOG,
               "Trying to get digest from block " << block_id << " while genesis is " << getGenesisBlockId());
-    concord::util::digest::BlockDigest empty_digest;
-    empty_digest.fill(0);
-    return empty_digest;
+    return std::nullopt;
   }
-  return block_chain_.calculateBlockDigest(block_id);
+  return std::optional<BlockDigest>(block_chain_.calculateBlockDigest(block_id));
 }
 
 void KeyValueBlockchain::addBlockToSTChain(const BlockId &block_id,
