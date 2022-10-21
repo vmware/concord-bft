@@ -40,6 +40,8 @@ service WalletService {
     rpc getSignedTransaction(GetSignedTransactionRequest) returns (GetSignedTransactionResponse);
 
     rpc getTxData(GetTxDataRequest) returns (GetTxDataResponse);
+
+    rpc getPublicBalance(GetPublicBalanceRequest) returns (GetPublicBalanceResponse);
 }
 
 enum TxType {
@@ -55,7 +57,8 @@ message DeployPrivacyAppRequest {
 
 message DeployPrivacyAppResponse {
     optional string err = 1;    // Returns any error generated during deployment
-    optional string app_id = 2; // Some way to identify the deployed application
+    optional string privacy_contract_addr = 2; // Address of the deployed privacy contract
+    optional string token_contract_addr = 3; // Address of the deployed token contract
 }
 
 message RegisterUserRequest {
@@ -150,4 +153,13 @@ message GetTxDataResponse {
     optional string err = 1;
     optional uint64 tx_number = 2;
     optional bytes tx_data = 3;
+}
+
+message GetPublicBalanceRequest {
+    optional string user_id = 1;
+}
+
+message GetPublicBalanceResponse {
+    optional string err = 1;
+    optional uint64 public_balance = 2;
 }
