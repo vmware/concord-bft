@@ -523,4 +523,31 @@ TransferResult User::transfer(const std::string& userId, const std::string& dest
   }
 }
 
+void User::debugOutput() const {
+  std::cout << "------ USER DEBUG OUTPUT START -------------\n";
+  if (!pImpl_->client_) {
+    std::cout << "User's libutt::api::client object not initialized!\n";
+  }
+  std::cout << "lastExecutedTxNum:" << pImpl_->lastExecutedTxNum_ << '\n';
+  std::cout << "coins: [\n";
+
+  auto dbgOutputCoin = [](const libutt::api::Coin& coin) {
+    std::cout << "type: " << (coin.getType() == libutt::api::Coin::Type::Budget ? "Budget" : "Normal") << ' ';
+    std::cout << "value: " << coin.getVal() << ' ';
+    std::cout << "expire: " << coin.getExpDate() << ' ';
+    std::cout << "null: " << coin.getNullifier() << ' ';
+    std::cout << "hasSig: " << coin.hasSig() << ' ';
+    std::cout << '\n';
+  };
+
+  for (const auto& coin : pImpl_->coins_) {
+    dbgOutputCoin(coin);
+  }
+  std::cout << "]\n";
+  std::cout << "budget coin: [\n";
+  if (pImpl_->budgetCoin_) dbgOutputCoin(*pImpl_->budgetCoin_);
+  std::cout << "]\n";
+  std::cout << "------ USER DEBUG OUTPUT END -------------\n";
+}
+
 }  // namespace utt::client
