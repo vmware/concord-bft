@@ -408,8 +408,11 @@ class CollectorOfThresholdSignatures {
         }
       }
       // send success message
-      auto iMsg(ExternalFunc::createInterCombinedSigSucceeded(
-          expectedSeqNumber, expectedView, bufferForSigComputations.data(), bufferSize, span_context_of_last_message));
+      auto iMsg(ExternalFunc::createInterCombinedSigSucceeded(expectedSeqNumber,
+                                                              expectedView,
+                                                              bufferForSigComputations.data(),
+                                                              fullSignedDataLength,
+                                                              span_context_of_last_message));
       repMsgsStorage->pushInternalMsg(std::move(iMsg));
     }
   };
