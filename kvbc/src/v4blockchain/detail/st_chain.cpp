@@ -86,15 +86,22 @@ std::optional<v4blockchain::detail::Block> StChain::getBlock(kvbc::BlockId id) c
   return v4blockchain::detail::Block(*opt_block_str);
 }
 
-concord::util::digest::BlockDigest StChain::getBlockParentDigest(concord::kvbc::BlockId id) const {
+std::optional<concord::util::digest::BlockDigest> StChain::getBlockParentDigest(concord::kvbc::BlockId id) const {
   auto block = getBlock(id);
+  if (!block) {
+    LOG_ERROR(V4_BLOCK_LOG, "Block does not exist in ST chain!" << KVLOG(id));
+    return std::nullopt;
+  }
   ConcordAssert(block.has_value());
   return block->parentDigest();
 }
 
-concord::util::digest::BlockDigest StChain::getBlockDigest(concord::kvbc::BlockId id) const {
+std::optional<concord::util::digest::BlockDigest> StChain::getBlockDigest(concord::kvbc::BlockId id) const {
   auto block = getBlock(id);
-  ConcordAssert(block.has_value());
+  if (!block) {
+    LOG_ERROR(V4_BLOCK_LOG, "Block does not exist in ST chain!" << KVLOG(id));
+    return std::nullopt;
+  }
   return block->calculateDigest(id);
 }
 
