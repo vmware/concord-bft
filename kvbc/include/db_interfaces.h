@@ -92,9 +92,10 @@ class IBlocksDeleter {
 
   // Deletes blocks in the [genesis, until) range. If the until value is bigger than the last block, blocks in the
   // range [genesis, lastBlock] will be deleted.
+  // If delete_files_in_range is true then a fast deletion is used.
   // Returns the last deleted block ID.
   // Throws on errors or if until <= genesis .
-  virtual BlockId deleteBlocksUntil(BlockId until) = 0;
+  virtual BlockId deleteBlocksUntil(BlockId until, bool delete_files_in_range) = 0;
 
   // This method should get the last block ID in the system and deletes it.
   // The last block id is the latest block id.

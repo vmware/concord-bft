@@ -425,7 +425,7 @@ class TestStorage : public IReader, public IBlockAdder, public IBlocksDeleter {
     bc_.deleteBlock(genesisBlock);
   }
 
-  BlockId deleteBlocksUntil(BlockId until) override {
+  BlockId deleteBlocksUntil(BlockId until, bool delete_files_in_range = false) override {
     const auto genesisBlock = bc_.getGenesisBlockId();
     if (genesisBlock == 0) {
       throw std::logic_error{"Cannot delete a block range from an empty blockchain"};

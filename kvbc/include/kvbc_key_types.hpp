@@ -18,6 +18,7 @@
 namespace concord::kvbc::keyTypes {
 static const char bft_seq_num_key = 0x21;
 static const char reconfiguration_pruning_key = 0x24;
+static const char reconfiguration_prune_compact_key = 0x25;
 static const char reconfiguration_download_key = 0x26;
 static const char reconfiguration_install_key = 0x27;
 static const char reconfiguration_key_exchange = 0x28;
