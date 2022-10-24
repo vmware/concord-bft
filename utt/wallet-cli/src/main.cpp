@@ -64,10 +64,29 @@ void printHelp() {
 }
 
 struct CLIApp {
+  grpc::ClientContext ctx;
   Wallet::Connection conn;
+  Wallet::Channel chan;
   utt::Configuration config;
   std::map<std::string, Wallet> wallets;
   bool deployed = false;
+
+  CLIApp() {
+    conn = Wallet::newConnection();
+    if (!conn) throw std::runtime_error("Failed to create wallet connection!");
+
+    chan = conn->walletChannel(&ctx);
+    if (!chan) throw std::runtime_error("Failed to create wallet streaming channel!");
+  }
+
+  ~CLIApp() {
+    std::cout << "Closing wallet streaming channel...\n";
+    chan->WritesDone();
+    auto status = chan->Finish();
+    std::cout << "gRPC error code: " << status.error_code() << '\n';
+    std::cout << "gRPC error msg: " << status.error_message() << '\n';
+    std::cout << "gRPC error details: " << status.error_details() << '\n';
+  }
 
   void deploy() {
     if (deployed) {
@@ -75,7 +94,7 @@ struct CLIApp {
       return;
     }
 
-    auto configs = Wallet::deployApp(conn);
+    auto configs = Wallet::deployApp(chan);
     config = std::move(configs.first);  // Save the full config for creating budgets locally later
 
     utt::client::TestUserPKInfrastructure pki;
@@ -104,7 +123,7 @@ struct CLIApp {
       std::cout << "No wallet for '" << cmdTokens[1] << "'\n";
       return;
     }
-    wallet->registerUser(conn);
+    wallet->registerUser(chan);
   }
 
   void createBudgetCmd(const std::vector<std::string>& cmdTokens) {
@@ -130,7 +149,7 @@ struct CLIApp {
       std::cout << "No wallet for '" << cmdTokens[1] << "'\n";
       return;
     }
-    wallet->showInfo(conn);
+    wallet->showInfo(chan);
   }
 
   void mintCmd(const std::vector<std::string>& cmdTokens) {
@@ -147,7 +166,7 @@ struct CLIApp {
       std::cout << "Expected a positive mint amount!\n";
       return;
     }
-    wallet->mint(conn, (uint64_t)amount);
+    wallet->mint(chan, (uint64_t)amount);
   }
 
   void transferCmd(const std::vector<std::string>& cmdTokens) {
@@ -164,7 +183,7 @@ struct CLIApp {
     if (!fromWallet) {
       std::cout << "No wallet for '" << cmdTokens[2] << "'\n";
     }
-    fromWallet->transfer(conn, (uint64_t)amount, cmdTokens[3]);
+    fromWallet->transfer(chan, (uint64_t)amount, cmdTokens[3]);
   }
 
   void burnCmd(const std::vector<std::string>& cmdTokens) {
@@ -182,7 +201,7 @@ struct CLIApp {
       std::cout << "No wallet for '" << cmdTokens[1] << "'\n";
       return;
     }
-    wallet->burn(conn, (uint64_t)amount);
+    wallet->burn(chan, (uint64_t)amount);
   }
 
   void debugCmd(const std::vector<std::string>& cmdTokens) {
@@ -208,7 +227,6 @@ int main(int argc, char* argv[]) {
     utt::client::Initialize();
 
     CLIApp app;
-    app.conn = Wallet::newConnection();
 
     while (true) {
       std::cout << "\nEnter command (type 'h' for commands 'Ctr-D' to quit):\n > ";
