@@ -111,7 +111,7 @@ void BlockMerkleLatestVerCfMigration::clearExistingLatestVerCf() {
 
 void BlockMerkleLatestVerCfMigration::iterateAndMigrate() {
   auto blockchain = Blockchain{db_};
-  ThreadPool tp(iteration_batch_size_);
+  ThreadPool tp("BlockMerkleLatestVerCfMigration::iterateAndMigrate::tp", iteration_batch_size_);
   for (auto block_id = INITIAL_GENESIS_BLOCK_ID; block_id <= blockchain.getLastReachableBlockId();
        block_id += iteration_batch_size_) {
     std::vector<std::future<void>> tasks;

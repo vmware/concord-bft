@@ -62,14 +62,14 @@ void copy(CopyOnly) {}
 
 // Make sure the pool can execute lambdas.
 TEST(thread_pool, lambda) {
-  auto pool = ThreadPool{};
+  auto pool = ThreadPool{""};
   auto future = pool.async([]() { return answer; });
   ASSERT_EQ(answer, future.get());
 }
 
 // Make sure the pool can execute functions.
 TEST(thread_pool, functions) {
-  auto pool = ThreadPool{};
+  auto pool = ThreadPool{""};
   auto future1 = pool.async(func);
   auto future2 = pool.async(&func);
   auto future3 = pool.async(func_ptr);
@@ -82,7 +82,7 @@ TEST(thread_pool, functions) {
 
 // Make sure the pool can execute std::function objects.
 TEST(thread_pool, std_func) {
-  auto pool = ThreadPool{};
+  auto pool = ThreadPool{""};
   auto std_func = std::function{func};
   auto future = pool.async(std_func);
   ASSERT_EQ(answer, future.get());
@@ -90,21 +90,21 @@ TEST(thread_pool, std_func) {
 
 // Make sure we can execute a void function.
 TEST(thread_pool, void_func) {
-  auto pool = ThreadPool{};
+  auto pool = ThreadPool{""};
   auto future = pool.async(void_func, answer);
   ASSERT_NO_THROW(future.wait());
 }
 
 // Make sure async supports arguments.
 TEST(thread_pool, arguments_with_return) {
-  auto pool = ThreadPool{};
+  auto pool = ThreadPool{""};
   auto future = pool.async(identity, answer + 1);
   ASSERT_EQ(answer + 1, future.get());
 }
 
 // Make sure we can execute tasks that have different return types.
 TEST(thread_pool, different_task_return_types) {
-  auto pool = ThreadPool{};
+  auto pool = ThreadPool{""};
   auto future1 = pool.async(func);
   auto future2 = pool.async([]() {});
   auto future3 = pool.async([]() { return std::string{"s"}; });
@@ -115,20 +115,20 @@ TEST(thread_pool, different_task_return_types) {
 
 // Make sure we can move arguments inside async.
 TEST(thread_pool, move_only_arguments) {
-  auto pool = ThreadPool{};
+  auto pool = ThreadPool{""};
   auto future = pool.async(own, MoveOnly{});
   ASSERT_NO_THROW(future.wait());
 }
 
 // Make sure we can pass copy-only arguments to async.
 TEST(thread_pool, copy_only_arguments) {
-  auto pool = ThreadPool{};
+  auto pool = ThreadPool{""};
   auto future = pool.async(copy, CopyOnly{});
   ASSERT_NO_THROW(future.wait());
 }
 
 TEST(thread_pool, pointer_arguments_are_copied) {
-  auto pool = ThreadPool{};
+  auto pool = ThreadPool{""};
   auto i = std::atomic_int{5};
   auto p = &i;
   auto future = pool.async(
@@ -143,7 +143,7 @@ TEST(thread_pool, pointer_arguments_are_copied) {
 }
 
 TEST(thread_pool, non_const_lvalues_are_copied) {
-  auto pool = ThreadPool{};
+  auto pool = ThreadPool{""};
   auto i = 5;
   auto future = pool.async([](auto v) { v = 13; }, i);
   ASSERT_NO_THROW(future.wait());
@@ -151,7 +151,7 @@ TEST(thread_pool, non_const_lvalues_are_copied) {
 }
 
 TEST(thread_pool, std_ref) {
-  auto pool = ThreadPool{};
+  auto pool = ThreadPool{""};
   auto i = std::atomic_int{5};
   auto future = pool.async([](auto v) { v.get() = 13; }, std::ref(i));
   ASSERT_NO_THROW(future.wait());
@@ -160,14 +160,14 @@ TEST(thread_pool, std_ref) {
 
 // Multiple arguments of different types.
 TEST(thread_pool, multiple_arguments) {
-  auto pool = ThreadPool{};
+  auto pool = ThreadPool{""};
   auto future = pool.async([](auto&& answer, auto&&, auto&&) { return answer; }, answer, std::string{"s"}, 3.14);
   ASSERT_EQ(answer, future.get());
 }
 
 // Make sure exceptions from the user-passed function are correctly propagated.
 TEST(thread_pool, exception) {
-  auto pool = ThreadPool{};
+  auto pool = ThreadPool{""};
   // NOLINTNEXTLINE(misc-throw-by-value-catch-by-reference)
   auto future = pool.async([]() { throw answer; });
   ASSERT_THROW(future.get(), decltype(answer));
@@ -181,7 +181,7 @@ TEST(thread_pool, non_blocking_future_dtors) {
   auto mtx = std::mutex{};
   auto cv = std::condition_variable{};
 
-  auto pool = ThreadPool{};
+  auto pool = ThreadPool{""};
 
   {
     auto future1 = pool.async([&]() {
@@ -208,7 +208,7 @@ TEST(thread_pool, non_blocking_future_dtors) {
 
 // Make sure that adding more tasks than the concurrency supported by the system works.
 TEST(thread_pool, more_tasks_than_concurrency) {
-  auto pool = ThreadPool{};
+  auto pool = ThreadPool{""};
   const auto tasks = concurrency * 10;
   auto futures = std::vector<std::future<AnswerType>>{};
   for (auto i = 0u; i < tasks; ++i) {
@@ -221,7 +221,7 @@ TEST(thread_pool, more_tasks_than_concurrency) {
 
 // Make sure that the pool works correctly with a single thread.
 TEST(thread_pool, one_thread) {
-  auto pool = ThreadPool{1};
+  auto pool = ThreadPool{"", 1};
   const auto tasks = 16u;
   auto futures = std::vector<std::future<AnswerType>>{};
   for (auto i = 0u; i < tasks; ++i) {
@@ -234,7 +234,7 @@ TEST(thread_pool, one_thread) {
 
 // Make sure that adding tasks from different threads works properly.
 TEST(thread_pool, add_tasks_from_different_threads) {
-  auto pool = ThreadPool{};
+  auto pool = ThreadPool{""};
   auto async_future = std::async(std::launch::async, [&pool]() { pool.async(func); });
   auto pool_future = pool.async(func);
   ASSERT_EQ(answer, pool_future.get());

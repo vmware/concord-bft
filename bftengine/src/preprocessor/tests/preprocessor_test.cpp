@@ -131,7 +131,7 @@ class DummyReplica : public InternalReplicaApi {
  private:
   bool primary_ = true;
   IncomingMsgsStorage* incomingMsgsStorage_ = nullptr;
-  concord::util::SimpleThreadPool pool_;
+  concord::util::SimpleThreadPool pool_{""};
   bftEngine::impl::ReplicasInfo replicasInfo_;
   set<ReplicaId> replicaIds_;
 };

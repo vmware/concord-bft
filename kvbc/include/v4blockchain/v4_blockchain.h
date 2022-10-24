@@ -270,7 +270,7 @@ class KeyValueBlockchain {
   const ::rocksdb::Snapshot *snap_shot_{nullptr};
   std::map<kvbc::BlockId, const ::rocksdb::Snapshot *> chkpnt_snap_shots_;
   // const ::rocksdb::Snapshot *chkpoint_snap_shot_{nullptr};
-  util::ThreadPool thread_pool_{1};
+  util::ThreadPool thread_pool_{"v4blockchain::KeyValueBlockchain::thread_pool", 1};
 
   // Metrics
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;

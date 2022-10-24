@@ -184,7 +184,7 @@ int run(int argc, char* argv[]) {
     point_lookup_batch_size++;
   }
 
-  auto thread_pool = ThreadPool{static_cast<std::uint32_t>(point_lookup_threads)};
+  auto thread_pool = ThreadPool{"hash_state_benchmark::thread_pool", static_cast<std::uint32_t>(point_lookup_threads)};
 
   std::cout << "Hashing state with a point lookup batch size = " << point_lookup_batch_size
             << ", point lookup threads = " << point_lookup_threads

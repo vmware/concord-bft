@@ -111,7 +111,7 @@ class v4_kvbc : public Test {
                                      v4blockchain::KeyValueBlockchain* blockchain,
                                      std::vector<std::future<void>>& tasks) {
     auto last_block = blockchain->getLastReachableBlockId();
-    concord::util::ThreadPool tp;
+    concord::util::ThreadPool tp{""};
 
     // Keys are:
     // <category_name>_key_<blockId>_<key_id>

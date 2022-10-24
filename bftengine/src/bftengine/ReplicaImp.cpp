@@ -4313,7 +4313,9 @@ ReplicaImp::ReplicaImp(bool firstTime,
       viewChangeProtocolEnabled{config.viewChangeProtocolEnabled},
       autoPrimaryRotationEnabled{config.autoPrimaryRotationEnabled},
       restarted_{!firstTime},
+      internalThreadPool("ReplicaImp::internalThreadPool"),
       MAIN_THREAD_ID{std::this_thread::get_id()},
+      postExecThread_{"ReplicaImp::postExecThread"},
       replyBuffer{static_cast<char *>(std::malloc(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)))},
       timeOfLastStateSynch{getMonotonicTime()},    // TODO(GG): TBD
       timeOfLastViewEntrance{getMonotonicTime()},  // TODO(GG): TBD

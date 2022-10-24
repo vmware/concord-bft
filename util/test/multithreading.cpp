@@ -60,7 +60,7 @@ class SimpleThreadPoolFixture : public testing::Test {
     ASSERT_EQ(pool_.getNumOfJobs(), 0);
   }
 
-  concord::util::SimpleThreadPool pool_;
+  concord::util::SimpleThreadPool pool_{""};
   std::atomic_int result;
 };
 

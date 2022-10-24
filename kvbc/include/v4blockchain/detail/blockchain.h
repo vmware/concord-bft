@@ -117,7 +117,7 @@ class Blockchain {
   std::atomic<BlockId> last_reachable_block_id_{INVALID_BLOCK_ID};
   std::atomic<BlockId> genesis_block_id_{INVALID_BLOCK_ID};
   std::shared_ptr<concord::storage::rocksdb::NativeClient> native_client_;
-  util::ThreadPool thread_pool_{1};
+  util::ThreadPool thread_pool_{"v4blockchain::detail::Blockchain::thread_pool", 1};
   std::optional<std::future<BlockDigest>> future_digest_;
 };
 

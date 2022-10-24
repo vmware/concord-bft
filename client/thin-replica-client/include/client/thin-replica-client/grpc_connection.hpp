@@ -86,10 +86,10 @@ class GrpcConnection {
       : logger_(logging::getLogger("concord.client.thin_replica.trscon")),
         address_(address),
         client_id_(client_id),
+        grpc_connection_pool_{std::make_unique<concord::util::ThreadPool>("GrpcConnection::grpc_connection_pool", 1)},
         data_timeout_(std::chrono::seconds(data_operation_timeout_seconds)),
         hash_timeout_(std::chrono::seconds(hash_operation_timeout_seconds)),
         snapshot_timeout_(std::chrono::seconds(snapshot_operation_timeout_seconds)) {
-    grpc_connection_pool_ = std::make_unique<concord::util::ThreadPool>(1);
     ConcordAssertNE(grpc_connection_pool_, nullptr);
     LOG_INFO(logger_,
              KVLOG(data_operation_timeout_seconds, hash_operation_timeout_seconds, snapshot_operation_timeout_seconds));
