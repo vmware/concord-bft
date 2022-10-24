@@ -190,14 +190,15 @@ void SigProcessor::publishCompleteSignature(uint64_t sig_id,
   auto requestSeqNum =
       std::chrono::duration_cast<std::chrono::microseconds>(getMonotonicTime().time_since_epoch()).count();
   std::vector<uint8_t> appClientReq = cb(sig_id, sig);
-  auto crm = new bftEngine::impl::ClientRequestMsg(repId_,
-                                                   0x0,
-                                                   requestSeqNum,
-                                                   (uint32_t)appClientReq.size(),
-                                                   (const char*)appClientReq.data(),
-                                                   60000,
-                                                   "new-utt-sig-" + std::to_string(sig_id));
-  msgs_communicator_->getIncomingMsgsStorage()->pushExternalMsg(std::unique_ptr<MessageBase>(crm));
+  std::unique_ptr<MessageBase> cmsg =
+      std::make_unique<bftEngine::impl::ClientRequestMsg>(repId_,
+                                                          0x0,
+                                                          requestSeqNum,
+                                                          (uint32_t)appClientReq.size(),
+                                                          (const char*)appClientReq.data(),
+                                                          60000,
+                                                          "new-utt-sig-" + std::to_string(sig_id));
+  msgs_communicator_->getIncomingMsgsStorage()->pushExternalMsg(std::move(cmsg));
 }
 // Called by the validating thread
 void SigProcessor::onReceivingNewValidFullSig(uint64_t sig_id) {
@@ -222,8 +223,8 @@ void SigProcessor::onReceivingNewValidFullSig(uint64_t sig_id) {
 void SigProcessor::onJobTimeout(uint64_t job_id, const std::vector<uint8_t>& sig) {
   for (uint16_t rid = 0; rid < n_; rid++) {
     if (rid == repId_) continue;
-    messages::PartialSigMsg* msg = new messages::PartialSigMsg(repId_, sig, job_id);
-    msgs_communicator_->sendAsyncMessage((uint64_t)rid, msg->body(), msg->size());
+    messages::PartialSigMsg msg(repId_, sig, job_id);
+    msgs_communicator_->sendAsyncMessage((uint64_t)rid, msg.body(), msg.size());
   }
 }
 }  // namespace utt
