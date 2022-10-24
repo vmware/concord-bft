@@ -21,15 +21,19 @@
 
 #include <utt-client-api/ClientApi.hpp>
 
+namespace WalletApi = vmware::concord::utt::wallet::api::v1;
+
 class Wallet {
  public:
-  using Connection = std::unique_ptr<vmware::concord::utt::wallet::api::v1::WalletService::Stub>;
+  using Connection = std::unique_ptr<WalletApi::WalletService::Stub>;
+  using Channel = std::unique_ptr<grpc::ClientReaderWriter<WalletApi::WalletRequest, WalletApi::WalletResponse>>;
+
   static Connection newConnection();
 
   /// [TODO-UTT] Should be performed by an admin app
   /// @brief Deploy a privacy application
   /// @return The public configuration of the deployed application
-  static std::pair<utt::Configuration, utt::PublicConfig> deployApp(Connection& conn);
+  static std::pair<utt::Configuration, utt::PublicConfig> deployApp(Channel& chan);
 
   /// [TODO-UTT] Create privacy budget locally because the system can't process budget requests yet.
   /// @brief Create a privacy budget locally for the user. This function is only for testing.
@@ -39,35 +43,35 @@ class Wallet {
 
   Wallet(std::string userId, utt::client::TestUserPKInfrastructure& pki, const utt::PublicConfig& config);
 
-  void showInfo(Connection& conn);
+  void showInfo(Channel& chan);
 
   /// @brief Request registration of the current user
-  void registerUser(Connection& conn);
+  void registerUser(Channel& chan);
 
   /// @brief Request the creation of a privacy budget. The amount of the budget is predetermined by the deployed app.
   /// This operation could be performed entirely by an administrator, but we add it in the wallet
   /// for demo purposes.
-  void createPrivacyBudget(Connection& conn);
+  void createPrivacyBudget(Channel& chan);
 
   /// @brief Requests the minting of public funds to private funds.
   /// @param amount the amount of public funds
-  void mint(Connection& conn, uint64_t amount);
+  void mint(Channel& chan, uint64_t amount);
 
   /// @brief Transfers the desired amount anonymously to the recipient
   /// @param amount The amount to transfer
   /// @param recipient The user id of the recipient
-  void transfer(Connection& conn, uint64_t amount, const std::string& recipient);
+  void transfer(Channel& chan, uint64_t amount, const std::string& recipient);
 
   /// @brief Burns the desired amount of private funds and converts them to public funds.
   /// @param amount The amount of private funds to burn.
-  void burn(Connection& conn, uint64_t amount);
+  void burn(Channel& chan, uint64_t amount);
 
   void debugOutput() const;
 
  private:
   /// @brief Sync up to the last known tx number. If the last known tx number is zero (or not provided) the
   /// last signed transaction number will be fetched from the system
-  void syncState(Connection& conn, uint64_t lastKnownTxNum = 0);
+  void syncState(Channel& chan, uint64_t lastKnownTxNum = 0);
 
   struct DummyUserStorage : public utt::client::IUserStorage {};
 
