@@ -32,7 +32,10 @@ class RequestThreadPool final {
   static auto& getThreadPool(uint16_t level) {
     // Currently we need 2 level thread pools.
     static std::array<concord::util::ThreadPool, PoolLevel::MAXLEVEL> threadBag = {
-        ReplicaConfig::instance().threadbagConcurrencyLevel1, ReplicaConfig::instance().threadbagConcurrencyLevel2};
+        concord::util::ThreadPool("RequestThreadPool::threadBag_ConcurrencyLevel1",
+                                  ReplicaConfig::instance().threadbagConcurrencyLevel1),
+        concord::util::ThreadPool("RequestThreadPool::threadBag_ConcurrencyLevel2",
+                                  ReplicaConfig::instance().threadbagConcurrencyLevel2)};
     return threadBag.at(level);
   }
 

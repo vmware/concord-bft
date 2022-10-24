@@ -71,7 +71,8 @@ void BookKeeper::initialize_migration() {
     }
   }
   const auto point_lookup_threads = config_["point-lookup-threads"].as<std::uint64_t>();
-  batch_thread_pool_ = std::make_unique<ThreadPool>(static_cast<std::uint32_t>(point_lookup_threads));
+  batch_thread_pool_ = std::make_unique<ThreadPool>("migration_bookeeper::batch_thread_pool",
+                                                    static_cast<std::uint32_t>(point_lookup_threads));
 }
 
 void BookKeeper::migrate(const std::shared_ptr<concord::kvbc::adapter::ReplicaBlockchain>& from,

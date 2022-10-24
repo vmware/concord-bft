@@ -392,7 +392,7 @@ class Client : public concord::storage::IDBClient {
   logging::Logger logger_ = logging::getLogger("concord.storage.s3");
   uint16_t initialDelay_ = 100;
   Metrics metrics_;
-  util::ThreadPool thread_pool_{std::thread::hardware_concurrency()};
+  util::ThreadPool thread_pool_{"GetObjectResponseData::thread_pool", std::thread::hardware_concurrency()};
 };
 
 }  // namespace concord::storage::s3

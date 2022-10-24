@@ -11,6 +11,8 @@
 
 #include "SimpleThreadPool.hpp"
 #include "Logger.hpp"
+#include "kvstream.h"
+
 #include <exception>
 #include <iostream>
 #include <mutex>
@@ -18,7 +20,12 @@
 logging::Logger SP = logging::getLogger("thread-pool");
 namespace concord::util {
 
+SimpleThreadPool::SimpleThreadPool(std::string&& name) : name_(std::move(name)), stopped_(true) {}
+
+SimpleThreadPool::~SimpleThreadPool() { LOG_DEBUG(SP, "SimpleThreadPool: destroyed:" << KVLOG(name_)); }
+
 void SimpleThreadPool::start(uint8_t num_of_threads) {
+  LOG_DEBUG(SP, "SimpleThreadPool: start:" << KVLOG(name_, num_of_threads));
   stopped_ = false;
   guard g(queue_lock_);
   for (auto i = 0; i < num_of_threads; ++i) {
@@ -42,6 +49,7 @@ void SimpleThreadPool::start(uint8_t num_of_threads) {
 }
 
 void SimpleThreadPool::stop(bool executeAllJobs) {
+  LOG_DEBUG(SP, "SimpleThreadPool: stopping:" << KVLOG(name_));
   {
     std::unique_lock<std::mutex> l{queue_lock_};
     stopped_ = true;
@@ -62,6 +70,7 @@ void SimpleThreadPool::stop(bool executeAllJobs) {
 
     j->release();
   }
+  LOG_DEBUG(SP, "SimpleThreadPool: stop done:" << KVLOG(name_));
 }
 
 void SimpleThreadPool::add(Job* j) {
