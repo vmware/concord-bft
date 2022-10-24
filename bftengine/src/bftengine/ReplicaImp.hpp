@@ -27,7 +27,6 @@
 #include "InternalReplicaApi.hpp"
 #include "ClientsManager.hpp"
 #include "CheckpointInfo.hpp"
-#include "SimpleThreadPool.hpp"
 #include "Bitmap.hpp"
 #include "OpenTracing.hpp"
 #include "RequestHandler.h"
@@ -370,7 +369,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   // InternalReplicaApi
   bool isCollectingState() const override {
-    LOG_INFO(GL, "Thread ID: " << std::this_thread::get_id());
+    LOG_TRACE(GL, "Thread ID: " << std::this_thread::get_id());
     return isCollectingState_;
   }
   void startCollectingState(std::string&& reason = "");
