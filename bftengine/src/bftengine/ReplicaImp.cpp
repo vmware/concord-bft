@@ -4357,7 +4357,6 @@ ReplicaImp::ReplicaImp(bool firstTime,
       timeOfLastStateSynch{getMonotonicTime()},    // TODO(GG): TBD
       timeOfLastViewEntrance{getMonotonicTime()},  // TODO(GG): TBD
       timeOfLastAgreedView{getMonotonicTime()},    // TODO(GG): TBD
-
       pm_{pm},
       sm_{sm ? sm : std::make_shared<concord::secretsmanager::SecretsManagerPlain>()},
       metric_view_{metrics_.RegisterGauge("view", 0)},
@@ -4611,13 +4610,19 @@ ReplicaImp::~ReplicaImp() {
 }
 
 void ReplicaImp::stop() {
-  if (retransmissionsLogicEnabled) timers_.cancel(retranTimer_);
+  LOG_DEBUG(GL, "ReplicaImp::stop started");
+  if (retransmissionsLogicEnabled) {
+    timers_.cancel(retranTimer_);
+  }
   timers_.cancel(slowPathTimer_);
   timers_.cancel(infoReqTimer_);
   timers_.cancel(statusReportTimer_);
   timers_.cancel(clientRequestsRetransmissionTimer_);
-  if (viewChangeProtocolEnabled) timers_.cancel(viewChangeTimer_);
+  if (viewChangeProtocolEnabled) {
+    timers_.cancel(viewChangeTimer_);
+  }
   ReplicaForStateTransfer::stop();
+  LOG_DEBUG(GL, "ReplicaImp::stop done");
 }
 
 void ReplicaImp::addTimers() {

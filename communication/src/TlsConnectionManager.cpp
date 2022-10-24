@@ -76,6 +76,7 @@ void ConnectionManager::stop() {
     LOG_DEBUG(logger_, "Closing connection from: " << config_.selfId_ << ", to: " << id);
     syncCloseConnection(conn);
   }
+  LOG_TRACE(logger_, "Done stopping connection manager for " << config_.selfId_);
 }
 
 void ConnectionManager::setReceiver(NodeNum, IReceiver* receiver) { receiver_ = receiver; }

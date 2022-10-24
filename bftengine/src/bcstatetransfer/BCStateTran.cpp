@@ -338,6 +338,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
 }
 
 BCStateTran::~BCStateTran() {
+  LOG_TRACE(logger_, "~BCStateTran");
   ConcordAssert(!running_);
   ConcordAssert(cacheOfVirtualBlockForResPages.empty());
   ConcordAssert(pendingItemDataMsgs.empty());
@@ -470,7 +471,7 @@ void BCStateTran::startRunningImpl(IReplicaForStateTransfer *r) {
 
 // timer is cancelled in the calling context, see ReplicaForStateTransfer::stop
 void BCStateTran::stopRunningImpl() {
-  LOG_INFO(logger_, "Stopping");
+  LOG_TRACE(logger_, "stopRunningImpl");
   ConcordAssert(running_);
   ConcordAssertNE(replicaForStateTransfer_, nullptr);
   // This one should always be first!
@@ -484,6 +485,7 @@ void BCStateTran::stopRunningImpl() {
     stReset(g.txn(), true, false, false);
   }
   replicaForStateTransfer_ = nullptr;
+  LOG_TRACE(logger_, "Done stopRunningImpl");
 }
 
 // Create a CheckpointDesc for the given checkpointNumber.

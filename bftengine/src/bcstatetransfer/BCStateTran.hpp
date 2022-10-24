@@ -868,6 +868,7 @@ class BCStateTran : public IStateTransfer {
     static constexpr uint64_t MAX_PENDING_BLOCKS_SIZE = 1000ULL;
 
     Recorders() {
+      LOG_TRACE(ST_SRC_LOG, "Recorders: Thread ID: " << std::this_thread::get_id() << KVLOG(this));
       auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
       // common component
       registrar.perf.registerComponent("state_transfer",
@@ -898,6 +899,7 @@ class BCStateTran : public IStateTransfer {
                                         src_next_block_wait_duration});
     }
     ~Recorders() {
+      LOG_TRACE(ST_SRC_LOG, "~Recorders: Thread ID: " << std::this_thread::get_id() << KVLOG(this));
       auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
       registrar.perf.unRegisterComponent("state_transfer");
       registrar.perf.unRegisterComponent("state_transfer_dest");

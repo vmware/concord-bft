@@ -87,12 +87,14 @@ void ReplicaInternal::start() {
 }
 
 void ReplicaInternal::stop() {
+  LOG_TRACE(GL, "ReplicaInternal::stop started");
   unique_lock<std::mutex> lk(debugWaitLock_);
   if (replica_->isRunning()) {
     replica_->stop();
   }
 
   debugWait_.notify_all();
+  LOG_TRACE(GL, "ReplicaInternal::stop done");
 }
 
 void ReplicaInternal::SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a) { replica_->SetAggregator(a); }
