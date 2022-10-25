@@ -68,6 +68,7 @@ struct CLIApp {
   Wallet::Connection conn;
   Wallet::Channel chan;
   utt::Configuration config;
+  utt::client::TestUserPKInfrastructure pki;
   std::map<std::string, Wallet> wallets;
   bool deployed = false;
 
@@ -97,7 +98,6 @@ struct CLIApp {
     auto configs = Wallet::deployApp(chan);
     config = std::move(configs.first);  // Save the full config for creating budgets locally later
 
-    utt::client::TestUserPKInfrastructure pki;
     auto testUserIds = pki.getUserIds();
     for (const auto& userId : testUserIds) {
       std::cout << "Creating test user with id '" << userId << "'\n";
@@ -112,7 +112,7 @@ struct CLIApp {
     return &it->second;
   };
 
-  void registerCmd(const std::vector<std::string>& cmdTokens) {
+  void registerUserCmd(const std::vector<std::string>& cmdTokens) {
     if (cmdTokens.size() != 2) {
       std::cout << "Usage: register <user-id>\n";
       return;
@@ -253,7 +253,7 @@ int main(int argc, char* argv[]) {
         if (cmdTokens.empty()) continue;
 
         if (cmdTokens[0] == "register") {
-          app.registerCmd(cmdTokens);
+          app.registerUserCmd(cmdTokens);
         } else if (cmdTokens[0] == "create-budget") {
           app.createBudgetCmd(cmdTokens);
         } else if (cmdTokens[0] == "show") {

@@ -102,15 +102,15 @@ void Wallet::registerUser(Channel& chan) {
   WalletResponse resp;
   chan->Read(&resp);
   if (!resp.has_register_user()) throw std::runtime_error("Expected register response from wallet service!");
-  const auto& regUser = resp.register_user();
+  const auto& regUserResp = resp.register_user();
 
-  if (regUser.has_err()) {
-    std::cout << "Failed to register user: " << regUser.err() << '\n';
+  if (regUserResp.has_err()) {
+    std::cout << "Failed to register user: " << regUserResp.err() << '\n';
   } else {
-    utt::RegistrationSig sig = std::vector<uint8_t>(regUser.signature().begin(), regUser.signature().end());
+    utt::RegistrationSig sig = std::vector<uint8_t>(regUserResp.signature().begin(), regUserResp.signature().end());
     std::cout << "Got sig for registration with size: " << sig.size() << '\n';
 
-    utt::S2 s2 = std::vector<uint64_t>(regUser.s2().begin(), regUser.s2().end());
+    utt::S2 s2 = std::vector<uint64_t>(regUserResp.s2().begin(), regUserResp.s2().end());
     std::cout << "Got S2 for registration: [";
     for (const auto& val : s2) std::cout << val << ' ';
     std::cout << "]\n";
