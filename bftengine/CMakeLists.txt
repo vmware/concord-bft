@@ -35,6 +35,7 @@ set(corebft_source_files
     src/bftengine/MsgsCommunicator.cpp
     src/bftengine/MsgReceiver.cpp
     src/bftengine/DbMetadataStorage.cpp
+    src/bftengine/ReplicaFactory.cpp
     src/bftengine/RequestsBatchingLogic.cpp
     src/bftengine/ReplicaStatusHandlers.cpp
     src/bcstatetransfer/BCStateTran.cpp

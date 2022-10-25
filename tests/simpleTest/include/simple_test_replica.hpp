@@ -29,6 +29,7 @@
 #include "simple_test_replica_behavior.hpp"
 #include "threshsign/IThresholdSigner.h"
 #include "threshsign/IThresholdVerifier.h"
+#include "ReplicaFactory.hpp"
 
 using namespace bftEngine;
 using namespace bft::communication;
@@ -38,7 +39,7 @@ using namespace std;
 class SimpleTestReplica {
  private:
   ICommunication *comm = nullptr;
-  bftEngine::IReplica::IReplicaPtr replica = nullptr;
+  bftEngine::ReplicaFactory::IReplicaPtr replica;
   const ReplicaConfig &replicaConfig;
   std::thread *runnerThread = nullptr;
   ISimpleTestReplicaBehavior *behaviorPtr;
