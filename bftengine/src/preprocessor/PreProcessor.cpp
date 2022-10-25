@@ -305,40 +305,6 @@ void RequestsBatch::sendCancelBatchedPreProcessingMsgToNonPrimaries(const Client
       preProcessBatchReqMsg->body(), destId, preProcessBatchReqMsg->type(), preProcessBatchReqMsg->size());
 }
 
-//**************** Class PreProcessor ****************//
-
-vector<shared_ptr<PreProcessor>> PreProcessor::preProcessors_;
-
-//**************** Static functions ****************//
-
-void PreProcessor::addNewPreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
-                                      shared_ptr<IncomingMsgsStorage> &incomingMsgsStorage,
-                                      shared_ptr<MsgHandlersRegistrator> &msgHandlersRegistrator,
-                                      bftEngine::IRequestsHandler &requestsHandler,
-                                      InternalReplicaApi &replica,
-                                      concordUtil::Timers &timers,
-                                      shared_ptr<concord::performance::PerformanceManager> &pm) {
-  if (ReplicaConfig::instance().getnumOfExternalClients() + ReplicaConfig::instance().getnumOfClientProxies() <= 0) {
-    LOG_ERROR(logger(), "Wrong configuration: a number of clients could not be zero!");
-    return;
-  }
-
-  if (ReplicaConfig::instance().getpreExecutionFeatureEnabled())
-    preProcessors_.push_back(make_unique<PreProcessor>(
-        msgsCommunicator, incomingMsgsStorage, msgHandlersRegistrator, requestsHandler, replica, timers, pm));
-}
-
-void PreProcessor::setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
-  if (ReplicaConfig::instance().getpreExecutionFeatureEnabled() && aggregator) {
-    for (const auto &elem : preProcessors_) {
-      elem->metricsComponent_.SetAggregator(aggregator);
-      elem->memoryPool_.setAggregator(aggregator);
-    }
-  }
-}
-
-//**************************************************//
-
 bool PreProcessor::validateMessage(MessageBase *msg) const {
   try {
     msg->validate(myReplica_.getReplicasInfo());

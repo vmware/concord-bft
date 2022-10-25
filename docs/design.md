@@ -113,6 +113,6 @@ total order.
 
 # ReplicaConfig
 ReplicaConfig contains most configurable attributes of concord-bft and should be
-created by the application and passed into `Replica::createNewReplica(...)`.
+created by the application and passed into `Replica::createReplica(...)`.
 Note that other configurable attributes are set as part of the communication
 interface.
