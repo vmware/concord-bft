@@ -132,6 +132,8 @@ class User {
   /// to transfer the desired amount.
   TransferResult transfer(const std::string& userId, const std::string& pk, uint64_t amount) const;
 
+  void debugOutput() const;
+
  private:
   // Users can be created only by the top-level ClientApi functions
   friend std::unique_ptr<User> createUser(const std::string& userId,

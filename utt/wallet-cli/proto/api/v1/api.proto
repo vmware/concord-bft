@@ -39,7 +39,9 @@ service WalletService {
     // Fetch an already signed (completed) transaction (either mint, burn or transfer).
     rpc getSignedTransaction(GetSignedTransactionRequest) returns (GetSignedTransactionResponse);
 
-    rpc getTxData(GetTxDataRequest) returns (GetTxDataResponse);
+    rpc getPublicBalance(GetPublicBalanceRequest) returns (GetPublicBalanceResponse);
+
+    rpc walletChannel(stream WalletRequest) returns (stream WalletResponse);
 }
 
 enum TxType {
@@ -55,7 +57,8 @@ message DeployPrivacyAppRequest {
 
 message DeployPrivacyAppResponse {
     optional string err = 1;    // Returns any error generated during deployment
-    optional string app_id = 2; // Some way to identify the deployed application
+    optional string privacy_contract_addr = 2; // Address of the deployed privacy contract
+    optional string token_contract_addr = 3; // Address of the deployed token contract
 }
 
 message RegisterUserRequest {
@@ -141,13 +144,44 @@ message GetSignedTransactionResponse {
     optional uint32 tx_data_size = 6;
 }
 
-message GetTxDataRequest {
-    optional uint64 tx_number = 1;
-    optional uint32 byte_offset = 2;
+message GetPublicBalanceRequest {
+    optional string user_id = 1;
 }
 
-message GetTxDataResponse {
+message GetPublicBalanceResponse {
     optional string err = 1;
-    optional uint64 tx_number = 2;
-    optional bytes tx_data = 3;
+    optional uint64 public_balance = 2;
+}
+
+message WalletRequest {
+    oneof req {
+        // init
+        DeployPrivacyAppRequest deploy = 1;
+        RegisterUserRequest register_user = 2;
+        // transact
+        TransferRequest transfer = 3;
+        MintRequest mint = 4;
+        BurnRequest burn = 5;
+        // sync
+        GetPublicBalanceRequest get_public_balance = 6;
+        GetLastAddedTxNumberRequest get_last_added_tx_number = 7;
+        GetSignedTransactionRequest get_signed_tx = 8;
+    }
+}
+
+message WalletResponse {
+    optional string err = 1;
+    oneof resp {
+        // init
+        DeployPrivacyAppResponse deploy = 2;
+        RegisterUserResponse register_user = 3;
+        // transact
+        TransferResponse transfer = 4;
+        MintResponse mint = 5;
+        BurnResponse burn = 6;
+        // sync
+        GetPublicBalanceResponse get_public_balance = 7;
+        GetLastAddedTxNumberResponse get_last_added_tx_number = 8;
+        GetSignedTransactionResponse get_signed_tx = 9;
+    }
 }
