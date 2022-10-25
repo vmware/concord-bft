@@ -63,11 +63,12 @@ Status Replica::initInternals() {
     LOG_INFO(logger,
              "ReadOnly Replica Status:" << KVLOG(getLastBlockNum(), getLastBlockId(), getLastReachableBlockNum()));
     auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler, cronTableRegistry_);
+    
     requestHandler->setReconfigurationHandler(std::make_shared<pruning::ReadOnlyReplicaPruningHandler>(
         bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_,
         bftEngine::ReplicaConfig::instance().operatorMsgSigningAlgo,
         *this));
-    m_replicaPtr = bftEngine::IReplica::createNewRoReplica(
+    m_replicaPtr = bftEngine::ReplicaFactory::createRoReplica(
         replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm.get(), m_metadataStorage);
     m_stateTransfer->addOnTransferringCompleteCallback([this](std::uint64_t) {
       std::vector<concord::client::reconfiguration::State> stateFromReservedPages;
@@ -321,7 +322,7 @@ void Replica::createReplicaAndSyncState() {
   ConcordAssertNE(m_kvBlockchain, nullptr);
   auto requestHandler = KvbcRequestHandler::create(m_cmdHandler, cronTableRegistry_, *m_kvBlockchain, aggregator_);
   registerReconfigurationHandlers(requestHandler);
-  m_replicaPtr = bftEngine::IReplica::createNewReplica(
+  m_replicaPtr = bftEngine::ReplicaFactory::createReplica(
       replicaConfig_,
       requestHandler,
       m_stateTransfer,
