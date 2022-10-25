@@ -1,0 +1,47 @@
+// Copyright 2021 VMware, all rights reserved
+//
+// UTT Admin's api
+
+syntax = "proto3";
+// [TODO-UTT] Condense this package identifier into fewer tokens?
+package vmware.concord.utt.admin.api.v1; 
+
+// Privacy Admin Service Interface
+service AdminService {
+    rpc adminChannel(stream AdminRequest) returns (stream AdminResponse);
+}
+
+message DeployPrivacyAppRequest {
+    optional bytes config = 1;
+}
+
+message DeployPrivacyAppResponse {
+    optional string err = 1;    // Returns any error generated during deployment
+    optional string privacy_contract_addr = 2; // Address of the deployed privacy contract
+    optional string token_contract_addr = 3; // Address of the deployed token contract
+}
+
+message CreatePrivacyBudgetRequest {
+    optional string user_id = 1;
+}
+
+message CreatePrivacyBudgetResponse {
+    optional string err = 1;
+    optional bytes budget = 2;
+    optional bytes signature = 3;
+}
+
+message AdminRequest {
+    oneof req {
+        DeployPrivacyAppRequest deploy = 1;
+        CreatePrivacyBudgetRequest create_budget = 2;
+    }
+}
+
+message AdminResponse {
+    optional string err = 1;
+    oneof resp {
+        DeployPrivacyAppResponse deploy = 2;
+        CreatePrivacyBudgetResponse create_budget = 3;
+    }
+}
